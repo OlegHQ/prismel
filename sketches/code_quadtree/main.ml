@@ -217,8 +217,8 @@ let init files index _ =
    cx=0.5;cy=0.5;zoom= !initial_zoom;target_x=0.5;target_y=0.5;target_zoom= !initial_zoom;
     hover=None;show_ui=true;press=None;dragged=false;index;show_cells=false;scene_cache=None;
     art_cache=None;art_builds=0;preview_source=None;
-    art_ids=Array.init 64 (fun _ -> Scene_command.Display_list.fresh_id ());
-    overlay_ids=Array.init 64 (fun _ -> Scene_command.Display_list.fresh_id ())}
+    art_ids=Array.init 64 (fun _ -> Ink.fresh_id ());
+    overlay_ids=Array.init 64 (fun _ -> Ink.fresh_id ())}
 
 let clamp a b v = max a (min b v)
 let update m (f:Frame.t) =
@@ -304,30 +304,30 @@ let view m (f:Frame.t) =
   let wrap node = let x,y,w,h=clip in Scene.clip ~at:(x,y) ~w ~h [node] in
   let drawing_art=ref true in
   let commands = ref [] in
-  let packed=Packed_ink.create ~ids:m.art_ids ~version:(Int64.of_int f.count)
+  let packed=Ink.create ~ids:m.art_ids ~version:(Int64.of_int f.count)
     ?clip:(if !reference_draws then None else Some clip) () in
-  let flush () = Option.iter (fun node -> commands:=node::!commands) (Packed_ink.take packed) in
+  let flush () = Option.iter (fun node -> commands:=node::!commands) (Ink.take packed) in
   let emit node = flush ();commands :=
     (if !drawing_art && not !reference_draws then wrap node else node) :: !commands in
   let rect x y w h ?fill ?stroke () =
     if w>0 && h>0 then if !reference_draws then
       emit (Scene.rect ~at:(x,y) ~w ~h ?fill ?stroke ()) else begin
-      Option.iter (Packed_ink.rect packed x y w h) fill;
-      Option.iter (Packed_ink.outline packed x y w h) stroke
+      Option.iter (Ink.rect packed x y w h) fill;
+      Option.iter (Ink.outline packed x y w h) stroke
     end in
   let rectf x y w h color =
     (* Keep the reference producer unbatched without reintroducing integer
        snapping in the comparison path. Both producers use the same floats. *)
     if !reference_draws then begin
-      flush ();Packed_ink.rectf packed x y w h color;flush ()
-    end else Packed_ink.rectf packed x y w h color in
+      flush ();Ink.rectf packed x y w h color;flush ()
+    end else Ink.rectf packed x y w h color in
   let line x y x2 y2 color =
     if !reference_draws then emit (Scene.line ~from_:(x,y) ~to_:(x2,y2) ~color ())
-    else Packed_ink.line packed x y x2 y2 color in
+    else Ink.line packed x y x2 y2 color in
   let linef x y x2 y2 color =
     if !reference_draws then begin
-      flush ();Packed_ink.linef packed x y x2 y2 color;flush ()
-    end else Packed_ink.linef packed x y x2 y2 color in
+      flush ();Ink.linef packed x y x2 y2 color;flush ()
+    end else Ink.linef packed x y x2 y2 color in
   let text x y size color value = emit (Scene.text ~at:(x,y) ~size ~color value) in
   let visible x y s = x+.s >= 24. && y+.s >= 74. &&
     x < float art_right && y < float (art_bottom f) in
@@ -449,9 +449,9 @@ let view m (f:Frame.t) =
         if !reference_draws then wrap art else art in
   commands:=[];
   drawing_art:=false;
-  Packed_ink.set_clip packed None;
+  Ink.set_clip packed None;
   (* Overlay publications must not reuse an identity retained by the artwork. *)
-  Packed_ink.set_ids packed m.overlay_ids;
+  Ink.set_ids packed m.overlay_ids;
   let inspected=if not !hover_bench && (!smoke || !tour || !export<>"") then None else
     Option.bind m.hover (fun n -> Option.map (fun file ->
       let x,y=screen m f n.x n.y in

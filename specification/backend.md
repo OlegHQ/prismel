@@ -35,12 +35,15 @@ examples / sketches / pxui / editor / procedural / pdk_prismel
                          |             prismel_math
                          |
                          v
-                      prismel
+                      prismel ----------------------> runtime_input ---> sdl3
                          |
                          v
-                      runtime_next ------> sdl3
+                  prismel_execution
                          |
                          v
+                      runtime ------> sdl3     runtime_resources ---> sdl3,
+                         |                     (used by prismel and      sdl3_image,
+                         v                      prismel_execution)       sdl3_ttf, sdl3_mixer
                      ogpu (virtual) ---> ogpu_core ---> native_layer_token
 
                     ogpu_metal (implementation) ---> ogpu_metal_native ---> metal
@@ -58,9 +61,18 @@ branches above the core/exact/spatial layers. Modeling operations are in
 `pdk_io`.
 `Pdk` keeps the public module paths stable, and
 the dependency gate rejects upward edges from lower to higher PDK libraries.
+
+`prismel` never depends directly on an SDL library: window, event, clipboard,
+cursor, image, font and audio services sit behind `runtime`,
+`runtime_input` and `runtime_resources`, and the dependency gate rejects a
+direct `prismel` → `sdl3*` edge. `Runtime` owns one window or offscreen
+target's lifecycle and its single `stats` record (frame, presentation, draw,
+pass and submission counts beside cache, upload, GPU-timing and retained-plan
+counters); `Prismel_execution` is the frame coordinator above it and
+re-exports that record rather than defining its own.
 `pdk_prismel` is the separate renderer conversion leaf.
 
-`runtime_next` owns process setup, initial-domain lifecycle, the SDL3 window, its
+`runtime` owns process setup, initial-domain lifecycle, the SDL3 window, its
 Metal view, resize scheduling, and presentation. It depends on `sdl3` and the
 virtual `ogpu` only: it obtains the driver through `Ogpu.Impl.create_driver`,
 and the surface configuration carries the window's `Native_layer_token`, which
@@ -292,7 +304,7 @@ teardown; its coordinator is destroyed during `on_stop` cleanup.
 `Sketch` owns frame time and ordered input events. The execution coordinator
 owns GPU submissions and presentation facts; its step result carries no second
 event queue, clock, or input snapshot.
-SDL3 file-drop events enter `Runtime_next_input` as validated full paths only.
+SDL3 file-drop events enter `Runtime_input` as validated full paths only.
 The pump never reads file bytes; the sketch receives the same path through
 `Event.FileDropped` and decides when to perform I/O. The input queue retains
 its event-count bound, with no separate file-size limit or byte payload.
@@ -338,7 +350,7 @@ pool, but all results join before crossing the native boundary.
 
 `prismel_pathtracer` is an ordinary sibling library on the virtual `ogpu`
 API: it leases the presenting window's OGPU device through
-`Prismel_next_execution.acquire_gpu` (or a lazily created headless device when
+`Prismel_execution.acquire_gpu` (or a lazily created headless device when
 no window exists), owns one queue on it, and builds its acceleration
 structures, library, pipelines, and frames through OGPU encoders. Its
 packed-mesh path builds one bottom-level structure and a top-level instance
@@ -412,11 +424,11 @@ batch from a different blend mode. Native regressions compare 63, 64, 65, and
 1,024 primitives with identity-barrier reference preparation, alpha/additive
 overlap, fractional transforms, clipping, repeated frames, 1×/2× backing sizes,
 and zero handle deltas.
-The frame coordinator and runtime orchestrator use the executor's pipeline
+The frame coordinator and runtime use the executor's pipeline
 family and OGPU blend types directly, so preparing a draw no longer maps two
 duplicate enum sets on the way to the backend.
 Sampled draws use the same named record from Scene3 staging through runtime
-and scene execution. The orchestrator passes the list through without a
+and scene execution. The runtime passes the list through without a
 per-draw tuple conversion; an unchanged 1× runtime frame preserves the list's
 identity, while Retina scaling copies only records whose viewport or scissor
 changes. Batch coalescing also requires an equal sample count.
@@ -442,7 +454,7 @@ texture) and its bound textures. Staging keeps it as its own
 `Ui_layer`. PXUI reaches the batch builder through `Scene.Private.Ui_batch`,
 so its library depends on `prismel` without a direct `scene_command` edge.
 Like `view3d`, the Render_ir materializer skips it, and enclosing
-Scene transforms and clips do not apply. `Prismel_next_execution.Private
+Scene transforms and clips do not apply. `Prismel_execution.Private
 .lower_ui` turns each batch into one indexed draw of the `Ui` pipeline family:
 vertex pulling reads the instances, a 24-byte affine uniform maps logical
 canvas units to clip space, and the logical scissor is scaled to physical
@@ -549,18 +561,18 @@ never clear a text value.
 PXUI splitters request horizontal or vertical resize cursors while hovered or
 captured. The Sketch UI host sends that request through `Sketch.set_cursor` and
 the execution/runtime boundary, restoring the default cursor when no control
-requests one. `Runtime_next` creates SDL cursor handles lazily, reuses one per
+requests one. `Runtime` creates SDL cursor handles lazily, reuses one per
 shape, and destroys them with the window. PXUI never imports SDL3.
 
 # Relative pointer mode
 
 `Sketch.set_relative_mouse` is the only public entry to SDL relative mouse
-mode: it runs `Prismel_next_execution.set_relative_mouse` →
-`Runtime_next_orchestrator.set_relative_mouse` → `Runtime_next.set_relative_mouse`
+mode: it runs `Prismel_execution.set_relative_mouse` →
+`Runtime.set_relative_mouse`
 (`Sdl3.Window.set_relative_mouse`) and switches the shared
-`Runtime_next_input` source to relative accounting, so `Frame.mouse_delta`
+`Runtime_input` source to relative accounting, so `Frame.mouse_delta`
 sums SDL `xrel`/`yrel` (the event pump reports them through
-`Runtime_next_input.add_motion`; `Sdl3.Event.poll_coalesced` sums the relative
+`Runtime_input.add_motion`; `Sdl3.Event.poll_coalesced` sums the relative
 motion of the samples it drops) instead of absolute differences that stop at
 the window edge. Frame aggregation lives in this shared input source; the SDL3
 binding exposes no second mouse-delta reduction helper. No SDL value crosses

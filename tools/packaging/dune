@@ -20,11 +20,11 @@
  (libraries unix))
 
 (test
- (name check_runtime_next_licenses)
- (modules check_runtime_next_licenses)
+ (name check_runtime_licenses)
+ (modules check_runtime_licenses)
  (libraries unix yojson)
  (deps ../../LICENSE ../../specification/licenses.md ../../specification/backend.md
-  runtime_next_license_manifest.json
+  runtime_license_manifest.json
   (source_tree ../../lib/sdl3) (source_tree ../../lib/sdl3_image)
   (source_tree ../../lib/sdl3_ttf) (source_tree ../../lib/sdl3_mixer))
  (action (run %{test} --root %{workspace_root})))

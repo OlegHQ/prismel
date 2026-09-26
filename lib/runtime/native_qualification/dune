@@ -1,7 +1,7 @@
 (executable
- (name runtime_next_native_qualification)
- (libraries runtime_next runtime_next_input scene_execution ogpu sdl3 unix yojson))
+ (name runtime_native_qualification)
+ (libraries runtime runtime_input scene_execution ogpu sdl3 unix yojson))
 
 (rule
  (alias qualification)
- (action (run %{exe:runtime_next_native_qualification.exe})))
+ (action (run %{exe:runtime_native_qualification.exe})))

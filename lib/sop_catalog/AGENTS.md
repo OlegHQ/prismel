@@ -4,7 +4,12 @@ Define an inspectable editor SOP once in `sop_catalog`: keep its parameter
 record, stable node key, runtime operation identity, display label, category
 path, input arity, defaults, and rebuild closure together through
 `[@@deriving sop_params, sop_node]`, then
-mark the module `[@@sop.register]`. The PPX-generated deterministic manifest is
+mark the module `[@@sop.register]`. Write the node as
+`let build = parameters_build (fun ~label parameters input0 ... -> Sop.op ...)`
+and `let factory = parameters_factory build`; the generated build owns the
+input-arity match, optional-slot presence, `Node.parameterize`, and the
+schema-derived cache key, so never hand-write that boilerplate. Add a `create`
+(and its `.mli` entry) only for a node with callers outside this library. The PPX-generated deterministic manifest is
 the only node-menu registry. Do not add a parallel hand-written factory list,
 mutable registration initializer, or menu-only parameter defaults. Catalog
 tests must reject duplicate keys, instantiate every registered factory with

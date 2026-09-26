@@ -57,17 +57,17 @@ let require_main_domain () =
 
 let load filename =
   require_main_domain ();
-  match Prismel_next_resources.Image.load_file filename with
-  | Error error -> Error ("Texture load failed: " ^ Format.asprintf "%a" Prismel_next_resources.pp_error error)
+  match Runtime_resources.Image.load_file filename with
+  | Error error -> Error ("Texture load failed: " ^ Format.asprintf "%a" Runtime_resources.pp_error error)
   | Ok image ->
-      Fun.protect ~finally:(fun()->ignore(Prismel_next_resources.Image.destroy image))(fun()->
-        match Prismel_next_resources.Image.size image,Prismel_next_resources.Image.pixels image with
+      Fun.protect ~finally:(fun()->ignore(Runtime_resources.Image.destroy image))(fun()->
+        match Runtime_resources.Image.size image,Runtime_resources.Image.pixels image with
         |Ok(width,height),Ok bytes->
             let pixels=Array.init(width*height)(fun index->let offset=index*4 in
               Color.rgba(Char.code(Bytes.get bytes offset))(Char.code(Bytes.get bytes(offset+1)))
                 (Char.code(Bytes.get bytes(offset+2)))(Char.code(Bytes.get bytes(offset+3))))in
             Ok{width;height;pixels;mipmaps=[||];id=fresh_id()}
-        |Error error,_|_,Error error->Error("Texture load failed: "^Format.asprintf"%a"Prismel_next_resources.pp_error error))
+        |Error error,_|_,Error error->Error("Texture load failed: "^Format.asprintf"%a"Runtime_resources.pp_error error))
 
 let load_exn filename =
   match load filename with

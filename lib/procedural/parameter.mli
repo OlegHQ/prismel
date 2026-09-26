@@ -140,6 +140,11 @@ val view : 'record schema -> 'record -> field_view list
     cache identity cannot drift apart. *)
 val key : 'record schema -> 'record -> string
 
+(** [key] restricted to [Cook]-impact fields. [Node.parameterize] folds it into
+    the session cache identity, so every cook-affecting schema field changes a
+    parameterized node's cache key and view/export edits never invalidate it. *)
+val cook_key : 'record schema -> 'record -> string
+
 (** Apply a named untyped UI value through its typed field template. [None]
     means the name was not part of this schema. Hard bounds normalize values;
     soft bounds do not. The returned impact is [None] when the effective value

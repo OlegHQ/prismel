@@ -76,11 +76,10 @@ scope depth, O(S) retained nodes. Each file also stores a fixed 32-entry profile
 Only one document is open in the server at a time.
 
 Rendering culls whole offscreen subtrees, collapses subpixel nodes, and caps
-terminal stipple grids at 16 by 16. Adjacent same-color marks merge in owned,
-geometrically growing vertex/index buffers, preserving painter order. Lines
-and strokes use the existing shared `Scene_command.Shape2`/`Path` tessellators. The
-result is published through `Scene.display_list` with internal clipping and
-stable segment identities; text remains the native font path. This is packed
+terminal stipple grids at 16 by 16. Marks go through `Prismel.Ink`: adjacent same-color marks merge in owned,
+geometrically growing vertex/index buffers, preserving painter order, and
+lines and strokes use the shared Scene tessellators. `Ink.take` publishes
+Scene nodes with internal clipping and stable segment identities; text remains the native font path. This is packed
 triangle geometry, not hardware instancing. The renderer directly packs long
 geometry runs with per-vertex colors before native resource preparation, avoiding
 temporary per-color draw/cache work. The immutable artwork is cached
@@ -92,12 +91,12 @@ Camera changes still rebuild visible geometry; the cache does not establish
 constant-cost animated zoom. Interactive runs use real elapsed time for camera
 easing and native vsync. Finite smoke/benchmark/export runs use the fixed clock
 so their inputs remain reproducible.
-There are no frame threads, new rasterizers, or public API additions.
+There are no frame threads or new rasterizers.
 
 ## Verification and measurement
 
 ```sh
-dune runtest lib/prismel_next_execution lib/scene_execution sketches/code_quadtree
+dune runtest lib/prismel_execution lib/scene_execution sketches/code_quadtree
 dune exec sketches/code_quadtree/test_source_index.exe -- --live
 dune exec sketches/code_quadtree/main.exe -- --verify
 dune exec sketches/code_quadtree/main.exe -- --index-only

@@ -2,7 +2,7 @@ module P=Prismel_pathtracer
 let rgb=P.Linear_color.rgb
 let get=function Ok value->value|Error message->failwith message
 let execution=function Ok value->value|Error error->
-  failwith(Format.asprintf"%a"Prismel_next_execution.pp_error error)
+  failwith(Format.asprintf"%a"Prismel_execution.pp_error error)
 let live_handles=let _,live=Ogpu.Impl.create_driver()in live
 
 let run () =
@@ -18,17 +18,17 @@ let run () =
   let reference=let tracer=get(P.create ~width:48 ~height:32 scene)in
     Fun.protect ~finally:(fun()->P.destroy tracer)(fun()->
       get(P.render tracer camera);get(P.flush tracer);Bytes.copy(P.pixels tracer))in
-  let config={Prismel_next_execution.default_configuration with
+  let config={Prismel_execution.default_configuration with
     logical_width=48;logical_height=32;drawable_width=48;drawable_height=32;
     title="GPU film test"} in
-  let coordinator=execution(Prismel_next_execution.create config)in
-  Fun.protect ~finally:(fun()->execution(Prismel_next_execution.destroy coordinator))
+  let coordinator=execution(Prismel_execution.create config)in
+  Fun.protect ~finally:(fun()->execution(Prismel_execution.destroy coordinator))
     (fun()->
       let tracer=get(P.create ~width:48 ~height:32 scene)in
       Fun.protect ~finally:(fun()->P.destroy tracer)(fun()->
         get(P.render tracer camera);get(P.flush tracer);
         let image=Prismel.Image.Private.resource(P.image tracer)in
-        let texture=match Prismel_next_resources.Image.Private.gpu_snapshot image with
+        let texture=match Runtime_resources.Image.Private.gpu_snapshot image with
           |Some(_,_,_,texture)->texture
           |None->failwith"traced film was published through CPU image storage"in
         let direct=match Ogpu.Backend.read_texture texture ~bytes_per_row:(48*4)with
@@ -51,7 +51,7 @@ let run () =
         Hashtbl.add textures (Ogpu.Backend.texture_id texture) ();
         for _=1 to 30 do
           get(P.render tracer camera);get(P.flush tracer);
-          match Prismel_next_resources.Image.Private.gpu_snapshot image with
+          match Runtime_resources.Image.Private.gpu_snapshot image with
           |Some(_,_,_,texture)->Hashtbl.replace textures
               (Ogpu.Backend.texture_id texture)()
           |None->failwith"GPU film reverted to CPU storage"

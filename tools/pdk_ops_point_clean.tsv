@@ -1,9 +1,0 @@
-# Former qualified Ops path<TAB>checked family path; * means constructor prefix.
-Ops.point_replicate_shape	Point_replication.shape
-Ops.point_replicate_velocity_stretch	Point_replication.velocity_stretch
-Ops.Replicate_*	Point_replication.Replicate_
-Ops.point_replicate	Point_replication.run_checked
-Ops.clean_overlap_policy	Clean_ops.overlap_policy
-Ops.Keep_first_overlap	Clean_ops.Keep_first_overlap
-Ops.Delete_overlap_pairs	Clean_ops.Delete_overlap_pairs
-Ops.clean	Clean_ops.run_checked

@@ -1,0 +1,28 @@
+(library
+ (name runtime_resources)
+ (public_name prismel.runtime_resources)
+ (modules runtime_resources)
+ (libraries sdl3 sdl3_image sdl3_ttf sdl3_mixer ogpu unix))
+
+(executable
+ (name test_main)
+ (modules test_main test_runtime_resources test_resources_font test_resources_audio test_png_rows)
+ (libraries runtime_resources unix))
+
+(rule
+ (aliases runtest test_runtime_resources)
+ (action (run %{exe:test_main.exe} test_runtime_resources)))
+
+(rule
+ (aliases runtest test_resources_font)
+ (action (run %{exe:test_main.exe} test_resources_font)))
+
+(rule
+ (aliases runtest test_resources_audio)
+ (action
+  (setenv SDL_AUDIODRIVER dummy
+   (run %{exe:test_main.exe} test_resources_audio))))
+
+(rule
+ (aliases runtest test_png_rows)
+ (action (run %{exe:test_main.exe} test_png_rows)))

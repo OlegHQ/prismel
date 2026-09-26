@@ -1,13 +1,12 @@
 let tests = [
-  "test_runtime_next", Test_runtime_next.run;
-  "test_runtime_next_visibility", Test_runtime_next_visibility.run;
-  "test_runtime_next_scaling", Test_runtime_next_scaling.run;
-  "test_runtime_next_scene3_lighting", Test_runtime_next_scene3_lighting.run;
-  "test_runtime_next_scene3_instances", Test_runtime_next_scene3_instances.run;
-  "test_runtime_next_scene2_argument_shader", Test_runtime_next_scene2_argument_shader.run;
-  "test_runtime_next_scene2_argument", Test_runtime_next_scene2_argument.run;
-  "test_runtime_next_orchestrator", Test_runtime_next_orchestrator.run;
-  "test_runtime_next_input", Test_runtime_next_input.run;
+  "test_runtime", Test_runtime.run;
+  "test_runtime_visibility", Test_runtime_visibility.run;
+  "test_runtime_scaling", Test_runtime_scaling.run;
+  "test_runtime_scene3_lighting", Test_runtime_scene3_lighting.run;
+  "test_runtime_scene3_instances", Test_runtime_scene3_instances.run;
+  "test_runtime_scene2_argument_shader", Test_runtime_scene2_argument_shader.run;
+  "test_runtime_scene2_argument", Test_runtime_scene2_argument.run;
+  "test_runtime_input", Test_runtime_input.run;
 ]
 
 let () =

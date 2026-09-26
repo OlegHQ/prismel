@@ -977,7 +977,7 @@ let run_1 () =
 (* Runtime key names must reach the Input keys hosts match on. *)
 let run_2 () =
   List.iter (fun (scancode, expected) ->
-    let name = Runtime_next_input_sdl3.key_name ~scancode 0 in
+    let name = Runtime_input_sdl3.key_name ~scancode 0 in
     if Prismel.Event.Private.key_of_name name <> expected then
       fail ("runtime key " ^ name ^ " did not map to its Input key"))
     Prismel.Input.[ 79, ArrowRight; 80, ArrowLeft; 81, ArrowDown; 82, ArrowUp;

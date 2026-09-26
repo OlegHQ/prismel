@@ -1,0 +1,112 @@
+type t
+val clipboard_set_text : string -> (unit, Ogpu.Error.t) result
+val clipboard_get_text : unit -> (string, Ogpu.Error.t) result
+
+(** The window's OGPU device, shared with GPU film producers such as the path
+    tracer so Scene can sample their textures without staging. *)
+val device : t -> (Ogpu.Backend.device,Ogpu.Error.t) result
+
+(** One record for window and offscreen targets. [frames] counts successful
+    renders and replays; [presented] those that reached the display. *)
+type stats = { frames:int64; presented:int64; logical_draws:int64;
+  logical_passes:int64; logical_submissions:int64;
+  pipeline_cache_entries:int; mesh_cache_entries:int;
+  uploaded_bytes:int64; gpu_timing_supported:bool; gpu_duration_seconds:float;
+  gpu_sample_count:int64; retained_plan_builds:int64; retained_plan_hits:int64;
+  retained_plan_misses:int64; retained_plan_evictions:int64;
+  retained_plan_executions:int64; retained_plan_entries:int;
+  retained_plan_capacity:int }
+
+val zero_stats : stats
+
+type frame_facts = { logical_width:int; logical_height:int;
+  drawable_width:int; drawable_height:int; pixel_scale_x:float; pixel_scale_y:float }
+type window_facts = {
+  title : string; logical_width : int; logical_height : int;
+  drawable_width : int; drawable_height : int; position : int * int;
+  pixel_density : float; display_scale : float; refresh_rate : float option;
+  vsync : bool;
+}
+val create : ?vsync:bool -> ?hidden:bool -> ?title:string ->
+  width:int -> height:int -> unit -> (t, Ogpu.Error.t) result
+val render : ?clear:(float * float * float * float) -> t ->
+  Scene_execution.draw list -> (bool, Ogpu.Error.t) result
+val render_sampled_resources : ?after_prepare:(unit -> unit) -> ?clear:(float * float * float * float) -> t ->
+  Scene_execution.sampled_draw list -> (bool, Ogpu.Error.t) result
+val render_prepared_sampled_resources :
+  ?after_prepare:(unit -> unit) -> ?clear:(float * float * float * float) -> identity:string -> version:int64 -> t ->
+  Scene_execution.sampled_draw list -> (bool, Ogpu.Error.t) result
+val resize : t -> width:int -> height:int -> (unit, Ogpu.Error.t) result
+val read_pixels : t -> bytes_per_row:int -> (bytes, Ogpu.Error.t) result
+val read_pixels_into : t -> bytes_per_row:int -> destination:bytes ->
+  (unit, Ogpu.Error.t) result
+val stats : t -> stats
+val frame_facts : t -> frame_facts
+val map_logical_rect : frame_facts -> int * int * int * int ->
+  int * int * int * int
+val window_facts : t -> (window_facts, Ogpu.Error.t) result
+(** Cached presentation facts, kept in step with the drawable each frame and
+    requeried after title, position, resize or show. *)
+
+val set_title : t -> string -> (unit, Ogpu.Error.t) result
+val set_position : t -> x:int -> y:int -> (unit, Ogpu.Error.t) result
+val center : t -> (unit, Ogpu.Error.t) result
+val set_bordered : t -> bool -> (unit, Ogpu.Error.t) result
+val set_resizable : t -> bool -> (unit, Ogpu.Error.t) result
+val set_always_on_top : t -> bool -> (unit, Ogpu.Error.t) result
+val set_fullscreen : t -> bool -> (unit, Ogpu.Error.t) result
+val set_relative_mouse : t -> bool -> (unit, Ogpu.Error.t) result
+val set_cursor : t -> [`Default|`Horizontal_resize|`Vertical_resize] ->
+  (unit, Ogpu.Error.t) result
+val set_text_input_area : t -> ((int * int * int * int) * int) option ->
+  (unit, Ogpu.Error.t) result
+(** Hide and capture the pointer, reporting relative motion (fly cameras). *)
+
+val show : t -> (unit, Ogpu.Error.t) result
+val hide : t -> (unit, Ogpu.Error.t) result
+val visible : t -> (bool, Ogpu.Error.t) result
+val minimize : t -> (unit, Ogpu.Error.t) result
+val maximize : t -> (unit, Ogpu.Error.t) result
+val restore : t -> (unit, Ogpu.Error.t) result
+val destroy : t -> (unit, Ogpu.Error.t) result
+type offscreen
+
+(** [?device] borrows a live OGPU device (normally the presenting window's,
+    see [device]) so the offscreen target can be sampled by that window
+    without readback; the offscreen runtime never destroys a borrowed device. *)
+val create_offscreen : ?device:Ogpu.Backend.device -> logical_width:int -> logical_height:int ->
+  width:int -> height:int -> unit -> (offscreen,Ogpu.Error.t) result
+val render_offscreen : ?after_prepare:(unit -> unit) -> ?clear:(float*float*float*float) -> offscreen ->
+  Scene_execution.sampled_draw list -> (bool,Ogpu.Error.t) result
+val replay_prepared_sampled_resources :
+  ?clear:(float * float * float * float) -> identity:string -> version:int64 -> t ->
+  (bool option, Ogpu.Error.t) result
+val render_offscreen_prepared : ?after_prepare:(unit -> unit) -> ?clear:(float*float*float*float) ->
+  identity:string -> version:int64 -> offscreen ->
+  Scene_execution.sampled_draw list -> (bool,Ogpu.Error.t) result
+val read_offscreen : offscreen -> bytes_per_row:int -> (bytes,Ogpu.Error.t) result
+val read_offscreen_into : offscreen -> bytes_per_row:int -> destination:bytes ->
+  (unit,Ogpu.Error.t) result
+val resize_offscreen : offscreen -> logical_width:int -> logical_height:int ->
+  width:int -> height:int -> (unit,Ogpu.Error.t) result
+val offscreen_stats : offscreen -> stats
+val offscreen_device : offscreen -> (Ogpu.Backend.device,Ogpu.Error.t) result
+
+(** The completed frame's texture on the offscreen device. *)
+val offscreen_target : offscreen -> (Ogpu.Backend.texture,Ogpu.Error.t) result
+val offscreen_facts : offscreen -> frame_facts
+val destroy_offscreen : offscreen -> (unit,Ogpu.Error.t) result
+module Private : sig
+  val scene2_textured_direct : string
+  val scene2_textured_argument : string
+  val scale_draws : frame_facts -> Scene_execution.draw list -> Scene_execution.draw list
+  val scale_sampled_resources : frame_facts ->
+    Scene_execution.sampled_draw list -> Scene_execution.sampled_draw list
+  type scaled_cache
+  val new_scaled_cache : unit -> scaled_cache
+
+  (** [scale_sampled_resources] memoized on the physical identity of the input
+      list and facts: a retained scene passes the same list every frame. *)
+  val scale_sampled_cached : scaled_cache -> frame_facts ->
+    Scene_execution.sampled_draw list -> Scene_execution.sampled_draw list
+end

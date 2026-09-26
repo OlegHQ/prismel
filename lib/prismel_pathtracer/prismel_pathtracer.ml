@@ -146,7 +146,7 @@ type mesh_build = {
 }
 
 type t = {
-  lease : Prismel_next_execution.gpu;
+  lease : Prismel_execution.gpu;
   device : B.device;
   queue : B.queue;
   library : B.library;
@@ -169,7 +169,7 @@ type t = {
   mutable history_epoch : int;
   mutable pending : pending option;
   mutable completed : int;
-  resource : Prismel_next_resources.Image.t;
+  resource : Runtime_resources.Image.t;
   image : Prismel.Image.t;
   width : int;
   height : int;
@@ -871,12 +871,12 @@ let create ?(spp = 1) ?(bounces = 6) ?(exposure = 1.) ?(round_samples = 4) ~widt
   else
     let* lease =
       Result.map_error
-        (Format.asprintf "%a" Prismel_next_execution.pp_error)
-        (Prismel_next_execution.acquire_gpu ())
+        (Format.asprintf "%a" Prismel_execution.pp_error)
+        (Prismel_execution.acquire_gpu ())
     in
-    let device = Prismel_next_execution.gpu_device lease
-    and queue = Prismel_next_execution.gpu_queue lease in
-    let release () = Prismel_next_execution.release_gpu lease in
+    let device = Prismel_execution.gpu_device lease
+    and queue = Prismel_execution.gpu_queue lease in
+    let release () = Prismel_execution.release_gpu lease in
     let created =
       let* () =
         gpu (Ogpu.Caps.require ~operation:"Prismel_pathtracer.create" (B.capabilities device) Ray_tracing)
@@ -916,8 +916,8 @@ let create ?(spp = 1) ?(bounces = 6) ?(exposure = 1.) ?(round_samples = 4) ~widt
       let pixels = Bytes.make (pixel_count * 4) '\000' in
       let* resource =
         Result.map_error
-          (Format.asprintf "%a" Prismel_next_resources.pp_error)
-          (Prismel_next_resources.Image.create ~width ~height ~rgba:(Bytes.copy pixels))
+          (Format.asprintf "%a" Runtime_resources.pp_error)
+          (Runtime_resources.Image.create ~width ~height ~rgba:(Bytes.copy pixels))
       in
       let film index =
         gpu
@@ -956,7 +956,7 @@ let create ?(spp = 1) ?(bounces = 6) ?(exposure = 1.) ?(round_samples = 4) ~widt
           light_count = List.length scene.lights;
           accum;
           outputs = [| output0; output1 |];
-          shared_film = Prismel_next_execution.gpu_shared lease;
+          shared_film = Prismel_execution.gpu_shared lease;
           next_output_slot = 0;
           history_color = [| color0; color1 |];
           history_geometry = [| geometry0; geometry1 |];
@@ -1102,14 +1102,14 @@ let size t = (t.width, t.height)
 let image t = t.image
 
 let pixels t =
-  match Prismel_next_resources.Image.Private.gpu_snapshot t.resource with
+  match Runtime_resources.Image.Private.gpu_snapshot t.resource with
   | None -> t.pixels
   | Some _ -> (
-      match Prismel_next_resources.Image.pixels t.resource with
+      match Runtime_resources.Image.pixels t.resource with
       | Ok pixels ->
           t.pixels <- pixels;
           pixels
-      | Error error -> failwith (Format.asprintf "%a" Prismel_next_resources.pp_error error))
+      | Error error -> failwith (Format.asprintf "%a" Runtime_resources.pp_error error))
 
 (* Publishes a completed frame's pixels unless a reset made them obsolete. *)
 let publish t (pending : pending) =
@@ -1125,14 +1125,14 @@ let publish t (pending : pending) =
     let* () =
       if t.shared_film then
         Result.map_error
-          (Format.asprintf "%a" Prismel_next_resources.pp_error)
-          (Prismel_next_resources.Image.Private.replace_gpu t.resource film)
+          (Format.asprintf "%a" Runtime_resources.pp_error)
+          (Runtime_resources.Image.Private.replace_gpu t.resource film)
       else
         let* rgba = gpu (B.read_texture film ~bytes_per_row:(t.width * 4)) in
         t.pixels <- rgba;
         Result.map_error
-          (Format.asprintf "%a" Prismel_next_resources.pp_error)
-          (Prismel_next_resources.Image.replace t.resource ~width:t.width ~height:t.height ~rgba)
+          (Format.asprintf "%a" Runtime_resources.pp_error)
+          (Runtime_resources.Image.replace t.resource ~width:t.width ~height:t.height ~rgba)
     in
     if not pending.preview then t.completed <- t.completed + 1;
     Ok ()
@@ -1354,4 +1354,4 @@ let destroy t =
       t.history_geometry.(1);
     ];
   Array.iter (fun film -> release (fun () -> B.destroy_texture film)) t.outputs;
-  Prismel_next_execution.release_gpu t.lease
+  Prismel_execution.release_gpu t.lease

@@ -5,7 +5,7 @@ description: Add a GPU feature to OGPU in prismel, capability-gated and implemen
 
 # Add an OGPU feature
 
-1. Name the consumer (`runtime_next`, `scene_execution`, `prismel_pathtracer`)
+1. Name the consumer (`runtime`, `scene_execution`, `prismel_pathtracer`)
    and the `Ogpu_core.Caps.feature` that gates it. Reuse an existing feature
    when one fits; otherwise add the variant and its `t` field in
    `lib/ogpu_core/caps.ml/.mli` and teach `has`/`require` about it. Baseline

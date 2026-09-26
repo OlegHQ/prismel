@@ -4,22 +4,14 @@
  (libraries unix))
 
 (executable
- (name pdk_ops_codemod)
- (modules pdk_ops_codemod))
-
-(executable
- (name pdk_ops_move_block)
- (modules pdk_ops_move_block))
-
-(executable
  (name bench_sdl3)
  (modules bench_sdl3)
  (libraries prismel.sdl3 prismel.sdl3_mixer unix yojson))
 
 (executable
- (name resource_probe_next)
- (modules resource_probe_next)
- (libraries prismel_next_resources unix yojson))
+ (name resource_probe)
+ (modules resource_probe)
+ (libraries runtime_resources unix yojson))
 
 (rule
  (targets bench_metal_ffi_bridge.o libbench_metal_ffi_stubs.a
@@ -160,7 +152,7 @@
 (executable
  (name bench_scene2_ir)
  (modules bench_scene2_ir)
- (libraries prismel_next_execution scene_command unix))
+ (libraries prismel_execution scene_command unix))
 
 (executable
  (name bench_pdk_ops)
@@ -230,4 +222,4 @@
 (executable
  (name bench_input)
  (modules bench_input)
- (libraries runtime_next_input prismel.sdl3 unix))
+ (libraries runtime_input prismel.sdl3 unix))

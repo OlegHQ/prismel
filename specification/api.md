@@ -144,12 +144,19 @@ exact values regardless of domain count or work-stealing order.
 - non-visual `text_input_region` metadata for focused native text entry;
 - nested translate, rotate, scale, and general groups.
 
+`Ink` packs thousands of small rect/line/outline marks into painter-ordered,
+retained Scene segments: adjacent same-color marks share one buffer, and
+`Ink.take` returns an ordinary `Scene.node` with stable segment ids and an
+optional internal clip. It matches the equivalent Scene nodes pixel for pixel
+and is the public route to packed 2D geometry; the underlying display-list
+constructor stays in `Scene.Private`.
+
 The installed runtime, OGPU, and Metal libraries do not add a second public
 Scene vocabulary. Their lowering, resource snapshots, and orchestration remain
 private implementation machinery behind the same immutable `Scene`/`Scene3`
 values. Native Metal is the only renderer and is not selected through public
 scene data or an environment flag.
-The transitional `Prismel_next_api` re-export is gone; native callers use
+The transitional `Prismel_api` re-export is gone; native callers use
 `Prismel` directly.
 
 `Scene.text_input_region` is pure scene data. At the render boundary its

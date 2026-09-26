@@ -1,6 +1,6 @@
 let get = function
   | Ok value -> value
-  | Error error -> failwith (Format.asprintf "%a" Prismel_next_execution.pp_error error)
+  | Error error -> failwith (Format.asprintf "%a" Prismel_execution.pp_error error)
 
 let command index : Scene_command.Render_ir.command =
   let x = float (index mod 32) in
@@ -41,11 +41,11 @@ let percentile values fraction =
   sorted.(int_of_float (ceil (fraction *. float (Array.length sorted))) - 1)
 
 let () =
-  let config : Prismel_next_execution.configuration =
+  let config : Prismel_execution.configuration =
     { logical_width = 64; logical_height = 64;
       drawable_width = 64; drawable_height = 64;
       title = "scene2-ir-benchmark"; vsync = false } in
-  let execution = get (Prismel_next_execution.create_offscreen config) in
+  let execution = get (Prismel_execution.create_offscreen config) in
   let retained = make_ir () in
   let copies = Array.init 50 (fun _ -> make_ir ()) in
   let changing = Array.init 50 changing_ir in
@@ -53,7 +53,7 @@ let () =
   if Scene_command.Render_ir.Private.identity retained =
       Scene_command.Render_ir.Private.identity copies.(0) then
     failwith "distinct IR values share an identity";
-  let lower ir = get (Prismel_next_execution.lower_scene2 execution ~density:1
+  let lower ir = get (Prismel_execution.lower_scene2 execution ~density:1
     ~resource:(fun _ -> None) ir) in
   if lower retained <> lower copies.(0) then
     failwith "equivalent IR values lowered differently";
@@ -79,4 +79,4 @@ let () =
   measure "equivalent" 1024 1 (fun index -> copies.(index));
   measure "changing" 48 1 (fun index -> changing.(index));
   measure "streaming" 48 1 (fun index -> streaming.(index));
-  get (Prismel_next_execution.destroy execution)
+  get (Prismel_execution.destroy execution)

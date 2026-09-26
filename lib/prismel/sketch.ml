@@ -33,42 +33,42 @@ let run_state_internal ?(config=default_config)?max_frames ?(after_present=fun m
   let first=frame config 0 0. 0.[]in
   (match config.clock with Fixed dt when not(Float.is_finite dt&&dt>0.)->
     invalid_arg"fixed dt must be finite and positive"|_->());
-  let configuration={Prismel_next_execution.logical_width=config.width;logical_height=config.height;drawable_width=config.width;drawable_height=config.height;title=config.title;vsync}in
-  let get=function Ok x->x|Error e->failwith(Format.asprintf"%a"Prismel_next_execution.pp_error e)in
-  let coordinator=get(Prismel_next_execution.create configuration)in
-  get(Prismel_next_execution.show coordinator);
-  (match Prismel_next_execution.presentation_facts coordinator with
+  let configuration={Prismel_execution.logical_width=config.width;logical_height=config.height;drawable_width=config.width;drawable_height=config.height;title=config.title;vsync}in
+  let get=function Ok x->x|Error e->failwith(Format.asprintf"%a"Prismel_execution.pp_error e)in
+  let coordinator=get(Prismel_execution.create configuration)in
+  get(Prismel_execution.show coordinator);
+  (match Prismel_execution.presentation_facts coordinator with
    |Ok facts->Event.configure~logical_width:facts.logical_width
        ~logical_height:facts.logical_height
    |Error _->());
   let logical_width=ref config.width and logical_height=ref config.height in
   let capture ()=
-    let facts=get(Prismel_next_execution.presentation_facts coordinator)in
-    Prismel_next_execution.capture coordinator
+    let facts=get(Prismel_execution.presentation_facts coordinator)in
+    Prismel_execution.capture coordinator
     |>Result.map(fun bytes->facts.drawable_width,facts.drawable_height,bytes)
-    |>Result.map_error(fun error->Format.asprintf"%a"Prismel_next_execution.pp_error error)in
+    |>Result.map_error(fun error->Format.asprintf"%a"Prismel_execution.pp_error error)in
   let save filename=Result.bind(capture())(fun(width,height,bytes)->
-        match Prismel_next_resources.Canvas.create~width~height with
-        |Error error->Error(Format.asprintf"%a"Prismel_next_resources.pp_error error)
-        |Ok canvas->Fun.protect~finally:(fun()->ignore(Prismel_next_resources.Canvas.destroy canvas))(fun()->
+        match Runtime_resources.Canvas.create~width~height with
+        |Error error->Error(Format.asprintf"%a"Runtime_resources.pp_error error)
+        |Ok canvas->Fun.protect~finally:(fun()->ignore(Runtime_resources.Canvas.destroy canvas))(fun()->
             for y=0 to height-1 do for x=0 to width-1 do let o=(y*width+x)*4 in
               let packed=Int32.logor(Int32.shift_left(Int32.of_int(Char.code(Bytes.get bytes o)))24)(Int32.logor(Int32.shift_left(Int32.of_int(Char.code(Bytes.get bytes(o+1))))16)(Int32.logor(Int32.shift_left(Int32.of_int(Char.code(Bytes.get bytes(o+2))))8)(Int32.of_int(Char.code(Bytes.get bytes(o+3))))))in
-              Prismel_next_resources.Canvas.set_pixel canvas~x~y packed|>Result.get_ok done done;
-            Prismel_next_resources.Canvas.save_png canvas filename
-            |>Result.map_error(fun error->Format.asprintf"%a"Prismel_next_resources.pp_error error)))in
+              Runtime_resources.Canvas.set_pixel canvas~x~y packed|>Result.get_ok done done;
+            Runtime_resources.Canvas.save_png canvas filename
+            |>Result.map_error(fun error->Format.asprintf"%a"Runtime_resources.pp_error error)))in
   Canvas_runtime.install~capture~save;
   relative_current:=Some(fun enabled->
-    match Prismel_next_execution.set_relative_mouse coordinator enabled with
+    match Prismel_execution.set_relative_mouse coordinator enabled with
     |Ok()->Event.Private.set_relative enabled;Ok()
-    |Error error->Error(Format.asprintf"%a"Prismel_next_execution.pp_error error));
+    |Error error->Error(Format.asprintf"%a"Prismel_execution.pp_error error));
   cursor_current:=Some(fun shape->
-    match Prismel_next_execution.set_cursor coordinator shape with
+    match Prismel_execution.set_cursor coordinator shape with
     |Ok()->Ok()
-    |Error error->Error(Format.asprintf"%a"Prismel_next_execution.pp_error error));
+    |Error error->Error(Format.asprintf"%a"Prismel_execution.pp_error error));
   resize_current:=Some(fun~width~height->
-    get(Prismel_next_execution.resize coordinator~logical_width:width
+    get(Prismel_execution.resize coordinator~logical_width:width
       ~logical_height:height~drawable_width:width~drawable_height:height);
-    let facts=get(Prismel_next_execution.presentation_facts coordinator)in
+    let facts=get(Prismel_execution.presentation_facts coordinator)in
     logical_width:=facts.logical_width;logical_height:=facts.logical_height);
   Scene.Private.install_renderer(fun scene->
     (* ponytail: scan scene metadata each frame; move the focused region into
@@ -76,8 +76,8 @@ let run_state_internal ?(config=default_config)?max_frames ?(after_present=fun m
     let area=Scene.Private.text_regions scene
       |>List.find_opt(fun(_,_,_,_,focused,_)->focused)
       |>Option.map(fun(x,y,w,h,_,cursor)->(x,y,w,h),cursor)in
-    get(Prismel_next_execution.set_text_input_area coordinator area);
-    let facts=get(Prismel_next_execution.presentation_facts coordinator)in
+    get(Prismel_execution.set_text_input_area coordinator area);
+    let facts=get(Prismel_execution.presentation_facts coordinator)in
     let density=
       let from_drawable=float facts.drawable_width/.float(max 1 facts.logical_width)in
       max 1(int_of_float(Float.round(max facts.pixel_density from_drawable)))in
@@ -91,14 +91,14 @@ let run_state_internal ?(config=default_config)?max_frames ?(after_present=fun m
       (* Never leave the pointer captured after the sketch stops. *)
       Option.iter(fun set->ignore(set false))!relative_current;
       relative_current:=None;cursor_current:=None;resize_current:=None;
-      Canvas_runtime.clear();ignore(Prismel_next_execution.destroy coordinator))(fun()->on_stop!model)in
+      Canvas_runtime.clear();ignore(Prismel_execution.destroy coordinator))(fun()->on_stop!model)in
   Fun.protect~finally:cleanup(fun()->
     let limit=max_frames in let count=ref 0 in while not !stopped&&Option.fold~none:true~some:(fun limit-> !count<limit)limit do
       Time.update();let events=Event.poll_events()in
       if List.exists(function Event.WindowClosed->true|_->false)events then quit();
       incr count;let dt=match config.clock with Realtime->Time.get_delta_time()|Fixed value->value in
       let base=frame config !count(match config.clock with Realtime->Time.now()|Fixed _->float !count*.dt)dt events in
-      let presentation=get(Prismel_next_execution.presentation_facts coordinator)in
+      let presentation=get(Prismel_execution.presentation_facts coordinator)in
       if presentation.logical_width<> !logical_width
           ||presentation.logical_height<> !logical_height then
         Event.configure~logical_width:presentation.logical_width

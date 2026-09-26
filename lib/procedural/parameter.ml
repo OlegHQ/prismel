@@ -271,25 +271,30 @@ let view schema record = List.map (view_field record) schema.fields
 let append_token buffer token =
   Printf.bprintf buffer "%d:%s" (String.length token) token
 
-let key (schema : 'record schema) record =
+let append_field buffer record (Field field) =
+  append_token buffer field.name;
+  match field.kind with
+  | Toggle -> Buffer.add_string buffer (if field.get record then "b1" else "b0")
+  | Integer _ -> Printf.bprintf buffer "i%d;" (field.get record)
+  | Floating _ -> Printf.bprintf buffer "f%.17g;" (field.get record)
+  | Text -> Buffer.add_char buffer 's'; append_token buffer (field.get record)
+  | Choice choice ->
+      Buffer.add_char buffer 'c';
+      append_token buffer (choice_label choice (field.get record))
+  | Encoded encoding ->
+      Buffer.add_char buffer 'e';
+      append_token buffer (encoding.encode (field.get record))
+
+let encode_key ~cook_only (schema : 'record schema) record =
   let buffer = Buffer.create 128 in
   append_token buffer schema.name;
-  List.iter (fun (Field field) ->
-    append_token buffer field.name;
-    match field.kind with
-    | Toggle -> Buffer.add_string buffer
-        (if field.get record then "b1" else "b0")
-    | Integer _ -> Printf.bprintf buffer "i%d;" (field.get record)
-    | Floating _ -> Printf.bprintf buffer "f%.17g;" (field.get record)
-    | Text -> Buffer.add_char buffer 's'; append_token buffer (field.get record)
-    | Choice choice ->
-        Buffer.add_char buffer 'c';
-        append_token buffer (choice_label choice (field.get record))
-    | Encoded encoding ->
-        Buffer.add_char buffer 'e';
-        append_token buffer (encoding.encode (field.get record)))
-    schema.fields;
+  List.iter (fun (Field field as value) ->
+    if not cook_only || field.impact = Cook then
+      append_field buffer record value) schema.fields;
   Buffer.contents buffer
+
+let key schema record = encode_key ~cook_only:false schema record
+let cook_key schema record = encode_key ~cook_only:true schema record
 
 let apply_field : type record value.
     record -> value kind -> value -> (value -> record -> record) -> impact ->

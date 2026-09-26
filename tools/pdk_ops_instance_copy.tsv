@@ -1,6 +1,0 @@
-# Reviewed qualified Ops copy/instance paths to the owning family.
-Ops.copy_target_*	Instance_copy.copy_target_
-Ops.Copy_target_*	Instance_copy.Copy_target_
-Ops.copy_to_points	Instance_copy.copy_to_points
-Ops.materialize_instances	Instance_copy.materialize_instances
-Ops.duplicate	Instance_copy.duplicate

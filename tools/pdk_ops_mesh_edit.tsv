@@ -1,8 +1,0 @@
-# Former qualified Ops path<TAB>checked mesh-edit family path.
-# Shared Selected_* constructors are handled by pdk_ops_transform.tsv.
-Ops.crease_operation	Mesh_edit_ops.crease_operation
-Ops.Crease_*	Mesh_edit_ops.Crease_
-Ops.rewire_vertices	Mesh_edit_ops.rewire_vertices_checked
-Ops.mirror	Mesh_edit_ops.mirror_checked
-Ops.crease	Mesh_edit_ops.crease_checked
-Ops.convex_hull	Mesh_edit_ops.convex_hull_checked

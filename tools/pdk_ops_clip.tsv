@@ -1,7 +1,0 @@
-# Apply only to reviewed Clip callers; Above/Below/All are common constructors.
-Ops.clip_transform	Plane_clip.clip_transform_checked
-Ops.clip_keep	Plane_clip.keep
-Ops.clip	Plane_clip.clip_checked
-Ops.Above	Plane_clip.Above
-Ops.Below	Plane_clip.Below
-Ops.All	Plane_clip.All

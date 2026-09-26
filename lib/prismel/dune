@@ -5,40 +5,39 @@
   node3 path parallel texture shader3 compute3 input event frame time clipboard image
   canvas canvas_runtime font audio assets mesh camera easy_camera transform_feedback3 shadow3
   scene3 scene3_native_lowering
-  scene native_scene_lowering sketch easy_camera2)
+  scene native_scene_lowering ink sketch easy_camera2)
  (private_modules canvas_runtime scene3_native_lowering native_scene_lowering)
- (libraries prismel_math domainslib lru prismel_next_resources runtime_next_input runtime_next scene_command unix
-  prismel_next_execution
-  runtime_next_orchestrator))
+ (libraries prismel_math domainslib lru runtime_resources runtime_input runtime scene_command unix
+  prismel_execution))
 
 (executable
  (name test_main)
- (modules test_main test_prismel_next_api test_prismel_next_api_batch_d test_prismel_next_api_batch_a test_prismel_next_api_batch_b test_prismel_next_api_batch_c test_prismel_next_api_batch_c_scene_parity test_scene_rounded_cache test_automatic_text_cache test_prismel_next_api_batch_e test_scene3_native_lowering test_scene_display_list test_core_interface_preservation test_resource_interface_preservation test_canvas_native)
- (libraries prismel prismel_next_resources runtime_next_input scene_command unix ogpu))
+ (modules test_main test_prismel_api test_prismel_api_batch_d test_prismel_api_batch_a test_prismel_api_batch_b test_prismel_api_batch_c test_prismel_api_batch_c_scene_parity test_scene_rounded_cache test_automatic_text_cache test_prismel_api_batch_e test_scene3_native_lowering test_scene_display_list test_ink test_core_interface_preservation test_resource_interface_preservation test_canvas_native)
+ (libraries prismel runtime_resources runtime_input scene_command unix ogpu))
 
 (rule
- (aliases runtest test_prismel_next_api)
- (action (run %{exe:test_main.exe} test_prismel_next_api)))
+ (aliases runtest test_prismel_api)
+ (action (run %{exe:test_main.exe} test_prismel_api)))
 
 (rule
- (aliases runtest test_prismel_next_api_batch_d)
- (action (run %{exe:test_main.exe} test_prismel_next_api_batch_d)))
+ (aliases runtest test_prismel_api_batch_d)
+ (action (run %{exe:test_main.exe} test_prismel_api_batch_d)))
 
 (rule
- (aliases runtest test_prismel_next_api_batch_a)
- (action (run %{exe:test_main.exe} test_prismel_next_api_batch_a)))
+ (aliases runtest test_prismel_api_batch_a)
+ (action (run %{exe:test_main.exe} test_prismel_api_batch_a)))
 
 (rule
- (aliases runtest test_prismel_next_api_batch_b)
- (action (run %{exe:test_main.exe} test_prismel_next_api_batch_b)))
+ (aliases runtest test_prismel_api_batch_b)
+ (action (run %{exe:test_main.exe} test_prismel_api_batch_b)))
 
 (rule
- (aliases runtest test_prismel_next_api_batch_c)
- (action (run %{exe:test_main.exe} test_prismel_next_api_batch_c)))
+ (aliases runtest test_prismel_api_batch_c)
+ (action (run %{exe:test_main.exe} test_prismel_api_batch_c)))
 
 (rule
- (aliases runtest test_prismel_next_api_batch_c_scene_parity)
- (action (run %{exe:test_main.exe} test_prismel_next_api_batch_c_scene_parity)))
+ (aliases runtest test_prismel_api_batch_c_scene_parity)
+ (action (run %{exe:test_main.exe} test_prismel_api_batch_c_scene_parity)))
 
 (rule
  (aliases runtest test_scene_rounded_cache)
@@ -49,10 +48,10 @@
  (action (run %{exe:test_main.exe} test_automatic_text_cache)))
 
 (rule
- (aliases runtest test_prismel_next_api_batch_e)
+ (aliases runtest test_prismel_api_batch_e)
  (action
   (setenv SDL_AUDIODRIVER dummy
-   (run %{exe:test_main.exe} test_prismel_next_api_batch_e))))
+   (run %{exe:test_main.exe} test_prismel_api_batch_e))))
 
 (rule
  (aliases runtest test_scene3_native_lowering)
@@ -61,6 +60,10 @@
 (rule
  (aliases runtest test_scene_display_list)
  (action (run %{exe:test_main.exe} test_scene_display_list)))
+
+(rule
+ (aliases runtest test_ink)
+ (action (run %{exe:test_main.exe} test_ink)))
 
 (rule
  (aliases runtest test_core_interface_preservation)

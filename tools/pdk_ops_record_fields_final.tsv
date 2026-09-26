@@ -1,3 +1,0 @@
-# Residual qualified record labels; apply to the reviewed callers only.
-Ops.mean	Analysis_ops.mean
-Ops.pattern	Fuse_reduce.pattern

@@ -20,6 +20,7 @@ type t = {
   operation : string;
   version : int;
   parameters : string;
+  parameter_key : string;
   cook_mode : cook_mode;
   dependencies : Context.Dependencies.t;
   input_policy : Private_types.input_policy;
@@ -42,6 +43,7 @@ let label value = value.label
 let operation value = value.operation
 let version value = value.version
 let parameters value = value.parameters
+let parameter_key value = value.parameter_key
 let cook_mode value = value.cook_mode
 let dependencies value = value.dependencies
 let inputs value = Array.to_list value.inputs
@@ -63,7 +65,8 @@ let parameterize ~schema ~values ~rebuild value =
   let rebuild ~label ~inputs values =
     rebuild ~label ~inputs:(Array.to_list inputs) values
   in
-  { value with parameterization = Some (Parameters { schema; values; rebuild }) }
+  { value with parameter_key = Parameter.cook_key schema values;
+               parameterization = Some (Parameters { schema; values; rebuild }) }
 
 let apply_parameters value changes = match value.parameterization with
   | None when changes = [] -> Ok (value, Parameter.no_effects)
@@ -97,7 +100,8 @@ module Private = struct
      | All -> ()
      | Only index when index >= 0 && index < Array.length inputs -> ()
      | Only _ -> invalid_arg "Node.make: selected input is out of bounds");
-    { id = fresh_id (); label; operation; version; parameters; cook_mode;
+    { id = fresh_id (); label; operation; version; parameters;
+      parameter_key = ""; cook_mode;
       dependencies; input_policy; inputs; cook; parameterization = None }
 
   let input_policy value = value.input_policy

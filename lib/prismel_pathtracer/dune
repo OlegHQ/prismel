@@ -12,12 +12,12 @@
  (name prismel_pathtracer)
  (public_name prismel.pathtracer)
  (modules prismel_pathtracer pathtrace_source)
- (libraries prismel ogpu pdk prismel_next_execution prismel_next_resources unix))
+ (libraries prismel ogpu pdk prismel_execution runtime_resources unix))
 
 (executable
  (name test_main)
  (modules test_main test_pathtracer test_gpu_film)
- (libraries prismel prismel_pathtracer prismel_next_execution prismel_next_resources ogpu pdk))
+ (libraries prismel prismel_pathtracer prismel_execution runtime_resources ogpu pdk))
 
 (rule
  (aliases runtest test_pathtracer)

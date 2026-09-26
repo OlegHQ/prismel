@@ -23,7 +23,7 @@ Final Phase 5 evidence must still inventory every installed native
 artifact, copied asset, offline shader, license notice and generator version on
 the release commit.
 
-`runtime_next_license_manifest.json` is the machine-readable native-runtime inventory.
+`runtime_license_manifest.json` is the machine-readable native-runtime inventory.
 Its Dune gate checks complete classifications, the MIT/zlib license and Apple
 SDK provenance boundaries, and requires an explicit non-bundled declaration
 for every staged surface. Final release artifact inspection remains separate.

@@ -20,8 +20,6 @@ val debug_text : at:(int*int) -> ?color:Color.t -> string -> node
 val font_text : Font.t -> at:(int*int) -> ?color:Color.t -> ?wrap:int -> ?align:Font.alignment -> string -> node
 val image : Image.t -> at:(int*int) -> ?scale:float -> ?angle:float -> ?center:(int*int) -> ?flip_x:bool -> unit -> node
 val view3d : ?viewport:(int*int*int*int) -> camera:Camera.t -> Scene3.t -> node
-val display_list : ?images:(int * Image.t) list ->
-  Scene_command.Display_list.t -> node
 
 (** Pure IME metadata in logical points; [cursor] is the non-negative caret
     offset from the region's left edge. *)
@@ -36,6 +34,10 @@ module Private : sig
   module Ui_batch = Scene_command.Ui_batch
   val layer_break : node
 
+  val display_list : ?images:(int * Image.t) list ->
+    Scene_command.Display_list.t -> node
+  (** A retained packed 2D segment; public code uses {!Ink}. *)
+
   val ui : ?images:(int * Image.t) list -> Ui_batch.t -> node
   (** A native-only PXUI instance layer. Like [view3d], it ignores enclosing
       Scene transforms and clips: the batch carries its own. Every batch
@@ -43,28 +45,28 @@ module Private : sig
 
   type native_layer =
     | Scene2_layer of Scene_command.Render_ir.t *
-        (int * Prismel_next_execution.resource) list
+        (int * Prismel_execution.resource) list
     | Scene2_segment of Scene_command.Display_list.t *
-        (int * Prismel_next_execution.resource) list
+        (int * Prismel_execution.resource) list
     | Scene3_layer of Scene_execution.prepared_scene3
     | Ui_layer of Ui_batch.t *
-        (int * Prismel_next_execution.resource) list
+        (int * Prismel_execution.resource) list
   type staged_native = {
     clear : float * float * float * float;
     scene2 : Scene_command.Render_ir.t;
-    resources : (int * Prismel_next_execution.resource) list;
+    resources : (int * Prismel_execution.resource) list;
     scene3 : Scene_execution.prepared_scene3 list;
     layers : native_layer list;
     retained : (string * int64) option;
   }
   val native_segment_version : Scene_command.Display_list.t ->
-    (int * Prismel_next_execution.resource) list -> int64
+    (int * Prismel_execution.resource) list -> int64
   val stage_native : ?density:int -> width:int -> height:int -> t -> (staged_native,string) result
   val stage_native_render : ?density:int -> width:int -> height:int -> t ->
     (staged_native,string) result
   val to_ir : t -> (Scene_command.Render_ir.t,string) result
   val stage : ?density:int -> width:int -> height:int -> t ->
-    (Scene_command.Render_ir.t * (int * Prismel_next_execution.resource) list, string) result
+    (Scene_command.Render_ir.t * (int * Prismel_execution.resource) list, string) result
   val install_renderer : (t -> unit) -> unit
   val text_regions : t -> (int*int*int*int*bool*int) list
   val release : t -> unit

@@ -22,7 +22,8 @@ when behavior or architecture changes materially.
 | `metal` | Metal bindings: safe layer over a handwritten bridge (foundational) |
 | `ogpu_core`, `ogpu` | Portable GPU core and virtual public API |
 | `ogpu_metal_native`, `ogpu_metal`, `ogpu_mock` | Native Metal detail and the two OGPU implementations |
-| `runtime_next`, `runtime_next_orchestrator`, `runtime_next_input` | SDL3 lifecycle, Metal presentation, typed event translation |
+| `runtime`, `runtime_input`, `runtime_resources` | SDL3 lifecycle, Metal presentation, frame stats, typed event translation, SDL image/ttf/mixer services |
+| `prismel_execution` | Private frame coordinator: Scene lowering caches over one window or offscreen `Runtime` |
 | `scene_command`, `scene_execution` | Renderer-neutral commands and their GPU execution |
 | `prismel` | `Sketch`, `Frame`, pure `Scene`, `Event`/`Input`, resources, renderer behavior |
 | `prismel_pathtracer` | Hardware ray-traced path tracer |
@@ -51,7 +52,7 @@ graph, and enforces "may never reach" rules plus a token scan. Known
 violations are listed there with the plan item that removes them.
 
 - Foundational libraries (`sdl3*`, `metal`, `ogpu_core`, `ogpu`, `native_layer_token`,
-  `scene_command`) never reach `runtime_next`, `prismel`, or anything above.
+  `scene_command`) never reach `runtime`, `prismel`, or anything above.
   `ogpu_core` depends on nothing in the repo; virtual `ogpu` depends only on
   `ogpu_core`. `ogpu_mock` stays portable; native Metal detail depends only on
   `ogpu_core` + `metal`.

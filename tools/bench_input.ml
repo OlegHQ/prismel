@@ -22,13 +22,13 @@ let repeats = match Sys.getenv_opt "PRISMEL_INPUT_BENCH_REPEATS" with
   | None -> 200_000 | Some value -> max 1 (int_of_string value)
 
 let () =
-  let input = match Runtime_next_input.create ~max_events:64
+  let input = match Runtime_input.create ~max_events:64
       ~logical_width:640 ~logical_height:480 with
     | Ok value -> value | Error message -> failwith message in
-  let push event = match Runtime_next_input_sdl3.push input event with
+  let push event = match Runtime_input_sdl3.push input event with
     | Ok () -> () | Error message -> failwith message in
   let frame () = Array.iter push events;
-    ignore (Runtime_next_input.drain input); Runtime_next_input.begin_frame input in
+    ignore (Runtime_input.drain input); Runtime_input.begin_frame input in
   for _ = 1 to 100 do frame () done;
   Gc.full_major ();
   let words = (Gc.quick_stat ()).minor_words and started = Unix.gettimeofday () in

@@ -18,10 +18,14 @@ description: Register a new editor SOP node in prismel's sop_catalog through the
    choices. Use `[@@sop.node_optional]` for optional input slots and
    `[@@sop.node_operation]` only when the menu key must differ from the
    runtime operation. Copy a neighbouring module such as `Platonic`.
-3. `build ~label ~inputs parameters` makes one `Sop.<op>` call and pipes it
-   through `Node.parameterize ~schema:parameters_schema ~values:parameters
-   ~rebuild:build`; `factory = parameters_factory build`. No hand-written
-   factory list, cache key, or menu defaults: the PPX derives them.
+3. Write `let build = parameters_build (fun ~label parameters input0 ... ->
+   Sop.<op> ~label ... input0)` with one argument per input slot (a
+   `Node.t option` for an optional slot), then
+   `let factory = parameters_factory build`. The generated build checks the
+   input shape, attaches the schema, rebuilds after edits, and derives the
+   cache key from every cook field. No hand-written factory list, cache key,
+   input match, or menu defaults. Add a `create` to `sop_catalog.mli` only when
+   code outside the library needs one.
 4. Run `dune build @test/test_sop_catalog`: it rejects duplicate keys,
    instantiates every factory with placeholder inputs, and finds each key
    from the node menu. Add a case there only if the node needs behaviour

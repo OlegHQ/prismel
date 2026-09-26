@@ -16,6 +16,12 @@ val label : t -> string
 val operation : t -> string
 val version : t -> int
 val parameters : t -> string
+
+(** [Parameter.cook_key] of the attached schema values, computed once when
+    the node is parameterized, or [""] for an unparameterized node. Session
+    cache identity includes it next to [parameters], so every cook-impact
+    schema field participates in the key. *)
+val parameter_key : t -> string
 val cook_mode : t -> cook_mode
 val dependencies : t -> Context.Dependencies.t
 val inputs : t -> t list

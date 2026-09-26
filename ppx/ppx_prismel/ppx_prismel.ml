@@ -281,6 +281,97 @@ let node_metadata declaration =
         |> List.sort_uniq Int.compare in
   key, operation, label, category, inputs, optional
 
+(* [<t>_build operator] is the recursive, arity-checked node constructor that
+   [<t>_factory] consumes. [operator ~label parameters input0 ...] receives one
+   [Node.t] per required slot and one [Node.t option] per optional slot and
+   returns the unparameterized operator; the generated code checks the input
+   shape, attaches the schema through [Node.parameterize] (which derives the
+   cache identity from every cook field), and rebuilds itself after edits.
+   Optional slots rebuild from the physical input list using the presence
+   captured when the node was built, so sparse connections keep their slot. *)
+let build_expression ~loc type_name label inputs optional =
+  let var name = evar ~loc name and pvar name = ppat_var ~loc { loc; txt = name } in
+  let slot index = Printf.sprintf "input%d" index in
+  let slots = List.init inputs Fun.id in
+  let plural = if inputs = 1 then "" else "s" in
+  let fail message = apply ~loc (ident ~loc ["Stdlib"; "invalid_arg"])
+      [Nolabel, estring ~loc message] in
+  let fun_ label pattern body = pexp_fun ~loc label None pattern body in
+  let operator_call = apply ~loc (var "operator")
+      ((Labelled "label", var "label") :: (Nolabel, var "parameters")
+       :: List.map (fun index -> Nolabel, var (slot index)) slots) in
+  let parameterize rebuild = apply ~loc
+      (ident ~loc ["Procedural"; "Node"; "parameterize"])
+      [ Labelled "schema", var (type_name ^ "_schema");
+        Labelled "values", var "parameters";
+        Labelled "rebuild", rebuild;
+        Nolabel, operator_call ] in
+  let build_body shape rebuild message = pexp_match ~loc (var "inputs")
+      [ case ~lhs:shape ~guard:None ~rhs:(parameterize rebuild);
+        case ~lhs:(ppat_any ~loc) ~guard:None ~rhs:(fail message) ] in
+  let build_fun body = fun_ (Labelled "label") (pvar "label")
+      (fun_ (Labelled "inputs") (pvar "inputs")
+        (fun_ Nolabel (pvar "parameters") body)) in
+  let rec_build bindings = pexp_let ~loc Recursive
+      (List.map (fun (name, expr) ->
+        Ast_builder.Default.value_binding ~loc ~pat:(pvar name) ~expr) bindings) (var "build") in
+  let body =
+    if optional = [] then
+      let shape = plist ~loc (List.map (fun index -> pvar (slot index)) slots) in
+      rec_build ["build", build_fun (build_body shape (var "build")
+        (Printf.sprintf "%s expects %d input%s" label inputs plural))]
+    else
+      let is_optional index = List.mem index optional in
+      let present index = "present" ^ string_of_int index in
+      let shape = plist ~loc (List.map (fun index ->
+        if is_optional index then pvar (slot index)
+        else ppat_construct ~loc (located_lident ~loc "Some")
+          (Some (pvar (slot index)))) slots) in
+      let rebuild = apply ~loc (var "rebuild") (List.map (fun index ->
+        Nolabel, apply ~loc (ident ~loc ["Stdlib"; "Option"; "is_some"])
+          [Nolabel, var (slot index)]) optional) in
+      let lost = fail (Printf.sprintf
+        "%s lost a connected input while rebuilding" label) in
+      let take = pexp_match ~loc (var "rest")
+          [ case ~lhs:(ppat_construct ~loc (located_lident ~loc "::")
+                (Some (ppat_tuple ~loc [pvar "input"; pvar "rest"])))
+              ~guard:None
+              ~rhs:(pexp_tuple ~loc [pexp_construct ~loc
+                (located_lident ~loc "Some") (Some (var "input"));
+                var "rest"]);
+            case ~lhs:(ppat_construct ~loc (located_lident ~loc "[]") None)
+              ~guard:None ~rhs:lost ] in
+      let decode = List.fold_right (fun index body ->
+        let value = if is_optional index then
+            pexp_ifthenelse ~loc (var (present index)) take
+              (Some (pexp_tuple ~loc [pexp_construct ~loc
+                (located_lident ~loc "None") None; var "rest"]))
+          else take in
+        pexp_let ~loc Nonrecursive [Ast_builder.Default.value_binding ~loc
+          ~pat:(ppat_tuple ~loc [pvar (slot index); pvar "rest"]) ~expr:value]
+          body) slots
+        (pexp_match ~loc (var "rest")
+          [ case ~lhs:(ppat_construct ~loc (located_lident ~loc "[]") None)
+              ~guard:None
+              ~rhs:(apply ~loc (var "build")
+                [ Labelled "label", var "label";
+                  Labelled "inputs", elist ~loc
+                    (List.map (fun index -> var (slot index)) slots);
+                  Nolabel, var "parameters" ]);
+            case ~lhs:(ppat_any ~loc) ~guard:None ~rhs:(fail (Printf.sprintf
+              "%s received extra inputs while rebuilding" label)) ]) in
+      let rebuild_fun = List.fold_right (fun index body ->
+        fun_ Nolabel (pvar (present index)) body) optional
+        (build_fun (pexp_let ~loc Nonrecursive
+          [Ast_builder.Default.value_binding ~loc ~pat:(pvar "rest") ~expr:(var "inputs")]
+          decode)) in
+      rec_build [
+        "build", build_fun (build_body shape rebuild (Printf.sprintf
+          "%s expects %d input slot%s with every required input connected"
+          label inputs plural));
+        "rebuild", rebuild_fun ] in
+  fun_ Nolabel (pvar "operator") body
+
 let generate_node_type declaration =
   ensure_monomorphic declaration;
   let loc = declaration.ptype_loc in
@@ -310,7 +401,9 @@ let generate_node_type declaration =
           Nolabel, constructor]) in
   [value_binding ~loc (declaration.ptype_name.txt ^ "_factory")
      (pexp_fun ~loc Nolabel None
-       (ppat_var ~loc { loc; txt = "build" }) factory)]
+       (ppat_var ~loc { loc; txt = "build" }) factory);
+   value_binding ~loc (declaration.ptype_name.txt ^ "_build")
+     (build_expression ~loc declaration.ptype_name.txt label inputs optional)]
 
 let generate_node_impl ~ctxt (_recursive, declarations) =
   let _loc = Expansion_context.Deriver.derived_item_loc ctxt in

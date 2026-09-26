@@ -328,7 +328,7 @@ module Box = struct
     [@@sop.node_category "Create/Primitive"] [@@sop.node_inputs 0]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs:_ parameters =
+  let build = parameters_build (fun ~label parameters ->
     Sop.box ~label ~size:(Vec3.create parameters.size_x parameters.size_y
       parameters.size_z) ~connectivity:parameters.connectivity
       ~consolidate_points:parameters.consolidate_points
@@ -341,9 +341,7 @@ module Box = struct
       ~x_divisions:parameters.x_divisions ~y_divisions:parameters.y_divisions
       ~z_divisions:parameters.z_divisions
       ?uv_attribute:(optional_text parameters.uv_attribute)
-      ?face_groups:(optional_text parameters.face_groups) ()
-    |> Node.parameterize ~schema:parameters_schema ~values:parameters
-         ~rebuild:build
+      ?face_groups:(optional_text parameters.face_groups) ())
 
   let factory = parameters_factory build
 
@@ -446,7 +444,7 @@ module Platonic = struct
     | Axis_custom -> Pdk.Parametric_generators.Platonic_axis (Vec3.create parameters.axis_x
         parameters.axis_y parameters.axis_z)
 
-  let rec build ~label ~inputs:_ parameters =
+  let build = parameters_build (fun ~label parameters ->
     Sop.platonic ~label ~kind:parameters.kind ~normals:parameters.normals
       ~orientation:(pdk_orientation parameters)
       ~center:(Vec3.create parameters.center_x parameters.center_y
@@ -454,9 +452,7 @@ module Platonic = struct
       ~rotation:(Vec3.create parameters.rotation_x parameters.rotation_y
         parameters.rotation_z) ~rotation_order:parameters.rotation_order
       ?face_groups:(optional_text parameters.face_groups)
-      ~radius:parameters.radius ()
-    |> Node.parameterize ~schema:parameters_schema ~values:parameters
-         ~rebuild:build
+      ~radius:parameters.radius ())
 
   let factory = parameters_factory build
 
@@ -625,7 +621,7 @@ module Spiral = struct
     | Axis_custom -> Pdk.Spiral.Spiral_axis (Vec3.create parameters.axis_x
         parameters.axis_y parameters.axis_z)
 
-  let rec build ~label ~inputs:_ parameters =
+  let build = parameters_build (fun ~label parameters ->
     Sop.spiral ~label ~extent:(extent parameters) ~radius:(radius parameters)
       ~radius_scale:parameters.radius_scale ~direction:parameters.direction
       ~start_angle:parameters.start_angle ~divisions:(divisions parameters)
@@ -642,13 +638,9 @@ module Spiral = struct
       ?y_axis_attribute:(optional_text parameters.y_axis_attribute)
       ?tangent_attribute:(optional_text parameters.tangent_attribute)
       ?orient_attribute:(optional_text parameters.orient_attribute)
-      ?distance_attribute:(optional_text parameters.distance_attribute) ()
-    |> Node.parameterize ~schema:parameters_schema ~values:parameters
-         ~rebuild:build
+      ?distance_attribute:(optional_text parameters.distance_attribute) ())
 
   let factory = parameters_factory build
-  let create ?label:node_label () =
-    build ~label:(label "spiral" node_label) ~inputs:[] parameters_default
 end [@@sop.register]
 
 module Switch = struct
@@ -708,24 +700,14 @@ module Line = struct
     [@@sop.node_category "Create/Curve"] [@@sop.node_inputs 0]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs:_ parameters =
+  let build = parameters_build (fun ~label parameters ->
     Sop.line ~label ~kind:parameters.kind ~points:parameters.points
       ~origin:(Vec3.create parameters.origin_x parameters.origin_y
         parameters.origin_z)
       ~direction:(Vec3.create parameters.direction_x parameters.direction_y
-        parameters.direction_z) ~length:parameters.length ()
-    |> Node.parameterize ~schema:parameters_schema ~values:parameters
-         ~rebuild:build
+        parameters.direction_z) ~length:parameters.length ())
 
   let factory = parameters_factory build
-
-  let create ?label:node_label ?(kind = Pdk.Line_geometry.Line_curve) ?(points = 2)
-      ?(origin = Vec3.zero) ?(direction = Vec3.create 0. 1. 0.)
-      ?(length = 1.) () =
-    build ~label:(label "line" node_label) ~inputs:[] {
-      kind; points; origin_x = origin.x; origin_y = origin.y;
-      origin_z = origin.z; direction_x = direction.x;
-      direction_y = direction.y; direction_z = direction.z; length }
 end [@@sop.register]
 
 module Circle = struct
@@ -785,21 +767,16 @@ module Circle = struct
     | Sliced -> Pdk.Plane_generators.Circle_sliced_arc {
         start_angle = parameters.start_angle; end_angle = parameters.end_angle }
 
-  let rec build ~label ~inputs:_ parameters =
+  let build = parameters_build (fun ~label parameters ->
     Sop.circle ~label ~arc:(arc parameters) ~orientation:parameters.orientation
       ~reverse:parameters.reverse
       ~center:(Vec3.create parameters.center_x parameters.center_y
         parameters.center_z) ~radius_x:parameters.radius_x
       ~radius_y:parameters.radius_y ~rotation:parameters.rotation
       ~uniform_scale:parameters.uniform_scale ~segments:parameters.segments
-      ~radius:1. ()
-    |> Node.parameterize ~schema:parameters_schema ~values:parameters
-         ~rebuild:build
+      ~radius:1. ())
 
   let factory = parameters_factory build
-
-  let create ?label:node_label () =
-    build ~label:(label "circle" node_label) ~inputs:[] parameters_default
 end [@@sop.register]
 
 module Grid = struct
@@ -861,16 +838,14 @@ module Grid = struct
     [@@sop.node_category "Create/Primitive"] [@@sop.node_inputs 0]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs:_ parameters =
+  let build = parameters_build (fun ~label parameters ->
     Sop.grid ~label ~counts:parameters.counts
       ~connectivity:parameters.connectivity ~orientation:parameters.orientation
       ~center:(Vec3.create parameters.center_x parameters.center_y
         parameters.center_z) ~width:parameters.width ~height:parameters.height
       ~rotation:parameters.rotation
       ?uv_attribute:(optional_text parameters.uv_attribute)
-      ~columns:parameters.columns ~rows:parameters.rows ~size:parameters.size ()
-    |> Node.parameterize ~schema:parameters_schema ~values:parameters
-         ~rebuild:build
+      ~columns:parameters.columns ~rows:parameters.rows ~size:parameters.size ())
 
   let factory = parameters_factory build
 
@@ -962,7 +937,7 @@ module Uv_sphere = struct
     [@@sop.node_category "Create/Primitive"] [@@sop.node_inputs 0]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs:_ parameters =
+  let build = parameters_build (fun ~label parameters ->
     Sop.uv_sphere ~label ~connectivity:parameters.connectivity
       ~unique_points_per_pole:parameters.unique_points_per_pole
       ~triangular_poles:parameters.triangular_poles ~normals:parameters.normals
@@ -974,14 +949,9 @@ module Uv_sphere = struct
       ~radius_x:parameters.radius_x ~radius_y:parameters.radius_y
       ~radius_z:parameters.radius_z
       ?uv_attribute:(optional_text parameters.uv_attribute)
-      ~segments:parameters.segments ~rings:parameters.rings ~radius:1. ()
-    |> Node.parameterize ~schema:parameters_schema ~values:parameters
-         ~rebuild:build
+      ~segments:parameters.segments ~rings:parameters.rings ~radius:1. ())
 
   let factory = parameters_factory build
-
-  let create ?label:node_label () =
-    build ~label:(label "uv-sphere" node_label) ~inputs:[] parameters_default
 end [@@sop.register]
 
 module Torus = struct
@@ -1069,7 +1039,7 @@ module Torus = struct
     [@@sop.node_category "Create/Primitive"] [@@sop.node_inputs 0]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs:_ parameters =
+  let build = parameters_build (fun ~label parameters ->
     Sop.torus ~label ~connectivity:parameters.connectivity
       ~normals:parameters.normals ~orientation:parameters.orientation
       ~center:(Vec3.create parameters.center_x parameters.center_y
@@ -1083,14 +1053,9 @@ module Torus = struct
       ?uv_attribute:(optional_text parameters.uv_attribute)
       ~rows:parameters.rows ~columns:parameters.columns
       ~major_radius:parameters.major_radius ~minor_radius:parameters.minor_radius
-      ()
-    |> Node.parameterize ~schema:parameters_schema ~values:parameters
-         ~rebuild:build
+      ())
 
   let factory = parameters_factory build
-
-  let create ?label:node_label () =
-    build ~label:(label "torus" node_label) ~inputs:[] parameters_default
 end [@@sop.register]
 
 module Tube = struct
@@ -1171,7 +1136,7 @@ module Tube = struct
     [@@sop.node_category "Create/Primitive"] [@@sop.node_inputs 0]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs:_ parameters =
+  let build = parameters_build (fun ~label parameters ->
     Sop.tube ~label ~connectivity:parameters.connectivity
       ~end_caps:parameters.end_caps
       ~consolidate_cap_points:parameters.consolidate_cap_points
@@ -1184,14 +1149,9 @@ module Tube = struct
       ?cap_group:(optional_text parameters.cap_group)
       ~rows:parameters.rows ~columns:parameters.columns
       ~top_radius:parameters.top_radius ~bottom_radius:parameters.bottom_radius
-      ~height:parameters.height ()
-    |> Node.parameterize ~schema:parameters_schema ~values:parameters
-         ~rebuild:build
+      ~height:parameters.height ())
 
   let factory = parameters_factory build
-
-  let create ?label:node_label () =
-    build ~label:(label "tube" node_label) ~inputs:[] parameters_default
 end [@@sop.register]
 
 module Transform = struct
@@ -1222,20 +1182,16 @@ module Transform = struct
     [@@sop.node_category "Modify"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        Sop.transform_trs ~label
-          ~translate:(Vec3.create parameters.translate_x parameters.translate_y
-            parameters.translate_z)
-          ~rotate:(Vec3.create parameters.rotate_x parameters.rotate_y
-            parameters.rotate_z)
-          ~scale:(Vec3.create parameters.scale_x parameters.scale_y
-            parameters.scale_z)
-          ~preserve_normal_length:parameters.preserve_normal_length
-          ~recompute_normals:parameters.recompute_normals input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Transform expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.transform_trs ~label
+      ~translate:(Vec3.create parameters.translate_x parameters.translate_y
+        parameters.translate_z)
+      ~rotate:(Vec3.create parameters.rotate_x parameters.rotate_y
+        parameters.rotate_z)
+      ~scale:(Vec3.create parameters.scale_x parameters.scale_y
+        parameters.scale_z)
+      ~preserve_normal_length:parameters.preserve_normal_length
+      ~recompute_normals:parameters.recompute_normals input)
 
   let factory = parameters_factory build
 
@@ -1327,44 +1283,29 @@ module Match_size = struct
     [@@sop.node_category "Modify"] [@@sop.node_inputs 2]
     [@@sop.node_optional "1"] [@@deriving sop_params, sop_node]
 
-  let rec build_slots ~label ~inputs parameters = match inputs with
-    | [Some input; target] ->
-        let target_center, target_size = match target with
-          | Some _ -> None, None
-          | None ->
-              Some (Vec3.create parameters.target_center_x
-                parameters.target_center_y parameters.target_center_z),
-              Some (Vec3.create parameters.target_size_x
-                parameters.target_size_y parameters.target_size_z) in
-        Sop.match_size ~label ~fit:parameters.fit
-          ~translate_axes:(parameters.translate_x, parameters.translate_y,
-            parameters.translate_z)
-          ~scale_axes:(parameters.scale_x, parameters.scale_y,
-            parameters.scale_z)
-          ~justify:(Vec3.create parameters.justify_x parameters.justify_y
-            parameters.justify_z)
-          ~target_justify:(Vec3.create parameters.target_justify_x
-            parameters.target_justify_y parameters.target_justify_z)
-          ~offset:(Vec3.create parameters.offset_x parameters.offset_y
-            parameters.offset_z) ~scale:parameters.scale
-          ?target_center ?target_size
-          ?target input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild
-    | _ -> invalid_arg "Sop_catalog.Match_size requires its source input"
+  let build = parameters_build (fun ~label parameters input target ->
+    let target_center, target_size = match target with
+      | Some _ -> None, None
+      | None ->
+          Some (Vec3.create parameters.target_center_x
+            parameters.target_center_y parameters.target_center_z),
+          Some (Vec3.create parameters.target_size_x
+            parameters.target_size_y parameters.target_size_z) in
+    Sop.match_size ~label ~fit:parameters.fit
+      ~translate_axes:(parameters.translate_x, parameters.translate_y,
+        parameters.translate_z)
+      ~scale_axes:(parameters.scale_x, parameters.scale_y,
+        parameters.scale_z)
+      ~justify:(Vec3.create parameters.justify_x parameters.justify_y
+        parameters.justify_z)
+      ~target_justify:(Vec3.create parameters.target_justify_x
+        parameters.target_justify_y parameters.target_justify_z)
+      ~offset:(Vec3.create parameters.offset_x parameters.offset_y
+        parameters.offset_z) ~scale:parameters.scale
+      ?target_center ?target_size
+      ?target input)
 
-  and rebuild ~label ~inputs parameters = match inputs with
-    | [input] -> build_slots ~label ~inputs:[Some input; None] parameters
-    | [input; target] ->
-        build_slots ~label ~inputs:[Some input; Some target] parameters
-    | _ -> invalid_arg "Sop_catalog.Match_size has invalid physical inputs"
-
-  let factory = parameters_factory build_slots
-
-  let create ?label:node_label ?target input =
-    build_slots ~label:(label "match-size" node_label)
-      ~inputs:[Some input; target]
-      parameters_default
+  let factory = parameters_factory build
 end [@@sop.register]
 
 module Mirror = struct
@@ -1386,21 +1327,14 @@ module Mirror = struct
     [@@sop.node_category "Modify"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        Sop.mirror ~label ~keep_original:parameters.keep_original
-          ~origin:(Vec3.create parameters.origin_x parameters.origin_y
-            parameters.origin_z)
-          ~normal:(Vec3.create parameters.normal_x parameters.normal_y
-            parameters.normal_z) input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Mirror expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.mirror ~label ~keep_original:parameters.keep_original
+      ~origin:(Vec3.create parameters.origin_x parameters.origin_y
+        parameters.origin_z)
+      ~normal:(Vec3.create parameters.normal_x parameters.normal_y
+        parameters.normal_z) input)
 
   let factory = parameters_factory build
-  let create ?label:node_label input =
-    build ~label:(label "mirror" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Clip = struct
@@ -1452,30 +1386,24 @@ module Clip = struct
     [@@sop.node_category "Modify"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        Sop.clip ~label ~keep:parameters.keep
-          ~snapping_tolerance:parameters.snapping_tolerance
-          ~fill:parameters.fill ~split_connectivity:parameters.split_connectivity
-          ?clip_attribute:(optional_text parameters.clip_attribute)
-          ~distance:parameters.distance
-          ~replace_existing_groups:parameters.replace_existing_groups
-          ?clipped_edge_group:(optional_text parameters.clipped_edge_group)
-          ?cap_group:(optional_text parameters.cap_group)
-          ?clipped_group:(optional_text parameters.clipped_group)
-          ?above_group:(optional_text parameters.above_group)
-          ?below_group:(optional_text parameters.below_group)
-          ~origin:(Vec3.create parameters.origin_x parameters.origin_y
-            parameters.origin_z)
-          ~normal:(Vec3.create parameters.normal_x parameters.normal_y
-            parameters.normal_z) input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Clip expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.clip ~label ~keep:parameters.keep
+      ~snapping_tolerance:parameters.snapping_tolerance
+      ~fill:parameters.fill ~split_connectivity:parameters.split_connectivity
+      ?clip_attribute:(optional_text parameters.clip_attribute)
+      ~distance:parameters.distance
+      ~replace_existing_groups:parameters.replace_existing_groups
+      ?clipped_edge_group:(optional_text parameters.clipped_edge_group)
+      ?cap_group:(optional_text parameters.cap_group)
+      ?clipped_group:(optional_text parameters.clipped_group)
+      ?above_group:(optional_text parameters.above_group)
+      ?below_group:(optional_text parameters.below_group)
+      ~origin:(Vec3.create parameters.origin_x parameters.origin_y
+        parameters.origin_z)
+      ~normal:(Vec3.create parameters.normal_x parameters.normal_y
+        parameters.normal_z) input)
 
   let factory = parameters_factory build
-  let create ?label:node_label input =
-    build ~label:(label "clip" node_label) ~inputs:[input] parameters_default
 end [@@sop.register]
 
 module Crease = struct
@@ -1497,18 +1425,12 @@ module Crease = struct
     [@@sop.node_category "Topology/Edge"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        Sop.crease ~label ?group:(optional_text parameters.group)
-          ~operation:parameters.operation ~weight:parameters.weight
-          ~add_vertex_color:parameters.add_vertex_color input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Crease expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.crease ~label ?group:(optional_text parameters.group)
+      ~operation:parameters.operation ~weight:parameters.weight
+      ~add_vertex_color:parameters.add_vertex_color input)
 
   let factory = parameters_factory build
-  let create ?label:node_label input =
-    build ~label:(label "crease" node_label) ~inputs:[input] parameters_default
 end [@@sop.register]
 
 module Subdivide = struct
@@ -1623,39 +1545,26 @@ module Subdivide = struct
     | Stitch_divide -> Pdk.Subdivision_ops.Subdivide_stitch_divide_edges
     | Stitch_triangulate -> Pdk.Subdivision_ops.Subdivide_stitch_triangulate
 
-  let rec build_slots ~label ~inputs parameters = match inputs with
-    | [Some input; creases] ->
-        Sop.subdivide ~label ?group:(optional_text parameters.group)
-          ~scheme:parameters.scheme ~iterations:parameters.iterations
-          ~cracks:(cracks parameters)
-          ~consistent_topology:parameters.consistent_topology ?creases
-          ?crease_group:(optional_text parameters.crease_group)
-          ~crease_weight:parameters.crease_weight
-          ~generate_resulting_creases:parameters.generate_resulting_creases
-          ?resulting_crease_group:(optional_text
-            parameters.resulting_crease_group)
-          ?hole_group:(optional_text parameters.hole_group)
-          ~remove_holes:parameters.remove_holes
-          ~boundary_interpolation:parameters.boundary_interpolation
-          ~face_varying_interpolation:parameters.face_varying_interpolation
-          ~triangle_policy:parameters.triangle_policy
-          ~creasing_method:parameters.creasing_method
-          ~treat_curves_as_independent:parameters.treat_curves_as_independent
-          ~recompute_point_normals:parameters.recompute_point_normals input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild
-    | _ -> invalid_arg "Sop_catalog.Subdivide requires its geometry input"
+  let build = parameters_build (fun ~label parameters input creases ->
+    Sop.subdivide ~label ?group:(optional_text parameters.group)
+      ~scheme:parameters.scheme ~iterations:parameters.iterations
+      ~cracks:(cracks parameters)
+      ~consistent_topology:parameters.consistent_topology ?creases
+      ?crease_group:(optional_text parameters.crease_group)
+      ~crease_weight:parameters.crease_weight
+      ~generate_resulting_creases:parameters.generate_resulting_creases
+      ?resulting_crease_group:(optional_text
+        parameters.resulting_crease_group)
+      ?hole_group:(optional_text parameters.hole_group)
+      ~remove_holes:parameters.remove_holes
+      ~boundary_interpolation:parameters.boundary_interpolation
+      ~face_varying_interpolation:parameters.face_varying_interpolation
+      ~triangle_policy:parameters.triangle_policy
+      ~creasing_method:parameters.creasing_method
+      ~treat_curves_as_independent:parameters.treat_curves_as_independent
+      ~recompute_point_normals:parameters.recompute_point_normals input)
 
-  and rebuild ~label ~inputs parameters = match inputs with
-    | [input] -> build_slots ~label ~inputs:[Some input; None] parameters
-    | [input; creases] ->
-        build_slots ~label ~inputs:[Some input; Some creases] parameters
-    | _ -> invalid_arg "Sop_catalog.Subdivide has invalid physical inputs"
-
-  let factory = parameters_factory build_slots
-  let create ?label:node_label ?creases input =
-    build_slots ~label:(label "subdivide" node_label)
-      ~inputs:[Some input; creases] parameters_default
+  let factory = parameters_factory build
 end [@@sop.register]
 
 module Edge_divide = struct
@@ -1668,19 +1577,12 @@ module Edge_divide = struct
     [@@sop.node_category "Topology/Edge"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        Sop.edge_divide ~label ?group:(optional_text parameters.group)
-          ~divisions:parameters.divisions ~share_points:parameters.share_points
-          input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Edge_divide expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.edge_divide ~label ?group:(optional_text parameters.group)
+      ~divisions:parameters.divisions ~share_points:parameters.share_points
+      input)
 
   let factory = parameters_factory build
-  let create ?label:node_label input =
-    build ~label:(label "edge-divide" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Edge_collapse = struct
@@ -1717,22 +1619,15 @@ module Edge_collapse = struct
     [@@sop.node_category "Topology/Edge"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        Sop.edge_collapse ~label ?group:(optional_text parameters.group)
-          ?connectivity_attribute:(optional_text
-            parameters.connectivity_attribute)
-          ~position:parameters.position
-          ~remove_degenerate_primitives:parameters.remove_degenerate_primitives
-          ~recompute_point_normals:parameters.recompute_point_normals input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Edge_collapse expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.edge_collapse ~label ?group:(optional_text parameters.group)
+      ?connectivity_attribute:(optional_text
+        parameters.connectivity_attribute)
+      ~position:parameters.position
+      ~remove_degenerate_primitives:parameters.remove_degenerate_primitives
+      ~recompute_point_normals:parameters.recompute_point_normals input)
 
   let factory = parameters_factory build
-  let create ?label:node_label input =
-    build ~label:(label "edge-collapse" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Dissolve = struct
@@ -1770,23 +1665,16 @@ module Dissolve = struct
     [@@sop.node_category "Topology"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        Sop.dissolve ~label ?group:(optional_text parameters.group)
-          ~operation:parameters.operation ~bridge_policy:parameters.bridge_policy
-          ~remove_inline_points:parameters.remove_inline_points
-          ~collinearity_tolerance:parameters.collinearity_tolerance
-          ~remove_unused_points:parameters.remove_unused_points
-          ~create_boundary_curves:parameters.create_boundary_curves
-          ~recompute_normals:parameters.recompute_normals input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Dissolve expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.dissolve ~label ?group:(optional_text parameters.group)
+      ~operation:parameters.operation ~bridge_policy:parameters.bridge_policy
+      ~remove_inline_points:parameters.remove_inline_points
+      ~collinearity_tolerance:parameters.collinearity_tolerance
+      ~remove_unused_points:parameters.remove_unused_points
+      ~create_boundary_curves:parameters.create_boundary_curves
+      ~recompute_normals:parameters.recompute_normals input)
 
   let factory = parameters_factory build
-  let create ?label:node_label input =
-    build ~label:(label "dissolve" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Poly_bevel = struct
@@ -1825,29 +1713,22 @@ module Poly_bevel = struct
     [@@sop.node_category "Topology/Polygon"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        let shape = match parameters.shape with
-          | Chamfer -> Pdk.Poly_modeling.Bevel_chamfer
-          | Round -> Pdk.Poly_modeling.Bevel_round { convexity = parameters.convexity } in
-        Sop.poly_bevel ~label ?group:(optional_text parameters.group) ~shape
-          ~divisions:parameters.divisions
-          ?point_scale_attribute:(optional_text parameters.point_scale_attribute)
-          ~ignore_flat_angle:parameters.ignore_flat_angle
-          ~clamp_overlap:parameters.clamp_overlap
-          ?edge_group:(optional_text parameters.edge_group)
-          ?corner_group:(optional_text parameters.corner_group)
-          ?offset_group:(optional_text parameters.offset_group)
-          ~recompute_point_normals:parameters.recompute_point_normals
-          ~distance:parameters.distance input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Poly_bevel expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    let shape = match parameters.shape with
+      | Chamfer -> Pdk.Poly_modeling.Bevel_chamfer
+      | Round -> Pdk.Poly_modeling.Bevel_round { convexity = parameters.convexity } in
+    Sop.poly_bevel ~label ?group:(optional_text parameters.group) ~shape
+      ~divisions:parameters.divisions
+      ?point_scale_attribute:(optional_text parameters.point_scale_attribute)
+      ~ignore_flat_angle:parameters.ignore_flat_angle
+      ~clamp_overlap:parameters.clamp_overlap
+      ?edge_group:(optional_text parameters.edge_group)
+      ?corner_group:(optional_text parameters.corner_group)
+      ?offset_group:(optional_text parameters.offset_group)
+      ~recompute_point_normals:parameters.recompute_point_normals
+      ~distance:parameters.distance input)
 
   let factory = parameters_factory build
-  let create ?label:node_label input =
-    build ~label:(label "poly-bevel" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Triangulate = struct
@@ -1857,12 +1738,8 @@ module Triangulate = struct
     [@@sop.node_category "Topology"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        Sop.triangulate ~label ?group:(optional_text parameters.group) input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Triangulate expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.triangulate ~label ?group:(optional_text parameters.group) input)
 
   let factory = parameters_factory build
 
@@ -1882,17 +1759,12 @@ module Copy_to_points = struct
     [@@sop.node_category "Copy"] [@@sop.node_inputs 2]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs parameters = match inputs with
-    | [source; targets] ->
-        Sop.copy_to_points ~label
-          ?source_group:(optional_text parameters.source_group)
-          ?target_group:(optional_text parameters.target_group)
-          ?piece_attribute:(optional_text parameters.piece_attribute)
-          ~source ~targets ()
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg
-        "Sop_catalog.Copy_to_points expects source and target inputs"
+  let build = parameters_build (fun ~label parameters source targets ->
+    Sop.copy_to_points ~label
+      ?source_group:(optional_text parameters.source_group)
+      ?target_group:(optional_text parameters.target_group)
+      ?piece_attribute:(optional_text parameters.piece_attribute)
+      ~source ~targets ())
 
   let factory = parameters_factory build
 
@@ -1937,21 +1809,17 @@ module Mountain = struct
     [@@sop.node_category "Deform"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        Sop.mountain ~label ?group:(optional_text parameters.group)
-          ~seed:parameters.seed
-          ?direction_attribute:(optional_text parameters.direction_attribute)
-          ?mask_attribute:(optional_text parameters.mask_attribute)
-          ~height:parameters.height
-          ~frequency:(Vec3.create parameters.frequency_x parameters.frequency_y
-            parameters.frequency_z) ~octaves:parameters.octaves
-          ~lacunarity:parameters.lacunarity ~roughness:parameters.roughness
-          ?height_attribute:(optional_text parameters.height_attribute)
-          ~recompute_normals:parameters.recompute_normals input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Mountain expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.mountain ~label ?group:(optional_text parameters.group)
+      ~seed:parameters.seed
+      ?direction_attribute:(optional_text parameters.direction_attribute)
+      ?mask_attribute:(optional_text parameters.mask_attribute)
+      ~height:parameters.height
+      ~frequency:(Vec3.create parameters.frequency_x parameters.frequency_y
+        parameters.frequency_z) ~octaves:parameters.octaves
+      ~lacunarity:parameters.lacunarity ~roughness:parameters.roughness
+      ?height_attribute:(optional_text parameters.height_attribute)
+      ~recompute_normals:parameters.recompute_normals input)
 
   let factory = parameters_factory build
 
@@ -1988,21 +1856,15 @@ module Peak = struct
     [@@sop.node_category "Deform"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        Sop.peak ~label
-          ?direction_attribute:(optional_text parameters.direction_attribute)
-          ~normalize_direction:parameters.normalize_direction
-          ?mask_attribute:(optional_text parameters.mask_attribute)
-          ~distance:parameters.distance
-          ~recompute_normals:parameters.recompute_normals input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Peak expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.peak ~label
+      ?direction_attribute:(optional_text parameters.direction_attribute)
+      ~normalize_direction:parameters.normalize_direction
+      ?mask_attribute:(optional_text parameters.mask_attribute)
+      ~distance:parameters.distance
+      ~recompute_normals:parameters.recompute_normals input)
 
   let factory = parameters_factory build
-  let create ?label:node_label input =
-    build ~label:(label "peak" node_label) ~inputs:[input] parameters_default
 end [@@sop.register]
 
 module Bend = struct
@@ -2046,27 +1908,21 @@ module Bend = struct
     [@@sop.node_category "Deform"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        Sop.bend ~label ?mask_attribute:(optional_text parameters.mask_attribute)
-          ~origin:(Vec3.create parameters.origin_x parameters.origin_y
-            parameters.origin_z)
-          ~direction:(Vec3.create parameters.direction_x parameters.direction_y
-            parameters.direction_z)
-          ~up:(Vec3.create parameters.up_x parameters.up_y parameters.up_z)
-          ~length:parameters.length ~bend_angle:parameters.bend_angle
-          ~twist_angle:parameters.twist_angle ~limit:parameters.limit
-          ~both_directions:parameters.both_directions
-          ~continuous_twist:parameters.continuous_twist
-          ?capture_attribute:(optional_text parameters.capture_attribute)
-          ~recompute_normals:parameters.recompute_normals input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Bend expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.bend ~label ?mask_attribute:(optional_text parameters.mask_attribute)
+      ~origin:(Vec3.create parameters.origin_x parameters.origin_y
+        parameters.origin_z)
+      ~direction:(Vec3.create parameters.direction_x parameters.direction_y
+        parameters.direction_z)
+      ~up:(Vec3.create parameters.up_x parameters.up_y parameters.up_z)
+      ~length:parameters.length ~bend_angle:parameters.bend_angle
+      ~twist_angle:parameters.twist_angle ~limit:parameters.limit
+      ~both_directions:parameters.both_directions
+      ~continuous_twist:parameters.continuous_twist
+      ?capture_attribute:(optional_text parameters.capture_attribute)
+      ~recompute_normals:parameters.recompute_normals input)
 
   let factory = parameters_factory build
-  let create ?label:node_label input =
-    build ~label:(label "bend" node_label) ~inputs:[input] parameters_default
 end [@@sop.register]
 
 module Smooth = struct
@@ -2122,29 +1978,23 @@ module Smooth = struct
     [@@sop.node_category "Deform"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        let mode = match parameters.mode with
-          | Laplacian -> Pdk.Attribute_ops.Laplacian parameters.step
-          | Custom -> Pdk.Attribute_ops.Custom_steps {
-              odd = parameters.odd_step; even = parameters.even_step } in
-        Sop.smooth ~label ?group:(optional_text parameters.group)
-          ?constrained_points:(optional_text parameters.constrained_points)
-          ~boundary:parameters.boundary ~iterations:parameters.iterations
-          ~method_:parameters.method_ ~mode
-          ?weight_attribute:(optional_text parameters.weight_attribute)
-          ?alpha_attribute:(optional_text parameters.alpha_attribute)
-          ~recompute_normals:parameters.recompute_normals
-          ~original_blend:parameters.original_blend
-          ~smoothed_blend:parameters.smoothed_blend
-          ~attributes:parameters.attributes input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Smooth expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    let mode = match parameters.mode with
+      | Laplacian -> Pdk.Attribute_ops.Laplacian parameters.step
+      | Custom -> Pdk.Attribute_ops.Custom_steps {
+          odd = parameters.odd_step; even = parameters.even_step } in
+    Sop.smooth ~label ?group:(optional_text parameters.group)
+      ?constrained_points:(optional_text parameters.constrained_points)
+      ~boundary:parameters.boundary ~iterations:parameters.iterations
+      ~method_:parameters.method_ ~mode
+      ?weight_attribute:(optional_text parameters.weight_attribute)
+      ?alpha_attribute:(optional_text parameters.alpha_attribute)
+      ~recompute_normals:parameters.recompute_normals
+      ~original_blend:parameters.original_blend
+      ~smoothed_blend:parameters.smoothed_blend
+      ~attributes:parameters.attributes input)
 
   let factory = parameters_factory build
-  let create ?label:node_label input =
-    build ~label:(label "smooth" node_label) ~inputs:[input] parameters_default
 end [@@sop.register]
 
 module Reverse = struct
@@ -2163,20 +2013,13 @@ module Reverse = struct
     [@@sop.node_category "Topology"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        let operation = match parameters.operation with
-          | Reverse -> Pdk.Reverse_ops.Reverse_vertices
-          | Shift -> Pdk.Reverse_ops.Shift_vertices parameters.shift in
-        Sop.reverse ~label ?group:(optional_text parameters.group) ~operation input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Reverse expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    let operation = match parameters.operation with
+      | Reverse -> Pdk.Reverse_ops.Reverse_vertices
+      | Shift -> Pdk.Reverse_ops.Shift_vertices parameters.shift in
+    Sop.reverse ~label ?group:(optional_text parameters.group) ~operation input)
 
   let factory = parameters_factory build
-  let create ?label:node_label input =
-    build ~label:(label "reverse" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Clean = struct
@@ -2225,30 +2068,24 @@ module Clean = struct
     [@@sop.node_category "Topology/Cleanup"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        Sop.clean ~label ~epsilon:parameters.epsilon
-          ~remove_degenerate:parameters.remove_degenerate
-          ~consolidate_distance:parameters.consolidate_distance
-          ~overlaps:parameters.overlaps ~reverse_winding:parameters.reverse_winding
-          ~remove_nan_points:parameters.remove_nan_points
-          ~remove_unused_points:parameters.remove_unused_points
-          ~delete_unused_groups:parameters.delete_unused_groups
-          ?point_attributes:(optional_text parameters.point_attributes)
-          ?vertex_attributes:(optional_text parameters.vertex_attributes)
-          ?primitive_attributes:(optional_text parameters.primitive_attributes)
-          ?detail_attributes:(optional_text parameters.detail_attributes)
-          ?point_groups:(optional_text parameters.point_groups)
-          ?vertex_groups:(optional_text parameters.vertex_groups)
-          ?primitive_groups:(optional_text parameters.primitive_groups)
-          ?edge_groups:(optional_text parameters.edge_groups) input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Clean expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.clean ~label ~epsilon:parameters.epsilon
+      ~remove_degenerate:parameters.remove_degenerate
+      ~consolidate_distance:parameters.consolidate_distance
+      ~overlaps:parameters.overlaps ~reverse_winding:parameters.reverse_winding
+      ~remove_nan_points:parameters.remove_nan_points
+      ~remove_unused_points:parameters.remove_unused_points
+      ~delete_unused_groups:parameters.delete_unused_groups
+      ?point_attributes:(optional_text parameters.point_attributes)
+      ?vertex_attributes:(optional_text parameters.vertex_attributes)
+      ?primitive_attributes:(optional_text parameters.primitive_attributes)
+      ?detail_attributes:(optional_text parameters.detail_attributes)
+      ?point_groups:(optional_text parameters.point_groups)
+      ?vertex_groups:(optional_text parameters.vertex_groups)
+      ?primitive_groups:(optional_text parameters.primitive_groups)
+      ?edge_groups:(optional_text parameters.edge_groups) input)
 
   let factory = parameters_factory build
-  let create ?label:node_label input =
-    build ~label:(label "clean" node_label) ~inputs:[input] parameters_default
 end [@@sop.register]
 
 module Facet = struct
@@ -2287,29 +2124,23 @@ module Facet = struct
     [@@sop.node_category "Topology/Cleanup"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        Sop.facet ~label ?group:(optional_text parameters.group)
-          ~pre_compute_normals:parameters.pre_compute_normals
-          ~make_normals_unit_length:parameters.make_normals_unit_length
-          ~unique_points:parameters.unique_points
-          ~consolidate_distance:parameters.consolidate_distance
-          ~consolidate_normals_distance:parameters.consolidate_normals_distance
-          ~remove_inline_points:parameters.remove_inline_points
-          ~inline_distance:parameters.inline_distance
-          ~orient_polygons:parameters.orient_polygons
-          ~cusp_angle:parameters.cusp_angle
-          ~remove_degenerate:parameters.remove_degenerate
-          ~make_planar:parameters.make_planar
-          ~post_compute_normals:parameters.post_compute_normals
-          ~reverse_normals:parameters.reverse_normals input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Facet expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.facet ~label ?group:(optional_text parameters.group)
+      ~pre_compute_normals:parameters.pre_compute_normals
+      ~make_normals_unit_length:parameters.make_normals_unit_length
+      ~unique_points:parameters.unique_points
+      ~consolidate_distance:parameters.consolidate_distance
+      ~consolidate_normals_distance:parameters.consolidate_normals_distance
+      ~remove_inline_points:parameters.remove_inline_points
+      ~inline_distance:parameters.inline_distance
+      ~orient_polygons:parameters.orient_polygons
+      ~cusp_angle:parameters.cusp_angle
+      ~remove_degenerate:parameters.remove_degenerate
+      ~make_planar:parameters.make_planar
+      ~post_compute_normals:parameters.post_compute_normals
+      ~reverse_normals:parameters.reverse_normals input)
 
   let factory = parameters_factory build
-  let create ?label:node_label input =
-    build ~label:(label "facet" node_label) ~inputs:[input] parameters_default
 end [@@sop.register]
 
 module Separate_pieces = struct
@@ -2345,26 +2176,14 @@ module Separate_pieces = struct
     [@@sop.node_category "Modify/Pieces"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        Sop.separate_pieces ~label ~owner:parameters.owner
-          ~translation_attribute:parameters.translation_attribute
-          ~axis:(Vec3.create parameters.axis_x parameters.axis_y
-            parameters.axis_z) ~gap:parameters.gap ~mode:parameters.mode
-          ~piece_attribute:parameters.piece_attribute input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Separate_pieces expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.separate_pieces ~label ~owner:parameters.owner
+      ~translation_attribute:parameters.translation_attribute
+      ~axis:(Vec3.create parameters.axis_x parameters.axis_y
+        parameters.axis_z) ~gap:parameters.gap ~mode:parameters.mode
+      ~piece_attribute:parameters.piece_attribute input)
 
   let factory = parameters_factory build
-
-  let create ?label:node_label ?(owner = Pdk.Attribute.Primitive)
-      ?(translation_attribute = "piece_translation")
-      ?(axis = Vec3.unit_x) ?(gap = 0.001)
-      ?(mode = Pdk.Separate_pieces.Separate_pieces_separate) ~piece_attribute input =
-    build ~label:(label "separate-pieces" node_label) ~inputs:[input] {
-      owner; piece_attribute; translation_attribute;
-      axis_x = axis.x; axis_y = axis.y; axis_z = axis.z; gap; mode }
 end [@@sop.register]
 
 module Edge_flip = struct
@@ -2380,22 +2199,13 @@ module Edge_flip = struct
     [@@sop.node_category "Topology/Edge"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        Sop.edge_flip ~label ?group:(optional_text parameters.group)
-          ~cycles:parameters.cycles
-          ~cycle_vertex_attributes:parameters.cycle_vertex_attributes
-          ~recompute_point_normals:parameters.recompute_point_normals input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Edge_flip expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.edge_flip ~label ?group:(optional_text parameters.group)
+      ~cycles:parameters.cycles
+      ~cycle_vertex_attributes:parameters.cycle_vertex_attributes
+      ~recompute_point_normals:parameters.recompute_point_normals input)
 
   let factory = parameters_factory build
-  let create ?label:node_label ?(group = "") ?(cycles = 1)
-      ?(cycle_vertex_attributes = true) ?(recompute_point_normals = false)
-      input =
-    build ~label:(label "edge-flip" node_label) ~inputs:[input]
-      { group; cycles; cycle_vertex_attributes; recompute_point_normals }
 end [@@sop.register]
 
 module Edge_cusp = struct
@@ -2407,19 +2217,11 @@ module Edge_cusp = struct
     [@@sop.node_category "Topology/Edge"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        Sop.edge_cusp ~label ?group:(optional_text parameters.group)
-          ~update_point_normals:parameters.update_point_normals input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Edge_cusp expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.edge_cusp ~label ?group:(optional_text parameters.group)
+      ~update_point_normals:parameters.update_point_normals input)
 
   let factory = parameters_factory build
-  let create ?label:node_label ?(group = "") ?(update_point_normals = true)
-      input =
-    build ~label:(label "edge-cusp" node_label) ~inputs:[input]
-      { group; update_point_normals }
 end [@@sop.register]
 
 module Edge_straighten = struct
@@ -2430,18 +2232,11 @@ module Edge_straighten = struct
     [@@sop.node_category "Topology/Edge"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        Sop.edge_straighten ~label ?group:(optional_text parameters.group)
-          ?output_group:(optional_text parameters.output_group) input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Edge_straighten expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.edge_straighten ~label ?group:(optional_text parameters.group)
+      ?output_group:(optional_text parameters.output_group) input)
 
   let factory = parameters_factory build
-  let create ?label:node_label ?(group = "") ?(output_group = "") input =
-    build ~label:(label "edge-straighten" node_label) ~inputs:[input]
-      { group; output_group }
 end [@@sop.register]
 
 module Circle_from_edges = struct
@@ -2462,25 +2257,15 @@ module Circle_from_edges = struct
     [@@sop.node_category "Topology/Edge"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        let radius = if parameters.use_radius then Some parameters.radius
-          else None in
-        Sop.circle_from_edges ~label ?group:(optional_text parameters.group)
-          ?radius ~scale:(Vec3.create parameters.scale_x parameters.scale_y
-            parameters.scale_z)
-          ?output_group:(optional_text parameters.output_group) input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Circle_from_edges expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    let radius = if parameters.use_radius then Some parameters.radius
+      else None in
+    Sop.circle_from_edges ~label ?group:(optional_text parameters.group)
+      ?radius ~scale:(Vec3.create parameters.scale_x parameters.scale_y
+        parameters.scale_z)
+      ?output_group:(optional_text parameters.output_group) input)
 
   let factory = parameters_factory build
-  let create ?label:node_label ?(group = "") ?radius
-      ?(scale = Vec3.create 1. 1. 1.) ?(output_group = "") input =
-    build ~label:(label "circle-from-edges" node_label) ~inputs:[input] {
-      group; use_radius = Option.is_some radius;
-      radius = Option.value ~default:1. radius;
-      scale_x = scale.x; scale_y = scale.y; scale_z = scale.z; output_group }
 end [@@sop.register]
 
 module Edge_equalize = struct
@@ -2504,22 +2289,13 @@ module Edge_equalize = struct
     [@@sop.node_category "Topology/Edge"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        Sop.edge_equalize ~label ?group:(optional_text parameters.group)
-          ~method_:parameters.method_ ~iterations:parameters.iterations
-          ~tolerance:parameters.tolerance
-          ?output_group:(optional_text parameters.output_group) input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Edge_equalize expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.edge_equalize ~label ?group:(optional_text parameters.group)
+      ~method_:parameters.method_ ~iterations:parameters.iterations
+      ~tolerance:parameters.tolerance
+      ?output_group:(optional_text parameters.output_group) input)
 
   let factory = parameters_factory build
-  let create ?label:node_label ?(group = "")
-      ?(method_ = Pdk.Edge_modeling_ops.Equalize_average) ?(iterations = 64)
-      ?(tolerance = 0.000001) ?(output_group = "") input =
-    build ~label:(label "edge-equalize" node_label) ~inputs:[input]
-      { group; method_; iterations; tolerance; output_group }
 end [@@sop.register]
 
 module Snap_to_grid = struct
@@ -2593,35 +2369,20 @@ module Snap_to_grid = struct
     [@@sop.node_category "Point"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        let max_distance = if parameters.limit_distance
-          then Some parameters.max_distance else None in
-        Sop.snap_to_grid ~label ?group:(optional_text parameters.group)
-          ~spacing:(Vec3.create parameters.spacing_x parameters.spacing_y
-            parameters.spacing_z)
-          ~offset:(Vec3.create parameters.offset_x parameters.offset_y
-            parameters.offset_z) ~rounding:parameters.rounding ?max_distance
-          ~fuse_points:parameters.fuse_points ~position:parameters.position
-          ?weight_attribute:(optional_text parameters.weight_attribute)
-          ~attributes:parameters.attributes
-          ?snapped_group:(optional_text parameters.snapped_group) input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Snap_to_grid expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    let max_distance = if parameters.limit_distance
+      then Some parameters.max_distance else None in
+    Sop.snap_to_grid ~label ?group:(optional_text parameters.group)
+      ~spacing:(Vec3.create parameters.spacing_x parameters.spacing_y
+        parameters.spacing_z)
+      ~offset:(Vec3.create parameters.offset_x parameters.offset_y
+        parameters.offset_z) ~rounding:parameters.rounding ?max_distance
+      ~fuse_points:parameters.fuse_points ~position:parameters.position
+      ?weight_attribute:(optional_text parameters.weight_attribute)
+      ~attributes:parameters.attributes
+      ?snapped_group:(optional_text parameters.snapped_group) input)
 
   let factory = parameters_factory build
-  let create ?label:node_label ?(group = "")
-      ?(spacing = Vec3.create 1. 1. 1.) ?(offset = Vec3.zero)
-      ?(rounding = Pdk.Fuse_grid.Grid_nearest) ?max_distance ?(fuse_points = false)
-      ?(position = Pdk.Fuse_reduce.Average_position) ?(weight_attribute = "")
-      ?(attributes = Pdk.Fuse_reduce.Keep_first) ?(snapped_group = "") input =
-    build ~label:(label "snap-to-grid" node_label) ~inputs:[input] {
-      group; spacing_x = spacing.x; spacing_y = spacing.y;
-      spacing_z = spacing.z; offset_x = offset.x; offset_y = offset.y;
-      offset_z = offset.z; rounding; limit_distance = Option.is_some max_distance;
-      max_distance = Option.value ~default:1. max_distance; fuse_points;
-      position; weight_attribute; attributes; snapped_group }
 end [@@sop.register]
 
 module Remesh = struct
@@ -2657,29 +2418,22 @@ module Remesh = struct
     [@@sop.node_category "Topology/Remesh"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        Sop.remesh ~label ~iterations:parameters.iterations
-          ~smoothing:parameters.smoothing ~project:parameters.project
-          ~use_input_points_only:parameters.use_input_points_only
-          ?hard_point_group:(optional_text parameters.hard_point_group)
-          ?hard_edge_group:(optional_text parameters.hard_edge_group)
-          ?target_size_attribute:(optional_text parameters.target_size_attribute)
-          ~preserve_uv_seams:parameters.preserve_uv_seams
-          ~uv_attribute:parameters.uv_attribute
-          ?output_hard_edges:(optional_text parameters.output_hard_edges)
-          ?output_mesh_size:(optional_text parameters.output_mesh_size)
-          ?output_quality:(optional_text parameters.output_quality)
-          ~recompute_point_normals:parameters.recompute_point_normals
-          ~target_length:parameters.target_length input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Remesh expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.remesh ~label ~iterations:parameters.iterations
+      ~smoothing:parameters.smoothing ~project:parameters.project
+      ~use_input_points_only:parameters.use_input_points_only
+      ?hard_point_group:(optional_text parameters.hard_point_group)
+      ?hard_edge_group:(optional_text parameters.hard_edge_group)
+      ?target_size_attribute:(optional_text parameters.target_size_attribute)
+      ~preserve_uv_seams:parameters.preserve_uv_seams
+      ~uv_attribute:parameters.uv_attribute
+      ?output_hard_edges:(optional_text parameters.output_hard_edges)
+      ?output_mesh_size:(optional_text parameters.output_mesh_size)
+      ?output_quality:(optional_text parameters.output_quality)
+      ~recompute_point_normals:parameters.recompute_point_normals
+      ~target_length:parameters.target_length input)
 
   let factory = parameters_factory build
-  let create ?label:node_label ?(target_length = 0.1) input =
-    build ~label:(label "remesh" node_label) ~inputs:[input]
-      { parameters_default with target_length }
 end [@@sop.register]
 
 module Poly_extrude = struct
@@ -2718,27 +2472,20 @@ module Poly_extrude = struct
     [@@sop.node_category "Topology/Polygon"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        Sop.poly_extrude ~label ?group:(optional_text parameters.group)
-          ?split_edges:(optional_text parameters.split_edges)
-          ~divide:parameters.divide ~divisions:parameters.divisions
-          ~output_front:parameters.output_front
-          ~output_back:parameters.output_back ~output_side:parameters.output_side
-          ?front_group:(optional_text parameters.front_group)
-          ?back_group:(optional_text parameters.back_group)
-          ?side_group:(optional_text parameters.side_group)
-          ?front_boundary_group:(optional_text parameters.front_boundary_group)
-          ?back_boundary_group:(optional_text parameters.back_boundary_group)
-          ~distance:parameters.distance input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Poly_extrude expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.poly_extrude ~label ?group:(optional_text parameters.group)
+      ?split_edges:(optional_text parameters.split_edges)
+      ~divide:parameters.divide ~divisions:parameters.divisions
+      ~output_front:parameters.output_front
+      ~output_back:parameters.output_back ~output_side:parameters.output_side
+      ?front_group:(optional_text parameters.front_group)
+      ?back_group:(optional_text parameters.back_group)
+      ?side_group:(optional_text parameters.side_group)
+      ?front_boundary_group:(optional_text parameters.front_boundary_group)
+      ?back_boundary_group:(optional_text parameters.back_boundary_group)
+      ~distance:parameters.distance input)
 
   let factory = parameters_factory build
-  let create ?label:node_label ?(distance = 0.1) input =
-    build ~label:(label "poly-extrude" node_label) ~inputs:[input]
-      { parameters_default with distance }
 end [@@sop.register]
 
 module Poly_fill = struct
@@ -2762,22 +2509,15 @@ module Poly_fill = struct
     [@@sop.node_category "Topology/Polygon"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        Sop.poly_fill ~label
-          ?boundary_group:(optional_text parameters.boundary_group)
-          ~mode:parameters.mode ~reverse_patches:parameters.reverse_patches
-          ~unique_points:parameters.unique_points
-          ~update_point_normals:parameters.update_point_normals
-          ?patch_group:(optional_text parameters.patch_group) input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Poly_fill expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.poly_fill ~label
+      ?boundary_group:(optional_text parameters.boundary_group)
+      ~mode:parameters.mode ~reverse_patches:parameters.reverse_patches
+      ~unique_points:parameters.unique_points
+      ~update_point_normals:parameters.update_point_normals
+      ?patch_group:(optional_text parameters.patch_group) input)
 
   let factory = parameters_factory build
-  let create ?label:node_label input =
-    build ~label:(label "poly-fill" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Convert_line = struct
@@ -2799,24 +2539,17 @@ module Convert_line = struct
     [@@sop.node_category "Topology/Curve"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        Sop.convert_line ~label ?group:(optional_text parameters.group)
-          ~connect_path:parameters.connect_path
-          ~maximum_distance:parameters.maximum_distance
-          ~connect_only_to_other_end_points:
-            parameters.connect_only_to_other_end_points
-          ~make_isolated_loops_closed:parameters.make_isolated_loops_closed
-          ~remove_unused_points:parameters.remove_unused_points
-          ?length_attribute:(optional_text parameters.length_attribute) input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Convert_line expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.convert_line ~label ?group:(optional_text parameters.group)
+      ~connect_path:parameters.connect_path
+      ~maximum_distance:parameters.maximum_distance
+      ~connect_only_to_other_end_points:
+        parameters.connect_only_to_other_end_points
+      ~make_isolated_loops_closed:parameters.make_isolated_loops_closed
+      ~remove_unused_points:parameters.remove_unused_points
+      ?length_attribute:(optional_text parameters.length_attribute) input)
 
   let factory = parameters_factory build
-  let create ?label:node_label input =
-    build ~label:(label "convert-line" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Resample = struct
@@ -2848,31 +2581,24 @@ module Resample = struct
     [@@sop.node_category "Topology/Curve"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        let segments = if parameters.use_segments
-          then Some parameters.segments else None
-        and maximum_segment_length = if parameters.use_maximum_segment_length
-          then Some parameters.maximum_segment_length else None in
-        Sop.resample ~label ?group:(optional_text parameters.group) ?segments
-          ?maximum_segment_length
-          ?segment_length_attribute:
-            (optional_text parameters.segment_length_attribute)
-          ?segments_attribute:(optional_text parameters.segments_attribute)
-          ~even_last_segment:parameters.even_last_segment
-          ?curve_u_attribute:(optional_text parameters.curve_u_attribute)
-          ?curve_number_attribute:
-            (optional_text parameters.curve_number_attribute)
-          ?distance_attribute:(optional_text parameters.distance_attribute)
-          ?tangent_attribute:(optional_text parameters.tangent_attribute) input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Resample expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    let segments = if parameters.use_segments
+      then Some parameters.segments else None
+    and maximum_segment_length = if parameters.use_maximum_segment_length
+      then Some parameters.maximum_segment_length else None in
+    Sop.resample ~label ?group:(optional_text parameters.group) ?segments
+      ?maximum_segment_length
+      ?segment_length_attribute:
+        (optional_text parameters.segment_length_attribute)
+      ?segments_attribute:(optional_text parameters.segments_attribute)
+      ~even_last_segment:parameters.even_last_segment
+      ?curve_u_attribute:(optional_text parameters.curve_u_attribute)
+      ?curve_number_attribute:
+        (optional_text parameters.curve_number_attribute)
+      ?distance_attribute:(optional_text parameters.distance_attribute)
+      ?tangent_attribute:(optional_text parameters.tangent_attribute) input)
 
   let factory = parameters_factory build
-  let create ?label:node_label input =
-    build ~label:(label "resample" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Carve = struct
@@ -2916,27 +2642,21 @@ module Carve = struct
     [@@sop.node_category "Topology/Curve"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        Sop.carve ~label ?group:(optional_text parameters.group)
-          ~relative_arc_length:parameters.relative_arc_length
-          ~first:parameters.first ~last:parameters.last
-          ?first_attribute:(optional_text parameters.first_attribute)
-          ?last_attribute:(optional_text parameters.last_attribute)
-          ~attribute_mode:parameters.attribute_mode
-          ~only_at_breakpoints:parameters.only_at_breakpoints
-          ~cut_at_all_internal_breakpoints:
-            parameters.cut_at_all_internal_breakpoints ~keep:parameters.keep
-          ~extract_points:parameters.extract_points
-          ~divisions:parameters.divisions ~keep_original:parameters.keep_original
-          input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Carve expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.carve ~label ?group:(optional_text parameters.group)
+      ~relative_arc_length:parameters.relative_arc_length
+      ~first:parameters.first ~last:parameters.last
+      ?first_attribute:(optional_text parameters.first_attribute)
+      ?last_attribute:(optional_text parameters.last_attribute)
+      ~attribute_mode:parameters.attribute_mode
+      ~only_at_breakpoints:parameters.only_at_breakpoints
+      ~cut_at_all_internal_breakpoints:
+        parameters.cut_at_all_internal_breakpoints ~keep:parameters.keep
+      ~extract_points:parameters.extract_points
+      ~divisions:parameters.divisions ~keep_original:parameters.keep_original
+      input)
 
   let factory = parameters_factory build
-  let create ?label:node_label input =
-    build ~label:(label "carve" node_label) ~inputs:[input] parameters_default
 end [@@sop.register]
 
 module Ends = struct
@@ -2955,17 +2675,11 @@ module Ends = struct
     [@@sop.node_category "Topology/Curve"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        Sop.ends ~label ?group:(optional_text parameters.group)
-          parameters.mode input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Ends expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.ends ~label ?group:(optional_text parameters.group)
+      parameters.mode input)
 
   let factory = parameters_factory build
-  let create ?label:node_label input =
-    build ~label:(label "ends" node_label) ~inputs:[input] parameters_default
 end [@@sop.register]
 
 module Join_curves = struct
@@ -2989,24 +2703,17 @@ module Join_curves = struct
     [@@sop.node_category "Topology/Curve"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        let group_size = if parameters.use_group_size
-          then Some parameters.group_size else None in
-        Sop.join_curves ~label ?group:(optional_text parameters.group)
-          ~orient_closest:parameters.orient_closest
-          ~connect_closest_ends:parameters.connect_closest_ends
-          ~only_connected:parameters.only_connected ?group_size
-          ~keep_originals:parameters.keep_originals
-          ~tolerance:parameters.tolerance ~wrap:parameters.wrap input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Join_curves expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    let group_size = if parameters.use_group_size
+      then Some parameters.group_size else None in
+    Sop.join_curves ~label ?group:(optional_text parameters.group)
+      ~orient_closest:parameters.orient_closest
+      ~connect_closest_ends:parameters.connect_closest_ends
+      ~only_connected:parameters.only_connected ?group_size
+      ~keep_originals:parameters.keep_originals
+      ~tolerance:parameters.tolerance ~wrap:parameters.wrap input)
 
   let factory = parameters_factory build
-  let create ?label:node_label input =
-    build ~label:(label "join-curves" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Poly_path = struct
@@ -3024,21 +2731,14 @@ module Poly_path = struct
     [@@sop.node_category "Topology/Curve"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        Sop.poly_path ~label ~connect_end_points:parameters.connect_end_points
-          ~maximum_distance:parameters.maximum_distance
-          ~connect_only_to_other_end_points:
-            parameters.connect_only_to_other_end_points
-          ~make_isolated_loops_closed:parameters.make_isolated_loops_closed input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Poly_path expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.poly_path ~label ~connect_end_points:parameters.connect_end_points
+      ~maximum_distance:parameters.maximum_distance
+      ~connect_only_to_other_end_points:
+        parameters.connect_only_to_other_end_points
+      ~make_isolated_loops_closed:parameters.make_isolated_loops_closed input)
 
   let factory = parameters_factory build
-  let create ?label:node_label input =
-    build ~label:(label "poly-path" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Point_generate = struct
@@ -3050,10 +2750,8 @@ module Point_generate = struct
     [@@sop.node_category "Create/Point"] [@@sop.node_inputs 0]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs:_ parameters =
-    Sop.point_generate_origin ~label ~points:parameters.points ()
-    |> Node.parameterize ~schema:parameters_schema ~values:parameters
-         ~rebuild:build
+  let build = parameters_build (fun ~label parameters ->
+    Sop.point_generate_origin ~label ~points:parameters.points ())
 
   let factory = parameters_factory build
 
@@ -3153,19 +2851,14 @@ module Attribute_noise_quaternion = struct
     [@@sop.node_category "Attribute/Noise"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs parameters =
-    match inputs with
-    | [input] ->
-        Sop.attribute_noise ~label ?group:(optional_text parameters.group)
-          ~seed:parameters.seed ~location:parameters.location
-          ~range:parameters.range
-          ~frequency:(Vec3.create parameters.frequency_x parameters.frequency_y
-            parameters.frequency_z) ~octaves:parameters.octaves
-          ~owner:parameters.owner ~name:parameters.name
-          Pdk.Attribute_ops.Noise_quaternion input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Attribute_noise_quaternion expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.attribute_noise ~label ?group:(optional_text parameters.group)
+      ~seed:parameters.seed ~location:parameters.location
+      ~range:parameters.range
+      ~frequency:(Vec3.create parameters.frequency_x parameters.frequency_y
+        parameters.frequency_z) ~octaves:parameters.octaves
+      ~owner:parameters.owner ~name:parameters.name
+      Pdk.Attribute_ops.Noise_quaternion input)
 
   let factory = parameters_factory build
 
@@ -3203,18 +2896,13 @@ module Point_jitter = struct
     [@@sop.node_category "Point"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs parameters =
-    match inputs with
-    | [input] ->
-        Sop.point_jitter ~label ?group:(optional_text parameters.group)
-          ?mask_attribute:(optional_text parameters.mask_attribute)
-          ?id_attribute:(optional_text parameters.id_attribute)
-          ~seed:parameters.seed ~scale:parameters.scale
-          ~axis_scales:(Vec3.create parameters.axis_x parameters.axis_y
-            parameters.axis_z) input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Point_jitter expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.point_jitter ~label ?group:(optional_text parameters.group)
+      ?mask_attribute:(optional_text parameters.mask_attribute)
+      ?id_attribute:(optional_text parameters.id_attribute)
+      ~seed:parameters.seed ~scale:parameters.scale
+      ~axis_scales:(Vec3.create parameters.axis_x parameters.axis_y
+        parameters.axis_z) input)
 
   let factory = parameters_factory build
 
@@ -3263,22 +2951,17 @@ module Boolean_fracture = struct
     [@@sop.node_category "Boolean"] [@@sop.node_inputs 2]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs parameters =
-    match inputs with
-    | [source; cutters] ->
-        Sop.boolean_fracture ~label
-          ~resolve_cutter_self_intersections:
-            parameters.resolve_cutter_self_intersections
-          ~point_tolerance:parameters.point_tolerance
-          ~tiny_seam_threshold:parameters.tiny_seam_threshold
-          ~cleanup_max_batches:parameters.cleanup_max_batches
-          ~strict_cleanup:parameters.strict_cleanup
-          ~detriangulation:parameters.detriangulation
-          ~require_closed:parameters.require_closed
-          ~piece_attribute:parameters.piece_attribute ~cutters source
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Boolean_fracture expects source and cutters"
+  let build = parameters_build (fun ~label parameters source cutters ->
+    Sop.boolean_fracture ~label
+      ~resolve_cutter_self_intersections:
+        parameters.resolve_cutter_self_intersections
+      ~point_tolerance:parameters.point_tolerance
+      ~tiny_seam_threshold:parameters.tiny_seam_threshold
+      ~cleanup_max_batches:parameters.cleanup_max_batches
+      ~strict_cleanup:parameters.strict_cleanup
+      ~detriangulation:parameters.detriangulation
+      ~require_closed:parameters.require_closed
+      ~piece_attribute:parameters.piece_attribute ~cutters source)
 
   let factory = parameters_factory build
 
@@ -3384,37 +3067,30 @@ module Boolean = struct
     | Closed_default -> None | Closed_required -> Some true
     | Closed_not_required -> Some false
 
-  let rec build ~label ~inputs parameters = match inputs with
-    | [left; right] ->
-        Sop.boolean ~label ~operation:parameters.operation
-          ~left_treatment:parameters.left_treatment
-          ~right_treatment:parameters.right_treatment
-          ~resolve_left_self_intersections:
-            parameters.resolve_left_self_intersections
-          ~resolve_right_self_intersections:
-            parameters.resolve_right_self_intersections
-          ~point_conflict:parameters.point_conflict
-          ~point_tolerance:parameters.point_tolerance
-          ~tiny_seam_threshold:parameters.tiny_seam_threshold
-          ~cleanup_max_batches:parameters.cleanup_max_batches
-          ~strict_cleanup:parameters.strict_cleanup
-          ~seam_points:parameters.seam_points
-          ~detriangulation:parameters.detriangulation
-          ~assume_flat:parameters.assume_flat
-          ?require_closed:(require_closed parameters.require_closed)
-          ?piece_attribute:(optional_text parameters.piece_attribute)
-          ~left_piece_group:(optional_text parameters.left_piece_group)
-          ~overlap_piece_group:(optional_text parameters.overlap_piece_group)
-          ~right_piece_group:(optional_text parameters.right_piece_group)
-          ~right left
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Boolean expects A and B inputs"
+  let build = parameters_build (fun ~label parameters left right ->
+    Sop.boolean ~label ~operation:parameters.operation
+      ~left_treatment:parameters.left_treatment
+      ~right_treatment:parameters.right_treatment
+      ~resolve_left_self_intersections:
+        parameters.resolve_left_self_intersections
+      ~resolve_right_self_intersections:
+        parameters.resolve_right_self_intersections
+      ~point_conflict:parameters.point_conflict
+      ~point_tolerance:parameters.point_tolerance
+      ~tiny_seam_threshold:parameters.tiny_seam_threshold
+      ~cleanup_max_batches:parameters.cleanup_max_batches
+      ~strict_cleanup:parameters.strict_cleanup
+      ~seam_points:parameters.seam_points
+      ~detriangulation:parameters.detriangulation
+      ~assume_flat:parameters.assume_flat
+      ?require_closed:(require_closed parameters.require_closed)
+      ?piece_attribute:(optional_text parameters.piece_attribute)
+      ~left_piece_group:(optional_text parameters.left_piece_group)
+      ~overlap_piece_group:(optional_text parameters.overlap_piece_group)
+      ~right_piece_group:(optional_text parameters.right_piece_group)
+      ~right left)
 
   let factory = parameters_factory build
-  let create ?label:node_label ~right left =
-    build ~label:(label "boolean" node_label) ~inputs:[left; right]
-      parameters_default
 end [@@sop.register]
 
 module Boolean_seam = struct
@@ -3451,28 +3127,21 @@ module Boolean_seam = struct
     [@@sop.node_category "Boolean/Analysis"] [@@sop.node_inputs 2]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs parameters = match inputs with
-    | [left; right] ->
-        Sop.boolean_seam ~label ~output:parameters.output
-          ~left_treatment:parameters.left_treatment
-          ~right_treatment:parameters.right_treatment
-          ~resolve_left_self_intersections:
-            parameters.resolve_left_self_intersections
-          ~resolve_right_self_intersections:
-            parameters.resolve_right_self_intersections
-          ~left_self_group:(optional_text parameters.left_self_group)
-          ~between_group:(optional_text parameters.between_group)
-          ~right_self_group:(optional_text parameters.right_self_group)
-          ~coincident_group:(optional_text parameters.coincident_group)
-          ~right left
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Boolean_seam expects A and B inputs"
+  let build = parameters_build (fun ~label parameters left right ->
+    Sop.boolean_seam ~label ~output:parameters.output
+      ~left_treatment:parameters.left_treatment
+      ~right_treatment:parameters.right_treatment
+      ~resolve_left_self_intersections:
+        parameters.resolve_left_self_intersections
+      ~resolve_right_self_intersections:
+        parameters.resolve_right_self_intersections
+      ~left_self_group:(optional_text parameters.left_self_group)
+      ~between_group:(optional_text parameters.between_group)
+      ~right_self_group:(optional_text parameters.right_self_group)
+      ~coincident_group:(optional_text parameters.coincident_group)
+      ~right left)
 
   let factory = parameters_factory build
-  let create ?label:node_label ~right left =
-    build ~label:(label "boolean-seam" node_label) ~inputs:[left; right]
-      parameters_default
 end [@@sop.register]
 
 module Boolean_detect = struct
@@ -3502,42 +3171,29 @@ module Boolean_detect = struct
     [@@sop.node_category "Boolean/Analysis"] [@@sop.node_inputs 2]
     [@@sop.node_optional "1"] [@@deriving sop_params, sop_node]
 
-  let rec build_slots ~label ~inputs parameters = match inputs with
-    | [Some input; collision] ->
-        let collision_group = match collision with
-          | None -> None | Some _ -> optional_text parameters.collision_group in
-        let intersecting_group = match collision with
-          | None -> None | Some _ -> optional_text parameters.intersecting_group
-        and intersections_attribute = match collision with
-          | None -> None
-          | Some _ -> optional_text parameters.intersections_attribute
-        and count_attribute = match collision with
-          | None -> None | Some _ -> optional_text parameters.count_attribute in
-        Sop.boolean_detect ~label
-          ?source_group:(optional_text parameters.source_group) ?collision_group
-          ~tolerance:parameters.tolerance
-          ~include_coplanar:parameters.include_coplanar
-          ~intersecting_group ?intersections_attribute ?count_attribute
-          ~self_intersecting_group:
-            (optional_text parameters.self_intersecting_group)
-          ?self_intersections_attribute:
-            (optional_text parameters.self_intersections_attribute)
-          ?self_count_attribute:(optional_text parameters.self_count_attribute)
-          ?collision input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild
-    | _ -> invalid_arg "Sop_catalog.Boolean_detect requires its source input"
+  let build = parameters_build (fun ~label parameters input collision ->
+    let collision_group = match collision with
+      | None -> None | Some _ -> optional_text parameters.collision_group in
+    let intersecting_group = match collision with
+      | None -> None | Some _ -> optional_text parameters.intersecting_group
+    and intersections_attribute = match collision with
+      | None -> None
+      | Some _ -> optional_text parameters.intersections_attribute
+    and count_attribute = match collision with
+      | None -> None | Some _ -> optional_text parameters.count_attribute in
+    Sop.boolean_detect ~label
+      ?source_group:(optional_text parameters.source_group) ?collision_group
+      ~tolerance:parameters.tolerance
+      ~include_coplanar:parameters.include_coplanar
+      ~intersecting_group ?intersections_attribute ?count_attribute
+      ~self_intersecting_group:
+        (optional_text parameters.self_intersecting_group)
+      ?self_intersections_attribute:
+        (optional_text parameters.self_intersections_attribute)
+      ?self_count_attribute:(optional_text parameters.self_count_attribute)
+      ?collision input)
 
-  and rebuild ~label ~inputs parameters = match inputs with
-    | [input] -> build_slots ~label ~inputs:[Some input; None] parameters
-    | [input; collision] ->
-        build_slots ~label ~inputs:[Some input; Some collision] parameters
-    | _ -> invalid_arg "Sop_catalog.Boolean_detect has invalid physical inputs"
-
-  let factory = parameters_factory build_slots
-  let create ?label:node_label ?collision input =
-    build_slots ~label:(label "boolean-detect" node_label)
-      ~inputs:[Some input; collision] parameters_default
+  let factory = parameters_factory build
 end [@@sop.register]
 
 module Intersection_analysis = struct
@@ -3563,36 +3219,21 @@ module Intersection_analysis = struct
     [@@sop.node_category "Boolean/Analysis"] [@@sop.node_inputs 2]
     [@@sop.node_optional "1"] [@@deriving sop_params, sop_node]
 
-  let rec build_slots ~label ~inputs parameters = match inputs with
-    | [Some input; collision] ->
-        let collision_group = match collision with
-          | None -> None | Some _ -> optional_text parameters.collision_group in
-        Sop.intersection_analysis ~label
-          ?source_group:(optional_text parameters.source_group) ?collision_group
-          ~tolerance:parameters.tolerance
-          ~include_coplanar:parameters.include_coplanar
-          ~input_attribute:(optional_text parameters.input_attribute)
-          ~primitive_attribute:(optional_text parameters.primitive_attribute)
-          ~primitive_uvw_attribute:
-            (optional_text parameters.primitive_uvw_attribute)
-          ~point_attribute:(optional_text parameters.point_attribute)
-          ?collision input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild
-    | _ -> invalid_arg
-        "Sop_catalog.Intersection_analysis requires its source input"
+  let build = parameters_build (fun ~label parameters input collision ->
+    let collision_group = match collision with
+      | None -> None | Some _ -> optional_text parameters.collision_group in
+    Sop.intersection_analysis ~label
+      ?source_group:(optional_text parameters.source_group) ?collision_group
+      ~tolerance:parameters.tolerance
+      ~include_coplanar:parameters.include_coplanar
+      ~input_attribute:(optional_text parameters.input_attribute)
+      ~primitive_attribute:(optional_text parameters.primitive_attribute)
+      ~primitive_uvw_attribute:
+        (optional_text parameters.primitive_uvw_attribute)
+      ~point_attribute:(optional_text parameters.point_attribute)
+      ?collision input)
 
-  and rebuild ~label ~inputs parameters = match inputs with
-    | [input] -> build_slots ~label ~inputs:[Some input; None] parameters
-    | [input; collision] ->
-        build_slots ~label ~inputs:[Some input; Some collision] parameters
-    | _ -> invalid_arg
-        "Sop_catalog.Intersection_analysis has invalid physical inputs"
-
-  let factory = parameters_factory build_slots
-  let create ?label:node_label ?collision input =
-    build_slots ~label:(label "intersection-analysis" node_label)
-      ~inputs:[Some input; collision] parameters_default
+  let factory = parameters_factory build
 end [@@sop.register]
 
 module Poly_reduce = struct
@@ -3632,30 +3273,23 @@ module Poly_reduce = struct
     [@@sop.node_category "Topology/Remesh"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        let target = match parameters.target_mode with
-          | Ratio -> Pdk.Poly_reduce.Reduce_ratio parameters.ratio
-          | Primitive_count ->
-              Pdk.Poly_reduce.Reduce_primitive_count parameters.primitive_count in
-        let max_normal_deviation = if parameters.limit_normal_deviation
-          then Some parameters.max_normal_deviation else None in
-        Sop.poly_reduce ~label ?group:(optional_text parameters.group)
-          ?hard_point_group:(optional_text parameters.hard_point_group)
-          ?hard_edge_group:(optional_text parameters.hard_edge_group) ~target
-          ~preserve_boundary:parameters.preserve_boundary
-          ~only_original_positions:parameters.only_original_positions
-          ~equalize_lengths:parameters.equalize_lengths ?max_normal_deviation
-          ?output_group:(optional_text parameters.output_group)
-          ~recompute_point_normals:parameters.recompute_point_normals input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Poly_reduce expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    let target = match parameters.target_mode with
+      | Ratio -> Pdk.Poly_reduce.Reduce_ratio parameters.ratio
+      | Primitive_count ->
+          Pdk.Poly_reduce.Reduce_primitive_count parameters.primitive_count in
+    let max_normal_deviation = if parameters.limit_normal_deviation
+      then Some parameters.max_normal_deviation else None in
+    Sop.poly_reduce ~label ?group:(optional_text parameters.group)
+      ?hard_point_group:(optional_text parameters.hard_point_group)
+      ?hard_edge_group:(optional_text parameters.hard_edge_group) ~target
+      ~preserve_boundary:parameters.preserve_boundary
+      ~only_original_positions:parameters.only_original_positions
+      ~equalize_lengths:parameters.equalize_lengths ?max_normal_deviation
+      ?output_group:(optional_text parameters.output_group)
+      ~recompute_point_normals:parameters.recompute_point_normals input)
 
   let factory = parameters_factory build
-  let create ?label:node_label input =
-    build ~label:(label "poly-reduce" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Measure_curvature = struct
@@ -3692,28 +3326,21 @@ module Measure_curvature = struct
     [@@sop.node_category "Measure"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        let outputs : Pdk.Analysis_ops.curvature_outputs = {
-          mean = optional_text parameters.mean;
-          gaussian = optional_text parameters.gaussian;
-          minimum = optional_text parameters.minimum;
-          maximum = optional_text parameters.maximum;
-          curvedness = optional_text parameters.curvedness;
-          shape_index = optional_text parameters.shape_index } in
-        Sop.measure_curvature ~label
-          ?point_group:(optional_text parameters.point_group)
-          ~boundary:parameters.boundary
-          ~smoothing_iterations:parameters.smoothing_iterations
-          ~smoothing_strength:parameters.smoothing_strength ~outputs input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Measure_curvature expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    let outputs : Pdk.Analysis_ops.curvature_outputs = {
+      mean = optional_text parameters.mean;
+      gaussian = optional_text parameters.gaussian;
+      minimum = optional_text parameters.minimum;
+      maximum = optional_text parameters.maximum;
+      curvedness = optional_text parameters.curvedness;
+      shape_index = optional_text parameters.shape_index } in
+    Sop.measure_curvature ~label
+      ?point_group:(optional_text parameters.point_group)
+      ~boundary:parameters.boundary
+      ~smoothing_iterations:parameters.smoothing_iterations
+      ~smoothing_strength:parameters.smoothing_strength ~outputs input)
 
   let factory = parameters_factory build
-  let create ?label:node_label input =
-    build ~label:(label "measure-curvature" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Attribute_laplacian = struct
@@ -3736,21 +3363,14 @@ module Attribute_laplacian = struct
     [@@sop.node_category "Attribute/Filter"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        Sop.attribute_laplacian ~label
-          ?point_group:(optional_text parameters.point_group)
-          ~weighting:parameters.weighting ~normalize:parameters.normalize
-          ~source:parameters.source ?output:(optional_text parameters.output)
-          input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Attribute_laplacian expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.attribute_laplacian ~label
+      ?point_group:(optional_text parameters.point_group)
+      ~weighting:parameters.weighting ~normalize:parameters.normalize
+      ~source:parameters.source ?output:(optional_text parameters.output)
+      input)
 
   let factory = parameters_factory build
-  let create ?label:node_label input =
-    build ~label:(label "attribute-laplacian" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Polyframe = struct
@@ -3793,24 +3413,17 @@ module Polyframe = struct
     | Style_attribute_gradient ->
         Pdk.Analysis_ops.Attribute_gradient parameters.style_attribute
 
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        Sop.polyframe ~label
-          ?selection:(optional_element_group parameters.group_owner
-            parameters.group)
-          ~orthogonal:parameters.orthogonal ~left_handed:parameters.left_handed
-          ~normal_attribute:parameters.normal_attribute
-          ~tangent_attribute:(optional_text parameters.tangent_attribute)
-          ~bitangent_attribute:(optional_text parameters.bitangent_attribute)
-          (style parameters) input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Polyframe expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.polyframe ~label
+      ?selection:(optional_element_group parameters.group_owner
+        parameters.group)
+      ~orthogonal:parameters.orthogonal ~left_handed:parameters.left_handed
+      ~normal_attribute:parameters.normal_attribute
+      ~tangent_attribute:(optional_text parameters.tangent_attribute)
+      ~bitangent_attribute:(optional_text parameters.bitangent_attribute)
+      (style parameters) input)
 
   let factory = parameters_factory build
-  let create ?label:node_label input =
-    build ~label:(label "polyframe" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Duplicate = struct
@@ -3865,28 +3478,14 @@ module Duplicate = struct
       (parameters.m20, parameters.m21, parameters.m22, parameters.m23)
       (parameters.m30, parameters.m31, parameters.m32, parameters.m33)
 
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        Sop.duplicate ~label ~copies:parameters.copies
-          ~cumulative:parameters.cumulative ~transform:(matrix parameters)
-          ?group:(optional_text parameters.group)
-          ?copy_group_prefix:(optional_text parameters.copy_group_prefix)
-          ~preserve_groups:parameters.preserve_groups input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Duplicate expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.duplicate ~label ~copies:parameters.copies
+      ~cumulative:parameters.cumulative ~transform:(matrix parameters)
+      ?group:(optional_text parameters.group)
+      ?copy_group_prefix:(optional_text parameters.copy_group_prefix)
+      ~preserve_groups:parameters.preserve_groups input)
 
   let factory = parameters_factory build
-
-  let create ?label:node_label ?(copies = 1) ?(cumulative = true)
-      ?(transform = Mat4.identity) ?(group = "") ?(copy_group_prefix = "")
-      ?(preserve_groups = false) input =
-    let (m00,m01,m02,m03), (m10,m11,m12,m13),
-        (m20,m21,m22,m23), (m30,m31,m32,m33) = Mat4.to_rows transform in
-    build ~label:(label "duplicate" node_label) ~inputs:[input] {
-      copies; cumulative; m00; m01; m02; m03; m10; m11; m12; m13;
-      m20; m21; m22; m23; m30; m31; m32; m33; group;
-      copy_group_prefix; preserve_groups }
 end [@@sop.register]
 
 module Match_axis = struct
@@ -3907,20 +3506,13 @@ module Match_axis = struct
     [@@sop.node_category "Modify/Align"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        Sop.match_axis ~label
-          ~from:(Vec3.create parameters.from_x parameters.from_y
-            parameters.from_z)
-          ~into:(Vec3.create parameters.into_x parameters.into_y
-            parameters.into_z) input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Match_axis expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.match_axis ~label
+      ~from:(Vec3.create parameters.from_x parameters.from_y
+        parameters.from_z)
+      ~into:(Vec3.create parameters.into_x parameters.into_y
+        parameters.into_z) input)
   let factory = parameters_factory build
-  let create ?label:node_label input =
-    build ~label:(label "match-axis" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Convex_hull = struct
@@ -3938,22 +3530,15 @@ module Convex_hull = struct
     [@@sop.node_category "Topology"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        Sop.convex_hull ~label
-          ?selection:(optional_element_group parameters.group_owner
-            parameters.group)
-          ~preserve_point_payload:parameters.preserve_point_payload
-          ?source_point_attribute:
-            (optional_text parameters.source_point_attribute)
-          ?hull_group:(optional_text parameters.hull_group) input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Convex_hull expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.convex_hull ~label
+      ?selection:(optional_element_group parameters.group_owner
+        parameters.group)
+      ~preserve_point_payload:parameters.preserve_point_payload
+      ?source_point_attribute:
+        (optional_text parameters.source_point_attribute)
+      ?hull_group:(optional_text parameters.hull_group) input)
   let factory = parameters_factory build
-  let create ?label:node_label input =
-    build ~label:(label "convex-hull" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Extract_centroid = struct
@@ -3995,21 +3580,14 @@ module Extract_centroid = struct
         owner = Pdk.Curve_topology.Centroid_piece_primitives;
         attribute = parameters.piece_attribute }
 
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        Sop.extract_centroid ~label ~run_over:(run_over parameters)
-          ~method_:parameters.method_
-          ?source_primitive_attribute:
-            (optional_text parameters.source_primitive_attribute)
-          ?piece_output_attribute:
-            (optional_text parameters.piece_output_attribute) input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Extract_centroid expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.extract_centroid ~label ~run_over:(run_over parameters)
+      ~method_:parameters.method_
+      ?source_primitive_attribute:
+        (optional_text parameters.source_primitive_attribute)
+      ?piece_output_attribute:
+        (optional_text parameters.piece_output_attribute) input)
   let factory = parameters_factory build
-  let create ?label:node_label input =
-    build ~label:(label "extract-centroid" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Bound = struct
@@ -4067,24 +3645,18 @@ module Bound = struct
     | Sphere -> Pdk.Bound.Bound_sphere { segments = parameters.segments;
         rings = parameters.rings; minimum_radius = parameters.minimum_radius }
 
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        Sop.bound ~label
-          ?selection:(optional_element_group parameters.group_owner
-            parameters.group) ~shape:(shape parameters)
-          ~lower_padding:(Vec3.create parameters.lower_x parameters.lower_y
-            parameters.lower_z)
-          ~upper_padding:(Vec3.create parameters.upper_x parameters.upper_y
-            parameters.upper_z)
-          ?bounds_group:(optional_text parameters.bounds_group)
-          ?center_attribute:(optional_text parameters.center_attribute)
-          ?radii_attribute:(optional_text parameters.radii_attribute) input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Bound expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.bound ~label
+      ?selection:(optional_element_group parameters.group_owner
+        parameters.group) ~shape:(shape parameters)
+      ~lower_padding:(Vec3.create parameters.lower_x parameters.lower_y
+        parameters.lower_z)
+      ~upper_padding:(Vec3.create parameters.upper_x parameters.upper_y
+        parameters.upper_z)
+      ?bounds_group:(optional_text parameters.bounds_group)
+      ?center_attribute:(optional_text parameters.center_attribute)
+      ?radii_attribute:(optional_text parameters.radii_attribute) input)
   let factory = parameters_factory build
-  let create ?label:node_label input =
-    build ~label:(label "bound" node_label) ~inputs:[input] parameters_default
 end [@@sop.register]
 
 module Fuse = struct
@@ -4185,45 +3757,32 @@ module Fuse = struct
     | Near_points -> Pdk.Fuse_grid.Near_points
     | Specified_points -> Pdk.Fuse_grid.Specified_points parameters.target_attribute
 
-  let rec build_slots ~label ~inputs parameters = match inputs with
-    | [Some input; target] ->
-        Sop.fuse ~label ?group:(optional_text parameters.group)
-          ?target_group:(optional_text parameters.target_group)
-          ~targeting:(targeting parameters) ~using:parameters.using
-          ~tolerance:parameters.tolerance ~position:parameters.position
-          ?weight_attribute:(optional_text parameters.weight_attribute)
-          ~attributes:parameters.attributes ~metric:parameters.metric
-          ~inclusive:parameters.inclusive
-          ~match_attributes:parameters.match_attributes
-          ?radius_attribute:(optional_text parameters.radius_attribute)
-          ?match_attribute:(optional_text parameters.match_attribute)
-          ~match_condition:parameters.match_condition
-          ~match_tolerance:parameters.match_tolerance
-          ~modify_target:parameters.modify_target
-          ~fuse_points:parameters.fuse_points
-          ~keep_fused_points:parameters.keep_fused_points
-          ?snapped_group:(optional_text parameters.snapped_group)
-          ?snapped_destination_attribute:
-            (optional_text parameters.snapped_destination_attribute)
-          ~remove_degenerate_primitives:parameters.remove_degenerate_primitives
-          ~remove_unused_points_from_degenerate_primitives:
-            parameters.remove_unused_points_from_degenerate_primitives
-          ~remove_all_unused_points:parameters.remove_all_unused_points
-          ?target input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild
-    | _ -> invalid_arg "Sop_catalog.Fuse requires its source input"
+  let build = parameters_build (fun ~label parameters input target ->
+    Sop.fuse ~label ?group:(optional_text parameters.group)
+      ?target_group:(optional_text parameters.target_group)
+      ~targeting:(targeting parameters) ~using:parameters.using
+      ~tolerance:parameters.tolerance ~position:parameters.position
+      ?weight_attribute:(optional_text parameters.weight_attribute)
+      ~attributes:parameters.attributes ~metric:parameters.metric
+      ~inclusive:parameters.inclusive
+      ~match_attributes:parameters.match_attributes
+      ?radius_attribute:(optional_text parameters.radius_attribute)
+      ?match_attribute:(optional_text parameters.match_attribute)
+      ~match_condition:parameters.match_condition
+      ~match_tolerance:parameters.match_tolerance
+      ~modify_target:parameters.modify_target
+      ~fuse_points:parameters.fuse_points
+      ~keep_fused_points:parameters.keep_fused_points
+      ?snapped_group:(optional_text parameters.snapped_group)
+      ?snapped_destination_attribute:
+        (optional_text parameters.snapped_destination_attribute)
+      ~remove_degenerate_primitives:parameters.remove_degenerate_primitives
+      ~remove_unused_points_from_degenerate_primitives:
+        parameters.remove_unused_points_from_degenerate_primitives
+      ~remove_all_unused_points:parameters.remove_all_unused_points
+      ?target input)
 
-  and rebuild ~label ~inputs parameters = match inputs with
-    | [input] -> build_slots ~label ~inputs:[Some input; None] parameters
-    | [input; target] ->
-        build_slots ~label ~inputs:[Some input; Some target] parameters
-    | _ -> invalid_arg "Sop_catalog.Fuse has invalid physical inputs"
-
-  let factory = parameters_factory build_slots
-  let create ?label:node_label ?target input =
-    build_slots ~label:(label "fuse" node_label) ~inputs:[Some input; target]
-      parameters_default
+  let factory = parameters_factory build
 end [@@sop.register]
 
 module Ray = struct
@@ -4336,41 +3895,34 @@ module Ray = struct
     | Direction_attribute ->
         Pdk.Ray.Ray_attribute parameters.direction_attribute
 
-  let rec build ~label ~inputs parameters = match inputs with
-    | [source; collision] ->
-        let max_distance = if parameters.limit_max_distance
-          then Some parameters.max_distance else None in
-        Sop.ray ~label
-          ?selection:(optional_element_group parameters.group_owner
-            parameters.group)
-          ?collision_group:(optional_text parameters.collision_group)
-          ~method_:parameters.method_ ~direction:(direction parameters)
-          ~direction_mode:parameters.direction_mode
-          ~surface_hit:parameters.surface_hit ~samples:parameters.samples
-          ~jitter_scale:parameters.jitter_scale ~seed:parameters.seed
-          ~combine:parameters.combine ~min_distance:parameters.min_distance
-          ?max_distance ~tolerance:parameters.tolerance ~scale:parameters.scale
-          ~lift:parameters.lift
-          ?distance_attribute:(optional_text parameters.distance_attribute)
-          ?primitive_attribute:(optional_text parameters.primitive_attribute)
-          ?source_vertex_numbers_attribute:
-            (optional_text parameters.source_vertex_numbers_attribute)
-          ?source_vertex_weights_attribute:
-            (optional_text parameters.source_vertex_weights_attribute)
-          ?hit_group:(optional_text parameters.hit_group)
-          ?normal_attribute:(optional_text parameters.normal_attribute)
-          ?point_pattern:(optional_text parameters.point_pattern)
-          ?vertex_pattern:(optional_text parameters.vertex_pattern)
-          ?primitive_pattern:(optional_text parameters.primitive_pattern)
-          ?detail_pattern:(optional_text parameters.detail_pattern)
-          ~match_groups:parameters.match_groups ~collision source
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Ray expects source and collision inputs"
+  let build = parameters_build (fun ~label parameters source collision ->
+    let max_distance = if parameters.limit_max_distance
+      then Some parameters.max_distance else None in
+    Sop.ray ~label
+      ?selection:(optional_element_group parameters.group_owner
+        parameters.group)
+      ?collision_group:(optional_text parameters.collision_group)
+      ~method_:parameters.method_ ~direction:(direction parameters)
+      ~direction_mode:parameters.direction_mode
+      ~surface_hit:parameters.surface_hit ~samples:parameters.samples
+      ~jitter_scale:parameters.jitter_scale ~seed:parameters.seed
+      ~combine:parameters.combine ~min_distance:parameters.min_distance
+      ?max_distance ~tolerance:parameters.tolerance ~scale:parameters.scale
+      ~lift:parameters.lift
+      ?distance_attribute:(optional_text parameters.distance_attribute)
+      ?primitive_attribute:(optional_text parameters.primitive_attribute)
+      ?source_vertex_numbers_attribute:
+        (optional_text parameters.source_vertex_numbers_attribute)
+      ?source_vertex_weights_attribute:
+        (optional_text parameters.source_vertex_weights_attribute)
+      ?hit_group:(optional_text parameters.hit_group)
+      ?normal_attribute:(optional_text parameters.normal_attribute)
+      ?point_pattern:(optional_text parameters.point_pattern)
+      ?vertex_pattern:(optional_text parameters.vertex_pattern)
+      ?primitive_pattern:(optional_text parameters.primitive_pattern)
+      ?detail_pattern:(optional_text parameters.detail_pattern)
+      ~match_groups:parameters.match_groups ~collision source)
   let factory = parameters_factory build
-  let create ?label:node_label ~collision source =
-    build ~label:(label "ray" node_label) ~inputs:[source; collision]
-      parameters_default
 end [@@sop.register]
 
 module Distance_along_geometry = struct
@@ -4399,26 +3951,18 @@ module Distance_along_geometry = struct
     [@@sop.node_category "Attribute/Distance"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        let start = match optional_element_group parameters.start_owner
-            parameters.start_group with
-          | Some start -> start
-          | None -> Sop.Point_group "start" in
-        Sop.distance_along_geometry ~label
-          ?affected:(optional_element_group parameters.affected_owner
-            parameters.affected_group) ~falloff:parameters.falloff
-          ~radius:(distance_radius parameters.radius_mode parameters.radius)
-          ~distance_attribute:(optional_text parameters.distance_attribute)
-          ?mask_attribute:(optional_text parameters.mask_attribute) ~start input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg
-        "Sop_catalog.Distance_along_geometry expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    let start = match optional_element_group parameters.start_owner
+        parameters.start_group with
+      | Some start -> start
+      | None -> Sop.Point_group "start" in
+    Sop.distance_along_geometry ~label
+      ?affected:(optional_element_group parameters.affected_owner
+        parameters.affected_group) ~falloff:parameters.falloff
+      ~radius:(distance_radius parameters.radius_mode parameters.radius)
+      ~distance_attribute:(optional_text parameters.distance_attribute)
+      ?mask_attribute:(optional_text parameters.mask_attribute) ~start input)
   let factory = parameters_factory build
-  let create ?label:node_label input =
-    build ~label:(label "distance-along-geometry" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Distance_from_geometry = struct
@@ -4458,27 +4002,19 @@ module Distance_from_geometry = struct
     [@@sop.node_category "Attribute/Distance"] [@@sop.node_inputs 2]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs parameters = match inputs with
-    | [source; reference] ->
-        Sop.distance_from_geometry ~label
-          ?affected:(optional_element_group parameters.affected_owner
-            parameters.affected_group)
-          ?reference_selection:
-            (optional_element_group parameters.reference_owner
-              parameters.reference_group)
-          ~reference_kind:parameters.reference_kind ~falloff:parameters.falloff
-          ~radius:(distance_radius parameters.radius_mode parameters.radius)
-          ~distance_attribute:(optional_text parameters.distance_attribute)
-          ?mask_attribute:(optional_text parameters.mask_attribute)
-          ~reference source
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg
-        "Sop_catalog.Distance_from_geometry expects source and reference inputs"
+  let build = parameters_build (fun ~label parameters source reference ->
+    Sop.distance_from_geometry ~label
+      ?affected:(optional_element_group parameters.affected_owner
+        parameters.affected_group)
+      ?reference_selection:
+        (optional_element_group parameters.reference_owner
+          parameters.reference_group)
+      ~reference_kind:parameters.reference_kind ~falloff:parameters.falloff
+      ~radius:(distance_radius parameters.radius_mode parameters.radius)
+      ~distance_attribute:(optional_text parameters.distance_attribute)
+      ?mask_attribute:(optional_text parameters.mask_attribute)
+      ~reference source)
   let factory = parameters_factory build
-  let create ?label:node_label ~reference source =
-    build ~label:(label "distance-from-geometry" node_label)
-      ~inputs:[source; reference] parameters_default
 end [@@sop.register]
 
 module Distance_from_target = struct
@@ -4530,26 +4066,19 @@ module Distance_from_target = struct
     [@@sop.node_category "Attribute/Distance"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        Sop.distance_from_target ~label
-          ?affected:(optional_element_group parameters.affected_owner
-            parameters.affected_group) ~projection:parameters.projection
-          ~origin:(Vec3.create parameters.origin_x parameters.origin_y
-            parameters.origin_z)
-          ~direction:(Vec3.create parameters.direction_x parameters.direction_y
-            parameters.direction_z) ~metric:parameters.metric
-          ~falloff:parameters.falloff
-          ~radius:(distance_radius parameters.radius_mode parameters.radius)
-          ~distance_attribute:(optional_text parameters.distance_attribute)
-          ?mask_attribute:(optional_text parameters.mask_attribute) input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Distance_from_target expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.distance_from_target ~label
+      ?affected:(optional_element_group parameters.affected_owner
+        parameters.affected_group) ~projection:parameters.projection
+      ~origin:(Vec3.create parameters.origin_x parameters.origin_y
+        parameters.origin_z)
+      ~direction:(Vec3.create parameters.direction_x parameters.direction_y
+        parameters.direction_z) ~metric:parameters.metric
+      ~falloff:parameters.falloff
+      ~radius:(distance_radius parameters.radius_mode parameters.radius)
+      ~distance_attribute:(optional_text parameters.distance_attribute)
+      ?mask_attribute:(optional_text parameters.mask_attribute) input)
   let factory = parameters_factory build
-  let create ?label:node_label input =
-    build ~label:(label "distance-from-target" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Point_split = struct
@@ -4566,20 +4095,13 @@ module Point_split = struct
     [@@sop.node_category "Topology/Point"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        Sop.point_split ~label
-          ?selection:(optional_element_group parameters.group_owner
-            parameters.group) ~attributes:parameters.attributes
-          ~tolerance:parameters.tolerance
-          ~promote_attributes:parameters.promote_attributes input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Point_split expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.point_split ~label
+      ?selection:(optional_element_group parameters.group_owner
+        parameters.group) ~attributes:parameters.attributes
+      ~tolerance:parameters.tolerance
+      ~promote_attributes:parameters.promote_attributes input)
   let factory = parameters_factory build
-  let create ?label:node_label input =
-    build ~label:(label "point-split" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Poly_bridge = struct
@@ -4623,27 +4145,20 @@ module Poly_bridge = struct
     [@@sop.node_category "Topology/Polygon"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        Sop.poly_bridge ~label ~source_group:parameters.source_group
-          ~destination_group:parameters.destination_group
-          ~pairing:parameters.pairing
-          ~connect_closest_ends:parameters.connect_closest_ends
-          ~minimize:parameters.minimize
-          ~reverse_source:parameters.reverse_source
-          ~reverse_destination:parameters.reverse_destination
-          ~pairing_shift:parameters.pairing_shift
-          ~divisions:parameters.divisions ~keep_input:parameters.keep_input
-          ?output_group:(optional_text parameters.output_group)
-          ~collinearity_tolerance:parameters.collinearity_tolerance
-          ~recompute_normals:parameters.recompute_normals input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Poly_bridge expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.poly_bridge ~label ~source_group:parameters.source_group
+      ~destination_group:parameters.destination_group
+      ~pairing:parameters.pairing
+      ~connect_closest_ends:parameters.connect_closest_ends
+      ~minimize:parameters.minimize
+      ~reverse_source:parameters.reverse_source
+      ~reverse_destination:parameters.reverse_destination
+      ~pairing_shift:parameters.pairing_shift
+      ~divisions:parameters.divisions ~keep_input:parameters.keep_input
+      ?output_group:(optional_text parameters.output_group)
+      ~collinearity_tolerance:parameters.collinearity_tolerance
+      ~recompute_normals:parameters.recompute_normals input)
   let factory = parameters_factory build
-  let create ?label:node_label input =
-    build ~label:(label "poly-bridge" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Graph_color = struct
@@ -4673,24 +4188,17 @@ module Graph_color = struct
     [@@sop.node_category "Attribute"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        let worksets = if parameters.output_worksets then Some {
-            Pdk.Graph_color.begin_attribute = parameters.workset_begin_attribute;
-            length_attribute = parameters.workset_length_attribute }
-          else None in
-        Sop.graph_color ~label
-          ?selection:(optional_element_group parameters.group_owner
-            parameters.group) ~connectivity:parameters.connectivity
-          ~color_attribute:parameters.color_attribute
-          ~sort_output:parameters.sort_output ?worksets input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Graph_color expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    let worksets = if parameters.output_worksets then Some {
+        Pdk.Graph_color.begin_attribute = parameters.workset_begin_attribute;
+        length_attribute = parameters.workset_length_attribute }
+      else None in
+    Sop.graph_color ~label
+      ?selection:(optional_element_group parameters.group_owner
+        parameters.group) ~connectivity:parameters.connectivity
+      ~color_attribute:parameters.color_attribute
+      ~sort_output:parameters.sort_output ?worksets input)
   let factory = parameters_factory build
-  let create ?label:node_label input =
-    build ~label:(label "graph-color" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Edge_relax = struct
@@ -4718,23 +4226,15 @@ module Edge_relax = struct
     [@@sop.node_category "Topology/Edge"] [@@sop.node_inputs 2]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs parameters = match inputs with
-    | [source; reference] ->
-        Sop.edge_relax ~label
-          ?group:(optional_element_group parameters.group_owner parameters.group)
-          ?pin_group:(optional_text parameters.pin_group)
-          ~iterations:parameters.iterations ~step_size:parameters.step_size
-          ~target_mode:parameters.target_mode
-          ~only_shorten:parameters.only_shorten
-          ~tolerance:parameters.tolerance ~reference source
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg
-        "Sop_catalog.Edge_relax expects source and reference inputs"
+  let build = parameters_build (fun ~label parameters source reference ->
+    Sop.edge_relax ~label
+      ?group:(optional_element_group parameters.group_owner parameters.group)
+      ?pin_group:(optional_text parameters.pin_group)
+      ~iterations:parameters.iterations ~step_size:parameters.step_size
+      ~target_mode:parameters.target_mode
+      ~only_shorten:parameters.only_shorten
+      ~tolerance:parameters.tolerance ~reference source)
   let factory = parameters_factory build
-  let create ?label:node_label ~reference source =
-    build ~label:(label "edge-relax" node_label) ~inputs:[source; reference]
-      parameters_default
 end [@@sop.register]
 
 module Poly_loft = struct
@@ -4764,29 +4264,16 @@ module Poly_loft = struct
     [@@sop.node_category "Topology/Polygon"] [@@sop.node_inputs 2]
     [@@sop.node_optional "1"] [@@deriving sop_params, sop_node]
 
-  let rec build_slots ~label ~inputs parameters = match inputs with
-    | [Some input; rest] ->
-        Sop.poly_loft ~label ?group:(optional_text parameters.group) ?rest
-          ~connect_closest_ends:parameters.connect_closest_ends
-          ~minimize:parameters.minimize ~u_wrap:parameters.u_wrap
-          ~v_wrap:parameters.v_wrap ~keep_primitives:parameters.keep_primitives
-          ?output_group:(optional_text parameters.output_group)
-          ~collinearity_tolerance:parameters.collinearity_tolerance
-          ~recompute_normals:parameters.recompute_normals input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild
-    | _ -> invalid_arg "Sop_catalog.Poly_loft requires its source input"
+  let build = parameters_build (fun ~label parameters input rest ->
+    Sop.poly_loft ~label ?group:(optional_text parameters.group) ?rest
+      ~connect_closest_ends:parameters.connect_closest_ends
+      ~minimize:parameters.minimize ~u_wrap:parameters.u_wrap
+      ~v_wrap:parameters.v_wrap ~keep_primitives:parameters.keep_primitives
+      ?output_group:(optional_text parameters.output_group)
+      ~collinearity_tolerance:parameters.collinearity_tolerance
+      ~recompute_normals:parameters.recompute_normals input)
 
-  and rebuild ~label ~inputs parameters = match inputs with
-    | [input] -> build_slots ~label ~inputs:[Some input; None] parameters
-    | [input; rest] ->
-        build_slots ~label ~inputs:[Some input; Some rest] parameters
-    | _ -> invalid_arg "Sop_catalog.Poly_loft has invalid physical inputs"
-
-  let factory = parameters_factory build_slots
-  let create ?label:node_label ?rest input =
-    build_slots ~label:(label "poly-loft" node_label) ~inputs:[Some input; rest]
-      parameters_default
+  let factory = parameters_factory build
 end [@@sop.register]
 
 module Revolve = struct
@@ -4839,27 +4326,20 @@ module Revolve = struct
     [@@sop.node_category "Topology/Surface"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        Sop.revolve ~label ?group:(optional_text parameters.group)
-          ~revolve_type:parameters.revolve_type
-          ~connectivity:parameters.connectivity
-          ~start_angle:parameters.start_angle ~end_angle:parameters.end_angle
-          ~reverse_cross_sections:parameters.reverse_cross_sections
-          ~caps:parameters.caps ?cap_group:(optional_text parameters.cap_group)
-          ~uv_attribute:(optional_text parameters.uv_attribute)
-          ~divisions:parameters.divisions
-          ~origin:(Vec3.create parameters.origin_x parameters.origin_y
-            parameters.origin_z)
-          ~axis:(Vec3.create parameters.axis_x parameters.axis_y
-            parameters.axis_z) input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Revolve expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.revolve ~label ?group:(optional_text parameters.group)
+      ~revolve_type:parameters.revolve_type
+      ~connectivity:parameters.connectivity
+      ~start_angle:parameters.start_angle ~end_angle:parameters.end_angle
+      ~reverse_cross_sections:parameters.reverse_cross_sections
+      ~caps:parameters.caps ?cap_group:(optional_text parameters.cap_group)
+      ~uv_attribute:(optional_text parameters.uv_attribute)
+      ~divisions:parameters.divisions
+      ~origin:(Vec3.create parameters.origin_x parameters.origin_y
+        parameters.origin_z)
+      ~axis:(Vec3.create parameters.axis_x parameters.axis_y
+        parameters.axis_z) input)
   let factory = parameters_factory build
-  let create ?label:node_label input =
-    build ~label:(label "revolve" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Sweep = struct
@@ -4912,28 +4392,20 @@ module Sweep = struct
     [@@sop.node_category "Topology/Surface"] [@@sop.node_inputs 2]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs parameters = match inputs with
-    | [backbone; cross_section] ->
-        Sop.sweep ~label
-          ?backbone_group:(optional_text parameters.backbone_group)
-          ?cross_section_group:(optional_text parameters.cross_section_group)
-          ~connectivity:parameters.connectivity ~tangent:parameters.tangent
-          ~continuous_closed:parameters.continuous_closed
-          ~transform_attributes:parameters.transform_attributes
-          ~reverse_cross_sections:parameters.reverse_cross_sections
-          ~scale:parameters.scale ~roll:parameters.roll ~twist:parameters.twist
-          ~caps:parameters.caps ?cap_group:(optional_text parameters.cap_group)
-          ~uv_attribute:(optional_text parameters.uv_attribute)
-          ~cross_section_prefix:parameters.cross_section_prefix
-          ~backbone ~cross_section ()
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg
-        "Sop_catalog.Sweep expects backbone and cross-section inputs"
+  let build = parameters_build (fun ~label parameters backbone cross_section ->
+    Sop.sweep ~label
+      ?backbone_group:(optional_text parameters.backbone_group)
+      ?cross_section_group:(optional_text parameters.cross_section_group)
+      ~connectivity:parameters.connectivity ~tangent:parameters.tangent
+      ~continuous_closed:parameters.continuous_closed
+      ~transform_attributes:parameters.transform_attributes
+      ~reverse_cross_sections:parameters.reverse_cross_sections
+      ~scale:parameters.scale ~roll:parameters.roll ~twist:parameters.twist
+      ~caps:parameters.caps ?cap_group:(optional_text parameters.cap_group)
+      ~uv_attribute:(optional_text parameters.uv_attribute)
+      ~cross_section_prefix:parameters.cross_section_prefix
+      ~backbone ~cross_section ())
   let factory = parameters_factory build
-  let create ?label:node_label ~backbone ~cross_section () =
-    build ~label:(label "sweep" node_label) ~inputs:[backbone; cross_section]
-      parameters_default
 end [@@sop.register]
 
 module Polywire = struct
@@ -5006,47 +4478,40 @@ module Polywire = struct
     [@@sop.node_category "Topology/Surface"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        let sides = if parameters.use_sides then Some parameters.sides else None
-        and segment_scales = if parameters.use_segment_scales then Some
-            (parameters.first_segment_scale, parameters.last_segment_scale)
-          else None
-        and max_valence = if parameters.use_max_valence
-          then Some parameters.max_valence else None in
-        Sop.polywire ~label ?group:(optional_text parameters.group) ?sides
-          ?divisions_attribute:(optional_text parameters.divisions_attribute)
-          ~segments:parameters.segments
-          ?segments_attribute:(optional_text parameters.segments_attribute)
-          ?segment_scales
-          ?segment_scales_attribute:
-            (optional_text parameters.segment_scales_attribute)
-          ~prevent_joint_buckling:parameters.prevent_joint_buckling
-          ~maximum_joint_scale:parameters.maximum_joint_scale
-          ?maximum_joint_scale_attribute:
-            (optional_text parameters.maximum_joint_scale_attribute)
-          ~smooth_point:parameters.smooth_point
-          ?smooth_attribute:(optional_text parameters.smooth_attribute)
-          ?max_valence ?scale_attribute:(optional_text parameters.scale_attribute)
-          ~seam_offset:parameters.seam_offset
-          ?seam_attribute:(optional_text parameters.seam_attribute)
-          ?segment_seam_attribute:
-            (optional_text parameters.segment_seam_attribute)
-          ?v_attribute:(optional_text parameters.v_attribute)
-          ?up_attribute:(optional_text parameters.up_attribute)
-          ~generate_uv:parameters.generate_uv
-          ~u_range:(parameters.u_min, parameters.u_max)
-          ~v_range:(parameters.v_min, parameters.v_max)
-          ?uv_range_attribute:(optional_text parameters.uv_range_attribute)
-          ~caps:parameters.caps ?cap_group:(optional_text parameters.cap_group)
-          ~radius:parameters.radius input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Polywire expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    let sides = if parameters.use_sides then Some parameters.sides else None
+    and segment_scales = if parameters.use_segment_scales then Some
+        (parameters.first_segment_scale, parameters.last_segment_scale)
+      else None
+    and max_valence = if parameters.use_max_valence
+      then Some parameters.max_valence else None in
+    Sop.polywire ~label ?group:(optional_text parameters.group) ?sides
+      ?divisions_attribute:(optional_text parameters.divisions_attribute)
+      ~segments:parameters.segments
+      ?segments_attribute:(optional_text parameters.segments_attribute)
+      ?segment_scales
+      ?segment_scales_attribute:
+        (optional_text parameters.segment_scales_attribute)
+      ~prevent_joint_buckling:parameters.prevent_joint_buckling
+      ~maximum_joint_scale:parameters.maximum_joint_scale
+      ?maximum_joint_scale_attribute:
+        (optional_text parameters.maximum_joint_scale_attribute)
+      ~smooth_point:parameters.smooth_point
+      ?smooth_attribute:(optional_text parameters.smooth_attribute)
+      ?max_valence ?scale_attribute:(optional_text parameters.scale_attribute)
+      ~seam_offset:parameters.seam_offset
+      ?seam_attribute:(optional_text parameters.seam_attribute)
+      ?segment_seam_attribute:
+        (optional_text parameters.segment_seam_attribute)
+      ?v_attribute:(optional_text parameters.v_attribute)
+      ?up_attribute:(optional_text parameters.up_attribute)
+      ~generate_uv:parameters.generate_uv
+      ~u_range:(parameters.u_min, parameters.u_max)
+      ~v_range:(parameters.v_min, parameters.v_max)
+      ?uv_range_attribute:(optional_text parameters.uv_range_attribute)
+      ~caps:parameters.caps ?cap_group:(optional_text parameters.cap_group)
+      ~radius:parameters.radius input)
   let factory = parameters_factory build
-  let create ?label:node_label input =
-    build ~label:(label "polywire" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Uv_project = struct
@@ -5121,19 +4586,14 @@ module Uv_project = struct
     | Spherical -> Pdk.Uv_checked.Spherical { origin;
         axis = Vec3.create parameters.axis_x parameters.axis_y parameters.axis_z;
         seam = Vec3.create parameters.seam_x parameters.seam_y parameters.seam_z }
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] -> Sop.uv_project ~label ~name:parameters.name
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.uv_project ~label ~name:parameters.name
         ?group:(optional_text parameters.group)
         ~u_range:(parameters.u_min, parameters.u_max)
         ~v_range:(parameters.v_min, parameters.v_max)
         ~fix_seams:parameters.fix_seams ~fix_poles:parameters.fix_poles
-        (projection parameters) input
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Uv_project expects one input"
+        (projection parameters) input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build ~label:(label "uv-project" node_label)
-      ~inputs:[input] parameters_default
 end [@@sop.register]
 
 module Uv_transform = struct
@@ -5160,20 +4620,14 @@ module Uv_transform = struct
   } [@@sop.node_key "uv_transform"] [@@sop.node_label "UV Transform"]
     [@@sop.node_category "UV/Modify"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] -> Sop.uv_transform ~label ~name:parameters.name
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.uv_transform ~label ~name:parameters.name
         ~owner:parameters.owner ?group:(optional_text parameters.group)
         ~translate:(Vec2.create parameters.translate_u parameters.translate_v)
         ~scale:(Vec2.create parameters.scale_u parameters.scale_v)
         ~angle:parameters.angle
-        ~pivot:(Vec2.create parameters.pivot_u parameters.pivot_v) input
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Uv_transform expects one input"
+        ~pivot:(Vec2.create parameters.pivot_u parameters.pivot_v) input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build
-      ~label:(label "uv-transform" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Uv_auto_seam = struct
@@ -5200,22 +4654,16 @@ module Uv_auto_seam = struct
   } [@@sop.node_key "uv_auto_seam"] [@@sop.node_label "UV Auto Seam"]
     [@@sop.node_category "UV/Seams"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] -> Sop.uv_auto_seam ~label ~name:parameters.name
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.uv_auto_seam ~label ~name:parameters.name
         ?group:(optional_text parameters.group) ~angle:parameters.angle
         ~include_boundaries:parameters.include_boundaries
         ~include_non_manifold:parameters.include_non_manifold
         ?partition_attribute:(optional_text parameters.partition_attribute)
         ?existing_uv:(optional_text parameters.existing_uv)
         ~uv_tolerance:parameters.uv_tolerance
-        ?island_attribute:(optional_text parameters.island_attribute) input
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Uv_auto_seam expects one input"
+        ?island_attribute:(optional_text parameters.island_attribute) input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build
-      ~label:(label "uv-auto-seam" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Uv_unitize = struct
@@ -5234,19 +4682,13 @@ module Uv_unitize = struct
   } [@@sop.node_key "uv_unitize"] [@@sop.node_label "UV Unitize"]
     [@@sop.node_category "UV/Layout"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] -> Sop.uv_unitize ~label ~name:parameters.name
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.uv_unitize ~label ~name:parameters.name
         ?group:(optional_text parameters.group)
         ?seams:(optional_text parameters.seams)
         ~tolerance:parameters.tolerance ~uniform:parameters.uniform
-        parameters.mode input
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Uv_unitize expects one input"
+        parameters.mode input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build
-      ~label:(label "uv-unitize" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Uv_flatten = struct
@@ -5260,17 +4702,11 @@ module Uv_flatten = struct
   } [@@sop.node_key "uv_flatten"] [@@sop.node_label "UV Flatten"]
     [@@sop.node_category "UV/Layout"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] -> Sop.uv_flatten ~label ~name:parameters.name
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.uv_flatten ~label ~name:parameters.name
         ?seams:(optional_text parameters.seams)
-        ~iterations:parameters.iterations ~tolerance:parameters.tolerance input
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Uv_flatten expects one input"
+        ~iterations:parameters.iterations ~tolerance:parameters.tolerance input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build
-      ~label:(label "uv-flatten" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Uv_relax = struct
@@ -5286,17 +4722,12 @@ module Uv_relax = struct
   } [@@sop.node_key "uv_relax"] [@@sop.node_label "UV Relax"]
     [@@sop.node_category "UV/Layout"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] -> Sop.uv_relax ~label ~name:parameters.name
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.uv_relax ~label ~name:parameters.name
         ?seams:(optional_text parameters.seams)
         ~uv_tolerance:parameters.uv_tolerance
-        ~iterations:parameters.iterations ~tolerance:parameters.tolerance input
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Uv_relax expects one input"
+        ~iterations:parameters.iterations ~tolerance:parameters.tolerance input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build ~label:(label "uv-relax" node_label)
-      ~inputs:[input] parameters_default
 end [@@sop.register]
 
 module Group_edges = struct
@@ -5340,8 +4771,8 @@ module Group_edges = struct
   } [@@sop.node_key "group_edges"] [@@sop.node_label "Group Edges"]
     [@@sop.node_category "Group/Create"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] -> Sop.group_edges ~label ~name:parameters.name
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.group_edges ~label ~name:parameters.name
         ?group:(optional_text parameters.group) ~incidence:parameters.incidence
         ?min_length:(if parameters.use_min_length then Some parameters.min_length
           else None)
@@ -5351,14 +4782,8 @@ module Group_edges = struct
         ?min_angle:(if parameters.use_min_angle then Some parameters.min_angle
           else None)
         ?max_angle:(if parameters.use_max_angle then Some parameters.max_angle
-          else None) input
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Group_edges expects one input"
+          else None) input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build
-      ~label:(label "group-edges" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Group_random = struct
@@ -5382,20 +4807,14 @@ module Group_random = struct
   } [@@sop.node_key "group_random"] [@@sop.node_label "Group Random"]
     [@@sop.node_category "Group/Create"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] -> Sop.group_random ~label
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.group_random ~label
         ?seed:(if parameters.context_seed then None else Some parameters.seed)
         ?seed_attribute:(optional_text parameters.seed_attribute)
         ?base:(optional_text parameters.base) ~merge:parameters.merge
         ~probability:parameters.probability ~owner:parameters.owner
-        ~name:parameters.name input
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Group_random expects one input"
+        ~name:parameters.name input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build
-      ~label:(label "group-random" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Group_bounds = struct
@@ -5451,17 +4870,11 @@ module Group_bounds = struct
           (parameters.size_y *. 0.5) (parameters.size_z *. 0.5) in
         Pdk.Group_ops.Bounds_box { minimum = Vec3.sub center half;
           maximum = Vec3.add center half }
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] -> Sop.group_bounds ~label ?base:(optional_text parameters.base)
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.group_bounds ~label ?base:(optional_text parameters.base)
         ~containment:parameters.containment ~merge:parameters.merge
-        (bounds parameters) ~owner:parameters.owner ~name:parameters.name input
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Group_bounds expects one input"
+        (bounds parameters) ~owner:parameters.owner ~name:parameters.name input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build
-      ~label:(label "group-bounds" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Group_normal = struct
@@ -5493,22 +4906,16 @@ module Group_normal = struct
   } [@@sop.node_key "group_normal"] [@@sop.node_label "Group by Normal"]
     [@@sop.node_category "Group/Create"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] -> Sop.group_normal ~label
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.group_normal ~label
         ?normal_attribute:(optional_text parameters.normal_attribute)
         ~use_existing_normal:parameters.use_existing_normal
         ?base:(optional_text parameters.base)
         ~include_opposite:parameters.include_opposite ~merge:parameters.merge
         ~direction:(Vec3.create parameters.direction_x parameters.direction_y
           parameters.direction_z) ~spread_angle:parameters.spread_angle
-        ~owner:parameters.owner ~name:parameters.name input
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Group_normal expects one input"
+        ~owner:parameters.owner ~name:parameters.name input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build
-      ~label:(label "group-normal" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Group_non_planar = struct
@@ -5524,17 +4931,11 @@ module Group_non_planar = struct
   } [@@sop.node_key "group_non_planar"] [@@sop.node_label "Group Non-Planar"]
     [@@sop.node_category "Group/Create"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] -> Sop.group_non_planar ~label
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.group_non_planar ~label
         ?base:(optional_text parameters.base) ~merge:parameters.merge
-        ~tolerance:parameters.tolerance ~name:parameters.name input
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Group_non_planar expects one input"
+        ~tolerance:parameters.tolerance ~name:parameters.name input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build
-      ~label:(label "group-non-planar" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Group_backface = struct
@@ -5554,18 +4955,12 @@ module Group_backface = struct
   } [@@sop.node_key "group_backface"] [@@sop.node_label "Group Backfaces"]
     [@@sop.node_category "Group/Create"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] -> Sop.group_backface ~label ?base:(optional_text parameters.base)
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.group_backface ~label ?base:(optional_text parameters.base)
         ~merge:parameters.merge
         ~viewpoint:(Vec3.create parameters.viewpoint_x parameters.viewpoint_y
-          parameters.viewpoint_z) ~name:parameters.name input
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Group_backface expects one input"
+          parameters.viewpoint_z) ~name:parameters.name input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build
-      ~label:(label "group-backface" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Group_edge_depth = struct
@@ -5580,17 +4975,11 @@ module Group_edge_depth = struct
   } [@@sop.node_key "group_edge_depth"] [@@sop.node_label "Group Edge Depth"]
     [@@sop.node_category "Group/Expand"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] -> Sop.group_edge_depth ~label ~merge:parameters.merge
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.group_edge_depth ~label ~merge:parameters.merge
         ~depth:parameters.depth ~point_group:parameters.point_group
-        ~name:parameters.name input
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Group_edge_depth expects one input"
+        ~name:parameters.name input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build
-      ~label:(label "group-edge-depth" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Group_unshared = struct
@@ -5604,16 +4993,10 @@ module Group_unshared = struct
   } [@@sop.node_key "group_unshared"] [@@sop.node_label "Group Unshared"]
     [@@sop.node_category "Group/Create"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] -> Sop.group_unshared ~label ~merge:parameters.merge
-        ~owner:parameters.owner ~name:parameters.name input
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Group_unshared expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.group_unshared ~label ~merge:parameters.merge
+        ~owner:parameters.owner ~name:parameters.name input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build
-      ~label:(label "group-unshared" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Group_boundary_components = struct
@@ -5635,17 +5018,11 @@ module Group_boundary_components = struct
     [@@sop.node_label "Group Boundary Components"]
     [@@sop.node_category "Group/Create"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] -> Sop.group_boundary_components ~label ~prefix:parameters.prefix
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.group_boundary_components ~label ~prefix:parameters.prefix
         ~conflict:parameters.conflict ~max_groups:parameters.max_groups
-        ~max_payload_bytes:parameters.max_payload_bytes input
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Group_boundary_components expects one input"
+        ~max_payload_bytes:parameters.max_payload_bytes input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build
-      ~label:(label "group-boundary-components" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Group_from_attribute_boundary = struct
@@ -5669,23 +5046,16 @@ module Group_from_attribute_boundary = struct
     [@@sop.node_label "Group from Attribute Boundary"]
     [@@sop.node_category "Group/Create"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] -> Sop.group_from_attribute_boundary ~label
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.group_from_attribute_boundary ~label
         ~attributes:parameters.attributes ~tolerance:parameters.tolerance
         ~include_unshared_edges:parameters.include_unshared_edges
         ~include_all_unshared_curve_edges:
           parameters.include_all_unshared_curve_edges
         ~include_all_primitives_sharing_boundary_points:
           parameters.include_all_primitives_sharing_boundary_points
-        ~owner:parameters.owner ~name:parameters.name input
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild:build
-    | _ -> invalid_arg
-        "Sop_catalog.Group_from_attribute_boundary expects one input"
+        ~owner:parameters.owner ~name:parameters.name input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build
-      ~label:(label "group-from-attribute-boundary" node_label)
-      ~inputs:[input] parameters_default
 end [@@sop.register]
 
 module Groups_from_name = struct
@@ -5717,19 +5087,13 @@ module Groups_from_name = struct
   } [@@sop.node_key "groups_from_name"] [@@sop.node_label "Groups from Name"]
     [@@sop.node_category "Group/Convert"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] -> Sop.groups_from_name ~label ~prefix:parameters.prefix
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.groups_from_name ~label ~prefix:parameters.prefix
         ~conflict:parameters.conflict ~invalid_names:parameters.invalid_names
         ~max_groups:parameters.max_groups
         ~max_payload_bytes:parameters.max_payload_bytes
-        ~owner:parameters.owner ~attribute:parameters.attribute input
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Groups_from_name expects one input"
+        ~owner:parameters.owner ~attribute:parameters.attribute input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build
-      ~label:(label "groups-from-name" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Name_from_groups = struct
@@ -5750,18 +5114,12 @@ module Name_from_groups = struct
   } [@@sop.node_key "name_from_groups"] [@@sop.node_label "Name from Groups"]
     [@@sop.node_category "Group/Convert"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] -> Sop.name_from_groups ~label ~attribute:parameters.attribute
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.name_from_groups ~label ~attribute:parameters.attribute
         ~pattern:parameters.pattern ~default:parameters.default
         ~overlap:parameters.overlap ~delete_groups:parameters.delete_groups
-        ~owner:parameters.owner input
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Name_from_groups expects one input"
+        ~owner:parameters.owner input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build
-      ~label:(label "name-from-groups" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Group_promote_boundary = struct
@@ -5791,8 +5149,8 @@ module Group_promote_boundary = struct
     [@@sop.node_label "Group Promote Boundary"]
     [@@sop.node_category "Group/Convert"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] -> Sop.group_promote_boundary ~label
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.group_promote_boundary ~label
         ?name:(optional_text parameters.name)
         ~keep_original:parameters.keep_original
         ?output_attribute:(optional_text parameters.output_attribute)
@@ -5803,15 +5161,8 @@ module Group_promote_boundary = struct
         ~include_all_primitives_sharing_boundary_points:
           parameters.include_all_primitives_sharing_boundary_points
         ~source:parameters.source ~destination:parameters.destination
-        ~group:parameters.group input
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild:build
-    | _ -> invalid_arg
-        "Sop_catalog.Group_promote_boundary expects one input"
+        ~group:parameters.group input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build
-      ~label:(label "group-promote-boundary" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Group_promotions = struct
@@ -5941,17 +5292,11 @@ module Group_promotions = struct
     [@@sop.node_label "Group Promotions"]
     [@@sop.node_category "Group/Convert"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] -> Sop.group_promotions ~label
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.group_promotions ~label
         ~max_outputs:parameters.max_outputs
-        ~max_payload_bytes:parameters.max_payload_bytes parameters.rules input
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Group_promotions expects one input"
+        ~max_payload_bytes:parameters.max_payload_bytes parameters.rules input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build
-      ~label:(label "group-promotions" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Group_invert = struct
@@ -5973,19 +5318,12 @@ module Group_invert = struct
   } [@@sop.node_key "group_invert"] [@@sop.node_label "Group Invert"]
     [@@sop.node_category "Group/Edit"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        let owner = match parameters.owner with Any -> None | Owner owner -> Some owner in
-        Sop.group_invert ~label ~conflict:parameters.conflict ?owner
-          ~pattern:parameters.pattern ?new_name:(optional_text parameters.new_name)
-          input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Group_invert expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    let owner = match parameters.owner with Any -> None | Owner owner -> Some owner in
+    Sop.group_invert ~label ~conflict:parameters.conflict ?owner
+      ~pattern:parameters.pattern ?new_name:(optional_text parameters.new_name)
+      input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build
-      ~label:(label "group-invert" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Group_delete = struct
@@ -6018,16 +5356,10 @@ module Group_delete = struct
   } [@@sop.node_key "group_delete"] [@@sop.node_label "Group Delete"]
     [@@sop.node_category "Group/Edit"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] -> Sop.group_delete ~label
-        ~delete_unused:parameters.delete_unused ~rules:parameters.rules input
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Group_delete expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.group_delete ~label
+        ~delete_unused:parameters.delete_unused ~rules:parameters.rules input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build
-      ~label:(label "group-delete" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Group_rename = struct
@@ -6075,15 +5407,9 @@ module Group_rename = struct
   } [@@sop.node_key "group_rename"] [@@sop.node_label "Group Rename"]
     [@@sop.node_category "Group/Edit"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] -> Sop.group_rename ~label ~rules:parameters.rules input
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Group_rename expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.group_rename ~label ~rules:parameters.rules input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build
-      ~label:(label "group-rename" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Group_copy = struct
@@ -6119,18 +5445,12 @@ module Group_copy = struct
   } [@@sop.node_key "group_copy"] [@@sop.node_label "Group Copy"]
     [@@sop.node_category "Group/Transfer"] [@@sop.node_inputs 2]
     [@@deriving sop_params, sop_node]
-  let rec build ~label ~inputs parameters = match inputs with
-    | [source; target] -> Sop.group_copy ~label
+  let build = parameters_build (fun ~label parameters source target ->
+    Sop.group_copy ~label
         ?rules:(if parameters.use_rules then Some parameters.rules else None)
         ~conflict:parameters.conflict ~copy_empty:parameters.copy_empty
-        ~source ~target ()
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Group_copy expects two inputs"
+        ~source ~target ())
   let factory = parameters_factory build
-  let create ?label:node_label ~source ~target () = build
-      ~label:(label "group-copy" node_label) ~inputs:[source; target]
-      parameters_default
 end [@@sop.register]
 
 module Group_transfer = struct
@@ -6168,18 +5488,12 @@ module Group_transfer = struct
   } [@@sop.node_key "group_transfer"] [@@sop.node_label "Group Transfer"]
     [@@sop.node_category "Group/Transfer"] [@@sop.node_inputs 2]
     [@@deriving sop_params, sop_node]
-  let rec build ~label ~inputs parameters = match inputs with
-    | [source; target] -> Sop.group_transfer ~label
+  let build = parameters_build (fun ~label parameters source target ->
+    Sop.group_transfer ~label
         ?rules:(if parameters.use_rules then Some parameters.rules else None)
         ~conflict:parameters.conflict ~create_empty:parameters.create_empty
-        ~distance:parameters.distance ~source ~target ()
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Group_transfer expects two inputs"
+        ~distance:parameters.distance ~source ~target ())
   let factory = parameters_factory build
-  let create ?label:node_label ~source ~target () = build
-      ~label:(label "group-transfer" node_label) ~inputs:[source; target]
-      parameters_default
 end [@@sop.register]
 
 module Group_combine = struct
@@ -6221,18 +5535,12 @@ module Group_combine = struct
   } [@@sop.node_key "group_combine"] [@@sop.node_label "Group Combine"]
     [@@sop.node_category "Group/Edit"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] -> Sop.group_combine ~label ~owner:parameters.owner
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.group_combine ~label ~owner:parameters.owner
         ~name:parameters.name ~base:{ Pdk.Group_ops.pattern = parameters.base_pattern;
           inverted = parameters.base_inverted }
-        ~steps:parameters.steps input
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Group_combine expects one input"
+        ~steps:parameters.steps input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build
-      ~label:(label "group-combine" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Group_expand = struct
@@ -6285,32 +5593,25 @@ module Group_expand = struct
   } [@@sop.node_key "group_expand"] [@@sop.node_label "Group Expand"]
     [@@sop.node_category "Group/Expand"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        let normal_attribute = if parameters.use_normal_attribute then Some {
-            Pdk.Group_ops.expand_normal_owner = parameters.normal_owner;
-            expand_normal_name = parameters.normal_name } else None
-        and collision = if parameters.use_collision then Some {
-            Pdk.Group_ops.expand_collision_owner = parameters.collision_owner;
-            expand_collision_group = parameters.collision_group;
-            expand_collision_contain = parameters.collision_contain;
-            expand_collision_allow_boundary =
-              parameters.collision_allow_boundary } else None in
-        Sop.group_expand ~label ?name:(optional_text parameters.name)
-          ~steps:parameters.steps ~flood:parameters.flood
-          ?step_attribute:(optional_text parameters.step_attribute)
-          ~primitive_connectivity:parameters.primitive_connectivity
-          ~normal_spread:parameters.normal_spread ?normal_attribute
-          ~connectivity_attributes:parameters.connectivity_attributes
-          ~connectivity_tolerance:parameters.connectivity_tolerance ?collision
-          ~owner:parameters.owner ~group:parameters.group input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Group_expand expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    let normal_attribute = if parameters.use_normal_attribute then Some {
+        Pdk.Group_ops.expand_normal_owner = parameters.normal_owner;
+        expand_normal_name = parameters.normal_name } else None
+    and collision = if parameters.use_collision then Some {
+        Pdk.Group_ops.expand_collision_owner = parameters.collision_owner;
+        expand_collision_group = parameters.collision_group;
+        expand_collision_contain = parameters.collision_contain;
+        expand_collision_allow_boundary =
+          parameters.collision_allow_boundary } else None in
+    Sop.group_expand ~label ?name:(optional_text parameters.name)
+      ~steps:parameters.steps ~flood:parameters.flood
+      ?step_attribute:(optional_text parameters.step_attribute)
+      ~primitive_connectivity:parameters.primitive_connectivity
+      ~normal_spread:parameters.normal_spread ?normal_attribute
+      ~connectivity_attributes:parameters.connectivity_attributes
+      ~connectivity_tolerance:parameters.connectivity_tolerance ?collision
+      ~owner:parameters.owner ~group:parameters.group input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build
-      ~label:(label "group-expand" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Group_range = struct
@@ -6415,18 +5716,12 @@ module Group_range = struct
           connectivity_tolerance = parameters.connectivity_tolerance;
           collision; region;
           remove_other_regions = parameters.remove_other_regions })
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] -> Sop.group_range ~label ?base:(optional_text parameters.base)
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.group_range ~label ?base:(optional_text parameters.base)
         ~invert:parameters.invert ?filter:(filter parameters)
         ?connectivity:(connectivity parameters) ~merge:parameters.merge
-        ~owner:parameters.owner ~name:parameters.name (range parameters) input
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Group_range expects one input"
+        ~owner:parameters.owner ~name:parameters.name (range parameters) input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build
-      ~label:(label "group-range" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Group_ranges = struct
@@ -6558,15 +5853,9 @@ module Group_ranges = struct
   } [@@sop.node_key "group_ranges"] [@@sop.node_label "Group Ranges"]
     [@@sop.node_category "Group/Create"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] -> Sop.group_ranges ~label parameters.rules input
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Group_ranges expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.group_ranges ~label parameters.rules input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build
-      ~label:(label "group-ranges" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Group_find_path = struct
@@ -6595,21 +5884,15 @@ module Group_find_path = struct
   } [@@sop.node_key "group_find_path"] [@@sop.node_label "Group Find Path"]
     [@@sop.node_category "Group/Path"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] -> Sop.group_find_path ~label ~mode:parameters.mode
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.group_find_path ~label ~mode:parameters.mode
         ~ending:parameters.ending
         ~avoid_self_intersection:parameters.avoid_self_intersection
         ~owner:parameters.owner
         ?collision_group:(optional_text parameters.collision_group)
         ~contain:parameters.contain ~base_group:parameters.base_group
-        ~name:parameters.name input
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Group_find_path expects one input"
+        ~name:parameters.name input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build
-      ~label:(label "group-find-path" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Poly_cut = struct
@@ -6651,18 +5934,13 @@ module Poly_cut = struct
         attribute = parameters.attribute; value = parameters.value }
     | Change -> Pdk.Poly_modeling.Poly_cut_change {
         attribute = parameters.attribute; threshold = parameters.threshold }
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] -> Sop.poly_cut ~label ?group:(optional_text parameters.group)
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.poly_cut ~label ?group:(optional_text parameters.group)
         ?cut_group:(optional_text parameters.cut_group)
         ~element:parameters.element ~strategy:parameters.strategy
         ~detection:(detection parameters) ~keep_closed:parameters.keep_closed
-        input
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Poly_cut expects one input"
+        input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build ~label:(label "poly-cut" node_label)
-      ~inputs:[input] parameters_default
 end [@@sop.register]
 
 module Sort = struct
@@ -6723,18 +6001,13 @@ module Sort = struct
     | Index_attribute -> Pdk.Ordering.Index_attribute parameters.attribute
     | Reverse -> Pdk.Ordering.Reverse
     | Shift -> Pdk.Ordering.Shift parameters.shift
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] -> Sop.sort ~label ?group:(optional_text parameters.group)
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.sort ~label ?group:(optional_text parameters.group)
         ~descending:parameters.descending
         ?output_indices:(optional_text parameters.output_indices)
         ~combine_indices:parameters.combine_indices ~owner:parameters.owner
-        ~key:(key parameters) input
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Sort expects one input"
+        ~key:(key parameters) input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build ~label:(label "sort" node_label)
-      ~inputs:[input] parameters_default
 end [@@sop.register]
 
 module Noise_displace = struct
@@ -6749,17 +6022,11 @@ module Noise_displace = struct
   } [@@sop.node_key "noise_displace"] [@@sop.node_label "Noise Displace"]
     [@@sop.node_category "Deform/Noise"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] -> Sop.noise_displace ~label
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.noise_displace ~label
         ?seed:(if parameters.context_seed then None else Some parameters.seed)
-        ~amplitude:parameters.amplitude ~frequency:parameters.frequency input
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Noise_displace expects one input"
+        ~amplitude:parameters.amplitude ~frequency:parameters.frequency input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build
-      ~label:(label "noise-displace" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Color_by_height = struct
@@ -6785,19 +6052,13 @@ module Color_by_height = struct
   } [@@sop.node_key "color_by_height"] [@@sop.node_label "Color by Height"]
     [@@sop.node_category "Attribute/Color"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] -> Sop.color_by_height ~label
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.color_by_height ~label
         ~low:(Color.rgb parameters.low_red parameters.low_green
           parameters.low_blue)
         ~high:(Color.rgb parameters.high_red parameters.high_green
-          parameters.high_blue) input
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Color_by_height expects one input"
+          parameters.high_blue) input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build
-      ~label:(label "color-by-height" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Scatter = struct
@@ -6835,32 +6096,26 @@ module Scatter = struct
   } [@@sop.node_key "scatter"] [@@sop.node_label "Scatter"]
     [@@sop.node_category "Create/Points"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        let density = if not parameters.use_density then None else
-          Some (Pdk.Scatter.density ~owner:parameters.density_owner
-            parameters.density_attribute) in
-        Sop.scatter ~label
-          ?seed:(if parameters.context_seed then None else Some parameters.seed)
-          ?group:(optional_text parameters.group) ?density
-          ?point_pattern:(optional_text parameters.point_pattern)
-          ?vertex_pattern:(optional_text parameters.vertex_pattern)
-          ?primitive_pattern:(optional_text parameters.primitive_pattern)
-          ?detail_pattern:(optional_text parameters.detail_pattern)
-          ~match_groups:parameters.match_groups
-          ?source_primitive_attribute:
-            (optional_text parameters.source_primitive_attribute)
-          ?source_vertex_numbers_attribute:
-            (optional_text parameters.source_vertex_numbers_attribute)
-          ?source_vertex_weights_attribute:
-            (optional_text parameters.source_vertex_weights_attribute)
-          ~count:parameters.count input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Scatter expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    let density = if not parameters.use_density then None else
+      Some (Pdk.Scatter.density ~owner:parameters.density_owner
+        parameters.density_attribute) in
+    Sop.scatter ~label
+      ?seed:(if parameters.context_seed then None else Some parameters.seed)
+      ?group:(optional_text parameters.group) ?density
+      ?point_pattern:(optional_text parameters.point_pattern)
+      ?vertex_pattern:(optional_text parameters.vertex_pattern)
+      ?primitive_pattern:(optional_text parameters.primitive_pattern)
+      ?detail_pattern:(optional_text parameters.detail_pattern)
+      ~match_groups:parameters.match_groups
+      ?source_primitive_attribute:
+        (optional_text parameters.source_primitive_attribute)
+      ?source_vertex_numbers_attribute:
+        (optional_text parameters.source_vertex_numbers_attribute)
+      ?source_vertex_weights_attribute:
+        (optional_text parameters.source_vertex_weights_attribute)
+      ~count:parameters.count input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build ~label:(label "scatter" node_label)
-      ~inputs:[input] parameters_default
 end [@@sop.register]
 
 module Attribute_noise = struct
@@ -6953,39 +6208,32 @@ module Attribute_noise = struct
     | Pdk.Attribute_ops.Noise_float -> Numeric_scalar
     | Pdk.Attribute_ops.Noise_vector -> Numeric_vec3
     | Pdk.Attribute_ops.Noise_quaternion -> Numeric_vec4
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        let location = match parameters.location with
-          | Position -> Pdk.Attribute_ops.Noise_position
-          | Element_number -> Pdk.Attribute_ops.Noise_element_number
-          | Attribute -> Pdk.Attribute_ops.Noise_attribute
-              parameters.location_attribute in
-        let range = match parameters.range with
-          | Positive -> Pdk.Attribute_ops.Noise_positive
-          | Zero_centered -> Pdk.Attribute_ops.Noise_zero_centered
-          | Min_max -> let kind = numeric_kind parameters.kind in
-              Pdk.Attribute_ops.Noise_min_max
-                (numeric_value kind parameters.min_x parameters.min_y
-                   parameters.min_z parameters.min_w,
-                 numeric_value kind parameters.max_x parameters.max_y
-                   parameters.max_z parameters.max_w) in
-        Sop.attribute_noise ~label ?group:(optional_text parameters.group)
-          ?seed:(if parameters.context_seed then None else Some parameters.seed)
-          ~location ~range ~operation:parameters.operation ~blend:parameters.blend
-          ~frequency:(Vec3.create parameters.frequency_x parameters.frequency_y
-            parameters.frequency_z)
-          ~offset:(Vec3.create parameters.offset_x parameters.offset_y
-            parameters.offset_z)
-          ~octaves:parameters.octaves ~lacunarity:parameters.lacunarity
-          ~roughness:parameters.roughness ~owner:parameters.owner
-          ~name:parameters.name parameters.kind input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Attribute_noise expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    let location = match parameters.location with
+      | Position -> Pdk.Attribute_ops.Noise_position
+      | Element_number -> Pdk.Attribute_ops.Noise_element_number
+      | Attribute -> Pdk.Attribute_ops.Noise_attribute
+          parameters.location_attribute in
+    let range = match parameters.range with
+      | Positive -> Pdk.Attribute_ops.Noise_positive
+      | Zero_centered -> Pdk.Attribute_ops.Noise_zero_centered
+      | Min_max -> let kind = numeric_kind parameters.kind in
+          Pdk.Attribute_ops.Noise_min_max
+            (numeric_value kind parameters.min_x parameters.min_y
+               parameters.min_z parameters.min_w,
+             numeric_value kind parameters.max_x parameters.max_y
+               parameters.max_z parameters.max_w) in
+    Sop.attribute_noise ~label ?group:(optional_text parameters.group)
+      ?seed:(if parameters.context_seed then None else Some parameters.seed)
+      ~location ~range ~operation:parameters.operation ~blend:parameters.blend
+      ~frequency:(Vec3.create parameters.frequency_x parameters.frequency_y
+        parameters.frequency_z)
+      ~offset:(Vec3.create parameters.offset_x parameters.offset_y
+        parameters.offset_z)
+      ~octaves:parameters.octaves ~lacunarity:parameters.lacunarity
+      ~roughness:parameters.roughness ~owner:parameters.owner
+      ~name:parameters.name parameters.kind input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build
-      ~label:(label "attribute-noise" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Attribute_remap = struct
@@ -7046,30 +6294,23 @@ module Attribute_remap = struct
   } [@@sop.node_key "attribute_remap"] [@@sop.node_label "Attribute Remap"]
     [@@sop.node_category "Attribute/Modify"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input_node] ->
-        let value x y z w = numeric_value parameters.kind x y z w in
-        let input = match parameters.input_range with
-          | Automatic -> Pdk.Attribute_ops.Remap_auto
-          | Explicit -> Pdk.Attribute_ops.Remap_explicit {
-              min = value parameters.input_min_x parameters.input_min_y
-                parameters.input_min_z parameters.input_min_w;
-              max = value parameters.input_max_x parameters.input_max_y
-                parameters.input_max_z parameters.input_max_w } in
-        Sop.attribute_remap ~label ?group:(optional_text parameters.group)
-          ?into:(optional_text parameters.into) ~policy:parameters.policy
-          ~owner:parameters.owner ~name:parameters.name ~input
-          ~output_min:(value parameters.output_min_x parameters.output_min_y
-            parameters.output_min_z parameters.output_min_w)
-          ~output_max:(value parameters.output_max_x parameters.output_max_y
-            parameters.output_max_z parameters.output_max_w) input_node
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Attribute_remap expects one input"
+  let build = parameters_build (fun ~label parameters input_node ->
+    let value x y z w = numeric_value parameters.kind x y z w in
+    let input = match parameters.input_range with
+      | Automatic -> Pdk.Attribute_ops.Remap_auto
+      | Explicit -> Pdk.Attribute_ops.Remap_explicit {
+          min = value parameters.input_min_x parameters.input_min_y
+            parameters.input_min_z parameters.input_min_w;
+          max = value parameters.input_max_x parameters.input_max_y
+            parameters.input_max_z parameters.input_max_w } in
+    Sop.attribute_remap ~label ?group:(optional_text parameters.group)
+      ?into:(optional_text parameters.into) ~policy:parameters.policy
+      ~owner:parameters.owner ~name:parameters.name ~input
+      ~output_min:(value parameters.output_min_x parameters.output_min_y
+        parameters.output_min_z parameters.output_min_w)
+      ~output_max:(value parameters.output_max_x parameters.output_max_y
+        parameters.output_max_z parameters.output_max_w) input_node)
   let factory = parameters_factory build
-  let create ?label:node_label input = build
-      ~label:(label "attribute-remap" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Attribute_randomize = struct
@@ -7185,34 +6426,27 @@ module Attribute_randomize = struct
         dimensions = parameters.dimensions }
     | Inside_sphere_cone -> Pdk.Attribute_ops.Random_inside_sphere_cone {
         direction = a; cone_angle = parameters.cone_angle }
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        let fraction = optional_text parameters.fraction_attribute in
-        Sop.attribute_randomize ~label ?group:(optional_text parameters.group)
-          ?seed:(if Option.is_some fraction || parameters.context_seed then None
-            else Some parameters.seed)
-          ?seed_attribute:(if Option.is_some fraction then None
-            else optional_text parameters.seed_attribute)
-          ?fraction_attribute:fraction
-          ?minimum:(if parameters.use_minimum then
-            Some (numeric_value parameters.kind parameters.minimum
-              parameters.minimum parameters.minimum parameters.minimum)
-            else None)
-          ?maximum:(if parameters.use_maximum then
-            Some (numeric_value parameters.kind parameters.maximum
-              parameters.maximum parameters.maximum parameters.maximum)
-            else None)
-          ~direction_bias:parameters.direction_bias
-          ~operation:parameters.operation ~scale:parameters.scale
-          ~owner:parameters.owner ~name:parameters.name
-          (distribution parameters) input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Attribute_randomize expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    let fraction = optional_text parameters.fraction_attribute in
+    Sop.attribute_randomize ~label ?group:(optional_text parameters.group)
+      ?seed:(if Option.is_some fraction || parameters.context_seed then None
+        else Some parameters.seed)
+      ?seed_attribute:(if Option.is_some fraction then None
+        else optional_text parameters.seed_attribute)
+      ?fraction_attribute:fraction
+      ?minimum:(if parameters.use_minimum then
+        Some (numeric_value parameters.kind parameters.minimum
+          parameters.minimum parameters.minimum parameters.minimum)
+        else None)
+      ?maximum:(if parameters.use_maximum then
+        Some (numeric_value parameters.kind parameters.maximum
+          parameters.maximum parameters.maximum parameters.maximum)
+        else None)
+      ~direction_bias:parameters.direction_bias
+      ~operation:parameters.operation ~scale:parameters.scale
+      ~owner:parameters.owner ~name:parameters.name
+      (distribution parameters) input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build
-      ~label:(label "attribute-randomize" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Attribute_mirror = struct
@@ -7309,8 +6543,8 @@ module Attribute_mirror = struct
         direction_v = parameters.uv_direction_v }
     | Vector -> Pdk.Attribute_mirror.Mirror_vector
     | Point -> Pdk.Attribute_mirror.Mirror_point
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] -> Sop.attribute_mirror ~label
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.attribute_mirror ~label
         ?group:(optional_text parameters.group) ~group_use:parameters.group_use
         ~attributes:parameters.attributes ~transform:(transform parameters)
         ?string_replace:(if parameters.replace_strings then
@@ -7319,14 +6553,8 @@ module Attribute_mirror = struct
         ?output_mapping:(optional_text parameters.output_mapping)
         ?source_group:(optional_text parameters.source_group)
         ?destination_group:(optional_text parameters.destination_group)
-        ~owner:parameters.owner ~method_:(method_ parameters) input
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Attribute_mirror expects one input"
+        ~owner:parameters.owner ~method_:(method_ parameters) input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build
-      ~label:(label "attribute-mirror" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Rewire_vertices = struct
@@ -7349,8 +6577,8 @@ module Rewire_vertices = struct
   } [@@sop.node_key "rewire_vertices"] [@@sop.node_label "Rewire Vertices"]
     [@@sop.node_category "Topology/Edit"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] -> Sop.rewire_vertices ~label
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.rewire_vertices ~label
         ?selection:(optional_element_group parameters.selection_owner
           parameters.selection)
         ~recursive:parameters.recursive
@@ -7359,14 +6587,8 @@ module Rewire_vertices = struct
         ?original_point_attribute:
           (optional_text parameters.original_point_attribute)
         ~owner:parameters.owner ~target_attribute:parameters.target_attribute
-        input
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Rewire_vertices expects one input"
+        input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build
-      ~label:(label "rewire-vertices" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 type transport_roots = Transport_first | Transport_last | Transport_group
@@ -7411,26 +6633,19 @@ module Edge_transport = struct
   } [@@sop.node_key "edge_transport"] [@@sop.node_label "Edge Transport"]
     [@@sop.node_category "Attribute/Transport"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        let root_group, roots = transport_roots parameters.roots
-            parameters.root_group in
-        Sop.edge_transport ~label
-          ?point_group:(optional_text parameters.point_group) ?root_group
-          ~roots ~direction:parameters.direction ~operation:parameters.operation
-          ~root_value:parameters.root_value
-          ~integrate_constant:parameters.integrate_constant
-          ~scale_by_edge_length:parameters.scale_by_edge_length
-          ~split:parameters.split ~merge:parameters.merge
-          ~normalization:parameters.normalization
-          ~attribute:parameters.attribute input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Edge_transport expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    let root_group, roots = transport_roots parameters.roots
+        parameters.root_group in
+    Sop.edge_transport ~label
+      ?point_group:(optional_text parameters.point_group) ?root_group
+      ~roots ~direction:parameters.direction ~operation:parameters.operation
+      ~root_value:parameters.root_value
+      ~integrate_constant:parameters.integrate_constant
+      ~scale_by_edge_length:parameters.scale_by_edge_length
+      ~split:parameters.split ~merge:parameters.merge
+      ~normalization:parameters.normalization
+      ~attribute:parameters.attribute input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build
-      ~label:(label "edge-transport" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Edge_transport_curves = struct
@@ -7461,22 +6676,16 @@ module Edge_transport_curves = struct
     [@@sop.node_label "Edge Transport Curves"]
     [@@sop.node_category "Attribute/Transport"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] -> Sop.edge_transport_curves ~label
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.edge_transport_curves ~label
         ?primitive_group:(optional_text parameters.primitive_group)
         ~owner:parameters.owner ~direction:parameters.direction
         ~operation:parameters.operation ~root_value:parameters.root_value
         ~integrate_constant:parameters.integrate_constant
         ~scale_by_edge_length:parameters.scale_by_edge_length
         ~normalization:parameters.normalization
-        ~attribute:parameters.attribute input
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Edge_transport_curves expects one input"
+        ~attribute:parameters.attribute input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build
-      ~label:(label "edge-transport-curves" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Edge_transport_parent = struct
@@ -7511,8 +6720,8 @@ module Edge_transport_parent = struct
     [@@sop.node_label "Edge Transport Parent"]
     [@@sop.node_category "Attribute/Transport"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] -> Sop.edge_transport_parent ~label
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.edge_transport_parent ~label
         ?point_group:(optional_text parameters.point_group)
         ~parent_attribute:parameters.parent_attribute
         ~direction:parameters.direction ~operation:parameters.operation
@@ -7521,14 +6730,8 @@ module Edge_transport_parent = struct
         ~scale_by_edge_length:parameters.scale_by_edge_length
         ~split:parameters.split ~merge:parameters.merge
         ~normalization:parameters.normalization
-        ~attribute:parameters.attribute input
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Edge_transport_parent expects one input"
+        ~attribute:parameters.attribute input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build
-      ~label:(label "edge-transport-parent" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Blast_by_attribute = struct
@@ -7579,23 +6782,16 @@ module Blast_by_attribute = struct
         minimum = parameters.minimum; maximum = parameters.maximum }
     | Width -> Pdk.Blast_by_attribute.Blast_width {
         center = parameters.center; width = parameters.width }
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        let output = match parameters.output with
-          | Delete -> Pdk.Blast_by_attribute.Blast_delete
-          | Group -> Pdk.Blast_by_attribute.Blast_group parameters.output_group in
-        Sop.blast_by_attribute ~label
-          ?group:(optional_text parameters.group) ~invert:parameters.invert
-          ~remove_unused_points:parameters.remove_unused_points
-          ~owner:parameters.owner ~attribute:parameters.attribute
-          ~mode:(blast_mode parameters) ~output input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Blast_by_attribute expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    let output = match parameters.output with
+      | Delete -> Pdk.Blast_by_attribute.Blast_delete
+      | Group -> Pdk.Blast_by_attribute.Blast_group parameters.output_group in
+    Sop.blast_by_attribute ~label
+      ?group:(optional_text parameters.group) ~invert:parameters.invert
+      ~remove_unused_points:parameters.remove_unused_points
+      ~owner:parameters.owner ~attribute:parameters.attribute
+      ~mode:(blast_mode parameters) ~output input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build
-      ~label:(label "blast-by-attribute" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Blast = struct
@@ -7613,16 +6809,11 @@ module Blast = struct
   } [@@sop.node_key "blast"] [@@sop.node_label "Blast"]
     [@@sop.node_category "Topology/Delete"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] -> Sop.blast ~label ~selected:parameters.selected
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.blast ~label ~selected:parameters.selected
         ~compact_points:parameters.compact_points ~policy:parameters.policy
-        ~owner:parameters.owner ~group:parameters.group input
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Blast expects one input"
+        ~owner:parameters.owner ~group:parameters.group input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build
-      ~label:(label "blast" node_label) ~inputs:[input] parameters_default
 end [@@sop.register]
 
 module Compact_points = struct
@@ -7631,8 +6822,6 @@ module Compact_points = struct
       (function
         | [input] -> Sop.compact_points ~label:"compact-points" input
         | _ -> invalid_arg "Compact Points SOP expects one input")
-  let create ?label:node_label input = Sop.compact_points
-      ~label:(label "compact-points" node_label) input
 end [@@sop.register]
 
 module Delete_edge_group = struct
@@ -7642,15 +6831,9 @@ module Delete_edge_group = struct
     [@@sop.node_label "Delete Edge Group"]
     [@@sop.node_category "Group/Manage"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] -> Sop.delete_edge_group ~label ~name:parameters.name input
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Delete_edge_group expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.delete_edge_group ~label ~name:parameters.name input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build
-      ~label:(label "delete-edge-group" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Rename_edge_group = struct
@@ -7661,16 +6844,10 @@ module Rename_edge_group = struct
     [@@sop.node_label "Rename Edge Group"]
     [@@sop.node_category "Group/Manage"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] -> Sop.rename_edge_group ~label ~from:parameters.from
-        ~into:parameters.into input
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Rename_edge_group expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.rename_edge_group ~label ~from:parameters.from
+        ~into:parameters.into input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build
-      ~label:(label "rename-edge-group" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Delete_attributes = struct
@@ -7690,25 +6867,14 @@ module Delete_attributes = struct
     [@@sop.node_label "Delete Attributes"]
     [@@sop.node_category "Attribute/Manage"] [@@sop.node_inputs 2]
     [@@sop.node_optional "1"] [@@deriving sop_params, sop_node]
-  let rec build_slots ~label ~inputs parameters = match inputs with
-    | [Some input; reference] -> Sop.delete_attributes ~label ?reference
-        ~delete_non_selected:parameters.delete_non_selected
-        ?point_pattern:(optional_text parameters.point_pattern)
-        ?vertex_pattern:(optional_text parameters.vertex_pattern)
-        ?primitive_pattern:(optional_text parameters.primitive_pattern)
-        ?detail_pattern:(optional_text parameters.detail_pattern) input
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild
-    | _ -> invalid_arg "Sop_catalog.Delete_attributes requires its source input"
-  and rebuild ~label ~inputs parameters = match inputs with
-    | [input] -> build_slots ~label ~inputs:[Some input; None] parameters
-    | [input; reference] ->
-        build_slots ~label ~inputs:[Some input; Some reference] parameters
-    | _ -> invalid_arg "Sop_catalog.Delete_attributes has invalid physical inputs"
-  let factory = parameters_factory build_slots
-  let create ?label:node_label ?reference input = build_slots
-      ~label:(label "delete-attributes" node_label)
-      ~inputs:[Some input; reference] parameters_default
+  let build = parameters_build (fun ~label parameters input reference ->
+    Sop.delete_attributes ~label ?reference
+      ~delete_non_selected:parameters.delete_non_selected
+      ?point_pattern:(optional_text parameters.point_pattern)
+      ?vertex_pattern:(optional_text parameters.vertex_pattern)
+      ?primitive_pattern:(optional_text parameters.primitive_pattern)
+      ?detail_pattern:(optional_text parameters.detail_pattern) input)
+  let factory = parameters_factory build
 end [@@sop.register]
 
 module Rename_attributes = struct
@@ -7758,15 +6924,9 @@ module Rename_attributes = struct
     [@@sop.node_label "Rename Attributes"]
     [@@sop.node_category "Attribute/Manage"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] -> Sop.rename_attributes ~label ~rules:parameters.rules input
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Rename_attributes expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.rename_attributes ~label ~rules:parameters.rules input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build
-      ~label:(label "rename-attributes" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Swap_attributes = struct
@@ -7814,15 +6974,9 @@ module Swap_attributes = struct
     [@@sop.node_label "Swap Attributes"]
     [@@sop.node_category "Attribute/Manage"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] -> Sop.swap_attributes ~label ~rules:parameters.rules input
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Swap_attributes expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.swap_attributes ~label ~rules:parameters.rules input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build
-      ~label:(label "swap-attributes" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Triangulate_2d = struct
@@ -7931,8 +7085,8 @@ module Triangulate_2d = struct
           parameters.plane_normal_z }
     | Point_attribute ->
         Pdk.Triangulation_modeling.Triangulate_2d_point_attribute parameters.point_attribute
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] -> Sop.triangulate_2d ~label
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.triangulate_2d ~label
         ?point_group:(optional_text parameters.point_group)
         ?constraint_edge_group:(optional_text parameters.constraint_edge_group)
         ?constraint_primitive_group:
@@ -7968,14 +7122,8 @@ module Triangulate_2d = struct
         ?refinement_point_group:
           (optional_text parameters.refinement_point_group)
         ?triangle_group:(optional_text parameters.triangle_group)
-        ?constraint_group:(optional_text parameters.constraint_group) input
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Triangulate_2d expects one input"
+        ?constraint_group:(optional_text parameters.constraint_group) input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build
-      ~label:(label "triangulate-2d" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Extract_point_from_curve = struct
@@ -8015,8 +7163,8 @@ module Extract_point_from_curve = struct
     | Primitive_attribute ->
         Sop.Extract_point_primitive_attribute parameters.primitive_attribute
     | Current_time -> Sop.Extract_point_current_time
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] -> Sop.extract_point_from_curve ~label
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.extract_point_from_curve ~label
         ?group:(optional_text parameters.group) ~cut:(cut parameters)
         ~point_attributes:parameters.point_attributes
         ~copy_primitive_attributes:parameters.copy_primitive_attributes
@@ -8024,14 +7172,8 @@ module Extract_point_from_curve = struct
         ?curve_u_attribute:(optional_text parameters.curve_u_attribute)
         ?number_cuts_attribute:(optional_text parameters.number_cuts_attribute)
         ?curve_number_attribute:(optional_text parameters.curve_number_attribute)
-        ~distance_attribute:parameters.distance_attribute input
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Extract_point_from_curve expects one input"
+        ~distance_attribute:parameters.distance_attribute input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build
-      ~label:(label "extract-point-from-curve" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Soft_transform = struct
@@ -8132,8 +7274,8 @@ module Soft_transform = struct
     | Attribute -> Pdk.Transform_ops.Soft_attribute {
         attribute = parameters.metric_attribute;
         apply_rolloff = parameters.apply_rolloff }
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] -> Sop.soft_transform_trs ~label ~order:parameters.order
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.soft_transform_trs ~label ~order:parameters.order
         ~rotation_order:parameters.rotation_order
         ~translate:(Vec3.create parameters.translate_x parameters.translate_y
           parameters.translate_z)
@@ -8153,14 +7295,8 @@ module Soft_transform = struct
         ~metric:(metric parameters) ~falloff:parameters.falloff
         ~radius:parameters.radius
         ?falloff_attribute:(optional_text parameters.falloff_attribute)
-        ~recompute_normals:parameters.recompute_normals input
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Soft_transform expects one input"
+        ~recompute_normals:parameters.recompute_normals input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build
-      ~label:(label "soft-transform" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Point_generate_from_input = struct
@@ -8208,8 +7344,8 @@ module Point_generate_from_input = struct
         scale_attribute = optional_text parameters.scale_attribute }
     | Probability -> Pdk.Point_generate.Generate_probability {
         attribute = parameters.probability_attribute }
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] -> Sop.point_generate ~label
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.point_generate ~label
         ?group:(optional_text parameters.group) ~keep_input:parameters.keep_input
         ?seed:(if parameters.context_seed then None else Some parameters.seed)
         ?generated_group:(optional_text parameters.generated_group)
@@ -8217,14 +7353,8 @@ module Point_generate_from_input = struct
         ~source_index_attribute:parameters.source_index_attribute
         ~copy_point_attributes:parameters.copy_point_attributes
         ~copy_detail_attributes:parameters.copy_detail_attributes
-        ~mode:(mode parameters) input
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Point_generate_from_input expects one input"
+        ~mode:(mode parameters) input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build
-      ~label:(label "point-generate" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Point_replicate = struct
@@ -8337,59 +7467,48 @@ module Point_replicate = struct
   } [@@sop.node_key "point_replicate"] [@@sop.node_label "Point Replicate"]
     [@@sop.node_category "Create/Points"] [@@sop.node_inputs 2]
     [@@sop.node_optional "1"] [@@deriving sop_params, sop_node]
-  let rec build_slots ~label ~inputs parameters = match inputs with
-    | [Some input; custom_shape] ->
-        let custom_shape = if parameters.shape = Pdk.Point_replication.Replicate_custom
-          then custom_shape else None in
-        Sop.point_replicate ~label ?group:(optional_text parameters.group)
-          ~keep_input:parameters.keep_input
-          ?seed:(if parameters.context_seed then None else Some parameters.seed)
-          ~id_attribute:parameters.id_attribute
-          ?generated_group:(optional_text parameters.generated_group)
-          ~copy_point_attributes:parameters.copy_point_attributes
-          ~keep_source_attributes:parameters.keep_source_attributes
-          ~transform_attributes:parameters.transform_attributes
-          ~source_point_attribute:parameters.source_point_attribute
-          ~source_index_attribute:parameters.source_index_attribute
-          ~shape:parameters.shape ?custom_shape
-          ~center:(Vec3.create parameters.center_x parameters.center_y
-            parameters.center_z)
-          ~size:(Vec3.create parameters.size_x parameters.size_y parameters.size_z)
-          ~orientation:(Vec3.create parameters.orientation_x
-            parameters.orientation_y parameters.orientation_z)
-          ~uniform_scale:parameters.uniform_scale
-          ~quasi_stratified:parameters.quasi_stratified
-          ~velocity_stretch:parameters.velocity_stretch
-          ~velocity_scale:parameters.velocity_scale
-          ~inherit_velocity:parameters.inherit_velocity
-          ~radial_velocity:parameters.radial_velocity
-          ?noise_amplitude:(if parameters.use_noise then Some
-            (Vec3.create parameters.noise_amplitude_x
-              parameters.noise_amplitude_y parameters.noise_amplitude_z)
-            else None)
-          ~noise_frequency:(Vec3.create parameters.noise_frequency_x
-            parameters.noise_frequency_y parameters.noise_frequency_z)
-          ~noise_offset:(Vec3.create parameters.noise_offset_x
-            parameters.noise_offset_y parameters.noise_offset_z)
-          ~noise_roughness:parameters.noise_roughness
-          ~noise_attenuation:parameters.noise_attenuation
-          ~noise_turbulence:parameters.noise_turbulence
-          ?noise_seed:(if parameters.use_noise && not parameters.noise_context_seed
-            then Some parameters.noise_seed else None)
-          ~points_per_point:parameters.points_per_point
-          ?scale_attribute:(optional_text parameters.scale_attribute) input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild
-    | _ -> invalid_arg "Sop_catalog.Point_replicate requires its source input"
-  and rebuild ~label ~inputs parameters = match inputs with
-    | [input] -> build_slots ~label ~inputs:[Some input; None] parameters
-    | [input; custom_shape] ->
-        build_slots ~label ~inputs:[Some input; Some custom_shape] parameters
-    | _ -> invalid_arg "Sop_catalog.Point_replicate has invalid physical inputs"
-  let factory = parameters_factory build_slots
-  let create ?label:node_label ?custom_shape input = build_slots
-      ~label:(label "point-replicate" node_label)
-      ~inputs:[Some input; custom_shape] parameters_default
+  let build = parameters_build (fun ~label parameters input custom_shape ->
+    let custom_shape = if parameters.shape = Pdk.Point_replication.Replicate_custom
+      then custom_shape else None in
+    Sop.point_replicate ~label ?group:(optional_text parameters.group)
+      ~keep_input:parameters.keep_input
+      ?seed:(if parameters.context_seed then None else Some parameters.seed)
+      ~id_attribute:parameters.id_attribute
+      ?generated_group:(optional_text parameters.generated_group)
+      ~copy_point_attributes:parameters.copy_point_attributes
+      ~keep_source_attributes:parameters.keep_source_attributes
+      ~transform_attributes:parameters.transform_attributes
+      ~source_point_attribute:parameters.source_point_attribute
+      ~source_index_attribute:parameters.source_index_attribute
+      ~shape:parameters.shape ?custom_shape
+      ~center:(Vec3.create parameters.center_x parameters.center_y
+        parameters.center_z)
+      ~size:(Vec3.create parameters.size_x parameters.size_y parameters.size_z)
+      ~orientation:(Vec3.create parameters.orientation_x
+        parameters.orientation_y parameters.orientation_z)
+      ~uniform_scale:parameters.uniform_scale
+      ~quasi_stratified:parameters.quasi_stratified
+      ~velocity_stretch:parameters.velocity_stretch
+      ~velocity_scale:parameters.velocity_scale
+      ~inherit_velocity:parameters.inherit_velocity
+      ~radial_velocity:parameters.radial_velocity
+      ?noise_amplitude:(if parameters.use_noise then Some
+        (Vec3.create parameters.noise_amplitude_x
+          parameters.noise_amplitude_y parameters.noise_amplitude_z)
+        else None)
+      ~noise_frequency:(Vec3.create parameters.noise_frequency_x
+        parameters.noise_frequency_y parameters.noise_frequency_z)
+      ~noise_offset:(Vec3.create parameters.noise_offset_x
+        parameters.noise_offset_y parameters.noise_offset_z)
+      ~noise_roughness:parameters.noise_roughness
+      ~noise_attenuation:parameters.noise_attenuation
+      ~noise_turbulence:parameters.noise_turbulence
+      ?noise_seed:(if parameters.use_noise && not parameters.noise_context_seed
+        then Some parameters.noise_seed else None)
+      ~points_per_point:parameters.points_per_point
+      ?scale_attribute:(optional_text parameters.scale_attribute) input)
+
+  let factory = parameters_factory build
 end [@@sop.register]
 
 module Attribute_fade = struct
@@ -8422,39 +7541,19 @@ module Attribute_fade = struct
   } [@@sop.node_key "attribute_fade"] [@@sop.node_label "Attribute Fade"]
     [@@sop.node_category "Attribute/Motion"] [@@sop.node_inputs 3]
     [@@sop.node_optional "1,2"] [@@deriving sop_params, sop_node]
-  let rec build_slots ~label ~inputs parameters = match inputs with
-    | [Some input; start_source; hold_source] ->
-        let start_present = Option.is_some start_source
-        and hold_present = Option.is_some hold_source in
-        Sop.attribute_fade ~label ?group:(optional_text parameters.group)
-          ?start_source ?hold_source ~fade_attribute:parameters.fade_attribute
-          ?start_attribute:(optional_text parameters.start_attribute)
-          ~start_retime:(parameters.start_retime_offset,
-            parameters.start_retime_scale)
-          ?hold_scale_attribute:
-            (optional_text parameters.hold_scale_attribute)
-          ~frame_offset:parameters.frame_offset ~fade_in:parameters.fade_in
-          ~fade_hold:parameters.fade_hold ~fade_out:parameters.fade_out
-          ~visualize:parameters.visualize input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:(rebuild_sparse start_present hold_present)
-    | _ -> invalid_arg "Sop_catalog.Attribute_fade requires its source input"
-  and rebuild_sparse start_present hold_present ~label ~inputs parameters =
-    match inputs with
-    | input :: rest ->
-        let take present rest = if not present then None, rest else match rest with
-          | value :: rest -> Some value, rest
-          | [] -> invalid_arg "Attribute Fade lost a captured optional input" in
-        let start_source, rest = take start_present rest in
-        let hold_source, rest = take hold_present rest in
-        if rest <> [] then invalid_arg "Attribute Fade has extra physical inputs";
-        build_slots ~label ~inputs:[Some input; start_source; hold_source]
-          parameters
-    | [] -> invalid_arg "Attribute Fade lost its required input"
-  let factory = parameters_factory build_slots
-  let create ?label:node_label ?start_source ?hold_source input = build_slots
-      ~label:(label "attribute-fade" node_label)
-      ~inputs:[Some input; start_source; hold_source] parameters_default
+  let build = parameters_build (fun ~label parameters input start_source hold_source ->
+    Sop.attribute_fade ~label ?group:(optional_text parameters.group)
+      ?start_source ?hold_source ~fade_attribute:parameters.fade_attribute
+      ?start_attribute:(optional_text parameters.start_attribute)
+      ~start_retime:(parameters.start_retime_offset,
+        parameters.start_retime_scale)
+      ?hold_scale_attribute:
+        (optional_text parameters.hold_scale_attribute)
+      ~frame_offset:parameters.frame_offset ~fade_in:parameters.fade_in
+      ~fade_hold:parameters.fade_hold ~fade_out:parameters.fade_out
+      ~visualize:parameters.visualize input)
+
+  let factory = parameters_factory build
 end [@@sop.register]
 
 module Point_velocity = struct
@@ -8526,39 +7625,19 @@ module Point_velocity = struct
         (Vec3.create parameters.set_x parameters.set_y parameters.set_z)
     | From_attribute -> Pdk.Motion.From_attribute {
         name = parameters.source_attribute; scale = parameters.source_scale }
-  let rec build_slots ~label ~inputs parameters = match inputs with
-    | [Some input; previous; next] ->
-        let previous_present = Option.is_some previous
-        and next_present = Option.is_some next in
-        Sop.point_velocity ~label ?group:(optional_text parameters.group)
-          ?previous ?next ~approximation:parameters.approximation
-          ~dt:parameters.dt ~initialization:(initialization parameters)
-          ?match_attribute:(optional_text parameters.match_attribute)
-          ~unmatched:parameters.unmatched
-          ~velocity_attribute:parameters.velocity_attribute
-          ~add_velocity:(Vec3.create parameters.add_x parameters.add_y
-            parameters.add_z)
-          ~compute_acceleration:parameters.compute_acceleration
-          ~acceleration_attribute:parameters.acceleration_attribute input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:(rebuild_sparse previous_present next_present)
-    | _ -> invalid_arg "Sop_catalog.Point_velocity requires its source input"
-  and rebuild_sparse previous_present next_present ~label ~inputs parameters =
-    match inputs with
-    | input :: rest ->
-        let take present rest = if not present then None, rest else match rest with
-          | value :: rest -> Some value, rest
-          | [] -> invalid_arg "Point Velocity lost a captured optional input" in
-        let previous, rest = take previous_present rest in
-        let next, rest = take next_present rest in
-        (match rest with
-         | [] -> build_slots ~label ~inputs:[Some input; previous; next] parameters
-         | _ -> invalid_arg "Point Velocity has extra physical inputs")
-    | [] -> invalid_arg "Point Velocity lost its required input"
-  let factory = parameters_factory build_slots
-  let create ?label:node_label ?previous ?next input = build_slots
-      ~label:(label "point-velocity" node_label)
-      ~inputs:[Some input; previous; next] parameters_default
+  let build = parameters_build (fun ~label parameters input previous next ->
+    Sop.point_velocity ~label ?group:(optional_text parameters.group)
+      ?previous ?next ~approximation:parameters.approximation
+      ~dt:parameters.dt ~initialization:(initialization parameters)
+      ?match_attribute:(optional_text parameters.match_attribute)
+      ~unmatched:parameters.unmatched
+      ~velocity_attribute:parameters.velocity_attribute
+      ~add_velocity:(Vec3.create parameters.add_x parameters.add_y
+        parameters.add_z)
+      ~compute_acceleration:parameters.compute_acceleration
+      ~acceleration_attribute:parameters.acceleration_attribute input)
+
+  let factory = parameters_factory build
 end [@@sop.register]
 
 type transfer_mode = Transfer_nearest | Transfer_inverse | Transfer_links
@@ -8654,24 +7733,17 @@ module Attribute_copy = struct
         target_attribute = parameters.target_match_attribute }
     | To_element -> Pdk.Attribute_ops.To_element {
         target_attribute = parameters.target_element_attribute }
-  let rec build ~label ~inputs parameters = match inputs with
-    | [source; target] ->
-        let source_group, source_group_pattern = exact_or_pattern
-            parameters.source_group parameters.source_group_pattern
-        and target_group, target_group_pattern = exact_or_pattern
-            parameters.target_group parameters.target_group_pattern in
-        Sop.attribute_copy ~label ~match_:(match_ parameters)
-          ~allow_position:parameters.allow_position ?source_group
-          ?source_group_pattern ?target_group ?target_group_pattern
-          ~group_owner:parameters.group_owner ~rules:parameters.rules
-          ~source ~target ()
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Attribute_copy expects two inputs"
+  let build = parameters_build (fun ~label parameters source target ->
+    let source_group, source_group_pattern = exact_or_pattern
+        parameters.source_group parameters.source_group_pattern
+    and target_group, target_group_pattern = exact_or_pattern
+        parameters.target_group parameters.target_group_pattern in
+    Sop.attribute_copy ~label ~match_:(match_ parameters)
+      ~allow_position:parameters.allow_position ?source_group
+      ?source_group_pattern ?target_group ?target_group_pattern
+      ~group_owner:parameters.group_owner ~rules:parameters.rules
+      ~source ~target ())
   let factory = parameters_factory build
-  let create ?label:node_label ~source ~target () = build
-      ~label:(label "attribute-copy" node_label) ~inputs:[source; target]
-      parameters_default
 end [@@sop.register]
 
 module Attribute_interpolate = struct
@@ -8774,34 +7846,27 @@ module Attribute_interpolate = struct
     | Primitive_weights -> Pdk.Attribute_ops.Primitive_weights {
         numbers_attribute = parameters.numbers_attribute;
         weights_attribute = parameters.weights_attribute }
-  let rec build ~label ~inputs parameters = match inputs with
-    | [source; target] ->
-        let group, group_pattern = exact_or_pattern parameters.group
-            parameters.group_pattern
-        and compute_weights = if parameters.compute_weights then Some {
-            Pdk.Attribute_ops.computed_owner = parameters.computed_owner;
-            computed_numbers_attribute = parameters.computed_numbers_attribute;
-            computed_weights_attribute = parameters.computed_weights_attribute }
-          else None in
-        Sop.attribute_interpolate ~label ?group ?group_pattern
-          ~driver:(driver parameters) ?compute_weights
-          ?point_pattern:(optional_text parameters.point_pattern)
-          ?vertex_pattern:(optional_text parameters.vertex_pattern)
-          ?primitive_pattern:(optional_text parameters.primitive_pattern)
-          ?detail_pattern:(optional_text parameters.detail_pattern)
-          ~match_groups:parameters.match_groups
-          ~pre_scale:parameters.pre_scale
-          ~normalize_weights:parameters.normalize_weights
-          ~threshold:parameters.threshold ~blend:parameters.blend
-          ~unmatched:parameters.unmatched ~target_owner:parameters.target_owner
-          ~attributes:parameters.attributes ~source ~target ()
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Attribute_interpolate expects two inputs"
+  let build = parameters_build (fun ~label parameters source target ->
+    let group, group_pattern = exact_or_pattern parameters.group
+        parameters.group_pattern
+    and compute_weights = if parameters.compute_weights then Some {
+        Pdk.Attribute_ops.computed_owner = parameters.computed_owner;
+        computed_numbers_attribute = parameters.computed_numbers_attribute;
+        computed_weights_attribute = parameters.computed_weights_attribute }
+      else None in
+    Sop.attribute_interpolate ~label ?group ?group_pattern
+      ~driver:(driver parameters) ?compute_weights
+      ?point_pattern:(optional_text parameters.point_pattern)
+      ?vertex_pattern:(optional_text parameters.vertex_pattern)
+      ?primitive_pattern:(optional_text parameters.primitive_pattern)
+      ?detail_pattern:(optional_text parameters.detail_pattern)
+      ~match_groups:parameters.match_groups
+      ~pre_scale:parameters.pre_scale
+      ~normalize_weights:parameters.normalize_weights
+      ~threshold:parameters.threshold ~blend:parameters.blend
+      ~unmatched:parameters.unmatched ~target_owner:parameters.target_owner
+      ~attributes:parameters.attributes ~source ~target ())
   let factory = parameters_factory build
-  let create ?label:node_label ~source ~target () = build
-      ~label:(label "attribute-interpolate" node_label)
-      ~inputs:[source; target] parameters_default
 end [@@sop.register]
 
 module Attribute_transfer = struct
@@ -8859,33 +7924,26 @@ module Attribute_transfer = struct
     [@@sop.node_label "Attribute Transfer"]
     [@@sop.node_category "Attribute/Transfer"] [@@sop.node_inputs 2]
     [@@deriving sop_params, sop_node]
-  let rec build ~label ~inputs parameters = match inputs with
-    | [source; target] ->
-        let source_group, source_group_pattern = exact_or_pattern
-            parameters.source_group parameters.source_group_pattern
-        and source_vertex_group, source_vertex_group_pattern = exact_or_pattern
-            parameters.source_vertex_group
-            parameters.source_vertex_group_pattern
-        and target_group, target_group_pattern = exact_or_pattern
-            parameters.target_group parameters.target_group_pattern in
-        Sop.attribute_transfer ~label ~owner:parameters.owner
-          ~pattern:parameters.pattern
-          ~mode:(transfer_mode parameters.mode parameters.neighbors
-            parameters.power parameters.kernel_radius)
-          ~max_distance:parameters.max_distance
-          ~blend_width:parameters.blend_width
-          ~falloff:(transfer_falloff parameters.falloff parameters.uniform_bias)
-          ~unmatched:parameters.unmatched ?source_group ?source_group_pattern
-          ?source_vertex_group ?source_vertex_group_pattern
-          ~source_vertex_selection:parameters.source_vertex_selection
-          ?target_group ?target_group_pattern ~source ~target ()
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Attribute_transfer expects two inputs"
+  let build = parameters_build (fun ~label parameters source target ->
+    let source_group, source_group_pattern = exact_or_pattern
+        parameters.source_group parameters.source_group_pattern
+    and source_vertex_group, source_vertex_group_pattern = exact_or_pattern
+        parameters.source_vertex_group
+        parameters.source_vertex_group_pattern
+    and target_group, target_group_pattern = exact_or_pattern
+        parameters.target_group parameters.target_group_pattern in
+    Sop.attribute_transfer ~label ~owner:parameters.owner
+      ~pattern:parameters.pattern
+      ~mode:(transfer_mode parameters.mode parameters.neighbors
+        parameters.power parameters.kernel_radius)
+      ~max_distance:parameters.max_distance
+      ~blend_width:parameters.blend_width
+      ~falloff:(transfer_falloff parameters.falloff parameters.uniform_bias)
+      ~unmatched:parameters.unmatched ?source_group ?source_group_pattern
+      ?source_vertex_group ?source_vertex_group_pattern
+      ~source_vertex_selection:parameters.source_vertex_selection
+      ?target_group ?target_group_pattern ~source ~target ())
   let factory = parameters_factory build
-  let create ?label:node_label ~source ~target () = build
-      ~label:(label "attribute-transfer" node_label) ~inputs:[source; target]
-      parameters_default
 end [@@sop.register]
 
 module Attribute_transfer_surface = struct
@@ -8961,34 +8019,26 @@ module Attribute_transfer_surface = struct
     [@@sop.node_label "Attribute Transfer Surface"]
     [@@sop.node_category "Attribute/Transfer"] [@@sop.node_inputs 2]
     [@@deriving sop_params, sop_node]
-  let rec build ~label ~inputs parameters = match inputs with
-    | [source; target] ->
-        let source_group, source_group_pattern = exact_or_pattern
-            parameters.source_group parameters.source_group_pattern
-        and source_vertex_group, source_vertex_group_pattern = exact_or_pattern
-            parameters.source_vertex_group
-            parameters.source_vertex_group_pattern
-        and target_group, target_group_pattern = exact_or_pattern
-            parameters.target_group parameters.target_group_pattern in
-        Sop.attribute_transfer_surface ~label
-          ~max_distance:parameters.max_distance
-          ~blend_width:parameters.blend_width
-          ~falloff:(transfer_falloff parameters.falloff parameters.uniform_bias)
-          ~unmatched:parameters.unmatched ~target_owner:parameters.target_owner
-          ?distance_attribute:(optional_text parameters.distance_attribute)
-          ?source_group ?source_group_pattern ?source_vertex_group
-          ?source_vertex_group_pattern
-          ~source_vertex_selection:parameters.source_vertex_selection
-          ?target_group ?target_group_pattern ~attributes:parameters.attributes
-          ~source ~target ()
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg
-        "Sop_catalog.Attribute_transfer_surface expects two inputs"
+  let build = parameters_build (fun ~label parameters source target ->
+    let source_group, source_group_pattern = exact_or_pattern
+        parameters.source_group parameters.source_group_pattern
+    and source_vertex_group, source_vertex_group_pattern = exact_or_pattern
+        parameters.source_vertex_group
+        parameters.source_vertex_group_pattern
+    and target_group, target_group_pattern = exact_or_pattern
+        parameters.target_group parameters.target_group_pattern in
+    Sop.attribute_transfer_surface ~label
+      ~max_distance:parameters.max_distance
+      ~blend_width:parameters.blend_width
+      ~falloff:(transfer_falloff parameters.falloff parameters.uniform_bias)
+      ~unmatched:parameters.unmatched ~target_owner:parameters.target_owner
+      ?distance_attribute:(optional_text parameters.distance_attribute)
+      ?source_group ?source_group_pattern ?source_vertex_group
+      ?source_vertex_group_pattern
+      ~source_vertex_selection:parameters.source_vertex_selection
+      ?target_group ?target_group_pattern ~attributes:parameters.attributes
+      ~source ~target ())
   let factory = parameters_factory build
-  let create ?label:node_label ~source ~target () = build
-      ~label:(label "attribute-transfer-surface" node_label)
-      ~inputs:[source; target] parameters_default
 end [@@sop.register]
 
 module Attribute_transfer_all = struct
@@ -9028,8 +8078,8 @@ module Attribute_transfer_all = struct
     [@@sop.node_label "Attribute Transfer All"]
     [@@sop.node_category "Attribute/Transfer"] [@@sop.node_inputs 2]
     [@@deriving sop_params, sop_node]
-  let rec build ~label ~inputs parameters = match inputs with
-    | [source; target] -> Sop.attribute_transfer_all ~label
+  let build = parameters_build (fun ~label parameters source target ->
+    Sop.attribute_transfer_all ~label
         ?point_pattern:(optional_text parameters.point_pattern)
         ?vertex_pattern:(optional_text parameters.vertex_pattern)
         ?primitive_pattern:(optional_text parameters.primitive_pattern)
@@ -9039,14 +8089,8 @@ module Attribute_transfer_all = struct
         ~max_distance:parameters.max_distance
         ~blend_width:parameters.blend_width
         ~falloff:(transfer_falloff parameters.falloff parameters.uniform_bias)
-        ~unmatched:parameters.unmatched ~source ~target ()
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Attribute_transfer_all expects two inputs"
+        ~unmatched:parameters.unmatched ~source ~target ())
   let factory = parameters_factory build
-  let create ?label:node_label ~source ~target () = build
-      ~label:(label "attribute-transfer-all" node_label) ~inputs:[source; target]
-      parameters_default
 end [@@sop.register]
 
 module Promote_attributes = struct
@@ -9071,21 +8115,15 @@ module Promote_attributes = struct
     [@@sop.node_category "Attribute/Promote"] [@@sop.node_inputs 1]
     [@@sop.node_operation "attribute_promote_pattern"]
     [@@deriving sop_params, sop_node]
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] -> Sop.promote_attributes ~label ~method_:parameters.method_
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.promote_attributes ~label ~method_:parameters.method_
         ~delete_source:parameters.delete_source
         ?piece_attribute:(optional_text parameters.piece_attribute)
         ?into_pattern:(optional_text parameters.into_pattern)
         ?index_pattern:(optional_text parameters.index_pattern)
         ~source:parameters.source ~destination:parameters.destination
-        ~pattern:parameters.pattern input
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Promote_attributes expects one input"
+        ~pattern:parameters.pattern input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build
-      ~label:(label "promote-attributes" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Measure = struct
@@ -9112,20 +8150,13 @@ module Measure = struct
   } [@@sop.node_key "measure"] [@@sop.node_label "Measure"]
     [@@sop.node_category "Attribute/Analysis"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        Sop.measure ~label ?group:(optional_text parameters.group)
-          ~accumulation:parameters.accumulation
-          ?name:(optional_text parameters.attribute)
-          ?total_name:(optional_text parameters.total_attribute)
-          parameters.kind input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Measure expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.measure ~label ?group:(optional_text parameters.group)
+      ~accumulation:parameters.accumulation
+      ?name:(optional_text parameters.attribute)
+      ?total_name:(optional_text parameters.total_attribute)
+      parameters.kind input)
   let factory = parameters_factory build
-  let create ?label:node_label input =
-    build ~label:(label "measure" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Connectivity = struct
@@ -9158,25 +8189,18 @@ module Connectivity = struct
   } [@@sop.node_key "connectivity"] [@@sop.node_label "Connectivity"]
     [@@sop.node_category "Attribute/Analysis"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        let attribute = match parameters.output with
-          | Integer -> Pdk.Analysis.Connectivity_integer
-          | Text -> Pdk.Analysis.Connectivity_text parameters.text_prefix in
-        Sop.connectivity ~label
-          ?primitive_group:(optional_text parameters.primitive_group)
-          ?point_group:(optional_text parameters.point_group)
-          ?seam_group:(optional_text parameters.seam_group)
-          ?uv_attribute:(optional_text parameters.uv_attribute)
-          ~owner:parameters.owner ?name:(optional_text parameters.name)
-          ~attribute input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Connectivity expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    let attribute = match parameters.output with
+      | Integer -> Pdk.Analysis.Connectivity_integer
+      | Text -> Pdk.Analysis.Connectivity_text parameters.text_prefix in
+    Sop.connectivity ~label
+      ?primitive_group:(optional_text parameters.primitive_group)
+      ?point_group:(optional_text parameters.point_group)
+      ?seam_group:(optional_text parameters.seam_group)
+      ?uv_attribute:(optional_text parameters.uv_attribute)
+      ~owner:parameters.owner ?name:(optional_text parameters.name)
+      ~attribute input)
   let factory = parameters_factory build
-  let create ?label:node_label input =
-    build ~label:(label "connectivity" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Set_float = struct
@@ -9189,15 +8213,10 @@ module Set_float = struct
   } [@@sop.node_key "set_float"] [@@sop.node_label "Set Float"]
     [@@sop.node_category "Attribute/Set"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] -> Sop.set_float ~label ~owner:parameters.owner
-        ~name:parameters.name parameters.value input
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Set_float expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.set_float ~label ~owner:parameters.owner
+        ~name:parameters.name parameters.value input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build ~label:(label "set-float" node_label)
-      ~inputs:[input] parameters_default
 end [@@sop.register]
 
 module Set_int = struct
@@ -9210,15 +8229,10 @@ module Set_int = struct
   } [@@sop.node_key "set_int"] [@@sop.node_label "Set Integer"]
     [@@sop.node_category "Attribute/Set"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] -> Sop.set_int ~label ~owner:parameters.owner
-        ~name:parameters.name parameters.value input
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Set_int expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.set_int ~label ~owner:parameters.owner
+        ~name:parameters.name parameters.value input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build ~label:(label "set-int" node_label)
-      ~inputs:[input] parameters_default
 end [@@sop.register]
 
 module Set_vector = struct
@@ -9235,16 +8249,11 @@ module Set_vector = struct
   } [@@sop.node_key "set_vector"] [@@sop.node_label "Set Vector"]
     [@@sop.node_category "Attribute/Set"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] -> Sop.set_vector ~label ~owner:parameters.owner
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.set_vector ~label ~owner:parameters.owner
         ~name:parameters.name (Vec3.create parameters.x parameters.y parameters.z)
-        input
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Set_vector expects one input"
+        input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build ~label:(label "set-vector" node_label)
-      ~inputs:[input] parameters_default
 end [@@sop.register]
 
 module Set_orient = struct
@@ -9260,16 +8269,11 @@ module Set_orient = struct
   } [@@sop.node_key "set_orient"] [@@sop.node_label "Set Orient"]
     [@@sop.node_category "Attribute/Set"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] -> Sop.set_orient ~label
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.set_orient ~label
         (Quat.create ~x:parameters.x ~y:parameters.y ~z:parameters.z
-          ~w:parameters.w) input
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Set_orient expects one input"
+          ~w:parameters.w) input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build ~label:(label "set-orient" node_label)
-      ~inputs:[input] parameters_default
 end [@@sop.register]
 
 module Set_transform = struct
@@ -9314,15 +8318,9 @@ module Set_transform = struct
       (parameters.m10, parameters.m11, parameters.m12, parameters.m13)
       (parameters.m20, parameters.m21, parameters.m22, parameters.m23)
       (parameters.m30, parameters.m31, parameters.m32, parameters.m33)
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] -> Sop.set_transform ~label (matrix parameters) input
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Set_transform expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.set_transform ~label (matrix parameters) input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build
-      ~label:(label "set-transform" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Set_color = struct
@@ -9340,16 +8338,11 @@ module Set_color = struct
   } [@@sop.node_key "set_color"] [@@sop.node_label "Set Color"]
     [@@sop.node_category "Attribute/Set"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] -> Sop.set_color ~label ~owner:parameters.owner
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.set_color ~label ~owner:parameters.owner
         (Color.rgba parameters.red parameters.green parameters.blue
-          parameters.alpha) input
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Set_color expects one input"
+          parameters.alpha) input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build ~label:(label "set-color" node_label)
-      ~inputs:[input] parameters_default
 end [@@sop.register]
 
 module Rest_position = struct
@@ -9376,25 +8369,14 @@ module Rest_position = struct
   } [@@sop.node_key "rest_position"] [@@sop.node_label "Rest Position"]
     [@@sop.node_category "Attribute/Motion"] [@@sop.node_inputs 2]
     [@@sop.node_optional "1"] [@@deriving sop_params, sop_node]
-  let rec build_slots ~label ~inputs parameters = match inputs with
-    | [Some input; reference] ->
-        Sop.rest_position ~label ?reference
-          ~rest_attribute:parameters.rest_attribute ~normals:parameters.normals
-          ~normal_attribute:parameters.normal_attribute
-          ~rest_normal_attribute:parameters.rest_normal_attribute
-          parameters.mode input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild
-    | _ -> invalid_arg "Sop_catalog.Rest_position requires its source input"
-  and rebuild ~label ~inputs parameters = match inputs with
-    | [input] -> build_slots ~label ~inputs:[Some input; None] parameters
-    | [input; reference] ->
-        build_slots ~label ~inputs:[Some input; Some reference] parameters
-    | _ -> invalid_arg "Sop_catalog.Rest_position has invalid physical inputs"
-  let factory = parameters_factory build_slots
-  let create ?label:node_label ?reference input = build_slots
-      ~label:(label "rest-position" node_label)
-      ~inputs:[Some input; reference] parameters_default
+  let build = parameters_build (fun ~label parameters input reference ->
+    Sop.rest_position ~label ?reference
+      ~rest_attribute:parameters.rest_attribute ~normals:parameters.normals
+      ~normal_attribute:parameters.normal_attribute
+      ~rest_normal_attribute:parameters.rest_normal_attribute
+      parameters.mode input)
+
+  let factory = parameters_factory build
 end [@@sop.register]
 
 module Enumerate = struct
@@ -9428,22 +8410,16 @@ module Enumerate = struct
   } [@@sop.node_key "enumerate"] [@@sop.node_label "Enumerate"]
     [@@sop.node_category "Attribute/Generate"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        let storage = match parameters.storage with
-          | Integer -> Pdk.Attribute_ops.Integer
-          | Text -> Pdk.Attribute_ops.Text { prefix = parameters.prefix } in
-        Sop.enumerate ~label ?group:(optional_text parameters.group)
-          ~start:parameters.start ~step:parameters.step ~storage
-          ?piece_attribute:(optional_text parameters.piece_attribute)
-          ~mode:parameters.mode ~owner:parameters.owner ~name:parameters.name
-          input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Enumerate expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    let storage = match parameters.storage with
+      | Integer -> Pdk.Attribute_ops.Integer
+      | Text -> Pdk.Attribute_ops.Text { prefix = parameters.prefix } in
+    Sop.enumerate ~label ?group:(optional_text parameters.group)
+      ~start:parameters.start ~step:parameters.step ~storage
+      ?piece_attribute:(optional_text parameters.piece_attribute)
+      ~mode:parameters.mode ~owner:parameters.owner ~name:parameters.name
+      input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build ~label:(label "enumerate" node_label)
-      ~inputs:[input] parameters_default
 end [@@sop.register]
 
 module Attribute_blur = struct
@@ -9483,27 +8459,20 @@ module Attribute_blur = struct
   } [@@sop.node_key "attribute_blur"] [@@sop.node_label "Attribute Blur"]
     [@@sop.node_category "Attribute/Filter"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        let mode = match parameters.mode with
-          | Laplacian -> Pdk.Attribute_ops.Laplacian parameters.laplacian_step
-          | Custom -> Pdk.Attribute_ops.Custom_steps {
-              odd = parameters.odd_step; even = parameters.even_step } in
-        Sop.attribute_blur ~label ?group:(optional_text parameters.group)
-          ~iterations:parameters.iterations ~method_:parameters.method_ ~mode
-          ?weight_attribute:(optional_text parameters.weight_attribute)
-          ?alpha_attribute:(optional_text parameters.alpha_attribute)
-          ~pin_borders:parameters.pin_borders
-          ~original_blend:parameters.original_blend
-          ~blurred_blend:parameters.blurred_blend
-          ~attributes:parameters.attributes input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Attribute_blur expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    let mode = match parameters.mode with
+      | Laplacian -> Pdk.Attribute_ops.Laplacian parameters.laplacian_step
+      | Custom -> Pdk.Attribute_ops.Custom_steps {
+          odd = parameters.odd_step; even = parameters.even_step } in
+    Sop.attribute_blur ~label ?group:(optional_text parameters.group)
+      ~iterations:parameters.iterations ~method_:parameters.method_ ~mode
+      ?weight_attribute:(optional_text parameters.weight_attribute)
+      ?alpha_attribute:(optional_text parameters.alpha_attribute)
+      ~pin_borders:parameters.pin_borders
+      ~original_blend:parameters.original_blend
+      ~blurred_blend:parameters.blurred_blend
+      ~attributes:parameters.attributes input)
   let factory = parameters_factory build
-  let create ?label:node_label input = build
-      ~label:(label "attribute-blur" node_label) ~inputs:[input]
-      parameters_default
 end [@@sop.register]
 
 module Null = struct
@@ -9548,10 +8517,8 @@ module Camera = struct
 
   let empty = Pdk.Line_geometry.points [||]
 
-  let rec build ~label ~inputs:_ parameters =
-    Sop.custom ~label ~operation:"camera" [] (fun ~context:_ _ -> Ok empty)
-    |> Node.parameterize ~schema:parameters_schema ~values:parameters
-         ~rebuild:build
+  let build = parameters_build (fun ~label _parameters ->
+    Sop.custom ~label ~operation:"camera" [] (fun ~context:_ _ -> Ok empty))
 
   let factory = parameters_factory build
 
@@ -9607,15 +8574,11 @@ module Normal = struct
     [@@sop.node_category "Attribute"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        Sop.normals ~label ~owner:parameters.owner
-          ~weighting:parameters.weighting ~cusp_angle:parameters.cusp_angle
-          ~keep_original_zero:parameters.keep_original_zero
-          ~reverse:parameters.reverse ~attribute:parameters.attribute input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Normal expects one input"
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.normals ~label ~owner:parameters.owner
+      ~weighting:parameters.weighting ~cusp_angle:parameters.cusp_angle
+      ~keep_original_zero:parameters.keep_original_zero
+      ~reverse:parameters.reverse ~attribute:parameters.attribute input)
 
   let factory = parameters_factory build
 
@@ -9657,12 +8620,8 @@ module Exploded_view = struct
     [@@sop.node_category "Visualize"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] ->
-        Sop.exploded_view ~label input
-        |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Exploded_view expects one input"
+  let build = parameters_build (fun ~label _parameters input ->
+    Sop.exploded_view ~label input)
 
   let factory = parameters_factory build
 

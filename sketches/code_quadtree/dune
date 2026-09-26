@@ -1,7 +1,7 @@
 (executable
  (name main)
  (modules main)
- (libraries prismel unix code_quadtree_index code_quadtree_ink))
+ (libraries prismel unix code_quadtree_index code_quadtree_marks))
 
 (library
  (name code_quadtree_index)
@@ -10,10 +10,9 @@
  (libraries unix yojson))
 
 (library
- (name code_quadtree_ink)
+ (name code_quadtree_marks)
  (wrapped false)
- (modules packed_ink mark_field)
- (libraries prismel scene_command))
+ (modules mark_field))
 
 (test
  (name test_source_index)
@@ -21,14 +20,9 @@
  (libraries code_quadtree_index unix yojson))
 
 (test
- (name test_packed_ink)
- (modules test_packed_ink)
- (libraries code_quadtree_ink prismel ogpu))
-
-(test
  (name test_mark_field)
  (modules test_mark_field)
- (libraries code_quadtree_ink))
+ (libraries code_quadtree_marks))
 
 (test
  (name test_symbol_preview)

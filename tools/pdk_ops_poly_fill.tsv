@@ -1,5 +1,0 @@
-Ops.poly_fill_mode	Poly_fill.mode
-Ops.Fill_single_polygon	Poly_fill.Fill_single_polygon
-Ops.Fill_triangles	Poly_fill.Fill_triangles
-Ops.Fill_triangle_fan	Poly_fill.Fill_triangle_fan
-Ops.poly_fill	Poly_fill.run_checked

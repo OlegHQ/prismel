@@ -6,7 +6,7 @@ let run () =
     ~x:2. ~y:3. ~width:8. ~height:9. ~color:0xff0000ffl;
   let segment = Result.get_ok
       (Scene_command.Display_list.Builder.publish builder ~id:41L ~version:3L) in
-  let node = Scene.display_list segment in
+  let node = Scene.Private.display_list segment in
   let staged_ir, staged_resources = Result.get_ok
       (Scene.Private.stage ~width:32 ~height:32 [node]) in
   if staged_ir != Scene_command.Display_list.render_ir segment
@@ -66,27 +66,27 @@ let run () =
   let image_segment = Result.get_ok
       (Scene_command.Display_list.Builder.publish image_builder
          ~id:42L ~version:1L) in
-  (match Scene.display_list image_segment with
+  (match Scene.Private.display_list image_segment with
    | _ -> failwith "display list accepted an unbound image resource"
    | exception Invalid_argument _ -> ());
   let image = Image.create ~width:1 ~height:1 ~color:Color.white () in
   Fun.protect ~finally:(fun () -> Image.destroy image) (fun () ->
-    (match Scene.display_list ~images:[7,image;7,image] image_segment with
+    (match Scene.Private.display_list ~images:[7,image;7,image] image_segment with
      | _ -> failwith "display list accepted a duplicate image resource"
      | exception Invalid_argument _ -> ());
-    let image_node = Scene.display_list ~images:[7,image] image_segment in
+    let image_node = Scene.Private.display_list ~images:[7,image] image_segment in
     let first = Result.get_ok
         (Scene.Private.stage_native ~width:32 ~height:32 [image_node]) in
     (match first.layers with
      | [Scene.Private.Scene2_segment (retained,
-         [7, Prismel_next_execution.Image resource])]
+         [7, Prismel_execution.Image resource])]
          when retained == image_segment
            && resource == Image.Private.resource image -> ()
      | _ -> failwith "display-list image binding lost managed identity");
     let peer = Image.create ~width:1 ~height:1 ~color:Color.white () in
     Fun.protect ~finally:(fun () -> Image.destroy peer) (fun () ->
       let rebound = Result.get_ok(Scene.Private.stage_native ~width:32 ~height:32
-          [Scene.display_list ~images:[7,peer] image_segment]) in
+          [Scene.Private.display_list ~images:[7,peer] image_segment]) in
       if first.retained = rebound.retained then
         failwith "equal-generation image identities collided in retained replay");
     let replacement = Image.create ~width:1 ~height:1 ~color:Color.black () in

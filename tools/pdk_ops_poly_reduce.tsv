@@ -1,4 +1,0 @@
-# Former qualified Ops path<TAB>family path; * means constructor prefix.
-Ops.poly_reduce_target	Poly_reduce.target
-Ops.Reduce_*	Poly_reduce.Reduce_
-Ops.poly_reduce	Poly_reduce.run_checked

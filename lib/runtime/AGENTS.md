@@ -4,9 +4,9 @@
 
 - `prismel` owns target-independent application semantics: `Sketch`, immutable
   `Frame` facts, pure `Scene` data, public `Event`/`Input`, resource APIs, and
-  renderer behavior. It may call the narrow `runtime_next` lifecycle/presentation
+  renderer behavior. It may call the narrow `runtime` lifecycle/presentation
   boundary, but it must not implement HTTP, WebSocket, DOM, or browser policy.
-- `runtime_next` owns SDL3 subsystem lifetime, native environment setup/restoration,
+- `runtime` owns SDL3 subsystem lifetime, native environment setup/restoration,
   Metal surface presentation scheduling, and typed event translation. It must
   not own widgets, scene constructors, or application models.
 - Sibling libraries such as `pxui` depend only on public `prismel` semantics.

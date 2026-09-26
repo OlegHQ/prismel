@@ -4,7 +4,7 @@ let require condition message=if not condition then failwith message
 let stage scene=
   let _,resources=Result.get_ok(Scene.Private.stage~width:64~height:32 scene)in
   match resources with
-  |[identity,Prismel_next_execution.Image image]->identity,image
+  |[identity,Prismel_execution.Image image]->identity,image
   |_->failwith"automatic text resource shape"
 
 let run () =
@@ -14,7 +14,7 @@ let run () =
   for frame=1 to 600 do
     let scene=Scene.[text~at:(3,4)~size:16~color:(Color.rgb 12 34 56)"stable automatic text"]in
     let identity,image=stage scene in
-    let pixels=Result.get_ok(Prismel_next_resources.Image.pixels image)in
+    let pixels=Result.get_ok(Runtime_resources.Image.pixels image)in
     (match!first_identity,!first_pixels with
     |None,None->first_identity:=Some identity;first_pixels:=Some pixels
     |Some expected_identity,Some expected_pixels->
@@ -32,8 +32,8 @@ let run () =
   Scene.Private.release retina;
   let two=Result.get_ok(Scene.Private.stage_native~density:2~width:64~height:32 retina)in
   let size=function
-    |[_,Prismel_next_execution.Image image]->
-        Result.get_ok(Prismel_next_resources.Image.size image)
+    |[_,Prismel_execution.Image image]->
+        Result.get_ok(Runtime_resources.Image.size image)
     |_->failwith"density text resource"in
   let w1,h1=size one.resources and w2,h2=size two.resources in
   require(abs(w2-w1*2)<=4&&abs(h2-h1*2)<=2)
@@ -63,16 +63,16 @@ let run () =
   let images=Array.map(fun scene->snd(stage scene))scenes in
   let entries,fonts,references=Font.Private.automatic_counts()in
   require(entries=256&&fonts=1&&references=257)"pinned cache overflow policy";
-  Array.iter(fun image->require(Result.is_ok(Prismel_next_resources.Image.pixels image))"pinned image invalidated")images;
+  Array.iter(fun image->require(Result.is_ok(Runtime_resources.Image.pixels image))"pinned image invalidated")images;
   Array.iter Scene.Private.release scenes;
-  require(Result.is_error(Prismel_next_resources.Image.pixels images.(256)))"transient image retained";
+  require(Result.is_error(Runtime_resources.Image.pixels images.(256)))"transient image retained";
   (* Explicit font cache ownership remains independent of scene release. *)
   let font=Result.get_ok(Font.system~size:15())in
   let explicit=Scene.[font_text font~at:(0,0)"explicit lifetime"]in
   let _,image=stage explicit in Scene.Private.release explicit;
-  require(Result.is_ok(Prismel_next_resources.Image.pixels image))"explicit cached text shortened";
+  require(Result.is_ok(Runtime_resources.Image.pixels image))"explicit cached text shortened";
   Font.destroy font;
-  require(Result.is_error(Prismel_next_resources.Image.pixels image))"explicit font cache not destroyed";
+  require(Result.is_error(Runtime_resources.Image.pixels image))"explicit font cache not destroyed";
   Font.shutdown();
   let entries,fonts,references=Font.Private.automatic_counts()in
   require(entries=0&&fonts=0&&references=0)"automatic shutdown teardown";

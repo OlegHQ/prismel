@@ -13,6 +13,6 @@ module Private : sig
   val identity : t -> int
   val reload : t -> string -> (unit,string) result
   val pixels : t -> (bytes,string) result
-  val of_resource : Prismel_next_resources.Image.t -> t
-  val resource : t -> Prismel_next_resources.Image.t
+  val of_resource : Runtime_resources.Image.t -> t
+  val resource : t -> Runtime_resources.Image.t
 end

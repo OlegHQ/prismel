@@ -142,13 +142,25 @@ let insert session key output =
       + (if replaced then 0 else 1) - Entry_cache.length session.cache
   end
 
+(* An opaque, unambiguous cache identity: integers are fixed-width binary and
+   every variable-length string is length-prefixed, so no field boundary can
+   shift. It avoids [Printf] and [string_of_int] on this per-node, per-cook
+   path. *)
 let cache_key node context inputs =
-  let buffer = Buffer.create 128 in
-  Printf.bprintf buffer "%d|%s|%d|%s|" (Node.id node) (Node.operation node)
-    (Node.version node) (Node.parameters node);
-  Array.iter (fun geometry ->
-    Printf.bprintf buffer "%d," (Pdk.Geometry.data_id geometry)) inputs;
-  Buffer.add_char buffer '|';
+  let parameters = Node.parameters node
+  and parameter_key = Node.parameter_key node in
+  let buffer = Buffer.create (64 + String.length parameters
+      + String.length parameter_key + (8 * Array.length inputs)) in
+  let add_int value = Buffer.add_int64_le buffer (Int64.of_int value) in
+  let add_sized value =
+    add_int (String.length value); Buffer.add_string buffer value in
+  add_int (Node.id node);
+  add_int (Node.version node);
+  add_sized (Node.operation node);
+  add_sized parameters;
+  add_sized parameter_key;
+  add_int (Array.length inputs);
+  Array.iter (fun geometry -> add_int (Pdk.Geometry.data_id geometry)) inputs;
   Buffer.add_string buffer
     (Context.cache_projection (Node.dependencies node) context);
   Buffer.contents buffer

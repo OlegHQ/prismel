@@ -18,9 +18,7 @@ module Private : sig
   (** Copy current pixels into an existing image without replacing its identity
       or allocating a same-sized snapshot. *)
   val copy_to_image : t -> Image.t -> (unit,string) result
-  type native_stats = { frames:int64; logical_draws:int64;
-    logical_passes:int64; logical_submissions:int64; uploaded_bytes:int64;
-    cache_entries:int }
+  type native_stats = Prismel_execution.stats
   val native_stats : t -> native_stats
 end
 val save_png : t -> string -> (unit,string) result

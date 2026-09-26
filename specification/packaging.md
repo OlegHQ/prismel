@@ -12,13 +12,14 @@ The root package installs:
 - foundational native libraries `prismel.sdl3`, `prismel.sdl3_image`,
   `prismel.sdl3_ttf`, `prismel.sdl3_mixer`, `prismel.metal`, `prismel.ogpu`,
   and `prismel.ogpu_metal`;
-- native runtime/command libraries including `prismel.runtime_native`,
+- native runtime/command libraries including `prismel.runtime`,
+  `prismel.runtime_input`, `prismel.runtime_resources`,
   `prismel.scene_command`, and
   `prismel.scene_execution`;
 - ordinary feature libraries such as `prismel.pdk`,
   `prismel.procedural`, and the UI/sketch adapters.
 
-Runtime provider/orchestrator sublibraries are native-only internal
+Runtime sublibraries are native-only internal
 qualification boundaries. Their target types contain only `Native`; they do not
 install alternate backends or make backend selection extensible.
 

@@ -259,6 +259,82 @@ let run () =
         "registered SOP %s could not be constructed: %s"
         (Edit_graph.factory_key factory) message))
     Sop_catalog.Editor.factories;
+  (* Every cook-impact schema field of every registered SOP participates in
+     the cache identity: perturbing any single field changes the node's
+     parameter key, so a field forgotten by an operator's own key string can
+     never produce a stale cache hit. *)
+  let perturbed (view : Parameter.field_view) =
+    let within_int (range : Parameter.int_range) value =
+      Option.fold ~none:true ~some:(fun low -> value >= low) range.hard_min
+      && Option.fold ~none:true ~some:(fun high -> value <= high) range.hard_max
+    and within_float (range : Parameter.float_range) value =
+      Option.fold ~none:true ~some:(fun low -> value >= low) range.hard_min
+      && Option.fold ~none:true ~some:(fun high -> value <= high) range.hard_max
+    in
+    match view.kind, view.current with
+    | Parameter.Toggle_view, Parameter.Bool_value value ->
+        Some (Parameter.Bool_value (not value))
+    | Parameter.Integer_view range, Parameter.Int_value value ->
+        List.find_opt (fun candidate -> candidate <> value
+            && within_int range candidate)
+          [value + 1; value - 1; range.soft_min; range.soft_max]
+        |> Option.map (fun value -> Parameter.Int_value value)
+    | Parameter.Floating_view range, Parameter.Float_value value ->
+        List.find_opt (fun candidate -> candidate <> value
+            && within_float range candidate)
+          [value +. 0.25; value -. 0.25;
+           (range.soft_min +. range.soft_max) /. 2.;
+           range.soft_min; range.soft_max]
+        |> Option.map (fun value -> Parameter.Float_value value)
+    | Parameter.Text_view, Parameter.Text_value value ->
+        Some (Parameter.Text_value (if value = "" then "p" else value ^ "p"))
+    | Parameter.Choice_view options, Parameter.Choice_value value ->
+        Array.to_list options |> List.find_opt (fun option -> option <> value)
+        |> Option.map (fun option -> Parameter.Choice_value option)
+    | _ -> None in
+  let perturbed_fields = ref 0 and rejected_fields = ref 0 in
+  List.iter (fun factory ->
+    let key = Edit_graph.factory_key factory in
+    let slots = List.init (Edit_graph.factory_arity factory) (fun _ -> None) in
+    let node = Edit_graph.instantiate_optional factory slots |> Result.get_ok in
+    check (not (Node.has_parameters node) || Node.parameter_key node <> "")
+      (key ^ " has no schema-derived cache identity");
+    List.iter (fun (view : Parameter.field_view) ->
+      if view.impact = Parameter.Cook then
+        match perturbed view with
+        | None -> fail (Printf.sprintf "%s.%s has no perturbable value" key
+            view.name)
+        | Some value ->
+            match Node.apply_parameters node [view.name, value] with
+            | exception (Invalid_argument _ | Failure _) -> incr rejected_fields
+            | Error _ -> incr rejected_fields
+            | Ok (_, effects) when not effects.cook -> incr rejected_fields
+            | Ok (edited, _) ->
+                incr perturbed_fields;
+                check (Node.id edited = Node.id node
+                    && Node.parameter_key edited <> Node.parameter_key node)
+                  (Printf.sprintf
+                    "changing %s.%s did not change its cache key" key
+                    view.name))
+      (Node.parameter_fields node))
+    Sop_catalog.Editor.factories;
+  Printf.printf "catalog cache-key perturbation: %d fields changed, %d rejected\n"
+    !perturbed_fields !rejected_fields;
+  check (!perturbed_fields > 10 * !rejected_fields)
+    (Printf.sprintf "only %d catalog fields were perturbable (%d rejected)"
+      !perturbed_fields !rejected_fields);
+  let key_session = Session.create ~max_entries:8 ~max_payload_bytes:1_000_000
+      |> Result.get_ok in
+  let exploded = Sop_catalog.Box.create ~label:"key-box" ()
+    |> Sop_catalog.Exploded_view.create ~label:"key-view" in
+  ignore (cook key_session exploded);
+  let misses = (Session.stats key_session).misses in
+  let exploded, _ = Node.apply_parameters exploded
+      ["piece_attribute", Parameter.Text_value "shard"] |> Result.get_ok in
+  ignore (cook key_session exploded);
+  check ((Session.stats key_session).misses = misses + 1)
+    "a schema field ignored by the operator key did not miss the session cache";
+  Session.close key_session;
   let match_size_factory = List.find (fun factory ->
       Edit_graph.factory_key factory = "match_size")
       Sop_catalog.Editor.factories in

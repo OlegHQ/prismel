@@ -48,9 +48,9 @@ let verify_negative_fixture () =
 
 let run () = match Array.to_list Sys.argv with
   | [_; _; raw_path; api_path; interface_path; stubs_path; runtime_path;
-      orchestrator_path; execution_path] ->
+      execution_path] ->
       let core_paths = [raw_path; api_path; interface_path; stubs_path;
-        runtime_path; orchestrator_path; execution_path] in
+        runtime_path; execution_path] in
       let found = violations core_paths
           (forbidden_rendering @ forbidden_selectors) in
       if found <> [] then
@@ -58,9 +58,8 @@ let run () = match Array.to_list Sys.argv with
           String.concat "\n" found);
       require stubs_path (read stubs_path) "SDL_Metal_CreateView";
       require runtime_path (read runtime_path) "Ogpu.Impl.create_driver";
-      require orchestrator_path (read orchestrator_path) "Runtime_next.create";
       require execution_path (read execution_path)
-        "Runtime_next_orchestrator.create";
+        "Runtime.create";
       verify_negative_fixture ();
       print_endline
         "native-only rendering gate passed (SDL3 Metal -> OGPU Metal runtime; no alternate selector)"

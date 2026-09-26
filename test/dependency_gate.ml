@@ -64,7 +64,7 @@ let reach graph =
   go
 
 let gpu = ["sdl3"; "sdl3_image"; "sdl3_ttf"; "sdl3_mixer"; "metal"; "ogpu_core"; "ogpu"; "ogpu_mock"; "ogpu_metal"; "ogpu_metal_native";
-           "runtime_next"; "runtime_next_orchestrator"; "scene_execution"]
+           "runtime"; "runtime_input"; "runtime_resources"; "scene_execution"]
 let upper = ["prismel"; "editor"; "pxui"; "pxui_shell"; "pxui_graph"; "sop_ui"; "procedural"; "pdk";
              "sop_catalog"; "sketch_support"; "sketch_ui"]
 let foundational = ["sdl3"; "sdl3_image"; "sdl3_ttf"; "sdl3_mixer"; "metal"; "ogpu_core"; "ogpu";
@@ -72,20 +72,19 @@ let foundational = ["sdl3"; "sdl3_image"; "sdl3_ttf"; "sdl3_mixer"; "metal"; "og
 
 (* (library, libraries it may never reach) *)
 let rules =
-  List.map (fun lib -> lib, "runtime_next" :: "runtime_next_orchestrator"
-                            :: "prismel_next_execution" :: upper) foundational
+  List.map (fun lib -> lib, "runtime" :: "runtime_resources"
+                            :: "prismel_execution" :: upper) foundational
   @ [ "ogpu_core", ["sdl3"; "metal"; "ogpu_metal_native"; "ogpu_metal"];
       "ogpu", ["sdl3"; "metal"; "ogpu_metal_native"; "ogpu_metal"];
       "ogpu_mock", ["sdl3"; "metal"; "ogpu_metal_native"; "ogpu_metal"];
-      "runtime_next", ["metal"; "ogpu_metal_native"; "ogpu_metal"];
-      "runtime_next_orchestrator", ["metal"; "ogpu_metal_native"; "ogpu_metal"];
+      "runtime", ["metal"; "ogpu_metal_native"; "ogpu_metal"];
       "scene_execution", ["metal"; "ogpu_metal_native"; "ogpu_metal"];
-      "prismel_next_execution", ["metal"; "ogpu_metal_native"; "ogpu_metal"];
+      "prismel_execution", ["metal"; "ogpu_metal_native"; "ogpu_metal"];
       "prismel", ["metal"; "ogpu_metal_native"; "ogpu_metal"];
-      "ogpu_metal_native", ["sdl3"; "runtime_next"; "prismel"; "scene_execution"];
-      "ogpu_metal", ["sdl3"; "runtime_next"; "prismel"; "scene_execution"];
-      "runtime_next", upper; "runtime_next_input", upper;
-      "prismel_next_execution", ["runtime_next_input"];
+      "ogpu_metal_native", ["sdl3"; "runtime"; "prismel"; "scene_execution"];
+      "ogpu_metal", ["sdl3"; "runtime"; "prismel"; "scene_execution"];
+      "runtime", upper; "runtime_input", upper;
+      "prismel_execution", ["runtime_input"];
       "prismel", ["pxui"; "pxui_shell"; "pxui_graph"; "sop_ui"; "procedural"; "pdk";
                   "sop_catalog"; "sketch_support"; "sketch_ui"];
       "prismel_math", ["prismel"; "pdk_core"; "pdk_exact"; "pdk_spatial"; "pdk_attrib"; "pdk_gen"; "pdk_curve"; "pdk_mesh"; "pdk_boolean"; "pdk_io"; "pdk"; "pdk_prismel"; "procedural"] @ gpu;
@@ -160,11 +159,14 @@ let uses_key_pressed text =
 
 let violations graph ~scan =
   let reach = reach graph in
-  let direct_errors = List.filter_map (fun (dep, message) ->
-    if List.mem dep (Option.value ~default:[] (List.assoc_opt "pxui" graph))
+  let direct_errors = List.filter_map (fun (lib, dep, message) ->
+    if List.mem dep (Option.value ~default:[] (List.assoc_opt lib graph))
     then Some message else None)
-    ["sdl3", "pxui depends directly on sdl3 (text input belongs to Scene/runtime)";
-     "scene_command", "pxui depends directly on scene_command (UI batches belong to Prismel.Scene)"] in
+    (["pxui", "sdl3", "pxui depends directly on sdl3 (text input belongs to Scene/runtime)";
+      "pxui", "scene_command", "pxui depends directly on scene_command (UI batches belong to Prismel.Scene)"]
+     @ List.map (fun sdl -> "prismel", sdl,
+         "prismel depends directly on " ^ sdl ^ " (SDL services belong to runtime)")
+         ["sdl3"; "sdl3_image"; "sdl3_ttf"; "sdl3_mixer"]) in
   let edge_errors = List.concat_map (fun (lib, forbidden) ->
     List.filter_map (fun target ->
       if List.mem target (reach lib)
@@ -198,7 +200,7 @@ let run () =
   let graph = graph ["lib"; "ppx"] in
   if List.length graph < 20 then failwith "dependency gate found too few libraries (wrong cwd?)";
   List.iter (fun name -> if List.mem_assoc name graph then
-    failwith ("retired facade returned: " ^ name)) ["runtime"; "prismel_next_api"; "geom"];
+    failwith ("retired facade returned: " ^ name)) ["runtime_next"; "runtime_next_orchestrator"; "prismel_next_api"; "prismel_next_execution"; "prismel_next_resources"; "geom"];
   (* injected violations must fire *)
   let inject lib dep = List.map (fun (l, d) -> l, if l = lib then dep :: d else d) graph in
   List.iter (fun (lib, dep) ->
@@ -210,7 +212,8 @@ let run () =
      "pdk_attrib", "pdk_boolean"; "pdk_gen", "pdk_curve";
      "pdk_curve", "pdk_gen"; "pdk_mesh", "pdk_boolean"; "pdk_boolean", "pdk_io"; "pdk_io", "pdk";
      "pdk_core", "prismel";
-     "prismel_math", "prismel"; "prismel_next_execution", "runtime_next_input"];
+     "prismel_math", "prismel"; "prismel_execution", "runtime_input";
+     "prismel", "sdl3_ttf"];
   if violations graph ~scan:["lib/prismel/injected.ml", "let x = Metal.Device.system_default"] = []
      || violations graph ~scan:["lib/prismel/injected.ml", "open Ogpu_metal_native"] = []
      || violations graph ~scan:["lib/prismel/injected.ml", "open Ogpu_metal"] = [] then

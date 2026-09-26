@@ -282,9 +282,9 @@ the difference is not an isolated preparation-speed measurement.
 ## Dependency direction
 
 `prismel_pathtracer` depends on `prismel`, `ogpu`, `pdk`,
-`prismel_next_resources`, and `prismel_next_execution`. Every GPU object is an
+`runtime_resources`, and `prismel_execution`. Every GPU object is an
 `Ogpu.Backend` handle on a device leased through
-`Prismel_next_execution.acquire_gpu`: the presenting window's device when a
+`Prismel_execution.acquire_gpu`: the presenting window's device when a
 window exists (so Scene samples the film directly), otherwise a shared
 headless device released with the last lease. The tracer owns its own queue on
 that device so its frames never serialize behind presentation. It imports no

@@ -4,9 +4,9 @@ and debug_text_node={x:int;y:int;value:string;color:Color.t}
 and view3d_node={viewport:(int*int*int*int)option;camera:Camera.t;scene:Scene3.t;mutable rendered3d:Image.t option}
 and image_node={image:Image.t;x:int;y:int;scale:float;angle:float;center:(int*int)option;flip_x:bool}
 and display_list_node={segment:Scene_command.Display_list.t;
-  resources:(int*Prismel_next_execution.resource)list}
+  resources:(int*Prismel_execution.resource)list}
 and ui_node={ui:Scene_command.Ui_batch.t;
-  ui_resources:(int*Prismel_next_execution.resource)list}
+  ui_resources:(int*Prismel_execution.resource)list}
 and node=Group of t|Clear of Color.t|Geometry of Scene_command.Render_ir.geometry|Text of text_node|Debug_text of debug_text_node|Image of image_node
  |Display_list of display_list_node|Ui of ui_node
  |View3d of view3d_node|Region of int*int*int*int*bool*int|Layer_break
@@ -154,7 +154,7 @@ let display_list ?(images=[]) segment=
     |_->())(Scene_command.Render_ir.Private.commands_readonly
       (Scene_command.Display_list.render_ir segment));
   let resources=Array.fold_right(fun(id,image) rest->
-    (id,Prismel_next_execution.Image(Image.Private.resource image))::rest)
+    (id,Prismel_execution.Image(Image.Private.resource image))::rest)
     images[]in
   Display_list{segment;resources}
 let text_input_region ~at:(x,y)~w~h ?(focused=false) ?(cursor=0)()=
@@ -163,6 +163,7 @@ let text_input_region ~at:(x,y)~w~h ?(focused=false) ?(cursor=0)()=
 let translate x y nodes=Translate(x,y,nodes)let rotate a nodes=Rotate(a,nodes)let scale x y nodes=Scale(x,y,nodes)
 let clip ~at:(x,y)~w~h nodes=Clip(x,y,w,h,nodes)let blend mode nodes=Blend(mode,nodes)
 module Private=struct
+ let display_list=display_list
   module Ui_batch = Scene_command.Ui_batch
  let layer_break=Layer_break
  let ui ?(images=[]) batch=
@@ -171,30 +172,30 @@ module Private=struct
        invalid_arg"Scene.Private.ui: unbound texture resource")
      (Scene_command.Ui_batch.textures batch);
    Ui{ui=batch;ui_resources=List.map(fun(id,image)->
-     id,Prismel_next_execution.Image(Image.Private.resource image))images}
+     id,Prismel_execution.Image(Image.Private.resource image))images}
  type native_layer=
-  |Scene2_layer of Scene_command.Render_ir.t*(int*Prismel_next_execution.resource)list
+  |Scene2_layer of Scene_command.Render_ir.t*(int*Prismel_execution.resource)list
   |Scene2_segment of Scene_command.Display_list.t*
-      (int*Prismel_next_execution.resource)list
+      (int*Prismel_execution.resource)list
   |Scene3_layer of Scene_execution.prepared_scene3
-  |Ui_layer of Scene_command.Ui_batch.t*(int*Prismel_next_execution.resource)list
+  |Ui_layer of Scene_command.Ui_batch.t*(int*Prismel_execution.resource)list
  type staged_native={clear:float*float*float*float;scene2:Scene_command.Render_ir.t;
-   resources:(int*Prismel_next_execution.resource)list;
+   resources:(int*Prismel_execution.resource)list;
    scene3:Scene_execution.prepared_scene3 list;layers:native_layer list;
    retained:(string*int64)option}
  let native_segment_version segment resources=
    let mix stamp value=Int64.logxor(Int64.mul stamp 0x100000001b3L)
        (Int64.of_int value)in
    Int64.logand Int64.max_int(List.fold_left(fun stamp->function
-     |_,Prismel_next_execution.Image image->
-         mix(mix stamp(Prismel_next_resources.Image.identity image))
-           (Prismel_next_resources.Image.generation image)
+     |_,Prismel_execution.Image image->
+         mix(mix stamp(Runtime_resources.Image.identity image))
+           (Runtime_resources.Image.generation image)
      |_,Text text->
-         mix(mix stamp(Prismel_next_resources.Text.Private.identity text))
-           (Prismel_next_resources.Text.generation text)
+         mix(mix stamp(Runtime_resources.Text.Private.identity text))
+           (Runtime_resources.Text.generation text)
      |_,Canvas canvas->
-         mix(mix stamp(Prismel_next_resources.Canvas.Private.identity canvas))
-           (Prismel_next_resources.Canvas.generation canvas))
+         mix(mix stamp(Runtime_resources.Canvas.Private.identity canvas))
+           (Runtime_resources.Canvas.generation canvas))
      (Scene_command.Display_list.version segment)resources)
  let renderer=ref(fun(_ : t)->())let install_renderer value=renderer:=value
  let text_image ?(density=1) (node : text_node) =
@@ -256,8 +257,8 @@ module Private=struct
  let image_resources ?(density=1) scene=
    let rec nodes acc=function
     |[]->acc
-    |Image node::rest->nodes((Image.Private.identity node.image,Prismel_next_execution.Image(Image.Private.resource node.image))::acc)rest
-    |Text node::rest->let image=text_image ~density node in nodes((Image.Private.identity image,Prismel_next_execution.Image(Image.Private.resource image))::acc)rest
+    |Image node::rest->nodes((Image.Private.identity node.image,Prismel_execution.Image(Image.Private.resource node.image))::acc)rest
+    |Text node::rest->let image=text_image ~density node in nodes((Image.Private.identity image,Prismel_execution.Image(Image.Private.resource image))::acc)rest
     |Display_list node::rest->nodes(List.rev_append node.resources acc)rest
     |Group nested::rest|Translate(_,_,nested)::rest|Rotate(_,nested)::rest
     |Scale(_,_,nested)::rest|Clip(_,_,_,_,nested)::rest|Blend(_,nested)::rest->
@@ -534,19 +535,19 @@ module Private=struct
    loop 0 0[]values
  let rec resource_stamp_loop stamp=function
   |[]->stamp
-  |(id,Prismel_next_execution.Image image)::rest->
+  |(id,Prismel_execution.Image image)::rest->
       resource_stamp_loop
         ((((stamp*65599)lxor id)*65599 lxor
-          Prismel_next_resources.Image.identity image)*65599 lxor
-          Prismel_next_resources.Image.generation image)rest
+          Runtime_resources.Image.identity image)*65599 lxor
+          Runtime_resources.Image.generation image)rest
   |(id,Text text)::rest->resource_stamp_loop
       ((((stamp*65599)lxor id)*65599 lxor
-        Prismel_next_resources.Text.Private.identity text)*65599 lxor
-        Prismel_next_resources.Text.generation text)rest
+        Runtime_resources.Text.Private.identity text)*65599 lxor
+        Runtime_resources.Text.generation text)rest
   |(id,Canvas canvas)::rest->resource_stamp_loop
       ((((stamp*65599)lxor id)*65599 lxor
-        Prismel_next_resources.Canvas.Private.identity canvas)*65599 lxor
-        Prismel_next_resources.Canvas.generation canvas)rest
+        Runtime_resources.Canvas.Private.identity canvas)*65599 lxor
+        Runtime_resources.Canvas.generation canvas)rest
  let resource_stamp resources=resource_stamp_loop 0x345678 resources
  let rec find_native_stage aggregate scene density width height=function
   |[]->None

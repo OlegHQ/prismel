@@ -110,7 +110,7 @@ let run () =
       stats.logical_passes=603L)"Canvas native submission accounting";
     require(stats.logical_draws>=599L)"Canvas native draw accounting";
     require(stats.uploaded_bytes>0L)"Canvas native upload accounting";
-    require(stats.cache_entries<=32)"Canvas native bounded execution cache";
+    require(stats.mesh_cache_entries<=32)"Canvas native bounded execution cache";
     let image=Result.get_ok(Canvas.to_image canvas)in
     Fun.protect~finally:(fun()->Image.destroy image)(fun()->
       require(Image.get_size image=(64,64))"Canvas native to_image extent";
@@ -119,7 +119,7 @@ let run () =
         "Canvas native to_image exact pixel");
     Canvas.destroy canvas;
     let after=Canvas.Private.native_stats canvas in
-    require(after.cache_entries=0&&after.frames=0L&&
+    require(after.mesh_cache_entries=0&&after.frames=0L&&
       after.logical_submissions=0L)"Canvas native cache teardown delta";
     Canvas.destroy canvas;
     require(live_handles()=baseline)"Canvas native Metal live-handle delta";

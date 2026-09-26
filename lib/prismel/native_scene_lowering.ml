@@ -1,29 +1,29 @@
 type error =
   | Stage of string
-  | Begin of Prismel_next_execution.error
-  | Lower of Prismel_next_execution.error
-  | Step of Prismel_next_execution.error
+  | Begin of Prismel_execution.error
+  | Lower of Prismel_execution.error
+  | Step of Prismel_execution.error
 
 let pp_error formatter = function
   | Stage message -> Format.fprintf formatter "native Scene staging: %s" message
   | Begin error ->
       Format.fprintf formatter "native Scene submission setup: %a"
-        Prismel_next_execution.pp_error error
+        Prismel_execution.pp_error error
   | Lower error ->
       Format.fprintf formatter "native Scene lowering: %a"
-        Prismel_next_execution.pp_error error
+        Prismel_execution.pp_error error
   | Step error ->
       Format.fprintf formatter "native Scene submission: %a"
-        Prismel_next_execution.pp_error error
+        Prismel_execution.pp_error error
 
 let draw_of_scene3_entry (entry : Scene_execution.scene3_entry) =
-  Prismel_next_execution.prepared_draw
+  Prismel_execution.prepared_draw
     ~family:entry.family ~blend:entry.blend
     ?texture:entry.texture ?auxiliary:entry.auxiliary ~samples:entry.samples
     entry.draw
 
 type retained_draws={staged:Scene.Private.staged_native;
-  draws:Prismel_next_execution.draw list}
+  draws:Prismel_execution.draw list}
 let retained_draw_capacity=16
 let retained_draw_caches=Domain.DLS.new_key(fun()->ref[])
 let draws_of_prepared (staged:Scene.Private.staged_native) prepared=
@@ -58,13 +58,13 @@ let render ~execution ~density ~width ~height scene =
             let replayed=match staged.retained with
             |None->Ok None
             |Some(identity,version)->
-                Prismel_next_execution.Private.replay
+                Prismel_execution.Private.replay
                     ~clear:staged.clear ~identity ~version execution in
             match replayed with
             |Error error->Error(Step error)
             |Ok(Some ())->Ok `Replayed
             |Ok None->
-            match Prismel_next_execution.Private.begin_submission execution with
+            match Prismel_execution.Private.begin_submission execution with
             | Error error -> Error (Begin error)
             | Ok submission ->
                 active_submission:=Some submission;
@@ -74,7 +74,7 @@ let render ~execution ~density ~width ~height scene =
                             List.rev reversed))
                       | Scene.Private.Scene2_layer (ir, resources) :: rest -> (
                           match
-                            Prismel_next_execution.Private.lower_scene2 submission
+                            Prismel_execution.Private.lower_scene2 submission
                               ~density
                               ~resource:(fun id -> List.assoc_opt id resources)
                               ir
@@ -83,12 +83,12 @@ let render ~execution ~density ~width ~height scene =
                           | Ok batch -> lower (batch::reversed) rest)
                       | Scene.Private.Scene2_segment (segment, resources) :: rest -> (
                           let cacheable=List.for_all(function
-                            |_,Prismel_next_execution.Text _->true
-                            |_,Prismel_next_execution.Image _
-                            |_,Prismel_next_execution.Canvas _->false)resources in
+                            |_,Prismel_execution.Text _->true
+                            |_,Prismel_execution.Image _
+                            |_,Prismel_execution.Canvas _->false)resources in
                           let version=Scene.Private.native_segment_version
                             segment resources in
-                          match Prismel_next_execution.Private.lower_scene2_segment
+                          match Prismel_execution.Private.lower_scene2_segment
                             submission
                             ~identity:(Scene_command.Display_list.id segment)
                             ~version
@@ -98,25 +98,25 @@ let render ~execution ~density ~width ~height scene =
                           | Error error -> Error (Lower error)
                           | Ok batch -> lower (batch :: reversed) rest)
                       | Scene.Private.Ui_layer (ui, resources) :: rest -> (
-                          match Prismel_next_execution.Private.lower_ui submission
+                          match Prismel_execution.Private.lower_ui submission
                             ~density ~resource:(fun id -> List.assoc_opt id resources)
                             ui with
                           | Error error -> Error (Lower error)
                           | Ok batch -> lower (batch :: reversed) rest)
                       | Scene.Private.Scene3_layer prepared :: rest ->
                           let draws = draws_of_prepared staged prepared in
-                          (match Prismel_next_execution.Private.adopt_draws
+                          (match Prismel_execution.Private.adopt_draws
                             submission draws with
                           |Error error->Error(Lower error)
                           |Ok batch->lower(batch::reversed)rest)
                     in
                     lower [] staged.layers)) in
       (match outcome with
-      |Error _->Option.iter Prismel_next_execution.Private.cancel !active_submission
+      |Error _->Option.iter Prismel_execution.Private.cancel !active_submission
       |Ok _->());
       outcome
     with exn->
-      Option.iter Prismel_next_execution.Private.cancel !active_submission;
+      Option.iter Prismel_execution.Private.cancel !active_submission;
       raise exn
   in
   match prepared with
@@ -124,8 +124,8 @@ let render ~execution ~density ~width ~height scene =
   | Ok `Replayed -> Ok ()
   | Ok (`Prepared (submission, retained, clear, batches)) -> (
       let stepped=match retained with
-      |None->Prismel_next_execution.Private.step ~clear submission batches
-      |Some(identity,version)->Prismel_next_execution.Private.step ~clear
+      |None->Prismel_execution.Private.step ~clear submission batches
+      |Some(identity,version)->Prismel_execution.Private.step ~clear
           ~identity ~version submission batches in
       match stepped with
       | Ok () -> Ok ()
