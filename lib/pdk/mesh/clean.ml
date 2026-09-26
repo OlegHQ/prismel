@@ -435,7 +435,7 @@ let run ?cancel ?(grain = 16_384) ?(epsilon = 1e-12)
   let overlaps = Option.map (fun policy -> policy = Delete_overlap_pairs) overlaps in
   let consolidate tolerance geometry =
     Fuse_grid.fuse ?cancel ~grain ~tolerance geometry
-  and compact geometry = Compact_points.run ?cancel ~grain geometry in
+  and compact geometry = Error.unguard (Compact_points.run ?cancel ~grain geometry) in
   if grain <= 0 then invalid_arg "Pdk_mesh.Clean.clean: grain must be positive";
   if not (Float.is_finite epsilon) || epsilon < 0. then
     Error "Pdk_mesh.Clean.clean: epsilon must be finite and non-negative"

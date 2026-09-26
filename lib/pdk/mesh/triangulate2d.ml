@@ -923,7 +923,8 @@ let run ?cancel ?(grain = 16_384) ?selection ?constraint_edges
     ?(remove_unused_points = false) ?(recompute_point_normals = false) geometry =
   Error.guard ~operation:"triangulate_2d" ~code:"invalid_triangulation" @@ fun () ->
   let finish output =
-    Result.bind (if remove_unused_points then Compact_points.run ?cancel ~grain output
+    Result.bind (if remove_unused_points then
+        Error.unguard (Compact_points.run ?cancel ~grain output)
         else Ok output) (fun output ->
       if recompute_point_normals
           && Option.is_some (Geometry.find_attribute

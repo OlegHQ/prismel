@@ -48,7 +48,7 @@ let convert_line ?cancel ?grain ?edges ?(connect_path = false)
       else Curve_ops.convert_line ?cancel ?grain ?edges ?length_attribute geometry in
     Result.bind generated (fun output ->
       let compacted = if remove_unused_points
-        then Compact_points.run ?cancel ?grain output else Ok output in
+        then Error.unguard (Compact_points.run ?cancel ?grain output) else Ok output in
       Result.bind compacted (fun output ->
         if connect_path then match length_attribute with
           | None -> Ok output

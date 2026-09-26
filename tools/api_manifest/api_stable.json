@@ -157,13 +157,13 @@
       "source_sha256": "0bf46003b41ba91781e491d8d2d28c8651900351281525a7779b64c3c4380279"
     },
     {
-      "api_sha256": "623c0af691aee92a984a30e0dd82de612f885589cc8b18ddc4f1bbce920c9bf6",
+      "api_sha256": "2d838ba37863527e93f9e6ab930ba7677162dc8147c203a6f7ac4d8ce41a92ce",
       "excluded_legacy_symbols": [],
       "library": "pdk",
       "module": "Compact_points",
       "source": "lib/pdk/mesh/compact_points.mli",
-      "source_bytes": 186,
-      "source_sha256": "d17c7ffc052efd3c347d84ff2eb48151927592ceb4471bfa01db4b8debf43be1"
+      "source_bytes": 89,
+      "source_sha256": "da2e4789498f7380f62762b0ec0294720cb40b7580cba7c7a9524a8e096cc204"
     },
     {
       "api_sha256": "34f3844f26dfa08a29221e3a71df6d2beaea1e2faa9170559a77c89efac89892",

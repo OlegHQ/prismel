@@ -59,8 +59,6 @@ let compact_points ?cancel ?(grain = 16_384) geometry =
         Geometry.create ~positions ~topology ~attributes ~groups ~edge_groups ())
   end
 
-let run = compact_points
-
-let run_checked ?cancel ?grain geometry =
+let run ?cancel ?grain geometry =
   Error.guard ~operation:"compact_points" ~code:"invalid_geometry"
-    (fun () -> run ?cancel ?grain geometry)
+    (fun () -> compact_points ?cancel ?grain geometry)

@@ -6206,7 +6206,7 @@ let blast ?label ?(selected = true) ?(compact_points = false)
 
 let compact_points ?label input =
   unary_result ?label ~operation:"compact_points"
-    (fun context geometry -> Pdk.Compact_points.run_checked
+    (fun context geometry -> Pdk.Compact_points.run
       ~cancel:(Context.cancel_token context) ~grain:(Context.grain context)
       geometry) input
 
