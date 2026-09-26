@@ -181,7 +181,7 @@ let point_storage_matches source output =
 
 let check_unique_points () =
   let source = source () in
-  let output = Facet_ops.run_checked ~unique_points:true source |> get_ok in
+  let output = Facet.run ~unique_points:true source |> get_ok in
   check (Geometry.point_count output = 7 && Geometry.vertex_count output = 6
       && Geometry.primitive_count output = 2)
     "Facet Unique Points cardinality";
@@ -212,7 +212,7 @@ let check_unique_points () =
   let crease = Geometry.find_edge_group "crease" output |> Option.get in
   check (Edge_group.cardinality crease = 2)
     "Facet one-to-many native edge-group ancestry";
-  let consolidated = Facet_ops.run_checked ~unique_points:true ~consolidate_distance:0.
+  let consolidated = Facet.run ~unique_points:true ~consolidate_distance:0.
       source |> get_ok in
   check (Geometry.point_count consolidated = 5)
     "Facet Unique Points then Consolidate pipeline order"
@@ -220,7 +220,7 @@ let check_unique_points () =
 let check_primitive_group_unique_points () =
   let source = source () in
   let selected = primitive_group source (fun primitive -> primitive = 0) in
-  let output = Facet_ops.run_checked ~primitives:selected ~unique_points:true source
+  let output = Facet.run ~primitives:selected ~unique_points:true source
       |> get_ok in
   let topology = Topology.Private.view (Geometry.topology output) in
   check (Geometry.point_count output = 7
@@ -247,29 +247,29 @@ let check_primitive_group_unique_points () =
       "grouped Facet changed an unselected primitive point"
   done;
   let empty = primitive_group source (fun _ -> false) in
-  check (Facet_ops.run_checked ~primitives:empty ~unique_points:true source |> get_ok
+  check (Facet.run ~primitives:empty ~unique_points:true source |> get_ok
       == source)
     "empty Facet primitive group is not identity";
   let all = primitive_group source (fun _ -> true) in
   check (equal_geometry
-      (Facet_ops.run_checked ~primitives:all ~unique_points:true source |> get_ok)
-      (Facet_ops.run_checked ~unique_points:true source |> get_ok))
+      (Facet.run ~primitives:all ~unique_points:true source |> get_ok)
+      (Facet.run ~unique_points:true source |> get_ok))
     "all-selected Facet Unique Points differs from compatibility path"
 
 let check_typed_selections () =
   let source = source () in
   let first = primitive_group source (fun primitive -> primitive = 0) in
-  let expected = Facet_ops.run_checked ~primitives:first ~unique_points:true source
+  let expected = Facet.run ~primitives:first ~unique_points:true source
       |> get_ok in
   let points = Group.init ~owner:Group.Point ~name:"facet_point" 5
       (fun point -> point = 1) in
-  let point_output = Facet_ops.run_checked ~selection:(Transform_ops.Selected_points points)
+  let point_output = Facet.run ~selection:(Transform_ops.Selected_points points)
       ~unique_points:true source |> get_ok in
   check (equal_geometry point_output expected)
     "Facet point selection did not promote to incident primitives";
   let vertices = Group.init ~owner:Group.Vertex ~name:"facet_vertex" 6
       (fun vertex -> vertex = 1) in
-  let vertex_output = Facet_ops.run_checked ~selection:(Transform_ops.Selected_vertices vertices)
+  let vertex_output = Facet.run ~selection:(Transform_ops.Selected_vertices vertices)
       ~unique_points:true source |> get_ok in
   check (equal_geometry vertex_output expected)
     "Facet vertex selection did not promote to its owning primitive";
@@ -283,27 +283,27 @@ let check_typed_selections () =
   done;
   let edges = Edge_group.init ~topology ~index ~name:"facet_edge"
       (fun edge -> edge = !boundary_edge) in
-  let edge_output = Facet_ops.run_checked ~selection:(Transform_ops.Selected_edges edges)
+  let edge_output = Facet.run ~selection:(Transform_ops.Selected_edges edges)
       ~unique_points:true source |> get_ok in
   check (equal_geometry edge_output expected)
     "Facet edge selection did not promote to its incident primitive";
   let shared = Geometry.find_edge_group "crease" source |> Option.get in
-  let all = Facet_ops.run_checked ~selection:(Transform_ops.Selected_edges shared)
+  let all = Facet.run ~selection:(Transform_ops.Selected_edges shared)
       ~unique_points:true source |> get_ok in
   check (equal_geometry all
-      (Facet_ops.run_checked ~unique_points:true source |> get_ok))
+      (Facet.run ~unique_points:true source |> get_ok))
     "Facet shared-edge selection did not promote both incident primitives";
   let empty = Group.init ~owner:Group.Point ~name:"empty" 5 (fun _ -> false) in
-  check (Facet_ops.run_checked ~selection:(Transform_ops.Selected_points empty)
+  check (Facet.run ~selection:(Transform_ops.Selected_points empty)
       ~unique_points:true source |> get_ok == source)
     "Facet empty typed selection is not identity";
-  (match Facet_ops.run_checked ~selection:(Transform_ops.Selected_points points) ~primitives:first
+  (match Facet.run ~selection:(Transform_ops.Selected_points points) ~primitives:first
       ~unique_points:true source with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "Facet accepted two selection inputs");
   let wrong = Group.init ~owner:Group.Primitive ~name:"wrong" 2
       (fun _ -> true) in
-  (match Facet_ops.run_checked ~selection:(Transform_ops.Selected_points wrong)
+  (match Facet.run ~selection:(Transform_ops.Selected_points wrong)
       ~unique_points:true source with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "Facet accepted a typed selection with the wrong owner");
@@ -312,7 +312,7 @@ let check_typed_selections () =
   let foreign_index = Topology_index.create foreign_topology in
   let foreign_edge = Edge_group.init ~topology:foreign_topology
       ~index:foreign_index ~name:"foreign" (fun edge -> edge = 0) in
-  (match Facet_ops.run_checked ~selection:(Transform_ops.Selected_edges foreign_edge)
+  (match Facet.run ~selection:(Transform_ops.Selected_edges foreign_edge)
       ~unique_points:true source with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "Facet accepted a foreign-topology edge selection")
@@ -327,9 +327,9 @@ let normal_attribute geometry =
 
 let check_normals () =
   let geometry = source () in
-  let pre = Facet_ops.run_checked ~pre_compute_normals:true ~unique_points:true geometry
+  let pre = Facet.run ~pre_compute_normals:true ~unique_points:true geometry
       |> get_ok
-  and post = Facet_ops.run_checked ~unique_points:true ~post_compute_normals:true geometry
+  and post = Facet.run ~unique_points:true ~post_compute_normals:true geometry
       |> get_ok in
   let pre_n = normal_attribute pre and post_n = normal_attribute post in
   check (near pre_n.x.(0) pre_n.x.(3) && near pre_n.y.(0) pre_n.y.(3)
@@ -342,7 +342,7 @@ let check_normals () =
   let source = source () |> add_attribute Attribute.Point "N"
       (Attribute.Float3 (Packed.Float3.Private.of_owned_exn
         ~x:(Array.make 5 2.) ~y:(Array.make 5 0.) ~z:(Array.make 5 0.))) in
-  let adjusted = Facet_ops.run_checked ~make_normals_unit_length:true ~reverse_normals:true
+  let adjusted = Facet.run ~make_normals_unit_length:true ~reverse_normals:true
       source |> get_ok in
   let normal = normal_attribute adjusted in
   check (normal.x = Array.make 5 (-1.) && normal.y = Array.make 5 0.
@@ -372,7 +372,7 @@ let check_consolidate_normals () =
   let source = Geometry.create ~positions ~topology
       ~attributes:[point_normal; vertex_normal; tag] ~groups:[selected] ()
       |> get_string in
-  let output = Facet_ops.run_checked ~consolidate_normals_distance:0.01 source |> get_ok in
+  let output = Facet.run ~consolidate_normals_distance:0.01 source |> get_ok in
   check (Geometry.positions output == Geometry.positions source
       && Geometry.topology output == Geometry.topology source
       && List.equal equal_group (Geometry.groups output) (Geometry.groups source))
@@ -402,13 +402,13 @@ let check_consolidate_normals () =
        check (values.x.(2) = 3. && values.x.(4) = 4.)
          "Facet vertex-normal singleton fan changed"
    | _ -> fail "Facet consolidated vertex N has wrong storage");
-  let unit = Facet_ops.run_checked ~make_normals_unit_length:true
+  let unit = Facet.run ~make_normals_unit_length:true
       ~consolidate_normals_distance:0.01 source |> get_ok in
   let unit = normal_attribute unit in
   check (near unit.x.(0) 0.5 && near unit.y.(0) 0.5)
     "Facet unit-normal then consolidation pipeline order";
   let no_normals = Line_geometry.points [|(0.,0.,0.); (0.,0.,0.)|] in
-  check (Facet_ops.run_checked ~consolidate_normals_distance:0. no_normals |> get_ok
+  check (Facet.run ~consolidate_normals_distance:0. no_normals |> get_ok
       == no_normals)
     "Facet Consolidate Normals no-normal identity";
   let extreme = Line_geometry.points [|(0.,0.,0.); (0.,0.,0.)|]
@@ -418,17 +418,17 @@ let check_consolidate_normals () =
             ~x:[|Float.max_float; Float.max_float|] ~y:[|0.;0.|]
             ~z:[|0.;0.|])) |> get_string)
       |> get_string
-      |> Facet_ops.run_checked ~consolidate_normals_distance:0. |> get_ok
+      |> Facet.run ~consolidate_normals_distance:0. |> get_ok
       |> normal_attribute in
   check (Float.is_finite extreme.x.(0)
       && extreme.x.(0) = Float.max_float)
     "Facet Consolidate Normals overflowed a finite average";
   List.iter (fun distance ->
-    match Facet_ops.run_checked ~consolidate_normals_distance:distance source with
+    match Facet.run ~consolidate_normals_distance:distance source with
     | Error error when Error.code error = "invalid_geometry" -> ()
     | _ -> fail "Facet accepted an invalid normal consolidation distance")
     [(-0.1); Float.nan];
-  (match Facet_ops.run_checked ~consolidate_distance:0.
+  (match Facet.run ~consolidate_distance:0.
       ~consolidate_normals_distance:0. source with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "Facet accepted mutually exclusive consolidation modes");
@@ -437,7 +437,7 @@ let check_consolidate_normals () =
         (Attribute.create_owned ~owner:Attribute.Point ~name:"N"
           (Attribute.Float (Array.make 6 1.)) |> get_string)
       |> get_string in
-  (match Facet_ops.run_checked ~consolidate_normals_distance:0.01 wrong with
+  (match Facet.run ~consolidate_normals_distance:0.01 wrong with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "Facet accepted scalar N for normal consolidation")
 
@@ -476,7 +476,7 @@ let inline_source () =
 
 let check_remove_inline_points () =
   let source = inline_source () in
-  let output = Facet_ops.run_checked ~remove_inline_points:true source |> get_ok in
+  let output = Facet.run ~remove_inline_points:true source |> get_ok in
   check (Geometry.point_count output = 11
       && Geometry.vertex_count output = 10
       && Geometry.primitive_count output = 3)
@@ -532,7 +532,7 @@ let check_remove_inline_points () =
   check (!expected_edge >= 0 && Edge_group.cardinality healed = 1
       && Edge_group.mem !expected_edge healed)
     "Facet Remove Inline Points healed edge ancestry";
-  let retained = Facet_ops.run_checked ~remove_inline_points:true ~inline_distance:0.
+  let retained = Facet.run ~remove_inline_points:true ~inline_distance:0.
       (Plane_generators.grid_checked ~columns:8 ~rows:6 ~size:2. () |> get_ok) |> get_ok in
   check (Geometry.vertex_count retained = 8 * 6 * 6)
     "Facet Remove Inline Points changed non-inline triangles";
@@ -547,14 +547,14 @@ let check_remove_inline_points () =
         |> get_string in
     Geometry.create ~positions ~topology () |> get_string in
   let translated_corner = translated 0.01 in
-  check (Facet_ops.run_checked ~remove_inline_points:true ~inline_distance:0.001
+  check (Facet.run ~remove_inline_points:true ~inline_distance:0.001
       translated_corner |> get_ok == translated_corner)
     "Facet inline tolerance changed under a large translation";
   check (Geometry.point_count
-      (Facet_ops.run_checked ~remove_inline_points:true (translated 0.) |> get_ok) = 4)
+      (Facet.run ~remove_inline_points:true (translated 0.) |> get_ok) = 4)
     "Facet missed a translated exact-inline corner";
   List.iter (fun distance ->
-    match Facet_ops.run_checked ~remove_inline_points:true ~inline_distance:distance source with
+    match Facet.run ~remove_inline_points:true ~inline_distance:distance source with
     | Error error when Error.code error = "invalid_geometry" -> ()
     | _ -> fail "Facet accepted an invalid inline distance")
     [(-0.1); Float.nan]
@@ -562,7 +562,7 @@ let check_remove_inline_points () =
 let check_primitive_group_inline_points () =
   let source = inline_source () in
   let first = primitive_group source (fun primitive -> primitive = 0) in
-  let output = Facet_ops.run_checked ~primitives:first ~remove_inline_points:true source
+  let output = Facet.run ~primitives:first ~remove_inline_points:true source
       |> get_ok in
   check (Geometry.vertex_count output = 10
       && Geometry.point_count output = 11)
@@ -576,7 +576,7 @@ let check_primitive_group_inline_points () =
         | _ -> fail "grouped Facet inline corner id has wrong storage")
    | None -> fail "grouped Facet inline lost corner id");
   let curve_only = primitive_group source (fun primitive -> primitive = 2) in
-  check (Facet_ops.run_checked ~primitives:curve_only ~remove_inline_points:true source
+  check (Facet.run ~primitives:curve_only ~remove_inline_points:true source
       |> get_ok == source)
     "grouped Facet removed inline points outside its selection"
 
@@ -597,7 +597,7 @@ let check_orient_polygons () =
   let crease = Edge_group.init ~topology ~index ~name:"shared"
       (fun edge -> view.edge_a.(edge) = 0 && view.edge_b.(edge) = 2) in
   let geometry = Geometry.with_edge_group crease geometry |> get_string in
-  let oriented = Facet_ops.run_checked ~orient_polygons:true geometry |> get_ok in
+  let oriented = Facet.run ~orient_polygons:true geometry |> get_ok in
   let topology = Topology.Private.view (Geometry.topology oriented) in
   check (Array.sub topology.vertex_points 3 3 = [|2; 3; 0|])
     "Facet Orient Polygons did not reverse the inconsistent face";
@@ -623,7 +623,7 @@ let check_orient_polygons () =
       ~z:[|0.;0.;0.;1.;0.|] in
   let nonmanifold = Geometry.create ~positions:nonmanifold_positions
       ~topology:nonmanifold_topology () |> get_string in
-  (match Facet_ops.run_checked ~orient_polygons:true nonmanifold with
+  (match Facet.run ~orient_polygons:true nonmanifold with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "Facet Orient Polygons accepted a non-manifold edge")
 
@@ -639,7 +639,7 @@ let check_primitive_group_orient_polygons () =
   let source = Geometry.create ~positions ~topology ~attributes:[corners] ()
       |> get_string in
   let selected = primitive_group source (fun primitive -> primitive < 2) in
-  let output = Facet_ops.run_checked ~primitives:selected ~orient_polygons:true source
+  let output = Facet.run ~primitives:selected ~orient_polygons:true source
       |> get_ok in
   let topology = Topology.Private.view (Geometry.topology output) in
   check (topology.vertex_points = [|0;1;2; 2;3;0; 2;3;4|])
@@ -656,7 +656,7 @@ let check_primitive_group_orient_polygons () =
   let nonmanifold = Geometry.create ~positions ~topology:nonmanifold_topology ()
       |> get_string in
   let one_face = primitive_group nonmanifold (fun primitive -> primitive = 0) in
-  check (Facet_ops.run_checked ~primitives:one_face ~orient_polygons:true nonmanifold
+  check (Facet.run ~primitives:one_face ~orient_polygons:true nonmanifold
       |> get_ok == nonmanifold)
     "grouped Facet inspected an unselected non-manifold neighborhood"
 
@@ -674,14 +674,14 @@ let check_cusp_polygons () =
   let crease = Edge_group.init ~topology ~index ~name:"marked_edge"
       (fun edge -> edge = 0) in
   let source = Geometry.with_edge_group crease source |> get_string in
-  let smooth = Facet_ops.run_checked ~cusp_angle:2. source |> get_ok in
+  let smooth = Facet.run ~cusp_angle:2. source |> get_ok in
   check (smooth == source)
     "Facet Cusp Polygons split edges below the threshold";
-  let exactly_threshold = Facet_ops.run_checked ~cusp_angle:(Float.pi /. 2.) source
+  let exactly_threshold = Facet.run ~cusp_angle:(Float.pi /. 2.) source
       |> get_ok in
   check (exactly_threshold == source)
     "Facet Cusp Polygons split edges equal to the threshold";
-  let hard = Facet_ops.run_checked ~cusp_angle:1. source |> get_ok in
+  let hard = Facet.run ~cusp_angle:1. source |> get_ok in
   check (Geometry.point_count hard = 24 && Geometry.vertex_count hard = 24)
     "Facet Cusp Polygons cube cardinality";
   let corner = Geometry.find_group ~owner:Group.Point "corner" hard
@@ -700,7 +700,7 @@ let check_cusp_polygons () =
   check (Geometry.find_edge_group "marked_edge" hard |> Option.get
       |> Edge_group.cardinality = 2)
     "Facet Cusp Polygons one-to-many edge ancestry";
-  let shaded = Facet_ops.run_checked ~cusp_angle:1. ~post_compute_normals:true source
+  let shaded = Facet.run ~cusp_angle:1. ~post_compute_normals:true source
       |> get_ok in
   let normal = normal_attribute shaded in
   for point = 0 to Geometry.point_count shaded - 1 do
@@ -709,12 +709,12 @@ let check_cusp_polygons () =
       +. (normal.z.(point) *. normal.z.(point))) in
     check (near length 1.) "Facet cusped post normal"
   done;
-  List.iter (fun angle -> match Facet_ops.run_checked ~cusp_angle:angle source with
+  List.iter (fun angle -> match Facet.run ~cusp_angle:angle source with
     | Error error when Error.code error = "invalid_geometry" -> ()
     | _ -> fail "Facet accepted an invalid cusp angle")
     [(-0.1); Float.pi +. 0.1; Float.nan];
   let curve = Line_geometry.polyline_checked [|(0.,0.,0.); (1.,0.,0.)|] |> get_ok in
-  (match Facet_ops.run_checked ~cusp_angle:1. curve with
+  (match Facet.run ~cusp_angle:1. curve with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "Facet Cusp Polygons accepted curve topology")
 
@@ -722,7 +722,7 @@ let check_primitive_group_cusp_polygons () =
   let source = Box_generator.box_checked ~connectivity:Box_generator.Box_quads ~consolidate_points:true
       ~size:(Vec3.create 2. 2. 2.) () |> get_ok in
   let selected = primitive_group source (fun primitive -> primitive = 0) in
-  let output = Facet_ops.run_checked ~primitives:selected ~cusp_angle:1. source |> get_ok in
+  let output = Facet.run ~primitives:selected ~cusp_angle:1. source |> get_ok in
   check (Geometry.point_count output = 12)
     "grouped Facet Cusp Polygons cardinality";
   let topology = Topology.Private.view (Geometry.topology output) in
@@ -784,7 +784,7 @@ let warped_quads () =
 let check_make_planar () =
   let source = warped_quads () in
   let selected = primitive_group source (fun primitive -> primitive = 0) in
-  let output = Facet_ops.run_checked ~primitives:selected ~make_planar:true source |> get_ok in
+  let output = Facet.run ~primitives:selected ~make_planar:true source |> get_ok in
   check (Geometry.point_count output = 8
       && polygon_planarity_error output 0 <= 1e-12)
     "grouped Facet Make Planar did not flatten the selected polygon";
@@ -809,17 +809,17 @@ let check_make_planar () =
       ~vertex_points:[|0;1;2;3|] ~primitive_offsets:[|0;4|] |> get_string in
   let planar = Geometry.create ~positions:planar_positions
       ~topology:planar_topology () |> get_string in
-  check (Facet_ops.run_checked ~make_planar:true planar |> get_ok == planar)
+  check (Facet.run ~make_planar:true planar |> get_ok == planar)
     "Facet Make Planar changed an already planar polygon";
   let curve = Line_geometry.polyline_checked
       [|(0.,0.,0.); (1.,0.,1.); (2.,1.,0.); (3.,0.,1.)|] |> get_ok in
-  check (Facet_ops.run_checked ~make_planar:true curve |> get_ok == curve)
+  check (Facet.run ~make_planar:true curve |> get_ok == curve)
     "Facet Make Planar changed a polygon curve";
   let degenerate_positions = Packed.Float3.Private.of_owned_exn
       ~x:[|0.;1.;2.;3.|] ~y:(Array.make 4 0.) ~z:(Array.make 4 0.) in
   let degenerate = Geometry.create ~positions:degenerate_positions
       ~topology:planar_topology () |> get_string in
-  (match Facet_ops.run_checked ~make_planar:true degenerate with
+  (match Facet.run ~make_planar:true degenerate with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "Facet Make Planar accepted a plane-less polygon");
   let nonfinite_positions = Packed.Float3.Private.of_owned_exn
@@ -832,11 +832,11 @@ let check_make_planar () =
   let nonfinite = Geometry.create ~positions:nonfinite_positions
       ~topology:nonfinite_topology () |> get_string in
   let finite_only = primitive_group nonfinite (fun primitive -> primitive = 0) in
-  check (Facet_ops.run_checked ~primitives:finite_only ~make_planar:true nonfinite
+  check (Facet.run ~primitives:finite_only ~make_planar:true nonfinite
       |> get_ok == nonfinite)
     "Facet Make Planar inspected an unselected non-finite polygon";
   let all = primitive_group nonfinite (fun _ -> true) in
-  (match Facet_ops.run_checked ~primitives:all ~make_planar:true nonfinite with
+  (match Facet.run ~primitives:all ~make_planar:true nonfinite with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "Facet Make Planar accepted a selected non-finite polygon")
 
@@ -851,7 +851,7 @@ let check_primitive_group_normals_and_cleanup () =
           ~x:[|1.;2.;3.;4.;5.;6.|] ~y:(Array.make 6 0.)
           ~z:(Array.make 6 0.))) in
   let selected = primitive_group source (fun primitive -> primitive = 0) in
-  let output = Facet_ops.run_checked ~primitives:selected ~reverse_normals:true source
+  let output = Facet.run ~primitives:selected ~reverse_normals:true source
       |> get_ok in
   (match Geometry.find_attribute ~owner:Attribute.Point "N" output with
    | Some attribute ->
@@ -884,7 +884,7 @@ let check_primitive_group_normals_and_cleanup () =
   let degenerate = Geometry.create ~positions ~topology ~attributes:[face_id] ()
       |> get_string in
   let selected = primitive_group degenerate (fun primitive -> primitive = 0) in
-  let output = Facet_ops.run_checked ~primitives:selected ~remove_degenerate:true
+  let output = Facet.run ~primitives:selected ~remove_degenerate:true
       ~post_compute_normals:true ~reverse_normals:true degenerate |> get_ok in
   check (Geometry.primitive_count output = 1)
     "grouped Facet degenerate cleanup cardinality";
@@ -900,7 +900,7 @@ let check_primitive_group_normals_and_cleanup () =
       |> get_string in
   let geometry = Geometry.create ~positions ~topology () |> get_string in
   let selected = primitive_group geometry (fun primitive -> primitive = 0) in
-  let fused = Facet_ops.run_checked ~primitives:selected ~consolidate_distance:0. geometry
+  let fused = Facet.run ~primitives:selected ~consolidate_distance:0. geometry
       |> get_ok in
   check (Geometry.point_count fused = 5)
     "grouped Facet point consolidation cardinality";
@@ -911,32 +911,32 @@ let check_primitive_group_normals_and_cleanup () =
 
 let check_validation () =
   let source = source () in
-  check (Facet_ops.run_checked source |> get_ok == source) "Facet default is not identity";
-  (match Facet_ops.run_checked ~consolidate_distance:(-1.) source with
+  check (Facet.run source |> get_ok == source) "Facet default is not identity";
+  (match Facet.run ~consolidate_distance:(-1.) source with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "Facet accepted a negative consolidation distance");
   let wrong = source |> add_attribute Attribute.Point "N"
       (Attribute.Float (Array.make 5 1.)) in
-  (match Facet_ops.run_checked ~make_normals_unit_length:true wrong with
+  (match Facet.run ~make_normals_unit_length:true wrong with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "Facet accepted non-vector normals");
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
-  (match Facet_ops.run_checked ~cancel:cancelled ~unique_points:true source with
+  (match Facet.run ~cancel:cancelled ~unique_points:true source with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "Facet ignored cancellation");
-  (match Facet_ops.run_checked ~cancel:cancelled ~remove_inline_points:true source with
+  (match Facet.run ~cancel:cancelled ~remove_inline_points:true source with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "Facet inline removal ignored cancellation");
-  (match Facet_ops.run_checked ~cancel:cancelled ~consolidate_normals_distance:0. source with
+  (match Facet.run ~cancel:cancelled ~consolidate_normals_distance:0. source with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "Facet normal consolidation ignored cancellation");
-  (match Facet_ops.run_checked ~cancel:cancelled ~make_planar:true (warped_quads ()) with
+  (match Facet.run ~cancel:cancelled ~make_planar:true (warped_quads ()) with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "Facet Make Planar ignored cancellation");
   let selected_points = Group.init ~owner:Group.Point ~name:"selected" 5
       (fun point -> point = 0) in
-  (match Facet_ops.run_checked ~cancel:cancelled
+  (match Facet.run ~cancel:cancelled
       ~selection:(Transform_ops.Selected_points selected_points) ~unique_points:true source with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "Facet typed selection promotion ignored cancellation");
@@ -945,7 +945,7 @@ let check_validation () =
   and wrong_length = Group.init ~owner:Group.Primitive ~name:"wrong" 1
       (fun _ -> true) in
   List.iter (fun primitives ->
-    match Facet_ops.run_checked ~primitives ~unique_points:true source with
+    match Facet.run ~primitives ~unique_points:true source with
     | Error error when Error.code error = "invalid_geometry" -> ()
     | _ -> fail "Facet accepted a malformed primitive selection")
     [wrong_owner; wrong_length];
@@ -953,7 +953,7 @@ let check_validation () =
       ~name:"__pdk_facet_selection_0" 2 (fun primitive -> primitive = 1) in
   let collision_source = Geometry.with_group collision source |> get_string in
   let selected = primitive_group collision_source (fun primitive -> primitive = 0) in
-  let output = Facet_ops.run_checked ~primitives:selected ~unique_points:true
+  let output = Facet.run ~primitives:selected ~unique_points:true
       collision_source |> get_ok in
   (match Geometry.find_group ~owner:Group.Primitive
       "__pdk_facet_selection_0" output with
@@ -1026,14 +1026,14 @@ let check_parallel_exact () =
   let source = Plane_generators.grid_checked ~columns:300 ~rows:240 ~uv_attribute:"uv" ~size:20. ()
       |> get_ok in
   let run domains = Parallel.run ~domains (fun () ->
-      Facet_ops.run_checked ~grain:257 ~pre_compute_normals:true ~unique_points:true
+      Facet.run ~grain:257 ~pre_compute_normals:true ~unique_points:true
         ~make_normals_unit_length:true ~reverse_normals:true source |> get_ok) in
   let one = run 1 and many = run 4 in
   check (equal_geometry one many)
     "one-domain and four-domain Facet geometry differ";
   let inline = repeated_inline_source 40_000 in
   let run domains = Parallel.run ~domains (fun () ->
-      Facet_ops.run_checked ~grain:257 ~remove_inline_points:true inline |> get_ok) in
+      Facet.run ~grain:257 ~remove_inline_points:true inline |> get_ok) in
   let one = run 1 and many = run 4 in
   check (Geometry.point_count one = 160_000
       && Geometry.vertex_count one = 160_000)
@@ -1042,7 +1042,7 @@ let check_parallel_exact () =
     "one-domain and four-domain Facet inline removal differ";
   let normal_source = repeated_normal_source 200_000 in
   let run domains = Parallel.run ~domains (fun () ->
-      Facet_ops.run_checked ~grain:257 ~consolidate_normals_distance:0.001 normal_source
+      Facet.run ~grain:257 ~consolidate_normals_distance:0.001 normal_source
       |> get_ok) in
   let one = run 1 and many = run 4 in
   check (equal_geometry one many)
@@ -1073,7 +1073,7 @@ let check_parallel_exact () =
       ~topology ~attributes:(Geometry.attributes source)
       ~groups:(Geometry.groups source) () |> get_string in
   let run domains = Parallel.run ~domains (fun () ->
-      Facet_ops.run_checked ~grain:257 ~orient_polygons:true inconsistent |> get_ok) in
+      Facet.run ~grain:257 ~orient_polygons:true inconsistent |> get_ok) in
   let one = run 1 and many = run 4 in
   check (equal_geometry one many)
     "one-domain and four-domain Facet orientation differ";
@@ -1082,7 +1082,7 @@ let check_parallel_exact () =
       |> Deform.noise_displace ~grain:257 ~amplitude:0.8 ~frequency:0.7
            ~seed:927 |> get_ok in
   let run domains = Parallel.run ~domains (fun () ->
-      Facet_ops.run_checked ~grain:257 ~cusp_angle:0.08 displaced |> get_ok) in
+      Facet.run ~grain:257 ~cusp_angle:0.08 displaced |> get_ok) in
   let one = run 1 and many = run 4 in
   check (equal_geometry one many)
     "one-domain and four-domain Facet cusping differ"
@@ -1090,7 +1090,7 @@ let check_parallel_exact () =
   let selected = primitive_group source
       (fun primitive -> primitive land 1 = 0) in
   let run domains = Parallel.run ~domains (fun () ->
-      Facet_ops.run_checked ~grain:257 ~primitives:selected ~pre_compute_normals:true
+      Facet.run ~grain:257 ~primitives:selected ~pre_compute_normals:true
         ~unique_points:true ~reverse_normals:true source |> get_ok) in
   let one = run 1 and many = run 4 in
   check (equal_geometry one many)
@@ -1099,7 +1099,7 @@ let check_parallel_exact () =
       (Geometry.point_count source)
       (fun point -> point < Geometry.point_count source / 2) in
   let run domains = Parallel.run ~domains (fun () ->
-      Facet_ops.run_checked ~grain:257 ~selection:(Transform_ops.Selected_points selected_points)
+      Facet.run ~grain:257 ~selection:(Transform_ops.Selected_points selected_points)
         ~unique_points:true source |> get_ok) in
   let one = run 1 and many = run 4 in
   check (equal_geometry one many)
@@ -1109,7 +1109,7 @@ let check_parallel_exact () =
   let selected_edges = Edge_group.init ~topology ~index ~name:"facet_edges"
       (fun edge -> edge mod 7 = 0) in
   let run domains = Parallel.run ~domains (fun () ->
-      Facet_ops.run_checked ~grain:257 ~selection:(Transform_ops.Selected_edges selected_edges)
+      Facet.run ~grain:257 ~selection:(Transform_ops.Selected_edges selected_edges)
         ~unique_points:true source |> get_ok) in
   let one = run 1 and many = run 4 in
   check (equal_geometry one many)
@@ -1117,7 +1117,7 @@ let check_parallel_exact () =
   let inline_selected = primitive_group inline
       (fun primitive -> primitive land 1 = 0) in
   let run domains = Parallel.run ~domains (fun () ->
-      Facet_ops.run_checked ~grain:257 ~primitives:inline_selected
+      Facet.run ~grain:257 ~primitives:inline_selected
         ~remove_inline_points:true inline |> get_ok) in
   let one = run 1 and many = run 4 in
   check (Geometry.point_count one = 200_000
@@ -1129,7 +1129,7 @@ let check_parallel_exact () =
   let warped_selected = primitive_group warped
       (fun primitive -> primitive land 1 = 0) in
   let run domains = Parallel.run ~domains (fun () ->
-      Facet_ops.run_checked ~grain:257 ~primitives:warped_selected ~make_planar:true warped
+      Facet.run ~grain:257 ~primitives:warped_selected ~make_planar:true warped
       |> get_ok) in
   let one = run 1 and many = run 4 in
   check (equal_geometry one many)

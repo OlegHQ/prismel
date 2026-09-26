@@ -1,7 +1,7 @@
 {
   "generator": "tools/api_manifest/api_manifest.exe",
   "kind": "stable_high_level",
-  "module_count": 125,
+  "module_count": 124,
   "modules": [
     {
       "api_sha256": "42991257be662e316b18b78776fd2c91d5990ebf5a3b561d4d38b32d1d9db961",
@@ -245,15 +245,6 @@
       "source": "lib/pdk/core/error.mli",
       "source_bytes": 657,
       "source_sha256": "2da0d7aac10f2007067073810cb23becacc9c3defa9f3d0a805e6b69dbff6aa3"
-    },
-    {
-      "api_sha256": "e81a21b15e63c18205412ea8c36c6d2e11ab8b4daa4dd00b60c7bfa31e89bf8c",
-      "excluded_legacy_symbols": [],
-      "library": "pdk",
-      "module": "Facet_ops",
-      "source": "lib/pdk/mesh/facet_ops.mli",
-      "source_bytes": 542,
-      "source_sha256": "5b6f1e8018e52b801d86aae9ac743bbb6e4bb7e578c64ff781f71b83c2c47afd"
     },
     {
       "api_sha256": "88523ede9720240816139fcff290dbe08968b5d643e54435f65371696b8839bb",

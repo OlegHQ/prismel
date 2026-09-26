@@ -3524,7 +3524,7 @@ let facet ?label ?group ?selection ?(pre_compute_normals = false)
       match resolve_element_group ~operation:"facet" selection geometry with
       | Error error -> Error error
       | Ok selection ->
-          match Pdk.Facet_ops.run_checked ~cancel:(Context.cancel_token context)
+          match Pdk.Facet.run ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?selection ~pre_compute_normals
               ~make_normals_unit_length ~unique_points ?consolidate_distance
               ?consolidate_normals_distance ~remove_inline_points

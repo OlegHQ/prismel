@@ -942,48 +942,48 @@ let run_facet_benchmarks () =
       ~index:source_index ~name:"facet_sparse_edges"
       (fun edge -> edge mod 7 = 0) in
   measure ~input_points "facet_unique_points" (fun () ->
-    Facet_ops.run_checked ~grain ~unique_points:true source |> get_ok) geometry_output;
+    Facet.run ~grain ~unique_points:true source |> get_ok) geometry_output;
   measure ~input_points "facet_pre_normals_unique_reverse" (fun () ->
-    Facet_ops.run_checked ~grain ~pre_compute_normals:true
+    Facet.run ~grain ~pre_compute_normals:true
       ~make_normals_unit_length:true ~unique_points:true ~reverse_normals:true
       source |> get_ok) geometry_output;
   measure ~input_points "facet_group_pre_normals_unique_reverse" (fun () ->
-    Facet_ops.run_checked ~grain ~primitives:selected_primitives ~pre_compute_normals:true
+    Facet.run ~grain ~primitives:selected_primitives ~pre_compute_normals:true
       ~make_normals_unit_length:true ~unique_points:true ~reverse_normals:true
       source |> get_ok) geometry_output;
   measure ~input_points "facet_group_unique_points" (fun () ->
-    Facet_ops.run_checked ~grain ~primitives:selected_primitives ~unique_points:true source
+    Facet.run ~grain ~primitives:selected_primitives ~unique_points:true source
     |> get_ok) geometry_output;
   measure ~input_points "facet_point_selection_unique_points" (fun () ->
-    Facet_ops.run_checked ~grain ~selection:(Transform_ops.Selected_points selected_points)
+    Facet.run ~grain ~selection:(Transform_ops.Selected_points selected_points)
       ~unique_points:true source |> get_ok) geometry_output;
   measure ~input_points "facet_vertex_selection_unique_points" (fun () ->
-    Facet_ops.run_checked ~grain ~selection:(Transform_ops.Selected_vertices selected_vertices)
+    Facet.run ~grain ~selection:(Transform_ops.Selected_vertices selected_vertices)
       ~unique_points:true source |> get_ok) geometry_output;
   measure ~input_points "facet_edge_selection_unique_points" (fun () ->
-    Facet_ops.run_checked ~grain ~selection:(Transform_ops.Selected_edges selected_edges)
+    Facet.run ~grain ~selection:(Transform_ops.Selected_edges selected_edges)
       ~unique_points:true source |> get_ok) geometry_output;
   measure ~input_points "facet_group_pre_normals" (fun () ->
-    Facet_ops.run_checked ~grain ~primitives:selected_primitives ~pre_compute_normals:true
+    Facet.run ~grain ~primitives:selected_primitives ~pre_compute_normals:true
       source |> get_ok) geometry_output;
   measure ~input_points "facet_orient_polygons" (fun () ->
-    Facet_ops.run_checked ~grain ~orient_polygons:true inconsistent |> get_ok)
+    Facet.run ~grain ~orient_polygons:true inconsistent |> get_ok)
     geometry_output;
   measure ~input_points "facet_cusp_polygons" (fun () ->
-    Facet_ops.run_checked ~grain ~cusp_angle:0.08 displaced |> get_ok) geometry_output;
+    Facet.run ~grain ~cusp_angle:0.08 displaced |> get_ok) geometry_output;
   measure ~input_points:inline_points "facet_remove_inline_points" (fun () ->
-    Facet_ops.run_checked ~grain ~remove_inline_points:true inline_source |> get_ok)
+    Facet.run ~grain ~remove_inline_points:true inline_source |> get_ok)
     geometry_output;
   measure ~input_points:inline_points "facet_group_remove_inline_points"
-    (fun () -> Facet_ops.run_checked ~grain ~primitives:selected_inline
+    (fun () -> Facet.run ~grain ~primitives:selected_inline
       ~remove_inline_points:true inline_source |> get_ok) geometry_output;
   measure ~input_points:planar_points "facet_make_planar" (fun () ->
-    Facet_ops.run_checked ~grain ~make_planar:true planar_source |> get_ok) geometry_output;
+    Facet.run ~grain ~make_planar:true planar_source |> get_ok) geometry_output;
   measure ~input_points:planar_points "facet_group_make_planar" (fun () ->
-    Facet_ops.run_checked ~grain ~primitives:selected_planar ~make_planar:true planar_source
+    Facet.run ~grain ~primitives:selected_planar ~make_planar:true planar_source
     |> get_ok) geometry_output;
   measure ~input_points:normal_points "facet_consolidate_point_normals"
-    (fun () -> Facet_ops.run_checked ~grain ~consolidate_normals_distance:0.001
+    (fun () -> Facet.run ~grain ~consolidate_normals_distance:0.001
       normal_source |> get_ok) geometry_output
 
 let run_poly_extrude_benchmarks () =
