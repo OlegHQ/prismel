@@ -7,7 +7,7 @@
 
 (executable
  (name test_main)
- (modules test_main test_prepared_scene3 test_automatic_scratch test_retained_eviction test_offscreen_metal)
+ (modules test_main test_prepared_scene3 test_automatic_scratch test_retained_eviction test_offscreen_metal test_scene_execution_metal)
  (libraries scene_execution scene_execution_fixtures ogpu))
 
 ; Minimal per-family MSL pipelines for tests and benchmarks that drive the
@@ -32,3 +32,7 @@
 (rule
  (aliases runtest test_offscreen_metal)
  (action (run %{exe:test_main.exe} test_offscreen_metal)))
+
+(rule
+ (aliases runtest test_scene_execution_metal)
+ (action (run %{exe:test_main.exe} test_scene_execution_metal)))

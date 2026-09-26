@@ -1,9 +1,5 @@
 type resource = Buffer of Buffer.t | Texture of Texture.t
 
-module Native_metal = Metal
-
-module Metal = Native_metal
-
 type icb_entry = {
   icb : Metal.Indirect_command_buffer.t;
   icb_commands : Metal.Indirect_command_buffer.Render_command.t option array;
@@ -28,6 +24,16 @@ type 'a sync_entry = {
   finish : unit -> (unit, Ogpu_core.Error.t) result;
 }
 
+(* Encoders reuse depth-stencil states by value; the least recently used is
+   released once more than [depth_state_capacity] distinct states exist. *)
+module Depth_state_table = Lru.Make (struct
+  type t = Ogpu_core.Backend.depth_state
+  let equal = ( = )
+  let hash = Hashtbl.hash
+end)
+
+let depth_state_capacity = 64
+
 type control = {
   resources : (int64, resource) Hashtbl.t;
   heaps : (int64, Metal.Heap.t sync_entry) Hashtbl.t;
@@ -46,11 +52,10 @@ type control = {
   sampler_tokens : (int64, Sampler.t) Hashtbl.t;
   icbs : (int64, icb_entry) Hashtbl.t;
   arguments : (int64, Metal.Shader_argument_encoder.t) Hashtbl.t;
-  depth_states : (Ogpu_core.Backend.depth_state, Metal.Depth_stencil.t) Hashtbl.t;
+  depth_states : Metal.Depth_stencil.t Depth_state_table.t;
   acquired_frames : (int64, Surface.t * Surface.frame) Hashtbl.t;
   mutable cleanup_error : Ogpu_core.Error.t option;
   mutable device_live : bool;
-  mutable device_id : int64 option;
   mutable next : int64;
 }
 
@@ -86,23 +91,6 @@ let metal_stage = function
   | Mesh -> Mesh
   | Tile -> Tile
 
-let native_texture control texture =
-  let device_id, token = Ogpu_core.Backend.Private.texture_driver_token texture in
-  if control.device_id <> Some device_id then
-    error "Ogpu_metal.Backend.native_texture" Ogpu_core.Error.Cross_device
-      "texture belongs to another renderer"
-  else
-    match Hashtbl.find_opt control.resources token with
-    | Some (Texture texture) when not (Texture.destroyed texture) ->
-        Ok (Texture.Private.metal texture)
-    | _ ->
-        error "Ogpu_metal.Backend.native_texture" Ogpu_core.Error.Stale_handle
-          "texture is unavailable"
-
-module Private = struct
-  let native_texture = native_texture
-end
-
 let create () =
   let c =
     {
@@ -123,11 +111,10 @@ let create () =
       sampler_tokens = Hashtbl.create 8;
       icbs = Hashtbl.create 8;
       arguments = Hashtbl.create 4;
-      depth_states = Hashtbl.create 8;
+      depth_states = Depth_state_table.create depth_state_capacity ~release:(fun _ native -> ignore (Metal.Depth_stencil.destroy native));
       acquired_frames = Hashtbl.create 4;
       cleanup_error = None;
       device_live = false;
-      device_id = None;
       next = 1L;
     }
   in
@@ -154,7 +141,6 @@ let create () =
       | Error _ as e -> e
       | Ok device ->
           c.device_live <- true;
-          c.device_id <- Some (Ogpu_core.Handle.device_id (Device.Private.handle device));
           let device_token = token c in
           let buffer_memory = function
             | Ogpu_core.Types.Shared -> Buffer.Shared
@@ -1096,13 +1082,9 @@ let create () =
           in
           let depth_state_for (state : Ogpu_core.Backend.depth_state) =
             let operation = "Ogpu_metal.Backend.depth_state" in
-            match Hashtbl.find_opt c.depth_states state with
-            | Some native -> Ok native
-            | None ->
-                if Hashtbl.length c.depth_states >= 64 then begin
-                  Hashtbl.iter (fun _ native -> ignore (Metal.Depth_stencil.destroy native)) c.depth_states;
-                  Hashtbl.reset c.depth_states
-                end;
+            match Depth_state_table.find c.depth_states state with
+            | native -> Ok native
+            | exception Not_found ->
                 let face (f : Ogpu_core.Render_pass.stencil_face) =
                   Metal.Depth_stencil.face ~compare:(metal_compare f.compare)
                     ~stencil_fail:(metal_operation f.stencil_fail)
@@ -1120,7 +1102,7 @@ let create () =
                  with
                  | Error e -> Error (Device.of_metal_error ~operation e)
                  | Ok native ->
-                     Hashtbl.add c.depth_states state native;
+                     Depth_state_table.add c.depth_states state native;
                      Ok native)
           in
           let create_queue () =
@@ -2382,18 +2364,21 @@ let create () =
               error "Ogpu_metal.Backend.destroy_device" Ogpu_core.Error.Invalid_state
                 "device has active queues"
             else begin
-              Hashtbl.iter
-                (fun _ native ->
-                  match Metal.Depth_stencil.destroy native with
-                  | Ok () -> ()
-                  | Error error -> record_cleanup (Some error))
-                c.depth_states;
-              Hashtbl.reset c.depth_states;
+              let states = ref [] in
+              Depth_state_table.iter c.depth_states (fun state _ -> states := state :: !states);
+              List.iter
+                (fun state ->
+                  match Depth_state_table.take c.depth_states state with
+                  | Some native -> (
+                      match Metal.Depth_stencil.destroy native with
+                      | Ok () -> ()
+                      | Error error -> record_cleanup (Some error))
+                  | None -> ())
+                !states;
               let destroyed = if c.device_live then Device.destroy device else Ok () in
               (match destroyed with
               | Ok () ->
-                  c.device_live <- false;
-                  c.device_id <- None
+                  c.device_live <- false
               | Error _ -> ());
               let cleanup = take_cleanup_error () in
               match (destroyed, cleanup) with
@@ -2437,4 +2422,4 @@ let create () =
               destroy_device;
             }
   in
-  ({ Ogpu_core.Backend.create_device }, c)
+  { Ogpu_core.Backend.create_device }

@@ -3,7 +3,7 @@
  (public_name prismel.ogpu_metal_native)
  (modules Device Buffer Texture Sampler Library Pipeline Queue Presentation Surface Sync Memory Acceleration Diagnostics Backend)
  (private_modules Presentation)
- (libraries ogpu_core metal))
+ (libraries ogpu_core metal lru))
 
 (library
  (name ogpu_metal)
@@ -14,8 +14,8 @@
 
 (executable
  (name test_main)
- (modules test_main test_ogpu_metal_foundation test_ogpu_metal_texture test_ogpu_metal_pipeline test_ogpu_metal_surface test_ogpu_metal_sync test_ogpu_metal_memory test_ogpu_metal_acceleration test_ogpu_metal_diagnostics test_ogpu_metal_capabilities test_ogpu_metal_sampler_pixels test_scene_execution_metal test_pipeline_argument_buffer)
- (libraries scene_execution ogpu_metal_native metal unix))
+ (modules test_main test_ogpu_metal_foundation test_ogpu_metal_texture test_ogpu_metal_pipeline test_ogpu_metal_surface test_ogpu_metal_sync test_ogpu_metal_memory test_ogpu_metal_acceleration test_ogpu_metal_diagnostics test_ogpu_metal_capabilities test_ogpu_metal_sampler_pixels test_pipeline_argument_buffer)
+ (libraries ogpu ogpu_metal_native metal unix))
 
 (rule
  (aliases runtest test_ogpu_metal_foundation)
@@ -56,10 +56,6 @@
 (rule
  (aliases runtest test_ogpu_metal_sampler_pixels)
  (action (run %{exe:test_main.exe} test_ogpu_metal_sampler_pixels)))
-
-(rule
- (aliases runtest test_scene_execution_metal)
- (action (run %{exe:test_main.exe} test_scene_execution_metal)))
 
 (rule
  (aliases runtest test_pipeline_argument_buffer)

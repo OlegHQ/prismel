@@ -1,4 +1,3 @@
-open Ogpu_metal_native
 (* Tuple shorthand for the record-based [Scene_execution.render_sampled_resources]. *)
 let sampled ?texture ?auxiliary ?(samples=1) family blend draw : Scene_execution.sampled_draw =
   {family;blend;texture;auxiliary;samples;draw}
@@ -11,7 +10,6 @@ let render_family ?clear r draws=Scene_execution.render_sampled_resources ?clear
 let render_blended ?clear r draws=Scene_execution.render_sampled_resources ?clear r
   (List.map(fun(blend,draw)->sampled Scene_execution.Scene2 blend draw)draws)
 let get=function Ok x->x|Error e->failwith(Ogpu.Error.to_string e)
-let metal=function Ok x->x|Error e->failwith(Format.asprintf"%a"Metal.pp_error e)
 (* Scene2 and Scene2_textured share the argument-buffer pipeline: vertex
    color times the bound texel (white for untextured draws). *)
 let source2={|#include <metal_stdlib>
@@ -44,12 +42,10 @@ vertex Out scene_vertex(uint i [[vertex_id]],const device uchar *input [[buffer(
 inline float unpack_depth(float4 c){float3 b=round(c.rgb*255.);return(b.x*65536.+b.y*256.+b.z)/16777215.;}
 fragment float4 scene_fragment(Out v [[stage_in]],const device float*p [[buffer(3)]],texture2d<float>d [[texture(4)]],sampler s [[sampler(5)]]){float4 w=float4(v.world,1.);float4 q=float4(dot(w,float4(p[0],p[1],p[2],p[3])),dot(w,float4(p[4],p[5],p[6],p[7])),dot(w,float4(p[8],p[9],p[10],p[11])),dot(w,float4(p[12],p[13],p[14],p[15])));if(q.w<=0.)return v.color;float2 uv=float2(q.x/q.w*.5+.5,.5-q.y/q.w*.5);float z=q.z/q.w;if(any(uv<0.)||any(uv>1.)||z<0.||z>1.)return v.color;float compare=z-(p[16]+p[17]*(1.-clamp(normalize(v.normal).z,0.,1.)));int radius=int(p[19]);int2 center=int2(floor(uv*float2(d.get_width(),d.get_height())));float visible=0.,count=0.;for(int y=-radius;y<=radius;y++)for(int x=-radius;x<=radius;x++){int2 a=center+int2(x,y);count+=1.;if(a.x<0||a.y<0||a.x>=int(d.get_width())||a.y>=int(d.get_height()))visible+=1.;else visible+=compare<=unpack_depth(d.sample(s,(float2(a)+.5)/float2(d.get_width(),d.get_height())))?1.:0.;}float visibility=(1.-p[18])+p[18]*visible/count;return float4(v.color.rgb*visibility,v.color.a);}
 |}
-let run () =match Device.system_default()with Error _->print_endline"scene execution Metal: skipped (no M1 device)"|Ok native_device->
-  let before=metal(Metal.Release_queue.stats())in
-  let driver,control=Backend.create()in
-  let supported=List.filter(fun samples->samples<=(Device.capabilities native_device).Ogpu.Caps.limits.max_sample_count)[1;4;9;16]in
+let run () =
+  let driver,live_handles=Ogpu.Impl.create_driver()in
+  let before=live_handles()in
   if Scene_execution.pipeline_variants_per_sample<>60 then failwith"pipeline family/blend cardinality drift";
-  ignore supported;
   let configuration:Ogpu.Surface.configuration={logical_width=4;logical_height=4;physical_width=4;physical_height=4;format=Bgra8_unorm;present_mode=Fifo;max_acquired=2;layer=None}in
   let renderer=get(Scene_execution.create~offscreen:true driver configuration(fun device family blend samples->let bytes,vertex_bindings,fragment_bindings,groups=match family with
     |Scene_execution.Scene2|Scene2_textured->source2,[{Ogpu.Shader.group=0;binding=0;kind=Storage_buffer;visibility=[Vertex]};{group=0;binding=6;kind=Storage_buffer;visibility=[Vertex]}],[{Ogpu.Shader.group=0;binding=1;kind=Storage_buffer;visibility=[Fragment]}],[0,[{Ogpu.Binding.binding=0;kind=Buffer;visibility=[Vertex]};{binding=6;kind=Buffer;visibility=[Vertex]};{binding=1;kind=Buffer;visibility=[Fragment]}]]
@@ -58,6 +54,7 @@ let run () =match Device.system_default()with Error _->print_endline"scene execu
     |Scene3_shadow|Scene3_shadow_stencil->source3_shadow,[{Ogpu.Shader.group=0;binding=0;kind=Storage_buffer;visibility=[Vertex]}],[{Ogpu.Shader.group=0;binding=3;kind=Storage_buffer;visibility=[Fragment]};{group=0;binding=4;kind=Sampled_texture;visibility=[Fragment]};{group=0;binding=5;kind=Sampler;visibility=[Fragment]}],[0,[{Ogpu.Binding.binding=0;kind=Buffer;visibility=[Vertex]};{binding=3;kind=Buffer;visibility=[Fragment]};{binding=4;kind=Texture;visibility=[Fragment]};{binding=5;kind=Sampler;visibility=[Fragment]}]]in
     let vertex=get(Ogpu.Shader.create{backend="metal";label=Some"scene-execution-metal-vertex";bytes=Bytes.of_string bytes;entry_points=[{name="scene_vertex";stage=Vertex}];bindings=vertex_bindings})and fragment=get(Ogpu.Shader.create{backend="metal";label=Some"scene-execution-metal-fragment";bytes=Bytes.of_string bytes;entry_points=[{name="scene_fragment";stage=Fragment}];bindings=fragment_bindings})in
     let layouts=List.map(fun(group,entries)->group,get(Ogpu.Binding.create_layout entries))groups in let layout=get(Ogpu.Binding.create_pipeline_layout~device:(Ogpu.Backend.device_handle device)~capabilities:(Ogpu.Backend.capabilities device)layouts)in let descriptor:Ogpu.Pipeline.render_descriptor={backend="metal";label=Some"scene-execution-metal";layout;vertex;vertex_entry="scene_vertex";fragment=Some fragment;fragment_entry=Some"scene_fragment";color_format=Rgba8_unorm;depth_format=(match family with Scene_execution.Scene2|Scene2_textured|Ui->Ogpu.Pipeline.No_depth|Scene3|Scene3_points|Scene3_textured|Scene3_shadow->Depth32_float|Scene3_stencil|Scene3_textured_stencil|Scene3_shadow_stencil->Depth32_float_stencil8);sample_count=samples}in Ogpu.Backend.create_render_pipeline~blend~topology:(if family=Scene3_points then Ogpu.Render_pass.Point_list else Triangle_list)~indirect:(family=Scene2||family=Scene2_textured)device descriptor))in
+  let supported=List.filter(fun samples->samples<=(Ogpu.Backend.capabilities(Scene_execution.device renderer)).Ogpu.Caps.limits.max_sample_count)[1;4;9;16]in
   let indices=Bytes.make 12 '\000'in Bytes.set_int32_le indices 4 1l;Bytes.set_int32_le indices 8 2l;let plain=Bytes.make 48 '\000'in for index=0 to 2 do Bytes.set_int32_le plain(index*16+8)0xff0080ffl done;let mesh:Scene_execution.mesh={key="fullscreen";vertices=plain;vertex_count=3;indices;index_count=3; primitive=Ogpu.Render_pass.Triangle_list}and state:Scene_execution.state={viewport=(0,0,4,4);scissor=(0,0,4,4);cull=Ogpu.Render_pass.Cull_none;depth_compare=Ogpu.Render_pass.Always;depth_write=false;depth_load=Ogpu.Render_pass.Clear;depth_clear=1.;transform_uniforms=None;stencil_state=None;stencil_load=Ogpu.Render_pass.Load;stencil_clear=0}in
   let sampled samples draw:Scene_execution.sampled_draw={family=Scene3;blend=Ogpu.Pipeline.Replace;texture=None;auxiliary=None;samples;draw}in
   ignore(get(Scene_execution.render renderer[{mesh;state};{mesh;state}]));let pixels=get(Scene_execution.read_pixels renderer~bytes_per_row:16)in
@@ -90,11 +87,19 @@ let run () =match Device.system_default()with Error _->print_endline"scene execu
       failwith"mixed Scene2/Scene2_textured native pixel") [1;2;60;600];
   let film=get(Ogpu.Backend.create_texture(Scene_execution.device renderer)
     {Ogpu.Types.label=Some"gpu-film-test";width=1;height=1;depth=1;
-      mip_levels=1;sample_count=1;usage=[Texture_binding;Storage_binding]})in
-  let native=get(Backend.Private.native_texture control film)in
-  metal(Metal.Texture.write_bytes native
-    ~region:{x=0;y=0;z=0;width=1;height=1;depth=1}~mip_level:0~slice:0
-    ~bytes_per_row:4~bytes_per_image:4(Bytes.of_string"\x31\x82\xdd\xff"));
+      mip_levels=1;sample_count=1;usage=[Texture_binding;Storage_binding;Texture_copy_dst]})in
+  (* Produce the film on the GPU, as a path tracer would. *)
+  let staging=get(Ogpu.Backend.create_buffer(Scene_execution.device renderer)
+    {Ogpu.Types.label=Some"gpu-film-staging";size=256L;usage=[Copy_src]})in
+  get(Ogpu.Backend.write_buffer staging~offset:0L(Bytes.of_string"\x31\x82\xdd\xff"));
+  let commands=get(Ogpu.Backend.begin_commands(Scene_execution.queue renderer))in
+  let blit=get(Ogpu.Backend.blit_encoder commands)in
+  get(Ogpu.Backend.buffer_to_texture blit~src:staging~bytes_per_row:256L~bytes_per_image:256L
+    ~dst:film~extent:{width=1;height=1;depth=1}());
+  get(Ogpu.Backend.end_blit blit);
+  let receipt=get(Ogpu.Backend.commit commands)in
+  get(Ogpu.Backend.complete_through(Scene_execution.queue renderer)receipt.epoch);
+  get(Ogpu.Backend.destroy_buffer staging);
   let gpu_texture:Scene_execution.sampled_texture={key="gpu-film-test";
     levels=[|{width=1;height=1;bytes=Bytes.empty}|];sampler=sampler();gpu=Some film}in
   (* Warm the transform ring for this one-draw frame; the measured frame
@@ -113,15 +118,12 @@ let run () =match Device.system_default()with Error _->print_endline"scene execu
       Ogpu.Pipeline.Replace,Some bad_film,{mesh=mesh_uv 0.1 0.1;state}]with
    |Error error when error.Ogpu.Error.kind=Invalid_argument->()
    |_->failwith"mismatched GPU film extent was accepted");
-  let foreign_driver,_=Ogpu.Backend_mock.create()in
+  let foreign_driver,_=Ogpu.Impl.create_driver()in
   let foreign_device=get(Ogpu.Backend.create_device foreign_driver)in
   let foreign=get(Ogpu.Backend.create_texture foreign_device
     {Ogpu.Types.label=None;width=1;height=1;depth=1;mip_levels=1;
       sample_count=1;usage=[Texture_binding]})in
   let foreign_film={gpu_texture with Scene_execution.gpu=Some foreign}in
-  (match Backend.Private.native_texture control foreign with
-   |Error error when error.Ogpu.Error.kind=Cross_device->()
-   |_->failwith"foreign GPU texture exposed a Metal handle");
   (match render_textured renderer[Scene_execution.Scene2_textured,
       Ogpu.Pipeline.Replace,Some foreign_film,{mesh=mesh_uv 0.1 0.1;state}]with
    |Error error when error.Ogpu.Error.kind=Cross_device->()
@@ -161,4 +163,4 @@ let run () =match Device.system_default()with Error _->print_endline"scene execu
   get(Scene_execution.resize renderer{configuration with physical_width=8;physical_height=8});ignore(get(Scene_execution.render renderer[{mesh;state={state with viewport=(0,0,8,8);scissor=(0,0,8,8)}}]));
   ignore(get(Scene_execution.render renderer[{mesh;state={state with viewport=(0,0,16,16);scissor=(-4,0,32,32)}}]));
   if List.mem 4 supported then(ignore(get(Scene_execution.render_sampled_resources renderer[sampled 4 {mesh=mesh3;state={state with viewport=(0,0,8,8);scissor=(0,0,8,8)}}]));let captured=get(Scene_execution.read_pixels renderer~bytes_per_row:32)in if Bytes.length captured<>256||Char.code(Bytes.get captured 0)<>255||Char.code(Bytes.get captured 2)<>128 then failwith"resized multisample capture pixel");
-  get(Scene_execution.destroy renderer);get(Device.destroy native_device);ignore(metal(Metal.Release_queue.drain()));let after=metal(Metal.Release_queue.stats())in if after.live_handles<>before.live_handles-1 then failwith"scene execution Metal live delta";print_endline"scene execution Metal: SDL-free draw/resize, exact pixel, zero delta"
+  get(Scene_execution.destroy renderer);if live_handles()<>before then failwith"scene execution Metal live delta";print_endline"scene execution Metal: SDL-free draw/resize, exact pixel, zero delta"

@@ -3,6 +3,7 @@ let tests = [
   "test_automatic_scratch", Test_automatic_scratch.run;
   "test_retained_eviction", Test_retained_eviction.run;
   "test_offscreen_metal", Test_offscreen_metal.run;
+  "test_scene_execution_metal", Test_scene_execution_metal.run;
 ]
 
 let () =

@@ -9,7 +9,6 @@ let tests = [
   "test_ogpu_metal_diagnostics", Test_ogpu_metal_diagnostics.run;
   "test_ogpu_metal_capabilities", Test_ogpu_metal_capabilities.run;
   "test_ogpu_metal_sampler_pixels", Test_ogpu_metal_sampler_pixels.run;
-  "test_scene_execution_metal", Test_scene_execution_metal.run;
   "test_pipeline_argument_buffer", Test_pipeline_argument_buffer.run;
 ]
 
