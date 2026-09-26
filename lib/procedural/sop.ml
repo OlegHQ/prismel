@@ -985,7 +985,7 @@ let fuse ?label ?group ?target_group ?(targeting = Pdk.Fuse_grid.Near_points)
            | Ok target_selection ->
               let target = if Array.length inputs = 2
                   then Some target_geometry else None in
-              (match Pdk.Fuse_grid.fuse_checked ~cancel:(Context.cancel_token context)
+              (match Pdk.Fuse_grid.fuse ~cancel:(Context.cancel_token context)
                   ~grain:(Context.grain context) ?selection ?target_selection
                   ~targeting ~using ~tolerance ~position ?weight_attribute
                   ~attributes ~attribute_rules ~group_rules ~metric
@@ -1042,7 +1042,7 @@ let snap_to_grid ?label ?group ?(spacing = Vec3.create 1. 1. 1.)
       match resolve_optional_point_group "snap_to_grid" group inputs.(0) with
       | Error error -> Error error
       | Ok selection ->
-          (match Pdk.Fuse_grid.snap_to_grid_checked ~cancel:(Context.cancel_token context)
+          (match Pdk.Fuse_grid.snap_to_grid ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?selection ~spacing ~offset ~rounding
               ?max_distance ~fuse_points ~position ?weight_attribute ~attributes
               ~attribute_rules ~group_rules ?snapped_group

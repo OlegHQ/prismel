@@ -117,7 +117,7 @@ let check_target_policies () =
       (fun point -> point < 3)
   and targets = Group.init ~owner:Group.Point ~name:"targets" 3
       (fun point -> point < 2) in
-  let run using = Fuse_grid.fuse_checked ~selection:queries ~target_selection:targets
+  let run using = Fuse_grid.fuse ~selection:queries ~target_selection:targets
       ~target ~using ~tolerance:1. ~fuse_points:false
       ~snapped_group:"snapped" ~snapped_destination_attribute:"destination"
       source |> get_ok in
@@ -130,7 +130,7 @@ let check_target_policies () =
   check (cp.x = [|0.;1.;1.;5.|]) "closest-target Fuse positions";
   check (point_int closest "destination" = [|0;1;1;-1|])
     "closest-target destination output";
-  let fused = Fuse_grid.fuse_checked ~selection:queries ~target_selection:targets ~target
+  let fused = Fuse_grid.fuse ~selection:queries ~target_selection:targets ~target
       ~using:Fuse_grid.Closest_target_point ~tolerance:1.
       ~snapped_group:"snapped" ~snapped_destination_attribute:"destination"
       source |> get_ok in
@@ -146,14 +146,14 @@ let check_specified_targets () =
   and target = Line_geometry.points [|(0.,0.,0.); (1.,0.,0.); (3.,0.,0.)|] in
   let targets = Group.init ~owner:Group.Point ~name:"targets" 3
       (fun point -> point <> 1) in
-  let output = Fuse_grid.fuse_checked ~target ~target_selection:targets
+  let output = Fuse_grid.fuse ~target ~target_selection:targets
       ~targeting:(Fuse_grid.Specified_points "target_point") ~fuse_points:false
       ~snapped_destination_attribute:"destination" source |> get_ok in
   check ((positions output).x = [|3.;0.;2.;5.|])
     "specified-target Fuse positions";
   check (point_int output "destination" = [|2;0;-1;-1|])
     "specified-target validity/group filtering";
-  expect_code "invalid_geometry" (Fuse_grid.fuse_checked ~target
+  expect_code "invalid_geometry" (Fuse_grid.fuse ~target
       ~targeting:(Fuse_grid.Specified_points "missing") source)
 
 let check_radius_and_match () =
@@ -163,15 +163,15 @@ let check_radius_and_match () =
   and target = Line_geometry.points [|(0.,0.,0.); (1.,0.,0.); (3.,0.,0.)|]
       |> add_point_float "radius" [|0.;0.;0.5|]
       |> add_point_int "piece" [|1;2;3|] in
-  let radius = Fuse_grid.fuse_checked ~target ~tolerance:0. ~radius_attribute:"radius"
+  let radius = Fuse_grid.fuse ~target ~tolerance:0. ~radius_attribute:"radius"
       ~using:Fuse_grid.Closest_target_point ~fuse_points:false source |> get_ok in
   check ((positions radius).x = [|3.;0.9;0.1|])
     "radius-expanded Fuse threshold";
-  let equal = Fuse_grid.fuse_checked ~target ~tolerance:2. ~match_attribute:"piece"
+  let equal = Fuse_grid.fuse ~target ~tolerance:2. ~match_attribute:"piece"
       ~using:Fuse_grid.Closest_target_point ~fuse_points:false source |> get_ok in
   check ((positions equal).x = [|3.;1.;0.|])
     "equal match-attribute Fuse filter";
-  let unequal = Fuse_grid.fuse_checked ~target ~tolerance:2. ~match_attribute:"piece"
+  let unequal = Fuse_grid.fuse ~target ~tolerance:2. ~match_attribute:"piece"
       ~match_condition:Fuse_grid.Unequal_attribute_values
       ~using:Fuse_grid.Closest_target_point ~fuse_points:false source |> get_ok in
   check ((positions unequal).x = [|1.;0.;1.|])
@@ -180,7 +180,7 @@ let check_radius_and_match () =
       |> add_point_float "key" [|1.001|]
   and float_target = Line_geometry.points [|(1.,0.,0.)|]
       |> add_point_float "key" [|1.|] in
-  let tolerant = Fuse_grid.fuse_checked ~target:float_target ~tolerance:2.
+  let tolerant = Fuse_grid.fuse ~target:float_target ~tolerance:2.
       ~match_attribute:"key" ~match_tolerance:0.01 ~fuse_points:false
       float_source |> get_ok in
   check ((positions tolerant).x = [|1.|]) "float match tolerance"
@@ -191,7 +191,7 @@ let check_separate_same_geometry_groups () =
       (fun point -> point = 1)
   and targets = Group.init ~owner:Group.Point ~name:"targets" 3
       (fun point -> point = 0) in
-  let output = Fuse_grid.fuse_checked ~selection:queries ~target_selection:targets
+  let output = Fuse_grid.fuse ~selection:queries ~target_selection:targets
       ~tolerance:0.2 ~snapped_destination_attribute:"destination" source
       |> get_ok in
   check (Geometry.point_count output = 2 && (positions output).x = [|0.;10.|])
@@ -203,7 +203,7 @@ let check_target_scale_and_validation () =
   let center = 1e150 and scale = 1e140 in
   let source = Line_geometry.points [|(center +. scale, center, center)|]
   and target = Line_geometry.points [|(center, center, center)|] in
-  let output = Fuse_grid.fuse_checked ~target ~tolerance:(2. *. scale)
+  let output = Fuse_grid.fuse ~target ~tolerance:(2. *. scale)
       ~using:Fuse_grid.Closest_target_point ~fuse_points:false source |> get_ok in
   check ((positions output).x = [|center|])
     "large finite target Fuse normalization";
@@ -211,23 +211,23 @@ let check_target_scale_and_validation () =
       |> add_point_float "radius" [|(-1.)|] in
   let valid_radius = Line_geometry.points [|(0.,0.,0.)|]
       |> add_point_float "radius" [|0.|] in
-  expect_code "invalid_geometry" (Fuse_grid.fuse_checked ~target:valid_radius
+  expect_code "invalid_geometry" (Fuse_grid.fuse ~target:valid_radius
       ~radius_attribute:"radius" invalid_radius);
-  expect_code "invalid_geometry" (Fuse_grid.fuse_checked ~target
+  expect_code "invalid_geometry" (Fuse_grid.fuse ~target
       ~match_condition:Fuse_grid.Unequal_attribute_values source);
-  expect_code "invalid_geometry" (Fuse_grid.fuse_checked ~target
+  expect_code "invalid_geometry" (Fuse_grid.fuse ~target
       ~targeting:(Fuse_grid.Specified_points "destination")
       ~radius_attribute:"radius" source);
   let wrong_target_group = Group.init ~owner:Group.Point ~name:"wrong" 2
       (fun _ -> true) in
-  expect_code "invalid_geometry" (Fuse_grid.fuse_checked ~target
+  expect_code "invalid_geometry" (Fuse_grid.fuse ~target
       ~target_selection:wrong_target_group source);
   let nonfinite = Line_geometry.points [|(Float.infinity,0.,0.)|] in
-  expect_code "invalid_geometry" (Fuse_grid.fuse_checked ~target:nonfinite
+  expect_code "invalid_geometry" (Fuse_grid.fuse ~target:nonfinite
       ~using:Fuse_grid.Closest_target_point source);
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
-  expect_code "cancelled" (Fuse_grid.fuse_checked ~cancel:cancelled ~target
+  expect_code "cancelled" (Fuse_grid.fuse ~cancel:cancelled ~target
       ~using:Fuse_grid.Closest_target_point source)
 
 let check_target_parallel_exact () =
@@ -235,7 +235,7 @@ let check_target_parallel_exact () =
   let source = target
       |> Transform_ops.transform (Mat4.translation (Vec3.create 0.013 (-0.017) 0.009)) in
   let run domains = Parallel.run ~domains (fun () ->
-    Fuse_grid.fuse_checked ~grain:1024 ~target ~using:Fuse_grid.Closest_target_point
+    Fuse_grid.fuse ~grain:1024 ~target ~using:Fuse_grid.Closest_target_point
       ~tolerance:0.05 ~fuse_points:false ~snapped_group:"snapped"
       ~snapped_destination_attribute:"destination" source |> get_ok) in
   let one = run 1 and four = run 4 in
@@ -262,7 +262,7 @@ let check_target_parallel_exact () =
       (fun point -> point < half)
   and targets = Group.init ~owner:Group.Point ~name:"targets" linked_count
       (fun point -> point >= half) in
-  let rules_run domains = Parallel.run ~domains (fun () -> Fuse_grid.fuse_checked ~grain:257
+  let rules_run domains = Parallel.run ~domains (fun () -> Fuse_grid.fuse ~grain:257
       ~selection:queries ~target_selection:targets ~modify_target:true
       ~using:Fuse_grid.Closest_target_point ~tolerance:0.05
       ~attribute_rules:[
@@ -295,7 +295,7 @@ let check_target_parallel_exact () =
 let check_position_reductions () =
   let source = Line_geometry.points [|(0.,3.,6.); (2.,1.,4.); (4.,2.,5.)|]
       |> add_point_float "weight" [|1.;2.;3.|] in
-  let position mode = Fuse_grid.fuse_checked ~tolerance:10. ~position:mode
+  let position mode = Fuse_grid.fuse ~tolerance:10. ~position:mode
       ~weight_attribute:"weight" source |> get_ok |> positions in
   let check_position mode expected label =
     let output = position mode in
@@ -332,19 +332,19 @@ let check_position_reductions () =
     "maximum-weight position reduction";
   let mode_source = Line_geometry.points
       [|(0.,3.,6.); (2.,1.,4.); (2.,1.,5.); (4.,2.,5.)|] in
-  let mode = Fuse_grid.fuse_checked ~tolerance:10. ~position:Fuse_reduce.Mode_position mode_source
+  let mode = Fuse_grid.fuse ~tolerance:10. ~position:Fuse_reduce.Mode_position mode_source
       |> get_ok |> positions in
   check (mode.x = [|2.|] && mode.y = [|1.|] && mode.z = [|5.|])
     "component mode position reduction";
   let huge = Line_geometry.points [|(max_float,0.,0.); (max_float,0.,0.)|]
-      |> Fuse_grid.fuse_checked ~tolerance:0. ~position:Fuse_reduce.Average_position |> get_ok in
+      |> Fuse_grid.fuse ~tolerance:0. ~position:Fuse_reduce.Average_position |> get_ok in
   check ((positions huge).x = [|max_float|]) "overflow-safe average position";
-  expect_code "invalid_geometry" (Fuse_grid.fuse_checked ~tolerance:0.
+  expect_code "invalid_geometry" (Fuse_grid.fuse ~tolerance:0.
       ~position:Fuse_reduce.Sum_squares_position
       (Line_geometry.points [|(1e200,0.,0.); (1e200,0.,0.)|]));
   let zero_weight = Line_geometry.points [|(0.,0.,0.); (0.,0.,0.)|]
       |> add_point_float "weight" [|1.;(-1.)|] in
-  expect_code "invalid_geometry" (Fuse_grid.fuse_checked ~tolerance:0.
+  expect_code "invalid_geometry" (Fuse_grid.fuse ~tolerance:0.
       ~position:Fuse_reduce.Weighted_average_position ~weight_attribute:"weight"
       zero_weight)
 
@@ -354,18 +354,18 @@ let check_modify_and_keep_target () =
       (fun point -> point = 0)
   and targets = Group.init ~owner:Group.Point ~name:"targets" 3
       (fun point -> point = 1) in
-  let modified = Fuse_grid.fuse_checked ~selection:queries ~target_selection:targets
+  let modified = Fuse_grid.fuse ~selection:queries ~target_selection:targets
       ~modify_target:true ~tolerance:3. ~position:Fuse_reduce.Average_position source
       |> get_ok in
   check (Geometry.point_count modified = 2 && (positions modified).x = [|1.;10.|])
     "Modify Target compact average";
-  let snapped = Fuse_grid.fuse_checked ~selection:queries ~target_selection:targets
+  let snapped = Fuse_grid.fuse ~selection:queries ~target_selection:targets
       ~modify_target:true ~fuse_points:false ~tolerance:3.
       ~position:Fuse_reduce.Average_position source |> get_ok in
   check (Geometry.point_count snapped = 3
       && (positions snapped).x = [|1.;1.;10.|])
     "Modify Target snap-only average";
-  expect_code "invalid_geometry" (Fuse_grid.fuse_checked ~target:(Line_geometry.points [|(2.,0.,0.)|])
+  expect_code "invalid_geometry" (Fuse_grid.fuse ~target:(Line_geometry.points [|(2.,0.,0.)|])
       ~modify_target:true source);
   let positions_value = Packed.Float3.Private.of_owned_exn
       ~x:[|0.;0.1;1.|] ~y:[|0.;0.;0.|] ~z:[|0.;0.;0.|] in
@@ -374,13 +374,13 @@ let check_modify_and_keep_target () =
       ~primitive_kinds:[|Topology.Open_polyline|] |> get_string_ok in
   let geometry = Geometry.create ~positions:positions_value ~topology ()
       |> get_string_ok in
-  let kept = Fuse_grid.fuse_checked ~tolerance:0.2 ~position:Fuse_reduce.Average_position
+  let kept = Fuse_grid.fuse ~tolerance:0.2 ~position:Fuse_reduce.Average_position
       ~keep_fused_points:true geometry |> get_ok in
   let kept_topology = Topology.Private.view (Geometry.topology kept) in
   check (Geometry.point_count kept = 3 && (positions kept).x = [|0.05;0.05;1.|]
       && kept_topology.vertex_points = [|0;0;2|])
     "Keep Fused Points retained snapped unused point";
-  expect_code "invalid_geometry" (Fuse_grid.fuse_checked ~tolerance:0.2
+  expect_code "invalid_geometry" (Fuse_grid.fuse ~tolerance:0.2
       ~fuse_points:false ~keep_fused_points:true geometry)
 
 let cleanup_fixture () =
@@ -414,12 +414,12 @@ let cleanup_fixture () =
 
 let check_cleanup () =
   let source = cleanup_fixture () in
-  let unclean = Fuse_grid.fuse_checked ~tolerance:0.2 source |> get_ok in
+  let unclean = Fuse_grid.fuse ~tolerance:0.2 source |> get_ok in
   let unclean_topology = Topology.Private.view (Geometry.topology unclean) in
   check (Geometry.primitive_count unclean = 3
       && unclean_topology.vertex_points = [|0;0;1;2; 0;0; 3;3|])
     "Fuse cleanup unexpectedly enabled by default";
-  let cleaned = Fuse_grid.fuse_checked ~grain:1 ~tolerance:0.2
+  let cleaned = Fuse_grid.fuse ~grain:1 ~tolerance:0.2
       ~remove_degenerate_primitives:true source |> get_ok in
   let topology = Topology.Private.view (Geometry.topology cleaned) in
   check (Geometry.point_count cleaned = 5
@@ -436,7 +436,7 @@ let check_cleanup () =
        check (Edge_group.cardinality group = 1)
          "Fuse cleanup native edge ancestry"
    | None -> fail "Fuse cleanup dropped native edge group");
-  let selective = Fuse_grid.fuse_checked ~grain:1 ~tolerance:0.2
+  let selective = Fuse_grid.fuse ~grain:1 ~tolerance:0.2
       ~remove_degenerate_primitives:true
       ~remove_unused_points_from_degenerate_primitives:true source |> get_ok in
   check (Geometry.point_count selective = 4
@@ -444,14 +444,14 @@ let check_cleanup () =
       && owned_int selective Attribute.Point "point_id" = [|100;102;103;106|])
     "Fuse cleanup selective unused-point compaction";
   check_point_group selective "unused" [3];
-  let compact = Fuse_grid.fuse_checked ~grain:1 ~tolerance:0.2
+  let compact = Fuse_grid.fuse ~grain:1 ~tolerance:0.2
       ~remove_degenerate_primitives:true ~remove_all_unused_points:true source
       |> get_ok in
   check (Geometry.point_count compact = 3
       && (positions compact).x = [|0.05;1.;2.|])
     "Fuse cleanup all-unused-point compaction";
   let run domains = Parallel.run ~domains (fun () ->
-      Fuse_grid.fuse_checked ~grain:1 ~tolerance:0.2 ~remove_degenerate_primitives:true
+      Fuse_grid.fuse ~grain:1 ~tolerance:0.2 ~remove_degenerate_primitives:true
         ~remove_all_unused_points:true source |> get_ok) in
   let one = run 1 and four = run 4 in
   let one_topology = Topology.Private.view (Geometry.topology one)
@@ -483,7 +483,7 @@ let check_attribute_and_group_rules () =
   let ar ?weight pattern method_ = Fuse_grid.fuse_attribute_rule ?weight_attribute:weight
       ~pattern method_ in
   let gr pattern method_ = Fuse_grid.fuse_group_rule ~pattern method_ in
-  let output = Fuse_grid.fuse_checked ~tolerance:0. ~attribute_rules:[
+  let output = Fuse_grid.fuse ~tolerance:0. ~attribute_rules:[
       ar ~weight:"weight" "f" Fuse_reduce.Attribute_weighted_average;
       ar "i" Fuse_reduce.Attribute_average;
       ar "cat" Fuse_reduce.Attribute_concatenate;
@@ -504,7 +504,7 @@ let check_attribute_and_group_rules () =
     "Fuse scalar-to-array concatenate rule";
   List.iter (fun name -> check_point_group output name [0])
     ["least";"greatest";"any";"all";"majority"];
-  let reduce method_ = Fuse_grid.fuse_checked ~tolerance:0.
+  let reduce method_ = Fuse_grid.fuse ~tolerance:0.
       ~attribute_rules:[ar "f" method_] source |> get_ok
       |> fun geometry -> point_float geometry "f" in
   check (reduce Fuse_reduce.Attribute_minimum = [|1.|]) "Fuse attribute minimum";
@@ -516,7 +516,7 @@ let check_attribute_and_group_rules () =
     "Fuse attribute sum squares";
   check (near (reduce Fuse_reduce.Attribute_root_mean_square).(0) 2.5)
     "Fuse attribute RMS";
-  let text method_ = Fuse_grid.fuse_checked ~tolerance:0.
+  let text method_ = Fuse_grid.fuse ~tolerance:0.
       ~attribute_rules:[ar "label" method_] source |> get_ok
       |> fun geometry -> point_text geometry "label" in
   check (text Fuse_reduce.Attribute_minimum = [|"a"|]) "Fuse text minimum";
@@ -527,7 +527,7 @@ let check_attribute_and_group_rules () =
     "Fuse text concatenate";
   let row_source = Line_geometry.points [|(0.,0.,0.); (0.,0.,0.)|]
       |> add_point_int_array "rows" ~offsets:[|0;2;3|] ~values:[|1;2;3|] in
-  let row_output = Fuse_grid.fuse_checked ~tolerance:0.
+  let row_output = Fuse_grid.fuse ~tolerance:0.
       ~attribute_rules:[ar "rows" Fuse_reduce.Attribute_concatenate] row_source
       |> get_ok |> fun geometry -> point_int_array geometry "rows" in
   check (row_output.offsets = [|0;3|]
@@ -535,23 +535,23 @@ let check_attribute_and_group_rules () =
     "Fuse packed integer-array concatenate";
   let extreme = Line_geometry.points [|(0.,0.,0.); (0.,0.,0.)|]
       |> add_point_int "extreme" [|max_int;max_int|] in
-  let extreme_average = Fuse_grid.fuse_checked ~tolerance:0.
+  let extreme_average = Fuse_grid.fuse ~tolerance:0.
       ~attribute_rules:[ar "extreme" Fuse_reduce.Attribute_average] extreme |> get_ok in
   check (point_int extreme_average "extreme" = [|max_int|])
     "Fuse integer average overflowed equal maximum values";
   let overflow = Line_geometry.points [|(0.,0.,0.); (0.,0.,0.)|]
       |> add_point_int "overflow" [|max_int;1|] in
-  expect_code "invalid_geometry" (Fuse_grid.fuse_checked ~tolerance:0.
+  expect_code "invalid_geometry" (Fuse_grid.fuse ~tolerance:0.
       ~attribute_rules:[ar "overflow" Fuse_reduce.Attribute_sum] overflow);
-  let ignored_weight = Fuse_grid.fuse_checked ~tolerance:0. ~attribute_rules:[
+  let ignored_weight = Fuse_grid.fuse ~tolerance:0. ~attribute_rules:[
       ar ~weight:"missing" "f" Fuse_reduce.Attribute_average] source |> get_ok in
   check (point_float ignored_weight "f" = [|2.25|])
     "Fuse unweighted rule consulted an irrelevant weight attribute";
   check ((ar ~weight:"missing" "f" Fuse_reduce.Attribute_average).weight_attribute = None)
     "Fuse unweighted rule retained an irrelevant cache parameter";
-  expect_code "invalid_geometry" (Fuse_grid.fuse_checked ~attribute_rules:[
+  expect_code "invalid_geometry" (Fuse_grid.fuse ~attribute_rules:[
       ar "[bad" Fuse_reduce.Attribute_minimum] (Line_geometry.points [|(0.,0.,0.)|]));
-  expect_code "invalid_geometry" (Fuse_grid.fuse_checked ~attribute_rules:[
+  expect_code "invalid_geometry" (Fuse_grid.fuse ~attribute_rules:[
       ar "f" Fuse_reduce.Attribute_weighted_sum] source);
   let pair = Line_geometry.points [|(0.,0.,0.); (2.,0.,0.); (10.,0.,0.)|]
       |> add_point_float "f" [|0.;10.;99.|]
@@ -562,7 +562,7 @@ let check_attribute_and_group_rules () =
       (fun point -> point = 0)
   and targets = Group.init ~owner:Group.Point ~name:"targets" 3
       (fun point -> point = 1) in
-  let modified = Fuse_grid.fuse_checked ~selection:queries ~target_selection:targets
+  let modified = Fuse_grid.fuse ~selection:queries ~target_selection:targets
       ~modify_target:true ~fuse_points:false ~tolerance:3.
       ~attribute_rules:[ar "f" Fuse_reduce.Attribute_average]
       ~group_rules:[gr "linked" Fuse_reduce.Group_union;
@@ -572,7 +572,7 @@ let check_attribute_and_group_rules () =
     "Modify Target pattern-scoped attribute reduction";
   check_point_group modified "linked" [0;1];
   check_point_group modified "minority" [];
-  let metadata = Fuse_grid.fuse_checked ~selection:queries ~target_selection:targets
+  let metadata = Fuse_grid.fuse ~selection:queries ~target_selection:targets
       ~modify_target:true ~tolerance:3.
       ~attribute_rules:[ar "*" Fuse_reduce.Attribute_average]
       ~snapped_group:"snapped_after_rules"
@@ -590,7 +590,7 @@ let check_attribute_and_group_rules () =
       |> fun geometry -> Geometry.with_group
           (Group.init ~owner:Group.Point ~name:"target_only" 2
             (fun point -> point = 1)) geometry |> get_string_ok in
-  let fixed = Fuse_grid.fuse_checked ~target:fixed_target ~using:Fuse_grid.Closest_target_point
+  let fixed = Fuse_grid.fuse ~target:fixed_target ~using:Fuse_grid.Closest_target_point
       ~tolerance:0.2 ~fuse_points:false ~attribute_rules:[
         ar ~weight:"tw" "f" Fuse_reduce.Attribute_weighted_average;
         ar "cat" Fuse_reduce.Attribute_concatenate]
@@ -603,25 +603,25 @@ let check_attribute_and_group_rules () =
   check_point_group fixed "target_only" [1];
   let fixed_same = Line_geometry.points [|(0.,0.,0.); (2.,0.,0.); (10.,0.,0.)|]
       |> add_point_float "f" [|0.;10.;99.|] in
-  let fixed_same_output = Fuse_grid.fuse_checked ~selection:queries
+  let fixed_same_output = Fuse_grid.fuse ~selection:queries
       ~target_selection:targets ~fuse_points:false ~tolerance:3.
       ~attribute_rules:[ar "f" Fuse_reduce.Attribute_average] fixed_same |> get_ok in
   check (point_float fixed_same_output "f" = [|10.;10.;99.|])
     "same-geometry fixed target copied rather than interpolated";
   let implicit_modify = Line_geometry.points [|(0.,0.,0.); (1.,0.,0.)|]
       |> add_point_float "f" [|0.;10.|]
-      |> Fuse_grid.fuse_checked ~tolerance:2. ~fuse_points:false
+      |> Fuse_grid.fuse ~tolerance:2. ~fuse_points:false
           ~attribute_rules:[ar "f" Fuse_reduce.Attribute_average] |> get_ok in
   check (point_float implicit_modify "f" = [|5.;5.|])
     "omitted target group did not imply Modify Target";
-  let kept = Fuse_grid.fuse_checked ~tolerance:0. ~keep_fused_points:true
+  let kept = Fuse_grid.fuse ~tolerance:0. ~keep_fused_points:true
       ~attribute_rules:[ar "f" Fuse_reduce.Attribute_average] source |> get_ok in
   check (Geometry.point_count kept = 4
       && point_float kept "f" = Array.make 4 2.25)
     "Keep Fused Points did not expand rule reduction";
   let grid_rule = Line_geometry.points [|(0.2,0.,0.); (0.3,0.,0.)|]
       |> add_point_float "f" [|1.;3.|]
-      |> Fuse_grid.snap_to_grid_checked ~fuse_points:true
+      |> Fuse_grid.snap_to_grid ~fuse_points:true
           ~attribute_rules:[ar "f" Fuse_reduce.Attribute_average] |> get_ok in
   check (Geometry.point_count grid_rule = 1
       && point_float grid_rule "f" = [|2.|])
@@ -630,11 +630,11 @@ let check_attribute_and_group_rules () =
       |> add_point_float "value" [|1.|]
   and incompatible_target = Line_geometry.points [|(0.,0.,0.)|]
       |> add_point_int "value" [|1|] in
-  expect_code "invalid_geometry" (Fuse_grid.fuse_checked ~target:incompatible_target
+  expect_code "invalid_geometry" (Fuse_grid.fuse ~target:incompatible_target
       ~tolerance:1. ~fuse_points:false
       ~attribute_rules:[ar "value" Fuse_reduce.Attribute_average]
       incompatible_source);
-  let fixed_position = Fuse_grid.fuse_checked ~target:(Line_geometry.points [|(2.,0.,0.)|])
+  let fixed_position = Fuse_grid.fuse ~target:(Line_geometry.points [|(2.,0.,0.)|])
       ~tolerance:3. ~position:Fuse_reduce.Sum_position
       (Line_geometry.points [|(0.,0.,0.); (0.1,0.,0.)|]) |> get_ok in
   check (Geometry.point_count fixed_position = 1
@@ -645,7 +645,7 @@ let check_restricted_fuse () =
   let source = Line_geometry.points [|(0.,0.,0.); (0.0005,0.,0.); (0.0005,0.,0.)|] in
   let selection = Group.init ~owner:Group.Point ~name:"query" 3
       (fun point -> point < 2) in
-  let output = Fuse_grid.fuse_checked ~selection ~tolerance:0.001
+  let output = Fuse_grid.fuse ~selection ~tolerance:0.001
       ~position:Fuse_reduce.Average_position source |> get_ok in
   let p = positions output in
   check (Geometry.point_count output = 2) "restricted Fuse cardinality";
@@ -653,31 +653,31 @@ let check_restricted_fuse () =
     "restricted Fuse position";
   let only_unselected = Group.init ~owner:Group.Point ~name:"query" 3
       (fun point -> point = 2) in
-  let unchanged = Fuse_grid.fuse_checked ~selection:only_unselected ~tolerance:1. source
+  let unchanged = Fuse_grid.fuse ~selection:only_unselected ~tolerance:1. source
       |> get_ok in
   check (unchanged == source) "restricted Fuse no-op identity"
 
 let check_cluster_contract () =
   let chain = Line_geometry.points [|(0.,0.,0.); (0.009,0.,0.); (0.018,0.,0.)|]
-      |> Fuse_grid.fuse_checked ~tolerance:0.01 |> get_ok in
+      |> Fuse_grid.fuse ~tolerance:0.01 |> get_ok in
   let chain_positions = positions chain in
   check (Geometry.point_count chain = 2
       && near chain_positions.x.(0) 0.0045
       && near chain_positions.x.(1) 0.018)
     "Fuse lost representative-bounded non-transitive clustering";
   let signed_zero = Line_geometry.points [|(0.,0.,0.); (-0.,0.,0.)|]
-      |> Fuse_grid.fuse_checked ~tolerance:0. |> get_ok in
+      |> Fuse_grid.fuse ~tolerance:0. |> get_ok in
   check (Geometry.point_count signed_zero = 1)
     "Fuse exact hashing distinguished signed zero";
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
-  expect_code "cancelled" (Fuse_grid.fuse_checked ~cancel:cancelled ~tolerance:0.
+  expect_code "cancelled" (Fuse_grid.fuse ~cancel:cancelled ~tolerance:0.
       (Line_geometry.points [|(0.,0.,0.); (0.,0.,0.)|]))
 
 let check_rounding () =
   let source = Line_geometry.points [|(-0.6,0.,0.); (-0.5,0.,0.); (-0.4,0.,0.);
       (0.4,0.,0.); (0.5,0.,0.); (0.6,0.,0.)|] in
-  let snap rounding = Fuse_grid.snap_to_grid_checked ~rounding source |> get_ok |> positions in
+  let snap rounding = Fuse_grid.snap_to_grid ~rounding source |> get_ok |> positions in
   check ((snap Fuse_grid.Grid_nearest).x = [|-1.;0.;0.;0.;1.;1.|])
     "nearest grid rounding and tie policy";
   check ((snap Fuse_grid.Grid_down).x = [|-1.;-1.;-1.;0.;0.;0.|])
@@ -689,7 +689,7 @@ let check_offset_tolerance_selection () =
   let source = Line_geometry.points [|(0.2,0.,0.); (0.8,0.,0.); (0.2,0.,0.)|] in
   let selection = Group.init ~owner:Group.Point ~name:"selected" 3
       (fun point -> point < 2) in
-  let output = Fuse_grid.snap_to_grid_checked ~selection
+  let output = Fuse_grid.snap_to_grid ~selection
       ~offset:(Vec3.create 0.25 0. 0.) ~max_distance:0.1
       ~snapped_group:"snapped" source |> get_ok in
   let p = positions output in
@@ -709,7 +709,7 @@ let check_fuse_and_payload () =
   let normal = Attribute.create_key_owned (Attribute.normal ~owner:Attribute.Point)
       normals |> get_string_ok in
   let source = source |> add_attribute weight |> add_attribute normal in
-  let output = Fuse_grid.snap_to_grid_checked ~fuse_points:true
+  let output = Fuse_grid.snap_to_grid ~fuse_points:true
       ~attributes:Fuse_reduce.Average_numeric ~snapped_group:"snapped" source |> get_ok in
   check (Geometry.point_count output = 1) "grid post-snap fusion cardinality";
   check ((point_float output "weight").(0) = 3.)
@@ -721,33 +721,33 @@ let check_fuse_and_payload () =
        "grid post-fuse snapped group"
    | None -> fail "grid post-fuse snapped group missing");
   let coincident = Line_geometry.points [|(0.,0.,0.); (0.,0.,0.)|]
-      |> Fuse_grid.snap_to_grid_checked ~fuse_points:true |> get_ok in
+      |> Fuse_grid.snap_to_grid ~fuse_points:true |> get_ok in
   check (Geometry.point_count coincident = 1)
     "grid fusion skipped already-snapped duplicates"
 
 let check_noop_and_validation () =
   let source = Line_geometry.points [|(0.,0.,0.)|] in
-  check (Fuse_grid.snap_to_grid_checked source |> get_ok == source)
+  check (Fuse_grid.snap_to_grid source |> get_ok == source)
     "exact grid input did not preserve identity";
   let wrong = Group.init ~owner:Group.Primitive ~name:"wrong" 0
       (fun _ -> false) in
-  expect_code "invalid_geometry" (Fuse_grid.snap_to_grid_checked ~selection:wrong source);
-  expect_code "invalid_geometry" (Fuse_grid.snap_to_grid_checked
+  expect_code "invalid_geometry" (Fuse_grid.snap_to_grid ~selection:wrong source);
+  expect_code "invalid_geometry" (Fuse_grid.snap_to_grid
       ~spacing:(Vec3.create 1. 0. 1.) source);
-  expect_code "invalid_geometry" (Fuse_grid.snap_to_grid_checked
+  expect_code "invalid_geometry" (Fuse_grid.snap_to_grid
       ~offset:(Vec3.create 1.1 0. 0.) source);
-  expect_code "invalid_geometry" (Fuse_grid.snap_to_grid_checked ~max_distance:(-1.) source);
-  expect_code "invalid_geometry" (Fuse_grid.snap_to_grid_checked ~snapped_group:"" source);
+  expect_code "invalid_geometry" (Fuse_grid.snap_to_grid ~max_distance:(-1.) source);
+  expect_code "invalid_geometry" (Fuse_grid.snap_to_grid ~snapped_group:"" source);
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
-  expect_code "cancelled" (Fuse_grid.snap_to_grid_checked ~cancel:cancelled
+  expect_code "cancelled" (Fuse_grid.snap_to_grid ~cancel:cancelled
       (Plane_generators.grid ~columns:10 ~rows:10 ~size:1. () |> get_ok))
 
 let check_parallel_exact () =
   let source = Plane_generators.grid ~columns:500 ~rows:300 ~size:20. () |> get_ok
       |> Deform.noise_displace ~seed:81 ~amplitude:0.37 ~frequency:0.29 |> get_ok in
   let run domains = Parallel.run ~domains (fun () ->
-    Fuse_grid.snap_to_grid_checked ~grain:1024 ~spacing:(Vec3.create 0.03125 0.03125 0.03125)
+    Fuse_grid.snap_to_grid ~grain:1024 ~spacing:(Vec3.create 0.03125 0.03125 0.03125)
       ~offset:(Vec3.create 0.25 0.5 0.75) ~snapped_group:"snapped" source
       |> get_ok) in
   let one = run 1 and many = run 4 in

@@ -1706,7 +1706,7 @@ let facet ?cancel ?(grain = 16_384) ?primitives
           let selection = Option.map (fun primitives ->
             facet_point_selection ?cancel ~grain primitives geometry)
               (current_selection geometry) in
-          Fuse_grid.fuse ?cancel ~grain ?selection ~tolerance geometry
+          Error.unguard (Fuse_grid.fuse ?cancel ~grain ?selection ~tolerance geometry)
       | None, Some distance ->
           consolidate_normals ?cancel ~grain
             ?primitives:(current_selection geometry) ~distance geometry

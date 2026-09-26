@@ -2191,11 +2191,11 @@ let run_fuse_benchmarks () =
   let selection = Group.init ~grain ~owner:Group.Point ~name:"snap_points"
       point_count (fun point -> point land 1 = 0) in
   measure ~input_points:point_count "snap_to_grid_all" (fun () ->
-    Fuse_grid.snap_to_grid_checked ~grain ~spacing:(Vec3.create 0.03125 0.03125 0.03125)
+    Fuse_grid.snap_to_grid ~grain ~spacing:(Vec3.create 0.03125 0.03125 0.03125)
       ~offset:(Vec3.create 0.25 0.5 0.75) ~snapped_group:"snapped" source
       |> get_ok) geometry_output;
   measure ~input_points:point_count "snap_to_grid_half_group" (fun () ->
-    Fuse_grid.snap_to_grid_checked ~grain ~selection
+    Fuse_grid.snap_to_grid ~grain ~selection
       ~spacing:(Vec3.create 0.03125 0.03125 0.03125)
       ~offset:(Vec3.create 0.25 0.5 0.75) ~snapped_group:"snapped" source
       |> get_ok) geometry_output;
@@ -2203,17 +2203,17 @@ let run_fuse_benchmarks () =
   let duplicate = Mesh_merge.run ~grain [duplicate; duplicate] |> get_ok in
   let duplicate_count = Geometry.point_count duplicate in
   measure ~input_points:duplicate_count "fuse_grid_duplicate_pair" (fun () ->
-    Fuse_grid.snap_to_grid_checked ~grain ~spacing:(Vec3.create 0.05 0.05 0.05)
+    Fuse_grid.snap_to_grid ~grain ~spacing:(Vec3.create 0.05 0.05 0.05)
       ~fuse_points:true ~snapped_group:"snapped" duplicate |> get_ok)
     geometry_output;
   measure ~input_points:duplicate_count "fuse_exact_duplicate_pair" (fun () ->
-    Fuse_grid.fuse_checked ~grain ~tolerance:0. duplicate |> get_ok) geometry_output;
+    Fuse_grid.fuse ~grain ~tolerance:0. duplicate |> get_ok) geometry_output;
   let target = Plane_generators.grid ~columns:500 ~rows:400 ~size:30. () |> get_ok in
   let query = Transform_ops.transform ~grain
       (Mat4.translation (Vec3.create 0.013 (-0.017) 0.009)) target in
   let target_count = Geometry.point_count target in
   measure ~input_points:(target_count * 2) "fuse_target_closest_snap" (fun () ->
-    Fuse_grid.fuse_checked ~grain ~target ~using:Fuse_grid.Closest_target_point ~tolerance:0.05
+    Fuse_grid.fuse ~grain ~target ~using:Fuse_grid.Closest_target_point ~tolerance:0.05
       ~fuse_points:false ~snapped_group:"snapped"
       ~snapped_destination_attribute:"destination" query |> get_ok)
     geometry_output;
@@ -2237,7 +2237,7 @@ let run_fuse_benchmarks () =
       |> add_point_attribute (Attribute.create_owned ~owner:Attribute.Point
           ~name:"catalog" (Attribute.Int (Array.make target_count (-1))) |> get_ok) in
   measure ~input_points:(target_count * 2) "fuse_target_attribute_rules" (fun () ->
-    Fuse_grid.fuse_checked ~grain ~target:target_rules ~using:Fuse_grid.Closest_target_point
+    Fuse_grid.fuse ~grain ~target:target_rules ~using:Fuse_grid.Closest_target_point
       ~tolerance:0.05 ~fuse_points:false ~attribute_rules:[
         Fuse_grid.fuse_attribute_rule ~pattern:"signal" ~weight_attribute:"weight"
           Fuse_reduce.Attribute_weighted_average;
@@ -2257,7 +2257,7 @@ let run_fuse_benchmarks () =
   and targets = Group.init ~grain ~owner:Group.Point ~name:"targets"
       linked_count (fun point -> point >= target_count) in
   measure ~input_points:linked_count "fuse_modify_target_weighted_pair"
-    (fun () -> Fuse_grid.fuse_checked ~grain ~selection:queries ~target_selection:targets
+    (fun () -> Fuse_grid.fuse ~grain ~selection:queries ~target_selection:targets
       ~using:Fuse_grid.Closest_target_point ~tolerance:0.05 ~modify_target:true
       ~position:Fuse_reduce.Weighted_average_position ~weight_attribute:"weight"
       linked |> get_ok) geometry_output;
@@ -2280,7 +2280,7 @@ let run_fuse_benchmarks () =
           (Group.init ~grain ~owner:Group.Point ~name:"marked" linked_count
             (fun point -> point land 1 = 0)) geometry |> get_ok in
   measure ~input_points:linked_count "fuse_modify_target_attribute_rules"
-    (fun () -> Fuse_grid.fuse_checked ~grain ~selection:queries ~target_selection:targets
+    (fun () -> Fuse_grid.fuse ~grain ~selection:queries ~target_selection:targets
       ~using:Fuse_grid.Closest_target_point ~tolerance:0.05 ~modify_target:true
       ~attribute_rules:[
         Fuse_grid.fuse_attribute_rule ~pattern:"signal" ~weight_attribute:"weight"
@@ -2293,7 +2293,7 @@ let run_fuse_benchmarks () =
   let cleanup_grid = Plane_generators.grid ~columns:500 ~rows:400 ~size:30. () |> get_ok in
   measure ~input_points:(Geometry.point_count cleanup_grid)
     "fuse_cleanup_grid_pairs" (fun () ->
-      Fuse_grid.fuse_checked ~grain ~tolerance:0.061 ~remove_degenerate_primitives:true
+      Fuse_grid.fuse ~grain ~tolerance:0.061 ~remove_degenerate_primitives:true
         ~remove_all_unused_points:true cleanup_grid |> get_ok) geometry_output
 
 let run_bound_benchmarks () =
@@ -6101,7 +6101,7 @@ let () =
       modeling_grid |> get_ok) geometry_output;
   let fuse_source = Mesh_merge.run ~grain [modeling_grid; modeling_grid] |> get_ok in
   measure "fuse_exact_pair" (fun () ->
-    Fuse_grid.fuse_checked ~grain ~tolerance:0. ~match_attributes:true fuse_source |> get_ok)
+    Fuse_grid.fuse ~grain ~tolerance:0. ~match_attributes:true fuse_source |> get_ok)
     geometry_output;
   let modeling_points = Geometry.point_count modeling_grid in
   measure ~input_points:modeling_points "poly_extrude" (fun () ->

@@ -140,6 +140,7 @@ let fuse ?cancel ?(grain = 16_384) ?selection ?target_selection
     ?snapped_destination_attribute ?(remove_degenerate_primitives = false)
     ?(remove_unused_points_from_degenerate_primitives = false)
     ?(remove_all_unused_points = false) ?target geometry =
+  Error.guard ~operation:"fuse" ~code:"invalid_geometry" @@ fun () ->
   match Fuse_rules.validate ~attribute_rules ~group_rules geometry with
   | Error message -> Error message
   | Ok () ->
@@ -329,6 +330,7 @@ let snap_to_grid ?cancel ?(grain = 16_384) ?selection
     ?(position = Average_position) ?weight_attribute
     ?(attributes = Keep_first) ?(attribute_rules = []) ?(group_rules = [])
     ?snapped_group geometry =
+  Error.guard ~operation:"snap_to_grid" ~code:"invalid_geometry" @@ fun () ->
   if grain <= 0 then invalid_arg "Pdk.Fuse_grid.snap_to_grid: grain must be positive";
   let count = Geometry.point_count geometry in
   let finite3 value = finite value.Vec3.x && finite value.y && finite value.z in
@@ -426,32 +428,6 @@ let snap_to_grid ?cancel ?(grain = 16_384) ?selection
                   ~length:count changed in
               Geometry.with_group group output |> get_ok in
         if not fuse_points then Ok output
-        else fuse ?cancel ~grain ?selection ~tolerance:0. ~position
-            ?weight_attribute ~attributes ~attribute_rules ~group_rules output
+        else Error.unguard (fuse ?cancel ~grain ?selection ~tolerance:0. ~position
+            ?weight_attribute ~attributes ~attribute_rules ~group_rules output)
   end
-
-let fuse_checked ?cancel ?grain ?selection ?target_selection ?targeting ?using
-    ?tolerance ?position ?weight_attribute ?attributes ?metric ?inclusive
-    ?attribute_rules ?group_rules ?match_attributes
-    ?radius_attribute ?match_attribute ?match_condition ?match_tolerance
-    ?modify_target ?fuse_points ?keep_fused_points ?snapped_group
-    ?snapped_destination_attribute ?remove_degenerate_primitives
-    ?remove_unused_points_from_degenerate_primitives ?remove_all_unused_points
-    ?target geometry =
-  Error.guard ~operation:"fuse" ~code:"invalid_geometry" (fun () ->
-    fuse ?cancel ?grain ?selection ?target_selection ?targeting ?using
-      ?tolerance ?position ?weight_attribute ?attributes ?metric ?inclusive
-      ?attribute_rules ?group_rules ?match_attributes
-      ?radius_attribute ?match_attribute ?match_condition ?match_tolerance
-      ?modify_target ?fuse_points ?keep_fused_points ?snapped_group
-      ?snapped_destination_attribute ?remove_degenerate_primitives
-      ?remove_unused_points_from_degenerate_primitives ?remove_all_unused_points
-      ?target geometry)
-
-let snap_to_grid_checked ?cancel ?grain ?selection ?spacing ?offset ?rounding
-    ?max_distance ?fuse_points ?position ?weight_attribute ?attributes
-    ?attribute_rules ?group_rules ?snapped_group geometry =
-  Error.guard ~operation:"snap_to_grid" ~code:"invalid_geometry" (fun () ->
-    snap_to_grid ?cancel ?grain ?selection ?spacing ?offset ?rounding
-      ?max_distance ?fuse_points ?position ?weight_attribute ?attributes
-      ?attribute_rules ?group_rules ?snapped_group geometry)

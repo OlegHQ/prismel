@@ -301,7 +301,7 @@ val merge : ?label:string -> Node.t list -> Node.t
     targeting supports least-number or closest targets, radius expansion, and
     scalar match filters; specified targeting reads query point target numbers.
     Position reducers, same-input Modify Target, Keep Fused Points, and
-    topology/unused-point cleanup correspond to Pdk.Fuse_grid.fuse_checked. Snap-only mode
+    topology/unused-point cleanup correspond to Pdk.Fuse_grid.fuse. Snap-only mode
     preserves topology, while output metadata records mapped queries and
     destinations. *)
 val fuse :

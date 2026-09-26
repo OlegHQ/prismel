@@ -170,7 +170,7 @@ let test_ordered_group_topology_remap () =
   let fuse_source = Line_geometry.points
       [|(0., 0., 0.); (0., 0., 0.); (1., 0., 0.); (2., 0., 0.)|]
       |> with_ordered_group Group.Point "path" [|1; 0; 3|] in
-  let fused = Fuse_grid.fuse_checked ~grain:1 ~tolerance:0. fuse_source |> get_ok in
+  let fused = Fuse_grid.fuse ~grain:1 ~tolerance:0. fuse_source |> get_ok in
   check (ordered_group_members (ordinary Group.Point "path" fused) = [0; 2])
     "fuse collapses duplicate ordered members at first sequence occurrence"
 
