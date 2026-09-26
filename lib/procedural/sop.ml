@@ -1065,11 +1065,11 @@ let mirror ?label ?(keep_original = true) ~origin ~normal input =
       | Error error -> structured_pdk_error error)
 
 let clip_keep_key = function
-  | Pdk.Ops.Above -> "above"
-  | Pdk.Ops.Below -> "below"
-  | Pdk.Ops.All -> "all"
+  | Pdk.Plane_clip.Above -> "above"
+  | Pdk.Plane_clip.Below -> "below"
+  | Pdk.Plane_clip.All -> "all"
 
-let clip ?label ?(keep = Pdk.Ops.Above) ?(snapping_tolerance = 1e-9)
+let clip ?label ?(keep = Pdk.Plane_clip.Above) ?(snapping_tolerance = 1e-9)
     ?(fill = false) ?(split_connectivity = false) ?(clip_attribute = "P")
     ?(distance = 0.) ?selection ?(replace_existing_groups = true)
     ?clipped_edge_group ?cap_group ?clipped_group ?above_group ?below_group
@@ -1097,7 +1097,7 @@ let clip ?label ?(keep = Pdk.Ops.Above) ?(snapping_tolerance = 1e-9)
     (fun ~node_id:_ context inputs ->
       match resolve_element_group ~operation:"clip" selection inputs.(0) with
       | Error error -> Error error
-      | Ok selection -> match Pdk.Ops.clip ~cancel:(Context.cancel_token context)
+      | Ok selection -> match Pdk.Plane_clip.clip_checked ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ~keep ~snapping_tolerance ~fill
           ~split_connectivity ~clip_attribute ~distance ?selection
           ~replace_existing_groups

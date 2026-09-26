@@ -654,7 +654,7 @@ let run () =
   let clipped = Sop.uv_sphere ~segments:96 ~rings:64 ~radius:2. ()
       |> Sop.color_by_height ~low:Color.blue ~high:Color.red
       |> Sop.group_edges ~name:"sphere_edges"
-      |> Sop.clip ~keep:Ops.All ~fill:true ~split_connectivity:true
+      |> Sop.clip ~keep:Plane_clip.All ~fill:true ~split_connectivity:true
            ~selection:(Sop.Edge_group "sphere_edges")
            ~distance:0.075 ~clipped_edge_group:"clip_edges"
            ~cap_group:"caps" ~above_group:"above" ~below_group:"below"

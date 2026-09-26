@@ -1603,7 +1603,7 @@ let run () =
       (Attribute.Float (Array.copy shared_positions.x)) |> get_ok in
   let clip_source = Geometry.with_attribute clip_weight shared_box |> get_ok in
   let clipped domains = Parallel.run ~domains (fun () ->
-      Ops.clip ~grain:1 ~keep:Ops.Above ~fill:true ~cap_group:"cap"
+      Plane_clip.clip_checked ~grain:1 ~keep:Plane_clip.Above ~fill:true ~cap_group:"cap"
         ~clipped_group:"cut" ~origin:Vec3.zero ~normal:Vec3.unit_x
         clip_source |> get_ok) in
   let clipped_one = clipped 1 and clipped_many = clipped 4 in
@@ -1646,7 +1646,7 @@ let run () =
     if abs_float (clipped_weights clipped_one).(point) > 1e-12 then
       fail "clip point attribute interpolation"
   done;
-  let split = Ops.clip ~keep:Ops.All ~split_connectivity:true
+  let split = Plane_clip.clip_checked ~keep:Plane_clip.All ~split_connectivity:true
       ~above_group:"above" ~below_group:"below" ~origin:Vec3.zero
       ~normal:Vec3.unit_x clip_source |> get_ok in
   let split_topology = Geometry.topology split
@@ -1669,7 +1669,7 @@ let run () =
         fail "clip split connectivity shared a plane point"
     done) below;
   let clipped_curve = Line_geometry.polyline_checked [|(-1.,0.,0.); (0.,1.,0.); (1.,0.,0.)|]
-      |> get_ok |> Ops.clip ~keep:Ops.Above ~origin:Vec3.zero
+      |> get_ok |> Plane_clip.clip_checked ~keep:Plane_clip.Above ~origin:Vec3.zero
            ~normal:Vec3.unit_x |> get_ok in
   if Geometry.primitive_count clipped_curve <> 1
      || Geometry.point_count clipped_curve <> 2
@@ -1680,7 +1680,7 @@ let run () =
   let point_ids = Attribute.create_owned ~name:"id" ~owner:Attribute.Point
       (Attribute.Int [|10; 20; 30|]) |> get_ok in
   let point_cloud = Geometry.with_attribute point_ids point_cloud |> get_ok in
-  let clipped_points = Ops.clip ~snapping_tolerance:0.001
+  let clipped_points = Plane_clip.clip_checked ~snapping_tolerance:0.001
       ~origin:Vec3.zero ~normal:Vec3.unit_x point_cloud |> get_ok in
   let clipped_point_ids = Geometry.find_attribute ~owner:Attribute.Point "id"
       clipped_points |> Option.get
@@ -1699,7 +1699,7 @@ let run () =
   let vertex_clip_source = Geometry.create ~positions:vertex_clip_positions
       ~topology:(Topology.Builder.freeze vertex_clip_topology)
       ~attributes:[vertex_u] () |> get_ok in
-  let vertex_clipped = Ops.clip ~origin:Vec3.zero ~normal:Vec3.unit_x
+  let vertex_clipped = Plane_clip.clip_checked ~origin:Vec3.zero ~normal:Vec3.unit_x
       vertex_clip_source |> get_ok in
   let vertex_u = Geometry.find_attribute ~owner:Attribute.Vertex "u"
       vertex_clipped |> Option.get
@@ -1714,7 +1714,7 @@ let run () =
   if List.sort Float.compare !plane_values <> [1.; 2.] then
     fail "clip vertex attribute interpolation";
   let closed_curve = Plane_generators.circle_checked ~segments:16 ~radius:1. () |> get_ok
-      |> Ops.clip ~origin:Vec3.zero ~normal:Vec3.unit_x |> get_ok in
+      |> Plane_clip.clip_checked ~origin:Vec3.zero ~normal:Vec3.unit_x |> get_ok in
   if Geometry.primitive_count closed_curve <> 1
      || Topology.primitive_kind (Geometry.topology closed_curve) 0
         <> Topology.Open_polyline then
@@ -1731,29 +1731,29 @@ let run () =
       ~primitive_kinds:(Bytes.make 1 '\000') in
   let concave = Geometry.create ~positions:(Geometry.positions concave)
       ~topology:concave_polygon () |> get_ok in
-  let concave_clipped = Ops.clip ~origin:Vec3.zero ~normal:Vec3.unit_y
+  let concave_clipped = Plane_clip.clip_checked ~origin:Vec3.zero ~normal:Vec3.unit_y
       concave |> get_ok in
   if Geometry.primitive_count concave_clipped <> 2
      || Geometry.vertex_count concave_clipped <> 8 then
     fail "clip did not reconstruct disconnected concave half-plane fragments";
-  (match Ops.clip ~split_connectivity:true ~origin:Vec3.zero
+  (match Plane_clip.clip_checked ~split_connectivity:true ~origin:Vec3.zero
       ~normal:Vec3.unit_x clip_source with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "clip accepted split connectivity outside keep-all mode");
-  (match Ops.clip ~cap_group:"same" ~above_group:"same" ~origin:Vec3.zero
+  (match Plane_clip.clip_checked ~cap_group:"same" ~above_group:"same" ~origin:Vec3.zero
       ~normal:Vec3.unit_x clip_source with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "clip accepted duplicate output group names");
-  let huge_normal_clip = Ops.clip ~origin:Vec3.zero
+  let huge_normal_clip = Plane_clip.clip_checked ~origin:Vec3.zero
       ~normal:(Vec3.create 1e300 0. 0.) clip_source |> get_ok
-  and unit_normal_clip = Ops.clip ~origin:Vec3.zero ~normal:Vec3.unit_x
+  and unit_normal_clip = Plane_clip.clip_checked ~origin:Vec3.zero ~normal:Vec3.unit_x
       clip_source |> get_ok in
   if not (equal_positions huge_normal_clip unit_normal_clip) then
     fail "clip normal normalization overflow";
-  (match Ops.clip ~origin:Vec3.zero ~normal:Vec3.zero clip_source with
+  (match Plane_clip.clip_checked ~origin:Vec3.zero ~normal:Vec3.zero clip_source with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "clip accepted a zero plane normal");
-  (match Ops.clip ~fill:true ~origin:(Vec3.create 0.5 0. 0.) ~normal:Vec3.unit_x
+  (match Plane_clip.clip_checked ~fill:true ~origin:(Vec3.create 0.5 0. 0.) ~normal:Vec3.unit_x
       triangle_geometry with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "clip filled an open polygon boundary");
@@ -2450,7 +2450,7 @@ let run () =
       subdivided_edge_geometry |> Option.get in
   if Edge_group.cardinality subdivided_edge_group <> 16 then
     fail "subdivision did not propagate selected source-edge children";
-  let clipped_edge_geometry = Ops.clip ~keep:Ops.Above
+  let clipped_edge_geometry = Plane_clip.clip_checked ~keep:Plane_clip.Above
       ~origin:(Vec3.create 0.5 0. 0.) ~normal:Vec3.unit_x quad_edges |> get_ok in
   let clipped_edge_group = Geometry.find_edge_group "quad_edges"
       clipped_edge_geometry |> Option.get in
@@ -4217,7 +4217,7 @@ let run () =
   (match Ops.mirror ~cancel:cancelled ~origin:Vec3.zero ~normal:Vec3.unit_x grid with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "cancelled mirror published geometry or wrong error");
-  (match Ops.clip ~cancel:cancelled ~origin:Vec3.zero ~normal:Vec3.unit_x grid with
+  (match Plane_clip.clip_checked ~cancel:cancelled ~origin:Vec3.zero ~normal:Vec3.unit_x grid with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "cancelled clip published geometry or wrong error");
   (match Attribute_ops.promote ~cancel:cancelled ~source:Attribute.Point

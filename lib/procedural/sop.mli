@@ -382,7 +382,7 @@ val mirror :
   Node.t -> Node.t
 val clip :
   ?label:string ->
-  ?keep:Pdk.Ops.clip_keep ->
+  ?keep:Pdk.Plane_clip.keep ->
   ?snapping_tolerance:float ->
   ?fill:bool ->
   ?split_connectivity:bool ->
@@ -403,7 +403,7 @@ val clip :
     optional manifold caps. *)
 val clip_transform :
   ?label:string ->
-  ?keep:Pdk.Ops.clip_keep ->
+  ?keep:Pdk.Plane_clip.keep ->
   ?snapping_tolerance:float ->
   ?fill:bool ->
   ?split_connectivity:bool ->

@@ -2149,7 +2149,7 @@ let test_generators_selections_and_delete () =
    | Ok _ -> fail "grid snap accepted a missing point group");
   let clip_node = Sop.box ~size:(Vec3.create 2. 2. 2.) ()
       |> Sop.fuse ~tolerance:0. ~attributes:Pdk.Fuse_reduce.Average_numeric
-      |> Sop.clip ~keep:Pdk.Ops.Above ~fill:true ~distance:0.25
+      |> Sop.clip ~keep:Pdk.Plane_clip.Above ~fill:true ~distance:0.25
            ~clipped_edge_group:"clip_edges" ~cap_group:"cap"
            ~origin:Vec3.zero ~normal:Vec3.unit_y
   in

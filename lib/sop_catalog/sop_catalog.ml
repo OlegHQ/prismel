@@ -1405,13 +1405,13 @@ end [@@sop.register]
 
 module Clip = struct
   let keep_parameter = Parameter.choice ~equal:( = ) [
-      "Above", Pdk.Ops.Above;
-      "Below", Pdk.Ops.Below;
-      "All", Pdk.Ops.All;
+      "Above", Pdk.Plane_clip.Above;
+      "Below", Pdk.Plane_clip.Below;
+      "All", Pdk.Plane_clip.All;
     ]
 
   type parameters = {
-    keep : Pdk.Ops.clip_keep [@sop.default Pdk.Ops.Above]
+    keep : Pdk.Plane_clip.keep [@sop.default Pdk.Plane_clip.Above]
       [@sop.label "Keep"] [@sop.kind keep_parameter];
     snapping_tolerance : float [@sop.default 1e-9]
       [@sop.label "Snapping tolerance"] [@sop.folder "Robustness"]
