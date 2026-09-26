@@ -6976,7 +6976,7 @@ let peak ?label ?selection ?direction_attribute ?(normalize_direction = true)
       match resolve_element_group ~operation:"peak" selection inputs.(0) with
       | Error error -> Error error
       | Ok selection ->
-          match Pdk.Deform_ops.peak_checked ~cancel:(Context.cancel_token context)
+          match Pdk.Deform.peak ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?selection ?direction_attribute
               ~normalize_direction ?mask_attribute ~distance ~recompute_normals
               inputs.(0) with
@@ -7021,7 +7021,7 @@ let bend ?label ?selection ?mask_attribute ?(origin = Vec3.zero)
       match resolve_element_group ~operation:"bend" selection inputs.(0) with
       | Error error -> Error error
       | Ok selection ->
-          match Pdk.Deform_ops.bend_checked ~cancel:(Context.cancel_token context)
+          match Pdk.Deform.bend ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?selection ?mask_attribute ~origin
               ~direction ~up ~length ~bend_angle ~twist_angle ~limit
               ~both_directions ~continuous_twist ?capture_attribute
@@ -7077,7 +7077,7 @@ let mountain ?label ?group ?seed ?direction_attribute
           let identity = Option.value ~default:(Int64.of_int node_id)
               stable_identity in
           let seed = Option.value ~default:(mixed_seed context identity) seed in
-          match Pdk.Deform_ops.mountain_checked ~cancel:(Context.cancel_token context)
+          match Pdk.Deform.mountain ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?selection ?direction_attribute
               ~normalize_direction ?mask_attribute ~seed ~height ~frequency
               ~offset ~octaves ~lacunarity ~roughness ?height_attribute
@@ -7280,7 +7280,7 @@ let point_jitter ?label ?group ?mask_attribute ?id_attribute ?seed
           let identity = Option.value ~default:(Int64.of_int node_id)
               stable_identity in
           let seed = Option.value ~default:(mixed_seed context identity) seed in
-          match Pdk.Deform_ops.point_jitter_checked ~cancel:(Context.cancel_token context)
+          match Pdk.Point_jitter.run ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?points ?mask_attribute
               ?id_attribute ~use_point_scale ~seed:(Rand.seed seed) ~scale
               ~axis_scales inputs.(0) with
@@ -7474,7 +7474,7 @@ let noise_displace ?label ?seed ~amplitude ~frequency input =
     (fun ~node_id context inputs ->
       let identity = Option.value ~default:(Int64.of_int node_id) stable_identity in
       let seed = Option.value ~default:(mixed_seed context identity) seed in
-      match Pdk.Deform_ops.noise_displace_checked ~grain:(Context.grain context)
+      match Pdk.Deform.noise_displace ~grain:(Context.grain context)
           ~cancel:(Context.cancel_token context)
           ~amplitude ~frequency ~seed inputs.(0) with
       | Ok geometry -> cooked geometry

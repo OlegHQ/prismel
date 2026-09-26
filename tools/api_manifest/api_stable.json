@@ -193,15 +193,6 @@
       "source_sha256": "44db1cb8acddd93550ad4f50d3da2a7bb1e164cf9572edaa297054448ebbc13e"
     },
     {
-      "api_sha256": "7ba02ce92a0fd2fce95ffb4b6659903efbac6eb074d12b407d294b95da5a4ac7",
-      "excluded_legacy_symbols": [],
-      "library": "pdk",
-      "module": "Deform_ops",
-      "source": "lib/pdk/mesh/deform_ops.mli",
-      "source_bytes": 1603,
-      "source_sha256": "77f85b94d8ac536ee46b02c44b2b0283fa00907eead48132f835e89c2b86caf4"
-    },
-    {
       "api_sha256": "f657a961084e33cb8df2eaffdd506663cafcf1c7f543d42cd123f86e52ed1f7d",
       "excluded_legacy_symbols": [],
       "library": "pdk",
@@ -488,6 +479,15 @@
       "source": "lib/pdk/gen/point_generate.mli",
       "source_bytes": 1096,
       "source_sha256": "b166a8a1384c3d2df52123f449c8019f20b1dee77903eb468b30046f2c383ee9"
+    },
+    {
+      "api_sha256": "83c651b81d68a3c07ed929e87b249fab13d8a33066c828cac166df298d90b1db",
+      "excluded_legacy_symbols": [],
+      "library": "pdk",
+      "module": "Point_jitter",
+      "source": "lib/pdk/gen/point_jitter.mli",
+      "source_bytes": 367,
+      "source_sha256": "46e19e684fc0d010620669a2d9e57078a4fd25965d5174439c1926abc732d44e"
     },
     {
       "api_sha256": "972efe591a573c5a939274777b4059920695d8915c4aad6287b97d082ea46a7b",

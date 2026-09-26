@@ -244,8 +244,10 @@ let finish_positions ?cancel ~grain ~recompute_normals geometry x y z =
       |> Geometry.without_attribute ~owner:Attribute.Point "N"
       |> Geometry.without_attribute ~owner:Attribute.Vertex "N"))
 
-let peak ?cancel ~grain ?selection ?direction_attribute ~normalize_direction
-    ?mask_attribute ~distance ~recompute_normals geometry =
+let peak ?cancel ?(grain = 16_384) ?selection ?direction_attribute
+    ?(normalize_direction = true) ?mask_attribute ~distance
+    ?(recompute_normals = false) geometry =
+  Error.guard ~operation:"peak" ~code:"invalid_deformation" @@ fun () ->
   if grain <= 0 then Error "Pdk_mesh.Deform.peak: grain must be positive"
   else if not (Float.is_finite distance) then Error
       "Pdk_mesh.Deform.peak: distance must be finite"
@@ -359,9 +361,12 @@ let install_point_float name values geometry =
       (Attribute.Float values)) (fun attribute ->
     Geometry.with_attribute attribute geometry)
 
-let bend ?cancel ~grain ?selection ?mask_attribute ~origin ~direction ~up
-    ~length ~bend_angle ~twist_angle ~limit ~both_directions
-    ~continuous_twist ?capture_attribute ~recompute_normals geometry =
+let bend ?cancel ?(grain = 16_384) ?selection ?mask_attribute
+    ?(origin = Vec3.zero) ?(direction = Vec3.unit_z) ?(up = Vec3.unit_y)
+    ~length ?(bend_angle = 0.) ?(twist_angle = 0.) ?(limit = true)
+    ?(both_directions = false) ?(continuous_twist = true) ?capture_attribute
+    ?(recompute_normals = false) geometry =
+  Error.guard ~operation:"bend" ~code:"invalid_deformation" @@ fun () ->
   if grain <= 0 then Error "Pdk_mesh.Deform.bend: grain must be positive"
   else if not (Float.is_finite length && Float.is_finite bend_angle
       && Float.is_finite twist_angle) then Error
@@ -490,9 +495,12 @@ let initial_height_attribute name count geometry = match name with
                 "Pdk_mesh.Deform.mountain: height attribute %s must have float storage"
                 name)))
 
-let mountain ?cancel ~grain ?selection ?direction_attribute
-    ~normalize_direction ?mask_attribute ~seed ~height ~frequency ~offset
-    ~octaves ~lacunarity ~roughness ?height_attribute ~recompute_normals geometry =
+let mountain ?cancel ?(grain = 16_384) ?selection ?direction_attribute
+    ?(normalize_direction = true) ?mask_attribute ?(seed = 0) ~height
+    ?(frequency = Vec3.create 1. 1. 1.) ?(offset = Vec3.zero) ?(octaves = 4)
+    ?(lacunarity = 2.) ?(roughness = 0.5) ?height_attribute
+    ?(recompute_normals = false) geometry =
+  Error.guard ~operation:"mountain" ~code:"invalid_deformation" @@ fun () ->
   if grain <= 0 then Error "Pdk_mesh.Deform.mountain: grain must be positive"
   else if not (Float.is_finite height && finite_vec3 frequency
       && finite_vec3 offset && Float.is_finite lacunarity
@@ -576,3 +584,22 @@ let mountain ?cancel ~grain ?selection ?direction_attribute
               Result.bind (Attribute.create_owned ~name ~owner:Attribute.Point
                   (Attribute.Float values)) (fun attribute ->
                 Geometry.with_attribute attribute geometry))))
+
+let noise_displace ?cancel ?grain ~amplitude ~frequency ~seed geometry =
+  Error.guard ~operation:"noise_displace" ~code:"invalid_parameter" @@ fun () ->
+  if not (Float.is_finite amplitude && Float.is_finite frequency) then
+    Error "Pdk_mesh.Deform.noise_displace: amplitude and frequency must be finite"
+  else
+    let noise = Noise.create seed in
+    let samples = Array.make (Geometry.point_count geometry) 0. in
+    let displaced = Kernel.edit_point_ranges ?grain
+        (fun ~first ~last ~x ~y ~z ->
+          Cancel.check_opt cancel;
+          Noise.Private.sample2_into noise ~first ~last ~frequency
+            ~x ~y:z ~output:samples;
+          for index = first to last - 1 do
+            y.(index) <- y.(index) +. amplitude *. ((samples.(index) *. 2.) -. 1.)
+          done) geometry in
+    Ok (displaced
+        |> Geometry.without_attribute ~owner:Attribute.Point "N"
+        |> Geometry.without_attribute ~owner:Attribute.Vertex "N")

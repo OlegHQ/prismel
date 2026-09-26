@@ -29,7 +29,19 @@ let empty_name = function
   | Some name -> String.trim name = ""
 
 let run ?cancel ?(grain = 16_384) ?points ?mask_attribute ?id_attribute
-    ?(use_point_scale = false) ~seed ~scale ~axis_scales geometry =
+    ?(use_point_scale = false) ~seed ~scale ?(axis_scales = Vec3.create 1. 1. 1.)
+    geometry =
+  let selection_error = match points with
+    | Some group when Group.owner group <> Group.Point ->
+        Some "selection must own points"
+    | Some group when Group.length group <> Geometry.point_count geometry ->
+        Some "selection length does not match point count"
+    | None | Some _ -> None in
+  match selection_error with
+  | Some message -> Error (Error.of_string ~operation:"point_jitter"
+      ~code:"invalid_selection" message)
+  | None ->
+  Error.guard ~operation:"point_jitter" ~code:"invalid_attribute" @@ fun () ->
   if grain <= 0 then invalid_arg "Pdk_gen.Point_jitter.point_jitter: grain must be positive";
   if not (Float.is_finite scale) then error "scale must be finite"
   else if not (finite_vec3 axis_scales) then error "axis scales must be finite"

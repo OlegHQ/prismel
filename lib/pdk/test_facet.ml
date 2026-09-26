@@ -1079,7 +1079,7 @@ let check_parallel_exact () =
     "one-domain and four-domain Facet orientation differ";
   let displaced = Plane_generators.grid_checked ~columns:240 ~rows:180 ~uv_attribute:"uv" ~size:20.
       () |> get_ok
-      |> Deform_ops.noise_displace_checked ~grain:257 ~amplitude:0.8 ~frequency:0.7
+      |> Deform.noise_displace ~grain:257 ~amplitude:0.8 ~frequency:0.7
            ~seed:927 |> get_ok in
   let run domains = Parallel.run ~domains (fun () ->
       Facet_ops.run_checked ~grain:257 ~cusp_angle:0.08 displaced |> get_ok) in

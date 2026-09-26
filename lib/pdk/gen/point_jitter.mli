@@ -8,5 +8,5 @@ val run :
   ?use_point_scale:bool ->
   seed:Prismel_math.Rand.t ->
   scale:float ->
-  axis_scales:Prismel_math.Vec3.t ->
-  Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, string) result
+  ?axis_scales:Prismel_math.Vec3.t ->
+  Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, Pdk_core.Error.t) result

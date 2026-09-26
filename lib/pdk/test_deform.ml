@@ -75,10 +75,10 @@ let run () =
       && Array.for_all Float.is_finite normal.z) then
     fail "Normals produced non-finite values";
 
-  let peaked = Deform_ops.peak_checked ~distance:0.75 normal_quad |> get_ok in
-  ignore (Deform_ops.noise_displace_checked ~amplitude:0.2
+  let peaked = Deform.peak ~distance:0.75 normal_quad |> get_ok in
+  ignore (Deform.noise_displace ~amplitude:0.2
       ~frequency:0.5 ~seed:17 normal_quad |> get_ok);
-  (match Deform_ops.noise_displace_checked ~amplitude:nan ~frequency:0.5
+  (match Deform.noise_displace ~amplitude:nan ~frequency:0.5
       ~seed:17 normal_quad with
    | Error error when Error.code error = "invalid_parameter" -> ()
    | _ -> fail "Noise Displace accepted non-finite amplitude");
@@ -102,10 +102,10 @@ let run () =
   let directed = add_attribute direction grid in
   let point_group = Group.init ~owner:Group.Point ~name:"one" point_count
       (fun point -> point = 0) in
-  let point_peak = Deform_ops.peak_checked ~selection:(Transform_ops.Selected_points point_group)
+  let point_peak = Deform.peak ~selection:(Transform_ops.Selected_points point_group)
       ~direction_attribute:"direction" ~distance:1. directed |> get_ok in
   expect_only_points_moved directed point_peak [|0|] 1. 0. 0.;
-  let unnormalized = Deform_ops.peak_checked ~selection:(Transform_ops.Selected_points point_group)
+  let unnormalized = Deform.peak ~selection:(Transform_ops.Selected_points point_group)
       ~direction_attribute:"direction" ~normalize_direction:false ~distance:1.
       directed |> get_ok in
   expect_only_points_moved directed unnormalized [|0|] 2. 0. 0.;
@@ -116,7 +116,7 @@ let run () =
   let vertex_normal_source = grid
       |> Geometry.without_attribute ~owner:Attribute.Point "N"
       |> add_attribute vertex_n in
-  let vertex_normal_peak = Deform_ops.peak_checked ~normalize_direction:false ~distance:1.
+  let vertex_normal_peak = Deform.peak ~normalize_direction:false ~distance:1.
       vertex_normal_source |> get_ok in
   let expected_sum = Array.make point_count 0.
   and expected_count = Array.make point_count 0 in
@@ -137,7 +137,7 @@ let run () =
 
   let masked_source = directed |> add_attribute
       (float_attribute "mask" [|0.5; 0.; 1.; 1.|]) in
-  let masked = Deform_ops.peak_checked ~direction_attribute:"direction" ~mask_attribute:"mask"
+  let masked = Deform.peak ~direction_attribute:"direction" ~mask_attribute:"mask"
       ~distance:2. masked_source |> get_ok in
   let masked_positions = positions masked in
   let masked_source_positions = positions masked_source in
@@ -151,7 +151,7 @@ let run () =
   let vertex_point = Topology.point_of_vertex topology 0 in
   let vertices = Group.init ~owner:Group.Vertex ~name:"corner" vertex_count
       (fun vertex -> vertex = 0) in
-  let vertex_peak = Deform_ops.peak_checked ~selection:(Transform_ops.Selected_vertices vertices)
+  let vertex_peak = Deform.peak ~selection:(Transform_ops.Selected_vertices vertices)
       ~direction_attribute:"direction" ~distance:1. directed |> get_ok in
   expect_only_points_moved directed vertex_peak [|vertex_point|] 1. 0. 0.;
 
@@ -161,18 +161,18 @@ let run () =
     let first, last = Topology.primitive_vertex_range topology 0 in
     Array.init (last - first) (fun local -> Topology.point_of_vertex topology
       (first + local)) in
-  let primitive_peak = Deform_ops.peak_checked ~selection:(Transform_ops.Selected_primitives primitives)
+  let primitive_peak = Deform.peak ~selection:(Transform_ops.Selected_primitives primitives)
       ~direction_attribute:"direction" ~distance:1. directed |> get_ok in
   expect_only_points_moved directed primitive_peak primitive_points 1. 0. 0.;
 
   let index = Topology_index.create topology in
   let edges = Edge_group.init ~topology ~index ~name:"edge" (fun edge -> edge = 0) in
   let edge_a, edge_b = Topology_index.edge_points index 0 in
-  let edge_peak = Deform_ops.peak_checked ~selection:(Transform_ops.Selected_edges edges)
+  let edge_peak = Deform.peak ~selection:(Transform_ops.Selected_edges edges)
       ~direction_attribute:"direction" ~distance:1. directed |> get_ok in
   expect_only_points_moved directed edge_peak [|edge_a; edge_b|] 1. 0. 0.;
 
-  let recomputed = Deform_ops.peak_checked ~direction_attribute:"direction" ~distance:0.2
+  let recomputed = Deform.peak ~direction_attribute:"direction" ~distance:0.2
       ~recompute_normals:true directed |> get_ok in
   let recomputed_n = point_float3 "N" recomputed in
   for point = 0 to point_count - 1 do
@@ -186,7 +186,7 @@ let run () =
       (Array.make point_count max_float) (Array.make point_count max_float)
       (Array.make point_count max_float) in
   let extreme = add_attribute extreme_direction grid
-      |> Deform_ops.peak_checked ~direction_attribute:"extreme" ~distance:1. |> get_ok in
+      |> Deform.peak ~direction_attribute:"extreme" ~distance:1. |> get_ok in
   let extreme_positions = positions extreme in
   if not (Array.for_all Float.is_finite extreme_positions.x
       && Array.for_all Float.is_finite extreme_positions.y
@@ -194,30 +194,30 @@ let run () =
     fail "Peak overflowed while normalizing an extreme finite direction";
 
   expect_error "invalid_deformation"
-    (Deform_ops.peak_checked ~direction_attribute:"missing" ~distance:1. grid);
+    (Deform.peak ~direction_attribute:"missing" ~distance:1. grid);
   expect_error "invalid_deformation"
-    (Deform_ops.peak_checked ~direction_attribute:"missing" ~distance:0. grid);
+    (Deform.peak ~direction_attribute:"missing" ~distance:0. grid);
   expect_error "invalid_deformation"
-    (Deform_ops.peak_checked ~mask_attribute:"missing" ~distance:1. grid);
+    (Deform.peak ~mask_attribute:"missing" ~distance:1. grid);
   let wrong_group = Group.init ~owner:Group.Vertex ~name:"wrong" vertex_count
       (fun _ -> true) in
   expect_error "invalid_deformation"
-    (Deform_ops.peak_checked ~selection:(Transform_ops.Selected_points wrong_group)
+    (Deform.peak ~selection:(Transform_ops.Selected_points wrong_group)
       ~direction_attribute:"direction" ~distance:1. directed);
   let other = Plane_generators.grid_checked ~columns:1 ~rows:1 ~size:3. () |> get_ok in
   let other_index = Topology_index.create (Geometry.topology other) in
   let other_edges = Edge_group.init ~topology:(Geometry.topology other)
       ~index:other_index ~name:"other" (fun _ -> true) in
   expect_error "invalid_deformation"
-    (Deform_ops.peak_checked ~selection:(Transform_ops.Selected_edges other_edges)
+    (Deform.peak ~selection:(Transform_ops.Selected_edges other_edges)
       ~direction_attribute:"direction" ~distance:1. directed);
   expect_error "invalid_deformation"
-    (Deform_ops.peak_checked ~direction_attribute:"direction" ~distance:Float.infinity directed);
+    (Deform.peak ~direction_attribute:"direction" ~distance:Float.infinity directed);
 
   let bend_source = Line_geometry.points [|
       (0., 0., 0.); (0., 0., 1.); (0., 0., 2.); (0., 1., 2.);
       (1., 0., 2.); (0., 0., 3.); (0., 0., -1.)|] in
-  let bent = Deform_ops.bend_checked ~length:2. ~bend_angle:(Float.pi /. 2.) bend_source
+  let bent = Deform.bend ~length:2. ~bend_angle:(Float.pi /. 2.) bend_source
       |> get_ok in
   let bent_positions = positions bent and radius = 4. /. Float.pi in
   if not (near bent_positions.x.(0) 0. && near bent_positions.y.(0) 0.
@@ -236,7 +236,7 @@ let run () =
 
   let twisted_source = Line_geometry.points
       [|(1., 0., 0.); (1., 0., 1.); (1., 0., 2.)|] in
-  let twisted = Deform_ops.bend_checked ~length:2. ~twist_angle:Float.pi twisted_source
+  let twisted = Deform.bend ~length:2. ~twist_angle:Float.pi twisted_source
       |> get_ok |> positions in
   if not (near twisted.x.(0) 1. && near twisted.y.(0) 0.
       && near twisted.x.(1) 0. && near twisted.y.(1) 1.
@@ -244,23 +244,23 @@ let run () =
       && twisted.z = [|0.; 1.; 2.|]) then
     fail "Bend axial twist distribution";
   let arbitrary = Line_geometry.points [|(1., 1., 0.)|]
-      |> Deform_ops.bend_checked ~origin:Vec3.zero ~direction:Vec3.unit_x ~up:Vec3.unit_z
+      |> Deform.bend ~origin:Vec3.zero ~direction:Vec3.unit_x ~up:Vec3.unit_z
            ~length:1. ~twist_angle:(Float.pi /. 2.) |> get_ok |> positions in
   if not (near arbitrary.x.(0) 1. && near arbitrary.y.(0) 0.
       && near arbitrary.z.(0) 1.) then
     fail "Bend arbitrary capture frame";
 
   let both_source = Line_geometry.points [|(1., 0., -1.); (1., 0., 1.)|] in
-  let continuous = Deform_ops.bend_checked ~length:1. ~twist_angle:(Float.pi /. 2.)
+  let continuous = Deform.bend ~length:1. ~twist_angle:(Float.pi /. 2.)
       ~both_directions:true ~continuous_twist:true both_source |> get_ok
       |> positions
-  and mirrored_twist = Deform_ops.bend_checked ~length:1. ~twist_angle:(Float.pi /. 2.)
+  and mirrored_twist = Deform.bend ~length:1. ~twist_angle:(Float.pi /. 2.)
       ~both_directions:true ~continuous_twist:false both_source |> get_ok
       |> positions in
   if not (near continuous.y.(0) (-1.) && near continuous.y.(1) 1.
       && near mirrored_twist.y.(0) 1. && near mirrored_twist.y.(1) 1.) then
     fail "Bend bidirectional twist policy";
-  let extended = Deform_ops.bend_checked ~length:1. ~twist_angle:(Float.pi /. 2.)
+  let extended = Deform.bend ~length:1. ~twist_angle:(Float.pi /. 2.)
       ~limit:false (Line_geometry.points [|(1., 0., 2.); (1., 0., -1.)|])
       |> get_ok |> positions in
   if not (near extended.x.(0) (-1.) && near extended.y.(0) 0.
@@ -272,7 +272,7 @@ let run () =
       |> add_attribute (float_attribute "bend_mask" [|0.5; -1.; 2.; 1.|]) in
   let only_first = Group.init ~owner:Group.Point ~name:"bend_selected" 4
       (fun point -> point <> 2) in
-  let masked_bend = Deform_ops.bend_checked ~selection:(Transform_ops.Selected_points only_first)
+  let masked_bend = Deform.bend ~selection:(Transform_ops.Selected_points only_first)
       ~mask_attribute:"bend_mask" ~capture_attribute:"bend_capture"
       ~length:2. ~twist_angle:Float.pi masked_bend_source |> get_ok in
   let masked_bend_positions = positions masked_bend
@@ -286,44 +286,44 @@ let run () =
       && masked_bend_positions.z.(3) = 3.
       && capture = [|0.5; 0.; 0.; 0.|]) then
     fail "Bend selection/mask/capture influence";
-  let identity_bend = Deform_ops.bend_checked ~length:2. bend_source |> get_ok in
+  let identity_bend = Deform.bend ~length:2. bend_source |> get_ok in
   if Geometry.data_id identity_bend <> Geometry.data_id bend_source then
     fail "zero Bend was not an identity";
-  let tiny_bend = Deform_ops.bend_checked ~length:2. ~bend_angle:1e-12
+  let tiny_bend = Deform.bend ~length:2. ~bend_angle:1e-12
       (Line_geometry.points [|(0., 0., 2.)|]) |> get_ok |> positions in
   if not (Float.is_finite tiny_bend.y.(0) && Float.is_finite tiny_bend.z.(0)
       && near tiny_bend.y.(0) 1e-12 && near tiny_bend.z.(0) 2.) then
     fail "Bend small-angle stability";
 
-  let bend_normals = Deform_ops.bend_checked ~length:2. ~bend_angle:0.4
+  let bend_normals = Deform.bend ~length:2. ~bend_angle:0.4
       ~recompute_normals:true grid |> get_ok in
   if Geometry.find_attribute ~owner:Attribute.Point "N" bend_normals = None
       || Geometry.find_attribute ~owner:Attribute.Vertex "N" bend_normals <> None
   then fail "Bend normal recomputation contract";
   List.iter (fun result -> expect_error "invalid_deformation" result) [
-    Deform_ops.bend_checked ~length:0. ~bend_angle:1. bend_source;
-    Deform_ops.bend_checked ~length:Float.nan ~bend_angle:1. bend_source;
-    Deform_ops.bend_checked ~length:1. ~bend_angle:Float.infinity bend_source;
-    Deform_ops.bend_checked ~direction:Vec3.zero ~length:1. ~bend_angle:1. bend_source;
-    Deform_ops.bend_checked ~direction:Vec3.unit_z ~up:Vec3.unit_z ~length:1.
+    Deform.bend ~length:0. ~bend_angle:1. bend_source;
+    Deform.bend ~length:Float.nan ~bend_angle:1. bend_source;
+    Deform.bend ~length:1. ~bend_angle:Float.infinity bend_source;
+    Deform.bend ~direction:Vec3.zero ~length:1. ~bend_angle:1. bend_source;
+    Deform.bend ~direction:Vec3.unit_z ~up:Vec3.unit_z ~length:1.
       ~bend_angle:1. bend_source;
-    Deform_ops.bend_checked ~origin:(Vec3.create Float.nan 0. 0.) ~length:1.
+    Deform.bend ~origin:(Vec3.create Float.nan 0. 0.) ~length:1.
       ~bend_angle:1. bend_source;
-    Deform_ops.bend_checked ~mask_attribute:"missing" ~length:1. ~bend_angle:1. bend_source;
-    Deform_ops.bend_checked ~capture_attribute:"" ~length:1. ~bend_angle:1. bend_source;
-    Deform_ops.bend_checked ~capture_attribute:"P" ~length:1. ~bend_angle:1. bend_source;
+    Deform.bend ~mask_attribute:"missing" ~length:1. ~bend_angle:1. bend_source;
+    Deform.bend ~capture_attribute:"" ~length:1. ~bend_angle:1. bend_source;
+    Deform.bend ~capture_attribute:"P" ~length:1. ~bend_angle:1. bend_source;
   ];
   let bad_bend_mask = bend_source |> add_attribute
       (float3_attribute ~owner:Attribute.Point "bad_bend_mask"
         (Array.make 7 0.) (Array.make 7 0.) (Array.make 7 0.)) in
   expect_error "invalid_deformation"
-    (Deform_ops.bend_checked ~mask_attribute:"bad_bend_mask" ~length:1. ~bend_angle:1.
+    (Deform.bend ~mask_attribute:"bad_bend_mask" ~length:1. ~bend_angle:1.
       bad_bend_mask);
 
   let bend_scale_source = Plane_generators.grid_checked ~columns:320 ~rows:220 ~size:12. ()
       |> get_ok in
   let bend_scale domains = Parallel.run ~domains (fun () ->
-      Deform_ops.bend_checked ~grain:1_009 ~origin:(Vec3.create 0. 0. (-6.))
+      Deform.bend ~grain:1_009 ~origin:(Vec3.create 0. 0. (-6.))
         ~direction:Vec3.unit_z ~up:Vec3.unit_y ~length:12.
         ~bend_angle:1.3 ~twist_angle:2.1 ~capture_attribute:"bend_capture"
         bend_scale_source |> get_ok) in
@@ -348,7 +348,7 @@ let run () =
   let middle = Group.init ~owner:Group.Point ~name:"middle" large_count
       (fun point -> point mod 3 <> 0) in
   let mountain domains seed = Parallel.run ~domains (fun () ->
-    Deform_ops.mountain_checked ~grain:2_048 ~selection:(Transform_ops.Selected_points middle) ~seed
+    Deform.mountain ~grain:2_048 ~selection:(Transform_ops.Selected_points middle) ~seed
       ~height:1.25 ~frequency:(Vec3.create 0.35 0.7 0.55)
       ~offset:(Vec3.create 1. 2. 3.) ~octaves:6 ~lacunarity:2.1
       ~roughness:0.47 ~height_attribute:"height" mountain_source |> get_ok) in
@@ -376,31 +376,31 @@ let run () =
       (Array.make point_count 0.) (Array.make point_count 0.)
       (Array.make point_count 0.) in
   let zero_normal_source = grid |> add_attribute zero_normal in
-  let zero_normal_mountain = Deform_ops.mountain_checked ~seed:17 ~height:2.
+  let zero_normal_mountain = Deform.mountain ~seed:17 ~height:2.
       zero_normal_source |> get_ok in
   if not (equal_positions zero_normal_source zero_normal_mountain) then
     fail "Mountain moved points whose normals are zero";
 
-  let mountain_normals = Deform_ops.mountain_checked ~seed:4 ~height:0.2
+  let mountain_normals = Deform.mountain ~seed:4 ~height:0.2
       ~recompute_normals:true grid |> get_ok in
   if Geometry.find_attribute ~owner:Attribute.Point "N" mountain_normals = None
       || Geometry.find_attribute ~owner:Attribute.Vertex "N" mountain_normals <> None
   then fail "Mountain normal recomputation contract";
 
   List.iter (fun result -> expect_error "invalid_deformation" result) [
-    Deform_ops.mountain_checked ~height:1. ~octaves:0 grid;
-    Deform_ops.mountain_checked ~height:1. ~octaves:65 grid;
-    Deform_ops.mountain_checked ~height:1. ~lacunarity:0. grid;
-    Deform_ops.mountain_checked ~height:1. ~roughness:(-0.1) grid;
-    Deform_ops.mountain_checked ~height:1. ~roughness:1.1 grid;
-    Deform_ops.mountain_checked ~height:Float.nan grid;
-    Deform_ops.mountain_checked ~height:1. ~mask_attribute:"missing" grid;
+    Deform.mountain ~height:1. ~octaves:0 grid;
+    Deform.mountain ~height:1. ~octaves:65 grid;
+    Deform.mountain ~height:1. ~lacunarity:0. grid;
+    Deform.mountain ~height:1. ~roughness:(-0.1) grid;
+    Deform.mountain ~height:1. ~roughness:1.1 grid;
+    Deform.mountain ~height:Float.nan grid;
+    Deform.mountain ~height:1. ~mask_attribute:"missing" grid;
   ];
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
-  expect_error "cancelled" (Deform_ops.peak_checked ~cancel:cancelled
+  expect_error "cancelled" (Deform.peak ~cancel:cancelled
     ~direction_attribute:"direction" ~distance:1. directed);
-  expect_error "cancelled" (Deform_ops.bend_checked ~cancel:cancelled ~length:2.
+  expect_error "cancelled" (Deform.bend ~cancel:cancelled ~length:2.
     ~bend_angle:1. bend_source);
-  expect_error "cancelled" (Deform_ops.mountain_checked ~cancel:cancelled ~height:1. grid);
+  expect_error "cancelled" (Deform.mountain ~cancel:cancelled ~height:1. grid);
   print_endline "deform tests passed"

@@ -166,7 +166,8 @@ cleanup step.
   capacity/eviction policy; the topology caches in `Point_index` and
   `Topology_index` use `Support.Identity_cache` (64 ephemeron entries each,
   first-in first-out, released with their topology); temporary
-  arenas/builders must become unreachable after a job; resource destruction remains explicit at the owning boundary.
+  arenas/builders must become unreachable after a job; resource destruction
+  remains explicit at the owning boundary.
 - Prefer algorithmic wins over micro-optimization: eliminate quadratic scans,
   reduce topology passes, cull early, stream where possible, and avoid storing
   derivable duplicates before tuning arithmetic.

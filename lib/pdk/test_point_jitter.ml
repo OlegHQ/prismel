@@ -61,7 +61,7 @@ let run () =
   let seed = Rand.seed 91 in
   let axis_scales = Vec3.create 1. (-2.) 0.5 in
   let output = Parallel.run ~domains:1 (fun () ->
-    Deform_ops.point_jitter_checked ~grain:1 ~points:selected
+    Point_jitter.run ~grain:1 ~points:selected
       ~mask_attribute:"mask" ~id_attribute:"stable_id" ~use_point_scale:true
       ~seed ~scale:0.8 ~axis_scales input |> get_ok) in
   let before = positions input and after = positions output in
@@ -96,21 +96,21 @@ let run () =
   check (Geometry.find_attribute ~owner:Attribute.Detail "tag" output <> None)
     "Point Jitter dropped unrelated attributes";
 
-  let zero = Deform_ops.point_jitter_checked ~seed ~scale:0. input |> get_ok in
+  let zero = Point_jitter.run ~seed ~scale:0. input |> get_ok in
   check (zero == input) "zero Point Jitter did not return its input snapshot";
-  let missing_id = Deform_ops.point_jitter_checked ~seed ~scale:0.7
+  let missing_id = Point_jitter.run ~seed ~scale:0.7
       ~id_attribute:"absent" input |> get_ok
-  and point_numbers = Deform_ops.point_jitter_checked ~seed ~scale:0.7 input |> get_ok in
+  and point_numbers = Point_jitter.run ~seed ~scale:0.7 input |> get_ok in
   check (equal_positions missing_id point_numbers)
     "missing Point Jitter ID did not fall back to point number";
   let missing_pscale = input |> Geometry.without_attribute
       ~owner:Attribute.Point "pscale" in
-  let pscale_fallback = Deform_ops.point_jitter_checked ~seed ~scale:0.7
+  let pscale_fallback = Point_jitter.run ~seed ~scale:0.7
       ~use_point_scale:true missing_pscale |> get_ok
-  and unit_scale = Deform_ops.point_jitter_checked ~seed ~scale:0.7 missing_pscale |> get_ok in
+  and unit_scale = Point_jitter.run ~seed ~scale:0.7 missing_pscale |> get_ok in
   check (equal_positions pscale_fallback unit_scale)
     "missing pscale did not default to one";
-  let changed_seed = Deform_ops.point_jitter_checked ~seed:(Rand.seed 92) ~scale:0.7 input
+  let changed_seed = Point_jitter.run ~seed:(Rand.seed 92) ~scale:0.7 input
       |> get_ok in
   check (not (equal_positions changed_seed point_numbers))
     "Point Jitter ignored its random seed";
@@ -129,7 +129,7 @@ let run () =
   let large_group = Group.init ~grain:257 ~owner:Group.Point ~name:"stripe" count
       (fun point -> point mod 5 <> 0) in
   let run domains = Parallel.run ~domains (fun () ->
-    Deform_ops.point_jitter_checked ~grain:257 ~points:large_group ~mask_attribute:"mask"
+    Point_jitter.run ~grain:257 ~points:large_group ~mask_attribute:"mask"
       ~id_attribute:"stable_id" ~use_point_scale:true ~seed:(Rand.seed 1234)
       ~scale:2.75 ~axis_scales:(Vec3.create (-0.25) 1.5 0.75) large |> get_ok) in
   let sequential = run 1 and parallel = run 4 in
@@ -141,43 +141,43 @@ let run () =
   let wrong_owner = Group.init ~grain:1 ~owner:Group.Vertex ~name:"wrong" 0
       (Fun.const false) in
   expect_code "invalid_selection"
-    (Deform_ops.point_jitter_checked ~points:wrong_owner ~seed ~scale:1. input);
+    (Point_jitter.run ~points:wrong_owner ~seed ~scale:1. input);
   let wrong_length = Group.init ~grain:1 ~owner:Group.Point ~name:"short" 3
       (Fun.const true) in
   expect_code "invalid_selection"
-    (Deform_ops.point_jitter_checked ~points:wrong_length ~seed ~scale:1. input);
+    (Point_jitter.run ~points:wrong_length ~seed ~scale:1. input);
   expect_code "invalid_attribute"
-    (Deform_ops.point_jitter_checked ~mask_attribute:"absent" ~seed ~scale:1. input);
+    (Point_jitter.run ~mask_attribute:"absent" ~seed ~scale:1. input);
   let wrong_mask = input |> add_attribute ~owner:Attribute.Point ~name:"bad_mask"
       (Attribute.Int [|1; 1; 1; 1|]) in
   expect_code "invalid_attribute"
-    (Deform_ops.point_jitter_checked ~mask_attribute:"bad_mask" ~seed ~scale:1. wrong_mask);
+    (Point_jitter.run ~mask_attribute:"bad_mask" ~seed ~scale:1. wrong_mask);
   expect_code "invalid_attribute"
-    (Deform_ops.point_jitter_checked ~id_attribute:"mask" ~seed ~scale:1. input);
+    (Point_jitter.run ~id_attribute:"mask" ~seed ~scale:1. input);
   let wrong_pscale = input |> add_attribute ~owner:Attribute.Point ~name:"pscale"
       (Attribute.Int [|1; 1; 1; 1|]) in
   expect_code "invalid_attribute"
-    (Deform_ops.point_jitter_checked ~use_point_scale:true ~seed ~scale:1. wrong_pscale);
+    (Point_jitter.run ~use_point_scale:true ~seed ~scale:1. wrong_pscale);
   let nonfinite_pscale = input
       |> add_attribute ~owner:Attribute.Point ~name:"pscale"
            (Attribute.Float [|1.; 1.; infinity; 1.|]) in
   expect_code "invalid_attribute"
-    (Deform_ops.point_jitter_checked ~use_point_scale:true ~seed ~scale:1. nonfinite_pscale);
+    (Point_jitter.run ~use_point_scale:true ~seed ~scale:1. nonfinite_pscale);
   expect_code "invalid_attribute"
-    (Deform_ops.point_jitter_checked ~mask_attribute:"" ~seed ~scale:1. input);
+    (Point_jitter.run ~mask_attribute:"" ~seed ~scale:1. input);
   expect_code "invalid_attribute"
-    (Deform_ops.point_jitter_checked ~id_attribute:"" ~seed ~scale:1. input);
+    (Point_jitter.run ~id_attribute:"" ~seed ~scale:1. input);
   expect_code "invalid_attribute"
-    (Deform_ops.point_jitter_checked ~seed ~scale:nan input);
+    (Point_jitter.run ~seed ~scale:nan input);
   expect_code "invalid_attribute"
-    (Deform_ops.point_jitter_checked ~seed ~scale:1.
+    (Point_jitter.run ~seed ~scale:1.
        ~axis_scales:(Vec3.create infinity 1. 1.) input);
   let nonfinite = input |> add_attribute ~owner:Attribute.Point ~name:"bad"
       (Attribute.Float [|1.; nan; 1.; 1.|]) in
   expect_code "invalid_attribute"
-    (Deform_ops.point_jitter_checked ~mask_attribute:"bad" ~seed ~scale:1. nonfinite);
+    (Point_jitter.run ~mask_attribute:"bad" ~seed ~scale:1. nonfinite);
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
   expect_code "cancelled"
-    (Deform_ops.point_jitter_checked ~cancel:cancelled ~grain:1 ~seed ~scale:1. input);
+    (Point_jitter.run ~cancel:cancelled ~grain:1 ~seed ~scale:1. input);
   print_endline "point jitter tests passed"
