@@ -190,7 +190,7 @@ let attribute owner name geometry =
 
 let test_topology_and_payload () =
   let source = graph_fixture () in
-  let output = Ops.poly_path source |> get_pdk in
+  let output = Curve_topology.poly_path source |> get_pdk in
   check (Geometry.point_count output = 9
       && Geometry.vertex_count output = 13
       && Geometry.primitive_count output = 5)
@@ -251,7 +251,7 @@ let test_topology_and_payload () =
       && Edge_group.cardinality edge_group = 2
       && Edge_group.mem 0 edge_group && Edge_group.mem 1 edge_group)
     "PolyPath native edge-group ancestry";
-  let closed = Ops.poly_path ~make_isolated_loops_closed:true source |> get_pdk in
+  let closed = Curve_topology.poly_path ~make_isolated_loops_closed:true source |> get_pdk in
   let closed_topology = Topology.Private.view (Geometry.topology closed) in
   check (Geometry.vertex_count closed = 12
       && closed_topology.vertex_points = [|0;1;2; 2;3; 2;4; 2;5; 6;7;8|]
@@ -270,10 +270,10 @@ let endpoint_fixture () =
 
 let test_endpoint_connection () =
   let source = endpoint_fixture () in
-  let separate = Ops.poly_path source |> get_pdk in
+  let separate = Curve_topology.poly_path source |> get_pdk in
   check (Geometry.primitive_count separate = 3)
     "PolyPath connected endpoints without opt-in";
-  let connected = Ops.poly_path ~connect_end_points:true
+  let connected = Curve_topology.poly_path ~connect_end_points:true
       ~maximum_distance:0.05 ~connect_only_to_other_end_points:true source
       |> get_pdk in
   let topology = Topology.Private.view (Geometry.topology connected) in
@@ -292,9 +292,9 @@ let test_endpoint_connection () =
       ~primitive_offsets:[|0;3;5;7|]
       ~primitive_kinds:(Array.make 3 Topology.Open_polyline) |> get_ok in
   let branch = Geometry.create ~positions ~topology () |> get_ok in
-  let unrestricted = Ops.poly_path ~connect_end_points:true
+  let unrestricted = Curve_topology.poly_path ~connect_end_points:true
       ~maximum_distance:0.05 branch |> get_pdk in
-  let restricted = Ops.poly_path ~connect_end_points:true
+  let restricted = Curve_topology.poly_path ~connect_end_points:true
       ~maximum_distance:0.05 ~connect_only_to_other_end_points:true branch
       |> get_pdk in
   let unrestricted_topology = Topology.Private.view
@@ -316,7 +316,7 @@ let test_endpoint_connection () =
       ~primitive_offsets:[|0;2;5;7|]
       ~primitive_kinds:(Array.make 3 Topology.Open_polyline) |> get_ok in
   let chain = Geometry.create ~positions ~topology () |> get_ok in
-  let chain = Ops.poly_path ~connect_end_points:true ~maximum_distance:0.1
+  let chain = Curve_topology.poly_path ~connect_end_points:true ~maximum_distance:0.1
       chain |> get_pdk in
   let chain_topology = Topology.Private.view (Geometry.topology chain) in
   check (not (Array.mem 1 chain_topology.vertex_points)
@@ -330,10 +330,10 @@ let test_endpoint_connection () =
         ~primitive_kinds:[|Topology.Open_polyline|] |> get_ok in
     Geometry.create ~positions ~topology () |> get_ok in
   let outside = huge_edge (-1e308) 1e308
-      |> Ops.poly_path ~connect_end_points:true ~maximum_distance:1e308
+      |> Curve_topology.poly_path ~connect_end_points:true ~maximum_distance:1e308
       |> get_pdk
   and inclusive = huge_edge (-5e307) 5e307
-      |> Ops.poly_path ~connect_end_points:true ~maximum_distance:1e308
+      |> Curve_topology.poly_path ~connect_end_points:true ~maximum_distance:1e308
       |> get_pdk in
   check (Geometry.primitive_count outside = 1)
     "PolyPath overflowed an extreme endpoint distance";
@@ -347,7 +347,7 @@ let test_empty_and_failures () =
       ~primitive_offsets:[|0|] ~primitive_kinds:[||] |> get_ok in
   let empty = Geometry.create ~positions ~topology () |> get_ok
       |> add_attribute Attribute.Point "id" (Attribute.Int [|0;1|]) in
-  let output = Ops.poly_path empty |> get_pdk in
+  let output = Curve_topology.poly_path empty |> get_pdk in
   check (Geometry.point_count output = 2 && Geometry.vertex_count output = 0
       && Geometry.primitive_count output = 0)
     "PolyPath empty graph";
@@ -367,7 +367,7 @@ let test_empty_and_failures () =
   let self_edges = Edge_group.init ~topology:self_topology ~index:self_index
       ~name:"self_edge" (fun _ -> true) in
   let self = Geometry.with_edge_group self_edges self |> get_ok in
-  let self_output = Ops.poly_path self |> get_pdk in
+  let self_output = Curve_topology.poly_path self |> get_pdk in
   check (Geometry.point_count self_output = 1
       && Geometry.vertex_count self_output = 0
       && Geometry.primitive_count self_output = 0
@@ -378,7 +378,7 @@ let test_empty_and_failures () =
       && Edge_group.length (Geometry.find_edge_group "self_edge" self_output
            |> Option.get) = 0)
     "PolyPath self-edge-only payload cleanup";
-  (match Ops.poly_path ~maximum_distance:Float.nan (graph_fixture ()) with
+  (match Curve_topology.poly_path ~maximum_distance:Float.nan (graph_fixture ()) with
    | Error error -> check (Error.code error = "invalid_geometry")
        "PolyPath non-finite distance error code"
    | Ok _ -> fail "PolyPath accepted a non-finite distance");
@@ -388,19 +388,19 @@ let test_empty_and_failures () =
       ~x:(Array.mapi (fun point value -> if point = 5 then Float.nan else value)
         source.x) ~y:(Array.copy source.y) ~z:(Array.copy source.z) in
   let nonfinite = Geometry.with_positions positions nonfinite |> get_ok in
-  check (Result.is_ok (Ops.poly_path nonfinite))
+  check (Result.is_ok (Curve_topology.poly_path nonfinite))
     "PolyPath inspected positions when endpoint connection was disabled";
-  (match Ops.poly_path ~connect_end_points:true nonfinite with
+  (match Curve_topology.poly_path ~connect_end_points:true nonfinite with
    | Error error -> check (Error.code error = "invalid_geometry")
        "PolyPath non-finite endpoint error code"
    | Ok _ -> fail "PolyPath connected non-finite endpoints");
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
-  (match Ops.poly_path ~cancel:cancelled (graph_fixture ()) with
+  (match Curve_topology.poly_path ~cancel:cancelled (graph_fixture ()) with
    | Error error -> check (Error.code error = "cancelled")
        "PolyPath cancellation error code"
    | Ok _ -> fail "cancelled PolyPath published geometry");
-  match Ops.poly_path ~grain:0 (graph_fixture ()) with
+  match Curve_topology.poly_path ~grain:0 (graph_fixture ()) with
   | Error error -> check (Error.code error = "invalid_geometry")
       "PolyPath grain error code"
   | Ok _ -> fail "PolyPath accepted zero grain"
@@ -452,7 +452,7 @@ let scale_fixture columns rows =
 let test_parallel_exact () =
   let source = scale_fixture 400 300 in
   let run domains = Parallel.run ~domains (fun () ->
-      Ops.poly_path ~grain:257 source |> get_pdk) in
+      Curve_topology.poly_path ~grain:257 source |> get_pdk) in
   let one = run 1 and four = run 4 in
   check (equal_geometry one four)
     "PolyPath differs between one and four domains";

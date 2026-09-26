@@ -3789,12 +3789,12 @@ let extract_point_from_curve ?label ?group
       | Ok primitives ->
           let cut = match cut with
             | Extract_point_constant value ->
-                Pdk.Ops.Extract_cut_constant value
+                Pdk.Curve_topology.Extract_cut_constant value
             | Extract_point_primitive_attribute name ->
-                Pdk.Ops.Extract_cut_primitive_attribute name
+                Pdk.Curve_topology.Extract_cut_primitive_attribute name
             | Extract_point_current_time ->
-                Pdk.Ops.Extract_cut_constant (Context.time context) in
-          match Pdk.Ops.extract_point_from_curve
+                Pdk.Curve_topology.Extract_cut_constant (Context.time context) in
+          match Pdk.Curve_topology.extract_point_from_curve
               ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?primitives ~cut ~point_attributes
               ~copy_primitive_attributes ~primitive_attributes
@@ -3833,7 +3833,7 @@ let convert_line ?label ?group ?(connect_path = false)
       match edges with
       | Error _ as error -> error
       | Ok edges ->
-          match Pdk.Ops.convert_line ~cancel:(Context.cancel_token context)
+          match Pdk.Curve_topology.convert_line ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?edges ~connect_path
               ~maximum_distance ~connect_only_to_other_end_points
               ~make_isolated_loops_closed ~remove_unused_points
@@ -3894,9 +3894,9 @@ let carve ?label ?group ?(relative_arc_length = true) ?(first = 0.) ?(last = 1.)
           | Error error -> structured_pdk_error error)
 
 let curve_end_mode_key = function
-  | Pdk.Ops.Open_curve -> "open"
-  | Pdk.Ops.Close_curve -> "close"
-  | Pdk.Ops.Unroll_curve -> "unroll"
+  | Pdk.Curve_topology.Open_curve -> "open"
+  | Pdk.Curve_topology.Close_curve -> "close"
+  | Pdk.Curve_topology.Unroll_curve -> "unroll"
 
 let curve_ends ?label ?group mode input =
   Option.iter (fun name -> if String.trim name = "" then
@@ -3919,16 +3919,16 @@ let curve_ends ?label ?group mode input =
       match primitives with
       | Error _ as error -> error
       | Ok primitives ->
-          match Pdk.Ops.curve_ends ~cancel:(Context.cancel_token context)
+          match Pdk.Curve_topology.curve_ends ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?primitives mode inputs.(0) with
           | Ok geometry -> cooked geometry
           | Error error -> structured_pdk_error error)
 
 let ends_mode_key = function
-  | Pdk.Ops.Ends_open -> "open"
-  | Pdk.Ops.Ends_close_straight -> "close_straight"
-  | Pdk.Ops.Ends_unroll_shared -> "unroll_shared"
-  | Pdk.Ops.Ends_unroll_new -> "unroll_new"
+  | Pdk.Curve_topology.Ends_open -> "open"
+  | Pdk.Curve_topology.Ends_close_straight -> "close_straight"
+  | Pdk.Curve_topology.Ends_unroll_shared -> "unroll_shared"
+  | Pdk.Curve_topology.Ends_unroll_new -> "unroll_new"
 
 let ends ?label ?group mode input =
   Option.iter (fun name -> if String.trim name = "" then
@@ -3950,18 +3950,18 @@ let ends ?label ?group mode input =
       match primitives with
       | Error _ as error -> error
       | Ok primitives ->
-          match Pdk.Ops.ends ~cancel:(Context.cancel_token context)
+          match Pdk.Curve_topology.ends ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?primitives mode inputs.(0) with
           | Ok geometry -> cooked geometry
           | Error error -> structured_pdk_error error)
 
 let curve_join_end_key = function
-  | Pdk.Ops.Join_curve_start -> "start"
-  | Pdk.Ops.Join_curve_end -> "end"
+  | Pdk.Curve_topology.Join_curve_start -> "start"
+  | Pdk.Curve_topology.Join_curve_end -> "end"
 
 let curve_join_picks_key picks =
   String.concat "," (Array.to_list (Array.map (fun pick ->
-    Printf.sprintf "%d:%s" pick.Pdk.Ops.primitive
+    Printf.sprintf "%d:%s" pick.Pdk.Curve_topology.primitive
       (curve_join_end_key pick.end_)) picks))
 
 let join_curves ?label ?group ?picked_ends ?(orient_closest = true)
@@ -4004,7 +4004,7 @@ let join_curves ?label ?group ?picked_ends ?(orient_closest = true)
       match primitives with
       | Error _ as error -> error
       | Ok primitives ->
-          match Pdk.Ops.join_curves ~cancel:(Context.cancel_token context)
+          match Pdk.Curve_topology.join_curves ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?primitives ?picked_ends ~orient_closest
               ~connect_closest_ends ~only_connected ?group_size ~keep_originals
               ~tolerance ~wrap inputs.(0) with
@@ -4022,7 +4022,7 @@ let poly_path ?label ?(connect_end_points = false)
       connect_only_to_other_end_points make_isolated_loops_closed)
     ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
     ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      match Pdk.Ops.poly_path ~cancel:(Context.cancel_token context)
+      match Pdk.Curve_topology.poly_path ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ~connect_end_points ~maximum_distance
           ~connect_only_to_other_end_points ~make_isolated_loops_closed
           inputs.(0) with
@@ -7050,26 +7050,26 @@ let convex_hull ?label ?selection ?(preserve_point_payload = true)
           | Error error -> structured_pdk_error error)
 
 let centroid_piece_owner_key = function
-  | Pdk.Ops.Centroid_piece_points -> "points"
-  | Pdk.Ops.Centroid_piece_primitives -> "primitives"
+  | Pdk.Curve_topology.Centroid_piece_points -> "points"
+  | Pdk.Curve_topology.Centroid_piece_primitives -> "primitives"
 
 let centroid_run_over_key = function
-  | Pdk.Ops.Centroid_detail -> "detail"
-  | Pdk.Ops.Centroid_primitives -> "primitives"
-  | Pdk.Ops.Centroid_pieces {owner; attribute} ->
+  | Pdk.Curve_topology.Centroid_detail -> "detail"
+  | Pdk.Curve_topology.Centroid_primitives -> "primitives"
+  | Pdk.Curve_topology.Centroid_pieces {owner; attribute} ->
       String.concat ":" ["pieces"; centroid_piece_owner_key owner;
         String.escaped attribute]
 
 let centroid_method_key = function
-  | Pdk.Ops.Centroid_point_mass -> "point_mass"
-  | Pdk.Ops.Centroid_bounding_box -> "bounding_box"
-  | Pdk.Ops.Centroid_convex_hull -> "convex_hull"
+  | Pdk.Curve_topology.Centroid_point_mass -> "point_mass"
+  | Pdk.Curve_topology.Centroid_bounding_box -> "bounding_box"
+  | Pdk.Curve_topology.Centroid_convex_hull -> "convex_hull"
 
-let extract_centroid ?label ?(run_over = Pdk.Ops.Centroid_detail)
-    ?(method_ = Pdk.Ops.Centroid_point_mass) ?source_primitive_attribute
+let extract_centroid ?label ?(run_over = Pdk.Curve_topology.Centroid_detail)
+    ?(method_ = Pdk.Curve_topology.Centroid_point_mass) ?source_primitive_attribute
     ?piece_output_attribute input =
   (match run_over with
-   | Pdk.Ops.Centroid_pieces {attribute; _}
+   | Pdk.Curve_topology.Centroid_pieces {attribute; _}
        when String.trim attribute = "" || attribute = "P" ->
        invalid_arg "Sop.extract_centroid: piece attribute must be non-empty and not P"
    | _ -> ());
@@ -7089,7 +7089,7 @@ let extract_centroid ?label ?(run_over = Pdk.Ops.Centroid_detail)
   Node.Private.make ?label ~operation:"extract_centroid" ~version:1 ~parameters
     ~cook_mode:Node.Generic ~dependencies:Context.Dependencies.static
     ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      match Pdk.Ops.extract_centroid ~cancel:(Context.cancel_token context)
+      match Pdk.Curve_topology.extract_centroid ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ~run_over ~method_
           ?source_primitive_attribute ?piece_output_attribute inputs.(0) with
       | Ok geometry -> cooked geometry

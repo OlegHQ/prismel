@@ -23,9 +23,9 @@ let source_geometry () =
 
 let graph () = Sop.snapshot (source_geometry ())
     |> Sop.extract_centroid ~label:"centers"
-      ~run_over:(Pdk.Ops.Centroid_pieces {
-        owner=Pdk.Ops.Centroid_piece_primitives; attribute="piece"})
-      ~method_:Pdk.Ops.Centroid_bounding_box
+      ~run_over:(Pdk.Curve_topology.Centroid_pieces {
+        owner=Pdk.Curve_topology.Centroid_piece_primitives; attribute="piece"})
+      ~method_:Pdk.Curve_topology.Centroid_bounding_box
       ~piece_output_attribute:"island"
 
 let cook session domains node =
@@ -67,8 +67,8 @@ let run () =
   check (Pdk.Geometry.point_count one = 2) "Extract Centroid SOP cardinality";
   let invalid = try
       ignore (Sop.extract_centroid
-        ~run_over:(Pdk.Ops.Centroid_pieces {
-          owner=Pdk.Ops.Centroid_piece_points; attribute="P"})
+        ~run_over:(Pdk.Curve_topology.Centroid_pieces {
+          owner=Pdk.Curve_topology.Centroid_piece_points; attribute="P"})
         (Sop.points [|0.,0.,0.|])); false
     with Invalid_argument _ -> true in
   check invalid "Extract Centroid SOP accepted P as piece identity";

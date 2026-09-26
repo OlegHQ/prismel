@@ -51,8 +51,8 @@ let convex_hull () =
 
 let extract_centroid () =
   let targets = box () |> Sop.extract_centroid
-      ~run_over:Pdk.Ops.Centroid_primitives
-      ~method_:Pdk.Ops.Centroid_bounding_box in
+      ~run_over:Pdk.Curve_topology.Centroid_primitives
+      ~method_:Pdk.Curve_topology.Centroid_bounding_box in
   Sop.copy_to_points ~source:(Sop.uv_sphere ~segments:12 ~rings:8
       ~radius:0.13 ()) ~targets ()
 

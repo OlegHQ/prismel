@@ -75,13 +75,13 @@ let test_modes_and_ancestry () =
   let source = fixture () in
   let face = primitive_group "face_only" source
   and curve = primitive_group "curve_only" source in
-  let opened = Ops.ends ~grain:1 ~primitives:face Ops.Ends_open source |> get in
+  let opened = Curve_topology.ends ~grain:1 ~primitives:face Curve_topology.Ends_open source |> get in
   check (Topology.primitive_kind (Geometry.topology opened) 0
       = Topology.Open_polyline && Geometry.point_count opened = 7
       && Geometry.vertex_count opened = 7
       && Edge_group.cardinality (edge_group opened) = 5)
     "open face topology/edge ancestry";
-  let shared = Ops.ends ~grain:1 ~primitives:face Ops.Ends_unroll_shared source
+  let shared = Curve_topology.ends ~grain:1 ~primitives:face Curve_topology.Ends_unroll_shared source
       |> get in
   let shared_topology = Topology.Private.view (Geometry.topology shared) in
   check (Geometry.point_count shared = 7 && Geometry.vertex_count shared = 8
@@ -91,7 +91,7 @@ let test_modes_and_ancestry () =
   check (vertex_int "corner" shared
       = [|100;101;102;103;100;200;201;202|])
     "shared unroll vertex payload";
-  let duplicated = Ops.ends ~grain:1 ~primitives:face Ops.Ends_unroll_new source
+  let duplicated = Curve_topology.ends ~grain:1 ~primitives:face Curve_topology.Ends_unroll_new source
       |> get in
   let duplicated_topology = Topology.Private.view (Geometry.topology duplicated) in
   check (Geometry.point_count duplicated = 8 && Geometry.vertex_count duplicated = 8
@@ -133,7 +133,7 @@ let test_modes_and_ancestry () =
   let positions = Packed.Float3.Private.view (Geometry.positions duplicated) in
   check (positions.x.(7) = positions.x.(0) && positions.y.(7) = positions.y.(0)
       && positions.z.(7) = positions.z.(0)) "new seam point position";
-  let closed = Ops.ends ~grain:1 ~primitives:curve Ops.Ends_close_straight source
+  let closed = Curve_topology.ends ~grain:1 ~primitives:curve Curve_topology.Ends_close_straight source
       |> get in
   check (Topology.primitive_kind (Geometry.topology closed) 1 = Topology.Polygon
       && Edge_group.length (edge_group closed) = 7
@@ -146,15 +146,15 @@ let test_modes_and_ancestry () =
             |> Result.get_ok in
         Geometry.create ~positions:(Geometry.positions geometry) ~topology ()
           |> Result.get_ok
-      |> Ops.ends Ops.Ends_unroll_shared |> get
-      |> Ops.ends Ops.Ends_close_straight |> get in
+      |> Curve_topology.ends Curve_topology.Ends_unroll_shared |> get
+      |> Curve_topology.ends Curve_topology.Ends_close_straight |> get in
   check (Geometry.vertex_count roundtrip = 4
       && Topology.primitive_kind (Geometry.topology roundtrip) 0 = Topology.Polygon)
     "shared unroll/close roundtrip";
   let open_identity =
-    Ops.ends ~grain:1 ~primitives:curve Ops.Ends_open source |> get
+    Curve_topology.ends ~grain:1 ~primitives:curve Curve_topology.Ends_open source |> get
   and close_identity =
-    Ops.ends ~grain:1 ~primitives:face Ops.Ends_close_straight source |> get in
+    Curve_topology.ends ~grain:1 ~primitives:face Curve_topology.Ends_close_straight source |> get in
   check (open_identity == source && close_identity == source)
     "identity-preserving closure no-ops"
 
@@ -164,16 +164,16 @@ let test_malformed_and_cancel () =
     | Error _ -> () | Ok _ -> fail ("accepted " ^ label) in
   let point_group = Group.init ~owner:Group.Point ~name:"wrong" 7 (fun _ -> true) in
   expect "point-owned primitive selection"
-    (Ops.ends ~primitives:point_group Ops.Ends_open source);
+    (Curve_topology.ends ~primitives:point_group Curve_topology.Ends_open source);
   let short_selection =
     Group.init ~owner:Group.Primitive ~name:"short" 1 (fun _ -> true) in
   expect "wrong-length primitive selection"
-    (Ops.ends ~primitives:short_selection Ops.Ends_open source);
+    (Curve_topology.ends ~primitives:short_selection Curve_topology.Ends_open source);
   let short = Line_geometry.polyline_checked [|0.,0.,0.;1.,0.,0.|] |> get in
-  expect "two-point straight close" (Ops.ends Ops.Ends_close_straight short);
+  expect "two-point straight close" (Curve_topology.ends Curve_topology.Ends_close_straight short);
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
-  (match Ops.ends ~cancel:cancelled Ops.Ends_unroll_new source with
+  (match Curve_topology.ends ~cancel:cancelled Curve_topology.Ends_unroll_new source with
    | Error error when Error.code error = "cancelled" -> ()
    | Error error -> fail ("unexpected cancellation: " ^ Error.to_string error)
    | Ok _ -> fail "ignored cancellation")
@@ -187,7 +187,7 @@ let test_shared_topology_edge_fallback () =
       ~primitive_offsets:[|0;4;8|] |> Result.get_ok in
   let source = Geometry.create ~positions ~topology () |> Result.get_ok
       |> Group_mesh.group_edges_checked ~grain:1 ~name:"all_edges" |> get in
-  let output = Ops.ends ~grain:1 Ops.Ends_unroll_new source |> get in
+  let output = Curve_topology.ends ~grain:1 Curve_topology.Ends_unroll_new source |> get in
   let edges = edge_group output in
   if Geometry.point_count output <> 8 || Geometry.vertex_count output <> 10
       || Edge_group.length edges <> 8 || Edge_group.cardinality edges <> 8 then
@@ -247,7 +247,7 @@ let test_parallel_exact () =
         (fun point -> point land 7 = 0)] () |> Result.get_ok
       |> Group_mesh.group_edges_checked ~name:"all_edges" |> get in
   let cook domains = Parallel.run ~domains (fun () ->
-      Ops.ends ~grain:4_096 Ops.Ends_unroll_new source |> get) in
+      Curve_topology.ends ~grain:4_096 Curve_topology.Ends_unroll_new source |> get) in
   let one = cook 1 and four = cook 4 in
   check (Geometry.point_count one = 500_000
       && Geometry.vertex_count one = 500_000

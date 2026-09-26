@@ -2815,7 +2815,7 @@ let run () =
       (fun edge -> edge = diagonal || edge = top) in
   let line_source = Geometry.with_edge_group selected_lines line_source |> get_ok in
   let converted domains = Parallel.run ~domains (fun () ->
-    Ops.convert_line ~grain:1 ~length_attribute:"length" line_source |> get_ok) in
+    Curve_topology.convert_line ~grain:1 ~length_attribute:"length" line_source |> get_ok) in
   let converted_one = converted 1 and converted_many = converted 4 in
   let converted_topology = Topology.Private.view (Geometry.topology converted_one)
   and converted_many_topology = Topology.Private.view
@@ -2851,7 +2851,7 @@ let run () =
       || not (Edge_group.mem 1 selected_output)
       || not (Edge_group.mem 4 selected_output) then
     fail "Convert Line native edge provenance";
-  let selected_compact = Ops.convert_line ~grain:1 ~edges:selected_lines
+  let selected_compact = Curve_topology.convert_line ~grain:1 ~edges:selected_lines
       ~remove_unused_points:true ~length_attribute:"edge_length" line_source
       |> get_ok in
   let selected_topology = Topology.Private.view
@@ -2866,7 +2866,7 @@ let run () =
       || selected_ids <> [|10;12;13|] then
     fail "Convert Line edge restriction/stable compaction";
   let connected_selected domains = Parallel.run ~domains (fun () ->
-    Ops.convert_line ~grain:1 ~edges:selected_lines ~connect_path:true
+    Curve_topology.convert_line ~grain:1 ~edges:selected_lines ~connect_path:true
       ~maximum_distance:0. ~remove_unused_points:true
       ~length_attribute:"path_length" line_source |> get_ok) in
   let connected_one = connected_selected 1
@@ -2908,9 +2908,9 @@ let run () =
       || Edge_group.cardinality connected_edges <> 2 then
     fail "Convert Line connected-path native edge provenance";
   let loop = Plane_generators.circle_checked ~segments:8 ~radius:1. () |> get_ok in
-  let open_loop = Ops.convert_line ~connect_path:true ~maximum_distance:0. loop
+  let open_loop = Curve_topology.convert_line ~connect_path:true ~maximum_distance:0. loop
       |> get_ok
-  and closed_loop = Ops.convert_line ~connect_path:true ~maximum_distance:0.
+  and closed_loop = Curve_topology.convert_line ~connect_path:true ~maximum_distance:0.
       ~make_isolated_loops_closed:true loop |> get_ok in
   if Geometry.primitive_count open_loop <> 1
       || Geometry.vertex_count open_loop <> 9
@@ -2923,44 +2923,44 @@ let run () =
     fail "Convert Line isolated-loop path mode";
   let empty_lines = Edge_group.init ~topology:(Geometry.topology line_source)
       ~index:line_index ~name:"empty_lines" (fun _ -> false) in
-  let empty_output = Ops.convert_line ~edges:empty_lines ~connect_path:true
+  let empty_output = Curve_topology.convert_line ~edges:empty_lines ~connect_path:true
       line_source |> get_ok
-  and empty_compact = Ops.convert_line ~edges:empty_lines ~connect_path:true
+  and empty_compact = Curve_topology.convert_line ~edges:empty_lines ~connect_path:true
       ~remove_unused_points:true line_source |> get_ok in
   if Geometry.point_count empty_output <> 4
       || Geometry.primitive_count empty_output <> 0
       || Geometry.point_count empty_compact <> 0
       || Geometry.primitive_count empty_compact <> 0 then
     fail "Convert Line empty path selection/compaction";
-  (match Ops.convert_line ~edges:middle_group line_source with
+  (match Curve_topology.convert_line ~edges:middle_group line_source with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "Convert Line accepted an edge group from another topology");
   let overflowing_line = Line_geometry.polyline_checked
       [|(-.max_float,0.,0.); (max_float,0.,0.)|] |> get_ok in
-  (match Ops.convert_line ~length_attribute:"length" overflowing_line with
+  (match Curve_topology.convert_line ~length_attribute:"length" overflowing_line with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "Convert Line published a non-finite length attribute");
-  (match Ops.convert_line ~connect_path:true ~maximum_distance:Float.nan
+  (match Curve_topology.convert_line ~connect_path:true ~maximum_distance:Float.nan
       line_source with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "Convert Line path mode accepted a non-finite distance");
-  (match Ops.convert_line ~connect_path:true ~maximum_distance:(-1.) line_source
+  (match Curve_topology.convert_line ~connect_path:true ~maximum_distance:(-1.) line_source
       with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "Convert Line path mode accepted a negative distance");
-  (match Ops.convert_line ~connect_path:true ~length_attribute:" " line_source
+  (match Curve_topology.convert_line ~connect_path:true ~length_attribute:" " line_source
       with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "Convert Line path mode accepted an empty length name");
   let overflowing_path = Line_geometry.polyline_checked
       [|(0.,0.,0.); (max_float,0.,0.); (0.,1.,0.)|] |> get_ok in
-  (match Ops.convert_line ~connect_path:true ~maximum_distance:0.
+  (match Curve_topology.convert_line ~connect_path:true ~maximum_distance:0.
       ~length_attribute:"length" overflowing_path with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "Convert Line published a non-finite accumulated path length");
   let cancelled_convert_path = Cancel.create () in
   Cancel.cancel cancelled_convert_path;
-  (match Ops.convert_line ~cancel:cancelled_convert_path ~connect_path:true
+  (match Curve_topology.convert_line ~cancel:cancelled_convert_path ~connect_path:true
       line_source with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "cancelled Convert Line path mode published geometry");
@@ -3550,7 +3550,7 @@ let run () =
       (1.,1.,0.); (0.,1.,0.)|] |> get_ok
       |> Group_mesh.group_edges_checked ~name:"closed_edges" |> get_ok in
   let opened domains = Parallel.run ~domains (fun () ->
-    Ops.curve_ends ~grain:1 Ops.Open_curve closed_ends_source |> get_ok) in
+    Curve_topology.curve_ends ~grain:1 Curve_topology.Open_curve closed_ends_source |> get_ok) in
   let opened_one = opened 1 and opened_many = opened 4 in
   let opened_group geometry = Geometry.find_edge_group "closed_edges" geometry
       |> Option.get in
@@ -3560,7 +3560,7 @@ let run () =
       || Edge_group.cardinality (opened_group opened_one) <> 3
       || Edge_group.cardinality (opened_group opened_many) <> 3 then
     fail "Curve Ends open/native-edge/domain behavior";
-  let unrolled = Ops.curve_ends Ops.Unroll_curve closed_ends_source |> get_ok in
+  let unrolled = Curve_topology.curve_ends Curve_topology.Unroll_curve closed_ends_source |> get_ok in
   let unrolled_topology = Topology.Private.view (Geometry.topology unrolled) in
   if Topology.primitive_kind (Geometry.topology unrolled) 0
       <> Topology.Open_polyline
@@ -3569,7 +3569,7 @@ let run () =
     fail "Curve Ends unroll/remap";
   let open_ends_source = Line_geometry.polyline_checked [|(0.,0.,0.); (1.,0.,0.); (2.,0.,0.)|]
       |> get_ok |> Group_mesh.group_edges_checked ~name:"open_edges" |> get_ok in
-  let closed_ends = Ops.curve_ends Ops.Close_curve open_ends_source |> get_ok in
+  let closed_ends = Curve_topology.curve_ends Curve_topology.Close_curve open_ends_source |> get_ok in
   let closed_group = Geometry.find_edge_group "open_edges" closed_ends
       |> Option.get in
   if Topology.primitive_kind (Geometry.topology closed_ends) 0
@@ -3594,7 +3594,7 @@ let run () =
       ~attributes:[join_corner_id; join_piece] ~groups:[join_tagged] () |> get_ok
       |> Group_mesh.group_edges_checked ~name:"join_edges" |> get_ok in
   let joined domains = Parallel.run ~domains (fun () ->
-    Ops.join_curves ~grain:1 join_source |> get_ok) in
+    Curve_topology.join_curves ~grain:1 join_source |> get_ok) in
   let joined_one = joined 1 and joined_many = joined 4 in
   let joined_topology = Topology.Private.view (Geometry.topology joined_one)
   and joined_many_topology = Topology.Private.view (Geometry.topology joined_many) in
@@ -3620,7 +3620,7 @@ let run () =
   if Edge_group.length joined_edges <> 6
       || Edge_group.cardinality joined_edges <> 5 then
     fail "Curve Join original/generated native edge policy";
-  let connected_only = Ops.join_curves ~only_connected:true join_source |> get_ok in
+  let connected_only = Curve_topology.join_curves ~only_connected:true join_source |> get_ok in
   if Geometry.primitive_count connected_only <> 2
       || Geometry.vertex_count connected_only <> 7 then
     fail "Curve Join only-connected chain partition";
@@ -3641,7 +3641,7 @@ let run () =
       ~attributes:[closest_corner; closest_piece] () |> get_ok
       |> Group_mesh.group_edges_checked ~name:"closest_edges" |> get_ok in
   let globally_joined domains = Parallel.run ~domains (fun () ->
-      Ops.join_curves ~grain:1 ~connect_closest_ends:true closest_source
+      Curve_topology.join_curves ~grain:1 ~connect_closest_ends:true closest_source
       |> get_ok) in
   let globally_joined_one = globally_joined 1
   and globally_joined_many = globally_joined 4 in
@@ -3665,12 +3665,12 @@ let run () =
       || Edge_group.cardinality (Geometry.find_edge_group "closest_edges"
            globally_joined_one |> Option.get) <> 4 then
     fail "Curve Join global closest-end ordering/payload/edge/domain behavior";
-  let closest_components = Ops.join_curves ~connect_closest_ends:true
+  let closest_components = Curve_topology.join_curves ~connect_closest_ends:true
       ~only_connected:true ~tolerance:0. closest_source |> get_ok in
   if Geometry.primitive_count closest_components <> 3
       || Geometry.vertex_count closest_components <> 7 then
     fail "Curve Join global closest-end connected-component partition";
-  let closest_subgroups = Ops.join_curves ~connect_closest_ends:true
+  let closest_subgroups = Curve_topology.join_curves ~connect_closest_ends:true
       ~group_size:2 closest_source |> get_ok in
   let closest_subgroup_topology = Topology.Private.view
       (Geometry.topology closest_subgroups) in
@@ -3680,7 +3680,7 @@ let run () =
     fail "Curve Join global closest-end fixed subgroup policy";
   let authored_order = Group.ordered ~owner:Group.Primitive
       ~name:"authored_order" ~length:4 [|2;0;3|] |> get_ok in
-  let authored_join = Ops.join_curves ~primitives:authored_order
+  let authored_join = Curve_topology.join_curves ~primitives:authored_order
       ~orient_closest:false closest_source |> get_ok in
   let authored_topology = Topology.Private.view
       (Geometry.topology authored_join) in
@@ -3688,12 +3688,12 @@ let run () =
       || authored_topology.vertex_points <> [|2;3;4;5;0;1;6;7|] then
     fail "Curve Join ignored ordered primitive-group traversal";
   let picked_ends = [|
-      { Ops.primitive = 2; end_ = Ops.Join_curve_start };
-      { Ops.primitive = 0; end_ = Ops.Join_curve_start };
-      { Ops.primitive = 3; end_ = Ops.Join_curve_end };
+      { Curve_topology.primitive = 2; end_ = Curve_topology.Join_curve_start };
+      { Curve_topology.primitive = 0; end_ = Curve_topology.Join_curve_start };
+      { Curve_topology.primitive = 3; end_ = Curve_topology.Join_curve_end };
     |] in
   let picked_join domains = Parallel.run ~domains (fun () ->
-    Ops.join_curves ~grain:1 ~picked_ends closest_source |> get_ok) in
+    Curve_topology.join_curves ~grain:1 ~picked_ends closest_source |> get_ok) in
   let picked_one = picked_join 1 and picked_many = picked_join 4 in
   let picked_topology = Topology.Private.view (Geometry.topology picked_one)
   and picked_many_topology = Topology.Private.view
@@ -3714,37 +3714,37 @@ let run () =
       || Edge_group.cardinality (Geometry.find_edge_group "closest_edges"
            picked_one |> Option.get) <> 4 then
     fail "Curve Join picked-end order/orientation/payload/edge/domain behavior";
-  let picked_subgroups = Ops.join_curves ~picked_ends ~group_size:2
+  let picked_subgroups = Curve_topology.join_curves ~picked_ends ~group_size:2
       closest_source |> get_ok in
   let picked_subgroup_topology = Topology.Private.view
       (Geometry.topology picked_subgroups) in
   if picked_subgroup_topology.primitive_offsets <> [|0;2;6;8|]
       || picked_subgroup_topology.vertex_points <> [|2;3;5;4;0;1;6;7|] then
     fail "Curve Join picked subgroup-root outgoing-end behavior";
-  if (Ops.join_curves ~picked_ends:[||] closest_source |> get_ok) != closest_source
+  if (Curve_topology.join_curves ~picked_ends:[||] closest_source |> get_ok) != closest_source
   then fail "Curve Join rebuilt an empty picked-end selection";
-  (match Ops.join_curves ~primitives:authored_order ~picked_ends closest_source with
+  (match Curve_topology.join_curves ~primitives:authored_order ~picked_ends closest_source with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "Curve Join accepted primitive selection with picked ends");
-  (match Ops.join_curves ~picked_ends ~connect_closest_ends:true closest_source with
+  (match Curve_topology.join_curves ~picked_ends ~connect_closest_ends:true closest_source with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "Curve Join accepted picked ends with closest-end ordering");
-  (match Ops.join_curves ~picked_ends:[|
-      { Ops.primitive = 1; end_ = Ops.Join_curve_start };
-      { Ops.primitive = 1; end_ = Ops.Join_curve_end }|] closest_source with
+  (match Curve_topology.join_curves ~picked_ends:[|
+      { Curve_topology.primitive = 1; end_ = Curve_topology.Join_curve_start };
+      { Curve_topology.primitive = 1; end_ = Curve_topology.Join_curve_end }|] closest_source with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "Curve Join accepted a duplicate picked primitive");
-  (match Ops.join_curves ~picked_ends:[|
-      { Ops.primitive = 4; end_ = Ops.Join_curve_start }|] closest_source with
+  (match Curve_topology.join_curves ~picked_ends:[|
+      { Curve_topology.primitive = 4; end_ = Curve_topology.Join_curve_start }|] closest_source with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "Curve Join accepted an out-of-bounds picked primitive");
-  let ordered_subgroups = Ops.join_curves ~group_size:2 closest_source |> get_ok in
+  let ordered_subgroups = Curve_topology.join_curves ~group_size:2 closest_source |> get_ok in
   let ordered_subgroup_topology = Topology.Private.view
       (Geometry.topology ordered_subgroups) in
   if ordered_subgroup_topology.primitive_offsets <> [|0;4;8|]
       || ordered_subgroup_topology.vertex_points <> [|0;1;2;3;5;4;7;6|] then
     fail "Curve Join input-order subgroup root/continuation orientation";
-  let retained_join = Ops.join_curves ~keep_originals:true join_source |> get_ok in
+  let retained_join = Curve_topology.join_curves ~keep_originals:true join_source |> get_ok in
   let retained_topology = Topology.Private.view (Geometry.topology retained_join)
   and retained_pieces = Geometry.find_attribute ~owner:Attribute.Primitive
       "join_piece" retained_join |> Option.get
@@ -3771,7 +3771,7 @@ let run () =
   if Edge_group.length retained_edges <> 6
       || Edge_group.cardinality retained_edges <> 5 then
     fail "Curve Join Keep Primitives native-edge ancestry";
-  (match Ops.join_curves ~group_size:0 join_source with
+  (match Curve_topology.join_curves ~group_size:0 join_source with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "Curve Join accepted a non-positive subgroup size");
   let random_curve_count = 257 and random_point_count = 514 in
@@ -3800,7 +3800,7 @@ let run () =
       ~positions:(Packed.Float3.Private.of_owned_exn
         ~x:random_x ~y:random_y ~z:random_z)
       ~topology:random_topology () |> get_ok in
-  let random_result = Ops.join_curves ~grain:7 ~connect_closest_ends:true
+  let random_result = Curve_topology.join_curves ~grain:7 ~connect_closest_ends:true
       random_source |> get_ok in
   let expected_points = Array.make random_point_count 0
   and used = Bytes.make random_curve_count '\000' in
@@ -3836,29 +3836,29 @@ let run () =
   if (Topology.Private.view (Geometry.topology random_result)).vertex_points
       <> expected_points then
     fail "Curve Join endpoint k-d tree disagrees with brute-force greedy order";
-  let wrapped_join = Ops.join_curves ~wrap:true join_source |> get_ok in
+  let wrapped_join = Curve_topology.join_curves ~wrap:true join_source |> get_ok in
   let wrapped_edges = Geometry.find_edge_group "join_edges" wrapped_join
       |> Option.get in
   if Topology.primitive_kind (Geometry.topology wrapped_join) 0
       <> Topology.Closed_polyline || Edge_group.length wrapped_edges <> 7
       || Edge_group.cardinality wrapped_edges <> 5 then
     fail "Curve Join wrap/generated edge policy";
-  (match Ops.join_curves triangle_geometry with
+  (match Curve_topology.join_curves triangle_geometry with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "Curve Join accepted polygon geometry");
-  (match Ops.join_curves ~tolerance:nan join_source with
+  (match Curve_topology.join_curves ~tolerance:nan join_source with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "Curve Join accepted a non-finite tolerance");
   let extreme_join = Mesh_merge.run [
       Line_geometry.polyline_checked [|(-.max_float,0.,0.); (-.max_float,1.,0.)|] |> get_ok;
       Line_geometry.polyline_checked [|(max_float,0.,0.); (max_float,1.,0.)|] |> get_ok;
-    ] |> get_ok |> Ops.join_curves |> get_ok in
+    ] |> get_ok |> Curve_topology.join_curves |> get_ok in
   if Geometry.vertex_count extreme_join <> 4 then
     fail "Curve Join mishandled overflowing finite endpoint distance";
   let extreme_global = Mesh_merge.run [
       Line_geometry.polyline_checked [|(-.max_float,0.,0.); (-.max_float,1.,0.)|] |> get_ok;
       Line_geometry.polyline_checked [|(max_float,0.,0.); (max_float,1.,0.)|] |> get_ok;
-    ] |> get_ok |> Ops.join_curves ~connect_closest_ends:true |> get_ok in
+    ] |> get_ok |> Curve_topology.join_curves ~connect_closest_ends:true |> get_ok in
   if Geometry.vertex_count extreme_global <> 4 then
     fail "global closest Curve Join mishandled overflowing finite distance";
   let invalid_join_positions = Packed.Float3.Private.of_owned_exn
@@ -3868,7 +3868,7 @@ let run () =
       ~primitive_kinds:(Array.make 2 Topology.Open_polyline) |> get_ok in
   let invalid_join = Geometry.create ~positions:invalid_join_positions
       ~topology:invalid_join_topology () |> get_ok in
-  (match Ops.join_curves ~connect_closest_ends:true invalid_join with
+  (match Curve_topology.join_curves ~connect_closest_ends:true invalid_join with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "global closest Curve Join accepted a non-finite endpoint");
   (match Curve_modeling.carve_curves_checked ~first:0.5 ~last:0.5 carve_source with
@@ -3881,7 +3881,7 @@ let run () =
    | Ok _ -> fail "Curve Carve accepted polygon geometry"
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "Curve Carve polygon diagnostic code");
-  (match Ops.curve_ends Ops.Open_curve geometry with
+  (match Curve_topology.curve_ends Curve_topology.Open_curve geometry with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "Curve Ends accepted polygon geometry");
   let cancelled_curve = Cancel.create () in
@@ -3889,10 +3889,10 @@ let run () =
   (match Curve_modeling.carve_curves_checked ~cancel:cancelled_curve ~first:0.1 carve_source with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "Curve Carve ignored cancellation");
-  (match Ops.join_curves ~cancel:cancelled_curve join_source with
+  (match Curve_topology.join_curves ~cancel:cancelled_curve join_source with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "Curve Join ignored cancellation");
-  (match Ops.convert_line ~cancel:cancelled_curve line_source with
+  (match Curve_topology.convert_line ~cancel:cancelled_curve line_source with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "Convert Line ignored cancellation");
   (match Uv_checked.unitize Uv_checked.Islands geometry with

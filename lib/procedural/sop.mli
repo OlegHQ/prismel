@@ -1489,9 +1489,9 @@ val carve :
   ?keep:Pdk.Curve_modeling.carve_keep -> ?extract_points:bool -> ?divisions:int ->
   ?keep_original:bool -> Node.t -> Node.t
 val curve_ends :
-  ?label:string -> ?group:string -> Pdk.Ops.curve_end_mode -> Node.t -> Node.t
+  ?label:string -> ?group:string -> Pdk.Curve_topology.curve_end_mode -> Node.t -> Node.t
 val ends :
-  ?label:string -> ?group:string -> Pdk.Ops.ends_mode -> Node.t -> Node.t
+  ?label:string -> ?group:string -> Pdk.Curve_topology.ends_mode -> Node.t -> Node.t
 (* Open, close straight, or unroll selected polygon faces and polygon curves.
     Shared unroll repeats the first point reference; new-point unroll duplicates
     the complete seam point payload. [curve_ends] remains the curve-only
@@ -1507,7 +1507,7 @@ val ends :
     Ordering, reversals, welds, and connected-only partitions are deterministic
     and participate in node identity. *)
 val join_curves :
-  ?label:string -> ?group:string -> ?picked_ends:Pdk.Ops.curve_join_pick array ->
+  ?label:string -> ?group:string -> ?picked_ends:Pdk.Curve_topology.curve_join_pick array ->
   ?orient_closest:bool ->
   ?connect_closest_ends:bool -> ?only_connected:bool -> ?group_size:int ->
   ?keep_originals:bool -> ?tolerance:float -> ?wrap:bool -> Node.t -> Node.t
@@ -2381,8 +2381,8 @@ val convex_hull :
     methods, provenance names, and piece identity are immutable cache facts. *)
 val extract_centroid :
   ?label:string ->
-  ?run_over:Pdk.Ops.centroid_run_over ->
-  ?method_:Pdk.Ops.centroid_method ->
+  ?run_over:Pdk.Curve_topology.centroid_run_over ->
+  ?method_:Pdk.Curve_topology.centroid_method ->
   ?source_primitive_attribute:string ->
   ?piece_output_attribute:string ->
   Node.t -> Node.t

@@ -112,7 +112,7 @@ let graphs () =
   and ends_wire =
     Sop.box ~connectivity:Pdk.Box_generator.Box_quads ~consolidate_points:true
       ~size:(Vec3.create 0.9 0.75 0.8) ()
-    |> Sop.ends Pdk.Ops.Ends_unroll_shared
+    |> Sop.ends Pdk.Curve_topology.Ends_unroll_shared
     |> Sop.polywire ~sides:6 ~caps:true ~radius:0.02
     |> Sop.set_color ~owner:Pdk.Attribute.Point (Color.hex_exn "#facc15")
     |> Sop.transform (Mat4.translation (Vec3.create 1.45 2.8 (-1.2)))

@@ -818,26 +818,6 @@ let convex_hull ?cancel ?grain ?selection ?preserve_point_payload
     Convex_hull.run ?cancel ?grain ?selection ?preserve_point_payload
       ?source_point_attribute ?hull_group geometry)
 
-type centroid_piece_owner = Curve_topology.centroid_piece_owner =
-  | Centroid_piece_points
-  | Centroid_piece_primitives
-
-type centroid_run_over = Curve_topology.centroid_run_over =
-  | Centroid_detail
-  | Centroid_primitives
-  | Centroid_pieces of { owner : centroid_piece_owner; attribute : string }
-
-type centroid_method = Curve_topology.centroid_method =
-  | Centroid_point_mass | Centroid_bounding_box | Centroid_convex_hull
-
-let extract_centroid = Curve_topology.extract_centroid
-
-type extract_curve_cut = Curve_topology.extract_curve_cut =
-  | Extract_cut_constant of float
-  | Extract_cut_primitive_attribute of string
-
-let extract_point_from_curve = Curve_topology.extract_point_from_curve
-
 let bound = Bound.run_checked
 let bounding_box = Bound.bounding_box_checked
 let match_axis = Match_size.match_axis_checked
@@ -927,27 +907,6 @@ let poly_extrude ?cancel ?grain ?primitives ?split_edges ?divide ?divisions
 let poly_fill = Poly_fill.run_checked
 
 let resample_curves = Curve_modeling.resample_curves_checked
-
-let convert_line = Curve_topology.convert_line
-
-type curve_end_mode = Curve_topology.curve_end_mode =
-  Open_curve | Close_curve | Unroll_curve
-let curve_ends = Curve_topology.curve_ends
-
-type ends_mode = Curve_topology.ends_mode =
-  | Ends_open | Ends_close_straight | Ends_unroll_shared | Ends_unroll_new
-
-type curve_join_end = Curve_topology.curve_join_end =
-  | Join_curve_start | Join_curve_end
-
-type curve_join_pick = Curve_topology.curve_join_pick = {
-  primitive : int;
-  end_ : curve_join_end;
-}
-
-let ends = Curve_topology.ends
-let join_curves = Curve_topology.join_curves
-let poly_path = Curve_topology.poly_path
 
 type carve_keep = Curve_modeling.carve_keep =
   | Keep_inside | Keep_outside | Keep_inside_and_outside

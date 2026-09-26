@@ -51,7 +51,7 @@ let equal left right =
 let run () =
   let graph = Sop.snapshot (source ())
       |> Sop.ends ~label:"ends-test" ~group:"selected"
-           Pdk.Ops.Ends_unroll_new in
+           Pdk.Curve_topology.Ends_unroll_new in
   if Node.operation graph <> "ends"
       || not (contains (Node.parameters graph) "group=\"selected\"")
       || not (contains (Node.parameters graph) "mode=unroll_new") then
@@ -73,7 +73,7 @@ let run () =
   if (Session.stats evaluator).misses <> misses then fail "stable graph missed cache";
   Session.close evaluator;
   let missing = Sop.snapshot (source ())
-      |> Sop.ends ~group:"absent" Pdk.Ops.Ends_open in
+      |> Sop.ends ~group:"absent" Pdk.Curve_topology.Ends_open in
   let evaluator = session () in
   (match Session.cook evaluator ~context:(context 1) missing with
    | Error error when error.Diagnostic.code = "missing_group" -> ()

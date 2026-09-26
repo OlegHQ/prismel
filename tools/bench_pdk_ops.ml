@@ -4869,14 +4869,14 @@ let run_curve_join_benchmarks () =
       ~topology:ordered_topology ~attributes:[ordered_weight] () |> get_ok
       |> Group_mesh.group_edges_checked ~grain ~name:"all_join_edges" |> get_ok in
   measure ~input_points:ordered_points "curve_join_ordered" (fun () ->
-    Ops.join_curves ~grain ordered_source |> get_ok) geometry_output;
+    Curve_topology.join_curves ~grain ordered_source |> get_ok) geometry_output;
   let picked_ends = Array.init ordered_curve_count (fun order -> {
-      Ops.primitive = (order * 37) mod ordered_curve_count;
-      end_ = if order land 1 = 0 then Ops.Join_curve_start
-        else Ops.Join_curve_end;
+      Curve_topology.primitive = (order * 37) mod ordered_curve_count;
+      end_ = if order land 1 = 0 then Curve_topology.Join_curve_start
+        else Curve_topology.Join_curve_end;
     }) in
   measure ~input_points:ordered_points "curve_join_picked_ends" (fun () ->
-    Ops.join_curves ~grain ~picked_ends ordered_source |> get_ok)
+    Curve_topology.join_curves ~grain ~picked_ends ordered_source |> get_ok)
     geometry_output;
   let closest_curve_count = 65_537 in
   let closest_point_count = closest_curve_count * 2 in
@@ -4916,11 +4916,11 @@ let run_curve_join_benchmarks () =
       ~attributes:[point_weight; corner_id; piece_id] ~groups:[selected] ()
       |> get_ok |> Group_mesh.group_edges_checked ~grain ~name:"source_edges" |> get_ok in
   measure ~input_points:closest_point_count "curve_join_closest_ends" (fun () ->
-    Ops.join_curves ~grain ~connect_closest_ends:true closest_source |> get_ok)
+    Curve_topology.join_curves ~grain ~connect_closest_ends:true closest_source |> get_ok)
     geometry_output;
   measure ~input_points:closest_point_count
     "curve_join_closest_ends_subgroups_keep" (fun () ->
-      Ops.join_curves ~grain ~connect_closest_ends:true ~group_size:128
+      Curve_topology.join_curves ~grain ~connect_closest_ends:true ~group_size:128
         ~keep_originals:true closest_source |> get_ok)
     geometry_output
 
@@ -5273,21 +5273,21 @@ let () =
   let convert_line_source = Group_mesh.group_edges_checked ~grain ~name:"all_grid_edges"
       source |> get_ok in
   measure "convert_line_grid_edges" (fun () ->
-    Ops.convert_line ~grain ~length_attribute:"edge_length"
+    Curve_topology.convert_line ~grain ~length_attribute:"edge_length"
       convert_line_source |> get_ok) geometry_output;
   if benchmark_filter = Some "convert_line" then exit 0;
   measure "convert_line_connect_path_composed" (fun () ->
-    Ops.convert_line ~grain convert_line_source |> get_ok
-    |> Ops.poly_path ~grain |> get_ok) geometry_output;
+    Curve_topology.convert_line ~grain convert_line_source |> get_ok
+    |> Curve_topology.poly_path ~grain |> get_ok) geometry_output;
   if benchmark_filter = Some "convert_line_connect_path_composed" then exit 0;
   measure "convert_line_path_fused" (fun () ->
-    Ops.convert_line ~grain ~connect_path:true ~maximum_distance:0.
+    Curve_topology.convert_line ~grain ~connect_path:true ~maximum_distance:0.
       convert_line_source |> get_ok) geometry_output;
   if benchmark_filter = Some "convert_line_path_fused" then exit 0;
   measure "poly_path_grid" (fun () ->
-    Ops.poly_path ~grain source |> get_ok) geometry_output;
+    Curve_topology.poly_path ~grain source |> get_ok) geometry_output;
   measure "poly_path_connect_grid_exact" (fun () ->
-    Ops.poly_path ~grain ~connect_end_points:true ~maximum_distance:0.
+    Curve_topology.poly_path ~grain ~connect_end_points:true ~maximum_distance:0.
       source |> get_ok) geometry_output;
   if benchmark_filter = Some "poly_path" then exit 0;
   let matrix = Mat4.mul (Mat4.translation (Vec3.create 2. 3. 4.))
@@ -5490,7 +5490,7 @@ let () =
       (Attribute.Float (Array.init (Geometry.point_count modeling_grid)
         (fun point -> 0.5 +. (float_of_int (point mod 101) /. 200.)))) |> get_ok in
   let many_curve_spines = Geometry.with_attribute wire_scale modeling_grid
-      |> get_ok |> Ops.convert_line ~grain |> get_ok in
+      |> get_ok |> Curve_topology.convert_line ~grain |> get_ok in
   measure "sweep_many_curves" (fun () ->
     Curve_modeling.sweep_circle_checked ~grain ~sides:8 ~scale_attribute:"wire_scale"
       ~radius:0.025 many_curve_spines |> get_ok) geometry_output;
@@ -6227,7 +6227,7 @@ let () =
       |> Geometry.with_group curve_points_group |> get_ok
       |> Group_mesh.group_edges_checked ~grain ~name:"all_curve_edges" |> get_ok in
   measure "curve_ends_unroll" (fun () ->
-    Ops.curve_ends ~grain Ops.Unroll_curve closed_dense_curve |> get_ok)
+    Curve_topology.curve_ends ~grain Curve_topology.Unroll_curve closed_dense_curve |> get_ok)
     geometry_output;
   let ends_quads = 100_000 and ends_points = 400_000 in
   let ends_positions = Packed.Float3.Private.of_owned_exn
@@ -6256,14 +6256,14 @@ let () =
         (fun point -> point land 7 = 0)] () |> get_ok
       |> Group_mesh.group_edges_checked ~grain ~name:"all_edges" |> get_ok in
   measure ~input_points:ends_points "ends_unroll_new_100k_quads"
-    (fun () -> Ops.ends ~grain Ops.Ends_unroll_new ends_source |> get_ok)
+    (fun () -> Curve_topology.ends ~grain Curve_topology.Ends_unroll_new ends_source |> get_ok)
     geometry_output;
   let shared_ends_source = Plane_generators.grid_checked ~connectivity:Plane_generators.Grid_quads
       ~columns:400 ~rows:400 ~size:100. () |> get_ok
       |> Group_mesh.group_edges_checked ~grain ~name:"all_edges" |> get_ok in
   measure ~input_points:(Geometry.point_count shared_ends_source)
     "ends_unroll_shared_159k_grid_faces"
-    (fun () -> Ops.ends ~grain Ops.Ends_unroll_shared shared_ends_source
+    (fun () -> Curve_topology.ends ~grain Curve_topology.Ends_unroll_shared shared_ends_source
       |> get_ok) geometry_output;
   let join_curve_count = 1_000 and join_segments = 200 in
   let join_points = join_curve_count * (join_segments + 1) in
@@ -6305,7 +6305,7 @@ let () =
     Curve_modeling.carve_curves_checked ~grain ~first_attribute:"first_u"
       ~last_attribute:"second_u" attributed_curves |> get_ok) geometry_output;
   measure "curve_join_ordered" (fun () ->
-    Ops.join_curves ~grain join_source |> get_ok) geometry_output;
+    Curve_topology.join_curves ~grain join_source |> get_ok) geometry_output;
   let graph = Sop.grid ~columns ~rows ~size:100. ()
       |> Sop.noise_displace ~seed:42 ~amplitude:0.8 ~frequency:0.16
       |> Sop.color_by_height ~low:low_color ~high:high_color in

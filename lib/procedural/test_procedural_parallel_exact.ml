@@ -1243,7 +1243,7 @@ let run () =
   let carved_curve = Sop.polyline curve_samples
       |> Sop.group_edges ~name:"curve_edges"
       |> Sop.carve ~first:0.137 ~last:0.863
-      |> Sop.curve_ends Ops.Close_curve in
+      |> Sop.curve_ends Curve_topology.Close_curve in
   let one = cook 1 carved_curve and many = cook 4 carved_curve in
   check (equal_geometry one many)
     "one-domain and four-domain carve/curve-ends geometry differ";
@@ -1298,9 +1298,9 @@ let run () =
        "Curve Join keep-original/substituted-edge ancestry"
    | None -> fail "Curve Join dropped native edge group");
   let picked_ends = Array.init 64 (fun order -> {
-      Ops.primitive = (order * 13) mod 64;
-      end_ = if order land 1 = 0 then Ops.Join_curve_start
-        else Ops.Join_curve_end;
+      Curve_topology.primitive = (order * 13) mod 64;
+      end_ = if order land 1 = 0 then Curve_topology.Join_curve_start
+        else Curve_topology.Join_curve_end;
     }) in
   let picked_curves = Sop.merge joined_curve_parts
       |> Sop.join_curves ~picked_ends ~group_size:11 ~keep_originals:true in

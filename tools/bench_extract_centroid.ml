@@ -63,11 +63,11 @@ let measure name operation input =
 let () =
   Printf.printf "case,input_points,domains,grain,repeats,seconds,current_domain_allocated_bytes,promoted_bytes,major_bytes,output_points,hash\n";
   let points = point_cloud () and mesh = grid () in
-  measure "detail_point_mass" (Ops.extract_centroid ~grain) points;
+  measure "detail_point_mass" (Curve_topology.extract_centroid ~grain) points;
   measure "detail_bounds"
-    (Ops.extract_centroid ~grain ~method_:Ops.Centroid_bounding_box) points;
-  measure "primitive_bounds" (Ops.extract_centroid ~grain
-    ~run_over:Ops.Centroid_primitives ~method_:Ops.Centroid_bounding_box) mesh;
-  measure "piece_point_mass" (Ops.extract_centroid ~grain
-    ~run_over:(Ops.Centroid_pieces {
-      owner=Ops.Centroid_piece_primitives; attribute="piece"})) mesh
+    (Curve_topology.extract_centroid ~grain ~method_:Curve_topology.Centroid_bounding_box) points;
+  measure "primitive_bounds" (Curve_topology.extract_centroid ~grain
+    ~run_over:Curve_topology.Centroid_primitives ~method_:Curve_topology.Centroid_bounding_box) mesh;
+  measure "piece_point_mass" (Curve_topology.extract_centroid ~grain
+    ~run_over:(Curve_topology.Centroid_pieces {
+      owner=Curve_topology.Centroid_piece_primitives; attribute="piece"})) mesh

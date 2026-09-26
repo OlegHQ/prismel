@@ -1253,7 +1253,7 @@ let test_generators_selections_and_delete () =
        "Carve missing-group diagnostic"
    | Ok _ -> fail "Carve accepted a missing primitive group");
   let unrolled = Sop.circle ~segments:12 ~radius:1. ()
-      |> Sop.curve_ends Pdk.Ops.Unroll_curve |> cook_ok evaluator current in
+      |> Sop.curve_ends Pdk.Curve_topology.Unroll_curve |> cook_ok evaluator current in
   check (Pdk.Geometry.vertex_count unrolled.geometry = 13
       && Pdk.Topology.primitive_kind (Pdk.Geometry.topology unrolled.geometry) 0
          = Pdk.Topology.Open_polyline)
@@ -1296,13 +1296,13 @@ let test_generators_selections_and_delete () =
       && ordered_topology.vertex_points = [|2;3;4;5;0;1;6;7|])
     "procedural Curve Join ignored ordered primitive-group traversal";
   let picked_ends = [|
-      { Pdk.Ops.primitive = 2; end_ = Pdk.Ops.Join_curve_start };
-      { Pdk.Ops.primitive = 0; end_ = Pdk.Ops.Join_curve_start };
-      { Pdk.Ops.primitive = 3; end_ = Pdk.Ops.Join_curve_end };
+      { Pdk.Curve_topology.primitive = 2; end_ = Pdk.Curve_topology.Join_curve_start };
+      { Pdk.Curve_topology.primitive = 0; end_ = Pdk.Curve_topology.Join_curve_start };
+      { Pdk.Curve_topology.primitive = 3; end_ = Pdk.Curve_topology.Join_curve_end };
     |] in
   let picked_node = picked_source |> Sop.join_curves ~picked_ends in
   picked_ends.(0) <-
-    { Pdk.Ops.primitive = 1; end_ = Pdk.Ops.Join_curve_end };
+    { Pdk.Curve_topology.primitive = 1; end_ = Pdk.Curve_topology.Join_curve_end };
   check (Node.version picked_node = 4
       && contains (Node.parameters picked_node)
            "picked_ends=2:start,0:start,3:end")
@@ -1322,8 +1322,8 @@ let test_generators_selections_and_delete () =
    | None -> ()
    | Some _ -> fail "procedural Curve Join accepted picks and closest ordering");
   let duplicate_picks = picked_source |> Sop.join_curves ~picked_ends:[|
-      { Pdk.Ops.primitive = 1; end_ = Pdk.Ops.Join_curve_start };
-      { Pdk.Ops.primitive = 1; end_ = Pdk.Ops.Join_curve_end };
+      { Pdk.Curve_topology.primitive = 1; end_ = Pdk.Curve_topology.Join_curve_start };
+      { Pdk.Curve_topology.primitive = 1; end_ = Pdk.Curve_topology.Join_curve_end };
     |] in
   (match Session.cook evaluator ~context:current duplicate_picks with
    | Error error -> check (error.code = "invalid_geometry")
@@ -1348,7 +1348,7 @@ let test_generators_selections_and_delete () =
    | None -> ()
    | Some _ -> fail "procedural Curve Join accepted invalid subgroup size");
   let missing_curve_group = Sop.circle ~segments:12 ~radius:1. ()
-      |> Sop.curve_ends ~group:"missing" Pdk.Ops.Open_curve in
+      |> Sop.curve_ends ~group:"missing" Pdk.Curve_topology.Open_curve in
   (match Session.cook evaluator ~context:current missing_curve_group with
    | Error error -> check (error.code = "missing_group")
        "Curve Ends missing-group diagnostic"

@@ -114,8 +114,8 @@ let rows = [
     |> Sop.peak ~mask_attribute:"distance" ~distance:0.25),
     point_attribute "distance";
   "extract_centroid", (fun () ->
-    box () |> Sop.extract_centroid ~run_over:Pdk.Ops.Centroid_primitives
-      ~method_:Pdk.Ops.Centroid_bounding_box
+    box () |> Sop.extract_centroid ~run_over:Pdk.Curve_topology.Centroid_primitives
+      ~method_:Pdk.Curve_topology.Centroid_bounding_box
     |> fun targets -> Sop.copy_to_points ~source:marker ~targets ()), nonempty;
   "extract_point_curve", (fun () ->
     signal_curve () |> Sop.extract_point_from_curve ~distance_attribute:"signal"

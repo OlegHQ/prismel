@@ -22,9 +22,9 @@ let test_detail_methods () =
   let source = Line_geometry.points [|0.,0.,0.; 2.,0.,0.; 10.,0.,0.|]
       |> with_attribute (attribute Attribute.Detail "author"
           (Attribute.Text [|"centroid"|])) in
-  let mass = Ops.extract_centroid source |> get
-  and bounds = Ops.extract_centroid ~method_:Ops.Centroid_bounding_box source |> get
-  and hull = Ops.extract_centroid ~method_:Ops.Centroid_convex_hull source |> get in
+  let mass = Curve_topology.extract_centroid source |> get
+  and bounds = Curve_topology.extract_centroid ~method_:Curve_topology.Centroid_bounding_box source |> get
+  and hull = Curve_topology.extract_centroid ~method_:Curve_topology.Centroid_convex_hull source |> get in
   check (Geometry.point_count mass = 1 && Geometry.vertex_count mass = 0)
     "detail output cardinality";
   check_point mass 0 (4.,0.,0.) "point-mass center";
@@ -36,11 +36,11 @@ let test_detail_methods () =
 
 let test_planar_and_solid_hull_centers () =
   let triangle = Line_geometry.points [|0.,0.,0.;2.,0.,0.;0.,2.,0.;0.25,0.25,0.|] in
-  let triangle = Ops.extract_centroid ~method_:Ops.Centroid_convex_hull triangle
+  let triangle = Curve_topology.extract_centroid ~method_:Curve_topology.Centroid_convex_hull triangle
       |> get in
   check_point triangle 0 (2. /. 3., 2. /. 3., 0.) "planar hull area center";
   let tetra = Line_geometry.points [|0.,0.,0.;1.,0.,0.;0.,1.,0.;0.,0.,1.;0.1,0.1,0.1|] in
-  let tetra = Ops.extract_centroid ~method_:Ops.Centroid_convex_hull tetra |> get in
+  let tetra = Curve_topology.extract_centroid ~method_:Curve_topology.Centroid_convex_hull tetra |> get in
   check_point tetra 0 (0.25,0.25,0.25) "solid hull volume center"
 
 let two_triangles () =
@@ -66,7 +66,7 @@ let text_values owner name geometry =
 
 let test_primitive_and_piece_modes () =
   let source = two_triangles () in
-  let primitives = Ops.extract_centroid ~run_over:Ops.Centroid_primitives
+  let primitives = Curve_topology.extract_centroid ~run_over:Curve_topology.Centroid_primitives
       ~source_primitive_attribute:"sourceprim" source |> get in
   check (Geometry.point_count primitives = 2) "primitive center count";
   check_point primitives 0 (2. /. 3., 2. /. 3., 0.) "first primitive center";
@@ -75,18 +75,18 @@ let test_primitive_and_piece_modes () =
     "source primitive field";
   let point_pieces = source |> with_attribute
       (attribute Attribute.Point "island" (Attribute.Int [|7;7;7;9;9;9|])) in
-  let point_pieces = Ops.extract_centroid
-      ~run_over:(Ops.Centroid_pieces {
-        owner=Ops.Centroid_piece_points; attribute="island"}) point_pieces |> get in
+  let point_pieces = Curve_topology.extract_centroid
+      ~run_over:(Curve_topology.Centroid_pieces {
+        owner=Curve_topology.Centroid_piece_points; attribute="island"}) point_pieces |> get in
   check (Geometry.point_count point_pieces = 2
       && int_values Attribute.Point "island" point_pieces = [|7;9|])
     "point piece identity";
   check_point point_pieces 0 (2. /. 3.,2. /. 3.,0.) "point piece first";
   let primitive_pieces = source |> with_attribute
       (attribute Attribute.Primitive "name" (Attribute.Text [|"both";"both"|])) in
-  let primitive_pieces = Ops.extract_centroid
-      ~run_over:(Ops.Centroid_pieces {
-        owner=Ops.Centroid_piece_primitives; attribute="name"})
+  let primitive_pieces = Curve_topology.extract_centroid
+      ~run_over:(Curve_topology.Centroid_pieces {
+        owner=Curve_topology.Centroid_piece_primitives; attribute="name"})
       ~piece_output_attribute:"piece" primitive_pieces |> get in
   check (Geometry.point_count primitive_pieces = 1
       && text_values Attribute.Point "piece" primitive_pieces = [|"both"|])
@@ -99,25 +99,25 @@ let expect code work message = match work () with
   | Ok _ -> fail (message ^ ": unexpectedly accepted")
 
 let test_validation_and_cancellation () =
-  expect "invalid_geometry" (fun () -> Ops.extract_centroid (Line_geometry.points [||]))
+  expect "invalid_geometry" (fun () -> Curve_topology.extract_centroid (Line_geometry.points [||]))
     "empty detail";
-  expect "invalid_geometry" (fun () -> Ops.extract_centroid ~grain:0
+  expect "invalid_geometry" (fun () -> Curve_topology.extract_centroid ~grain:0
       (Line_geometry.points [|0.,0.,0.|])) "zero grain";
   let bad = Line_geometry.points [|Float.nan,0.,0.|] in
-  expect "invalid_geometry" (fun () -> Ops.extract_centroid bad) "nonfinite";
+  expect "invalid_geometry" (fun () -> Curve_topology.extract_centroid bad) "nonfinite";
   let source = two_triangles () in
-  expect "invalid_geometry" (fun () -> Ops.extract_centroid
-      ~run_over:(Ops.Centroid_pieces {
-        owner=Ops.Centroid_piece_primitives; attribute="missing"}) source)
+  expect "invalid_geometry" (fun () -> Curve_topology.extract_centroid
+      ~run_over:(Curve_topology.Centroid_pieces {
+        owner=Curve_topology.Centroid_piece_primitives; attribute="missing"}) source)
     "missing piece field";
   let wrong = source |> with_attribute
       (attribute Attribute.Primitive "bad" (Attribute.Float [|0.;1.|])) in
-  expect "invalid_geometry" (fun () -> Ops.extract_centroid
-      ~run_over:(Ops.Centroid_pieces {
-        owner=Ops.Centroid_piece_primitives; attribute="bad"}) wrong)
+  expect "invalid_geometry" (fun () -> Curve_topology.extract_centroid
+      ~run_over:(Curve_topology.Centroid_pieces {
+        owner=Curve_topology.Centroid_piece_primitives; attribute="bad"}) wrong)
     "wrong piece storage";
   let cancel = Cancel.create () in Cancel.cancel cancel;
-  expect "cancelled" (fun () -> Ops.extract_centroid ~cancel source)
+  expect "cancelled" (fun () -> Curve_topology.extract_centroid ~cancel source)
     "cancellation"
 
 let equal left right =
@@ -139,10 +139,10 @@ let test_parallel_exact () =
         (fun primitive -> primitive / 2))) in
   let source = source |> with_attribute piece in
   let cook domains = Parallel.run ~domains (fun () ->
-    Ops.extract_centroid ~grain:257
-      ~run_over:(Ops.Centroid_pieces {
-        owner=Ops.Centroid_piece_primitives; attribute="piece"})
-      ~method_:Ops.Centroid_bounding_box source |> get) in
+    Curve_topology.extract_centroid ~grain:257
+      ~run_over:(Curve_topology.Centroid_pieces {
+        owner=Curve_topology.Centroid_piece_primitives; attribute="piece"})
+      ~method_:Curve_topology.Centroid_bounding_box source |> get) in
   let one = cook 1 and four = cook 4 in
   check (equal one four) "one/four-domain output differs";
   check (Geometry.point_count one = columns * rows)

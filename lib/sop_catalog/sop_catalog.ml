@@ -2941,15 +2941,15 @@ end [@@sop.register]
 
 module Ends = struct
   let mode_parameter = Parameter.choice ~equal:( = ) [
-      "Open", Pdk.Ops.Ends_open;
-      "Close straight", Pdk.Ops.Ends_close_straight;
-      "Unroll shared point", Pdk.Ops.Ends_unroll_shared;
-      "Unroll new point", Pdk.Ops.Ends_unroll_new;
+      "Open", Pdk.Curve_topology.Ends_open;
+      "Close straight", Pdk.Curve_topology.Ends_close_straight;
+      "Unroll shared point", Pdk.Curve_topology.Ends_unroll_shared;
+      "Unroll new point", Pdk.Curve_topology.Ends_unroll_new;
     ]
 
   type parameters = {
     group : string [@sop.default ""] [@sop.label "Primitive group"];
-    mode : Pdk.Ops.ends_mode [@sop.default Pdk.Ops.Ends_open]
+    mode : Pdk.Curve_topology.ends_mode [@sop.default Pdk.Curve_topology.Ends_open]
       [@sop.label "U end"] [@sop.kind mode_parameter];
   } [@@sop.node_key "ends"] [@@sop.node_label "Ends"]
     [@@sop.node_category "Topology/Curve"] [@@sop.node_inputs 1]
@@ -3963,9 +3963,9 @@ module Extract_centroid = struct
       "Point pieces", Point_pieces; "Primitive pieces", Primitive_pieces;
     ]
   let method_parameter = Parameter.choice ~equal:( = ) [
-      "Point mass", Pdk.Ops.Centroid_point_mass;
-      "Bounding box", Pdk.Ops.Centroid_bounding_box;
-      "Convex hull", Pdk.Ops.Centroid_convex_hull;
+      "Point mass", Pdk.Curve_topology.Centroid_point_mass;
+      "Bounding box", Pdk.Curve_topology.Centroid_bounding_box;
+      "Convex hull", Pdk.Curve_topology.Centroid_convex_hull;
     ]
 
   type parameters = {
@@ -3973,8 +3973,8 @@ module Extract_centroid = struct
       [@sop.label "Run over"] [@sop.kind run_parameter];
     piece_attribute : string [@sop.default "piece"]
       [@sop.label "Piece attribute"];
-    method_ : Pdk.Ops.centroid_method
-      [@sop.default Pdk.Ops.Centroid_point_mass]
+    method_ : Pdk.Curve_topology.centroid_method
+      [@sop.default Pdk.Curve_topology.Centroid_point_mass]
       [@sop.label "Method"] [@sop.kind method_parameter];
     source_primitive_attribute : string [@sop.default ""]
       [@sop.label "Source primitive attribute"] [@sop.folder "Output"];
@@ -3986,13 +3986,13 @@ module Extract_centroid = struct
     [@@deriving sop_params, sop_node]
 
   let run_over parameters = match parameters.run_over with
-    | Detail -> Pdk.Ops.Centroid_detail
-    | Primitives -> Pdk.Ops.Centroid_primitives
-    | Point_pieces -> Pdk.Ops.Centroid_pieces {
-        owner = Pdk.Ops.Centroid_piece_points;
+    | Detail -> Pdk.Curve_topology.Centroid_detail
+    | Primitives -> Pdk.Curve_topology.Centroid_primitives
+    | Point_pieces -> Pdk.Curve_topology.Centroid_pieces {
+        owner = Pdk.Curve_topology.Centroid_piece_points;
         attribute = parameters.piece_attribute }
-    | Primitive_pieces -> Pdk.Ops.Centroid_pieces {
-        owner = Pdk.Ops.Centroid_piece_primitives;
+    | Primitive_pieces -> Pdk.Curve_topology.Centroid_pieces {
+        owner = Pdk.Curve_topology.Centroid_piece_primitives;
         attribute = parameters.piece_attribute }
 
   let rec build ~label ~inputs parameters = match inputs with

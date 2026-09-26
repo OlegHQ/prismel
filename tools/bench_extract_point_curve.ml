@@ -117,12 +117,12 @@ let () =
   Printf.printf "case,input_points,curves,domains,grain,repeats,seconds,current_domain_allocated_bytes,promoted_bytes,major_bytes,output_points,hash\n";
   let sparse = fixture ~dense:false and dense = fixture ~dense:true in
   measure "constant_sparse"
-    (Ops.extract_point_from_curve ~grain ~distance_attribute:"distance") sparse;
+    (Curve_topology.extract_point_from_curve ~grain ~distance_attribute:"distance") sparse;
   measure "constant_dense"
-    (Ops.extract_point_from_curve ~grain ~distance_attribute:"distance") dense;
+    (Curve_topology.extract_point_from_curve ~grain ~distance_attribute:"distance") dense;
   measure "varying_dense_payload"
-    (Ops.extract_point_from_curve ~grain
-      ~cut:(Ops.Extract_cut_primitive_attribute "cut")
+    (Curve_topology.extract_point_from_curve ~grain
+      ~cut:(Curve_topology.Extract_cut_primitive_attribute "cut")
       ~distance_attribute:"distance" ~point_attributes:"weight id"
       ~copy_primitive_attributes:true ~primitive_attributes:"material"
       ~curve_u_attribute:"u" ~number_cuts_attribute:"cuts"

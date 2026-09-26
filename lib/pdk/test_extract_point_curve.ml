@@ -60,7 +60,7 @@ let text_values owner name geometry =
 
 let test_constant_plateau_and_closed_seam () =
   let source = fixture () in
-  let output = Ops.extract_point_from_curve ~distance_attribute:"distance"
+  let output = Curve_topology.extract_point_from_curve ~distance_attribute:"distance"
       ~point_attributes:"weight id label rows" ~copy_primitive_attributes:true
       ~primitive_attributes:"material" ~curve_u_attribute:"curveu"
       ~number_cuts_attribute:"ncuts" ~curve_number_attribute:"curvenum"
@@ -97,14 +97,14 @@ let test_per_curve_target_and_selection () =
   let source = fixture () in
   let first = Group.init ~owner:Group.Primitive ~name:"first" 2
       (fun primitive -> primitive = 0) in
-  let output = Ops.extract_point_from_curve ~primitives:first
-      ~cut:(Ops.Extract_cut_primitive_attribute "cut")
+  let output = Curve_topology.extract_point_from_curve ~primitives:first
+      ~cut:(Curve_topology.Extract_cut_primitive_attribute "cut")
       ~distance_attribute:"distance" ~curve_number_attribute:"curve" source |> get in
   check (Geometry.point_count output = 3
       && int_values Attribute.Point "curve" output = [|0;0;0|])
     "primitive restriction";
-  let all = Ops.extract_point_from_curve
-      ~cut:(Ops.Extract_cut_primitive_attribute "cut")
+  let all = Curve_topology.extract_point_from_curve
+      ~cut:(Curve_topology.Extract_cut_primitive_attribute "cut")
       ~distance_attribute:"distance" source |> get in
   check (Geometry.point_count all = 5) "varying target cardinality";
   let p = positions all in
@@ -116,7 +116,7 @@ let test_open_last_endpoint () =
   let source = Line_geometry.polyline_checked [|0.,0.,0.;1.,0.,0.;2.,0.,0.|] |> get
       |> with_attribute (attribute Attribute.Point "d"
           (Attribute.Float [|-1.;-1.;0.|])) in
-  let output = Ops.extract_point_from_curve ~distance_attribute:"d" source |> get in
+  let output = Curve_topology.extract_point_from_curve ~distance_attribute:"d" source |> get in
   check (Geometry.point_count output = 1 && (positions output).x = [|2.|])
     "open final endpoint"
 
@@ -124,7 +124,7 @@ let test_empty_selection_and_extreme_scale () =
   let source = fixture () in
   let empty = Group.init ~owner:Group.Primitive ~name:"empty" 2
       (fun _ -> false) in
-  let output = Ops.extract_point_from_curve ~primitives:empty
+  let output = Curve_topology.extract_point_from_curve ~primitives:empty
       ~distance_attribute:"distance" source |> get in
   check (Geometry.point_count output = 0 && Geometry.vertex_count output = 0)
     "empty selection cardinality";
@@ -135,7 +135,7 @@ let test_empty_selection_and_extreme_scale () =
       [|(-.Float.max_float),0.,0.; Float.max_float,0.,0.|] |> get
       |> with_attribute (attribute Attribute.Point "d"
           (Attribute.Float [|(-.Float.max_float);Float.max_float|])) in
-  let midpoint = Ops.extract_point_from_curve ~distance_attribute:"d" extreme
+  let midpoint = Curve_topology.extract_point_from_curve ~distance_attribute:"d" extreme
       |> get in
   check (Geometry.point_count midpoint = 1
       && (positions midpoint).x = [|0.|])
@@ -147,55 +147,55 @@ let expect code work message = match work () with
 
 let test_validation_and_cancellation () =
   let source = fixture () in
-  expect "invalid_curve" (fun () -> Ops.extract_point_from_curve
+  expect "invalid_curve" (fun () -> Curve_topology.extract_point_from_curve
       ~distance_attribute:"missing" source) "missing distance";
-  expect "invalid_curve" (fun () -> Ops.extract_point_from_curve ~grain:0
+  expect "invalid_curve" (fun () -> Curve_topology.extract_point_from_curve ~grain:0
       ~distance_attribute:"distance" source) "zero grain";
-  expect "invalid_curve" (fun () -> Ops.extract_point_from_curve
-      ~cut:(Ops.Extract_cut_constant Float.nan)
+  expect "invalid_curve" (fun () -> Curve_topology.extract_point_from_curve
+      ~cut:(Curve_topology.Extract_cut_constant Float.nan)
       ~distance_attribute:"distance" source) "nonfinite constant";
-  expect "invalid_curve" (fun () -> Ops.extract_point_from_curve
+  expect "invalid_curve" (fun () -> Curve_topology.extract_point_from_curve
       ~distance_attribute:"distance" ~point_attributes:"[" source)
     "malformed pattern";
-  expect "invalid_curve" (fun () -> Ops.extract_point_from_curve
+  expect "invalid_curve" (fun () -> Curve_topology.extract_point_from_curve
       ~distance_attribute:"distance" ~curve_u_attribute:"P" source)
     "invalid output name";
-  expect "invalid_curve" (fun () -> Ops.extract_point_from_curve
+  expect "invalid_curve" (fun () -> Curve_topology.extract_point_from_curve
       ~distance_attribute:"distance" ~curve_u_attribute:"u"
       ~curve_number_attribute:"u" source) "duplicate diagnostics";
-  expect "invalid_curve" (fun () -> Ops.extract_point_from_curve
+  expect "invalid_curve" (fun () -> Curve_topology.extract_point_from_curve
       ~distance_attribute:"distance" ~point_attributes:"id"
       ~copy_primitive_attributes:true ~primitive_attributes:"material"
       ~curve_number_attribute:"id" source) "attribute collision";
   let point_owned = Group.init ~owner:Group.Point ~name:"points" 9
       (fun _ -> true) in
-  expect "invalid_curve" (fun () -> Ops.extract_point_from_curve
+  expect "invalid_curve" (fun () -> Curve_topology.extract_point_from_curve
       ~primitives:point_owned ~distance_attribute:"distance" source)
     "wrong selection owner";
   let wrong_length = Group.init ~owner:Group.Primitive ~name:"short" 1
       (fun _ -> true) in
-  expect "invalid_curve" (fun () -> Ops.extract_point_from_curve
+  expect "invalid_curve" (fun () -> Curve_topology.extract_point_from_curve
       ~primitives:wrong_length ~distance_attribute:"distance" source)
     "wrong selection cardinality";
   let polygon = Plane_generators.grid_checked ~connectivity:Plane_generators.Grid_quads ~columns:1 ~rows:1
       ~size:1. () |> get |> with_attribute
       (attribute Attribute.Point "distance" (Attribute.Float [|0.;1.;0.;1.|])) in
-  expect "invalid_curve" (fun () -> Ops.extract_point_from_curve
+  expect "invalid_curve" (fun () -> Curve_topology.extract_point_from_curve
       ~distance_attribute:"distance" polygon) "polygon input";
   let bad = source |> Geometry.with_attribute
       (attribute Attribute.Point "bad"
         (Attribute.Float [|0.;0.;0.;0.;Float.nan;0.;0.;0.;0.|]))
       |> Result.get_ok in
-  expect "invalid_curve" (fun () -> Ops.extract_point_from_curve
+  expect "invalid_curve" (fun () -> Curve_topology.extract_point_from_curve
       ~distance_attribute:"bad" bad) "nonfinite field";
   let bad_cut = source |> Geometry.with_attribute
       (attribute Attribute.Primitive "bad_cut"
         (Attribute.Float [|0.;Float.infinity|])) |> Result.get_ok in
-  expect "invalid_curve" (fun () -> Ops.extract_point_from_curve
-      ~cut:(Ops.Extract_cut_primitive_attribute "bad_cut")
+  expect "invalid_curve" (fun () -> Curve_topology.extract_point_from_curve
+      ~cut:(Curve_topology.Extract_cut_primitive_attribute "bad_cut")
       ~distance_attribute:"distance" bad_cut) "nonfinite primitive cut";
   let cancel = Cancel.create () in Cancel.cancel cancel;
-  expect "cancelled" (fun () -> Ops.extract_point_from_curve ~cancel
+  expect "cancelled" (fun () -> Curve_topology.extract_point_from_curve ~cancel
       ~distance_attribute:"distance" source) "cancellation"
 
 let equal_geometry left right =
@@ -245,7 +245,7 @@ let long_curve_fixture point_count =
 let test_parallel_exact () =
   let source = large_fixture 100_000 in
   let cook domains = Parallel.run ~domains (fun () ->
-    Ops.extract_point_from_curve ~grain:257 ~distance_attribute:"distance"
+    Curve_topology.extract_point_from_curve ~grain:257 ~distance_attribute:"distance"
       ~point_attributes:"weight" ~copy_primitive_attributes:true
       ~primitive_attributes:"material" ~curve_u_attribute:"u"
       ~number_cuts_attribute:"n" ~curve_number_attribute:"curve" source |> get) in
@@ -254,7 +254,7 @@ let test_parallel_exact () =
   check (Geometry.point_count one = 100_000) "scale output cardinality";
   let long_source = long_curve_fixture 200_001 in
   let cook_long domains = Parallel.run ~domains (fun () ->
-    Ops.extract_point_from_curve ~grain:257 ~distance_attribute:"distance"
+    Curve_topology.extract_point_from_curve ~grain:257 ~distance_attribute:"distance"
       ~point_attributes:"weight" ~curve_u_attribute:"u" long_source |> get) in
   let long_one = cook_long 1 and long_four = cook_long 4 in
   check (equal_geometry long_one long_four)
