@@ -26,3 +26,15 @@ val blast :
   mode:mode ->
   output:output ->
   Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, string) result
+
+val blast_checked :
+  ?cancel:Pdk_core.Cancel.t ->
+  ?grain:int ->
+  ?base:Pdk_core.Group.t ->
+  ?invert:bool ->
+  ?remove_unused_points:bool ->
+  owner:owner ->
+  attribute:string ->
+  mode:mode ->
+  output:output ->
+  Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, Pdk_core.Error.t) result

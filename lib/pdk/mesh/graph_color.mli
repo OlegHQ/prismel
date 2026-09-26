@@ -18,3 +18,13 @@ val run :
   ?worksets:worksets ->
   Geometry.t ->
   (Geometry.t, string) result
+
+val run_checked :
+  ?cancel:Cancel.t ->
+  ?grain:int ->
+  ?selection:Transform_ops.deform_selection ->
+  ?connectivity:connectivity ->
+  ?color_attribute:string ->
+  ?sort_output:bool ->
+  ?worksets:worksets ->
+  Geometry.t -> (Geometry.t, Error.t) result

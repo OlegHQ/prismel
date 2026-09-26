@@ -413,3 +413,8 @@ let delete_primitives ?cancel ?grain ?selected ?(compact_points = false)
       "selection must own primitives")
   else Error.guard ~operation:"delete_primitives" ~code:"invalid_selection"
       (fun () -> delete ?cancel ?grain ?selected ~compact_points group geometry)
+
+let delete_checked ?cancel ?grain ?selected ?compact_points ?policy group
+    geometry =
+  Error.guard ~operation:"delete" ~code:"invalid_selection" (fun () ->
+    delete ?cancel ?grain ?selected ?compact_points ?policy group geometry)

@@ -333,3 +333,15 @@ let run ?cancel ?(grain = 16_384) ?selection
         Geometry.with_attribute begin_attribute output |> get
         |> Geometry.with_attribute length_attribute
   with Graph_color_error message | Invalid_argument message -> Error message
+
+let run_checked ?cancel ?grain ?selection ?connectivity ?color_attribute
+    ?sort_output ?worksets geometry =
+  let selection = Option.map (function
+    | Transform_ops.Selected_points group -> Element_selection.Selected_points group
+    | Transform_ops.Selected_vertices group -> Element_selection.Selected_vertices group
+    | Transform_ops.Selected_primitives group -> Element_selection.Selected_primitives group
+    | Transform_ops.Selected_edges group -> Element_selection.Selected_edges group)
+      selection in
+  Error.guard ~operation:"graph_color" ~code:"invalid_graph" (fun () ->
+    run ?cancel ?grain ?selection ?connectivity ?color_attribute ?sort_output
+      ?worksets geometry)

@@ -136,3 +136,9 @@ let blast ?cancel ?(grain = 16_384) ?base ?(invert = false)
                 "%s attribute %S must have scalar float or integer storage, not %s"
                 (owner_name owner) attribute (Attribute.kind_name source))
             ))
+
+let blast_checked ?cancel ?grain ?base ?invert ?remove_unused_points
+    ~owner ~attribute ~mode ~output geometry =
+  Error.guard ~operation:"blast_by_attribute" ~code:"invalid_blast" (fun () ->
+    blast ?cancel ?grain ?base ?invert ?remove_unused_points
+      ~owner ~attribute ~mode ~output geometry)
