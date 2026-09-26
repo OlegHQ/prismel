@@ -52,7 +52,7 @@ let test_add_set_delete () =
   let source = two_quads () in
   let index, shared = shared_edge source in
   let edges = edge_group source index (fun edge -> edge = shared) in
-  let set = Mesh_edit_ops.crease_checked ~grain:1 ~edges ~operation:Mesh_edit_ops.Crease_set ~weight:2.
+  let set = Crease.crease ~grain:1 ~edges ~operation:Crease.Crease_set ~weight:2.
       source |> get_ok in
   let values = float_attribute Attribute.Vertex "creaseweight" set in
   let incidents = incident_vertices index shared in
@@ -65,12 +65,12 @@ let test_add_set_delete () =
   asymmetric.(incidents.(1)) <- 3.;
   let asymmetric = attribute Attribute.Vertex "creaseweight"
       (Attribute.Float asymmetric) source in
-  let added = Mesh_edit_ops.crease_checked ~grain:1 ~edges ~operation:Mesh_edit_ops.Crease_add ~weight:0.5
+  let added = Crease.crease ~grain:1 ~edges ~operation:Crease.Crease_add ~weight:0.5
       asymmetric |> get_ok in
   let values = float_attribute Attribute.Vertex "creaseweight" added in
   check (values.(incidents.(0)) = 3.5 && values.(incidents.(1)) = 3.5)
     "Crease Add did not reduce an edge by maximum and normalize incidents";
-  let fresh_add = Mesh_edit_ops.crease_checked ~grain:1 ~edges ~operation:Mesh_edit_ops.Crease_add
+  let fresh_add = Crease.crease ~grain:1 ~edges ~operation:Crease.Crease_add
       ~weight:0.75 source |> get_ok in
   let fresh_values = float_attribute Attribute.Vertex "creaseweight" fresh_add in
   Array.iter (fun vertex -> check (fresh_values.(vertex) = 0.75)
@@ -81,28 +81,28 @@ let test_add_set_delete () =
     if edge >= 0 && edge <> shared && !preserved < 0 then preserved := vertex)
     (Topology_index.Private.view index).edge_of_vertex;
   check (values.(!preserved) = 0.) "Crease Add changed an unselected edge";
-  let deleted = Mesh_edit_ops.crease_checked ~grain:1 ~edges ~operation:Mesh_edit_ops.Crease_delete set
+  let deleted = Crease.crease ~grain:1 ~edges ~operation:Crease.Crease_delete set
       |> get_ok in
   check (Geometry.find_attribute ~owner:Attribute.Vertex "creaseweight" deleted
       = None) "Crease Delete retained a completely cleared field";
-  let absent = Mesh_edit_ops.crease_checked ~edges ~operation:Mesh_edit_ops.Crease_delete source |> get_ok in
+  let absent = Crease.crease ~edges ~operation:Crease.Crease_delete source |> get_ok in
   check (absent == source) "Crease Delete without a field lost identity";
   let partial_values = Array.copy values in
   partial_values.(!preserved) <- 4.25;
   let partial = attribute Attribute.Vertex "creaseweight"
       (Attribute.Float partial_values) source
-      |> Mesh_edit_ops.crease_checked ~grain:1 ~edges ~operation:Mesh_edit_ops.Crease_delete |> get_ok in
+      |> Crease.crease ~grain:1 ~edges ~operation:Crease.Crease_delete |> get_ok in
   let partial_values = float_attribute Attribute.Vertex "creaseweight" partial in
   check (partial_values.(!preserved) = 4.25
       && Array.for_all (fun vertex -> partial_values.(vertex) = 0.) incidents)
     "partial Crease Delete did not preserve unselected sharpness";
-  let zero = Mesh_edit_ops.crease_checked ~edges ~operation:Mesh_edit_ops.Crease_add ~weight:0. source
+  let zero = Crease.crease ~edges ~operation:Crease.Crease_add ~weight:0. source
       |> get_ok in
   check (zero == source) "zero Crease Add lost identity";
-  let same = Mesh_edit_ops.crease_checked ~edges ~operation:Mesh_edit_ops.Crease_set ~weight:2. set
+  let same = Crease.crease ~edges ~operation:Crease.Crease_set ~weight:2. set
       |> get_ok in
   check (same == set) "idempotent Crease Set lost identity";
-  let all = Mesh_edit_ops.crease_checked ~operation:Mesh_edit_ops.Crease_set ~weight:1. source |> get_ok in
+  let all = Crease.crease ~operation:Crease.Crease_set ~weight:1. source |> get_ok in
   let all_values = float_attribute Attribute.Vertex "creaseweight" all
   and view = Topology_index.Private.view index in
   Array.iteri (fun vertex edge ->
@@ -127,7 +127,7 @@ let test_non_manifold_and_visualization () =
   check (edge >= 0 && Topology_index.edge_incidence_count index edge = 3)
     "non-manifold fixture";
   let edges = edge_group source index (fun candidate -> candidate = edge) in
-  let output = Mesh_edit_ops.crease_checked ~grain:1 ~edges ~operation:Mesh_edit_ops.Crease_set ~weight:2.
+  let output = Crease.crease ~grain:1 ~edges ~operation:Crease.Crease_set ~weight:2.
       source |> get_ok in
   let values = float_attribute Attribute.Vertex "creaseweight" output in
   Array.iter (fun vertex -> check (values.(vertex) = 2.)
@@ -137,7 +137,7 @@ let test_non_manifold_and_visualization () =
       |> get_ok in
   let quad_index = Topology_index.create (Geometry.topology quad) in
   let selected = edge_group quad quad_index (fun edge -> edge = 0) in
-  let colored = Mesh_edit_ops.crease_checked ~grain:1 ~edges:selected ~operation:Mesh_edit_ops.Crease_set
+  let colored = Crease.crease ~grain:1 ~edges:selected ~operation:Crease.Crease_set
       ~weight:1. ~add_vertex_color:true quad |> get_ok in
   let colors = float4_attribute Attribute.Vertex "Cd" colored in
   let index_view = Topology_index.Private.view quad_index in
@@ -160,7 +160,7 @@ let test_non_manifold_and_visualization () =
       ~w:(Array.make point_count 1.) |> Result.get_ok in
   let point_colored = attribute Attribute.Point "Cd"
       (Attribute.Float4 point_colors) quad
-      |> Mesh_edit_ops.crease_checked ~grain:1 ~edges:selected ~operation:Mesh_edit_ops.Crease_set
+      |> Crease.crease ~grain:1 ~edges:selected ~operation:Crease.Crease_set
            ~weight:1. ~add_vertex_color:true |> get_ok in
   let expanded = float4_attribute Attribute.Vertex "Cd" point_colored
   and topology = Topology.Private.view (Geometry.topology quad) in
@@ -216,7 +216,7 @@ let test_subdivide_integration () =
   let source = two_quads () in
   let index, shared = shared_edge source in
   let edges = edge_group source index (fun edge -> edge = shared) in
-  let authored = Mesh_edit_ops.crease_checked ~grain:1 ~edges ~operation:Mesh_edit_ops.Crease_set ~weight:2.
+  let authored = Crease.crease ~grain:1 ~edges ~operation:Crease.Crease_set ~weight:2.
       source |> get_ok in
   let manual_values = Array.make (Geometry.vertex_count source) 0. in
   Array.iter (fun vertex -> manual_values.(vertex) <- 2.)
@@ -247,20 +247,20 @@ let test_errors_and_cancellation () =
   let index, shared = shared_edge source in
   let edges = edge_group source index (fun edge -> edge = shared) in
   List.iter (fun weight -> expect_invalid (fun () ->
-      Mesh_edit_ops.crease_checked ~edges ~operation:Mesh_edit_ops.Crease_set ~weight source)
+      Crease.crease ~edges ~operation:Crease.Crease_set ~weight source)
       "invalid Crease weight") [Float.nan; Float.infinity; -1.];
-  expect_invalid (fun () -> Mesh_edit_ops.crease_checked ~grain:0 source) "zero Crease grain";
+  expect_invalid (fun () -> Crease.crease ~grain:0 source) "zero Crease grain";
   let wrong_storage = attribute Attribute.Vertex "creaseweight"
       (Attribute.Int (Array.make (Geometry.vertex_count source) 1)) source in
-  expect_invalid (fun () -> Mesh_edit_ops.crease_checked ~edges wrong_storage)
+  expect_invalid (fun () -> Crease.crease ~edges wrong_storage)
     "integer creaseweight";
   let bad_values = Array.make (Geometry.vertex_count source) 0. in
   bad_values.(1) <- Float.nan;
   bad_values.(3) <- -1.;
   let malformed = attribute Attribute.Vertex "creaseweight"
       (Attribute.Float bad_values) source in
-  let error domains = Parallel.run ~domains (fun () -> Mesh_edit_ops.crease_checked ~grain:1
-      ~edges ~operation:Mesh_edit_ops.Crease_set ~weight:1. malformed) in
+  let error domains = Parallel.run ~domains (fun () -> Crease.crease ~grain:1
+      ~edges ~operation:Crease.Crease_set ~weight:1. malformed) in
   List.iter (fun domains -> match error domains with
     | Error error -> check (Error.code error = "invalid_crease"
           && String.ends_with ~suffix:"vertex 1" (Error.message error))
@@ -269,21 +269,21 @@ let test_errors_and_cancellation () =
   let huge = attribute Attribute.Vertex "creaseweight"
       (Attribute.Float (Array.make (Geometry.vertex_count source) max_float))
       source in
-  expect_invalid (fun () -> Mesh_edit_ops.crease_checked ~edges ~operation:Mesh_edit_ops.Crease_add
+  expect_invalid (fun () -> Crease.crease ~edges ~operation:Crease.Crease_add
       ~weight:max_float huge) "Crease Add overflow";
   let other = two_quads () in
   let other_index, _ = shared_edge other in
   let wrong_edges = edge_group other other_index (fun _ -> true) in
-  expect_invalid (fun () -> Mesh_edit_ops.crease_checked ~edges:wrong_edges source)
+  expect_invalid (fun () -> Crease.crease ~edges:wrong_edges source)
     "foreign Crease edge group";
   let wrong_color = attribute Attribute.Vertex "Cd"
       (Attribute.Float (Array.make (Geometry.vertex_count source) 1.)) source in
-  expect_invalid (fun () -> Mesh_edit_ops.crease_checked ~edges ~operation:Mesh_edit_ops.Crease_set
+  expect_invalid (fun () -> Crease.crease ~edges ~operation:Crease.Crease_set
       ~weight:1. ~add_vertex_color:true wrong_color)
     "wrong Crease visualization color storage";
   let cancel = Cancel.create () in
   Cancel.cancel cancel;
-  (match Mesh_edit_ops.crease_checked ~cancel ~edges source with
+  (match Crease.crease ~cancel ~edges source with
    | Error error -> check (Error.code error = "cancelled")
        "Crease cancellation code"
    | Ok _ -> fail "cancelled Crease published geometry")
@@ -299,7 +299,7 @@ let test_dense_parallel_exactness () =
       (Attribute.Float (Array.init (Geometry.vertex_count source) (fun vertex ->
         if vertex mod 13 = 0 then 1.25 else 0.5))) source in
   let cook domains = Parallel.run ~domains (fun () ->
-      Mesh_edit_ops.crease_checked ~grain:257 ~edges ~operation:Mesh_edit_ops.Crease_add ~weight:2.
+      Crease.crease ~grain:257 ~edges ~operation:Crease.Crease_add ~weight:2.
         ~add_vertex_color:true source |> get_ok) in
   let one = cook 1 and four = cook 4 in
   check (Geometry.point_count one = Geometry.point_count source

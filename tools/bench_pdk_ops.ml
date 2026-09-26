@@ -240,7 +240,7 @@ let run_mirror_payload_benchmarks () =
       |> Geometry.with_attribute uv |> get_ok
       |> Geometry.with_group selection |> get_ok in
   measure ~input_points:points "mirror_payload" (fun () ->
-    Mesh_edit_ops.mirror_checked ~grain ~origin:Vec3.zero ~normal:(Vec3.create 1. 1. 0.)
+    Mirror_geometry.run ~grain ~origin:Vec3.zero ~normal:(Vec3.create 1. 1. 0.)
       source |> get_ok) geometry_output
 
 let run_reverse_payload_benchmarks () =
@@ -3676,12 +3676,12 @@ let run_rewire_vertices_benchmarks () =
   let geometry = rewire_vertices_fixture () in
   measure ~input_points:(Geometry.point_count geometry)
     "rewire_vertices_point_direct" (fun () ->
-      Mesh_edit_ops.rewire_vertices_checked ~grain ~keep_unused_points:true
+      Rewire_vertices.run ~grain ~keep_unused_points:true
         ~owner:Attribute.Point ~target_attribute:"targetpt" geometry |> get_ok)
     geometry_output;
   measure ~input_points:(Geometry.point_count geometry)
     "rewire_vertices_point_cleanup_provenance" (fun () ->
-      Mesh_edit_ops.rewire_vertices_checked ~grain ~delete_target_attribute:true
+      Rewire_vertices.run ~grain ~delete_target_attribute:true
         ~original_point_attribute:"origpt" ~owner:Attribute.Point
         ~target_attribute:"targetpt" geometry |> get_ok) geometry_output;
   let point_count = Geometry.point_count geometry in
@@ -3690,7 +3690,7 @@ let run_rewire_vertices_benchmarks () =
         if point mod 4 = 3 then -1 else point + 1))) |> get_ok in
   let recursive_geometry = Geometry.with_attribute recursive geometry |> get_ok in
   measure ~input_points:point_count "rewire_vertices_point_recursive" (fun () ->
-    Mesh_edit_ops.rewire_vertices_checked ~grain ~recursive:true ~keep_unused_points:true
+    Rewire_vertices.run ~grain ~recursive:true ~keep_unused_points:true
       ~owner:Attribute.Point ~target_attribute:"chain" recursive_geometry
     |> get_ok) geometry_output
 
@@ -4573,17 +4573,17 @@ let run_crease_benchmarks () =
   let attributed = Geometry.with_attribute existing source |> get_ok in
   let measure_crease name operation geometry weight =
     measure ~input_points:(Geometry.point_count geometry) name (fun () ->
-      Mesh_edit_ops.crease_checked ~grain ~edges:selected ~operation ~weight geometry |> get_ok)
+      Crease.crease ~grain ~edges:selected ~operation ~weight geometry |> get_ok)
       geometry_output in
-  measure_crease "crease_set_sparse" Mesh_edit_ops.Crease_set source 2.;
-  measure_crease "crease_add_sparse" Mesh_edit_ops.Crease_add attributed 2.;
-  measure_crease "crease_delete_sparse" Mesh_edit_ops.Crease_delete attributed 0.;
+  measure_crease "crease_set_sparse" Crease.Crease_set source 2.;
+  measure_crease "crease_add_sparse" Crease.Crease_add attributed 2.;
+  measure_crease "crease_delete_sparse" Crease.Crease_delete attributed 0.;
   measure ~input_points:(Geometry.point_count source) "crease_set_all" (fun () ->
-    Mesh_edit_ops.crease_checked ~grain ~operation:Mesh_edit_ops.Crease_set ~weight:2. source |> get_ok)
+    Crease.crease ~grain ~operation:Crease.Crease_set ~weight:2. source |> get_ok)
     geometry_output;
   measure ~input_points:(Geometry.point_count source)
     "crease_set_sparse_vertex_color" (fun () ->
-      Mesh_edit_ops.crease_checked ~grain ~edges:selected ~operation:Mesh_edit_ops.Crease_set ~weight:2.
+      Crease.crease ~grain ~edges:selected ~operation:Crease.Crease_set ~weight:2.
         ~add_vertex_color:true source |> get_ok) geometry_output
 
 let[@inline] reference_fade_ramp knots value =
@@ -6097,7 +6097,7 @@ let () =
       ~cracks:(Subdivide.Subdivide_pull_triangulate 0.75)
       ~primitives:subdivision_half modeling_grid |> get_ok) geometry_output;
   measure ~input_points:(Geometry.point_count modeling_grid) "mirror" (fun () ->
-    Mesh_edit_ops.mirror_checked ~grain ~origin:Vec3.zero ~normal:(Vec3.create 1. 1. 0.)
+    Mirror_geometry.run ~grain ~origin:Vec3.zero ~normal:(Vec3.create 1. 1. 0.)
       modeling_grid |> get_ok) geometry_output;
   let fuse_source = Mesh_merge.run ~grain [modeling_grid; modeling_grid] |> get_ok in
   measure "fuse_exact_pair" (fun () ->

@@ -1427,14 +1427,14 @@ end [@@sop.register]
 
 module Crease = struct
   let operation_parameter = Parameter.choice ~equal:( = ) [
-      "Add", Pdk.Mesh_edit_ops.Crease_add;
-      "Set", Pdk.Mesh_edit_ops.Crease_set;
-      "Delete", Pdk.Mesh_edit_ops.Crease_delete;
+      "Add", Pdk.Crease.Crease_add;
+      "Set", Pdk.Crease.Crease_set;
+      "Delete", Pdk.Crease.Crease_delete;
     ]
 
   type parameters = {
     group : string [@sop.default ""] [@sop.label "Edge group"];
-    operation : Pdk.Mesh_edit_ops.crease_operation [@sop.default Pdk.Mesh_edit_ops.Crease_add]
+    operation : Pdk.Crease.operation [@sop.default Pdk.Crease.Crease_add]
       [@sop.label "Operation"] [@sop.kind operation_parameter];
     weight : float [@sop.default 1.] [@sop.label "Weight"]
       [@sop.min 0.] [@sop.max 10.] [@sop.hard_min 0.];

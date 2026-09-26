@@ -257,7 +257,8 @@ Catmull–Rom samples, `Pdk.Iso_surface` extracts packed isosurfaces,
 `Pdk.Transform_ops`, `Pdk.Deform_ops`, `Pdk.Subdivide`,
 `Pdk.Poly_modeling`, `Pdk.Point_replication`, `Pdk.Clean`,
 `Pdk.Smooth`, `Pdk.Reverse_faces`, `Pdk.Edge_transport_ops`,
-`Pdk.Edge_modeling_ops`, `Pdk.Mesh_edit_ops`, `Pdk.Bound`, `Pdk.Match_size`,
+`Pdk.Edge_modeling_ops`, `Pdk.Crease`, `Pdk.Rewire_vertices`,
+`Pdk.Mirror_geometry`, `Pdk.Convex_hull`, `Pdk.Bound`, `Pdk.Match_size`,
 `Pdk.Plane_clip`, `Pdk.Edge_flip`, `Pdk.Facet_ops`, `Pdk.Compact_points`,
 `Pdk.Poly_fill`, and `Pdk.Poly_reduce` expose option and rule types or checked operations used
 by procedural SOPs.

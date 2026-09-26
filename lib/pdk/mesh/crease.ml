@@ -237,6 +237,7 @@ let visualization_attribute ?cancel ~grain geometry topology index weights =
 
 let crease ?cancel ?(grain = 16_384) ?edges ?(operation = Crease_add)
     ?(weight = 1.) ?(add_vertex_color = false) geometry =
+  Error.guard ~operation:"crease" ~code:"invalid_crease" @@ fun () ->
   Cancel.check_opt cancel;
   if grain <= 0 then fail "grain must be positive"
   else if operation <> Crease_delete

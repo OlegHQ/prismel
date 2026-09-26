@@ -8,7 +8,7 @@ val run :
   ?source_point_attribute:string ->
   ?hull_group:string ->
   Geometry.t ->
-  (Geometry.t, string) result
+  (Geometry.t, Error.t) result
 (** Build the exact combinatorial convex hull of the selected input points.
     One unique point produces a free point, collinear inputs produce one open
     endpoint segment, coplanar inputs produce one closed convex polygon, and a

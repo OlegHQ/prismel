@@ -1596,7 +1596,7 @@ let run () =
   let mirror_source = Geometry.with_attribute direction_attribute
       triangle_geometry |> get_ok in
   let mirrored domains = Parallel.run ~domains (fun () ->
-      Mesh_edit_ops.mirror_checked ~grain:1 ~origin:Vec3.zero ~normal:Vec3.unit_x mirror_source
+      Mirror_geometry.run ~grain:1 ~origin:Vec3.zero ~normal:Vec3.unit_x mirror_source
       |> get_ok) in
   let mirrored_one = mirrored 1 and mirrored_many = mirrored 4 in
   let mirror_topology_one = Topology.Private.view (Geometry.topology mirrored_one)
@@ -2426,7 +2426,7 @@ let run () =
       ~copies:1 quad_edge_group with
    | Error _ -> ()
    | Ok _ -> fail "exact-copy edge replication accepted reordered topology");
-  let mirrored_edge_geometry = Mesh_edit_ops.mirror_checked ~origin:Vec3.zero ~normal:Vec3.unit_x
+  let mirrored_edge_geometry = Mirror_geometry.run ~origin:Vec3.zero ~normal:Vec3.unit_x
       quad_edges |> get_ok in
   let mirrored_edge_group = Geometry.find_edge_group "quad_edges"
       mirrored_edge_geometry |> Option.get in
@@ -4231,7 +4231,7 @@ let run () =
   (match Fuse_grid.fuse_checked ~cancel:cancelled ~tolerance:0. grid with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "cancelled fuse published geometry or wrong error");
-  (match Mesh_edit_ops.mirror_checked ~cancel:cancelled ~origin:Vec3.zero ~normal:Vec3.unit_x grid with
+  (match Mirror_geometry.run ~cancel:cancelled ~origin:Vec3.zero ~normal:Vec3.unit_x grid with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "cancelled mirror published geometry or wrong error");
   (match Plane_clip.clip_checked ~cancel:cancelled ~origin:Vec3.zero ~normal:Vec3.unit_x grid with

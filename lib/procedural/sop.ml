@@ -1058,7 +1058,7 @@ let mirror ?label ?(keep_original = true) ~origin ~normal input =
     ~cook_mode:(Node.Duplicate_input 0)
     ~dependencies:Context.Dependencies.static ~inputs:[|input|]
     (fun ~node_id:_ context inputs ->
-      match Pdk.Mesh_edit_ops.mirror_checked ~cancel:(Context.cancel_token context)
+      match Pdk.Mirror_geometry.run ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ~keep_original ~origin ~normal inputs.(0) with
       | Ok geometry -> cooked geometry
       | Error error -> structured_pdk_error error)
@@ -1107,17 +1107,17 @@ let clip ?label ?(keep = Pdk.Plane_clip.Above) ?(snapping_tolerance = 1e-9)
       | Error error -> structured_pdk_error error)
 
 let crease_operation_key = function
-  | Pdk.Mesh_edit_ops.Crease_add -> "add"
-  | Pdk.Mesh_edit_ops.Crease_set -> "set"
-  | Pdk.Mesh_edit_ops.Crease_delete -> "delete"
+  | Pdk.Crease.Crease_add -> "add"
+  | Pdk.Crease.Crease_set -> "set"
+  | Pdk.Crease.Crease_delete -> "delete"
 
-let crease ?label ?group ?(operation = Pdk.Mesh_edit_ops.Crease_add) ?(weight = 1.)
+let crease ?label ?group ?(operation = Pdk.Crease.Crease_add) ?(weight = 1.)
     ?(add_vertex_color = false) input =
   Option.iter (fun name -> if String.trim name = "" then
     invalid_arg "Sop.crease: empty edge group name") group;
   let weight_key = match operation with
-    | Pdk.Mesh_edit_ops.Crease_delete -> "ignored"
-    | Pdk.Mesh_edit_ops.Crease_add | Pdk.Mesh_edit_ops.Crease_set -> float_key weight in
+    | Pdk.Crease.Crease_delete -> "ignored"
+    | Pdk.Crease.Crease_add | Pdk.Crease.Crease_set -> float_key weight in
   Node.Private.make ?label ~operation:"crease" ~version:1
     ~parameters:(Printf.sprintf
       "group=%s;operation=%s;weight=%s;add_vertex_color=%b"
@@ -1135,7 +1135,7 @@ let crease ?label ?group ?(operation = Pdk.Mesh_edit_ops.Crease_add) ?(weight = 
                  (Printf.sprintf
                    "crease could not find native edge group %S" name))) in
       Result.bind edges (fun edges ->
-        match Pdk.Mesh_edit_ops.crease_checked ~cancel:(Context.cancel_token context)
+        match Pdk.Crease.crease ~cancel:(Context.cancel_token context)
             ~grain:(Context.grain context) ?edges ~operation ~weight
             ~add_vertex_color geometry with
         | Ok geometry -> cooked geometry
@@ -2315,7 +2315,7 @@ let rewire_vertices ?label ?selection ?(recursive = false)
       match resolve_element_group ~operation:"rewire_vertices" selection inputs.(0) with
       | Error error -> Error error
       | Ok selection ->
-          match Pdk.Mesh_edit_ops.rewire_vertices_checked ~cancel:(Context.cancel_token context)
+          match Pdk.Rewire_vertices.run ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?selection ~recursive
               ~delete_target_attribute ~keep_unused_points
               ?original_point_attribute ~owner ~target_attribute inputs.(0) with
@@ -6737,7 +6737,7 @@ let convex_hull ?label ?selection ?(preserve_point_payload = true)
       match resolve_element_group ~operation:"convex_hull" selection inputs.(0) with
       | Error error -> Error error
       | Ok selection ->
-          match Pdk.Mesh_edit_ops.convex_hull_checked ~cancel:(Context.cancel_token context)
+          match Pdk.Convex_hull.run ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?selection ~preserve_point_payload
               ?source_point_attribute ?hull_group inputs.(0) with
           | Ok geometry -> cooked geometry

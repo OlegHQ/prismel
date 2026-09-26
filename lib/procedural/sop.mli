@@ -382,7 +382,7 @@ val clip :
 val crease :
   ?label:string ->
   ?group:string ->
-  ?operation:Pdk.Mesh_edit_ops.crease_operation ->
+  ?operation:Pdk.Crease.operation ->
   ?weight:float ->
   ?add_vertex_color:bool ->
   Node.t -> Node.t

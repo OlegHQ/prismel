@@ -172,6 +172,7 @@ let compact_plan ?cancel source_points target_points point_count =
 let run ?cancel ?(grain = 16_384) ?selection ?(recursive = false)
     ?(delete_target_attribute = false) ?(keep_unused_points = false)
     ?original_point_attribute ~owner ~target_attribute geometry =
+  Error.guard ~operation:"rewire_vertices" ~code:"invalid_rewire_vertices" @@ fun () ->
   try
     if grain <= 0 then fail "Rewire Vertices grain must be positive";
     validate_name "target attribute" target_attribute;

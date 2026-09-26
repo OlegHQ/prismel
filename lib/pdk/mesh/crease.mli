@@ -8,4 +8,4 @@ val crease :
   ?operation:operation ->
   ?weight:float ->
   ?add_vertex_color:bool ->
-  Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, string) result
+  Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, Error.t) result

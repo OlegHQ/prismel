@@ -666,6 +666,7 @@ let materialize ?cancel ~grain ~preserve_point_payload ?source_point_attribute
 
 let run ?cancel ?(grain = 16_384) ?selection
     ?(preserve_point_payload = true) ?source_point_attribute ?hull_group geometry =
+  Error.guard ~operation:"convex_hull" ~code:"invalid_geometry" @@ fun () ->
   try
     if grain <= 0 then invalid_arg (operation ^ ": grain must be positive");
     (match source_point_attribute with

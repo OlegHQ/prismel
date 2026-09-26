@@ -90,7 +90,8 @@ let hull_center ?cancel ~grain positions points first last =
   let source = Geometry.create
       ~positions:(Packed.Float3.Private.of_owned_exn ~x ~y ~z)
       ~topology:(Topology.empty ~point_count:count) () |> Result.get_ok in
-  let hull = match Convex_hull.run ?cancel ~grain ~preserve_point_payload:false source with
+  let hull = match Error.unguard
+      (Convex_hull.run ?cancel ~grain ~preserve_point_payload:false source) with
     | Ok hull -> hull | Error message -> fail message in
   let hp = Packed.Float3.Private.view (Geometry.positions hull)
   and ht = Topology.Private.view (Geometry.topology hull) in

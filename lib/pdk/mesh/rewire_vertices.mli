@@ -9,4 +9,4 @@ val run :
   owner:Attribute.owner ->
   target_attribute:string ->
   Geometry.t ->
-  (Geometry.t, string) result
+  (Geometry.t, Error.t) result

@@ -4,6 +4,7 @@ let get_ok = function Ok value -> value | Error message -> invalid_arg message
 
 let run ?cancel ?(grain = 16_384) ?(keep_original = true) ~origin ~normal
     geometry =
+  Error.guard ~operation:"mirror" ~code:"invalid_parameter" @@ fun () ->
   if grain <= 0 then invalid_arg "Pdk_mesh.Mirror_geometry.mirror: grain must be positive";
   let ox = origin.Vec3.x and oy = origin.y and oz = origin.z
   and supplied_nx = normal.Vec3.x and supplied_ny = normal.y
