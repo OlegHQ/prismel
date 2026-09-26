@@ -87,13 +87,6 @@ type sort_key = Ordering.key =
   | Index_attribute of string
   | Reverse
   | Shift of int
-type uv_projection = Uv_checked.projection =
-  | Planar of { origin : Vec3.t; u_axis : Vec3.t; v_axis : Vec3.t }
-  | Cylindrical of {
-      origin : Vec3.t; axis : Vec3.t; seam : Vec3.t; height : float;
-    }
-  | Spherical of { origin : Vec3.t; axis : Vec3.t; seam : Vec3.t }
-type uv_unitize_mode = Uv_checked.unitize_mode = Per_face | Islands
 type edge_incidence = Edge_ops.incidence =
   | Any_edge | Boundary_edge | Manifold_edge | Non_manifold_edge
 type edge_angle_basis = Edge_ops.angle_basis =
@@ -1332,9 +1325,6 @@ let sweep ?cancel ?(grain = 16_384) ?backbones ?cross_sections
 
 let sweep_circle = Curve_modeling.sweep_circle_checked
 
-let uv_project = Uv_checked.project
-let uv_transform = Uv_checked.transform
-let uv_auto_seam = Uv_checked.auto_seam
 
 let group_edges ?cancel ?grain ?name ?primitives ?incidence ?min_length
     ?max_length ?angle_basis ?min_angle ?max_angle geometry =
@@ -1497,7 +1487,3 @@ let group_find_path ?cancel ?grain ?mode ?ending ?avoid_self_intersection
   protected "group_find_path" "invalid_group" (fun () ->
     Group_path.run ?cancel ?grain ?mode ?ending ?avoid_self_intersection
       ?collision ?contain ~base ~name geometry)
-
-let uv_unitize = Uv_checked.unitize
-let uv_flatten = Uv_checked.flatten
-let uv_relax = Uv_checked.relax

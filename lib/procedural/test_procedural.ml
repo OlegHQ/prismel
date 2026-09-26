@@ -3228,14 +3228,14 @@ let test_generators_selections_and_delete () =
   let uv_mapped = Sop.box ()
       |> Sop.group ~name:"uv_faces" Select.all_primitives
       |> Sop.uv_project ~group:"uv_faces"
-           (Pdk.Ops.Planar { origin = Vec3.zero;
+           (Pdk.Uv_checked.Planar { origin = Vec3.zero;
              u_axis = Vec3.create 2. 0. 0.;
              v_axis = Vec3.create 0. 2. 0. })
       |> Sop.uv_transform ~scale:(Vec2.create 2. 2.)
            ~translate:(Vec2.create 0.1 0.2)
       |> Sop.uv_auto_seam ~angle:(Float.pi /. 4.) ~existing_uv:"uv"
            ~island_attribute:"uv_island"
-      |> Sop.uv_unitize ~seams:"uv_seams" Pdk.Ops.Islands
+      |> Sop.uv_unitize ~seams:"uv_seams" Pdk.Uv_checked.Islands
       |> cook_ok evaluator current in
   check (Pdk.Geometry.find_attribute ~owner:Pdk.Attribute.Vertex "uv"
       uv_mapped.geometry <> None
@@ -3254,7 +3254,7 @@ let test_generators_selections_and_delete () =
     "procedural UV flatten/relax";
   let missing_uv_group = Sop.box ()
       |> Sop.uv_project ~group:"missing"
-           (Pdk.Ops.Planar { origin = Vec3.zero;
+           (Pdk.Uv_checked.Planar { origin = Vec3.zero;
              u_axis = Vec3.unit_x; v_axis = Vec3.unit_y }) in
   (match Session.cook evaluator ~context:current missing_uv_group with
    | Error error -> check (error.code = "missing_group")
@@ -3262,9 +3262,9 @@ let test_generators_selections_and_delete () =
    | Ok _ -> fail "UV Project accepted a missing primitive group");
   let missing_seams = Sop.box ()
       |> Sop.uv_project
-           (Pdk.Ops.Planar { origin = Vec3.zero;
+           (Pdk.Uv_checked.Planar { origin = Vec3.zero;
              u_axis = Vec3.unit_x; v_axis = Vec3.unit_y })
-      |> Sop.uv_unitize ~seams:"missing" Pdk.Ops.Islands in
+      |> Sop.uv_unitize ~seams:"missing" Pdk.Uv_checked.Islands in
   (match Session.cook evaluator ~context:current missing_seams with
    | Error error -> check (error.code = "missing_group")
        "UV Unitize missing-seam diagnostic"

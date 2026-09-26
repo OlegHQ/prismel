@@ -3783,25 +3783,6 @@ val sweep :
     selected input and output cardinality. Failure and cancellation are
     atomic. *)
 
-type uv_projection =
-  | Planar of {
-      origin : Prismel_math.Vec3.t;
-      u_axis : Prismel_math.Vec3.t;
-      v_axis : Prismel_math.Vec3.t;
-    }
-  | Cylindrical of {
-      origin : Prismel_math.Vec3.t;
-      axis : Prismel_math.Vec3.t;
-      seam : Prismel_math.Vec3.t;
-      height : float;
-    }
-  | Spherical of {
-      origin : Prismel_math.Vec3.t;
-      axis : Prismel_math.Vec3.t;
-      seam : Prismel_math.Vec3.t;
-    }
-
-type uv_unitize_mode = Per_face | Islands
 type edge_incidence =
   | Any_edge
   | Boundary_edge
@@ -3981,63 +3962,6 @@ type group_containment = Group_ops.containment = Fully_contained | Partially_con
 
 type group_path_mode = Through_each | Start_end_pairs
 type group_path_ending = Stop_at_end | Close_path
-
-val uv_project :
-  ?cancel:Cancel.t ->
-  ?grain:int ->
-  ?name:string ->
-  ?primitives:Group.t ->
-  ?u_range:float * float ->
-  ?v_range:float * float ->
-  ?fix_seams:bool ->
-  ?fix_poles:bool ->
-  uv_projection ->
-  Geometry.t ->
-  (Geometry.t, Error.t) result
-(** Create or replace a vertex float2 UV attribute using planar,
-    cylindrical, or spherical projection. Existing values outside an optional
-    primitive selection are preserved. Cylindrical and spherical modes can
-    unwrap per-primitive boundary crossings and derive pole U from neighboring
-    corners. O(vertices) time, exact 16-byte output per corner, and O(chunks)
-    temporary storage. *)
-
-val uv_transform :
-  ?cancel:Cancel.t ->
-  ?grain:int ->
-  ?name:string ->
-  ?selection:Group.t ->
-  owner:Attribute.owner ->
-  ?translate:Prismel_math.Vec2.t ->
-  ?scale:Prismel_math.Vec2.t ->
-  ?angle:float ->
-  ?pivot:Prismel_math.Vec2.t ->
-  Geometry.t ->
-  (Geometry.t, Error.t) result
-(** Transform a point- or vertex-owned float2 UV attribute. A selection, when
-    supplied, must own the same element class. O(owner count) time and exact
-    16-byte output per element. *)
-
-val uv_auto_seam :
-  ?cancel:Cancel.t ->
-  ?grain:int ->
-  ?name:string ->
-  ?primitives:Group.t ->
-  ?angle:float ->
-  ?include_boundaries:bool ->
-  ?include_non_manifold:bool ->
-  ?partition_attribute:string ->
-  ?existing_uv:string ->
-  ?uv_tolerance:float ->
-  ?island_attribute:string ->
-  Geometry.t ->
-  (Geometry.t, Error.t) result
-(** Mark UV seams in a native topology-affine edge group and a compatibility
-    vertex group whose corners represent their outgoing edge. Cuts may come
-    from dihedral angle, selection boundaries,
-    non-manifold incidence, a primitive integer partition, or discontinuous
-    existing UVs. Optional island IDs are stable in primitive order.
-    O(points + vertices + primitives) time and linear auxiliary storage;
-    normal and edge classification passes are parallel. *)
 
 val group_edges :
   ?cancel:Cancel.t ->
@@ -4629,37 +4553,3 @@ val group_find_path :
     incident relations) time and O(elements) scratch. Routes without
     intersection coupling execute independently through the reusable domain
     pool; avoidance is deterministic in base order. *)
-
-val uv_unitize :
-  ?cancel:Cancel.t ->
-  ?grain:int ->
-  ?name:string ->
-  ?primitives:Group.t ->
-  ?seams:Group.t ->
-  ?edge_seams:Edge_group.t ->
-  ?tolerance:float ->
-  ?uniform:bool ->
-  uv_unitize_mode ->
-  Geometry.t ->
-  (Geometry.t, Error.t) result
-(** Fit each selected polygon face or continuous UV island into the unit
-    square. [uniform] preserves aspect ratio and centers the result; seam
-    edges or compatibility seam corners force island cuts. O(vertices +
-    primitives) expected time and
-    linear auxiliary storage. Bounds and output fills are parallel. *)
-
-val uv_flatten :
-  ?cancel:Cancel.t -> ?grain:int -> ?name:string -> ?seams:Group.t ->
-  ?edge_seams:Edge_group.t -> ?iterations:int -> ?tolerance:float ->
-  Geometry.t -> (Geometry.t, Error.t) result
-(** Flatten seam-delimited manifold triangle disk islands with positive
-    mean-value harmonic coordinates. Boundaries are arc-length mapped and
-    packed into the unit square; interior Jacobi passes are deterministic and
-    parallel. O(vertices + triangles) auxiliary storage. *)
-
-val uv_relax :
-  ?cancel:Cancel.t -> ?grain:int -> ?name:string -> ?seams:Group.t ->
-  ?edge_seams:Edge_group.t -> ?uv_tolerance:float -> ?iterations:int ->
-  ?tolerance:float -> Geometry.t -> (Geometry.t, Error.t) result
-(** Relax interiors with the same positive harmonic solver while preserving
-    existing island boundaries and seam-separated placement. *)

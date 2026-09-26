@@ -5520,46 +5520,46 @@ let () =
     Instance_copy.duplicate ~grain ~copies:3
       ~transform:(Mat4.translation (Vec3.create 0. 0.2 0.))
       fully_edged_grid |> get_ok) geometry_output;
-  let planar_projection = Ops.Planar {
+  let planar_projection = Uv_checked.Planar {
       origin = Vec3.zero;
       u_axis = Vec3.create 20. 0. 0.;
       v_axis = Vec3.create 0. 0. 20.;
     } in
   measure "uv_project_planar" (fun () ->
-    Ops.uv_project ~grain planar_projection modeling_grid |> get_ok)
+    Uv_checked.project ~grain planar_projection modeling_grid |> get_ok)
     geometry_output;
-  let projected_grid = Ops.uv_project ~grain planar_projection modeling_grid
+  let projected_grid = Uv_checked.project ~grain planar_projection modeling_grid
       |> get_ok in
   measure "uv_transform_vertex" (fun () ->
-    Ops.uv_transform ~grain ~owner:Attribute.Vertex
+    Uv_checked.transform ~grain ~owner:Attribute.Vertex
       ~scale:(Vec2.create 4. 3.) ~angle:0.13 projected_grid |> get_ok)
     geometry_output;
   measure "uv_auto_seam_grid" (fun () ->
-    Ops.uv_auto_seam ~grain ~angle:(Float.pi /. 4.) ~existing_uv:"uv"
+    Uv_checked.auto_seam ~grain ~angle:(Float.pi /. 4.) ~existing_uv:"uv"
       ~island_attribute:"uv_island" projected_grid |> get_ok)
     geometry_output;
-  let seamed_grid = Ops.uv_auto_seam ~grain ~angle:(Float.pi /. 4.)
+  let seamed_grid = Uv_checked.auto_seam ~grain ~angle:(Float.pi /. 4.)
       ~existing_uv:"uv" ~island_attribute:"uv_island" projected_grid |> get_ok in
   let grid_seams = Geometry.find_edge_group "uv_seams" seamed_grid
       |> Option.get in
   measure "uv_unitize_islands" (fun () ->
-    Ops.uv_unitize ~grain ~edge_seams:grid_seams Ops.Islands seamed_grid |> get_ok)
+    Uv_checked.unitize ~grain ~edge_seams:grid_seams Uv_checked.Islands seamed_grid |> get_ok)
     geometry_output;
   measure "uv_flatten_grid" (fun () ->
-    Ops.uv_flatten ~grain ~iterations:uv_iterations ~tolerance:1e-7 modeling_grid
+    Uv_checked.flatten ~grain ~iterations:uv_iterations ~tolerance:1e-7 modeling_grid
     |> get_ok) geometry_output;
-  let flattened_grid = Ops.uv_flatten ~grain ~iterations:uv_iterations ~tolerance:1e-7
+  let flattened_grid = Uv_checked.flatten ~grain ~iterations:uv_iterations ~tolerance:1e-7
       modeling_grid |> get_ok in
   measure "uv_relax_grid" (fun () ->
-    Ops.uv_relax ~grain ~iterations:uv_iterations ~tolerance:1e-7 flattened_grid
+    Uv_checked.relax ~grain ~iterations:uv_iterations ~tolerance:1e-7 flattened_grid
     |> get_ok) geometry_output;
   if benchmark_filter = Some "uv_flatten" || benchmark_filter = Some "uv_relax"
   then exit 0;
   let uv_sphere = Ops.uv_sphere ~segments:512 ~rings:256 ~radius:2. ()
       |> get_ok in
   measure "uv_project_spherical_seams" (fun () ->
-    Ops.uv_project ~grain
-      (Ops.Spherical { origin = Vec3.zero; axis = Vec3.unit_y;
+    Uv_checked.project ~grain
+      (Uv_checked.Spherical { origin = Vec3.zero; axis = Vec3.unit_y;
         seam = Vec3.unit_x }) uv_sphere |> get_ok)
     geometry_output;
   if benchmark_filter = Some "uv_" then exit 0;
@@ -5879,7 +5879,7 @@ let () =
   let triangle_subdivision_grid = Ops.grid
       ~connectivity:Ops.Grid_triangles ~columns:200 ~rows:200 ~size:20. ()
       |> get_ok
-      |> Ops.uv_project ~grain planar_projection |> get_ok
+      |> Uv_checked.project ~grain planar_projection |> get_ok
       |> Ops.color_by_height ~grain ~low:low_rgba ~high:high_rgba |> get_ok in
   let measure_triangles name policy =
     measure ~input_points:(Geometry.point_count triangle_subdivision_grid)
