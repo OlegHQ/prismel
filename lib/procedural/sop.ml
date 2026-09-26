@@ -6820,7 +6820,7 @@ let bound ?label ?selection
       match resolve_element_group ~operation:"bound" selection inputs.(0) with
       | Error error -> Error error
       | Ok selection ->
-          (match Pdk.Bound.run_checked ~cancel:(Context.cancel_token context)
+          (match Pdk.Bound.run ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?selection ~shape ~lower_padding
               ~upper_padding ?bounds_group ?center_attribute ?radii_attribute
               inputs.(0) with

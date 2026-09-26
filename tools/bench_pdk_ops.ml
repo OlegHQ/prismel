@@ -2304,19 +2304,19 @@ let run_bound_benchmarks () =
   let selection = Group.init ~grain ~owner:Group.Point ~name:"bound_points"
       point_count (fun point -> point land 1 = 0) in
   measure ~input_points:point_count "bound_box_divided" (fun () ->
-    Bound.run_checked ~grain ~shape:(Bound.Bound_box { divisions = 512, 512, 512 })
+    Bound.run ~grain ~shape:(Bound.Bound_box { divisions = 512, 512, 512 })
       ~lower_padding:(Vec3.create 0.25 0.5 0.75)
       ~upper_padding:(Vec3.create 0.75 0.5 0.25)
       ~bounds_group:"bounds" ~center_attribute:"bound_center"
       ~radii_attribute:"bound_radii" source |> get_ok) geometry_output;
   measure ~input_points:point_count "bound_box_half_group" (fun () ->
-    Bound.run_checked ~grain ~selection:(Transform_ops.Selected_points selection)
+    Bound.run ~grain ~selection:(Transform_ops.Selected_points selection)
       ~shape:(Bound.Bound_box { divisions = 256, 128, 64 })
       ~lower_padding:(Vec3.create 0.25 0.5 0.75)
       ~upper_padding:(Vec3.create 0.75 0.5 0.25)
       ~bounds_group:"bounds" source |> get_ok) geometry_output;
   measure ~input_points:point_count "bound_sphere_512x256" (fun () ->
-    Bound.run_checked ~grain ~shape:(Bound.Bound_sphere {
+    Bound.run ~grain ~shape:(Bound.Bound_sphere {
         segments = 512; rings = 256; minimum_radius = 0. })
       ~lower_padding:(Vec3.create 0.25 0.5 0.75)
       ~upper_padding:(Vec3.create 0.75 0.5 0.25)
@@ -5630,7 +5630,7 @@ let () =
     Deletion.delete ~grain ~compact_points:true delete_left_points modeling_grid
     |> get_ok) geometry_output;
   measure "bounding_box" (fun () ->
-    Bound.bounding_box_checked ~grain ~padding:(Vec3.create 0.1 0.1 0.1) modeling_grid
+    Bound.bounding_box ~grain ~padding:(Vec3.create 0.1 0.1 0.1) modeling_grid
     |> get_ok) geometry_output;
   let match_target = Box_generator.box ~size:(Vec3.create 8. 4. 12.) () |> get_ok in
   measure "match_size_contain" (fun () ->

@@ -4085,7 +4085,7 @@ let run () =
            fail "compact points native edge group differs by domain count"
        done
    | _ -> fail "compact points native edge-group remap");
-  let bounded = Bound.bounding_box_checked ~padding:(Vec3.create 0.1 0.1 0.1)
+  let bounded = Bound.bounding_box ~padding:(Vec3.create 0.1 0.1 0.1)
       triangle_geometry |> get_ok in
   (match Analysis.bounds bounded with
    | Some bounds when abs_float (bounds.min.x +. 0.1) < 1e-12
@@ -4251,7 +4251,7 @@ let run () =
   (match Compact_points.run ~cancel:cancelled compact_source with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "cancelled point compaction published geometry or wrong error");
-  (match Bound.bounding_box_checked ~cancel:cancelled compact_source with
+  (match Bound.bounding_box ~cancel:cancelled compact_source with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "cancelled bounding box published geometry or wrong error");
   (match Match_size.run_checked ~cancel:cancelled ~target:match_target match_source with

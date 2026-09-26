@@ -49,7 +49,7 @@ let equal_geometry left right =
 let check_divided_box () =
   let source = Box_generator.box ~size:(Vec3.create 2. 3. 4.) () |> get_ok
       |> Transform_ops.transform (Mat4.translation (Vec3.create 3. (-2.) 5.)) in
-  let output = Bound.run_checked ~shape:(Bound.Bound_box { divisions = 2, 3, 4 })
+  let output = Bound.run ~shape:(Bound.Bound_box { divisions = 2, 3, 4 })
       ~lower_padding:(Vec3.create 1. 2. 3.)
       ~upper_padding:(Vec3.create 0.5 1. 1.5) ~bounds_group:"bounds"
       ~center_attribute:"bound_center" ~radii_attribute:"bound_radii" source
@@ -99,7 +99,7 @@ let check_typed_selection () =
   let source = Box_generator.box ~size:(Vec3.create 2. 2. 2.) () |> get_ok in
   let faces = Group.init ~owner:Group.Primitive ~name:"positive_x" 12
       (fun primitive -> primitive < 2) in
-  let output = Bound.run_checked ~selection:(Transform_ops.Selected_primitives faces)
+  let output = Bound.run ~selection:(Transform_ops.Selected_primitives faces)
       ~lower_padding:(Vec3.create 0.1 0. 0.)
       ~upper_padding:(Vec3.create 0.1 0. 0.) source |> get_ok in
   (match Analysis.bounds output with
@@ -110,7 +110,7 @@ let check_typed_selection () =
 
 let check_sphere () =
   let source = Box_generator.box ~size:(Vec3.create 2. 2. 2.) () |> get_ok in
-  let output = Bound.run_checked
+  let output = Bound.run
       ~shape:(Bound.Bound_sphere { segments = 16; rings = 8; minimum_radius = 0. })
       ~lower_padding:(Vec3.create 0.2 0.4 0.6)
       ~upper_padding:(Vec3.create 0.6 0.4 0.2)
@@ -127,7 +127,7 @@ let check_sphere () =
       && near radii.z.(0) (base +. 0.4))
     "Bound sphere padding/metadata";
   let point = Line_geometry.points [|(4.,5.,6.)|] in
-  let minimum = Bound.run_checked
+  let minimum = Bound.run
       ~shape:(Bound.Bound_sphere { segments = 8; rings = 4; minimum_radius = 2. })
       point |> get_ok in
   (match Analysis.bounds minimum with
@@ -137,26 +137,26 @@ let check_sphere () =
 
 let check_validation () =
   let source = Line_geometry.points [|(0.,0.,0.)|] in
-  expect_code "invalid_geometry" (Bound.run_checked source);
-  expect_code "invalid_geometry" (Bound.run_checked
+  expect_code "invalid_geometry" (Bound.run source);
+  expect_code "invalid_geometry" (Bound.run
       ~shape:(Bound.Bound_box { divisions = 0, 1, 1 }) source);
-  expect_code "invalid_geometry" (Bound.run_checked
+  expect_code "invalid_geometry" (Bound.run
       ~shape:(Bound.Bound_sphere { segments = 2; rings = 1;
         minimum_radius = -1. }) source);
-  expect_code "invalid_geometry" (Bound.run_checked
+  expect_code "invalid_geometry" (Bound.run
       ~lower_padding:(Vec3.create Float.nan 0. 0.) source);
-  expect_code "invalid_geometry" (Bound.run_checked ~center_attribute:"same"
+  expect_code "invalid_geometry" (Bound.run ~center_attribute:"same"
       ~radii_attribute:"same" source);
-  expect_code "invalid_geometry" (Bound.run_checked ~bounds_group:"" source);
-  expect_code "invalid_geometry" (Bound.run_checked
+  expect_code "invalid_geometry" (Bound.run ~bounds_group:"" source);
+  expect_code "invalid_geometry" (Bound.run
       ~shape:(Bound.Bound_box { divisions = max_int, max_int, max_int })
       ~lower_padding:(Vec3.create 1. 1. 1.) source);
   let empty = Group.init ~owner:Group.Point ~name:"empty" 1 (fun _ -> false) in
-  expect_code "invalid_geometry" (Bound.run_checked
+  expect_code "invalid_geometry" (Bound.run
       ~selection:(Transform_ops.Selected_points empty) source);
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
-  expect_code "cancelled" (Bound.run_checked ~cancel:cancelled
+  expect_code "cancelled" (Bound.run ~cancel:cancelled
       ~shape:(Bound.Bound_sphere { segments = 64; rings = 32; minimum_radius = 0. })
       source)
 
@@ -164,7 +164,7 @@ let check_parallel_exact () =
   let source = Plane_generators.grid ~columns:500 ~rows:300 ~size:30. () |> get_ok
       |> Deform.noise_displace ~seed:929 ~amplitude:2. ~frequency:0.23 |> get_ok in
   let run domains = Parallel.run ~domains (fun () ->
-    Bound.run_checked ~grain:1024
+    Bound.run ~grain:1024
       ~shape:(Bound.Bound_box { divisions = 256, 128, 64 })
       ~lower_padding:(Vec3.create 0.25 0.5 0.75)
       ~upper_padding:(Vec3.create 0.75 0.5 0.25)
@@ -176,7 +176,7 @@ let check_parallel_exact () =
       && Geometry.primitive_count one = 229_376)
     "Bound scale cardinality";
   let run_sphere domains = Parallel.run ~domains (fun () ->
-    Bound.run_checked ~grain:1024 ~shape:(Bound.Bound_sphere {
+    Bound.run ~grain:1024 ~shape:(Bound.Bound_sphere {
         segments = 512; rings = 256; minimum_radius = 0. })
       ~bounds_group:"bounds" source |> get_ok) in
   let sphere_one = run_sphere 1 and sphere_many = run_sphere 4 in

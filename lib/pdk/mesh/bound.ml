@@ -227,6 +227,7 @@ let bound ?cancel ?(grain = 16_384) ?selection
     ?(shape = Bound_box { divisions = 1, 1, 1 })
     ?(lower_padding = Vec3.zero) ?(upper_padding = Vec3.zero) ?bounds_group
     ?center_attribute ?radii_attribute geometry =
+  Error.guard ~operation:"bound" ~code:"invalid_geometry" @@ fun () ->
   if grain <= 0 then invalid_arg "Pdk.Bound.bound: grain must be positive";
   let valid_padding value = finite_vec3 value && value.Vec3.x >= 0.
       && value.y >= 0. && value.z >= 0. in
@@ -312,21 +313,12 @@ let bound ?cancel ?(grain = 16_384) ?selection
                 Geometry.with_group group output |> get_ok in
           Ok output))
 
+let run = bound
+
 let bounding_box ?cancel ?grain ?(padding = Vec3.zero) geometry =
-  bound ?cancel ?grain ~shape:(Bound_box { divisions = 1, 1, 1 })
-    ~lower_padding:padding ~upper_padding:padding geometry
-
-let bound_checked ?cancel ?grain ?selection ?shape ?lower_padding ?upper_padding
-    ?bounds_group ?center_attribute ?radii_attribute geometry =
-  Error.guard ~operation:"bound" ~code:"invalid_geometry" (fun () ->
-    bound ?cancel ?grain ?selection ?shape ?lower_padding ?upper_padding
-      ?bounds_group ?center_attribute ?radii_attribute geometry)
-
-let run_checked = bound_checked
-
-let bounding_box_checked ?cancel ?grain ?padding geometry =
-  Error.guard ~operation:"bounding_box" ~code:"invalid_geometry" (fun () ->
-    bounding_box ?cancel ?grain ?padding geometry)
+  Error.guard ~operation:"bounding_box" ~code:"invalid_geometry" @@ fun () ->
+  Error.unguard (bound ?cancel ?grain ~shape:(Bound_box { divisions = 1, 1, 1 })
+    ~lower_padding:padding ~upper_padding:padding geometry)
 
 module Private = struct
   let selected_bounds = selected_bounds

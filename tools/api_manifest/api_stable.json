@@ -121,13 +121,13 @@
       "source_sha256": "4cc345c7cc13d44294a06861f3c75094e6fec99617fa3117dcfc541da1daf27c"
     },
     {
-      "api_sha256": "1c569542e34b2bec7f8ce66f1fee9ccfbdf89acb1771cf0c25dfe0783c2ea006",
+      "api_sha256": "f44f0141382de787357d8dd009bdc898887dbd796cb4d61933773f8f7882e235",
       "excluded_legacy_symbols": [],
       "library": "pdk",
       "module": "Bound",
       "source": "lib/pdk/mesh/bound.mli",
-      "source_bytes": 1034,
-      "source_sha256": "144fe35dd666af6f8d8dc0816e826c8e7320b46337edc105879371dd506981c3"
+      "source_bytes": 1018,
+      "source_sha256": "5b336b77fd8caf21b88e46af078c2a9ee1fe935c7d05409b7fade366295b89dc"
     },
     {
       "api_sha256": "55c253e6b7b2aab5ee34219269f3ed9acb99ebbbb2d7a03f79c64f89a3334284",
