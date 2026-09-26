@@ -345,15 +345,27 @@ module Box = struct
 
   let factory = parameters_factory build
 
-  let create ?label:node_label ?(size = Vec3.create 1. 1. 1.)
-      ?(connectivity = Pdk.Box_generator.Box_quads) ?(consolidate_points = false)
-      ?normals ?(center = Vec3.zero) ?(rotation = Vec3.zero)
-      ?(rotation_order = Pdk.Box_generator.Box_xyz) ?(uniform_scale = 1.)
-      ?(x_divisions = 1) ?(y_divisions = 1) ?(z_divisions = 1)
-      ?(uv_attribute = "") ?(face_groups = "") () =
+  let create ?label:node_label
+      ?(size = Vec3.create parameters_default.size_x parameters_default.size_y
+          parameters_default.size_z)
+      ?(connectivity = parameters_default.connectivity)
+      ?(consolidate_points = parameters_default.consolidate_points)
+      ?normals
+      ?(center = Vec3.create parameters_default.center_x
+          parameters_default.center_y parameters_default.center_z)
+      ?(rotation = Vec3.create parameters_default.rotation_x
+          parameters_default.rotation_y parameters_default.rotation_z)
+      ?(rotation_order = parameters_default.rotation_order)
+      ?(uniform_scale = parameters_default.uniform_scale)
+      ?(x_divisions = parameters_default.x_divisions)
+      ?(y_divisions = parameters_default.y_divisions)
+      ?(z_divisions = parameters_default.z_divisions)
+      ?(uv_attribute = parameters_default.uv_attribute)
+      ?(face_groups = parameters_default.face_groups) () =
+    (* Point output cannot carry the surface default's normals. *)
     let normals = match normals, connectivity with
       | Some normals, _ -> normals
-      | None, (Pdk.Box_generator.Box_triangles | Box_quads) -> Pdk.Box_generator.Box_point_normals
+      | None, (Pdk.Box_generator.Box_triangles | Box_quads) -> parameters_default.normals
       | None, (Box_surface_points | Box_lattice_points) -> Box_no_normals in
     build ~label:(label "box" node_label) ~inputs:[] {
       connectivity; normals;

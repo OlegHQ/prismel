@@ -62,7 +62,9 @@ let run () =
      targets, ["group"; "mask_attribute"; "id_attribute";
                "axis_x"; "axis_y"; "axis_z"];
      fracture, ["resolve_cutter_self_intersections";
-                "detriangulation"; "require_closed"; "piece_attribute"]];
+                "detriangulation"; "require_closed"; "piece_attribute"];
+     Sop_catalog.Box.create (), List.map (fun value -> value.Parameter.name)
+       (Node.parameter_fields (Sop_catalog.Box.create ()))];
   let changed_graph, effects = edit_parameters targets
       ~node_id:(Node.id orient)
       ["location", (field custom_noise "location").current;
