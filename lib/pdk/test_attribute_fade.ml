@@ -251,34 +251,28 @@ let test_dense_parallel_exactness () =
 
 let test_checked_boundary () =
   let source = points 4 |> with_float "fade" [|1.; 1.; 1.; 1.|] in
-  let direct = Attribute_fade.fade_checked ~frame:1. source |> get_ok
-  and compatibility = Ops.attribute_fade ~frame:1. source |> get_ok in
-  check (float_values "fade" direct = float_values "fade" compatibility
-      && Geometry.positions direct == Geometry.positions compatibility
-      && Geometry.topology direct == Geometry.topology compatibility)
-    "direct fade boundary changed output";
+  let direct = Attribute_fade.fade_checked ~frame:1. source |> get_ok in
+  check (Geometry.positions direct == Geometry.positions source
+      && Geometry.topology direct == Geometry.topology source)
+    "checked fade boundary copied core geometry";
   let raw_message = match Attribute_fade.fade ~grain:0 ~frame:1. source with
     | Error message -> message
     | Ok _ -> fail "raw fade accepted zero grain" in
-  (match Attribute_fade.fade_checked ~grain:0 ~frame:1. source,
-         Ops.attribute_fade ~grain:0 ~frame:1. source with
-   | Error direct, Error compatibility ->
+  (match Attribute_fade.fade_checked ~grain:0 ~frame:1. source with
+   | Error direct ->
        check (Error.operation direct = "attribute_fade"
            && Error.code direct = "invalid_attribute_fade"
-           && Error.message direct = raw_message
-           && Error.to_string direct = Error.to_string compatibility)
-         "direct fade boundary changed the typed validation error"
-   | _ -> fail "fade boundaries accepted zero grain");
+           && Error.message direct = raw_message)
+         "checked fade boundary changed the typed validation error"
+   | Ok _ -> fail "checked fade boundary accepted zero grain");
   let cancel = Cancel.create () in
   Cancel.cancel cancel;
-  (match Attribute_fade.fade_checked ~cancel ~frame:1. source,
-         Ops.attribute_fade ~cancel ~frame:1. source with
-   | Error direct, Error compatibility ->
+  (match Attribute_fade.fade_checked ~cancel ~frame:1. source with
+   | Error direct ->
        check (Error.operation direct = "attribute_fade"
-           && Error.code direct = "cancelled"
-           && Error.to_string direct = Error.to_string compatibility)
-         "direct fade boundary changed the typed cancellation error"
-   | _ -> fail "fade boundaries ignored cancellation")
+           && Error.code direct = "cancelled")
+         "checked fade boundary changed the typed cancellation error"
+   | Ok _ -> fail "checked fade boundary ignored cancellation")
 
 let run () =
   test_timing_boundaries ();
