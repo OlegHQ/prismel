@@ -5,13 +5,13 @@ exact predicates and planar algorithms. `pdk_spatial` owns indices, proximity
 queries, and point clustering. `pdk_attrib` owns attribute and group operations.
 `pdk_gen` owns generators and isosurface extraction; `pdk_curve` owns curve
 sampling, editing, and sweeps. `pdk_mesh` owns modeling operations, and
-`pdk_boolean` owns Boolean stages; `pdk_io` owns packed mesh formats.
+`pdk_boolean` owns Boolean stages.
 `pdk` re-exports the stable public module paths; renderer conversion is isolated in
 `pdk_prismel`. `procedural` wraps PDK operations as SOPs.
 
 Sublibraries have one-way dependencies: core → `prismel_math`, exact → core,
 spatial → exact/core, attrib → spatial/exact/core, gen → attrib/spatial/exact/core,
-curve → spatial/exact/core, mesh → curve/gen/attrib/spatial/exact/core, IO → mesh/core, and each higher family may
+curve → spatial/exact/core, mesh → curve/gen/attrib/spatial/exact/core, and each higher family may
 depend only on lower families. Add the Dune edge
 and its injected-forbidden dependency-gate check together. Move a module with
 its `.mli`, or add the missing `.mli` during the move. Keep module aliases in

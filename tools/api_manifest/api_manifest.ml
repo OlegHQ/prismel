@@ -9,7 +9,7 @@ let stable_library_directories =
 
 let pdk_sublibrary_directories =
   [ "pdk/core"; "pdk/exact"; "pdk/spatial"; "pdk/attrib"; "pdk/gen"; "pdk/curve"
-  ; "pdk/mesh"; "pdk/boolean"; "pdk/io" ]
+  ; "pdk/mesh"; "pdk/boolean" ]
 
 let pdk_facade_modules root =
   read_file (Filename.concat root "lib/pdk/pdk.ml")

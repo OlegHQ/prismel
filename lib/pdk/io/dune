@@ -1,6 +1,0 @@
-(library
- (name pdk_io)
- (public_name prismel.pdk.io)
- (modules mesh_io)
- (libraries pdk_core pdk_mesh prismel_math)
- (flags (:standard -open Pdk_core)))

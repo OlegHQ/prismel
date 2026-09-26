@@ -88,16 +88,15 @@ let rules =
       "prismel_execution", ["runtime_input"];
       "prismel", ["pxui"; "pxui_shell"; "pxui_graph"; "sop_ui"; "procedural"; "pdk";
                   "sop_catalog"; "sketch_support"; "sketch_ui"];
-      "prismel_math", ["prismel"; "pdk_core"; "pdk_exact"; "pdk_spatial"; "pdk_attrib"; "pdk_gen"; "pdk_curve"; "pdk_mesh"; "pdk_boolean"; "pdk_io"; "pdk"; "pdk_prismel"; "procedural"] @ gpu;
-      "pdk_core", "pdk_exact" :: "pdk_spatial" :: "pdk_attrib" :: "pdk_gen" :: "pdk_curve" :: "pdk_mesh" :: "pdk_boolean" :: "pdk_io" :: "prismel" :: "pdk" :: "pdk_prismel" :: "procedural" :: gpu;
-      "pdk_exact", "pdk_spatial" :: "pdk_attrib" :: "pdk_gen" :: "pdk_curve" :: "pdk_mesh" :: "pdk_boolean" :: "pdk_io" :: "prismel" :: "pdk" :: "pdk_prismel" :: "procedural" :: gpu;
-      "pdk_spatial", "pdk_attrib" :: "pdk_gen" :: "pdk_curve" :: "pdk_mesh" :: "pdk_boolean" :: "pdk_io" :: "prismel" :: "pdk" :: "pdk_prismel" :: "procedural" :: gpu;
-      "pdk_attrib", "pdk_gen" :: "pdk_curve" :: "pdk_mesh" :: "pdk_boolean" :: "pdk_io" :: "prismel" :: "pdk" :: "pdk_prismel" :: "procedural" :: gpu;
-      "pdk_gen", "pdk_curve" :: "pdk_mesh" :: "pdk_boolean" :: "pdk_io" :: "prismel" :: "pdk" :: "pdk_prismel" :: "procedural" :: gpu;
-      "pdk_curve", "pdk_gen" :: "pdk_mesh" :: "pdk_boolean" :: "pdk_io" :: "prismel" :: "pdk" :: "pdk_prismel" :: "procedural" :: gpu;
-      "pdk_mesh", "pdk_boolean" :: "pdk_io" :: "prismel" :: "pdk" :: "pdk_prismel" :: "procedural" :: gpu;
-      "pdk_boolean", "pdk_io" :: "prismel" :: "pdk" :: "pdk_prismel" :: "procedural" :: gpu;
-      "pdk_io", "prismel" :: "pdk" :: "pdk_prismel" :: "procedural" :: gpu;
+      "prismel_math", ["prismel"; "pdk_core"; "pdk_exact"; "pdk_spatial"; "pdk_attrib"; "pdk_gen"; "pdk_curve"; "pdk_mesh"; "pdk_boolean"; "pdk"; "pdk_prismel"; "procedural"] @ gpu;
+      "pdk_core", "pdk_exact" :: "pdk_spatial" :: "pdk_attrib" :: "pdk_gen" :: "pdk_curve" :: "pdk_mesh" :: "pdk_boolean" :: "prismel" :: "pdk" :: "pdk_prismel" :: "procedural" :: gpu;
+      "pdk_exact", "pdk_spatial" :: "pdk_attrib" :: "pdk_gen" :: "pdk_curve" :: "pdk_mesh" :: "pdk_boolean" :: "prismel" :: "pdk" :: "pdk_prismel" :: "procedural" :: gpu;
+      "pdk_spatial", "pdk_attrib" :: "pdk_gen" :: "pdk_curve" :: "pdk_mesh" :: "pdk_boolean" :: "prismel" :: "pdk" :: "pdk_prismel" :: "procedural" :: gpu;
+      "pdk_attrib", "pdk_gen" :: "pdk_curve" :: "pdk_mesh" :: "pdk_boolean" :: "prismel" :: "pdk" :: "pdk_prismel" :: "procedural" :: gpu;
+      "pdk_gen", "pdk_curve" :: "pdk_mesh" :: "pdk_boolean" :: "prismel" :: "pdk" :: "pdk_prismel" :: "procedural" :: gpu;
+      "pdk_curve", "pdk_gen" :: "pdk_mesh" :: "pdk_boolean" :: "prismel" :: "pdk" :: "pdk_prismel" :: "procedural" :: gpu;
+      "pdk_mesh", "pdk_boolean" :: "prismel" :: "pdk" :: "pdk_prismel" :: "procedural" :: gpu;
+      "pdk_boolean", "prismel" :: "pdk" :: "pdk_prismel" :: "procedural" :: gpu;
       "pdk", "prismel" :: "pdk_prismel" :: "procedural" :: "pxui" :: "pxui_shell" :: "sop_ui" :: "sop_catalog" :: gpu;
       "procedural", "prismel" :: "pdk_prismel" :: "pxui" :: "pxui_shell" :: "pxui_graph" :: "sop_ui" :: "sop_catalog"
                     :: "sketch_support" :: "sketch_ui" :: gpu;
@@ -227,7 +226,7 @@ let run () =
      "pdk", "prismel"; "pdk_core", "pdk_exact";
      "pdk_exact", "pdk_boolean"; "pdk_spatial", "pdk_attrib";
      "pdk_attrib", "pdk_boolean"; "pdk_gen", "pdk_curve";
-     "pdk_curve", "pdk_gen"; "pdk_mesh", "pdk_boolean"; "pdk_boolean", "pdk_io"; "pdk_io", "pdk";
+     "pdk_curve", "pdk_gen"; "pdk_mesh", "pdk_boolean"; "pdk_boolean", "pdk";
      "pdk_core", "prismel";
      "prismel_math", "prismel"; "prismel_execution", "runtime_input";
      "prismel", "sdl3_ttf"];

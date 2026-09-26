@@ -10,7 +10,7 @@ interpreted VEX clone. Its public values are immutable and target-independent;
 builders and kernels use locally owned mutation over packed storage.
 
 ```text
-procedural / examples ──> pdk ──> pdk_boolean / pdk_io ──> pdk_mesh
+procedural / examples ──> pdk ──> pdk_boolean ──> pdk_mesh
                                   pdk_prismel ──> pdk_mesh + prismel
                                   pdk_mesh ──> pdk_attrib / pdk_gen / pdk_curve
                                   pdk_attrib / pdk_gen / pdk_curve
@@ -27,8 +27,7 @@ the procedural SOP converts public `Prismel.Color.t` inputs at its boundary.
 owns exact planar algorithms; `pdk_spatial` owns indices and intersection
 queries; `pdk_attrib` owns attribute and group operations. Generators and
 curve operations live in `pdk_gen` and `pdk_curve`, while mesh operations and
-Boolean stages live in `pdk_mesh` and `pdk_boolean`; packed mesh formats live
-in `pdk_io`. `Pdk` retains the public
+Boolean stages live in `pdk_mesh` and `pdk_boolean`. `Pdk` retains the public
 module paths. `Ops` keeps public aliases for extracted mesh kernels:
 `Triangulate` owns the deterministic polygon-to-triangle plan and installs its
 result through `Topology_remap.preserving_points`. The shared select, attribute,
@@ -2477,14 +2476,6 @@ full mesh digest `600041751`: one-domain medians are 21.392/22.780 ms on
 clean `HEAD` versus 18.652/20.317 ms after the port, with only 496 more
 caller-allocated bytes. Four-domain medians are 21.294/37.748 versus
 19.747/21.207 ms under variable host scheduling, with the same digest.
-
-`Pdk.Io` owns deterministic packed ASCII/binary STL, OFF, and OBJ loading and
-saving. STL import regenerates triangle normals; OFF import fan-triangulates
-polygons; OBJ import preserves supplied normal and UV corners. Malformed
-records and cancelled operations return typed errors. Direct roundtrip
-fixtures compare ordered positions and triangle indices at one and four
-domains. Migration fixtures also captured the former Geom STL/OFF output,
-including its OFF reader's reversed coordinate-field evaluation.
 
 `Pdk.Subdivision_extra` owns Butterfly and Doo-Sabin triangle subdivision.
 It currently accepts triangle meshes with point `N`, `Cd`, and `uv` only;

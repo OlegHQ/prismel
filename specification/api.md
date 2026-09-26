@@ -242,11 +242,10 @@ See [`3d.md`](./3d.md) for the rendering contract and
 
 The public `Pdk` facade keeps its packed geometry, topology, attribute, mesh,
 and Boolean paths while implementations live in one-way `pdk_core`, `pdk_exact`,
-`pdk_spatial`, `pdk_attrib`, `pdk_gen`, `pdk_curve`, `pdk_mesh`, `pdk_boolean`, and
-`pdk_io` libraries. `Pdk.Curve_sampling` provides deterministic Bézier and
+`pdk_spatial`, `pdk_attrib`, `pdk_gen`, `pdk_curve`, `pdk_mesh`, and `pdk_boolean`
+libraries. `Pdk.Curve_sampling` provides deterministic Bézier and
 Catmull–Rom samples, `Pdk.Iso_surface` extracts packed isosurfaces,
-`Pdk.Uv_sphere` generates packed latitude/longitude spheres, and
-`Pdk.Io` loads and saves STL, OFF, and OBJ through typed results.
+`Pdk.Uv_sphere` generates packed latitude/longitude spheres.
 `Pdk.Group_ops`, `Pdk.Group_mesh`, `Pdk.Graph_color`,
 `Pdk.Blast_by_attribute`, `Pdk.Separate_pieces`, `Pdk.Deletion`,
 `Pdk.Blend_shapes`, `Pdk.Attribute_composite`,

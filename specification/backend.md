@@ -60,8 +60,7 @@ and point clustering live in `pdk_spatial`. Attribute and group operations
 live in `pdk_attrib`; packed generators and isosurface extraction live in
 `pdk_gen`, while curve sampling and topology live in `pdk_curve`. These are
 branches above the core/exact/spatial layers. Modeling operations are in
-`pdk_mesh`; Boolean stages are in `pdk_boolean`, and packed mesh formats are in
-`pdk_io`.
+`pdk_mesh`; Boolean stages are in `pdk_boolean`.
 `Pdk` keeps the public module paths stable, and
 the dependency gate rejects upward edges from lower to higher PDK libraries.
 
