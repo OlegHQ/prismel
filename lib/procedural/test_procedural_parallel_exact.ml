@@ -1261,7 +1261,7 @@ let run () =
       && Topology.primitive_kind (Geometry.topology one) 1 = Topology.Polygon)
     "grouped Carve unselected polygon/cardinality behavior";
   let cut_pieces = grouped_carve |> Sop.carve ~group:"carve_curve"
-      ~first:0.2 ~last:0.8 ~keep:Ops.Keep_inside_and_outside in
+      ~first:0.2 ~last:0.8 ~keep:Curve_modeling.Keep_inside_and_outside in
   let one = cook 1 cut_pieces and many = cook 4 cut_pieces in
   check (equal_geometry one many)
     "one-domain and four-domain Carve inside/outside pieces differ";

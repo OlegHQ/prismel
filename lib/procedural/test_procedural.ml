@@ -1183,7 +1183,7 @@ let test_generators_selections_and_delete () =
       |> Sop.carve ~group:"carve_curve" ~relative_arc_length:false
            ~first:0.5 ~last:1. ~first_attribute:"first_u"
            ~last_attribute:"second_u"
-           ~attribute_mode:Pdk.Ops.Attribute_scale in
+           ~attribute_mode:Pdk.Curve_modeling.Attribute_scale in
   check (contains (Node.parameters scaled_carve_node) "attribute_mode=scale")
     "procedural scaled Carve cache identity";
   let scaled_carve = cook_ok evaluator current scaled_carve_node in
@@ -1224,7 +1224,7 @@ let test_generators_selections_and_delete () =
     "procedural attributed breakpoint extraction";
   let outside_node = grouped_carve_source
       |> Sop.carve ~group:"carve_curve" ~relative_arc_length:false
-           ~first:0.25 ~last:0.75 ~keep:Pdk.Ops.Keep_outside in
+           ~first:0.25 ~last:0.75 ~keep:Pdk.Curve_modeling.Keep_outside in
   check (contains (Node.parameters outside_node) "keep=outside")
     "procedural Carve outside cache identity";
   let outside = cook_ok evaluator current outside_node in

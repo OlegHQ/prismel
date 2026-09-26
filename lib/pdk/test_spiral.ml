@@ -212,7 +212,7 @@ let check_frames_and_composition () =
   check (near (angle.(65) -. angle.(0)) Float.pi
       && distance.(0) = 0. && distance.(65) = 0.)
     "Spiral per-curve angle/distance reset";
-  let swept = Ops.sweep_circle ~sides:8 ~radius:0.05 geometry |> get_ok in
+  let swept = Curve_modeling.sweep_circle_checked ~sides:8 ~radius:0.05 geometry |> get_ok in
   check (Geometry.primitive_count swept > 0)
     "Spiral curve failed Sweep composition"
 

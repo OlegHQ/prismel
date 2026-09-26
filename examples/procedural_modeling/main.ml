@@ -124,7 +124,7 @@ let graphs () =
     |> Sop.group ~name:"carve_line" Select.all_primitives
     |> Sop.carve ~group:"carve_line" ~first_attribute:"first_u"
          ~last_attribute:"second_u" ~only_at_breakpoints:true
-         ~keep:Pdk.Ops.Keep_inside_and_outside
+         ~keep:Pdk.Curve_modeling.Keep_inside_and_outside
     |> Sop.set_float ~owner:Pdk.Attribute.Point ~name:"width" 0.65
     |> Sop.polywire ~sides:10 ~scale_attribute:"width" ~caps:true ~radius:0.1
     |> Sop.set_color ~owner:Pdk.Attribute.Point (Color.hex_exn "#f472b6")

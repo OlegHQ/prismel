@@ -2877,13 +2877,13 @@ end [@@sop.register]
 
 module Carve = struct
   let attribute_mode_parameter = Parameter.choice ~equal:( = ) [
-      "Replace", Pdk.Ops.Attribute_replace;
-      "Scale", Pdk.Ops.Attribute_scale;
+      "Replace", Pdk.Curve_modeling.Attribute_replace;
+      "Scale", Pdk.Curve_modeling.Attribute_scale;
     ]
   let keep_parameter = Parameter.choice ~equal:( = ) [
-      "Inside", Pdk.Ops.Keep_inside;
-      "Outside", Pdk.Ops.Keep_outside;
-      "Inside and outside", Pdk.Ops.Keep_inside_and_outside;
+      "Inside", Pdk.Curve_modeling.Keep_inside;
+      "Outside", Pdk.Curve_modeling.Keep_outside;
+      "Inside and outside", Pdk.Curve_modeling.Keep_inside_and_outside;
     ]
 
   type parameters = {
@@ -2898,15 +2898,15 @@ module Carve = struct
       [@sop.label "First attribute"] [@sop.folder "Attributes"];
     last_attribute : string [@sop.default ""]
       [@sop.label "Second attribute"] [@sop.folder "Attributes"];
-    attribute_mode : Pdk.Ops.carve_attribute_mode
-      [@sop.default Pdk.Ops.Attribute_replace]
+    attribute_mode : Pdk.Curve_modeling.carve_attribute_mode
+      [@sop.default Pdk.Curve_modeling.Attribute_replace]
       [@sop.label "Attribute mode"] [@sop.folder "Attributes"]
       [@sop.kind attribute_mode_parameter];
     only_at_breakpoints : bool [@sop.default false]
       [@sop.label "Only at breakpoints"];
     cut_at_all_internal_breakpoints : bool [@sop.default false]
       [@sop.label "Cut at internal breakpoints"];
-    keep : Pdk.Ops.carve_keep [@sop.default Pdk.Ops.Keep_inside]
+    keep : Pdk.Curve_modeling.carve_keep [@sop.default Pdk.Curve_modeling.Keep_inside]
       [@sop.label "Keep"] [@sop.kind keep_parameter];
     extract_points : bool [@sop.default false] [@sop.label "Extract points"];
     divisions : int [@sop.default 1] [@sop.label "Divisions"]

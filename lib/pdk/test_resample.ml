@@ -114,23 +114,23 @@ let with_primitive_attribute name storage geometry =
 
 let check_length_modes () =
   let line = Line_geometry.polyline_checked [|(0., 0., 0.); (2.5, 0., 0.)|] |> get_ok in
-  let even = Ops.resample_curves ~maximum_segment_length:1. line |> get_ok in
+  let even = Curve_modeling.resample_curves_checked ~maximum_segment_length:1. line |> get_ok in
   let x = x_positions even in
   check (Array.length x = 4 && near x.(0) 0. && near x.(1) (2.5 /. 3.)
       && near x.(2) (5. /. 3.) && near x.(3) 2.5)
     "equal-last maximum-length sampling";
-  let short_last = Ops.resample_curves ~maximum_segment_length:1.
+  let short_last = Curve_modeling.resample_curves_checked ~maximum_segment_length:1.
       ~even_last_segment:false line |> get_ok in
   let x = x_positions short_last in
   check (x = [|0.; 1.; 2.; 2.5|]) "short final segment sampling";
-  let capped = Ops.resample_curves ~segments:2 ~maximum_segment_length:1.
+  let capped = Curve_modeling.resample_curves_checked ~segments:2 ~maximum_segment_length:1.
       ~even_last_segment:false line |> get_ok in
   let x = x_positions capped in
   check (x = [|0.; 1.25; 2.5|]) "maximum-segment ceiling sampling";
   let square = Line_geometry.polyline_checked ~closed:true
       [|(0., 0., 0.); (1., 0., 0.); (1., 1., 0.); (0., 1., 0.)|]
       |> get_ok in
-  let closed = Ops.resample_curves ~maximum_segment_length:10.
+  let closed = Curve_modeling.resample_curves_checked ~maximum_segment_length:10.
       ~even_last_segment:false square |> get_ok in
   check (Geometry.point_count closed = 3
       && Topology.primitive_kind (Geometry.topology closed) 0
@@ -140,7 +140,7 @@ let check_length_modes () =
 let check_diagnostics () =
   let bent = Line_geometry.polyline_checked [|(0., 0., 0.); (1., 0., 0.); (1., 3., 0.)|]
       |> get_ok in
-  let result = Ops.resample_curves ~segments:4 ~curve_u_attribute:"curveu"
+  let result = Curve_modeling.resample_curves_checked ~segments:4 ~curve_u_attribute:"curveu"
       ~curve_number_attribute:"curvenum" ~distance_attribute:"distance"
       ~tangent_attribute:"tangent" bent |> get_ok in
   let u = float_attribute result "curveu"
@@ -165,7 +165,7 @@ let check_group_and_overrides () =
   let source = Mesh_merge.run [first; second] |> get_ok in
   let selected = Group.init ~owner:Group.Primitive ~name:"first" 2
       (fun primitive -> primitive = 0) in
-  let restricted = Ops.resample_curves ~primitives:selected ~segments:4 source
+  let restricted = Curve_modeling.resample_curves_checked ~primitives:selected ~segments:4 source
       |> get_ok in
   let topology = Geometry.topology restricted in
   let first_start, first_end = Topology.primitive_vertex_range topology 0
@@ -181,7 +181,7 @@ let check_group_and_overrides () =
            (Attribute.Float [|0.; 0.|])
       |> with_primitive_attribute "num_segments" (Attribute.Int [|2; 0|]) in
   let run domains = Parallel.run ~domains (fun () ->
-      Ops.resample_curves ~grain:1 ~segments:7 ~maximum_segment_length:0.2
+      Curve_modeling.resample_curves_checked ~grain:1 ~segments:7 ~maximum_segment_length:0.2
         ~segment_length_attribute:"segment_length"
         ~segments_attribute:"num_segments" overridden |> get_ok) in
   let one = run 1 and many = run 4 in
@@ -195,38 +195,38 @@ let check_group_and_overrides () =
 
 let check_validation () =
   let line = Line_geometry.polyline_checked [|(0., 0., 0.); (1., 0., 0.)|] |> get_ok in
-  expect_invalid (Ops.resample_curves line);
-  expect_invalid (Ops.resample_curves ~segments:0 line);
-  expect_invalid (Ops.resample_curves ~maximum_segment_length:0. line);
-  expect_invalid (Ops.resample_curves ~maximum_segment_length:Float.nan line);
-  expect_invalid (Ops.resample_curves ~segments:max_int line);
-  expect_invalid (Ops.resample_curves ~segments:2 ~curve_u_attribute:" " line);
-  expect_invalid (Ops.resample_curves ~segments:2 ~curve_u_attribute:"P" line);
-  expect_invalid (Ops.resample_curves ~segments:2 ~curve_u_attribute:"u"
+  expect_invalid (Curve_modeling.resample_curves_checked line);
+  expect_invalid (Curve_modeling.resample_curves_checked ~segments:0 line);
+  expect_invalid (Curve_modeling.resample_curves_checked ~maximum_segment_length:0. line);
+  expect_invalid (Curve_modeling.resample_curves_checked ~maximum_segment_length:Float.nan line);
+  expect_invalid (Curve_modeling.resample_curves_checked ~segments:max_int line);
+  expect_invalid (Curve_modeling.resample_curves_checked ~segments:2 ~curve_u_attribute:" " line);
+  expect_invalid (Curve_modeling.resample_curves_checked ~segments:2 ~curve_u_attribute:"P" line);
+  expect_invalid (Curve_modeling.resample_curves_checked ~segments:2 ~curve_u_attribute:"u"
       ~distance_attribute:"u" line);
-  expect_invalid (Ops.resample_curves ~segments:2
+  expect_invalid (Curve_modeling.resample_curves_checked ~segments:2
       ~segment_length_attribute:"missing" line);
   let wrong_override = line |> with_primitive_attribute "segment_length"
       (Attribute.Int [|1|]) in
-  expect_invalid (Ops.resample_curves ~segments:2
+  expect_invalid (Curve_modeling.resample_curves_checked ~segments:2
       ~segment_length_attribute:"segment_length" wrong_override);
   let nonfinite_override = line |> with_primitive_attribute "segment_length"
       (Attribute.Float [|Float.infinity|]) in
-  expect_invalid (Ops.resample_curves ~segments:2
+  expect_invalid (Curve_modeling.resample_curves_checked ~segments:2
       ~segment_length_attribute:"segment_length" nonfinite_override);
   let wrong_group = Group.init ~owner:Group.Point ~name:"points" 2
       (fun _ -> true) in
-  expect_invalid (Ops.resample_curves ~primitives:wrong_group ~segments:2 line);
+  expect_invalid (Curve_modeling.resample_curves_checked ~primitives:wrong_group ~segments:2 line);
   let repeated = Line_geometry.polyline_checked [|(0., 0., 0.); (0., 0., 0.)|] |> get_ok in
-  expect_invalid (Ops.resample_curves ~segments:2 repeated);
+  expect_invalid (Curve_modeling.resample_curves_checked ~segments:2 repeated);
   let polygon = Plane_generators.grid_checked ~columns:1 ~rows:1 ~size:1. () |> get_ok in
-  expect_invalid (Ops.resample_curves ~segments:2 polygon);
+  expect_invalid (Curve_modeling.resample_curves_checked ~segments:2 polygon);
   let closed = Line_geometry.polyline_checked ~closed:true
       [|(0., 0., 0.); (1., 0., 0.); (0., 1., 0.)|] |> get_ok in
-  expect_invalid (Ops.resample_curves ~segments:2 closed);
+  expect_invalid (Curve_modeling.resample_curves_checked ~segments:2 closed);
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
-  (match Ops.resample_curves ~cancel:cancelled ~segments:2 line with
+  (match Curve_modeling.resample_curves_checked ~cancel:cancelled ~segments:2 line with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "Resample ignored cancellation")
 
@@ -237,7 +237,7 @@ let check_parallel_exact () =
       t, sin (t *. 0.7), cos (t *. 0.43) *. 0.6) |> Line_geometry.polyline_checked |> get_ok
       |> Ops.group_edges ~grain:257 ~name:"spine_edges" |> get_ok in
   let run domains = Parallel.run ~domains (fun () ->
-      Ops.resample_curves ~grain:257 ~maximum_segment_length:0.0009
+      Curve_modeling.resample_curves_checked ~grain:257 ~maximum_segment_length:0.0009
         ~curve_u_attribute:"curveu" ~curve_number_attribute:"curvenum"
         ~distance_attribute:"distance" ~tangent_attribute:"tangent" source
       |> get_ok) in
