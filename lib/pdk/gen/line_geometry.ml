@@ -3,7 +3,6 @@ open Prismel_math
 
 type kind = Line_curve | Line_points
 
-let finite = Float.is_finite
 let get_ok = function Ok value -> value | Error message -> invalid_arg message
 
 let points values =
@@ -22,9 +21,9 @@ let line ?cancel ?(grain = 16_384) ?(kind = Line_curve) ?(points = 2)
   else if points < minimum then Error (Printf.sprintf
       "Pdk.Line_geometry.line: %s output requires at least %d points"
       (match kind with Line_curve -> "curve" | Line_points -> "point") minimum)
-  else if not (finite origin.Vec3.x && finite origin.y && finite origin.z
-      && finite direction.Vec3.x && finite direction.y && finite direction.z
-      && finite length && length >= 0.) then
+  else if not (Float.is_finite origin.Vec3.x && Float.is_finite origin.y && Float.is_finite origin.z
+      && Float.is_finite direction.Vec3.x && Float.is_finite direction.y && Float.is_finite direction.z
+      && Float.is_finite length && length >= 0.) then
     Error "Pdk.Line_geometry.line: origin/direction must be finite and length finite and non-negative"
   else
     let scale = max (abs_float direction.x)
@@ -39,7 +38,7 @@ let line ?cancel ?(grain = 16_384) ?(kind = Line_curve) ?(points = 2)
       and dz = (sz /. magnitude) *. length in
       let end_x = origin.x +. dx and end_y = origin.y +. dy
       and end_z = origin.z +. dz in
-      if not (finite end_x && finite end_y && finite end_z) then
+      if not (Float.is_finite end_x && Float.is_finite end_y && Float.is_finite end_z) then
         Error "Pdk.Line_geometry.line: endpoint is not finite"
       else begin
         let x = Array.make points 0. and y = Array.make points 0.
@@ -79,7 +78,7 @@ let polyline ?(closed = false) values =
   if count < minimum then Error (Printf.sprintf
       "Pdk.Line_geometry.polyline: %s polylines require at least %d points"
       (if closed then "closed" else "open") minimum)
-  else if Array.exists (fun (x, y, z) -> not (finite x && finite y && finite z)) values
+  else if Array.exists (fun (x, y, z) -> not (Float.is_finite x && Float.is_finite y && Float.is_finite z)) values
   then Error "Pdk.Line_geometry.polyline: positions must be finite"
   else
     let geometry = points values in

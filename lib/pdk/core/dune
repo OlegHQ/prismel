@@ -3,4 +3,4 @@
  (public_name prismel.pdk.core)
  (libraries prismel_math)
  (private_modules data_id)
- (modules face_normals topology_remap normal_ops data_id cancel error packed topology group attribute geometry edge_group point_index topology_index analysis attribute_pattern attribute_relation element_selection kernel polygon_triangulation ragged_ops topology_edge_lookup))
+ (modules support face_normals topology_remap normal_ops data_id cancel error packed topology group attribute geometry edge_group point_index topology_index analysis attribute_pattern attribute_relation element_selection kernel polygon_triangulation ragged_ops topology_edge_lookup))

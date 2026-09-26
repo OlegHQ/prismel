@@ -177,68 +177,14 @@ let find_text_match ~owner name geometry =
        | _ -> None)
   | None -> None
 
-let hash_capacity length =
-  if length < 0 || length > (Sys.max_array_length - 1) / 3 * 2 then
-    Error "Attribute Combine: match table exceeds array limits"
-  else
-    let wanted = max 16 (length + (length / 2) + 1) in
-    let capacity = ref 16 in
-    while !capacity < wanted && !capacity <= Sys.max_array_length / 2 do
-      capacity := !capacity lsl 1
-    done;
-    if !capacity < wanted then
-      Error "Attribute Combine: match table exceeds array limits"
-    else Ok !capacity
-
-let[@inline always] integer_hash value mask =
-  let value = if Sys.word_size > 32 then value lxor (value lsr 32) else value in
-  let value = value lxor (value lsr 16) in
-  (value * 0x45d9f3b) land mask
+let key_map_error map =
+  Option.to_result ~none:"Attribute Combine: match table exceeds array limits" map
 
 let integer_highest_map ?cancel values =
-  Result.map (fun capacity ->
-    let indices = Array.make capacity (-1) and mask = capacity - 1 in
-    Array.iteri (fun index key ->
-      if index land 4095 = 0 then Cancel.check_opt cancel;
-      let slot = ref (integer_hash key mask) in
-      while indices.(!slot) >= 0 && values.(indices.(!slot)) <> key do
-        slot := (!slot + 1) land mask
-      done;
-      indices.(!slot) <- index) values;
-    fun key ->
-      let slot = ref (integer_hash key mask) and searching = ref true
-      and result = ref (-1) in
-      while !searching do
-        let index = indices.(!slot) in
-        if index < 0 then searching := false
-        else if values.(index) = key then begin
-          result := index; searching := false
-        end else slot := (!slot + 1) land mask
-      done;
-      !result) (hash_capacity (Array.length values))
+  key_map_error (Support.Key_map.(ints ?cancel Last) values)
 
 let string_highest_map ?cancel values =
-  Result.map (fun capacity ->
-    let indices = Array.make capacity (-1) and mask = capacity - 1 in
-    Array.iteri (fun index key ->
-      if index land 4095 = 0 then Cancel.check_opt cancel;
-      let slot = ref (Hashtbl.hash key land mask) in
-      while indices.(!slot) >= 0
-          && not (String.equal values.(indices.(!slot)) key) do
-        slot := (!slot + 1) land mask
-      done;
-      indices.(!slot) <- index) values;
-    fun key ->
-      let slot = ref (Hashtbl.hash key land mask) and searching = ref true
-      and result = ref (-1) in
-      while !searching do
-        let index = indices.(!slot) in
-        if index < 0 then searching := false
-        else if String.equal values.(index) key then begin
-          result := index; searching := false
-        end else slot := (!slot + 1) land mask
-      done;
-      !result) (hash_capacity (Array.length values))
+  key_map_error (Support.Key_map.(strings ?cancel Last) values)
 
 let fill_mapping ?cancel ~grain target_count target_values lookup =
   let mapping = Array.make target_count (-1) in

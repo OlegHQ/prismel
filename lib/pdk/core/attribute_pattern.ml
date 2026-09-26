@@ -53,15 +53,6 @@ let split_terms source =
   | Some message -> Error ("Attribute_pattern: " ^ message)
   | None -> Ok (Array.of_list (List.rev !terms))
 
-let bit_set bits character =
-  let code = Char.code character in
-  let byte = code lsr 3 and mask = 1 lsl (code land 7) in
-  Bytes.set bits byte (Char.chr (Char.code (Bytes.get bits byte) lor mask))
-
-let bit_mem bits character =
-  let code = Char.code character in
-  Char.code (Bytes.get bits (code lsr 3)) land (1 lsl (code land 7)) <> 0
-
 let escaped_character token index limit =
   if index >= limit then Error "missing class character"
   else if token.[index] = '\\' then
@@ -102,12 +93,12 @@ let class_atom token first =
                      failure := Some "descending character-class range"
                    else begin
                      for code = Char.code left to Char.code right do
-                       bit_set bits (Char.chr code)
+                       Support.Bits.set bits code
                      done;
                      cursor := after_right
                    end)
             else begin
-              bit_set bits left;
+              Support.Bits.set bits (Char.code left);
               cursor := after_left
             end
       done;
@@ -163,7 +154,7 @@ let compile source =
 let atom_matches atom character = match atom with
   | Literal expected -> character = expected
   | Any -> true
-  | Class { bits; negated } -> bit_mem bits character <> negated
+  | Class { bits; negated } -> Support.Bits.mem bits (Char.code character) <> negated
   | Star -> assert false
 
 let rec trailing_stars atoms atom atom_count =

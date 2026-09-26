@@ -3,7 +3,6 @@ open Prismel_math
 exception Poly_path_error of string
 
 let fail message = raise (Poly_path_error message)
-let finite = Float.is_finite
 
 let run_ranges ?(grain = 16_384) count operation =
   if grain <= 0 then fail "grain must be positive";
@@ -71,7 +70,7 @@ let run ?cancel ?grain ?edges ?(preserve_source_payload = true)
   try
     (match grain with Some value when value <= 0 -> fail "grain must be positive"
      | _ -> ());
-    if not (finite maximum_distance) || maximum_distance < 0. then
+    if not (Float.is_finite maximum_distance) || maximum_distance < 0. then
       fail "PolyPath maximum distance must be finite and non-negative";
     Cancel.check_opt cancel;
     let source_topology = Geometry.topology geometry in

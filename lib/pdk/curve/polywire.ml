@@ -3,7 +3,6 @@ open Prismel_math
 exception Invalid of string
 
 let fail message = raise (Invalid message)
-let finite = Float.is_finite
 
 let checked_add label left right =
   if right < 0 || left > Sys.max_array_length - right then
@@ -21,24 +20,24 @@ let[@inline always] normalized_offset value count =
 
 let[@inline always] interpolate left right weight =
   let delta = right -. left in
-  if finite delta then left +. (delta *. weight)
+  if Float.is_finite delta then left +. (delta *. weight)
   else (left *. (1. -. weight)) +. (right *. weight)
 
 let robust_length dx dy dz =
   let scale = Float.max (abs_float dx) (Float.max (abs_float dy) (abs_float dz)) in
   if scale = 0. then 0.
-  else if not (finite scale) then infinity
+  else if not (Float.is_finite scale) then infinity
   else
     let x = dx /. scale and y = dy /. scale and z = dz /. scale in
     scale *. sqrt ((x *. x) +. (y *. y) +. (z *. z))
 
 let normalize x y z =
   let scale = Float.max (abs_float x) (Float.max (abs_float y) (abs_float z)) in
-  if scale = 0. || not (finite scale) then None
+  if scale = 0. || not (Float.is_finite scale) then None
   else
     let x = x /. scale and y = y /. scale and z = z /. scale in
     let length = sqrt ((x *. x) +. (y *. y) +. (z *. z)) in
-    if length = 0. || not (finite length) then None
+    if length = 0. || not (Float.is_finite length) then None
     else Some (x /. length, y /. length, z /. length)
 
 let find_point_attribute geometry label name storage = match name with
@@ -104,16 +103,16 @@ let run ?cancel ~grain ~primitives ~sides ~divisions_attribute ~segments
     if sides > 4_096 then fail "sides must not exceed 4096";
     if segments < 1 then fail "segments must be positive";
     if segments > 1_048_576 then fail "segments must not exceed 1048576";
-    if not (finite radius) || radius <= 0. then
+    if not (Float.is_finite radius) || radius <= 0. then
       fail "radius must be finite and positive";
     let validate_range label (first, last) =
-      if not (finite first && finite last) then
+      if not (Float.is_finite first && Float.is_finite last) then
         fail (label ^ " range must be finite") in
     Option.iter (fun ((first, last) as range) ->
       validate_range "segment scale" range;
       if first < 0. || last > 1. || first > last then
         fail "segment scales require 0 <= first <= last <= 1") segment_scales;
-    if not (finite maximum_joint_scale) || maximum_joint_scale < 1. then
+    if not (Float.is_finite maximum_joint_scale) || maximum_joint_scale < 1. then
       fail "maximum joint scale must be finite and at least one";
     if Option.is_some maximum_joint_scale_attribute
         && not prevent_joint_buckling then
@@ -187,19 +186,19 @@ let run ?cancel ~grain ~primitives ~sides ~divisions_attribute ~segments
         (function Attribute.Float values -> Some values | _ -> None) in
     Option.iter (fun values -> Array.iteri (fun point value ->
       if Bytes.get selected_reference point <> '\000'
-          && (not (finite value) || value < 0.) then fail (Printf.sprintf
+          && (not (Float.is_finite value) || value < 0.) then fail (Printf.sprintf
         "point scale attribute contains a non-finite or negative value at point %d"
         point)) values) scale_values;
     Option.iter (fun values -> Array.iteri (fun point value ->
-      if Bytes.get selected_reference point <> '\000' && not (finite value) then
+      if Bytes.get selected_reference point <> '\000' && not (Float.is_finite value) then
         fail (Printf.sprintf
           "point V texture attribute contains a non-finite value at point %d" point))
       values) v_values;
     Option.iter (fun (values : Packed.Float3.Private.view) ->
       for point = 0 to Array.length values.x - 1 do
         if Bytes.get selected_reference point <> '\000'
-            && not (finite values.x.(point) && finite values.y.(point)
-            && finite values.z.(point)) then fail (Printf.sprintf
+            && not (Float.is_finite values.x.(point) && Float.is_finite values.y.(point)
+            && Float.is_finite values.z.(point)) then fail (Printf.sprintf
           "point joint up attribute contains a non-finite value at point %d" point)
       done) up_values;
     Option.iter (fun values -> Array.iteri (fun point value ->
@@ -214,11 +213,11 @@ let run ?cancel ~grain ~primitives ~sides ~divisions_attribute ~segments
       segment_values;
     Option.iter (fun values -> Array.iteri (fun point value ->
       if Bytes.get selected_reference point <> '\000'
-          && (not (finite value) || value < 1.) then fail (Printf.sprintf
+          && (not (Float.is_finite value) || value < 1.) then fail (Printf.sprintf
         "point maximum joint scale attribute must be finite and at least one at point %d"
         point)) values) maximum_joint_scale_values;
     Option.iter (fun values -> Array.iteri (fun point value ->
-      if Bytes.get selected_reference point <> '\000' && not (finite value) then
+      if Bytes.get selected_reference point <> '\000' && not (Float.is_finite value) then
         fail (Printf.sprintf
           "point smooth attribute contains a non-finite value at point %d" point))
       values) smooth_values;
@@ -348,7 +347,7 @@ let run ?cancel ~grain ~primitives ~sides ~divisions_attribute ~segments
                 (positions.x.(right_point) -. positions.x.(left_point))
                 (positions.y.(right_point) -. positions.y.(left_point))
                 (positions.z.(right_point) -. positions.z.(left_point)) in
-            if not (finite source_length) || source_length <= 1e-20 then
+            if not (Float.is_finite source_length) || source_length <= 1e-20 then
               fail (Printf.sprintf
                 "primitive %d has a zero-length or non-finite source edge"
                 primitive)
@@ -362,7 +361,7 @@ let run ?cancel ~grain ~primitives ~sides ~divisions_attribute ~segments
           if has_segment_scales then begin
             let first = segment_scale_first left_vertex
             and last = segment_scale_last left_vertex in
-            if not (finite first && finite last) || first < 0. || last > 1.
+            if not (Float.is_finite first && Float.is_finite last) || first < 0. || last > 1.
                 || first > last then fail (Printf.sprintf
               "vertex segment scale attribute requires 0 <= first <= last <= 1 at vertex %d"
               left_vertex)
@@ -370,7 +369,7 @@ let run ?cancel ~grain ~primitives ~sides ~divisions_attribute ~segments
           if generate_uv then begin
             let u0 = uv_u0 left_vertex and u1 = uv_u1 left_vertex
             and v0 = uv_v0 left_vertex and v1 = uv_v1 left_vertex in
-            if not (finite u0 && finite u1 && finite v0 && finite v1) then
+            if not (Float.is_finite u0 && Float.is_finite u1 && Float.is_finite v0 && Float.is_finite v1) then
               fail (Printf.sprintf
                 "vertex UV range attribute contains a non-finite value at vertex %d"
                 left_vertex)
@@ -546,8 +545,8 @@ let run ?cancel ~grain ~primitives ~sides ~divisions_attribute ~segments
           positions.y.(right_point) weight;
       center_z.(ring) <- interpolate positions.z.(left_point)
           positions.z.(right_point) weight;
-      if not (finite center_x.(ring) && finite center_y.(ring)
-          && finite center_z.(ring)) then
+      if not (Float.is_finite center_x.(ring) && Float.is_finite center_y.(ring)
+          && Float.is_finite center_z.(ring)) then
         fail (Printf.sprintf "generated ring center %d is not finite" ring)
     done;
     let wire_point_count = ring_point_offsets.(ring_count) in
@@ -804,7 +803,7 @@ let run ?cancel ~grain ~primitives ~sides ~divisions_attribute ~segments
               let incoming_length = robust_length idx idy idz
               and outgoing_length = robust_length odx ody odz in
               if incoming_length <= 1e-20 || outgoing_length <= 1e-20
-                  || not (finite incoming_length && finite outgoing_length)
+                  || not (Float.is_finite incoming_length && Float.is_finite outgoing_length)
               then None
               else
                   let ix = idx /. incoming_length
@@ -833,7 +832,7 @@ let run ?cancel ~grain ~primitives ~sides ~divisions_attribute ~segments
             let length = robust_length (center_x.(ring) -. center_x.(ring - 1))
                 (center_y.(ring) -. center_y.(ring - 1))
                 (center_z.(ring) -. center_z.(ring - 1)) in
-            if not (finite length)
+            if not (Float.is_finite length)
                 || (not has_segment_scales
                   && Bytes.get ring_break_before ring = '\000'
                   && length <= 1e-20)
@@ -847,13 +846,13 @@ let run ?cancel ~grain ~primitives ~sides ~divisions_attribute ~segments
             let length = robust_length (center_x.(first) -. center_x.(last))
                 (center_y.(first) -. center_y.(last))
                 (center_z.(first) -. center_z.(last)) in
-            if not (finite length) || (not has_segment_scales && length <= 1e-20)
+            if not (Float.is_finite length) || (not has_segment_scales && length <= 1e-20)
             then fail (Printf.sprintf
               "primitive %d has a zero-length or non-finite generated closing segment"
               curve.primitive);
             cumulative.(last) +. length
           end else cumulative.(last) in
-        if not (finite total) || total <= 1e-20 then fail (Printf.sprintf
+        if not (Float.is_finite total) || total <= 1e-20 then fail (Printf.sprintf
           "primitive %d has zero or non-finite length" curve.primitive);
         curve_total.(curve_index) <- total;
         (match up_values with
@@ -972,7 +971,7 @@ let run ?cancel ~grain ~primitives ~sides ~divisions_attribute ~segments
         let ring_radius = radius *. match scale_values with
           | None -> 1.
           | Some values -> interpolate values.(left_point) values.(right_point) weight in
-        if not (finite ring_radius) then fail (Printf.sprintf
+        if not (Float.is_finite ring_radius) then fail (Printf.sprintf
           "generated ring %d has a non-finite radius" ring);
         let seam_attribute = match seam_values with
           | None -> 0
@@ -1015,7 +1014,7 @@ let run ?cancel ~grain ~primitives ~sides ~divisions_attribute ~segments
             let x = center_x.(ring) +. (scaled_radius *. nx)
             and y = center_y.(ring) +. (scaled_radius *. ny)
             and z = center_z.(ring) +. (scaled_radius *. nz) in
-            if not (finite x && finite y && finite z) then fail (Printf.sprintf
+            if not (Float.is_finite x && Float.is_finite y && Float.is_finite z) then fail (Printf.sprintf
               "generated ring %d is not finite" ring);
             px.(output) <- x; py.(output) <- y; pz.(output) <- z;
             point_nx.(output) <- nx; point_ny.(output) <- ny;

@@ -3,7 +3,6 @@ open Prismel_math
 type divide = Extrude_individual | Extrude_connected_components
 
 let ( let* ) = Result.bind
-let finite = Float.is_finite
 
 module Int_builder = struct
   type t = { mutable values : int array; mutable length : int }
@@ -171,7 +170,7 @@ let rec merge_edge_group group = function
 
 let run_default ?cancel ?(grain = 1_024) ~distance geometry =
   if grain <= 0 then invalid_arg "Pdk_mesh.Poly_extrude.poly_extrude: grain must be positive";
-  if not (finite distance) then
+  if not (Float.is_finite distance) then
     Error "Pdk_mesh.Poly_extrude.poly_extrude: distance must be finite"
   else
     let topology = Geometry.topology geometry
@@ -219,7 +218,7 @@ let run_default ?cancel ?(grain = 1_024) ~distance geometry =
                 nz := !nz +. ((ax -. bx) *. (ay +. by))
               done;
               let length = sqrt ((!nx *. !nx) +. (!ny *. !ny) +. (!nz *. !nz)) in
-              if length <= 1e-20 || not (finite length) then
+              if length <= 1e-20 || not (Float.is_finite length) then
                 failures.(primitive) <- Some (Printf.sprintf
                   "Pdk_mesh.Poly_extrude.poly_extrude: primitive %d is degenerate" primitive)
               else begin
@@ -321,7 +320,7 @@ let run_general ?cancel ?(grain = 16_384) ?primitives ?split_edges
     ?back_boundary_group ~distance geometry =
   if grain <= 0 then invalid_arg "Pdk_mesh.Poly_extrude.poly_extrude: grain must be positive";
   if divisions <= 0 then Error "Pdk_mesh.Poly_extrude.poly_extrude: divisions must be positive"
-  else if not (finite distance) then
+  else if not (Float.is_finite distance) then
     Error "Pdk_mesh.Poly_extrude.poly_extrude: distance must be finite"
   else
   let* () = validate_selection geometry primitives in
@@ -499,7 +498,7 @@ let run_general ?cancel ?(grain = 16_384) ?primitives ?split_edges
           let x = direction_x.(association) and y = direction_y.(association)
           and z = direction_z.(association) in
           let scale = max (abs_float x) (max (abs_float y) (abs_float z)) in
-          if scale = 0. || not (finite scale) then Atomic.set invalid_direction true
+          if scale = 0. || not (Float.is_finite scale) then Atomic.set invalid_direction true
           else begin
             let x = x /. scale and y = y /. scale and z = z /. scale in
             let inverse = 1. /. sqrt (x *. x +. y *. y +. z *. z) in

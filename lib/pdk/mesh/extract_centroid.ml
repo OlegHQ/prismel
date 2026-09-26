@@ -14,7 +14,6 @@ type piece_identifiers = Output_int of int array | Output_text of string array
 
 exception Extract_error of string
 let fail message = raise (Extract_error message)
-let finite = Float.is_finite
 
 let check_name label = function
   | None -> ()
@@ -32,7 +31,7 @@ let point_mass positions points first last =
           (Float.max (abs_float (Array.unsafe_get positions.y point))
             (abs_float (Array.unsafe_get positions.z point))))
   done;
-  if not (finite !scale) then fail "centroid input contains a non-finite point";
+  if not (Float.is_finite !scale) then fail "centroid input contains a non-finite point";
   if !scale = 0. then 0., 0., 0.
   else begin
     let sx = ref 0. and sy = ref 0. and sz = ref 0. in
@@ -44,7 +43,7 @@ let point_mass positions points first last =
     done;
     let factor = !scale /. Float.of_int (last - first) in
     let x = !sx *. factor and y = !sy *. factor and z = !sz *. factor in
-    if not (finite x && finite y && finite z) then
+    if not (Float.is_finite x && Float.is_finite y && Float.is_finite z) then
       fail "point-mass centroid is not representable";
     x, y, z
   end
@@ -58,14 +57,14 @@ let bounds positions points first last =
   and max_x = ref (Array.unsafe_get positions.x first_point)
   and max_y = ref (Array.unsafe_get positions.y first_point)
   and max_z = ref (Array.unsafe_get positions.z first_point) in
-  if not (finite !min_x && finite !min_y && finite !min_z) then
+  if not (Float.is_finite !min_x && Float.is_finite !min_y && Float.is_finite !min_z) then
     fail "centroid input contains a non-finite point";
   for at = first + 1 to last - 1 do
     let point = Array.unsafe_get points at in
     let x = Array.unsafe_get positions.x point
     and y = Array.unsafe_get positions.y point
     and z = Array.unsafe_get positions.z point in
-    if not (finite x && finite y && finite z) then
+    if not (Float.is_finite x && Float.is_finite y && Float.is_finite z) then
       fail "centroid input contains a non-finite point";
     if x < !min_x then min_x := x; if x > !max_x then max_x := x;
     if y < !min_y then min_y := y; if y > !max_y then max_y := y;
@@ -74,7 +73,7 @@ let bounds positions points first last =
   let x = (!min_x *. 0.5) +. (!max_x *. 0.5)
   and y = (!min_y *. 0.5) +. (!max_y *. 0.5)
   and z = (!min_z *. 0.5) +. (!max_z *. 0.5) in
-  if not (finite x && finite y && finite z) then
+  if not (Float.is_finite x && Float.is_finite y && Float.is_finite z) then
     fail "bounding-box centroid is not representable";
   x, y, z
 
@@ -363,7 +362,7 @@ let run ?cancel ?(grain = 16_384) ?(run_over = Centroid_detail)
         | Centroid_point_mass -> point_mass positions points first last
         | Centroid_bounding_box -> bounds positions points first last
         | Centroid_convex_hull -> hull_center ?cancel ~grain positions points first last in
-      if not (finite cx && finite cy && finite cz) then
+      if not (Float.is_finite cx && Float.is_finite cy && Float.is_finite cz) then
         fail (Printf.sprintf "centroid %d is not representable" piece);
       x.(piece) <- cx; y.(piece) <- cy; z.(piece) <- cz in
     if method_ = Centroid_convex_hull || piece_count < 512 then

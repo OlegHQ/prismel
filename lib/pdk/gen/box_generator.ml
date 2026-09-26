@@ -10,7 +10,6 @@ type box_normals = Box_no_normals | Box_point_normals | Box_vertex_normals
 type box_rotation_order =
   | Box_xyz | Box_xzy | Box_yxz | Box_yzx | Box_zxy | Box_zyx
 
-let finite = Float.is_finite
 let get_ok = function Ok value -> value | Error message -> invalid_arg message
 
 let box_rotation_matrix order rotation =
@@ -45,13 +44,13 @@ let box ?cancel ?(grain = 16_384) ?(connectivity = Box_triangles)
   else if x_divisions = max_int || y_divisions = max_int
       || z_divisions = max_int then
     Error "Pdk.Box_generator.box: point cardinality overflows"
-  else if not (finite size.x && finite size.y && finite size.z
-      && finite uniform_scale && uniform_scale > 0.
-      && finite sx && finite sy && finite sz
+  else if not (Float.is_finite size.x && Float.is_finite size.y && Float.is_finite size.z
+      && Float.is_finite uniform_scale && uniform_scale > 0.
+      && Float.is_finite sx && Float.is_finite sy && Float.is_finite sz
       && sx > 0. && sy > 0. && sz > 0.) then
     Error "Pdk.Box_generator.box: dimensions and uniform scale must be finite and positive"
-  else if not (finite center.x && finite center.y && finite center.z
-      && finite rotation.x && finite rotation.y && finite rotation.z) then
+  else if not (Float.is_finite center.x && Float.is_finite center.y && Float.is_finite center.z
+      && Float.is_finite rotation.x && Float.is_finite rotation.y && Float.is_finite rotation.z) then
     Error "Pdk.Box_generator.box: center and rotation must be finite"
   else if (match uv_attribute with
       | Some name -> String.trim name = "" || String.equal name "P"
@@ -257,7 +256,7 @@ let box ?cancel ?(grain = 16_384) ?(connectivity = Box_triangles)
           and z = center.z +. if rotated then
               (m20 *. local_x) +. (m21 *. local_y) +. (m22 *. local_z)
             else local_z in
-          if finite x && finite y && finite z then begin
+          if Float.is_finite x && Float.is_finite y && Float.is_finite z then begin
             px.(point) <- x; py.(point) <- y; pz.(point) <- z;
             true
           end else false in

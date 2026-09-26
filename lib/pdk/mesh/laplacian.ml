@@ -7,7 +7,6 @@ type weighting =
 
 exception Laplacian_error of string
 let fail message = raise (Laplacian_error message)
-let finite = Float.is_finite
 
 type source = { width : int; planes : float array array }
 
@@ -96,7 +95,7 @@ let validate_source ?cancel source point_count =
       (fun point ->
         if point land 16_383 = 0 then Cancel.check_opt cancel;
         for component = 0 to source.width - 1 do
-          if not (finite source.planes.(component).(point)) then
+          if not (Float.is_finite source.planes.(component).(point)) then
             Atomic.set invalid true
         done);
   if Atomic.get invalid then fail "laplacian source values must be finite"
@@ -131,7 +130,7 @@ let uniform ?cancel ~grain ~normalize ~points source output index =
             then 1. /. float_of_int (last - first) else 1. in
           for component = 0 to source.width - 1 do
             let value = output.(component).(point) *. factor in
-            if finite value then output.(component).(point) <- value
+            if Float.is_finite value then output.(component).(point) <- value
             else Atomic.set invalid true
           done
         end);
@@ -196,7 +195,7 @@ let cotan ?cancel ~grain ~positive ~normalize ~points source output metric =
           let first = metric.point_offsets.(point)
           and last = metric.point_offsets.(point + 1) in
           let area = if normalize then areas.(point) else 1. in
-          if normalize && first < last && not (finite area && area > 0.) then
+          if normalize && first < last && not (Float.is_finite area && area > 0.) then
             Atomic.set invalid true
           else begin
             for component = 0 to source.width - 1 do
@@ -232,7 +231,7 @@ let cotan ?cancel ~grain ~positive ~normalize ~points source output metric =
               else 0.5 in
             for component = 0 to source.width - 1 do
               let value = output.(component).(point) *. factor in
-              if finite value then output.(component).(point) <- value
+              if Float.is_finite value then output.(component).(point) <- value
               else Atomic.set invalid true
             done
           end

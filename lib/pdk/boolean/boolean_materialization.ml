@@ -19,15 +19,6 @@ let primitive_min_edge_length positions topology primitive =
   done;
   !minimum
 
-let bit_get bits index =
-  Char.code (Bytes.unsafe_get bits (index lsr 3))
-  land (1 lsl (index land 7)) <> 0
-
-let bit_set bits index =
-  let slot = index lsr 3 and mask = 1 lsl (index land 7) in
-  Bytes.unsafe_set bits slot
-    (Char.chr (Char.code (Bytes.unsafe_get bits slot) lor mask))
-
 let primitive_is_triangle topology primitive =
   Bytes.unsafe_get topology.Topology.Private.primitive_kinds primitive = '\000'
   && topology.primitive_offsets.(primitive + 1)
@@ -132,9 +123,9 @@ let safe_independent_edges ?cancel ~grain ?(keep_greatest = false)
         if primitive_a <> primitive_b
             && primitive_is_triangle topology primitive_a
             && primitive_is_triangle topology primitive_b
-            && not (bit_get used_points a || bit_get used_points b
-              || bit_get used_primitives primitive_a
-              || bit_get used_primitives primitive_b)
+            && not (Support.Bits.mem used_points a || Support.Bits.mem used_points b
+              || Support.Bits.mem used_primitives primitive_a
+              || Support.Bits.mem used_primitives primitive_b)
             && link_condition index topology neighbor_stamps stamp edge a b then begin
           let valid = ref true in
           let first = index.point_offsets.(remove)
@@ -143,20 +134,20 @@ let safe_independent_edges ?cancel ~grain ?(keep_greatest = false)
           while !valid && !local < last do
             let primitive = index.primitive_of_vertex.(index.point_vertices.(!local)) in
             if primitive <> primitive_a && primitive <> primitive_b then
-              if bit_get used_primitives primitive
+              if Support.Bits.mem used_primitives primitive
                   || not (primitive_is_triangle topology primitive)
                   || not (contraction_preserves_orientation positions topology
                     primitive keep remove) then valid := false;
             incr local
           done;
           if !valid then begin
-            bit_set chosen edge;
-            bit_set used_points a; bit_set used_points b;
+            Support.Bits.set chosen edge;
+            Support.Bits.set used_points a; Support.Bits.set used_points b;
             let reserve point =
               let first = index.point_offsets.(point)
               and last = index.point_offsets.(point + 1) in
               for local = first to last - 1 do
-                bit_set used_primitives
+                Support.Bits.set used_primitives
                   index.primitive_of_vertex.(index.point_vertices.(local))
               done in
             reserve a; reserve b
@@ -200,16 +191,16 @@ let speculative_independent_edges ?cancel ~grain candidates geometry =
         and last = index.point_offsets.(point + 1) in
         for slot = first to last - 1 do
           let primitive = index.primitive_of_vertex.(index.point_vertices.(slot)) in
-          if bit_get used_primitives primitive then available := false
+          if Support.Bits.mem used_primitives primitive then available := false
         done in
       inspect a; inspect b;
       if !available then begin
-        bit_set chosen edge;
+        Support.Bits.set chosen edge;
         let reserve point =
           let first = index.point_offsets.(point)
           and last = index.point_offsets.(point + 1) in
           for slot = first to last - 1 do
-            bit_set used_primitives
+            Support.Bits.set used_primitives
               index.primitive_of_vertex.(index.point_vertices.(slot))
           done in
         reserve a; reserve b
@@ -739,7 +730,7 @@ let rounded_sliver_edges ?cancel ~grain geometry =
         let first = topology.primitive_offsets.(primitive) in
         for local = 0 to 2 do
           let edge = index.edge_of_vertex.(first + local) in
-          if edge >= 0 then bit_set bits edge
+          if edge >= 0 then Support.Bits.set bits edge
         done
       end
     done;
@@ -810,7 +801,7 @@ let rounded_self_contact_edges ?cancel ~grain geometry =
                 let edge = index.edge_of_vertex.(first + local) in
                 if edge >= 0 then begin
                   let length = edge_length positions index.edge_a.(edge) index.edge_b.(edge) in
-                  if length <= minimum then bit_set bits edge
+                  if length <= minimum then Support.Bits.set bits edge
                 end
               done
             end in
@@ -868,7 +859,7 @@ let paired_rounded_slivers ?cancel ~grain geometry =
           && fst keyed.(!last) = fst keyed.(!first) do incr last done;
       let paired_last = !first + (((!last - !first) / 2) * 2) in
       for slot = !first to paired_last - 1 do
-        bit_set bits (snd keyed.(slot));
+        Support.Bits.set bits (snd keyed.(slot));
         incr removed
       done;
       first := !last
@@ -896,7 +887,7 @@ let closed_rounded_slivers ?cancel ~grain geometry =
     for primitive = 0 to primitive_count - 1 do
       if primitive land 4095 = 0 then Cancel.check_opt cancel;
       if rounded_triangle_degenerate positions topology primitive then begin
-        bit_set selected primitive;
+        Support.Bits.set selected primitive;
         incr selected_count
       end
     done;
@@ -906,7 +897,7 @@ let closed_rounded_slivers ?cancel ~grain geometry =
       and last = index.edge_offsets.(!edge + 1) and removed = ref 0 in
       for slot = first to last - 1 do
         let primitive = index.primitive_of_vertex.(index.edge_vertices.(slot)) in
-        if bit_get selected primitive then incr removed
+        if Support.Bits.mem selected primitive then incr removed
       done;
       let remaining = last - first - !removed in
       if remaining <> 0 && (remaining < 2 || remaining land 1 <> 0) then
@@ -1111,7 +1102,7 @@ let repair_rounded_slivers ?cancel ~grain ~require_closed
                                let edge = ordered.(slot) in
                                let bits = Bytes.make
                                    ((Topology_index.edge_count index + 7) / 8) '\000' in
-                               bit_set bits edge;
+                               Support.Bits.set bits edge;
                                let selected = Edge_group.Private.of_owned_bits
                                    ~topology ~edge_count:(Topology_index.edge_count index)
                                    ~name:"__pdk_boolean_speculative_rounding_contact"

@@ -28,7 +28,6 @@ type t = {
 
 exception Invalid of string
 
-let finite = Float.is_finite
 let segment = '\000'
 let triangle = '\001'
 let ceiling_div value divisor =
@@ -39,7 +38,7 @@ let feature_count features = Array.length features.a
 let validate_point positions point label =
   let x = positions.Packed.Float3.Private.x.(point)
   and y = positions.y.(point) and z = positions.z.(point) in
-  if not (finite x && finite y && finite z) then
+  if not (Float.is_finite x && Float.is_finite y && Float.is_finite z) then
     raise (Invalid (Printf.sprintf "%s references non-finite point %d" label point))
 
 let primitive_features ?cancel ?(grain = 16_384) geometry =
@@ -127,7 +126,7 @@ let primitive_features ?cancel ?(grain = 16_384) geometry =
         and ny = (abz *. acx) -. (abx *. acz)
         and nz = (abx *. acy) -. (aby *. acx) in
         let area_squared = (nx *. nx) +. (ny *. ny) +. (nz *. nz) in
-        if not (finite area_squared) || area_squared <= 1e-30 then
+        if not (Float.is_finite area_squared) || area_squared <= 1e-30 then
           raise (Invalid (Printf.sprintf
             "primitive feature %d is degenerate" feature))
       end
@@ -424,7 +423,7 @@ let query_feature index queries query best_distance best_ids stack bounds =
             let entity = index.features.entities.(feature) in
             let distance = feature_distance_squared index.features feature
                 queries query in
-            if not (finite distance) then raise (Invalid
+            if not (Float.is_finite distance) then raise (Invalid
               "feature distance overflowed for finite input coordinates");
             if distance < best_distance.(0)
                || (distance = best_distance.(0)
@@ -458,7 +457,7 @@ let query_feature index queries query best_distance best_ids stack bounds =
 let nearest_entities_with_distances ?cancel ?(grain = 16_384) ~max_distance
     source queries =
   if grain <= 0 then Error "Proximity query: grain must be positive"
-  else if not (finite max_distance) || max_distance < 0.
+  else if not (Float.is_finite max_distance) || max_distance < 0.
       || max_distance > sqrt max_float then
     Error "Proximity query: distance threshold must be finite, non-negative, and safely squarable"
   else try

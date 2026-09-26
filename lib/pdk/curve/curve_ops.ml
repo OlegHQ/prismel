@@ -13,7 +13,6 @@ type curve_join_pick = {
 
 exception Curve_error of string
 let fail message = raise (Curve_error message)
-let finite = Float.is_finite
 
 let run_ranges ?(grain = 16_384) count operation =
   if grain <= 0 then fail "grain must be positive";
@@ -92,22 +91,22 @@ let radix_sort_edges ?cancel index_view point_count edges =
   end
 
 let segment_length (positions : Packed.Float3.Private.view) a b =
-  if not (finite positions.x.(a)
-      && finite positions.y.(a) && finite positions.z.(a)
-      && finite positions.x.(b) && finite positions.y.(b)
-      && finite positions.z.(b)) then
+  if not (Float.is_finite positions.x.(a)
+      && Float.is_finite positions.y.(a) && Float.is_finite positions.z.(a)
+      && Float.is_finite positions.x.(b) && Float.is_finite positions.y.(b)
+      && Float.is_finite positions.z.(b)) then
     fail "curve length requires finite representable positions";
   let dx = positions.x.(b) -. positions.x.(a)
   and dy = positions.y.(b) -. positions.y.(a)
   and dz = positions.z.(b) -. positions.z.(a) in
   let scale = max (abs_float dx) (max (abs_float dy) (abs_float dz)) in
-  if not (finite scale) then
+  if not (Float.is_finite scale) then
     fail "curve length requires finite representable positions";
   if scale = 0. then 0.
   else begin
     let x = dx /. scale and y = dy /. scale and z = dz /. scale in
     let length = scale *. sqrt ((x *. x) +. (y *. y) +. (z *. z)) in
-    if not (finite length) then
+    if not (Float.is_finite length) then
       fail "curve length requires finite representable positions";
     length
   end
@@ -142,7 +141,7 @@ let with_length_attribute ?cancel ?grain ~name geometry =
             && last_vertex - first_vertex > 1 then
           add (segment_length positions topology.vertex_points.(last_vertex - 1)
             topology.vertex_points.(first_vertex));
-        if not (finite !sum) then
+        if not (Float.is_finite !sum) then
           fail "curve length requires finite representable positions";
         lengths.(primitive) <- !sum
       done);
@@ -163,7 +162,7 @@ let interpolate_array ?cancel ?grain left right weight source =
       let left_value = source.(left.(index))
       and right_value = source.(right.(index)) in
       let delta = right_value -. left_value in
-      output.(index) <- if finite delta
+      output.(index) <- if Float.is_finite delta
         then left_value +. (delta *. weight.(index))
         else (left_value *. (1. -. weight.(index)))
           +. (right_value *. weight.(index))
@@ -278,7 +277,7 @@ let resolve_carve_parameters ?cancel ~allow_equal ~first ~last ?first_attribute
         if primitive land 16_383 = 0 then Cancel.check_opt cancel;
         let a = apply first first_values primitive
         and b = apply last last_values primitive in
-        if selected primitive && (not (finite a && finite b) || a < 0. || b > 1.
+        if selected primitive && (not (Float.is_finite a && Float.is_finite b) || a < 0. || b > 1.
             || (if allow_equal then a > b else a >= b)) then
           fail (Printf.sprintf
             "Curve Carve primitive %d parameters require finite 0 <= first %s last <= 1"
@@ -304,7 +303,7 @@ let extract_points_interpolated ?cancel ?grain ?primitives
     (match grain with Some value when value <= 0 -> fail "grain must be positive"
      | _ -> ());
     if divisions <= 0 then fail "Curve Carve extraction divisions must be positive";
-    if not (finite first && finite last) || first < 0. || last > 1.
+    if not (Float.is_finite first && Float.is_finite last) || first < 0. || last > 1.
         || first > last then
       fail "Curve Carve extraction requires finite 0 <= first <= last <= 1";
     Cancel.check_opt cancel;
@@ -421,17 +420,17 @@ let extract_points_interpolated ?cancel ?grain ?primitives
             let ax = abs_float dx and ay = abs_float dy and az = abs_float dz in
             let scale_xy = if ax >= ay then ax else ay in
             let scale = if scale_xy >= az then scale_xy else az in
-            if not (finite scale) then fail (Printf.sprintf
+            if not (Float.is_finite scale) then fail (Printf.sprintf
               "Curve Carve primitive %d has an unrepresentable segment" primitive);
             let length = if scale = 0. then 0. else begin
               let x = dx /. scale and y = dy /. scale and z = dz /. scale in
               scale *. sqrt ((x *. x) +. (y *. y) +. (z *. z))
             end in
-            if not (finite length) || length <= 1e-20 then fail (Printf.sprintf
+            if not (Float.is_finite length) || length <= 1e-20 then fail (Printf.sprintf
               "Curve Carve primitive %d has a zero or non-finite segment" primitive);
             cumulative.(base + edge + 1) <- cumulative.(base + edge) +. length
           done;
-          if not (finite cumulative.(base + edges)) then fail (Printf.sprintf
+          if not (Float.is_finite cumulative.(base + edges)) then fail (Printf.sprintf
             "Curve Carve primitive %d has unrepresentable total length" primitive)
         end
       done;
@@ -489,7 +488,7 @@ let extract_points_interpolated ?cancel ?grain ?primitives
             point_weight.(output) <- t;
             let interpolate left right =
               let delta = right -. left in
-              if finite delta then left +. (delta *. t)
+              if Float.is_finite delta then left +. (delta *. t)
               else (left *. (1. -. t)) +. (right *. t) in
             px.(output) <- interpolate source_positions.x.(left_point)
                 source_positions.x.(right_point);
@@ -1056,7 +1055,7 @@ let join ?cancel ?grain ?primitives ?picked_ends ?(orient_closest = true)
     ?group_size ?(keep_originals = false) ?(tolerance = 0.)
     ?(wrap = false) geometry =
   try
-    if not (finite tolerance) || tolerance < 0. then
+    if not (Float.is_finite tolerance) || tolerance < 0. then
       fail "Curve Join tolerance must be finite and non-negative";
     (match group_size with Some size when size <= 0 ->
        fail "Curve Join group size must be positive"
@@ -1126,9 +1125,9 @@ let join ?cancel ?grain ?primitives ?picked_ends ?(orient_closest = true)
         let vertex = if last <> reverse then stop - 1 else first in
         source.vertex_points.(vertex) in
       let distance left right =
-        if not (finite positions.x.(left) && finite positions.y.(left)
-            && finite positions.z.(left) && finite positions.x.(right)
-            && finite positions.y.(right) && finite positions.z.(right)) then
+        if not (Float.is_finite positions.x.(left) && Float.is_finite positions.y.(left)
+            && Float.is_finite positions.z.(left) && Float.is_finite positions.x.(right)
+            && Float.is_finite positions.y.(right) && Float.is_finite positions.z.(right)) then
           fail "Curve Join requires finite selected endpoint positions";
         robust_distance_xyz positions.x.(left) positions.y.(left)
           positions.z.(left) positions.x.(right) positions.y.(right)
@@ -1201,7 +1200,7 @@ let join ?cancel ?grain ?primitives ?picked_ends ?(orient_closest = true)
             let point = endpoint primitive false (endpoint_slot land 1 = 1) in
             let x = positions.x.(point) and y = positions.y.(point)
             and z = positions.z.(point) in
-            if not (finite x && finite y && finite z) then
+            if not (Float.is_finite x && Float.is_finite y && Float.is_finite z) then
               fail "Curve Join requires finite selected endpoint positions";
             endpoint_x.(endpoint_slot) <- x;
             endpoint_y.(endpoint_slot) <- y;
@@ -1532,7 +1531,7 @@ let carve_inside ?cancel ?grain ?primitives ?(relative_arc_length = true) ?(firs
   try
     (match grain with Some value when value <= 0 -> fail "grain must be positive"
      | _ -> ());
-    if not (finite first && finite last) || first < 0. || last > 1.
+    if not (Float.is_finite first && Float.is_finite last) || first < 0. || last > 1.
         || first >= last then
       fail "Curve Carve requires finite 0 <= first < last <= 1";
     let topology = Geometry.topology geometry in
@@ -1593,12 +1592,12 @@ let carve_inside ?cancel ?grain ?primitives ?(relative_arc_length = true) ?(firs
           let ax = abs_float dx and ay = abs_float dy and az = abs_float dz in
           let scale_xy = if ax >= ay then ax else ay in
           let scale = if scale_xy >= az then scale_xy else az in
-          if not (finite scale) then fail (Printf.sprintf
+          if not (Float.is_finite scale) then fail (Printf.sprintf
             "Curve Carve primitive %d has an unrepresentable segment" primitive);
           let length = if scale = 0. then 0. else begin
             let x = dx /. scale and y = dy /. scale and z = dz /. scale in
             let value = scale *. sqrt ((x *. x) +. (y *. y) +. (z *. z)) in
-            if not (finite value) then fail (Printf.sprintf
+            if not (Float.is_finite value) then fail (Printf.sprintf
               "Curve Carve primitive %d has an unrepresentable segment" primitive);
             value
           end in
@@ -1607,7 +1606,7 @@ let carve_inside ?cancel ?grain ?primitives ?(relative_arc_length = true) ?(firs
           cumulative.(base + edge + 1) <- cumulative.(base + edge) +. length
         done;
         let total = cumulative.(base + edges) in
-        if not (finite total) || total <= 1e-20 then fail (Printf.sprintf
+        if not (Float.is_finite total) || total <= 1e-20 then fail (Printf.sprintf
           "Curve Carve primitive %d has zero or non-finite length" primitive);
         let count_samples = ref 2 in
         let primitive_first, primitive_last = carve_parameter parameters primitive in
@@ -1708,7 +1707,7 @@ let carve_inside ?cancel ?grain ?primitives ?(relative_arc_length = true) ?(firs
         source_edge_t.(vertex_output) <- !t;
         let interpolate left right =
           let delta = right -. left in
-          if finite delta then left +. (delta *. !t)
+          if Float.is_finite delta then left +. (delta *. !t)
           else (left *. (1. -. !t)) +. (right *. !t) in
         px.(point_output) <- interpolate positions.x.(left_point)
             positions.x.(right_point);
@@ -1902,7 +1901,7 @@ let carve_cut ?cancel ?grain ?primitives ?(relative_arc_length = true)
     (match grain with Some value when value <= 0 -> fail "grain must be positive"
      | _ -> ());
     if divisions <= 0 then fail "Curve Carve cut divisions must be positive";
-    if not (finite first && finite last) || first < 0. || last > 1.
+    if not (Float.is_finite first && Float.is_finite last) || first < 0. || last > 1.
         || first >= last then
       fail "Curve Carve requires finite 0 <= first < last <= 1";
     Cancel.check_opt cancel;
@@ -2026,16 +2025,16 @@ let carve_cut ?cancel ?grain ?primitives ?(relative_arc_length = true)
             let ax = abs_float dx and ay = abs_float dy and az = abs_float dz in
             let scale_xy = if ax >= ay then ax else ay in
             let scale = if scale_xy >= az then scale_xy else az in
-            if not (finite scale) then fail (Printf.sprintf
+            if not (Float.is_finite scale) then fail (Printf.sprintf
               "Curve Carve primitive %d has an unrepresentable segment" primitive);
             let length = if scale = 0. then 0. else begin
               let x = dx /. scale and y = dy /. scale and z = dz /. scale in
               scale *. sqrt ((x *. x) +. (y *. y) +. (z *. z)) end in
-            if not (finite length) || length <= 1e-20 then fail (Printf.sprintf
+            if not (Float.is_finite length) || length <= 1e-20 then fail (Printf.sprintf
               "Curve Carve primitive %d has a zero or non-finite segment" primitive);
             cumulative.(base + edge + 1) <- cumulative.(base + edge) +. length
           done;
-          if not (finite cumulative.(base + edges)) then fail (Printf.sprintf
+          if not (Float.is_finite cumulative.(base + edges)) then fail (Printf.sprintf
             "Curve Carve primitive %d has unrepresentable total length" primitive)
         end
       done;
@@ -2169,7 +2168,7 @@ let carve_cut ?cancel ?grain ?primitives ?(relative_arc_length = true)
         vertex_points.(vertex_output) <- point_output; source_edge.(vertex_output) <- edge;
         source_edge_t.(vertex_output) <- t;
         let lerp left right = let delta = right -. left in
-          if finite delta then left +. delta *. t
+          if Float.is_finite delta then left +. delta *. t
           else left *. (1. -. t) +. right *. t in
         px.(point_output) <- lerp positions.x.(left_point) positions.x.(right_point);
         py.(point_output) <- lerp positions.y.(left_point) positions.y.(right_point);
@@ -2357,16 +2356,16 @@ let build_breakpoint_table ?cancel ~relative_arc_length ~selected geometry =
           let ax = abs_float dx and ay = abs_float dy and az = abs_float dz in
           let scale_xy = if ax >= ay then ax else ay in
           let scale = if scale_xy >= az then scale_xy else az in
-          if not (finite scale) then fail (Printf.sprintf
+          if not (Float.is_finite scale) then fail (Printf.sprintf
             "Curve Carve primitive %d has an unrepresentable segment" primitive);
           let length = if scale = 0. then 0. else begin
             let x = dx /. scale and y = dy /. scale and z = dz /. scale in
             scale *. sqrt ((x *. x) +. (y *. y) +. (z *. z)) end in
-          if not (finite length) || length <= 1e-20 then fail (Printf.sprintf
+          if not (Float.is_finite length) || length <= 1e-20 then fail (Printf.sprintf
             "Curve Carve primitive %d has a zero or non-finite segment" primitive);
           cumulative.(base + edge + 1) <- cumulative.(base + edge) +. length
         done;
-        if not (finite cumulative.(base + edges)) then fail (Printf.sprintf
+        if not (Float.is_finite cumulative.(base + edges)) then fail (Printf.sprintf
           "Curve Carve primitive %d has unrepresentable total length" primitive)
       end
     done;
@@ -2412,7 +2411,7 @@ let extract_breakpoint_points ?cancel ?grain ?primitives
     (match grain with Some value when value <= 0 -> fail "grain must be positive"
      | _ -> ());
     if divisions <= 0 then fail "Curve Carve extraction divisions must be positive";
-    if not (finite first && finite last) || first < 0. || last > 1.
+    if not (Float.is_finite first && Float.is_finite last) || first < 0. || last > 1.
         || first > last then
       fail "Curve Carve extraction requires finite 0 <= first <= last <= 1";
     Cancel.check_opt cancel;
@@ -2562,7 +2561,7 @@ let carve_breakpoints ?cancel ?grain ?primitives ?(relative_arc_length = true)
   try
     (match grain with Some value when value <= 0 -> fail "grain must be positive"
      | _ -> ());
-    if not (finite first && finite last) || first < 0. || last > 1.
+    if not (Float.is_finite first && Float.is_finite last) || first < 0. || last > 1.
         || first >= last then
       fail "Curve Carve requires finite 0 <= first < last <= 1";
     Cancel.check_opt cancel;

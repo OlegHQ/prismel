@@ -9,42 +9,6 @@ type t = {
   mutable nodes : int;
 }
 
-let[@inline always] compare_centroid axis cx cy left right =
-  let compared = if axis = 0 then Float.compare cx.(left) cx.(right)
-    else Float.compare cy.(left) cy.(right) in
-  if compared <> 0 then compared else Int.compare left right
-
-let swap values left right =
-  if left <> right then begin
-    let value = values.(left) in
-    values.(left) <- values.(right); values.(right) <- value
-  end
-
-let median_pivot axis cx cy order first middle last =
-  let a = order.(first) and b = order.(middle) and c = order.(last) in
-  if compare_centroid axis cx cy a b < 0 then
-    if compare_centroid axis cx cy b c < 0 then b
-    else if compare_centroid axis cx cy a c < 0 then c else a
-  else if compare_centroid axis cx cy a c < 0 then a
-  else if compare_centroid axis cx cy b c < 0 then c else b
-
-let select ?cancel axis cx cy order first last selected =
-  let lower = ref first and upper = ref last in
-  while !lower < !upper do
-    Cancel.check_opt cancel;
-    let middle = !lower + ((!upper - !lower) / 2) in
-    let pivot = median_pivot axis cx cy order !lower middle !upper in
-    let left = ref !lower and right = ref !upper in
-    while !left <= !right do
-      while compare_centroid axis cx cy order.(!left) pivot < 0 do incr left done;
-      while compare_centroid axis cx cy order.(!right) pivot > 0 do decr right done;
-      if !left <= !right then begin swap order !left !right; incr left; decr right end
-    done;
-    if selected <= !right then upper := !right
-    else if selected >= !left then lower := !left
-    else begin lower := selected; upper := selected end
-  done
-
 let midpoint lower upper =
   if Float.is_finite lower && Float.is_finite upper then
     (lower *. 0.5) +. (upper *. 0.5)
@@ -98,7 +62,8 @@ let create ?cancel ~min_x:item_min_x ~min_y:item_min_y
       let axis = (root_axis + depth) land 1 in
       let left_count = count / 2 in
       let middle = first + left_count in
-      select ?cancel axis cx cy tree.order first (first + count - 1) middle;
+      Support.select ?cancel (if axis = 0 then cx else cy)
+        tree.order first (first + count - 1) middle;
       let left = build (depth + 1) first left_count in
       let right = build (depth + 1) middle (count - left_count) in
       tree.left.(node) <- left; tree.right.(node) <- right;

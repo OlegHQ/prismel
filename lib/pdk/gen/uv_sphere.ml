@@ -1,7 +1,6 @@
 open Pdk_core
 open Prismel_math
 
-let finite = Float.is_finite
 let get_ok = function Ok value -> value | Error message -> invalid_arg message
 let normalize_plane_axis = Plane_generators.normalize_plane_axis
 
@@ -85,12 +84,12 @@ let run ?cancel ?(grain = 16_384)
   else if rings < 2 then Error "Pdk.Uv_sphere.uv_sphere: rings must be at least 2"
   else if segments = max_int || rings = max_int then
     Error "Pdk.Uv_sphere.uv_sphere: output cardinality overflows"
-  else if not (finite radius && radius > 0. && finite uniform_scale
-      && uniform_scale > 0. && finite rx && finite ry && finite rz
+  else if not (Float.is_finite radius && radius > 0. && Float.is_finite uniform_scale
+      && uniform_scale > 0. && Float.is_finite rx && Float.is_finite ry && Float.is_finite rz
       && rx > 0. && ry > 0. && rz > 0.) then
     Error "Pdk.Uv_sphere.uv_sphere: radii and uniform scale must be finite and positive"
-  else if not (finite center.x && finite center.y && finite center.z
-      && finite rotation.x && finite rotation.y && finite rotation.z) then
+  else if not (Float.is_finite center.x && Float.is_finite center.y && Float.is_finite center.z
+      && Float.is_finite rotation.x && Float.is_finite rotation.y && Float.is_finite rotation.z) then
     Error "Pdk.Uv_sphere.uv_sphere: center and rotation must be finite"
   else if (match uv_attribute with
       | Some name -> String.trim name = "" || String.equal name "P"
@@ -270,7 +269,7 @@ let run ?cancel ?(grain = 16_384)
                 +. (pole_axis.y *. local_y) +. (tangent_axis.y *. local_z),
               center.z +. (radial_axis.z *. local_x)
                 +. (pole_axis.z *. local_y) +. (tangent_axis.z *. local_z) in
-          if finite x && finite y && finite z then begin
+          if Float.is_finite x && Float.is_finite y && Float.is_finite z then begin
             px.(point) <- x; py.(point) <- y; pz.(point) <- z;
             (match point_normals with
              | Some (nx, ny, nz) -> write_normal nx ny nz point ring segment

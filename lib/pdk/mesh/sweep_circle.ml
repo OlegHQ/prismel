@@ -1,6 +1,5 @@
 open Prismel_math
 
-let finite = Float.is_finite
 let get_ok = function Ok value -> value | Error message -> invalid_arg message
 
 let run ?cancel ?(grain = 16_384) ?(sides = 12) ?scale_attribute
@@ -8,7 +7,7 @@ let run ?cancel ?(grain = 16_384) ?(sides = 12) ?scale_attribute
     ?(caps = false) ?cap_group ~radius geometry =
   if grain <= 0 then invalid_arg "Pdk_mesh.Sweep_circle.sweep_circle: grain must be positive";
   if sides < 3 then Error "Pdk_mesh.Sweep_circle.sweep_circle: sides must be at least three"
-  else if not (finite radius) || radius <= 0. then
+  else if not (Float.is_finite radius) || radius <= 0. then
     Error "Pdk_mesh.Sweep_circle.sweep_circle: radius must be finite and positive"
   else
     let topology = Geometry.topology geometry
@@ -49,7 +48,7 @@ let run ?cancel ?(grain = 16_384) ?(sides = 12) ?scale_attribute
       let point = ref 0 in
       while !invalid = None && !point < Array.length values do
         let value = values.(!point) in
-        if not (finite value) || value < 0. then invalid := Some (Printf.sprintf
+        if not (Float.is_finite value) || value < 0. then invalid := Some (Printf.sprintf
             "point scale attribute %S contains a non-finite or negative value at point %d"
             (Option.get scale_attribute) !point);
         incr point
@@ -57,7 +56,7 @@ let run ?cancel ?(grain = 16_384) ?(sides = 12) ?scale_attribute
     Option.iter (fun values ->
       let point = ref 0 in
       while !invalid = None && !point < Array.length values do
-        if not (finite values.(!point)) then invalid := Some (Printf.sprintf
+        if not (Float.is_finite values.(!point)) then invalid := Some (Printf.sprintf
             "point V texture attribute %S contains a non-finite value at point %d"
             (Option.get v_attribute) !point);
         incr point
@@ -65,8 +64,8 @@ let run ?cancel ?(grain = 16_384) ?(sides = 12) ?scale_attribute
     Option.iter (fun (values : Packed.Float3.Private.view) ->
       let point = ref 0 in
       while !invalid = None && !point < Array.length values.x do
-        if not (finite values.x.(!point) && finite values.y.(!point)
-            && finite values.z.(!point)) then invalid := Some (Printf.sprintf
+        if not (Float.is_finite values.x.(!point) && Float.is_finite values.y.(!point)
+            && Float.is_finite values.z.(!point)) then invalid := Some (Printf.sprintf
             "point joint up attribute %S contains a non-finite value at point %d"
             (Option.get up_attribute) !point);
         incr point
@@ -190,7 +189,7 @@ let run ?cancel ?(grain = 16_384) ?(sides = 12) ?scale_attribute
               and sy = if scale = 0. then 0. else ty /. scale
               and sz = if scale = 0. then 0. else tz /. scale in
               let length = sqrt ((sx *. sx) +. (sy *. sy) +. (sz *. sz)) in
-              if scale = 0. || not (finite scale && finite length) then begin
+              if scale = 0. || not (Float.is_finite scale && Float.is_finite length) then begin
                 if Bytes.get failures primitive = '\000' then
                   Bytes.set failures primitive '\001'
               end
@@ -214,7 +213,7 @@ let run ?cancel ?(grain = 16_384) ?(sides = 12) ?scale_attribute
                 and sz = if scale = 0. then 0. else dz /. scale in
                 let segment_length = scale
                     *. sqrt ((sx *. sx) +. (sy *. sy) +. (sz *. sz)) in
-                if segment_length <= 1e-20 || not (finite segment_length) then
+                if segment_length <= 1e-20 || not (Float.is_finite segment_length) then
                   Bytes.set failures primitive '\003'
                 else cumulative.(first + local) <-
                     cumulative.(first + local - 1) +. segment_length
@@ -235,12 +234,12 @@ let run ?cancel ?(grain = 16_384) ?(sides = 12) ?scale_attribute
                 and sz = if scale = 0. then 0. else dz /. scale in
                 let segment_length = scale
                     *. sqrt ((sx *. sx) +. (sy *. sy) +. (sz *. sz)) in
-                if segment_length <= 1e-20 || not (finite segment_length) then begin
+                if segment_length <= 1e-20 || not (Float.is_finite segment_length) then begin
                   Bytes.set failures primitive '\003'; 0.
                 end else cumulative.(last - 1) +. segment_length
               end else cumulative.(last - 1) in
             curve_total.(primitive) <- total;
-            if total <= 1e-20 || not (finite total) then begin
+            if total <= 1e-20 || not (Float.is_finite total) then begin
               if Bytes.get failures primitive = '\000' then
                 Bytes.set failures primitive '\002'
             end;
@@ -377,7 +376,7 @@ let run ?cancel ?(grain = 16_384) ?(sides = 12) ?scale_attribute
                     else z /. residual_scale in
                 let length = sqrt ((sx *. sx) +. (sy *. sy) +. (sz *. sz)) in
                 if scale = 0. || residual_scale <= 1e-12
-                    || not (finite length) then
+                    || not (Float.is_finite length) then
                   Bytes.set invalid_frames vertex '\001'
                 else begin
                   frame_nx.(vertex) <- sx /. length;
@@ -405,7 +404,7 @@ let run ?cancel ?(grain = 16_384) ?(sides = 12) ?scale_attribute
                 -. (tangent_y.(vertex) *. frame_nx.(vertex)) in
             let frame_b_length = sqrt ((bx *. bx) +. (by *. by) +. (bz *. bz)) in
             let invalid_frame_b = frame_b_length = 0.
-                || not (finite frame_b_length) in
+                || not (Float.is_finite frame_b_length) in
             if invalid_frame_b then Bytes.set invalid_frames vertex '\002';
             let bx = if invalid_frame_b then 0. else bx /. frame_b_length
             and by = if invalid_frame_b then 0. else by /. frame_b_length
@@ -425,7 +424,7 @@ let run ?cancel ?(grain = 16_384) ?(sides = 12) ?scale_attribute
               let x = source_positions.x.(source_point) +. (ring_radius *. rx)
               and y = source_positions.y.(source_point) +. (ring_radius *. ry)
               and z = source_positions.z.(source_point) +. (ring_radius *. rz) in
-              if finite x && finite y && finite z then begin
+              if Float.is_finite x && Float.is_finite y && Float.is_finite z then begin
                 px.(output) <- x; py.(output) <- y; pz.(output) <- z
               end else Bytes.set invalid_positions vertex '\001';
               nx.(output) <- rx; ny.(output) <- ry; nz.(output) <- rz;

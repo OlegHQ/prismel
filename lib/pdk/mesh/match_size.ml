@@ -6,9 +6,8 @@ type deform_selection = Deform.selection =
   | Selected_primitives of Group.t
   | Selected_edges of Edge_group.t
 
-let finite = Float.is_finite
 let get_ok = function Ok value -> value | Error message -> invalid_arg message
-let finite_vec3 value = finite value.Vec3.x && finite value.y && finite value.z
+let finite_vec3 value = Float.is_finite value.Vec3.x && Float.is_finite value.y && Float.is_finite value.z
 let selected_bounds = Bound.Private.selected_bounds
 let transform = Transform_ops.transform
 
@@ -63,7 +62,7 @@ let match_size_measure ?cancel ~grain fit selection geometry =
         assert false in
   Result.bind measured (fun value ->
     let value = abs_float value in
-    if not (finite value) then Error
+    if not (Float.is_finite value) then Error
         "Pdk.Match_size.match_size: metric measurement is not finite"
     else if value <= 1e-20 then Error
         "Pdk.Match_size.match_size: metric fitting requires a positive measurement"
@@ -125,7 +124,7 @@ let match_size_transform ?cancel ~grain ?selection ~scale ~translation geometry 
           let ox = (scale.x *. source.x.(point)) +. translation.x
           and oy = (scale.y *. source.y.(point)) +. translation.y
           and oz = (scale.z *. source.z.(point)) +. translation.z in
-          if finite ox && finite oy && finite oz then begin
+          if Float.is_finite ox && Float.is_finite oy && Float.is_finite oz then begin
             x.(point) <- ox; y.(point) <- oy; z.(point) <- oz
           end else if errors.(range) < 0 then errors.(range) <- point
         end
@@ -175,7 +174,7 @@ let match_size_transform ?cancel ~grain ?selection ~scale ~translation geometry 
                          and oy = source.y.(element) /. scale.y
                          and oz = source.z.(element) /. scale.z in
                          let length = sqrt ((ox *. ox) +. (oy *. oy) +. (oz *. oz)) in
-                         if finite length then begin
+                         if Float.is_finite length then begin
                            if length > 1e-20 then begin
                              x.(element) <- ox /. length;
                              y.(element) <- oy /. length;
@@ -219,7 +218,7 @@ let match_size ?cancel ?(grain = 16_384) ?selection ?source_selection
       || abs_float justify.z > 1. || abs_float target_justify.x > 1.
       || abs_float target_justify.y > 1. || abs_float target_justify.z > 1. then
     Error "Pdk.Match_size.match_size: justification components must be finite and between -1 and 1"
-  else if not (finite_vec3 offset && finite scale) || scale < 0. then
+  else if not (finite_vec3 offset && Float.is_finite scale) || scale < 0. then
     Error "Pdk.Match_size.match_size: offset must be finite and scale finite and non-negative"
   else if Option.is_some target &&
       (Option.is_some target_center || Option.is_some target_size) then

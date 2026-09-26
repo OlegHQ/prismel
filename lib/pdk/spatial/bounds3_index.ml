@@ -16,43 +16,6 @@ type t = {
 
 let leaf_size = 8
 
-let[@inline always] compare_centroid axis x y z left right =
-  let compared = if axis = 0 then Float.compare x.(left) x.(right)
-    else if axis = 1 then Float.compare y.(left) y.(right)
-    else Float.compare z.(left) z.(right) in
-  if compared <> 0 then compared else Int.compare left right
-
-let swap values left right =
-  if left <> right then begin
-    let value = values.(left) in
-    values.(left) <- values.(right);
-    values.(right) <- value
-  end
-
-let[@inline always] median_pivot axis x y z order first middle last =
-  let a = order.(first) and b = order.(middle) and c = order.(last) in
-  if compare_centroid axis x y z a b < 0 then
-    if compare_centroid axis x y z b c < 0 then b
-    else if compare_centroid axis x y z a c < 0 then c else a
-  else if compare_centroid axis x y z a c < 0 then a
-  else if compare_centroid axis x y z b c < 0 then c else b
-
-let select axis x y z order first last selected =
-  let lower = ref first and upper = ref last in
-  while !lower < !upper do
-    let middle = !lower + ((!upper - !lower) / 2) in
-    let pivot = median_pivot axis x y z order !lower middle !upper in
-    let left = ref !lower and right = ref !upper in
-    while !left <= !right do
-      while compare_centroid axis x y z order.(!left) pivot < 0 do incr left done;
-      while compare_centroid axis x y z order.(!right) pivot > 0 do decr right done;
-      if !left <= !right then begin swap order !left !right; incr left; decr right end
-    done;
-    if selected <= !right then upper := !right
-    else if selected >= !left then lower := !left
-    else begin lower := selected; upper := selected end
-  done
-
 let create ?cancel ~grain ~centroid_x ~centroid_y ~centroid_z
     ~item_min_x ~item_min_y ~item_min_z ~item_max_x ~item_max_y ~item_max_z () =
   let total = Array.length centroid_x in
@@ -92,7 +55,9 @@ let create ?cancel ~grain ~centroid_x ~centroid_y ~centroid_z
       and ez = max_z.(node) -. min_z.(node) in
       let axis = if ex >= ey && ex >= ez then 0 else if ey >= ez then 1 else 2 in
       let middle = range_first + (range_count / 2) in
-      select axis centroid_x centroid_y centroid_z order range_first range_last middle;
+      Support.select
+        (if axis = 0 then centroid_x else if axis = 1 then centroid_y else centroid_z)
+        order range_first range_last middle;
       let left_size = middle - range_first in
       let left_node = node + 1
       and right_node = node + 1 + subtree_nodes.(left_size) in

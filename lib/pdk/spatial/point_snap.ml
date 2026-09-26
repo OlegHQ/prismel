@@ -9,7 +9,6 @@ type targeting =
 
 exception Invalid of string
 
-let finite = Float.is_finite
 
 let validate_group label owner_count = function
   | None -> ()
@@ -45,7 +44,7 @@ let radius_view label name geometry =
     let value = match values with
       | `Float values -> values.(point)
       | `Int values -> float_of_int values.(point) in
-    if not (finite value) || value < 0. then raise (Invalid (Printf.sprintf
+    if not (Float.is_finite value) || value < 0. then raise (Invalid (Printf.sprintf
         "%s radius attribute %S has a non-finite or negative value at point %d"
         label name point));
     if value > !maximum then maximum := value
@@ -108,8 +107,8 @@ let validate_positions ?cancel label geometry =
   let positions = Packed.Float3.Private.view (Geometry.positions geometry) in
   for point = 0 to Geometry.point_count geometry - 1 do
     if point land 4095 = 0 then Cancel.check_opt cancel;
-    if not (finite positions.x.(point) && finite positions.y.(point)
-        && finite positions.z.(point)) then raise (Invalid (Printf.sprintf
+    if not (Float.is_finite positions.x.(point) && Float.is_finite positions.y.(point)
+        && Float.is_finite positions.z.(point)) then raise (Invalid (Printf.sprintf
         "%s point %d has a non-finite position" label point))
   done;
   positions
@@ -180,19 +179,19 @@ let near ?cancel ~grain ?queries ?targets ~using ~tolerance ~metric ~inclusive
     let max_query_radius = match query_radius with None -> 0. | Some (_, v) -> v
     and max_target_radius = match target_radius with None -> 0. | Some (_, v) -> v in
     let cell_size = tolerance +. max_query_radius +. max_target_radius in
-    if not (finite cell_size) then
+    if not (Float.is_finite cell_size) then
       raise (Invalid "tolerance plus point radii exceeds the finite range");
     let exact = cell_size = 0. in
     let scaled_delta left right =
       let delta = right -. left in
-      if finite delta then delta /. cell_size
+      if Float.is_finite delta then delta /. cell_size
       else (right /. cell_size) -. (left /. cell_size) in
     let span_x = if exact then 0. else scaled_delta !min_x !max_x
     and span_y = if exact then 0. else scaled_delta !min_y !max_y
     and span_z = if exact then 0. else scaled_delta !min_z !max_z in
     if not exact then begin
       let largest = Float.max span_x (Float.max span_y span_z) in
-      if not (finite largest) || largest > float_of_int (max_int / 4) then
+      if not (Float.is_finite largest) || largest > float_of_int (max_int / 4) then
         raise (Invalid "snap distance is too small for the target geometry extent")
     end;
     let capacity = next_power_of_two (max 8 (target_slots * 2)) in
@@ -247,7 +246,7 @@ let near ?cancel ~grain ?queries ?targets ~using ~tolerance ~metric ~inclusive
                 let sx = scaled_delta !min_x qx
                 and sy = scaled_delta !min_y qy
                 and sz = scaled_delta !min_z qz in
-                if not (finite sx && finite sy && finite sz)
+                if not (Float.is_finite sx && Float.is_finite sy && Float.is_finite sz)
                     || sx < -1. || sy < -1. || sz < -1.
                     || sx > span_x +. 1. || sy > span_y +. 1.
                     || sz > span_z +. 1.
@@ -326,9 +325,9 @@ let plan ?cancel ~grain ?queries ?targets ~targeting ~using ~tolerance ~metric
     if grain <= 0 then invalid_arg "Pdk_spatial.Point_snap.fuse: grain must be positive";
     validate_group "query selection" (Geometry.point_count source) queries;
     validate_group "target selection" (Geometry.point_count target) targets;
-    if not (finite tolerance) || tolerance < 0. then
+    if not (Float.is_finite tolerance) || tolerance < 0. then
       raise (Invalid "snap distance must be finite and non-negative");
-    if not (finite match_tolerance) || match_tolerance < 0. then
+    if not (Float.is_finite match_tolerance) || match_tolerance < 0. then
       raise (Invalid "match tolerance must be finite and non-negative");
     Option.iter (fun name -> if String.trim name = "" then
       raise (Invalid "radius attribute name must not be empty")) radius_attribute;

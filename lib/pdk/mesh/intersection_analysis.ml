@@ -1,7 +1,6 @@
 open Prismel_math
 
 let operation = "intersection_analysis"
-let finite = Float.is_finite
 let error code message = Error (Error.make ~operation ~code message)
 
 let ceiling_div value divisor =
@@ -169,7 +168,7 @@ let numerical_weld_tolerance requested raw =
         (Float.max (!max_y -. !min_y) (!max_z -. !min_z))
   end;
   let next = Float.next_after !magnitude Float.infinity in
-  let magnitude_ulp = if finite next then next -. !magnitude else 0. in
+  let magnitude_ulp = if Float.is_finite next then next -. !magnitude else 0. in
   Float.max requested (Float.max (8. *. magnitude_ulp)
     (256. *. Float.epsilon *. Float.max 1. !extent))
 
@@ -329,7 +328,7 @@ let run ?cancel ~grain ?source_primitives ?collision_primitives ~tolerance
     ~primitive_uvw_attribute ~point_attribute ~collision geometry =
   try
     if grain <= 0 then error "invalid_parameter" "grain must be positive"
-    else if not (finite tolerance) || tolerance < 0. then
+    else if not (Float.is_finite tolerance) || tolerance < 0. then
       error "invalid_parameter" "tolerance must be finite and non-negative"
     else if not (List.for_all validate_name
         [input_attribute; primitive_attribute; primitive_uvw_attribute;

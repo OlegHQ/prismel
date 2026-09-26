@@ -1,6 +1,5 @@
 open Prismel_math
 
-let finite = Float.is_finite
 let get_ok = function Ok value -> value | Error message -> invalid_arg message
 
 let run ?cancel ?(grain = 16_384) ?(keep_original = true) ~origin ~normal
@@ -9,8 +8,8 @@ let run ?cancel ?(grain = 16_384) ?(keep_original = true) ~origin ~normal
   let ox = origin.Vec3.x and oy = origin.y and oz = origin.z
   and supplied_nx = normal.Vec3.x and supplied_ny = normal.y
   and supplied_nz = normal.z in
-  if not (finite ox && finite oy && finite oz && finite supplied_nx
-          && finite supplied_ny && finite supplied_nz) then
+  if not (Float.is_finite ox && Float.is_finite oy && Float.is_finite oz && Float.is_finite supplied_nx
+          && Float.is_finite supplied_ny && Float.is_finite supplied_nz) then
     Error "Pdk_mesh.Mirror_geometry.mirror: plane origin and normal must be finite"
   else
     let length = sqrt ((supplied_nx *. supplied_nx)

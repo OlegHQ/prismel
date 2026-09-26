@@ -18,7 +18,6 @@ type projection_scratch = {
 
 let operation = "Pdk_mesh.Remesh.remesh"
 let fail message = Error (operation ^ ": " ^ message)
-let finite = Float.is_finite
 
 let validate_name label = function
   | None -> Ok ()
@@ -50,8 +49,8 @@ let validate_positions ?cancel geometry =
   let invalid = ref (-1) and point = ref 0 in
   while !point < Array.length positions.x && !invalid < 0 do
     if !point land 4095 = 0 then Cancel.check_opt cancel;
-    if not (finite positions.x.(!point) && finite positions.y.(!point)
-        && finite positions.z.(!point)) then invalid := !point;
+    if not (Float.is_finite positions.x.(!point) && Float.is_finite positions.y.(!point)
+        && Float.is_finite positions.z.(!point)) then invalid := !point;
     incr point
   done;
   if !invalid < 0 then Ok ()
@@ -70,7 +69,7 @@ let target_values ?cancel name geometry = match name with
                  let invalid = ref (-1) and point = ref 0 in
                  while !point < Array.length values && !invalid < 0 do
                    if !point land 4095 = 0 then Cancel.check_opt cancel;
-                   if not (finite values.(!point)) || values.(!point) <= 0. then
+                   if not (Float.is_finite values.(!point)) || values.(!point) <= 0. then
                      invalid := !point;
                    incr point
                  done;
@@ -603,7 +602,7 @@ let select_long l ~target_length =
 let interpolate_target l a b =
   let t = 0.5 in
   let value = ((1. -. t) *. l.p_target.(a)) +. (t *. l.p_target.(b)) in
-  if not (finite value) || value <= 0. then
+  if not (Float.is_finite value) || value <= 0. then
     invalid_arg (Printf.sprintf
       "%s: interpolated target size is not finite and positive between points %d and %d"
       operation a b);
@@ -653,7 +652,7 @@ let split l selected count =
       l.x.(point) <- 0.5 *. l.x.(a) +. 0.5 *. l.x.(b);
       l.y.(point) <- 0.5 *. l.y.(a) +. 0.5 *. l.y.(b);
       l.z.(point) <- 0.5 *. l.z.(a) +. 0.5 *. l.z.(b);
-      if not (finite l.x.(point) && finite l.y.(point) && finite l.z.(point))
+      if not (Float.is_finite l.x.(point) && Float.is_finite l.y.(point) && Float.is_finite l.z.(point))
       then invalid_arg (Printf.sprintf "%s: split point %d is non-finite"
           operation point);
       l.p_left.(point) <- a; l.p_right.(point) <- b; l.p_weight.(point) <- 0.5;
@@ -1042,7 +1041,7 @@ let select_short l ranking ~target_length ~hard ~feature =
 (* Average of two coordinates as the fuse kernel computes it. *)
 let[@inline] average_pair a b =
   let sum = a +. b in
-  if finite sum then sum /. 2.
+  if Float.is_finite sum then sum /. 2.
   else begin
     let scale = Float.max (Float.abs a) (Float.abs b) in
     let normalized = if scale <> 0. then (a /. scale) +. (b /. scale) else 0. in
@@ -1063,7 +1062,7 @@ let collapse l chosen =
       l.x.(a) <- average_pair l.x.(a) l.x.(b);
       l.y.(a) <- average_pair l.y.(a) l.y.(b);
       l.z.(a) <- average_pair l.z.(a) l.z.(b);
-      if not (finite l.x.(a) && finite l.y.(a) && finite l.z.(a)) then
+      if not (Float.is_finite l.x.(a) && Float.is_finite l.y.(a) && Float.is_finite l.z.(a)) then
         invalid_arg (Printf.sprintf
           "%s: collapse position is non-finite at point %d" operation a);
       Array.iter (fun bytes ->
@@ -1609,9 +1608,9 @@ let run ?cancel ?(grain = 16_384) ?(iterations = 3) ?(smoothing = 0.5)
   try
     if grain <= 0 then fail "grain must be positive"
     else if iterations < 0 then fail "iterations must be non-negative"
-    else if not (finite target_length) || target_length <= 0. then
+    else if not (Float.is_finite target_length) || target_length <= 0. then
       fail "target length must be finite and positive"
-    else if not (finite smoothing) || smoothing < 0. || smoothing > 1. then
+    else if not (Float.is_finite smoothing) || smoothing < 0. || smoothing > 1. then
       fail "smoothing must be finite and in [0, 1]"
     else Result.bind (validate_name "output hard-edge group" output_hard_edges)
       (fun () -> Result.bind (validate_name "output mesh-size attribute"

@@ -6,16 +6,6 @@ type ending = Stop_at_end | Close_path
 exception Invalid of string
 
 let fail message = raise (Invalid ("Group Find Path: " ^ message))
-let byte_count length = (length + 7) / 8
-
-let bit_mem bits index =
-  Char.code (Bytes.unsafe_get bits (index lsr 3))
-  land (1 lsl (index land 7)) <> 0
-
-let bit_set bits index =
-  let byte = index lsr 3 and mask = 1 lsl (index land 7) in
-  Bytes.unsafe_set bits byte
-    (Char.chr (Char.code (Bytes.unsafe_get bits byte) lor mask))
 
 let[@inline always] distance ax ay az bx by bz =
   let dx = bx -. ax and dy = by -. ay and dz = bz -. az in
@@ -202,9 +192,9 @@ let find ?cancel ~scratch ~graph ~lengths ~allowed ~used ~blocked_elements
   let element_allowed element =
     element = start || element = finish
     || (allowed element
-        && (match used with None -> true | Some bits -> not (bit_mem bits element))
+        && (match used with None -> true | Some bits -> not (Support.Bits.mem bits element))
         && (match blocked_elements with
-            | None -> true | Some bits -> not (bit_mem bits element))) in
+            | None -> true | Some bits -> not (Support.Bits.mem bits element))) in
   let owner_name = match graph_owner graph with
     | Group.Point -> "point" | Group.Vertex -> "vertex"
     | Group.Primitive -> "primitive" in
@@ -248,7 +238,7 @@ let find ?cancel ~scratch ~graph ~lengths ~allowed ~used ~blocked_elements
         for slot = first to last - 1 do
           let edge = view.point_edges.(slot) in
           if match blocked_edges with None -> true
-              | Some bits -> not (bit_mem bits edge) then begin
+              | Some bits -> not (Support.Bits.mem bits edge) then begin
             let a = view.edge_a.(edge) and b = view.edge_b.(edge) in
             relax element edge (if a = element then b else a)
           end
@@ -260,7 +250,7 @@ let find ?cancel ~scratch ~graph ~lengths ~allowed ~used ~blocked_elements
           let edge = graph.index.edge_of_vertex.(vertex) in
           if edge >= 0
               && (match blocked_edges with None -> true
-                  | Some bits -> not (bit_mem bits edge)) then begin
+                  | Some bits -> not (Support.Bits.mem bits edge)) then begin
             let edge_first = graph.index.edge_offsets.(edge)
             and edge_last = graph.index.edge_offsets.(edge + 1) in
             if edge_last - edge_first = 2 then begin
@@ -304,16 +294,16 @@ let close ?cancel ~scratch ~index ~graph ~lengths ~allowed ~used primary =
   and edge_count = graph_relation_count graph in
   if Array.length primary < 2 then Error "cannot close a zero-length path"
   else
-    let blocked_elements = Bytes.make (byte_count element_count) '\000'
-    and blocked_edges = Bytes.make (byte_count edge_count) '\000' in
+    let blocked_elements = Bytes.make (Support.Bits.byte_count element_count) '\000'
+    and blocked_edges = Bytes.make (Support.Bits.byte_count edge_count) '\000' in
     for path_index = 1 to Array.length primary - 2 do
-      bit_set blocked_elements primary.(path_index)
+      Support.Bits.set blocked_elements primary.(path_index)
     done;
     let block_connection left right = match graph with
       | Point_graph _ ->
           (match Topology_index.find_edge index ~a:left ~b:right with
            | None -> false
-           | Some edge -> bit_set blocked_edges edge; true)
+           | Some edge -> Support.Bits.set blocked_edges edge; true)
       | Primitive_graph graph ->
           let first = graph.topology.primitive_offsets.(left)
           and last = graph.topology.primitive_offsets.(left + 1)
@@ -327,7 +317,7 @@ let close ?cancel ~scratch ~index ~graph ~lengths ~allowed ~used primary =
                 let primitive = graph.index.primitive_of_vertex.(
                     graph.index.edge_vertices.(slot)) in
                 if primitive = right then begin
-                  bit_set blocked_edges edge;
+                  Support.Bits.set blocked_edges edge;
                   found := true
                 end
               done
@@ -443,7 +433,7 @@ let run ?cancel ?(grain = 16_384) ?(mode = Through_each)
               results.(pair) <- result;
               match result, used with
               | Error _, _ -> failed := true
-              | Ok path, Some used -> Array.iter (bit_set used) path
+              | Ok path, Some used -> Array.iter (Support.Bits.set used) path
               | Ok _, None -> assert false
             end
           done);
@@ -452,7 +442,7 @@ let run ?cancel ?(grain = 16_384) ?(mode = Through_each)
     let paths = match mode with
       | Through_each ->
           let used = if avoid_self_intersection
-            then Some (Bytes.make (byte_count element_count) '\000') else None in
+            then Some (Bytes.make (Support.Bits.byte_count element_count) '\000') else None in
           let segments = solve_primary_segments used in
           begin match first_error segments with
           | Some message -> Error message
@@ -481,7 +471,7 @@ let run ?cancel ?(grain = 16_384) ?(mode = Through_each)
           | None -> Ok (Array.map Result.get_ok results)
           end
       | Start_end_pairs ->
-          let used = Bytes.make (byte_count element_count) '\000'
+          let used = Bytes.make (Support.Bits.byte_count element_count) '\000'
           and results = Array.make (Array.length pairs) (Ok [||])
           and failed = ref false in
           with_scratch (fun scratch ->
@@ -489,7 +479,7 @@ let run ?cancel ?(grain = 16_384) ?(mode = Through_each)
               if not !failed then begin
                 let result = Result.bind
                     (shortest scratch (Some used) pairs.(pair)) (fun primary ->
-                      Array.iter (bit_set used) primary;
+                      Array.iter (Support.Bits.set used) primary;
                       match ending with
                       | Stop_at_end -> Ok primary
                       | Close_path -> close ?cancel ~scratch ~index ~graph ~lengths
@@ -497,7 +487,7 @@ let run ?cancel ?(grain = 16_384) ?(mode = Through_each)
                 results.(pair) <- result;
                 match result with
                 | Error _ -> failed := true
-                | Ok path -> Array.iter (bit_set used) path
+                | Ok path -> Array.iter (Support.Bits.set used) path
               end
             done);
           begin match first_error results with
@@ -507,11 +497,11 @@ let run ?cancel ?(grain = 16_384) ?(mode = Through_each)
     match paths with
     | Error message -> Error message
     | Ok paths ->
-        let seen = Bytes.make (byte_count element_count) '\000'
+        let seen = Bytes.make (Support.Bits.byte_count element_count) '\000'
         and order = Array.make element_count 0 and count = ref 0 in
         Array.iter (Array.iter (fun point ->
-          if not (bit_mem seen point) then begin
-            bit_set seen point;
+          if not (Support.Bits.mem seen point) then begin
+            Support.Bits.set seen point;
             order.(!count) <- point;
             incr count
           end)) paths;

@@ -28,7 +28,6 @@ type grid_connectivity =
   | Grid_alternating_triangles
   | Grid_reverse_triangles
 
-let finite = Float.is_finite
 let get_ok = function Ok value -> value | Error message -> invalid_arg message
 
 let normal_attribute owner count nx ny nz =
@@ -38,7 +37,7 @@ let normal_attribute owner count nx ny nz =
   Attribute.create_key_owned (Attribute.normal ~owner) values |> get_ok
 
 let normalize_plane_axis operation label value =
-  if not (finite value.Vec3.x && finite value.y && finite value.z) then
+  if not (Float.is_finite value.Vec3.x && Float.is_finite value.y && Float.is_finite value.z) then
     Error (operation ^ ": " ^ label ^ " axis must be finite")
   else
     let scale = max (abs_float value.x)
@@ -48,7 +47,7 @@ let normalize_plane_axis operation label value =
       let x = value.x /. scale and y = value.y /. scale
       and z = value.z /. scale in
       let length = sqrt ((x *. x) +. (y *. y) +. (z *. z)) in
-      if not (finite length) || length <= 1e-15 then
+      if not (Float.is_finite length) || length <= 1e-15 then
         Error (operation ^ ": " ^ label ^ " axis cannot be normalized")
       else Ok (Vec3.create (x /. length) (y /. length) (z /. length))
 
@@ -111,23 +110,23 @@ let circle ?cancel ?(grain = 16_384) ?(arc = Circle_closed)
     | Circle_open_arc { start_angle; end_angle }
     | Circle_closed_arc { start_angle; end_angle }
     | Circle_sliced_arc { start_angle; end_angle } ->
-        if not (finite start_angle && finite end_angle) then
+        if not (Float.is_finite start_angle && Float.is_finite end_angle) then
           Error "Pdk.Plane_generators.circle: arc angles must be finite"
         else
           let sweep = end_angle -. start_angle in
-          if not (finite sweep) || sweep = 0. then
+          if not (Float.is_finite sweep) || sweep = 0. then
             Error "Pdk.Plane_generators.circle: arc angles must span a finite non-zero interval"
           else Ok (start_angle, end_angle) in
   if grain <= 0 then Error "Pdk.Plane_generators.circle: grain must be positive"
   else if segments < minimum_segments then Error (Printf.sprintf
       "Pdk.Plane_generators.circle: this arc mode requires at least %d segments"
       minimum_segments)
-  else if not (finite radius && finite radius_x && finite radius_y
-      && finite uniform_scale && radius > 0. && radius_x > 0. && radius_y > 0.
+  else if not (Float.is_finite radius && Float.is_finite radius_x && Float.is_finite radius_y
+      && Float.is_finite uniform_scale && radius > 0. && radius_x > 0. && radius_y > 0.
       && uniform_scale > 0.) then
     Error "Pdk.Plane_generators.circle: radii and uniform scale must be finite and positive"
-  else if not (finite center.x && finite center.y && finite center.z
-      && finite rotation) then
+  else if not (Float.is_finite center.x && Float.is_finite center.y && Float.is_finite center.z
+      && Float.is_finite rotation) then
     Error "Pdk.Plane_generators.circle: center and rotation must be finite"
   else Result.bind arc_angles (fun (start_angle, end_angle) ->
     Result.bind (circle_frame orientation rotation)
@@ -163,7 +162,7 @@ let circle ?cancel ?(grain = 16_384) ?(arc = Circle_closed)
             let x = center.x +. (horizontal.x *. u) +. (vertical.x *. v)
             and y = center.y +. (horizontal.y *. u) +. (vertical.y *. v)
             and z = center.z +. (horizontal.z *. u) +. (vertical.z *. v) in
-            if finite x && finite y && finite z then begin
+            if Float.is_finite x && Float.is_finite y && Float.is_finite z then begin
               px.(local) <- x; py.(local) <- y; pz.(local) <- z;
               vertex_points.(local) <- local
             end else if errors.(range) < 0 then errors.(range) <- local
@@ -206,11 +205,11 @@ let grid ?cancel ?(grain = 16_384) ?(counts = Grid_divisions)
          minimum_columns minimum_rows)
   else if counts = Grid_divisions && (columns = max_int || rows = max_int) then
     Error "Pdk.Plane_generators.grid: point cardinality overflows"
-  else if not (finite size && size > 0. && finite width && width > 0.
-      && finite height && height > 0.) then
+  else if not (Float.is_finite size && size > 0. && Float.is_finite width && width > 0.
+      && Float.is_finite height && height > 0.) then
     Error "Pdk.Plane_generators.grid: size, width, and height must be finite and positive"
-  else if not (finite center.x && finite center.y && finite center.z
-      && finite rotation) then
+  else if not (Float.is_finite center.x && Float.is_finite center.y && Float.is_finite center.z
+      && Float.is_finite rotation) then
     Error "Pdk.Plane_generators.grid: center and rotation must be finite"
   else if match uv_attribute with
     | Some name -> String.trim name = "" || String.equal name "P"
@@ -286,7 +285,7 @@ let grid ?cancel ?(grain = 16_384) ?(counts = Grid_divisions)
                      let x = base_x +. (horizontal.x *. du)
                      and y = base_y +. (horizontal.y *. du)
                      and z = base_z +. (horizontal.z *. du) in
-                     if finite x && finite y && finite z then begin
+                     if Float.is_finite x && Float.is_finite y && Float.is_finite z then begin
                        px.(point) <- x; py.(point) <- y; pz.(point) <- z;
                        (match uv_x, uv_y with
                         | Some uv_x, Some uv_y ->

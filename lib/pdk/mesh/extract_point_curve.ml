@@ -8,7 +8,6 @@ type numeric = Float_values of float array | Int_values of int array
 
 exception Extract_error of string
 let fail message = raise (Extract_error message)
-let finite = Float.is_finite
 
 let numeric_attribute ~owner ~role name geometry =
   if String.trim name = "" || name = "P" then
@@ -51,7 +50,7 @@ let[@inline always] crossing_weight a b target =
 
 let[@inline always] interpolate left right weight =
   let delta = right -. left in
-  if finite delta then left +. (delta *. weight)
+  if Float.is_finite delta then left +. (delta *. weight)
   else (left *. (1. -. weight)) +. (right *. weight)
 
 let valid_output_name label = function
@@ -92,7 +91,7 @@ let run ?cancel ?(grain = 16_384) ?primitives ?(cut = Extract_cut_constant 0.)
         distance_attribute geometry in
     let targets = match cut with
       | Extract_cut_constant target ->
-          if not (finite target) then fail "constant cut value must be finite";
+          if not (Float.is_finite target) then fail "constant cut value must be finite";
           `Constant target
       | Extract_cut_primitive_attribute name ->
           `Varying (numeric_attribute ~owner:Attribute.Primitive ~role:"cut value"
@@ -113,7 +112,7 @@ let run ?cancel ?(grain = 16_384) ?primitives ?(cut = Extract_cut_constant 0.)
         let edges = corners - 1
             + if kind = Topology.Closed_polyline then 1 else 0 in
         let cut_value = target primitive in
-        if not (finite cut_value) then fail (Printf.sprintf
+        if not (Float.is_finite cut_value) then fail (Printf.sprintf
             "cut value for primitive %d is not finite" primitive);
         if !selected_edges > max_int - edges then
           fail "selected curve edge cardinality exceeds integer limits";
@@ -181,7 +180,7 @@ let run ?cancel ?(grain = 16_384) ?primitives ?(cut = Extract_cut_constant 0.)
         let left = topology.vertex_points.(first + edge mod corners)
         and right = topology.vertex_points.(first + (edge + 1) mod corners) in
         let a = value distance left and b = value distance right in
-        if not (finite a && finite b) then fail (Printf.sprintf
+        if not (Float.is_finite a && Float.is_finite b) then fail (Printf.sprintf
             "distance attribute is non-finite on primitive %d edge %d"
             primitive edge);
         let crosses = a = cut_value || (a < cut_value && cut_value < b)
@@ -281,7 +280,7 @@ let run ?cancel ?(grain = 16_384) ?primitives ?(cut = Extract_cut_constant 0.)
             let px = interpolate positions.x.(left) positions.x.(right) weight
             and py = interpolate positions.y.(left) positions.y.(right) weight
             and pz = interpolate positions.z.(left) positions.z.(right) weight in
-            if not (finite px && finite py && finite pz) then fail (Printf.sprintf
+            if not (Float.is_finite px && Float.is_finite py && Float.is_finite pz) then fail (Printf.sprintf
                 "extracted position for primitive %d is not representable"
                 primitive);
             x.(output_index) <- px;
@@ -305,7 +304,7 @@ let run ?cancel ?(grain = 16_384) ?primitives ?(cut = Extract_cut_constant 0.)
             let px = positions.x.(last_point)
             and py = positions.y.(last_point)
             and pz = positions.z.(last_point) in
-            if not (finite px && finite py && finite pz) then fail (Printf.sprintf
+            if not (Float.is_finite px && Float.is_finite py && Float.is_finite pz) then fail (Printf.sprintf
                 "extracted position for primitive %d is not representable"
                 primitive);
             x.(output_index) <- px;

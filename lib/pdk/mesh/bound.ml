@@ -6,12 +6,11 @@ type deform_selection = Deform.selection =
   | Selected_primitives of Group.t
   | Selected_edges of Edge_group.t
 
-let finite = Float.is_finite
 let get_ok = function Ok value -> value | Error message -> invalid_arg message
 let transform = Transform_ops.transform
 let uv_sphere = Uv_sphere.run
 
-let finite_vec3 value = finite value.Vec3.x && finite value.y && finite value.z
+let finite_vec3 value = Float.is_finite value.Vec3.x && Float.is_finite value.y && Float.is_finite value.z
 
 type bound_shape =
   | Bound_box of { divisions : int * int * int }
@@ -59,7 +58,7 @@ let selected_bounds ?cancel ~grain ~operation selection geometry =
           if Deform.point_selected selection index point then begin
             let x = positions.x.(point) and y = positions.y.(point)
             and z = positions.z.(point) in
-            if not (finite x && finite y && finite z) then
+            if not (Float.is_finite x && Float.is_finite y && Float.is_finite z) then
               errors.(range) <- if errors.(range) < 0 then point
                 else errors.(range)
             else begin
@@ -102,8 +101,8 @@ let selected_bounds ?cancel ~grain ~operation selection geometry =
           and sz = !zmax -. !zmin in
           let cx = !xmin +. (sx *. 0.5) and cy = !ymin +. (sy *. 0.5)
           and cz = !zmin +. (sz *. 0.5) in
-          if not (finite sx && finite sy && finite sz && finite cx && finite cy
-              && finite cz) then Error
+          if not (Float.is_finite sx && Float.is_finite sy && Float.is_finite sz && Float.is_finite cx && Float.is_finite cy
+              && Float.is_finite cz) then Error
               ("Pdk.Bound." ^ operation ^ ": selected bounds overflow")
           else Ok Analysis.{
             min = Vec3.create !xmin !ymin !zmin;
@@ -244,7 +243,7 @@ let bound ?cancel ?(grain = 16_384) ?selection
     let shape_valid = match shape with
       | Bound_box { divisions = dx, dy, dz } -> dx > 0 && dy > 0 && dz > 0
       | Bound_sphere { segments; rings; minimum_radius } ->
-          segments >= 3 && rings >= 2 && finite minimum_radius
+          segments >= 3 && rings >= 2 && Float.is_finite minimum_radius
           && minimum_radius >= 0. in
     if not shape_valid then Error
         "Pdk.Bound.bound: box divisions must be positive; sphere segments/rings/minimum radius are invalid"
@@ -286,7 +285,7 @@ let bound ?cancel ?(grain = 16_384) ?selection
                   (radius lower_padding.x upper_padding.x)
                   (radius lower_padding.y upper_padding.y)
                   (radius lower_padding.z upper_padding.z) in
-              (fun () -> if not (finite base_radius && finite_vec3 center
+              (fun () -> if not (Float.is_finite base_radius && finite_vec3 center
                     && finite_vec3 radii) || radii.x <= 0. || radii.y <= 0.
                     || radii.z <= 0. then
                     Error "Pdk.Bound.bound: sphere output radii must be finite and positive"

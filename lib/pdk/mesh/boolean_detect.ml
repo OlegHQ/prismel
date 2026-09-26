@@ -1,13 +1,8 @@
 open Prismel_math
 
 let operation = "boolean_detect"
-let finite = Float.is_finite
 
 let error code message = Error (Error.make ~operation ~code message)
-
-let[@inline] bit_get bits index =
-  Char.code (Bytes.unsafe_get bits (index lsr 3))
-  land (1 lsl (index land 7)) <> 0
 
 let sort_range ?cancel values first last =
   let swap left right =
@@ -137,7 +132,7 @@ let detect_pairs ?cancel ~grain ~tolerance ~include_coplanar ~self
   let raw_counts = Array.make primitive_count 0 and exact = ref 0 in
   for candidate = 0 to candidates - 1 do
     if candidate land 4095 = 0 then Cancel.check_opt cancel;
-    if bit_get keep candidate then begin
+    if Support.Bits.mem keep candidate then begin
       let source_primitive = Surface_index.Private.triangle_primitive
           source_surface source_triangles.(candidate) in
       raw_counts.(source_primitive) <- raw_counts.(source_primitive) + 1;
@@ -163,7 +158,7 @@ let detect_pairs ?cancel ~grain ~tolerance ~include_coplanar ~self
   let raw_values = Array.make entry_count 0 and cursors = Array.copy raw_offsets in
   for candidate = 0 to candidates - 1 do
     if candidate land 4095 = 0 then Cancel.check_opt cancel;
-    if bit_get keep candidate then begin
+    if Support.Bits.mem keep candidate then begin
       let source_primitive = Surface_index.Private.triangle_primitive
           source_surface source_triangles.(candidate)
       and collision_primitive = Surface_index.Private.triangle_primitive
@@ -191,7 +186,7 @@ let run ?cancel ~grain ?source_primitives ?collision_primitives ~tolerance
     ~self_count_attribute ~collision geometry =
   try
     if grain <= 0 then error "invalid_parameter" "grain must be positive"
-    else if not (finite tolerance) || tolerance < 0. then
+    else if not (Float.is_finite tolerance) || tolerance < 0. then
       error "invalid_parameter" "tolerance must be finite and non-negative"
     else if intersecting_group = None && intersections_attribute = None
         && count_attribute = None && self_intersecting_group = None

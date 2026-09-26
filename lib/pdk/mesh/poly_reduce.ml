@@ -40,7 +40,6 @@ type target =
 
 let get_ok = function Ok value -> value | Error message -> invalid_arg message
 
-let finite = Float.is_finite
 
 let validate_group ~owner ~length label = function
   | None -> ()
@@ -72,10 +71,10 @@ let plan_round ?cancel ~scratch ~grain ~primitive_selection ~hard_points ~hard_e
     if grain <= 0 then invalid_arg "Pdk.Poly_reduce: grain must be positive";
     if primitive_budget <= 0 then invalid_arg
         "Pdk.Poly_reduce: primitive budget must be positive";
-    if not (finite equalize_lengths) || equalize_lengths < 0. then invalid_arg
+    if not (Float.is_finite equalize_lengths) || equalize_lengths < 0. then invalid_arg
         "Pdk.Poly_reduce: equalize lengths must be finite and non-negative";
     (match max_normal_deviation with
-     | Some angle when not (finite angle) || angle < 0. || angle > Float.pi ->
+     | Some angle when not (Float.is_finite angle) || angle < 0. || angle > Float.pi ->
          invalid_arg
            "Pdk.Poly_reduce: normal deviation must be finite and in [0, pi]"
      | None | Some _ -> ());
@@ -110,8 +109,8 @@ let plan_round ?cancel ~scratch ~grain ~primitive_selection ~hard_points ~hard_e
     Parallel.for_ ~chunk_size:(max 1 (grain / 3)) ~start:0
       ~finish:(point_count - 1) (fun point ->
         if point land 4095 = 0 then Cancel.check_opt cancel;
-        if not (finite positions.x.(point) && finite positions.y.(point)
-            && finite positions.z.(point)) then record_min first_non_finite point);
+        if not (Float.is_finite positions.x.(point) && Float.is_finite positions.y.(point)
+            && Float.is_finite positions.z.(point)) then record_min first_non_finite point);
     if Atomic.get first_non_finite <> max_int then raise (Invalid
         (Printf.sprintf "Pdk.Poly_reduce: point %d has a non-finite position"
           (Atomic.get first_non_finite)));
@@ -149,10 +148,10 @@ let plan_round ?cancel ~scratch ~grain ~primitive_selection ~hard_points ~hard_e
         and nz = (ux *. vy) -. (uy *. vx) in
         let scale = Float.max (abs_float nx)
             (Float.max (abs_float ny) (abs_float nz)) in
-        if scale <> 0. && finite scale then begin
+        if scale <> 0. && Float.is_finite scale then begin
           let nx = nx /. scale and ny = ny /. scale and nz = nz /. scale in
           let length = sqrt ((nx *. nx) +. (ny *. ny) +. (nz *. nz)) in
-          if length <> 0. && finite length then begin
+          if length <> 0. && Float.is_finite length then begin
             let a = nx /. length and b = ny /. length and c = nz /. length in
             face_a.(primitive) <- a; face_b.(primitive) <- b;
             face_c.(primitive) <- c;
@@ -257,7 +256,7 @@ let plan_round ?cancel ~scratch ~grain ~primitive_selection ~hard_points ~hard_e
           let dx = bx -. ax and dy = by -. ay and dz = bz -. az in
           let error = quadric_error q00 q01 q02 q03 q11 q12 q13 q22 q23 q33
               x y z +. (equalize_lengths *. ((dx *. dx) +. (dy *. dy) +. (dz *. dz))) in
-          if finite error then costs.(edge) <- Float.max 0. error
+          if Float.is_finite error then costs.(edge) <- Float.max 0. error
         end);
     let order = Array.init edge_count Fun.id in
     Array.sort (fun left right ->
@@ -333,7 +332,7 @@ let plan_round ?cancel ~scratch ~grain ~primitive_selection ~hard_points ~hard_e
               else
                   let onx = face_a.(primitive) and ony = face_b.(primitive)
                   and onz = face_c.(primitive) in
-                  if scale = 0. || not (finite scale) then valid := false
+                  if scale = 0. || not (Float.is_finite scale) then valid := false
                   else
                     let ux = ux /. scale and uy = uy /. scale and uz = uz /. scale
                     and vx = vx /. scale and vy = vy /. scale and vz = vz /. scale in
@@ -342,7 +341,7 @@ let plan_round ?cancel ~scratch ~grain ~primitive_selection ~hard_points ~hard_e
                     and nz = (ux *. vy) -. (uy *. vx) in
                     let length = sqrt
                         ((nx *. nx) +. (ny *. ny) +. (nz *. nz)) in
-                    if length = 0. || not (finite length)
+                    if length = 0. || not (Float.is_finite length)
                        || ((onx *. nx) +. (ony *. ny) +. (onz *. nz))
                           /. length < cosine then valid := false
             end
@@ -367,7 +366,7 @@ let plan_round ?cancel ~scratch ~grain ~primitive_selection ~hard_points ~hard_e
       let edge = order.(!ordinal) in
       let a = index.edge_a.(edge) and b = index.edge_b.(edge)
       and reduction = incidence.(edge) in
-      if finite costs.(edge) && Bytes.unsafe_get reserved a = '\000'
+      if Float.is_finite costs.(edge) && Bytes.unsafe_get reserved a = '\000'
           && Bytes.unsafe_get reserved b = '\000'
           && (reduction <= primitive_budget - !removed || !removed = 0)
           && link_valid edge && normal_valid edge then begin
@@ -396,7 +395,7 @@ let run ?cancel ?(grain = 16_384) ?(target = Reduce_ratio 0.5)
     and original_points = Geometry.point_count geometry
     and original_topology = Geometry.topology geometry in
     (match target with
-     | Reduce_ratio ratio when not (finite ratio) || ratio < 0. || ratio > 1. ->
+     | Reduce_ratio ratio when not (Float.is_finite ratio) || ratio < 0. || ratio > 1. ->
          invalid_arg "Pdk.Poly_reduce.poly_reduce: ratio must be finite and in [0, 1]"
      | Reduce_primitive_count count when count < 0 ->
          invalid_arg

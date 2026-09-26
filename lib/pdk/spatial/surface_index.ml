@@ -82,7 +82,6 @@ let pair_builder_add builder first second =
   builder.pair_second.(builder.pair_length) <- second;
   builder.pair_length <- builder.pair_length + 1
 
-let finite = Float.is_finite
 let fail message = raise (Surface_error message)
 let leaf_size = 8
 let ceiling_div value divisor =
@@ -331,8 +330,8 @@ let create_raw ?cancel ?(grain = 16_384) ?primitives:selection ?vertices
     let ax = positions.x.(a) and ay = positions.y.(a) and az = positions.z.(a)
     and bx = positions.x.(b) and by = positions.y.(b) and bz = positions.z.(b)
     and cx = positions.x.(c) and cy = positions.y.(c) and cz = positions.z.(c) in
-    if not validated_triangles && not (finite ax && finite ay && finite az && finite bx && finite by
-        && finite bz && finite cx && finite cy && finite cz) then
+    if not validated_triangles && not (Float.is_finite ax && Float.is_finite ay && Float.is_finite az && Float.is_finite bx && Float.is_finite by
+        && Float.is_finite bz && Float.is_finite cx && Float.is_finite cy && Float.is_finite cz) then
       triangle_errors.(range) <- Some
         (Printf.sprintf "primitive %d has a non-finite position" primitive)
     else begin
@@ -450,8 +449,9 @@ let create_raw ?cancel ?(grain = 16_384) ?primitives:selection ?vertices
       and ez = max_z.(node) -. min_z.(node) in
       let axis = if ex >= ey && ex >= ez then 0 else if ey >= ez then 1 else 2 in
       let middle = range_first + (range_count / 2) in
-      Bounds3_index.select axis centroid_x centroid_y centroid_z order
-        range_first range_last middle;
+      Support.select
+        (if axis = 0 then centroid_x else if axis = 1 then centroid_y else centroid_z)
+        order range_first range_last middle;
       let left_count = middle - range_first in
       let left_node = node + 1
       and right_node = node + 1 + subtree_nodes.(left_count) in
@@ -604,7 +604,7 @@ let overlapping_triangle_pairs_raw ?cancel ?(single_pass = false)
     ~skip_shared_points ~grain ~tolerance left_surface right_surface =
   if grain <= 0 then invalid_arg
       "Surface_index.overlapping_triangle_pairs: grain must be positive";
-  if not (finite tolerance) || tolerance < 0. then invalid_arg
+  if not (Float.is_finite tolerance) || tolerance < 0. then invalid_arg
       "Surface_index.overlapping_triangle_pairs: tolerance must be finite and non-negative";
   let left_count = Array.length left_surface.primitives in
   if left_count = 0 || Array.length right_surface.primitives = 0 then [||], [||]
@@ -1007,7 +1007,7 @@ let closest_many_into ?cancel ?selection ?position_indices ~grain value ~queries
           | Some values -> values.(query) in
         let qx = queries.x.(point) and qy = queries.y.(point)
         and qz = queries.z.(point) in
-        if not (finite qx && finite qy && finite qz) then
+        if not (Float.is_finite qx && Float.is_finite qy && Float.is_finite qz) then
           invalid_arg "Surface_index: query positions must be finite";
         query_into value qx qy qz max_distance_squared scratch best_primitive
           best_triangle primitives triangles barycentric_a barycentric_b
@@ -1072,7 +1072,7 @@ let closest_distances_many_into ?cancel ?selection ?position_indices ~grain valu
           | Some values -> values.(query) in
         let qx = queries.x.(point) and qy = queries.y.(point)
         and qz = queries.z.(point) in
-        if not (finite qx && finite qy && finite qz) then
+        if not (Float.is_finite qx && Float.is_finite qy && Float.is_finite qz) then
           invalid_arg "Surface_index: query positions must be finite";
         query_distance_squared_into value qx qy qz max_distance_squared scratch
           distances_squared query
@@ -1082,13 +1082,13 @@ let closest_distances_many_into ?cancel ?selection ?position_indices ~grain valu
 let maximum_squared_distance = sqrt max_float
 
 let closest ?max_distance value ~x ~y ~z =
-  if not (finite x && finite y && finite z) then
+  if not (Float.is_finite x && Float.is_finite y && Float.is_finite z) then
     Error (Error.make ~operation:"surface_index" ~code:"invalid_query"
       "query position must be finite")
   else
     let maximum = match max_distance with
       | None -> Ok Float.infinity
-      | Some distance when finite distance && distance >= 0.
+      | Some distance when Float.is_finite distance && distance >= 0.
           && distance <= maximum_squared_distance -> Ok (distance *. distance)
       | Some _ -> Error (Error.make ~operation:"surface_index"
           ~code:"invalid_distance"
@@ -1161,7 +1161,7 @@ let[@inline] ray_triangle_into value triangle ox oy oz dx dy dz minimum maximum
   let e1_length = Float.hypot e1x (Float.hypot e1y e1z)
   and e2_length = Float.hypot e2x (Float.hypot e2y e2z) in
   let determinant_scale = e1_length *. e2_length in
-  if determinant_scale = 0. || not (finite determinant_scale)
+  if determinant_scale = 0. || not (Float.is_finite determinant_scale)
       || abs_float determinant <= Float.epsilon *. determinant_scale then false
   else
     let inverse = 1. /. determinant in
@@ -1172,7 +1172,7 @@ let[@inline] ray_triangle_into value triangle ox oy oz dx dy dz minimum maximum
     and qz = (tx *. e1y) -. (ty *. e1x) in
     let v = ((dx *. qx) +. (dy *. qy) +. (dz *. qz)) *. inverse in
     let distance = ((e2x *. qx) +. (e2y *. qy) +. (e2z *. qz)) *. inverse in
-    if not (finite u && finite v && finite distance)
+    if not (Float.is_finite u && Float.is_finite v && Float.is_finite distance)
         || distance < minimum || distance > maximum then false
     else if u >= 0. && v >= 0. && u +. v <= 1. then begin
       scratch.(0) <- distance;
@@ -1269,7 +1269,7 @@ let[@inline] direction_at directions query = match directions with
 let[@inline] normalized_direction vx vy vz =
   let scale = Float.max (abs_float vx)
       (Float.max (abs_float vy) (abs_float vz)) in
-  if not (finite vx && finite vy && finite vz) || scale = 0. then
+  if not (Float.is_finite vx && Float.is_finite vy && Float.is_finite vz) || scale = 0. then
     invalid_arg
       "Surface_index: selected ray directions must be finite and non-zero";
   let sx = vx /. scale and sy = vy /. scale and sz = vz /. scale in
@@ -1286,7 +1286,7 @@ let jittered_direction seed query sample jitter_scale dx dy dz output =
     output.(0) <- dx; output.(1) <- dy; output.(2) <- dz
   end else begin
     let inverse_xy = 1. /. Float.hypot dx dy in
-    let ux, uy, uz = if finite inverse_xy then
+    let ux, uy, uz = if Float.is_finite inverse_xy then
         -.dy *. inverse_xy, dx *. inverse_xy, 0.
       else 1., 0., 0. in
     let vx = (dy *. uz) -. (dz *. uy)
@@ -1416,7 +1416,7 @@ let geometric_normal_into value triangle output =
   and ny = (abz *. acx) -. (abx *. acz)
   and nz = (abx *. acy) -. (aby *. acx) in
   let length = Float.hypot nx (Float.hypot ny nz) in
-  if length = 0. || not (finite length) then begin
+  if length = 0. || not (Float.is_finite length) then begin
     output.(0) <- 0.; output.(1) <- 0.; output.(2) <- 0.
   end else begin
     output.(0) <- nx /. length; output.(1) <- ny /. length;
@@ -1442,7 +1442,7 @@ let raycast_samples_into ?cancel ?selection ~grain value ~queries ~directions
   if grain <= 0 then invalid_arg "Surface_index: grain must be positive";
   if samples < 2 || samples > 1024 then
     invalid_arg "Surface_index: sampled ray count must be between 2 and 1024";
-  if not (finite jitter_scale && jitter_scale >= 0.) then
+  if not (Float.is_finite jitter_scale && jitter_scale >= 0.) then
     invalid_arg "Surface_index: ray jitter scale must be finite and non-negative";
   let query_count = Packed.Float3.length queries in
   validate_sample_arrays query_count ~primitives ~triangles ~barycentric_a
@@ -1489,7 +1489,7 @@ let raycast_samples_into ?cancel ?selection ~grain value ~queries ~directions
       if match selection with None -> true | Some group -> Group.mem query group then begin
         let ox = queries.x.(query) and oy = queries.y.(query)
         and oz = queries.z.(query) in
-        if not (finite ox && finite oy && finite oz) then
+        if not (Float.is_finite ox && Float.is_finite oy && Float.is_finite oz) then
           invalid_arg "Surface_index: selected ray origins must be finite";
         let vx, vy, vz = direction_at directions query in
         let dx, dy, dz = normalized_direction vx vy vz in
@@ -1636,12 +1636,12 @@ let raycast_many_into ?cancel ?selection ~grain value ~queries ~directions
        || Group.length group <> query_count ->
        invalid_arg "Surface_index: ray selection must match query points"
    | None | Some _ -> ());
-  if not (finite min_distance && min_distance >= 0.) then
+  if not (Float.is_finite min_distance && min_distance >= 0.) then
     invalid_arg "Surface_index: minimum ray distance must be finite and non-negative";
-  if not ((finite max_distance || max_distance = Float.infinity)
+  if not ((Float.is_finite max_distance || max_distance = Float.infinity)
       && max_distance >= min_distance) then
     invalid_arg "Surface_index: maximum ray distance must be at least the minimum";
-  if not (finite tolerance && tolerance >= 0.
+  if not (Float.is_finite tolerance && tolerance >= 0.
       && tolerance <= maximum_squared_distance) then
     invalid_arg "Surface_index: ray tolerance must be finite, non-negative, and safely squarable";
   if Array.length primitives < query_count || Array.length triangles < query_count
@@ -1678,9 +1678,9 @@ let raycast_many_into ?cancel ?selection ~grain value ~queries ~directions
           | Per_query_directions values -> values.z.(query) in
         let scale = Float.max (abs_float vx)
             (Float.max (abs_float vy) (abs_float vz)) in
-        if not (finite ox && finite oy && finite oz) then
+        if not (Float.is_finite ox && Float.is_finite oy && Float.is_finite oz) then
           invalid_arg "Surface_index: selected ray origins must be finite";
-        if not (finite vx && finite vy && finite vz) || scale = 0. then
+        if not (Float.is_finite vx && Float.is_finite vy && Float.is_finite vz) || scale = 0. then
           invalid_arg
             "Surface_index: selected ray directions must be finite and non-zero";
         let sx = vx /. scale and sy = vy /. scale and sz = vz /. scale in

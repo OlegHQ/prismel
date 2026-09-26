@@ -1,12 +1,11 @@
 open Prismel_math
 
-let finite = Float.is_finite
 
 let[@inline] clean_length dx dy dz =
   let scale = Float.max (abs_float dx)
       (Float.max (abs_float dy) (abs_float dz)) in
   if scale = 0. then 0.
-  else if not (finite scale) then infinity
+  else if not (Float.is_finite scale) then infinity
   else
     let x = dx /. scale and y = dy /. scale and z = dz /. scale in
     scale *. sqrt ((x *. x) +. (y *. y) +. (z *. z))
@@ -19,7 +18,7 @@ let[@inline] clean_point_distance positions a b =
          (Float.max (abs_float positions.y.(a)) (abs_float positions.y.(b)))
          (Float.max (abs_float positions.z.(a)) (abs_float positions.z.(b)))) in
   if scale = 0. then 0.
-  else if not (finite scale) then infinity
+  else if not (Float.is_finite scale) then infinity
   else clean_length
       ((positions.x.(b) /. scale) -. (positions.x.(a) /. scale))
       ((positions.y.(b) /. scale) -. (positions.y.(a) /. scale))
@@ -30,15 +29,15 @@ let[@inline] clean_triangle_is_degenerate ~epsilon positions a b c =
   and ay = positions.y.(a) and az = positions.z.(a)
   and bx = positions.x.(b) and by = positions.y.(b) and bz = positions.z.(b)
   and cx = positions.x.(c) and cy = positions.y.(c) and cz = positions.z.(c) in
-  if not (finite ax && finite ay && finite az && finite bx && finite by
-      && finite bz && finite cx && finite cy && finite cz) then true
+  if not (Float.is_finite ax && Float.is_finite ay && Float.is_finite az && Float.is_finite bx && Float.is_finite by
+      && Float.is_finite bz && Float.is_finite cx && Float.is_finite cy && Float.is_finite cz) then true
   else
     let ux = bx -. ax and uy = by -. ay and uz = bz -. az
     and vx = cx -. ax and vy = cy -. ay and vz = cz -. az in
     let nx = (uy *. vz) -. (uz *. vy)
     and ny = (uz *. vx) -. (ux *. vz)
     and nz = (ux *. vy) -. (uy *. vx) in
-    if finite nx && finite ny && finite nz then
+    if Float.is_finite nx && Float.is_finite ny && Float.is_finite nz then
       0.5 *. clean_length nx ny nz <= epsilon *. epsilon
     else
       let scale = Float.max (Float.max (Float.max (abs_float ax) (abs_float ay))
@@ -108,8 +107,8 @@ let delete_degenerate ?cancel ~grain ?primitives ~epsilon geometry =
             and az = positions.z.(a) -. oz
             and bx = positions.x.(b) -. ox and by = positions.y.(b) -. oy
             and bz = positions.z.(b) -. oz in
-            if not (finite positions.x.(a) && finite positions.y.(a)
-                && finite positions.z.(a)) then
+            if not (Float.is_finite positions.x.(a) && Float.is_finite positions.y.(a)
+                && Float.is_finite positions.z.(a)) then
               Bytes.unsafe_set flags primitive '\001'
             else if Bytes.unsafe_get flags primitive <> '\001' then begin
               let nx = scratch_b.(primitive) +. ((ay *. bz) -. (az *. by))
@@ -118,7 +117,7 @@ let delete_degenerate ?cancel ~grain ?primitives ~epsilon geometry =
               scratch_b.(primitive) <- nx;
               scratch_c.(primitive) <- ny;
               scratch_d.(primitive) <- nz;
-              if not (finite nx && finite ny && finite nz) then
+              if not (Float.is_finite nx && Float.is_finite ny && Float.is_finite nz) then
                 Bytes.unsafe_set flags primitive '\002'
             end
           done;
@@ -178,7 +177,7 @@ let delete_degenerate ?cancel ~grain ?primitives ~epsilon geometry =
             scratch_a.(primitive) <- scratch_a.(primitive)
               +. clean_point_distance positions a b
           done;
-          if not (finite scratch_a.(primitive))
+          if not (Float.is_finite scratch_a.(primitive))
               || scratch_a.(primitive) <= epsilon then
             Bytes.unsafe_set flags primitive '\001'
         end)
@@ -431,10 +430,10 @@ let run ?cancel ?(grain = 16_384) ?(epsilon = 1e-12)
     ?point_groups ?vertex_groups ?primitive_groups ?edge_groups
     ~consolidate ~compact geometry =
   if grain <= 0 then invalid_arg "Pdk_mesh.Clean.clean: grain must be positive";
-  if not (finite epsilon) || epsilon < 0. then
+  if not (Float.is_finite epsilon) || epsilon < 0. then
     Error "Pdk_mesh.Clean.clean: epsilon must be finite and non-negative"
   else if (match consolidate_distance with
-    | Some value -> not (finite value) || value < 0.
+    | Some value -> not (Float.is_finite value) || value < 0.
     | None -> false) then
     Error "Pdk_mesh.Clean.clean: consolidate distance must be finite and non-negative"
   else begin

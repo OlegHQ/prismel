@@ -1,6 +1,5 @@
 open Prismel_math
 
-let finite = Float.is_finite
 
 let run ?cancel ?(grain = 16_384) ?primitives geometry =
   try
@@ -58,7 +57,7 @@ let run ?cancel ?(grain = 16_384) ?primitives geometry =
         let scale = Float.max scale (abs_float vx) in
         let scale = Float.max scale (abs_float vy) in
         let scale = Float.max scale (abs_float vz) in
-        if scale = 0. || not (finite scale) then -1
+        if scale = 0. || not (Float.is_finite scale) then -1
         else
           let ux = ux /. scale and uy = uy /. scale and uz = uz /. scale
           and vx = vx /. scale and vy = vy /. scale and vz = vz /. scale in

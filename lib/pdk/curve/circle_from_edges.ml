@@ -2,7 +2,6 @@ open Prismel_math
 
 exception Circle_error of string
 let fail message = raise (Circle_error message)
-let finite = Float.is_finite
 
 let[@inline always] maximum_abs left right =
   let left = abs_float left and right = abs_float right in
@@ -10,11 +9,11 @@ let[@inline always] maximum_abs left right =
 
 let write_unit ~canonical output_x output_y output_z at x y z =
   let scale = maximum_abs x (maximum_abs y z) in
-  if scale = 0. || not (finite scale) then false
+  if scale = 0. || not (Float.is_finite scale) then false
   else
     let x = x /. scale and y = y /. scale and z = z /. scale in
     let length = sqrt ((x *. x) +. (y *. y) +. (z *. z)) in
-    if length = 0. || not (finite length) then false
+    if length = 0. || not (Float.is_finite length) then false
     else begin
       let x = x /. length and y = y /. length and z = z /. length in
       let negative = if canonical then begin
@@ -38,7 +37,7 @@ let atomic_min target candidate =
 
 let write_eigenvector output_x output_y output_z at xx xy xz yy yz zz off
     minimum middle maximum =
-  if not (finite middle && finite maximum) || maximum <= 0.
+  if not (Float.is_finite middle && Float.is_finite maximum) || maximum <= 0.
       || middle <= (512. *. Float.epsilon *. maximum) then false
   else if off = 0. then begin
     if xx <= yy && xx <= zz then begin
@@ -82,7 +81,7 @@ let write_smallest_normal output_x output_y output_z at xx xy xz yy yz zz =
     let ax = xx -. q and ay = yy -. q and az = zz -. q in
     let p2 = (ax *. ax) +. (ay *. ay) +. (az *. az) +. (2. *. off) in
     let p = sqrt (p2 /. 6.) in
-    if p = 0. || not (finite p) then
+    if p = 0. || not (Float.is_finite p) then
       write_eigenvector output_x output_y output_z at xx xy xz yy yz zz off
         q q q
     else begin
@@ -126,10 +125,10 @@ let run ?cancel ?(grain = 16_384) ?edges ?radius
   try
     if grain <= 0 then fail "Circle from Edges grain must be positive";
     (match radius with
-     | Some value when not (finite value) || value <= 0. ->
+     | Some value when not (Float.is_finite value) || value <= 0. ->
          fail "Circle from Edges radius must be finite and positive"
      | None | Some _ -> ());
-    if not (finite scale.Vec3.x && finite scale.y && finite scale.z) then
+    if not (Float.is_finite scale.Vec3.x && Float.is_finite scale.y && Float.is_finite scale.z) then
       fail "Circle from Edges scale must be finite";
     Option.iter (fun name -> if String.trim name = "" then
       fail "Circle from Edges output edge group name must not be empty")
@@ -199,9 +198,9 @@ let run ?cancel ?(grain = 16_384) ?edges ?radius
         if selected edge then begin
           let a = view.edge_a.(edge) and b = view.edge_b.(edge) in
           if !invalid_edge < 0 && (a = b
-              || not (finite positions.x.(a) && finite positions.y.(a)
-                && finite positions.z.(a) && finite positions.x.(b)
-                && finite positions.y.(b) && finite positions.z.(b))) then
+              || not (Float.is_finite positions.x.(a) && Float.is_finite positions.y.(a)
+                && Float.is_finite positions.z.(a) && Float.is_finite positions.x.(b)
+                && Float.is_finite positions.y.(b) && Float.is_finite positions.z.(b))) then
             invalid_edge := edge;
           Bytes.set touched a '\001'; Bytes.set touched b '\001';
           degree.(a) <- degree.(a) + 1; degree.(b) <- degree.(b) + 1;
@@ -371,7 +370,7 @@ let run ?cancel ?(grain = 16_384) ?edges ?radius
               let fitted = match radius with
                 | None -> !sum *. inverse
                 | Some value -> value /. coordinate in
-              if not (finite cx && finite cy && finite cz && finite fitted)
+              if not (Float.is_finite cx && Float.is_finite cy && Float.is_finite cz && Float.is_finite fitted)
                   || fitted <= 0. then errors.(component) <- 2
               else begin
                 center_x.(component) <- cx; center_y.(component) <- cy;
@@ -403,7 +402,7 @@ let run ?cancel ?(grain = 16_384) ?edges ?radius
           and dv = (dx *. axis_v_x.(component))
               +. (dy *. axis_v_y.(component)) +. (dz *. axis_v_z.(component)) in
           let radial = sqrt ((du *. du) +. (dv *. dv)) in
-          if radial = 0. || not (finite radial) then
+          if radial = 0. || not (Float.is_finite radial) then
             atomic_min first_bad point
           else begin
             let amount = fitted_radius.(component) /. radial in
@@ -416,7 +415,7 @@ let run ?cancel ?(grain = 16_384) ?edges ?radius
             let px = coordinate *. (center_x.(component) +. (scale.x *. qx))
             and py = coordinate *. (center_y.(component) +. (scale.y *. qy))
             and pz = coordinate *. (center_z.(component) +. (scale.z *. qz)) in
-            if finite px && finite py && finite pz then begin
+            if Float.is_finite px && Float.is_finite py && Float.is_finite pz then begin
               x.(point) <- px; y.(point) <- py; z.(point) <- pz
             end else atomic_min first_bad point
           end

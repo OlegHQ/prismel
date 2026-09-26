@@ -58,7 +58,6 @@ type group_rule = Fuse_rules.group_rule = {
 exception Invalid of string
 
 let get_ok = function Ok value -> value | Error message -> raise (Invalid message)
-let finite = Float.is_finite
 
 let select source mapping = Array.init (Array.length mapping) (fun index ->
     source.(mapping.(index)))
@@ -77,7 +76,7 @@ let average_plane ~grain clusters source =
         sum := !sum +. source.(clusters.members.(slot))
       done;
       let count = clusters.offsets.(cluster + 1) - clusters.offsets.(cluster) in
-      if finite !sum then output.(cluster) <- !sum /. float_of_int count
+      if Float.is_finite !sum then output.(cluster) <- !sum /. float_of_int count
       else begin
         let scale = ref 0. in
         for slot = clusters.offsets.(cluster) to clusters.offsets.(cluster + 1) - 1 do
@@ -243,7 +242,7 @@ let weight_values name geometry =
         | _ -> raise (Invalid (Printf.sprintf
             "Pdk.Fuse_reduce.fuse: position weight attribute %S must be scalar float or integer"
             name)) in
-      Array.iteri (fun point value -> if not (finite value) then
+      Array.iteri (fun point value -> if not (Float.is_finite value) then
         raise (Invalid (Printf.sprintf
           "Pdk.Fuse_reduce.fuse: position weight attribute %S is non-finite at point %d"
           name point))) values;
@@ -262,7 +261,7 @@ let selected_by_weight clusters weights minimum =
 
 let validate_positions x y z =
   for point = 0 to Array.length x - 1 do
-    if not (finite x.(point) && finite y.(point) && finite z.(point)) then
+    if not (Float.is_finite x.(point) && Float.is_finite y.(point) && Float.is_finite z.(point)) then
       raise (Invalid (Printf.sprintf
         "Pdk.Fuse_reduce.fuse: position reduction is non-finite at output point %d" point))
   done

@@ -30,7 +30,6 @@ type pair = {
   point_first : int;
 }
 
-let finite = Float.is_finite
 
 let checked_add label left right =
   if right < 0 || left > max_int - right then
@@ -55,7 +54,7 @@ let robust_length x y z =
   let ax = abs_float x and ay = abs_float y and az = abs_float z in
   let scale = max ax (max ay az) in
   if scale = 0. then 0.
-  else if not (finite scale) then Float.nan
+  else if not (Float.is_finite scale) then Float.nan
   else
     let x = x /. scale and y = y /. scale and z = z /. scale in
     scale *. sqrt ((x *. x) +. (y *. y) +. (z *. z))
@@ -118,8 +117,8 @@ let validate_selected_positions label geometry curves =
     while !failure = None && !local < value.count do
       let vertex = value.first + !local in
       let point = Topology.point_of_vertex topology vertex in
-      if not (finite positions.x.(point) && finite positions.y.(point)
-          && finite positions.z.(point)) then
+      if not (Float.is_finite positions.x.(point) && Float.is_finite positions.y.(point)
+          && Float.is_finite positions.z.(point)) then
         failure := Some (Printf.sprintf "%s point %d is not finite" label point);
       let has_edge = !local + 1 < value.count || value.closed in
       if has_edge then begin
@@ -129,7 +128,7 @@ let validate_selected_positions label geometry curves =
             (positions.x.(next_point) -. positions.x.(point))
             (positions.y.(next_point) -. positions.y.(point))
             (positions.z.(next_point) -. positions.z.(point)) in
-        if length <= 1e-20 || not (finite length) then
+        if length <= 1e-20 || not (Float.is_finite length) then
           failure := Some (Printf.sprintf
               "%s primitive %d has a zero-length or non-finite edge at vertex %d"
               label value.primitive vertex)
@@ -171,7 +170,7 @@ let validate_selected_float ?cancel topology curves values name =
     while !failure = None && !local < curve.count do
       if !local land 4095 = 0 then Cancel.check_opt cancel;
       let point = Topology.point_of_vertex topology (curve.first + !local) in
-      if not (finite values.(point)) then failure := Some (Printf.sprintf
+      if not (Float.is_finite values.(point)) then failure := Some (Printf.sprintf
           "point attribute %S is not finite at selected point %d" name point);
       incr local
     done;
@@ -187,8 +186,8 @@ let validate_selected_float3 ?cancel topology curves
     while !failure = None && !local < curve.count do
       if !local land 4095 = 0 then Cancel.check_opt cancel;
       let point = Topology.point_of_vertex topology (curve.first + !local) in
-      if not (finite values.x.(point) && finite values.y.(point)
-          && finite values.z.(point)) then failure := Some (Printf.sprintf
+      if not (Float.is_finite values.x.(point) && Float.is_finite values.y.(point)
+          && Float.is_finite values.z.(point)) then failure := Some (Printf.sprintf
           "point attribute %S is not finite at selected point %d" name point);
       incr local
     done;
@@ -204,8 +203,8 @@ let validate_selected_float4 ?cancel topology curves
     while !failure = None && !local < curve.count do
       if !local land 4095 = 0 then Cancel.check_opt cancel;
       let point = Topology.point_of_vertex topology (curve.first + !local) in
-      if not (finite values.x.(point) && finite values.y.(point)
-          && finite values.z.(point) && finite values.w.(point)) then
+      if not (Float.is_finite values.x.(point) && Float.is_finite values.y.(point)
+          && Float.is_finite values.z.(point) && Float.is_finite values.w.(point)) then
         failure := Some (Printf.sprintf
             "point attribute %S is not finite at selected point %d" name point);
       incr local
@@ -232,7 +231,7 @@ let quaternion_basis_into (orient : Packed.Float4.Private.view) point vertex
   let x = orient.x.(point) and y = orient.y.(point)
   and z = orient.z.(point) and w = orient.w.(point) in
   let norm = sqrt ((x *. x) +. (y *. y) +. (z *. z) +. (w *. w)) in
-  if norm <= 1e-20 || not (finite norm) then false
+  if norm <= 1e-20 || not (Float.is_finite norm) then false
   else
     let x = x /. norm and y = y /. norm and z = z /. norm and w = w /. norm in
     let xx = x *. x and yy = y *. y and zz = z *. z
@@ -266,11 +265,11 @@ type frame_data = {
 let normalize_into x y z ox oy oz index =
   let ax = abs_float x and ay = abs_float y and az = abs_float z in
   let scale = max ax (max ay az) in
-  if scale = 0. || not (finite scale) then false
+  if scale = 0. || not (Float.is_finite scale) then false
   else
     let x = x /. scale and y = y /. scale and z = z /. scale in
     let length = sqrt ((x *. x) +. (y *. y) +. (z *. z)) in
-    if length = 0. || not (finite length) then false
+    if length = 0. || not (Float.is_finite length) then false
     else begin
       ox.(index) <- x /. length;
       oy.(index) <- y /. length;
@@ -645,8 +644,8 @@ let run ?cancel ~grain ?backbones ?cross_sections ~connectivity ~tangent
     ~roll ~twist ~caps ?cap_group ~uv_attribute ~cross_section_prefix
     ~backbone ~cross_section () =
   if grain <= 0 then invalid_arg "Pdk_curve.Sweep.sweep: grain must be positive";
-  if not (finite scale) then Error "Pdk_curve.Sweep.sweep: scale must be finite"
-  else if not (finite roll && finite twist) then
+  if not (Float.is_finite scale) then Error "Pdk_curve.Sweep.sweep: scale must be finite"
+  else if not (Float.is_finite roll && Float.is_finite twist) then
     Error "Pdk_curve.Sweep.sweep: roll and twist must be finite"
   else if caps && not (surface_connectivity connectivity) then
     Error "Pdk_curve.Sweep.sweep: caps require polygon surface connectivity"
@@ -894,7 +893,7 @@ let run ?cancel ~grain ?backbones ?cross_sections ~connectivity ~tangent
                      +. (lx *. frames.out_z.(backbone_vertex))
                      +. (ly *. frames.up_z.(backbone_vertex))
                      +. (lz *. frames.tangent_z.(backbone_vertex)) in
-                 if finite x && finite y && finite z then begin
+                 if Float.is_finite x && Float.is_finite y && Float.is_finite z then begin
                    px.(output) <- x; py.(output) <- y; pz.(output) <- z
                  end else Bytes.set invalid_points output '\001';
                  if need_backbone_point_map then

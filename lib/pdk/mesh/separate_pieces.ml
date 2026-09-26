@@ -4,7 +4,6 @@ type mode = Separate_pieces_separate | Separate_pieces_move_back
 
 exception Separate_pieces_error of string
 let fail message = raise (Separate_pieces_error message)
-let finite = Float.is_finite
 
 module Int_table = Hashtbl.Make (struct
   type t = int
@@ -29,7 +28,7 @@ let validate_name label name =
   if String.trim name = "" then fail (label ^ " must not be empty")
 
 let normalized_axis axis =
-  if not (finite axis.Vec3.x && finite axis.y && finite axis.z) then
+  if not (Float.is_finite axis.Vec3.x && Float.is_finite axis.y && Float.is_finite axis.z) then
     fail "packing axis must be finite";
   let scale = max (abs_float axis.x)
       (max (abs_float axis.y) (abs_float axis.z)) in
@@ -176,7 +175,7 @@ let validate_positions_and_project ?cancel ~grain axis point_piece geometry =
         and z = Array.unsafe_get positions.z point in
         let value = (x *. axis.Vec3.x) +. (y *. axis.y) +. (z *. axis.z) in
         if !first_error < 0
-            && not (finite x && finite y && finite z && finite value) then
+            && not (Float.is_finite x && Float.is_finite y && Float.is_finite z && Float.is_finite value) then
           first_error := point;
         Array.unsafe_set projection point value
       end
@@ -229,8 +228,8 @@ let piece_translations ?cancel ~axis ~gap minimum maximum =
       let translated_high = high +. offset in
       let has_next = piece < !last_nonempty in
       let next = if has_next then translated_high +. gap else translated_high in
-      if not (finite offset && finite translated_low && finite translated_high
-          && finite next)
+      if not (Float.is_finite offset && Float.is_finite translated_low && Float.is_finite translated_high
+          && Float.is_finite next)
           || (!placed && translated_low < !cursor)
           || (has_next && gap > 0. && next <= translated_high) then fail (Printf.sprintf
           "packing translation is not representable for piece %d" piece);
@@ -280,7 +279,7 @@ let point_translations_of_primitive ?cancel ~grain values geometry =
         let tx = Array.unsafe_get values.x primitive
         and ty = Array.unsafe_get values.y primitive
         and tz = Array.unsafe_get values.z primitive in
-        if not (finite tx && finite ty && finite tz) then first_error := point;
+        if not (Float.is_finite tx && Float.is_finite ty && Float.is_finite tz) then first_error := point;
         let corner = ref (corner_first + 1) in
         while !first_error < 0 && !corner < corner_last do
           let vertex = Array.unsafe_get index.point_vertices !corner in
@@ -330,7 +329,7 @@ let translated_positions ?cancel ~grain ?assigned ~direction tx ty tz geometry =
         let px = Array.unsafe_get source.x point +. dx
         and py = Array.unsafe_get source.y point +. dy
         and pz = Array.unsafe_get source.z point +. dz in
-        if !first_error < 0 && not (finite px && finite py && finite pz) then
+        if !first_error < 0 && not (Float.is_finite px && Float.is_finite py && Float.is_finite pz) then
           first_error := point;
         if change_x then Array.unsafe_set x point px;
         if change_y then Array.unsafe_set y point py;
@@ -371,7 +370,7 @@ let translated_positions_by_piece ?cancel ~grain point_piece piece_x piece_y
             +. Array.unsafe_get piece_y piece
         and pz = Array.unsafe_get source.z point
             +. Array.unsafe_get piece_z piece in
-        if !first_error < 0 && not (finite px && finite py && finite pz) then
+        if !first_error < 0 && not (Float.is_finite px && Float.is_finite py && Float.is_finite pz) then
           first_error := point;
         if change_x then Array.unsafe_set x point px;
         if change_y then Array.unsafe_set y point py;
@@ -446,7 +445,7 @@ let run ?cancel ?(grain = 16_384) ?(owner = Attribute.Primitive)
     validate_name "translation attribute name" translation_attribute;
     if String.equal piece_attribute translation_attribute then
       fail "piece and translation attribute names must differ";
-    if not (finite gap) || gap < 0. then
+    if not (Float.is_finite gap) || gap < 0. then
       fail "piece gap must be finite and non-negative";
     (match owner with
      | Attribute.Point | Attribute.Primitive -> ()

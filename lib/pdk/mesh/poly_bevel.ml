@@ -5,7 +5,6 @@ type shape =
   | Bevel_round of { convexity : float }
 
 let ( let* ) = Result.bind
-let finite = Float.is_finite
 
 let checked_length label value =
   if Int64.compare value 0L < 0
@@ -33,7 +32,7 @@ let[@inline always] unit_between positions source destination =
   and dy = positions.y.(destination) -. positions.y.(source)
   and dz = positions.z.(destination) -. positions.z.(source) in
   let length = length3 dx dy dz in
-  if length = 0. || not (finite length) then None
+  if length = 0. || not (Float.is_finite length) then None
   else Some (dx /. length, dy /. length, dz /. length, length)
 
 let merge_group value groups =
@@ -173,7 +172,7 @@ let run ?cancel ?(grain = 16_384) ?edges ?(shape = Bevel_chamfer)
     ?(clamp_overlap = true) ?edge_group ?corner_group ?offset_group
     ?(recompute_point_normals = true) ~distance geometry =
   if grain <= 0 then invalid_arg "Pdk_mesh.Poly_bevel.poly_bevel: grain must be positive";
-  if not (finite distance) || distance < 0. then
+  if not (Float.is_finite distance) || distance < 0. then
     Error "Pdk_mesh.Poly_bevel.poly_bevel: distance must be finite and non-negative"
   else if divisions <= 0 then
     Error "Pdk_mesh.Poly_bevel.poly_bevel: divisions must be positive"
@@ -181,12 +180,12 @@ let run ?cancel ?(grain = 16_384) ?edges ?(shape = Bevel_chamfer)
   let* () = match shape with
     | Bevel_chamfer -> Ok ()
     | Bevel_round { convexity }
-      when finite convexity && convexity >= -1. && convexity <= 1. -> Ok ()
+      when Float.is_finite convexity && convexity >= -1. && convexity <= 1. -> Ok ()
     | Bevel_round _ ->
         Error "Pdk_mesh.Poly_bevel.poly_bevel: round convexity must be finite and within [-1, 1]" in
   let* () = match ignore_flat_angle with
     | None -> Ok ()
-    | Some value when finite value && value >= 0. && value <= Float.pi -> Ok ()
+    | Some value when Float.is_finite value && value >= 0. && value <= Float.pi -> Ok ()
     | Some _ ->
         Error "Pdk_mesh.Poly_bevel.poly_bevel: flatness angle must be finite and within [0, pi]" in
   let* () = validate_name "edge fillet" edge_group in
@@ -229,8 +228,8 @@ let run ?cancel ?(grain = 16_384) ?edges ?(shape = Bevel_chamfer)
         let point = ref 0 in
         while !invalid < 0 && !point < Array.length values do
           let value = values.(!point) in
-          if not (finite value) || value < 0.
-              || not (finite (distance *. value)) then invalid := !point;
+          if not (Float.is_finite value) || value < 0.
+              || not (Float.is_finite (distance *. value)) then invalid := !point;
           incr point
         done;
         if !invalid < 0 then Ok () else Error (Printf.sprintf
@@ -333,7 +332,7 @@ let run ?cancel ?(grain = 16_384) ?edges ?(shape = Bevel_chamfer)
           incr touched_count;
           let point = topology_view.vertex_points.(vertex) in
           let amount = scale_at point in
-          if not (finite amount) then assert false;
+          if not (Float.is_finite amount) then assert false;
           if outgoing_selected then begin
             move_to_previous.(vertex) <- amount;
             let opposite = index.opposite_vertex.(vertex) in
@@ -549,7 +548,7 @@ let run ?cancel ?(grain = 16_384) ?edges ?(shape = Bevel_chamfer)
                      x := !x +. move_to_next.(vertex) *. dx;
                      y := !y +. move_to_next.(vertex) *. dy;
                      z := !z +. move_to_next.(vertex) *. dz);
-              if not (finite !x && finite !y && finite !z) then
+              if not (Float.is_finite !x && Float.is_finite !y && Float.is_finite !z) then
                 ignore (Atomic.compare_and_set invalid_position (-1) vertex)
               else begin
                 px.(output) <- !x; py.(output) <- !y; pz.(output) <- !z;

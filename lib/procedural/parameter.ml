@@ -116,14 +116,13 @@ let validate_int_range (range : int_range) =
         "Parameter.integer: soft max must not exceed hard max") range.hard_max
 
 let validate_float_range (range : float_range) =
-  let finite = Float.is_finite in
-  if not (finite range.soft_min && finite range.soft_max)
+  if not (Float.is_finite range.soft_min && Float.is_finite range.soft_max)
      || range.soft_max <= range.soft_min
   then invalid_arg
       "Parameter.floating: soft bounds must be finite and increasing";
-  Option.iter (fun value -> if not (finite value) then invalid_arg
+  Option.iter (fun value -> if not (Float.is_finite value) then invalid_arg
       "Parameter.floating: hard bounds must be finite") range.hard_min;
-  Option.iter (fun value -> if not (finite value) then invalid_arg
+  Option.iter (fun value -> if not (Float.is_finite value) then invalid_arg
       "Parameter.floating: hard bounds must be finite") range.hard_max;
   (match range.hard_min, range.hard_max with
    | Some low, Some high when high < low ->

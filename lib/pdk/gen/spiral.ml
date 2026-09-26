@@ -42,14 +42,13 @@ type profile = {
   uniform_scale : float;
 }
 
-let finite = Float.is_finite
 let get_ok = function Ok value -> value | Error message -> invalid_arg message
 
 let compile_ramp label source =
   match source with
   | [] -> Ok None
   | [position, value] ->
-      if not (finite position && finite value && position >= 0. && position <= 1.)
+      if not (Float.is_finite position && Float.is_finite value && position >= 0. && position <= 1.)
       then Error ("Pdk.Spiral.spiral: " ^ label
           ^ " ramp point must be finite and inside [0, 1]")
       else Ok (Some { positions = [|position|]; values = [|value|]; slopes = [||] })
@@ -58,7 +57,7 @@ let compile_ramp label source =
       let positions = Array.make count 0. and values = Array.make count 0. in
       let valid = ref true and previous = ref (-1.) in
       List.iteri (fun index (position, value) ->
-        if not (finite position && finite value && position >= 0.
+        if not (Float.is_finite position && Float.is_finite value && position >= 0.
             && position <= 1. && position > !previous) then valid := false;
         positions.(index) <- position; values.(index) <- value;
         previous := position) source;
@@ -154,7 +153,7 @@ let[@inline always] gauss_length profile lower upper =
           +. speed profile (midpoint +. (half *. n2)))))
 
 let normalize_axis label value =
-  if not (finite value.Vec3.x && finite value.y && finite value.z) then
+  if not (Float.is_finite value.Vec3.x && Float.is_finite value.y && Float.is_finite value.z) then
     Error ("Pdk.Spiral.spiral: " ^ label ^ " axis must be finite")
   else
     let scale = max (abs_float value.x)
@@ -238,27 +237,27 @@ let generate ?cancel ?(grain = 16_384)
     ?tangent_attribute ?orient_attribute ?distance_attribute () =
   let turns, height, extent_valid = match extent with
     | Spiral_turns { turns; height } -> turns, height,
-        finite turns && turns > 0. && finite height
+        Float.is_finite turns && turns > 0. && Float.is_finite height
     | Spiral_height_pitch { height; pitch } ->
         let turns = height /. pitch in
-        turns, height, finite height && finite pitch && pitch <> 0.
-          && finite turns && turns > 0. in
+        turns, height, Float.is_finite height && Float.is_finite pitch && pitch <> 0.
+          && Float.is_finite turns && turns > 0. in
   let radius_valid, base_end_radius = match radius with
     | Spiral_archimedean_change { start_radius; increase_per_turn } ->
         let end_radius = start_radius +. (increase_per_turn *. turns) in
-        finite start_radius && start_radius >= 0.
-          && finite increase_per_turn && finite end_radius && end_radius >= 0.,
+        Float.is_finite start_radius && start_radius >= 0.
+          && Float.is_finite increase_per_turn && Float.is_finite end_radius && end_radius >= 0.,
         end_radius
     | Spiral_archimedean_end { start_radius; end_radius } ->
-        finite start_radius && start_radius >= 0. && finite end_radius
+        Float.is_finite start_radius && start_radius >= 0. && Float.is_finite end_radius
           && end_radius >= 0., end_radius
     | Spiral_logarithmic_change { start_radius; scale_per_turn } ->
         let end_radius = start_radius *. exp (log scale_per_turn *. turns) in
-        finite start_radius && start_radius > 0. && finite scale_per_turn
-          && scale_per_turn > 0. && finite end_radius && end_radius > 0.,
+        Float.is_finite start_radius && start_radius > 0. && Float.is_finite scale_per_turn
+          && scale_per_turn > 0. && Float.is_finite end_radius && end_radius > 0.,
         end_radius
     | Spiral_logarithmic_end { start_radius; end_radius } ->
-        finite start_radius && start_radius > 0. && finite end_radius
+        Float.is_finite start_radius && start_radius > 0. && Float.is_finite end_radius
           && end_radius > 0., end_radius in
   let segment_count = match divisions with
     | Spiral_divisions_per_curve count -> if count > 0 then Some count else None
@@ -266,18 +265,18 @@ let generate ?cancel ?(grain = 16_384)
         if count <= 0 then None
         else
           let segments = ceil (turns *. float_of_int count) in
-          if not (finite segments) || segments > float_of_int max_int then None
+          if not (Float.is_finite segments) || segments > float_of_int max_int then None
           else Some (max 1 (int_of_float segments)) in
   if grain <= 0 then Error "Pdk.Spiral.spiral: grain must be positive"
   else if not extent_valid then
     Error "Pdk.Spiral.spiral: turns must be finite/positive; height and pitch must be finite with height/pitch positive"
   else if not radius_valid then
     Error "Pdk.Spiral.spiral: radius profile must remain finite and non-negative; logarithmic radii/scales must be positive"
-  else if not (finite radius_scale && radius_scale > 0.
-      && finite uniform_scale && uniform_scale > 0. && finite start_angle) then
+  else if not (Float.is_finite radius_scale && radius_scale > 0.
+      && Float.is_finite uniform_scale && uniform_scale > 0. && Float.is_finite start_angle) then
     Error "Pdk.Spiral.spiral: radius scale and uniform scale must be finite/positive and start angle finite"
-  else if not (finite center.x && finite center.y && finite center.z
-      && finite rotation.x && finite rotation.y && finite rotation.z) then
+  else if not (Float.is_finite center.x && Float.is_finite center.y && Float.is_finite center.z
+      && Float.is_finite rotation.x && Float.is_finite rotation.y && Float.is_finite rotation.z) then
     Error "Pdk.Spiral.spiral: center and rotation must be finite"
   else if spiral_count <= 0 then Error "Pdk.Spiral.spiral: spiral count must be positive"
   else match segment_count with
@@ -377,12 +376,12 @@ let generate ?cancel ?(grain = 16_384)
             for segment = 0 to integration_count - 1 do
               if segment land 4095 = 0 then Cancel.check_opt cancel;
               let length = lengths.(segment) in
-              if not (finite length && length >= 0.) && !invalid < 0 then
+              if not (Float.is_finite length && length >= 0.) && !invalid < 0 then
                 invalid := segment;
               prefix.(segment + 1) <- prefix.(segment) +. length
             done;
             let total = prefix.(integration_count) in
-            if !invalid >= 0 || not (finite total) || total <= 0. then
+            if !invalid >= 0 || not (Float.is_finite total) || total <= 0. then
               raise (Invalid_spiral
                 "Pdk.Spiral.spiral: equal-arc integration produced a non-finite or zero curve length");
             t_values.(0) <- 0.; t_values.(segment_count) <- 1.;
@@ -407,7 +406,7 @@ let generate ?cancel ?(grain = 16_384)
                   let current_length = prefix.(bin)
                       +. gauss_length profile lower !estimate
                   and current_speed = speed profile !estimate in
-                  if current_speed > 0. && finite current_speed then
+                  if current_speed > 0. && Float.is_finite current_speed then
                     estimate := Float.max lower (Float.min upper
                       (!estimate -. ((current_length -. target) /. current_speed)))
                 done;
@@ -430,7 +429,7 @@ let generate ?cancel ?(grain = 16_384)
                 let angle = start_angle +. (angular_rate *. t)
                 and radius = final_radius profile t *. uniform_scale
                 and height = final_height profile t *. uniform_scale in
-                if finite angle && finite radius && finite height then begin
+                if Float.is_finite angle && Float.is_finite radius && Float.is_finite height then begin
                   base_angle.(point) <- angle;
                   base_sine.(point) <- sin angle;
                   base_cosine.(point) <- cos angle;
@@ -480,7 +479,7 @@ let generate ?cancel ?(grain = 16_384)
                       +. (z_axis.y *. lz)
                   and z = center.z +. (x_axis.z *. lx) +. (y_axis.z *. ly)
                       +. (z_axis.z *. lz) in
-                  if finite x && finite y && finite z then begin
+                  if Float.is_finite x && Float.is_finite y && Float.is_finite z then begin
                     px.(point) <- x; py.(point) <- y; pz.(point) <- z;
                     vertex_points.(point) <- point;
                     (match angle_values with
@@ -593,7 +592,7 @@ let generate ?cancel ?(grain = 16_384)
                       let tangent_scale = if adx >= ady then
                           if adx >= adz then adx else adz
                         else if ady >= adz then ady else adz in
-                      if tangent_scale = 0. || not (finite tangent_scale) then
+                      if tangent_scale = 0. || not (Float.is_finite tangent_scale) then
                         frame_errors.(range) <- if frame_errors.(range) < 0
                           then point else frame_errors.(range)
                       else begin

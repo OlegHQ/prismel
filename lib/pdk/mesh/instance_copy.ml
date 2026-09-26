@@ -1,6 +1,5 @@
 open Prismel_math
 
-let finite = Float.is_finite
 let get_ok = function Ok value -> value | Error message -> invalid_arg message
 let merge = Mesh_merge.merge
 
@@ -46,7 +45,7 @@ let point_affine_transform geometry name =
                let first = view.offsets.(row) and last = view.offsets.(row + 1) in
                if last - first <> width then valid := false;
                for value = first to last - 1 do
-                 if not (finite view.values.(value)) then valid := false
+                 if not (Float.is_finite view.values.(value)) then valid := false
                done;
                if width = 16 && (abs_float view.values.(first + 12) > 1e-12
                    || abs_float view.values.(first + 13) > 1e-12
@@ -558,7 +557,7 @@ let materialize_instances ?cancel ?(grain = 16_384) ?(apply_transform = true)
   if apply_transform then Array.iteri (fun instance matrix ->
       for row = 0 to 3 do for column = 0 to 3 do
         if !invalid_transform < 0
-            && not (finite (Mat4.get matrix ~row ~column)) then
+            && not (Float.is_finite (Mat4.get matrix ~row ~column)) then
           invalid_transform := instance
       done done) matrices;
   let total = Array.length matrices in
@@ -855,9 +854,9 @@ let copy_to_points_all ?cancel ?(grain = 16_384) ~target_attributes
           sz.(index) <- sz.(index) *. values.z.(index)
         done) scale
     end;
-    if Array.exists (fun value -> not (finite value)) sx
-       || Array.exists (fun value -> not (finite value)) sy
-       || Array.exists (fun value -> not (finite value)) sz
+    if Array.exists (fun value -> not (Float.is_finite value)) sx
+       || Array.exists (fun value -> not (Float.is_finite value)) sy
+       || Array.exists (fun value -> not (Float.is_finite value)) sz
     then Error "Pdk.Instance_copy.copy_to_points: target scales must be finite"
     else
       let r00 = Array.make copies 1. and r01 = Array.make copies 0.
@@ -869,7 +868,7 @@ let copy_to_points_all ?cancel ?(grain = 16_384) ~target_attributes
       let set_quaternion index x y z w =
         let scale = max (abs_float x) (max (abs_float y)
             (max (abs_float z) (abs_float w))) in
-        if not (finite scale) then orientation_is_finite := false
+        if not (Float.is_finite scale) then orientation_is_finite := false
         else if scale > 0. then begin
           let x = x /. scale and y = y /. scale and z = z /. scale
           and w = w /. scale in
@@ -924,7 +923,7 @@ let copy_to_points_all ?cancel ?(grain = 16_384) ~target_attributes
             let nx = normals.x.(index) and ny = normals.y.(index)
             and nz = normals.z.(index) in
             let nscale = max (abs_float nx) (max (abs_float ny) (abs_float nz)) in
-            if not (finite nscale) then orientation_is_finite := false
+            if not (Float.is_finite nscale) then orientation_is_finite := false
             else if nscale > 0. then begin
               let nx = nx /. nscale and ny = ny /. nscale and nz = nz /. nscale in
               let nlength = sqrt ((nx *. nx) +. (ny *. ny) +. (nz *. nz)) in
@@ -937,7 +936,7 @@ let copy_to_points_all ?cancel ?(grain = 16_384) ~target_attributes
                     and uz = up.z.(index) in
                     let uscale = max (abs_float ux)
                         (max (abs_float uy) (abs_float uz)) in
-                    if not (finite uscale) then begin
+                    if not (Float.is_finite uscale) then begin
                       orientation_is_finite := false; true
                     end else if uscale = 0. then false
                     else begin
@@ -973,7 +972,7 @@ let copy_to_points_all ?cancel ?(grain = 16_384) ~target_attributes
       let post_quaternion index x y z w =
         let scale = max (abs_float x) (max (abs_float y)
             (max (abs_float z) (abs_float w))) in
-        if not (finite scale) then orientation_is_finite := false
+        if not (Float.is_finite scale) then orientation_is_finite := false
         else if scale > 0. then begin
           let x = x /. scale and y = y /. scale and z = z /. scale
           and w = w /. scale in
@@ -1053,9 +1052,9 @@ let copy_to_points_all ?cancel ?(grain = 16_384) ~target_attributes
           tz.(index) <- tz.(index) -. ((r20.(index) *. x)
               +. (r21.(index) *. y) +. (r22.(index) *. z))
         )) target_pivot;
-      if Array.exists (fun value -> not (finite value)) tx
-          || Array.exists (fun value -> not (finite value)) ty
-          || Array.exists (fun value -> not (finite value)) tz then
+      if Array.exists (fun value -> not (Float.is_finite value)) tx
+          || Array.exists (fun value -> not (Float.is_finite value)) ty
+          || Array.exists (fun value -> not (Float.is_finite value)) tz then
         Error "Pdk.Instance_copy.copy_to_points: target translations must be finite"
       else
       let px = Array.make output_points 0. and py = Array.make output_points 0.

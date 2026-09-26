@@ -29,7 +29,6 @@ exception Ray_pdk_error of Error.t
 let fail code message = raise (Ray_error (code, message))
 let get_string = function Ok value -> value | Error message -> fail "invalid_output" message
 let get_pdk = function Ok value -> value | Error error -> raise (Ray_pdk_error error)
-let finite = Float.is_finite
 
 let validate_name label = function
   | None -> ()
@@ -64,7 +63,7 @@ let point_selection ?cancel ~grain geometry selection =
 
 let direction_planes ?cancel ~grain source = function
   | Ray_vector value ->
-      if not (finite value.Vec3.x && finite value.y && finite value.z) then
+      if not (Float.is_finite value.Vec3.x && Float.is_finite value.y && Float.is_finite value.z) then
         fail "invalid_direction" "ray direction vector must be finite";
       if value.x = 0. && value.y = 0. && value.z = 0. then
         fail "invalid_direction" "ray direction vector must be non-zero";
@@ -131,21 +130,21 @@ let run ?cancel ?(grain = 16_384) ?selection ?collision_primitives
     if grain <= 0 then fail "invalid_parameter" "grain must be positive";
     if samples < 1 || samples > 1024 then fail "invalid_parameter"
         "ray samples must be between 1 and 1024";
-    if not (finite jitter_scale && jitter_scale >= 0.) then
+    if not (Float.is_finite jitter_scale && jitter_scale >= 0.) then
       fail "invalid_parameter" "ray jitter scale must be finite and non-negative";
     if method_ = Ray_minimum_distance && samples <> 1 then
       fail "invalid_parameter" "multiple samples require directional projection";
-    if not (finite scale && finite lift) then
+    if not (Float.is_finite scale && Float.is_finite lift) then
       fail "invalid_parameter" "scale and lift must be finite";
-    if not (finite min_distance && min_distance >= 0.) then
+    if not (Float.is_finite min_distance && min_distance >= 0.) then
       fail "invalid_distance" "minimum distance must be finite and non-negative";
-    if not (finite tolerance && tolerance >= 0.
+    if not (Float.is_finite tolerance && tolerance >= 0.
         && tolerance <= sqrt max_float) then
       fail "invalid_distance"
         "ray tolerance must be finite, non-negative, and safely squarable";
     let maximum = match max_distance with
       | None -> Float.infinity
-      | Some value when finite value && value >= min_distance -> value
+      | Some value when Float.is_finite value && value >= min_distance -> value
       | Some _ -> fail "invalid_distance"
           "maximum distance must be finite and at least the minimum distance" in
     if method_ = Ray_minimum_distance && maximum <> Float.infinity
@@ -346,7 +345,7 @@ let run ?cancel ?(grain = 16_384) ?selection ?collision_primitives
           and z = source_positions.z.(point)
               +. (scale *. (hz -. source_positions.z.(point)))
               +. (lift *. normal.(2)) in
-          if not (finite x && finite y && finite z) then errors.(range) <- point
+          if not (Float.is_finite x && Float.is_finite y && Float.is_finite z) then errors.(range) <- point
           else begin
             px.(point) <- x; py.(point) <- y; pz.(point) <- z;
             if x <> source_positions.x.(point) || y <> source_positions.y.(point)

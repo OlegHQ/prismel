@@ -1,7 +1,6 @@
 open Pdk_core
 open Prismel_math
 
-let finite = Float.is_finite
 let get_ok = function Ok value -> value | Error message -> invalid_arg message
 let normalize_plane_axis = Plane_generators.normalize_plane_axis
 
@@ -116,17 +115,17 @@ let torus ?cancel ?(grain = 16_384) ?(connectivity = Torus_triangles)
       "Pdk.Parametric_generators.torus: rows must be at least %d for the selected U wrap" minimum_u)
   else if columns < minimum_v then Error (Printf.sprintf
       "Pdk.Parametric_generators.torus: columns must be at least %d for the selected V wrap" minimum_v)
-  else if not (finite major_radius && major_radius > 0.
-      && finite minor_radius && minor_radius > 0.
-      && finite uniform_scale && uniform_scale > 0.
-      && finite major_radius_scaled && major_radius_scaled > 0.
-      && finite minor_radius_scaled && minor_radius_scaled > 0.) then
+  else if not (Float.is_finite major_radius && major_radius > 0.
+      && Float.is_finite minor_radius && minor_radius > 0.
+      && Float.is_finite uniform_scale && uniform_scale > 0.
+      && Float.is_finite major_radius_scaled && major_radius_scaled > 0.
+      && Float.is_finite minor_radius_scaled && minor_radius_scaled > 0.) then
     Error "Pdk.Parametric_generators.torus: radii and uniform scale must be finite and positive"
-  else if not (finite u_start && finite u_end && finite v_start && finite v_end
-      && finite u_span && finite v_span && u_span <> 0. && v_span <> 0.) then
+  else if not (Float.is_finite u_start && Float.is_finite u_end && Float.is_finite v_start && Float.is_finite v_end
+      && Float.is_finite u_span && Float.is_finite v_span && u_span <> 0. && v_span <> 0.) then
     Error "Pdk.Parametric_generators.torus: angle endpoints must define finite non-zero spans"
-  else if not (finite center.x && finite center.y && finite center.z
-      && finite rotation.x && finite rotation.y && finite rotation.z) then
+  else if not (Float.is_finite center.x && Float.is_finite center.y && Float.is_finite center.z
+      && Float.is_finite rotation.x && Float.is_finite rotation.y && Float.is_finite rotation.z) then
     Error "Pdk.Parametric_generators.torus: center and rotation must be finite"
   else if (match uv_attribute with
       | Some name -> String.trim name = "" || String.equal name "P"
@@ -271,7 +270,7 @@ let torus ?cancel ?(grain = 16_384) ?(connectivity = Torus_triangles)
                   +. (pole_axis.y *. local_y) +. (tangent_axis.y *. local_z),
                 center.z +. (radial_axis.z *. local_x)
                   +. (pole_axis.z *. local_y) +. (tangent_axis.z *. local_z) in
-            if finite x && finite y && finite z then begin
+            if Float.is_finite x && Float.is_finite y && Float.is_finite z then begin
               px.(point) <- x; py.(point) <- y; pz.(point) <- z;
               (match point_normals with
                | Some (nx, ny, nz) ->
@@ -632,17 +631,17 @@ let tube ?cancel ?(grain = 16_384) ?(connectivity = Tube_quads)
   if grain <= 0 then Error "Pdk.Parametric_generators.tube: grain must be positive"
   else if rows < 2 then Error "Pdk.Parametric_generators.tube: rows must be at least two"
   else if columns < 3 then Error "Pdk.Parametric_generators.tube: columns must be at least three"
-  else if not (finite top_radius && top_radius >= 0.
-      && finite bottom_radius && bottom_radius >= 0.
-      && finite radius_scale && radius_scale > 0.
-      && finite top_radius_scaled && top_radius_scaled >= 0.
-      && finite bottom_radius_scaled && bottom_radius_scaled >= 0.
+  else if not (Float.is_finite top_radius && top_radius >= 0.
+      && Float.is_finite bottom_radius && bottom_radius >= 0.
+      && Float.is_finite radius_scale && radius_scale > 0.
+      && Float.is_finite top_radius_scaled && top_radius_scaled >= 0.
+      && Float.is_finite bottom_radius_scaled && bottom_radius_scaled >= 0.
       && (top_radius_scaled > 0. || bottom_radius_scaled > 0.)) then
     Error "Pdk.Parametric_generators.tube: radii must be finite/non-negative, at least one positive, and radius scale positive"
-  else if not (finite height && height > 0.) then
+  else if not (Float.is_finite height && height > 0.) then
     Error "Pdk.Parametric_generators.tube: height must be finite and positive"
-  else if not (finite center.x && finite center.y && finite center.z
-      && finite rotation.x && finite rotation.y && finite rotation.z) then
+  else if not (Float.is_finite center.x && Float.is_finite center.y && Float.is_finite center.z
+      && Float.is_finite rotation.x && Float.is_finite rotation.y && Float.is_finite rotation.z) then
     Error "Pdk.Parametric_generators.tube: center and rotation must be finite"
   else if (match uv_attribute with
       | Some name -> String.trim name = "" || String.equal name "P"
@@ -835,7 +834,7 @@ let tube ?cancel ?(grain = 16_384) ?(connectivity = Tube_quads)
                   +. (pole_axis.y *. local_y) +. (tangent_axis.y *. local_z),
                 center.z +. (radial_axis.z *. local_x)
                   +. (pole_axis.z *. local_y) +. (tangent_axis.z *. local_z) in
-            if finite x && finite y && finite z then begin
+            if Float.is_finite x && Float.is_finite y && Float.is_finite z then begin
               px.(point) <- x; py.(point) <- y; pz.(point) <- z;
               (match point_normals with
                | Some (nx, ny, nz) ->
@@ -1295,10 +1294,10 @@ let platonic ?cancel ?(kind = Platonic_tetrahedron)
     ?(center = Vec3.zero) ?(rotation = Vec3.zero)
     ?(rotation_order = Platonic_xyz) ?face_groups ~radius () =
   Cancel.check_opt cancel;
-  if not (finite radius && radius > 0.) then
+  if not (Float.is_finite radius && radius > 0.) then
     Error "Pdk.Parametric_generators.platonic: radius must be finite and positive"
-  else if not (finite center.x && finite center.y && finite center.z
-      && finite rotation.x && finite rotation.y && finite rotation.z) then
+  else if not (Float.is_finite center.x && Float.is_finite center.y && Float.is_finite center.z
+      && Float.is_finite rotation.x && Float.is_finite rotation.y && Float.is_finite rotation.z) then
     Error "Pdk.Parametric_generators.platonic: center and rotation must be finite"
   else if (match face_groups with
       | Some name -> String.trim name = "" | None -> false) then
@@ -1346,7 +1345,7 @@ let platonic ?cancel ?(kind = Platonic_tetrahedron)
               +. (z_axis.y *. z))),
             center.z +. (radius *. ((x_axis.z *. x) +. (y_axis.z *. y)
               +. (z_axis.z *. z))) in
-        if finite tx && finite ty && finite tz then begin
+        if Float.is_finite tx && Float.is_finite ty && Float.is_finite tz then begin
           px.(point) <- tx; py.(point) <- ty; pz.(point) <- tz;
           match point_normal with
           | None -> ()

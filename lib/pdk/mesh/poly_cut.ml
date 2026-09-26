@@ -17,7 +17,6 @@ type numeric =
 
 exception Poly_cut_error of string
 let fail message = raise (Poly_cut_error message)
-let finite = Float.is_finite
 
 let block_count length grain =
   if length = 0 then 0 else 1 + ((length - 1) / grain)
@@ -73,29 +72,29 @@ let[@inline always] scalar value point = match value with
   | Tuple2 _ | Tuple3 _ | Tuple4 _ -> assert false
 
 let finite_numeric value point = match value with
-  | Scalar_float values -> finite (Array.unsafe_get values point)
+  | Scalar_float values -> Float.is_finite (Array.unsafe_get values point)
   | Scalar_int _ -> true
-  | Tuple2 values -> finite (Array.unsafe_get values.x point)
-      && finite (Array.unsafe_get values.y point)
-  | Tuple3 values -> finite (Array.unsafe_get values.x point)
-      && finite (Array.unsafe_get values.y point)
-      && finite (Array.unsafe_get values.z point)
-  | Tuple4 values -> finite (Array.unsafe_get values.x point)
-      && finite (Array.unsafe_get values.y point)
-      && finite (Array.unsafe_get values.z point)
-      && finite (Array.unsafe_get values.w point)
+  | Tuple2 values -> Float.is_finite (Array.unsafe_get values.x point)
+      && Float.is_finite (Array.unsafe_get values.y point)
+  | Tuple3 values -> Float.is_finite (Array.unsafe_get values.x point)
+      && Float.is_finite (Array.unsafe_get values.y point)
+      && Float.is_finite (Array.unsafe_get values.z point)
+  | Tuple4 values -> Float.is_finite (Array.unsafe_get values.x point)
+      && Float.is_finite (Array.unsafe_get values.y point)
+      && Float.is_finite (Array.unsafe_get values.z point)
+      && Float.is_finite (Array.unsafe_get values.w point)
 
 let stable_norm2 x y =
   let scale = max (abs_float x) (abs_float y) in
   if scale = 0. then 0.
-  else if not (finite scale) then Float.infinity
+  else if not (Float.is_finite scale) then Float.infinity
   else scale *. sqrt (((x /. scale) *. (x /. scale))
       +. ((y /. scale) *. (y /. scale)))
 
 let stable_norm3 x y z =
   let scale = max (abs_float x) (max (abs_float y) (abs_float z)) in
   if scale = 0. then 0.
-  else if not (finite scale) then Float.infinity
+  else if not (Float.is_finite scale) then Float.infinity
   else scale *. sqrt (((x /. scale) *. (x /. scale))
       +. ((y /. scale) *. (y /. scale)) +. ((z /. scale) *. (z /. scale)))
 
@@ -103,7 +102,7 @@ let stable_norm4 x y z w =
   let scale = max (max (abs_float x) (abs_float y))
       (max (abs_float z) (abs_float w)) in
   if scale = 0. then 0.
-  else if not (finite scale) then Float.infinity
+  else if not (Float.is_finite scale) then Float.infinity
   else scale *. sqrt (((x /. scale) *. (x /. scale))
       +. ((y /. scale) *. (y /. scale)) +. ((z /. scale) *. (z /. scale))
       +. ((w /. scale) *. (w /. scale)))
@@ -143,7 +142,7 @@ let crossing_weight threshold left right =
 
 let interpolate left right weight =
   let delta = right -. left in
-  if finite delta then left +. (delta *. weight)
+  if Float.is_finite delta then left +. (delta *. weight)
   else (left *. (1. -. weight)) +. (right *. weight)
 
 let remap_edge_groups ?cancel ~grain ~source_index ~target_topology
@@ -408,7 +407,7 @@ let cut ?cancel ?(grain = 16_384) ?primitives ?cut_points ?cut_edges
     let compiled_detection = match detection with
       | Poly_cut_all -> None
       | Poly_cut_crossing { attribute; value } ->
-          if not (finite value) then fail "crossing value must be finite";
+          if not (Float.is_finite value) then fail "crossing value must be finite";
           let numeric = numeric_attribute attribute geometry in
           (match numeric with
            | Scalar_float _ | Scalar_int _ -> ()
@@ -416,7 +415,7 @@ let cut ?cancel ?(grain = 16_384) ?primitives ?cut_points ?cut_edges
                fail "attribute crossing requires scalar float or integer storage");
           Some (`Crossing (numeric, value))
       | Poly_cut_change { attribute; threshold } ->
-          if not (finite threshold) || threshold < 0. then
+          if not (Float.is_finite threshold) || threshold < 0. then
             fail "change threshold must be finite and non-negative";
           if strategy = Poly_cut_cut && threshold = 0. then
             fail "cut-at-change requires a positive threshold";
@@ -486,7 +485,7 @@ let cut ?cancel ?(grain = 16_384) ?primitives ?cut_points ?cut_edges
                       false, -1., 1, 0
                     end else begin
                       let distance = change_distance values left right in
-                      if not (finite distance) then begin
+                      if not (Float.is_finite distance) then begin
                         if !first_error < 0 then begin
                           first_error := vertex; first_kind := 2
                         end;
@@ -495,7 +494,7 @@ let cut ?cancel ?(grain = 16_384) ?primitives ?cut_points ?cut_edges
                       else if strategy = Poly_cut_remove then true, -1., 0, 0
                       else begin
                         let ratio = distance /. threshold in
-                        if not (finite ratio)
+                        if not (Float.is_finite ratio)
                             || ratio > Float.of_int Sys.max_array_length then begin
                           if !first_error < 0 then begin
                             first_error := vertex; first_kind := 3
@@ -925,7 +924,7 @@ let cut ?cancel ?(grain = 16_384) ?primitives ?cut_points ?cut_edges
               (Array.unsafe_get source_positions.y right) weight
           and pz = interpolate (Array.unsafe_get source_positions.z left)
               (Array.unsafe_get source_positions.z right) weight in
-          if !first_error < 0 && not (finite px && finite py && finite pz) then
+          if !first_error < 0 && not (Float.is_finite px && Float.is_finite py && Float.is_finite pz) then
             first_error := point;
           Array.unsafe_set x point px;
           Array.unsafe_set y point py;

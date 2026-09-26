@@ -35,7 +35,6 @@ type t = {
 exception Piece_error of string
 exception Group_error of string
 
-let finite = Float.is_finite
 let ceiling_div value divisor =
   (value / divisor) + if value mod divisor = 0 then 0 else 1
 
@@ -145,8 +144,8 @@ let create_raw ?cancel ?(grain = 16_384) ?primitives geometry =
         let ax = positions.x.(pa) and ay = positions.y.(pa)
         and az = positions.z.(pa) and bx = positions.x.(pb)
         and by = positions.y.(pb) and bz = positions.z.(pb) in
-        if not (finite ax && finite ay && finite az && finite bx && finite by
-            && finite bz) then errors.(range) <- Some (Printf.sprintf
+        if not (Float.is_finite ax && Float.is_finite ay && Float.is_finite az && Float.is_finite bx && Float.is_finite by
+            && Float.is_finite bz) then errors.(range) <- Some (Printf.sprintf
               "primitive %d has a non-finite position" primitive)
         else if Bytes.unsafe_get kinds piece = '\001' then begin
           if ax = bx && ay = by && az = bz then
@@ -167,7 +166,7 @@ let create_raw ?cancel ?(grain = 16_384) ?primitives geometry =
           let pc = topology.vertex_points.(vertex_c.(piece)) in
           let cx = positions.x.(pc) and cy = positions.y.(pc)
           and cz = positions.z.(pc) in
-          if not (finite cx && finite cy && finite cz) then
+          if not (Float.is_finite cx && Float.is_finite cy && Float.is_finite cz) then
             errors.(range) <- Some (Printf.sprintf
               "primitive %d has a non-finite position" primitive)
           else begin
@@ -177,7 +176,7 @@ let create_raw ?cancel ?(grain = 16_384) ?primitives geometry =
             and ny = (abz *. acx) -. (abx *. acz)
             and nz = (abx *. acy) -. (aby *. acx) in
             let area2 = (nx *. nx) +. (ny *. ny) +. (nz *. nz) in
-            if not (finite area2) || area2 <= 1e-30 then
+            if not (Float.is_finite area2) || area2 <= 1e-30 then
               errors.(range) <- Some (Printf.sprintf
                 "primitive %d is degenerate" primitive)
             else begin
@@ -245,7 +244,7 @@ let[@inline always] piece_bounds_overlap tolerance left left_piece right
 let overlapping_pairs_raw ?cancel ~self ~grain ~tolerance left_index right_index =
   if grain <= 0 then invalid_arg
       "Linear_piece_index.overlapping_pairs: grain must be positive";
-  if not (finite tolerance) || tolerance < 0. then invalid_arg
+  if not (Float.is_finite tolerance) || tolerance < 0. then invalid_arg
       "Linear_piece_index.overlapping_pairs: tolerance must be finite and non-negative";
   let left_count = piece_count left_index in
   if left_count = 0 || piece_count right_index = 0 then [||], [||]
@@ -313,7 +312,7 @@ let overlapping_pairs_raw ?cancel ~self ~grain ~tolerance left_index right_index
 let find_overlapping_self_pair_raw ?cancel ~grain ~tolerance index predicate =
   if grain <= 0 then invalid_arg
       "Linear_piece_index.find_overlapping_self_pair: grain must be positive";
-  if not (finite tolerance) || tolerance < 0. then invalid_arg
+  if not (Float.is_finite tolerance) || tolerance < 0. then invalid_arg
       "Linear_piece_index.find_overlapping_self_pair: tolerance must be finite and non-negative";
   let pieces = piece_count index in
   if pieces = 0 then None

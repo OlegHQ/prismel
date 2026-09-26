@@ -12,49 +12,6 @@ let finite value = Float.is_finite value
 let maximum_squared_distance = sqrt max_float
 let length value = Array.length value.order
 
-let compare_point coordinates left right =
-  let compared = Float.compare coordinates.(left) coordinates.(right) in
-  if compared <> 0 then compared else Int.compare left right
-
-let swap values left right =
-  if left <> right then begin
-    let value = values.(left) in
-    values.(left) <- values.(right);
-    values.(right) <- value
-  end
-
-let median_pivot coordinates values first middle last =
-  let a = values.(first) and b = values.(middle) and c = values.(last) in
-  if compare_point coordinates a b < 0 then
-    if compare_point coordinates b c < 0 then b
-    else if compare_point coordinates a c < 0 then c else a
-  else if compare_point coordinates a c < 0 then a
-  else if compare_point coordinates b c < 0 then c else b
-
-let select coordinates values first last selected =
-  let lower = ref first and upper = ref last in
-  while !lower < !upper do
-    let middle = !lower + ((!upper - !lower) / 2) in
-    let pivot = median_pivot coordinates values !lower middle !upper in
-    let left = ref !lower and right = ref !upper in
-    while !left <= !right do
-      while compare_point coordinates values.(!left) pivot < 0 do
-        incr left
-      done;
-      while compare_point coordinates values.(!right) pivot > 0 do
-        decr right
-      done;
-      if !left <= !right then begin
-        swap values !left !right;
-        incr left;
-        decr right
-      end
-    done;
-    if selected <= !right then upper := !right
-    else if selected >= !left then lower := !left
-    else begin lower := selected; upper := selected end
-  done
-
 let create_raw ?cancel ?(grain = 16_384) ?points:selection packed =
   if grain <= 0 then invalid_arg "grain must be positive";
   let positions = Packed.Float3.Private.view packed in
@@ -103,7 +60,7 @@ let create_raw ?cancel ?(grain = 16_384) ?points:selection packed =
       let axis = axes.(depth mod Array.length axes) in
       let coordinates = if axis = 0 then positions.x
         else if axis = 1 then positions.y else positions.z in
-      select coordinates order first last middle;
+      Support.select coordinates order first last middle;
       if last - first + 1 >= grain then
         ignore (Parallel.both
           (fun () -> partition first (middle - 1) (depth + 1))

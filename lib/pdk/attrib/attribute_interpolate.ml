@@ -99,10 +99,6 @@ let attribute_owner_of_group = function
   | Group.Vertex -> Attribute.Vertex
   | Group.Primitive -> Attribute.Primitive
 
-let[@inline always] bit_mem bits index =
-  Char.code (Bytes.unsafe_get bits (index lsr 3))
-  land (1 lsl (index land 7)) <> 0
-
 let[@inline always] bit_set bits index member =
   let byte = index lsr 3 and mask = 1 lsl (index land 7) in
   let value = Char.code (Bytes.unsafe_get bits byte) in
@@ -577,7 +573,7 @@ let groups_of_jobs jobs = Array.map (fun job ->
 
 let[@inline always] existing_group_value job destination =
   match job.group_existing_bits with
-  | Some bits when bit_mem bits destination -> 1.
+  | Some bits when Support.Bits.mem bits destination -> 1.
   | None | Some _ -> 0.
 
 let[@inline always] commit_group_score job destination ~blend score =
@@ -620,7 +616,7 @@ let interpolate_primitive_groups ?cancel ?(grain = 16_384) ?selection
                   let job = jobs.(job_index) in
                   let score = match job.group_source_owner with
                     | Attribute.Primitive ->
-                        if bit_mem job.group_source_bits primitive then 1. else 0.
+                        if Support.Bits.mem job.group_source_bits primitive then 1. else 0.
                     | Attribute.Point | Attribute.Vertex ->
                         let score = ref 0. in
                         for local = 0 to size - 1 do
@@ -633,7 +629,7 @@ let interpolate_primitive_groups ?cancel ?(grain = 16_384) ?selection
                           let source_element = if job.group_source_owner
                               = Attribute.Point
                             then topology.vertex_points.(vertex) else vertex in
-                          if bit_mem job.group_source_bits source_element then
+                          if Support.Bits.mem job.group_source_bits source_element then
                             score := !score +. weight
                         done;
                         !score
@@ -1010,7 +1006,7 @@ let interpolate_weighted_groups ?cancel ?(grain = 16_384) ?selection
                   for slot = first to last - 1 do
                     let source_element = source_index job.group_source_owner
                         numbers.values.(slot) in
-                    if bit_mem job.group_source_bits source_element then
+                    if Support.Bits.mem job.group_source_bits source_element then
                       score := !score +. (weights.values.(slot) *. pre_scale
                         *. normalization)
                   done;

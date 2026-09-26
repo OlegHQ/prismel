@@ -193,17 +193,6 @@ type selection =
   | Ordinary of Group.t
   | Native_edges of Edge_group.t
 
-let byte_count length = (length + 7) / 8
-
-let bit_mem bits index =
-  Char.code (Bytes.unsafe_get bits (index lsr 3))
-  land (1 lsl (index land 7)) <> 0
-
-let bit_set bits index =
-  let byte = index lsr 3 and mask = 1 lsl (index land 7) in
-  Bytes.unsafe_set bits byte
-    (Char.chr (Char.code (Bytes.unsafe_get bits byte) lor mask))
-
 let byte_member_bits = Array.init 256 (fun value ->
   let count = ref 0 in
   for bit = 0 to 7 do if value land (1 lsl bit) <> 0 then incr count done;
@@ -217,7 +206,7 @@ let byte_member_bits = Array.init 256 (fun value ->
   output)
 
 let packed_init ?cancel ~grain length predicate =
-  let bytes_count = byte_count length in
+  let bytes_count = Support.Bits.byte_count length in
   let bits = Bytes.make bytes_count '\000' in
   if bytes_count > 0 then
     Parallel.for_ ~chunk_size:(max 1 (grain / 8)) ~start:0
@@ -837,7 +826,7 @@ let group_from_attribute_boundary ?cancel ?(grain = 16_384) ?membership_boundary
                       and primitive_last = topology.primitive_offsets.(primitive + 1) in
                       vertex = primitive_first || vertex = primitive_last - 2
                   | _ -> false in
-            let edge_bits = Bytes.make (byte_count edge_count) '\000' in
+            let edge_bits = Bytes.make (Support.Bits.byte_count edge_count) '\000' in
             if Bytes.length edge_bits > 0 then
               Parallel.for_ ~chunk_size:(max 1 (grain / 8)) ~start:0
                 ~finish:(Bytes.length edge_bits - 1) (fun byte ->
@@ -849,7 +838,7 @@ let group_from_attribute_boundary ?cancel ?(grain = 16_384) ?membership_boundary
                       value := !value lor (1 lsl bit)
                   done;
                   Bytes.unsafe_set edge_bits byte (Char.chr !value));
-            let edge_selected edge = bit_mem edge_bits edge in
+            let edge_selected edge = Support.Bits.mem edge_bits edge in
             match owner with
             | Group_edges ->
                 Geometry.with_edge_group (Edge_group.Private.of_owned_bits
@@ -871,7 +860,7 @@ let group_from_attribute_boundary ?cancel ?(grain = 16_384) ?membership_boundary
                 let boundary_points = if include_all_primitives_sharing_boundary_points
                   then begin
                     let points = Bytes.make
-                        (byte_count (Geometry.point_count geometry)) '\000' in
+                        (Support.Bits.byte_count (Geometry.point_count geometry)) '\000' in
                     if Bytes.length points > 0 then
                       Parallel.for_ ~chunk_size:(max 1 (grain / 8)) ~start:0
                         ~finish:(Bytes.length points - 1) (fun byte ->
@@ -901,7 +890,7 @@ let group_from_attribute_boundary ?cancel ?(grain = 16_384) ?membership_boundary
                       while not !found && !vertex < last do
                         (match boundary_points with
                          | Some points ->
-                             found := bit_mem points topology.vertex_points.(!vertex)
+                             found := Support.Bits.mem points topology.vertex_points.(!vertex)
                          | None ->
                              let edge = index.edge_of_vertex.(!vertex) in
                              found := edge >= 0 && edge_selected edge);
@@ -1321,7 +1310,7 @@ let neighbor_matches ~owner ~primitive_connectivity
         let edge = reverse.point_edges.(!slot) in
         let a = reverse.edge_a.(edge) and b = reverse.edge_b.(edge) in
         let neighbor = if a = element then b else a in
-        found := neighbor <> element && bit_mem bits neighbor = wanted;
+        found := neighbor <> element && Support.Bits.mem bits neighbor = wanted;
         incr slot
       done;
       !found
@@ -1332,7 +1321,7 @@ let neighbor_matches ~owner ~primitive_connectivity
         and last = reverse.point_edge_offsets.(!point + 1) in
         while not !found && !slot < last do
           let neighbor = reverse.point_edges.(!slot) in
-          found := neighbor <> element && bit_mem bits neighbor = wanted;
+          found := neighbor <> element && Support.Bits.mem bits neighbor = wanted;
           incr slot
         done;
         incr endpoint;
@@ -1343,17 +1332,17 @@ let neighbor_matches ~owner ~primitive_connectivity
   | Group_vertices ->
       let next = reverse.next_vertex.(element)
       and previous = reverse.previous_vertex.(element) in
-      if next >= 0 && next <> element && bit_mem bits next = wanted then
+      if next >= 0 && next <> element && Support.Bits.mem bits next = wanted then
         found := true;
       if not !found && previous >= 0 && previous <> element
-          && bit_mem bits previous = wanted then found := true;
+          && Support.Bits.mem bits previous = wanted then found := true;
       if not !found then begin
         let point = topology.vertex_points.(element) in
         let slot = ref reverse.point_offsets.(point)
         and last = reverse.point_offsets.(point + 1) in
         while not !found && !slot < last do
           let neighbor = reverse.point_vertices.(!slot) in
-          found := neighbor <> element && bit_mem bits neighbor = wanted;
+          found := neighbor <> element && Support.Bits.mem bits neighbor = wanted;
           incr slot
         done
       end;
@@ -1370,7 +1359,7 @@ let neighbor_matches ~owner ~primitive_connectivity
             while not !found && !slot < last do
               let neighbor = reverse.primitive_of_vertex.(
                   reverse.point_vertices.(!slot)) in
-              found := neighbor <> element && bit_mem bits neighbor = wanted;
+              found := neighbor <> element && Support.Bits.mem bits neighbor = wanted;
               incr slot
             done;
             incr vertex
@@ -1382,7 +1371,7 @@ let neighbor_matches ~owner ~primitive_connectivity
               while not !found && !slot < last do
                 let neighbor = reverse.primitive_of_vertex.(
                     reverse.edge_vertices.(!slot)) in
-                found := neighbor <> element && bit_mem bits neighbor = wanted;
+                found := neighbor <> element && Support.Bits.mem bits neighbor = wanted;
                 incr slot
               done
             end;
@@ -1391,8 +1380,8 @@ let neighbor_matches ~owner ~primitive_connectivity
       !found
 
 let enqueue_new bits queue tail step_values element neighbor =
-  if neighbor <> element && not (bit_mem bits neighbor) then begin
-    bit_set bits neighbor;
+  if neighbor <> element && not (Support.Bits.mem bits neighbor) then begin
+    Support.Bits.set bits neighbor;
     (match step_values with
      | None -> ()
      | Some values -> values.(neighbor) <- values.(element) + 1);
@@ -1470,7 +1459,7 @@ let flood_bits ?cancel ~owner ~primitive_connectivity topology reverse count bit
   let queue = Array.make count 0 and head = ref 0 and tail = ref 0 in
   for element = 0 to count - 1 do
     if element land 16_383 = 0 then Cancel.check_opt cancel;
-    if bit_mem bits element then begin
+    if Support.Bits.mem bits element then begin
       queue.(!tail) <- element;
       incr tail
     end
@@ -1506,9 +1495,9 @@ let stepped_bits ?cancel ~grain ~owner ~primitive_connectivity topology reverse
       end in
     let next = match step_values with
       | None -> packed_init ?cancel ~grain count (fun element ->
-          classify (bit_mem before element) element)
+          classify (Support.Bits.mem before element) element)
       | Some values -> packed_init ?cancel ~grain count (fun element ->
-          let selected = bit_mem before element in
+          let selected = Support.Bits.mem before element in
           let result = classify selected element in
           if selected <> result then values.(element) <- step;
           result) in
@@ -1537,7 +1526,7 @@ let grow_point_depth_bits ?cancel reverse bits cardinality depth step_values =
     incr tail in
   for point = 0 to count - 1 do
     if point land 16_383 = 0 then Cancel.check_opt cancel;
-    if bit_mem bits point then push point
+    if Support.Bits.mem bits point then push point
   done;
   let level = ref 0 in
   while !level < depth && !head < !tail do
@@ -1554,8 +1543,8 @@ let grow_point_depth_bits ?cancel reverse bits cardinality depth step_values =
         let edge = reverse.point_edges.(slot) in
         let a = reverse.edge_a.(edge) and b = reverse.edge_b.(edge) in
         let neighbor = if a = point then b else a in
-        if neighbor <> point && not (bit_mem bits neighbor) then begin
-          bit_set bits neighbor;
+        if neighbor <> point && not (Support.Bits.mem bits neighbor) then begin
+          Support.Bits.set bits neighbor;
           (match step_values with
            | None -> ()
            | Some values -> values.(neighbor) <- values.(point) + 1);
@@ -1578,7 +1567,7 @@ let constrained_neighbor_matches ~owner ~primitive_connectivity topology reverse
         let edge = reverse.point_edges.(!slot) in
         let a = reverse.edge_a.(edge) and b = reverse.edge_b.(edge) in
         let neighbor = if a = element then b else a in
-        found := neighbor <> element && bit_mem bits neighbor = wanted
+        found := neighbor <> element && Support.Bits.mem bits neighbor = wanted
           && expand_transition_allowed constraints edge element neighbor;
         incr slot
       done;
@@ -1595,7 +1584,7 @@ let constrained_neighbor_matches ~owner ~primitive_connectivity topology reverse
             while not !found && !slot < last do
               let neighbor = reverse.primitive_of_vertex.(
                   reverse.point_vertices.(!slot)) in
-              found := neighbor <> element && bit_mem bits neighbor = wanted
+              found := neighbor <> element && Support.Bits.mem bits neighbor = wanted
                 && expand_transition_allowed constraints (-1) element neighbor;
               incr slot
             done
@@ -1607,7 +1596,7 @@ let constrained_neighbor_matches ~owner ~primitive_connectivity topology reverse
               while not !found && !slot < last do
                 let neighbor = reverse.primitive_of_vertex.(
                     reverse.edge_vertices.(!slot)) in
-                found := neighbor <> element && bit_mem bits neighbor = wanted
+                found := neighbor <> element && Support.Bits.mem bits neighbor = wanted
                   && expand_transition_allowed constraints edge element neighbor;
                 incr slot
               done
@@ -1636,9 +1625,9 @@ let constrained_stepped_bits ?cancel ~grain ~owner ~primitive_connectivity
           topology reverse constraints before false element) in
     let next = match step_values with
       | None -> packed_init ?cancel ~grain count (fun element ->
-          classify (bit_mem before element) element)
+          classify (Support.Bits.mem before element) element)
       | Some values -> packed_init ?cancel ~grain count (fun element ->
-          let selected = bit_mem before element in
+          let selected = Support.Bits.mem before element in
           let result = classify selected element in
           if selected <> result then values.(element) <- step;
           result) in
@@ -1650,10 +1639,10 @@ let constrained_stepped_bits ?cancel ~grain ~owner ~primitive_connectivity
 
 let constrained_enqueue constraints collision bits queue tail step_values
     element neighbor edge =
-  if neighbor <> element && not (bit_mem bits neighbor)
+  if neighbor <> element && not (Support.Bits.mem bits neighbor)
       && expand_candidate_allowed constraints collision neighbor
       && expand_transition_allowed constraints edge element neighbor then begin
-    bit_set bits neighbor;
+    Support.Bits.set bits neighbor;
     (match step_values with
      | None -> ()
      | Some values -> values.(neighbor) <- values.(element) + 1);
@@ -1666,7 +1655,7 @@ let constrained_flood_bits ?cancel ~owner ~primitive_connectivity topology rever
   let queue = Array.make count 0 and head = ref 0 and tail = ref 0 in
   for element = 0 to count - 1 do
     if element land 16_383 = 0 then Cancel.check_opt cancel;
-    if bit_mem bits element then begin
+    if Support.Bits.mem bits element then begin
       queue.(!tail) <- element;
       incr tail
     end
@@ -1732,7 +1721,7 @@ let constrained_grow_point_depth_bits ?cancel reverse constraints collision bits
     incr tail in
   for point = 0 to count - 1 do
     if point land 16_383 = 0 then Cancel.check_opt cancel;
-    if bit_mem bits point then push point
+    if Support.Bits.mem bits point then push point
   done;
   let level = ref 0 in
   while !level < depth && !head < !tail do
@@ -1748,10 +1737,10 @@ let constrained_grow_point_depth_bits ?cancel reverse constraints collision bits
         let edge = reverse.point_edges.(slot) in
         let a = reverse.edge_a.(edge) and b = reverse.edge_b.(edge) in
         let neighbor = if a = point then b else a in
-        if neighbor <> point && not (bit_mem bits neighbor)
+        if neighbor <> point && not (Support.Bits.mem bits neighbor)
             && expand_candidate_allowed constraints collision neighbor
             && expand_transition_allowed constraints edge point neighbor then begin
-          bit_set bits neighbor;
+          Support.Bits.set bits neighbor;
           (match step_values with
            | None -> ()
            | Some values -> values.(neighbor) <- values.(point) + 1);
@@ -2055,7 +2044,7 @@ let promotions ?cancel ?(grain = 16_384) ?(max_outputs = 4_096)
         let payload = if rule.promotion_output_as_attribute then begin
             if count > max_int / bytes_per_element then max_int
             else count * bytes_per_element
-          end else byte_count count in
+          end else Support.Bits.byte_count count in
         if payload > max_payload_bytes - !generated_payload then
           Error (Printf.sprintf
             "Group Promotions: generated payload exceeds max_payload_bytes=%d"
@@ -2255,7 +2244,7 @@ let groups_from_name ?cancel ?(grain = 16_384) ?(prefix = "")
              | Some message -> Error message
              | None ->
                  let names = Array.of_list (List.rev !names_rev) in
-                 let bytes_per_group = byte_count count in
+                 let bytes_per_group = Support.Bits.byte_count count in
                  if !group_count <> 0
                     && bytes_per_group > max_int / !group_count then Error
                      "Groups from Name: projected group payload overflows address space"
@@ -2285,7 +2274,7 @@ let groups_from_name ?cancel ?(grain = 16_384) ?(prefix = "")
                               match existing.(group_index) with
                               | None -> ()
                               | Some group -> Group.iter
-                                  (bit_set bits.(group_index)) group)
+                                  (Support.Bits.set bits.(group_index)) group)
                       | Name_union -> ());
                      if bytes_per_group > 0 then
                        Parallel.for_ ~chunk_size:(max 1 (grain / 8)) ~start:0
@@ -2478,7 +2467,7 @@ let unshared_selection ?cancel ~grain ~surface_only ~owner ~name geometry =
   let index = Topology_index.Private.view index_value in
   let edge_count = Topology_index.edge_count index_value in
   let edge_bits = unshared_edge_bits ?cancel ~grain ~surface_only topology index in
-  let edge_selected edge = bit_mem edge_bits edge in
+  let edge_selected edge = Support.Bits.mem edge_bits edge in
   match owner with
   | Group_edges -> Native_edges (Edge_group.Private.of_owned_bits
       ~topology:topology_value ~edge_count ~name edge_bits)
@@ -2556,7 +2545,7 @@ let group_boundary_components ?cancel ?(grain = 16_384)
     let activate point = if parent.(point) = 0 then parent.(point) <- -1 in
     for edge = 0 to edge_count - 1 do
       if edge land 16_383 = 0 then Cancel.check_opt cancel;
-      if bit_mem boundary edge then begin
+      if Support.Bits.mem boundary edge then begin
         let a = index.edge_a.(edge) and b = index.edge_b.(edge) in
         activate a; activate b;
         let left = find a and right = find b in
@@ -2592,7 +2581,7 @@ let group_boundary_components ?cancel ?(grain = 16_384)
         if not !too_many then component.(point) <- parent.(root)
       end
     done;
-    let bytes_per_group = byte_count point_count in
+    let bytes_per_group = Support.Bits.byte_count point_count in
     if !too_many then Error (Printf.sprintf
         "Group Boundary Components: outputs exceed max_groups=%d" max_groups)
     else if !component_count <> 0
@@ -2617,7 +2606,7 @@ let group_boundary_components ?cancel ?(grain = 16_384)
              | Some { value = Ordinary existing; _ } ->
                  Group.iter (fun point ->
                    if point land 16_383 = 0 then Cancel.check_opt cancel;
-                   bit_set bits.(component) point) existing
+                   Support.Bits.set bits.(component) point) existing
              | Some { value = Native_edges _; _ } -> assert false
              | None -> ()) names);
         if bytes_per_group > 0 then
@@ -3989,70 +3978,14 @@ let attribute_owner = function
   | Group_primitives -> Attribute.Primitive
   | Group_edges -> invalid_arg "Group Copy: edges cannot match by attribute"
 
-let hash_capacity length =
-  if length < 0 || length > (Sys.max_array_length - 1) / 3 * 2 then
-    Error "Group Copy: attribute match table exceeds array limits"
-  else
-    let wanted = max 16 (length + (length / 2) + 1) in
-    let capacity = ref 16 in
-    while !capacity < wanted && !capacity <= Sys.max_array_length / 2 do
-      capacity := !capacity lsl 1
-    done;
-    if !capacity < wanted then
-      Error "Group Copy: attribute match table exceeds array limits"
-    else Ok !capacity
-
-let integer_hash value mask =
-  let value = if Sys.word_size > 32 then value lxor (value lsr 32) else value in
-  let value = value lxor (value lsr 16) in
-  (value * 0x45d9f3b) land mask
+let key_map_error map =
+  Option.to_result ~none:"Group Copy: attribute match table exceeds array limits" map
 
 let integer_first_map values =
-  Result.map (fun capacity ->
-    let indices = Array.make capacity (-1) in
-    let mask = capacity - 1 in
-    Array.iteri (fun index key ->
-      let slot = ref (integer_hash key mask) in
-      while indices.(!slot) >= 0 && values.(indices.(!slot)) <> key do
-        slot := (!slot + 1) land mask
-      done;
-      if indices.(!slot) < 0 then indices.(!slot) <- index) values;
-    fun key ->
-      let slot = ref (integer_hash key mask) and searching = ref true
-      and result = ref (-1) in
-      while !searching do
-        let index = indices.(!slot) in
-        if index < 0 then searching := false
-        else if values.(index) = key then begin
-          result := index;
-          searching := false
-        end else slot := (!slot + 1) land mask
-      done;
-      !result) (hash_capacity (Array.length values))
+  key_map_error (Support.Key_map.(ints First) values)
 
 let string_first_map values =
-  Result.map (fun capacity ->
-    let indices = Array.make capacity (-1) in
-    let mask = capacity - 1 in
-    Array.iteri (fun index key ->
-      let slot = ref (Hashtbl.hash key land mask) in
-      while indices.(!slot) >= 0
-          && not (String.equal values.(indices.(!slot)) key) do
-        slot := (!slot + 1) land mask
-      done;
-      if indices.(!slot) < 0 then indices.(!slot) <- index) values;
-    fun key ->
-      let slot = ref (Hashtbl.hash key land mask) and searching = ref true
-      and result = ref (-1) in
-      while !searching do
-        let index = indices.(!slot) in
-        if index < 0 then searching := false
-        else if String.equal values.(index) key then begin
-          result := index;
-          searching := false
-        end else slot := (!slot + 1) land mask
-      done;
-      !result) (hash_capacity (Array.length values))
+  key_map_error (Support.Key_map.(strings First) values)
 
 let attribute_match_map ?cancel ~grain owner name source target =
   let attribute_owner = attribute_owner owner in

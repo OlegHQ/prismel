@@ -73,7 +73,6 @@ let of_links ?cancel ~operation destinations =
     end
   with Invalid_argument message -> Error message
 
-let finite = Float.is_finite
 
 let next_power_of_two value =
   let result = ref 8 in
@@ -106,7 +105,7 @@ let create ?cancel ?selection ?(metric = Euclidean) ?(inclusive = true)
          invalid_arg (Printf.sprintf
            "%s selection must be a matching point group" operation)
      | _ -> ());
-    if not (finite tolerance) || tolerance < 0. then
+    if not (Float.is_finite tolerance) || tolerance < 0. then
       invalid_arg (Printf.sprintf
         "%s tolerance must be finite and non-negative" operation);
     Cancel.check_opt cancel;
@@ -124,7 +123,7 @@ let create ?cancel ?selection ?(metric = Euclidean) ?(inclusive = true)
         if point land 4095 = 0 then Cancel.check_opt cancel;
         let x = positions.x.(point) and y = positions.y.(point)
         and z = positions.z.(point) in
-        if not (finite x && finite y && finite z) then non_finite := point
+        if not (Float.is_finite x && Float.is_finite y && Float.is_finite z) then non_finite := point
         else begin
           if x < !min_x then min_x := x;
           if y < !min_y then min_y := y;
@@ -140,14 +139,14 @@ let create ?cancel ?selection ?(metric = Euclidean) ?(inclusive = true)
         let exact = tolerance = 0. in
         let scaled_delta left right =
           let delta = right -. left in
-          if finite delta then delta /. tolerance
+          if Float.is_finite delta then delta /. tolerance
           else (right /. tolerance) -. (left /. tolerance) in
         let largest_cell = if exact then 0. else
           let x = scaled_delta !min_x !max_x
           and y = scaled_delta !min_y !max_y
           and z = scaled_delta !min_z !max_z in
           if x >= y then if x >= z then x else z else if y >= z then y else z in
-        if not (finite largest_cell)
+        if not (Float.is_finite largest_cell)
             || largest_cell > float_of_int (max_int / 4) then
           Error (Printf.sprintf
             "%s tolerance is too small for the geometry extent" operation)

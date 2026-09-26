@@ -1,6 +1,5 @@
 open Prismel_math
 
-let finite = Float.is_finite
 let get_ok = function Ok value -> value | Error message -> invalid_arg message
 
 let interpolated_array ~grain left right weights source =
@@ -78,7 +77,7 @@ let run ?cancel ?(grain = 16_384) ?primitives ?segments
        invalid := Some "segments must be positive"
    | _ -> ());
   (match maximum_segment_length with
-   | Some value when not (finite value) || value <= 0. ->
+   | Some value when not (Float.is_finite value) || value <= 0. ->
        invalid := Some "maximum segment length must be finite and positive"
    | _ -> ());
   if segments = None && maximum_segment_length = None
@@ -134,7 +133,7 @@ let run ?cancel ?(grain = 16_384) ?primitives ?segments
   Option.iter (fun values ->
     let primitive = ref 0 in
     while !invalid = None && !primitive < Array.length values do
-      if not (finite values.(!primitive)) then invalid := Some (Printf.sprintf
+      if not (Float.is_finite values.(!primitive)) then invalid := Some (Printf.sprintf
           "primitive segment length attribute contains a non-finite value at primitive %d"
           !primitive);
       incr primitive
@@ -183,7 +182,7 @@ let run ?cancel ?(grain = 16_384) ?primitives ?segments
           and dy = positions.y.(right_point) -. positions.y.(left_point)
           and dz = positions.z.(right_point) -. positions.z.(left_point) in
           let direct_length = sqrt ((dx *. dx) +. (dy *. dy) +. (dz *. dz)) in
-          let edge_length = if finite direct_length then direct_length
+          let edge_length = if Float.is_finite direct_length then direct_length
             else
               let ax = abs_float dx and ay = abs_float dy and az = abs_float dz in
               let scale = if ax >= ay then if ax >= az then ax else az
@@ -193,13 +192,13 @@ let run ?cancel ?(grain = 16_384) ?primitives ?segments
               and sz = if scale = 0. then 0. else dz /. scale in
               scale *. sqrt ((sx *. sx) +. (sy *. sy) +. (sz *. sz)) in
           let next = cumulative.(base + edge) +. edge_length in
-          if not (finite edge_length && finite next) then
+          if not (Float.is_finite edge_length && Float.is_finite next) then
             Bytes.set failures primitive '\001'
           else cumulative.(base + edge + 1) <- next
         done;
         let total = cumulative.(base + edge_count) in
         totals.(primitive) <- total;
-        if total <= 1e-20 || not (finite total) then
+        if total <= 1e-20 || not (Float.is_finite total) then
           Bytes.set failures primitive '\002');
       let failed = ref 0 in
       while !failed < primitive_count && Bytes.get failures !failed = '\000' do
@@ -245,7 +244,7 @@ let run ?cancel ?(grain = 16_384) ?primitives ?segments
             | None -> None
             | Some maximum ->
                 let ratio = totals.(primitive) /. maximum in
-                if not (finite ratio)
+                if not (Float.is_finite ratio)
                     || ratio >= float_of_int Sys.max_array_length then begin
                   cardinality_error := Some (Printf.sprintf
                     "primitive %d length-driven cardinality exceeds OCaml array limits"
@@ -375,7 +374,7 @@ let run ?cancel ?(grain = 16_384) ?primitives ?segments
                     +. ((positions.y.(right_point) -. positions.y.(left_point)) *. t)
                 and z = positions.z.(left_point)
                     +. ((positions.z.(right_point) -. positions.z.(left_point)) *. t) in
-                if finite x && finite y && finite z then begin
+                if Float.is_finite x && Float.is_finite y && Float.is_finite z then begin
                   px.(!index) <- x; py.(!index) <- y; pz.(!index) <- z
                 end else Bytes.set output_failures chunk '\001';
                 (match curve_u with
@@ -440,7 +439,7 @@ let run ?cancel ?(grain = 16_384) ?primitives ?segments
                       and dy = py.(index) -. py.(previous)
                       and dz = pz.(index) -. pz.(previous) in
                       let direct = sqrt ((dx *. dx) +. (dy *. dy) +. (dz *. dz)) in
-                      if finite direct then direct else
+                      if Float.is_finite direct then direct else
                         let ax = abs_float dx and ay = abs_float dy
                         and az = abs_float dz in
                         let scale = if ax >= ay then if ax >= az then ax else az
@@ -454,7 +453,7 @@ let run ?cancel ?(grain = 16_384) ?primitives ?segments
                       and dy = py.(next) -. py.(index)
                       and dz = pz.(next) -. pz.(index) in
                       let direct = sqrt ((dx *. dx) +. (dy *. dy) +. (dz *. dz)) in
-                      if finite direct then direct else
+                      if Float.is_finite direct then direct else
                         let ax = abs_float dx and ay = abs_float dy
                         and az = abs_float dz in
                         let scale = if ax >= ay then if ax >= az then ax else az
@@ -464,7 +463,7 @@ let run ?cancel ?(grain = 16_384) ?primitives ?segments
                         and sz = if scale = 0. then 0. else dz /. scale in
                         scale *. sqrt ((sx *. sx) +. (sy *. sy) +. (sz *. sz)) in
                   let value = 0.5 *. (left +. right) in
-                  if finite value then values.(index) <- value
+                  if Float.is_finite value then values.(index) <- value
                   else Bytes.set diagnostic_failures chunk '\001');
                 match tangent_x, tangent_y, tangent_z with
                 | Some tx, Some ty, Some tz ->
@@ -479,7 +478,7 @@ let run ?cancel ?(grain = 16_384) ?primitives ?segments
                     and sy = if scale = 0. then 0. else dy /. scale
                     and sz = if scale = 0. then 0. else dz /. scale in
                     let length = sqrt ((sx *. sx) +. (sy *. sy) +. (sz *. sz)) in
-                    if scale = 0. || not (finite length) then
+                    if scale = 0. || not (Float.is_finite length) then
                       Bytes.set diagnostic_failures chunk '\002'
                     else begin
                       tx.(index) <- sx /. length;

@@ -1,6 +1,5 @@
 open Prismel_math
 
-let finite = Float.is_finite
 let get_ok = function Ok value -> value | Error message -> invalid_arg message
 
 type deform_selection = Deform.selection =
@@ -79,8 +78,8 @@ let compose_transform_raw ?(order = Transform_srt)
     ?(pivot_rotation = Vec3.zero) ?(invert = false) () =
   let vectors = ["translate", translate; "rotate", rotate; "scale", scale;
     "shear", shear; "pivot", pivot; "pivot_rotation", pivot_rotation] in
-  match List.find_opt (fun (_, value) -> not (finite value.Vec3.x
-      && finite value.y && finite value.z)) vectors with
+  match List.find_opt (fun (_, value) -> not (Float.is_finite value.Vec3.x
+      && Float.is_finite value.y && Float.is_finite value.z)) vectors with
   | Some (name, _) -> Error ("Pdk.Transform_ops.compose_transform: non-finite " ^ name)
   | None when not (Float.is_finite uniform_scale) ->
       Error "Pdk.Transform_ops.compose_transform: non-finite uniform scale"
@@ -257,8 +256,8 @@ let validate_finite_positions ?cancel ~grain ~operation geometry =
   if count > 0 then Parallel.for_ ~chunk_size:grain ~start:0 ~finish:(count - 1)
       (fun point ->
         if point land 4095 = 0 then Cancel.check_opt cancel;
-        if not (finite positions.x.(point) && finite positions.y.(point)
-            && finite positions.z.(point)) then begin
+        if not (Float.is_finite positions.x.(point) && Float.is_finite positions.y.(point)
+            && Float.is_finite positions.z.(point)) then begin
           let rec lower observed =
             if point < observed
                 && not (Atomic.compare_and_set first_invalid observed point)
@@ -409,7 +408,7 @@ let distance_along_geometry_raw ?cancel ?(grain = 16_384) ?affected
       | _ -> false then Error
       (operation ^ ": distance and mask attributes must have distinct names")
   else if match radius with
-      | Distance_fixed value -> not (finite value) || value <= 0.
+      | Distance_fixed value -> not (Float.is_finite value) || value <= 0.
       | Distance_maximum -> false then Error
       (operation ^ ": fixed radius must be finite and positive")
   else
@@ -446,7 +445,7 @@ let distance_along_geometry_raw ?cancel ?(grain = 16_384) ?affected
             for point = 0 to point_count - 1 do
               if point land 16_383 = 0 then Cancel.check_opt cancel;
               let distance = distances.(point) in
-              if affected_point point && finite distance && distance > !maximum
+              if affected_point point && Float.is_finite distance && distance > !maximum
               then maximum := distance
             done;
             !maximum in
@@ -466,10 +465,10 @@ let distance_along_geometry_raw ?cancel ?(grain = 16_384) ?affected
               if affected_point point then begin
                 let distance = distances.(point) in
                 Option.iter (fun values ->
-                    values.(point) <- if finite distance then distance else -1.)
+                    values.(point) <- if Float.is_finite distance then distance else -1.)
                   distance_values;
                 Option.iter (fun values ->
-                    values.(point) <- if not (finite distance) then 0.
+                    values.(point) <- if not (Float.is_finite distance) then 0.
                       else if maximum = 0. then
                         if distance = 0. then 1. else 0.
                       else soft_transform_weight falloff distance maximum)
@@ -510,7 +509,7 @@ let distance_from_geometry_raw ?cancel ?(grain = 16_384) ?affected
       | _ -> false then Error
       (operation ^ ": distance and mask attributes must have distinct names")
   else if match radius with
-      | Distance_fixed value -> not (finite value) || value <= 0.
+      | Distance_fixed value -> not (Float.is_finite value) || value <= 0.
       | Distance_maximum -> false then Error
       (operation ^ ": fixed radius must be finite and positive")
   else
@@ -576,7 +575,7 @@ let distance_from_geometry_raw ?cancel ?(grain = 16_384) ?affected
               for point = 0 to point_count - 1 do
                 if point land 16_383 = 0 then Cancel.check_opt cancel;
                 let squared = distances_squared.(point) in
-                if affected_point point && finite squared then begin
+                if affected_point point && Float.is_finite squared then begin
                   let distance = sqrt squared in
                   if distance > !maximum then maximum := distance
                 end
@@ -597,12 +596,12 @@ let distance_from_geometry_raw ?cancel ?(grain = 16_384) ?affected
                 if point land 4095 = 0 then Cancel.check_opt cancel;
                 if affected_point point then begin
                   let squared = distances_squared.(point) in
-                  let distance = if finite squared then sqrt squared
+                  let distance = if Float.is_finite squared then sqrt squared
                     else Float.infinity in
                   Option.iter (fun values -> values.(point) <-
-                      if finite distance then distance else -1.) distance_values;
+                      if Float.is_finite distance then distance else -1.) distance_values;
                   Option.iter (fun values -> values.(point) <-
-                      if not (finite distance) then 0.
+                      if not (Float.is_finite distance) then 0.
                       else if maximum = 0. then
                         if distance = 0. then 1. else 0.
                       else soft_transform_weight falloff distance maximum)
@@ -644,10 +643,10 @@ let distance_from_target_raw ?cancel ?(grain = 16_384) ?affected
       | _ -> false then Error
       (operation ^ ": distance and mask attributes must have distinct names")
   else if match radius with
-      | Distance_fixed value -> not (finite value) || value <= 0.
+      | Distance_fixed value -> not (Float.is_finite value) || value <= 0.
       | Distance_maximum -> false then Error
       (operation ^ ": fixed radius must be finite and positive")
-  else if not (finite origin.Vec3.x && finite origin.y && finite origin.z) then
+  else if not (Float.is_finite origin.Vec3.x && Float.is_finite origin.y && Float.is_finite origin.z) then
     Error (operation ^ ": origin must be finite")
   else if metric = Distance_target_signed
       && projection <> Distance_target_planar then Error
@@ -656,8 +655,8 @@ let distance_from_target_raw ?cancel ?(grain = 16_384) ?affected
     let needs_direction = projection <> Distance_target_spherical in
     let direction_squared = direction.Vec3.x *. direction.x
         +. direction.y *. direction.y +. direction.z *. direction.z in
-    if needs_direction && (not (finite direction.x && finite direction.y
-        && finite direction.z) || not (finite direction_squared)
+    if needs_direction && (not (Float.is_finite direction.x && Float.is_finite direction.y
+        && Float.is_finite direction.z) || not (Float.is_finite direction_squared)
         || direction_squared <= 0.) then Error
       (operation ^ ": cylindrical and planar direction must be finite and non-zero")
     else
@@ -782,7 +781,7 @@ let soft_attribute_weights ?cancel ~grain ~radius ~falloff ~apply_rolloff
                 ~finish:(count - 1) (fun point ->
                   if point land 4095 = 0 then Cancel.check_opt cancel;
                   let value = values.(point) in
-                  if not (finite value) then begin
+                  if not (Float.is_finite value) then begin
                     let rec lower observed =
                       if point < observed && not (Atomic.compare_and_set
                           first_invalid observed point)
@@ -804,7 +803,7 @@ let soft_transform_raw ?cancel ?(grain = 16_384) ?selection
     ?(metric = Soft_radius) ?(falloff = Soft_cubic) ?(radius = 1.)
     ?falloff_attribute ?(recompute_normals = true) matrix geometry =
   if grain <= 0 then Error "Pdk.Transform_ops.soft_transform: grain must be positive"
-  else if not (finite radius) || radius < 0. then
+  else if not (Float.is_finite radius) || radius < 0. then
     Error "Pdk.Transform_ops.soft_transform: radius must be finite and non-negative"
   else if not (transform_matrix_finite matrix) then
     Error "Pdk.Transform_ops.soft_transform: matrix must be finite"

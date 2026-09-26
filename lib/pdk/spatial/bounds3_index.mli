@@ -20,7 +20,3 @@ val create :
   item_min_x:float array -> item_min_y:float array -> item_min_z:float array ->
   item_max_x:float array -> item_max_y:float array -> item_max_z:float array ->
   unit -> t
-
-val select :
-  int -> float array -> float array -> float array -> int array ->
-  int -> int -> int -> unit

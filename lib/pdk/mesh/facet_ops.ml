@@ -1,4 +1,3 @@
-let finite = Float.is_finite
 
 type deform_selection = Deform.selection =
   | Selected_points of Group.t
@@ -89,15 +88,15 @@ let facet ?cancel ?(grain = 16_384) ?primitives
     | None -> false
   then Error "Facet selection must be a matching primitive group"
   else if match consolidate_distance with Some value ->
-      not (finite value) || value < 0. | None -> false
+      not (Float.is_finite value) || value < 0. | None -> false
   then Error "Facet consolidation distance must be finite and non-negative"
   else if match consolidate_normals_distance with Some value ->
-      not (finite value) || value < 0. | None -> false
+      not (Float.is_finite value) || value < 0. | None -> false
   then Error "Facet normal consolidation distance must be finite and non-negative"
   else if consolidate_distance <> None && consolidate_normals_distance <> None
   then Error "Facet point and normal consolidation modes are mutually exclusive"
   else if remove_inline_points
-      && (not (finite inline_distance) || inline_distance < 0.)
+      && (not (Float.is_finite inline_distance) || inline_distance < 0.)
   then Error "Facet inline distance must be finite and non-negative"
   else if match primitives with Some group -> Group.cardinality group = 0
       | None -> false then Ok geometry

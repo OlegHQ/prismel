@@ -3,7 +3,6 @@ open Plane_generators
 
 type revolve_type = Revolve_closed | Revolve_open_arc
 
-let finite = Float.is_finite
 let get_ok = function Ok value -> value | Error message -> invalid_arg message
 
 let run ?cancel ?(grain = 16_384) ?primitives
@@ -48,12 +47,12 @@ let run ?cancel ?(grain = 16_384) ?primitives
   else if divisions > Sys.max_array_length -
       (match revolve_type with Revolve_closed -> 0 | Revolve_open_arc -> 1) then
     Error (operation ^ ": angular cardinality exceeds OCaml array limits")
-  else if not (finite origin.x && finite origin.y && finite origin.z
-      && finite axis.x && finite axis.y && finite axis.z
-      && finite start_angle && finite end_angle) then
+  else if not (Float.is_finite origin.x && Float.is_finite origin.y && Float.is_finite origin.z
+      && Float.is_finite axis.x && Float.is_finite axis.y && Float.is_finite axis.z
+      && Float.is_finite start_angle && Float.is_finite end_angle) then
     Error (operation ^ ": origin, axis, and angles must be finite")
   else if revolve_type = Revolve_open_arc
-      && (not (finite (end_angle -. start_angle))
+      && (not (Float.is_finite (end_angle -. start_angle))
           || end_angle = start_angle) then
     Error (operation ^ ": open arc angles must have a finite non-zero span")
   else if caps && (revolve_type <> Revolve_closed || not polygon_surface) then
@@ -65,13 +64,13 @@ let run ?cancel ?(grain = 16_384) ?primitives
   | None, None, None ->
       let axis_scale = max (abs_float axis.x)
           (max (abs_float axis.y) (abs_float axis.z)) in
-      if axis_scale = 0. || not (finite axis_scale) then
+      if axis_scale = 0. || not (Float.is_finite axis_scale) then
         Error (operation ^ ": axis must be non-zero")
       else
         let sx = axis.x /. axis_scale and sy = axis.y /. axis_scale
         and sz = axis.z /. axis_scale in
         let axis_length = sqrt ((sx *. sx) +. (sy *. sy) +. (sz *. sz)) in
-        if axis_length = 0. || not (finite axis_length) then
+        if axis_length = 0. || not (Float.is_finite axis_length) then
           Error (operation ^ ": axis normalization failed")
         else
           let ax = sx /. axis_length and ay = sy /. axis_length
@@ -101,7 +100,7 @@ let run ?cancel ?(grain = 16_384) ?primitives
             and dz = source_positions.z.(b) -. source_positions.z.(a) in
             let scale = max (abs_float dx) (max (abs_float dy) (abs_float dz)) in
             if scale = 0. then 0.
-            else if not (finite scale) then infinity
+            else if not (Float.is_finite scale) then infinity
             else
               let x = dx /. scale and y = dy /. scale and z = dz /. scale in
               scale *. sqrt ((x *. x) +. (y *. y) +. (z *. z)) in
@@ -125,12 +124,12 @@ let run ?cancel ?(grain = 16_384) ?primitives
                     let x = source_positions.x.(point)
                     and y = source_positions.y.(point)
                     and z = source_positions.z.(point) in
-                    if not (finite x && finite y && finite z) then
+                    if not (Float.is_finite x && Float.is_finite y && Float.is_finite z) then
                       input_errors.(primitive) <- 3
                     else begin
                       let rx = x -. origin.x and ry = y -. origin.y
                       and rz = z -. origin.z in
-                      if not (finite rx && finite ry && finite rz) then
+                      if not (Float.is_finite rx && Float.is_finite ry && Float.is_finite rz) then
                         input_errors.(primitive) <- 3
                       else begin
                         let along = (rx *. ax) +. (ry *. ay) +. (rz *. az) in
@@ -140,14 +139,14 @@ let run ?cancel ?(grain = 16_384) ?primitives
                         let radial_scale = max (abs_float qx)
                             (max (abs_float qy) (abs_float qz)) in
                         if radial_scale = 0. then Bytes.set on_axis vertex '\001'
-                        else if not (finite radial_scale) then
+                        else if not (Float.is_finite radial_scale) then
                           input_errors.(primitive) <- 3
                       end
                     end;
                     if local > 0 then begin
                       let previous = source.vertex_points.(vertex - 1) in
                       let length = robust_distance previous point in
-                      if length = 0. || not (finite length) then
+                      if length = 0. || not (Float.is_finite length) then
                         input_errors.(primitive) <- 4
                       else cumulative := !cumulative +. length
                     end;
@@ -159,11 +158,11 @@ let run ?cancel ?(grain = 16_384) ?primitives
                       let a = source.vertex_points.(last - 1)
                       and b = source.vertex_points.(first) in
                       let length = robust_distance a b in
-                      if length = 0. || not (finite length) then begin
+                      if length = 0. || not (Float.is_finite length) then begin
                         input_errors.(primitive) <- 4; !cumulative
                       end else !cumulative +. length
                     end else !cumulative in
-                  if total = 0. || not (finite total) then
+                  if total = 0. || not (Float.is_finite total) then
                     input_errors.(primitive) <- 5
                   else for vertex = first to last - 1 do
                     profile_u.(vertex) <- profile_u.(vertex) /. total
@@ -408,7 +407,7 @@ let run ?cancel ?(grain = 16_384) ?primitives
                         let ox = base_x +. (qx *. cosine) +. (cross_x *. sine)
                         and oy = base_y +. (qy *. cosine) +. (cross_y *. sine)
                         and oz = base_z +. (qz *. cosine) +. (cross_z *. sine) in
-                        if finite ox && finite oy && finite oz then begin
+                        if Float.is_finite ox && Float.is_finite oy && Float.is_finite oz then begin
                           px.(output) <- ox; py.(output) <- oy; pz.(output) <- oz
                         end else Bytes.set invalid_positions vertex '\001';
                         point_map.(output) <- source_point;

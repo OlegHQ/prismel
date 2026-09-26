@@ -23,7 +23,6 @@ let default_outputs = {
 exception Curvature_error of string
 let fail message = raise (Curvature_error message)
 
-let finite = Float.is_finite
 
 let validate_outputs outputs =
   let named = [
@@ -71,7 +70,7 @@ let run ?cancel ?(grain = 16_384) ?points
     if grain <= 0 then fail "grain must be positive";
     if smoothing_iterations < 0 then
       fail "smoothing iteration count must be non-negative";
-    if not (finite smoothing_strength && smoothing_strength >= 0.
+    if not (Float.is_finite smoothing_strength && smoothing_strength >= 0.
         && smoothing_strength <= 1.) then
       fail "smoothing strength must be finite and between zero and one";
     validate_outputs outputs;
@@ -173,13 +172,13 @@ let run ?cancel ?(grain = 16_384) ?points
             normal_z.(point) <- normal_z.(point) +. ((ux *. vy) -. (uy *. vx))
           end
         done;
-        if not (finite area_sum.(point) && area_sum.(point) > 0.) then
+        if not (Float.is_finite area_sum.(point) && area_sum.(point) > 0.) then
           Atomic.set invalid_point true
         else begin
           if need_mean then begin
             let normal_length = Float.hypot normal_x.(point)
                 (Float.hypot normal_y.(point) normal_z.(point)) in
-            if not (finite normal_length && normal_length > 0.) then
+            if not (Float.is_finite normal_length && normal_length > 0.) then
               Atomic.set invalid_point true
             else begin
               let dot =
@@ -187,7 +186,7 @@ let run ?cancel ?(grain = 16_384) ?points
                 +. (laplace_y.(point) *. (normal_y.(point) /. normal_length))
                 +. (laplace_z.(point) *. (normal_z.(point) /. normal_length)) in
               let value = (dot /. (4. *. area_sum.(point))) /. scale in
-              if finite value then mean.(point) <- value
+              if Float.is_finite value then mean.(point) <- value
               else Atomic.set invalid_point true
             end
           end;
@@ -195,7 +194,7 @@ let run ?cancel ?(grain = 16_384) ?points
             let defect = (if Bytes.unsafe_get boundary_points point = '\000'
                 then 2. *. Float.pi else Float.pi) -. angle_sum.(point) in
             let value = ((defect /. area_sum.(point)) /. scale) /. scale in
-            if finite value then gaussian.(point) <- value
+            if Float.is_finite value then gaussian.(point) <- value
             else Atomic.set invalid_point true
           end
         end
