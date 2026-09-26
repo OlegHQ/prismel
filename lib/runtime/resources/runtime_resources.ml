@@ -115,11 +115,7 @@ module Image=struct
       source.dead<-true;
       Ok()
     end)
-  let rec reload_file x path=live"Image.reload_file"x(fun()->match load_file path with
-    |Error _ as failure->failure
-    |Ok replacement->let result=replace x~width:replacement.width~height:replacement.height~rgba:replacement.rgba in
-      ignore(destroy replacement);result)
-  and destroy x=main"Image.destroy"(fun()->if x.dead then Ok()else(
+  let destroy x=main"Image.destroy"(fun()->if x.dead then Ok()else(
     x.dead<-true;
     List.iter(fun(bytes,_)->if not(leased x bytes)then
       ignore(return_canvas_storage x bytes))x.canvas_returns;

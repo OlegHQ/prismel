@@ -49,16 +49,9 @@ copying can refresh an existing same-sized image without allocating another
 wrapper. Native readback is explicit through `Canvas.capture`; ordinary image
 drawing never reads pixels back from the GPU.
 
-## Watched assets
+## Ownership
 
-`Sketch.run_assets ~watch:true` tracks source stamps between frames. A
-successful reload replaces content while preserving the borrowed `Image.t`
-identity and advancing its generation. Decode failure preserves the last valid
-pixels and generation. This makes watched images safe to retain in immutable
-models and bounded caches.
-
-Values borrowed from `Assets.t` are destroyed by the asset owner. Directly
-loaded or created images are owned by the caller and belong in
+Loaded or created images are owned by the caller and belong in
 `Sketch.run_state ~on_stop`:
 
 ```ocaml

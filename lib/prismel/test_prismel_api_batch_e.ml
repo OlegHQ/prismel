@@ -42,8 +42,7 @@ let run () =let open Prismel in
       "Canvas public alternating to_image/destroy allocated %.0f bytes"
       allocated);
   Image.destroy!published;Canvas.destroy alternating;
-  let assets=Assets.create()in require(Assets.image_count assets=0)"Assets baseline";
   begin match Audio.init()with Error message->failwith message|Ok()->()end;
   for _=1 to 100_000 do require(Image.Private.identity image>0)"stable image identity"done;
-  Assets.destroy assets;Image.destroy captured;Canvas.destroy canvas;Image.destroy image;Audio.shutdown();
+  Image.destroy captured;Canvas.destroy canvas;Image.destroy image;Audio.shutdown();
   print_endline"Prismel batch E resource ownership passed"

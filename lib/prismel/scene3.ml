@@ -145,11 +145,6 @@ let mesh ?(material = Material.default) ?texture ?(mode = Faces)
     ?(cull = Cull_back) ?(shading = Smooth) value =
   Mesh (value, material, texture, mode, cull, shading)
 
-let instances ?(material = Material.default) ?texture ?(mode = Faces)
-    ?(cull = Cull_back) ?(shading = Smooth) value transforms =
-  Instances (value, material, texture, mode, cull, shading,
-    Array.of_list transforms)
-
 let instances_array ?(material = Material.default) ?texture ?(mode = Faces)
     ?(cull = Cull_back) ?(shading = Smooth) value transforms =
   Instances (value, material, texture, mode, cull, shading,

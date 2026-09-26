@@ -41,8 +41,7 @@ the current stream according to SDL3_mixer behavior.
 ## Ownership
 
 Directly loaded or synthesized values are caller-owned and must be released in
-`Sketch.run_state ~on_stop`. Samples/music loaded through `Assets` are borrowed
-and released by `Sketch.run_assets`.
+`Sketch.run_state ~on_stop`.
 
 ## Scope
 

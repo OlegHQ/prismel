@@ -67,8 +67,7 @@ cancels capture. File-drop strings are copied before SDL3 releases its payload.
 
 The authoritative SDL3 size-change notification updates logical window facts,
 refreshes drawable size, resizes the Metal surface, and emits one
-`WindowResized` event. Programmatic `Sketch.resize` follows the same
-synchronization path. Fullscreen, show/hide, minimize,
+`WindowResized` event. Fullscreen, show/hide, minimize,
 maximize, restore, title, and position operations delegate to the owned native
 window.
 

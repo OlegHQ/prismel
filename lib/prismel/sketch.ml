@@ -2,7 +2,6 @@ type clock=Realtime|Fixed of float
 type config={width:int;height:int;title:string;fps:int option;domains:int option;clock:clock;resizable:bool;fullscreen:bool}
 let default_config={width=800;height=600;title="Prismel sketch";fps=Some 60;domains=None;clock=Realtime;resizable=true;fullscreen=false}
 let stopped=ref false let quit()=stopped:=true
-let resize_current : (width:int -> height:int -> unit) option ref = ref None
 let relative_current : (bool -> (unit, string) result) option ref = ref None
 let cursor_current : ([`Default|`Horizontal_resize|`Vertical_resize] ->
   (unit,string) result) option ref = ref None
@@ -12,11 +11,6 @@ let set_relative_mouse enabled = match !relative_current with
 let set_cursor shape = match !cursor_current with
   |None->Error"Sketch.set_cursor: no sketch is running"
   |Some set->set shape
-let resize ~width ~height =
-  if width<=0||height<=0 then invalid_arg"Sketch.resize: dimensions must be positive";
-  match !resize_current with
-  |None->invalid_arg"Sketch.resize: no sketch is running"
-  |Some resize->resize~width~height
 let frame config count time dt events={Frame.width=config.width;height=config.height;size=(config.width,config.height);drawable_width=config.width;drawable_height=config.height;drawable_size=(config.width,config.height);pixel_scale=(1.,1.);time;dt;fps=(if dt > 0. then 1. /. dt else 0.);count;mouse=Input_state.mouse();mouse_delta=Input_state.mouse_delta();keys=Input_state.keys();mouse_buttons=Input_state.buttons();events}
 let run_state_internal ?(config=default_config)?max_frames ?(after_present=fun model _->model)~init~update~view ?(on_stop=fun _->())()=
   if config.width<=0||config.height<=0 then invalid_arg"Sketch: dimensions must be positive";
@@ -65,11 +59,6 @@ let run_state_internal ?(config=default_config)?max_frames ?(after_present=fun m
     match Prismel_execution.set_cursor coordinator shape with
     |Ok()->Ok()
     |Error error->Error(Format.asprintf"%a"Prismel_execution.pp_error error));
-  resize_current:=Some(fun~width~height->
-    get(Prismel_execution.resize coordinator~logical_width:width
-      ~logical_height:height~drawable_width:width~drawable_height:height);
-    let facts=get(Prismel_execution.presentation_facts coordinator)in
-    logical_width:=facts.logical_width;logical_height:=facts.logical_height);
   Scene.Private.install_renderer(fun scene->
     (* ponytail: scan scene metadata each frame; move the focused region into
        staged scene facts if large retained scenes make this measurable. *)
@@ -90,7 +79,7 @@ let run_state_internal ?(config=default_config)?max_frames ?(after_present=fun m
   let cleanup()=Fun.protect~finally:(fun()->
       (* Never leave the pointer captured after the sketch stops. *)
       Option.iter(fun set->ignore(set false))!relative_current;
-      relative_current:=None;cursor_current:=None;resize_current:=None;
+      relative_current:=None;cursor_current:=None;
       Canvas_runtime.clear();ignore(Prismel_execution.destroy coordinator))(fun()->on_stop!model)in
   Fun.protect~finally:cleanup(fun()->
     let limit=max_frames in let count=ref 0 in while not !stopped&&Option.fold~none:true~some:(fun limit-> !count<limit)limit do
@@ -116,7 +105,6 @@ let run_state_internal ?(config=default_config)?max_frames ?(after_present=fun m
 let run_state ?config ?max_frames ~init~update~view ?after_present ?on_stop()=
   Parallel.run ?domains:(Option.bind config(fun value->value.domains))(fun()->run_state_internal?config?max_frames?after_present~init~update~view?on_stop())
 let run ?config view=ignore(run_state?config~init:(fun _->())~update:(fun()_->())~view:(fun()frame->view frame)())
-let run_assets ?config ?(root=".") ?(watch=false)~init~update~view()=let assets=Assets.create~root~watch()in Fun.protect~finally:(fun()->Assets.destroy assets)(fun()->run_state?config~init:(init assets)~update:(update assets)~view:(view assets)())
 let export_state ?(config=default_config)?(fps=60)?(prefix="frame")~directory~frames~init~update~view ?(on_stop=fun _->())()=
   if frames<=0 then invalid_arg"Sketch.export_state: frames must be positive";
   if fps<=0 then invalid_arg"Sketch.export_state: fps must be positive";

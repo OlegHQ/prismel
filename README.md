@@ -122,7 +122,6 @@ dune exec ./main.exe
 
 Resource-owning models release their images, fonts, canvases, and audio in
 `Sketch.run_state ~on_stop`, while SDL3 and Metal are still alive.
-`Sketch.run_assets` is the shorter path for ordinary borrowed assets.
 
 ## Examples
 

@@ -4,8 +4,6 @@ let run () =
   let original=Bytes.of_string"\x11\x22\x33\xff\x44\x55\x66\xff\x77\x88\x99\xff\xaa\xbb\xcc\xff"in
   let image=get(Image.create~width:2~height:2~rgba:original)in Bytes.fill original 0 16 '\000';
   let identity=Image.identity image and generation=Image.generation image in
-  (match Image.reload_file image"/definitely/missing.png"with Error _->()|Ok()->failwith"failed watch replaced image");
-  if Image.identity image<>identity||Image.generation image<>generation||Bytes.get(get(Image.pixels image))0<>'\x11'then failwith"stable watched image retention";
   get(Image.replace image~width:1~height:1~rgba:(Bytes.of_string"\xff\x00\x00\xff"));
   if Image.identity image<>identity||Image.generation image<>generation+1 then failwith"image identity/generation";
   let canvas=get(Canvas.create~width:4~height:4)in

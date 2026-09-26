@@ -765,8 +765,6 @@ never published. Only target-neutral CPU preparation runs in the worker.
 - width, height, title, FPS and window behavior are optional configuration.
 - cleanup is exception-safe.
 - `Sketch.quit ()` requests graceful termination.
-- `Sketch.resize ~width ~height` resizes the active native runtime and updates
-  subsequent logical `Frame` facts.
 - `Sketch.render_target ()` returns the sole `Native` target.
 
 The native runtime uses the ordinary `Event.t`, `Input`, and logical `Frame`

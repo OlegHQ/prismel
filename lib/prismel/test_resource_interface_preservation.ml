@@ -3,12 +3,6 @@ open Prismel
 let require condition message = if not condition then failwith message
 
 let run () =
-  let assets = Assets.create ~root:"." () in
-  require (Assets.root assets = ".") "asset root";
-  require (Assets.resolve assets "image.png" = "./image.png")
-    "asset path resolution";
-  Assets.destroy assets;
-
   require (Result.is_ok (Audio.init ())) "audio init";
   (* Leave enough time to observe playback while parallel test processes run. *)
   let sample = Result.get_ok

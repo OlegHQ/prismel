@@ -538,11 +538,11 @@ let run_1 () =
     fail "cylinder cap resolution did not add concentric geometry";
   let instance_scene =
     Scene3.create [
-      Scene3.instances (Mesh.box ~width:1. ~height:1. ~depth:1. ())
-        [ Mat4.identity;
-          Mat4.translation (Vec3.create 2. 0. 0.);
-          Mat4.translation (Vec3.create (-2.) 0. 0.);
-        ];
+      Scene3.instances_array (Mesh.box ~width:1. ~height:1. ~depth:1. ())
+        [| Mat4.identity;
+           Mat4.translation (Vec3.create 2. 0. 0.);
+           Mat4.translation (Vec3.create (-2.) 0. 0.);
+        |];
     ]
   in
   if List.length (Scene3.Private.drawings instance_scene) <> 3 then

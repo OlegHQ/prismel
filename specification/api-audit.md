@@ -15,11 +15,11 @@ with rationale rather than represented by placeholder APIs.
 | First animated sketch in one short file | Implemented | `Sketch.run`, `examples/basic` |
 | Functional immutable state | Implemented | `Sketch.run_state`, `Frame.t`, native lifecycle test |
 | Picture as composable data | Implemented | `Scene.t`, groups, transforms, scoped clip/blend |
-| No raw SDL in normal sketch path | Implemented | `Sketch`, `Frame`, `Scene`, `Canvas`, `Assets`, `Audio` signatures |
+| No raw SDL in normal sketch path | Implemented | `Sketch`, `Frame`, `Scene`, `Canvas`, `Image`, `Font`, `Audio` signatures |
 | Deterministic generative tools | Implemented | `Rand`, `Noise`, color palettes, `examples/noise` |
 | Safe multicore acceleration | Implemented | `Parallel`, initial-domain guards, `examples/particles` |
 | One-command project scaffold | Implemented | `tools/new_example.exe`, scaffold smoke check |
-| Reliable edit/compile/restart | Implemented workflow | Watched media, `watchexec --restart`, explicit settings codecs |
+| Reliable edit/compile/restart | Implemented workflow | `watchexec --restart`, explicit settings codecs |
 | Native graphics and audio | Implemented | SDL3 window/input/audio plus Metal/OGPU presentation and integration tests |
 
 ## Drawing and composition
@@ -54,12 +54,10 @@ with rationale rather than represented by placeholder APIs.
 
 | Capability | Status | Evidence / remaining work |
 |---|---|---|
-| Image/font/sample/music cache | Implemented | `Assets`, deduplication tests |
-| Automatic owned cleanup | Implemented | `Sketch.run_assets`, `on_stop` |
-| Preload error aggregation | Implemented | typed requests and integration test |
+| Automatic owned cleanup | Implemented | `Sketch.run_state ~on_stop` |
 | Sample/music playback | Implemented | SDL3_mixer native lifecycle and memory-mixer tests |
 | No-file tone synthesis | Implemented | sine/square/saw/triangle `Audio.Sample.synth` |
-| Parallel preload and hot asset reload | Implemented initial | concurrent image file preparation, main-domain decode/upload, stable-identity watched reload |
+| Asset cache, preload and hot reload | Not provided | the `Assets` cache served only the uncalled `Sketch.run_assets` and was removed; load resources directly and release them in `on_stop` |
 | Rich synthesis graph/audio input | Out of initial completeness target | should be a separate pure signal design |
 
 ## UI and workflow
@@ -83,7 +81,7 @@ API documentation builds through `dune build @doc`.
 
 Native arbitrary model migration is explicitly excluded from the initial 2D
 target: OCaml closures, changed types, and native resource handles cannot be safely
-marshalled across a relink. `Sketch.export`, watched images, PXUI settings codecs, and
+marshalled across a relink. `Sketch.export`, PXUI settings codecs, and
 process restart cover the productive workflow without pretending otherwise.
 
 The high-level sketch contract uses contextual errors or controlled exceptions.

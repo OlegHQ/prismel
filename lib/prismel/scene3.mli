@@ -98,16 +98,6 @@ val mesh :
   node
 
 (* Draw immutable geometry at many independent transforms. *)
-val instances :
-  ?material:Material.t ->
-  ?texture:texture ->
-  ?mode:render_mode ->
-  ?cull:cull ->
-  ?shading:shading ->
-  Mesh.t ->
-  Mat4.t list ->
-  node
-
 val instances_array :
   ?material:Material.t ->
   ?texture:texture ->

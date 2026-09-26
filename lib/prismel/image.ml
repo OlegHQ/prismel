@@ -28,7 +28,6 @@ module Private=struct
     |Ok()->()
     |Error error->failwith(message"Image.Private.replace"error)
   let identity=Runtime_resources.Image.identity
-  let reload value path=map"Image.reload"(Runtime_resources.Image.reload_file value path)
   let pixels value=map"Image.pixels"(Runtime_resources.Image.pixels value)
   let of_resource image=image
   let resource image=image

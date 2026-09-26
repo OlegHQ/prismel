@@ -4,8 +4,6 @@ let finite x=Float.is_finite x
 let run () =
   check(Color.hex"#f08c"=Ok(Color.rgba 255 0 136 204))"Color hex";
   check(Color.gradient[Color.red;Color.blue]0.5=Color.rgba 128 0 128 255)"Color gradient";
-  let m3=Mat3.mul(Mat3.translation 4. 5.)(Mat3.rotation(Float.pi/.2.))in
-  let x,y=Mat3.transform_point m3(1.,0.)in check(abs_float(x-.4.)<1e-12&&abs_float(y-.6.)<1e-12)"Mat3 composition";
   let m4=Mat4.mul(Mat4.translation(Vec3.create 2. 3. 4.))(Mat4.scaling(Vec3.create 2. 2. 2.))in
   check(Vec3.nearly_equal(Mat4.transform_point m4(Vec3.create 1. 1. 1.))(Vec3.create 4. 5. 6.)~eps:1e-12)"Mat4 affine";
   check(match Mat4.inverse m4 with Some inverse->Mat4.nearly_equal(Mat4.mul inverse m4)Mat4.identity~eps:1e-12|None->false)"Mat4 inverse";

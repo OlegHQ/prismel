@@ -1,6 +1,6 @@
 # Live sketch workflow
 
-Prismel supports compiled sketch restart and watched media. For finite visual
+Prismel supports compiled sketch restart. For finite visual
 experiments, `Sketch.export` writes deterministic frames from a pure scene.
 
 ## Compiled sketch restart
@@ -14,12 +14,4 @@ need continuity should use an explicit, versioned model codec; silently
 marshalling arbitrary closures, native handles, or changed OCaml types is outside
 the safe public contract.
 
-## Watched media
-
-`Sketch.run_assets ~watch:true` checks cached image stamps between frames and
-replaces changed textures in place. Borrowed `Image.t` identities remain
-stable, so media iteration does not require rebuilding or reconstructing the
-model. Failed replacement keeps the last valid texture.
-
-These loops compose: use `Sketch.export` for finite scenes, watched assets for
-visual media, and restart a full sketch when compiled behavior changes.
+These loops compose: use `Sketch.export` for finite scenes and restart a full sketch when compiled behavior changes.

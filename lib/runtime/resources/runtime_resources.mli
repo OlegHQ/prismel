@@ -29,9 +29,6 @@ module Image : sig
      source is destroyed and the target retains its identity. A source with an
      active private snapshot lease is rejected without mutation. *)
   val replace_owned : t -> t -> (unit,error) result
-  (* Stable-identity watched replacement. Decode failure retains the previous
-      valid generation and pixels. *)
-  val reload_file : t -> string -> (unit,error) result
   val destroy : t -> (unit,error) result
 end
 

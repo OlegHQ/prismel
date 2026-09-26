@@ -11,7 +11,6 @@ val get_size : t -> int * int
 module Private : sig
   val replace : t -> t -> unit
   val identity : t -> int
-  val reload : t -> string -> (unit,string) result
   val pixels : t -> (bytes,string) result
   val of_resource : Runtime_resources.Image.t -> t
   val resource : t -> Runtime_resources.Image.t

@@ -37,16 +37,6 @@ val run_state :
     the native frame is rendered, can capture that frame, and returns the model
     for the next frame and [on_stop]. *)
 
-val run_assets :
-  ?config:config ->
-  ?root:string ->
-  ?watch:bool ->
-  init:(Assets.t -> Frame.t -> 'model) ->
-  update:(Assets.t -> 'model -> Frame.t -> 'model) ->
-  view:(Assets.t -> 'model -> Frame.t -> Scene.t) ->
-  unit -> 'model
-(** Run a stateful sketch with an automatically owned asset cache. *)
-
 val export :
   ?config:config -> ?fps:int -> ?prefix:string -> directory:string ->
   frames:int -> (Frame.t -> Scene.t) -> unit
@@ -67,8 +57,6 @@ val export_state :
 (** Stateful deterministic PNG-sequence export. *)
 
 val quit : unit -> unit
-val resize : width:int -> height:int -> unit
-(* Resize the active sketch through its native runtime. *)
 
 val set_relative_mouse : bool -> (unit, string) result
 (** Capture and hide the pointer: [Frame.mouse_delta] then reports device
