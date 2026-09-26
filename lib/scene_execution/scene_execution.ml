@@ -367,7 +367,22 @@ let prepare_uniforms value ~defer sources=
              Bytes.unsafe_get slice.uniform_staging(slice.uniform_staging_offset+ !index)do incr index done;
            !index=length)
       |_->false)sources previous in
-  if same then Ok previous else begin
+  (* Scene3 blocks (5456 bytes plus 192 per instance) bypass [prepare]'s
+     payload check, so reject non-finite values and light counts outside
+     0..64 here, before anything is written; unchanged frames skip this. *)
+  let malformed_scene3()=Array.exists(function
+    |Some bytes when Bytes.length bytes>=5456->
+        let finite=ref true and index=ref 0 and count=Bytes.length bytes/4 in
+        while !finite&& !index<count do
+          if not(Float.is_finite(Int32.float_of_bits(Bytes.get_int32_le bytes(!index*4))))
+          then finite:=false;incr index done;
+        let lights=Int32.float_of_bits(Bytes.get_int32_le bytes(73*4))in
+        not(!finite&&lights>=0.&&lights<=64.&&Float.is_integer lights)
+    |_->false)sources in
+  if same then Ok previous
+  else if malformed_scene3() then error"Scene_execution.prepare_uniforms"Ogpu.Error.Invalid_argument
+    "Scene3 transform uniforms are malformed"
+  else begin
     drop_plans value;
     value.previous_uniforms<-[||];
     let needed=ref 0 and valid=ref true in
