@@ -106,9 +106,8 @@ Bootstrap: `opam switch create . 5.3.0 --no-install`, then `opam pin add
 - Conventions: `at:(x, y)` positions, radians, radius for circles, `Color.t`
   colors, short constructor names, sensible defaults with explicit config.
 - Resources (textures, fonts, canvases, audio) are owned: release them in
-  `Sketch.run_state ~on_stop` while SDL is alive. `Sketch.run_assets` values
-  are borrowed; watched reloads keep the `Image.t` identity and the last good
-  texture. Audio is SDL3_mixer-backed and never silently a no-op.
+  `Sketch.run_state ~on_stop` while SDL is alive. Audio is SDL3_mixer-backed
+  and never silently a no-op.
 - No fake placeholders: implement a real `result`-returning boundary or leave
   the operation out. Prefer explicit `result` errors at backend boundaries.
 - Every public module has an `.mli`; sibling libraries stay wrapped. Changing
