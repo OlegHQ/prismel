@@ -11,6 +11,8 @@ type loaded = {
   positions : (int * float * float) list;  (** graph-space tile positions *)
   display : int option;
   active_camera : int option;
+  settings : (string * Procedural.Parameter.value) list;
+  (** sketch settings by field name; empty in older presets *)
   view : Yojson.Safe.t;  (** environment camera/render settings *)
 }
 
@@ -25,7 +27,8 @@ val path : directory:string -> name:string -> string
 val save :
   directory:string -> name:string -> sketch:string ->
   document:Procedural.Edit_graph.t -> positions:(int * float * float) list ->
-  display:int option -> active_camera:int option -> view:Yojson.Safe.t ->
+  display:int option -> active_camera:int option ->
+  settings:(string * Procedural.Parameter.value) list -> view:Yojson.Safe.t ->
   (string, string) result
 (** Write [<directory>/<name>.json] through {!Editor_core.Store}'s atomic JSON
     envelope; returns the path. *)

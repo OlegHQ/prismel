@@ -267,7 +267,8 @@ edges. The Box catalog defaults to six quads, so the wireframe follows the
 modeled faces without triangulation diagonals. The wireframe uses the Metal
 scene path and preserves packed instancing. Native `Scene3.Wireframe` also
 supports triangle meshes, where it follows the mesh's triangle edges.
-`Editor3.rerender` re-lowers the scene on toggle. All
+The renderer is a sketch `Settings` choice: switching it is one undo step and
+recooks, since `prepare` receives the settings. All
 graph and parameter edits go through the workspace's shared undo stack.
 Each background preparation now builds only the selected renderer's derived
 mesh: the traced prototype, filled mesh, or unique-edge wire mesh. Switching

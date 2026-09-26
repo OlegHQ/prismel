@@ -28,6 +28,8 @@ type 'panel frame_result = {
   prompt_intent : prompt_intent option;
   panel : 'panel option;
   grab : bool;  (* a viewport handle holds the pointer *)
+  settings : Settings.t;
+  touched : bool;  (* a graph intent changed layout, display, or flag *)
 }
 
 type 'prepared t = {
@@ -49,7 +51,8 @@ type 'prepared t = {
   edit_error : string option;
   status_fps : int option;
   status_fps_at : float;
-  history : Edit_graph.t Editor_core.History.t;
+  settings : Settings.t;
+  history : Document.t Editor_core.History.t;
   focus : Workspace.column;
   pane_keys : (int * Workspace.column) list;
   leader : Leader.state;
@@ -83,7 +86,7 @@ let inspector_panel ui bounds build =
     ~width:(float_of_int width) ~max_height:(float_of_int height)
     "workspace-inspector-panel" build
 
-let create ?(keymap = Leader.keymap) ?(seed_document = fun _ document -> document)
+let create ?(settings = Settings.none) ?(keymap = Leader.keymap) ?(seed_document = fun _ document -> document)
     ?(name = "sketch") ?presets ?(timeline_frames = 240)
     ?(layout = Pxui_shell.Layout.default) ?(factories = [])
     ?(seed = 0L) ?(grain = 16_384)
@@ -111,7 +114,9 @@ let create ?(keymap = Leader.keymap) ?(seed_document = fun _ document -> documen
         timeline = Sketch_support.Timeline.create (); cook;
         edit_error = None; status_fps = None;
         status_fps_at = Float.neg_infinity;
-        history = Editor_core.History.create document;
+        settings;
+        history = Editor_core.History.create
+            (Document.of_view document graph_view settings);
         focus = Workspace.View; pane_keys = []; leader = Leader.Idle;
         keymap; timeline_frames = max 1 timeline_frames })
       (Cook.create ~prepare ~seed ~grain ?domains ~max_entries
@@ -119,6 +124,7 @@ let create ?(keymap = Leader.keymap) ?(seed_document = fun _ document -> documen
 
 let graph value = value.graph
 let document value = value.document
+let settings value = value.settings
 let prepared value = value.cook.Cook.prepared
 let timeline value = value.timeline
 let selected_node value = Option.bind (Pxui_graph.selected value.graph_view)
@@ -269,14 +275,33 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
     let inspector_visible = not (Workspace.collapsed workspace Workspace.Inspector) in
     let selected = Option.bind (Pxui_graph.selected graph_view)
         (fun node_id -> Edit_graph.find document ~node_id) in
-    let panel, document, parameter_effects, edit_error =
+    let touched = List.exists (function
+      | Pxui_graph.Selected _ | View_changed | Connection_selected _
+      | Frame_camera_requested _ -> false
+      | _ -> true) graph_changes in
+    let unchanged = value.settings in
+    let panel, document, parameter_effects, edit_error, settings =
       Pxui.Ui.within ui inspector_root (fun () -> match selected with
+      | None when not inspector_visible ->
+          None, document, Parameter.no_effects, edit_error, unchanged
       | None ->
-          let panel = if inspector_visible then
-            Some (inspector_panel ui panes.inspector camera_panel) else None in
-          panel, document, Parameter.no_effects, edit_error
+          (* Sketch settings above the environment's camera/render panel. *)
+          let edited, panel = inspector_panel ui panes.inspector (fun () ->
+            let edited = match Settings.fields value.settings with
+              | [] -> Ok (value.settings, Parameter.no_effects)
+              | fields ->
+                  Pxui.Ui.scope ui "sketch-settings" (fun () ->
+                    Pxui.Ui.label ui "Settings";
+                    match Pxui_shell.Inspector.fields ui fields with
+                    | [] -> Ok (value.settings, Parameter.no_effects)
+                    | changes -> Settings.apply value.settings changes) in
+            edited, camera_panel ()) in
+          (match edited with
+           | Error message ->
+               Some panel, document, Parameter.no_effects, Some message, unchanged
+           | Ok (settings, effects) -> Some panel, document, effects, edit_error, settings)
       | Some _ when not inspector_visible ->
-          None, document, Parameter.no_effects, edit_error
+          None, document, Parameter.no_effects, edit_error, unchanged
       | Some node ->
           match inspector_panel ui panes.inspector (fun () ->
               Pxui.Ui.scope ui (Printf.sprintf "node.%d" (Node.id node)) (fun () ->
@@ -285,13 +310,14 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
                     (Node.parameter_fields node) with
                 | [] -> Ok (node, Parameter.no_effects)
                 | changes -> Node.apply_parameters node changes)) with
-          | Error message -> None, document, Parameter.no_effects, Some message
+          | Error message -> None, document, Parameter.no_effects, Some message, unchanged
           | Ok (edited, _) when edited == node ->
-              None, document, Parameter.no_effects, edit_error
+              None, document, Parameter.no_effects, edit_error, unchanged
           | Ok (edited, effects) ->
               (match Edit_graph.replace_node edited document with
-               | Error message -> None, document, Parameter.no_effects, Some message
-               | Ok document -> None, document, effects, edit_error)) in
+               | Error message ->
+                   None, document, Parameter.no_effects, Some message, unchanged
+               | Ok document -> None, document, effects, edit_error, unchanged)) in
     let timeline_intents = if Workspace.collapsed workspace Workspace.Timeline
       then [] else Pxui.Ui.within ui timeline_root (fun () ->
         Pxui_shell.Timeline_bar.draw ui ~bounds:panes.timeline
@@ -330,7 +356,7 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
       effects = Parameter.union_effects editor_effects
           (Parameter.union_effects parameter_effects handle_effects);
       timeline_intents; frame_request; prompt = None; prompt_intent = None;
-      panel; grab } in
+      panel; grab; settings; touched } in
   let leader_panel = if leader = Leader.Pending then Some (fun ui ->
     Pxui_shell.Which_key.panel ui keymap ~focus
       ~focus_name:(Leader.pane_name focus)) else None in
@@ -385,7 +411,8 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
         edit_error = value.edit_error;
         effects = Parameter.no_effects; timeline_intents = [];
         frame_request = initial_frame_request; prompt = initial_prompt;
-        prompt_intent = None; panel = None; grab = false } in
+        prompt_intent = None; panel = None; grab = false;
+        settings = value.settings; touched = false } in
   let timeline, timeline_changes = List.fold_left (fun (timeline, changes) intent ->
     let next, emitted = match intent with
       | Pause_toggle -> Sketch_support.Timeline.toggle_pause timeline
@@ -401,6 +428,8 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
             ~positions:(Pxui_graph.node_positions result.graph_view)
             ~display:(Some (Pxui_graph.viewed result.graph_view))
             ~active_camera:(Pxui_graph.flagged result.graph_view)
+            ~settings:(List.map (fun (field : Parameter.field_view) ->
+              field.name, field.current) (Settings.fields result.settings))
             ~view:(view_state result.panel) with
           | Ok path -> "Saved preset " ^ Filename.basename path
           | Error message -> "Preset not saved: " ^ message in
@@ -416,8 +445,8 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
           | Error message -> "Preset not deleted: " ^ message in
         Some (Browsing { query; presets = Preset.list ~directory:value.presets }),
         Some notice, None in
-  let document, graph_view, edit_error = match loaded with
-    | None -> result.document, result.graph_view, result.edit_error
+  let document, graph_view, edit_error, settings = match loaded with
+    | None -> result.document, result.graph_view, result.edit_error, result.settings
     | Some (preset : Preset.loaded) ->
         let graph_view = List.fold_left (fun view (node_id, x, y) ->
             Pxui_graph.place_node ~node_id ~x ~y view)
@@ -425,38 +454,51 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
           preset.positions in
         let graph_view = match preset.display with
           | Some id -> Pxui_graph.view id graph_view | None -> graph_view in
+        let settings, error = match Settings.apply result.settings preset.settings with
+          | Ok (settings, _) -> settings, None
+          | Error message -> result.settings, Some message in
         preset.document,
-        Pxui_graph.with_flagged preset.active_camera graph_view, None in
+        Pxui_graph.with_flagged preset.active_camera graph_view, error, settings in
   (* Shared undo stack: every document change (graph edits, node creation,
      paste, inspector commits) becomes one history entry; Command/Ctrl-Z
      undoes, Shift-Command/Ctrl-Z or Ctrl-Y redoes. *)
+  (* ponytail: layout is snapshot whole (O(nodes)) on frames whose graph
+     intents or edits changed the document; per-node deltas if graphs grow
+     past a few thousand tiles. *)
+  let present = Editor_core.History.present value.history in
+  let next = if document == present.graph && settings == present.settings
+      && not result.touched && Option.is_none loaded then present
+    else Document.of_view document graph_view settings in
   let dragging = Frame.mouse_down Input.LeftButton frame in
-  let history = if document == value.document then value.history
+  let history = if next == present then value.history
     else Editor_core.History.record
-        ~merge:(if dragging then Gesture 0 else Step) document value.history in
+        ~merge:(if dragging then Gesture 0 else Step) next value.history in
   let ended_gesture = Frame.has_event (function
     | Event.MouseReleased (Input.LeftButton, _) | Event.WindowFocusLost -> true
     | _ -> false) frame in
   let history = if ended_gesture then Editor_core.History.seal history else history in
   let stepped = if List.mem Leader.Redo actions then Editor_core.History.redo history
     else if List.mem Leader.Undo actions then Editor_core.History.undo history else None in
-  let history, document, undone = match stepped with
-    | Some history -> history, Editor_core.History.present history, true
-    | None -> history, document, false in
+  let history, document, graph_view, settings, undone = match stepped with
+    | Some history ->
+        let restored = Editor_core.History.present history in
+        history, restored.graph, Document.to_view restored graph_view,
+        restored.settings, true
+    | None -> history, document, graph_view, settings, false in
   let effects = if undone then Parameter.union_effects result.effects Doc.cook_effects
     else result.effects in
   let graph_view = Pxui_graph.with_document document graph_view in
   let displayed_id = Pxui_graph.viewed graph_view in
   let display_changed = displayed_id <> value.displayed_id in
   let document_changed = document != value.document in
-  let cooked = Cook.update value.cook ~document ~displayed_id ~graph:value.graph
+  let cooked = Cook.update value.cook ~settings ~document ~displayed_id ~graph:value.graph
       ~displayed_graph:value.displayed_graph ~edit_error ~display_changed
     ~document_changed ~effects ~timeline_changes ~timeline ~frame
     ~frame_request:result.frame_request in
   { core = { value with graph = cooked.graph;
       displayed_graph = cooked.displayed_graph; document; graph_view; displayed_id;
       workspace = result.workspace; timeline; cook = cooked.cook;
-      edit_error = cooked.edit_error;
+      edit_error = cooked.edit_error; settings;
       status_fps; status_fps_at; history; focus = result.focus;
       pane_keys = result.pane_keys; leader; prompt;
       notice = if document_changed && Option.is_none loaded then None else notice };
@@ -476,12 +518,13 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
    [`Amend] folds into the present entry, and [`View time] coalesces a burst
    of view edits (a drag, a wheel gesture) into one undo entry. *)
 let environment_edit value mode document =
+  let next = { (Editor_core.History.present value.history) with Document.graph = document } in
   let history = match mode with
-    | `Reset -> Editor_core.History.create document
-    | `Amend -> Editor_core.History.record ~merge:Repair document value.history
+    | `Reset -> Editor_core.History.create next
+    | `Amend -> Editor_core.History.record ~merge:Repair next value.history
     | `View time -> Editor_core.History.record
         ~merge:(Burst { key = "view"; at = time; window = 0.25 })
-        document value.history in
+        next value.history in
   { value with document; history;
     graph_view = Pxui_graph.with_document document value.graph_view }
 
@@ -492,3 +535,11 @@ let machinery value ~all_ui_visible =
 let close value =
   Pxui.Ui.destroy value.ui;
   Cook.close value.cook
+
+(* A sketch-driven settings change: one undo step and a fresh cook, since
+   [prepare] reads the settings. *)
+let set_settings value settings =
+  if settings == value.settings then value else
+  let next = { (Editor_core.History.present value.history) with Document.settings } in
+  { value with settings; cook = Cook.force value.cook;
+    history = Editor_core.History.record next value.history }

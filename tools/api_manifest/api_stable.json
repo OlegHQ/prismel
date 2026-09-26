@@ -1,7 +1,7 @@
 {
   "generator": "tools/api_manifest/api_manifest.exe",
   "kind": "stable_high_level",
-  "module_count": 128,
+  "module_count": 129,
   "modules": [
     {
       "api_sha256": "093ccfd977898cd5d1a6d689c753022d87bdc46ee5d5f037f83011af0a62f618",
@@ -944,22 +944,31 @@
       "source_sha256": "e8029e1a0e74f92a9efa2887f3c19e8886baeceee6f60cee6b9b11d363e92ad4"
     },
     {
-      "api_sha256": "54f505717fa9da4a93f3101aceaf47d47fe8edddeb940fc002939f6555780164",
+      "api_sha256": "d646b0fb156366b0711504ec95f7d5036c30b3244936b739fdd68bca1d7d319b",
       "excluded_legacy_symbols": [],
       "library": "prismel_editor",
       "module": "Preset",
       "source": "lib/prismel_editor/preset.mli",
-      "source_bytes": 2078,
-      "source_sha256": "cf5c87748d393037982f492783230c4d8688e9f1be2c57c89bdce77f808c18d0"
+      "source_bytes": 2255,
+      "source_sha256": "5b7a3a428b53fe435b98b56aea60bb06b777da671ec5852d424d3924f8e2cf64"
     },
     {
-      "api_sha256": "a75f074f29980113b36440867ffe7cf7f0b7fe215870559ab397758071bd0b81",
+      "api_sha256": "7cddfbcb78f672d1a927c71dff1b2c605385ad23316572c3e15e02873269ae11",
       "excluded_legacy_symbols": [],
       "library": "prismel_editor",
       "module": "Prismel_editor",
       "source": "lib/prismel_editor/prismel_editor.mli",
-      "source_bytes": 11251,
-      "source_sha256": "110035ebd784ffe1912df74ab98b24df025bb6765a3629a5de158a87094ffe69"
+      "source_bytes": 11719,
+      "source_sha256": "093c89b928759a6b6a850875c6ac14a14e122a247d5ff110de23dadf09b18eba"
+    },
+    {
+      "api_sha256": "449eac9dda3aef015408a985aa6006c7402c34df946a5b64407db70143c700b4",
+      "excluded_legacy_symbols": [],
+      "library": "prismel_editor",
+      "module": "Settings",
+      "source": "lib/prismel_editor/settings.mli",
+      "source_bytes": 726,
+      "source_sha256": "50aef9a41153b3fade2c53d34bdc2f580f2eb7c4dd9b93c83c26f114b44d2b9c"
     },
     {
       "api_sha256": "56063cdeff25192423c99b70c311b0a35a880de6a90932bdfc8e099182d4f29b",

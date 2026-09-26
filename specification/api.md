@@ -651,9 +651,17 @@ parameters with a selection. Display selection cooks the flagged node while
 retaining the previous successful preview. Overlay callbacks receive a
 view-local frame. Both environments retain one shared pause/stop/reset,
 dependency-aware cooking, status, selection, inspection, and finite native
-lifecycle. Both expose `update_with` for sketch-owned inspector widgets,
-`rerender` to force a cook when an external render setting changes, and
+lifecycle. Both expose `update_with` for sketch-owned inspector widgets and
 `can_undo`/`can_redo` for the shared document history.
+
+One immutable document holds everything a user edits and saves: the SOP graph,
+tile positions, the display node, the active camera, and sketch `Settings`
+(a typed `Editor_core.Param` record passed as `?settings`). History (128
+entries) snapshots that document, so moving a tile or switching a renderer is
+one undo step. Settings show in the unselected inspector, are saved in
+presets, and reach `prepare settings output`; `set_settings` changes them
+from code. The viewport camera enters history only while a camera node
+follows it.
 
 #### Sketch workspace keys
 

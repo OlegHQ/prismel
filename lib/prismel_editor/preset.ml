@@ -5,6 +5,7 @@ type loaded = {
   positions : (int * float * float) list;
   display : int option;
   active_camera : int option;
+  settings : (string * Parameter.value) list;
   view : Yojson.Safe.t;
 }
 
@@ -39,7 +40,7 @@ let value_of_json : Yojson.Safe.t -> (Parameter.value, string) result = function
 
 let optional_int = function Some value -> `Int value | None -> `Null
 
-let to_sections ~document ~positions ~display ~active_camera ~view =
+let to_sections ~document ~positions ~display ~active_camera ~settings ~view =
   let positions_by_id = Hashtbl.create (List.length positions) in
   List.iter (fun (id, x, y) ->
     if not (Hashtbl.mem positions_by_id id) then
@@ -61,16 +62,19 @@ let to_sections ~document ~positions ~display ~active_camera ~view =
       "version", `Int version;
       "nodes", `List (List.map node (Edit_graph.inspect document));
       "display", optional_int display;
-      "active_camera", optional_int active_camera ];
+      "active_camera", optional_int active_camera;
+      "settings", `List (List.map (fun (name, value) ->
+        `List [ `String name; value_json value ]) settings) ];
     "viewport", view ]
 
 (* Written to a temporary file and renamed, so a crash never leaves a torn
    preset behind. *)
-let save ~directory ~name ~sketch ~document ~positions ~display ~active_camera ~view =
+let save ~directory ~name ~sketch ~document ~positions ~display ~active_camera
+    ~settings ~view =
   if sanitize name = "" then Error "preset name is empty" else
   let target = path ~directory ~name in
   Editor_core.Store.save ~filename:target ~kind:Editor_core.Store.Preset ~sketch
-    ~sections:(to_sections ~document ~positions ~display ~active_camera ~view)
+    ~sections:(to_sections ~document ~positions ~display ~active_camera ~settings ~view)
   |> Result.map (fun () -> target)
 
 let list ~directory =
@@ -157,11 +161,18 @@ let decode path = match Yojson.Safe.from_file path with
         | Some (`List nodes) -> all (List.map saved_node nodes)
         | _ -> Error "preset has no nodes" in
       let optional name = match field name with Some (`Int id) -> Some id | _ -> None in
-      Ok (nodes, optional "display", optional "active_camera", view)
+      let* settings = match field "settings" with
+        | None -> Ok []
+        | Some (`List entries) -> all (List.map (function
+            | `List [ `String name; value ] ->
+                Result.map (fun value -> name, value) (value_of_json value)
+            | _ -> Error "unreadable preset setting") entries)
+        | Some _ -> Error "preset settings are not a list" in
+      Ok (nodes, optional "display", optional "active_camera", settings, view)
   | _ -> Error "corrupt preset: not an object"
 
 let load ~path ~code ~factories =
-  let* nodes, display, active_camera, view = decode path in
+  let* nodes, display, active_camera, settings, view = decode path in
   let code_document = Edit_graph.of_graph code in
   let factories_by_key = Hashtbl.create (List.length factories) in
   List.iter (fun factory ->
@@ -226,4 +237,4 @@ let load ~path ~code ~factories =
     | None -> Ok None | Some id -> Result.map Option.some (target id) in
   let* positions = all (List.map (fun (node : saved) ->
     Result.map (fun id -> id, node.x, node.y) (target node.id)) nodes) in
-  Ok { document; positions; display; active_camera; view }
+  Ok { document; positions; display; active_camera; settings; view }

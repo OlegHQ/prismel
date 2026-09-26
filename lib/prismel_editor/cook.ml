@@ -13,7 +13,7 @@ type 'prepared t = {
   grain : int;
   domains : int;
   schedule : Schedule.t;
-  prepare : Session.output -> ('prepared, string) result;
+  prepare : Settings.t -> Session.output -> ('prepared, string) result;
   prepared : 'prepared option;
   error : string option;
   seconds : float option;
@@ -70,7 +70,7 @@ let busy value = match status value with
   | Async_cook.Idle -> false | Cooking _ -> true
 let force value = { value with force = true }
 
-let update value ~document ~displayed_id ~graph ~displayed_graph ~edit_error
+let update value ~settings ~document ~displayed_id ~graph ~displayed_graph ~edit_error
     ~display_changed ~document_changed ~effects ~timeline_changes ~timeline
     ~frame ~frame_request =
   let compiled = match value.compiled with
@@ -113,7 +113,7 @@ let update value ~document ~displayed_id ~graph ~displayed_graph ~edit_error
       ~busy:(busy value || framing <> None) ~frame in
   let prepare_display output = Result.map (fun prepared ->
     Displayed (prepared, geometry_bounds output.Session.geometry))
-    (value.prepare output) in
+    (value.prepare settings output) in
   let error, framing = if submit then match
       submit_cook value
         ~timeline ~node:displayed_graph ~prepare:prepare_display with

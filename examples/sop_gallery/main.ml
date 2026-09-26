@@ -280,4 +280,4 @@ let () =
           ~camera:(Easy_camera.create ~target:Vec3.zero ~distance:6.
             ~azimuth:0.6 ~elevation:0.35 ())
           ~seed:2026L ~max_entries:24 ~max_payload_bytes:134_217_728
-          ~graph:(graph ()) ~prepare ~scene3 ()
+          ~graph:(graph ()) ~prepare:(fun _ -> prepare) ~scene3 ()

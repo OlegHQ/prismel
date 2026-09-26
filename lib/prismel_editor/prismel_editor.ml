@@ -1,5 +1,6 @@
 
 module Preset = Preset
+module Settings = Settings
 
 type layout = Pxui_shell.Layout.config = {
   view_ratio : float;
@@ -23,17 +24,17 @@ module Editor3 = struct
   let flying value = (extra value).Viewport3.fly <> None
   let look_through value = (extra value).Viewport3.look_through
 
-  let create ?layout ?name ?presets ?timeline_frames ?factories ?camera ?background
+  let create ?layout ?name ?presets ?timeline_frames ?factories ?settings ?camera ?background
       ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~graph ~prepare ~scene3
       ?overlay () =
-    create ?layout ?name ?presets ?timeline_frames ?factories ?camera ?background
+    create ?layout ?name ?presets ?timeline_frames ?factories ?settings ?camera ?background
       ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~graph ~prepare
       ~draw:scene3 ?overlay ()
 
-  let run ?layout ?name ?presets ?timeline_frames ?factories ?camera ?background
+  let run ?layout ?name ?presets ?timeline_frames ?factories ?settings ?camera ?background
       ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~config ~graph ~prepare
       ~scene3 ?overlay () =
-    run ?layout ?name ?presets ?timeline_frames ?factories ?camera ?background
+    run ?layout ?name ?presets ?timeline_frames ?factories ?settings ?camera ?background
       ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~config ~graph ~prepare
       ~draw:scene3 ?overlay ()
 end
@@ -41,17 +42,17 @@ end
 module Editor2 = struct
   include Environment.Make (Viewport2)
 
-  let create ?layout ?name ?presets ?timeline_frames ?factories ?camera ?background
+  let create ?layout ?name ?presets ?timeline_frames ?factories ?settings ?camera ?background
       ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~graph ~prepare ~scene2
       ?overlay () =
-    create ?layout ?name ?presets ?timeline_frames ?factories ?camera ?background
+    create ?layout ?name ?presets ?timeline_frames ?factories ?settings ?camera ?background
       ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~graph ~prepare
       ~draw:scene2 ?overlay ()
 
-  let run ?layout ?name ?presets ?timeline_frames ?factories ?camera ?background
+  let run ?layout ?name ?presets ?timeline_frames ?factories ?settings ?camera ?background
       ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~config ~graph ~prepare
       ~scene2 ?overlay () =
-    run ?layout ?name ?presets ?timeline_frames ?factories ?camera ?background
+    run ?layout ?name ?presets ?timeline_frames ?factories ?settings ?camera ?background
       ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~config ~graph ~prepare
       ~draw:scene2 ?overlay ()
 end

@@ -125,5 +125,5 @@ let () =
     ~max_payload_bytes:(256 * 1024 * 1024)
     ~factories:Sop_catalog.Editor.factories
     ~graph:(graph ())
-    ~prepare
+    ~prepare:(fun _ -> prepare)
     ~scene3 ~overlay ()

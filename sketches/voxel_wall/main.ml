@@ -247,11 +247,20 @@ let orbit = Sys.getenv_opt "PRISMEL_PATHTRACER_ORBIT" = Some "1"
 let started = Unix.gettimeofday ()
 let image_size = (560, 800)
 
-(* [renderer] is the choice; [cook_mode] carries it to [prepare], which the
-   environment may run off the model's domain. *)
-type model =
-  { env : prepared Prismel_editor.Editor3.t; tracer : P.t; shown : prepared option;
-    renderer : renderer; cook_mode : renderer Atomic.t }
+(* The renderer is a sketch setting: shown in the inspector while no node is
+   selected, undoable, saved in presets, and handed to [prepare]. *)
+module Settings = Prismel_editor.Settings
+
+let settings_schema =
+  Parameter.schema ~name:"voxel_wall" ~default:initial_renderer
+    [ Parameter.field ~name:"renderer" ~label:"Renderer"
+        ~kind:(Parameter.choice ~equal:( = )
+          [ "Path traced", Path_traced; "Raster", Raster; "Wireframe", Wireframe ])
+        ~default:initial_renderer ~get:Fun.id ~set:(fun renderer _ -> renderer) () ]
+
+let renderer env = Settings.get settings_schema (Prismel_editor.Editor3.settings env)
+
+type model = { env : prepared Prismel_editor.Editor3.t; tracer : P.t; shown : prepared option }
 
 let raster_lights =
   [ Light.directional ~direction:(v 0.6 (-0.7) (-0.55)) ~diffuse:(Color.rgb 255 250 240) ()
@@ -293,30 +302,26 @@ let init _frame =
           [ P.rect_light ~intensity:9. ~size:(24., 24.) ~target:(v 0. 0. 0.) (v (-34.) 40. 30.)
           ; P.rect_light ~intensity:1.2 ~size:(30., 30.) ~target:(v 0. 0. 0.) (v 30. (-10.) 26.) ] }
     with Ok tracer -> tracer | Error message -> failwith message in
-  let cook_mode = Atomic.make initial_renderer in
   let env =
     match Prismel_editor.Editor3.create ~name:"voxel_wall"
       ~camera:(Easy_camera.create ~target:(v 0. 0. 1.) ~distance:19. ~azimuth:(-0.22)
         ~elevation:0.08 ~fov_y:0.7 ~inertia:false ())
       ~background:(Color.rgb 8 8 10) ~seed:7L ~grain:2 ~max_entries:24
       ~max_payload_bytes:(256 * 1024 * 1024) ~factories:Sop_catalog.Editor.factories
-      ~graph:(graph ()) ~prepare:(fun output -> prepare (Atomic.get cook_mode) output)
+      ~settings:(Settings.make settings_schema initial_renderer)
+      ~graph:(graph ())
+      ~prepare:(fun settings -> prepare (Settings.get settings_schema settings))
       ~scene3 ~overlay:(overlay tracer) ()
     with Ok env -> env | Error message -> failwith message in
-  { env; tracer; shown = None; renderer = initial_renderer; cook_mode }
+  { env; tracer; shown = None }
 
 let update m (frame : Frame.t) =
-  let renderers = [ Path_traced; Raster; Wireframe ] in
-  let env, chosen = Prismel_editor.Editor3.update_with m.env frame ~inspector:(fun ui ->
-    let index = Pxui.Ui.choice ui "Renderer" [ "Path traced"; "Raster"; "Wireframe" ]
-        (match m.renderer with Path_traced -> 0 | Raster -> 1 | Wireframe -> 2) in
-    List.nth renderers index) in
-  let renderer = Option.value chosen ~default:m.renderer in
-  let renderer = match switch_to with
-    | Some target when frames > 0 && frame.count = frames / 2 -> target
-    | _ -> renderer in
-  let env = if renderer <> m.renderer then begin
-      Atomic.set m.cook_mode renderer; Prismel_editor.Editor3.rerender env end else env in
+  let env = Prismel_editor.Editor3.update m.env frame in
+  let env = match switch_to with
+    | Some target when frames > 0 && frame.count = frames / 2 ->
+        Prismel_editor.Editor3.set_settings env (Settings.make settings_schema target)
+    | _ -> env in
+  let renderer = renderer env in
   let shown = match Prismel_editor.Editor3.prepared env with
     | Some prepared when (match m.shown with Some previous -> previous != prepared | None -> true) ->
         Option.iter (fun traced -> match P.queue_mesh m.tracer traced with
@@ -346,7 +351,7 @@ let update m (frame : Frame.t) =
       ((Unix.gettimeofday () -. started) *. 1000. /. float frames);
     Sketch.quit ()
   end;
-  { m with env; shown; renderer }
+  { m with env; shown }
 
 let view m (frame : Frame.t) = Prismel_editor.Editor3.scene m.env frame
 

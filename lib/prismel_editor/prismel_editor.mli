@@ -9,6 +9,18 @@
 
 module Preset = Preset
 
+(** Sketch-owned settings in the editor document. *)
+module Settings : sig
+  type t
+  val none : t
+  val make : 'record Editor_core.Param.schema -> 'record -> t
+  (** Settings drawn in the inspector while no node is selected. *)
+
+  val get : 'record Editor_core.Param.schema -> t -> 'record
+  (** Read the current record back; raises [Invalid_argument] when [schema]
+      does not describe it. *)
+end
+
 type layout = Pxui_shell.Layout.config = {
   view_ratio : float;
   graph_ratio : float;
@@ -116,6 +128,7 @@ module Editor3 : sig
     ?presets:string ->
     ?timeline_frames:int ->
     ?factories:Procedural.Edit_graph.factory list ->
+    ?settings:Settings.t ->
     ?camera:Prismel.Easy_camera.t ->
     ?background:Prismel.Color.t ->
     ?seed:int64 ->
@@ -124,7 +137,7 @@ module Editor3 : sig
     ?max_entries:int ->
     ?max_payload_bytes:int ->
     graph:Procedural.Graph.t ->
-    prepare:(Procedural.Session.output -> ('prepared, string) result) ->
+    prepare:(Settings.t -> Procedural.Session.output -> ('prepared, string) result) ->
     scene3:(Procedural.Graph.t -> 'prepared -> Prismel.Scene3.t) ->
     ?overlay:(Procedural.Graph.t -> 'prepared option -> Prismel.Frame.t ->
       Prismel.Scene.t) ->
@@ -143,10 +156,10 @@ module Editor3 : sig
       manually so PNG requests save the completed frame. *)
   val after_present : 'prepared t -> Prismel.Frame.t -> 'prepared t
 
-  val rerender : 'prepared t -> 'prepared t
-  (** Re-evaluates [scene3] now and forces a recook so [prepare] runs again,
-      for sketch-owned render settings (such as a renderer toggle) that live
-      outside the graph's parameter effects and may be read by [prepare]. *)
+  val settings : 'prepared t -> Settings.t
+  val set_settings : 'prepared t -> Settings.t -> 'prepared t
+  (** Replace the sketch settings from code: one undo step and a fresh cook,
+      since [prepare] receives them. Inspector edits do the same. *)
 
   (** The workspace keeps one [Editor_core.History] history of the editable document:
       graph edits and inspector commits are entries, continuous slider drags
@@ -194,6 +207,7 @@ module Editor3 : sig
     ?presets:string ->
     ?timeline_frames:int ->
     ?factories:Procedural.Edit_graph.factory list ->
+    ?settings:Settings.t ->
     ?camera:Prismel.Easy_camera.t ->
     ?background:Prismel.Color.t ->
     ?seed:int64 ->
@@ -203,7 +217,7 @@ module Editor3 : sig
     ?max_payload_bytes:int ->
     config:Prismel.Sketch.config ->
     graph:Procedural.Graph.t ->
-    prepare:(Procedural.Session.output -> ('prepared, string) result) ->
+    prepare:(Settings.t -> Procedural.Session.output -> ('prepared, string) result) ->
     scene3:(Procedural.Graph.t -> 'prepared -> Prismel.Scene3.t) ->
     ?overlay:(Procedural.Graph.t -> 'prepared option -> Prismel.Frame.t ->
       Prismel.Scene.t) ->
@@ -222,6 +236,7 @@ module Editor2 : sig
     ?presets:string ->
     ?timeline_frames:int ->
     ?factories:Procedural.Edit_graph.factory list ->
+    ?settings:Settings.t ->
     ?camera:Prismel.Easy_camera2.t ->
     ?background:Prismel.Color.t ->
     ?seed:int64 ->
@@ -230,7 +245,7 @@ module Editor2 : sig
     ?max_entries:int ->
     ?max_payload_bytes:int ->
     graph:Procedural.Graph.t ->
-    prepare:(Procedural.Session.output -> ('prepared, string) result) ->
+    prepare:(Settings.t -> Procedural.Session.output -> ('prepared, string) result) ->
     scene2:(Procedural.Graph.t -> 'prepared -> Prismel.Scene.t) ->
     ?overlay:(Procedural.Graph.t -> 'prepared option -> Prismel.Frame.t ->
       Prismel.Scene.t) ->
@@ -247,9 +262,8 @@ module Editor2 : sig
   (* Call from [Sketch.run_state ~after_present] when driving the environment
       manually so PNG requests save the completed frame. *)
   val after_present : 'prepared t -> Prismel.Frame.t -> 'prepared t
-  (* Re-evaluates [scene2] now and forces [prepare] to run again for
-      sketch-owned render settings outside graph parameter effects. *)
-  val rerender : 'prepared t -> 'prepared t
+  val settings : 'prepared t -> Settings.t
+  val set_settings : 'prepared t -> Settings.t -> 'prepared t
   val can_undo : 'prepared t -> bool
   val can_redo : 'prepared t -> bool
   val scene : 'prepared t -> Prismel.Frame.t -> Prismel.Scene.t
@@ -270,6 +284,7 @@ module Editor2 : sig
     ?presets:string ->
     ?timeline_frames:int ->
     ?factories:Procedural.Edit_graph.factory list ->
+    ?settings:Settings.t ->
     ?camera:Prismel.Easy_camera2.t ->
     ?background:Prismel.Color.t ->
     ?seed:int64 ->
@@ -279,7 +294,7 @@ module Editor2 : sig
     ?max_payload_bytes:int ->
     config:Prismel.Sketch.config ->
     graph:Procedural.Graph.t ->
-    prepare:(Procedural.Session.output -> ('prepared, string) result) ->
+    prepare:(Settings.t -> Procedural.Session.output -> ('prepared, string) result) ->
     scene2:(Procedural.Graph.t -> 'prepared -> Prismel.Scene.t) ->
     ?overlay:(Procedural.Graph.t -> 'prepared option -> Prismel.Frame.t ->
       Prismel.Scene.t) ->

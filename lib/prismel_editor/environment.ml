@@ -152,6 +152,7 @@ module Make (V : VIEWPORT) = struct
   }
 
   let create ?(layout = Pxui_shell.Layout.default) ?name ?presets ?timeline_frames ?factories
+      ?settings
       ?(camera = V.default_camera ()) ?(background = Color.hex_exn "#09090b")
       ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~graph ~prepare ~draw
       ?(overlay = fun _ _ _ -> Scene.empty) () =
@@ -160,7 +161,7 @@ module Make (V : VIEWPORT) = struct
       { core; camera; control = V.create_control (); draw; overlay;
         rendered = None; render_status = None; pending_render = None;
         background; extra; hidden_scene_cache = None })
-      (Core.create ~keymap:V.keymap ~seed_document:(V.seed_document camera)
+      (Core.create ?settings ~keymap:V.keymap ~seed_document:(V.seed_document camera)
         ~layout ?name ?presets ?timeline_frames ?factories ?seed ?grain ?domains
         ?max_entries ?max_payload_bytes ~graph ~prepare ())
 
@@ -177,11 +178,9 @@ module Make (V : VIEWPORT) = struct
   let can_undo value = Editor_core.History.can_undo value.core.Core.history
   let can_redo value = Editor_core.History.can_redo value.core.Core.history
 
-  let rerender value =
-    let core = { value.core with Core.cook = Cook.force value.core.Core.cook } in
-    { value with core;
-      rendered = Option.map (value.draw (Core.displayed_node core))
-          (Core.prepared core) }
+  let settings value = Core.settings value.core
+  let set_settings value settings =
+    { value with core = Core.set_settings value.core settings }
 
   let view_camera value = V.view_camera value.camera value.extra
       ~pending:(value.pending_render <> None)
@@ -267,11 +266,11 @@ module Make (V : VIEWPORT) = struct
     V.close value.extra;
     Core.close value.core
 
-  let run ?layout ?name ?presets ?timeline_frames ?factories ?camera ?background
+  let run ?layout ?name ?presets ?timeline_frames ?factories ?settings ?camera ?background
       ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~config ~graph
       ~prepare ~draw ?overlay () =
     let name = Option.value name ~default:(String.lowercase_ascii config.Sketch.title) in
-    let init _frame = create ?layout ~name ?presets ?timeline_frames ?factories
+    let init _frame = create ?layout ~name ?presets ?timeline_frames ?factories ?settings
         ?camera ?background ?seed ?grain ?domains ?max_entries ?max_payload_bytes
         ~graph ~prepare ~draw ?overlay () |> Result.get_ok in
     let update value frame =

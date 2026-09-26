@@ -87,7 +87,7 @@ let run () =
   let environment = Prismel_editor.Editor3.create ~graph
       ~factories:[null_factory]
       ~max_entries:4 ~max_payload_bytes:(16 * 1024 * 1024)
-      ~prepare:(fun output -> Pdk_prismel.Prismel_mesh.to_mesh output.Session.geometry
+      ~prepare:(fun _ output -> Pdk_prismel.Prismel_mesh.to_mesh output.Session.geometry
         |> Result.map_error Pdk.Error.to_string)
       ~scene3:(fun _graph mesh -> Scene3.create [Scene3.mesh mesh]) ()
     |> Result.get_ok in
@@ -228,6 +228,28 @@ let run () =
   check (tiles environment = before + 1) "Shift-Command-Z did not redo the duplicate";
   let environment = Prismel_editor.Editor3.update environment (chord 'z' 27) in
   check (tiles environment = before) "second undo failed after redo";
+  (* Tile positions are document state: one drag is one undo entry. *)
+  let tile_x environment = List.find_map (fun (view : Pxui_graph.node_view) ->
+      if view.id = Node.id source then (let x, _, _, _ = view.bounds in Some x)
+      else None) (Prismel_editor.Editor3.graph_nodes environment) |> Option.get in
+  let x0 = tile_x environment and sx, sy = source_point in
+  let environment = List.fold_left (fun environment (count, mouse, events) ->
+      Prismel_editor.Editor3.update environment { (frame ~mouse ~events count) with
+        mouse_buttons = if count > 27 then [Input.LeftButton] else [] })
+    environment [
+      27, (sx, sy), [];  (* hover first: hit testing uses the last frame *)
+      28, (sx, sy), [mouse_press (Input.LeftButton, (sx, sy))];
+      29, (sx + 20, sy), [mouse_move (sx + 20, sy)];
+      30, (sx + 40, sy), [mouse_move (sx + 40, sy)]] in
+  let environment = Prismel_editor.Editor3.update environment
+      (frame ~mouse:(sx + 40, sy)
+         ~events:[mouse_release (Input.LeftButton, (sx + 40, sy))] 31) in
+  check (tile_x environment <> x0) "dragging a tile did not move it";
+  let environment = Prismel_editor.Editor3.update environment (chord 'z' 32) in
+  check (tile_x environment = x0) "undo did not restore the dragged tile position";
+  (* Space c clears the selection the drag made, as before this check. *)
+  let environment = Prismel_editor.Editor3.update environment (frame ~events:[
+      Event.KeyPressed Input.Space; Event.KeyPressed (Input.KeyChar 'c')] 33) in
   let deadline = Unix.gettimeofday () +. 2. in
   let rec wait_source count environment =
     let environment = Prismel_editor.Editor3.update environment (frame count) in
@@ -352,7 +374,7 @@ let run () =
       ~camera:(Easy_camera.create ~distance:6. ~inertia:false ())
       ~factories:Sop_catalog.Editor.factories
       ~max_entries:4 ~max_payload_bytes:(16 * 1024 * 1024)
-      ~prepare:(fun output -> Pdk_prismel.Prismel_mesh.to_mesh output.Session.geometry
+      ~prepare:(fun _ output -> Pdk_prismel.Prismel_mesh.to_mesh output.Session.geometry
         |> Result.map_error Pdk.Error.to_string)
       ~scene3:(fun _graph mesh -> Scene3.create [Scene3.mesh mesh]) ()
     |> Result.get_ok in
@@ -472,12 +494,16 @@ let run () =
     "viewport-focused F did not focus on the displayed node's cached bounds";
   Prismel_editor.Editor3.close environment;
 
-  (* [rerender] must re-run [prepare]: a sketch-owned mode read by [prepare]
-     (voxel_wall's renderer switch) otherwise keeps the stale prepared value. *)
-  let mode = Atomic.make 0 in
+  (* Sketch settings live in the document: [prepare] reads them, a change
+     recooks, and undo restores the previous value (voxel_wall's renderer). *)
+  let mode_schema = Editor_core.Param.(schema ~name:"mode" ~default:0
+    [ field ~name:"mode" ~label:"Mode" ~kind:(integer ~min:0 ~max:3 ())
+        ~default:0 ~get:Fun.id ~set:(fun mode _ -> mode) () ]) in
+  let module Settings = Prismel_editor.Settings in
   let environment = Prismel_editor.Editor3.create ~graph
+      ~settings:(Settings.make mode_schema 0)
       ~max_entries:4 ~max_payload_bytes:(16 * 1024 * 1024)
-      ~prepare:(fun _ -> Ok (Atomic.get mode))
+      ~prepare:(fun settings _ -> Ok (Settings.get mode_schema settings))
       ~scene3:(fun _ _ -> Scene3.create []) () |> Result.get_ok in
   let deadline = Unix.gettimeofday () +. 2. in
   let rec wait_mode expected count environment =
@@ -485,20 +511,25 @@ let run () =
     if Prismel_editor.Editor3.prepared environment = Some expected then environment
     else if Unix.gettimeofday () < deadline then
       (Unix.sleepf 0.001; wait_mode expected (count + 1) environment)
-    else fail "rerender did not re-run prepare for a changed render mode" in
+    else fail "a settings change did not re-run prepare" in
   let environment = wait_mode 0 0 environment in
-  Atomic.set mode 1;
   let environment = wait_mode 1 100
-      (Prismel_editor.Editor3.rerender environment) in
+      (Prismel_editor.Editor3.set_settings environment (Settings.make mode_schema 1)) in
+  let undo count = { (frame ~events:[Event.KeyPressed (Input.KeyChar 'z')] count)
+    with keys = [Input.Meta] } in
+  let environment = wait_mode 0 200
+      (Prismel_editor.Editor3.update environment (undo 199)) in
+  check (Settings.get mode_schema (Prismel_editor.Editor3.settings environment) = 0)
+    "undo did not restore the sketch settings";
   Prismel_editor.Editor3.close environment;
 
-  let cooks2 = Atomic.make 0 and scenes2 = Atomic.make 0 in
+  let cooks2 = Atomic.make 0 in
   let environment2 = Prismel_editor.Editor2.create ~graph
       ~max_entries:4 ~max_payload_bytes:(16 * 1024 * 1024)
-      ~prepare:(fun output -> Atomic.incr cooks2;
+      ~prepare:(fun _ output -> Atomic.incr cooks2;
         Pdk_prismel.Prismel_mesh.to_mesh output.Session.geometry
         |> Result.map_error Pdk.Error.to_string)
-      ~scene2:(fun _graph _mesh -> Atomic.incr scenes2; Scene.[
+      ~scene2:(fun _graph _mesh -> Scene.[
         rect ~at:(-60, -40) ~w:120 ~h:80
           ~fill:(Color.hex_exn "#5eead4") ()
       ]) ()
@@ -524,17 +555,16 @@ let run () =
   let environment2, inspected = Prismel_editor.Editor2.update_with
       environment2 (frame 10) ~inspector:(fun _ui -> 7) in
   check (inspected = Some 7) "2D update_with omitted the unselected inspector";
-  let prior_cooks = Atomic.get cooks2 and prior_scenes = Atomic.get scenes2 in
-  let environment2 = Prismel_editor.Editor2.rerender environment2 in
-  check (Atomic.get scenes2 = prior_scenes + 1)
-    "2D rerender did not rebuild the prepared scene immediately";
+  let prior_cooks = Atomic.get cooks2 in
+  let environment2 = Prismel_editor.Editor2.set_settings environment2
+      (Prismel_editor.Settings.make mode_schema 2) in
   let deadline = Unix.gettimeofday () +. 2. in
   let rec wait_reprepare count environment =
     let environment = Prismel_editor.Editor2.update environment (frame count) in
     if Atomic.get cooks2 > prior_cooks then environment
     else if Unix.gettimeofday () < deadline then
       (Unix.sleepf 0.001; wait_reprepare (count + 1) environment)
-    else fail "2D rerender did not force a new cook" in
+    else fail "2D settings change did not force a new cook" in
   let environment2 = wait_reprepare 11 environment2 in
   check (Prismel_editor.Editor2.selected_node environment2 = None)
     "2D camera/render controls should own an unselected inspector";
@@ -577,6 +607,7 @@ let run () =
   let positions = [Node.id added, 123.5, -40.; Node.id added, 999., 999.] in
   let saved = Prismel_editor.Preset.save ~directory ~name:"my wall/1" ~sketch:"test"
       ~document ~positions ~display:(Some (Node.id code_graph)) ~active_camera:None
+      ~settings:["mode", Parameter.Int_value 2]
       ~view:(`Assoc ["fov", `Float 0.5]) |> Result.get_ok in
   check (Filename.basename saved = "my_wall_1.json"
       && List.map fst (Prismel_editor.Preset.list ~directory) = ["my_wall_1"])
@@ -599,8 +630,9 @@ let run () =
   check (describe loaded.document = describe document
       && loaded.view = `Assoc ["fov", `Float 0.5]
       && loaded.display = Some (Node.id code_graph)
-      && List.exists (fun (_, x, y) -> x = 123.5 && y = -40.) loaded.positions)
-    "preset round trip changed the document, view, display, or tile positions";
+      && List.exists (fun (_, x, y) -> x = 123.5 && y = -40.) loaded.positions
+      && loaded.settings = ["mode", Parameter.Int_value 2])
+    "preset round trip changed the document, view, display, positions, or settings";
   let legacy = Filename.concat directory "legacy.json" in
   let sectioned = Yojson.Safe.from_file saved in
   (match sectioned with
@@ -638,7 +670,7 @@ let run () =
       ~camera:(Easy_camera.create ~distance:6. ~inertia:false ())
       ~factories:Sop_catalog.Editor.factories
       ~max_entries:4 ~max_payload_bytes:(16 * 1024 * 1024)
-      ~prepare:(fun output -> Pdk_prismel.Prismel_mesh.to_mesh output.Session.geometry
+      ~prepare:(fun _ output -> Pdk_prismel.Prismel_mesh.to_mesh output.Session.geometry
         |> Result.map_error Pdk.Error.to_string)
       ~scene3:(fun _graph mesh -> mesh_scene mesh) () |> Result.get_ok in
   let environment = wait 0 environment in
@@ -661,7 +693,7 @@ let run () =
         "eye_x", Parameter.Float_value 6.; "eye_y", Parameter.Float_value 2.;
         "eye_z", Parameter.Float_value 6. ] |> Result.get_ok in
   ignore (Prismel_editor.Preset.save ~directory:presets ~name:"fixed" ~sketch:"test" ~document
-      ~positions:[] ~display:None ~active_camera:(Some camera_id)
+      ~positions:[] ~display:None ~active_camera:(Some camera_id) ~settings:[]
       ~view:(`Assoc ["look_through", `Bool true]) |> Result.get_ok);
   let environment = Prismel_editor.Editor3.update environment
       (frame ~events:[key Input.Space; key (Input.KeyChar 'b')] 52) in
@@ -682,20 +714,23 @@ let run () =
         || Unix.gettimeofday () > deadline then environment
     else (Unix.sleepf 0.001; wait_cook (count + 1) environment) in
   let environment = wait_cook 56 environment in
-  let export prefix view =
-    let directory = Filename.temp_dir "sketch-ui-look" "" in
-    Sketch.export ~directory ~prefix ~frames:1
-      ~config:{ Sketch.default_config with width = 200; height = 150 } view;
-    In_channel.with_open_bin (Filename.concat directory (prefix ^ "-000000.png"))
-      In_channel.input_all in
   let mesh = Option.get (Prismel_editor.Editor3.prepared environment) in
   let direct camera frame = [Scene.clear (Color.hex_exn "#09090b");
       Scene.view3d ~viewport:(0, 0, frame.Frame.width, frame.height) ~camera
         (mesh_scene mesh)] in
-  let looked = export "look" (Prismel_editor.Editor3.scene environment) in
-  check (looked = export "render" (direct (Prismel_editor.Editor3.render_camera environment))
-      && looked <> export "viewport" (direct (Easy_camera.camera
-        (Prismel_editor.Editor3.camera environment))))
+  (* One window, three frames: look-through, render camera, viewport camera. *)
+  let views = [| Prismel_editor.Editor3.scene environment;
+    direct (Prismel_editor.Editor3.render_camera environment);
+    direct (Easy_camera.camera (Prismel_editor.Editor3.camera environment)) |] in
+  let directory = Filename.temp_dir "sketch-ui-look" "" in
+  Sketch.export_state ~directory ~prefix:"look" ~frames:3
+    ~config:{ Sketch.default_config with width = 200; height = 150 }
+    ~init:(fun _ -> 0) ~update:(fun _ (frame : Frame.t) -> frame.count)
+    ~view:(fun count frame -> views.(min 2 (count - 1)) frame) () |> ignore;
+  let png index = In_channel.with_open_bin
+      (Filename.concat directory (Printf.sprintf "look-%06d.png" index))
+      In_channel.input_all in
+  check (png 0 = png 1 && png 0 <> png 2)
     "look-through framebuffer differs from the render camera's";
   let environment = Prismel_editor.Editor3.update environment (command 'z' 90) in
   let environment = Prismel_editor.Editor3.update environment (frame 91) in
@@ -708,29 +743,24 @@ let run () =
   let toggled = ref [] in
   let directory = Filename.temp_dir "sketch-ui-fly" "" in
   let nested_capture = Filename.concat directory "nested/capture.png" in
-  ignore (Sketch.export_state ~directory ~frames:3
+  (* One window: relative pointer, nested capture, and after_present. *)
+  let final = Sketch.run_state ~max_frames:2
       ~config:{ Sketch.default_config with width = 120; height = 80 }
-      ~init:(fun _ -> ())
-      ~update:(fun () (frame : Frame.t) ->
-        if frame.count <= 2 then
-          toggled := Sketch.set_relative_mouse (frame.count = 1) :: !toggled;
-        if frame.count = 2 then
+      ~init:(fun _ -> 0)
+      ~update:(fun value (frame : Frame.t) ->
+        toggled := Sketch.set_relative_mouse (frame.count = 1) :: !toggled;
+        if frame.count = 2 then begin
+          check (value = 11) "after_present model was not used on the next frame";
           check (Canvas.save_screen_png nested_capture = Ok ())
-            "native capture did not create its output directory")
-      ~view:(fun () _ -> [Scene.clear Color.black]) ());
+            "native capture did not create its output directory"
+        end;
+        value + 1)
+      ~view:(fun _ _ -> [Scene.clear Color.black])
+      ~after_present:(fun value _ -> value + 10) () in
+  check (final = 22) "after_present model was not returned";
   check (!toggled = [Ok (); Ok ()]
       && Sketch.set_relative_mouse true <> Ok ())
     "native relative-pointer toggle failed or outlived the sketch";
   check (Sys.file_exists nested_capture)
     "native capture did not write its nested PNG";
-  let final = Sketch.run_state ~max_frames:2
-      ~config:{ Sketch.default_config with width = 120; height = 80 }
-      ~init:(fun _ -> 0)
-      ~update:(fun value (frame : Frame.t) ->
-        if frame.count = 2 then check (value = 11)
-            "after_present model was not used on the next frame";
-        value + 1)
-      ~view:(fun _ _ -> [Scene.clear Color.black])
-      ~after_present:(fun value _ -> value + 10) () in
-  check (final = 22) "after_present model was not returned";
   print_endline "sketch ui tests passed"

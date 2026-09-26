@@ -306,7 +306,7 @@ let init frame =
         ~azimuth:0.72 ~elevation:0.42 ())
       ~seed:7349L ~grain ~domains ~max_entries:24
       ~max_payload_bytes:(256 * 1024 * 1024)
-      ~factories:Sop_catalog.Editor.factories ~graph:(graph ()) ~prepare
+      ~factories:Sop_catalog.Editor.factories ~graph:(graph ()) ~prepare:(fun _ -> prepare)
       ~scene3 ~overlay () |> result_exn in
   let now = Unix.gettimeofday () in
   {
