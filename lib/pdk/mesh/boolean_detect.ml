@@ -243,3 +243,13 @@ let run ?cancel ~grain ?source_primitives ?collision_primitives ~tolerance
   with
   | Cancel.Cancelled -> error "cancelled" "Boolean Detect was cancelled"
   | Invalid_argument message -> error "invalid_geometry" message
+
+let run_checked ?cancel ?(grain = 16_384) ?source_primitives
+    ?collision_primitives ?(tolerance = 0.) ?(include_coplanar = true)
+    ?(intersecting_group = Some "boolean_intersections")
+    ?intersections_attribute ?count_attribute ?self_intersecting_group
+    ?self_intersections_attribute ?self_count_attribute ~collision geometry =
+  run ?cancel ~grain ?source_primitives ?collision_primitives
+    ~tolerance ~include_coplanar ~intersecting_group ~intersections_attribute
+    ~count_attribute ~self_intersecting_group ~self_intersections_attribute
+    ~self_count_attribute ~collision geometry

@@ -19,3 +19,14 @@ val run :
     floating-point narrow phase with explicit tolerance. The source topology
     is retained; outputs own source primitives. Self-pair output is symmetric
     and suppresses ordinary contacts through shared topology. *)
+
+val run_checked :
+  ?cancel:Cancel.t -> ?grain:int ->
+  ?source_primitives:Group.t -> ?collision_primitives:Group.t ->
+  ?tolerance:float -> ?include_coplanar:bool ->
+  ?intersecting_group:string option ->
+  ?intersections_attribute:string -> ?count_attribute:string ->
+  ?self_intersecting_group:string ->
+  ?self_intersections_attribute:string -> ?self_count_attribute:string ->
+  collision:Geometry.t -> Geometry.t -> (Geometry.t, Error.t) result
+(** Public checked entry point with the historical [Ops.boolean_detect] defaults. *)
