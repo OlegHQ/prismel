@@ -500,8 +500,11 @@ let run () =
     [ field ~name:"mode" ~label:"Mode" ~kind:(integer ~min:0 ~max:3 ())
         ~default:0 ~get:Fun.id ~set:(fun mode _ -> mode) () ]) in
   let module Settings = Prismel_editor.Settings in
+  let bump = Editor_core.Command.make ~id:"test.bump" ~label:"bump mode"
+      ~trigger:(Editor_core.Keymap.Leader 'k') (fun environment ->
+        Prismel_editor.Editor3.set_settings environment (Settings.make mode_schema 3)) in
   let environment = Prismel_editor.Editor3.create ~graph
-      ~settings:(Settings.make mode_schema 0)
+      ~settings:(Settings.make mode_schema 0) ~commands:[bump]
       ~max_entries:4 ~max_payload_bytes:(16 * 1024 * 1024)
       ~prepare:(fun settings _ -> Ok (Settings.get mode_schema settings))
       ~scene3:(fun _ _ -> Scene3.create []) () |> Result.get_ok in
@@ -521,6 +524,20 @@ let run () =
       (Prismel_editor.Editor3.update environment (undo 199)) in
   check (Settings.get mode_schema (Prismel_editor.Editor3.settings environment) = 0)
     "undo did not restore the sketch settings";
+  (* A sketch command runs from its leader key and from the palette. *)
+  let mode environment = Settings.get mode_schema (Prismel_editor.Editor3.settings environment) in
+  let environment = Prismel_editor.Editor3.update environment (frame ~events:[
+      Event.KeyPressed Input.Space; Event.KeyPressed (Input.KeyChar 'k')] 300) in
+  check (mode environment = 3) "Space k did not run the sketch command";
+  let environment = Prismel_editor.Editor3.update environment (undo 301) in
+  check (mode environment = 0) "undo did not revert the sketch command";
+  let environment = List.fold_left (fun environment (count, events) ->
+      Prismel_editor.Editor3.update environment (frame ~events count)) environment [
+      302, [Event.KeyPressed Input.Space; Event.KeyPressed (Input.KeyChar '/')];
+      303, [Event.TextInput "bump"];
+      304, [Event.KeyPressed Input.Enter];
+      305, []] in
+  check (mode environment = 3) "the command palette did not run the sketch command";
   Prismel_editor.Editor3.close environment;
 
   let cooks2 = Atomic.make 0 in

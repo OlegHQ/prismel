@@ -6,10 +6,12 @@ type bounds = Cook.bounds
 
 type prompt =
   | Saving of string
+  | Palette of string  (* command search query *)
   | Browsing of { query : string; presets : (string * float) list }
 
 type prompt_intent = Save_preset_file of string | Load_preset_file of string
   | Delete_preset_file of { name : string; query : string }
+  | Run_action of Leader.action
 
 type timeline_intent = Pxui_shell.Timeline_bar.intent =
   Pause_toggle | Stop_playback | Reset_playback | Seek_playback of int64
@@ -30,6 +32,7 @@ type 'panel frame_result = {
   grab : bool;  (* a viewport handle holds the pointer *)
   settings : Settings.t;
   touched : bool;  (* a graph intent changed layout, display, or flag *)
+  label : string;  (* names this frame's document change in history *)
 }
 
 type 'prepared t = {
@@ -58,6 +61,7 @@ type 'prepared t = {
   leader : Leader.state;
   keymap : Leader.binding list;
   timeline_frames : int;
+  queued : Leader.action list;  (* picked in the palette, run next frame *)
 }
 
 type ('prepared, 'panel) update = {
@@ -118,7 +122,7 @@ let create ?(settings = Settings.none) ?(keymap = Leader.keymap) ?(seed_document
         history = Editor_core.History.create
             (Document.of_view document graph_view settings);
         focus = Workspace.View; pane_keys = []; leader = Leader.Idle;
-        keymap; timeline_frames = max 1 timeline_frames })
+        keymap; timeline_frames = max 1 timeline_frames; queued = [] })
       (Cook.create ~prepare ~seed ~grain ?domains ~max_entries
         ~max_payload_bytes ())
 
@@ -193,8 +197,21 @@ let apply_action (frame : Frame.t) (workspace, graph_view, timeline, changes) ac
   | Layout -> workspace, Pxui_graph.optimize_layout graph_view, timeline, changes
   | Frame_tile -> workspace, Pxui_graph.frame_viewed graph_view, timeline, changes
   | Hide_ui | Look_through | Fly | Save_preset | Browse_presets
-  | Graph_command _ | Frame_camera | Undo | Redo ->
+  | Graph_command _ | Frame_camera | Undo | Redo | Command_palette | Sketch_command _ ->
       workspace, graph_view, timeline, changes
+
+(* The undo label a graph intent gives its document change. *)
+let intent_label = function
+  | Pxui_graph.Connect_requested _ -> Some "Connect"
+  | Disconnect_requested _ -> Some "Disconnect"
+  | Delete_nodes_requested _ -> Some "Delete"
+  | Add_requested _ -> Some "Add node"
+  | Insert_requested _ -> Some "Insert node"
+  | Paste_requested _ -> Some "Paste"
+  | Viewed _ -> Some "Display"
+  | Flag_requested _ -> Some "Set active camera"
+  | Node_moved _ | Nodes_moved _ -> Some "Move"
+  | Selected _ | View_changed | Connection_selected _ | Frame_camera_requested _ -> None
 
 let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
     ~render_status ~view_state (frame : Frame.t) =
@@ -214,6 +231,7 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
       | _ -> true) value.keymap in
   let leader, actions, frame = Editor_core.Router.step keymap ~focus ~text_focus ~frame
       value.leader in
+  let actions = value.queued @ actions in
   let sample_fps = frame.time < value.status_fps_at
     || frame.time -. value.status_fps_at >= 1. in
   let status_fps, status_fps_at = if not sample_fps then
@@ -356,7 +374,12 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
       effects = Parameter.union_effects editor_effects
           (Parameter.union_effects parameter_effects handle_effects);
       timeline_intents; frame_request; prompt = None; prompt_intent = None;
-      panel; grab; settings; touched } in
+      panel; grab; settings; touched;
+      label = (match List.find_map intent_label graph_changes with
+        | Some label -> label
+        | None when settings != unchanged -> "Settings"
+        | None -> (match selected with
+          | Some node -> "Edit " ^ Node.label node | None -> "Edit")) } in
   let leader_panel = if leader = Leader.Pending then Some (fun ui ->
     Pxui_shell.Which_key.panel ui keymap ~focus
       ~focus_name:(Leader.pane_name focus)) else None in
@@ -367,6 +390,7 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
     | Leader.Save_preset -> Some (Saving (Preset.default_name ()))
     | Browse_presets ->
         Some (Browsing { query = ""; presets = Preset.list ~directory:value.presets })
+    | Command_palette -> Some (Palette "")
     | _ -> prompt) value.prompt actions in
   let prompt_panel ui prompt =
     let module Ui = Pxui.Ui in
@@ -395,7 +419,22 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
              let name = fst (rows query).(index) in
              Some (Browsing { query; presets }),
              Some (Delete_preset_file { name; query })
-         | Some (query, _) -> Some (Browsing { query; presets }), None) in
+         | Some (query, _) -> Some (Browsing { query; presets }), None)
+    | Some (Palette query) ->
+        (* Every keymap command by label, deduplicated (undo has two chords). *)
+        let commands = List.fold_left (fun seen (binding : Leader.binding) ->
+            if List.mem_assoc binding.label seen then seen
+            else (binding.label, binding.action) :: seen) [] keymap |> List.rev in
+        let matches query = List.filter (fun (label, _) ->
+            Ui.fuzzy_match ~query label) commands in
+        let rows query = Array.of_list (List.map (fun (label, _) -> label, "")
+            (matches query)) in
+        (match Pxui_shell.Prompt.search ui ~key:"command-palette"
+            ~title:"Commands" ~label:"Search commands" ~query ~rows with
+         | None | Some (_, `Cancel) -> None, None
+         | Some (query, `Pick index) ->
+             None, Some (Run_action (snd (List.nth (matches query) index)))
+         | Some (query, _) -> Some (Palette query), None) in
     (* A closed prompt must not keep keyboard focus into the next frame. *)
     if fst next = None && value.prompt <> None then Ui.unfocus ui;
     next in
@@ -412,7 +451,7 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
         effects = Parameter.no_effects; timeline_intents = [];
         frame_request = initial_frame_request; prompt = initial_prompt;
         prompt_intent = None; panel = None; grab = false;
-        settings = value.settings; touched = false } in
+        settings = value.settings; touched = false; label = "Edit" } in
   let timeline, timeline_changes = List.fold_left (fun (timeline, changes) intent ->
     let next, emitted = match intent with
       | Pause_toggle -> Sketch_support.Timeline.toggle_pause timeline
@@ -422,6 +461,7 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
     next, changes @ emitted) (timeline, timeline_changes) result.timeline_intents in
   let prompt, notice, loaded = match result.prompt_intent with
     | None -> result.prompt, value.notice, None
+    | Some (Run_action _) -> result.prompt, value.notice, None
     | Some (Save_preset_file name) ->
         let notice = match Preset.save ~directory:value.presets ~name
             ~sketch:value.name ~document:result.document
@@ -472,6 +512,7 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
   let dragging = Frame.mouse_down Input.LeftButton frame in
   let history = if next == present then value.history
     else Editor_core.History.record
+        ~label:(if Option.is_some loaded then "Load preset" else result.label)
         ~merge:(if dragging then Gesture 0 else Step) next value.history in
   let ended_gesture = Frame.has_event (function
     | Event.MouseReleased (Input.LeftButton, _) | Event.WindowFocusLost -> true
@@ -479,6 +520,11 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
   let history = if ended_gesture then Editor_core.History.seal history else history in
   let stepped = if List.mem Leader.Redo actions then Editor_core.History.redo history
     else if List.mem Leader.Undo actions then Editor_core.History.undo history else None in
+  let notice = match stepped with
+    | None -> notice
+    | Some _ when List.mem Leader.Redo actions ->
+        Option.map (fun label -> "Redo " ^ label) (Editor_core.History.redo_label history)
+    | Some _ -> Some ("Undo " ^ Editor_core.History.label history) in
   let history, document, graph_view, settings, undone = match stepped with
     | Some history ->
         let restored = Editor_core.History.present history in
@@ -501,7 +547,9 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
       edit_error = cooked.edit_error; settings;
       status_fps; status_fps_at; history; focus = result.focus;
       pane_keys = result.pane_keys; leader; prompt;
-      notice = if document_changed && Option.is_none loaded then None else notice };
+      queued = (match result.prompt_intent with Some (Run_action action) -> [action] | _ -> []);
+      notice = if document_changed && Option.is_none loaded && not undone then None
+        else notice };
     effects; prepared_changed = cooked.prepared_changed;
     framed = cooked.framed;
     loaded_view = Option.map (fun (preset : Preset.loaded) -> preset.view) loaded;

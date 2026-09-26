@@ -8,35 +8,39 @@ module History = struct
     | Burst of { key : string; at : float; window : float }
     | Repair
 
+  (* Each entry carries the label of the edit that produced it. *)
   type 'a t = {
-    past : 'a list; present : 'a; future : 'a list;
+    past : ('a * string) list; present : 'a; label : string;
+    future : ('a * string) list;
     capacity : int; depth : int; merge : merge option;
   }
 
   let create ?(capacity = 128) present =
     if capacity < 1 then invalid_arg "Editor_core.History.create: capacity must be positive";
-    { past = []; present; future = []; capacity; depth = 0; merge = None }
+    { past = []; present; label = ""; future = []; capacity; depth = 0; merge = None }
 
   let present t = t.present
+  let label t = t.label
+  let redo_label t = match t.future with (_, label) :: _ -> Some label | [] -> None
   let can_undo t = t.past <> []
   let can_redo t = t.future <> []
   let depth t = t.depth
 
   (* ponytail: the bound is enforced by walking the list, O(capacity) per
      commit; switch to a deque if capacities grow past a few hundred. *)
-  let commit value t =
+  let commit value label t =
     if value == t.present then t
     else
-      let past = t.present :: t.past in
+      let past = (t.present, t.label) :: t.past in
       let past, depth =
         if t.depth < t.capacity then past, t.depth + 1
         else List.filteri (fun index _ -> index < t.capacity) past, t.capacity in
-      { t with past; present = value; future = []; depth; merge = None }
+      { t with past; present = value; label; future = []; depth; merge = None }
 
   let amend value t =
     if value == t.present then t else { t with present = value; future = [] }
 
-  let record ?(merge = Step) value t =
+  let record ?(merge = Step) ?(label = "Edit") value t =
     let continuation = match merge, t.merge with
       | Repair, _ -> true
       | Gesture id, Some (Gesture previous) -> id = previous
@@ -44,22 +48,23 @@ module History = struct
           String.equal key previous.key && at >= previous.at
           && at -. previous.at < window
       | _ -> false in
-    let t = if continuation then amend value t else commit value t in
+    let t = if continuation then amend value t else commit value label t in
     { t with merge = (if merge = Repair then t.merge else Some merge) }
 
   let seal t = if t.merge = None then t else { t with merge = None }
 
   let undo t = match t.past with
     | [] -> None
-    | previous :: past ->
-        Some { t with past; present = previous; future = t.present :: t.future;
+    | (previous, label) :: past ->
+        Some { t with past; present = previous; label;
+               future = (t.present, t.label) :: t.future;
                depth = t.depth - 1; merge = None }
 
   let redo t = match t.future with
     | [] -> None
-    | next :: future ->
-        Some { t with past = t.present :: t.past; present = next; future;
-               depth = t.depth + 1; merge = None }
+    | (next, label) :: future ->
+        Some { t with past = (t.present, t.label) :: t.past; present = next; label;
+               future; depth = t.depth + 1; merge = None }
 end
 
 module Keymap = struct
@@ -145,4 +150,26 @@ module Router = struct
     let passed = if state = Idle && actions <> [] then List.filter (function
         | Event.TextInput _ -> false | _ -> true) passed else passed in
     state, List.rev actions, { frame with events = List.rev passed }
+end
+
+module Command = struct
+  type ('model, 'scope) t = {
+    id : string;
+    label : string;
+    trigger : Keymap.trigger option;
+    scope : 'scope option;
+    enabled : 'model -> bool;
+    run : 'model -> 'model;
+  }
+
+  let make ?trigger ?scope ?(enabled = fun _ -> true) ~id ~label run =
+    { id; label; trigger; scope; enabled; run }
+
+  let bindings action commands = List.filter_map (fun command ->
+    Option.map (fun trigger -> { Keymap.trigger; label = command.label;
+      scope = command.scope; action = action command.id }) command.trigger) commands
+
+  let run commands id model = match List.find_opt (fun command -> command.id = id) commands with
+    | Some command when command.enabled model -> command.run model
+    | Some _ | None -> model
 end

@@ -149,10 +149,11 @@ module Make (V : VIEWPORT) = struct
     background : Color.t;
     extra : V.extra;
     hidden_scene_cache : (V.rendered, V.view) hidden_scene_cache option;
+    commands : ('prepared t, Workspace.column) Editor_core.Command.t list;
   }
 
   let create ?(layout = Pxui_shell.Layout.default) ?name ?presets ?timeline_frames ?factories
-      ?settings
+      ?settings ?(commands = [])
       ?(camera = V.default_camera ()) ?(background = Color.hex_exn "#09090b")
       ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~graph ~prepare ~draw
       ?(overlay = fun _ _ _ -> Scene.empty) () =
@@ -160,8 +161,10 @@ module Make (V : VIEWPORT) = struct
       let core, extra = V.init core camera in
       { core; camera; control = V.create_control (); draw; overlay;
         rendered = None; render_status = None; pending_render = None;
-        background; extra; hidden_scene_cache = None })
-      (Core.create ?settings ~keymap:V.keymap ~seed_document:(V.seed_document camera)
+        background; extra; hidden_scene_cache = None; commands })
+      (Core.create ?settings
+        ~keymap:(V.keymap @ Editor_core.Command.bindings
+          (fun id -> Leader.Sketch_command id) commands) ~seed_document:(V.seed_document camera)
         ~layout ?name ?presets ?timeline_frames ?factories ?seed ?grain ?domains
         ?max_entries ?max_payload_bytes ~graph ~prepare ())
 
@@ -241,8 +244,12 @@ module Make (V : VIEWPORT) = struct
     let rendered, pending_render, render_status = finish update
         ~core ~draw:value.draw ~rendered:value.rendered ~requests
         ~status:render_status in
-    refresh_hidden { value with core; camera; control; rendered; pending_render;
-      render_status; extra } raw_frame, inspected
+    let value = refresh_hidden { value with core; camera; control; rendered;
+      pending_render; render_status; extra } raw_frame in
+    (* Sketch commands run last, on the finished frame's model. *)
+    List.fold_left (fun value -> function
+      | Leader.Sketch_command id -> Editor_core.Command.run value.commands id value
+      | _ -> value) value update.actions, inspected
 
   let update value frame = fst (update_with value frame ~inspector:ignore)
 
@@ -266,11 +273,12 @@ module Make (V : VIEWPORT) = struct
     V.close value.extra;
     Core.close value.core
 
-  let run ?layout ?name ?presets ?timeline_frames ?factories ?settings ?camera ?background
+  let run ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?camera ?background
       ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~config ~graph
       ~prepare ~draw ?overlay () =
     let name = Option.value name ~default:(String.lowercase_ascii config.Sketch.title) in
     let init _frame = create ?layout ~name ?presets ?timeline_frames ?factories ?settings
+        ?commands
         ?camera ?background ?seed ?grain ?domains ?max_entries ?max_payload_bytes
         ~graph ~prepare ~draw ?overlay () |> Result.get_ok in
     let update value frame =

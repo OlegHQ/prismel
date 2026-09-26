@@ -9,6 +9,8 @@ type action =
   | Look_through | Fly
   | Undo | Redo
   | Graph_command of Pxui_graph.command
+  | Command_palette
+  | Sketch_command of string  (* an [Editor_core.Command] id from the sketch *)
 
 type binding = (Workspace.column, action) Editor_core.Keymap.binding
 
@@ -26,6 +28,7 @@ let keymap = [
   { trigger = Leader 'p'; label = "play / pause"; scope = None; action = Play_pause };
   { trigger = Leader 'r'; label = "reset"; scope = None; action = Reset };
   { trigger = Leader 'x'; label = "stop"; scope = None; action = Stop };
+  { trigger = Leader '/'; label = "command palette"; scope = None; action = Command_palette };
   { trigger = Leader 'a'; label = "add node"; scope = Some Workspace.Graph; action = Add_node };
   { trigger = Leader 'l'; label = "layout"; scope = Some Workspace.Graph; action = Layout };
   { trigger = Leader 'f'; label = "frame displayed tile"; scope = Some Workspace.Graph;

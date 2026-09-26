@@ -22,27 +22,41 @@ let () = Arg.parse [
   size := max 256 (min 2400 !size);
   if !frames < 1 || !domains < 1 then failwith "Frames and domains must be positive"
 
+(* All controls as one Param schema: the shared inspector draws them (groups
+   become accordions) and every edit is one undo entry. *)
+let schema =
+  let open Editor_core.Param in
+  schema ~name:"pastel_flow" ~default:(Artwork.preset false, false)
+    (field ~name:"animate" ~label:"Animate" ~kind:Toggle ~default:false
+       ~get:snd ~set:(fun animate (values, _) -> values, animate) ()
+     :: List.concat_map (fun (group, controls) ->
+       List.map (fun (c:Artwork.control) ->
+         field ~name:c.key ~label:c.label ~folder:[group]
+           ~kind:(floating ~min:c.lo ~max:c.hi ()) ~default:c.waves
+           ~get:(fun (values, _) -> Artwork.get values c.key)
+           ~set:(fun value (values, animate) -> Artwork.set values c.key value, animate) ())
+         controls) Artwork.groups)
+
+let keys : (unit, [`Undo | `Redo]) Editor_core.Keymap.binding list = Editor_core.Keymap.[
+  { trigger = Chord (Input.KeyChar 'z', [Input.Meta]); label = "undo"; scope = None; action = `Undo };
+  { trigger = Chord (Input.KeyChar 'z', [Input.Meta; Input.Shift]); label = "redo";
+    scope = None; action = `Redo } ]
+
 (* The kit panel over values held in the model. *)
-let panel ui (values, animate) (frame:Frame.t) =
+let panel ui controls (frame:Frame.t) =
   Pxui.Ui.panel ui ~x:16. ~y:16. ~width:310. ~row_height:29
     ~max_height:(float (max 180 (frame.height-32))) "pastel-flow" (fun () ->
     Pxui.Ui.label ui "PASTEL / FLOW";
     Pxui.Ui.label ui "Procedural light, silk and interference";
     let waves = Pxui.Ui.button ui "01  /  Pearl waves" in
     let silk = Pxui.Ui.button ui "02  /  Iridescent silk" in
-    let animate = Pxui.Ui.toggle ui "Animate" animate in
-    let values = List.fold_left (fun values (label, controls) ->
-      Option.value ~default:values
-        (Pxui.Ui.accordion ui ~expanded:(label="Composition") label (fun () ->
-          List.fold_left (fun values (c:Artwork.control) ->
-            Artwork.set values c.key
-              (Pxui.Ui.slider ui c.label ~range:(c.lo,c.hi) (Artwork.get values c.key)))
-            values controls))) values Artwork.groups in
+    let controls = match Pxui_shell.Inspector.record ui ~expanded:["Composition"]
+        schema controls with Ok (controls, _) -> controls | Error _ -> controls in
     let save = Pxui.Ui.button ui "Save controls" in
     let load = Pxui.Ui.button ui "Load controls" in
     Pxui.Ui.label ui "Tab: hide panel   /   Esc: quit";
-    Pxui.Ui.label ui "Scroll panel. Click a value to type.";
-    (values, animate),
+    Pxui.Ui.label ui "Scroll panel. Click a value to type. Cmd-Z undoes.";
+    controls,
     List.filter_map (fun (pressed, action) -> if pressed then Some action else None)
       [waves, `Waves; silk, `Silk; save, `Save; load, `Load])
 
@@ -56,7 +70,7 @@ let of_settings (values, animate) saved =
     | Some v -> Artwork.set values c.key v | None -> values) values Artwork.controls,
   Option.value ~default:animate (Editor_core.Store.Settings.bool saved "animate")
 
-type model = { ui:Pxui.Ui.t; controls:Artwork.values * bool; art:Scene3.t;
+type model = { ui:Pxui.Ui.t; history:(Artwork.values * bool) Editor_core.History.t; art:Scene3.t;
   signature:float list; time:float;
   hidden:bool; status:string; vertices:int; build_ms:float }
 let build values time =
@@ -70,14 +84,15 @@ let init (_:Frame.t) =
       | Ok saved->of_settings controls saved,"Controls loaded" | Error e->controls,e
     else controls,"Choose a preset; expand a section to explore." in
   let art,vertices,build_ms=build (fst controls) 0. in
-  {ui=Pxui.Ui.create ~font_size:12 ();controls;art;signature=Artwork.signature (fst controls);
+  {ui=Pxui.Ui.create ~font_size:12 ();history=Editor_core.History.create controls;art;signature=Artwork.signature (fst controls);
     time=0.;hidden=(!export_dir<>"");status;vertices;build_ms}
 let update model (frame:Frame.t) =
   if Frame.has_event (function Event.KeyPressed Input.Escape->true|_->false) frame then Sketch.quit();
   let hidden=if Frame.has_event (function Event.KeyPressed Input.Tab->true|_->false) frame
     then not model.hidden else model.hidden in
-  let controls,actions=if hidden then model.controls,[]
-    else Pxui.Ui.frame model.ui frame (fun ui -> panel ui model.controls frame) in
+  let previous=Editor_core.History.present model.history in
+  let controls,actions=if hidden then previous,[]
+    else Pxui.Ui.frame model.ui frame (fun ui -> panel ui previous frame) in
   let controls,status=List.fold_left(fun (controls,_status)->function
     | `Waves -> (Artwork.preset false, snd controls),"Pearl waves preset"
     | `Silk -> (Artwork.preset true, snd controls),"Iridescent silk preset"
@@ -86,12 +101,26 @@ let update model (frame:Frame.t) =
     | `Load -> (match Editor_core.Store.Settings.load ~sketch:"pastel_flow" !settings with
         Ok saved->of_settings controls saved,"Controls loaded"|Error e->controls,e))
     (controls,model.status) actions in
-  let values, animate = controls in
+  (* A slider drag is one undo entry; presets and loads are one each. *)
+  let history=if controls==previous then model.history
+    else Editor_core.History.record ~label:"Controls"
+      ~merge:(if Frame.mouse_down Input.LeftButton frame then Gesture 0 else Step)
+      controls model.history in
+  let history=if Frame.has_event (function
+      | Event.MouseReleased (Input.LeftButton,_) -> true | _ -> false) frame
+    then Editor_core.History.seal history else history in
+  let _,undo_redo,_=Editor_core.Router.step keys ~focus:()
+      ~text_focus:(Pxui.Ui.text_input_focused model.ui) ~frame Idle in
+  let history,status=List.fold_left (fun (history,status) action ->
+      match (if action=`Undo then Editor_core.History.undo else Editor_core.History.redo) history with
+      | Some history -> history,(if action=`Undo then "Undo" else "Redo")
+      | None -> history,status) (history,status) undo_redo in
+  let values, animate = Editor_core.History.present history in
   let time=if animate then model.time+.frame.dt else model.time in
   let signature=Artwork.signature values in
   let art,vertices,build_ms=if signature<>model.signature || time<>model.time then build values time
     else model.art,model.vertices,model.build_ms in
-  {model with controls;art;signature;time;hidden;status;vertices;build_ms}
+  {model with history;art;signature;time;hidden;status;vertices;build_ms}
 let on_stop model = Pxui.Ui.destroy model.ui
 let camera=Camera.orthographic ~height:1. ~near:0.1 ~far:3.
   ~at:(Vec3.create 0. 0. 2.) ~target:Vec3.zero ()

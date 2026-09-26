@@ -18,7 +18,13 @@ module History : sig
   (* [Step] adds an undo entry; matching [Gesture] ids merge until [seal];
       matching [Burst] keys merge while edits stay within [window] seconds;
       [Repair] changes the current entry without adding a step. *)
-  val record : ?merge:merge -> 'a -> 'a t -> 'a t
+  val record : ?merge:merge -> ?label:string -> 'a -> 'a t -> 'a t
+  (** [label] (default ["Edit"]) names the entry, e.g. ["Connect"]. *)
+
+  val label : 'a t -> string
+  (** The label of the edit that produced [present]: what [undo] reverts. *)
+
+  val redo_label : 'a t -> string option
   val seal : 'a t -> 'a t
   val undo : 'a t -> 'a t option
   val redo : 'a t -> 'a t option
@@ -49,4 +55,28 @@ module Router : sig
   val step : ('scope, 'action) Keymap.binding list -> focus:'scope ->
     text_focus:bool -> frame:Prismel.Frame.t -> state ->
     state * 'action list * Prismel.Frame.t
+end
+
+(** Named editor commands: the table behind key bindings, which-key, and the
+    command palette. [run] is pure over the host's model. *)
+module Command : sig
+  type ('model, 'scope) t = {
+    id : string;  (** stable, e.g. ["voxel.cycle-renderer"] *)
+    label : string;  (** shown in which-key, the palette, and undo *)
+    trigger : Keymap.trigger option;
+    scope : 'scope option;  (** [None]: global; else only while that pane has focus *)
+    enabled : 'model -> bool;
+    run : 'model -> 'model;
+  }
+
+  val make : ?trigger:Keymap.trigger -> ?scope:'scope ->
+    ?enabled:('model -> bool) -> id:string -> label:string ->
+    ('model -> 'model) -> ('model, 'scope) t
+
+  val bindings : (string -> 'action) -> ('model, 'scope) t list ->
+    ('scope, 'action) Keymap.binding list
+  (** Key bindings for the commands that have a trigger; [action] wraps the id. *)
+
+  val run : ('model, 'scope) t list -> string -> 'model -> 'model
+  (** Run the command with this id when it exists and is enabled. *)
 end

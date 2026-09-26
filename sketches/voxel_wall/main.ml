@@ -120,6 +120,16 @@ let copy_cubes ~source ~targets =
             Pdk.Geometry.create ~positions:(Pdk.Packed.Float3.Builder.freeze positions)
               ~topology:(Pdk.Topology.Builder.freeze builder) ~attributes:[ attribute ] ()))
 
+(* The sketch's own SOPs in the node menu, beside the catalog. *)
+let factories =
+  Edit_graph.factory ~key:"wall_depth" ~label:"Wall Depth" ~category:[ "Voxel wall" ]
+    ~arity:1 (function [ grid ] -> wall_depth grid
+      | _ -> invalid_arg "Wall Depth expects one input")
+  :: Edit_graph.factory ~key:"copy_cubes" ~label:"Copy Cubes" ~category:[ "Voxel wall" ]
+    ~arity:2 (function [ source; targets ] -> copy_cubes ~source ~targets
+      | _ -> invalid_arg "Copy Cubes expects two inputs")
+  :: Sop_catalog.Editor.factories
+
 let graph () =
   let grid = Sop_catalog.Grid.create ~label:"wall-grid" ~orientation:Pdk.Plane_generators.Grid_xy
       ~columns:35 ~rows:59 ~width:35. ~height:59. ~size:35. () in
@@ -307,7 +317,7 @@ let init _frame =
       ~camera:(Easy_camera.create ~target:(v 0. 0. 1.) ~distance:19. ~azimuth:(-0.22)
         ~elevation:0.08 ~fov_y:0.7 ~inertia:false ())
       ~background:(Color.rgb 8 8 10) ~seed:7L ~grain:2 ~max_entries:24
-      ~max_payload_bytes:(256 * 1024 * 1024) ~factories:Sop_catalog.Editor.factories
+      ~max_payload_bytes:(256 * 1024 * 1024) ~factories
       ~settings:(Settings.make settings_schema initial_renderer)
       ~graph:(graph ())
       ~prepare:(fun settings -> prepare (Settings.get settings_schema settings))

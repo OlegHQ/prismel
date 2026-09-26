@@ -83,6 +83,8 @@ module Private : sig
       | Look_through | Fly
       | Undo | Redo
       | Graph_command of Pxui_graph.command
+      | Command_palette
+      | Sketch_command of string
 
     type binding = (Workspace.column, action) Editor_core.Keymap.binding
 
@@ -129,6 +131,7 @@ module Editor3 : sig
     ?timeline_frames:int ->
     ?factories:Procedural.Edit_graph.factory list ->
     ?settings:Settings.t ->
+    ?commands:('prepared t, Pxui_shell.Layout.column) Editor_core.Command.t list ->
     ?camera:Prismel.Easy_camera.t ->
     ?background:Prismel.Color.t ->
     ?seed:int64 ->
@@ -160,6 +163,10 @@ module Editor3 : sig
   val set_settings : 'prepared t -> Settings.t -> 'prepared t
   (** Replace the sketch settings from code: one undo step and a fresh cook,
       since [prepare] receives them. Inspector edits do the same. *)
+
+  (* [?commands] (on [create]/[run]) add sketch [Editor_core.Command]s: their
+     triggers join the leader keymap and which-key, and every command is in
+     the palette ([Space /]). [run] gets this environment after the frame. *)
 
   (** The workspace keeps one [Editor_core.History] history of the editable document:
       graph edits and inspector commits are entries, continuous slider drags
@@ -208,6 +215,7 @@ module Editor3 : sig
     ?timeline_frames:int ->
     ?factories:Procedural.Edit_graph.factory list ->
     ?settings:Settings.t ->
+    ?commands:('prepared t, Pxui_shell.Layout.column) Editor_core.Command.t list ->
     ?camera:Prismel.Easy_camera.t ->
     ?background:Prismel.Color.t ->
     ?seed:int64 ->
@@ -237,6 +245,7 @@ module Editor2 : sig
     ?timeline_frames:int ->
     ?factories:Procedural.Edit_graph.factory list ->
     ?settings:Settings.t ->
+    ?commands:('prepared t, Pxui_shell.Layout.column) Editor_core.Command.t list ->
     ?camera:Prismel.Easy_camera2.t ->
     ?background:Prismel.Color.t ->
     ?seed:int64 ->
@@ -285,6 +294,7 @@ module Editor2 : sig
     ?timeline_frames:int ->
     ?factories:Procedural.Edit_graph.factory list ->
     ?settings:Settings.t ->
+    ?commands:('prepared t, Pxui_shell.Layout.column) Editor_core.Command.t list ->
     ?camera:Prismel.Easy_camera2.t ->
     ?background:Prismel.Color.t ->
     ?seed:int64 ->

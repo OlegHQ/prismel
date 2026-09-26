@@ -25,7 +25,21 @@ let () =
   let h = Option.get (undo h) in
   let h = record ~merge:Repair 10 h in
   assert (present h = 10 && not (can_redo h));
-  print_endline "editor history: merge, seal, undo/redo, capacity ok"
+  (* Labels name what undo reverts and what redo reapplies. *)
+  let h = create 0 |> record ~label:"Connect" 1 |> record ~label:"Move" 2 in
+  assert (label h = "Move");
+  let h = Option.get (undo h) in
+  assert (label h = "Connect" && redo_label h = Some "Move");
+  (* Commands: bindings only for triggered ones; disabled commands never run. *)
+  let open Editor_core.Command in
+  let commands = [
+    make ~id:"inc" ~label:"Increment" ~trigger:(Editor_core.Keymap.Leader 'i') succ;
+    make ~id:"neg" ~label:"Negate" ~enabled:(fun n -> n > 0) (fun n -> -n) ] in
+  assert (List.map (fun (b : (unit, string) Editor_core.Keymap.binding) -> b.action)
+      (bindings Fun.id commands) = ["inc"]);
+  assert (run commands "inc" 1 = 2 && run commands "neg" 0 = 0
+      && run commands "neg" 3 = -3 && run commands "missing" 5 = 5);
+  print_endline "editor history: merge, seal, undo/redo, capacity, labels, commands ok"
 
 type scope = View | Graph
 
