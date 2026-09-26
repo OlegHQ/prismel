@@ -1,6 +1,6 @@
 (* Cost of recompiling an editable SOP document on every slider-drag frame:
    one parameter change on a node of a long chain, then the compile work
-   Sketch_ui's Cook.update performs for the root and displayed node. Reports
+   Prismel_editor's Cook.update performs for the root and displayed node. Reports
    dragging the first node (every downstream node changes) and the last one
    (everything upstream is unchanged). PRISMEL_EDIT_GRAPH_NODES sets the chain
    length, _FRAMES the drag frames per repeat; the best of 5 repeats prints. *)

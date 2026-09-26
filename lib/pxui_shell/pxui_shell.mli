@@ -47,7 +47,7 @@ module Chrome : sig
 end
 
 module Which_key : sig
-  val panel : Pxui.Ui.t -> ('scope, 'action) Editor.Keymap.binding list ->
+  val panel : Pxui.Ui.t -> ('scope, 'action) Editor_core.Keymap.binding list ->
     focus:'scope -> focus_name:string -> unit
   (** Draw global and focused leader bindings in the standard modal. *)
 end

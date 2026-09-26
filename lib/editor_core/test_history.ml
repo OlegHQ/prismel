@@ -1,5 +1,5 @@
 let () =
-  let open Editor.History in
+  let open Editor_core.History in
   let h = create ~capacity:3 0 in
   let h = record 1 h |> record 2 |> record ~merge:Repair 3 in
   assert (present h = 3 && depth h = 2);
@@ -30,7 +30,7 @@ let () =
 type scope = View | Graph
 
 let bindings : (scope, [ `Toggle | `Layout | `Undo | `Redo | `Delete | `Frame ])
-    Editor.Keymap.binding list = [
+    Editor_core.Keymap.binding list = [
   { trigger = Leader 'g'; label = "toggle graph"; scope = None; action = `Toggle };
   { trigger = Leader 'l'; label = "layout"; scope = Some Graph; action = `Layout };
   { trigger = Chord (Prismel.Input.KeyChar 'z', [Prismel.Input.Meta]);
@@ -54,17 +54,17 @@ let frame events : Prismel.Frame.t = {
 
 let () =
   let open Prismel in
-  let open Editor.Router in
+  let open Editor_core.Router in
   let step ?(focus = View) ?(text_focus = false) state keys =
-    Editor.Router.step bindings ~focus ~text_focus
+    Editor_core.Router.step bindings ~focus ~text_focus
       ~frame:(frame (List.map (fun key -> Event.KeyPressed key) keys)) state in
   let state, actions, passed = step Idle [Input.Space; Input.KeyChar 'g'] in
   assert (state = Idle && actions = [`Toggle] && passed.events = []);
-  let state, actions, _ = Editor.Router.step bindings ~focus:View
+  let state, actions, _ = Editor_core.Router.step bindings ~focus:View
       ~text_focus:false ~frame:(frame [Event.KeyPressed Input.Space;
         Event.TextInput " "]) Idle in
   assert (state = Pending && actions = []);
-  let state, actions, passed = Editor.Router.step bindings ~focus:View
+  let state, actions, passed = Editor_core.Router.step bindings ~focus:View
       ~text_focus:false ~frame:(frame [Event.KeyPressed (Input.KeyChar 'g');
         Event.TextInput "g"]) state in
   assert (state = Idle && actions = [`Toggle] && passed.events = []);
@@ -85,7 +85,7 @@ let () =
   assert (state = Idle && actions = []
       && passed.events = [Event.KeyPressed (Input.KeyChar 'g')]);
   let chord ?(focus = View) ?(text_focus = false) keys events =
-    Editor.Router.step bindings ~focus ~text_focus
+    Editor_core.Router.step bindings ~focus ~text_focus
       ~frame:{ (frame events) with keys } Idle in
   let _, actions, passed = chord [Input.Meta] [Event.KeyPressed (Input.KeyChar 'Z');
       Event.TextInput "z"] in
@@ -112,7 +112,7 @@ let () =
   let ended, passed = fly (frame [Event.KeyPressed Input.Space;
       Event.KeyPressed (Input.KeyChar 'g'); Event.TextInput "g"]) in
   assert (ended && passed.events = [Event.KeyPressed Input.Space]);
-  let state, actions, passed = Editor.Router.step bindings ~focus:View
+  let state, actions, passed = Editor_core.Router.step bindings ~focus:View
       ~text_focus:false ~frame:passed Idle in
   assert (state = Pending && actions = [] && passed.events = []);
   let ended, passed = fly (frame [Event.KeyPressed Input.Escape]) in

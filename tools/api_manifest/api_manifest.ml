@@ -3,8 +3,8 @@ open Support
 module String_set = Set.Make (String)
 
 let stable_library_directories =
-  [ "prismel"; "procedural"; "editor"; "pxui"; "pxui_shell"; "pxui_graph"
-  ; "sop_catalog"; "sop_ui"; "sketch_support"; "sketch_ui"
+  [ "prismel"; "procedural"; "editor_core"; "pxui"; "pxui_shell"; "pxui_graph"
+  ; "sop_catalog"; "sop_ui"; "sketch_support"; "prismel_editor"
   ]
 
 let pdk_sublibrary_directories =

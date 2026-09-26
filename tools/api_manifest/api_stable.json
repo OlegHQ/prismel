@@ -6,18 +6,18 @@
     {
       "api_sha256": "42991257be662e316b18b78776fd2c91d5990ebf5a3b561d4d38b32d1d9db961",
       "excluded_legacy_symbols": [],
-      "library": "editor",
-      "module": "Editor",
-      "source": "lib/editor/editor.mli",
+      "library": "editor_core",
+      "module": "Editor_core",
+      "source": "lib/editor_core/editor_core.mli",
       "source_bytes": 1529,
       "source_sha256": "69d41c3a25f4d72911338f672ff5eaeac521c89f368482dade5854129f52aa90"
     },
     {
       "api_sha256": "c720b345045b4ff759e69018c4fbc8217192f0356cc83f1892a18af03ca335ab",
       "excluded_legacy_symbols": [],
-      "library": "editor",
+      "library": "editor_core",
       "module": "Store",
-      "source": "lib/editor/store.mli",
+      "source": "lib/editor_core/store.mli",
       "source_bytes": 1093,
       "source_sha256": "1eb2e992e75eef835c99ff6d54e455b00cbaaa5a42cc72c2fcac8a3bef9b7c72"
     },
@@ -935,6 +935,24 @@
       "source_sha256": "e8029e1a0e74f92a9efa2887f3c19e8886baeceee6f60cee6b9b11d363e92ad4"
     },
     {
+      "api_sha256": "54f505717fa9da4a93f3101aceaf47d47fe8edddeb940fc002939f6555780164",
+      "excluded_legacy_symbols": [],
+      "library": "prismel_editor",
+      "module": "Preset",
+      "source": "lib/prismel_editor/preset.mli",
+      "source_bytes": 2078,
+      "source_sha256": "cf5c87748d393037982f492783230c4d8688e9f1be2c57c89bdce77f808c18d0"
+    },
+    {
+      "api_sha256": "a75f074f29980113b36440867ffe7cf7f0b7fe215870559ab397758071bd0b81",
+      "excluded_legacy_symbols": [],
+      "library": "prismel_editor",
+      "module": "Prismel_editor",
+      "source": "lib/prismel_editor/prismel_editor.mli",
+      "source_bytes": 11251,
+      "source_sha256": "110035ebd784ffe1912df74ab98b24df025bb6765a3629a5de158a87094ffe69"
+    },
+    {
       "api_sha256": "56063cdeff25192423c99b70c311b0a35a880de6a90932bdfc8e099182d4f29b",
       "excluded_legacy_symbols": [],
       "library": "procedural",
@@ -1079,22 +1097,22 @@
       "source_sha256": "683cbfac429f78b364ab4333f3ea621e11399691125d3f5d8f3b4534c5293e57"
     },
     {
-      "api_sha256": "a96d6c153dad550ab101ee596e00642e87312b84b4497b519780db4a13f66bfa",
+      "api_sha256": "1d81a3a589c8ea6880b2b4e2554c3f0f2ea2ca93a69110e246545d8667021c76",
       "excluded_legacy_symbols": [],
       "library": "pxui_graph",
       "module": "Pxui_graph",
       "source": "lib/pxui_graph/pxui_graph.mli",
-      "source_bytes": 6117,
-      "source_sha256": "a930efbac659b412fa6d15180fa02e1032d7296faa730cffdc72c68561aa7f6c"
+      "source_bytes": 6127,
+      "source_sha256": "2a359e30d6766d1fc418b3a99d8b31d4648270d8435f102db8984369f751b647"
     },
     {
-      "api_sha256": "584dd0a44fd5951dea5cbfa73543eb4c7e6a7ae53a1e9fc27191d1fb92890739",
+      "api_sha256": "cdb9e150e8c2691b1d0b645e6101c33013f2d7427e729db23eace045cff3e78f",
       "excluded_legacy_symbols": [],
       "library": "pxui_shell",
       "module": "Pxui_shell",
       "source": "lib/pxui_shell/pxui_shell.mli",
-      "source_bytes": 2637,
-      "source_sha256": "995aed8c7191765a851ad40779ec1d4aa18318ead108a94f91a1194a2472318e"
+      "source_bytes": 2642,
+      "source_sha256": "f6c1291bd9e910c5934aa292bb8a1d64a69af16e5a2dd904ee6f1ab442ae0ec9"
     },
     {
       "api_sha256": "3b75473d5d524a02e7590c03eb6f50245673f6d397ca9be097d6c1ab32b6855a",
@@ -1122,24 +1140,6 @@
       "source": "lib/sketch_support/timeline.mli",
       "source_bytes": 1125,
       "source_sha256": "568b595c09d6638a26b02cc37fff082085c998a4185e7e49fa61800d736c048d"
-    },
-    {
-      "api_sha256": "54f505717fa9da4a93f3101aceaf47d47fe8edddeb940fc002939f6555780164",
-      "excluded_legacy_symbols": [],
-      "library": "sketch_ui",
-      "module": "Preset",
-      "source": "lib/sketch_ui/preset.mli",
-      "source_bytes": 2073,
-      "source_sha256": "412d0c7639dee55ba5e35d7b650522d013ba654fe8b8d1840be824a20b7e0640"
-    },
-    {
-      "api_sha256": "a831e00024fee7533030a32c638df59fda3fe52fbed67f49c0954468d9e7c406",
-      "excluded_legacy_symbols": [],
-      "library": "sketch_ui",
-      "module": "Sketch_ui",
-      "source": "lib/sketch_ui/sketch_ui.mli",
-      "source_bytes": 11251,
-      "source_sha256": "f29bdb84be7a362aabd38a53d483947dd4a778028583bd34f1ad075f8830d944"
     },
     {
       "api_sha256": "d76f435c7c7a7b6b7b1f445991998e7be47af7e55540e52b4de6e42ac60e3c1c",

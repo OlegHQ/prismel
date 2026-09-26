@@ -1,11 +1,11 @@
-# lib/sketch_ui rules
+# lib/prismel_editor rules
 
-`sketch_ui` composes `pxui`, `pxui_graph`, `sop_ui`, `sketch_support` and
+`prismel_editor` composes `pxui`, `pxui_graph`, `sop_ui`, `sketch_support` and
 `sop_catalog` into the sketch environment. Nothing imports it.
 
 ## Editor layering (plan U, shipped)
 
-- Foundations live in the pure `editor` library: `History` (undo with
+- Foundations live in the pure `editor_core` library: `History` (undo with
   explicit merge rules), `Keymap` (one binding table for dispatch and
   which-key), `Router` (text focus, leader, chords, and the fly mode layer)
   and `Store` (the one save format). Chrome lives in `pxui_shell`: layout,
@@ -18,13 +18,13 @@
   `pxui_graph` never matches operation names; the host passes predicates such
   as `~flaggable`.
 - Every document change goes through the immutable `Procedural.Edit_graph`
-  document (`Doc.apply`) and is recorded in `Editor.History`; cooking and
+  document (`Doc.apply`) and is recorded in `Editor_core.History`; cooking and
   framing live in `Cook`. Camera math lives in `prismel` (`Easy_camera`).
 - `Environment.Make (V : VIEWPORT)` is the one environment. `Viewport3` and
-  `Viewport2` are its instances; `Environment3`/`Environment2` only rename the
+  `Viewport2` are its instances; `Editor3`/`Editor2` only rename the
   draw callback. Add dimensional behavior to a viewport, never a second
   update path.
-- `Sketch_ui.Private` (`Workspace`, `Leader`) is unstable and test-only.
+- `Prismel_editor.Private` (`Workspace`, `Leader`) is unstable and test-only.
 
 ## Adapters
 
@@ -36,8 +36,8 @@ same document (or use `Node.apply_parameters` for a standalone node).
 
 ## Workspace UX
 
-Prefer `Sketch_ui.Environment3` for 3D SOP scenes and
-`Sketch_ui.Environment2` for 2D SOP scenes. Both own leader-key (`Space`)
+Prefer `Prismel_editor.Editor3` for 3D SOP scenes and
+`Prismel_editor.Editor2` for 2D SOP scenes. Both own leader-key (`Space`)
 playback, timeline, visibility, and preset bindings (one leader keymap table),
 selected-node inspection, reactive cooking, camera/render
 controls, resize handling, status, export, and finite native termination;

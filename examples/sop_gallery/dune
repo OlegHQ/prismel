@@ -1,6 +1,6 @@
 (executable
  (name main)
- (libraries prismel pdk_prismel procedural sop_catalog sketch_ui))
+ (libraries prismel pdk_prismel procedural sop_catalog prismel_editor))
 
 (rule
  (alias runtest)

@@ -26,7 +26,7 @@ type layout = Pxui_shell.Layout.config = {
 val default_layout : layout
 
 (** Workspace compatibility facade and leader-key internals, exposed for tests.
-    Layout and chrome live in [Pxui_shell]; sketches use [Environment3]/[2]. *)
+    Layout and chrome live in [Pxui_shell]; sketches use [Editor3]/[2]. *)
 module Private : sig
   module Workspace : sig
     type column = View | Graph | Inspector | Timeline
@@ -72,9 +72,9 @@ module Private : sig
       | Undo | Redo
       | Graph_command of Pxui_graph.command
 
-    type binding = (Workspace.column, action) Editor.Keymap.binding
+    type binding = (Workspace.column, action) Editor_core.Keymap.binding
 
-    type state = Editor.Router.state = Idle | Pending
+    type state = Editor_core.Router.state = Idle | Pending
 
     val keymap : binding list
     (** The single table behind dispatch and the which-key panel. *)
@@ -105,7 +105,7 @@ module Private : sig
   end
 end
 
-module Environment3 : sig
+module Editor3 : sig
   type 'prepared t
   type nonrec layout = layout
   val default_layout : layout
@@ -148,7 +148,7 @@ module Environment3 : sig
       for sketch-owned render settings (such as a renderer toggle) that live
       outside the graph's parameter effects and may be read by [prepare]. *)
 
-  (** The workspace keeps one [Editor.History] history of the editable document:
+  (** The workspace keeps one [Editor_core.History] history of the editable document:
       graph edits and inspector commits are entries, continuous slider drags
       collapse into one, and Command/Ctrl-Z, Shift-Command/Ctrl-Z, and
       Ctrl-Y step it. *)
@@ -211,7 +211,7 @@ module Environment3 : sig
     unit
 end
 
-module Environment2 : sig
+module Editor2 : sig
   type 'prepared t
   type nonrec layout = layout
   val default_layout : layout

@@ -2,9 +2,9 @@
  (name pxui_shell)
  (public_name prismel.pxui_shell)
  (modules pxui_shell)
- (libraries prismel editor pxui))
+ (libraries prismel editor_core pxui))
 
 (test
  (name test_shell)
  (modules test_shell)
- (libraries prismel editor pxui pxui_shell))
+ (libraries prismel editor_core pxui pxui_shell))

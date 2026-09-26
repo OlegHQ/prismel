@@ -7,9 +7,9 @@
 (executable
  (name main)
  (modules main)
- (libraries pastel_artwork prismel pxui editor unix))
+ (libraries pastel_artwork prismel pxui editor_core unix))
 
 (test
  (name check)
  (modules check)
- (libraries pastel_artwork prismel pxui editor unix))
+ (libraries pastel_artwork prismel pxui editor_core unix))

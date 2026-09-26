@@ -27,7 +27,7 @@ val save :
   document:Procedural.Edit_graph.t -> positions:(int * float * float) list ->
   display:int option -> active_camera:int option -> view:Yojson.Safe.t ->
   (string, string) result
-(** Write [<directory>/<name>.json] through {!Editor.Store}'s atomic JSON
+(** Write [<directory>/<name>.json] through {!Editor_core.Store}'s atomic JSON
     envelope; returns the path. *)
 
 val list : directory:string -> (string * float) list

@@ -250,7 +250,7 @@ let image_size = (560, 800)
 (* [renderer] is the choice; [cook_mode] carries it to [prepare], which the
    environment may run off the model's domain. *)
 type model =
-  { env : prepared Sketch_ui.Environment3.t; tracer : P.t; shown : prepared option;
+  { env : prepared Prismel_editor.Editor3.t; tracer : P.t; shown : prepared option;
     renderer : renderer; cook_mode : renderer Atomic.t }
 
 let raster_lights =
@@ -295,7 +295,7 @@ let init _frame =
     with Ok tracer -> tracer | Error message -> failwith message in
   let cook_mode = Atomic.make initial_renderer in
   let env =
-    match Sketch_ui.Environment3.create ~name:"voxel_wall"
+    match Prismel_editor.Editor3.create ~name:"voxel_wall"
       ~camera:(Easy_camera.create ~target:(v 0. 0. 1.) ~distance:19. ~azimuth:(-0.22)
         ~elevation:0.08 ~fov_y:0.7 ~inertia:false ())
       ~background:(Color.rgb 8 8 10) ~seed:7L ~grain:2 ~max_entries:24
@@ -307,7 +307,7 @@ let init _frame =
 
 let update m (frame : Frame.t) =
   let renderers = [ Path_traced; Raster; Wireframe ] in
-  let env, chosen = Sketch_ui.Environment3.update_with m.env frame ~inspector:(fun ui ->
+  let env, chosen = Prismel_editor.Editor3.update_with m.env frame ~inspector:(fun ui ->
     let index = Pxui.Ui.choice ui "Renderer" [ "Path traced"; "Raster"; "Wireframe" ]
         (match m.renderer with Path_traced -> 0 | Raster -> 1 | Wireframe -> 2) in
     List.nth renderers index) in
@@ -316,8 +316,8 @@ let update m (frame : Frame.t) =
     | Some target when frames > 0 && frame.count = frames / 2 -> target
     | _ -> renderer in
   let env = if renderer <> m.renderer then begin
-      Atomic.set m.cook_mode renderer; Sketch_ui.Environment3.rerender env end else env in
-  let shown = match Sketch_ui.Environment3.prepared env with
+      Atomic.set m.cook_mode renderer; Prismel_editor.Editor3.rerender env end else env in
+  let shown = match Prismel_editor.Editor3.prepared env with
     | Some prepared when (match m.shown with Some previous -> previous != prepared | None -> true) ->
         Option.iter (fun traced -> match P.queue_mesh m.tracer traced with
           | Ok () -> () | Error e -> prerr_endline e) prepared.traced;
@@ -326,7 +326,7 @@ let update m (frame : Frame.t) =
   (* The ACTIVE camera node drives the trace; the default one follows the
      viewport, so orbiting still steers it. *)
   if renderer = Path_traced then begin
-    let camera = Sketch_ui.Environment3.render_camera env in
+    let camera = Prismel_editor.Editor3.render_camera env in
     let target = Camera.target camera in
     let fov = match Camera.projection camera with
       | Camera.Perspective { fov_y; _ } -> fov_y | _ -> 0.7 in
@@ -348,7 +348,7 @@ let update m (frame : Frame.t) =
   end;
   { m with env; shown; renderer }
 
-let view m (frame : Frame.t) = Sketch_ui.Environment3.scene m.env frame
+let view m (frame : Frame.t) = Prismel_editor.Editor3.scene m.env frame
 
 let () =
   ignore (Sketch.run_state
@@ -356,5 +356,5 @@ let () =
             ; domains = Some 1 }
     ~init ~update ~view
     ~after_present:(fun m frame ->
-      { m with env = Sketch_ui.Environment3.after_present m.env frame })
-    ~on_stop:(fun m -> Sketch_ui.Environment3.close m.env; P.destroy m.tracer) ())
+      { m with env = Prismel_editor.Editor3.after_present m.env frame })
+    ~on_stop:(fun m -> Prismel_editor.Editor3.close m.env; P.destroy m.tracer) ())

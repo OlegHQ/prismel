@@ -150,7 +150,7 @@ native smoke path; the runtime does not impose an implicit frame limit.
 
 ### Sketch workspace keys
 
-`Sketch_ui` environments (for example `sketches/voxel_wall`) use a leader key:
+`Prismel_editor` environments (for example `sketches/voxel_wall`) use a leader key:
 press `Space`, read the which-key panel, then press one key. Pane-scoped keys
 apply to the pane you clicked last.
 
@@ -210,7 +210,7 @@ lib/pdk/              packed geometry/topology core
 lib/procedural/       immutable SOP graphs
 lib/pxui*/            UI and graph presentation
 lib/sketch_support/   target-neutral sketch helpers
-lib/sketch_ui/        interactive sketch environments
+lib/prismel_editor/        interactive sketch environments
 lib/prismel_pathtracer/ Metal ray-tracing path tracer
 examples/             self-contained examples
 sketches/             experimental native applications

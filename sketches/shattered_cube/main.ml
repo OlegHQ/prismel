@@ -116,7 +116,7 @@ let overlay graph preview frame =
   ]
 
 let () =
-  Sketch_ui.Environment3.run
+  Prismel_editor.Editor3.run
     ~config:{ Sketch.default_config with width = 1200; height = 760;
       title = "Prismel sketch · shattered cube"; domains = Some 1 }
     ~camera:(Easy_camera.create ~target:Vec3.zero ~distance:6.8

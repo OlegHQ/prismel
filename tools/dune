@@ -109,7 +109,7 @@
 (executable
  (name bench_shattered_renderer)
  (modules bench_shattered_renderer)
- (libraries prismel pdk pdk_prismel procedural sop_catalog sketch_support sketch_ui unix))
+ (libraries prismel pdk pdk_prismel procedural sop_catalog sketch_support prismel_editor unix))
 
 (executable
  (name bench_pdk_iso)

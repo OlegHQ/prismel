@@ -273,7 +273,7 @@ let () =
   else match Array.find_opt (fun (name, _) -> name = !entry) entries with
     | None -> failwith ("unknown gallery entry: " ^ !entry)
     | Some (name, graph) ->
-        Sketch_ui.Environment3.run
+        Prismel_editor.Editor3.run
           ~config:{Sketch.default_config with width=1100; height=720;
             title="Prismel SOP gallery · " ^ name}
           ~name:"sop_gallery" ~factories:Sop_catalog.Editor.factories

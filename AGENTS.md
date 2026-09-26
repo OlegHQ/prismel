@@ -10,7 +10,7 @@ Metal unavailability is a typed startup error.
 
 Nested `AGENTS.md` files hold subsystem rules: `lib/metal`, `lib/ogpu`
 (also for `lib/ogpu_core`),
-`lib/runtime`, `lib/pdk`, `lib/sketch_ui`, `lib/sop_catalog`. Read the one for
+`lib/runtime`, `lib/pdk`, `lib/prismel_editor`, `lib/sop_catalog`. Read the one for
 the directory you change. Design notes live in `specification/`; update them
 when behavior or architecture changes materially.
 
@@ -30,19 +30,19 @@ when behavior or architecture changes materially.
 | `pdk` | The single packed geometry/topology compute core |
 | `procedural` | Immutable SOP graphs over `pdk` operations |
 | `sop_catalog` | Inspectable SOP constructors registered by PPX |
-| `editor` | Pure shared editor state, starting with bounded history |
+| `editor_core` | Pure shared editor state, starting with bounded history |
 | `pxui` | The one immediate-mode UI engine (`Pxui.Ui`) |
 | `pxui_shell` | Editor chrome over PXUI; layout, headers, keys, status, timeline, prompts, frame |
 | `pxui_graph` | SOP-network presentation; emits typed requests, never edits |
 | `sop_ui` | Renders a node's typed parameter template through PXUI |
 | `sketch_support` | Procedural-to-Scene glue (`Bridge`: cooked meshes, instances, frame context) and packed pieces |
-| `sketch_ui` | The interactive sketch environment (`Environment3`/`2`) |
+| `prismel_editor` | Prismel Editor: the Houdini-like SOP shell (`Editor3`/`2`), composed only from public blocks |
 
 `examples/<name>/` are short teaching programs; `sketches/<name>/` are
 experiments. Each has its own `dune`, depends only on what it shows, keeps
 framework code out, and runs finitely under `PRISMEL_MAX_FRAMES`. Scaffold an
 example with `dune exec tools/new_example.exe -- <name>`. Prefer
-`Sketch_ui.Environment3`/`2` for SOP sketches, SOP graphs for geometry, and
+`Prismel_editor.Editor3`/`2` for SOP sketches, SOP graphs for geometry, and
 deterministic seeds.
 
 ## Dependency rules
@@ -61,11 +61,11 @@ violations are listed there with the plan item that removes them.
   path tracer, and their tests use the virtual `ogpu` only, and the gate lists
   no Metal exception.
 - `prismel` never depends on `pxui`, geometry, sketch libraries, or examples.
-- `pxui_shell` depends only on `prismel`, `editor`, and `pxui`; it never imports
+- `pxui_shell` depends only on `prismel`, `editor_core`, and `pxui`; it never imports
   SOP, graph, geometry, or sketch libraries.
 - `pdk` never reaches `procedural`; `procedural` never reaches UI
   libraries; `pxui` never reaches `procedural`; `sop_ui` and `pxui_graph`
-  never import each other or `sketch_*`; nothing imports `sketch_ui`.
+  never import each other or `sketch_*`; nothing imports `prismel_editor`.
 - A boundary change updates the gate, adds focused tests at each affected
   boundary, and updates `specification/backend.md`. Do not expose raw SDL,
   Metal, or runtime values in `Scene` or public sketch code.
@@ -153,4 +153,4 @@ second hit-test, capture, text-entry, or painting path. New widgets are
 functions over `Ui.box`/`Ui.signal`/`Ui.draw`. UI code returns intents and does
 not mutate the model during `Ui.frame`. Preserve the design kit (`Pxui.Theme`,
 DepartureMono, 24-point rows) pixel for pixel; `lib/pxui/test_ui_parity`
-guards it. Host and editor rules: `lib/sketch_ui/AGENTS.md`.
+guards it. Host and editor rules: `lib/prismel_editor/AGENTS.md`.

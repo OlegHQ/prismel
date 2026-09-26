@@ -589,7 +589,7 @@ Splitters request resize pointers on hover or drag; `Sketch.set_cursor`
 accepts default, horizontal-resize, and vertical-resize shapes for native
 sketches and returns an error outside an active sketch.
 
-`Editor.Store.Settings` saves model values in Prismel's versioned JSON
+`Editor_core.Store.Settings` saves model values in Prismel's versioned JSON
 envelope and reads existing `PXUI1` files.
 `Pxui.Camera_control` builds Camera (FOV, distance, clipping, inertia, reset)
 and Render (output name, save) sections through `widgets`. Hosts decide when
@@ -633,13 +633,13 @@ requests, and selected-node changes go through
 The host's `Cook` module owns compilation, reactive scheduling, polling, and
 framing work; `Core` composes those results with the workspace UI. One
 `Environment.Make` functor over a `VIEWPORT` adapter (`Viewport3`, `Viewport2`)
-turns that core into the public `Environment3`/`Environment2`, which differ
+turns that core into the public `Editor3`/`Editor2`, which differ
 only in their viewport.
 `prismel.pxui_graph` supplies deterministic initial layout,
 persistent graph-space tile positions, ordered ports/wires, topology-safe node
 dragging, independent inspector/display selection through each tile's VIEW
-button, selection clearing, captured pan, zoom, and framing. `Sketch_ui.Environment3.run`
-and `Environment2.run` compose both in a splitter-resizable, independently
+button, selection clearing, captured pan, zoom, and framing. `Prismel_editor.Editor3.run`
+and `Editor2.run` compose both in a splitter-resizable, independently
 collapsible view/graph/inspector workspace whose default widths are 45/35/20.
 The inspector shows camera/render controls with no selection and generated SOP
 parameters with a selection. Display selection cooks the flagged node while
@@ -689,7 +689,7 @@ bindings and focused-pane name. `Pxui_shell.Status_bar` paints the common kit
 strip from host-provided status text, FPS, and pane bounds.
 `Pxui_shell.Layout` computes the standard 45/35/20 pane geometry, and
 `Pxui_shell.Chrome` builds its headers, splitters, and focus outline;
-`Sketch_ui.Private.Workspace`
+`Prismel_editor.Private.Workspace`
 remains a compatibility facade for tests.
 `Pxui_shell.Timeline_bar` returns playback intents from display values, and
 `Pxui_shell.Prompt` builds name and search modals; the host interprets their
@@ -697,7 +697,7 @@ results and performs file I/O after the frame.
 `Pxui_shell.Shell.frame` is the sketch workspace's `Ui.frame` caller for both
 normal chrome and a pending leader overlay while the rest of the UI is hidden.
 
-`Environment3` keeps camera nodes (`Sop_catalog.Camera`, operation `camera`)
+`Editor3` keeps camera nodes (`Sop_catalog.Camera`, operation `camera`)
 in the document: a default one following the viewport is added when the
 catalog offers it, exactly one is ACTIVE (tile button or context menu), and
 `render_camera` drives look-through, PNG export, and sketch renderers such as
@@ -706,12 +706,12 @@ entry per gesture. `Sop_catalog.Camera.of_node` reads the generated parameter
 schema into a typed camera and follow flag; `to_values` writes viewport edits,
 so the host has no camera field names or copied defaults. Fly mode captures the pointer with
 `Sketch.set_relative_mouse`; Escape exits and Space exits into the leader.
-`Editor.Router` owns the fly-mode key filter; pointer and focus-loss events
+`Editor_core.Router` owns the fly-mode key filter; pointer and focus-loss events
 still reach the workspace.
 `Prismel_pathtracer.render` accepts `Camera.t` directly. It currently supports
 unshifted perspective cameras and returns an error for other projections,
 forced aspect, or vertical flip.
-Presets (`Sketch_ui.Preset`) save the full document to
+Presets (`Prismel_editor.Preset`) save the full document to
 `~/.prismel/<sketch>/<name>.json`; loading rebinds code-graph nodes by id,
 recreates catalog nodes from their factories, and is one undo entry.
 

@@ -69,7 +69,7 @@ let to_sections ~document ~positions ~display ~active_camera ~view =
 let save ~directory ~name ~sketch ~document ~positions ~display ~active_camera ~view =
   if sanitize name = "" then Error "preset name is empty" else
   let target = path ~directory ~name in
-  Editor.Store.save ~filename:target ~kind:Editor.Store.Preset ~sketch
+  Editor_core.Store.save ~filename:target ~kind:Editor_core.Store.Preset ~sketch
     ~sections:(to_sections ~document ~positions ~display ~active_camera ~view)
   |> Result.map (fun () -> target)
 
@@ -140,7 +140,7 @@ let decode path = match Yojson.Safe.from_file path with
   | `Assoc fields ->
       let* fields, view = match List.assoc_opt "sections" fields with
         | Some (`Assoc _) ->
-            let* _, sections = Editor.Store.load ~filename:path ~kind:Editor.Store.Preset in
+            let* _, sections = Editor_core.Store.load ~filename:path ~kind:Editor_core.Store.Preset in
             (match List.assoc_opt "graph" sections with
              | Some (`Assoc graph) ->
                  Ok (graph, Option.value ~default:`Null

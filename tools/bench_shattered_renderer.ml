@@ -81,7 +81,7 @@ module Allocation_profile = struct
 end
 
 type model = {
-  environment : preview Sketch_ui.Environment3.t;
+  environment : preview Prismel_editor.Editor3.t;
   launched_at : float;
   hidden_toggled : bool;
   ready_at : float option;
@@ -284,12 +284,12 @@ let overlay graph preview frame =
   ]
 
 let cardinality environment =
-  match Sketch_ui.Environment3.prepared environment with
+  match Prismel_editor.Editor3.prepared environment with
   | None -> None
   | Some (Mesh _) -> failwith "shattered-cube fixture lost its piece attribute"
   | Some (Pieces pieces) ->
       let mesh = Sketch_support.Packed_pieces.mesh_for_node
-          (Sketch_ui.Environment3.displayed_node environment) pieces in
+          (Prismel_editor.Editor3.displayed_node environment) pieces in
       let piece_count = Sketch_support.Packed_pieces.piece_count pieces
       and triangles = Mesh.Private.triangle_count mesh
       and render_vertices = Mesh.vertex_count mesh in
@@ -301,7 +301,7 @@ let cardinality environment =
       Some (piece_count, triangles, render_vertices)
 
 let init frame =
-  let environment = Sketch_ui.Environment3.create
+  let environment = Prismel_editor.Editor3.create
       ~camera:(Easy_camera.create ~target:Vec3.zero ~distance:6.8
         ~azimuth:0.72 ~elevation:0.42 ())
       ~seed:7349L ~grain ~domains ~max_entries:24
@@ -374,7 +374,7 @@ let update model frame =
         { frame with Frame.events = Event.KeyPressed (Input.KeyChar 'h')
             :: frame.Frame.events }, true
     | (Visible, _ | Hidden, true) -> frame, model.hidden_toggled in
-  let environment = Sketch_ui.Environment3.update model.environment frame in
+  let environment = Prismel_editor.Editor3.update model.environment frame in
   let model = { model with environment; hidden_toggled;
       drawable_width = frame.Frame.drawable_width;
       drawable_height = frame.drawable_height;
@@ -444,8 +444,8 @@ let () =
         resizable = false }
       ~init ~update
       ~view:(fun model frame ->
-        Sketch_ui.Environment3.scene model.environment frame)
-      ~on_stop:(fun model -> Sketch_ui.Environment3.close model.environment) () in
+        Prismel_editor.Editor3.scene model.environment frame)
+      ~on_stop:(fun model -> Prismel_editor.Editor3.close model.environment) () in
   match final.result with
   | None -> failwith "shattered renderer stopped before producing a result"
   | Some result -> print_result final result

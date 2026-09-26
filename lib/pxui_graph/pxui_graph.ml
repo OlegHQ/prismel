@@ -1342,7 +1342,7 @@ let open_menu_at point value = open_menu value point
 type command = Copy | Cut | Paste | Duplicate | Delete | Frame_all
 
 let bindings =
-  let open Editor.Keymap in
+  let open Editor_core.Keymap in
   let letter key command label = List.map (fun modifier ->
     Chord (Input.KeyChar key, [modifier]), label, command) [Input.Meta; Input.Ctrl] in
   letter 'c' Copy "copy" @ letter 'x' Cut "cut"

@@ -8,9 +8,9 @@ let frame : Frame.t = {
   mouse_delta = 0., 0.; keys = []; mouse_buttons = []; events = [];
 }
 
-let bindings : (string, string) Editor.Keymap.binding list = [
-  { trigger = Editor.Keymap.Leader 's'; label = "Save"; scope = None; action = "save" };
-  { trigger = Editor.Keymap.Leader 'v'; label = "View"; scope = Some "view"; action = "view" };
+let bindings : (string, string) Editor_core.Keymap.binding list = [
+  { trigger = Editor_core.Keymap.Leader 's'; label = "Save"; scope = None; action = "save" };
+  { trigger = Editor_core.Keymap.Leader 'v'; label = "View"; scope = Some "view"; action = "view" };
 ]
 
 let instances focus =

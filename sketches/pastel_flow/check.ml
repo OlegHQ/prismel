@@ -33,12 +33,12 @@ let () =
   let path=Filename.concat root "nested/settings.json" in
   Fun.protect ~finally:(fun()->
     Sys.remove path; Unix.rmdir (Filename.dirname path); Unix.rmdir root) (fun()->
-    let settings = List.map (fun (key, value) -> key, Editor.Store.Settings.Float value) ui in
-    assert(Editor.Store.Settings.save ~sketch:"pastel_flow" path settings=Ok());
+    let settings = List.map (fun (key, value) -> key, Editor_core.Store.Settings.Float value) ui in
+    assert(Editor_core.Store.Settings.save ~sketch:"pastel_flow" path settings=Ok());
     assert(Sys.file_exists path);
-    match Editor.Store.Settings.load ~sketch:"pastel_flow" path with Error e->failwith e | Ok loaded->
+    match Editor_core.Store.Settings.load ~sketch:"pastel_flow" path with Error e->failwith e | Ok loaded->
       let loaded = List.map (fun (c:Artwork.control) ->
-        c.key, Option.get (Editor.Store.Settings.float loaded c.key)) Artwork.controls in
+        c.key, Option.get (Editor_core.Store.Settings.float loaded c.key)) Artwork.controls in
       assert(Artwork.signature ui=Artwork.signature loaded));
   let no_grain ui = Artwork.set ui "grain" 0. in
   let seed_a = no_grain (Artwork.set ui "seed" 11.) in

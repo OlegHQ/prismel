@@ -66,8 +66,8 @@ let reach graph =
 
 let gpu = ["sdl3"; "sdl3_image"; "sdl3_ttf"; "sdl3_mixer"; "metal"; "ogpu_core"; "ogpu"; "ogpu_mock"; "ogpu_metal"; "ogpu_metal_native";
            "runtime"; "runtime_input"; "runtime_resources"; "scene_execution"]
-let upper = ["prismel"; "editor"; "pxui"; "pxui_shell"; "pxui_graph"; "sop_ui"; "procedural"; "pdk";
-             "sop_catalog"; "sketch_support"; "sketch_ui"]
+let upper = ["prismel"; "editor_core"; "pxui"; "pxui_shell"; "pxui_graph"; "sop_ui"; "procedural"; "pdk";
+             "sop_catalog"; "sketch_support"; "prismel_editor"]
 let foundational = ["sdl3"; "sdl3_image"; "sdl3_ttf"; "sdl3_mixer"; "metal"; "ogpu_core"; "ogpu";
                     "native_layer_token"; "scene_command"; "lru"]
 
@@ -87,7 +87,7 @@ let rules =
       "runtime", upper; "runtime_input", upper;
       "prismel_execution", ["runtime_input"];
       "prismel", ["pxui"; "pxui_shell"; "pxui_graph"; "sop_ui"; "procedural"; "pdk";
-                  "sop_catalog"; "sketch_support"; "sketch_ui"];
+                  "sop_catalog"; "sketch_support"; "prismel_editor"];
       "prismel_math", ["prismel"; "pdk_core"; "pdk_exact"; "pdk_spatial"; "pdk_attrib"; "pdk_gen"; "pdk_curve"; "pdk_mesh"; "pdk_boolean"; "pdk"; "pdk_prismel"; "procedural"] @ gpu;
       "pdk_core", "pdk_exact" :: "pdk_spatial" :: "pdk_attrib" :: "pdk_gen" :: "pdk_curve" :: "pdk_mesh" :: "pdk_boolean" :: "prismel" :: "pdk" :: "pdk_prismel" :: "procedural" :: gpu;
       "pdk_exact", "pdk_spatial" :: "pdk_attrib" :: "pdk_gen" :: "pdk_curve" :: "pdk_mesh" :: "pdk_boolean" :: "prismel" :: "pdk" :: "pdk_prismel" :: "procedural" :: gpu;
@@ -99,17 +99,17 @@ let rules =
       "pdk_boolean", "prismel" :: "pdk" :: "pdk_prismel" :: "procedural" :: gpu;
       "pdk", "prismel" :: "pdk_prismel" :: "procedural" :: "pxui" :: "pxui_shell" :: "sop_ui" :: "sop_catalog" :: gpu;
       "procedural", "prismel" :: "pdk_prismel" :: "pxui" :: "pxui_shell" :: "pxui_graph" :: "sop_ui" :: "sop_catalog"
-                    :: "sketch_support" :: "sketch_ui" :: gpu;
-      "editor", ["pxui"; "pxui_shell"; "pxui_graph"; "sop_ui"; "sketch_ui"; "procedural";
+                    :: "sketch_support" :: "prismel_editor" :: gpu;
+      "editor_core", ["pxui"; "pxui_shell"; "pxui_graph"; "sop_ui"; "prismel_editor"; "procedural";
                  "pdk"; "sop_catalog"];
-      "pxui", ["editor"; "pxui_shell"; "procedural"; "pdk"; "pxui_graph";
-               "sop_ui"; "sketch_support"; "sketch_ui"];
+      "pxui", ["editor_core"; "pxui_shell"; "procedural"; "pdk"; "pxui_graph";
+               "sop_ui"; "sketch_support"; "prismel_editor"];
       "pxui_shell", ["procedural"; "pdk"; "sop_catalog"; "sop_ui";
-                     "pxui_graph"; "sketch_support"; "sketch_ui"];
-      "sop_ui", ["pxui_shell"; "pxui_graph"; "sketch_support"; "sketch_ui"; "sop_catalog"];
-      "pxui_graph", ["pxui_shell"; "sop_ui"; "sketch_support"; "sketch_ui"; "sop_catalog"];
-      "sop_catalog", ["pxui"; "pxui_shell"; "pxui_graph"; "sop_ui"; "sketch_support"; "sketch_ui"];
-      "sketch_support", ["pxui"; "pxui_shell"; "pxui_graph"; "sop_ui"; "sketch_ui"] ]
+                     "pxui_graph"; "sketch_support"; "prismel_editor"];
+      "sop_ui", ["pxui_shell"; "pxui_graph"; "sketch_support"; "prismel_editor"; "sop_catalog"];
+      "pxui_graph", ["pxui_shell"; "sop_ui"; "sketch_support"; "prismel_editor"; "sop_catalog"];
+      "sop_catalog", ["pxui"; "pxui_shell"; "pxui_graph"; "sop_ui"; "sketch_support"; "prismel_editor"];
+      "sketch_support", ["pxui"; "pxui_shell"; "pxui_graph"; "sop_ui"; "prismel_editor"] ]
 
 (* Known violations: (library, reached, plan item that removes it). *)
 let reach_exceptions : (string * string * string) list = []

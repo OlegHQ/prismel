@@ -50,7 +50,7 @@ module Workspace = struct
 end
 
 module Leader = struct
-  open Editor.Keymap
+  open Editor_core.Keymap
   type action =
     | Save_preset | Browse_presets
     | Toggle_timeline | Toggle_graph | Toggle_inspector | Hide_ui | Open_camera
@@ -60,9 +60,9 @@ module Leader = struct
     | Undo | Redo
     | Graph_command of Pxui_graph.command
 
-  type binding = (Workspace.column, action) Editor.Keymap.binding
+  type binding = (Workspace.column, action) Editor_core.Keymap.binding
 
-  type state = Editor.Router.state = Idle | Pending
+  type state = Editor_core.Router.state = Idle | Pending
 
   (* One table drives both dispatch and the which-key panel. *)
   let keymap = [
@@ -302,10 +302,10 @@ module Cook = struct
     end
 
   let create ~prepare ~seed ~grain ?domains ~max_entries ~max_payload_bytes () =
-    if grain <= 0 then invalid_arg "Sketch_ui: grain must be positive";
+    if grain <= 0 then invalid_arg "Prismel_editor: grain must be positive";
     let domains = Option.value ~default:
         (max 1 (Parallel.recommended_domains () - 1)) domains in
-    if domains <= 0 then invalid_arg "Sketch_ui: domains must be positive";
+    if domains <= 0 then invalid_arg "Prismel_editor: domains must be positive";
     Result.map (fun worker ->
       { worker; seed; grain; domains; prepare; schedule = Schedule.initial;
         prepared = None; error = None; seconds = None; displayed_bounds = None;
@@ -444,7 +444,7 @@ module Core = struct
     edit_error : string option;
     status_fps : int option;
     status_fps_at : float;
-    history : Edit_graph.t Editor.History.t;
+    history : Edit_graph.t Editor_core.History.t;
     focus : Workspace.column;
     pane_keys : (int * Workspace.column) list;
     leader : Leader.state;
@@ -506,7 +506,7 @@ module Core = struct
           timeline = Sketch_support.Timeline.create (); cook;
           edit_error = None; status_fps = None;
           status_fps_at = Float.neg_infinity;
-          history = Editor.History.create document;
+          history = Editor_core.History.create document;
           focus = Workspace.View; pane_keys = []; leader = Leader.Idle;
           keymap; timeline_frames = max 1 timeline_frames })
         (Cook.create ~prepare ~seed ~grain ?domains ~max_entries
@@ -598,10 +598,10 @@ module Core = struct
     let keymap = if all_ui_visible
         && not (Workspace.collapsed value.workspace Workspace.Graph)
       then value.keymap else List.filter (fun binding ->
-        match binding.Editor.Keymap.action with
+        match binding.Editor_core.Keymap.action with
         | Leader.Graph_command _ | Leader.Frame_camera -> false
         | _ -> true) value.keymap in
-    let leader, actions, frame = Editor.Router.step keymap ~focus ~text_focus ~frame
+    let leader, actions, frame = Editor_core.Router.step keymap ~focus ~text_focus ~frame
         value.leader in
     let sample_fps = frame.time < value.status_fps_at
       || frame.time -. value.status_fps_at >= 1. in
@@ -828,16 +828,16 @@ module Core = struct
        undoes, Shift-Command/Ctrl-Z or Ctrl-Y redoes. *)
     let dragging = Frame.mouse_down Input.LeftButton frame in
     let history = if document == value.document then value.history
-      else Editor.History.record
+      else Editor_core.History.record
           ~merge:(if dragging then Gesture 0 else Step) document value.history in
     let ended_gesture = Frame.has_event (function
       | Event.MouseReleased (Input.LeftButton, _) | Event.WindowFocusLost -> true
       | _ -> false) frame in
-    let history = if ended_gesture then Editor.History.seal history else history in
-    let stepped = if List.mem Leader.Redo actions then Editor.History.redo history
-      else if List.mem Leader.Undo actions then Editor.History.undo history else None in
+    let history = if ended_gesture then Editor_core.History.seal history else history in
+    let stepped = if List.mem Leader.Redo actions then Editor_core.History.redo history
+      else if List.mem Leader.Undo actions then Editor_core.History.undo history else None in
     let history, document, undone = match stepped with
-      | Some history -> history, Editor.History.present history, true
+      | Some history -> history, Editor_core.History.present history, true
       | None -> history, document, false in
     let inspector = if undone then None else inspector in
     let effects = if undone then Parameter.union_effects result.effects Doc.cook_effects
@@ -874,9 +874,9 @@ module Core = struct
      of view edits (a drag, a wheel gesture) into one undo entry. *)
   let environment_edit value mode document =
     let history = match mode with
-      | `Reset -> Editor.History.create document
-      | `Amend -> Editor.History.record ~merge:Repair document value.history
-      | `View time -> Editor.History.record
+      | `Reset -> Editor_core.History.create document
+      | `Amend -> Editor_core.History.record ~merge:Repair document value.history
+      | `View time -> Editor_core.History.record
           ~merge:(Burst { key = "view"; at = time; window = 0.25 })
           document value.history in
     { value with document; history;
@@ -1067,8 +1067,8 @@ module Environment = struct
     let displayed_node value = Core.displayed_node value.core
     let panes value frame = Core.panes value.core frame
     let graph_nodes value = Pxui_graph.node_views value.core.graph_view
-    let can_undo value = Editor.History.can_undo value.core.Core.history
-    let can_redo value = Editor.History.can_redo value.core.Core.history
+    let can_undo value = Editor_core.History.can_undo value.core.Core.history
+    let can_redo value = Editor_core.History.can_redo value.core.Core.history
 
     let rerender value =
       let core = { value.core with Core.cook = Cook.force value.core.Core.cook } in
@@ -1198,8 +1198,8 @@ module Viewport2 = struct
     let control, camera, requests = CC2.widgets control ui ~camera in
     control, camera, requests, (), inspector ui
 
-  let section camera () = Editor.Store.Viewport.encode2 camera
-  let restore camera () json = Editor.Store.Viewport.decode2 camera json, ()
+  let section camera () = Editor_core.Store.Viewport.encode2 camera
+  let restore camera () json = Editor_core.Store.Viewport.decode2 camera json, ()
   let apply_action _ () _ = (), None
   let on_doc ~previous:_ core _ = core
 
@@ -1322,7 +1322,7 @@ module Viewport3 = struct
   let begin_frame extra frame = match extra.fly with
     | None -> extra, frame
     | Some _ ->
-        let ended, frame = Editor.Router.fly frame in
+        let ended, frame = Editor_core.Router.fly frame in
         if not ended then extra, frame
         else (set_relative false; { extra with fly = None }, frame)
 
@@ -1339,9 +1339,9 @@ module Viewport3 = struct
     control, camera, requests, extra, inspector ui
 
   let section camera extra =
-    Editor.Store.Viewport.encode3 camera ~look_through:extra.look_through
+    Editor_core.Store.Viewport.encode3 camera ~look_through:extra.look_through
   let restore camera extra json =
-    let camera, look_through = Editor.Store.Viewport.decode3 camera json in
+    let camera, look_through = Editor_core.Store.Viewport.decode3 camera json in
     camera, { extra with look_through }
 
   let apply_action camera extra = function
@@ -1530,7 +1530,7 @@ module Viewport3 = struct
   let close extra = if extra.fly <> None then set_relative false
 end
 
-module Environment3 = struct
+module Editor3 = struct
   include Environment.Make (Viewport3)
 
   let render_camera value = (extra value).Viewport3.render_camera
@@ -1552,7 +1552,7 @@ module Environment3 = struct
       ~draw:scene3 ?overlay ()
 end
 
-module Environment2 = struct
+module Editor2 = struct
   include Environment.Make (Viewport2)
 
   let create ?layout ?name ?presets ?timeline_frames ?factories ?camera ?background

@@ -246,7 +246,7 @@ attributing the remaining time to a single phase.
 ## SOP workflow example
 
 `sketches/voxel_wall/` is the Houdini-style network Grid → Wall Depth → Copy
-Cubes (cube prototype), hosted in the `Sketch_ui.Environment3` workspace with
+Cubes (cube prototype), hosted in the `Prismel_editor.Editor3` workspace with
 the tracer painted into the view pane by the overlay hook. `wall_depth` is a
 `Procedural.Custom.map` node whose typed `Parameter.schema` (frequency,
 amplitude, base depth, octaves, seed) drives the inspector; it writes the
@@ -267,7 +267,7 @@ edges. The Box catalog defaults to six quads, so the wireframe follows the
 modeled faces without triangulation diagonals. The wireframe uses the Metal
 scene path and preserves packed instancing. Native `Scene3.Wireframe` also
 supports triangle meshes, where it follows the mesh's triangle edges.
-`Environment3.rerender` re-lowers the scene on toggle. All
+`Editor3.rerender` re-lowers the scene on toggle. All
 graph and parameter edits go through the workspace's shared undo stack.
 Each background preparation now builds only the selected renderer's derived
 mesh: the traced prototype, filled mesh, or unique-edge wire mesh. Switching

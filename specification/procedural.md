@@ -225,9 +225,9 @@ created with disconnected input slots. Copy/paste preserves induced-subgraph
 wiring, allocates fresh node IDs, and leaves external inputs disconnected.
 `optimize_layout` and `frame_selected` are host-bound (leader `l`/`f`);
 [Home] frames all. A separate VIEW button
-chooses the document node compiled and submitted by `sketch_ui` without changing
+chooses the document node compiled and submitted by `prismel_editor` without changing
 inspector selection. The canvas never mutates the document or cooks geometry;
-`sketch_ui` applies commands, reports validation errors, and retains the prior
+`prismel_editor` applies commands, reports validation errors, and retains the prior
 successful viewport result until a newly compiled graph finishes cooking.
 This clean-room interaction contract follows SideFX's public descriptions
 of the [Network Editor](https://www.sidefx.com/docs/houdini/ref/panes/network.html),
@@ -235,7 +235,7 @@ of the [Network Editor](https://www.sidefx.com/docs/houdini/ref/panes/network.ht
 and [automatic layout](https://www.sidefx.com/docs/houdini/network/layout.html),
 without copying implementation or assets.
 
-`prismel.sketch_ui` composes a responsive three-column view/graph/inspector
+`prismel.prismel_editor` composes a responsive three-column view/graph/inspector
 workspace, selected-node inspector, dimensional `Easy_camera`/`Easy_camera2`
 render controls, a sketch-owned playback clock, and one bounded latest-request
 cook worker. Default column ratios are 45/35/20; splitters preserve user ratios
@@ -244,7 +244,7 @@ controls in the inspector, while node selection puts generated parameters there.
 Display selection remains independent and keeps the previous successful image
 visible while the newly flagged node cooks. Overlay scenes use view-local
 coordinates, not full-window coordinates.
-`Environment3` and `Environment2` are one `Environment.Make` functor applied to
+`Editor3` and `Editor2` are one `Environment.Make` functor applied to
 the `Viewport3` and `Viewport2` adapters, which supply camera widgets,
 navigation, painting, view persistence and any mode state; the lifecycle core
 is shared.

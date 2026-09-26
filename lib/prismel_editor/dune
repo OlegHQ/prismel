@@ -1,0 +1,4 @@
+(library
+ (name prismel_editor)
+ (public_name prismel.prismel_editor)
+ (libraries prismel procedural editor_core pxui pxui_shell pxui_graph sop_ui sop_catalog sketch_support yojson unix))

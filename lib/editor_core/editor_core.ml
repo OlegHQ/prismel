@@ -12,8 +12,8 @@ module History = struct
     capacity : int; depth : int; merge : merge option;
   }
 
-  let create ?(capacity = 64) present =
-    if capacity < 1 then invalid_arg "Editor.History.create: capacity must be positive";
+  let create ?(capacity = 128) present =
+    if capacity < 1 then invalid_arg "Editor_core.History.create: capacity must be positive";
     { past = []; present; future = []; capacity; depth = 0; merge = None }
 
   let present t = t.present

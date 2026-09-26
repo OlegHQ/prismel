@@ -46,15 +46,15 @@ let panel ui (values, animate) (frame:Frame.t) =
     List.filter_map (fun (pressed, action) -> if pressed then Some action else None)
       [waves, `Waves; silk, `Silk; save, `Save; load, `Load])
 
-let to_settings (values, animate) : Editor.Store.Settings.t =
-  ("animate", Editor.Store.Settings.Bool animate)
+let to_settings (values, animate) : Editor_core.Store.Settings.t =
+  ("animate", Editor_core.Store.Settings.Bool animate)
   :: List.map (fun (c:Artwork.control) ->
-    c.key, Editor.Store.Settings.Float (Artwork.get values c.key)) Artwork.controls
+    c.key, Editor_core.Store.Settings.Float (Artwork.get values c.key)) Artwork.controls
 let of_settings (values, animate) saved =
   List.fold_left (fun values (c:Artwork.control) ->
-    match Editor.Store.Settings.float saved c.key with
+    match Editor_core.Store.Settings.float saved c.key with
     | Some v -> Artwork.set values c.key v | None -> values) values Artwork.controls,
-  Option.value ~default:animate (Editor.Store.Settings.bool saved "animate")
+  Option.value ~default:animate (Editor_core.Store.Settings.bool saved "animate")
 
 type model = { ui:Pxui.Ui.t; controls:Artwork.values * bool; art:Scene3.t;
   signature:float list; time:float;
@@ -66,7 +66,7 @@ let build values time =
 let init (_:Frame.t) =
   let controls=Artwork.preset (!preset="silk"), !animate in
   let controls,status=if Sys.file_exists !settings then
-      match Editor.Store.Settings.load ~sketch:"pastel_flow" !settings with
+      match Editor_core.Store.Settings.load ~sketch:"pastel_flow" !settings with
       | Ok saved->of_settings controls saved,"Controls loaded" | Error e->controls,e
     else controls,"Choose a preset; expand a section to explore." in
   let art,vertices,build_ms=build (fst controls) 0. in
@@ -81,9 +81,9 @@ let update model (frame:Frame.t) =
   let controls,status=List.fold_left(fun (controls,_status)->function
     | `Waves -> (Artwork.preset false, snd controls),"Pearl waves preset"
     | `Silk -> (Artwork.preset true, snd controls),"Iridescent silk preset"
-    | `Save -> controls,(match Editor.Store.Settings.save ~sketch:"pastel_flow" !settings (to_settings controls) with
+    | `Save -> controls,(match Editor_core.Store.Settings.save ~sketch:"pastel_flow" !settings (to_settings controls) with
         Ok()->"Saved "^ !settings|Error e->e)
-    | `Load -> (match Editor.Store.Settings.load ~sketch:"pastel_flow" !settings with
+    | `Load -> (match Editor_core.Store.Settings.load ~sketch:"pastel_flow" !settings with
         Ok saved->of_settings controls saved,"Controls loaded"|Error e->controls,e))
     (controls,model.status) actions in
   let values, animate = controls in

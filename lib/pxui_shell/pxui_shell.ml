@@ -63,10 +63,10 @@ module Layout = struct
     let total = config.view_ratio +. config.graph_ratio
         +. config.inspector_ratio in
     if not (Float.is_finite total) || total <= 0. then
-      invalid_arg "Sketch_ui layout ratios must have a positive finite sum";
+      invalid_arg "Prismel_editor layout ratios must have a positive finite sum";
     if config.splitter_width < 2 || config.collapsed_width < 18
         || config.header_height < 18 || config.status_height < 0 then
-      invalid_arg "Sketch_ui layout dimensions are too small"
+      invalid_arg "Prismel_editor layout dimensions are too small"
 
   let create (config : config) =
     validate config;
@@ -279,7 +279,7 @@ module Chrome = struct
 end
 
 module Which_key = struct
-  open Editor.Keymap
+  open Editor_core.Keymap
 
   let panel ui keymap ~focus ~focus_name =
     let module Ui = Pxui.Ui in

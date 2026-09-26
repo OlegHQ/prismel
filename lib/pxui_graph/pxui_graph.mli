@@ -136,7 +136,7 @@ val delete_selection : t -> t * change list
 val stats : t -> stats
 
 type command = Copy | Cut | Paste | Duplicate | Delete | Frame_all
-val bindings : (Editor.Keymap.trigger * string * command) list
+val bindings : (Editor_core.Keymap.trigger * string * command) list
 val run_command : t -> command -> t * change list
 (** Commands are dispatched by the host's key router, not by [update]. *)
 
@@ -150,7 +150,7 @@ val run_command : t -> command -> t * change list
     - Command/Ctrl-C, -V, and -X copy, paste, and cut selected subgraphs;
       Command/Ctrl-D duplicates them with fresh logical node IDs;
     - [Home] frames all; the host binds {!optimize_layout},
-      {!frame_viewed}, and {!open_menu_at} (Sketch_ui: leader [l], [f], [a]);
+      {!frame_viewed}, and {!open_menu_at} (Prismel_editor: leader [l], [f], [a]);
     - the hierarchical node menu: category paths form submenus,
       while typed search matches labels, keys, and complete breadcrumbs across
       the entire catalog; on a selected wire it offers one-input nodes for

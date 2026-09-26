@@ -33,7 +33,7 @@ dune exec tools/codemod/codemod.exe -- prune lib/<name> [lib/<other> ...]
 ## Rules
 
 - Only prune libraries whose exports are internal. For user-facing APIs
-  (`prismel`, `pxui`, `procedural`, `prismel_pathtracer`, `sketch_ui`,
+  (`prismel`, `pxui`, `procedural`, `prismel_pathtracer`, `prismel_editor`,
   `prismel_math`) list with `dead-exports` and decide by hand: unused is not
   unwanted there.
 - Unused `let x = e in` locals are deleted; check the printed `26 ...` lines
