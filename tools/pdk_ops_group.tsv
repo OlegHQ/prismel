@@ -1,0 +1,43 @@
+# Reviewed qualified Ops paths whose owner is the public Pdk.Group_ops family.
+# Apply only to explicit PDK test/tool files after the checked boundaries pass.
+Ops.group_promote_boundary_rule	Group_ops.boundary_promotion_rule
+Ops.group_promote_rule	Group_ops.promotion_rule
+Ops.group_promotions	Group_ops.promotions_checked
+Ops.group_promote	Group_ops.promote_checked
+Ops.group_expand	Group_ops.expand_checked
+Ops.groups_from_name	Group_ops.groups_from_name_checked
+Ops.name_from_groups	Group_ops.name_from_groups_checked
+Ops.group_random	Group_ops.group_random_checked
+Ops.group_bounds	Group_ops.group_bounds_checked
+Ops.group_owner	Group_ops.owner
+Ops.group_promote_mode	Group_ops.promote_mode
+Ops.group_promote_operation	Group_ops.promote_operation
+Ops.group_promotion_rule	Group_ops.promotion_rule
+Ops.group_containment	Group_ops.containment
+Ops.Group_points	Group_ops.Group_points
+Ops.Group_vertices	Group_ops.Group_vertices
+Ops.Group_primitives	Group_ops.Group_primitives
+Ops.Group_edges	Group_ops.Group_edges
+Ops.Group_replace	Group_ops.Group_replace
+# Group_union and Group_intersection also belong to Fuse_reduce.group_method;
+# rewrite those only in an explicitly reviewed Group_ops caller, not globally.
+Ops.Group_subtract	Group_ops.Group_subtract
+Ops.Group_xor	Group_ops.Group_xor
+Ops.Include_any	Group_ops.Include_any
+Ops.Include_all	Group_ops.Include_all
+Ops.Include_shared_edge	Group_ops.Include_shared_edge
+Ops.Promote_elements	Group_ops.Promote_elements
+Ops.Promote_boundary	Group_ops.Promote_boundary
+Ops.Primitive_share_points	Group_ops.Primitive_share_points
+Ops.Primitive_share_edges	Group_ops.Primitive_share_edges
+Ops.Name_replace	Group_ops.Name_replace
+Ops.Name_union	Group_ops.Name_union
+Ops.Ignore_invalid	Group_ops.Ignore_invalid
+Ops.Force_valid	Group_ops.Force_valid
+Ops.First_group	Group_ops.First_group
+Ops.Last_group	Group_ops.Last_group
+Ops.Error_on_overlap	Group_ops.Error_on_overlap
+Ops.Bounds_box	Group_ops.Bounds_box
+Ops.Bounds_sphere	Group_ops.Bounds_sphere
+Ops.Fully_contained	Group_ops.Fully_contained
+Ops.Partially_contained	Group_ops.Partially_contained
