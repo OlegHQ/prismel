@@ -508,6 +508,9 @@ The checked packed operations are `Pdk.Bound.run_checked`,
 `Pdk.Bound.bounding_box_checked`, `Pdk.Match_size.run_checked`, and
 `Pdk.Match_size.match_axis_checked`; their shape and fit constructors live in
 those family modules.
+Packed curve modeling uses `Pdk.Curve_modeling.resample_curves_checked`,
+`carve_curves_checked`, and `sweep_circle_checked`, with carve modes and
+attribute modes in the same family.
 `Procedural.Sop.group_rename` applies ordered owner-scoped rename rules with
 an explicit conflict policy, including the single-group case.
 `Procedural.Sop.group_promotions` uses one ordered rule list for single and

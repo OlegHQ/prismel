@@ -3,7 +3,7 @@
   "baseline_plan_sha256": "6f95e5738ae263386bbc414299f598f25ba9f604b48a8c2ef9bee84f974e2954",
   "generator": "tools/api_manifest/api_manifest.exe",
   "kind": "stable_high_level",
-  "module_count": 121,
+  "module_count": 122,
   "modules": [
     {
       "api_sha256": "e50b68fb8b3efb8c3f48d288c797a83690511ce38a332e2c2285c788efd781ad",
@@ -139,6 +139,15 @@
       "source": "lib/pdk/attrib/color_by_height.mli",
       "source_bytes": 232,
       "source_sha256": "0bf46003b41ba91781e491d8d2d28c8651900351281525a7779b64c3c4380279"
+    },
+    {
+      "api_sha256": "8cfdbe361aeec3e22a73fe36dd0290fbb91350921f49c6bb04f118300b3a46b8",
+      "excluded_legacy_symbols": [],
+      "library": "pdk",
+      "module": "Curve_modeling",
+      "source": "lib/pdk/mesh/curve_modeling.mli",
+      "source_bytes": 1843,
+      "source_sha256": "72c2bdab53fa58c31c45aa357570af56c0429078f066987847646722c0d7ccbd"
     },
     {
       "api_sha256": "34f3844f26dfa08a29221e3a71df6d2beaea1e2faa9170559a77c89efac89892",
@@ -321,13 +330,13 @@
       "source_sha256": "783f2a8cb8d44e94a2fe14b57d38a3089600f911da55902a40a5925dc5fe50f7"
     },
     {
-      "api_sha256": "9d9ea4d77a0c4298e35eada75f1d6604c64030b6dcdb31c913d71f34641db24b",
+      "api_sha256": "1d14f079aa2664db3445157494f42a3cd6939d21dd0b6ea1a831a893e46f3ab5",
       "excluded_legacy_symbols": [],
       "library": "pdk",
       "module": "Ops",
       "source": "lib/pdk/mesh/ops.mli",
-      "source_bytes": 214139,
-      "source_sha256": "700dd1d6954783f2eb72e60526a7533d00fae7a2bf90d7a5e68b471f27e985bc"
+      "source_bytes": 214213,
+      "source_sha256": "ec1973273a082fc5135a7c7904d7cf15399d554e4b28719103ea57ab4411b9ad"
     },
     {
       "api_sha256": "b490452483589f09b79da98886e02e53857b15bc4e94c89b071cad643471a311",

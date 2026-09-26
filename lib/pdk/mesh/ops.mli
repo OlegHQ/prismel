@@ -3767,8 +3767,10 @@ val poly_path :
     deterministic and sequential;
     independent output and payload planes use disjoint parallel ranges. *)
 
-type carve_keep = Keep_inside | Keep_outside | Keep_inside_and_outside
-type carve_attribute_mode = Attribute_replace | Attribute_scale
+type carve_keep = Curve_modeling.carve_keep =
+  | Keep_inside | Keep_outside | Keep_inside_and_outside
+type carve_attribute_mode = Curve_modeling.carve_attribute_mode =
+  | Attribute_replace | Attribute_scale
 
 val carve_curves :
   ?cancel:Cancel.t -> ?grain:int -> ?primitives:Group.t ->

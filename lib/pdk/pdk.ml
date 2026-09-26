@@ -39,6 +39,7 @@ module Ordering = Pdk_mesh.Ordering
 module Transform_ops = Pdk_mesh.Transform_ops
 module Bound = Pdk_mesh.Bound
 module Match_size = Pdk_mesh.Match_size
+module Curve_modeling = Pdk_mesh.Curve_modeling
 module Edge_flip = Pdk_mesh.Edge_flip
 module Poly_reduce = Pdk_mesh.Poly_reduce
 module Mesh_merge = Pdk_mesh.Mesh_merge

@@ -75,5 +75,5 @@ let sweep_circle_checked ?cancel ?grain ?primitives ?sides ?divisions_attribute
         ~maximum_joint_scale ~maximum_joint_scale_attribute ~scale_attribute
         ~smooth_point ~smooth_attribute ~max_valence ~seam_offset
         ~seam_attribute ~segment_seam_attribute ~v_attribute ~generate_uv
-        ~u_range ~v_range ~uv_range_attribute ~up_attribute ~caps ?cap_group
+        ~u_range ~v_range ~uv_range_attribute ~up_attribute ~caps ~cap_group
         ~radius geometry)

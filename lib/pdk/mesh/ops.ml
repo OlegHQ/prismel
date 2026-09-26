@@ -2089,15 +2089,7 @@ let poly_fill ?cancel ?grain ?boundary ?mode ?reverse_patches ?unique_points
     (fun () -> poly_fill_raw ?cancel ?grain ?boundary ?mode ?reverse_patches
       ?unique_points ?update_point_normals ?patch_group geometry)
 
-let resample_curves ?cancel ?grain ?primitives ?segments ?maximum_segment_length
-    ?segment_length_attribute ?segments_attribute ?even_last_segment
-    ?curve_u_attribute ?curve_number_attribute ?distance_attribute
-    ?tangent_attribute geometry =
-  protected "resample_curves" "invalid_geometry"
-    (fun () -> Resample_curves.run ?cancel ?grain ?primitives ?segments
-      ?maximum_segment_length ?segment_length_attribute ?segments_attribute
-      ?even_last_segment ?curve_u_attribute ?curve_number_attribute
-      ?distance_attribute ?tangent_attribute geometry)
+let resample_curves = Curve_modeling.resample_curves_checked
 
 let convert_line ?cancel ?grain ?edges ?(connect_path = false)
     ?(maximum_distance = 0.001)
@@ -2167,30 +2159,12 @@ let poly_path ?cancel ?grain ?connect_end_points ?maximum_distance
     Poly_path.run ?cancel ?grain ?connect_end_points ?maximum_distance
       ?connect_only_to_other_end_points ?make_isolated_loops_closed geometry)
 
-type carve_keep = Keep_inside | Keep_outside | Keep_inside_and_outside
-type carve_attribute_mode = Attribute_replace | Attribute_scale
+type carve_keep = Curve_modeling.carve_keep =
+  | Keep_inside | Keep_outside | Keep_inside_and_outside
+type carve_attribute_mode = Curve_modeling.carve_attribute_mode =
+  | Attribute_replace | Attribute_scale
 
-let carve_curves ?cancel ?grain ?primitives ?relative_arc_length ?first ?last
-    ?first_attribute ?last_attribute ?(attribute_mode = Attribute_replace)
-    ?(only_at_breakpoints = false) ?(cut_at_all_internal_breakpoints = false)
-    ?(keep = Keep_inside) ?(extract_points = false) ?divisions ?keep_original geometry =
-  protected "carve_curves" "invalid_geometry" (fun () ->
-    let attribute_mode = match attribute_mode with
-      | Attribute_replace -> Curve_ops.Replace
-      | Attribute_scale -> Curve_ops.Scale in
-    if extract_points then
-      Curve_ops.extract_points ?cancel ?grain ?primitives ?relative_arc_length
-        ?first ?last ?first_attribute ?last_attribute ~attribute_mode
-        ~only_at_breakpoints ~cut_at_all_internal_breakpoints
-        ?divisions ?keep_original geometry
-    else
-      let mode = match keep with
-        | Keep_inside -> Curve_ops.Inside
-        | Keep_outside -> Curve_ops.Outside
-        | Keep_inside_and_outside -> Curve_ops.Inside_and_outside in
-      Curve_ops.carve ?cancel ?grain ?primitives ?relative_arc_length ?first
-        ?last ?first_attribute ?last_attribute ~attribute_mode
-        ~only_at_breakpoints ~cut_at_all_internal_breakpoints ?divisions ~mode geometry)
+let carve_curves = Curve_modeling.carve_curves_checked
 
 let revolve_raw = Revolve.run
 let revolve ?cancel ?grain ?primitives ?revolve_type ?connectivity ?start_angle
@@ -2228,46 +2202,7 @@ let sweep ?cancel ?(grain = 16_384) ?backbones ?cross_sections
       ~roll ~twist ~caps ?cap_group ~uv_attribute ~cross_section_prefix
       ~backbone ~cross_section ())
 
-let sweep_circle_raw = Sweep_circle.run
-let sweep_circle ?cancel ?grain ?primitives ?sides ?divisions_attribute
-    ?segments ?segments_attribute ?segment_scales ?segment_scales_attribute
-    ?(prevent_joint_buckling = false) ?(maximum_joint_scale = 10.)
-    ?maximum_joint_scale_attribute
-    ?(smooth_point = true) ?smooth_attribute ?max_valence
-    ?scale_attribute ?seam_offset ?seam_attribute ?segment_seam_attribute
-    ?v_attribute
-    ?(generate_uv = true) ?u_range ?v_range ?uv_range_attribute ?up_attribute
-    ?caps ?cap_group ~radius geometry =
-  protected "sweep_circle" "invalid_geometry"
-    (fun () ->
-      let grain = Option.value ~default:16_384 grain
-      and sides = Option.value ~default:12 sides
-      and segments = Option.value ~default:1 segments
-      and seam_offset = Option.value ~default:0 seam_offset
-      and caps = Option.value ~default:false caps in
-      if Option.is_none primitives && Option.is_none divisions_attribute
-          && segments = 1 && Option.is_none segments_attribute
-          && Option.is_none segment_scales
-          && Option.is_none segment_scales_attribute
-          && not prevent_joint_buckling
-          && Float.is_finite maximum_joint_scale && maximum_joint_scale >= 1.
-          && Option.is_none maximum_joint_scale_attribute && generate_uv
-          && smooth_point && Option.is_none smooth_attribute
-          && Option.is_none max_valence
-          && Option.is_none segment_seam_attribute
-          && Option.is_none u_range && Option.is_none v_range
-          && Option.is_none uv_range_attribute then
-        sweep_circle_raw ?cancel ~grain ~sides ?scale_attribute ~seam_offset
-          ?seam_attribute ?v_attribute ?up_attribute ~caps ?cap_group ~radius geometry
-      else Polywire.run ?cancel ~grain ~primitives ~sides ~divisions_attribute
-          ~segments ~segments_attribute ~segment_scales
-          ~segment_scales_attribute ~prevent_joint_buckling
-          ~maximum_joint_scale ~maximum_joint_scale_attribute ~scale_attribute
-          ~smooth_point ~smooth_attribute ~max_valence
-          ~seam_offset
-          ~seam_attribute ~segment_seam_attribute ~v_attribute ~generate_uv
-          ~u_range ~v_range
-          ~uv_range_attribute ~up_attribute ~caps ~cap_group ~radius geometry)
+let sweep_circle = Curve_modeling.sweep_circle_checked
 
 let uv_project ?cancel ?grain ?name ?primitives ?u_range ?v_range
     ?fix_seams ?fix_poles projection geometry =
