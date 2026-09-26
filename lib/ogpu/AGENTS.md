@@ -5,7 +5,7 @@ encoders, full capability, and backend-agnostic (plan decision 2). Metal
 (`ogpu_metal`) is the only backend today; a Vulkan backend must be addable
 without changing callers.
 
-- `ogpu_core` depends on no other library in the repo. Virtual `ogpu` aliases
+- `ogpu_core` depends only on `native_layer_token`. Virtual `ogpu` aliases
   the core and depends only on it. Backend types never appear in its interface.
 - Every non-baseline feature is checked through `Caps` and otherwise returns a
   typed `Unsupported` error. Never a silent no-op, never a lowest common

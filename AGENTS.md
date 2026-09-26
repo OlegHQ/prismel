@@ -53,8 +53,8 @@ violations are listed there with the plan item that removes them.
 
 - Foundational libraries (`sdl3*`, `metal`, `ogpu_core`, `ogpu`, `native_layer_token`,
   `scene_command`) never reach `runtime`, `prismel`, or anything above.
-  `ogpu_core` depends on nothing in the repo; virtual `ogpu` depends only on
-  `ogpu_core`. `ogpu_mock` stays portable; native Metal detail depends only on
+  `ogpu_core` depends only on `native_layer_token` (the opaque presentation
+  layer handle); virtual `ogpu` depends only on `ogpu_core`. `ogpu_mock` stays portable; native Metal detail depends only on
   `ogpu_core` + `metal`.
 - `Metal.`/`Ogpu_metal_native.` stay within the Metal backend; the runtime,
   path tracer, and their tests use the virtual `ogpu` only, and the gate lists
