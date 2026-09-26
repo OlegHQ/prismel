@@ -50,6 +50,7 @@ module Subdivision_ops = Pdk_mesh.Subdivision_ops
 module Bound = Pdk_mesh.Bound
 module Match_size = Pdk_mesh.Match_size
 module Curve_modeling = Pdk_mesh.Curve_modeling
+module Curve_topology = Pdk_mesh.Curve_topology
 module Edge_flip = Pdk_mesh.Edge_flip
 module Poly_reduce = Pdk_mesh.Poly_reduce
 module Mesh_merge = Pdk_mesh.Mesh_merge

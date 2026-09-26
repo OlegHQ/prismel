@@ -527,6 +527,8 @@ relaxation use the corresponding `Pdk.Uv_checked` entries and option types.
 Packed triangulation and remeshing use `Pdk.Triangulation_modeling`; revolve and
 general sweep use `Pdk.Sweep_modeling`. Both modules preserve the checked
 validation and cancellation results of their former `Pdk.Ops` entry points.
+Curve topology and extraction use `Pdk.Curve_topology` for line conversion,
+curve ends, joins, path tracing, centroid extraction, and curve-point cuts.
 `Pdk.Fuse_grid.fuse_checked` and `snap_to_grid_checked` preserve the typed
 validation and cancellation boundary around the packed Fuse and grid kernels.
 `Pdk.Plane_clip.clip_checked` and `clip_transform_checked` preserve the same
