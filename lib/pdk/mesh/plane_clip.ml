@@ -1691,3 +1691,30 @@ let clip ?cancel ?(grain = 16_384) ?(keep = Above)
                 (fun output -> install below_group
                   (fun p -> primitive_side.(p) = 1 && not primitive_cap.(p)) output))))))
   with Clip_error message -> Error message
+
+type selection = Deform.selection =
+  | Selected_points of Group.t
+  | Selected_vertices of Group.t
+  | Selected_primitives of Group.t
+  | Selected_edges of Edge_group.t
+
+let clip_checked ?cancel ?grain ?keep ?snapping_tolerance ?fill
+    ?split_connectivity ?clip_attribute ?distance ?selection
+    ?replace_existing_groups ?clipped_edge_group ?cap_group ?clipped_group
+    ?above_group ?below_group ~origin ~normal geometry =
+  Error.guard ~operation:"clip" ~code:"invalid_geometry" (fun () ->
+    clip ?cancel ?grain ?keep ?snapping_tolerance ?fill
+      ?split_connectivity ?clip_attribute ?distance ?selection
+      ?replace_existing_groups ?clipped_edge_group ?cap_group ?clipped_group
+      ?above_group ?below_group ~origin ~normal geometry)
+
+let clip_transform_checked ?cancel ?grain ?keep ?snapping_tolerance ?fill
+    ?split_connectivity ?clip_attribute ?distance ?selection
+    ?replace_existing_groups ?clipped_edge_group ?cap_group ?clipped_group
+    ?above_group ?below_group ?(local_normal = Vec3.unit_y) ~transform geometry =
+  let origin = Mat4.transform_point transform Vec3.zero
+  and normal = Mat4.transform_direction transform local_normal in
+  clip_checked ?cancel ?grain ?keep ?snapping_tolerance ?fill
+    ?split_connectivity ?clip_attribute ?distance ?selection
+    ?replace_existing_groups ?clipped_edge_group ?cap_group ?clipped_group
+    ?above_group ?below_group ~origin ~normal geometry
