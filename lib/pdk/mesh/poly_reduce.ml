@@ -34,6 +34,12 @@ let create_scratch ~points ~primitives ~edges =
 
 exception Invalid of string
 
+type target =
+  | Reduce_ratio of float
+  | Reduce_primitive_count of int
+
+let get_ok = function Ok value -> value | Error message -> invalid_arg message
+
 let finite = Float.is_finite
 
 let validate_group ~owner ~length label = function
@@ -378,3 +384,169 @@ let plan_round ?cancel ~scratch ~grain ~primitive_selection ~hard_points ~hard_e
     Ok { edges; removed_primitives = !removed }
   with
   | Invalid message | Invalid_argument message -> Error message
+let run ?cancel ?(grain = 16_384) ?(target = Reduce_ratio 0.5)
+    ?primitives ?hard_points ?hard_edges ?(preserve_boundary = true)
+    ?(only_original_positions = false) ?(equalize_lengths = 1e-10)
+    ?max_normal_deviation ?output_group ?(recompute_point_normals = true)
+    geometry =
+  try
+    let original_geometry = geometry in
+    if grain <= 0 then invalid_arg "Pdk.Ops.poly_reduce: grain must be positive";
+    let original_primitives = Geometry.primitive_count geometry
+    and original_points = Geometry.point_count geometry
+    and original_topology = Geometry.topology geometry in
+    (match target with
+     | Reduce_ratio ratio when not (finite ratio) || ratio < 0. || ratio > 1. ->
+         invalid_arg "Pdk.Ops.poly_reduce: ratio must be finite and in [0, 1]"
+     | Reduce_primitive_count count when count < 0 ->
+         invalid_arg
+           "Pdk.Ops.poly_reduce: target primitive count must be non-negative"
+     | Reduce_ratio _ | Reduce_primitive_count _ -> ());
+    (match output_group with
+     | Some name when String.trim name = "" ->
+         invalid_arg "Pdk.Ops.poly_reduce: output group name must not be empty"
+     | None | Some _ -> ());
+    (match primitives with
+     | Some group when Group.owner group <> Group.Primitive
+         || Group.length group <> original_primitives ->
+         invalid_arg
+           "Pdk.Ops.poly_reduce: selection must be a matching primitive group"
+     | None | Some _ -> ());
+    (match hard_points with
+     | Some group when Group.owner group <> Group.Point
+         || Group.length group <> original_points ->
+         invalid_arg
+           "Pdk.Ops.poly_reduce: hard points must be a matching point group"
+     | None | Some _ -> ());
+    let original_index = Topology_index.create ?cancel original_topology in
+    (match hard_edges with
+     | Some group when Edge_group.topology_data_id group
+         <> Topology.data_id original_topology
+         || Edge_group.length group <> Topology_index.edge_count original_index ->
+         invalid_arg
+           "Pdk.Ops.poly_reduce: hard edges must belong to the input topology"
+     | None | Some _ -> ());
+    let requested_original = match target with
+      | Reduce_ratio ratio ->
+          int_of_float (ceil (ratio *. float_of_int original_primitives))
+      | Reduce_primitive_count count -> count in
+    if requested_original >= original_primitives then Ok geometry
+    else begin
+      Cancel.check_opt cancel;
+      let unique_group_name owner base geometry =
+        let rec choose suffix =
+          let name = if suffix = 0 then base else base ^ string_of_int suffix in
+          if Geometry.find_group ~owner name geometry = None then name
+          else choose (suffix + 1) in
+        choose 0 in
+      let unique_edge_name base geometry =
+        let rec choose suffix =
+          let name = if suffix = 0 then base else base ^ string_of_int suffix in
+          if Geometry.find_edge_group name geometry = None then name
+          else choose (suffix + 1) in
+        choose 0 in
+      let install_group owner base supplied geometry = match supplied with
+        | None -> geometry, None
+        | Some group ->
+            let name = unique_group_name owner base geometry in
+            Geometry.with_group (Group.with_name name group) geometry |> get_ok,
+            Some name in
+      let geometry, primitive_name = install_group Group.Primitive
+          "__pdk_poly_reduce_primitives" primitives geometry in
+      let geometry, hard_point_name = install_group Group.Point
+          "__pdk_poly_reduce_hard_points" hard_points geometry in
+      let geometry, hard_edge_name = match hard_edges with
+        | None -> geometry, None
+        | Some group ->
+            let name = unique_edge_name "__pdk_poly_reduce_hard_edges" geometry in
+            Geometry.with_edge_group (Edge_group.with_name name group) geometry
+              |> get_ok, Some name in
+      Result.bind (Triangulate.run ?cancel ~grain geometry) (fun triangulated ->
+        let working_count = Geometry.primitive_count triangulated in
+        let working_index = Topology_index.create ?cancel
+            (Geometry.topology triangulated) in
+        let scratch = create_scratch
+            ~points:(Geometry.point_count triangulated)
+            ~primitives:working_count
+            ~edges:(Topology_index.edge_count working_index) in
+        let target_count = match target with
+          | Reduce_ratio ratio ->
+              int_of_float (ceil (ratio *. float_of_int working_count))
+          | Reduce_primitive_count count -> count in
+        let had_point_normals = Geometry.find_attribute ~owner:Attribute.Point
+            "N" geometry <> None in
+        let rec reduce round current =
+          Cancel.check_opt cancel;
+          let count = Geometry.primitive_count current in
+          if count <= target_count then Ok current
+          else if round > 128 then Error
+              "Pdk.Ops.poly_reduce: adaptive reduction exceeded 128 rounds"
+          else
+            let primitive_selection = Option.bind primitive_name (fun name ->
+              Geometry.find_group ~owner:Group.Primitive name current)
+            and hard_points = Option.bind hard_point_name (fun name ->
+              Geometry.find_group ~owner:Group.Point name current)
+            and hard_edges = Option.bind hard_edge_name (fun name ->
+              Geometry.find_edge_group name current) in
+            match plan_round ?cancel ~scratch ~grain
+                ~primitive_selection ~hard_points ~hard_edges ~preserve_boundary
+                ~only_original_positions ~equalize_lengths ~max_normal_deviation
+                ~primitive_budget:(count - target_count) current with
+            | Error message -> Error message
+            | Ok plan when plan.removed_primitives = 0 -> Ok current
+            | Ok plan ->
+                let position = if only_original_positions
+                  then Fuse_reduce.Least_point_position else Fuse_reduce.Average_position in
+                (match Edge_collapse.raw ?cancel ~grain ~edges:plan.edges
+                    ~position ~remove_degenerate_primitives:true
+                    ~recompute_point_normals:false current with
+                 | Error message -> Error message
+                 | Ok next when Geometry.primitive_count next >= count -> Error
+                       "Pdk.Ops.poly_reduce: a planned contraction made no progress"
+                 | Ok next -> reduce (round + 1) next) in
+        Result.bind (reduce 0 triangulated) (fun output ->
+          if output == triangulated
+              && Geometry.topology triangulated == original_topology then
+            match output_group with
+            | None -> Ok original_geometry
+            | Some name ->
+                let group = match primitives with
+                  | Some group -> Group.with_name name group
+                  | None -> Group.init ~grain ~owner:Group.Primitive ~name
+                      original_primitives (fun _ -> true) in
+                Geometry.with_group group original_geometry
+          else
+          let output = match output_group with
+            | None -> output
+            | Some name ->
+                let group = match primitive_name with
+                  | Some source_name ->
+                      (match Geometry.find_group ~owner:Group.Primitive
+                          source_name output with
+                       | Some group -> Group.with_name name group
+                       | None -> Group.init ~grain ~owner:Group.Primitive ~name
+                           (Geometry.primitive_count output) (fun _ -> false))
+                  | None -> Group.init ~grain ~owner:Group.Primitive ~name
+                      (Geometry.primitive_count output) (fun _ -> true) in
+                Geometry.with_group group output |> get_ok in
+          let output = match primitive_name with None -> output | Some name ->
+              Geometry.without_group ~owner:Group.Primitive name output in
+          let output = match hard_point_name with None -> output | Some name ->
+              Geometry.without_group ~owner:Group.Point name output in
+          let output = match hard_edge_name with None -> output | Some name ->
+              Geometry.without_edge_group name output in
+          let output = Geometry.without_attribute ~owner:Attribute.Point "N" output
+              |> Geometry.without_attribute ~owner:Attribute.Vertex "N" in
+          if recompute_point_normals && had_point_normals then
+            Deform.normals ?cancel ~grain output
+          else Ok output))
+    end
+  with Invalid_argument message -> Error message
+
+let run_checked ?cancel ?grain ?target ?primitives ?hard_points ?hard_edges
+    ?preserve_boundary ?only_original_positions ?equalize_lengths
+    ?max_normal_deviation ?output_group ?recompute_point_normals geometry =
+  Error.guard ~operation:"poly_reduce" ~code:"invalid_topology" (fun () ->
+    run ?cancel ?grain ?target ?primitives ?hard_points ?hard_edges
+      ?preserve_boundary ?only_original_positions ?equalize_lengths
+      ?max_normal_deviation ?output_group ?recompute_point_normals geometry)
