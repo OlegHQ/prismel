@@ -55,7 +55,8 @@ violations are listed there with the plan item that removes them.
   `scene_command`) never reach `runtime`, `prismel`, or anything above.
   `ogpu_core` depends only on `native_layer_token` (the opaque presentation
   layer handle); virtual `ogpu` depends only on `ogpu_core`. `ogpu_mock`
-  stays portable; native Metal detail depends only on `ogpu_core` + `metal`.
+  stays portable; native Metal detail depends only on `ogpu_core`, `metal`
+  and `lru`.
 - `Metal.`/`Ogpu_metal_native.` stay within the Metal backend; the runtime,
   path tracer, and their tests use the virtual `ogpu` only, and the gate lists
   no Metal exception.
