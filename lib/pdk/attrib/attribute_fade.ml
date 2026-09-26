@@ -133,6 +133,7 @@ let fade ?cancel ?(grain = 16_384) ?points ?start_source ?hold_source
     ?(frame_offset = 0.) ?(fade_in = 2.) ?(fade_hold = 0.)
     ?(fade_out = 2.) ?(fade_in_ramp = [0., 0.; 1., 1.])
     ?(fade_out_ramp = [0., 1.; 1., 0.]) ?(visualize = false) geometry =
+  Error.guard ~operation:"attribute_fade" ~code:"invalid_attribute_fade" @@ fun () ->
   Cancel.check_opt cancel;
   let point_count = Geometry.point_count geometry in
   let start_offset, start_scale = start_retime in
@@ -257,13 +258,3 @@ let fade ?cancel ?(grain = 16_384) ?points ?start_source ?hold_source
                   ~owner:Attribute.Point (Attribute.Float4 colors) in
               Ok [|faded; color|] in
         Geometry.Private.with_merged_attributes_owned replacements geometry
-
-let fade_checked ?cancel ?grain ?points ?start_source ?hold_source
-    ?fade_attribute ?start_attribute ?start_retime ?hold_scale_attribute ~frame
-    ?frame_offset ?fade_in ?fade_hold ?fade_out ?fade_in_ramp ?fade_out_ramp
-    ?visualize geometry =
-  Error.guard ~operation:"attribute_fade" ~code:"invalid_attribute_fade"
-    (fun () -> fade ?cancel ?grain ?points ?start_source ?hold_source
-      ?fade_attribute ?start_attribute ?start_retime ?hold_scale_attribute
-      ~frame ?frame_offset ?fade_in ?fade_hold ?fade_out ?fade_in_ramp
-      ?fade_out_ramp ?visualize geometry)

@@ -232,6 +232,7 @@ let make_attribute_plans pattern point_count shapes geometry =
 let run ?cancel ?(grain = 16_384) ?points ?(mode = Blend_normalized)
     ?(masking = Blend_no_mask) ?mask_attribute ?point_id_attribute
     ?(attributes = "*") ~shapes geometry =
+  Error.guard ~operation:"blend_shapes" ~code:"invalid_blend_shapes" @@ fun () ->
   try
     if grain <= 0 then fail "Blend Shapes grain must be positive";
     Option.iter (fun name -> if String.trim name = "" then
@@ -518,9 +519,3 @@ let run ?cancel ?(grain = 16_384) ?points ?(mode = Blend_normalized)
         else Geometry.without_attribute ~owner:Attribute.Point "N" result)
     end
   with Blend_error message -> Error message
-
-let run_checked ?cancel ?grain ?points ?mode ?masking ?mask_attribute
-    ?point_id_attribute ?attributes ~shapes geometry =
-  Error.guard ~operation:"blend_shapes" ~code:"invalid_blend_shapes" (fun () ->
-    run ?cancel ?grain ?points ?mode ?masking ?mask_attribute
-      ?point_id_attribute ?attributes ~shapes geometry)

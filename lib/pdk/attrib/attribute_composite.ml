@@ -432,6 +432,8 @@ let run ?cancel ?(grain = 16_384) ?(operation = Composite_mean)
     ?(primitive_attributes = "*") ?(point_attributes = "*")
     ?(vertex_attributes = "*") ?(allow_position = false) ?alpha_attribute
     ~inputs geometry =
+  Error.guard ~operation:"attribute_composite"
+    ~code:"invalid_attribute_composite" @@ fun () ->
   try
     if grain <= 0 then fail "Attribute Composite grain must be positive";
     if not (Float.is_finite weight) then
@@ -499,12 +501,3 @@ let run ?cancel ?(grain = 16_384) ?(operation = Composite_mean)
       Ok output
     end
   with Composite_error message -> Error message
-
-let run_checked ?cancel ?grain ?operation ?weight ?detail_attributes
-    ?primitive_attributes ?point_attributes ?vertex_attributes ?allow_position
-    ?alpha_attribute ~inputs geometry =
-  Error.guard ~operation:"attribute_composite"
-    ~code:"invalid_attribute_composite" (fun () ->
-      run ?cancel ?grain ?operation ?weight ?detail_attributes
-        ?primitive_attributes ?point_attributes ?vertex_attributes
-        ?allow_position ?alpha_attribute ~inputs geometry)

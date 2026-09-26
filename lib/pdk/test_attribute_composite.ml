@@ -95,7 +95,7 @@ let fixtures () =
 
 let test_mean_patterns_owners_and_position () =
   let first, second = fixtures () in
-  let output = Attribute_composite.run_checked ~operation:Attribute_composite.Composite_mean
+  let output = Attribute_composite.run ~operation:Attribute_composite.Composite_mean
       ~allow_position:true ~alpha_attribute:"a"
       ~point_attributes:"P density uv Cd solo target_only"
       ~vertex_attributes:"vertv" ~primitive_attributes:"primv"
@@ -137,7 +137,7 @@ let test_mean_patterns_owners_and_position () =
   check (Attribute.storage_id source_id = Attribute.storage_id output_id)
     "Attribute Composite copied an untouched discrete field";
   let run domains = Prismel.Parallel.run ~domains (fun () ->
-    Attribute_composite.run_checked ~grain:1 ~operation:Attribute_composite.Composite_mean
+    Attribute_composite.run ~grain:1 ~operation:Attribute_composite.Composite_mean
       ~allow_position:true ~alpha_attribute:"a"
       ~point_attributes:"P density uv Cd solo target_only"
       ~vertex_attributes:"vertv" ~primitive_attributes:"primv"
@@ -164,13 +164,13 @@ let test_mean_patterns_owners_and_position () =
 
 let test_identity_and_explicit_normals () =
   let first, second = fixtures () in
-  let identity = Attribute_composite.run_checked ~point_attributes:"^*"
+  let identity = Attribute_composite.run ~point_attributes:"^*"
       ~vertex_attributes:"^*" ~primitive_attributes:"^*"
       ~detail_attributes:"^*"
       ~inputs:[Attribute_composite.input ~weight:1. second] first
     |> get_ok in
   check (identity == first) "Attribute Composite empty selection was not identity";
-  let output = Attribute_composite.run_checked ~allow_position:true
+  let output = Attribute_composite.run ~allow_position:true
       ~point_attributes:"P N" ~vertex_attributes:"^*"
       ~primitive_attributes:"^*" ~detail_attributes:"^*"
       ~inputs:[Attribute_composite.input ~weight:1. second] first
@@ -182,11 +182,11 @@ let test_identity_and_explicit_normals () =
 let test_extremes_and_alpha_folds () =
   let first, second = fixtures () in
   let input = Attribute_composite.input ~weight:(-1.) second in
-  let maximum = Attribute_composite.run_checked ~operation:Attribute_composite.Composite_maximum
+  let maximum = Attribute_composite.run ~operation:Attribute_composite.Composite_maximum
       ~weight:2. ~point_attributes:"density" ~vertex_attributes:"^*"
       ~primitive_attributes:"^*" ~detail_attributes:"^*" ~inputs:[input] first
     |> get_ok
-  and minimum = Attribute_composite.run_checked ~operation:Attribute_composite.Composite_minimum
+  and minimum = Attribute_composite.run ~operation:Attribute_composite.Composite_minimum
       ~weight:2. ~point_attributes:"density" ~vertex_attributes:"^*"
       ~primitive_attributes:"^*" ~detail_attributes:"^*" ~inputs:[input] first
     |> get_ok in
@@ -195,11 +195,11 @@ let test_extremes_and_alpha_folds () =
   check (array_close (scalar ~owner:Attribute.Point "density" minimum)
       [|-10.;-20.;-30.|]) "Attribute Composite minimum";
   let weighted = Attribute_composite.input ~weight:1. second in
-  let over = Attribute_composite.run_checked ~operation:Attribute_composite.Composite_over ~weight:0.5
+  let over = Attribute_composite.run ~operation:Attribute_composite.Composite_over ~weight:0.5
       ~alpha_attribute:"a" ~point_attributes:"density"
       ~vertex_attributes:"^*" ~primitive_attributes:"^*"
       ~detail_attributes:"^*" ~inputs:[weighted] first |> get_ok
-  and under = Attribute_composite.run_checked ~operation:Attribute_composite.Composite_under ~weight:0.5
+  and under = Attribute_composite.run ~operation:Attribute_composite.Composite_under ~weight:0.5
       ~alpha_attribute:"a" ~point_attributes:"density"
       ~vertex_attributes:"^*" ~primitive_attributes:"^*"
       ~detail_attributes:"^*" ~inputs:[weighted] first |> get_ok in
@@ -211,11 +211,11 @@ let test_extremes_and_alpha_folds () =
       |> add ~owner:Attribute.Point ~name:"density"
         (Attribute.Float [|10.;20.;30.|]) in
   let input = Attribute_composite.input ~weight:1. no_alpha in
-  let over = Attribute_composite.run_checked ~operation:Attribute_composite.Composite_over
+  let over = Attribute_composite.run ~operation:Attribute_composite.Composite_over
       ~alpha_attribute:"missing" ~point_attributes:"density"
       ~vertex_attributes:"^*" ~primitive_attributes:"^*"
       ~detail_attributes:"^*" ~inputs:[input] first |> get_ok
-  and under = Attribute_composite.run_checked ~operation:Attribute_composite.Composite_under
+  and under = Attribute_composite.run ~operation:Attribute_composite.Composite_under
       ~alpha_attribute:"missing" ~point_attributes:"density"
       ~vertex_attributes:"^*" ~primitive_attributes:"^*"
       ~detail_attributes:"^*" ~inputs:[input] first |> get_ok in
@@ -232,18 +232,18 @@ let expect_error ?(code = "invalid_attribute_composite") work =
 
 let test_errors_and_cancellation () =
   let first, second = fixtures () in
-  expect_error (fun () -> Attribute_composite.run_checked ~point_attributes:"["
+  expect_error (fun () -> Attribute_composite.run ~point_attributes:"["
     ~inputs:[Attribute_composite.input ~weight:1. second] first);
-  expect_error (fun () -> Attribute_composite.run_checked ~grain:0
+  expect_error (fun () -> Attribute_composite.run ~grain:0
     ~inputs:[Attribute_composite.input ~weight:1. second] first);
-  expect_error (fun () -> Attribute_composite.run_checked ~weight:nan
+  expect_error (fun () -> Attribute_composite.run ~weight:nan
     ~inputs:[Attribute_composite.input ~weight:1. second] first);
-  expect_error (fun () -> Attribute_composite.run_checked ~alpha_attribute:" "
+  expect_error (fun () -> Attribute_composite.run ~alpha_attribute:" "
     ~inputs:[Attribute_composite.input ~weight:1. second] first);
   let short = points [|0.;1.|]
       |> add ~owner:Attribute.Point ~name:"density"
         (Attribute.Float [|1.;2.|]) in
-  expect_error (fun () -> Attribute_composite.run_checked ~point_attributes:"density"
+  expect_error (fun () -> Attribute_composite.run ~point_attributes:"density"
     ~vertex_attributes:"^*" ~primitive_attributes:"^*"
     ~detail_attributes:"^*"
     ~inputs:[Attribute_composite.input ~weight:1. short] first);
@@ -251,7 +251,7 @@ let test_errors_and_cancellation () =
       |> add ~owner:Attribute.Point ~name:"density"
         (Attribute.Float2 (Packed.Float2.of_owned ~x:[|1.;2.;3.|]
           ~y:[|1.;2.;3.|] |> Result.get_ok)) in
-  expect_error (fun () -> Attribute_composite.run_checked ~point_attributes:"density"
+  expect_error (fun () -> Attribute_composite.run ~point_attributes:"density"
     ~vertex_attributes:"^*" ~primitive_attributes:"^*"
     ~detail_attributes:"^*"
     ~inputs:[Attribute_composite.input ~weight:1. wrong] first);
@@ -260,7 +260,7 @@ let test_errors_and_cancellation () =
         (Attribute.Float [|1.;2.;3.|])
       |> add ~owner:Attribute.Point ~name:"a"
         (Attribute.Float [|1.;nan;1.|]) in
-  expect_error (fun () -> Attribute_composite.run_checked ~alpha_attribute:"a"
+  expect_error (fun () -> Attribute_composite.run ~alpha_attribute:"a"
     ~point_attributes:"density" ~vertex_attributes:"^*"
     ~primitive_attributes:"^*" ~detail_attributes:"^*"
     ~inputs:[Attribute_composite.input ~weight:1. bad_alpha] first);
@@ -268,26 +268,26 @@ let test_errors_and_cancellation () =
       |> add ~owner:Attribute.Point ~name:"density"
         (Attribute.Float [|1.;2.;3.|])
       |> add ~owner:Attribute.Point ~name:"a" (Attribute.Int [|1;1;1|]) in
-  expect_error (fun () -> Attribute_composite.run_checked ~alpha_attribute:"a"
+  expect_error (fun () -> Attribute_composite.run ~alpha_attribute:"a"
     ~point_attributes:"density" ~vertex_attributes:"^*"
     ~primitive_attributes:"^*" ~detail_attributes:"^*"
     ~inputs:[Attribute_composite.input ~weight:1. wrong_alpha] first);
   let bad_source = triangle [|0.;1.;2.|]
       |> add ~owner:Attribute.Point ~name:"density"
         (Attribute.Float [|1.;nan;3.|]) in
-  expect_error (fun () -> Attribute_composite.run_checked ~point_attributes:"density"
+  expect_error (fun () -> Attribute_composite.run ~point_attributes:"density"
     ~vertex_attributes:"^*" ~primitive_attributes:"^*"
     ~detail_attributes:"^*"
     ~inputs:[Attribute_composite.input ~weight:1. bad_source] first);
   let huge = triangle [|0.;1.;2.|]
       |> add ~owner:Attribute.Point ~name:"density"
         (Attribute.Float [|Float.max_float;1.;1.|]) in
-  expect_error (fun () -> Attribute_composite.run_checked
+  expect_error (fun () -> Attribute_composite.run
     ~operation:Attribute_composite.Composite_maximum ~point_attributes:"density"
     ~vertex_attributes:"^*" ~primitive_attributes:"^*"
     ~detail_attributes:"^*" ~weight:Float.max_float
     ~inputs:[Attribute_composite.input ~weight:1. huge] first);
-  expect_error (fun () -> Attribute_composite.run_checked
+  expect_error (fun () -> Attribute_composite.run
     ~operation:Attribute_composite.Composite_mean ~point_attributes:"density"
     ~vertex_attributes:"^*" ~primitive_attributes:"^*"
     ~detail_attributes:"^*" ~weight:Float.max_float
@@ -298,7 +298,7 @@ let test_errors_and_cancellation () =
     "Attribute Composite accepted non-finite descriptor weight";
   let cancel = Cancel.create () in
   Cancel.cancel cancel;
-  expect_error ~code:"cancelled" (fun () -> Attribute_composite.run_checked ~cancel
+  expect_error ~code:"cancelled" (fun () -> Attribute_composite.run ~cancel
     ~inputs:[Attribute_composite.input ~weight:1. second] first)
 
 let test_parallel_scale () =
@@ -317,7 +317,7 @@ let test_parallel_scale () =
       (Attribute.Float alpha) in
   let first = make 0. and second = make 10. and third = make (-5.) in
   let run domains = Prismel.Parallel.run ~domains (fun () ->
-    Attribute_composite.run_checked ~grain:127 ~operation:Attribute_composite.Composite_mean
+    Attribute_composite.run ~grain:127 ~operation:Attribute_composite.Composite_mean
       ~weight:0.2 ~alpha_attribute:"alpha" ~point_attributes:"P value"
       ~vertex_attributes:"^*" ~primitive_attributes:"^*"
       ~detail_attributes:"^*" ~allow_position:true

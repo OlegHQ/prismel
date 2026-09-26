@@ -3425,17 +3425,17 @@ let run_blend_shapes_benchmarks () =
   let first_shape = Blend_shapes.shape ~weight:0.37 first in
   measure ~input_points:(Geometry.point_count source)
     "blend_shapes_one_target_positions" (fun () ->
-      Blend_shapes.run_checked ~grain ~attributes:"^*" ~shapes:[first_shape] source
+      Blend_shapes.run ~grain ~attributes:"^*" ~shapes:[first_shape] source
       |> get_ok) geometry_output;
   let first_shape = Blend_shapes.shape ~weight:0.65 first
   and second_shape = Blend_shapes.shape ~weight:0.55 second in
   measure ~input_points:(Geometry.point_count source)
     "blend_shapes_two_targets_attributes" (fun () ->
-      Blend_shapes.run_checked ~grain ~shapes:[first_shape;second_shape] source
+      Blend_shapes.run ~grain ~shapes:[first_shape;second_shape] source
       |> get_ok) geometry_output;
   measure ~input_points:(Geometry.point_count source)
     "blend_shapes_two_targets_masked" (fun () ->
-      Blend_shapes.run_checked ~grain ~masking:Blend_shapes.Blend_scale_from_attribute
+      Blend_shapes.run ~grain ~masking:Blend_shapes.Blend_scale_from_attribute
         ~mask_attribute:"mask" ~shapes:[first_shape;second_shape] source
       |> get_ok) geometry_output
 
@@ -3495,20 +3495,20 @@ let run_attribute_composite_benchmarks () =
   and third_input = Attribute_composite.input ~weight:0.5 third in
   measure ~input_points:(Geometry.point_count first)
     "attribute_composite_mean_scalar" (fun () ->
-      Attribute_composite.run_checked ~grain ~weight:0.2
+      Attribute_composite.run ~grain ~weight:0.2
         ~detail_attributes:"^*" ~primitive_attributes:"^*"
         ~point_attributes:"value" ~vertex_attributes:"^*"
         ~inputs:[second_input; third_input] first |> get_ok) geometry_output;
   measure ~input_points:(Geometry.point_count first)
     "attribute_composite_mean_alpha_fields" (fun () ->
-      Attribute_composite.run_checked ~grain ~weight:0.2 ~alpha_attribute:"alpha"
+      Attribute_composite.run ~grain ~weight:0.2 ~alpha_attribute:"alpha"
         ~detail_attributes:"^*" ~primitive_attributes:"^*"
         ~point_attributes:"P value Cd" ~vertex_attributes:"^*"
         ~allow_position:true ~inputs:[second_input; third_input] first |> get_ok)
     geometry_output;
   measure ~input_points:(Geometry.point_count first)
     "attribute_composite_over_scalar" (fun () ->
-      Attribute_composite.run_checked ~grain ~operation:Attribute_composite.Composite_over ~weight:0.2
+      Attribute_composite.run ~grain ~operation:Attribute_composite.Composite_over ~weight:0.2
         ~alpha_attribute:"alpha" ~detail_attributes:"^*"
         ~primitive_attributes:"^*" ~point_attributes:"value"
         ~vertex_attributes:"^*" ~inputs:[second_input; third_input] first
@@ -3605,13 +3605,13 @@ let run_attribute_mirror_benchmarks () =
       |> Option.get in
   measure ~input_points:(Geometry.point_count geometry)
     "attribute_mirror_mapping_float4" (fun () ->
-      Attribute_mirror.run_checked ~grain ~owner:Attribute_mirror.Mirror_point_attributes
+      Attribute_mirror.run ~grain ~owner:Attribute_mirror.Mirror_point_attributes
         ~method_:(Attribute_mirror.Mirror_by_mapping {
           mapping_attribute = "mirror_map"; destination_group = destination })
         geometry |> get_ok) geometry_output;
   measure ~input_points:(Geometry.point_count geometry)
     "attribute_mirror_mapping_float4_outputs" (fun () ->
-      Attribute_mirror.run_checked ~grain ~owner:Attribute_mirror.Mirror_point_attributes
+      Attribute_mirror.run ~grain ~owner:Attribute_mirror.Mirror_point_attributes
         ~method_:(Attribute_mirror.Mirror_by_mapping {
           mapping_attribute = "mirror_map"; destination_group = destination })
         ~output_mapping:"mirror_pair" ~source_group:"mirror_source"
@@ -3620,7 +3620,7 @@ let run_attribute_mirror_benchmarks () =
   let plane_geometry = attribute_mirror_plane_fixture () in
   measure ~input_points:(Geometry.point_count plane_geometry)
     "attribute_mirror_plane_float4" (fun () ->
-      Attribute_mirror.run_checked ~grain ~owner:Attribute_mirror.Mirror_point_attributes
+      Attribute_mirror.run ~grain ~owner:Attribute_mirror.Mirror_point_attributes
         ~method_:(Attribute_mirror.Mirror_by_plane { origin = Vec3.zero;
           normal = Vec3.unit_x; distance = 0.; tolerance = 1e-12 })
         plane_geometry |> get_ok) geometry_output
@@ -4669,7 +4669,7 @@ let run_attribute_fade_benchmarks () =
   and fade_out_ramp = [0., 1.; 0.25, 0.96; 0.65, 0.18; 1., 0.] in
   let run ?points ?(visualize = false) name fade_in_ramp fade_out_ramp =
     measure ~input_points:point_count name (fun () ->
-      Attribute_fade.fade_checked ~grain ?points ~frame:137.25
+      Attribute_fade.fade ~grain ?points ~frame:137.25
         ~start_attribute:"start_fade" ~hold_scale_attribute:"duration"
         ~fade_in:8. ~fade_hold:24. ~fade_out:16. ~fade_in_ramp ~fade_out_ramp
         ~visualize source |> get_ok) geometry_output in

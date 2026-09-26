@@ -23,17 +23,4 @@ val run :
   ?attributes:string ->
   shapes:shape list ->
   Geometry.t ->
-  (Geometry.t, string) result
-
-val run_checked :
-  ?cancel:Cancel.t ->
-  ?grain:int ->
-  ?points:Group.t ->
-  ?mode:mode ->
-  ?masking:masking ->
-  ?mask_attribute:string ->
-  ?point_id_attribute:string ->
-  ?attributes:string ->
-  shapes:shape list ->
-  Geometry.t ->
   (Geometry.t, Error.t) result

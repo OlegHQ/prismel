@@ -40,20 +40,4 @@ val run :
   owner:owner ->
   method_:method_ ->
   Geometry.t ->
-  (Geometry.t, string) result
-
-val run_checked :
-  ?cancel:Cancel.t ->
-  ?grain:int ->
-  ?group:Group.t ->
-  ?group_use:group_use ->
-  ?attributes:string ->
-  ?transform:transform ->
-  ?string_replace:(string * string) ->
-  ?output_mapping:string ->
-  ?source_group:string ->
-  ?destination_group:string ->
-  owner:owner ->
-  method_:method_ ->
-  Geometry.t ->
   (Geometry.t, Error.t) result

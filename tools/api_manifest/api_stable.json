@@ -40,31 +40,31 @@
       "source_sha256": "bca7b4f167e15bd6a575d3544b41f41db72103b49ad28255986b2536b395eb00"
     },
     {
-      "api_sha256": "bee774f007411ff092b82b45a7d28c9cdc12a8dc05b5aab4267a6230efe8d463",
+      "api_sha256": "ed8665b2dc18ecfca4f9fadece919f43069ab4cd54c000adcf1dba4b6f17bd3a",
       "excluded_legacy_symbols": [],
       "library": "pdk",
       "module": "Attribute_composite",
       "source": "lib/pdk/attrib/attribute_composite.mli",
-      "source_bytes": 877,
-      "source_sha256": "dca45ec59ea11b5dfeca7627c66fc6ae746e9da4e13d99a3f373f90879550d1b"
+      "source_bytes": 525,
+      "source_sha256": "1cf2c2fcce64a073c3287d2113a8aa2016ab8af08287ed2ec5fe66227ff87a48"
     },
     {
-      "api_sha256": "ff670deb183d31b602fe68b389a83619317c965306f11a3d912e9db43b90880e",
+      "api_sha256": "6e75c6fa30e40c07513f15628437539ddbc643a06a2b662eb3a752f0cd41840a",
       "excluded_legacy_symbols": [],
       "library": "pdk",
       "module": "Attribute_fade",
       "source": "lib/pdk/attrib/attribute_fade.mli",
-      "source_bytes": 1421,
-      "source_sha256": "d1b1c9653c01d1bc68b746aa7dbcfc24f0f26f4c5077a5ce8c1faf10f6b7767f"
+      "source_bytes": 750,
+      "source_sha256": "003b4e908bed4f07b1d46092a65ec2f3e7748074ce5e3be8a9797932b3e7b749"
     },
     {
-      "api_sha256": "faaef290af38ebd73628e62203d3f129063b5fb174e3d7c31559ec31a09f704a",
+      "api_sha256": "a1eeca53b33e8fdd7848a4e57ba64c5487435ecdcc676b1b17745fbdad7575e7",
       "excluded_legacy_symbols": [],
       "library": "pdk",
       "module": "Attribute_mirror",
       "source": "lib/pdk/attrib/attribute_mirror.mli",
-      "source_bytes": 1348,
-      "source_sha256": "b06a6dc54b7407d595d32a369487a9a2eb0d6a7acb3c79d59d98a8cdce6fbdbf"
+      "source_bytes": 987,
+      "source_sha256": "d0cde2c96bf66d7443bb1fcdd605d335e003f521638d075ec83938ca09a28368"
     },
     {
       "api_sha256": "7967cce9df3a395882eb19f78e64eab11d502ac82abe582dba7c7e5209372e5e",
@@ -94,13 +94,13 @@
       "source_sha256": "db1e3a7680fb7c8fb06cdee85ff53eef91aee92daac03a2f16b77a053e8c2173"
     },
     {
-      "api_sha256": "64c11c25dfc50939810af5addf08737c9a953a9d6eb9a2b9cb3a29ed7efe2453",
+      "api_sha256": "74bb8ac8311ca47fe5795b2bf18f63c8e845e4b9adbff17225fa6b93ef0c6f12",
       "excluded_legacy_symbols": [],
       "library": "pdk",
       "module": "Blend_shapes",
       "source": "lib/pdk/attrib/blend_shapes.mli",
-      "source_bytes": 854,
-      "source_sha256": "64bba1419bc3b14004c7294b6b45e41c8bcf388f4918b0dc345c08e27097acc9"
+      "source_bytes": 585,
+      "source_sha256": "2d77559573ced64b059d2b04e863f964a5c83127f3852cbc56a5d85f526d1b8e"
     },
     {
       "api_sha256": "9dcfce68238f9db3056d0cd7647809d9e0a279a2f5a04a1b1d4f43bd4365a1e9",

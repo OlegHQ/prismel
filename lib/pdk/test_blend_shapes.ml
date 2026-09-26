@@ -47,25 +47,25 @@ let test_weights_and_selection () =
   let source = points [|0.;1.;2.|]
   and first = points [|10.;11.;12.|]
   and second = points [|20.;21.;22.|] in
-  let quarter = Blend_shapes.run_checked
+  let quarter = Blend_shapes.run
       ~shapes:[Blend_shapes.shape ~weight:0.25 first] source |> get_ok in
   check (array_close (positions quarter).x [|2.5;3.5;4.5|])
     "Blend Shapes single normalized weight";
-  let identity = Blend_shapes.run_checked
+  let identity = Blend_shapes.run
       ~shapes:[Blend_shapes.shape ~weight:0. first] source |> get_ok in
   check (identity == source) "Blend Shapes zero weight was not identity";
-  let normalized = Blend_shapes.run_checked ~shapes:[
+  let normalized = Blend_shapes.run ~shapes:[
       Blend_shapes.shape ~weight:0.75 first;
       Blend_shapes.shape ~weight:0.75 second] source |> get_ok in
   check (array_close (positions normalized).x [|15.;16.;17.|])
     "Blend Shapes normalized target average";
-  let differenced = Blend_shapes.run_checked ~mode:Blend_shapes.Blend_differencing ~shapes:[
+  let differenced = Blend_shapes.run ~mode:Blend_shapes.Blend_differencing ~shapes:[
       Blend_shapes.shape ~weight:1.5 first;
       Blend_shapes.shape ~weight:(-0.5) second] source |> get_ok in
   check (array_close (positions differenced).x [|5.;6.;7.|])
     "Blend Shapes differencing extrapolation";
   let selection = point_group "middle" 3 [1] in
-  let selected = Blend_shapes.run_checked ~points:selection
+  let selected = Blend_shapes.run ~points:selection
       ~shapes:[Blend_shapes.shape ~weight:1. first] source |> get_ok in
   check ((positions selected).x = [|0.;11.;2.|])
     "Blend Shapes point restriction"
@@ -75,19 +75,19 @@ let test_masks () =
       |> attribute Attribute.Point "mask" (Attribute.Float [|0.;0.5;1.|]) in
   let target = points [|10.;11.;12.|]
       |> attribute Attribute.Point "mask" (Attribute.Float [|1.;0.5;0.|]) in
-  let first_mask = Blend_shapes.run_checked
+  let first_mask = Blend_shapes.run
       ~masking:Blend_shapes.Blend_scale_from_attribute ~mask_attribute:"mask"
       ~shapes:[Blend_shapes.shape ~weight:0.5
         ~mask_source:Blend_shapes.Blend_mask_first_input target] source |> get_ok in
   check (array_close (positions first_mask).x [|0.;3.5;7.|])
     "Blend Shapes first-input scale mask";
-  let set_mask = Blend_shapes.run_checked ~masking:Blend_shapes.Blend_set_from_attribute
+  let set_mask = Blend_shapes.run ~masking:Blend_shapes.Blend_set_from_attribute
       ~mask_attribute:"mask"
       ~shapes:[Blend_shapes.shape ~weight:0.125
         ~mask_source:Blend_shapes.Blend_mask_first_input target] source |> get_ok in
   check (array_close (positions set_mask).x [|0.;6.;12.|])
     "Blend Shapes set mask";
-  let target_mask = Blend_shapes.run_checked
+  let target_mask = Blend_shapes.run
       ~masking:Blend_shapes.Blend_scale_from_attribute ~mask_attribute:"mask"
       ~shapes:[Blend_shapes.shape ~weight:0.5 target] source |> get_ok in
   check (array_close (positions target_mask).x [|5.;3.5;2.|])
@@ -121,7 +121,7 @@ let test_ids_and_attributes () =
         (Packed.Float4.of_owned ~x:[|0.6;0.2|] ~y:[|0.;0.|]
           ~z:[|0.;0.|] ~w:[|0.8;0.8|]
           |> function Ok value -> value | Error message -> fail message)) in
-  let output = Blend_shapes.run_checked ~point_id_attribute:"id"
+  let output = Blend_shapes.run ~point_id_attribute:"id"
       ~shapes:[Blend_shapes.shape ~weight:0.5 target] source |> get_ok in
   check (array_close (positions output).x [|50.;1.;151.|])
     "Blend Shapes ID position matching";
@@ -150,7 +150,7 @@ let test_ids_and_attributes () =
       |> attribute Attribute.Point "name" (Attribute.Text [|"a";"b";"c"|])
   and text_target = points [|30.;10.|]
       |> attribute Attribute.Point "name" (Attribute.Text [|"c";"a"|]) in
-  let text_output = Blend_shapes.run_checked ~point_id_attribute:"name"
+  let text_output = Blend_shapes.run ~point_id_attribute:"name"
       ~shapes:[Blend_shapes.shape ~weight:1. text_target] text_source |> get_ok in
   check ((positions text_output).x = [|10.;1.;30.|])
     "Blend Shapes text ID matching"
@@ -163,7 +163,7 @@ let test_normals_and_errors () =
       |> attribute Attribute.Vertex "N" (Attribute.Float3
         (Packed.Float3.Private.of_owned_exn ~x:[||] ~y:[||] ~z:[||])) in
   let target = points [|2.;3.|] in
-  let output = Blend_shapes.run_checked ~attributes:"Cd"
+  let output = Blend_shapes.run ~attributes:"Cd"
       ~shapes:[Blend_shapes.shape ~weight:1. target] source |> get_ok in
   check (Geometry.find_attribute ~owner:Attribute.Point "N" output = None
       && Geometry.find_attribute ~owner:Attribute.Vertex "N" output = None)
@@ -172,37 +172,37 @@ let test_normals_and_errors () =
     | Error error -> check (Error.code error = "invalid_blend_shapes")
         "Blend Shapes wrong structured error"
     | Ok _ -> fail "Blend Shapes accepted malformed input" in
-  expect (fun () -> Blend_shapes.run_checked
+  expect (fun () -> Blend_shapes.run
     ~shapes:[Blend_shapes.shape ~weight:1. (points [|1.|])] source);
-  expect (fun () -> Blend_shapes.run_checked ~points:(primitive_group "bad" 0)
+  expect (fun () -> Blend_shapes.run ~points:(primitive_group "bad" 0)
     ~shapes:[Blend_shapes.shape ~weight:1. target] source);
-  expect (fun () -> Blend_shapes.run_checked ~points:(point_group "short" 1 [0])
+  expect (fun () -> Blend_shapes.run ~points:(point_group "short" 1 [0])
     ~shapes:[Blend_shapes.shape ~weight:1. target] source);
-  expect (fun () -> Blend_shapes.run_checked ~attributes:"["
+  expect (fun () -> Blend_shapes.run ~attributes:"["
     ~shapes:[Blend_shapes.shape ~weight:1. target] source);
   let missing_id = attribute Attribute.Point "id" (Attribute.Int [|0;1|])
       source in
-  expect (fun () -> Blend_shapes.run_checked ~point_id_attribute:"id"
+  expect (fun () -> Blend_shapes.run ~point_id_attribute:"id"
     ~shapes:[Blend_shapes.shape ~weight:1. target] missing_id);
   let duplicate_id = target
       |> attribute Attribute.Point "id" (Attribute.Int [|1;1|]) in
-  expect (fun () -> Blend_shapes.run_checked ~point_id_attribute:"id"
+  expect (fun () -> Blend_shapes.run ~point_id_attribute:"id"
     ~shapes:[Blend_shapes.shape ~weight:1. duplicate_id] missing_id);
   let bad_mask = target
       |> attribute Attribute.Point "mask" (Attribute.Float [|0.;nan|]) in
-  expect (fun () -> Blend_shapes.run_checked ~masking:Blend_shapes.Blend_scale_from_attribute
+  expect (fun () -> Blend_shapes.run ~masking:Blend_shapes.Blend_scale_from_attribute
     ~mask_attribute:"mask" ~shapes:[Blend_shapes.shape ~weight:1. bad_mask] source);
   let wrong_attribute = target
       |> attribute Attribute.Point "value" (Attribute.Int [|1;2|]) in
   let float_source = source
       |> attribute Attribute.Point "value" (Attribute.Float [|1.;2.|]) in
-  expect (fun () -> Blend_shapes.run_checked
+  expect (fun () -> Blend_shapes.run
     ~shapes:[Blend_shapes.shape ~weight:1. wrong_attribute] float_source);
   let huge = points [|Float.max_float;Float.max_float|] in
-  expect (fun () -> Blend_shapes.run_checked ~mode:Blend_shapes.Blend_differencing
+  expect (fun () -> Blend_shapes.run ~mode:Blend_shapes.Blend_differencing
     ~shapes:[Blend_shapes.shape ~weight:2. huge] source);
   let cancel = Cancel.create () in Cancel.cancel cancel;
-  (match Blend_shapes.run_checked ~cancel
+  (match Blend_shapes.run ~cancel
       ~shapes:[Blend_shapes.shape ~weight:1. target] source with
    | Error error -> check (Error.code error = "cancelled")
        "Blend Shapes cancellation code"
@@ -218,7 +218,7 @@ let test_parallel_scale () =
       |> attribute Attribute.Point "density"
         (Attribute.Float (Array.init count (fun point -> float_of_int (point mod 23)))) in
   let run domains = Prismel.Parallel.run ~domains (fun () ->
-    Blend_shapes.run_checked ~grain:127 ~shapes:[Blend_shapes.shape ~weight:0.37 target]
+    Blend_shapes.run ~grain:127 ~shapes:[Blend_shapes.shape ~weight:0.37 target]
       source |> get_ok) in
   let one = run 1 and four = run 4 in
   check ((positions one).x = (positions four).x

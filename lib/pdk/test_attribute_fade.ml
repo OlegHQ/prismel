@@ -46,20 +46,20 @@ let test_timing_boundaries () =
   let source = points (Array.length starts)
       |> with_float "fade" (Array.make (Array.length starts) 2.)
       |> with_float "start" starts in
-  let output = Attribute_fade.fade_checked ~grain:1 ~frame:10. ~start_attribute:"start"
+  let output = Attribute_fade.fade ~grain:1 ~frame:10. ~start_attribute:"start"
       ~fade_in:2. ~fade_hold:3. ~fade_out:2. source |> get_ok in
   check_floats [|0.;0.;1.;2.;2.;2.;1.;0.;0.|]
     (float_values "fade" output) "Attribute Fade timing boundaries";
   let custom_endpoints = points 2
       |> with_float "start" [|8.;3.|] in
-  let custom_endpoints = Attribute_fade.fade_checked ~grain:1 ~frame:10.
+  let custom_endpoints = Attribute_fade.fade ~grain:1 ~frame:10.
       ~start_attribute:"start" ~fade_in:2. ~fade_hold:3. ~fade_out:2.
       ~fade_in_ramp:[0., 0.; 1., 0.75]
       ~fade_out_ramp:[0., 1.; 1., 0.25] custom_endpoints |> get_ok in
   check_floats [|0.75;0.25|] (float_values "fade" custom_endpoints)
     "Attribute Fade custom-ramp inclusive endpoints";
   let source_identity = points 4 |> with_float "fade" [|1.;1.;1.;1.|] in
-  let identity = Attribute_fade.fade_checked ~grain:1 ~frame:1. ~fade_in:0.
+  let identity = Attribute_fade.fade ~grain:1 ~frame:1. ~fade_in:0.
       ~fade_hold:10. ~fade_out:0. source_identity |> get_ok in
   check (identity == source_identity) "unchanged Attribute Fade lost identity"
 
@@ -67,14 +67,14 @@ let test_selection_ramps_and_visualization () =
   let source = points 5 in
   let selected = Group.init ~owner:Group.Point ~name:"selected" 5
       (fun point -> point = 1 || point = 2 || point = 3) in
-  let output = Attribute_fade.fade_checked ~grain:1 ~points:selected ~frame:1.
+  let output = Attribute_fade.fade ~grain:1 ~points:selected ~frame:1.
       ~fade_in:2. ~fade_hold:0. ~fade_out:0.
       ~fade_in_ramp:[0., 0.; 0.5, 0.25; 1., 1.] source |> get_ok in
   check_floats [|1.;0.25;0.25;0.25;1.|] (float_values "fade" output)
     "Attribute Fade selection/missing-field defaults";
   let colored_source = output |> with_attribute Attribute.Point "Cd"
       (Attribute.Float (Array.make 5 42.)) in
-  let colored = Attribute_fade.fade_checked ~grain:1 ~frame:1. ~fade_in:0.
+  let colored = Attribute_fade.fade ~grain:1 ~frame:1. ~fade_in:0.
       ~fade_hold:10. ~fade_out:0. ~visualize:true colored_source |> get_ok in
   let fade = float_values "fade" colored and color = color_values colored in
   for point = 0 to 4 do
@@ -90,13 +90,13 @@ let test_reference_inputs_and_retime () =
       |> with_float "hold" (Array.make 4 0.) in
   let start_source = points 4 |> with_int "start" [|1;2;3;4|]
   and hold_source = points 4 |> with_int "hold" [|2;1;3;0|] in
-  let output = Attribute_fade.fade_checked ~grain:1 ~start_source ~hold_source
+  let output = Attribute_fade.fade ~grain:1 ~start_source ~hold_source
       ~start_attribute:"start" ~start_retime:(1., 2.)
       ~hold_scale_attribute:"hold" ~frame:5. ~fade_in:1. ~fade_hold:3.
       ~fade_out:2. target |> get_ok in
   check_floats [|1.;0.;0.;0.|] (float_values "fade" output)
     "Attribute Fade independent reference/retime fields";
-  let defaults = Attribute_fade.fade_checked ~grain:1 ~start_source:(points 4)
+  let defaults = Attribute_fade.fade ~grain:1 ~start_source:(points 4)
       ~hold_source:(points 4) ~start_attribute:"missing_start"
       ~hold_scale_attribute:"missing_hold" ~frame:1. ~fade_in:0.
       ~fade_hold:2. ~fade_out:0. target |> get_ok in
@@ -110,75 +110,75 @@ let expect_invalid work message = match work () with
 let test_validation_and_cancellation () =
   let source = points 4 |> with_float "fade" [|1.;1.;1.;1.|] in
   List.iter (fun value -> expect_invalid (fun () ->
-      Attribute_fade.fade_checked ~frame:value source) "non-finite frame")
+      Attribute_fade.fade ~frame:value source) "non-finite frame")
     [Float.nan; Float.infinity];
   List.iter (fun duration -> expect_invalid (fun () ->
-      Attribute_fade.fade_checked ~frame:0. ~fade_in:duration source)
+      Attribute_fade.fade ~frame:0. ~fade_in:duration source)
       "invalid fade-in duration") [Float.nan; -1.];
-  expect_invalid (fun () -> Attribute_fade.fade_checked ~frame:0. ~grain:0 source)
+  expect_invalid (fun () -> Attribute_fade.fade ~frame:0. ~grain:0 source)
     "zero grain";
-  expect_invalid (fun () -> Attribute_fade.fade_checked ~frame:0. ~fade_attribute:"P" source)
+  expect_invalid (fun () -> Attribute_fade.fade ~frame:0. ~fade_attribute:"P" source)
     "canonical P fade";
-  expect_invalid (fun () -> Attribute_fade.fade_checked ~frame:0. ~fade_attribute:"Cd"
+  expect_invalid (fun () -> Attribute_fade.fade ~frame:0. ~fade_attribute:"Cd"
       ~visualize:true source) "fade/Cd collision";
-  expect_invalid (fun () -> Attribute_fade.fade_checked ~frame:0.
+  expect_invalid (fun () -> Attribute_fade.fade ~frame:0.
       ~fade_in_ramp:[0., 0.; 0., 1.; 1., 1.] source) "duplicate ramp knot";
-  expect_invalid (fun () -> Attribute_fade.fade_checked ~frame:0.
+  expect_invalid (fun () -> Attribute_fade.fade ~frame:0.
       ~fade_out_ramp:[0.2, 1.; 1., 0.] source) "incomplete ramp";
   let wrong_fade = points 4 |> with_int "fade" [|1;1;1;1|] in
-  expect_invalid (fun () -> Attribute_fade.fade_checked ~frame:0. wrong_fade)
+  expect_invalid (fun () -> Attribute_fade.fade ~frame:0. wrong_fade)
     "integer fade storage";
   let wrong_start = source |> with_attribute Attribute.Point "start"
       (Attribute.Text [|"0";"0";"0";"0"|]) in
-  expect_invalid (fun () -> Attribute_fade.fade_checked ~frame:0.
+  expect_invalid (fun () -> Attribute_fade.fade ~frame:0.
       ~start_attribute:"start" wrong_start) "text start storage";
   let wrong_hold = source |> with_attribute Attribute.Point "hold"
       (Attribute.Float3 (Packed.Float3.Private.of_owned_exn
         ~x:(Array.make 4 1.) ~y:(Array.make 4 1.) ~z:(Array.make 4 1.))) in
-  expect_invalid (fun () -> Attribute_fade.fade_checked ~frame:0.
+  expect_invalid (fun () -> Attribute_fade.fade ~frame:0.
       ~hold_scale_attribute:"hold" wrong_hold) "vector hold storage";
   let wrong_owner = Group.init ~owner:Group.Primitive ~name:"wrong" 0
       (fun _ -> false) in
-  expect_invalid (fun () -> Attribute_fade.fade_checked ~frame:0. ~points:wrong_owner source)
+  expect_invalid (fun () -> Attribute_fade.fade ~frame:0. ~points:wrong_owner source)
     "wrong selection owner";
   let wrong_length = Group.init ~owner:Group.Point ~name:"short" 3
       (fun _ -> true) in
-  expect_invalid (fun () -> Attribute_fade.fade_checked ~frame:0. ~points:wrong_length source)
+  expect_invalid (fun () -> Attribute_fade.fade ~frame:0. ~points:wrong_length source)
     "wrong selection length";
-  expect_invalid (fun () -> Attribute_fade.fade_checked ~frame:0.
+  expect_invalid (fun () -> Attribute_fade.fade ~frame:0.
       ~start_source:(points 3) source) "reference cardinality";
   let negative_hold = source |> with_float "hold" [|1.;-1.;1.;1.|] in
-  expect_invalid (fun () -> Attribute_fade.fade_checked ~grain:1 ~frame:0.
+  expect_invalid (fun () -> Attribute_fade.fade ~grain:1 ~frame:0.
       ~hold_scale_attribute:"hold" negative_hold) "negative hold scale";
   let overflow = points 1 |> with_float "fade" [|max_float|] in
-  expect_invalid (fun () -> Attribute_fade.fade_checked ~frame:1. ~fade_in:1.
+  expect_invalid (fun () -> Attribute_fade.fade ~frame:1. ~fade_in:1.
       ~fade_in_ramp:[0., 0.; 1., 2.] overflow) "faded overflow";
   let elapsed_overflow = source |> with_float "start" [|-.max_float;0.;0.;0.|] in
-  expect_invalid (fun () -> Attribute_fade.fade_checked ~frame:max_float
+  expect_invalid (fun () -> Attribute_fade.fade ~frame:max_float
       ~start_attribute:"start" elapsed_overflow) "relative-frame overflow";
   let malformed = source |> with_float "fade" [|1.;Float.nan;1.;Float.infinity|] in
   let error domains = Parallel.run ~domains (fun () ->
-      Attribute_fade.fade_checked ~grain:1 ~frame:0. malformed) in
+      Attribute_fade.fade ~grain:1 ~frame:0. malformed) in
   List.iter (fun domains -> match error domains with
     | Error error -> check (String.ends_with ~suffix:"point 1" (Error.message error))
         "Attribute Fade lowest malformed diagnostic is not deterministic"
     | Ok _ -> fail "Attribute Fade accepted non-finite selected fade") [1;4];
   let only_first = Group.init ~owner:Group.Point ~name:"first" 4
       (fun point -> point = 0) in
-  let preserved = Attribute_fade.fade_checked ~grain:1 ~points:only_first ~frame:0.
+  let preserved = Attribute_fade.fade ~grain:1 ~points:only_first ~frame:0.
       malformed |> get_ok |> float_values "fade" in
   check (Float.is_nan preserved.(1) && preserved.(3) = Float.infinity)
     "Attribute Fade rejected or rewrote malformed unselected payload";
   let empty = Group.init ~owner:Group.Point ~name:"empty" 4 (fun _ -> false) in
-  let unchanged = Attribute_fade.fade_checked ~grain:1 ~points:empty ~frame:0. malformed
+  let unchanged = Attribute_fade.fade ~grain:1 ~points:empty ~frame:0. malformed
       |> get_ok in
   check (unchanged == malformed)
     "empty Attribute Fade selection lost identity on opaque payload";
-  expect_invalid (fun () -> Attribute_fade.fade_checked ~grain:1 ~points:only_first
+  expect_invalid (fun () -> Attribute_fade.fade ~grain:1 ~points:only_first
       ~frame:0. ~visualize:true malformed) "visualized malformed payload";
   let cancel = Cancel.create () in
   Cancel.cancel cancel;
-  (match Attribute_fade.fade_checked ~cancel ~frame:0. source with
+  (match Attribute_fade.fade ~cancel ~frame:0. source with
    | Error error -> check (Error.code error = "cancelled")
        "Attribute Fade cancellation code"
    | Ok _ -> fail "cancelled Attribute Fade published geometry")
@@ -232,7 +232,7 @@ let test_dense_parallel_exactness () =
   let selected = Group.init ~grain:257 ~owner:Group.Point ~name:"selected"
       point_count (fun point -> point mod 7 <> 0) in
   let cook domains = Parallel.run ~domains (fun () ->
-      Attribute_fade.fade_checked ~grain:257 ~points:selected ~frame:137.25
+      Attribute_fade.fade ~grain:257 ~points:selected ~frame:137.25
         ~start_attribute:"start" ~start_retime:(3., 0.75)
         ~hold_scale_attribute:"hold" ~fade_in:8. ~fade_hold:6. ~fade_out:16.
         ~fade_in_ramp:[0.,0.;0.3,0.08;0.72,0.9;1.,1.]
@@ -251,23 +251,20 @@ let test_dense_parallel_exactness () =
 
 let test_checked_boundary () =
   let source = points 4 |> with_float "fade" [|1.; 1.; 1.; 1.|] in
-  let direct = Attribute_fade.fade_checked ~frame:1. source |> get_ok in
+  let direct = Attribute_fade.fade ~frame:1. source |> get_ok in
   check (Geometry.positions direct == Geometry.positions source
       && Geometry.topology direct == Geometry.topology source)
     "checked fade boundary copied core geometry";
-  let raw_message = match Attribute_fade.fade ~grain:0 ~frame:1. source with
-    | Error message -> message
-    | Ok _ -> fail "raw fade accepted zero grain" in
-  (match Attribute_fade.fade_checked ~grain:0 ~frame:1. source with
+  (match Attribute_fade.fade ~grain:0 ~frame:1. source with
    | Error direct ->
        check (Error.operation direct = "attribute_fade"
            && Error.code direct = "invalid_attribute_fade"
-           && Error.message direct = raw_message)
+           && Error.message direct = "Pdk.Attribute_fade.attribute_fade: grain must be positive")
          "checked fade boundary changed the typed validation error"
    | Ok _ -> fail "checked fade boundary accepted zero grain");
   let cancel = Cancel.create () in
   Cancel.cancel cancel;
-  (match Attribute_fade.fade_checked ~cancel ~frame:1. source with
+  (match Attribute_fade.fade ~cancel ~frame:1. source with
    | Error direct ->
        check (Error.operation direct = "attribute_fade"
            && Error.code direct = "cancelled")

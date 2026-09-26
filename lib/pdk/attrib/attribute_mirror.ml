@@ -475,6 +475,7 @@ let run ?cancel ?(grain = 16_384) ?group
     ?(group_use = Mirror_group_as_source) ?(attributes = "Cd")
     ?(transform = Mirror_copy) ?string_replace ?output_mapping ?source_group
     ?destination_group ~owner ~method_ geometry =
+  Error.guard ~operation:"attribute_mirror" ~code:"invalid_attribute_mirror" @@ fun () ->
   try
     if grain <= 0 then fail "Attribute Mirror grain must be positive";
     let count = owner_count owner geometry in
@@ -561,12 +562,3 @@ let run ?cancel ?(grain = 16_384) ?group
       Ok output
     end
   with Mirror_error message -> Error message
-
-let run_checked ?cancel ?grain ?group ?group_use ?attributes ?transform
-    ?string_replace ?output_mapping ?source_group ?destination_group ~owner
-    ~method_ geometry =
-  Error.guard ~operation:"attribute_mirror" ~code:"invalid_attribute_mirror"
-    (fun () ->
-      run ?cancel ?grain ?group ?group_use ?attributes ?transform
-        ?string_replace ?output_mapping ?source_group ?destination_group
-        ~owner ~method_ geometry)
