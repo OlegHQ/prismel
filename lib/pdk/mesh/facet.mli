@@ -24,7 +24,7 @@ val edge_cusp :
   ?grain:int ->
   ?edges:Pdk_core.Edge_group.t ->
   ?update_point_normals:bool ->
-  Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, string) result
+  Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, Error.t) result
 val make_planar :
   ?cancel:Pdk_core.Cancel.t ->
   ?grain:int ->

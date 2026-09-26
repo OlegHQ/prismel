@@ -150,7 +150,7 @@ let expect_code code = function
 let run () =
   let source = two_quads () in
   let cut = Geometry.find_edge_group "cut" source |> Option.get in
-  let shared = Edge_modeling_ops.edge_divide_checked ~grain:1 ~edges:cut ~divisions:3 source
+  let shared = Subdivide.edge_divide ~grain:1 ~edges:cut ~divisions:3 source
       |> get_pdk in
   let topology = Topology.Private.view (Geometry.topology shared)
   and positions = Packed.Float3.Private.view (Geometry.positions shared) in
@@ -197,7 +197,7 @@ let run () =
   check (source_detail == output_detail)
     "Edge Divide did not structurally share detail payload";
 
-  let unique = Edge_modeling_ops.edge_divide_checked ~grain:1 ~edges:cut ~divisions:3
+  let unique = Subdivide.edge_divide ~grain:1 ~edges:cut ~divisions:3
       ~share_points:false source |> get_pdk in
   let unique_topology = Topology.Private.view (Geometry.topology unique)
   and unique_positions = Packed.Float3.Private.view (Geometry.positions unique) in
@@ -212,20 +212,20 @@ let run () =
       && edge_cardinality "all_edges" unique = 12)
     "unique Edge Divide native edge ancestry";
 
-  check (Edge_modeling_ops.edge_divide_checked source |> get_pdk == source)
+  check (Subdivide.edge_divide source |> get_pdk == source)
     "empty Edge Divide selection was not an identity";
-  check (Edge_modeling_ops.edge_divide_checked ~edges:cut ~divisions:1 source |> get_pdk == source)
+  check (Subdivide.edge_divide ~edges:cut ~divisions:1 source |> get_pdk == source)
     "one-segment Edge Divide was not an identity";
   let empty = Edge_group.init ~grain:1 ~topology:(Geometry.topology source)
       ~index:(Topology_index.create (Geometry.topology source)) ~name:"empty"
       (Fun.const false) in
-  check (Edge_modeling_ops.edge_divide_checked ~edges:empty ~divisions:5 source |> get_pdk == source)
+  check (Subdivide.edge_divide ~edges:empty ~divisions:5 source |> get_pdk == source)
     "empty edge-group Edge Divide was not an identity";
 
   let curve = Line_geometry.polyline_checked [|0.,0.,0.; 2.,0.,0.; 2.,2.,0.|] |> get_pdk
       |> Group_mesh.group_edges_checked ~name:"curve_edges" |> get_pdk in
   let curve_edges = Geometry.find_edge_group "curve_edges" curve |> Option.get in
-  let curve_output = Edge_modeling_ops.edge_divide_checked ~edges:curve_edges ~divisions:2 curve
+  let curve_output = Subdivide.edge_divide ~edges:curve_edges ~divisions:2 curve
       |> get_pdk in
   let curve_topology = Topology.Private.view (Geometry.topology curve_output) in
   check (Geometry.point_count curve_output = 5
@@ -238,7 +238,7 @@ let run () =
       |> Group_mesh.group_edges_checked ~name:"closed_edges" |> get_pdk in
   let closed_edges = Geometry.find_edge_group "closed_edges" closed_curve
       |> Option.get in
-  let closed_output = Edge_modeling_ops.edge_divide_checked ~edges:closed_edges ~divisions:2
+  let closed_output = Subdivide.edge_divide ~edges:closed_edges ~divisions:2
       closed_curve |> get_pdk in
   let closed_topology = Topology.Private.view
       (Geometry.topology closed_output) in
@@ -256,7 +256,7 @@ let run () =
         ~x:[|0.;1.;0.;0.;0.|] ~y:[|0.;0.;1.;(-1.);0.|]
         ~z:[|0.;0.;0.;0.;1.|]) ~topology:nonmanifold_topology () |> get_ok in
   let shared_edge = edge_group_of_pairs nonmanifold_topology "shared" [|0,1|] in
-  let nonmanifold_output = Edge_modeling_ops.edge_divide_checked ~edges:shared_edge ~divisions:4
+  let nonmanifold_output = Subdivide.edge_divide ~edges:shared_edge ~divisions:4
       nonmanifold |> get_pdk in
   check (Geometry.point_count nonmanifold_output = 8
       && Geometry.vertex_count nonmanifold_output = 18)
@@ -266,9 +266,9 @@ let run () =
       |> Group_mesh.group_edges_checked ~name:"other" |> get_pdk in
   let other_edges = Geometry.find_edge_group "other" other |> Option.get in
   expect_code "invalid_topology"
-    (Edge_modeling_ops.edge_divide_checked ~edges:other_edges ~divisions:2 source);
+    (Subdivide.edge_divide ~edges:other_edges ~divisions:2 source);
   expect_code "invalid_topology"
-    (Edge_modeling_ops.edge_divide_checked ~edges:cut ~divisions:0 source);
+    (Subdivide.edge_divide ~edges:cut ~divisions:0 source);
   let bad_positions = Packed.Float3.Private.of_owned_exn
       ~x:[|nan;1.|] ~y:[|0.;0.|] ~z:[|0.;0.|] in
   let bad_topology = Topology.create_owned ~point_count:2
@@ -278,18 +278,18 @@ let run () =
       |> get_ok in
   let bad_edge = edge_group_of_pairs bad_topology "bad" [|0,1|] in
   expect_code "invalid_topology"
-    (Edge_modeling_ops.edge_divide_checked ~edges:bad_edge ~divisions:2 bad);
+    (Subdivide.edge_divide ~edges:bad_edge ~divisions:2 bad);
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
   expect_code "cancelled"
-    (Edge_modeling_ops.edge_divide_checked ~cancel:cancelled ~edges:cut ~divisions:2 source);
+    (Subdivide.edge_divide ~cancel:cancelled ~edges:cut ~divisions:2 source);
 
   let large = Plane_generators.grid_checked ~grain:127 ~connectivity:Plane_generators.Grid_quads
       ~columns:160 ~rows:120 ~size:20. () |> get_pdk
       |> Group_mesh.group_edges_checked ~grain:127 ~name:"all" |> get_pdk in
   let all = Geometry.find_edge_group "all" large |> Option.get in
   let run domains share_points = Parallel.run ~domains (fun () ->
-    Edge_modeling_ops.edge_divide_checked ~grain:127 ~edges:all ~divisions:3 ~share_points large
+    Subdivide.edge_divide ~grain:127 ~edges:all ~divisions:3 ~share_points large
     |> get_pdk) in
   let shared_one = run 1 true and shared_four = run 4 true
   and unique_one = run 1 false and unique_four = run 4 false in

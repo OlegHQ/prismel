@@ -13,4 +13,4 @@ val relax :
   ?tolerance:float ->
   reference:Geometry.t ->
   Geometry.t ->
-  (Geometry.t, string) result
+  (Geometry.t, Error.t) result

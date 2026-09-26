@@ -122,6 +122,7 @@ let write_plane_basis axis_u_x axis_u_y axis_u_z axis_v_x axis_v_y axis_v_z
 
 let run ?cancel ?(grain = 16_384) ?edges ?radius
     ?(scale = Vec3.create 1. 1. 1.) ?output_group geometry =
+  Error.guard ~operation:"circle_from_edges" ~code:"invalid_circle" @@ fun () ->
   try
     if grain <= 0 then fail "Circle from Edges grain must be positive";
     (match radius with

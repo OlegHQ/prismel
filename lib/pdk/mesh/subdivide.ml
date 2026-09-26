@@ -4346,6 +4346,7 @@ let subdivide ?cancel ?grain ?(scheme = Catmull_clark) ?(iterations = 1)
 
 let edge_divide ?cancel ?(grain = 16_384) ?edges ?(divisions = 2)
     ?(share_points = true) geometry =
+  Error.guard ~operation:"edge_divide" ~code:"invalid_topology" @@ fun () ->
   let exception Edge_divide_error of string in
   let fail_edge message = raise (Edge_divide_error
       ("Pdk_mesh.Subdivide.edge_divide: " ^ message)) in

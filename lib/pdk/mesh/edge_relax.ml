@@ -40,6 +40,7 @@ let relax ?cancel ?(grain = 16_384) ?selection ?pin_points
     ?(iterations = 20) ?(step_size = 0.5)
     ?(target_mode = Individual_lengths) ?(only_shorten = false)
     ?(tolerance = 1e-6) ~reference geometry =
+  Error.guard ~operation:"edge_relax" ~code:"invalid_edge_relax" @@ fun () ->
   try
     if grain <= 0 then fail "Edge Relax grain must be positive";
     if iterations <= 0 then fail "Edge Relax iterations must be positive";

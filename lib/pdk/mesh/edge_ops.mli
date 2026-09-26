@@ -22,7 +22,7 @@ val straighten :
   ?edges:Edge_group.t ->
   ?output_group:string ->
   Geometry.t ->
-  (Geometry.t, string) result
+  (Geometry.t, Error.t) result
 
 val equalize :
   ?cancel:Cancel.t ->
@@ -33,4 +33,4 @@ val equalize :
   ?tolerance:float ->
   ?output_group:string ->
   Geometry.t ->
-  (Geometry.t, string) result
+  (Geometry.t, Error.t) result

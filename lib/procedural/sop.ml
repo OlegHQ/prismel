@@ -1436,7 +1436,7 @@ let edge_divide ?label ?group ?(divisions = 2) ?(share_points = true) input =
       match edges with
       | Error error -> Error error
       | Ok edges ->
-          match Pdk.Edge_modeling_ops.edge_divide_checked ~cancel:(Context.cancel_token context)
+          match Pdk.Subdivide.edge_divide ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?edges ~divisions ~share_points
               inputs.(0) with
           | Ok geometry -> cooked geometry
@@ -1783,7 +1783,7 @@ let edge_cusp ?label ?group ?(update_point_normals = true) input =
       match edges with
       | Error error -> Error error
       | Ok edges ->
-          match Pdk.Edge_modeling_ops.edge_cusp_checked ~cancel:(Context.cancel_token context)
+          match Pdk.Facet.edge_cusp ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?edges ~update_point_normals
               geometry with
           | Ok geometry -> cooked geometry
@@ -1812,7 +1812,7 @@ let edge_straighten ?label ?group ?output_group input =
       match edges with
       | Error error -> Error error
       | Ok edges ->
-          match Pdk.Edge_modeling_ops.edge_straighten_checked ~cancel:(Context.cancel_token context)
+          match Pdk.Edge_ops.straighten ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?edges ?output_group geometry with
           | Ok geometry -> cooked geometry
           | Error error -> structured_pdk_error error)
@@ -1850,7 +1850,7 @@ let circle_from_edges ?label ?group ?radius
       match edges with
       | Error error -> Error error
       | Ok edges ->
-          match Pdk.Edge_modeling_ops.circle_from_edges_checked ~cancel:(Context.cancel_token context)
+          match Pdk.Circle_from_edges.run ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?edges ?radius ~scale ?output_group
               geometry with
           | Ok geometry -> cooked geometry
@@ -1903,11 +1903,11 @@ let graph_color ?label ?selection
           | Error error -> structured_pdk_error error)
 
 let edge_equalize_method_key = function
-  | Pdk.Edge_modeling_ops.Equalize_average -> "average"
-  | Pdk.Edge_modeling_ops.Equalize_longest -> "longest"
-  | Pdk.Edge_modeling_ops.Equalize_shortest -> "shortest"
+  | Pdk.Edge_ops.Equalize_average -> "average"
+  | Pdk.Edge_ops.Equalize_longest -> "longest"
+  | Pdk.Edge_ops.Equalize_shortest -> "shortest"
 
-let edge_equalize ?label ?group ?(method_ = Pdk.Edge_modeling_ops.Equalize_average)
+let edge_equalize ?label ?group ?(method_ = Pdk.Edge_ops.Equalize_average)
     ?(iterations = 64) ?(tolerance = 1e-6) ?output_group input =
   Option.iter (fun name -> if String.trim name = "" then
     invalid_arg "Sop.edge_equalize: empty edge group name") group;
@@ -1936,18 +1936,18 @@ let edge_equalize ?label ?group ?(method_ = Pdk.Edge_modeling_ops.Equalize_avera
       match edges with
       | Error error -> Error error
       | Ok edges ->
-          match Pdk.Edge_modeling_ops.edge_equalize_checked ~cancel:(Context.cancel_token context)
+          match Pdk.Edge_ops.equalize ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?edges ~method_ ~iterations
               ~tolerance ?output_group geometry with
           | Ok geometry -> cooked geometry
           | Error error -> structured_pdk_error error)
 
 let edge_relax_target_key = function
-  | Pdk.Edge_modeling_ops.Individual_lengths -> "individual"
-  | Pdk.Edge_modeling_ops.Scale_independent_distribution -> "scale_independent"
+  | Pdk.Edge_relax.Individual_lengths -> "individual"
+  | Pdk.Edge_relax.Scale_independent_distribution -> "scale_independent"
 
 let edge_relax ?label ?group ?pin_group ?(iterations = 20)
-    ?(step_size = 0.5) ?(target_mode = Pdk.Edge_modeling_ops.Individual_lengths)
+    ?(step_size = 0.5) ?(target_mode = Pdk.Edge_relax.Individual_lengths)
     ?(only_shorten = false) ?(tolerance = 1e-6) ~reference input =
   (match group with
    | Some (Vertex_group _ | Edge_group _) ->
@@ -1974,12 +1974,12 @@ let edge_relax ?label ?group ?pin_group ?(iterations = 20)
         | None -> Ok None
         | Some (Point_group name) ->
             (match Pdk.Geometry.find_group ~owner:Pdk.Group.Point name geometry with
-             | Some group -> Ok (Some (Pdk.Edge_modeling_ops.Relax_points group))
+             | Some group -> Ok (Some (Pdk.Edge_relax.Relax_points group))
              | None -> Error (Diagnostic.error ~code:"missing_group"
                  (Printf.sprintf "edge_relax could not find point group %S" name)))
         | Some (Primitive_group name) ->
             (match Pdk.Geometry.find_group ~owner:Pdk.Group.Primitive name geometry with
-             | Some group -> Ok (Some (Pdk.Edge_modeling_ops.Relax_primitives group))
+             | Some group -> Ok (Some (Pdk.Edge_relax.Relax_primitives group))
              | None -> Error (Diagnostic.error ~code:"missing_group"
                  (Printf.sprintf "edge_relax could not find primitive group %S" name)))
         | Some (Vertex_group _ | Edge_group _) -> assert false in
@@ -1994,7 +1994,7 @@ let edge_relax ?label ?group ?pin_group ?(iterations = 20)
       match selection, pins with
       | Error error, _ | _, Error error -> Error error
       | Ok selection, Ok pin_points ->
-          match Pdk.Edge_modeling_ops.edge_relax_checked ~cancel:(Context.cancel_token context)
+          match Pdk.Edge_relax.relax ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?selection ?pin_points ~iterations
               ~step_size ~target_mode ~only_shorten ~tolerance ~reference
               geometry with

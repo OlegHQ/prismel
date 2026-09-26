@@ -2607,10 +2607,10 @@ let run_edge_divide_benchmarks () =
       |> Group_mesh.group_edges_checked ~grain ~name:"all_edges" |> get_ok in
   let edges = Geometry.find_edge_group "all_edges" source |> Option.get in
   measure ~input_points:point_count "edge_divide_shared_divisions4" (fun () ->
-    Edge_modeling_ops.edge_divide_checked ~grain ~edges ~divisions:4 source |> get_ok)
+    Subdivide.edge_divide ~grain ~edges ~divisions:4 source |> get_ok)
     geometry_output;
   measure ~input_points:point_count "edge_divide_unique_divisions4" (fun () ->
-    Edge_modeling_ops.edge_divide_checked ~grain ~edges ~divisions:4 ~share_points:false source
+    Subdivide.edge_divide ~grain ~edges ~divisions:4 ~share_points:false source
     |> get_ok) geometry_output
 
 let run_edge_collapse_benchmarks () =
@@ -3053,7 +3053,7 @@ let run_edge_cusp_benchmarks () =
       |> Group_mesh.group_edges_checked ~grain ~name:"cusp_edges" |> get_ok in
   let cusp = Geometry.find_edge_group "cusp_edges" source |> Option.get in
   measure ~input_points:point_count "edge_cusp_all_triangle_edges" (fun () ->
-    Edge_modeling_ops.edge_cusp_checked ~grain ~edges:cusp source |> get_ok) geometry_output
+    Facet.edge_cusp ~grain ~edges:cusp source |> get_ok) geometry_output
 
 let run_edge_straighten_benchmarks () =
   let components = 100_000 in
@@ -3081,7 +3081,7 @@ let run_edge_straighten_benchmarks () =
   let source = Geometry.create ~positions ~topology ~attributes:[point_id]
       ~groups:[checker] () |> get_ok in
   measure ~input_points:point_count "edge_straighten_independent_bends" (fun () ->
-    Edge_modeling_ops.edge_straighten_checked ~grain ~output_group:"straightened" source |> get_ok)
+    Edge_ops.straighten ~grain ~output_group:"straightened" source |> get_ok)
     geometry_output
 
 let edge_equalize_benchmark_fixture () =
@@ -3137,7 +3137,7 @@ let run_edge_equalize_benchmarks () =
   let geometry, _ = edge_equalize_benchmark_fixture () in
   measure ~input_points:(Geometry.point_count geometry)
     "edge_equalize_disjoint_average" (fun () ->
-      Edge_modeling_ops.edge_equalize_checked ~grain ~method_:Edge_modeling_ops.Equalize_average geometry |> get_ok)
+      Edge_ops.equalize ~grain ~method_:Edge_ops.Equalize_average geometry |> get_ok)
     geometry_output
 
 let edge_relax_benchmark_fixture () =
@@ -3180,7 +3180,7 @@ let run_edge_relax_benchmarks () =
   let geometry, reference, _ = edge_relax_benchmark_fixture () in
   measure ~input_points:(Geometry.point_count geometry)
     "edge_relax_disjoint_individual" (fun () ->
-      Edge_modeling_ops.edge_relax_checked ~grain ~reference geometry |> get_ok) geometry_output;
+      Edge_relax.relax ~grain ~reference geometry |> get_ok) geometry_output;
   let chains = max 1 (rows * max 1 columns / 3) in
   let point_count = chains * 3 in
   let x = Array.make point_count 0. and y = Array.make point_count 0.
@@ -3205,7 +3205,7 @@ let run_edge_relax_benchmarks () =
       (Packed.Float3.Private.of_shared_exn ~x:reference_x ~y:source.y ~z:source.z)
       geometry |> get_ok in
   measure ~input_points:point_count "edge_relax_connected_individual" (fun () ->
-    Edge_modeling_ops.edge_relax_checked ~grain ~reference geometry |> get_ok) geometry_output
+    Edge_relax.relax ~grain ~reference geometry |> get_ok) geometry_output
 
 let edge_transport_benchmark_fixture () =
   let point_count = max 2 (rows * max 1 columns * 2) in

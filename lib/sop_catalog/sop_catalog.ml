@@ -2287,15 +2287,15 @@ end [@@sop.register]
 
 module Edge_equalize = struct
   let method_parameter = Parameter.choice ~equal:( = ) [
-      "Average", Pdk.Edge_modeling_ops.Equalize_average;
-      "Longest", Pdk.Edge_modeling_ops.Equalize_longest;
-      "Shortest", Pdk.Edge_modeling_ops.Equalize_shortest;
+      "Average", Pdk.Edge_ops.Equalize_average;
+      "Longest", Pdk.Edge_ops.Equalize_longest;
+      "Shortest", Pdk.Edge_ops.Equalize_shortest;
     ]
 
   type parameters = {
     group : string [@sop.default ""] [@sop.label "Edge group"];
-    method_ : Pdk.Edge_modeling_ops.equalize_method
-      [@sop.default Pdk.Edge_modeling_ops.Equalize_average]
+    method_ : Pdk.Edge_ops.equalize_method
+      [@sop.default Pdk.Edge_ops.Equalize_average]
       [@sop.label "Method"] [@sop.kind method_parameter];
     iterations : int [@sop.default 64] [@sop.label "Iterations"]
       [@sop.min 1] [@sop.max 256] [@sop.hard_min 1];
@@ -4220,8 +4220,8 @@ end [@@sop.register]
 
 module Edge_relax = struct
   let target_parameter = Parameter.choice ~equal:( = ) [
-      "Individual lengths", Pdk.Edge_modeling_ops.Individual_lengths;
-      "Scale-independent distribution", Pdk.Edge_modeling_ops.Scale_independent_distribution;
+      "Individual lengths", Pdk.Edge_relax.Individual_lengths;
+      "Scale-independent distribution", Pdk.Edge_relax.Scale_independent_distribution;
     ]
 
   type parameters = {
@@ -4233,8 +4233,8 @@ module Edge_relax = struct
       [@sop.min 1] [@sop.max 1024] [@sop.hard_min 1];
     step_size : float [@sop.default 0.5] [@sop.label "Step size"]
       [@sop.min 0.] [@sop.max 1.] [@sop.hard_min 0.];
-    target_mode : Pdk.Edge_modeling_ops.relax_target_mode
-      [@sop.default Pdk.Edge_modeling_ops.Individual_lengths]
+    target_mode : Pdk.Edge_relax.target_mode
+      [@sop.default Pdk.Edge_relax.Individual_lengths]
       [@sop.label "Target mode"] [@sop.kind target_parameter];
     only_shorten : bool [@sop.default false] [@sop.label "Only shorten"];
     tolerance : float [@sop.default 0.000001] [@sop.label "Tolerance"]

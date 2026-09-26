@@ -215,7 +215,7 @@ let test_fused_split_matches_composed_reference () =
       ~attributes:[point_id;uv;rows;material;detail]
       ~groups:[point_group;vertex_group;primitive_group]
       ~edge_groups:[all_edges] () |> get_string in
-  let divided = Edge_modeling_ops.edge_divide_checked ~grain:1 ~edges:all_edges ~divisions:2
+  let divided = Subdivide.edge_divide ~grain:1 ~edges:all_edges ~divisions:2
       ~share_points:true source |> get in
   let reference = Triangulation_modeling.triangulate ~grain:1 divided |> get in
   let fused = Triangulation_modeling.remesh ~grain:1 ~iterations:1 ~smoothing:0. ~project:false

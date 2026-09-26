@@ -910,6 +910,7 @@ let cusp_polygons ?cancel ?(grain = 16_384) ?primitives ~angle geometry =
 
 let edge_cusp ?cancel ?(grain = 16_384) ?edges
     ?(update_point_normals = true) geometry =
+  Error.guard ~operation:"edge_cusp" ~code:"invalid_topology" @@ fun () ->
   if grain <= 0 then Error "Pdk_mesh.Facet.edge_cusp: grain must be positive"
   else begin
     Cancel.check_opt cancel;

@@ -1691,7 +1691,7 @@ let run () =
   let equalized = Sop.snapshot (edge_equalize_geometry 50_000)
       |> Sop.group_edges ~name:"equalize_edges"
       |> Sop.edge_equalize ~group:"equalize_edges"
-           ~method_:Edge_modeling_ops.Equalize_average ~output_group:"equalized" in
+           ~method_:Edge_ops.Equalize_average ~output_group:"equalized" in
   let one = cook 1 equalized and many = cook 4 equalized in
   check (equal_geometry one many)
     "one-domain and four-domain Edge Equalize geometry differ";

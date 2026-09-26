@@ -272,6 +272,7 @@ let group ?cancel ?(grain = 16_384) ?(name = "edges") ?primitives
   with Edge_error message -> Error message
 
 let straighten ?cancel ?(grain = 16_384) ?edges ?output_group geometry =
+  Error.guard ~operation:"edge_straighten" ~code:"invalid_geometry" @@ fun () ->
   try
     if grain <= 0 then fail "Edge Straighten grain must be positive";
     Option.iter (fun name -> if String.trim name = "" then
@@ -554,6 +555,7 @@ let[@inline always] edge_length positions a b =
 let equalize ?cancel ?(grain = 16_384) ?edges
     ?(method_ = Equalize_average) ?(iterations = 64) ?(tolerance = 1e-6)
     ?output_group geometry =
+  Error.guard ~operation:"edge_equalize" ~code:"invalid_edge_equalize" @@ fun () ->
   try
     if grain <= 0 then fail "Edge Equalize grain must be positive";
     if iterations <= 0 then fail "Edge Equalize iterations must be positive";

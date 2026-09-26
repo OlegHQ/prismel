@@ -177,4 +177,4 @@ val edge_divide :
   ?edges:Pdk_core.Edge_group.t ->
   ?divisions:int ->
   ?share_points:bool ->
-  Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, string) result
+  Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, Error.t) result

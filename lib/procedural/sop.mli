@@ -744,7 +744,7 @@ val graph_color :
 val edge_equalize :
   ?label:string ->
   ?group:string ->
-  ?method_:Pdk.Edge_modeling_ops.equalize_method ->
+  ?method_:Pdk.Edge_ops.equalize_method ->
   ?iterations:int ->
   ?tolerance:float ->
   ?output_group:string ->
@@ -759,7 +759,7 @@ val edge_relax :
   ?pin_group:string ->
   ?iterations:int ->
   ?step_size:float ->
-  ?target_mode:Pdk.Edge_modeling_ops.relax_target_mode ->
+  ?target_mode:Pdk.Edge_relax.target_mode ->
   ?only_shorten:bool ->
   ?tolerance:float ->
   reference:Node.t ->

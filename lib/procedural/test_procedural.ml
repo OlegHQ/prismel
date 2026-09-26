@@ -4067,7 +4067,7 @@ let test_edge_equalize_contract () =
   let source = Sop.polyline [|0.,0.,0.;1.,0.,0.;4.,0.,0.;6.,0.,0.|]
       |> Sop.group_edges ~name:"uneven" in
   let graph = source |> Sop.edge_equalize ~label:"even-spacing"
-      ~group:"uneven" ~method_:Pdk.Edge_modeling_ops.Equalize_average ~iterations:80
+      ~group:"uneven" ~method_:Pdk.Edge_ops.Equalize_average ~iterations:80
       ~tolerance:1e-7 ~output_group:"equalized" in
   check (Node.version graph = 1
       && contains (Node.parameters graph) "group=uneven"
@@ -4110,7 +4110,7 @@ let test_edge_relax_contract () =
   and reference = Sop.polyline [|0.,0.,0.;2.,0.,0.;3.,0.,0.;7.,0.,0.|] in
   let graph = source |> Sop.edge_relax ~label:"match-reference"
       ~reference ~iterations:128 ~step_size:0.5
-      ~target_mode:Pdk.Edge_modeling_ops.Individual_lengths ~only_shorten:false
+      ~target_mode:Pdk.Edge_relax.Individual_lengths ~only_shorten:false
       ~tolerance:1e-7 in
   check (Node.version graph = 1
       && contains (Node.parameters graph) "iterations=128"

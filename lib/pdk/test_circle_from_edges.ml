@@ -114,7 +114,7 @@ let circumcenter_xy geometry a b c =
 let test_fit_radius_and_scale () =
   let source = Line_geometry.polyline_checked ~closed:true
       [|-2.,-0.2,0.; 0.,-1.,0.; 1.,0.1,0.; 0.3,2.,0.|] |> get in
-  let fitted = Edge_modeling_ops.circle_from_edges_checked source |> get in
+  let fitted = Circle_from_edges.run source |> get in
   let p = positions fitted and cx, cy = circumcenter_xy fitted 0 1 2 in
   let radius point = sqrt (((p.x.(point) -. cx) ** 2.)
       +. ((p.y.(point) -. cy) ** 2.)) in
@@ -125,7 +125,7 @@ let test_fit_radius_and_scale () =
 
   let square = Line_geometry.polyline_checked ~closed:true
       [|-1.,-1.,0.; 1.,-1.,0.; 1.,1.,0.; -1.,1.,0.|] |> get in
-  let scaled = Edge_modeling_ops.circle_from_edges_checked ~radius:2.
+  let scaled = Circle_from_edges.run ~radius:2.
       ~scale:(Vec3.create 1. 0.5 1.) square |> get in
   let p = positions scaled and root2 = sqrt 2. in
   check (near p.x.(0) (-.root2) && near p.y.(0) (-.root2 *. 0.5)
@@ -136,7 +136,7 @@ let test_best_fit_plane () =
   let source = Line_geometry.polyline_checked ~closed:true
       [|-1.,-1.,0.1; 1.,-1.,1.9; 1.,1.,2.2; -1.,1.,0.2;
         -1.4,0.,-0.4|] |> get in
-  let output = Edge_modeling_ops.circle_from_edges_checked source |> get in
+  let output = Circle_from_edges.run source |> get in
   let p = positions output in
   let ax = p.x.(1) -. p.x.(0) and ay = p.y.(1) -. p.y.(0)
   and az = p.z.(1) -. p.z.(0)
@@ -179,7 +179,7 @@ let test_selection_boundary_payload () =
       ~attributes:[point_id;point_n;vertex_n] ~groups:[ordered]
       ~edge_groups:[selected;retained] () |> get_string in
   let before = positions source in
-  let output = Edge_modeling_ops.circle_from_edges_checked ~grain:1 ~edges:selected
+  let output = Circle_from_edges.run ~grain:1 ~edges:selected
       ~output_group:"circle_edges" source |> get in
   let after = positions output in
   check (Geometry.topology output == topology
@@ -202,9 +202,9 @@ let test_selection_boundary_payload () =
     "Circle from Edges output edge group cardinality";
 
   let empty = edge_group_of_pairs topology "empty" [||] in
-  check (Edge_modeling_ops.circle_from_edges_checked ~edges:empty source |> get == source)
+  check (Circle_from_edges.run ~edges:empty source |> get == source)
     "empty Circle from Edges was not an identity";
-  let empty_output = Edge_modeling_ops.circle_from_edges_checked ~edges:empty
+  let empty_output = Circle_from_edges.run ~edges:empty
       ~output_group:"none" source |> get in
   check ((Geometry.find_edge_group "none" empty_output |> Option.get
           |> Edge_group.cardinality) = 0)
@@ -218,7 +218,7 @@ let test_default_boundary () =
   let source = geometry_owned ~kinds:(Array.make 4 Topology.Polygon)
       points [|0;1;4;3; 1;2;5;4; 3;4;7;6; 4;5;8;7|]
       [|0;4;8;12;16|] in
-  let output = Edge_modeling_ops.circle_from_edges_checked ~output_group:"boundary" source |> get in
+  let output = Circle_from_edges.run ~output_group:"boundary" source |> get in
   let p = positions output in
   check (p.x.(4) = 0. && p.y.(4) = 0. && p.z.(4) = 0.)
     "Circle from Edges moved an interior point";
@@ -229,51 +229,51 @@ let test_default_boundary () =
 let test_validation_and_atomicity () =
   let source = Line_geometry.polyline_checked ~closed:true
       [|-1.,-1.,0.;1.,-1.,0.;1.,1.,0.;-1.,1.,0.|] |> get in
-  expect_code "invalid_circle" (fun () -> Edge_modeling_ops.circle_from_edges_checked ~grain:0 source)
+  expect_code "invalid_circle" (fun () -> Circle_from_edges.run ~grain:0 source)
     "zero grain";
-  expect_code "invalid_circle" (fun () -> Edge_modeling_ops.circle_from_edges_checked ~radius:0. source)
+  expect_code "invalid_circle" (fun () -> Circle_from_edges.run ~radius:0. source)
     "zero radius";
-  expect_code "invalid_circle" (fun () -> Edge_modeling_ops.circle_from_edges_checked ~radius:nan source)
+  expect_code "invalid_circle" (fun () -> Circle_from_edges.run ~radius:nan source)
     "non-finite radius";
-  expect_code "invalid_circle" (fun () -> Edge_modeling_ops.circle_from_edges_checked
+  expect_code "invalid_circle" (fun () -> Circle_from_edges.run
       ~scale:(Vec3.create nan 1. 1.) source) "non-finite scale";
-  expect_code "invalid_circle" (fun () -> Edge_modeling_ops.circle_from_edges_checked
+  expect_code "invalid_circle" (fun () -> Circle_from_edges.run
       ~output_group:" " source) "empty output group";
   let other = Line_geometry.polyline_checked ~closed:true
       [|0.,0.,0.;1.,0.,0.;0.,1.,0.|] |> get in
   let foreign = edge_group_of_pairs (Geometry.topology other) "foreign"
       [|0,1;1,2;2,0|] in
-  expect_code "invalid_circle" (fun () -> Edge_modeling_ops.circle_from_edges_checked
+  expect_code "invalid_circle" (fun () -> Circle_from_edges.run
       ~edges:foreign source) "foreign edge group";
   let short = Line_geometry.polyline_checked [|0.,0.,0.;1.,0.,0.|] |> get in
-  expect_code "invalid_circle" (fun () -> Edge_modeling_ops.circle_from_edges_checked
+  expect_code "invalid_circle" (fun () -> Circle_from_edges.run
       ~edges:(edge_group_of_pairs (Geometry.topology short) "short" [|0,1|])
       short) "component with fewer than three points";
   let collinear = Line_geometry.polyline_checked [|0.,0.,0.;1.,0.,0.;2.,0.,0.|] |> get in
-  expect_code "invalid_circle" (fun () -> Edge_modeling_ops.circle_from_edges_checked collinear)
+  expect_code "invalid_circle" (fun () -> Circle_from_edges.run collinear)
     "collinear component";
   let branch = geometry_owned ~kinds:(Array.make 3 Topology.Open_polyline)
       [0.,0.,0.;1.,0.,0.;0.,1.,0.;-1.,0.,0.]
       [|0;1;0;2;0;3|] [|0;2;4;6|] in
-  expect_code "invalid_circle" (fun () -> Edge_modeling_ops.circle_from_edges_checked branch)
+  expect_code "invalid_circle" (fun () -> Circle_from_edges.run branch)
     "branched component";
   let nonfinite = geometry_owned ~kinds:[|Topology.Closed_polyline|]
       [0.,0.,0.;nan,1.,0.;1.,1.,0.;1.,0.,0.]
       [|0;1;2;3|] [|0;4|] in
-  expect_code "invalid_circle" (fun () -> Edge_modeling_ops.circle_from_edges_checked nonfinite)
+  expect_code "invalid_circle" (fun () -> Circle_from_edges.run nonfinite)
     "non-finite selected endpoint";
-  let overflow = Edge_modeling_ops.circle_from_edges_checked ~radius:max_float
+  let overflow = Circle_from_edges.run ~radius:max_float
       ~scale:(Vec3.create max_float max_float max_float) source in
   expect_code "invalid_circle" (fun () -> overflow) "unrepresentable output";
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
-  expect_code "cancelled" (fun () -> Edge_modeling_ops.circle_from_edges_checked
+  expect_code "cancelled" (fun () -> Circle_from_edges.run
       ~cancel:cancelled source) "cancellation"
 
 let test_parallel_exact () =
   let source = closed_loops 10_000 16 in
   let run domains = Parallel.run ~domains (fun () ->
-    Edge_modeling_ops.circle_from_edges_checked ~grain:257 ~output_group:"circles" source |> get) in
+    Circle_from_edges.run ~grain:257 ~output_group:"circles" source |> get) in
   let one = run 1 and four = run 4 in
   check (equal_geometry one four)
     "Circle from Edges differs across one and four domains";

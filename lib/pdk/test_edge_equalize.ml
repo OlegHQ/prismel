@@ -106,7 +106,7 @@ let all_edge_lengths geometry =
 
 let run () =
   let source = disjoint () in
-  let average = Edge_modeling_ops.edge_equalize_checked ~grain:1 ~output_group:"equalized" source
+  let average = Edge_ops.equalize ~grain:1 ~output_group:"equalized" source
       |> get_pdk in
   check (array_close (positions average).x [|-.0.5;1.5;3.;5.;7.5;9.5|])
     "Edge Equalize average result";
@@ -120,25 +120,25 @@ let run () =
       |> Option.get in
   check (Edge_group.cardinality output_group = 3)
     "Edge Equalize output group cardinality";
-  let longest = Edge_modeling_ops.edge_equalize_checked ~method_:Edge_modeling_ops.Equalize_longest source
+  let longest = Edge_ops.equalize ~method_:Edge_ops.Equalize_longest source
       |> get_pdk in
   check (array_close (positions longest).x [|-1.;2.;2.5;5.5;7.;10.|])
     "Edge Equalize longest result";
-  let shortest = Edge_modeling_ops.edge_equalize_checked ~method_:Edge_modeling_ops.Equalize_shortest source
+  let shortest = Edge_ops.equalize ~method_:Edge_ops.Equalize_shortest source
       |> get_pdk in
   check (array_close (positions shortest).x [|0.;1.;3.5;4.5;8.;9.|])
     "Edge Equalize shortest result";
 
   let subset = edge_group_of_pairs (Geometry.topology source) "outer"
       [|0,1;4,5|] in
-  let subset_output = Edge_modeling_ops.edge_equalize_checked ~edges:subset source |> get_pdk in
+  let subset_output = Edge_ops.equalize ~edges:subset source |> get_pdk in
   check (array_close (positions subset_output).x
       [|-0.5;1.5;3.;5.;7.5;9.5|])
     "Edge Equalize subset moved an unselected edge";
 
   let chain = Line_geometry.polyline_checked [|0.,0.,0.;1.,0.,0.;4.,0.,0.;6.,0.,0.|]
       |> get_pdk in
-  let chain_output = Edge_modeling_ops.edge_equalize_checked ~grain:1 chain |> get_pdk in
+  let chain_output = Edge_ops.equalize ~grain:1 chain |> get_pdk in
   let p = positions chain_output in
   check (close (p.x.(1) -. p.x.(0)) 2.
       && close (p.x.(2) -. p.x.(1)) 2.
@@ -149,11 +149,11 @@ let run () =
   check (close (Array.fold_left ( +. ) 0. p.x) 11.)
     "Edge Equalize did not preserve the connected centroid";
   expect_code "invalid_edge_equalize"
-    (Edge_modeling_ops.edge_equalize_checked ~iterations:1 ~tolerance:1e-12 chain);
+    (Edge_ops.equalize ~iterations:1 ~tolerance:1e-12 chain);
 
   let cycle = Line_geometry.polyline_checked ~closed:true
       [|(-1.,-0.6,0.);(1.4,-0.8,0.);(0.8,1.2,0.);(-0.7,0.9,0.)|]
-      |> get_pdk |> Edge_modeling_ops.edge_equalize_checked ~iterations:160 ~tolerance:1e-7
+      |> get_pdk |> Edge_ops.equalize ~iterations:160 ~tolerance:1e-7
       |> get_pdk in
   let cycle_lengths = all_edge_lengths cycle in
   check (Array.for_all (fun length ->
@@ -162,7 +162,7 @@ let run () =
   let branch = geometry_owned ~kinds:(Array.make 4 Topology.Open_polyline)
       [0.,0.,0.;1.,0.,0.;0.,2.,0.;-3.,0.,0.;0.,-4.,0.]
       [|0;1;0;2;0;3;0;4|] [|0;2;4;6;8|]
-      |> Edge_modeling_ops.edge_equalize_checked ~iterations:160 ~tolerance:1e-7 |> get_pdk in
+      |> Edge_ops.equalize ~iterations:160 ~tolerance:1e-7 |> get_pdk in
   let branch_lengths = all_edge_lengths branch in
   check (Array.for_all (fun length ->
       abs_float (length -. branch_lengths.(0)) < 2e-6) branch_lengths)
@@ -171,12 +171,12 @@ let run () =
   let equal = geometry_owned ~kinds:(Array.make 2 Topology.Open_polyline)
       [0.,0.,0.;1.,0.,0.; 3.,0.,0.;4.,0.,0.]
       [|0;1;2;3|] [|0;2;4|] in
-  check (Edge_modeling_ops.edge_equalize_checked equal |> get_pdk == equal)
+  check (Edge_ops.equalize equal |> get_pdk == equal)
     "already-equal edges were not an identity";
   let empty = edge_group_of_pairs (Geometry.topology source) "empty" [||] in
-  check (Edge_modeling_ops.edge_equalize_checked ~edges:empty source |> get_pdk == source)
+  check (Edge_ops.equalize ~edges:empty source |> get_pdk == source)
     "empty Edge Equalize was not an identity";
-  let empty_output = Edge_modeling_ops.edge_equalize_checked ~edges:empty ~output_group:"none" source
+  let empty_output = Edge_ops.equalize ~edges:empty ~output_group:"none" source
       |> get_pdk in
   check (Geometry.find_edge_group "none" empty_output |> Option.get
       |> Edge_group.cardinality = 0)
@@ -185,31 +185,31 @@ let run () =
   let zero = geometry_owned ~kinds:(Array.make 2 Topology.Open_polyline)
       [0.,0.,0.;0.,0.,0.; 2.,0.,0.;4.,0.,0.]
       [|0;1;2;3|] [|0;2;4|] in
-  let collapsed = Edge_modeling_ops.edge_equalize_checked ~method_:Edge_modeling_ops.Equalize_shortest zero
+  let collapsed = Edge_ops.equalize ~method_:Edge_ops.Equalize_shortest zero
       |> get_pdk |> positions in
   check (array_close collapsed.x [|0.;0.;3.;3.|])
     "Edge Equalize shortest zero target";
-  expect_code "invalid_edge_equalize" (Edge_modeling_ops.edge_equalize_checked zero);
+  expect_code "invalid_edge_equalize" (Edge_ops.equalize zero);
 
   let other = disjoint () in
   let foreign = edge_group_of_pairs (Geometry.topology other) "foreign"
       [|0,1|] in
-  expect_code "invalid_edge_equalize" (Edge_modeling_ops.edge_equalize_checked ~edges:foreign source);
-  expect_code "invalid_edge_equalize" (Edge_modeling_ops.edge_equalize_checked ~grain:0 source);
-  expect_code "invalid_edge_equalize" (Edge_modeling_ops.edge_equalize_checked ~iterations:0 source);
-  expect_code "invalid_edge_equalize" (Edge_modeling_ops.edge_equalize_checked ~tolerance:nan source);
-  expect_code "invalid_edge_equalize" (Edge_modeling_ops.edge_equalize_checked ~tolerance:0. source);
+  expect_code "invalid_edge_equalize" (Edge_ops.equalize ~edges:foreign source);
+  expect_code "invalid_edge_equalize" (Edge_ops.equalize ~grain:0 source);
+  expect_code "invalid_edge_equalize" (Edge_ops.equalize ~iterations:0 source);
+  expect_code "invalid_edge_equalize" (Edge_ops.equalize ~tolerance:nan source);
+  expect_code "invalid_edge_equalize" (Edge_ops.equalize ~tolerance:0. source);
   expect_code "invalid_edge_equalize"
-    (Edge_modeling_ops.edge_equalize_checked ~output_group:" " source);
+    (Edge_ops.equalize ~output_group:" " source);
   let non_finite = geometry_owned ~kinds:[|Topology.Open_polyline|]
       [0.,0.,0.;nan,0.,0.] [|0;1|] [|0;2|] in
-  expect_code "invalid_edge_equalize" (Edge_modeling_ops.edge_equalize_checked non_finite);
+  expect_code "invalid_edge_equalize" (Edge_ops.equalize non_finite);
   let unrepresentable = geometry_owned ~kinds:[|Topology.Open_polyline|]
       [max_float,0.,0.;-.max_float,0.,0.] [|0;1|] [|0;2|] in
-  expect_code "invalid_edge_equalize" (Edge_modeling_ops.edge_equalize_checked unrepresentable);
+  expect_code "invalid_edge_equalize" (Edge_ops.equalize unrepresentable);
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
-  expect_code "cancelled" (Edge_modeling_ops.edge_equalize_checked ~cancel:cancelled source);
+  expect_code "cancelled" (Edge_ops.equalize ~cancel:cancelled source);
 
   let decorated =
     let normal = Attribute.create_owned ~owner:Attribute.Point ~name:"N"
@@ -217,14 +217,14 @@ let run () =
           ~x:(Array.make 6 0.) ~y:(Array.make 6 0.) ~z:(Array.make 6 1.)))
         |> get_ok in
     Geometry.with_attribute normal source |> get_ok in
-  let decorated_output = Edge_modeling_ops.edge_equalize_checked decorated |> get_pdk in
+  let decorated_output = Edge_ops.equalize decorated |> get_pdk in
   check (Geometry.topology decorated_output == Geometry.topology decorated
       && Geometry.find_attribute ~owner:Attribute.Point "N" decorated_output = None)
     "Edge Equalize payload sharing or normal invalidation";
 
   let large = many_disjoint 50_000 in
   let run domains = Parallel.run ~domains (fun () ->
-      Edge_modeling_ops.edge_equalize_checked ~grain:127 ~output_group:"eq" large |> get_pdk) in
+      Edge_ops.equalize ~grain:127 ~output_group:"eq" large |> get_pdk) in
   let one = run 1 and four = run 4 in
   check (equal_geometry one four)
     "Edge Equalize differs across domain counts";
@@ -234,7 +234,7 @@ let run () =
     "Edge Equalize scale cardinality";
   let connected = many_chains 5_000 in
   let run_connected domains = Parallel.run ~domains (fun () ->
-      Edge_modeling_ops.edge_equalize_checked ~grain:127 ~iterations:96 connected |> get_pdk) in
+      Edge_ops.equalize ~grain:127 ~iterations:96 connected |> get_pdk) in
   let connected_one = run_connected 1 and connected_four = run_connected 4 in
   check (equal_geometry connected_one connected_four)
     "connected Edge Equalize differs across domain counts";

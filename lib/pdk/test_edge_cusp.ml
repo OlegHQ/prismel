@@ -160,7 +160,7 @@ let run () =
   let source = decorated_patch () in
   let cusp = Geometry.find_edge_group "cusp" source |> Option.get
   and diagonal = Geometry.find_edge_group "diagonal" source |> Option.get in
-  let output = Edge_modeling_ops.edge_cusp_checked ~grain:1 ~edges:cusp source |> get_pdk in
+  let output = Facet.edge_cusp ~grain:1 ~edges:cusp source |> get_pdk in
   check (Geometry.point_count output = 5 && Geometry.vertex_count output = 6
       && Geometry.primitive_count output = 2)
     "Edge Cusp cardinality";
@@ -186,7 +186,7 @@ let run () =
   check (Geometry.find_attribute ~owner:Attribute.Vertex "N" output = None)
     "Edge Cusp normal update retained conflicting vertex normals";
 
-  let preserved = Edge_modeling_ops.edge_cusp_checked ~grain:1 ~edges:cusp
+  let preserved = Facet.edge_cusp ~grain:1 ~edges:cusp
       ~update_point_normals:false source |> get_pdk in
   let normals = point_normal preserved in
   check (normals.x = [|1.;1.;1.;1.;1.|]
@@ -196,15 +196,15 @@ let run () =
   check (Geometry.find_attribute ~owner:Attribute.Vertex "N" preserved <> None)
     "Edge Cusp removed vertex normals with normal update disabled";
   let no_normals = Geometry.without_attribute ~owner:Attribute.Point "N"
-      source |> Edge_modeling_ops.edge_cusp_checked ~edges:cusp |> get_pdk in
+      source |> Facet.edge_cusp ~edges:cusp |> get_pdk in
   check (Geometry.find_attribute ~owner:Attribute.Point "N" no_normals = None)
     "Edge Cusp invented point normals";
-  check (Edge_modeling_ops.edge_cusp_checked source |> get_pdk == source
-      && Edge_modeling_ops.edge_cusp_checked ~edges:diagonal source |> get_pdk == source)
+  check (Facet.edge_cusp source |> get_pdk == source
+      && Facet.edge_cusp ~edges:diagonal source |> get_pdk == source)
     "Edge Cusp empty/single-edge identity";
   let all_edges = edge_group_of_pairs (Geometry.topology source) "all"
       [|0,1;1,2;0,2;2,3;0,3|] in
-  let branched = Edge_modeling_ops.edge_cusp_checked ~edges:all_edges source |> get_pdk in
+  let branched = Facet.edge_cusp ~edges:all_edges source |> get_pdk in
   let seen = Bytes.make (Geometry.point_count branched) '\000' in
   Array.iter (fun point -> Bytes.set seen point '\001') (vertex_points branched);
   check (Geometry.point_count branched = 6
@@ -215,7 +215,7 @@ let run () =
       [|0;2;1; 0;1;3; 1;2;3; 2;0;3|] [|0;3;6;9;12|] in
   let loop = edge_group_of_pairs (Geometry.topology tetrahedron) "loop"
       [|0,1;1,2;2,0|] in
-  let loop_output = Edge_modeling_ops.edge_cusp_checked ~edges:loop tetrahedron |> get_pdk in
+  let loop_output = Facet.edge_cusp ~edges:loop tetrahedron |> get_pdk in
   check (Geometry.point_count loop_output = 7
       && Geometry.vertex_count loop_output = 12)
     "Edge Cusp closed-loop fan separation";
@@ -224,7 +224,7 @@ let run () =
       [|0;1;2; 0;2;3; 1;4;5|] [|0;3;6;9|] in
   let point_touching_edges = edge_group_of_pairs
       (Geometry.topology point_touching) "cusp" [|0,2;2,3|] in
-  let point_touching_output = Edge_modeling_ops.edge_cusp_checked ~edges:point_touching_edges
+  let point_touching_output = Facet.edge_cusp ~edges:point_touching_edges
       point_touching |> get_pdk in
   check (Geometry.point_count point_touching_output = 7
       && (vertex_points point_touching_output).(6) = 1)
@@ -232,26 +232,26 @@ let run () =
 
   let other = decorated_patch () in
   let other_group = Geometry.find_edge_group "cusp" other |> Option.get in
-  expect_code "invalid_topology" (Edge_modeling_ops.edge_cusp_checked ~edges:other_group source);
-  expect_code "invalid_topology" (Edge_modeling_ops.edge_cusp_checked ~grain:0 ~edges:cusp source);
+  expect_code "invalid_topology" (Facet.edge_cusp ~edges:other_group source);
+  expect_code "invalid_topology" (Facet.edge_cusp ~grain:0 ~edges:cusp source);
   let curve = Line_geometry.polyline_checked [|0.,0.,0.;1.,0.,0.;2.,0.,0.|] |> get_pdk in
   let curve_edges = edge_group_of_pairs (Geometry.topology curve) "curve"
       [|0,1;1,2|] in
-  expect_code "invalid_topology" (Edge_modeling_ops.edge_cusp_checked ~edges:curve_edges curve);
+  expect_code "invalid_topology" (Facet.edge_cusp ~edges:curve_edges curve);
   let nonmanifold = geometry_owned
       [0.,0.,0.;1.,0.,0.;0.5,1.,0.;0.5,-1.,0.;0.5,0.,1.]
       [|0;1;2; 1;0;3; 0;1;4|] [|0;3;6;9|] in
   let nonmanifold_edges = edge_group_of_pairs (Geometry.topology nonmanifold)
       "bad" [|0,1;1,2|] in
   expect_code "invalid_topology"
-    (Edge_modeling_ops.edge_cusp_checked ~edges:nonmanifold_edges nonmanifold);
+    (Facet.edge_cusp ~edges:nonmanifold_edges nonmanifold);
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
-  expect_code "cancelled" (Edge_modeling_ops.edge_cusp_checked ~cancel:cancelled ~edges:cusp source);
+  expect_code "cancelled" (Facet.edge_cusp ~cancel:cancelled ~edges:cusp source);
 
   let large, large_edges = disconnected_patches 10_000 in
   let run domains = Parallel.run ~domains (fun () ->
-    Edge_modeling_ops.edge_cusp_checked ~grain:127 ~edges:large_edges large |> get_pdk) in
+    Facet.edge_cusp ~grain:127 ~edges:large_edges large |> get_pdk) in
   let one = run 1 and four = run 4 in
   check (equal_geometry one four) "Edge Cusp differs across domain counts";
   check (Geometry.point_count one = 50_000

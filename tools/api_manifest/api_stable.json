@@ -1,7 +1,7 @@
 {
   "generator": "tools/api_manifest/api_manifest.exe",
   "kind": "stable_high_level",
-  "module_count": 133,
+  "module_count": 132,
   "modules": [
     {
       "api_sha256": "42991257be662e316b18b78776fd2c91d5990ebf5a3b561d4d38b32d1d9db961",
@@ -263,15 +263,6 @@
       "source": "lib/pdk/core/edge_group.mli",
       "source_bytes": 2609,
       "source_sha256": "102618f1df43284ea5064b3ff438838d40df7db6c1c5231d073cabfb2248b162"
-    },
-    {
-      "api_sha256": "9664fd9df88b6e3e97e8a212d6d6311de2f063ab79d7076e0534b5a7f2567e04",
-      "excluded_legacy_symbols": [],
-      "library": "pdk",
-      "module": "Edge_modeling_ops",
-      "source": "lib/pdk/mesh/edge_modeling_ops.mli",
-      "source_bytes": 1553,
-      "source_sha256": "4fb8bb43726982b771d149d128ca29b83fd8b73ae89357eeb7bddbe9a6b60e1a"
     },
     {
       "api_sha256": "6b1d84b63341f78917c9d838ccba200e0bf46a45cc64ed7f91ca6bc35ac5cee4",
@@ -1079,13 +1070,13 @@
       "source_sha256": "56843fac9c3df29c046e0c707bd5a2374e4c400e0a02ae5627e27a7000bf8ee8"
     },
     {
-      "api_sha256": "0d153ad4db0d6c38037c6d5a98117146b0276098f8b7c98047676cd8be9be3da",
+      "api_sha256": "9b67786f57800b61aa9dbfb018273db61f7f22c7d4699a434b9dde95172167fd",
       "excluded_legacy_symbols": [],
       "library": "procedural",
       "module": "Sop",
       "source": "lib/procedural/sop.mli",
-      "source_bytes": 94777,
-      "source_sha256": "025b034a79ecde710acc023315d65bf802df6b7d0b9c0b5eddffdd3517f59dbd"
+      "source_bytes": 94755,
+      "source_sha256": "6a361e47c7aa9ff023d3dbda2a9013d025dc74174672c0461ba7db2e1bff5ba7"
     },
     {
       "api_sha256": "a07dc249d7631da8b4e38fe93e9e43898cdc8cec6e30be0a7c921a086e386fba",

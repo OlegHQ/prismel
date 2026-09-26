@@ -6,4 +6,4 @@ val run :
   ?scale:Prismel_math.Vec3.t ->
   ?output_group:string ->
   Geometry.t ->
-  (Geometry.t, string) result
+  (Geometry.t, Error.t) result
