@@ -2086,7 +2086,7 @@ let test_generators_selections_and_delete () =
       [|(0.1,0.,0.); (0.9,0.,0.); (2.,0.,0.); (5.,0.,0.)|]
       |> Sop.group ~name:"queries" (Select.point_indices [|0;1;2|])
       |> Sop.fuse ~group:"queries" ~target_group:"targets"
-           ~target:fuse_target ~using:Pdk.Ops.Closest_target_point
+           ~target:fuse_target ~using:Pdk.Fuse_grid.Closest_target_point
            ~tolerance:1. ~fuse_points:false ~snapped_group:"snapped"
            ~snapped_destination_attribute:"destination" in
   check (Node.version targeted_fuse = 6
@@ -2095,11 +2095,11 @@ let test_generators_selections_and_delete () =
       && contains (Node.parameters targeted_fuse) "target=true")
     "procedural targeted Fuse identity";
   let rule_input = Sop.points [|(0.,0.,0.); (0.,0.,0.)|] in
-  let average_rule = Pdk.Ops.fuse_attribute_rule ~pattern:"Cd"
+  let average_rule = Pdk.Fuse_grid.fuse_attribute_rule ~pattern:"Cd"
       Pdk.Fuse_reduce.Attribute_average
-  and sum_rule = Pdk.Ops.fuse_attribute_rule ~pattern:"Cd"
+  and sum_rule = Pdk.Fuse_grid.fuse_attribute_rule ~pattern:"Cd"
       Pdk.Fuse_reduce.Attribute_sum
-  and union_rule = Pdk.Ops.fuse_group_rule ~pattern:"selected*"
+  and union_rule = Pdk.Fuse_grid.fuse_group_rule ~pattern:"selected*"
       Pdk.Fuse_reduce.Group_union in
   let average_node = Sop.fuse ~attribute_rules:[average_rule]
       ~group_rules:[union_rule] rule_input

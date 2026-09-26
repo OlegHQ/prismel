@@ -323,27 +323,27 @@ val merge : ?label:string -> Node.t list -> Node.t
     targeting supports least-number or closest targets, radius expansion, and
     scalar match filters; specified targeting reads query point target numbers.
     Position reducers, same-input Modify Target, Keep Fused Points, and
-    topology/unused-point cleanup correspond to Pdk.Ops.fuse. Snap-only mode
+    topology/unused-point cleanup correspond to Pdk.Fuse_grid.fuse_checked. Snap-only mode
     preserves topology, while output metadata records mapped queries and
     destinations. *)
 val fuse :
   ?label:string ->
   ?group:string ->
   ?target_group:string ->
-  ?targeting:Pdk.Ops.fuse_targeting ->
-  ?using:Pdk.Ops.fuse_using ->
+  ?targeting:Pdk.Fuse_grid.fuse_targeting ->
+  ?using:Pdk.Fuse_grid.fuse_using ->
   ?tolerance:float ->
   ?position:Pdk.Fuse_reduce.position ->
   ?weight_attribute:string ->
   ?attributes:Pdk.Fuse_reduce.attributes ->
   ?attribute_rules:Pdk.Fuse_reduce.attribute_rule list ->
   ?group_rules:Pdk.Fuse_reduce.group_rule list ->
-  ?metric:Pdk.Ops.fuse_metric ->
+  ?metric:Pdk.Fuse_grid.fuse_metric ->
   ?inclusive:bool ->
   ?match_attributes:bool ->
   ?radius_attribute:string ->
   ?match_attribute:string ->
-  ?match_condition:Pdk.Ops.fuse_match_condition ->
+  ?match_condition:Pdk.Fuse_grid.fuse_match_condition ->
   ?match_tolerance:float ->
   ?modify_target:bool ->
   ?fuse_points:bool ->
@@ -360,7 +360,7 @@ val snap_to_grid :
   ?group:string ->
   ?spacing:Prismel.Vec3.t ->
   ?offset:Prismel.Vec3.t ->
-  ?rounding:Pdk.Ops.grid_rounding ->
+  ?rounding:Pdk.Fuse_grid.grid_rounding ->
   ?max_distance:float ->
   ?fuse_points:bool ->
   ?position:Pdk.Fuse_reduce.position ->

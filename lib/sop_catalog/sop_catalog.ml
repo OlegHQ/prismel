@@ -2524,9 +2524,9 @@ end [@@sop.register]
 
 module Snap_to_grid = struct
   let rounding_parameter = Parameter.choice ~equal:( = ) [
-      "Nearest", Pdk.Ops.Grid_nearest;
-      "Down", Pdk.Ops.Grid_down;
-      "Up", Pdk.Ops.Grid_up;
+      "Nearest", Pdk.Fuse_grid.Grid_nearest;
+      "Down", Pdk.Fuse_grid.Grid_down;
+      "Up", Pdk.Fuse_grid.Grid_up;
     ]
 
   let position_parameter = Parameter.choice ~equal:( = ) [
@@ -2569,7 +2569,7 @@ module Snap_to_grid = struct
       [@sop.folder "Grid/Offset"] [@sop.min (-10.)] [@sop.max 10.];
     offset_z : float [@sop.default 0.] [@sop.label "Offset Z"]
       [@sop.folder "Grid/Offset"] [@sop.min (-10.)] [@sop.max 10.];
-    rounding : Pdk.Ops.grid_rounding [@sop.default Pdk.Ops.Grid_nearest]
+    rounding : Pdk.Fuse_grid.grid_rounding [@sop.default Pdk.Fuse_grid.Grid_nearest]
       [@sop.label "Rounding"] [@sop.kind rounding_parameter];
     limit_distance : bool [@sop.default false]
       [@sop.label "Limit snapping distance"];
@@ -2613,7 +2613,7 @@ module Snap_to_grid = struct
   let factory = parameters_factory build
   let create ?label:node_label ?(group = "")
       ?(spacing = Vec3.create 1. 1. 1.) ?(offset = Vec3.zero)
-      ?(rounding = Pdk.Ops.Grid_nearest) ?max_distance ?(fuse_points = false)
+      ?(rounding = Pdk.Fuse_grid.Grid_nearest) ?max_distance ?(fuse_points = false)
       ?(position = Pdk.Fuse_reduce.Average_position) ?(weight_attribute = "")
       ?(attributes = Pdk.Fuse_reduce.Keep_first) ?(snapped_group = "") input =
     build ~label:(label "snap-to-grid" node_label) ~inputs:[input] {
@@ -4093,8 +4093,8 @@ module Fuse = struct
       "Near points", Near_points; "Specified points", Specified_points;
     ]
   let using_parameter = Parameter.choice ~equal:( = ) [
-      "Least target point", Pdk.Ops.Least_target_point;
-      "Closest target point", Pdk.Ops.Closest_target_point;
+      "Least target point", Pdk.Fuse_grid.Least_target_point;
+      "Closest target point", Pdk.Fuse_grid.Closest_target_point;
     ]
   let position_parameter = Parameter.choice ~equal:( = ) [
       "First", Pdk.Fuse_reduce.First_position;
@@ -4118,12 +4118,12 @@ module Fuse = struct
       "Average numeric", Pdk.Fuse_reduce.Average_numeric;
     ]
   let metric_parameter = Parameter.choice ~equal:( = ) [
-      "Euclidean", Pdk.Ops.Euclidean;
-      "Componentwise", Pdk.Ops.Componentwise;
+      "Euclidean", Pdk.Fuse_grid.Euclidean;
+      "Componentwise", Pdk.Fuse_grid.Componentwise;
     ]
   let condition_parameter = Parameter.choice ~equal:( = ) [
-      "Equal", Pdk.Ops.Equal_attribute_values;
-      "Unequal", Pdk.Ops.Unequal_attribute_values;
+      "Equal", Pdk.Fuse_grid.Equal_attribute_values;
+      "Unequal", Pdk.Fuse_grid.Unequal_attribute_values;
     ]
 
   type parameters = {
@@ -4133,7 +4133,7 @@ module Fuse = struct
       [@sop.label "Targeting"] [@sop.kind targeting_parameter];
     target_attribute : string [@sop.default "targetpoint"]
       [@sop.label "Target point attribute"];
-    using : Pdk.Ops.fuse_using [@sop.default Pdk.Ops.Least_target_point]
+    using : Pdk.Fuse_grid.fuse_using [@sop.default Pdk.Fuse_grid.Least_target_point]
       [@sop.label "Use target"] [@sop.kind using_parameter];
     tolerance : float [@sop.default 0.001] [@sop.label "Snap distance"]
       [@sop.min 0.] [@sop.max 10.] [@sop.hard_min 0.];
@@ -4145,7 +4145,7 @@ module Fuse = struct
     attributes : Pdk.Fuse_reduce.attributes [@sop.default Pdk.Fuse_reduce.Keep_first]
       [@sop.label "Attributes"] [@sop.folder "Fuse"]
       [@sop.kind attributes_parameter];
-    metric : Pdk.Ops.fuse_metric [@sop.default Pdk.Ops.Euclidean]
+    metric : Pdk.Fuse_grid.fuse_metric [@sop.default Pdk.Fuse_grid.Euclidean]
       [@sop.label "Metric"] [@sop.folder "Matching"]
       [@sop.kind metric_parameter];
     inclusive : bool [@sop.default true] [@sop.label "Inclusive distance"]
@@ -4156,8 +4156,8 @@ module Fuse = struct
       [@sop.label "Radius attribute"] [@sop.folder "Matching"];
     match_attribute : string [@sop.default ""]
       [@sop.label "Match attribute"] [@sop.folder "Matching"];
-    match_condition : Pdk.Ops.fuse_match_condition
-      [@sop.default Pdk.Ops.Equal_attribute_values]
+    match_condition : Pdk.Fuse_grid.fuse_match_condition
+      [@sop.default Pdk.Fuse_grid.Equal_attribute_values]
       [@sop.label "Match condition"] [@sop.folder "Matching"]
       [@sop.kind condition_parameter];
     match_tolerance : float [@sop.default 0.] [@sop.label "Match tolerance"]
@@ -4182,8 +4182,8 @@ module Fuse = struct
     [@@sop.node_optional "1"] [@@deriving sop_params, sop_node]
 
   let targeting parameters = match parameters.targeting with
-    | Near_points -> Pdk.Ops.Near_points
-    | Specified_points -> Pdk.Ops.Specified_points parameters.target_attribute
+    | Near_points -> Pdk.Fuse_grid.Near_points
+    | Specified_points -> Pdk.Fuse_grid.Specified_points parameters.target_attribute
 
   let rec build_slots ~label ~inputs parameters = match inputs with
     | [Some input; target] ->

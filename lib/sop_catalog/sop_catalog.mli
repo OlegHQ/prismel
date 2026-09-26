@@ -220,7 +220,7 @@ end
 module Snap_to_grid : sig
   val create :
     ?label:string -> ?group:string -> ?spacing:Prismel.Vec3.t ->
-    ?offset:Prismel.Vec3.t -> ?rounding:Pdk.Ops.grid_rounding ->
+    ?offset:Prismel.Vec3.t -> ?rounding:Pdk.Fuse_grid.grid_rounding ->
     ?max_distance:float -> ?fuse_points:bool ->
     ?position:Pdk.Fuse_reduce.position -> ?weight_attribute:string ->
     ?attributes:Pdk.Fuse_reduce.attributes -> ?snapped_group:string ->

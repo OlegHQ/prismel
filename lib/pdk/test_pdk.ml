@@ -1550,7 +1550,7 @@ let run () =
       ~topology:(Topology.Builder.freeze fuse_topology)
       ~attributes:[weights] ~groups:[seam] () |> get_ok in
   let fused domains = Parallel.run ~domains (fun () ->
-      Ops.fuse ~grain:1 ~tolerance:1e-6 ~position:Ops.Average_position
+      Fuse_grid.fuse_checked ~grain:1 ~tolerance:1e-6 ~position:Ops.Average_position
         ~attributes:Ops.Average_numeric fuse_source |> get_ok) in
   let fused_one = fused 1 and fused_many = fused 4 in
   let fused_topology_one = Topology.Private.view (Geometry.topology fused_one)
@@ -1597,7 +1597,7 @@ let run () =
   and reflected_nx, _, _ = Packed.Float3.get mirror_normals 4 in
   if original_nx <> 1. || reflected_nx <> -1. then fail "mirror normal reflection";
   let shared_box = Box_generator.box_checked ~size:(Vec3.create 2. 2. 2.) () |> get_ok
-      |> Ops.fuse ~tolerance:0. ~attributes:Ops.Average_numeric |> get_ok in
+      |> Fuse_grid.fuse_checked ~tolerance:0. ~attributes:Ops.Average_numeric |> get_ok in
   let shared_positions = Packed.Float3.Private.view (Geometry.positions shared_box) in
   let clip_weight = Attribute.create_owned ~name:"weight" ~owner:Attribute.Point
       (Attribute.Float (Array.copy shared_positions.x)) |> get_ok in
@@ -2437,7 +2437,7 @@ let run () =
     fail "copy-to-points did not replicate native edge membership";
   let hard_box_edges = Box_generator.box_checked ~size:(Vec3.create 2. 2. 2.) () |> get_ok
       |> Ops.group_edges ~name:"all_box_edges" |> get_ok in
-  let fused_edge_geometry = Ops.fuse ~tolerance:0.
+  let fused_edge_geometry = Fuse_grid.fuse_checked ~tolerance:0.
       ~attributes:Ops.Average_numeric hard_box_edges |> get_ok in
   let fused_edge_group = Geometry.find_edge_group "all_box_edges"
       fused_edge_geometry |> Option.get in
@@ -4211,7 +4211,7 @@ let run () =
    | Error error when Error.code error = "cancelled" -> ()
    | Error error -> fail ("unexpected cancellation code: " ^ Error.code error)
    | Ok _ -> fail "cancelled PDK operation published geometry");
-  (match Ops.fuse ~cancel:cancelled ~tolerance:0. grid with
+  (match Fuse_grid.fuse_checked ~cancel:cancelled ~tolerance:0. grid with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "cancelled fuse published geometry or wrong error");
   (match Ops.mirror ~cancel:cancelled ~origin:Vec3.zero ~normal:Vec3.unit_x grid with

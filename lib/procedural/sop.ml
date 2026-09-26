@@ -918,13 +918,13 @@ let fuse_group_rules_key rules = rules |> List.map
     String.escaped rule.Pdk.Ops.group_pattern ^ ","
       ^ fuse_group_method_key rule.group_method) |> String.concat "|"
 
-let fuse ?label ?group ?target_group ?(targeting = Pdk.Ops.Near_points)
-    ?(using = Pdk.Ops.Least_target_point) ?(tolerance = 1e-6)
+let fuse ?label ?group ?target_group ?(targeting = Pdk.Fuse_grid.Near_points)
+    ?(using = Pdk.Fuse_grid.Least_target_point) ?(tolerance = 1e-6)
     ?(position = Pdk.Fuse_reduce.Average_position)
     ?weight_attribute ?(attributes = Pdk.Fuse_reduce.Keep_first)
-    ?(attribute_rules = []) ?(group_rules = []) ?(metric = Pdk.Ops.Euclidean)
+    ?(attribute_rules = []) ?(group_rules = []) ?(metric = Pdk.Fuse_grid.Euclidean)
     ?(inclusive = true) ?(match_attributes = false) ?radius_attribute
-    ?match_attribute ?(match_condition = Pdk.Ops.Equal_attribute_values)
+    ?match_attribute ?(match_condition = Pdk.Fuse_grid.Equal_attribute_values)
     ?(match_tolerance = 0.) ?(modify_target = false)
     ?(fuse_points = true) ?(keep_fused_points = false) ?snapped_group
     ?snapped_destination_attribute ?(remove_degenerate_primitives = false)
@@ -944,17 +944,17 @@ let fuse ?label ?group ?target_group ?(targeting = Pdk.Ops.Near_points)
     | Pdk.Fuse_reduce.Keep_first -> "first"
     | Pdk.Fuse_reduce.Average_numeric -> "average_numeric" in
   let metric_key = match metric with
-    | Pdk.Ops.Euclidean -> "euclidean"
-    | Pdk.Ops.Componentwise -> "componentwise" in
+    | Pdk.Fuse_grid.Euclidean -> "euclidean"
+    | Pdk.Fuse_grid.Componentwise -> "componentwise" in
   let targeting_key = match targeting with
-    | Pdk.Ops.Near_points -> "near"
-    | Pdk.Ops.Specified_points name -> "specified:" ^ name in
+    | Pdk.Fuse_grid.Near_points -> "near"
+    | Pdk.Fuse_grid.Specified_points name -> "specified:" ^ name in
   let using_key = match using with
-    | Pdk.Ops.Least_target_point -> "least"
-    | Pdk.Ops.Closest_target_point -> "closest" in
+    | Pdk.Fuse_grid.Least_target_point -> "least"
+    | Pdk.Fuse_grid.Closest_target_point -> "closest" in
   let match_condition_key = match match_condition with
-    | Pdk.Ops.Equal_attribute_values -> "equal"
-    | Pdk.Ops.Unequal_attribute_values -> "unequal" in
+    | Pdk.Fuse_grid.Equal_attribute_values -> "equal"
+    | Pdk.Fuse_grid.Unequal_attribute_values -> "unequal" in
   let inputs = match target with None -> [|input|] | Some node -> [|input;node|] in
   Node.Private.make ?label ~operation:"fuse" ~version:6
     ~parameters:(Printf.sprintf
@@ -986,7 +986,7 @@ let fuse ?label ?group ?target_group ?(targeting = Pdk.Ops.Near_points)
            | Ok target_selection ->
               let target = if Array.length inputs = 2
                   then Some target_geometry else None in
-              (match Pdk.Ops.fuse ~cancel:(Context.cancel_token context)
+              (match Pdk.Fuse_grid.fuse_checked ~cancel:(Context.cancel_token context)
                   ~grain:(Context.grain context) ?selection ?target_selection
                   ~targeting ~using ~tolerance ~position ?weight_attribute
                   ~attributes ~attribute_rules ~group_rules ~metric
@@ -1002,7 +1002,7 @@ let fuse ?label ?group ?target_group ?(targeting = Pdk.Ops.Near_points)
                | Error error -> structured_pdk_error error)))
 
 let snap_to_grid ?label ?group ?(spacing = Vec3.create 1. 1. 1.)
-    ?(offset = Vec3.zero) ?(rounding = Pdk.Ops.Grid_nearest) ?max_distance
+    ?(offset = Vec3.zero) ?(rounding = Pdk.Fuse_grid.Grid_nearest) ?max_distance
     ?(fuse_points = false) ?(position = Pdk.Fuse_reduce.Average_position)
     ?weight_attribute ?(attributes = Pdk.Fuse_reduce.Keep_first)
     ?(attribute_rules = []) ?(group_rules = []) ?snapped_group input =
@@ -1015,9 +1015,9 @@ let snap_to_grid ?label ?group ?(spacing = Vec3.create 1. 1. 1.)
     weight_attribute;
   let spacing = vec3_copy spacing and offset = vec3_copy offset in
   let rounding_key = match rounding with
-    | Pdk.Ops.Grid_nearest -> "nearest"
-    | Pdk.Ops.Grid_down -> "down"
-    | Pdk.Ops.Grid_up -> "up" in
+    | Pdk.Fuse_grid.Grid_nearest -> "nearest"
+    | Pdk.Fuse_grid.Grid_down -> "down"
+    | Pdk.Fuse_grid.Grid_up -> "up" in
   let position_key = fuse_position_key position in
   let attributes_key = match attributes with
     | Pdk.Fuse_reduce.Keep_first -> "first"
@@ -1043,7 +1043,7 @@ let snap_to_grid ?label ?group ?(spacing = Vec3.create 1. 1. 1.)
       match resolve_optional_point_group "snap_to_grid" group inputs.(0) with
       | Error error -> Error error
       | Ok selection ->
-          (match Pdk.Ops.snap_to_grid ~cancel:(Context.cancel_token context)
+          (match Pdk.Fuse_grid.snap_to_grid_checked ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?selection ~spacing ~offset ~rounding
               ?max_distance ~fuse_points ~position ?weight_attribute ~attributes
               ~attribute_rules ~group_rules ?snapped_group

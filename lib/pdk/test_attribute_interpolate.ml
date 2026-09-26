@@ -324,7 +324,7 @@ let test_packed_array_storage_and_structural_ops () =
   if Array.init 6 (Packed.Int_array.get rows)
       <> [|[|1;2|];[||];[|3|];[|1;2|];[||];[|3|]|] then
     fail "Merge did not concatenate packed array rows";
-  let fused = Ops.fuse ~tolerance:0. base |> Result.get_ok in
+  let fused = Fuse_grid.fuse_checked ~tolerance:0. base |> Result.get_ok in
   if Geometry.point_count fused <> 1
       || Packed.Int_array.get
            (int_array_values ~owner:Attribute.Point "neighbors" fused) 0
