@@ -198,6 +198,28 @@ let drop_vals path names =
       inner.type_declaration inner td;
       Ast_iterator.default_iterator.type_declaration self td) } in
   it.signature it sg;
+  (* ... and so does one a live val (one not being dropped) still names *)
+  let refs_of_type (t : Parsetree.core_type) =
+    let inner = { Ast_iterator.default_iterator with
+      typ = (fun self (t : Parsetree.core_type) ->
+        (match t.ptyp_desc with
+         | Ptyp_constr ({ txt; _ }, _) ->
+             (match Longident.flatten txt with
+              | m :: _ :: _ -> Hashtbl.replace type_refs m () | _ -> ())
+         | _ -> ());
+        Ast_iterator.default_iterator.typ self t) } in
+    inner.typ inner t in
+  let rec live prefix items = List.iter (fun (item : Parsetree.signature_item) ->
+    match item.psig_desc with
+    | Psig_value vd when not (List.mem (prefix ^ vd.pval_name.txt) names) -> refs_of_type vd.pval_type
+    | Psig_module { pmd_name = { txt = Some m; _ }; pmd_type = { pmty_desc = Pmty_signature s; _ }; _ }
+      when not (List.mem ("module:" ^ prefix ^ m) names) -> live (prefix ^ m ^ ".") s
+    | Psig_recmodule mds -> List.iter (function
+        | { Parsetree.pmd_name = { txt = Some m; _ }; pmd_type = { pmty_desc = Pmty_signature s; _ }; _ }
+          when not (List.mem ("module:" ^ prefix ^ m) names) -> live (prefix ^ m ^ ".") s
+        | _ -> ()) mds
+    | _ -> ()) items in
+  live "" sg;
   let kept = ref [] in
   let names = List.filter (fun n ->
     let keep = String.length n > 7 && String.sub n 0 7 = "module:"
@@ -208,23 +230,6 @@ let drop_vals path names =
     end;
     not keep) names in
   let in_kept prefix = List.exists (fun k -> String.starts_with ~prefix:k prefix) !kept in
-  (* a val whose type names a dropped module goes with it *)
-  let dead_mods = List.filter_map (fun n ->
-    if String.length n > 7 && String.sub n 0 7 = "module:" then
-      Some (List.rev (String.split_on_char '.' (String.sub n 7 (String.length n - 7)))
-            |> List.hd) else None) names in
-  let mentions_dead (vd : Parsetree.value_description) =
-    let hit = ref false in
-    let it = { Ast_iterator.default_iterator with
-      typ = (fun self (t : Parsetree.core_type) ->
-        (match t.ptyp_desc with
-         | Ptyp_constr ({ txt; _ }, _) ->
-             (match Longident.flatten txt with
-              | m :: _ :: _ when List.mem m dead_mods -> hit := true
-              | _ -> ())
-         | _ -> ());
-        Ast_iterator.default_iterator.typ self t) } in
-    it.value_description it vd; !hit in
   let dead_module prefix m = let n = "module:" ^ prefix ^ m in
     if List.mem n names then (found := n :: !found; true) else false in
   let and_before p = let rec go i = if i >= 3 && String.sub src (i - 3) 3 = "and" then i - 3 else go (i - 1) in go p in
@@ -232,8 +237,6 @@ let drop_vals path names =
     match item.psig_desc with
     | Psig_value vd when in_kept prefix ->
         found := (prefix ^ vd.pval_name.txt) :: !found;
-        ranges := range src item.psig_loc vd.pval_attributes :: !ranges
-    | Psig_value vd when dead_mods <> [] && mentions_dead vd ->
         ranges := range src item.psig_loc vd.pval_attributes :: !ranges
     | Psig_value vd when List.mem (prefix ^ vd.pval_name.txt) names ->
         found := (prefix ^ vd.pval_name.txt) :: !found;
@@ -319,6 +322,14 @@ let dead_stubs ~roots mm =
           | ')' -> if depth = 1 then k + 1 else close (k + 1) (depth - 1)
           | _ -> close (k + 1) depth in
         let stop = close (String.index_from src start '(') 0 in
+        (* NAME_MACRO(name)(params){ body }: take the params and body too *)
+        let stop = if stop < n && src.[stop] = '(' then close stop 0 else stop in
+        let stop = if stop < n && src.[stop] = '{' then
+            (let rec braces k depth = if k >= n then n else match src.[k] with
+               | '{' -> braces (k + 1) (depth + 1)
+               | '}' -> if depth = 1 then k + 1 else braces (k + 1) (depth - 1)
+               | _ -> braces (k + 1) depth in braces stop 0)
+          else stop in
         let stop = if stop < n && src.[stop] = '\n' then stop + 1 else stop in
         defs := (name, start, stop) :: !defs; findm stop
     | exception Not_found -> () in
@@ -403,6 +414,7 @@ let drop_unused log =
         | Ppat_var v -> at v.loc
         | Ppat_constraint (p, _) -> pat_hit p
         | _ -> false in
+      let pending_subst = ref [] in
       let ranges = ref [] in
       let add loc attrs = ranges := range src loc attrs :: !ranges in
       let rec go items = List.iter (fun (item : Parsetree.structure_item) ->
@@ -422,7 +434,21 @@ let drop_unused log =
                   else ranges := (and_before (List.nth starts i), e) :: !ranges) vbs
         | Pstr_primitive vd when at vd.pval_name.loc -> add item.pstr_loc vd.pval_attributes
         | Pstr_open _ when at item.pstr_loc -> add item.pstr_loc []
-        | Pstr_type (_, [td]) when at td.ptype_name.loc -> add item.pstr_loc td.ptype_attributes
+        | Pstr_type (_, tds) when List.exists (fun (td : Parsetree.type_declaration) -> at td.ptype_loc || at td.ptype_name.loc) tds ->
+            let dead (td : Parsetree.type_declaration) = at td.ptype_loc || at td.ptype_name.loc in
+            if List.for_all dead tds then add item.pstr_loc []
+            else begin
+              (* [type a = .. and b = ..]: drop dead members; when the first goes,
+                 the first survivor's [and] becomes [type] *)
+              List.iter (fun (td : Parsetree.type_declaration) -> if dead td then
+                add td.ptype_loc td.ptype_attributes) tds;
+              if dead (List.hd tds) then
+                match List.find_opt (fun td -> not (dead td)) tds with
+                | Some td -> let s = td.ptype_loc.loc_start.pos_cnum in
+                    if String.length src > s + 3 && String.sub src s 3 = "and" then
+                      pending_subst := (s, s + 3, "type") :: !pending_subst
+                | None -> ()
+            end
         | Pstr_module mb when at mb.pmb_name.loc || at item.pstr_loc ->
             add item.pstr_loc mb.pmb_attributes
         | Pstr_module { pmb_expr = me; _ } -> modexpr me
@@ -455,7 +481,7 @@ let drop_unused log =
         if e > 0 && src.[e-1] = ';' then s, e
         else if f < n && src.[f] = ';' then s, f + 1
         else let b = back s in if b > 0 && src.[b-1] = ';' then b - 1, e else s, e in
-      let subst = ref [] in
+      let subst = ref !pending_subst in
       let dead_decls = ref [] in
       (* a record whose every field is dead is a dead type: rather than empty
          it, silence 69 on it so the loop goes on, and leave it for a person
@@ -728,6 +754,53 @@ let drop_registry_entries log =
     List.length !ranges
   end
 
+(* ---------- drop-c-unused: clang's -Wunused-function as the oracle ---------- *)
+
+(* "path:line:col: error: unused function 'name'" -> remove that definition
+   (return type on the previous line included) through its closing brace. *)
+let drop_c_unused ~dir log =
+  let re = Str.regexp "^\\(\\./\\)?\\([^:]+\\):\\([0-9]+\\):[0-9]+: error: unused \\(function\\|variable\\) '\\([A-Za-z0-9_]+\\)'" in
+  let hits = List.filter_map (fun l ->
+    if Str.string_match re l 0 then
+      Some (Filename.concat dir (Str.matched_group 2 l), int_of_string (Str.matched_group 3 l))
+    else None) (String.split_on_char '\n' log) in
+  let by_file = Hashtbl.create 4 in
+  List.iter (fun (f, l) -> Hashtbl.replace by_file f
+    (l :: Option.value (Hashtbl.find_opt by_file f) ~default:[])) (List.sort_uniq compare hits);
+  let total = ref 0 in
+  Hashtbl.iter (fun file lines ->
+    if Sys.file_exists file then begin
+      let src = read_file file in
+      let n = String.length src in
+      let line_start l = let rec go i k = if k = l then i
+          else match String.index_from_opt src i '\n' with Some j -> go (j + 1) (k + 1) | None -> n in go 0 1 in
+      let ranges = List.filter_map (fun l ->
+        let s = line_start l in
+        (* a return type alone on the line above belongs to the definition *)
+        let s = if s > 1 then
+            let p = line_start (l - 1) in
+            let above = String.trim (String.sub src p (s - p)) in
+            if above <> "" && not (List.mem above.[String.length above - 1] [';'; '}'; '{'; '/'])
+               && not (String.length above > 1 && String.sub above 0 2 = "//") then p else s
+          else s in
+        (* a variable ends at its ';', a function at its body's closing brace *)
+        let semi = String.index_from_opt src s ';' and brace = String.index_from_opt src s '{' in
+        match brace, semi with
+        | Some b, Some c when c < b -> Some (s, c + 1)
+        | Some b, _ ->
+            let rec close k depth = if k >= n then n else match src.[k] with
+              | '{' -> close (k + 1) (depth + 1)
+              | '}' -> if depth = 1 then k + 1 else close (k + 1) (depth - 1)
+              | _ -> close (k + 1) depth in
+            let e = close b 0 in
+            Some (s, if e < n && src.[e] = '\n' then e + 1 else e)
+        | None, Some c -> Some (s, c + 1)
+        | None, None -> None) lines in
+      total := !total + List.length ranges;
+      remove_ranges file src ranges
+    end) by_file;
+  !total
+
 (* ---------- prune: iterate to a fixpoint with the compiler as oracle ---------- *)
 
 let build target =
@@ -788,6 +861,11 @@ let () =
       prune ~cut:!cut ~modules:!modules ~excludes ~target dirs
   | "drop-vals" :: path :: names -> drop_vals path names
   | "dead-stubs" :: mm :: roots -> dead_stubs ~roots mm
+  | [ "drop-c-unused"; dir ] ->
+      (* loop: rebuild, feed the log, until nothing is removed *)
+      let rec go () = let _, log = build "@all" in
+        let k = drop_c_unused ~dir log in
+        if k > 0 then (Printf.printf "removed %d\n%!" k; go ()) in go ()
   | [ "drop-unused" ] ->
       Printf.printf "%d removed\n" (drop_unused (In_channel.input_all stdin))
   | _ ->
