@@ -253,6 +253,34 @@ let run () =
   check (tile_x environment <> x0) "dragging a tile did not move it";
   let environment = Prismel_editor.Editor3.update environment (chord 'z' 32) in
   check (tile_x environment = x0) "undo did not restore the dragged tile position";
+  (* A multi-tile drag records only the moved tiles, and undo and redo
+     restore every one of them. *)
+  let tile_xs environment = List.map (fun (view : Pxui_graph.node_view) ->
+      let x, _, _, _ = view.bounds in view.id, x)
+      (Prismel_editor.Editor3.graph_nodes environment) in
+  let other = List.find (fun (view : Pxui_graph.node_view) ->
+      view.id <> Node.id source) (Prismel_editor.Editor3.graph_nodes environment) in
+  let ox, oy = center other.bounds and xs0 = tile_xs environment in
+  let held = [Input.LeftButton] in
+  let environment = List.fold_left (fun environment (count, mouse, buttons, keys, events) ->
+      Prismel_editor.Editor3.update environment
+        { (frame ~mouse ~events count) with mouse_buttons = buttons; keys })
+    environment [
+      40, (ox, oy), [], [], [];
+      41, (ox, oy), held, [Input.Shift], [mouse_press (Input.LeftButton, (ox, oy))];
+      42, (ox, oy), [], [Input.Shift], [mouse_release (Input.LeftButton, (ox, oy))];
+      43, (sx, sy), [], [], [];
+      44, (sx, sy), held, [], [mouse_press (Input.LeftButton, (sx, sy))];
+      45, (sx + 30, sy), held, [], [mouse_move (sx + 30, sy)];
+      46, (sx + 30, sy), [], [], [mouse_release (Input.LeftButton, (sx + 30, sy))]] in
+  let xs1 = tile_xs environment in
+  check (List.for_all (fun (id, x) -> x <> List.assoc id xs0) xs1)
+    "dragging a multi-tile selection did not move every tile";
+  let environment = Prismel_editor.Editor3.update environment (chord 'z' 47) in
+  check (tile_xs environment = xs0) "undo did not restore every dragged tile";
+  let environment = Prismel_editor.Editor3.update environment (chord ~shift:true 'z' 48) in
+  check (tile_xs environment = xs1) "redo did not restore every dragged tile";
+  let environment = Prismel_editor.Editor3.update environment (chord 'z' 49) in
   (* Space c clears the selection the drag made, as before this check. *)
   let environment = Prismel_editor.Editor3.update environment (frame ~events:[
       Event.KeyPressed Input.Space; Event.KeyPressed (Input.KeyChar 'c')] 33) in

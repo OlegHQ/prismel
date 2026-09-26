@@ -113,11 +113,17 @@ val select : int -> t -> t
 val select_nodes : int list -> t -> t
 val clear_selection : t -> t
 val view : int -> t -> t
-val place_node : node_id:int -> x:float -> y:float -> t -> t
+val place_nodes : (int * float * float) list -> t -> t
+(** Move tiles to graph-space [(id, x, y)] positions in one rebuild; ids not
+    in the graph are ignored. *)
+
 val node_views : t -> node_view list
 
 val node_positions : t -> (int * float * float) list
-(** Graph-space tile positions of every node, the inverse of {!place_node}. *)
+(** Graph-space tile positions of every node, the inverse of {!place_nodes}. *)
+
+val node_position : t -> int -> (float * float) option
+(** One tile's graph-space position, without walking the graph. *)
 
 val open_menu_at : int * int -> t -> t
 (** Open the hierarchical node menu at a screen point (clamped inside the

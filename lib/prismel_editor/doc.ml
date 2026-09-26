@@ -31,29 +31,32 @@ let instantiate factories document key input_ids =
         Result.map (fun node -> node, slots, factory)
           (Edit_graph.instantiate_optional factory nodes))
 
-let apply factories (document, graph_view, error, effects) = function
+(* Folds one graph intent into the document and view; [placed] collects the
+   ids whose tile position this frame set, moved, or removed, so the undo
+   document re-reads only those. *)
+let apply factories (document, graph_view, error, effects, placed) = function
   | Pxui_graph.Connect_requested connection ->
       (match Edit_graph.connect ~source:connection.source
           ~consumer:connection.consumer ~input_index:connection.input_index document with
-       | Error message -> document, graph_view, Some message, effects
+       | Error message -> document, graph_view, Some message, effects, placed
        | Ok document -> document, Pxui_graph.with_document document graph_view,
-           None, Parameter.union_effects effects cook_effects)
+           None, Parameter.union_effects effects cook_effects, placed)
   | Disconnect_requested connection ->
       (match Edit_graph.disconnect ~consumer:connection.consumer
           ~input_index:connection.input_index document with
-       | Error message -> document, graph_view, Some message, effects
+       | Error message -> document, graph_view, Some message, effects, placed
        | Ok document -> document, Pxui_graph.with_document document graph_view,
-           None, Parameter.union_effects effects cook_effects)
+           None, Parameter.union_effects effects cook_effects, placed)
   | Delete_nodes_requested ids ->
       let document = Edit_graph.remove_nodes ids document in
       document, Pxui_graph.with_document document graph_view, None,
-      Parameter.union_effects effects cook_effects
+      Parameter.union_effects effects cook_effects, List.rev_append ids placed
   | Add_requested request ->
       (match instantiate factories document request.factory_key request.inputs with
-       | Error message -> document, graph_view, Some message, effects
+       | Error message -> document, graph_view, Some message, effects, placed
        | Ok (node, slots, factory) ->
            (match Edit_graph.add_node ~inputs:slots ~factory node document with
-            | Error message -> document, graph_view, Some message, effects
+            | Error message -> document, graph_view, Some message, effects, placed
             | Ok document ->
                 let connected = Edit_graph.factory_ready factory
                     (Array.to_list slots |> List.map (function
@@ -67,45 +70,45 @@ let apply factories (document, graph_view, error, effects) = function
                 let x, y = request.at in
                 let graph_view = graph_view
                   |> Pxui_graph.with_document document
-                  |> Pxui_graph.place_node ~node_id:(Node.id node) ~x ~y
+                  |> Pxui_graph.place_nodes [Node.id node, x, y]
                   |> Pxui_graph.select (Node.id node) in
                 let graph_view = if connected
                   then Pxui_graph.view (Node.id node) graph_view else graph_view in
                 document, graph_view, None,
-                Parameter.union_effects effects cook_effects))
+                Parameter.union_effects effects cook_effects, Node.id node :: placed))
   | Insert_requested request ->
       (match instantiate factories document request.factory_key
           [request.connection.source] with
-       | Error message -> document, graph_view, Some message, effects
+       | Error message -> document, graph_view, Some message, effects, placed
        | Ok (node, _, factory) ->
            (match Edit_graph.insert_on_connection ~factory
                request.connection node document with
-            | Error message -> document, graph_view, Some message, effects
+            | Error message -> document, graph_view, Some message, effects, placed
             | Ok document ->
                 let x, y = request.at in
                 let graph_view = graph_view
                   |> Pxui_graph.with_document document
-                  |> Pxui_graph.place_node ~node_id:(Node.id node) ~x ~y
+                  |> Pxui_graph.place_nodes [Node.id node, x, y]
                   |> Pxui_graph.select (Node.id node)
                   |> Pxui_graph.view (Node.id node) in
                 document, graph_view, None,
-                Parameter.union_effects effects cook_effects))
+                Parameter.union_effects effects cook_effects, Node.id node :: placed))
   | Paste_requested request ->
       (match Edit_graph.paste request.fragment document with
-       | Error message -> document, graph_view, Some message, effects
+       | Error message -> document, graph_view, Some message, effects, placed
        | Ok (document, mapping) ->
-           let graph_view = Pxui_graph.with_document document graph_view in
-           let graph_view = List.fold_left (fun graph_view (old_id, new_id) ->
-             match List.find_opt (fun (id, _, _) -> id = old_id)
-                 request.positions with
-             | None -> graph_view
-             | Some (_, x, y) ->
-                 Pxui_graph.place_node ~node_id:new_id ~x ~y graph_view)
-               graph_view mapping in
-           let graph_view = Pxui_graph.select_nodes
-               (List.map snd mapping) graph_view in
+           let pasted = List.map snd mapping in
+           let graph_view = Pxui_graph.with_document document graph_view
+             |> Pxui_graph.place_nodes (List.filter_map (fun (old_id, new_id) ->
+                 List.find_map (fun (id, x, y) ->
+                   if id = old_id then Some (new_id, x, y) else None)
+                   request.positions) mapping)
+             |> Pxui_graph.select_nodes pasted in
            document, graph_view, None,
-           Parameter.union_effects effects cook_effects)
-  | Selected _ | Viewed _ | View_changed | Node_moved _ | Nodes_moved _
+           Parameter.union_effects effects cook_effects,
+           List.rev_append pasted placed)
+  | Node_moved id -> document, graph_view, error, effects, id :: placed
+  | Nodes_moved ids -> document, graph_view, error, effects, List.rev_append ids placed
+  | Selected _ | Viewed _ | View_changed
   | Connection_selected _ | Flag_requested _ | Frame_camera_requested _ ->
-      document, graph_view, error, effects
+      document, graph_view, error, effects, placed

@@ -629,17 +629,14 @@ let view node_id value =
       (Printf.sprintf "Pxui_graph.view: graph has no node #%d" node_id);
   { value with viewed = node_id }
 
-let place_node ~node_id ~x ~y value =
+let place_nodes placements value =
   let boxes = Array.map (fun box ->
     match Id_map.find_opt box.info.Edit_graph.id value.positions with
     | None -> box
-    | Some (gx, gy) -> { box with gx; gy }) value.boxes
-  and found = ref false in
-  Array.iteri (fun index box -> if box.info.Edit_graph.id = node_id then begin
-    boxes.(index) <- { box with gx = x; gy = y }; found := true
-  end) boxes;
-  if not !found then invalid_arg (Printf.sprintf
-      "Pxui_graph.place_node: graph has no node #%d" node_id);
+    | Some (gx, gy) -> { box with gx; gy }) value.boxes in
+  List.iter (fun (node_id, x, y) -> match Hashtbl.find_opt value.slots node_id with
+    | Some index -> boxes.(index) <- { (boxes.(index)) with gx = x; gy = y }
+    | None -> ()) placements;
   let edges = build_edges boxes in
   { value with boxes; edges;
     positions = Id_map.empty; moved_nodes = Id_set.empty;
@@ -1030,6 +1027,10 @@ let selected_positions (value : t) ids =
 
 let node_positions (value : t) = Array.to_list value.boxes |> List.map (fun box ->
   let gx, gy = box_graph_position value box in box.info.Edit_graph.id, gx, gy)
+
+let node_position (value : t) node_id = Option.map (fun index ->
+  box_graph_position value (Array.unsafe_get value.boxes index))
+    (Hashtbl.find_opt value.slots node_id)
 
 let copy_selection (value : t) =
   let ids = selected_nodes value in
