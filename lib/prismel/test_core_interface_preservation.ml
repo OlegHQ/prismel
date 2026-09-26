@@ -19,6 +19,4 @@ let run () =
     mouse=(4.,8.);mouse_delta=(3.,6.);keys=[Space];mouse_buttons=[MouseX2];events}in
   require(Frame.key_down Space frame&&Frame.mouse_down MouseX2 frame
     &&Frame.has_event(function Event.WindowClosed->true|_->false)frame)"frame facts";
-  require(Time.Easing.linear 0.25=0.25&&Time.smoothstep 0.=0.
-    &&Time.smoothstep 1.=1.&&Time.elapsed_fraction 0. 0.=1.)"time helpers";
-  print_endline"next core interfaces: exact Event/Input/Frame/Time declarations and behavior"
+  print_endline"next core interfaces: exact Event/Input/Frame declarations and behavior"

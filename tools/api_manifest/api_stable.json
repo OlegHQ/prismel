@@ -1,7 +1,7 @@
 {
   "generator": "tools/api_manifest/api_manifest.exe",
   "kind": "stable_high_level",
-  "module_count": 147,
+  "module_count": 146,
   "modules": [
     {
       "api_sha256": "42991257be662e316b18b78776fd2c91d5990ebf5a3b561d4d38b32d1d9db961",
@@ -1059,15 +1059,6 @@
       "source": "lib/prismel/texture.mli",
       "source_bytes": 2116,
       "source_sha256": "184fc7eb4a8d0513a94e15c7ed95dc758b90d86ee4f3e3afe437e1acdd050f4d"
-    },
-    {
-      "api_sha256": "198f7da5ef5f3d5c149699105f58c8b4c311f7cbd641df2870f233bd227879df",
-      "excluded_legacy_symbols": [],
-      "library": "prismel",
-      "module": "Time",
-      "source": "lib/prismel/time.mli",
-      "source_bytes": 3880,
-      "source_sha256": "9cdd279e29e7d05cb9c716f0adc6af333aafd364dc458c670e47a1edd86e6f44"
     },
     {
       "api_sha256": "cb607decb7f183b7dd2415b9240658bd563fe35db79ea46e575e9407b4a28095",

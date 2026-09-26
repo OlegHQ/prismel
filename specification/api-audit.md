@@ -44,7 +44,8 @@ with rationale rather than represented by placeholder APIs.
 |---|---|---|
 | Current and edge-triggered keyboard/mouse | Implemented | `Frame` snapshots plus ordered `Event.t list` |
 | Resize, scroll, close | Implemented | event variants and frame dimensions |
-| Timing, FPS, easing, scheduler | Implemented | `Frame`, `Time` |
+| Timing and FPS | Implemented | `Frame.time`/`dt`/`fps`, `Sketch.config.fps` |
+| Easing and scheduler | Not provided | timers live in the model and advance by `Frame.dt`; the old global `Time.Scheduler` never fired and was removed |
 | Touch and game controllers | Outside initial desktop target | avoid unverified device APIs without hardware-independent semantics/tests |
 | Drag/drop and text composition | Implemented | committed UTF-8, IME composition, and owned SDL file-drop paths |
 | Fixed timestep mode | Implemented | `Sketch.Fixed`, deterministic native timing assertions |

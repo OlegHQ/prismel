@@ -96,7 +96,7 @@ let run_state_internal ?(config=default_config)?max_frames ?(after_present=fun m
     let limit=max_frames in let count=ref 0 in while not !stopped&&Option.fold~none:true~some:(fun limit-> !count<limit)limit do
       Time.update();let events=Input_state.poll()in
       if List.exists(function Event.WindowClosed->true|_->false)events then quit();
-      incr count;let dt=match config.clock with Realtime->Time.get_delta_time()|Fixed value->value in
+      incr count;let dt=match config.clock with Realtime->Time.delta()|Fixed value->value in
       let base=frame config !count(match config.clock with Realtime->Time.now()|Fixed _->float !count*.dt)dt events in
       let presentation=get(Prismel_execution.presentation_facts coordinator)in
       if presentation.logical_width<> !logical_width
