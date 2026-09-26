@@ -48,15 +48,15 @@ let expect_invalid operation message = match operation () with
 
 let test_unshared_owners_and_curves () =
   let source = sample () in
-  let edges = Ops.group_unshared ~owner:Ops.Group_edges ~name:"unshared_edges"
+  let edges = Ops.group_unshared ~owner:Group_ops.Group_edges ~name:"unshared_edges"
       source |> get_ok in
   check (Edge_group.cardinality (edge_group "unshared_edges" edges) = 10)
     "Group Unshared edge cardinality includes every curve segment";
-  let points = Ops.group_unshared ~owner:Ops.Group_points ~name:"unshared_points"
+  let points = Ops.group_unshared ~owner:Group_ops.Group_points ~name:"unshared_points"
       source |> get_ok in
   expect_members (List.init 11 Fun.id) (group Group.Point "unshared_points" points)
     "Group Unshared point incidence";
-  let primitives = Ops.group_unshared ~owner:Ops.Group_primitives
+  let primitives = Ops.group_unshared ~owner:Group_ops.Group_primitives
       ~name:"unshared_primitives" source |> get_ok in
   expect_members [0;1;2;3]
     (group Group.Primitive "unshared_primitives" primitives)
@@ -72,18 +72,18 @@ let test_unshared_merge_and_failures () =
       (fun point -> point = 0 || point = 5) in
   let source = Geometry.with_group existing source |> Result.get_ok in
   let intersection = Ops.group_unshared ~merge:Ops.Group_intersection
-      ~owner:Ops.Group_points ~name:"target" source |> get_ok in
+      ~owner:Group_ops.Group_points ~name:"target" source |> get_ok in
   expect_members [0;5] (group Group.Point "target" intersection)
     "Group Unshared intersection";
-  let absent = Ops.group_unshared ~merge:Ops.Group_subtract
-      ~owner:Ops.Group_points ~name:"absent" source |> get_ok in
+  let absent = Ops.group_unshared ~merge:Group_ops.Group_subtract
+      ~owner:Group_ops.Group_points ~name:"absent" source |> get_ok in
   expect_members [] (group Group.Point "absent" absent)
     "Group Unshared absent subtraction identity";
-  expect_invalid (fun () -> Ops.group_unshared ~owner:Ops.Group_vertices
+  expect_invalid (fun () -> Ops.group_unshared ~owner:Group_ops.Group_vertices
       ~name:"bad" source) "Group Unshared rejects vertex output";
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
-  (match Ops.group_unshared ~cancel:cancelled ~owner:Ops.Group_edges
+  (match Ops.group_unshared ~cancel:cancelled ~owner:Group_ops.Group_edges
       ~name:"bad" source with
    | Error error -> check (Error.code error = "cancelled")
        "Group Unshared cancellation code"
@@ -101,7 +101,7 @@ let test_boundary_components () =
   let existing = Group.init ~owner:Group.Point ~name:"rim__0" 11
       (fun point -> point = 4) in
   let unioned = Geometry.with_group existing source |> Result.get_ok
-      |> Ops.group_boundary_components ~prefix:"rim" ~conflict:Ops.Name_union
+      |> Ops.group_boundary_components ~prefix:"rim" ~conflict:Group_ops.Name_union
       |> get_ok in
   expect_members [0;1;2;3;4] (group Group.Point "rim__0" unioned)
     "boundary component union conflict";
@@ -119,11 +119,11 @@ let test_parallel_exactness_and_scale () =
   let source = Plane_generators.grid_checked ~columns:600 ~rows:400 ~size:20. () |> get_ok in
   let run domains = Parallel.run ~domains (fun () ->
     source
-    |> Ops.group_unshared ~grain:1_009 ~owner:Ops.Group_edges ~name:"border"
+    |> Ops.group_unshared ~grain:1_009 ~owner:Group_ops.Group_edges ~name:"border"
     |> get_ok
-    |> Ops.group_unshared ~grain:1_009 ~owner:Ops.Group_points
+    |> Ops.group_unshared ~grain:1_009 ~owner:Group_ops.Group_points
          ~name:"border_points" |> get_ok
-    |> Ops.group_unshared ~grain:1_009 ~owner:Ops.Group_primitives
+    |> Ops.group_unshared ~grain:1_009 ~owner:Group_ops.Group_primitives
          ~name:"border_faces" |> get_ok
     |> Ops.group_boundary_components ~grain:1_009 ~prefix:"loop" |> get_ok) in
   let one = run 1 and four = run 4 in

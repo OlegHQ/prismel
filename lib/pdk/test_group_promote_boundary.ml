@@ -66,23 +66,23 @@ let test_primitive_boundary () =
   let source = two_quads ()
       |> with_group Group.Primitive "first" (fun primitive -> primitive = 0) in
   let shared = promote ~keep_original:true ~name:"shared"
-      ~source:Ops.Group_primitives ~destination:Ops.Group_edges ~group:"first"
+      ~source:Group_ops.Group_primitives ~destination:Group_ops.Group_edges ~group:"first"
       source in
   check (Edge_group.cardinality (edge_group "shared" shared) = 1)
     "Group Promote Boundary did not remove primitive interior/unshared edges";
   let complete = promote ~keep_original:true ~name:"complete"
-      ~include_unshared_edges:true ~source:Ops.Group_primitives
-      ~destination:Ops.Group_edges ~group:"first" source in
+      ~include_unshared_edges:true ~source:Group_ops.Group_primitives
+      ~destination:Group_ops.Group_edges ~group:"first" source in
   check (Edge_group.cardinality (edge_group "complete" complete) = 4)
     "Group Promote Boundary did not include selected polygon unshared edges";
   let points = promote ~keep_original:true ~name:"boundary_points"
-      ~source:Ops.Group_primitives ~destination:Ops.Group_points ~group:"first"
+      ~source:Group_ops.Group_primitives ~destination:Group_ops.Group_points ~group:"first"
       source in
   let points = group Group.Point "boundary_points" points in
   check (Group.cardinality points = 2 && Group.mem 1 points && Group.mem 4 points)
     "Group Promote Boundary point output crossed the selected side";
   let mask = promote ~keep_original:true ~output_attribute:"boundary_mask"
-      ~source:Ops.Group_primitives ~destination:Ops.Group_points ~group:"first"
+      ~source:Group_ops.Group_primitives ~destination:Group_ops.Group_points ~group:"first"
       source in
   check (int_attribute Attribute.Point "boundary_mask" mask
       = [|0; 1; 0; 0; 1; 0|])
@@ -93,14 +93,14 @@ let test_point_vertex_and_edge_sources () =
   let point_source = with_group Group.Point "left"
       (fun point -> point = 0 || point = 3) base in
   let edges = promote ~keep_original:true ~name:"point_cut"
-      ~source:Ops.Group_points ~destination:Ops.Group_edges ~group:"left"
+      ~source:Group_ops.Group_points ~destination:Group_ops.Group_edges ~group:"left"
       point_source in
   check (Edge_group.cardinality (edge_group "point_cut" edges) = 2)
     "Group Promote Boundary point-to-edge cut";
   let vertices = with_group Group.Vertex "first_corners"
       (fun vertex -> vertex < 4) base in
   let vertex_boundary = promote ~keep_original:true ~name:"corner_boundary"
-      ~source:Ops.Group_vertices ~destination:Ops.Group_vertices
+      ~source:Group_ops.Group_vertices ~destination:Group_ops.Group_vertices
       ~group:"first_corners" vertices in
   check (Group.cardinality
       (group Group.Vertex "corner_boundary" vertex_boundary) = 2)
@@ -112,7 +112,7 @@ let test_point_vertex_and_edge_sources () =
   let edge_source = Geometry.with_edge_group selected base
       |> function Ok value -> value | Error message -> fail message in
   let primitives = promote ~keep_original:true ~name:"edge_faces"
-      ~source:Ops.Group_edges ~destination:Ops.Group_primitives
+      ~source:Group_ops.Group_edges ~destination:Group_ops.Group_primitives
       ~group:"explicit_edge" edge_source in
   check (Group.cardinality (group Group.Primitive "edge_faces" primitives) = 2)
     "Group Promote Boundary explicit edge source"
@@ -124,39 +124,39 @@ let test_all_owner_pairs () =
   let edge_source = Edge_group.init ~grain:1 ~topology:(Geometry.topology base)
       ~index ~name:"source" (fun edge -> edge = shared) in
   let sources = [
-    Ops.Group_points,
+    Group_ops.Group_points,
       with_group Group.Point "source" (fun point -> point = 0 || point = 1) base,
       [|2; 3; 2; 3|];
-    Ops.Group_vertices,
+    Group_ops.Group_vertices,
       with_group Group.Vertex "source" (fun vertex -> vertex = 0 || vertex = 1)
         base,
       [|1; 1; 1; 1|];
-    Ops.Group_primitives,
+    Group_ops.Group_primitives,
       with_group Group.Primitive "source" (fun primitive -> primitive = 0) base,
       [|2; 2; 1; 1|];
-    Ops.Group_edges,
+    Group_ops.Group_edges,
       (Geometry.with_edge_group edge_source base
        |> function Ok value -> value | Error message -> fail message),
       [|2; 4; 2; 1|]
   ] in
-  let destinations = [|Ops.Group_points; Ops.Group_vertices;
-    Ops.Group_primitives; Ops.Group_edges|] in
+  let destinations = [|Group_ops.Group_points; Group_ops.Group_vertices;
+    Group_ops.Group_primitives; Group_ops.Group_edges|] in
   List.iter (fun (source_owner, source, expected) ->
     Array.iteri (fun destination_index destination ->
       let output = promote ~keep_original:true ~name:"output"
           ~source:source_owner ~destination ~group:"source" source in
       let cardinality = match destination with
-        | Ops.Group_points -> Group.cardinality
+        | Group_ops.Group_points -> Group.cardinality
             (group Group.Point "output" output)
-        | Ops.Group_vertices -> Group.cardinality
+        | Group_ops.Group_vertices -> Group.cardinality
             (group Group.Vertex "output" output)
-        | Ops.Group_primitives -> Group.cardinality
+        | Group_ops.Group_primitives -> Group.cardinality
             (group Group.Primitive "output" output)
-        | Ops.Group_edges -> Edge_group.cardinality (edge_group "output" output) in
+        | Group_ops.Group_edges -> Edge_group.cardinality (edge_group "output" output) in
       check (cardinality = expected.(destination_index))
         (Printf.sprintf "Group Promote Boundary owner pair %d -> %d"
-          (match source_owner with Ops.Group_points -> 0 | Ops.Group_vertices -> 1
-            | Ops.Group_primitives -> 2 | Ops.Group_edges -> 3)
+          (match source_owner with Group_ops.Group_points -> 0 | Group_ops.Group_vertices -> 1
+            | Group_ops.Group_primitives -> 2 | Group_ops.Group_edges -> 3)
           destination_index)) destinations) sources
 
 let test_curve_unshared_policy () =
@@ -165,11 +165,11 @@ let test_curve_unshared_policy () =
   let geometry = Line_geometry.polyline_checked ~closed:false positions |> get_ok
       |> with_group Group.Primitive "curve" (fun _ -> true) in
   let ends = promote ~keep_original:true ~include_unshared_edges:true
-      ~name:"ends" ~source:Ops.Group_primitives ~destination:Ops.Group_edges
+      ~name:"ends" ~source:Group_ops.Group_primitives ~destination:Group_ops.Group_edges
       ~group:"curve" geometry
   and all = promote ~keep_original:true ~include_unshared_edges:true
       ~include_all_unshared_curve_edges:true ~name:"all"
-      ~source:Ops.Group_primitives ~destination:Ops.Group_edges
+      ~source:Group_ops.Group_primitives ~destination:Group_ops.Group_edges
       ~group:"curve" geometry in
   check (Edge_group.cardinality (edge_group "ends" ends) = 2)
     "Group Promote Boundary open-curve endpoint policy";
@@ -180,10 +180,10 @@ let test_attribute_boundary_and_point_sharing () =
   let source = two_quads ()
       |> with_group Group.Primitive "all" (fun _ -> true)
       |> with_int Attribute.Primitive "material" [|0; 1|] in
-  let attributes = [{ Ops.boundary_attribute_owner = Attribute.Primitive;
+  let attributes = [{ Group_ops.boundary_attribute_owner = Attribute.Primitive;
     boundary_attribute_pattern = "material" }] in
   let seam = promote ~keep_original:true ~attributes ~name:"material_seam"
-      ~source:Ops.Group_primitives ~destination:Ops.Group_edges ~group:"all"
+      ~source:Group_ops.Group_primitives ~destination:Group_ops.Group_edges ~group:"all"
       source in
   check (Edge_group.cardinality (edge_group "material_seam" seam) = 1)
     "Group Promote Boundary did not union an attribute seam";
@@ -192,14 +192,14 @@ let test_attribute_boundary_and_point_sharing () =
     |]
       |> with_group Group.Primitive "all" (fun _ -> true)
       |> with_int Attribute.Primitive "piece" [|0; 1; 0|] in
-  let attributes = [{ Ops.boundary_attribute_owner = Attribute.Primitive;
+  let attributes = [{ Group_ops.boundary_attribute_owner = Attribute.Primitive;
     boundary_attribute_pattern = "piece" }] in
   let edge_only = promote ~keep_original:true ~attributes ~name:"edge_faces"
-      ~source:Ops.Group_primitives ~destination:Ops.Group_primitives ~group:"all"
+      ~source:Group_ops.Group_primitives ~destination:Group_ops.Group_primitives ~group:"all"
       fan
   and point_touching = promote ~keep_original:true ~attributes
       ~include_all_primitives_sharing_boundary_points:true ~name:"point_faces"
-      ~source:Ops.Group_primitives ~destination:Ops.Group_primitives ~group:"all"
+      ~source:Group_ops.Group_primitives ~destination:Group_ops.Group_primitives ~group:"all"
       fan in
   check (Group.cardinality (group Group.Primitive "edge_faces" edge_only) = 2)
     "Group Promote Boundary primitive edge incidence";
@@ -210,26 +210,26 @@ let test_attribute_boundary_and_point_sharing () =
 let test_validation_and_lifecycle () =
   let source = two_quads ()
       |> with_group Group.Primitive "first" (fun primitive -> primitive = 0) in
-  let replaced = promote ~name:"outline" ~source:Ops.Group_primitives
-      ~destination:Ops.Group_edges ~group:"first" source in
+  let replaced = promote ~name:"outline" ~source:Group_ops.Group_primitives
+      ~destination:Group_ops.Group_edges ~group:"first" source in
   check (Geometry.find_group ~owner:Group.Primitive "first" replaced = None
       && Geometry.find_edge_group "outline" replaced <> None)
     "Group Promote Boundary source removal/output rename";
   (match Ops.group_promote_boundary
       ~include_all_primitives_sharing_boundary_points:true
-      ~source:Ops.Group_primitives ~destination:Ops.Group_points
+      ~source:Group_ops.Group_primitives ~destination:Group_ops.Group_points
       ~group:"first" source with
    | Error error -> check (Error.code error = "invalid_group")
        "Group Promote Boundary invalid point-sharing owner code"
    | Ok _ -> fail "Group Promote Boundary accepted point sharing for points");
   (match Ops.group_promote_boundary ~include_all_unshared_curve_edges:true
-      ~source:Ops.Group_primitives ~destination:Ops.Group_edges
+      ~source:Group_ops.Group_primitives ~destination:Group_ops.Group_edges
       ~group:"first" source with
    | Error error -> check (Error.code error = "invalid_group")
        "Group Promote Boundary curve-policy validation code"
    | Ok _ -> fail "Group Promote Boundary accepted curve edges without unshared");
   (match Ops.group_promote_boundary ~tolerance:nan
-      ~source:Ops.Group_primitives ~destination:Ops.Group_edges
+      ~source:Group_ops.Group_primitives ~destination:Group_ops.Group_edges
       ~group:"first" source with
    | Error error -> check (Error.code error = "invalid_group")
        "Group Promote Boundary non-finite tolerance code"
@@ -237,7 +237,7 @@ let test_validation_and_lifecycle () =
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
   (match Ops.group_promote_boundary ~cancel:cancelled
-      ~source:Ops.Group_primitives ~destination:Ops.Group_edges
+      ~source:Group_ops.Group_primitives ~destination:Group_ops.Group_edges
       ~group:"first" source with
    | Error error -> check (Error.code error = "cancelled")
        "Group Promote Boundary cancellation code"
@@ -262,11 +262,11 @@ let test_parallel_exactness () =
     source
     |> Ops.group_promote_boundary ~grain:1_009 ~keep_original:true
          ~include_unshared_edges:true ~name:"outline"
-         ~source:Ops.Group_primitives ~destination:Ops.Group_edges
+         ~source:Group_ops.Group_primitives ~destination:Group_ops.Group_edges
          ~group:"left_half" |> get_ok
     |> Ops.group_promote_boundary ~grain:1_009 ~keep_original:true
          ~include_unshared_edges:true ~name:"outline_points"
-         ~source:Ops.Group_primitives ~destination:Ops.Group_points
+         ~source:Group_ops.Group_primitives ~destination:Group_ops.Group_points
          ~group:"left_half" |> get_ok) in
   let one = run 1 and four = run 4 in
   check (same_edge_group (edge_group "outline" one) (edge_group "outline" four))

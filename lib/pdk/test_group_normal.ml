@@ -52,17 +52,17 @@ let test_primitive_geometric_normals () =
       [|`Polygon, [|0; 1; 2|]; `Polygon, [|3; 4; 5|];
         `Polygon, [|6; 7; 8|]; `Open, [|9; 10|]|] in
   let positive = Ops.group_normal ~direction:(Vec3.create 0. 0. 7.)
-      ~spread_angle:0. ~owner:Ops.Group_primitives ~name:"positive" source
+      ~spread_angle:0. ~owner:Group_ops.Group_primitives ~name:"positive" source
       |> get_ok in
   expect_members [0] (group Group.Primitive "positive" positive)
     "Group Normal primitive winding direction";
   let both = Ops.group_normal ~direction:(Vec3.create 0. 0. 1.)
-      ~spread_angle:0. ~include_opposite:true ~owner:Ops.Group_primitives
+      ~spread_angle:0. ~include_opposite:true ~owner:Group_ops.Group_primitives
       ~name:"both" source |> get_ok in
   expect_members [0; 1] (group Group.Primitive "both" both)
     "Group Normal opposite direction";
   let hemisphere = Ops.group_normal ~direction:(Vec3.create 0. 0. 1.)
-      ~spread_angle:(Float.pi *. 0.5) ~owner:Ops.Group_primitives
+      ~spread_angle:(Float.pi *. 0.5) ~owner:Group_ops.Group_primitives
       ~name:"hemisphere" source |> get_ok in
   expect_members [0; 2] (group Group.Primitive "hemisphere" hemisphere)
     "Group Normal inclusive right-angle boundary and curve exclusion"
@@ -73,7 +73,7 @@ let test_point_geometric_normals () =
         (4., 4., 4.)|]
       [|`Polygon, [|0; 1; 2; 3|]|] in
   let selected = Ops.group_normal ~direction:(Vec3.create 0. 0. 1.)
-      ~spread_angle:0. ~owner:Ops.Group_points ~name:"up" source |> get_ok in
+      ~spread_angle:0. ~owner:Group_ops.Group_points ~name:"up" source |> get_ok in
   expect_members [0; 1; 2; 3] (group Group.Point "up" selected)
     "Group Normal angle-weighted point normals and isolated point exclusion"
 
@@ -93,17 +93,17 @@ let test_attribute_and_edge_normals () =
   let source = Geometry.with_attribute normals source |> Result.get_ok in
   let selected = Ops.group_normal ~direction:(Vec3.create 0. 1. 0.)
       ~spread_angle:0.
-      ~owner:Ops.Group_edges ~name:"guided" source |> get_ok in
+      ~owner:Group_ops.Group_edges ~name:"guided" source |> get_ok in
   check (edge_members (edge_group "guided" selected) = [0])
     "Group Normal automatically uses point N for edges";
   let geometric = Ops.group_normal ~use_existing_normal:false
       ~direction:(Vec3.create 0. 1. 0.) ~spread_angle:0.
-      ~owner:Ops.Group_edges ~name:"geometric" source |> get_ok in
+      ~owner:Group_ops.Group_edges ~name:"geometric" source |> get_ok in
   check (edge_members (edge_group "geometric" geometric) = [])
     "Group Normal can force geometric normals instead of point N";
   let both = Ops.group_normal ~normal_attribute:"N"
       ~direction:(Vec3.create 0. 1. 0.) ~spread_angle:0.
-      ~include_opposite:true ~owner:Ops.Group_edges ~name:"both" source
+      ~include_opposite:true ~owner:Group_ops.Group_edges ~name:"both" source
       |> get_ok in
   check (edge_members (edge_group "both" both) = [0; 2])
     "Group Normal edge opposite attribute directions";
@@ -117,7 +117,7 @@ let test_attribute_and_edge_normals () =
       |> Result.get_ok in
   let selected = Ops.group_normal ~normal_attribute:"authored"
       ~direction:(Vec3.create 1. 0. 0.) ~spread_angle:0.
-      ~owner:Ops.Group_primitives ~name:"authored_x" primitive_source |> get_ok in
+      ~owner:Group_ops.Group_primitives ~name:"authored_x" primitive_source |> get_ok in
   expect_members [0] (group Group.Primitive "authored_x" selected)
     "Group Normal primitive attribute override"
 
@@ -129,7 +129,7 @@ let test_extreme_coordinates () =
         (magnitude, -.magnitude, magnitude)|]
       [|`Polygon, [|0; 1; 2|]|] in
   let selected = Ops.group_normal ~direction:(Vec3.create 0. 0. 1.)
-      ~spread_angle:0. ~owner:Ops.Group_primitives ~name:"extreme" source
+      ~spread_angle:0. ~owner:Group_ops.Group_primitives ~name:"extreme" source
       |> get_ok in
   expect_members [0] (group Group.Primitive "extreme" selected)
     "Group Normal overflow-safe extreme coordinates"
@@ -143,39 +143,39 @@ let test_base_merge_and_failures () =
   let source = Geometry.with_group base source |> Result.get_ok
       |> Geometry.with_group existing |> Result.get_ok in
   let based = Ops.group_normal ~base:"base" ~direction:(Vec3.create 0. 1. 0.)
-      ~spread_angle:0. ~owner:Ops.Group_primitives ~name:"based" source
+      ~spread_angle:0. ~owner:Group_ops.Group_primitives ~name:"based" source
       |> get_ok in
   expect_members [0; 2; 4; 6; 8; 10]
     (group Group.Primitive "based" based) "Group Normal exact base restriction";
   let unioned = Ops.group_normal ~base:"base" ~merge:Ops.Group_union
       ~direction:(Vec3.create 0. 1. 0.) ~spread_angle:0.
-      ~owner:Ops.Group_primitives ~name:"selection" source |> get_ok in
+      ~owner:Group_ops.Group_primitives ~name:"selection" source |> get_ok in
   expect_members [0; 2; 3; 4; 6; 8; 10]
     (group Group.Primitive "selection" unioned) "Group Normal union merge";
   let absent_intersection = Ops.group_normal ~merge:Ops.Group_intersection
       ~direction:(Vec3.create 0. 1. 0.) ~spread_angle:0.
-      ~owner:Ops.Group_primitives ~name:"absent_intersection" source |> get_ok in
+      ~owner:Group_ops.Group_primitives ~name:"absent_intersection" source |> get_ok in
   check (Group.cardinality
       (group Group.Primitive "absent_intersection" absent_intersection) = 0)
     "Group Normal absent destination intersection identity";
-  let absent_subtract = Ops.group_normal ~merge:Ops.Group_subtract
+  let absent_subtract = Ops.group_normal ~merge:Group_ops.Group_subtract
       ~direction:(Vec3.create 0. 1. 0.) ~spread_angle:0.
-      ~owner:Ops.Group_primitives ~name:"absent_subtract" source |> get_ok in
+      ~owner:Group_ops.Group_primitives ~name:"absent_subtract" source |> get_ok in
   check (Group.cardinality
       (group Group.Primitive "absent_subtract" absent_subtract) = 0)
     "Group Normal absent destination subtraction identity";
   expect_invalid (fun () -> Ops.group_normal ~direction:Vec3.zero
-      ~spread_angle:0. ~owner:Ops.Group_primitives ~name:"bad" source)
+      ~spread_angle:0. ~owner:Group_ops.Group_primitives ~name:"bad" source)
     "Group Normal rejects zero direction";
   expect_invalid (fun () -> Ops.group_normal ~direction:(Vec3.create 0. 1. 0.)
-      ~spread_angle:(Float.pi +. 0.1) ~owner:Ops.Group_primitives ~name:"bad"
+      ~spread_angle:(Float.pi +. 0.1) ~owner:Group_ops.Group_primitives ~name:"bad"
       source) "Group Normal rejects out-of-range spread";
   expect_invalid (fun () -> Ops.group_normal ~direction:(Vec3.create 0. 1. 0.)
-      ~spread_angle:0. ~owner:Ops.Group_vertices ~name:"bad" source)
+      ~spread_angle:0. ~owner:Group_ops.Group_vertices ~name:"bad" source)
     "Group Normal rejects vertex owner";
   expect_invalid (fun () -> Ops.group_normal ~normal_attribute:"missing"
       ~direction:(Vec3.create 0. 1. 0.) ~spread_angle:0.
-      ~owner:Ops.Group_points ~name:"bad" source)
+      ~owner:Group_ops.Group_points ~name:"bad" source)
     "Group Normal rejects missing attribute";
   let wrong_n_source = Line_geometry.points [|(0., 0., 0.)|] in
   let wrong_n = Attribute.create_owned ~owner:Attribute.Point ~name:"N"
@@ -183,12 +183,12 @@ let test_base_merge_and_failures () =
   let wrong_n_source = Geometry.with_attribute wrong_n wrong_n_source
       |> Result.get_ok in
   expect_invalid (fun () -> Ops.group_normal ~direction:(Vec3.create 0. 1. 0.)
-      ~spread_angle:0. ~owner:Ops.Group_points ~name:"bad" wrong_n_source)
+      ~spread_angle:0. ~owner:Group_ops.Group_points ~name:"bad" wrong_n_source)
     "Group Normal rejects malformed automatic point N";
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
   (match Ops.group_normal ~cancel:cancelled ~direction:(Vec3.create 0. 1. 0.)
-      ~spread_angle:0. ~owner:Ops.Group_primitives ~name:"bad" source with
+      ~spread_angle:0. ~owner:Group_ops.Group_primitives ~name:"bad" source with
    | Error error -> check (Error.code error = "cancelled")
        "Group Normal cancellation code"
    | Ok _ -> fail "cancelled Group Normal published geometry")
@@ -202,11 +202,11 @@ let test_scale_parallel_exactness () =
   let run domains = Parallel.run ~domains (fun () ->
     source
     |> Ops.group_normal ~grain:1_009 ~direction:(Vec3.create 0. 1. 0.)
-         ~spread_angle:0. ~owner:Ops.Group_points ~name:"points" |> get_ok
+         ~spread_angle:0. ~owner:Group_ops.Group_points ~name:"points" |> get_ok
     |> Ops.group_normal ~grain:1_009 ~direction:(Vec3.create 0. 1. 0.)
-         ~spread_angle:0. ~owner:Ops.Group_primitives ~name:"primitives" |> get_ok
+         ~spread_angle:0. ~owner:Group_ops.Group_primitives ~name:"primitives" |> get_ok
     |> Ops.group_normal ~grain:1_009 ~direction:(Vec3.create 0. 1. 0.)
-         ~spread_angle:0. ~owner:Ops.Group_edges ~name:"edges" |> get_ok) in
+         ~spread_angle:0. ~owner:Group_ops.Group_edges ~name:"edges" |> get_ok) in
   let one = run 1 and four = run 4 in
   check (same_group (group Group.Point "points" one)
       (group Group.Point "points" four))
