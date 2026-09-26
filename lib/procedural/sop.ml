@@ -2108,10 +2108,10 @@ let blend_shapes ?label ?point_group ?(mode = Pdk.Blend_shapes.Blend_normalized)
         | Error error -> Error error
         | Ok points ->
             let shapes = Array.to_list (Array.mapi (fun index shape ->
-              Pdk.Ops.blend_shape ?mask_attribute:shape.blend_mask_attribute
+              Pdk.Blend_shapes.shape ?mask_attribute:shape.blend_mask_attribute
                 ~mask_source:shape.blend_mask_source ~weight:shape.blend_weight
                 inputs.(index + 1)) shape_array) in
-            match Pdk.Ops.blend_shapes ~cancel:(Context.cancel_token context)
+            match Pdk.Blend_shapes.run_checked ~cancel:(Context.cancel_token context)
                 ~grain:(Context.grain context) ?points ~mode ~masking
                 ?mask_attribute ?point_id_attribute ~attributes ~shapes geometry with
             | Ok geometry -> cooked geometry
@@ -2165,9 +2165,9 @@ let attribute_composite ?label ?(operation = Pdk.Attribute_composite.Composite_m
     ~dependencies:Context.Dependencies.static ~inputs:nodes
     (fun ~node_id:_ context geometries ->
       let inputs = Array.to_list (Array.mapi (fun index input ->
-        Pdk.Ops.attribute_composite_input ~weight:input.composite_weight
+        Pdk.Attribute_composite.input ~weight:input.composite_weight
           geometries.(index + 1)) composite_inputs) in
-      match Pdk.Ops.attribute_composite ~cancel:(Context.cancel_token context)
+      match Pdk.Attribute_composite.run_checked ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ~operation ~weight ~detail_attributes
           ~primitive_attributes ~point_attributes ~vertex_attributes
           ~allow_position ?alpha_attribute ~inputs geometries.(0) with
@@ -2289,7 +2289,7 @@ let attribute_mirror ?label ?group
           match resolved_method with
           | Error error -> Error error
           | Ok method_ ->
-              match Pdk.Ops.attribute_mirror
+              match Pdk.Attribute_mirror.run_checked
                   ~cancel:(Context.cancel_token context)
                   ~grain:(Context.grain context) ?group:resolved_group ~group_use
                   ~attributes ~transform ?string_replace ?output_mapping

@@ -1203,7 +1203,7 @@ let run_transfer_benchmarks filter =
     let source = modeling_grid
         |> Geometry.with_attribute uv |> get_ok
         |> Geometry.with_attribute density |> get_ok
-        |> Ops.color_by_height ~grain ~low:low_rgba ~high:high_rgba |> get_ok in
+        |> Color_by_height.run ~grain ~low:low_rgba ~high:high_rgba |> get_ok in
     let revision = Attribute.create_owned ~name:"revision"
         ~owner:Attribute.Detail (Attribute.Int [|17|]) |> get_ok in
     let source = Geometry.with_attribute revision source |> get_ok in
@@ -2111,7 +2111,7 @@ let run_attribute_blur_benchmarks () =
   let source = Plane_generators.grid_checked ~columns:400 ~rows:400 ~size:20. () |> get_ok
       |> Deform_ops.noise_displace_checked ~grain ~amplitude:0.8 ~frequency:0.35 ~seed:91
            |> get_ok
-      |> Ops.color_by_height ~grain ~low:low_rgba ~high:high_rgba |> get_ok in
+      |> Color_by_height.run ~grain ~low:low_rgba ~high:high_rgba |> get_ok in
   let point_count = Geometry.point_count source in
   let weight = Attribute.create_owned ~name:"blur_weight"
       ~owner:Attribute.Point (Attribute.Float (Array.init point_count
@@ -2136,7 +2136,7 @@ let run_smooth_benchmarks () =
   let source = Plane_generators.grid_checked ~columns:400 ~rows:400 ~size:20. () |> get_ok
       |> Deform_ops.noise_displace_checked ~grain ~amplitude:0.8 ~frequency:0.35 ~seed:91
            |> get_ok
-      |> Ops.color_by_height ~grain ~low:low_rgba ~high:high_rgba |> get_ok in
+      |> Color_by_height.run ~grain ~low:low_rgba ~high:high_rgba |> get_ok in
   let point_count = Geometry.point_count source
   and primitive_count = Geometry.primitive_count source in
   let primitives = Group.init ~grain ~owner:Group.Primitive ~name:"smooth_faces"
@@ -2155,7 +2155,7 @@ let run_ray_benchmarks () =
   let collision = Plane_generators.grid_checked ~columns ~rows ~size:40. () |> get_ok
       |> Deform_ops.noise_displace_checked ~grain ~amplitude:0.8 ~frequency:0.18 ~seed:903
            |> get_ok
-      |> Ops.color_by_height ~grain ~low:low_rgba ~high:high_rgba |> get_ok in
+      |> Color_by_height.run ~grain ~low:low_rgba ~high:high_rgba |> get_ok in
   let source = Plane_generators.grid_checked ~columns ~rows ~size:39.5 () |> get_ok
       |> Transform_ops.transform ~grain (Mat4.translation (Vec3.create 0. 2. 0.)) in
   let point_count = Geometry.point_count source in
@@ -2908,16 +2908,16 @@ let run_point_generate_benchmarks () =
       |> Geometry.with_attribute weights |> get_ok
       |> Geometry.with_attribute author |> get_ok in
   measure ~input_points:0 "point_generate_total_origin_1m" (fun () ->
-    Ops.point_generate ~grain ~mode:(Ops.Generate_total scatter_count)
+    Point_generate.run_checked ~grain ~mode:(Point_generate.Generate_total scatter_count)
       source |> get_ok) geometry_output;
-  let mode = Ops.Generate_per_point {
+  let mode = Point_generate.Generate_per_point {
       points_per_point = 1.; scale_attribute = Some "density" } in
   measure ~input_points:source_count "point_generate_per_point_payload_600k"
-    (fun () -> Ops.point_generate ~grain ~seed:(Rand.seed 727)
+    (fun () -> Point_generate.run_checked ~grain ~seed:(Rand.seed 727)
       ~generated_group:"emitted" ~copy_point_attributes:"*"
       ~copy_detail_attributes:"author" ~mode source |> get_ok) geometry_output;
   measure ~input_points:source_count "point_generate_keep_input_payload_700k"
-    (fun () -> Ops.point_generate ~grain ~seed:(Rand.seed 727) ~keep_input:true
+    (fun () -> Point_generate.run_checked ~grain ~seed:(Rand.seed 727) ~keep_input:true
       ~generated_group:"emitted" ~copy_point_attributes:"*"
       ~copy_detail_attributes:"author" ~mode source |> get_ok) geometry_output
 
@@ -2956,9 +2956,9 @@ let run_point_replicate_benchmarks () =
     (fun () -> Instance_copy.copy_to_points ~grain ~source:basis ~targets:source ()
       |> get_ok) geometry_output;
   measure ~input_points:source_count "point_replicate_emission_only_600k"
-    (fun () -> Ops.point_generate ~grain ~seed:(Rand.seed 991)
+    (fun () -> Point_generate.run_checked ~grain ~seed:(Rand.seed 991)
       ~generated_group:"cloud" ~copy_point_attributes:"density id pscale N v"
-      ~mode:(Ops.Generate_per_point {
+      ~mode:(Point_generate.Generate_per_point {
         points_per_point = 1.; scale_attribute = Some "density" }) source
       |> get_ok) geometry_output;
   measure ~input_points:source_count "point_replicate_sphere_payload_600k"
@@ -3432,20 +3432,20 @@ let run_blend_shapes_reference_benchmarks () =
 
 let run_blend_shapes_benchmarks () =
   let source, first, second = blend_shapes_fixture () in
-  let first_shape = Ops.blend_shape ~weight:0.37 first in
+  let first_shape = Blend_shapes.shape ~weight:0.37 first in
   measure ~input_points:(Geometry.point_count source)
     "blend_shapes_one_target_positions" (fun () ->
-      Ops.blend_shapes ~grain ~attributes:"^*" ~shapes:[first_shape] source
+      Blend_shapes.run_checked ~grain ~attributes:"^*" ~shapes:[first_shape] source
       |> get_ok) geometry_output;
-  let first_shape = Ops.blend_shape ~weight:0.65 first
-  and second_shape = Ops.blend_shape ~weight:0.55 second in
+  let first_shape = Blend_shapes.shape ~weight:0.65 first
+  and second_shape = Blend_shapes.shape ~weight:0.55 second in
   measure ~input_points:(Geometry.point_count source)
     "blend_shapes_two_targets_attributes" (fun () ->
-      Ops.blend_shapes ~grain ~shapes:[first_shape;second_shape] source
+      Blend_shapes.run_checked ~grain ~shapes:[first_shape;second_shape] source
       |> get_ok) geometry_output;
   measure ~input_points:(Geometry.point_count source)
     "blend_shapes_two_targets_masked" (fun () ->
-      Ops.blend_shapes ~grain ~masking:Ops.Blend_scale_from_attribute
+      Blend_shapes.run_checked ~grain ~masking:Blend_shapes.Blend_scale_from_attribute
         ~mask_attribute:"mask" ~shapes:[first_shape;second_shape] source
       |> get_ok) geometry_output
 
@@ -3501,24 +3501,24 @@ let run_attribute_composite_reference_benchmarks () =
 
 let run_attribute_composite_benchmarks () =
   let first, second, third = attribute_composite_fixture () in
-  let second_input = Ops.attribute_composite_input ~weight:0.3 second
-  and third_input = Ops.attribute_composite_input ~weight:0.5 third in
+  let second_input = Attribute_composite.input ~weight:0.3 second
+  and third_input = Attribute_composite.input ~weight:0.5 third in
   measure ~input_points:(Geometry.point_count first)
     "attribute_composite_mean_scalar" (fun () ->
-      Ops.attribute_composite ~grain ~weight:0.2
+      Attribute_composite.run_checked ~grain ~weight:0.2
         ~detail_attributes:"^*" ~primitive_attributes:"^*"
         ~point_attributes:"value" ~vertex_attributes:"^*"
         ~inputs:[second_input; third_input] first |> get_ok) geometry_output;
   measure ~input_points:(Geometry.point_count first)
     "attribute_composite_mean_alpha_fields" (fun () ->
-      Ops.attribute_composite ~grain ~weight:0.2 ~alpha_attribute:"alpha"
+      Attribute_composite.run_checked ~grain ~weight:0.2 ~alpha_attribute:"alpha"
         ~detail_attributes:"^*" ~primitive_attributes:"^*"
         ~point_attributes:"P value Cd" ~vertex_attributes:"^*"
         ~allow_position:true ~inputs:[second_input; third_input] first |> get_ok)
     geometry_output;
   measure ~input_points:(Geometry.point_count first)
     "attribute_composite_over_scalar" (fun () ->
-      Ops.attribute_composite ~grain ~operation:Ops.Composite_over ~weight:0.2
+      Attribute_composite.run_checked ~grain ~operation:Attribute_composite.Composite_over ~weight:0.2
         ~alpha_attribute:"alpha" ~detail_attributes:"^*"
         ~primitive_attributes:"^*" ~point_attributes:"value"
         ~vertex_attributes:"^*" ~inputs:[second_input; third_input] first
@@ -3615,14 +3615,14 @@ let run_attribute_mirror_benchmarks () =
       |> Option.get in
   measure ~input_points:(Geometry.point_count geometry)
     "attribute_mirror_mapping_float4" (fun () ->
-      Ops.attribute_mirror ~grain ~owner:Ops.Mirror_point_attributes
-        ~method_:(Ops.Mirror_by_mapping {
+      Attribute_mirror.run_checked ~grain ~owner:Attribute_mirror.Mirror_point_attributes
+        ~method_:(Attribute_mirror.Mirror_by_mapping {
           mapping_attribute = "mirror_map"; destination_group = destination })
         geometry |> get_ok) geometry_output;
   measure ~input_points:(Geometry.point_count geometry)
     "attribute_mirror_mapping_float4_outputs" (fun () ->
-      Ops.attribute_mirror ~grain ~owner:Ops.Mirror_point_attributes
-        ~method_:(Ops.Mirror_by_mapping {
+      Attribute_mirror.run_checked ~grain ~owner:Attribute_mirror.Mirror_point_attributes
+        ~method_:(Attribute_mirror.Mirror_by_mapping {
           mapping_attribute = "mirror_map"; destination_group = destination })
         ~output_mapping:"mirror_pair" ~source_group:"mirror_source"
         ~destination_group:"mirror_destination" geometry |> get_ok)
@@ -3630,8 +3630,8 @@ let run_attribute_mirror_benchmarks () =
   let plane_geometry = attribute_mirror_plane_fixture () in
   measure ~input_points:(Geometry.point_count plane_geometry)
     "attribute_mirror_plane_float4" (fun () ->
-      Ops.attribute_mirror ~grain ~owner:Ops.Mirror_point_attributes
-        ~method_:(Ops.Mirror_by_plane { origin = Vec3.zero;
+      Attribute_mirror.run_checked ~grain ~owner:Attribute_mirror.Mirror_point_attributes
+        ~method_:(Attribute_mirror.Mirror_by_plane { origin = Vec3.zero;
           normal = Vec3.unit_x; distance = 0.; tolerance = 1e-12 })
         plane_geometry |> get_ok) geometry_output
 
@@ -5299,7 +5299,7 @@ let () =
   let displaced = Deform_ops.noise_displace_checked ~grain ~amplitude:0.8 ~frequency:0.16
       ~seed:42 source |> get_ok in
   measure "color_by_height" (fun () ->
-    Ops.color_by_height ~grain ~low:low_rgba ~high:high_rgba displaced
+    Color_by_height.run ~grain ~low:low_rgba ~high:high_rgba displaced
     |> get_ok) geometry_output;
   measure "sort_points_x" (fun () ->
     Ops.sort ~grain ~owner:Ops.Points ~key:Ops.X source |> get_ok) geometry_output;
@@ -5339,7 +5339,7 @@ let () =
    | None | Some _ -> ());
   measure "mesh_bridge_plain" (fun () -> Pdk_prismel.Prismel_mesh.to_mesh source |> get_ok)
     mesh_output;
-  let colored = Ops.color_by_height ~grain ~low:low_rgba ~high:high_rgba
+  let colored = Color_by_height.run ~grain ~low:low_rgba ~high:high_rgba
       displaced |> get_ok in
   measure "mesh_bridge_colored" (fun () -> Pdk_prismel.Prismel_mesh.to_mesh colored |> get_ok)
     mesh_output;
@@ -5670,7 +5670,7 @@ let () =
   let clip_attribute_grid = clip_grid
       |> Geometry.with_attribute clip_uv |> get_ok
       |> Geometry.with_attribute clip_density |> get_ok
-      |> Ops.color_by_height ~grain ~low:low_rgba ~high:high_rgba |> get_ok in
+      |> Color_by_height.run ~grain ~low:low_rgba ~high:high_rgba |> get_ok in
   let deletion_quads = Subdivision_ops.subdivide_checked ~grain ~scheme:Subdivision_ops.Bilinear
       clip_attribute_grid |> get_ok in
   measure "surface_index_quads" (fun () ->
@@ -5880,7 +5880,7 @@ let () =
       ~connectivity:Plane_generators.Grid_triangles ~columns:200 ~rows:200 ~size:20. ()
       |> get_ok
       |> Uv_checked.project ~grain planar_projection |> get_ok
-      |> Ops.color_by_height ~grain ~low:low_rgba ~high:high_rgba |> get_ok in
+      |> Color_by_height.run ~grain ~low:low_rgba ~high:high_rgba |> get_ok in
   let measure_triangles name policy =
     measure ~input_points:(Geometry.point_count triangle_subdivision_grid)
       ("subdivide_catmull_triangles_" ^ name) (fun () ->
