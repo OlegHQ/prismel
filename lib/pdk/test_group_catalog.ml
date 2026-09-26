@@ -397,7 +397,7 @@ let test_copy () =
    | Ok _ -> fail "Group Copy accepted edge attribute matching")
 
 let test_parallel_exactness_and_cancellation () =
-  let base = Plane_generators.grid_checked ~columns:500 ~rows:300 ~size:20. () |> get_ok in
+  let base = Plane_generators.grid ~columns:500 ~rows:300 ~size:20. () |> get_ok in
   let width = 501 in
   let source = base
       |> with_group Group.Point "stripe_a"
@@ -577,7 +577,7 @@ let test_transfer () =
    | Ok _ -> fail "Group Transfer silently accepted overflowing distance math")
 
 let test_transfer_parallel_exactness () =
-  let source = Plane_generators.grid_checked ~columns:100 ~rows:80 ~size:20. () |> get_ok in
+  let source = Plane_generators.grid ~columns:100 ~rows:80 ~size:20. () |> get_ok in
   let source = source
       |> with_group Group.Point "point_band" (fun point -> point mod 101 < 7)
       |> with_ordered_group Group.Point "ordered_seed" [|404; 5; 8_000; 2|]

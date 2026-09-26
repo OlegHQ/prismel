@@ -28,7 +28,7 @@ let float4_attribute owner name geometry =
   | None -> fail ("missing " ^ name)
 
 let two_quads () =
-  Plane_generators.grid_checked ~connectivity:Plane_generators.Grid_quads ~columns:2 ~rows:1 ~size:2. () |> get_ok
+  Plane_generators.grid ~connectivity:Plane_generators.Grid_quads ~columns:2 ~rows:1 ~size:2. () |> get_ok
 
 let shared_edge geometry =
   let index = Topology_index.create (Geometry.topology geometry) in
@@ -133,7 +133,7 @@ let test_non_manifold_and_visualization () =
   Array.iter (fun vertex -> check (values.(vertex) = 2.)
       "non-manifold Crease missed an incident corner")
     (incident_vertices index edge);
-  let quad = Plane_generators.grid_checked ~connectivity:Plane_generators.Grid_quads ~columns:1 ~rows:1 ~size:1. ()
+  let quad = Plane_generators.grid ~connectivity:Plane_generators.Grid_quads ~columns:1 ~rows:1 ~size:1. ()
       |> get_ok in
   let quad_index = Topology_index.create (Geometry.topology quad) in
   let selected = edge_group quad quad_index (fun edge -> edge = 0) in
@@ -289,7 +289,7 @@ let test_errors_and_cancellation () =
    | Ok _ -> fail "cancelled Crease published geometry")
 
 let test_dense_parallel_exactness () =
-  let source = Plane_generators.grid_checked ~connectivity:Plane_generators.Grid_quads ~columns:480 ~rows:300
+  let source = Plane_generators.grid ~connectivity:Plane_generators.Grid_quads ~columns:480 ~rows:300
       ~size:20. () |> get_ok in
   let topology = Geometry.topology source in
   let index = Topology_index.create topology in

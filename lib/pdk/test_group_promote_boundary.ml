@@ -255,7 +255,7 @@ let same_edge_group left right =
      !equal
 
 let test_parallel_exactness () =
-  let base = Plane_generators.grid_checked ~columns:600 ~rows:400 ~size:20. () |> get_ok in
+  let base = Plane_generators.grid ~columns:600 ~rows:400 ~size:20. () |> get_ok in
   let source = with_group Group.Primitive "left_half"
       (fun primitive -> primitive mod 1_200 < 600) base in
   let run domains = Parallel.run ~domains (fun () ->

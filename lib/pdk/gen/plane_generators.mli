@@ -33,14 +33,14 @@ val normalize_plane_axis :
   string ->
   string -> Prismel_math.Vec3.t -> (Prismel_math.Vec3.t, string) result
 
-val circle_checked :
+val circle :
   ?cancel:Pdk_core.Cancel.t -> ?grain:int -> ?arc:circle_arc ->
   ?orientation:circle_orientation -> ?reverse:bool ->
   ?center:Prismel_math.Vec3.t -> ?radius_x:float -> ?radius_y:float ->
   ?rotation:float -> ?uniform_scale:float -> ?segments:int ->
   radius:float -> unit -> (Pdk_core.Geometry.t, Pdk_core.Error.t) result
 
-val grid_checked :
+val grid :
   ?cancel:Pdk_core.Cancel.t -> ?grain:int -> ?counts:grid_counts ->
   ?connectivity:grid_connectivity -> ?orientation:grid_orientation ->
   ?center:Prismel_math.Vec3.t -> ?width:float -> ?height:float ->

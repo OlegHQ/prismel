@@ -13,7 +13,7 @@ let contains text pattern =
   pattern = "" || search 0
 
 let source () =
-  let geometry = Pdk.Plane_generators.grid_checked ~connectivity:Pdk.Plane_generators.Grid_quads ~columns:260 ~rows:160
+  let geometry = Pdk.Plane_generators.grid ~connectivity:Pdk.Plane_generators.Grid_quads ~columns:260 ~rows:160
       ~size:12. () |> function
     | Ok value -> value
     | Error error -> fail (Error.to_string error) in

@@ -11,7 +11,7 @@ let add_attribute ~owner ~name storage geometry =
   Geometry.with_attribute attribute geometry |> get_string
 
 let grid ?(columns = 7) ?(rows = 6) ?(size = 6.) () =
-  Plane_generators.grid_checked ~counts:Plane_generators.Grid_point_counts
+  Plane_generators.grid ~counts:Plane_generators.Grid_point_counts
     ~connectivity:Plane_generators.Grid_alternating_triangles ~columns ~rows ~size () |> get
 
 let attribute_equal left right =
@@ -321,7 +321,7 @@ let dump label geometry =
       (component_hashes geometry)
 
 let payload_fixture () =
-  let source = Plane_generators.grid_checked ~counts:Plane_generators.Grid_point_counts
+  let source = Plane_generators.grid ~counts:Plane_generators.Grid_point_counts
       ~connectivity:Plane_generators.Grid_alternating_triangles ~uv_attribute:"uv"
       ~columns:9 ~rows:7 ~size:6. () |> get in
   let point_count = Geometry.point_count source

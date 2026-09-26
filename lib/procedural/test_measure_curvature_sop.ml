@@ -11,7 +11,7 @@ let contains text pattern =
   pattern = "" || loop 0
 
 let source () =
-  let geometry = Pdk.Uv_sphere.run_checked
+  let geometry = Pdk.Uv_sphere.run
       ~connectivity:Pdk.Uv_sphere.Sphere_alternating_triangles
       ~segments:160 ~rings:80 ~radius:2. () |> Result.get_ok in
   let selected = Pdk.Group.init ~grain:257 ~owner:Pdk.Group.Point

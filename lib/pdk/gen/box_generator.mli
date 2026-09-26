@@ -14,7 +14,7 @@ type box_rotation_order =
   | Box_zxy
   | Box_zyx
 
-val box_checked :
+val box :
   ?cancel:Pdk_core.Cancel.t -> ?grain:int ->
   ?connectivity:box_connectivity -> ?consolidate_points:bool ->
   ?normals:box_normals -> ?center:Prismel_math.Vec3.t ->

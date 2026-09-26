@@ -190,7 +190,7 @@ let test_validation_and_cancellation () =
    | Ok _ -> fail "cancelled Group Find Path published geometry")
 
 let test_parallel_exactness () =
-  let source = Plane_generators.grid_checked ~columns:120 ~rows:90 ~size:20. () |> get_ok in
+  let source = Plane_generators.grid ~columns:120 ~rows:90 ~size:20. () |> get_ok in
   let columns = 121 in
   let point row column = (row * columns) + column in
   let pair_count = 16 in

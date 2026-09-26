@@ -135,7 +135,7 @@ let test_extreme_coordinates () =
     "Group Normal overflow-safe extreme coordinates"
 
 let test_base_merge_and_failures () =
-  let source = Plane_generators.grid_checked ~columns:3 ~rows:2 ~size:2. () |> get_ok in
+  let source = Plane_generators.grid ~columns:3 ~rows:2 ~size:2. () |> get_ok in
   let base = Group.init ~grain:1 ~owner:Group.Primitive ~name:"base"
       (Geometry.primitive_count source) (fun primitive -> primitive land 1 = 0) in
   let existing = Group.init ~grain:1 ~owner:Group.Primitive ~name:"selection"
@@ -198,7 +198,7 @@ let same_group left right =
   && members left = members right
 
 let test_scale_parallel_exactness () =
-  let source = Plane_generators.grid_checked ~columns:500 ~rows:300 ~size:20. () |> get_ok in
+  let source = Plane_generators.grid ~columns:500 ~rows:300 ~size:20. () |> get_ok in
   let run domains = Parallel.run ~domains (fun () ->
     source
     |> Group_ops.group_normal_checked ~grain:1_009 ~direction:(Vec3.create 0. 1. 0.)

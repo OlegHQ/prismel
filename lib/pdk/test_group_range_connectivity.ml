@@ -319,7 +319,7 @@ let test_parallel_exactness_and_scale () =
   check (Group.mem 0 one && not (Group.mem 1 one)
       && Group.mem (3 * (triangles - 1)) one)
     "Group Range connected scale membership";
-  let grid = Plane_generators.grid_checked ~columns:400 ~rows:250 ~size:10. () |> get_ok in
+  let grid = Plane_generators.grid ~columns:400 ~rows:250 ~size:10. () |> get_ok in
   let point_count = Geometry.point_count grid in
   let attributed = with_attribute "stripe" Attribute.Point
       (Attribute.Int (Array.init point_count (fun point -> point / 10_000)))
@@ -395,7 +395,7 @@ let test_multiple_ranges () =
    | Ok _ -> fail "cancelled Group Ranges published geometry")
 
 let test_multiple_ranges_parallel_exactness () =
-  let source = Plane_generators.grid_checked ~columns:400 ~rows:250 ~size:10. () |> get_ok in
+  let source = Plane_generators.grid ~columns:400 ~rows:250 ~size:10. () |> get_ok in
   let point_count = Geometry.point_count source in
   let source = with_attribute "stripe" Attribute.Point
       (Attribute.Int (Array.init point_count (fun point -> point / 10_000)))

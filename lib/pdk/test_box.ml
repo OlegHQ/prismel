@@ -86,7 +86,7 @@ let equal_geometry left right =
   && List.equal equal_group (Geometry.groups left) (Geometry.groups right)
 
 let check_default_compatibility () =
-  let geometry = Box_generator.box_checked ~size:(Vec3.create 2. 4. 6.) () |> get_ok in
+  let geometry = Box_generator.box ~size:(Vec3.create 2. 4. 6.) () |> get_ok in
   let point = positions geometry
   and topology = Topology.Private.view (Geometry.topology geometry)
   and normal = float3_attribute geometry Attribute.Point "N" in
@@ -108,7 +108,7 @@ let check_default_compatibility () =
     "default Box normals changed"
 
 let check_divisions_connectivity_and_groups () =
-  let quads = Box_generator.box_checked ~connectivity:Box_generator.Box_quads
+  let quads = Box_generator.box ~connectivity:Box_generator.Box_quads
       ~normals:Box_generator.Box_vertex_normals ~uv_attribute:"uv" ~face_groups:"face"
       ~x_divisions:2 ~y_divisions:3 ~z_divisions:4
       ~size:(Vec3.create 2. 3. 4.) () |> get_ok in
@@ -130,7 +130,7 @@ let check_divisions_connectivity_and_groups () =
   check (List.map (fun group -> Group.name group, Group.cardinality group)
       (Geometry.groups quads) = expected)
     "Box face-group ranges";
-  let shared = Box_generator.box_checked ~connectivity:Box_generator.Box_triangles
+  let shared = Box_generator.box ~connectivity:Box_generator.Box_triangles
       ~consolidate_points:true ~normals:Box_generator.Box_vertex_normals
       ~x_divisions:2 ~y_divisions:3 ~z_divisions:4
       ~size:(Vec3.create 2. 3. 4.) () |> get_ok in
@@ -161,14 +161,14 @@ let check_divisions_connectivity_and_groups () =
   done
 
 let check_point_modes () =
-  let face_local = Box_generator.box_checked ~connectivity:Box_generator.Box_surface_points
+  let face_local = Box_generator.box ~connectivity:Box_generator.Box_surface_points
       ~x_divisions:2 ~y_divisions:3 ~z_divisions:4
       ~size:(Vec3.create 2. 3. 4.) () |> get_ok in
   check (Geometry.point_count face_local = 94
       && Geometry.vertex_count face_local = 0
       && Geometry.attributes face_local = [])
     "Box face-local surface points";
-  let welded = Box_generator.box_checked ~connectivity:Box_generator.Box_surface_points
+  let welded = Box_generator.box ~connectivity:Box_generator.Box_surface_points
       ~consolidate_points:true ~normals:Box_generator.Box_point_normals
       ~x_divisions:2 ~y_divisions:3 ~z_divisions:4
       ~size:(Vec3.create 2. 3. 4.) () |> get_ok in
@@ -188,7 +188,7 @@ let check_point_modes () =
       && near normals.x.(4) 0. && near normals.y.(4) 0.
       && near normals.z.(4) (-1.))
     "Box welded normals do not average incident faces";
-  let lattice = Box_generator.box_checked ~connectivity:Box_generator.Box_lattice_points
+  let lattice = Box_generator.box ~connectivity:Box_generator.Box_lattice_points
       ~center:(Vec3.create 1. 2. 3.)
       ~x_divisions:2 ~y_divisions:3 ~z_divisions:4
       ~size:(Vec3.create 2. 3. 4.) () |> get_ok in
@@ -200,7 +200,7 @@ let check_point_modes () =
     "Box volume-lattice points/order"
 
 let check_transform_and_rotation_order () =
-  let transformed = Box_generator.box_checked ~connectivity:Box_generator.Box_quads
+  let transformed = Box_generator.box ~connectivity:Box_generator.Box_quads
       ~center:(Vec3.create 4. 5. 6.)
       ~rotation:(Vec3.create 0. 0. (Float.pi *. 0.5))
       ~uniform_scale:0.5 ~size:(Vec3.create 2. 4. 6.) () |> get_ok
@@ -210,7 +210,7 @@ let check_transform_and_rotation_order () =
       && near transformed.size.y 1. && near transformed.size.z 3.)
     "Box center/rotation/uniform-scale bounds";
   let rotation = Vec3.create 0.3 0.5 0.7 in
-  let first order = Box_generator.box_checked ~connectivity:Box_generator.Box_surface_points
+  let first order = Box_generator.box ~connectivity:Box_generator.Box_surface_points
       ~rotation ~rotation_order:order ~size:(Vec3.create 2. 4. 6.) ()
       |> get_ok |> positions |> fun values ->
       Vec3.create values.x.(0) values.y.(0) values.z.(0) in
@@ -229,59 +229,59 @@ let check_transform_and_rotation_order () =
 
 let check_validation () =
   let size = Vec3.create 1. 1. 1. in
-  expect_code "invalid_parameter" (Box_generator.box_checked ~grain:0 ~size ());
-  expect_code "invalid_parameter" (Box_generator.box_checked ~x_divisions:0 ~size ());
-  expect_code "invalid_parameter" (Box_generator.box_checked ~x_divisions:max_int ~size ());
+  expect_code "invalid_parameter" (Box_generator.box ~grain:0 ~size ());
+  expect_code "invalid_parameter" (Box_generator.box ~x_divisions:0 ~size ());
+  expect_code "invalid_parameter" (Box_generator.box ~x_divisions:max_int ~size ());
   expect_code "invalid_parameter"
-    (Box_generator.box_checked ~size:(Vec3.create Float.nan 1. 1.) ());
-  expect_code "invalid_parameter" (Box_generator.box_checked ~uniform_scale:0. ~size ());
+    (Box_generator.box ~size:(Vec3.create Float.nan 1. 1.) ());
+  expect_code "invalid_parameter" (Box_generator.box ~uniform_scale:0. ~size ());
   expect_code "invalid_parameter"
-    (Box_generator.box_checked ~center:(Vec3.create Float.nan 0. 0.) ~size ());
+    (Box_generator.box ~center:(Vec3.create Float.nan 0. 0.) ~size ());
   expect_code "invalid_parameter"
-    (Box_generator.box_checked ~rotation:(Vec3.create Float.infinity 0. 0.) ~size ());
-  expect_code "invalid_parameter" (Box_generator.box_checked ~uv_attribute:"N" ~size ());
-  expect_code "invalid_parameter" (Box_generator.box_checked ~face_groups:" " ~size ());
+    (Box_generator.box ~rotation:(Vec3.create Float.infinity 0. 0.) ~size ());
+  expect_code "invalid_parameter" (Box_generator.box ~uv_attribute:"N" ~size ());
+  expect_code "invalid_parameter" (Box_generator.box ~face_groups:" " ~size ());
   expect_code "invalid_parameter"
-    (Box_generator.box_checked ~connectivity:Box_generator.Box_surface_points ~uv_attribute:"uv" ~size ());
+    (Box_generator.box ~connectivity:Box_generator.Box_surface_points ~uv_attribute:"uv" ~size ());
   expect_code "invalid_parameter"
-    (Box_generator.box_checked ~connectivity:Box_generator.Box_surface_points ~face_groups:"face" ~size ());
+    (Box_generator.box ~connectivity:Box_generator.Box_surface_points ~face_groups:"face" ~size ());
   expect_code "invalid_parameter"
-    (Box_generator.box_checked ~connectivity:Box_generator.Box_surface_points
+    (Box_generator.box ~connectivity:Box_generator.Box_surface_points
        ~normals:Box_generator.Box_vertex_normals ~size ());
   expect_code "invalid_parameter"
-    (Box_generator.box_checked ~connectivity:Box_generator.Box_lattice_points
+    (Box_generator.box ~connectivity:Box_generator.Box_lattice_points
        ~normals:Box_generator.Box_point_normals ~size ());
   expect_code "invalid_parameter"
-    (Box_generator.box_checked ~center:(Vec3.create max_float 0. 0.)
+    (Box_generator.box ~center:(Vec3.create max_float 0. 0.)
        ~size:(Vec3.create max_float 1. 1.) ());
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
   expect_code "cancelled"
-    (Box_generator.box_checked ~cancel:cancelled ~connectivity:Box_generator.Box_quads
+    (Box_generator.box ~cancel:cancelled ~connectivity:Box_generator.Box_quads
        ~x_divisions:500 ~y_divisions:500 ~z_divisions:500 ~size ())
 
 let check_parallel_exact () =
   let run domains make = Parallel.run ~domains (fun () -> make () |> get_ok) in
   let cases = [
-    (fun () -> Box_generator.box_checked ~grain:1024 ~connectivity:Box_generator.Box_triangles
+    (fun () -> Box_generator.box ~grain:1024 ~connectivity:Box_generator.Box_triangles
       ~normals:Box_generator.Box_point_normals ~x_divisions:256 ~y_divisions:192
       ~z_divisions:128 ~center:(Vec3.create 3. (-2.) 5.)
       ~rotation:(Vec3.create 0.3 0.5 0.7) ~rotation_order:Box_generator.Box_yzx
       ~size:(Vec3.create 40. 25. 18.) ());
-    (fun () -> Box_generator.box_checked ~grain:1024 ~connectivity:Box_generator.Box_quads
+    (fun () -> Box_generator.box ~grain:1024 ~connectivity:Box_generator.Box_quads
       ~consolidate_points:true ~normals:Box_generator.Box_vertex_normals
       ~uv_attribute:"uv" ~face_groups:"face"
       ~x_divisions:256 ~y_divisions:192 ~z_divisions:128
       ~center:(Vec3.create 3. (-2.) 5.)
       ~rotation:(Vec3.create 0.3 0.5 0.7) ~rotation_order:Box_generator.Box_zxy
       ~size:(Vec3.create 40. 25. 18.) ());
-    (fun () -> Box_generator.box_checked ~grain:1024 ~connectivity:Box_generator.Box_surface_points
+    (fun () -> Box_generator.box ~grain:1024 ~connectivity:Box_generator.Box_surface_points
       ~consolidate_points:true ~normals:Box_generator.Box_point_normals
       ~x_divisions:256 ~y_divisions:192 ~z_divisions:128
       ~center:(Vec3.create 3. (-2.) 5.)
       ~rotation:(Vec3.create 0.3 0.5 0.7)
       ~size:(Vec3.create 40. 25. 18.) ());
-    (fun () -> Box_generator.box_checked ~grain:1024 ~connectivity:Box_generator.Box_lattice_points
+    (fun () -> Box_generator.box ~grain:1024 ~connectivity:Box_generator.Box_lattice_points
       ~x_divisions:100 ~y_divisions:80 ~z_divisions:60
       ~center:(Vec3.create 3. (-2.) 5.)
       ~rotation:(Vec3.create 0.3 0.5 0.7)

@@ -104,7 +104,7 @@ let check_vertex_normal_winding geometry message =
 
 let check_default_and_connectivity () =
   let make ?(rows = 8) ?(columns = 4) connectivity =
-    Parametric_generators.torus_checked ~connectivity ~rows ~columns ~major_radius:2. ~minor_radius:1. ()
+    Parametric_generators.torus ~connectivity ~rows ~columns ~major_radius:2. ~minor_radius:1. ()
     |> get_ok in
   let triangles = make Parametric_generators.Torus_triangles
   and alternating = make Parametric_generators.Torus_alternating_triangles
@@ -150,7 +150,7 @@ let check_default_and_connectivity () =
     "alternating Torus collapsed to regular triangles"
 
 let check_open_sweeps_caps_and_bridge () =
-  let make connectivity = Parametric_generators.torus_checked ~connectivity
+  let make connectivity = Parametric_generators.torus ~connectivity
       ~normals:Parametric_generators.Torus_vertex_normals ~uv_attribute:"uv"
       ~u_start:0.2 ~u_end:2.4 ~v_start:(-.Float.pi /. 2.)
       ~v_end:(Float.pi /. 2.) ~u_wrap:false ~v_wrap:false
@@ -184,7 +184,7 @@ let check_open_sweeps_caps_and_bridge () =
     "capped Torus failed terminal mesh conversion";
   check_vertex_normal_winding triangles
     "capped Torus winding disagrees with its vertex normals";
-  let reversed_u = Parametric_generators.torus_checked ~connectivity:Parametric_generators.Torus_quads
+  let reversed_u = Parametric_generators.torus ~connectivity:Parametric_generators.Torus_quads
       ~normals:Parametric_generators.Torus_vertex_normals
       ~u_start:2.4 ~u_end:0.2 ~v_start:(-.Float.pi /. 2.)
       ~v_end:(Float.pi /. 2.) ~u_wrap:false ~v_wrap:false
@@ -192,7 +192,7 @@ let check_open_sweeps_caps_and_bridge () =
       ~major_radius:3. ~minor_radius:1. () |> get_ok in
   check_vertex_normal_winding reversed_u
     "descending U Torus winding disagrees with its vertex normals";
-  let reversed_v = Parametric_generators.torus_checked ~connectivity:Parametric_generators.Torus_alternating_triangles
+  let reversed_v = Parametric_generators.torus ~connectivity:Parametric_generators.Torus_alternating_triangles
       ~normals:Parametric_generators.Torus_vertex_normals
       ~u_start:0.2 ~u_end:2.4 ~v_start:(Float.pi /. 2.)
       ~v_end:(-.Float.pi /. 2.) ~u_wrap:false ~v_wrap:false
@@ -200,7 +200,7 @@ let check_open_sweeps_caps_and_bridge () =
       ~major_radius:3. ~minor_radius:1. () |> get_ok in
   check_vertex_normal_winding reversed_v
     "descending V Torus winding disagrees with its vertex normals";
-  let open_rows = Parametric_generators.torus_checked ~connectivity:Parametric_generators.Torus_rows
+  let open_rows = Parametric_generators.torus ~connectivity:Parametric_generators.Torus_rows
       ~u_wrap:false ~v_wrap:false ~rows:8 ~columns:5
       ~major_radius:3. ~minor_radius:1. () |> get_ok in
   for primitive = 0 to Geometry.primitive_count open_rows - 1 do
@@ -210,7 +210,7 @@ let check_open_sweeps_caps_and_bridge () =
   done
 
 let check_uv_normals_and_winding () =
-  let geometry = Parametric_generators.torus_checked ~connectivity:Parametric_generators.Torus_quads
+  let geometry = Parametric_generators.torus ~connectivity:Parametric_generators.Torus_quads
       ~normals:Parametric_generators.Torus_vertex_normals ~uv_attribute:"uv"
       ~rows:16 ~columns:8 ~major_radius:3. ~minor_radius:1. () |> get_ok in
   check (Geometry.find_attribute ~owner:Attribute.Point "N" geometry = None
@@ -254,13 +254,13 @@ let check_uv_normals_and_winding () =
         +. (nz *. normal.z.(first)) > 0.)
       "Torus polygon winding points inward"
   done;
-  let point_output = Parametric_generators.torus_checked ~connectivity:Parametric_generators.Torus_points
+  let point_output = Parametric_generators.torus ~connectivity:Parametric_generators.Torus_points
       ~uv_attribute:"uv" ~rows:8 ~columns:4 ~major_radius:2. ~minor_radius:1. ()
       |> get_ok in
   check (Geometry.find_attribute ~owner:Attribute.Point "uv" point_output <> None
       && Geometry.find_attribute ~owner:Attribute.Vertex "uv" point_output = None)
     "point Torus UV ownership";
-  let no_normals = Parametric_generators.torus_checked ~connectivity:Parametric_generators.Torus_rows
+  let no_normals = Parametric_generators.torus ~connectivity:Parametric_generators.Torus_rows
       ~normals:Parametric_generators.Torus_no_normals ~rows:8 ~columns:4
       ~major_radius:2. ~minor_radius:1. () |> get_ok in
   check (Geometry.find_attribute ~owner:Attribute.Point "N" no_normals = None
@@ -268,7 +268,7 @@ let check_uv_normals_and_winding () =
     "Torus no-normal mode emitted N"
 
 let check_orientation_and_rotation () =
-  let bounds orientation = Parametric_generators.torus_checked ~connectivity:Parametric_generators.Torus_points
+  let bounds orientation = Parametric_generators.torus ~connectivity:Parametric_generators.Torus_points
       ~orientation ~rows:16 ~columns:8 ~major_radius:3. ~minor_radius:1. ()
       |> get_ok |> Analysis.bounds |> Option.get in
   let x = bounds Parametric_generators.Torus_x and y = bounds Parametric_generators.Torus_y
@@ -281,7 +281,7 @@ let check_orientation_and_rotation () =
       && near custom.size.z y.size.z)
     "Torus orientation bounds";
   let rotation = Vec3.create 0.3 0.5 0.7 in
-  let first order = Parametric_generators.torus_checked ~connectivity:Parametric_generators.Torus_points
+  let first order = Parametric_generators.torus ~connectivity:Parametric_generators.Torus_points
       ~rotation ~rotation_order:order ~center:(Vec3.create 3. (-2.) 5.)
       ~uniform_scale:2. ~rows:8 ~columns:4
       ~major_radius:2. ~minor_radius:1. () |> get_ok |> positions
@@ -307,7 +307,7 @@ let check_orientation_and_rotation () =
     check (near actual.x expected.x && near actual.y expected.y
         && near actual.z expected.z)
       "Torus Euler rotation order") cases;
-  let rotated = Parametric_generators.torus_checked ~connectivity:Parametric_generators.Torus_points ~rotation
+  let rotated = Parametric_generators.torus ~connectivity:Parametric_generators.Torus_points ~rotation
       ~rotation_order:Parametric_generators.Torus_xyz ~rows:8 ~columns:4
       ~major_radius:2. ~minor_radius:1. () |> get_ok in
   let rotated_n = float3_attribute rotated Attribute.Point "N" in
@@ -316,7 +316,7 @@ let check_orientation_and_rotation () =
   check (near rotated_n.x.(0) expected_n.x && near rotated_n.y.(0) expected_n.y
       && near rotated_n.z.(0) expected_n.z)
     "Torus rotated normal does not follow its frame";
-  let x_axis = Parametric_generators.torus_checked ~connectivity:Parametric_generators.Torus_points
+  let x_axis = Parametric_generators.torus ~connectivity:Parametric_generators.Torus_points
       ~orientation:Parametric_generators.Torus_x ~rows:8 ~columns:4
       ~major_radius:2. ~minor_radius:1. () |> get_ok in
   let x_axis_n = float3_attribute x_axis Attribute.Point "N" in
@@ -329,7 +329,7 @@ let check_validation () =
       ?uniform_scale ?u_start ?u_end ?v_start ?v_end ?u_wrap ?v_wrap
       ?u_end_caps ?v_end_cap ?uv_attribute ?rows ?columns ?(major_radius = 2.)
       ?(minor_radius = 1.) () =
-    Parametric_generators.torus_checked ?grain ?connectivity ?normals ?orientation ?center ?rotation
+    Parametric_generators.torus ?grain ?connectivity ?normals ?orientation ?center ?rotation
       ?uniform_scale ?u_start ?u_end ?v_start ?v_end ?u_wrap ?v_wrap
       ?u_end_caps ?v_end_cap ?uv_attribute ?rows ?columns
       ~major_radius ~minor_radius () in
@@ -364,15 +364,15 @@ let check_validation () =
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
   expect_code "cancelled"
-    (Parametric_generators.torus_checked ~cancel:cancelled ~rows:1_000 ~columns:500
+    (Parametric_generators.torus ~cancel:cancelled ~rows:1_000 ~columns:500
        ~major_radius:2. ~minor_radius:1. ())
 
 let check_parallel_exact () =
   let run domains make = Parallel.run ~domains (fun () -> make () |> get_ok) in
   let cases = [
-    (fun () -> Parametric_generators.torus_checked ~grain:1024 ~connectivity:Parametric_generators.Torus_triangles
+    (fun () -> Parametric_generators.torus ~grain:1024 ~connectivity:Parametric_generators.Torus_triangles
       ~rows:256 ~columns:128 ~major_radius:3. ~minor_radius:1. ());
-    (fun () -> Parametric_generators.torus_checked ~grain:1024
+    (fun () -> Parametric_generators.torus ~grain:1024
       ~connectivity:Parametric_generators.Torus_alternating_triangles
       ~normals:Parametric_generators.Torus_vertex_normals ~uv_attribute:"uv"
       ~orientation:(Parametric_generators.Torus_axis (Vec3.create 1. 2. 3.))
@@ -381,14 +381,14 @@ let check_parallel_exact () =
       ~u_start:4.8 ~u_end:(-0.7) ~v_start:(-1.2) ~v_end:2.1
       ~u_wrap:false ~v_wrap:false ~u_end_caps:true ~v_end_cap:true
       ~rows:256 ~columns:128 ~major_radius:3. ~minor_radius:1. ());
-    (fun () -> Parametric_generators.torus_checked ~grain:1024 ~connectivity:Parametric_generators.Torus_quads
+    (fun () -> Parametric_generators.torus ~grain:1024 ~connectivity:Parametric_generators.Torus_quads
       ~normals:Parametric_generators.Torus_vertex_normals ~uv_attribute:"uv"
       ~rows:256 ~columns:128 ~major_radius:3. ~minor_radius:1. ());
-    (fun () -> Parametric_generators.torus_checked ~grain:1024
+    (fun () -> Parametric_generators.torus ~grain:1024
       ~connectivity:Parametric_generators.Torus_rows_and_columns
       ~normals:Parametric_generators.Torus_vertex_normals ~uv_attribute:"uv"
       ~rows:256 ~columns:128 ~major_radius:3. ~minor_radius:1. ());
-    (fun () -> Parametric_generators.torus_checked ~grain:1024 ~connectivity:Parametric_generators.Torus_points
+    (fun () -> Parametric_generators.torus ~grain:1024 ~connectivity:Parametric_generators.Torus_points
       ~uv_attribute:"uv" ~rows:256 ~columns:128
       ~major_radius:3. ~minor_radius:1. ()) ] in
   List.iter (fun make ->

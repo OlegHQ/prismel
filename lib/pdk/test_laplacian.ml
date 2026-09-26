@@ -29,7 +29,7 @@ let float3 name geometry =
   | None -> fail (name ^ " is missing")
 
 let grid ?(size = 2.) () =
-  Plane_generators.grid_checked ~connectivity:Plane_generators.Grid_quads ~columns:2 ~rows:2 ~size () |> get
+  Plane_generators.grid ~connectivity:Plane_generators.Grid_quads ~columns:2 ~rows:2 ~size () |> get
 
 let degenerate_triangle () =
   let positions = Packed.Float3.Private.of_owned_exn
@@ -72,7 +72,7 @@ let test_constant_linear_and_quadratic () =
   check (quadratic.(4) > 0. && quadratic_sum.(4) > 0.)
     "cotangent Laplacian did not preserve positive quadratic bending";
   List.iter (fun radius ->
-    let octahedron = Parametric_generators.platonic_checked ~kind:Parametric_generators.Platonic_octahedron ~radius ()
+    let octahedron = Parametric_generators.platonic ~kind:Parametric_generators.Platonic_octahedron ~radius ()
         |> get in
     let laplacian = Laplacian.run ~source:"P" octahedron
         |> get |> float3 "laplacian" in
@@ -107,7 +107,7 @@ let test_uniform_and_integrated () =
     "integrated cotangent Laplacian did not retain a finite negative impulse"
 
 let test_position_scale_and_storage () =
-  let source = Uv_sphere.run_checked ~connectivity:Uv_sphere.Sphere_triangles
+  let source = Uv_sphere.run ~connectivity:Uv_sphere.Sphere_triangles
       ~segments:32 ~rings:16 ~radius:1. () |> get in
   let position = Laplacian.run ~source:"P" source |> get in
   let values = float3 "laplacian" position in
@@ -163,7 +163,7 @@ let test_selection_and_exact_domains () =
   check (Geometry.topology output == Geometry.topology source
       && Geometry.positions output == Geometry.positions source)
     "Laplacian did not structurally share topology and positions";
-  let sphere = Uv_sphere.run_checked ~connectivity:Uv_sphere.Sphere_triangles
+  let sphere = Uv_sphere.run ~connectivity:Uv_sphere.Sphere_triangles
       ~segments:192 ~rings:96 ~radius:3. () |> get in
   let run domains weighting = Parallel.run ~domains (fun () ->
       Laplacian.run ~grain:257 ~weighting ~source:"P" sphere |> get) in

@@ -14,7 +14,7 @@ let contains text pattern =
   pattern = "" || search 0
 
 let source () =
-  let geometry = Pdk.Plane_generators.grid_checked ~columns:240 ~rows:160 ~size:12. ()
+  let geometry = Pdk.Plane_generators.grid ~columns:240 ~rows:160 ~size:12. ()
       |> function Ok value -> value | Error error -> fail (Error.to_string error) in
   let width = 241 and count = Geometry.point_count geometry in
   let seed = Group.init ~grain:97 ~owner:Group.Point ~name:"soft_seed" count

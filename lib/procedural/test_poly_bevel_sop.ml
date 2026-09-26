@@ -13,7 +13,7 @@ let context () = Context.create ~domains:4 ~grain:3 () |> get
 let session () = Session.create ~max_entries:16 ~max_payload_bytes:8_000_000 |> get
 
 let source () =
-  Pdk.Box_generator.box_checked ~connectivity:Pdk.Box_generator.Box_quads ~consolidate_points:true
+  Pdk.Box_generator.box ~connectivity:Pdk.Box_generator.Box_quads ~consolidate_points:true
     ~normals:Pdk.Box_generator.Box_no_normals ~size:(Vec3.create 2. 2. 2.) ()
   |> function Ok value -> value | Error error -> fail (Pdk.Error.to_string error)
 

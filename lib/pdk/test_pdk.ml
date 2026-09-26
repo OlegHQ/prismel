@@ -159,7 +159,7 @@ let run () =
     [("foo* bar*", "only_*"); ("^tmp*", "renamed_*");
      ("foo* ^tmp*", "one_* two_*")];
   let generated_line domains = Parallel.run ~domains (fun () ->
-    Line_geometry.line_checked ~grain:257 ~points:100_001
+    Line_geometry.line ~grain:257 ~points:100_001
       ~origin:(Vec3.create 1. 2. 3.)
       ~direction:(Vec3.create max_float max_float 0.) ~length:(sqrt 2.) ()
     |> get_ok) in
@@ -179,7 +179,7 @@ let run () =
       || line_positions.y <> line_many_positions.y
       || line_positions.z <> line_many_positions.z then
     fail "Line packed generation/domain exactness";
-  let free_line = Line_geometry.line_checked ~kind:Line_geometry.Line_points ~points:3
+  let free_line = Line_geometry.line ~kind:Line_geometry.Line_points ~points:3
       ~origin:(Vec3.create (-1.) 0. 0.) ~direction:Vec3.unit_x ~length:2. ()
       |> get_ok in
   let free_positions = Packed.Float3.Private.view
@@ -187,20 +187,20 @@ let run () =
   if Geometry.primitive_count free_line <> 0
       || free_positions.x <> [|-1.; 0.; 1.|] then
     fail "Line free-point mode";
-  (match Line_geometry.line_checked ~origin:Vec3.zero ~direction:Vec3.zero ~length:1. () with
+  (match Line_geometry.line ~origin:Vec3.zero ~direction:Vec3.zero ~length:1. () with
    | Error error when Error.code error = "invalid_parameter" -> ()
    | _ -> fail "Line accepted a zero direction");
-  (match Line_geometry.line_checked ~points:1 ~origin:Vec3.zero ~direction:Vec3.unit_x
+  (match Line_geometry.line ~points:1 ~origin:Vec3.zero ~direction:Vec3.unit_x
       ~length:1. () with
    | Error error when Error.code error = "invalid_parameter" -> ()
    | _ -> fail "Line accepted one point in curve mode");
-  (match Line_geometry.line_checked ~origin:(Vec3.create max_float 0. 0.)
+  (match Line_geometry.line ~origin:(Vec3.create max_float 0. 0.)
       ~direction:Vec3.unit_x ~length:max_float () with
    | Error error when Error.code error = "invalid_parameter" -> ()
    | _ -> fail "Line accepted a non-finite endpoint");
   let cancelled_line = Cancel.create () in
   Cancel.cancel cancelled_line;
-  (match Line_geometry.line_checked ~cancel:cancelled_line ~points:10_000 ~origin:Vec3.zero
+  (match Line_geometry.line ~cancel:cancelled_line ~points:10_000 ~origin:Vec3.zero
       ~direction:Vec3.unit_x ~length:1. () with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "Line ignored cancellation");
@@ -1613,7 +1613,7 @@ let run () =
   let original_nx, _, _ = Packed.Float3.get mirror_normals 0
   and reflected_nx, _, _ = Packed.Float3.get mirror_normals 4 in
   if original_nx <> 1. || reflected_nx <> -1. then fail "mirror normal reflection";
-  let shared_box = Box_generator.box_checked ~size:(Vec3.create 2. 2. 2.) () |> get_ok
+  let shared_box = Box_generator.box ~size:(Vec3.create 2. 2. 2.) () |> get_ok
       |> Fuse_grid.fuse_checked ~tolerance:0. ~attributes:Fuse_reduce.Average_numeric |> get_ok in
   let shared_positions = Packed.Float3.Private.view (Geometry.positions shared_box) in
   let clip_weight = Attribute.create_owned ~name:"weight" ~owner:Attribute.Point
@@ -1730,7 +1730,7 @@ let run () =
   done;
   if List.sort Float.compare !plane_values <> [1.; 2.] then
     fail "clip vertex attribute interpolation";
-  let closed_curve = Plane_generators.circle_checked ~segments:16 ~radius:1. () |> get_ok
+  let closed_curve = Plane_generators.circle ~segments:16 ~radius:1. () |> get_ok
       |> Plane_clip.clip_checked ~origin:Vec3.zero ~normal:Vec3.unit_x |> get_ok in
   if Geometry.primitive_count closed_curve <> 1
      || Topology.primitive_kind (Geometry.topology closed_curve) 0
@@ -2122,18 +2122,18 @@ let run () =
   if abs_float (nx -. 0.4472135955) > 1e-9
      || abs_float (ny -. 0.8944271910) > 1e-9
   then fail "vertex normal inverse-transpose";
-  let grid = Plane_generators.grid_checked ~columns:8 ~rows:4 ~size:2. () |> get_ok in
+  let grid = Plane_generators.grid ~columns:8 ~rows:4 ~size:2. () |> get_ok in
   if Geometry.point_count grid <> 45 || Geometry.primitive_count grid <> 64
   then fail "grid cardinality";
-  let box = Box_generator.box_checked ~size:(Vec3.create 2. 4. 6.) () |> get_ok in
+  let box = Box_generator.box ~size:(Vec3.create 2. 4. 6.) () |> get_ok in
   if Geometry.point_count box <> 24 || Geometry.primitive_count box <> 12
   then fail "box cardinality";
-  let sphere = Uv_sphere.run_checked ~segments:12 ~rings:6 ~radius:2. () |> get_ok in
+  let sphere = Uv_sphere.run ~segments:12 ~rings:6 ~radius:2. () |> get_ok in
   if Geometry.point_count sphere <> 62 || Geometry.primitive_count sphere <> 120
   then fail "UV sphere cardinality";
   if Mesh.index_count (Pdk_prismel.Prismel_mesh.to_mesh sphere |> get_ok) <> 360
   then fail "UV sphere bridge";
-  let circle = Plane_generators.circle_checked ~segments:18 ~radius:2. () |> get_ok in
+  let circle = Plane_generators.circle ~segments:18 ~radius:2. () |> get_ok in
   let circle_mesh = Pdk_prismel.Prismel_mesh.to_mesh circle |> get_ok in
   if Mesh.mode circle_mesh <> Mesh.Lines || Mesh.index_count circle_mesh <> 36
   then fail "closed curve bridge";
@@ -2285,7 +2285,7 @@ let run () =
   if Array.exists (fun value -> not (Float.is_finite value)) huge_frame_uv.x
      || Array.exists (fun value -> not (Float.is_finite value)) huge_frame_uv.y
   then fail "UV projection did not normalize an extreme finite frame safely";
-  let sphere_uv = Uv_sphere.run_checked ~segments:48 ~rings:24 ~radius:1. () |> get_ok
+  let sphere_uv = Uv_sphere.run ~segments:48 ~rings:24 ~radius:1. () |> get_ok
       |> Uv_ops.project ~grain:31
            (Uv_ops.Spherical { origin = Vec3.zero; axis = Vec3.unit_y;
              seam = Vec3.unit_x }) |> get_ok in
@@ -2452,7 +2452,7 @@ let run () =
   if Edge_group.cardinality copied_edge_group <> 8
      || Edge_group.length copied_edge_group <> 8 then
     fail "copy-to-points did not replicate native edge membership";
-  let hard_box_edges = Box_generator.box_checked ~size:(Vec3.create 2. 2. 2.) () |> get_ok
+  let hard_box_edges = Box_generator.box ~size:(Vec3.create 2. 2. 2.) () |> get_ok
       |> Group_mesh.group_edges_checked ~name:"all_box_edges" |> get_ok in
   let fused_edge_geometry = Fuse_grid.fuse_checked ~tolerance:0.
       ~attributes:Fuse_reduce.Average_numeric hard_box_edges |> get_ok in
@@ -2621,7 +2621,7 @@ let run () =
   if uniform_unitized.x <> [|0.; 0.5; 0.5; 0.; 0.5; 1.; 1.; 0.5|]
      || uniform_unitized.y <> [|0.25; 0.25; 0.75; 0.75; 0.25; 0.25; 0.75; 0.75|]
   then fail "UV Unitize uniform aspect preservation";
-  let flatten_source = Plane_generators.grid_checked ~columns:2 ~rows:2 ~size:2. () |> get_ok in
+  let flatten_source = Plane_generators.grid ~columns:2 ~rows:2 ~size:2. () |> get_ok in
   let flattened domains = Parallel.run ~domains (fun () ->
     Uv_ops.flatten ~grain:1 ~iterations:500 ~tolerance:1e-12 flatten_source
     |> get_ok) in
@@ -2675,7 +2675,7 @@ let run () =
    | Error error when Error.code error = "invalid_uv" -> ()
    | _ -> fail "UV Flatten accepted non-triangle polygons");
   (match Uv_ops.flatten ~iterations:1 ~tolerance:1e-15
-      (Plane_generators.grid_checked ~columns:20 ~rows:20 ~size:2. () |> get_ok) with
+      (Plane_generators.grid ~columns:20 ~rows:20 ~size:2. () |> get_ok) with
    | Error error when Error.code error = "invalid_uv" -> ()
    | _ -> fail "UV Flatten published a non-converged solve");
   (match Uv_ops.flatten ~edge_seams:hard_one_edges flatten_source with
@@ -2924,7 +2924,7 @@ let run () =
   if Edge_group.length connected_edges <> 2
       || Edge_group.cardinality connected_edges <> 2 then
     fail "Convert Line connected-path native edge provenance";
-  let loop = Plane_generators.circle_checked ~segments:8 ~radius:1. () |> get_ok in
+  let loop = Plane_generators.circle ~segments:8 ~radius:1. () |> get_ok in
   let open_loop = Curve_topology.convert_line ~connect_path:true ~maximum_distance:0. loop
       |> get_ok
   and closed_loop = Curve_topology.convert_line ~connect_path:true ~maximum_distance:0.
@@ -4092,8 +4092,8 @@ let run () =
        && abs_float (bounds.max.y -. 1.1) < 1e-12
        && abs_float (bounds.size.z -. 0.2) < 1e-12 -> ()
    | _ -> fail "bounding box bounds/padding");
-  let match_source = Box_generator.box_checked ~size:(Vec3.create 1. 2. 4.) () |> get_ok
-  and match_target = Box_generator.box_checked ~size:(Vec3.create 4. 6. 8.) () |> get_ok
+  let match_source = Box_generator.box ~size:(Vec3.create 1. 2. 4.) () |> get_ok
+  and match_target = Box_generator.box ~size:(Vec3.create 4. 6. 8.) () |> get_ok
       |> Transform_ops.transform (Mat4.translation (Vec3.create (-3.) 5. 2.)) in
   let matched domains = Parallel.run ~domains (fun () ->
       Match_size.run_checked ~grain:1 ~fit:Match_size.Stretch ~target:match_target match_source
@@ -4224,7 +4224,7 @@ let run () =
    | _ -> fail "Attribute Blur accepted a non-finite edge metric");
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
-  (match Plane_generators.grid_checked ~cancel:cancelled ~columns:256 ~rows:256 ~size:2. () with
+  (match Plane_generators.grid ~cancel:cancelled ~columns:256 ~rows:256 ~size:2. () with
    | Error error when Error.code error = "cancelled" -> ()
    | Error error -> fail ("unexpected cancellation code: " ^ Error.code error)
    | Ok _ -> fail "cancelled PDK operation published geometry");
@@ -4907,7 +4907,7 @@ let run () =
       ~high:(Color.to_floats Color.blue) sphere
       |> get_ok in
   let scatter domains = Parallel.run ~domains (fun () ->
-    Scatter.run_checked ~grain:97 ~count:10_000 ~seed:123 scatter_source |> get_ok) in
+    Scatter.run ~grain:97 ~count:10_000 ~seed:123 scatter_source |> get_ok) in
   let scatter_one = scatter 1 and scatter_many = scatter 4 in
   if not (equal_positions scatter_one scatter_many)
      || Geometry.point_count scatter_one <> 10_000

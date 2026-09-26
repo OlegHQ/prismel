@@ -9,7 +9,7 @@ let get_pdk = function
   | Error error -> fail (Error.to_string error)
 
 let grid ?(columns = 24) ?(rows = 18) () =
-  Plane_generators.grid_checked ~counts:Plane_generators.Grid_point_counts
+  Plane_generators.grid ~counts:Plane_generators.Grid_point_counts
     ~connectivity:Plane_generators.Grid_alternating_triangles ~columns ~rows ~size:8. ()
   |> get_pdk
 

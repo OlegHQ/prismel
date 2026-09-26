@@ -291,7 +291,7 @@ let bound ?cancel ?(grain = 16_384) ?selection
                     Error "Pdk.Bound.bound: sphere output radii must be finite and positive"
                   else Result.map (transform ~grain
                       (Mat4.mul (Mat4.translation center) (Mat4.scaling radii)))
-                      (uv_sphere ?cancel ~grain ~segments ~rings ~radius:1. ())),
+                      (Error.unguard (uv_sphere ?cancel ~grain ~segments ~rings ~radius:1. ()))),
               center, radii in
         Result.bind (create ()) (fun output ->
           let detail_float3 name value output =

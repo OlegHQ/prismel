@@ -283,7 +283,7 @@ let overlay tracer _graph prepared (frame : Frame.t) =
   picture @ Scene.[ text ~at:(12, 12) ~color:(Color.rgb 140 140 145) status ]
 
 let init _frame =
-  let placeholder = Result.get_ok (Pdk.Box_generator.box_checked ~size:(v 0.01 0.01 0.01) ()) in
+  let placeholder = Result.get_ok (Pdk.Box_generator.box ~size:(v 0.01 0.01 0.01) ()) in
   let w, h = image_size in
   let tracer =
     match P.create ~bounces:4 ~exposure:1. ~width:w ~height:h

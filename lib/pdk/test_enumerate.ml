@@ -36,7 +36,7 @@ let equal_output left right owner name =
   && int_values owner name left = int_values owner name right
 
 let fixture () =
-  let geometry = Plane_generators.grid_checked ~connectivity:Plane_generators.Grid_quads
+  let geometry = Plane_generators.grid ~connectivity:Plane_generators.Grid_quads
       ~columns:2 ~rows:1 ~size:2. () |> get_pdk in
   geometry
   |> add_attribute Attribute.Point "piece"

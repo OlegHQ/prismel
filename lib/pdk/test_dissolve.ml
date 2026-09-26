@@ -102,7 +102,7 @@ let equal_geometry left right =
       (Geometry.edge_groups left) (Geometry.edge_groups right)
 
 let two_quads () =
-  Plane_generators.grid_checked ~connectivity:Plane_generators.Grid_quads ~columns:2 ~rows:1 ~size:2. ()
+  Plane_generators.grid ~connectivity:Plane_generators.Grid_quads ~columns:2 ~rows:1 ~size:2. ()
   |> get_pdk |> add_payload
   |> fun geometry -> Geometry.with_edge_group (boundary_edges geometry) geometry
        |> get
@@ -143,7 +143,7 @@ let test_interior () =
     "Dissolve Non-Selected"
 
 let test_boundary () =
-  let source = Plane_generators.grid_checked ~connectivity:Plane_generators.Grid_quads ~columns:1 ~rows:1 ~size:1. ()
+  let source = Plane_generators.grid ~connectivity:Plane_generators.Grid_quads ~columns:1 ~rows:1 ~size:1. ()
       |> get_pdk in
   let index = Topology_index.create (Geometry.topology source) in
   let selected = edge_group source "one" (fun edge -> edge = 0) in
@@ -259,7 +259,7 @@ let test_normals () =
   | _ -> fail "recomputed normal storage"
 
 let test_parallel () =
-  let source = Plane_generators.grid_checked ~grain:127 ~connectivity:Plane_generators.Grid_quads
+  let source = Plane_generators.grid ~grain:127 ~connectivity:Plane_generators.Grid_quads
       ~columns:300 ~rows:220 ~size:20. () |> get_pdk |> add_payload in
   let edges = manifold_edges source in
   let run domains = Prismel.Parallel.run ~domains (fun () ->

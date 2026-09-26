@@ -92,7 +92,7 @@ let run () =
   if Geometry.find_attribute ~owner:Attribute.Point "N" peaked <> None then
     fail "Peak retained stale point normals";
 
-  let grid = Plane_generators.grid_checked ~columns:1 ~rows:1 ~size:2. () |> get_ok in
+  let grid = Plane_generators.grid ~columns:1 ~rows:1 ~size:2. () |> get_ok in
   let point_count = Geometry.point_count grid
   and vertex_count = Geometry.vertex_count grid
   and primitive_count = Geometry.primitive_count grid in
@@ -204,7 +204,7 @@ let run () =
   expect_error "invalid_deformation"
     (Deform.peak ~selection:(Transform_ops.Selected_points wrong_group)
       ~direction_attribute:"direction" ~distance:1. directed);
-  let other = Plane_generators.grid_checked ~columns:1 ~rows:1 ~size:3. () |> get_ok in
+  let other = Plane_generators.grid ~columns:1 ~rows:1 ~size:3. () |> get_ok in
   let other_index = Topology_index.create (Geometry.topology other) in
   let other_edges = Edge_group.init ~topology:(Geometry.topology other)
       ~index:other_index ~name:"other" (fun _ -> true) in
@@ -320,7 +320,7 @@ let run () =
     (Deform.bend ~mask_attribute:"bad_bend_mask" ~length:1. ~bend_angle:1.
       bad_bend_mask);
 
-  let bend_scale_source = Plane_generators.grid_checked ~columns:320 ~rows:220 ~size:12. ()
+  let bend_scale_source = Plane_generators.grid ~columns:320 ~rows:220 ~size:12. ()
       |> get_ok in
   let bend_scale domains = Parallel.run ~domains (fun () ->
       Deform.bend ~grain:1_009 ~origin:(Vec3.create 0. 0. (-6.))
@@ -333,7 +333,7 @@ let run () =
          <> point_float "bend_capture" bend_many then
     fail "Bend differs between one and four domains";
 
-  let mountain_source = Plane_generators.grid_checked ~columns:160 ~rows:120 ~size:12. () |> get_ok in
+  let mountain_source = Plane_generators.grid ~columns:160 ~rows:120 ~size:12. () |> get_ok in
   let large_count = Geometry.point_count mountain_source in
   let geometric_source = mountain_source
       |> Geometry.without_attribute ~owner:Attribute.Point "N"

@@ -34,7 +34,7 @@ let attribute owner name geometry =
   | None -> fail ("missing attribute " ^ name)
 
 let fixture () =
-  Plane_generators.grid_checked ~columns:1 ~rows:1 ~size:1. () |> get_pdk
+  Plane_generators.grid ~columns:1 ~rows:1 ~size:1. () |> get_pdk
   |> add_float Attribute.Point "keep_point" 1.
   |> add_float Attribute.Point "temporary_point" 2.
   |> add_float Attribute.Point "temporary_keep" 3.

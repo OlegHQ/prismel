@@ -36,7 +36,7 @@ let disconnected_triangles point_count =
 
 let square_grid primitive_target =
   let side = max 1 (int_of_float (sqrt (float_of_int primitive_target))) in
-  Plane_generators.grid_checked ~connectivity:Plane_generators.Grid_quads ~columns:side ~rows:side
+  Plane_generators.grid ~connectivity:Plane_generators.Grid_quads ~columns:side ~rows:side
     ~size:(float_of_int side) () |> get
 
 let color_values owner geometry =

@@ -231,7 +231,7 @@ let check_target_scale_and_validation () =
       ~using:Fuse_grid.Closest_target_point source)
 
 let check_target_parallel_exact () =
-  let target = Plane_generators.grid_checked ~columns:420 ~rows:320 ~size:30. () |> get_ok in
+  let target = Plane_generators.grid ~columns:420 ~rows:320 ~size:30. () |> get_ok in
   let source = target
       |> Transform_ops.transform (Mat4.translation (Vec3.create 0.013 (-0.017) 0.009)) in
   let run domains = Parallel.run ~domains (fun () ->
@@ -241,7 +241,7 @@ let check_target_parallel_exact () =
   let one = run 1 and four = run 4 in
   check (equal_target_output one four)
     "one/four-domain target Fuse output differs";
-  let base = Plane_generators.grid_checked ~columns:220 ~rows:160 ~size:20. () |> get_ok in
+  let base = Plane_generators.grid ~columns:220 ~rows:160 ~size:20. () |> get_ok in
   let half = Geometry.point_count base in
   let linked = Mesh_merge.run [base;
       Transform_ops.transform (Mat4.translation (Vec3.create 0.013 (-0.017) 0.009)) base]
@@ -741,10 +741,10 @@ let check_noop_and_validation () =
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
   expect_code "cancelled" (Fuse_grid.snap_to_grid_checked ~cancel:cancelled
-      (Plane_generators.grid_checked ~columns:10 ~rows:10 ~size:1. () |> get_ok))
+      (Plane_generators.grid ~columns:10 ~rows:10 ~size:1. () |> get_ok))
 
 let check_parallel_exact () =
-  let source = Plane_generators.grid_checked ~columns:500 ~rows:300 ~size:20. () |> get_ok
+  let source = Plane_generators.grid ~columns:500 ~rows:300 ~size:20. () |> get_ok
       |> Deform.noise_displace ~seed:81 ~amplitude:0.37 ~frequency:0.29 |> get_ok in
   let run domains = Parallel.run ~domains (fun () ->
     Fuse_grid.snap_to_grid_checked ~grain:1024 ~spacing:(Vec3.create 0.03125 0.03125 0.03125)

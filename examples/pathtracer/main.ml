@@ -12,7 +12,7 @@ let pdk = function Ok g -> g | Error e -> failwith (Pdk.Error.to_string e)
 (* Seven tumbling matte cubes over a dark cyclorama. Edges are rounded by the
    render-time round-corners shader, not by geometry. *)
 let cube ~at ~rotation ~size =
-  pdk (Pdk.Box_generator.box_checked ~center:at ~rotation ~size:(v size size size) ())
+  pdk (Pdk.Box_generator.box ~center:at ~rotation ~size:(v size size size) ())
 
 let concrete shade =
   P.material ~roughness:0.62 ~round:0.045 (rgb shade (shade *. 1.03) (shade *. 1.1))
@@ -29,7 +29,7 @@ let cubes =
 let scene =
   { P.objects =
       List.map (fun (at, rotation, shade) -> (cube ~at ~rotation ~size:1.05, concrete shade)) cubes
-      @ [ (pdk (Pdk.Box_generator.box_checked ~center:(v 0. (-0.1) 0.) ~size:(v 400. 0.2 400.) ()),
+      @ [ (pdk (Pdk.Box_generator.box ~center:(v 0. (-0.1) 0.) ~size:(v 400. 0.2 400.) ()),
            P.material ~roughness:0.8 (rgb 0.16 0.165 0.18)) ]
   ; spheres = []; strands = []; environment =
       { sky = rgb 0.008 0.010 0.014; ground = rgb 0.002 0.002 0.003

@@ -39,7 +39,7 @@ let two_curves () =
   |> get_string_ok
 
 let perturbed_grid () =
-  let geometry = Plane_generators.grid_checked ~columns:2 ~rows:2 ~size:2. () |> get_ok in
+  let geometry = Plane_generators.grid ~columns:2 ~rows:2 ~size:2. () |> get_ok in
   let source = positions geometry in
   let values = Packed.Float3.Private.of_owned_exn ~x:(Array.copy source.x)
       ~y:(Array.mapi (fun point y -> if point = 4 then 3. else y) source.y)
@@ -155,7 +155,7 @@ let run () =
   check (Array.exists2 (fun left right -> left <> right) free.y source.y)
     "free Smooth was unexpectedly an identity";
 
-  let region = Plane_generators.grid_checked ~columns:4 ~rows:4 ~size:4. () |> get_ok in
+  let region = Plane_generators.grid ~columns:4 ~rows:4 ~size:4. () |> get_ok in
   let region_source = positions region in
   let region = Geometry.with_positions
       (Packed.Float3.Private.of_owned_exn ~x:(Array.copy region_source.x)
@@ -228,7 +228,7 @@ let run () =
   Cancel.cancel cancelled;
   expect_code "cancelled" (Smooth.run ~cancel:cancelled ~attributes:"P" grid);
 
-  let scale = Plane_generators.grid_checked ~columns:400 ~rows:250 ~size:40. () |> get_ok
+  let scale = Plane_generators.grid ~columns:400 ~rows:250 ~size:40. () |> get_ok
       |> Deform.noise_displace ~amplitude:0.8 ~frequency:0.41 ~seed:73 |> get_ok in
   let point_count = Geometry.point_count scale in
   let weight = Attribute.create_owned ~name:"weight" ~owner:Attribute.Point

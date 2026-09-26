@@ -307,7 +307,7 @@ let check_typed_selections () =
       ~unique_points:true source with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "Facet accepted a typed selection with the wrong owner");
-  let foreign = Plane_generators.grid_checked ~columns:1 ~rows:1 ~size:1. () |> get_ok in
+  let foreign = Plane_generators.grid ~columns:1 ~rows:1 ~size:1. () |> get_ok in
   let foreign_topology = Geometry.topology foreign in
   let foreign_index = Topology_index.create foreign_topology in
   let foreign_edge = Edge_group.init ~topology:foreign_topology
@@ -533,7 +533,7 @@ let check_remove_inline_points () =
       && Edge_group.mem !expected_edge healed)
     "Facet Remove Inline Points healed edge ancestry";
   let retained = Facet.run ~remove_inline_points:true ~inline_distance:0.
-      (Plane_generators.grid_checked ~columns:8 ~rows:6 ~size:2. () |> get_ok) |> get_ok in
+      (Plane_generators.grid ~columns:8 ~rows:6 ~size:2. () |> get_ok) |> get_ok in
   check (Geometry.vertex_count retained = 8 * 6 * 6)
     "Facet Remove Inline Points changed non-inline triangles";
   let translated middle_offset =
@@ -661,7 +661,7 @@ let check_primitive_group_orient_polygons () =
     "grouped Facet inspected an unselected non-manifold neighborhood"
 
 let check_cusp_polygons () =
-  let source = Box_generator.box_checked ~connectivity:Box_generator.Box_quads ~consolidate_points:true
+  let source = Box_generator.box ~connectivity:Box_generator.Box_quads ~consolidate_points:true
       ~normals:Box_generator.Box_point_normals ~uv_attribute:"uv"
       ~size:(Vec3.create 2. 2. 2.) () |> get_ok in
   let source = source |> add_attribute Attribute.Point "point_id"
@@ -719,7 +719,7 @@ let check_cusp_polygons () =
    | _ -> fail "Facet Cusp Polygons accepted curve topology")
 
 let check_primitive_group_cusp_polygons () =
-  let source = Box_generator.box_checked ~connectivity:Box_generator.Box_quads ~consolidate_points:true
+  let source = Box_generator.box ~connectivity:Box_generator.Box_quads ~consolidate_points:true
       ~size:(Vec3.create 2. 2. 2.) () |> get_ok in
   let selected = primitive_group source (fun primitive -> primitive = 0) in
   let output = Facet.run ~primitives:selected ~cusp_angle:1. source |> get_ok in
@@ -1023,7 +1023,7 @@ let repeated_warped_quads polygons =
   Geometry.create ~positions ~topology () |> get_string
 
 let check_parallel_exact () =
-  let source = Plane_generators.grid_checked ~columns:300 ~rows:240 ~uv_attribute:"uv" ~size:20. ()
+  let source = Plane_generators.grid ~columns:300 ~rows:240 ~uv_attribute:"uv" ~size:20. ()
       |> get_ok in
   let run domains = Parallel.run ~domains (fun () ->
       Facet.run ~grain:257 ~pre_compute_normals:true ~unique_points:true
@@ -1077,7 +1077,7 @@ let check_parallel_exact () =
   let one = run 1 and many = run 4 in
   check (equal_geometry one many)
     "one-domain and four-domain Facet orientation differ";
-  let displaced = Plane_generators.grid_checked ~columns:240 ~rows:180 ~uv_attribute:"uv" ~size:20.
+  let displaced = Plane_generators.grid ~columns:240 ~rows:180 ~uv_attribute:"uv" ~size:20.
       () |> get_ok
       |> Deform.noise_displace ~grain:257 ~amplitude:0.8 ~frequency:0.7
            ~seed:927 |> get_ok in

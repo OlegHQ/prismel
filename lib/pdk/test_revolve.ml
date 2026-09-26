@@ -266,7 +266,7 @@ let check_selection_validation_and_parallel () =
     ~divisions:max_int ~origin:Vec3.zero ~axis:Vec3.unit_y (base_profile ()));
   expect_invalid (Sweep_modeling.revolve ~revolve_type:Sweep_modeling.Revolve_open_arc ~caps:true
     ~divisions:4 ~origin:Vec3.zero ~axis:Vec3.unit_y (base_profile ()));
-  let polygon = Plane_generators.grid_checked ~columns:1 ~rows:1 ~size:1. () |> get_ok in
+  let polygon = Plane_generators.grid ~columns:1 ~rows:1 ~size:1. () |> get_ok in
   expect_invalid (Sweep_modeling.revolve ~divisions:4 ~origin:Vec3.zero
     ~axis:Vec3.unit_y polygon);
   let repeated = Line_geometry.polyline_checked [|(1.,0.,0.); (1.,0.,0.)|] |> get_ok in

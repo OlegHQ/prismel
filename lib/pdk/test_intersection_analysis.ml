@@ -305,7 +305,7 @@ let test_restrictions_translation_and_errors () =
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
   expect "cancelled" (Intersection_analysis.run_checked ~cancel:cancelled source);
-  let curve = Line_geometry.line_checked ~origin:Vec3.zero ~direction:Vec3.unit_x ~length:1. ()
+  let curve = Line_geometry.line ~origin:Vec3.zero ~direction:Vec3.unit_x ~length:1. ()
       |> get in
   check (Geometry.point_count (Intersection_analysis.run_checked curve |> get) = 0)
     "Intersection Analysis rejected a valid polygon curve";
@@ -333,7 +333,7 @@ let test_restrictions_translation_and_errors () =
   expect "invalid_surface" (Intersection_analysis.run_checked quad)
 
 let test_parallel_exact () =
-  let source = Plane_generators.grid_checked ~grain:31 ~counts:Plane_generators.Grid_point_counts
+  let source = Plane_generators.grid ~grain:31 ~counts:Plane_generators.Grid_point_counts
       ~connectivity:Plane_generators.Grid_alternating_triangles
       ~columns:80 ~rows:60 ~size:20. () |> get in
   let collision = Transform_ops.transform ~grain:31

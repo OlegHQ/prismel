@@ -46,17 +46,7 @@ val run :
   ?rings:int ->
   radius:float ->
   unit ->
-  (Geometry.t, string) result
-
-val run_checked :
-  ?cancel:Cancel.t -> ?grain:int -> ?connectivity:sphere_connectivity ->
-  ?unique_points_per_pole:bool -> ?triangular_poles:bool ->
-  ?normals:sphere_normals -> ?orientation:sphere_orientation ->
-  ?center:Prismel_math.Vec3.t -> ?rotation:Prismel_math.Vec3.t ->
-  ?rotation_order:sphere_rotation_order -> ?uniform_scale:float ->
-  ?radius_x:float -> ?radius_y:float -> ?radius_z:float ->
-  ?uv_attribute:string -> ?segments:int -> ?rings:int ->
-  radius:float -> unit -> (Geometry.t, Error.t) result
+  (Geometry.t, Error.t) result
 (** Generate a latitude/longitude sphere or ellipsoid as regular/alternating
     triangles, quads, open row/column curves, combined curves, or points. The
     compatible default retains shared poles, triangles, +Y pole orientation,

@@ -192,7 +192,7 @@ let star_prism ~teeth ~center:(cx, cy, cz) ~rotation ~inner ~outer ~depth =
   geometry points vertices offsets |> outward
 
 let box ~center ~rotation ~size ~divisions =
-  Box_generator.box_checked ~grain:64 ~center:(let x, y, z = center in Vec3.create x y z)
+  Box_generator.box ~grain:64 ~center:(let x, y, z = center in Vec3.create x y z)
     ~rotation:(let x, y, z = rotation in Vec3.create x y z)
     ~size:(let x, y, z = size in Vec3.create x y z)
     ~x_divisions:divisions ~y_divisions:divisions ~z_divisions:divisions

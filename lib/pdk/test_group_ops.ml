@@ -610,7 +610,7 @@ let test_expand () =
    | Ok _ -> fail "Group Expand accepted a missing collision group")
 
 let test_parallel_and_cancellation () =
-  let base = Plane_generators.grid_checked ~columns:500 ~rows:300 ~size:20. () |> get_ok in
+  let base = Plane_generators.grid ~columns:500 ~rows:300 ~size:20. () |> get_ok in
   let width = 501 in
   let seeded = with_group Group.Point "stripe"
       (fun point -> point mod width = width / 2) base in

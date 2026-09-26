@@ -220,7 +220,7 @@ let equal_attributes left right =
     (Geometry.attributes left) (Geometry.attributes right)
 
 let test_dense_parallel_exactness () =
-  let source = Plane_generators.grid_checked ~connectivity:Plane_generators.Grid_quads ~columns:480 ~rows:300
+  let source = Plane_generators.grid ~connectivity:Plane_generators.Grid_quads ~columns:480 ~rows:300
       ~size:20. () |> get_ok in
   let point_count = Geometry.point_count source in
   let source = source

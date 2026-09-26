@@ -275,9 +275,9 @@ let test_output_policies () =
   check (Geometry.point_count split > Geometry.point_count shared
       && Geometry.primitive_count split = Geometry.primitive_count shared)
     "public Boolean seam-point policy did not split topology components";
-  let host = Box_generator.box_checked ~grain:1 ~size:(Prismel.Vec3.create 2.8 2.2 2.2)
+  let host = Box_generator.box ~grain:1 ~size:(Prismel.Vec3.create 2.8 2.2 2.2)
       ~connectivity:Box_generator.Box_quads ~consolidate_points:true () |> get
-  and cutter = Box_generator.box_checked ~grain:1 ~size:(Prismel.Vec3.create 2.2 1.15 1.15)
+  and cutter = Box_generator.box ~grain:1 ~size:(Prismel.Vec3.create 2.2 1.15 1.15)
       ~center:(Prismel.Vec3.create 0.85 0. 0.)
       ~rotation:(Prismel.Vec3.create 0.35 0.42 0.12)
       ~connectivity:Box_generator.Box_quads ~consolidate_points:true () |> get in

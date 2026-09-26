@@ -50,7 +50,7 @@ let graphs () =
          ~viewpoint:(Vec3.create 0. 4. 5.) ~name:"raised_tiles"
     |> Sop.peak ~selection:(Sop.Primitive_group "raised_tiles") ~distance:0.04
     |> Sop.poly_extrude ~group:"raised_tiles"
-         ~divide:Pdk.Poly_modeling.Extrude_connected_components ~divisions:3
+         ~divide:Pdk.Poly_extrude.Extrude_connected_components ~divisions:3
          ~front_group:"tile_fronts" ~side_group:"tile_sides"
          ~front_boundary_group:"tile_rims" ~distance:0.28
     |> Sop.facet ~unique_points:true ~post_compute_normals:true

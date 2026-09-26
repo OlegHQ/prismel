@@ -253,7 +253,7 @@ let test_errors_and_cancellation () =
    | Ok _ -> fail "cancelled Blast published geometry")
 
 let test_dense_parallel_exactness () =
-  let source = Plane_generators.grid_checked ~columns:480 ~rows:300 ~size:20. () |> get_ok in
+  let source = Plane_generators.grid ~columns:480 ~rows:300 ~size:20. () |> get_ok in
   let point_count = Geometry.point_count source
   and primitive_count = Geometry.primitive_count source in
   let source = source

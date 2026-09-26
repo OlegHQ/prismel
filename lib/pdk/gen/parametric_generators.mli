@@ -81,7 +81,7 @@ type platonic_rotation_order =
   | Platonic_zxy
   | Platonic_zyx
 
-val torus_checked :
+val torus :
   ?cancel:Cancel.t ->
   ?grain:int ->
   ?connectivity:torus_connectivity ->
@@ -107,7 +107,7 @@ val torus_checked :
   unit ->
   (Geometry.t, Error.t) result
 
-val tube_checked :
+val tube :
   ?cancel:Cancel.t ->
   ?grain:int ->
   ?connectivity:tube_connectivity ->
@@ -129,7 +129,7 @@ val tube_checked :
   unit ->
   (Geometry.t, Error.t) result
 
-val platonic_checked :
+val platonic :
   ?cancel:Cancel.t ->
   ?kind:platonic_kind ->
   ?normals:platonic_normals ->

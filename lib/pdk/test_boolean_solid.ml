@@ -830,7 +830,7 @@ let test_surface_surface_products () =
     "transverse surface/surface intersection lost its curve product"
 
 let test_certified_rounding_repair () =
-  let host = Box_generator.box_checked ~grain:128 ~center:(Prismel.Vec3.create 0. 0. 0.)
+  let host = Box_generator.box ~grain:128 ~center:(Prismel.Vec3.create 0. 0. 0.)
       ~rotation:(Prismel.Vec3.create 0.08 (-0.13) 0.04)
       ~size:(Prismel.Vec3.create 5.2 3.3 2.7)
       ~x_divisions:6 ~y_divisions:6 ~z_divisions:6

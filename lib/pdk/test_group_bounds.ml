@@ -238,7 +238,7 @@ let same_group left right =
   && members left = members right
 
 let test_scale_parallel_exactness () =
-  let source = Plane_generators.grid_checked ~columns:500 ~rows:300 ~size:20. () |> get_ok in
+  let source = Plane_generators.grid ~columns:500 ~rows:300 ~size:20. () |> get_ok in
   let region = sphere (Vec3.create 1. 0. (-2.)) 7.5 in
   let run domains = Parallel.run ~domains (fun () ->
     source

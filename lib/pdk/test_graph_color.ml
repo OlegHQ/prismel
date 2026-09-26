@@ -27,7 +27,7 @@ let with_attribute owner name storage geometry =
   Geometry.with_attribute attribute geometry |> get_string
 
 let quad_grid () =
-  Plane_generators.grid_checked ~connectivity:Plane_generators.Grid_quads ~columns:2 ~rows:2 ~size:2. () |> get
+  Plane_generators.grid ~connectivity:Plane_generators.Grid_quads ~columns:2 ~rows:2 ~size:2. () |> get
 
 let verify_points_by_primitive geometry colors =
   let topology = Geometry.topology geometry in

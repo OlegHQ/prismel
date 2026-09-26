@@ -132,7 +132,7 @@ let equal left right =
 
 let test_parallel_exact () =
   let columns = 400 and rows = 300 in
-  let source = Plane_generators.grid_checked ~connectivity:Plane_generators.Grid_triangles ~columns ~rows
+  let source = Plane_generators.grid ~connectivity:Plane_generators.Grid_triangles ~columns ~rows
       ~size:100. () |> get in
   let piece = attribute Attribute.Primitive "piece"
       (Attribute.Int (Array.init (Geometry.primitive_count source)

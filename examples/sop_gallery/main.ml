@@ -134,7 +134,7 @@ let meshes () =
   Sop.merge (List.map plain [extrusion; lathe; sweep; subdivided])
 
 let subdivision () =
-  let source = Pdk.Parametric_generators.platonic_checked ~kind:Pdk.Parametric_generators.Platonic_icosahedron
+  let source = Pdk.Parametric_generators.platonic ~kind:Pdk.Parametric_generators.Platonic_icosahedron
       ~radius:1.15 () |> Result.get_ok in
   let plain node = Sop.delete_attributes ~point_pattern:"*"
       ~vertex_pattern:"*" ~primitive_pattern:"*" ~detail_pattern:"*" node in

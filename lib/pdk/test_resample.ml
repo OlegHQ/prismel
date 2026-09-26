@@ -219,7 +219,7 @@ let check_validation () =
   expect_invalid (Resample_curves.run ~primitives:wrong_group ~segments:2 line);
   let repeated = Line_geometry.polyline_checked [|(0., 0., 0.); (0., 0., 0.)|] |> get_ok in
   expect_invalid (Resample_curves.run ~segments:2 repeated);
-  let polygon = Plane_generators.grid_checked ~columns:1 ~rows:1 ~size:1. () |> get_ok in
+  let polygon = Plane_generators.grid ~columns:1 ~rows:1 ~size:1. () |> get_ok in
   expect_invalid (Resample_curves.run ~segments:2 polygon);
   let closed = Line_geometry.polyline_checked ~closed:true
       [|(0., 0., 0.); (1., 0., 0.); (0., 1., 0.)|] |> get_ok in

@@ -69,7 +69,7 @@ let text_attr name geometry =
   | None -> fail ("missing point attribute " ^ name)
 
 let test_total () =
-  let output = Point_generate.run_checked ~mode:(Point_generate.Generate_total 5) (source ()) |> get in
+  let output = Point_generate.run ~mode:(Point_generate.Generate_total 5) (source ()) |> get in
   check (Geometry.point_count output = 5 && Geometry.vertex_count output = 0)
     "Point Generate total cardinality/topology";
   let positions = Packed.Float3.Private.view (Geometry.positions output) in
@@ -85,7 +85,7 @@ let test_per_point_and_probability () =
   let input = source () in
   let selected = Geometry.find_group ~owner:Group.Point "selected" input
       |> Option.get in
-  let output = Point_generate.run_checked ~points:selected
+  let output = Point_generate.run ~points:selected
       ~mode:(Point_generate.Generate_per_point {
         points_per_point = 2.; scale_attribute = None }) input |> get in
   check (Geometry.point_count output = 4) "Point Generate selected count";
@@ -116,13 +116,13 @@ let test_per_point_and_probability () =
            && values.values = [|0.1;0.2;0.1;0.2|])
          "Point Generate float-array payload"
    | _ -> fail "Point Generate float_rows storage");
-  let scaled = Point_generate.run_checked
+  let scaled = Point_generate.run
       ~mode:(Point_generate.Generate_per_point {
         points_per_point = 2.; scale_attribute = Some "weight" }) input |> get in
   check (Geometry.point_count scaled = 7
       && int_attr "sourcepoint" scaled = [|0;0;1;2;2;2;2|])
     "Point Generate scaled counts";
-  let probability = Point_generate.run_checked ~seed:(Rand.seed 19)
+  let probability = Point_generate.run ~seed:(Rand.seed 19)
       ~mode:(Point_generate.Generate_probability { attribute = "probability" }) input
       |> get in
   check (Geometry.point_count probability = 2
@@ -132,7 +132,7 @@ let test_per_point_and_probability () =
 
 let test_keep_input_patterns_groups_and_edges () =
   let input = source () in
-  let output = Point_generate.run_checked ~keep_input:true ~generated_group:"generated"
+  let output = Point_generate.run ~keep_input:true ~generated_group:"generated"
       ~copy_point_attributes:"id rows ^tag"
       ~mode:(Point_generate.Generate_per_point {
         points_per_point = 1.; scale_attribute = None }) input |> get in
@@ -160,7 +160,7 @@ let test_keep_input_patterns_groups_and_edges () =
   check (Group.cardinality selected = 2
       && Group.ordered_elements selected = Some [|2;0|])
     "Point Generate source point-group preservation";
-  let selected_output = Point_generate.run_checked ~keep_input:true
+  let selected_output = Point_generate.run ~keep_input:true
       ~generated_group:"selected"
       ~mode:(Point_generate.Generate_per_point {
         points_per_point = 1.; scale_attribute = None }) input |> get
@@ -184,7 +184,7 @@ let test_keep_input_patterns_groups_and_edges () =
     "Point Generate detail payload sharing"
 
 let test_detail_pattern_and_ragged () =
-  let output = Point_generate.run_checked ~copy_point_attributes:"rows uv"
+  let output = Point_generate.run ~copy_point_attributes:"rows uv"
       ~copy_detail_attributes:"author"
       ~mode:(Point_generate.Generate_per_point {
         points_per_point = 1.; scale_attribute = None }) (source ()) |> get in
@@ -208,7 +208,7 @@ let test_existing_provenance () =
            (Attribute.Int [|90;91;92;93|])) |> Result.get_ok
       |> Geometry.with_attribute (attribute Attribute.Point "sourceindex"
            (Attribute.Int [|8;7;6;5|])) |> Result.get_ok in
-  let output = Point_generate.run_checked ~keep_input:true
+  let output = Point_generate.run ~keep_input:true
       ~mode:(Point_generate.Generate_per_point {
         points_per_point = 1.; scale_attribute = None }) input |> get in
   check (int_attr "sourcepoint" output = [|90;91;92;93;0;1;2;3|]
@@ -219,52 +219,52 @@ let test_malformed_and_cancel () =
   let input = source () in
   let expect label result = match result with
     | Error _ -> () | Ok _ -> fail ("Point Generate accepted " ^ label) in
-  expect "negative total" (Point_generate.run_checked
+  expect "negative total" (Point_generate.run
     ~mode:(Point_generate.Generate_total (-1)) input);
-  expect "negative per-point count" (Point_generate.run_checked
+  expect "negative per-point count" (Point_generate.run
     ~mode:(Point_generate.Generate_per_point {
       points_per_point = -1.; scale_attribute = None }) input);
-  expect "missing scale" (Point_generate.run_checked
+  expect "missing scale" (Point_generate.run
     ~mode:(Point_generate.Generate_per_point {
       points_per_point = 1.; scale_attribute = Some "missing" }) input);
   let bad_probability = Geometry.with_attribute
       (attribute Attribute.Point "probability"
         (Attribute.Float [|1.;nan;0.;0.|])) input |> Result.get_ok in
-  expect "non-finite probability" (Point_generate.run_checked
+  expect "non-finite probability" (Point_generate.run
     ~mode:(Point_generate.Generate_probability { attribute = "probability" })
     bad_probability);
   let wrong = Geometry.find_group ~owner:Group.Primitive "face" input
       |> Option.get in
-  expect "wrong selection owner" (Point_generate.run_checked ~points:wrong
+  expect "wrong selection owner" (Point_generate.run ~points:wrong
     ~mode:(Point_generate.Generate_total 1) input);
-  expect "duplicate metadata names" (Point_generate.run_checked
+  expect "duplicate metadata names" (Point_generate.run
     ~source_point_attribute:"source" ~source_index_attribute:"source"
     ~mode:(Point_generate.Generate_total 1) input);
-  expect "P metadata name" (Point_generate.run_checked
+  expect "P metadata name" (Point_generate.run
     ~source_point_attribute:"P" ~mode:(Point_generate.Generate_total 1) input);
-  expect "empty generated group" (Point_generate.run_checked
+  expect "empty generated group" (Point_generate.run
     ~generated_group:" " ~mode:(Point_generate.Generate_total 1) input);
   let out_of_range = Geometry.with_attribute
       (attribute Attribute.Point "probability"
         (Attribute.Float [|1.;1.1;0.;0.|])) input |> Result.get_ok in
-  expect "out-of-range probability" (Point_generate.run_checked
+  expect "out-of-range probability" (Point_generate.run
     ~mode:(Point_generate.Generate_probability { attribute = "probability" })
     out_of_range);
   let negative_scale = Geometry.with_attribute
       (attribute Attribute.Point "weight"
         (Attribute.Float [|1.;-0.1;1.;1.|])) input |> Result.get_ok in
-  expect "negative count scale" (Point_generate.run_checked
+  expect "negative count scale" (Point_generate.run
     ~mode:(Point_generate.Generate_per_point {
       points_per_point = 1.; scale_attribute = Some "weight" }) negative_scale);
   let wrong_metadata = Geometry.with_attribute
       (attribute Attribute.Point "sourcepoint"
         (Attribute.Text [|"a";"b";"c";"d"|])) input |> Result.get_ok in
-  expect "wrong metadata storage" (Point_generate.run_checked
+  expect "wrong metadata storage" (Point_generate.run
     ~mode:(Point_generate.Generate_total 1) wrong_metadata);
-  expect "malformed point pattern" (Point_generate.run_checked
+  expect "malformed point pattern" (Point_generate.run
     ~copy_point_attributes:"[" ~mode:(Point_generate.Generate_total 1) input);
   let cancel = Cancel.create () in Cancel.cancel cancel;
-  (match Point_generate.run_checked ~cancel
+  (match Point_generate.run ~cancel
       ~mode:(Point_generate.Generate_per_point {
         points_per_point = 2.; scale_attribute = None }) input with
    | Error error when Error.code error = "cancelled" -> ()
@@ -295,7 +295,7 @@ let test_parallel_exact () =
   let input = Geometry.create ~positions ~topology ~attributes:[density] ()
       |> Result.get_ok in
   let cook domains = Parallel.run ~domains (fun () ->
-    Point_generate.run_checked ~grain:4096 ~seed:(Rand.seed 778)
+    Point_generate.run ~grain:4096 ~seed:(Rand.seed 778)
       ~mode:(Point_generate.Generate_per_point {
         points_per_point = 10.; scale_attribute = Some "density" }) input
     |> get) in

@@ -965,7 +965,7 @@ let test_second_input_creases () =
     "zero all-edge override retained sharpness";
 
   let local_all_edges domains = Parallel.run ~domains (fun () ->
-    let geometry = Plane_generators.grid_checked ~connectivity:Plane_generators.Grid_quads
+    let geometry = Plane_generators.grid ~connectivity:Plane_generators.Grid_quads
         ~columns:2 ~rows:1 ~size:2. () |> get_pdk in
     let selection = Group.ordered ~owner:Group.Primitive ~name:"left"
         ~length:2 [|0|] |> get_string in
@@ -1060,7 +1060,7 @@ let test_second_input_creases () =
 let test_chaikin_creasing () =
   let weights = [|(1, 4.); (3, 2.); (5, 8.); (7, 0.5)|] in
   let make ?(connectivity = Plane_generators.Grid_quads) () =
-    let geometry = Plane_generators.grid_checked ~connectivity ~columns:2 ~rows:2 ~size:2. ()
+    let geometry = Plane_generators.grid ~connectivity ~columns:2 ~rows:2 ~size:2. ()
         |> get_pdk in
     let index = Topology_index.create (Geometry.topology geometry)
         |> Topology_index.Private.view in
@@ -1119,7 +1119,7 @@ let test_chaikin_creasing () =
       && not (Edge_group.mem decayed chaikin_group))
     "Chaikin resulting group lost its asymmetric child-edge membership";
 
-  let mask_base = Plane_generators.grid_checked ~connectivity:Plane_generators.Grid_quads
+  let mask_base = Plane_generators.grid ~connectivity:Plane_generators.Grid_quads
       ~columns:3 ~rows:2 ~size:3. () |> get_pdk in
   let mask_positions = Packed.Float3.Private.view
       (Geometry.positions mask_base) in
@@ -1196,7 +1196,7 @@ let test_chaikin_creasing () =
         ~resulting_crease_group:"remaining" (make ()) |> get_pdk)))
     "recursive Chaikin creasing collapsed to uniform decay";
 
-  let clean = Plane_generators.grid_checked ~connectivity:Plane_generators.Grid_quads
+  let clean = Plane_generators.grid ~connectivity:Plane_generators.Grid_quads
       ~columns:2 ~rows:2 ~size:2. () |> get_pdk in
   let second_input = Subdivide.subdivide ~grain:1 ~creases:input
       ~creasing_method:Subdivide.Subdivide_creasing_chaikin
@@ -1230,7 +1230,7 @@ let test_chaikin_creasing () =
 
 let test_subdivision_holes () =
   let make_grid () =
-    let geometry = Plane_generators.grid_checked ~connectivity:Plane_generators.Grid_quads
+    let geometry = Plane_generators.grid ~connectivity:Plane_generators.Grid_quads
         ~columns:3 ~rows:3 ~size:3. () |> get_pdk in
     let positions = Packed.Float3.Private.view (Geometry.positions geometry) in
     let deformed = Packed.Float3.Private.of_owned_exn
@@ -1335,7 +1335,7 @@ let test_subdivision_holes () =
       && Geometry.primitive_count loop_hole = 4)
     "Loop hole output cardinality";
 
-  let local_source = Plane_generators.grid_checked ~connectivity:Plane_generators.Grid_quads
+  let local_source = Plane_generators.grid ~connectivity:Plane_generators.Grid_quads
       ~columns:4 ~rows:4 ~size:4. () |> get_pdk in
   let local_hole = Group.ordered ~owner:Group.Primitive ~name:"subdivision_hole"
       ~length:16 [|5|] |> get_string
@@ -1407,7 +1407,7 @@ let test_point_boundary_interpolation () =
            (group Group.Primitive "subdivision_hole" retained) = 4)
     "None with Remove Holes disabled did not retain propagated boundary holes";
 
-  let grid () = Plane_generators.grid_checked ~connectivity:Plane_generators.Grid_quads
+  let grid () = Plane_generators.grid ~connectivity:Plane_generators.Grid_quads
       ~columns:3 ~rows:3 ~size:3. () |> get_pdk in
   let run policy domains = Parallel.run ~domains (fun () ->
     Subdivide.subdivide ~grain:1 ~boundary_interpolation:policy (grid ()) |> get_pdk) in
@@ -1442,7 +1442,7 @@ let test_point_boundary_interpolation () =
   check (Geometry.primitive_count local = 4)
     "local None did not include its automatic boundary-hole partition";
 
-  let strip = Plane_generators.grid_checked ~connectivity:Plane_generators.Grid_quads
+  let strip = Plane_generators.grid ~connectivity:Plane_generators.Grid_quads
       ~columns:2 ~rows:1 ~size:2. () |> get_pdk in
   let strip_edge = Subdivide.subdivide
       ~boundary_interpolation:Subdivide.Subdivide_boundary_edge_only strip |> get_pdk
@@ -1484,7 +1484,7 @@ let test_point_boundary_interpolation () =
       && Geometry.primitive_count loop_none = 0)
     "Loop None did not classify the open triangle as a hole";
 
-  let closed = Box_generator.box_checked ~connectivity:Box_generator.Box_quads ~consolidate_points:true
+  let closed = Box_generator.box ~connectivity:Box_generator.Box_quads ~consolidate_points:true
       ~size:(Vec3.create 2. 2. 2.) () |> get_pdk in
   let closed_edge = Subdivide.subdivide
       ~boundary_interpolation:Subdivide.Subdivide_boundary_edge_only closed |> get_pdk
@@ -1609,7 +1609,7 @@ let test_triangle_subdivision_policy () =
       "triangle policy changed a non-Catmull-Clark scheme")
     [Subdivide.Loop; Subdivide.Bilinear];
 
-  let dense = Plane_generators.grid_checked ~connectivity:Plane_generators.Grid_triangles
+  let dense = Plane_generators.grid ~connectivity:Plane_generators.Grid_triangles
       ~columns:4 ~rows:3 ~size:4. () |> get_pdk in
   let exact domains = Parallel.run ~domains (fun () ->
     Subdivide.subdivide ~grain:1 ~iterations:2
@@ -1655,7 +1655,7 @@ let test_face_varying_interpolation () =
   let run ?(iterations = 1) mode geometry =
     Subdivide.subdivide ~grain:1 ~iterations
       ~face_varying_interpolation:mode geometry |> get_pdk in
-  let continuous () = Plane_generators.grid_checked ~connectivity:Plane_generators.Grid_quads
+  let continuous () = Plane_generators.grid ~connectivity:Plane_generators.Grid_quads
       ~columns:3 ~rows:3 ~size:3. () |> get_pdk
       |> fun geometry -> with_vertex_values geometry
         (fun ~topology:_ ~index:_ ~vertex:_ ~primitive:_ ~point ->
@@ -1730,7 +1730,7 @@ let test_face_varying_interpolation () =
     "tuple face-varying components did not share one interpolation plan";
 
   let center_fixture center_values =
-    Plane_generators.grid_checked ~connectivity:Plane_generators.Grid_quads ~columns:2 ~rows:2 ~size:2. ()
+    Plane_generators.grid ~connectivity:Plane_generators.Grid_quads ~columns:2 ~rows:2 ~size:2. ()
     |> get_pdk |> fun geometry -> with_vertex_values geometry
       (fun ~topology:_ ~index:_ ~vertex:_ ~primitive ~point ->
         if point = 4 then center_values.(primitive)
@@ -1780,7 +1780,7 @@ let test_face_varying_interpolation () =
       && (values concave_plus2).(concave_corner) = 10.)
     "Corners Plus 2 did not propagate a concave one-face corner";
 
-  let dart = Plane_generators.grid_checked ~connectivity:Plane_generators.Grid_quads
+  let dart = Plane_generators.grid ~connectivity:Plane_generators.Grid_quads
       ~columns:2 ~rows:2 ~size:2. () |> get_pdk
       |> fun geometry -> with_vertex_values geometry
         (fun ~topology:_ ~index:_ ~vertex:_ ~primitive ~point ->
@@ -1831,7 +1831,7 @@ let test_face_varying_interpolation () =
   check (Geometry.vertex_count recursive_one = 9 * 16 * 4)
     "recursive face-varying refinement cardinality";
 
-  let loop_input = Plane_generators.grid_checked ~connectivity:Plane_generators.Grid_triangles
+  let loop_input = Plane_generators.grid ~connectivity:Plane_generators.Grid_triangles
       ~columns:3 ~rows:2 ~size:3. () |> get_pdk
       |> fun geometry -> with_vertex_values geometry
         (fun ~topology:_ ~index:_ ~vertex:_ ~primitive ~point ->
@@ -1897,9 +1897,9 @@ let test_detail_attribute_overrides () =
     and expected = expected input |> get_pdk in
     check (equal_geometry output expected)
       (label ^ " did not override the explicit Subdivide option") in
-  let quads = Plane_generators.grid_checked ~connectivity:Plane_generators.Grid_quads
+  let quads = Plane_generators.grid ~connectivity:Plane_generators.Grid_quads
       ~columns:3 ~rows:3 ~size:3. () |> get_pdk
-  and triangles = Plane_generators.grid_checked ~connectivity:Plane_generators.Grid_triangles
+  and triangles = Plane_generators.grid ~connectivity:Plane_generators.Grid_triangles
       ~columns:3 ~rows:3 ~size:3. () |> get_pdk in
   List.iter (fun (storage, input, overridden, expected, label) ->
     check_override ~name:"osd_scheme" ~storage ~input ~overridden ~expected label)

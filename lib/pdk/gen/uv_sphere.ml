@@ -71,6 +71,7 @@ let run ?cancel ?(grain = 16_384)
     ?(rotation_order = Sphere_xyz) ?(uniform_scale = 1.)
     ?radius_x ?radius_y ?radius_z ?uv_attribute ?(segments = 48) ?(rings = 24)
     ~radius () =
+  Error.guard ~operation:"uv_sphere" ~code:"invalid_parameter" @@ fun () ->
   let point_mode = connectivity = Sphere_points in
   let normal_mode = match normals with
     | Some mode -> mode
@@ -519,12 +520,3 @@ let run ?cancel ?(grain = 16_384)
            | _ -> assert false);
           Geometry.create ~positions ~topology ~attributes:(List.rev !attributes)
             ())
-
-let run_checked ?cancel ?grain ?connectivity ?unique_points_per_pole
-    ?triangular_poles ?normals ?orientation ?center ?rotation ?rotation_order
-    ?uniform_scale ?radius_x ?radius_y ?radius_z ?uv_attribute ?segments ?rings
-    ~radius () =
-  Error.guard ~operation:"uv_sphere" ~code:"invalid_parameter" (fun () ->
-    run ?cancel ?grain ?connectivity ?unique_points_per_pole ?triangular_poles
-      ?normals ?orientation ?center ?rotation ?rotation_order ?uniform_scale
-      ?radius_x ?radius_y ?radius_z ?uv_attribute ?segments ?rings ~radius ())

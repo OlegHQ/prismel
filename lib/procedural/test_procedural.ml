@@ -1285,7 +1285,7 @@ let test_generators_selections_and_delete () =
    | Error error -> check (error.code = "missing_group")
        "Convert Line missing-group diagnostic"
    | Ok _ -> fail "Convert Line accepted a missing edge group");
-  let reverse_base = Pdk.Plane_generators.grid_checked ~connectivity:Pdk.Plane_generators.Grid_quads
+  let reverse_base = Pdk.Plane_generators.grid ~connectivity:Pdk.Plane_generators.Grid_quads
       ~columns:2 ~rows:1 ~size:2. () |> Result.get_ok in
   let reverse_group = Pdk.Group.ordered ~owner:Pdk.Group.Primitive
       ~name:"reverse_first" ~length:2 [|0|] |> Result.get_ok in
@@ -2286,7 +2286,7 @@ let test_generators_selections_and_delete () =
     with Invalid_argument _ -> None) with
    | None -> ()
    | Some _ -> fail "procedural Attribute Copy accepted no rules");
-  let interpolation_source = Pdk.Plane_generators.grid_checked ~columns:1 ~rows:1 ~size:2. ()
+  let interpolation_source = Pdk.Plane_generators.grid ~columns:1 ~rows:1 ~size:2. ()
       |> Result.get_ok in
   let source_weight = Pdk.Attribute.create_owned ~owner:Pdk.Attribute.Point
       ~name:"weight" (Pdk.Attribute.Float [|0.;10.;20.;30.|])
@@ -2453,7 +2453,7 @@ let test_generators_selections_and_delete () =
               "group_step" expanded_groups.geometry <> None)
          "procedural Group Expand/Promote topology component"
    | _ -> fail "procedural Group Expand/Promote dropped an output group");
-  let constrained_geometry = Pdk.Plane_generators.grid_checked ~connectivity:Pdk.Plane_generators.Grid_quads
+  let constrained_geometry = Pdk.Plane_generators.grid ~connectivity:Pdk.Plane_generators.Grid_quads
       ~columns:3 ~rows:1 ~size:3. () |> get_ok in
   let region = Pdk.Attribute.create_owned ~owner:Pdk.Attribute.Primitive
       ~name:"region" (Pdk.Attribute.Int [|0;0;1|]) |> get_ok in
@@ -3447,7 +3447,7 @@ let test_sweep_contract () =
   Session.close evaluator
 
 let test_local_subdivide_contract () =
-  let base = Pdk.Plane_generators.grid_checked ~columns:3 ~rows:2 ~size:2. () |> Result.get_ok in
+  let base = Pdk.Plane_generators.grid ~columns:3 ~rows:2 ~size:2. () |> Result.get_ok in
   let source_primitives = Pdk.Geometry.primitive_count base in
   let selected = Pdk.Group.ordered ~owner:Pdk.Group.Primitive ~name:"left"
       ~length:source_primitives [|0|] |> Result.get_ok in
@@ -3584,7 +3584,7 @@ let test_local_subdivide_contract () =
          | Some cause -> contains cause "finite and non-negative"
          | None -> false)
        "procedural all-edge crease diagnostic");
-  let chaikin_base = Pdk.Plane_generators.grid_checked ~connectivity:Pdk.Plane_generators.Grid_quads
+  let chaikin_base = Pdk.Plane_generators.grid ~connectivity:Pdk.Plane_generators.Grid_quads
       ~columns:2 ~rows:2 ~size:2. () |> Result.get_ok in
   let chaikin_index = Pdk.Topology_index.create
       (Pdk.Geometry.topology chaikin_base) |> Pdk.Topology_index.Private.view in
@@ -3652,7 +3652,7 @@ let test_local_subdivide_contract () =
       = source_primitives
         * Pdk.Topology.primitive_size (Pdk.Geometry.topology base) 0)
     "procedural Remove Holes off removed descendants";
-  let boundary_base = Pdk.Plane_generators.grid_checked ~connectivity:Pdk.Plane_generators.Grid_quads
+  let boundary_base = Pdk.Plane_generators.grid ~connectivity:Pdk.Plane_generators.Grid_quads
       ~columns:3 ~rows:2 ~size:2. () |> Result.get_ok in
   let boundary_graph = Sop.snapshot boundary_base
       |> Sop.subdivide
@@ -3701,7 +3701,7 @@ let test_local_subdivide_contract () =
     | _ -> fail "procedural face-varying storage changed" in
   check (output_values.(0) <> fvar_values.(0))
     "procedural FVar None did not smooth a continuous boundary value";
-  let triangle_source = Pdk.Plane_generators.grid_checked ~connectivity:Pdk.Plane_generators.Grid_triangles
+  let triangle_source = Pdk.Plane_generators.grid ~connectivity:Pdk.Plane_generators.Grid_triangles
       ~columns:3 ~rows:2 ~size:3. () |> Result.get_ok in
   let triangle_graph = Sop.snapshot triangle_source
       |> Sop.subdivide

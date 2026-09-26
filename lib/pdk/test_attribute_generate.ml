@@ -72,7 +72,7 @@ let randomize ?selection ?element_selection ?seed_attribute ?fraction_attribute
   |> get_ok
 
 let run () =
-  let geometry = Plane_generators.grid_checked ~columns:1 ~rows:1 ~size:2. () |> get_ok in
+  let geometry = Plane_generators.grid ~columns:1 ~rows:1 ~size:2. () |> get_ok in
   let selected = Group.init ~owner:Group.Point ~name:"selected" 4
       (fun point -> point land 1 = 0) in
   let owners = [
@@ -608,7 +608,7 @@ let run () =
       ~input:explicit ~output_min:(numeric 0.) ~output_max:(numeric 1.)
       values_geometry);
 
-  let large = Plane_generators.grid_checked ~columns:500 ~rows:200 ~size:10. () |> get_ok in
+  let large = Plane_generators.grid ~columns:500 ~rows:200 ~size:10. () |> get_ok in
   let generated domains = Parallel.run ~domains (fun () ->
     Attribute_ops.randomize ~grain:2_048 ~seed:(Rand.seed 77)
       ~owner:Attribute.Point ~name:"sample"

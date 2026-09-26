@@ -131,7 +131,7 @@ let test_restricted_and_errors () =
    | Ok _ -> fail "Sort Indices accepted P output")
 
 let test_primitive_indirect () =
-  let source = Plane_generators.grid_checked ~columns:3 ~rows:2 ~size:2.
+  let source = Plane_generators.grid ~columns:3 ~rows:2 ~size:2.
       ~connectivity:Plane_generators.Grid_triangles () |> get_ok in
   let count = Geometry.primitive_count source in
   let ids = Attribute.create_owned ~owner:Attribute.Primitive ~name:"pid"

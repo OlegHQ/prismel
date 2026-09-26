@@ -135,7 +135,7 @@ let test_restrictions_and_errors () =
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
   expect "cancelled" (Boolean_detect.run_checked ~cancel:cancelled ~collision source);
-  let curve = Line_geometry.line_checked ~origin:Vec3.zero ~direction:Vec3.unit_x ~length:1. ()
+  let curve = Line_geometry.line ~origin:Vec3.zero ~direction:Vec3.unit_x ~length:1. ()
       |> get in
   expect "invalid_surface" (Boolean_detect.run_checked ~collision curve);
   let nonfinite_positions = Packed.Float3.Private.of_owned_exn
@@ -239,7 +239,7 @@ let test_self_intersections () =
     "Boolean Detect exposed one polygon's triangulation diagonal as AxA"
 
 let test_parallel_exact () =
-  let source = Plane_generators.grid_checked ~grain:31 ~counts:Plane_generators.Grid_point_counts
+  let source = Plane_generators.grid ~grain:31 ~counts:Plane_generators.Grid_point_counts
       ~connectivity:Plane_generators.Grid_alternating_triangles
       ~columns:80 ~rows:60 ~size:20. () |> get in
   let collision = Transform_ops.transform ~grain:31 (Mat4.rotation_x (Float.pi /. 2.))

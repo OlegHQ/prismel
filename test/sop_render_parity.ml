@@ -4,7 +4,7 @@ open Procedural
 let grid () = Sop.grid ~columns:8 ~rows:6 ~size:2. ()
 let box () = Sop.box ~connectivity:Pdk.Box_generator.Box_quads
     ~consolidate_points:true ~size:(Vec3.create 1.8 1.8 1.8) ()
-let torus () = Pdk.Parametric_generators.torus_checked ~connectivity:Pdk.Parametric_generators.Torus_alternating_triangles
+let torus () = Pdk.Parametric_generators.torus ~connectivity:Pdk.Parametric_generators.Torus_alternating_triangles
     ~rows:16 ~columns:12 ~major_radius:1. ~minor_radius:0.3 ()
     |> Result.get_ok |> Sop.snapshot
 let curve () = Sop.polyline
@@ -30,7 +30,7 @@ let signal_curve () =
   |> Result.get_ok |> Sop.snapshot
 
 let rewire_source () =
-  let geometry = Pdk.Plane_generators.grid_checked ~connectivity:Pdk.Plane_generators.Grid_quads
+  let geometry = Pdk.Plane_generators.grid ~connectivity:Pdk.Plane_generators.Grid_quads
       ~columns:3 ~rows:3 ~size:2. () |> Result.get_ok in
   let targets = Array.init (Pdk.Geometry.point_count geometry)
       (fun point -> if point = 0 then 1 else -1) in

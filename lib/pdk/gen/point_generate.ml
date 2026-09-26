@@ -279,6 +279,7 @@ let run ?cancel ?(grain = 16_384) ?points ?count_ids ?(keep_input = false)
     ?(source_index_attribute = "sourceindex")
     ?(copy_point_attributes = "*") ?(copy_detail_attributes = "")
     ~mode geometry =
+  Error.guard ~operation:"point_generate" ~code:"invalid_geometry" @@ fun () ->
   if grain <= 0 then invalid_arg "Pdk.Point_generate.point_generate: grain must be positive";
   let point_count = Geometry.point_count geometry in
   let selection = match points with
@@ -404,11 +405,3 @@ let run ?cancel ?(grain = 16_384) ?points ?count_ids ?(keep_input = false)
   | Cardinality_error message -> error message
   | Invalid_argument message -> error message
   ))))))
-
-let run_checked ?cancel ?grain ?points ?keep_input ?seed ?generated_group
-    ?source_point_attribute ?source_index_attribute ?copy_point_attributes
-    ?copy_detail_attributes ~mode geometry =
-  Error.guard ~operation:"point_generate" ~code:"invalid_geometry" (fun () ->
-    run ?cancel ?grain ?points ?keep_input ?seed ?generated_group
-      ?source_point_attribute ?source_index_attribute ?copy_point_attributes
-      ?copy_detail_attributes ~mode geometry)

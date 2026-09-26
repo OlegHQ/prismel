@@ -127,7 +127,7 @@ let test_orientation_and_saddle () =
     "saddle center did not receive negative Gaussian curvature"
 
 let test_boundary_smoothing_and_selection () =
-  let grid = Plane_generators.grid_checked ~connectivity:Plane_generators.Grid_quads ~columns:2 ~rows:2 ~size:2. ()
+  let grid = Plane_generators.grid ~connectivity:Plane_generators.Grid_quads ~columns:2 ~rows:2 ~size:2. ()
       |> get in
   let zero = Curvature.run ~outputs:all_outputs grid |> get in
   Array.iter (fun value -> check (near value 0.)
@@ -159,7 +159,7 @@ let test_boundary_smoothing_and_selection () =
   done
 
 let test_exact_domains_and_cardinality () =
-  let sphere = Uv_sphere.run_checked ~connectivity:Uv_sphere.Sphere_triangles
+  let sphere = Uv_sphere.run ~connectivity:Uv_sphere.Sphere_triangles
       ~segments:192 ~rings:96 ~radius:3. () |> get in
   let run domains = Parallel.run ~domains (fun () ->
       Curvature.run ~grain:257 ~smoothing_iterations:2

@@ -220,7 +220,7 @@ let test_selection_promotion_matrix () =
 
 let test_parallel_and_errors () =
   let run domains = Parallel.run ~domains (fun () ->
-    Plane_generators.grid_checked ~connectivity:Plane_generators.Grid_quads ~columns:220 ~rows:180 ~size:10. ()
+    Plane_generators.grid ~connectivity:Plane_generators.Grid_quads ~columns:220 ~rows:180 ~size:10. ()
     |> get_pdk
     |> Normal_ops.run_checked ~grain:257 ~owner:Attribute.Vertex
          ~weighting:Normal_ops.Vertex_angle ~cusp_angle:(Float.pi /. 3.)

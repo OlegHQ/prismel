@@ -269,7 +269,7 @@ let test_closed_policy_and_restrictions () =
       && Topology.primitive_kind (Geometry.topology closed_result) 0
            = Topology.Closed_polyline)
     "PolyCut closed fragment policy";
-  let face = Plane_generators.grid_checked ~connectivity:Plane_generators.Grid_quads ~columns:1 ~rows:1
+  let face = Plane_generators.grid ~connectivity:Plane_generators.Grid_quads ~columns:1 ~rows:1
       ~size:1. () |> get_ok in
   let face_topology = Geometry.topology face in
   let face_index = Topology_index.create face_topology in

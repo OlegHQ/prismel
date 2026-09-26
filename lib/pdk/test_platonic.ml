@@ -79,7 +79,7 @@ let equal_geometry left right =
 
 let make ?kind ?normals ?orientation ?center ?rotation ?rotation_order
     ?face_groups ?(radius = 2.) () =
-  Parametric_generators.platonic_checked ?kind ?normals ?orientation ?center ?rotation ?rotation_order
+  Parametric_generators.platonic ?kind ?normals ?orientation ?center ?rotation ?rotation_order
     ?face_groups ~radius () |> get_ok
 
 let check_outward_and_regular name radius geometry =
@@ -215,22 +215,22 @@ let check_orientation_rotation_and_validation () =
   let custom = make ~orientation:(Parametric_generators.Platonic_axis
       (Vec3.create 0. max_float 0.)) () in
   check_outward_and_regular "custom-axis tetrahedron" 2. custom;
-  expect_code "invalid_parameter" (Parametric_generators.platonic_checked ~radius:0. ());
-  expect_code "invalid_parameter" (Parametric_generators.platonic_checked ~radius:Float.nan ());
-  expect_code "invalid_parameter" (Parametric_generators.platonic_checked ~radius:max_float
+  expect_code "invalid_parameter" (Parametric_generators.platonic ~radius:0. ());
+  expect_code "invalid_parameter" (Parametric_generators.platonic ~radius:Float.nan ());
+  expect_code "invalid_parameter" (Parametric_generators.platonic ~radius:max_float
       ~center:(Vec3.create max_float 0. 0.) ());
-  expect_code "invalid_parameter" (Parametric_generators.platonic_checked ~radius:1.
+  expect_code "invalid_parameter" (Parametric_generators.platonic ~radius:1.
       ~rotation:(Vec3.create Float.infinity 0. 0.) ());
-  expect_code "invalid_parameter" (Parametric_generators.platonic_checked ~radius:1.
+  expect_code "invalid_parameter" (Parametric_generators.platonic ~radius:1.
       ~orientation:(Parametric_generators.Platonic_axis Vec3.zero) ());
-  expect_code "invalid_parameter" (Parametric_generators.platonic_checked ~radius:1. ~face_groups:"" ());
+  expect_code "invalid_parameter" (Parametric_generators.platonic ~radius:1. ~face_groups:"" ());
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
-  expect_code "cancelled" (Parametric_generators.platonic_checked ~cancel:cancelled ~radius:1. ())
+  expect_code "cancelled" (Parametric_generators.platonic ~cancel:cancelled ~radius:1. ())
 
 let check_parallel_exact () =
   let run domains = Parallel.run ~domains (fun () ->
-    Parametric_generators.platonic_checked ~kind:Parametric_generators.Platonic_soccer_ball
+    Parametric_generators.platonic ~kind:Parametric_generators.Platonic_soccer_ball
       ~normals:Parametric_generators.Platonic_vertex_normals
       ~orientation:(Parametric_generators.Platonic_axis (Vec3.create 1. 2. 3.))
       ~center:(Vec3.create 3. (-2.) 5.)

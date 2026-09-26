@@ -66,7 +66,7 @@ let add_attribute attribute geometry =
   Geometry.with_attribute attribute geometry |> get_ok
 
 let source_geometry () =
-  let source = Box_generator.box_checked ~size:(Vec3.create 0.5 0.75 1.) () |> get_pdk in
+  let source = Box_generator.box ~size:(Vec3.create 0.5 0.75 1.) () |> get_pdk in
   let points = Geometry.point_count source
   and vertices = Geometry.vertex_count source
   and primitives = Geometry.primitive_count source in

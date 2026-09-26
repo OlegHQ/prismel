@@ -178,7 +178,7 @@ let run () =
       && Geometry.find_edge_group "drop_edges" cleaned_metadata = None)
     "Clean attribute/group/empty-group cleanup";
 
-  let valid = Plane_generators.grid_checked ~columns:2 ~rows:2 ~size:2. () |> get_pdk in
+  let valid = Plane_generators.grid ~columns:2 ~rows:2 ~size:2. () |> get_pdk in
   check (Clean.run valid |> get_pdk == valid) "Clean no-op lost geometry identity";
   (match Clean.run ~consolidate_distance:(-1.) valid with
    | Error error -> check (Error.code error = "invalid_geometry")
@@ -195,7 +195,7 @@ let run () =
        "Clean cancellation diagnostic"
    | Ok _ -> fail "cancelled Clean published geometry");
 
-  let base = Plane_generators.grid_checked ~columns:80 ~rows:60 ~size:10. () |> get_pdk in
+  let base = Plane_generators.grid ~columns:80 ~rows:60 ~size:10. () |> get_pdk in
   let base_topology = Topology.Private.view (Geometry.topology base) in
   let copies = 3 and base_primitives = Geometry.primitive_count base
   and base_vertices = Geometry.vertex_count base in

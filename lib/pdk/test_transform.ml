@@ -201,7 +201,7 @@ let test_errors_and_parallel () =
    | Error error -> check (Error.code error = "cancelled")
        "Transform cancellation code"
    | Ok _ -> fail "cancelled Transform published geometry");
-  let dense = Plane_generators.grid_checked ~columns:500 ~rows:300 ~size:20. () |> get_ok in
+  let dense = Plane_generators.grid ~columns:500 ~rows:300 ~size:20. () |> get_ok in
   let count = Geometry.primitive_count dense in
   let selection = Group.init ~grain:257 ~owner:Group.Primitive ~name:"bands" count
       (fun primitive -> primitive mod 7 < 3) in

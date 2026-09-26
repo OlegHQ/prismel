@@ -47,7 +47,7 @@ let equal_geometry left right =
       | None, None -> true | _ -> false)
 
 let check_divided_box () =
-  let source = Box_generator.box_checked ~size:(Vec3.create 2. 3. 4.) () |> get_ok
+  let source = Box_generator.box ~size:(Vec3.create 2. 3. 4.) () |> get_ok
       |> Transform_ops.transform (Mat4.translation (Vec3.create 3. (-2.) 5.)) in
   let output = Bound.run_checked ~shape:(Bound.Bound_box { divisions = 2, 3, 4 })
       ~lower_padding:(Vec3.create 1. 2. 3.)
@@ -96,7 +96,7 @@ let check_divided_box () =
   done
 
 let check_typed_selection () =
-  let source = Box_generator.box_checked ~size:(Vec3.create 2. 2. 2.) () |> get_ok in
+  let source = Box_generator.box ~size:(Vec3.create 2. 2. 2.) () |> get_ok in
   let faces = Group.init ~owner:Group.Primitive ~name:"positive_x" 12
       (fun primitive -> primitive < 2) in
   let output = Bound.run_checked ~selection:(Transform_ops.Selected_primitives faces)
@@ -109,7 +109,7 @@ let check_typed_selection () =
    | None -> fail "selected Bound output empty")
 
 let check_sphere () =
-  let source = Box_generator.box_checked ~size:(Vec3.create 2. 2. 2.) () |> get_ok in
+  let source = Box_generator.box ~size:(Vec3.create 2. 2. 2.) () |> get_ok in
   let output = Bound.run_checked
       ~shape:(Bound.Bound_sphere { segments = 16; rings = 8; minimum_radius = 0. })
       ~lower_padding:(Vec3.create 0.2 0.4 0.6)
@@ -161,7 +161,7 @@ let check_validation () =
       source)
 
 let check_parallel_exact () =
-  let source = Plane_generators.grid_checked ~columns:500 ~rows:300 ~size:30. () |> get_ok
+  let source = Plane_generators.grid ~columns:500 ~rows:300 ~size:30. () |> get_ok
       |> Deform.noise_displace ~seed:929 ~amplitude:2. ~frequency:0.23 |> get_ok in
   let run domains = Parallel.run ~domains (fun () ->
     Bound.run_checked ~grain:1024

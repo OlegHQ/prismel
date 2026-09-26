@@ -60,7 +60,7 @@ let equal_geometry left right =
   && List.equal equal_attribute (Geometry.attributes left) (Geometry.attributes right)
 
 let check_default_compatibility () =
-  let geometry = Plane_generators.circle_checked ~segments:4 ~radius:2. () |> get_ok in
+  let geometry = Plane_generators.circle ~segments:4 ~radius:2. () |> get_ok in
   let point = positions geometry
   and topology = Topology.Private.view (Geometry.topology geometry) in
   let step = Float.pi *. 2. /. 4. in
@@ -74,7 +74,7 @@ let check_default_compatibility () =
     "default Circle topology changed"
 
 let check_arc_modes () =
-  let make arc = Plane_generators.circle_checked ~arc ~segments:2 ~radius:2. () |> get_ok in
+  let make arc = Plane_generators.circle ~arc ~segments:2 ~radius:2. () |> get_ok in
   let open_arc = make (Plane_generators.Circle_open_arc {
       start_angle = 0.; end_angle = Float.pi *. 0.5 }) in
   let open_points = positions open_arc in
@@ -101,7 +101,7 @@ let check_arc_modes () =
       && sliced_points.x.(3) = 0. && sliced_points.y.(3) = 0.
       && sliced_points.z.(3) = 0.)
     "Circle sliced arc center/topology";
-  let reversed = Plane_generators.circle_checked ~reverse:true
+  let reversed = Plane_generators.circle ~reverse:true
       ~arc:(Plane_generators.Circle_open_arc {
         start_angle = 0.; end_angle = Float.pi *. 0.5 })
       ~segments:2 ~radius:2. () |> get_ok |> positions in
@@ -110,7 +110,7 @@ let check_arc_modes () =
     "Circle reverse traversal"
 
 let check_orientation_and_ellipse () =
-  let ellipse = Plane_generators.circle_checked ~orientation:Plane_generators.Circle_xy
+  let ellipse = Plane_generators.circle ~orientation:Plane_generators.Circle_xy
       ~center:(Vec3.create 1. 2. 3.) ~radius_x:3. ~radius_y:1.
       ~uniform_scale:2. ~rotation:(Float.pi *. 0.5)
       ~segments:64 ~radius:1. () |> get_ok in
@@ -119,12 +119,12 @@ let check_orientation_and_ellipse () =
       && near bounds.center.z 3. && near bounds.size.x 4.
       && near bounds.size.y 12. && near bounds.size.z 0.)
     "Circle XY ellipse dimensions/center/rotation";
-  let yz = Plane_generators.circle_checked ~orientation:Plane_generators.Circle_yz
+  let yz = Plane_generators.circle ~orientation:Plane_generators.Circle_yz
       ~radius_x:4. ~radius_y:2. ~segments:64 ~radius:1. () |> get_ok
       |> Analysis.bounds |> Option.get in
   check (near yz.size.x 0. && near yz.size.y 8. && near yz.size.z 4.)
     "Circle YZ orientation";
-  let custom = Plane_generators.circle_checked ~orientation:(Plane_generators.Circle_axes {
+  let custom = Plane_generators.circle ~orientation:(Plane_generators.Circle_axes {
         horizontal = Vec3.create max_float max_float 0.;
         vertical = Vec3.create 0. 0. max_float })
       ~center:(Vec3.create 4. 5. 6.) ~radius_x:3. ~radius_y:2.
@@ -137,52 +137,52 @@ let check_orientation_and_ellipse () =
 
 let check_validation () =
   expect_code "invalid_parameter"
-    (Plane_generators.circle_checked ~grain:0 ~segments:3 ~radius:1. ());
+    (Plane_generators.circle ~grain:0 ~segments:3 ~radius:1. ());
   expect_code "invalid_parameter"
-    (Plane_generators.circle_checked ~segments:2 ~radius:1. ());
+    (Plane_generators.circle ~segments:2 ~radius:1. ());
   expect_code "invalid_parameter"
-    (Plane_generators.circle_checked ~arc:(Plane_generators.Circle_open_arc {
+    (Plane_generators.circle ~arc:(Plane_generators.Circle_open_arc {
        start_angle=0.; end_angle=1. }) ~segments:0 ~radius:1. ());
   expect_code "invalid_parameter"
-    (Plane_generators.circle_checked ~arc:(Plane_generators.Circle_closed_arc {
+    (Plane_generators.circle ~arc:(Plane_generators.Circle_closed_arc {
        start_angle=0.; end_angle=1. }) ~segments:1 ~radius:1. ());
-  expect_code "invalid_parameter" (Plane_generators.circle_checked ~segments:3 ~radius:0. ());
+  expect_code "invalid_parameter" (Plane_generators.circle ~segments:3 ~radius:0. ());
   expect_code "invalid_parameter"
-    (Plane_generators.circle_checked ~radius_x:Float.nan ~segments:3 ~radius:1. ());
+    (Plane_generators.circle ~radius_x:Float.nan ~segments:3 ~radius:1. ());
   expect_code "invalid_parameter"
-    (Plane_generators.circle_checked ~uniform_scale:(-1.) ~segments:3 ~radius:1. ());
+    (Plane_generators.circle ~uniform_scale:(-1.) ~segments:3 ~radius:1. ());
   expect_code "invalid_parameter"
-    (Plane_generators.circle_checked ~center:(Vec3.create Float.nan 0. 0.)
+    (Plane_generators.circle ~center:(Vec3.create Float.nan 0. 0.)
        ~segments:3 ~radius:1. ());
   expect_code "invalid_parameter"
-    (Plane_generators.circle_checked ~rotation:Float.infinity ~segments:3 ~radius:1. ());
+    (Plane_generators.circle ~rotation:Float.infinity ~segments:3 ~radius:1. ());
   expect_code "invalid_parameter"
-    (Plane_generators.circle_checked ~arc:(Plane_generators.Circle_open_arc {
+    (Plane_generators.circle ~arc:(Plane_generators.Circle_open_arc {
        start_angle=Float.nan; end_angle=1. }) ~segments:2 ~radius:1. ());
   expect_code "invalid_parameter"
-    (Plane_generators.circle_checked ~arc:(Plane_generators.Circle_sliced_arc {
+    (Plane_generators.circle ~arc:(Plane_generators.Circle_sliced_arc {
        start_angle=1.; end_angle=1. }) ~segments:2 ~radius:1. ());
   expect_code "invalid_parameter"
-    (Plane_generators.circle_checked ~arc:(Plane_generators.Circle_open_arc {
+    (Plane_generators.circle ~arc:(Plane_generators.Circle_open_arc {
        start_angle=(-.max_float); end_angle=max_float })
        ~segments:2 ~radius:1. ());
   expect_code "invalid_parameter"
-    (Plane_generators.circle_checked ~orientation:(Plane_generators.Circle_axes {
+    (Plane_generators.circle ~orientation:(Plane_generators.Circle_axes {
        horizontal=Vec3.zero; vertical=Vec3.unit_z })
        ~segments:3 ~radius:1. ());
   expect_code "invalid_parameter"
-    (Plane_generators.circle_checked ~orientation:(Plane_generators.Circle_axes {
+    (Plane_generators.circle ~orientation:(Plane_generators.Circle_axes {
        horizontal=Vec3.unit_x; vertical=Vec3.unit_x })
        ~segments:3 ~radius:1. ());
   expect_code "invalid_parameter"
-    (Plane_generators.circle_checked ~segments:max_int ~radius:1. ());
+    (Plane_generators.circle ~segments:max_int ~radius:1. ());
   expect_code "invalid_parameter"
-    (Plane_generators.circle_checked ~center:(Vec3.create max_float 0. 0.) ~radius_x:max_float
+    (Plane_generators.circle ~center:(Vec3.create max_float 0. 0.) ~radius_x:max_float
        ~segments:3 ~radius:1. ());
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
   expect_code "cancelled"
-    (Plane_generators.circle_checked ~cancel:cancelled ~segments:500_000 ~radius:1. ())
+    (Plane_generators.circle ~cancel:cancelled ~segments:500_000 ~radius:1. ())
 
 let check_parallel_exact () =
   let arcs = [
@@ -192,7 +192,7 @@ let check_parallel_exact () =
     Plane_generators.Circle_sliced_arc { start_angle = -1.2; end_angle = 2.7 } ] in
   List.iter (fun arc ->
     let run domains = Parallel.run ~domains (fun () ->
-      Plane_generators.circle_checked ~grain:1024 ~arc ~reverse:true
+      Plane_generators.circle ~grain:1024 ~arc ~reverse:true
         ~orientation:(Plane_generators.Circle_axes {
           horizontal = Vec3.create 1. 2. 0.5;
           vertical = Vec3.create (-0.25) 0.75 2. })

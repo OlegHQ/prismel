@@ -3,7 +3,7 @@ let rgb = P.Linear_color.rgb
 let get = function Ok value -> value | Error error -> failwith (Pdk.Error.to_string error)
 let v = Prismel.Vec3.create
 let () =
-  let cube = get (Pdk.Box_generator.box_checked ~size:(v 0.86 0.86 1.) ()) in
+  let cube = get (Pdk.Box_generator.box ~size:(v 0.86 0.86 1.) ()) in
   let transforms = Array.init (36 * 60) (fun i ->
     Prismel.Mat4.mul
       (Prismel.Mat4.translation (v (float (i mod 36)) (float (i / 36)) 0.))

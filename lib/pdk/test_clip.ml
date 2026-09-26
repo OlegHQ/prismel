@@ -145,7 +145,7 @@ let check_custom_clip_attribute () =
     [float2; float3; float4_a; float4_b; integer]
 
 let check_distance () =
-  let source = Box_generator.box_checked ~size:(Vec3.create 4. 3. 2.) () |> get_ok in
+  let source = Box_generator.box ~size:(Vec3.create 4. 3. 2.) () |> get_ok in
   let offset = Plane_clip.clip_checked ~keep:Plane_clip.All ~distance:0.75 ~origin:Vec3.zero
       ~normal:(Vec3.create 8. 0. 0.) source |> get_ok
   and translated = Plane_clip.clip_checked ~keep:Plane_clip.All
@@ -160,7 +160,7 @@ let check_distance () =
     "transform-oriented Clip differs from its effective origin/direction plane"
 
 let check_clipped_edge_group () =
-  let source = Box_generator.box_checked ~connectivity:Box_generator.Box_quads ~consolidate_points:true
+  let source = Box_generator.box ~connectivity:Box_generator.Box_quads ~consolidate_points:true
       ~size:(Vec3.create 2. 2. 2.) () |> get_ok
       |> Group_mesh.group_edges_checked ~name:"plane_edges" |> get_ok in
   let output = Plane_clip.clip_checked ~fill:true ~clipped_edge_group:"plane_edges"
@@ -276,7 +276,7 @@ let check_typed_selection_promotion () =
     "shared-edge Clip did not promote both incident primitives";
   check (clipped_count (Transform_ops.Selected_edges boundary) source = 1)
     "boundary-edge Clip did not promote its incident primitive";
-  let foreign = Box_generator.box_checked ~connectivity:Box_generator.Box_quads ~consolidate_points:true
+  let foreign = Box_generator.box ~connectivity:Box_generator.Box_quads ~consolidate_points:true
       ~size:(Vec3.create 2. 2. 2.) () |> get_ok in
   let foreign_index = Topology_index.create (Geometry.topology foreign) in
   let foreign_edges = Edge_group.init ~topology:(Geometry.topology foreign)
@@ -297,7 +297,7 @@ let check_selected_free_points () =
     "point-selected Clip did not restrict free-point filtering"
 
 let check_selected_caps_and_edge_output () =
-  let box center = Box_generator.box_checked ~connectivity:Box_generator.Box_quads ~consolidate_points:true
+  let box center = Box_generator.box ~connectivity:Box_generator.Box_quads ~consolidate_points:true
       ~center ~size:(Vec3.create 2. 2. 2.) () |> get_ok in
   let first = box Vec3.zero and second = box (Vec3.create 5. 0. 0.) in
   let first_primitives = Geometry.primitive_count first in
@@ -338,7 +338,7 @@ let check_selected_caps_and_edge_output () =
    | None -> fail "selected Clip edge output missing")
 
 let check_parallel_exact () =
-  let source = Plane_generators.grid_checked ~connectivity:Plane_generators.Grid_alternating_triangles
+  let source = Plane_generators.grid ~connectivity:Plane_generators.Grid_alternating_triangles
       ~columns:600 ~rows:400 ~size:20. () |> get_ok in
   let positions = Packed.Float3.Private.view (Geometry.positions source) in
   let field = Attribute.create_owned ~name:"field" ~owner:Attribute.Point
@@ -597,7 +597,7 @@ let cap_area_yz geometry group =
 
 let check_multiple_nested_cap_contours () =
   let box ?(center = Vec3.zero) y z =
-    Box_generator.box_checked ~connectivity:Box_generator.Box_quads ~consolidate_points:true
+    Box_generator.box ~connectivity:Box_generator.Box_quads ~consolidate_points:true
       ~normals:Box_generator.Box_no_normals ~center
       ~size:(Vec3.create 2. y z) () |> get_ok in
   let outer = box 6. 4.
@@ -651,7 +651,7 @@ let check_multiple_nested_cap_contours () =
   let concave = Geometry.create ~positions:concave_positions
       ~topology:(Topology.Builder.freeze concave_topology) () |> get_string_ok
       |> Poly_extrude.run ~distance:1. |> get_ok in
-  let concave_hole = Box_generator.box_checked ~connectivity:Box_generator.Box_quads
+  let concave_hole = Box_generator.box ~connectivity:Box_generator.Box_quads
       ~consolidate_points:true ~normals:Box_generator.Box_no_normals
       ~center:(Vec3.create (-1.5) 0. 0.5)
       ~size:(Vec3.create 0.5 0.5 1.) () |> get_ok

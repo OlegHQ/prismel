@@ -162,7 +162,7 @@ let test_errors_cancellation_and_parallel () =
    | Error error -> check (Error.code error = "cancelled")
        "Distance Along Geometry cancellation code"
    | Ok _ -> fail "cancelled Distance Along Geometry published geometry");
-  let dense = Plane_generators.grid_checked ~columns:400 ~rows:240 ~size:20. () |> get_ok in
+  let dense = Plane_generators.grid ~columns:400 ~rows:240 ~size:20. () |> get_ok in
   let width = 401 and count = Geometry.point_count dense in
   let dense_start = point_group "start" count (fun point ->
       point = (120 * width) + 200) in

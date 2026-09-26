@@ -90,7 +90,7 @@ let equal_geometry left right =
   && List.equal equal_group (Geometry.groups left) (Geometry.groups right)
 
 let check_default_compatibility () =
-  let geometry = Uv_sphere.run_checked ~segments:4 ~rings:2 ~radius:2. () |> get_ok in
+  let geometry = Uv_sphere.run ~segments:4 ~rings:2 ~radius:2. () |> get_ok in
   let point = positions geometry
   and topology = Topology.Private.view (Geometry.topology geometry)
   and normal = float3_attribute geometry Attribute.Point "N" in
@@ -110,26 +110,9 @@ let check_default_compatibility () =
       && normal.z = Array.map (fun value -> value /. 2.) point.z)
     "default UV Sphere normals changed"
 
-let check_family_boundary () =
-  let connectivity = Uv_sphere.Sphere_alternating_triangles in
-  let direct = Uv_sphere.run ~connectivity ~unique_points_per_pole:true
-      ~normals:Uv_sphere.Sphere_vertex_normals ~uv_attribute:"uv"
-      ~orientation:(Uv_sphere.Sphere_axis (Vec3.create 1. 2. 3.))
-      ~rotation:(Vec3.create 0.3 0.5 0.7) ~segments:24 ~rings:12
-      ~radius:2. () in
-  let direct = match direct with
-    | Ok geometry -> geometry | Error message -> fail message in
-  let through_ops = Uv_sphere.run_checked ~connectivity ~unique_points_per_pole:true
-      ~normals:Uv_sphere.Sphere_vertex_normals ~uv_attribute:"uv"
-      ~orientation:(Uv_sphere.Sphere_axis (Vec3.create 1. 2. 3.))
-      ~rotation:(Vec3.create 0.3 0.5 0.7) ~segments:24 ~rings:12
-      ~radius:2. () |> get_ok in
-  check (equal_geometry direct through_ops)
-    "UV Sphere family and Ops facade differ"
-
 let check_connectivity_and_poles () =
   let make ?(unique = false) ?(triangular = true) connectivity =
-    Uv_sphere.run_checked ~connectivity ~unique_points_per_pole:unique
+    Uv_sphere.run ~connectivity ~unique_points_per_pole:unique
       ~triangular_poles:triangular ~segments:8 ~rings:4 ~radius:1. () |> get_ok in
   let triangles = make Uv_sphere.Sphere_triangles
   and alternating = make Uv_sphere.Sphere_alternating_triangles
@@ -187,7 +170,7 @@ let check_connectivity_and_poles () =
     "alternating UV Sphere collapsed to regular triangulation"
 
 let check_uv_normals_and_winding () =
-  let geometry = Uv_sphere.run_checked ~connectivity:Uv_sphere.Sphere_quads
+  let geometry = Uv_sphere.run ~connectivity:Uv_sphere.Sphere_quads
       ~unique_points_per_pole:true ~triangular_poles:false
       ~normals:Uv_sphere.Sphere_vertex_normals ~uv_attribute:"uv"
       ~radius_x:2. ~radius_y:1. ~radius_z:0.5
@@ -239,19 +222,19 @@ let check_uv_normals_and_winding () =
     check ((!nx *. !cx) +. (!ny *. !cy) +. (!nz *. !cz) > 0.)
       "UV Sphere polygon winding points inward"
   done;
-  let points = Uv_sphere.run_checked ~connectivity:Uv_sphere.Sphere_points
+  let points = Uv_sphere.run ~connectivity:Uv_sphere.Sphere_points
       ~unique_points_per_pole:true ~uv_attribute:"uv" ~segments:8 ~rings:4
       ~radius:1. () |> get_ok in
   check (Geometry.find_attribute ~owner:Attribute.Point "uv" points <> None
       && Geometry.find_attribute ~owner:Attribute.Vertex "uv" points = None)
     "point UV Sphere UV ownership";
-  let no_normals = Uv_sphere.run_checked ~connectivity:Uv_sphere.Sphere_rows
+  let no_normals = Uv_sphere.run ~connectivity:Uv_sphere.Sphere_rows
       ~normals:Uv_sphere.Sphere_no_normals ~segments:8 ~rings:4 ~radius:1. ()
       |> get_ok in
   check (Geometry.find_attribute ~owner:Attribute.Point "N" no_normals = None
       && Geometry.find_attribute ~owner:Attribute.Vertex "N" no_normals = None)
     "UV Sphere no-normal mode emitted N";
-  let analytic = Uv_sphere.run_checked ~connectivity:Uv_sphere.Sphere_points
+  let analytic = Uv_sphere.run ~connectivity:Uv_sphere.Sphere_points
       ~radius_x:2. ~radius_y:1. ~radius_z:0.5
       ~segments:8 ~rings:4 ~radius:1. () |> get_ok in
   let analytic_n = float3_attribute analytic Attribute.Point "N" in
@@ -259,7 +242,7 @@ let check_uv_normals_and_winding () =
       && near analytic_n.y.(1) (2. /. sqrt 5.)
       && near analytic_n.z.(1) 0.)
     "ellipsoid inverse-radius normal is incorrect";
-  let extreme = Uv_sphere.run_checked ~connectivity:Uv_sphere.Sphere_points
+  let extreme = Uv_sphere.run ~connectivity:Uv_sphere.Sphere_points
       ~radius_x:Float.min_float ~radius_y:max_float ~radius_z:max_float
       ~segments:8 ~rings:4 ~radius:1. () |> get_ok in
   let extreme_n = float3_attribute extreme Attribute.Point "N" in
@@ -272,7 +255,7 @@ let check_uv_normals_and_winding () =
   done
 
 let check_transform_and_orientation () =
-  let bounds orientation = Uv_sphere.run_checked ~connectivity:Uv_sphere.Sphere_quads
+  let bounds orientation = Uv_sphere.run ~connectivity:Uv_sphere.Sphere_quads
       ~orientation ~radius_x:2. ~radius_y:3. ~radius_z:4.
       ~segments:16 ~rings:8 ~radius:1. () |> get_ok
       |> Analysis.bounds |> Option.get in
@@ -286,7 +269,7 @@ let check_transform_and_orientation () =
       && near custom.size.z y.size.z)
     "UV Sphere orientation/radii bounds";
   let rotation = Vec3.create 0.3 0.5 0.7 in
-  let first order = Uv_sphere.run_checked ~connectivity:Uv_sphere.Sphere_points
+  let first order = Uv_sphere.run ~connectivity:Uv_sphere.Sphere_points
       ~rotation ~rotation_order:order ~center:(Vec3.create 3. (-2.) 5.)
       ~uniform_scale:2. ~segments:8 ~rings:4 ~radius:1. () |> get_ok
       |> positions |> fun values ->
@@ -324,45 +307,45 @@ let check_transform_and_orientation () =
     "UV Sphere rotation orders collapsed"
 
 let check_validation () =
-  expect_code "invalid_parameter" (Uv_sphere.run_checked ~grain:0 ~radius:1. ());
-  expect_code "invalid_parameter" (Uv_sphere.run_checked ~segments:2 ~radius:1. ());
-  expect_code "invalid_parameter" (Uv_sphere.run_checked ~rings:1 ~radius:1. ());
+  expect_code "invalid_parameter" (Uv_sphere.run ~grain:0 ~radius:1. ());
+  expect_code "invalid_parameter" (Uv_sphere.run ~segments:2 ~radius:1. ());
+  expect_code "invalid_parameter" (Uv_sphere.run ~rings:1 ~radius:1. ());
   expect_code "invalid_parameter"
-    (Uv_sphere.run_checked ~segments:max_int ~radius:1. ());
+    (Uv_sphere.run ~segments:max_int ~radius:1. ());
   expect_code "invalid_parameter"
-    (Uv_sphere.run_checked ~rings:max_int ~radius:1. ());
-  expect_code "invalid_parameter" (Uv_sphere.run_checked ~radius:Float.nan ());
+    (Uv_sphere.run ~rings:max_int ~radius:1. ());
+  expect_code "invalid_parameter" (Uv_sphere.run ~radius:Float.nan ());
   expect_code "invalid_parameter"
-    (Uv_sphere.run_checked ~radius_x:(-1.) ~radius:1. ());
+    (Uv_sphere.run ~radius_x:(-1.) ~radius:1. ());
   expect_code "invalid_parameter"
-    (Uv_sphere.run_checked ~uniform_scale:0. ~radius:1. ());
+    (Uv_sphere.run ~uniform_scale:0. ~radius:1. ());
   expect_code "invalid_parameter"
-    (Uv_sphere.run_checked ~center:(Vec3.create Float.nan 0. 0.) ~radius:1. ());
+    (Uv_sphere.run ~center:(Vec3.create Float.nan 0. 0.) ~radius:1. ());
   expect_code "invalid_parameter"
-    (Uv_sphere.run_checked ~rotation:(Vec3.create Float.infinity 0. 0.) ~radius:1. ());
+    (Uv_sphere.run ~rotation:(Vec3.create Float.infinity 0. 0.) ~radius:1. ());
   expect_code "invalid_parameter"
-    (Uv_sphere.run_checked ~orientation:(Uv_sphere.Sphere_axis Vec3.zero) ~radius:1. ());
+    (Uv_sphere.run ~orientation:(Uv_sphere.Sphere_axis Vec3.zero) ~radius:1. ());
   expect_code "invalid_parameter"
-    (Uv_sphere.run_checked ~orientation:(Uv_sphere.Sphere_axis
+    (Uv_sphere.run ~orientation:(Uv_sphere.Sphere_axis
        (Vec3.create Float.nan 0. 0.)) ~radius:1. ());
-  expect_code "invalid_parameter" (Uv_sphere.run_checked ~uv_attribute:"N" ~radius:1. ());
+  expect_code "invalid_parameter" (Uv_sphere.run ~uv_attribute:"N" ~radius:1. ());
   expect_code "invalid_parameter"
-    (Uv_sphere.run_checked ~connectivity:Uv_sphere.Sphere_points
+    (Uv_sphere.run ~connectivity:Uv_sphere.Sphere_points
        ~normals:Uv_sphere.Sphere_vertex_normals ~radius:1. ());
   expect_code "invalid_parameter"
-    (Uv_sphere.run_checked ~center:(Vec3.create max_float 0. 0.)
+    (Uv_sphere.run ~center:(Vec3.create max_float 0. 0.)
        ~radius:max_float ());
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
   expect_code "cancelled"
-    (Uv_sphere.run_checked ~cancel:cancelled ~segments:1_000 ~rings:500 ~radius:1. ())
+    (Uv_sphere.run ~cancel:cancelled ~segments:1_000 ~rings:500 ~radius:1. ())
 
 let check_parallel_exact () =
   let run domains make = Parallel.run ~domains (fun () -> make () |> get_ok) in
   let cases = [
-    (fun () -> Uv_sphere.run_checked ~grain:1024
+    (fun () -> Uv_sphere.run ~grain:1024
       ~connectivity:Uv_sphere.Sphere_triangles ~segments:256 ~rings:128 ~radius:2. ());
-    (fun () -> Uv_sphere.run_checked ~grain:1024
+    (fun () -> Uv_sphere.run ~grain:1024
       ~connectivity:Uv_sphere.Sphere_alternating_triangles
       ~unique_points_per_pole:true ~normals:Uv_sphere.Sphere_vertex_normals
       ~uv_attribute:"uv" ~orientation:(Uv_sphere.Sphere_axis
@@ -370,14 +353,14 @@ let check_parallel_exact () =
       ~rotation:(Vec3.create 0.3 0.5 0.7) ~rotation_order:Uv_sphere.Sphere_yzx
       ~radius_x:3. ~radius_y:2. ~radius_z:1. ~segments:256 ~rings:128
       ~radius:1. ());
-    (fun () -> Uv_sphere.run_checked ~grain:1024 ~connectivity:Uv_sphere.Sphere_quads
+    (fun () -> Uv_sphere.run ~grain:1024 ~connectivity:Uv_sphere.Sphere_quads
       ~triangular_poles:false ~uv_attribute:"uv" ~segments:256 ~rings:128
       ~radius:2. ());
-    (fun () -> Uv_sphere.run_checked ~grain:1024
+    (fun () -> Uv_sphere.run ~grain:1024
       ~connectivity:Uv_sphere.Sphere_rows_and_columns
       ~normals:Uv_sphere.Sphere_vertex_normals ~uv_attribute:"uv"
       ~segments:256 ~rings:128 ~radius:2. ());
-    (fun () -> Uv_sphere.run_checked ~grain:1024 ~connectivity:Uv_sphere.Sphere_points
+    (fun () -> Uv_sphere.run ~grain:1024 ~connectivity:Uv_sphere.Sphere_points
       ~unique_points_per_pole:true ~uv_attribute:"uv"
       ~segments:256 ~rings:128 ~radius:2. ()) ] in
   List.iter (fun make ->
@@ -387,7 +370,6 @@ let check_parallel_exact () =
 
 let run () =
   check_default_compatibility ();
-  check_family_boundary ();
   check_connectivity_and_poles ();
   check_uv_normals_and_winding ();
   check_transform_and_orientation ();

@@ -228,7 +228,7 @@ let run () =
       && Geometry.primitive_count collapsed_curve = 0)
     "whole-curve Edge Collapse cleanup";
 
-  let other = Box_generator.box_checked ~size:(Vec3.create 1. 1. 1.) () |> get_pdk
+  let other = Box_generator.box ~size:(Vec3.create 1. 1. 1.) () |> get_pdk
       |> Group_mesh.group_edges_checked ~name:"other" |> get_pdk in
   let other_edges = Geometry.find_edge_group "other" other |> Option.get in
   expect_code "invalid_topology" (Edge_collapse.run ~edges:other_edges source);
@@ -248,7 +248,7 @@ let run () =
   Cancel.cancel cancelled;
   expect_code "cancelled" (Edge_collapse.run ~cancel:cancelled source);
 
-  let large = Plane_generators.grid_checked ~grain:127 ~connectivity:Plane_generators.Grid_quads
+  let large = Plane_generators.grid ~grain:127 ~connectivity:Plane_generators.Grid_quads
       ~columns:180 ~rows:140 ~size:20. () |> get_pdk in
   let large_topology = Geometry.topology large
   and large_index = Topology_index.create (Geometry.topology large) in

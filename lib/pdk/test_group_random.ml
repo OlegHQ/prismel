@@ -69,7 +69,7 @@ let test_points_and_base () =
     "Group Random one endpoint"
 
 let test_seed_attributes_and_owners () =
-  let source = Plane_generators.grid_checked ~columns:4 ~rows:3 ~size:2. () |> get_ok in
+  let source = Plane_generators.grid ~columns:4 ~rows:3 ~size:2. () |> get_ok in
   let point_count = Geometry.point_count source
   and primitive_count = Geometry.primitive_count source in
   let point_seeds = Array.init point_count (fun point -> point / 2) in
@@ -187,7 +187,7 @@ let test_merge_and_failures () =
    | Ok _ -> fail "cancelled Group Random published geometry")
 
 let test_scale_parallel_exactness () =
-  let source = Plane_generators.grid_checked ~columns:500 ~rows:300 ~size:20. () |> get_ok in
+  let source = Plane_generators.grid ~columns:500 ~rows:300 ~size:20. () |> get_ok in
   let run domains = Parallel.run ~domains (fun () ->
     let seed = Rand.seed 0x514e in
     source

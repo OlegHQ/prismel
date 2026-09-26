@@ -124,7 +124,7 @@ let test_errors_cancellation_and_parallel () =
    | Error error -> check (Error.code error = "cancelled")
        "Distance From Target cancellation code"
    | Ok _ -> fail "cancelled Distance From Target published geometry");
-  let dense = Plane_generators.grid_checked ~columns:480 ~rows:300 ~size:20. () |> get_ok
+  let dense = Plane_generators.grid ~columns:480 ~rows:300 ~size:20. () |> get_ok
       |> Transform_ops.transform (Mat4.translation (Vec3.create 1.25 (-0.75) 2.5)) in
   let count = Geometry.point_count dense in
   let affected = point_group "affected" count (fun point -> point mod 7 <> 0) in

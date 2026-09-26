@@ -393,6 +393,7 @@ let run ?cancel ?(grain = 16_384) ?primitives ?density ?point_pattern
     ?vertex_pattern ?primitive_pattern ?detail_pattern ?(match_groups = false)
     ?source_primitive_attribute ?source_vertex_numbers_attribute
     ?source_vertex_weights_attribute ~count ~seed geometry =
+  Error.guard ~operation:"scatter_surface" ~code:"invalid_geometry" @@ fun () ->
   if count < 0 then Error "Pdk.Scatter.scatter_surface: count must be non-negative"
   else if grain <= 0 then Error "Pdk.Scatter.scatter_surface: grain must be positive"
   else if match_groups && point_pattern = None && vertex_pattern = None
@@ -676,13 +677,3 @@ let run ?cancel ?(grain = 16_384) ?primitives ?density ?point_pattern
         List.fold_left (fun result attribute -> Result.bind result
           (Geometry.with_attribute attribute)) (Ok output) !protected_attributes
         ))))))))))))
-
-let run_checked ?cancel ?grain ?primitives ?density ?point_pattern
-    ?vertex_pattern ?primitive_pattern ?detail_pattern ?match_groups
-    ?source_primitive_attribute ?source_vertex_numbers_attribute
-    ?source_vertex_weights_attribute ~count ~seed geometry =
-  Error.guard ~operation:"scatter_surface" ~code:"invalid_geometry" (fun () ->
-    run ?cancel ?grain ?primitives ?density ?point_pattern ?vertex_pattern
-      ?primitive_pattern ?detail_pattern ?match_groups
-      ?source_primitive_attribute ?source_vertex_numbers_attribute
-      ?source_vertex_weights_attribute ~count ~seed geometry)

@@ -76,7 +76,7 @@ let equal_geometry left right =
   && List.equal equal_attribute (Geometry.attributes left) (Geometry.attributes right)
 
 let check_default_compatibility () =
-  let geometry = Plane_generators.grid_checked ~columns:1 ~rows:1 ~size:2. () |> get_ok in
+  let geometry = Plane_generators.grid ~columns:1 ~rows:1 ~size:2. () |> get_ok in
   let point = positions geometry
   and topology = Topology.Private.view (Geometry.topology geometry)
   and normals = float3_attribute Attribute.Point "N" geometry in
@@ -93,7 +93,7 @@ let check_default_compatibility () =
     "default Grid normals changed"
 
 let check_connectivity () =
-  let make connectivity = Plane_generators.grid_checked ~connectivity ~columns:3 ~rows:2 ~size:2. ()
+  let make connectivity = Plane_generators.grid ~connectivity ~columns:3 ~rows:2 ~size:2. ()
       |> get_ok in
   let points = make Plane_generators.Grid_points in
   check (Geometry.point_count points = 12 && Geometry.vertex_count points = 0
@@ -158,7 +158,7 @@ let check_connectivity () =
     done) [quads; triangles; reversed; alternating]
 
 let check_orientation_and_uv () =
-  let xy = Plane_generators.grid_checked ~orientation:Plane_generators.Grid_xy ~center:(Vec3.create 1. 2. 3.)
+  let xy = Plane_generators.grid ~orientation:Plane_generators.Grid_xy ~center:(Vec3.create 1. 2. 3.)
       ~width:4. ~height:2. ~columns:2 ~rows:2 ~size:1. () |> get_ok in
   let xy_bounds = Analysis.bounds xy |> Option.get
   and xy_normal = float3_attribute Attribute.Point "N" xy in
@@ -166,14 +166,14 @@ let check_orientation_and_uv () =
       && near xy_bounds.min.y 1. && near xy_bounds.max.y 3.
       && near xy_bounds.center.z 3. && near xy_normal.z.(0) 1.)
     "Grid XY orientation/dimensions/center";
-  let yz = Plane_generators.grid_checked ~orientation:Plane_generators.Grid_yz ~center:(Vec3.create 2. 3. 4.)
+  let yz = Plane_generators.grid ~orientation:Plane_generators.Grid_yz ~center:(Vec3.create 2. 3. 4.)
       ~width:6. ~height:2. ~columns:2 ~rows:2 ~size:1. () |> get_ok in
   let yz_bounds = Analysis.bounds yz |> Option.get
   and yz_normal = float3_attribute Attribute.Point "N" yz in
   check (near yz_bounds.center.x 2. && near yz_bounds.size.y 2.
       && near yz_bounds.size.z 6. && near yz_normal.x.(0) 1.)
     "Grid YZ orientation";
-  let custom = Plane_generators.grid_checked ~orientation:(Plane_generators.Grid_axes {
+  let custom = Plane_generators.grid ~orientation:(Plane_generators.Grid_axes {
         horizontal = Vec3.create max_float max_float 0.;
         vertical = Vec3.create 0. 0. max_float })
       ~rotation:(Float.pi *. 0.5) ~center:(Vec3.create 4. 5. 6.)
@@ -194,12 +194,12 @@ let check_orientation_and_uv () =
     "Grid custom frame dimensions and normalized UV"
 
 let check_count_modes () =
-  let point_counts = Plane_generators.grid_checked ~counts:Plane_generators.Grid_point_counts
+  let point_counts = Plane_generators.grid ~counts:Plane_generators.Grid_point_counts
       ~connectivity:Plane_generators.Grid_quads ~columns:4 ~rows:3 ~size:2. () |> get_ok in
   check (Geometry.point_count point_counts = 12
       && Geometry.primitive_count point_counts = 6)
     "Grid point-count resolution";
-  let singleton = Plane_generators.grid_checked ~counts:Plane_generators.Grid_point_counts
+  let singleton = Plane_generators.grid ~counts:Plane_generators.Grid_point_counts
       ~connectivity:Plane_generators.Grid_points ~center:(Vec3.create 1. 2. 3.)
       ~uv_attribute:"uv" ~columns:1 ~rows:1 ~size:2. () |> get_ok in
   let point = positions singleton
@@ -210,41 +210,41 @@ let check_count_modes () =
 
 let check_validation () =
   expect_code "invalid_parameter"
-    (Plane_generators.grid_checked ~grain:0 ~columns:1 ~rows:1 ~size:1. ());
+    (Plane_generators.grid ~grain:0 ~columns:1 ~rows:1 ~size:1. ());
   expect_code "invalid_parameter"
-    (Plane_generators.grid_checked ~columns:0 ~rows:1 ~size:1. ());
+    (Plane_generators.grid ~columns:0 ~rows:1 ~size:1. ());
   expect_code "invalid_parameter"
-    (Plane_generators.grid_checked ~counts:Plane_generators.Grid_point_counts ~connectivity:Plane_generators.Grid_quads
+    (Plane_generators.grid ~counts:Plane_generators.Grid_point_counts ~connectivity:Plane_generators.Grid_quads
        ~columns:1 ~rows:2 ~size:1. ());
   expect_code "invalid_parameter"
-    (Plane_generators.grid_checked ~columns:1 ~rows:1 ~size:Float.nan ());
+    (Plane_generators.grid ~columns:1 ~rows:1 ~size:Float.nan ());
   expect_code "invalid_parameter"
-    (Plane_generators.grid_checked ~width:(-1.) ~columns:1 ~rows:1 ~size:1. ());
+    (Plane_generators.grid ~width:(-1.) ~columns:1 ~rows:1 ~size:1. ());
   expect_code "invalid_parameter"
-    (Plane_generators.grid_checked ~center:(Vec3.create Float.nan 0. 0.)
+    (Plane_generators.grid ~center:(Vec3.create Float.nan 0. 0.)
        ~columns:1 ~rows:1 ~size:1. ());
   expect_code "invalid_parameter"
-    (Plane_generators.grid_checked ~orientation:(Plane_generators.Grid_axes {
+    (Plane_generators.grid ~orientation:(Plane_generators.Grid_axes {
          horizontal=Vec3.zero; vertical=Vec3.unit_z })
        ~columns:1 ~rows:1 ~size:1. ());
   expect_code "invalid_parameter"
-    (Plane_generators.grid_checked ~orientation:(Plane_generators.Grid_axes {
+    (Plane_generators.grid ~orientation:(Plane_generators.Grid_axes {
          horizontal=Vec3.unit_x; vertical=Vec3.unit_x })
        ~columns:1 ~rows:1 ~size:1. ());
   expect_code "invalid_parameter"
-    (Plane_generators.grid_checked ~uv_attribute:"P" ~columns:1 ~rows:1 ~size:1. ());
+    (Plane_generators.grid ~uv_attribute:"P" ~columns:1 ~rows:1 ~size:1. ());
   expect_code "invalid_parameter"
-    (Plane_generators.grid_checked ~columns:max_int ~rows:max_int ~size:1. ());
+    (Plane_generators.grid ~columns:max_int ~rows:max_int ~size:1. ());
   expect_code "invalid_parameter"
-    (Plane_generators.grid_checked ~counts:Plane_generators.Grid_point_counts ~connectivity:Plane_generators.Grid_points
+    (Plane_generators.grid ~counts:Plane_generators.Grid_point_counts ~connectivity:Plane_generators.Grid_points
        ~columns:max_int ~rows:2 ~size:1. ());
   expect_code "invalid_parameter"
-    (Plane_generators.grid_checked ~center:(Vec3.create max_float 0. 0.) ~width:max_float
+    (Plane_generators.grid ~center:(Vec3.create max_float 0. 0.) ~width:max_float
        ~columns:1 ~rows:1 ~size:1. ());
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
   expect_code "cancelled"
-    (Plane_generators.grid_checked ~cancel:cancelled ~columns:500 ~rows:500 ~size:1. ())
+    (Plane_generators.grid ~cancel:cancelled ~columns:500 ~rows:500 ~size:1. ())
 
 let check_parallel_exact () =
   let connectivities = [
@@ -253,7 +253,7 @@ let check_parallel_exact () =
     Plane_generators.Grid_alternating_triangles; Plane_generators.Grid_reverse_triangles ] in
   List.iter (fun connectivity ->
     let run domains = Parallel.run ~domains (fun () ->
-      Plane_generators.grid_checked ~grain:1024 ~connectivity
+      Plane_generators.grid ~grain:1024 ~connectivity
         ~orientation:(Plane_generators.Grid_axes {
           horizontal=Vec3.create 1. 2. 0.5;
           vertical=Vec3.create (-0.25) 0.75 2. })

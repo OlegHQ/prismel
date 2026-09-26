@@ -63,7 +63,7 @@ let expect_code code = function
   | Ok _ -> fail ("expected error " ^ code)
 
 let plane ?(size = 4.) y =
-  Plane_generators.grid_checked ~columns:1 ~rows:1 ~size () |> get_ok |> translated y
+  Plane_generators.grid ~columns:1 ~rows:1 ~size () |> get_ok |> translated y
 
 let source_points values = Line_geometry.points values
 
@@ -293,7 +293,7 @@ let check_selection_and_directions () =
       |> fun source -> Ray.run ~direction:(Ray.Ray_attribute "ray_dir")
           ~source ~collision:(plane 0.) () |> get_ok in
   check ((positions attributed).y = [|0.;0.;0.|]) "Ray attribute directions";
-  let normal_source = Plane_generators.grid_checked ~columns:2 ~rows:2 ~size:1. () |> get_ok
+  let normal_source = Plane_generators.grid ~columns:2 ~rows:2 ~size:1. () |> get_ok
       |> translated 2. in
   let normal_projected = Ray.run ~direction:Ray.Ray_normal
       ~direction_mode:Ray.Ray_reverse ~source:normal_source
@@ -398,11 +398,11 @@ let check_validation () =
   expect_code "cancelled" (Ray.run ~cancel:cancelled ~source ~collision ())
 
 let check_parallel_exact () =
-  let collision = Plane_generators.grid_checked ~columns:400 ~rows:250 ~size:20. () |> get_ok
+  let collision = Plane_generators.grid ~columns:400 ~rows:250 ~size:20. () |> get_ok
       |> Deform.noise_displace ~amplitude:0.8 ~frequency:0.31 ~seed:709 |> get_ok
       |> Color_by_height.run ~low:(Color.to_floats (Color.hex_exn "#0ea5e9"))
            ~high:(Color.to_floats (Color.hex_exn "#f97316")) |> get_ok in
-  let source = Plane_generators.grid_checked ~columns:400 ~rows:250 ~size:20. () |> get_ok
+  let source = Plane_generators.grid ~columns:400 ~rows:250 ~size:20. () |> get_ok
       |> translated 3. in
   let run domains = Parallel.run ~domains (fun () ->
     Ray.run ~grain:1024 ~direction:(Ray.Ray_vector (Vec3.neg Vec3.unit_y))
@@ -423,11 +423,11 @@ let check_parallel_exact () =
       (point_float one "dist")) "Ray scale fixture unexpectedly missed"
 
 let check_parallel_multi_exact () =
-  let collision = Plane_generators.grid_checked ~columns:160 ~rows:100 ~size:12. () |> get_ok
+  let collision = Plane_generators.grid ~columns:160 ~rows:100 ~size:12. () |> get_ok
       |> Deform.noise_displace ~amplitude:0.35 ~frequency:0.27 ~seed:801 |> get_ok
       |> Color_by_height.run ~low:(Color.to_floats (Color.hex_exn "#10b981"))
            ~high:(Color.to_floats (Color.hex_exn "#f59e0b")) |> get_ok in
-  let source = Plane_generators.grid_checked ~columns:160 ~rows:100 ~size:11.5 () |> get_ok
+  let source = Plane_generators.grid ~columns:160 ~rows:100 ~size:11.5 () |> get_ok
       |> translated 2. in
   let run domains = Parallel.run ~domains (fun () ->
     Ray.run ~grain:512 ~samples:7 ~jitter_scale:0.12 ~seed:997

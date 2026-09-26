@@ -109,14 +109,14 @@ let test_boundary_components () =
       ~max_groups:1 source) "boundary component group-count preflight";
   expect_invalid (fun () -> Group_ops.group_boundary_components_checked ~prefix:"rim"
       ~max_payload_bytes:0 source) "boundary component payload preflight";
-  let closed = Box_generator.box_checked ~size:(Vec3.create 1. 1. 1.) () |> get_ok
+  let closed = Box_generator.box ~size:(Vec3.create 1. 1. 1.) () |> get_ok
       |> Fuse_grid.fuse_checked ~tolerance:0. ~attributes:Fuse_reduce.Average_numeric |> get_ok
       |> Group_ops.group_boundary_components_checked ~prefix:"closed" |> get_ok in
   check (Geometry.find_group ~owner:Group.Point "closed__0" closed = None)
     "closed surface produced a boundary component"
 
 let test_parallel_exactness_and_scale () =
-  let source = Plane_generators.grid_checked ~columns:600 ~rows:400 ~size:20. () |> get_ok in
+  let source = Plane_generators.grid ~columns:600 ~rows:400 ~size:20. () |> get_ok in
   let run domains = Parallel.run ~domains (fun () ->
     source
     |> Group_ops.group_unshared_checked ~grain:1_009 ~owner:Group_ops.Group_edges ~name:"border"

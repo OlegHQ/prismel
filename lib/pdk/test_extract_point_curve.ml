@@ -177,7 +177,7 @@ let test_validation_and_cancellation () =
   expect "invalid_curve" (fun () -> Curve_topology.extract_point_from_curve
       ~primitives:wrong_length ~distance_attribute:"distance" source)
     "wrong selection cardinality";
-  let polygon = Plane_generators.grid_checked ~connectivity:Plane_generators.Grid_quads ~columns:1 ~rows:1
+  let polygon = Plane_generators.grid ~connectivity:Plane_generators.Grid_quads ~columns:1 ~rows:1
       ~size:1. () |> get |> with_attribute
       (attribute Attribute.Point "distance" (Attribute.Float [|0.;1.;0.;1.|])) in
   expect "invalid_curve" (fun () -> Curve_topology.extract_point_from_curve

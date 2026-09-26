@@ -16,6 +16,7 @@ let points values =
 
 let line ?cancel ?(grain = 16_384) ?(kind = Line_curve) ?(points = 2)
     ~origin ~direction ~length () =
+  Error.guard ~operation:"line" ~code:"invalid_parameter" @@ fun () ->
   let minimum = match kind with Line_curve -> 2 | Line_points -> 1 in
   if grain <= 0 then Error "Pdk.Line_geometry.line: grain must be positive"
   else if points < minimum then Error (Printf.sprintf
@@ -89,10 +90,6 @@ let polyline ?(closed = false) values =
     else Topology.Builder.add_open_polyline topology indices;
     Geometry.create ~positions:(Geometry.positions geometry)
       ~topology:(Topology.Builder.freeze topology) ()
-
-let line_checked ?cancel ?grain ?kind ?points ~origin ~direction ~length () =
-  Error.guard ~operation:"line" ~code:"invalid_parameter" (fun () ->
-    line ?cancel ?grain ?kind ?points ~origin ~direction ~length ())
 
 let polyline_checked ?closed values =
   Result.map_error (Error.of_string ~operation:"polyline"

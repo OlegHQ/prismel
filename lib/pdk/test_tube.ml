@@ -119,7 +119,7 @@ let make ?(connectivity = Parametric_generators.Tube_quads) ?end_caps ?consolida
     ?normals ?orientation ?center ?rotation ?rotation_order ?radius_scale
     ?uv_attribute ?cap_group ?(rows = 3) ?(columns = 8)
     ?(top_radius = 1.) ?(bottom_radius = 1.) ?(height = 2.) () =
-  Parametric_generators.tube_checked ~connectivity ?end_caps ?consolidate_cap_points ?normals
+  Parametric_generators.tube ~connectivity ?end_caps ?consolidate_cap_points ?normals
     ?orientation ?center ?rotation ?rotation_order ?radius_scale ?uv_attribute
     ?cap_group ~rows ~columns ~top_radius ~bottom_radius ~height () |> get_ok
 
@@ -305,7 +305,7 @@ let check_validation () =
   let run ?grain ?connectivity ?end_caps ?consolidate_cap_points ?normals
       ?orientation ?center ?rotation ?radius_scale ?uv_attribute ?cap_group
       ?rows ?columns ?(top_radius = 1.) ?(bottom_radius = 1.) ?(height = 2.) () =
-    Parametric_generators.tube_checked ?grain ?connectivity ?end_caps ?consolidate_cap_points ?normals
+    Parametric_generators.tube ?grain ?connectivity ?end_caps ?consolidate_cap_points ?normals
       ?orientation ?center ?rotation ?radius_scale ?uv_attribute ?cap_group
       ?rows ?columns ~top_radius ~bottom_radius ~height () in
   expect_code "invalid_parameter" (run ~grain:0 ());
@@ -332,15 +332,15 @@ let check_validation () =
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
   expect_code "cancelled"
-    (Parametric_generators.tube_checked ~cancel:cancelled ~rows:1_000 ~columns:500
+    (Parametric_generators.tube ~cancel:cancelled ~rows:1_000 ~columns:500
        ~top_radius:1. ~bottom_radius:2. ~height:3. ())
 
 let check_parallel_exact () =
   let run domains make = Parallel.run ~domains (fun () -> make () |> get_ok) in
   let cases = [
-    (fun () -> Parametric_generators.tube_checked ~grain:1024 ~connectivity:Parametric_generators.Tube_quads
+    (fun () -> Parametric_generators.tube ~grain:1024 ~connectivity:Parametric_generators.Tube_quads
       ~rows:256 ~columns:128 ~top_radius:2. ~bottom_radius:3. ~height:5. ());
-    (fun () -> Parametric_generators.tube_checked ~grain:1024
+    (fun () -> Parametric_generators.tube ~grain:1024
       ~connectivity:Parametric_generators.Tube_alternating_triangles ~end_caps:true
       ~consolidate_cap_points:false ~normals:Parametric_generators.Tube_vertex_normals
       ~orientation:(Parametric_generators.Tube_axis (Vec3.create 1. 2. 3.))
@@ -348,11 +348,11 @@ let check_parallel_exact () =
       ~rotation:(Vec3.create 0.3 0.5 0.7) ~rotation_order:Parametric_generators.Tube_yzx
       ~radius_scale:1.2 ~uv_attribute:"uv" ~cap_group:"caps"
       ~rows:256 ~columns:128 ~top_radius:0. ~bottom_radius:3. ~height:5. ());
-    (fun () -> Parametric_generators.tube_checked ~grain:1024
+    (fun () -> Parametric_generators.tube ~grain:1024
       ~connectivity:Parametric_generators.Tube_rows_and_columns
       ~normals:Parametric_generators.Tube_vertex_normals ~uv_attribute:"uv"
       ~rows:256 ~columns:128 ~top_radius:2. ~bottom_radius:3. ~height:5. ());
-    (fun () -> Parametric_generators.tube_checked ~grain:1024 ~connectivity:Parametric_generators.Tube_points
+    (fun () -> Parametric_generators.tube ~grain:1024 ~connectivity:Parametric_generators.Tube_points
       ~uv_attribute:"uv" ~rows:256 ~columns:128
       ~top_radius:0. ~bottom_radius:3. ~height:5. ()) ] in
   List.iter (fun make ->

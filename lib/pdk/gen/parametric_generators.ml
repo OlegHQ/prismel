@@ -99,6 +99,7 @@ let torus ?cancel ?(grain = 16_384) ?(connectivity = Torus_triangles)
     ?(v_start = 0.) ?(v_end = 2. *. Float.pi) ?(u_wrap = true)
     ?(v_wrap = true) ?(u_end_caps = false) ?(v_end_cap = false)
     ?uv_attribute ?(rows = 48) ?(columns = 24) ~major_radius ~minor_radius () =
+  Error.guard ~operation:"torus" ~code:"invalid_parameter" @@ fun () ->
   let point_mode = connectivity = Torus_points in
   let polygon_mode = match connectivity with
     | Torus_triangles | Torus_alternating_triangles | Torus_quads -> true
@@ -621,6 +622,7 @@ let tube ?cancel ?(grain = 16_384) ?(connectivity = Tube_quads)
     ?(orientation = Tube_y) ?(center = Vec3.zero) ?(rotation = Vec3.zero)
     ?(rotation_order = Tube_xyz) ?(radius_scale = 1.) ?uv_attribute ?cap_group
     ?(rows = 2) ?(columns = 32) ~top_radius ~bottom_radius ~height () =
+  Error.guard ~operation:"tube" ~code:"invalid_parameter" @@ fun () ->
   let point_mode = connectivity = Tube_points in
   let polygon_mode = match connectivity with
     | Tube_triangles | Tube_alternating_triangles | Tube_quads -> true
@@ -1293,6 +1295,7 @@ let platonic ?cancel ?(kind = Platonic_tetrahedron)
     ?(normals = Platonic_point_normals) ?(orientation = Platonic_y)
     ?(center = Vec3.zero) ?(rotation = Vec3.zero)
     ?(rotation_order = Platonic_xyz) ?face_groups ~radius () =
+  Error.guard ~operation:"platonic" ~code:"invalid_parameter" @@ fun () ->
   Cancel.check_opt cancel;
   if not (Float.is_finite radius && radius > 0.) then
     Error "Pdk.Parametric_generators.platonic: radius must be finite and positive"
@@ -1429,29 +1432,3 @@ let platonic ?cancel ?(kind = Platonic_tetrahedron)
         Geometry.create ~positions ~topology ~attributes:(List.rev !attributes)
           ~groups ()
       end)
-
-let torus_checked ?cancel ?grain ?connectivity ?normals ?orientation ?center
-    ?rotation ?rotation_order ?uniform_scale ?u_start ?u_end ?v_start ?v_end
-    ?u_wrap ?v_wrap ?u_end_caps ?v_end_cap ?uv_attribute ?rows ?columns
-    ~major_radius ~minor_radius () =
-  Error.guard ~operation:"torus" ~code:"invalid_parameter" (fun () ->
-    torus ?cancel ?grain ?connectivity ?normals ?orientation ?center ?rotation
-      ?rotation_order ?uniform_scale ?u_start ?u_end ?v_start ?v_end ?u_wrap
-      ?v_wrap ?u_end_caps ?v_end_cap ?uv_attribute ?rows ?columns
-      ~major_radius ~minor_radius ())
-
-let tube_checked ?cancel ?grain ?connectivity ?end_caps
-    ?consolidate_cap_points ?normals ?orientation ?center ?rotation
-    ?rotation_order ?radius_scale ?uv_attribute ?cap_group ?rows ?columns
-    ~top_radius ~bottom_radius ~height () =
-  Error.guard ~operation:"tube" ~code:"invalid_parameter" (fun () ->
-    tube ?cancel ?grain ?connectivity ?end_caps ?consolidate_cap_points
-      ?normals ?orientation ?center ?rotation ?rotation_order ?radius_scale
-      ?uv_attribute ?cap_group ?rows ?columns ~top_radius ~bottom_radius
-      ~height ())
-
-let platonic_checked ?cancel ?kind ?normals ?orientation ?center ?rotation
-    ?rotation_order ?face_groups ~radius () =
-  Error.guard ~operation:"platonic" ~code:"invalid_parameter" (fun () ->
-    platonic ?cancel ?kind ?normals ?orientation ?center ?rotation
-      ?rotation_order ?face_groups ~radius ())

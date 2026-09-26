@@ -98,6 +98,7 @@ let circle ?cancel ?(grain = 16_384) ?(arc = Circle_closed)
     ?(orientation = Circle_xz) ?(reverse = false) ?(center = Vec3.zero)
     ?radius_x ?radius_y ?(rotation = 0.) ?(uniform_scale = 1.)
     ?(segments = 64) ~radius () =
+  Error.guard ~operation:"circle" ~code:"invalid_parameter" @@ fun () ->
   let radius_x = Option.value ~default:radius radius_x *. uniform_scale
   and radius_y = Option.value ~default:radius radius_y *. uniform_scale in
   let minimum_segments = match arc with
@@ -190,6 +191,7 @@ let grid ?cancel ?(grain = 16_384) ?(counts = Grid_divisions)
     ?(connectivity = Grid_triangles) ?(orientation = Grid_xz)
     ?(center = Vec3.zero) ?width ?height ?(rotation = 0.) ?uv_attribute
     ~columns ~rows ~size () =
+  Error.guard ~operation:"grid" ~code:"invalid_parameter" @@ fun () ->
   let width = Option.value ~default:size width
   and height = Option.value ~default:size height in
   let minimum_columns, minimum_rows = match counts, connectivity with
@@ -407,15 +409,3 @@ let grid ?cancel ?(grain = 16_384) ?(counts = Grid_divisions)
                      [normal_attribute; uv]
                  | _ -> assert false in
                Geometry.create ~positions ~topology ~attributes ()))
-
-let circle_checked ?cancel ?grain ?arc ?orientation ?reverse ?center ?radius_x
-    ?radius_y ?rotation ?uniform_scale ?segments ~radius () =
-  Error.guard ~operation:"circle" ~code:"invalid_parameter" (fun () ->
-    circle ?cancel ?grain ?arc ?orientation ?reverse ?center ?radius_x
-      ?radius_y ?rotation ?uniform_scale ?segments ~radius ())
-
-let grid_checked ?cancel ?grain ?counts ?connectivity ?orientation ?center
-    ?width ?height ?rotation ?uv_attribute ~columns ~rows ~size () =
-  Error.guard ~operation:"grid" ~code:"invalid_parameter" (fun () ->
-    grid ?cancel ?grain ?counts ?connectivity ?orientation ?center ?width
-      ?height ?rotation ?uv_attribute ~columns ~rows ~size ())

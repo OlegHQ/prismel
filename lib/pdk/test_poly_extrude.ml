@@ -66,7 +66,7 @@ let add_attribute attribute geometry =
   Geometry.with_attribute attribute geometry |> get_ok
 
 let enriched_grid () =
-  let geometry = Plane_generators.grid_checked ~columns:1 ~rows:1 ~size:2. () |> get_pdk in
+  let geometry = Plane_generators.grid ~columns:1 ~rows:1 ~size:2. () |> get_pdk in
   let point_id = Attribute.create_owned ~name:"point_id" ~owner:Attribute.Point
       (Attribute.Int [|0; 1; 2; 3|]) |> get_ok
   and vertex_value = Attribute.create_owned ~name:"vertex_value"
@@ -301,7 +301,7 @@ let run () =
        "Poly Extrude cancellation diagnostic"
    | Ok _ -> fail "cancelled Poly Extrude published geometry");
 
-  let dense = Plane_generators.grid_checked ~columns:320 ~rows:240 ~size:20. () |> get_pdk in
+  let dense = Plane_generators.grid ~columns:320 ~rows:240 ~size:20. () |> get_pdk in
   let dense = dense
       |> Geometry.with_attribute (Attribute.create_owned ~name:"id"
            ~owner:Attribute.Point

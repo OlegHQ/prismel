@@ -29,6 +29,7 @@ let box ?cancel ?(grain = 16_384) ?(connectivity = Box_triangles)
     ?(rotation = Vec3.zero) ?(rotation_order = Box_xyz)
     ?(uniform_scale = 1.) ?(x_divisions = 1) ?(y_divisions = 1)
     ?(z_divisions = 1) ?uv_attribute ?face_groups ~size () =
+  Error.guard ~operation:"box" ~code:"invalid_parameter" @@ fun () ->
   let polygon_mode = match connectivity with
     | Box_triangles | Box_quads -> true
     | Box_surface_points | Box_lattice_points -> false in
@@ -484,11 +485,3 @@ let box ?cancel ?(grain = 16_384) ?(connectivity = Box_triangles)
                   Group.Builder.freeze builder)) in
           Geometry.create ~positions ~topology ~attributes:(List.rev !attributes)
             ~groups ()
-
-let box_checked ?cancel ?grain ?connectivity ?consolidate_points ?normals
-    ?center ?rotation ?rotation_order ?uniform_scale ?x_divisions ?y_divisions
-    ?z_divisions ?uv_attribute ?face_groups ~size () =
-  Error.guard ~operation:"box" ~code:"invalid_parameter" (fun () ->
-    box ?cancel ?grain ?connectivity ?consolidate_points ?normals ?center
-      ?rotation ?rotation_order ?uniform_scale ?x_divisions ?y_divisions
-      ?z_divisions ?uv_attribute ?face_groups ~size ())

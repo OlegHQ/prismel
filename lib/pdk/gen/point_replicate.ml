@@ -300,7 +300,7 @@ let run ?cancel ?(grain = 16_384) ?points ?(keep_input = false)
     else fresh_point_name "__pdk_replicate_sourceindex" geometry in
   let internal_index = if String.equal internal_source internal_index then
       fresh_point_name (internal_index ^ "_") geometry else internal_index in
-  Result.bind (Point_generate.run ?cancel ~grain ?points ?count_ids:ids
+  Result.bind (Error.unguard @@ Point_generate.run ?cancel ~grain ?points ?count_ids:ids
       ~keep_input ~seed
       ?generated_group ~source_point_attribute:internal_source
       ~source_index_attribute:internal_index ~copy_point_attributes

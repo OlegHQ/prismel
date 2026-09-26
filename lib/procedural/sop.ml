@@ -111,7 +111,7 @@ let point_generate_origin ?label ?generated_group
       "source_index=" ^ String.escaped source_index_attribute])
     ~cook_mode:Node.Generator ~dependencies:Context.Dependencies.static
     ~inputs:[||] (fun ~node_id:_ context _inputs ->
-      match Pdk.Point_generate.run_checked ~cancel:(Context.cancel_token context)
+      match Pdk.Point_generate.run ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ?generated_group
           ~source_point_attribute ~source_index_attribute ~mode
           (Pdk.Line_geometry.points [||]) with
@@ -132,7 +132,7 @@ let line ?label ?(kind = Pdk.Line_geometry.Line_curve) ?(points = 2)
       (float_key length))
     ~cook_mode:Node.Generator ~dependencies:Context.Dependencies.static
     ~inputs:[||] (fun ~node_id:_ context _inputs ->
-      match Pdk.Line_geometry.line_checked ~cancel:(Context.cancel_token context)
+      match Pdk.Line_geometry.line ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ~kind ~points ~origin ~direction
           ~length () with
       | Ok geometry -> cooked geometry
@@ -193,7 +193,7 @@ let circle ?label ?(arc = Pdk.Plane_generators.Circle_closed)
   Node.Private.make ?label ~operation:"circle" ~version:2 ~parameters
     ~cook_mode:Node.Generator ~dependencies:Context.Dependencies.static
     ~inputs:[||] (fun ~node_id:_ context _inputs ->
-      match Pdk.Plane_generators.circle_checked ~cancel:(Context.cancel_token context)
+      match Pdk.Plane_generators.circle ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ~arc ~orientation ~reverse ~center
           ?radius_x ?radius_y ~rotation ~uniform_scale ~segments ~radius () with
       | Ok geometry -> cooked geometry
@@ -249,7 +249,7 @@ let grid ?label ?(counts = Pdk.Plane_generators.Grid_divisions)
   Node.Private.make ?label ~operation:"grid" ~version:2 ~parameters
     ~cook_mode:Node.Generator ~dependencies:Context.Dependencies.static
     ~inputs:[||] (fun ~node_id:_ _context _inputs ->
-      match Pdk.Plane_generators.grid_checked ~cancel:(Context.cancel_token _context)
+      match Pdk.Plane_generators.grid ~cancel:(Context.cancel_token _context)
           ~grain:(Context.grain _context) ~counts ~connectivity ~orientation
           ~center ?width ?height ~rotation ?uv_attribute ~columns ~rows ~size () with
       | Ok geometry -> cooked geometry
@@ -296,7 +296,7 @@ let box ?label ?(size = Vec3.create 1. 1. 1.)
   Node.Private.make ?label ~operation:"box" ~version:2 ~parameters
     ~cook_mode:Node.Generator ~dependencies:Context.Dependencies.static
     ~inputs:[||] (fun ~node_id:_ context _inputs ->
-      match Pdk.Box_generator.box_checked ~cancel:(Context.cancel_token context)
+      match Pdk.Box_generator.box ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ~connectivity ~consolidate_points
           ?normals ~center ~rotation ~rotation_order ~uniform_scale
           ~x_divisions ~y_divisions ~z_divisions ?uv_attribute ?face_groups
@@ -355,7 +355,7 @@ let uv_sphere ?label ?(connectivity = Pdk.Uv_sphere.Sphere_triangles)
   Node.Private.make ?label ~operation:"uv_sphere" ~version:2 ~parameters
     ~cook_mode:Node.Generator ~dependencies:Context.Dependencies.static
     ~inputs:[||] (fun ~node_id:_ context _inputs ->
-      match Pdk.Uv_sphere.run_checked ~cancel:(Context.cancel_token context)
+      match Pdk.Uv_sphere.run ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ~connectivity ~unique_points_per_pole
           ~triangular_poles ?normals ~orientation ~center ~rotation
           ~rotation_order ~uniform_scale ?radius_x ?radius_y ?radius_z
@@ -417,7 +417,7 @@ let torus ?label ?(connectivity = Pdk.Parametric_generators.Torus_triangles) ?no
   Node.Private.make ?label ~operation:"torus" ~version:1 ~parameters
     ~cook_mode:Node.Generator ~dependencies:Context.Dependencies.static
     ~inputs:[||] (fun ~node_id:_ context _inputs ->
-      match Pdk.Parametric_generators.torus_checked ~cancel:(Context.cancel_token context)
+      match Pdk.Parametric_generators.torus ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ~connectivity ?normals ~orientation
           ~center ~rotation ~rotation_order ~uniform_scale ~u_start ~u_end
           ~v_start ~v_end ~u_wrap ~v_wrap ~u_end_caps ~v_end_cap ?uv_attribute
@@ -477,7 +477,7 @@ let tube ?label ?(connectivity = Pdk.Parametric_generators.Tube_quads) ?(end_cap
   Node.Private.make ?label ~operation:"tube" ~version:1 ~parameters
     ~cook_mode:Node.Generator ~dependencies:Context.Dependencies.static
     ~inputs:[||] (fun ~node_id:_ context _inputs ->
-      match Pdk.Parametric_generators.tube_checked ~cancel:(Context.cancel_token context)
+      match Pdk.Parametric_generators.tube ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ~connectivity ~end_caps
           ~consolidate_cap_points ?normals ~orientation ~center ~rotation
           ~rotation_order ~radius_scale ?uv_attribute ?cap_group ~rows ~columns
@@ -528,7 +528,7 @@ let platonic ?label ?(kind = Pdk.Parametric_generators.Platonic_tetrahedron)
   Node.Private.make ?label ~operation:"platonic" ~version:1 ~parameters
     ~cook_mode:Node.Generator ~dependencies:Context.Dependencies.static
     ~inputs:[||] (fun ~node_id:_ context _inputs ->
-      match Pdk.Parametric_generators.platonic_checked ~cancel:(Context.cancel_token context) ~kind
+      match Pdk.Parametric_generators.platonic ~cancel:(Context.cancel_token context) ~kind
           ~normals ~orientation ~center ~rotation ~rotation_order ?face_groups
           ~radius () with
       | Ok geometry -> cooked geometry
@@ -7123,7 +7123,7 @@ let point_generate ?label ?group ?(keep_input = false) ?seed ?generated_group
           let identity = Option.value ~default:(Int64.of_int node_id)
               stable_identity in
           let seed = Option.value ~default:(mixed_seed context identity) seed in
-          match Pdk.Point_generate.run_checked ~cancel:(Context.cancel_token context)
+          match Pdk.Point_generate.run ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?points ~keep_input ~seed:(Rand.seed seed)
               ?generated_group ~source_point_attribute ~source_index_attribute
               ~copy_point_attributes ~copy_detail_attributes ~mode geometry with
@@ -7553,7 +7553,7 @@ let scatter ?label ?seed ?group ?density ?point_pattern ?vertex_pattern
       match primitives with
       | Error _ as error -> error
       | Ok primitives ->
-          match Pdk.Scatter.run_checked ~grain:(Context.grain context) ~count ~seed
+          match Pdk.Scatter.run ~grain:(Context.grain context) ~count ~seed
               ~cancel:(Context.cancel_token context) ?primitives ?density
               ?point_pattern ?vertex_pattern ?primitive_pattern ?detail_pattern
               ~match_groups ?source_primitive_attribute

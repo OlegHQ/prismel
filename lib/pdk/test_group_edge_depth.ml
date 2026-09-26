@@ -109,7 +109,7 @@ let test_failures_and_cancellation () =
    | Ok _ -> fail "cancelled Group Edge Depth published geometry")
 
 let test_parallel_exactness_and_scale () =
-  let source = Plane_generators.grid_checked ~columns:600 ~rows:400 ~size:20. () |> get_ok in
+  let source = Plane_generators.grid ~columns:600 ~rows:400 ~size:20. () |> get_ok in
   let count = Geometry.point_count source and width = 601 in
   let seed = Group.init ~grain:1_009 ~owner:Group.Point ~name:"center" count
       (fun point -> point = (200 * width) + 300) in

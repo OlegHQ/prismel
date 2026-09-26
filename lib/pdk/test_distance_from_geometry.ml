@@ -71,7 +71,7 @@ let test_surface_and_affected () =
   let source = Line_geometry.points [|0., 1., 0.; 1., 2., 1.; -1., 3., -1.|]
       |> with_float "distance" [|90.; 91.; 92.|]
       |> with_float "mask" [|80.; 81.; 82.|] in
-  let reference = Plane_generators.grid_checked ~columns:2 ~rows:2 ~size:10. () |> get_ok in
+  let reference = Plane_generators.grid ~columns:2 ~rows:2 ~size:10. () |> get_ok in
   let affected = point_group "affected" 3 (fun point -> point <> 1) in
   let output = Transform_ops.distance_from_geometry ~grain:1
       ~affected:(Transform_ops.Selected_points affected)
@@ -120,7 +120,7 @@ let test_distance_only_indexes () =
     ~max_distance_squared:0.01 ~distances_squared:bounded;
   check (Array.for_all (fun value -> value = Float.infinity) bounded)
     "distance-only point index bounded miss sentinel";
-  let surface = Plane_generators.grid_checked ~columns:2 ~rows:2 ~size:10. () |> get_ok in
+  let surface = Plane_generators.grid ~columns:2 ~rows:2 ~size:10. () |> get_ok in
   let surface_index = Surface_index.create ~grain:1 surface |> get_ok in
   let primitives = Array.make 3 (-1) and triangles = Array.make 3 (-1)
   and a = Array.make 3 0. and b = Array.make 3 0. and c = Array.make 3 0.
@@ -182,9 +182,9 @@ let test_errors_cancellation_and_parallel () =
    | Error error -> check (Error.code error = "cancelled")
        "Distance From Geometry cancellation code"
    | Ok _ -> fail "cancelled Distance From Geometry published geometry");
-  let dense = Plane_generators.grid_checked ~columns:320 ~rows:200 ~size:20. () |> get_ok
+  let dense = Plane_generators.grid ~columns:320 ~rows:200 ~size:20. () |> get_ok
       |> Transform_ops.transform (Mat4.translation (Vec3.create 0. 1.5 0.)) in
-  let surface = Uv_sphere.run_checked ~rings:80 ~segments:120 ~radius:5. () |> get_ok in
+  let surface = Uv_sphere.run ~rings:80 ~segments:120 ~radius:5. () |> get_ok in
   let count = Geometry.point_count dense in
   let affected = point_group "affected" count (fun point -> point mod 3 <> 0) in
   let run kind domains = Parallel.run ~domains (fun () ->

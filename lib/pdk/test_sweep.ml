@@ -409,7 +409,7 @@ let check_validation_and_parallel () =
     ~cross_section:(profile ()) ());
   expect_invalid (Sweep_modeling.sweep ~caps:true ~connectivity:Plane_generators.Grid_rows
     ~backbone:(backbone ()) ~cross_section:(profile ()) ());
-  let polygon = Plane_generators.grid_checked ~columns:1 ~rows:1 ~size:1. () |> get_ok in
+  let polygon = Plane_generators.grid ~columns:1 ~rows:1 ~size:1. () |> get_ok in
   expect_invalid (Sweep_modeling.sweep ~backbone:polygon ~cross_section:(profile ()) ());
   let repeated = Line_geometry.polyline_checked [|(0.,0.,0.); (0.,0.,0.)|] |> get_ok in
   expect_invalid (Sweep_modeling.sweep ~backbone:repeated ~cross_section:(profile ()) ());

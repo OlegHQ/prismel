@@ -262,7 +262,7 @@ let run () =
       && Geometry.vertex_count nonmanifold_output = 18)
     "non-manifold shared Edge Divide cardinality";
 
-  let other = Box_generator.box_checked ~size:(Vec3.create 1. 1. 1.) () |> get_pdk
+  let other = Box_generator.box ~size:(Vec3.create 1. 1. 1.) () |> get_pdk
       |> Group_mesh.group_edges_checked ~name:"other" |> get_pdk in
   let other_edges = Geometry.find_edge_group "other" other |> Option.get in
   expect_code "invalid_topology"
@@ -284,7 +284,7 @@ let run () =
   expect_code "cancelled"
     (Subdivide.edge_divide ~cancel:cancelled ~edges:cut ~divisions:2 source);
 
-  let large = Plane_generators.grid_checked ~grain:127 ~connectivity:Plane_generators.Grid_quads
+  let large = Plane_generators.grid ~grain:127 ~connectivity:Plane_generators.Grid_quads
       ~columns:160 ~rows:120 ~size:20. () |> get_pdk
       |> Group_mesh.group_edges_checked ~grain:127 ~name:"all" |> get_pdk in
   let all = Geometry.find_edge_group "all" large |> Option.get in
