@@ -1,3 +1,5 @@
 # Residual public value aliases without a prior codemod map.
 Ops.points	Line_geometry.points
 Ops.delete_primitives	Deletion.delete_primitives
+Ops.Line_curve	Line_geometry.Line_curve
+Ops.Reduce_ratio	Poly_reduce.Reduce_ratio
