@@ -699,7 +699,7 @@ type color_attachment={texture:texture;resolve:texture option;load:Render_pass.l
 type depth_attachment={depth_texture:texture;depth_load:Render_pass.load;depth_store:Render_pass.store;depth_clear:float}
 type stencil_attachment={stencil_texture:texture;stencil_load:Render_pass.load;stencil_store:Render_pass.store;stencil_clear:int}
 type render_target={colors:color_attachment list;depth:depth_attachment option;stencil:stencil_attachment option}
-type batch_draw={pipeline:pipeline;buffers:(shader_stage*int*buffer*int64)list;primitive:Render_pass.primitive;index:(Render_pass.index_type*buffer*int64*int64)option;vertex_start:int;vertex_count:int;instances:int}
+type batch_draw={pipeline:pipeline;buffers:(shader_stage*int*buffer*int64)array;primitive:Render_pass.primitive;index:(Render_pass.index_type*buffer*int64*int64)option;vertex_start:int;vertex_count:int;instances:int}
 let create_sampler device descriptor=
   let op="Backend.create_sampler"in
   match live op device with Error _ as e->e|Ok()->
@@ -916,21 +916,30 @@ let draw_indexed (encoder:render_encoder) ~primitive ~index_type (buffer:buffer)
 let draw_batch (encoder:render_encoder) (draws:batch_draw array)=
   let op="Backend.draw_batch"in
   match open_render op encoder with Error _ as e->e|Ok()->
-  let device=render_device encoder and queue=encoder.render_commands.commands_queue in
+  let device=render_device encoder in
   if Array.length draws=0 then error op Error.Invalid_argument"draw batch is empty"else
+  (* The one validation of every draw; backends trust the lowered batch. *)
+  let rec check_buffers (buffers:(shader_stage*int*buffer*int64)array) j=
+    if j=Array.length buffers then Ok()
+    else let _,index,(b:buffer),offset=Array.unsafe_get buffers j in
+      match valid_slot op index with Error _ as e->e|Ok()->
+      match check_resource op device b.resource with Error _ as e->e|Ok()->
+      if offset<0L||offset>=b.buffer_descriptor.size then
+        error op Error.Invalid_argument"buffer offset is out of range"
+      else check_buffers buffers(j+1)in
   let rec check i=
     if i=Array.length draws then Ok()
     else let d=draws.(i)in
       if d.pipeline.dead then error op Error.Stale_handle"pipeline is destroyed"
       else if d.pipeline.device!=device then error op Error.Cross_device"pipeline belongs to another device"
-      else match List.fold_left(fun r (_,index,(b:buffer),offset)->Result.bind r(fun()->match valid_slot op index with Error _ as e->e|Ok()->match check_resource op device b.resource with Error _ as e->e|Ok()->if offset<0L||offset>=b.buffer_descriptor.size then error op Error.Invalid_argument"buffer offset is out of range"else(mark_submitted queue b.resource;Ok())))(Ok())d.buffers with
+      else match check_buffers d.buffers 0 with
       |Error _ as e->e
       |Ok()->match d.index with
         |None->(match valid_draw op d.primitive ~first:d.vertex_start ~count:d.vertex_count ~instances:d.instances with Error _ as e->e|Ok()->check(i+1))
-        |Some(index_type,b,offset,count)->(match valid_indexed op device d.primitive index_type b ~offset ~count ~instances:d.instances with Error _ as e->e|Ok()->mark_submitted queue b.resource;check(i+1))in
+        |Some(index_type,b,offset,count)->(match valid_indexed op device d.primitive index_type b ~offset ~count ~instances:d.instances with Error _ as e->e|Ok()->check(i+1))in
   match check 0 with Error _ as e->e|Ok()->
   let lowered=Array.map(fun d->{batch_pipeline=d.pipeline.pipeline_driver.pipeline_token;
-    batch_buffers=Array.of_list(List.map(fun(stage,index,(b:buffer),offset)->stage,index,b.resource.raw.token,offset)d.buffers);
+    batch_buffers=Array.map(fun(stage,index,(b:buffer),offset)->stage,index,b.resource.raw.token,offset)d.buffers;
     batch_primitive=d.primitive;batch_index=Option.map(fun(t,(b:buffer),o,c)->t,b.resource.raw.token,o,c)d.index;
     batch_vertex_start=d.vertex_start;batch_vertex_count=d.vertex_count;batch_instances=d.instances})draws in
   match encoder.render_raw.draw_batch lowered with Error _ as e->e|Ok()->encoder.render_pipeline_set<-true;Ok()

@@ -7,6 +7,7 @@ type t =
   ; memory : memory
   ; mutable submission_uses : int
   ; mutable destroy_requested : bool
+  ; mutable retained_by : int64  (** Last command buffer that retained it. *)
   }
 
 let validate_memory (descriptor : Ogpu_core.Types.buffer_descriptor) memory =
@@ -40,7 +41,7 @@ let create device ~memory descriptor =
             | Error metal -> Error (Device.of_metal_error ~operation metal)
             | Ok metal ->
                 let value = { metal; handle = Ogpu_core.Handle.create ~device:(Device.Private.handle device);
-                  device; descriptor; memory;submission_uses=0;destroy_requested=false } in
+                  device; descriptor; memory;submission_uses=0;destroy_requested=false;retained_by=0L } in
                 Device.Private.attach_resource device;
                 Ok value
 
@@ -60,7 +61,7 @@ let create_in_heap device ~memory (heap : Metal.Heap.t) ~offset descriptor =
             | Error metal -> Error (Device.of_metal_error ~operation metal)
             | Ok metal ->
                 let value = { metal; handle = Ogpu_core.Handle.create ~device:(Device.Private.handle device);
-                  device; descriptor; memory;submission_uses=0;destroy_requested=false } in
+                  device; descriptor; memory;submission_uses=0;destroy_requested=false;retained_by=0L } in
                 Device.Private.attach_resource device;
                 Ok value
 
@@ -104,5 +105,7 @@ module Private = struct
   let metal value=value.metal
   let resource_handle value=value.handle
   let retain_submission value=if destroyed value then Error(Ogpu_core.Error.make"Ogpu_metal.Buffer.retain_submission"Ogpu_core.Error.Stale_handle"buffer is destroyed")else(value.submission_uses<-value.submission_uses+1;Ok())
+  (* Retains once per command buffer; [Ok false] when [commands] already holds it. *)
+  let retain_for ~commands value=if Int64.equal value.retained_by commands && not(destroyed value)then Ok false else Result.map(fun()->value.retained_by<-commands;true)(retain_submission value)
   let release_submission value=value.submission_uses<-value.submission_uses-1;if value.submission_uses=0&&value.destroy_requested then(match Metal.Buffer.destroy value.metal with Ok()->Device.Private.detach_resource value.device|Error _->())
 end

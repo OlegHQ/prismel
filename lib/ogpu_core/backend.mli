@@ -436,7 +436,7 @@ type depth_attachment = { depth_texture:texture; depth_load:Render_pass.load; de
 type stencil_attachment = { stencil_texture:texture; stencil_load:Render_pass.load; stencil_store:Render_pass.store; stencil_clear:int }
 type render_target = { colors:color_attachment list; depth:depth_attachment option; stencil:stencil_attachment option }
 type batch_draw =
-  { pipeline:pipeline; buffers:(shader_stage * int * buffer * int64) list; primitive:Render_pass.primitive
+  { pipeline:pipeline; buffers:(shader_stage * int * buffer * int64) array; primitive:Render_pass.primitive
   ; index:(Render_pass.index_type * buffer * int64 * int64) option; vertex_start:int; vertex_count:int; instances:int }
 
 val create_sampler : device -> Types.sampler_descriptor -> (sampler,Error.t) result

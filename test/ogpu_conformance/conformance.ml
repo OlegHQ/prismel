@@ -1045,7 +1045,7 @@ let run ?metallib driver =
       {colors=[{texture=target;resolve=None;load=Load;store=Store;clear=(0.,0.,0.,0.)}];depth=None;stencil=None}) in
     get (Backend.set_viewport encoder {x=0;y=0;width=4;height=4});
     get (Backend.draw_batch encoder
-      [|{pipeline=flat;buffers=[Vertex,0,offsets,0L;Fragment,1,color,0L];primitive=Triangle_list;
+      [|{pipeline=flat;buffers=[|Vertex,0,offsets,0L;Fragment,1,color,0L|];primitive=Triangle_list;
          index=Some (Uint32,indices,0L,3L);vertex_start=0;vertex_count=3;instances=1}|]);
     get (Backend.end_render encoder);
     poll_epoch (get (Backend.commit commands)) 1000;

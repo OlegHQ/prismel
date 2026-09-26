@@ -18,5 +18,6 @@ module Private : sig
   val metal : t -> Metal.Buffer.t
   val resource_handle : t -> unit Ogpu_core.Handle.t
   val retain_submission : t -> (unit,Ogpu_core.Error.t) result
+  val retain_for : commands:int64 -> t -> (bool,Ogpu_core.Error.t) result
   val release_submission : t -> unit
 end

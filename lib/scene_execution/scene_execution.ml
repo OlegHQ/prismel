@@ -48,6 +48,8 @@ type plan_draw={plan_draw:Ogpu.Backend.batch_draw;
    batch replays an indirect command buffer instead of re-encoding. *)
 type batch_plan={batch_family:pipeline_family;batch_samples:int;batch_state:state;
   batch_first:bool;batch_draws:plan_draw array;
+  (* [batch_draws] as the backend batch, built once with the plan. *)
+  batch_driver_draws:Ogpu.Backend.batch_draw array;
   batch_resources:[`Buffer of Ogpu.Backend.buffer|`Texture of Ogpu.Backend.texture]list;
   batch_winding:bool;mutable batch_icb:Ogpu.Backend.icb option}
 type replay_plan={replay_clear:float*float*float*float;
@@ -908,13 +910,13 @@ let encode_batch value commands ~clear (batch:batch_plan)=
         Ogpu.Backend.execute_icb encoder icb~location:0~length:(Array.length batch.batch_draws)
     |None->
         if plain_draws batch.batch_draws then
-          Ogpu.Backend.draw_batch encoder(Array.map(fun draw->draw.plan_draw)batch.batch_draws)
+          Ogpu.Backend.draw_batch encoder batch.batch_driver_draws
         else
           Array.fold_left(fun result draw->
             let* ()=result in
             let bd=draw.plan_draw in
             let* ()=Ogpu.Backend.set_render_pipeline encoder bd.pipeline in
-            let* ()=List.fold_left(fun result(stage,index,buffer,offset)->let* ()=result in
+            let* ()=Array.fold_left(fun result(stage,index,buffer,offset)->let* ()=result in
               Ogpu.Backend.set_stage_buffer encoder stage~index~offset buffer)(Ok())bd.buffers in
             let* ()=List.fold_left(fun result(stage,index,texture)->let* ()=result in
               Ogpu.Backend.set_stage_texture encoder stage~index texture)(Ok())draw.plan_textures in
@@ -936,7 +938,7 @@ let build_icb value (batch:batch_plan)=
       let* ()=result in
       let bd=draw.plan_draw in
       let* ()=Ogpu.Backend.icb_set_pipeline icb~index bd.pipeline in
-      let* ()=List.fold_left(fun result(stage,slot,buffer,offset)->let* ()=result in
+      let* ()=Array.fold_left(fun result(stage,slot,buffer,offset)->let* ()=result in
         Ogpu.Backend.icb_set_buffer icb~index stage~slot~offset buffer)(Ok())bd.buffers in
       match bd.index with
       |None->Ogpu.Backend.icb_draw icb~index~primitive:bd.primitive~first:bd.vertex_start~count:bd.vertex_count~instances:bd.instances()
@@ -1136,7 +1138,7 @@ let render_sampled_resources_common ?prepared ?(after_prepare=Fun.id) ?(clear=(0
            when Bytes.length bytes>5456&&(Bytes.length bytes-5456)mod 192=0->
              (Bytes.length bytes-5456)/192
         |_->1 in
-      Ok{plan_draw={Ogpu.Backend.pipeline=variant.pipeline;buffers;primitive=item.primitive;index;
+      Ok{plan_draw={Ogpu.Backend.pipeline=variant.pipeline;buffers=Array.of_list buffers;primitive=item.primitive;index;
           vertex_start=0;vertex_count=item.vertex_count;instances};
          plan_textures=textures;plan_samplers=samplers;plan_resident=resident} in
     let batch_resources draws=
@@ -1144,7 +1146,7 @@ let render_sampled_resources_common ?prepared ?(after_prepare=Fun.id) ?(clear=(0
       let resources=ref[]in
       let buffer b=let id=Ogpu.Backend.buffer_id b in if not(Hashtbl.mem seen_buffers id)then(Hashtbl.add seen_buffers id();resources:=`Buffer b::!resources)
       and texture t=let id=Ogpu.Backend.texture_id t in if not(Hashtbl.mem seen_textures id)then(Hashtbl.add seen_textures id();resources:=`Texture t::!resources)in
-      Array.iter(fun draw->List.iter(fun(_,_,b,_)->buffer b)draw.plan_draw.buffers;
+      Array.iter(fun draw->Array.iter(fun(_,_,b,_)->buffer b)draw.plan_draw.buffers;
         Option.iter(fun(_,b,_,_)->buffer b)draw.plan_draw.index;
         List.iter(fun(_,_,t)->texture t)draw.plan_textures;
         List.iter texture draw.plan_resident)draws;
@@ -1172,7 +1174,7 @@ let render_sampled_resources_common ?prepared ?(after_prepare=Fun.id) ?(clear=(0
           depth_write=false;depth_load=Ogpu.Render_pass.Load;depth_clear=1.;
           transform_uniforms=None;stencil_state=None;
           stencil_load=Ogpu.Render_pass.Load;stencil_clear=0}in
-        Ok[{batch_family=Scene2;batch_samples=1;batch_state=state;batch_first=true;batch_draws=[||];
+        Ok[{batch_family=Scene2;batch_samples=1;batch_state=state;batch_first=true;batch_draws=[||];batch_driver_draws=[||];
             batch_resources=[];batch_winding=false;batch_icb=None},[]]
       else
       let slot=Array.unsafe_get scratch.scratch_slots index in
@@ -1184,9 +1186,9 @@ let render_sampled_resources_common ?prepared ?(after_prepare=Fun.id) ?(clear=(0
       |Error _ as e->e
       |Ok entries->
           let draws=Array.of_list(List.map snd entries)in
-          let winding=Array.exists(fun draw->List.exists(fun(stage,slot,_,_)->stage=Ogpu.Backend.Vertex&&slot=7)draw.plan_draw.buffers)draws in
+          let winding=Array.exists(fun draw->Array.exists(fun(stage,slot,_,_)->stage=Ogpu.Backend.Vertex&&slot=7)draw.plan_draw.buffers)draws in
           let batch={batch_family=family;batch_samples=samples;batch_state=state;batch_first=first;
-            batch_draws=draws;batch_resources=batch_resources draws;batch_winding=winding;batch_icb=None}in
+            batch_draws=draws;batch_driver_draws=Array.map(fun draw->draw.plan_draw)draws;batch_resources=batch_resources draws;batch_winding=winding;batch_icb=None}in
           batches false next((batch,List.map fst entries)::reversed)in
     match batches true 0[]with
     |Error _ as result->discard frame;finish result

@@ -1162,10 +1162,15 @@ let create () =
                             retained := release :: !retained;
                             Ok ()
                       in
+                      (* One retain per buffer per command buffer, however many
+                         bindings reference it. *)
                       let keep_buffer buffer =
-                        keep
-                          (fun () -> Buffer.Private.retain_submission buffer)
-                          (fun () -> Buffer.Private.release_submission buffer)
+                        match Buffer.Private.retain_for ~commands:commands_token buffer with
+                        | Error _ as failure -> failure
+                        | Ok false -> Ok ()
+                        | Ok true ->
+                            retained := (fun () -> Buffer.Private.release_submission buffer) :: !retained;
+                            Ok ()
                       in
                       let keep_sync (entry : _ sync_entry) =
                         entry.uses <- entry.uses + 1;
@@ -1910,54 +1915,47 @@ let create () =
                                                               Option.is_some d.batch_index && d.batch_instances = 1)
                                                             draws
                                                         in
+                                                        (* ogpu_core validated the batch: only resolve
+                                                           tokens to native objects, straight into arrays. *)
+                                                        let exception Unresolved of Ogpu_core.Error.t in
+                                                        let get = function Ok x -> x | Error e -> raise (Unresolved e) in
                                                         let resolve (d : Ogpu_core.Backend.driver_batch_draw) =
-                                                          match render_pipeline d.batch_pipeline with
-                                                          | Error _ as failure -> failure
-                                                          | Ok native -> (
-                                                              let rec buffers acc index =
-                                                                if index = Array.length d.batch_buffers then Ok (List.rev acc)
-                                                                else
-                                                                  let stage, slot, token, offset = d.batch_buffers.(index) in
-                                                                  match find_buffer token with
-                                                                  | Error _ as failure -> failure
-                                                                  | Ok buffer -> (
-                                                                      match keep_buffer buffer with
-                                                                      | Error _ as failure -> failure
-                                                                      | Ok () -> buffers ((stage, slot, buffer, offset) :: acc) (index + 1))
-                                                              in
-                                                              match buffers [] 0 with
-                                                              | Error _ as failure -> failure
-                                                              | Ok buffers -> (
-                                                                  match d.batch_index with
-                                                                  | None -> Ok (native, buffers, None)
-                                                                  | Some (kind, token, offset, count) -> (
-                                                                      match find_buffer token with
-                                                                      | Error _ as failure -> failure
-                                                                      | Ok index_buffer -> (
-                                                                          match keep_buffer index_buffer with
-                                                                          | Error _ as failure -> failure
-                                                                          | Ok () -> Ok (native, buffers, Some (kind, index_buffer, offset, count))))))
+                                                          let native = get (render_pipeline d.batch_pipeline) in
+                                                          let buffers =
+                                                            Array.map
+                                                              (fun (stage, slot, token, offset) ->
+                                                                let buffer = get (find_buffer token) in
+                                                                get (keep_buffer buffer);
+                                                                (stage, slot, buffer, offset))
+                                                              d.batch_buffers
+                                                          in
+                                                          let index =
+                                                            Option.map
+                                                              (fun (kind, token, offset, count) ->
+                                                                let index_buffer = get (find_buffer token) in
+                                                                get (keep_buffer index_buffer);
+                                                                (kind, index_buffer, offset, count))
+                                                              d.batch_index
+                                                          in
+                                                          (native, buffers, index)
                                                         in
-                                                        let resolved = Array.map resolve draws in
-                                                        match Array.find_opt Result.is_error resolved with
-                                                        | Some (Error e) -> Error e
-                                                        | Some (Ok _) -> assert false
-                                                        | None ->
+                                                        match Array.map resolve draws with
+                                                        | exception Unresolved e -> Error e
+                                                        | resolved ->
                                                             if all_indexed then begin
                                                               let prepared =
                                                                 Array.map2
                                                                   (fun (d : Ogpu_core.Backend.driver_batch_draw) resolved ->
-                                                                    let native, buffers, index = Result.get_ok resolved in
+                                                                    let native, buffers, index = resolved in
                                                                     let kind, index_buffer, offset, count = Option.get index in
                                                                     ({ Metal.Render_encoder.Private.prepared_pipeline = native;
                                                                        prepared_bindings =
-                                                                         Array.of_list
-                                                                           (List.map
-                                                                              (fun (stage, slot, buffer, offset) ->
-                                                                                { Metal.Render_encoder.Private.prepared_stage = metal_stage stage;
-                                                                                  prepared_index = slot; prepared_offset = offset;
-                                                                                  prepared_buffer = Buffer.Private.metal buffer })
-                                                                              buffers);
+                                                                         Array.map
+                                                                           (fun (stage, slot, buffer, offset) ->
+                                                                             { Metal.Render_encoder.Private.prepared_stage = metal_stage stage;
+                                                                               prepared_index = slot; prepared_offset = offset;
+                                                                               prepared_buffer = Buffer.Private.metal buffer })
+                                                                           buffers;
                                                                        prepared_primitive = metal_primitive d.batch_primitive;
                                                                        prepared_index_type = metal_index kind;
                                                                        prepared_index_buffer = Buffer.Private.metal index_buffer;
@@ -1975,46 +1973,59 @@ let create () =
                                                                     (Metal.Render_encoder.Private.execute_prepared_indexed_draws encoder prepared)
                                                             end
                                                             else
-                                                              let rec each index =
+                                                              (* Direct matches, no per-draw closures; the
+                                                                 pipeline is set only when it changes. *)
+                                                              let failed e = Error (Device.of_metal_error ~operation e) in
+                                                              let bind (stage, slot, buffer, offset) =
+                                                                let native = Buffer.Private.metal buffer in
+                                                                match stage with
+                                                                | Ogpu_core.Backend.Vertex -> Metal.Render_encoder.set_vertex_buffer encoder ~index:slot ~offset native
+                                                                | Fragment -> Metal.Render_encoder.set_fragment_buffer encoder ~index:slot ~offset native
+                                                                | Object | Mesh | Tile ->
+                                                                    Metal.Render_encoder.set_stage_buffer encoder ~stage:(metal_stage stage) ~index:slot ~offset
+                                                                      (Some native)
+                                                              in
+                                                              let rec bind_all buffers slot =
+                                                                if slot = Array.length buffers then Ok ()
+                                                                else
+                                                                  match bind (Array.unsafe_get buffers slot) with
+                                                                  | Error e -> failed e
+                                                                  | Ok () -> bind_all buffers (slot + 1)
+                                                              in
+                                                              let rec each index previous =
                                                                 if index = Array.length draws then Ok ()
                                                                 else
                                                                   let d = draws.(index) in
-                                                                  let native, buffers, indexed = Result.get_ok resolved.(index) in
-                                                                  let ( let* ) = Result.bind in
-                                                                  let* () = native_of (Metal.Render_encoder.set_pipeline encoder native) in
-                                                                  let* () =
-                                                                    List.fold_left
-                                                                      (fun result (stage, slot, buffer, offset) ->
-                                                                        let* () = result in
-                                                                        native_of
-                                                                          (match stage with
-                                                                           | Ogpu_core.Backend.Vertex -> Metal.Render_encoder.set_vertex_buffer encoder ~index:slot ~offset (Buffer.Private.metal buffer)
-                                                                           | Fragment -> Metal.Render_encoder.set_fragment_buffer encoder ~index:slot ~offset (Buffer.Private.metal buffer)
-                                                                           | Object | Mesh | Tile ->
-                                                                               Metal.Render_encoder.set_stage_buffer encoder ~stage:(metal_stage stage) ~index:slot ~offset
-                                                                                 (Some (Buffer.Private.metal buffer))))
-                                                                      (Ok ()) buffers
-                                                                  in
-                                                                  let* () =
-                                                                    match indexed with
-                                                                    | None ->
-                                                                        native_of
-                                                                          (Metal.Render_encoder.draw_primitives encoder
-                                                                             ~primitive:(metal_primitive d.batch_primitive)
-                                                                             ~first:d.batch_vertex_start ~count:d.batch_vertex_count
-                                                                             ~instances:d.batch_instances ())
-                                                                    | Some (kind, index_buffer, offset, count) ->
-                                                                        native_of
-                                                                          (Metal.Render_encoder.draw_indexed_instances encoder
-                                                                             ~primitive:(metal_primitive d.batch_primitive)
-                                                                             ~index_type:(metal_index kind)
-                                                                             ~index_buffer:(Buffer.Private.metal index_buffer)
-                                                                             ~index_offset:offset ~index_count:count
-                                                                             ~instances:(Int64.of_int d.batch_instances))
-                                                                  in
-                                                                  each (index + 1)
+                                                                  let native, buffers, indexed = resolved.(index) in
+                                                                  match
+                                                                    if (match previous with Some p -> p == native | None -> false) then Ok ()
+                                                                    else Metal.Render_encoder.set_pipeline encoder native
+                                                                  with
+                                                                  | Error e -> failed e
+                                                                  | Ok () -> (
+                                                                      match bind_all buffers 0 with
+                                                                      | Error _ as failure -> failure
+                                                                      | Ok () -> (
+                                                                          match
+                                                                            match indexed with
+                                                                            | None ->
+                                                                                Metal.Render_encoder.draw_primitives encoder
+                                                                                  ~primitive:(metal_primitive d.batch_primitive)
+                                                                                  ~first:d.batch_vertex_start ~count:d.batch_vertex_count
+                                                                                  ~instances:d.batch_instances ()
+                                                                            | Some (kind, index_buffer, offset, count) ->
+                                                                                Metal.Render_encoder.draw_indexed_instances encoder
+                                                                                  ~primitive:(metal_primitive d.batch_primitive)
+                                                                                  ~index_type:(metal_index kind)
+                                                                                  ~index_buffer:(Buffer.Private.metal index_buffer)
+                                                                                  ~index_offset:offset ~index_count:count
+                                                                                  ~instances:(Int64.of_int d.batch_instances)
+                                                                          with
+                                                                          | Error e -> failed e
+                                                                          | Ok () -> each (index + 1)
+                                                                              (match previous with Some p when p == native -> previous | _ -> Some native)))
                                                               in
-                                                              each 0);
+                                                              each 0 None);
                                                     use_resources =
                                                       (fun tokens ->
                                                         let rec split buffers textures = function
