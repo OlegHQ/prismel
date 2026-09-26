@@ -1584,7 +1584,7 @@ let run () =
       ~columns:120 ~rows:90 ~size:12. ()
       |> Sop.set_int ~owner:Attribute.Point ~name:"source_id" 17
       |> Sop.group_edges ~name:"boundary" ~incidence:Ops.Boundary_edge
-      |> Sop.poly_reduce ~target:(Ops.Reduce_ratio 0.37)
+      |> Sop.poly_reduce ~target:(Poly_reduce.Reduce_ratio 0.37)
            ~preserve_boundary:true ~only_original_positions:false
            ~equalize_lengths:1e-8 ~max_normal_deviation:0.4
            ~output_group:"reduced" in

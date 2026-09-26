@@ -35,8 +35,11 @@ let same_geometry left right =
 let test_reduces_and_preserves_boundary () =
   let source = grid () in
   let source_count = Geometry.primitive_count source in
-  let output = Ops.poly_reduce ~grain:17 ~target:(Ops.Reduce_ratio 0.5) source
+  let output = Poly_reduce.run_checked ~grain:17 ~target:(Poly_reduce.Reduce_ratio 0.5) source
       |> get_pdk in
+  check (same_geometry output
+      (Ops.poly_reduce ~grain:17 ~target:(Ops.Reduce_ratio 0.5) source
+       |> get_pdk)) "PolyReduce family/shim output differs";
   check (Geometry.primitive_count output < source_count)
     "PolyReduce did not reduce a dense triangle grid";
   check (Geometry.primitive_count output >= (source_count / 2) - 1)
@@ -63,7 +66,7 @@ let test_original_positions_and_constraints () =
   let positions = Packed.Float3.Private.view (Geometry.positions source) in
   let hard = Group.init ~owner:Group.Point ~name:"pin"
       (Geometry.point_count source) (fun point -> point = 100) in
-  let output = Ops.poly_reduce ~grain:11 ~target:(Ops.Reduce_ratio 0.35)
+  let output = Poly_reduce.run_checked ~grain:11 ~target:(Poly_reduce.Reduce_ratio 0.35)
       ~preserve_boundary:false ~hard_points:hard ~only_original_positions:true
       ~output_group:"reduced" source |> get_pdk in
   let reduced = Geometry.find_group ~owner:Group.Primitive "reduced" output
@@ -112,7 +115,7 @@ let test_payload_group_and_edge_ancestry () =
   let source = Geometry.create ~positions:(Geometry.positions base) ~topology
       ~attributes:[point_id;corner_id;source_face;detail] ~groups:[ordered]
       ~edge_groups:[boundary] () |> Result.get_ok in
-  let output = Ops.poly_reduce ~grain:23 ~target:(Ops.Reduce_ratio 0.45)
+  let output = Poly_reduce.run_checked ~grain:23 ~target:(Poly_reduce.Reduce_ratio 0.45)
       ~preserve_boundary:true source |> get_pdk in
   let attribute owner name = Geometry.find_attribute ~owner name output
       |> Option.get in
@@ -138,25 +141,32 @@ let test_payload_group_and_edge_ancestry () =
 
 let test_noop_invalid_and_cancel () =
   let source = grid ~columns:8 ~rows:7 () in
-  check (Ops.poly_reduce ~target:(Ops.Reduce_ratio 1.) source |> get_pdk == source)
+  check (Poly_reduce.run_checked ~target:(Poly_reduce.Reduce_ratio 1.) source |> get_pdk == source)
     "PolyReduce ratio-one no-op lost geometry identity";
   let all_hard = Group.init ~owner:Group.Point ~name:"all_hard"
       (Geometry.point_count source) (fun _ -> true) in
-  check (Ops.poly_reduce ~target:(Ops.Reduce_ratio 0.) ~hard_points:all_hard
+  check (Poly_reduce.run_checked ~target:(Poly_reduce.Reduce_ratio 0.) ~hard_points:all_hard
       source |> get_pdk == source)
     "fully constrained PolyReduce lost geometry identity";
   let wrong = Group.init ~owner:Group.Point ~name:"wrong"
       (Geometry.point_count source) (fun _ -> true) in
-  check (match Ops.poly_reduce ~primitives:wrong source with Error _ -> true
+  (match Poly_reduce.run_checked ~primitives:wrong source,
+      Ops.poly_reduce ~primitives:wrong source with
+   | Error family, Error shim ->
+       check (Error.code family = Error.code shim
+           && Error.message family = Error.message shim)
+         "PolyReduce family/shim error differs"
+   | _ -> fail "PolyReduce family/shim error result differs");
+  check (match Poly_reduce.run_checked ~primitives:wrong source with Error _ -> true
     | Ok _ -> false) "PolyReduce accepted a point-owned primitive selection";
-  check (match Ops.poly_reduce ~equalize_lengths:(-1.) source with
+  check (match Poly_reduce.run_checked ~equalize_lengths:(-1.) source with
     | Error _ -> true | Ok _ -> false)
     "PolyReduce accepted a negative equal-length weight";
-  check (match Ops.poly_reduce ~max_normal_deviation:(Float.pi +. 0.01) source with
+  check (match Poly_reduce.run_checked ~max_normal_deviation:(Float.pi +. 0.01) source with
     | Error _ -> true | Ok _ -> false)
     "PolyReduce accepted an invalid normal-deviation limit";
   let curve = Line_geometry.polyline_checked [|(0.,0.,0.); (1.,0.,0.); (2.,0.,0.)|] |> get_pdk in
-  check (match Ops.poly_reduce ~target:(Ops.Reduce_primitive_count 0) curve with
+  check (match Poly_reduce.run_checked ~target:(Poly_reduce.Reduce_primitive_count 0) curve with
     | Error _ -> true | Ok _ -> false) "PolyReduce accepted curve topology";
   let topology = Geometry.topology source in
   let positions = Packed.Float3.Private.view (Geometry.positions source) in
@@ -166,23 +176,23 @@ let test_noop_invalid_and_cancel () =
           positions.x)
         ~y:(Array.copy positions.y) ~z:(Array.copy positions.z))
       ~topology () |> Result.get_ok in
-  check (match Ops.poly_reduce ~target:(Ops.Reduce_ratio 0.5) non_finite with
+  check (match Poly_reduce.run_checked ~target:(Poly_reduce.Reduce_ratio 0.5) non_finite with
     | Error _ -> true | Ok _ -> false)
     "PolyReduce accepted a non-finite point position";
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
-  check (match Ops.poly_reduce ~cancel:cancelled
-      ~target:(Ops.Reduce_ratio 0.5) source with
+  check (match Poly_reduce.run_checked ~cancel:cancelled
+      ~target:(Poly_reduce.Reduce_ratio 0.5) source with
     | Error error -> Error.code error = "cancelled"
     | Ok _ -> false) "PolyReduce cancellation did not reach the public boundary"
 
 let test_parallel_exact () =
   let source = grid ~columns:80 ~rows:60 () in
   let one = Parallel.run ~domains:1 (fun () ->
-    Ops.poly_reduce ~grain:127 ~target:(Ops.Reduce_ratio 0.42)
+    Poly_reduce.run_checked ~grain:127 ~target:(Poly_reduce.Reduce_ratio 0.42)
       ~preserve_boundary:false source |> get_pdk) in
   let many = Parallel.run ~domains:4 (fun () ->
-    Ops.poly_reduce ~grain:127 ~target:(Ops.Reduce_ratio 0.42)
+    Poly_reduce.run_checked ~grain:127 ~target:(Poly_reduce.Reduce_ratio 0.42)
       ~preserve_boundary:false source |> get_pdk) in
   check (same_geometry one many)
     "PolyReduce one-domain/multi-domain geometry drift"
@@ -196,7 +206,7 @@ let test_extreme_coordinate_normalization () =
       ~vertex_points:[|0;1;2;0;2;3|] ~primitive_offsets:[|0;3;6|]
       |> Result.get_ok in
   let source = Geometry.create ~positions ~topology () |> Result.get_ok in
-  let output = Ops.poly_reduce ~target:(Ops.Reduce_primitive_count 1)
+  let output = Poly_reduce.run_checked ~target:(Poly_reduce.Reduce_primitive_count 1)
       ~preserve_boundary:false source |> get_pdk in
   let positions = Packed.Float3.Private.view (Geometry.positions output) in
   for point = 0 to Geometry.point_count output - 1 do

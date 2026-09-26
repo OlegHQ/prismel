@@ -1166,7 +1166,7 @@ val poly_reduce :
   ?group:string ->
   ?hard_point_group:string ->
   ?hard_edge_group:string ->
-  ?target:Pdk.Ops.poly_reduce_target ->
+  ?target:Pdk.Poly_reduce.target ->
   ?preserve_boundary:bool ->
   ?only_original_positions:bool ->
   ?equalize_lengths:float ->

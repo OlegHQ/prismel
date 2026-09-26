@@ -3635,9 +3635,9 @@ module Poly_reduce = struct
   let rec build ~label ~inputs parameters = match inputs with
     | [input] ->
         let target = match parameters.target_mode with
-          | Ratio -> Pdk.Ops.Reduce_ratio parameters.ratio
+          | Ratio -> Pdk.Poly_reduce.Reduce_ratio parameters.ratio
           | Primitive_count ->
-              Pdk.Ops.Reduce_primitive_count parameters.primitive_count in
+              Pdk.Poly_reduce.Reduce_primitive_count parameters.primitive_count in
         let max_normal_deviation = if parameters.limit_normal_deviation
           then Some parameters.max_normal_deviation else None in
         Sop.poly_reduce ~label ?group:(optional_text parameters.group)

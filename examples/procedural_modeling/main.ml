@@ -182,7 +182,7 @@ let graphs () =
     |> Sop.mountain ~seed:744 ~height:0.34
          ~frequency:(Vec3.create 2.2 1.1 1.8) ~octaves:5
          ~recompute_normals:true
-    |> Sop.poly_reduce ~target:(Pdk.Ops.Reduce_ratio 0.24)
+    |> Sop.poly_reduce ~target:(Pdk.Poly_reduce.Reduce_ratio 0.24)
          ~preserve_boundary:true ~equalize_lengths:1e-7
          ~max_normal_deviation:0.7 ~output_group:"reduced_faces"
     |> Sop.normals

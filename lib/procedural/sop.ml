@@ -1769,7 +1769,7 @@ let edge_flip ?label ?group ?(cycles = 1)
       match edges with
       | Error error -> Error error
       | Ok edges ->
-          match Pdk.Ops.edge_flip ~cancel:(Context.cancel_token context)
+          match Pdk.Edge_flip.run_checked ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?edges ~cycles
               ~cycle_vertex_attributes ~recompute_point_normals geometry with
           | Ok geometry -> cooked geometry
@@ -3125,11 +3125,11 @@ let intersection_analysis ?label ?source_group ?collision_group
                | Error error -> structured_pdk_error error))
 
 let poly_reduce_target_key = function
-  | Pdk.Ops.Reduce_ratio ratio -> "ratio:" ^ float_key ratio
-  | Pdk.Ops.Reduce_primitive_count count -> "primitives:" ^ string_of_int count
+  | Pdk.Poly_reduce.Reduce_ratio ratio -> "ratio:" ^ float_key ratio
+  | Pdk.Poly_reduce.Reduce_primitive_count count -> "primitives:" ^ string_of_int count
 
 let poly_reduce ?label ?group ?hard_point_group ?hard_edge_group
-    ?(target = Pdk.Ops.Reduce_ratio 0.5) ?(preserve_boundary = true)
+    ?(target = Pdk.Poly_reduce.Reduce_ratio 0.5) ?(preserve_boundary = true)
     ?(only_original_positions = false) ?(equalize_lengths = 1e-10)
     ?max_normal_deviation ?output_group ?(recompute_point_normals = true) input =
   List.iter (fun (label, value) -> Option.iter (fun name ->
@@ -3179,7 +3179,7 @@ let poly_reduce ?label ?group ?hard_point_group ?hard_edge_group
       match primitives, hard_points, hard_edges with
       | Error error, _, _ | _, Error error, _ | _, _, Error error -> Error error
       | Ok primitives, Ok hard_points, Ok hard_edges ->
-          match Pdk.Ops.poly_reduce ~cancel:(Context.cancel_token context)
+          match Pdk.Poly_reduce.run_checked ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ~target ?primitives ?hard_points
               ?hard_edges ~preserve_boundary ~only_original_positions
               ~equalize_lengths ?max_normal_deviation ?output_group

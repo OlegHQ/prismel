@@ -22,7 +22,7 @@ let run () =
   let graph = Sop.grid ~counts:Pdk.Plane_generators.Grid_point_counts
       ~connectivity:Pdk.Plane_generators.Grid_alternating_triangles
       ~columns:32 ~rows:24 ~size:8. ()
-      |> Sop.poly_reduce ~target:(Pdk.Ops.Reduce_ratio 0.4)
+      |> Sop.poly_reduce ~target:(Pdk.Poly_reduce.Reduce_ratio 0.4)
            ~preserve_boundary:true ~equalize_lengths:1e-8
            ~max_normal_deviation:0.5 ~output_group:"reduced" in
   let output = cook graph in

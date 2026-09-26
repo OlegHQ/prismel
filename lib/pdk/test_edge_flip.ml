@@ -155,7 +155,10 @@ let disconnected_triangle_pairs count =
 let run () =
   let source = decorated_quad () in
   let flip = Geometry.find_edge_group "flip" source |> Option.get in
-  let output = Ops.edge_flip ~grain:1 ~edges:flip source |> get_pdk in
+  let output = Edge_flip.run_checked ~grain:1 ~edges:flip source |> get_pdk in
+  check (equal_geometry output
+      (Ops.edge_flip ~grain:1 ~edges:flip source |> get_pdk))
+    "Edge Flip family/shim output differs";
   check (Geometry.point_count output = 4 && Geometry.vertex_count output = 6
       && Geometry.primitive_count output = 2) "Edge Flip cardinality";
   check (vertex_points output = [|1;2;3; 1;3;0|])
@@ -173,12 +176,12 @@ let run () =
   check (Group.ordered_elements corner = Some [|2;1;3|])
     "Edge Flip ordered vertex-group ancestry";
 
-  let fixed_payload = Ops.edge_flip ~grain:1 ~edges:flip
+  let fixed_payload = Edge_flip.run_checked ~grain:1 ~edges:flip
       ~cycle_vertex_attributes:false source |> get_pdk in
   check (vertex_points fixed_payload = vertex_points output
       && vertex_float "uv" fixed_payload = [|10.;20.;30.;40.;50.;60.|])
     "Edge Flip fixed vertex payload";
-  let rebuilt = Ops.edge_flip ~grain:1 ~edges:flip
+  let rebuilt = Edge_flip.run_checked ~grain:1 ~edges:flip
       ~recompute_point_normals:true source |> get_pdk in
   check (Geometry.find_attribute ~owner:Attribute.Point "N" rebuilt <> None
       && Geometry.find_attribute ~owner:Attribute.Vertex "N" rebuilt = None)
@@ -189,55 +192,62 @@ let run () =
       [|0;1;2; 0;2;3;4|] [|0;3;7|] in
   let pentagon_edge = edge_group_of_pairs (Geometry.topology pentagon)
       "flip" [|0,2|] in
-  let pentagon_output = Ops.edge_flip ~edges:pentagon_edge pentagon |> get_pdk in
+  let pentagon_output = Edge_flip.run_checked ~edges:pentagon_edge pentagon |> get_pdk in
   check (vertex_points pentagon_output = [|1;2;3; 1;3;4;0|])
     "Edge Flip mixed polygon topology";
 
   let empty = edge_group_of_pairs (Geometry.topology source) "empty" [||] in
-  check (Ops.edge_flip source |> get_pdk == source
-      && Ops.edge_flip ~edges:empty source |> get_pdk == source
-      && Ops.edge_flip ~edges:flip ~cycles:0 source |> get_pdk == source
-      && Ops.edge_flip ~edges:flip ~cycles:12 source |> get_pdk == source)
+  check (Edge_flip.run_checked source |> get_pdk == source
+      && Edge_flip.run_checked ~edges:empty source |> get_pdk == source
+      && Edge_flip.run_checked ~edges:flip ~cycles:0 source |> get_pdk == source
+      && Edge_flip.run_checked ~edges:flip ~cycles:12 source |> get_pdk == source)
     "Edge Flip identity contract";
 
   let boundary = edge_group_of_pairs (Geometry.topology source) "boundary"
       [|0,1|] in
-  expect_code "invalid_topology" (Ops.edge_flip ~edges:boundary source);
+  (match Edge_flip.run_checked ~edges:boundary source,
+      Ops.edge_flip ~edges:boundary source with
+   | Error family, Error shim ->
+       check (Error.code family = Error.code shim
+           && Error.message family = Error.message shim)
+         "Edge Flip family/shim error differs"
+   | _ -> fail "Edge Flip family/shim error result differs");
+  expect_code "invalid_topology" (Edge_flip.run_checked ~edges:boundary source);
   let reversed = geometry_owned
       [0.,0.,0.;1.,0.,0.;1.,1.,0.;0.,1.,0.]
       [|0;1;2; 0;3;2|] [|0;3;6|] in
   let reversed_edge = edge_group_of_pairs (Geometry.topology reversed)
       "bad" [|0,2|] in
-  expect_code "invalid_topology" (Ops.edge_flip ~edges:reversed_edge reversed);
+  expect_code "invalid_topology" (Edge_flip.run_checked ~edges:reversed_edge reversed);
   let duplicated = geometry_owned
       [0.,0.,0.;1.,0.,0.;1.,1.,0.;0.,1.,0.;0.5,2.,0.]
       [|0;1;2; 0;2;3; 1;3;4|] [|0;3;6;9|] in
   let duplicated_edge = edge_group_of_pairs (Geometry.topology duplicated)
       "bad" [|0,2|] in
-  expect_code "invalid_topology" (Ops.edge_flip ~edges:duplicated_edge duplicated);
+  expect_code "invalid_topology" (Edge_flip.run_checked ~edges:duplicated_edge duplicated);
   let coincident = geometry_owned
       [0.,0.,0.;1.,0.,0.;1.,1.,0.;1.,0.,0.]
       [|0;1;2; 0;2;3|] [|0;3;6|] in
   let coincident_edge = edge_group_of_pairs (Geometry.topology coincident)
       "bad" [|0,2|] in
-  expect_code "invalid_topology" (Ops.edge_flip ~edges:coincident_edge coincident);
+  expect_code "invalid_topology" (Edge_flip.run_checked ~edges:coincident_edge coincident);
   let conflicts = geometry_owned
       [0.,0.,0.;1.,0.,0.;1.,1.,0.;0.,1.,0.;-1.,1.,0.]
       [|0;1;2; 0;2;3; 0;3;4|] [|0;3;6;9|] in
   let conflict_edges = edge_group_of_pairs (Geometry.topology conflicts)
       "bad" [|0,2;0,3|] in
-  expect_code "invalid_topology" (Ops.edge_flip ~edges:conflict_edges conflicts);
+  expect_code "invalid_topology" (Edge_flip.run_checked ~edges:conflict_edges conflicts);
   let other = decorated_quad () in
   let other_group = Geometry.find_edge_group "flip" other |> Option.get in
-  expect_code "invalid_topology" (Ops.edge_flip ~edges:other_group source);
-  expect_code "invalid_topology" (Ops.edge_flip ~edges:flip ~cycles:(-1) source);
+  expect_code "invalid_topology" (Edge_flip.run_checked ~edges:other_group source);
+  expect_code "invalid_topology" (Edge_flip.run_checked ~edges:flip ~cycles:(-1) source);
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
-  expect_code "cancelled" (Ops.edge_flip ~cancel:cancelled ~edges:flip source);
+  expect_code "cancelled" (Edge_flip.run_checked ~cancel:cancelled ~edges:flip source);
 
   let large, large_edges = disconnected_triangle_pairs 5_000 in
   let run domains = Parallel.run ~domains (fun () ->
-    Ops.edge_flip ~grain:127 ~edges:large_edges large |> get_pdk) in
+    Edge_flip.run_checked ~grain:127 ~edges:large_edges large |> get_pdk) in
   let one = run 1 and four = run 4 in
   check (equal_geometry one four) "Edge Flip differs across domain counts";
   check (Geometry.point_count one = 20_000
