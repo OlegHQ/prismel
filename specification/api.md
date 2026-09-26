@@ -256,9 +256,7 @@ Catmull–Rom samples, `Pdk.Iso_surface` extracts packed isosurfaces,
 `Pdk.Edge_modeling_ops`, `Pdk.Mesh_edit_ops`, `Pdk.Bound`, `Pdk.Match_size`,
 `Pdk.Plane_clip`, `Pdk.Edge_flip`, `Pdk.Facet_ops`, `Pdk.Compact_points`,
 `Pdk.Poly_fill`, and `Pdk.Poly_reduce` expose option and rule types or checked operations used
-by procedural SOPs;
-`Pdk.Ops` retains compatible operation entry points during the consumer
-migration.
+by procedural SOPs.
 `Pdk.Group_ops.groups_from_name_checked` and
 `Pdk.Group_ops.name_from_groups_checked` return the same typed validation and
 cancellation errors as their compatibility entry points.
@@ -298,7 +296,7 @@ distinct topology policies; scalar crossings interpolate exact cut endpoints,
 while scalar or tuple change detection emits enough disconnected subsegments
 to respect the requested maximum change. The static graph node delegates all
 cardinality planning, point/vertex payload interpolation, group ancestry, and
-parallel fills to `Pdk.Ops.poly_cut`.
+parallel fills to `Pdk.Poly_modeling.poly_cut_checked`.
 `Procedural.Sop.separate_pieces` packs integer- or text-identified point or
 primitive pieces into stable, non-overlapping projection intervals along an
 arbitrary axis. A float3 translation field is written on the identity owner's
@@ -306,7 +304,7 @@ domain and the Move Back mode subtracts it later. Point identities must remain
 uniform within every primitive, while primitive identities must agree at
 shared points; ambiguous topology is rejected rather than deformed. The node
 is static and delegates all bounds, ownership, overflow, and parallel position
-work to `Pdk.Ops.separate_pieces`.
+work to `Pdk.Separate_pieces.run_checked`.
 `Procedural.Sop.edge_equalize` targets the initial average, longest, or
 shortest length of a named native edge group, or all topology edges when the
 group is omitted. Independent edges are solved directly; connected selections
@@ -524,12 +522,12 @@ attribute modes in the same family.
 Packed queries use `Pdk.Ray.run`, `Pdk.Point_split.run_checked`, and
 `Pdk.Intersection_analysis.run_checked`; ray options and constructors live in
 `Pdk.Ray`. These entries preserve the typed validation and cancellation
-errors of their former `Pdk.Ops` wrappers.
+errors of the former compatibility wrappers.
 Packed UV projection, transform, seam marking, unitizing, flattening, and
 relaxation use the corresponding `Pdk.Uv_checked` entries and option types.
 Packed triangulation and remeshing use `Pdk.Triangulation_modeling`; revolve and
 general sweep use `Pdk.Sweep_modeling`. Both modules preserve the checked
-validation and cancellation results of their former `Pdk.Ops` entry points.
+validation and cancellation results of the former compatibility entry points.
 Curve topology and extraction use `Pdk.Curve_topology` for line conversion,
 curve ends, joins, path tracing, centroid extraction, and curve-point cuts.
 `Pdk.Fuse_grid.fuse_checked` and `snap_to_grid_checked` preserve the typed

@@ -3,7 +3,7 @@
   "baseline_plan_sha256": "6f95e5738ae263386bbc414299f598f25ba9f604b48a8c2ef9bee84f974e2954",
   "generator": "tools/api_manifest/api_manifest.exe",
   "kind": "stable_high_level",
-  "module_count": 152,
+  "module_count": 151,
   "modules": [
     {
       "api_sha256": "e50b68fb8b3efb8c3f48d288c797a83690511ce38a332e2c2285c788efd781ad",
@@ -472,15 +472,6 @@
       "source": "lib/pdk/core/normal_ops.mli",
       "source_bytes": 822,
       "source_sha256": "783f2a8cb8d44e94a2fe14b57d38a3089600f911da55902a40a5925dc5fe50f7"
-    },
-    {
-      "api_sha256": "24d9260ad09e45427f722ab9fbc3b307abd2df1ce67748983edd0a8ac62e8786",
-      "excluded_legacy_symbols": [],
-      "library": "pdk",
-      "module": "Ops",
-      "source": "lib/pdk/mesh/ops.mli",
-      "source_bytes": 95170,
-      "source_sha256": "145a12874820e4900761eeaf4933d152904c9ff61344eaca9b72357ca8ecbb65"
     },
     {
       "api_sha256": "b490452483589f09b79da98886e02e53857b15bc4e94c89b071cad643471a311",

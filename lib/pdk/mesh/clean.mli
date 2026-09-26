@@ -1,4 +1,4 @@
-(** Packed cleanup algorithms behind the typed [Ops.clean] boundary. *)
+(** Packed cleanup algorithms behind the typed [Clean_ops.run_checked] boundary. *)
 
 val delete_degenerate :
   ?cancel:Cancel.t -> grain:int -> ?primitives:Group.t -> epsilon:float ->

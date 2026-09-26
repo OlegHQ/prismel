@@ -18,5 +18,5 @@ val cut :
   ?keep_closed:bool ->
   Geometry.t ->
   (Geometry.t, string) result
-(** Packed polygon-curve cutting kernel. See {!Pdk.Ops.poly_cut} for the
+(** Packed polygon-curve cutting kernel. See {!Pdk.Poly_modeling.poly_cut_checked} for the
     public contract. *)

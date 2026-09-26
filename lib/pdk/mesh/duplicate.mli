@@ -1,4 +1,4 @@
-(** Packed restricted-source implementation for [Pdk.Ops.duplicate]. *)
+(** Packed restricted-source implementation for [Pdk.Instance_copy.duplicate]. *)
 
 val selected :
   ?cancel:Cancel.t -> grain:int -> primitives:Group.t ->

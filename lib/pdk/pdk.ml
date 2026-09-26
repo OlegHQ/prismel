@@ -76,7 +76,6 @@ module Uv_checked = Pdk_mesh.Uv_checked
 module Triangulation_modeling = Pdk_mesh.Triangulation_modeling
 module Sweep_modeling = Pdk_mesh.Sweep_modeling
 module Instance_copy = Pdk_mesh.Instance_copy
-module Ops = Pdk_mesh.Ops
 module Subdivision_extra = Pdk_mesh.Subdivision_extra
 module Repair_mesh = Pdk_mesh.Repair_mesh
 module Boolean_detect = Pdk_mesh.Boolean_detect
