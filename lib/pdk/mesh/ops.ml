@@ -348,16 +348,7 @@ let dissolve = Dissolve.run_checked
 
 let snap_to_grid = Fuse_grid.snap_to_grid_checked
 
-let boolean_detect ?cancel ?(grain = 16_384) ?source_primitives
-    ?collision_primitives ?(tolerance = 0.) ?(include_coplanar = true)
-    ?(intersecting_group = Some "boolean_intersections")
-    ?intersections_attribute ?count_attribute ?self_intersecting_group
-    ?self_intersections_attribute ?self_count_attribute ~collision geometry =
-  Boolean_detect.run ?cancel ~grain ?source_primitives ?collision_primitives
-    ~tolerance ~include_coplanar ~intersecting_group ~intersections_attribute
-    ~count_attribute ~self_intersecting_group ~self_intersections_attribute
-    ~self_count_attribute ~collision geometry
-
+let boolean_detect = Boolean_detect.run_checked
 
 let poly_reduce = Poly_reduce.run_checked
 let edge_flip = Edge_flip.run_checked

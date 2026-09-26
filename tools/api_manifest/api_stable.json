@@ -3,7 +3,7 @@
   "baseline_plan_sha256": "6f95e5738ae263386bbc414299f598f25ba9f604b48a8c2ef9bee84f974e2954",
   "generator": "tools/api_manifest/api_manifest.exe",
   "kind": "stable_high_level",
-  "module_count": 151,
+  "module_count": 152,
   "modules": [
     {
       "api_sha256": "e50b68fb8b3efb8c3f48d288c797a83690511ce38a332e2c2285c788efd781ad",
@@ -121,6 +121,15 @@
       "source": "lib/pdk/boolean/boolean.mli",
       "source_bytes": 4895,
       "source_sha256": "c70d000c6ac643b5f9a5371d0504c7af033801509838e629cc072d0e74695dd6"
+    },
+    {
+      "api_sha256": "8dfb7125b59336c7968221f707399b5d67c91de039d38813511cd8a5bedb5934",
+      "excluded_legacy_symbols": [],
+      "library": "pdk",
+      "module": "Boolean_detect",
+      "source": "lib/pdk/mesh/boolean_detect.mli",
+      "source_bytes": 3114,
+      "source_sha256": "4cc345c7cc13d44294a06861f3c75094e6fec99617fa3117dcfc541da1daf27c"
     },
     {
       "api_sha256": "1c569542e34b2bec7f8ce66f1fee9ccfbdf89acb1771cf0c25dfe0783c2ea006",

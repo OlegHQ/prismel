@@ -79,5 +79,6 @@ module Instance_copy = Pdk_mesh.Instance_copy
 module Ops = Pdk_mesh.Ops
 module Subdivision_extra = Pdk_mesh.Subdivision_extra
 module Repair_mesh = Pdk_mesh.Repair_mesh
+module Boolean_detect = Pdk_mesh.Boolean_detect
 module Boolean = Pdk_boolean.Boolean
 module Io = Pdk_io.Mesh_io
