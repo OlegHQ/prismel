@@ -37,6 +37,7 @@ module Color_by_height = Pdk_attrib.Color_by_height
 module Motion = Pdk_mesh.Motion
 module Ordering = Pdk_mesh.Ordering
 module Transform_ops = Pdk_mesh.Transform_ops
+module Deform_ops = Pdk_mesh.Deform_ops
 module Bound = Pdk_mesh.Bound
 module Match_size = Pdk_mesh.Match_size
 module Curve_modeling = Pdk_mesh.Curve_modeling

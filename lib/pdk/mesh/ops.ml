@@ -643,54 +643,6 @@ let poly_bridge ?cancel ?grain ~source ~destination ?pairing
     ?pairing_shift ?divisions ?keep_input ?output_group ?collinearity_tolerance
     ?recompute_normals geometry
 
-let noise_displace ?cancel ?grain ~amplitude ~frequency ~seed geometry =
-  if not (finite amplitude && finite frequency) then
-    Error "Pdk.Ops.noise_displace: amplitude and frequency must be finite"
-  else
-    let noise = Noise.create seed in
-    let samples = Array.make (Geometry.point_count geometry) 0. in
-    let displaced = Kernel.edit_point_ranges ?grain
-        (fun ~first ~last ~x ~y ~z ->
-          Cancel.check_opt cancel;
-          Noise.Private.sample2_into noise ~first ~last ~frequency
-            ~x ~y:z ~output:samples;
-          for index = first to last - 1 do
-            y.(index) <- y.(index) +. amplitude *. ((samples.(index) *. 2.) -. 1.)
-          done) geometry in
-    Ok (displaced
-        |> Geometry.without_attribute ~owner:Attribute.Point "N"
-        |> Geometry.without_attribute ~owner:Attribute.Vertex "N")
-
-let peak ?cancel ?(grain = 16_384) ?selection ?direction_attribute
-    ?(normalize_direction = true) ?mask_attribute ~distance
-    ?(recompute_normals = false) geometry =
-  Deform.peak ?cancel ~grain ?selection ?direction_attribute
-    ~normalize_direction ?mask_attribute ~distance ~recompute_normals geometry
-
-let bend ?cancel ?(grain = 16_384) ?selection ?mask_attribute
-    ?(origin = Vec3.zero) ?(direction = Vec3.unit_z) ?(up = Vec3.unit_y)
-    ~length ?(bend_angle = 0.) ?(twist_angle = 0.) ?(limit = true)
-    ?(both_directions = false) ?(continuous_twist = true) ?capture_attribute
-    ?(recompute_normals = false) geometry =
-  Deform.bend ?cancel ~grain ?selection ?mask_attribute ~origin ~direction ~up
-    ~length ~bend_angle ~twist_angle ~limit ~both_directions ~continuous_twist
-    ?capture_attribute ~recompute_normals geometry
-
-let mountain ?cancel ?(grain = 16_384) ?selection ?direction_attribute
-    ?(normalize_direction = true) ?mask_attribute ?(seed = 0) ~height
-    ?(frequency = Vec3.create 1. 1. 1.) ?(offset = Vec3.zero) ?(octaves = 4)
-    ?(lacunarity = 2.) ?(roughness = 0.5) ?height_attribute
-    ?(recompute_normals = false) geometry =
-  Deform.mountain ?cancel ~grain ?selection ?direction_attribute
-    ~normalize_direction ?mask_attribute ~seed ~height ~frequency ~offset
-    ~octaves ~lacunarity ~roughness ?height_attribute ~recompute_normals geometry
-
-let point_jitter ?cancel ?(grain = 16_384) ?points ?mask_attribute ?id_attribute
-    ?(use_point_scale = false) ~seed ~scale
-    ?(axis_scales = Vec3.create 1. 1. 1.) geometry =
-  Point_jitter.run ?cancel ~grain ?points ?mask_attribute ?id_attribute
-    ~use_point_scale ~seed ~scale ~axis_scales geometry
-
 type point_generate_mode = Point_generate.mode =
   | Generate_total of int
   | Generate_per_point of {
@@ -1512,51 +1464,11 @@ let distance_along_geometry = Transform_ops.distance_along_geometry
 let distance_from_geometry = Transform_ops.distance_from_geometry
 let distance_from_target = Transform_ops.distance_from_target
 
-let noise_displace_raw = noise_displace
-let noise_displace ?cancel ?grain ~amplitude ~frequency ~seed geometry =
-  protected "noise_displace" "invalid_parameter"
-    (fun () -> noise_displace_raw ?cancel ?grain ~amplitude ~frequency ~seed geometry)
-
-let peak_raw = peak
-let peak ?cancel ?grain ?selection ?direction_attribute ?normalize_direction
-    ?mask_attribute ~distance ?recompute_normals geometry =
-  protected "peak" "invalid_deformation" (fun () ->
-    peak_raw ?cancel ?grain ?selection ?direction_attribute ?normalize_direction
-      ?mask_attribute ~distance ?recompute_normals geometry)
-
-let bend_raw = bend
-let bend ?cancel ?grain ?selection ?mask_attribute ?origin ?direction ?up
-    ~length ?bend_angle ?twist_angle ?limit ?both_directions ?continuous_twist
-    ?capture_attribute ?recompute_normals geometry =
-  protected "bend" "invalid_deformation" (fun () ->
-    bend_raw ?cancel ?grain ?selection ?mask_attribute ?origin ?direction ?up
-      ~length ?bend_angle ?twist_angle ?limit ?both_directions ?continuous_twist
-      ?capture_attribute ?recompute_normals geometry)
-
-let mountain_raw = mountain
-let mountain ?cancel ?grain ?selection ?direction_attribute ?normalize_direction
-    ?mask_attribute ?seed ~height ?frequency ?offset ?octaves ?lacunarity
-    ?roughness ?height_attribute ?recompute_normals geometry =
-  protected "mountain" "invalid_deformation" (fun () ->
-    mountain_raw ?cancel ?grain ?selection ?direction_attribute
-      ?normalize_direction ?mask_attribute ?seed ~height ?frequency ?offset
-      ?octaves ?lacunarity ?roughness ?height_attribute ?recompute_normals
-      geometry)
-
-let point_jitter_raw = point_jitter
-let point_jitter ?cancel ?grain ?points ?mask_attribute ?id_attribute
-    ?use_point_scale ~seed ~scale ?axis_scales geometry =
-  let selection_error = match points with
-    | Some group when Group.owner group <> Group.Point ->
-        Some "selection must own points"
-    | Some group when Group.length group <> Geometry.point_count geometry ->
-        Some "selection length does not match point count"
-    | None | Some _ -> None in
-  match selection_error with
-  | Some message -> detailed "point_jitter" "invalid_selection" (Error message)
-  | None -> protected "point_jitter" "invalid_attribute" (fun () ->
-      point_jitter_raw ?cancel ?grain ?points ?mask_attribute ?id_attribute
-        ?use_point_scale ~seed ~scale ?axis_scales geometry)
+let noise_displace = Deform_ops.noise_displace_checked
+let peak = Deform_ops.peak_checked
+let bend = Deform_ops.bend_checked
+let mountain = Deform_ops.mountain_checked
+let point_jitter = Deform_ops.point_jitter_checked
 
 let point_generate = Point_generate.run_checked
 
