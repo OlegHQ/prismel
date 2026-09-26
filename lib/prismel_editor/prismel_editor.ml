@@ -26,17 +26,17 @@ module Editor3 = struct
 
   let create ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?camera ?background
       ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~graph ~prepare ~scene3
-      ?overlay () =
+      ?overlay ?status () =
     create ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?camera ?background
       ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~graph ~prepare
-      ~draw:scene3 ?overlay ()
+      ~draw:scene3 ?overlay ?status ()
 
   let run ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?camera ?background
       ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~config ~graph ~prepare
-      ~scene3 ?overlay () =
+      ~scene3 ?overlay ?status () =
     run ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?camera ?background
       ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~config ~graph ~prepare
-      ~draw:scene3 ?overlay ()
+      ~draw:scene3 ?overlay ?status ()
 end
 
 module Editor2 = struct
@@ -44,17 +44,17 @@ module Editor2 = struct
 
   let create ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?camera ?background
       ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~graph ~prepare ~scene2
-      ?overlay () =
+      ?overlay ?status () =
     create ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?camera ?background
       ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~graph ~prepare
-      ~draw:scene2 ?overlay ()
+      ~draw:scene2 ?overlay ?status ()
 
   let run ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?camera ?background
       ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~config ~graph ~prepare
-      ~scene2 ?overlay () =
+      ~scene2 ?overlay ?status () =
     run ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?camera ?background
       ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~config ~graph ~prepare
-      ~draw:scene2 ?overlay ()
+      ~draw:scene2 ?overlay ?status ()
 end
 
 module Private = struct

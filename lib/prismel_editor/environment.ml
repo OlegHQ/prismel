@@ -143,6 +143,7 @@ module Make (V : VIEWPORT) = struct
     control : V.control;
     draw : Graph.t -> 'prepared -> V.rendered;
     overlay : Graph.t -> 'prepared option -> Frame.t -> Scene.t;
+    status : 'prepared option -> string option;  (* sketch text in the status bar *)
     rendered : V.rendered option;
     render_status : string option;
     pending_render : V.request option;
@@ -156,10 +157,10 @@ module Make (V : VIEWPORT) = struct
       ?settings ?(commands = [])
       ?(camera = V.default_camera ()) ?(background = Color.hex_exn "#09090b")
       ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~graph ~prepare ~draw
-      ?(overlay = fun _ _ _ -> Scene.empty) () =
+      ?(overlay = fun _ _ _ -> Scene.empty) ?(status = fun _ -> None) () =
     Result.map (fun core ->
       let core, extra = V.init core camera in
-      { core; camera; control = V.create_control (); draw; overlay;
+      { core; camera; control = V.create_control (); draw; overlay; status;
         rendered = None; render_status = None; pending_render = None;
         background; extra; hidden_scene_cache = None; commands })
       (Core.create ?settings
@@ -210,7 +211,9 @@ module Make (V : VIEWPORT) = struct
       V.handles ui ~selected (view_camera value) extra ~bounds in
     let update = Core.update value.core ~all_ui_visible:visible
         ~text_focus:(Pxui.Ui.text_input_focused ui) ~camera_panel ~view_handles
-        ~render_status:value.render_status
+        ~render_status:(match value.status (Core.prepared value.core), value.render_status with
+          | Some sketch, Some render -> Some (sketch ^ " · " ^ render)
+          | sketch, None -> sketch | None, render -> render)
         ~view_state:(function
           | Some (_, camera, _, extra, _) -> V.section camera extra
           | None -> V.section value.camera extra) frame in
@@ -277,12 +280,12 @@ module Make (V : VIEWPORT) = struct
 
   let run ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?camera ?background
       ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~config ~graph
-      ~prepare ~draw ?overlay () =
+      ~prepare ~draw ?overlay ?status () =
     let name = Option.value name ~default:(String.lowercase_ascii config.Sketch.title) in
     let init _frame = create ?layout ~name ?presets ?timeline_frames ?factories ?settings
         ?commands
         ?camera ?background ?seed ?grain ?domains ?max_entries ?max_payload_bytes
-        ~graph ~prepare ~draw ?overlay () |> Result.get_ok in
+        ~graph ~prepare ~draw ?overlay ?status () |> Result.get_ok in
     let update value frame =
       let value = update value frame in
       set_ui_cursor value.core.ui (V.ui_visible value.control);

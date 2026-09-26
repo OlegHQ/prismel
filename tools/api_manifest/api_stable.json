@@ -953,13 +953,13 @@
       "source_sha256": "5b7a3a428b53fe435b98b56aea60bb06b777da671ec5852d424d3924f8e2cf64"
     },
     {
-      "api_sha256": "9ecf167041de463c47ffbd949d6502ad9331feb9371321a82ec2a7865fef2a18",
+      "api_sha256": "96762c92a64f04235b58b75f0b6662ab971dea050a1d960dad1c5fb8495cadf4",
       "excluded_legacy_symbols": [],
       "library": "prismel_editor",
       "module": "Prismel_editor",
       "source": "lib/prismel_editor/prismel_editor.mli",
-      "source_bytes": 12447,
-      "source_sha256": "01196f5728e5e1776c42a44bba01a514534701df64c59fe709910e0fbac41869"
+      "source_bytes": 12807,
+      "source_sha256": "8a8622edd64bf47b82b34c9964fc75ab757fe9dd7d1dd356fb7c3f88b7137295"
     },
     {
       "api_sha256": "449eac9dda3aef015408a985aa6006c7402c34df946a5b64407db70143c700b4",

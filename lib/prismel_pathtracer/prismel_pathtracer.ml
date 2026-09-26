@@ -158,12 +158,12 @@ type t = {
   panels : B.buffer;
   lights : B.buffer;
   light_count : int;
-  accum : B.buffer;
-  outputs : B.texture array;
+  mutable accum : B.buffer;
+  mutable outputs : B.texture array;
   shared_film : bool;
   mutable next_output_slot : int;
-  history_color : B.buffer array;
-  history_geometry : B.buffer array;
+  mutable history_color : B.buffer array;
+  mutable history_geometry : B.buffer array;
   mutable history_slot : int;
   mutable history_camera : camera option;
   mutable history_epoch : int;
@@ -171,8 +171,8 @@ type t = {
   mutable completed : int;
   resource : Runtime_resources.Image.t;
   image : Prismel.Image.t;
-  width : int;
-  height : int;
+  mutable width : int;
+  mutable height : int;
   spp : int;
   bounces : int;
   exposure : float;
@@ -865,6 +865,42 @@ let pipeline_for library pipelines shape =
       Hashtbl.add pipelines shape (pipeline, table);
       Ok (pipeline, table)
 
+(* Size-dependent storage: accumulation, two history frames, two output films. *)
+type film = {
+  accum : B.buffer;
+  history_color : B.buffer array;
+  history_geometry : B.buffer array;
+  outputs : B.texture array;
+}
+
+(* ponytail: a failure midway leaks the earlier allocations to the device's
+   leak report, like [create]; allocation failures are out-of-memory only. *)
+let allocate_film device ~width ~height =
+  let history label =
+    buffer ~memory:Ogpu.Types.Device_local device ~label (width * height * 16) in
+  let texture index =
+    gpu
+      (B.create_texture device
+         {
+           label = Some (Printf.sprintf "pathtracer-film-%d" index);
+           width;
+           height;
+           depth = 1;
+           mip_levels = 1;
+           sample_count = 1;
+           usage = [ Texture_binding; Storage_binding; Texture_copy_src ];
+         })
+  in
+  let* accum = history "pathtracer-accum" in
+  let* color0 = history "pathtracer-history-color-0" in
+  let* color1 = history "pathtracer-history-color-1" in
+  let* geometry0 = history "pathtracer-history-geometry-0" in
+  let* geometry1 = history "pathtracer-history-geometry-1" in
+  let* output0 = texture 0 in
+  let* output1 = texture 1 in
+  Ok { accum; history_color = [| color0; color1 |];
+       history_geometry = [| geometry0; geometry1 |]; outputs = [| output0; output1 |] }
+
 let create ?(spp = 1) ?(bounces = 6) ?(exposure = 1.) ?(round_samples = 4) ~width ~height (scene : scene) =
   if width <= 0 || height <= 0 then Error "path tracer size must be positive"
   else if spp <= 0 || bounces <= 0 then Error "path tracer spp and bounces must be positive"
@@ -904,41 +940,12 @@ let create ?(spp = 1) ?(bounces = 6) ?(exposure = 1.) ?(round_samples = 4) ~widt
           (B.create_compute_pipeline_from library ~entry:"resolve_preview"
              ~interface:resolve_interface ())
       in
-      let pixel_count = width * height in
-      let history label =
-        buffer ~memory:Ogpu.Types.Device_local device ~label (pixel_count * 16)
-      in
-      let* accum = history "pathtracer-accum" in
-      let* color0 = history "pathtracer-history-color-0" in
-      let* color1 = history "pathtracer-history-color-1" in
-      let* geometry0 = history "pathtracer-history-geometry-0" in
-      let* geometry1 = history "pathtracer-history-geometry-1" in
-      let pixels = Bytes.make (pixel_count * 4) '\000' in
+      let* film = allocate_film device ~width ~height in
+      let pixels = Bytes.make (width * height * 4) '\000' in
       let* resource =
         Result.map_error
           (Format.asprintf "%a" Runtime_resources.pp_error)
           (Runtime_resources.Image.create ~width ~height ~rgba:(Bytes.copy pixels))
-      in
-      let film index =
-        gpu
-          (B.create_texture device
-             {
-               label = Some (Printf.sprintf "pathtracer-film-%d" index);
-               width;
-               height;
-               depth = 1;
-               mip_levels = 1;
-               sample_count = 1;
-               usage = [ Texture_binding; Storage_binding; Texture_copy_src ];
-             })
-      in
-      let* output0 = film 0 in
-      let* output1 =
-        match film 1 with
-        | Ok output1 -> Ok output1
-        | Error _ as failure ->
-            ignore (B.destroy_texture output0);
-            failure
       in
       Ok
         {
@@ -954,12 +961,12 @@ let create ?(spp = 1) ?(bounces = 6) ?(exposure = 1.) ?(round_samples = 4) ~widt
           panels;
           lights;
           light_count = List.length scene.lights;
-          accum;
-          outputs = [| output0; output1 |];
+          accum = film.accum;
+          outputs = film.outputs;
           shared_film = Prismel_execution.gpu_shared lease;
           next_output_slot = 0;
-          history_color = [| color0; color1 |];
-          history_geometry = [| geometry0; geometry1 |];
+          history_color = film.history_color;
+          history_geometry = film.history_geometry;
           history_slot = 0;
           history_camera = None;
           history_epoch = 0;
@@ -1206,6 +1213,34 @@ let flush t =
 
 (* Publishes the in-flight frame only if the GPU has finished it; never
    blocks the caller. Returns whether the tracer is free to submit. *)
+(* Waits for the in-flight frame, swaps in film of the new size, and restarts
+   accumulation; scene geometry and pipelines are kept. *)
+let resize t ~width ~height =
+  if width <= 0 || height <= 0 then Error "path tracer size must be positive"
+  else if width = t.width && height = t.height then Ok ()
+  else begin
+    reset t;
+    let* () = flush t in
+    let* (film : film) = allocate_film t.device ~width ~height in
+    let pixels = Bytes.make (width * height * 4) '\000' in
+    (* The image stops sampling the old film before that film is destroyed. *)
+    let* () = Result.map_error (Format.asprintf "%a" Runtime_resources.pp_error)
+        (Runtime_resources.Image.replace t.resource ~width ~height ~rgba:(Bytes.copy pixels)) in
+    List.iter (fun value -> ignore (B.destroy_buffer value))
+      (t.accum :: Array.to_list t.history_color @ Array.to_list t.history_geometry);
+    Array.iter (fun texture -> ignore (B.destroy_texture texture)) t.outputs;
+    t.accum <- film.accum;
+    t.history_color <- film.history_color;
+    t.history_geometry <- film.history_geometry;
+    t.outputs <- film.outputs;
+    t.width <- width;
+    t.height <- height;
+    t.next_output_slot <- 0;
+    t.history_slot <- 0;
+    t.pixels <- pixels;
+    Ok ()
+  end
+
 let poll t =
   match t.pending with
   | None -> Ok true

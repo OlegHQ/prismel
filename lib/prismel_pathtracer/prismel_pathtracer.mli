@@ -135,6 +135,10 @@ val reset : t -> unit
 val samples : t -> int
 (** Accumulated samples per pixel. *)
 
+val resize : t -> width:int -> height:int -> (unit, string) result
+(** Match a new viewport: waits for the in-flight frame, reallocates the film,
+    and restarts accumulation. Scene geometry is kept. No-op at the same size. *)
+
 val size : t -> int * int
 val image : t -> Prismel.Image.t
 (** Borrowed; destroyed by [destroy]. In a native Sketch, Scene samples its

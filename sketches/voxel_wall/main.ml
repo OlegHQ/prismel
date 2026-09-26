@@ -282,24 +282,24 @@ let scene3 _graph prepared =
   | Raster -> Scene3.create ~lights:raster_lights (Option.to_list prepared.raster)
   | Wireframe -> Scene3.create (Option.to_list prepared.wire)
 
+(* Renderer stats go to the editor's status bar, not over the picture. *)
+let status tracer = Option.map (fun p -> Printf.sprintf "%s%s · %d tris%s"
+  (match p.mode with Path_traced -> "traced" | Raster -> "raster"
+    | Wireframe -> "wire")
+  (if p.mode = Path_traced then Printf.sprintf " %d spp" (P.samples tracer) else "")
+  p.triangles
+  (if p.instances > 0 then Printf.sprintf " · %d inst" p.instances else ""))
+
+(* The traced film matches the view pane (see [update]), so it fills it. *)
 let overlay tracer _graph prepared (frame : Frame.t) =
-  let status = match prepared with
-    | None -> "cooking"
-    | Some p -> Printf.sprintf "%s  %d triangles%s%s"
-        (match p.mode with Path_traced -> "path traced" | Raster -> "raster"
-          | Wireframe -> "wireframe") p.triangles
-        (if p.instances > 0 then Printf.sprintf "  %d instances" p.instances else "")
-        (if p.mode = Path_traced then Printf.sprintf "  %d spp" (P.samples tracer)
-         else "") in
-  let picture = match prepared with
+  match prepared with
     | Some { mode = Path_traced; _ } ->
         let iw, ih = P.size tracer in
         let fit = Float.min (float frame.width /. float iw) (float frame.height /. float ih) in
         let w = int_of_float (float iw *. fit) and h = int_of_float (float ih *. fit) in
         Scene.[ rect ~at:(0, 0) ~w:frame.width ~h:frame.height ~fill:(Color.rgb 8 8 10) ()
               ; image (P.image tracer) ~at:((frame.width - w) / 2, (frame.height - h) / 2) ~scale:fit () ]
-    | _ -> [] in
-  picture @ Scene.[ text ~at:(12, 12) ~color:(Color.rgb 140 140 145) status ]
+    | _ -> []
 
 let init _frame =
   let placeholder = Result.get_ok (Pdk.Box_generator.box ~size:(v 0.01 0.01 0.01) ()) in
@@ -321,7 +321,7 @@ let init _frame =
       ~settings:(Settings.make settings_schema initial_renderer)
       ~graph:(graph ())
       ~prepare:(fun settings -> prepare (Settings.get settings_schema settings))
-      ~scene3 ~overlay:(overlay tracer) ()
+      ~scene3 ~overlay:(overlay tracer) ~status:(status tracer) ()
     with Ok env -> env | Error message -> failwith message in
   { env; tracer; shown = None }
 
@@ -341,6 +341,9 @@ let update m (frame : Frame.t) =
   (* The ACTIVE camera node drives the trace; the default one follows the
      viewport, so orbiting still steers it. *)
   if renderer = Path_traced then begin
+    let _, _, width, height = (Prismel_editor.Editor3.panes env frame).view in
+    (match P.resize m.tracer ~width:(max 1 width) ~height:(max 1 height) with
+     | Ok () -> () | Error e -> prerr_endline e);
     let camera = Prismel_editor.Editor3.render_camera env in
     let target = Camera.target camera in
     let fov = match Camera.projection camera with

@@ -144,6 +144,7 @@ module Editor3 : sig
     scene3:(Procedural.Graph.t -> 'prepared -> Prismel.Scene3.t) ->
     ?overlay:(Procedural.Graph.t -> 'prepared option -> Prismel.Frame.t ->
       Prismel.Scene.t) ->
+    ?status:('prepared option -> string option) ->
     unit ->
     ('prepared t, string) result
   val update : 'prepared t -> Prismel.Frame.t -> 'prepared t
@@ -164,6 +165,8 @@ module Editor3 : sig
   (** Replace the sketch settings from code: one undo step and a fresh cook,
       since [prepare] receives them. Inspector edits do the same. *)
 
+  (* [?status] text joins the status bar under the view (cook state, then
+     the sketch's line, e.g. renderer stats); keep view overlays for pictures. *)
   (* [?commands] (on [create]/[run]) add sketch [Editor_core.Command]s to the
      same table as the built-ins: triggers join key routing and which-key, and
      every command is in the palette ([Space /]). A command's [action] gets
@@ -230,6 +233,7 @@ module Editor3 : sig
     scene3:(Procedural.Graph.t -> 'prepared -> Prismel.Scene3.t) ->
     ?overlay:(Procedural.Graph.t -> 'prepared option -> Prismel.Frame.t ->
       Prismel.Scene.t) ->
+    ?status:('prepared option -> string option) ->
     unit ->
     unit
 end
@@ -259,6 +263,7 @@ module Editor2 : sig
     scene2:(Procedural.Graph.t -> 'prepared -> Prismel.Scene.t) ->
     ?overlay:(Procedural.Graph.t -> 'prepared option -> Prismel.Frame.t ->
       Prismel.Scene.t) ->
+    ?status:('prepared option -> string option) ->
     unit ->
     ('prepared t, string) result
 
@@ -309,6 +314,7 @@ module Editor2 : sig
     scene2:(Procedural.Graph.t -> 'prepared -> Prismel.Scene.t) ->
     ?overlay:(Procedural.Graph.t -> 'prepared option -> Prismel.Frame.t ->
       Prismel.Scene.t) ->
+    ?status:('prepared option -> string option) ->
     unit ->
     unit
 end
