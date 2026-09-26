@@ -89,39 +89,22 @@ val prepare_scene3 : clear:(float * float * float * float) ->
 val shadow_resource : key:string -> shadow_snapshot ->
   (shadow_resource, Ogpu.Error.t) result
 
-(** Pipeline factories receive the renderer's device and return owned OGPU
-    render pipelines (see [Ogpu.Backend.create_render_pipeline]); the renderer
-    destroys them. Canonical Scene2 pipelines must be created with
-    [~indirect:true] so their argument buffers and indirect commands work. *)
-val create_offscreen_with_pipeline :
-  Ogpu.Backend.driver -> Ogpu.Surface.configuration ->
-  ?before_device_destroy:(unit -> (unit, Ogpu.Error.t) result) ->
-  (Ogpu.Backend.device -> (Ogpu.Backend.pipeline, Ogpu.Error.t) result) ->
-  (t, Ogpu.Error.t) result
-val create_offscreen_with_pipeline_variants : Ogpu.Backend.driver -> Ogpu.Surface.configuration ->
-  ?before_device_destroy:(unit -> (unit, Ogpu.Error.t) result) ->
-  ?canonical_scene2_argument:bool ->
-  (Ogpu.Backend.device -> pipeline_family -> Ogpu.Pipeline.blend ->
-    (Ogpu.Backend.pipeline, Ogpu.Error.t) result) ->
-  (t, Ogpu.Error.t) result
-val create_with_sampled_pipeline_variants : Ogpu.Backend.driver -> Ogpu.Surface.configuration ->
-  ?before_device_destroy:(unit -> (unit, Ogpu.Error.t) result) ->
-  ?canonical_scene2_argument:bool ->
-    (Ogpu.Backend.device -> pipeline_family -> Ogpu.Pipeline.blend -> int ->
-    (Ogpu.Backend.pipeline, Ogpu.Error.t) result) ->
-  (t, Ogpu.Error.t) result
+(** Creates a renderer with one pipeline per family, blend, and supported
+    sample count. The factory receives the renderer's device and returns owned
+    OGPU render pipelines (see [Ogpu.Backend.create_render_pipeline]); the
+    renderer destroys them. Scene2 and Scene2_textured draws both run through
+    the Scene2_textured pipeline, which binds its texture and sampler through a
+    fragment argument buffer at index 1 and must be created with
+    [~indirect:true].
 
-(** Creates an owned texture target without creating, acquiring, or presenting
-    a platform surface. Submissions complete before the call returns, so exact
-    readback and explicit destruction have the same contract as surface-backed
-    execution. With [?device], the renderer borrows that device (the driver is
-    unused) and never destroys it, so a Canvas can share the presenting
-    window's GPU. *)
-val create_offscreen_with_sampled_pipeline_variants :
+    With [~offscreen:true] the renderer owns a texture target without creating,
+    acquiring, or presenting a platform surface. Submissions complete before
+    the call returns, so exact readback and explicit destruction have the same
+    contract as surface-backed execution. With [?device], the renderer borrows
+    that device (the driver is unused) and never destroys it, so a Canvas can
+    share the presenting window's GPU. *)
+val create : ?device:Ogpu.Backend.device -> offscreen:bool ->
   Ogpu.Backend.driver -> Ogpu.Surface.configuration ->
-  ?before_device_destroy:(unit -> (unit, Ogpu.Error.t) result) ->
-  ?canonical_scene2_argument:bool ->
-  ?device:Ogpu.Backend.device ->
   (Ogpu.Backend.device -> pipeline_family -> Ogpu.Pipeline.blend -> int ->
     (Ogpu.Backend.pipeline, Ogpu.Error.t) result) ->
   (t, Ogpu.Error.t) result

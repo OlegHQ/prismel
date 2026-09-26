@@ -2,17 +2,6 @@ let get = function
   | Ok value -> value
   | Error error -> failwith (Ogpu.Error.to_string error)
 
-let shader_source = {|
-#include <metal_stdlib>
-using namespace metal;
-struct V { float4 position [[position]]; };
-vertex V scene_vertex(uint i [[vertex_id]]) {
-  constexpr float2 p[3]={{-1.,-1.},{3.,-1.},{-1.,3.}};
-  V v; v.position=float4(p[i],0.,1.); return v;
-}
-fragment float4 scene_fragment(){return float4(0.25,0.5,0.75,1.);}
-|}
-
 let run () =
   let driver, live_handles = Ogpu.Impl.create_driver () in
   let before = live_handles () in
@@ -21,27 +10,7 @@ let run () =
       physical_height=4; format=Bgra8_unorm; present_mode=Fifo;
       max_acquired=1;layer=None }
   in
-  let make backend_device =
-    let vertex = get (Ogpu.Shader.create
-      {backend="metal";label=Some"offscreen-vertex";
-       bytes=Bytes.of_string shader_source;
-       entry_points=[{name="scene_vertex";stage=Vertex}];bindings=[]})
-    and fragment = get (Ogpu.Shader.create
-      {backend="metal";label=Some"offscreen-fragment";
-       bytes=Bytes.of_string shader_source;
-       entry_points=[{name="scene_fragment";stage=Fragment}];bindings=[]}) in
-    let layout = get (Ogpu.Binding.create_pipeline_layout
-      ~device:(Ogpu.Backend.device_handle backend_device)
-      ~capabilities:(Ogpu.Backend.capabilities backend_device) []) in
-    let descriptor : Ogpu.Pipeline.render_descriptor =
-      {backend="metal";label=Some"offscreen";layout;vertex;
-       vertex_entry="scene_vertex";fragment=Some fragment;
-       fragment_entry=Some"scene_fragment";color_format=Rgba8_unorm;
-       depth_format=No_depth;sample_count=1}
-    in
-    Ogpu.Backend.create_render_pipeline ~indirect:true backend_device descriptor
-  in
-  match Scene_execution.create_offscreen_with_pipeline driver configuration make with
+  match Scene_execution_fixtures.create_offscreen driver configuration with
   | Error { Ogpu.Error.kind = No_adapter; _ } ->
       print_endline "offscreen Metal execution: skipped (no device)"
   | Error error -> failwith (Ogpu.Error.to_string error)
@@ -63,7 +32,7 @@ let run () =
          transform_uniforms=None;stencil_state=None;stencil_load=Load;
          stencil_clear=0}
       in
-      let expected = Bytes.of_string "\x40\x80\xbf\xff" in
+      let expected = Bytes.of_string "\xff\xff\xff\xff" in
       for frame=1 to 600 do
         if not (get (Scene_execution.render renderer [{mesh;state}])) then
           failwith "layerless offscreen submission was skipped";

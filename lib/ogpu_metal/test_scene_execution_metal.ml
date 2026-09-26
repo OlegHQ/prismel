@@ -12,11 +12,15 @@ let render_blended ?clear r draws=Scene_execution.render_sampled_resources ?clea
   (List.map(fun(blend,draw)->sampled Scene_execution.Scene2 blend draw)draws)
 let get=function Ok x->x|Error e->failwith(Ogpu.Error.to_string e)
 let metal=function Ok x->x|Error e->failwith(Format.asprintf"%a"Metal.pp_error e)
-let source={|#include <metal_stdlib>
+(* Scene2 and Scene2_textured share the argument-buffer pipeline: vertex
+   color times the bound texel (white for untextured draws). *)
+let source2={|#include <metal_stdlib>
 using namespace metal;
-struct V { float4 position [[position]]; };
-vertex V scene_vertex(uint i [[vertex_id]]) { constexpr float2 p[3]={{-1.,-1.},{3.,-1.},{-1.,3.}}; V v;v.position=float4(p[i],0.,1.);return v; }
-fragment float4 scene_fragment(){return float4(1.,0.,0.5,1.);}
+struct Out { float4 position [[position]]; float4 color; float2 uv; };
+inline float scene_double(const device uchar *p){uint lo=*reinterpret_cast<const device uint*>(p);uint hi=*reinterpret_cast<const device uint*>(p+4);ulong bits=(ulong(hi)<<32)|ulong(lo);float sign=(hi>>31)==0?1.:-1.;int exponent=int((bits>>52)&0x7fful);ulong fraction=bits&0xffffffffffffful;if(exponent==0)return sign*ldexp(float(fraction)/4503599627370496.,-1022);return sign*ldexp(1.+float(fraction)/4503599627370496.,exponent-1023);}
+vertex Out scene_vertex(uint i [[vertex_id]],const device uchar *input [[buffer(0)]],const device float *affine [[buffer(6)]]){constexpr float2 p[3]={{-1.,-1.},{3.,-1.},{-1.,3.}};const device uchar*v=input+i*68;Out o;o.position=float4(p[i%3]+affine[0]*0.,0.,1.);o.color=unpack_unorm4x8_to_float(*reinterpret_cast<const device uint*>(v+48)).abgr;o.uv=float2(scene_double(v+52),scene_double(v+60));return o;}
+struct Scene2_arguments { texture2d<float, access::sample> image [[id(0)]]; sampler sampling [[id(1)]]; };
+fragment float4 scene_fragment(Out value [[stage_in]],constant Scene2_arguments&args [[buffer(1)]]){return value.color*args.image.sample(args.sampling,value.uv);}
 |}
 let source3={|#include <metal_stdlib>
 using namespace metal;
@@ -47,14 +51,14 @@ let run () =match Device.system_default()with Error _->print_endline"scene execu
   if Scene_execution.pipeline_variants_per_sample<>60 then failwith"pipeline family/blend cardinality drift";
   ignore supported;
   let configuration:Ogpu.Surface.configuration={logical_width=4;logical_height=4;physical_width=4;physical_height=4;format=Bgra8_unorm;present_mode=Fifo;max_acquired=2;layer=None}in
-  let renderer=get(Scene_execution.create_offscreen_with_sampled_pipeline_variants driver configuration(fun device family blend samples->let bytes,vertex_bindings,fragment_bindings,groups=match family with
-    |Scene_execution.Scene2->source,[],[],[]
+  let renderer=get(Scene_execution.create~offscreen:true driver configuration(fun device family blend samples->let bytes,vertex_bindings,fragment_bindings,groups=match family with
+    |Scene_execution.Scene2|Scene2_textured->source2,[{Ogpu.Shader.group=0;binding=0;kind=Storage_buffer;visibility=[Vertex]};{group=0;binding=6;kind=Storage_buffer;visibility=[Vertex]}],[{Ogpu.Shader.group=0;binding=1;kind=Storage_buffer;visibility=[Fragment]}],[0,[{Ogpu.Binding.binding=0;kind=Buffer;visibility=[Vertex]};{binding=6;kind=Buffer;visibility=[Vertex]};{binding=1;kind=Buffer;visibility=[Fragment]}]]
     |Scene3|Scene3_points|Scene3_stencil->source3,[{Ogpu.Shader.group=0;binding=0;kind=Storage_buffer;visibility=[Vertex]}],[],[0,[{Ogpu.Binding.binding=0;kind=Buffer;visibility=[Vertex]}]]
-    |Scene2_textured|Scene3_textured|Scene3_textured_stencil|Ui->source3_textured,[{Ogpu.Shader.group=0;binding=0;kind=Storage_buffer;visibility=[Vertex]}],[{Ogpu.Shader.group=0;binding=1;kind=Sampled_texture;visibility=[Fragment]};{group=0;binding=2;kind=Sampler;visibility=[Fragment]}],[0,[{Ogpu.Binding.binding=0;kind=Buffer;visibility=[Vertex]};{binding=1;kind=Texture;visibility=[Fragment]};{binding=2;kind=Sampler;visibility=[Fragment]}]]
+    |Scene3_textured|Scene3_textured_stencil|Ui->source3_textured,[{Ogpu.Shader.group=0;binding=0;kind=Storage_buffer;visibility=[Vertex]}],[{Ogpu.Shader.group=0;binding=1;kind=Sampled_texture;visibility=[Fragment]};{group=0;binding=2;kind=Sampler;visibility=[Fragment]}],[0,[{Ogpu.Binding.binding=0;kind=Buffer;visibility=[Vertex]};{binding=1;kind=Texture;visibility=[Fragment]};{binding=2;kind=Sampler;visibility=[Fragment]}]]
     |Scene3_shadow|Scene3_shadow_stencil->source3_shadow,[{Ogpu.Shader.group=0;binding=0;kind=Storage_buffer;visibility=[Vertex]}],[{Ogpu.Shader.group=0;binding=3;kind=Storage_buffer;visibility=[Fragment]};{group=0;binding=4;kind=Sampled_texture;visibility=[Fragment]};{group=0;binding=5;kind=Sampler;visibility=[Fragment]}],[0,[{Ogpu.Binding.binding=0;kind=Buffer;visibility=[Vertex]};{binding=3;kind=Buffer;visibility=[Fragment]};{binding=4;kind=Texture;visibility=[Fragment]};{binding=5;kind=Sampler;visibility=[Fragment]}]]in
     let vertex=get(Ogpu.Shader.create{backend="metal";label=Some"scene-execution-metal-vertex";bytes=Bytes.of_string bytes;entry_points=[{name="scene_vertex";stage=Vertex}];bindings=vertex_bindings})and fragment=get(Ogpu.Shader.create{backend="metal";label=Some"scene-execution-metal-fragment";bytes=Bytes.of_string bytes;entry_points=[{name="scene_fragment";stage=Fragment}];bindings=fragment_bindings})in
-    let layouts=List.map(fun(group,entries)->group,get(Ogpu.Binding.create_layout entries))groups in let layout=get(Ogpu.Binding.create_pipeline_layout~device:(Ogpu.Backend.device_handle device)~capabilities:(Ogpu.Backend.capabilities device)layouts)in let descriptor:Ogpu.Pipeline.render_descriptor={backend="metal";label=Some"scene-execution-metal";layout;vertex;vertex_entry="scene_vertex";fragment=Some fragment;fragment_entry=Some"scene_fragment";color_format=Rgba8_unorm;depth_format=(match family with Scene_execution.Scene2|Scene2_textured|Ui->Ogpu.Pipeline.No_depth|Scene3|Scene3_points|Scene3_textured|Scene3_shadow->Depth32_float|Scene3_stencil|Scene3_textured_stencil|Scene3_shadow_stencil->Depth32_float_stencil8);sample_count=samples}in Ogpu.Backend.create_render_pipeline~blend~topology:(if family=Scene3_points then Ogpu.Render_pass.Point_list else Triangle_list)device descriptor))in
-  let indices=Bytes.make 12 '\000'in Bytes.set_int32_le indices 4 1l;Bytes.set_int32_le indices 8 2l;let mesh:Scene_execution.mesh={key="fullscreen";vertices=Bytes.make 48 '\000';vertex_count=3;indices;index_count=3; primitive=Ogpu.Render_pass.Triangle_list}and state:Scene_execution.state={viewport=(0,0,4,4);scissor=(0,0,4,4);cull=Ogpu.Render_pass.Cull_none;depth_compare=Ogpu.Render_pass.Always;depth_write=false;depth_load=Ogpu.Render_pass.Clear;depth_clear=1.;transform_uniforms=None;stencil_state=None;stencil_load=Ogpu.Render_pass.Load;stencil_clear=0}in
+    let layouts=List.map(fun(group,entries)->group,get(Ogpu.Binding.create_layout entries))groups in let layout=get(Ogpu.Binding.create_pipeline_layout~device:(Ogpu.Backend.device_handle device)~capabilities:(Ogpu.Backend.capabilities device)layouts)in let descriptor:Ogpu.Pipeline.render_descriptor={backend="metal";label=Some"scene-execution-metal";layout;vertex;vertex_entry="scene_vertex";fragment=Some fragment;fragment_entry=Some"scene_fragment";color_format=Rgba8_unorm;depth_format=(match family with Scene_execution.Scene2|Scene2_textured|Ui->Ogpu.Pipeline.No_depth|Scene3|Scene3_points|Scene3_textured|Scene3_shadow->Depth32_float|Scene3_stencil|Scene3_textured_stencil|Scene3_shadow_stencil->Depth32_float_stencil8);sample_count=samples}in Ogpu.Backend.create_render_pipeline~blend~topology:(if family=Scene3_points then Ogpu.Render_pass.Point_list else Triangle_list)~indirect:(family=Scene2||family=Scene2_textured)device descriptor))in
+  let indices=Bytes.make 12 '\000'in Bytes.set_int32_le indices 4 1l;Bytes.set_int32_le indices 8 2l;let plain=Bytes.make 48 '\000'in for index=0 to 2 do Bytes.set_int32_le plain(index*16+8)0xff0080ffl done;let mesh:Scene_execution.mesh={key="fullscreen";vertices=plain;vertex_count=3;indices;index_count=3; primitive=Ogpu.Render_pass.Triangle_list}and state:Scene_execution.state={viewport=(0,0,4,4);scissor=(0,0,4,4);cull=Ogpu.Render_pass.Cull_none;depth_compare=Ogpu.Render_pass.Always;depth_write=false;depth_load=Ogpu.Render_pass.Clear;depth_clear=1.;transform_uniforms=None;stencil_state=None;stencil_load=Ogpu.Render_pass.Load;stencil_clear=0}in
   let sampled samples draw:Scene_execution.sampled_draw={family=Scene3;blend=Ogpu.Pipeline.Replace;texture=None;auxiliary=None;samples;draw}in
   ignore(get(Scene_execution.render renderer[{mesh;state};{mesh;state}]));let pixels=get(Scene_execution.read_pixels renderer~bytes_per_row:16)in
   let r=Char.code(Bytes.get pixels 0)and g=Char.code(Bytes.get pixels 1)and b=Char.code(Bytes.get pixels 2)in if r<>255||g<>0||b<>128 then failwith(Printf.sprintf"scene execution Metal pixel mismatch %d,%d,%d"r g b);
@@ -65,7 +69,7 @@ let run () =match Device.system_default()with Error _->print_endline"scene execu
     if actual<>expected then failwith"scene execution Metal blend pixel") [1;2;60;600])
     [Ogpu.Pipeline.Replace,(255,0,128);Alpha,(255,0,128);Add,(255,0,128);
      Multiply,(0,0,0);Screen,(255,0,128);Subtract,(0,0,0)];
-  let vertices3=Bytes.make(68*3)'\000'in
+  let vertices3=Bytes.make(68*3)'\000'in for index=0 to 2 do Bytes.set_int32_le vertices3(index*68+48)0xffffffffl done;
   List.iteri(fun index(x,y)->let offset=index*68 in Bytes.set_int64_le vertices3 offset(Int64.bits_of_float x);Bytes.set_int64_le vertices3(offset+8)(Int64.bits_of_float y);Bytes.set_int64_le vertices3(offset+16)(Int64.bits_of_float 0.))[-1.,-1.;3.,-1.;-1.,3.];
   let mesh3:Scene_execution.mesh={key="fullscreen-scene3-double68";vertices=vertices3;vertex_count=3;indices;index_count=3; primitive=Ogpu.Render_pass.Triangle_list}in
   List.iter(fun _frame->ignore(get(render_family renderer[Scene_execution.Scene3,Ogpu.Pipeline.Replace,{mesh=mesh3;state}]));let bytes=get(Scene_execution.read_pixels renderer~bytes_per_row:16)in if Char.code(Bytes.get bytes 0)<>255||Char.code(Bytes.get bytes 2)<>128 then failwith"scene execution Metal Scene3 double68 pixel")[1;2;60;600];
@@ -93,6 +97,10 @@ let run () =match Device.system_default()with Error _->print_endline"scene execu
     ~bytes_per_row:4~bytes_per_image:4(Bytes.of_string"\x31\x82\xdd\xff"));
   let gpu_texture:Scene_execution.sampled_texture={key="gpu-film-test";
     levels=[|{width=1;height=1;bytes=Bytes.empty}|];sampler=sampler();gpu=Some film}in
+  (* Warm the transform ring for this one-draw frame; the measured frame
+     must then upload nothing at all. *)
+  ignore(get(render_textured renderer[Scene_execution.Scene2_textured,
+    Ogpu.Pipeline.Replace,Some gpu_texture,{mesh=mesh_uv 0.1 0.1;state}]));
   let before_film=Scene_execution.upload_bytes renderer in
   ignore(get(render_textured renderer[Scene_execution.Scene2_textured,
     Ogpu.Pipeline.Replace,Some gpu_texture,{mesh=mesh_uv 0.1 0.1;state}]));

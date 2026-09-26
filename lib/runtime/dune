@@ -14,7 +14,7 @@
 
 (executable
  (name test_main)
- (modules test_main test_runtime test_runtime_visibility test_runtime_scaling test_runtime_scene3_lighting test_runtime_scene3_instances test_runtime_scene2_argument_shader test_runtime_scene2_argument test_runtime_input)
+ (modules test_main test_runtime test_runtime_visibility test_runtime_scaling test_runtime_scene3_lighting test_runtime_scene3_instances test_runtime_scene2_argument test_runtime_input)
  (libraries runtime runtime_input scene_execution ogpu sdl3))
 
 (rule
@@ -36,10 +36,6 @@
 (rule
  (aliases runtest test_runtime_scene3_instances)
  (action (run %{exe:test_main.exe} test_runtime_scene3_instances)))
-
-(rule
- (aliases runtest-native test_runtime_scene2_argument_shader)
- (action (run %{exe:test_main.exe} test_runtime_scene2_argument_shader)))
 
 (rule
  (aliases runtest-native test_runtime_scene2_argument)

@@ -404,7 +404,7 @@ objects or increasing the cache bounds. Regressions cover 257 meshes, 257
 textures, 65 auxiliary buffers, replay, resize, native pixels, and teardown.
 
 A prepared-run cache hit does not make local mesh labels globally unique.
-The trusted mesh lookup must also match the exact immutable source uploaded
+A mesh-cache hit by key must also match the exact immutable source uploaded
 into that slot; otherwise it checks the payload hash and uploads as needed.
 Each slot remembers at most one source, only when its CPU payload fits within
 the slot's already bounded GPU byte budget. Replacing the upload replaces

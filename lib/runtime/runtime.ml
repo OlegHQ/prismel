@@ -179,7 +179,7 @@ fragment float4 scene_fragment(Out value [[stage_in]],texture2d<float> image [[t
 }
 |}
 
-let create_renderer ?device ~offscreen ~driver ~configuration ~before_device_destroy () =
+let create_renderer ?device ~offscreen ~driver ~configuration () =
   let make_pipeline backend_device family blend samples =
     let source, extra =
       match family with
@@ -359,12 +359,7 @@ let create_renderer ?device ~offscreen ~driver ~configuration ~before_device_des
                      | Scene3_shadow_stencil | Ui -> false)
                   backend_device descriptor)))
   in
-  if offscreen then
-    Scene_execution.create_offscreen_with_sampled_pipeline_variants driver configuration
-      ~canonical_scene2_argument:true ~before_device_destroy ?device make_pipeline
-  else
-    Scene_execution.create_with_sampled_pipeline_variants driver configuration
-      ~canonical_scene2_argument:true ~before_device_destroy make_pipeline
+  Scene_execution.create ?device ~offscreen driver configuration make_pipeline
 
 let present_mode vsync = if vsync then Ogpu.Surface.Fifo else Immediate
 
@@ -440,8 +435,7 @@ let create ?(vsync = true) ?(hidden = true) ?(title = "Prismel") ~width ~height 
                               configuration ~layer:token ~vsync ~width ~height ()
                             in
                             match
-                              create_renderer ~offscreen:false ~driver ~configuration
-                                ~before_device_destroy:(fun () -> Ok ()) ()
+                              create_renderer ~offscreen:false ~driver ~configuration ()
                             with
                             | Error _ as result ->
                                 cleanup_sdl ();
@@ -491,8 +485,7 @@ let create_offscreen ?device ~logical_width ~logical_height ~width ~height () =
     let driver, _live = Ogpu.Impl.create_driver () in
     let configuration = configuration ~vsync:false ~width ~height () in
     match
-      create_renderer ?device ~offscreen:true ~driver ~configuration
-        ~before_device_destroy:(fun () -> Ok ()) ()
+      create_renderer ?device ~offscreen:true ~driver ~configuration ()
     with
         | Error _ as error -> error
         | Ok renderer ->
@@ -945,8 +938,6 @@ let destroy_offscreen value =
     Scene_execution.destroy value.renderer)
 
 module Private = struct
-  let scene2_textured_direct = Runtime_shaders.scene2_textured_direct
-  let scene2_textured_argument = Runtime_shaders.scene2_textured_argument
   let scale_draws = scale_draws
   let scale_sampled_resources = scale_sampled_resources
   type nonrec scaled_cache = scaled_cache

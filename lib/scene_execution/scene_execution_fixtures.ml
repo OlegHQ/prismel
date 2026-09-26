@@ -1,5 +1,5 @@
 (* Minimal MSL pipelines for every family and blend so the caches under test
-   run on a real device. Scene2 families use the canonical argument-buffer
+   run on a real device. Scene2 families use the argument-buffer
    fragment; textured families sample a texture and sampler directly. *)
 let source = {|#include <metal_stdlib>
 using namespace metal;
@@ -17,16 +17,16 @@ fragment float4 scene_fragment_shadow(Out v [[stage_in]], const device float *p 
 
 let get = function Ok value -> value | Error error -> failwith (Ogpu.Error.to_string error)
 
-let make ~canonical device family blend samples =
+let make device family blend samples =
   let module S = Ogpu.Shader in
   let module B = Ogpu.Binding in
   let fragment_entry, fragment_bindings, layout_entries =
     match family with
-    | Scene_execution.Scene2 | Scene2_textured when canonical ->
+    | Scene_execution.Scene2 | Scene2_textured ->
         "scene_fragment_argument",
         [ { S.group = 0; binding = 1; kind = Storage_buffer; visibility = [ Fragment ] } ],
         [ { B.binding = 1; kind = Buffer; visibility = [ Fragment ] } ]
-    | Scene2_textured | Scene3_textured | Scene3_textured_stencil | Ui ->
+    | Scene3_textured | Scene3_textured_stencil | Ui ->
         "scene_fragment_textured",
         [ { S.group = 0; binding = 1; kind = Sampled_texture; visibility = [ Fragment ] };
           { group = 0; binding = 2; kind = Sampler; visibility = [ Fragment ] } ],
@@ -40,7 +40,7 @@ let make ~canonical device family blend samples =
         [ { B.binding = 3; kind = Buffer; visibility = [ Fragment ] };
           { binding = 4; kind = Texture; visibility = [ Fragment ] };
           { binding = 5; kind = Sampler; visibility = [ Fragment ] } ]
-    | Scene2 | Scene3 | Scene3_points | Scene3_stencil -> "scene_fragment", [], []
+    | Scene3 | Scene3_points | Scene3_stencil -> "scene_fragment", [], []
   in
   let vertex_bindings =
     [ { S.group = 0; binding = 0; kind = Storage_buffer; visibility = [ Vertex ] };
@@ -62,13 +62,11 @@ let make ~canonical device family blend samples =
   Ogpu.Backend.create_render_pipeline ~blend
     ~topology:(if family = Scene3_points then Ogpu.Render_pass.Point_list else Triangle_list)
     ~indirect:(match family with
-      | Scene2 | Scene2_textured -> canonical
-      | Scene3 | Scene3_points | Scene3_stencil -> true
+      | Scene2 | Scene2_textured | Scene3 | Scene3_points | Scene3_stencil -> true
       | _ -> false) device
     { backend = "metal"; label = Some "test-pipelines"; layout; vertex; vertex_entry = "scene_vertex";
       fragment = Some fragment; fragment_entry = Some fragment_entry; color_format = Rgba8_unorm;
       depth_format; sample_count = samples }
 
-let create_offscreen ?(canonical = true) driver configuration =
-  Scene_execution.create_offscreen_with_pipeline_variants driver configuration
-    ~canonical_scene2_argument:canonical (fun device family blend -> make ~canonical device family blend 1)
+let create_offscreen driver configuration =
+  Scene_execution.create ~offscreen:true driver configuration make

@@ -4,7 +4,6 @@ let tests = [
   "test_runtime_scaling", Test_runtime_scaling.run;
   "test_runtime_scene3_lighting", Test_runtime_scene3_lighting.run;
   "test_runtime_scene3_instances", Test_runtime_scene3_instances.run;
-  "test_runtime_scene2_argument_shader", Test_runtime_scene2_argument_shader.run;
   "test_runtime_scene2_argument", Test_runtime_scene2_argument.run;
   "test_runtime_input", Test_runtime_input.run;
 ]

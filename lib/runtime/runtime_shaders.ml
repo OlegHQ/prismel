@@ -6,11 +6,6 @@ inline float scene_double(const device uchar *p){uint lo=*reinterpret_cast<const
 vertex Out scene_vertex(uint i [[vertex_id]],const device uchar *input [[buffer(0)]],const device float *affine [[buffer(6)]]){const device uchar*p=input+i*68;Out v;float x=scene_double(p),y=scene_double(p+8);v.position=float4(affine[0]*x+affine[1]*y+affine[2],affine[3]*x+affine[4]*y+affine[5],0.,1.);v.color=unpack_unorm4x8_to_float(*reinterpret_cast<const device uint*>(p+48)).abgr;v.uv=float2(scene_double(p+52),scene_double(p+60));return v;}
 |}
 
-let scene2_textured_direct =
-  header
-  ^ {|fragment float4 scene_fragment(Out value [[stage_in]],texture2d<float> image [[texture(1)]],sampler sampling [[sampler(2)]]){return value.color*image.sample(sampling,value.uv);}
-|}
-
 let scene2_textured_argument =
   header
   ^ {|struct Scene2_arguments { texture2d<float, access::sample> image [[id(0)]]; sampler sampling [[id(1)]]; };

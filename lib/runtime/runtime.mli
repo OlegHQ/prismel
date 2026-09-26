@@ -87,8 +87,6 @@ val offscreen_stats : offscreen -> stats
 val offscreen_target : offscreen -> (Ogpu.Backend.texture,Ogpu.Error.t) result
 val destroy_offscreen : offscreen -> (unit,Ogpu.Error.t) result
 module Private : sig
-  val scene2_textured_direct : string
-  val scene2_textured_argument : string
   val scale_draws : frame_facts -> Scene_execution.draw list -> Scene_execution.draw list
   val scale_sampled_resources : frame_facts ->
     Scene_execution.sampled_draw list -> Scene_execution.sampled_draw list
