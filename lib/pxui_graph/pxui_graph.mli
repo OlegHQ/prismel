@@ -163,9 +163,7 @@ val update : t -> Pxui.Ui.t -> Prismel.Frame.t -> t * change list
     cubic Béziers; the dot grid is one quad. *)
 
 module Private : sig
-  val hit_node_id : t -> int * int -> int option
   val hit_edge_id : t -> int * int -> Procedural.Edit_graph.connection option
   val edge_query_points : t -> limit:int -> (int * int) array
-  val hit_candidates : t -> int * int -> int
   val hit_edge_candidates : t -> int * int -> int
 end

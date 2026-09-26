@@ -653,13 +653,10 @@ let route ui (frame : Frame.t) =
           value.scroll_x <- value.scroll_x +. horizontal;
           value.scroll_y_steps <- value.scroll_y_steps +. vertical
         end
+    (* Cancellation ends capture without a release: no click, no commit. *)
     | Event.PointerCancelled button ->
-        if ui.active <> 0 && button = ui.active_button then begin
-          (accumulator ui ui.active).released <- true;
-          ui.active <- 0
-        end
+        if button = ui.active_button then ui.active <- 0
     | Event.WindowFocusLost ->
-        if ui.active <> 0 then (accumulator ui ui.active).released <- true;
         ui.active <- 0; ui.focus <- 0; ui.hot <- 0; ui.composition <- "";
         ui.edit_focus <- 0
     | Event.KeyPressed _ | Event.KeyReleased _ | Event.TextInput _

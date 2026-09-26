@@ -692,9 +692,6 @@ let node_views value = Array.to_list value.boxes |> List.map (fun box ->
     active_bounds = if is_flaggable value box then Some (active_button_bounds value box) else None;
     has_parameters = info.has_parameters })
 
-let contains ~x ~y ~width ~height (px, py) =
-  px >= x && py >= y && px < x + width && py < y + height
-
 let intersects (ax, ay, aw, ah) (bx, by, bw, bh) =
   ax < bx + bw && bx < ax + aw && ay < by + bh && by < ay + ah
 
@@ -762,25 +759,6 @@ let next_spatial_generation spatial =
     spatial.mark_generation <- 1
   end else spatial.mark_generation <- spatial.mark_generation + 1;
   spatial.mark_generation
-
-let hit_node value point =
-  let found = ref None in
-  let candidates = spatial_candidates value point in
-  let index = ref (Array.length candidates - 1) in
-  while !index >= 0 && !found = None do
-    let candidate = Array.unsafe_get candidates !index in
-    if not (Id_set.mem candidate value.moved_nodes) then begin
-      let x, y, width, height = box_bounds value value.boxes.(candidate) in
-      if contains ~x ~y ~width ~height point then found := Some candidate
-    end;
-    decr index
-  done;
-  Option.iter (Id_set.iter (fun candidate ->
-    let x, y, width, height = box_bounds value value.boxes.(candidate) in
-    if contains ~x ~y ~width ~height point
-        && Option.fold ~none:true ~some:(fun current -> candidate > current) !found
-    then found := Some candidate)) (moved_spatial_candidates value point);
-  !found
 
 let port_x (value : t) (box : box) input_index input_count =
   let x, _, width, _ = box_bounds value box in
@@ -1511,9 +1489,6 @@ let update (value : t) ui (frame : Frame.t) =
     let overlay = Ui.box ui ~w:(Ui.Px (float_of_int value.width))
         ~h:(Ui.Px (float_of_int value.height)) ~at:(0., 0.) "overlay" in
     layer, tiles, overlay) in
-  let cancelled = List.exists (function
-    | Event.PointerCancelled Input.LeftButton | Event.WindowFocusLost -> true
-    | _ -> false) frame.events in
   (* A right click (under the drag threshold) on a tile, wire, or blank canvas
      opens its context menu; a longer right drag only pans. *)
   let clicked_context =
@@ -1560,13 +1535,9 @@ let update (value : t) ui (frame : Frame.t) =
         pan value dx dy, (if dx <> 0. || dy <> 0. then [View_changed] else [])
       end in
     let scroll = snd canvas_signal.scroll in
-    let mx, my = frame.mouse in
-    let value, changes = if scroll <> 0. &&
-        mx >= float value.x && my >= float value.y &&
-        mx < float (value.x + value.width) &&
-        my < float (value.y + value.height) then begin
-        zoom_at value frame.mouse scroll, View_changed :: changes
-      end else value, changes in
+    let value, changes = if scroll <> 0.
+      then zoom_at value frame.mouse scroll, View_changed :: changes
+      else value, changes in
     Array.fold_left (fun (value, changes) (index, tile, view, output) ->
       let id = value.boxes.(index).info.Edit_graph.id in
       let tile_signal = Ui.signal ui tile in
@@ -1587,13 +1558,13 @@ let update (value : t) ui (frame : Frame.t) =
               then { value with drag = Some (Connect_wire { source = id }) } else value in
             if signal.released && left signal then begin
               let value = { value with drag = None } in
-              let changes = if not cancelled then match hit_input value (ints signal.release_point) with
+              let changes = match hit_input value (ints signal.release_point) with
                 | Some (consumer_index, input_index) ->
                     let consumer = value.boxes.(consumer_index).info.Edit_graph.id in
                     if consumer <> id then Connect_requested
                       { Edit_graph.source = id; consumer; input_index } :: changes
                     else changes
-                | None -> changes else changes in
+                | None -> changes in
               value, changes
             end else value, changes
         | None -> value, changes in
@@ -1626,8 +1597,7 @@ let update (value : t) ui (frame : Frame.t) =
                    move_nodes value node indices edge_indices (dx, dy) offset_x offset_y,
                    change :: changes
                  end else value, changes in
-               if cancelled then { value with drag = None }, changes
-               else if signal.released then
+               if signal.released then
                  match value.drag with
                  | Some (Move_nodes moved) ->
                      commit_node_move value moved.indices
@@ -1657,18 +1627,21 @@ let update (value : t) ui (frame : Frame.t) =
           end else value, changes
     else match value.drag with
       | Some (Box_select { additive }) when canvas_signal.released ->
-          if cancelled then { value with drag = None }, changes else begin
-            let before = value.primary in
-            let (x0, y0), (x1, y1) = ints canvas_signal.press_point,
-              ints canvas_signal.release_point in
-            let value = apply_marquee value { start_x = x0; start_y = y0;
-              current_x = x1; current_y = y1; additive } in
-            value, (if before <> value.primary then
-              Selected value.primary :: changes else changes)
-          end
+          let before = value.primary in
+          let (x0, y0), (x1, y1) = ints canvas_signal.press_point,
+            ints canvas_signal.release_point in
+          let value = apply_marquee value { start_x = x0; start_y = y0;
+            current_x = x1; current_y = y1; additive } in
+          value, (if before <> value.primary then
+            Selected value.primary :: changes else changes)
       | Some (Box_select _) when not canvas_signal.held ->
           { value with drag = None }, changes
-      | Some (Connect_wire _) when cancelled -> { value with drag = None }, changes
+      (* A cancelled or culled wire drag has no held output left. *)
+      | Some (Connect_wire { source }) when not (Array.exists
+          (fun (index, _, _, output) ->
+            value.boxes.(index).info.Edit_graph.id = source
+            && Option.fold ~none:false ~some:(Ui.active ui) output) tiles) ->
+          { value with drag = None }, changes
       | _ -> value, changes in
   let value = match clicked_context with
     | Some context -> { value with context = Some context; drag = None }
@@ -1711,8 +1684,6 @@ let update (value : t) ui (frame : Frame.t) =
   value, List.rev changes
 
 module Private = struct
-  let hit_node_id value point = Option.map (fun index ->
-      value.boxes.(index).info.Edit_graph.id) (hit_node value point)
   let hit_edge_id value point = Option.map (fun index ->
       value.edges.(index).connection) (hit_edge value point)
   (* Vertical handles cancel at t = 1/2: the curve crosses the chord midpoint. *)
@@ -1720,14 +1691,6 @@ module Private = struct
     Array.init (min limit (Array.length value.edges)) (fun index ->
       let x0, y0, x3, y3 = edge_points value value.edges.(index) in
       (x0 + x3) / 2, (y0 + y3) / 2)
-  let hit_candidates value point =
-    let count = ref 0 in
-    Array.iter (fun index ->
-      if not (Id_set.mem index value.moved_nodes) then incr count)
-      (spatial_candidates value point);
-    Option.iter (fun members -> count := !count + Id_set.cardinal members)
-      (moved_spatial_candidates value point);
-    !count
   let hit_edge_candidates value point =
     let generation = next_spatial_generation value.spatial in
     let count = ref 0 in

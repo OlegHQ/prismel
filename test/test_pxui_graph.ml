@@ -103,8 +103,13 @@ let run () =
       && topology.max_spatial_candidates < 128)
     "graph spatial hit index exceeded its candidate bound";
   let moved_center = center (node (Node.id source_a) view).bounds in
-  check (Pxui_graph.Private.hit_node_id view moved_center = Some (Node.id source_a))
-    "released graph node was not queryable at its retained position";
+  let click view point = fst (update view (frame ~mouse:point ~events:[
+      mouse_press (Input.LeftButton, point);
+      mouse_release (Input.LeftButton, point)] ())) in
+  let probe = click view (center (node (Node.id graph) view).bounds) in
+  let probe = click probe moved_center in
+  check (Pxui_graph.selected probe = Some (Node.id source_a))
+    "released graph tile did not take clicks at its retained position";
   let source_wire_hit view = Pxui_graph.Private.edge_query_points view ~limit:4
     |> Array.exists (fun point ->
       match Pxui_graph.Private.hit_edge_id view point with
@@ -355,6 +360,12 @@ let run () =
       && connection.consumer = Node.id moved_b && connection.input_index = 0
       | _ -> false) changes)
     "port drag did not request a connection";
+  let cancelled, changes = update connect_view
+      (frame ~mouse:to_ ~events:[mouse_press (Input.LeftButton, from_);
+        mouse_move to_; Event.PointerCancelled Input.LeftButton;
+        mouse_release (Input.LeftButton, to_)] ()) in
+  check (changes = [] && Pxui_graph.stats cancelled = Pxui_graph.stats connect_view)
+    "a cancelled port drag still requested a connection";
 
   let delete_view = Pxui_graph.select (Node.id source_a)
       (Pxui_graph.create ~x:20 ~y:30 ~width:800 ~height:520 graph) in
