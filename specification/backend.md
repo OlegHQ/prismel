@@ -95,8 +95,12 @@ selects it as the default virtual OGPU implementation. `metal` owns the safe
 Metal resource and command API. Prismel owns pure scene
 values and records rendering through the narrow GPU boundary; it never exposes
 native handles in its public API.
-The pure `editor_core` library owns bounded undo history with explicit edit merge
-rules, key routing, and atomic JSON storage. Sketch hosts use
+The dependency-free `param` library owns typed parameter schemas
+(`Procedural.Parameter` and `Editor_core.Param` are aliases of it), so
+`Pxui_shell.Inspector` renders SOP nodes and plain sketch records alike
+without the geometry stack. The pure `editor_core` library owns bounded,
+labelled undo history with explicit edit merge rules, named commands, key
+routing, and atomic JSON storage. Sketch hosts use
 `Editor_core.History`, `Editor_core.Router`, and `Editor_core.Store`;
 the router filters fly-mode keyboard events before leader and chord routing,
 while passing Space through to arm the leader after fly exits.

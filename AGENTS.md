@@ -30,9 +30,10 @@ when behavior or architecture changes materially.
 | `pdk` | The single packed geometry/topology compute core |
 | `procedural` | Immutable SOP graphs over `pdk` operations |
 | `sop_catalog` | Inspectable SOP constructors registered by PPX |
-| `editor_core` | Pure shared editor state, starting with bounded history |
+| `param` | Typed parameter schemas; no dependencies (`Procedural.Parameter`, `Editor_core.Param`) |
+| `editor_core` | Pure editor core: labelled `History`, `Command`, `Keymap`, `Router`, `Store` |
 | `pxui` | The one immediate-mode UI engine (`Pxui.Ui`) |
-| `pxui_shell` | Editor chrome over PXUI; layout, headers, keys, status, timeline, prompts, frame |
+| `pxui_shell` | Editor chrome over PXUI: layout, headers, keys, status, timeline, prompts, frame, `Inspector` |
 | `pxui_graph` | SOP-network presentation; emits typed requests, never edits |
 | `sketch_support` | Procedural-to-Scene glue (`Bridge`: cooked meshes, instances, frame context) and packed pieces |
 | `prismel_editor` | Prismel Editor: the Houdini-like SOP shell (`Editor3`/`2`), composed only from public blocks |

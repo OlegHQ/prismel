@@ -17,9 +17,19 @@
   `Pxui_graph.bindings`); panes do not match `KeyPressed` for commands.
   `pxui_graph` never matches operation names; the host passes predicates such
   as `~flaggable`.
-- Every document change goes through the immutable `Procedural.Edit_graph`
-  document (`Doc.apply`) and is recorded in `Editor_core.History`; cooking and
-  framing live in `Cook`. Camera math lives in `prismel` (`Easy_camera`).
+- One immutable `Document` (graph, tile layout, display node, active camera,
+  sketch `Settings`) is the only thing `Editor_core.History` (128 entries)
+  snapshots. Graph intents go through `Doc.apply`; each recorded entry has a
+  label (`intent_label`), shown as "Undo <label>". Selection, hover, and an
+  unlinked viewport camera are view state; a camera node that follows the
+  viewport records camera moves as one `Burst` entry. Cooking and framing
+  live in `Cook`; `prepare` receives the settings snapshot. Camera math lives
+  in `prismel` (`Easy_camera`).
+- Sketches extend the editor only through `?settings`, `?commands`
+  (`Editor_core.Command`, also listed in the `Space /` palette),
+  `?factories`, and `update_with`. Prismel Editor holds composition, not
+  reusable logic: anything a second shell would want lives in `pxui_shell`
+  or `editor_core`. See the `extend-prismel-editor` skill.
 - `Environment.Make (V : VIEWPORT)` is the one environment. `Viewport3` and
   `Viewport2` are its instances; `Editor3`/`Editor2` only rename the
   draw callback. Add dimensional behavior to a viewport, never a second
