@@ -2,9 +2,6 @@ open Support
 
 module String_set = Set.Make (String)
 
-let baseline_relative =
-  "tools/api_manifest/phase0_baseline.json"
-
 let stable_library_directories =
   [ "prismel"; "procedural"; "editor"; "pxui"; "pxui_shell"; "pxui_graph"
   ; "sop_catalog"; "sop_ui"; "sketch_support"; "sketch_ui"
@@ -388,11 +385,7 @@ let json_sort_field field left right =
   | Some left, Some right -> String.compare left right
   | _ -> fail "manifest entry lacks sorting field %s" field
 
-let baseline root =
-  read_file (Filename.concat root baseline_relative) |> Yojson.Safe.from_string
-
 let generate root =
-  let baseline = baseline root in
   let pdk_facade_modules = pdk_facade_modules root in
   let stable_entries =
     (stable_library_directories
@@ -415,8 +408,6 @@ let generate root =
   in
   let common =
     [ "schema", `Int 1
-    ; "baseline_commit", member_exn "baseline_commit" baseline
-    ; "baseline_plan_sha256", member_exn "new_gpu_stuff_sha256" baseline
     ; "generator", `String "tools/api_manifest/api_manifest.exe"
     ]
   in

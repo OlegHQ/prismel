@@ -19,8 +19,7 @@
 ; `dune promote`.
 (rule
  (targets api_stable.gen.json)
- (deps phase0_baseline.json
-  (glob_files_rec ../../lib/*.mli)
+ (deps (glob_files_rec ../../lib/*.mli)
   (glob_files_rec ../../lib/dune))
  (action
   (with-stdout-to %{targets}
