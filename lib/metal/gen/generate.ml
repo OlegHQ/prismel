@@ -4,6 +4,183 @@ let fail format = Printf.ksprintf failwith format
 
 let c_name name = "caml_prismel_metal_gen_" ^ name
 
+(* Every generated native call: its OCaml/C name, receiver, arguments,
+   result, and how the stub reaches the SDK. *)
+type body = Send of string * bool | Read of string | Write of string
+
+type call =
+  { name : string
+  ; recv : string
+  ; objc : string
+  ; args : ty list
+  ; ret : ty option
+  ; body : body
+  ; since : (int * int) option
+  ; feature : Ogpu_core.Caps.feature
+  }
+
+let calls entries =
+  List.concat_map
+    (function
+      | Method { recv; objc; sel; args; ret; error; ocaml; since; feature } ->
+          [ { name = ocaml; recv; objc; args; ret; body = Send (sel, error); since; feature } ]
+      | Property { recv; objc; name; ty; access; ocaml; since; feature } ->
+          let get = { name = ocaml; recv; objc; args = []; ret = Some ty; body = Read name; since; feature }
+          and set = { name = "set_" ^ ocaml; recv; objc; args = [ ty ]; ret = None; body = Write name; since; feature } in
+          (match access with Get -> [ get ] | Set -> [ set ] | Get_set -> [ get; set ])
+      | Enum _ | Record _ -> [])
+    entries
+
+let selector_pieces sel = List.filter (( <> ) "") (String.split_on_char ':' sel)
+
+let validate_call ~ocaml ~native ~selectors ~check_feature call =
+  if Hashtbl.mem ocaml call.name then fail "duplicate OCaml binding %s" call.name;
+  Hashtbl.add ocaml call.name ();
+  let symbol = c_name call.name in
+  if Hashtbl.mem native symbol then fail "duplicate C binding %s" symbol;
+  Hashtbl.add native symbol ();
+  check_feature call.name call.feature;
+  if call.recv = "" || call.objc = "" then fail "call %s needs a receiver kind and type" call.name;
+  match call.body with
+  | Send (sel, error) ->
+      if sel = "" then fail "empty Metal selector for %s" call.name;
+      if Hashtbl.mem selectors (call.objc, sel) then
+        fail "duplicate Metal selector %s.%s" call.objc sel;
+      Hashtbl.add selectors (call.objc, sel) ();
+      let expected = List.length call.args + (if error then 1 else 0) in
+      let pieces = if String.contains sel ':' then List.length (selector_pieces sel) else 0 in
+      if pieces <> expected then
+        fail "selector %s takes %d arguments, %s gives %d" sel pieces call.name expected
+  | Read property | Write property ->
+      if property = "" || String.contains property ':' then
+        fail "bad Metal property name for %s" call.name;
+      if Hashtbl.mem selectors (call.objc, property ^ (if call.args = [] then "" else "=")) then
+        fail "duplicate Metal property %s.%s" call.objc property;
+      Hashtbl.add selectors (call.objc, property ^ (if call.args = [] then "" else "=")) ()
+
+(* ---- OCaml side ---- *)
+
+let ty_ocaml = function
+  | Scalar Bool -> "bool" | Scalar Int -> "int"
+  | Scalar (Nsuint | Nsint) | Enum_of _ -> "int64"
+  | Scalar (Float | Double) -> "float"
+  | Str -> "string"
+  | Obj _ -> "Types.handle"
+  | Opt_obj _ -> "Types.handle option"
+
+let external_decl call =
+  let types = "Types.handle" :: List.map ty_ocaml call.args in
+  let ret = match call.ret with None -> "unit" | Some t -> ty_ocaml t in
+  let names =
+    if List.length types > 5 then Printf.sprintf "%S %S" (c_name call.name ^ "_bytecode") (c_name call.name)
+    else Printf.sprintf "%S" (c_name call.name) in
+  Printf.sprintf "  external %s : %s -> (%s, string) result = %s\n"
+    call.name (String.concat " -> " types) ret names
+
+(* ---- C side ---- *)
+
+let arg_c v = function
+  | Scalar Bool -> Printf.sprintf "static_cast<BOOL>(Bool_val(%s))" v
+  | Scalar Int -> Printf.sprintf "static_cast<int>(Long_val(%s))" v
+  | Scalar Nsuint -> Printf.sprintf "static_cast<NSUInteger>(Int64_val(%s))" v
+  | Scalar Nsint -> Printf.sprintf "static_cast<NSInteger>(Int64_val(%s))" v
+  | Scalar Float -> Printf.sprintf "static_cast<float>(Double_val(%s))" v
+  | Scalar Double -> Printf.sprintf "Double_val(%s)" v
+  | Enum_of c -> Printf.sprintf "static_cast<%s>(Int64_val(%s))" c v
+  | Str -> Printf.sprintf "string_from_ocaml(%s)" v
+  | Obj kind -> Printf.sprintf "object_of_handle(%s, Handle_kind::%s)" v kind
+  | Opt_obj kind ->
+      Printf.sprintf "(Is_none(%s) ? nil : object_of_handle(Some_val(%s), Handle_kind::%s))" v v kind
+
+let native_type = function
+  | Scalar Bool -> "BOOL" | Scalar Int -> "int"
+  | Scalar Nsuint -> "NSUInteger" | Scalar Nsint -> "NSInteger"
+  | Scalar Float -> "float" | Scalar Double -> "double"
+  | Enum_of c -> c
+  | Str -> "NSString *"
+  | Obj _ | Opt_obj _ -> "id"
+
+(* statements turning [native_result] into [copied_result] *)
+let copy_result = function
+  | None -> "copied_result = Val_unit;\n"
+  | Some (Scalar Bool) -> "copied_result = Val_bool(native_result);\n"
+  | Some (Scalar Int) -> "copied_result = Val_long(native_result);\n"
+  | Some (Scalar Nsuint) ->
+      "if (native_result > static_cast<NSUInteger>(INT64_MAX))\n\
+      \          CAMLreturn(result_error_text(\"Metal returned a value outside signed 64-bit range\"));\n\
+      \        copied_result = caml_copy_int64(static_cast<std::int64_t>(native_result));\n"
+  | Some (Scalar Nsint | Enum_of _) ->
+      "copied_result = caml_copy_int64(static_cast<std::int64_t>(native_result));\n"
+  | Some (Scalar (Float | Double)) -> "copied_result = caml_copy_double(native_result);\n"
+  | Some Str -> "copied_result = caml_copy_string(native_result.UTF8String ?: \"\");\n"
+  | Some (Obj kind) ->
+      Printf.sprintf
+        "if (native_result == nil)\n\
+        \          CAMLreturn(result_error_text(\"Metal returned nil\"));\n\
+        \        copied_result = allocate_handle(native_result, Handle_kind::%s);\n" kind
+  | Some (Opt_obj kind) ->
+      Printf.sprintf
+        "if (native_result == nil) {\n\
+        \          copied_result = Val_none;\n\
+        \        } else {\n\
+        \          handle = allocate_handle(native_result, Handle_kind::%s);\n\
+        \          copied_result = caml_alloc_some(handle);\n\
+        \        }\n" kind
+
+let call_body call =
+  let args = List.mapi (fun i t -> arg_c (Printf.sprintf "arg%d" i) t) call.args in
+  let assign expr = match call.ret with
+    | None -> Printf.sprintf "        %s;\n" expr
+    | Some t -> Printf.sprintf "        const %s native_result = %s;\n" (native_type t) expr in
+  match call.body with
+  | Read property -> assign ("object." ^ property) ^ "        " ^ copy_result call.ret
+  | Write property ->
+      Printf.sprintf "        object.%s = %s;\n" property (List.hd args) ^ "        " ^ copy_result None
+  | Send (sel, error) ->
+      let args = if error then args @ [ "&native_error" ] else args in
+      let message =
+        if args = [] then sel
+        else String.concat " " (List.map2 (fun p a -> p ^ ":" ^ a) (selector_pieces sel) args) in
+      let send = Printf.sprintf "[object %s]" message in
+      if not error then assign send ^ "        " ^ copy_result call.ret
+      else
+        "        NSError *native_error = nil;\n"
+        ^ (match call.ret with
+           | None ->
+               Printf.sprintf "        if (!%s)\n          CAMLreturn(result_error(error_description(native_error, @\"%s failed\")));\n" send sel
+           | Some _ ->
+               assign send
+               ^ Printf.sprintf "        if (native_error != nil)\n          CAMLreturn(result_error(error_description(native_error, @\"%s failed\")));\n" sel)
+        ^ "        " ^ copy_result call.ret
+
+let emit_call buffer call =
+  let params = "raw_handle" :: List.mapi (fun i _ -> Printf.sprintf "arg%d" i) call.args in
+  let rec chunks = function
+    | [] -> []
+    | l -> List.filteri (fun i _ -> i < 5) l :: chunks (List.filteri (fun i _ -> i >= 5) l) in
+  let roots = match chunks params with
+    | [] -> ""
+    | first :: rest ->
+        Printf.sprintf "  CAMLparam%d(%s);\n" (List.length first) (String.concat ", " first)
+        ^ String.concat "" (List.map (fun c ->
+            Printf.sprintf "  CAMLxparam%d(%s);\n" (List.length c) (String.concat ", " c)) rest) in
+  let guard, close_guard, unavailable = match call.since with
+    | None -> "", "", ""
+    | Some (major, minor) ->
+        Printf.sprintf "    if (@available(macOS %d.%d, *)) {\n" major minor, "    }\n",
+        Printf.sprintf "    CAMLreturn(result_error_text(\"Metal %s requires macOS %d.%d\"));\n"
+          call.name major minor in
+  Printf.bprintf buffer
+    "extern \"C\" CAMLprim value %s(%s) {\n%s  CAMLlocal3(result, copied_result, handle);\n  @autoreleasepool {\n%s      @try {\n        %s object = object_of_handle(raw_handle, Handle_kind::%s);\n%s        result = result_ok(copied_result);\n        CAMLreturn(result);\n      } @catch (NSException *exception) {\n        CAMLreturn(result_error(exception.reason));\n      }\n%s%s  }\n}\n"
+    (c_name call.name) (String.concat ", " (List.map (( ^ ) "value ") params)) roots
+    guard call.objc call.recv (call_body call) close_guard unavailable;
+  if List.length params > 5 then
+    Printf.bprintf buffer
+      "extern \"C\" CAMLprim value %s_bytecode(value *argv, int argn) {\n  (void)argn;\n  return %s(%s);\n}\n"
+      (c_name call.name) (c_name call.name)
+      (String.concat ", " (List.init (List.length params) (Printf.sprintf "argv[%d]")))
+
+
 let validate_feature_map mappings =
   let seen = Hashtbl.create 32 in
   List.iter
@@ -69,25 +246,9 @@ let validate entries =
               match scalar with
               | Bool | Int | Nsuint | Nsint | Float | Double -> ())
             fields
-      | Selector { ocaml = name; recv; sel; args; ret; feature; since = _ } ->
-          if Hashtbl.mem ocaml name then fail "duplicate OCaml binding %s" name;
-          Hashtbl.add ocaml name ();
-          let symbol = c_name name in
-          if Hashtbl.mem native symbol then fail "duplicate C binding %s" symbol;
-          Hashtbl.add native symbol ();
-          if Hashtbl.mem selectors (recv, sel) then
-            fail "duplicate Metal selector %s.%s" recv sel;
-          Hashtbl.add selectors (recv, sel) ();
-          check_feature name feature;
-          let getter =
-            List.mem recv [ "MTLDevice"; "MTLComputePipelineState"; "MTLRenderPipelineState" ]
-            && args = [] && List.mem ret [ Some Nsuint; Some Bool ]
-          in
-          if not getter then
-            fail "selector %s needs a generator implementation" name;
-          if sel = "" then fail "empty Metal selector for %s" name
-      )
-    entries
+      | Method _ | Property _ -> ())
+    entries;
+  List.iter (validate_call ~ocaml ~native ~selectors ~check_feature) (calls entries)
 
 let contains_token source token =
   let length = String.length token in
@@ -196,7 +357,7 @@ let emit_enums_ml buffer entries =
             (fun bits -> Printf.bprintf buffer "    | 0x%016LxL -> Some bits\n" bits)
             unique;
           Buffer.add_string buffer "    | _ -> None\n  end\n"
-      | Selector _ | Record _ -> ())
+      | Method _ | Property _ | Record _ -> ())
     entries;
   Buffer.add_string buffer "end\n"
 
@@ -212,7 +373,7 @@ let emit_enums_mli buffer entries =
             cases;
           Buffer.add_string buffer
             "    val to_int64 : t -> int64\n    val of_int64 : int64 -> t option\n  end\n"
-      | Selector _ | Record _ -> ())
+      | Method _ | Property _ | Record _ -> ())
     entries;
   Buffer.add_string buffer "end\n"
 
@@ -237,7 +398,7 @@ let emit_records ~signature buffer entries =
               Printf.bprintf buffer "      %s : %s;\n" field ocaml_type)
             fields;
           Buffer.add_string buffer "    }\n  end\n"
-      | Enum _ | Selector _ -> ())
+      | Enum _ | Method _ | Property _ -> ())
     entries;
   Buffer.add_string buffer "end\n"
 
@@ -248,16 +409,7 @@ let emit_ml entries =
   emit_enums_ml buffer entries;
   emit_records ~signature:false buffer entries;
   Buffer.add_string buffer "module Make (Types : sig type handle end) = struct\n";
-  List.iter
-    (function
-      | Selector { ocaml; ret; args; _ } ->
-          Printf.bprintf buffer
-            "  external %s : Types.handle%s -> (%s, string) result = %S\n"
-            ocaml (String.concat "" (List.map (fun _ -> " -> int") args))
-            (if ret = None then "unit" else if ret = Some Bool then "bool" else "int64")
-            (c_name ocaml)
-      | Enum _ | Record _ -> ())
-    entries;
+  List.iter (fun call -> Buffer.add_string buffer (external_decl call)) (calls entries);
   Buffer.add_string buffer "end\n";
   Buffer.contents buffer
 
@@ -268,16 +420,7 @@ let emit_mli entries =
   emit_enums_mli buffer entries;
   emit_records ~signature:true buffer entries;
   Buffer.add_string buffer "module Make (Types : sig type handle end) : sig\n";
-  List.iter
-    (function
-      | Selector { ocaml; ret; args; _ } ->
-          Printf.bprintf buffer
-            "  external %s : Types.handle%s -> (%s, string) result = %S\n"
-            ocaml (String.concat "" (List.map (fun _ -> " -> int") args))
-            (if ret = None then "unit" else if ret = Some Bool then "bool" else "int64")
-            (c_name ocaml)
-      | Enum _ | Record _ -> ())
-    entries;
+  List.iter (fun call -> Buffer.add_string buffer (external_decl call)) (calls entries);
   Buffer.add_string buffer "end\n";
   Buffer.contents buffer
 
@@ -302,42 +445,9 @@ let emit_c entries =
                 "static_assert(std::is_same_v<decltype(%s{}.%s), %s>);\n"
                 sdk field native_type)
             fields
-      | Selector { ocaml; recv; sel; since; ret; _ } ->
-          let kind =
-            match recv with
-            | "MTLDevice" -> "Device"
-            | "MTLComputePipelineState" -> "Compute_pipeline"
-            | "MTLRenderPipelineState" -> "Render_pipeline"
-            | _ -> assert false
-          in
-          let guard =
-            match since with
-            | None -> ""
-            | Some (major, minor) ->
-                Printf.sprintf "    if (@available(macOS %d.%d, *)) {\n" major minor
-          in
-          let close_guard = if since = None then "" else "    }\n" in
-          let unavailable =
-            match since with
-            | None -> ""
-            | Some (major, minor) ->
-                Printf.sprintf
-                  "    CAMLreturn(result_error_text(\"Metal selector %s requires macOS %d.%d\"));\n"
-                  sel major minor
-          in
-          let native_type, copy =
-            if ret = Some Bool then
-              "BOOL", "copied_result = Val_bool(native_result);\n"
-            else
-              "NSUInteger",
-              "if (native_result > static_cast<NSUInteger>(INT64_MAX))\n"
-              ^ "          CAMLreturn(result_error_text(\"Metal returned a value outside signed 64-bit range\"));\n"
-              ^ "        copied_result = caml_copy_int64(static_cast<std::int64_t>(native_result));\n"
-          in
-          Printf.bprintf buffer
-            "extern \"C\" CAMLprim value %s(value raw_handle) {\n  CAMLparam1(raw_handle);\n  CAMLlocal2(result, copied_result);\n  @autoreleasepool {\n%s      @try {\n        id<%s> object = object_of_handle(raw_handle, Handle_kind::%s);\n        const %s native_result = [object %s];\n        %s        result = result_ok(copied_result);\n        CAMLreturn(result);\n      } @catch (NSException *exception) {\n        CAMLreturn(result_error(exception.reason));\n      }\n%s%s  }\n}\n"
-            (c_name ocaml) guard recv kind native_type sel copy close_guard unavailable)
+      | Method _ | Property _ -> ())
     entries;
+  List.iter (emit_call buffer) (calls entries);
   Buffer.contents buffer
 
 let emit_feature_checks () =
@@ -396,23 +506,44 @@ let self_test () =
    with Failure message ->
      if not (String.starts_with ~prefix:"duplicate OCaml binding" message) then
        fail "unexpected duplicate error: %s" message);
-  (match List.find_opt (function Selector _ -> true | _ -> false) entries with
-   | Some (Selector selector) ->
+  (match List.find_opt (function Property _ -> true | _ -> false) entries with
+   | Some (Property property) ->
        (try
-          validate
-            (Selector { selector with ocaml = "duplicate_selector" } :: entries);
-          fail "duplicate Metal selector was accepted"
+          validate (Property { property with ocaml = "duplicate_property" } :: entries);
+          fail "duplicate Metal property was accepted"
         with Failure message ->
-          if not (String.starts_with ~prefix:"duplicate Metal selector" message)
-          then fail "unexpected selector error: %s" message)
-   | _ -> fail "registry self-test has no selector");
+          if not (String.starts_with ~prefix:"duplicate Metal property" message)
+          then fail "unexpected property error: %s" message)
+   | _ -> fail "registry self-test has no property");
   let native = emit_c entries in
   if
-    not (contains_token native "[object maxThreadgroupMemoryLength]")
+    not (contains_token native "object.maxThreadgroupMemoryLength")
     || not (contains_token native "@available(macOS 10.13, *)")
-    || not (contains_token native "const BOOL native_result = [object supportIndirectCommandBuffers]")
+    || not (contains_token native "const BOOL native_result = object.supportIndirectCommandBuffers")
     || not (contains_token native "Val_bool(native_result)")
-  then fail "generated selector lost its typed call or availability guard";
+  then fail "generated property lost its typed read or availability guard";
+  (* a method with object, enum and NSError arguments, and an owned result *)
+  let method_ =
+    Method
+      { recv = "Device"; objc = "id<MTLDevice>"; sel = "newBufferWithLength:options:"
+      ; args = [ Scalar Nsuint; Enum_of "MTLResourceOptions" ]; ret = Some (Obj "Buffer")
+      ; error = false; ocaml = "device_new_buffer"; since = None
+      ; feature = Ogpu_core.Caps.Buffer } in
+  validate [ method_ ];
+  let native = emit_c [ method_ ] and ml = emit_ml [ method_ ] in
+  if not (contains_token native
+            "[object newBufferWithLength:static_cast<NSUInteger>(Int64_val(arg0)) options:static_cast<MTLResourceOptions>(Int64_val(arg1))]")
+     || not (contains_token native "allocate_handle(native_result, Handle_kind::Buffer)")
+     || not (contains_token ml "external device_new_buffer : Types.handle -> int64 -> int64 -> (Types.handle, string) result")
+  then fail "generated method lost its typed message or owned result";
+  (match method_ with
+   | Method m ->
+       (try validate [ Method { m with args = [ Scalar Nsuint ] } ];
+          fail "selector arity mismatch was accepted"
+        with Failure message ->
+          if not (String.starts_with ~prefix:"selector newBufferWithLength:options: takes 2" message)
+          then fail "unexpected arity error: %s" message)
+   | _ -> ());
   let name = "device_max_threadgroup_memory_length" in
   let source =
     "(* Metal_raw.Registry." ^ name ^ " *)\n"
@@ -442,9 +573,7 @@ let () =
         let used_enums = used_enum_modules source in
         List.iter
           (function
-            | Selector { ocaml; _ } ->
-                if not (Hashtbl.mem used ocaml) then
-                  fail "registry binding %s is not used by metal.ml" ocaml
+            | Method _ | Property _ -> ()
             | Enum { ocaml; _ } ->
                 if not (Hashtbl.mem used_enums ocaml) then
                   fail "registry enum %s is not used by metal.ml" ocaml
@@ -452,6 +581,10 @@ let () =
                 if not (Hashtbl.mem used_enums ocaml) then
                   fail "registry record %s is not used by metal.ml" ocaml)
           entries;
+        List.iter (fun call ->
+            if not (Hashtbl.mem used call.name) then
+              fail "registry binding %s is not used by metal.ml" call.name)
+          (calls entries);
         write ml (emit_ml entries);
         write mli (emit_mli entries);
         write native (emit_c entries);

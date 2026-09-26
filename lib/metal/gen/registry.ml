@@ -1,5 +1,17 @@
 type scalar = Bool | Int | Nsuint | Nsint | Float | Double
 
+(* A value crossing a generated call. [Obj kind] is a borrowed handle of the
+   bridge's [Handle_kind::kind] (retained when returned); [Enum_of c] is a
+   C enum or options type carried as int64; [Str] is NSString. *)
+type ty =
+  | Scalar of scalar
+  | Enum_of of string
+  | Str
+  | Obj of string
+  | Opt_obj of string
+
+type access = Get | Set | Get_set
+
 type enum_case = string * string * int64 * (int * int * int)
 
 type sdk_type = Protocol of string | Class of string
@@ -60,18 +72,34 @@ type entry =
       ; fields : (string * scalar) list
       ; feature : Ogpu_core.Caps.feature
       }
-  | Selector of
+  (* [objc] receives [sel] (colons included) with [args]; [error] appends a
+     trailing NSError** and turns failure into [Error]. [recv] is the
+     receiver's Handle_kind, [objc] its Objective-C type. *)
+  | Method of
       { recv : string
+      ; objc : string
       ; sel : string
-      ; args : scalar list
-      ; ret : scalar option
+      ; args : ty list
+      ; ret : ty option
+      ; error : bool
+      ; ocaml : string
+      ; since : (int * int) option
+      ; feature : Ogpu_core.Caps.feature
+      }
+  (* An Objective-C property: [Get] generates [ocaml], [Set] [set_ocaml]. *)
+  | Property of
+      { recv : string
+      ; objc : string
+      ; name : string
+      ; ty : ty
+      ; access : access
       ; ocaml : string
       ; since : (int * int) option
       ; feature : Ogpu_core.Caps.feature
       }
 
 let entries : entry list =
-  [  Enum
+  [ Enum
       { sdk = "MTLDataType"
       ; ocaml = "Mtl_data_type"
       ; cases =
@@ -191,28 +219,28 @@ let entries : entry list =
         ]
       ; feature = Ogpu_core.Caps.Buffer
       }
-
   ; Record
       { sdk = "MTLSize"
       ; ocaml = "Mtl_size"
       ; fields = [ "width", Nsuint; "height", Nsuint; "depth", Nsuint ]
       ; feature = Ogpu_core.Caps.Compute_pipeline
       }
-  ; Selector
-      { recv = "MTLDevice"
-      ; sel = "maxThreadgroupMemoryLength"
-      ; args = []
-      ; ret = Some Nsuint
+  ; Property
+      { recv = "Device"
+      ; objc = "id<MTLDevice>"
+      ; name = "maxThreadgroupMemoryLength"
+      ; ty = Scalar Nsuint
+      ; access = Get
       ; ocaml = "device_max_threadgroup_memory_length"
       ; since = Some (10, 13)
       ; feature = Ogpu_core.Caps.Compute_pipeline
       }
-
-  ; Selector
-      { recv = "MTLRenderPipelineState"
-      ; sel = "supportIndirectCommandBuffers"
-      ; args = []
-      ; ret = Some Bool
+  ; Property
+      { recv = "Render_pipeline"
+      ; objc = "id<MTLRenderPipelineState>"
+      ; name = "supportIndirectCommandBuffers"
+      ; ty = Scalar Bool
+      ; access = Get
       ; ocaml = "render_pipeline_state_support_indirect_command_buffers"
       ; since = Some (10, 14)
       ; feature = Ogpu_core.Caps.Render_pipeline
