@@ -1285,7 +1285,7 @@ let test_subdivision_holes () =
   let source_index = Topology_index.create (Geometry.topology source) in
   let edge = Topology_index.find_edge source_index ~a:5 ~b:6 |> Option.get in
   let hole_midpoint = 16 + edge in
-  let deleted = Deletion.delete_checked hole source |> get_pdk in
+  let deleted = Deletion.delete hole source |> get_pdk in
   let deleted_index = Topology_index.create (Geometry.topology deleted) in
   let deleted_edge = Topology_index.find_edge deleted_index ~a:5 ~b:6
       |> Option.get in

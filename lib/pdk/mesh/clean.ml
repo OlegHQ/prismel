@@ -189,7 +189,7 @@ let delete_degenerate ?cancel ~grain ?primitives ~epsilon geometry =
       let selection = Group.init ~grain ~owner:Group.Primitive
           ~name:"__clean_degenerate" primitive_count
           (fun primitive -> Bytes.get flags primitive <> '\000') in
-      Deletion.delete ?cancel ~grain selection geometry
+      Error.unguard (Deletion.delete ?cancel ~grain selection geometry)
 
 let delete_nan_points ?cancel ~grain geometry =
   let positions = Packed.Float3.Private.view (Geometry.positions geometry) in
@@ -211,7 +211,7 @@ let delete_nan_points ?cancel ~grain geometry =
       let selection = Group.init ~grain ~owner:Group.Point
           ~name:"__clean_nan_points" point_count
           (fun point -> Bytes.get flags point <> '\000') in
-      Deletion.delete ?cancel ~grain selection geometry
+      Error.unguard (Deletion.delete ?cancel ~grain selection geometry)
 
 let[@inline] clean_cycle_point topology first size start direction offset =
   let local = (start + (direction * offset)) mod size in
@@ -349,7 +349,7 @@ let delete_overlaps_general ?cancel ~grain ~delete_pairs geometry =
       let selection = Group.init ~grain ~owner:Group.Primitive
           ~name:"__clean_overlaps" primitive_count
           (fun primitive -> Bytes.get flags primitive <> '\000') in
-      Deletion.delete ?cancel ~grain selection geometry
+      Error.unguard (Deletion.delete ?cancel ~grain selection geometry)
   end
 
 let delete_triangle_overlaps ?cancel ~grain ~delete_pairs geometry =
@@ -414,7 +414,7 @@ let delete_triangle_overlaps ?cancel ~grain ~delete_pairs geometry =
       let selection = Group.init ~grain ~owner:Group.Primitive
           ~name:"__clean_overlaps" primitive_count
           (fun primitive -> Bytes.get flags primitive <> '\000') in
-      Deletion.delete ?cancel ~grain selection geometry
+      Error.unguard (Deletion.delete ?cancel ~grain selection geometry)
   end
 
 let delete_overlaps ?cancel ~grain ~delete_pairs geometry =

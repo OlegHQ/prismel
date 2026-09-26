@@ -1359,7 +1359,7 @@ let array_is_identity values =
 let empty_copy_targets ?cancel ~grain targets =
   let empty = Group.init ~owner:Group.Point ~name:"copy_piece_empty"
       (Geometry.point_count targets) (fun _ -> false) in
-  Deletion.delete ?cancel ~grain ~selected:false empty targets
+  Error.unguard (Deletion.delete ?cancel ~grain ~selected:false empty targets)
 
 let checked_piece_cardinality label target_counts source_pieces owner_count =
   let rec loop piece total =
@@ -1492,14 +1492,15 @@ let copy_to_points ?cancel ?(grain = 16_384) ?source_primitives ?target_points
     | None -> Ok source
     | Some group when Group.owner group <> Group.Primitive ->
         Error "Pdk.Instance_copy.copy_to_points: source selection must own primitives"
-    | Some group -> Deletion.delete ?cancel ~grain ~selected:false
-        ~compact_points:true group source in
+    | Some group -> Error.unguard (Deletion.delete ?cancel ~grain ~selected:false
+        ~compact_points:true group source) in
   Result.bind prepare_source (fun source ->
     let prepare_targets = match target_points with
       | None -> Ok targets
       | Some group when Group.owner group <> Group.Point ->
           Error "Pdk.Instance_copy.copy_to_points: target selection must own points"
-      | Some group -> Deletion.delete ?cancel ~grain ~selected:false group targets in
+      | Some group -> Error.unguard
+          (Deletion.delete ?cancel ~grain ~selected:false group targets) in
     Result.bind prepare_targets (fun targets -> match piece_attribute with
       | None -> copy_to_points_all ?cancel ~grain ~target_attributes ~source
           ~targets ()

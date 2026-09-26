@@ -3693,8 +3693,8 @@ let make_boundary_weld ?cancel ~bias ~only_equal
   { old_to_output = point_map; output_source; merge_offsets; merge_members; bias }
 
 let extract_primitive_part ?cancel ?grain ~selected primitives geometry =
-  let geometry = Deletion.delete ?cancel ?grain ~selected:(not selected)
-      ~compact_points:true primitives geometry |> get_ok in
+  let geometry = Error.unguard (Deletion.delete ?cancel ?grain ~selected:(not selected)
+      ~compact_points:true primitives geometry) |> get_ok in
   if selected then split_disconnected_point_fans ?cancel ?grain geometry
   else geometry
 
@@ -3713,7 +3713,7 @@ let free_point_part ?cancel ?grain geometry =
     let referenced = Group.init ?grain ~owner:Group.Point
         ~name:"__pdk_subdivide_referenced_points" topology.point_count
         (fun point -> Bytes.get used point <> '\000') in
-    Some (Deletion.delete ?cancel ?grain ~selected:true referenced geometry
+    Some (Error.unguard (Deletion.delete ?cancel ?grain ~selected:true referenced geometry)
       |> get_ok)
   end
 
@@ -4150,8 +4150,8 @@ let primitive_kind_group ?grain ~polygon geometry =
 
 let extract_kind ?cancel ?grain ~polygon geometry =
   let selection = primitive_kind_group ?grain ~polygon geometry in
-  Deletion.delete ?cancel ?grain ~selected:false ~compact_points:true
-    selection geometry |> get_ok
+  Error.unguard (Deletion.delete ?cancel ?grain ~selected:false ~compact_points:true
+    selection geometry) |> get_ok
 
 let selection_for_kind ?grain ~polygon selection geometry =
   match selection with
@@ -4188,10 +4188,10 @@ let refine_curves ?cancel ?grain ?selection ~independent scheme iterations geome
       if selected = 0 then geometry
       else if selected = Group.length selection then refine geometry
       else begin
-        let refined_source = Deletion.delete ?cancel ?grain ~selected:false
-            ~compact_points:true selection geometry |> get_ok in
-        let retained = Deletion.delete ?cancel ?grain ~selected:true
-            ~compact_points:true selection geometry |> get_ok in
+        let refined_source = Error.unguard (Deletion.delete ?cancel ?grain ~selected:false
+            ~compact_points:true selection geometry) |> get_ok in
+        let retained = Error.unguard (Deletion.delete ?cancel ?grain ~selected:true
+            ~compact_points:true selection geometry) |> get_ok in
         combine_parts ?cancel ?grain ~source:geometry [retained; refine refined_source]
       end
 

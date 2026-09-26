@@ -67,6 +67,7 @@ let validate_base ~owner ~length = function
 
 let blast ?cancel ?(grain = 16_384) ?base ?(invert = false)
     ?(remove_unused_points = false) ~owner ~attribute ~mode ~output geometry =
+  Error.guard ~operation:"blast_by_attribute" ~code:"invalid_blast" @@ fun () ->
   Cancel.check_opt cancel;
   if grain <= 0 then fail "grain must be positive"
   else if String.trim attribute = "" then fail "attribute name must not be empty"
@@ -130,15 +131,9 @@ let blast ?cancel ?(grain = 16_384) ?base ?(invert = false)
                   | Blast_group name ->
                       Geometry.with_group (Group.with_name name selection) geometry
                   | Blast_delete ->
-                      Deletion.delete ?cancel ~grain
-                        ~compact_points:remove_unused_points selection geometry)
+                      Error.unguard (Deletion.delete ?cancel ~grain
+                        ~compact_points:remove_unused_points selection geometry))
             | _ -> fail (Printf.sprintf
                 "%s attribute %S must have scalar float or integer storage, not %s"
                 (owner_name owner) attribute (Attribute.kind_name source))
             ))
-
-let blast_checked ?cancel ?grain ?base ?invert ?remove_unused_points
-    ~owner ~attribute ~mode ~output geometry =
-  Error.guard ~operation:"blast_by_attribute" ~code:"invalid_blast" (fun () ->
-    blast ?cancel ?grain ?base ?invert ?remove_unused_points
-      ~owner ~attribute ~mode ~output geometry)

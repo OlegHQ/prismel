@@ -6170,7 +6170,7 @@ let blast_by_attribute ?label ?group ?(invert = false)
                    "blast_by_attribute could not find %s group %S"
                    (blast_attribute_owner_key owner) name))) in
       Result.bind base (fun base ->
-        match Pdk.Blast_by_attribute.blast_checked
+        match Pdk.Blast_by_attribute.blast
             ~cancel:(Context.cancel_token context)
             ~grain:(Context.grain context) ?base ~invert ~remove_unused_points
             ~owner ~attribute ~mode ~output geometry with
@@ -6198,7 +6198,7 @@ let blast ?label ?(selected = true) ?(compact_points = false)
           (Printf.sprintf "blast could not find %s group %S"
             (group_owner_key owner) group))
       | Some selection ->
-          match Pdk.Deletion.delete_checked ~cancel:(Context.cancel_token context)
+          match Pdk.Deletion.delete ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ~selected ~compact_points ~policy
               selection inputs.(0) with
           | Ok geometry -> cooked geometry

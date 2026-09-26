@@ -1953,10 +1953,10 @@ let run () =
       (fun point -> point = 1) in
   let remove_nothing = Group.init ~owner:Group.Point ~name:"remove_nothing" 4
       (fun _ -> false) in
-  if Deletion.delete_checked remove_nothing delete_source |> get_ok != delete_source then
+  if Deletion.delete remove_nothing delete_source |> get_ok != delete_source then
     fail "no-op deletion did not preserve geometry identity";
   let healed_points domains = Parallel.run ~domains (fun () ->
-      Deletion.delete_checked ~grain:1 ~policy:Deletion.Heal_primitives remove_point delete_source
+      Deletion.delete ~grain:1 ~policy:Deletion.Heal_primitives remove_point delete_source
       |> get_ok) in
   let healed_one = healed_points 1 and healed_many = healed_points 4 in
   let healed_topology = Topology.Private.view (Geometry.topology healed_one)
@@ -1991,18 +1991,18 @@ let run () =
    | Some group when Group.cardinality group = 2
        && Group.mem 0 group && Group.mem 1 group -> ()
    | _ -> fail "parallel point delete group remap");
-  let destroyed = Deletion.delete_checked remove_point delete_source |> get_ok in
+  let destroyed = Deletion.delete remove_point delete_source |> get_ok in
   if Geometry.point_count destroyed <> 3
      || Geometry.primitive_count destroyed <> 0 then
     fail "point delete destroy-touched policy";
-  let kept_only = Deletion.delete_checked ~selected:false ~policy:Deletion.Heal_primitives
+  let kept_only = Deletion.delete ~selected:false ~policy:Deletion.Heal_primitives
       selected delete_source |> get_ok in
   if Geometry.point_count kept_only <> 2
      || Geometry.primitive_count kept_only <> 0 then
     fail "point delete non-selected inversion";
   let remove_vertex = Group.init ~owner:Group.Vertex ~name:"remove_vertex" 4
       (fun vertex -> vertex = 1) in
-  let healed_vertex = Deletion.delete_checked ~policy:Deletion.Heal_primitives remove_vertex
+  let healed_vertex = Deletion.delete ~policy:Deletion.Heal_primitives remove_vertex
       delete_source |> get_ok in
   if Geometry.point_count healed_vertex <> 4
      || Geometry.vertex_count healed_vertex <> 3
@@ -2016,18 +2016,18 @@ let run () =
        if values.x <> [|0.; 1.; 0.|] || values.y <> [|0.; 1.; 1.|] then
          fail "vertex delete attribute remap"
    | None -> fail "vertex delete dropped vertex attribute");
-  let destroyed_vertex = Deletion.delete_checked remove_vertex delete_source |> get_ok in
+  let destroyed_vertex = Deletion.delete remove_vertex delete_source |> get_ok in
   if Geometry.primitive_count destroyed_vertex <> 0
      || Geometry.point_count destroyed_vertex <> 4 then
     fail "vertex delete destroy-touched policy";
   let remove_first_primitive = Group.init ~owner:Group.Primitive
       ~name:"remove_first" 2 (fun primitive -> primitive = 0) in
-  let primitive_deleted = Deletion.delete_checked remove_first_primitive weighted_triangles
+  let primitive_deleted = Deletion.delete remove_first_primitive weighted_triangles
       |> get_ok in
   if Packed.Float3.data_id (Geometry.positions primitive_deleted)
        <> Packed.Float3.data_id (Geometry.positions weighted_triangles) then
     fail "primitive deletion copied unchanged point storage";
-  let compacted_vertex = Deletion.delete_checked ~compact_points:true remove_vertex
+  let compacted_vertex = Deletion.delete ~compact_points:true remove_vertex
       delete_source |> get_ok in
   if Geometry.point_count compacted_vertex <> 0 then
     fail "vertex deletion compact-points policy";
@@ -2035,7 +2035,7 @@ let run () =
       [|(0.,0.,0.); (1.,0.,0.); (2.,0.,0.); (3.,0.,0.)|] |> get_ok in
   let curve_vertex = Group.init ~owner:Group.Vertex ~name:"middle" 4
       (fun vertex -> vertex = 1) in
-  let healed_curve = Deletion.delete_checked ~policy:Deletion.Heal_primitives curve_vertex open_curve
+  let healed_curve = Deletion.delete ~policy:Deletion.Heal_primitives curve_vertex open_curve
       |> get_ok in
   if Geometry.vertex_count healed_curve <> 3
      || Topology.primitive_kind (Geometry.topology healed_curve) 0
@@ -2043,12 +2043,12 @@ let run () =
     fail "open-curve vertex healing";
   let wrong_delete_group = Group.init ~owner:Group.Point ~name:"wrong" 3
       (fun _ -> false) in
-  (match Deletion.delete_checked wrong_delete_group delete_source with
+  (match Deletion.delete wrong_delete_group delete_source with
    | Error error when Error.code error = "invalid_selection" -> ()
    | _ -> fail "delete accepted a mismatched selection length");
   let delete_cancel = Cancel.create () in
   Cancel.cancel delete_cancel;
-  (match Deletion.delete_checked ~cancel:delete_cancel remove_point delete_source with
+  (match Deletion.delete ~cancel:delete_cancel remove_point delete_source with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "cancelled delete published geometry or wrong error");
   let mesh = Pdk_prismel.Prismel_mesh.to_mesh triangle_geometry |> get_ok in
@@ -2496,7 +2496,7 @@ let run () =
     fail "primitive sort did not remap native edge membership";
   let remove_first_edge_face = Group.init ~owner:Group.Primitive
       ~name:"remove_first_edge_face" 2 (fun primitive -> primitive = 0) in
-  let deleted_edge_geometry = Deletion.delete_checked remove_first_edge_face triangle_edges
+  let deleted_edge_geometry = Deletion.delete remove_first_edge_face triangle_edges
       |> get_ok in
   let deleted_edge_group = Geometry.find_edge_group "triangle_edges"
       deleted_edge_geometry |> Option.get in

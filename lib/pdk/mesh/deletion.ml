@@ -395,6 +395,7 @@ let primitive_partitions ?cancel ?grain ~piece_count ?point_pieces
 
 let delete ?cancel ?grain ?(selected = true) ?(compact_points = false)
     ?(policy = Destroy_touched_primitives) selection geometry =
+  Error.guard ~operation:"delete" ~code:"invalid_selection" @@ fun () ->
   try
     Cancel.check_opt cancel;
     validate_selection selection geometry;
@@ -411,10 +412,7 @@ let delete_primitives ?cancel ?grain ?selected ?(compact_points = false)
   if Group.owner group <> Group.Primitive then
     Error (Error.make ~operation:"delete_primitives" ~code:"invalid_selection"
       "selection must own primitives")
-  else Error.guard ~operation:"delete_primitives" ~code:"invalid_selection"
-      (fun () -> delete ?cancel ?grain ?selected ~compact_points group geometry)
-
-let delete_checked ?cancel ?grain ?selected ?compact_points ?policy group
-    geometry =
-  Error.guard ~operation:"delete" ~code:"invalid_selection" (fun () ->
-    delete ?cancel ?grain ?selected ?compact_points ?policy group geometry)
+  else Result.map_error
+      (fun error -> Error.make ~operation:"delete_primitives"
+        ~code:(Error.code error) (Error.message error))
+      (delete ?cancel ?grain ?selected ~compact_points group geometry)

@@ -5,7 +5,7 @@ type mode =
   | Blast_width of { center : float; width : float; }
 type output = Blast_delete | Blast_group of string
 
-val blast_checked :
+val blast :
   ?cancel:Pdk_core.Cancel.t ->
   ?grain:int ->
   ?base:Pdk_core.Group.t ->

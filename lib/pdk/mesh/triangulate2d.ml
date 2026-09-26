@@ -1172,7 +1172,7 @@ let run ?cancel ?(grain = 16_384) ?selection ?constraint_edges
                 let group = Group.init ~grain ~owner:Group.Point
                     ~name:"__triangulate_2d_duplicate_points" output_point_count
                     (fun point -> Bytes.unsafe_get duplicate point <> '\000') in
-                Deletion.delete ?cancel ~grain group output
+                Error.unguard (Deletion.delete ?cancel ~grain group output)
             end)
           )
           )

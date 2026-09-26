@@ -26,20 +26,11 @@ val delete :
   ?compact_points:bool ->
   ?policy:topology_policy ->
   Pdk_core.Group.t ->
-  Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, string) result
+  Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, Pdk_core.Error.t) result
 val delete_primitives :
   ?cancel:Pdk_core.Cancel.t ->
   ?grain:int ->
   ?selected:bool ->
   ?compact_points:bool ->
-  Pdk_core.Group.t ->
-  Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, Pdk_core.Error.t) result
-
-val delete_checked :
-  ?cancel:Pdk_core.Cancel.t ->
-  ?grain:int ->
-  ?selected:bool ->
-  ?compact_points:bool ->
-  ?policy:topology_policy ->
   Pdk_core.Group.t ->
   Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, Pdk_core.Error.t) result

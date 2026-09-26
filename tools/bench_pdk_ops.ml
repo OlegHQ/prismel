@@ -4481,34 +4481,34 @@ let run_blast_by_attribute_benchmarks () =
     (fun () -> Geometry.with_group (point_selection ()) source |> get_ok)
     geometry_output;
   measure ~input_points:point_count "blast_by_attribute_baseline_point_delete"
-    (fun () -> Deletion.delete_checked ~grain (point_selection ()) source |> get_ok)
+    (fun () -> Deletion.delete ~grain (point_selection ()) source |> get_ok)
     geometry_output;
   measure ~input_points:point_count
     "blast_by_attribute_baseline_primitive_delete_compact"
-    (fun () -> Deletion.delete_checked ~grain ~compact_points:true
+    (fun () -> Deletion.delete ~grain ~compact_points:true
       (primitive_selection ()) source |> get_ok)
     geometry_output;
   measure ~input_points:point_count "blast_by_attribute_point_group"
-    (fun () -> Blast_by_attribute.blast_checked ~grain ~owner:Blast_by_attribute.Blast_points
+    (fun () -> Blast_by_attribute.blast ~grain ~owner:Blast_by_attribute.Blast_points
       ~attribute:"density"
       ~mode:(Blast_by_attribute.Blast_range { minimum = 0.35; maximum = 0.65 })
       ~output:(Blast_by_attribute.Blast_group "blast_selection") source |> get_ok)
     geometry_output;
   measure ~input_points:point_count "blast_by_attribute_point_group_base_invert"
-    (fun () -> Blast_by_attribute.blast_checked ~grain ~base:point_base ~invert:true
+    (fun () -> Blast_by_attribute.blast ~grain ~base:point_base ~invert:true
       ~owner:Blast_by_attribute.Blast_points ~attribute:"density"
       ~mode:(Blast_by_attribute.Blast_range { minimum = 0.35; maximum = 0.65 })
       ~output:(Blast_by_attribute.Blast_group "blast_selection") source |> get_ok)
     geometry_output;
   measure ~input_points:point_count "blast_by_attribute_point_delete"
-    (fun () -> Blast_by_attribute.blast_checked ~grain ~owner:Blast_by_attribute.Blast_points
+    (fun () -> Blast_by_attribute.blast ~grain ~owner:Blast_by_attribute.Blast_points
       ~attribute:"density"
       ~mode:(Blast_by_attribute.Blast_range { minimum = 0.35; maximum = 0.65 })
       ~output:Blast_by_attribute.Blast_delete source |> get_ok)
     geometry_output;
   measure ~input_points:point_count
     "blast_by_attribute_primitive_delete_compact"
-    (fun () -> Blast_by_attribute.blast_checked ~grain ~remove_unused_points:true
+    (fun () -> Blast_by_attribute.blast ~grain ~remove_unused_points:true
       ~owner:Blast_by_attribute.Blast_primitives ~attribute:"class"
       ~mode:(Blast_by_attribute.Blast_below 400.) ~output:Blast_by_attribute.Blast_delete source |> get_ok)
     geometry_output
@@ -5620,14 +5620,14 @@ let () =
     Deletion.delete_primitives ~grain ~compact_points:true delete_half modeling_grid
     |> get_ok) geometry_output;
   measure "delete_primitives_keep_points" (fun () ->
-    Deletion.delete_checked ~grain delete_half modeling_grid |> get_ok) geometry_output;
+    Deletion.delete ~grain delete_half modeling_grid |> get_ok) geometry_output;
   let modeling_positions = Packed.Float3.Private.view
       (Geometry.positions modeling_grid) in
   let delete_left_points = Group.init ~owner:Group.Point ~name:"left"
       (Geometry.point_count modeling_grid)
       (fun point -> modeling_positions.x.(point) < 0.) in
   measure "delete_points_destroy_compact" (fun () ->
-    Deletion.delete_checked ~grain ~compact_points:true delete_left_points modeling_grid
+    Deletion.delete ~grain ~compact_points:true delete_left_points modeling_grid
     |> get_ok) geometry_output;
   measure "bounding_box" (fun () ->
     Bound.bounding_box_checked ~grain ~padding:(Vec3.create 0.1 0.1 0.1) modeling_grid
@@ -5666,7 +5666,7 @@ let () =
       ~name:"sparse_corners" (Geometry.vertex_count deletion_quads)
       (fun vertex -> vertex mod 16 = 0) in
   measure "delete_vertices_heal_quads_attributes" (fun () ->
-    Deletion.delete_checked ~grain ~policy:Deletion.Heal_primitives delete_quad_corners
+    Deletion.delete ~grain ~policy:Deletion.Heal_primitives delete_quad_corners
       deletion_quads |> get_ok) geometry_output;
   let surface_target = Transform_ops.transform ~grain
       (Mat4.translation (Vec3.create 0.015 0.2 0.012)) modeling_grid in
