@@ -1207,14 +1207,6 @@ module Transform = struct
 
   let factory = parameters_factory build
 
-  let create ?label:node_label ?(translate = Vec3.zero) ?(rotate = Vec3.zero)
-      ?(scale = Vec3.create 1. 1. 1.) ?(preserve_normal_length = false)
-      ?(recompute_normals = false) input =
-    build ~label:(label "transform" node_label) ~inputs:[input] {
-      translate_x = translate.x; translate_y = translate.y;
-      translate_z = translate.z; rotate_x = rotate.x; rotate_y = rotate.y;
-      rotate_z = rotate.z; scale_x = scale.x; scale_y = scale.y;
-      scale_z = scale.z; preserve_normal_length; recompute_normals }
 end [@@sop.register]
 
 module Match_size = struct
@@ -1755,8 +1747,6 @@ module Triangulate = struct
 
   let factory = parameters_factory build
 
-  let create ?label:node_label ?(group = "") input =
-    build ~label:(label "triangulate" node_label) ~inputs:[input] { group }
 end [@@sop.register]
 
 module Copy_to_points = struct

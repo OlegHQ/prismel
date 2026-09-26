@@ -20,12 +20,6 @@ let count value = Array.length value.transforms
 let transforms value = Array.map matrix_copy value.transforms
 let payload_bytes value = Array.length value.transforms * 16 * 8
 
-let transform matrix value =
-  validate matrix;
-  { value with
-    transforms = Array.map (fun transform -> Mat4.mul matrix transform)
-      value.transforms }
-
 let duplicate ?(copies = 1) ?(cumulative = true) ?(transform = Mat4.identity)
     value =
   if copies < 0 then invalid_arg "Instances.duplicate: negative copy count";

@@ -43,7 +43,6 @@ val poll : 'a t -> 'a completion option
 (** Remove and return the newest completed result, if any. *)
 
 val status : 'a t -> status
-val cancel : 'a t -> unit
 val close : 'a t -> unit
 val is_closed : 'a t -> bool
 val error_to_string : error -> string

@@ -2,7 +2,6 @@ open Prismel_math
 
 let finite value = Float.is_finite value
 let float_key value = Int64.to_string (Int64.bits_of_float value)
-exception Native_cancelled
 
 type element_group =
   | Point_group of string
@@ -59,17 +58,6 @@ let matrix_key matrix =
     String.concat "," [float_key x; float_key y; float_key z; float_key w]
   in
   String.concat ";" [row a; row b; row c; row d]
-
-let matrices_fingerprint matrices =
-  let hash = ref 0xcbf29ce484222325L in
-  let mix bits =
-    hash := Int64.mul (Int64.logxor !hash bits) 0x100000001b3L in
-  mix (Int64.of_int (Array.length matrices));
-  Array.iter (fun matrix ->
-    for row = 0 to 3 do for column = 0 to 3 do
-      mix (Int64.bits_of_float (Mat4.get matrix ~row ~column))
-    done done) matrices;
-  Printf.sprintf "%Lx" !hash
 
 let color_key color =
   let r, g, b, a = Color.to_tuple color in
@@ -1117,17 +1105,6 @@ let clip ?label ?(keep = Pdk.Plane_clip.Above) ?(snapping_tolerance = 1e-9)
           inputs.(0) with
       | Ok geometry -> cooked geometry
       | Error error -> structured_pdk_error error)
-
-let clip_transform ?label ?keep ?snapping_tolerance ?fill ?split_connectivity
-    ?clip_attribute ?distance ?selection ?replace_existing_groups
-    ?clipped_edge_group ?cap_group ?clipped_group ?above_group ?below_group
-    ?(local_normal = Vec3.unit_y) ~transform input =
-  let origin = Mat4.transform_point transform Vec3.zero
-  and normal = Mat4.transform_direction transform local_normal in
-  clip ?label ?keep ?snapping_tolerance ?fill ?split_connectivity
-    ?clip_attribute ?distance ?selection ?replace_existing_groups
-    ?clipped_edge_group ?cap_group ?clipped_group ?above_group ?below_group
-    ~origin ~normal input
 
 let crease_operation_key = function
   | Pdk.Mesh_edit_ops.Crease_add -> "add"
@@ -2575,26 +2552,6 @@ let duplicate ?label ?(copies = 1) ?(cumulative = true)
           | Ok geometry -> cooked geometry
           | Error error -> structured_pdk_error error)
 
-let pack ?transforms input = Instances.create ?transforms input
-let duplicate_packed ?copies ?cumulative ?transform instances =
-  Instances.duplicate ?copies ?cumulative ?transform instances
-
-let unpack ?label ?(apply_transform = true) instances =
-  let transforms = Instances.transforms instances in
-  let input = Instances.source instances in
-  Node.Private.make ?label ~operation:"unpack" ~version:1
-    ~parameters:(Printf.sprintf "instances=%d;apply_transform=%b;fingerprint=%s"
-      (Array.length transforms) apply_transform
-      (matrices_fingerprint transforms))
-    ~cook_mode:(Node.Duplicate_input 0)
-    ~dependencies:Context.Dependencies.static ~inputs:[|input|]
-    (fun ~node_id:_ context inputs ->
-      match Pdk.Instance_copy.materialize_instances
-          ~cancel:(Context.cancel_token context) ~grain:(Context.grain context)
-          ~apply_transform ~transforms inputs.(0) with
-      | Ok geometry -> cooked geometry
-      | Error error -> structured_pdk_error error)
-
 let switch ?label ~index inputs =
   let inputs = Array.of_list inputs in
   if index < 0 || index >= Array.length inputs then
@@ -3904,37 +3861,6 @@ let carve ?label ?group ?(relative_arc_length = true) ?(first = 0.) ?(last = 1.)
           | Ok geometry -> cooked geometry
           | Error error -> structured_pdk_error error)
 
-let curve_end_mode_key = function
-  | Pdk.Curve_topology.Open_curve -> "open"
-  | Pdk.Curve_topology.Close_curve -> "close"
-  | Pdk.Curve_topology.Unroll_curve -> "unroll"
-
-let curve_ends ?label ?group mode input =
-  Option.iter (fun name -> if String.trim name = "" then
-    invalid_arg "Sop.curve_ends: empty primitive group name") group;
-  Node.Private.make ?label ~operation:"curve_ends" ~version:1
-    ~parameters:(Printf.sprintf "group=%S;mode=%s"
-      (Option.value ~default:"" group) (curve_end_mode_key mode))
-    ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
-    ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      let primitives = match group with
-        | None -> Ok None
-        | Some name ->
-            (match Pdk.Geometry.find_group ~owner:Pdk.Group.Primitive
-                name inputs.(0) with
-             | Some group -> Ok (Some group)
-             | None -> Error (Diagnostic.error ~code:"missing_group"
-                 ~hints:["Create the primitive group before Curve Ends"]
-                 (Printf.sprintf "curve_ends could not find primitive group %S"
-                   name))) in
-      match primitives with
-      | Error _ as error -> error
-      | Ok primitives ->
-          match Pdk.Curve_topology.curve_ends ~cancel:(Context.cancel_token context)
-              ~grain:(Context.grain context) ?primitives mode inputs.(0) with
-          | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
-
 let ends_mode_key = function
   | Pdk.Curve_topology.Ends_open -> "open"
   | Pdk.Curve_topology.Ends_close_straight -> "close_straight"
@@ -4319,9 +4245,6 @@ let measure ?label ?group ?(accumulation = Pdk.Analysis.Per_element)
               ?total_name kind geometry with
            | Ok geometry -> cooked geometry
            | Error error -> structured_pdk_error error))
-
-let measure_area ?label ?name input =
-  measure ?label ?name Pdk.Analysis.Area input
 
 let connectivity_owner_key = function
   | Pdk.Analysis.Connectivity_points -> "points"
@@ -5083,91 +5006,6 @@ let attribute_copy ?label ?(match_ = Pdk.Attribute_ops.Cyclic)
                    ~source:inputs.(0) ~target:inputs.(1) () with
                | Ok geometry -> cooked geometry
                | Error error -> structured_pdk_error error))
-
-let attribute_combine ?label ?group ?group_pattern ?match_attribute
-    ?(create_missing = true) ?(create_missing_as_scalar = false)
-    ?(delete_sources = false) ?(error_on_missing = true)
-    ?(overall_scale = 1.) ?threshold ?minimum ?maximum ~owner ~destination
-    ~layers ?(sources = []) ~target () =
-  if group <> None && group_pattern <> None then invalid_arg
-      "Sop.attribute_combine: group and group_pattern are mutually exclusive";
-  if owner = Pdk.Attribute.Detail
-      && (group <> None || group_pattern <> None) then invalid_arg
-      "Sop.attribute_combine: detail attributes do not accept a group";
-  let input_count = 1 + List.length sources in
-  List.iter (fun (layer : Pdk.Attribute_ops.combine_layer) ->
-    if layer.source_input < 0 || layer.source_input >= input_count then
-      invalid_arg "Sop.attribute_combine: source input index is out of range";
-    if layer.blend_input < 0 || layer.blend_input >= input_count then
-      invalid_arg "Sop.attribute_combine: blend input index is out of range") layers;
-  let group_owner, group_owner_name = match owner with
-    | Pdk.Attribute.Point -> Pdk.Group.Point, "point"
-    | Pdk.Attribute.Vertex -> Pdk.Group.Vertex, "vertex"
-    | Pdk.Attribute.Primitive -> Pdk.Group.Primitive, "primitive"
-    | Pdk.Attribute.Detail -> Pdk.Group.Point, "detail" in
-  let group_pattern_compiled = compile_transfer_group_pattern
-      "attribute_combine" "target" group_pattern in
-  let operation_key = function
-    | Pdk.Attribute_ops.Combine_copy -> "copy"
-    | Pdk.Attribute_ops.Combine_add -> "add"
-    | Pdk.Attribute_ops.Combine_subtract -> "subtract"
-    | Pdk.Attribute_ops.Combine_multiply -> "multiply"
-    | Pdk.Attribute_ops.Combine_divide -> "divide"
-    | Pdk.Attribute_ops.Combine_maximum -> "maximum"
-    | Pdk.Attribute_ops.Combine_minimum -> "minimum" in
-  let process_key = function
-    | Pdk.Attribute_ops.Combine_process_none -> "none"
-    | Pdk.Attribute_ops.Combine_reciprocal -> "reciprocal"
-    | Pdk.Attribute_ops.Combine_clamp_01 -> "clamp01"
-    | Pdk.Attribute_ops.Combine_complement_clamp_01 -> "complement_clamp01"
-    | Pdk.Attribute_ops.Combine_threshold_half -> "threshold_half" in
-  let layer_key (layer : Pdk.Attribute_ops.combine_layer) = String.concat ":" [
-    option_string_key layer.source;
-    string_of_int layer.source_input;
-    operation_key layer.operation;
-    Printf.sprintf "%.17g" layer.scale;
-    Printf.sprintf "%.17g" layer.add;
-    process_key layer.process;
-    Printf.sprintf "%.17g" layer.blend;
-    option_string_key layer.blend_attribute;
-    string_of_int layer.blend_input] in
-  let option_float_key = function
-    | None -> "none"
-    | Some value -> Printf.sprintf "%.17g" value in
-  let inputs = Array.of_list (target :: sources) in
-  Node.Private.make ?label ~operation:"attribute_combine" ~version:1
-    ~parameters:(String.concat ";" [
-      "owner=" ^ attribute_owner_key owner;
-      "destination=" ^ String.escaped destination;
-      "layers=" ^ String.concat "," (List.map layer_key layers);
-      "group=" ^ option_string_key group;
-      "group_pattern=" ^ option_string_key group_pattern;
-      "match=" ^ option_string_key match_attribute;
-      "create_missing=" ^ string_of_bool create_missing;
-      "create_scalar=" ^ string_of_bool create_missing_as_scalar;
-      "delete_sources=" ^ string_of_bool delete_sources;
-      "error_missing=" ^ string_of_bool error_on_missing;
-      "overall_scale=" ^ Printf.sprintf "%.17g" overall_scale;
-      "threshold=" ^ option_float_key threshold;
-      "minimum=" ^ option_float_key minimum;
-      "maximum=" ^ option_float_key maximum])
-    ~cook_mode:Node.Generic ~dependencies:Context.Dependencies.static ~inputs
-    (fun ~node_id:_ context inputs ->
-      let cancel = Context.cancel_token context and grain = Context.grain context in
-      let selection = if owner = Pdk.Attribute.Detail then Ok None
-        else resolve_transfer_group ~operation:"attribute_combine"
-          ~owner:group_owner ~owner_name:group_owner_name ~exact:group
-          ~pattern:group_pattern_compiled ~cancel ~grain inputs.(0) in
-      match selection with
-      | Error error -> Error error
-      | Ok selection ->
-          match Pdk.Attribute_ops.combine ~cancel ~grain ?selection
-              ?match_attribute ~create_missing ~create_missing_as_scalar
-              ~delete_sources ~error_on_missing ~overall_scale ?threshold
-              ?minimum ?maximum ~owner ~destination ~layers
-              ~geometries:inputs () with
-          | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
 
 let attribute_interpolate ?label ?group ?group_pattern ?driver ?compute_weights
     ?point_pattern ?vertex_pattern ?primitive_pattern ?detail_pattern
@@ -6444,24 +6282,6 @@ let blast_by_attribute ?label ?group ?(invert = false)
         | Ok geometry -> cooked geometry
         | Error error -> structured_pdk_error error))
 
-let delete ?label ?(selected = true) ?(compact_points = false)
-    ?(policy = Pdk.Deletion.Destroy_touched_primitives) selection input =
-  Node.Private.make ?label ~operation:"delete" ~version:1
-    ~parameters:(Printf.sprintf
-      "selected=%b;compact_points=%b;policy=%s;selection=%s"
-      selected compact_points (delete_policy_key policy)
-      (Select.fingerprint selection))
-    ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
-    ~inputs:[|input|] (fun ~node_id:_ _context inputs ->
-      match Select.evaluate ~name:"__delete" selection inputs.(0) with
-      | Error message -> pdk_error "delete" message
-      | Ok selection ->
-          match Pdk.Deletion.delete_checked ~cancel:(Context.cancel_token _context)
-              ~grain:(Context.grain _context) ~selected ~compact_points ~policy
-              selection inputs.(0) with
-          | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
-
 let group_owner_key = function
   | Pdk.Group.Point -> "point"
   | Pdk.Group.Vertex -> "vertex"
@@ -6488,13 +6308,6 @@ let blast ?label ?(selected = true) ?(compact_points = false)
               selection inputs.(0) with
           | Ok geometry -> cooked geometry
           | Error error -> structured_pdk_error error)
-
-let split ?label ?(compact_points = false)
-    ?(policy = Pdk.Deletion.Destroy_touched_primitives) selection input =
-  let selected_label = Option.map (fun value -> value ^ " selected") label
-  and remainder_label = Option.map (fun value -> value ^ " remainder") label in
-  delete ?label:selected_label ~selected:false ~compact_points ~policy selection input,
-  delete ?label:remainder_label ~selected:true ~compact_points ~policy selection input
 
 let compact_points ?label input =
   unary_result ?label ~operation:"compact_points"
@@ -6655,31 +6468,6 @@ let custom ?label ?(version = 1) ?(parameters = "")
       else match cook ~context (Array.copy geometries) with
         | Ok geometry -> cooked geometry
         | Error message -> pdk_error operation message)
-
-type point_range_kernel =
-  context:Context.t -> first:int -> last:int -> x:float array -> y:float array ->
-  z:float array -> unit
-
-let native_point_ranges ?label ?grain ~key ~version ~dependencies kernel input =
-  if String.trim key = "" then invalid_arg "Sop.native_point_ranges: empty key";
-  (match grain with Some value when value <= 0 ->
-     invalid_arg "Sop.native_point_ranges: grain must be positive"
-   | _ -> ());
-  let parameters = Printf.sprintf "key=%S;version=%d;grain=%s" key version
-      (match grain with None -> "context" | Some grain -> string_of_int grain) in
-  Node.Private.make ?label ~operation:"native_point_ranges" ~version ~parameters
-    ~cook_mode:(Node.Duplicate_input 0) ~dependencies ~inputs:[|input|]
-    (fun ~node_id:_ context inputs ->
-      let grain = Option.value ~default:(Context.grain context) grain in
-      try
-        let geometry = Pdk.Kernel.edit_point_ranges ~grain
-            (fun ~first ~last ~x ~y ~z ->
-              if Context.cancelled context then raise Native_cancelled;
-              kernel ~context ~first ~last ~x ~y ~z) inputs.(0) in
-        cooked geometry
-      with Native_cancelled ->
-        Error (Diagnostic.error ~code:"cancelled"
-          "native point-range kernel was cancelled"))
 
 let stable_string_hash value =
   let hash = ref 0xcbf29ce484222325L in

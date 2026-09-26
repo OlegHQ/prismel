@@ -1,15 +1,6 @@
 (** Human-first SOP graph constructors. One-input modifiers take their input
     last so they compose with [(|>)]. *)
 
-type point_range_kernel =
-  context:Context.t ->
-  first:int ->
-  last:int ->
-  x:float array ->
-  y:float array ->
-  z:float array ->
-  unit
-
 type element_group =
   | Point_group of string
   | Vertex_group of string
@@ -401,27 +392,6 @@ val clip :
 (* Plane clipping/creasing with a canonical or numeric point clip attribute,
     distance offset, typed interpolation, native clipped-edge output, and
     optional manifold caps. *)
-val clip_transform :
-  ?label:string ->
-  ?keep:Pdk.Plane_clip.keep ->
-  ?snapping_tolerance:float ->
-  ?fill:bool ->
-  ?split_connectivity:bool ->
-  ?clip_attribute:string ->
-  ?distance:float ->
-  ?selection:element_group ->
-  ?replace_existing_groups:bool ->
-  ?clipped_edge_group:string ->
-  ?cap_group:string ->
-  ?clipped_group:string ->
-  ?above_group:string ->
-  ?below_group:string ->
-  ?local_normal:Prismel_math.Vec3.t ->
-  transform:Prismel_math.Mat4.t ->
-  Node.t -> Node.t
-(* Matrix-oriented convenience for [clip], with +Y as the default local
-    plane normal. The effective origin and direction participate in the same
-    immutable Clip cache identity. *)
 val crease :
   ?label:string ->
   ?group:string ->
@@ -973,16 +943,6 @@ val duplicate :
 (* Append transformed materialized copies. [group] restricts the copied
     primitives while preserving the full input prefix. A copy-group prefix
     emits one one-based primitive group per appended copy. *)
-val pack : ?transforms:Prismel_math.Mat4.t array -> Node.t -> Instances.t
-val duplicate_packed :
-  ?copies:int -> ?cumulative:bool -> ?transform:Prismel_math.Mat4.t ->
-  Instances.t -> Instances.t
-(* Materialize editable copy-major topology from terminal packed instances.
-    Instance transforms are applied by default; disabling transform application
-    emits overlapping prototype-space copies. This is the explicit boundary
-    required before feeding per-copy topology into later SOPs or an iterative
-    sketch step. *)
-val unpack : ?label:string -> ?apply_transform:bool -> Instances.t -> Node.t
 val switch : ?label:string -> index:int -> Node.t list -> Node.t
 val null : ?label:string -> Node.t -> Node.t
 (* Standard terminal Exploded View SOP marker. Its inspectable display
@@ -1488,14 +1448,11 @@ val carve :
   ?only_at_breakpoints:bool -> ?cut_at_all_internal_breakpoints:bool ->
   ?keep:Pdk.Curve_modeling.carve_keep -> ?extract_points:bool -> ?divisions:int ->
   ?keep_original:bool -> Node.t -> Node.t
-val curve_ends :
-  ?label:string -> ?group:string -> Pdk.Curve_topology.curve_end_mode -> Node.t -> Node.t
 val ends :
   ?label:string -> ?group:string -> Pdk.Curve_topology.ends_mode -> Node.t -> Node.t
 (* Open, close straight, or unroll selected polygon faces and polygon curves.
     Shared unroll repeats the first point reference; new-point unroll duplicates
-    the complete seam point payload. [curve_ends] remains the curve-only
-    compatibility API. *)
+    the complete seam point payload. *)
 (* Join selected open polygon curves. An ordered primitive [group] controls
     authored traversal order. [picked_ends] is an alternative selection whose
     first pick in every fixed-size subgroup marks the outgoing endpoint and
@@ -1718,8 +1675,6 @@ val measure :
 (* Measure polygon area, polygon/curve perimeter, or oriented polygon volume
    contribution into primitive attributes, optionally restricted, accumulated
    throughout, and/or accompanied by one detail total. *)
-val measure_area : ?label:string -> ?name:string -> Node.t -> Node.t
-(* Compatibility shorthand for [measure Pdk.Analysis.Area]. *)
 val connectivity :
   ?label:string ->
   ?primitive_group:string ->
@@ -1939,32 +1894,6 @@ val attribute_copy :
    owner independently of the group owner; topology projections are shared by
    all fields of an owner. Exact group names and compiled group-pattern unions
    are mutually exclusive per input. *)
-
-val attribute_combine :
-  ?label:string ->
-  ?group:string ->
-  ?group_pattern:string ->
-  ?match_attribute:string ->
-  ?create_missing:bool ->
-  ?create_missing_as_scalar:bool ->
-  ?delete_sources:bool ->
-  ?error_on_missing:bool ->
-  ?overall_scale:float ->
-  ?threshold:float ->
-  ?minimum:float ->
-  ?maximum:float ->
-  owner:Pdk.Attribute.owner ->
-  destination:string ->
-  layers:Pdk.Attribute_ops.combine_layer list ->
-  ?sources:Node.t list ->
-  target:Node.t ->
-  unit -> Node.t
-(** Fuse ordered numeric attribute layers into one destination. Input zero is
-    [target]; entries in [sources] are numbered from one by each layer's source
-    and blend input fields. Exact groups and compiled group-pattern unions are
-    mutually exclusive. Cross-input matching, tuple conversion, preprocessing,
-    blending, postprocessing, destination creation, cleanup, and deterministic
-    parallel semantics follow {!Pdk.Attribute_ops.combine}. *)
 
 val attribute_interpolate :
   ?label:string ->
@@ -2334,10 +2263,6 @@ val group_find_path :
     parallel; paths with intersection avoidance retain deterministic
     base-order priority. Vertex paths are not supported. *)
 
-val delete :
-  ?label:string -> ?selected:bool -> ?compact_points:bool ->
-  ?policy:Pdk.Deletion.topology_policy ->
-  'owner Select.t -> Node.t -> Node.t
 (* Select points or primitives from a same-owner scalar numeric attribute.
     The optional named base group restricts both normal and inverted
     classification. Output either deletes through PDK's stable topology
@@ -2358,12 +2283,6 @@ val blast :
   ?label:string -> ?selected:bool -> ?compact_points:bool ->
   ?policy:Pdk.Deletion.topology_policy ->
   owner:Pdk.Group.owner -> group:string -> Node.t -> Node.t
-val split :
-  ?label:string -> ?compact_points:bool ->
-  ?policy:Pdk.Deletion.topology_policy ->
-  'owner Select.t -> Node.t -> Node.t * Node.t
-(* Return selected geometry and its remainder as two cache-sharing graph
-   branches in that order. *)
 val compact_points : ?label:string -> Node.t -> Node.t
 (* Construct a deterministic lower-dimensional or closed 3D convex hull from
     an optional typed component selection. Point/detail ancestry preservation,
@@ -2448,20 +2367,6 @@ val custom :
     part of its cache key. The callback may retain immutable geometry values,
     but must not mutate or retain the supplied array. Long work must poll
     [Context.cancel_token]. *)
-
-val native_point_ranges :
-  ?label:string ->
-  ?grain:int ->
-  key:string ->
-  version:int ->
-  dependencies:Context.Dependencies.t ->
-  point_range_kernel ->
-  Node.t ->
-  Node.t
-(** The callback must be deterministic, may mutate only indices greater than
-    or equal to [first] and strictly less than [last] in the supplied position
-    planes, and must not retain those arrays. [key] and
-    [version] identify captured immutable parameters for inspection. *)
 
 val noise_displace :
   ?label:string ->

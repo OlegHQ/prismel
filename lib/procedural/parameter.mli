@@ -129,7 +129,6 @@ val schema :
 val name : 'record schema -> string
 val default : 'record schema -> 'record
 val fields : 'record schema -> 'record field list
-val mem : 'record schema -> string -> bool
 
 (** Materialize type-erased inspector metadata for the supplied immutable
     record. This is the narrow boundary consumed by UI adapters. *)

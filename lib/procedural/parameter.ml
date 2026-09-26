@@ -235,7 +235,6 @@ let schema ~name ~default fields =
 let name (value : 'record schema) = value.name
 let default (value : 'record schema) = value.default
 let fields (value : 'record schema) = value.fields
-let mem (value : 'record schema) name = Hashtbl.mem value.by_name name
 
 let choice_label (choice : 'a choice) value =
   match Array.find_opt (fun (_, candidate) -> choice.equal candidate value)

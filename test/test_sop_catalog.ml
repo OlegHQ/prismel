@@ -18,9 +18,7 @@ let run () =
       ~size:(Vec3.create 2. 2. 2.) ~connectivity:Pdk.Box_generator.Box_quads
       ~consolidate_points:true () in
   let ordinary_chain = source
-    |> Sop_catalog.Transform.create ~label:"transform"
-         ~translate:(Vec3.create 1. 0. 0.)
-    |> Sop_catalog.Triangulate.create ~label:"triangulate" in
+    |> Sop_catalog.Normal.create ~label:"normal" in
   List.iter (fun node -> check (Node.has_parameters node)
       ("catalog node has no parameters: " ^ Node.label node))
     [ordinary_chain; List.hd (Node.inputs ordinary_chain)];

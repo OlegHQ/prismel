@@ -46,23 +46,6 @@ module Grid : sig
     columns:int -> rows:int -> size:float -> unit -> Procedural.Node.t
 end
 
-module Transform : sig
-  val create :
-    ?label:string ->
-    ?translate:Prismel.Vec3.t ->
-    ?rotate:Prismel.Vec3.t ->
-    ?scale:Prismel.Vec3.t ->
-    ?preserve_normal_length:bool ->
-    ?recompute_normals:bool ->
-    Procedural.Node.t -> Procedural.Node.t
-end
-
-module Triangulate : sig
-  val create :
-    ?label:string -> ?group:string ->
-    Procedural.Node.t -> Procedural.Node.t
-end
-
 module Copy_to_points : sig
   val create :
     ?label:string ->

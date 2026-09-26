@@ -85,15 +85,6 @@ let inputs value ~node_id = Option.map (fun (entry : entry) ->
     Array.copy entry.inputs)
     (Id_map.find_opt node_id value.entries)
 
-let connections value =
-  inspect value |> List.fold_left (fun result node ->
-    let result = ref result in
-    Array.iteri (fun input_index -> function
-      | None -> ()
-      | Some source -> result :=
-          { source; consumer = node.id; input_index } :: !result) node.inputs;
-    !result) [] |> List.rev
-
 (* One compiled node per document entry. [inputs] are the compiled input
    nodes it was built from, so a later compile can reuse [built] when both the
    entry and every input are physically unchanged. *)

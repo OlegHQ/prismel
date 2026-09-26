@@ -21,5 +21,3 @@ val find : t -> node_id:int -> Node.t option
     runtimes use this to schedule external-effect recooks. *)
 val dependencies : t -> Context.Dependencies.t
 
-val format : t -> string
-val to_dot : t -> string

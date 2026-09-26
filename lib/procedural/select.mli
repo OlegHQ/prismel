@@ -14,10 +14,5 @@ val vertex_indices : int array -> vertex t
 val all_primitives : primitive t
 val primitive_indices : int array -> primitive t
 
-val union : 'owner t -> 'owner t -> 'owner t
-val intersection : 'owner t -> 'owner t -> 'owner t
-val difference : 'owner t -> 'owner t -> 'owner t
-val complement : 'owner t -> 'owner t
-
 val fingerprint : 'owner t -> string
 val evaluate : name:string -> 'owner t -> Pdk.Geometry.t -> (Pdk.Group.t, string) result

@@ -972,17 +972,6 @@ let run () =
          <> None
       && Geometry.find_attribute ~owner:Attribute.Detail "revision" one <> None)
     "one-domain and four-domain cross-owner Attribute Copy differ";
-  let combined = Sop.attribute_combine ~owner:Attribute.Point ~destination:"Cd"
-      ~layers:[
-        Attribute_ops.combine_layer ~source:"Cd" ~source_input:1
-          Attribute_ops.Combine_add;
-        Attribute_ops.combine_layer ~add:0.75
-          Attribute_ops.Combine_multiply;
-      ] ~sources:[owner_transfer_source] ~target:owner_transfer_target () in
-  let one = cook 1 combined and many = cook 4 combined in
-  check (equal_geometry one many
-      && Geometry.find_attribute ~owner:Attribute.Point "Cd" one <> None)
-    "one-domain and four-domain Attribute Combine differ";
   let interpolate_source = Sop.grid ~columns:2 ~rows:2 ~size:2. ()
       |> Sop.normals
       |> Sop.color_by_height ~low:Color.blue ~high:Color.red
@@ -1046,7 +1035,7 @@ let run () =
       |> Sop.noise_displace ~seed:29 ~amplitude:0.4 ~frequency:0.5
       |> Sop.normals
       |> Sop.color_by_height ~low:Color.blue ~high:Color.red
-      |> Sop.measure_area
+      |> Sop.measure Pdk.Analysis.Area
       |> Sop.group ~name:"surface_source" Select.all_primitives
       |> Sop.group ~name:"surface_vertex_patch"
            (Select.vertex_indices (Array.init 1_000 Fun.id)) in
@@ -1199,8 +1188,9 @@ let run () =
   let match_target = Sop.box ~size:(Vec3.create 4. 3. 5.) ()
       |> Sop.group ~name:"target_bounds" Select.all_points in
   let utilities = Sop.grid ~columns:120 ~rows:80 ~size:8. ()
-      |> Sop.delete ~compact_points:true
+      |> Sop.group ~name:"doomed"
            (Select.primitive_indices (Array.init 1_000 (fun index -> index * 2)))
+      |> Sop.blast ~compact_points:true ~owner:Group.Primitive ~group:"doomed"
       |> Sop.match_axis ~from:Vec3.unit_z ~into:(Vec3.create 1. 1. 0.)
       |> Sop.group ~name:"move" Select.all_points
       |> Sop.group ~name:"source_bounds" Select.all_points
@@ -1229,9 +1219,11 @@ let run () =
       let x = float_of_int index *. 0.01 in
       x, sin x, 0.) in
   let healed_curve = Sop.polyline curve_points
-      |> Sop.delete ~policy:Deletion.Heal_primitives
+      |> Sop.group ~name:"doomed"
            (Select.vertex_indices
-             (Array.init 400 (fun index -> 1 + (index * 5)))) in
+             (Array.init 400 (fun index -> 1 + (index * 5))))
+      |> Sop.blast ~policy:Deletion.Heal_primitives ~owner:Group.Vertex
+           ~group:"doomed" in
   let one = cook 1 healed_curve and many = cook 4 healed_curve in
   check (equal_geometry one many)
     "one-domain and four-domain vertex-healed curve differ";
@@ -1243,7 +1235,7 @@ let run () =
   let carved_curve = Sop.polyline curve_samples
       |> Sop.group_edges ~name:"curve_edges"
       |> Sop.carve ~first:0.137 ~last:0.863
-      |> Sop.curve_ends Curve_topology.Close_curve in
+      |> Sop.ends Curve_topology.Ends_close_straight in
   let one = cook 1 carved_curve and many = cook 4 carved_curve in
   check (equal_geometry one many)
     "one-domain and four-domain carve/curve-ends geometry differ";
@@ -1382,8 +1374,11 @@ let run () =
     "general-profile Sweep exactness fixture cardinality/payload";
   let split_source = Sop.grid ~columns:20 ~rows:10 ~size:4. ()
       |> Sop.group_edges ~name:"split_edges" in
-  let selected_branch, remainder_branch = Sop.split ~compact_points:true
-      (Select.primitive_indices (Array.init 100 Fun.id)) split_source in
+  let split_source = split_source
+      |> Sop.group ~name:"split" (Select.primitive_indices (Array.init 100 Fun.id)) in
+  let branch selected = Sop.blast ~selected ~compact_points:true
+      ~owner:Group.Primitive ~group:"split" split_source in
+  let selected_branch = branch false and remainder_branch = branch true in
   let selected_one = cook 1 selected_branch and selected_many = cook 4 selected_branch
   and remainder_one = cook 1 remainder_branch
   and remainder_many = cook 4 remainder_branch in

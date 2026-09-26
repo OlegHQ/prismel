@@ -8,10 +8,6 @@ type expression =
   | All
   | Point_bounds of Vec3.t * Vec3.t
   | Indices of int array
-  | Union of expression * expression
-  | Intersection of expression * expression
-  | Difference of expression * expression
-  | Complement of expression
 
 type 'owner t = { owner : owner; expression : expression; key : string }
 
@@ -59,17 +55,6 @@ let point_indices indices = make_indices Point "point" indices
 let vertex_indices indices = make_indices Vertex "vertex" indices
 let primitive_indices indices = make_indices Primitive "primitive" indices
 
-let combine constructor symbol left right =
-  { owner = left.owner; expression = constructor (left.expression, right.expression);
-    key = "(" ^ left.key ^ symbol ^ right.key ^ ")" }
-let union (left : 'owner t) (right : 'owner t) : 'owner t =
-  combine (fun (left, right) -> Union (left, right)) "|" left right
-let intersection (left : 'owner t) (right : 'owner t) : 'owner t =
-  combine (fun (left, right) -> Intersection (left, right)) "&" left right
-let difference (left : 'owner t) (right : 'owner t) : 'owner t =
-  combine (fun (left, right) -> Difference (left, right)) "-" left right
-let complement value =
-  { value with expression = Complement value.expression; key = "!(" ^ value.key ^ ")" }
 let fingerprint value = value.key
 
 let owner_length owner geometry = match owner with
@@ -81,7 +66,7 @@ let pdk_owner = function Point -> Pdk.Group.Point | Vertex -> Pdk.Group.Vertex
 
 let evaluate ~name selection geometry =
   let owner = pdk_owner selection.owner and length = owner_length selection.owner geometry in
-  let rec run = function
+  let run = function
     | All -> Ok (Pdk.Group.init ~owner ~name:"__all" length (fun _ -> true))
     | Point_bounds (minimum, maximum) ->
         let positions = Pdk.Packed.Float3.Private.view (Pdk.Geometry.positions geometry) in
@@ -98,17 +83,5 @@ let evaluate ~name selection geometry =
              let builder = Pdk.Group.Builder.create ~owner
                  ~name:"__indices" length in
              Array.iter (fun index -> Pdk.Group.Builder.set builder index true) indices;
-             Ok (Pdk.Group.Builder.freeze builder))
-    | Union (left, right) ->
-        Result.bind (run left) (fun left ->
-          Result.bind (run right) (Pdk.Group.union left))
-    | Intersection (left, right) ->
-        Result.bind (run left) (fun left ->
-          Result.bind (run right) (Pdk.Group.intersection left))
-    | Difference (left, right) ->
-        Result.bind (run left) (fun left ->
-          Result.bind (run right) (Pdk.Group.difference left))
-    | Complement value ->
-        Result.bind (run All) (fun all ->
-          Result.bind (run value) (Pdk.Group.difference all)) in
+             Ok (Pdk.Group.Builder.freeze builder)) in
   Result.map (Pdk.Group.with_name name) (run selection.expression)

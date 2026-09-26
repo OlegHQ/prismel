@@ -151,13 +151,6 @@ let status value = with_lock value (fun () ->
       queued = true;
     })
 
-let cancel value = with_lock value (fun () ->
-  Option.iter cancel_request value.pending;
-  Option.iter (fun active -> Pdk.Cancel.cancel active.cancel) value.active;
-  value.latest_id <- value.latest_id + 1;
-  value.pending <- None;
-  value.completion <- None)
-
 let close value =
   let worker = with_lock value (fun () ->
     if value.closed then None

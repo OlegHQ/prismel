@@ -615,24 +615,6 @@ let test_labeled_random_identity () =
   check (equal_positions (cook first_graph) (cook second_graph))
     "explicit noise label did not stabilize random identity"
 
-let test_native_time_dependency () =
-  let source = Sop.points [| (0., 1., 0.); (1., 2., 0.); (2., 3., 0.) |] in
-  let graph = Sop.native_point_ranges ~key:"raise-y" ~version:1
-      ~dependencies:(Context.Dependencies.one Context.Dependencies.Time)
-      (fun ~context ~first ~last ~x:_ ~y ~z:_ ->
-        for index = first to last - 1 do
-          y.(index) <- y.(index) +. Context.time context
-        done) source in
-  let evaluator = session () in
-  let first = cook_ok evaluator (context ~time:1. ~domains:1 ~grain:1 ()) graph in
-  let second = cook_ok evaluator (context ~time:3. ~domains:4 ~grain:1 ()) graph in
-  let _, first_y, _ = Pdk.Packed.Float3.get (Pdk.Geometry.positions first.geometry) 0
-  and _, second_y, _ = Pdk.Packed.Float3.get (Pdk.Geometry.positions second.geometry) 0 in
-  check (first_y = 2. && second_y = 4.) "native time-dependent range kernel";
-  let stats = Session.stats evaluator in
-  check (stats.cooks = 3 && stats.hits = 1) "native dependency cache accounting";
-  Session.close evaluator
-
 let test_switch_is_lazy () =
   let bad = Sop.grid ~label:"must-not-cook" ~columns:0 ~rows:1 ~size:1. () in
   let good = Sop.points ~label:"chosen" [| (0., 0., 0.) |] in
@@ -708,22 +690,11 @@ let test_inspection_sharing_and_bridge () =
   let infos = Graph.inspect graph in
   check (List.length infos = 2) "graph inspection duplicated shared subgraph";
   check (Node.id shared > 0 && Node.label shared = "prototype") "node identity/label";
-  let formatted = Graph.format graph and dot = Graph.to_dot graph in
-  check (contains formatted "deps=static") "formatted inspection dependencies";
-  check (contains dot "digraph procedural") "DOT header";
-  check (contains dot "prototype") "DOT node label";
   let evaluator = session () in
   let output = cook_ok evaluator (context ()) graph in
   check (Pdk.Geometry.point_count output.geometry = 48
       && Pdk.Geometry.primitive_count output.geometry = 24)
     "real merge cardinality";
-  let inspected = Inspect.output output in
-  check (inspected.points = 48 && inspected.primitives = 24
-      && contains (Inspect.format_geometry inspected) "48 points")
-    "cooked geometry inspection";
-  let report = Inspect.cook ~context:(context ()) ~session:evaluator output in
-  check (contains (Inspect.format_cook report) "domains=")
-    "cook/session inspection";
   let colored = Sop.box ()
       |> Sop.color_by_height ~low:Color.blue ~high:Color.red in
   let colored = cook_ok evaluator (context ()) colored in
@@ -739,7 +710,7 @@ let test_packed_instances () =
   let source_transforms =
     [|Mat4.scaling (Vec3.create 2. 1. 1.)|]
   in
-  let packed = Sop.pack ~transforms:source_transforms prototype in
+  let packed = Instances.create ~transforms:source_transforms prototype in
   source_transforms.(0) <- Mat4.translation (Vec3.create 99. 0. 0.);
   let stored = Instances.transforms packed in
   check (Mat4.nearly_equal stored.(0)
@@ -749,7 +720,7 @@ let test_packed_instances () =
   check (Mat4.nearly_equal (Instances.transforms packed).(0)
       (Mat4.scaling (Vec3.create 2. 1. 1.)) ~eps:0.)
     "packed instances exposed a mutable transform alias";
-  let duplicated = Sop.duplicate_packed ~copies:2
+  let duplicated = Instances.duplicate ~copies:2
       ~transform:(Mat4.translation (Vec3.create 1. 0. 0.)) packed in
   check (Instances.source duplicated == prototype)
     "packed duplication replaced its prototype node";
@@ -761,26 +732,7 @@ let test_packed_instances () =
   and copy_two_origin = Mat4.transform_point transforms.(2) Vec3.zero in
   check (Vec3.nearly_equal copy_one_origin (Vec3.create 1. 0. 0.) ~eps:1e-12
       && Vec3.nearly_equal copy_two_origin (Vec3.create 2. 0. 0.) ~eps:1e-12)
-    "packed duplication transform composition/order";
-  let evaluator = session () and current = context () in
-  let unpacked_node = Sop.unpack ~label:"editable-instances" duplicated
-      |> Sop.set_int ~owner:Pdk.Attribute.Primitive ~name:"materialized" 1 in
-  let unpacked = cook_ok evaluator current unpacked_node in
-  check (Pdk.Geometry.point_count unpacked.geometry = 3 * 24
-      && Pdk.Geometry.primitive_count unpacked.geometry = 3 * 12)
-    "Unpack SOP materialization cardinality";
-  check (Pdk.Geometry.find_attribute ~owner:Pdk.Attribute.Primitive
-      "materialized" unpacked.geometry <> None)
-    "Unpack SOP output was not editable by a downstream node";
-  let raw = Sop.unpack ~apply_transform:false duplicated
-      |> cook_ok evaluator current in
-  let raw_positions = Pdk.Packed.Float3.Private.view
-      (Pdk.Geometry.positions raw.geometry) in
-  check (raw_positions.x.(0) = raw_positions.x.(24)
-      && raw_positions.y.(0) = raw_positions.y.(24)
-      && raw_positions.z.(0) = raw_positions.z.(24))
-    "Unpack SOP ignored apply_transform=false";
-  Session.close evaluator
+    "packed duplication transform composition/order"
 
 let test_snapshot_feedback_boundary () =
   let evaluator = session ~entries:4 () and current = context () in
@@ -834,7 +786,7 @@ let test_generators_selections_and_delete () =
   let selected = Select.primitive_indices [|0; 2|] in
   let kept = Sop.grid ~columns:2 ~rows:1 ~size:2. ()
       |> Sop.group ~name:"alternating" selected
-      |> Sop.delete ~selected:false selected
+      |> Sop.blast ~selected:false ~owner:Pdk.Group.Primitive ~group:"alternating"
       |> cook_ok evaluator current in
   check (Pdk.Geometry.primitive_count kept.geometry = 2)
     "primitive selection/delete cardinality";
@@ -853,7 +805,8 @@ let test_generators_selections_and_delete () =
    | Some group -> check (Pdk.Group.cardinality group = 2) "point bounds selection"
    | None -> fail "point selection group missing");
   let compacted = Sop.grid ~columns:1 ~rows:1 ~size:2. ()
-      |> Sop.delete ~compact_points:true (Select.primitive_indices [|0|])
+      |> Sop.group ~name:"doomed" (Select.primitive_indices [|0|])
+      |> Sop.blast ~compact_points:true ~owner:Pdk.Group.Primitive ~group:"doomed"
       |> cook_ok evaluator current in
   check (Pdk.Geometry.primitive_count compacted.geometry = 1
       && Pdk.Geometry.point_count compacted.geometry = 3)
@@ -1220,7 +1173,7 @@ let test_generators_selections_and_delete () =
        "Carve missing-group diagnostic"
    | Ok _ -> fail "Carve accepted a missing primitive group");
   let unrolled = Sop.circle ~segments:12 ~radius:1. ()
-      |> Sop.curve_ends Pdk.Curve_topology.Unroll_curve |> cook_ok evaluator current in
+      |> Sop.ends Pdk.Curve_topology.Ends_unroll_shared |> cook_ok evaluator current in
   check (Pdk.Geometry.vertex_count unrolled.geometry = 13
       && Pdk.Topology.primitive_kind (Pdk.Geometry.topology unrolled.geometry) 0
          = Pdk.Topology.Open_polyline)
@@ -1315,7 +1268,7 @@ let test_generators_selections_and_delete () =
    | None -> ()
    | Some _ -> fail "procedural Curve Join accepted invalid subgroup size");
   let missing_curve_group = Sop.circle ~segments:12 ~radius:1. ()
-      |> Sop.curve_ends ~group:"missing" Pdk.Curve_topology.Open_curve in
+      |> Sop.ends ~group:"missing" Pdk.Curve_topology.Ends_open in
   (match Session.cook evaluator ~context:current missing_curve_group with
    | Error error -> check (error.code = "missing_group")
        "Curve Ends missing-group diagnostic"
@@ -1429,7 +1382,7 @@ let test_generators_selections_and_delete () =
        "Normals missing-group diagnostic"
    | Ok _ -> fail "Normals accepted a missing point group");
   let sphere = Sop.uv_sphere ~segments:10 ~rings:5 ~radius:1. ()
-      |> Sop.reverse |> Sop.normals |> Sop.measure_area |> Sop.connectivity
+      |> Sop.reverse |> Sop.normals |> Sop.measure Pdk.Analysis.Area |> Sop.connectivity
       |> cook_ok evaluator current in
   check (Pdk.Geometry.primitive_count sphere.geometry = 80)
     "sphere/reverse/normals pipeline";
@@ -2152,15 +2105,6 @@ let test_generators_selections_and_delete () =
   check (abs_float ((Pdk.Analysis.bounds selected_clip.geometry
       |> Option.get).min.y) < 1e-12)
     "procedural selected Clip result";
-  let clip_matrix = Mat4.mul (Mat4.translation (Vec3.create 0. 0.25 0.))
-      (Mat4.rotation_x 0.) in
-  let transformed_clip = Sop.box ~size:(Vec3.create 2. 2. 2.) ()
-      |> Sop.fuse ~tolerance:0. ~attributes:Pdk.Fuse_reduce.Average_numeric
-      |> Sop.clip_transform ~transform:clip_matrix in
-  let transformed_clip = cook_ok evaluator current transformed_clip in
-  check (abs_float ((Pdk.Analysis.bounds transformed_clip.geometry
-      |> Option.get).min.y -. 0.25) < 1e-12)
-    "procedural transform-oriented Clip result";
   let missing_clip = Sop.box ~size:(Vec3.create 1. 1. 1.) ()
       |> Sop.clip ~selection:(Sop.Edge_group "missing")
            ~origin:Vec3.zero ~normal:Vec3.unit_x in
@@ -2342,26 +2286,6 @@ let test_generators_selections_and_delete () =
     with Invalid_argument _ -> None) with
    | None -> ()
    | Some _ -> fail "procedural Attribute Copy accepted no rules");
-  let combined = Sop.attribute_combine ~group_pattern:"target_*"
-      ~owner:Pdk.Attribute.Point ~destination:"weight"
-      ~layers:[Pdk.Attribute_ops.combine_layer ~source:"weight" ~source_input:1
-        Pdk.Attribute_ops.Combine_add]
-      ~sources:[Sop.snapshot grouped_source] ~target:(Sop.snapshot grouped_target) ()
-      |> cook_ok evaluator current in
-  (match Pdk.Geometry.find_attribute ~owner:Pdk.Attribute.Point "weight"
-      combined.geometry with
-   | Some attribute ->
-       (match Pdk.Attribute.Private.storage attribute with
-        | Pdk.Attribute.Float values -> check (values = [|110.;100.;130.|])
-            "procedural Attribute Combine group-pattern/source input"
-        | _ -> fail "procedural Attribute Combine storage")
-   | None -> fail "procedural Attribute Combine missing weight");
-  (match (try Some (Sop.attribute_combine ~group:"target_left"
-      ~group_pattern:"target_*" ~owner:Pdk.Attribute.Point
-      ~destination:"weight" ~layers:[] ~target:(Sop.snapshot grouped_target) ())
-    with Invalid_argument _ -> None) with
-   | None -> ()
-   | Some _ -> fail "procedural Attribute Combine accepted conflicting groups");
   let interpolation_source = Pdk.Plane_generators.grid_checked ~columns:1 ~rows:1 ~size:2. ()
       |> Result.get_ok in
   let source_weight = Pdk.Attribute.create_owned ~owner:Pdk.Attribute.Point
@@ -3374,7 +3298,8 @@ let test_generators_selections_and_delete () =
        "Edge Group missing primitive-group diagnostic"
    | Ok _ -> fail "Edge Group accepted a missing primitive group");
   let filtered_points = Sop.points [|(0.,0.,0.); (1.,0.,0.); (2.,0.,0.)|]
-      |> Sop.delete (Select.point_indices [|1|])
+      |> Sop.group ~name:"doomed" (Select.point_indices [|1|])
+      |> Sop.blast ~owner:Pdk.Group.Point ~group:"doomed"
       |> cook_ok evaluator current in
   check (Pdk.Geometry.point_count filtered_points.geometry = 2)
     "typed point-index Delete";
@@ -4587,7 +4512,6 @@ let run () =
   test_spiral_generator_contract ();
   test_declared_seed_dependency ();
   test_labeled_random_identity ();
-  test_native_time_dependency ();
   test_switch_is_lazy ();
   test_lru_limits_and_lifetime ();
   test_shared_payload_accounting ();

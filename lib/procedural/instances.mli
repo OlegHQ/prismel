@@ -10,9 +10,6 @@ val count : t -> int
 val transforms : t -> Prismel_math.Mat4.t array
 val payload_bytes : t -> int
 
-val transform : Prismel_math.Mat4.t -> t -> t
-(** Left-compose one transform onto every instance. *)
-
 val duplicate :
   ?copies:int -> ?cumulative:bool -> ?transform:Prismel_math.Mat4.t -> t -> t
 (** Append transformed instance copies in source-instance-major order. Copy

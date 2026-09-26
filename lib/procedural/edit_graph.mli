@@ -40,8 +40,6 @@ val node_factory_key : t -> node_id:int -> string option
 (** The catalog factory a node was added from; [None] for nodes that came from
     a code graph ([of_graph]). *)
 
-val connections : t -> connection list
-
 (** Compile the document root, or a specific display node. Disconnected slots,
     missing references, and cycles are reported without changing the document. *)
 val compile : t -> (Graph.t, string) result

@@ -54,10 +54,8 @@ topology.
 `Sketch_support.Bridge.cook_to_scene3` cooks/caches the prototype once and constructs the
 instance node. `Sketch_support.Bridge.cook_to_instances` returns
 an owned transform copy for callers that need custom scene assembly. Use
-`Sop.unpack` is the explicit boundary back to editable topology: it applies
-every instance transform into one copy-major `Pdk.Geometry.t`, or can retain
-prototype-space coordinates while materializing overlapping copies. Use
-materialized `Sop.duplicate` for the simpler regular-transform sequence.
+materialized `Sop.duplicate` or Copy to Points when downstream SOPs need
+per-copy topology.
 
 ## Node-owned parameter templates and inspectors
 
@@ -945,9 +943,8 @@ The first coherent set includes:
   connectivity modes, the five backbone tangent policies, closed-continuous
   roll/twist, standard point transform attributes, caps, UVs, and prefixed
   dual-input attribute/group/native-edge ancestry;
-  terminal `Sop.pack`/`Sop.duplicate_packed` transform instancing without
-  topology multiplication, plus explicit `Sop.unpack` materialization before
-  downstream per-copy topology edits;
+  terminal `Instances.create`/`Instances.duplicate` transform instancing
+  without topology multiplication;
 - expert extension: `Sop.custom` defines an inspectable node from PDK
   composition with explicit version, parameter identity,
   cook mode, context dependencies, and cancellation responsibility;
