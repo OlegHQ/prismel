@@ -1,11 +1,10 @@
 open Prismel
 open Chromatic_art
-let smoke=ref false and bench=ref false and export=ref "" and frames=ref 120
+let bench=ref false and export=ref "" and frames=ref 120
 let domains=ref 1 and seed=ref 42 and preset=ref 0
 let quality=ref 2 and grain_amount=ref 0.35
 let settings_file=ref "_out/chromatic-drift.json"
 let () = Arg.parse [
-  "--smoke",Arg.Set smoke,"Run twelve animated native frames";
   "--bench",Arg.Set bench,"Measure warmed geometry construction";
   "--export",Arg.Set_string export,"DIR export artwork-only PNG sequence";
   "--frames",Arg.Set_int frames,"Export frame count (default 120)";
@@ -185,7 +184,7 @@ let () =
       height=800;title="Chromatic Drift";domains=Some !domains;clock=Sketch.Fixed(1./.60.)} in
     let m=if !export<>"" then Sketch.export_state ~config ~directory:!export ~prefix:"drift"
         ~frames:!frames ~init ~update ~view ~on_stop ()
-      else Sketch.run_state ~config ?max_frames:(if !smoke then Some 12 else None) ~init ~update ~view
+      else Sketch.run_state ~config ~init ~update ~view
         ~on_stop () in
     Printf.printf "chromatic_drift: phase=%.4f geometry_ms=%.3f\n%!" m.phase m.ms
   end

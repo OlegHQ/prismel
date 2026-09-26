@@ -64,12 +64,11 @@ Validation:
 
 ```sh
 dune runtest sketches/pastel_flow
-dune exec sketches/pastel_flow/main.exe -- --smoke
-dune exec sketches/pastel_flow/main.exe -- --preset silk --smoke --domains 4
+PRISMEL_MAX_FRAMES=8 dune exec sketches/pastel_flow/main.exe
+PRISMEL_MAX_FRAMES=8 dune exec sketches/pastel_flow/main.exe -- --preset silk --domains 4
 dune build --force @tools/bench-pastel-flow  # geometry only; no window
 ```
 
-The finite smoke path changes rotation and texture across eight native frames.
 The geometry test checks every slider endpoint, combined extrema, finite
 coordinates, valid indices/colors/normals, bounded cardinality, deterministic
 rebuilds, and settings round-trips. Three animated PNG frames of both presets

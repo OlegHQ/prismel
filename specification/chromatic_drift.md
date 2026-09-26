@@ -64,7 +64,7 @@ film noise; the finite tile can repeat visibly at extreme settings.
 opam exec -- dune exec sketches/chromatic_drift/main.exe -- \
   --export /tmp/drift --frames 120 --seed 42 --palette 0 --quality 2
 opam exec -- dune runtest sketches/chromatic_drift
-opam exec -- dune exec sketches/chromatic_drift/main.exe -- --smoke
+PRISMEL_MAX_FRAMES=12 opam exec -- dune exec sketches/chromatic_drift/main.exe
 opam exec -- dune exec sketches/chromatic_drift/main.exe -- --bench --quality 2
 ```
 

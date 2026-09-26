@@ -1,7 +1,6 @@
 open Prismel
 
 let preset = ref "waves"
-let smoke = ref false
 let export_dir = ref ""
 let settings = ref "_out/pastel-flow.json"
 let size = ref 1000
@@ -11,7 +10,6 @@ let frames = ref 1
 let animate = ref false
 let () = Arg.parse [
   "--preset", Arg.Set_string preset, "waves | silk";
-  "--smoke", Arg.Set smoke, "Render eight native frames and exit";
   "--export", Arg.Set_string export_dir, "DIR export one artwork-only native PNG";
   "--settings", Arg.Set_string settings, "FILE saved control values (load if present)";
   "--size", Arg.Set_int size, "Logical artwork/export size (256..2400)";
@@ -88,10 +86,6 @@ let update model (frame:Frame.t) =
     | `Load -> (match Editor.Store.Settings.load ~sketch:"pastel_flow" !settings with
         Ok saved->of_settings controls saved,"Controls loaded"|Error e->controls,e))
     (controls,model.status) actions in
-  let controls=if !smoke then
-      let values=Artwork.set (fst controls) "rotation" (0.015 *. float frame.count) in
-      Artwork.set values "grain" (if frame.count mod 2=0 then 0. else 0.03), snd controls
-    else controls in
   let values, animate = controls in
   let time=if animate then model.time+.frame.dt else model.time in
   let signature=Artwork.signature values in
@@ -133,6 +127,6 @@ let () =
     domains=Some !domains; clock=Sketch.Fixed(1./.60.)} in
   let result=if !export_dir<>"" then
       Sketch.export_state ~config ~directory:!export_dir ~prefix:!preset ~frames:!frames ~init ~update ~view ~on_stop ()
-    else Sketch.run_state ~config ?max_frames:(if !smoke then Some 8 else None) ~init ~update ~view ~on_stop () in
+    else Sketch.run_state ~config ~init ~update ~view ~on_stop () in
   Printf.printf "pastel_flow: %d vertices, build %.2f ms, %s\n%!"
     result.vertices result.build_ms !preset
