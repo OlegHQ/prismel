@@ -1256,14 +1256,14 @@ val ray :
   ?label:string ->
   ?selection:element_group ->
   ?collision_group:string ->
-  ?method_:Pdk.Ops.ray_method ->
-  ?direction:Pdk.Ops.ray_direction ->
-  ?direction_mode:Pdk.Ops.ray_direction_mode ->
-  ?surface_hit:Pdk.Ops.ray_surface_hit ->
+  ?method_:Pdk.Ray.method_ ->
+  ?direction:Pdk.Ray.direction ->
+  ?direction_mode:Pdk.Ray.direction_mode ->
+  ?surface_hit:Pdk.Ray.surface_hit ->
   ?samples:int ->
   ?jitter_scale:float ->
   ?seed:int ->
-  ?combine:Pdk.Ops.ray_combine ->
+  ?combine:Pdk.Ray.combine ->
   ?min_distance:float ->
   ?max_distance:float ->
   ?tolerance:float ->

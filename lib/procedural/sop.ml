@@ -1605,7 +1605,7 @@ let point_split ?label ?selection ?(attributes = "") ?(tolerance = 1e-5)
     (fun ~node_id:_ context inputs ->
       match resolve_element_group ~operation:"point_split" selection inputs.(0) with
       | Error error -> Error error
-      | Ok selection -> match Pdk.Ops.point_split
+      | Ok selection -> match Pdk.Point_split.run_checked
           ~cancel:(Context.cancel_token context) ~grain:(Context.grain context)
           ?selection ~attributes ~tolerance ~promote_attributes inputs.(0) with
         | Ok geometry -> cooked geometry
@@ -3114,7 +3114,7 @@ let intersection_analysis ?label ?source_group ?collision_group
               collision_group group_geometry with
            | Error error -> Error error
            | Ok collision_primitives ->
-               match Pdk.Ops.intersection_analysis
+               match Pdk.Intersection_analysis.run_checked
                    ~cancel:(Context.cancel_token context)
                    ~grain:(Context.grain context) ?source_primitives
                    ?collision_primitives ~tolerance ~include_coplanar
@@ -7134,34 +7134,34 @@ let bound ?label ?selection
            | Error error -> structured_pdk_error error))
 
 let ray_method_key = function
-  | Pdk.Ops.Ray_minimum_distance -> "minimum_distance"
-  | Pdk.Ops.Ray_project -> "project"
+  | Pdk.Ray.Ray_minimum_distance -> "minimum_distance"
+  | Pdk.Ray.Ray_project -> "project"
 
 let ray_direction_key = function
-  | Pdk.Ops.Ray_vector value -> "vector:" ^ vec3_key value
-  | Pdk.Ops.Ray_normal -> "normal"
-  | Pdk.Ops.Ray_attribute name -> "attribute:" ^ String.escaped name
+  | Pdk.Ray.Ray_vector value -> "vector:" ^ vec3_key value
+  | Pdk.Ray.Ray_normal -> "normal"
+  | Pdk.Ray.Ray_attribute name -> "attribute:" ^ String.escaped name
 
 let ray_direction_mode_key = function
-  | Pdk.Ops.Ray_forward -> "forward"
-  | Pdk.Ops.Ray_reverse -> "reverse"
-  | Pdk.Ops.Ray_bidirectional_closest -> "bidirectional_closest"
-  | Pdk.Ops.Ray_bidirectional_farthest -> "bidirectional_farthest"
+  | Pdk.Ray.Ray_forward -> "forward"
+  | Pdk.Ray.Ray_reverse -> "reverse"
+  | Pdk.Ray.Ray_bidirectional_closest -> "bidirectional_closest"
+  | Pdk.Ray.Ray_bidirectional_farthest -> "bidirectional_farthest"
 
 let ray_surface_hit_key = function
-  | Pdk.Ops.Ray_first_surface -> "first"
-  | Pdk.Ops.Ray_last_surface -> "last"
+  | Pdk.Ray.Ray_first_surface -> "first"
+  | Pdk.Ray.Ray_last_surface -> "last"
 
 let ray_combine_key = function
-  | Pdk.Ops.Ray_average -> "average"
-  | Pdk.Ops.Ray_median -> "median"
-  | Pdk.Ops.Ray_shortest -> "shortest"
-  | Pdk.Ops.Ray_longest -> "longest"
+  | Pdk.Ray.Ray_average -> "average"
+  | Pdk.Ray.Ray_median -> "median"
+  | Pdk.Ray.Ray_shortest -> "shortest"
+  | Pdk.Ray.Ray_longest -> "longest"
 
-let ray ?label ?selection ?collision_group ?(method_ = Pdk.Ops.Ray_project)
-    ?(direction = Pdk.Ops.Ray_normal) ?(direction_mode = Pdk.Ops.Ray_forward)
-    ?(surface_hit = Pdk.Ops.Ray_first_surface) ?(samples = 1)
-    ?(jitter_scale = 1.) ?(seed = 0) ?(combine = Pdk.Ops.Ray_average)
+let ray ?label ?selection ?collision_group ?(method_ = Pdk.Ray.Ray_project)
+    ?(direction = Pdk.Ray.Ray_normal) ?(direction_mode = Pdk.Ray.Ray_forward)
+    ?(surface_hit = Pdk.Ray.Ray_first_surface) ?(samples = 1)
+    ?(jitter_scale = 1.) ?(seed = 0) ?(combine = Pdk.Ray.Ray_average)
     ?(min_distance = 0.)
     ?max_distance ?(tolerance = 0.) ?(scale = 1.) ?(lift = 0.)
     ?distance_attribute ?primitive_attribute ?source_vertex_numbers_attribute
@@ -7169,9 +7169,9 @@ let ray ?label ?selection ?collision_group ?(method_ = Pdk.Ops.Ray_project)
     ?point_pattern ?vertex_pattern ?primitive_pattern ?detail_pattern
     ?(match_groups = false) ~collision source =
   let direction = match direction with
-    | Pdk.Ops.Ray_vector value -> Pdk.Ops.Ray_vector (vec3_copy value)
-    | Pdk.Ops.Ray_normal -> Pdk.Ops.Ray_normal
-    | Pdk.Ops.Ray_attribute name -> Pdk.Ops.Ray_attribute name in
+    | Pdk.Ray.Ray_vector value -> Pdk.Ray.Ray_vector (vec3_copy value)
+    | Pdk.Ray.Ray_normal -> Pdk.Ray.Ray_normal
+    | Pdk.Ray.Ray_attribute name -> Pdk.Ray.Ray_attribute name in
   Option.iter (fun selection ->
     let name = match selection with Point_group name | Vertex_group name
       | Primitive_group name | Edge_group name -> name in
@@ -7188,9 +7188,9 @@ let ray ?label ?selection ?collision_group ?(method_ = Pdk.Ops.Ray_project)
       "source vertex weights attribute", source_vertex_weights_attribute;
       "hit group", hit_group; "normal attribute", normal_attribute ];
   (match direction with
-   | Pdk.Ops.Ray_attribute name when String.trim name = "" ->
+   | Pdk.Ray.Ray_attribute name when String.trim name = "" ->
        invalid_arg "Sop.ray: empty direction attribute"
-   | Pdk.Ops.Ray_vector _ | Pdk.Ops.Ray_normal | Pdk.Ops.Ray_attribute _ -> ());
+   | Pdk.Ray.Ray_vector _ | Pdk.Ray.Ray_normal | Pdk.Ray.Ray_attribute _ -> ());
   List.iter (fun (label, pattern) -> Option.iter (fun pattern ->
     match Pdk.Attribute_pattern.compile pattern with
     | Ok _ -> ()
@@ -7243,7 +7243,7 @@ let ray ?label ?selection ?collision_group ?(method_ = Pdk.Ops.Ray_project)
           (match collision_primitives with
            | Error error -> Error error
            | Ok collision_primitives ->
-               match Pdk.Ops.ray ~cancel:(Context.cancel_token context)
+               match Pdk.Ray.run ~cancel:(Context.cancel_token context)
                    ~grain:(Context.grain context) ?selection ?collision_primitives
                    ~method_ ~direction ~direction_mode ~surface_hit ~samples
                    ~jitter_scale ~seed ~combine ~min_distance

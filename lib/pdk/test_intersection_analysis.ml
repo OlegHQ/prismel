@@ -101,7 +101,7 @@ let equal_output left right =
      && left_point.values = right_point.values
 
 let test_crossing_and_provenance () =
-  let output = Ops.intersection_analysis ~grain:1 ~include_coplanar:false
+  let output = Intersection_analysis.run_checked ~grain:1 ~include_coplanar:false
       ~collision:(collision ()) (source ()) |> get in
   check (Geometry.point_count output = 2 && Geometry.vertex_count output = 0
       && Geometry.primitive_count output = 0)
@@ -132,7 +132,7 @@ let test_crossing_and_provenance () =
         "Intersection Analysis barycentric row does not sum to one"
     done
   done;
-  let no_attributes = Ops.intersection_analysis ~collision:(collision ())
+  let no_attributes = Intersection_analysis.run_checked ~collision:(collision ())
       ~include_coplanar:false ~input_attribute:None ~primitive_attribute:None
       ~primitive_uvw_attribute:None ~point_attribute:None (source ()) |> get in
   check (Geometry.point_count no_attributes = 2
@@ -140,7 +140,7 @@ let test_crossing_and_provenance () =
     "Intersection Analysis requires optional provenance outputs"
 
 let test_coplanar_and_self () =
-  let output = Ops.intersection_analysis ~collision:(collision ()) (source ())
+  let output = Intersection_analysis.run_checked ~collision:(collision ()) (source ())
       |> get in
   check (Geometry.point_count output = 5)
     "Intersection Analysis did not include the coplanar overlap polygon";
@@ -149,22 +149,22 @@ let test_coplanar_and_self () =
     "Intersection Analysis lost existing incident-point provenance";
   let duplicate = geometry [|0.,0.,0.; 2.,0.,0.; 0.,2.,0.|]
       [|0;1;2; 2;1;0|] in
-  let duplicate_output = Ops.intersection_analysis duplicate |> get in
+  let duplicate_output = Intersection_analysis.run_checked duplicate |> get in
   check (Geometry.point_count duplicate_output = 3)
     "Intersection Analysis did not weld duplicate-face overlap points";
-  let duplicate_without = Ops.intersection_analysis ~include_coplanar:false
+  let duplicate_without = Intersection_analysis.run_checked ~include_coplanar:false
       duplicate |> get in
   check (Geometry.point_count duplicate_without = 0)
     "Intersection Analysis ignored include_coplanar=false";
   let adjacent = geometry
       [|0.,0.,0.; 1.,0.,0.; 1.,1.,0.; 0.,1.,0.|]
       [|0;1;2; 0;2;3|] in
-  check (Geometry.point_count (Ops.intersection_analysis adjacent |> get) = 0)
+  check (Geometry.point_count (Intersection_analysis.run_checked adjacent |> get) = 0)
     "Intersection Analysis exposed an ordinary shared edge";
   let crossing = geometry
       [|0.,0.,0.; 2.,0.,0.; 0.,2.,0.;
         0.5,-0.5,-1.; 0.5,1.5,1.; 0.5,1.5,-1.|]
-      [|0;1;2; 3;4;5|] |> Ops.intersection_analysis |> get in
+      [|0;1;2; 3;4;5|] |> Intersection_analysis.run_checked |> get in
   check (Geometry.point_count crossing = 2
       && (int_rows "sourceinput" crossing).values = [|0;0;0;0|]
       && (int_rows "sourceprim" crossing).values = [|0;1;0;1|])
@@ -173,7 +173,7 @@ let test_coplanar_and_self () =
 let test_curve_intersections () =
   let horizontal = open_curve [|-1.,0.,0.; 1.,0.,0.|]
   and vertical = open_curve [|0.,-1.,0.; 0.,1.,0.|] in
-  let crossing = Ops.intersection_analysis ~collision:vertical horizontal |> get in
+  let crossing = Intersection_analysis.run_checked ~collision:vertical horizontal |> get in
   check (Geometry.point_count crossing = 1)
     "Intersection Analysis curve/curve crossing cardinality";
   let x, y, z = positions crossing
@@ -189,7 +189,7 @@ let test_curve_intersections () =
       && points.values = [|-1;-1|])
     "Intersection Analysis curve/curve aligned provenance";
   let joint = open_curve [|-1.,0.,0.; 0.,0.,0.; 1.,0.,0.|] in
-  let joint_hit = Ops.intersection_analysis ~collision:vertical joint |> get in
+  let joint_hit = Intersection_analysis.run_checked ~collision:vertical joint |> get in
   check (Geometry.point_count joint_hit = 1
       && (int_rows "sourceinput" joint_hit).values = [|0;1|]
       && (int_rows "sourceprim" joint_hit).values = [|0;0|]
@@ -197,7 +197,7 @@ let test_curve_intersections () =
         = [|0.5;0.;0.; 0.5;0.;0.|]
       && (int_rows "sourcepoint" joint_hit).values = [|1;-1|])
     "Intersection Analysis duplicated an internal curve-vertex incidence";
-  let overlap = Ops.intersection_analysis
+  let overlap = Intersection_analysis.run_checked
       ~collision:(open_curve [|0.,0.,0.; 2.,0.,0.|]) horizontal |> get in
   let ox, oy, oz = positions overlap and opoints = int_rows "sourcepoint" overlap in
   check (Geometry.point_count overlap = 2 && close ox.(0) 0. && close ox.(1) 1.
@@ -211,7 +211,7 @@ let test_curve_intersections () =
       (String.concat "," (Array.to_list (Array.map string_of_int opoints.values))));
   let bow = open_curve
       [|-1.,-1.,0.; 1.,1.,0.; -1.,1.,0.; 1.,-1.,0.|] in
-  let self = Ops.intersection_analysis bow |> get in
+  let self = Intersection_analysis.run_checked bow |> get in
   let sx, sy, sz = positions self and sprim = int_rows "sourceprim" self
   and sinput = int_rows "sourceinput" self
   and suv = float_rows "sourceprimuv" self in
@@ -232,30 +232,30 @@ let test_curve_intersections () =
       (String.concat "," (Array.to_list (Array.map string_of_float suv.values))));
   let square = closed_curve
       [|0.,0.,0.; 1.,0.,0.; 1.,1.,0.; 0.,1.,0.|] in
-  check (Geometry.point_count (Ops.intersection_analysis square |> get) = 0)
+  check (Geometry.point_count (Intersection_analysis.run_checked square |> get) = 0)
     "Intersection Analysis exposed closed-curve adjacency contacts"
 
 let test_curve_triangle_intersections () =
   let triangle = geometry [|0.,0.,0.; 1.,0.,0.; 0.,1.,0.|] [|0;1;2|] in
   let piercing = open_curve [|0.25,0.25,-1.; 0.25,0.25,1.|] in
-  let hit = Ops.intersection_analysis ~collision:triangle piercing |> get in
+  let hit = Intersection_analysis.run_checked ~collision:triangle piercing |> get in
   let x, y, z = positions hit and uvw = float_rows "sourceprimuv" hit in
   check (Geometry.point_count hit = 1 && x = [|0.25|] && y = [|0.25|]
       && z = [|0.|]
       && uvw.values = [|0.5;0.;0.; 0.5;0.25;0.25|])
     "Intersection Analysis segment/triangle crossing provenance";
-  let reverse = Ops.intersection_analysis ~collision:piercing triangle |> get in
+  let reverse = Intersection_analysis.run_checked ~collision:piercing triangle |> get in
   check (Geometry.point_count reverse = 1
       && (float_rows "sourceprimuv" reverse).values
         = [|0.5;0.25;0.25; 0.5;0.;0.|])
     "Intersection Analysis triangle/segment provenance ordering";
   let coplanar = open_curve [|-1.,0.25,0.; 1.,0.25,0.|] in
-  let clipped = Ops.intersection_analysis ~collision:triangle coplanar |> get in
+  let clipped = Intersection_analysis.run_checked ~collision:triangle coplanar |> get in
   let cx, cy, cz = positions clipped in
   check (Geometry.point_count clipped = 2 && cx = [|0.;0.75|]
       && cy = [|0.25;0.25|] && cz = [|0.;0.|])
     "Intersection Analysis coplanar segment/triangle clipping";
-  check (Geometry.point_count (Ops.intersection_analysis ~include_coplanar:false
+  check (Geometry.point_count (Intersection_analysis.run_checked ~include_coplanar:false
       ~collision:triangle coplanar |> get) = 0)
     "Intersection Analysis ignored include_coplanar for segment/triangle";
   let mixed = geometry_with_topology
@@ -263,7 +263,7 @@ let test_curve_triangle_intersections () =
         0.25,0.25,-1.; 0.25,0.25,1.|]
       [|0;1;2; 3;4|] [|0;3;5|]
       [|Topology.Polygon; Topology.Open_polyline|] in
-  let mixed_hit = Ops.intersection_analysis mixed |> get in
+  let mixed_hit = Intersection_analysis.run_checked mixed |> get in
   check (Geometry.point_count mixed_hit = 1
       && (int_rows "sourceinput" mixed_hit).values = [|0;0|]
       && (int_rows "sourceprim" mixed_hit).values = [|0;1|]
@@ -275,14 +275,14 @@ let test_restrictions_translation_and_errors () =
   let source = source () and collision = collision () in
   let first = Group.init ~owner:Group.Primitive ~name:"first" 2
       (fun primitive -> primitive = 0) in
-  let output = Ops.intersection_analysis ~source_primitives:first
+  let output = Intersection_analysis.run_checked ~source_primitives:first
       ~collision_primitives:first ~collision source |> get in
   check (Geometry.point_count output = 2)
     "Intersection Analysis primitive restrictions";
   let moved = Mat4.translation (Vec3.create 1e12 (-1e12) 1e12) in
-  let original = Ops.intersection_analysis ~include_coplanar:false ~collision
+  let original = Intersection_analysis.run_checked ~include_coplanar:false ~collision
       source |> get
-  and translated = Ops.intersection_analysis ~include_coplanar:false
+  and translated = Intersection_analysis.run_checked ~include_coplanar:false
       ~collision:(Transform_ops.transform moved collision) (Transform_ops.transform moved source)
       |> get in
   check (Geometry.point_count translated = Geometry.point_count original
@@ -296,30 +296,30 @@ let test_restrictions_translation_and_errors () =
         && Float.abs (tz.(point) -. 1e12 -. oz.(point)) <= 2e-4)
       "Intersection Analysis position changed under common translation"
   done;
-  expect "invalid_parameter" (Ops.intersection_analysis ~tolerance:(-1.) source);
-  expect "invalid_parameter" (Ops.intersection_analysis
+  expect "invalid_parameter" (Intersection_analysis.run_checked ~tolerance:(-1.) source);
+  expect "invalid_parameter" (Intersection_analysis.run_checked
       ~input_attribute:(Some "same") ~primitive_attribute:(Some "same") source);
   let wrong = Group.init ~owner:Group.Point ~name:"wrong" 6 (Fun.const true) in
-  expect "invalid_group" (Ops.intersection_analysis ~source_primitives:wrong
+  expect "invalid_group" (Intersection_analysis.run_checked ~source_primitives:wrong
       source);
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
-  expect "cancelled" (Ops.intersection_analysis ~cancel:cancelled source);
+  expect "cancelled" (Intersection_analysis.run_checked ~cancel:cancelled source);
   let curve = Line_geometry.line_checked ~origin:Vec3.zero ~direction:Vec3.unit_x ~length:1. ()
       |> get in
-  check (Geometry.point_count (Ops.intersection_analysis curve |> get) = 0)
+  check (Geometry.point_count (Intersection_analysis.run_checked curve |> get) = 0)
     "Intersection Analysis rejected a valid polygon curve";
   let degenerate_curve = open_curve [|0.,0.,0.; 0.,0.,0.|] in
-  expect "invalid_surface" (Ops.intersection_analysis degenerate_curve);
+  expect "invalid_surface" (Intersection_analysis.run_checked degenerate_curve);
   let nonfinite = Geometry.with_positions
       (Packed.Float3.Private.of_owned_exn
         ~x:[|Float.nan;2.;0.;10.;12.;10.|]
         ~y:[|0.;0.;2.;0.;0.;2.|] ~z:(Array.make 6 0.)) source
       |> get_string in
-  expect "invalid_surface" (Ops.intersection_analysis nonfinite);
-  expect "invalid_surface" (Ops.intersection_analysis
+  expect "invalid_surface" (Intersection_analysis.run_checked nonfinite);
+  expect "invalid_surface" (Intersection_analysis.run_checked
       (open_curve [|0.,0.,0.; Float.nan,1.,0.|]));
-  let empty = Ops.intersection_analysis (Line_geometry.points [||]) |> get in
+  let empty = Intersection_analysis.run_checked (Line_geometry.points [||]) |> get in
   check (Geometry.point_count empty = 0
       && (int_rows "sourceinput" empty).offsets = [|0|]
       && (float_rows "sourceprimuv" empty).offsets = [|0|])
@@ -330,7 +330,7 @@ let test_restrictions_translation_and_errors () =
       ~x:[|0.;1.;1.;0.|] ~y:[|0.;0.;1.;1.|] ~z:[|0.;0.;0.;0.|] in
   let quad = Geometry.create ~positions:quad_positions ~topology:quad_topology ()
       |> get_string in
-  expect "invalid_surface" (Ops.intersection_analysis quad)
+  expect "invalid_surface" (Intersection_analysis.run_checked quad)
 
 let test_parallel_exact () =
   let source = Plane_generators.grid_checked ~grain:31 ~counts:Plane_generators.Grid_point_counts
@@ -339,7 +339,7 @@ let test_parallel_exact () =
   let collision = Transform_ops.transform ~grain:31
       (Mat4.rotation_x (Float.pi /. 2.)) source in
   let run domains = Parallel.run ~domains (fun () ->
-    Ops.intersection_analysis ~grain:31 ~include_coplanar:false ~collision source
+    Intersection_analysis.run_checked ~grain:31 ~include_coplanar:false ~collision source
     |> get) in
   let one = run 1 and four = run 4 in
   check (Geometry.point_count one > 0)
@@ -356,7 +356,7 @@ let test_parallel_exact () =
         /. float_of_int (vertical_count - 1)) in
       (x, -1., 0.), (x, 1., 0.)) in
   let run_curves domains = Parallel.run ~domains (fun () ->
-    Ops.intersection_analysis ~grain:17 ~collision:vertical horizontal |> get) in
+    Intersection_analysis.run_checked ~grain:17 ~collision:vertical horizontal |> get) in
   let one = run_curves 1 and four = run_curves 4 in
   check (Geometry.point_count one = horizontal_count * vertical_count)
     "Intersection Analysis curve scale fixture cardinality";

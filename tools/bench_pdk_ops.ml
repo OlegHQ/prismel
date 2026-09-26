@@ -2160,33 +2160,33 @@ let run_ray_benchmarks () =
       |> Transform_ops.transform ~grain (Mat4.translation (Vec3.create 0. 2. 0.)) in
   let point_count = Geometry.point_count source in
   measure ~input_points:point_count "ray_project_vector" (fun () ->
-    Ops.ray ~grain ~direction:(Ops.Ray_vector (Vec3.create 0. (-1.) 0.))
+    Ray.run ~grain ~direction:(Ray.Ray_vector (Vec3.create 0. (-1.) 0.))
       ~distance_attribute:"ray_distance" ~source ~collision () |> get_ok)
     geometry_output;
   measure ~input_points:point_count "ray_project_provenance_cd" (fun () ->
-    Ops.ray ~grain ~direction:(Ops.Ray_vector (Vec3.create 0. (-1.) 0.))
+    Ray.run ~grain ~direction:(Ray.Ray_vector (Vec3.create 0. (-1.) 0.))
       ~distance_attribute:"ray_distance" ~primitive_attribute:"source_primitive"
       ~source_vertex_numbers_attribute:"source_vertices"
       ~source_vertex_weights_attribute:"source_weights"
       ~normal_attribute:"hit_N" ~hit_group:"ray_hits" ~point_pattern:"Cd"
       ~source ~collision () |> get_ok) geometry_output;
   measure ~input_points:point_count "ray_multisample_position_average_8" (fun () ->
-    Ops.ray ~grain ~samples:8 ~jitter_scale:0.08 ~seed:2903
-      ~combine:Ops.Ray_average
-      ~direction:(Ops.Ray_vector (Vec3.create 0. (-1.) 0.))
+    Ray.run ~grain ~samples:8 ~jitter_scale:0.08 ~seed:2903
+      ~combine:Ray.Ray_average
+      ~direction:(Ray.Ray_vector (Vec3.create 0. (-1.) 0.))
       ~distance_attribute:"ray_distance" ~normal_attribute:"hit_N"
       ~source ~collision () |> get_ok) geometry_output;
   measure ~input_points:point_count "ray_multisample_position_median_8" (fun () ->
-    Ops.ray ~grain ~samples:8 ~jitter_scale:0.08 ~seed:2903
-      ~combine:Ops.Ray_median
-      ~direction:(Ops.Ray_vector (Vec3.create 0. (-1.) 0.))
+    Ray.run ~grain ~samples:8 ~jitter_scale:0.08 ~seed:2903
+      ~combine:Ray.Ray_median
+      ~direction:(Ray.Ray_vector (Vec3.create 0. (-1.) 0.))
       ~distance_attribute:"ray_distance" ~normal_attribute:"hit_N"
       ~source ~collision () |> get_ok) geometry_output;
   measure ~input_points:point_count "ray_multisample_provenance_average_8_cd"
     (fun () ->
-      Ops.ray ~grain ~samples:8 ~jitter_scale:0.08 ~seed:2903
-        ~combine:Ops.Ray_average
-        ~direction:(Ops.Ray_vector (Vec3.create 0. (-1.) 0.))
+      Ray.run ~grain ~samples:8 ~jitter_scale:0.08 ~seed:2903
+        ~combine:Ray.Ray_average
+        ~direction:(Ray.Ray_vector (Vec3.create 0. (-1.) 0.))
         ~distance_attribute:"ray_distance" ~primitive_attribute:"source_primitive"
         ~source_vertex_numbers_attribute:"source_vertices"
         ~source_vertex_weights_attribute:"source_weights"
@@ -2776,12 +2776,12 @@ let run_intersection_analysis_benchmarks () =
       (Mat4.rotation_x (Float.pi /. 2.)) source in
   measure ~input_points:(point_count * 2)
     "intersection_analysis_crossing_grids" (fun () ->
-      Ops.intersection_analysis ~grain ~include_coplanar:false
+      Intersection_analysis.run_checked ~grain ~include_coplanar:false
         ~collision:crossing source |> get_ok) geometry_output;
   let combined = Ops.merge [source; crossing] |> get_ok in
   measure ~input_points:(point_count * 2)
     "intersection_analysis_self_crossing_grids" (fun () ->
-      Ops.intersection_analysis ~grain ~include_coplanar:false combined |> get_ok)
+      Intersection_analysis.run_checked ~grain ~include_coplanar:false combined |> get_ok)
     geometry_output;
   let cell_x = 100. /. float_of_int detect_columns
   and cell_z = 100. /. float_of_int detect_rows in
@@ -2790,7 +2790,7 @@ let run_intersection_analysis_benchmarks () =
       source in
   measure ~input_points:(point_count * 2)
     "intersection_analysis_coplanar_shifted_grids" (fun () ->
-      Ops.intersection_analysis ~grain ~collision:coplanar source |> get_ok)
+      Intersection_analysis.run_checked ~grain ~collision:coplanar source |> get_ok)
     geometry_output;
   let curve_columns = max 8 (min columns 360)
   and curve_rows = max 8 (min rows 260) in
@@ -2802,7 +2802,7 @@ let run_intersection_analysis_benchmarks () =
       ~size:100. () |> get_ok in
   measure ~input_points:(Geometry.point_count rows + Geometry.point_count columns)
     "intersection_analysis_curve_grid" (fun () ->
-      Ops.intersection_analysis ~grain ~collision:columns rows |> get_ok)
+      Intersection_analysis.run_checked ~grain ~collision:columns rows |> get_ok)
     geometry_output
 
 let run_poly_bevel_benchmarks () =
@@ -2868,17 +2868,17 @@ let run_point_split_benchmarks () =
       |> Geometry.with_group checker |> get_ok
       |> Geometry.with_group seam_region |> get_ok in
   measure ~input_points:point_count "point_split_unique_quads" (fun () ->
-    Ops.point_split ~grain source |> get_ok) geometry_output;
+    Point_split.run_checked ~grain source |> get_ok) geometry_output;
   measure ~input_points:point_count "point_split_group_seams_quads" (fun () ->
-    Ops.point_split ~grain ~attributes:"seam_region" source |> get_ok)
+    Point_split.run_checked ~grain ~attributes:"seam_region" source |> get_ok)
     geometry_output;
   measure ~input_points:point_count "point_split_attribute_seams_promote_quads"
     (fun () ->
-      Ops.point_split ~grain ~attributes:"seam_uv seam_material"
+      Point_split.run_checked ~grain ~attributes:"seam_uv seam_material"
         ~tolerance:1e-6 ~promote_attributes:true source |> get_ok)
     geometry_output;
   measure ~input_points:point_count "point_split_seams_promote_quads" (fun () ->
-    Ops.point_split ~grain ~attributes:"seam_*" ~tolerance:1e-6
+    Point_split.run_checked ~grain ~attributes:"seam_*" ~tolerance:1e-6
       ~promote_attributes:true source |> get_ok) geometry_output
 
 let run_point_generate_benchmarks () =

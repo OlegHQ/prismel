@@ -534,7 +534,7 @@ let run () =
   let projected = Sop.grid ~columns:320 ~rows:240 ~size:20. ()
       |> Sop.transform (Mat4.translation (Vec3.create 0. 3. 0.))
       |> Sop.ray ~collision:ray_collision
-           ~direction:(Ops.Ray_vector (Vec3.neg Vec3.unit_y))
+           ~direction:(Ray.Ray_vector (Vec3.neg Vec3.unit_y))
            ~tolerance:1e-9 ~distance_attribute:"ray_distance"
            ~primitive_attribute:"source_primitive"
            ~source_vertex_numbers_attribute:"source_vertices"

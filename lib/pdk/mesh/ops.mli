@@ -127,23 +127,6 @@ type smooth_boundary =
   | Smooth_unshared
   | Smooth_group_boundary
 
-type ray_method = Ray_minimum_distance | Ray_project
-type ray_direction =
-  | Ray_vector of Prismel_math.Vec3.t
-  | Ray_normal
-  | Ray_attribute of string
-type ray_direction_mode =
-  | Ray_forward
-  | Ray_reverse
-  | Ray_bidirectional_closest
-  | Ray_bidirectional_farthest
-type ray_surface_hit = Ray_first_surface | Ray_last_surface
-type ray_combine =
-  | Ray_average
-  | Ray_median
-  | Ray_shortest
-  | Ray_longest
-
 val sort :
   ?cancel:Cancel.t -> ?grain:int -> ?selection:Group.t -> ?descending:bool ->
   ?output_indices:string -> ?combine_indices:bool ->
@@ -1012,37 +995,6 @@ val poly_bevel :
     are O(points + vertices + primitives + edges), output cardinality is
     computed before allocation, and packed independent fills use the reusable
     domain pool with byte-identical ordering across domain counts. *)
-
-val point_split :
-  ?cancel:Cancel.t ->
-  ?grain:int ->
-  ?selection:deform_selection ->
-  ?attributes:string ->
-  ?tolerance:float ->
-  ?promote_attributes:bool ->
-  Geometry.t ->
-  (Geometry.t, Error.t) result
-(** Split shared points for selected point, vertex, or primitive corners.
-    With a blank [attributes] pattern, every selected corner becomes unique;
-    otherwise matching vertex/primitive attributes and named vertex/primitive
-    groups define value clusters, with floating components compared using the
-    inclusive [tolerance]. Glob terms use the shared ordered include/exclude
-    pattern language. Group membership is a Boolean seam component.
-
-    Existing point payload and groups duplicate by source-point ancestry;
-    vertex, primitive, and detail payload remains structurally shared.
-    Native edge groups replicate to every split incidence. When
-    [promote_attributes] is true, matched attributes move to point ownership
-    using each cluster's stable representative, replacing same-name point
-    fields. Groups participate only in splitting and are not promoted. Free
-    points receive the storage kind's zero/empty value.
-
-    Planning preserves all original point numbers, appends only required
-    clusters, allocates output cardinality once, and leaves already compatible
-    points unchanged. Point-local clustering and every output-sized fill use
-    deterministic disjoint ranges; ordered output is byte-identical across
-    domain counts. Native-edge selections are rejected because Point Split's
-    selection contract is point/vertex/primitive based. *)
 
 type poly_loft_minimize = Two_point_distance | Three_point_distance
 
@@ -1913,33 +1865,6 @@ val boolean_detect :
     primitive-pair payload. Broad phase, narrow testing, row sorting, and packed group output
     use deterministic disjoint parallel ranges. *)
 
-val intersection_analysis :
-  ?cancel:Cancel.t ->
-  ?grain:int ->
-  ?source_primitives:Group.t ->
-  ?collision_primitives:Group.t ->
-  ?tolerance:float ->
-  ?include_coplanar:bool ->
-  ?input_attribute:string option ->
-  ?primitive_attribute:string option ->
-  ?primitive_uvw_attribute:string option ->
-  ?point_attribute:string option ->
-  ?collision:Geometry.t ->
-  Geometry.t ->
-  (Geometry.t, Error.t) result
-(** Create point-only geometry at triangle and polygon-curve intersections. With one input the
-    operation finds AxA self-intersections; [collision] selects AxB analysis.
-    Inputs are not passed through. Selected polygon primitives must be
-    triangles; open and closed polygon curves are analyzed segment by segment.
-
-    The four optional point attributes default to [sourceinput], [sourceprim],
-    [sourceprimuv], and [sourcepoint]. Passing [None] suppresses an attribute.
-    Integer provenance is stored in aligned CSR rows. [sourceprimuv] stores
-    three floats per incident primitive record. Triangle values are
-    barycentric; curve values are [(u, 0, 0)] with [u] spanning the complete
-    primitive. [sourcepoint] stores the corresponding existing input point or
-    [-1]. *)
-
 val poly_reduce :
   ?cancel:Cancel.t ->
   ?grain:int ->
@@ -2033,65 +1958,6 @@ val smooth :
     with O(points + edges + attribute_components * points) auxiliary storage.
     Selection and iteration fills use disjoint packed ranges and are exact
     across domain counts. *)
-
-val ray :
-  ?cancel:Cancel.t ->
-  ?grain:int ->
-  ?selection:deform_selection ->
-  ?collision_primitives:Group.t ->
-  ?method_:ray_method ->
-  ?direction:ray_direction ->
-  ?direction_mode:ray_direction_mode ->
-  ?surface_hit:ray_surface_hit ->
-  ?samples:int ->
-  ?jitter_scale:float ->
-  ?seed:int ->
-  ?combine:ray_combine ->
-  ?min_distance:float ->
-  ?max_distance:float ->
-  ?tolerance:float ->
-  ?scale:float ->
-  ?lift:float ->
-  ?distance_attribute:string ->
-  ?primitive_attribute:string ->
-  ?source_vertex_numbers_attribute:string ->
-  ?source_vertex_weights_attribute:string ->
-  ?hit_group:string ->
-  ?normal_attribute:string ->
-  ?point_pattern:string ->
-  ?vertex_pattern:string ->
-  ?primitive_pattern:string ->
-  ?detail_pattern:string ->
-  ?match_groups:bool ->
-  source:Geometry.t ->
-  collision:Geometry.t ->
-  unit ->
-  (Geometry.t, Error.t) result
-(** Project selected source points to a collision polygon surface by closest
-    distance or normalized rays. Directional projection supports constant,
-    point-attribute, authored/computed-normal, reverse, bidirectional, first-
-    surface, and last-surface policies. Two to 1,024 samples retain one exact
-    unjittered ray and add deterministic per-point cone-disk jitter. Average,
-    upper-median, shortest, and longest successful-ray combiners move along
-    the unjittered chosen direction by the combined world-space distance.
-    Average interpolation emits all successful barycentric drivers with
-    normalized equal ray weights; scalar primitive output uses the hit nearest
-    the mean. Averaged geometric normals retain their arithmetic length while
-    normal lift uses their normalized direction. If a requested collision
-    point field matches [normal_attribute], the imported field wins. Scale and normal lift transform hits;
-    misses retain source positions. Optional outputs include distance,
-    original collision primitive, exact source-vertex/weight CSR provenance,
-    geometric hit normal, and hit membership. Source point/vertex/primitive/
-    detail fields and ordinary groups can be imported through the shared
-    Attribute Interpolate kernel.
-
-    Collision construction is O(corners + triangles log triangles) expected
-    time and O(triangles) storage. Ordinary closest/ray queries are expected
-    O(log triangles) each, with O(source points + imported output +
-    domains * samples) operation storage. Average imported provenance repeats
-    the chosen traversal after prefix sizing, avoiding O(points * samples)
-    temporary hit storage. Degenerate overlapping BVH bounds can force O(triangles) query
-    time. Query and output ranges are disjoint and exact across domain counts. *)
 
 val mirror :
   ?cancel:Cancel.t ->

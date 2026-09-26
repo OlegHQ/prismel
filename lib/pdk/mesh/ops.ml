@@ -35,22 +35,6 @@ type smooth_boundary = Smooth.boundary =
   | Smooth_free
   | Smooth_unshared
   | Smooth_group_boundary
-type ray_method = Ray.method_ = Ray_minimum_distance | Ray_project
-type ray_direction = Ray.direction =
-  | Ray_vector of Vec3.t
-  | Ray_normal
-  | Ray_attribute of string
-type ray_direction_mode = Ray.direction_mode =
-  | Ray_forward
-  | Ray_reverse
-  | Ray_bidirectional_closest
-  | Ray_bidirectional_farthest
-type ray_surface_hit = Ray.surface_hit = Ray_first_surface | Ray_last_surface
-type ray_combine = Ray.combine =
-  | Ray_average
-  | Ray_median
-  | Ray_shortest
-  | Ray_longest
 type delete_topology_policy = Deletion.topology_policy =
   | Destroy_touched_primitives
   | Heal_primitives
@@ -513,7 +497,6 @@ let smooth ?cancel ?grain ?primitives ?constrained_points ?boundary ?iterations
     ?method_ ?mode ?weight_attribute ?alpha_attribute ?recompute_normals
     ?original_blend ?smoothed_blend ~attributes geometry
 
-let ray = Ray.run
 
 let compact_points = Compact_points.run
 
@@ -672,7 +655,6 @@ let poly_bevel ?cancel ?grain ?edges ?shape ?divisions ?point_scale_attribute
       ?point_scale_attribute ?ignore_flat_angle ?clamp_overlap ?edge_group
       ?corner_group ?offset_group ?recompute_point_normals ~distance geometry)
 
-let point_split = Point_split.run_checked
 
 let poly_loft_raw = poly_loft
 let poly_loft ?cancel ?grain ?primitives ?rest ?connect_closest_ends
@@ -796,7 +778,6 @@ let boolean_detect ?cancel ?(grain = 16_384) ?source_primitives
     ~count_attribute ~self_intersecting_group ~self_intersections_attribute
     ~self_count_attribute ~collision geometry
 
-let intersection_analysis = Intersection_analysis.run_checked
 
 let poly_reduce = Poly_reduce.run_checked
 let edge_flip = Edge_flip.run_checked

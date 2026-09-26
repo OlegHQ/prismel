@@ -329,7 +329,7 @@ let graphs () =
     Sop.grid ~columns:28 ~rows:20 ~size:2.05 ()
     |> Sop.transform (Mat4.translation (Vec3.create 0. 0.8 0.))
     |> Sop.ray ~collision
-         ~direction:(Pdk.Ops.Ray_vector (Vec3.create 0. (-1.) 0.))
+         ~direction:(Pdk.Ray.Ray_vector (Vec3.create 0. (-1.) 0.))
          ~point_pattern:"Cd" ~normal_attribute:"N" ~hit_group:"ray_hits"
     |> Sop.transform (Mat4.translation (Vec3.create 2.8 0.2 1.8))
   and grid_snapped =

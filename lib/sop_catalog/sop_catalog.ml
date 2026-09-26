@@ -4229,25 +4229,25 @@ end [@@sop.register]
 module Ray = struct
   type direction = Direction_vector | Direction_normal | Direction_attribute
   let method_parameter = Parameter.choice ~equal:( = ) [
-      "Minimum distance", Pdk.Ops.Ray_minimum_distance;
-      "Project rays", Pdk.Ops.Ray_project;
+      "Minimum distance", Pdk.Ray.Ray_minimum_distance;
+      "Project rays", Pdk.Ray.Ray_project;
     ]
   let direction_parameter = Parameter.choice ~equal:( = ) [
       "Vector", Direction_vector; "Normal", Direction_normal;
       "Attribute", Direction_attribute;
     ]
   let direction_mode_parameter = Parameter.choice ~equal:( = ) [
-      "Forward", Pdk.Ops.Ray_forward; "Reverse", Pdk.Ops.Ray_reverse;
-      "Bidirectional closest", Pdk.Ops.Ray_bidirectional_closest;
-      "Bidirectional farthest", Pdk.Ops.Ray_bidirectional_farthest;
+      "Forward", Pdk.Ray.Ray_forward; "Reverse", Pdk.Ray.Ray_reverse;
+      "Bidirectional closest", Pdk.Ray.Ray_bidirectional_closest;
+      "Bidirectional farthest", Pdk.Ray.Ray_bidirectional_farthest;
     ]
   let surface_parameter = Parameter.choice ~equal:( = ) [
-      "First surface", Pdk.Ops.Ray_first_surface;
-      "Last surface", Pdk.Ops.Ray_last_surface;
+      "First surface", Pdk.Ray.Ray_first_surface;
+      "Last surface", Pdk.Ray.Ray_last_surface;
     ]
   let combine_parameter = Parameter.choice ~equal:( = ) [
-      "Average", Pdk.Ops.Ray_average; "Median", Pdk.Ops.Ray_median;
-      "Shortest", Pdk.Ops.Ray_shortest; "Longest", Pdk.Ops.Ray_longest;
+      "Average", Pdk.Ray.Ray_average; "Median", Pdk.Ray.Ray_median;
+      "Shortest", Pdk.Ray.Ray_shortest; "Longest", Pdk.Ray.Ray_longest;
     ]
 
   type parameters = {
@@ -4256,7 +4256,7 @@ module Ray = struct
     group : string [@sop.default ""] [@sop.label "Group"];
     collision_group : string [@sop.default ""]
       [@sop.label "Collision primitive group"];
-    method_ : Pdk.Ops.ray_method [@sop.default Pdk.Ops.Ray_project]
+    method_ : Pdk.Ray.method_ [@sop.default Pdk.Ray.Ray_project]
       [@sop.label "Method"] [@sop.kind method_parameter];
     direction : direction [@sop.default Direction_normal]
       [@sop.label "Direction"] [@sop.folder "Ray"]
@@ -4269,12 +4269,12 @@ module Ray = struct
       [@sop.folder "Ray/Vector"] [@sop.min (-1.)] [@sop.max 1.];
     direction_attribute : string [@sop.default "N"]
       [@sop.label "Direction attribute"] [@sop.folder "Ray"];
-    direction_mode : Pdk.Ops.ray_direction_mode
-      [@sop.default Pdk.Ops.Ray_forward]
+    direction_mode : Pdk.Ray.direction_mode
+      [@sop.default Pdk.Ray.Ray_forward]
       [@sop.label "Direction mode"] [@sop.folder "Ray"]
       [@sop.kind direction_mode_parameter];
-    surface_hit : Pdk.Ops.ray_surface_hit
-      [@sop.default Pdk.Ops.Ray_first_surface]
+    surface_hit : Pdk.Ray.surface_hit
+      [@sop.default Pdk.Ray.Ray_first_surface]
       [@sop.label "Surface hit"] [@sop.folder "Ray"]
       [@sop.kind surface_parameter];
     samples : int [@sop.default 1] [@sop.label "Samples"]
@@ -4285,7 +4285,7 @@ module Ray = struct
       [@sop.hard_min 0.];
     seed : int [@sop.default 0] [@sop.label "Seed"] [@sop.folder "Jitter"]
       [@sop.min 0] [@sop.max 999999];
-    combine : Pdk.Ops.ray_combine [@sop.default Pdk.Ops.Ray_average]
+    combine : Pdk.Ray.combine [@sop.default Pdk.Ray.Ray_average]
       [@sop.label "Combine"] [@sop.folder "Jitter"]
       [@sop.kind combine_parameter];
     min_distance : float [@sop.default 0.] [@sop.label "Minimum distance"]
@@ -4330,11 +4330,11 @@ module Ray = struct
     [@@deriving sop_params, sop_node]
 
   let direction parameters = match parameters.direction with
-    | Direction_vector -> Pdk.Ops.Ray_vector (Vec3.create
+    | Direction_vector -> Pdk.Ray.Ray_vector (Vec3.create
         parameters.direction_x parameters.direction_y parameters.direction_z)
-    | Direction_normal -> Pdk.Ops.Ray_normal
+    | Direction_normal -> Pdk.Ray.Ray_normal
     | Direction_attribute ->
-        Pdk.Ops.Ray_attribute parameters.direction_attribute
+        Pdk.Ray.Ray_attribute parameters.direction_attribute
 
   let rec build ~label ~inputs parameters = match inputs with
     | [source; collision] ->

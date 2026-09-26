@@ -1621,9 +1621,9 @@ let test_generators_selections_and_delete () =
   let ray_graph = Sop.grid ~columns:16 ~rows:12 ~size:4. ()
       |> Sop.transform (Mat4.translation (Vec3.create 0. 2. 0.))
       |> Sop.ray ~collision:ray_collision ~collision_group:"collision_faces"
-           ~direction:(Pdk.Ops.Ray_vector (Vec3.neg Vec3.unit_y))
+           ~direction:(Pdk.Ray.Ray_vector (Vec3.neg Vec3.unit_y))
            ~samples:5 ~jitter_scale:0.08 ~seed:313
-           ~combine:Pdk.Ops.Ray_average
+           ~combine:Pdk.Ray.Ray_average
            ~distance_attribute:"ray_distance" ~hit_group:"ray_hits"
            ~point_pattern:"Cd" in
   check (Node.version ray_graph = 2

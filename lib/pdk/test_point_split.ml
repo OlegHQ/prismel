@@ -136,75 +136,75 @@ let equal_geometry left right =
 
 let test_unique_and_selection () =
   let source = base () in
-  let all = Ops.point_split source |> get in
+  let all = Point_split.run_checked source |> get in
   check (Geometry.point_count all = 7) "Point Split unique cardinality";
   let topology = Topology.Private.view (Geometry.topology all) in
   check (topology.vertex_points = [|0;1;2;5;6;3|])
     "Point Split unique stable topology";
   let point_selection = Transform_ops.Selected_points (group Group.Point "seam_points" source) in
-  let points = Ops.point_split ~selection:point_selection source |> get in
+  let points = Point_split.run_checked ~selection:point_selection source |> get in
   check (Geometry.point_count points = 7)
     "Point Split selected-point cardinality";
   let vertex_selection = Transform_ops.Selected_vertices
       (group Group.Vertex "one_corner" source) in
-  let vertex = Ops.point_split ~selection:vertex_selection source |> get in
+  let vertex = Point_split.run_checked ~selection:vertex_selection source |> get in
   check (Geometry.point_count vertex = 6)
     "Point Split selected-vertex cardinality";
   let primitive_selection = Transform_ops.Selected_primitives
       (group Group.Primitive "first_face" source) in
-  let primitive = Ops.point_split ~selection:primitive_selection source |> get in
+  let primitive = Point_split.run_checked ~selection:primitive_selection source |> get in
   check (Geometry.point_count primitive = 7)
     "Point Split selected-primitive cardinality";
   let empty = Group.init ~grain:1 ~owner:Group.Point ~name:"empty" 5
       (Fun.const false) in
-  check (Ops.point_split ~selection:(Transform_ops.Selected_points empty) source |> get == source)
+  check (Point_split.run_checked ~selection:(Transform_ops.Selected_points empty) source |> get == source)
     "Point Split empty selection identity"
 
 let test_attribute_clusters_and_tolerance () =
   let source = base () in
-  let split = Ops.point_split ~attributes:"u*" source |> get in
+  let split = Point_split.run_checked ~attributes:"u*" source |> get in
   check (Geometry.point_count split = 7) "Point Split float2 seam clustering";
   let exact = base ~delta:0. () in
-  check (Ops.point_split ~attributes:"uv" exact |> get == exact)
+  check (Point_split.run_checked ~attributes:"uv" exact |> get == exact)
     "Point Split equal attribute identity";
   let near = base ~delta:0.005 () in
-  check (Ops.point_split ~attributes:"uv" ~tolerance:0.01 near |> get == near)
+  check (Point_split.run_checked ~attributes:"uv" ~tolerance:0.01 near |> get == near)
     "Point Split inclusive tolerance merge";
   check (Geometry.point_count
-      (Ops.point_split ~attributes:"uv" ~tolerance:0.001 near |> get) = 7)
+      (Point_split.run_checked ~attributes:"uv" ~tolerance:0.001 near |> get) = 7)
     "Point Split tolerance separation";
   check (Geometry.point_count
-      (Ops.point_split ~attributes:"material" source |> get) = 7)
+      (Point_split.run_checked ~attributes:"material" source |> get) = 7)
     "Point Split primitive integer clustering";
   check (Geometry.point_count
-      (Ops.point_split ~attributes:"weights" source |> get) = 7)
+      (Point_split.run_checked ~attributes:"weights" source |> get) = 7)
     "Point Split float-array clustering";
   check (Geometry.point_count
-      (Ops.point_split ~attributes:"tag" source |> get) = 7)
+      (Point_split.run_checked ~attributes:"tag" source |> get) = 7)
     "Point Split text clustering"
 
 let test_group_clusters () =
   let source = base ~delta:0. () in
-  let vertex = Ops.point_split ~attributes:"one_corner" source |> get in
+  let vertex = Point_split.run_checked ~attributes:"one_corner" source |> get in
   check (Geometry.point_count vertex = 6)
     "Point Split vertex-group seam clustering";
-  let primitive = Ops.point_split ~attributes:"first_face" source |> get in
+  let primitive = Point_split.run_checked ~attributes:"first_face" source |> get in
   check (Geometry.point_count primitive = 7)
     "Point Split primitive-group seam clustering";
-  let both = Ops.point_split ~attributes:"*_corner first_*" source |> get in
+  let both = Point_split.run_checked ~attributes:"*_corner first_*" source |> get in
   check (Geometry.point_count both = 7)
     "Point Split wildcard group seam clustering";
-  let excluded = Ops.point_split
+  let excluded = Point_split.run_checked
       ~attributes:"*_corner first_* ^first_face" source |> get in
   check (Geometry.point_count excluded = 6)
     "Point Split ordered group exclusion";
-  let promoted = Ops.point_split ~attributes:"first_face"
+  let promoted = Point_split.run_checked ~attributes:"first_face"
       ~promote_attributes:true source |> get in
   check (Geometry.find_attribute ~owner:Attribute.Point "first_face" promoted
       = None)
     "Point Split promoted a group as an attribute";
   let seam_points = group Group.Point "seam_points" source in
-  check (match Ops.point_split ~attributes:(Group.name seam_points) source with
+  check (match Point_split.run_checked ~attributes:(Group.name seam_points) source with
     | Error _ -> true | Ok _ -> false)
     "Point Split accepted a point group as a seam criterion"
 
@@ -212,12 +212,12 @@ let test_partial_attribute_selection () =
   let exact = base ~delta:0. () in
   let selected = Transform_ops.Selected_vertices
       (group Group.Vertex "one_corner" exact) in
-  check (Ops.point_split ~selection:selected ~attributes:"uv" exact |> get == exact)
+  check (Point_split.run_checked ~selection:selected ~attributes:"uv" exact |> get == exact)
     "Point Split separated an equal selected/unselected seam";
   let differing = base () in
   let selected = Transform_ops.Selected_vertices
       (group Group.Vertex "one_corner" differing) in
-  let split = Ops.point_split ~selection:selected ~attributes:"uv" differing
+  let split = Point_split.run_checked ~selection:selected ~attributes:"uv" differing
       |> get in
   check (Geometry.point_count split = 6)
     "Point Split did not separate a differing selected corner";
@@ -245,10 +245,10 @@ let test_all_storage_kinds () =
       |> Geometry.with_attribute integer_rows |> Result.get_ok in
   List.iter (fun name ->
     check (Geometry.point_count
-        (Ops.point_split ~attributes:name source |> get) = 7)
+        (Point_split.run_checked ~attributes:name source |> get) = 7)
       ("Point Split storage clustering failed for " ^ name))
     ["scalar";"vector3";"vector4";"integer_rows"];
-  let promoted = Ops.point_split
+  let promoted = Point_split.run_checked
       ~attributes:"scalar vector3 vector4 integer_rows"
       ~promote_attributes:true source |> get in
   List.iter (fun name ->
@@ -259,7 +259,7 @@ let test_all_storage_kinds () =
 
 let test_payload_promotion_and_groups () =
   let source = base () in
-  let output = Ops.point_split ~attributes:"uv tag weights"
+  let output = Point_split.run_checked ~attributes:"uv tag weights"
       ~promote_attributes:true source |> get in
   check (Geometry.point_count output = 7) "Point Split promoted cardinality";
   check (Geometry.find_attribute ~owner:Attribute.Vertex "uv" output = None
@@ -308,23 +308,23 @@ let test_malformed_and_cancellation () =
   let source = base () in
   let expect_error label result = match result with
     | Error _ -> () | Ok _ -> fail ("Point Split accepted " ^ label) in
-  expect_error "negative tolerance" (Ops.point_split ~tolerance:(-1.) source);
-  expect_error "non-finite tolerance" (Ops.point_split ~tolerance:nan source);
+  expect_error "negative tolerance" (Point_split.run_checked ~tolerance:(-1.) source);
+  expect_error "non-finite tolerance" (Point_split.run_checked ~tolerance:nan source);
   expect_error "missing attribute pattern"
-    (Ops.point_split ~attributes:"missing" source);
-  expect_error "malformed pattern" (Ops.point_split ~attributes:"[" source);
+    (Point_split.run_checked ~attributes:"missing" source);
+  expect_error "malformed pattern" (Point_split.run_checked ~attributes:"[" source);
   let wrong = group Group.Primitive "first_face" source in
   expect_error "wrong selection owner"
-    (Ops.point_split ~selection:(Transform_ops.Selected_points wrong) source);
+    (Point_split.run_checked ~selection:(Transform_ops.Selected_points wrong) source);
   let index = Topology_index.create (Geometry.topology source) in
   let edge = Edge_group.init ~grain:1 ~topology:(Geometry.topology source)
       ~index ~name:"edge" (fun edge -> edge = 0) in
   expect_error "native edge selection"
-    (Ops.point_split ~selection:(Transform_ops.Selected_edges edge) source);
+    (Point_split.run_checked ~selection:(Transform_ops.Selected_edges edge) source);
   let bad = Geometry.with_attribute
       (attribute Attribute.Vertex "bad"
         (Attribute.Float [|0.;0.;0.;nan;0.;0.|])) source |> Result.get_ok in
-  expect_error "non-finite seam value" (Ops.point_split ~attributes:"bad" bad);
+  expect_error "non-finite seam value" (Point_split.run_checked ~attributes:"bad" bad);
   let duplicate = source
       |> Geometry.with_attribute
           (attribute Attribute.Vertex "duplicate" (Attribute.Int [|0;0;0;1;1;0|]))
@@ -333,10 +333,10 @@ let test_malformed_and_cancellation () =
           (attribute Attribute.Primitive "duplicate" (Attribute.Int [|0;1|]))
       |> Result.get_ok in
   expect_error "ambiguous promoted owner"
-    (Ops.point_split ~attributes:"duplicate" ~promote_attributes:true duplicate);
+    (Point_split.run_checked ~attributes:"duplicate" ~promote_attributes:true duplicate);
   let cancel = Cancel.create () in
   Cancel.cancel cancel;
-  (match Ops.point_split ~cancel source with
+  (match Point_split.run_checked ~cancel source with
    | Error error when Error.code error = "cancelled" -> ()
    | Error error -> fail ("Point Split cancellation code: " ^ Error.to_string error)
    | Ok _ -> fail "Point Split ignored cancellation")
@@ -356,7 +356,7 @@ let large_fixture () =
 let test_parallel_exact () =
   let source = large_fixture () in
   let cook domains = Parallel.run ~domains (fun () ->
-    Ops.point_split ~grain:257 ~attributes:"material seam_region"
+    Point_split.run_checked ~grain:257 ~attributes:"material seam_region"
       ~promote_attributes:true source |> get) in
   let one = cook 1 and four = cook 4 in
   check (equal_geometry one four)
