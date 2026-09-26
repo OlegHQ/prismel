@@ -185,11 +185,15 @@ let scene geometry =
       Scene3.mesh ~cull:Scene3.Cull_none
         ~material:(Material.unlit Color.white) mesh])]
 
-let export directory prefix domains geometry =
+(* One window per domain count: every graph is one frame of the same export. *)
+let export directory domains geometries =
   let config = {Sketch.default_config with width=256; height=192;
     domains=Some domains} in
-  Sketch.export ~config ~directory ~prefix ~frames:1
-    (fun _ -> scene geometry)
+  let scenes = Array.of_list (List.map scene geometries) in
+  ignore (Sketch.export_state ~config ~directory ~prefix:"parity"
+    ~frames:(Array.length scenes) ~init:(fun _ -> 0)
+    ~update:(fun _ (frame : Frame.t) -> frame.count - 1)
+    ~view:(fun index _ -> scenes.(max 0 (min index (Array.length scenes - 1)))) ())
 
 let read path =
   let channel = open_in_bin path in
@@ -209,7 +213,7 @@ let run () =
         Unix.rmdir directory
       end) [one; four];
     Unix.rmdir root) (fun () ->
-      List.iter (fun (name, graph, check) ->
+      let cooked = List.map (fun (name, graph, check) ->
         let cook domains =
           try cook domains (graph ()) with
           | Failure message -> failwith (name ^ ": " ^ message) in
@@ -221,15 +225,20 @@ let run () =
            || Pdk.Geometry.primitive_count one_geometry
               <> Pdk.Geometry.primitive_count four_geometry then
           failwith (name ^ ": cook cardinality differs by domain count");
-        export one name 1 one_geometry;
-        export four name 4 four_geometry;
-        let filename = name ^ "-000000.png" in
+        name, one_geometry, four_geometry) rows in
+      export one 1 (List.map (fun (_, geometry, _) -> geometry) cooked);
+      export four 4 (List.map (fun (_, _, geometry) -> geometry) cooked);
+      (* Each frame shows its own graph, so the comparison is per graph. *)
+      if read (Filename.concat one "parity-000000.png")
+         = read (Filename.concat one "parity-000001.png") then
+        failwith "parity export repeated one graph across frames";
+      List.iteri (fun index (name, _, _) ->
+        let filename = Printf.sprintf "parity-%06d.png" index in
         let one_png = read (Filename.concat one filename)
         and four_png = read (Filename.concat four filename) in
         if not (String.equal one_png four_png) then
           failwith (name ^ ": one/four-domain PNG bytes differ");
         if String.length one_png < 100 then
-          failwith (name ^ ": PNG is empty")
-      ) rows);
+          failwith (name ^ ": PNG is empty")) cooked);
   Printf.printf "SOP render parity: %d graphs, one/four-domain PNGs equal\n%!"
     (List.length rows)
