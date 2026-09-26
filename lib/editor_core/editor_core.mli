@@ -2,6 +2,9 @@
 
 module Store = Store
 
+(** Typed parameter schemas (the same values as [Procedural.Parameter]). *)
+module Param = Param
+
 (** Bounded immutable undo history with explicit edit merge rules. *)
 module History : sig
   type 'a t

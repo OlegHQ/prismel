@@ -66,7 +66,7 @@ let reach graph =
 
 let gpu = ["sdl3"; "sdl3_image"; "sdl3_ttf"; "sdl3_mixer"; "metal"; "ogpu_core"; "ogpu"; "ogpu_mock"; "ogpu_metal"; "ogpu_metal_native";
            "runtime"; "runtime_input"; "runtime_resources"; "scene_execution"]
-let upper = ["prismel"; "editor_core"; "pxui"; "pxui_shell"; "pxui_graph"; "sop_ui"; "procedural"; "pdk";
+let upper = ["param"; "prismel"; "editor_core"; "pxui"; "pxui_shell"; "pxui_graph"; "sop_ui"; "procedural"; "pdk";
              "sop_catalog"; "sketch_support"; "prismel_editor"]
 let foundational = ["sdl3"; "sdl3_image"; "sdl3_ttf"; "sdl3_mixer"; "metal"; "ogpu_core"; "ogpu";
                     "native_layer_token"; "scene_command"; "lru"]
@@ -75,6 +75,7 @@ let foundational = ["sdl3"; "sdl3_image"; "sdl3_ttf"; "sdl3_mixer"; "metal"; "og
 let rules =
   List.map (fun lib -> lib, "runtime" :: "runtime_resources"
                             :: "prismel_execution" :: upper) foundational
+  @ [ "param", "prismel" :: "prismel_math" :: "pdk" :: "procedural" :: "editor_core" :: "pxui" :: gpu ]
   @ [ "ogpu_core", ["sdl3"; "metal"; "ogpu_metal_native"; "ogpu_metal"];
       "ogpu", ["sdl3"; "metal"; "ogpu_metal_native"; "ogpu_metal"];
       "ogpu_mock", ["sdl3"; "metal"; "ogpu_metal_native"; "ogpu_metal"];

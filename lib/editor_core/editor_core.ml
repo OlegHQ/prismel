@@ -1,4 +1,5 @@
 module Store = Store
+module Param = Param
 
 module History = struct
   type merge =

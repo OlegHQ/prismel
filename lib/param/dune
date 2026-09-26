@@ -1,0 +1,3 @@
+(library
+ (name param)
+ (public_name prismel.param))

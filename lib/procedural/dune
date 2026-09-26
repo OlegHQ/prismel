@@ -1,7 +1,7 @@
 (library
  (name procedural)
  (public_name prismel.procedural)
- (libraries prismel_math pdk lru unix)
+ (libraries param prismel_math pdk lru unix)
  (modules context diagnostic parameter node session async_cook select instances
   sop custom graph edit_graph))
 

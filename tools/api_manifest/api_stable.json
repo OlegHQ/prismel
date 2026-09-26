@@ -1,16 +1,16 @@
 {
   "generator": "tools/api_manifest/api_manifest.exe",
   "kind": "stable_high_level",
-  "module_count": 128,
+  "module_count": 129,
   "modules": [
     {
-      "api_sha256": "42991257be662e316b18b78776fd2c91d5990ebf5a3b561d4d38b32d1d9db961",
+      "api_sha256": "093ccfd977898cd5d1a6d689c753022d87bdc46ee5d5f037f83011af0a62f618",
       "excluded_legacy_symbols": [],
       "library": "editor_core",
       "module": "Editor_core",
       "source": "lib/editor_core/editor_core.mli",
-      "source_bytes": 1529,
-      "source_sha256": "69d41c3a25f4d72911338f672ff5eaeac521c89f368482dade5854129f52aa90"
+      "source_bytes": 1627,
+      "source_sha256": "3cae3b81148d7d43e95119a66648f7ec0b1040cec1ea5d1bfdd91c9d59cac159"
     },
     {
       "api_sha256": "c720b345045b4ff759e69018c4fbc8217192f0356cc83f1892a18af03ca335ab",
@@ -20,6 +20,15 @@
       "source": "lib/editor_core/store.mli",
       "source_bytes": 1093,
       "source_sha256": "1eb2e992e75eef835c99ff6d54e455b00cbaaa5a42cc72c2fcac8a3bef9b7c72"
+    },
+    {
+      "api_sha256": "fa5bb93ee2a3b270a41bd48086ae9ee833e1a7a7f49715433c3651686ca509ee",
+      "excluded_legacy_symbols": [],
+      "library": "param",
+      "module": "Param",
+      "source": "lib/param/param.mli",
+      "source_bytes": 4635,
+      "source_sha256": "0aad2b7c76dd93cb18c0e1cb788414360aaf7463332c5a7a8caf629ecc26eb77"
     },
     {
       "api_sha256": "f7b19ec7a30f2018c9842bf30ff66e34eac37f332e71bc273f66728e1a309bc2",
@@ -1025,13 +1034,13 @@
       "source_sha256": "b07bad76d2713cdee939443f6a961881c54e2ea0f5e1ab6a9157d1e59773d7d1"
     },
     {
-      "api_sha256": "fa5bb93ee2a3b270a41bd48086ae9ee833e1a7a7f49715433c3651686ca509ee",
+      "api_sha256": "a66932621a4d6277027c6dfbb9fcf0b0e0b9e0057d4be7b23a51ecfbd997c4b4",
       "excluded_legacy_symbols": [],
       "library": "procedural",
       "module": "Parameter",
       "source": "lib/procedural/parameter.mli",
-      "source_bytes": 4635,
-      "source_sha256": "0aad2b7c76dd93cb18c0e1cb788414360aaf7463332c5a7a8caf629ecc26eb77"
+      "source_bytes": 200,
+      "source_sha256": "26c835166ca1965dacdc15652fd013700f0272d83b369b1714d9dd9ced60754e"
     },
     {
       "api_sha256": "9cb543dde61eaa507f2330383e57be42bcb2956293d662d3ca4049b1ecc11b31",
