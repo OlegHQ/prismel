@@ -35,7 +35,7 @@ when behavior or architecture changes materially.
 | `pxui_shell` | Editor chrome over PXUI; layout, headers, keys, status, timeline, prompts, frame |
 | `pxui_graph` | SOP-network presentation; emits typed requests, never edits |
 | `sop_ui` | Renders a node's typed parameter template through PXUI |
-| `sketch_support` | Target-neutral sketch helpers (reactive cooks, packed pieces) |
+| `sketch_support` | Procedural-to-Scene glue (`Bridge`: cooked meshes, instances, frame context) and packed pieces |
 | `sketch_ui` | The interactive sketch environment (`Environment3`/`2`) |
 
 `examples/<name>/` are short teaching programs; `sketches/<name>/` are
