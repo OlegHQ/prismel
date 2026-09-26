@@ -5,6 +5,8 @@ Ops.graph_color_worksets	Graph_color.worksets
 Ops.Graph_primitives_by_point	Graph_color.Graph_primitives_by_point
 Ops.Graph_points_by_primitive	Graph_color.Graph_points_by_primitive
 Ops.Graph_primitives_by_edge	Graph_color.Graph_primitives_by_edge
+Ops.begin_attribute	Graph_color.begin_attribute
+Ops.length_attribute	Graph_color.length_attribute
 Ops.blast_by_attribute	Blast_by_attribute.blast_checked
 Ops.blast_attribute_owner	Blast_by_attribute.owner
 Ops.blast_attribute_mode	Blast_by_attribute.mode
