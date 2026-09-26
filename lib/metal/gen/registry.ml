@@ -300,4 +300,74 @@ let entries : entry list =
              ; access = Get; ocaml = "device_supports_depth24_stencil8"; since = None; feature = C.Texture }
   ; Property { recv = "Device"; objc = "id<MTLDevice>"; name = "supportsBCTextureCompression"; ty = Scalar Bool
              ; access = Get; ocaml = "device_supports_bc_texture_compression"; since = None; feature = C.Texture }
+  ; Method { recv = "Device"; objc = "id<MTLDevice>"; sel = "newCommandQueue"; args = []
+           ; ret = Some (Obj "Command_queue"); error = false; ocaml = "command_queue_create"; since = None
+           ; feature = C.Queue }
+  ; Method { recv = "Device"; objc = "id<MTLDevice>"; sel = "newFence"; args = []
+           ; ret = Some (Obj "Fence"); error = false; ocaml = "device_create_fence"; since = None
+           ; feature = C.Fences }
+  (* MTLCommandQueue, MTLCommandBuffer and encoder lifetimes *)
+  ; Method { recv = "Command_queue"; objc = "id<MTLCommandQueue>"; sel = "commandBuffer"; args = []
+           ; ret = Some (Obj "Command_buffer"); error = false; ocaml = "command_buffer_create"; since = None
+           ; feature = C.Queue }
+  ; Method { recv = "Command_queue"; objc = "id<MTLCommandQueue>"; sel = "addResidencySet:"
+           ; args = [ Obj "Residency_set" ]; ret = None; error = false
+           ; ocaml = "command_queue_add_residency_set"; since = Some (15, 0); feature = C.Residency_sets }
+  ; Method { recv = "Command_queue"; objc = "id<MTLCommandQueue>"; sel = "removeResidencySet:"
+           ; args = [ Obj "Residency_set" ]; ret = None; error = false
+           ; ocaml = "command_queue_remove_residency_set"; since = Some (15, 0); feature = C.Residency_sets }
+  ; Property { recv = "Command_buffer"; objc = "id<MTLCommandBuffer>"; name = "label"; ty = Str; access = Set
+             ; ocaml = "command_buffer_label"; since = None; feature = C.Queue }
+  ; Property { recv = "Command_buffer"; objc = "id<MTLCommandBuffer>"; name = "status"
+             ; ty = Enum_of "MTLCommandBufferStatus"; access = Get; ocaml = "command_buffer_status"; since = None
+             ; feature = C.Queue }
+  ; Method { recv = "Command_buffer"; objc = "id<MTLCommandBuffer>"; sel = "commit"; args = []; ret = None
+           ; error = false; ocaml = "command_buffer_commit"; since = None; feature = C.Queue }
+  ; Method { recv = "Command_buffer"; objc = "id<MTLCommandBuffer>"; sel = "useResidencySet:"
+           ; args = [ Obj "Residency_set" ]; ret = None; error = false
+           ; ocaml = "command_buffer_use_residency_set"; since = Some (15, 0); feature = C.Residency_sets }
+  ; Method { recv = "Command_buffer"; objc = "id<MTLCommandBuffer>"; sel = "encodeSignalEvent:value:"
+           ; args = [ Obj "Shared_event"; Scalar Nsuint ]; ret = None; error = false
+           ; ocaml = "command_buffer_encode_signal_event"; since = None; feature = C.Event_synchronization }
+  ; Method { recv = "Command_buffer"; objc = "id<MTLCommandBuffer>"; sel = "encodeWaitForEvent:value:"
+           ; args = [ Obj "Shared_event"; Scalar Nsuint ]; ret = None; error = false
+           ; ocaml = "command_buffer_encode_wait_for_event"; since = None; feature = C.Event_synchronization }
+  ; Method { recv = "Command_buffer"; objc = "id<MTLCommandBuffer>"; sel = "computeCommandEncoder"; args = []
+           ; ret = Some (Obj "Compute_encoder"); error = false; ocaml = "command_buffer_compute_encoder"
+           ; since = None; feature = C.Compute_pipeline }
+  ; Method { recv = "Command_buffer"; objc = "id<MTLCommandBuffer>"; sel = "computeCommandEncoderWithDescriptor:"
+           ; args = [ Obj "Compute_pass_descriptor" ]; ret = Some (Obj "Compute_encoder"); error = false
+           ; ocaml = "command_buffer_compute_encoder_with_pass"; since = None; feature = C.Compute_pipeline }
+  ; Method { recv = "Command_buffer"; objc = "id<MTLCommandBuffer>"; sel = "blitCommandEncoder"; args = []
+           ; ret = Some (Obj "Blit_encoder"); error = false; ocaml = "command_buffer_blit_encoder"; since = None
+           ; feature = C.Buffer }
+  ; Method { recv = "Command_buffer"; objc = "id<MTLCommandBuffer>"; sel = "blitCommandEncoderWithDescriptor:"
+           ; args = [ Obj "Blit_pass_descriptor" ]; ret = Some (Obj "Blit_encoder"); error = false
+           ; ocaml = "command_buffer_blit_encoder_with_pass"; since = None; feature = C.Buffer }
+  ; Method { recv = "Command_buffer"; objc = "id<MTLCommandBuffer>"; sel = "resourceStateCommandEncoder"; args = []
+           ; ret = Some (Obj "Resource_state_encoder"); error = false
+           ; ocaml = "command_buffer_resource_state_encoder"; since = None; feature = C.Sparse_memory }
+  ; Method { recv = "Command_buffer"; objc = "id<MTLCommandBuffer>"; sel = "accelerationStructureCommandEncoder"
+           ; args = []; ret = Some (Obj "Acceleration_encoder"); error = false
+           ; ocaml = "command_buffer_acceleration_encoder"; since = None; feature = C.Ray_tracing }
+  ; Method { recv = "Command_buffer"; objc = "id<MTLCommandBuffer>"; sel = "renderCommandEncoderWithDescriptor:"
+           ; args = [ Obj "Render_pass_descriptor" ]; ret = Some (Obj "Render_encoder"); error = false
+           ; ocaml = "command_buffer_render_encoder_from_pass"; since = None; feature = C.Render_pipeline }
+  ; Method { recv = "Compute_encoder"; objc = "id<MTLComputeCommandEncoder>"; sel = "endEncoding"; args = []
+           ; ret = None; error = false; ocaml = "compute_encoder_end"; since = None; feature = C.Compute_pipeline }
+  ; Method { recv = "Render_encoder"; objc = "id<MTLRenderCommandEncoder>"; sel = "endEncoding"; args = []
+           ; ret = None; error = false; ocaml = "render_encoder_end"; since = None; feature = C.Render_pipeline }
+  ; Method { recv = "Blit_encoder"; objc = "id<MTLBlitCommandEncoder>"; sel = "endEncoding"; args = []
+           ; ret = None; error = false; ocaml = "blit_encoder_end"; since = None; feature = C.Buffer }
+  ; Method { recv = "Resource_state_encoder"; objc = "id<MTLResourceStateCommandEncoder>"; sel = "endEncoding"
+           ; args = []; ret = None; error = false; ocaml = "resource_state_encoder_end"; since = None
+           ; feature = C.Sparse_memory }
+  ; Method { recv = "Acceleration_encoder"; objc = "id<MTLAccelerationStructureCommandEncoder>"; sel = "endEncoding"
+           ; args = []; ret = None; error = false; ocaml = "acceleration_encoder_end"; since = None
+           ; feature = C.Ray_tracing }
+  (* MTLResidencySet *)
+  ; Property { recv = "Residency_set"; objc = "id<MTLResidencySet>"; name = "allocatedSize"; ty = Scalar Nsuint
+             ; access = Get; ocaml = "residency_set_allocated_size"; since = Some (15, 0); feature = C.Residency_sets }
+  ; Method { recv = "Residency_set"; objc = "id<MTLResidencySet>"; sel = "commit"; args = []; ret = None
+           ; error = false; ocaml = "residency_set_commit"; since = Some (15, 0); feature = C.Residency_sets }
   ]

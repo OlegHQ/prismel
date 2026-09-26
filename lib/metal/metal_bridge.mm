@@ -2967,31 +2967,6 @@ extern "C" CAMLprim value caml_prismel_metal_residency_set_create(
   CAMLreturn(result_ok(raw));
 }
 
-extern "C" CAMLprim value
-caml_prismel_metal_residency_set_allocated_size(value raw) {
-  CAMLparam1(raw);
-  CAMLlocal2(size, result);
-  @autoreleasepool {
-    if (@available(macOS 15.0, *)) {
-      @try {
-        id<MTLResidencySet> residency_set =
-            object_of_handle(raw, Handle_kind::Residency_set);
-        const std::uint64_t allocated_size = residency_set.allocatedSize;
-        if (allocated_size > static_cast<std::uint64_t>(INT64_MAX)) {
-          CAMLreturn(result_error_text(
-              "residency-set allocated size exceeds OCaml int64"));
-        }
-        size = caml_copy_int64(static_cast<std::int64_t>(allocated_size));
-        result = result_ok(size);
-        CAMLreturn(result);
-      } @catch (NSException *exception) {
-        CAMLreturn(result_error(exception.reason));
-      }
-    }
-    CAMLreturn(result_error_text("residency sets require macOS 15"));
-  }
-}
-
 extern "C" CAMLprim value caml_prismel_metal_residency_set_counts(value raw) {
   CAMLparam1(raw);
   CAMLlocal4(count, all_count, counts, result);
@@ -3092,23 +3067,6 @@ caml_prismel_metal_residency_set_remove_allocations(
         auto allocations = allocations_of_array(raw_allocations);
         [residency_set removeAllocations:allocations.data()
                                    count:allocations.size()];
-        CAMLreturn(result_unit());
-      } @catch (NSException *exception) {
-        CAMLreturn(result_error(exception.reason));
-      }
-    }
-    CAMLreturn(result_error_text("residency sets require macOS 15"));
-  }
-}
-
-extern "C" CAMLprim value caml_prismel_metal_residency_set_commit(value raw) {
-  CAMLparam1(raw);
-  @autoreleasepool {
-    if (@available(macOS 15.0, *)) {
-      @try {
-        id<MTLResidencySet> residency_set =
-            object_of_handle(raw, Handle_kind::Residency_set);
-        [residency_set commit];
         CAMLreturn(result_unit());
       } @catch (NSException *exception) {
         CAMLreturn(result_error(exception.reason));
@@ -6892,42 +6850,6 @@ bool prismel_metal4_explicit_buffer_range(
   return true;
 }
 
-extern "C" CAMLprim value caml_prismel_metal_command_queue_create(
-    value raw_device) {
-  CAMLparam1(raw_device);
-  CAMLlocal1(raw);
-  @autoreleasepool {
-    id<MTLDevice> device = object_of_handle(raw_device, Handle_kind::Device);
-    id<MTLCommandQueue> queue = [device newCommandQueue];
-    if (queue == nil) {
-      CAMLreturn(result_error_text("Metal failed to create a command queue"));
-    }
-    raw = allocate_handle(queue, Handle_kind::Command_queue);
-  }
-  CAMLreturn(result_ok(raw));
-}
-
-extern "C" CAMLprim value
-caml_prismel_metal_command_queue_add_residency_set(
-    value raw_queue, value raw_set) {
-  CAMLparam2(raw_queue, raw_set);
-  @autoreleasepool {
-    if (@available(macOS 15.0, *)) {
-      @try {
-        id<MTLCommandQueue> queue =
-            object_of_handle(raw_queue, Handle_kind::Command_queue);
-        id<MTLResidencySet> residency_set =
-            object_of_handle(raw_set, Handle_kind::Residency_set);
-        [queue addResidencySet:residency_set];
-        CAMLreturn(result_unit());
-      } @catch (NSException *exception) {
-        CAMLreturn(result_error(exception.reason));
-      }
-    }
-    CAMLreturn(result_error_text("residency sets require macOS 15"));
-  }
-}
-
 extern "C" CAMLprim value
 caml_prismel_metal_command_queue_add_residency_sets(
     value raw_queue, value raw_sets) {
@@ -6940,27 +6862,6 @@ caml_prismel_metal_command_queue_add_residency_sets(
         auto residency_sets = residency_sets_of_array(raw_sets);
         [queue addResidencySets:residency_sets.data()
                             count:residency_sets.size()];
-        CAMLreturn(result_unit());
-      } @catch (NSException *exception) {
-        CAMLreturn(result_error(exception.reason));
-      }
-    }
-    CAMLreturn(result_error_text("residency sets require macOS 15"));
-  }
-}
-
-extern "C" CAMLprim value
-caml_prismel_metal_command_queue_remove_residency_set(
-    value raw_queue, value raw_set) {
-  CAMLparam2(raw_queue, raw_set);
-  @autoreleasepool {
-    if (@available(macOS 15.0, *)) {
-      @try {
-        id<MTLCommandQueue> queue =
-            object_of_handle(raw_queue, Handle_kind::Command_queue);
-        id<MTLResidencySet> residency_set =
-            object_of_handle(raw_set, Handle_kind::Residency_set);
-        [queue removeResidencySet:residency_set];
         CAMLreturn(result_unit());
       } @catch (NSException *exception) {
         CAMLreturn(result_error(exception.reason));
@@ -6991,58 +6892,6 @@ caml_prismel_metal_command_queue_remove_residency_sets(
   }
 }
 
-extern "C" CAMLprim value caml_prismel_metal_command_buffer_create(
-    value raw_queue) {
-  CAMLparam1(raw_queue);
-  CAMLlocal1(raw);
-  @autoreleasepool {
-    id<MTLCommandQueue> queue =
-        object_of_handle(raw_queue, Handle_kind::Command_queue);
-    id<MTLCommandBuffer> buffer = [queue commandBuffer];
-    if (buffer == nil) {
-      CAMLreturn(result_error_text("Metal failed to create a command buffer"));
-    }
-    raw = allocate_handle(buffer, Handle_kind::Command_buffer);
-  }
-  CAMLreturn(result_ok(raw));
-}
-
-extern "C" CAMLprim value caml_prismel_metal_command_buffer_set_label(
-    value raw, value raw_label) {
-  CAMLparam2(raw, raw_label);
-  @autoreleasepool {
-    id<MTLCommandBuffer> buffer =
-        object_of_handle(raw, Handle_kind::Command_buffer);
-    NSString *label = string_from_ocaml(raw_label);
-    if (label == nil) {
-      CAMLreturn(result_error_text("command-buffer label is not valid UTF-8"));
-    }
-    buffer.label = label;
-  }
-  CAMLreturn(result_unit());
-}
-
-extern "C" CAMLprim value
-caml_prismel_metal_command_buffer_use_residency_set(
-    value raw_buffer, value raw_set) {
-  CAMLparam2(raw_buffer, raw_set);
-  @autoreleasepool {
-    if (@available(macOS 15.0, *)) {
-      @try {
-        id<MTLCommandBuffer> buffer =
-            object_of_handle(raw_buffer, Handle_kind::Command_buffer);
-        id<MTLResidencySet> residency_set =
-            object_of_handle(raw_set, Handle_kind::Residency_set);
-        [buffer useResidencySet:residency_set];
-        CAMLreturn(result_unit());
-      } @catch (NSException *exception) {
-        CAMLreturn(result_error(exception.reason));
-      }
-    }
-    CAMLreturn(result_error_text("residency sets require macOS 15"));
-  }
-}
-
 extern "C" CAMLprim value
 caml_prismel_metal_command_buffer_use_residency_sets(
     value raw_buffer, value raw_sets) {
@@ -7062,22 +6911,6 @@ caml_prismel_metal_command_buffer_use_residency_sets(
     }
     CAMLreturn(result_error_text("residency sets require macOS 15"));
   }
-}
-
-extern "C" CAMLprim value caml_prismel_metal_command_buffer_compute_encoder(
-    value raw_buffer) {
-  CAMLparam1(raw_buffer);
-  CAMLlocal1(raw);
-  @autoreleasepool {
-    id<MTLCommandBuffer> buffer =
-        object_of_handle(raw_buffer, Handle_kind::Command_buffer);
-    id<MTLComputeCommandEncoder> encoder = [buffer computeCommandEncoder];
-    if (encoder == nil) {
-      CAMLreturn(result_error_text("Metal failed to create a compute encoder"));
-    }
-    raw = allocate_handle(encoder, Handle_kind::Compute_encoder);
-  }
-  CAMLreturn(result_ok(raw));
 }
 
 static MTLPrimitiveAccelerationStructureDescriptor *
@@ -7128,22 +6961,6 @@ extern "C" CAMLprim value caml_prismel_metal_acceleration_structure_create(
   CAMLreturn(result_ok(raw));
 }
 
-extern "C" CAMLprim value
-caml_prismel_metal_command_buffer_acceleration_encoder(value raw_buffer) {
-  CAMLparam1(raw_buffer);
-  CAMLlocal1(raw);
-  @autoreleasepool {
-    id<MTLCommandBuffer> buffer =
-        object_of_handle(raw_buffer, Handle_kind::Command_buffer);
-    id<MTLAccelerationStructureCommandEncoder> encoder =
-        [buffer accelerationStructureCommandEncoder];
-    if (encoder == nil)
-      CAMLreturn(result_error_text("Metal failed to create an acceleration encoder"));
-    raw = allocate_handle(encoder, Handle_kind::Acceleration_encoder);
-  }
-  CAMLreturn(result_ok(raw));
-}
-
 extern "C" CAMLprim value caml_prismel_metal_acceleration_encoder_copy(
     value raw_encoder, value raw_source, value raw_destination) {
   CAMLparam3(raw_encoder, raw_source, raw_destination);
@@ -7174,21 +6991,6 @@ caml_prismel_metal_acceleration_encoder_copy_and_compact(
                    object_of_handle(raw_source, Handle_kind::Acceleration_structure)
                           toAccelerationStructure:
                    object_of_handle(raw_destination, Handle_kind::Acceleration_structure)];
-      CAMLreturn(result_unit());
-    } @catch (NSException *exception) {
-      CAMLreturn(result_error(exception.reason));
-    }
-  }
-}
-
-extern "C" CAMLprim value
-caml_prismel_metal_acceleration_encoder_end(value raw_encoder) {
-  CAMLparam1(raw_encoder);
-  @autoreleasepool {
-    @try {
-      id<MTLAccelerationStructureCommandEncoder> encoder =
-          object_of_handle(raw_encoder, Handle_kind::Acceleration_encoder);
-      [encoder endEncoding];
       CAMLreturn(result_unit());
     } @catch (NSException *exception) {
       CAMLreturn(result_error(exception.reason));
@@ -7292,17 +7094,6 @@ caml_prismel_metal_intersection_function_table_set_buffer(
                offset:Int64_val(raw_offset) atIndex:Int_val(raw_index)];
   }
   CAMLreturn(result_unit());
-}
-
-extern "C" CAMLprim value caml_prismel_metal_device_create_fence(value raw_device) {
-  CAMLparam1(raw_device); CAMLlocal1(raw);
-  @autoreleasepool { @try {
-    id<MTLDevice> device = object_of_handle(raw_device, Handle_kind::Device);
-    id<MTLFence> fence = [device newFence];
-    if (fence == nil) CAMLreturn(result_error_text("Metal failed to create a fence"));
-    raw = allocate_handle(fence, Handle_kind::Fence);
-  } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); } }
-  CAMLreturn(result_ok(raw));
 }
 
 extern "C" CAMLprim value caml_prismel_metal_layer_create(value raw_device) {
@@ -7475,16 +7266,6 @@ extern "C" CAMLprim value caml_prismel_metal_render_pass_descriptor_set_attachme
   } @catch(NSException*x){restore();CAMLreturn(result_error(x.reason));}
 }
 extern "C" CAMLprim value caml_prismel_metal_render_pass_descriptor_set_attachments_bytecode(value *argv,int argc){(void)argc;return caml_prismel_metal_render_pass_descriptor_set_attachments(argv[0],argv[1],argv[2],argv[3],argv[4],argv[5]);}
-
-extern "C" CAMLprim value caml_prismel_metal_command_buffer_render_encoder_from_pass(value rb,value rp){
-  CAMLparam2(rb,rp); CAMLlocal1(raw); @try {
-    id<MTLCommandBuffer>b=object_of_handle(rb,Handle_kind::Command_buffer);
-    MTLRenderPassDescriptor*p=object_of_handle(rp,Handle_kind::Render_pass_descriptor);
-    id<MTLRenderCommandEncoder>e=[b renderCommandEncoderWithDescriptor:p];
-    if(!e)CAMLreturn(result_error_text("Metal failed to create render encoder from descriptor"));
-    raw=allocate_handle(e,Handle_kind::Render_encoder); CAMLreturn(result_ok(raw));
-  } @catch(NSException*x){CAMLreturn(result_error(x.reason));}
-}
 
 extern "C" CAMLprim value caml_prismel_metal_command_buffer_render_encoder_attachments(
     value raw_buffer,value raw_color,value raw_depth,value raw_stencil,value raw_clear) {
@@ -7932,48 +7713,6 @@ extern "C" CAMLprim value caml_prismel_metal_render_encoder_tile_height(value ra
   CAMLreturn(Val_long((intnat)encoder.tileHeight));
 }
 
-extern "C" CAMLprim value caml_prismel_metal_render_encoder_end(value raw) {
-  CAMLparam1(raw);
-  id<MTLRenderCommandEncoder> encoder =
-      object_of_handle(raw, Handle_kind::Render_encoder);
-  [encoder endEncoding];
-  CAMLreturn(result_unit());
-}
-
-extern "C" CAMLprim value
-caml_prismel_metal_command_buffer_resource_state_encoder(value raw_buffer) {
-  CAMLparam1(raw_buffer);
-  CAMLlocal1(raw);
-  @autoreleasepool {
-    id<MTLCommandBuffer> buffer =
-        object_of_handle(raw_buffer, Handle_kind::Command_buffer);
-    id<MTLResourceStateCommandEncoder> encoder =
-        [buffer resourceStateCommandEncoder];
-    if (encoder == nil) {
-      CAMLreturn(result_error_text(
-          "Metal failed to create a resource-state encoder"));
-    }
-    raw = allocate_handle(encoder, Handle_kind::Resource_state_encoder);
-  }
-  CAMLreturn(result_ok(raw));
-}
-
-extern "C" CAMLprim value caml_prismel_metal_command_buffer_blit_encoder(
-    value raw_buffer) {
-  CAMLparam1(raw_buffer);
-  CAMLlocal1(raw);
-  @autoreleasepool {
-    id<MTLCommandBuffer> buffer =
-        object_of_handle(raw_buffer, Handle_kind::Command_buffer);
-    id<MTLBlitCommandEncoder> encoder = [buffer blitCommandEncoder];
-    if (encoder == nil) {
-      CAMLreturn(result_error_text("Metal failed to create a blit encoder"));
-    }
-    raw = allocate_handle(encoder, Handle_kind::Blit_encoder);
-  }
-  CAMLreturn(result_ok(raw));
-}
-
 extern "C" CAMLprim value caml_prismel_metal_compute_encoder_set_pipeline(
     value raw_encoder, value raw_pipeline) {
   CAMLparam2(raw_encoder, raw_pipeline);
@@ -8035,14 +7774,6 @@ extern "C" CAMLprim value caml_prismel_metal_compute_encoder_dispatch(
   CAMLreturn(result_unit());
 }
 
-extern "C" CAMLprim value caml_prismel_metal_compute_encoder_end(value raw) {
-  CAMLparam1(raw);
-  id<MTLComputeCommandEncoder> encoder =
-      object_of_handle(raw, Handle_kind::Compute_encoder);
-  [encoder endEncoding];
-  CAMLreturn(result_unit());
-}
-
 extern "C" CAMLprim value
 caml_prismel_metal_resource_state_encoder_update_texture_mapping(
     value raw_encoder, value raw_texture, value raw_mode, value raw_region,
@@ -8096,15 +7827,6 @@ caml_prismel_metal_resource_state_encoder_update_texture_mapping_bytecode(
   (void)argn;
   return caml_prismel_metal_resource_state_encoder_update_texture_mapping(
       argv[0], argv[1], argv[2], argv[3], argv[4], argv[5]);
-}
-
-extern "C" CAMLprim value
-caml_prismel_metal_resource_state_encoder_end(value raw) {
-  CAMLparam1(raw);
-  id<MTLResourceStateCommandEncoder> encoder =
-      object_of_handle(raw, Handle_kind::Resource_state_encoder);
-  [encoder endEncoding];
-  CAMLreturn(result_unit());
 }
 
 extern "C" CAMLprim value
@@ -8208,22 +7930,6 @@ caml_prismel_metal_blit_encoder_copy_buffer_to_texture(
   }
 }
 
-extern "C" CAMLprim value caml_prismel_metal_blit_encoder_end(value raw) {
-  CAMLparam1(raw);
-  id<MTLBlitCommandEncoder> encoder =
-      object_of_handle(raw, Handle_kind::Blit_encoder);
-  [encoder endEncoding];
-  CAMLreturn(result_unit());
-}
-
-extern "C" CAMLprim value caml_prismel_metal_command_buffer_commit(value raw) {
-  CAMLparam1(raw);
-  id<MTLCommandBuffer> buffer =
-      object_of_handle(raw, Handle_kind::Command_buffer);
-  [buffer commit];
-  CAMLreturn(result_unit());
-}
-
 extern "C" CAMLprim value caml_prismel_metal_command_buffer_wait(value raw) {
   CAMLparam1(raw);
   id<MTLCommandBuffer> buffer =
@@ -8234,13 +7940,6 @@ extern "C" CAMLprim value caml_prismel_metal_command_buffer_wait(value raw) {
   }
   caml_leave_blocking_section();
   CAMLreturn(Val_unit);
-}
-
-extern "C" CAMLprim value caml_prismel_metal_command_buffer_status(value raw) {
-  CAMLparam1(raw);
-  id<MTLCommandBuffer> buffer =
-      object_of_handle(raw, Handle_kind::Command_buffer);
-  CAMLreturn(Val_int(static_cast<int>(buffer.status)));
 }
 
 extern "C" CAMLprim value caml_prismel_metal_command_buffer_error(value raw) {

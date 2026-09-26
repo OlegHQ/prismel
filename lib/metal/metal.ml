@@ -1087,6 +1087,10 @@ type acceleration_encoder = {
   command_buffer : command_buffer;
 }
 
+(* MTLCommandBufferStatus, or -1 when Metal cannot report it *)
+let command_buffer_status raw =
+  match Metal_raw.Registry.command_buffer_status raw with Ok status -> Int64.to_int status | Error _ -> -1
+
 let make_device raw =
   match Metal_raw.Registry.device_registry_id raw with
   | Ok registry_id -> Ok ({ raw; lifetime = lifetime (); registry_id } : device)
@@ -1563,7 +1567,7 @@ module Device = struct
         match ensure_live operation value.lifetime with
         | Error _ as failure -> failure
         | Ok () -> (
-            match Metal_raw.device_create_fence value.raw with
+            match Metal_raw.Registry.device_create_fence value.raw with
             | Error message -> native_error operation message
             | Ok raw ->
                 let fence : fence = { raw; lifetime = lifetime (); device = value } in
@@ -4638,7 +4642,7 @@ module Residency_set = struct
         match ensure_live "Metal.Residency_set.allocated_size" value.lifetime with
         | Error _ as failure -> failure
         | Ok () -> (
-            match Metal_raw.residency_set_allocated_size value.raw with
+            match Metal_raw.Registry.residency_set_allocated_size value.raw with
             | Error message -> native_error "Metal.Residency_set.allocated_size" message
             | Ok size -> Ok size))
 
@@ -4737,7 +4741,7 @@ module Residency_set = struct
         match ensure_live "Metal.Residency_set.commit" value.lifetime with
         | Error _ as failure -> failure
         | Ok () -> (
-            match Metal_raw.residency_set_commit value.raw with
+            match Metal_raw.Registry.residency_set_commit value.raw with
             | Error message -> native_error "Metal.Residency_set.commit" message
             | Ok () -> (
                 let removed =
@@ -7691,7 +7695,7 @@ module Command_queue = struct
         match ensure_live "Metal.Command_queue.create" device.lifetime with
         | Error _ as failure -> failure
         | Ok () -> (
-            match Metal_raw.command_queue_create device.raw with
+            match Metal_raw.Registry.command_queue_create device.raw with
             | Error message -> native_error "Metal.Command_queue.create" message
             | Ok raw ->
                 let residency_sets = ref [] in
@@ -7720,7 +7724,7 @@ module Command_queue = struct
               let raw_result =
                 match (bulk, changes) with
                 | false, [ residency_set ] ->
-                    Metal_raw.command_queue_add_residency_set value.raw residency_set.raw
+                    Metal_raw.Registry.command_queue_add_residency_set value.raw residency_set.raw
                 | false, _ -> assert false
                 | true, _ ->
                     Metal_raw.command_queue_add_residency_sets value.raw
@@ -7757,7 +7761,7 @@ module Command_queue = struct
               let raw_result =
                 match (bulk, changes) with
                 | false, [ residency_set ] ->
-                    Metal_raw.command_queue_remove_residency_set value.raw residency_set.raw
+                    Metal_raw.Registry.command_queue_remove_residency_set value.raw residency_set.raw
                 | false, _ -> assert false
                 | true, _ ->
                     Metal_raw.command_queue_remove_residency_sets value.raw
@@ -7826,7 +7830,7 @@ module Command_buffer = struct
             | Some label when contains_nul label ->
                 error "Metal.Command_buffer.create" Invalid_argument "label contains a NUL byte"
             | _ -> (
-                match Metal_raw.command_buffer_create queue.raw with
+                match Metal_raw.Registry.command_buffer_create queue.raw with
                 | Error message -> native_error "Metal.Command_buffer.create" message
                 | Ok raw -> (
                     let prepared_resource =
@@ -7878,7 +7882,7 @@ module Command_buffer = struct
                     match label with
                     | None -> Ok value
                     | Some label -> (
-                        match Metal_raw.command_buffer_set_label raw label with
+                        match Metal_raw.Registry.set_command_buffer_label raw label with
                         | Ok () -> Ok value
                         | Error message ->
                             ignore (Metal_raw.destroy raw);
@@ -7960,7 +7964,8 @@ module Command_buffer = struct
             | Ok () when number < 0L ->
                 error operation Invalid_argument "event value must be nonnegative"
             | Ok () -> (
-                match Metal_raw.command_buffer_shared_event value.raw event.raw number signal with
+                match (if signal then Metal_raw.Registry.command_buffer_encode_signal_event value.raw event.raw number
+                 else Metal_raw.Registry.command_buffer_encode_wait_for_event value.raw event.raw number) with
                 | Error m -> native_error operation m
                 | Ok () ->
                     attach event.lifetime;
@@ -8002,7 +8007,7 @@ module Command_buffer = struct
               let raw_result =
                 match (bulk, changes) with
                 | false, [ residency_set ] ->
-                    Metal_raw.command_buffer_use_residency_set value.raw residency_set.raw
+                    Metal_raw.Registry.command_buffer_use_residency_set value.raw residency_set.raw
                 | false, _ -> assert false
                 | true, _ ->
                     Metal_raw.command_buffer_use_residency_sets value.raw
@@ -8023,7 +8028,7 @@ module Command_buffer = struct
         match ensure_live "Metal.Command_buffer.status" value.lifetime with
         | Error _ as failure -> failure
         | Ok () ->
-            let status = Metal_raw.command_buffer_status value.raw in
+            let status = command_buffer_status value.raw in
             if status = 4 || status = 5 then begin
               release_command_buffer_resources value;
               release_callback_tokens value.callback_tokens;
@@ -8091,7 +8096,7 @@ module Command_buffer = struct
         | Ok () when dependent_count value.lifetime <> 0 ->
             error "Metal.Command_buffer.commit" Invalid_state "a command encoder is still open"
         | Ok () -> (
-            match Metal_raw.command_buffer_commit value.raw with
+            match Metal_raw.Registry.command_buffer_commit value.raw with
             | Error message -> native_error "Metal.Command_buffer.commit" message
             | Ok () ->
                 value.phase <- Submitted;
@@ -8108,7 +8113,7 @@ module Command_buffer = struct
               "command buffer has not been committed"
         | Ok () ->
             Metal_raw.command_buffer_wait value.raw;
-            let status = Metal_raw.command_buffer_status value.raw in
+            let status = command_buffer_status value.raw in
             if status = 4 || status = 5 then begin
               release_command_buffer_resources value;
               release_callback_tokens value.callback_tokens;
@@ -8125,7 +8130,7 @@ module Command_buffer = struct
     if
       value.phase = Submitted
       &&
-      let status = Metal_raw.command_buffer_status value.raw in
+      let status = command_buffer_status value.raw in
       status <> 4 && status <> 5
     then
       error "Metal.Command_buffer.destroy" Parent_has_dependents
@@ -8171,7 +8176,7 @@ module Acceleration_encoder = struct
         | Ok () when dependent_count command_buffer.lifetime <> 0 ->
             error operation Invalid_state "command buffer already has an open encoder"
         | Ok () -> (
-            match Metal_raw.command_buffer_acceleration_encoder command_buffer.raw with
+            match Metal_raw.Registry.command_buffer_acceleration_encoder command_buffer.raw with
             | Error message -> native_error operation message
             | Ok raw ->
                 let value = { raw; lifetime = lifetime (); command_buffer } in
@@ -8333,7 +8338,7 @@ module Acceleration_encoder = struct
         match ensure_live operation value.lifetime with
         | Error _ as failure -> failure
         | Ok () -> (
-            match Metal_raw.acceleration_encoder_end value.raw with
+            match Metal_raw.Registry.acceleration_encoder_end value.raw with
             | Error message -> native_error operation message
             | Ok () ->
                 if Atomic.compare_and_set value.lifetime.destroyed false true then begin
@@ -8513,7 +8518,7 @@ module Render_encoder = struct
                     | Error _ as failure -> failure
                     | Ok () -> (
                         match
-                          Metal_raw.command_buffer_render_encoder_from_pass command_buffer.raw
+                          Metal_raw.Registry.command_buffer_render_encoder_from_pass command_buffer.raw
                             pass.raw
                         with
                         | Error message -> native_error operation message
@@ -8885,7 +8890,7 @@ module Render_encoder = struct
                 | Ok () -> validate_prepared_execution operation target draws (index + 1)))
 
     let close_failed_prepared_encoder (value : t) =
-      ignore (Metal_raw.render_encoder_end value.raw);
+      ignore (Metal_raw.Registry.render_encoder_end value.raw);
       if Atomic.compare_and_set value.lifetime.destroyed false true then begin
         ignore (Metal_raw.destroy value.raw);
         detach value.command_buffer.lifetime
@@ -9780,7 +9785,7 @@ module Render_encoder = struct
         match ensure_live operation value.lifetime with
         | Error _ as failure -> failure
         | Ok () -> (
-            match Metal_raw.render_encoder_end value.raw with
+            match Metal_raw.Registry.render_encoder_end value.raw with
             | Error message -> native_error operation message
             | Ok () ->
                 if Atomic.compare_and_set value.lifetime.destroyed false true then begin
@@ -9809,7 +9814,7 @@ module Compute_encoder = struct
             error "Metal.Compute_encoder.create" Invalid_state
               "command buffer already has an open encoder"
         | Ok () -> (
-            match Metal_raw.command_buffer_compute_encoder command_buffer.raw with
+            match Metal_raw.Registry.command_buffer_compute_encoder command_buffer.raw with
             | Error message -> native_error "Metal.Compute_encoder.create" message
             | Ok raw ->
                 let value : t = { raw; lifetime = lifetime (); command_buffer; pipeline = None } in
@@ -10105,7 +10110,7 @@ module Compute_encoder = struct
         match ensure_live "Metal.Compute_encoder.end_encoding" value.lifetime with
         | Error _ as failure -> failure
         | Ok () -> (
-            match Metal_raw.compute_encoder_end value.raw with
+            match Metal_raw.Registry.compute_encoder_end value.raw with
             | Error message -> native_error "Metal.Compute_encoder.end_encoding" message
             | Ok () ->
                 if Atomic.compare_and_set value.lifetime.destroyed false true then begin
@@ -10131,7 +10136,7 @@ module Resource_state_encoder = struct
             error "Metal.Resource_state_encoder.create" Invalid_state
               "command buffer already has an open encoder"
         | Ok () -> (
-            match Metal_raw.command_buffer_resource_state_encoder command_buffer.raw with
+            match Metal_raw.Registry.command_buffer_resource_state_encoder command_buffer.raw with
             | Error message -> native_error "Metal.Resource_state_encoder.create" message
             | Ok raw ->
                 let value : t = { raw; lifetime = lifetime (); command_buffer } in
@@ -10252,7 +10257,7 @@ module Resource_state_encoder = struct
         match ensure_live "Metal.Resource_state_encoder.end_encoding" value.lifetime with
         | Error _ as failure -> failure
         | Ok () -> (
-            match Metal_raw.resource_state_encoder_end value.raw with
+            match Metal_raw.Registry.resource_state_encoder_end value.raw with
             | Error message -> native_error "Metal.Resource_state_encoder.end_encoding" message
             | Ok () ->
                 if Atomic.compare_and_set value.lifetime.destroyed false true then begin
@@ -10275,7 +10280,7 @@ module Blit_encoder = struct
             error "Metal.Blit_encoder.create" Invalid_state
               "command buffer already has an open encoder"
         | Ok () -> (
-            match Metal_raw.command_buffer_blit_encoder command_buffer.raw with
+            match Metal_raw.Registry.command_buffer_blit_encoder command_buffer.raw with
             | Error message -> native_error "Metal.Blit_encoder.create" message
             | Ok raw ->
                 let value : t = { raw; lifetime = lifetime (); command_buffer } in
@@ -10617,7 +10622,7 @@ module Blit_encoder = struct
         match ensure_live "Metal.Blit_encoder.end_encoding" value.lifetime with
         | Error _ as failure -> failure
         | Ok () -> (
-            match Metal_raw.blit_encoder_end value.raw with
+            match Metal_raw.Registry.blit_encoder_end value.raw with
             | Error message -> native_error "Metal.Blit_encoder.end_encoding" message
             | Ok () ->
                 if Atomic.compare_and_set value.lifetime.destroyed false true then begin
@@ -10965,7 +10970,7 @@ end = struct
             | Ok () ->
                 Result.bind (ensure_same_device operation command.queue.device value.device)
                   (fun () ->
-                    match Metal_raw.command_buffer_blit_encoder_with_pass command.raw value.raw with
+                    match Metal_raw.Registry.command_buffer_blit_encoder_with_pass command.raw value.raw with
                     | Error m -> native_error operation m
                     | Ok raw ->
                         let encoder : blit_encoder = { raw; lifetime = lifetime (); command_buffer = command } in
@@ -11259,7 +11264,7 @@ module Compute_pass = struct
             | Ok () ->
                 Result.bind (ensure_same_device operation command.queue.device value.device)
                   (fun () ->
-                    match Metal_raw.command_buffer_compute_encoder_with_pass command.raw value.raw with
+                    match Metal_raw.Registry.command_buffer_compute_encoder_with_pass command.raw value.raw with
                     | Error m -> native_error operation m
                     | Ok raw ->
                         let encoder : compute_encoder =

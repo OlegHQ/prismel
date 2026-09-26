@@ -480,8 +480,6 @@ external residency_set_create :
   handle -> int -> string option -> (handle, string) result
   = "caml_prismel_metal_residency_set_create"
 
-external residency_set_allocated_size : handle -> (int64, string) result =
-  "caml_prismel_metal_residency_set_allocated_size"
 
 external residency_set_counts :
   handle -> (int64 * int64, string) result
@@ -503,8 +501,6 @@ external residency_set_remove_allocations :
   handle -> handle array -> (unit, string) result
   = "caml_prismel_metal_residency_set_remove_allocations"
 
-external residency_set_commit : handle -> (unit, string) result =
-  "caml_prismel_metal_residency_set_commit"
 
 external texture_create :
   handle ->
@@ -655,27 +651,17 @@ external compute_pipeline_create_descriptor :
 external compute_pipeline_max_total_threads : handle -> int =
   "caml_prismel_metal_compute_pipeline_max_total_threads"
 
-external command_queue_create : handle -> (handle, string) result =
-  "caml_prismel_metal_command_queue_create"
 
-external command_queue_add_residency_set :
-  handle -> handle -> (unit, string) result
-  = "caml_prismel_metal_command_queue_add_residency_set"
 
 external command_queue_add_residency_sets :
   handle -> handle array -> (unit, string) result
   = "caml_prismel_metal_command_queue_add_residency_sets"
 
-external command_queue_remove_residency_set :
-  handle -> handle -> (unit, string) result
-  = "caml_prismel_metal_command_queue_remove_residency_set"
 
 external command_queue_remove_residency_sets :
   handle -> handle array -> (unit, string) result
   = "caml_prismel_metal_command_queue_remove_residency_sets"
 
-external command_buffer_create : handle -> (handle, string) result =
-  "caml_prismel_metal_command_buffer_create"
 
 (* Generic acceleration build descriptors (plan G5); field order is read
    positionally by metal_bridge.mm. *)
@@ -728,9 +714,6 @@ external acceleration_structure_create :
   handle -> int64 -> (handle, string) result
   = "caml_prismel_metal_acceleration_structure_create"
 
-external command_buffer_acceleration_encoder :
-  handle -> (handle, string) result
-  = "caml_prismel_metal_command_buffer_acceleration_encoder"
 
 external acceleration_encoder_copy :
   handle -> handle -> handle -> (unit, string) result
@@ -740,8 +723,6 @@ external acceleration_encoder_copy_and_compact :
   handle -> handle -> handle -> (unit, string) result
   = "caml_prismel_metal_acceleration_encoder_copy_and_compact"
 
-external acceleration_encoder_end : handle -> (unit, string) result
-  = "caml_prismel_metal_acceleration_encoder_end"
 
 external compute_pipeline_function_handle :
   handle -> handle -> (handle, string) result
@@ -762,27 +743,18 @@ external intersection_function_table_set_buffer :
   handle -> handle option -> int64 -> int -> (unit, string) result
   = "caml_prismel_metal_intersection_function_table_set_buffer"
 
-external command_buffer_set_label : handle -> string -> (unit, string) result =
-  "caml_prismel_metal_command_buffer_set_label"
 
-external command_buffer_use_residency_set :
-  handle -> handle -> (unit, string) result
-  = "caml_prismel_metal_command_buffer_use_residency_set"
 
 external command_buffer_use_residency_sets :
   handle -> handle array -> (unit, string) result
   = "caml_prismel_metal_command_buffer_use_residency_sets"
 
-external command_buffer_compute_encoder : handle -> (handle, string) result =
-  "caml_prismel_metal_command_buffer_compute_encoder"
 
 external command_buffer_render_encoder_attachments :
   handle -> handle -> handle option -> handle option ->
   float * float * float * float -> (handle,string) result =
   "caml_prismel_metal_command_buffer_render_encoder_attachments_bytecode"
   "caml_prismel_metal_command_buffer_render_encoder_attachments"
-external device_create_fence : handle -> (handle, string) result =
-  "caml_prismel_metal_device_create_fence"
 external layer_create : handle -> (handle,string) result = "caml_prismel_metal_layer_create"
 external layer_adopt_borrowed : handle -> Native_layer_token.t -> int64 -> int64 -> (handle,string) result = "caml_prismel_metal_layer_adopt_borrowed"
 external layer_configure : handle -> int -> int -> int -> (bool*int*bool*bool*bool) -> (unit,string) result = "caml_prismel_metal_layer_configure"
@@ -805,9 +777,6 @@ external render_pass_descriptor_set_attachments :
   float * float * float * float -> (unit,string) result =
   "caml_prismel_metal_render_pass_descriptor_set_attachments_bytecode"
   "caml_prismel_metal_render_pass_descriptor_set_attachments"
-external command_buffer_render_encoder_from_pass :
-  handle -> handle -> (handle,string) result =
-  "caml_prismel_metal_command_buffer_render_encoder_from_pass"
 external render_encoder_update_fence : handle -> handle -> int -> (unit,string) result = "caml_prismel_metal_render_encoder_update_fence"
 external render_encoder_wait_fence : handle -> handle -> int -> (unit,string) result = "caml_prismel_metal_render_encoder_wait_fence"
 external render_encoder_use_heaps : handle -> handle array -> int -> (unit,string) result = "caml_prismel_metal_render_encoder_use_heaps"
@@ -884,8 +853,6 @@ external render_pass_depth_stencil_actions :
   handle -> int -> int -> float -> int -> int -> int -> (unit, string) result =
   "caml_prismel_metal_render_pass_depth_stencil_actions_bytecode"
   "caml_prismel_metal_render_pass_depth_stencil_actions"
-external render_encoder_end : handle -> (unit, string) result =
-  "caml_prismel_metal_render_encoder_end"
 external render_encoder_set_viewport :
   handle -> float * float * float * float * float * float -> (unit, string) result =
   "caml_prismel_metal_render_encoder_set_viewport"
@@ -904,12 +871,7 @@ external render_encoder_tile_width : handle -> int =
 external render_encoder_tile_height : handle -> int =
   "caml_prismel_metal_render_encoder_tile_height"
 
-external command_buffer_resource_state_encoder :
-  handle -> (handle, string) result
-  = "caml_prismel_metal_command_buffer_resource_state_encoder"
 
-external command_buffer_blit_encoder : handle -> (handle, string) result =
-  "caml_prismel_metal_command_buffer_blit_encoder"
 
 external compute_encoder_set_pipeline : handle -> handle -> (unit, string) result =
   "caml_prismel_metal_compute_encoder_set_pipeline"
@@ -935,8 +897,6 @@ external compute35_update_fence : handle -> handle -> (unit,string) result = "ca
 external compute35_wait_fence : handle -> handle -> (unit,string) result = "caml_prismel_metal_compute35_wait_fence"
 external compute35_heaps : handle -> handle array -> (unit,string) result = "caml_prismel_metal_compute35_heaps"
 
-external compute_encoder_end : handle -> (unit, string) result =
-  "caml_prismel_metal_compute_encoder_end"
 
 external resource_state_encoder_update_texture_mapping :
   handle -> handle -> int -> (int * int * int * int * int * int) -> int -> int ->
@@ -944,8 +904,6 @@ external resource_state_encoder_update_texture_mapping :
   = "caml_prismel_metal_resource_state_encoder_update_texture_mapping_bytecode"
     "caml_prismel_metal_resource_state_encoder_update_texture_mapping"
 
-external resource_state_encoder_end : handle -> (unit, string) result =
-  "caml_prismel_metal_resource_state_encoder_end"
 
 external blit_encoder_copy_buffer_to_texture :
   handle -> handle -> handle ->
@@ -953,17 +911,11 @@ external blit_encoder_copy_buffer_to_texture :
   (unit, string) result
   = "caml_prismel_metal_blit_encoder_copy_buffer_to_texture"
 
-external blit_encoder_end : handle -> (unit, string) result =
-  "caml_prismel_metal_blit_encoder_end"
 
-external command_buffer_commit : handle -> (unit, string) result =
-  "caml_prismel_metal_command_buffer_commit"
 
 external command_buffer_wait : handle -> unit =
   "caml_prismel_metal_command_buffer_wait"
 
-external command_buffer_status : handle -> int =
-  "caml_prismel_metal_command_buffer_status"
 
 external command_buffer_error : handle -> string option =
   "caml_prismel_metal_command_buffer_error"
@@ -1187,10 +1139,7 @@ external binary_archive5_add :
 
 external device_sample_timestamps : handle -> ((int64*int64),string) result = "caml_prismel_metal_device_sample_timestamps"
 external device_timestamp_frequency : handle -> (int64,string) result = "caml_prismel_metal_device_timestamp_frequency"
-external command_buffer_shared_event : handle -> handle -> int64 -> bool -> (unit,string) result = "caml_prismel_metal_command_buffer_shared_event"
 external shared_event_wait : handle -> int64 -> int64 -> (bool,string) result = "caml_prismel_metal_shared_event_wait"
-external command_buffer_compute_encoder_with_pass : handle -> handle -> (handle,string) result = "caml_prismel_metal_command_buffer_compute_encoder_with_pass"
-external command_buffer_blit_encoder_with_pass : handle -> handle -> (handle,string) result = "caml_prismel_metal_command_buffer_blit_encoder_with_pass"
 external render_encoder_draw_mesh_threadgroups : handle -> (int*int*int*int*int*int*int*int*int) -> (unit,string) result = "caml_prismel_metal_render_encoder_draw_mesh_threadgroups"
 external render_encoder_dispatch_threads_per_tile : handle -> int -> int -> int -> (unit,string) result = "caml_prismel_metal_render_encoder_dispatch_threads_per_tile"
 external mesh_tile_descriptor_set_color_format : handle -> bool -> int -> int -> (unit,string) result = "caml_prismel_metal_mesh_tile_descriptor_set_color_format"
