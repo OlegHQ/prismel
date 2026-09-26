@@ -4586,8 +4586,27 @@ let test_edge_transport_contract () =
   check (Pdk.Geometry.topology parent_one == Pdk.Geometry.topology parent_geometry)
     "procedural Edge Transport Parent rebuilt topology"
 
+(* A node reachable through many paths is evaluated once per cook. *)
+let test_shared_input_memo () =
+  let schema = Parameter.schema ~name:"pick_first" ~default:() [] in
+  let pick previous = Custom.create ~operation:"pick_first" ~schema ~values:()
+      [previous; previous] (fun ~parameters:() ~context:_ inputs -> Ok inputs.(0)) in
+  let rec chain node count = if count = 0 then node else chain (pick node) (count - 1) in
+  let graph = chain (Sop.grid ~columns:2 ~rows:2 ~size:1. ()) 30 in
+  let evaluator = session () in
+  ignore (cook_ok evaluator (context ()) graph);
+  let stats = Session.stats evaluator in
+  check (stats.misses = 31 && stats.hits = 0)
+    "shared inputs were evaluated once per path instead of once per node";
+  ignore (cook_ok evaluator (context ()) graph);
+  let stats = Session.stats evaluator in
+  check (stats.misses = 31 && stats.hits = 31)
+    "shared inputs were looked up once per path on a warm cook";
+  Session.close evaluator
+
 let run () =
   test_node_owned_parameters_and_graph_edit ();
+  test_shared_input_memo ();
   test_encoded_parameter ();
   test_async_cook_latest_request ();
   test_static_context_cache ();

@@ -177,7 +177,18 @@ let cancellation_error node =
   Diagnostic.error ~code:"cancelled" "procedural cook was cancelled"
   |> Diagnostic.prepend_trace (Node.trace node)
 
-let rec evaluate session context node =
+(* [memo] holds this cook's results by node id so a node reachable through
+   several paths is evaluated once; the physical check guards reused ids. *)
+let rec evaluate memo session context node =
+  match List.find_opt (fun (seen, _) -> seen == node)
+      (Hashtbl.find_all memo (Node.id node)) with
+  | Some (_, result) -> result
+  | None ->
+      let result = evaluate_uncached memo session context node in
+      Hashtbl.add memo (Node.id node) (node, result);
+      result
+
+and evaluate_uncached memo session context node =
   if Context.cancelled context then Error (cancellation_error node)
   else
     let all_inputs = Node.Private.input_array node in
@@ -190,7 +201,7 @@ let rec evaluate session context node =
     let input_diagnostics = ref [] in
     let rec cook_inputs index =
       if index = count then Ok ()
-      else match evaluate session context selected.(index) with
+      else match evaluate memo session context selected.(index) with
         | Error error -> Error (Diagnostic.prepend_trace (Node.trace node) error)
         | Ok output ->
             geometries.(index) <- Some output.geometry;
@@ -245,7 +256,7 @@ let cook session ~context node =
       |> Diagnostic.prepend_trace (Node.trace node))
   else
     Prismel.Parallel.run ~domains:(Context.domains context) (fun () ->
-      match evaluate session context node with
+      match evaluate (Hashtbl.create 64) session context node with
       | Error _ as error -> error
       | Ok output -> Ok { output with diagnostics = deduplicate output.diagnostics })
 
