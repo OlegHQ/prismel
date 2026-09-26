@@ -1099,9 +1099,9 @@ let run_clean_benchmarks () =
       ~attributes:[weight; primitive_id]
       ~groups:[marked_points; marked_primitives] () |> get_ok in
   measure ~input_points:point_count "clean_degenerate" (fun () ->
-    Clean_ops.run_checked ~grain ~epsilon:1e-12 geometry |> get_ok) geometry_output;
+    Clean.run ~grain ~epsilon:1e-12 geometry |> get_ok) geometry_output;
   measure ~input_points:point_count "clean_degenerate_compact" (fun () ->
-    Clean_ops.run_checked ~grain ~epsilon:1e-12 ~remove_unused_points:true geometry |> get_ok)
+    Clean.run ~grain ~epsilon:1e-12 ~remove_unused_points:true geometry |> get_ok)
     geometry_output;
   let overlap_primitives = primitive_count * 2 in
   let overlap_vertices = used_points * 2 in
@@ -1128,8 +1128,8 @@ let run_clean_benchmarks () =
       ~topology:overlap_topology ~attributes:[weight; overlap_id]
       ~groups:[marked_points] () |> get_ok in
   measure ~input_points:point_count "clean_overlaps_keep_first" (fun () ->
-    Clean_ops.run_checked ~grain ~remove_degenerate:false
-      ~overlaps:Clean_ops.Keep_first_overlap overlap_geometry |> get_ok)
+    Clean.run ~grain ~remove_degenerate:false
+      ~overlaps:Clean.Keep_first_overlap overlap_geometry |> get_ok)
     geometry_output
 
 let run_transfer_benchmarks filter =

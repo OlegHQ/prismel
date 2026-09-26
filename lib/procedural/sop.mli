@@ -1300,7 +1300,7 @@ val clean :
   ?epsilon:float ->
   ?remove_degenerate:bool ->
   ?consolidate_distance:float ->
-  ?overlaps:Pdk.Clean_ops.overlap_policy ->
+  ?overlaps:Pdk.Clean.overlap_policy ->
   ?reverse_winding:bool ->
   ?remove_nan_points:bool ->
   ?remove_unused_points:bool ->

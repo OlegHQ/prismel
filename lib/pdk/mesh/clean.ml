@@ -422,13 +422,20 @@ let delete_overlaps ?cancel ~grain ~delete_pairs geometry =
     delete_triangle_overlaps ?cancel ~grain ~delete_pairs geometry
   else delete_overlaps_general ?cancel ~grain ~delete_pairs geometry
 
+type overlap_policy = Keep_first_overlap | Delete_overlap_pairs
+
 let run ?cancel ?(grain = 16_384) ?(epsilon = 1e-12)
     ?(remove_degenerate = true) ?consolidate_distance ?overlaps
     ?(reverse_winding = false) ?(remove_nan_points = false)
     ?(remove_unused_points = false) ?(delete_unused_groups = false)
     ?point_attributes ?vertex_attributes ?primitive_attributes ?detail_attributes
     ?point_groups ?vertex_groups ?primitive_groups ?edge_groups
-    ~consolidate ~compact geometry =
+    geometry =
+  Error.guard ~operation:"clean" ~code:"invalid_geometry" @@ fun () ->
+  let overlaps = Option.map (fun policy -> policy = Delete_overlap_pairs) overlaps in
+  let consolidate tolerance geometry =
+    Fuse_grid.fuse ?cancel ~grain ~tolerance geometry
+  and compact geometry = Compact_points.run ?cancel ~grain geometry in
   if grain <= 0 then invalid_arg "Pdk_mesh.Clean.clean: grain must be positive";
   if not (Float.is_finite epsilon) || epsilon < 0. then
     Error "Pdk_mesh.Clean.clean: epsilon must be finite and non-negative"

@@ -4041,10 +4041,10 @@ let run () =
   Topology.Builder.add_triangle degenerate_topology 0 1 2;
   let degenerate = Geometry.create ~positions:degenerate_positions
       ~topology:(Topology.Builder.freeze degenerate_topology) () |> get_ok in
-  let cleaned = Clean_ops.run_checked degenerate |> get_ok in
+  let cleaned = Clean.run degenerate |> get_ok in
   if Geometry.primitive_count cleaned <> 0 || Geometry.point_count cleaned <> 3
   then fail "clean degenerate primitive/point identity";
-  let cleaned_compact = Clean_ops.run_checked ~remove_unused_points:true degenerate |> get_ok in
+  let cleaned_compact = Clean.run ~remove_unused_points:true degenerate |> get_ok in
   if Geometry.primitive_count cleaned_compact <> 0
      || Geometry.point_count cleaned_compact <> 0 then
     fail "clean remove-unused-points policy";

@@ -2041,8 +2041,8 @@ end [@@sop.register]
 
 module Clean = struct
   let overlaps_parameter = Parameter.choice ~equal:( = ) [
-      "Keep first", Pdk.Clean_ops.Keep_first_overlap;
-      "Delete pairs", Pdk.Clean_ops.Delete_overlap_pairs;
+      "Keep first", Pdk.Clean.Keep_first_overlap;
+      "Delete pairs", Pdk.Clean.Delete_overlap_pairs;
     ]
 
   type parameters = {
@@ -2054,8 +2054,8 @@ module Clean = struct
     consolidate_distance : float [@sop.default 0.]
       [@sop.label "Consolidate distance"] [@sop.min 0.] [@sop.max 0.1]
       [@sop.hard_min 0.];
-    overlaps : Pdk.Clean_ops.overlap_policy
-      [@sop.default Pdk.Clean_ops.Keep_first_overlap]
+    overlaps : Pdk.Clean.overlap_policy
+      [@sop.default Pdk.Clean.Keep_first_overlap]
       [@sop.label "Overlaps"] [@sop.kind overlaps_parameter];
     reverse_winding : bool [@sop.default false]
       [@sop.label "Reverse winding"];

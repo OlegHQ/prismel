@@ -3432,8 +3432,8 @@ let smooth ?label ?group ?constrained_points
                | Error error -> structured_pdk_error error))
 
 let clean_overlap_key = function
-  | Pdk.Clean_ops.Keep_first_overlap -> "keep_first"
-  | Pdk.Clean_ops.Delete_overlap_pairs -> "delete_pairs"
+  | Pdk.Clean.Keep_first_overlap -> "keep_first"
+  | Pdk.Clean.Delete_overlap_pairs -> "delete_pairs"
 
 let clean ?label ?epsilon ?(remove_degenerate = true) ?consolidate_distance
     ?overlaps ?(reverse_winding = false) ?(remove_nan_points = false)
@@ -3467,7 +3467,7 @@ let clean ?label ?epsilon ?(remove_degenerate = true) ?consolidate_distance
     ~cook_mode:(Node.Duplicate_input 0)
     ~dependencies:Context.Dependencies.static ~inputs:[|input|]
     (fun ~node_id:_ context inputs ->
-      match Pdk.Clean_ops.run_checked ~cancel:(Context.cancel_token context)
+      match Pdk.Clean.run ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ?epsilon ~remove_degenerate
           ?consolidate_distance ?overlaps ~reverse_winding ~remove_nan_points
           ~remove_unused_points ~delete_unused_groups ?point_attributes
