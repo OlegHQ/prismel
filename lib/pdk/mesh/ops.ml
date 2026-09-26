@@ -318,15 +318,7 @@ type match_size_fit = Match_size.match_size_fit =
   | Match_x | Match_y | Match_z
   | Match_perimeter | Match_area | Match_volume
 
-type point_generate_mode = Point_generate.mode =
-  | Generate_total of int
-  | Generate_per_point of {
-      points_per_point : float;
-      scale_attribute : string option;
-    }
-  | Generate_probability of { attribute : string }
-
-let polyline = Line_geometry.polyline_checked
+ let polyline = Line_geometry.polyline_checked
 let line = Line_geometry.line_checked
 let circle = Plane_generators.circle_checked
 let box = Box_generator.box_checked
@@ -351,98 +343,10 @@ let snap_to_grid = Fuse_grid.snap_to_grid_checked
 let poly_reduce = Poly_reduce.run_checked
 let edge_flip = Edge_flip.run_checked
 
-type blend_shapes_mode = Blend_shapes.mode =
-  | Blend_normalized
-  | Blend_differencing
-
-type blend_shapes_masking = Blend_shapes.masking =
-  | Blend_no_mask
-  | Blend_set_from_attribute
-  | Blend_scale_from_attribute
-
-type blend_shape_mask_source = Blend_shapes.mask_source =
-  | Blend_mask_first_input
-  | Blend_mask_shape
-
-type blend_shape = Blend_shapes.shape
-
-let blend_shape = Blend_shapes.shape
-
-let blend_shapes ?cancel ?grain ?points ?mode ?masking ?mask_attribute
-    ?point_id_attribute ?attributes ~shapes geometry =
-  Blend_shapes.run_checked ?cancel ?grain ?points ?mode ?masking
-    ?mask_attribute ?point_id_attribute ?attributes ~shapes geometry
-
-type attribute_composite_operation = Attribute_composite.operation =
-  | Composite_mean
-  | Composite_maximum
-  | Composite_minimum
-  | Composite_over
-  | Composite_under
-
-type attribute_composite_input = Attribute_composite.input
-
-let attribute_composite_input = Attribute_composite.input
-
-let attribute_composite ?cancel ?grain ?operation ?weight ?detail_attributes
-    ?primitive_attributes ?point_attributes ?vertex_attributes ?allow_position
-    ?alpha_attribute ~inputs geometry =
-  Attribute_composite.run_checked ?cancel ?grain ?operation ?weight
-    ?detail_attributes ?primitive_attributes ?point_attributes
-    ?vertex_attributes ?allow_position ?alpha_attribute ~inputs geometry
-
-type attribute_mirror_owner = Attribute_mirror.owner =
-  | Mirror_point_attributes
-  | Mirror_vertex_attributes
-  | Mirror_primitive_attributes
-
-type attribute_mirror_group_use = Attribute_mirror.group_use =
-  | Mirror_group_as_source
-  | Mirror_group_as_destination
-
-type attribute_mirror_method = Attribute_mirror.method_ =
-  | Mirror_by_plane of {
-      origin : Vec3.t;
-      normal : Vec3.t;
-      distance : float;
-      tolerance : float;
-    }
-  | Mirror_by_mapping of {
-      mapping_attribute : string;
-      destination_group : Group.t;
-    }
-
-type attribute_mirror_transform = Attribute_mirror.transform =
-  | Mirror_copy
-  | Mirror_uv of {
-      origin_u : float;
-      origin_v : float;
-      direction_u : float;
-      direction_v : float;
-    }
-  | Mirror_vector
-  | Mirror_point
-
-let attribute_mirror ?cancel ?grain ?group ?group_use ?attributes ?transform
-    ?string_replace ?output_mapping ?source_group ?destination_group ~owner
-    ~method_ geometry =
-  Attribute_mirror.run_checked ?cancel ?grain ?group ?group_use ?attributes
-    ?transform ?string_replace ?output_mapping ?source_group
-    ?destination_group ~owner ~method_ geometry
-
-let clip = Plane_clip.clip_checked
+ let clip = Plane_clip.clip_checked
 let clip_transform = Plane_clip.clip_transform_checked
 
-let attribute_fade ?cancel ?grain ?points ?start_source ?hold_source
-    ?fade_attribute ?start_attribute ?start_retime ?hold_scale_attribute ~frame
-    ?frame_offset ?fade_in ?fade_hold ?fade_out ?fade_in_ramp ?fade_out_ramp
-    ?visualize geometry =
-  Attribute_fade.fade_checked ?cancel ?grain ?points ?start_source ?hold_source
-    ?fade_attribute ?start_attribute ?start_retime ?hold_scale_attribute
-    ~frame ?frame_offset ?fade_in ?fade_hold ?fade_out ?fade_in_ramp
-    ?fade_out_ramp ?visualize geometry
-
-let subdivide = Subdivision_ops.subdivide_checked
+ let subdivide = Subdivision_ops.subdivide_checked
 
 let normals ?cancel ?grain ?selection ?owner ?weighting ?cusp_angle
     ?keep_original_zero ?reverse ?attribute geometry =
@@ -485,11 +389,7 @@ let bend = Deform_ops.bend_checked
 let mountain = Deform_ops.mountain_checked
 let point_jitter = Deform_ops.point_jitter_checked
 
-let point_generate = Point_generate.run_checked
-
-let color_by_height = Pdk_attrib.Color_by_height.run
-
-let facet = Facet_ops.run_checked
+ let facet = Facet_ops.run_checked
 
 let poly_fill = Poly_fill.run_checked
 
