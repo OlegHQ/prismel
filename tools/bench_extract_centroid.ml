@@ -15,7 +15,7 @@ let median values =
   let values = Array.copy values in Array.sort Float.compare values;
   values.(Array.length values / 2)
 
-let point_cloud () = Ops.points (Array.init size (fun point ->
+let point_cloud () = Line_geometry.points (Array.init size (fun point ->
   let x = float_of_int (point mod 10_007) /. 10_007.
   and y = float_of_int ((point * 97) mod 10_009) /. 10_009.
   and z = float_of_int ((point * 193) mod 10_037) /. 10_037. in

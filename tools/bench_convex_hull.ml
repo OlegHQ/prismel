@@ -19,7 +19,7 @@ let median values =
   Array.sort Float.compare values;
   values.(Array.length values / 2)
 
-let geometry values = Ops.points values
+let geometry values = Line_geometry.points values
 
 let cube_interior count =
   let corners = [|

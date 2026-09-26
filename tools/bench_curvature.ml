@@ -57,7 +57,7 @@ let measure name outputs smoothing_iterations input =
       let after = Gc.quick_stat () in
       promoted.(repeat) <- (after.promoted_words -. before.promoted_words) *. 8.;
       major.(repeat) <- (after.major_words -. before.major_words) *. 8.;
-      let names = [outputs.Ops.mean;outputs.gaussian;outputs.minimum;
+      let names = [outputs.Analysis_ops.mean;outputs.gaussian;outputs.minimum;
           outputs.maximum;outputs.curvedness;outputs.shape_index]
           |> List.filter_map Fun.id in
       let current = output_hash names output in
@@ -75,7 +75,7 @@ let () =
   Printf.printf "case,points,primitives,domains,grain,repeats,seconds,current_domain_allocated_bytes,promoted_bytes,major_bytes,hash\n";
   measure "mean" Analysis_ops.default_curvature_outputs 0 input;
   measure "all_fields_smoothed" {
-    Ops.mean=Some "mean"; gaussian=Some "gaussian";
+    Analysis_ops.mean=Some "mean"; gaussian=Some "gaussian";
     minimum=Some "minimum"; maximum=Some "maximum";
     curvedness=Some "curvedness"; shape_index=Some "shape";
   } 2 input

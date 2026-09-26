@@ -190,7 +190,7 @@ let run_benchmarks () =
       Geometry.primitive_count hash_geometry
   end;
   if points >= 4 then begin
-    let duplicate_source = Ops.points (Array.init points (fun point ->
+    let duplicate_source = Line_geometry.points (Array.init points (fun point ->
         match point land 3 with
         | 0 -> 0.,0.,float_of_int point
         | 1 -> 1.,0.,float_of_int point
@@ -213,7 +213,7 @@ let run_benchmarks () =
       |> function Ok value -> value
         | Error message -> failwith (Error.to_string message))
     Geometry.point_count hash_geometry;
-  let refinement_source = Ops.points
+  let refinement_source = Line_geometry.points
       [|0.,0.,0.; 1.,0.,0.; 1.,1.,0.; 0.,1.,0.|] in
   let target_edge_length = 1.8 /. sqrt (float_of_int refinement_points) in
   measure "quality_refinement_adapter"

@@ -90,7 +90,7 @@ let run () =
       if exact_m1 then
         assert (Digest.to_hex (Digest.bytes instanced_pixels) =
           "8aaf15f3d0b2f4b16e46342612ca8328");
-      let transformed = Pdk.Ops.transform matrix sphere in
+      let transformed = Pdk.Transform_ops.transform matrix sphere in
       get (P.replace_mesh tracer (get (P.mesh [transformed, P.material (rgb 0.7 0.5 0.3)])));
       get (P.render tracer camera); get (P.flush tracer);
       let largest_difference = ref 0 in

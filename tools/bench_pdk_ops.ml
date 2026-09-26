@@ -472,7 +472,7 @@ let run_torus_generator_benchmarks () =
 
 let run_tube_reference_benchmark () =
   measure ~input_points:1_000_000 "tube_generator_reference_sweep" (fun () ->
-    Ops.line ~grain ~kind:Ops.Line_curve ~points:1_000
+    Line_geometry.line_checked ~grain ~kind:Line_geometry.Line_curve ~points:1_000
       ~origin:(Vec3.create 0. (-25.) 0.) ~direction:Vec3.unit_y ~length:50. ()
     |> get_ok
     |> Curve_modeling.sweep_circle_checked ~grain ~sides:1_000 ~radius:8.
@@ -517,7 +517,7 @@ let reference_platonic_icosahedron () =
   let positions = Array.map (fun (x, y, z) ->
       let scale = radius /. sqrt ((x *. x) +. (y *. y) +. (z *. z)) in
       x *. scale, y *. scale, z *. scale) source
-    |> Ops.points |> Geometry.positions in
+    |> Line_geometry.points |> Geometry.positions in
   let faces = [|
     [|0;11;5|]; [|0;5;1|]; [|0;1;7|]; [|0;7;10|]; [|0;10;11|];
     [|1;5;9|]; [|5;11;4|]; [|11;10;2|]; [|10;7;6|]; [|7;1;8|];
@@ -566,7 +566,7 @@ let reference_spiral ~divisions ~turns ~height ~start_radius ~end_radius =
     let angle = turns *. 2. *. Float.pi *. t
     and radius = start_radius +. ((end_radius -. start_radius) *. t) in
     radius *. cos angle, height *. t, radius *. sin angle) in
-  Ops.polyline points |> get_ok
+  Line_geometry.polyline_checked points |> get_ok
 
 let run_spiral_reference_benchmark () =
   measure ~input_points:1_000_001 "spiral_generator_reference_polyline"
@@ -575,31 +575,31 @@ let run_spiral_reference_benchmark () =
 
 let run_spiral_generator_benchmarks () =
   measure ~input_points:1_000_001 "spiral_generator_uniform_angle" (fun () ->
-    Ops.spiral ~grain ~extent:(Ops.Spiral_turns { turns = 250.; height = 50. })
-      ~radius:(Ops.Spiral_archimedean_end {
+    Spiral.run ~grain ~extent:(Spiral.Spiral_turns { turns = 250.; height = 50. })
+      ~radius:(Spiral.Spiral_archimedean_end {
         start_radius = 2.; end_radius = 30. })
-      ~divisions:(Ops.Spiral_divisions_per_curve 1_000_000) ()
+      ~divisions:(Spiral.Spiral_divisions_per_curve 1_000_000) ()
     |> get_ok) geometry_output;
   measure ~input_points:1_000_004 "spiral_generator_equal_arc" (fun () ->
-    Ops.spiral ~grain
-      ~extent:(Ops.Spiral_height_pitch { height = 50.; pitch = 0.2 })
-      ~radius:(Ops.Spiral_logarithmic_end {
+    Spiral.run ~grain
+      ~extent:(Spiral.Spiral_height_pitch { height = 50.; pitch = 0.2 })
+      ~radius:(Spiral.Spiral_logarithmic_end {
         start_radius = 0.2; end_radius = 30. })
       ~height_ramp:[0., 0.8; 0.4, 1.2; 0.7, 0.6; 1., 1.]
       ~radius_ramp:[0., 1.; 0.35, 0.7; 0.8, 1.25; 1., 1.]
       ~uniform_angle:false ~spiral_count:4
-      ~divisions:(Ops.Spiral_divisions_per_curve 250_000) ()
+      ~divisions:(Spiral.Spiral_divisions_per_curve 250_000) ()
     |> get_ok) geometry_output;
   measure ~input_points:1_000_004 "spiral_generator_equal_arc_frames" (fun () ->
-    Ops.spiral ~grain
-      ~extent:(Ops.Spiral_height_pitch { height = 50.; pitch = 0.2 })
-      ~radius:(Ops.Spiral_logarithmic_end {
+    Spiral.run ~grain
+      ~extent:(Spiral.Spiral_height_pitch { height = 50.; pitch = 0.2 })
+      ~radius:(Spiral.Spiral_logarithmic_end {
         start_radius = 0.2; end_radius = 30. })
       ~height_ramp:[0., 0.8; 0.4, 1.2; 0.7, 0.6; 1., 1.]
       ~radius_ramp:[0., 1.; 0.35, 0.7; 0.8, 1.25; 1., 1.]
       ~uniform_angle:false ~spiral_count:4
-      ~divisions:(Ops.Spiral_divisions_per_curve 250_000)
-      ~orientation:(Ops.Spiral_axis (Vec3.create 1. 2. 3.))
+      ~divisions:(Spiral.Spiral_divisions_per_curve 250_000)
+      ~orientation:(Spiral.Spiral_axis (Vec3.create 1. 2. 3.))
       ~rotation:(Vec3.create 0.3 0.5 0.7)
       ~angle_attribute:"angle" ~x_axis_attribute:"xaxis"
       ~y_axis_attribute:"yaxis" ~tangent_attribute:"tangent"
@@ -611,7 +611,7 @@ let run_polywire_benchmarks () =
   let source = Array.init source_points (fun point ->
       let t = float_of_int point *. 0.0005 in
       t, sin (t *. 0.19) *. 2., cos (t *. 0.13) *. 1.5)
-    |> Ops.polyline |> get_ok in
+    |> Line_geometry.polyline_checked |> get_ok in
   measure ~input_points:source_points "polywire_long_spine" (fun () ->
     Curve_modeling.sweep_circle_checked ~grain ~sides:12 ~radius:0.08 source |> get_ok)
     geometry_output;
@@ -638,7 +638,7 @@ let run_polywire_benchmarks () =
   let variable = Array.init variable_points (fun point ->
       let t = float_of_int point *. 0.0015 in
       t, sin (t *. 0.23) *. 1.6, cos (t *. 0.17) *. 1.2)
-    |> Ops.polyline |> get_ok
+    |> Line_geometry.polyline_checked |> get_ok
     |> add "wire_divisions" (Attribute.Int (Array.init variable_points
          (fun point -> 6 + ((point / 127) mod 9))))
     |> add "wire_segments" (Attribute.Int (Array.init variable_points
@@ -674,7 +674,7 @@ let run_polywire_benchmarks () =
       let p = float_of_int point in
       p *. 0.04, (if point land 1 = 0 then 0. else 0.035),
       0.08 *. sin (p *. 0.007))
-    |> Ops.polyline |> get_ok
+    |> Line_geometry.polyline_checked |> get_ok
     |> add "joint_limit" (Attribute.Float (Array.init variable_points
          (fun point -> 1.15 +. (0.35 *. float_of_int (point mod 17) /. 16.)))) in
   measure ~input_points:variable_points
@@ -707,8 +707,8 @@ let run_sweep_general_benchmarks () =
           /. float_of_int profile_points in
       (0.08 +. (0.012 *. cos (5. *. angle))) *. cos angle,
       (0.08 +. (0.012 *. cos (5. *. angle))) *. sin angle, 0.) in
-  let backbone = Ops.polyline backbone_values |> get_ok
-  and profile = Ops.polyline ~closed:true profile_values |> get_ok in
+  let backbone = Line_geometry.polyline_checked backbone_values |> get_ok
+  and profile = Line_geometry.polyline_checked ~closed:true profile_values |> get_ok in
   measure ~input_points:(backbone_points + profile_points)
     "sweep_general_profile_triangles" (fun () ->
       Sweep_modeling.sweep ~grain ~connectivity:Plane_generators.Grid_alternating_triangles
@@ -775,7 +775,7 @@ let run_revolve_benchmarks () =
         else 2. +. (0.35 *. sin (u *. 14. *. Float.pi))
           +. (0.12 *. cos (u *. 37. *. Float.pi)) in
       radius, y, 0.) in
-  let source = Ops.polyline values |> get_ok in
+  let source = Line_geometry.polyline_checked values |> get_ok in
   measure ~input_points:profile_points "revolve_dense_profile_triangles" (fun () ->
     Sweep_modeling.revolve ~grain ~connectivity:Plane_generators.Grid_alternating_triangles
       ~divisions:64 ~origin:Vec3.zero ~axis:Vec3.unit_y source |> get_ok)
@@ -802,7 +802,7 @@ let run_resample_benchmarks () =
       let t = float_of_int point *. 0.0005 in
       t, (2. *. sin (t *. 0.19)) +. (0.1 *. sin (t *. 2.7)),
       (1.5 *. cos (t *. 0.13)) +. (0.08 *. sin (t *. 3.1)))
-    |> Ops.polyline |> get_ok in
+    |> Line_geometry.polyline_checked |> get_ok in
   measure ~input_points:source_points "resample_long_spine" (fun () ->
     Curve_modeling.resample_curves_checked ~grain ~segments:1_000_000 source |> get_ok)
     geometry_output;
@@ -1137,7 +1137,7 @@ let run_transfer_benchmarks filter =
     let attributes = Array.init attribute_count (fun index ->
       Attribute.create_owned ~name:(Printf.sprintf "detail_%05d" index)
         ~owner:Attribute.Detail (Attribute.Int [|index|]) |> get_ok) in
-    let base = Ops.points [||] in
+    let base = Line_geometry.points [||] in
     let source = Geometry.create ~positions:(Geometry.positions base)
         ~topology:(Geometry.topology base) ~attributes:(Array.to_list attributes) ()
         |> get_ok in
@@ -1672,10 +1672,10 @@ let run_dissolve_benchmarks () =
       (fun edge -> Topology_index.edge_incidence_count index edge = 2) in
   let input_points = Geometry.point_count source in
   measure ~input_points "dissolve_grid_boundary" (fun () ->
-    Ops.dissolve ~grain ~edges:interior ~remove_unused_points:false
+    Dissolve.run_checked ~grain ~edges:interior ~remove_unused_points:false
       ~recompute_normals:false source |> get_ok) geometry_output;
   measure ~input_points "dissolve_grid_rectangle" (fun () ->
-    Ops.dissolve ~grain ~edges:interior ~remove_inline_points:true
+    Dissolve.run_checked ~grain ~edges:interior ~remove_inline_points:true
       ~collinearity_tolerance:1e-10 source |> get_ok) geometry_output
 
 let run_repair_mesh_benchmarks () =
@@ -2210,7 +2210,7 @@ let run_fuse_benchmarks () =
       ~offset:(Vec3.create 0.25 0.5 0.75) ~snapped_group:"snapped" source
       |> get_ok) geometry_output;
   let duplicate = Plane_generators.grid_checked ~columns:400 ~rows:400 ~size:20. () |> get_ok in
-  let duplicate = Ops.merge ~grain [duplicate; duplicate] |> get_ok in
+  let duplicate = Mesh_merge.run ~grain [duplicate; duplicate] |> get_ok in
   let duplicate_count = Geometry.point_count duplicate in
   measure ~input_points:duplicate_count "fuse_grid_duplicate_pair" (fun () ->
     Fuse_grid.snap_to_grid_checked ~grain ~spacing:(Vec3.create 0.05 0.05 0.05)
@@ -2250,13 +2250,13 @@ let run_fuse_benchmarks () =
     Fuse_grid.fuse_checked ~grain ~target:target_rules ~using:Fuse_grid.Closest_target_point
       ~tolerance:0.05 ~fuse_points:false ~attribute_rules:[
         Fuse_grid.fuse_attribute_rule ~pattern:"signal" ~weight_attribute:"weight"
-          Ops.Attribute_weighted_average;
-        Fuse_grid.fuse_attribute_rule ~pattern:"catalog" Ops.Attribute_concatenate]
+          Fuse_reduce.Attribute_weighted_average;
+        Fuse_grid.fuse_attribute_rule ~pattern:"catalog" Fuse_reduce.Attribute_concatenate]
       ~group_rules:[Fuse_grid.fuse_group_rule ~pattern:"marked" Fuse_reduce.Group_union]
       query_rules |> get_ok) geometry_output;
   let shifted_target = Transform_ops.transform ~grain
       (Mat4.translation (Vec3.create 0.013 (-0.017) 0.009)) target in
-  let linked = Ops.merge ~grain [target; shifted_target] |> get_ok in
+  let linked = Mesh_merge.run ~grain [target; shifted_target] |> get_ok in
   let linked_count = Geometry.point_count linked in
   let weight = Attribute.create_owned ~owner:Attribute.Point ~name:"weight"
       (Attribute.Float (Array.init linked_count (fun point ->
@@ -2269,7 +2269,7 @@ let run_fuse_benchmarks () =
   measure ~input_points:linked_count "fuse_modify_target_weighted_pair"
     (fun () -> Fuse_grid.fuse_checked ~grain ~selection:queries ~target_selection:targets
       ~using:Fuse_grid.Closest_target_point ~tolerance:0.05 ~modify_target:true
-      ~position:Ops.Weighted_average_position ~weight_attribute:"weight"
+      ~position:Fuse_reduce.Weighted_average_position ~weight_attribute:"weight"
       linked |> get_ok) geometry_output;
   let ruled = linked
       |> fun geometry -> Geometry.with_attribute
@@ -2294,10 +2294,10 @@ let run_fuse_benchmarks () =
       ~using:Fuse_grid.Closest_target_point ~tolerance:0.05 ~modify_target:true
       ~attribute_rules:[
         Fuse_grid.fuse_attribute_rule ~pattern:"signal" ~weight_attribute:"weight"
-          Ops.Attribute_weighted_average;
-        Fuse_grid.fuse_attribute_rule ~pattern:"rank" Ops.Attribute_mode;
+          Fuse_reduce.Attribute_weighted_average;
+        Fuse_grid.fuse_attribute_rule ~pattern:"rank" Fuse_reduce.Attribute_mode;
         Fuse_grid.fuse_attribute_rule ~pattern:"label" ~weight_attribute:"weight"
-          Ops.Attribute_concatenate_weight_order]
+          Fuse_reduce.Attribute_concatenate_weight_order]
       ~group_rules:[Fuse_grid.fuse_group_rule ~pattern:"marked"
         Fuse_reduce.Group_most_common] ruled |> get_ok) geometry_output;
   let cleanup_grid = Plane_generators.grid_checked ~columns:500 ~rows:400 ~size:30. () |> get_ok in
@@ -2652,7 +2652,7 @@ let run_edge_collapse_benchmarks () =
   let collapse = Geometry.find_edge_group "collapse_edges" source
       |> Option.get in
   measure ~input_points:point_count "edge_collapse_sparse_center_cleanup" (fun () ->
-    Ops.edge_collapse ~grain ~edges:collapse source |> get_ok) geometry_output
+    Edge_collapse.run ~grain ~edges:collapse source |> get_ok) geometry_output
 
 let run_poly_reduce_benchmarks () =
   let columns = 420 and rows = 320 in
@@ -2735,13 +2735,13 @@ let run_boolean_detect_benchmarks () =
       ~intersections_attribute:"collision_primitives"
       ~count_attribute:"intersection_count" source |> get_ok)
     geometry_output;
-  let combined = Ops.merge [source; crossing] |> get_ok in
+  let combined = Mesh_merge.run [source; crossing] |> get_ok in
   let combined_index = Surface_index.create ~grain combined |> get_ok in
   measure ~input_points:(point_count * 2) "boolean_detect_self_crossing_broadphase"
     (fun () -> Surface_index.Private.overlapping_self_triangle_pairs ~grain
       ~tolerance:0. combined_index) integer_pair_arrays_output;
   measure ~input_points:(point_count * 2) "boolean_detect_self_crossing_grids"
-    (fun () -> Boolean_detect.run_checked ~grain ~collision:(Ops.points [||])
+    (fun () -> Boolean_detect.run_checked ~grain ~collision:(Line_geometry.points [||])
       ~intersecting_group:None
       ~self_intersecting_group:"self_intersections"
       ~self_intersections_attribute:"self_primitives"
@@ -2778,7 +2778,7 @@ let run_intersection_analysis_benchmarks () =
     "intersection_analysis_crossing_grids" (fun () ->
       Intersection_analysis.run_checked ~grain ~include_coplanar:false
         ~collision:crossing source |> get_ok) geometry_output;
-  let combined = Ops.merge [source; crossing] |> get_ok in
+  let combined = Mesh_merge.run [source; crossing] |> get_ok in
   measure ~input_points:(point_count * 2)
     "intersection_analysis_self_crossing_grids" (fun () ->
       Intersection_analysis.run_checked ~grain ~include_coplanar:false combined |> get_ok)
@@ -2883,7 +2883,7 @@ let run_point_split_benchmarks () =
 
 let run_point_generate_benchmarks () =
   let source_count = 100_000 in
-  let source = Ops.points (Array.init source_count (fun point ->
+  let source = Line_geometry.points (Array.init source_count (fun point ->
       float_of_int (point mod 1_000) *. 0.01,
       float_of_int (point / 1_000) *. 0.01,
       float_of_int (point mod 17) *. 0.001))
@@ -2923,7 +2923,7 @@ let run_point_generate_benchmarks () =
 
 let run_point_replicate_benchmarks () =
   let source_count = 100_000 in
-  let source = Ops.points (Array.init source_count (fun point ->
+  let source = Line_geometry.points (Array.init source_count (fun point ->
       float_of_int (point mod 1_000) *. 0.01,
       float_of_int (point / 1_000) *. 0.01, 0.)) in
   let density = Attribute.create_owned ~owner:Attribute.Point ~name:"density"
@@ -2951,7 +2951,7 @@ let run_point_replicate_benchmarks () =
       |> Geometry.with_attribute normal |> get_ok
       |> Geometry.with_attribute velocity |> get_ok
       |> Geometry.with_attribute flow |> get_ok in
-  let basis = Ops.points [|0.,0.,0.; 1.,0.,0.; 0.,1.,0.; 0.,0.,1.|] in
+  let basis = Line_geometry.points [|0.,0.,0.; 1.,0.,0.; 0.,1.,0.; 0.,0.,1.|] in
   measure ~input_points:source_count "point_replicate_basis_frames_100k"
     (fun () -> Instance_copy.copy_to_points ~grain ~source:basis ~targets:source ()
       |> get_ok) geometry_output;
@@ -4238,7 +4238,7 @@ let run_unpack_benchmarks () =
   let legacy_materialize () =
     Array.to_list matrices
     |> List.map (fun matrix -> Transform_ops.transform ~grain matrix source)
-    |> Ops.merge ~grain
+    |> Mesh_merge.run ~grain
     |> get_ok in
   measure ~input_points:(Geometry.point_count source)
     "unpack_transform_merge_baseline" legacy_materialize geometry_output;
@@ -4439,30 +4439,30 @@ let run_sort_extended_benchmarks () =
   let source = make_grid () in
   let point_count = Geometry.point_count source in
   measure ~input_points:point_count "sort_extended_random_points"
-    (fun () -> Ops.sort ~grain ~owner:Ops.Points ~key:(Ops.Random 918273L)
+    (fun () -> Ordering.sort_checked ~grain ~owner:Ordering.Points ~key:(Ordering.Random 918273L)
       source |> get_ok) geometry_output;
   measure ~input_points:point_count "sort_extended_indices_x"
-    (fun () -> Ops.sort ~grain ~owner:Ops.Points ~key:Ops.X
+    (fun () -> Ordering.sort_checked ~grain ~owner:Ordering.Points ~key:Ordering.X
       ~output_indices:"sort_rank" source |> get_ok) geometry_output;
-  let ranked = Ops.sort ~grain ~owner:Ops.Points ~key:Ops.X
+  let ranked = Ordering.sort_checked ~grain ~owner:Ordering.Points ~key:Ordering.X
       ~output_indices:"sort_rank" source |> get_ok in
   measure ~input_points:point_count "sort_extended_reorder_by_index"
-    (fun () -> Ops.sort ~grain ~owner:Ops.Points
-      ~key:(Ops.Index_attribute "sort_rank") ranked |> get_ok) geometry_output;
-  let ranked_y = Ops.sort ~grain ~owner:Ops.Points ~key:Ops.Y
+    (fun () -> Ordering.sort_checked ~grain ~owner:Ordering.Points
+      ~key:(Ordering.Index_attribute "sort_rank") ranked |> get_ok) geometry_output;
+  let ranked_y = Ordering.sort_checked ~grain ~owner:Ordering.Points ~key:Ordering.Y
       ~output_indices:"sort_rank" source |> get_ok in
   measure ~input_points:point_count "sort_extended_indices_combined_x_after_y"
-    (fun () -> Ops.sort ~grain ~owner:Ops.Points ~key:Ops.X
+    (fun () -> Ordering.sort_checked ~grain ~owner:Ordering.Points ~key:Ordering.X
       ~output_indices:"sort_rank" ~combine_indices:true ranked_y |> get_ok)
     geometry_output;
   measure ~input_points:point_count "sort_extended_by_vertex_order"
-    (fun () -> Ops.sort ~grain ~owner:Ops.Points ~key:Ops.By_vertex_order source
+    (fun () -> Ordering.sort_checked ~grain ~owner:Ordering.Points ~key:Ordering.By_vertex_order source
       |> get_ok) geometry_output;
   measure ~input_points:point_count "sort_extended_by_primitive_index"
-    (fun () -> Ops.sort ~grain ~owner:Ops.Points
-      ~key:Ops.By_primitive_index source |> get_ok) geometry_output;
+    (fun () -> Ordering.sort_checked ~grain ~owner:Ordering.Points
+      ~key:Ordering.By_primitive_index source |> get_ok) geometry_output;
   measure ~input_points:point_count "sort_extended_spatial_locality"
-    (fun () -> Ops.sort ~grain ~owner:Ops.Points ~key:Ops.Spatial_locality source
+    (fun () -> Ordering.sort_checked ~grain ~owner:Ordering.Points ~key:Ordering.Spatial_locality source
       |> get_ok) geometry_output
 
 let run_blast_by_attribute_benchmarks () =
@@ -5253,7 +5253,7 @@ let () =
   measure "grid" make_grid geometry_output;
   let line_count = (columns + 1) * (rows + 1) in
   measure "line_generator" (fun () ->
-    Ops.line ~grain ~points:line_count ~origin:Vec3.zero
+    Line_geometry.line_checked ~grain ~points:line_count ~origin:Vec3.zero
       ~direction:(Vec3.create 1. 2. 3.) ~length:100. () |> get_ok)
     geometry_output;
   if benchmark_filter = Some "line_generator" then exit 0;
@@ -5302,7 +5302,7 @@ let () =
     Color_by_height.run ~grain ~low:low_rgba ~high:high_rgba displaced
     |> get_ok) geometry_output;
   measure "sort_points_x" (fun () ->
-    Ops.sort ~grain ~owner:Ops.Points ~key:Ops.X source |> get_ok) geometry_output;
+    Ordering.sort_checked ~grain ~owner:Ordering.Points ~key:Ordering.X source |> get_ok) geometry_output;
   measure "triangulate_triangles" (fun () -> Triangulation_modeling.triangulate source |> get_ok)
     geometry_output;
   if benchmark_enabled "triangulate_quads"
@@ -5343,7 +5343,7 @@ let () =
       displaced |> get_ok in
   measure "mesh_bridge_colored" (fun () -> Pdk_prismel.Prismel_mesh.to_mesh colored |> get_ok)
     mesh_output;
-  measure "merge_pair" (fun () -> Ops.merge ~grain [source; source] |> get_ok)
+  measure "merge_pair" (fun () -> Mesh_merge.run ~grain [source; source] |> get_ok)
     geometry_output;
   let prototype = Box_generator.box_checked ~size:(Vec3.create 0.08 0.16 0.08) () |> get_ok
   and targets = Plane_generators.grid_checked ~columns:320 ~rows:320 ~size:100. () |> get_ok in
@@ -5406,7 +5406,7 @@ let () =
       |> Geometry.with_attribute (Attribute.create_owned ~owner:Attribute.Point
            ~name:"density" (Attribute.Float (Array.init target_count (fun index ->
              float_of_int (index land 63) /. 64.))) |> get_ok) |> get_ok in
-  let transfer_rules = Ops.[
+  let transfer_rules = Instance_copy.[
     { copy_target_pattern = "weight"; copy_target_owner = Copy_target_points;
       copy_target_operation = Copy_target_multiply };
     { copy_target_pattern = "corner_gain";
@@ -5440,7 +5440,7 @@ let () =
       |> Geometry.with_group (Group.init ~grain ~owner:Group.Point
            ~name:"selected" target_count (fun point -> point land 15 < 5))
       |> get_ok in
-  let group_rules = transfer_rules @ Ops.[
+  let group_rules = transfer_rules @ Instance_copy.[
     { copy_target_pattern = "active"; copy_target_owner = Copy_target_points;
       copy_target_operation = Copy_target_add };
     { copy_target_pattern = "visible"; copy_target_owner = Copy_target_vertices;
@@ -5474,7 +5474,7 @@ let () =
            (Attribute.Int (Array.init many_piece_count Fun.id)) |> get_ok)
       |> get_ok in
   let many_target_count = 16_384 in
-  let many_piece_targets = Ops.points (Array.init many_target_count (fun target ->
+  let many_piece_targets = Line_geometry.points (Array.init many_target_count (fun target ->
       float_of_int (target land 127) *. 0.01,
       float_of_int (target lsr 7) *. 0.01, 0.))
       |> Geometry.with_attribute (Attribute.create_owned ~owner:Attribute.Point
@@ -5576,7 +5576,7 @@ let () =
       ~transform:(Mat4.mul (Mat4.translation (Vec3.create 0. 0.2 0.))
         (Mat4.rotation_y 0.03)) modeling_grid |> get_ok) geometry_output;
   measure "sort_primitives_x" (fun () ->
-    Ops.sort ~grain ~descending:true ~owner:Ops.Primitives ~key:Ops.X
+    Ordering.sort_checked ~grain ~descending:true ~owner:Ordering.Primitives ~key:Ordering.X
       modeling_grid |> get_ok) geometry_output;
   measure "topology_index" (fun () ->
     Topology_index.create (Geometry.topology modeling_grid)) topology_index_output;
@@ -5630,7 +5630,7 @@ let () =
       (Geometry.primitive_count modeling_grid)
       (fun primitive -> primitive < Geometry.primitive_count modeling_grid / 2) in
   measure "delete_primitives_compact" (fun () ->
-    Ops.delete_primitives ~grain ~compact_points:true delete_half modeling_grid
+    Deletion.delete_primitives ~grain ~compact_points:true delete_half modeling_grid
     |> get_ok) geometry_output;
   measure "delete_primitives_keep_points" (fun () ->
     Deletion.delete_checked ~grain delete_half modeling_grid |> get_ok) geometry_output;
@@ -5791,7 +5791,7 @@ let () =
         box ~center:(Vec3.create 0. ((float_of_int column -. 3.5) *. 2.)
           ((float_of_int row -. 3.5) *. 2.)) ~y:1. ~z:1.
         |> Reverse_ops.run_checked |> get_ok) in
-    let source = Ops.merge (outer :: Array.to_list holes) |> get_ok in
+    let source = Mesh_merge.run (outer :: Array.to_list holes) |> get_ok in
     measure ~input_points:(Geometry.point_count source)
       "clip_nested_caps_64_holes" (fun () ->
         Plane_clip.clip_checked ~grain ~fill:true ~cap_group:"caps" ~origin:Vec3.zero
@@ -5811,7 +5811,7 @@ let () =
           |> Reverse_ops.run_checked |> get_ok in
       shells := outer :: inner :: !shells
     done;
-    let source = Ops.merge !shells |> get_ok in
+    let source = Mesh_merge.run !shells |> get_ok in
     measure ~input_points:(Geometry.point_count source)
       "clip_nested_caps_16_components" (fun () ->
         Plane_clip.clip_checked ~grain ~fill:true ~cap_group:"caps" ~origin:Vec3.zero
@@ -6112,7 +6112,7 @@ let () =
   measure ~input_points:(Geometry.point_count modeling_grid) "mirror" (fun () ->
     Mesh_edit_ops.mirror_checked ~grain ~origin:Vec3.zero ~normal:(Vec3.create 1. 1. 0.)
       modeling_grid |> get_ok) geometry_output;
-  let fuse_source = Ops.merge ~grain [modeling_grid; modeling_grid] |> get_ok in
+  let fuse_source = Mesh_merge.run ~grain [modeling_grid; modeling_grid] |> get_ok in
   measure "fuse_exact_pair" (fun () ->
     Fuse_grid.fuse_checked ~grain ~tolerance:0. ~match_attributes:true fuse_source |> get_ok)
     geometry_output;
@@ -6133,13 +6133,13 @@ let () =
   let curve = Array.init 10_001 (fun index ->
     let t = float_of_int index *. 0.002 in
     (t, sin (t *. 2.3), cos (t *. 1.7) *. 0.5))
-    |> Ops.polyline |> get_ok in
+    |> Line_geometry.polyline_checked |> get_ok in
   measure "sweep_circle" (fun () ->
     Curve_modeling.sweep_circle_checked ~sides:12 ~radius:0.08 curve |> get_ok) geometry_output;
   let dense_curve_values = Array.init curve_points (fun index ->
       let t = float_of_int index *. 0.001 in
       t, sin (t *. 0.19), cos (t *. 0.07) *. 0.5) in
-  let dense_curve_plain = Ops.polyline dense_curve_values |> get_ok in
+  let dense_curve_plain = Line_geometry.polyline_checked dense_curve_values |> get_ok in
   let curve_weight = Attribute.create_owned ~name:"weight"
       ~owner:Attribute.Point
       (Attribute.Float (Array.init curve_points (fun index ->
@@ -6209,7 +6209,7 @@ let () =
   let carve_grid = Plane_generators.grid_checked ~connectivity:Plane_generators.Grid_quads ~columns:400 ~rows:400
       ~size:100. () |> get_ok
       |> Geometry.without_attribute ~owner:Attribute.Point "N" in
-  let grouped_carve_source = Ops.merge ~grain [dense_curve_plain; carve_grid]
+  let grouped_carve_source = Mesh_merge.run ~grain [dense_curve_plain; carve_grid]
       |> get_ok in
   let grouped_carve_selection = Group.init ~owner:Group.Primitive
       ~name:"carve_curve" (Geometry.primitive_count grouped_carve_source)
@@ -6221,7 +6221,7 @@ let () =
     "curve_carve_grouped" (fun () ->
       Curve_modeling.carve_curves_checked ~grain ~primitives:grouped_carve_selection ~first:0.137
         ~last:0.863 grouped_carve_source |> get_ok) geometry_output;
-  let closed_dense_curve = Ops.polyline ~closed:true dense_curve_values |> get_ok
+  let closed_dense_curve = Line_geometry.polyline_checked ~closed:true dense_curve_values |> get_ok
       |> Geometry.with_attribute curve_weight |> get_ok
       |> Geometry.with_attribute curve_uv |> get_ok
       |> Geometry.with_group curve_points_group |> get_ok
