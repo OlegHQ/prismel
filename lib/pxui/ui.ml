@@ -143,6 +143,8 @@ and ui = {
   mutable theme : Theme.t;
   font : Font.t option;
   font_size : int;
+  (* owned kit faces by size; [None] caches a failed load *)
+  faces : Font.t option Int_table.t;
   (* retained, by slot *)
   table : Table.t;
   mutable slot_key : int array;
@@ -358,21 +360,39 @@ let publish_atlas atlas =
     | Error _ -> ()
   end
 
-let fallback_fonts = Hashtbl.create 4
+(* The kit face: [PRISMEL_UI_FONT], else DepartureMono found from the working
+   directory or the executable upward. *)
+let kit_font_path = lazy (
+  match Sys.getenv_opt "PRISMEL_UI_FONT" with
+  | Some path -> Some path
+  | None ->
+      let relative = Filename.concat "assets"
+          (Filename.concat "fonts" "DepartureMono-Regular.otf") in
+      let rec upward directory =
+        let candidate = Filename.concat directory relative in
+        if Sys.file_exists candidate then Some candidate
+        else let parent = Filename.dirname directory in
+          if parent = directory then None else upward parent in
+      match upward (Sys.getcwd ()) with
+      | Some _ as found -> found
+      | None -> upward (Filename.dirname (Sys.executable_name)))
+
 let face ui size =
   match size with
   | None when Option.is_some ui.font -> ui.font
   | _ ->
       let size = Option.value size ~default:ui.font_size in
-      match Theme.font size with
-      | Some font -> Some font
+      match Int_table.find_opt ui.faces size with
+      | Some face -> face
       | None ->
-          match Hashtbl.find_opt fallback_fonts size with
-          | Some font -> Some font
-          | None ->
-              match Font.system ~size () with
-              | Ok font -> Hashtbl.add fallback_fonts size font; Some font
-              | Error _ -> None
+          let loaded = match Lazy.force kit_font_path with
+            | Some path -> Font.load path size
+            | None -> Error (`Msg "no kit font") in
+          let face = match loaded with
+            | Ok font -> Some font
+            | Error _ -> Result.to_option (Font.system ~size ()) in
+          Int_table.replace ui.faces size face;
+          face
 
 let iter_code_points text visit =
   let length = String.length text in
@@ -400,7 +420,7 @@ let text_width_px ui ?size text =
 let create ?(theme = Theme.default) ?font ?(font_size = Theme.font_size) () =
   if font_size <= 0 then invalid_arg "Ui.create: font_size must be positive";
   let capacity = 64 in
-  { theme; font; font_size; table = Table.create ();
+  { theme; font; font_size; faces = Int_table.create 4; table = Table.create ();
     slot_key = Array.make capacity 0; free = []; next_slot = 0;
     touched = Array.make capacity (-1);
     rx = Array.make capacity 0.; ry = Array.make capacity 0.;
@@ -452,6 +472,9 @@ let destroy ui =
     ui.destroyed <- true;
     Option.iter Image.destroy ui.atlas.image;
     ui.atlas.image <- None;
+    Int_table.iter (fun _ face -> Option.iter Font.destroy face) ui.faces;
+    Int_table.reset ui.faces;
+    ui.atlas.fonts <- [];
     ui.scene <- []
   end
 

@@ -42,7 +42,8 @@ val create : ?theme:Theme.t -> ?font:Prismel.Font.t -> ?font_size:int -> unit ->
     of kit text. *)
 
 val destroy : t -> unit
-(** Release the glyph atlas. The handle must not be used afterwards. *)
+(** Release the glyph atlas and the kit faces this UI loaded. The handle must
+    not be used afterwards. *)
 
 val theme : t -> Theme.t
 val set_theme : t -> Theme.t -> unit

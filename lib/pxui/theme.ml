@@ -18,19 +18,6 @@ let default = {
 
 let font_size = 11
 
-let fonts = Hashtbl.create 8
-
-let font size =
-  match Hashtbl.find_opt fonts size with
-  | Some font -> Some font
-  | None ->
-      let path = match Sys.getenv_opt "PRISMEL_UI_FONT" with
-        | Some path -> path
-        | None -> "assets/fonts/DepartureMono-Regular.otf" in
-      match Prismel.Font.load path size with
-      | Error _ -> None
-      | Ok font -> Hashtbl.add fonts size font; Some font
-
 let muted theme = Prismel.Color.blend theme.foreground theme.panel ~pct:0.48
 let border theme = Prismel.Color.with_alpha theme.foreground 180
 let faint_border theme = Prismel.Color.with_alpha theme.foreground 60

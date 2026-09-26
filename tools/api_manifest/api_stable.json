@@ -1279,13 +1279,13 @@
       "source_sha256": "a3bafbfa290d573092b5c0ec10d80484193e4be0a5c7a92ac4f82e5463c61e47"
     },
     {
-      "api_sha256": "7eade6236511dc81668cd404b3b26d10b344a4904e9aa4506be95f1e700f9720",
+      "api_sha256": "1a4203ad158262cc2e4ca449c8cd2467d995a019ac75c4abbea229cf7fda501c",
       "excluded_legacy_symbols": [],
       "library": "pxui",
       "module": "Theme",
       "source": "lib/pxui/theme.mli",
-      "source_bytes": 776,
-      "source_sha256": "bfc069b942e36543b59173b9d23d82e4a6d165bf1d7852299821ce8bc9045fa7"
+      "source_bytes": 587,
+      "source_sha256": "fe3f90790ed44bee42021db16142639592f1763addaef1b10a53d64279e8988d"
     },
     {
       "api_sha256": "007f84455faf38b040317308225e9e928fd15b9e4575dd2d2d256aba3bf8b898",
@@ -1293,8 +1293,8 @@
       "library": "pxui",
       "module": "Ui",
       "source": "lib/pxui/ui.mli",
-      "source_bytes": 13829,
-      "source_sha256": "c12a7ddfa789f82fd35c9092345b459f0192f80e4d1ebd24331f91d631615de3"
+      "source_bytes": 13866,
+      "source_sha256": "683cbfac429f78b364ab4333f3ea621e11399691125d3f5d8f3b4534c5293e57"
     },
     {
       "api_sha256": "a96d6c153dad550ab101ee596e00642e87312b84b4497b519780db4a13f66bfa",

@@ -14,10 +14,6 @@ val default : t
 (** Default text size in logical points. *)
 val font_size : int
 
-(** The kit face (DepartureMono, or [PRISMEL_UI_FONT]) at a logical point
-    size, loaded once per size. [None] when the face cannot be opened. *)
-val font : int -> Prismel.Font.t option
-
 (** Derived kit colors. *)
 val muted : t -> Prismel.Color.t
 val border : t -> Prismel.Color.t
