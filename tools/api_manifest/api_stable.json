@@ -411,13 +411,13 @@
       "source_sha256": "783f2a8cb8d44e94a2fe14b57d38a3089600f911da55902a40a5925dc5fe50f7"
     },
     {
-      "api_sha256": "ad272ce0003d93d2ec7c5b1168ab376f45c6bb5132d0d85cd0cb51a76154825c",
+      "api_sha256": "a7d0f375d75b16da0e36a29c41be36f2b03351ae9554fbbbf203890ae4c4c7ae",
       "excluded_legacy_symbols": [],
       "library": "pdk",
       "module": "Ops",
       "source": "lib/pdk/mesh/ops.mli",
-      "source_bytes": 158253,
-      "source_sha256": "80bae58ace706ce879707e18f2e39050014ba11741c80be53850ab8ba74cd329"
+      "source_bytes": 152595,
+      "source_sha256": "abbc6834d1a8efda7b6185242a3309b5141cf9c32e9ff6fa16132fe2c65fe782"
     },
     {
       "api_sha256": "b490452483589f09b79da98886e02e53857b15bc4e94c89b071cad643471a311",
@@ -1144,13 +1144,13 @@
       "source_sha256": "83afa2e5b95fc2188298d383ada3f628368e0dba3aa1f7ac67738f4086cfee52"
     },
     {
-      "api_sha256": "fa4086bc6037418bdfc67442868f0b9a13345655fcf67c5d68f833c4e5e5d47f",
+      "api_sha256": "b50719ae365c5123d88a6fa7af5559b29717f8bf6e49575f9c527b06f03c6baf",
       "excluded_legacy_symbols": [],
       "library": "procedural",
       "module": "Sop",
       "source": "lib/procedural/sop.mli",
-      "source_bytes": 99760,
-      "source_sha256": "cec94c5b5ec25ac13c89cba6068e5a196c09dbb0706e10bdfbe248d60c7557fa"
+      "source_bytes": 99747,
+      "source_sha256": "bae335394d52c32fe44035a6bc35cd92b3d6f42db616ae2c496d9f413754808b"
     },
     {
       "api_sha256": "a07dc249d7631da8b4e38fe93e9e43898cdc8cec6e30be0a7c921a086e386fba",
@@ -1252,13 +1252,13 @@
       "source_sha256": "e29942e9832efce336bad8a6132ce04fad60bf934fa5510edae5ce4ecdad30d3"
     },
     {
-      "api_sha256": "2d583083cce1b1a3f55cac678b8a81a8e6c52b476863daa60165fcf798474741",
+      "api_sha256": "db89ebbd0af932d040c0c687fac36effd1902e1e7ccc4d46dd8da3fd33f81d92",
       "excluded_legacy_symbols": [],
       "library": "sop_catalog",
       "module": "Sop_catalog",
       "source": "lib/sop_catalog/sop_catalog.mli",
-      "source_bytes": 21350,
-      "source_sha256": "76ac7d68b5d534b96566680d08f45f30a8565294fc16bb3ca2346e592a066776"
+      "source_bytes": 21346,
+      "source_sha256": "8cb2ae7bbd00b75dbad3a9c42539b1ea8d84cd2a1690ef46ca85e5b24614b72f"
     },
     {
       "api_sha256": "066c13e6f40d5ace39e223d82bef47560a97d2d8a6dd75ab9bae2117d32ab5a5",

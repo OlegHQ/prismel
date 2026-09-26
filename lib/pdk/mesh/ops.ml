@@ -35,19 +35,6 @@ type smooth_boundary = Smooth.boundary =
   | Smooth_free
   | Smooth_unshared
   | Smooth_group_boundary
-type delete_topology_policy = Deletion.topology_policy =
-  | Destroy_touched_primitives
-  | Heal_primitives
-type blast_attribute_owner = Blast_by_attribute.owner =
-  | Blast_points
-  | Blast_primitives
-type blast_attribute_mode = Blast_by_attribute.mode =
-  | Blast_below of float
-  | Blast_range of { minimum : float; maximum : float }
-  | Blast_width of { center : float; width : float }
-type blast_attribute_output = Blast_by_attribute.output =
-  | Blast_delete
-  | Blast_group of string
 type crease_operation = Crease.operation =
   | Crease_add
   | Crease_set
@@ -574,27 +561,6 @@ let circle_from_edges ?cancel ?grain ?edges ?radius ?scale ?output_group geometr
     Circle_from_edges.run ?cancel ?grain ?edges ?radius ?scale ?output_group
       geometry)
 
-type graph_color_connectivity = Graph_color.connectivity =
-  | Graph_primitives_by_point
-  | Graph_points_by_primitive
-  | Graph_primitives_by_edge
-
-type graph_color_worksets = Graph_color.worksets = {
-  begin_attribute : string;
-  length_attribute : string;
-}
-
-let graph_color ?cancel ?grain ?selection ?connectivity ?color_attribute
-    ?sort_output ?worksets geometry =
-  let selection = Option.map (function
-    | Selected_points group -> Element_selection.Selected_points group
-    | Selected_vertices group -> Element_selection.Selected_vertices group
-    | Selected_primitives group -> Element_selection.Selected_primitives group
-    | Selected_edges group -> Element_selection.Selected_edges group) selection in
-  protected "graph_color" "invalid_graph" (fun () ->
-    Graph_color.run ?cancel ?grain ?selection ?connectivity ?color_attribute
-      ?sort_output ?worksets geometry)
-
 type edge_equalize_method = Edge_ops.equalize_method =
   | Equalize_average
   | Equalize_longest
@@ -809,16 +775,6 @@ let poly_cut ?cancel ?grain ?primitives ?cut_points ?cut_edges ?element
     Poly_cut.cut ?cancel ?grain ?primitives ?cut_points ?cut_edges ?element
       ?strategy ?detection ?keep_closed geometry)
 
-type separate_pieces_mode = Separate_pieces.mode =
-  | Separate_pieces_separate
-  | Separate_pieces_move_back
-
-let separate_pieces ?cancel ?grain ?owner ?translation_attribute ?axis ?gap
-    ~mode ~piece_attribute geometry =
-  protected "separate_pieces" "invalid_separate_pieces" (fun () ->
-    Separate_pieces.run ?cancel ?grain ?owner ?translation_attribute ?axis ?gap
-      ~mode ~piece_attribute geometry)
-
 let subdivide = Subdivision_ops.subdivide_checked
 
 let edge_divide ?cancel ?grain ?edges ?divisions ?share_points geometry =
@@ -853,16 +809,6 @@ let polyframe ?cancel ?grain ?selection ?orthogonal ?left_handed ?normal_attribu
       ?normal_attribute ?tangent_attribute ?bitangent_attribute style geometry)
 
 let compact_points_raw = compact_points
-let delete ?cancel ?grain ?selected ?compact_points ?policy group geometry =
-  protected "delete" "invalid_selection" (fun () ->
-    Deletion.delete ?cancel ?grain ?selected ?compact_points ?policy group geometry)
-
-let blast_by_attribute ?cancel ?grain ?base ?invert ?remove_unused_points
-    ~owner ~attribute ~mode ~output geometry =
-  protected "blast_by_attribute" "invalid_blast" (fun () ->
-    Blast_by_attribute.blast ?cancel ?grain ?base ?invert ?remove_unused_points
-      ~owner ~attribute ~mode ~output geometry)
-
 let delete_primitives = Deletion.delete_primitives
 
 let compact_points = Compact_points.run_checked

@@ -1129,44 +1129,6 @@ val circle_from_edges :
     reusable domain pool. Auxiliary storage is O(points + edges + components),
     and one/multi-domain output ordering is identical. *)
 
-type graph_color_connectivity =
-  | Graph_primitives_by_point
-  | Graph_points_by_primitive
-  | Graph_primitives_by_edge
-
-type graph_color_worksets = {
-  begin_attribute : string;
-  length_attribute : string;
-}
-
-val graph_color :
-  ?cancel:Cancel.t ->
-  ?grain:int ->
-  ?selection:deform_selection ->
-  ?connectivity:graph_color_connectivity ->
-  ?color_attribute:string ->
-  ?sort_output:bool ->
-  ?worksets:graph_color_worksets ->
-  Geometry.t ->
-  (Geometry.t, Error.t) result
-(** Assign a non-negative integer color to each selected point or primitive so
-    directly connected selected elements have different values. Primitive
-    connectivity can use shared points or shared closed-polygon edges; point
-    connectivity treats all points in one primitive as a clique. Unselected
-    elements receive [-1]. Typed selections are promoted to the target owner.
-
-    [sort_output] stably places unselected elements first and then ascending
-    color blocks while remapping every payload/group through the shared Sort
-    core. Optional detail integer-array workset begin/length fields require
-    sorted output and describe those selected blocks.
-
-    Stable union-find builds disconnected graph components in O(points +
-    vertices + edges) storage. Components color independently in the reusable
-    domain pool with deterministic ascending-element greedy order. Neighbor
-    scans do not materialize a potentially quadratic clique adjacency; time is
-    output-sensitive to primitive valence. One- and multi-domain colors and
-    sorted topology are identical. *)
-
 type edge_equalize_method =
   | Equalize_average
   | Equalize_longest
@@ -1958,41 +1920,6 @@ val poly_cut :
     ranges. Cardinality, topology affinity, finite operated fields, threshold,
     interpolation, and cancellation failures are atomic. *)
 
-type separate_pieces_mode =
-  | Separate_pieces_separate
-  | Separate_pieces_move_back
-
-val separate_pieces :
-  ?cancel:Cancel.t ->
-  ?grain:int ->
-  ?owner:Attribute.owner ->
-  ?translation_attribute:string ->
-  ?axis:Prismel_math.Vec3.t ->
-  ?gap:float ->
-  mode:separate_pieces_mode ->
-  piece_attribute:string ->
-  Geometry.t ->
-  (Geometry.t, Error.t) result
-(** Pack integer- or text-identified pieces into non-overlapping projection
-    intervals along [axis], in stable first-occurrence order. [gap] defaults
-    to [0.001] and is the non-negative distance between adjacent intervals. Point-owned identities
-    require every primitive to reference one piece; primitive-owned identities
-    require shared points to agree. Disconnected components with the same key
-    move together.
-
-    Separate mode stores its rigid translation as a float3 attribute on the
-    piece owner's domain. Move-back mode subtracts that field after unrelated
-    nodes that preserve positions and the translation attribute. Floating-point
-    roundoff may prevent bit-identical recovery. Topology, all other
-    payload, groups, and normals are structurally shared.
-
-    Work is O(points + vertices + primitives + pieces), with O(points + pieces)
-    auxiliary storage. Piece discovery and stable CSR construction are
-    sequential; ownership validation, projection, and position fills use
-    deterministic disjoint parallel ranges. Malformed
-    storage, mixed-piece primitives/shared points, non-finite data, overflow,
-    and cancellation fail atomically. *)
-
 val subdivide :
   ?cancel:Cancel.t ->
   ?grain:int ->
@@ -2167,19 +2094,6 @@ val edge_divide :
     Independent point, topology, payload, and edge-ancestry ranges use the
     reusable domain pool and are byte-identical across domain counts. *)
 
-type delete_topology_policy =
-  | Destroy_touched_primitives
-  | Heal_primitives
-
-type blast_attribute_owner = Blast_points | Blast_primitives
-
-type blast_attribute_mode =
-  | Blast_below of float
-  | Blast_range of { minimum : float; maximum : float }
-  | Blast_width of { center : float; width : float }
-
-type blast_attribute_output = Blast_delete | Blast_group of string
-
 type poly_extrude_divide =
   | Extrude_individual
   | Extrude_connected_components
@@ -2192,54 +2106,6 @@ type poly_fill_mode =
 type clean_overlap_policy =
   | Keep_first_overlap
   | Delete_overlap_pairs
-
-val delete :
-  ?cancel:Cancel.t ->
-  ?grain:int ->
-  ?selected:bool ->
-  ?compact_points:bool ->
-  ?policy:delete_topology_policy ->
-  Group.t -> Geometry.t -> (Geometry.t, Error.t) result
-(** Delete selected elements, or non-selected elements when [selected=false].
-    Primitive selections remove whole primitives. Point/vertex selections use
-    [Destroy_touched_primitives] by default; [Heal_primitives] removes selected
-    corners and reconnects retained polygon/curve order, dropping results below
-    their valid minimum cardinality. Point selections always remove selected
-    point records. [compact_points] additionally removes every point unused by
-    retained topology.
-
-    Positions, every ordinary attribute owner, every ordinary group owner, and
-    native edge groups are
-    remapped in stable source order. Healing removes point/vertex [N] because
-    the surface changed; whole-primitive deletion preserves valid normals.
-    O(points + vertices + primitives + payload) time and linear
-    auxiliary/output storage; independent packed payload copies are
-    parallelized. *)
-
-val blast_by_attribute :
-  ?cancel:Cancel.t ->
-  ?grain:int ->
-  ?base:Group.t ->
-  ?invert:bool ->
-  ?remove_unused_points:bool ->
-  owner:blast_attribute_owner ->
-  attribute:string ->
-  mode:blast_attribute_mode ->
-  output:blast_attribute_output ->
-  Geometry.t ->
-  (Geometry.t, Error.t) result
-(** Select points or primitives from a scalar float/integer attribute, either
-    deleting the result or replacing one same-owner output group. [Blast_below]
-    is strict; range and width endpoints are inclusive. [invert] complements
-    the condition only inside [base]. Primitive deletion can compact all
-    unused points; point deletion destroys every touched primitive through the
-    shared Delete planner.
-
-    Classification is O(elements) time with one packed bit per element and is
-    parallel across independent bytes. Deletion retains Delete's stable
-    O(points + vertices + primitives + payload) remapping. Float parameters
-    and operated attribute values must be finite; malformed input and
-    cancellation publish no partial geometry. *)
 
 val normals :
   ?cancel:Cancel.t ->
