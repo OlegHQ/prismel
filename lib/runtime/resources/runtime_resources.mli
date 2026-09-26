@@ -73,6 +73,9 @@ module Text : sig
   val destroy : t -> (unit,error) result
   module Private : sig
     val identity : t -> int
+    (* The owned RGBA storage, borrowed without a copy. Do not mutate or retain
+       it: [into_image] may later hand it to an image. *)
+    val borrow_pixels : t -> (bytes,error) result
     (* Consume the text and transfer its owned RGBA storage to an image. *)
     val into_image : t -> (Image.t,error) result
   end

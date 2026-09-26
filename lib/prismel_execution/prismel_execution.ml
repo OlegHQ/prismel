@@ -439,9 +439,18 @@ let snapshot value ~lease_policy ~density source =
             store key borrowed_generation width height texture(Bytes.length bytes);
           Ok(width,height,texture)
       |Error e->resource operation e))
-  |Text text->(match Runtime_resources.Text.size text,Runtime_resources.Text.pixels text with
-      |Ok(width,height),Ok pixels->finish("text:"^Digest.to_hex(Digest.bytes pixels))(Runtime_resources.Text.generation text)width height pixels
-      |Error e,_|_,Error e->resource operation e)
+  |Text text->
+      (* Text snapshots are immutable and uniquely identified, like images:
+         a hit touches no pixels, a miss copies them once. *)
+      let key="text:"^string_of_int(Runtime_resources.Text.Private.identity text)
+      and generation=Runtime_resources.Text.generation text in
+      (match if Runtime_resources.Text.destroyed text then None
+         else find key generation with
+       |Some cached->Ok cached
+       |None->match Runtime_resources.Text.size text,
+           Runtime_resources.Text.Private.borrow_pixels text with
+        |Ok(width,height),Ok pixels->finish key generation width height pixels
+        |Error e,_|_,Error e->resource operation e)
   |Canvas canvas->
       let key="canvas:"^string_of_int(Runtime_resources.Canvas.Private.identity canvas)in
       (* A canvas rendered on this window's device is sampled in place. *)

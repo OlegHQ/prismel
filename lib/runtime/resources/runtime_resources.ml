@@ -284,6 +284,7 @@ module Text=struct
   let destroy x=main"Text.destroy"(fun()->if x.dead then Ok()else(x.dead<-true;x.rgba<-Bytes.empty;Ok()))
   module Private=struct
     let identity x=x.generation
+    let borrow_pixels x=live"Text.Private.borrow_pixels"x(fun()->Ok x.rgba)
     let into_image x=live"Text.Private.into_image"x(fun()->
       let image=Image.Private.of_owned_rgba ~width:x.width ~height:x.height ~rgba:x.rgba in
       x.dead<-true;x.rgba<-Bytes.empty;Ok image)

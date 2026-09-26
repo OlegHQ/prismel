@@ -463,7 +463,7 @@ let texture_upload_scratch value total =
           Ok scratch
 let image_or_canvas_key key=
   String.starts_with~prefix:"canvas:"key||String.starts_with~prefix:"image:"key||
-  String.starts_with~prefix:"texture:"key||String.starts_with~prefix:"shadow:"key
+  String.starts_with~prefix:"texture:"key||String.starts_with~prefix:"shadow:"key||String.starts_with~prefix:"text:"key
 let prepare_texture value ~defer(source:sampled_texture)=
   match source.gpu with
   |Some texture->
@@ -480,7 +480,7 @@ let prepare_texture value ~defer(source:sampled_texture)=
   |None->
   let levels_hash()=
     Digest.to_hex(Digest.string(Array.to_list source.levels|>List.map(fun (level:texture_level)->Printf.sprintf"%dx%d:%s"level.width level.height(Digest.to_hex(Digest.string(Bytes.unsafe_to_string level.bytes))))|>String.concat"|"))in
-  (* Image, canvas and texture keys carry identity and generation, so their
+  (* Image, canvas, texture, shadow and text keys carry identity and generation, so their
      bytes are never hashed; other keys are content-addressed. *)
   let upload ~hash ~reusable=
     if not(valid_texture source)then error"Scene_execution.prepare_texture"Ogpu.Error.Invalid_argument"texture or sampler is malformed"else
@@ -553,7 +553,7 @@ let prepare_texture value ~defer(source:sampled_texture)=
   match String_table.find value.texture_cache source.key with
   |item when String.starts_with~prefix:"image:"source.key||
       String.starts_with~prefix:"texture:"source.key||
-      String.starts_with~prefix:"shadow:"source.key->
+      String.starts_with~prefix:"shadow:"source.key||String.starts_with~prefix:"text:"source.key->
       item.texture_used<-value.frame;Ok item
   |item when String.starts_with~prefix:"canvas:"source.key->upload~hash:""~reusable:(Some item)
   (* The immutable levels this slot was uploaded from: no hashing. *)
