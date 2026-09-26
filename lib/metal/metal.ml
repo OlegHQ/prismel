@@ -11,7 +11,6 @@ type error_kind =
   | Invalid_state
   | Unsupported
   | Device_mismatch
-  | Release_queue_overflow
 
 type error = { operation : string; kind : error_kind; message : string }
 
@@ -203,12 +202,7 @@ let before_main operation =
   | Error _ as failure -> failure
   | Ok () ->
       ignore (Metal_raw.drain_releases ());
-      let dropped = Metal_raw.dropped_releases () in
-      if dropped <> 0 then
-        error operation Release_queue_overflow
-          (Printf.sprintf "the bounded Metal finalizer queue overflowed and dropped %d token(s)"
-             dropped)
-      else Ok ()
+      Ok ()
 
 let on_main operation callback =
   match before_main operation with Error _ as failure -> failure | Ok () -> callback ()
@@ -216,13 +210,11 @@ let on_main operation callback =
 module Release_queue = struct
   type stats = {
     pending : int;
-    dropped : int;
     live_handles : int;
     total_created : int64;
     total_released : int64;
     external_deallocations : int64;
     external_deallocation_mismatches : int64;
-    placement_mapping_operations : int64;
     resident_bytes : int64;
   }
 
@@ -230,12 +222,7 @@ module Release_queue = struct
     match Thread.require "Metal.Release_queue.drain" with
     | Error _ as failure -> failure
     | Ok () ->
-        let drained = Metal_raw.drain_releases () in
-        let dropped = Metal_raw.dropped_releases () in
-        if dropped <> 0 then
-          error "Metal.Release_queue.drain" Release_queue_overflow
-            (Printf.sprintf "dropped %d finalizer release token(s)" dropped)
-        else Ok drained
+        Ok (Metal_raw.drain_releases ())
 
   let stats () =
     match Thread.require "Metal.Release_queue.stats" with
@@ -248,13 +235,11 @@ module Release_queue = struct
           Ok
             {
               pending = Metal_raw.pending_releases ();
-              dropped = Metal_raw.dropped_releases ();
               live_handles = Metal_raw.live_handles ();
               total_created = Metal_raw.total_created ();
               total_released = Metal_raw.total_released ();
               external_deallocations = Metal_raw.external_deallocations ();
               external_deallocation_mismatches = Metal_raw.external_deallocation_mismatches ();
-              placement_mapping_operations = Metal_raw.placement_mapping_operations ();
               resident_bytes;
             }
 end
@@ -1697,7 +1682,10 @@ module Device = struct
     on_main "Metal.Device.supports_family" (fun () ->
         match ensure_live "Metal.Device.supports_family" value.lifetime with
         | Error _ as failure -> failure
-        | Ok () -> Ok (Metal_raw.device_supports_family value.raw (family_code family)))
+        | Ok () -> (
+            match Metal_raw.Registry.device_supports_family value.raw (Int64.of_int (family_code family)) with
+            | Error message -> native_error "Metal.Device.supports_family" message
+            | Ok supported -> Ok supported))
 
   let supports_texture_sample_count (value : t) sample_count =
     on_main "Metal.Device.supports_texture_sample_count" (fun () ->
@@ -2609,7 +2597,8 @@ module Texture = struct
   let format_layout = Metal_format.layout
 
   let supports_family_raw (device : Device.t) family =
-    Metal_raw.device_supports_family device.raw (Device.family_code family)
+    Result.value ~default:false
+      (Metal_raw.Registry.device_supports_family device.raw (Int64.of_int (Device.family_code family)))
 
   let supports_compression_raw (device : Device.t) format =
     match Metal_format.compression_family format with
@@ -6897,7 +6886,8 @@ end
 let ensure_metal4 operation (device : Device.t) =
   match ensure_live operation device.lifetime with
   | Error _ as failure -> failure
-  | Ok () when not (Metal_raw.device_supports_family device.raw (Device.family_code Device.Metal4))
+  | Ok () when not (Result.value ~default:false
+      (Metal_raw.Registry.device_supports_family device.raw (Int64.of_int (Device.family_code Device.Metal4))))
     ->
       error operation Unsupported "the Metal device does not support Metal 4"
   | Ok () -> Ok ()

@@ -937,13 +937,13 @@ std::deque<void *> release_queue;
 std::mutex release_mutex;
 std::mutex handle_mutex;
 std::atomic<std::uint64_t> next_generation{1};
-std::atomic<std::uint64_t> dropped_releases{0};
+;
 std::atomic<std::uint64_t> live_handle_count{0};
 std::atomic<std::uint64_t> total_created_count{0};
 std::atomic<std::uint64_t> total_released_count{0};
 std::atomic<std::uint64_t> external_deallocation_count{0};
 std::atomic<std::uint64_t> external_deallocation_mismatch_count{0};
-std::atomic<std::uint64_t> placement_mapping_operation_count{0};
+;
 
 Handle *handle_of_value(value raw) {
   return static_cast<Handle *>(Data_custom_val(raw));
@@ -2357,11 +2357,6 @@ extern "C" CAMLprim value caml_prismel_metal_pending_releases(value unit) {
   CAMLreturn(Val_long(pending));
 }
 
-extern "C" CAMLprim value caml_prismel_metal_dropped_releases(value unit) {
-  CAMLparam1(unit);
-  CAMLreturn(Val_long(dropped_releases.load(std::memory_order_relaxed)));
-}
-
 extern "C" CAMLprim value caml_prismel_metal_live_handles(value unit) {
   CAMLparam1(unit);
   CAMLreturn(Val_long(live_handle_count.load(std::memory_order_relaxed)));
@@ -2391,13 +2386,6 @@ caml_prismel_metal_external_deallocation_mismatches(value unit) {
   CAMLparam1(unit);
   CAMLreturn(caml_copy_int64(static_cast<std::int64_t>(
       external_deallocation_mismatch_count.load(std::memory_order_relaxed))));
-}
-
-extern "C" CAMLprim value
-caml_prismel_metal_placement_mapping_operations(value unit) {
-  CAMLparam1(unit);
-  CAMLreturn(caml_copy_int64(static_cast<std::int64_t>(
-      placement_mapping_operation_count.load(std::memory_order_relaxed))));
 }
 
 extern "C" CAMLprim value caml_prismel_metal_resident_bytes(value unit) {
@@ -2490,14 +2478,6 @@ caml_prismel_metal_device_max_buffer_length(value raw) {
   id<MTLDevice> device = object_of_handle(raw, Handle_kind::Device);
   CAMLreturn(caml_copy_int64(
       static_cast<std::int64_t>(device.maxBufferLength)));
-}
-
-extern "C" CAMLprim value caml_prismel_metal_device_supports_family(
-    value raw, value family) {
-  CAMLparam2(raw, family);
-  id<MTLDevice> device = object_of_handle(raw, Handle_kind::Device);
-  const auto family_value = static_cast<MTLGPUFamily>(Long_val(family));
-  CAMLreturn(Val_bool([device supportsFamily:family_value]));
 }
 
 extern "C" CAMLprim value

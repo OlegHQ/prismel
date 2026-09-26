@@ -225,6 +225,17 @@ let entries : entry list =
       ; fields = [ "width", Nsuint; "height", Nsuint; "depth", Nsuint ]
       ; feature = Ogpu_core.Caps.Compute_pipeline
       }
+  ; Method
+      { recv = "Device"
+      ; objc = "id<MTLDevice>"
+      ; sel = "supportsFamily:"
+      ; args = [ Enum_of "MTLGPUFamily" ]
+      ; ret = Some (Scalar Bool)
+      ; error = false
+      ; ocaml = "device_supports_family"
+      ; since = None
+      ; feature = Ogpu_core.Caps.Buffer
+      }
   ; Property
       { recv = "Device"
       ; objc = "id<MTLDevice>"

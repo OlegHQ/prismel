@@ -15,7 +15,7 @@ let of_metal_error ~operation (value : Metal.error) =
     | Metal.Destroyed -> Ogpu_core.Error.Stale_handle
     | Metal.Device_mismatch -> Ogpu_core.Error.Cross_device
     | Metal.Unsupported -> Ogpu_core.Error.Unsupported
-    | Metal.Native_error | Metal.Wrong_domain | Metal.Release_queue_overflow ->
+    | Metal.Native_error | Metal.Wrong_domain ->
         Ogpu_core.Error.Device_lost in
   Ogpu_core.Error.make operation kind value.message
 

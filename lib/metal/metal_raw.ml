@@ -373,7 +373,6 @@ external destroy : handle -> bool = "caml_prismel_metal_destroy"
 
 external drain_releases : unit -> int = "caml_prismel_metal_drain_releases"
 external pending_releases : unit -> int = "caml_prismel_metal_pending_releases"
-external dropped_releases : unit -> int = "caml_prismel_metal_dropped_releases"
 external live_handles : unit -> int = "caml_prismel_metal_live_handles"
 external total_created : unit -> int64 = "caml_prismel_metal_total_created"
 external total_released : unit -> int64 = "caml_prismel_metal_total_released"
@@ -381,8 +380,6 @@ external external_deallocations : unit -> int64 =
   "caml_prismel_metal_external_deallocations"
 external external_deallocation_mismatches : unit -> int64 =
   "caml_prismel_metal_external_deallocation_mismatches"
-external placement_mapping_operations : unit -> int64 =
-  "caml_prismel_metal_placement_mapping_operations"
 external resident_bytes : unit -> int64 = "caml_prismel_metal_resident_bytes"
 
 external default_device : unit -> (handle, string) result =
@@ -413,8 +410,6 @@ external device_current_allocated_size : handle -> int64 =
 external device_max_buffer_length : handle -> int64 =
   "caml_prismel_metal_device_max_buffer_length"
 
-external device_supports_family : handle -> int -> bool =
-  "caml_prismel_metal_device_supports_family"
 
 external device_supports_raytracing : handle -> bool =
   "caml_prismel_metal_device_supports_raytracing"

@@ -16,7 +16,6 @@ type error_kind =
   | Invalid_state
   | Unsupported
   | Device_mismatch
-  | Release_queue_overflow
 
 type error = private
   { operation : string
@@ -52,13 +51,11 @@ val pp_error : Format.formatter -> error -> unit
 module Release_queue : sig
   type stats =
     { pending : int
-    ; dropped : int
     ; live_handles : int
     ; total_created : int64
     ; total_released : int64
     ; external_deallocations : int64
     ; external_deallocation_mismatches : int64
-    ; placement_mapping_operations : int64
     ; resident_bytes : int64
     }
 

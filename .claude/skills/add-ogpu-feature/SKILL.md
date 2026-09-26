@@ -14,7 +14,7 @@ description: Add a GPU feature to OGPU in prismel, capability-gated and implemen
    `backend.mli` plus the typed wrapper module callers use. The interface
    never names a backend type. Errors are `Error.t` results; a missing
    capability is `Error.Unsupported`, never a silent no-op.
-3. Implement it in `lib/ogpu_metal` (Metal calls via the `add-metal-binding`
+3. Implement it in `lib/ogpu_metal` (Metal calls via the `metal-workflow`
    skill) and in `lib/ogpu_mock/impl.ml`: real behaviour when the mock can
    model it, otherwise the module's `unsupported` helper.
 4. Add conformance cases in `test/ogpu_conformance/conformance.ml`: exact
