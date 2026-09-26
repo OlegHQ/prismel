@@ -1113,7 +1113,7 @@ val skin :
 
 type poly_bridge_pairing = Bridge_by_order | Bridge_by_centroid
 
-type poly_reduce_target =
+type poly_reduce_target = Poly_reduce.target =
   | Reduce_ratio of float
   | Reduce_primitive_count of int
 

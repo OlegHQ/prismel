@@ -1,3 +1,5 @@
+open Prismel_math
+
 let finite value = Float.is_finite value
 
 let remap_attribute ?cancel ~grain vertex_map primitive_map attribute =
