@@ -1515,7 +1515,7 @@ let dissolve ?label ?group ?(operation = Pdk.Dissolve.Dissolve_selected)
       match edges with
       | Error error -> Error error
       | Ok edges ->
-          match Pdk.Dissolve.run_checked ~cancel:(Context.cancel_token context)
+          match Pdk.Dissolve.run ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?edges ~operation ~bridge_policy
               ~remove_inline_points ~collinearity_tolerance
               ~remove_unused_points ~create_boundary_curves ~recompute_normals
@@ -1757,7 +1757,7 @@ let edge_flip ?label ?group ?(cycles = 1)
       match edges with
       | Error error -> Error error
       | Ok edges ->
-          match Pdk.Edge_flip.run_checked ~cancel:(Context.cancel_token context)
+          match Pdk.Edge_flip.run ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?edges ~cycles
               ~cycle_vertex_attributes ~recompute_point_normals geometry with
           | Ok geometry -> cooked geometry

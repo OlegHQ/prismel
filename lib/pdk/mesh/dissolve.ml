@@ -212,6 +212,7 @@ let run ?cancel ?(grain = 16_384) ?edges ?(operation = Dissolve_selected)
     ?(bridge_policy = Create_bridged_polygons) ?(remove_inline_points = false)
     ?(collinearity_tolerance = 0.) ?(remove_unused_points = true)
     ?(create_boundary_curves = false) ?(recompute_normals = true) geometry =
+  Error.guard ~operation:"dissolve" ~code:"invalid_topology" @@ fun () ->
   try
     if grain <= 0 then fail "grain must be positive";
     if not (Float.is_finite collinearity_tolerance)
@@ -456,11 +457,3 @@ let run ?cancel ?(grain = 16_384) ?edges ?(operation = Dissolve_selected)
   with
   | Invalid message -> Error message
   | Cancel.Cancelled -> raise Cancel.Cancelled
-
-let run_checked ?cancel ?grain ?edges ?operation ?bridge_policy
-    ?remove_inline_points ?collinearity_tolerance ?remove_unused_points
-    ?create_boundary_curves ?recompute_normals geometry =
-  Error.guard ~operation:"dissolve" ~code:"invalid_topology" (fun () ->
-    run ?cancel ?grain ?edges ?operation ?bridge_policy
-      ?remove_inline_points ?collinearity_tolerance ?remove_unused_points
-      ?create_boundary_curves ?recompute_normals geometry)

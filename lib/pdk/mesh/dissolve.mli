@@ -38,16 +38,4 @@ val run :
   ?remove_unused_points:bool ->
   ?create_boundary_curves:bool ->
   ?recompute_normals:bool ->
-  Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, string) result
-val run_checked :
-  ?cancel:Pdk_core.Cancel.t ->
-  ?grain:int ->
-  ?edges:Pdk_core.Edge_group.t ->
-  ?operation:operation ->
-  ?bridge_policy:bridge_policy ->
-  ?remove_inline_points:bool ->
-  ?collinearity_tolerance:float ->
-  ?remove_unused_points:bool ->
-  ?create_boundary_curves:bool ->
-  ?recompute_normals:bool ->
   Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, Pdk_core.Error.t) result

@@ -220,13 +220,13 @@
       "source_sha256": "95f82754cbf45dffd8c9d8c601e3d483c6519233c5b5f680355c12ca6a792365"
     },
     {
-      "api_sha256": "766c349f1acad963be695eeba2f7efe2c37ac50b9731a99353a7b32b1694d7a9",
+      "api_sha256": "497c7fd860e7f4298f73795e401d16a49bd8bbee79ccdb84395fb4139fab19b6",
       "excluded_legacy_symbols": [],
       "library": "pdk",
       "module": "Dissolve",
       "source": "lib/pdk/mesh/dissolve.mli",
-      "source_bytes": 1582,
-      "source_sha256": "6a459015a1f22c734271696c8b69d9a525ebc41b209dbd444c876014be75eb57"
+      "source_bytes": 1199,
+      "source_sha256": "e084dd2a95297e76d72d624702238ef309725ce2c63df619217330497392c147"
     },
     {
       "api_sha256": "0a92101d7a31860f6be543ef8710b9b68f90e31238dcd98cdd59cfd15fa85690",
@@ -238,13 +238,13 @@
       "source_sha256": "18f638e01c04f894be5b7cd8e64c0284cffa22849b2e6efd4f96ffe9b35f6141"
     },
     {
-      "api_sha256": "9fdd15645bc2914be2ac6c0ddaef472329157e15789c60c12858c35dbbee9119",
+      "api_sha256": "8b6095dfa7d30770894a5854926a647f7971a864cb1d9c9ff78d425d84936697",
       "excluded_legacy_symbols": [],
       "library": "pdk",
       "module": "Edge_flip",
       "source": "lib/pdk/mesh/edge_flip.mli",
-      "source_bytes": 422,
-      "source_sha256": "509f9b818d5b132bb7a397068403b6b986a3bcfdab166694dff73657e8116198"
+      "source_bytes": 207,
+      "source_sha256": "9c70a25bc1f5f82b5684dd7ce485c2a18d7d10d65b1cbc48c519630df81525cd"
     },
     {
       "api_sha256": "0b94cfc5d68450574ce8a75c883170f288087a5d1c10e27bebc0554c66c42203",

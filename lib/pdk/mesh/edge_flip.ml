@@ -19,6 +19,7 @@ let remap_group ~grain vertex_map primitive_map group =
 let edge_flip ?cancel ?(grain = 16_384) ?edges ?(cycles = 1)
     ?(cycle_vertex_attributes = true) ?(recompute_point_normals = false)
     geometry =
+  Error.guard ~operation:"edge_flip" ~code:"invalid_topology" @@ fun () ->
   try
     if grain <= 0 then invalid_arg "Pdk.Edge_flip.edge_flip: grain must be positive";
     if cycles < 0 then invalid_arg
@@ -348,9 +349,3 @@ let edge_flip ?cancel ?(grain = 16_384) ?edges ?(cycles = 1)
   with Invalid_argument message -> Error message
 
 let run = edge_flip
-
-let run_checked ?cancel ?grain ?edges ?cycles ?cycle_vertex_attributes
-    ?recompute_point_normals geometry =
-  Error.guard ~operation:"edge_flip" ~code:"invalid_topology" (fun () ->
-    run ?cancel ?grain ?edges ?cycles ?cycle_vertex_attributes
-      ?recompute_point_normals geometry)

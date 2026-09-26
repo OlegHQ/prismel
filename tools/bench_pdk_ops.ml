@@ -1672,10 +1672,10 @@ let run_dissolve_benchmarks () =
       (fun edge -> Topology_index.edge_incidence_count index edge = 2) in
   let input_points = Geometry.point_count source in
   measure ~input_points "dissolve_grid_boundary" (fun () ->
-    Dissolve.run_checked ~grain ~edges:interior ~remove_unused_points:false
+    Dissolve.run ~grain ~edges:interior ~remove_unused_points:false
       ~recompute_normals:false source |> get_ok) geometry_output;
   measure ~input_points "dissolve_grid_rectangle" (fun () ->
-    Dissolve.run_checked ~grain ~edges:interior ~remove_inline_points:true
+    Dissolve.run ~grain ~edges:interior ~remove_inline_points:true
       ~collinearity_tolerance:1e-10 source |> get_ok) geometry_output
 
 let run_poly_loft_benchmarks () =
@@ -3030,7 +3030,7 @@ let run_edge_flip_benchmarks () =
       ~groups:[checker] ~edge_groups:[flip] () |> get_ok in
   let flip = Geometry.find_edge_group "flip_edges" source |> Option.get in
   measure ~input_points:point_count "edge_flip_disjoint_triangle_pairs" (fun () ->
-    Edge_flip.run_checked ~grain ~edges:flip source |> get_ok) geometry_output
+    Edge_flip.run ~grain ~edges:flip source |> get_ok) geometry_output
 
 let run_edge_cusp_benchmarks () =
   let columns = 300 and rows = 250 in

@@ -1748,7 +1748,7 @@ let detriangulate ?cancel ~grain ~assume_flat ~mode ancestry cleanup =
       let tagged_seams = Edge_group.with_name seam_name cleanup.cleanup_seam_edges in
       let tagged = match Geometry.with_edge_group tagged_seams tagged with
         | Ok geometry -> geometry | Error message -> invalid_arg message in
-      match Dissolve.run_checked ?cancel ~grain ~edges:selected
+      match Dissolve.run ?cancel ~grain ~edges:selected
           ~operation:Dissolve.Dissolve_selected
           ~bridge_policy:Dissolve.Create_bridged_polygons
           ~remove_inline_points:false ~remove_unused_points:false
