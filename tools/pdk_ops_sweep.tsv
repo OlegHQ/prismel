@@ -1,0 +1,12 @@
+# Reviewed paths for packed revolve and sweep operations.
+Ops.revolve_type	Sweep_modeling.revolve_type
+Ops.sweep_tangent	Sweep_modeling.sweep_tangent
+Ops.Revolve_closed	Sweep_modeling.Revolve_closed
+Ops.Revolve_open_arc	Sweep_modeling.Revolve_open_arc
+Ops.Sweep_average_edges	Sweep_modeling.Sweep_average_edges
+Ops.Sweep_central_difference	Sweep_modeling.Sweep_central_difference
+Ops.Sweep_previous_edge	Sweep_modeling.Sweep_previous_edge
+Ops.Sweep_next_edge	Sweep_modeling.Sweep_next_edge
+Ops.Sweep_z_axis	Sweep_modeling.Sweep_z_axis
+Ops.revolve	Sweep_modeling.revolve
+Ops.sweep	Sweep_modeling.sweep
