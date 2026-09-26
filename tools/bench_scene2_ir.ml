@@ -79,4 +79,44 @@ let () =
   measure "equivalent" 1024 1 (fun index -> copies.(index));
   measure "changing" 48 1 (fun index -> changing.(index));
   measure "streaming" 48 1 (fun index -> streaming.(index));
+  (* Whole frames: lowering plus native submission to the offscreen target. *)
+  let frame ir = get (Prismel_execution.step execution (lower ir)) in
+  let measure_frame name commands run =
+    for index = 0 to 2 do run index done;
+    Gc.full_major ();
+    let allocated = Gc.allocated_bytes () in
+    let samples = Array.make 50 0. in
+    for index = 0 to Array.length samples - 1 do
+      let started = Unix.gettimeofday () in
+      run index;
+      samples.(index) <- Unix.gettimeofday () -. started
+    done;
+    Printf.printf "%s,%d,50,1,%.9f,%.9f,%.0f\n%!" name commands
+      (percentile samples 0.5) (percentile samples 0.95)
+      ((Gc.allocated_bytes () -. allocated) /. 50.) in
+  measure_frame "frame_retained" 1024 (fun _ -> frame retained);
+  measure_frame "frame_equivalent" 1024 (fun index -> frame copies.(index));
+  measure_frame "frame_changing" 48 (fun index -> frame changing.(index));
+  measure_frame "frame_streaming" 48 (fun index -> frame streaming.(index));
+  (* PXUI publishes a fresh, usually content-identical instance table every
+     frame: 2048 rects over 8 clipped batches. *)
+  let ui_table () =
+    let builder = Scene_command.Ui_batch.Builder.create () in
+    for group = 0 to 7 do
+      Scene_command.Ui_batch.Builder.set_clip builder
+        (Some { x = 0.; y = float (group * 8); width = 64.; height = 8. });
+      for index = 0 to 255 do
+        Scene_command.Ui_batch.Builder.rect builder ~x:(float (index mod 64))
+          ~y:(float (group * 8)) ~width:1. ~height:1. ~color:0xffffffffl ()
+      done
+    done;
+    Scene_command.Ui_batch.Builder.publish builder in
+  let ui_frame table =
+    let submission = get (Prismel_execution.Private.begin_submission execution) in
+    let batch = get (Prismel_execution.Private.lower_ui submission ~density:1
+      ~resource:(fun _ -> None) table) in
+    get (Prismel_execution.Private.step submission [ batch ]) in
+  measure_frame "frame_ui_fresh" 2048 (fun _ -> ui_frame (ui_table ()));
+  let table = ui_table () in
+  measure_frame "frame_ui_retained" 2048 (fun _ -> ui_frame table);
   get (Prismel_execution.destroy execution)
