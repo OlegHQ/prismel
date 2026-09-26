@@ -418,16 +418,16 @@ val poly_cut :
   ?label:string ->
   ?group:string ->
   ?cut_group:string ->
-  ?element:Pdk.Poly_modeling.cut_element ->
-  ?strategy:Pdk.Poly_modeling.cut_strategy ->
-  ?detection:Pdk.Poly_modeling.cut_detection ->
+  ?element:Pdk.Poly_cut.element ->
+  ?strategy:Pdk.Poly_cut.strategy ->
+  ?detection:Pdk.Poly_cut.detection ->
   ?keep_closed:bool ->
   Node.t -> Node.t
 (** Break polygon curves at selected point or native-edge attribute events.
     [group] restricts source primitives; [cut_group] resolves as a point group
     for [Poly_cut_points] and a native edge group for [Poly_cut_edges]. The
     immutable node delegates packed planning, interpolation, ancestry, and
-    deterministic parallel fills to {!Pdk.Poly_modeling.poly_cut_checked}. *)
+    deterministic parallel fills to {!Pdk.Poly_cut.cut}. *)
 
 val separate_pieces :
   ?label:string ->
@@ -545,7 +545,7 @@ val dissolve :
 val poly_bevel :
   ?label:string ->
   ?group:string ->
-  ?shape:Pdk.Poly_modeling.bevel_shape ->
+  ?shape:Pdk.Poly_bevel.shape ->
   ?divisions:int ->
   ?point_scale_attribute:string ->
   ?ignore_flat_angle:float ->
@@ -639,7 +639,7 @@ val poly_loft :
   ?group:string ->
   ?rest:Node.t ->
   ?connect_closest_ends:bool ->
-  ?minimize:Pdk.Poly_modeling.loft_minimize ->
+  ?minimize:Pdk.Poly_loft.minimize ->
   ?u_wrap:bool ->
   ?v_wrap:bool ->
   ?keep_primitives:bool ->
@@ -656,7 +656,7 @@ val skin :
   ?group:string ->
   ?rest:Node.t ->
   ?connect_closest_ends:bool ->
-  ?minimize:Pdk.Poly_modeling.loft_minimize ->
+  ?minimize:Pdk.Poly_loft.minimize ->
   ?u_wrap:bool ->
   ?v_wrap:bool ->
   ?keep_primitives:bool ->
@@ -673,9 +673,9 @@ val poly_bridge :
   ?label:string ->
   source_group:string ->
   destination_group:string ->
-  ?pairing:Pdk.Poly_modeling.bridge_pairing ->
+  ?pairing:Pdk.Poly_bridge.pairing ->
   ?connect_closest_ends:bool ->
-  ?minimize:Pdk.Poly_modeling.loft_minimize ->
+  ?minimize:Pdk.Poly_loft.minimize ->
   ?reverse_source:bool ->
   ?reverse_destination:bool ->
   ?pairing_shift:int ->
@@ -1349,7 +1349,7 @@ val poly_extrude :
   ?label:string ->
   ?group:string ->
   ?split_edges:string ->
-  ?divide:Pdk.Poly_modeling.extrude_divide ->
+  ?divide:Pdk.Poly_extrude.divide ->
   ?divisions:int ->
   ?output_front:bool ->
   ?output_back:bool ->

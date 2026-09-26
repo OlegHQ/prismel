@@ -255,7 +255,8 @@ Catmull–Rom samples, `Pdk.Iso_surface` extracts packed isosurfaces,
 `Pdk.Color_by_height`, `Pdk.Line_geometry`, `Pdk.Mesh_merge`,
 `Pdk.Edge_collapse`, `Pdk.Dissolve`, `Pdk.Ordering`, `Pdk.Instance_copy`,
 `Pdk.Transform_ops`, `Pdk.Deform`, `Pdk.Subdivide`,
-`Pdk.Poly_modeling`, `Pdk.Point_replication`, `Pdk.Clean`,
+`Pdk.Poly_extrude`, `Pdk.Poly_bevel`, `Pdk.Poly_loft`, `Pdk.Poly_bridge`,
+`Pdk.Poly_cut`, `Pdk.Point_replication`, `Pdk.Clean`,
 `Pdk.Smooth`, `Pdk.Reverse_faces`, `Pdk.Edge_transport`,
 `Pdk.Edge_ops`, `Pdk.Edge_relax`, `Pdk.Facet`, `Pdk.Circle_from_edges`,
 `Pdk.Crease`, `Pdk.Rewire_vertices`,
@@ -301,7 +302,7 @@ distinct topology policies; scalar crossings interpolate exact cut endpoints,
 while scalar or tuple change detection emits enough disconnected subsegments
 to respect the requested maximum change. The static graph node delegates all
 cardinality planning, point/vertex payload interpolation, group ancestry, and
-parallel fills to `Pdk.Poly_modeling.poly_cut_checked`.
+parallel fills to `Pdk.Poly_cut.cut`.
 `Procedural.Sop.separate_pieces` packs integer- or text-identified point or
 primitive pieces into stable, non-overlapping projection intervals along an
 arbitrary axis. A float3 translation field is written on the identity owner's

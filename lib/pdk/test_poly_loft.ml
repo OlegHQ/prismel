@@ -91,7 +91,7 @@ let test_open_and_payload () =
   let source = open_sections () in
   let point = Geometry.find_attribute ~owner:Attribute.Point "weight" source
       |> Option.get in
-  let output = Poly_modeling.poly_loft_checked ~output_group:"loft" source |> get_pdk in
+  let output = Poly_loft.run ~output_group:"loft" source |> get_pdk in
   check (Geometry.point_count output = 7 && Geometry.vertex_count output = 15
       && Geometry.primitive_count output = 5) "unequal open cardinality";
   check (Geometry.find_group ~owner:Group.Primitive "loft" output
@@ -108,17 +108,17 @@ let test_open_and_payload () =
       |> Option.get in
   check (Attribute.storage_id point = Attribute.storage_id output_point)
     "point payload was not structurally shared";
-  let kept = Poly_modeling.poly_loft_checked ~keep_primitives:true source |> get_pdk in
+  let kept = Poly_loft.run ~keep_primitives:true source |> get_pdk in
   check (Geometry.primitive_count kept = 7 && Geometry.vertex_count kept = 22)
     "keep sections cardinality";
   check (int_attribute Attribute.Primitive "section" kept
       = [|10;11;10;10;10;10;10|]) "kept primitive ancestry";
-  let wrapped = Poly_modeling.poly_loft_checked ~u_wrap:true source |> get_pdk in
+  let wrapped = Poly_loft.run ~u_wrap:true source |> get_pdk in
   check (Geometry.primitive_count wrapped = 7
       && Geometry.vertex_count wrapped = 21) "U wrap cardinality";
   let empty = Group.init ~grain:1 ~owner:Group.Primitive ~name:"none" 2
       (fun _ -> false) in
-  check (Poly_modeling.poly_loft_checked ~primitives:empty source |> get_pdk == source)
+  check (Poly_loft.run ~primitives:empty source |> get_pdk == source)
     "empty selection identity"
 
 let ring_sections ?(reverse_second = false)
@@ -146,7 +146,7 @@ let ring_sections ?(reverse_second = false)
 
 let test_closed_alignment_and_v_wrap () =
   let source = ring_sections ~reverse_second:true 2 in
-  let output = Poly_modeling.poly_loft_checked source |> get_pdk in
+  let output = Poly_loft.run source |> get_pdk in
   check (Geometry.primitive_count output = 8
       && Geometry.vertex_count output = 24) "closed loft cardinality";
   let topology = Geometry.topology output in
@@ -163,10 +163,10 @@ let test_closed_alignment_and_v_wrap () =
     if length > 2.2360681 then fail (Printf.sprintf
       "closest seam introduced a twisted edge %d-%d length %.6f" a b length)
   done;
-  let faces = Poly_modeling.poly_loft_checked (ring_sections ~kind:Topology.Polygon 2) |> get_pdk in
+  let faces = Poly_loft.run (ring_sections ~kind:Topology.Polygon 2) |> get_pdk in
   check (Geometry.primitive_count faces = 8
       && Geometry.vertex_count faces = 24) "polygon-face loft";
-  let loop = Poly_modeling.poly_loft_checked ~v_wrap:true (ring_sections 3) |> get_pdk in
+  let loop = Poly_loft.run ~v_wrap:true (ring_sections 3) |> get_pdk in
   let loop_index = Topology_index.create (Geometry.topology loop) in
   check (Geometry.primitive_count loop = 24
       && Topology_index.boundary_edge_count loop_index = 0
@@ -176,7 +176,7 @@ let test_closed_alignment_and_v_wrap () =
 let test_rest_errors_and_cancellation () =
   let source = open_sections () in
   let mismatch = Line_geometry.points [|0.,0.,0.|] in
-  (match Poly_modeling.poly_loft_checked ~rest:mismatch source with
+  (match Poly_loft.run ~rest:mismatch source with
    | Error error -> check (Error.code error = "invalid_topology")
        "rest mismatch diagnostic"
    | Ok _ -> fail "rest mismatch accepted");
@@ -187,23 +187,23 @@ let test_rest_errors_and_cancellation () =
   bad.x.(0) <- nan;
   let bad = Geometry.with_positions
       (Packed.Float3.Private.of_shared_exn ~x:bad.x ~y:bad.y ~z:bad.z) source |> get in
-  (match Poly_modeling.poly_loft_checked bad with
+  (match Poly_loft.run bad with
    | Error error -> check (Error.code error = "invalid_topology")
        "non-finite guide diagnostic"
    | Ok _ -> fail "non-finite guide accepted");
-  (match Poly_modeling.poly_loft_checked ~collinearity_tolerance:1.1 source with
+  (match Poly_loft.run ~collinearity_tolerance:1.1 source with
    | Error error -> check (Error.code error = "invalid_topology")
        "tolerance diagnostic"
    | Ok _ -> fail "invalid tolerance accepted");
   let point_group = Group.init ~grain:1 ~owner:Group.Point ~name:"wrong" 7
       (fun _ -> true) in
-  (match Poly_modeling.poly_loft_checked ~primitives:point_group source with
+  (match Poly_loft.run ~primitives:point_group source with
    | Error error -> check (Error.code error = "invalid_topology")
        "selection owner diagnostic"
    | Ok _ -> fail "point selection accepted");
   let cancel = Cancel.create () in
   Cancel.cancel cancel;
-  (match Poly_modeling.poly_loft_checked ~cancel source with
+  (match Poly_loft.run ~cancel source with
    | Error error -> check (Error.code error = "cancelled") "cancellation code"
    | Ok _ -> fail "cancelled loft succeeded")
 
@@ -220,8 +220,8 @@ let test_rest_collinearity_and_normals () =
   done;
   let deformed = Geometry.with_positions
       (Packed.Float3.Private.of_owned_exn ~x ~y ~z) rest |> get in
-  let guided = Poly_modeling.poly_loft_checked ~rest deformed |> get_pdk
-  and unguided = Poly_modeling.poly_loft_checked deformed |> get_pdk in
+  let guided = Poly_loft.run ~rest deformed |> get_pdk
+  and unguided = Poly_loft.run deformed |> get_pdk in
   let gt = Topology.Private.view (Geometry.topology guided)
   and ut = Topology.Private.view (Geometry.topology unguided) in
   check (gt.vertex_points <> ut.vertex_points) "rest guide did not affect pairing";
@@ -232,7 +232,7 @@ let test_rest_collinearity_and_normals () =
       ~primitive_kinds:[|Topology.Open_polyline;Topology.Open_polyline|] |> get in
   let collinear = Geometry.create ~positions:collinear_positions
       ~topology:collinear_topology () |> get in
-  let filtered = Poly_modeling.poly_loft_checked ~collinearity_tolerance:1e-12
+  let filtered = Poly_loft.run ~collinearity_tolerance:1e-12
       ~output_group:"loft" collinear |> get_pdk in
   check (Geometry.point_count filtered = 6
       && Geometry.primitive_count filtered = 0
@@ -244,7 +244,7 @@ let test_rest_collinearity_and_normals () =
       (Attribute.Float3 (Packed.Float3.Private.of_owned_exn
         ~x:(Array.make 8 1.) ~y:(Array.make 8 0.) ~z:(Array.make 8 0.))) |> get in
   let source = Geometry.with_attribute normal source |> get in
-  let output = Poly_modeling.poly_loft_checked source |> get_pdk in
+  let output = Poly_loft.run source |> get_pdk in
   let normal = Geometry.find_attribute ~owner:Attribute.Point "N" output
       |> Option.get in
   check (Attribute.length normal = 8) "normal cardinality";
@@ -293,7 +293,7 @@ let many_sections () =
 let test_parallel () =
   let source = many_sections () in
   let run domains = Prismel.Parallel.run ~domains (fun () ->
-      Poly_modeling.poly_loft_checked ~grain:97 ~minimize:Poly_modeling.Three_point_distance
+      Poly_loft.run ~grain:97 ~minimize:Poly_loft.Three_point_distance
         ~output_group:"loft" source |> get_pdk) in
   let one = run 1 and four = run 4 in
   check (equal_geometry one four) "one/four-domain loft differs";

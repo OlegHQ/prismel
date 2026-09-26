@@ -1818,7 +1818,7 @@ let test_generators_selections_and_delete () =
   let extruded = Sop.grid ~columns:3 ~rows:2 ~size:2. ()
       |> Sop.group ~name:"extrude_faces" Select.all_primitives
       |> Sop.poly_extrude ~group:"extrude_faces"
-           ~divide:Pdk.Poly_modeling.Extrude_connected_components ~divisions:2
+           ~divide:Pdk.Poly_extrude.Extrude_connected_components ~divisions:2
            ~front_group:"extrude_front" ~back_group:"extrude_back"
            ~side_group:"extrude_side" ~front_boundary_group:"front_rim"
            ~back_boundary_group:"back_rim" ~distance:0.3
@@ -1839,7 +1839,7 @@ let test_generators_selections_and_delete () =
     "procedural connected poly extrude groups/cardinality";
   let missing_extrude_group = Sop.grid ~columns:1 ~rows:1 ~size:1. ()
       |> Sop.poly_extrude ~group:"missing_faces"
-           ~divide:Pdk.Poly_modeling.Extrude_connected_components ~distance:0.3 in
+           ~divide:Pdk.Poly_extrude.Extrude_connected_components ~distance:0.3 in
   (match Session.cook evaluator ~context:current missing_extrude_group with
    | Error error -> check (error.code = "missing_group")
        "Poly Extrude missing primitive-group diagnostic"

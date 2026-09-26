@@ -267,7 +267,7 @@ let run () =
     fail "point kernel dropped group";
   let quad_mesh = Pdk_prismel.Prismel_mesh.to_mesh geometry |> get_ok in
   if Mesh.index_count quad_mesh <> 6 then fail "quad bridge triangulation";
-  let extruded = Poly_modeling.poly_extrude_checked ~distance:2. geometry |> get_ok in
+  let extruded = Poly_extrude.run ~distance:2. geometry |> get_ok in
   if Geometry.point_count extruded <> 8
      || Geometry.primitive_count extruded <> 6
      || Geometry.vertex_count extruded <> 24
@@ -2474,7 +2474,7 @@ let run () =
   if Edge_group.cardinality clipped_edge_group <> 3
      || Edge_group.length clipped_edge_group <> 4 then
     fail "clip did not preserve source fragments/exclude its cut edge";
-  let extruded_edge_geometry = Poly_modeling.poly_extrude_checked ~distance:1. quad_edges
+  let extruded_edge_geometry = Poly_extrude.run ~distance:1. quad_edges
       |> get_ok in
   let extruded_edge_group = Geometry.find_edge_group "quad_edges"
       extruded_edge_geometry |> Option.get in

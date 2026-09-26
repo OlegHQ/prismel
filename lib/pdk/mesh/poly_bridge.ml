@@ -456,6 +456,7 @@ let run ?cancel ?(grain = 16_384) ~source ~destination
     ?(divisions = 1) ?(keep_input = true) ?output_group
     ?(collinearity_tolerance = 0.)
     ?(recompute_normals = true) geometry =
+  Error.guard ~operation:"poly_bridge" ~code:"invalid_topology" @@ fun () ->
   try
     if grain <= 0 then fail "grain must be positive";
     if divisions <= 0 then fail "divisions must be positive";

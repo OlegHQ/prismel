@@ -782,6 +782,7 @@ let run ?cancel ?(grain = 1_024) ?primitives ?split_edges
     ?(output_front = true) ?(output_back = true) ?(output_side = true)
     ?front_group ?back_group ?side_group ?front_boundary_group
     ?back_boundary_group ~distance geometry =
+  Error.guard ~operation:"poly_extrude" ~code:"invalid_geometry" @@ fun () ->
   if primitives = None && split_edges = None && divide = Extrude_individual
       && divisions = 1 && output_front && output_back && output_side
       && front_group = None && back_group = None && side_group = None

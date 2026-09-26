@@ -171,6 +171,7 @@ let run ?cancel ?(grain = 16_384) ?edges ?(shape = Bevel_chamfer)
     ?(divisions = 1) ?point_scale_attribute ?ignore_flat_angle
     ?(clamp_overlap = true) ?edge_group ?corner_group ?offset_group
     ?(recompute_point_normals = true) ~distance geometry =
+  Error.guard ~operation:"poly_bevel" ~code:"invalid_topology" @@ fun () ->
   if grain <= 0 then invalid_arg "Pdk_mesh.Poly_bevel.poly_bevel: grain must be positive";
   if not (Float.is_finite distance) || distance < 0. then
     Error "Pdk_mesh.Poly_bevel.poly_bevel: distance must be finite and non-negative"

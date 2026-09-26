@@ -306,6 +306,7 @@ let run ?cancel ?(grain = 16_384) ?primitives ?rest
     ?output_group ?(collinearity_tolerance = 0.)
     ?(recompute_normals = true) ?(output = Triangles)
     ?(operation = "poly_loft") geometry =
+  Error.guard ~operation ~code:"invalid_topology" @@ fun () ->
   try
     if grain <= 0 then fail "grain must be positive";
     if not (Float.is_finite collinearity_tolerance)

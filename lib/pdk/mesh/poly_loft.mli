@@ -17,7 +17,7 @@ val run :
   ?output:output ->
   ?operation:string ->
   Geometry.t ->
-  (Geometry.t, string) result
+  (Geometry.t, Error.t) result
 
 module Private : sig
   type plan

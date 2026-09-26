@@ -381,6 +381,7 @@ let edge_remove_fast ?cancel ~grain ~keep_closed ~topology_value ~topology
 let cut ?cancel ?(grain = 16_384) ?primitives ?cut_points ?cut_edges
     ?(element = Poly_cut_points) ?(strategy = Poly_cut_remove)
     ?(detection = Poly_cut_all) ?(keep_closed = true) geometry =
+  Error.guard ~operation:"poly_cut" ~code:"invalid_poly_cut" @@ fun () ->
   try
     if grain <= 0 then fail "grain must be positive";
     Cancel.check_opt cancel;

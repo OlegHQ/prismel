@@ -17,4 +17,4 @@ val run :
   ?collinearity_tolerance:float ->
   ?recompute_normals:bool ->
   Geometry.t ->
-  (Geometry.t, string) result
+  (Geometry.t, Error.t) result

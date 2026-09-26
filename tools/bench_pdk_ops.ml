@@ -990,15 +990,15 @@ let run_poly_extrude_benchmarks () =
   let geometry = Plane_generators.grid_checked ~columns:200 ~rows:200 ~size:20. () |> get_ok in
   let input_points = Geometry.point_count geometry in
   measure ~input_points "poly_extrude" (fun () ->
-    Poly_modeling.poly_extrude_checked ~grain ~distance:0.2 geometry |> get_ok) geometry_output;
+    Poly_extrude.run ~grain ~distance:0.2 geometry |> get_ok) geometry_output;
   measure ~input_points "poly_extrude_connected" (fun () ->
-    Poly_modeling.poly_extrude_checked ~grain ~divide:Poly_modeling.Extrude_connected_components
+    Poly_extrude.run ~grain ~divide:Poly_extrude.Extrude_connected_components
       ~distance:0.2 geometry |> get_ok) geometry_output;
   measure ~input_points "poly_extrude_connected_divisions4" (fun () ->
-    Poly_modeling.poly_extrude_checked ~grain ~divide:Poly_modeling.Extrude_connected_components
+    Poly_extrude.run ~grain ~divide:Poly_extrude.Extrude_connected_components
       ~divisions:4 ~distance:0.2 geometry |> get_ok) geometry_output;
   measure ~input_points "poly_extrude_connected_boundaries" (fun () ->
-    Poly_modeling.poly_extrude_checked ~grain ~divide:Poly_modeling.Extrude_connected_components
+    Poly_extrude.run ~grain ~divide:Poly_extrude.Extrude_connected_components
       ~divisions:4 ~front_boundary_group:"front_rim"
       ~back_boundary_group:"back_rim" ~distance:0.2 geometry |> get_ok)
     geometry_output
@@ -1705,20 +1705,20 @@ let run_poly_loft_benchmarks () =
       ~positions:(Packed.Float3.Private.of_owned_exn ~x ~y ~z) ~topology ()
       |> get_ok in
   measure ~input_points:point_count "poly_loft_authored_two_point" (fun () ->
-    Poly_modeling.poly_loft_checked ~grain ~connect_closest_ends:false
+    Poly_loft.run ~grain ~connect_closest_ends:false
       ~output_group:"loft" source |> get_ok) geometry_output;
   measure ~input_points:point_count "poly_loft_authored_three_point" (fun () ->
-    Poly_modeling.poly_loft_checked ~grain ~connect_closest_ends:false
-      ~minimize:Poly_modeling.Three_point_distance ~output_group:"loft" source |> get_ok)
+    Poly_loft.run ~grain ~connect_closest_ends:false
+      ~minimize:Poly_loft.Three_point_distance ~output_group:"loft" source |> get_ok)
     geometry_output;
   measure ~input_points:point_count "poly_loft_closest_three_point" (fun () ->
-    Poly_modeling.poly_loft_checked ~grain ~minimize:Poly_modeling.Three_point_distance
+    Poly_loft.run ~grain ~minimize:Poly_loft.Three_point_distance
       ~output_group:"loft" source |> get_ok) geometry_output;
   measure ~input_points:point_count "skin_authored_quads" (fun () ->
-    Poly_modeling.skin_checked ~grain ~connect_closest_ends:false ~output_group:"skin" source
+    Poly_loft.run ~output:Poly_loft.Polygons ~operation:"skin" ~grain ~connect_closest_ends:false ~output_group:"skin" source
       |> get_ok) geometry_output;
   measure ~input_points:point_count "skin_closest_quads" (fun () ->
-    Poly_modeling.skin_checked ~grain ~output_group:"skin" source |> get_ok) geometry_output
+    Poly_loft.run ~output:Poly_loft.Polygons ~operation:"skin" ~grain ~output_group:"skin" source |> get_ok) geometry_output
 
 let bridge_fixture ~pairs ~per_loop =
   let points_per_pair = per_loop * 2
@@ -1765,22 +1765,22 @@ let run_poly_bridge_benchmarks () =
     bridge_fixture ~pairs:1 ~per_loop:single_per_loop in
   let single_points = Geometry.point_count single in
   measure ~input_points:single_points "poly_bridge_single_authored" (fun () ->
-    Poly_modeling.poly_bridge_checked ~grain ~source:single_source ~destination:single_destination
+    Poly_bridge.run ~grain ~source:single_source ~destination:single_destination
       ~connect_closest_ends:false ~output_group:"bridge" single |> get_ok)
     geometry_output;
   measure ~input_points:single_points "poly_bridge_single_divided" (fun () ->
-    Poly_modeling.poly_bridge_checked ~grain ~source:single_source ~destination:single_destination
+    Poly_bridge.run ~grain ~source:single_source ~destination:single_destination
       ~connect_closest_ends:false ~divisions:2 ~output_group:"bridge" single
       |> get_ok) geometry_output;
   let pairs = max 1 rows and per_loop = max 3 (columns / 2) in
   let many, many_source, many_destination = bridge_fixture ~pairs ~per_loop in
   let many_points = Geometry.point_count many in
   measure ~input_points:many_points "poly_bridge_many_authored" (fun () ->
-    Poly_modeling.poly_bridge_checked ~grain ~source:many_source ~destination:many_destination
+    Poly_bridge.run ~grain ~source:many_source ~destination:many_destination
       ~connect_closest_ends:false ~output_group:"bridge" many |> get_ok)
     geometry_output;
   measure ~input_points:many_points "poly_bridge_many_divided" (fun () ->
-    Poly_modeling.poly_bridge_checked ~grain ~source:many_source ~destination:many_destination
+    Poly_bridge.run ~grain ~source:many_source ~destination:many_destination
       ~connect_closest_ends:false ~divisions:2 ~output_group:"bridge" many
       |> get_ok) geometry_output;
   let many_payload = many
@@ -1797,12 +1797,12 @@ let run_poly_bridge_benchmarks () =
           ~name:"source_points" many_points (fun point ->
             point mod (per_loop * 2) < per_loop)) |> get_ok in
   measure ~input_points:many_points "poly_bridge_many_divided_payload" (fun () ->
-    Poly_modeling.poly_bridge_checked ~grain ~source:many_source ~destination:many_destination
+    Poly_bridge.run ~grain ~source:many_source ~destination:many_destination
       ~connect_closest_ends:false ~divisions:2 ~output_group:"bridge"
       many_payload |> get_ok) geometry_output;
   measure ~input_points:many_points "poly_bridge_many_centroid" (fun () ->
-    Poly_modeling.poly_bridge_checked ~grain ~source:many_source ~destination:many_destination
-      ~pairing:Poly_modeling.Bridge_by_centroid ~connect_closest_ends:false
+    Poly_bridge.run ~grain ~source:many_source ~destination:many_destination
+      ~pairing:Poly_bridge.Bridge_by_centroid ~connect_closest_ends:false
       ~output_group:"bridge" many |> get_ok) geometry_output
 
 let run_attribute_lifecycle_benchmarks () =
@@ -2814,11 +2814,11 @@ let run_poly_bevel_benchmarks () =
   let source = Geometry.with_attribute scale source |> get_ok in
   let edges = Geometry.find_edge_group "bevel_edges" source |> Option.get in
   measure ~input_points:point_count "poly_bevel_chamfer_all_boxes" (fun () ->
-    Poly_modeling.poly_bevel_checked ~grain ~edges ~distance:0.08
+    Poly_bevel.run ~grain ~edges ~distance:0.08
       ~edge_group:"edge_fillets" ~corner_group:"corner_fillets"
       ~offset_group:"offset_edges" source |> get_ok) geometry_output;
   measure ~input_points:point_count "poly_bevel_round4_payload_boxes" (fun () ->
-    Poly_modeling.poly_bevel_checked ~grain ~edges ~shape:(Poly_modeling.Bevel_round { convexity = 1. })
+    Poly_bevel.run ~grain ~edges ~shape:(Poly_bevel.Bevel_round { convexity = 1. })
       ~divisions:4 ~point_scale_attribute:"pscale" ~distance:0.08
       ~edge_group:"edge_fillets" ~corner_group:"corner_fillets"
       ~offset_group:"offset_edges" source |> get_ok) geometry_output
@@ -4754,19 +4754,19 @@ let run_poly_cut_benchmarks () =
   let geometry, _, _ = poly_cut_benchmark_fixture () in
   let point_count = Geometry.point_count geometry in
   measure ~input_points:point_count "poly_cut_edges_remove_crossing" (fun () ->
-    Poly_modeling.poly_cut_checked ~grain ~element:Poly_modeling.Poly_cut_edges
-      ~strategy:Poly_modeling.Poly_cut_remove
-      ~detection:(Poly_modeling.Poly_cut_crossing {attribute="cut_signal"; value=0.})
+    Poly_cut.cut ~grain ~element:Poly_cut.Poly_cut_edges
+      ~strategy:Poly_cut.Poly_cut_remove
+      ~detection:(Poly_cut.Poly_cut_crossing {attribute="cut_signal"; value=0.})
       geometry |> get_ok) geometry_output;
   measure ~input_points:point_count "poly_cut_edges_cut_crossing" (fun () ->
-    Poly_modeling.poly_cut_checked ~grain ~element:Poly_modeling.Poly_cut_edges
-      ~strategy:Poly_modeling.Poly_cut_cut
-      ~detection:(Poly_modeling.Poly_cut_crossing {attribute="cut_signal"; value=0.})
+    Poly_cut.cut ~grain ~element:Poly_cut.Poly_cut_edges
+      ~strategy:Poly_cut.Poly_cut_cut
+      ~detection:(Poly_cut.Poly_cut_crossing {attribute="cut_signal"; value=0.})
       geometry |> get_ok) geometry_output;
   measure ~input_points:point_count "poly_cut_edges_cut_change" (fun () ->
-    Poly_modeling.poly_cut_checked ~grain ~element:Poly_modeling.Poly_cut_edges
-      ~strategy:Poly_modeling.Poly_cut_cut
-      ~detection:(Poly_modeling.Poly_cut_change {attribute="cut_signal"; threshold=3.})
+    Poly_cut.cut ~grain ~element:Poly_cut.Poly_cut_edges
+      ~strategy:Poly_cut.Poly_cut_cut
+      ~detection:(Poly_cut.Poly_cut_change {attribute="cut_signal"; threshold=3.})
       geometry |> get_ok) geometry_output
 
 let separate_pieces_benchmark_fixture () =
@@ -6105,15 +6105,15 @@ let () =
     geometry_output;
   let modeling_points = Geometry.point_count modeling_grid in
   measure ~input_points:modeling_points "poly_extrude" (fun () ->
-    Poly_modeling.poly_extrude_checked ~grain ~distance:0.2 modeling_grid |> get_ok) geometry_output;
+    Poly_extrude.run ~grain ~distance:0.2 modeling_grid |> get_ok) geometry_output;
   measure ~input_points:modeling_points "poly_extrude_connected" (fun () ->
-    Poly_modeling.poly_extrude_checked ~grain ~divide:Poly_modeling.Extrude_connected_components
+    Poly_extrude.run ~grain ~divide:Poly_extrude.Extrude_connected_components
       ~distance:0.2 modeling_grid |> get_ok) geometry_output;
   measure ~input_points:modeling_points "poly_extrude_connected_divisions4" (fun () ->
-    Poly_modeling.poly_extrude_checked ~grain ~divide:Poly_modeling.Extrude_connected_components
+    Poly_extrude.run ~grain ~divide:Poly_extrude.Extrude_connected_components
       ~divisions:4 ~distance:0.2 modeling_grid |> get_ok) geometry_output;
   measure ~input_points:modeling_points "poly_extrude_connected_boundaries" (fun () ->
-    Poly_modeling.poly_extrude_checked ~grain ~divide:Poly_modeling.Extrude_connected_components
+    Poly_extrude.run ~grain ~divide:Poly_extrude.Extrude_connected_components
       ~divisions:4 ~front_boundary_group:"front_rim"
       ~back_boundary_group:"back_rim" ~distance:0.2 modeling_grid |> get_ok)
     geometry_output;

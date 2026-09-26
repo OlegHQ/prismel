@@ -1199,23 +1199,23 @@ let attribute_fade ?label ?group ?start_source ?hold_source
           | Error error -> structured_pdk_error error)
 
 let poly_cut_element_key = function
-  | Pdk.Poly_modeling.Poly_cut_points -> "points"
-  | Pdk.Poly_modeling.Poly_cut_edges -> "edges"
+  | Pdk.Poly_cut.Poly_cut_points -> "points"
+  | Pdk.Poly_cut.Poly_cut_edges -> "edges"
 
 let poly_cut_strategy_key = function
-  | Pdk.Poly_modeling.Poly_cut_remove -> "remove"
-  | Pdk.Poly_modeling.Poly_cut_cut -> "cut"
+  | Pdk.Poly_cut.Poly_cut_remove -> "remove"
+  | Pdk.Poly_cut.Poly_cut_cut -> "cut"
 
 let poly_cut_detection_key = function
-  | Pdk.Poly_modeling.Poly_cut_all -> "all"
-  | Pdk.Poly_modeling.Poly_cut_crossing {attribute; value} ->
+  | Pdk.Poly_cut.Poly_cut_all -> "all"
+  | Pdk.Poly_cut.Poly_cut_crossing {attribute; value} ->
       "crossing:" ^ String.escaped attribute ^ ":" ^ float_key value
-  | Pdk.Poly_modeling.Poly_cut_change {attribute; threshold} ->
+  | Pdk.Poly_cut.Poly_cut_change {attribute; threshold} ->
       "change:" ^ String.escaped attribute ^ ":" ^ float_key threshold
 
-let poly_cut ?label ?group ?cut_group ?(element = Pdk.Poly_modeling.Poly_cut_points)
-    ?(strategy = Pdk.Poly_modeling.Poly_cut_remove)
-    ?(detection = Pdk.Poly_modeling.Poly_cut_all) ?(keep_closed = true) input =
+let poly_cut ?label ?group ?cut_group ?(element = Pdk.Poly_cut.Poly_cut_points)
+    ?(strategy = Pdk.Poly_cut.Poly_cut_remove)
+    ?(detection = Pdk.Poly_cut.Poly_cut_all) ?(keep_closed = true) input =
   List.iter (fun (label, name) -> Option.iter (fun name ->
     if String.trim name = "" then
       invalid_arg ("Sop.poly_cut: empty " ^ label ^ " group name")) name)
@@ -1236,22 +1236,22 @@ let poly_cut ?label ?group ?cut_group ?(element = Pdk.Poly_modeling.Poly_cut_poi
       | Error error -> Error error
       | Ok primitives ->
           let cut_selection = match element with
-            | Pdk.Poly_modeling.Poly_cut_points ->
+            | Pdk.Poly_cut.Poly_cut_points ->
                 Result.map (fun value -> `Points value)
                   (resolve_optional_point_group "poly_cut" cut_group geometry)
-            | Pdk.Poly_modeling.Poly_cut_edges ->
+            | Pdk.Poly_cut.Poly_cut_edges ->
                 Result.map (fun value -> `Edges value)
                   (resolve_optional_edge_group "poly_cut" cut_group geometry) in
           match cut_selection with
           | Error error -> Error error
           | Ok (`Points cut_points) ->
-              (match Pdk.Poly_modeling.poly_cut_checked ~cancel:(Context.cancel_token context)
+              (match Pdk.Poly_cut.cut ~cancel:(Context.cancel_token context)
                   ~grain:(Context.grain context) ?primitives ?cut_points
                   ~element ~strategy ~detection ~keep_closed geometry with
                | Ok geometry -> cooked geometry
                | Error error -> structured_pdk_error error)
           | Ok (`Edges cut_edges) ->
-              (match Pdk.Poly_modeling.poly_cut_checked ~cancel:(Context.cancel_token context)
+              (match Pdk.Poly_cut.cut ~cancel:(Context.cancel_token context)
                   ~grain:(Context.grain context) ?primitives ?cut_edges
                   ~element ~strategy ~detection ~keep_closed geometry with
                | Ok geometry -> cooked geometry
@@ -1524,10 +1524,10 @@ let dissolve ?label ?group ?(operation = Pdk.Dissolve.Dissolve_selected)
           | Error error -> structured_pdk_error error)
 
 let poly_bevel_shape_key = function
-  | Pdk.Poly_modeling.Bevel_chamfer -> "chamfer"
-  | Pdk.Poly_modeling.Bevel_round { convexity } -> "round:" ^ float_key convexity
+  | Pdk.Poly_bevel.Bevel_chamfer -> "chamfer"
+  | Pdk.Poly_bevel.Bevel_round { convexity } -> "round:" ^ float_key convexity
 
-let poly_bevel ?label ?group ?(shape = Pdk.Poly_modeling.Bevel_chamfer)
+let poly_bevel ?label ?group ?(shape = Pdk.Poly_bevel.Bevel_chamfer)
     ?(divisions = 1) ?point_scale_attribute ?ignore_flat_angle
     ?(clamp_overlap = true) ?edge_group ?corner_group ?offset_group
     ?(recompute_point_normals = true) ~distance input =
@@ -1568,7 +1568,7 @@ let poly_bevel ?label ?group ?(shape = Pdk.Poly_modeling.Bevel_chamfer)
       match edges with
       | Error error -> Error error
       | Ok edges ->
-          match Pdk.Poly_modeling.poly_bevel_checked ~cancel:(Context.cancel_token context)
+          match Pdk.Poly_bevel.run ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?edges ~shape ~divisions
               ?point_scale_attribute ?ignore_flat_angle ~clamp_overlap
               ?edge_group ?corner_group ?offset_group ~recompute_point_normals
@@ -1600,11 +1600,11 @@ let point_split ?label ?selection ?(attributes = "") ?(tolerance = 1e-5)
         | Error error -> structured_pdk_error error)
 
 let poly_loft_minimize_key = function
-  | Pdk.Poly_modeling.Two_point_distance -> "two_point"
-  | Pdk.Poly_modeling.Three_point_distance -> "three_point"
+  | Pdk.Poly_loft.Two_point_distance -> "two_point"
+  | Pdk.Poly_loft.Three_point_distance -> "three_point"
 
 let poly_loft ?label ?group ?rest ?(connect_closest_ends = true)
-    ?(minimize = Pdk.Poly_modeling.Two_point_distance) ?(u_wrap = false)
+    ?(minimize = Pdk.Poly_loft.Two_point_distance) ?(u_wrap = false)
     ?(v_wrap = false) ?(keep_primitives = false) ?output_group
     ?(collinearity_tolerance = 0.) ?(recompute_normals = true) input =
   let inputs = match rest with None -> [|input|] | Some rest -> [|input; rest|] in
@@ -1636,7 +1636,7 @@ let poly_loft ?label ?group ?rest ?(connect_closest_ends = true)
       | Error error -> Error error
       | Ok primitives ->
           let rest = if Array.length inputs = 2 then Some inputs.(1) else None in
-          match Pdk.Poly_modeling.poly_loft_checked ~cancel:(Context.cancel_token context)
+          match Pdk.Poly_loft.run ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?primitives ?rest
               ~connect_closest_ends ~minimize ~u_wrap ~v_wrap ~keep_primitives
               ?output_group ~collinearity_tolerance ~recompute_normals geometry with
@@ -1644,7 +1644,7 @@ let poly_loft ?label ?group ?rest ?(connect_closest_ends = true)
           | Error error -> structured_pdk_error error)
 
 let skin ?label ?group ?rest ?(connect_closest_ends = true)
-    ?(minimize = Pdk.Poly_modeling.Two_point_distance) ?(u_wrap = false)
+    ?(minimize = Pdk.Poly_loft.Two_point_distance) ?(u_wrap = false)
     ?(v_wrap = false) ?(keep_primitives = false) ?output_group
     ?(collinearity_tolerance = 0.) ?(recompute_normals = true) input =
   let inputs = match rest with None -> [|input|] | Some rest -> [|input; rest|] in
@@ -1675,7 +1675,7 @@ let skin ?label ?group ?rest ?(connect_closest_ends = true)
       | Error error -> Error error
       | Ok primitives ->
           let rest = if Array.length inputs = 2 then Some inputs.(1) else None in
-          match Pdk.Poly_modeling.skin_checked ~cancel:(Context.cancel_token context)
+          match Pdk.Poly_loft.run ~output:Pdk.Poly_loft.Polygons ~operation:"skin" ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?primitives ?rest
               ~connect_closest_ends ~minimize ~u_wrap ~v_wrap ~keep_primitives
               ?output_group ~collinearity_tolerance ~recompute_normals geometry with
@@ -1683,12 +1683,12 @@ let skin ?label ?group ?rest ?(connect_closest_ends = true)
           | Error error -> structured_pdk_error error)
 
 let poly_bridge_pairing_key = function
-  | Pdk.Poly_modeling.Bridge_by_order -> "order"
-  | Pdk.Poly_modeling.Bridge_by_centroid -> "centroid"
+  | Pdk.Poly_bridge.Bridge_by_order -> "order"
+  | Pdk.Poly_bridge.Bridge_by_centroid -> "centroid"
 
 let poly_bridge ?label ~source_group ~destination_group
-    ?(pairing = Pdk.Poly_modeling.Bridge_by_order) ?(connect_closest_ends = true)
-    ?(minimize = Pdk.Poly_modeling.Two_point_distance) ?(reverse_source = false)
+    ?(pairing = Pdk.Poly_bridge.Bridge_by_order) ?(connect_closest_ends = true)
+    ?(minimize = Pdk.Poly_loft.Two_point_distance) ?(reverse_source = false)
     ?(reverse_destination = false) ?(pairing_shift = 0)
     ?(divisions = 1) ?(keep_input = true) ?output_group
     ?(collinearity_tolerance = 0.)
@@ -1725,7 +1725,7 @@ let poly_bridge ?label ~source_group ~destination_group
           (Printf.sprintf "poly_bridge could not find destination edge group %S"
              destination_group))
       | Some source, Some destination ->
-          match Pdk.Poly_modeling.poly_bridge_checked ~cancel:(Context.cancel_token context)
+          match Pdk.Poly_bridge.run ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ~source ~destination ~pairing
               ~connect_closest_ends ~minimize ~reverse_source
               ~reverse_destination ~pairing_shift ~divisions ~keep_input ?output_group
@@ -3534,11 +3534,11 @@ let facet ?label ?group ?selection ?(pre_compute_normals = false)
           | Error error -> structured_pdk_error error)
 
 let poly_extrude_divide_key = function
-  | Pdk.Poly_modeling.Extrude_individual -> "individual"
-  | Pdk.Poly_modeling.Extrude_connected_components -> "connected_components"
+  | Pdk.Poly_extrude.Extrude_individual -> "individual"
+  | Pdk.Poly_extrude.Extrude_connected_components -> "connected_components"
 
 let poly_extrude ?label ?group ?split_edges
-    ?(divide = Pdk.Poly_modeling.Extrude_individual) ?(divisions = 1)
+    ?(divide = Pdk.Poly_extrude.Extrude_individual) ?(divisions = 1)
     ?(output_front = true) ?(output_back = true) ?(output_side = true)
     ?front_group ?back_group ?side_group ?front_boundary_group
     ?back_boundary_group ~distance input =
@@ -3589,7 +3589,7 @@ let poly_extrude ?label ?group ?split_edges
       match primitives, split with
       | Error error, _ | _, Error error -> Error error
       | Ok primitives, Ok split_edges ->
-          match Pdk.Poly_modeling.poly_extrude_checked ~cancel:(Context.cancel_token context)
+          match Pdk.Poly_extrude.run ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?primitives ?split_edges ~divide
               ~divisions ~output_front ~output_back ~output_side ?front_group
               ?back_group ?side_group ?front_boundary_group

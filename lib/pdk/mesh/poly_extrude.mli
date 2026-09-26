@@ -34,4 +34,4 @@ val run :
   ?front_boundary_group:string ->
   ?back_boundary_group:string ->
   distance:float ->
-  Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, string) result
+  Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, Error.t) result

@@ -13,4 +13,4 @@ val run :
   ?offset_group:string ->
   ?recompute_point_normals:bool ->
   distance:float ->
-  Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, string) result
+  Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, Error.t) result

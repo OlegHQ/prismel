@@ -460,7 +460,7 @@ let check_disconnected_concave_fragments () =
       ~normal:Vec3.unit_x quad |> get_ok in
   check (Geometry.primitive_count quad = 2 && Geometry.vertex_count quad = 6)
     "concave quadrilateral did not leave the exact-size fast plan";
-  let solid = Poly_modeling.poly_extrude_checked ~distance:1. source |> get_ok in
+  let solid = Poly_extrude.run ~distance:1. source |> get_ok in
   let filled = Plane_clip.clip_checked ~grain:1 ~fill:true ~cap_group:"caps"
       ~origin:Vec3.zero ~normal:Vec3.unit_x solid |> get_ok in
   match Geometry.find_group ~owner:Group.Primitive "caps" filled with
@@ -650,7 +650,7 @@ let check_multiple_nested_cap_contours () =
   Topology.Builder.add_polygon concave_topology [|0;1;2;3;4;5;6;7|];
   let concave = Geometry.create ~positions:concave_positions
       ~topology:(Topology.Builder.freeze concave_topology) () |> get_string_ok
-      |> Poly_modeling.poly_extrude_checked ~distance:1. |> get_ok in
+      |> Poly_extrude.run ~distance:1. |> get_ok in
   let concave_hole = Box_generator.box_checked ~connectivity:Box_generator.Box_quads
       ~consolidate_points:true ~normals:Box_generator.Box_no_normals
       ~center:(Vec3.create (-1.5) 0. 0.5)

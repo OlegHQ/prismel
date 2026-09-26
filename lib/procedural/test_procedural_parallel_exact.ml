@@ -1520,7 +1520,7 @@ let run () =
       |> Sop.group ~name:"all" Select.all_primitives
       |> Sop.group_edges ~name:"extruded_edges"
       |> Sop.poly_extrude ~group:"all"
-           ~divide:Poly_modeling.Extrude_connected_components ~divisions:3
+           ~divide:Poly_extrude.Extrude_connected_components ~divisions:3
            ~front_group:"extrude_front" ~side_group:"extrude_side"
            ~front_boundary_group:"front_rim" ~back_boundary_group:"back_rim"
            ~distance:0.4
@@ -1597,7 +1597,7 @@ let run () =
       |> Sop.set_float ~owner:Attribute.Point ~name:"pscale" 1.
       |> Sop.group_edges ~name:"bevel_edges"
       |> Sop.poly_bevel ~group:"bevel_edges"
-           ~shape:(Poly_modeling.Bevel_round { convexity = 0.8 }) ~divisions:3
+           ~shape:(Poly_bevel.Bevel_round { convexity = 0.8 }) ~divisions:3
            ~point_scale_attribute:"pscale" ~distance:0.08
            ~edge_group:"edge_fillets" ~corner_group:"corner_fillets"
            ~offset_group:"offset_edges" in

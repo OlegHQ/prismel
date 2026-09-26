@@ -1734,8 +1734,8 @@ module Poly_bevel = struct
 
   let build = parameters_build (fun ~label parameters input ->
     let shape = match parameters.shape with
-      | Chamfer -> Pdk.Poly_modeling.Bevel_chamfer
-      | Round -> Pdk.Poly_modeling.Bevel_round { convexity = parameters.convexity } in
+      | Chamfer -> Pdk.Poly_bevel.Bevel_chamfer
+      | Round -> Pdk.Poly_bevel.Bevel_round { convexity = parameters.convexity } in
     Sop.poly_bevel ~label ?group:(optional_text parameters.group) ~shape
       ~divisions:parameters.divisions
       ?point_scale_attribute:(optional_text parameters.point_scale_attribute)
@@ -2455,8 +2455,8 @@ end [@@sop.register]
 
 module Poly_extrude = struct
   let divide_parameter = Parameter.choice ~equal:( = ) [
-      "Individual elements", Pdk.Poly_modeling.Extrude_individual;
-      "Connected components", Pdk.Poly_modeling.Extrude_connected_components;
+      "Individual elements", Pdk.Poly_extrude.Extrude_individual;
+      "Connected components", Pdk.Poly_extrude.Extrude_connected_components;
     ]
 
   type parameters = {
@@ -2464,8 +2464,8 @@ module Poly_extrude = struct
     split_edges : string [@sop.default ""] [@sop.label "Split edge group"];
     distance : float [@sop.default 0.1] [@sop.label "Distance"]
       [@sop.min (-10.)] [@sop.max 10.];
-    divide : Pdk.Poly_modeling.extrude_divide
-      [@sop.default Pdk.Poly_modeling.Extrude_individual]
+    divide : Pdk.Poly_extrude.divide
+      [@sop.default Pdk.Poly_extrude.Extrude_individual]
       [@sop.label "Divide into"] [@sop.kind divide_parameter];
     divisions : int [@sop.default 1] [@sop.label "Divisions"]
       [@sop.min 1] [@sop.max 64] [@sop.hard_min 1];
@@ -4123,12 +4123,12 @@ end [@@sop.register]
 
 module Poly_bridge = struct
   let pairing_parameter = Parameter.choice ~equal:( = ) [
-      "By order", Pdk.Poly_modeling.Bridge_by_order;
-      "By centroid", Pdk.Poly_modeling.Bridge_by_centroid;
+      "By order", Pdk.Poly_bridge.Bridge_by_order;
+      "By centroid", Pdk.Poly_bridge.Bridge_by_centroid;
     ]
   let minimize_parameter = Parameter.choice ~equal:( = ) [
-      "Two point distance", Pdk.Poly_modeling.Two_point_distance;
-      "Three point distance", Pdk.Poly_modeling.Three_point_distance;
+      "Two point distance", Pdk.Poly_loft.Two_point_distance;
+      "Three point distance", Pdk.Poly_loft.Three_point_distance;
     ]
 
   type parameters = {
@@ -4136,13 +4136,13 @@ module Poly_bridge = struct
       [@sop.label "Source edge group"];
     destination_group : string [@sop.default "destination"]
       [@sop.label "Destination edge group"];
-    pairing : Pdk.Poly_modeling.bridge_pairing
-      [@sop.default Pdk.Poly_modeling.Bridge_by_order]
+    pairing : Pdk.Poly_bridge.pairing
+      [@sop.default Pdk.Poly_bridge.Bridge_by_order]
       [@sop.label "Pairing"] [@sop.kind pairing_parameter];
     connect_closest_ends : bool [@sop.default true]
       [@sop.label "Connect closest ends"];
-    minimize : Pdk.Poly_modeling.loft_minimize
-      [@sop.default Pdk.Poly_modeling.Two_point_distance]
+    minimize : Pdk.Poly_loft.minimize
+      [@sop.default Pdk.Poly_loft.Two_point_distance]
       [@sop.label "Minimize"] [@sop.kind minimize_parameter];
     reverse_source : bool [@sop.default false] [@sop.label "Reverse source"];
     reverse_destination : bool [@sop.default false]
@@ -4256,16 +4256,16 @@ end [@@sop.register]
 
 module Poly_loft = struct
   let minimize_parameter = Parameter.choice ~equal:( = ) [
-      "Two point distance", Pdk.Poly_modeling.Two_point_distance;
-      "Three point distance", Pdk.Poly_modeling.Three_point_distance;
+      "Two point distance", Pdk.Poly_loft.Two_point_distance;
+      "Three point distance", Pdk.Poly_loft.Three_point_distance;
     ]
 
   type parameters = {
     group : string [@sop.default ""] [@sop.label "Primitive group"];
     connect_closest_ends : bool [@sop.default true]
       [@sop.label "Connect closest ends"];
-    minimize : Pdk.Poly_modeling.loft_minimize
-      [@sop.default Pdk.Poly_modeling.Two_point_distance]
+    minimize : Pdk.Poly_loft.minimize
+      [@sop.default Pdk.Poly_loft.Two_point_distance]
       [@sop.label "Minimize"] [@sop.kind minimize_parameter];
     u_wrap : bool [@sop.default false] [@sop.label "Wrap U"];
     v_wrap : bool [@sop.default false] [@sop.label "Wrap V"];
@@ -5915,10 +5915,10 @@ end [@@sop.register]
 module Poly_cut = struct
   type detection = All | Crossing | Change
   let element_parameter = Parameter.choice ~equal:( = ) [
-      "Points", Pdk.Poly_modeling.Poly_cut_points; "Edges", Pdk.Poly_modeling.Poly_cut_edges;
+      "Points", Pdk.Poly_cut.Poly_cut_points; "Edges", Pdk.Poly_cut.Poly_cut_edges;
     ]
   let strategy_parameter = Parameter.choice ~equal:( = ) [
-      "Remove", Pdk.Poly_modeling.Poly_cut_remove; "Cut", Pdk.Poly_modeling.Poly_cut_cut;
+      "Remove", Pdk.Poly_cut.Poly_cut_remove; "Cut", Pdk.Poly_cut.Poly_cut_cut;
     ]
   let detection_parameter = Parameter.choice ~equal:( = ) [
       "All selected", All; "Attribute crossing", Crossing;
@@ -5927,10 +5927,10 @@ module Poly_cut = struct
   type parameters = {
     group : string [@sop.default ""] [@sop.label "Primitive group"];
     cut_group : string [@sop.default ""] [@sop.label "Cut group"];
-    element : Pdk.Poly_modeling.cut_element [@sop.default Pdk.Poly_modeling.Poly_cut_points]
+    element : Pdk.Poly_cut.element [@sop.default Pdk.Poly_cut.Poly_cut_points]
       [@sop.label "Cut elements"] [@sop.kind element_parameter];
-    strategy : Pdk.Poly_modeling.cut_strategy
-      [@sop.default Pdk.Poly_modeling.Poly_cut_remove]
+    strategy : Pdk.Poly_cut.strategy
+      [@sop.default Pdk.Poly_cut.Poly_cut_remove]
       [@sop.label "Strategy"] [@sop.kind strategy_parameter];
     detection : detection [@sop.default All] [@sop.label "Detection"]
       [@sop.folder "Detection"] [@sop.kind detection_parameter];
@@ -5946,10 +5946,10 @@ module Poly_cut = struct
     [@@sop.node_category "Topology/Curve"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
   let detection parameters = match parameters.detection with
-    | All -> Pdk.Poly_modeling.Poly_cut_all
-    | Crossing -> Pdk.Poly_modeling.Poly_cut_crossing {
+    | All -> Pdk.Poly_cut.Poly_cut_all
+    | Crossing -> Pdk.Poly_cut.Poly_cut_crossing {
         attribute = parameters.attribute; value = parameters.value }
-    | Change -> Pdk.Poly_modeling.Poly_cut_change {
+    | Change -> Pdk.Poly_cut.Poly_cut_change {
         attribute = parameters.attribute; threshold = parameters.threshold }
   let build = parameters_build (fun ~label parameters input ->
     Sop.poly_cut ~label ?group:(optional_text parameters.group)

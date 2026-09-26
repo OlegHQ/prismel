@@ -51,9 +51,9 @@ let cook session context graph =
 let graph () =
   Sop.snapshot (source ())
   |> Sop.poly_cut ~label:"crossing-cuts" ~group:"selected_curves"
-       ~cut_group:"cuttable" ~element:Poly_modeling.Poly_cut_edges
-       ~strategy:Poly_modeling.Poly_cut_cut
-       ~detection:(Poly_modeling.Poly_cut_crossing {attribute="signal"; value=0.})
+       ~cut_group:"cuttable" ~element:Poly_cut.Poly_cut_edges
+       ~strategy:Poly_cut.Poly_cut_cut
+       ~detection:(Poly_cut.Poly_cut_crossing {attribute="signal"; value=0.})
        ~keep_closed:false
 
 let equal_geometry left right =
@@ -110,10 +110,10 @@ let run () =
   let missing_primitive = Sop.snapshot (source ())
       |> Sop.poly_cut ~group:"missing"
   and missing_edge = Sop.snapshot (source ())
-      |> Sop.poly_cut ~element:Poly_modeling.Poly_cut_edges ~cut_group:"missing"
+      |> Sop.poly_cut ~element:Poly_cut.Poly_cut_edges ~cut_group:"missing"
   and invalid = Sop.snapshot (source ())
       |> Sop.poly_cut
-           ~detection:(Poly_modeling.Poly_cut_crossing {attribute="P"; value=0.}) in
+           ~detection:(Poly_cut.Poly_cut_crossing {attribute="P"; value=0.}) in
   let session = Session.create ~max_entries:4 ~max_payload_bytes:220_000_000
       |> get in
   List.iter (fun graph -> match Session.cook session ~context:(context 1) graph with

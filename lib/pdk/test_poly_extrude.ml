@@ -104,15 +104,15 @@ let run () =
   let source = enriched_grid () in
   (* Preserve the default individual path's packed topology before replacing
      its legacy implementation. Its two triangles have six source corners. *)
-  let individual = Poly_modeling.poly_extrude_checked ~distance:1. source |> get_pdk in
+  let individual = Poly_extrude.run ~distance:1. source |> get_pdk in
   check (Geometry.point_count individual = 12
       && Geometry.vertex_count individual = 36
       && Geometry.primitive_count individual = 10
       && Array.length (int_attribute Attribute.Point "point_id" individual) = 12
       && group_cardinality Group.Point "corner" individual = 4)
     "individual Poly Extrude packed-output compatibility";
-  let connected = Poly_modeling.poly_extrude_checked
-      ~divide:Poly_modeling.Extrude_connected_components
+  let connected = Poly_extrude.run
+      ~divide:Poly_extrude.Extrude_connected_components
       ~front_group:"front" ~back_group:"back" ~side_group:"side"
       ~front_boundary_group:"front_boundary"
       ~back_boundary_group:"back_boundary"
@@ -146,8 +146,8 @@ let run () =
   check (Geometry.find_attribute ~owner:Attribute.Detail "label" connected <> None)
     "connected Poly Extrude dropped detail attribute";
 
-  let divided = Poly_modeling.poly_extrude_checked
-      ~divide:Poly_modeling.Extrude_connected_components ~divisions:3
+  let divided = Poly_extrude.run
+      ~divide:Poly_extrude.Extrude_connected_components ~divisions:3
       ~front_group:"surface" ~side_group:"surface"
       ~front_boundary_group:"rim" ~back_boundary_group:"rim"
       ~distance:1. source |> get_pdk in
@@ -176,8 +176,8 @@ let run () =
   let one_face = Group.init ~owner:Group.Primitive ~name:"selected" 2
       (fun primitive -> primitive = 0) in
   let selected_source = Geometry.with_group one_face source |> get_ok in
-  let selected = Poly_modeling.poly_extrude_checked ~primitives:one_face
-      ~divide:Poly_modeling.Extrude_connected_components ~front_group:"selected_front"
+  let selected = Poly_extrude.run ~primitives:one_face
+      ~divide:Poly_extrude.Extrude_connected_components ~front_group:"selected_front"
       ~distance:0.5 selected_source |> get_pdk in
   check (Geometry.point_count selected = 7
       && Geometry.vertex_count selected = 21
@@ -185,20 +185,20 @@ let run () =
       && group_cardinality Group.Primitive "selected_front" selected = 1)
     "selected connected Poly Extrude cardinality";
 
-  let without_back = Poly_modeling.poly_extrude_checked
-      ~divide:Poly_modeling.Extrude_connected_components ~output_back:false
+  let without_back = Poly_extrude.run
+      ~divide:Poly_extrude.Extrude_connected_components ~output_back:false
       ~distance:1. source |> get_pdk
-  and without_front = Poly_modeling.poly_extrude_checked
-      ~divide:Poly_modeling.Extrude_connected_components ~output_front:false
+  and without_front = Poly_extrude.run
+      ~divide:Poly_extrude.Extrude_connected_components ~output_front:false
       ~distance:1. source |> get_pdk
-  and without_sides = Poly_modeling.poly_extrude_checked
-      ~divide:Poly_modeling.Extrude_connected_components ~output_side:false
+  and without_sides = Poly_extrude.run
+      ~divide:Poly_extrude.Extrude_connected_components ~output_side:false
       ~distance:1. source |> get_pdk
-  and only_back = Poly_modeling.poly_extrude_checked
-      ~divide:Poly_modeling.Extrude_connected_components ~output_front:false
+  and only_back = Poly_extrude.run
+      ~divide:Poly_extrude.Extrude_connected_components ~output_front:false
       ~output_side:false ~back_group:"only_back" ~distance:1. source |> get_pdk
-  and no_outputs = Poly_modeling.poly_extrude_checked
-      ~divide:Poly_modeling.Extrude_connected_components ~output_front:false
+  and no_outputs = Poly_extrude.run
+      ~divide:Poly_extrude.Extrude_connected_components ~output_front:false
       ~output_back:false ~output_side:false ~distance:1. source |> get_pdk in
   check (Geometry.primitive_count without_back = 6
       && Geometry.primitive_count without_front = 6
@@ -220,8 +220,8 @@ let run () =
   Edge_group.Builder.set split_builder !internal_edge true;
   let split_group = Edge_group.Builder.freeze split_builder in
   let split_source = Geometry.with_edge_group split_group source |> get_ok in
-  let split = Poly_modeling.poly_extrude_checked ~split_edges:split_group
-      ~divide:Poly_modeling.Extrude_connected_components ~distance:1. split_source
+  let split = Poly_extrude.run ~split_edges:split_group
+      ~divide:Poly_extrude.Extrude_connected_components ~distance:1. split_source
       |> get_pdk in
   check (Geometry.point_count split = 10
       && Geometry.vertex_count split = 36
@@ -241,8 +241,8 @@ let run () =
   let polygon_selection = Group.init ~owner:Group.Primitive ~name:"polygons"
       (Geometry.primitive_count mixed) (fun primitive -> primitive < 2) in
   let mixed = Geometry.with_group polygon_selection mixed |> get_ok in
-  let mixed_output = Poly_modeling.poly_extrude_checked ~primitives:polygon_selection
-      ~divide:Poly_modeling.Extrude_connected_components ~distance:1. mixed |> get_pdk in
+  let mixed_output = Poly_extrude.run ~primitives:polygon_selection
+      ~divide:Poly_extrude.Extrude_connected_components ~distance:1. mixed |> get_pdk in
   check (Geometry.primitive_count mixed_output = 9
       && Array.exists (fun primitive ->
         Topology.primitive_kind (Geometry.topology mixed_output) primitive
@@ -251,8 +251,8 @@ let run () =
     "Poly Extrude did not preserve an unselected curve";
   let curve_selection = Group.init ~owner:Group.Primitive ~name:"curve"
       (Geometry.primitive_count mixed) (fun primitive -> primitive = 2) in
-  (match Poly_modeling.poly_extrude_checked ~primitives:curve_selection
-      ~divide:Poly_modeling.Extrude_connected_components ~distance:1. mixed with
+  (match Poly_extrude.run ~primitives:curve_selection
+      ~divide:Poly_extrude.Extrude_connected_components ~distance:1. mixed with
    | Error error -> check (Error.code error = "invalid_geometry")
        "selected-curve Poly Extrude diagnostic"
    | Ok _ -> fail "Poly Extrude accepted a selected curve");
@@ -265,7 +265,7 @@ let run () =
       ~primitive_offsets:[|0;3;6;9|] |> get_ok in
   let non_manifold = Geometry.create ~positions:non_manifold_positions
       ~topology:non_manifold_topology () |> get_ok in
-  (match Poly_modeling.poly_extrude_checked ~divide:Poly_modeling.Extrude_connected_components
+  (match Poly_extrude.run ~divide:Poly_extrude.Extrude_connected_components
       ~distance:1. non_manifold with
    | Error error -> check (Error.code error = "invalid_geometry")
        "non-manifold Poly Extrude diagnostic"
@@ -273,30 +273,30 @@ let run () =
 
   let wrong_owner = Group.init ~owner:Group.Point ~name:"wrong" 4
       (fun _ -> true) in
-  (match Poly_modeling.poly_extrude_checked ~primitives:wrong_owner
-      ~divide:Poly_modeling.Extrude_connected_components ~distance:1. source with
+  (match Poly_extrude.run ~primitives:wrong_owner
+      ~divide:Poly_extrude.Extrude_connected_components ~distance:1. source with
    | Error error -> check (Error.code error = "invalid_geometry")
        "Poly Extrude wrong-owner diagnostic"
    | Ok _ -> fail "Poly Extrude accepted a point selection");
-  (match Poly_modeling.poly_extrude_checked ~divide:Poly_modeling.Extrude_connected_components
+  (match Poly_extrude.run ~divide:Poly_extrude.Extrude_connected_components
       ~divisions:0 ~distance:1. source with
    | Error error -> check (Error.code error = "invalid_geometry")
        "Poly Extrude divisions diagnostic"
    | Ok _ -> fail "Poly Extrude accepted zero divisions");
-  (match Poly_modeling.poly_extrude_checked ~divide:Poly_modeling.Extrude_connected_components
+  (match Poly_extrude.run ~divide:Poly_extrude.Extrude_connected_components
       ~front_group:"" ~distance:1. source with
    | Error error -> check (Error.code error = "invalid_geometry")
        "Poly Extrude output-name diagnostic"
    | Ok _ -> fail "Poly Extrude accepted an empty output name");
-  (match Poly_modeling.poly_extrude_checked ~divide:Poly_modeling.Extrude_individual
+  (match Poly_extrude.run ~divide:Poly_extrude.Extrude_individual
       ~split_edges:split_group ~distance:1. split_source with
    | Error error -> check (Error.code error = "invalid_geometry")
        "Poly Extrude split-mode diagnostic"
    | Ok _ -> fail "individual Poly Extrude accepted split edges");
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
-  (match Poly_modeling.poly_extrude_checked ~cancel:cancelled
-      ~divide:Poly_modeling.Extrude_connected_components ~distance:1. source with
+  (match Poly_extrude.run ~cancel:cancelled
+      ~divide:Poly_extrude.Extrude_connected_components ~distance:1. source with
    | Error error -> check (Error.code error = "cancelled")
        "Poly Extrude cancellation diagnostic"
    | Ok _ -> fail "cancelled Poly Extrude published geometry");
@@ -309,8 +309,8 @@ let run () =
            |> get_ok) |> get_ok
       |> Group_mesh.group_edges_checked ~name:"dense_edges" |> get_pdk in
   let run domains = Parallel.run ~domains (fun () ->
-      Poly_modeling.poly_extrude_checked ~grain:257
-        ~divide:Poly_modeling.Extrude_connected_components ~divisions:4
+      Poly_extrude.run ~grain:257
+        ~divide:Poly_extrude.Extrude_connected_components ~divisions:4
         ~front_group:"front" ~side_group:"side"
         ~front_boundary_group:"front_boundary"
         ~back_boundary_group:"back_boundary" ~distance:0.75 dense |> get_pdk) in

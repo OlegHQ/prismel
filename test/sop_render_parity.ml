@@ -132,9 +132,9 @@ let rows = [
   "measure_curvature", (fun () ->
     torus () |> Sop.measure_curvature), point_attribute "curvature";
   "poly_cut", (fun () ->
-    signal_curve () |> Sop.poly_cut ~element:Pdk.Poly_modeling.Poly_cut_points
-      ~strategy:Pdk.Poly_modeling.Poly_cut_remove
-      ~detection:(Pdk.Poly_modeling.Poly_cut_crossing {attribute="signal"; value=0.})
+    signal_curve () |> Sop.poly_cut ~element:Pdk.Poly_cut.Poly_cut_points
+      ~strategy:Pdk.Poly_cut.Poly_cut_remove
+      ~detection:(Pdk.Poly_cut.Poly_cut_crossing {attribute="signal"; value=0.})
     |> wire), nonempty;
   "procedural", (fun () ->
     box () |> Sop.bend ~length:2. ~bend_angle:0.5
