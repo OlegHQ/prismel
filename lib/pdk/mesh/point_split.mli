@@ -6,11 +6,6 @@ type deform_selection = Deform.selection =
   | Selected_primitives of Group.t
   | Selected_edges of Edge_group.t
 
-val run :
-  ?cancel:Cancel.t -> ?grain:int -> ?selection:Element_selection.t ->
-  ?attributes:string -> ?tolerance:float -> ?promote_attributes:bool ->
-  Geometry.t -> (Geometry.t, string) result
-
 val run_checked :
   ?cancel:Cancel.t -> ?grain:int -> ?selection:deform_selection ->
   ?attributes:string -> ?tolerance:float -> ?promote_attributes:bool ->

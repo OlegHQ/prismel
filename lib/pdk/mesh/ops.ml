@@ -513,20 +513,7 @@ let smooth ?cancel ?grain ?primitives ?constrained_points ?boundary ?iterations
     ?method_ ?mode ?weight_attribute ?alpha_attribute ?recompute_normals
     ?original_blend ?smoothed_blend ~attributes geometry
 
-let ray ?cancel ?grain ?selection ?collision_primitives ?method_ ?direction
-    ?direction_mode ?surface_hit ?samples ?jitter_scale ?seed ?combine
-    ?min_distance ?max_distance ?tolerance ?scale ?lift
-    ?distance_attribute ?primitive_attribute
-    ?source_vertex_numbers_attribute ?source_vertex_weights_attribute ?hit_group
-    ?normal_attribute ?point_pattern ?vertex_pattern ?primitive_pattern
-    ?detail_pattern ?match_groups ~source ~collision () =
-  Ray.run ?cancel ?grain ?selection ?collision_primitives ?method_ ?direction
-    ?direction_mode ?surface_hit ?samples ?jitter_scale ?seed ?combine
-    ?min_distance ?max_distance ?tolerance ?scale ?lift
-    ?distance_attribute ?primitive_attribute
-    ?source_vertex_numbers_attribute ?source_vertex_weights_attribute ?hit_group
-    ?normal_attribute ?point_pattern ?vertex_pattern ?primitive_pattern
-    ?detail_pattern ?match_groups ~source ~collision ()
+let ray = Ray.run
 
 let compact_points = Compact_points.run
 
@@ -685,16 +672,7 @@ let poly_bevel ?cancel ?grain ?edges ?shape ?divisions ?point_scale_attribute
       ?point_scale_attribute ?ignore_flat_angle ?clamp_overlap ?edge_group
       ?corner_group ?offset_group ?recompute_point_normals ~distance geometry)
 
-let point_split ?cancel ?grain ?selection ?attributes ?tolerance
-    ?promote_attributes geometry =
-  let selection = Option.map (function
-    | Selected_points group -> Element_selection.Selected_points group
-    | Selected_vertices group -> Element_selection.Selected_vertices group
-    | Selected_primitives group -> Element_selection.Selected_primitives group
-    | Selected_edges group -> Element_selection.Selected_edges group) selection in
-  protected "point_split" "invalid_geometry" (fun () ->
-    Point_split.run ?cancel ?grain ?selection ?attributes ?tolerance
-      ?promote_attributes geometry)
+let point_split = Point_split.run_checked
 
 let poly_loft_raw = poly_loft
 let poly_loft ?cancel ?grain ?primitives ?rest ?connect_closest_ends
@@ -818,16 +796,7 @@ let boolean_detect ?cancel ?(grain = 16_384) ?source_primitives
     ~count_attribute ~self_intersecting_group ~self_intersections_attribute
     ~self_count_attribute ~collision geometry
 
-let intersection_analysis ?cancel ?(grain = 16_384) ?source_primitives
-    ?collision_primitives ?(tolerance = 0.) ?(include_coplanar = true)
-    ?(input_attribute = Some "sourceinput")
-    ?(primitive_attribute = Some "sourceprim")
-    ?(primitive_uvw_attribute = Some "sourceprimuv")
-    ?(point_attribute = Some "sourcepoint") ?collision geometry =
-  Intersection_analysis.run ?cancel ~grain ?source_primitives
-    ?collision_primitives ~tolerance ~include_coplanar ~input_attribute
-    ~primitive_attribute ~primitive_uvw_attribute ~point_attribute ~collision
-    geometry
+let intersection_analysis = Intersection_analysis.run_checked
 
 let poly_reduce = Poly_reduce.run_checked
 let edge_flip = Edge_flip.run_checked

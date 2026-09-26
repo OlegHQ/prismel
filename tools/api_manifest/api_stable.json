@@ -3,7 +3,7 @@
   "baseline_plan_sha256": "6f95e5738ae263386bbc414299f598f25ba9f604b48a8c2ef9bee84f974e2954",
   "generator": "tools/api_manifest/api_manifest.exe",
   "kind": "stable_high_level",
-  "module_count": 129,
+  "module_count": 132,
   "modules": [
     {
       "api_sha256": "e50b68fb8b3efb8c3f48d288c797a83690511ce38a332e2c2285c788efd781ad",
@@ -294,6 +294,15 @@
       "source_sha256": "fc3c13766b5b62a67aa4a465eb12477e1b5a6939e110a472264552ec25aabaa8"
     },
     {
+      "api_sha256": "27502e6d2738091fac6ffbe6fc8a4a058661f7ce8b28a2c6f581102f1a46320c",
+      "excluded_legacy_symbols": [],
+      "library": "pdk",
+      "module": "Intersection_analysis",
+      "source": "lib/pdk/mesh/intersection_analysis.mli",
+      "source_bytes": 743,
+      "source_sha256": "3d3fc22f4dcc52dfb3300b593d88140e84e8b564d3cc121ee5c16f6f187d548c"
+    },
+    {
       "api_sha256": "3decfa0a95739ec44c2802086766965acabaf16fdc89cc58618dc52ad0d6d761",
       "excluded_legacy_symbols": [],
       "library": "pdk",
@@ -447,6 +456,15 @@
       "source_sha256": "ca23bf82111a0bac6faa9d8423063030192a408c7ea0d76e7e426c2d96cf0888"
     },
     {
+      "api_sha256": "59fc3b074dcc6165d752043988fa277bab220209abb73854492edcc2a4115c9d",
+      "excluded_legacy_symbols": [],
+      "library": "pdk",
+      "module": "Point_split",
+      "source": "lib/pdk/mesh/point_split.mli",
+      "source_bytes": 449,
+      "source_sha256": "3409d44f7e4e7971a98a5001e23f8af8f9cd6fc8a53f8e8d9845deda7f8260b4"
+    },
+    {
       "api_sha256": "222134e4c4d5a068cd1cd38ee9e57fbf0f82b7d31b37844b620ea0898d44a01d",
       "excluded_legacy_symbols": [],
       "library": "pdk",
@@ -472,6 +490,15 @@
       "source": "lib/pdk/exact/predicates.mli",
       "source_bytes": 7451,
       "source_sha256": "9156a4c04b815e693ef75c09cc0b16e8f86342ae43eede53fdc3d85ed29d5fc0"
+    },
+    {
+      "api_sha256": "9e34d1bfc3e32191da8dc78350cd74d8a4592968b5e45eb92b8e5ff3ab3247dd",
+      "excluded_legacy_symbols": [],
+      "library": "pdk",
+      "module": "Ray",
+      "source": "lib/pdk/mesh/ray.mli",
+      "source_bytes": 1367,
+      "source_sha256": "9d174ef889c2ac2d3e4b423bd82512c69e21292cca0999ba7402d996d4287c95"
     },
     {
       "api_sha256": "86b0655137588149583fa1d220738ede40daecf5ba6897c69c4a1431c63569cb",

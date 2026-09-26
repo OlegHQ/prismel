@@ -1,18 +1,3 @@
-val run :
-  ?cancel:Cancel.t ->
-  grain:int ->
-  ?source_primitives:Group.t ->
-  ?collision_primitives:Group.t ->
-  tolerance:float ->
-  include_coplanar:bool ->
-  input_attribute:string option ->
-  primitive_attribute:string option ->
-  primitive_uvw_attribute:string option ->
-  point_attribute:string option ->
-  collision:Geometry.t option ->
-  Geometry.t ->
-  (Geometry.t, Error.t) result
-
 val run_checked :
   ?cancel:Cancel.t -> ?grain:int -> ?source_primitives:Group.t ->
   ?collision_primitives:Group.t -> ?tolerance:float ->
