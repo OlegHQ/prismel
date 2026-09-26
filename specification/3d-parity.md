@@ -44,7 +44,7 @@ Status meanings:
 | Instanced Scene3 submission | partial | Public immutable batches exist; end-to-end native instancing must be distinguished from repeated retained draws |
 | General offscreen color/depth/stencil framebuffer API | missing | The installed public library has Canvas/capture resources, not a public `Framebuffer3` module |
 | General post-processing graph | missing | Requires typed native shader/attachment integration |
-| Mesh import/export | partial | Existing OBJ/PLY and geometry APIs are independent of renderer completion |
+| Mesh import/export | partial | `Pdk.Io` OBJ/OFF/STL over packed geometry; `Mesh` has no file IO of its own |
 
 ## Deliberate API boundary
 

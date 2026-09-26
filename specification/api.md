@@ -213,9 +213,9 @@ should use floats and convert at the scene boundary.
 `Scene.view3d ~camera`. `Mesh` provides indexed points, lines, and triangles
 plus plane, box, UV sphere, icosphere, cylinder, and cone generators.
 Its immutable editing/query API includes per-element replacement, safe
-removal, range coloring, compact submeshes, centroid/duplicate/crease-normal
-operations, attributed faces and face normals, spatial diagnostic meshes, UV
-remapping, and ASCII/binary PLY plus OBJ output.
+removal, centroid, recalculated and flat normals, and attributed faces and face
+normals. File import/export (OBJ, OFF, STL) belongs to `Pdk.Io` over packed
+geometry.
 `Material` and `Light` provide the fixed native lighting inputs, while `Mat4`
 and scoped `Scene3` nodes compose hierarchical transforms. Scene3 renders
 through the fixed native material/light path; inputs it cannot honor (more than

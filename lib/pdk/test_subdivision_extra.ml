@@ -38,7 +38,7 @@ let run () =
        Vec3.create 0. 1. 0.]
     |> Pdk_prismel.Prismel_mesh.of_mesh |> get in
   let closed =
-    Mesh.icosahedron ~radius:1.
+    Mesh.icosphere ~subdivisions:0 ~radius:1. ()
     |> Pdk_prismel.Prismel_mesh.of_mesh |> get in
   let verify name operation source points triangles =
     let run domains = Parallel.run ~domains (fun () ->

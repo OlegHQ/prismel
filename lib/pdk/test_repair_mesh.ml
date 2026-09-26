@@ -15,7 +15,7 @@ let snapshot geometry =
 let to_geometry mesh = Pdk_prismel.Prismel_mesh.of_mesh mesh |> get
 
 let run () =
-  let closed = Mesh.icosahedron ~radius:1. |> to_geometry in
+  let closed = Mesh.icosphere ~subdivisions:0 ~radius:1. () |> to_geometry in
   let report = Repair_mesh.analyze closed |> get in
   check (report.faces = 20 && report.components = 1
     && Repair_mesh.is_closed report && Repair_mesh.is_manifold report)
@@ -50,7 +50,7 @@ let run () =
   (match Repair_mesh.repair_t_junctions unsupported with
    | Error _ -> () | Ok _ -> failwith "repair silently dropped primitive group");
   let flipped_mesh =
-    let mesh = Mesh.icosahedron ~radius:1. in
+    let mesh = Mesh.icosphere ~subdivisions:0 ~radius:1. () in
     let indices = Mesh.indices mesh in
     let reversed = match indices with
       | a :: b :: c :: rest -> a :: c :: b :: rest

@@ -461,17 +461,6 @@ let run_1 () =
      || not (Mesh.has_normals box)
      || not (Mesh.has_tex_coords box)
   then fail "box primitive did not preserve six independently shaded faces";
-  let positive_x =
-    Mesh.box_side ~side:Mesh.Positive_x
-      ~width:2. ~height:3. ~depth:4. ()
-  in
-  if Mesh.vertex_count positive_x <> 4
-     || not
-          (List.for_all
-             (fun normal ->
-               Vec3.nearly_equal normal Vec3.unit_x ~eps:1e-9)
-             (Mesh.normals positive_x))
-  then fail "box side extraction returned the wrong face orientation";
   let first_view = Mesh.Private.packed_view box
   and second_view = Mesh.Private.packed_view box in
   if first_view.vertices.x != second_view.vertices.x
@@ -510,45 +499,6 @@ let run_1 () =
   if not (Vec3.nearly_equal box_centroid Vec3.zero ~eps:1e-9)
      || Mesh.centroid (Mesh.clear box) <> None
   then fail "mesh centroid did not average all vertices";
-  let duplicate_points =
-    Mesh.create_exn ~mode:Mesh.Points
-      [Vec3.zero; Vec3.unit_x; Vec3.zero]
-    |> Mesh.merge_duplicate_vertices
-  in
-  if Mesh.vertex_count duplicate_points <> 2
-     || Mesh.indices duplicate_points <> [0; 1; 0]
-  then fail "duplicate-vertex merging did not remap indices deterministically";
-  let tolerant_duplicates =
-    Mesh.create_exn ~mode:Mesh.Points
-      [ Vec3.create 0. 0. 0.; Vec3.create 0.15 0. 0.;
-        Vec3.create 0.075 0. 0. ]
-    |> Mesh.merge_duplicate_vertices ~epsilon:0.1
-  in
-  if Mesh.vertex_count tolerant_duplicates <> 2
-     || Mesh.indices tolerant_duplicates <> [0; 1; 0]
-  then
-    fail
-      "tolerant duplicate merging missed an adjacent cell or earliest source";
-  let seam_vertices =
-    let point = Vec3.create 2. 3. 4. in
-    Mesh.create_exn ~mode:Mesh.Points
-      ~normals:[Vec3.unit_x; Vec3.unit_y; Vec3.unit_x; Vec3.unit_x]
-      ~colors:[Color.red; Color.red; Color.green; Color.red]
-      ~tex_coords:
-        [ Vec2.zero; Vec2.zero; Vec2.zero; Vec2.create 0.25 0. ]
-      [point; point; point; point]
-    |> Mesh.merge_duplicate_vertices ~epsilon:0.1
-  in
-  if Mesh.vertex_count seam_vertices <> 4 then
-    fail "duplicate merging collapsed a normal, color, or texture seam";
-  let huge_duplicates =
-    Mesh.create_exn ~mode:Mesh.Points
-      [ Vec3.create 1e300 0. 0.; Vec3.create 1e300 5e-301 0. ]
-    |> Mesh.merge_duplicate_vertices ~epsilon:1e-300
-  in
-  if Mesh.vertex_count huge_duplicates <> 1
-     || Mesh.indices huge_duplicates <> [0; 0]
-  then fail "duplicate merging overflowed its spatial cell coordinates";
   let removable =
     Mesh.create_exn ~mode:Mesh.Lines ~indices:[0; 1]
       [Vec3.zero; Vec3.unit_x; Vec3.unit_y]
@@ -561,50 +511,6 @@ let run_1 () =
   if Mesh.vertex_count removable <> 2
      || Result.is_ok (Mesh.remove_vertex 0 removable)
   then fail "safe mesh vertex removal allowed a dangling index";
-  let recolored =
-    match Mesh.with_color_for_indices ~first:0 ~count:2 Color.magenta removable with
-    | Ok mesh -> mesh
-    | Error message -> fail message
-  in
-  if Mesh.colors recolored <> [Color.magenta; Color.magenta] then
-    fail "mesh index-range coloring did not color referenced vertices";
-  let remapped_plane =
-    match
-      Mesh.plane ~width:2. ~height:2. ()
-      |> Mesh.remap_tex_coords ~u1:0.25 ~v1:0.5 ~u2:0.75 ~v2:1.
-    with
-    | Ok mesh -> mesh
-    | Error message -> fail message
-  in
-  if
-    List.exists
-      (fun uv ->
-        uv.Vec2.x < 0.25 || uv.x > 0.75 || uv.y < 0.5 || uv.y > 1.)
-      (Mesh.tex_coords remapped_plane)
-  then fail "mesh texture-coordinate remapping escaped its target rectangle";
-  let crease =
-    Mesh.create_exn ~indices:[0; 1; 2; 0; 2; 3]
-      [Vec3.zero; Vec3.unit_x; Vec3.unit_y; Vec3.unit_z]
-  in
-  let sharp = Mesh.smooth_normals ~angle:0. crease
-  and smooth = Mesh.smooth_normals ~angle:Float.pi crease in
-  if Mesh.vertex_count sharp <> 6 || Mesh.vertex_count smooth <> 4 then
-    fail "angle-aware smooth normals did not split/preserve a hard crease";
-  if Mesh.vertex_count (Mesh.normal_lines ~length:1. box) <> 48
-     || Mesh.vertex_count
-          (Mesh.normal_lines ~face_normals:true ~length:1. box) <> 24
-     || Mesh.vertex_count (Mesh.icosahedron ~radius:1.) <> 12
-  then fail "mesh normal diagnostics or icosahedron geometry are incomplete";
-  let box_side =
-    match Mesh.submesh ~first:0 ~count:6 box with
-    | Ok mesh -> mesh
-    | Error message -> fail message
-  in
-  if Mesh.index_count box_side <> 6
-     || Mesh.vertex_count box_side <> 4
-     || not (Mesh.has_normals box_side)
-     || not (Mesh.has_tex_coords box_side)
-  then fail "compact mesh subrange extraction lost indexed attributes";
   let flat_sphere = Mesh.flat_shaded (Mesh.sphere ~segments:8 ~rings:4 ~radius:2. ()) in
   if Mesh.vertex_count flat_sphere <> Mesh.index_count flat_sphere
      || not (Mesh.has_normals flat_sphere)
@@ -623,18 +529,6 @@ let run_1 () =
   in
   if Mesh.triangles strip <> [0, 1, 2; 2, 1, 3] then
     fail "triangle strip winding did not alternate";
-  if Mesh.vertex_count (Mesh.axis ~size:2.) <> 6
-     || Mesh.vertex_count (Mesh.grid ~divisions:4 ~size:10. ()) <> 20
-     || List.exists
-          (fun vertex -> abs_float vertex.Vec3.z > 1e-9)
-          (Mesh.vertices
-             (Mesh.grid_plane ~divisions:4 ~plane:Mesh.XY ~size:10. ()))
-     || Mesh.vertex_count (Mesh.rotation_axes ~segments:8 ~radius:2. ()) <> 48
-     || Mesh.vertex_count
-          (Mesh.arrow ~from_:Vec3.zero ~to_:(Vec3.create 0. 3. 0.)
-             ~head_size:0.75)
-        = 0
-  then fail "3D axis, grid, or arrow geometry was empty";
   let coarse_caps =
     Mesh.cylinder ~segments:8 ~cap_segments:1 ~radius:1. ~height:2. ()
   and fine_caps =
@@ -737,78 +631,7 @@ let run_1 () =
              (Texture.sample_lod ~filter:Texture.Trilinear
                 mipmapped ~lod:1. ~u:0.3 ~v:0.8)
              (Color.rgb 128 128 64))
-  then fail "immutable texture mip generation or LOD sampling is incorrect";
-  let obj_file = Filename.temp_file "prismel-mesh-" ".obj" in
-  let ply_file = Filename.temp_file "prismel-mesh-" ".ply" in
-  let little_ply_file = Filename.temp_file "prismel-mesh-little-" ".ply" in
-  let big_ply_file = Filename.temp_file "prismel-mesh-big-" ".ply" in
-  Fun.protect
-    ~finally:(fun () ->
-      if Sys.file_exists obj_file then Sys.remove obj_file;
-      if Sys.file_exists ply_file then Sys.remove ply_file;
-      if Sys.file_exists little_ply_file then Sys.remove little_ply_file;
-      if Sys.file_exists big_ply_file then Sys.remove big_ply_file)
-    (fun () ->
-      let channel = open_out obj_file in
-      Fun.protect ~finally:(fun () -> close_out channel) (fun () ->
-        output_string channel
-          "v -1 -1 0\nv 1 -1 0\nv 1 1 0\nv -1 1 0\n";
-        output_string channel "vt 0 1\nvt 1 1\nvt 1 0\nvt 0 0\n";
-        output_string channel "vn 0 0 1\n";
-        output_string channel "f 1/1/1 2/2/1 3/3/1 4/4/1 # quad\n");
-      let loaded =
-        match Mesh.load_obj obj_file with
-        | Ok mesh -> mesh
-        | Error message -> fail message
-      in
-      if Mesh.vertex_count loaded <> 4 || Mesh.index_count loaded <> 6
-         || not (Mesh.has_normals loaded)
-         || not (Mesh.has_tex_coords loaded)
-      then fail "OBJ loader did not triangulate and preserve attributes";
-      (match Mesh.save_ply loaded ply_file with
-       | Ok () -> ()
-       | Error message -> fail message);
-      (match Mesh.load_ply ply_file with
-       | Ok restored
-         when Mesh.vertex_count restored = 4
-              && Mesh.index_count restored = 6
-              && Mesh.has_normals restored
-              && Mesh.has_tex_coords restored -> ()
-       | Ok _ -> fail "ASCII PLY round trip changed mesh topology or attributes"
-       | Error message -> fail message);
-      (match
-         Mesh.save_ply ~format:Mesh.Ply_binary_little_endian
-           loaded little_ply_file,
-         Mesh.save_ply ~format:Mesh.Ply_binary_big_endian
-           loaded big_ply_file
-       with
-       | Ok (), Ok () -> ()
-       | Error message, _ | _, Error message -> fail message);
-      let read filename =
-        let channel = open_in_bin filename in
-        Fun.protect ~finally:(fun () -> close_in channel) (fun () ->
-          really_input_string channel (in_channel_length channel))
-      in
-      let body contents =
-        let marker = "end_header\n" in
-        let marker_length = String.length marker in
-        let rec find index =
-          if index + marker_length > String.length contents then
-            fail "binary PLY output had no end_header marker"
-          else if String.sub contents index marker_length = marker then
-            String.sub contents (index + marker_length)
-              (String.length contents - index - marker_length)
-          else find (index + 1)
-        in
-        find 0
-      in
-      let little = read little_ply_file |> body
-      and big = read big_ply_file |> body in
-      if String.length little <> String.length big
-         || String.length little < 4
-         || String.sub little 0 4 <> "\000\000\128\191"
-         || String.sub big 0 4 <> "\191\128\000\000"
-      then fail "binary PLY float output did not honor its declared endianness")
+  then fail "immutable texture mip generation or LOD sampling is incorrect"
 
 (* Runtime key names must reach the Input keys hosts match on. *)
 let run_2 () =

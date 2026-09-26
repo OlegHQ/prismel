@@ -953,13 +953,13 @@
       "source_sha256": "eb84bc1a629370567f25a554798eee3e3f6f3caf345a621a23df5f0687067be7"
     },
     {
-      "api_sha256": "3217996413b0df18ce9699456e0873a1fb0c8fcd67f9cea0d50333c8f7f6d20d",
+      "api_sha256": "ae2fcfa4e02d73fb79b15b95fb344981aa7f6eec05fdd27dd6228b4f465f757a",
       "excluded_legacy_symbols": [],
       "library": "prismel",
       "module": "Mesh",
       "source": "lib/prismel/mesh.mli",
-      "source_bytes": 8035,
-      "source_sha256": "9648cb01945a2d4a82ba26f9067b60c5a3bc7f58d33141ae411505640ad4833b"
+      "source_bytes": 5313,
+      "source_sha256": "05cb38d79c48f568cb2df34cd092823a8bbdd9abb16274e39cbce48221176069"
     },
     {
       "api_sha256": "91d6874715880a35a62585f06ffc9096abb292f63d3e33e4da9ae209614c6e18",
