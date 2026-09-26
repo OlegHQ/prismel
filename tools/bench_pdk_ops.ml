@@ -3320,50 +3320,50 @@ let run_edge_transport_benchmarks () =
   let geometry = edge_transport_benchmark_fixture () in
   measure ~input_points:(Geometry.point_count geometry)
     "edge_transport_network_curve_distance" (fun () ->
-      Edge_transport_ops.run_checked ~grain ~attribute:"distance"
-        ~operation:Edge_transport_ops.Transport_total ~integrate_constant:true
+      Edge_transport.run ~grain ~attribute:"distance"
+        ~operation:Edge_transport.Transport_total ~integrate_constant:true
         ~scale_by_edge_length:true geometry |> get_ok) geometry_output;
   measure ~input_points:(Geometry.point_count geometry)
     "edge_transport_each_curve_distance" (fun () ->
-      Edge_transport_ops.run_curves_checked ~grain ~attribute:"distance"
-        ~operation:Edge_transport_ops.Transport_total ~integrate_constant:true
+      Edge_transport.run_curves ~grain ~attribute:"distance"
+        ~operation:Edge_transport.Transport_total ~integrate_constant:true
         ~scale_by_edge_length:true geometry |> get_ok) geometry_output;
   let many = edge_transport_many_curves_fixture () in
   measure ~input_points:(Geometry.point_count many)
     "edge_transport_many_curves_distance" (fun () ->
-      Edge_transport_ops.run_curves_checked ~grain ~attribute:"distance"
-        ~operation:Edge_transport_ops.Transport_total ~integrate_constant:true
+      Edge_transport.run_curves ~grain ~attribute:"distance"
+        ~operation:Edge_transport.Transport_total ~integrate_constant:true
         ~scale_by_edge_length:true many |> get_ok) geometry_output;
   measure ~input_points:(Geometry.point_count many)
     "edge_transport_network_many_curves_forward_total" (fun () ->
-      Edge_transport_ops.run_checked ~grain ~attribute:"depth"
-        ~operation:Edge_transport_ops.Transport_total ~integrate_constant:true many
+      Edge_transport.run ~grain ~attribute:"depth"
+        ~operation:Edge_transport.Transport_total ~integrate_constant:true many
         |> get_ok) geometry_output;
   measure ~input_points:(Geometry.point_count many)
     "edge_transport_network_many_curves_backward_total" (fun () ->
-      Edge_transport_ops.run_checked ~grain ~attribute:"depth"
-        ~direction:Edge_transport_ops.Transport_backward ~operation:Edge_transport_ops.Transport_total
-        ~integrate_constant:true ~merge:Edge_transport_ops.Transport_merge_add many
+      Edge_transport.run ~grain ~attribute:"depth"
+        ~direction:Edge_transport.Transport_backward ~operation:Edge_transport.Transport_total
+        ~integrate_constant:true ~merge:Edge_transport.Transport_merge_add many
         |> get_ok) geometry_output
 
 let run_edge_transport_parent_benchmarks () =
   let geometry = edge_transport_parent_fixture () in
   measure ~input_points:(Geometry.point_count geometry)
     "edge_transport_parent_distance" (fun () ->
-      Edge_transport_ops.run_parent_checked ~grain ~attribute:"distance"
-        ~operation:Edge_transport_ops.Transport_total ~integrate_constant:true
+      Edge_transport.run_parent ~grain ~attribute:"distance"
+        ~operation:Edge_transport.Transport_total ~integrate_constant:true
         ~scale_by_edge_length:true geometry |> get_ok) geometry_output;
   measure ~input_points:(Geometry.point_count geometry)
     "edge_transport_parent_backward_total" (fun () ->
-      Edge_transport_ops.run_parent_checked ~grain ~attribute:"total"
-        ~direction:Edge_transport_ops.Transport_backward ~operation:Edge_transport_ops.Transport_total
-        ~integrate_constant:true ~merge:Edge_transport_ops.Transport_merge_add geometry
+      Edge_transport.run_parent ~grain ~attribute:"total"
+        ~direction:Edge_transport.Transport_backward ~operation:Edge_transport.Transport_total
+        ~integrate_constant:true ~merge:Edge_transport.Transport_merge_add geometry
         |> get_ok) geometry_output;
   let unordered = edge_transport_parent_unordered_fixture () in
   measure ~input_points:(Geometry.point_count unordered)
     "edge_transport_parent_unordered_distance" (fun () ->
-      Edge_transport_ops.run_parent_checked ~grain ~attribute:"distance"
-        ~operation:Edge_transport_ops.Transport_total ~integrate_constant:true
+      Edge_transport.run_parent ~grain ~attribute:"distance"
+        ~operation:Edge_transport.Transport_total ~integrate_constant:true
         ~scale_by_edge_length:true unordered |> get_ok) geometry_output
 
 let blend_shapes_fixture () =

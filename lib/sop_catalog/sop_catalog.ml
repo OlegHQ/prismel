@@ -216,37 +216,37 @@ let group_copy_conflict_parameter = Parameter.choice ~equal:( = ) [
   ]
 
 let edge_transport_direction_parameter = Parameter.choice ~equal:( = ) [
-    "Forward", Pdk.Edge_transport_ops.Transport_forward;
-    "Backward", Pdk.Edge_transport_ops.Transport_backward;
+    "Forward", Pdk.Edge_transport.Transport_forward;
+    "Backward", Pdk.Edge_transport.Transport_backward;
   ]
 
 let edge_transport_operation_parameter = Parameter.choice ~equal:( = ) [
-    "Transport", Pdk.Edge_transport_ops.Transport;
-    "From root", Pdk.Edge_transport_ops.Transport_from_root;
-    "Total", Pdk.Edge_transport_ops.Transport_total;
-    "Maximum", Pdk.Edge_transport_ops.Transport_maximum;
-    "Minimum", Pdk.Edge_transport_ops.Transport_minimum;
+    "Transport", Pdk.Edge_transport.Transport;
+    "From root", Pdk.Edge_transport.Transport_from_root;
+    "Total", Pdk.Edge_transport.Transport_total;
+    "Maximum", Pdk.Edge_transport.Transport_maximum;
+    "Minimum", Pdk.Edge_transport.Transport_minimum;
   ]
 
 let edge_transport_root_value_parameter = Parameter.choice ~equal:( = ) [
-    "Zero", Pdk.Edge_transport_ops.Transport_root_zero;
-    "Hold", Pdk.Edge_transport_ops.Transport_root_hold;
+    "Zero", Pdk.Edge_transport.Transport_root_zero;
+    "Hold", Pdk.Edge_transport.Transport_root_hold;
   ]
 
 let edge_transport_normalization_parameter = Parameter.choice ~equal:( = ) [
-    "None", Pdk.Edge_transport_ops.Transport_no_normalization;
-    "Per component", Pdk.Edge_transport_ops.Transport_normalize_components;
-    "Global", Pdk.Edge_transport_ops.Transport_normalize_global;
+    "None", Pdk.Edge_transport.Transport_no_normalization;
+    "Per component", Pdk.Edge_transport.Transport_normalize_components;
+    "Global", Pdk.Edge_transport.Transport_normalize_global;
   ]
 
 let edge_transport_split_parameter = Parameter.choice ~equal:( = ) [
-    "Copy", Pdk.Edge_transport_ops.Transport_copy; "Split", Pdk.Edge_transport_ops.Transport_split;
+    "Copy", Pdk.Edge_transport.Transport_copy; "Split", Pdk.Edge_transport.Transport_split;
   ]
 
 let edge_transport_merge_parameter = Parameter.choice ~equal:( = ) [
-    "Add", Pdk.Edge_transport_ops.Transport_merge_add;
-    "Maximum", Pdk.Edge_transport_ops.Transport_merge_maximum;
-    "Minimum", Pdk.Edge_transport_ops.Transport_merge_minimum;
+    "Add", Pdk.Edge_transport.Transport_merge_add;
+    "Maximum", Pdk.Edge_transport.Transport_merge_maximum;
+    "Minimum", Pdk.Edge_transport.Transport_merge_minimum;
   ]
 
 type numeric_kind = Numeric_scalar | Numeric_vec2 | Numeric_vec3 | Numeric_vec4
@@ -6614,9 +6614,9 @@ let transport_roots_parameter = Parameter.choice ~equal:( = ) [
     "Root group", Transport_group;
   ]
 let transport_roots mode group = match mode with
-  | Transport_first -> None, Pdk.Edge_transport_ops.Transport_first_point
-  | Transport_last -> None, Pdk.Edge_transport_ops.Transport_last_point
-  | Transport_group -> optional_text group, Pdk.Edge_transport_ops.Transport_first_point
+  | Transport_first -> None, Pdk.Edge_transport.Transport_first_point
+  | Transport_last -> None, Pdk.Edge_transport.Transport_last_point
+  | Transport_group -> optional_text group, Pdk.Edge_transport.Transport_first_point
 
 module Edge_transport = struct
   type parameters = {
@@ -6625,26 +6625,26 @@ module Edge_transport = struct
     roots : transport_roots [@sop.default Transport_first]
       [@sop.label "Roots"] [@sop.kind transport_roots_parameter];
     root_group : string [@sop.default ""] [@sop.label "Root group"];
-    direction : Pdk.Edge_transport_ops.direction
-      [@sop.default Pdk.Edge_transport_ops.Transport_forward] [@sop.label "Direction"]
+    direction : Pdk.Edge_transport.direction
+      [@sop.default Pdk.Edge_transport.Transport_forward] [@sop.label "Direction"]
       [@sop.kind edge_transport_direction_parameter];
-    operation : Pdk.Edge_transport_ops.operation
-      [@sop.default Pdk.Edge_transport_ops.Transport] [@sop.label "Operation"]
+    operation : Pdk.Edge_transport.operation
+      [@sop.default Pdk.Edge_transport.Transport] [@sop.label "Operation"]
       [@sop.kind edge_transport_operation_parameter];
-    root_value : Pdk.Edge_transport_ops.root_value
-      [@sop.default Pdk.Edge_transport_ops.Transport_root_zero] [@sop.label "Root value"]
+    root_value : Pdk.Edge_transport.root_value
+      [@sop.default Pdk.Edge_transport.Transport_root_zero] [@sop.label "Root value"]
       [@sop.kind edge_transport_root_value_parameter];
     integrate_constant : bool [@sop.default false]
       [@sop.label "Integrate constant"];
     scale_by_edge_length : bool [@sop.default false]
       [@sop.label "Scale by edge length"];
-    split : Pdk.Edge_transport_ops.split [@sop.default Pdk.Edge_transport_ops.Transport_copy]
+    split : Pdk.Edge_transport.split [@sop.default Pdk.Edge_transport.Transport_copy]
       [@sop.label "Branch split"] [@sop.kind edge_transport_split_parameter];
-    merge : Pdk.Edge_transport_ops.merge
-      [@sop.default Pdk.Edge_transport_ops.Transport_merge_add]
+    merge : Pdk.Edge_transport.merge
+      [@sop.default Pdk.Edge_transport.Transport_merge_add]
       [@sop.label "Branch merge"] [@sop.kind edge_transport_merge_parameter];
-    normalization : Pdk.Edge_transport_ops.normalization
-      [@sop.default Pdk.Edge_transport_ops.Transport_no_normalization]
+    normalization : Pdk.Edge_transport.normalization
+      [@sop.default Pdk.Edge_transport.Transport_no_normalization]
       [@sop.label "Normalization"]
       [@sop.kind edge_transport_normalization_parameter];
   } [@@sop.node_key "edge_transport"] [@@sop.node_label "Edge Transport"]
@@ -6672,21 +6672,21 @@ module Edge_transport_curves = struct
       [@sop.label "Primitive group"];
     owner : Pdk.Attribute.owner [@sop.default Pdk.Attribute.Point]
       [@sop.label "Attribute owner"] [@sop.kind uv_owner_parameter];
-    direction : Pdk.Edge_transport_ops.direction
-      [@sop.default Pdk.Edge_transport_ops.Transport_forward] [@sop.label "Direction"]
+    direction : Pdk.Edge_transport.direction
+      [@sop.default Pdk.Edge_transport.Transport_forward] [@sop.label "Direction"]
       [@sop.kind edge_transport_direction_parameter];
-    operation : Pdk.Edge_transport_ops.operation
-      [@sop.default Pdk.Edge_transport_ops.Transport] [@sop.label "Operation"]
+    operation : Pdk.Edge_transport.operation
+      [@sop.default Pdk.Edge_transport.Transport] [@sop.label "Operation"]
       [@sop.kind edge_transport_operation_parameter];
-    root_value : Pdk.Edge_transport_ops.root_value
-      [@sop.default Pdk.Edge_transport_ops.Transport_root_zero] [@sop.label "Root value"]
+    root_value : Pdk.Edge_transport.root_value
+      [@sop.default Pdk.Edge_transport.Transport_root_zero] [@sop.label "Root value"]
       [@sop.kind edge_transport_root_value_parameter];
     integrate_constant : bool [@sop.default false]
       [@sop.label "Integrate constant"];
     scale_by_edge_length : bool [@sop.default false]
       [@sop.label "Scale by edge length"];
-    normalization : Pdk.Edge_transport_ops.normalization
-      [@sop.default Pdk.Edge_transport_ops.Transport_no_normalization]
+    normalization : Pdk.Edge_transport.normalization
+      [@sop.default Pdk.Edge_transport.Transport_no_normalization]
       [@sop.label "Normalization"]
       [@sop.kind edge_transport_normalization_parameter];
   } [@@sop.node_key "edge_transport_curves"]
@@ -6711,26 +6711,26 @@ module Edge_transport_parent = struct
     point_group : string [@sop.default ""] [@sop.label "Point group"];
     parent_attribute : string [@sop.default "parent"]
       [@sop.label "Parent attribute"];
-    direction : Pdk.Edge_transport_ops.direction
-      [@sop.default Pdk.Edge_transport_ops.Transport_forward] [@sop.label "Direction"]
+    direction : Pdk.Edge_transport.direction
+      [@sop.default Pdk.Edge_transport.Transport_forward] [@sop.label "Direction"]
       [@sop.kind edge_transport_direction_parameter];
-    operation : Pdk.Edge_transport_ops.operation
-      [@sop.default Pdk.Edge_transport_ops.Transport] [@sop.label "Operation"]
+    operation : Pdk.Edge_transport.operation
+      [@sop.default Pdk.Edge_transport.Transport] [@sop.label "Operation"]
       [@sop.kind edge_transport_operation_parameter];
-    root_value : Pdk.Edge_transport_ops.root_value
-      [@sop.default Pdk.Edge_transport_ops.Transport_root_zero] [@sop.label "Root value"]
+    root_value : Pdk.Edge_transport.root_value
+      [@sop.default Pdk.Edge_transport.Transport_root_zero] [@sop.label "Root value"]
       [@sop.kind edge_transport_root_value_parameter];
     integrate_constant : bool [@sop.default false]
       [@sop.label "Integrate constant"];
     scale_by_edge_length : bool [@sop.default false]
       [@sop.label "Scale by edge length"];
-    split : Pdk.Edge_transport_ops.split [@sop.default Pdk.Edge_transport_ops.Transport_copy]
+    split : Pdk.Edge_transport.split [@sop.default Pdk.Edge_transport.Transport_copy]
       [@sop.label "Branch split"] [@sop.kind edge_transport_split_parameter];
-    merge : Pdk.Edge_transport_ops.merge
-      [@sop.default Pdk.Edge_transport_ops.Transport_merge_add]
+    merge : Pdk.Edge_transport.merge
+      [@sop.default Pdk.Edge_transport.Transport_merge_add]
       [@sop.label "Branch merge"] [@sop.kind edge_transport_merge_parameter];
-    normalization : Pdk.Edge_transport_ops.normalization
-      [@sop.default Pdk.Edge_transport_ops.Transport_no_normalization]
+    normalization : Pdk.Edge_transport.normalization
+      [@sop.default Pdk.Edge_transport.Transport_no_normalization]
       [@sop.label "Normalization"]
       [@sop.kind edge_transport_normalization_parameter];
   } [@@sop.node_key "edge_transport_parent"]

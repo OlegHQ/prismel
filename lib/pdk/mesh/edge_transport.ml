@@ -110,6 +110,7 @@ let run ?cancel ?(grain = 16_384) ?points ?(roots = Transport_first_point)
     ?(split = Transport_copy) ?(direction = Transport_forward)
     ?(merge = Transport_merge_add)
     ?(normalization = Transport_no_normalization) ~attribute geometry =
+  Error.guard ~operation:"edge_transport" ~code:"invalid_edge_transport" @@ fun () ->
   try
     if grain <= 0 then fail "Edge Transport grain must be positive";
     if String.trim attribute = "" || attribute = "P" then
@@ -523,6 +524,7 @@ let run_parent ?cancel ?(grain = 16_384) ?points
     ?(integrate_constant = false) ?(scale_by_edge_length = false)
     ?(split = Transport_copy) ?(merge = Transport_merge_add)
     ?(normalization = Transport_no_normalization) ~attribute geometry =
+  Error.guard ~operation:"edge_transport_parent" ~code:"invalid_edge_transport" @@ fun () ->
   try
     if grain <= 0 then fail "Edge Transport Parent grain must be positive";
     if String.trim parent_attribute = "" then
@@ -867,6 +869,7 @@ let run_curves ?cancel ?(grain = 16_384) ?primitives
     ?(operation = Transport) ?(root_value = Transport_root_hold)
     ?(integrate_constant = false) ?(scale_by_edge_length = false)
     ?(normalization = Transport_no_normalization) ~attribute geometry =
+  Error.guard ~operation:"edge_transport_curves" ~code:"invalid_edge_transport" @@ fun () ->
   try
     if grain <= 0 then fail "Edge Transport Each Curve grain must be positive";
     if String.trim attribute = "" || attribute = "P" then

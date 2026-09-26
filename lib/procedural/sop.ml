@@ -2002,34 +2002,34 @@ let edge_relax ?label ?group ?pin_group ?(iterations = 20)
           | Error error -> structured_pdk_error error)
 
 let edge_transport_roots_key = function
-  | Pdk.Edge_transport_ops.Transport_first_point -> "first"
-  | Pdk.Edge_transport_ops.Transport_last_point -> "last"
-  | Pdk.Edge_transport_ops.Transport_root_group _ -> "group"
+  | Pdk.Edge_transport.Transport_first_point -> "first"
+  | Pdk.Edge_transport.Transport_last_point -> "last"
+  | Pdk.Edge_transport.Transport_root_group _ -> "group"
 
 let edge_transport_operation_key = function
-  | Pdk.Edge_transport_ops.Transport -> "transport"
-  | Pdk.Edge_transport_ops.Transport_from_root -> "from_root"
-  | Pdk.Edge_transport_ops.Transport_total -> "total"
-  | Pdk.Edge_transport_ops.Transport_maximum -> "maximum"
-  | Pdk.Edge_transport_ops.Transport_minimum -> "minimum"
+  | Pdk.Edge_transport.Transport -> "transport"
+  | Pdk.Edge_transport.Transport_from_root -> "from_root"
+  | Pdk.Edge_transport.Transport_total -> "total"
+  | Pdk.Edge_transport.Transport_maximum -> "maximum"
+  | Pdk.Edge_transport.Transport_minimum -> "minimum"
 
 let edge_transport_split_key = function
-  | Pdk.Edge_transport_ops.Transport_copy -> "copy"
-  | Pdk.Edge_transport_ops.Transport_split -> "split"
+  | Pdk.Edge_transport.Transport_copy -> "copy"
+  | Pdk.Edge_transport.Transport_split -> "split"
 
 let edge_transport_normalization_key = function
-  | Pdk.Edge_transport_ops.Transport_no_normalization -> "none"
-  | Pdk.Edge_transport_ops.Transport_normalize_components -> "components"
-  | Pdk.Edge_transport_ops.Transport_normalize_global -> "global"
+  | Pdk.Edge_transport.Transport_no_normalization -> "none"
+  | Pdk.Edge_transport.Transport_normalize_components -> "components"
+  | Pdk.Edge_transport.Transport_normalize_global -> "global"
 
 let edge_transport_direction_key = function
-  | Pdk.Edge_transport_ops.Transport_forward -> "forward"
-  | Pdk.Edge_transport_ops.Transport_backward -> "backward"
+  | Pdk.Edge_transport.Transport_forward -> "forward"
+  | Pdk.Edge_transport.Transport_backward -> "backward"
 
 let edge_transport_merge_key = function
-  | Pdk.Edge_transport_ops.Transport_merge_add -> "add"
-  | Pdk.Edge_transport_ops.Transport_merge_maximum -> "maximum"
-  | Pdk.Edge_transport_ops.Transport_merge_minimum -> "minimum"
+  | Pdk.Edge_transport.Transport_merge_add -> "add"
+  | Pdk.Edge_transport.Transport_merge_maximum -> "maximum"
+  | Pdk.Edge_transport.Transport_merge_minimum -> "minimum"
 
 type blend_shape = {
   blend_node : Node.t;
@@ -2323,14 +2323,14 @@ let rewire_vertices ?label ?selection ?(recursive = false)
           | Error error -> structured_pdk_error error)
 
 let edge_transport ?label ?point_group ?root_group
-    ?(roots = Pdk.Edge_transport_ops.Transport_first_point)
-    ?(direction = Pdk.Edge_transport_ops.Transport_forward)
-    ?(operation = Pdk.Edge_transport_ops.Transport)
-    ?(root_value = Pdk.Edge_transport_ops.Transport_root_hold)
+    ?(roots = Pdk.Edge_transport.Transport_first_point)
+    ?(direction = Pdk.Edge_transport.Transport_forward)
+    ?(operation = Pdk.Edge_transport.Transport)
+    ?(root_value = Pdk.Edge_transport.Transport_root_hold)
     ?(integrate_constant = false) ?(scale_by_edge_length = false)
-    ?(split = Pdk.Edge_transport_ops.Transport_copy)
-    ?(merge = Pdk.Edge_transport_ops.Transport_merge_add)
-    ?(normalization = Pdk.Edge_transport_ops.Transport_no_normalization) ~attribute input =
+    ?(split = Pdk.Edge_transport.Transport_copy)
+    ?(merge = Pdk.Edge_transport.Transport_merge_add)
+    ?(normalization = Pdk.Edge_transport.Transport_no_normalization) ~attribute input =
   List.iter (fun (kind, name) -> Option.iter (fun name ->
       if String.trim name = "" then
         invalid_arg ("Sop.edge_transport: empty " ^ kind ^ " group name")) name)
@@ -2338,9 +2338,9 @@ let edge_transport ?label ?point_group ?root_group
   if String.trim attribute = "" || attribute = "P" then
     invalid_arg "Sop.edge_transport: attribute must be non-empty and not P";
   (match roots, root_group with
-   | Pdk.Edge_transport_ops.Transport_root_group _, _ ->
+   | Pdk.Edge_transport.Transport_root_group _, _ ->
        invalid_arg "Sop.edge_transport: construct grouped roots with ~root_group"
-   | (Pdk.Edge_transport_ops.Transport_first_point | Pdk.Edge_transport_ops.Transport_last_point), Some _ -> ()
+   | (Pdk.Edge_transport.Transport_first_point | Pdk.Edge_transport.Transport_last_point), Some _ -> ()
    | _, None -> ());
   let roots_key = if Option.is_some root_group then "group"
     else edge_transport_roots_key roots in
@@ -2350,8 +2350,8 @@ let edge_transport ?label ?point_group ?root_group
       (option_string_key point_group) roots_key (option_string_key root_group)
       (edge_transport_direction_key direction)
       (edge_transport_operation_key operation)
-      (match root_value with Pdk.Edge_transport_ops.Transport_root_zero -> "zero"
-        | Pdk.Edge_transport_ops.Transport_root_hold -> "hold")
+      (match root_value with Pdk.Edge_transport.Transport_root_zero -> "zero"
+        | Pdk.Edge_transport.Transport_root_hold -> "hold")
       integrate_constant scale_by_edge_length (edge_transport_split_key split)
       (edge_transport_merge_key merge)
       (edge_transport_normalization_key normalization) attribute)
@@ -2364,14 +2364,14 @@ let edge_transport ?label ?point_group ?root_group
         | None -> Ok roots
         | Some name ->
             (match Pdk.Geometry.find_group ~owner:Pdk.Group.Point name geometry with
-             | Some group -> Ok (Pdk.Edge_transport_ops.Transport_root_group group)
+             | Some group -> Ok (Pdk.Edge_transport.Transport_root_group group)
              | None -> Error (Diagnostic.error ~code:"missing_group"
                  (Printf.sprintf "edge_transport could not find root point group %S"
                     name))) in
       match points, roots with
       | Error error, _ | _, Error error -> Error error
       | Ok points, Ok roots ->
-          match Pdk.Edge_transport_ops.run_checked ~cancel:(Context.cancel_token context)
+          match Pdk.Edge_transport.run ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?points ~roots ~operation ~root_value
               ~integrate_constant ~scale_by_edge_length ~split ~direction ~merge
               ~normalization ~attribute geometry with
@@ -2380,11 +2380,11 @@ let edge_transport ?label ?point_group ?root_group
 
 let edge_transport_curves ?label ?primitive_group
     ?(owner = Pdk.Attribute.Point)
-    ?(direction = Pdk.Edge_transport_ops.Transport_forward)
-    ?(operation = Pdk.Edge_transport_ops.Transport)
-    ?(root_value = Pdk.Edge_transport_ops.Transport_root_hold)
+    ?(direction = Pdk.Edge_transport.Transport_forward)
+    ?(operation = Pdk.Edge_transport.Transport)
+    ?(root_value = Pdk.Edge_transport.Transport_root_hold)
     ?(integrate_constant = false) ?(scale_by_edge_length = false)
-    ?(normalization = Pdk.Edge_transport_ops.Transport_no_normalization) ~attribute input =
+    ?(normalization = Pdk.Edge_transport.Transport_no_normalization) ~attribute input =
   Option.iter (fun name -> if String.trim name = "" then
     invalid_arg "Sop.edge_transport_curves: empty primitive group name")
     primitive_group;
@@ -2403,8 +2403,8 @@ let edge_transport_curves ?label ?primitive_group
       (option_string_key primitive_group) owner_key
       (edge_transport_direction_key direction)
       (edge_transport_operation_key operation)
-      (match root_value with Pdk.Edge_transport_ops.Transport_root_zero -> "zero"
-        | Pdk.Edge_transport_ops.Transport_root_hold -> "hold")
+      (match root_value with Pdk.Edge_transport.Transport_root_zero -> "zero"
+        | Pdk.Edge_transport.Transport_root_hold -> "hold")
       integrate_constant scale_by_edge_length
       (edge_transport_normalization_key normalization) attribute)
     ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
@@ -2414,7 +2414,7 @@ let edge_transport_curves ?label ?primitive_group
           primitive_group geometry with
       | Error error -> Error error
       | Ok primitives ->
-          match Pdk.Edge_transport_ops.run_curves_checked
+          match Pdk.Edge_transport.run_curves
               ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?primitives ~owner ~direction
               ~operation ~root_value ~integrate_constant ~scale_by_edge_length
@@ -2423,13 +2423,13 @@ let edge_transport_curves ?label ?primitive_group
           | Error error -> structured_pdk_error error)
 
 let edge_transport_parent ?label ?point_group ?(parent_attribute = "parent")
-    ?(direction = Pdk.Edge_transport_ops.Transport_forward)
-    ?(operation = Pdk.Edge_transport_ops.Transport)
-    ?(root_value = Pdk.Edge_transport_ops.Transport_root_hold)
+    ?(direction = Pdk.Edge_transport.Transport_forward)
+    ?(operation = Pdk.Edge_transport.Transport)
+    ?(root_value = Pdk.Edge_transport.Transport_root_hold)
     ?(integrate_constant = false) ?(scale_by_edge_length = false)
-    ?(split = Pdk.Edge_transport_ops.Transport_copy)
-    ?(merge = Pdk.Edge_transport_ops.Transport_merge_add)
-    ?(normalization = Pdk.Edge_transport_ops.Transport_no_normalization) ~attribute input =
+    ?(split = Pdk.Edge_transport.Transport_copy)
+    ?(merge = Pdk.Edge_transport.Transport_merge_add)
+    ?(normalization = Pdk.Edge_transport.Transport_no_normalization) ~attribute input =
   Option.iter (fun name -> if String.trim name = "" then
     invalid_arg "Sop.edge_transport_parent: empty point group name") point_group;
   if String.trim parent_attribute = "" then
@@ -2443,8 +2443,8 @@ let edge_transport_parent ?label ?point_group ?(parent_attribute = "parent")
       (option_string_key point_group) parent_attribute
       (edge_transport_direction_key direction)
       (edge_transport_operation_key operation)
-      (match root_value with Pdk.Edge_transport_ops.Transport_root_zero -> "zero"
-        | Pdk.Edge_transport_ops.Transport_root_hold -> "hold")
+      (match root_value with Pdk.Edge_transport.Transport_root_zero -> "zero"
+        | Pdk.Edge_transport.Transport_root_hold -> "hold")
       integrate_constant scale_by_edge_length (edge_transport_split_key split)
       (edge_transport_merge_key merge)
       (edge_transport_normalization_key normalization) attribute)
@@ -2455,7 +2455,7 @@ let edge_transport_parent ?label ?point_group ?(parent_attribute = "parent")
           geometry with
       | Error error -> Error error
       | Ok points ->
-          match Pdk.Edge_transport_ops.run_parent_checked
+          match Pdk.Edge_transport.run_parent
               ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?points ~parent_attribute ~direction
               ~operation ~root_value ~integrate_constant ~scale_by_edge_length

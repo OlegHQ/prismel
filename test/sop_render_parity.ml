@@ -110,7 +110,7 @@ let rows = [
   "edge_transport", (fun () ->
     grid () |> Sop.set_float ~owner:Pdk.Attribute.Point ~name:"distance" 0.
     |> Sop.edge_transport ~attribute:"distance"
-      ~operation:Pdk.Edge_transport_ops.Transport_total
+      ~operation:Pdk.Edge_transport.Transport_total
     |> Sop.peak ~mask_attribute:"distance" ~distance:0.25),
     point_attribute "distance";
   "extract_centroid", (fun () ->

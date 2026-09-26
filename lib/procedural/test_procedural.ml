@@ -4308,9 +4308,9 @@ let test_edge_transport_contract () =
   let network = Sop.polyline [|0.,0.,0.;1.,0.,0.;3.,0.,0.|]
       |> Sop.group ~name:"tip" (Select.point_indices [|2|]) in
   let network_graph = network |> Sop.edge_transport ~label:"network-distance"
-      ~root_group:"tip" ~operation:Pdk.Edge_transport_ops.Transport_total
+      ~root_group:"tip" ~operation:Pdk.Edge_transport.Transport_total
       ~integrate_constant:true ~scale_by_edge_length:true
-      ~normalization:Pdk.Edge_transport_ops.Transport_no_normalization ~attribute:"distance" in
+      ~normalization:Pdk.Edge_transport.Transport_no_normalization ~attribute:"distance" in
   check (Node.version network_graph = 1
       && contains (Node.parameters network_graph) "roots=group"
       && contains (Node.parameters network_graph) "root_group=tip"
@@ -4324,9 +4324,9 @@ let test_edge_transport_contract () =
     "procedural Edge Transport static cook was not cached";
   let backward_network = network
       |> Sop.edge_transport ~label:"network-backward"
-           ~direction:Pdk.Edge_transport_ops.Transport_backward
-           ~operation:Pdk.Edge_transport_ops.Transport_total ~integrate_constant:true
-           ~merge:Pdk.Edge_transport_ops.Transport_merge_maximum ~attribute:"depth" in
+           ~direction:Pdk.Edge_transport.Transport_backward
+           ~operation:Pdk.Edge_transport.Transport_total ~integrate_constant:true
+           ~merge:Pdk.Edge_transport.Transport_merge_maximum ~attribute:"depth" in
   check (contains (Node.parameters backward_network) "direction=backward"
       && contains (Node.parameters backward_network) "merge=maximum")
     "procedural Edge Transport backward cache identity";
@@ -4348,9 +4348,9 @@ let test_edge_transport_contract () =
       Sop.polyline [|0.,2.,0.;2.,2.,0.;5.,2.,0.|];
     ] in
   let curve_graph = curves |> Sop.edge_transport_curves ~label:"curve-distance"
-      ~operation:Pdk.Edge_transport_ops.Transport_total ~integrate_constant:true
+      ~operation:Pdk.Edge_transport.Transport_total ~integrate_constant:true
       ~scale_by_edge_length:true
-      ~normalization:Pdk.Edge_transport_ops.Transport_normalize_components
+      ~normalization:Pdk.Edge_transport.Transport_normalize_components
       ~attribute:"distance" in
   check (Node.version curve_graph = 1
       && contains (Node.parameters curve_graph) "owner=point"
@@ -4364,7 +4364,7 @@ let test_edge_transport_contract () =
   let restricted = curves
       |> Sop.group ~name:"first_curve" (Select.primitive_indices [|0|])
       |> Sop.edge_transport_curves ~primitive_group:"first_curve"
-           ~operation:Pdk.Edge_transport_ops.Transport_total ~integrate_constant:true
+           ~operation:Pdk.Edge_transport.Transport_total ~integrate_constant:true
            ~attribute:"depth"
       |> cook_ok evaluator current in
   check (float_values Pdk.Attribute.Point "depth" restricted.geometry
@@ -4392,7 +4392,7 @@ let test_edge_transport_contract () =
   let parent_source = Sop.snapshot parent_geometry in
   let parent_graph = parent_source
       |> Sop.edge_transport_parent ~label:"parent-distance"
-           ~operation:Pdk.Edge_transport_ops.Transport_total ~integrate_constant:true
+           ~operation:Pdk.Edge_transport.Transport_total ~integrate_constant:true
            ~scale_by_edge_length:true ~attribute:"distance" in
   check (Node.version parent_graph = 1
       && contains (Node.parameters parent_graph) "parent_attribute=\"parent\""
@@ -4404,15 +4404,15 @@ let test_edge_transport_contract () =
       = [|0.;1.;2.;2.;4.;0.;4.|])
     "procedural Edge Transport Parent distance";
   let backward_parent = parent_source
-      |> Sop.edge_transport_parent ~direction:Pdk.Edge_transport_ops.Transport_backward
-           ~operation:Pdk.Edge_transport_ops.Transport_total ~integrate_constant:true
-           ~merge:Pdk.Edge_transport_ops.Transport_merge_add ~attribute:"depth"
+      |> Sop.edge_transport_parent ~direction:Pdk.Edge_transport.Transport_backward
+           ~operation:Pdk.Edge_transport.Transport_total ~integrate_constant:true
+           ~merge:Pdk.Edge_transport.Transport_merge_add ~attribute:"depth"
       |> cook_ok evaluator current in
   check (float_values Pdk.Attribute.Point "depth" backward_parent.geometry
       = [|4.;2.;0.;0.;0.;1.;0.|])
     "procedural Edge Transport Parent backward merge";
   let missing_parent = Sop.points [|0.,0.,0.|]
-      |> Sop.edge_transport_parent ~operation:Pdk.Edge_transport_ops.Transport_total
+      |> Sop.edge_transport_parent ~operation:Pdk.Edge_transport.Transport_total
            ~integrate_constant:true ~attribute:"depth" in
   (match Session.cook evaluator ~context:current missing_parent with
    | Error error -> check (error.code = "invalid_edge_transport")
@@ -4447,7 +4447,7 @@ let test_edge_transport_contract () =
       ~positions:(Pdk.Packed.Float3.Private.of_owned_exn ~x ~y ~z)
       ~topology () |> get_ok in
   let exact_graph = Sop.snapshot geometry |> Sop.edge_transport_curves
-      ~operation:Pdk.Edge_transport_ops.Transport_total ~integrate_constant:true
+      ~operation:Pdk.Edge_transport.Transport_total ~integrate_constant:true
       ~scale_by_edge_length:true ~attribute:"distance" in
   let cook graph domains =
     let evaluator = session () in
@@ -4468,7 +4468,7 @@ let test_edge_transport_contract () =
   let parent_geometry = Pdk.Geometry.with_attribute parent_attribute geometry
       |> get_ok in
   let parent_exact = Sop.snapshot parent_geometry
-      |> Sop.edge_transport_parent ~operation:Pdk.Edge_transport_ops.Transport_total
+      |> Sop.edge_transport_parent ~operation:Pdk.Edge_transport.Transport_total
            ~integrate_constant:true ~scale_by_edge_length:true
            ~attribute:"distance" in
   let parent_one = cook parent_exact 1 and parent_four = cook parent_exact 4 in

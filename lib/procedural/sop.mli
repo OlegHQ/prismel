@@ -857,15 +857,15 @@ val edge_transport :
   ?label:string ->
   ?point_group:string ->
   ?root_group:string ->
-  ?roots:Pdk.Edge_transport_ops.roots ->
-  ?direction:Pdk.Edge_transport_ops.direction ->
-  ?operation:Pdk.Edge_transport_ops.operation ->
-  ?root_value:Pdk.Edge_transport_ops.root_value ->
+  ?roots:Pdk.Edge_transport.roots ->
+  ?direction:Pdk.Edge_transport.direction ->
+  ?operation:Pdk.Edge_transport.operation ->
+  ?root_value:Pdk.Edge_transport.root_value ->
   ?integrate_constant:bool ->
   ?scale_by_edge_length:bool ->
-  ?split:Pdk.Edge_transport_ops.split ->
-  ?merge:Pdk.Edge_transport_ops.merge ->
-  ?normalization:Pdk.Edge_transport_ops.normalization ->
+  ?split:Pdk.Edge_transport.split ->
+  ?merge:Pdk.Edge_transport.merge ->
+  ?normalization:Pdk.Edge_transport.normalization ->
   attribute:string ->
   Node.t -> Node.t
 (* Transport a scalar point or vertex field independently along selected
@@ -877,12 +877,12 @@ val edge_transport_curves :
   ?label:string ->
   ?primitive_group:string ->
   ?owner:Pdk.Attribute.owner ->
-  ?direction:Pdk.Edge_transport_ops.direction ->
-  ?operation:Pdk.Edge_transport_ops.operation ->
-  ?root_value:Pdk.Edge_transport_ops.root_value ->
+  ?direction:Pdk.Edge_transport.direction ->
+  ?operation:Pdk.Edge_transport.operation ->
+  ?root_value:Pdk.Edge_transport.root_value ->
   ?integrate_constant:bool ->
   ?scale_by_edge_length:bool ->
-  ?normalization:Pdk.Edge_transport_ops.normalization ->
+  ?normalization:Pdk.Edge_transport.normalization ->
   attribute:string ->
   Node.t -> Node.t
 (* Transport a scalar point field through an integer parent forest without
@@ -892,14 +892,14 @@ val edge_transport_parent :
   ?label:string ->
   ?point_group:string ->
   ?parent_attribute:string ->
-  ?direction:Pdk.Edge_transport_ops.direction ->
-  ?operation:Pdk.Edge_transport_ops.operation ->
-  ?root_value:Pdk.Edge_transport_ops.root_value ->
+  ?direction:Pdk.Edge_transport.direction ->
+  ?operation:Pdk.Edge_transport.operation ->
+  ?root_value:Pdk.Edge_transport.root_value ->
   ?integrate_constant:bool ->
   ?scale_by_edge_length:bool ->
-  ?split:Pdk.Edge_transport_ops.split ->
-  ?merge:Pdk.Edge_transport_ops.merge ->
-  ?normalization:Pdk.Edge_transport_ops.normalization ->
+  ?split:Pdk.Edge_transport.split ->
+  ?merge:Pdk.Edge_transport.merge ->
+  ?normalization:Pdk.Edge_transport.normalization ->
   attribute:string ->
   Node.t -> Node.t
 (* Expands the source once per target point. Target [pscale], [scale], and

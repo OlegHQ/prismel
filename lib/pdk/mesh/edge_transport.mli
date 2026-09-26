@@ -25,7 +25,7 @@ val run :
   ?normalization:normalization ->
   attribute:string ->
   Geometry.t ->
-  (Geometry.t, string) result
+  (Geometry.t, Error.t) result
 
 val run_curves :
   ?cancel:Cancel.t ->
@@ -40,7 +40,7 @@ val run_curves :
   ?normalization:normalization ->
   attribute:string ->
   Geometry.t ->
-  (Geometry.t, string) result
+  (Geometry.t, Error.t) result
 
 val run_parent :
   ?cancel:Cancel.t ->
@@ -57,4 +57,4 @@ val run_parent :
   ?normalization:normalization ->
   attribute:string ->
   Geometry.t ->
-  (Geometry.t, string) result
+  (Geometry.t, Error.t) result
