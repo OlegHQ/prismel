@@ -7,6 +7,7 @@ let tests = [
   "test_sketch_ui", Test_sketch_ui.run;
   "test_sop_catalog", Test_sop_catalog.run;
   "test_sketch_support", Test_sketch_support.run;
+  "test_terminal_boolean_normals", Test_terminal_boolean_normals.run;
   "dependency_gate", Dependency_gate.run;
   "sop_render_parity", Sop_render_parity.run;
 ]

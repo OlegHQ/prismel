@@ -292,7 +292,7 @@ let test_circle_generator_contract () =
         start_angle = 0.; end_angle = Float.pi })
       ~orientation:Pdk.Plane_generators.Circle_yz ~segments:12 ~radius:2. ()
       |> cook_ok evaluator current in
-  (match Bridge.to_mesh open_arc.geometry with
+  (match Pdk_prismel.Prismel_mesh.to_mesh open_arc.geometry with
    | Ok mesh -> check (Mesh.mode mesh = Mesh.Lines
          && Mesh.index_count mesh = 24)
        "procedural open Circle bridge"
@@ -729,15 +729,9 @@ let test_inspection_sharing_and_bridge () =
   let colored = cook_ok evaluator (context ()) colored in
   check (Pdk.Geometry.find_attribute ~owner:Pdk.Attribute.Point "Cd"
       colored.geometry <> None) "color_by_height did not create Cd";
-  (match Bridge.to_mesh colored.geometry with
+  (match Pdk_prismel.Prismel_mesh.to_mesh colored.geometry with
    | Error error -> fail (Pdk.Error.to_string error)
    | Ok mesh -> check (Mesh.index_count mesh = 36) "mesh bridge index count");
-  let first_mesh = Session.mesh evaluator colored.geometry |> get_ok
-  and second_mesh = Session.mesh evaluator colored.geometry |> get_ok in
-  check (first_mesh == second_mesh) "session rebuilt an unchanged render mesh";
-  let mesh_stats = Session.stats evaluator in
-  check (mesh_stats.mesh_misses = 1 && mesh_stats.mesh_hits = 1
-      && mesh_stats.retained_meshes = 1) "mesh cache accounting";
   Session.close evaluator
 
 let test_packed_instances () =
@@ -786,33 +780,6 @@ let test_packed_instances () =
       && raw_positions.y.(0) = raw_positions.y.(24)
       && raw_positions.z.(0) = raw_positions.z.(24))
     "Unpack SOP ignored apply_transform=false";
-  let first_mesh, first_transforms, _ =
-    match Bridge.cook_to_instances evaluator ~context:current duplicated with
-    | Ok value -> value
-    | Error error -> fail (Diagnostic.error_to_string error)
-  in
-  first_transforms.(0) <- Mat4.translation (Vec3.create 55. 0. 0.);
-  let second_mesh, second_transforms, _ =
-    match Bridge.cook_to_instances evaluator ~context:current duplicated with
-    | Ok value -> value
-    | Error error -> fail (Diagnostic.error_to_string error)
-  in
-  check (first_mesh == second_mesh && Array.length second_transforms = 3)
-    "packed instance bridge did not reuse its prototype mesh";
-  check (Mat4.nearly_equal second_transforms.(0)
-      (Mat4.scaling (Vec3.create 2. 1. 1.)) ~eps:0.)
-    "packed instance bridge exposed internal transforms";
-  let instance_node, _ =
-    match Bridge.cook_to_scene3 evaluator ~context:current duplicated with
-    | Ok value -> value
-    | Error error -> fail (Diagnostic.error_to_string error)
-  in
-  check (List.length
-      (Scene3.Private.drawings (Scene3.create [instance_node])) = 3)
-    "packed direct Scene3 bridge cardinality";
-  let stats = Session.stats evaluator in
-  check (stats.mesh_misses = 1 && stats.mesh_hits = 2)
-    "packed instance bridge mesh cache accounting";
   Session.close evaluator
 
 let test_snapshot_feedback_boundary () =
@@ -974,7 +941,7 @@ let test_generators_selections_and_delete () =
        "Match Size missing target-group diagnostic"
    | Ok _ -> fail "Match Size accepted a missing target group");
   let circle = Sop.circle ~segments:20 ~radius:2. () |> cook_ok evaluator current in
-  (match Bridge.to_mesh circle.geometry with
+  (match Pdk_prismel.Prismel_mesh.to_mesh circle.geometry with
    | Ok mesh -> check (Mesh.mode mesh = Mesh.Lines && Mesh.index_count mesh = 40)
        "circle render bridge"
    | Error error -> fail (Pdk.Error.to_string error));

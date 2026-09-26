@@ -88,7 +88,7 @@ let run () =
   let environment = Sketch_ui.Environment3.create ~graph
       ~factories:[null_factory]
       ~max_entries:4 ~max_payload_bytes:(16 * 1024 * 1024)
-      ~prepare:(fun output -> Bridge.to_mesh output.Session.geometry
+      ~prepare:(fun output -> Pdk_prismel.Prismel_mesh.to_mesh output.Session.geometry
         |> Result.map_error Pdk.Error.to_string)
       ~scene3:(fun _graph mesh -> Scene3.create [Scene3.mesh mesh]) ()
     |> Result.get_ok in
@@ -353,7 +353,7 @@ let run () =
       ~camera:(Easy_camera.create ~distance:6. ~inertia:false ())
       ~factories:Sop_catalog.Editor.factories
       ~max_entries:4 ~max_payload_bytes:(16 * 1024 * 1024)
-      ~prepare:(fun output -> Bridge.to_mesh output.Session.geometry
+      ~prepare:(fun output -> Pdk_prismel.Prismel_mesh.to_mesh output.Session.geometry
         |> Result.map_error Pdk.Error.to_string)
       ~scene3:(fun _graph mesh -> Scene3.create [Scene3.mesh mesh]) ()
     |> Result.get_ok in
@@ -498,7 +498,7 @@ let run () =
   let environment2 = Sketch_ui.Environment2.create ~graph
       ~max_entries:4 ~max_payload_bytes:(16 * 1024 * 1024)
       ~prepare:(fun output -> Atomic.incr cooks2;
-        Bridge.to_mesh output.Session.geometry
+        Pdk_prismel.Prismel_mesh.to_mesh output.Session.geometry
         |> Result.map_error Pdk.Error.to_string)
       ~scene2:(fun _graph _mesh -> Atomic.incr scenes2; Scene.[
         rect ~at:(-60, -40) ~w:120 ~h:80
@@ -640,7 +640,7 @@ let run () =
       ~camera:(Easy_camera.create ~distance:6. ~inertia:false ())
       ~factories:Sop_catalog.Editor.factories
       ~max_entries:4 ~max_payload_bytes:(16 * 1024 * 1024)
-      ~prepare:(fun output -> Bridge.to_mesh output.Session.geometry
+      ~prepare:(fun output -> Pdk_prismel.Prismel_mesh.to_mesh output.Session.geometry
         |> Result.map_error Pdk.Error.to_string)
       ~scene3:(fun _graph mesh -> mesh_scene mesh) () |> Result.get_ok in
   let environment = wait 0 environment in

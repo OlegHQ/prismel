@@ -19,9 +19,6 @@ type stats = {
   evictions : int;
   retained_entries : int;
   retained_payload_bytes : int;
-  mesh_hits : int;
-  mesh_misses : int;
-  retained_meshes : int;
   last_node : node_timing option;
 }
 
@@ -38,11 +35,6 @@ val inspect : t -> Graph.t -> Graph.info list
 
 val cook : t -> context:Context.t -> Node.t -> (output, Diagnostic.error) result
 
-(** Convert and cache a render mesh by immutable geometry identity. The cache
-    uses the session's entry and payload bounds and is cleared with the cook
-    cache. *)
-val mesh : ?cancel:Pdk.Cancel.t -> t -> Pdk.Geometry.t ->
-  (Prismel.Mesh.t, Pdk.Error.t) result
 val stats : t -> stats
 val clear : t -> unit
 val close : t -> unit

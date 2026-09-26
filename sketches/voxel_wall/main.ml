@@ -226,7 +226,7 @@ let prepare mode (output : Session.output) =
             ~cusp_angle:(Float.pi /. 4.5) geometry)
         | None -> Ok geometry in
       Result.bind geometry (fun geometry ->
-      Result.bind (pdk_error (Bridge.to_mesh geometry)) (fun mesh ->
+      Result.bind (pdk_error (Pdk_prismel.Prismel_mesh.to_mesh geometry)) (fun mesh ->
         let raster = match packed with
           | Some (_, transforms) -> Scene3.instances_array ~material:raster_material mesh transforms
           | None -> Scene3.mesh ~material:raster_material mesh in

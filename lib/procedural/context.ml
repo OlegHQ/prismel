@@ -41,7 +41,7 @@ type t = {
 
 let create ?(frame = 0L) ?(time = 0.) ?(seed = 0L) ?domains
     ?(grain = 16_384) ?cancel () =
-  let domains = Option.value ~default:(Prismel.Parallel.recommended_domains ()) domains in
+  let domains = Option.value ~default:(Prismel_math.Parallel.recommended_domains ()) domains in
   if not (Float.is_finite time) then Error "Context.create: time must be finite"
   else if frame < 0L then Error "Context.create: frame must be non-negative"
   else if domains <= 0 then Error "Context.create: domains must be positive"
@@ -50,9 +50,6 @@ let create ?(frame = 0L) ?(time = 0.) ?(seed = 0L) ?domains
     frame; time; seed; domains; grain;
     cancel = Option.value ~default:(Cancel.create ()) cancel;
   }
-
-let of_frame ?seed ?domains ?grain (frame : Prismel.Frame.t) =
-  create ~frame:(Int64.of_int frame.count) ~time:frame.time ?seed ?domains ?grain ()
 
 let frame value = value.frame
 let time value = value.time

@@ -8,10 +8,13 @@ not select an alternate renderer through environment variables or public API.
 ## Ownership and dependency direction
 
 ```text
-examples / sketches / pxui / editor / procedural / pdk_prismel
-                         |                    |       |
-                         |                    v       v
-                         |                 pdk          prismel
+examples / sketches / pxui / editor / sketch_support / pdk_prismel
+                         |                  |                |
+                         |                  v                v
+                         |              procedural         prismel
+                         |                  |
+                         |                  v
+                         |                 pdk
                          |                  |
                          |                  v
                          |               pdk_boolean
@@ -71,6 +74,11 @@ pass and submission counts beside cache, upload, GPU-timing and retained-plan
 counters); `Prismel_execution` is the frame coordinator above it and
 re-exports that record rather than defining its own.
 `pdk_prismel` is the separate renderer conversion leaf.
+`procedural` depends only on `pdk`, `prismel_math` (vectors, matrices,
+`Color`, `Parallel`) and `lru`; it never reaches `prismel` or the GPU
+runtime, and the dependency gate keeps it so. The Prismel-dependent glue
+(`Sketch_support.Bridge`: frame-to-context, bounded mesh cache,
+`cook_to_mesh`/`cook_to_scene3`) lives in `sketch_support`.
 
 `runtime` owns process setup, initial-domain lifecycle, the SDL3 window, its
 Metal view, resize scheduling, and presentation. It depends on `sdl3` and the

@@ -1,4 +1,4 @@
-open Prismel
+open Prismel_math
 
 type point
 type vertex

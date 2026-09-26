@@ -235,10 +235,10 @@ let prepare output =
            Sketch_support.Packed_pieces.of_geometry ~piece_attribute:"piece"
              output.geometry
            |> Result.map (fun pieces -> Pieces pieces)
-       | _ -> Bridge.to_mesh output.geometry
+       | _ -> Pdk_prismel.Prismel_mesh.to_mesh output.geometry
            |> Result.map (fun mesh -> Mesh mesh)
            |> Result.map_error Pdk.Error.to_string)
-  | None -> Bridge.to_mesh output.geometry
+  | None -> Pdk_prismel.Prismel_mesh.to_mesh output.geometry
       |> Result.map (fun mesh -> Mesh mesh)
       |> Result.map_error Pdk.Error.to_string
 

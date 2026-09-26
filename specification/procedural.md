@@ -51,8 +51,8 @@ it must not retain a canvas, renderer, texture, or backend handle.
 `Procedural.Instances.t` is a separate packed value: it retains one prototype
 node plus a packed array of immutable transforms. It is not itself editable
 topology.
-`Bridge.cook_to_scene3` cooks/caches the prototype once and constructs the
-instance node with one transform-array copy. `Bridge.cook_to_instances` returns
+`Sketch_support.Bridge.cook_to_scene3` cooks/caches the prototype once and constructs the
+instance node. `Sketch_support.Bridge.cook_to_instances` returns
 an owned transform copy for callers that need custom scene assembly. Use
 `Sop.unpack` is the explicit boundary back to editable topology: it applies
 every instance transform into one copy-major `Pdk.Geometry.t`, or can retain
@@ -321,7 +321,7 @@ no matrix or solver state is hidden in the procedural session.
 
 The target-neutral context contains finite time, frame number, immutable seed,
 domain/grain settings, and a cancellation token. Fixed-step sketches supply
-their deterministic frame/time facts through `Context.of_frame`. Each node
+their deterministic frame/time facts through `Sketch_support.Bridge.context_of_frame`. Each node
 declares exactly which facts affect it. A static box is not invalidated merely
 because time advanced.
 

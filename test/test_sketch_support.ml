@@ -99,8 +99,51 @@ let test_timeline_and_schedule () =
       ~force:false ~busy:false ~frame:(timeline_frame ()) in
   if not fire then fail "cook scheduler lost the latest held dynamic request"
 
+let test_bridge () =
+  let module Bridge = Sketch_support.Bridge in
+  let session = Session.create ~max_entries:8 ~max_payload_bytes:(1 lsl 24)
+      |> string_ok in
+  let bridge = Bridge.create ~max_entries:8 ~max_payload_bytes:(1 lsl 24) session
+      |> string_ok in
+  let context = Bridge.context_of_frame ~seed:3L (frame []) |> string_ok in
+  let cooked = match Session.cook session ~context (Sop.box ()) with
+    | Ok output -> output.geometry
+    | Error error -> fail (Diagnostic.error_to_string error) in
+  let first = Bridge.mesh bridge cooked |> Result.get_ok
+  and second = Bridge.mesh bridge cooked |> Result.get_ok in
+  if first != second then fail "Bridge rebuilt an unchanged render mesh";
+  let stats = Bridge.stats bridge in
+  if stats.misses <> 1 || stats.hits <> 1 || stats.retained <> 1 then
+    fail "Bridge mesh cache accounting";
+  let prototype = Sop.box ~label:"bridge-prototype" () in
+  let instances = Instances.create
+      ~transforms:[|Mat4.scaling (Vec3.create 2. 1. 1.)|] prototype
+    |> Instances.duplicate ~copies:2
+         ~transform:(Mat4.translation (Vec3.create 1. 0. 0.)) in
+  let cook_instances () =
+    match Bridge.cook_to_instances bridge ~context instances with
+    | Ok value -> value
+    | Error error -> fail (Diagnostic.error_to_string error) in
+  let first_mesh, first_transforms, _ = cook_instances () in
+  first_transforms.(0) <- Mat4.translation (Vec3.create 55. 0. 0.);
+  let second_mesh, second_transforms, _ = cook_instances () in
+  if not (first_mesh == second_mesh && Array.length second_transforms = 3) then
+    fail "Bridge did not reuse its prototype mesh";
+  if not (Mat4.nearly_equal second_transforms.(0)
+      (Mat4.scaling (Vec3.create 2. 1. 1.)) ~eps:0.) then
+    fail "Bridge exposed internal instance transforms";
+  let node, _ = match Bridge.cook_to_scene3 bridge ~context instances with
+    | Ok value -> value
+    | Error error -> fail (Diagnostic.error_to_string error) in
+  if List.length (Scene3.Private.drawings (Scene3.create [node])) <> 3 then
+    fail "Bridge Scene3 instance cardinality";
+  Session.close session;
+  if Result.is_ok (Bridge.mesh bridge cooked) then
+    fail "Bridge converted a mesh after its session closed"
+
 let run () =
   test_timeline_and_schedule ();
+  test_bridge ();
   let pieces = Sketch_support.Packed_pieces.of_geometry
       ~piece_attribute:"class" (geometry ()) |> string_ok in
   if Sketch_support.Packed_pieces.piece_count pieces <> 2 then

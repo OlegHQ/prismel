@@ -1,4 +1,4 @@
-open Prismel
+open Prismel_math
 
 let finite value = Float.is_finite value
 let float_key value = Int64.to_string (Int64.bits_of_float value)

@@ -37,7 +37,7 @@ val point_generate_origin :
   unit -> Node.t
 val line :
   ?label:string -> ?kind:Pdk.Line_geometry.kind -> ?points:int ->
-  origin:Prismel.Vec3.t -> direction:Prismel.Vec3.t -> length:float -> unit ->
+  origin:Prismel_math.Vec3.t -> direction:Prismel_math.Vec3.t -> length:float -> unit ->
   Node.t
 val polyline :
   ?label:string -> ?closed:bool -> (float * float * float) array -> Node.t
@@ -46,7 +46,7 @@ val circle :
   ?arc:Pdk.Plane_generators.circle_arc ->
   ?orientation:Pdk.Plane_generators.circle_orientation ->
   ?reverse:bool ->
-  ?center:Prismel.Vec3.t ->
+  ?center:Prismel_math.Vec3.t ->
   ?radius_x:float ->
   ?radius_y:float ->
   ?rotation:float ->
@@ -64,7 +64,7 @@ val grid :
   ?counts:Pdk.Plane_generators.grid_counts ->
   ?connectivity:Pdk.Plane_generators.grid_connectivity ->
   ?orientation:Pdk.Plane_generators.grid_orientation ->
-  ?center:Prismel.Vec3.t ->
+  ?center:Prismel_math.Vec3.t ->
   ?width:float ->
   ?height:float ->
   ?rotation:float ->
@@ -72,12 +72,12 @@ val grid :
   columns:int -> rows:int -> size:float -> unit -> Node.t
 val box :
   ?label:string ->
-  ?size:Prismel.Vec3.t ->
+  ?size:Prismel_math.Vec3.t ->
   ?connectivity:Pdk.Box_generator.box_connectivity ->
   ?consolidate_points:bool ->
   ?normals:Pdk.Box_generator.box_normals ->
-  ?center:Prismel.Vec3.t ->
-  ?rotation:Prismel.Vec3.t ->
+  ?center:Prismel_math.Vec3.t ->
+  ?rotation:Prismel_math.Vec3.t ->
   ?rotation_order:Pdk.Box_generator.box_rotation_order ->
   ?uniform_scale:float ->
   ?x_divisions:int ->
@@ -96,8 +96,8 @@ val uv_sphere :
   ?triangular_poles:bool ->
   ?normals:Pdk.Uv_sphere.sphere_normals ->
   ?orientation:Pdk.Uv_sphere.sphere_orientation ->
-  ?center:Prismel.Vec3.t ->
-  ?rotation:Prismel.Vec3.t ->
+  ?center:Prismel_math.Vec3.t ->
+  ?rotation:Prismel_math.Vec3.t ->
   ?rotation_order:Pdk.Uv_sphere.sphere_rotation_order ->
   ?uniform_scale:float ->
   ?radius_x:float ->
@@ -117,8 +117,8 @@ val torus :
   ?connectivity:Pdk.Parametric_generators.torus_connectivity ->
   ?normals:Pdk.Parametric_generators.torus_normals ->
   ?orientation:Pdk.Parametric_generators.torus_orientation ->
-  ?center:Prismel.Vec3.t ->
-  ?rotation:Prismel.Vec3.t ->
+  ?center:Prismel_math.Vec3.t ->
+  ?rotation:Prismel_math.Vec3.t ->
   ?rotation_order:Pdk.Parametric_generators.torus_rotation_order ->
   ?uniform_scale:float ->
   ?u_start:float ->
@@ -146,8 +146,8 @@ val tube :
   ?consolidate_cap_points:bool ->
   ?normals:Pdk.Parametric_generators.tube_normals ->
   ?orientation:Pdk.Parametric_generators.tube_orientation ->
-  ?center:Prismel.Vec3.t ->
-  ?rotation:Prismel.Vec3.t ->
+  ?center:Prismel_math.Vec3.t ->
+  ?rotation:Prismel_math.Vec3.t ->
   ?rotation_order:Pdk.Parametric_generators.tube_rotation_order ->
   ?radius_scale:float ->
   ?uv_attribute:string ->
@@ -167,8 +167,8 @@ val platonic :
   ?kind:Pdk.Parametric_generators.platonic_kind ->
   ?normals:Pdk.Parametric_generators.platonic_normals ->
   ?orientation:Pdk.Parametric_generators.platonic_orientation ->
-  ?center:Prismel.Vec3.t ->
-  ?rotation:Prismel.Vec3.t ->
+  ?center:Prismel_math.Vec3.t ->
+  ?rotation:Prismel_math.Vec3.t ->
   ?rotation_order:Pdk.Parametric_generators.platonic_rotation_order ->
   ?face_groups:string ->
   radius:float ->
@@ -190,8 +190,8 @@ val spiral :
   ?uniform_angle:bool ->
   ?spiral_count:int ->
   ?orientation:Pdk.Spiral.orientation ->
-  ?center:Prismel.Vec3.t ->
-  ?rotation:Prismel.Vec3.t ->
+  ?center:Prismel_math.Vec3.t ->
+  ?rotation:Prismel_math.Vec3.t ->
   ?rotation_order:Pdk.Spiral.rotation_order ->
   ?uniform_scale:float ->
   ?angle_attribute:string ->
@@ -212,7 +212,7 @@ val transform :
   ?selection:element_group ->
   ?preserve_normal_length:bool ->
   ?recompute_normals:bool ->
-  Prismel.Mat4.t -> Node.t -> Node.t
+  Prismel_math.Mat4.t -> Node.t -> Node.t
 (** Apply one matrix to points referenced by an optional typed group. Point
     and vertex normals follow the inverse transpose; singular transforms drop
     them, or [recompute_normals] rebuilds pre-existing normal planes. *)
@@ -221,13 +221,13 @@ val transform_trs :
   ?label:string ->
   ?order:Pdk.Transform_ops.transform_order ->
   ?rotation_order:Pdk.Transform_ops.transform_rotation_order ->
-  ?translate:Prismel.Vec3.t ->
-  ?rotate:Prismel.Vec3.t ->
-  ?scale:Prismel.Vec3.t ->
-  ?shear:Prismel.Vec3.t ->
+  ?translate:Prismel_math.Vec3.t ->
+  ?rotate:Prismel_math.Vec3.t ->
+  ?scale:Prismel_math.Vec3.t ->
+  ?shear:Prismel_math.Vec3.t ->
   ?uniform_scale:float ->
-  ?pivot:Prismel.Vec3.t ->
-  ?pivot_rotation:Prismel.Vec3.t ->
+  ?pivot:Prismel_math.Vec3.t ->
+  ?pivot_rotation:Prismel_math.Vec3.t ->
   ?invert:bool ->
   ?selection:element_group ->
   ?preserve_normal_length:bool ->
@@ -245,7 +245,7 @@ val soft_transform :
   ?radius:float ->
   ?falloff_attribute:string ->
   ?recompute_normals:bool ->
-  Prismel.Mat4.t -> Node.t -> Node.t
+  Prismel_math.Mat4.t -> Node.t -> Node.t
 (** Apply a matrix with radius, edge-path, or point-attribute falloff. The
     optional selected group supplies source points for geometric metrics and
     the affected points for attribute weights. *)
@@ -254,13 +254,13 @@ val soft_transform_trs :
   ?label:string ->
   ?order:Pdk.Transform_ops.transform_order ->
   ?rotation_order:Pdk.Transform_ops.transform_rotation_order ->
-  ?translate:Prismel.Vec3.t ->
-  ?rotate:Prismel.Vec3.t ->
-  ?scale:Prismel.Vec3.t ->
-  ?shear:Prismel.Vec3.t ->
+  ?translate:Prismel_math.Vec3.t ->
+  ?rotate:Prismel_math.Vec3.t ->
+  ?scale:Prismel_math.Vec3.t ->
+  ?shear:Prismel_math.Vec3.t ->
   ?uniform_scale:float ->
-  ?pivot:Prismel.Vec3.t ->
-  ?pivot_rotation:Prismel.Vec3.t ->
+  ?pivot:Prismel_math.Vec3.t ->
+  ?pivot_rotation:Prismel_math.Vec3.t ->
   ?invert:bool ->
   ?selection:element_group ->
   ?metric:Pdk.Transform_ops.soft_transform_metric ->
@@ -305,8 +305,8 @@ val distance_from_target :
   ?label:string ->
   ?affected:element_group ->
   ?projection:Pdk.Transform_ops.distance_from_target_projection ->
-  ?origin:Prismel.Vec3.t ->
-  ?direction:Prismel.Vec3.t ->
+  ?origin:Prismel_math.Vec3.t ->
+  ?direction:Prismel_math.Vec3.t ->
   ?metric:Pdk.Transform_ops.distance_from_target_metric ->
   ?falloff:Pdk.Transform_ops.soft_transform_falloff ->
   ?radius:Pdk.Transform_ops.distance_along_radius ->
@@ -358,8 +358,8 @@ val fuse :
 val snap_to_grid :
   ?label:string ->
   ?group:string ->
-  ?spacing:Prismel.Vec3.t ->
-  ?offset:Prismel.Vec3.t ->
+  ?spacing:Prismel_math.Vec3.t ->
+  ?offset:Prismel_math.Vec3.t ->
   ?rounding:Pdk.Fuse_grid.grid_rounding ->
   ?max_distance:float ->
   ?fuse_points:bool ->
@@ -377,8 +377,8 @@ val snap_to_grid :
 val mirror :
   ?label:string ->
   ?keep_original:bool ->
-  origin:Prismel.Vec3.t ->
-  normal:Prismel.Vec3.t ->
+  origin:Prismel_math.Vec3.t ->
+  normal:Prismel_math.Vec3.t ->
   Node.t -> Node.t
 val clip :
   ?label:string ->
@@ -395,8 +395,8 @@ val clip :
   ?clipped_group:string ->
   ?above_group:string ->
   ?below_group:string ->
-  origin:Prismel.Vec3.t ->
-  normal:Prismel.Vec3.t ->
+  origin:Prismel_math.Vec3.t ->
+  normal:Prismel_math.Vec3.t ->
   Node.t -> Node.t
 (* Plane clipping/creasing with a canonical or numeric point clip attribute,
     distance offset, typed interpolation, native clipped-edge output, and
@@ -416,8 +416,8 @@ val clip_transform :
   ?clipped_group:string ->
   ?above_group:string ->
   ?below_group:string ->
-  ?local_normal:Prismel.Vec3.t ->
-  transform:Prismel.Mat4.t ->
+  ?local_normal:Prismel_math.Vec3.t ->
+  transform:Prismel_math.Mat4.t ->
   Node.t -> Node.t
 (* Matrix-oriented convenience for [clip], with +Y as the default local
     plane normal. The effective origin and direction participate in the same
@@ -476,7 +476,7 @@ val separate_pieces :
   ?label:string ->
   ?owner:Pdk.Attribute.owner ->
   ?translation_attribute:string ->
-  ?axis:Prismel.Vec3.t ->
+  ?axis:Prismel_math.Vec3.t ->
   ?gap:float ->
   ?mode:Pdk.Separate_pieces.mode ->
   piece_attribute:string ->
@@ -653,18 +653,18 @@ val point_replicate :
   ?source_index_attribute:string ->
   ?shape:Pdk.Point_replication.shape ->
   ?custom_shape:Node.t ->
-  ?center:Prismel.Vec3.t ->
-  ?size:Prismel.Vec3.t ->
-  ?orientation:Prismel.Vec3.t ->
+  ?center:Prismel_math.Vec3.t ->
+  ?size:Prismel_math.Vec3.t ->
+  ?orientation:Prismel_math.Vec3.t ->
   ?uniform_scale:float ->
   ?quasi_stratified:bool ->
   ?velocity_stretch:Pdk.Point_replication.velocity_stretch ->
   ?velocity_scale:float ->
   ?inherit_velocity:float ->
   ?radial_velocity:float ->
-  ?noise_amplitude:Prismel.Vec3.t ->
-  ?noise_frequency:Prismel.Vec3.t ->
-  ?noise_offset:Prismel.Vec3.t ->
+  ?noise_amplitude:Prismel_math.Vec3.t ->
+  ?noise_frequency:Prismel_math.Vec3.t ->
+  ?noise_offset:Prismel_math.Vec3.t ->
   ?noise_roughness:float ->
   ?noise_attenuation:float ->
   ?noise_turbulence:int ->
@@ -766,7 +766,7 @@ val circle_from_edges :
   ?label:string ->
   ?group:string ->
   ?radius:float ->
-  ?scale:Prismel.Vec3.t ->
+  ?scale:Prismel_math.Vec3.t ->
   ?output_group:string ->
   Node.t -> Node.t
 (* Color a point/primitive adjacency graph through the single packed PDK core.
@@ -851,8 +851,8 @@ val attribute_composite :
    in immutable cache identity. *)
 type attribute_mirror_method =
   | Attribute_mirror_plane of {
-      origin : Prismel.Vec3.t;
-      normal : Prismel.Vec3.t;
+      origin : Prismel_math.Vec3.t;
+      normal : Prismel_math.Vec3.t;
       distance : float;
       tolerance : float;
     }
@@ -968,14 +968,14 @@ val copy_to_points :
   source:Node.t -> targets:Node.t -> unit -> Node.t
 val duplicate :
   ?label:string -> ?copies:int -> ?cumulative:bool ->
-  ?transform:Prismel.Mat4.t -> ?group:string ->
+  ?transform:Prismel_math.Mat4.t -> ?group:string ->
   ?copy_group_prefix:string -> ?preserve_groups:bool -> Node.t -> Node.t
 (* Append transformed materialized copies. [group] restricts the copied
     primitives while preserving the full input prefix. A copy-group prefix
     emits one one-based primitive group per appended copy. *)
-val pack : ?transforms:Prismel.Mat4.t array -> Node.t -> Instances.t
+val pack : ?transforms:Prismel_math.Mat4.t array -> Node.t -> Instances.t
 val duplicate_packed :
-  ?copies:int -> ?cumulative:bool -> ?transform:Prismel.Mat4.t ->
+  ?copies:int -> ?cumulative:bool -> ?transform:Prismel_math.Mat4.t ->
   Instances.t -> Instances.t
 (* Materialize editable copy-major topology from terminal packed instances.
     Instance transforms are applied by default; disabling transform application
@@ -1303,9 +1303,9 @@ val bend :
   ?label:string ->
   ?selection:element_group ->
   ?mask_attribute:string ->
-  ?origin:Prismel.Vec3.t ->
-  ?direction:Prismel.Vec3.t ->
-  ?up:Prismel.Vec3.t ->
+  ?origin:Prismel_math.Vec3.t ->
+  ?direction:Prismel_math.Vec3.t ->
+  ?up:Prismel_math.Vec3.t ->
   length:float ->
   ?bend_angle:float ->
   ?twist_angle:float ->
@@ -1327,8 +1327,8 @@ val mountain :
   ?normalize_direction:bool ->
   ?mask_attribute:string ->
   height:float ->
-  ?frequency:Prismel.Vec3.t ->
-  ?offset:Prismel.Vec3.t ->
+  ?frequency:Prismel_math.Vec3.t ->
+  ?offset:Prismel_math.Vec3.t ->
   ?octaves:int ->
   ?lacunarity:float ->
   ?roughness:float ->
@@ -1345,7 +1345,7 @@ val point_jitter :
   ?id_attribute:string ->
   ?seed:int ->
   ?scale:float ->
-  ?axis_scales:Prismel.Vec3.t ->
+  ?axis_scales:Prismel_math.Vec3.t ->
   ?use_point_scale:bool ->
   Node.t -> Node.t
 (** Add deterministic component-wise uniform offsets to points. [group] limits
@@ -1530,8 +1530,8 @@ val revolve :
   ?cap_group:string ->
   ?uv_attribute:string option ->
   divisions:int ->
-  origin:Prismel.Vec3.t ->
-  axis:Prismel.Vec3.t ->
+  origin:Prismel_math.Vec3.t ->
+  axis:Prismel_math.Vec3.t ->
   Node.t ->
   Node.t
 (* Cached polygon-curve Revolve node backed by [Pdk.Sweep_modeling.revolve]. *)
@@ -1612,10 +1612,10 @@ val uv_transform :
   ?name:string ->
   ?owner:Pdk.Attribute.owner ->
   ?group:string ->
-  ?translate:Prismel.Vec2.t ->
-  ?scale:Prismel.Vec2.t ->
+  ?translate:Prismel_math.Vec2.t ->
+  ?scale:Prismel_math.Vec2.t ->
   ?angle:float ->
-  ?pivot:Prismel.Vec2.t ->
+  ?pivot:Prismel_math.Vec2.t ->
   Node.t -> Node.t
 (* Transform point- or vertex-owned UVs. [group], when supplied, must have
    the same owner. Angles are radians. *)
@@ -1742,14 +1742,14 @@ val set_int :
   ?label:string -> owner:Pdk.Attribute.owner -> name:string -> int ->
   Node.t -> Node.t
 val set_vector :
-  ?label:string -> owner:Pdk.Attribute.owner -> name:string -> Prismel.Vec3.t ->
+  ?label:string -> owner:Pdk.Attribute.owner -> name:string -> Prismel_math.Vec3.t ->
   Node.t -> Node.t
-val set_orient : ?label:string -> Prismel.Quat.t -> Node.t -> Node.t
+val set_orient : ?label:string -> Prismel_math.Quat.t -> Node.t -> Node.t
 (* Install a constant point [transform] matrix for Copy to Points. The matrix
    must be finite and affine. *)
-val set_transform : ?label:string -> Prismel.Mat4.t -> Node.t -> Node.t
+val set_transform : ?label:string -> Prismel_math.Mat4.t -> Node.t -> Node.t
 val set_color :
-  ?label:string -> owner:Pdk.Attribute.owner -> Prismel.Color.t ->
+  ?label:string -> owner:Pdk.Attribute.owner -> Prismel_math.Color.t ->
   Node.t -> Node.t
 (* Delete or keep ordinary attributes with owner-specific compiled patterns.
     Optional reference geometry prepends its attribute names to each owner
@@ -1800,7 +1800,7 @@ val point_velocity :
   ?match_attribute:string ->
   ?unmatched:Pdk.Motion.velocity_unmatched ->
   ?velocity_attribute:string ->
-  ?add_velocity:Prismel.Vec3.t ->
+  ?add_velocity:Prismel_math.Vec3.t ->
   ?compute_acceleration:bool ->
   ?acceleration_attribute:string ->
   Node.t -> Node.t
@@ -1890,8 +1890,8 @@ val attribute_noise :
   ?range:Pdk.Attribute_ops.noise_range ->
   ?operation:Pdk.Attribute_ops.noise_operation ->
   ?blend:float ->
-  ?frequency:Prismel.Vec3.t ->
-  ?offset:Prismel.Vec3.t ->
+  ?frequency:Prismel_math.Vec3.t ->
+  ?offset:Prismel_math.Vec3.t ->
   ?octaves:int ->
   ?lacunarity:float ->
   ?roughness:float ->
@@ -2113,7 +2113,7 @@ val group_normal :
   ?base:string ->
   ?include_opposite:bool ->
   ?merge:Pdk.Group_ops.boolean_operation ->
-  direction:Prismel.Vec3.t ->
+  direction:Prismel_math.Vec3.t ->
   spread_angle:float ->
   owner:Pdk.Group_ops.owner ->
   name:string ->
@@ -2138,7 +2138,7 @@ val group_backface :
   ?label:string ->
   ?base:string ->
   ?merge:Pdk.Group_ops.boolean_operation ->
-  viewpoint:Prismel.Vec3.t ->
+  viewpoint:Prismel_math.Vec3.t ->
   name:string ->
   Node.t -> Node.t
 (** Select winding-derived primitive backfaces relative to a finite viewpoint.
@@ -2390,8 +2390,8 @@ val bound :
   ?label:string ->
   ?selection:element_group ->
   ?shape:Pdk.Bound.bound_shape ->
-  ?lower_padding:Prismel.Vec3.t ->
-  ?upper_padding:Prismel.Vec3.t ->
+  ?lower_padding:Prismel_math.Vec3.t ->
+  ?upper_padding:Prismel_math.Vec3.t ->
   ?bounds_group:string ->
   ?center_attribute:string ->
   ?radii_attribute:string ->
@@ -2399,7 +2399,7 @@ val bound :
 (* Create a divided box or polygon sphere/ovoid around an optional typed
     component selection, with inspectable output group and detail metadata. *)
 val match_axis :
-  ?label:string -> from:Prismel.Vec3.t -> into:Prismel.Vec3.t -> Node.t -> Node.t
+  ?label:string -> from:Prismel_math.Vec3.t -> into:Prismel_math.Vec3.t -> Node.t -> Node.t
 (* Stable packed point/primitive sort, including point topology keys and
     point/primitive Morton spatial locality. [Random] is deterministic from
     its immutable seed. [Index_attribute] consumes an exact permutation.
@@ -2418,12 +2418,12 @@ val match_size :
   ?fit:Pdk.Match_size.match_size_fit ->
   ?translate_axes:(bool * bool * bool) ->
   ?scale_axes:(bool * bool * bool) ->
-  ?justify:Prismel.Vec3.t ->
-  ?target_justify:Prismel.Vec3.t ->
-  ?offset:Prismel.Vec3.t ->
+  ?justify:Prismel_math.Vec3.t ->
+  ?target_justify:Prismel_math.Vec3.t ->
+  ?offset:Prismel_math.Vec3.t ->
   ?scale:float ->
-  ?target_center:Prismel.Vec3.t ->
-  ?target_size:Prismel.Vec3.t ->
+  ?target_center:Prismel_math.Vec3.t ->
+  ?target_size:Prismel_math.Vec3.t ->
   ?target:Node.t ->
   Node.t -> Node.t
 (** Match selected source geometry to another node's selected bounds, or to a
@@ -2477,8 +2477,8 @@ val noise_displace :
 
 val color_by_height :
   ?label:string ->
-  low:Prismel.Color.t ->
-  high:Prismel.Color.t ->
+  low:Prismel_math.Color.t ->
+  high:Prismel_math.Color.t ->
   Node.t ->
   Node.t
 

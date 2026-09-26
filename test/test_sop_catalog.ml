@@ -410,7 +410,7 @@ let run () =
     "point-generation editor factory has the wrong node or arity";
   let point_session = Session.create ~max_entries:2
       ~max_payload_bytes:1_000_000 |> Result.get_ok in
-  let point_mesh = cook point_session points |> Bridge.to_mesh
+  let point_mesh = cook point_session points |> Pdk_prismel.Prismel_mesh.to_mesh
       |> Result.map_error Pdk.Error.to_string |> Result.get_ok in
   check (Mesh.mode point_mesh = Mesh.Points && Mesh.vertex_count point_mesh = 50)
     "point-only SOP output did not retain point rendering mode";

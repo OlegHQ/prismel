@@ -177,7 +177,7 @@ let cook domains graph =
     | Error error -> failwith (Diagnostic.error_to_string error))
 
 let scene geometry =
-  let mesh = Bridge.to_mesh geometry |> Result.get_ok in
+  let mesh = Pdk_prismel.Prismel_mesh.to_mesh geometry |> Result.get_ok in
   let camera = Camera.perspective ~at:(Vec3.create 3.5 3. 5.)
       ~target:Vec3.zero () in
   Scene.[clear (Color.hex_exn "#020617");

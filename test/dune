@@ -1,7 +1,7 @@
 (executable
  (name test_main)
- (modules test_main sop_params_fixture test_prismel test_easy_camera2 test_sop_ui test_custom_sop test_pxui_graph test_sketch_ui test_sop_catalog test_sketch_support dependency_gate sop_render_parity)
- (libraries prismel pxui runtime_input procedural sop_ui pdk pxui_graph
+ (modules test_main sop_params_fixture test_prismel test_easy_camera2 test_sop_ui test_custom_sop test_pxui_graph test_sketch_ui test_sop_catalog test_sketch_support test_terminal_boolean_normals dependency_gate sop_render_parity)
+ (libraries prismel pxui runtime_input procedural sop_ui pdk pdk_prismel pxui_graph
   sop_catalog scene_command sketch_support sketch_ui unix prismel.sdl3)
  (preprocess (pps prismel.ppx))
  (link_flags -linkall))
@@ -41,6 +41,10 @@
 (rule
  (aliases runtest test_sketch_support)
  (action (run %{exe:test_main.exe} test_sketch_support)))
+
+(rule
+ (aliases runtest test_terminal_boolean_normals)
+ (action (run %{exe:test_main.exe} test_terminal_boolean_normals)))
 
 (rule
  (aliases runtest dependency_gate)

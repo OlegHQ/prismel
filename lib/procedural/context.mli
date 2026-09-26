@@ -27,12 +27,6 @@ val create :
   unit ->
   (t, string) result
 
-val of_frame :
-  ?seed:int64 -> ?domains:int -> ?grain:int -> Prismel.Frame.t ->
-  (t, string) result
-(** Copy target-neutral timing facts from a Prismel frame. No canvas,
-    renderer, input resource, or backend handle is retained. *)
-
 val frame : t -> int64
 val time : t -> float
 val seed : t -> int64

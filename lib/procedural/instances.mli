@@ -4,26 +4,16 @@
 
 type t
 
-val create : ?transforms:Prismel.Mat4.t array -> Node.t -> t
+val create : ?transforms:Prismel_math.Mat4.t array -> Node.t -> t
 val source : t -> Node.t
 val count : t -> int
-val transforms : t -> Prismel.Mat4.t array
+val transforms : t -> Prismel_math.Mat4.t array
 val payload_bytes : t -> int
 
-val transform : Prismel.Mat4.t -> t -> t
+val transform : Prismel_math.Mat4.t -> t -> t
 (** Left-compose one transform onto every instance. *)
 
 val duplicate :
-  ?copies:int -> ?cumulative:bool -> ?transform:Prismel.Mat4.t -> t -> t
+  ?copies:int -> ?cumulative:bool -> ?transform:Prismel_math.Mat4.t -> t -> t
 (** Append transformed instance copies in source-instance-major order. Copy
     [i] is transformed by [transform] to power [i] in world space. *)
-
-module Private : sig
-  val scene3 :
-    ?material:Prismel.Material.t ->
-    ?texture:Prismel.Scene3.texture ->
-    ?mode:Prismel.Scene3.render_mode ->
-    ?cull:Prismel.Scene3.cull ->
-    ?shading:Prismel.Scene3.shading ->
-    Prismel.Mesh.t -> t -> Prismel.Scene3.node
-end

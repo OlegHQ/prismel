@@ -1,4 +1,4 @@
 (executable
  (name main)
  (modules main)
- (libraries prismel procedural pdk sop_catalog sketch_support sketch_ui))
+ (libraries prismel procedural pdk pdk_prismel sop_catalog sketch_support sketch_ui))

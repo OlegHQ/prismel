@@ -2,7 +2,6 @@ let tests = [
   "test_procedural", Test_procedural.run;
   "test_edit_graph", Test_edit_graph.run;
   "test_procedural_parallel_exact", Test_procedural_parallel_exact.run;
-  "test_terminal_boolean_normals", Test_terminal_boolean_normals.run;
   "test_motion_sop", Test_motion_sop.run;
   "test_dissolve_sop", Test_dissolve_sop.run;
   "test_poly_loft_sop", Test_poly_loft_sop.run;

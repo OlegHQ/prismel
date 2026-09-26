@@ -1,4 +1,4 @@
-open Prismel
+open Prismel_math
 
 type t = { source : Node.t; transforms : Mat4.t array }
 
@@ -45,9 +45,3 @@ let duplicate ?(copies = 1) ?(cumulative = true) ?(transform = Mat4.identity)
       let source = index / total and copy = index mod total in
       Mat4.mul powers.(copy) value.transforms.(source)) in
     { value with transforms }
-
-module Private = struct
-  let scene3 ?material ?texture ?mode ?cull ?shading mesh value =
-    Scene3.instances_array ?material ?texture ?mode ?cull ?shading
-      mesh value.transforms
-end

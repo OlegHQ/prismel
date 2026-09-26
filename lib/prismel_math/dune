@@ -1,5 +1,5 @@
 (library
  (name prismel_math)
  (public_name prismel.math)
- (modules vec2 vec3 mat4 quat rand noise parallel bounds2 bounds3)
+ (modules vec2 vec3 mat4 quat rand noise parallel bounds2 bounds3 color)
  (libraries domainslib))

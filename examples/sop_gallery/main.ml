@@ -232,7 +232,7 @@ let entries = [|
 let material = Material.create ~diffuse:Color.white
     ~ambient:(color "#172554") ~specular:Color.white ~shininess:36. ()
 
-let prepare output = Bridge.to_mesh output.Session.geometry
+let prepare output = Pdk_prismel.Prismel_mesh.to_mesh output.Session.geometry
   |> Result.map_error Pdk.Error.to_string
 
 let scene3 _graph mesh =

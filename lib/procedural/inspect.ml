@@ -104,7 +104,7 @@ let format_geometry value =
    | None -> Buffer.add_string buffer "bounds: empty\n"
    | Some bounds -> Printf.bprintf buffer
        "bounds: min=(%g,%g,%g) max=(%g,%g,%g)\n"
-       bounds.min.Prismel.Vec3.x bounds.min.y bounds.min.z
+       bounds.min.Prismel_math.Vec3.x bounds.min.y bounds.min.z
        bounds.max.x bounds.max.y bounds.max.z);
   List.iter (fun (attribute : attribute) -> Printf.bprintf buffer
     "attribute %s %s: %s[%d] #%d\n" (attribute_owner attribute.owner)

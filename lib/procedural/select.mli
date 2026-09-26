@@ -8,7 +8,7 @@ type 'owner t
 
 val all_points : point t
 val point_indices : int array -> point t
-val points_in_bounds : min:Prismel.Vec3.t -> max:Prismel.Vec3.t -> point t
+val points_in_bounds : min:Prismel_math.Vec3.t -> max:Prismel_math.Vec3.t -> point t
 val all_vertices : vertex t
 val vertex_indices : int array -> vertex t
 val all_primitives : primitive t

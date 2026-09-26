@@ -10,9 +10,10 @@ type model = {
   camera : Easy_camera.t;
 }
 
-let cook session frame graph =
-  let context = Context.of_frame ~seed:2026L frame |> Result.get_ok in
-  match Bridge.cook_to_mesh session ~context graph with
+let cook bridge frame graph =
+  let context = Sketch_support.Bridge.context_of_frame ~seed:2026L frame
+    |> Result.get_ok in
+  match Sketch_support.Bridge.cook_to_mesh bridge ~context graph with
   | Ok (mesh, _warnings) -> mesh
   | Error error -> failwith (Diagnostic.error_to_string error)
 
@@ -89,8 +90,10 @@ let graphs () =
 let init frame =
   let session = Session.create ~max_entries:64
       ~max_payload_bytes:(128 * 1024 * 1024) |> Result.get_ok in
+  let bridge = Sketch_support.Bridge.create ~max_entries:64
+      ~max_payload_bytes:(128 * 1024 * 1024) session |> Result.get_ok in
   { session;
-    meshes = List.map (cook session frame) (graphs ());
+    meshes = List.map (cook bridge frame) (graphs ());
     camera = Easy_camera.create ~target:(Vec3.create 0. 0.5 0.)
         ~distance:9. ~azimuth:0.7 ~elevation:0.45 (); }
 

@@ -13,9 +13,6 @@ type stats = {
   evictions : int;
   retained_entries : int;
   retained_payload_bytes : int;
-  mesh_hits : int;
-  mesh_misses : int;
-  retained_meshes : int;
   last_node : node_timing option;
 }
 
@@ -29,12 +26,7 @@ type entry = {
   components : (int * int) list;
 }
 
-type mesh_entry = {
-  mesh : Prismel.Mesh.t;
-}
-
 module Entry_cache = Lru.Make (String)
-module Mesh_cache = Lru.Make (Int)
 
 (* Cook outputs share packed payload planes; the pool counts each plane once. *)
 type payload_pool = { refs : (int, int * int) Hashtbl.t; mutable bytes : int }
@@ -57,10 +49,7 @@ type t = {
   max_payload_bytes : int;
   cache : entry Entry_cache.t;
   payload : payload_pool;
-  mesh_cache : mesh_entry Mesh_cache.t;
   mutable inspection_cache : inspection_entry list;
-  mutable mesh_hits : int;
-  mutable mesh_misses : int;
   mutable cooks : int;
   mutable hits : int;
   mutable misses : int;
@@ -91,9 +80,7 @@ let create ~max_entries ~max_payload_bytes =
     cache = Entry_cache.create max_entries
         ~release:(fun _ entry -> release_components payload entry.components);
     payload;
-    mesh_cache = Mesh_cache.create ~byte_capacity:max_payload_bytes max_entries;
     inspection_cache = [];
-    mesh_hits = 0; mesh_misses = 0;
     cooks = 0; hits = 0; misses = 0; evictions = 0;
     last_node = None; closed = false;
   }
@@ -255,32 +242,10 @@ let cook session ~context node =
       "cannot cook with a closed procedural session"
       |> Diagnostic.prepend_trace (Node.trace node))
   else
-    Prismel.Parallel.run ~domains:(Context.domains context) (fun () ->
+    Prismel_math.Parallel.run ~domains:(Context.domains context) (fun () ->
       match evaluate (Hashtbl.create 64) session context node with
       | Error _ as error -> error
       | Ok output -> Ok { output with diagnostics = deduplicate output.diagnostics })
-
-let mesh ?cancel session geometry =
-  if session.closed then Error (Pdk.Error.make ~operation:"session_mesh"
-      ~code:"session_closed" "Session.mesh: session is closed")
-  else
-    let id = Pdk.Geometry.data_id geometry in
-    match Mesh_cache.find session.mesh_cache id with
-    | entry ->
-        session.mesh_hits <- session.mesh_hits + 1;
-        Ok entry.mesh
-    | exception Not_found ->
-        session.mesh_misses <- session.mesh_misses + 1;
-        Result.bind (Pdk_prismel.Prismel_mesh.to_mesh ?cancel geometry) (fun mesh ->
-          match cancel with
-          | Some token when Pdk.Cancel.is_cancelled token ->
-              Error (Pdk.Error.make ~operation:"session_mesh" ~code:"cancelled"
-                "mesh conversion was cancelled")
-          | _ ->
-          let bytes = Pdk.Geometry.payload_bytes geometry in
-          if session.max_entries > 0 && bytes <= session.max_payload_bytes then
-            Mesh_cache.add session.mesh_cache ~bytes id { mesh };
-          Ok mesh)
 
 let stats session = {
   cooks = session.cooks;
@@ -289,9 +254,6 @@ let stats session = {
   evictions = session.evictions;
   retained_entries = Entry_cache.length session.cache;
   retained_payload_bytes = session.payload.bytes;
-  mesh_hits = session.mesh_hits;
-  mesh_misses = session.mesh_misses;
-  retained_meshes = Mesh_cache.length session.mesh_cache;
   last_node = session.last_node;
 }
 
@@ -299,8 +261,7 @@ let clear session =
   session.inspection_cache <- [];
   Entry_cache.clear session.cache;
   Hashtbl.clear session.payload.refs;
-  session.payload.bytes <- 0;
-  Mesh_cache.clear session.mesh_cache
+  session.payload.bytes <- 0
 
 let close session =
   if not session.closed then begin

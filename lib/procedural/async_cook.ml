@@ -111,7 +111,7 @@ let create ~max_entries ~max_payload_bytes =
     } in
     let worker = Domain.spawn (fun () ->
       Fun.protect
-        ~finally:Prismel.Parallel.release_current_domain_pools
+        ~finally:Prismel_math.Parallel.release_current_domain_pools
         (fun () -> worker_loop value)) in
     value.worker <- Some worker;
     value)

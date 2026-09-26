@@ -99,7 +99,7 @@ let rules =
       "pdk_boolean", "pdk_io" :: "prismel" :: "pdk" :: "pdk_prismel" :: "procedural" :: gpu;
       "pdk_io", "prismel" :: "pdk" :: "pdk_prismel" :: "procedural" :: gpu;
       "pdk", "prismel" :: "pdk_prismel" :: "procedural" :: "pxui" :: "pxui_shell" :: "sop_ui" :: "sop_catalog" :: gpu;
-      "procedural", "pxui" :: "pxui_shell" :: "pxui_graph" :: "sop_ui" :: "sop_catalog"
+      "procedural", "prismel" :: "pdk_prismel" :: "pxui" :: "pxui_shell" :: "pxui_graph" :: "sop_ui" :: "sop_catalog"
                     :: "sketch_support" :: "sketch_ui" :: gpu;
       "editor", ["pxui"; "pxui_shell"; "pxui_graph"; "sop_ui"; "sketch_ui"; "procedural";
                  "pdk"; "sop_catalog"];
@@ -113,9 +113,7 @@ let rules =
       "sketch_support", ["pxui"; "pxui_shell"; "pxui_graph"; "sop_ui"; "sketch_ui"] ]
 
 (* Known violations: (library, reached, plan item that removes it). *)
-let reach_exceptions =
-  List.concat_map (fun (lib, item) -> List.map (fun g -> lib, g, item) gpu)
-    [ "procedural", "K1" ]
+let reach_exceptions : (string * string * string) list = []
 
 (* identifiers outside comments and string literals *)
 let code_tokens text =

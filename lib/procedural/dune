@@ -1,13 +1,13 @@
 (library
  (name procedural)
  (public_name prismel.procedural)
- (libraries prismel pdk pdk_prismel lru unix)
+ (libraries prismel_math pdk lru unix)
  (modules context diagnostic parameter node session async_cook select instances
-  sop custom graph edit_graph inspect bridge))
+  sop custom graph edit_graph inspect))
 
 (executable
  (name test_main)
- (modules test_main test_procedural test_edit_graph test_procedural_parallel_exact test_terminal_boolean_normals test_motion_sop test_dissolve_sop test_poly_loft_sop test_skin_sop test_poly_bridge_sop test_poly_reduce_sop test_remesh_sop test_convex_hull_sop test_extract_centroid_sop test_extract_point_curve_sop test_circle_from_edges_sop test_graph_color_sop test_measure_curvature_sop test_attribute_laplacian_sop test_triangulate2d_sop test_boolean_detect_sop test_boolean_sop test_intersection_analysis_sop test_poly_bevel_sop test_point_split_sop test_point_generate_sop test_point_replicate_sop test_ends_sop test_duplicate_sop test_transform_sop test_soft_transform_sop test_distance_along_geometry_sop test_distance_from_geometry_sop test_distance_from_target_sop test_sort_sop test_blast_by_attribute_sop test_crease_sop test_attribute_fade_sop test_attribute_mirror_sop test_rewire_vertices_sop test_poly_cut_sop test_separate_pieces_sop test_polywire_sop)
+ (modules test_main test_procedural test_edit_graph test_procedural_parallel_exact test_motion_sop test_dissolve_sop test_poly_loft_sop test_skin_sop test_poly_bridge_sop test_poly_reduce_sop test_remesh_sop test_convex_hull_sop test_extract_centroid_sop test_extract_point_curve_sop test_circle_from_edges_sop test_graph_color_sop test_measure_curvature_sop test_attribute_laplacian_sop test_triangulate2d_sop test_boolean_detect_sop test_boolean_sop test_intersection_analysis_sop test_poly_bevel_sop test_point_split_sop test_point_generate_sop test_point_replicate_sop test_ends_sop test_duplicate_sop test_transform_sop test_soft_transform_sop test_distance_along_geometry_sop test_distance_from_geometry_sop test_distance_from_target_sop test_sort_sop test_blast_by_attribute_sop test_crease_sop test_attribute_fade_sop test_attribute_mirror_sop test_rewire_vertices_sop test_poly_cut_sop test_separate_pieces_sop test_polywire_sop)
  (libraries procedural prismel pdk pdk_prismel))
 
 (rule
@@ -21,10 +21,6 @@
 (rule
  (aliases runtest test_procedural_parallel_exact)
  (action (run %{exe:test_main.exe} test_procedural_parallel_exact)))
-
-(rule
- (aliases runtest test_terminal_boolean_normals)
- (action (run %{exe:test_main.exe} test_terminal_boolean_normals)))
 
 (rule
  (aliases runtest test_motion_sop)
