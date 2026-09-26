@@ -103,13 +103,13 @@ let same_edge_group left right =
      !equal
 
 let promote ?name ?keep_original ?mode ~source ~destination ~group geometry =
-  Group_ops.promote_checked ~grain:1 ?name ?keep_original ?mode ~source ~destination
+  Group_ops.promote ~grain:1 ?name ?keep_original ?mode ~source ~destination
     ~group geometry |> get_ok
 
 let expand ?name ?steps ?flood ?primitive_connectivity ?normal_spread
     ?normal_attribute ?connectivity_attributes ?connectivity_tolerance ?collision
     ~owner ~group geometry =
-  Group_ops.expand_checked ~grain:1 ?name ?steps ?flood ?primitive_connectivity
+  Group_ops.expand ~grain:1 ?name ?steps ?flood ?primitive_connectivity
     ?normal_spread ?normal_attribute ?connectivity_attributes
     ?connectivity_tolerance ?collision ~owner ~group geometry |> get_ok
 
@@ -128,7 +128,7 @@ let test_promote () =
   let shared_group = group Group.Primitive "edge_faces" shared in
   check (Group.cardinality shared_group = 1 && Group.mem 0 shared_group)
     "Group Promote shared-edge primitive inclusion";
-  let mask = Group_ops.promote_checked ~grain:1 ~output_attribute:"face_mask"
+  let mask = Group_ops.promote ~grain:1 ~output_attribute:"face_mask"
       ~source:Group_ops.Group_points ~destination:Group_ops.Group_primitives
       ~group:"edge_points" first_edge_points |> get_ok in
   check (int_attribute Attribute.Primitive "face_mask" mask = [|1; 1|]
@@ -196,13 +196,13 @@ let test_promote () =
   check (Geometry.find_group ~owner:Group.Primitive "first" renamed = None
       && Geometry.find_group ~owner:Group.Point "renamed" renamed <> None)
     "Group Promote source removal/output rename";
-  (match Group_ops.promote_checked ~mode:Group_ops.Include_shared_edge
+  (match Group_ops.promote ~mode:Group_ops.Include_shared_edge
       ~source:Group_ops.Group_points ~destination:Group_ops.Group_edges
       ~group:"edge_points" first_edge_points with
    | Error error -> check (Error.code error = "invalid_group")
        "Group Promote invalid mode code"
    | Ok _ -> fail "Group Promote accepted shared-edge non-primitive output");
-  (match Group_ops.promote_checked ~output_attribute:"edge_mask"
+  (match Group_ops.promote ~output_attribute:"edge_mask"
       ~source:Group_ops.Group_points ~destination:Group_ops.Group_edges
       ~group:"edge_points" first_edge_points with
    | Error error -> check (Error.code error = "invalid_group")
@@ -281,7 +281,7 @@ let test_ordered_wildcard_promotions () =
       ~source:Group_ops.Group_primitives ~destination:Group_ops.Group_edges
       ~pattern:"face_*" ();
   ] in
-  let promoted = Group_ops.promotions_checked ~grain:1 ~rules base |> get_ok in
+  let promoted = Group_ops.promotions ~grain:1 ~rules base |> get_ok in
   check (Geometry.find_group ~owner:Group.Primitive "face_left" promoted = None
       && Geometry.find_group ~owner:Group.Primitive "face_right" promoted = None
       && Edge_group.cardinality (edge_group "outline_left" promoted) = 4
@@ -294,7 +294,7 @@ let test_ordered_wildcard_promotions () =
   let collision_rule = Group_ops.promotion_rule ~new_name:"b c"
       ~source:Group_ops.Group_points ~destination:Group_ops.Group_points
       ~pattern:"a b" () in
-  let collided = Group_ops.promotions_checked ~grain:1 ~rules:[collision_rule]
+  let collided = Group_ops.promotions ~grain:1 ~rules:[collision_rule]
       collisions |> get_ok in
   let b = group Group.Point "b" collided and c = group Group.Point "c" collided in
   check (Group.cardinality b = 1 && Group.mem 0 b
@@ -305,7 +305,7 @@ let test_ordered_wildcard_promotions () =
       ~output_as_attribute:true ~mode:Group_ops.Include_all
       ~source:Group_ops.Group_points ~destination:Group_ops.Group_primitives
       ~pattern:"seed_* ^seed_skip" ()] in
-  let attributes = Group_ops.promotions_checked ~grain:1 ~rules:attribute_rules base
+  let attributes = Group_ops.promotions ~grain:1 ~rules:attribute_rules base
       |> get_ok in
   check (int_attribute Attribute.Primitive "mask_left" attributes = [|1; 0|]
       && int_attribute Attribute.Primitive "mask_right" attributes = [|0; 1|]
@@ -321,37 +321,37 @@ let test_ordered_wildcard_promotions () =
       ~new_name:"boundary_*" ~keep_original:true
       ~source:Group_ops.Group_primitives ~destination:Group_ops.Group_edges
       ~pattern:"region_*" () in
-  let boundaries = Group_ops.promotions_checked ~grain:1 ~rules:[boundary_rule]
+  let boundaries = Group_ops.promotions ~grain:1 ~rules:[boundary_rule]
       boundary_base |> get_ok in
   check (Edge_group.cardinality (edge_group "boundary_left" boundaries) = 1
       && Edge_group.cardinality (edge_group "boundary_right" boundaries) = 1)
     "Group Promotions wildcard boundary conversion";
   let disabled = Group_ops.promotion_rule ~mode:Group_ops.Include_shared_edge
       ~source:Group_ops.Group_points ~destination:Group_ops.Group_edges ~pattern:" " () in
-  check ((Group_ops.promotions_checked ~rules:[disabled] base |> get_ok) == base)
+  check ((Group_ops.promotions ~rules:[disabled] base |> get_ok) == base)
     "Group Promotions disabled rule lost geometry identity";
-  check ((Group_ops.promotions_checked ~rules:[Group_ops.promotion_rule
+  check ((Group_ops.promotions ~rules:[Group_ops.promotion_rule
       ~source:Group_ops.Group_points ~destination:Group_ops.Group_primitives
       ~pattern:"missing*" ()] base |> get_ok) == base)
     "Group Promotions unmatched rule lost geometry identity";
-  (match Group_ops.promotions_checked ~rules:[Group_ops.promotion_rule
+  (match Group_ops.promotions ~rules:[Group_ops.promotion_rule
       ~new_name:"only_one" ~source:Group_ops.Group_points
       ~destination:Group_ops.Group_primitives ~pattern:"seed_left seed_right" ()]
       base with
    | Error error -> check (Error.code error = "invalid_group")
        "Group Promotions malformed rewrite error code"
    | Ok _ -> fail "Group Promotions accepted a replacement-count mismatch");
-  (match Group_ops.promotions_checked ~max_outputs:1 ~rules:attribute_rules base with
+  (match Group_ops.promotions ~max_outputs:1 ~rules:attribute_rules base with
    | Error error -> check (Error.code error = "invalid_group")
        "Group Promotions output limit error code"
    | Ok _ -> fail "Group Promotions exceeded its output limit");
-  (match Group_ops.promotions_checked ~max_payload_bytes:0 ~rules:attribute_rules base with
+  (match Group_ops.promotions ~max_payload_bytes:0 ~rules:attribute_rules base with
    | Error error -> check (Error.code error = "invalid_group")
        "Group Promotions payload limit error code"
    | Ok _ -> fail "Group Promotions exceeded its payload limit");
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
-  (match Group_ops.promotions_checked ~cancel:cancelled ~rules base with
+  (match Group_ops.promotions ~cancel:cancelled ~rules base with
    | Error error -> check (Error.code error = "cancelled")
        "Group Promotions cancellation code"
    | Ok _ -> fail "cancelled Group Promotions published geometry")
@@ -381,13 +381,13 @@ let test_expand () =
       point_seed in
   check (group Group.Point "seed" unchanged == group Group.Point "seed" point_seed)
     "Group Expand zero-step structural sharing";
-  let stepped = Group_ops.expand_checked ~grain:1 ~name:"stepped" ~steps:2
+  let stepped = Group_ops.expand ~grain:1 ~name:"stepped" ~steps:2
       ~step_attribute:"grow_step" ~owner:Group_ops.Group_points ~group:"seed"
       point_seed |> get_ok in
   check (int_attribute Attribute.Point "grow_step" stepped
       = [|0; 1; 2; 1; 2; 0|])
     "Group Expand positive step attribute";
-  let flooded_steps = Group_ops.expand_checked ~grain:1 ~name:"flooded"
+  let flooded_steps = Group_ops.expand ~grain:1 ~name:"flooded"
       ~flood:true ~step_attribute:"flood_step" ~owner:Group_ops.Group_points
       ~group:"seed" point_seed |> get_ok in
   check (int_attribute Attribute.Point "flood_step" flooded_steps
@@ -395,7 +395,7 @@ let test_expand () =
     "Group Expand flood-distance attribute";
   let almost_all = with_group Group.Point "almost_all"
       (fun point -> point <> 5) base in
-  let eroded = Group_ops.expand_checked ~grain:1 ~name:"eroded" ~steps:(-3)
+  let eroded = Group_ops.expand ~grain:1 ~name:"eroded" ~steps:(-3)
       ~step_attribute:"shrink_step" ~owner:Group_ops.Group_points
       ~group:"almost_all" almost_all |> get_ok in
   check (Group.cardinality (group Group.Point "eroded" eroded) = 0
@@ -466,7 +466,7 @@ let test_expand () =
     "Group Expand primitive connectivity-attribute seam";
   let full_strip = with_group Group.Primitive "full_strip" (fun _ -> true)
       region_strip in
-  let eroded_regions = Group_ops.expand_checked ~grain:1 ~name:"eroded_regions"
+  let eroded_regions = Group_ops.expand ~grain:1 ~name:"eroded_regions"
       ~steps:(-1) ~step_attribute:"region_shrink_step"
       ~primitive_connectivity:Group_ops.Primitive_share_edges
       ~connectivity_attributes:region_rule ~owner:Group_ops.Group_primitives
@@ -537,27 +537,27 @@ let test_expand () =
   check (Group.cardinality
       (group Group.Point "collision_eroded" collision_eroded) = 2)
     "Group Expand shrink-away collision boundary";
-  (match Group_ops.expand_checked ~flood:true ~steps:(-1) ~owner:Group_ops.Group_points
+  (match Group_ops.expand ~flood:true ~steps:(-1) ~owner:Group_ops.Group_points
       ~group:"seed" point_seed with
    | Error error -> check (Error.code error = "invalid_group")
        "Group Expand invalid flood/shrink code"
    | Ok _ -> fail "Group Expand accepted flood shrinking");
-  (match Group_ops.expand_checked ~steps:min_int ~owner:Group_ops.Group_points
+  (match Group_ops.expand ~steps:min_int ~owner:Group_ops.Group_points
       ~group:"seed" point_seed with
    | Error error -> check (Error.code error = "invalid_group")
        "Group Expand minimum-integer step code"
    | Ok _ -> fail "Group Expand accepted an unrepresentable step magnitude");
-  (match Group_ops.expand_checked ~step_attribute:"step" ~owner:Group_ops.Group_edges
+  (match Group_ops.expand ~step_attribute:"step" ~owner:Group_ops.Group_edges
       ~group:"edge_seed" edge_base with
    | Error error -> check (Error.code error = "invalid_group")
        "Group Expand edge step-attribute code"
    | Ok _ -> fail "Group Expand created an unsupported edge attribute");
-  (match Group_ops.expand_checked ~normal_spread:Float.nan ~owner:Group_ops.Group_points
+  (match Group_ops.expand ~normal_spread:Float.nan ~owner:Group_ops.Group_points
       ~group:"seed" point_seed with
    | Error error -> check (Error.code error = "invalid_group")
        "Group Expand invalid normal spread code"
    | Ok _ -> fail "Group Expand accepted a non-finite normal spread");
-  (match Group_ops.expand_checked ~normal_spread:0.2
+  (match Group_ops.expand ~normal_spread:0.2
       ~normal_attribute:{ Group_ops.expand_normal_owner = Attribute.Point;
         expand_normal_name = "missing" }
       ~owner:Group_ops.Group_points ~group:"seed" point_seed with
@@ -566,31 +566,31 @@ let test_expand () =
    | Ok _ -> fail "Group Expand accepted a missing normal attribute");
   let scalar_normals = point_seed |> with_attribute Attribute.Point "scalar_n"
       (Attribute.Float (Array.make 6 1.)) in
-  (match Group_ops.expand_checked ~normal_spread:0.2
+  (match Group_ops.expand ~normal_spread:0.2
       ~normal_attribute:{ Group_ops.expand_normal_owner = Attribute.Point;
         expand_normal_name = "scalar_n" }
       ~owner:Group_ops.Group_points ~group:"seed" scalar_normals with
    | Error error -> check (Error.code error = "invalid_group")
        "Group Expand scalar normal attribute code"
    | Ok _ -> fail "Group Expand accepted a scalar normal attribute");
-  (match Group_ops.expand_checked ~connectivity_attributes:[{
+  (match Group_ops.expand ~connectivity_attributes:[{
         Group_ops.boundary_attribute_owner = Attribute.Point;
         boundary_attribute_pattern = "missing_region" }]
       ~owner:Group_ops.Group_points ~group:"seed" point_seed with
    | Error error -> check (Error.code error = "invalid_group")
        "Group Expand missing connectivity attribute code"
    | Ok _ -> fail "Group Expand accepted a missing connectivity attribute");
-  (match Group_ops.expand_checked ~connectivity_attributes:point_rule
+  (match Group_ops.expand ~connectivity_attributes:point_rule
       ~owner:Group_ops.Group_primitives ~group:"first" first_face with
    | Error error -> check (Error.code error = "invalid_group")
        "Group Expand constrained point-sharing primitive code"
    | Ok _ -> fail "Group Expand accepted constrained point-sharing primitives");
-  (match Group_ops.expand_checked ~normal_spread:0.2 ~owner:Group_ops.Group_edges
+  (match Group_ops.expand ~normal_spread:0.2 ~owner:Group_ops.Group_edges
       ~group:"edge_seed" edge_base with
    | Error error -> check (Error.code error = "invalid_group")
        "Group Expand constrained edge owner code"
    | Ok _ -> fail "Group Expand accepted constrained edge growth");
-  (match Group_ops.expand_checked ~collision:{
+  (match Group_ops.expand ~collision:{
       Group_ops.expand_collision_owner = Group_ops.Group_edges;
       expand_collision_group = "edge_seed";
       expand_collision_contain = true;
@@ -599,7 +599,7 @@ let test_expand () =
    | Error error -> check (Error.code error = "invalid_group")
        "Group Expand edge collision containment code"
    | Ok _ -> fail "Group Expand accepted edge collision containment");
-  (match Group_ops.expand_checked ~collision:{
+  (match Group_ops.expand ~collision:{
       Group_ops.expand_collision_owner = Group_ops.Group_points;
       expand_collision_group = "missing";
       expand_collision_contain = false;
@@ -617,18 +617,18 @@ let test_parallel_and_cancellation () =
   let seeded = with_group Group.Point "stripe_b"
       (fun point -> point mod width = width / 3) seeded in
   let run domains = Parallel.run ~domains (fun () ->
-    let expanded = Group_ops.expand_checked ~grain:257 ~steps:37
+    let expanded = Group_ops.expand ~grain:257 ~steps:37
         ~step_attribute:"grow_step"
         ~owner:Group_ops.Group_points ~group:"stripe" seeded |> get_ok in
-    let promoted = Group_ops.promote_checked ~grain:257 ~keep_original:true ~name:"faces"
+    let promoted = Group_ops.promote ~grain:257 ~keep_original:true ~name:"faces"
       ~mode:Group_ops.Include_shared_edge ~source:Group_ops.Group_points
       ~destination:Group_ops.Group_primitives ~group:"stripe" expanded |> get_ok in
-    let promoted = Group_ops.promotions_checked ~grain:257 ~rules:[
+    let promoted = Group_ops.promotions ~grain:257 ~rules:[
         Group_ops.promotion_rule ~new_name:"wild_faces*" ~keep_original:true
           ~mode:Group_ops.Include_shared_edge ~source:Group_ops.Group_points
           ~destination:Group_ops.Group_primitives ~pattern:"stripe*" ()]
         promoted |> get_ok in
-    Group_ops.promote_checked ~grain:257 ~keep_original:true
+    Group_ops.promote ~grain:257 ~keep_original:true
       ~output_attribute:"face_mask" ~mode:Group_ops.Include_shared_edge
       ~source:Group_ops.Group_points ~destination:Group_ops.Group_primitives
       ~group:"stripe" promoted |> get_ok) in
@@ -653,7 +653,7 @@ let test_parallel_and_cancellation () =
   let edge_run domains = Parallel.run ~domains (fun () ->
     let boundary = Group_mesh.group_edges ~grain:257 ~name:"boundary"
         ~incidence:Group_mesh.Boundary_edge base |> get_ok in
-    Group_ops.expand_checked ~grain:257 ~steps:5 ~owner:Group_ops.Group_edges
+    Group_ops.expand ~grain:257 ~steps:5 ~owner:Group_ops.Group_edges
       ~group:"boundary" boundary |> get_ok) in
   check (same_edge_group (edge_group "boundary" (edge_run 1))
       (edge_group "boundary" (edge_run 4)))
@@ -671,7 +671,7 @@ let test_parallel_and_cancellation () =
       |> with_group Group.Primitive "primitive_seed"
            (fun primitive -> primitive = 0) in
   let constrained_run domains = Parallel.run ~domains (fun () ->
-    Group_ops.expand_checked ~grain:257 ~flood:true ~step_attribute:"constrained_step"
+    Group_ops.expand ~grain:257 ~flood:true ~step_attribute:"constrained_step"
       ~primitive_connectivity:Group_ops.Primitive_share_edges ~normal_spread:0.1
       ~normal_attribute:{ Group_ops.expand_normal_owner = Attribute.Primitive;
         expand_normal_name = "flow" }
@@ -692,12 +692,12 @@ let test_parallel_and_cancellation () =
     "constrained Group Expand ignored connectivity region";
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
-  (match Group_ops.expand_checked ~cancel:cancelled ~owner:Group_ops.Group_points
+  (match Group_ops.expand ~cancel:cancelled ~owner:Group_ops.Group_points
       ~group:"stripe" seeded with
    | Error error -> check (Error.code error = "cancelled")
        "Group Expand cancellation code"
    | Ok _ -> fail "cancelled Group Expand published geometry");
-  (match Group_ops.expand_checked ~cancel:cancelled ~flood:true
+  (match Group_ops.expand ~cancel:cancelled ~flood:true
       ~primitive_connectivity:Group_ops.Primitive_share_edges
       ~connectivity_attributes:[{
         Group_ops.boundary_attribute_owner = Attribute.Primitive;
@@ -706,7 +706,7 @@ let test_parallel_and_cancellation () =
    | Error error -> check (Error.code error = "cancelled")
        "constrained Group Expand cancellation code"
    | Ok _ -> fail "cancelled constrained Group Expand published geometry");
-  (match Group_ops.promote_checked ~cancel:cancelled ~source:Group_ops.Group_points
+  (match Group_ops.promote ~cancel:cancelled ~source:Group_ops.Group_points
       ~destination:Group_ops.Group_primitives ~group:"stripe" seeded with
    | Error error -> check (Error.code error = "cancelled")
        "Group Promote cancellation code"

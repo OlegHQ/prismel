@@ -4530,7 +4530,7 @@ let group_from_attribute_boundary ?label ?(attributes = [])
         ^ string_of_bool include_all_primitives_sharing_boundary_points])
     ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
     ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      match Pdk.Group_ops.group_from_attribute_boundary_checked
+      match Pdk.Group_ops.group_from_attribute_boundary
           ~cancel:(Context.cancel_token context) ~grain:(Context.grain context)
           ~attributes ~tolerance ~include_unshared_edges
           ~include_all_unshared_curve_edges
@@ -4563,7 +4563,7 @@ let groups_from_name ?label ?(prefix = "")
       "max_payload_bytes=" ^ string_of_int max_payload_bytes])
     ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
     ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      match Pdk.Group_ops.groups_from_name_checked ~cancel:(Context.cancel_token context)
+      match Pdk.Group_ops.groups_from_name ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ~prefix ~conflict ~invalid_names
           ~max_groups ~max_payload_bytes ~owner ~attribute inputs.(0) with
       | Ok geometry -> cooked geometry
@@ -4589,7 +4589,7 @@ let name_from_groups ?label ?(attribute = "name") ?(pattern = "*")
       "delete_groups=" ^ string_of_bool delete_groups])
     ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
     ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      match Pdk.Group_ops.name_from_groups_checked ~cancel:(Context.cancel_token context)
+      match Pdk.Group_ops.name_from_groups ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ~attribute ~pattern ~default ~overlap
           ~delete_groups ~owner inputs.(0) with
       | Ok geometry -> cooked geometry
@@ -5690,7 +5690,7 @@ let group_promotions ?label ?(max_outputs = 4_096)
         ~cook_mode:(Node.Duplicate_input 0)
         ~dependencies:Context.Dependencies.static ~inputs:[|input|]
         (fun ~node_id:_ context inputs ->
-          match Pdk.Group_ops.promotions_checked ~cancel:(Context.cancel_token context)
+          match Pdk.Group_ops.promotions ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ~max_outputs ~max_payload_bytes
               ~rules inputs.(0) with
           | Ok geometry -> cooked geometry
@@ -5730,7 +5730,7 @@ let group_promote_boundary ?label ?name ?(keep_original = false)
         string_of_bool include_all_primitives_sharing_boundary_points])
     ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
     ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      match Pdk.Group_ops.group_promote_boundary_checked
+      match Pdk.Group_ops.group_promote_boundary
           ~cancel:(Context.cancel_token context) ~grain:(Context.grain context)
           ?name ~keep_original ?output_attribute ~attributes ~tolerance
           ~include_unshared_edges ~include_all_unshared_curve_edges
@@ -5812,7 +5812,7 @@ let group_expand ?label ?name ?(steps = 1) ?(flood = false) ?step_attribute
       "collision=" ^ group_expand_collision_key collision])
     ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
     ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      match Pdk.Group_ops.expand_checked ~cancel:(Context.cancel_token context)
+      match Pdk.Group_ops.expand ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ?name ~steps ~flood ?step_attribute
           ~primitive_connectivity ?normal_spread ?normal_attribute
           ~connectivity_attributes ~connectivity_tolerance ?collision
@@ -5850,7 +5850,7 @@ let group_combine ?label ~owner ~name ~base ~steps input =
       "steps=" ^ String.concat "," (List.map group_combine_step_key steps)])
     ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
     ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      match Pdk.Group_ops.combine_checked ~cancel:(Context.cancel_token context)
+      match Pdk.Group_ops.combine ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ~owner ~name ~base ~steps inputs.(0) with
       | Ok geometry -> cooked geometry
       | Error error -> structured_pdk_error error)
@@ -5912,7 +5912,7 @@ let group_range ?label ?base ?(invert = false) ?filter ?connectivity
       "range=" ^ group_range_key range])
     ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
     ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      match Pdk.Group_ops.range_checked ~cancel:(Context.cancel_token context)
+      match Pdk.Group_ops.range ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ?base ~invert ?filter ?connectivity
           ~merge ~owner ~name range inputs.(0) with
       | Ok geometry -> cooked geometry
@@ -5942,7 +5942,7 @@ let group_ranges ?label rules input =
         ~cook_mode:(Node.Duplicate_input 0)
         ~dependencies:Context.Dependencies.static ~inputs:[|input|]
         (fun ~node_id:_ context inputs ->
-          match Pdk.Group_ops.ranges_checked ~cancel:(Context.cancel_token context)
+          match Pdk.Group_ops.ranges ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ~rules inputs.(0) with
           | Ok geometry -> cooked geometry
           | Error error -> structured_pdk_error error)
@@ -5969,7 +5969,7 @@ let group_invert ?label ?(conflict = Pdk.Group_ops.Rename_overwrite) ?owner
       "conflict=" ^ group_rename_conflict_key conflict])
     ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
     ~inputs:[|input|] (fun ~node_id:_ _context inputs ->
-      match Pdk.Group_ops.invert_checked ~conflict ?owner ~pattern ?new_name inputs.(0) with
+      match Pdk.Group_ops.invert ~conflict ?owner ~pattern ?new_name inputs.(0) with
       | Ok geometry -> cooked geometry
       | Error error -> structured_pdk_error error)
 
@@ -5986,7 +5986,7 @@ let group_delete ?label ?(delete_unused = false) ~rules input =
       (String.concat "," (List.map group_delete_rule_key rules)))
     ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
     ~inputs:[|input|] (fun ~node_id:_ _context inputs ->
-      match Pdk.Group_ops.delete_checked ~rules ~delete_unused inputs.(0) with
+      match Pdk.Group_ops.delete ~rules ~delete_unused inputs.(0) with
       | Ok geometry -> cooked geometry
       | Error error -> structured_pdk_error error)
 
@@ -6008,7 +6008,7 @@ let group_rename ?label ~rules input =
       (List.map group_rename_rule_key rules))
     ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
     ~inputs:[|input|] (fun ~node_id:_ _context inputs ->
-      match Pdk.Group_ops.rename_checked ~rules inputs.(0) with
+      match Pdk.Group_ops.rename ~rules inputs.(0) with
       | Ok geometry -> cooked geometry
       | Error error -> structured_pdk_error error)
 
@@ -6038,7 +6038,7 @@ let group_copy ?label ?rules ?(conflict = Pdk.Group_ops.Copy_skip)
       "copy_empty=" ^ string_of_bool copy_empty])
     ~cook_mode:Node.Generic ~dependencies:Context.Dependencies.static
     ~inputs:[|source; target|] (fun ~node_id:_ context inputs ->
-      match Pdk.Group_ops.copy_checked ~cancel:(Context.cancel_token context)
+      match Pdk.Group_ops.copy ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ?rules ~conflict ~copy_empty
           ~source:inputs.(0) ~target:inputs.(1) () with
       | Ok geometry -> cooked geometry
@@ -6064,7 +6064,7 @@ let group_transfer ?label ?rules ?(conflict = Pdk.Group_ops.Copy_skip)
       "distance=" ^ float_key distance])
     ~cook_mode:Node.Generic ~dependencies:Context.Dependencies.static
     ~inputs:[|source; target|] (fun ~node_id:_ context inputs ->
-      match Pdk.Group_ops.transfer_checked ~cancel:(Context.cancel_token context)
+      match Pdk.Group_ops.transfer ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ?rules ~conflict ~create_empty ~distance
           ~source:inputs.(0) ~target:inputs.(1) () with
       | Ok geometry -> cooked geometry
@@ -6407,7 +6407,7 @@ let group_random ?label ?seed ?seed_attribute ?base
           stable_identity in
       let seed = Rand.seed (Option.value ~default:(mixed_seed context identity)
           seed) in
-      match Pdk.Group_ops.group_random_checked ~cancel:(Context.cancel_token context)
+      match Pdk.Group_ops.group_random ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ~seed ?seed_attribute ?base ~merge
           ~probability ~owner ~name inputs.(0) with
       | Ok geometry -> cooked geometry
@@ -6449,7 +6449,7 @@ let group_bounds ?label ?base ?(containment = Pdk.Group_ops.Fully_contained)
       "bounds=" ^ group_bounds_key bounds])
     ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
     ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      match Pdk.Group_ops.group_bounds_checked ~cancel:(Context.cancel_token context)
+      match Pdk.Group_ops.group_bounds ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ?base ~containment ~merge bounds
           ~owner ~name inputs.(0) with
       | Ok geometry -> cooked geometry
@@ -6488,7 +6488,7 @@ let group_normal ?label ?normal_attribute ?(use_existing_normal = true) ?base
       "spread_angle=" ^ float_key spread_angle])
     ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
     ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      match Pdk.Group_ops.group_normal_checked ~cancel:(Context.cancel_token context)
+      match Pdk.Group_ops.group_normal ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ?normal_attribute ~use_existing_normal ?base
           ~include_opposite ~merge ~direction ~spread_angle ~owner ~name
           inputs.(0) with
@@ -6512,7 +6512,7 @@ let group_non_planar ?label ?base ?(merge = Pdk.Group_ops.Group_replace)
       "tolerance=" ^ float_key tolerance])
     ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
     ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      match Pdk.Group_ops.group_non_planar_checked ~cancel:(Context.cancel_token context)
+      match Pdk.Group_ops.group_non_planar ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ?base ~merge ~tolerance ~name inputs.(0)
       with
       | Ok geometry -> cooked geometry
@@ -6537,7 +6537,7 @@ let group_backface ?label ?base ?(merge = Pdk.Group_ops.Group_replace)
       "viewpoint=" ^ vec3_key viewpoint])
     ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
     ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      match Pdk.Group_ops.group_backface_checked ~cancel:(Context.cancel_token context)
+      match Pdk.Group_ops.group_backface ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ?base ~merge ~viewpoint ~name inputs.(0)
       with
       | Ok geometry -> cooked geometry
@@ -6554,7 +6554,7 @@ let group_edge_depth ?label ?(merge = Pdk.Group_ops.Group_replace) ~depth
       depth point_group name (group_boolean_operation_key merge))
     ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
     ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      match Pdk.Group_ops.group_edge_depth_checked ~cancel:(Context.cancel_token context)
+      match Pdk.Group_ops.group_edge_depth ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ~merge ~depth ~point_group ~name
           inputs.(0) with
       | Ok geometry -> cooked geometry
@@ -6568,7 +6568,7 @@ let group_unshared ?label ?(merge = Pdk.Group_ops.Group_replace) ~owner ~name in
       (boundary_group_owner_key owner) name (group_boolean_operation_key merge))
     ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
     ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      match Pdk.Group_ops.group_unshared_checked ~cancel:(Context.cancel_token context)
+      match Pdk.Group_ops.group_unshared ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ~merge ~owner ~name inputs.(0) with
       | Ok geometry -> cooked geometry
       | Error error -> structured_pdk_error error)
@@ -6584,7 +6584,7 @@ let group_boundary_components ?label ?(prefix = "boundary")
       prefix (group_name_conflict_key conflict) max_groups max_payload_bytes)
     ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
     ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      match Pdk.Group_ops.group_boundary_components_checked
+      match Pdk.Group_ops.group_boundary_components
           ~cancel:(Context.cancel_token context) ~grain:(Context.grain context)
           ~prefix ~conflict ~max_groups ~max_payload_bytes inputs.(0) with
       | Ok geometry -> cooked geometry

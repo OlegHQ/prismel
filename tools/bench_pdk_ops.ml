@@ -3789,7 +3789,7 @@ let run_group_benchmarks () =
   let name_attribute = Attribute.create_owned ~owner:Attribute.Point
       ~name:"piece_name" (Attribute.Text name_values) |> get_ok in
   let name_source = Geometry.with_attribute name_attribute source |> get_ok in
-  let grouped_name_source = Group_ops.groups_from_name_checked ~grain ~owner:Attribute.Point
+  let grouped_name_source = Group_ops.groups_from_name ~grain ~owner:Attribute.Point
       ~attribute:"piece_name" name_source |> get_ok in
   let reversed_ids = Attribute.create_owned ~owner:Attribute.Point ~name:"copy_id"
       (Attribute.Int (Array.init point_count (fun point ->
@@ -3806,13 +3806,13 @@ let run_group_benchmarks () =
      medians. [topology_index] remains the dedicated cold-index benchmark. *)
   ignore (Topology_index.create (Geometry.topology source));
   measure ~input_points:point_count "group_promote_points_to_primitives_edge"
-    (fun () -> Group_ops.promote_checked ~grain ~keep_original:true
+    (fun () -> Group_ops.promote ~grain ~keep_original:true
       ~name:"promoted" ~mode:Group_ops.Include_shared_edge
       ~source:Group_ops.Group_points ~destination:Group_ops.Group_primitives
       ~group:"point_seed" point_source |> get_ok) geometry_output;
   measure ~input_points:point_count
     "group_promote_points_to_primitives_attribute" (fun () ->
-      Group_ops.promote_checked ~grain ~keep_original:true
+      Group_ops.promote ~grain ~keep_original:true
         ~output_attribute:"promoted_mask" ~mode:Group_ops.Include_shared_edge
         ~source:Group_ops.Group_points ~destination:Group_ops.Group_primitives
         ~group:"point_seed" point_source |> get_ok) geometry_output;
@@ -3822,67 +3822,67 @@ let run_group_benchmarks () =
       ~pattern:"promote_*" ()] in
   measure ~input_points:point_count
     "group_promotions_points_to_primitives_wildcard_8" (fun () ->
-      Group_ops.promotions_checked ~grain ~rules:promotion_rules promotion_source
+      Group_ops.promotions ~grain ~rules:promotion_rules promotion_source
       |> get_ok) geometry_output;
   measure ~input_points:point_count "group_promote_boundary_primitives_to_edges"
-    (fun () -> Group_ops.group_promote_boundary_checked ~grain ~keep_original:true
+    (fun () -> Group_ops.group_promote_boundary ~grain ~keep_original:true
       ~include_unshared_edges:true ~name:"primitive_outline"
       ~source:Group_ops.Group_primitives ~destination:Group_ops.Group_edges
       ~group:"primitive_seed" primitive_source |> get_ok) geometry_output;
   measure ~input_points:point_count "group_promote_boundary_primitives_to_points"
-    (fun () -> Group_ops.group_promote_boundary_checked ~grain ~keep_original:true
+    (fun () -> Group_ops.group_promote_boundary ~grain ~keep_original:true
       ~include_unshared_edges:true ~name:"primitive_outline_points"
       ~source:Group_ops.Group_primitives ~destination:Group_ops.Group_points
       ~group:"primitive_seed" primitive_source |> get_ok) geometry_output;
   measure ~input_points:point_count "group_promote_boundary_attribute_edges"
-    (fun () -> Group_ops.group_promote_boundary_checked ~grain ~keep_original:true
+    (fun () -> Group_ops.group_promote_boundary ~grain ~keep_original:true
       ~attributes:[{ Group_ops.boundary_attribute_owner = Attribute.Primitive;
         boundary_attribute_pattern = "material_id" }]
       ~name:"material_boundaries" ~source:Group_ops.Group_primitives
       ~destination:Group_ops.Group_edges ~group:"all_primitives" boundary_source
       |> get_ok) geometry_output;
   measure ~input_points:point_count "group_promote_points_to_edges_all"
-    (fun () -> Group_ops.promote_checked ~grain ~keep_original:true
+    (fun () -> Group_ops.promote ~grain ~keep_original:true
       ~name:"promoted_edges" ~mode:Group_ops.Include_all
       ~source:Group_ops.Group_points ~destination:Group_ops.Group_edges
       ~group:"point_seed" point_source |> get_ok) geometry_output;
   measure ~input_points:point_count "group_expand_points_steps16"
-    (fun () -> Group_ops.expand_checked ~grain ~steps:16 ~owner:Group_ops.Group_points
+    (fun () -> Group_ops.expand ~grain ~steps:16 ~owner:Group_ops.Group_points
       ~group:"point_seed" point_source |> get_ok) geometry_output;
   measure ~input_points:point_count "group_edge_depth_points_16"
-    (fun () -> Group_ops.group_edge_depth_checked ~grain ~depth:16
+    (fun () -> Group_ops.group_edge_depth ~grain ~depth:16
       ~point_group:"point_seed" ~name:"point_seed" point_source |> get_ok)
     geometry_output;
   measure ~input_points:point_count "group_edge_depth_points_128"
-    (fun () -> Group_ops.group_edge_depth_checked ~grain ~depth:128
+    (fun () -> Group_ops.group_edge_depth ~grain ~depth:128
       ~point_group:"point_seed" ~name:"point_seed" point_source |> get_ok)
     geometry_output;
   measure ~input_points:point_count "group_unshared_edges"
-    (fun () -> Group_ops.group_unshared_checked ~grain ~owner:Group_ops.Group_edges
+    (fun () -> Group_ops.group_unshared ~grain ~owner:Group_ops.Group_edges
       ~name:"unshared_edges" source |> get_ok) geometry_output;
   measure ~input_points:point_count "group_unshared_points"
-    (fun () -> Group_ops.group_unshared_checked ~grain ~owner:Group_ops.Group_points
+    (fun () -> Group_ops.group_unshared ~grain ~owner:Group_ops.Group_points
       ~name:"unshared_points" source |> get_ok) geometry_output;
   measure ~input_points:point_count "group_unshared_primitives"
-    (fun () -> Group_ops.group_unshared_checked ~grain ~owner:Group_ops.Group_primitives
+    (fun () -> Group_ops.group_unshared ~grain ~owner:Group_ops.Group_primitives
       ~name:"unshared_primitives" source |> get_ok) geometry_output;
   measure ~input_points:point_count "group_boundary_components"
-    (fun () -> Group_ops.group_boundary_components_checked ~grain ~prefix:"boundary"
+    (fun () -> Group_ops.group_boundary_components ~grain ~prefix:"boundary"
       source |> get_ok) geometry_output;
   measure ~input_points:point_count "group_expand_points_steps16_attribute"
-    (fun () -> Group_ops.expand_checked ~grain ~steps:16 ~step_attribute:"step"
+    (fun () -> Group_ops.expand ~grain ~steps:16 ~step_attribute:"step"
       ~owner:Group_ops.Group_points ~group:"point_seed" point_source |> get_ok)
     geometry_output;
   measure ~input_points:point_count "group_expand_primitives_edges_steps8"
-    (fun () -> Group_ops.expand_checked ~grain ~steps:8
+    (fun () -> Group_ops.expand ~grain ~steps:8
       ~primitive_connectivity:Group_ops.Primitive_share_edges
       ~owner:Group_ops.Group_primitives ~group:"primitive_seed" primitive_source
       |> get_ok) geometry_output;
   measure ~input_points:point_count "group_expand_points_flood"
-    (fun () -> Group_ops.expand_checked ~grain ~flood:true ~owner:Group_ops.Group_points
+    (fun () -> Group_ops.expand ~grain ~flood:true ~owner:Group_ops.Group_points
       ~group:"point_seed" point_source |> get_ok) geometry_output;
   measure ~input_points:point_count "group_expand_points_flood_attribute"
-    (fun () -> Group_ops.expand_checked ~grain ~flood:true ~step_attribute:"step"
+    (fun () -> Group_ops.expand ~grain ~flood:true ~step_attribute:"step"
       ~owner:Group_ops.Group_points ~group:"point_seed" point_source |> get_ok)
     geometry_output;
   let connectivity_attributes = [{
@@ -3894,7 +3894,7 @@ let run_group_benchmarks () =
     expand_collision_contain = true;
     expand_collision_allow_boundary = true } in
   measure ~input_points:point_count "group_expand_points_constraints_flood"
-    (fun () -> Group_ops.expand_checked ~grain ~flood:true ~step_attribute:"step"
+    (fun () -> Group_ops.expand ~grain ~flood:true ~step_attribute:"step"
       ~connectivity_attributes ~collision:point_collision
       ~owner:Group_ops.Group_points ~group:"constrained_point_seed"
       constrained_point_source |> get_ok) geometry_output;
@@ -3908,7 +3908,7 @@ let run_group_benchmarks () =
     expand_collision_allow_boundary = true } in
   measure ~input_points:point_count
     "group_expand_primitives_constraints_flood" (fun () ->
-      Group_ops.expand_checked ~grain ~flood:true ~step_attribute:"step"
+      Group_ops.expand ~grain ~flood:true ~step_attribute:"step"
         ~primitive_connectivity:Group_ops.Primitive_share_edges
         ~normal_spread:0.2
         ~normal_attribute:{ Group_ops.expand_normal_owner = Attribute.Vertex;
@@ -3917,25 +3917,25 @@ let run_group_benchmarks () =
         ~owner:Group_ops.Group_primitives ~group:"constrained_primitive_seed"
         constrained_primitive_source |> get_ok) geometry_output;
   measure ~input_points:point_count "group_range_points_filter"
-    (fun () -> Group_ops.range_checked ~grain ~owner:Group_ops.Group_points ~name:"range"
+    (fun () -> Group_ops.range ~grain ~owner:Group_ops.Group_points ~name:"range"
       ~filter:{ select = 5; of_ = 13; offset = 3 }
       (Group_ops.Range_from_ends { start = 17; end_offset = 23 }) catalog_source
       |> get_ok) geometry_output;
   measure ~input_points:point_count "group_range_points_disconnected"
-    (fun () -> Group_ops.range_checked ~grain ~owner:Group_ops.Group_points
+    (fun () -> Group_ops.range ~grain ~owner:Group_ops.Group_points
       ~name:"connected_range"
       ~connectivity:(Group_ops.Range_disconnected { region = None })
       ~filter:{ select = 5; of_ = 13; offset = 3 }
       (Group_ops.Range_from_ends { start = 17; end_offset = 23 }) catalog_source
       |> get_ok) geometry_output;
   measure ~input_points:point_count "group_range_primitives_disconnected"
-    (fun () -> Group_ops.range_checked ~grain ~owner:Group_ops.Group_primitives
+    (fun () -> Group_ops.range ~grain ~owner:Group_ops.Group_primitives
       ~name:"connected_partition"
       ~connectivity:(Group_ops.Range_disconnected { region = None })
       (Group_ops.Range_partition { partition = 1; partitions = 3 }) source
       |> get_ok) geometry_output;
   measure ~input_points:point_count "group_range_points_attribute_copy_id"
-    (fun () -> Group_ops.range_checked ~grain ~owner:Group_ops.Group_points
+    (fun () -> Group_ops.range ~grain ~owner:Group_ops.Group_points
       ~name:"attribute_range"
       ~connectivity:(Group_ops.Range_connected {
         connectivity_attributes = Some "copy_id";
@@ -3946,7 +3946,7 @@ let run_group_benchmarks () =
       (Group_ops.Range_start_end { start = 0; end_ = 0 }) catalog_source
       |> get_ok) geometry_output;
   measure ~input_points:point_count "group_range_primitives_attribute_material"
-    (fun () -> Group_ops.range_checked ~grain ~owner:Group_ops.Group_primitives
+    (fun () -> Group_ops.range ~grain ~owner:Group_ops.Group_primitives
       ~name:"material_range"
       ~connectivity:(Group_ops.Range_connected {
         connectivity_attributes = Some "material_id";
@@ -3957,7 +3957,7 @@ let run_group_benchmarks () =
       (Group_ops.Range_start_end { start = 0; end_ = 0 }) boundary_source
       |> get_ok) geometry_output;
   measure ~input_points:point_count "group_range_points_collision_keep"
-    (fun () -> Group_ops.range_checked ~grain ~owner:Group_ops.Group_points
+    (fun () -> Group_ops.range ~grain ~owner:Group_ops.Group_points
       ~name:"collision_range"
       ~connectivity:(Group_ops.Range_connected {
         connectivity_attributes = None;
@@ -3976,44 +3976,44 @@ let run_group_benchmarks () =
       ~owner:Group_ops.Group_points ~name:(Printf.sprintf "range_%02d" rule)
       (Group_ops.Range_partition { partition = rule mod 7; partitions = 7 })) in
   measure ~input_points:point_count "group_ranges_points_global_16"
-    (fun () -> Group_ops.ranges_checked ~grain ~rules:range_rules_16 catalog_source
+    (fun () -> Group_ops.ranges ~grain ~rules:range_rules_16 catalog_source
       |> get_ok) geometry_output;
   let boundary_attributes = [{ Group_ops.boundary_attribute_owner = Attribute.Primitive;
     boundary_attribute_pattern = "material_id" }] in
   measure ~input_points:point_count "group_attribute_boundary_edges"
-    (fun () -> Group_ops.group_from_attribute_boundary_checked ~grain
+    (fun () -> Group_ops.group_from_attribute_boundary ~grain
       ~attributes:boundary_attributes ~owner:Group_ops.Group_edges ~name:"seams"
       boundary_source |> get_ok) geometry_output;
   measure ~input_points:point_count "group_attribute_boundary_primitives"
-    (fun () -> Group_ops.group_from_attribute_boundary_checked ~grain
+    (fun () -> Group_ops.group_from_attribute_boundary ~grain
       ~attributes:boundary_attributes ~owner:Group_ops.Group_primitives
       ~name:"seam_faces" boundary_source |> get_ok) geometry_output;
   measure ~input_points:point_count "groups_from_name_points_64"
-    (fun () -> Group_ops.groups_from_name_checked ~grain ~owner:Attribute.Point
+    (fun () -> Group_ops.groups_from_name ~grain ~owner:Attribute.Point
       ~attribute:"piece_name" name_source |> get_ok) geometry_output;
   measure ~input_points:point_count "name_from_groups_points_64"
-    (fun () -> Group_ops.name_from_groups_checked ~grain ~attribute:"round_trip"
+    (fun () -> Group_ops.name_from_groups ~grain ~attribute:"round_trip"
       ~pattern:"piece_*" ~delete_groups:true ~owner:Attribute.Point
       grouped_name_source |> get_ok) geometry_output;
   let random_seed = Rand.seed 0x514e in
   measure ~input_points:point_count "group_random_points"
-    (fun () -> Group_ops.group_random_checked ~grain ~seed:random_seed ~probability:0.37
+    (fun () -> Group_ops.group_random ~grain ~seed:random_seed ~probability:0.37
       ~owner:Group_ops.Group_points ~name:"random_points" source |> get_ok)
     geometry_output;
   measure ~input_points:point_count "group_random_points_seed_attribute"
-    (fun () -> Group_ops.group_random_checked ~grain ~seed:random_seed
+    (fun () -> Group_ops.group_random ~grain ~seed:random_seed
       ~seed_attribute:"copy_id" ~probability:0.37 ~owner:Group_ops.Group_points
       ~name:"random_points" catalog_source |> get_ok) geometry_output;
   measure ~input_points:point_count "group_random_vertices"
-    (fun () -> Group_ops.group_random_checked ~grain ~seed:random_seed ~probability:0.37
+    (fun () -> Group_ops.group_random ~grain ~seed:random_seed ~probability:0.37
       ~owner:Group_ops.Group_vertices ~name:"random_vertices" source |> get_ok)
     geometry_output;
   measure ~input_points:point_count "group_random_primitives"
-    (fun () -> Group_ops.group_random_checked ~grain ~seed:random_seed ~probability:0.37
+    (fun () -> Group_ops.group_random ~grain ~seed:random_seed ~probability:0.37
       ~owner:Group_ops.Group_primitives ~name:"random_primitives" source |> get_ok)
     geometry_output;
   measure ~input_points:point_count "group_random_edges"
-    (fun () -> Group_ops.group_random_checked ~grain ~seed:random_seed ~probability:0.37
+    (fun () -> Group_ops.group_random ~grain ~seed:random_seed ~probability:0.37
       ~owner:Group_ops.Group_edges ~name:"random_edges" source |> get_ok)
     geometry_output;
   let bounds_box = Group_ops.Bounds_box {
@@ -4023,38 +4023,38 @@ let run_group_benchmarks () =
     center = Vec3.create 3. 0. (-4.); radius = 34.;
   } in
   measure ~input_points:point_count "group_bounds_points_box"
-    (fun () -> Group_ops.group_bounds_checked ~grain bounds_box ~owner:Group_ops.Group_points
+    (fun () -> Group_ops.group_bounds ~grain bounds_box ~owner:Group_ops.Group_points
       ~name:"bounded_points" source |> get_ok) geometry_output;
   measure ~input_points:point_count "group_bounds_vertices_sphere"
-    (fun () -> Group_ops.group_bounds_checked ~grain bounds_sphere ~owner:Group_ops.Group_vertices
+    (fun () -> Group_ops.group_bounds ~grain bounds_sphere ~owner:Group_ops.Group_vertices
       ~name:"bounded_vertices" source |> get_ok) geometry_output;
   measure ~input_points:point_count "group_bounds_primitives_partial_sphere"
-    (fun () -> Group_ops.group_bounds_checked ~grain ~containment:Group_ops.Partially_contained
+    (fun () -> Group_ops.group_bounds ~grain ~containment:Group_ops.Partially_contained
       bounds_sphere ~owner:Group_ops.Group_primitives ~name:"bounded_primitives"
       source |> get_ok) geometry_output;
   measure ~input_points:point_count "group_bounds_edges_partial_box"
-    (fun () -> Group_ops.group_bounds_checked ~grain ~containment:Group_ops.Partially_contained
+    (fun () -> Group_ops.group_bounds ~grain ~containment:Group_ops.Partially_contained
       bounds_box ~owner:Group_ops.Group_edges ~name:"bounded_edges" source |> get_ok)
     geometry_output;
   measure ~input_points:point_count "group_normal_primitives_geometric"
-    (fun () -> Group_ops.group_normal_checked ~grain ~use_existing_normal:false
+    (fun () -> Group_ops.group_normal ~grain ~use_existing_normal:false
       ~direction:Vec3.unit_y
       ~spread_angle:(Float.pi /. 4.) ~owner:Group_ops.Group_primitives
       ~name:"normal_primitives" source |> get_ok) geometry_output;
   measure ~input_points:point_count "group_normal_points_geometric"
-    (fun () -> Group_ops.group_normal_checked ~grain ~use_existing_normal:false
+    (fun () -> Group_ops.group_normal ~grain ~use_existing_normal:false
       ~direction:Vec3.unit_y
       ~spread_angle:(Float.pi /. 4.) ~owner:Group_ops.Group_points
       ~name:"normal_points" source |> get_ok) geometry_output;
   measure ~input_points:point_count "group_normal_edges_geometric"
-    (fun () -> Group_ops.group_normal_checked ~grain ~use_existing_normal:false
+    (fun () -> Group_ops.group_normal ~grain ~use_existing_normal:false
       ~direction:Vec3.unit_y
       ~spread_angle:(Float.pi /. 4.) ~owner:Group_ops.Group_edges
       ~name:"normal_edges" source |> get_ok) geometry_output;
   if benchmark_enabled "group_normal_points_attribute" then begin
     let source_with_normals = Normal_ops.run ~grain source |> get_ok in
     measure ~input_points:point_count "group_normal_points_attribute"
-      (fun () -> Group_ops.group_normal_checked ~grain ~normal_attribute:"N"
+      (fun () -> Group_ops.group_normal ~grain ~normal_attribute:"N"
         ~direction:Vec3.unit_y ~spread_angle:(Float.pi /. 4.)
         ~owner:Group_ops.Group_points ~name:"normal_points" source_with_normals
         |> get_ok) geometry_output
@@ -4066,11 +4066,11 @@ let run_group_benchmarks () =
              ~frequency:(Vec3.create 0.31 0.47 0.29) ~octaves:3 |> get_ok in
     measure ~input_points:(Geometry.point_count quad_source)
       "group_non_planar_primitives"
-      (fun () -> Group_ops.group_non_planar_checked ~grain ~tolerance:0.0001
+      (fun () -> Group_ops.group_non_planar ~grain ~tolerance:0.0001
         ~name:"non_planar" quad_source |> get_ok) geometry_output
   end;
   measure ~input_points:point_count "group_backface_primitives"
-    (fun () -> Group_ops.group_backface_checked ~grain
+    (fun () -> Group_ops.group_backface ~grain
       ~viewpoint:(Vec3.create 0. (-100.) 0.) ~name:"backfaces" source
       |> get_ok) geometry_output;
   measure ~input_points:point_count "group_edges_incident_angle"
@@ -4082,35 +4082,35 @@ let run_group_benchmarks () =
       ~min_angle:0.01 ~name:"dihedral_angles" source |> get_ok)
     geometry_output;
   measure ~input_points:point_count "group_combine_points_xor"
-    (fun () -> Group_ops.combine_checked ~grain ~owner:Group_ops.Group_points ~name:"combined"
+    (fun () -> Group_ops.combine ~grain ~owner:Group_ops.Group_points ~name:"combined"
       ~base:{ pattern = "point_seed*"; inverted = false }
       ~steps:[{ operation = Group_ops.Group_xor;
         operand = { pattern = "point_seed_b"; inverted = true } }]
       catalog_source |> get_ok) geometry_output;
   measure ~input_points:point_count "group_invert_points"
-    (fun () -> Group_ops.invert_checked ~owner:Group_ops.Group_points ~pattern:"point_seed*"
+    (fun () -> Group_ops.invert ~owner:Group_ops.Group_points ~pattern:"point_seed*"
       catalog_source |> get_ok) geometry_output;
   measure ~input_points:point_count "group_rename_metadata"
-    (fun () -> Group_ops.rename_checked ~rules:[
+    (fun () -> Group_ops.rename ~rules:[
       { rename_owner = Some Group_ops.Group_points; rename_pattern = "point_*";
         rename_replacement = "selected_*"; rename_conflict = Group_ops.Rename_error }]
       catalog_source |> get_ok) geometry_output;
   measure ~input_points:point_count "group_delete_metadata"
-    (fun () -> Group_ops.delete_checked ~rules:[
+    (fun () -> Group_ops.delete ~rules:[
       { delete_owner = Some Group_ops.Group_points; delete_pattern = "point_seed_b" }]
       catalog_source |> get_ok) geometry_output;
   measure ~input_points:point_count "group_copy_points_index"
-    (fun () -> Group_ops.copy_checked ~grain ~rules:[
+    (fun () -> Group_ops.copy ~grain ~rules:[
       { copy_owner = Group_ops.Group_points; copy_pattern = "point_seed*";
         copy_prefix = "copied_"; match_attribute = None }]
       ~source:catalog_source ~target:copy_target () |> get_ok) geometry_output;
   measure ~input_points:point_count "group_copy_points_attribute"
-    (fun () -> Group_ops.copy_checked ~grain ~rules:[
+    (fun () -> Group_ops.copy ~grain ~rules:[
       { copy_owner = Group_ops.Group_points; copy_pattern = "point_seed*";
         copy_prefix = "copied_"; match_attribute = Some "copy_id" }]
       ~source:catalog_source ~target:copy_target () |> get_ok) geometry_output;
   measure ~input_points:point_count "group_copy_points_text_attribute"
-    (fun () -> Group_ops.copy_checked ~grain ~rules:[
+    (fun () -> Group_ops.copy ~grain ~rules:[
       { copy_owner = Group_ops.Group_points; copy_pattern = "point_seed*";
         copy_prefix = "copied_"; match_attribute = Some "copy_text" }]
       ~source:text_source ~target:text_target () |> get_ok) geometry_output
@@ -4147,21 +4147,21 @@ let run_group_transfer_benchmarks () =
     transfer_pattern = "transfer_edges"; transfer_prefix = "mapped_" }] in
   let transfer_input_points = Geometry.point_count transfer_source in
   measure ~input_points:transfer_input_points "group_transfer_points" (fun () ->
-    Group_ops.transfer_checked ~grain ~distance:0.01 ~rules:transfer_points_rule
+    Group_ops.transfer ~grain ~distance:0.01 ~rules:transfer_points_rule
       ~source:transfer_source ~target:transfer_target () |> get_ok)
     geometry_output;
   measure ~input_points:transfer_input_points "group_transfer_points_ordered"
     (fun () ->
-      Group_ops.transfer_checked ~grain ~distance:0.01
+      Group_ops.transfer ~grain ~distance:0.01
         ~rules:transfer_points_ordered_rule ~source:transfer_source
         ~target:transfer_target () |> get_ok)
     geometry_output;
   measure ~input_points:transfer_input_points "group_transfer_primitives"
-    (fun () -> Group_ops.transfer_checked ~grain ~distance:0.01
+    (fun () -> Group_ops.transfer ~grain ~distance:0.01
       ~rules:transfer_primitives_rule ~source:transfer_source
       ~target:transfer_target () |> get_ok) geometry_output;
   measure ~input_points:transfer_input_points "group_transfer_edges" (fun () ->
-    Group_ops.transfer_checked ~grain ~distance:0.01 ~rules:transfer_edges_rule
+    Group_ops.transfer ~grain ~distance:0.01 ~rules:transfer_edges_rule
       ~source:transfer_source ~target:transfer_target () |> get_ok)
     geometry_output
 

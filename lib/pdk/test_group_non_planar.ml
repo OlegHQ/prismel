@@ -44,15 +44,15 @@ let sample () = geometry
 
 let test_tolerance_and_primitive_kind () =
   let source = sample () in
-  let selected = Group_ops.group_non_planar_checked ~tolerance:0.05 ~name:"warped" source
+  let selected = Group_ops.group_non_planar ~tolerance:0.05 ~name:"warped" source
       |> get_ok in
   expect_members [1] (group "warped" selected)
     "Group Non-Planar selects warped polygon only";
-  let tolerant = Group_ops.group_non_planar_checked ~tolerance:0.25 ~name:"tolerant" source
+  let tolerant = Group_ops.group_non_planar ~tolerance:0.25 ~name:"tolerant" source
       |> get_ok in
   expect_members [] (group "tolerant" tolerant)
     "Group Non-Planar absolute tolerance";
-  let exact = Group_ops.group_non_planar_checked ~tolerance:0. ~name:"exact" source |> get_ok in
+  let exact = Group_ops.group_non_planar ~tolerance:0. ~name:"exact" source |> get_ok in
   expect_members [1] (group "exact" exact)
     "Group Non-Planar exact planar and collinear handling"
 
@@ -61,7 +61,7 @@ let test_stable_support_plane () =
       [|(0., 0., 0.); (1., 0., 0.); (2., 0., 0.); (2., 0., 1.);
         (0., 0.1, 1.)|]
       [|`Polygon, [|0; 1; 2; 3; 4|]|] in
-  let selected = Group_ops.group_non_planar_checked ~tolerance:0.01 ~name:"stable" source
+  let selected = Group_ops.group_non_planar ~tolerance:0.01 ~name:"stable" source
       |> get_ok in
   expect_members [0] (group "stable" selected)
     "Group Non-Planar does not depend on a collinear first triple"
@@ -70,7 +70,7 @@ let test_triangle_is_planar () =
   let source = geometry
       [|(0.13, -0.71, 0.29); (2.17, 1.03, -0.41); (-1.11, 0.37, 3.07)|]
       [|`Polygon, [|0; 1; 2|]|] in
-  let selected = Group_ops.group_non_planar_checked ~tolerance:0. ~name:"triangles" source
+  let selected = Group_ops.group_non_planar ~tolerance:0. ~name:"triangles" source
       |> get_ok in
   expect_members [] (group "triangles" selected)
     "Group Non-Planar never classifies a triangle as non-planar"
@@ -81,7 +81,7 @@ let test_extreme_coordinates () =
       [|(magnitude, magnitude, magnitude); (-.magnitude, magnitude, magnitude);
         (magnitude, -.magnitude, magnitude); (-.magnitude, -.magnitude, 0.)|]
       [|`Polygon, [|0; 1; 2; 3|]|] in
-  let selected = Group_ops.group_non_planar_checked ~tolerance:(magnitude /. 8.)
+  let selected = Group_ops.group_non_planar ~tolerance:(magnitude /. 8.)
       ~name:"extreme" source |> get_ok in
   expect_members [0] (group "extreme" selected)
     "Group Non-Planar overflow-safe extreme coordinates"
@@ -94,30 +94,30 @@ let test_base_merge_and_failures () =
       (fun primitive -> primitive = 2) in
   let source = Geometry.with_group base source |> Result.get_ok
       |> Geometry.with_group existing |> Result.get_ok in
-  let based = Group_ops.group_non_planar_checked ~base:"base" ~tolerance:0.01
+  let based = Group_ops.group_non_planar ~base:"base" ~tolerance:0.01
       ~name:"based" source |> get_ok in
   expect_members [] (group "based" based)
     "Group Non-Planar exact base restriction";
-  let unioned = Group_ops.group_non_planar_checked ~merge:Group_ops.Group_union ~tolerance:0.01
+  let unioned = Group_ops.group_non_planar ~merge:Group_ops.Group_union ~tolerance:0.01
       ~name:"selection" source |> get_ok in
   expect_members [1; 2] (group "selection" unioned)
     "Group Non-Planar additive union merge";
-  let absent_intersection = Group_ops.group_non_planar_checked
+  let absent_intersection = Group_ops.group_non_planar
       ~merge:Group_ops.Group_intersection ~tolerance:0.01
       ~name:"absent_intersection" source |> get_ok in
   check (Group.cardinality (group "absent_intersection" absent_intersection) = 0)
     "Group Non-Planar absent destination intersection identity";
-  let absent_subtract = Group_ops.group_non_planar_checked ~merge:Group_ops.Group_subtract
+  let absent_subtract = Group_ops.group_non_planar ~merge:Group_ops.Group_subtract
       ~tolerance:0.01 ~name:"absent_subtract" source |> get_ok in
   check (Group.cardinality (group "absent_subtract" absent_subtract) = 0)
     "Group Non-Planar absent destination subtraction identity";
-  expect_invalid (fun () -> Group_ops.group_non_planar_checked ~tolerance:(-0.1)
+  expect_invalid (fun () -> Group_ops.group_non_planar ~tolerance:(-0.1)
       ~name:"bad" source) "Group Non-Planar rejects negative tolerance";
-  expect_invalid (fun () -> Group_ops.group_non_planar_checked ~base:"missing"
+  expect_invalid (fun () -> Group_ops.group_non_planar ~base:"missing"
       ~tolerance:0. ~name:"bad" source) "Group Non-Planar rejects missing base";
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
-  (match Group_ops.group_non_planar_checked ~cancel:cancelled ~tolerance:0. ~name:"bad"
+  (match Group_ops.group_non_planar ~cancel:cancelled ~tolerance:0. ~name:"bad"
       source with
    | Error error -> check (Error.code error = "cancelled")
        "Group Non-Planar cancellation code"
@@ -144,7 +144,7 @@ let quad_strip count =
 let test_scale_parallel_exactness () =
   let source = quad_strip 80_003 in
   let run domains = Parallel.run ~domains (fun () ->
-    Group_ops.group_non_planar_checked ~grain:1_009 ~tolerance:0.01 ~name:"warped" source
+    Group_ops.group_non_planar ~grain:1_009 ~tolerance:0.01 ~name:"warped" source
     |> get_ok) in
   let one = run 1 and four = run 4 in
   let one = group "warped" one and four = group "warped" four in

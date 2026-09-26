@@ -172,12 +172,12 @@ type group_store = {
   mutable dirty : bool;
 }
 
-val promote_checked :
+val promote :
   ?cancel:Pdk_core.Cancel.t -> ?grain:int -> ?name:string ->
   ?keep_original:bool -> ?output_attribute:string -> ?mode:promote_mode ->
   source:owner -> destination:owner -> group:string ->
   Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, Pdk_core.Error.t) result
-val expand_checked :
+val expand :
   ?cancel:Pdk_core.Cancel.t -> ?grain:int -> ?name:string -> ?steps:int ->
   ?flood:bool -> ?step_attribute:string ->
   ?primitive_connectivity:primitive_connectivity -> ?normal_spread:float ->
@@ -186,12 +186,12 @@ val expand_checked :
   ?connectivity_tolerance:float -> ?collision:expand_collision ->
   owner:owner -> group:string -> Pdk_core.Geometry.t ->
   (Pdk_core.Geometry.t, Pdk_core.Error.t) result
-val promotions_checked :
+val promotions :
   ?cancel:Pdk_core.Cancel.t -> ?grain:int -> ?max_outputs:int ->
   ?max_payload_bytes:int -> rules:promotion_rule list ->
   Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, Pdk_core.Error.t) result
 (* Typed boundary with the former Ops error and cancellation behavior. *)
-val groups_from_name_checked :
+val groups_from_name :
   ?cancel:Pdk_core.Cancel.t ->
   ?grain:int ->
   ?prefix:string ->
@@ -203,7 +203,7 @@ val groups_from_name_checked :
   attribute:string ->
   Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, Pdk_core.Error.t) result
 (* Typed boundary with the former Ops error and cancellation behavior. *)
-val name_from_groups_checked :
+val name_from_groups :
   ?cancel:Pdk_core.Cancel.t ->
   ?grain:int ->
   ?attribute:string ->
@@ -214,7 +214,7 @@ val name_from_groups_checked :
   owner:Pdk_core.Attribute.owner ->
   Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, Pdk_core.Error.t) result
 (* Typed boundary with the former Ops error and cancellation behavior. *)
-val group_random_checked :
+val group_random :
   ?cancel:Pdk_core.Cancel.t ->
   ?grain:int ->
   ?seed:Prismel_math.Rand.t ->
@@ -226,7 +226,7 @@ val group_random_checked :
   name:string -> Pdk_core.Geometry.t ->
   (Pdk_core.Geometry.t, Pdk_core.Error.t) result
 (* Typed boundary with the former Ops error and cancellation behavior. *)
-val group_bounds_checked :
+val group_bounds :
   ?cancel:Pdk_core.Cancel.t ->
   ?grain:int ->
   ?base:string ->
@@ -245,11 +245,11 @@ type range_connectivity_configuration = {
 }
 val rename :
   rules:rename_rule list ->
-  Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, string) result
+  Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, Pdk_core.Error.t) result
 val delete :
   rules:delete_rule list ->
   ?delete_unused:bool ->
-  Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, string) result
+  Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, Pdk_core.Error.t) result
 type element_map =
     Identity of int
   | Explicit of int array
@@ -261,7 +261,7 @@ val copy :
   ?conflict:copy_conflict ->
   ?copy_empty:bool ->
   source:Pdk_core.Geometry.t ->
-  target:Pdk_core.Geometry.t -> unit -> (Pdk_core.Geometry.t, string) result
+  target:Pdk_core.Geometry.t -> unit -> (Pdk_core.Geometry.t, Pdk_core.Error.t) result
 val transfer :
   ?cancel:Pdk_core.Cancel.t ->
   ?grain:int ->
@@ -270,8 +270,8 @@ val transfer :
   ?create_empty:bool ->
   ?distance:float ->
   source:Pdk_core.Geometry.t ->
-  target:Pdk_core.Geometry.t -> unit -> (Pdk_core.Geometry.t, string) result
-val group_from_attribute_boundary_checked :
+  target:Pdk_core.Geometry.t -> unit -> (Pdk_core.Geometry.t, Pdk_core.Error.t) result
+val group_from_attribute_boundary :
   ?cancel:Pdk_core.Cancel.t ->
   ?grain:int ->
   ?attributes:boundary_attribute list ->
@@ -282,7 +282,7 @@ val group_from_attribute_boundary_checked :
   owner:owner ->
   name:string -> Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, Pdk_core.Error.t) result
 
-val group_normal_checked :
+val group_normal :
   ?cancel:Pdk_core.Cancel.t ->
   ?grain:int ->
   ?normal_attribute:string ->
@@ -295,7 +295,7 @@ val group_normal_checked :
   owner:owner ->
   name:string -> Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, Pdk_core.Error.t) result
 
-val group_non_planar_checked :
+val group_non_planar :
   ?cancel:Pdk_core.Cancel.t ->
   ?grain:int ->
   ?base:string ->
@@ -303,7 +303,7 @@ val group_non_planar_checked :
   tolerance:float ->
   name:string -> Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, Pdk_core.Error.t) result
 
-val group_backface_checked :
+val group_backface :
   ?cancel:Pdk_core.Cancel.t ->
   ?grain:int ->
   ?base:string ->
@@ -311,7 +311,7 @@ val group_backface_checked :
   viewpoint:Prismel_math.Vec3.t ->
   name:string -> Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, Pdk_core.Error.t) result
 
-val group_edge_depth_checked :
+val group_edge_depth :
   ?cancel:Pdk_core.Cancel.t ->
   ?grain:int ->
   ?merge:boolean_operation ->
@@ -319,14 +319,14 @@ val group_edge_depth_checked :
   point_group:string ->
   name:string -> Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, Pdk_core.Error.t) result
 
-val group_unshared_checked :
+val group_unshared :
   ?cancel:Pdk_core.Cancel.t ->
   ?grain:int ->
   ?merge:boolean_operation ->
   owner:owner ->
   name:string -> Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, Pdk_core.Error.t) result
 
-val group_boundary_components_checked :
+val group_boundary_components :
   ?cancel:Pdk_core.Cancel.t ->
   ?grain:int ->
   ?prefix:string ->
@@ -335,7 +335,7 @@ val group_boundary_components_checked :
   ?max_payload_bytes:int ->
   Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, Pdk_core.Error.t) result
 
-val group_promote_boundary_checked :
+val group_promote_boundary :
   ?cancel:Pdk_core.Cancel.t ->
   ?grain:int ->
   ?name:string ->
@@ -350,7 +350,7 @@ val group_promote_boundary_checked :
   destination:owner ->
   group:string -> Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, Pdk_core.Error.t) result
 
-val combine_checked :
+val combine :
   ?cancel:Pdk_core.Cancel.t ->
   ?grain:int ->
   owner:owner ->
@@ -359,7 +359,7 @@ val combine_checked :
   steps:combine_step list ->
   Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, Pdk_core.Error.t) result
 
-val range_checked :
+val range :
   ?cancel:Pdk_core.Cancel.t ->
   ?grain:int ->
   ?base:string ->
@@ -371,43 +371,15 @@ val range_checked :
   name:string ->
   range -> Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, Pdk_core.Error.t) result
 
-val ranges_checked :
+val ranges :
   ?cancel:Pdk_core.Cancel.t ->
   ?grain:int ->
   rules:range_rule list ->
   Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, Pdk_core.Error.t) result
 
-val invert_checked :
+val invert :
   ?conflict:rename_conflict ->
   ?owner:owner ->
   pattern:string ->
   ?new_name:string ->
   Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, Pdk_core.Error.t) result
-
-val delete_checked :
-  rules:delete_rule list ->
-  ?delete_unused:bool ->
-  Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, Pdk_core.Error.t) result
-
-val rename_checked :
-  rules:rename_rule list ->
-  Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, Pdk_core.Error.t) result
-
-val copy_checked :
-  ?cancel:Pdk_core.Cancel.t ->
-  ?grain:int ->
-  ?rules:copy_rule list ->
-  ?conflict:copy_conflict ->
-  ?copy_empty:bool ->
-  source:Pdk_core.Geometry.t ->
-  target:Pdk_core.Geometry.t -> unit -> (Pdk_core.Geometry.t, Pdk_core.Error.t) result
-
-val transfer_checked :
-  ?cancel:Pdk_core.Cancel.t ->
-  ?grain:int ->
-  ?rules:transfer_rule list ->
-  ?conflict:copy_conflict ->
-  ?create_empty:bool ->
-  ?distance:float ->
-  source:Pdk_core.Geometry.t ->
-  target:Pdk_core.Geometry.t -> unit -> (Pdk_core.Geometry.t, Pdk_core.Error.t) result

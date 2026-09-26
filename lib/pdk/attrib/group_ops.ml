@@ -3902,6 +3902,7 @@ let rename_entry store ~conflict entry new_name value =
                (selection_boolean Group_union destination.value value))
 
 let rename ~rules geometry =
+  Error.guard ~operation:"group_rename" ~code:"invalid_group" @@ fun () ->
   let store = store_of_geometry geometry in
   let result = List.fold_left (fun result rule -> Result.bind result (fun () ->
     Result.bind (Attribute_pattern.compile_rewrite
@@ -3946,6 +3947,7 @@ let invert ?(conflict = Rename_overwrite) ?owner ~pattern ?new_name geometry =
       Result.bind result (fun () -> store_commit store geometry)))
 
 let delete ~rules ?(delete_unused = false) geometry =
+  Error.guard ~operation:"group_delete" ~code:"invalid_group" @@ fun () ->
   let store = store_of_geometry geometry in
   let compiled = List.fold_left (fun result rule -> Result.bind result
       (fun rules ->
@@ -4137,6 +4139,7 @@ let default_copy_rules = [
 
 let copy ?cancel ?(grain = 16_384) ?(rules = default_copy_rules)
     ?(conflict = Copy_skip) ?(copy_empty = false) ~source ~target () =
+  Error.guard ~operation:"group_copy" ~code:"invalid_group" @@ fun () ->
   if grain <= 0 then Error "Group Copy: grain must be positive"
   else begin
     let source_store = store_of_geometry source and target_store = store_of_geometry target in
@@ -4240,6 +4243,7 @@ let transfer_mapping ?cancel ~grain ~distance ~maximum_squared owner source targ
 let transfer ?cancel ?(grain = 16_384) ?(rules = default_transfer_rules)
     ?(conflict = Copy_skip) ?(create_empty = false) ?(distance = 0.001)
     ~source ~target () =
+  Error.guard ~operation:"group_transfer" ~code:"invalid_group" @@ fun () ->
   if grain <= 0 then Error "Group Transfer: grain must be positive"
   else if not (Float.is_finite distance) || distance < 0.
       || distance > sqrt max_float then
@@ -4313,13 +4317,13 @@ let transfer ?cancel ?(grain = 16_384) ?(rules = default_transfer_rules)
       Result.bind result (fun () -> store_commit target_store target)
     with Invalid_argument message -> Error message
 
-let promote_checked ?cancel ?grain ?name ?keep_original ?output_attribute
+let promote ?cancel ?grain ?name ?keep_original ?output_attribute
     ?mode ~source ~destination ~group geometry =
   Error.guard ~operation:"group_promote" ~code:"invalid_group" (fun () ->
     promote ?cancel ?grain ?name ?keep_original ?output_attribute ?mode
       ~source ~destination ~group geometry)
 
-let expand_checked ?cancel ?grain ?name ?steps ?flood ?step_attribute
+let expand ?cancel ?grain ?name ?steps ?flood ?step_attribute
     ?primitive_connectivity ?normal_spread ?normal_attribute
     ?connectivity_attributes ?connectivity_tolerance ?collision
     ~owner ~group geometry =
@@ -4329,35 +4333,35 @@ let expand_checked ?cancel ?grain ?name ?steps ?flood ?step_attribute
       ?connectivity_attributes ?connectivity_tolerance ?collision
       ~owner ~group geometry)
 
-let promotions_checked ?cancel ?grain ?max_outputs ?max_payload_bytes
+let promotions ?cancel ?grain ?max_outputs ?max_payload_bytes
     ~rules geometry =
   Error.guard ~operation:"group_promotions" ~code:"invalid_group" (fun () ->
     promotions ?cancel ?grain ?max_outputs ?max_payload_bytes rules geometry)
 
-let groups_from_name_checked ?cancel ?grain ?prefix ?conflict ?invalid_names
+let groups_from_name ?cancel ?grain ?prefix ?conflict ?invalid_names
     ?max_groups ?max_payload_bytes ~owner ~attribute geometry =
   Error.guard ~operation:"groups_from_name" ~code:"invalid_group" (fun () ->
     groups_from_name ?cancel ?grain ?prefix ?conflict ?invalid_names
       ?max_groups ?max_payload_bytes ~owner ~attribute geometry)
 
-let name_from_groups_checked ?cancel ?grain ?attribute ?pattern ?default
+let name_from_groups ?cancel ?grain ?attribute ?pattern ?default
     ?overlap ?delete_groups ~owner geometry =
   Error.guard ~operation:"name_from_groups" ~code:"invalid_group" (fun () ->
     name_from_groups ?cancel ?grain ?attribute ?pattern ?default ?overlap
       ?delete_groups ~owner geometry)
 
-let group_random_checked ?cancel ?grain ?seed ?seed_attribute ?base ?merge
+let group_random ?cancel ?grain ?seed ?seed_attribute ?base ?merge
     ~probability ~owner ~name geometry =
   Error.guard ~operation:"group_random" ~code:"invalid_group" (fun () ->
     group_random ?cancel ?grain ?seed ?seed_attribute ?base ?merge
       ~probability ~owner ~name geometry)
 
-let group_bounds_checked ?cancel ?grain ?base ?containment ?merge bounds
+let group_bounds ?cancel ?grain ?base ?containment ?merge bounds
     ~owner ~name geometry =
   Error.guard ~operation:"group_bounds" ~code:"invalid_group" (fun () ->
     group_bounds ?cancel ?grain ?base ?containment ?merge bounds
       ~owner ~name geometry)
-let group_from_attribute_boundary_checked ?cancel ?grain ?attributes ?tolerance
+let group_from_attribute_boundary ?cancel ?grain ?attributes ?tolerance
     ?include_unshared_edges ?include_all_unshared_curve_edges
     ?include_all_primitives_sharing_boundary_points ~owner ~name geometry =
   Error.guard ~operation:"group_from_attribute_boundary" ~code:"invalid_group"
@@ -4365,39 +4369,39 @@ let group_from_attribute_boundary_checked ?cancel ?grain ?attributes ?tolerance
       ?tolerance ?include_unshared_edges ?include_all_unshared_curve_edges
       ?include_all_primitives_sharing_boundary_points ~owner ~name geometry)
 
-let group_normal_checked ?cancel ?grain ?normal_attribute
+let group_normal ?cancel ?grain ?normal_attribute
     ?use_existing_normal ?base ?include_opposite ?merge ~direction
     ~spread_angle ~owner ~name geometry =
   Error.guard ~operation:"group_normal" ~code:"invalid_group" (fun () ->
     group_normal ?cancel ?grain ?normal_attribute ?use_existing_normal ?base
       ?include_opposite ?merge ~direction ~spread_angle ~owner ~name geometry)
 
-let group_non_planar_checked ?cancel ?grain ?base ?merge ~tolerance ~name
+let group_non_planar ?cancel ?grain ?base ?merge ~tolerance ~name
     geometry =
   Error.guard ~operation:"group_non_planar" ~code:"invalid_group" (fun () ->
     group_non_planar ?cancel ?grain ?base ?merge ~tolerance ~name geometry)
 
-let group_backface_checked ?cancel ?grain ?base ?merge ~viewpoint ~name
+let group_backface ?cancel ?grain ?base ?merge ~viewpoint ~name
     geometry =
   Error.guard ~operation:"group_backface" ~code:"invalid_group" (fun () ->
     group_backface ?cancel ?grain ?base ?merge ~viewpoint ~name geometry)
 
-let group_edge_depth_checked ?cancel ?grain ?merge ~depth ~point_group ~name
+let group_edge_depth ?cancel ?grain ?merge ~depth ~point_group ~name
     geometry =
   Error.guard ~operation:"group_edge_depth" ~code:"invalid_group" (fun () ->
     group_edge_depth ?cancel ?grain ?merge ~depth ~point_group ~name geometry)
 
-let group_unshared_checked ?cancel ?grain ?merge ~owner ~name geometry =
+let group_unshared ?cancel ?grain ?merge ~owner ~name geometry =
   Error.guard ~operation:"group_unshared" ~code:"invalid_group" (fun () ->
     group_unshared ?cancel ?grain ?merge ~owner ~name geometry)
 
-let group_boundary_components_checked ?cancel ?grain ?prefix ?conflict
+let group_boundary_components ?cancel ?grain ?prefix ?conflict
     ?max_groups ?max_payload_bytes geometry =
   Error.guard ~operation:"group_boundary_components" ~code:"invalid_group"
     (fun () -> group_boundary_components ?cancel ?grain ?prefix ?conflict
       ?max_groups ?max_payload_bytes geometry)
 
-let group_promote_boundary_checked ?cancel ?grain ?name ?keep_original
+let group_promote_boundary ?cancel ?grain ?name ?keep_original
     ?output_attribute ?attributes ?tolerance ?include_unshared_edges
     ?include_all_unshared_curve_edges
     ?include_all_primitives_sharing_boundary_points
@@ -4409,38 +4413,20 @@ let group_promote_boundary_checked ?cancel ?grain ?name ?keep_original
       ?include_all_primitives_sharing_boundary_points
       ~source ~destination ~group geometry)
 
-let combine_checked ?cancel ?grain ~owner ~name ~base ~steps geometry =
+let combine ?cancel ?grain ~owner ~name ~base ~steps geometry =
   Error.guard ~operation:"group_combine" ~code:"invalid_group" (fun () ->
     combine ?cancel ?grain ~owner ~name ~base ~steps geometry)
 
-let range_checked ?cancel ?grain ?base ?invert ?filter ?connectivity ?merge
+let range ?cancel ?grain ?base ?invert ?filter ?connectivity ?merge
     ~owner ~name specification geometry =
   Error.guard ~operation:"group_range" ~code:"invalid_group" (fun () ->
     range ?cancel ?grain ?base ?invert ?filter ?connectivity ?merge
       ~owner ~name specification geometry)
 
-let ranges_checked ?cancel ?grain ~rules geometry =
+let ranges ?cancel ?grain ~rules geometry =
   Error.guard ~operation:"group_ranges" ~code:"invalid_group" (fun () ->
     ranges ?cancel ?grain rules geometry)
 
-let invert_checked ?conflict ?owner ~pattern ?new_name geometry =
+let invert ?conflict ?owner ~pattern ?new_name geometry =
   Error.guard ~operation:"group_invert" ~code:"invalid_group" (fun () ->
     invert ?conflict ?owner ~pattern ?new_name geometry)
-
-let delete_checked ~rules ?delete_unused geometry =
-  Error.guard ~operation:"group_delete" ~code:"invalid_group" (fun () ->
-    delete ~rules ?delete_unused geometry)
-
-let rename_checked ~rules geometry =
-  Error.guard ~operation:"group_rename" ~code:"invalid_group" (fun () ->
-    rename ~rules geometry)
-
-let copy_checked ?cancel ?grain ?rules ?conflict ?copy_empty ~source ~target () =
-  Error.guard ~operation:"group_copy" ~code:"invalid_group" (fun () ->
-    copy ?cancel ?grain ?rules ?conflict ?copy_empty ~source ~target ())
-
-let transfer_checked ?cancel ?grain ?rules ?conflict ?create_empty ?distance
-    ~source ~target () =
-  Error.guard ~operation:"group_transfer" ~code:"invalid_group" (fun () ->
-    transfer ?cancel ?grain ?rules ?conflict ?create_empty ?distance
-      ~source ~target ())

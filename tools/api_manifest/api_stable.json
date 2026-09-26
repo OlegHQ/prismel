@@ -319,13 +319,13 @@
       "source_sha256": "44705e76364949f0699fac7434c53c09d132787df9508c7a39eb2c8be566e8f4"
     },
     {
-      "api_sha256": "f05d2d7234691efef282374454191a247e9b038fda3b16c1a74e72b8967e47c0",
+      "api_sha256": "b5faca4c8e5468ba627c91feb1744d681b3e1bc637fc467862b2bc2b6428bc90",
       "excluded_legacy_symbols": [],
       "library": "pdk",
       "module": "Group_ops",
       "source": "lib/pdk/attrib/group_ops.mli",
-      "source_bytes": 13556,
-      "source_sha256": "91138762d9e2bebf5e6d63ff52a08bfbf55d903d244b0178cced30e3d6749ff8"
+      "source_bytes": 12616,
+      "source_sha256": "7f045f8ae43b38333a7bac48e20ceb0f7cb2ddcda959c7438c5b8d5985e1183c"
     },
     {
       "api_sha256": "c7508684270c179c88ae16124508533eecf5157ebce2a9c962746020870393f0",

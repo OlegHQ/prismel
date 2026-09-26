@@ -486,5 +486,6 @@ let run ?cancel ?(grain = 16_384) ?(epsilon = 1e-12)
             |> add Group_ops.Group_primitives primitive_groups
             |> add Group_ops.Group_edges edge_groups |> List.rev in
         if rules = [] && not delete_unused_groups then Ok geometry
-        else Group_ops.delete ~rules ~delete_unused:delete_unused_groups geometry))
+        else Error.unguard
+            (Group_ops.delete ~rules ~delete_unused:delete_unused_groups geometry)))
   end
