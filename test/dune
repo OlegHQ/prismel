@@ -1,6 +1,6 @@
 (executable
  (name test_main)
- (modules test_main sop_params_fixture test_prismel test_easy_camera2 test_sop_ui test_custom_sop test_pxui_graph test_sketch_ui test_sop_catalog native_only_rendering test_sketch_support dependency_gate sop_render_parity)
+ (modules test_main sop_params_fixture test_prismel test_easy_camera2 test_sop_ui test_custom_sop test_pxui_graph test_sketch_ui test_sop_catalog test_sketch_support dependency_gate sop_render_parity)
  (libraries prismel pxui runtime_input procedural sop_ui pdk pxui_graph
   sop_catalog scene_command sketch_support sketch_ui unix prismel.sdl3)
  (preprocess (pps prismel.ppx))
@@ -39,13 +39,13 @@
  (action (run %{exe:test_main.exe} test_sop_catalog)))
 
 (rule
- (aliases runtest native_only_rendering)
+ (aliases runtest)
  (deps ../lib/sdl3/private_raw.ml ../lib/sdl3/sdl3.ml
   ../lib/sdl3/sdl3.mli ../lib/sdl3/sdl3_stubs.c
   ../lib/runtime/runtime.ml
   ../lib/prismel_execution/prismel_execution.ml)
  (action
-  (run %{exe:test_main.exe} native_only_rendering
+  (run %{exe:test_main.exe}
    %{dep:../lib/sdl3/private_raw.ml}
    %{dep:../lib/sdl3/sdl3.ml}
    %{dep:../lib/sdl3/sdl3.mli}

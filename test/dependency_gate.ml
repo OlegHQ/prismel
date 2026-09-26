@@ -1,6 +1,7 @@
 (* One dependency gate over the real library graph, read from every
    lib/**/dune. Rules are "may never reach" constraints on the transitive
-   closure plus a token scan for Metal outside its backends. Known violations
+   closure plus token scans for Metal outside its backends and for any
+   alternate renderer or backend selector. Known violations
    are listed with the plan item that removes them; delete an exception when
    its item lands, and the gate then keeps it fixed. Run from the repo root. *)
 
@@ -154,6 +155,24 @@ let uses_key_pressed text =
      || find (index + 1)) in
   find 0
 
+(* Native-only rendering: no second renderer, GL/Vulkan window, or backend
+   selector anywhere in source text, strings and comments included. *)
+let forbidden_native =
+  [ "Rgba_presenter"; "create_rgba_presenter";
+    "SDL_CreateRenderer"; "SDL_CreateSoftwareRenderer";
+    "SDL_CreateWindowAndRenderer"; "SDL_RenderPresent";
+    "SDL_RenderTexture"; "SDL_RenderGeometry"; "SDL_GL_";
+    "SDL_WINDOW_OPENGL"; "SDL_WINDOW_VULKAN";
+    "PRISMEL_RENDER_TARGET"; "PRISMEL_HEADLESS"; "PRISMEL_WEB";
+    "PRISMEL_RENDERER"; "PRISMEL_BACKEND"; "PRISMEL_OPENGL";
+    "--renderer"; "--backend"; ("--head" ^ "less"); ("--open" ^ "gl"); "Dynlink" ]
+
+let contains text needle =
+  let limit = String.length text - String.length needle in
+  let rec find index = index <= limit &&
+    (String.sub text index (String.length needle) = needle || find (index + 1)) in
+  find 0
+
 let violations graph ~scan =
   let reach = reach graph in
   let direct_errors = List.filter_map (fun (lib, dep, message) ->
@@ -170,7 +189,13 @@ let violations graph ~scan =
          && not (List.exists (fun (l, t, _) -> l = lib && t = target) reach_exceptions)
       then Some (Printf.sprintf "%s reaches forbidden library %s" lib target) else None)
       forbidden) rules in
+  let native_errors = List.concat_map (fun (path, text) ->
+    List.filter_map (fun needle -> if contains text needle
+      then Some (Printf.sprintf "%s names %s (Metal is the only renderer)" path needle)
+      else None) forbidden_native) scan in
+  let ocaml path = Filename.check_suffix path ".ml" || Filename.check_suffix path ".mli" in
   let token_errors = List.filter_map (fun (path, text) ->
+    if not (ocaml path) then None else
     let allowed = String.starts_with ~prefix:"lib/metal/" path
       || String.starts_with ~prefix:"lib/ogpu_metal/" path in
     if not allowed && uses_metal text then Some (path ^ " uses Metal outside lib/metal and lib/ogpu_metal")
@@ -179,7 +204,7 @@ let violations graph ~scan =
         && uses_key_pressed text then
       Some (path ^ " matches KeyPressed inside a presentation adapter")
     else None) scan in
-  direct_errors @ edge_errors @ token_errors
+  direct_errors @ edge_errors @ token_errors @ native_errors
 
 let run () =
   let has_library_field path name key value =
@@ -218,9 +243,19 @@ let run () =
     failwith "gate accepted adapter key handling";
   if violations graph ~scan:["lib/pxui_graph/ok.ml", "(* KeyPressed *) let s = \"KeyPressed\""] <> [] then
     failwith "gate flagged KeyPressed inside a comment or string";
+  if violations graph ~scan:["lib/sdl3/injected.c", "SDL_CreateRenderer(window, 0)"] = []
+     || violations graph ~scan:["lib/prismel/injected.ml", "Sys.getenv \"PRISMEL_BACKEND\""] = [] then
+    failwith "gate accepted an injected alternate renderer or backend selector";
   let scan = List.concat_map files ["lib"; "examples"; "sketches"]
-    |> List.filter (fun p -> Filename.check_suffix p ".ml" || Filename.check_suffix p ".mli")
+    |> List.filter (fun p -> List.exists (Filename.check_suffix p)
+      [".ml"; ".mli"; ".c"; ".h"; ".m"])
     |> List.map (fun p -> p, read p) in
+  (* The one native path stays wired: SDL Metal view -> OGPU driver. *)
+  List.iter (fun (path, anchor) -> if not (contains (read path) anchor) then
+    failwith (path ^ " lost native anchor " ^ anchor))
+    [ "lib/sdl3/sdl3_stubs.c", "SDL_Metal_CreateView";
+      "lib/runtime/runtime.ml", "Ogpu.Impl.create_driver";
+      "lib/prismel_execution/prismel_execution.ml", "Runtime.create" ];
   match violations graph ~scan with
   | [] -> Printf.printf "dependency gate: %d libraries, %d rules, %d listed exceptions\n"
             (List.length graph) (List.length rules)

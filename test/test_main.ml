@@ -6,7 +6,6 @@ let tests = [
   "test_pxui_graph", Test_pxui_graph.run;
   "test_sketch_ui", Test_sketch_ui.run;
   "test_sop_catalog", Test_sop_catalog.run;
-  "native_only_rendering", Native_only_rendering.run;
   "test_sketch_support", Test_sketch_support.run;
   "dependency_gate", Dependency_gate.run;
   "sop_render_parity", Sop_render_parity.run;
