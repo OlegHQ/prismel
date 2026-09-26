@@ -39,21 +39,6 @@
  (action (run %{exe:test_main.exe} test_sop_catalog)))
 
 (rule
- (aliases runtest)
- (deps ../lib/sdl3/private_raw.ml ../lib/sdl3/sdl3.ml
-  ../lib/sdl3/sdl3.mli ../lib/sdl3/sdl3_stubs.c
-  ../lib/runtime/runtime.ml
-  ../lib/prismel_execution/prismel_execution.ml)
- (action
-  (run %{exe:test_main.exe}
-   %{dep:../lib/sdl3/private_raw.ml}
-   %{dep:../lib/sdl3/sdl3.ml}
-   %{dep:../lib/sdl3/sdl3.mli}
-   %{dep:../lib/sdl3/sdl3_stubs.c}
-   %{dep:../lib/runtime/runtime.ml}
-   %{dep:../lib/prismel_execution/prismel_execution.ml})))
-
-(rule
  (aliases runtest test_sketch_support)
  (action (run %{exe:test_main.exe} test_sketch_support)))
 
