@@ -1,0 +1,14 @@
+# Reviewed paths for six checked UV operations and their option types.
+Ops.uv_projection	Uv_checked.projection
+Ops.uv_unitize_mode	Uv_checked.unitize_mode
+Ops.Planar	Uv_checked.Planar
+Ops.Cylindrical	Uv_checked.Cylindrical
+Ops.Spherical	Uv_checked.Spherical
+Ops.Per_face	Uv_checked.Per_face
+Ops.Islands	Uv_checked.Islands
+Ops.uv_project	Uv_checked.project
+Ops.uv_transform	Uv_checked.transform
+Ops.uv_auto_seam	Uv_checked.auto_seam
+Ops.uv_unitize	Uv_checked.unitize
+Ops.uv_flatten	Uv_checked.flatten
+Ops.uv_relax	Uv_checked.relax
