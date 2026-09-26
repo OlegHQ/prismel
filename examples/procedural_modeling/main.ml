@@ -460,7 +460,7 @@ let graphs () =
     Sop.tube ~connectivity:Pdk.Parametric_generators.Tube_quads ~end_caps:false
       ~normals:Pdk.Parametric_generators.Tube_point_normals ~rows:8 ~columns:28
       ~top_radius:0.34 ~bottom_radius:0.48 ~height:0.9 ()
-    |> Sop.poly_fill ~mode:Pdk.Ops.Fill_triangle_fan
+    |> Sop.poly_fill ~mode:Pdk.Poly_fill.Fill_triangle_fan
          ~update_point_normals:true ~patch_group:"filled_caps"
     |> Sop.set_color ~owner:Pdk.Attribute.Point (Color.hex_exn "#facc15")
     |> Sop.transform (Mat4.translation (Vec3.create 3.1 3.5 1.2))

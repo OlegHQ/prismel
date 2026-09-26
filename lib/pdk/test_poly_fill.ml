@@ -169,7 +169,7 @@ let assert_source_prefix source output =
 
 let test_modes_and_payload () =
   let source = open_box () in
-  let single = Ops.poly_fill ~mode:Ops.Fill_single_polygon
+  let single = Poly_fill.run_checked ~mode:Poly_fill.Fill_single_polygon
       ~patch_group:"patch" source |> get_pdk in
   check (Geometry.point_count single = 8 && Geometry.vertex_count single = 24
       && Geometry.primitive_count single = 6) "single-polygon cardinality";
@@ -191,7 +191,7 @@ let test_modes_and_payload () =
   and svy = single_positions.y.(sc) -. single_positions.y.(sa) in
   check (sux *. svy -. suy *. svx > 0.)
     "default patch winding did not oppose the source boundary";
-  let triangles = Ops.poly_fill ~mode:Ops.Fill_triangles
+  let triangles = Poly_fill.run_checked ~mode:Poly_fill.Fill_triangles
       ~patch_group:"patch" source |> get_pdk in
   let triangle_vertices = Topology.Private.view (Geometry.topology triangles)
       |> fun topology -> Array.sub topology.vertex_points 20 6 in
@@ -204,7 +204,7 @@ let test_modes_and_payload () =
   assert_closed triangles "triangle fill left a boundary";
   check (group_cardinality Group.Primitive "patch" triangles = 2)
     "triangle patch group";
-  let fan = Ops.poly_fill ~mode:Ops.Fill_triangle_fan
+  let fan = Poly_fill.run_checked ~mode:Poly_fill.Fill_triangle_fan
       ~patch_group:"patch" source |> get_pdk in
   check (Geometry.point_count fan = 9 && Geometry.vertex_count fan = 32
       && Geometry.primitive_count fan = 9) "triangle-fan cardinality";
@@ -280,7 +280,7 @@ let test_modes_and_payload () =
 
 let test_unique_reverse_and_normals () =
   let source = open_box () in
-  let unique = Ops.poly_fill ~mode:Ops.Fill_single_polygon ~unique_points:true
+  let unique = Poly_fill.run_checked ~mode:Poly_fill.Fill_single_polygon ~unique_points:true
       source |> get_pdk in
   check (Geometry.point_count unique = 12
       && Topology_index.boundary_edge_count
@@ -292,7 +292,7 @@ let test_unique_reverse_and_normals () =
   check (Edge_group.length unique_rim = Topology_index.edge_count
       (Topology_index.create (Geometry.topology unique)))
     "unique fill native edge-group target cardinality";
-  let reversed = Ops.poly_fill ~mode:Ops.Fill_single_polygon
+  let reversed = Poly_fill.run_checked ~mode:Poly_fill.Fill_single_polygon
       ~reverse_patches:true source |> get_pdk in
   let topology = Topology.Private.view (Geometry.topology reversed) in
   let first = topology.primitive_offsets.(5) in
@@ -310,7 +310,7 @@ let test_unique_reverse_and_normals () =
         ~x:(Array.make 8 1.) ~y:(Array.make 8 0.) ~z:(Array.make 8 0.)))
       |> get_ok in
   let with_normal = Geometry.with_attribute point_normal source |> get_ok in
-  let updated = Ops.poly_fill ~mode:Ops.Fill_triangle_fan
+  let updated = Poly_fill.run_checked ~mode:Poly_fill.Fill_triangle_fan
       ~update_point_normals:true with_normal |> get_pdk in
   let normal = Geometry.find_attribute ~owner:Attribute.Point "N" updated
       |> Option.get in
@@ -321,7 +321,7 @@ let test_unique_reverse_and_normals () =
        check (near values.x.(8) 0. && near values.y.(8) 0.
           && values.z.(8) > 0.999999) "patch center normal was not recomputed"
    | _ -> fail "point normal storage changed");
-  let no_normal = Ops.poly_fill ~mode:Ops.Fill_triangle_fan
+  let no_normal = Poly_fill.run_checked ~mode:Poly_fill.Fill_triangle_fan
       ~update_point_normals:true source |> get_pdk in
   check (Geometry.find_attribute ~owner:Attribute.Point "N" no_normal = None)
     "point-normal update created an unrequested normal field"
@@ -343,25 +343,25 @@ let test_selection_and_failures () =
   done;
   let selected = Edge_group.init ~topology ~index ~name:"selected"
       (fun edge -> edge = !one_edge) in
-  let output = Ops.poly_fill ~boundary:selected ~mode:Ops.Fill_single_polygon
+  let output = Poly_fill.run_checked ~boundary:selected ~mode:Poly_fill.Fill_single_polygon
       merged |> get_pdk in
   check (Geometry.primitive_count output = Geometry.primitive_count merged + 1)
     "partial edge selection did not auto-complete exactly one loop";
   let bad = Edge_group.init ~topology ~index ~name:"bad"
       (fun edge -> edge = !interior) in
-  (match Ops.poly_fill ~boundary:bad merged with
+  (match Poly_fill.run_checked ~boundary:bad merged with
    | Error error -> check (Error.code error = "invalid_geometry")
        "non-boundary selection error code"
    | Ok _ -> fail "Poly Fill accepted a non-boundary edge selection");
   let empty = Edge_group.init ~topology ~index ~name:"empty" (fun _ -> false) in
-  let unchanged = Ops.poly_fill ~boundary:empty merged |> get_pdk in
+  let unchanged = Poly_fill.run_checked ~boundary:empty merged |> get_pdk in
   check (unchanged == merged) "empty explicit boundary selection was not identity";
   let other = open_box ~offset:20. () in
   let other_topology = Geometry.topology other in
   let other_index = Topology_index.create other_topology in
   let foreign = Edge_group.init ~topology:other_topology ~index:other_index
       ~name:"foreign" (fun edge -> edge = 0) in
-  (match Ops.poly_fill ~boundary:foreign merged with
+  (match Poly_fill.run_checked ~boundary:foreign merged with
    | Error error -> check (Error.code error = "invalid_geometry")
        "foreign edge-group error code"
    | Ok _ -> fail "Poly Fill accepted a foreign edge group");
@@ -373,7 +373,7 @@ let test_selection_and_failures () =
       ~primitive_offsets:[|0;3;6|] |> get_ok in
   let branched = Geometry.create ~positions:branched_positions
       ~topology:branched_topology () |> get_ok in
-  (match Ops.poly_fill branched with
+  (match Poly_fill.run_checked branched with
    | Error error -> check (Error.code error = "invalid_geometry")
        "branched-boundary error code"
    | Ok _ -> fail "Poly Fill accepted a branched boundary");
@@ -384,11 +384,11 @@ let test_selection_and_failures () =
         source_positions.x)
       ~y:(Array.copy source_positions.y) ~z:(Array.copy source_positions.z) in
   let nonfinite = Geometry.with_positions positions nonfinite |> get_ok in
-  (match Ops.poly_fill nonfinite with
+  (match Poly_fill.run_checked nonfinite with
    | Error error -> check (Error.code error = "invalid_geometry")
        "non-finite error code"
    | Ok _ -> fail "Poly Fill accepted a non-finite loop position");
-  (match Ops.poly_fill ~patch_group:"" merged with
+  (match Poly_fill.run_checked ~patch_group:"" merged with
    | Error error -> check (Error.code error = "invalid_geometry")
        "empty patch-group error code"
    | Ok _ -> fail "Poly Fill accepted an empty patch group");
@@ -403,12 +403,12 @@ let test_selection_and_failures () =
         ~primitive_offsets:[|0; count|] |> get_ok in
     Geometry.create ~positions ~topology () |> get_ok in
   let concave = polygon [|0.,0.,0.; 2.,0.,0.; 2.,2.,0.; 1.,0.8,0.; 0.,2.,0.|] in
-  let concave_fill = Ops.poly_fill ~mode:Ops.Fill_triangles concave |> get_pdk in
+  let concave_fill = Poly_fill.run_checked ~mode:Poly_fill.Fill_triangles concave |> get_pdk in
   check (Geometry.primitive_count concave_fill = 4
       && Geometry.vertex_count concave_fill = 14)
     "concave loop triangulation cardinality";
   let crossed = polygon [|0.,0.,0.; 2.,2.,0.; 0.,2.,0.; 2.,0.,0.|] in
-  (match Ops.poly_fill ~mode:Ops.Fill_triangles crossed with
+  (match Poly_fill.run_checked ~mode:Poly_fill.Fill_triangles crossed with
    | Error error -> check (Error.code error = "invalid_geometry")
        "self-intersection error code"
    | Ok _ -> fail "Poly Fill triangulated a self-intersecting loop");
@@ -427,7 +427,7 @@ let test_selection_and_failures () =
       (fun _ -> true) in
   let diagonal_source = Geometry.with_edge_group all_edges diagonal_source
       |> get_ok in
-  let diagonal_fill = Ops.poly_fill ~mode:Ops.Fill_triangles diagonal_source
+  let diagonal_fill = Poly_fill.run_checked ~mode:Poly_fill.Fill_triangles diagonal_source
       |> get_pdk in
   let mapped = Geometry.find_edge_group "all" diagonal_fill |> Option.get in
   check (Edge_group.length mapped = Topology_index.edge_count
@@ -435,7 +435,7 @@ let test_selection_and_failures () =
     "existing source diagonal was double-counted in target edge cardinality";
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
-  (match Ops.poly_fill ~cancel:cancelled merged with
+  (match Poly_fill.run_checked ~cancel:cancelled merged with
    | Error error -> check (Error.code error = "cancelled")
        "Poly Fill cancellation error code"
    | Ok _ -> fail "cancelled Poly Fill published geometry")
@@ -477,7 +477,7 @@ let many_open_boxes count =
 let test_parallel () =
   let source = many_open_boxes 20_000 in
   let triangles domains = Parallel.run ~domains (fun () ->
-      Ops.poly_fill ~grain:257 ~mode:Ops.Fill_triangles
+      Poly_fill.run_checked ~grain:257 ~mode:Poly_fill.Fill_triangles
         ~patch_group:"patch" source |> get_pdk) in
   let triangles_one = triangles 1 and triangles_four = triangles 4 in
   check (equal_geometry triangles_one triangles_four)
@@ -487,7 +487,7 @@ let test_parallel () =
       && Geometry.primitive_count triangles_one = 20_000 * 7)
     "triangle fill scale cardinality";
   let run domains = Parallel.run ~domains (fun () ->
-      Ops.poly_fill ~grain:257 ~mode:Ops.Fill_triangle_fan
+      Poly_fill.run_checked ~grain:257 ~mode:Poly_fill.Fill_triangle_fan
         ~unique_points:true ~patch_group:"patch" source |> get_pdk) in
   let one = run 1 and four = run 4 in
   check (equal_geometry one four) "Poly Fill differs across domain counts";

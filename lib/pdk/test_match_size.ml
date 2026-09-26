@@ -281,7 +281,7 @@ let check_validation () =
 let check_parallel_exact () =
   let source = Plane_generators.grid_checked ~columns:800 ~rows:600 ~size:30. () |> get_ok
       |> Deform_ops.noise_displace_checked ~seed:934 ~amplitude:1.75 ~frequency:0.21 |> get_ok
-      |> Ops.normals |> get_ok in
+      |> Normal_ops.run_checked |> get_ok in
   let target = Box_generator.box_checked ~size:(Vec3.create 8. 5. 12.) () |> get_ok
       |> Transform_ops.transform (Mat4.translation (Vec3.create 3. 7. (-2.))) in
   let run domains = Parallel.run ~domains (fun () ->

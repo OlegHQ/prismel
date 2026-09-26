@@ -1428,7 +1428,7 @@ val poly_extrude :
 val poly_fill :
   ?label:string ->
   ?boundary_group:string ->
-  ?mode:Pdk.Ops.poly_fill_mode ->
+  ?mode:Pdk.Poly_fill.mode ->
   ?reverse_patches:bool ->
   ?unique_points:bool ->
   ?update_point_normals:bool ->

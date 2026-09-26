@@ -17,7 +17,7 @@ let source () =
       ~vertex_points:[|0; 1; 2|] ~primitive_offsets:[|0; 3|]
       |> Result.get_ok in
   Geometry.create ~positions ~topology () |> Result.get_ok
-  |> Ops.normals |> get
+  |> Normal_ops.run_checked |> get
 
 let snapshot geometry =
   let positions = Geometry.positions geometry

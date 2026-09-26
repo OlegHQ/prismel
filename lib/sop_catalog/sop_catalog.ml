@@ -2743,14 +2743,14 @@ end [@@sop.register]
 
 module Poly_fill = struct
   let mode_parameter = Parameter.choice ~equal:( = ) [
-      "Single polygon", Pdk.Ops.Fill_single_polygon;
-      "Triangles", Pdk.Ops.Fill_triangles;
-      "Triangle fan", Pdk.Ops.Fill_triangle_fan;
+      "Single polygon", Pdk.Poly_fill.Fill_single_polygon;
+      "Triangles", Pdk.Poly_fill.Fill_triangles;
+      "Triangle fan", Pdk.Poly_fill.Fill_triangle_fan;
     ]
 
   type parameters = {
     boundary_group : string [@sop.default ""] [@sop.label "Boundary group"];
-    mode : Pdk.Ops.poly_fill_mode [@sop.default Pdk.Ops.Fill_triangles]
+    mode : Pdk.Poly_fill.mode [@sop.default Pdk.Poly_fill.Fill_triangles]
       [@sop.label "Fill mode"] [@sop.kind mode_parameter];
     reverse_patches : bool [@sop.default false]
       [@sop.label "Reverse patches"];

@@ -4044,7 +4044,7 @@ let run () =
       ~attributes:[compact_ids] ~groups:[compact_group] () |> get_ok
       |> Ops.group_edges ~name:"compact_edges" |> get_ok in
   let compacted domains = Parallel.run ~domains (fun () ->
-      Ops.compact_points ~grain:1 compact_source |> get_ok) in
+      Compact_points.run_checked ~grain:1 compact_source |> get_ok) in
   let compact_one = compacted 1 and compact_many = compacted 4 in
   let compact_view = Topology.Private.view (Geometry.topology compact_one) in
   let compact_id_values = Geometry.find_attribute ~owner:Attribute.Point "id"
@@ -4231,7 +4231,7 @@ let run () =
   (match Attribute_ops.blur_points ~cancel:cancelled ~pattern:"P" grid with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "cancelled Attribute Blur published geometry or wrong error");
-  (match Ops.compact_points ~cancel:cancelled compact_source with
+  (match Compact_points.run_checked ~cancel:cancelled compact_source with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "cancelled point compaction published geometry or wrong error");
   (match Bound.bounding_box_checked ~cancel:cancelled compact_source with

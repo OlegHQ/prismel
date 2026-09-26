@@ -58,7 +58,7 @@ let geometry ?(attributes = []) points indices =
 
 let normal_geometry ?cancel points indices =
   Result.bind (geometry points indices) (fun value ->
-    Pdk_mesh.Ops.normals ?cancel value
+    Normal_ops.run_checked ?cancel value
     |> Result.map_error Error.message)
 
 let float_of_le bytes offset =
@@ -353,7 +353,7 @@ let load_obj ?cancel filename = guard "io.load_obj" (fun () ->
   end;
   Result.bind (geometry ~attributes:!attributes positions indices)
     (fun value -> if !has_normal then Ok value
-      else Pdk_mesh.Ops.normals ?cancel value
+      else Normal_ops.run_checked ?cancel value
         |> Result.map_error Error.message))
 
 let standard_attribute geometry name owner kind =

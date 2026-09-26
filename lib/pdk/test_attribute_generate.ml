@@ -441,7 +441,7 @@ let run () =
       || fraction_directions.z.(1) > 1e-12 then
     fail "Attribute Randomize direction fraction mapping is incorrect";
 
-  let with_normals = Ops.normals geometry |> get_ok in
+  let with_normals = Normal_ops.run_checked geometry |> get_ok in
   let moved = randomize ~owner:Attribute.Point ~name:"P"
       (Attribute_ops.Random_constant
         (Attribute_ops.Vec3 (Vec3.create 1. 2. 3.))) with_normals in

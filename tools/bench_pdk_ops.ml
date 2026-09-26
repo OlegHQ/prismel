@@ -942,48 +942,48 @@ let run_facet_benchmarks () =
       ~index:source_index ~name:"facet_sparse_edges"
       (fun edge -> edge mod 7 = 0) in
   measure ~input_points "facet_unique_points" (fun () ->
-    Ops.facet ~grain ~unique_points:true source |> get_ok) geometry_output;
+    Facet_ops.run_checked ~grain ~unique_points:true source |> get_ok) geometry_output;
   measure ~input_points "facet_pre_normals_unique_reverse" (fun () ->
-    Ops.facet ~grain ~pre_compute_normals:true
+    Facet_ops.run_checked ~grain ~pre_compute_normals:true
       ~make_normals_unit_length:true ~unique_points:true ~reverse_normals:true
       source |> get_ok) geometry_output;
   measure ~input_points "facet_group_pre_normals_unique_reverse" (fun () ->
-    Ops.facet ~grain ~primitives:selected_primitives ~pre_compute_normals:true
+    Facet_ops.run_checked ~grain ~primitives:selected_primitives ~pre_compute_normals:true
       ~make_normals_unit_length:true ~unique_points:true ~reverse_normals:true
       source |> get_ok) geometry_output;
   measure ~input_points "facet_group_unique_points" (fun () ->
-    Ops.facet ~grain ~primitives:selected_primitives ~unique_points:true source
+    Facet_ops.run_checked ~grain ~primitives:selected_primitives ~unique_points:true source
     |> get_ok) geometry_output;
   measure ~input_points "facet_point_selection_unique_points" (fun () ->
-    Ops.facet ~grain ~selection:(Transform_ops.Selected_points selected_points)
+    Facet_ops.run_checked ~grain ~selection:(Transform_ops.Selected_points selected_points)
       ~unique_points:true source |> get_ok) geometry_output;
   measure ~input_points "facet_vertex_selection_unique_points" (fun () ->
-    Ops.facet ~grain ~selection:(Transform_ops.Selected_vertices selected_vertices)
+    Facet_ops.run_checked ~grain ~selection:(Transform_ops.Selected_vertices selected_vertices)
       ~unique_points:true source |> get_ok) geometry_output;
   measure ~input_points "facet_edge_selection_unique_points" (fun () ->
-    Ops.facet ~grain ~selection:(Transform_ops.Selected_edges selected_edges)
+    Facet_ops.run_checked ~grain ~selection:(Transform_ops.Selected_edges selected_edges)
       ~unique_points:true source |> get_ok) geometry_output;
   measure ~input_points "facet_group_pre_normals" (fun () ->
-    Ops.facet ~grain ~primitives:selected_primitives ~pre_compute_normals:true
+    Facet_ops.run_checked ~grain ~primitives:selected_primitives ~pre_compute_normals:true
       source |> get_ok) geometry_output;
   measure ~input_points "facet_orient_polygons" (fun () ->
-    Ops.facet ~grain ~orient_polygons:true inconsistent |> get_ok)
+    Facet_ops.run_checked ~grain ~orient_polygons:true inconsistent |> get_ok)
     geometry_output;
   measure ~input_points "facet_cusp_polygons" (fun () ->
-    Ops.facet ~grain ~cusp_angle:0.08 displaced |> get_ok) geometry_output;
+    Facet_ops.run_checked ~grain ~cusp_angle:0.08 displaced |> get_ok) geometry_output;
   measure ~input_points:inline_points "facet_remove_inline_points" (fun () ->
-    Ops.facet ~grain ~remove_inline_points:true inline_source |> get_ok)
+    Facet_ops.run_checked ~grain ~remove_inline_points:true inline_source |> get_ok)
     geometry_output;
   measure ~input_points:inline_points "facet_group_remove_inline_points"
-    (fun () -> Ops.facet ~grain ~primitives:selected_inline
+    (fun () -> Facet_ops.run_checked ~grain ~primitives:selected_inline
       ~remove_inline_points:true inline_source |> get_ok) geometry_output;
   measure ~input_points:planar_points "facet_make_planar" (fun () ->
-    Ops.facet ~grain ~make_planar:true planar_source |> get_ok) geometry_output;
+    Facet_ops.run_checked ~grain ~make_planar:true planar_source |> get_ok) geometry_output;
   measure ~input_points:planar_points "facet_group_make_planar" (fun () ->
-    Ops.facet ~grain ~primitives:selected_planar ~make_planar:true planar_source
+    Facet_ops.run_checked ~grain ~primitives:selected_planar ~make_planar:true planar_source
     |> get_ok) geometry_output;
   measure ~input_points:normal_points "facet_consolidate_point_normals"
-    (fun () -> Ops.facet ~grain ~consolidate_normals_distance:0.001
+    (fun () -> Facet_ops.run_checked ~grain ~consolidate_normals_distance:0.001
       normal_source |> get_ok) geometry_output
 
 let run_poly_extrude_benchmarks () =
@@ -1053,13 +1053,13 @@ let run_poly_fill_benchmarks () =
       ~attributes:[point_color; vertex_uv; primitive_piece]
       ~groups:[top_points; bottoms] ~edge_groups:[rims] () |> get_ok in
   measure ~input_points:point_count "poly_fill_single_polygon" (fun () ->
-    Ops.poly_fill ~grain ~mode:Ops.Fill_single_polygon ~patch_group:"patch"
+    Poly_fill.run_checked ~grain ~mode:Poly_fill.Fill_single_polygon ~patch_group:"patch"
       source |> get_ok) geometry_output;
   measure ~input_points:point_count "poly_fill_triangles" (fun () ->
-    Ops.poly_fill ~grain ~mode:Ops.Fill_triangles ~patch_group:"patch"
+    Poly_fill.run_checked ~grain ~mode:Poly_fill.Fill_triangles ~patch_group:"patch"
       source |> get_ok) geometry_output;
   measure ~input_points:point_count "poly_fill_triangle_fan_unique" (fun () ->
-    Ops.poly_fill ~grain ~mode:Ops.Fill_triangle_fan ~unique_points:true
+    Poly_fill.run_checked ~grain ~mode:Poly_fill.Fill_triangle_fan ~unique_points:true
       ~patch_group:"patch" source |> get_ok) geometry_output
 
 let run_clean_benchmarks () =
@@ -2336,7 +2336,7 @@ let run_match_size_benchmarks () =
   let source = make_grid ()
       |> Deform_ops.noise_displace_checked ~grain ~amplitude:2. ~frequency:0.23 ~seed:941
            |> get_ok
-      |> Ops.normals ~grain |> get_ok in
+      |> Normal_ops.run_checked ~grain |> get_ok in
   let point_count = Geometry.point_count source in
   let half = Group.init ~grain ~owner:Group.Point ~name:"match_points"
       point_count (fun point -> point land 1 = 0) in
@@ -2529,30 +2529,30 @@ let run_deform_benchmarks () =
   let jitter_selection = Group.init ~grain ~owner:Group.Point
       ~name:"jitter_selection" point_count (fun point -> point mod 5 <> 0) in
   measure ~input_points:point_count "normals_area_weighted" (fun () ->
-    Ops.normals ~grain geometric_source |> get_ok) geometry_output;
+    Normal_ops.run_checked ~grain geometric_source |> get_ok) geometry_output;
   measure ~input_points:point_count "normals_vertex_angle_points" (fun () ->
-    Ops.normals ~grain ~weighting:Ops.Vertex_angle geometric_source |> get_ok)
+    Normal_ops.run_checked ~grain ~weighting:Normal_ops.Vertex_angle geometric_source |> get_ok)
     geometry_output;
   measure ~input_points:point_count "normals_vertex_angle_vertices_smooth"
-    (fun () -> Ops.normals ~grain ~owner:Attribute.Vertex
-      ~weighting:Ops.Vertex_angle ~cusp_angle:Float.pi geometric_source |> get_ok)
+    (fun () -> Normal_ops.run_checked ~grain ~owner:Attribute.Vertex
+      ~weighting:Normal_ops.Vertex_angle ~cusp_angle:Float.pi geometric_source |> get_ok)
     geometry_output;
   measure ~input_points:point_count "normals_vertex_angle_vertices_cusp60"
-    (fun () -> Ops.normals ~grain ~owner:Attribute.Vertex
-      ~weighting:Ops.Vertex_angle ~cusp_angle:(Float.pi /. 3.) geometric_source
+    (fun () -> Normal_ops.run_checked ~grain ~owner:Attribute.Vertex
+      ~weighting:Normal_ops.Vertex_angle ~cusp_angle:(Float.pi /. 3.) geometric_source
       |> get_ok) geometry_output;
   measure ~input_points:point_count "normals_primitives" (fun () ->
-    Ops.normals ~grain ~owner:Attribute.Primitive geometric_source |> get_ok)
+    Normal_ops.run_checked ~grain ~owner:Attribute.Primitive geometric_source |> get_ok)
     geometry_output;
   measure ~input_points:point_count "normals_detail" (fun () ->
-    Ops.normals ~grain ~owner:Attribute.Detail geometric_source |> get_ok)
+    Normal_ops.run_checked ~grain ~owner:Attribute.Detail geometric_source |> get_ok)
     geometry_output;
   let selected_primitives = Group.init ~grain ~owner:Group.Primitive
       ~name:"normal_alternating" (Geometry.primitive_count geometric_source)
       (fun primitive -> primitive land 1 = 0) in
   measure ~input_points:point_count "normals_vertex_cusp60_local_missing" (fun () ->
-    Ops.normals ~grain ~selection:(Transform_ops.Selected_primitives selected_primitives)
-      ~owner:Attribute.Vertex ~weighting:Ops.Vertex_angle
+    Normal_ops.run_checked ~grain ~selection:(Transform_ops.Selected_primitives selected_primitives)
+      ~owner:Attribute.Vertex ~weighting:Normal_ops.Vertex_angle
       ~cusp_angle:(Float.pi /. 3.) geometric_source |> get_ok) geometry_output;
   measure ~input_points:point_count "peak_point_n_mask" (fun () ->
     Deform_ops.peak_checked ~grain ~mask_attribute:"deform_mask" ~distance:0.35
@@ -4062,7 +4062,7 @@ let run_group_benchmarks () =
       ~spread_angle:(Float.pi /. 4.) ~owner:Group_ops.Group_edges
       ~name:"normal_edges" source |> get_ok) geometry_output;
   if benchmark_enabled "group_normal_points_attribute" then begin
-    let source_with_normals = Ops.normals ~grain source |> get_ok in
+    let source_with_normals = Normal_ops.run_checked ~grain source |> get_ok in
     measure ~input_points:point_count "group_normal_points_attribute"
       (fun () -> Ops.group_normal ~grain ~normal_attribute:"N"
         ~direction:Vec3.unit_y ~spread_angle:(Float.pi /. 4.)
@@ -4262,7 +4262,7 @@ let run_unpack_benchmarks () =
     geometry_output
 
 let run_transform_benchmarks () =
-  let source = make_grid () |> Ops.normals ~grain ~owner:Attribute.Point
+  let source = make_grid () |> Normal_ops.run_checked ~grain ~owner:Attribute.Point
       |> get_ok in
   let point_count = Geometry.point_count source
   and primitive_count = Geometry.primitive_count source in

@@ -187,7 +187,7 @@ let run () =
       "group-boundary Smooth moved an unselected point")
     [0; 1; 2; 3; 4; 5; 9; 10; 14; 15; 19; 20; 21; 22; 23; 24];
 
-  let with_normals = Ops.normals grid |> get_ok in
+  let with_normals = Normal_ops.run_checked grid |> get_ok in
   let recomputed = Ops.smooth ~boundary:Ops.Smooth_unshared ~iterations:1
       ~mode:(Attribute_ops.Laplacian 0.5) ~attributes:"P" with_normals |> get_ok in
   check (Geometry.find_attribute ~owner:Attribute.Point "N" recomputed <> None)

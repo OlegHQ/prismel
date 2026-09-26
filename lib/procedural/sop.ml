@@ -3242,7 +3242,7 @@ let normals ?label ?selection ?(owner = Pdk.Attribute.Point)
       match resolve_element_group ~operation:"normals" selection inputs.(0) with
       | Error error -> Error error
       | Ok selection ->
-          match Pdk.Ops.normals ~cancel:(Context.cancel_token context)
+          match Pdk.Normal_ops.run_checked ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?selection ~owner ~weighting
               ~cusp_angle ~keep_original_zero ~reverse ~attribute inputs.(0) with
           | Ok geometry -> cooked geometry
@@ -3561,7 +3561,7 @@ let facet ?label ?group ?selection ?(pre_compute_normals = false)
       match resolve_element_group ~operation:"facet" selection geometry with
       | Error error -> Error error
       | Ok selection ->
-          match Pdk.Ops.facet ~cancel:(Context.cancel_token context)
+          match Pdk.Facet_ops.run_checked ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?selection ~pre_compute_normals
               ~make_normals_unit_length ~unique_points ?consolidate_distance
               ?consolidate_normals_distance ~remove_inline_points
@@ -3635,11 +3635,11 @@ let poly_extrude ?label ?group ?split_edges
           | Error error -> structured_pdk_error error)
 
 let poly_fill_mode_key = function
-  | Pdk.Ops.Fill_single_polygon -> "single_polygon"
-  | Pdk.Ops.Fill_triangles -> "triangles"
-  | Pdk.Ops.Fill_triangle_fan -> "triangle_fan"
+  | Pdk.Poly_fill.Fill_single_polygon -> "single_polygon"
+  | Pdk.Poly_fill.Fill_triangles -> "triangles"
+  | Pdk.Poly_fill.Fill_triangle_fan -> "triangle_fan"
 
-let poly_fill ?label ?boundary_group ?(mode = Pdk.Ops.Fill_triangles)
+let poly_fill ?label ?boundary_group ?(mode = Pdk.Poly_fill.Fill_triangles)
     ?(reverse_patches = false) ?(unique_points = false)
     ?(update_point_normals = false) ?patch_group input =
   List.iter (fun (label, name) -> match name with
@@ -3670,7 +3670,7 @@ let poly_fill ?label ?boundary_group ?(mode = Pdk.Ops.Fill_triangles)
       match boundary with
       | Error error -> Error error
       | Ok boundary ->
-          match Pdk.Ops.poly_fill ~cancel:(Context.cancel_token context)
+          match Pdk.Poly_fill.run_checked ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?boundary ~mode ~reverse_patches
               ~unique_points ~update_point_normals ?patch_group geometry with
           | Ok geometry -> cooked geometry
@@ -6487,7 +6487,7 @@ let split ?label ?(compact_points = false)
 
 let compact_points ?label input =
   unary_result ?label ~operation:"compact_points"
-    (fun context geometry -> Pdk.Ops.compact_points
+    (fun context geometry -> Pdk.Compact_points.run_checked
       ~cancel:(Context.cancel_token context) ~grain:(Context.grain context)
       geometry) input
 
