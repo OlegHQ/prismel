@@ -1,7 +1,7 @@
 {
   "generator": "tools/api_manifest/api_manifest.exe",
   "kind": "stable_high_level",
-  "module_count": 151,
+  "module_count": 148,
   "modules": [
     {
       "api_sha256": "42991257be662e316b18b78776fd2c91d5990ebf5a3b561d4d38b32d1d9db961",
@@ -841,15 +841,6 @@
       "source_sha256": "e748f19018d8e98170727ed1b2cecec58c4c11975685d598e7ddc8bf3c2b2572"
     },
     {
-      "api_sha256": "cd697d0490808818dba7076e93a74e07c8e33ca68389a8b4f13a88f79fa2878f",
-      "excluded_legacy_symbols": [],
-      "library": "prismel",
-      "module": "Compute3",
-      "source": "lib/prismel/compute3.mli",
-      "source_bytes": 703,
-      "source_sha256": "e4434ed7cb8495dccfdc6777f4543fdcaec49d0e992d487e22921ed758675b9c"
-    },
-    {
       "api_sha256": "b4f3fb836361589f97047f31ecdeb2f36ba400c32d5b22019952aeeb7abb7902",
       "excluded_legacy_symbols": [],
       "library": "prismel",
@@ -1043,22 +1034,13 @@
       "source_sha256": "67c2c1a27b49ad8dbbcf841b2facb2bfa825fb4687f451eec9e3f2cc148b40cf"
     },
     {
-      "api_sha256": "01b3010e4813ab7a5490635a5b08bf547780b4acc29da3d15eb090c44159c45c",
+      "api_sha256": "c6e4d8fa721f5e5a931f425e6dbf2fc89fa962de08bbf14b5164998592b72e75",
       "excluded_legacy_symbols": [],
       "library": "prismel",
       "module": "Scene3",
       "source": "lib/prismel/scene3.mli",
-      "source_bytes": 5425,
-      "source_sha256": "6ded3b153cfb7561e31e6ba47b8e686b91e977b52428240e902fbe851a8cc2ad"
-    },
-    {
-      "api_sha256": "95065cba582b65eb9f7700f8d67bac6c2152edbd7ad964fc0ed5e7eab58fc8ed",
-      "excluded_legacy_symbols": [],
-      "library": "prismel",
-      "module": "Shader3",
-      "source": "lib/prismel/shader3.mli",
-      "source_bytes": 3036,
-      "source_sha256": "ec35d32a1bf26475d79a4858e3dc7aadc0d56e363329853f29194686e9ea0394"
+      "source_bytes": 5187,
+      "source_sha256": "c1db1a3f7712ed6e9e90008ff32c45418e400c2d42ffaf9e119f0ad99e6dbed6"
     },
     {
       "api_sha256": "23bddbe929cfd915e2ddd1dda7cfb776daf551f897f01ef51538fb1cc4a70ad3",
@@ -1097,15 +1079,6 @@
       "source_sha256": "9cdd279e29e7d05cb9c716f0adc6af333aafd364dc458c670e47a1edd86e6f44"
     },
     {
-      "api_sha256": "a91c9d72869503c463f4e0316fa5ce7a3737baf3e84a926ea0c3e665c16f7650",
-      "excluded_legacy_symbols": [],
-      "library": "prismel",
-      "module": "Transform_feedback3",
-      "source": "lib/prismel/transform_feedback3.mli",
-      "source_bytes": 676,
-      "source_sha256": "4e1b81e5f42dd2d7b2fc5ab49db71c789d20b760300aca5a04a4f6757ecd7c60"
-    },
-    {
       "api_sha256": "cb607decb7f183b7dd2415b9240658bd563fe35db79ea46e575e9407b4a28095",
       "excluded_legacy_symbols": [],
       "library": "prismel",
@@ -1133,13 +1106,13 @@
       "source_sha256": "22b735d5e823832e034c514742c05ce877b71fba8ff6ab3cdbda94728a8b766e"
     },
     {
-      "api_sha256": "4f19defa2185d0a9a388b4b17d6bcd2fda5aa6e375207dd9721b22671d7040a2",
+      "api_sha256": "784b409203e769901cb728ab80678557c9e139d6a33ddb3684bcac10cdc442c7",
       "excluded_legacy_symbols": [],
       "library": "procedural",
       "module": "Bridge",
       "source": "lib/procedural/bridge.mli",
-      "source_bytes": 1251,
-      "source_sha256": "72f74d82e70ad281da0042667b90e922ad0ee69230ec63b2268f5f2280a0c926"
+      "source_bytes": 1220,
+      "source_sha256": "bb160a4e969b94762208a2e537e7cbb9ae5e0f5587700a997b65f3c8bda0f36b"
     },
     {
       "api_sha256": "27f0aef78abfe3503fc1439cc5c9f9bee5fcfbbfb302db6d2f6194f604252e2f",
@@ -1196,13 +1169,13 @@
       "source_sha256": "7e7ba89a2756ee06d50cd69d0ea88c1f5a520f66ee10d3c4c3de0c5cb6015c68"
     },
     {
-      "api_sha256": "dd9402ccfd52126d2421713d0f161332bd4389bdc6309bf83fe83c752ecbccf6",
+      "api_sha256": "a362f6122dfa930760958022fed3f6dfedf67d346a26376bfe24b090d69ae509",
       "excluded_legacy_symbols": [],
       "library": "procedural",
       "module": "Instances",
       "source": "lib/procedural/instances.mli",
-      "source_bytes": 1049,
-      "source_sha256": "dfd7179e1482ae5f37b7abec0b1a45b12863a523739eb073bed2b36d20299954"
+      "source_bytes": 1016,
+      "source_sha256": "707c7aacc3ad112b03f1971200b77d3557c1291b5fb54f77f5f04f9fc3f94bfb"
     },
     {
       "api_sha256": "9a3f7b806304593b3bb337967e0b0d6aa49d8bf711c90baf088ac2ab1cc1bc38",

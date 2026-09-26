@@ -91,7 +91,6 @@ val textured :
 val mesh :
   ?material:Material.t ->
   ?texture:texture ->
-  ?shader:Shader3.t ->
   ?mode:render_mode ->
   ?cull:cull ->
   ?shading:shading ->
@@ -102,7 +101,6 @@ val mesh :
 val instances :
   ?material:Material.t ->
   ?texture:texture ->
-  ?shader:Shader3.t ->
   ?mode:render_mode ->
   ?cull:cull ->
   ?shading:shading ->
@@ -113,7 +111,6 @@ val instances :
 val instances_array :
   ?material:Material.t ->
   ?texture:texture ->
-  ?shader:Shader3.t ->
   ?mode:render_mode ->
   ?cull:cull ->
   ?shading:shading ->
@@ -138,7 +135,6 @@ val with_blend : blend -> node list -> node
 val box :
   ?material:Material.t ->
   ?texture:texture ->
-  ?shader:Shader3.t ->
   ?mode:render_mode ->
   ?cull:cull ->
   ?shading:shading ->
@@ -150,7 +146,6 @@ val box :
 val plane :
   ?material:Material.t ->
   ?texture:texture ->
-  ?shader:Shader3.t ->
   ?mode:render_mode ->
   ?cull:cull ->
   ?shading:shading ->
@@ -161,7 +156,6 @@ val plane :
 val sphere :
   ?material:Material.t ->
   ?texture:texture ->
-  ?shader:Shader3.t ->
   ?mode:render_mode ->
   ?cull:cull ->
   ?shading:shading ->
@@ -171,7 +165,6 @@ val sphere :
 val icosphere :
   ?material:Material.t ->
   ?texture:texture ->
-  ?shader:Shader3.t ->
   ?mode:render_mode ->
   ?cull:cull ->
   ?shading:shading ->
@@ -181,7 +174,6 @@ val icosphere :
 val cylinder :
   ?material:Material.t ->
   ?texture:texture ->
-  ?shader:Shader3.t ->
   ?mode:render_mode ->
   ?cull:cull ->
   ?shading:shading ->
@@ -192,7 +184,6 @@ val cylinder :
 val cone :
   ?material:Material.t ->
   ?texture:texture ->
-  ?shader:Shader3.t ->
   ?mode:render_mode ->
   ?cull:cull ->
   ?shading:shading ->
@@ -206,7 +197,6 @@ module Private : sig
     mesh : Mesh.t;
     material : Material.t;
     texture : texture option;
-    shader : Shader3.t option;
     mode : render_mode;
     cull : cull;
     shading : shading;

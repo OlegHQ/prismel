@@ -47,7 +47,7 @@ let duplicate ?(copies = 1) ?(cumulative = true) ?(transform = Mat4.identity)
     { value with transforms }
 
 module Private = struct
-  let scene3 ?material ?texture ?shader ?mode ?cull ?shading mesh value =
-    Scene3.instances_array ?material ?texture ?shader ?mode ?cull ?shading
+  let scene3 ?material ?texture ?mode ?cull ?shading mesh value =
+    Scene3.instances_array ?material ?texture ?mode ?cull ?shading
       mesh value.transforms
 end

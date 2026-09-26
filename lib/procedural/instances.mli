@@ -22,7 +22,6 @@ module Private : sig
   val scene3 :
     ?material:Prismel.Material.t ->
     ?texture:Prismel.Scene3.texture ->
-    ?shader:Prismel.Shader3.t ->
     ?mode:Prismel.Scene3.render_mode ->
     ?cull:Prismel.Scene3.cull ->
     ?shading:Prismel.Scene3.shading ->

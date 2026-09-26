@@ -217,11 +217,10 @@ removal, range coloring, compact submeshes, centroid/duplicate/crease-normal
 operations, attributed faces and face normals, spatial diagnostic meshes, UV
 remapping, and ASCII/binary PLY plus OBJ output.
 `Material` and `Light` provide the fixed native lighting inputs, while `Mat4`
-and scoped `Scene3` nodes compose hierarchical transforms. The public model
-also retains area-light, separate-specular, `Shader3`, compute, and
-transform-feedback values. Constructor presence is not a native-support claim:
-the current Scene3 lowering accepts the fixed triangle/material/light path and
-returns typed errors for OCaml-function shaders and other unlowered modes.
+and scoped `Scene3` nodes compose hierarchical transforms. Scene3 renders
+through the fixed native material/light path; inputs it cannot honor (more than
+64 lights, malformed meshes, invalid viewports) are typed lowering errors.
+`specification/3d-parity.md` tracks the scoped states still partially lowered.
 
 The renderer uses native Metal color, depth, and stencil attachments, not
 projected 2D painter ordering. Perspective and orthographic cameras use

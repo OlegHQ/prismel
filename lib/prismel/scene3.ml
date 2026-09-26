@@ -47,10 +47,10 @@ type texture = {
 
 type node =
   | Mesh of
-      Mesh.t * Material.t * texture option * Shader3.t option
+      Mesh.t * Material.t * texture option
       * render_mode * cull * shading
   | Instances of
-      Mesh.t * Material.t * texture option * Shader3.t option
+      Mesh.t * Material.t * texture option
       * render_mode * cull * shading * Mat4.t array
   | Group of node list
   | Transform of Mat4.t * node list
@@ -141,18 +141,18 @@ let textured ?(filter = Texture.Bilinear) ?(wrap_u = Texture.Clamp)
     ?(wrap_v = Texture.Clamp) value =
   { value; filter; wrap_u; wrap_v }
 
-let mesh ?(material = Material.default) ?texture ?shader ?(mode = Faces)
+let mesh ?(material = Material.default) ?texture ?(mode = Faces)
     ?(cull = Cull_back) ?(shading = Smooth) value =
-  Mesh (value, material, texture, shader, mode, cull, shading)
+  Mesh (value, material, texture, mode, cull, shading)
 
-let instances ?(material = Material.default) ?texture ?shader ?(mode = Faces)
+let instances ?(material = Material.default) ?texture ?(mode = Faces)
     ?(cull = Cull_back) ?(shading = Smooth) value transforms =
-  Instances (value, material, texture, shader, mode, cull, shading,
+  Instances (value, material, texture, mode, cull, shading,
     Array.of_list transforms)
 
-let instances_array ?(material = Material.default) ?texture ?shader ?(mode = Faces)
+let instances_array ?(material = Material.default) ?texture ?(mode = Faces)
     ?(cull = Cull_back) ?(shading = Smooth) value transforms =
-  Instances (value, material, texture, shader, mode, cull, shading,
+  Instances (value, material, texture, mode, cull, shading,
     Array.copy transforms)
 
 let group nodes = Group nodes
@@ -166,31 +166,31 @@ let with_stencil state nodes = Stencil_state (state, nodes)
 let with_raster state nodes = Raster_state (state, nodes)
 let with_blend blend nodes = Blend_state (blend, nodes)
 
-let box ?material ?texture ?shader ?mode ?cull ?shading
+let box ?material ?texture ?mode ?cull ?shading
     ~width ~height ~depth () =
-  mesh ?material ?texture ?shader ?mode ?cull ?shading
+  mesh ?material ?texture ?mode ?cull ?shading
     (Mesh.box ~width ~height ~depth ())
 
-let plane ?material ?texture ?shader ?mode ?cull ?shading ~width ~height () =
-  mesh ?material ?texture ?shader ?mode ?cull ?shading
+let plane ?material ?texture ?mode ?cull ?shading ~width ~height () =
+  mesh ?material ?texture ?mode ?cull ?shading
     (Mesh.plane ~width ~height ())
 
-let sphere ?material ?texture ?shader ?mode ?cull ?shading ~radius () =
-  mesh ?material ?texture ?shader ?mode ?cull ?shading
+let sphere ?material ?texture ?mode ?cull ?shading ~radius () =
+  mesh ?material ?texture ?mode ?cull ?shading
     (Mesh.sphere ~radius ())
 
-let icosphere ?material ?texture ?shader ?mode ?cull ?shading ~radius () =
-  mesh ?material ?texture ?shader ?mode ?cull ?shading
+let icosphere ?material ?texture ?mode ?cull ?shading ~radius () =
+  mesh ?material ?texture ?mode ?cull ?shading
     (Mesh.icosphere ~radius ())
 
-let cylinder ?material ?texture ?shader ?mode ?cull ?shading
+let cylinder ?material ?texture ?mode ?cull ?shading
     ~radius ~height () =
-  mesh ?material ?texture ?shader ?mode ?cull ?shading
+  mesh ?material ?texture ?mode ?cull ?shading
     (Mesh.cylinder ~radius ~height ())
 
-let cone ?material ?texture ?shader ?mode ?cull ?shading
+let cone ?material ?texture ?mode ?cull ?shading
     ~radius ~height () =
-  mesh ?material ?texture ?shader ?mode ?cull ?shading
+  mesh ?material ?texture ?mode ?cull ?shading
     (Mesh.cone ~radius ~height ())
 
 module Private = struct
@@ -198,7 +198,6 @@ module Private = struct
     mesh : Mesh.t;
     material : Material.t;
     texture : texture option;
-    shader : Shader3.t option;
     mode : render_mode;
     cull : cull;
     shading : shading;
@@ -212,31 +211,29 @@ module Private = struct
   let cacheable scene =
     let rec nodes = function
       | [] -> true
-      | Mesh (_, _, None, None, _, _, _) :: rest -> nodes rest
-      | Instances (_, _, None, None, _, _, _, _) :: rest -> nodes rest
+      | Mesh (_, _, None, _, _, _) :: rest -> nodes rest
+      | Instances (_, _, None, _, _, _, _) :: rest -> nodes rest
       | Group nested :: rest
       | Transform (_, nested) :: rest
       | Depth_state (_, nested) :: rest
       | Stencil_state (_, nested) :: rest
       | Raster_state (_, nested) :: rest
       | Blend_state (_, nested) :: rest -> nodes nested && nodes rest
-      | Mesh (_, _, (Some _), _, _, _, _) :: _
-      | Mesh (_, _, _, (Some _), _, _, _) :: _
-      | Instances (_, _, (Some _), _, _, _, _, _) :: _
-      | Instances (_, _, _, (Some _), _, _, _, _) :: _ -> false in
+      | Mesh (_, _, Some _, _, _, _) :: _
+      | Instances (_, _, Some _, _, _, _, _) :: _ -> false in
     Option.is_none scene.shadow && nodes scene.nodes
 
   let drawings scene =
     let rec flatten parent depth stencil raster blend acc = function
       | [] -> acc
-      | Mesh (mesh, material, texture, shader, mode, cull, shading) :: rest ->
+      | Mesh (mesh, material, texture, mode, cull, shading) :: rest ->
           flatten parent depth stencil raster blend
-            ({ mesh; material; texture; shader; mode; cull; shading;
+            ({ mesh; material; texture; mode; cull; shading;
                depth; stencil; raster; blend;
                transform = parent } :: acc)
             rest
       | Instances
-          (mesh, material, texture, shader, mode, cull, shading, transforms)
+          (mesh, material, texture, mode, cull, shading, transforms)
         :: rest ->
           let acc =
             Array.fold_left
@@ -245,7 +242,6 @@ module Private = struct
                   mesh;
                   material;
                   texture;
-                  shader;
                   mode;
                   cull;
                   shading;
@@ -286,14 +282,14 @@ module Private = struct
   let iter_drawings operation scene =
     let rec visit parent depth stencil raster blend = function
       | [] -> ()
-      | Mesh (mesh, material, texture, shader, mode, cull, shading) :: rest ->
-          operation { mesh; material; texture; shader; mode; cull; shading;
+      | Mesh (mesh, material, texture, mode, cull, shading) :: rest ->
+          operation { mesh; material; texture; mode; cull; shading;
             depth; stencil; raster; blend; transform = parent };
           visit parent depth stencil raster blend rest
-      | Instances (mesh, material, texture, shader, mode, cull, shading,
+      | Instances (mesh, material, texture, mode, cull, shading,
           transforms) :: rest ->
           Array.iter (fun transform -> operation {
-            mesh; material; texture; shader; mode; cull; shading;
+            mesh; material; texture; mode; cull; shading;
             depth; stencil; raster; blend;
             transform = Mat4.mul parent transform }) transforms;
           visit parent depth stencil raster blend rest
@@ -320,13 +316,13 @@ module Private = struct
   let iter_batches operation scene =
     let rec visit parent depth stencil raster blend = function
       | [] -> ()
-      | Mesh (mesh, material, texture, shader, mode, cull, shading) :: rest ->
-          operation { mesh; material; texture; shader; mode; cull; shading;
+      | Mesh (mesh, material, texture, mode, cull, shading) :: rest ->
+          operation { mesh; material; texture; mode; cull; shading;
             depth; stencil; raster; blend; transform = parent } None;
           visit parent depth stencil raster blend rest
-      | Instances (mesh, material, texture, shader, mode, cull, shading,
+      | Instances (mesh, material, texture, mode, cull, shading,
           transforms) :: rest ->
-          operation { mesh; material; texture; shader; mode; cull; shading;
+          operation { mesh; material; texture; mode; cull; shading;
             depth; stencil; raster; blend; transform = parent }
             (Some transforms);
           visit parent depth stencil raster blend rest

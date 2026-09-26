@@ -465,8 +465,7 @@ module Private=struct
           |Ok prepared->Some(Scene3_layer prepared)
           |Error error->failure:=Some("native View3d lowering failed: "^
              (match error with
-              |Scene3_native_lowering.Unsupported_shader->"functional shader"
-              |Unsupported_mode->"render mode"|Unsupported_texture->"texture"
+              |Scene3_native_lowering.Unsupported_mode->"render mode"|Unsupported_texture->"texture"
               |Unsupported_shadow->"shadow"
               |Too_many_lights->"more than 64 lights"|Invalid_mesh->"mesh"
               |Invalid_viewport->"viewport"));None))grouped in

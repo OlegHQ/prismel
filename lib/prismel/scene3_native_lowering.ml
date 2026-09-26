@@ -1,5 +1,4 @@
 type error =
-  | Unsupported_shader
   | Unsupported_mode
   | Unsupported_texture
   | Unsupported_shadow
@@ -178,7 +177,6 @@ let prepare ~resources ~camera ~viewport:(x,y,width,height as viewport) scene =
   let cacheable=ref(Option.is_none(Scene3.Private.shadow scene))
     and failure=ref None and entries=ref[]in
   Scene3.Private.iter_batches (fun (drawing:Scene3.Private.drawing) transforms->
-    if Option.is_some drawing.shader then failure:=Some Unsupported_shader;
     if Option.is_some drawing.texture then cacheable:=false;
     if !failure=None && (match transforms with Some values->Array.length values>0|None->true)
     then match packed_of_mesh drawing.mode drawing.mesh with

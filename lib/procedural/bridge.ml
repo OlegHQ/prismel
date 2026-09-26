@@ -20,10 +20,10 @@ let cook_to_instances session ~context instances =
     mesh, Instances.transforms instances, diagnostics)
     (cook_to_mesh session ~context node)
 
-let cook_to_scene3 ?material ?texture ?shader ?mode ?cull ?shading
+let cook_to_scene3 ?material ?texture ?mode ?cull ?shading
     session ~context instances =
   Result.map (fun (mesh, diagnostics) ->
-    Instances.Private.scene3 ?material ?texture ?shader ?mode ?cull ?shading
+    Instances.Private.scene3 ?material ?texture ?mode ?cull ?shading
       mesh instances,
     diagnostics)
     (cook_to_mesh session ~context (Instances.source instances))

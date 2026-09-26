@@ -42,8 +42,6 @@ Status meanings:
 | Smooth/flat policy parity | partial | Mesh normals reach native lighting; all public splitting/interpolation combinations require end-to-end fixtures |
 | Separate-specular policy | partial | Public value and uniform field exist; complete visible-behavior parity remains a qualification item |
 | Instanced Scene3 submission | partial | Public immutable batches exist; end-to-end native instancing must be distinguished from repeated retained draws |
-| `Shader3` OCaml vertex/geometry/fragment functions | API only | Current native lowering returns `Unsupported_shader`; typed MSL/IR is required for native completion |
-| `Compute3` and `Transform_feedback3` | API only | Functional APIs remain, but they are not claimed as public Metal execution by Scene3 |
 | General offscreen color/depth/stencil framebuffer API | missing | The installed public library has Canvas/capture resources, not a public `Framebuffer3` module |
 | General post-processing graph | missing | Requires typed native shader/attachment integration |
 | Mesh import/export | partial | Existing OBJ/PLY and geometry APIs are independent of renderer completion |

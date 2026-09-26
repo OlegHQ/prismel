@@ -15,10 +15,5 @@ let run () =
   ignore(Runtime_resources.Canvas.save_png canvas file);let loaded=Texture.load_exn file in
   check(Texture.pixel loaded~x:0~y:0=Some(Color.rgba 0x11 0x22 0x33 0xff))"Texture SDL3 load";
   Sys.remove file;ignore(Runtime_resources.Canvas.destroy canvas);
-  let shader=Shader3.create~varying_count:1~vertex:(fun input->{(Shader3.default_vertex input)with varyings=[float input.vertex_index]})~fragment:Shader3.default_fragment()in
-  check(Shader3.varying_count shader=1&&not(Shader3.has_geometry shader))"Shader3 stages";
-  let values=Compute3.dispatch~grain:64~groups:(1000,10,10)~local_size:(1,1,1)(fun invocation->invocation.linear_index)in
-  let exact=ref(Array.length values=100_000)in Array.iteri(fun index value->if index<>value then exact:=false)values;
-  check !exact"Compute3 exact 100k";
   Parallel.release_current_domain_pools();
-  print_endline"Prismel batch D path/parallel/texture/shader/compute passed"
+  print_endline"Prismel batch D path/parallel/texture passed"
