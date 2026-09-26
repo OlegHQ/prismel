@@ -2477,18 +2477,6 @@ clean `HEAD` versus 18.652/20.317 ms after the port, with only 496 more
 caller-allocated bytes. Four-domain medians are 21.294/37.748 versus
 19.747/21.207 ms under variable host scheduling, with the same digest.
 
-`Pdk.Subdivision_extra` owns Butterfly and Doo-Sabin triangle subdivision.
-It currently accepts triangle meshes with point `N`, `Cd`, and `uv` only;
-groups and other attributes are unsupported. The output recomputes point
-normals and interpolates point `Cd` and `uv`;
-non-manifold input fails atomically. Captured full ordered open-triangle and
-icosahedron mesh fingerprints matched across migration. Direct fixtures cover
-output cardinality, malformed empty input, cancellation and exact one/four-domain
-output. The release
-`bench_pdk_subdivide` at a 96²-cell triangular grid records 73,728 Butterfly
-faces in 45.043 ms and 109,444 Doo-Sabin faces in 49.538 ms at one domain
-(five repeats), with the same digests at four domains.
-
 `Ops.triangulate_2d` is the first public adapter over the shared packed
 `Delaunay2` core. It accepts a typed point selection and projects source points
 through PCA best fit, XY/YZ/ZX, an explicit origin/normal frame, or a point

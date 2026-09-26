@@ -1,7 +1,7 @@
 {
   "generator": "tools/api_manifest/api_manifest.exe",
   "kind": "stable_high_level",
-  "module_count": 139,
+  "module_count": 138,
   "modules": [
     {
       "api_sha256": "42991257be662e316b18b78776fd2c91d5990ebf5a3b561d4d38b32d1d9db961",
@@ -650,15 +650,6 @@
       "source": "lib/pdk/gen/spiral.mli",
       "source_bytes": 1952,
       "source_sha256": "bff9dec06ad5dc35131e9386771d7738cebce6c47513735f22d5c51f57da122e"
-    },
-    {
-      "api_sha256": "3ffded6eed89cbd2e22ae9bb0e86c3ef505b14dae90bc05513b10aee03a161ac",
-      "excluded_legacy_symbols": [],
-      "library": "pdk",
-      "module": "Subdivision_extra",
-      "source": "lib/pdk/mesh/subdivision_extra.mli",
-      "source_bytes": 444,
-      "source_sha256": "2910512f3227f75cb202397845c7c1cbb1a201670d9d1f5b7e33797a6415d4bb"
     },
     {
       "api_sha256": "0695e9ca43e910d76a82a7c0d15899f16413337dd354f096d22154e49869bc57",

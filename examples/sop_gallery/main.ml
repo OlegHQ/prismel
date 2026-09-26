@@ -136,18 +136,13 @@ let meshes () =
 let subdivision () =
   let source = Pdk.Parametric_generators.platonic_checked ~kind:Pdk.Parametric_generators.Platonic_icosahedron
       ~radius:1.15 () |> Result.get_ok in
-  let packed operation = operation source |> Result.get_ok |> Sop.snapshot in
   let plain node = Sop.delete_attributes ~point_pattern:"*"
       ~vertex_pattern:"*" ~primitive_pattern:"*" ~detail_pattern:"*" node in
   Sop.merge (List.map plain [
     Sop.snapshot source |> Sop.subdivide ~scheme:Pdk.Subdivision_ops.Loop
-      ~iterations:2 |> move (-3.75) 0. 0.;
-    packed (Pdk.Subdivision_extra.butterfly ~iterations:2)
-      |> move (-1.25) 0. 0.;
+      ~iterations:2 |> move (-1.25) 0. 0.;
     Sop.snapshot source |> Sop.subdivide ~scheme:Pdk.Subdivision_ops.Catmull_clark
-      ~iterations:2 |> move 1.25 0. 0.;
-    packed (Pdk.Subdivision_extra.doo_sabin ~iterations:1)
-      |> move 3.75 0. 0.])
+      ~iterations:2 |> move 1.25 0. 0.])
 
 let curves () =
   let rose = Array.init 720 (fun i ->

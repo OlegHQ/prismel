@@ -69,7 +69,6 @@ while using index planes rather than per-element objects.
 | Edge straightening | No former single owner | `Edge_ops.straighten` owns selected-edge components, scale-normalized covariance fitting, deterministic principal-axis selection, and packed point projection; Procedural only resolves named groups and node identity |
 | Edge length equalization | No former single owner | `Edge_ops.equalize` owns target reduction, selected incidence planning, the independent-edge exact path, deterministic connected projection, convergence and finite-result policy, stale-normal invalidation, and packed coordinate output; Procedural only resolves named groups and immutable solver parameters |
 | Reference edge relaxation | No former single owner | `Edge_relax.relax` owns matching-topology validation, individual/scale-independent reference targets, movable/pinned incidence planning, shorten-only policy, a closed-form independent-edge path, and delegates connected iterations to the shared `Edge_constraints` projector; Procedural owns only two-input roles, named-group resolution, and immutable parameters |
-| Butterfly/Doo-Sabin | Specialized subdivision | `Pdk.Subdivision_extra` owns packed output and direct fixtures |
 | Boolean | Exact corefinement | `Pdk.Boolean` owns the arrangement and extraction pipeline |
 | Delaunay/Voronoi | Planar modeling | `Pdk.Delaunay2` and `Pdk.Voronoi2` own exact-predicate results |
 | Isosurface | Scalar-field extraction | `Pdk.Iso_surface` owns packed output |

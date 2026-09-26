@@ -1383,12 +1383,12 @@ is restricted to visible tiles.
   geometry only for actual plane crossings, and use scalar plane math so
   classification does not box float results. Whole-tree collection, inversion,
   and clipping use explicit work stacks to tolerate long convex BSP chains.
-- Loop, Butterfly, Catmull-Clark, and Doo-Sabin subdivision share borrowed
+- Loop and Catmull-Clark subdivision share borrowed
   triangle/attribute arrays and sorted edge arrays. Known triangle counts fill
   exact owned index buffers, including backward fills where legacy prepend
   order is observable. Position stencils run directly over packed geometry;
   weighted term graphs are constructed lazily only when color or UV attributes
-  need interpolation. Doo-Sabin caches source face normals once per pass.
+  need interpolation.
 
 ## Parallel execution
 
@@ -1443,7 +1443,7 @@ PRISMEL_SHATTER_FRAMES=1001 \
 ## Measurement contract
 
 The focused PDK benchmarks, including `tools/bench_pdk_ops.exe`,
-`tools/bench_pdk_iso.exe`, and `tools/bench_pdk_subdivide.exe`, report elapsed
+and `tools/bench_pdk_iso.exe`, report elapsed
 time and GC allocation for their declared geometry fixtures. Run them with the
 release profile and record input cardinalities and domain count.
 

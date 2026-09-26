@@ -269,8 +269,7 @@ selections preserve the same typed errors while keeping group storage in the
 attribute core and topology paths in the mesh core.
 
 Loop and Catmull-Clark mesh subdivision use the same packed PDK core
-as `Procedural.Sop.subdivide`; `Pdk.Subdivision_extra` provides Butterfly and
-Doo-Sabin. The SOP additionally exposes bilinear
+as `Procedural.Sop.subdivide`. The SOP additionally exposes bilinear
 refinement, recursive depth, all six OpenSubdiv face-varying interpolation
 policies, standard or Smooth Triangles Catmull-Clark masks, groups, and
 Uniform or Chaikin semi-sharp `creaseweight` plus uniformly decayed

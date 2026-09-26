@@ -117,11 +117,6 @@
  (libraries pdk prismel_math unix))
 
 (executable
- (name bench_pdk_subdivide)
- (modules bench_pdk_subdivide)
- (libraries pdk prismel unix))
-
-(executable
  (name bench_pxui)
  (modules bench_pxui)
  (libraries prismel pxui unix))

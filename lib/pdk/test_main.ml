@@ -1,5 +1,4 @@
 let tests = [
-  "mesh", "test_subdivision_extra", Test_subdivision_extra.run;
   "core", "test_pdk", Test_pdk.run;
   "spatial", "test_surface_index", Test_surface_index.run;
   "mesh", "test_extract_centroid", Test_extract_centroid.run;
