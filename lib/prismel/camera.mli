@@ -84,15 +84,7 @@ val with_projection : projection -> t -> t
 val with_v_flip : bool -> t -> t
 val with_forced_aspect : float option -> t -> t
 val move : Vec3.t -> t -> t
-val truck : float -> t -> t
-val boom : float -> t -> t
-val dolly : float -> t -> t
-val orbit :
-  center:Vec3.t -> azimuth:float -> elevation:float -> radius:float -> t -> t
-val pan : float -> t -> t
-val tilt : float -> t -> t
-val roll : float -> t -> t
-(* Local camera operations. Angles are radians. *)
+(* Translate both position and target. *)
 
 val view_matrix : t -> Mat4.t
 val projection_matrix : viewport:int * int * int * int -> t -> Mat4.t

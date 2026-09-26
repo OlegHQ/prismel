@@ -15,12 +15,4 @@ let run () =
     camera Vec3.zero))"Camera projection";
   let easy=Easy_camera.create ~target:Vec3.zero ~distance:5. () in
   require(Easy_camera.distance easy=5.)"Easy_camera distance";
-  let node=Node3.create ~position:(Vec3.create 2. 0. 0.) () in
-  let child=Node3.create ~position:(Vec3.create 0. 1. 0.) ~parent:node () in
-  require(Vec3.nearly_equal(Node3.global_position child)(Vec3.create 2. 1. 0.)
-    ~eps:1e-12)"Node3 hierarchy";
-  for _=1 to 100_000 do
-    require(Vec3.nearly_equal(Node3.global_position child)(Vec3.create 2. 1. 0.)
-      ~eps:1e-12)"batch B deterministic plateau"
-  done;
   print_endline"Prismel batch B camera/light/mesh API passed"

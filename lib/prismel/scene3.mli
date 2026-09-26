@@ -126,7 +126,6 @@ val transform : Mat4.t -> node list -> node
 val translate : Vec3.t -> node list -> node
 val rotate : axis:Vec3.t -> float -> node list -> node
 val scale : Vec3.t -> node list -> node
-val at_node : Node3.t -> node list -> node
 val with_depth : depth_state -> node list -> node
 val with_stencil : stencil_state -> node list -> node
 val with_raster : raster_state -> node list -> node

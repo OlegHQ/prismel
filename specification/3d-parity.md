@@ -23,7 +23,7 @@ Status meanings:
 
 | Capability group | Status | Current native boundary |
 |---|---|---|
-| Vectors, quaternions, matrices, node transforms | complete | Pure `Vec3`, `Quat`, `Mat4`, and immutable `Node3`; exact mathematical tests |
+| Vectors, quaternions, matrices | complete | Pure `Vec3`, `Quat`, and `Mat4`; exact mathematical tests |
 | Indexed mesh storage, attributes, editing and queries | complete | Immutable `Mesh`; native lowering validates index topology and requires per-vertex normals |
 | Plane, box, sphere, icosphere, cylinder, cone mesh generators | complete | Produce ordinary immutable meshes; supported triangle faces enter the native path |
 | Perspective/orthographic cameras and world/screen conversion | complete | Logical viewports, native drawable conversion, picking and camera fixtures |

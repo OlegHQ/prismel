@@ -455,61 +455,6 @@ let run_1 () =
   in
   if not (Vec3.nearly_equal (Camera.up up_camera) Vec3.unit_z ~eps:1e-9) then
     fail "easy camera did not preserve its configured up axis";
-  let parent =
-    Node3.create ~position:(Vec3.create 2. 0. 0.)
-      ~orientation:(Quat.axis_angle ~axis:Vec3.unit_y (Float.pi /. 2.)) ()
-  in
-  let child =
-    Node3.create ~position:(Vec3.create 0. 0. (-1.)) ~parent ()
-  in
-  if not
-       (Vec3.nearly_equal (Node3.global_position child)
-          (Vec3.create 1. 0. 0.) ~eps:1e-9)
-  then fail "hierarchical Node3 transform did not include its parent";
-  let detached = Node3.clear_parent ~maintain_global:true child in
-  if not
-       (Vec3.nearly_equal (Node3.global_position detached)
-          (Node3.global_position child) ~eps:1e-9)
-  then fail "Node3 lost its global transform while clearing its parent";
-  let euler = Vec3.create 0.2 (-0.4) 0.3 in
-  let euler_node =
-    Node3.create
-      ~orientation:
-        (Quat.of_euler ~pitch:euler.x ~yaw:euler.y ~roll:euler.z)
-      ()
-  in
-  if not (Vec3.nearly_equal (Node3.euler euler_node) euler ~eps:1e-9) then
-    fail "Node3 Euler-angle query did not invert quaternion construction";
-  let desired_global =
-    Quat.axis_angle ~axis:Vec3.unit_z (Float.pi /. 4.)
-  in
-  let oriented_child = Node3.set_global_orientation desired_global child in
-  if not
-       (Quat.nearly_equal (Node3.global_orientation oriented_child)
-          desired_global ~eps:1e-9)
-  then fail "Node3 global-orientation setter ignored its parent";
-  let around =
-    Node3.create ~position:Vec3.unit_x ()
-    |> Node3.rotate_around ~point:Vec3.zero
-         (Quat.axis_angle ~axis:Vec3.unit_z (Float.pi /. 2.))
-  in
-  if not
-       (Vec3.nearly_equal (Node3.global_position around) Vec3.unit_y
-          ~eps:1e-9)
-  then fail "Node3.rotate_around did not rotate the global position";
-  let local = Vec3.create 0.25 0.5 (-0.75) in
-  let global = Node3.local_to_global_point child local in
-  (match Node3.global_to_local_point child global with
-   | Some recovered when Vec3.nearly_equal recovered local ~eps:1e-9 -> ()
-   | _ -> fail "Node3 local/global point conversion did not round-trip");
-  let facing =
-    Node3.create ~position:(Vec3.create 0. 0. 2.) ()
-    |> Node3.look_at Vec3.zero
-  in
-  if not
-       (Vec3.nearly_equal (Node3.look_direction facing)
-          (Vec3.create 0. 0. (-1.)) ~eps:1e-9)
-  then fail "Node3.look_at did not orient local negative Z at its target";
   let box = Mesh.box ~width:2. ~height:3. ~depth:4. () in
   if Mesh.vertex_count box <> 24
      || Mesh.index_count box <> 36

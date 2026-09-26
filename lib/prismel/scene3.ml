@@ -160,7 +160,6 @@ let transform matrix nodes = Transform (matrix, nodes)
 let translate value nodes = transform (Mat4.translation value) nodes
 let rotate ~axis angle nodes = transform (Mat4.rotation ~axis angle) nodes
 let scale value nodes = transform (Mat4.scaling value) nodes
-let at_node value nodes = transform (Node3.global_transform value) nodes
 let with_depth state nodes = Depth_state (state, nodes)
 let with_stencil state nodes = Stencil_state (state, nodes)
 let with_raster state nodes = Raster_state (state, nodes)

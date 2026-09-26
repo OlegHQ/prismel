@@ -123,66 +123,12 @@ let with_forced_aspect forced_aspect camera =
     forced_aspect;
   { camera with forced_aspect }
 
-let axes camera =
-  let forward = Vec3.normalize (Vec3.sub camera.target camera.position) in
-  let right = Vec3.normalize (Vec3.cross forward camera.up) in
-  let up = Vec3.normalize (Vec3.cross right forward) in
-  right, up, forward
-
 let move delta camera =
   {
     camera with
     position = Vec3.add camera.position delta;
     target = Vec3.add camera.target delta;
   }
-
-let truck amount camera =
-  let right, _, _ = axes camera in
-  move (Vec3.scale right amount) camera
-
-let boom amount camera =
-  let _, up, _ = axes camera in
-  move (Vec3.scale up amount) camera
-
-let dolly amount camera =
-  let _, _, forward = axes camera in
-  move (Vec3.scale forward amount) camera
-
-let orbit ~center ~azimuth ~elevation ~radius camera =
-  if not (Float.is_finite radius) || radius <= 0. then
-    invalid_arg "Camera.orbit: radius must be finite and positive";
-  let cosine = cos elevation in
-  let offset =
-    Vec3.create
-      (radius *. cosine *. sin azimuth)
-      (radius *. sin elevation)
-      (radius *. cosine *. cos azimuth)
-  in
-  {
-    camera with
-    position = Vec3.add center offset;
-    target = center;
-    up = Vec3.unit_y;
-  }
-
-let rotate_view axis angle camera =
-  let direction = Vec3.sub camera.target camera.position in
-  let rotation = Mat4.rotation ~axis angle in
-  let direction = Mat4.transform_direction rotation direction in
-  let up = Mat4.transform_direction rotation camera.up |> Vec3.normalize in
-  { camera with target = Vec3.add camera.position direction; up }
-
-let pan angle camera =
-  let _, up, _ = axes camera in
-  rotate_view up angle camera
-
-let tilt angle camera =
-  let right, _, _ = axes camera in
-  rotate_view right angle camera
-
-let roll angle camera =
-  let _, _, forward = axes camera in
-  rotate_view forward angle camera
 
 let viewport_size (_, _, width, height) =
   if width <= 0 || height <= 0 then
