@@ -3205,7 +3205,7 @@ let normals ?label ?selection ?(owner = Pdk.Attribute.Point)
       match resolve_element_group ~operation:"normals" selection inputs.(0) with
       | Error error -> Error error
       | Ok selection ->
-          match Pdk.Normal_ops.run_checked ~cancel:(Context.cancel_token context)
+          match Pdk.Normal_ops.run ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?selection ~owner ~weighting
               ~cusp_angle ~keep_original_zero ~reverse ~attribute inputs.(0) with
           | Ok geometry -> cooked geometry

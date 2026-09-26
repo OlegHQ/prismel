@@ -448,9 +448,9 @@ let run ?cancel ?(grain = 16_384) ?edges ?(operation = Dissolve_selected)
         let output = output
             |> Geometry.without_attribute ~owner:Attribute.Point "N"
             |> Geometry.without_attribute ~owner:Attribute.Vertex "N" in
-        Normal_ops.run ?cancel ~grain
+        Error.unguard (Normal_ops.run ?cancel ~grain
           ~owner:(if had_point_normals then Attribute.Point else Attribute.Vertex)
-          output
+          output)
       end
     end
   with

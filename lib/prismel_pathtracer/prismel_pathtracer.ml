@@ -286,7 +286,7 @@ let mesh ?(spheres = []) ?(strands = []) objects =
           let* triangles = pdk (Pdk.Triangulate.run geometry) in
           let* triangles =
             pdk
-              (Pdk.Normal_ops.run_checked ~owner:Pdk.Attribute.Vertex ~cusp_angle:(Float.pi /. 4.5) triangles)
+              (Pdk.Normal_ops.run ~owner:Pdk.Attribute.Vertex ~cusp_angle:(Float.pi /. 4.5) triangles)
           in
           let topology = Pdk.Geometry.topology triangles in
           let points = Pdk.Geometry.positions triangles in

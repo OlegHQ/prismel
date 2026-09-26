@@ -446,8 +446,8 @@ let materialize_divided ?cancel ~grain ~divisions ~collinearity_tolerance
       geometry <> None in
   if not recompute_normals || not (had_point_normals || had_vertex_normals)
   then Ok output
-  else Normal_ops.run ?cancel ~grain
-      ~owner:(if had_point_normals then Attribute.Point else Attribute.Vertex) output
+  else Error.unguard (Normal_ops.run ?cancel ~grain
+      ~owner:(if had_point_normals then Attribute.Point else Attribute.Vertex) output)
 
 let run ?cancel ?(grain = 16_384) ~source ~destination
     ?(pairing = Bridge_by_order) ?(connect_closest_ends = true)
@@ -601,9 +601,9 @@ let run ?cancel ?(grain = 16_384) ~source ~destination
           |> Geometry.without_attribute ~owner:Attribute.Vertex "N" in
       if not recompute_normals || not (had_point_normals || had_vertex_normals)
       then Ok output
-      else Normal_ops.run ?cancel ~grain
+      else Error.unguard (Normal_ops.run ?cancel ~grain
           ~owner:(if had_point_normals then Attribute.Point else Attribute.Vertex)
-          output
+          output)
       end
     end
   with Invalid message -> Error ("Pdk_mesh.Poly_bridge.poly_bridge: " ^ message)

@@ -1071,8 +1071,8 @@ let expand_normal_source ?cancel ~grain ~owner ~normal_attribute geometry =
           | Group_primitives -> Attribute.Primitive
           | Group_vertices | Group_edges -> assert false in
         let temporary_name = "__pdk_group_expand_geometric_normal" in
-        Result.bind (Normal_ops.run ?cancel ~grain ~owner:attribute_owner
-            ~attribute:temporary_name geometry) (fun temporary ->
+        Result.bind (Error.unguard (Normal_ops.run ?cancel ~grain ~owner:attribute_owner
+            ~attribute:temporary_name geometry)) (fun temporary ->
           match Geometry.find_attribute ~owner:attribute_owner temporary_name
               temporary with
           | Some attribute -> Ok (attribute_owner, attribute)

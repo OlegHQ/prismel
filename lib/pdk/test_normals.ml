@@ -51,9 +51,9 @@ let equal_normals owner left right =
 
 let test_owners_and_weighting () =
   let geometry = source () in
-  let area = Normal_ops.run_checked ~weighting:Normal_ops.Face_area geometry |> get_pdk in
-  let equal = Normal_ops.run_checked ~weighting:Normal_ops.Each_vertex geometry |> get_pdk in
-  let angle = Normal_ops.run_checked ~weighting:Normal_ops.Vertex_angle geometry |> get_pdk in
+  let area = Normal_ops.run ~weighting:Normal_ops.Face_area geometry |> get_pdk in
+  let equal = Normal_ops.run ~weighting:Normal_ops.Each_vertex geometry |> get_pdk in
+  let angle = Normal_ops.run ~weighting:Normal_ops.Vertex_angle geometry |> get_pdk in
   let area_n = normal Attribute.Point area
   and equal_n = normal Attribute.Point equal
   and angle_n = normal Attribute.Point angle in
@@ -67,18 +67,18 @@ let test_owners_and_weighting () =
   check (not (near angle_n.x.(2) equal_n.x.(2)))
     "vertex-angle weighting did not account for corner angle";
   check_vec area_n 4 (0., 0., 0.) "isolated point normal";
-  let primitive = Normal_ops.run_checked ~owner:Attribute.Primitive geometry |> get_pdk
+  let primitive = Normal_ops.run ~owner:Attribute.Primitive geometry |> get_pdk
       |> normal Attribute.Primitive in
   check_vec primitive 0 (0., 0., 1.) "first primitive normal";
   check_vec primitive 1 (1., 0., 0.) "second primitive normal";
-  let detail = Normal_ops.run_checked ~owner:Attribute.Detail geometry |> get_pdk
+  let detail = Normal_ops.run ~owner:Attribute.Detail geometry |> get_pdk
       |> normal Attribute.Detail in
   check_vec detail 0 (2. /. sqrt5, 0., 1. /. sqrt5)
     "area-weighted detail normal"
 
 let test_vertex_cusp () =
   let geometry = source () in
-  let hard = Normal_ops.run_checked ~owner:Attribute.Vertex ~weighting:Normal_ops.Each_vertex
+  let hard = Normal_ops.run ~owner:Attribute.Vertex ~weighting:Normal_ops.Each_vertex
       ~cusp_angle:0. geometry |> get_pdk |> normal Attribute.Vertex in
   for vertex = 0 to 2 do
     check_vec hard vertex (0., 0., 1.) "hard first-face vertex normal"
@@ -86,14 +86,14 @@ let test_vertex_cusp () =
   for vertex = 3 to 5 do
     check_vec hard vertex (1., 0., 0.) "hard second-face vertex normal"
   done;
-  let smooth = Normal_ops.run_checked ~owner:Attribute.Vertex ~weighting:Normal_ops.Each_vertex
+  let smooth = Normal_ops.run ~owner:Attribute.Vertex ~weighting:Normal_ops.Each_vertex
       ~cusp_angle:Float.pi geometry |> get_pdk |> normal Attribute.Vertex in
   let diagonal = 1. /. sqrt 2. in
   List.iter (fun vertex -> check_vec smooth vertex (diagonal, 0., diagonal)
       "smooth shared vertex normal") [0;2;3;4];
   check_vec smooth 1 (0.,0.,1.) "smooth unique first-face normal";
   check_vec smooth 5 (1.,0.,0.) "smooth unique second-face normal";
-  let cusped = Normal_ops.run_checked ~owner:Attribute.Vertex ~weighting:Normal_ops.Each_vertex
+  let cusped = Normal_ops.run ~owner:Attribute.Vertex ~weighting:Normal_ops.Each_vertex
       ~cusp_angle:(Float.pi /. 4.) geometry |> get_pdk
       |> normal Attribute.Vertex in
   check_vec cusped 0 (0.,0.,1.) "cusped first face";
@@ -114,7 +114,7 @@ let with_constant_normal owner geometry =
 let test_selection_and_existing_values () =
   let geometry = source () |> with_constant_normal Attribute.Vertex in
   let selection = Transform_ops.Selected_points (group Group.Point "selected_point" geometry) in
-  let selected = Normal_ops.run_checked ~owner:Attribute.Vertex ~weighting:Normal_ops.Each_vertex
+  let selected = Normal_ops.run ~owner:Attribute.Vertex ~weighting:Normal_ops.Each_vertex
       ~cusp_angle:0. ~selection ~reverse:true geometry |> get_pdk
       |> normal Attribute.Vertex in
   check_vec selected 0 (0.,0.,-1.) "selected reversed first vertex";
@@ -124,7 +124,7 @@ let test_selection_and_existing_values () =
   let missing = source () in
   let selection = Transform_ops.Selected_points
       (group Group.Point "selected_point" missing) in
-  let initialized = Normal_ops.run_checked ~owner:Attribute.Vertex
+  let initialized = Normal_ops.run ~owner:Attribute.Vertex
       ~weighting:Normal_ops.Each_vertex ~cusp_angle:0. ~selection missing |> get_pdk
       |> normal Attribute.Vertex in
   check_vec initialized 0 (0.,0.,1.) "selected hard initialization";
@@ -132,7 +132,7 @@ let test_selection_and_existing_values () =
   let diagonal = 1. /. sqrt 2. in
   check_vec initialized 2 (diagonal,0.,diagonal)
     "unselected vertex did not receive smooth initialization";
-  let point_missing = Normal_ops.run_checked ~selection missing |> get_pdk
+  let point_missing = Normal_ops.run ~selection missing |> get_pdk
       |> normal Attribute.Point in
   check (not (near point_missing.z.(1) 0.)
       && not (near point_missing.x.(3) 0.))
@@ -140,7 +140,7 @@ let test_selection_and_existing_values () =
   let point_existing = source () |> with_constant_normal Attribute.Point in
   let point_selection = Transform_ops.Selected_points
       (group Group.Point "selected_point" point_existing) in
-  let point_selected = Normal_ops.run_checked ~selection:point_selection point_existing
+  let point_selected = Normal_ops.run ~selection:point_selection point_existing
       |> get_pdk |> normal Attribute.Point in
   check_vec point_selected 1 (0.,1.,0.)
     "unselected existing point normal changed"
@@ -154,18 +154,18 @@ let test_edge_selection_zero_and_custom_name () =
       (fun value -> value = shared_edge) in
   let geometry = Geometry.with_edge_group edge geometry |> get_string
       |> with_constant_normal Attribute.Primitive in
-  let selected = Normal_ops.run_checked ~owner:Attribute.Primitive
+  let selected = Normal_ops.run ~owner:Attribute.Primitive
       ~selection:(Transform_ops.Selected_edges edge) ~reverse:true geometry |> get_pdk
       |> normal Attribute.Primitive in
   check_vec selected 0 (0.,0.,-1.) "edge-selected first primitive";
   check_vec selected 1 (-1.,0.,0.) "edge-selected second primitive";
   let point_existing = source () |> with_constant_normal Attribute.Point in
-  let kept = Normal_ops.run_checked ~keep_original_zero:true point_existing |> get_pdk
+  let kept = Normal_ops.run ~keep_original_zero:true point_existing |> get_pdk
       |> normal Attribute.Point in
   check_vec kept 4 (0.,1.,0.) "zero normal did not preserve existing value";
-  let cleared = Normal_ops.run_checked point_existing |> get_pdk |> normal Attribute.Point in
+  let cleared = Normal_ops.run point_existing |> get_pdk |> normal Attribute.Point in
   check_vec cleared 4 (0.,0.,0.) "zero normal was unexpectedly preserved";
-  let custom = Normal_ops.run_checked ~owner:Attribute.Detail ~attribute:"flow"
+  let custom = Normal_ops.run ~owner:Attribute.Detail ~attribute:"flow"
       ~reverse:true (source ()) |> get_pdk in
   check (Geometry.find_attribute ~owner:Attribute.Point "N" custom = None)
     "custom normal unexpectedly created N";
@@ -197,7 +197,7 @@ let test_selection_promotion_matrix () =
       (group Group.Primitive "selected_primitive" base)
   and edge = Transform_ops.Selected_edges edge in
   let run owner selection = base |> with_constant_normal owner
-      |> Normal_ops.run_checked ~owner ~selection |> get_pdk |> changed_indices owner in
+      |> Normal_ops.run ~owner ~selection |> get_pdk |> changed_indices owner in
   check (run Attribute.Point point = [0]) "point-to-point selection promotion";
   check (run Attribute.Vertex point = [0;3]) "point-to-vertex selection promotion";
   check (run Attribute.Primitive point = [0;1])
@@ -222,7 +222,7 @@ let test_parallel_and_errors () =
   let run domains = Parallel.run ~domains (fun () ->
     Plane_generators.grid ~connectivity:Plane_generators.Grid_quads ~columns:220 ~rows:180 ~size:10. ()
     |> get_pdk
-    |> Normal_ops.run_checked ~grain:257 ~owner:Attribute.Vertex
+    |> Normal_ops.run ~grain:257 ~owner:Attribute.Vertex
          ~weighting:Normal_ops.Vertex_angle ~cusp_angle:(Float.pi /. 3.)
     |> get_pdk) in
   let one = run 1 and four = run 4 in
@@ -235,48 +235,45 @@ let test_parallel_and_errors () =
     | Error error -> check (Error.code error = "invalid_topology")
         "normal validation error code"
     | Ok _ -> fail "Normals accepted invalid input") [
-      (fun () -> Normal_ops.run_checked ~grain:0 geometry);
-      (fun () -> Normal_ops.run_checked ~cusp_angle:(-0.1) geometry);
-      (fun () -> Normal_ops.run_checked ~cusp_angle:Float.nan geometry);
-      (fun () -> Normal_ops.run_checked ~attribute:"" geometry);
-      (fun () -> Normal_ops.run_checked ~selection:(Transform_ops.Selected_points wrong) geometry);
+      (fun () -> Normal_ops.run ~grain:0 geometry);
+      (fun () -> Normal_ops.run ~cusp_angle:(-0.1) geometry);
+      (fun () -> Normal_ops.run ~cusp_angle:Float.nan geometry);
+      (fun () -> Normal_ops.run ~attribute:"" geometry);
+      (fun () -> Normal_ops.run ~selection:(Transform_ops.Selected_points wrong) geometry);
     ];
   let scalar = Geometry.with_attribute
       (attribute Attribute.Point "N" (Attribute.Float (Array.make 5 1.))) geometry
       |> get_string in
-  (match Normal_ops.run_checked scalar with
+  (match Normal_ops.run scalar with
    | Error error -> check (Error.code error = "invalid_topology")
        "scalar N diagnostic code"
    | Ok _ -> fail "Normals accepted scalar N");
   let cancel = Cancel.create () in
   Cancel.cancel cancel;
-  (match Normal_ops.run_checked ~cancel geometry with
+  (match Normal_ops.run ~cancel geometry with
    | Error error -> check (Error.code error = "cancelled")
        "normal cancellation code"
    | Ok _ -> fail "Normals ignored cancellation")
 
 let test_checked_boundary () =
   let geometry = source () in
-  let direct = Normal_ops.run_checked geometry |> get_pdk
-  and compatibility = Normal_ops.run_checked geometry |> get_pdk in
+  let direct = Normal_ops.run geometry |> get_pdk
+  and compatibility = Normal_ops.run geometry |> get_pdk in
   check (equal_normals Attribute.Point direct compatibility)
     "direct normal boundary changed point normals";
-  let raw_message = match Normal_ops.run ~grain:0 geometry with
-    | Error message -> message
-    | Ok _ -> fail "raw normal validation accepted zero grain" in
-  (match Normal_ops.run_checked ~grain:0 geometry,
-         Normal_ops.run_checked ~grain:0 geometry with
+  (match Normal_ops.run ~grain:0 geometry,
+         Normal_ops.run ~grain:0 geometry with
    | Error direct, Error compatibility ->
        check (Error.operation direct = "normals"
            && Error.code direct = "invalid_topology"
-           && Error.message direct = raw_message
+           && Error.message direct = "Pdk.Normal_ops.normals: grain must be positive"
            && Error.to_string direct = Error.to_string compatibility)
          "direct normal boundary changed the typed validation error"
    | _ -> fail "normal boundaries accepted zero grain");
   let cancel = Cancel.create () in
   Cancel.cancel cancel;
-  (match Normal_ops.run_checked ~cancel geometry,
-         Normal_ops.run_checked ~cancel geometry with
+  (match Normal_ops.run ~cancel geometry,
+         Normal_ops.run ~cancel geometry with
    | Error direct, Error compatibility ->
        check (Error.operation direct = "normals"
            && Error.code direct = "cancelled"

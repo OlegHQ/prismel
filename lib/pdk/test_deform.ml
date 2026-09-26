@@ -63,7 +63,7 @@ let run () =
   let quad_topology = Topology.Builder.freeze quad_topology_builder in
   let quad = Geometry.create ~positions:quad_positions ~topology:quad_topology ()
       |> get_string_ok in
-  let normal_quad = Normal_ops.run_checked quad |> get_ok in
+  let normal_quad = Normal_ops.run quad |> get_ok in
   if Topology.data_id (Geometry.topology normal_quad)
       <> Topology.data_id quad_topology
       || Geometry.primitive_count normal_quad <> 1
@@ -339,7 +339,7 @@ let run () =
       |> Geometry.without_attribute ~owner:Attribute.Point "N"
       |> Geometry.without_attribute ~owner:Attribute.Vertex "N" in
   let normals domains = Parallel.run ~domains (fun () ->
-    Normal_ops.run_checked ~grain:2_048 geometric_source |> get_ok) in
+    Normal_ops.run ~grain:2_048 geometric_source |> get_ok) in
   let normals_one = point_float3 "N" (normals 1)
   and normals_many = point_float3 "N" (normals 4) in
   if normals_one.x <> normals_many.x || normals_one.y <> normals_many.y

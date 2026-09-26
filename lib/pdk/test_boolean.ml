@@ -60,7 +60,7 @@ let with_point_weight value geometry =
   Geometry.with_attribute attribute geometry |> get_string
 
 let with_vertex_normals ?(cusp_angle = Float.pi) geometry =
-  Normal_ops.run_checked ~grain:1 ~owner:Attribute.Vertex ~cusp_angle geometry |> get
+  Normal_ops.run ~grain:1 ~owner:Attribute.Vertex ~cusp_angle geometry |> get
 
 let test_solid_products () =
   let left = tetra ~origin:(0.,0.,0.) 2.

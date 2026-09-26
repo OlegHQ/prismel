@@ -33,7 +33,8 @@ let make_point_float3 operation name values =
 
 let computed_point_normals ?cancel ~grain geometry =
   match Normal_ops.run ?cancel ~grain ~owner:Attribute.Point geometry with
-  | Error message -> fail "rest_position" "normal_computation_failed" message
+  | Error error -> fail "rest_position" "normal_computation_failed"
+      (Error.message error)
   | Ok geometry ->
       (match point_float3 "rest_position" "N" geometry with
        | Ok (Some values) -> Ok values

@@ -2326,7 +2326,7 @@ let run_match_size_benchmarks () =
   let source = make_grid ()
       |> Deform.noise_displace ~grain ~amplitude:2. ~frequency:0.23 ~seed:941
            |> get_ok
-      |> Normal_ops.run_checked ~grain |> get_ok in
+      |> Normal_ops.run ~grain |> get_ok in
   let point_count = Geometry.point_count source in
   let half = Group.init ~grain ~owner:Group.Point ~name:"match_points"
       point_count (fun point -> point land 1 = 0) in
@@ -2519,29 +2519,29 @@ let run_deform_benchmarks () =
   let jitter_selection = Group.init ~grain ~owner:Group.Point
       ~name:"jitter_selection" point_count (fun point -> point mod 5 <> 0) in
   measure ~input_points:point_count "normals_area_weighted" (fun () ->
-    Normal_ops.run_checked ~grain geometric_source |> get_ok) geometry_output;
+    Normal_ops.run ~grain geometric_source |> get_ok) geometry_output;
   measure ~input_points:point_count "normals_vertex_angle_points" (fun () ->
-    Normal_ops.run_checked ~grain ~weighting:Normal_ops.Vertex_angle geometric_source |> get_ok)
+    Normal_ops.run ~grain ~weighting:Normal_ops.Vertex_angle geometric_source |> get_ok)
     geometry_output;
   measure ~input_points:point_count "normals_vertex_angle_vertices_smooth"
-    (fun () -> Normal_ops.run_checked ~grain ~owner:Attribute.Vertex
+    (fun () -> Normal_ops.run ~grain ~owner:Attribute.Vertex
       ~weighting:Normal_ops.Vertex_angle ~cusp_angle:Float.pi geometric_source |> get_ok)
     geometry_output;
   measure ~input_points:point_count "normals_vertex_angle_vertices_cusp60"
-    (fun () -> Normal_ops.run_checked ~grain ~owner:Attribute.Vertex
+    (fun () -> Normal_ops.run ~grain ~owner:Attribute.Vertex
       ~weighting:Normal_ops.Vertex_angle ~cusp_angle:(Float.pi /. 3.) geometric_source
       |> get_ok) geometry_output;
   measure ~input_points:point_count "normals_primitives" (fun () ->
-    Normal_ops.run_checked ~grain ~owner:Attribute.Primitive geometric_source |> get_ok)
+    Normal_ops.run ~grain ~owner:Attribute.Primitive geometric_source |> get_ok)
     geometry_output;
   measure ~input_points:point_count "normals_detail" (fun () ->
-    Normal_ops.run_checked ~grain ~owner:Attribute.Detail geometric_source |> get_ok)
+    Normal_ops.run ~grain ~owner:Attribute.Detail geometric_source |> get_ok)
     geometry_output;
   let selected_primitives = Group.init ~grain ~owner:Group.Primitive
       ~name:"normal_alternating" (Geometry.primitive_count geometric_source)
       (fun primitive -> primitive land 1 = 0) in
   measure ~input_points:point_count "normals_vertex_cusp60_local_missing" (fun () ->
-    Normal_ops.run_checked ~grain ~selection:(Transform_ops.Selected_primitives selected_primitives)
+    Normal_ops.run ~grain ~selection:(Transform_ops.Selected_primitives selected_primitives)
       ~owner:Attribute.Vertex ~weighting:Normal_ops.Vertex_angle
       ~cusp_angle:(Float.pi /. 3.) geometric_source |> get_ok) geometry_output;
   measure ~input_points:point_count "peak_point_n_mask" (fun () ->
@@ -4052,7 +4052,7 @@ let run_group_benchmarks () =
       ~spread_angle:(Float.pi /. 4.) ~owner:Group_ops.Group_edges
       ~name:"normal_edges" source |> get_ok) geometry_output;
   if benchmark_enabled "group_normal_points_attribute" then begin
-    let source_with_normals = Normal_ops.run_checked ~grain source |> get_ok in
+    let source_with_normals = Normal_ops.run ~grain source |> get_ok in
     measure ~input_points:point_count "group_normal_points_attribute"
       (fun () -> Group_ops.group_normal_checked ~grain ~normal_attribute:"N"
         ~direction:Vec3.unit_y ~spread_angle:(Float.pi /. 4.)
@@ -4252,7 +4252,7 @@ let run_unpack_benchmarks () =
     geometry_output
 
 let run_transform_benchmarks () =
-  let source = make_grid () |> Normal_ops.run_checked ~grain ~owner:Attribute.Point
+  let source = make_grid () |> Normal_ops.run ~grain ~owner:Attribute.Point
       |> get_ok in
   let point_count = Geometry.point_count source
   and primitive_count = Geometry.primitive_count source in

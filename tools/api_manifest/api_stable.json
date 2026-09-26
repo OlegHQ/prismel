@@ -1,7 +1,7 @@
 {
   "generator": "tools/api_manifest/api_manifest.exe",
   "kind": "stable_high_level",
-  "module_count": 124,
+  "module_count": 128,
   "modules": [
     {
       "api_sha256": "42991257be662e316b18b78776fd2c91d5990ebf5a3b561d4d38b32d1d9db961",
@@ -148,6 +148,15 @@
       "source_sha256": "c861d2e8253c3633abfa233f3eeb53247c01f3983e753f6b89a344d3d5870921"
     },
     {
+      "api_sha256": "74f38cab93733385dc21ecc27ce4334a9beb373afac1a8a2f7b91db3ce5be4c4",
+      "excluded_legacy_symbols": [],
+      "library": "pdk",
+      "module": "Circle_from_edges",
+      "source": "lib/pdk/curve/circle_from_edges.mli",
+      "source_bytes": 197,
+      "source_sha256": "eea3ebfacfb926924c6b29edecb9c99859e5c4071c3f777b510e89cd85a23f4a"
+    },
+    {
       "api_sha256": "daa12f65b997230cbe47bbd458ae8b59a6bc0b93f653d2d08be5f9a81d0c6459",
       "excluded_legacy_symbols": [],
       "library": "pdk",
@@ -164,6 +173,15 @@
       "source": "lib/pdk/mesh/compact_points.mli",
       "source_bytes": 89,
       "source_sha256": "da2e4789498f7380f62762b0ec0294720cb40b7580cba7c7a9524a8e096cc204"
+    },
+    {
+      "api_sha256": "f9a17a7b386a1c5816ba0227ddd45c7bbea88829f993921a014ae6fc255e2853",
+      "excluded_legacy_symbols": [],
+      "library": "pdk",
+      "module": "Curve_ops",
+      "source": "lib/pdk/curve/curve_ops.mli",
+      "source_bytes": 3258,
+      "source_sha256": "934935c0c5ad2c6471fd62d7d8b526b1786c13bf11e22e117db501ba3a7302bf"
     },
     {
       "api_sha256": "34f3844f26dfa08a29221e3a71df6d2beaea1e2faa9170559a77c89efac89892",
@@ -382,13 +400,13 @@
       "source_sha256": "f133b1565322edd440c725390f953fd072e7ca93c9cc5ddb75f1e7794945bee6"
     },
     {
-      "api_sha256": "990029131ec9407557627fe6f5d4608887e87cc3003bdf915b4f3c25d9d682e2",
+      "api_sha256": "cb1c1cddbcd2e636dfd1b6c57d412891f8502f3045efa1e0735887178be7ac2d",
       "excluded_legacy_symbols": [],
       "library": "pdk",
       "module": "Normal_ops",
       "source": "lib/pdk/core/normal_ops.mli",
-      "source_bytes": 822,
-      "source_sha256": "783f2a8cb8d44e94a2fe14b57d38a3089600f911da55902a40a5925dc5fe50f7"
+      "source_bytes": 386,
+      "source_sha256": "a8403c7326c91269aa8efd7d99ce8c413da31982cd5cafa83867d444489eaca3"
     },
     {
       "api_sha256": "ba9d380805f6e015eda9dfd64ea18b643aff7dca4ddc315893a8832d0c608931",
@@ -463,6 +481,15 @@
       "source_sha256": "58dd156ed6ba6a7f663f62bd4ce60229d6ed0b974f7fc60bbc5124f39b05e479"
     },
     {
+      "api_sha256": "83c651b81d68a3c07ed929e87b249fab13d8a33066c828cac166df298d90b1db",
+      "excluded_legacy_symbols": [],
+      "library": "pdk",
+      "module": "Point_jitter",
+      "source": "lib/pdk/gen/point_jitter.mli",
+      "source_bytes": 367,
+      "source_sha256": "46e19e684fc0d010620669a2d9e57078a4fd25965d5174439c1926abc732d44e"
+    },
+    {
       "api_sha256": "972efe591a573c5a939274777b4059920695d8915c4aad6287b97d082ea46a7b",
       "excluded_legacy_symbols": [],
       "library": "pdk",
@@ -515,6 +542,15 @@
       "source": "lib/pdk/mesh/ray.mli",
       "source_bytes": 1367,
       "source_sha256": "9d174ef889c2ac2d3e4b423bd82512c69e21292cca0999ba7402d996d4287c95"
+    },
+    {
+      "api_sha256": "7704b6af3f5c8b31814947fa913693bfe7439c418befe70820c77e18b06abf74",
+      "excluded_legacy_symbols": [],
+      "library": "pdk",
+      "module": "Resample_curves",
+      "source": "lib/pdk/curve/resample_curves.mli",
+      "source_bytes": 387,
+      "source_sha256": "0bea0d2d211616a161d75db8ce22c73c18f520d0b84850dd75096631fa705db4"
     },
     {
       "api_sha256": "c226ea79cba97e36cde7899f63f08c4efc6cea1b263c575ed25ad16b72d79f39",

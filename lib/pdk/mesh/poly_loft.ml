@@ -498,9 +498,9 @@ let run ?cancel ?(grain = 16_384) ?primitives ?rest
             |> Geometry.without_attribute ~owner:Attribute.Vertex "N" in
         if not recompute_normals || not (had_point_normals || had_vertex_normals)
         then Ok output
-        else Normal_ops.run ?cancel ~grain
+        else Error.unguard (Normal_ops.run ?cancel ~grain
             ~owner:(if had_point_normals then Attribute.Point else Attribute.Vertex)
-            output
+            output)
       end
     end
   with Invalid message -> Error ("Pdk_mesh.Poly_loft." ^ operation ^ ": " ^ message)

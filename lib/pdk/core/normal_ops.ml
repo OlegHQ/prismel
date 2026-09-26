@@ -449,6 +449,7 @@ let fast_point_area ?cancel ~grain geometry =
 let run ?cancel ?(grain = 16_384) ?selection ?primitives
     ?(owner = Attribute.Point) ?(weighting = Face_area) ?(cusp_angle = Float.pi)
     ?(keep_original_zero = false) ?(reverse = false) ?(attribute = "N") geometry =
+  Error.guard ~operation:"normals" ~code:"invalid_topology" @@ fun () ->
   if grain <= 0 then Error (operation ^ ": grain must be positive")
   else if String.trim attribute = "" then Error
       (operation ^ ": attribute name must not be empty")
@@ -549,9 +550,3 @@ let run ?cancel ?(grain = 16_384) ?selection ?primitives
             then install ~owner ~attribute output geometry
             else Error (operation ^ ": non-finite detail normal")))))
   end
-
-let run_checked ?cancel ?grain ?selection ?primitives ?owner ?weighting
-    ?cusp_angle ?keep_original_zero ?reverse ?attribute geometry =
-  Error.guard ~operation:"normals" ~code:"invalid_topology" (fun () ->
-    run ?cancel ?grain ?selection ?primitives ?owner ?weighting ?cusp_angle
-      ?keep_original_zero ?reverse ?attribute geometry)

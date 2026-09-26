@@ -212,7 +212,7 @@ let prepare mode (output : Session.output) =
   match mode with
   | Path_traced ->
       let geometry = match packed with
-        | Some _ -> pdk_error (Pdk.Normal_ops.run_checked ~owner:Pdk.Attribute.Vertex
+        | Some _ -> pdk_error (Pdk.Normal_ops.run ~owner:Pdk.Attribute.Vertex
             ~cusp_angle:(Float.pi /. 4.5) geometry)
         | None -> Ok geometry in
       Result.bind geometry (fun geometry ->
@@ -222,7 +222,7 @@ let prepare mode (output : Session.output) =
         Result.bind mesh (fun traced -> finish ~traced ()))
   | Raster ->
       let geometry = match packed with
-        | Some _ -> pdk_error (Pdk.Normal_ops.run_checked ~owner:Pdk.Attribute.Vertex
+        | Some _ -> pdk_error (Pdk.Normal_ops.run ~owner:Pdk.Attribute.Vertex
             ~cusp_angle:(Float.pi /. 4.5) geometry)
         | None -> Ok geometry in
       Result.bind geometry (fun geometry ->

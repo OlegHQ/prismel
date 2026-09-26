@@ -1355,7 +1355,7 @@ let test_generators_selections_and_delete () =
       && contains (Node.parameters normal_graph) "attribute=\"custom_n\"")
     "procedural Normals cache identity";
   let normal_output = cook_ok evaluator current normal_graph in
-  let expected_normals = Pdk.Normal_ops.run_checked ~grain:1
+  let expected_normals = Pdk.Normal_ops.run ~grain:1
       ~selection:(Pdk.Transform_ops.Selected_primitives
         (Pdk.Geometry.find_group ~owner:Pdk.Group.Primitive
           "reverse_first" reverse_source |> Option.get))

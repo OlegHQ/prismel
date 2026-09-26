@@ -929,7 +929,8 @@ let run ?cancel ?(grain = 16_384) ?selection ?constraint_edges
       if recompute_point_normals
           && Option.is_some (Geometry.find_attribute
             ~owner:Attribute.Point "N" geometry) then
-        Normal_ops.run ?cancel ~grain ~owner:Attribute.Point ~attribute:"N" output
+        Error.unguard (Normal_ops.run ?cancel ~grain ~owner:Attribute.Point
+          ~attribute:"N" output)
       else Ok output) in
   Result.bind begin
   try
