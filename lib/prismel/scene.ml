@@ -1,13 +1,12 @@
 type blend=Replace|Alpha|Add|Multiply
 type text_node={x:int;y:int;value:string;color:Color.t;size:int;wrap:int option;align:Font.alignment;provided_font:Font.t option;mutable automatic:Font.Private.automatic option;mutable rendered:Image.t option}
-and debug_text_node={x:int;y:int;value:string;color:Color.t}
 and view3d_node={viewport:(int*int*int*int)option;camera:Camera.t;scene:Scene3.t;mutable rendered3d:Image.t option}
 and image_node={image:Image.t;x:int;y:int;scale:float;angle:float;center:(int*int)option;flip_x:bool}
 and display_list_node={segment:Scene_command.Display_list.t;
   resources:(int*Prismel_execution.resource)list}
 and ui_node={ui:Scene_command.Ui_batch.t;
   ui_resources:(int*Prismel_execution.resource)list}
-and node=Group of t|Clear of Color.t|Geometry of Scene_command.Render_ir.geometry|Text of text_node|Debug_text of debug_text_node|Image of image_node
+and node=Group of t|Clear of Color.t|Geometry of Scene_command.Render_ir.geometry|Text of text_node|Image of image_node
  |Display_list of display_list_node|Ui of ui_node
  |View3d of view3d_node|Region of int*int*int*int*bool*int|Layer_break
  |Translate of int*int*t|Rotate of float*t|Scale of float*float*t|Clip of int*int*int*int*t|Blend of blend*t
@@ -130,7 +129,6 @@ let bezier points ?(steps=20)?(color=default_color)()=
       ignore rest;stroke_path color(Scene_command.Path.of_commands commands))
 let path ?(steps=20)?(fill_rule=Path.Non_zero)?fill?stroke value=ignore fill_rule;let points=Path.points~steps value in if Path.is_closed value then polygon points?fill?stroke()else polyline points?color:stroke()
 let text ~at:(x,y) ?(color=default_color) ?(size=16) value=Text{x;y;value;color;size;wrap=None;align=Font.Left;provided_font=None;automatic=None;rendered=None}
-let debug_text ~at:(x,y) ?(color=default_color) value=Debug_text{x;y;value;color}
 let font_text font ~at:(x,y) ?(color=default_color) ?wrap ?(align=Font.Left) value=Text{x;y;value;color;size=Font.get_size font;wrap;align;provided_font=Some font;automatic=None;rendered=None}
 let image image ~at:(x,y) ?(scale=1.) ?(angle=0.) ?center ?(flip_x=false)()=
   if not(Float.is_finite scale&&Float.is_finite angle)||scale<=0. then invalid_arg"Scene.image: invalid transform";
@@ -236,7 +234,6 @@ module Private=struct
    |[]->()
    |Clear c::xs->emit builder(Scene_command.Render_ir.Clear(rgba c));nodes xs
    |Geometry g::xs->emit builder(Scene_command.Render_ir.Geometry g);nodes xs
-   |Debug_text node::xs->emit builder(Scene_command.Render_ir.Debug_text{x=float node.x;y=float node.y;text=node.value;color=rgba node.color});nodes xs
    |Display_list node::xs->
        Array.iter (emit builder) (Scene_command.Render_ir.Private.commands_readonly
          (Scene_command.Display_list.render_ir node.segment));
@@ -278,7 +275,7 @@ module Private=struct
           |Non_finite->"non-finite value"|Invalid_extent->"negative extent"
           |Invalid_cardinality->"bad vertex/index count"|Invalid_index i->"index "^string_of_int i
           |Invalid_resource_id i->"resource id "^string_of_int i|Invalid_glyph_id i->"glyph id "^string_of_int i
-          |Invalid_debug_text->"debug text too long"|Unbalanced_clip->"unbalanced clip"
+          |Unbalanced_clip->"unbalanced clip"
           |Unbalanced_transform->"unbalanced transform"|Complexity_limit->"over 1,048,576 commands"))
         |Ok ir->Ok(ir,image_resources ~density scene)
       with
@@ -335,7 +332,6 @@ module Private=struct
    left==right||match left,right with
    |Clear left,Clear right->left=right
    |Geometry left,Geometry right->left==right||left=right
-   |Debug_text left,Debug_text right->left=right
    |Display_list left,Display_list right->
        left.segment==right.segment&&left.resources==right.resources
    |Ui left,Ui right->left.ui==right.ui&&left.ui_resources==right.ui_resources
@@ -398,7 +394,6 @@ module Private=struct
  and hash_native_node=function
    |Clear color->Hashtbl.hash(0,color)
    |Geometry geometry->Hashtbl.hash(1,Array.length geometry.vertices,Array.length geometry.indices,geometry.color)
-   |Debug_text node->Hashtbl.hash(2,node.x,node.y,node.value,node.color)
    |Display_list _->3
    |Ui _->4
    |Image node->Hashtbl.hash(5,node.x,node.y,node.scale,node.angle,node.center,node.flip_x)
@@ -477,7 +472,7 @@ module Private=struct
            |Scene_command.Render_ir.Clear color->
                if!seen_draw then failure:=Some"native Clear after drawing is unsupported"
                else clear:=unpack_clear color
-           |Geometry _|Debug_text _|Image _|Glyphs _->seen_draw:=true
+           |Geometry _|Image _|Glyphs _->seen_draw:=true
            |Set_blend _|Push_clip _|Pop_clip|Push_transform _|Pop_transform->())
            (Scene_command.Render_ir.Private.commands_readonly
              (Scene_command.Display_list.render_ir segment))
@@ -485,7 +480,7 @@ module Private=struct
        |Scene_command.Render_ir.Clear color->
           if!seen_draw then failure:=Some"native Clear after drawing is unsupported"
           else clear:=unpack_clear color
-       |Geometry _|Debug_text _|Image _|Glyphs _->seen_draw:=true
+       |Geometry _|Image _|Glyphs _->seen_draw:=true
        |Set_blend _|Push_clip _|Pop_clip|Push_transform _|Pop_transform->())
        (Scene_command.Render_ir.Private.commands_readonly ir))layers;
    match!failure with Some message->Error message|None->
@@ -567,7 +562,7 @@ module Private=struct
     |Scale(_,_,nested)::rest|Clip(_,_,_,_,nested)::rest|Blend(_,nested)::rest->
         nodes nested&&nodes rest
     |Display_list _::rest|Ui _::rest|Region _::rest|Layer_break::rest|Clear _::rest
-    |Geometry _::rest|Text _::rest|Debug_text _::rest
+    |Geometry _::rest|Text _::rest
     |Image _::rest->nodes rest in
    nodes scene
  let stage_native_internal ~aggregate ?(density=1) ~width ~height scene =
@@ -621,7 +616,7 @@ module Private=struct
        | Group nodes | Translate (_, _, nodes) | Rotate (_, nodes)
        | Scale (_, _, nodes) | Clip (_, _, _, _, nodes) | Blend (_, nodes) ->
            release nodes
-       | Clear _ | Geometry _ | Debug_text _ | Image _
+       | Clear _ | Geometry _ | Image _
        | Display_list _ | Ui _ | Region _
        | Layer_break -> ())
      scene

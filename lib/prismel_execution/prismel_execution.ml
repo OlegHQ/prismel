@@ -38,8 +38,6 @@ module Quad_table=Lru.Make(Quad_key)
 module Quad_payload_table=Lru.Make(Structural_key(struct
   type t=Scene_command.Render_ir.rect*Scene_command.Render_ir.transform*(int*int*int*int)*(float*float*float*float) end))
 type cached_scene2_quad_payload={payload_mesh_key:string;payload_vertices:bytes;payload_indices:bytes}
-module Debug_table=Lru.Make(Structural_key(struct
-  type t=Scene_command.Render_ir.debug_text*Scene_command.Render_ir.transform*(int*int*int*int) end))
 type resource=Image of Runtime_resources.Image.t|Text of Runtime_resources.Text.t
   |Canvas of Runtime_resources.Canvas.t
 type scene2_resource_stamp=
@@ -137,47 +135,6 @@ let mesh_of_geometry_run number transform ~viewport clip commands first stop =
      state={(default_state viewport clip) with
        transform_uniforms=(if identity_transform transform then None
          else Some (affine_uniforms transform))}}}
-let debug_text_geometry (transform:Command.transform) (debug:Command.debug_text) =
-  let stop = match String.index_opt debug.text '\000' with
-    | Some index -> index | None -> String.length debug.text in
-  let pixels = ref 0 in
-  for character = 0 to stop - 1 do
-    for row = 0 to Scene_command.Debug_font.height - 1 do
-      let bits = Scene_command.Debug_font.glyph_row debug.text.[character] row in
-      for column = 0 to Scene_command.Debug_font.width - 1 do
-        if bits land (0x80 lsr column) <> 0 then incr pixels
-      done
-    done
-  done;
-  let vertices = Array.make (!pixels * 8) 0.
-  and indices = Array.make (!pixels * 6) 0 in
-  let anchor_x = transform.xx *. debug.x
-    +. transform.yx *. debug.y +. transform.tx
-  and anchor_y = transform.xy *. debug.x
-    +. transform.yy *. debug.y +. transform.ty in
-  let pixel = ref 0 in
-  for character = 0 to stop - 1 do
-    for row = 0 to Scene_command.Debug_font.height - 1 do
-      let bits = Scene_command.Debug_font.glyph_row debug.text.[character] row in
-      for column = 0 to Scene_command.Debug_font.width - 1 do
-        if bits land (0x80 lsr column) <> 0 then begin
-          let x = anchor_x +. float (character * Scene_command.Debug_font.width + column)
-          and y = anchor_y +. float row in
-          let vertex = !pixel * 8 and index = !pixel * 6
-          and base = !pixel * 4 in
-          vertices.(vertex) <- x; vertices.(vertex + 1) <- y;
-          vertices.(vertex + 2) <- x +. 1.; vertices.(vertex + 3) <- y;
-          vertices.(vertex + 4) <- x +. 1.; vertices.(vertex + 5) <- y +. 1.;
-          vertices.(vertex + 6) <- x; vertices.(vertex + 7) <- y +. 1.;
-          indices.(index) <- base; indices.(index + 1) <- base + 1;
-          indices.(index + 2) <- base + 2; indices.(index + 3) <- base;
-          indices.(index + 4) <- base + 2; indices.(index + 5) <- base + 3;
-          incr pixel
-        end
-      done
-    done
-  done;
-  Command.{vertices;indices;color=debug.color}
 let compose_raster (a:Scene_command.Render_ir.transform) (b:Scene_command.Render_ir.transform)=
   if b.xx=1.&&b.xy=0.&&b.yx=0.&&b.yy=1.&&b.tx=0.&&b.ty=0. then a
   else if a.xx=1.&&a.xy=0.&&a.yx=0.&&a.yy=1.&&a.tx=0.&&a.ty=0. then b
@@ -339,7 +296,6 @@ type t = { runtime:runtime;
   scene2_batch_cache:cached_scene2_batch Int_table.t;
   scene2_quad_cache:draw Quad_table.t;
   scene2_quad_payload_cache:cached_scene2_quad_payload Quad_payload_table.t;
-  scene2_debug_cache:draw option Debug_table.t;
   scene2_plan_cache:cached_scene2_plan Int_table.t;
   scene2_plan_by_ir:(int,cached_scene2_plan)Hashtbl.t;
   retained_scene2_segments:retained_scene2_segment Segment_table.t;
@@ -402,7 +358,6 @@ let finish_create runtime=
       scene2_batch_cache=Int_table.create 256~byte_capacity:scene2_geometry_byte_capacity;
       scene2_quad_cache=Quad_table.create 1024;
       scene2_quad_payload_cache=Quad_payload_table.create 256;
-      scene2_debug_cache=Debug_table.create 256;
       scene2_plan_cache=Int_table.create 16~byte_capacity:scene2_geometry_byte_capacity
         ~release:(fun _ plan->match Hashtbl.find_opt scene2_plan_by_ir plan.plan_ir_id with
           |Some current when current==plan->Hashtbl.remove scene2_plan_by_ir plan.plan_ir_id
@@ -806,19 +761,6 @@ let lower_scene2_uncached value ~lease_policy ~density ~resource:resolve ir =
         end else if clip_live() then
           emit (geometry_draw !number (render_transform (List.hd !transforms))
             (List.hd !clips) geometry)
-    |Debug_text debug->if clip_live()then
-        let transform=render_transform(List.hd!transforms)and clip=List.hd!clips in
-        let debug_key=debug,transform,clip in
-        let draw=match Debug_table.find value.scene2_debug_cache debug_key with
-        |draw->draw
-        |exception Not_found->
-            let geometry=debug_text_geometry transform debug in
-            let draw=if Array.length geometry.indices=0 then None else
-              Some(mesh_of_geometry!number identity
-                ~viewport:framebuffer clip geometry)in
-            Debug_table.add value.scene2_debug_cache debug_key draw;
-            draw in
-        Option.iter emit draw
     |Image command->if clip_live()then image command
     |Glyphs glyphs->if clip_live()&&Array.length glyphs.glyphs>0 then match resolve glyphs.resource_id with None->failure:=Some"glyph resource id is unbound"|Some source->
         match snapshot value~lease_policy~density source with Error e->failure:=Some(Format.asprintf"%a"pp_error e)|Ok(width,height,texture)->
@@ -845,7 +787,6 @@ let scene2_plan_source_bytes commands=
     |Scene_command.Render_ir.Geometry g->total+Array.length g.vertices*(Sys.word_size/8)+
       Array.length g.indices*(Sys.word_size/8)
     |Glyphs g->total+Array.length g.glyphs*24
-    |Debug_text d->total+String.length d.text
     |_->total+32)0 commands
 let same_scene2_resource_stamps left right=
   let rec loop left right=match left,right with
@@ -1217,7 +1158,6 @@ let destroy value=if value.dead then Ok()else
     Int_table.clear value.scene2_batch_cache;
     Quad_table.clear value.scene2_quad_cache;
     Quad_payload_table.clear value.scene2_quad_payload_cache;
-    Debug_table.clear value.scene2_debug_cache;
     Int_table.clear value.scene2_plan_cache;Hashtbl.reset value.scene2_plan_by_ir;
     Segment_table.clear value.retained_scene2_segments;
     Int_table.clear value.scene2_geometry_candidates;value.last_step_draws<-[];

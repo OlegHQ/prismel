@@ -38,7 +38,7 @@ let () =
   require (Render_ir.Private.identity (Display_list.render_ir reset) <>
     Render_ir.Private.identity (Display_list.render_ir first))
     "changed display-list IR reused its old identity";
-  Display_list.Builder.debug_text builder ~x:1. ~y:2. ~color:0xff00ffffl "value";
+  Display_list.Builder.clear builder 0xff00ffffl;
   let second = Result.get_ok
       (Display_list.Builder.publish builder ~id:7L ~version:2L) in
   require (second != first && Display_list.version second = 2L

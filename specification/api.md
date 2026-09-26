@@ -140,7 +140,7 @@ exact values regardless of domain count or work-stealing order.
 - rectangle, rounded rectangle, circle, ellipse, triangle;
 - polygon and polyline;
 - arc, pie, and Bezier curve;
-- installed system UI text, fixed bitmap debug text, loaded-font text, and images;
+- installed system UI text, loaded-font text, and images;
 - non-visual `text_input_region` metadata for focused native text entry;
 - nested translate, rotate, scale, and general groups.
 
@@ -174,8 +174,7 @@ picker reserves Delete for its selected row when no text is selected.
 
 `Scene.text ?size` resolves an installed platform UI font and treats `size` as
 a logical point size. `PRISMEL_UI_FONT` overrides the platform font search.
-`Scene.debug_text` is Prismel's independent fixed 8×8 diagnostic face. System
-and loaded fonts rasterize and cache at the active renderer density while
+System and loaded fonts rasterize and cache at the active renderer density while
 keeping their layout dimensions logical.
 
 Loaded-font text supports explicit newlines, logical-width word wrapping, and

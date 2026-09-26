@@ -29,7 +29,6 @@ module Builder = struct
     mutable values : float array;
     mutable colors : int32 array;
     mutable integers : int array;
-    mutable texts : string array;
     mutable geometries : Render_ir.geometry option array;
     mutable glyph_runs : Render_ir.glyph array option array;
     mutable length : int;
@@ -46,13 +45,11 @@ module Builder = struct
       values = Array.make (capacity * 8) 0.;
       colors = Array.make capacity Int32.zero;
       integers = Array.make capacity 0;
-      texts = Array.make capacity "";
       geometries = Array.make capacity None;
       glyph_runs = Array.make capacity None;
       length = 0; high_water = 0; growths = 0; published = None }
 
   let reset value =
-    Array.fill value.texts 0 value.length "";
     Array.fill value.geometries 0 value.length None;
     Array.fill value.glyph_runs 0 value.length None;
     value.length <- 0;
@@ -72,9 +69,6 @@ module Builder = struct
       let integers = Array.make capacity 0 in
       Array.blit value.integers 0 integers 0 old_capacity;
       value.integers <- integers;
-      let texts = Array.make capacity "" in
-      Array.blit value.texts 0 texts 0 old_capacity;
-      value.texts <- texts;
       let geometries = Array.make capacity None in
       Array.blit value.geometries 0 geometries 0 old_capacity;
       value.geometries <- geometries;
@@ -96,7 +90,7 @@ module Builder = struct
   let ensure value = reserve value (value.length + 1)
 
   let append value opcode v0 v1 v2 v3 v4 v5 v6 v7
-      ~color ~integer ~text ~geometry ~glyphs =
+      ~color ~integer ~geometry ~glyphs =
     ensure value;
     let index = value.length and offset = value.length * 8 in
     Bytes.unsafe_set value.opcodes index (Char.chr opcode);
@@ -110,7 +104,6 @@ module Builder = struct
     Array.unsafe_set value.values (offset + 7) v7;
     Array.unsafe_set value.colors index color;
     Array.unsafe_set value.integers index integer;
-    Array.unsafe_set value.texts index text;
     Array.unsafe_set value.geometries index geometry;
     Array.unsafe_set value.glyph_runs index glyphs;
     value.length <- index + 1;
@@ -124,28 +117,21 @@ module Builder = struct
   let solid_rect value ~x ~y ~width ~height ~color =
     if not (finite4 x y width height) || width < 0. || height < 0. then
       invalid_arg "Display_list.solid_rect: invalid extent";
-    append value 0 x y width height 0. 0. 0. 0. ~color ~integer:0 ~text:""
+    append value 0 x y width height 0. 0. 0. 0. ~color ~integer:0
       ~geometry:None ~glyphs:None
 
   let push_clip value ~x ~y ~width ~height =
     if not (finite4 x y width height) || width < 0. || height < 0. then
       invalid_arg "Display_list.push_clip: invalid extent";
     append value 1 x y width height 0. 0. 0. 0. ~color:Int32.zero
-      ~integer:0 ~text:"" ~geometry:None ~glyphs:None
+      ~integer:0 ~geometry:None ~glyphs:None
 
   let pop_clip value =
-    append value 2 0. 0. 0. 0. 0. 0. 0. 0. ~color:Int32.zero ~integer:0 ~text:""
-      ~geometry:None ~glyphs:None
-
-  let debug_text value ~x ~y ~color text =
-    if not (Float.is_finite x && Float.is_finite y)
-       || String.length text > 65_536 then
-      invalid_arg "Display_list.debug_text: invalid text";
-    append value 3 x y 0. 0. 0. 0. 0. 0. ~color ~integer:0 ~text
+    append value 2 0. 0. 0. 0. 0. 0. 0. 0. ~color:Int32.zero ~integer:0
       ~geometry:None ~glyphs:None
 
   let clear value color =
-    append value 4 0. 0. 0. 0. 0. 0. 0. 0. ~color ~integer:0 ~text:""
+    append value 4 0. 0. 0. 0. 0. 0. 0. 0. ~color ~integer:0
       ~geometry:None ~glyphs:None
 
   let blend_code = function
@@ -154,7 +140,7 @@ module Builder = struct
 
   let set_blend value blend =
     append value 5 0. 0. 0. 0. 0. 0. 0. 0. ~color:Int32.zero
-      ~integer:(blend_code blend) ~text:"" ~geometry:None ~glyphs:None
+      ~integer:(blend_code blend) ~geometry:None ~glyphs:None
 
   let push_transform value (transform : Render_ir.transform) =
     if not (Float.is_finite transform.xx && Float.is_finite transform.xy
@@ -163,16 +149,16 @@ module Builder = struct
       invalid_arg "Display_list.push_transform: non-finite transform";
     append value 6 transform.xx transform.xy transform.yx transform.yy
       transform.tx transform.ty 0. 0.
-      ~color:Int32.zero ~integer:0 ~text:"" ~geometry:None ~glyphs:None
+      ~color:Int32.zero ~integer:0 ~geometry:None ~glyphs:None
 
   let pop_transform value =
-    append value 7 0. 0. 0. 0. 0. 0. 0. 0. ~color:Int32.zero ~integer:0 ~text:""
+    append value 7 0. 0. 0. 0. 0. 0. 0. 0. ~color:Int32.zero ~integer:0
       ~geometry:None ~glyphs:None
 
   let geometry value (geometry : Render_ir.geometry) =
     let geometry = { geometry with vertices = Array.copy geometry.vertices;
       indices = Array.copy geometry.indices } in
-    append value 8 0. 0. 0. 0. 0. 0. 0. 0. ~color:Int32.zero ~integer:0 ~text:""
+    append value 8 0. 0. 0. 0. 0. 0. 0. 0. ~color:Int32.zero ~integer:0
       ~geometry:(Some geometry) ~glyphs:None
 
   let valid_rect (rect : Render_ir.rect) =
@@ -187,14 +173,14 @@ module Builder = struct
       invalid_arg "Display_list.image: invalid rectangle";
     append value 9 source.x source.y source.width source.height
       destination.x destination.y destination.width destination.height
-      ~color:Int32.zero ~integer:resource_id ~text:"" ~geometry:None
+      ~color:Int32.zero ~integer:resource_id ~geometry:None
       ~glyphs:None
 
   let glyphs value ~resource_id ~color glyphs =
     if resource_id <= 0 then
       invalid_arg "Display_list.glyphs: resource ID must be positive";
     let glyphs = Array.copy glyphs in
-    append value 10 0. 0. 0. 0. 0. 0. 0. 0. ~color ~integer:resource_id ~text:""
+    append value 10 0. 0. 0. 0. 0. 0. 0. 0. ~color ~integer:resource_id
       ~geometry:None ~glyphs:(Some glyphs)
 
   let command value index =
@@ -212,9 +198,6 @@ module Builder = struct
             color = Array.unsafe_get value.colors index }
     | 1 -> Render_ir.Push_clip { x; y; width; height }
     | 2 -> Render_ir.Pop_clip
-    | 3 -> Render_ir.Debug_text
-        { x; y; color = Array.unsafe_get value.colors index;
-          text = Array.unsafe_get value.texts index }
     | 4 -> Render_ir.Clear (Array.unsafe_get value.colors index)
     | 5 -> Render_ir.Set_blend (match Array.unsafe_get value.integers index with
         | 0 -> Source_over | 1 -> Copy | 2 -> Replace | 3 -> Alpha

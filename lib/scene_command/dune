@@ -1,7 +1,7 @@
 (library
  (name scene_command)
  (public_name prismel.scene_command)
- (modules path render_ir shape2 display_list debug_font ui_batch))
+ (modules path render_ir shape2 display_list ui_batch))
 
 (test
  (name test_display_list)

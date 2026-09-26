@@ -7,8 +7,8 @@ the SDL3-windowed OGPU/Metal renderer, the only execution path.
 
 The 2D surface includes clear, points, lines and thick lines, rectangles and
 rounded rectangles, circles and ellipses, triangles and polygons, polylines,
-arcs, pies, Bézier curves, images, loaded-font text, and fixed bitmap diagnostic
-text. High-level scene constructors take explicit colors and return pure nodes;
+arcs, pies, Bézier curves, images, system UI text, and loaded-font text.
+High-level scene constructors take explicit colors and return pure nodes;
 the compatibility functions may use the current color when `?color` is absent.
 
 Later nodes draw over earlier nodes within a scene or immediate frame. Scoped
@@ -39,10 +39,6 @@ sampled texture until command completion.
 points; glyphs rasterize at native density and draw at logical dimensions.
 Renderer-local text textures use a bounded 256-entry LRU. Empty strings are
 safe no-ops.
-
-`Scene.debug_text` uses Prismel's independent
-fixed 8×8 diagnostic bitmap. They do not load a system font or depend on a
-third-party primitive-font table.
 
 ## Native effect boundary
 

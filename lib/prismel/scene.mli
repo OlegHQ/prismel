@@ -16,7 +16,6 @@ val pie : at:(int*int) -> radius:int -> from_:float -> to_:float -> ?fill:Color.
 val bezier : (int*int) list -> ?steps:int -> ?color:Color.t -> unit -> node
 val path : ?steps:int -> ?fill_rule:Path.fill_rule -> ?fill:Color.t -> ?stroke:Color.t -> Path.t -> node
 val text : at:(int*int) -> ?color:Color.t -> ?size:int -> string -> node
-val debug_text : at:(int*int) -> ?color:Color.t -> string -> node
 val font_text : Font.t -> at:(int*int) -> ?color:Color.t -> ?wrap:int -> ?align:Font.alignment -> string -> node
 val image : Image.t -> at:(int*int) -> ?scale:float -> ?angle:float -> ?center:(int*int) -> ?flip_x:bool -> unit -> node
 val view3d : ?viewport:(int*int*int*int) -> camera:Camera.t -> Scene3.t -> node

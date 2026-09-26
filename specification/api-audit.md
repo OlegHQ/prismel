@@ -31,7 +31,7 @@ with rationale rather than represented by placeholder APIs.
 | Fill and stroke | Implemented | explicit per-node styles |
 | Scoped transform, clip, blend | Implemented | translate/rotate/scale, intersecting clip, replace/alpha/add/multiply |
 | Images | Implemented | load/cache, position, scale, rotation, center, horizontal flip |
-| Text | Implemented | bitmap/debug text plus measured, wrapped, aligned loaded-font text with renderer-local texture cache |
+| Text | Implemented | system UI text plus measured, wrapped, aligned loaded-font text with renderer-local texture cache |
 | Canvas pixels and native capture | Implemented | owned `Canvas`, read/write/map pixels, drawable-sized capture |
 | Capture/export | Implemented | canvas/framebuffer PNG plus deterministic `Sketch.export[_state]`; repeated sequence digests tested |
 | Native GPU resources | Implemented | Canvas/Image snapshots lower to checked OGPU/Metal resources |

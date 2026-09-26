@@ -48,7 +48,6 @@ let run () =
         | Geometry _ -> "geometry"
         | Image _ -> "image"
         | Glyphs _ -> "glyphs"
-        | Debug_text _ -> "debug-text"
       in
       failwith
         ("text/View3d ordering or state scope: "
@@ -56,7 +55,7 @@ let run () =
   require (List.length first_resources = 1) "text resource";
   let scene2_only=Scene.[clear Color.black;
     rect~at:(1,2)~w:8~h:6~fill:Color.red();
-    debug_text~at:(2,3)"stage-once"]in
+    rect~at:(2,3)~w:1~h:1~fill:Color.white()]in
   let staged_scene2_only=Result.get_ok
     (Scene.Private.stage_native~width:16~height:12 scene2_only)in
   (match staged_scene2_only.layers with
@@ -69,14 +68,14 @@ let run () =
   let split_scene2=Scene.[
     rect~at:(1,2)~w:8~h:6~fill:Color.red();
     Private.layer_break;
-    debug_text~at:(2,3)"dynamic"]in
+    rect~at:(2,3)~w:1~h:1~fill:Color.white()]in
   let staged_split=Result.get_ok
     (Scene.Private.stage_native~width:16~height:12 split_scene2)in
   (match staged_split.layers with
    |[Scene.Private.Scene2_layer(first,_);Scene.Private.Scene2_layer(second,_)]->
        (match Array.to_list(Scene_command.Render_ir.commands first),
               Array.to_list(Scene_command.Render_ir.commands second)with
-        |[Geometry _],[Debug_text{text="dynamic";_}]->()
+        |[Geometry _],[Geometry _]->()
         |_->failwith"Scene2 layer break changed command ordering")
    |_->failwith"Scene2 layer break did not isolate dynamic commands");
   require(Array.length(Scene_command.Render_ir.commands staged_split.scene2)=2)
@@ -99,23 +98,6 @@ let run () =
       require(List.length staged.scene3=1)
         (Printf.sprintf"frame %d native View3d drift"frame))
     [ 2; 60; 600 ];
-  let diagnostic=Scene.[debug_text~at:(5,7)~color:(Color.rgba 1 2 3 4)"fixed"]in
-  let diagnostic_encoding=ref None in
-  List.iter(fun frame->
-    let ir,resources=Result.get_ok(Scene.Private.stage~width:32~height:24 diagnostic)in
-    require(resources=[]) (Printf.sprintf"debug text frame %d allocated resource"frame);
-    let encoding=Scene_command.Render_ir.serialize ir in
-    (match!diagnostic_encoding with None->diagnostic_encoding:=Some encoding
-      |Some expected->require(encoding=expected)(Printf.sprintf"debug text frame %d drift"frame));
-    match Array.to_list(Scene_command.Render_ir.commands ir)with
-    |[Debug_text{x;y;text;color}]->
-        require(x=5.&&y=7.&&text="fixed"&&color=0x01020304l)
-          (Printf.sprintf"debug text frame %d semantics"frame)
-    |_->failwith"debug text did not lower directly")[1;2;60;600];
-  Scene.Private.release diagnostic;
-  let after_ir,after_release=Result.get_ok(Scene.Private.stage~width:32~height:24 diagnostic)in
-  require(after_release=[])"debug text release acquired ownership";
-  require(Some(Scene_command.Render_ir.serialize after_ir)= !diagnostic_encoding)"debug text release changed IR";
   Scene.Private.release scene;
   List.iter
     (function

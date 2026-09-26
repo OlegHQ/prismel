@@ -30,7 +30,6 @@ module Builder : sig
     destination:Render_ir.rect -> unit
   val glyphs : t -> resource_id:int -> color:int32 -> Render_ir.glyph array ->
     unit
-  val debug_text : t -> x:float -> y:float -> color:int32 -> string -> unit
   val publish : t -> id:int64 -> version:int64 ->
     (segment, Render_ir.error) result
   val stats : t -> stats
