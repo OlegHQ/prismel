@@ -1,5 +1,32 @@
 (** Checked packed curve topology operations. *)
 
+type centroid_piece_owner =
+  | Centroid_piece_points
+  | Centroid_piece_primitives
+
+type centroid_run_over =
+  | Centroid_detail
+  | Centroid_primitives
+  | Centroid_pieces of {
+      owner : centroid_piece_owner;
+      attribute : string;
+    }
+
+type centroid_method =
+  | Centroid_point_mass
+  | Centroid_bounding_box
+  | Centroid_convex_hull
+
+val extract_centroid :
+  ?cancel:Cancel.t ->
+  ?grain:int ->
+  ?run_over:centroid_run_over ->
+  ?method_:centroid_method ->
+  ?source_primitive_attribute:string ->
+  ?piece_output_attribute:string ->
+  Geometry.t ->
+  (Geometry.t, Error.t) result
+
 type extract_curve_cut =
   | Extract_cut_constant of float
   | Extract_cut_primitive_attribute of string

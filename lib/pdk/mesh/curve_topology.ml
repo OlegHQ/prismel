@@ -1,5 +1,28 @@
 let protected operation code work = Error.guard ~operation ~code work
 
+type centroid_piece_owner = Extract_centroid.piece_owner =
+  | Centroid_piece_points
+  | Centroid_piece_primitives
+
+type centroid_run_over = Extract_centroid.run_over =
+  | Centroid_detail
+  | Centroid_primitives
+  | Centroid_pieces of {
+      owner : centroid_piece_owner;
+      attribute : string;
+    }
+
+type centroid_method = Extract_centroid.method_ =
+  | Centroid_point_mass
+  | Centroid_bounding_box
+  | Centroid_convex_hull
+
+let extract_centroid ?cancel ?grain ?run_over ?method_
+    ?source_primitive_attribute ?piece_output_attribute geometry =
+  protected "extract_centroid" "invalid_geometry" (fun () ->
+    Extract_centroid.run ?cancel ?grain ?run_over ?method_
+      ?source_primitive_attribute ?piece_output_attribute geometry)
+
 type extract_curve_cut = Extract_point_curve.cut =
   | Extract_cut_constant of float
   | Extract_cut_primitive_attribute of string
