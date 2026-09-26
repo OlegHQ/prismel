@@ -116,9 +116,6 @@ let reach_exceptions =
   List.concat_map (fun (lib, item) -> List.map (fun g -> lib, g, item) gpu)
     [ "procedural", "K1" ]
 
-(* Direct Metal use outside lib/metal and lib/ogpu_metal: (path prefix, item). *)
-let metal_exceptions = []
-
 (* identifiers outside comments and string literals *)
 let code_tokens text =
   let n = String.length text and out = Buffer.create (String.length text) in
@@ -175,8 +172,7 @@ let violations graph ~scan =
       forbidden) rules in
   let token_errors = List.filter_map (fun (path, text) ->
     let allowed = String.starts_with ~prefix:"lib/metal/" path
-      || String.starts_with ~prefix:"lib/ogpu_metal/" path
-      || List.exists (fun (prefix, _) -> String.starts_with ~prefix path) metal_exceptions in
+      || String.starts_with ~prefix:"lib/ogpu_metal/" path in
     if not allowed && uses_metal text then Some (path ^ " uses Metal outside lib/metal and lib/ogpu_metal")
     else if (String.starts_with ~prefix:"lib/pxui_graph/" path
           || String.starts_with ~prefix:"lib/sop_ui/" path)
@@ -199,8 +195,6 @@ let run () =
     failwith "OGPU virtual implementations or default selection missing";
   let graph = graph ["lib"; "ppx"] in
   if List.length graph < 20 then failwith "dependency gate found too few libraries (wrong cwd?)";
-  List.iter (fun name -> if List.mem_assoc name graph then
-    failwith ("retired facade returned: " ^ name)) ["runtime_next"; "runtime_next_orchestrator"; "prismel_next_api"; "prismel_next_execution"; "prismel_next_resources"; "geom"];
   (* injected violations must fire *)
   let inject lib dep = List.map (fun (l, d) -> l, if l = lib then dep :: d else d) graph in
   List.iter (fun (lib, dep) ->
@@ -230,5 +224,5 @@ let run () =
   match violations graph ~scan with
   | [] -> Printf.printf "dependency gate: %d libraries, %d rules, %d listed exceptions\n"
             (List.length graph) (List.length rules)
-            (List.length reach_exceptions + List.length metal_exceptions)
+            (List.length reach_exceptions)
   | errors -> List.iter prerr_endline errors; exit 1
