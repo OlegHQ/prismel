@@ -1,25 +1,25 @@
 open Prismel_math
 
 type clip_keep = Plane_clip.keep = Above | Below | All
-type subdivision_scheme = Subdivide.scheme = Catmull_clark | Loop | Bilinear
-type subdivision_boundary_interpolation = Subdivide.boundary_interpolation =
+type subdivision_scheme = Subdivision_ops.scheme = Catmull_clark | Loop | Bilinear
+type subdivision_boundary_interpolation = Subdivision_ops.boundary_interpolation =
   | Subdivide_boundary_none
   | Subdivide_boundary_edge_only
   | Subdivide_boundary_edge_and_corner
-type subdivision_face_varying_interpolation = Subdivide.face_varying_interpolation =
+type subdivision_face_varying_interpolation = Subdivision_ops.face_varying_interpolation =
   | Subdivide_fvar_none
   | Subdivide_fvar_corners_only
   | Subdivide_fvar_corners_plus1
   | Subdivide_fvar_corners_plus2
   | Subdivide_fvar_boundaries
   | Subdivide_fvar_all
-type subdivision_triangle_policy = Subdivide.triangle_subdivision =
+type subdivision_triangle_policy = Subdivision_ops.triangle_policy =
   | Subdivide_triangles_catmull_clark
   | Subdivide_triangles_smooth
-type subdivision_creasing_method = Subdivide.creasing_method =
+type subdivision_creasing_method = Subdivision_ops.creasing_method =
   | Subdivide_creasing_uniform
   | Subdivide_creasing_chaikin
-type subdivision_crack_policy = Subdivide.crack_policy =
+type subdivision_crack_policy = Subdivision_ops.crack_policy =
   | Subdivide_do_not_close
   | Subdivide_pull_no_edge_division
   | Subdivide_pull_divide_edges of float
@@ -1329,19 +1329,7 @@ let separate_pieces ?cancel ?grain ?owner ?translation_attribute ?axis ?gap
     Separate_pieces.run ?cancel ?grain ?owner ?translation_attribute ?axis ?gap
       ~mode ~piece_attribute geometry)
 
-let subdivide ?cancel ?grain ?scheme ?iterations ?primitives ?cracks
-    ?consistent_topology ?creases ?crease_primitives ?crease_weight
-    ?generate_resulting_creases ?resulting_crease_group ?hole_primitives
-    ?remove_holes ?boundary_interpolation ?face_varying_interpolation
-    ?triangle_policy ?creasing_method ?treat_curves_as_independent
-    ?recompute_point_normals geometry =
-  protected "subdivide" "invalid_topology" (fun () ->
-    Subdivide.subdivide ?cancel ?grain ?scheme ?iterations ?primitives ?cracks
-      ?consistent_topology ?creases ?crease_primitives ?crease_weight
-      ?generate_resulting_creases ?resulting_crease_group ?hole_primitives
-      ?remove_holes ?boundary_interpolation ?face_varying_interpolation
-      ?triangle_subdivision:triangle_policy ?creasing_method
-      ?treat_curves_as_independent ?recompute_point_normals geometry)
+let subdivide = Subdivision_ops.subdivide_checked
 
 let edge_divide ?cancel ?grain ?edges ?divisions ?share_points geometry =
   protected "edge_divide" "invalid_topology" (fun () ->

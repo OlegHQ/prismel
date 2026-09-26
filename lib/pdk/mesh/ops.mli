@@ -2201,25 +2201,25 @@ val clip_transform :
     defines its direction. Translation, rotation, and scale therefore compose
     through one matrix while [distance] remains measured after normalization. *)
 
-type subdivision_scheme = Catmull_clark | Loop | Bilinear
-type subdivision_boundary_interpolation =
+type subdivision_scheme = Subdivision_ops.scheme = Catmull_clark | Loop | Bilinear
+type subdivision_boundary_interpolation = Subdivision_ops.boundary_interpolation =
   | Subdivide_boundary_none
   | Subdivide_boundary_edge_only
   | Subdivide_boundary_edge_and_corner
-type subdivision_face_varying_interpolation =
+type subdivision_face_varying_interpolation = Subdivision_ops.face_varying_interpolation =
   | Subdivide_fvar_none
   | Subdivide_fvar_corners_only
   | Subdivide_fvar_corners_plus1
   | Subdivide_fvar_corners_plus2
   | Subdivide_fvar_boundaries
   | Subdivide_fvar_all
-type subdivision_triangle_policy =
+type subdivision_triangle_policy = Subdivision_ops.triangle_policy =
   | Subdivide_triangles_catmull_clark
   | Subdivide_triangles_smooth
-type subdivision_creasing_method =
+type subdivision_creasing_method = Subdivision_ops.creasing_method =
   | Subdivide_creasing_uniform
   | Subdivide_creasing_chaikin
-type subdivision_crack_policy =
+type subdivision_crack_policy = Subdivision_ops.crack_policy =
   | Subdivide_do_not_close
   | Subdivide_pull_no_edge_division
   | Subdivide_pull_divide_edges of float
