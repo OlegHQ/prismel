@@ -76,7 +76,23 @@ let run () =
           ignore(colored ~barrier:true color)
         done;
         if retained "retained-white-rebuilt" (colored ~barrier:true 0xffffffffl)
-            <>expected then failwith "evicted geometry index reused stale colors")) [1;2];
+            <>expected then failwith "evicted geometry index reused stale colors";
+        (* A cache hit must not rewrite transform bytes that an earlier
+           lowering's draws still reference; distinct transforms bypass the plan cache. *)
+        let shifted tx=Result.get_ok (create [|Push_transform {identity with tx};
+          Geometry {vertices=[|4.;4.;20.;4.;20.;20.;4.;20.|];indices=[|0;1;2;0;2;3|];
+            color=0xffffffffl};Pop_transform|])
+          |> Prismel_execution.lower_scene2 execution ~density:scale ~resource:(fun _->None)
+          |> get in
+        let render_draws draws=
+          ignore (get (Prismel_execution.step ~clear:(0.,0.,0.,1.) execution draws));
+          get (Prismel_execution.capture execution) in
+        ignore (shifted 1.);
+        let first=shifted 2. in
+        let expected=render_draws first in
+        ignore (shifted 30.);
+        if render_draws first<>expected then
+          failwith "geometry cache hit rewrote an earlier lowering's transform")) [1;2];
   let after=live_handles() in
   if after<>baseline then failwith "dense scene2 handle delta";
   print_endline "dense scene2: exact 1x/2x pixels, alpha/add, fractional transforms, alternating retained payloads, zero handles"

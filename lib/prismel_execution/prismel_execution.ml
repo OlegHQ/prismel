@@ -18,7 +18,7 @@ type blend = Ogpu.Pipeline.blend = Replace | Alpha | Add | Multiply | Screen | S
 type draw = { family:family; blend:blend; texture:Scene_execution.sampled_texture option;
   auxiliary:Scene_execution.auxiliary_resource option;samples:int;value:Scene_execution.draw }
 type cached_scene2_geometry={vertices:float array;indices:int array;color:int32;
-  clip:int*int*int*int;uniform_bytes:bytes;mutable used_frame:int;draw:draw}
+  clip:int*int*int*int;mutable used_frame:int;draw:draw}
 (* Content-equal geometries drawn twice in one frame need two entries. *)
 type scene2_geometry_bucket={mutable entries:cached_scene2_geometry list;mutable bucket_bytes:int}
 type scene2_geometry_candidate={candidate_vertex_count:int;
@@ -682,8 +682,13 @@ let lower_scene2_uncached value ~lease_policy ~density ~resource:resolve ir =
       List.find_opt(fun cached->cached.used_frame<>frame&&same cached.vertices cached.indices cached.color cached.clip cached.draw.value.state.viewport)bucket.entries in
     match hit with
     |Some cached->
-        write_affine cached.uniform_bytes transform;
-        cached.used_frame<-frame;cached.draw
+        (* Earlier lowerings, cached plans, and retained segments may still
+           reference [cached.draw]; give each hit its own transform bytes. *)
+        let uniform=Bytes.make 24 '\000'in
+        write_affine uniform transform;
+        cached.used_frame<-frame;
+        {cached.draw with value={cached.draw.value with state={cached.draw.value.state with
+          transform_uniforms=Some uniform}}}
     |None->
         let draw=mesh_of_geometry number transform
           ~viewport:framebuffer clip
@@ -715,7 +720,7 @@ let lower_scene2_uncached value ~lease_policy ~density ~resource:resolve ir =
             let draw={draw with value={draw.value with state={draw.value.state with
               transform_uniforms=Some uniform}}}in
             let cached={vertices=Array.copy geometry.vertices;indices=Array.copy geometry.indices;
-              color=geometry.color;clip;uniform_bytes=uniform;
+              color=geometry.color;clip;
               used_frame=frame;draw}in
             let bucket=match bucket with Some bucket->bucket
               |None->{entries=[];bucket_bytes=0}in
