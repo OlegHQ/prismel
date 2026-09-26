@@ -1,0 +1,3 @@
+# Residual public value aliases without a prior codemod map.
+Ops.points	Line_geometry.points
+Ops.delete_primitives	Deletion.delete_primitives
