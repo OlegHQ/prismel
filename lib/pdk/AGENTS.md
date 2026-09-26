@@ -28,14 +28,15 @@ procedural ──> pdk ──> pdk_core ──> prismel_math
 
 `procedural` uses `pdk` for packed SOPs and `prismel_math` for mathematical
 values. `pdk` must never depend on `procedural`.
-`sop_ui` may depend on both `procedural` and `pxui`; those libraries must never
-depend on `sop_ui` or each other.
+`procedural` and `pxui` must never depend on each other; typed parameter
+schemas live in the dependency-free `param` library (`Procedural.Parameter`)
+and `Pxui_shell.Inspector` renders them.
 `sketch_support` is a leaf helper for sketches. It may depend on `procedural`,
 `pdk`, and `prismel`, but must not own widgets, renderer backends, or geometry
 kernels and must never be imported by those underlying libraries.
-`pxui_graph` and `sop_ui` are presentation adapters, not graph authorities:
+`pxui_graph` and `Pxui_shell.Inspector` are presentation adapters, not graph authorities:
 selection lives in returned immutable UI state, network topology lives in
-`Procedural.Edit_graph`, and the `sketch_ui` host applies typed editor commands
+`Procedural.Edit_graph`, and the `prismel_editor` host applies typed editor commands
 before compiling a cookable DAG. Parameter edits replace the selected node in
 that same immutable document (or use `Node.apply_parameters` for a standalone
 node). `sop_catalog` may attach

@@ -123,9 +123,9 @@ kinds are inferred; numeric fields require soft `[@sop.min]`/`[@sop.max]`.
 behavior. `[@sop.kind expression]` supplies arbitrary typed choices, and
 `[@sop.ignore]` retains a record field/default without promoting it.
 
-`prismel.sop_ui` is a separate leaf library depending on both Procedural and
-PXUI. `Sop_ui.Node_inspector` converts the selected node's folders to nested
-accordions and kinds to native widgets; its update path applies changes through
+Schemas live in the dependency-free `param` library. `Pxui_shell.Inspector`
+converts a node.s folders to nested accordions and kinds to native widgets; the
+host applies the returned changes through
 `Node.apply_parameters`, synchronizes hard-bound normalization, and returns
 accumulated effects. The host applies that edit to `Edit_graph`.
 Procedural never imports PXUI, and PXUI never gains SOP knowledge. A schema

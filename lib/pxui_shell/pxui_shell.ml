@@ -381,3 +381,65 @@ module Shell = struct
       None
     end
 end
+
+module Inspector = struct
+  module Param = Editor_core.Param
+  module Ui = Pxui.Ui
+
+  type item = Field of Param.field_view | Folder of string * item list
+
+  let rec insert path field items = match path with
+    | [] -> items @ [Field field]
+    | name :: rest ->
+        let rec loop reversed = function
+          | [] -> List.rev_append reversed [Folder (name, insert rest field [])]
+          | Folder (candidate, children) :: tail when candidate = name ->
+              List.rev_append reversed
+                (Folder (candidate, insert rest field children) :: tail)
+          | item :: tail -> loop (item :: reversed) tail
+        in
+        loop [] items
+
+  (* The field name is the widget key; the label is only displayed. *)
+  let field_widget ui (field : Param.field_view) =
+    let label = field.label ^ "##" ^ field.name in
+    let edited value = if value = field.current then None
+      else Some (field.name, value) in
+    match field.kind, field.current with
+    | Param.Toggle_view, Param.Bool_value value ->
+        edited (Param.Bool_value (Ui.toggle ui label value))
+    | Param.Integer_view range, Param.Int_value value ->
+        edited (Param.Int_value
+          (Ui.int_slider ui label ~range:(range.soft_min, range.soft_max) value))
+    | Param.Floating_view range, Param.Float_value value ->
+        edited (Param.Float_value
+          (Ui.slider ui label ~range:(range.soft_min, range.soft_max) value))
+    | Param.Text_view, Param.Text_value value ->
+        edited (Param.Text_value (Ui.text_field ui label value))
+    | Param.Choice_view options, Param.Choice_value value ->
+        let selected = Option.value ~default:0
+            (Array.find_index (String.equal value) options) in
+        let chosen = Ui.choice ui label (Array.to_list options) selected in
+        edited (Param.Choice_value options.(chosen))
+    | _ -> invalid_arg "Pxui_shell.Inspector: inconsistent field metadata"
+
+  let fields ui ?(expanded = []) views =
+    if views = [] then (Ui.label ui "No exposed parameters"; [])
+    else
+      let rec build path items = List.concat_map (function
+        | Field field -> Option.to_list (field_widget ui field)
+        | Folder (label, children) ->
+            let path = path @ [label] in
+            let key = String.concat "/" path in
+            Option.value ~default:[]
+              (Ui.accordion ui ~expanded:(List.mem key expanded)
+                 (label ^ "##folder." ^ key) (fun () -> build path children)))
+          items in
+      build [] (List.fold_left (fun items (field : Param.field_view) ->
+        insert field.folder field items) [] views)
+
+  let record ui ?expanded schema values =
+    match fields ui ?expanded (Param.view schema values) with
+    | [] -> Ok (values, Param.no_effects)
+    | changes -> Param.apply_all schema values changes
+end

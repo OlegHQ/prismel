@@ -81,3 +81,18 @@ module Shell : sig
     body:(Pxui.Ui.t -> 'a) -> overlay:(Pxui.Ui.t -> unit) option -> 'a option
   (** Build editor content when visible, and a pending overlay when hidden. *)
 end
+
+(** Parameter rows generated from [Editor_core.Param] metadata: the one
+    inspector path for SOP nodes and plain sketch settings alike. *)
+module Inspector : sig
+  val fields : Pxui.Ui.t -> ?expanded:string list ->
+    Editor_core.Param.field_view list -> (string * Editor_core.Param.value) list
+  (** One kit widget per field inside the current panel; folders become
+      accordions, open when their ["/"]-joined path is in [expanded]. Returns
+      this frame's edits, empty when nothing changed. *)
+
+  val record : Pxui.Ui.t -> ?expanded:string list ->
+    'record Editor_core.Param.schema -> 'record ->
+    ('record * Editor_core.Param.effects, string) result
+  (** [fields] over a typed record, edits applied through [Param.apply_all]. *)
+end

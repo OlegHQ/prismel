@@ -605,23 +605,28 @@ under 4 points via `Ui.context_clicked`) are the shared overlay widgets.
 `Pxui.Camera2_control` does the same for `Easy_camera2` with center, zoom,
 rotation, inertia, and reset.
 
-### `Sop_ui`
+### `Pxui_shell.Inspector`
 
-`Procedural.Parameter` owns renderer-neutral typed templates and immutable
+The dependency-free `param` library (`Editor_core.Param`, also
+`Procedural.Parameter`) owns renderer-neutral typed templates and immutable
 values. `Node.parameterize` attaches a schema, current values, and a pure
-rebuild function to the SOP that owns them. The leaf `prismel.sop_ui` adapter
-builds the selected node's kit inspector without making either underlying
-library depend on the other:
+rebuild function to the SOP that owns them. `Pxui_shell.Inspector` builds kit
+rows from any schema, so a SOP node and a plain sketch record share one
+inspector:
 
 ```ocaml
-let inspector = Sop_ui.Node_inspector.create selected_node
-
-(* inside Pxui.Ui.frame *)
-let selected_node, effects =
-  Pxui.Ui.panel ui "inspector" (fun () ->
-    Sop_ui.Node_inspector.widgets ~expanded:["Geometry"] inspector ui
-      ~node:selected_node)
+(* inside Pxui.Ui.frame: a sketch record *)
+let settings, effects =
+  Pxui.Ui.panel ui "settings" (fun () ->
+    Pxui_shell.Inspector.record ui settings_schema settings)
   |> Result.get_ok
+
+(* a selected SOP node *)
+let node, effects =
+  match Pxui_shell.Inspector.fields ui ~expanded:["Geometry"]
+      (Procedural.Node.parameter_fields node) with
+  | [] -> node, Procedural.Parameter.no_effects
+  | changes -> Result.get_ok (Procedural.Node.apply_parameters node changes)
 ```
 
 `effects.cook` requests a deferred/asynchronous graph cook;

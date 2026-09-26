@@ -1,7 +1,7 @@
 # lib/prismel_editor rules
 
-`prismel_editor` composes `pxui`, `pxui_graph`, `sop_ui`, `sketch_support` and
-`sop_catalog` into the sketch environment. Nothing imports it.
+`prismel_editor` is Prismel Editor: it composes `pxui`, `pxui_shell`,
+`pxui_graph`, `sketch_support` and `sop_catalog` into the SOP workspace. Nothing imports it.
 
 ## Editor layering (plan U, shipped)
 
@@ -28,7 +28,7 @@
 
 ## Adapters
 
-`pxui_graph` and `sop_ui` are presentation adapters, not graph authorities:
+`pxui_graph` and `Pxui_shell.Inspector` are presentation adapters, not graph authorities:
 selection lives in returned immutable UI state, topology in
 `Procedural.Edit_graph`, and this host applies typed editor commands before
 compiling a cookable DAG. Parameter edits replace the selected node in that

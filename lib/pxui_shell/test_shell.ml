@@ -113,4 +113,21 @@ let () =
     Printf.printf "layout geometry: %.4fs %.0f bytes %d\n%!"
       (Sys.time () -. start) (Gc.allocated_bytes () -. start_alloc) !width_sum
   end;
+  (* Inspector.record: a plain sketch record edited through its schema. *)
+  let schema = Editor_core.Param.(schema ~name:"look" ~default:false
+    [ field ~name:"on" ~label:"On" ~kind:Toggle ~default:false
+        ~get:Fun.id ~set:(fun on _ -> on) () ]) in
+  let ui = Pxui.Ui.create () in
+  let click = [ Event.MousePressed (Input.LeftButton, (230., 15.));
+                Event.MouseReleased (Input.LeftButton, (230., 15.)) ] in
+  let record events value = Pxui.Ui.frame ui { frame with events } (fun ui ->
+    Pxui.Ui.panel ui ~x:0. ~y:0. ~width:260. "record" (fun () ->
+      Pxui_shell.Inspector.record ui schema value)) in
+  (match record [] false with
+   | Ok (false, effects) when not (Editor_core.Param.has_effects effects) -> ()
+   | _ -> failwith "idle inspector frame changed the record");
+  (match record click false with
+   | Ok (true, effects) when effects.cook -> ()
+   | _ -> failwith "inspector toggle did not edit the record");
+  Pxui.Ui.destroy ui;
   print_endline "pxui shell tests passed"

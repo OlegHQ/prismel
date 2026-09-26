@@ -66,7 +66,7 @@ let reach graph =
 
 let gpu = ["sdl3"; "sdl3_image"; "sdl3_ttf"; "sdl3_mixer"; "metal"; "ogpu_core"; "ogpu"; "ogpu_mock"; "ogpu_metal"; "ogpu_metal_native";
            "runtime"; "runtime_input"; "runtime_resources"; "scene_execution"]
-let upper = ["param"; "prismel"; "editor_core"; "pxui"; "pxui_shell"; "pxui_graph"; "sop_ui"; "procedural"; "pdk";
+let upper = ["param"; "prismel"; "editor_core"; "pxui"; "pxui_shell"; "pxui_graph"; "procedural"; "pdk";
              "sop_catalog"; "sketch_support"; "prismel_editor"]
 let foundational = ["sdl3"; "sdl3_image"; "sdl3_ttf"; "sdl3_mixer"; "metal"; "ogpu_core"; "ogpu";
                     "native_layer_token"; "scene_command"; "lru"]
@@ -87,7 +87,7 @@ let rules =
       "ogpu_metal", ["sdl3"; "runtime"; "prismel"; "scene_execution"];
       "runtime", upper; "runtime_input", upper;
       "prismel_execution", ["runtime_input"];
-      "prismel", ["pxui"; "pxui_shell"; "pxui_graph"; "sop_ui"; "procedural"; "pdk";
+      "prismel", ["pxui"; "pxui_shell"; "pxui_graph"; "procedural"; "pdk";
                   "sop_catalog"; "sketch_support"; "prismel_editor"];
       "prismel_math", ["prismel"; "pdk_core"; "pdk_exact"; "pdk_spatial"; "pdk_attrib"; "pdk_gen"; "pdk_curve"; "pdk_mesh"; "pdk_boolean"; "pdk"; "pdk_prismel"; "procedural"] @ gpu;
       "pdk_core", "pdk_exact" :: "pdk_spatial" :: "pdk_attrib" :: "pdk_gen" :: "pdk_curve" :: "pdk_mesh" :: "pdk_boolean" :: "prismel" :: "pdk" :: "pdk_prismel" :: "procedural" :: gpu;
@@ -98,19 +98,18 @@ let rules =
       "pdk_curve", "pdk_gen" :: "pdk_mesh" :: "pdk_boolean" :: "prismel" :: "pdk" :: "pdk_prismel" :: "procedural" :: gpu;
       "pdk_mesh", "pdk_boolean" :: "prismel" :: "pdk" :: "pdk_prismel" :: "procedural" :: gpu;
       "pdk_boolean", "prismel" :: "pdk" :: "pdk_prismel" :: "procedural" :: gpu;
-      "pdk", "prismel" :: "pdk_prismel" :: "procedural" :: "pxui" :: "pxui_shell" :: "sop_ui" :: "sop_catalog" :: gpu;
-      "procedural", "prismel" :: "pdk_prismel" :: "pxui" :: "pxui_shell" :: "pxui_graph" :: "sop_ui" :: "sop_catalog"
+      "pdk", "prismel" :: "pdk_prismel" :: "procedural" :: "pxui" :: "pxui_shell" :: "sop_catalog" :: gpu;
+      "procedural", "prismel" :: "pdk_prismel" :: "pxui" :: "pxui_shell" :: "pxui_graph" :: "sop_catalog"
                     :: "sketch_support" :: "prismel_editor" :: gpu;
-      "editor_core", ["pxui"; "pxui_shell"; "pxui_graph"; "sop_ui"; "prismel_editor"; "procedural";
+      "editor_core", ["pxui"; "pxui_shell"; "pxui_graph"; "prismel_editor"; "procedural";
                  "pdk"; "sop_catalog"];
       "pxui", ["editor_core"; "pxui_shell"; "procedural"; "pdk"; "pxui_graph";
-               "sop_ui"; "sketch_support"; "prismel_editor"];
-      "pxui_shell", ["procedural"; "pdk"; "sop_catalog"; "sop_ui";
+               "sketch_support"; "prismel_editor"];
+      "pxui_shell", ["procedural"; "pdk"; "sop_catalog";
                      "pxui_graph"; "sketch_support"; "prismel_editor"];
-      "sop_ui", ["pxui_shell"; "pxui_graph"; "sketch_support"; "prismel_editor"; "sop_catalog"];
-      "pxui_graph", ["pxui_shell"; "sop_ui"; "sketch_support"; "prismel_editor"; "sop_catalog"];
-      "sop_catalog", ["pxui"; "pxui_shell"; "pxui_graph"; "sop_ui"; "sketch_support"; "prismel_editor"];
-      "sketch_support", ["pxui"; "pxui_shell"; "pxui_graph"; "sop_ui"; "prismel_editor"] ]
+      "pxui_graph", ["pxui_shell"; "sketch_support"; "prismel_editor"; "sop_catalog"];
+      "sop_catalog", ["pxui"; "pxui_shell"; "pxui_graph"; "sketch_support"; "prismel_editor"];
+      "sketch_support", ["pxui"; "pxui_shell"; "pxui_graph"; "prismel_editor"] ]
 
 (* Known violations: (library, reached, plan item that removes it). *)
 let reach_exceptions : (string * string * string) list = []
@@ -197,8 +196,7 @@ let violations graph ~scan =
     let allowed = String.starts_with ~prefix:"lib/metal/" path
       || String.starts_with ~prefix:"lib/ogpu_metal/" path in
     if not allowed && uses_metal text then Some (path ^ " uses Metal outside lib/metal and lib/ogpu_metal")
-    else if (String.starts_with ~prefix:"lib/pxui_graph/" path
-          || String.starts_with ~prefix:"lib/sop_ui/" path)
+    else if String.starts_with ~prefix:"lib/pxui_graph/" path
         && uses_key_pressed text then
       Some (path ^ " matches KeyPressed inside a presentation adapter")
     else None) scan in

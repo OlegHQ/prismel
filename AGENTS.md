@@ -34,7 +34,6 @@ when behavior or architecture changes materially.
 | `pxui` | The one immediate-mode UI engine (`Pxui.Ui`) |
 | `pxui_shell` | Editor chrome over PXUI; layout, headers, keys, status, timeline, prompts, frame |
 | `pxui_graph` | SOP-network presentation; emits typed requests, never edits |
-| `sop_ui` | Renders a node's typed parameter template through PXUI |
 | `sketch_support` | Procedural-to-Scene glue (`Bridge`: cooked meshes, instances, frame context) and packed pieces |
 | `prismel_editor` | Prismel Editor: the Houdini-like SOP shell (`Editor3`/`2`), composed only from public blocks |
 
@@ -64,8 +63,8 @@ violations are listed there with the plan item that removes them.
 - `pxui_shell` depends only on `prismel`, `editor_core`, and `pxui`; it never imports
   SOP, graph, geometry, or sketch libraries.
 - `pdk` never reaches `procedural`; `procedural` never reaches UI
-  libraries; `pxui` never reaches `procedural`; `sop_ui` and `pxui_graph`
-  never import each other or `sketch_*`; nothing imports `prismel_editor`.
+  libraries; `pxui` never reaches `procedural`; `param` depends on nothing;
+  `pxui_graph` never imports `sketch_*`; nothing below imports `prismel_editor`.
 - A boundary change updates the gate, adds focused tests at each affected
   boundary, and updates `specification/backend.md`. Do not expose raw SDL,
   Metal, or runtime values in `Scene` or public sketch code.

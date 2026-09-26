@@ -21,7 +21,6 @@ type 'panel frame_result = {
   graph_view : Pxui_graph.t;
   document : Edit_graph.t;
   edit_error : string option;
-  inspector : Sop_ui.Node_inspector.t option;
   effects : Parameter.effects;
   timeline_intents : timeline_intent list;
   frame_request : int option;
@@ -43,7 +42,6 @@ type 'prepared t = {
   factories : Edit_graph.factory list;
   graph_view : Pxui_graph.t;
   displayed_id : int;
-  inspector : Sop_ui.Node_inspector.t option;
   ui : Pxui.Ui.t;
   workspace : Workspace.t;
   timeline : Sketch_support.Timeline.t;
@@ -108,7 +106,7 @@ let create ?(keymap = Leader.keymap) ?(seed_document = fun _ document -> documen
             (Preset.sanitize name) in
       { code_graph = graph; presets; name; prompt = None; notice = None;
         graph; displayed_graph = graph; document; factories; graph_view;
-        displayed_id = Node.id graph; inspector = None;
+        displayed_id = Node.id graph;
         ui = Pxui.Ui.create (); workspace;
         timeline = Sketch_support.Timeline.create (); cook;
         edit_error = None; status_fps = None;
@@ -271,30 +269,29 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
     let inspector_visible = not (Workspace.collapsed workspace Workspace.Inspector) in
     let selected = Option.bind (Pxui_graph.selected graph_view)
         (fun node_id -> Edit_graph.find document ~node_id) in
-    let panel, inspector, document, parameter_effects, edit_error =
+    let panel, document, parameter_effects, edit_error =
       Pxui.Ui.within ui inspector_root (fun () -> match selected with
       | None ->
           let panel = if inspector_visible then
             Some (inspector_panel ui panes.inspector camera_panel) else None in
-          panel, None, document, Parameter.no_effects, edit_error
+          panel, document, Parameter.no_effects, edit_error
+      | Some _ when not inspector_visible ->
+          None, document, Parameter.no_effects, edit_error
       | Some node ->
-          let inspector = match value.inspector with
-            | Some inspector when Sop_ui.Node_inspector.node_id inspector = Node.id node ->
-                inspector
-            | Some _ | None -> Sop_ui.Node_inspector.create node in
-          if not inspector_visible then
-            None, Some inspector, document, Parameter.no_effects, edit_error
-          else match inspector_panel ui panes.inspector (fun () ->
-              Sop_ui.Node_inspector.widgets ~expanded:(expanded_folders node)
-                inspector ui ~node) with
-          | Error message -> None, Some inspector, document, Parameter.no_effects, Some message
+          match inspector_panel ui panes.inspector (fun () ->
+              Pxui.Ui.scope ui (Printf.sprintf "node.%d" (Node.id node)) (fun () ->
+                Pxui.Ui.label ui (Node.label node);
+                match Pxui_shell.Inspector.fields ui ~expanded:(expanded_folders node)
+                    (Node.parameter_fields node) with
+                | [] -> Ok (node, Parameter.no_effects)
+                | changes -> Node.apply_parameters node changes)) with
+          | Error message -> None, document, Parameter.no_effects, Some message
           | Ok (edited, _) when edited == node ->
-              None, Some inspector, document, Parameter.no_effects, edit_error
+              None, document, Parameter.no_effects, edit_error
           | Ok (edited, effects) ->
               (match Edit_graph.replace_node edited document with
-               | Error message -> None, Some inspector, document, Parameter.no_effects,
-                   Some message
-               | Ok document -> None, Some inspector, document, effects, edit_error)) in
+               | Error message -> None, document, Parameter.no_effects, Some message
+               | Ok document -> None, document, effects, edit_error)) in
     let timeline_intents = if Workspace.collapsed workspace Workspace.Timeline
       then [] else Pxui.Ui.within ui timeline_root (fun () ->
         Pxui_shell.Timeline_bar.draw ui ~bounds:panes.timeline
@@ -329,7 +326,7 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
       | Workspace.View -> panes.view | Graph -> panes.graph
       | Inspector -> panes.inspector | Timeline -> panes.timeline in
     Pxui_shell.Chrome.focus ui ~bounds;
-    { workspace; focus; pane_keys; graph_view; document; edit_error; inspector;
+    { workspace; focus; pane_keys; graph_view; document; edit_error;
       effects = Parameter.union_effects editor_effects
           (Parameter.union_effects parameter_effects handle_effects);
       timeline_intents; frame_request; prompt = None; prompt_intent = None;
@@ -385,7 +382,7 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
     | Some result -> result
     | None ->
       { workspace; focus; pane_keys = []; graph_view; document = value.document;
-        edit_error = value.edit_error; inspector = value.inspector;
+        edit_error = value.edit_error;
         effects = Parameter.no_effects; timeline_intents = [];
         frame_request = initial_frame_request; prompt = initial_prompt;
         prompt_intent = None; panel = None; grab = false } in
@@ -419,8 +416,8 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
           | Error message -> "Preset not deleted: " ^ message in
         Some (Browsing { query; presets = Preset.list ~directory:value.presets }),
         Some notice, None in
-  let document, graph_view, inspector, edit_error = match loaded with
-    | None -> result.document, result.graph_view, result.inspector, result.edit_error
+  let document, graph_view, edit_error = match loaded with
+    | None -> result.document, result.graph_view, result.edit_error
     | Some (preset : Preset.loaded) ->
         let graph_view = List.fold_left (fun view (node_id, x, y) ->
             Pxui_graph.place_node ~node_id ~x ~y view)
@@ -429,7 +426,7 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
         let graph_view = match preset.display with
           | Some id -> Pxui_graph.view id graph_view | None -> graph_view in
         preset.document,
-        Pxui_graph.with_flagged preset.active_camera graph_view, None, None in
+        Pxui_graph.with_flagged preset.active_camera graph_view, None in
   (* Shared undo stack: every document change (graph edits, node creation,
      paste, inspector commits) becomes one history entry; Command/Ctrl-Z
      undoes, Shift-Command/Ctrl-Z or Ctrl-Y redoes. *)
@@ -446,7 +443,6 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
   let history, document, undone = match stepped with
     | Some history -> history, Editor_core.History.present history, true
     | None -> history, document, false in
-  let inspector = if undone then None else inspector in
   let effects = if undone then Parameter.union_effects result.effects Doc.cook_effects
     else result.effects in
   let graph_view = Pxui_graph.with_document document graph_view in
@@ -459,7 +455,7 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
     ~frame_request:result.frame_request in
   { core = { value with graph = cooked.graph;
       displayed_graph = cooked.displayed_graph; document; graph_view; displayed_id;
-      inspector; workspace = result.workspace; timeline; cook = cooked.cook;
+      workspace = result.workspace; timeline; cook = cooked.cook;
       edit_error = cooked.edit_error;
       status_fps; status_fps_at; history; focus = result.focus;
       pane_keys = result.pane_keys; leader; prompt;

@@ -42,7 +42,6 @@ let run () =
      || List.length (Parameter.fields parameters_schema) <> 5
   then fail "sop_params defaults or ignored-field policy is incorrect";
   let graph = inspectable_node parameters_default in
-  let inspector = Sop_ui.Node_inspector.create ~prefix:"selected" graph in
   let ui = Pxui.Ui.create () in
   let frame time events : Prismel.Frame.t = { width = 320; height = 240;
     size = 320, 240; drawable_width = 320; drawable_height = 240;
@@ -52,8 +51,12 @@ let run () =
   let step graph time events =
     Pxui.Ui.frame ui (frame time events) (fun ui ->
       Pxui.Ui.panel ui ~x:0. ~y:0. ~width:260. "inspector" (fun () ->
-        match Sop_ui.Node_inspector.widgets ~expanded:["Geometry"]
-            inspector ui ~node:graph with
+        match Pxui.Ui.scope ui "selected" (fun () ->
+          Pxui.Ui.label ui (Node.label graph);
+          match Pxui_shell.Inspector.fields ui ~expanded:["Geometry"]
+              (Node.parameter_fields graph) with
+          | [] -> Ok (graph, Parameter.no_effects)
+          | changes -> Node.apply_parameters graph changes) with
         | Ok value -> value | Error message -> fail message)) in
   let unchanged, effects = step graph 0. [] in
   if unchanged != graph || effects.cook then
