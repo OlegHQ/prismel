@@ -3,7 +3,7 @@
   "baseline_plan_sha256": "6f95e5738ae263386bbc414299f598f25ba9f604b48a8c2ef9bee84f974e2954",
   "generator": "tools/api_manifest/api_manifest.exe",
   "kind": "stable_high_level",
-  "module_count": 136,
+  "module_count": 140,
   "modules": [
     {
       "api_sha256": "e50b68fb8b3efb8c3f48d288c797a83690511ce38a332e2c2285c788efd781ad",
@@ -85,6 +85,15 @@
       "source": "lib/pdk/core/attribute_pattern.mli",
       "source_bytes": 2467,
       "source_sha256": "70549976747f3ba274aa5ef28ba57fb40e761532e25dd43163c63230567eb6b6"
+    },
+    {
+      "api_sha256": "a1fc553b3046bf983d7dfa0ba21cb6139789abda89a75ed6b5f0fcc42988ff82",
+      "excluded_legacy_symbols": [],
+      "library": "pdk",
+      "module": "Blast_by_attribute",
+      "source": "lib/pdk/mesh/blast_by_attribute.mli",
+      "source_bytes": 807,
+      "source_sha256": "bf42aa853da36f9c4b0bf367d2deff9ec6c34e5eddfc7c6792af4ef0fc1d8842"
     },
     {
       "api_sha256": "64c11c25dfc50939810af5addf08737c9a953a9d6eb9a2b9cb3a29ed7efe2453",
@@ -186,6 +195,15 @@
       "source_sha256": "b11640496b0515056a8edba5073c15fa020540c08b30dbf7b4c6e8da929caf9b"
     },
     {
+      "api_sha256": "63edcc02e238dc81becbfc1e7b68635847906ba35f46d25af0c2788388b35710",
+      "excluded_legacy_symbols": [],
+      "library": "pdk",
+      "module": "Deletion",
+      "source": "lib/pdk/mesh/deletion.mli",
+      "source_bytes": 2373,
+      "source_sha256": "87b20ffc3ba5a70fc56030360ba63dd7d83da08931fb567b18e4e1ed78b65731"
+    },
+    {
       "api_sha256": "f0c0d6fa8b10483f6bbc6ba496e47725340345063e5316a0d875d9885f1e696c",
       "excluded_legacy_symbols": [],
       "library": "pdk",
@@ -265,6 +283,15 @@
       "source": "lib/pdk/core/geometry.mli",
       "source_bytes": 3745,
       "source_sha256": "1f9a38510d3db23516decfeff9eee3c7ec13b15252c70f4f305c7cd9dfdb14dc"
+    },
+    {
+      "api_sha256": "ead564381d62dbce00b51b02f64265656bb51092545cb8a80b192fa1936b20a4",
+      "excluded_legacy_symbols": [],
+      "library": "pdk",
+      "module": "Graph_color",
+      "source": "lib/pdk/mesh/graph_color.mli",
+      "source_bytes": 683,
+      "source_sha256": "a754b07787ff4dad0351bfe1b5139985f12846c808fdac6209e4383ff73ee2ba"
     },
     {
       "api_sha256": "719b54b842c85fc6a14d55d77621d8d3329812491e078ed73b12347ab930a6f8",
@@ -517,6 +544,15 @@
       "source": "lib/pdk/mesh/repair_mesh.mli",
       "source_bytes": 625,
       "source_sha256": "d34fd0c7e1f3d8f75dfedb6a2f674f2b2ab49511e91f8234597e6ee8a0afa91a"
+    },
+    {
+      "api_sha256": "385c502d05983cffe5a30c2ed07d092beb1abcb19f683f514f4b329380a2f402",
+      "excluded_legacy_symbols": [],
+      "library": "pdk",
+      "module": "Separate_pieces",
+      "source": "lib/pdk/mesh/separate_pieces.mli",
+      "source_bytes": 717,
+      "source_sha256": "7c8ae285eefc86b77b37c64533c29d3765bc526e0d2cd90dbf4c341a7c8b78b5"
     },
     {
       "api_sha256": "32c3c01f6a422108e560db6f453ed7c8bfdf677410df9d3edd250d940508fe14",

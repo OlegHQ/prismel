@@ -242,7 +242,9 @@ and Boolean paths while implementations live in one-way `pdk_core`, `pdk_exact`,
 Catmull–Rom samples, `Pdk.Iso_surface` extracts packed isosurfaces,
 `Pdk.Uv_sphere` generates packed latitude/longitude spheres, and
 `Pdk.Io` loads and saves STL, OFF, and OBJ through typed results.
-`Pdk.Group_ops`, `Pdk.Group_mesh`, `Pdk.Blend_shapes`, `Pdk.Attribute_composite`,
+`Pdk.Group_ops`, `Pdk.Group_mesh`, `Pdk.Graph_color`,
+`Pdk.Blast_by_attribute`, `Pdk.Separate_pieces`, `Pdk.Deletion`,
+`Pdk.Blend_shapes`, `Pdk.Attribute_composite`,
 `Pdk.Attribute_mirror`, `Pdk.Attribute_fade`, `Pdk.Fuse_reduce`, `Pdk.Fuse_grid`,
 `Pdk.Normal_ops`, `Pdk.Plane_generators`,
 `Pdk.Box_generator`, `Pdk.Parametric_generators`, `Pdk.Spiral`, `Pdk.Point_generate`,
