@@ -11,11 +11,11 @@ type match_size_fit =
   | Match_x | Match_y | Match_z
   | Match_perimeter | Match_area | Match_volume
 
-val match_axis_checked :
+val match_axis :
   ?grain:int -> from:Prismel_math.Vec3.t -> into:Prismel_math.Vec3.t ->
   Geometry.t -> (Geometry.t, Error.t) result
 
-val run_checked :
+val run :
   ?cancel:Cancel.t -> ?grain:int -> ?selection:deform_selection ->
   ?source_selection:deform_selection -> ?target_selection:deform_selection ->
   ?fit:match_size_fit -> ?translate_axes:(bool * bool * bool) ->

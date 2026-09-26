@@ -24,6 +24,7 @@ type match_size_fit =
   | Match_volume
 
 let match_axis ?grain ~from ~into geometry =
+  Error.guard ~operation:"match_axis" ~code:"invalid_axis" @@ fun () ->
   if not (finite_vec3 from && finite_vec3 into)
      || Vec3.length_sq from <= 1e-30 || Vec3.length_sq into <= 1e-30 then
     Error "Pdk.Match_size.match_axis: vectors must be finite and non-zero"
@@ -209,6 +210,7 @@ let match_size ?cancel ?(grain = 16_384) ?selection ?source_selection
     ?(scale_axes = true, true, true) ?(justify = Vec3.zero) ?target_justify
     ?(offset = Vec3.zero) ?(scale = 1.) ?target_center ?target_size ?target
     geometry =
+  Error.guard ~operation:"match_size" ~code:"invalid_geometry" @@ fun () ->
   let target_justify = Option.value ~default:justify target_justify in
   let tx_enabled, ty_enabled, tz_enabled = translate_axes
   and sx_enabled, sy_enabled, sz_enabled = scale_axes in
@@ -305,16 +307,4 @@ let match_size ?cancel ?(grain = 16_384) ?selection ?source_selection
       else match_size_transform ?cancel ~grain ?selection
           ~scale:computed_scale ~translation geometry)))
 
-let match_axis_checked ?grain ~from ~into geometry =
-  Error.guard ~operation:"match_axis" ~code:"invalid_axis" (fun () ->
-    match_axis ?grain ~from ~into geometry)
-
-let match_size_checked ?cancel ?grain ?selection ?source_selection
-    ?target_selection ?fit ?translate_axes ?scale_axes ?justify ?target_justify
-    ?offset ?scale ?target_center ?target_size ?target geometry =
-  Error.guard ~operation:"match_size" ~code:"invalid_geometry" (fun () ->
-    match_size ?cancel ?grain ?selection ?source_selection ?target_selection
-      ?fit ?translate_axes ?scale_axes ?justify ?target_justify ?offset ?scale
-      ?target_center ?target_size ?target geometry)
-
-let run_checked = match_size_checked
+let run = match_size

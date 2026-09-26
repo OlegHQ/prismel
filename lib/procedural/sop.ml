@@ -6228,7 +6228,7 @@ let match_axis ?label ~from ~into input =
     ~parameters:(Printf.sprintf "from=%s;into=%s" (vec3_key from) (vec3_key into))
     ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
     ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      match Pdk.Match_size.match_axis_checked ~grain:(Context.grain context) ~from ~into inputs.(0) with
+      match Pdk.Match_size.match_axis ~grain:(Context.grain context) ~from ~into inputs.(0) with
       | Ok geometry -> cooked geometry
       | Error error -> structured_pdk_error error)
 
@@ -6342,7 +6342,7 @@ let match_size ?label ?selection ?source_selection ?target_selection
                (match target_selection_result with
                 | Error error -> Error error
                 | Ok target_selection ->
-                    match Pdk.Match_size.run_checked
+                    match Pdk.Match_size.run
                         ~cancel:(Context.cancel_token context)
                         ~grain:(Context.grain context) ?selection
                         ?source_selection ?target_selection ~fit ~translate_axes

@@ -2333,10 +2333,10 @@ let run_match_size_benchmarks () =
   let target = Box_generator.box ~size:(Vec3.create 80. 45. 120.) () |> get_ok
       |> Transform_ops.transform (Mat4.translation (Vec3.create 12. 7. (-5.))) in
   measure ~input_points:point_count "match_size_contain" (fun () ->
-    Match_size.run_checked ~grain ~fit:Match_size.Contain ~target source |> get_ok)
+    Match_size.run ~grain ~fit:Match_size.Contain ~target source |> get_ok)
     geometry_output;
   measure ~input_points:point_count "match_size_stretch_half" (fun () ->
-    Match_size.run_checked ~grain ~selection:(Transform_ops.Selected_points half)
+    Match_size.run ~grain ~selection:(Transform_ops.Selected_points half)
       ~source_selection:(Transform_ops.Selected_points half) ~fit:Match_size.Stretch
       ~scale_axes:(true, false, true)
       ~justify:(Vec3.create (-1.) 0. 1.)
@@ -2344,7 +2344,7 @@ let run_match_size_benchmarks () =
       ~offset:(Vec3.create 0.25 0.5 (-0.75)) ~target source |> get_ok)
     geometry_output;
   measure ~input_points:point_count "match_size_area" (fun () ->
-    Match_size.run_checked ~grain ~fit:Match_size.Match_area ~target source |> get_ok)
+    Match_size.run ~grain ~fit:Match_size.Match_area ~target source |> get_ok)
     geometry_output
 
 let run_attribute_generate_benchmarks () =
@@ -5634,7 +5634,7 @@ let () =
     |> get_ok) geometry_output;
   let match_target = Box_generator.box ~size:(Vec3.create 8. 4. 12.) () |> get_ok in
   measure "match_size_contain" (fun () ->
-    Match_size.run_checked ~grain ~fit:Match_size.Contain ~target:match_target modeling_grid
+    Match_size.run ~grain ~fit:Match_size.Contain ~target:match_target modeling_grid
     |> get_ok) geometry_output;
   let clip_grid = source in
   let clip_input_points = Geometry.point_count clip_grid in

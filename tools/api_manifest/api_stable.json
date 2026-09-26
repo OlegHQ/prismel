@@ -373,13 +373,13 @@
       "source_sha256": "a77914216e179e24bcc206a8cfd832f4a73d68e77e354edcc760cbf2a16ddd0b"
     },
     {
-      "api_sha256": "caafe986565c099625c5ba5b5d78107e4a174079bd77a7def3eb94bd305bcc06",
+      "api_sha256": "0715e6f812a58c8525d9c619068d9844ab961a127a76adb53755c4acd7818fce",
       "excluded_legacy_symbols": [],
       "library": "pdk",
       "module": "Match_size",
       "source": "lib/pdk/mesh/match_size.mli",
-      "source_bytes": 1081,
-      "source_sha256": "f5f3b328927fce40bdb38b3edce6f6c3217caa41d252f3ffe897eb8e783b98bc"
+      "source_bytes": 1065,
+      "source_sha256": "aded40bd902519c4e92ffd53feb4211d8983c7edb8615e8b74f63caa8dc97e8b"
     },
     {
       "api_sha256": "371623e28abe15ffbd8c4609957604d08248a19362ddec9bda70d6ec4ad08080",
