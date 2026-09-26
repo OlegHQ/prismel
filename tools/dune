@@ -64,9 +64,6 @@
   (chdir %{workspace_root}
    (progn
     (run %{exe:../sketches/code_quadtree/main.exe} --index-only)
-    (setenv PRISMEL_SCENE2_DENSE_RUNS 0
-     (run /usr/bin/time -l %{exe:../sketches/code_quadtree/main.exe}
-      --smoke --bench --frames %{env:PRISMEL_BENCH_FRAMES=120}))
     (run /usr/bin/time -l %{exe:../sketches/code_quadtree/main.exe}
      --smoke --bench --frames %{env:PRISMEL_BENCH_FRAMES=120})))))
 

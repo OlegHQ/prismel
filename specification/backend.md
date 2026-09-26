@@ -418,17 +418,11 @@ into one native vertex/index mesh, including each primitive's RGBA values.
 This avoids preparing and caching thousands of temporary draws only to copy
 them into a batch afterward. Clip, transform, blend, image, and text commands
 end a run; painter order is preserved. Packing takes two passes with
-O(commands + vertices + indices) work and final-buffer storage. Ordinary small
-runs retain independent geometry caching, and immutable display-list/IR caches
-retain their existing bounds. The diagnostic environment variable
-`PRISMEL_SCENE2_DENSE_RUNS=0` measures the existing per-geometry preparation path.
-The small-run geometry cache indexes its 256-entry, 64-MiB bounded list by an
-integer content fingerprint; a bucket hit still compares vertices, indices,
-color, clip, and viewport exactly before reuse. Eviction removes the matching
-bucket entry.
-Retained batch matching includes pipeline family, blend mode, and sample count
-as well as mesh contents and render state; identical geometry must not reuse a
-batch from a different blend mode. Native regressions compare 63, 64, 65, and
+O(commands + vertices + indices) work and final-buffer storage. Shorter runs
+keep one draw per geometry. Scene2 lowering caches only by identity: retained
+display-list segments by (identity, version), plans by IR identity (or exact
+command content), and prepared submissions by (identity, version); per-geometry
+content is deduplicated once, by the executor's mesh cache. Native regressions compare 63, 64, 65, and
 1,024 primitives with identity-barrier reference preparation, alpha/additive
 overlap, fractional transforms, clipping, repeated frames, 1×/2× backing sizes,
 and zero handle deltas.

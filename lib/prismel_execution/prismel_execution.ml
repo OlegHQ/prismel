@@ -17,15 +17,6 @@ type family = Scene_execution.pipeline_family = Scene2 | Scene2_textured | Scene
 type blend = Ogpu.Pipeline.blend = Replace | Alpha | Add | Multiply | Screen | Subtract
 type draw = { family:family; blend:blend; texture:Scene_execution.sampled_texture option;
   auxiliary:Scene_execution.auxiliary_resource option;samples:int;value:Scene_execution.draw }
-type cached_scene2_geometry={vertices:float array;indices:int array;color:int32;
-  clip:int*int*int*int;mutable used_frame:int;draw:draw}
-(* Content-equal geometries drawn twice in one frame need two entries. *)
-type scene2_geometry_bucket={mutable entries:cached_scene2_geometry list;mutable bucket_bytes:int}
-type scene2_geometry_candidate={candidate_vertex_count:int;
-  candidate_index_count:int;candidate_color:int32;
-  candidate_clip:int*int*int*int}
-type cached_scene2_batch={batch_fingerprint:int;batch_draw_count:int;
-  batch_source_bytes:int;batch_draw:draw}
 module Int_table=Lru.Make(Int)
 module Structural_key(T:sig type t end)=struct type t=T.t let equal=(=) let hash=Hashtbl.hash end
 (* texture (physical), destination, transform, clip, uv, framebuffer *)
@@ -77,11 +68,9 @@ let identity_transform (transform:Command.transform)=
   transform.xx=1.&&transform.xy=0.&&transform.yx=0.&&transform.yy=1.&&
   transform.tx=0.&&transform.ty=0.
 let scene2_vertex_stride=24
-(* Diagnostic baseline for measuring the existing per-geometry preparation. *)
-let dense_scene2_runs = Sys.getenv_opt "PRISMEL_SCENE2_DENSE_RUNS" <> Some "0"
 let mesh_of_geometry number transform ~viewport clip (geometry:Command.geometry) =
   let count=Array.length geometry.vertices/2 in
-  let vertices=Bytes.create(count*scene2_vertex_stride) in
+  let vertices=Bytes.make(count*scene2_vertex_stride)'\000' in
   for index=0 to count-1 do
     let x=geometry.vertices.(index*2) and y=geometry.vertices.(index*2+1) in
     let offset=index*scene2_vertex_stride in
@@ -96,11 +85,9 @@ let mesh_of_geometry number transform ~viewport clip (geometry:Command.geometry)
       state={(default_state (vx,vy,vw,vh) (sx,sy,sw,sh))with
         transform_uniforms=(if identity_transform transform then None else Some(affine_uniforms transform))}} }
 
-(* Dense runs already share transform, clip, blend, and painter order. Pack
-   their per-vertex colors directly instead of constructing and caching one
-   temporary native draw per color, then copying all those draws into a batch.
-   Two passes, O(vertices + indices + commands) work and final-buffer storage.
-   Small runs retain the existing independently cached geometry path. *)
+(* Dense runs share transform, clip, blend, and painter order: pack their
+   per-vertex colors directly into one draw. Two passes, O(vertices + indices
+   + commands) work and final-buffer storage. *)
 let mesh_of_geometry_run number transform ~viewport clip commands first stop =
   let vertex_count=ref 0 and index_count=ref 0 in
   for i=first to stop-1 do match commands.(i) with
@@ -142,120 +129,6 @@ let compose_raster (a:Scene_command.Render_ir.transform) (b:Scene_command.Render
   xy=a.xy*.b.xx+.a.yy*.b.xy;yx=a.xx*.b.yx+.a.yx*.b.yy;
   yy=a.xy*.b.yx+.a.yy*.b.yy;tx=a.xx*.b.tx+.a.yx*.b.ty+.a.tx;
   ty=a.xy*.b.tx+.a.yy*.b.ty+.a.ty}
-let batch_fingerprint draws =
-  List.fold_left (fun fingerprint (draw:draw) ->
-    let mesh=draw.value.mesh in
-    Hashtbl.seeded_hash fingerprint
-      (mesh.key,mesh.vertex_count,mesh.index_count,mesh.vertices,mesh.indices,
-       draw.value.state)) 0 draws
-
-let bytes_segment_equal left left_offset right =
-  let length=Bytes.length right in
-  if left_offset<0 || left_offset+length>Bytes.length left then false
-  else
-    let equal=ref true and index=ref 0 in
-    while !equal && !index<length do
-      if Bytes.get left(left_offset+ !index)<>Bytes.get right !index then equal:=false;
-      incr index
-    done;
-    !equal
-
-let batch_matches sources (cached:cached_scene2_batch) =
-  if List.length sources<>cached.batch_draw_count ||
-     batch_fingerprint sources<>cached.batch_fingerprint ||
-     (match sources with []->true|first::_->
-       first.family<>cached.batch_draw.family || first.blend<>cached.batch_draw.blend ||
-       first.samples<>cached.batch_draw.samples ||
-       first.value.state<>cached.batch_draw.value.state) then false
-  else
-    let merged=cached.batch_draw.value.mesh in
-    let vertex_offset=ref 0 and index_offset=ref 0 and matches=ref true in
-    List.iter (fun (draw:draw) ->
-      if !matches then begin
-        let mesh=draw.value.mesh in
-        let vertex_bytes=mesh.vertex_count*scene2_vertex_stride in
-        if not(bytes_segment_equal merged.vertices !vertex_offset mesh.vertices)
-        then matches:=false
-        else begin
-          for index=0 to mesh.index_count-1 do
-            let actual=Int32.to_int(Bytes.get_int32_le merged.indices
-              (!index_offset+index*4))
-            and expected=Int32.to_int(Bytes.get_int32_le mesh.indices(index*4))+
-              (!vertex_offset/scene2_vertex_stride) in
-            if actual<>expected then matches:=false
-          done;
-          vertex_offset:=!vertex_offset+vertex_bytes;
-          index_offset:=!index_offset+mesh.index_count*4
-        end
-      end) sources;
-    !matches && !vertex_offset=Bytes.length merged.vertices &&
-    !index_offset=Bytes.length merged.indices
-
-let scene2_geometry_byte_capacity=64*1024*1024
-
-let batch_scene2_draws ~cache draws =
-  let preserve_independent = List.length draws <= 64 in
-  let compatible (left : draw) (right : draw) =
-    left.family = Scene2 && right.family = Scene2
-    && left.blend = right.blend && left.texture = None && right.texture = None
-    && left.auxiliary = None && right.auxiliary = None
-    && left.samples = right.samples && left.value.state = right.value.state
-  in
-  let merge reversed =
-    match List.rev reversed with
-    | [] -> assert false
-    | [draw] -> [draw]
-    (* Preserve independent stable identities for ordinary scene-sized runs.
-       If one member moves, eagerly combining a small run re-uploads every
-       unchanged neighbour.  Large UI runs still batch to keep draw and cache
-       cardinality bounded. *)
-    | group when preserve_independent -> group
-    | first :: _ as group ->
-        let fingerprint=batch_fingerprint group in
-        (match Int_table.find cache fingerprint with
-         |cached when batch_matches group cached-> [cached.batch_draw]
-         |_|exception Not_found->
-        let vertex_count = List.fold_left
-            (fun count draw -> count + draw.value.mesh.vertex_count) 0 group
-        and index_count = List.fold_left
-            (fun count draw -> count + draw.value.mesh.index_count) 0 group in
-        let vertices = Bytes.create (vertex_count * scene2_vertex_stride)
-        and indices = Bytes.create (index_count * 4) in
-        let vertex_offset = ref 0 and index_offset = ref 0 in
-        List.iter (fun draw ->
-          let mesh = draw.value.mesh in
-          Bytes.blit mesh.vertices 0 vertices (!vertex_offset * scene2_vertex_stride)
-            (mesh.vertex_count * scene2_vertex_stride);
-          for index = 0 to mesh.index_count - 1 do
-            let source = Int32.to_int (Bytes.get_int32_le mesh.indices (index * 4)) in
-            Bytes.set_int32_le indices ((!index_offset + index) * 4)
-              (Int32.of_int (source + !vertex_offset))
-          done;
-          vertex_offset := !vertex_offset + mesh.vertex_count;
-          index_offset := !index_offset + mesh.index_count) group;
-        let mesh : Scene_execution.mesh = {
-          key=Printf.sprintf "%s+%d" first.value.mesh.key (List.length group);
-          vertices; vertex_count; indices; index_count;
-          primitive=first.value.mesh.primitive } in
-        let draw={ first with value={first.value with mesh} } in
-        let cached={batch_fingerprint=fingerprint;
-          batch_draw_count=List.length group;
-          batch_source_bytes=Bytes.length vertices+Bytes.length indices;
-          batch_draw=draw} in
-        Int_table.add cache~bytes:cached.batch_source_bytes fingerprint cached;
-        [draw])
-  in
-  let flush output current = List.rev_append (merge current) output in
-  let rec loop output current = function
-    | [] -> List.rev (match current with [] -> output | _ -> flush output current)
-    | draw :: rest ->
-        (match current with
-         | previous :: _ when compatible previous draw ->
-             loop output (draw :: current) rest
-         | [] -> loop output [draw] rest
-         | _ -> loop (flush output current) [draw] rest)
-  in
-  loop [] [] draws
 
 type presentation_facts={title:string;logical_width:int;logical_height:int;
   drawable_width:int;drawable_height:int;position:(int*int)option;
@@ -274,6 +147,7 @@ module Segment_table=Lru.Make(struct type t=int64 let equal=Int64.equal let hash
 type retained_scene2_segment={segment_version:int64;
   segment_density:int;segment_width:int;segment_height:int;
   segment_draws:draw list}
+let scene2_plan_byte_capacity=64*1024*1024
 let retained_scene2_segment_capacity=256
 let retained_scene2_segment_byte_capacity=64*1024*1024
 let snapshot_cache_capacity=256
@@ -290,10 +164,6 @@ let sampled_texture_bytes (texture:Scene_execution.sampled_texture)=
 type t = { runtime:runtime;
   assets:Runtime_resources.Assets.t; mutable dead:bool;
   snapshots:snapshot_cache_entry Snapshot_table.t;
-  scene2_geometry_cache:scene2_geometry_bucket Int_table.t;
-  mutable lowering_frame:int;
-  scene2_geometry_candidates:scene2_geometry_candidate Int_table.t;
-  scene2_batch_cache:cached_scene2_batch Int_table.t;
   scene2_quad_cache:draw Quad_table.t;
   scene2_quad_payload_cache:cached_scene2_quad_payload Quad_payload_table.t;
   scene2_plan_cache:cached_scene2_plan Int_table.t;
@@ -352,13 +222,9 @@ let finish_create runtime=
       dead=false;
       snapshots=Snapshot_table.create snapshot_cache_capacity
         ~byte_capacity:snapshot_cache_byte_capacity;
-      scene2_geometry_cache=Int_table.create 256~byte_capacity:scene2_geometry_byte_capacity;
-      lowering_frame=0;
-      scene2_geometry_candidates=Int_table.create 64~byte_capacity:scene2_geometry_byte_capacity;
-      scene2_batch_cache=Int_table.create 256~byte_capacity:scene2_geometry_byte_capacity;
       scene2_quad_cache=Quad_table.create 1024;
       scene2_quad_payload_cache=Quad_payload_table.create 256;
-      scene2_plan_cache=Int_table.create 16~byte_capacity:scene2_geometry_byte_capacity
+      scene2_plan_cache=Int_table.create 16~byte_capacity:scene2_plan_byte_capacity
         ~release:(fun _ plan->match Hashtbl.find_opt scene2_plan_by_ir plan.plan_ir_id with
           |Some current when current==plan->Hashtbl.remove scene2_plan_by_ir plan.plan_ir_id
           |_->());
@@ -604,8 +470,6 @@ let lower_scene2_uncached value ~lease_policy ~density ~resource:resolve ir =
   let framebuffer=(0,0,facts.logical_width,facts.logical_height) in
   let transforms=ref[identity]and clips=ref[framebuffer]
   and blend=ref Alpha and number=ref 0 and failure=ref None in
-  value.lowering_frame<-value.lowering_frame+1;
-  let frame=value.lowering_frame in
   let emit draw=
     let draw=if draw.blend= !blend then draw else {draw with blend= !blend} in
     let i= !number in
@@ -617,75 +481,6 @@ let lower_scene2_uncached value ~lease_policy ~density ~resource:resolve ir =
   let point transform x y=transform.Scene_command.Render_ir.xx*.x+.transform.yx*.y+.transform.tx,
     transform.xy*.x+.transform.yy*.y+.transform.ty in
   let clip_live()=let _,_,width,height=List.hd!clips in width>0&&height>0 in
-  let geometry_draw number (transform:Scene_command.Render_ir.transform) clip
-      (geometry:Scene_command.Render_ir.geometry)=
-    (* [Render_ir] owns these arrays and exposes them read-only.  Public Scene
-       lowering nevertheless constructs fresh, content-identical arrays every
-       frame.  A physical-identity cache consequently re-uploaded every static
-       primitive.  Hash first, then compare exactly so collisions cannot reuse
-       the wrong geometry.  Retaining at most 256 immutable inputs makes the
-       content cache bounded and lets the prepared byte buffers survive those
-       fresh IR allocations. *)
-    let fingerprint=Hashtbl.hash(geometry.vertices,geometry.indices)in
-    let source_bytes=Array.length geometry.vertices*(Sys.word_size/8)+
-      Array.length geometry.indices*(Sys.word_size/8)in
-    let same vertices indices color cached_clip viewport=
-      vertices=geometry.vertices&&indices=geometry.indices&&
-      color=geometry.color&&cached_clip=clip&&viewport=framebuffer in
-    let bucket=match Int_table.find value.scene2_geometry_cache fingerprint with
-      |bucket->Some bucket|exception Not_found->None in
-    let hit=match bucket with None->None|Some bucket->
-      List.find_opt(fun cached->cached.used_frame<>frame&&same cached.vertices cached.indices cached.color cached.clip cached.draw.value.state.viewport)bucket.entries in
-    match hit with
-    |Some cached->
-        (* Earlier lowerings, cached plans, and retained segments may still
-           reference [cached.draw]; give each hit its own transform bytes. *)
-        let uniform=Bytes.make 24 '\000'in
-        write_affine uniform transform;
-        cached.used_frame<-frame;
-        {cached.draw with value={cached.draw.value with state={cached.draw.value.state with
-          transform_uniforms=Some uniform}}}
-    |None->
-        let draw=mesh_of_geometry number transform
-          ~viewport:framebuffer clip
-          geometry in
-        (* Admission candidates deliberately retain metadata, not the source
-           arrays.  Scene construction commonly creates fresh arrays and an
-           animated transform can make every prepared mesh unique.  Retaining
-           copies for all of those one-hit values promoted a bounded but large
-           stream of dead geometry into the major heap.  A matching token only
-           authorizes admission; the cache entry below still owns fresh copies
-           and every later hit performs an exact array comparison, so a hash
-           collision cannot reuse incorrect prepared bytes. *)
-        let candidate=match Int_table.find value.scene2_geometry_candidates fingerprint with
-          |candidate when candidate.candidate_vertex_count=Array.length geometry.vertices&&
-              candidate.candidate_index_count=Array.length geometry.indices&&
-              candidate.candidate_color=geometry.color&&candidate.candidate_clip=clip->true
-          |_->false|exception Not_found->false in
-        if not candidate then begin
-            Int_table.add value.scene2_geometry_candidates~bytes:source_bytes fingerprint{
-              candidate_vertex_count=Array.length geometry.vertices;
-              candidate_index_count=Array.length geometry.indices;
-              candidate_color=geometry.color;candidate_clip=clip};draw
-        end else begin
-            Int_table.remove value.scene2_geometry_candidates fingerprint;
-            let uniform=match draw.value.state.transform_uniforms with
-              |Some bytes when Bytes.length bytes=24->bytes
-              |_->Bytes.make 24 '\000'in
-            write_affine uniform transform;
-            let draw={draw with value={draw.value with state={draw.value.state with
-              transform_uniforms=Some uniform}}}in
-            let cached={vertices=Array.copy geometry.vertices;indices=Array.copy geometry.indices;
-              color=geometry.color;clip;
-              used_frame=frame;draw}in
-            let bucket=match bucket with Some bucket->bucket
-              |None->{entries=[];bucket_bytes=0}in
-            bucket.entries<-cached::bucket.entries;
-            bucket.bucket_bytes<-bucket.bucket_bytes+source_bytes;
-            Int_table.add value.scene2_geometry_cache~bytes:bucket.bucket_bytes fingerprint bucket;
-            draw
-        end
-    in
   let quad (texture:Scene_execution.sampled_texture)
       (destination:Scene_command.Render_ir.rect) (u0,v0,u1,v1 as uv) =
     let transform=render_transform(List.hd!transforms)in
@@ -748,19 +543,20 @@ let lower_scene2_uncached value ~lease_policy ~density ~resource:resolve ir =
       clips:=(x,y,max 0(right-x),max 0(bottom-y))::!clips
     |Pop_clip->(match!clips with _::(_::_ as rest)->clips:=rest|_->())
     |Geometry geometry->
+        (* A run of more than 64 geometries shares transform, clip, and blend:
+           pack it into one draw. Shorter runs keep one draw per geometry so a
+           moving member does not re-upload its unchanged neighbours. *)
         let stop=ref !cursor in
-        if dense_scene2_runs then begin
-          while !stop<Array.length commands &&
-            (match commands.(!stop) with Geometry _->true|_->false) do incr stop done
-        end;
-        if dense_scene2_runs && !stop-first>64 then begin
+        while !stop<Array.length commands &&
+          (match commands.(!stop) with Geometry _->true|_->false) do incr stop done;
+        if !stop-first>64 then begin
           cursor:= !stop;
           if clip_live() then emit (mesh_of_geometry_run !number
             (render_transform (List.hd !transforms))
             ~viewport:framebuffer (List.hd !clips) commands first !stop)
         end else if clip_live() then
-          emit (geometry_draw !number (render_transform (List.hd !transforms))
-            (List.hd !clips) geometry)
+          emit (mesh_of_geometry !number (render_transform (List.hd !transforms))
+            ~viewport:framebuffer (List.hd !clips) geometry)
     |Image command->if clip_live()then image command
     |Glyphs glyphs->if clip_live()&&Array.length glyphs.glyphs>0 then match resolve glyphs.resource_id with None->failure:=Some"glyph resource id is unbound"|Some source->
         match snapshot value~lease_policy~density source with Error e->failure:=Some(Format.asprintf"%a"pp_error e)|Ok(width,height,texture)->
@@ -780,8 +576,7 @@ let lower_scene2_uncached value ~lease_policy ~density ~resource:resolve ir =
         let rec loop i acc=if i<0 then acc else loop(i-1)(value.scene2_out_slots.(i)::acc)in
         let list=loop(n-1)[]in
         value.scene2_out_list<-list;
-        if n<=64 then Ok list
-        else Ok(batch_scene2_draws ~cache:value.scene2_batch_cache list)
+        Ok list
 let scene2_plan_source_bytes commands=
   Array.fold_left(fun total->function
     |Scene_command.Render_ir.Geometry g->total+Array.length g.vertices*(Sys.word_size/8)+
@@ -1154,13 +949,12 @@ let destroy value=if value.dead then Ok()else
   |Window _|Offscreen _->(
   List.iter close_submission value.submissions;
   match Runtime_resources.Assets.destroy value.assets with Error e->resource"Prismel_execution.destroy"e|Ok()->
-    Snapshot_table.clear value.snapshots;Int_table.clear value.scene2_geometry_cache;
-    Int_table.clear value.scene2_batch_cache;
+    Snapshot_table.clear value.snapshots;
     Quad_table.clear value.scene2_quad_cache;
     Quad_payload_table.clear value.scene2_quad_payload_cache;
     Int_table.clear value.scene2_plan_cache;Hashtbl.reset value.scene2_plan_by_ir;
     Segment_table.clear value.retained_scene2_segments;
-    Int_table.clear value.scene2_geometry_candidates;value.last_step_draws<-[];
+    value.last_step_draws<-[];
     value.last_step_prepared<-[];value.scene2_out_slots<-[||];
     value.scene2_out_list<-[];value.last_presentation<-None;value.dead<-true;
     (match !active_window with Some current when current==value->active_window:=None|_->());
