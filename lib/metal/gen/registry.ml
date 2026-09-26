@@ -229,6 +229,20 @@ let entries : entry list =
       ; fields = [ "width", Nsuint; "height", Nsuint; "depth", Nsuint ]
       ; feature = Ogpu_core.Caps.Compute_pipeline
       }
+  ; Record
+      { sdk = "MTLViewport"
+      ; ocaml = "Mtl_viewport"
+      ; fields =
+          [ "originX", Double; "originY", Double; "width", Double; "height", Double
+          ; "znear", Double; "zfar", Double ]
+      ; feature = Ogpu_core.Caps.Render_pipeline
+      }
+  ; Record
+      { sdk = "MTLScissorRect"
+      ; ocaml = "Mtl_scissor_rect"
+      ; fields = [ "x", Nsuint; "y", Nsuint; "width", Nsuint; "height", Nsuint ]
+      ; feature = Ogpu_core.Caps.Render_pipeline
+      }
   ; Method
       { recv = "Device"
       ; objc = "id<MTLDevice>"
@@ -365,6 +379,89 @@ let entries : entry list =
   ; Method { recv = "Acceleration_encoder"; objc = "id<MTLAccelerationStructureCommandEncoder>"; sel = "endEncoding"
            ; args = []; ret = None; error = false; ocaml = "acceleration_encoder_end"; since = None
            ; feature = C.Ray_tracing }
+  (* MTLRenderCommandEncoder state and draws *)
+  ; Method { recv = "Render_encoder"; objc = "id<MTLRenderCommandEncoder>"; sel = "setRenderPipelineState:"
+           ; args = [ Obj "Render_pipeline" ]; ret = None; error = false; ocaml = "render_encoder_set_pipeline"
+           ; since = None; feature = C.Render_pipeline }
+  ; Method { recv = "Render_encoder"; objc = "id<MTLRenderCommandEncoder>"; sel = "setVertexBuffer:offset:atIndex:"
+           ; args = [ Obj "Buffer"; Scalar Nsuint; Scalar Nsuint ]; ret = None; error = false
+           ; ocaml = "render_encoder_set_vertex_buffer"; since = None; feature = C.Render_pipeline }
+  ; Method { recv = "Render_encoder"; objc = "id<MTLRenderCommandEncoder>"; sel = "setFragmentBuffer:offset:atIndex:"
+           ; args = [ Obj "Buffer"; Scalar Nsuint; Scalar Nsuint ]; ret = None; error = false
+           ; ocaml = "render_encoder_set_fragment_buffer"; since = None; feature = C.Render_pipeline }
+  ; Method { recv = "Render_encoder"; objc = "id<MTLRenderCommandEncoder>"; sel = "setVertexTexture:atIndex:"
+           ; args = [ Obj "Texture"; Scalar Nsuint ]; ret = None; error = false
+           ; ocaml = "render_encoder_set_vertex_texture"; since = None; feature = C.Render_pipeline }
+  ; Method { recv = "Render_encoder"; objc = "id<MTLRenderCommandEncoder>"; sel = "setFragmentTexture:atIndex:"
+           ; args = [ Obj "Texture"; Scalar Nsuint ]; ret = None; error = false
+           ; ocaml = "render_encoder_set_fragment_texture"; since = None; feature = C.Render_pipeline }
+  ; Method { recv = "Render_encoder"; objc = "id<MTLRenderCommandEncoder>"; sel = "setVertexSamplerState:atIndex:"
+           ; args = [ Obj "Sampler"; Scalar Nsuint ]; ret = None; error = false
+           ; ocaml = "render_encoder_set_vertex_sampler"; since = None; feature = C.Sampler }
+  ; Method { recv = "Render_encoder"; objc = "id<MTLRenderCommandEncoder>"; sel = "setFragmentSamplerState:atIndex:"
+           ; args = [ Obj "Sampler"; Scalar Nsuint ]; ret = None; error = false
+           ; ocaml = "render_encoder_set_fragment_sampler"; since = None; feature = C.Sampler }
+  ; Method { recv = "Render_encoder"; objc = "id<MTLRenderCommandEncoder>"
+           ; sel = "setVertexSamplerState:lodMinClamp:lodMaxClamp:atIndex:"
+           ; args = [ Obj "Sampler"; Scalar Float; Scalar Float; Scalar Nsuint ]; ret = None; error = false
+           ; ocaml = "render_encoder_set_vertex_sampler_lod"; since = None; feature = C.Sampler }
+  ; Method { recv = "Render_encoder"; objc = "id<MTLRenderCommandEncoder>"
+           ; sel = "setFragmentSamplerState:lodMinClamp:lodMaxClamp:atIndex:"
+           ; args = [ Obj "Sampler"; Scalar Float; Scalar Float; Scalar Nsuint ]; ret = None; error = false
+           ; ocaml = "render_encoder_set_fragment_sampler_lod"; since = None; feature = C.Sampler }
+  ; Method { recv = "Render_encoder"; objc = "id<MTLRenderCommandEncoder>"; sel = "setDepthStencilState:"
+           ; args = [ Opt_obj "Depth_stencil" ]; ret = None; error = false; ocaml = "render_depth_stencil"
+           ; since = None; feature = C.Render_pipeline }
+  ; Method { recv = "Render_encoder"; objc = "id<MTLRenderCommandEncoder>"; sel = "setViewport:"
+           ; args = [ Rec "Mtl_viewport" ]; ret = None; error = false; ocaml = "render_encoder_set_viewport"
+           ; since = None; feature = C.Render_pipeline }
+  ; Method { recv = "Render_encoder"; objc = "id<MTLRenderCommandEncoder>"; sel = "setScissorRect:"
+           ; args = [ Rec "Mtl_scissor_rect" ]; ret = None; error = false; ocaml = "render_encoder_set_scissor"
+           ; since = None; feature = C.Render_pipeline }
+  ; Method { recv = "Render_encoder"; objc = "id<MTLRenderCommandEncoder>"; sel = "setCullMode:"
+           ; args = [ Enum_of "MTLCullMode" ]; ret = None; error = false; ocaml = "render_encoder_set_cull_mode"
+           ; since = None; feature = C.Render_pipeline }
+  ; Method { recv = "Render_encoder"; objc = "id<MTLRenderCommandEncoder>"; sel = "setFrontFacingWinding:"
+           ; args = [ Enum_of "MTLWinding" ]; ret = None; error = false; ocaml = "render_encoder_set_winding"
+           ; since = None; feature = C.Render_pipeline }
+  ; Method { recv = "Render_encoder"; objc = "id<MTLRenderCommandEncoder>"
+           ; sel = "setStencilFrontReferenceValue:backReferenceValue:"; args = [ Scalar Nsuint; Scalar Nsuint ]
+           ; ret = None; error = false; ocaml = "render_encoder_set_stencil_reference"; since = None
+           ; feature = C.Render_pipeline }
+  ; Property { recv = "Render_encoder"; objc = "id<MTLRenderCommandEncoder>"; name = "tileWidth"
+             ; ty = Scalar Nsuint; access = Get; ocaml = "render_encoder_tile_width"; since = None
+             ; feature = C.Tile_shaders }
+  ; Property { recv = "Render_encoder"; objc = "id<MTLRenderCommandEncoder>"; name = "tileHeight"
+             ; ty = Scalar Nsuint; access = Get; ocaml = "render_encoder_tile_height"; since = None
+             ; feature = C.Tile_shaders }
+  ; Method { recv = "Render_encoder"; objc = "id<MTLRenderCommandEncoder>"; sel = "updateFence:afterStages:"
+           ; args = [ Obj "Fence"; Enum_of "MTLRenderStages" ]; ret = None; error = false
+           ; ocaml = "render_encoder_update_fence"; since = None; feature = C.Fences }
+  ; Method { recv = "Render_encoder"; objc = "id<MTLRenderCommandEncoder>"; sel = "waitForFence:beforeStages:"
+           ; args = [ Obj "Fence"; Enum_of "MTLRenderStages" ]; ret = None; error = false
+           ; ocaml = "render_encoder_wait_fence"; since = None; feature = C.Fences }
+  ; Method { recv = "Render_encoder"; objc = "id<MTLRenderCommandEncoder>"
+           ; sel = "drawPrimitives:vertexStart:vertexCount:instanceCount:"
+           ; args = [ Enum_of "MTLPrimitiveType"; Scalar Nsuint; Scalar Nsuint; Scalar Nsuint ]; ret = None
+           ; error = false; ocaml = "render_encoder_draw_primitives"; since = None; feature = C.Render_pipeline }
+  ; Method { recv = "Render_encoder"; objc = "id<MTLRenderCommandEncoder>"
+           ; sel = "drawIndexedPrimitives:indexCount:indexType:indexBuffer:indexBufferOffset:"
+           ; args = [ Enum_of "MTLPrimitiveType"; Scalar Nsuint; Enum_of "MTLIndexType"; Obj "Buffer"; Scalar Nsuint ]
+           ; ret = None; error = false; ocaml = "render_draw_indexed_basic"; since = None
+           ; feature = C.Render_pipeline }
+  ; Method { recv = "Render_encoder"; objc = "id<MTLRenderCommandEncoder>"
+           ; sel = "drawIndexedPrimitives:indexCount:indexType:indexBuffer:indexBufferOffset:instanceCount:"
+           ; args = [ Enum_of "MTLPrimitiveType"; Scalar Nsuint; Enum_of "MTLIndexType"; Obj "Buffer"; Scalar Nsuint
+                    ; Scalar Nsuint ]
+           ; ret = None; error = false; ocaml = "render_draw_indexed_instances"; since = None
+           ; feature = C.Render_pipeline }
+  ; Method { recv = "Render_encoder"; objc = "id<MTLRenderCommandEncoder>"
+           ; sel = "drawMeshThreadgroups:threadsPerObjectThreadgroup:threadsPerMeshThreadgroup:"
+           ; args = [ Rec "Mtl_size"; Rec "Mtl_size"; Rec "Mtl_size" ]; ret = None; error = false
+           ; ocaml = "render_encoder_draw_mesh_threadgroups"; since = None; feature = C.Mesh_shaders }
+  ; Method { recv = "Render_encoder"; objc = "id<MTLRenderCommandEncoder>"; sel = "dispatchThreadsPerTile:"
+           ; args = [ Rec "Mtl_size" ]; ret = None; error = false
+           ; ocaml = "render_encoder_dispatch_threads_per_tile"; since = None; feature = C.Tile_shaders }
   (* MTLResidencySet *)
   ; Property { recv = "Residency_set"; objc = "id<MTLResidencySet>"; name = "allocatedSize"; ty = Scalar Nsuint
              ; access = Get; ocaml = "residency_set_allocated_size"; since = Some (15, 0); feature = C.Residency_sets }

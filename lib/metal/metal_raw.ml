@@ -777,19 +777,9 @@ external render_pass_descriptor_set_attachments :
   float * float * float * float -> (unit,string) result =
   "caml_prismel_metal_render_pass_descriptor_set_attachments_bytecode"
   "caml_prismel_metal_render_pass_descriptor_set_attachments"
-external render_encoder_update_fence : handle -> handle -> int -> (unit,string) result = "caml_prismel_metal_render_encoder_update_fence"
-external render_encoder_wait_fence : handle -> handle -> int -> (unit,string) result = "caml_prismel_metal_render_encoder_wait_fence"
 external render_encoder_use_heaps : handle -> handle array -> int -> (unit,string) result = "caml_prismel_metal_render_encoder_use_heaps"
 external render_encoder_use_resources : handle -> handle array -> int -> int -> (unit,string) result = "caml_prismel_metal_render_encoder_use_resources"
 external render_encoder_execute_icb_range : handle -> handle -> int -> int -> (unit,string) result = "caml_prismel_metal_render_encoder_execute_icb_range"
-external render_encoder_set_pipeline : handle -> handle -> (unit, string) result =
-  "caml_prismel_metal_render_encoder_set_pipeline"
-external render_encoder_set_vertex_buffer :
-  handle -> handle -> int64 -> int -> (unit, string) result =
-  "caml_prismel_metal_render_encoder_set_vertex_buffer"
-external render_encoder_set_fragment_buffer :
-  handle -> handle -> int64 -> int -> (unit, string) result =
-  "caml_prismel_metal_render_encoder_set_fragment_buffer"
 external render_encoder_execute_indexed_draws :
   handle -> handle array -> handle array array -> int array array ->
   int64 array array -> int array array -> int array -> int64 array ->
@@ -800,30 +790,12 @@ type prepared_render_pass_state =
   int * handle option * (int32 * int32) option *
   (float * float * float * float * float * float) *
   (int * int * int * int)
-external render_encoder_set_vertex_texture :
-  handle -> handle -> int -> (unit, string) result =
-  "caml_prismel_metal_render_encoder_set_vertex_texture"
-external render_encoder_set_fragment_texture :
-  handle -> handle -> int -> (unit, string) result =
-  "caml_prismel_metal_render_encoder_set_fragment_texture"
 external render_encoder_set_vertex_bytes :
   handle -> bytes -> int -> (unit, string) result =
   "caml_prismel_metal_render_encoder_set_vertex_bytes"
 external render_encoder_set_fragment_bytes :
   handle -> bytes -> int -> (unit, string) result =
   "caml_prismel_metal_render_encoder_set_fragment_bytes"
-external render_encoder_set_vertex_sampler :
-  handle -> handle -> int -> (unit, string) result =
-  "caml_prismel_metal_render_encoder_set_vertex_sampler"
-external render_encoder_set_fragment_sampler :
-  handle -> handle -> int -> (unit, string) result =
-  "caml_prismel_metal_render_encoder_set_fragment_sampler"
-external render_encoder_set_vertex_sampler_lod :
-  handle -> handle -> float * float -> int -> (unit, string) result =
-  "caml_prismel_metal_render_encoder_set_vertex_sampler_lod"
-external render_encoder_set_fragment_sampler_lod :
-  handle -> handle -> float * float -> int -> (unit, string) result =
-  "caml_prismel_metal_render_encoder_set_fragment_sampler_lod"
 
 (* Render-command102 raw ABI. High-arity calls name bytecode and native
    companions explicitly; keep these declarations synchronized with the four
@@ -839,37 +811,11 @@ type render_command_scissor = int64 * int64 * int64 * int64
 type render_command_viewport = float * float * float * float * float * float
 type render_command_view_mapping = int64 * int64
 
-external render_draw_indexed_instances : handle -> int -> int64 -> int -> handle -> int64 -> int64 -> (unit,string) result = "caml_prismel_metal_render_draw_indexed_instances_bytecode" "caml_prismel_metal_render_draw_indexed_instances"
-external render_draw_indexed_basic : handle -> int -> int64 -> int -> handle -> int64 -> (unit,string) result = "caml_prismel_metal_render_draw_indexed_basic_bytecode" "caml_prismel_metal_render_draw_indexed_basic"
 
-external render_depth_stencil : handle -> handle option -> (unit,string) result = "caml_prismel_metal_render_depth_stencil"
-external render_encoder_draw :
-  handle -> int -> int -> int -> (unit, string) result =
-  "caml_prismel_metal_render_encoder_draw"
-external render_encoder_draw_primitives :
-  handle -> int -> int -> int -> int -> (unit, string) result =
-  "caml_prismel_metal_render_encoder_draw_primitives"
 external render_pass_depth_stencil_actions :
   handle -> int -> int -> float -> int -> int -> int -> (unit, string) result =
   "caml_prismel_metal_render_pass_depth_stencil_actions_bytecode"
   "caml_prismel_metal_render_pass_depth_stencil_actions"
-external render_encoder_set_viewport :
-  handle -> float * float * float * float * float * float -> (unit, string) result =
-  "caml_prismel_metal_render_encoder_set_viewport"
-external render_encoder_set_scissor :
-  handle -> int * int * int * int -> (unit, string) result =
-  "caml_prismel_metal_render_encoder_set_scissor"
-external render_encoder_set_cull_mode : handle -> int -> (unit, string) result =
-  "caml_prismel_metal_render_encoder_set_cull_mode"
-external render_encoder_set_winding : handle -> int -> (unit, string) result =
-  "caml_prismel_metal_render_encoder_set_winding"
-external render_encoder_set_stencil_reference :
-  handle -> int32 -> int32 -> (unit, string) result =
-  "caml_prismel_metal_render_encoder_set_stencil_reference"
-external render_encoder_tile_width : handle -> int =
-  "caml_prismel_metal_render_encoder_tile_width"
-external render_encoder_tile_height : handle -> int =
-  "caml_prismel_metal_render_encoder_tile_height"
 
 
 
@@ -1140,8 +1086,6 @@ external binary_archive5_add :
 external device_sample_timestamps : handle -> ((int64*int64),string) result = "caml_prismel_metal_device_sample_timestamps"
 external device_timestamp_frequency : handle -> (int64,string) result = "caml_prismel_metal_device_timestamp_frequency"
 external shared_event_wait : handle -> int64 -> int64 -> (bool,string) result = "caml_prismel_metal_shared_event_wait"
-external render_encoder_draw_mesh_threadgroups : handle -> (int*int*int*int*int*int*int*int*int) -> (unit,string) result = "caml_prismel_metal_render_encoder_draw_mesh_threadgroups"
-external render_encoder_dispatch_threads_per_tile : handle -> int -> int -> int -> (unit,string) result = "caml_prismel_metal_render_encoder_dispatch_threads_per_tile"
 external mesh_tile_descriptor_set_color_format : handle -> bool -> int -> int -> (unit,string) result = "caml_prismel_metal_mesh_tile_descriptor_set_color_format"
 external fx_spatial_supported : handle -> (bool,string) result = "caml_prismel_metal_fx_spatial_supported"
 external fx_spatial_create : handle -> (int*int*int*int*int*int) -> (handle,string) result = "caml_prismel_metal_fx_spatial_create"

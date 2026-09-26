@@ -7264,11 +7264,6 @@ extern "C" CAMLprim value caml_prismel_metal_command_buffer_render_encoder_attac
 }
 extern "C" CAMLprim value caml_prismel_metal_command_buffer_render_encoder_attachments_bytecode(value *argv,int argc){(void)argc;return caml_prismel_metal_command_buffer_render_encoder_attachments(argv[0],argv[1],argv[2],argv[3],argv[4]);}
 
-extern "C" CAMLprim value caml_prismel_metal_render_encoder_update_fence(value re,value rf,value rs){
-  CAMLparam3(re,rf,rs); @try { [object_of_handle(re,Handle_kind::Render_encoder) updateFence:object_of_handle(rf,Handle_kind::Fence) afterStages:(MTLRenderStages)Long_val(rs)]; CAMLreturn(result_unit()); } @catch(NSException*x){CAMLreturn(result_error(x.reason));}}
-extern "C" CAMLprim value caml_prismel_metal_render_encoder_wait_fence(value re,value rf,value rs){
-  CAMLparam3(re,rf,rs); @try { [object_of_handle(re,Handle_kind::Render_encoder) waitForFence:object_of_handle(rf,Handle_kind::Fence) beforeStages:(MTLRenderStages)Long_val(rs)]; CAMLreturn(result_unit()); } @catch(NSException*x){CAMLreturn(result_error(x.reason));}}
-
 extern "C" CAMLprim value caml_prismel_metal_render_encoder_use_heaps(value re,value rh,value rs){CAMLparam3(re,rh,rs);@try{id<MTLRenderCommandEncoder>e=object_of_handle(re,Handle_kind::Render_encoder);mlsize_t n=Wosize_val(rh);std::vector<id<MTLHeap>>v;v.reserve(n);for(mlsize_t i=0;i<n;i++)v.push_back(object_of_handle(Field(rh,i),Handle_kind::Heap));[e useHeaps:v.data() count:n stages:(MTLRenderStages)Long_val(rs)];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
 static std::atomic<int> test_render_encoder_resource_failure_countdown{-1};
 
@@ -7302,49 +7297,6 @@ caml_prismel_metal_render_encoder_use_resources(value re, value rr, value ru,
   }
 }
 extern "C" CAMLprim value caml_prismel_metal_render_encoder_execute_icb_range(value re,value ri,value rl,value rn){CAMLparam4(re,ri,rl,rn);@try{[object_of_handle(re,Handle_kind::Render_encoder) executeCommandsInBuffer:object_of_handle(ri,Handle_kind::Indirect_command_buffer) withRange:NSMakeRange(Long_val(rl),Long_val(rn))];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
-
-extern "C" CAMLprim value caml_prismel_metal_render_encoder_set_pipeline(
-    value raw_encoder, value raw_pipeline) {
-  CAMLparam2(raw_encoder, raw_pipeline);
-  id<MTLRenderCommandEncoder> encoder =
-      object_of_handle(raw_encoder, Handle_kind::Render_encoder);
-  id<MTLRenderPipelineState> pipeline =
-      object_of_handle(raw_pipeline, Handle_kind::Render_pipeline);
-  [encoder setRenderPipelineState:pipeline];
-  CAMLreturn(result_unit());
-}
-
-extern "C" CAMLprim value caml_prismel_metal_render_encoder_set_vertex_buffer(
-    value raw_encoder, value raw_buffer, value raw_offset, value raw_index) {
-  CAMLparam4(raw_encoder, raw_buffer, raw_offset, raw_index);
-  id<MTLRenderCommandEncoder> encoder =
-      object_of_handle(raw_encoder, Handle_kind::Render_encoder);
-  id<MTLBuffer> buffer = object_of_handle(raw_buffer, Handle_kind::Buffer);
-  const std::int64_t offset = Int64_val(raw_offset);
-  const intnat index = Long_val(raw_index);
-  if (offset < 0 || static_cast<std::uint64_t>(offset) > buffer.length ||
-      index < 0 || index >= 31) {
-    CAMLreturn(result_error_text("render vertex-buffer binding is out of range"));
-  }
-  [encoder setVertexBuffer:buffer offset:(NSUInteger)offset atIndex:(NSUInteger)index];
-  CAMLreturn(result_unit());
-}
-
-extern "C" CAMLprim value caml_prismel_metal_render_encoder_set_fragment_buffer(
-    value raw_encoder, value raw_buffer, value raw_offset, value raw_index) {
-  CAMLparam4(raw_encoder, raw_buffer, raw_offset, raw_index);
-  id<MTLRenderCommandEncoder> encoder =
-      object_of_handle(raw_encoder, Handle_kind::Render_encoder);
-  id<MTLBuffer> buffer = object_of_handle(raw_buffer, Handle_kind::Buffer);
-  const std::int64_t offset = Int64_val(raw_offset);
-  const intnat index = Long_val(raw_index);
-  if (offset < 0 || static_cast<std::uint64_t>(offset) > buffer.length ||
-      index < 0 || index >= 31) {
-    CAMLreturn(result_error_text("render fragment-buffer binding is out of range"));
-  }
-  [encoder setFragmentBuffer:buffer offset:(NSUInteger)offset atIndex:(NSUInteger)index];
-  CAMLreturn(result_unit());
-}
 
 static const char *validate_indexed_draw_batch(
     value raw_pipelines, value raw_buffers, value raw_stages,
@@ -7496,28 +7448,6 @@ struct Prepared_render_pass_state {
   MTLScissorRect scissor;
 };
 
-extern "C" CAMLprim value caml_prismel_metal_render_encoder_set_vertex_texture(
-    value raw_encoder, value raw_texture, value raw_index) {
-  CAMLparam3(raw_encoder, raw_texture, raw_index);
-  id<MTLRenderCommandEncoder> encoder = object_of_handle(raw_encoder, Handle_kind::Render_encoder);
-  id<MTLTexture> texture = object_of_handle(raw_texture, Handle_kind::Texture);
-  const intnat index = Long_val(raw_index);
-  if (index < 0 || index >= 31) CAMLreturn(result_error_text("render vertex-texture index is out of range"));
-  [encoder setVertexTexture:texture atIndex:(NSUInteger)index];
-  CAMLreturn(result_unit());
-}
-
-extern "C" CAMLprim value caml_prismel_metal_render_encoder_set_fragment_texture(
-    value raw_encoder, value raw_texture, value raw_index) {
-  CAMLparam3(raw_encoder, raw_texture, raw_index);
-  id<MTLRenderCommandEncoder> encoder = object_of_handle(raw_encoder, Handle_kind::Render_encoder);
-  id<MTLTexture> texture = object_of_handle(raw_texture, Handle_kind::Texture);
-  const intnat index = Long_val(raw_index);
-  if (index < 0 || index >= 31) CAMLreturn(result_error_text("render fragment-texture index is out of range"));
-  [encoder setFragmentTexture:texture atIndex:(NSUInteger)index];
-  CAMLreturn(result_unit());
-}
-
 static value render_encoder_set_bytes(value raw_encoder, value raw_bytes,
                                       value raw_index, bool vertex) {
   id<MTLRenderCommandEncoder> encoder = object_of_handle(raw_encoder, Handle_kind::Render_encoder);
@@ -7530,65 +7460,6 @@ static value render_encoder_set_bytes(value raw_encoder, value raw_bytes,
 }
 extern "C" CAMLprim value caml_prismel_metal_render_encoder_set_vertex_bytes(value e,value b,value i){ CAMLparam3(e,b,i); CAMLreturn(render_encoder_set_bytes(e,b,i,true)); }
 extern "C" CAMLprim value caml_prismel_metal_render_encoder_set_fragment_bytes(value e,value b,value i){ CAMLparam3(e,b,i); CAMLreturn(render_encoder_set_bytes(e,b,i,false)); }
-
-static value render_encoder_set_sampler(value raw_encoder, value raw_sampler,
-                                        value raw_lod, value raw_index, bool vertex) {
-  id<MTLRenderCommandEncoder> encoder = object_of_handle(raw_encoder, Handle_kind::Render_encoder);
-  id<MTLSamplerState> sampler = object_of_handle(raw_sampler, Handle_kind::Sampler);
-  NSUInteger index = Long_val(raw_index);
-  if (index >= 31) return result_error_text("render sampler index is out of range");
-  if (Is_long(raw_lod)) {
-    if (vertex) [encoder setVertexSamplerState:sampler atIndex:index];
-    else [encoder setFragmentSamplerState:sampler atIndex:index];
-  } else {
-    value pair = Field(raw_lod,0); float lo=Double_val(Field(pair,0)), hi=Double_val(Field(pair,1));
-    if (vertex) [encoder setVertexSamplerState:sampler lodMinClamp:lo lodMaxClamp:hi atIndex:index];
-    else [encoder setFragmentSamplerState:sampler lodMinClamp:lo lodMaxClamp:hi atIndex:index];
-  }
-  return result_unit();
-}
-extern "C" CAMLprim value caml_prismel_metal_render_encoder_set_vertex_sampler(value e,value s,value i){ CAMLparam3(e,s,i); CAMLreturn(render_encoder_set_sampler(e,s,Val_int(0),i,true)); }
-extern "C" CAMLprim value caml_prismel_metal_render_encoder_set_fragment_sampler(value e,value s,value i){ CAMLparam3(e,s,i); CAMLreturn(render_encoder_set_sampler(e,s,Val_int(0),i,false)); }
-extern "C" CAMLprim value caml_prismel_metal_render_encoder_set_vertex_sampler_lod(value e,value s,value l,value i){ CAMLparam4(e,s,l,i); CAMLlocal1(o); o=caml_alloc_small(1,0); Field(o,0)=l; CAMLreturn(render_encoder_set_sampler(e,s,o,i,true)); }
-extern "C" CAMLprim value caml_prismel_metal_render_encoder_set_fragment_sampler_lod(value e,value s,value l,value i){ CAMLparam4(e,s,l,i); CAMLlocal1(o); o=caml_alloc_small(1,0); Field(o,0)=l; CAMLreturn(render_encoder_set_sampler(e,s,o,i,false)); }
-
-extern "C" CAMLprim value caml_prismel_metal_render_encoder_draw(
-    value raw_encoder, value raw_first, value raw_count, value raw_instances) {
-  CAMLparam4(raw_encoder, raw_first, raw_count, raw_instances);
-  id<MTLRenderCommandEncoder> encoder =
-      object_of_handle(raw_encoder, Handle_kind::Render_encoder);
-  const intnat first = Long_val(raw_first);
-  const intnat count = Long_val(raw_count);
-  const intnat instances = Long_val(raw_instances);
-  if (first < 0 || count <= 0 || instances <= 0) {
-    CAMLreturn(result_error_text("render draw range is invalid"));
-  }
-  [encoder drawPrimitives:MTLPrimitiveTypeTriangle
-              vertexStart:(NSUInteger)first
-              vertexCount:(NSUInteger)count
-            instanceCount:(NSUInteger)instances];
-  CAMLreturn(result_unit());
-}
-
-extern "C" CAMLprim value caml_prismel_metal_render_encoder_draw_primitives(
-    value raw_encoder, value raw_primitive, value raw_first, value raw_count,
-    value raw_instances) {
-  CAMLparam5(raw_encoder, raw_primitive, raw_first, raw_count, raw_instances);
-  id<MTLRenderCommandEncoder> encoder =
-      object_of_handle(raw_encoder, Handle_kind::Render_encoder);
-  const intnat primitive = Long_val(raw_primitive);
-  const intnat first = Long_val(raw_first);
-  const intnat count = Long_val(raw_count);
-  const intnat instances = Long_val(raw_instances);
-  if (primitive < 0 || primitive > 4 || first < 0 || count <= 0 || instances <= 0) {
-    CAMLreturn(result_error_text("render draw primitive or range is invalid"));
-  }
-  [encoder drawPrimitives:static_cast<MTLPrimitiveType>(primitive)
-              vertexStart:(NSUInteger)first
-              vertexCount:(NSUInteger)count
-            instanceCount:(NSUInteger)instances];
-  CAMLreturn(result_unit());
-}
 
 extern "C" CAMLprim value caml_prismel_metal_render_pass_depth_stencil_actions(
     value rp, value rdepth_load, value rdepth_store, value rclear_depth,
@@ -7622,71 +7493,6 @@ extern "C" CAMLprim value caml_prismel_metal_render_pass_depth_stencil_actions(
 extern "C" CAMLprim value caml_prismel_metal_render_pass_depth_stencil_actions_bytecode(value *argv, int argc) {
   (void)argc;
   return caml_prismel_metal_render_pass_depth_stencil_actions(argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6]);
-}
-
-extern "C" CAMLprim value caml_prismel_metal_render_encoder_set_viewport(
-    value raw_encoder, value raw_viewport) {
-  CAMLparam2(raw_encoder, raw_viewport);
-  id<MTLRenderCommandEncoder> encoder =
-      object_of_handle(raw_encoder, Handle_kind::Render_encoder);
-  MTLViewport viewport = {
-      Double_val(Field(raw_viewport, 0)), Double_val(Field(raw_viewport, 1)),
-      Double_val(Field(raw_viewport, 2)), Double_val(Field(raw_viewport, 3)),
-      Double_val(Field(raw_viewport, 4)), Double_val(Field(raw_viewport, 5))};
-  [encoder setViewport:viewport];
-  CAMLreturn(result_unit());
-}
-
-extern "C" CAMLprim value caml_prismel_metal_render_encoder_set_scissor(
-    value raw_encoder, value raw_scissor) {
-  CAMLparam2(raw_encoder, raw_scissor);
-  id<MTLRenderCommandEncoder> encoder =
-      object_of_handle(raw_encoder, Handle_kind::Render_encoder);
-  MTLScissorRect scissor = {(NSUInteger)Long_val(Field(raw_scissor, 0)),
-                            (NSUInteger)Long_val(Field(raw_scissor, 1)),
-                            (NSUInteger)Long_val(Field(raw_scissor, 2)),
-                            (NSUInteger)Long_val(Field(raw_scissor, 3))};
-  [encoder setScissorRect:scissor];
-  CAMLreturn(result_unit());
-}
-
-extern "C" CAMLprim value caml_prismel_metal_render_encoder_set_cull_mode(
-    value raw_encoder, value raw_mode) {
-  CAMLparam2(raw_encoder, raw_mode);
-  id<MTLRenderCommandEncoder> encoder = object_of_handle(raw_encoder, Handle_kind::Render_encoder);
-  static const MTLCullMode modes[] = {MTLCullModeNone, MTLCullModeFront, MTLCullModeBack};
-  [encoder setCullMode:modes[Long_val(raw_mode)]];
-  CAMLreturn(result_unit());
-}
-
-extern "C" CAMLprim value caml_prismel_metal_render_encoder_set_winding(
-    value raw_encoder, value raw_winding) {
-  CAMLparam2(raw_encoder, raw_winding);
-  id<MTLRenderCommandEncoder> encoder = object_of_handle(raw_encoder, Handle_kind::Render_encoder);
-  static const MTLWinding values[] = {MTLWindingClockwise, MTLWindingCounterClockwise};
-  [encoder setFrontFacingWinding:values[Long_val(raw_winding)]];
-  CAMLreturn(result_unit());
-}
-
-extern "C" CAMLprim value caml_prismel_metal_render_encoder_set_stencil_reference(
-    value raw_encoder, value raw_front, value raw_back) {
-  CAMLparam3(raw_encoder, raw_front, raw_back);
-  id<MTLRenderCommandEncoder> encoder = object_of_handle(raw_encoder, Handle_kind::Render_encoder);
-  [encoder setStencilFrontReferenceValue:(uint32_t)Int32_val(raw_front)
-                      backReferenceValue:(uint32_t)Int32_val(raw_back)];
-  CAMLreturn(result_unit());
-}
-
-extern "C" CAMLprim value caml_prismel_metal_render_encoder_tile_width(value raw) {
-  CAMLparam1(raw);
-  id<MTLRenderCommandEncoder> encoder = object_of_handle(raw, Handle_kind::Render_encoder);
-  CAMLreturn(Val_long((intnat)encoder.tileWidth));
-}
-
-extern "C" CAMLprim value caml_prismel_metal_render_encoder_tile_height(value raw) {
-  CAMLparam1(raw);
-  id<MTLRenderCommandEncoder> encoder = object_of_handle(raw, Handle_kind::Render_encoder);
-  CAMLreturn(Val_long((intnat)encoder.tileHeight));
 }
 
 extern "C" CAMLprim value caml_prismel_metal_compute_encoder_set_pipeline(
@@ -8026,13 +7832,6 @@ extern "C" CAMLprim value caml_prismel_metal_render_stage_sampler(value a,value 
 
 /* M3: former metal_render_command_draw_state.inc */
 #define PRISMEL_RENDER_ENCODER(ARG) id<MTLRenderCommandEncoder>e=object_of_handle(ARG,Handle_kind::Render_encoder)
-
-extern "C" CAMLprim value caml_prismel_metal_render_draw_indexed_instances_bytecode(value*a,int n){(void)n;CAMLparam0();@try{PRISMEL_RENDER_ENCODER(a[0]);[e drawIndexedPrimitives:(MTLPrimitiveType)Long_val(a[1]) indexCount:Int64_val(a[2]) indexType:(MTLIndexType)Long_val(a[3]) indexBuffer:object_of_handle(a[4],Handle_kind::Buffer) indexBufferOffset:Int64_val(a[5]) instanceCount:Int64_val(a[6])];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
-extern "C" CAMLprim value caml_prismel_metal_render_draw_indexed_instances(value a,value b,value c,value d,value e,value f,value g){value v[]={a,b,c,d,e,f,g};return caml_prismel_metal_render_draw_indexed_instances_bytecode(v,7);}
-extern "C" CAMLprim value caml_prismel_metal_render_draw_indexed_basic(value re,value p,value count,value ty,value rb,value off){CAMLparam5(re,p,count,ty,rb);CAMLxparam1(off);@try{PRISMEL_RENDER_ENCODER(re);[e drawIndexedPrimitives:(MTLPrimitiveType)Long_val(p) indexCount:Int64_val(count) indexType:(MTLIndexType)Long_val(ty) indexBuffer:object_of_handle(rb,Handle_kind::Buffer) indexBufferOffset:Int64_val(off)];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
-extern "C" CAMLprim value caml_prismel_metal_render_draw_indexed_basic_bytecode(value*a,int n){(void)n;return caml_prismel_metal_render_draw_indexed_basic(a[0],a[1],a[2],a[3],a[4],a[5]);}
-
-extern "C" CAMLprim value caml_prismel_metal_render_depth_stencil(value re,value rs){CAMLparam2(re,rs);@try{PRISMEL_RENDER_ENCODER(re);[e setDepthStencilState:Is_none(rs)?nil:object_of_handle(Field(rs,0),Handle_kind::Depth_stencil)];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
 
 #undef PRISMEL_RENDER_ENCODER
 
@@ -9594,40 +9393,6 @@ extern "C" CAMLprim value caml_prismel_metal_shared_event_wait(value raw, value 
 // and the MetalFX spatial scaler (linked as its own framework). MetalFX is
 // imported last so its selectors never shadow the untyped sends above.
 #import <MetalFX/MetalFX.h>
-extern "C" CAMLprim value caml_prismel_metal_render_encoder_draw_mesh_threadgroups(
-    value raw, value raw_sizes) {
-  CAMLparam2(raw, raw_sizes);
-  @try {
-    id<MTLRenderCommandEncoder> encoder = object_of_handle(raw, Handle_kind::Render_encoder);
-    NSUInteger v[9];
-    for (int i = 0; i < 9; i++) {
-      intnat x = Long_val(Field(raw_sizes, i));
-      if (x <= 0) CAMLreturn(result_error_text("mesh dispatch sizes must be positive"));
-      v[i] = (NSUInteger)x;
-    }
-    [encoder drawMeshThreadgroups:MTLSizeMake(v[0], v[1], v[2])
-        threadsPerObjectThreadgroup:MTLSizeMake(v[3], v[4], v[5])
-          threadsPerMeshThreadgroup:MTLSizeMake(v[6], v[7], v[8])];
-    CAMLreturn(result_unit());
-  } @catch (NSException *x) {
-    CAMLreturn(result_error(x.reason));
-  }
-}
-
-extern "C" CAMLprim value caml_prismel_metal_render_encoder_dispatch_threads_per_tile(
-    value raw, value raw_width, value raw_height, value raw_depth) {
-  CAMLparam4(raw, raw_width, raw_height, raw_depth);
-  @try {
-    id<MTLRenderCommandEncoder> encoder = object_of_handle(raw, Handle_kind::Render_encoder);
-    intnat width = Long_val(raw_width), height = Long_val(raw_height), depth = Long_val(raw_depth);
-    if (width <= 0 || height <= 0 || depth != 1)
-      CAMLreturn(result_error_text("tile dispatch sizes must be positive with depth one"));
-    [encoder dispatchThreadsPerTile:MTLSizeMake((NSUInteger)width, (NSUInteger)height, 1)];
-    CAMLreturn(result_unit());
-  } @catch (NSException *x) {
-    CAMLreturn(result_error(x.reason));
-  }
-}
 
 extern "C" CAMLprim value caml_prismel_metal_mesh_tile_descriptor_set_color_format(
     value raw, value raw_tile, value raw_index, value raw_format) {

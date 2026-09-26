@@ -24,6 +24,9 @@ let native_error operation message = error operation Native_error message
 let native operation = function Ok value -> Ok value | Error message -> native_error operation message
 let probe = function Ok value -> value | Error _ -> false
 
+let mtl_size (width, height, depth) : Metal_gen.Record.Mtl_size.t =
+  { width = Int64.of_int width; height = Int64.of_int height; depth = Int64.of_int depth }
+
 let contains_nul value = String.contains value '\000'
 let option_exists predicate = function Some value -> predicate value | None -> false
 
@@ -8966,7 +8969,7 @@ module Render_encoder = struct
                     error operation Invalid_argument
                       "pipeline color format differs from the render target"
                 | Ok () -> (
-                    match Metal_raw.render_encoder_set_pipeline value.raw pipeline.raw with
+                    match Metal_raw.Registry.render_encoder_set_pipeline value.raw pipeline.raw with
                     | Error message -> native_error operation message
                     | Ok () ->
                         (match value.pipeline with
@@ -9001,11 +9004,11 @@ module Render_encoder = struct
                         Ok ()))))
 
   let set_vertex_buffer =
-    set_buffer "Metal.Render_encoder.set_vertex_buffer" Metal_raw.render_encoder_set_vertex_buffer
+    set_buffer "Metal.Render_encoder.set_vertex_buffer" (fun e b o i -> Metal_raw.Registry.render_encoder_set_vertex_buffer e b o (Int64.of_int i))
 
   let set_fragment_buffer =
     set_buffer "Metal.Render_encoder.set_fragment_buffer"
-      Metal_raw.render_encoder_set_fragment_buffer
+      (fun e b o i -> Metal_raw.Registry.render_encoder_set_fragment_buffer e b o (Int64.of_int i))
 
   let set_texture operation raw_call (value : t) ~index (texture : Texture.t) =
     on_main operation (fun () ->
@@ -9030,11 +9033,11 @@ module Render_encoder = struct
 
   let set_vertex_texture =
     set_texture "Metal.Render_encoder.set_vertex_texture"
-      Metal_raw.render_encoder_set_vertex_texture
+      (fun e t i -> Metal_raw.Registry.render_encoder_set_vertex_texture e t (Int64.of_int i))
 
   let set_fragment_texture =
     set_texture "Metal.Render_encoder.set_fragment_texture"
-      Metal_raw.render_encoder_set_fragment_texture
+      (fun e t i -> Metal_raw.Registry.render_encoder_set_fragment_texture e t (Int64.of_int i))
 
   let set_bytes operation raw_call (value : t) ~index bytes =
     on_main operation (fun () ->
@@ -9096,13 +9099,17 @@ module Render_encoder = struct
 
   let set_vertex_sampler =
     set_sampler "Metal.Render_encoder.set_vertex_sampler"
-      (sampler_call Metal_raw.render_encoder_set_vertex_sampler
-         Metal_raw.render_encoder_set_vertex_sampler_lod)
+      (sampler_call
+         (fun e s i -> Metal_raw.Registry.render_encoder_set_vertex_sampler e s (Int64.of_int i))
+         (fun e s (lo, hi) i ->
+           Metal_raw.Registry.render_encoder_set_vertex_sampler_lod e s lo hi (Int64.of_int i)))
 
   let set_fragment_sampler =
     set_sampler "Metal.Render_encoder.set_fragment_sampler"
-      (sampler_call Metal_raw.render_encoder_set_fragment_sampler
-         Metal_raw.render_encoder_set_fragment_sampler_lod)
+      (sampler_call
+         (fun e s i -> Metal_raw.Registry.render_encoder_set_fragment_sampler e s (Int64.of_int i))
+         (fun e s (lo, hi) i ->
+           Metal_raw.Registry.render_encoder_set_fragment_sampler_lod e s lo hi (Int64.of_int i)))
 
   let set_validated operation validate raw_call (value : t) argument =
     match before_main operation with
@@ -9143,13 +9150,10 @@ module Render_encoder = struct
                 "viewport is outside the render target or depth range"
             else
               match
-                Metal_raw.render_encoder_set_viewport value.raw
-                  ( viewport.x,
-                    viewport.y,
-                    viewport.width,
-                    viewport.height,
-                    viewport.znear,
-                    viewport.zfar )
+                Metal_raw.Registry.render_encoder_set_viewport value.raw
+                  ({ originX = viewport.x; originY = viewport.y; width = viewport.width;
+                     height = viewport.height; znear = viewport.znear; zfar = viewport.zfar }
+                    : Metal_gen.Record.Mtl_viewport.t)
               with
               | Ok () -> Ok ()
               | Error message -> native_error operation message))
@@ -9169,8 +9173,10 @@ module Render_encoder = struct
             then error operation Invalid_argument "scissor rectangle is outside the render target"
             else
               match
-                Metal_raw.render_encoder_set_scissor value.raw
-                  (scissor.x, scissor.y, scissor.width, scissor.height)
+                Metal_raw.Registry.render_encoder_set_scissor value.raw
+                  ({ x = Int64.of_int scissor.x; y = Int64.of_int scissor.y;
+                     width = Int64.of_int scissor.width; height = Int64.of_int scissor.height }
+                    : Metal_gen.Record.Mtl_scissor_rect.t)
               with
               | Ok () -> Ok ()
               | Error message -> native_error operation message))
@@ -9184,21 +9190,23 @@ module Render_encoder = struct
         | Error _ as failure -> failure
         | Ok () -> (
             let mode = match mode with No_cull -> 0 | Cull_front -> 1 | Cull_back -> 2 in
-            match Metal_raw.render_encoder_set_cull_mode value.raw mode with
+            match Metal_raw.Registry.render_encoder_set_cull_mode value.raw (Int64.of_int mode) with
             | Ok () -> Ok ()
             | Error message -> native_error operation message))
 
   let set_front_facing_winding =
     set_validated "Metal.Render_encoder.set_front_facing_winding"
       (fun _ winding -> Ok (match winding with Clockwise -> 0 | Counter_clockwise -> 1))
-      Metal_raw.render_encoder_set_winding
+      (fun e w -> Metal_raw.Registry.render_encoder_set_winding e (Int64.of_int w))
 
   let set_stencil_reference_values (value : t) ~front ~back =
     on_main "Metal.Render_encoder.set_stencil_reference_values" (fun () ->
         match ensure_live "Metal.Render_encoder.set_stencil_reference_values" value.lifetime with
         | Error _ as failure -> failure
         | Ok () -> (
-            match Metal_raw.render_encoder_set_stencil_reference value.raw front back with
+            match Metal_raw.Registry.render_encoder_set_stencil_reference value.raw
+                    (Int64.logand (Int64.of_int32 front) 0xFFFF_FFFFL)
+                    (Int64.logand (Int64.of_int32 back) 0xFFFF_FFFFL) with
             | Ok () -> Ok ()
             | Error message ->
                 native_error "Metal.Render_encoder.set_stencil_reference_values" message))
@@ -9207,13 +9215,15 @@ module Render_encoder = struct
     on_main "Metal.Render_encoder.tile_width" (fun () ->
         match ensure_live "Metal.Render_encoder.tile_width" value.lifetime with
         | Error _ as failure -> failure
-        | Ok () -> Ok (Metal_raw.render_encoder_tile_width value.raw))
+        | Ok () -> native "Metal.Render_encoder.tile_width"
+              (Result.map Int64.to_int (Metal_raw.Registry.render_encoder_tile_width value.raw)))
 
   let tile_height (value : t) =
     on_main "Metal.Render_encoder.tile_height" (fun () ->
         match ensure_live "Metal.Render_encoder.tile_height" value.lifetime with
         | Error _ as failure -> failure
-        | Ok () -> Ok (Metal_raw.render_encoder_tile_height value.raw))
+        | Ok () -> native "Metal.Render_encoder.tile_height"
+              (Result.map Int64.to_int (Metal_raw.Registry.render_encoder_tile_height value.raw)))
 
   let validate_nonempty operation what values =
     if values = [] then error operation Invalid_argument (what ^ " must be nonempty") else Ok ()
@@ -9263,11 +9273,11 @@ module Render_encoder = struct
                             Ok ()))))
 
   let update_fence value fence ~after =
-    fence_call "Metal.Render_encoder.update_fence" Metal_raw.render_encoder_update_fence value fence
+    fence_call "Metal.Render_encoder.update_fence" (fun e f s -> Metal_raw.Registry.render_encoder_update_fence e f (Int64.of_int s)) value fence
       after
 
   let wait_for_fence value fence ~before =
-    fence_call "Metal.Render_encoder.wait_for_fence" Metal_raw.render_encoder_wait_fence value fence
+    fence_call "Metal.Render_encoder.wait_for_fence" (fun e f s -> Metal_raw.Registry.render_encoder_wait_fence e f (Int64.of_int s)) value fence
       before
 
   let use_heaps (value : t) heaps ~stages =
@@ -9480,13 +9490,13 @@ module Render_encoder = struct
                     with
                     | Error _ as failure -> failure
                     | Ok () -> (
-                        match Metal_raw.render_depth_stencil value.raw (Some x.raw) with
+                        match Metal_raw.Registry.render_depth_stencil value.raw (Some x.raw) with
                         | Error message -> native_error operation message
                         | Ok () ->
                             retain_command_buffer_depth_stencil value.command_buffer x;
                             Ok ())))
             | None -> (
-                match Metal_raw.render_depth_stencil value.raw None with
+                match Metal_raw.Registry.render_depth_stencil value.raw None with
                 | Error message -> native_error operation message
                 | Ok () -> Ok ())))
 
@@ -9567,8 +9577,9 @@ module Render_encoder = struct
                 | Error _ as failure -> failure
                 | Ok () -> (
                     match
-                      Metal_raw.render_draw_indexed_basic value.raw (primitive_code primitive)
-                        index_count (index_type_code index_type) index_buffer.raw index_offset
+                      Metal_raw.Registry.render_draw_indexed_basic value.raw
+                        (Int64.of_int (primitive_code primitive)) index_count
+                        (Int64.of_int (index_type_code index_type)) index_buffer.raw index_offset
                     with
                     | Error message -> native_error operation message
                     | Ok () ->
@@ -9596,8 +9607,9 @@ module Render_encoder = struct
                       (validate_draw_buffer operation value index_buffer ~offset:index_offset
                          ~required) (fun () ->
                         match
-                          Metal_raw.render_draw_indexed_instances value.raw
-                            (primitive_code primitive) index_count (index_type_code index_type)
+                          Metal_raw.Registry.render_draw_indexed_instances value.raw
+                            (Int64.of_int (primitive_code primitive)) index_count
+                            (Int64.of_int (index_type_code index_type))
                             index_buffer.raw index_offset instances
                         with
                         | Error m -> native_error operation m
@@ -9665,7 +9677,8 @@ module Render_encoder = struct
         | Ok () -> (
             let code = match primitive with
               | Point -> 0 | Line -> 1 | Line_strip -> 2 | Triangle -> 3 | Triangle_strip -> 4 in
-            match Metal_raw.render_encoder_draw_primitives value.raw code first count instances with
+            match Metal_raw.Registry.render_encoder_draw_primitives value.raw (Int64.of_int code)
+                    (Int64.of_int first) (Int64.of_int count) (Int64.of_int instances) with
             | Ok () -> Ok ()
             | Error message -> native_error operation message))
 
@@ -9720,11 +9733,9 @@ module Render_encoder = struct
                           with
                           | Error _ as failure -> failure
                           | Ok () -> (
-                              let gx, gy, gz = threadgroups and ox, oy, oz = object_size
-                              and mx, my, mz = mesh_threadgroup in
                               match
-                                Metal_raw.render_encoder_draw_mesh_threadgroups value.raw
-                                  (gx, gy, gz, ox, oy, oz, mx, my, mz)
+                                Metal_raw.Registry.render_encoder_draw_mesh_threadgroups value.raw
+                                  (mtl_size threadgroups) (mtl_size object_size) (mtl_size mesh_threadgroup)
                               with
                               | Ok () -> Ok ()
                               | Error message -> native_error operation message)))))
@@ -9757,7 +9768,7 @@ module Render_encoder = struct
                       error operation Invalid_argument
                         "tile thread dimensions must be positive with depth one"
                     else
-                      match Metal_raw.render_encoder_dispatch_threads_per_tile value.raw width height depth with
+                      match Metal_raw.Registry.render_encoder_dispatch_threads_per_tile value.raw (mtl_size threads) with
                       | Ok () -> Ok ()
                       | Error message -> native_error operation message)))
 
@@ -9773,7 +9784,8 @@ module Render_encoder = struct
         | Ok () when first < 0 || count <= 0 || instances <= 0 ->
             error operation Invalid_argument "draw range must be positive"
         | Ok () -> (
-            match Metal_raw.render_encoder_draw value.raw first count instances with
+            match Metal_raw.Registry.render_encoder_draw_primitives value.raw 3L (* MTLPrimitiveTypeTriangle *)
+                    (Int64.of_int first) (Int64.of_int count) (Int64.of_int instances) with
             | Ok () -> Ok ()
             | Error message -> native_error operation message))
 
