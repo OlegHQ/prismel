@@ -399,7 +399,7 @@ let check_validation () =
 
 let check_parallel_exact () =
   let collision = Plane_generators.grid_checked ~columns:400 ~rows:250 ~size:20. () |> get_ok
-      |> Ops.noise_displace ~amplitude:0.8 ~frequency:0.31 ~seed:709 |> get_ok
+      |> Deform_ops.noise_displace_checked ~amplitude:0.8 ~frequency:0.31 ~seed:709 |> get_ok
       |> Color_by_height.run ~low:(Color.to_floats (Color.hex_exn "#0ea5e9"))
            ~high:(Color.to_floats (Color.hex_exn "#f97316")) |> get_ok in
   let source = Plane_generators.grid_checked ~columns:400 ~rows:250 ~size:20. () |> get_ok
@@ -424,7 +424,7 @@ let check_parallel_exact () =
 
 let check_parallel_multi_exact () =
   let collision = Plane_generators.grid_checked ~columns:160 ~rows:100 ~size:12. () |> get_ok
-      |> Ops.noise_displace ~amplitude:0.35 ~frequency:0.27 ~seed:801 |> get_ok
+      |> Deform_ops.noise_displace_checked ~amplitude:0.35 ~frequency:0.27 ~seed:801 |> get_ok
       |> Color_by_height.run ~low:(Color.to_floats (Color.hex_exn "#10b981"))
            ~high:(Color.to_floats (Color.hex_exn "#f59e0b")) |> get_ok in
   let source = Plane_generators.grid_checked ~columns:160 ~rows:100 ~size:11.5 () |> get_ok

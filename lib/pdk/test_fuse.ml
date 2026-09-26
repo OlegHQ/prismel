@@ -745,7 +745,7 @@ let check_noop_and_validation () =
 
 let check_parallel_exact () =
   let source = Plane_generators.grid_checked ~columns:500 ~rows:300 ~size:20. () |> get_ok
-      |> Ops.noise_displace ~seed:81 ~amplitude:0.37 ~frequency:0.29 |> get_ok in
+      |> Deform_ops.noise_displace_checked ~seed:81 ~amplitude:0.37 ~frequency:0.29 |> get_ok in
   let run domains = Parallel.run ~domains (fun () ->
     Fuse_grid.snap_to_grid_checked ~grain:1024 ~spacing:(Vec3.create 0.03125 0.03125 0.03125)
       ~offset:(Vec3.create 0.25 0.5 0.75) ~snapped_group:"snapped" source

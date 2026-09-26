@@ -831,7 +831,7 @@ let run_polyframe_benchmarks () =
 let run_facet_benchmarks () =
   let source = Ops.grid ~grain ~columns:500 ~rows:400 ~uv_attribute:"uv"
       ~size:100. () |> get_ok in
-  let displaced = Ops.noise_displace ~grain ~amplitude:0.8 ~frequency:0.7
+  let displaced = Deform_ops.noise_displace_checked ~grain ~amplitude:0.8 ~frequency:0.7
       ~seed:927 source |> get_ok in
   let source_topology = Topology.Private.view (Geometry.topology source) in
   let vertex_points = Array.copy source_topology.vertex_points in
@@ -2109,7 +2109,7 @@ let run_connectivity_benchmarks () =
 
 let run_attribute_blur_benchmarks () =
   let source = Ops.grid ~columns:400 ~rows:400 ~size:20. () |> get_ok
-      |> Ops.noise_displace ~grain ~amplitude:0.8 ~frequency:0.35 ~seed:91
+      |> Deform_ops.noise_displace_checked ~grain ~amplitude:0.8 ~frequency:0.35 ~seed:91
            |> get_ok
       |> Ops.color_by_height ~grain ~low:low_rgba ~high:high_rgba |> get_ok in
   let point_count = Geometry.point_count source in
@@ -2134,7 +2134,7 @@ let run_attribute_blur_benchmarks () =
 
 let run_smooth_benchmarks () =
   let source = Ops.grid ~columns:400 ~rows:400 ~size:20. () |> get_ok
-      |> Ops.noise_displace ~grain ~amplitude:0.8 ~frequency:0.35 ~seed:91
+      |> Deform_ops.noise_displace_checked ~grain ~amplitude:0.8 ~frequency:0.35 ~seed:91
            |> get_ok
       |> Ops.color_by_height ~grain ~low:low_rgba ~high:high_rgba |> get_ok in
   let point_count = Geometry.point_count source
@@ -2153,7 +2153,7 @@ let run_smooth_benchmarks () =
 let run_ray_benchmarks () =
   let columns = 500 and rows = 400 in
   let collision = Ops.grid ~columns ~rows ~size:40. () |> get_ok
-      |> Ops.noise_displace ~grain ~amplitude:0.8 ~frequency:0.18 ~seed:903
+      |> Deform_ops.noise_displace_checked ~grain ~amplitude:0.8 ~frequency:0.18 ~seed:903
            |> get_ok
       |> Ops.color_by_height ~grain ~low:low_rgba ~high:high_rgba |> get_ok in
   let source = Ops.grid ~columns ~rows ~size:39.5 () |> get_ok
@@ -2195,7 +2195,7 @@ let run_ray_benchmarks () =
 
 let run_fuse_benchmarks () =
   let source = make_grid ()
-      |> Ops.noise_displace ~grain ~amplitude:0.37 ~frequency:0.29 ~seed:907
+      |> Deform_ops.noise_displace_checked ~grain ~amplitude:0.37 ~frequency:0.29 ~seed:907
            |> get_ok in
   let point_count = Geometry.point_count source in
   let selection = Group.init ~grain ~owner:Group.Point ~name:"snap_points"
@@ -2308,7 +2308,7 @@ let run_fuse_benchmarks () =
 
 let run_bound_benchmarks () =
   let source = make_grid ()
-      |> Ops.noise_displace ~grain ~amplitude:2. ~frequency:0.23 ~seed:937
+      |> Deform_ops.noise_displace_checked ~grain ~amplitude:2. ~frequency:0.23 ~seed:937
            |> get_ok in
   let point_count = Geometry.point_count source in
   let selection = Group.init ~grain ~owner:Group.Point ~name:"bound_points"
@@ -2334,7 +2334,7 @@ let run_bound_benchmarks () =
 
 let run_match_size_benchmarks () =
   let source = make_grid ()
-      |> Ops.noise_displace ~grain ~amplitude:2. ~frequency:0.23 ~seed:941
+      |> Deform_ops.noise_displace_checked ~grain ~amplitude:2. ~frequency:0.23 ~seed:941
            |> get_ok
       |> Ops.normals ~grain |> get_ok in
   let point_count = Geometry.point_count source in
@@ -2555,13 +2555,13 @@ let run_deform_benchmarks () =
       ~owner:Attribute.Vertex ~weighting:Ops.Vertex_angle
       ~cusp_angle:(Float.pi /. 3.) geometric_source |> get_ok) geometry_output;
   measure ~input_points:point_count "peak_point_n_mask" (fun () ->
-    Ops.peak ~grain ~mask_attribute:"deform_mask" ~distance:0.35
+    Deform_ops.peak_checked ~grain ~mask_attribute:"deform_mask" ~distance:0.35
       source_with_normals |> get_ok) geometry_output;
   measure ~input_points:point_count "peak_geometric_recompute" (fun () ->
-    Ops.peak ~grain ~distance:0.35 ~recompute_normals:true geometric_source |> get_ok)
+    Deform_ops.peak_checked ~grain ~distance:0.35 ~recompute_normals:true geometric_source |> get_ok)
     geometry_output;
   measure ~input_points:point_count "bend_twist_capture" (fun () ->
-    Ops.bend ~grain ~origin:(Vec3.create 0. 0. (-50.))
+    Deform_ops.bend_checked ~grain ~origin:(Vec3.create 0. 0. (-50.))
       ~direction:Vec3.unit_z ~up:Vec3.unit_y ~length:100.
       ~bend_angle:1.3 ~twist_angle:2.1 ~mask_attribute:"deform_mask"
       ~capture_attribute:"bend_capture" source_with_normals |> get_ok)
@@ -2574,23 +2574,23 @@ let run_deform_benchmarks () =
         max = Attribute_ops.Vec3 (Vec3.create 0.5 0.5 0.5);
       }) geometric_source |> get_ok) geometry_output;
   measure ~input_points:point_count "point_jitter_uniform" (fun () ->
-    Ops.point_jitter ~grain ~seed:(Rand.seed 73) ~scale:1. geometric_source
+    Deform_ops.point_jitter_checked ~grain ~seed:(Rand.seed 73) ~scale:1. geometric_source
     |> get_ok) geometry_output;
   measure ~input_points:point_count "point_jitter_controls" (fun () ->
-    Ops.point_jitter ~grain ~points:jitter_selection
+    Deform_ops.point_jitter_checked ~grain ~points:jitter_selection
       ~mask_attribute:"deform_mask" ~id_attribute:"jitter_id"
       ~use_point_scale:true ~seed:(Rand.seed 73) ~scale:1.25
       ~axis_scales:(Vec3.create 0.5 1.5 (-0.75)) jitter_source |> get_ok)
     geometry_output;
   measure ~input_points:point_count "mountain_fbm6_n_height" (fun () ->
-    Ops.mountain ~grain ~seed:73 ~height:1.25
+    Deform_ops.mountain_checked ~grain ~seed:73 ~height:1.25
       ~frequency:(Vec3.create 0.17 0.31 0.23)
       ~offset:(Vec3.create 1. 2. 3.) ~octaves:6 ~lacunarity:2.05
       ~roughness:0.47 ~mask_attribute:"deform_mask"
       ~height_attribute:"mountain_height" source_with_normals |> get_ok)
     geometry_output;
   measure ~input_points:point_count "mountain_fbm6_geometric_recompute"
-    (fun () -> Ops.mountain ~grain ~seed:73 ~height:1.25
+    (fun () -> Deform_ops.mountain_checked ~grain ~seed:73 ~height:1.25
       ~frequency:(Vec3.create 0.17 0.31 0.23)
       ~offset:(Vec3.create 1. 2. 3.) ~octaves:6 ~lacunarity:2.05
       ~roughness:0.47 ~recompute_normals:true geometric_source |> get_ok)
@@ -4072,7 +4072,7 @@ let run_group_benchmarks () =
   if benchmark_enabled "group_non_planar_primitives" then begin
     let quad_source = source
         |> Ops.subdivide ~grain ~scheme:Ops.Bilinear |> get_ok
-        |> Ops.mountain ~grain ~seed:0x67a1 ~height:0.04
+        |> Deform_ops.mountain_checked ~grain ~seed:0x67a1 ~height:0.04
              ~frequency:(Vec3.create 0.31 0.47 0.29) ~octaves:3 |> get_ok in
     measure ~input_points:(Geometry.point_count quad_source)
       "group_non_planar_primitives"
@@ -5294,9 +5294,9 @@ let () =
       (Mat4.rotation ~axis:(Vec3.create 1. 2. 3.) 0.7) in
   measure "transform" (fun () -> Transform_ops.transform ~grain matrix source) geometry_output;
   measure "noise_displace" (fun () ->
-    Ops.noise_displace ~grain ~amplitude:0.8 ~frequency:0.16 ~seed:42 source
+    Deform_ops.noise_displace_checked ~grain ~amplitude:0.8 ~frequency:0.16 ~seed:42 source
     |> get_ok) geometry_output;
-  let displaced = Ops.noise_displace ~grain ~amplitude:0.8 ~frequency:0.16
+  let displaced = Deform_ops.noise_displace_checked ~grain ~amplitude:0.8 ~frequency:0.16
       ~seed:42 source |> get_ok in
   measure "color_by_height" (fun () ->
     Ops.color_by_height ~grain ~low:low_rgba ~high:high_rgba displaced

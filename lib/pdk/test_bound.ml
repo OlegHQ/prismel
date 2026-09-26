@@ -162,7 +162,7 @@ let check_validation () =
 
 let check_parallel_exact () =
   let source = Plane_generators.grid_checked ~columns:500 ~rows:300 ~size:30. () |> get_ok
-      |> Ops.noise_displace ~seed:929 ~amplitude:2. ~frequency:0.23 |> get_ok in
+      |> Deform_ops.noise_displace_checked ~seed:929 ~amplitude:2. ~frequency:0.23 |> get_ok in
   let run domains = Parallel.run ~domains (fun () ->
     Bound.run_checked ~grain:1024
       ~shape:(Bound.Bound_box { divisions = 256, 128, 64 })

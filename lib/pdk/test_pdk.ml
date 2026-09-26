@@ -4921,7 +4921,7 @@ let run () =
   if not (equal_positions (generated_ranges 1) (generated_ranges 4)) then
     fail "million-point deterministic range kernel";
   let displaced domains = Parallel.run ~domains (fun () ->
-    Ops.noise_displace ~grain:16_384 ~amplitude:2. ~frequency:0.01 ~seed:71
+    Deform_ops.noise_displace_checked ~grain:16_384 ~amplitude:2. ~frequency:0.01 ~seed:71
       large_one |> get_ok) in
   if not (equal_positions (displaced 1) (displaced 4)) then
     fail "noise displacement differs by domain count";

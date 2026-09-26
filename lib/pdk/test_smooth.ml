@@ -229,7 +229,7 @@ let run () =
   expect_code "cancelled" (Ops.smooth ~cancel:cancelled ~attributes:"P" grid);
 
   let scale = Plane_generators.grid_checked ~columns:400 ~rows:250 ~size:40. () |> get_ok
-      |> Ops.noise_displace ~amplitude:0.8 ~frequency:0.41 ~seed:73 |> get_ok in
+      |> Deform_ops.noise_displace_checked ~amplitude:0.8 ~frequency:0.41 ~seed:73 |> get_ok in
   let point_count = Geometry.point_count scale in
   let weight = Attribute.create_owned ~name:"weight" ~owner:Attribute.Point
       (Attribute.Float (Array.init point_count (fun point ->
