@@ -248,7 +248,7 @@ Catmull–Rom samples, `Pdk.Iso_surface` extracts packed isosurfaces,
 `Pdk.Box_generator`, `Pdk.Parametric_generators`, `Pdk.Spiral`, `Pdk.Point_generate`,
 `Pdk.Color_by_height`, `Pdk.Line_geometry`, `Pdk.Mesh_merge`,
 `Pdk.Edge_collapse`, `Pdk.Dissolve`, `Pdk.Ordering`, `Pdk.Instance_copy`,
-`Pdk.Transform_ops`, `Pdk.Bound`, `Pdk.Match_size`, `Pdk.Edge_flip`, and
+`Pdk.Transform_ops`, `Pdk.Bound`, `Pdk.Match_size`, `Pdk.Plane_clip`, `Pdk.Edge_flip`, and
 `Pdk.Poly_reduce` expose option and rule types or checked operations used
 by procedural SOPs;
 `Pdk.Ops` retains compatible operation entry points during the consumer
@@ -514,6 +514,8 @@ Packed curve modeling uses `Pdk.Curve_modeling.resample_curves_checked`,
 attribute modes in the same family.
 `Pdk.Fuse_grid.fuse_checked` and `snap_to_grid_checked` preserve the typed
 validation and cancellation boundary around the packed Fuse and grid kernels.
+`Pdk.Plane_clip.clip_checked` and `clip_transform_checked` preserve the same
+typed clipping boundary while exposing only the plane policy and operations.
 `Procedural.Sop.group_rename` applies ordered owner-scoped rename rules with
 an explicit conflict policy, including the single-group case.
 `Procedural.Sop.group_promotions` uses one ordered rule list for single and

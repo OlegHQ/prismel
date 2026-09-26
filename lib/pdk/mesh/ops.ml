@@ -1337,31 +1337,8 @@ let mirror ?cancel ?grain ?keep_original ~origin ~normal geometry =
   protected "mirror" "invalid_parameter" (fun () ->
     Mirror_geometry.run ?cancel ?grain ?keep_original ~origin ~normal geometry)
 
-let clip ?cancel ?grain ?keep ?snapping_tolerance ?fill ?split_connectivity
-    ?clip_attribute ?distance ?selection ?replace_existing_groups
-    ?clipped_edge_group ?cap_group ?clipped_group ?above_group ?below_group
-    ~origin ~normal geometry =
-  let selection = Option.map (function
-    | Selected_points group -> Element_selection.Selected_points group
-    | Selected_vertices group -> Element_selection.Selected_vertices group
-    | Selected_primitives group -> Element_selection.Selected_primitives group
-    | Selected_edges group -> Element_selection.Selected_edges group) selection in
-  protected "clip" "invalid_geometry" (fun () ->
-    Plane_clip.clip ?cancel ?grain ?keep ?snapping_tolerance ?fill
-      ?split_connectivity ?clip_attribute ?distance ?selection
-      ?replace_existing_groups ?clipped_edge_group ?cap_group ?clipped_group
-      ?above_group ?below_group ~origin ~normal geometry)
-
-let clip_transform ?cancel ?grain ?keep ?snapping_tolerance ?fill
-    ?split_connectivity ?clip_attribute ?distance ?selection
-    ?replace_existing_groups ?clipped_edge_group ?cap_group ?clipped_group
-    ?above_group ?below_group ?(local_normal = Vec3.unit_y) ~transform geometry =
-  let origin = Mat4.transform_point transform Vec3.zero
-  and normal = Mat4.transform_direction transform local_normal in
-  clip ?cancel ?grain ?keep ?snapping_tolerance ?fill ?split_connectivity
-    ?clip_attribute ?distance ?selection ?clipped_edge_group ?cap_group
-    ?replace_existing_groups ?clipped_group ?above_group ?below_group
-    ~origin ~normal geometry
+let clip = Plane_clip.clip_checked
+let clip_transform = Plane_clip.clip_transform_checked
 
 let crease ?cancel ?grain ?edges ?operation ?weight ?add_vertex_color geometry =
   protected "crease" "invalid_crease" (fun () ->

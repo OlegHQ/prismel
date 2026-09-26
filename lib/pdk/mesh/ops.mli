@@ -2107,7 +2107,7 @@ val mirror :
     followed by the mirrored copy in stable order. O(payload) time/output;
     packed point, vertex, and primitive ranges are parallelized. *)
 
-type clip_keep = Above | Below | All
+type clip_keep = Plane_clip.keep = Above | Below | All
 
 val clip :
   ?cancel:Cancel.t ->
