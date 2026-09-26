@@ -47,6 +47,13 @@ val connections : t -> connection list
 val compile : t -> (Graph.t, string) result
 val compile_node : t -> node_id:int -> (Graph.t, string) result
 
+(** Every node of the document compiled once. Pass the previous result to
+    reuse each node whose entry and compiled inputs are physically unchanged,
+    so a parameter edit rebuilds only the edited node and its consumers. *)
+type compiled
+val compile_all : ?previous:compiled -> t -> compiled
+val compiled_node : compiled -> node_id:int -> (Graph.t, string) result
+
 (** Replace only the node payload. Its logical id and input arity must match. *)
 val replace_node : Node.t -> t -> (t, string) result
 val apply_parameters :

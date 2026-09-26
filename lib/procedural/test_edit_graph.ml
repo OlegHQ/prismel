@@ -26,6 +26,24 @@ let run () =
   check (Result.is_error (Edit_graph.connect ~source:(Node.id middle)
       ~consumer:(Node.id middle) ~input_index:0 reconnected))
     "editable graph accepted a self cycle";
+  let compiled = Edit_graph.compile_all reconnected in
+  let node compiled id = Edit_graph.compiled_node compiled ~node_id:id |> get in
+  let again = Edit_graph.compile_all ~previous:compiled reconnected in
+  check (node again (Node.id output) == node compiled (Node.id output)
+      && Node.id (node again (Node.id output))
+         = Node.id (Edit_graph.compile reconnected |> get))
+    "incremental compile rebuilt an unchanged document";
+  let rewired = Edit_graph.disconnect ~consumer:(Node.id middle) ~input_index:0
+      reconnected |> get in
+  check (Result.is_error (Edit_graph.compiled_node
+      (Edit_graph.compile_all ~previous:compiled rewired) ~node_id:(Node.id output)))
+    "incremental compile reused a node across a disconnected input";
+  let rewired = Edit_graph.connect ~source:(Node.id source)
+      ~consumer:(Node.id middle) ~input_index:0 rewired |> get in
+  let recompiled = Edit_graph.compile_all ~previous:compiled rewired in
+  check (node recompiled (Node.id source) == node compiled (Node.id source)
+      && Node.id (node recompiled (Node.id output)) = Node.id output)
+    "incremental compile did not reuse the unchanged upstream node";
   let inserted = Sop.null ~label:"inserted" source in
   let connection = Edit_graph.{ source = Node.id source;
     consumer = Node.id middle; input_index = 0 } in

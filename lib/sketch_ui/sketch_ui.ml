@@ -239,6 +239,8 @@ module Cook = struct
     (* A framing job can supersede a display cook that must be resubmitted. *)
     framing : bool option;
     force : bool;
+    (* The last compiled document, reused node-by-node on the next edit. *)
+    compiled : (Edit_graph.t * Edit_graph.compiled) option;
   }
 
   type 'prepared update = {
@@ -269,7 +271,7 @@ module Cook = struct
     Result.map (fun worker ->
       { worker; prepare; schedule = Sketch_support.Reactive_sop.schedule_initial;
         prepared = None; error = None; seconds = None; displayed_bounds = None;
-        framing = None; force = false })
+        framing = None; force = false; compiled = None })
       (Sketch_support.Reactive_sop.create ~seed ~grain ?domains ~max_entries
         ~max_payload_bytes ())
 
@@ -281,14 +283,19 @@ module Cook = struct
   let update value ~document ~displayed_id ~graph ~displayed_graph ~edit_error
       ~display_changed ~document_changed ~effects ~timeline_changes ~timeline
       ~frame ~frame_request =
+    let compiled = match value.compiled with
+      | Some (source, compiled) when source == document -> compiled
+      | previous -> Edit_graph.compile_all ?previous:(Option.map snd previous) document in
     let graph, edit_error = if not document_changed then graph, edit_error
-      else match Edit_graph.compile document with
-      | Ok graph -> graph, edit_error
-      | Error message -> graph, Some message in
+      else match Option.map (fun node_id -> Edit_graph.compiled_node compiled ~node_id)
+          (Edit_graph.root document) with
+      | Some (Ok graph) -> graph, edit_error
+      | Some (Error message) -> graph, Some message
+      | None -> graph, Some "editable graph has no output node" in
     let displayed_graph, edit_error =
       if not document_changed && not display_changed
       then displayed_graph, edit_error
-      else match Edit_graph.compile_node document ~node_id:displayed_id with
+      else match Edit_graph.compiled_node compiled ~node_id:displayed_id with
       | Ok graph -> graph, edit_error
       | Error message -> displayed_graph, Some message in
     let completion = Sketch_support.Reactive_sop.poll value.worker in
@@ -328,7 +335,7 @@ module Cook = struct
       | Some node_id when node_id = displayed_id && displayed_bounds <> None
           && not document_changed -> Some displayed_bounds, framing
       | Some node_id ->
-          (match Edit_graph.compile_node document ~node_id with
+          (match Edit_graph.compiled_node compiled ~node_id with
            | Error _ -> Some None, framing
            | Ok node ->
                let was_busy = busy value && framing = None in
@@ -338,7 +345,8 @@ module Cook = struct
                | Ok _ -> framed, Some (was_busy || Option.value ~default:false framing)
                | Error _ -> Some None, framing) in
     { cook = { value with schedule; prepared; error; seconds; displayed_bounds;
-        framing; force = force_next }; graph; displayed_graph; edit_error;
+        framing; force = force_next; compiled = Some (document, compiled) }; graph;
+      displayed_graph; edit_error;
       prepared_changed; framed }
 
   let close value = Sketch_support.Reactive_sop.close value.worker

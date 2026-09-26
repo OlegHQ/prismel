@@ -94,61 +94,107 @@ let connections value =
           { source; consumer = node.id; input_index } :: !result) node.inputs;
     !result) [] |> List.rev
 
-let compile_node value ~node_id =
-  let visiting = Hashtbl.create (Id_map.cardinal value.entries)
-  and compiled = Hashtbl.create (Id_map.cardinal value.entries) in
+(* One compiled node per document entry. [inputs] are the compiled input
+   nodes it was built from, so a later compile can reuse [built] when both the
+   entry and every input are physically unchanged. *)
+type compiled_entry = {
+  source : entry;
+  compiled_inputs : Node.t option array;
+  built : (Graph.t, string) result;
+}
+
+type compiled = compiled_entry Id_map.t
+
+let same_inputs left right =
+  Array.length left = Array.length right
+  && Array.for_all2 (fun a b -> match a, b with
+    | Some a, Some b -> a == b | None, None -> true | _ -> false) left right
+
+(* The node already carries exactly these inputs: no rebuild needed. *)
+let wired_to (node : Node.t) inputs =
+  let rec go index = function
+    | [] -> index = Array.length inputs
+    | input :: rest -> index < Array.length inputs
+        && (match inputs.(index) with Some compiled -> compiled == input | None -> false)
+        && go (index + 1) rest in
+  go 0 (Node.inputs node)
+
+let rebuild (entry : entry) compiled_inputs =
+  match entry.factory with
+  | Some factory when Array.exists (( = ) Optional) factory.requirements ->
+      let node = factory.build (Array.to_list compiled_inputs) in
+      let changes = Node.parameter_fields entry.node
+          |> List.map (fun field -> field.Parameter.name, field.current) in
+      Result.map (fun (node, _) -> Node.Private.adopt_identity ~source:entry.node node)
+        (Node.apply_parameters node changes)
+  | _ when wired_to entry.node compiled_inputs -> Ok entry.node
+  | _ -> Ok (Node.Private.rebuild_with_inputs entry.node
+               (Array.map Option.get compiled_inputs))
+
+(* Compile [id] and its inputs into [table], reusing [previous] entries whose
+   source entry and compiled inputs are physically unchanged. *)
+let compile_into value ~previous table =
+  let visiting = Hashtbl.create 16 and cycle_seen = ref false in
   let rec build id =
-    match Hashtbl.find_opt compiled id with
-    | Some node -> Ok node
+    match Hashtbl.find_opt table id with
+    | Some compiled -> compiled.built
     | None when Hashtbl.mem visiting id ->
+        cycle_seen := true;
         Error (Printf.sprintf "editable graph contains a cycle through node #%d" id)
     | None ->
-        (match Id_map.find_opt id value.entries with
-         | None -> Error (Printf.sprintf "editable graph references missing node #%d" id)
-         | Some (entry : entry) ->
-             Hashtbl.add visiting id ();
-             let compiled_inputs = Array.make (Array.length entry.inputs) None in
-             let rec build_inputs index =
-               if index = Array.length entry.inputs then Ok ()
-               else match entry.inputs.(index) with
-                 | None ->
-                     let optional = match entry.factory with
-                       | Some factory ->
-                           factory.requirements.(index) = Optional
-                       | None -> false in
-                     if optional then build_inputs (index + 1)
-                     else Error (Printf.sprintf
-                       "node %S input %d is disconnected"
-                       (Node.label entry.node) index)
-                 | Some input_id ->
-                     Result.bind (build input_id) (fun input ->
-                       compiled_inputs.(index) <- Some input;
-                       build_inputs (index + 1))
-             in
-             let result = Result.bind (build_inputs 0) (fun () ->
-               let rebuild () = match entry.factory with
-                 | Some factory when Array.exists (( = ) Optional)
-                       factory.requirements ->
-                     let node = factory.build (Array.to_list compiled_inputs) in
-                     let changes = Node.parameter_fields entry.node
-                         |> List.map (fun field ->
-                           field.Parameter.name, field.current) in
-                     Result.map (fun (node, _) ->
-                       Node.Private.adopt_identity ~source:entry.node node)
-                       (Node.apply_parameters node changes)
-                 | _ ->
-                     let inputs = Array.map Option.get compiled_inputs in
-                     Ok (Node.Private.rebuild_with_inputs entry.node inputs) in
-               Result.map (fun node ->
-               Hashtbl.remove visiting id;
-               Hashtbl.add compiled id node;
-               node) (rebuild ())) in
-             if Result.is_error result then Hashtbl.remove visiting id;
-             result)
-  in
+        match Id_map.find_opt id value.entries with
+        | None -> Error (Printf.sprintf "editable graph references missing node #%d" id)
+        | Some (entry : entry) ->
+            Hashtbl.add visiting id ();
+            let count = Array.length entry.inputs in
+            let compiled_inputs = Array.make count None in
+            let rec build_inputs index =
+              if index = count then Ok ()
+              else match entry.inputs.(index) with
+                | None ->
+                    let optional = match entry.factory with
+                      | Some factory -> factory.requirements.(index) = Optional
+                      | None -> false in
+                    if optional then build_inputs (index + 1)
+                    else Error (Printf.sprintf "node %S input %d is disconnected"
+                      (Node.label entry.node) index)
+                | Some input_id ->
+                    Result.bind (build input_id) (fun input ->
+                      compiled_inputs.(index) <- Some input;
+                      build_inputs (index + 1)) in
+            let built = Result.bind (build_inputs 0) (fun () ->
+              match Id_map.find_opt id previous with
+              | Some reused when reused.source == entry
+                    && same_inputs reused.compiled_inputs compiled_inputs ->
+                  reused.built
+              | _ -> rebuild entry compiled_inputs) in
+            Hashtbl.remove visiting id;
+            (* A cycle error names where the walk entered the cycle, so once one
+               is seen only successes are memoized. *)
+            if Result.is_ok built || not !cycle_seen then
+              Hashtbl.replace table id { source = entry; compiled_inputs; built };
+            built in
+  build
+
+let compile_all ?(previous = Id_map.empty) value =
+  let table = Hashtbl.create (Id_map.cardinal value.entries) in
+  let build = compile_into value ~previous table in
+  Id_map.iter (fun id (source : entry) ->
+    let built = build id in
+    if not (Hashtbl.mem table id) then
+      Hashtbl.replace table id { source; compiled_inputs = [||]; built })
+    value.entries;
+  Hashtbl.fold Id_map.add table Id_map.empty
+
+let compiled_node compiled ~node_id = match Id_map.find_opt node_id compiled with
+  | Some compiled -> compiled.built
+  | None -> Error (Printf.sprintf "editable graph has no node #%d" node_id)
+
+let compile_node value ~node_id =
   if not (Id_map.mem node_id value.entries) then
     Error (Printf.sprintf "editable graph has no node #%d" node_id)
-  else build node_id
+  else compile_into value ~previous:Id_map.empty
+      (Hashtbl.create (Id_map.cardinal value.entries)) node_id
 
 let compile value = match value.root with
   | None -> Error "editable graph has no output node"

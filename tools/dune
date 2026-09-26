@@ -95,6 +95,11 @@
       (run %{exe:../examples/pathtracer/main.exe})))))))
 
 (executable
+ (name bench_edit_graph)
+ (modules bench_edit_graph)
+ (libraries procedural sop_catalog unix))
+
+(executable
  (name bench_instances)
  (modules bench_instances)
  (libraries prismel unix))
