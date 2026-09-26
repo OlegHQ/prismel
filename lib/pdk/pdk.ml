@@ -56,6 +56,7 @@ module Plane_clip = Pdk_mesh.Plane_clip
 module Ray = Pdk_mesh.Ray
 module Point_split = Pdk_mesh.Point_split
 module Intersection_analysis = Pdk_mesh.Intersection_analysis
+module Uv_checked = Pdk_mesh.Uv_checked
 module Instance_copy = Pdk_mesh.Instance_copy
 module Ops = Pdk_mesh.Ops
 module Subdivision_extra = Pdk_mesh.Subdivision_extra

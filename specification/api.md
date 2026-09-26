@@ -517,6 +517,8 @@ Packed queries use `Pdk.Ray.run`, `Pdk.Point_split.run_checked`, and
 `Pdk.Intersection_analysis.run_checked`; ray options and constructors live in
 `Pdk.Ray`. These entries preserve the typed validation and cancellation
 errors of their former `Pdk.Ops` wrappers.
+Packed UV projection, transform, seam marking, unitizing, flattening, and
+relaxation use the corresponding `Pdk.Uv_checked` entries and option types.
 `Pdk.Fuse_grid.fuse_checked` and `snap_to_grid_checked` preserve the typed
 validation and cancellation boundary around the packed Fuse and grid kernels.
 `Pdk.Plane_clip.clip_checked` and `clip_transform_checked` preserve the same

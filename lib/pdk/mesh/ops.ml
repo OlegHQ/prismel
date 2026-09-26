@@ -87,13 +87,13 @@ type sort_key = Ordering.key =
   | Index_attribute of string
   | Reverse
   | Shift of int
-type uv_projection = Uv_ops.projection =
+type uv_projection = Uv_checked.projection =
   | Planar of { origin : Vec3.t; u_axis : Vec3.t; v_axis : Vec3.t }
   | Cylindrical of {
       origin : Vec3.t; axis : Vec3.t; seam : Vec3.t; height : float;
     }
   | Spherical of { origin : Vec3.t; axis : Vec3.t; seam : Vec3.t }
-type uv_unitize_mode = Uv_ops.unitize_mode = Per_face | Islands
+type uv_unitize_mode = Uv_checked.unitize_mode = Per_face | Islands
 type edge_incidence = Edge_ops.incidence =
   | Any_edge | Boundary_edge | Manifold_edge | Non_manifold_edge
 type edge_angle_basis = Edge_ops.angle_basis =
@@ -1332,25 +1332,9 @@ let sweep ?cancel ?(grain = 16_384) ?backbones ?cross_sections
 
 let sweep_circle = Curve_modeling.sweep_circle_checked
 
-let uv_project ?cancel ?grain ?name ?primitives ?u_range ?v_range
-    ?fix_seams ?fix_poles projection geometry =
-  protected "uv_project" "invalid_projection" (fun () ->
-    Uv_ops.project ?cancel ?grain ?name ?primitives ?u_range ?v_range
-      ?fix_seams ?fix_poles projection geometry)
-
-let uv_transform ?cancel ?grain ?name ?selection ~owner ?translate ?scale
-    ?angle ?pivot geometry =
-  protected "uv_transform" "invalid_attribute" (fun () ->
-    Uv_ops.transform ?cancel ?grain ?name ?selection ~owner ?translate ?scale
-      ?angle ?pivot geometry)
-
-let uv_auto_seam ?cancel ?grain ?name ?primitives ?angle ?include_boundaries
-    ?include_non_manifold ?partition_attribute ?existing_uv ?uv_tolerance
-    ?island_attribute geometry =
-  protected "uv_auto_seam" "invalid_topology" (fun () ->
-    Uv_ops.auto_seam ?cancel ?grain ?name ?primitives ?angle
-      ?include_boundaries ?include_non_manifold ?partition_attribute
-      ?existing_uv ?uv_tolerance ?island_attribute geometry)
+let uv_project = Uv_checked.project
+let uv_transform = Uv_checked.transform
+let uv_auto_seam = Uv_checked.auto_seam
 
 let group_edges ?cancel ?grain ?name ?primitives ?incidence ?min_length
     ?max_length ?angle_basis ?min_angle ?max_angle geometry =
@@ -1514,20 +1498,6 @@ let group_find_path ?cancel ?grain ?mode ?ending ?avoid_self_intersection
     Group_path.run ?cancel ?grain ?mode ?ending ?avoid_self_intersection
       ?collision ?contain ~base ~name geometry)
 
-let uv_unitize ?cancel ?grain ?name ?primitives ?seams ?edge_seams ?tolerance
-    ?uniform mode geometry =
-  protected "uv_unitize" "invalid_uv" (fun () ->
-    Uv_ops.unitize ?cancel ?grain ?name ?primitives ?seams ?edge_seams
-      ?tolerance ?uniform mode geometry)
-
-let uv_flatten ?cancel ?grain ?name ?seams ?edge_seams ?iterations ?tolerance
-    geometry =
-  protected "uv_flatten" "invalid_uv" (fun () ->
-    Uv_ops.flatten ?cancel ?grain ?name ?seams ?edge_seams ?iterations
-      ?tolerance geometry)
-
-let uv_relax ?cancel ?grain ?name ?seams ?edge_seams ?uv_tolerance ?iterations
-    ?tolerance geometry =
-  protected "uv_relax" "invalid_uv" (fun () ->
-    Uv_ops.relax ?cancel ?grain ?name ?seams ?edge_seams ?uv_tolerance
-      ?iterations ?tolerance geometry)
+let uv_unitize = Uv_checked.unitize
+let uv_flatten = Uv_checked.flatten
+let uv_relax = Uv_checked.relax
