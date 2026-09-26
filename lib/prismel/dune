@@ -1,7 +1,7 @@
 (library
  (name prismel)
  (public_name prismel)
- (modules vec2 vec3 bounds2 bounds3 color math mat3 mat4 quat rand noise light material
+ (modules vec2 vec3 bounds2 bounds3 color mat3 mat4 quat rand noise light material
   node3 path parallel texture input event input_state frame time clipboard image
   canvas canvas_runtime font audio assets mesh camera easy_camera shadow3
   scene3 scene3_native_lowering

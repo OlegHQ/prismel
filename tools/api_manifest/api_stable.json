@@ -1,7 +1,7 @@
 {
   "generator": "tools/api_manifest/api_manifest.exe",
   "kind": "stable_high_level",
-  "module_count": 148,
+  "module_count": 147,
   "modules": [
     {
       "api_sha256": "42991257be662e316b18b78776fd2c91d5990ebf5a3b561d4d38b32d1d9db961",
@@ -951,15 +951,6 @@
       "source": "lib/prismel/material.mli",
       "source_bytes": 371,
       "source_sha256": "eb84bc1a629370567f25a554798eee3e3f6f3caf345a621a23df5f0687067be7"
-    },
-    {
-      "api_sha256": "e909dcfb9b5dbe0265eef8a7b47a7289eb6e09ed457df840d30a2a27f078611a",
-      "excluded_legacy_symbols": [],
-      "library": "prismel",
-      "module": "Math",
-      "source": "lib/prismel/math.mli",
-      "source_bytes": 1316,
-      "source_sha256": "70a5005329a28a40da3b1ed5a7e529313a30fc4cc8e75f68d745b8c968f7be69"
     },
     {
       "api_sha256": "3217996413b0df18ce9699456e0873a1fb0c8fcd67f9cea0d50333c8f7f6d20d",

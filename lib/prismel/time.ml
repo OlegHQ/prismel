@@ -35,7 +35,7 @@ let limit_frame_rate () = match !target_fps with
         if delay > 0. then Unix.sleepf delay
 let elapsed_fraction start_time duration =
   if duration <= 0.0 then 1.0
-  else Math.clamp_float ((now () -. start_time) /. duration) ~min:0.0 ~max:1.0
+  else Float.min 1.0 (Float.max 0.0 ((now () -. start_time) /. duration))
 
 module Easing = struct
   (* Linear interpolation (no easing) *)
@@ -82,9 +82,9 @@ module Easing = struct
       1.0 -. 16.0 *. u *. u *. u *. u *. u
   
   (* Sinusoidal easing *)
-  let ease_in_sine t = 1.0 -. cos (t *. Math.half_pi)
-  let ease_out_sine t = sin (t *. Math.half_pi)
-  let ease_in_out_sine t = 0.5 *. (1.0 -. cos (t *. Math.pi))
+  let ease_in_sine t = 1.0 -. cos (t *. (Float.pi /. 2.0))
+  let ease_out_sine t = sin (t *. (Float.pi /. 2.0))
+  let ease_in_out_sine t = 0.5 *. (1.0 -. cos (t *. Float.pi))
   
   (* Exponential easing *)
   let ease_in_expo t = if t = 0.0 then 0.0 else 2.0 ** (10.0 *. (t -. 1.0))
@@ -123,19 +123,19 @@ module Easing = struct
   
   (* Elastic easing (bouncy) *)
   let ease_in_elastic t =
-    let c4 = Math.two_pi /. 3.0 in
+    let c4 = (2.0 *. Float.pi) /. 3.0 in
     if t = 0.0 then 0.0
     else if t = 1.0 then 1.0
     else -. (2.0 ** (10.0 *. t -. 10.0)) *. sin ((t *. 10.0 -. 10.75) *. c4)
   
   let ease_out_elastic t =
-    let c4 = Math.two_pi /. 3.0 in
+    let c4 = (2.0 *. Float.pi) /. 3.0 in
     if t = 0.0 then 0.0
     else if t = 1.0 then 1.0
     else (2.0 ** (-10.0 *. t)) *. sin ((t *. 10.0 -. 0.75) *. c4) +. 1.0
   
   let ease_in_out_elastic t =
-    let c5 = Math.two_pi /. 4.5 in
+    let c5 = (2.0 *. Float.pi) /. 4.5 in
     if t = 0.0 then 0.0
     else if t = 1.0 then 1.0
     else if t < 0.5 then
@@ -167,7 +167,9 @@ module Easing = struct
 end
 
 (* Smoothstep function (ease in-out) *)
-let smoothstep t = Math.smoothstep t
+let smoothstep t =
+  let t = Float.min 1.0 (Float.max 0.0 t) in
+  t *. t *. (3.0 -. 2.0 *. t)
 
 (* Convenience functions for common easing *)
 let ease_in = Easing.ease_in_quad
