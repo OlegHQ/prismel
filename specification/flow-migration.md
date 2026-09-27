@@ -317,6 +317,13 @@ network with the same canvas, keys, views and text), then plan it here.
 
 ## Log
 
+- 2026-09-27 M3 value-core foundation: `flow` depends only on `param` and
+  supplies diagnostics, checked symbols, reserved contexts, port types and
+  coercions. PPX declarations reuse its name check. The gate rejects UI,
+  geometry and GPU edges from the value core and PPX, with injected-edge
+  regressions. Coercion checks cover vector rejection/broadcast, rounding,
+  overflow and field hard bounds. Expression/value-node/overlay work follows.
+
 - 2026-09-27 M3 catalog annotations: an OCaml AST codemod annotated all 89
   named float triples and 26 PPX input signatures; Switch and Merge retain
   their custom builders with named slots (28 multi-input factories total).

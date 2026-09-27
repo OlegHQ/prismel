@@ -66,7 +66,7 @@ let reach graph =
 
 let gpu = ["sdl3"; "sdl3_image"; "sdl3_ttf"; "sdl3_mixer"; "metal"; "ogpu_core"; "ogpu"; "ogpu_mock"; "ogpu_metal"; "ogpu_metal_native";
            "runtime"; "runtime_input"; "runtime_resources"; "scene_execution"]
-let upper = ["param"; "prismel"; "editor_core"; "pxui"; "pxui_shell"; "pxui_graph"; "procedural"; "pdk";
+let upper = ["param"; "flow"; "prismel"; "editor_core"; "pxui"; "pxui_shell"; "pxui_graph"; "procedural"; "pdk";
              "sop_catalog"; "sketch_support"; "prismel_editor"]
 let foundational = ["sdl3"; "sdl3_image"; "sdl3_ttf"; "sdl3_mixer"; "metal"; "ogpu_core"; "ogpu";
                     "native_layer_token"; "scene_command"; "lru"]
@@ -75,7 +75,10 @@ let foundational = ["sdl3"; "sdl3_image"; "sdl3_ttf"; "sdl3_mixer"; "metal"; "og
 let rules =
   List.map (fun lib -> lib, "runtime" :: "runtime_resources"
                             :: "prismel_execution" :: upper) foundational
-  @ [ "param", "prismel" :: "prismel_math" :: "pdk" :: "procedural" :: "editor_core" :: "pxui" :: gpu ]
+  @ [ "param", "flow" :: "prismel" :: "prismel_math" :: "pdk" :: "procedural" :: "editor_core" :: "pxui" :: gpu ]
+  @ List.map (fun library -> library, "prismel" :: "prismel_math" :: "pdk" :: "procedural" :: "editor_core"
+       :: "pxui" :: "pxui_shell" :: "pxui_graph" :: "sop_catalog" :: "editor_document"
+       :: "prismel_editor" :: gpu) ["flow"; "ppx_prismel"]
   @ [ "ogpu_core", ["sdl3"; "metal"; "ogpu_metal_native"; "ogpu_metal"];
       "ogpu", ["sdl3"; "metal"; "ogpu_metal_native"; "ogpu_metal"];
       "ogpu_mock", ["sdl3"; "metal"; "ogpu_metal_native"; "ogpu_metal"];
@@ -253,7 +256,10 @@ let run () =
      "prismel", "sdl3_ttf";
      "editor_document", "pxui"; "editor_document", "pxui_shell";
      "editor_document", "pxui_graph"; "editor_document", "sketch_support";
-     "editor_document", "prismel_editor"];
+     "editor_document", "prismel_editor";
+     "flow", "pxui"; "flow", "procedural"; "flow", "prismel_math";
+     "flow", "prismel"; "param", "flow"; "sdl3", "flow";
+     "ppx_prismel", "procedural"; "ppx_prismel", "pxui"];
   if violations graph ~scan:["lib/prismel/injected.ml", "let x = Metal.Device.system_default"] = []
      || violations graph ~scan:["lib/prismel/injected.ml", "open Ogpu_metal_native"] = []
      || violations graph ~scan:["lib/prismel/injected.ml", "open Ogpu_metal"] = [] then

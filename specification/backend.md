@@ -7,6 +7,11 @@ not select an alternate renderer through environment variables or public API.
 
 ## Ownership and dependency direction
 
+`flow` depends only on dependency-free `param`. Its value types, contexts and
+coercions have no geometry, editor, UI, renderer or GPU dependencies; the
+dependency gate rejects those transitive edges. Its remaining M3 value core
+and editor overlay work are tracked in `flow-migration.md`.
+
 ```text
 examples / sketches / pxui / editor / sketch_support / pdk_prismel
                          |                  |                |
@@ -114,7 +119,8 @@ s-expression reader, checker and diagnostics) and `flow_sop` (depends on
 `flow`, `param`, `procedural`: the SOP network overlay, value lane, compound
 inlining, printer). `editor_document`, `pxui_graph`, `pxui_shell` and
 `prismel_editor` gain edges to them; `ppx_prismel` gains `flow` for
-`[%flow]` (M7). The gate adds both to `upper` and forbids `flow` from reaching
+`[%flow]` (M7). Its current declaration checks already use `Flow.Symbol`.
+The gate adds both to `upper` and forbids `flow` from reaching
 anything but `param`, and `flow_sop` from reaching UI, editor or GPU
 libraries. This section is updated again when M3 lands.
 `pxui_graph` exports its graph commands as `Editor_core.Command.t` entries without handling key

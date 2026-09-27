@@ -3,7 +3,7 @@
  (public_name prismel.ppx)
  (kind ppx_rewriter)
  (modules ppx_prismel)
- (libraries ppxlib))
+ (libraries ppxlib flow))
 
 (test
  (name test_sop_metadata)

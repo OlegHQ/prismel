@@ -1,0 +1,10 @@
+(library
+ (name flow)
+ (public_name prismel.flow)
+ (modules diagnostic context symbol port_type)
+ (libraries param))
+
+(test
+ (name test_value_core)
+ (modules test_value_core)
+ (libraries flow param))

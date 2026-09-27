@@ -707,6 +707,14 @@ also expose geometry input names through `Edit_graph.factory_slot_names`:
 use `in0`, `in1`, and so on. Slot names must be distinct from parameter
 names. M3's editor adapters consume them as the value-port milestone lands.
 
+The new `flow` library depends only on `param`. Its current value core
+provides checked symbols, contexts, port types and scalar/vector coercions;
+the PPX uses its shared name validation. Geometry cannot connect to value
+ports, and vectors cannot drive scalars. Float-to-int coercion rounds and
+saturates the machine range before the caller applies the parameter's hard
+bounds. The expression evaluator, value nodes and editor drives remain M3
+work in progress.
+
 | Key | Scope | Action |
 |---|---|---|
 | `s` / `b` | global | save preset (name prompt) / preset browser |

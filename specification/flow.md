@@ -88,8 +88,8 @@ Coercions happen when a drive's value reaches a port, never in storage:
 
 | From → to | Rule |
 |---|---|
-| Int → Float | exact |
-| Float → Int | `Float.round`, then the field's hard bounds through `Param.apply` |
+| Int → Float | IEEE double conversion (integers beyond its 53-bit precision may round) |
+| Float → Int | finite values: `Float.round`, saturate the machine int range, then the field's hard bounds through `Param.apply`; non-finite values are errors |
 | Float or Int → Bool | nonzero is `true` |
 | Bool → Float or Int | `true` is 1 |
 | Float, Int or Bool → Vec3 | broadcast to all three components |
@@ -1106,3 +1106,8 @@ while bypassed; disconnected secondary slots cannot prevent the pass-through.
 92/278 count was stale. Ray has both a `direction` choice and
 `direction_x/y/z`; its group is `direction_vector`, preserving the existing
 field names and the rule that a group cannot shadow another field.
+
+2026-09-27: coercions use the actual OCaml int and IEEE double ranges.
+Int-to-Float cannot be exact beyond 53 bits. Rounded Float-to-Int saturates
+the machine range before field hard bounds, preventing overflow wraparound;
+non-finite values cannot drive an integer field.

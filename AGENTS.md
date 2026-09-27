@@ -41,6 +41,7 @@ in a browser, never product code and never a web fallback.
 | `procedural` | Immutable SOP graphs over `pdk` operations |
 | `sop_catalog` | Inspectable SOP constructors registered by PPX |
 | `param` | Typed parameter schemas; no dependencies (`Procedural.Parameter`, `Editor_core.Param`) |
+| `flow` | UI-free value types, contexts and coercions over `param` (M3 core in progress) |
 | `editor_core` | Editor state and routing: labelled `History`, `Command`, `Keymap`, `Router`, plus JSON file persistence (`Store`) |
 | `editor_document` | Package-private scene/network/settings model, validation, object/layer schemas and presets; no presentation dependencies |
 | `pxui` | The one immediate-mode UI engine (`Pxui.Ui`) |

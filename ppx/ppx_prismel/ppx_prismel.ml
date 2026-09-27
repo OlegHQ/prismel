@@ -305,18 +305,14 @@ let node_metadata declaration =
       "sop_node key, label, and category must not be blank";
   if inputs < 0 then Location.raise_errorf ~loc:declaration.ptype_loc
       "sop.node_inputs must be non-negative";
-  let valid_key value = String.length value > 0
-      && value.[0] >= 'a' && value.[0] <= 'z'
-      && String.for_all (function 'a' .. 'z' | '0' .. '9' | '_' -> true
-          | _ -> false) value in
-  if not (valid_key key) then Location.raise_errorf ~loc:declaration.ptype_loc
+  if not (Flow.Symbol.valid_name key) then Location.raise_errorf ~loc:declaration.ptype_loc
       "sop.node_key must match [a-z][a-z0-9_]*, not %S" key;
   let slots = match Attribute.get node_slots_attribute declaration with
     | None -> List.init inputs (fun index -> "in" ^ string_of_int index)
     | Some expression ->
         let names = string_constant expression "sop.node_slots"
             |> String.split_on_char ',' |> List.map String.trim in
-        if List.length names <> inputs || List.exists (fun name -> not (valid_key name)) names
+        if List.length names <> inputs || List.exists (fun name -> not (Flow.Symbol.valid_name name)) names
             || List.length (List.sort_uniq String.compare names) <> inputs then
           Location.raise_errorf ~loc:expression.pexp_loc
             "sop.node_slots requires %d distinct names matching [a-z][a-z0-9_]*" inputs;
