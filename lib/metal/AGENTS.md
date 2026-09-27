@@ -7,15 +7,23 @@ the binding. The end-to-end workflow is the `metal-workflow` skill.
 ## Binding path
 
 - A new native call is a `Method` or `Property` entry in `gen/registry.ml`
-  (enums and fixed scalar structs: `Enum`, `Record`). Each entry names its
+  (class sends: `Class_method`; enums and fixed scalar structs: `Enum`, `Record`). Each SDK entry names its
   receiver `Handle_kind`, Objective-C type, selector/property, argument and
   result types, availability (`since`) and the OGPU `Caps.feature` it serves.
   The generator emits `Metal_raw.Registry.<ocaml>` and a typed Objective-C
   stub; nothing generated is checked in (outputs live in `_build`).
-- Handwritten bridge code (`metal_bridge.mm` + `metal_raw.ml`) is only for
+- Handwritten bridge code (`metal_bridge.mm`) is only for
   what the registry cannot express: blocks and callbacks, descriptor
   graphs, handle arrays, ownership transfer, native structs. When you touch a
   handwritten stub that the registry can express, move it to the registry.
+  Its ABI still belongs in a `Native` registry entry with an exact signature,
+  primitive names and a concrete reason. Never add an external in `metal_raw.ml`;
+  that file only adapts generated calls. Shared positional types live in the
+  private `metal_raw_types.ml`.
+  `Method` entries explicitly declare `pool = true`; preserve `pool = false`
+  only for a measured, formerly pool-free unit call without NSString/NSError
+  temporaries. Fixed tuple structs use `Tuple` with a `Record` schema, and
+  bounded machine-int indices use `Scalar Nsuint_int`.
 - The installed SDK is the oracle: generated stubs compile with `-Werror`, so
   an unknown selector, wrong type or unguarded availability fails the build.
   Never use `objc_msgSend`, stringly typed selectors or an unsafe catch-all.

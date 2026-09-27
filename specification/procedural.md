@@ -216,6 +216,14 @@ insert operations. Compilation rebuilds parameterized closures with their
 current inputs, rejects cycles and disconnected paths, and produces an ordinary
 immutable DAG for the existing deterministic Session cook path.
 
+*Prismel Flow (target, `flow.md`):* `Edit_graph` itself does not change. From
+milestone M3 each SOP network carries a `flow_sop` overlay beside it: value
+nodes (built into the new `flow` library), drives on parameter ports (a wire
+from a value output or an expression), and later compound definitions. A
+value lane resolves drives before each cook and applies only changed values
+with `Edit_graph.apply_parameters` to a copy; stored literals are never
+overwritten. The presentation paragraph below is current until M1.
+
 `prismel.pxui_graph` presents that document. It lays nodes deterministically,
 renders ordered ports and selectable curved wires, retains manual positions,
 supports Shift/marquee multi-selection and group dragging, and emits typed

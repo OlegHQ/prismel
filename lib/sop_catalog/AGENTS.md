@@ -37,3 +37,16 @@ names/defaults/ranges into hand-built widgets, or make `procedural` import
 PXUI.
 
 Workflow for a new node: the `add-sop` skill.
+
+## Prismel Flow (planned, `specification/flow.md`)
+
+Stable node keys become Lisp symbols verbatim (`sop/uv_sphere`) and field
+names become keywords (`:size_x`), so keys match `[a-z][a-z0-9_]*` and are
+never renamed without an alias. Milestone M3 adds, and until then do not use:
+`[@sop.primary]` (default card rows; without it the first folder's fields are
+primary), `[@sop.vec3 "center"]` on three consecutive float fields (one vec3
+port; every `*_x/_y/_z` triple gets annotated), and `[@@sop.node_slots "a, b"]`
+(slot names; a slot name may not equal a field name). Value nodes (Time,
+Value, Math, Combine/Separate XYZ, Remap) live in `lib/flow`, never here. M7
+adds `lib/sop_catalog/flow_manifest.sexp`, regenerated and promoted like the
+API manifest.

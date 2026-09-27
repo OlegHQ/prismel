@@ -1,0 +1,317 @@
+# Prismel Flow migration
+
+How to take Prismel Editor from today's SOP graph to the design in
+`flow.md`. This file is the work queue for agents: milestones, the files each
+one touches, the tests that prove it, and the docs that change when it lands.
+
+## How to use this file
+
+1. Read `flow.md` §1 and the milestone's sections before touching code.
+   Open `specification/flow/prototype/index.html` to see the behavior.
+2. Take the first milestone whose status is not `done`. Never start one whose
+   preconditions are not met, and never add code for a later milestone.
+3. Work in small commits. Every commit keeps default `dune runtest` green and
+   passes `dune build @check`. Use focused tests while iterating
+   (`dune build @lib/<name>/runtest`, `test/` aliases) and run
+   `@runtest-native` once at the end of the milestone, not per commit (tests
+   must not spam windows).
+4. When the milestone is complete: tick every task, set its status row to
+   `done` with the date, add a log line, apply its "Docs when it lands" list,
+   and report the benchmark numbers named in its "Measure" line.
+5. If the spec is wrong or ambiguous, stop and fix `flow.md` first (and the
+   prototype if affected), recording the decision in `flow.md` §18.
+
+Pre-commit loop (root `AGENTS.md`):
+`dune build @all && dune runtest && dune build @smoke && git diff --check`.
+A public `.mli` change shows as an `tools/api_manifest/api_stable.json` diff;
+accept an intended one with `dune promote`.
+
+## Status
+
+| Milestone | Scope | Status | Landed |
+|---|---|---|---|
+| M0 | Spec, prototype, docs aligned | done | 2026-09-27 |
+| M1 | Canvas: direction, polylines, bends, levels, box select, rows, preset v3 layout | not started | |
+| M2 | Keys and guide mode, World key remap | not started | |
+| M3 | Value ports: `flow`, `flow_sop`, value nodes, drives by wire, exposure, vec3, inspector | not started | |
+| M4 | Wireless binds, expressions, fold/unfold, row keys | not started | |
+| M5 | Compounds and contexts | not started | |
+| M6 | Views: list with values, read-only text, reader and checker | not started | |
+| M7 | `[%flow]` PPX and catalog manifest | not started | |
+
+## Current → target map
+
+Every current behavior that changes, and the milestone that changes it.
+Anything not listed keeps working as documented today.
+
+| Area | Today (authority until the milestone) | Target | Milestone |
+|---|---|---|---|
+| Layout direction | rows by input depth, top to bottom (`automatic_layout`) | columns by longest path, left to right (`flow.md` §6.1) | M1 |
+| Wires | cubic Béziers (`wire_handle`, `wire_segments`, `wire_distance_squared`) | polylines with bends, `Ui.line` | M1 |
+| Ports | output below, inputs above the tile | primary slot and single output in the header row; others as rows | M1 |
+| Tile | fixed 196×78 tile with VIEW button | levels point/chip/card/full; VIEW flag in the header | M1 |
+| Tile position storage | `Document.network.layout : (float * float) Layout.t` | layout record (`flow.md` §4.1) | M1 |
+| Preset format | version 2 | version 3, v2 transposed on load | M1 (layout), M3 (values, drives), M5 (definitions) |
+| Parameters on the canvas | none; inspector only | rows on cards by the exposure rule | M1 (literal rows), M3 (sockets) |
+| Empty-canvas left drag | marquee (exists) | marquee; Alt-drag also pans | M1 |
+| Graph keys | Copy, Cut, Paste, Duplicate, Delete, Frame_all; `f` frames displayed tile | full grammar (`flow.md` §7.2); `f` frames the selection or the display node | M2 |
+| World graph keys | `e` `r` `p` `[` `]` `1`–`4` | `t` `n` `d` `[` `]` `1`–`4` | M2 |
+| Status bar | names the open level's keys | guide strip by context | M2 |
+| Value nodes, drives | none | `flow` value kinds; wires into parameter rows | M3 |
+| `Param.field` | no primary or vec3 metadata | `primary`, `vec3` | M3 |
+| `_x/_y/_z` triples | three separate float rows | one vec3 port per `[@sop.vec3]` group | M3 |
+| Inspector | folders, all rows | plus card pins, vec3 rows, drive display, reset | M3 |
+| Expressions | none | `=` fields, fold/unfold | M4 |
+| Levels | scene → object network; "there are no subnetworks" | plus compound definitions under instances | M5 |
+| `Space l` | list ⇄ graph | graph → list → text | M6 |
+| Sketch source | OCaml `Sop.*` pipelines (still supported) | also `[%flow {| … |}]` | M7 |
+
+## M1 Canvas
+
+Preconditions: none.
+
+Tasks:
+
+1. `lib/pxui_graph/pxui_graph.ml`: replace `automatic_layout` with the
+   left-to-right column layout of `flow.md` §6.1 (column pitch 256, snap 12).
+   Keep determinism and the identity fast path for unchanged documents.
+2. Same file: port geometry of §6.2 (header trunk sockets, row sockets, chip
+   bottom attachments, point centres) and a `levels` input from layout.
+   Remove `wire_handle`, `wire_segments`, `wire_distance_squared`; add polyline
+   construction (stubs, bends), segment-distance hit testing through the
+   existing spatial index, bend handles as `Ui.box`es keyed by
+   (destination node, slot, bend index).
+3. Render levels point/chip/card/full (§6.4) with zoom caps 0.34/0.50,
+   pinning, bloom during wire drags. Cards show slot rows and parameter rows by
+   the exposure rule, with steps 1, 3, 4 and the first-folder primary default
+   (driven rows arrive with M3); non-drivable kinds render as fields without
+   sockets. Rows edit literals: scrub (soft range / 150, Shift / 1500) and
+   click-to-type, emitting a new `Set_parameter_requested { node; path; value }`
+   change; the host applies it with `Edit_graph.apply_parameters`.
+4. Change list additions in `pxui_graph.mli`: `Set_parameter_requested`,
+   `Bend_changed of { node : int; slot : int }` (layout only),
+   `Level_changed of int list`.
+   `Doc.apply` in `lib/prismel_editor/doc.ml` handles them and reports the
+   touched ids and ports so `Network_view.edit` updates only those.
+5. `lib/editor_document/document.ml`: `network.layout` becomes the layout
+   record of §4.1 (fields for rows, split and wireless exist but stay empty
+   until M3/M4). Update `validate`, `positions`, `Network_view.of_view/edit/to_view`.
+6. `lib/editor_document/preset.ml`: version 3 for layout fields (level, pinned,
+   geometry bends); v2 load transposes positions (§4.4). Write only v3.
+7. Pointer map of §7.1 for what exists in M1: box select on empty drag
+   (exists), Alt-drag pan, Alt-click bend add/remove, bend drag, Ctrl/Command-drag
+   knife (one `Step` entry "Cut wires"), double-click card ⇄ chip.
+8. `o`, `p`, `⇧O`, `⇧P` as `Pxui_graph.command` cases exported through
+   `bindings` (the host scopes them); "Detail level" history entries use
+   `Burst` merging (§4.3).
+9. `lib/pxui/theme.ml(i)`: port palette tokens of §6.5 as additions; nothing
+   existing changes.
+
+Tests:
+
+- `test/test_pxui_graph.ml`: layout is left to right and deterministic;
+  polyline hit tests (on segment, off by 7 points, at bends); bend add, move,
+  remove; knife removes exactly the crossed wires; level rendering counts
+  boxes per level; zoom caps and pinning; bloom; exposure rows for a SOP with
+  folders; scrub and typed edits emit `Set_parameter_requested`.
+- `test/test_editor_document.ml`: v2 → v3 transposition on a fixture; v3
+  round trip; invalid layout rejected without installing.
+- `test/test_editor_transactions.ml`: one undo entry per move, bend, scrub
+  gesture; Burst merging for level changes.
+- `lib/pxui/test_ui_parity`: regenerate only the graph fixtures, intentionally.
+
+Docs when it lands: `pxui.md` (Hosts: `Pxui_graph.update` paragraph; wire
+rendering line), `procedural.md` (Editable graph paragraph), `api.md`
+(pxui_graph paragraph and tile wording), `performance.md` (SOP graph
+baseline), `scene.md` (tile wording), `lib/pxui_graph/AGENTS.md`,
+`lib/prismel_editor/AGENTS.md`: replace the "M1" target notes with the new
+current text.
+
+Measure: `tools/bench_pxui_graph.ml`, `tools/bench_prismel_editor.exe 200 1000 2000`,
+`test_pxui_graph` 2,001-node smoke, plus an all-points case, before and after.
+
+## M2 Keys and guide
+
+Preconditions: M1 done.
+
+Tasks:
+
+1. Command entries for every M2 row of `flow.md` §7.2 with the listed ids:
+   `Pxui_graph.command` gains the canvas cases (walk, add, repeat,
+   connect-hint, display, mute, delete, dissolve, find, frame); host-level
+   ones go in `lib/prismel_editor/leader.ml`. Validation of overlaps stays as
+   today.
+2. Tab contexts and ripple (§7.3), repeat (§7.4), letter hints (§7.5, the
+   `c` half), walk (§7.6), dissolve (`⇧X`: reconnect the primary input's source
+   to every consumer), find (§7.10).
+3. `f`: frame the selection, or the display node with none selected.
+4. World keys: `leader.ml` `world.emit` → `t`, `world.reseed` → `n`,
+   `world.play` → `d` (graph scope, World level only, as today).
+5. `Editor_core.Command.t` gains `guide : Guide_context.t list` (pure data,
+   default `[]`); `lib/pxui_shell` `Status_bar` renders the strip of §10 for
+   the focused graph pane; tooltips after 380 ms (a `Ui` hover-delay helper in
+   `pxui`, one path for all tooltips); `Space k` key sheet
+   (`Pxui_shell.Which_key` style panel listing the grouped table); `?`
+   toggles, persisted with `Editor_core.Store` user preferences; key HUD.
+
+Tests: `test/test_editor_commands.ml` routes every new key window-free and
+checks scopes; hint labels for a fixed 30-node layout (two-letter case);
+walk from each node of a fixed graph; Tab ripple moves exactly the
+downstream nodes; guide strip contents per context; World keys at the World
+level only.
+
+Docs when it lands: `api.md` "Sketch workspace keys" table and plain-key
+paragraph; `scene.md` World keys; `lib/prismel_editor/AGENTS.md` key rules;
+the `extend-prismel-editor` skill (commands now carry `guide` contexts).
+
+## M3 Value ports
+
+Preconditions: M2 done.
+
+Tasks:
+
+1. `lib/param`: `primary : bool` (default false) and
+   `vec3 : (string * int) option` on `field` and `field_view`; `field` gets
+   `?primary` and `?vec3` arguments. Dependency-free still.
+2. `ppx/ppx_prismel`: `[@sop.primary]`, `[@sop.vec3 "name"]` (checks of
+   `flow.md` §5.3), `[@@sop.node_slots "a, b"]`, key alphabet check
+   `[a-z][a-z0-9_]*`, slot/field name clash check. PPX expect tests for each
+   error.
+3. `lib/sop_catalog/sop_catalog.ml`: annotate every `*_x/_y/_z` triple with
+   `[@sop.vec3 "<prefix>"]` (92 triples today; mechanical, verify with a
+   catalog test that no ungrouped `_x/_y/_z` triple remains); add
+   `[@sop.primary]` where the first-folder default is wrong; name slots of
+   multi-input SOPs. Catalog tests still instantiate every factory.
+4. New `lib/flow` (`flow.ml`/`.mli` per module, wrapped): `Symbol`,
+   `Context`, `Port_type` with coercions (§3.2), `Expr` (AST, infix parser,
+   printers, evaluator; no exceptions), value kinds with `Param` schemas
+   (§3.3), `Graph` (value nodes and outputs), `Diagnostic`.
+5. New `lib/flow_sop`: `Port`, `Drive`, `Network` (overlay, `validate`,
+   operations of §3.11 for wires), `Exposure.shown` (§5.1, used by canvas, list
+   and inspector), `Value_lane.resolve` (§13.1). Expose
+   `Procedural.Node.Private.fresh_id` for value-node ids.
+6. `editor_document`: `Document.network` carries the overlay; preset v3
+   `values` and `drives` arrays (§4.4); validation of §3.10.
+7. `pxui_graph`: value nodes, row sockets, drives rendering (← source, live
+   readouts), drop onto rows including hidden ones via bloom, chip bottom
+   attachments, `s` row pin (`Row_pinned`), vec3 rows and split toggle. Value
+   kinds and SOP kinds share Tab search (categories Value, Math, Vector).
+8. `pxui_shell/Inspector`: §9 rows, pins, vec3 editors and split, drive
+   display and reset (reset removes a drive; literal defaults come in M4 with
+   `r`).
+9. `prismel_editor/cook.ml`: run `Value_lane.resolve` before every submission;
+   keep the applied-value table in the environment; time-dependent networks
+   resolve every frame while playing.
+10. `test/dependency_gate.ml`: rules of `flow.md` §14.
+
+Tests: exposure table; coercions; value lane change-only application and
+unchanged cook key; 1 vs N domain byte-identical cooks with drives; preset v3
+values/drives round trip and invalid drives rejected; drag-to-row and
+hidden-row drop; inspector pins; vec3 split rules; gate.
+
+Docs when it lands: `procedural.md` (drives and value lane), `api.md`
+(inspector, parameters), `pxui.md` (Inspector host paragraph), `backend.md`
+dependency section, root `AGENTS.md` libraries table (add `flow`,
+`flow_sop` as current), `lib/sop_catalog/AGENTS.md`, `add-sop` skill
+(`[@sop.primary]`, `[@sop.vec3]`, `[@@sop.node_slots]`).
+
+Measure: value lane with 200 driven rows and a time source; editor frame
+benchmarks before and after.
+
+## M4 Binds and expressions
+
+Preconditions: M3 done.
+
+Tasks: `b` hints and toggle on a selected wire, wireless rendering rule and
+`w` (§6.3); `=` field entry and inspector `=…` fields (§7.9, §3.5); `Expr`
+drives in the lane; fold and unfold (§7.7) as `Flow_sop.Network.fold/unfold`
+plus canvas ƒ buttons; `r` (§7.2 semantics); layout `wireless` in presets.
+
+Tests: fold ∘ unfold identity property over random expressions (fixed seed);
+fold refusal cases (shared node, non-math node); wireless visibility rule;
+expression parse errors as values; `r` on driven vs undriven rows.
+
+Docs when it lands: `api.md`, `procedural.md`, `lib/prismel_editor/AGENTS.md`.
+
+## M5 Compounds and contexts
+
+Preconditions: M4 done.
+
+Tasks: definitions and instances (§3.8) in `flow_sop`; `⌘G`, `⇧⌘G`, enter
+and up for compounds with `Document.level` extended to instance paths;
+export, unexport, interface rename/reorder in the inspector of the
+Inputs/Outputs nodes; "make unique" (context menu and palette); `compiled_ids`
+and `Compile.flatten` (§13.3); `context` on every network in presets;
+`E_RECURSIVE` on load.
+
+Tests: group → enter → up keeps ids, values and cooked geometry; ungroup is
+the inverse on fixtures; export adds exactly one interface row; editing one
+instance's definition changes all instances; make unique detaches; compiled
+ids stable across unrelated edits; presets with definitions round trip.
+
+Docs when it lands: `scene.md` levels and "no subnetworks" limit, `api.md`
+levels, `lib/prismel_editor/AGENTS.md` levels.
+
+## M6 Views and text
+
+Preconditions: M5 done.
+
+Tasks: `Flow.Sexp` reader with positions and `Flow.Check` (resolution,
+typing, diagnostics of §11.9, poison bindings), both context-generic over a
+catalog descriptor; `Flow_sop.Print.network` (§11.7); list rows include value
+nodes and badges (§8.2); text projection (read-only, click to select,
+qualified toggle, `j`/`k`) in `pxui_shell` or `prismel_editor`;
+`Space l` cycles three views, remembered per level.
+
+Tests: laws of §11.8 over every catalog factory (non-default literals, drives,
+a compound) and every sketch preset; every diagnostic code has a failing
+sample and its message; printing unaffected by layout edits.
+
+Docs when it lands: `scene.md` (`Space l`), `api.md` keys table,
+`pxui.md` (text view host).
+
+## M7 `[%flow]`
+
+Preconditions: M6 done.
+
+Tasks: `tools/flow_manifest.ml` writing `lib/sop_catalog/flow_manifest.sexp`
+with a diff-and-promote runtest rule (§12.2); the `[%flow]` rewriter in
+`ppx/ppx_prismel` with located diagnostics and file-local nodes (§12.3–12.4);
+`Flow_sop.Build.program` and `Program.t`; editor entry point accepting a
+program; one example sketch (`sketches/flow_terrain/`, via
+`dune exec tools/new_example.exe -- flow_terrain` conventions) that runs
+finitely under `PRISMEL_MAX_FRAMES`.
+
+Tests: expect tests for each diagnostic and ambiguity rule; manifest stays
+current; the example builds and opens in the editor.
+
+Docs when it lands: `api.md` (`[%flow]` usage and dune stanza),
+`lib/sop_catalog/AGENTS.md` (manifest), root `AGENTS.md` (loops: manifest
+promotion), `add-sop` skill.
+
+## After M7
+
+Revise `flow.md` for the scene and World contexts (objects as a `scene`
+network with the same canvas, keys, views and text), then plan it here.
+
+## Do not
+
+- Do not draw curved wires or keep Bézier code for the graph after M1.
+- Do not add a second hit-test, capture, text-entry or painting path; every
+  interactive element is a `Ui.box` (root `AGENTS.md` UI rules).
+- Do not mutate the model inside `Ui.frame`; panes return intents and
+  `Core.update` applies them.
+- Do not match `KeyPressed` in panes; keys go through the one Command table.
+- Do not overwrite a parameter's literal with a driven value.
+- Do not put value kinds in `sop_catalog`, or give `flow` a dependency beyond
+  `param`.
+- Do not change pixels outside the graph in `test_ui_parity`.
+- Do not build, link or ship the prototype; do not add JavaScript or Python to
+  the build.
+
+## Log
+
+- 2026-09-27 M0: `flow.md`, this file, the prototype under
+  `specification/flow/prototype/`, and pointers in `AGENTS.md` files,
+  `pxui.md`, `procedural.md`, `api.md`, `scene.md`, `backend.md`,
+  `performance.md` and the editor skills.

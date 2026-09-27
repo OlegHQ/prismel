@@ -4,6 +4,13 @@ Prismel Editor's document has two levels: a scene of objects, and below each
 geometry object its SOP network (the World has its layer stack instead).
 There are no subnetworks.
 
+*Prismel Flow (target, `flow.md`):* M5 adds compound levels below
+instances inside SOP networks; every network gains a context (`sop`,
+`scene`, `world`); M6 turns `Space l` into a graph → list → text cycle; M2
+moves the World keys `e`/`r`/`p` to `t`/`n`/`d`. The scene and World become
+Flow contexts in a later revision of `flow.md`. This file is current until
+each milestone lands.
+
 ## Objects are nodes
 
 The scene is itself an `Edit_graph`: every object is a node, input 0 is its

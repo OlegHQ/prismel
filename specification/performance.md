@@ -27,6 +27,10 @@ dune build test/test_pxui_graph.exe
 /usr/bin/time -l _build/default/test/test_pxui_graph.exe
 ```
 
+Prismel Flow (`flow.md` §15) keeps this smoke as the before/after baseline
+for M1 and adds all-points, 200-drive value lane and 2,000-node printing
+cases; each milestone records its numbers here.
+
 This is a repeatable scale smoke baseline, not a claim that every wire-heavy
 graph has constant frame cost: scene traversal remains O(nodes + wires), while
 unchanged graph replacement is an identity fast path and node scene allocation

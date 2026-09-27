@@ -26,9 +26,9 @@
 
 (rule
  (targets metal_gen.ml metal_gen.mli metal_gen_stubs.inc metal_gen_feature_checks.inc)
- (deps metal.ml)
+ (deps metal.ml metal_raw.ml)
  (action
-  (run %{exe:gen/generate.exe} %{dep:metal.ml}
+  (run %{exe:gen/generate.exe} %{dep:metal.ml} %{dep:metal_raw.ml}
    metal_gen.ml metal_gen.mli metal_gen_stubs.inc metal_gen_feature_checks.inc)))
 
 (rule
@@ -55,9 +55,13 @@
 (library
  (name metal)
  (public_name prismel.metal)
- (modules Metal Metal_argument_reflection_snapshot Metal_format Metal_raw Metal_gen)
+ (preprocess
+  (per_module
+   ((action (run %{exe:../../tools/codemod/result_bind_ppx.exe} --source-dir lib/metal %{input-file})) Metal)))
+ (modules Metal Metal_argument_reflection_snapshot Metal_format Metal_raw_types Metal_raw Metal_gen)
  (private_modules
   Metal_format
+  Metal_raw_types
   Metal_raw
   Metal_gen)
  (libraries threads native_layer_token)

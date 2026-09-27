@@ -95,6 +95,10 @@ selects it as the default virtual OGPU implementation. `metal` owns the safe
 Metal resource and command API. Prismel owns pure scene
 values and records rendering through the narrow GPU boundary; it never exposes
 native handles in its public API.
+All raw Metal binding declarations come from `lib/metal/gen/registry.ml`;
+typed SDK calls are generated, while custom marshalling/ownership primitives
+are explicitly registered as `Native` entries. This does not change the OGPU
+boundary or expose the private raw ABI (see `specification/metal.md`).
 The dependency-free `param` library owns typed parameter schemas
 (`Procedural.Parameter` and `Editor_core.Param` are aliases of it), so
 `Pxui_shell.Inspector` renders SOP nodes and plain sketch records alike
@@ -104,6 +108,15 @@ routing, and atomic JSON storage. Sketch hosts use
 `Editor_core.History`, `Editor_core.Router`, and `Editor_core.Store`;
 the router filters fly-mode keyboard events before leader and chord routing,
 while passing Space through to arm the leader after fly exits.
+*Planned (`flow.md` §14, milestone M3):* a context-free `flow` library
+(depends only on `param`: expressions, value kinds, value graphs, the
+s-expression reader, checker and diagnostics) and `flow_sop` (depends on
+`flow`, `param`, `procedural`: the SOP network overlay, value lane, compound
+inlining, printer). `editor_document`, `pxui_graph`, `pxui_shell` and
+`prismel_editor` gain edges to them; `ppx_prismel` gains `flow` for
+`[%flow]` (M7). The gate adds both to `upper` and forbids `flow` from reaching
+anything but `param`, and `flow_sop` from reaching UI, editor or GPU
+libraries. This section is updated again when M3 lands.
 `pxui_graph` exports its graph commands as `Editor_core.Command.t` entries without handling key
 events. `editor_core` depends on `prismel` for frame and event values, never on UI
 or geometry libraries. `pxui_shell` owns editor chrome over the shared PXUI

@@ -55,6 +55,26 @@
 - `Prismel_editor.Private` is unstable and test-only. Layout and chrome callers
   use `Pxui_shell.Layout` and `Pxui_shell.Chrome` directly.
 
+## Prismel Flow rework (in progress)
+
+`specification/flow.md` replaces the graph-pane behavior below milestone by
+milestone; `specification/flow-migration.md` lists what each milestone
+changes here and which paragraphs to rewrite when it lands. Until then the
+rules in this file are current. Planned changes that touch this directory:
+
+- M1: left-to-right canvas, polyline wires with bends, levels
+  point/chip/card/full, parameter rows on cards; `Document.network.layout`
+  becomes a layout record; presets version 3 (v2 positions transposed).
+- M2: the graph grammar as Command entries with `guide` contexts; the status
+  bar becomes the guide strip; World graph keys `e`/`r`/`p` become `t`/`n`/`d`;
+  `f` frames the selection or the display node.
+- M3: value nodes and drives through `flow_sop`; `Value_lane.resolve` runs
+  in `Cook` before every submission; drives never overwrite literals.
+- M5: compound levels under instances. M6: `Space l` cycles graph, list, text.
+
+Keep the three-column workspace, `Doc.apply` as the only graph-intent reducer,
+the one Command table, and history labels; the rework extends them.
+
 ## Adapters
 
 `pxui_graph` and `Pxui_shell.Inspector` are presentation adapters, not graph authorities:

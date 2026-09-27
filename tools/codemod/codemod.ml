@@ -15,6 +15,9 @@
 let read_file path = In_channel.with_open_bin path In_channel.input_all
 let write_file path s = Out_channel.with_open_bin path (fun oc -> output_string oc s)
 
+let source_file path =
+  if Filename.check_suffix path ".pp.ml" then Filename.chop_suffix path ".pp.ml" ^ ".ml" else path
+
 let rec walk dir f =
   Array.iter (fun name ->
     let path = Filename.concat dir name in
@@ -34,7 +37,7 @@ let dead_exports ?(modules = false) ~excludes dirs =
   let shapes = Hashtbl.create 4096 in
   List.iter (fun (_, (i : Cmt_format.cmt_infos)) ->
     Option.iter (Hashtbl.replace shapes i.cmt_modname) i.cmt_impl_shape) infos;
-  let source (i : Cmt_format.cmt_infos) = Option.value i.cmt_sourcefile ~default:"" in
+  let source (i : Cmt_format.cmt_infos) = source_file (Option.value i.cmt_sourcefile ~default:"") in
   let excluded file = List.exists (fun s ->
     let n = String.length s and m = String.length file in
     let rec go k = k + n <= m && (String.sub file k n = s || go (k + 1)) in go 0) excludes in
@@ -312,7 +315,7 @@ let dead_stubs ~roots mm =
          | None -> ())
     | exception Not_found -> () in
   find 0;
-  let macro = Str.regexp "^PRISMEL_[A-Z0-9_]+(\\(caml_[A-Za-z0-9_]+\\)" in
+  let macro = Str.regexp "^[A-Z][A-Z0-9_]+(\\(caml_[A-Za-z0-9_]+\\)" in
   let rec findm i = match Str.search_forward macro src i with
     | start ->
         let name = Str.matched_group 1 src in
@@ -389,7 +392,7 @@ let cmt_for file =
     walk dir (fun p ->
       if !found = None && Filename.check_suffix p ".cmt" then
         match Cmt_format.read_cmt p with
-        | { cmt_sourcefile = Some f; cmt_annots = Implementation s; _ } when f = file -> found := Some s
+        | { cmt_sourcefile = Some f; cmt_annots = Implementation s; _ } when source_file f = file -> found := Some s
         | _ | exception _ -> ());
   !found
 
@@ -853,6 +856,20 @@ let () =
     | d :: r -> split ex target (d :: dirs) r
     | [] -> ex, target, List.rev dirs in
   match Array.to_list Sys.argv |> List.tl with
+  | [ "result-bind"; "--self-test"; ppx ] -> Result_bind.self_test ppx
+  | [ "result-bind"; "--self-test" ] ->
+      Result_bind.self_test (Filename.concat (Filename.dirname Sys.executable_name) "result_bind_ppx.exe")
+  | [ "result-bind"; "--verify"; before; after; ppx ] -> Result_bind.verify before after ppx
+  | [ "result-bind"; path ] -> Result_bind.migrate path
+  | [ "metal-registry"; "--self-test" ] -> Metal_registry.self_test ()
+  | [ "metal-registry"; "--apply" ] -> Metal_registry.migrate ~apply:true
+  | [ "metal-registry"; "--audit" ] -> Metal_registry.audit ()
+  | [ "metal-registry"; "--update-reasons" ] -> Metal_registry.update_reasons ()
+  | [ "metal-registry"; "--preserve-pools"; legacy ] -> Metal_registry.preserve_pools legacy
+  | [ "metal-registry"; "--format-abi"; legacy ] -> Metal_registry.format_abi legacy
+  | [ "metal-registry"; "--refresh-adapters" ] -> Metal_registry.refresh_adapters ()
+  | [ "metal-registry"; "--drop-unused-macros" ] -> Metal_registry.drop_unused_macros "lib/metal/metal_bridge.mm"
+  | [ "metal-registry" ] -> Metal_registry.migrate ~apply:false
   | "dead-exports" :: args ->
       let excludes, _, dirs = split [] "" [] args in
       List.iter (fun (f, n) -> Printf.printf "%s\t%s\n" f n) (dead_exports ~modules:!modules ~excludes dirs)
@@ -863,12 +880,17 @@ let () =
   | "dead-stubs" :: mm :: roots -> dead_stubs ~roots mm
   | [ "drop-c-unused"; dir ] ->
       (* loop: rebuild, feed the log, until nothing is removed *)
-      let rec go () = let _, log = build "@all" in
+      let rec go () = let code, log = build "@all" in
         let k = drop_c_unused ~dir log in
-        if k > 0 then (Printf.printf "removed %d\n%!" k; go ()) in go ()
+        if k > 0 then (Printf.printf "removed %d\n%!" k; go ())
+        else if code <> 0 then (prerr_string log; exit 1) in go ()
   | [ "drop-unused" ] ->
       Printf.printf "%d removed\n" (drop_unused (In_channel.input_all stdin))
   | _ ->
       prerr_endline "usage: codemod (dead-exports | prune [--users-exclude S] [--target ALIAS]) DIR...\n\
-                    \       codemod drop-vals FILE.mli NAME... | drop-unused < log";
+                    \       codemod drop-vals FILE.mli NAME... | drop-unused < log\n\
+                    \       codemod result-bind FILE.ml | result-bind --self-test\n\
+                    \       codemod result-bind --verify BEFORE.ml AFTER.ml PPX.exe\n\
+                    \       codemod metal-registry [--audit | --apply | --self-test | --drop-unused-macros]\n\
+                    \       codemod metal-registry --preserve-pools ORIGINAL_BRIDGE.mm";
       exit 2

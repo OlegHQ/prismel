@@ -10,9 +10,19 @@ Metal unavailability is a typed startup error.
 
 Nested `AGENTS.md` files hold subsystem rules: `lib/metal`, `lib/ogpu`
 (also for `lib/ogpu_core`),
-`lib/runtime`, `lib/pdk`, `lib/prismel_editor`, `lib/sop_catalog`. Read the one for
-the directory you change. Design notes live in `specification/`; update them
-when behavior or architecture changes materially.
+`lib/runtime`, `lib/pdk`, `lib/prismel_editor`, `lib/pxui_graph`, `lib/sop_catalog`.
+Read the one for the directory you change. Design notes live in `specification/`;
+update them when behavior or architecture changes materially.
+
+The SOP network editor is being reworked into Prismel Flow: a left-to-right
+typed canvas with value ports, drives, compounds, graph/list/text views and a
+checked Lisp text form. `specification/flow.md` is the normative design and
+`specification/flow-migration.md` the ordered work queue (M1–M7, status,
+file-level tasks). Work on `pxui_graph`, the graph pane, parameter drives,
+value nodes, compounds or sketch Lisp follows those files in milestone order;
+until a milestone lands, the current behavior documented elsewhere stays in
+force. `specification/flow/prototype/` is an HTML behavioral reference to open
+in a browser, never product code and never a web fallback.
 
 ## Libraries
 

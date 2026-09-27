@@ -32,3 +32,11 @@ description: Register a new editor SOP node in prismel's sop_catalog through the
    beyond registration; the PPX fixture lives in `test/sop_params_fixture.ml`.
 5. If the node should appear in the gallery or an example, add it there;
    then `@all` and `git diff --check`.
+
+Naming for Prismel Flow (`specification/flow.md` §3.3, §11.4): the key is
+the node's Lisp symbol verbatim (`sop/<key>`) and field names are its
+keywords, so use `[a-z][a-z0-9_]*` and never rename a shipped key. Once
+milestone M3 has landed (check `specification/flow-migration.md`), also mark
+default card rows with `[@sop.primary]`, group each `_x/_y/_z` float triple
+with `[@sop.vec3 "<prefix>"]`, and name multi-input slots with
+`[@@sop.node_slots "a, b"]`; before M3 these attributes do not exist.

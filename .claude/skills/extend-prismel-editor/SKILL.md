@@ -47,6 +47,12 @@ Read `lib/prismel_editor/AGENTS.md` first. Pick the lowest level that works:
    pass lights as `?lights` and read `Editor3.objects`/`lights`/`world` for
    their own renderers; see `specification/scene.md`.
 
+8. **Graph pane work** (canvas, graph keys, parameter drives, value nodes,
+   compounds, list/text views, guide strip): this is the Prismel Flow rework.
+   Follow `specification/flow.md` and the next open milestone in
+   `specification/flow-migration.md` (skill `implement-flow-milestone`); new
+   graph commands carry their `guide` contexts from M2 on.
+
 Check: `dune build @lib/editor_core/runtest @lib/pxui_shell/runtest`,
 `SDL_VIDEODRIVER=dummy dune build @test/test_scene_tree @test/test_prismel_editor_logic`, then one
 native run of `dune build @test/test_prismel_editor` (opens a few windows;

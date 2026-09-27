@@ -28,6 +28,11 @@
  (libraries prismel.metal unix yojson)
  (foreign_archives bench_metal_ffi_stubs))
 
+(executable
+ (name bench_metal_registry)
+ (modules bench_metal_registry)
+ (libraries prismel.metal unix))
+
 (rule
  (alias metal-bench)
  (action

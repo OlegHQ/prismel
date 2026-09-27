@@ -1,0 +1,917 @@
+<!doctype html>
+<!-- Prismel Flow prototype: behavioral reference for specification/flow.md.
+     Design artifact only: not product code, not built by Dune, never a web fallback.
+     Open this file directly in a browser. Sources: engine.js (model, editor, printer,
+     checker) and this page. Keep in sync with the spec; the spec wins on conflict. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="stylesheet" href="font.css">
+<title>Prismel Flow Editor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<style>
+/* Departure Mono is loaded from font.css (OFL, see assets/fonts/DepartureMono-LICENSE.txt). */
+:root {
+  --paper: #f4f5f0; --ink: #222b2b; --muted: #5f6a68; --faint: #8b9491;
+  --line: rgba(34, 43, 43, .13); --line-strong: rgba(34, 43, 43, .42);
+  --control: #dce3de; --input: #ffffff; --track: #e3e8e4;
+  --accent: #285f77; --on-accent: #f4f5f0; --accent-soft: rgba(40, 95, 119, .09); --accent-soft2: rgba(40, 95, 119, .2); --accent-ring: rgba(40, 95, 119, .45);
+  --canvas: #eaede7; --dot: rgba(34, 43, 43, .18); --expr-bg: #eef4f6; --shadow: rgba(20, 30, 30, .16);
+  --t-geo: #285f77; --t-float: #b0680f; --t-int: #3b7d4e; --t-vec: #6b50ae; --t-bool: #b0435f; --t-color: #b4531f;
+  --t-cmp: #6b50ae; --t-out: #222b2b; --t-grp: #8b9491; --t-op: #8b9491;
+  --hint-bg: #f5cf4f; --hint-ink: #222b2b; --bad: #b3261e; --warn: #9a6a00; --good: #3b7d4e;
+  --mono: 'Departure', 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+  --code: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+  --sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --paper: #111615; --ink: #e1e7e3; --muted: #9aa6a2; --faint: #6f7b77;
+    --line: rgba(225, 231, 227, .10); --line-strong: rgba(225, 231, 227, .34);
+    --control: #232c2b; --input: #182020; --track: #1f2827;
+    --accent: #72b3cf; --on-accent: #0f1414; --accent-soft: rgba(114, 179, 207, .10); --accent-soft2: rgba(114, 179, 207, .24); --accent-ring: rgba(114, 179, 207, .5);
+    --canvas: #0c1111; --dot: rgba(225, 231, 227, .12); --expr-bg: #15252b; --shadow: rgba(0, 0, 0, .5);
+    --t-geo: #72b3cf; --t-float: #e5a54c; --t-int: #74c28e; --t-vec: #a98cf5; --t-bool: #f08aa3; --t-color: #f0935a;
+    --t-cmp: #a98cf5; --t-out: #e1e7e3; --t-grp: #6f7b77; --t-op: #6f7b77;
+    --hint-bg: #f5cf4f; --hint-ink: #111615; --bad: #ff8a80; --warn: #f2c14e; --good: #74c28e;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --paper: #111615; --ink: #e1e7e3; --muted: #9aa6a2; --faint: #6f7b77;
+  --line: rgba(225, 231, 227, .10); --line-strong: rgba(225, 231, 227, .34);
+  --control: #232c2b; --input: #182020; --track: #1f2827;
+  --accent: #72b3cf; --on-accent: #0f1414; --accent-soft: rgba(114, 179, 207, .10); --accent-soft2: rgba(114, 179, 207, .24); --accent-ring: rgba(114, 179, 207, .5);
+  --canvas: #0c1111; --dot: rgba(225, 231, 227, .12); --expr-bg: #15252b; --shadow: rgba(0, 0, 0, .5);
+  --t-geo: #72b3cf; --t-float: #e5a54c; --t-int: #74c28e; --t-vec: #a98cf5; --t-bool: #f08aa3; --t-color: #f0935a;
+  --t-cmp: #a98cf5; --t-out: #e1e7e3; --t-grp: #6f7b77; --t-op: #6f7b77;
+  --hint-bg: #f5cf4f; --hint-ink: #111615; --bad: #ff8a80; --warn: #f2c14e; --good: #74c28e;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--paper); color: var(--ink); font: 16px/1.6 var(--sans); padding-inline: 20px; padding-block: 0 80px; }
+a { color: var(--accent); text-underline-offset: 2px; }
+a:focus-visible, button:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.wrap { max-width: 1340px; margin: 0 auto; }
+.prose { max-width: 760px; }
+h1, h2, h3, h4 { font-family: var(--mono); font-weight: normal; text-wrap: balance; letter-spacing: 0; }
+h1 { font-size: 44px; line-height: 1.1; margin: 0; }
+h2 { font-size: 22px; line-height: 1.3; margin: 0 0 12px; }
+h3 { font-size: 16.5px; margin: 28px 0 8px; font-family: var(--sans); font-weight: 600; }
+p { margin: 0 0 14px; }
+code, pre { font-family: var(--code); font-size: 13px; }
+:not(pre) > code { background: var(--track); padding: 1px 5px; border-radius: 3px; }
+kbd { font: 11px/1.4 var(--mono); background: var(--control); color: var(--ink); border: 1px solid var(--line-strong); border-bottom-width: 2px; border-radius: 3px; padding: 1px 5px; white-space: nowrap; }
+.eyebrow { font: 11px/1 var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+button { font: inherit; color: inherit; }
+
+/* masthead */
+.mast { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px 48px; align-items: end; padding-block: 44px 22px; border-bottom: 1px solid var(--line); }
+.mast .lede { font-size: 19px; line-height: 1.5; max-width: 700px; margin: 14px 0 0; }
+.meta { display: grid; grid-template-columns: auto auto; gap: 6px 18px; font: 11px/1.5 var(--mono); color: var(--muted); }
+.meta b { color: var(--ink); font-weight: normal; }
+.toc { display: flex; flex-wrap: wrap; gap: 6px 18px; padding-block: 12px; font: 11px/1.4 var(--mono); border-bottom: 1px solid var(--line); }
+.toc a { color: var(--muted); text-decoration: none; }
+.toc a:hover { color: var(--accent); }
+section.block { padding-block: 52px 8px; }
+.num { font: 11px/1 var(--mono); color: var(--accent); margin-bottom: 10px; display: block; }
+
+/* the editor shell */
+.try-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px 24px; margin-bottom: 12px; }
+.try-head p { margin: 0; color: var(--muted); max-width: 780px; }
+.app { border: 1px solid var(--line-strong); border-radius: 6px; overflow: hidden; background: var(--control); box-shadow: 0 14px 40px var(--shadow); }
+.app-top { display: flex; gap: 14px; align-items: center; padding: 6px 12px; font: 11px var(--mono); color: var(--muted); border-bottom: 1px solid var(--line); }
+.app-top b { color: var(--ink); font-weight: normal; }
+.app-top .grow { flex: 1; }
+.lights { display: flex; gap: 6px; }
+.lights i { width: 10px; height: 10px; border-radius: 50%; background: var(--line-strong); }
+.app-body { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 1px; background: var(--line); height: 640px; }
+.pane { background: var(--paper); display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+.pane-col { display: grid; grid-template-rows: 230px minmax(0, 1fr); gap: 1px; background: var(--line); min-height: 0; }
+.pane-head { display: flex; align-items: center; gap: 10px; font: 11px/1 var(--mono); color: var(--muted); padding: 0 10px; height: 30px; border-bottom: 1px solid var(--line); background: var(--control); flex: none; }
+.pane-head b { font-weight: normal; color: var(--ink); }
+.pane-head .grow { flex: 1; }
+.projsw { display: inline-flex; border: 1px solid var(--line-strong); border-radius: 3px; overflow: hidden; }
+.projsw button { background: transparent; border: 0; font: 11px var(--mono); color: var(--muted); padding: 4px 10px; cursor: pointer; }
+.projsw button + button { border-left: 1px solid var(--line); }
+.projsw button.on { background: var(--accent); color: var(--on-accent); }
+.gpane .ed-host { flex: 1; border: 0; border-radius: 0; }
+.vp canvas { flex: 1; width: 100%; min-height: 0; display: block; background: var(--canvas); }
+.insp { flex: 1; overflow: auto; padding: 0 0 12px; font-size: 13px; background: var(--input); }
+.app-foot { font: 11px var(--mono); color: var(--muted); padding: 6px 12px; border-top: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 4px 18px; }
+.app-note { font-size: 13.5px; color: var(--muted); margin-top: 10px; }
+
+/* inspector */
+.insp-head { padding: 10px 12px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--input); z-index: 1; }
+.insp-name { width: 100%; font: 16px var(--mono); color: var(--ink); background: transparent; border: 1px solid transparent; border-radius: 3px; padding: 2px 4px; margin-left: -5px; }
+.insp-name:hover, .insp-name:focus { border-color: var(--line-strong); outline: none; }
+.insp-kind { font: 11px var(--mono); color: var(--faint); margin-top: 2px; }
+.insp section { padding: 6px 12px 2px; }
+.insp h5 { font: 11px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--accent); margin: 8px 0 4px; font-weight: normal; }
+.irow { display: grid; grid-template-columns: 96px minmax(0, 1fr) 22px; gap: 8px; align-items: center; min-height: 28px; border-top: 1px solid var(--line); }
+.irow.off label { color: var(--faint); }
+.irow label { font: 11px var(--mono); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ival { display: flex; gap: 4px; align-items: center; min-width: 0; }
+.ival input, .ival select { width: 100%; min-width: 0; font: 12px var(--code); color: var(--ink); background: var(--track); border: 1px solid var(--line); border-radius: 3px; padding: 3px 6px; height: 24px; }
+.ival input:focus, .ival select:focus { outline: none; border-color: var(--accent); background: var(--input); }
+.ival .iexpr { color: var(--accent); background: var(--expr-bg); border-color: var(--accent-soft2); }
+.ivec { display: grid; grid-template-columns: auto 1fr auto 1fr auto 1fr; gap: 3px; align-items: center; flex: 1; min-width: 0; }
+.ivec .drv { font-size: 11px; }
+.iax { font: 11px var(--mono); color: var(--faint); }
+.drv { font: 11px var(--mono); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.drv b { font-weight: normal; color: var(--t-float); margin-left: 4px; }
+.none { font: 11px var(--mono); color: var(--faint); }
+.pin, .split, .unbind { background: transparent; border: 1px solid var(--line); border-radius: 3px; cursor: pointer; font: 11px var(--mono); color: var(--faint); height: 22px; padding: 0 5px; }
+.pin { width: 22px; padding: 0; }
+.pin.on { color: var(--accent); border-color: var(--accent-soft2); }
+.pin:disabled { cursor: default; color: var(--accent); opacity: .5; }
+.split.on { color: var(--t-vec); border-color: var(--t-vec); }
+.pin:hover:not(:disabled), .split:hover, .unbind:hover { border-color: var(--accent); color: var(--accent); }
+.insp-empty { padding: 14px 14px; font-size: 13.5px; color: var(--muted); }
+.insp-empty .insp-title { font: 16px var(--mono); color: var(--ink); }
+.insp-empty p { margin: 10px 0 0; }
+.insp-empty b { color: var(--ink); font-weight: 500; }
+.insp-empty .rule { border-left: 2px solid var(--accent); padding-left: 10px; }
+
+/* drills */
+.drills { margin-top: 14px; border: 1px solid var(--line); border-radius: 4px; padding: 12px 14px; background: var(--input); }
+.drills-head { display: flex; justify-content: space-between; font: 11px/1 var(--mono); color: var(--muted); margin-bottom: 10px; }
+.drills-head b { color: var(--ink); font-weight: normal; }
+.drills ol { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(236px, 1fr)); gap: 6px 14px; }
+.drills li { display: grid; grid-template-columns: 18px auto minmax(0, 1fr); align-items: center; gap: 8px; font-size: 13.5px; color: var(--muted); }
+.drills li::before { content: ''; width: 12px; height: 12px; border: 1.5px solid var(--line-strong); border-radius: 2px; }
+.drills li.done { color: var(--ink); }
+.drills li.done::before { background: var(--t-int); border-color: var(--t-int); box-shadow: inset 0 0 0 2px var(--input); }
+
+/* editor canvas */
+.ed { position: relative; overflow: hidden; background-color: var(--canvas); background-image: radial-gradient(circle at 1px 1px, var(--dot) 1px, transparent 1.4px); border: 1px solid var(--line); border-radius: 4px; outline: none; touch-action: none; user-select: none; -webkit-user-select: none; font-family: var(--mono); }
+.ed.flat { background-image: none; background-color: var(--input); }
+.ed:focus { box-shadow: inset 0 0 0 1.5px var(--accent-ring); }
+.ed svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.ed svg text { font-family: var(--mono); font-size: 11px; }
+.nbody { fill: var(--input); }
+.nhead { fill: var(--control); }
+.nsep { stroke: var(--line); }
+.nout { fill: none; stroke: var(--line-strong); stroke-width: 1; pointer-events: none; }
+.node.sel .nout { stroke: var(--accent); stroke-width: 2; }
+.node.cmp .nout { stroke: var(--t-cmp); stroke-width: 1.5; }
+.node.cmp.sel .nout { stroke: var(--accent); stroke-width: 2; }
+.node.muted { opacity: .45; }
+.nlabel { fill: var(--ink); }
+.rlabel { fill: var(--muted); }
+.rlabel.offcard { fill: var(--faint); opacity: .7; }
+.rlabel.comp { fill: var(--t-vec); }
+.ed svg .folder { fill: var(--accent); font-size: 11px; letter-spacing: .06em; }
+.more { cursor: pointer; }
+.more text { fill: var(--accent); }
+.more:hover .rowbg { fill: var(--accent-soft); }
+.vlabel { cursor: pointer; }
+.vlabel:hover .rlabel { fill: var(--t-vec); }
+.vtog { fill: var(--t-vec); }
+.vsum { fill: var(--t-vec); }
+.ed svg .faxis { fill: var(--faint); font-size: 9px; pointer-events: none; }
+.rowbg { fill: transparent; }
+.row:hover .rowbg { fill: var(--accent-soft); }
+.field { fill: var(--track); stroke: var(--line); cursor: ew-resize; }
+.choice .field { cursor: pointer; }
+.choice:hover .field { stroke: var(--accent); }
+.field.expr { fill: var(--expr-bg); stroke: var(--accent); cursor: text; }
+.ffill { fill: var(--accent-soft2); pointer-events: none; }
+.ftext { fill: var(--ink); pointer-events: none; }
+.etext { fill: var(--accent); pointer-events: none; }
+.bound, .bound .src { fill: var(--muted); }
+.w-floatt { fill: var(--t-float); } .w-intt { fill: var(--t-int); } .w-vect { fill: var(--t-vec); }
+.fold { cursor: pointer; }
+.fold rect { fill: var(--input); stroke: var(--accent); }
+.fold text { fill: var(--accent); font-family: var(--sans) !important; font-style: italic; font-size: 11px; pointer-events: none; }
+.fold:hover rect { fill: var(--accent-soft2); }
+.vflag rect { fill: var(--accent); }
+.ed svg .vflag text { fill: var(--on-accent); font: 600 8px var(--sans); letter-spacing: .06em; }
+.mtag { fill: var(--t-bool); }
+.badge { fill: var(--t-float); }
+.sock { fill: var(--input); stroke-width: 1.6; pointer-events: none; }
+.s-geo { stroke: var(--t-geo); } .s-float { stroke: var(--t-float); } .s-int { stroke: var(--t-int); } .s-vec { stroke: var(--t-vec); } .s-bool { stroke: var(--t-bool); } .s-color { stroke: var(--t-color); }
+.sock.on.s-geo { fill: var(--t-geo); } .sock.on.s-float { fill: var(--t-float); } .sock.on.s-int { fill: var(--t-int); } .sock.on.s-vec { fill: var(--t-vec); } .sock.on.s-bool { fill: var(--t-bool); }
+.sock-hit { fill: transparent; cursor: crosshair; }
+.ring { fill: none; stroke-width: 1.2; stroke-dasharray: 2 2; pointer-events: none; }
+.wire { fill: none; stroke-linejoin: round; stroke-linecap: round; pointer-events: none; }
+.w-geo { stroke: var(--t-geo); stroke-width: 2.4; } .w-float { stroke: var(--t-float); stroke-width: 1.5; } .w-int { stroke: var(--t-int); stroke-width: 1.5; } .w-vec { stroke: var(--t-vec); stroke-width: 1.8; }
+.ghost .wire { stroke-dasharray: 2 5; }
+.hit { fill: none; stroke: transparent; stroke-width: 12; cursor: pointer; pointer-events: stroke; }
+.halo { fill: none; stroke: var(--accent); stroke-opacity: .28; stroke-width: 8; stroke-linejoin: round; stroke-linecap: round; pointer-events: none; }
+.temp { stroke-dasharray: 5 4; }
+.bend { fill: var(--input); stroke: var(--ink); stroke-width: 1.2; cursor: move; }
+.ro { fill: var(--muted); paint-order: stroke; stroke: var(--canvas); stroke-width: 3px; pointer-events: none; }
+.ed svg .ro { font-size: 10px; }
+.knife { stroke: var(--t-bool); stroke-width: 1.5; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; }
+.marquee { fill: var(--accent-soft); stroke: var(--accent); stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
+.pt-hit { fill: transparent; cursor: move; }
+.pt-sel { fill: none; stroke: var(--accent); stroke-width: 2; pointer-events: none; }
+.pt-view { fill: none; stroke: var(--accent); stroke-width: 1.2; stroke-dasharray: 2 3; pointer-events: none; }
+.pt-label { fill: var(--ink); paint-order: stroke; stroke: var(--canvas); stroke-width: 3px; pointer-events: none; }
+.hint rect { fill: var(--hint-bg); stroke: var(--hint-ink); stroke-width: 1; }
+.hint text { fill: var(--hint-ink); }
+.hint.dim { opacity: .22; }
+.crumbs { position: absolute; left: 10px; top: 9px; font: 11px var(--mono); color: var(--muted); pointer-events: none; }
+.crumbs b { color: var(--ink); font-weight: normal; }
+.crumbs span { color: var(--faint); }
+.crumbs em { font-style: normal; color: var(--accent); margin-left: 10px; }
+.banner { position: absolute; left: 50%; top: 8px; transform: translateX(-50%); background: var(--hint-bg); color: var(--hint-ink); font: 11px var(--mono); padding: 5px 10px; border-radius: 3px; white-space: nowrap; pointer-events: none; }
+.banner b { font-weight: normal; letter-spacing: .06em; }
+.banner kbd { background: transparent; color: inherit; border-color: currentColor; }
+.hud { position: absolute; left: 10px; bottom: 40px; display: flex; flex-direction: column; gap: 4px; pointer-events: none; }
+.hudkey { display: flex; gap: 8px; align-items: center; font: 11px var(--mono); color: var(--ink); background: var(--input); border: 1px solid var(--line); padding: 3px 9px 3px 3px; border-radius: 3px; transition: opacity .5s; box-shadow: 0 2px 8px var(--shadow); }
+.hudkey.fade { opacity: 0; }
+.toast { position: absolute; left: 50%; bottom: 42px; transform: translateX(-50%); background: var(--ink); color: var(--paper); font: 11px/1.5 var(--mono); padding: 6px 12px; border-radius: 3px; max-width: 80%; text-align: center; pointer-events: none; z-index: 6; }
+.guide { position: absolute; left: 0; right: 0; bottom: 0; min-height: 30px; display: flex; align-items: center; gap: 4px 12px; flex-wrap: wrap; padding: 4px 8px; background: color-mix(in srgb, var(--input) 92%, transparent); border-top: 1px solid var(--line); font: 11px var(--mono); color: var(--muted); z-index: 4; }
+.ed:not(.guided) .guide { left: auto; right: 8px; bottom: 8px; background: transparent; border: 0; padding: 0; min-height: 0; }
+.gctx { color: var(--accent); text-transform: uppercase; letter-spacing: .06em; }
+.gkeys { display: flex; flex-wrap: wrap; gap: 3px 12px; flex: 1; }
+.gk { display: inline-flex; gap: 5px; align-items: center; white-space: nowrap; }
+.gbtn { background: transparent; border: 1px solid var(--line); border-radius: 3px; color: var(--muted); font: 11px var(--mono); padding: 2px 7px; cursor: pointer; }
+.gbtn:hover { color: var(--accent); border-color: var(--accent); }
+.tip { position: absolute; z-index: 7; max-width: 300px; background: var(--ink); color: var(--paper); font: 12.5px/1.45 var(--sans); padding: 7px 10px; border-radius: 4px; pointer-events: none; box-shadow: 0 6px 18px var(--shadow); }
+.whichkey { position: absolute; left: 50%; bottom: 44px; transform: translateX(-50%); z-index: 6; display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; background: var(--input); border: 1px solid var(--line-strong); border-radius: 4px; padding: 8px 12px; font: 11px var(--mono); color: var(--muted); box-shadow: 0 10px 28px var(--shadow); max-width: 92%; }
+.whichkey b { color: var(--accent); font-weight: normal; }
+.whichkey span { display: inline-flex; gap: 6px; align-items: center; }
+.whichkey em { font-style: normal; color: var(--faint); }
+.help { position: absolute; inset: 12px 12px 42px; z-index: 5; background: var(--input); border: 1px solid var(--line-strong); border-radius: 4px; padding: 16px 18px; overflow: auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px 22px; align-content: start; font: 11px/1.4 var(--mono); box-shadow: 0 10px 30px var(--shadow); }
+.help h4 { margin: 0 0 8px; font-size: 11px; color: var(--accent); text-transform: uppercase; letter-spacing: .08em; }
+.help section div { display: grid; grid-template-columns: 96px 1fr; gap: 8px; margin-bottom: 5px; color: var(--muted); }
+.help section div kbd { justify-self: start; }
+.help p { grid-column: 1 / -1; color: var(--muted); margin: 0; }
+.search { position: absolute; z-index: 5; width: 260px; background: var(--input); border: 1px solid var(--line-strong); border-radius: 4px; box-shadow: 0 10px 28px var(--shadow); font: 11px var(--mono); overflow: hidden; }
+.search-head { padding: 7px 10px; background: var(--control); color: var(--muted); border-bottom: 1px solid var(--line); }
+.search-head i { font-style: normal; color: var(--accent); margin-left: 4px; }
+.search input { width: 100%; border: 0; border-bottom: 1px solid var(--line); background: var(--input); color: var(--ink); font: 11px var(--mono); padding: 8px 10px; outline: none; }
+.search .item { display: flex; justify-content: space-between; gap: 8px; height: 24px; align-items: center; padding: 0 10px; cursor: pointer; color: var(--ink); }
+.search .item em { font-style: normal; color: var(--faint); }
+.search .item.on { background: var(--accent); color: var(--on-accent); }
+.search .item.on em { color: var(--on-accent); opacity: .75; }
+.search .more { padding: 6px 10px; color: var(--faint); }
+.search-foot { padding: 6px 10px; border-top: 1px solid var(--line); color: var(--faint); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.fieldedit { position: absolute; z-index: 5; height: 24px; font: 11px var(--mono); color: var(--ink); background: var(--input); border: 1.5px solid var(--accent); border-radius: 3px; padding: 0 8px; outline: none; box-shadow: 0 6px 18px var(--shadow); }
+.proj { position: absolute; inset: 0 0 30px; overflow: auto; }
+.ed:not(.guided) .proj { bottom: 0; }
+.list { padding: 8px 0; }
+.lrow { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto auto auto auto; gap: 10px; align-items: center; height: 26px; padding-right: 12px; font: 11px var(--mono); color: var(--ink); cursor: default; border-bottom: 1px solid var(--line); }
+.lrow i { width: 10px; height: 10px; border-radius: 2px; }
+.lrow:hover { background: var(--accent-soft); }
+.lrow.on { background: var(--accent-soft2); box-shadow: inset 2px 0 0 var(--accent); }
+.lrow.link { color: var(--faint); }
+.lname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lkind { color: var(--faint); }
+.lb { border: 1px solid var(--line); border-radius: 3px; padding: 1px 5px; color: var(--muted); }
+.lb.drv { color: var(--t-float); border-color: currentColor; }
+.lb.view { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+.lb.mute { color: var(--t-bool); }
+.tbar { position: sticky; top: 0; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 7px 12px; font: 11px var(--mono); color: var(--faint); background: var(--control); border-bottom: 1px solid var(--line); }
+.tbar label { color: var(--muted); display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
+pre.text { margin: 0; padding: 10px 0; font: 12px/1.6 var(--code); color: var(--ink); }
+.tl { display: block; padding: 0 14px; white-space: pre; min-height: 1.6em; }
+.tl[data-tnode] { cursor: pointer; }
+.tl[data-tnode]:hover { background: var(--accent-soft); }
+.tl.on { background: var(--accent-soft2); box-shadow: inset 2px 0 0 var(--accent); }
+.lp { color: var(--faint); } .lf { color: var(--t-cmp); } .lk { color: var(--accent); } .ln { color: var(--t-float); } .lc { color: var(--faint); font-style: italic; } .lm { color: var(--t-bool); } .lns { color: var(--faint); }
+
+/* demos */
+.demo-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-top: 18px; }
+.demo { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.demo .ed-host { height: 330px; }
+.demo.wide .ed-host { height: 360px; }
+.demo h3 { margin: 0; display: flex; gap: 10px; align-items: baseline; }
+.demo h3 small { font: 11px var(--mono); color: var(--accent); font-weight: normal; }
+.demo p { font-size: 14.5px; margin: 0; color: var(--muted); }
+.demo p strong { color: var(--ink); font-weight: 500; }
+.demo .mini-lisp { margin: 0; font-size: 12px; padding: 8px 10px; background: var(--input); border: 1px solid var(--line); border-radius: 4px; overflow-x: auto; white-space: pre; }
+.legend { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-top: 18px; }
+.legend .card { border: 1px solid var(--line); border-radius: 4px; padding: 14px 16px; background: var(--input); }
+.legend h4 { font-size: 11px; margin: 0 0 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.legend ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; font-size: 14px; }
+.legend li { display: grid; grid-template-columns: 44px 1fr; align-items: center; gap: 10px; }
+.legend svg { display: block; overflow: visible; }
+
+table.cmp { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+table.cmp th, table.cmp td { text-align: left; vertical-align: top; padding: 10px 12px 10px 0; border-bottom: 1px solid var(--line); }
+table.cmp th { font: 11px/1.3 var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: .08em; font-weight: normal; }
+table.cmp td:first-child { font-family: var(--mono); font-size: 11px; color: var(--ink); white-space: nowrap; padding-top: 13px; }
+table.cmp td.today { color: var(--muted); }
+.tablewrap { overflow-x: auto; margin-top: 12px; }
+
+.v2 { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 0; border-top: 1px solid var(--line); border-left: 1px solid var(--line); margin-top: 16px; }
+.v2 a { display: block; padding: 14px 16px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); color: inherit; text-decoration: none; }
+.v2 a:hover { background: var(--accent-soft); }
+.v2 b { display: block; font: 11px var(--mono); color: var(--accent); font-weight: normal; margin-bottom: 4px; text-transform: uppercase; letter-spacing: .06em; }
+.v2 span { font-size: 14.5px; color: var(--muted); }
+
+.principles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--line); border-left: 1px solid var(--line); margin-top: 18px; }
+.principles div { padding: 16px 18px 18px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.principles h3 { margin: 0 0 6px; font-size: 15.5px; }
+.principles p { margin: 0; font-size: 14.5px; color: var(--muted); }
+
+.rules { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 16px; }
+.rules div { border: 1px solid var(--line); border-radius: 4px; background: var(--input); padding: 12px 14px; }
+.rules b { display: block; font: 11px var(--mono); font-weight: normal; color: var(--accent); margin-bottom: 4px; }
+.rules p { margin: 0; font-size: 14px; color: var(--muted); }
+
+.views { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 16px; }
+.views div { border: 1px solid var(--line); border-radius: 4px; background: var(--input); padding: 14px 16px; }
+.views h3 { margin: 0 0 6px; font-size: 15px; }
+.views p { margin: 0; font-size: 14px; color: var(--muted); }
+
+.keys { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 12px; margin-top: 18px; }
+.keys .card { border: 1px solid var(--line); border-radius: 4px; background: var(--input); padding: 14px 16px; }
+.keys h4 { font-size: 11px; margin: 0 0 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--accent); }
+.keys .k { display: grid; grid-template-columns: 104px 1fr; gap: 10px; padding: 5px 0; border-top: 1px solid var(--line); font-size: 14px; }
+.keys .k:first-of-type { border-top: 0; }
+.keys .k span { color: var(--muted); }
+.keys .k code { display: block; font-size: 11.5px; color: var(--faint); background: none; padding: 0; margin-top: 2px; }
+
+.amb { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 720px; }
+.amb th, .amb td { text-align: left; vertical-align: top; padding: 9px 14px 9px 0; border-bottom: 1px solid var(--line); }
+.amb th { font: 11px/1.3 var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: .08em; font-weight: normal; }
+.amb td:first-child { font: 11px var(--mono); color: var(--faint); }
+.amb td:nth-child(2) { font-weight: 500; }
+.amb td:nth-child(3) { color: var(--muted); }
+.amb code { font-size: 12px; }
+
+.ppx { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 12px; margin-top: 16px; }
+.ppx .panel { border: 1px solid var(--line); border-radius: 4px; background: var(--input); display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+.ppx .panel-head { display: flex; justify-content: space-between; gap: 8px; font: 11px/1 var(--mono); color: var(--muted); padding: 8px 10px; border-bottom: 1px solid var(--line); background: var(--control); }
+.ppx .panel-head b { color: var(--ink); font-weight: normal; }
+.ppx textarea { flex: 1; min-height: 380px; width: 100%; resize: vertical; border: 0; background: var(--input); color: var(--ink); font: 12.5px/1.6 var(--code); padding: 12px 14px; outline: none; tab-size: 2; white-space: pre; overflow: auto; }
+#ppx-state.ok { color: var(--good); } #ppx-state.bad { color: var(--bad); }
+.diags { list-style: none; margin: 0; padding: 6px 0; max-height: 210px; overflow: auto; }
+.diags li { display: grid; grid-template-columns: 54px 1fr; gap: 8px; padding: 6px 12px; font-size: 13.5px; border-bottom: 1px solid var(--line); cursor: pointer; }
+.diags li:hover { background: var(--accent-soft); }
+.diags li b { font: 11px var(--mono); font-weight: normal; padding-top: 2px; }
+.diags li.error b { color: var(--bad); } .diags li.warning b { color: var(--warn); }
+.diags li.ok { cursor: default; color: var(--good); grid-template-columns: 1fr; }
+.sum { width: 100%; border-collapse: collapse; font: 11px/1.4 var(--mono); }
+.sum td { padding: 5px 12px; border-bottom: 1px solid var(--line); color: var(--muted); }
+.sum td:first-child { color: var(--ink); }
+.sum-wrap { flex: 1; overflow: auto; border-top: 1px solid var(--line); }
+.ppx-actions { display: flex; gap: 8px; flex-wrap: wrap; padding: 10px 12px; border-top: 1px solid var(--line); }
+.btn { font: 11px var(--mono); border: 1px solid var(--line-strong); background: var(--input); color: var(--ink); border-radius: 3px; padding: 6px 10px; cursor: pointer; }
+.btn:hover { border-color: var(--accent); color: var(--accent); }
+.btn.primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+.btn.primary:disabled { opacity: .45; cursor: not-allowed; }
+.mutations { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; align-items: center; font-size: 13.5px; color: var(--muted); }
+
+.research { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 760px; }
+.research th, .research td { text-align: left; vertical-align: top; padding: 10px 14px 10px 0; border-bottom: 1px solid var(--line); }
+.research th { font: 11px/1.3 var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: .08em; font-weight: normal; }
+.research td:first-child { font-weight: 600; white-space: nowrap; }
+.research td:nth-child(4) { color: var(--muted); }
+.research a { font-size: 12.5px; }
+.stack { display: grid; gap: 6px; margin-top: 16px; }
+.stack .lay { display: grid; grid-template-columns: 180px 90px minmax(0, 1fr); gap: 14px; align-items: baseline; padding: 11px 14px; border: 1px solid var(--line); border-radius: 4px; background: var(--input); font-size: 14px; }
+.stack .lay code { font-size: 12.5px; background: none; padding: 0; color: var(--ink); }
+.stack .lay span { color: var(--muted); }
+.pill { font: 11px/1 var(--mono); padding: 4px 6px; border-radius: 3px; justify-self: start; }
+.pill.new { background: var(--accent); color: var(--on-accent); }
+.pill.chg { background: var(--accent-soft2); color: var(--accent); }
+.pill.same { border: 1px solid var(--line-strong); color: var(--muted); }
+pre.code { background: var(--input); border: 1px solid var(--line); border-radius: 4px; padding: 14px 16px; overflow-x: auto; line-height: 1.55; margin: 14px 0 18px; }
+pre.code .c { color: var(--faint); font-style: italic; }
+pre.code .kw { color: var(--t-cmp); }
+pre.code .ty { color: var(--accent); }
+pre.code .st { color: var(--t-float); }
+pre.code .er { color: var(--bad); }
+.plan { display: grid; margin-top: 16px; border-top: 1px solid var(--line); }
+.plan .m { display: grid; grid-template-columns: 64px minmax(0, 1fr) minmax(0, 1fr); gap: 18px; padding: 16px 0; border-bottom: 1px solid var(--line); }
+.plan .m b { font: 22px/1 var(--mono); font-weight: normal; color: var(--accent); }
+.plan h3 { margin: 0 0 6px; font-size: 15.5px; }
+.plan p, .plan li { font-size: 14.5px; color: var(--muted); margin: 0; }
+.plan ul { margin: 0; padding-left: 18px; }
+.plan .done-when h4 { font: 11px var(--mono); margin: 0 0 6px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.decisions { display: grid; gap: 10px; margin-top: 16px; }
+.decisions .q { border: 1px solid var(--line); border-radius: 4px; padding: 14px 16px; background: var(--input); display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; }
+.decisions h3 { margin: 0 0 4px; font-size: 15px; }
+.decisions p { margin: 0; font-size: 14.5px; color: var(--muted); }
+.decisions .rec { font-size: 14.5px; }
+.decisions .rec b { font: 11px var(--mono); font-weight: normal; color: var(--accent); text-transform: uppercase; letter-spacing: .08em; display: block; margin-bottom: 4px; }
+.note { border-left: 2px solid var(--accent); padding: 2px 0 2px 14px; color: var(--muted); font-size: 14.5px; margin: 16px 0; max-width: 760px; }
+footer { margin-top: 56px; padding-top: 16px; border-top: 1px solid var(--line); font: 11px/1.6 var(--mono); color: var(--muted); }
+
+@media (max-width: 1120px) {
+  .app-body { grid-template-columns: minmax(0, 1fr); height: auto; }
+  .gpane { height: 560px; }
+  .pane-col { grid-template-rows: 230px 420px; }
+  .principles, .views { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .rules { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ppx { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 760px) {
+  body { padding-inline: 16px; }
+  h1 { font-size: 33px; }
+  .mast { grid-template-columns: minmax(0, 1fr); padding-block: 28px 18px; }
+  .mast .lede { font-size: 17px; }
+  .demo-grid, .principles, .views, .rules { grid-template-columns: minmax(0, 1fr); }
+  .gpane { height: 480px; }
+  .stack .lay, .plan .m, .decisions .q { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+}
+@media (prefers-reduced-motion: reduce) { .hudkey { transition: none; } }
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+<header class="mast">
+  <div>
+    <div class="eyebrow">Proposal · Prismel Editor · SOP network · revision 2</div>
+    <h1 style="margin-top:14px">Prismel Flow</h1>
+    <p class="lede">A left-to-right, typed node editor for SOP networks. Geometry runs along a straight trunk, math drives any parameter, every node folds to a point, the same document reads as a graph, a list or Lisp, and sketches can be written as that Lisp and checked at compile time.</p>
+  </div>
+  <div class="meta">
+    <span>Status</span><b>Draft for review, rev 2</b>
+    <span>Date</span><b>27 Sep 2026</b>
+    <span>Replaces</span><b>pxui_graph canvas</b>
+    <span>Keeps</span><b>Edit_graph, History, Command table, Inspector</b>
+    <span>Next</span><b>Scene graph on the same core</b>
+    <span>Spec</span><b>specification/flow.md</b>
+  </div>
+</header>
+<nav class="toc" aria-label="Sections">
+  <a href="#try">Prototype</a><a href="#rev2">What changed</a><a href="#changes">Today vs proposed</a><a href="#principles">Principles</a><a href="#anatomy">Anatomy</a><a href="#parameters">Parameters</a><a href="#views">Three views</a><a href="#keys">Keys and guide</a><a href="#language">Language</a><a href="#ppx">Compile-time sketches</a><a href="#research">Research</a><a href="#architecture">Architecture</a><a href="#plan">Plan</a><a href="#decisions">Decisions</a>
+</nav>
+
+<section class="block" id="try">
+  <div class="try-head">
+    <div><span class="num">Prototype</span><h2>The editor, in miniature</h2></div>
+    <p>Click the graph. The strip along its bottom is guide mode: it lists the keys that work right now and changes with what you select or point at. Hover anything for a tooltip. <kbd>?</kbd> hides the guide, <kbd>Space</kbd> opens the leader, <kbd>Space</kbd> <kbd>l</kbd> switches between graph, list and text.</p>
+  </div>
+  <div class="app">
+    <div class="app-top"><span class="lights" aria-hidden="true"><i></i><i></i><i></i></span><b>Prismel Editor</b><span>sketches/terrain/main.ml</span><span class="grow"></span><span id="hero-status"></span></div>
+    <div class="app-body">
+      <section class="pane gpane" aria-label="Graph pane">
+        <header class="pane-head"><b>Network</b><div class="projsw" id="projsw" role="group" aria-label="View"><button data-proj="graph" aria-pressed="true">Graph</button><button data-proj="list" aria-pressed="false">List</button><button data-proj="text" aria-pressed="false">Text</button></div><span><kbd>Space</kbd> <kbd>l</kbd></span><span class="grow"></span><span>read-only text</span></header>
+        <div id="ed-hero" class="ed-host"></div>
+      </section>
+      <div class="pane-col">
+        <section class="pane vp" aria-label="Viewport"><header class="pane-head"><b>View</b><span class="grow"></span><span id="vp-label"></span></header><canvas id="vp" aria-label="Cooked geometry of the displayed node"></canvas></section>
+        <section class="pane" aria-label="Inspector"><header class="pane-head"><b>Inspector</b><span class="grow"></span><span>every parameter, by folder</span></header><div class="insp" id="insp"></div></section>
+      </div>
+    </div>
+    <div class="app-foot"><span>Undo <kbd>⌘Z</kbd></span><span>Box select: drag on empty canvas</span><span>Pan: right-drag, Alt-drag or two-finger scroll</span><span>Zoom: pinch or wheel</span></div>
+  </div>
+  <p class="app-note">In Prismel Editor these are the three columns (view, graph, inspector). Here the view sits above the inspector so the graph gets room. Nothing on this page is saved.</p>
+  <div class="drills" aria-live="polite">
+    <div class="drills-head"><b>Drills: do each once and the keys start to stick</b><span id="drill-count"></span></div>
+    <ol id="drills"></ol>
+  </div>
+</section>
+
+<section class="block" id="rev2">
+  <span class="num">Revision 2</span>
+  <h2>What changed since the first draft</h2>
+  <div class="v2">
+    <a href="#try"><b>Box select</b><span>Plain drag on empty canvas selects; Shift adds. Panning moved to right-drag, Alt-drag and two-finger scroll.</span></a>
+    <a href="#anatomy"><b>⇧P toggles</b><span><kbd>⇧P</kbd> folds everything to points and brings each node back to its own level. <kbd>p</kbd> does the same for the selection.</span></a>
+    <a href="#parameters"><b>Inspector stays</b><span>It shows every parameter, grouped by folder. The card shows a curated subset, and you choose which rows stay on it.</span></a>
+    <a href="#parameters"><b>Many parameters</b><span>Cards keep primary, changed, driven and pinned rows. A fourth level shows everything with folder headers.</span></a>
+    <a href="#parameters"><b>Vectors</b><span>One socket and three fields. Click the name to split it into x, y, z, each with its own socket.</span></a>
+    <a href="#views"><b>Graph, list, text</b><span>Three views of one document with one selection. <kbd>Space</kbd> <kbd>l</kbd> cycles. Text is read-only.</span></a>
+    <a href="#language"><b>Namespaces and contexts</b><span><code>sop/</code>, <code>value/</code>, <code>user/</code>, plus a <code>:context</code> on every graph. Twelve ambiguities and how each resolves.</span></a>
+    <a href="#ppx"><b>Compile-time sketches</b><span><code>[%flow …]</code> checks the Lisp against the catalog when the sketch builds. A live checker is on this page.</span></a>
+    <a href="#keys"><b>Guide mode</b><span>A key strip that follows context, tooltips on everything, which-key for the leader, and a full key sheet.</span></a>
+  </div>
+</section>
+
+<section class="block" id="changes">
+  <span class="num">Today vs proposed</span>
+  <h2>From tiles in rows to a typed flow</h2>
+  <div class="prose">
+    <p>Today the graph pane lays tiles out top to bottom by input depth and joins them with cubic Béziers. Wires carry geometry only: an <code>Edit_graph.connection</code> is a source, a consumer and an input index. Parameters live in the inspector as literals of each node's schema record, so nothing in the network can drive a value. Vector parameters are flattened into three floats (<code>translate_x</code>, <code>translate_y</code>, <code>translate_z</code>).</p>
+  </div>
+  <div class="tablewrap"><table class="cmp">
+    <thead><tr><th>Area</th><th>Today</th><th>Proposed</th></tr></thead>
+    <tbody>
+      <tr><td>Direction</td><td class="today">Top to bottom, rows by depth</td><td>Left to right. The geometry trunk runs through node headers, so a chain reads as one straight line</td></tr>
+      <tr><td>Wires</td><td class="today">Cubic Béziers</td><td>Straight segments with authored bend points (Alt-click), snapped to the 12-point half-row grid</td></tr>
+      <tr><td>Parameters</td><td class="today">Inspector only, literal values</td><td>Every value parameter is an input with a default. The inspector keeps all of them; cards keep the ones that matter</td></tr>
+      <tr><td>Value flow</td><td class="today">None. Wires are geometry</td><td>Typed ports: geometry, float, int, vec3, bool, color. Per-point fields are reserved for later</td></tr>
+      <tr><td>Density</td><td class="today">One tile size</td><td>Point, chip, card and full, chosen by you and capped by zoom</td></tr>
+      <tr><td>Views</td><td class="today">Graph and a list (<kbd>Space</kbd> <kbd>l</kbd>)</td><td>Graph, list and read-only text of the same document, one selection across all three</td></tr>
+      <tr><td>Keys</td><td class="today">Copy, paste, delete, frame, leader menu</td><td>A graph grammar in the one Command table, taught by guide mode</td></tr>
+      <tr><td>Levels</td><td class="today">Scene objects entered with <kbd>i</kbd> / <kbd>u</kbd></td><td>The same keys enter compounds made with <kbd>⌘G</kbd>; every level declares a context</td></tr>
+      <tr><td>Sketch source</td><td class="today">OCaml that builds graphs with <code>Sop.*</code> calls</td><td>Also <code>[%flow {| … |}]</code>: the same Lisp the editor shows, checked at compile time</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="block" id="principles">
+  <span class="num">Principles</span>
+  <h2>Six rules the rest follows from</h2>
+  <div class="principles">
+    <div><h3>Read left to right</h3><p>Sources sit on the left, the displayed result on the right. Geometry enters and leaves through the header row, so an unbranched chain is one horizontal wire.</p></div>
+    <div><h3>Points first</h3><p>A network is a graph of points. Open only what you are editing. Zoom caps how much each node shows unless you opened it yourself.</p></div>
+    <div><h3>A parameter is an input</h3><p>No second system for driving values. A literal, a wire, a wireless bind, an expression and an export all fill the same slot.</p></div>
+    <div><h3>Straight wires, placed on purpose</h3><p>Bend points are data you author. They snap to the grid, survive auto-layout, and never enter the program text.</p></div>
+    <div><h3>One key, one meaning</h3><p>Verbs are single letters that mean the same thing at every level. The guide shows which ones apply right now, until you stop needing it.</p></div>
+    <div><h3>One document, three views</h3><p>The graph is an AST. Canvas, list and text are views of it. Positions, bends, levels, pins and wire visibility are layout, so the text stays clean and diffable.</p></div>
+  </div>
+</section>
+
+<section class="block" id="anatomy">
+  <span class="num">Anatomy</span>
+  <h2>Point, chip, card, full</h2>
+  <div class="prose">
+    <p>A <b>point</b> is the header's colour square grown into a dot; wires meet at its centre and the network reads like a constellation. A <b>chip</b> is the header alone; driven rows attach along its bottom edge and a <code>+2</code> badge counts them. A <b>card</b> shows the rows that matter (see the exposure rule below) and a <code>+ 5 more</code> row. <b>Full</b> shows every row, grouped under folder headers, with rows that are not on the card dimmed.</p>
+    <p><kbd>o</kbd> opens one level, <kbd>p</kbd> toggles the selection between point and its previous level, <kbd>⇧P</kbd> does that for the whole network, and <kbd>⇧O</kbd> opens everything to cards. Zoom below 50% and nodes show as chips, below 34% as points, except nodes you opened yourself. Drag a wire over any node and it opens to full under the cursor, so hidden rows are droppable too.</p>
+  </div>
+  <div class="demo wide" style="margin-top:18px">
+    <div id="ed-lod" class="ed-host"></div>
+    <p class="try">Left to right: Grid is a <b>point</b>, Noise Displace a <b>chip</b>, Swirl a <b>card</b>, Transform <b>full</b> with its folders, Output a point. Press <kbd>⇧P</kbd> twice, or drag from Swirl's output over Output.</p>
+  </div>
+  <div class="legend">
+    <div class="card"><h4>Sockets: shape is structure</h4><ul>
+      <li><svg width="44" height="18" aria-hidden="true"><rect class="sock on s-geo" x="17.5" y="4.5" width="9" height="9" rx="1"/></svg><span>Square: geometry</span></li>
+      <li><svg width="44" height="18" aria-hidden="true"><circle class="sock on s-float" cx="22" cy="9" r="4.5"/></svg><span>Circle: one value (float, int, vec3, color)</span></li>
+      <li><svg width="44" height="18" aria-hidden="true"><circle class="sock on s-vec" cx="22" cy="9" r="4.5"/></svg><span>Violet circle: a vec3, splittable into x, y, z</span></li>
+      <li><svg width="44" height="18" aria-hidden="true"><rect class="sock on s-vec" x="18" y="5" width="8" height="8" transform="rotate(45 22 9)"/></svg><span>Diamond: per-element field (reserved, as in Blender 5)</span></li>
+      <li><svg width="44" height="18" aria-hidden="true"><circle class="sock s-float" cx="22" cy="9" r="4.5"/><circle class="ring s-float" cx="22" cy="9" r="7.5"/></svg><span>Hollow uses its literal; a dashed ring is a wireless bind</span></li>
+    </ul></div>
+    <div class="card"><h4>Wires: colour is type</h4><ul>
+      <li><svg width="44" height="18" aria-hidden="true"><path class="wire w-geo" d="M4 12 L16 12 L28 6 L40 6"/></svg><span>Geometry, 2.4 pt</span></li>
+      <li><svg width="44" height="18" aria-hidden="true"><path class="wire w-float" d="M4 12 L16 12 L28 6 L40 6"/></svg><span>Float, 1.5 pt, with a live value readout</span></li>
+      <li><svg width="44" height="18" aria-hidden="true"><path class="wire w-vec" d="M4 12 L16 12 L28 6 L40 6"/></svg><span>Vector, reads out as three numbers</span></li>
+      <li><svg width="44" height="18" aria-hidden="true"><path class="wire w-float" style="stroke-dasharray:2 5" d="M4 12 L16 12 L28 6 L40 6"/></svg><span>Wireless: drawn only while an end is selected or hovered</span></li>
+      <li><svg width="44" height="18" aria-hidden="true"><path class="wire w-geo" d="M4 14 L14 14 L14 4 L40 4"/><rect class="bend" x="10.5" y="10.5" width="7" height="7"/><rect class="bend" x="10.5" y="0.5" width="7" height="7"/></svg><span>Bend points: Alt-click to add or remove, drag to move</span></li>
+    </ul></div>
+    <div class="card"><h4>Node colour: what it makes</h4><ul>
+      <li><svg width="44" height="18" aria-hidden="true"><circle cx="22" cy="9" r="7" style="fill:var(--t-geo)"/></svg><span>Makes geometry</span></li>
+      <li><svg width="44" height="18" aria-hidden="true"><circle cx="22" cy="9" r="7" style="fill:var(--t-float)"/></svg><span>Makes a number</span></li>
+      <li><svg width="44" height="18" aria-hidden="true"><circle cx="22" cy="9" r="7" style="fill:var(--t-vec)"/></svg><span>Makes a vector</span></li>
+      <li><svg width="44" height="18" aria-hidden="true"><circle cx="22" cy="9" r="7" style="fill:var(--input);stroke:var(--t-cmp);stroke-width:2.5"/><circle cx="22" cy="9" r="2.5" style="fill:var(--t-cmp)"/></svg><span>Compound: a graph inside</span></li>
+      <li><svg width="44" height="18" aria-hidden="true"><circle cx="22" cy="9" r="7" style="fill:var(--t-geo)"/><circle cx="22" cy="9" r="11" style="fill:none;stroke:var(--accent);stroke-width:1.2;stroke-dasharray:2 3"/></svg><span>Dashed halo: displayed in the viewport</span></li>
+    </ul></div>
+  </div>
+</section>
+
+<section class="block" id="parameters">
+  <span class="num">Parameters</span>
+  <h2>The inspector has everything; the card has what matters</h2>
+  <div class="prose">
+    <p>Every parameter row holds a literal and, optionally, a drive: a wire from another node's output, or an expression. A wireless bind is a wire whose visibility is a view flag; an export is a wire from the compound's Inputs node. As with TouchDesigner's parameter modes, the literal survives while the row is driven, so <kbd>r</kbd> puts back what you had.</p>
+    <p>SOPs such as Noise Displace have many parameters in folders. The inspector keeps showing all of them, grouped the way <code>[@sop.folder]</code> already groups them. The card applies one rule, in this order:</p>
+  </div>
+  <div class="rules">
+    <div><b>1 · driven</b><p>A wired, bound or expression row always shows. Hiding it would hide a wire.</p></div>
+    <div><b>2 · your pin</b><p><kbd>s</kbd> on a row, or ● in the inspector, keeps it on the card or takes it off.</p></div>
+    <div><b>3 · changed</b><p>A row whose literal differs from the default shows, which is also what the text form prints.</p></div>
+    <div><b>4 · primary</b><p>Rows the SOP author marks <code>[@sop.primary]</code> show on a fresh node, so a new Noise shows amplitude and frequency.</p></div>
+  </div>
+  <div class="demo wide" style="margin-top:18px">
+    <h3>Many parameters <small>+ more · s · drag over</small></h3>
+    <div id="ed-many" class="ed-host"></div>
+    <p><strong>Try:</strong> Noise Displace shows amplitude, frequency and octaves (changed to 3). Click <strong>+ 5 more</strong> to see every row by folder, point at <em>roughness</em> and press <kbd>s</kbd>, then click <strong>show fewer</strong>: roughness stayed. Drag from Value's output over the card; it opens fully, so you can drop onto <em>falloff radius</em> even though it was hidden.</p>
+  </div>
+  <div class="demo-grid">
+    <div class="demo">
+      <h3>Vectors <small>split · xyz</small></h3>
+      <div id="ed-vec" class="ed-host"></div>
+      <p><strong>Try:</strong> <em>translate</em> is one violet socket with three fields; scrub any of them. <em>rotate</em> is split, so Sine drives only y. Click the name <em>translate</em> to split it, then drag Combine XYZ's output onto the whole <em>scale</em> row (hidden until the drag opens the card).</p>
+    </div>
+    <div class="demo">
+      <h3>Bind without a wire <small>b</small></h3>
+      <div id="ed-bind" class="ed-host"></div>
+      <p><strong>Try:</strong> Sine already drives amplitude wirelessly (the <code>⌁</code> row). Select Sine to see the link. Press <kbd>b</kbd>: every value row gets a letter; type Swirl's to bind its angle too. Like a Bitwig modulator, a bind is aimed rather than drawn.</p>
+    </div>
+    <div class="demo">
+      <h3>Expression ⇄ nodes <small>= and ƒ</small></h3>
+      <div id="ed-expr" class="ed-host"></div>
+      <p><strong>Try:</strong> press the italic <strong>ƒ</strong> on amplitude to unfold the expression into Math nodes, then press it on the wired row to fold them back. Point at a row and press <kbd>=</kbd> to type one, such as <code>abs(sin(t)) * 0.8</code>.</p>
+      <pre class="mini-lisp" id="lisp-expr"></pre>
+    </div>
+    <div class="demo">
+      <h3>Export to the compound <small>⌘G · i · e · u</small></h3>
+      <div id="ed-export" class="ed-host"></div>
+      <p><strong>Try:</strong> select Ripple and press <kbd>i</kbd>. Inside, point at <em>frequency</em> and press <kbd>e</kbd>, then <kbd>u</kbd>. Ripple now has a frequency row. This is Softimage's exposed port and Houdini's promoted parameter under one key.</p>
+    </div>
+  </div>
+  <h3>How the schema says it</h3>
+  <div class="prose">
+    <p>Folders and hard ranges already exist in the PPX. Two additions cover the rest: <code>[@sop.primary]</code> marks default card rows, and <code>[@sop.vec3 "offset"]</code> on three consecutive float fields groups them into one vec3 port. The record keeps its three floats, so no cook code changes; <code>Param</code> only gains <code>primary</code> and <code>vec3</code> metadata on each field.</p>
+  </div>
+<pre class="code"><span class="kw">type</span> t = {
+  amp    : float [@sop.default 0.5] [@sop.label <span class="st">"Amplitude"</span>] [@sop.folder <span class="st">"Noise"</span>] [@sop.primary];
+  freq   : float [@sop.default 0.9] [@sop.label <span class="st">"Frequency"</span>] [@sop.folder <span class="st">"Noise"</span>] [@sop.primary];
+  seed   : int   [@sop.default 3]   [@sop.folder <span class="st">"Noise"</span>];
+  offset_x : float [@sop.default 0.] [@sop.folder <span class="st">"Offset"</span>] [@sop.vec3 <span class="st">"offset"</span>];
+  offset_y : float [@sop.default 0.] [@sop.folder <span class="st">"Offset"</span>] [@sop.vec3 <span class="st">"offset"</span>];
+  offset_z : float [@sop.default 0.] [@sop.folder <span class="st">"Offset"</span>] [@sop.vec3 <span class="st">"offset"</span>];
+} [@@deriving sop_params, sop_node] [@@sop.register]</pre>
+</section>
+
+<section class="block" id="views">
+  <span class="num">Three views</span>
+  <h2>Graph, list and text of one document</h2>
+  <div class="prose">
+    <p>Prismel Editor already has a list projection behind <kbd>Space</kbd> <kbd>l</kbd>. The proposal makes it a cycle of three. All three share the selection, the inspector, undo and the display flag, so you can find a node in the list, edit it in the inspector and see the text change without the graph ever moving. Try it with the switch in the prototype's pane header.</p>
+  </div>
+  <div class="views">
+    <div><h3>Graph</h3><p>For wiring, reading flow and shaping density. Everything on this page. Default view.</p></div>
+    <div><h3>List</h3><p>The trunk as rows, sources first, side inputs indented under their consumer, shared nodes as <code>↳</code> link rows. Badges show driven and changed counts. <kbd>j</kbd> <kbd>k</kbd> move, <kbd>↵</kbd> jumps to the node in the graph.</p></div>
+    <div><h3>Text</h3><p>The canonical Lisp, read-only. Each binding line selects its node. Toggle qualified names to see what every symbol resolves to. Editing stays in the graph and inspector for now.</p></div>
+  </div>
+</section>
+
+<section class="block" id="keys">
+  <span class="num">Keys and guide</span>
+  <h2>A grammar, and a guide that teaches it</h2>
+  <div class="prose">
+    <p>Node verbs act on the <b>selection</b>; row verbs (<kbd>=</kbd> <kbd>e</kbd> <kbd>r</kbd> <kbd>s</kbd>) act on the row under the <b>pointer</b>, so you point and press without clicking into anything. <kbd>Tab</kbd> reads the context: with a node selected it appends after it and ripples the trunk right, with a wire selected it inserts on the wire, with nothing selected it adds at the pointer. <kbd>.</kbd> repeats the last add. Letter hints (<kbd>c</kbd>, <kbd>b</kbd>) label every compatible target with one or two letters, nearest first, so you never aim at a 9-point socket.</p>
+    <p><b>Guide mode</b> is how the grammar becomes muscle memory. It has four parts, all driven by the same Command table so they never drift from the real bindings:</p>
+    <ul>
+      <li><b>Context strip</b> along the bottom of the pane, listing only the keys that apply to what is selected or under the pointer (canvas, node, value node, compound, wire, row, list, text, leader, hints). In Prismel Editor this is the status bar.</li>
+      <li><b>Tooltips</b> after a short dwell on any socket, row, field, wire, bend point or node header, saying what it is and what you can do to it.</li>
+      <li><b>Which-key</b> after <kbd>Space</kbd>, as today, listing the leader's next keys.</li>
+      <li><b>Key sheet</b> with <kbd>Space</kbd> <kbd>k</kbd>, plus a HUD that echoes each key you press with its command label. <kbd>?</kbd> turns the strip and tooltips off once you know them.</li>
+    </ul>
+  </div>
+  <div class="keys" id="keys-grid"></div>
+  <h3>How this lands in <code>Leader.keymap</code></h3>
+  <div class="prose">
+    <p>Each row becomes one <code>Editor_core.Command</code> entry with a stable id, scoped to the graph pane, so dispatch, which-key, the <kbd>Space</kbd> <kbd>/</kbd> palette and the guide strip all read it. The grammar's letters are reserved in every context. World's graph-scoped keys that collide move to free letters: <kbd>e</kbd> (dome/light) becomes <kbd>t</kbd>, <kbd>r</kbd> (reseed) becomes <kbd>n</kbd>, <kbd>p</kbd> (day cycle) becomes <kbd>d</kbd>; <kbd>[</kbd> <kbd>]</kbd> and the digits stay. <kbd>i</kbd>, <kbd>u</kbd> and <kbd>f</kbd> keep today's meaning; <kbd>f</kbd> frames the selection, or the displayed node when nothing is selected.</p>
+  </div>
+</section>
+
+<section class="block" id="language">
+  <span class="num">Language</span>
+  <h2>Namespaces, contexts, and the ambiguities they settle</h2>
+  <div class="prose">
+    <p>Parameters need no namespace of their own. A keyword such as <code>:amp</code> is resolved against the schema of the node it is passed to, the same way an OCaml labelled argument is. The field's <code>name</code> is its stable key; its label is only for display. Node kinds do need namespaces, because the same short name can exist in several places:</p>
+    <ul>
+      <li><code>sop/</code> is the SOP catalog (<code>sop/noise_displace</code>, keyed by today's stable catalog keys).</li>
+      <li><code>value/</code> holds math, time and vector nodes. They carry no geometry, so every context can use them.</li>
+      <li><code>user/</code> holds this sketch's <code>defgraph</code>s and custom nodes. A library of compounds gets its own prefix, such as <code>terrain_kit/</code>.</li>
+      <li>Later levels add <code>scene/</code>, <code>world/</code> and, one day, <code>shader/</code>.</li>
+    </ul>
+    <p>Every graph and <code>defgraph</code> declares a <code>:context</code>. The context decides which catalog short names resolve to and which port types exist: geometry in <code>sop</code>, objects and transforms in <code>scene</code>. Short names resolve through local bindings, then <code>user/</code>, then the context's catalog, then <code>value/</code>. More than one match is a compile error that asks you to qualify the name. Node kinds and bindings live in separate namespaces, as in a Lisp-2: <code>(grid …)</code> always calls a kind, and a bare <code>grid</code> is always a binding.</p>
+  </div>
+  <div class="tablewrap"><table class="amb">
+    <thead><tr><th>#</th><th>Ambiguity</th><th>Rule</th></tr></thead>
+    <tbody>
+      <tr><td>01</td><td>The same short name in two namespaces, such as a <code>defgraph swirl</code> and <code>sop/swirl</code></td><td>Compile error at each use: “swirl is ambiguous: user/swirl or sop/swirl”. Write the namespace</td></tr>
+      <tr><td>02</td><td>A binding named like a kind: <code>grid (grid)</code></td><td>Allowed. Call heads name kinds and bare symbols name bindings</td></tr>
+      <tr><td>03</td><td>A binding named <code>t</code></td><td>Error. <code>t</code> is context time, declared as a dependency of whatever reads it</td></tr>
+      <tr><td>04</td><td>A node with several outputs</td><td><code>separate.x</code> picks an output. <code>.</code> and <code>/</code> are reserved in binding names</td></tr>
+      <tr><td>05</td><td>A geometry input and a parameter with the same name</td><td>Geometry inputs are positional. The PPX rejects a node whose slot name equals a field name</td></tr>
+      <tr><td>06</td><td><code>3</code> vs <code>3.0</code></td><td>Integer literals fit int and float fields; <code>:rows 2.5</code> is an error that names the range</td></tr>
+      <tr><td>07</td><td>Soft and hard ranges</td><td>Outside a hard bound is an error. Outside the slider range is a warning</td></tr>
+      <tr><td>08</td><td>Defaults change between catalog versions, and the text leaves defaults out</td><td>A file pins its catalog (<code>:catalog 2026.09</code>). Upgrading a node whose default changed writes the old default out explicitly</td></tr>
+      <tr><td>09</td><td>Renaming a node renames its binding</td><td>Ids are document data, never derived from names, so a rename keeps the id, the wires and the cache</td></tr>
+      <tr><td>10</td><td>Wire vs wireless, bends, levels, pins, display flag</td><td>All layout. None of them changes the program text</td></tr>
+      <tr><td>11</td><td>Bypass</td><td>Metadata, <code>^:bypass (noise_displace …)</code>, never a parameter</td></tr>
+      <tr><td>12</td><td>A vector with some components driven</td><td><code>:rotate [0 wave 0]</code>. Each component is a literal, an expression or a binding; a split in the graph is implied</td></tr>
+    </tbody>
+  </table></div>
+  <h3>Canonical form</h3>
+  <div class="prose">
+    <p>The printer is deterministic and ignores layout: roots in stable-id order, inputs in port order, defaults left out, math-only drives inline as expressions. Every preset on this page prints, compiles back and prints the same text again, and that round trip becomes a test over every catalog node.</p>
+  </div>
+  <pre class="code" id="lisp-static"></pre>
+</section>
+
+<section class="block" id="ppx">
+  <span class="num">Compile-time sketches</span>
+  <h2>Sketches written in the same Lisp, checked when they build</h2>
+  <div class="prose">
+    <p>A sketch can hold its network as text in a <code>[%flow {| … |}]</code> extension. The PPX parses it at compile time and resolves every symbol against the catalog manifest the SOP PPX already generates (passed in through <code>preprocessor_deps</code>). It checks parameter names, types, integer and hard ranges, vector arity, input slots, cycles and ambiguous names. Then it emits ordinary OCaml that builds the <code>Edit_graph</code> through the same factories the editor uses. Errors point at the exact line and column inside the string. Custom nodes declared earlier in the same file are visible because a PPX sees the whole structure, and each one binds to a <code>user/</code> symbol. Exposing a <code>defgraph</code> as an OCaml function is deferred until after M7.</p>
+  </div>
+<pre class="code"><span class="c">(* sketches/terrain/main.ml; names past [%flow] are illustrative *)</span>
+<span class="kw">module</span> <span class="ty">Rings</span> = <span class="kw">struct</span>
+  <span class="kw">type</span> t = { count : int [@sop.default 6] [@sop.primary]; width : float [@sop.default 0.2] }
+  [@@deriving sop_params, sop_node] [@@sop.register] [@@sop.name <span class="st">"rings"</span>]
+  <span class="kw">let</span> build = parameters_build (<span class="kw">fun</span> ~label p geo -&gt; ...)
+<span class="kw">end</span>
+
+<span class="kw">let</span> network = [%flow {|
+  (graph terrain :context sop
+    (let* [grid  (grid :size 4.4 :rows 22)
+           rings (user/rings grid :count 8)]
+      (output rings)))
+|}]
+<span class="c">(* network : Procedural.Edit_graph.t, already validated *)</span>
+
+<span class="c">(* a typo fails the build, not the run: *)</span>
+<span class="er">File "sketches/terrain/main.ml", line 12, characters 31-37:
+Error: rings has no parameter :cuont. Did you mean :count?</span></pre>
+  <div class="prose">
+    <p>The editor's text view prints this same syntax, so a network built by hand can be copied into a sketch as source, and a sketch's network opens in the editor as a graph. The editor text stays read-only; the sketch file is where Lisp is written.</p>
+  </div>
+  <h3>The checker, live</h3>
+  <div class="prose"><p>This runs the resolution and type rules above on the text below as you type. <b>Open in the prototype</b> builds the graph, lays it out left to right and loads it into the editor at the top of the page.</p></div>
+  <div class="ppx">
+    <div class="panel"><div class="panel-head"><b>[%flow {| … |}]</b><span>sketches/terrain/main.ml</span></div><textarea id="ppx-src" spellcheck="false" aria-label="Sketch source in Lisp"></textarea></div>
+    <div class="panel"><div class="panel-head"><b>Compiler</b><span id="ppx-state"></span></div>
+      <ul class="diags" id="ppx-diags"></ul>
+      <div class="sum-wrap"><table class="sum" id="ppx-sum"></table></div>
+      <div class="ppx-actions"><button class="btn primary" id="ppx-load">Open in the prototype</button><button class="btn" id="ppx-reset">Reset source</button></div>
+    </div>
+  </div>
+  <div class="mutations" id="ppx-mut"><span>Break it:</span></div>
+</section>
+
+<section class="block" id="research">
+  <span class="num">Research</span>
+  <h2>What we borrow, and what we leave</h2>
+  <div class="tablewrap"><table class="research">
+    <thead><tr><th>Tool</th><th>Pattern</th><th>We take</th><th>We leave</th></tr></thead>
+    <tbody>
+      <tr><td>Softimage ICE</td><td>Left-to-right trees. Compounds expose inner ports on their boundary. A virtual “New” port grows a variadic input. <a href="https://download.autodesk.com/global/docs/softimage2014/en_us/userguide/files/ICE_basics_UnderstandingtheICEFramework.htm">ICE framework</a>, <a href="https://download.autodesk.com/global/docs/softimage2013/en_us/userguide/files/ICE_compounds_ManagingExposedPorts.htm">exposed ports</a></td><td>Direction, export-to-boundary, a <code>+</code> slot for Merge-like nodes</td><td>Editing exposure only through property pages</td></tr>
+      <tr><td>Blender Geometry Nodes</td><td>Circle for single values, diamond for fields, simplified in 5.0. Link-drag search. Ctrl+RMB cut, Alt-drag detach, M mute, Ctrl+H hide unused sockets. <a href="https://code.blender.org/2025/08/new-socket-shapes/">socket shapes</a>, <a href="https://docs.blender.org/manual/en/latest/interface/controls/nodes/editing.html">editing</a></td><td>Socket shapes, search on release, knife, mute, sockets on rows, vector sockets</td><td>Curved noodles, reroutes as nodes, one Group Input showing every socket</td></tr>
+      <tr><td>Houdini</td><td>Tab menu; Shift+Enter wires the new node. Parameter folders. <code>ch()</code> references and promoted parameters. <a href="https://www.sidefx.com/docs/houdini/basics/tabmenu.html">Tab menu</a>, <a href="https://www.sidefx.com/docs/houdini/network/spare.html">spare parameters</a></td><td>Tab, append as the default, folders in the inspector, promote as <kbd>e</kbd></td><td>String-path references that break on rename</td></tr>
+      <tr><td>TouchDesigner</td><td>Constant, Expression, Export and Bind modes stored together. Zooming into a component enters it. <a href="https://derivative.ca/UserGuide/Parameter_Mode">parameter modes</a>, <a href="https://derivative.ca/UserGuide/Zoomable_User_Interface">zoomable UI</a></td><td>The literal survives a drive. Zoom-to-enter as a later option</td><td>A scripting language inside every field</td></tr>
+      <tr><td>Bitwig, Ableton</td><td>Drag a modulator onto any knob; map mode lights every target. <a href="https://www.bitwig.com/userguide/latest/the_unified_modulation_system/">unified modulation</a>, <a href="https://forum.ableton.com/viewtopic.php?t=147937">map mode</a></td><td>Bind as an aimed gesture; one overlay that shows every target</td><td>Depth rings for now</td></tr>
+      <tr><td>Max/MSP, Pure Data</td><td>Segmented patch cords; named send/receive pairs. <a href="https://docs.cycling74.com/legacy/max8/vignettes/patch_cords">patch cords</a></td><td>Authored bends; wireless links</td><td>String-named buses. Our wireless links are real edges</td></tr>
+      <tr><td>Nuke, Unreal</td><td>Dot and Reroute nodes bend wires. <a href="https://www.creativebloq.com/how-to/keep-your-node-graph-organised-in-nuke">Nuke dots</a>, <a href="https://dev.epicgames.com/documentation/en-us/unreal-engine/connecting-nodes-in-unreal-engine">reroutes</a></td><td>Right-angle routing</td><td>Bends as graph nodes</td></tr>
+      <tr><td>Enso, Luna</td><td>Graph and text are synchronised views of one program. <a href="https://medium.com/@enso_org/enso-dev-blog-19th-june-2020-335e528d50b">Enso</a>, <a href="https://docs.luna-lang.org/luna-user-guide/visual_representation">Luna</a></td><td>The text view sharing ids with the canvas</td><td>A new general-purpose language</td></tr>
+      <tr><td>Clojure, Racket</td><td>Namespaced symbols and keywords; a declared language per module. <a href="https://clojure.org/reference/namespaces">namespaces</a>, <a href="https://docs.racket-lang.org/guide/hash-languages.html">#lang</a></td><td><code>ns/name</code> symbols, keyword parameters, <code>:context</code> per graph</td><td>Macros in the first version</td></tr>
+      <tr><td>Hazel</td><td>Live GUI literals embedded in code. <a href="https://arxiv.org/pdf/1703.08694">paper</a></td><td>Later: scrubbable numbers in the text view</td><td>–</td></tr>
+      <tr><td>ComfyUI</td><td>Collapse a node to its title bar. <a href="https://comfyui-wiki.com/en/interface/node-options">node options</a></td><td>The chip level</td><td>Collapse as the only density control</td></tr>
+      <tr><td>Vim, Vimium, which-key</td><td><kbd>.</kbd> repeats; letter hints reach any target; a popup lists next keys. <a href="https://vimhelp.org/repeat.txt.html">repeat</a>, <a href="https://github.com/philc/vimium">Vimium</a>, <a href="https://github.com/easymotion/vim-easymotion">EasyMotion</a></td><td><kbd>.</kbd>, <kbd>h</kbd><kbd>j</kbd><kbd>k</kbd><kbd>l</kbd>, hints, the guide strip</td><td>Modal editing beyond hints</td></tr>
+    </tbody>
+  </table></div>
+  <p class="note">Two claims stay unverified: whether vvvv links carry user control points, and how cables.gl, Tooll3, Notch and Cavalry handle zoom-dependent detail. The design does not depend on either.</p>
+</section>
+
+<section class="block" id="architecture">
+  <span class="num">Architecture</span>
+  <h2>One graph core, many contexts</h2>
+  <div class="prose">
+    <p>The SOP network, the scene graph, compounds and every later level want the same thing: typed ports, stable ids, drives, a context and a text form. The context-free part is a new library, <code>flow</code>. The SOP context adds it as an overlay on top of the unchanged <code>Edit_graph</code>, so cooking and caching keep working at every milestone. Presentation stays intent-only, as <code>pxui_graph</code> is today.</p>
+  </div>
+  <div class="stack">
+    <div class="lay"><code>prismel_editor</code><span class="pill chg">changed</span><span>Keys, guide strip in the status bar, graph/list/text cycle, the value lane before each cook submission, World key remap.</span></div>
+    <div class="lay"><code>pxui_graph</code><span class="pill chg">changed</span><span>Left-to-right canvas over the unified network (SOP nodes plus value nodes), levels, polyline wires, rows with sockets. Still emits typed requests only.</span></div>
+    <div class="lay"><code>pxui_shell</code><span class="pill chg">changed</span><span><code>Inspector</code> gains card pins, vec3 rows and drive display; <code>Status_bar</code> hosts the guide strip.</span></div>
+    <div class="lay"><code>editor_document</code><span class="pill chg">changed</span><span>Each network carries a Flow overlay (value nodes, drives, definitions) and a layout record. Presets move to version 3.</span></div>
+    <div class="lay"><code>flow_sop</code><span class="pill new">new</span><span>The <code>sop</code> context: network overlay over an unchanged <code>Edit_graph</code>, value lane, compound inlining, canonical printer, program builder used by <code>[%flow]</code>.</span></div>
+    <div class="lay"><code>flow</code><span class="pill new">new</span><span>Context-free core: symbols, port types, <code>Expr</code>, value kinds (Time, Value, Math, Combine/Separate XYZ, Remap), value graphs, drives, the s-expression reader, checker and diagnostics. Depends on <code>param</code> only.</span></div>
+    <div class="lay"><code>ppx_prismel</code><span class="pill chg">changed</span><span><code>[@sop.primary]</code>, <code>[@sop.vec3]</code>, <code>[@@sop.node_slots]</code>, and the <code>[%flow]</code> rewriter, which links <code>flow</code> and reads a promoted catalog manifest.</span></div>
+    <div class="lay"><code>param</code><span class="pill chg">changed</span><span><code>primary</code> and <code>vec3</code> field metadata. Still dependency-free.</span></div>
+    <div class="lay"><code>procedural</code><span class="pill same">unchanged</span><span><code>Edit_graph</code>, cooking and cache keys stay as they are; drives reach nodes through <code>Edit_graph.apply_parameters</code>.</span></div>
+  </div>
+<pre class="code"><span class="c">(* lib/flow_sop/network.mli, a sketch; specification/flow.md is normative *)</span>
+<span class="kw">type</span> port = { node : int; path : string }        <span class="c">(* "amp", "center.y" *)</span>
+<span class="kw">type</span> drive =
+  | Wire <span class="kw">of</span> { node : int; output : string }     <span class="c">(* a value node's output *)</span>
+  | Expr <span class="kw">of</span> Flow.Expr.t                          <span class="c">(* folds to and from Math nodes *)</span>
+
+<span class="kw">type</span> t = {
+  geometry : Procedural.Edit_graph.t;          <span class="c">(* SOP nodes and geometry wires, unchanged *)</span>
+  values : Flow.Graph.t;                         <span class="c">(* value nodes and value wires *)</span>
+  drives : drive Port_map.t;                     <span class="c">(* the literal in the node record survives *)</span>
+  definitions : Definition.t String_map.t;       <span class="c">(* shared compounds, M5 *)</span>
+}
+
+<span class="c">(* one edge per destination port, so the destination names the edge *)</span>
+<span class="kw">type</span> layout = {
+  at : (float * float) Int_map.t;  level : Level.t Int_map.t;  pinned : bool String_map.t Int_map.t;
+  split : String_set.t Int_map.t;  bends : (float * float) list Port_map.t;  wireless : Port_set.t;
+}</pre>
+  <h3>Two evaluation lanes</h3>
+  <div class="prose">
+    <p>Geometry keeps its path: compile the document, submit to <code>Async_cook</code>, cache by cook key. Values get a small pure lane in front of it. Each frame it evaluates only nodes downstream of a time source or of this frame's edits, compares each resolved row with last frame's, and applies the changed ones. An unchanged value leaves the cook key alone, so nothing re-cooks. A drive that reads <code>t</code> marks its consumer time-dependent through <code>Context.Dependencies</code>, which is how time-driven recooks are scheduled today. Each milestone reports <code>tools/bench_prismel_editor.exe 200 1000 2000</code> before and after; no numbers are claimed here.</p>
+  </div>
+</section>
+
+<section class="block" id="plan">
+  <span class="num">Plan</span>
+  <h2>Seven milestones, each shippable</h2>
+  <div class="plan">
+    <div class="m"><b>M1</b><div><h3>Canvas</h3><p>Left to right with the header trunk. Straight wires, bend points, snap. Point, chip, card and full with zoom caps. Box select, drag-over opening.</p></div><div class="done-when"><h4>Done when</h4><ul><li>Existing documents open unchanged and auto-layout left to right</li><li>Levels and bends live in Document layout and undo as one entry per gesture</li><li><code>test_ui_parity</code> fixtures updated on purpose; bench reported</li></ul></div></div>
+    <div class="m"><b>M2</b><div><h3>Grammar and guide</h3><p>Walk, context <kbd>Tab</kbd>, <kbd>.</kbd>, hints, <kbd>o</kbd>/<kbd>p</kbd>/<kbd>⇧P</kbd>, knife, find. Guide strip, tooltips, key sheet. World keys move to free letters.</p></div><div class="done-when"><h4>Done when</h4><ul><li>Every key is a Command entry and shows in which-key, the palette and the guide</li><li><code>test_prismel_editor_logic</code> routes each key window-free</li></ul></div></div>
+    <div class="m"><b>M3</b><div><h3>Value ports and exposure</h3><p>The <code>flow</code> library. Rows get sockets. Value nodes. The value lane. <code>[@sop.primary]</code>, vec3 ports, the inspector's folders and card pins.</p></div><div class="done-when"><h4>Done when</h4><ul><li>The dependency gate lists <code>flow</code> as foundational with no exceptions</li><li>A wired parameter re-cooks only when its value changes</li><li>One-domain and multi-domain results are byte-identical</li></ul></div></div>
+    <div class="m"><b>M4</b><div><h3>Bind and expressions</h3><p><kbd>b</kbd>, <kbd>w</kbd>, <kbd>=</kbd>, fold and unfold, <kbd>r</kbd>.</p></div><div class="done-when"><h4>Done when</h4><ul><li>Fold then unfold is the identity on math-only subtrees (property test)</li><li>Parse errors are typed results shown in the field</li></ul></div></div>
+    <div class="m"><b>M5</b><div><h3>Compounds and contexts</h3><p><kbd>⌘G</kbd>, <kbd>i</kbd>/<kbd>u</kbd>, <kbd>e</kbd>, shared definitions with “make unique”. Every level declares its context.</p></div><div class="done-when"><h4>Done when</h4><ul><li>Group, enter and up keep every id, value and cook result</li><li>Each instance cooks under stable compiled ids; no cache sharing between instances is promised</li></ul></div></div>
+    <div class="m"><b>M6</b><div><h3>Views and text</h3><p>Graph, list, text cycle. <code>Flow.Sexp</code> printer and reader with the namespace rules. Text view read-only.</p></div><div class="done-when"><h4>Done when</h4><ul><li>Print, read, print is the identity for every catalog node and sketch preset</li><li>Moving, bending or folding a node never changes the text</li></ul></div></div>
+    <div class="m"><b>M7</b><div><h3><code>[%flow]</code></h3><p>The <code>[%flow]</code> rewriter over a promoted catalog manifest, located diagnostics, <code>user/</code> custom nodes. One example sketch written this way.</p></div><div class="done-when"><h4>Done when</h4><ul><li>Each ambiguity rule in the table has an expect-test with its error text</li><li>The example sketch builds, runs finitely under <code>PRISMEL_MAX_FRAMES</code>, and opens in the editor</li></ul></div></div>
+  </div>
+  <p class="note">Then the scene graph: objects are already nodes of a scene <code>Edit_graph</code> (input 0 is the parent), so it becomes the <code>scene</code> context with points, keys, compounds, views and text, and no second model.</p>
+</section>
+
+<section class="block" id="decisions">
+  <span class="num">Decisions</span>
+  <h2>Decided defaults</h2>
+  <div class="decisions">
+    <div class="q"><div><h3>Canonical names in the text view</h3><p>Short names read better; qualified names never change meaning when a catalog grows.</p></div><div class="rec"><b>Decided</b>Short names in the view with the qualified toggle, and qualified names in saved files and <code>[%flow]</code> errors.</div></div>
+    <div class="q"><div><h3>Compound reuse</h3><p>Copies per instance, or shared definitions like Houdini digital assets?</p></div><div class="rec"><b>Decided</b>Shared definitions with an explicit “make unique”. One definition is one <code>defgraph</code>.</div></div>
+    <div class="q"><div><h3>Primary rows</h3><p>Should SOPs without <code>[@sop.primary]</code> show all rows or none on a fresh card?</p></div><div class="rec"><b>Decided</b>The first folder's rows, until the author marks primaries. No card starts empty.</div></div>
+    <div class="q"><div><h3>World keys</h3><p><kbd>e</kbd> <kbd>r</kbd> <kbd>p</kbd> <kbd>[</kbd> <kbd>]</kbd> and digits are World shortcuts in graph scope today.</p></div><div class="rec"><b>Decided</b>Move the three colliding letters: <kbd>e</kbd>→<kbd>t</kbd>, <kbd>r</kbd>→<kbd>n</kbd>, <kbd>p</kbd>→<kbd>d</kbd>. The grammar's letters are reserved in every context.</div></div>
+    <div class="q"><div><h3>Catalog pinning</h3><p>Text leaves defaults out, so a default change could alter old files.</p></div><div class="rec"><b>Decided</b>A <code>:catalog</code> version per file, with upgrades that write changed defaults out explicitly.</div></div>
+    <div class="q"><div><h3>Fields</h3><p>Per-point values change how every deformer is written.</p></div><div class="rec"><b>Decided</b>Reserve the diamond and the port type now. Build them after the value lane ships and is measured.</div></div>
+  </div>
+</section>
+
+<footer>Prismel Flow · proposal, revision 2 · 27 Sep 2026 · the prototype runs the model it describes: typed ports, drives, exposure, vectors, compounds, three views, the printer and the compile-time checker are live code on this page.</footer>
+</div>
+
+<script>
+window.KEYDOC = [
+  ['Move', [['h j k l', 'walk: upstream, down, up, downstream', 'graph.walk.*'], ['/', 'find a node by name', 'graph.find'], ['f · Home', 'frame selection · frame all', 'graph.frame-tile / graph.frame-all'], ['i · u', 'enter a compound · go up', 'scene.enter / scene.up'], ['Space l', 'graph · list · text', 'graph.projection']]],
+  ['Build', [['Tab', 'add: appends to the selection, inserts on a selected wire', 'graph.add'], ['.', 'repeat the last add', 'graph.repeat'], ['c', 'connect by letter hints', 'graph.connect-hint'], ['b', 'bind wirelessly; on a wire, toggle wireless', 'graph.bind'], ['⌘G', 'group the selection into a compound', 'graph.group']]],
+  ['Shape', [['o', 'open one level (up to full)', 'graph.open'], ['p · ⇧P', 'point ⇄ previous level · for everything', 'graph.point / graph.point-all'], ['⇧O', 'open everything to cards', 'graph.open-all'], ['drag empty', 'box select (Shift adds)', 'mouse'], ['Alt-click', 'add or remove a bend point', 'mouse'], ['Ctrl-drag', 'knife: cut wires', 'mouse'], ['w', 'show every wireless link', 'graph.show-wireless']]],
+  ['Rows', [['=', 'expression on the hovered row', 'row.expression'], ['s', 'keep the hovered row on the card, or hide it', 'row.pin'], ['r', 'reset the hovered row', 'row.reset'], ['e', 'export the hovered row to the compound', 'row.export']]],
+  ['Change', [['v', 'display this node', 'graph.display'], ['m', 'mute (bypass)', 'graph.mute'], ['x · ⇧X', 'delete · delete and reconnect', 'graph.delete / graph.dissolve'], ['⌘Z · ⇧⌘Z', 'undo · redo', 'edit.undo / edit.redo']]],
+  ['Guide', [['?', 'guide strip and tooltips on or off', 'guide.toggle'], ['Space', 'leader, with which-key', 'leader'], ['Space k', 'this key sheet', 'guide.keys']]],
+];
+</script>
+<script src="engine.js"></script>
+<script>
+(() => {
+  const { Editor, heroGraph, lodGraph, manyGraph, vectorGraph, bindGraph, exprGraph, exportGraph, toLisp, highlight, compileFlow } = window.Flow;
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  document.getElementById('keys-grid').innerHTML = window.KEYDOC.map(([g, rows]) =>
+    `<div class="card"><h4>${g}</h4>${rows.map(([k, d, id]) => `<div class="k"><div>${k.split(' · ').map(x => `<kbd>${esc(x)}</kbd>`).join(' ')}</div><span>${esc(d)}<code>${esc(id)}</code></span></div>`).join('')}</div>`).join('');
+
+  const DRILLS = [
+    ['box', 'Box-select by dragging', 'drag'], ['points', 'Everything to points and back', '⇧P'], ['open', 'Open a node a level', 'o'],
+    ['walk', 'Walk the graph', 'h j k l'], ['tab', 'Append a node', 'Tab'], ['repeat', 'Repeat the last add', '.'],
+    ['hint', 'Wire by letter hint', 'c'], ['bind', 'Bind a value wirelessly', 'b'], ['bend', 'Bend a wire', 'Alt-click'],
+    ['expr', 'Type an expression', '='], ['fold', 'Fold or unfold math', 'ƒ'], ['pin', 'Keep a row on the card', 's'],
+    ['inspector', 'Edit in the inspector', 'insp'], ['proj', 'Switch to list or text', 'Space l'], ['view', 'Display another node', 'v'],
+    ['cut', 'Cut a wire with the knife', 'Ctrl-drag'], ['group', 'Group into a compound', '⌘G'], ['enter', 'Enter it and come back up', 'i · u'],
+  ];
+  const done = new Set();
+  const drillList = document.getElementById('drills'), drillCount = document.getElementById('drill-count');
+  const paintDrills = () => {
+    drillList.innerHTML = DRILLS.map(([id, t, k]) => `<li class="${done.has(id) ? 'done' : ''}"><kbd>${esc(k)}</kbd><span>${esc(t)}</span></li>`).join('');
+    drillCount.textContent = `${done.size} / ${DRILLS.length}`;
+  };
+  paintDrills();
+
+  const hero = Editor(document.getElementById('ed-hero'), {
+    graph: heroGraph(), name: 'terrain',
+    viewport: document.getElementById('vp'), viewportLabel: document.getElementById('vp-label'),
+    inspector: document.getElementById('insp'), projSwitch: document.getElementById('projsw'),
+    status: t => { document.getElementById('hero-status').textContent = t; },
+    onDrill: id => { if (DRILLS.some(d => d[0] === id) && !done.has(id)) { done.add(id); paintDrills(); } },
+    aria: 'Prototype node editor. The guide strip at the bottom lists the keys that apply now.',
+  });
+  Editor(document.getElementById('ed-lod'), { graph: lodGraph(), name: 'levels', maxFrameZoom: 1 });
+  Editor(document.getElementById('ed-many'), { graph: manyGraph(), name: 'many' });
+  Editor(document.getElementById('ed-vec'), { graph: vectorGraph(), name: 'vectors' });
+  Editor(document.getElementById('ed-bind'), { graph: bindGraph(), name: 'bind' });
+  Editor(document.getElementById('ed-expr'), { graph: exprGraph(), name: 'expression', lisp: document.getElementById('lisp-expr') });
+  Editor(document.getElementById('ed-export'), { graph: exportGraph(), name: 'export' });
+  document.getElementById('lisp-static').innerHTML = highlight(toLisp(heroGraph(), 'terrain'));
+
+  /* the compile-time checker */
+  const SAMPLE = `(defgraph ripple :context sop
+  [(geo :geometry) (amp :float 0.6)]
+  (let* [warp (noise_displace geo :amp amp :freq 1.4 :octaves 3)]
+    (values warp)))
+
+(graph terrain :context sop
+  (let* [clock (time)
+         wave  (sin clock)
+         grid  (grid :size 4.4 :rows 22)
+         bumps (ripple grid :amp (* wave 0.45))
+         spun  (transform bumps :rotate [0 (* t 0.3) 0] :translate [0 0.4 0])]
+    (output (swirl spun :angle wave))))
+`;
+  const MUT = [
+    ['Misspell a parameter', s => s.replace(':octaves 3', ':octave 3')],
+    ['Rows 22.5', s => s.replace(':rows 22', ':rows 22.5')],
+    ['Name the defgraph swirl', s => s.replace('defgraph ripple', 'defgraph swirl').replace('(ripple grid', '(swirl grid')],
+    ['Bind t', s => s.replace('clock (time)', 't     (time)')],
+    ['Scene context', s => s.replace('(graph terrain :context sop', '(graph terrain :context scene')],
+    ['Two-part vector', s => s.replace(':translate [0 0.4 0]', ':translate [0 0.4]')],
+    ['Wire a number into geometry', s => s.replace('(ripple grid', '(ripple wave')],
+    ['Qualify everything', s => s.replace('(noise_displace', '(sop/noise_displace').replace('(time)', '(value/time)').replace('(grid :size', '(sop/grid :size').replace('(ripple grid', '(user/ripple grid').replace('(transform', '(sop/transform').replace('(output (swirl', '(sop/output (sop/swirl')],
+  ];
+  const src = document.getElementById('ppx-src'), diagsEl = document.getElementById('ppx-diags'), sumEl = document.getElementById('ppx-sum'), stateEl = document.getElementById('ppx-state'), loadBtn = document.getElementById('ppx-load');
+  let last = null;
+  const offsetOf = (text, line, col) => { const lines = text.split('\n'); let o = 0; for (let i = 0; i < line - 1 && i < lines.length; i++) o += lines[i].length + 1; return o + col - 1; };
+  function check() {
+    const t0 = performance.now(), r = compileFlow(src.value), ms = performance.now() - t0; last = r;
+    const errs = r.diags.filter(d => d.sev === 'error').length, warns = r.diags.length - errs;
+    stateEl.textContent = errs ? `${errs} error${errs > 1 ? 's' : ''}${warns ? `, ${warns} warning${warns > 1 ? 's' : ''}` : ''}` : `compiles in ${ms.toFixed(1)} ms${warns ? `, ${warns} warning${warns > 1 ? 's' : ''}` : ''}`;
+    stateEl.className = errs ? 'bad' : 'ok';
+    diagsEl.innerHTML = r.diags.length ? r.diags.map(d => `<li class="${d.sev}" data-l="${d.pos.line}" data-c="${d.pos.col}"><b>${d.pos.line}:${d.pos.col}</b><span>${esc(d.msg)}</span></li>`).join('')
+      : `<li class="ok">No errors. ${r.graph ? `${r.graph.nodes.length} nodes and ${r.graph.edges.length} wires in ${esc(r.name)}.` : ''}</li>`;
+    const rows = r.summary.filter(s => s.name);
+    sumEl.innerHTML = rows.length ? `<tr><td>binding</td><td>resolves to</td><td>makes</td></tr>` + rows.map(s => `<tr><td>${esc(s.name)}</td><td>${esc(s.q)}</td><td>${esc(s.t === 'geo' ? 'geometry' : s.t)}</td></tr>`).join('') : '';
+    loadBtn.disabled = !r.graph;
+  }
+  diagsEl.addEventListener('click', ev => { const li = ev.target.closest('li[data-l]'); if (!li) return; const o = offsetOf(src.value, +li.dataset.l, +li.dataset.c); src.focus(); src.setSelectionRange(o, o + 1); });
+  let timer = 0; src.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(check, 120); });
+  src.addEventListener('keydown', ev => { if (ev.key === 'Tab') { ev.preventDefault(); const s = src.selectionStart; src.setRangeText('  ', s, src.selectionEnd, 'end'); check(); } });
+  document.getElementById('ppx-reset').addEventListener('click', () => { src.value = SAMPLE; check(); });
+  loadBtn.addEventListener('click', () => { if (!last || !last.graph) return; hero.load(last.graph, last.name); document.getElementById('try').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); hero.host.focus({ preventScroll: true }); });
+  const mutEl = document.getElementById('ppx-mut');
+  MUT.forEach(([name, f]) => { const b = document.createElement('button'); b.className = 'btn'; b.textContent = name; b.addEventListener('click', () => { src.value = f(SAMPLE); check(); }); mutEl.appendChild(b); });
+  src.value = SAMPLE; check();
+})();
+</script>
+
+</body>
+</html>

@@ -640,6 +640,11 @@ framing work; `Core` composes those results with the workspace UI. One
 `Environment.Make` functor over a `VIEWPORT` adapter (`Viewport3`, `Viewport2`)
 turns that core into the public `Editor3`/`Editor2`, which differ
 only in their viewport.
+*Target (`flow.md`, M1–M7):* the graph pane becomes the Prismel Flow canvas
+(left to right, polyline wires, levels, parameter rows and value drives,
+compounds, graph/list/text views, guide mode) and sketches may also write
+networks as `[%flow {| … |}]`. The description below is current until the
+corresponding milestone in `flow-migration.md` lands.
 `prismel.pxui_graph` supplies deterministic initial layout,
 persistent graph-space tile positions, ordered ports/wires, topology-safe node
 dragging, independent inspector/display selection through each tile's VIEW
@@ -697,6 +702,13 @@ in the palette under the same focus condition as keyboard dispatch.
 | `l` / `e` | global | list ⇄ graph (map view in the World) / open the World |
 | `f` | graph | frame displayed tile |
 | `w` / `v` | view (3D) | fly mode / look through render camera |
+
+*Planned key changes (`flow.md` §7.2, §7.11):* M2 adds the graph grammar
+(`h j k l`, `Tab`, `.`, `c`, `o`, `p`, `⇧O`, `⇧P`, `v`, `m`, `x`, `⇧X`, `/`,
+`?`, `Space k`), makes `f` frame the selection or the display node, and moves
+World keys `e`/`r`/`p` to `t`/`n`/`d`; M4 adds `b`, `w`, `=`, `r`; M3 `s`; M5
+`e`, `⌘G`, `⇧⌘G`; M6 makes `Space l` cycle graph, list and text. The table
+above is current until then.
 
 Plain keys: `i` enters the selected object, `u` goes up; in the view `w`/`e`/`r`
 pick translate/rotate/scale handles and Escape hides them;
