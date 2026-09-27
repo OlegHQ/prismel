@@ -92,6 +92,25 @@ let apply factories (document, graph_view, error, effects, placed, pasted) = fun
                  ~group:(String.sub target.path 0 dot) ~split:true graph_view in
            document, Pxui_graph.with_document document graph_view,
            None, Parameter.union_effects effects cook_effects, placed, pasted)
+  | Value_bind_requested {source; target} ->
+      (match flow_result (Flow_sop.Network.connect_value ~source ~target document) with
+       | Error message -> document, graph_view, Some message, effects, placed, pasted
+       | Ok document ->
+           let graph_view = match String.rindex_opt target.path '.' with
+             | None -> graph_view
+             | Some dot -> Pxui_graph.set_split ~node:target.node
+                 ~group:(String.sub target.path 0 dot) ~split:true graph_view in
+           let graph_view = graph_view |> Pxui_graph.with_document document
+             |> Pxui_graph.set_wireless ~target ~wireless:true in
+           document, graph_view, None,
+           Parameter.union_effects effects cook_effects, placed, pasted)
+  | Wireless_changed {target; wireless} ->
+      if not (Editor_document.Document.wire_exists document
+        (target.node, target.path)) then
+        document, graph_view, Some "The selected wire no longer exists", effects,
+        placed, pasted
+      else document, Pxui_graph.set_wireless ~target ~wireless graph_view,
+        None, effects, placed, pasted
   | Value_disconnect_requested target ->
       (match flow_result (Flow_sop.Network.disconnect ~target document) with
        | Error message -> document, graph_view, Some message, effects, placed, pasted

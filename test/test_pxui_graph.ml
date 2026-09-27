@@ -225,10 +225,47 @@ let run_value_wires () =
   let point = (Pxui_graph.Private.edge_query_points wired ~limit:1).(0) in
   let selected, _ = update wired (frame ~mouse:point ~events:[
       mouse_press (Input.LeftButton, point); mouse_release (Input.LeftButton, point)] ()) in
+  let _, changes = Pxui_graph.run_command selected Pxui_graph.Bind_hint in
+  check (List.mem (Pxui_graph.Wireless_changed {target =
+    {Flow_sop.Port.node = box_id; path = "uniform_scale"}; wireless = true}) changes)
+    "b on a selected value wire did not toggle its wireless flag";
   let _, changes = Pxui_graph.delete_selection selected in
   check (List.mem (Pxui_graph.Value_disconnect_requested
       {Flow_sop.Port.node = box_id; path = "uniform_scale"}) changes)
     "selected typed wire did not request disconnection";
+  let wireless = Pxui_graph.clear_selection wired
+    |> Pxui_graph.set_wireless
+      ~target:{Flow_sop.Port.node = box_id; path = "uniform_scale"} ~wireless:true in
+  let painted view =
+    let ui = Pxui.Ui.create () in
+    Fun.protect ~finally:(fun () -> Pxui.Ui.destroy ui) (fun () ->
+      let frame = frame ~mouse:(950, 650) () in
+      let view, _ = Pxui.Ui.frame ui frame (fun ui -> Pxui_graph.update view ui frame) in
+      ignore (Pxui.Ui.frame ui frame (fun ui -> Pxui_graph.update view ui frame));
+      match Scene.Private.stage_native ~width:1000 ~height:700 (Pxui.Ui.scene ui) with
+      | Error message -> fail message
+      | Ok staged -> List.fold_left (fun count -> function
+          | Scene.Private.Ui_layer (batch, _) ->
+              count + Scene_command.Ui_batch.count batch
+          | _ -> count) 0 staged.layers) in
+  let hidden_count = painted wireless in
+  let shown, _ = Pxui_graph.run_command wireless Pxui_graph.Show_wireless in
+  check (Pxui_graph.showing_wireless shown && painted shown > hidden_count)
+    "w did not reveal the dashed wireless value wire";
+  let binding, _ = Pxui_graph.run_command (Pxui_graph.select time_id canvas)
+      Pxui_graph.Bind_hint in
+  let rec pick_hint view depth =
+    if depth = 0 then fail "bind hints did not reach a compatible value row" else
+    let label, _, _ = List.hd (Pxui_graph.Private.hint_labels view) in
+    let view, changes = String.fold_left (fun (view, changes) letter ->
+      let view, emitted = Pxui_graph.run_command view (Pxui_graph.Hint_letter letter) in
+      view, emitted @ changes) (view, []) label in
+    if List.exists (function Pxui_graph.Value_bind_requested _ -> true | _ -> false)
+      changes then changes else pick_hint view (depth - 1) in
+  let changes = pick_hint binding 2 in
+  check (List.exists (function Pxui_graph.Value_bind_requested {source; target} ->
+      source.node = time_id && target.node = box_id | _ -> false) changes)
+    "b hints did not emit a wireless value bind";
   let hidden = Pxui_graph.create_document ~x:20 ~y:30 ~width:800 ~height:520 network
     |> Pxui_graph.place_nodes [time_id, 0., 0.; box_id, 300., 0.] in
   let math = Flow.Value_kind.Math in

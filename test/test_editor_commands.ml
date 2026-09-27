@@ -32,16 +32,20 @@ let run () =
       ("guide contents/order differ for " ^ Editor_core.Guide_context.name context))
     Editor_core.Guide_context.[
       Canvas, ["graph.paste"; "graph.frame-all"; "graph.open-all"; "graph.point-all"]
-        @ walks @ ["graph.add"; "graph.repeat"; "graph.find"; "graph.frame-tile"];
+        @ walks @ ["graph.add"; "graph.repeat"; "graph.show-wireless";
+          "graph.find"; "graph.frame-tile"];
       Node, ["graph.copy"; "graph.cut"; "graph.paste"; "graph.duplicate";
         "graph.frame-all"; "graph.open"; "graph.point"; "graph.open-all"; "graph.point-all"]
-        @ walks @ ["graph.add"; "graph.repeat"; "graph.connect-hint"; "graph.display";
+        @ walks @ ["graph.add"; "graph.repeat"; "graph.connect-hint";
+          "graph.bind"; "graph.show-wireless"; "graph.display";
           "graph.mute"; "graph.delete"; "graph.dissolve"; "graph.find"; "graph.frame-tile"];
       Multi, ["graph.copy"; "graph.cut"; "graph.paste"; "graph.duplicate";
         "graph.frame-all"; "graph.open"; "graph.point"; "graph.open-all"; "graph.point-all"]
-        @ walks @ ["graph.add"; "graph.mute"; "graph.delete"; "graph.dissolve";
+        @ walks @ ["graph.add"; "graph.show-wireless"; "graph.mute";
+          "graph.delete"; "graph.dissolve";
           "graph.find"; "graph.frame-tile"];
-      Wire, ["graph.add"; "graph.delete"]; Row, ["graph.row-pin"];
+      Wire, ["graph.add"; "graph.bind"; "graph.show-wireless";
+        "graph.delete"]; Row, ["graph.row-pin"];
       Search, []; Text, []];
   let host_ids focus context = Command.for_guide L.keymap ~focus ~context
     |> List.map (fun (c : _ Command.t) -> c.id) in

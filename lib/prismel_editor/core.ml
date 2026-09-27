@@ -711,6 +711,7 @@ let apply_action value (frame : Frame.t) (workspace, graph_view, tree, timeline,
 (* The undo label a graph intent gives its document change. *)
 let intent_label = function
   | Pxui_graph.Connect_requested _ | Value_connect_requested _ -> Some "Connect"
+  | Value_bind_requested _ | Wireless_changed _ -> Some "Bind"
   | Disconnect_requested _ | Value_disconnect_requested _ -> Some "Disconnect"
   | Delete_nodes_requested _ -> Some "Delete"
   | Dissolve_nodes_requested _ -> Some "Dissolve"
@@ -802,7 +803,8 @@ let routed value =
   else List.filter (fun (command : Leader.command) -> match command.action with
     | List_command _ -> listing && graph_shown
     | Graph_command Pxui_graph.Frame_all -> not listing && graph_shown
-    | Graph_command (Walk _ | Add | Connect_hint | Frame_selection) -> not listing && graph_shown
+    | Graph_command (Walk _ | Add | Connect_hint | Bind_hint | Show_wireless
+      | Frame_selection) -> not listing && graph_shown
     | Graph_command _ -> graph_shown
     | Frame_tile -> graph_shown && (listing || command.trigger = Some (Editor_core.Keymap.Leader "f"))
     | Frame_camera -> graph_shown
@@ -1321,19 +1323,22 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
             let ports = List.concat_map (function
               | Pxui_graph.Bend_changed { node; slot } ->
                   [geometry_port node slot]
+              | Value_bind_requested {target; _} | Wireless_changed {target; _} ->
+                  [target.node, target.path]
+              | Value_disconnect_requested target -> [target.node, target.path]
               | Disconnect_requested c ->
                   [geometry_port c.consumer c.input_index]
               | Cut_wires_requested cs -> List.map (fun (c : Edit_graph.connection) ->
                   geometry_port c.consumer c.input_index) cs
               | Delete_nodes_requested ids | Dissolve_nodes_requested ids ->
-                  Editor_core.Network_layout.Port_map.bindings current.layout.bends
-                  |> List.filter_map (fun ((id, path), _) ->
-                    let exists = match Edit_graph.inputs result.document.geometry ~node_id:id,
-                        Option.bind (Edit_graph.node_slot_names result.document.geometry ~node_id:id)
-                          (List.find_index (String.equal path)) with
-                      | Some inputs, Some index -> index < Array.length inputs && inputs.(index) <> None
-                      | _ -> false in
-                    if List.mem id ids || not exists then Some (id, path) else None)
+                  (List.map fst (Editor_core.Network_layout.Port_map.bindings
+                    current.layout.bends)
+                   @ Editor_core.Network_layout.Port_set.elements
+                       current.layout.wireless)
+                  |> List.sort_uniq compare
+                  |> List.filter (fun (id, path) ->
+                    List.mem id ids || not (Document.wire_exists result.document
+                      (id, path)))
               | _ -> []) result.graph_changes in
             Network_view.edit current result.document result.graph_view result.placed ports in
         let doc = if edited == current then present

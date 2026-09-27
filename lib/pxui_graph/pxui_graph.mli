@@ -57,7 +57,9 @@ type change =
   | Connect_requested of Procedural.Edit_graph.connection
   | Disconnect_requested of Procedural.Edit_graph.connection
   | Value_connect_requested of { source : Flow_sop.Port.t; target : Flow_sop.Port.t }
+  | Value_bind_requested of { source : Flow_sop.Port.t; target : Flow_sop.Port.t }
   | Value_disconnect_requested of Flow_sop.Port.t
+  | Wireless_changed of { target : Flow_sop.Port.t; wireless : bool }
   | Delete_nodes_requested of int list
   | Dissolve_nodes_requested of int list
   | Bypass_requested of (int * bool) list
@@ -133,6 +135,7 @@ val selected : t -> int option
 val selected_nodes : t -> int list
 val selected_connection : t -> Procedural.Edit_graph.connection option
 val selected_wire : t -> bool
+val showing_wireless : t -> bool
 val viewed : t -> int
 val flagged : t -> int option
 val with_flagged : int option -> t -> t
@@ -162,6 +165,7 @@ val node_position : t -> int -> (float * float) option
 
 val layout : t -> Editor_core.Network_layout.t
 val with_layout : Editor_core.Network_layout.t -> t -> t
+val set_wireless : target:Flow_sop.Port.t -> wireless:bool -> t -> t
 val edit_layout : nodes:int list -> ports:(int * string) list ->
   t -> Editor_core.Network_layout.t -> Editor_core.Network_layout.t
 val set_bends : node:int -> slot:int -> (float * float) list -> t -> t
@@ -194,7 +198,8 @@ val stats : t -> stats
 type direction = Left | Down | Up | Right
 type command = Copy | Cut | Paste | Duplicate | Delete | Frame_all
   | Open_detail | Point_detail | Open_all | Point_all
-  | Walk of direction | Add | Repeat | Connect_hint | Display | Mute | Dissolve | Find
+  | Walk of direction | Add | Repeat | Connect_hint | Bind_hint | Show_wireless
+  | Display | Mute | Dissolve | Find
   | Frame_selection | Row_pin | Hint_letter of char | Hint_back | Cancel
 val hint_bindings : ('scope, command) Editor_core.Command.t list
 val bindings : ('scope, command) Editor_core.Command.t list

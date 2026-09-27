@@ -34,7 +34,7 @@ accept an intended one with `dune promote`.
 | M1 | Canvas: direction, polylines, bends, levels, box select, rows, preset v3 layout | done | 2026-09-27 |
 | M2 | Keys and guide mode, World key remap | done | 2026-09-27 |
 | M3 | Value ports: `flow`, `flow_sop`, value nodes, drives by wire, exposure, vec3, inspector | done | 2026-09-28 |
-| M4 | Wireless binds, expressions, fold/unfold, row keys | not started | |
+| M4 | Wireless binds, expressions, fold/unfold, row keys | in progress | |
 | M5 | Compounds and contexts | not started | |
 | M6 | Views: list with values, read-only text, reader and checker | not started | |
 | M7 | `[%flow]` PPX and catalog manifest | not started | |
@@ -317,6 +317,14 @@ network with the same canvas, keys, views and text), then plan it here.
   the build.
 
 ## Log
+
+- 2026-09-28 M4 wireless checkpoint: `b` reuses the shared letter-hint path
+  for type-checked value binds and toggles a selected geometry or value wire;
+  `w` temporarily reveals wireless wires. Wireless links use 2/5 dashes and
+  otherwise appear only with a selected or hovered endpoint or wire. Layout
+  flags persist through the existing edit/preset path and are removed when a
+  drive disconnects or its source disappears. Graph, command and default
+  window-free tests pass. Expressions, row reset and fold/unfold remain.
 
 - 2026-09-28 M3 complete: the generated SOP factory metadata and value-kind
   schemas feed one typed Tab search. A selected value node or an output dropped

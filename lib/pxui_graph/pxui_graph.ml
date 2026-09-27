@@ -64,7 +64,9 @@ type change =
   | Connect_requested of Edit_graph.connection
   | Disconnect_requested of Edit_graph.connection
   | Value_connect_requested of { source : Flow_sop.Port.t; target : Flow_sop.Port.t }
+  | Value_bind_requested of { source : Flow_sop.Port.t; target : Flow_sop.Port.t }
   | Value_disconnect_requested of Flow_sop.Port.t
+  | Wireless_changed of { target : Flow_sop.Port.t; wireless : bool }
   | Delete_nodes_requested of int list
   | Dissolve_nodes_requested of int list
   | Bypass_requested of (int * bool) list
@@ -150,7 +152,8 @@ type menu = {
 type hint_target = Hint_port of Edit_graph.connection
   | Hint_value of Flow_sop.Port.t * Flow_sop.Port.t
   | Hint_node of int
-type hints = { source : int; prefix : string; targets : (string * hint_target) list }
+type hints = { source : int; prefix : string; bind : bool;
+  targets : (string * hint_target) list }
 
 type context_target =
   | On_canvas
@@ -253,6 +256,7 @@ type t = {
   primary : int option;
   selected_edge : Edit_graph.connection option;
   selected_value_edge : Flow_sop.Port.t option;
+  show_wireless : bool;
   viewed : int;
   flagged : int option;
   flaggable : Edit_graph.node_info -> bool;
@@ -741,7 +745,7 @@ let create_document ?(x = 0) ?(y = 0) ?(width = 640) ?(height = 360)
     moved_cells = Cell_map.empty;
     layout = Layout.empty;
     spatial = build_spatial_index document boxes edges Layout.empty; selected; primary;
-    selected_edge = None; selected_value_edge = None;
+    selected_edge = None; selected_value_edge = None; show_wireless = false;
     viewed; flagged = None; flaggable; enterable; x; y; width; height;
     pan_x = 38.; pan_y = 38.; zoom = 1.; drag = None; bloom = None; before_points = Id_map.empty;
     menu = None; context = None; clipboard = None; catalog = catalog_array catalog;
@@ -863,6 +867,7 @@ let selected (value : t) = value.primary
 let selected_nodes (value : t) = Id_set.elements value.selected
 let selected_connection (value : t) = value.selected_edge
 let selected_wire (value : t) = value.selected_edge <> None || value.selected_value_edge <> None
+let showing_wireless (value : t) = value.show_wireless
 let viewed (value : t) = value.viewed
 let flagged (value : t) = value.flagged
 let with_flagged flagged (value : t) = { value with flagged }
@@ -913,6 +918,13 @@ let with_layout layout value =
     { box with gx; gy; level; rows; height }) value.boxes in
   { value with boxes; layout; positions = Id_map.empty; moved_nodes = Id_set.empty;
     moved_cells = Cell_map.empty; spatial = build_spatial_index value.document boxes value.edges layout }
+
+let set_wireless ~target ~wireless value =
+  let port = target.Flow_sop.Port.node, target.path in
+  let flags = if wireless then Layout.Port_set.add port value.layout.wireless
+    else Layout.Port_set.remove port value.layout.wireless in
+  if flags == value.layout.wireless then value
+  else { value with layout = { value.layout with wireless = flags } }
 
 let reshape value =
   let boxes = Array.map (fun (box : box) ->
@@ -1611,11 +1623,25 @@ let circle paint (x, y) radius ~fill ~stroke =
   Ui.Paint.circle paint ~at:(float_of_int x, float_of_int y)
     ~radius:(float_of_int radius) ~fill ~stroke ()
 
-let paint_wire (value : t) paint points ~width color =
+let paint_wire ?(dashed = false) (value : t) paint points ~width color =
   for index = 0 to Array.length points - 2 do
     let screen (x, y) = float (screen_x value x), float (screen_y value y) in
-    Ui.Paint.line paint ~from_:(screen points.(index)) ~to_:(screen points.(index + 1))
-      ~width color
+    let start = screen points.(index) and stop = screen points.(index + 1) in
+    if not dashed then Ui.Paint.line paint ~from_:start ~to_:stop ~width color
+    else begin
+      let x, y = start and xx, yy = stop in
+      let length = Float.hypot (xx -. x) (yy -. y) in
+      if length > 0. then
+        for dash = 0 to int_of_float (Float.ceil (length /. 7.)) - 1 do
+          let lo = float_of_int dash *. 7. in
+          let hi = min length (lo +. 2.) in
+          if lo < hi then begin
+            let point distance = let t = distance /. length in
+              x +. t *. (xx -. x), y +. t *. (yy -. y) in
+            Ui.Paint.line paint ~from_:(point lo) ~to_:(point hi) ~width color
+          end
+        done
+    end
   done
 
 let canvas_fill (value : t) =
@@ -1643,7 +1669,8 @@ let arc_midpoint points =
       x +. t *. (xx -. x), y +. t *. (yy -. y) in
   at 1 (!total /. 2.)
 
-let paint_background (value : t) paint visible_edges visible_wires =
+let paint_background (value : t) paint visible_edges visible_wires
+    ~hovered_nodes ~hovered_edge =
   let theme = value.theme in
   let spacing = max 10 (screen_size value 12) in
   let offset_x = int_of_float value.pan_x mod spacing
@@ -1654,11 +1681,22 @@ let paint_background (value : t) paint visible_edges visible_wires =
       float_of_int (value.y + offset_y - spacing))
     ~spacing:(float_of_int spacing) (Color.with_alpha theme.foreground 145);
   for visible_index = 0 to visible_wires - 1 do
-    let edge = value.edges.(Array.unsafe_get visible_edges visible_index) in
+    let edge_index = Array.unsafe_get visible_edges visible_index in
+    let edge = value.edges.(edge_index) in
     let points = edge_points value edge in
-    if (match edge.kind with Geometry_edge connection ->
+    let selected_wire = match edge.kind with Geometry_edge connection ->
         value.selected_edge = Some connection
-      | Value_edge (_, target) -> value.selected_value_edge = Some target) then
+      | Value_edge (_, target) -> value.selected_value_edge = Some target in
+    let source_id, target_id = match edge.kind with
+      | Geometry_edge connection -> connection.source, connection.consumer
+      | Value_edge (source, target) -> source.node, target.node in
+    let wireless = Layout.Port_set.mem edge.port value.layout.wireless in
+    let visible = not wireless || value.show_wireless || selected_wire
+      || hovered_edge = Some edge_index
+      || Id_set.mem source_id value.selected || Id_set.mem target_id value.selected
+      || Id_set.mem source_id hovered_nodes || Id_set.mem target_id hovered_nodes in
+    if visible then begin
+    if selected_wire then
       paint_wire value paint points ~width:8. (Color.with_alpha theme.accent 71);
     let ty = match edge.kind with
       | Geometry_edge _ -> Flow.Port_type.Geometry
@@ -1670,7 +1708,7 @@ let paint_background (value : t) paint visible_edges visible_wires =
       | Flow.Port_type.Geometry -> palette.geometry, 2.4
       | Float -> palette.float, 1.5 | Int -> palette.int, 1.5
       | Bool -> palette.bool, 1.5 | Vec3 -> palette.vec3, 1.8 in
-    paint_wire value paint points ~width color;
+    paint_wire ~dashed:wireless value paint points ~width color;
     (match edge.kind with
      | Geometry_edge _ -> ()
      | Value_edge (_, target) ->
@@ -1685,6 +1723,7 @@ let paint_background (value : t) paint visible_edges visible_wires =
              ~size ~color:outline text) [-1., 0.; 1., 0.; 0., -1.; 0., 1.];
            Ui.Paint.text paint ~at:(x, y) ~size ~color text)
            (Flow_sop.Port.Map.find_opt target value.applied))
+    end
   done
 
 let field_text : Parameter.value -> string = function
@@ -2159,7 +2198,7 @@ let label_hints targets =
       else String.make 1 hint_alphabet.[index] in label, target)
     (List.filteri (fun index _ -> index < 676) targets)
 
-let hints_for ?node value source =
+let hints_for ?node ?(bind = false) value source =
   let source_port = match Hashtbl.find_opt value.slots source with
     | None -> None
     | Some index -> Option.map (fun (path, _) ->
@@ -2187,7 +2226,7 @@ let hints_for ?node value source =
     let order = Float.compare (distance a) (distance b) in
     if order = 0 then Int.compare a.info.id b.info.id else order)
   |> List.concat_map (fun box ->
-    let geometry = if source_type = Flow.Port_type.Geometry
+    let geometry = if not bind && source_type = Flow.Port_type.Geometry
         && not (Id_set.mem box.info.id !seen) then
         Array.to_list (Array.mapi (fun input_index _ ->
           Hint_port Edit_graph.{source; consumer = box.info.id; input_index})
@@ -2226,21 +2265,25 @@ let hint_letter value letter = match value.hints with
       match List.assoc_opt prefix hints.targets with
       | Some (Hint_port connection) -> { value with hints = None }, [Connect_requested connection]
       | Some (Hint_value (source, target)) ->
-          { value with hints = None }, [Value_connect_requested {source; target}]
+          { value with hints = None },
+          [if hints.bind then Value_bind_requested {source; target}
+           else Value_connect_requested {source; target}]
       | Some (Hint_node id) ->
           let layout = { value.layout with
             level = Id_map.add id Layout.Full value.layout.level;
             pinned = Id_map.add id true value.layout.pinned } in
           let value = reshape { value with layout } in
           { value with hints = Some { hints with prefix = "";
-              targets = hints_for ~node:id value hints.source } }, [Level_changed [id]]
+              targets = hints_for ~node:id ~bind:hints.bind value hints.source } },
+          [Level_changed [id]]
       | None when List.exists (fun (label, _) -> String.starts_with ~prefix label) hints.targets ->
           { value with hints = Some { hints with prefix } }, []
       | None -> value, []
 
 type command = Copy | Cut | Paste | Duplicate | Delete | Frame_all
   | Open_detail | Point_detail | Open_all | Point_all
-  | Walk of direction | Add | Repeat | Connect_hint | Display | Mute | Dissolve | Find
+  | Walk of direction | Add | Repeat | Connect_hint | Bind_hint | Show_wireless
+  | Display | Mute | Dissolve | Find
   | Frame_selection | Row_pin | Hint_letter of char | Hint_back | Cancel
 
 let bindings =
@@ -2270,6 +2313,9 @@ let bindings =
   @ [command ~guide:[Canvas; Node; Multi; Wire] "add" "add by context" Add Input.Tab [];
      command ~guide:[Canvas; Node] "repeat" "repeat last add" Repeat (Input.KeyChar '.') [];
      command ~guide:[Node] "connect-hint" "connect by hints" Connect_hint (Input.KeyChar 'c') [];
+     command ~guide:[Node; Wire] "bind" "bind or toggle wireless" Bind_hint (Input.KeyChar 'b') [];
+     command ~guide:[Canvas; Node; Multi; Wire] "show-wireless" "show wireless wires"
+       Show_wireless (Input.KeyChar 'w') [];
      command ~guide:[Node; List] "display" "display geometry" Display (Input.KeyChar 'v') [];
      command ~guide:[Node; Multi; List] "mute" "toggle bypass" Mute (Input.KeyChar 'm') [];
      command ~guide:[Node; Multi; Wire; List] "delete" "delete" Delete (Input.KeyChar 'x') [];
@@ -2339,10 +2385,27 @@ let run_command ?at (value : t) =
                 else menu in
               let request = menu_request value menu item.entry in
               { value with menu = None }, [request]))
-  | Connect_hint -> (match selected_nodes value with
-      | [source] -> let targets = hints_for value source in
+  | Show_wireless -> { value with show_wireless = not value.show_wireless }, []
+  | Bind_hint when selected_wire value ->
+      let target = match value.selected_value_edge with
+        | Some target -> Some target
+        | None -> Option.map (fun (connection : Edit_graph.connection) ->
+            let names = Edit_graph.node_slot_names value.document.geometry
+                ~node_id:connection.consumer in
+            let path = Option.value ~default:("in" ^ string_of_int connection.input_index)
+              (Option.bind names (fun names -> List.nth_opt names connection.input_index)) in
+            {Flow_sop.Port.node = connection.consumer; path}) value.selected_edge in
+      (match target with
+       | None -> value, []
+       | Some target ->
+           let wireless = not (Layout.Port_set.mem
+             (target.node, target.path) value.layout.wireless) in
+           value, [Wireless_changed {target; wireless}])
+  | Connect_hint | Bind_hint as command -> (match selected_nodes value with
+      | [source] -> let bind = command = Bind_hint in
+          let targets = hints_for ~bind value source in
           if targets = [] then value, [Notice "No compatible input can be connected"]
-          else { value with hints = Some { source; targets; prefix = "" } }, []
+          else { value with hints = Some { source; targets; prefix = ""; bind } }, []
       | _ -> value, [Notice "Select one source node to connect"])
   | Display -> (match value.primary with
       | Some id when Edit_graph.find value.document.geometry ~node_id:id <> None ->
@@ -2904,6 +2967,14 @@ let update_canvas (value : t) ui (frame : Frame.t) =
         then Some box.info.id else None) tiles
     | _ -> None in
   let value = if bloom = value.bloom then value else reshape { value with bloom } in
+  let hovered_nodes = if Layout.Port_set.is_empty value.layout.wireless
+      then Id_set.empty else
+    Array.fold_left (fun hovered (index, tile, _, _, _) ->
+      if Ui.hovered_within ui tile then Id_set.add value.boxes.(index).info.id hovered
+      else hovered) Id_set.empty tiles in
+  let hovered_edge = if Layout.Port_set.is_empty value.layout.wireless
+      || not (Ui.hovered_within ui canvas) then None
+    else hit_edge value (ints canvas_signal.pointer) in
   Ui.draw ui canvas (fun paint _ ->
     framed paint value.x value.y value.width value.height ~fill:(canvas_fill value)
       ~stroke:value.theme.foreground);
@@ -2917,7 +2988,7 @@ let update_canvas (value : t) ui (frame : Frame.t) =
       then visible_edges, stats.visible_wires
       else let _, edges, stats = visibility value in
         edges, stats.visible_wires in
-    paint_background value paint edges count);
+    paint_background value paint edges count ~hovered_nodes ~hovered_edge);
   Array.iter (fun (index, tile, _, _, _) ->
     let id = initial.boxes.(index).info.id in
     Ui.draw ui tile (fun paint _ ->
