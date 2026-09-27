@@ -75,7 +75,7 @@ let run_grammar () =
   and b = Sop.points ~label:"b" [|1., 0., 0.|] in
   let aa = Sop.null ~label:"aa" a and bb = Sop.null ~label:"bb" b in
   let output = Sop.merge ~label:"out" [aa; bb] in
-  let catalog = [Pxui_graph.{ key="null"; label="Null"; category=["Utility"]; arity=1 }] in
+  let catalog = [Pxui_graph.{ key="null"; label="Null"; category=["Utility"]; arity=1; ports=[] }] in
   let id = Node.id in
   let canvas = Pxui_graph.create ~catalog ~width:800 ~height:500 output
     |> Pxui_graph.place_nodes [id a, 0., 0.; id b, 0., 180.; id aa, 252., 0.;
@@ -190,6 +190,22 @@ let run_value_wires () =
     source = {Flow_sop.Port.node = time_id; path = "t"};
     target = {Flow_sop.Port.node = box_id; path = "uniform_scale"} } in
   check (List.mem expected changes) "value output drag did not target a parameter row";
+  let size = Pxui_graph.Private.field_bounds canvas ~node:box_id ~path:"size"
+    |> Option.get in
+  let sx, sy, _, _ = size in
+  let _, changes = update canvas (frame ~mouse:(sx - 80, sy + 8) ~events:[
+      mouse_press (Input.LeftButton, (sx - 80, sy + 8));
+      mouse_release (Input.LeftButton, (sx - 80, sy + 8))] ()) in
+  check (List.mem (Pxui_graph.Split_requested {node = box_id; group = "size";
+    split = true}) changes) "vec3 row did not request a split";
+  let split = Pxui_graph.set_split ~node:box_id ~group:"size" ~split:true canvas in
+  check (Pxui_graph.Private.field_bounds split ~node:box_id ~path:"size.x" <> None)
+    "vec3 split did not expose component rows";
+  let hovered, _ = update canvas (frame ~mouse:(sx - 80, sy + 8)
+      ~events:[mouse_move (sx - 80, sy + 8)] ()) in
+  let _, changes = Pxui_graph.run_command hovered Pxui_graph.Row_pin in
+  check (List.mem (Pxui_graph.Row_pinned {node = box_id; path = "size";
+    pinned = false}) changes) "s did not pin the hovered vector row";
   let connected = Flow_sop.Network.connect_value
       ~source:{Flow_sop.Port.node = time_id; path = "t"}
       ~target:{Flow_sop.Port.node = box_id; path = "uniform_scale"} network
@@ -215,6 +231,40 @@ let run_value_wires () =
     "selected typed wire did not request disconnection";
   let hidden = Pxui_graph.create_document ~x:20 ~y:30 ~width:800 ~height:520 network
     |> Pxui_graph.place_nodes [time_id, 0., 0.; box_id, 300., 0.] in
+  let math = Flow.Value_kind.Math in
+  let math_ports = Flow_sop.Port.parameters
+      (Flow.Value_kind.fields (Flow.Value_kind.make math)) |> Result.get_ok
+    |> List.filter_map (fun (parameter : Flow_sop.Port.parameter) ->
+      Option.map (fun ty -> parameter.path, ty) parameter.ty) in
+  let catalog = Pxui_graph.catalog_of_factories [factory] @ [Pxui_graph.{
+      key = "value/math"; label = "Math"; category = ["Math"]; arity = 0;
+      ports = math_ports }] in
+  let menu_canvas = Pxui_graph.create_document ~x:20 ~y:30 ~width:800 ~height:520
+      ~catalog network |> Pxui_graph.place_nodes
+        [time_id, 0., 0.; box_id, 300., 0.]
+      |> Pxui_graph.select time_id in
+  let menu_canvas, _ = Pxui_graph.run_command menu_canvas Pxui_graph.Add in
+  check (Array.mem "value/math" (Pxui_graph.Private.menu_keys menu_canvas ~query:"math")
+    && Array.mem "box" (Pxui_graph.Private.menu_keys menu_canvas ~query:"box"))
+    "Tab from a value output did not include compatible value and SOP kinds";
+  let _, changes = update menu_canvas (frame ~events:[
+      Event.TextInput "value/math"; Event.KeyPressed Input.Enter] ()) in
+  check (List.exists (function Pxui_graph.Add_requested request ->
+      request.factory_key = "value/math" && request.inputs = []
+      && request.source = Some {Flow_sop.Port.node = time_id; path = "t"}
+      | _ -> false) changes)
+    "Tab from a value node did not preserve the typed append source";
+  let drag_canvas = Pxui_graph.create_document ~x:20 ~y:30 ~width:800 ~height:520
+      ~catalog network |> Pxui_graph.place_nodes
+        [time_id, 0., 0.; box_id, 300., 0.] in
+  let blank = 400, 450 in
+  let from = output_port (node time_id drag_canvas) in
+  let dropped, _ = update drag_canvas (frame ~mouse:blank ~events:[
+      mouse_press (Input.LeftButton, from); mouse_move blank;
+      mouse_release (Input.LeftButton, blank)] ()) in
+  check (Array.mem "value/math" (Pxui_graph.Private.menu_keys dropped ~query:"math")
+    && Array.mem "box" (Pxui_graph.Private.menu_keys dropped ~query:"box"))
+    "value wire release on empty canvas did not open compatible search";
   check (Pxui_graph.Private.field_bounds hidden ~node:box_id
     ~path:"uniform_scale" = None) "hidden-row test chose a visible parameter";
   let source = output_port (node time_id hidden) in
@@ -232,6 +282,14 @@ let run_value_wires () =
   let _, changes = update bloomed (frame ~mouse:target
       ~events:[mouse_move target; mouse_release (Input.LeftButton, target)] ()) in
   check (List.mem expected changes) "hidden-row drop did not request a value drive";
+  let body = x + 90, y + 12 in
+  let _, changes = update hidden (frame ~mouse:body ~events:[
+      mouse_press (Input.LeftButton, source); mouse_move body;
+      mouse_release (Input.LeftButton, body)] ()) in
+  check (List.exists (function Pxui_graph.Value_connect_requested {source; target} ->
+      source.node = time_id && target.node = box_id && target.path = "size"
+      | _ -> false) changes)
+    "value wire drop on a node body missed its first compatible parameter";
   let hinted, _ = Pxui_graph.run_command (Pxui_graph.select time_id hidden)
       Pxui_graph.Connect_hint in
   let labels = Pxui_graph.Private.hint_labels hinted in
@@ -406,7 +464,7 @@ let run () =
     "hidden graph still produced scene nodes";
 
   let catalog = [{ Pxui_graph.key = "null"; label = "Null";
-      category = ["Utility"]; arity = 1 }] in
+      category = ["Utility"]; arity = 1; ports = [] }] in
   let edit_view = Pxui_graph.create ~x:20 ~y:30 ~width:800 ~height:520
       ~catalog graph in
   let click_shift view id =
@@ -461,7 +519,7 @@ let run () =
     "Space menu disabled a SOP whose inputs should start disconnected";
 
   let nested_catalog = [{ Pxui_graph.key = "box"; label = "Box";
-      category = ["Create"; "Primitive"]; arity = 0 }] in
+      category = ["Create"; "Primitive"]; arity = 0; ports = [] }] in
   let nested_view = Pxui_graph.create ~x:20 ~y:30 ~width:800 ~height:520
       ~catalog:nested_catalog graph in
   let nested_view, _ = update (Pxui_graph.open_menu_at menu_point nested_view)
@@ -484,7 +542,7 @@ let run () =
   let scrolling_catalog = List.init 15 (fun index -> {
       Pxui_graph.key = Printf.sprintf "node_%02d" index;
       label = Printf.sprintf "Node %02d" index;
-      category = ["Utility"]; arity = 0 }) in
+      category = ["Utility"]; arity = 0; ports = [] }) in
   let scrolling_view = Pxui_graph.create ~x:20 ~y:30 ~width:800 ~height:520
       ~catalog:scrolling_catalog graph in
   let scrolling_view, _ = update (Pxui_graph.open_menu_at menu_point scrolling_view)

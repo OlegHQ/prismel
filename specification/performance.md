@@ -116,8 +116,21 @@ The two cached cases retain their result. Their 96 B per sample is fixed
 measurement overhead; the resolution loop adds no per-call allocation.
 Dynamic values rebuild the 200 SOP literal copies and their packed snapshots;
 these figures are a baseline, not an improvement claim or a native frame
-latency guarantee. The editor benchmark with driven rows follows when M3's
-host integration lands.
+latency guarantee. After M3 host integration, the same command measured
+0.000004 ms / 0.096 B for no drives, the same for cached static drives, and
+0.319713 ms / 901,745.696 B for 200 Time drives. The two dynamic timings are
+within run-to-run noise; the value lane itself did not change.
+
+The M3 editor frame comparison uses
+`dune exec tools/bench_prismel_editor.exe -- 2000` on the same machine,
+profile and seven cook domains. The M2 guide checkpoint was 0.175 ms median,
+2.054 ms p95 and 635,543 B per held-pointer frame. Three M3 runs gave median
+times 0.314951, 0.214100 and 0.200033 ms, p95 times 2.651930, 2.565861
+and 2.701044 ms, and 679,823 B/frame throughout. The median of
+those run medians is 0.214100 ms, with 44,280 B/frame more allocation than the
+M2 checkpoint. This measures the full updated UI, including value metadata
+and inspector work, rather than isolating the value lane. Single-run timing
+and p95 vary, so these numbers are workload observations, not a latency bound.
 
 The shared unchanged-parameter-write path was also measured before and after
 its identity guard: 1,000,000 writes to one parameterized one-point SOP on the

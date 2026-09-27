@@ -48,6 +48,22 @@ let instantiate factories document key input_ids =
         Result.map (fun node -> node, slots, factory)
           (Edit_graph.instantiate_optional factory nodes))
 
+let append_value_source document ~node_id = function
+  | None -> Ok document
+  | Some source ->
+      Result.bind (flow_result (Flow_sop.Network.output_type document source))
+        (fun source_type ->
+          Result.bind (flow_result (Flow_sop.Network.parameters document ~node_id))
+            (fun parameters ->
+              match List.find_opt (fun (parameter : Flow_sop.Port.parameter) ->
+                Option.fold ~none:false ~some:(fun target ->
+                  Flow.Port_type.can_connect ~source:source_type ~target) parameter.ty)
+                  parameters with
+              | None -> Error "The new node has no compatible value input"
+              | Some parameter -> flow_result (Flow_sop.Network.connect_value ~source
+                  ~target:{Flow_sop.Port.node = node_id; path = parameter.path}
+                  document)))
+
 (* Folds one graph intent into the document and view; [placed] collects the
    ids whose tile position this frame set, moved, or removed, so the undo
    document re-reads only those, and [pasted] the (source, copy) id pairs. *)
@@ -165,6 +181,8 @@ let apply factories (document, graph_view, error, effects, placed, pasted) = fun
                      ~some:(fun op -> flow_result (Flow_sop.Network.set_literal
                        ~target:{node = id; path = "op"}
                        (Flow_sop.Port.Scalar (Parameter.Choice_value op)) added)) op in
+                   let changed = Result.bind changed (fun document ->
+                     append_value_source document ~node_id:id request.source) in
                    (match changed with
                     | Error message -> document, graph_view, Some message, effects, placed, pasted
                     | Ok document ->
@@ -178,7 +196,10 @@ let apply factories (document, graph_view, error, effects, placed, pasted) = fun
        else match instantiate factories document request.factory_key request.inputs with
        | Error message -> document, graph_view, Some message, effects, placed, pasted
        | Ok (node, slots, factory) ->
-           (match update_geometry (Edit_graph.add_node ~inputs:slots ~factory node) document with
+           (match Result.bind
+               (update_geometry (Edit_graph.add_node ~inputs:slots ~factory node) document)
+               (fun document -> append_value_source document ~node_id:(Node.id node)
+                 request.source) with
             | Error message -> document, graph_view, Some message, effects, placed, pasted
             | Ok document ->
                 let connected = Edit_graph.factory_ready factory

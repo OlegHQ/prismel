@@ -29,7 +29,8 @@ interaction). M1 implements the canvas contract above. M2 implements walk, conte
 Tab/append/ripple, qualified repeat, letter hints, mute, dissolve, find and
 selection framing as Command entries with guide contexts. Rows and fields
 own hover through the shared PXUI hit tree; delayed tooltips never capture
-input. Follow `specification/flow-migration.md`: M3 adds value nodes and row sockets through `flow_sop`.
+input. M3 adds value nodes and row sockets through `flow_sop`; the canvas
+shares one typed Tab search for value and SOP kinds.
 Rules that hold throughout:
 
 - Wires are polylines drawn with `Ui.line`; no curves after M1.
@@ -38,7 +39,7 @@ Rules that hold throughout:
 - Layout (positions, levels, pins, splits, bends, wireless) is document data
   the host stores; selection, hover, pan and zoom stay in this library's
   immutable view value.
-- The exposure rule comes from `Flow_sop.Exposure.shown` (M3); do not
+- The exposure rule comes from `Flow_sop.Exposure.shown`; do not
   reimplement it here.
 - Keep unchanged document replacement allocation-free on the identity fast path and keep
   `test/test_pxui_graph`'s 2,001-node smoke within its recorded baseline.

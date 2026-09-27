@@ -103,6 +103,7 @@ val insert_on_connection :
 val factory :
   ?operation:string ->
   ?slots:string list ->
+  ?fields:Parameter.field_view list ->
   key:string ->
   label:string ->
   category:string list ->
@@ -112,6 +113,7 @@ val factory :
 val factory_slots :
   ?operation:string ->
   ?slots:string list ->
+  ?fields:Parameter.field_view list ->
   key:string ->
   label:string ->
   category:string list ->
@@ -122,6 +124,7 @@ val factory_key : factory -> string
 val factory_operation : factory -> string
 val factory_label : factory -> string
 val factory_category : factory -> string list
+val factory_fields : factory -> Parameter.field_view list
 val factory_arity : factory -> int
 val factory_inputs : factory -> input_requirement list
 

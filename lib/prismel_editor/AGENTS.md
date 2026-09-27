@@ -74,10 +74,11 @@ rules in this file are current. Planned changes that touch this directory:
   through Store user preferences. `Space k` opens the grouped key sheet;
   key feedback lasts 1.5 seconds. World keys are `t`/`n`/`d`, and `f` frames
   the selection or display node. Tab adds by context; Shift-Tab traverses UI.
-- M3 in progress: documents, clipboard and preset v3 carry `flow_sop` value
-  nodes and drives. The canvas shows value tiles, typed sockets and drive wires;
-  the inspector and live readouts still need the applied-value table from
-  `Value_lane.resolve` in `Cook` before every submission.
+- M3 is implemented: documents, clipboard and preset v3 carry `flow_sop` value
+  nodes and drives. The canvas shows value tiles, typed sockets, drive wires
+  and live readouts. The inspector shows pins, vector splits and drive sources.
+  `Cook` resolves values before submissions and while time advances, retaining
+  the applied-value table for presentation without changing stored literals.
 - M5: compound levels under instances. M6: `Space l` cycles graph, list, text.
 
 Keep the three-column workspace, `Doc.apply` as the only graph-intent reducer,

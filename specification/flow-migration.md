@@ -33,7 +33,7 @@ accept an intended one with `dune promote`.
 | M0 | Spec, prototype, docs aligned | done | 2026-09-27 |
 | M1 | Canvas: direction, polylines, bends, levels, box select, rows, preset v3 layout | done | 2026-09-27 |
 | M2 | Keys and guide mode, World key remap | done | 2026-09-27 |
-| M3 | Value ports: `flow`, `flow_sop`, value nodes, drives by wire, exposure, vec3, inspector | in progress | |
+| M3 | Value ports: `flow`, `flow_sop`, value nodes, drives by wire, exposure, vec3, inspector | done | 2026-09-28 |
 | M4 | Wireless binds, expressions, fold/unfold, row keys | not started | |
 | M5 | Compounds and contexts | not started | |
 | M6 | Views: list with values, read-only text, reader and checker | not started | |
@@ -198,14 +198,14 @@ Tasks:
    `Procedural.Node.Private.fresh_id` for value-node ids.
 6. [x] `editor_document`: `Document.network` carries the overlay; preset v3
    `values` and `drives` arrays (§4.4); validation of §3.10.
-7. `pxui_graph`: value nodes, row sockets, drives rendering (← source, live
+7. [x] `pxui_graph`: value nodes, row sockets, drives rendering (← source, live
    readouts), drop onto rows including hidden ones via bloom, chip bottom
    attachments, `s` row pin (`Row_pinned`), vec3 rows and split toggle. Value
    kinds and SOP kinds share Tab search (categories Value, Math, Vector).
-8. `pxui_shell/Inspector`: §9 rows, pins, vec3 editors and split, drive
+8. [x] `pxui_shell/Inspector`: §9 rows, pins, vec3 editors and split, drive
    display and reset (reset removes a drive; literal defaults come in M4 with
    `r`).
-9. `prismel_editor/cook.ml`: run `Value_lane.resolve` before every submission;
+9. [x] `prismel_editor/cook.ml`: run `Value_lane.resolve` before every submission;
    keep the applied-value table in the environment; time-dependent networks
    resolve every frame while playing.
 10. [x] `test/dependency_gate.ml`: rules of `flow.md` §14.
@@ -318,13 +318,24 @@ network with the same canvas, keys, views and text), then plan it here.
 
 ## Log
 
+- 2026-09-28 M3 complete: the generated SOP factory metadata and value-kind
+  schemas feed one typed Tab search. A selected value node or an output dropped
+  on empty canvas filters compatible destinations and connects the new node;
+  dropping on a card body chooses its first free compatible row. The canvas and
+  inspector show live values from the cook environment, while literal records
+  stay unchanged. The host resolves visible networks before submission, also
+  while time advances. Focused UI, preset, drive, unchanged-key and one-vs-many
+  domain checks pass, as do `@all`, window-free `runtest`, `@smoke`, and the API
+  manifest. The native suite's unrelated GPU-film test fails at its two-texture
+  assertion; the other native cases pass. Measurements are in `performance.md`.
+
 - 2026-09-28 M3 canvas checkpoint: value tiles and typed drive wires share the
   geometry canvas's spatial index and PXUI hit tree. Card rows expose typed
   sockets; dragging a value output to a visible or bloom-revealed row emits a
   checked connection request. Chip wires attach at bottom sockets, vector
   rows split and join, `s` pins rows, and `c` includes compatible value ports.
-  Live readouts, the inspector, and cook integration are still pending, so
-  task 7 remains open.
+  Live readouts, the inspector, and cook integration landed in the final M3
+  checkpoint.
 
 - 2026-09-28 M3 document integration: each saved network owns a context and
   one immutable geometry/value/drive overlay. Preset v3 requires and validates

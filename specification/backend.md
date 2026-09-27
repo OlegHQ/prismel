@@ -9,8 +9,7 @@ not select an alternate renderer through environment variables or public API.
 
 `flow` depends only on dependency-free `param`. Its value graphs, expressions,
 contexts and coercions have no geometry, editor, UI, renderer or GPU
-dependencies; the dependency gate rejects those transitive edges. Its M3
-editor integration is tracked in `flow-migration.md`. `flow_sop` now depends
+dependencies; the dependency gate rejects those transitive edges. `flow_sop` depends
 only on `flow`, `param` and `procedural`; its typed overlay, exposure rule and
 value lane cannot reach presentation, the catalog, editor or GPU libraries.
 
@@ -120,12 +119,15 @@ diagnostics over `param`; the M6 graph reader and checker will live there
 too. `ppx_prismel` already depends on `flow` for declaration checks and gains
 `[%flow]` in M7.
 `flow_sop` depends on `flow`, `param` and `procedural` for the SOP overlay and
-value lane; compound inlining and printing follow in M5–M6. The gate forbids
+value lane; compound inlining and printing follow in M5–M6. The editor runs
+the value lane on its initial domain before cook submissions and retains
+applied values for the graph and inspector. The gate forbids
 `flow` from reaching anything but `param`, and `flow_sop` from reaching UI,
 the SOP catalog, editor or GPU libraries.
-*Planned (`flow.md` §14, remaining M3):* `editor_document`, `pxui_graph`,
-`pxui_shell` and `prismel_editor` gain the specified edges as their adapters
-land.
+`editor_document` owns the UI-free saved overlay, while `pxui_graph` and
+`pxui_shell` are presentation adapters over it. `prismel_editor` applies their
+typed requests and schedules cooks; none of these edges points back into
+`flow` or `flow_sop`.
 `pxui_graph` exports its graph commands as `Editor_core.Command.t` entries without handling key
 events. `editor_core` depends on `prismel` for frame and event values, never on UI
 or geometry libraries. `pxui_shell` owns editor chrome over the shared PXUI

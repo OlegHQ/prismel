@@ -12,6 +12,7 @@ type catalog_entry = {
   label : string;
   category : string list;
   arity : int;
+  ports : (string * Flow.Port_type.t) list;
 }
 
 (** Convert define-once SOP descriptors into the exact entries consumed by
@@ -23,6 +24,7 @@ val catalog_of_factories :
 type add_request = {
   factory_key : string;
   inputs : int list;
+  source : Flow_sop.Port.t option;
   at : float * float;
 }
 

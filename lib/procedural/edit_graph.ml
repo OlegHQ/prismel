@@ -14,6 +14,7 @@ type factory = {
   operation : string;
   label : string;
   category : string list;
+  fields : Parameter.field_view list;
   requirements : input_requirement array;
   slots : string array;
   build : Node.t option list -> Node.t;
@@ -448,7 +449,7 @@ let slot_names arity = function
         invalid_arg "Edit_graph factory slots must have one distinct name per input";
       Array.of_list names
 
-let factory ?operation ?slots ~key ~label ~category ~arity build =
+let factory ?operation ?slots ?(fields = []) ~key ~label ~category ~arity build =
   let operation = Option.value ~default:key operation in
   if String.trim key = "" || String.trim operation = ""
       || String.trim label = ""
@@ -456,11 +457,11 @@ let factory ?operation ?slots ~key ~label ~category ~arity build =
       || List.exists (fun item -> String.trim item = "") category then
     invalid_arg "Edit_graph.factory names must not be blank";
   if arity < 0 then invalid_arg "Edit_graph.factory arity must be non-negative";
-  { key; operation; label; category; requirements = Array.make arity Required;
+  { key; operation; label; category; fields; requirements = Array.make arity Required;
     slots = slot_names arity slots;
     build = (fun inputs -> build (List.map Option.get inputs)) }
 
-let factory_slots ?operation ?slots ~key ~label ~category ~inputs build =
+let factory_slots ?operation ?slots ?(fields = []) ~key ~label ~category ~inputs build =
   let operation = Option.value ~default:key operation in
   if String.trim key = "" || String.trim operation = ""
       || String.trim label = ""
@@ -469,13 +470,14 @@ let factory_slots ?operation ?slots ~key ~label ~category ~inputs build =
     invalid_arg "Edit_graph.factory_slots names must not be blank";
   if inputs = [] then invalid_arg
       "Edit_graph.factory_slots requires at least one input slot";
-  { key; operation; label; category; requirements = Array.of_list inputs;
+  { key; operation; label; category; fields; requirements = Array.of_list inputs;
     slots = slot_names (List.length inputs) slots; build }
 
 let factory_key (value : factory) = value.key
 let factory_operation (value : factory) = value.operation
 let factory_label (value : factory) = value.label
 let factory_category (value : factory) = value.category
+let factory_fields (value : factory) = value.fields
 let factory_arity (value : factory) = Array.length value.requirements
 let factory_inputs (value : factory) = Array.to_list value.requirements
 let factory_slot_names (value : factory) = Array.to_list value.slots

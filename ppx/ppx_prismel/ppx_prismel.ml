@@ -449,6 +449,10 @@ let generate_node_type declaration =
     Labelled "operation", estring ~loc operation;
     Labelled "label", estring ~loc label;
     Labelled "slots", elist ~loc (List.map (estring ~loc) slots);
+    Labelled "fields", apply ~loc
+      (ident ~loc ["Procedural"; "Parameter"; "view"])
+      [Nolabel, evar ~loc (declaration.ptype_name.txt ^ "_schema");
+       Nolabel, evar ~loc (declaration.ptype_name.txt ^ "_default")];
     Labelled "category", elist ~loc (List.map (estring ~loc) category) ] in
   let factory = if optional = [] then
       apply ~loc (ident ~loc ["Procedural"; "Edit_graph"; "factory"])

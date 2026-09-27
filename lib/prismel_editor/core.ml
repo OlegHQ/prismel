@@ -183,12 +183,17 @@ let network value = Option.get (Document.network value.doc value.level)
 let document value = (network value).graph.geometry
 
 let value_catalog =
-  let entry key label category =
-    { Pxui_graph.key = "value/" ^ key; label; category; arity = 0 } in
-  List.map (fun kind -> entry (Flow.Value_kind.key kind)
+  let entry kind key label category =
+    let ports = Flow_sop.Port.parameters
+        (Flow.Value_kind.fields (Flow.Value_kind.make kind))
+      |> Result.value ~default:[]
+      |> List.filter_map (fun (port : Flow_sop.Port.parameter) ->
+        Option.map (fun ty -> port.path, ty) port.ty) in
+    { Pxui_graph.key = "value/" ^ key; label; category; arity = 0; ports } in
+  List.map (fun kind -> entry kind (Flow.Value_kind.key kind)
     (Flow.Value_kind.label kind) (Flow.Value_kind.category kind))
     (List.filter (( <> ) Flow.Value_kind.Math) Flow.Value_kind.all)
-  @ List.map (fun (name, _) -> entry ("math/" ^ name)
+  @ List.map (fun (name, _) -> entry Flow.Value_kind.Math ("math/" ^ name)
       (String.capitalize_ascii name) ["Math"]) Flow.Expr.operators
 
 let projection value =

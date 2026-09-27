@@ -12,18 +12,26 @@ type catalog_entry = {
   label : string;
   category : string list;
   arity : int;
+  ports : (string * Flow.Port_type.t) list;
 }
+
+let typed_ports fields =
+  Flow_sop.Port.parameters fields |> Result.value ~default:[]
+  |> List.filter_map (fun (port : Flow_sop.Port.parameter) ->
+    Option.map (fun ty -> port.path, ty) port.ty)
 
 let catalog_of_factories factories = List.map (fun factory -> {
     key = Edit_graph.factory_key factory;
     label = Edit_graph.factory_label factory;
     category = Edit_graph.factory_category factory;
     arity = Edit_graph.factory_arity factory;
+    ports = typed_ports (Edit_graph.factory_fields factory);
   }) factories
 
 type add_request = {
   factory_key : string;
   inputs : int list;
+  source : Flow_sop.Port.t option;
   at : float * float;
 }
 
@@ -133,6 +141,8 @@ type menu = {
   path : string list;
   insertion : Edit_graph.connection option;
   inputs : int list;
+  value_source : Flow_sop.Port.t option;
+  source_type : Flow.Port_type.t option;
   compatible_input : bool;
   ripple : (int * float * float) list;
 }
@@ -1280,7 +1290,11 @@ let search_rank query (item : catalog_item) =
   else 4
 
 let eligible menu (item : catalog_item) =
-  (menu.insertion = None && not menu.compatible_input) || item.entry.arity > 0
+  match menu.source_type with
+  | Some source -> List.exists (fun (_, target) ->
+      Flow.Port_type.can_connect ~source ~target) item.entry.ports
+  | None -> (menu.insertion = None && not menu.compatible_input)
+      || item.entry.arity > 0
 
 let rec category_remainder path category = match path, category with
   | [], category -> Some category
@@ -1324,8 +1338,16 @@ let open_menu (value : t) (x, y) =
   let y = max (value.y + 8) y in
   { value with menu = Some { x; y; gx; gy;
     query = ""; path = []; insertion = value.selected_edge;
-    inputs = selected_nodes value; compatible_input = false; ripple = [] };
+    inputs = selected_nodes value; value_source = None; source_type = None;
+    compatible_input = false; ripple = [] };
     drag = None; context = None; hints = None; find = None }
+
+let open_value_menu value source point =
+  let value = open_menu value point in
+  let menu = Option.get value.menu in
+  let source_type = Result.to_option (Flow_sop.Network.output_type value.document source) in
+  { value with menu = Some { menu with insertion = None; inputs = [];
+      value_source = Some source; source_type; compatible_input = true; ripple = [] } }
 
 let menu_request (_value : t) menu entry =
   let at = menu.gx, menu.gy in
@@ -1338,7 +1360,8 @@ let menu_request (_value : t) menu entry =
         | _, [] -> []
         | count, value :: rest -> value :: take (count - 1) rest in
       let inputs = take entry.arity menu.inputs in
-      Add_requested { factory_key = entry.key; inputs; at }
+      Add_requested { factory_key = entry.key; inputs;
+        source = menu.value_source; at }
 
 let parent_path path = match List.rev path with
   | [] -> [] | _ :: rest -> List.rev rest
@@ -2092,6 +2115,16 @@ let add_by_context ?(wire = true) value pointer =
          | Some edge -> let gx, gy = arc_midpoint (edge_points value edge) in
              { menu with gx; gy; insertion = Some connection; inputs = []; compatible_input = true }
          | None -> { menu with insertion = None; inputs = [] })
+    | None, [source] when Flow.Graph.find value.document.values ~node_id:source <> None ->
+        let node = Option.get (Flow.Graph.find value.document.values ~node_id:source) in
+        (match Flow.Graph.outputs node with
+         | (path, source_type) :: _ ->
+             let x, gy = Option.get (node_position value source) in
+             { menu with gx = x +. float (node_width + 60); gy;
+               insertion = None; inputs = [];
+               value_source = Some {Flow_sop.Port.node = source; path};
+               source_type = Some source_type; compatible_input = true; ripple = [] }
+         | [] -> { menu with insertion = None; inputs = [] })
     | None, [source] ->
         let x, gy = Option.get (node_position value source) in
         let gx = x +. float (node_width + 60) in
@@ -2653,18 +2686,43 @@ let update_canvas (value : t) ui (frame : Frame.t) =
                   if Ui.hovered_within ui socket &&
                       compatible_value value.document source target
                   then Some target else None) inputs) tiles in
-              let changes = match target with
-                | Some target -> Value_connect_requested {source; target} :: changes
+              let target = match target with Some _ -> target | None ->
+                Array.find_map (fun (index, tile, _, _, _) ->
+                  let id = value.boxes.(index).info.id in
+                  if id = source.node || not (Ui.hovered_within ui tile) then None else
+                  Option.bind (Result.to_option
+                    (Flow_sop.Network.parameters value.document ~node_id:id))
+                    (fun parameters ->
+                    let source_type = Flow_sop.Network.output_type value.document source
+                      |> Result.to_option in
+                    List.find_map (fun (parameter : Flow_sop.Port.parameter) ->
+                      let target = {Flow_sop.Port.node = id; path = parameter.path} in
+                      let occupied = Flow_sop.Port.Map.mem target value.document.drives
+                        || List.exists (fun (part : Flow_sop.Port.parameter) ->
+                          Flow_sop.Port.Map.mem {target with path = part.path}
+                            value.document.drives)
+                          (Flow_sop.Port.components parameter) in
+                      if occupied then None
+                      else if Option.fold ~none:false ~some:(fun source_type ->
+                        Option.fold ~none:false ~some:(fun target_type ->
+                          Flow.Port_type.can_connect ~source:source_type
+                            ~target:target_type) parameter.ty) source_type
+                      then Some target else None) parameters)) tiles in
+              let emitted = match target with
+                | Some target -> [Value_connect_requested {source; target}]
                 | None when source.path = "geo" ->
                     (match hit_input value (ints signal.release_point) with
                      | Some (consumer_index, input_index) ->
                          let consumer = value.boxes.(consumer_index).info.id in
-                         if consumer <> id then Connect_requested
-                           { Edit_graph.source = id; consumer; input_index } :: changes
-                         else changes
-                     | None -> changes)
-                | None -> changes in
-              value, changes
+                         if consumer <> id then [Connect_requested
+                           { Edit_graph.source = id; consumer; input_index }]
+                         else []
+                     | None -> [])
+                | None -> [] in
+              let value = if emitted = [] && source.path <> "geo" && signal.dragging
+                  then open_value_menu value source (ints signal.release_point)
+                else value in
+              value, List.rev_append emitted changes
             end else value, changes) (value, changes) outputs in
       let value, changes = if tile_signal.double_clicked && left tile_signal then
           if Option.fold ~none:false ~some:value.enterable value.boxes.(index).info.geometry

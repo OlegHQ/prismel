@@ -626,8 +626,15 @@ let node, effects =
   match Pxui_shell.Inspector.fields ui ~expanded:["Geometry"]
       (Procedural.Node.parameter_fields node) with
   | [] -> node, Procedural.Parameter.no_effects
-  | changes -> Result.get_ok (Procedural.Node.apply_parameters node changes)
+| changes -> Result.get_ok (Procedural.Node.apply_parameters node changes)
 ```
+
+In Prismel Editor, `Inspector.flow_fields` renders the selected SOP or value
+node from its saved Flow network. It shows the node label, qualified kind,
+flags, geometry inputs, all parameter folders, card pin toggles, grouped vec3
+controls and split state. A driven row shows its source and applied value;
+reset removes the drive so its stored literal takes effect. It returns typed
+requests that `Doc.apply` commits after `Ui.frame`.
 
 `effects.cook` requests a deferred/asynchronous graph cook;
 `effects.view` updates render-only metadata without invalidating geometry;
@@ -640,11 +647,13 @@ framing work; `Core` composes those results with the workspace UI. One
 `Environment.Make` functor over a `VIEWPORT` adapter (`Viewport3`, `Viewport2`)
 turns that core into the public `Editor3`/`Editor2`, which differ
 only in their viewport.
-The Prismel Flow canvas now flows left to right with polyline wires,
-authored bends, point/chip/card/full levels, and editable literal rows.
+The Prismel Flow canvas flows left to right with polyline wires,
+authored bends, point/chip/card/full levels, editable literal rows, value
+tiles, typed parameter sockets and live drive wires.
 `Editor_core.Network_layout` is the UI-free saved layout shared by the host
-and canvas. *Target (M2–M7):* value drives, compounds, graph/list/text views,
-guide mode and `[%flow {| … |}]`; follow `flow-migration.md` in order.
+and canvas. Guide mode and value drives are implemented. Compounds,
+graph/list/text views and `[%flow {| … |}]` follow in M4–M7; see
+`flow-migration.md`.
 `prismel.pxui_graph` supplies deterministic initial layout,
 persistent graph-space tile positions, ordered ports/wires, topology-safe node
 dragging, independent inspector/display selection through each tile's VIEW
@@ -705,7 +714,9 @@ do not change parameter values or cook keys. `[@sop.primary]` and checked
 also expose geometry input names through `Edit_graph.factory_slot_names`:
 `[@@sop.node_slots "input, target"]` supplies names; omitted annotations
 use `in0`, `in1`, and so on. Slot names must be distinct from parameter
-names. M3's editor adapters consume them as the value-port milestone lands.
+names. Generated factories also expose field views; the editor uses those
+views to filter Tab search to kinds whose parameter ports accept a dragged
+value output.
 
 The new `flow` library depends only on `param`. Its current value core
 provides checked symbols, contexts, port types, scalar/vector coercions,
@@ -728,8 +739,11 @@ normalizes hard bounds with the same `Param.normalize_value` kernel as
 the resolved geometry and cook keys; clearing a drive restores its literal.
 `Exposure.shown` is the shared card visibility rule. The editor document,
 graph clipboard and preset v3 now carry the overlay. Preset loading rejects
-invalid value and drive records before installing the document. Canvas,
-inspector and cook adapters remain M3 work in progress.
+invalid value and drive records before installing the document. The canvas
+connects value outputs to visible or hidden parameter rows, filters typed Tab
+results, and shows live wire readouts. The inspector displays drive sources,
+applied values and reset controls; the cook adapter resolves dynamic values
+before each visible-object submission.
 
 | Key | Scope | Action |
 |---|---|---|

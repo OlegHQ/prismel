@@ -955,7 +955,8 @@ module Inspector = struct
       let y, h = if h = 24. then y +. 3., 18. else y, h in
       Ui.Paint.rect paint ~x ~y ~w ~h ~fill:theme.control
         ~stroke:(Pxui.Theme.faint_border theme) ();
-      Ui.Paint.text paint ~at:(x +. 3., y +. 2.) ~size:11
+      Ui.Paint.text paint ~at:(x +. 3., y +. 2.)
+        ~size:(if label = "xyz" then 9 else 11)
         ~color:(if enabled then theme.foreground else Pxui.Theme.muted theme) label);
     clicked
 
@@ -975,7 +976,7 @@ module Inspector = struct
           Ui.Paint.text paint ~at:(x +. 3., y +. 5.) ~size:11
             ~color:(Ui.theme ui).foreground title);
         Ui.within ui box (fun () ->
-          pinned := small_button ui ("pin-" ^ row.path) "●" ~x:62.
+          pinned := small_button ui ("pin-" ^ row.path) shown ~x:62.
               ~enabled:(not row.locked) ();
           (match row.split with
            | Some active -> split := small_button ui ("split-" ^ row.path)

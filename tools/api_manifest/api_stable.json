@@ -1115,13 +1115,13 @@
       "source_sha256": "22768a3498358549067252ba294073b2ae119fad811a66d1c09562c04e0b37fb"
     },
     {
-      "api_sha256": "69866e9478d57403bf4d0f20879278c551b4e1fef0b34b35d45aea880a3fca41",
+      "api_sha256": "8032fbde94f881ac0fc04fafc58c7c1f98151a005d023c270ea117efd50c36dc",
       "excluded_legacy_symbols": [],
       "library": "procedural",
       "module": "Edit_graph",
       "source": "lib/procedural/edit_graph.mli",
-      "source_bytes": 4939,
-      "source_sha256": "76fe727ebf793c553e4753f9dfe9f767bc24d8944cfaabbea23943d8cda98f8f"
+      "source_bytes": 5075,
+      "source_sha256": "b55da680b21449db34048a902fc7413b58a01613f6ac7bd69e5134504f22656f"
     },
     {
       "api_sha256": "e2b28c62481122de99ba265c82e061740f1c9c514f49cdf82ee76a99d2b9abe7",
@@ -1223,13 +1223,13 @@
       "source_sha256": "e60f5cfa448ba44a06b00ca748f6c98f558be280744890d6c3edd6b9695c807b"
     },
     {
-      "api_sha256": "0e1447997db3d779c467530f4e3a0c861a54f754283f2d2833c6b9812e353c51",
+      "api_sha256": "1555645681290e4c8af1fb2a77c4c60e2fed7d315755edd384fd39ea5bfa8b59",
       "excluded_legacy_symbols": [],
       "library": "pxui_graph",
       "module": "Pxui_graph",
       "source": "lib/pxui_graph/pxui_graph.mli",
-      "source_bytes": 9502,
-      "source_sha256": "fae9b498ecc22963577a2d3c48899732c141be8f8d4519b30e7bd2f594890725"
+      "source_bytes": 9581,
+      "source_sha256": "7ac5aaf9947304965206d79735ec5c1ddb30daac520f728b05fe917a2190928a"
     },
     {
       "api_sha256": "3cb82e15bcae495036fb326882b66a673ee294d63b64ea8babb27a5791e91ede",

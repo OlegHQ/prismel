@@ -380,4 +380,44 @@ let run () =
     ~document:E2.document ~scene_document:E2.document
     ~prepared:E2.prepared ~camera:E2.camera ~can_undo:E2.can_undo ~can_redo:E2.can_redo
     ~graph_nodes:E2.graph_nodes;
+  let editor = ref (E2.create ~graph:code ~presets:directory ~factories ~prepare
+    ~scene2:(fun _ _ -> []) () |> Result.get_ok) in
+  Fun.protect ~finally:(fun () -> E2.close !editor) (fun () ->
+    let count = ref 0 in
+    let step ?mouse events =
+      incr count; editor := E2.update !editor (frame ?mouse events !count) in
+    step [key Input.Space; char 'b'];
+    step [Event.TextInput "driven-saved"; key Input.Enter]; step [];
+    let gx, gy, _, _ = (E2.panes !editor (frame [] 0)).graph in
+    let focus = float (gx + 20), float (gy + 150) in
+    step ~mouse:focus [Event.MousePressed (Input.LeftButton, focus);
+      Event.MouseReleased (Input.LeftButton, focus)];
+    step [key Input.Home]; step [];
+    let clock = List.find (fun (tile : Pxui_graph.node_view) -> tile.id = 9)
+        (E2.graph_nodes !editor) in
+    let x, y, _, _ = clock.bounds in
+    let point = float (x + 50), float (y + 12) in
+    step ~mouse:point [Event.MousePressed (Input.LeftButton, point);
+      Event.MouseReleased (Input.LeftButton, point)];
+    step [char 'h'];
+    check (List.exists (fun (tile : Pxui_graph.node_view) ->
+      tile.id = 9 && tile.selected) (E2.graph_nodes !editor))
+      "left walk did not select the Time source";
+    step [key Input.Tab];
+    step [Event.TextInput "Remap"; key Input.Enter]; step [];
+    let crash_directory = Filename.temp_dir "prismel-value-append" "" in
+    Fun.protect ~finally:(fun () ->
+      Array.iter (fun file -> Sys.remove (Filename.concat crash_directory file))
+        (Sys.readdir crash_directory);
+      Unix.rmdir crash_directory) (fun () ->
+      E2.crash_dump !editor crash_directory;
+      let saved = load (Filename.concat crash_directory "document.json")
+        |> Result.get_ok in
+      let overlay, _ = Option.get (Document.object_network saved.doc 10) in
+      let added = Flow.Graph.inspect overlay.values |> List.find (fun (node : Flow.Graph.node) ->
+        node.label = "Remap") in
+      check (Flow_sop.Port.Map.find_opt
+        {Flow_sop.Port.node = added.id; path = "v"} overlay.drives =
+        Some (Flow_sop.Drive.Wire {node = 9; output = "t"}))
+        "Tab append from Time did not connect the new value node"));
   print_endline "editor document: empty round trips, validation, both hosts, load history and delete-all passed")

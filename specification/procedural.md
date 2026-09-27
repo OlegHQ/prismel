@@ -122,6 +122,8 @@ kinds are inferred; numeric fields require soft `[@sop.min]`/`[@sop.max]`.
 `[@sop.folder]`, and `[@sop.impact "cook"|"view"|"export"]` provide layout and
 behavior. `[@sop.kind expression]` supplies arbitrary typed choices, and
 `[@sop.ignore]` retains a record field/default without promoting it.
+`[@sop.primary]` marks default card rows; checked `[@sop.vec3 "center"]`
+groups three consecutive float components into one vector row and port.
 
 Schemas live in the dependency-free `param` library. `Pxui_shell.Inspector`
 converts a node.s folders to nested accordions and kinds to native widgets; the
@@ -160,6 +162,10 @@ serialized cache-key strings.
 Input metadata is a signature, not merely a port count. Fixed descriptors use
 required slots; `[@@sop.node_optional "1,2"]` marks zero-based optional slots
 and makes `sop_node` generate an `Edit_graph.factory_slots` descriptor.
+`[@@sop.node_slots "input, target"]` names the slots. Generated factories
+also carry field views, allowing the canvas to filter Tab results by
+compatible value ports. Hand-built factories provide `~fields` to participate
+in that typed search.
 Disconnected optional references compile as absent operator arguments, while
 connecting or disconnecting them rebuilds the physical SOP input list and
 retains the document node's identity and parameter values. The generated
@@ -227,9 +233,11 @@ in `Edit_graph`, value nodes from `flow`, and typed wire or expression drives
 on parameter ports. Preset v3 saves all three together with a context and
 layout, rejecting invalid ports, types, cycles and vector splits on load.
 The graph clipboard copies a Flow fragment, so an expression on a copied SOP
-survives paste. The value lane already resolves drives to a temporary graph
-without changing stored literals; hooking it into the editor cook loop is the
-remaining M3 task. Compounds are later M5 work.
+survives paste. Before each visible-object cook submission, the editor's value
+lane resolves drives to a temporary graph without changing stored literals.
+Time-dependent networks resolve on each advancing frame. The environment keeps
+the applied values for live canvas and inspector readouts; unchanged effective
+values retain their graph and cook keys. Compounds are later M5 work.
 
 `prismel.pxui_graph` presents that document. Its deterministic left-to-right
 layout snaps positions to 12 points. Header and row sockets connect through
