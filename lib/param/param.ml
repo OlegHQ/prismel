@@ -175,7 +175,7 @@ let clamp_float (range : float_range) value =
     Ok (match range.hard_max with
       | Some high -> Float.min high value | None -> value)
 
-let normalize_kind : type value. value kind -> value -> (value, string) result =
+let normalize_value : type value. value kind -> value -> (value, string) result =
   fun kind value -> match kind with
   | Toggle | Text | Encoded _ -> Ok value
   | Integer range -> Ok (clamp_int range value)
@@ -216,7 +216,7 @@ let field ~name ?label ?description ?(folder = []) ?(impact = Cook)
   let label = Option.value ~default:(default_label name) label in
   nonblank "Parameter.field label" label;
   validate_vec3 kind vec3;
-  let default = match normalize_kind kind default with
+  let default = match normalize_value kind default with
     | Ok value -> value
     | Error message -> invalid_arg ("Parameter.field " ^ name ^ ": " ^ message)
   in
@@ -237,7 +237,7 @@ let schema ~name ~default fields =
       List.fold_left (fun result (Field field) ->
         Result.bind result (fun record ->
           Result.map (fun value -> field.set value record)
-            (normalize_kind field.kind (field.get record)))) (Ok default) fields
+            (normalize_value field.kind (field.get record)))) (Ok default) fields
     with
     | Ok value -> value
     | Error message -> invalid_arg ("Parameter.schema " ^ name ^ ": " ^ message)
@@ -312,7 +312,7 @@ let apply_field : type record value.
   fun record kind old_value set impact candidate ->
     Result.map (fun value ->
       if equal_kind kind old_value value then record, None
-      else set value record, Some impact) (normalize_kind kind candidate)
+      else set value record, Some impact) (normalize_value kind candidate)
 
 let apply schema record ~name value =
   match Hashtbl.find_opt schema.by_name name with
@@ -359,4 +359,4 @@ let normalize schema record =
   List.fold_left (fun result (Field field) ->
     Result.bind result (fun record ->
       Result.map (fun value -> field.set value record)
-        (normalize_kind field.kind (field.get record)))) (Ok record) schema.fields
+        (normalize_value field.kind (field.get record)))) (Ok record) schema.fields

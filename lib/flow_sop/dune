@@ -1,0 +1,10 @@
+(library
+ (name flow_sop)
+ (public_name prismel.flow_sop)
+ (modules port drive exposure network value_lane)
+ (libraries flow param procedural))
+
+(test
+ (name test_network)
+ (modules test_network)
+ (libraries flow_sop flow param procedural pdk))

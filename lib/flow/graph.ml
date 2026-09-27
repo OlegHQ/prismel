@@ -6,6 +6,10 @@ let node ~id ?label kind =
   if id < 1 || id = max_int then
     Error (Diagnostic.error ~code:"E_NODE_ID" "Node id must be positive and below max_int")
   else Ok {id; label = Option.value label ~default:(Value_kind.label kind); parameters = Value_kind.make kind}
+let clone_node ~id node =
+  if id < 1 || id = max_int then
+    Error (Diagnostic.error ~code:"E_NODE_ID" "Node id must be positive and below max_int")
+  else Ok {node with id}
 let empty = Int_map.empty
 let find graph ~node_id = Int_map.find_opt node_id graph
 let inspect graph = Int_map.bindings graph |> List.map snd

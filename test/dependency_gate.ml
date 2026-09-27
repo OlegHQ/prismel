@@ -66,7 +66,7 @@ let reach graph =
 
 let gpu = ["sdl3"; "sdl3_image"; "sdl3_ttf"; "sdl3_mixer"; "metal"; "ogpu_core"; "ogpu"; "ogpu_mock"; "ogpu_metal"; "ogpu_metal_native";
            "runtime"; "runtime_input"; "runtime_resources"; "scene_execution"]
-let upper = ["param"; "flow"; "prismel"; "editor_core"; "pxui"; "pxui_shell"; "pxui_graph"; "procedural"; "pdk";
+let upper = ["param"; "flow"; "flow_sop"; "prismel"; "editor_core"; "pxui"; "pxui_shell"; "pxui_graph"; "procedural"; "pdk";
              "sop_catalog"; "sketch_support"; "prismel_editor"]
 let foundational = ["sdl3"; "sdl3_image"; "sdl3_ttf"; "sdl3_mixer"; "metal"; "ogpu_core"; "ogpu";
                     "native_layer_token"; "scene_command"; "lru"]
@@ -79,6 +79,8 @@ let rules =
   @ List.map (fun library -> library, "prismel" :: "prismel_math" :: "pdk" :: "procedural" :: "editor_core"
        :: "pxui" :: "pxui_shell" :: "pxui_graph" :: "sop_catalog" :: "editor_document"
        :: "prismel_editor" :: gpu) ["flow"; "ppx_prismel"]
+  @ ["flow_sop", ["prismel"; "pxui"; "pxui_shell"; "pxui_graph"; "sop_catalog";
+       "sketch_support"; "editor_document"; "prismel_editor"] @ gpu]
   @ [ "ogpu_core", ["sdl3"; "metal"; "ogpu_metal_native"; "ogpu_metal"];
       "ogpu", ["sdl3"; "metal"; "ogpu_metal_native"; "ogpu_metal"];
       "ogpu_mock", ["sdl3"; "metal"; "ogpu_metal_native"; "ogpu_metal"];
@@ -259,7 +261,10 @@ let run () =
      "editor_document", "prismel_editor";
      "flow", "pxui"; "flow", "procedural"; "flow", "prismel_math";
      "flow", "prismel"; "param", "flow"; "sdl3", "flow";
-     "ppx_prismel", "procedural"; "ppx_prismel", "pxui"];
+     "ppx_prismel", "procedural"; "ppx_prismel", "pxui";
+     "flow_sop", "pxui"; "flow_sop", "sop_catalog"; "flow_sop", "prismel";
+     "flow_sop", "editor_document"; "flow_sop", "ogpu"; "sdl3", "flow_sop";
+     "flow", "flow_sop"; "ppx_prismel", "flow_sop"];
   if violations graph ~scan:["lib/prismel/injected.ml", "let x = Metal.Device.system_default"] = []
      || violations graph ~scan:["lib/prismel/injected.ml", "open Ogpu_metal_native"] = []
      || violations graph ~scan:["lib/prismel/injected.ml", "open Ogpu_metal"] = [] then

@@ -135,6 +135,10 @@ val schema :
 val default : 'record schema -> 'record
 val fields : 'record schema -> 'record field list
 
+val normalize_value : 'a kind -> 'a -> ('a, string) result
+(** The same finite-value and hard-bound normalization used by [apply].
+    Soft bounds do not clamp values. *)
+
 (** Materialize type-erased inspector metadata for the supplied immutable
     record. This is the narrow boundary consumed by UI adapters. *)
 val view : 'record schema -> 'record -> field_view list

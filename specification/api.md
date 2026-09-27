@@ -716,7 +716,18 @@ saturates the machine range before the caller applies the parameter's hard
 bounds. Its six value kinds use typed `Param` schemas: Time, Value, Math,
 Combine XYZ, Separate XYZ and Remap. Expression parsing returns errors with
 source byte spans; infix and s-expression printers preserve the operation
-tree. The SOP overlay and editor drives remain M3 work in progress.
+tree.
+
+`Flow_sop.Network` now keeps geometry, value literals and typed drives in one
+immutable overlay. It rejects cycles, incompatible types, missing ports,
+duplicate SOP/value ids and overlapping whole/component vector drives.
+Copy/paste remaps internal geometry and value connections together. The
+environment-owned `Value_lane` resolves reachable values before cooking,
+normalizes hard bounds with the same `Param.normalize_value` kernel as
+`Param.apply`, and preserves literal records. Unchanged effective values keep
+the resolved geometry and cook keys; clearing a drive restores its literal.
+`Exposure.shown` is the shared card visibility rule. The editor, inspector
+and preset adapters remain M3 work in progress.
 
 | Key | Scope | Action |
 |---|---|---|

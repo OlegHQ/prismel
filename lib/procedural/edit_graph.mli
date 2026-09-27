@@ -39,6 +39,10 @@ val set_root : int -> t -> (t, string) result
 val inspect : t -> node_info list
 val find : t -> node_id:int -> Node.t option
 val inputs : t -> node_id:int -> int option array option
+val node_slot_names : t -> node_id:int -> string list option
+(** Input names retained by the entry's factory, or canonical [in0], [in1], …
+    for a graph imported from code. *)
+
 val set_bypass : t -> node_id:int -> bool -> (t, string) result
 (** Bypass cooking through slot 0, or empty geometry without that slot.
     Other inputs are ignored. Wiring and literal parameters are retained. *)

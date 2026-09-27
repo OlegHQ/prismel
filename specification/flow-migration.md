@@ -192,7 +192,7 @@ Tasks:
    `Context`, `Port_type` with coercions (§3.2), `Expr` (AST, infix parser,
    printers, evaluator; no exceptions), value kinds with `Param` schemas
    (§3.3), `Graph` (value nodes and outputs), `Diagnostic`.
-5. New `lib/flow_sop`: `Port`, `Drive`, `Network` (overlay, `validate`,
+5. [x] New `lib/flow_sop`: `Port`, `Drive`, `Network` (overlay, `validate`,
    operations of §3.11 for wires), `Exposure.shown` (§5.1, used by canvas, list
    and inspector), `Value_lane.resolve` (§13.1). Expose
    `Procedural.Node.Private.fresh_id` for value-node ids.
@@ -208,7 +208,7 @@ Tasks:
 9. `prismel_editor/cook.ml`: run `Value_lane.resolve` before every submission;
    keep the applied-value table in the environment; time-dependent networks
    resolve every frame while playing.
-10. `test/dependency_gate.ml`: rules of `flow.md` §14.
+10. [x] `test/dependency_gate.ml`: rules of `flow.md` §14.
 
 Tests: exposure table; coercions; value lane change-only application and
 unchanged cook key; 1 vs N domain byte-identical cooks with drives; preset v3
@@ -316,6 +316,17 @@ network with the same canvas, keys, views and text), then plan it here.
   the build.
 
 ## Log
+
+- 2026-09-27 M3 SOP overlay and lane: `flow_sop` validates ids, grouped ports,
+  coercions, vector conflicts and value cycles; copy/paste remaps the induced
+  geometry/value graph together. Shared exposure follows drive/pin/default
+  precedence. The environment-owned lane retains one plan/result, resolves
+  only reachable values, keeps literals intact and applies changed SOP ports.
+  Regressions cover removal, later literal edits, hard-bound plateaus and exact
+  one/four-domain geometry payloads on a 16,384-point driven noise graph.
+  Static cached resolutions reuse their result; the 200-drive benchmark and
+  unchanged-parameter-write measurement are recorded in `performance.md`.
+  Default tests and the dependency gate pass. Editor/preset integration follows.
 
 - 2026-09-27 M3 expression and value graph foundation: expressions have
   located errors, checked arity, fixed IEEE semantics and exact infix/sexp

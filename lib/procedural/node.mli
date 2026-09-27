@@ -56,6 +56,10 @@ val apply_parameters :
   (t * Parameter.effects, string) result
 
 module Private : sig
+  val fresh_id : unit -> int
+  val reserve_id : int -> (unit, string) result
+  (** Share the logical id allocator with value nodes, including loaded ids. *)
+
   val restore_id : int -> t -> (t, string) result
   (** Restore a saved logical id and reserve it in the shared allocator. *)
 

@@ -1,0 +1,74 @@
+type t = { node : int; path : string }
+let compare a b = let node = Int.compare a.node b.node in
+  if node <> 0 then node else String.compare a.path b.path
+module Map = Map.Make (struct type nonrec t = t let compare = compare end)
+
+type literal = Scalar of Param.value | Vector of float * float * float
+type parameter = { path : string; fields : Param.field_view list; ty : Flow.Port_type.t option }
+let error code message = Error (Flow.Diagnostic.error ~code message)
+let parameters fields =
+  let names = List.map (fun (field : Param.field_view) -> field.name) fields in
+  let rec group seen result = function
+    | [] -> Ok (List.rev result)
+    | (field : Param.field_view) :: rest ->
+        (match field.vec3 with
+         | None -> group seen ({path = field.name; fields = [field];
+             ty = Flow.Port_type.of_field_kind field.kind} :: result) rest
+         | Some (name, 0) when not (List.mem name names || List.mem name seen) ->
+             (match rest with
+              | y :: z :: rest when y.vec3 = Some (name,1) && z.vec3 = Some (name,2)
+                  && field.folder = y.folder && field.folder = z.folder
+                  && List.for_all (fun (field : Param.field_view) ->
+                       match field.kind with Param.Floating_view _ -> true | _ -> false) [field;y;z] ->
+                  group (name :: seen) ({path = name; fields = [field;y;z]; ty = Some Flow.Port_type.Vec3} :: result) rest
+              | _ -> error "E_VEC3" ("Invalid vec3 group " ^ name))
+         | Some (name, _) -> error "E_VEC3" ("Invalid or overlapping vec3 group " ^ name))
+  in group [] [] fields
+
+let components parameter = match parameter.ty, parameter.fields with
+  | Some Flow.Port_type.Vec3, [x;y;z] -> List.map2 (fun axis field ->
+      {path = parameter.path ^ "." ^ axis; fields = [field]; ty = Some Flow.Port_type.Float}) ["x";"y";"z"] [x;y;z]
+  | _ -> []
+let find_parameter parameters path =
+  match List.find_opt (fun parameter -> parameter.path = path) parameters with
+  | Some parameter -> Ok parameter
+  | None ->
+      let rec find = function
+        | [] -> error "E_PORT" ("No parameter port " ^ path)
+        | parameter :: rest -> match List.find_opt (fun parameter -> parameter.path = path) (components parameter) with
+            | Some parameter -> Ok parameter | None -> find rest in
+      find parameters
+let number (field : Param.field_view) = match field.current with Param.Float_value value -> value | _ -> assert false
+let literal parameter = match parameter.fields with
+  | [field] -> Scalar field.current
+  | [x;y;z] -> Vector (number x, number y, number z)
+  | _ -> assert false
+let literal_changes parameter value = match parameter.fields, value with
+  | [field], Scalar value -> Ok [field.name, value]
+  | [x;y;z], Vector (a,b,c) -> Ok [x.name, Param.Float_value a; y.name, Param.Float_value b; z.name, Param.Float_value c]
+  | _ -> error "E_TYPE" ("Literal does not match port " ^ parameter.path)
+
+let normalize_float (field : Param.field_view) number = match field.kind with
+  | Param.Floating_view range -> Result.map_error
+      (fun message -> Flow.Diagnostic.error ~code:"E_TYPE" (field.name ^ ": " ^ message))
+      (Param.normalize_value (Param.Floating range) number)
+  | _ -> error "E_TYPE" ("Not a float field: " ^ field.name)
+let normalize parameter value =
+  match parameter.ty with
+  | None -> error "E_TYPE" ("Port " ^ parameter.path ^ " is literal-only")
+  | Some target -> Result.bind (Flow.Port_type.coerce ~target value) (fun value ->
+      match parameter.fields, value with
+      | [field], Flow.Port_type.Float_value value -> Result.map (fun value ->
+          Flow.Port_type.Float_value value, [field.name, Param.Float_value value]) (normalize_float field value)
+      | [field], Flow.Port_type.Int_value value ->
+          (match field.kind with
+           | Param.Integer_view range -> Result.map (fun value ->
+               Flow.Port_type.Int_value value, [field.name, Param.Int_value value])
+               (Result.map_error (Flow.Diagnostic.error ~code:"E_TYPE") (Param.normalize_value (Param.Integer range) value))
+           | _ -> error "E_TYPE" ("Not an integer field: " ^ field.name))
+      | [field], Flow.Port_type.Bool_value value -> Ok (Flow.Port_type.Bool_value value, [field.name, Param.Bool_value value])
+      | [x;y;z], Flow.Port_type.Vec3_value (a,b,c) ->
+          Result.bind (normalize_float x a) (fun a -> Result.bind (normalize_float y b) (fun b ->
+            Result.map (fun c -> Flow.Port_type.Vec3_value (a,b,c),
+              [x.name, Param.Float_value a; y.name, Param.Float_value b; z.name, Param.Float_value c]) (normalize_float z c)))
+      | _ -> error "E_TYPE" ("Value does not match port " ^ parameter.path))

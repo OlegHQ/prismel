@@ -90,6 +90,12 @@ let inputs value ~node_id = Option.map (fun (entry : entry) ->
     Array.copy entry.inputs)
     (Id_map.find_opt node_id value.entries)
 
+let node_slot_names value ~node_id = Option.map (fun (entry : entry) ->
+    match entry.factory with
+    | Some factory -> Array.to_list factory.slots
+    | None -> List.init (Array.length entry.inputs) (fun index -> "in" ^ string_of_int index))
+    (Id_map.find_opt node_id value.entries)
+
 let set_bypass value ~node_id bypass =
   match Id_map.find_opt node_id value.entries with
   | None -> Error (Printf.sprintf "editable graph has no node #%d" node_id)
@@ -222,6 +228,7 @@ let replace_node node value =
   let id = Node.id node in
   match Id_map.find_opt id value.entries with
   | None -> Error (Printf.sprintf "editable graph has no node #%d" id)
+  | Some entry when entry.node == node -> Ok value
   | Some (entry : entry) ->
       let arity = List.length (Node.inputs node) in
       if entry.factory = None && arity <> Array.length entry.inputs then Error (Printf.sprintf

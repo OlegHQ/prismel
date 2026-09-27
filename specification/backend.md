@@ -10,7 +10,9 @@ not select an alternate renderer through environment variables or public API.
 `flow` depends only on dependency-free `param`. Its value graphs, expressions,
 contexts and coercions have no geometry, editor, UI, renderer or GPU
 dependencies; the dependency gate rejects those transitive edges. Its M3
-SOP overlay and editor integration are tracked in `flow-migration.md`.
+editor integration is tracked in `flow-migration.md`. `flow_sop` now depends
+only on `flow`, `param` and `procedural`; its typed overlay, exposure rule and
+value lane cannot reach presentation, the catalog, editor or GPU libraries.
 
 ```text
 examples / sketches / pxui / editor / sketch_support / pdk_prismel
@@ -117,12 +119,13 @@ while passing Space through to arm the leader after fly exits.
 diagnostics over `param`; the M6 graph reader and checker will live there
 too. `ppx_prismel` already depends on `flow` for declaration checks and gains
 `[%flow]` in M7.
-*Planned (`flow.md` §14, remaining M3):* `flow_sop` depends on `flow`, `param`
-and `procedural` for the SOP overlay and value lane; compound inlining and
-printing follow in M5–M6. `editor_document`, `pxui_graph`, `pxui_shell` and
-`prismel_editor` gain the specified edges. The gate currently forbids `flow`
-from reaching anything but `param`; it will also forbid `flow_sop` from
-reaching UI, editor or GPU libraries when that library lands.
+`flow_sop` depends on `flow`, `param` and `procedural` for the SOP overlay and
+value lane; compound inlining and printing follow in M5–M6. The gate forbids
+`flow` from reaching anything but `param`, and `flow_sop` from reaching UI,
+the SOP catalog, editor or GPU libraries.
+*Planned (`flow.md` §14, remaining M3):* `editor_document`, `pxui_graph`,
+`pxui_shell` and `prismel_editor` gain the specified edges as their adapters
+land.
 `pxui_graph` exports its graph commands as `Editor_core.Command.t` entries without handling key
 events. `editor_core` depends on `prismel` for frame and event values, never on UI
 or geometry libraries. `pxui_shell` owns editor chrome over the shared PXUI

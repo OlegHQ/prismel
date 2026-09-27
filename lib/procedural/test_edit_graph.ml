@@ -10,6 +10,12 @@ let run () =
   let middle = Sop.null ~label:"middle" source in
   let output = Sop.null ~label:"output" middle in
   let document = Edit_graph.of_graph output in
+  check (Edit_graph.node_slot_names document ~node_id:(Node.id middle) = Some ["in0"]
+      && Edit_graph.node_slot_names document ~node_id:(-1) = None)
+    "editable entry did not expose canonical slots or reject a missing node";
+  check (Edit_graph.replace_node middle document |> get == document
+      && fst (Edit_graph.apply_parameters document ~node_id:(Node.id middle) [] |> get) == document)
+    "unchanged parameter writes rebuilt the editable graph";
   check (Edit_graph.root document = Some (Node.id output)
       && List.length (Edit_graph.inspect document) = 3)
     "editable graph did not import the compiled DAG";
@@ -101,6 +107,9 @@ let run () =
          ~consumer:(Node.id loose_match) ~input_index:0 |> get in
   let without_target = Edit_graph.compile_node optional_document
       ~node_id:(Node.id loose_match) |> get in
+  check (Edit_graph.node_slot_names optional_document ~node_id:(Node.id loose_match)
+      = Some ["input"; "target"])
+    "editable entry lost its factory's named slots";
   check (List.length (Node.inputs without_target) = 1
       && Edit_graph.factory_inputs match_size_factory
          = [Edit_graph.Required; Optional])

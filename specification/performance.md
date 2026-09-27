@@ -100,7 +100,40 @@ dune exec tools/bench_pxui_graph.exe -- --points
 dune exec tools/bench_prismel_editor.exe -- 200 1000 2000
 ```
 
-M3 adds the 200-drive value-lane case; M6 adds 2,000-node printing.
+M3's standalone value-lane benchmark now measures 200 scalar SOP rows on the
+same M1 MacBook Air / 16 GB, OCaml 5.3.0, dev profile, one initial domain.
+Each row controls a one-point parameterized SOP; cooking and rendering are
+outside the measurement. Seven samples each resolve 1,000 frames after warm-up;
+the reported time is the median of those seven frame averages.
+
+| Lane case | Time per resolution | Allocation per resolution |
+|---|---:|---:|
+| No drives | 0.000003 ms | 0.096 B |
+| 200 static expression drives | 0.000003 ms | 0.096 B |
+| 200 rows driven by one Time output | 0.315129 ms | 901,745.696 B |
+
+The two cached cases retain their result. Their 96 B per sample is fixed
+measurement overhead; the resolution loop adds no per-call allocation.
+Dynamic values rebuild the 200 SOP literal copies and their packed snapshots;
+these figures are a baseline, not an improvement claim or a native frame
+latency guarantee. The editor benchmark with driven rows follows when M3's
+host integration lands.
+
+The shared unchanged-parameter-write path was also measured before and after
+its identity guard: 1,000,000 writes to one parameterized one-point SOP on the
+same machine/profile/domain, after 100 warm-up writes. Allocation fell from
+832 to 672 B/write and all 1,000,000 results retained the original editable
+graph, versus none before. Single-run timings were 96.151 and 84.649 ns/write;
+they do not establish a timing improvement. The check is in
+`lib/procedural/test_edit_graph.ml`; the temporary measurement source is
+`/tmp/prismel-flow-unchanged-write-bench.ml`, with its temporary Dune stanza
+removed after measurement.
+
+```sh
+dune exec tools/bench_flow_value_lane.exe -- 200 1000
+```
+
+M6 adds the 2,000-node printing case.
 
 This is a repeatable scale smoke baseline, not a claim that every wire-heavy
 graph has constant frame cost: scene traversal remains O(nodes + wires), while

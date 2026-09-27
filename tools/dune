@@ -221,3 +221,7 @@
  (name bench_camera_input)
  (modules bench_camera_input)
  (libraries prismel unix))
+(executable
+ (name bench_flow_value_lane)
+ (modules bench_flow_value_lane)
+ (libraries flow_sop flow procedural param unix))

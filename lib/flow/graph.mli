@@ -4,6 +4,9 @@ type node = private { id : int; label : string; parameters : Value_kind.t }
 type t
 
 val node : id:int -> ?label:string -> Value_kind.kind -> (node, Diagnostic.t) result
+val clone_node : id:int -> node -> (node, Diagnostic.t) result
+(** Copy the immutable label and literal record under an externally allocated id. *)
+
 val empty : t
 val find : t -> node_id:int -> node option
 val inspect : t -> node list

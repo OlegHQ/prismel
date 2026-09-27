@@ -91,13 +91,17 @@ let apply_parameters value changes = match value.parameterization with
 module Private = struct
   include Private_types
 
-  let restore_id id value =
+  let fresh_id = fresh_id
+
+  let reserve_id id =
     if id < 1 || id = max_int then Error "node id is out of range" else
     let rec reserve () =
       let next = Atomic.get next_id in
       if next <= id && not (Atomic.compare_and_set next_id next (id + 1)) then reserve () in
     reserve ();
-    Ok { value with id }
+    Ok ()
+
+  let restore_id id value = Result.map (fun () -> {value with id}) (reserve_id id)
 
   let make ?label ~operation ~version ~parameters ~cook_mode ~dependencies
       ?(input_policy = All) ~inputs cook =

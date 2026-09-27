@@ -1,0 +1,24 @@
+type t = { node : int; path : string }
+val compare : t -> t -> int
+module Map : Map.S with type key = t
+
+type literal = Scalar of Param.value | Vector of float * float * float
+type parameter = private {
+  path : string;
+  fields : Param.field_view list;
+  ty : Flow.Port_type.t option;
+}
+
+val parameters : Param.field_view list -> (parameter list, Flow.Diagnostic.t) result
+(** Group vec3 metadata, checking the same grouping invariants as the PPX.
+    Underlying component field names are not public port paths. *)
+
+val find_parameter : parameter list -> string -> (parameter, Flow.Diagnostic.t) result
+val components : parameter -> parameter list
+val literal : parameter -> literal
+val literal_changes : parameter -> literal -> ((string * Param.value) list, Flow.Diagnostic.t) result
+val normalize :
+  parameter -> Flow.Port_type.value ->
+  (Flow.Port_type.value * (string * Param.value) list, Flow.Diagnostic.t) result
+(** Coerce and use [Param.normalize_value] for hard bounds, matching writes
+    through [Param.apply]. The returned value is the effective live readout. *)
