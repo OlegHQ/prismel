@@ -20,7 +20,8 @@ type loaded = {
   view : Yojson.Safe.t;
 }
 
-let version = 2  (* 1: one SOP network, migrated on load *)
+module Layout = Editor_core.Network_layout
+let version = 3
 
 let sanitize name = String.map (function
   | ('A' .. 'Z' | 'a' .. 'z' | '0' .. '9' | '_' | '-') as character -> character
@@ -54,7 +55,7 @@ let optional_int = function Some value -> `Int value | None -> `Null
 
 let network_json (network : Document.network) =
   let position id = Option.value ~default:(0., 0.)
-      (Document.Layout.find_opt id network.layout) in
+      (Document.Layout.find_opt id network.layout.at) in
   let node (info : Edit_graph.node_info) =
     let x, y = position info.id in
     `Assoc ([ "id", `Int info.id ]
@@ -65,9 +66,22 @@ let network_json (network : Document.network) =
           "params", `List (List.map (fun (field : Parameter.field_view) ->
             `List [ `String field.name; value_json field.current ])
             (Node.parameter_fields info.node));
-          "x", `Float x; "y", `Float y ]) in
+          "x", `Float x; "y", `Float y;
+          "level", `String (match Document.Layout.find_opt info.id network.layout.level with
+            | Some Layout.Point -> "point" | Some Chip -> "chip" | Some Full -> "full"
+            | Some Card | None -> "card");
+          "pinned", `Bool (Option.value ~default:false
+            (Document.Layout.find_opt info.id network.layout.pinned));
+          "rows", `Assoc (Option.value ~default:Layout.String_map.empty
+            (Document.Layout.find_opt info.id network.layout.rows)
+            |> Layout.String_map.bindings |> List.map (fun (name, shown) -> name, `Bool shown));
+          "split", `List [] ]) in
   `Assoc [ "nodes", `List (List.map node (Edit_graph.inspect network.graph));
-           "display", optional_int network.displayed ]
+           "display", optional_int network.displayed;
+           "geometry_bends", `List (Layout.Port_map.bindings network.layout.bends
+             |> List.map (fun ((id, slot), points) -> `Assoc [
+               "to", `List [`Int id; `String slot];
+               "bends", `List (List.map (fun (x, y) -> `List [`Float x; `Float y]) points)])) ]
 
 let to_sections ~(doc : Document.t) ~view =
   [ "graph", `Assoc [
@@ -119,6 +133,9 @@ type saved = {
   params : (string * Parameter.value) list;
   x : float;
   y : float;
+  level : Layout.level;
+  pinned : bool;
+  rows : bool Layout.String_map.t;
 }
 
 let rec all = function
@@ -156,7 +173,26 @@ let saved_node : Yojson.Safe.t -> (saved, string) result = function
       let* () = unique ~what:"parameter name" (List.map fst params) in
       let* x = Option.fold ~none:(Ok 0.) ~some:number (field "x") in
       let* y = Option.fold ~none:(Ok 0.) ~some:number (field "y") in
-      Ok { id; factory_key; label; inputs; params; x; y }
+      let* level = match field "level" with
+        | None | Some (`String "card") -> Ok Layout.Card
+        | Some (`String "point") -> Ok Layout.Point
+        | Some (`String "chip") -> Ok Layout.Chip
+        | Some (`String "full") -> Ok Layout.Full
+        | _ -> Error "invalid detail level" in
+      let* pinned = match field "pinned" with
+        | None -> Ok false | Some (`Bool b) -> Ok b | _ -> Error "invalid pin" in
+      let* rows = match field "rows" with
+        | None -> Ok Layout.String_map.empty
+        | Some (`Assoc rows) ->
+            let* () = unique ~what:"row pin" (List.map fst rows) in
+            let* rows = all (List.map (function name, `Bool b -> Ok (name, b)
+              | _ -> Error "invalid row pin") rows) in
+            Ok (Layout.String_map.of_list rows)
+        | _ -> Error "invalid row pins" in
+      let* () = match field "split" with
+        | None | Some (`List []) -> Ok () | _ -> Error "vector splits require value ports" in
+      Ok { id; factory_key; label; inputs; params;
+        x = Layout.snap x; y = Layout.snap y; level; pinned; rows }
   | _ -> Error "node is not an object"
 
 let nodes_of = function
@@ -172,13 +208,30 @@ let network_of = function
       let* () = unique ~what:"network field" (List.map fst fields) in
       let* nodes = nodes_of (List.assoc_opt "nodes" fields) in
       let* display = optional_of (List.assoc_opt "display" fields) in
-      Ok (nodes, display)
+      let* bends = match List.assoc_opt "geometry_bends" fields with
+        | None -> Ok []
+        | Some (`List entries) -> all (List.map (function
+            | `Assoc entry ->
+                let* () = unique ~what:"bend entry field" (List.map fst entry) in
+                let* port = match List.assoc_opt "to" entry with
+                  | Some (`List [`Int id; `String slot]) -> Ok (id, slot)
+                  | _ -> Error "bend without destination port" in
+                let* points = match List.assoc_opt "bends" entry with
+                  | Some (`List points) -> all (List.map (function
+                      | `List [x; y] -> let* x = number x in let* y = number y in
+                          Ok (Layout.snap x, Layout.snap y)
+                      | _ -> Error "invalid bend point") points)
+                  | _ -> Error "bend points are not a list" in
+                Ok (port, points)
+            | _ -> Error "invalid bend entry") entries)
+        | _ -> Error "geometry bends are not a list" in
+      let* () = unique ~what:"bend destination" (List.map fst bends) in
+      Ok (nodes, display, bends)
   | _ -> Error "preset network is not an object"
 
-type decoded =
-  | Single of saved list * int option  (* version 1 *)
-  | Scene of { scene : saved list * int option;
-               networks : (int * (saved list * int option)) list }
+type saved_network = saved list * int option * ((int * string) * (float * float) list) list
+
+type decoded = { scene : saved_network; networks : (int * saved_network) list }
 
 let decode path = match Yojson.Safe.from_file path with
   | exception Yojson.Json_error message -> Error ("corrupt preset: " ^ message)
@@ -199,11 +252,7 @@ let decode path = match Yojson.Safe.from_file path with
       let* () = unique ~what:"graph field" (List.map fst fields) in
       let* () = if finite_json view then Ok () else Error "viewport contains nonfinite values" in
       let* decoded = match field "version" with
-        | Some (`Int 1) ->
-            let* nodes = nodes_of (field "nodes") in
-            let* display = optional_of (field "display") in
-            Ok (Single (nodes, display))
-        | Some (`Int 2) ->
+        | Some (`Int 3) ->
             let* scene = network_of (Option.value ~default:`Null (field "scene")) in
             let* networks = match field "networks" with
               | Some (`List entries) -> all (List.map (function
@@ -216,7 +265,7 @@ let decode path = match Yojson.Safe.from_file path with
                   | _ -> Error "preset network entry is not an object") entries)
               | None -> Ok [] | _ -> Error "networks are not a list" in
             let* () = unique ~what:"network owner" (List.map fst networks) in
-            Ok (Scene { scene; networks })
+            Ok { scene; networks }
         | Some (`Int v) -> Error (Printf.sprintf "unsupported preset version %d" v)
         | _ -> Error "preset has no version" in
       let* settings = match field "settings" with
@@ -231,9 +280,8 @@ let decode path = match Yojson.Safe.from_file path with
       Ok (decoded, active_camera, settings, view)
   | _ -> Error "corrupt preset: not an object"
 
-(* Rebuild one network: catalog nodes are recreated with fresh ids, code
-   nodes rebind by id. Returns the network and the old-to-new id map. *)
-let rebuild ~code ~factories (nodes, display) =
+(* Rebuild catalog closures and rebind code nodes, preserving saved ids. *)
+let rebuild ~code ~factories (nodes, display, bends) =
   let* () = unique ~what:"node id" (List.map (fun node -> node.id) nodes) in
   let ids = Hashtbl.create (List.length nodes) in
   List.iter (fun node -> Hashtbl.add ids node.id ()) nodes;
@@ -256,8 +304,8 @@ let rebuild ~code ~factories (nodes, display) =
       if node.factory_key = None then Some node.id else None) nodes in
   let base = Edit_graph.remove_nodes (List.filter_map (fun (info : Edit_graph.node_info) ->
       if List.mem info.id listed then None else Some info.id) (Edit_graph.inspect code)) code in
-  let* document, mapping = List.fold_left (fun state (node : saved) ->
-    let* document, mapping = state in
+  let* document = List.fold_left (fun state (node : saved) ->
+    let* document = state in
     match node.factory_key with
     | Some key ->
         (match Hashtbl.find_opt factories_by_key key with
@@ -265,23 +313,19 @@ let rebuild ~code ~factories (nodes, display) =
          | Some factory ->
              let arity = Edit_graph.factory_arity factory in
              let* created = Edit_graph.instantiate_optional factory (List.init arity (fun _ -> None)) in
-             let* document = Edit_graph.add_node ~factory
-                 ~inputs:(Array.make arity None) (Node.relabel node.label created) document in
-             Ok (document, (node.id, Node.id created) :: mapping))
+             let* created = Node.Private.restore_id node.id (Node.relabel node.label created) in
+             Edit_graph.add_node ~factory ~inputs:(Array.make arity None) created document)
     | None ->
         (match Edit_graph.find document ~node_id:node.id with
          | Some code_node when Node.label code_node <> node.label && node.label <> "" ->
-             Result.map (fun document -> document, (node.id, node.id) :: mapping)
-               (Edit_graph.replace_node (Node.relabel node.label code_node) document)
-         | Some _ -> Ok (document, (node.id, node.id) :: mapping)
+             Edit_graph.replace_node (Node.relabel node.label code_node) document
+         | Some _ -> Ok document
          | None -> Error (Printf.sprintf
              "preset node %S (#%d) is not in this sketch's code graph" node.label node.id)))
-    (Ok (base, [])) nodes in
-  let target id = match List.assoc_opt id mapping with
-    | Some id -> Ok id | None -> Error (Printf.sprintf "preset references missing node #%d" id) in
+    (Ok base) nodes in
   let* document = List.fold_left (fun state (node : saved) ->
     let* document = state in
-    let* consumer = target node.id in
+    let consumer = node.id in
     let* () = match Edit_graph.inputs document ~node_id:consumer with
       | Some inputs when Array.length inputs = List.length node.inputs -> Ok ()
       | _ -> Error (Printf.sprintf "preset node #%d has the wrong input arity" node.id) in
@@ -290,7 +334,6 @@ let rebuild ~code ~factories (nodes, display) =
       let current = Option.value ~default:[||] (Edit_graph.inputs document ~node_id:consumer) in
       match input with
       | Some source ->
-          let* source = target source in
           Edit_graph.connect ~source ~consumer ~input_index document
       | None when input_index < Array.length current && current.(input_index) <> None ->
           Edit_graph.disconnect ~consumer ~input_index document
@@ -299,77 +342,43 @@ let rebuild ~code ~factories (nodes, display) =
     (Ok document) nodes in
   let* document = List.fold_left (fun state (node : saved) ->
     let* document = state in
-    let* node_id = target node.id in
     if node.params = [] then Ok document
-    else Result.map fst (Edit_graph.apply_parameters document ~node_id node.params))
+    else Result.map fst (Edit_graph.apply_parameters document ~node_id:node.id node.params))
     (Ok document) nodes in
-  let* displayed = match display with
-    | Some id -> Result.map Option.some (target id)
-    | None -> Ok (Edit_graph.root document) in
+  let displayed = match display with Some _ -> display | None -> Edit_graph.root document in
   let* document = Option.fold ~none:(Ok document)
     ~some:(fun id -> Edit_graph.set_root id document) displayed in
-  let layout = List.fold_left (fun layout (node : saved) ->
-      match List.assoc_opt node.id mapping with
-      | Some id -> Document.Layout.add id (node.x, node.y) layout
-      | None -> layout) Document.Layout.empty nodes in
-  Ok ({ Document.graph = document; layout; displayed }, mapping)
+  let layout = List.fold_left (fun (layout : Layout.t) (node : saved) ->
+    { layout with at = Layout.Int_map.add node.id (node.x, node.y) layout.at;
+      level = Layout.Int_map.add node.id node.level layout.level;
+      pinned = Layout.Int_map.add node.id node.pinned layout.pinned;
+      rows = if Layout.String_map.is_empty node.rows then layout.rows
+        else Layout.Int_map.add node.id node.rows layout.rows })
+      { Layout.empty with bends = Layout.Port_map.of_list bends } nodes in
+  Ok { Document.graph = document; layout; displayed }
 
 let load ~path ~code ~factories ~settings =
   let* decoded, active_camera, values, view = decode path in
   let code = Edit_graph.of_graph code in
   let* settings = Result.map fst (Settings.apply settings values) in
-  let* doc = match decoded with
-    | Single (nodes, display) ->
-        (* Version 1: the one network is geo1; camera SOPs become objects. *)
-        let* network, mapping = rebuild ~code
-            ~factories:(Objects.Camera.factory :: factories) (nodes, display) in
-        let cameras = List.filter (fun (info : Edit_graph.node_info) ->
-            info.operation = "camera") (Edit_graph.inspect network.graph) in
-        let sop = Edit_graph.remove_nodes (List.map (fun (info : Edit_graph.node_info) ->
-            info.id) cameras) network.graph in
-        let* geometry = Edit_graph.instantiate_optional Objects.Geometry.factory [None] in
-        let geometry = Node.relabel "geo1" geometry in
-        let* scene = Edit_graph.add_node ~factory:Objects.Geometry.factory
-            ~inputs:[|None|] geometry Edit_graph.empty in
-        let* scene = List.fold_left (fun state (info : Edit_graph.node_info) ->
-            let* scene = state in
-            let factory = match Edit_graph.node_factory_key network.graph ~node_id:info.id with
-              | Some _ -> Some Objects.Camera.factory | None -> None in
-            Edit_graph.add_node ?factory info.node scene) (Ok scene) cameras in
-        let displayed = Document.displayed_of sop network.displayed in
-        let* active_camera = match active_camera with
-          | None -> Ok None
-          | Some id -> (match List.assoc_opt id mapping with
-            | Some id -> Ok (Some id) | None -> Error "preset active camera is missing") in
-        Ok { Document.scene = { graph = scene; layout = Document.Layout.empty;
-               displayed = Some (Node.id geometry) };
-             networks = Document.Layout.singleton (Node.id geometry)
-               { Document.graph = sop; displayed;
-                 layout = Document.Layout.filter (fun id _ ->
-                   Edit_graph.find sop ~node_id:id <> None) network.layout };
-             active_camera; settings }
-    | Scene { scene; networks } ->
-        let* scene_network, mapping = rebuild ~code
-            ~factories:(Objects.catalog @ [Layers.Settings.factory]) scene in
-        let* networks = List.fold_left (fun state (old_id, saved) ->
-            let* networks = state in
-            match List.assoc_opt old_id mapping with
-            | None -> Error (Printf.sprintf "network has missing owner #%d" old_id)
-            | Some id ->
-                let* factories = match Option.map Node.operation
-                    (Edit_graph.find scene_network.graph ~node_id:id) with
-                  | Some "world" -> Ok Layers.catalog
-                  | Some "geometry" -> Ok factories
-                  | _ -> Error (Printf.sprintf "object #%d cannot own a network" old_id) in
-                let* network, _ = rebuild ~code ~factories saved in
-                Ok (Document.Layout.add id network networks))
-            (Ok Document.Layout.empty) networks in
-        let* active_camera = match active_camera with
-          | None -> Ok None
-          | Some id -> (match List.assoc_opt id mapping with
-            | Some id -> Ok (Some id) | None -> Error "preset active camera is missing") in
-        Ok { Document.scene = scene_network; networks;
-             active_camera;
-             settings } in
+  let { scene; networks } = decoded in
+  let* scene_network = rebuild ~code
+      ~factories:(Objects.catalog @ [Layers.Settings.factory]) scene in
+  let* networks = List.fold_left (fun state (id, saved) ->
+      let* networks = state in
+      let* factories = match Option.map Node.operation
+          (Edit_graph.find scene_network.graph ~node_id:id) with
+        | Some "world" -> Ok Layers.catalog
+        | Some "geometry" -> Ok factories
+        | None -> Error (Printf.sprintf "network has missing owner #%d" id)
+        | Some _ -> Error (Printf.sprintf "object #%d cannot own a network" id) in
+      let* network = rebuild ~code ~factories saved in
+      Ok (Document.Layout.add id network networks))
+      (Ok Document.Layout.empty) networks in
+  let* active_camera = match active_camera with
+    | Some id when Edit_graph.find scene_network.graph ~node_id:id = None ->
+        Error "preset active camera is missing"
+    | value -> Ok value in
+  let doc = { Document.scene = scene_network; networks; active_camera; settings } in
   let* () = Document.validate doc in
   Ok { doc; view }

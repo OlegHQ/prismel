@@ -640,11 +640,11 @@ framing work; `Core` composes those results with the workspace UI. One
 `Environment.Make` functor over a `VIEWPORT` adapter (`Viewport3`, `Viewport2`)
 turns that core into the public `Editor3`/`Editor2`, which differ
 only in their viewport.
-*Target (`flow.md`, M1–M7):* the graph pane becomes the Prismel Flow canvas
-(left to right, polyline wires, levels, parameter rows and value drives,
-compounds, graph/list/text views, guide mode) and sketches may also write
-networks as `[%flow {| … |}]`. The description below is current until the
-corresponding milestone in `flow-migration.md` lands.
+The Prismel Flow canvas now flows left to right with polyline wires,
+authored bends, point/chip/card/full levels, and editable literal rows.
+`Editor_core.Network_layout` is the UI-free saved layout shared by the host
+and canvas. *Target (M2–M7):* value drives, compounds, graph/list/text views,
+guide mode and `[%flow {| … |}]`; follow `flow-migration.md` in order.
 `prismel.pxui_graph` supplies deterministic initial layout,
 persistent graph-space tile positions, ordered ports/wires, topology-safe node
 dragging, independent inspector/display selection through each tile's VIEW
@@ -665,9 +665,11 @@ the World's layer stack with their tile positions and display nodes, the
 active camera object, and sketch `Settings` (a typed `Editor_core.Param`
 record passed as `?settings`). History (128 entries) snapshots that
 document, so moving a tile, an object, or switching a renderer is one undo
-step. Tile positions are an int-keyed persistent map per network: an edit
-frame updates only the tiles it moved, added, or deleted, and only a preset
-load or automatic layout (itself one "Layout" step) re-reads every tile.
+step. Each network saves positions, detail levels, pins, row exposure and
+wire bends in its layout record. An edit frame updates only the node ids
+and destination ports it touched; a preset load or automatic layout takes
+a complete snapshot. Pointer gestures seal on release; detail changes
+merge as a one-second burst.
 Settings show in the unselected inspector, are saved in presets, and reach
 `prepare settings output`; `set_settings` changes them from code. The
 viewport camera enters history only while a camera object follows it. The
@@ -788,9 +790,9 @@ still reach the workspace.
 unshifted perspective cameras and returns an error for other projections,
 forced aspect, or vertical flip.
 Presets save the full document to `~/.prismel/<sketch>/<name>.json`
-(version 2: the scene and every object's network); loading rebinds code-graph
-nodes by id, recreates catalog nodes from their factories, migrates version 1
-(one SOP network) to `geo1`, and is one undo entry.
+(version 3: the scene, every object's network and Flow layout); loading
+rebinds code-graph nodes by id, recreates catalog nodes from their factories,
+preserves saved node ids, and is one undo entry. Older versions are rejected.
 Empty networks have no display node and clear their preview. Editor3 permits
 an empty scene; Editor2 rejects a preset without a geometry object before
 installation. Both hosts reject ambiguous IDs/owners, invalid references and

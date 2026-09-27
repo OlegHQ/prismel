@@ -2,12 +2,13 @@
    thing [Editor_core.History] snapshots. Selection, hover, the open level,
    and the unlinked viewport camera are view state and stay outside. *)
 open Procedural
-module Layout = Map.Make (Int)
+module Canvas = Editor_core.Network_layout
+module Layout = Canvas.Int_map
 
 (* One node network with its graph-space tile positions and display node. *)
 type network = {
   graph : Edit_graph.t;
-  layout : (float * float) Layout.t;
+  layout : Canvas.t;
   displayed : int option;  (* None exactly when the network is empty *)
 }
 
@@ -63,12 +64,30 @@ let validate value =
   let validate_network name network =
     let nodes = Edit_graph.inspect network.graph in
     let exists id = Edit_graph.find network.graph ~node_id:id <> None in
+    let port (id, path) = match Edit_graph.inputs network.graph ~node_id:id,
+        Canvas.slot_index path with
+      | Some inputs, Some slot -> slot < Array.length inputs && inputs.(slot) <> None
+      | _ -> false in
+    let row id path = Option.fold ~none:false ~some:(fun node ->
+      List.exists (fun (f : Parameter.field_view) -> f.name = path)
+        (Node.parameter_fields node)) (Edit_graph.find network.graph ~node_id:id) in
+    let valid_layout =
+      Layout.for_all (fun id _ -> exists id) network.layout.level
+      && Layout.for_all (fun id _ -> exists id) network.layout.pinned
+      && Layout.for_all (fun id rows -> exists id && Canvas.String_map.for_all
+        (fun path _ -> row id path) rows) network.layout.rows
+      && Layout.is_empty network.layout.split
+      && Canvas.Port_set.is_empty network.layout.wireless
+      && Canvas.Port_map.for_all (fun key points -> port key
+        && List.for_all (fun (x, y) -> Float.is_finite x && Float.is_finite y) points)
+        network.layout.bends in
     if (match network.displayed, nodes with
       | None, [] -> false | Some id, _ -> not (exists id) | None, _ -> true)
     then Error (name ^ " has an invalid display node")
     else if not (Layout.for_all (fun id (x, y) ->
-      exists id && Float.is_finite x && Float.is_finite y) network.layout)
+      exists id && Float.is_finite x && Float.is_finite y) network.layout.at)
     then Error (name ^ " has an invalid tile position")
+    else if not valid_layout then Error (name ^ " has invalid canvas metadata")
     else if not (List.for_all (fun (info : Edit_graph.node_info) ->
       Array.for_all (Option.fold ~none:true ~some:exists) info.inputs
       && finite_fields (Node.parameter_fields info.node)) nodes)
@@ -121,5 +140,5 @@ let scene_graph value = value.scene.graph
 let object_network value id = Option.map (fun network ->
     network.graph, network.displayed) (Layout.find_opt id value.networks)
 let positions value id = Option.map (fun network ->
-    Layout.fold (fun node (x, y) list -> (node, x, y) :: list) network.layout [])
+    Layout.fold (fun node (x, y) list -> (node, x, y) :: list) network.layout.at [])
     (Layout.find_opt id value.networks)

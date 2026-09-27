@@ -1,7 +1,8 @@
 (** Interactive editor for an immutable [Procedural.Edit_graph] document.
 
-    The canvas owns selection, search, and graph-space positions. It emits
-    topology commands but never compiles or cooks geometry; the host applies
+    The canvas owns selection, search, pan and zoom, and presents the host's
+    saved layout. It emits topology, literal and layout requests but never
+    compiles or cooks geometry; the host applies
     commands to the document and schedules cooking. *)
 
 type t
@@ -42,6 +43,10 @@ type change =
   | View_changed
   | Node_moved of int
   | Nodes_moved of int list
+  | Bend_changed of { node : int; slot : int }
+  | Level_changed of int list
+  | Set_parameter_requested of { node : int; path : string; value : Procedural.Parameter.value }
+  | Cut_wires_requested of Procedural.Edit_graph.connection list
   | Connection_selected of Procedural.Edit_graph.connection option
   | Connect_requested of Procedural.Edit_graph.connection
   | Disconnect_requested of Procedural.Edit_graph.connection
@@ -86,12 +91,14 @@ val create :
   ?x:int -> ?y:int -> ?width:int -> ?height:int ->
   ?theme:Pxui.theme -> ?selected:int ->
   ?catalog:catalog_entry list -> ?flaggable:(Procedural.Edit_graph.node_info -> bool) ->
+  ?enterable:(Procedural.Edit_graph.node_info -> bool) ->
   Procedural.Graph.t -> t
 
 val create_document :
   ?x:int -> ?y:int -> ?width:int -> ?height:int ->
   ?theme:Pxui.theme -> ?selected:int ->
   ?catalog:catalog_entry list -> ?flaggable:(Procedural.Edit_graph.node_info -> bool) ->
+  ?enterable:(Procedural.Edit_graph.node_info -> bool) ->
   Procedural.Edit_graph.t -> t
 (** [flaggable] marks tiles that get a flag button (default: none); the
     graph never interprets operation names itself. *)
@@ -132,6 +139,12 @@ val node_positions : t -> (int * float * float) list
 val node_position : t -> int -> (float * float) option
 (** One tile's graph-space position, without walking the graph. *)
 
+val layout : t -> Editor_core.Network_layout.t
+val with_layout : Editor_core.Network_layout.t -> t -> t
+val edit_layout : nodes:int list -> ports:(int * string) list ->
+  t -> Editor_core.Network_layout.t -> Editor_core.Network_layout.t
+val set_bends : node:int -> slot:int -> (float * float) list -> t -> t
+
 val open_menu_at : int * int -> t -> t
 (** Open the hierarchical node menu at a screen point (clamped inside the
     canvas). With a selected wire it offers one-input nodes for insertion. *)
@@ -149,6 +162,7 @@ val delete_selection : t -> t * change list
 val stats : t -> stats
 
 type command = Copy | Cut | Paste | Duplicate | Delete | Frame_all
+  | Open_detail | Point_detail | Open_all | Point_all
 val bindings : ('scope, command) Editor_core.Command.t list
 (* Global key commands; the host scopes them to its graph pane. *)
 val run_command : t -> command -> t * change list
@@ -175,9 +189,13 @@ val update : t -> Pxui.Ui.t -> Prismel.Frame.t -> t * change list
     this frame's commands. Pointer capture comes from the UI: the canvas and
     each visible tile (keyed by node id) are boxes, while the graph's spatial
     index still culls tiles and resolves wire and input-port hits. Wires are
-    cubic Béziers; the dot grid is one quad. *)
+    polylines; the dot grid is one quad. *)
 
 module Private : sig
+  val zoom : t -> float
+  val level : t -> int -> Editor_core.Network_layout.level option
+  val field_bounds : t -> node:int -> path:string -> (int * int * int * int) option
+  val crossed_wires : t -> int * int -> int * int -> Procedural.Edit_graph.connection list
   val hit_edge_id : t -> int * int -> Procedural.Edit_graph.connection option
   val edge_query_points : t -> limit:int -> (int * int) array
   val hit_edge_candidates : t -> int * int -> int

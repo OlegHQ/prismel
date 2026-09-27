@@ -31,7 +31,7 @@ accept an intended one with `dune promote`.
 | Milestone | Scope | Status | Landed |
 |---|---|---|---|
 | M0 | Spec, prototype, docs aligned | done | 2026-09-27 |
-| M1 | Canvas: direction, polylines, bends, levels, box select, rows, preset v3 layout | not started | |
+| M1 | Canvas: direction, polylines, bends, levels, box select, rows, preset v3 layout | done | 2026-09-27 |
 | M2 | Keys and guide mode, World key remap | not started | |
 | M3 | Value ports: `flow`, `flow_sop`, value nodes, drives by wire, exposure, vec3, inspector | not started | |
 | M4 | Wireless binds, expressions, fold/unfold, row keys | not started | |
@@ -39,19 +39,20 @@ accept an intended one with `dune promote`.
 | M6 | Views: list with values, read-only text, reader and checker | not started | |
 | M7 | `[%flow]` PPX and catalog manifest | not started | |
 
-## Current → target map
+## Original → target map
 
-Every current behavior that changes, and the milestone that changes it.
-Anything not listed keeps working as documented today.
+Every original behavior that changes, and the milestone that changes it.
+Completed milestones use the target column. Anything not listed keeps working
+as documented today.
 
-| Area | Today (authority until the milestone) | Target | Milestone |
+| Area | Original behavior | Target | Milestone |
 |---|---|---|---|
 | Layout direction | rows by input depth, top to bottom (`automatic_layout`) | columns by longest path, left to right (`flow.md` §6.1) | M1 |
 | Wires | cubic Béziers (`wire_handle`, `wire_segments`, `wire_distance_squared`) | polylines with bends, `Ui.line` | M1 |
 | Ports | output below, inputs above the tile | primary slot and single output in the header row; others as rows | M1 |
 | Tile | fixed 196×78 tile with VIEW button | levels point/chip/card/full; VIEW flag in the header | M1 |
 | Tile position storage | `Document.network.layout : (float * float) Layout.t` | layout record (`flow.md` §4.1) | M1 |
-| Preset format | version 2 | version 3, v2 transposed on load | M1 (layout), M3 (values, drives), M5 (definitions) |
+| Preset format | version 2 | version 3 only | M1 (layout), M3 (values, drives), M5 (definitions) |
 | Parameters on the canvas | none; inspector only | rows on cards by the exposure rule | M1 (literal rows), M3 (sockets) |
 | Empty-canvas left drag | marquee (exists) | marquee; Alt-drag also pans | M1 |
 | Graph keys | Copy, Cut, Paste, Duplicate, Delete, Frame_all; `f` frames displayed tile | full grammar (`flow.md` §7.2); `f` frames the selection or the display node | M2 |
@@ -72,39 +73,40 @@ Preconditions: none.
 
 Tasks:
 
-1. `lib/pxui_graph/pxui_graph.ml`: replace `automatic_layout` with the
+1. [x] `lib/pxui_graph/pxui_graph.ml`: replace `automatic_layout` with the
    left-to-right column layout of `flow.md` §6.1 (column pitch 256, snap 12).
    Keep determinism and the identity fast path for unchanged documents.
-2. Same file: port geometry of §6.2 (header trunk sockets, row sockets, chip
+2. [x] Same file: port geometry of §6.2 (header trunk sockets, row sockets, chip
    bottom attachments, point centres) and a `levels` input from layout.
    Remove `wire_handle`, `wire_segments`, `wire_distance_squared`; add polyline
    construction (stubs, bends), segment-distance hit testing through the
    existing spatial index, bend handles as `Ui.box`es keyed by
    (destination node, slot, bend index).
-3. Render levels point/chip/card/full (§6.4) with zoom caps 0.34/0.50,
+3. [x] Render levels point/chip/card/full (§6.4) with zoom caps 0.34/0.50,
    pinning, bloom during wire drags. Cards show slot rows and parameter rows by
    the exposure rule, with steps 1, 3, 4 and the first-folder primary default
    (driven rows arrive with M3); non-drivable kinds render as fields without
    sockets. Rows edit literals: scrub (soft range / 150, Shift / 1500) and
    click-to-type, emitting a new `Set_parameter_requested { node; path; value }`
    change; the host applies it with `Edit_graph.apply_parameters`.
-4. Change list additions in `pxui_graph.mli`: `Set_parameter_requested`,
+4. [x] Change list additions in `pxui_graph.mli`: `Set_parameter_requested`,
    `Bend_changed of { node : int; slot : int }` (layout only),
    `Level_changed of int list`.
    `Doc.apply` in `lib/prismel_editor/doc.ml` handles them and reports the
    touched ids and ports so `Network_view.edit` updates only those.
-5. `lib/editor_document/document.ml`: `network.layout` becomes the layout
-   record of §4.1 (fields for rows, split and wireless exist but stay empty
-   until M3/M4). Update `validate`, `positions`, `Network_view.of_view/edit/to_view`.
-6. `lib/editor_document/preset.ml`: version 3 for layout fields (level, pinned,
-   geometry bends); v2 load transposes positions (§4.4). Write only v3.
-7. Pointer map of §7.1 for what exists in M1: box select on empty drag
+5. [x] `lib/editor_document/document.ml`: `network.layout` becomes the layout
+   record of §4.1 (row exposure metadata is preserved; split and wireless stay
+   empty until M3/M4). Update `validate`, `positions`, `Network_view.of_view/edit/to_view`.
+6. [x] `lib/editor_document/preset.ml`: version 3 for layout fields (level, pinned,
+   geometry bends) and stable ids (§4.4). Read and write only v3; remove the
+   v1/v2 compatibility paths.
+7. [x] Pointer map of §7.1 for what exists in M1: box select on empty drag
    (exists), Alt-drag pan, Alt-click bend add/remove, bend drag, Ctrl/Command-drag
    knife (one `Step` entry "Cut wires"), double-click card ⇄ chip.
-8. `o`, `p`, `⇧O`, `⇧P` as `Pxui_graph.command` cases exported through
+8. [x] `o`, `p`, `⇧O`, `⇧P` as `Pxui_graph.command` cases exported through
    `bindings` (the host scopes them); "Detail level" history entries use
    `Burst` merging (§4.3).
-9. `lib/pxui/theme.ml(i)`: port palette tokens of §6.5 as additions; nothing
+9. [x] `lib/pxui/theme.ml(i)`: port palette tokens of §6.5 as additions; nothing
    existing changes.
 
 Tests:
@@ -114,7 +116,7 @@ Tests:
   remove; knife removes exactly the crossed wires; level rendering counts
   boxes per level; zoom caps and pinning; bloom; exposure rows for a SOP with
   folders; scrub and typed edits emit `Set_parameter_requested`.
-- `test/test_editor_document.ml`: v2 → v3 transposition on a fixture; v3
+- `test/test_editor_document.ml`: v1/v2 rejection; v3
   round trip; invalid layout rejected without installing.
 - `test/test_editor_transactions.ml`: one undo entry per move, bend, scrub
   gesture; Burst merging for level changes.
@@ -182,6 +184,10 @@ Tasks:
    catalog test that no ungrouped `_x/_y/_z` triple remains); add
    `[@sop.primary]` where the first-folder default is wrong; name slots of
    multi-input SOPs. Catalog tests still instantiate every factory.
+   Split the catalog's related SOP modules into a few coherent files using
+   an OCaml codemod. Retain one PPX-generated registry, stable keys and
+   factory behavior; do not add mutable registration or a second factory
+   list. Verify the descriptor set before and after extraction.
 4. New `lib/flow` (`flow.ml`/`.mli` per module, wrapped): `Symbol`,
    `Context`, `Port_type` with coercions (§3.2), `Expr` (AST, infix parser,
    printers, evaluator; no exceptions), value kinds with `Param` schemas
@@ -315,3 +321,14 @@ network with the same canvas, keys, views and text), then plan it here.
   `specification/flow/prototype/`, and pointers in `AGENTS.md` files,
   `pxui.md`, `procedural.md`, `api.md`, `scene.md`, `backend.md`,
   `performance.md` and the editor skills.
+
+- 2026-09-27 M1: left-to-right snapped canvas, polyline wires and bends,
+  point/chip/card/full, bloom, shared literal fields, knife, detail keys,
+  incremental saved layout and v3-only stable-id presets. Removed curves,
+  old preset readers and identity remapping. Shared history seals pointer
+  gestures after all host reducers, preserving detail bursts.
+  `@all`, default `runtest`, `@smoke` and diff checks pass; native editor,
+  SOP parity and PXUI parity pass. The wider native target's GPU-film
+  texture-count assertion fails at `test_gpu_film.ml:64` on both the
+  unchanged `af55fffc` baseline and this change. Matched benchmark numbers
+  and release/undo limits are in `performance.md`.

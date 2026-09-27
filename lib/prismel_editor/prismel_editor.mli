@@ -94,7 +94,7 @@ module Private : sig
   end
 
   (** Presets: the scene, every object's network, the active camera, and
-      settings as versioned JSON (version 1 presets migrate on load). *)
+      settings as version 3 JSON, including saved Flow layout metadata. *)
   module Preset : sig
     type loaded = { doc : Document.t; view : Yojson.Safe.t }
     val sanitize : string -> string

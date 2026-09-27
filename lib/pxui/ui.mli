@@ -321,6 +321,15 @@ val slider : t -> string -> range:float * float -> float -> float
 
 val int_slider : t -> string -> range:int * int -> int -> int
 val text_field : t -> string -> string -> string
+
+val value_field : t -> at:float * float -> w:float -> h:float ->
+  ?size:int -> ?display:string -> ?fraction:float ->
+  ?scrub:(string -> float -> bool -> string) -> valid:(string -> bool) ->
+  string -> string -> string * bool
+(** Compact canvas field. Click or Enter opens the shared text editor;
+    [scrub] receives horizontal motion and the press-time Shift modifier.
+    Only valid text commits; the boolean reports an open text editor. *)
+
 val choice : t -> string -> string list -> int -> int
 (** Press the left or right half to step through the options. *)
 

@@ -222,10 +222,13 @@ nodes (built into the new `flow` library), drives on parameter ports (a wire
 from a value output or an expression), and later compound definitions. A
 value lane resolves drives before each cook and applies only changed values
 with `Edit_graph.apply_parameters` to a copy; stored literals are never
-overwritten. The presentation paragraph below is current until M1.
+overwritten.
 
-`prismel.pxui_graph` presents that document. It lays nodes deterministically,
-renders ordered ports and selectable curved wires, retains manual positions,
+`prismel.pxui_graph` presents that document. Its deterministic left-to-right
+layout snaps positions to 12 points. Header and row sockets connect through
+selectable polyline wires with editable bends. Point/chip/card/full levels
+use zoom caps, explicit pins and temporary expansion during a wire drag.
+Cards edit literals through shared PXUI fields. The canvas retains manual positions,
 supports Shift/marquee multi-selection and group dragging, and emits typed
 commands for Delete/Backspace, port connections, the searchable node-menu
 catalog, and Command/Ctrl copy, paste, cut, and duplicate. Catalog nodes may be

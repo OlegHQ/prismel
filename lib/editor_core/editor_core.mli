@@ -1,6 +1,7 @@
 (** Pure editor state shared by the sketch host and presentation adapters. *)
 
 module Store = Store
+module Network_layout = Network_layout
 
 (** Typed parameter schemas (the same values as [Procedural.Parameter]). *)
 module Param = Param
@@ -25,7 +26,9 @@ module History : sig
   (** The label of the edit that produced [present]: what [undo] reverts. *)
 
   val redo_label : 'a t -> string option
-  val seal : 'a t -> 'a t
+  val seal : ?gesture_only:bool -> 'a t -> 'a t
+  (** [gesture_only] preserves timed bursts when a pointer gesture ends. *)
+
   val undo : 'a t -> 'a t option
   val redo : 'a t -> 'a t option
   val can_undo : 'a t -> bool

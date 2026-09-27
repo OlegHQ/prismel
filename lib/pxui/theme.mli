@@ -21,3 +21,10 @@ val faint_border : t -> Prismel.Color.t
 val hover_fill : t -> Prismel.Color.t
 val pressed_fill : t -> Prismel.Color.t
 val invalid : Prismel.Color.t
+
+type ports = {
+  geometry : Prismel.Color.t; float : Prismel.Color.t; int : Prismel.Color.t;
+  vec3 : Prismel.Color.t; bool : Prismel.Color.t; compound : Prismel.Color.t;
+  output : Prismel.Color.t; hint : Prismel.Color.t;
+}
+val ports : t -> ports

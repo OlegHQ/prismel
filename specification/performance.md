@@ -17,19 +17,69 @@ use locally owned mutation and packed storage without exposing mutable aliases.
 ### SOP graph interaction smoke baseline
 
 The focused graph test includes a 2,001-node/2,000-wire fan-in graph, validates
-packed graph cardinality and off-screen tile culling, and materializes one
-scene. On Apple M1 arm64, OCaml 5.3.0, Dune 3.24.1, the complete focused test
-(including smaller interaction regressions) measured 0.08 s wall time, 30.2 MB
-maximum RSS, and 13.4 MB peak footprint on 2026-08-06:
+packed graph cardinality, off-screen node and row culling, and materializes
+one scene. `test_pxui_graph_smoke` runs that same check in isolation. The
+historical standalone runner measured 0.08 s on 2026-08-06; the consolidated
+runner and expanded interaction coverage make that process time unsuitable
+for comparing M1. The matched M1 check measures construction and painting
+inside the test, excluding executable startup.
 
 ```sh
-dune build test/test_pxui_graph.exe
-/usr/bin/time -l _build/default/test/test_pxui_graph.exe
+dune build test/test_main.exe
+_build/default/test/test_main.exe test_pxui_graph_smoke
 ```
 
-Prismel Flow (`flow.md` §15) keeps this smoke as the before/after baseline
-for M1 and adds all-points, 200-drive value lane and 2,000-node printing
-cases; each milestone records its numbers here.
+M1 measurements, 2026-09-27, Apple M1 MacBookAir10,1, 16 GB, arm64,
+OCaml 5.3.0, default Dune profile. Before is `af55fffc` in a detached
+worktree; both graph benchmarks use the corrected header press, pointer
+position before zoom, and release between cases. Timings below are medians
+unless marked as a single release or undo. Allocations are decimal MB.
+
+| Check | Before | M1 | Allocation before → M1 |
+|---|---:|---:|---:|
+| 2,001-node fan-in construction and paint, three runs | 242.494 ms | 228.773 ms | 414.036 → 359.484 MB |
+| 100-node static frame, 100 samples | 0.213 ms | 0.224 ms | 1.016 → 0.869 MB/frame |
+| 1,000-node static frame | 0.214 ms | 0.267 ms | 0.973 → 1.040 MB/frame |
+| 10,000-node static frame | 0.216 ms | 0.261 ms | 0.973 → 1.040 MB/frame |
+| 10,000-node wire-hit p99, 10,000 queries | 2.861 µs | 1.192 µs | 41.639 → 9.572 MB total |
+| 10,000-node move, ten frames | 0.246 ms | 0.296 ms | 10.004 → 10.997 MB total |
+| 19,950-wire single-node release | 10.777 ms | 13.484 ms | 13.939 → 21.772 MB |
+| 19,950-wire 100-node release | 11.657 ms | 14.079 ms | 14.251 → 22.133 MB |
+| 10,000-node minimum-zoom pan, ten frames | 1.244 ms | 1.352 ms | 38.336 → 45.812 MB total |
+
+The new layout shows 43 nodes in the layered graph viewport, versus 30
+before. The wire BVH keeps one leaf per wire; a candidate scans its exact
+polyline segments. The largest query sample had ten candidates, versus three
+before. A trial with one leaf per segment increased the 19,950-wire release
+to about 25 ms and 34 MB, so it was removed. Release still rebuilds the full
+wire index; refitting affected leaves is the upgrade if release latency
+exceeds the frame budget.
+
+All-points M1: static frames at 100/1,000/10,000 nodes were
+0.202/0.228/0.230 ms, allocating 1.016/0.911/0.911 MB/frame. The
+10,000-node drag was 0.273 ms; release was 13.229 ms and 21.822 MB.
+Minimum-zoom pan was 1.376 ms and remained one native UI batch.
+
+The host benchmark includes scene navigation and history:
+
+| Nodes | Drag before → M1 | Allocation before → M1 | Undo before → M1 (single sample) |
+|---|---:|---:|---:|
+| 200 | 0.138 → 0.170 ms | 0.563 → 0.589 MB/frame | 0.184 → 0.201 ms |
+| 1,000 | 0.137 → 0.158 ms | 0.552 → 0.602 MB/frame | 1.229 → 1.497 ms |
+| 2,000 | 0.196 → 0.168 ms | 0.552 → 0.602 MB/frame | 28.428 → 58.090 ms |
+
+Undo restores a complete saved layout and schedules cooking; its large-case
+single sample varies substantially between runs (the earlier M1 run was
+45.316 ms). It is outside the held-pointer loop. These measurements do not
+establish an undo latency guarantee.
+
+```sh
+dune exec tools/bench_pxui_graph.exe
+dune exec tools/bench_pxui_graph.exe -- --points
+dune exec tools/bench_prismel_editor.exe -- 200 1000 2000
+```
+
+M3 adds the 200-drive value-lane case; M6 adds 2,000-node printing.
 
 This is a repeatable scale smoke baseline, not a claim that every wire-heavy
 graph has constant frame cost: scene traversal remains O(nodes + wires), while

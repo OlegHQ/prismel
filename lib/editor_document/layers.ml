@@ -376,6 +376,6 @@ let network_of_world world =
       Ok (Some graph, Some (Node.id node))) (Ok (None, None)) layers in
   match graph, top with
   | Some graph, Some top ->
-      Ok { Document.graph; layout = Document.Layout.empty; displayed = Some top }
-  | _ -> Ok { Document.graph = Edit_graph.empty; layout = Document.Layout.empty;
+      Ok { Document.graph; layout = Editor_core.Network_layout.empty; displayed = Some top }
+  | _ -> Ok { Document.graph = Edit_graph.empty; layout = Editor_core.Network_layout.empty;
               displayed = None }

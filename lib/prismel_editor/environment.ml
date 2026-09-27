@@ -519,9 +519,13 @@ module Make (V : VIEWPORT) = struct
       | None -> camera, render_status in
     let core, camera, extra = V.on_view core ~previous:value.camera camera extra
         ~time:frame.Frame.time in
-    let core = if Frame.has_event (function
+    let ends_pointer = function
         | Event.MouseReleased (Input.LeftButton, _) | PointerCancelled Input.LeftButton
-        | WindowFocusLost -> true | _ -> false) update.input then seal core else core in
+        | WindowFocusLost -> true | _ -> false in
+    let core = if not (Frame.mouse_down Input.LeftButton raw_frame)
+        || Frame.has_event ends_pointer raw_frame || Frame.has_event ends_pointer update.input
+      then { core with Core.history = Editor_core.History.seal ~gesture_only:true core.Core.history }
+      else core in
     let live = world_drag <> None
       || Sketch_support.Timeline.mode (Core.timeline core) = Sketch_support.Timeline.Playing in
     let baked_from = bake_world ~previous:value.baked_from core ~live in

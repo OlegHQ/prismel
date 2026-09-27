@@ -34,14 +34,40 @@ let node id view = List.find (fun node -> node.Pxui_graph.id = id)
     (Pxui_graph.node_views view)
 
 let output_port node =
-  let x, y, width, height = node.Pxui_graph.bounds in
-  x + (width / 2), y + height
+  let x, y, width, _ = node.Pxui_graph.bounds in
+  x + width, y + 12
 
 let unary_input_port node =
-  let x, y, width, _ = node.Pxui_graph.bounds in
-  x + (width / 2), y
+  let x, y, _, _ = node.Pxui_graph.bounds in
+  x, y + 12
 
 let midpoint (ax, ay) (bx, by) = (ax + bx) / 2, (ay + by) / 2
+
+let run_smoke () =
+  let started = Unix.gettimeofday () and allocated = Gc.allocated_bytes () in
+  let dense_inputs = List.init 2000 (fun index ->
+    Sop.points ~label:(Printf.sprintf "Input %d" index)
+      [|float_of_int index, 0., 0.|]) in
+  let dense = Sop.merge ~label:"Dense merge" dense_inputs in
+  let dense_view = Pxui_graph.create ~width:700 ~height:400 dense in
+  let stats = Pxui_graph.stats dense_view in
+  check (stats.nodes = 2001 && stats.wires = 2000)
+    "large graph indexing lost nodes or wires";
+  check (stats.visible_nodes < stats.nodes)
+    "large graph visibility culling did not reject off-screen nodes";
+  (* Painting is bounded by visible tiles and on-screen wire spans. *)
+  let instances = match Scene.Private.stage_native ~width:1000 ~height:700
+      (graph_scene dense_view) with
+    | Ok staged -> List.fold_left (fun total -> function
+        | Scene.Private.Ui_layer (batch, _) ->
+            total + Scene_command.Ui_batch.count batch
+        | _ -> total) 0 staged.layers
+    | Error message -> fail message in
+  check (instances > 0
+      && instances < (64 * stats.visible_nodes) + (16 * stats.visible_wires) + 64)
+    "large graph painting was not bounded by visible tiles and wire spans";
+  Printf.printf "pxui graph 2,001-node smoke: %.6f s, %.0f allocated bytes\n%!"
+    (Unix.gettimeofday () -. started) (Gc.allocated_bytes () -. allocated)
 
 let run () =
   let source_a = Sop.points ~label:"Source A" [|0., 0., 0.|]
@@ -64,7 +90,7 @@ let run () =
   let depth label =
     (List.find (fun node -> node.Pxui_graph.label = label) nodes).depth in
   check (depth "Source A" = 0 && depth "Move A" = 1 && depth "Output" = 2)
-    "graph view is not laid out top-down";
+    "graph view has incorrect longest-path columns";
   check (Pxui_graph.selected view = None)
     "graph view should leave the camera inspector active initially";
 
@@ -92,7 +118,7 @@ let run () =
   let changes = pressed @ moved @ released in
   let after = (node (Node.id source_a) view).bounds in
   let bx, by, _, _ = before and ax, ay, _, _ = after in
-  check (ax - bx = 45 && ay - by = 26)
+  check (ax - bx = 48 && ay - by = 24)
     "left-drag did not move the selected graph tile";
   check (List.mem (Pxui_graph.Node_moved (Node.id source_a)) changes)
     "node move was not reported";
@@ -219,8 +245,8 @@ let run () =
         mouse_move target; mouse_release (Input.LeftButton, target)] ()) in
   let moved_by before after =
     let x0, y0, _, _ = before and x1, y1, _, _ = after in x1 - x0, y1 - y0 in
-  check (moved_by before_a (node (Node.id source_a) edit_view).bounds = (31, 19)
-      && moved_by before_b (node (Node.id source_b) edit_view).bounds = (31, 19)
+  check (moved_by before_a (node (Node.id source_a) edit_view).bounds = (36, 24)
+      && moved_by before_b (node (Node.id source_b) edit_view).bounds = (36, 24)
       && List.exists (function Pxui_graph.Nodes_moved ids -> List.length ids = 2
         | _ -> false) changes)
     "dragging a multi-selection did not move and report the whole selection";
@@ -421,25 +447,148 @@ let run () =
         request.factory_key = entry.key | _ -> false) changes)
       ("Space search cannot reach generated SOP " ^ entry.key)) full_catalog;
 
-  let dense_inputs = List.init 2000 (fun index ->
-    Sop.points ~label:(Printf.sprintf "Input %d" index)
-      [|float_of_int index, 0., 0.|]) in
-  let dense = Sop.merge ~label:"Dense merge" dense_inputs in
-  let dense_view = Pxui_graph.create ~width:700 ~height:400 dense in
-  let stats = Pxui_graph.stats dense_view in
-  check (stats.nodes = 2001 && stats.wires = 2000)
-    "large graph indexing lost nodes or wires";
-  check (stats.visible_nodes < stats.nodes)
-    "large graph visibility culling did not reject off-screen nodes";
-  (* Painting is bounded by visible tiles and on-screen wire spans. *)
-  let instances = match Scene.Private.stage_native ~width:1000 ~height:700
-      (graph_scene dense_view) with
-    | Ok staged -> List.fold_left (fun total -> function
-        | Scene.Private.Ui_layer (batch, _) ->
-            total + Scene_command.Ui_batch.count batch
-        | _ -> total) 0 staged.layers
-    | Error message -> fail message in
-  check (instances > 0
-      && instances < (64 * stats.visible_nodes) + (16 * stats.visible_wires) + 64)
-    "large graph painting was not bounded by visible tiles and wire spans";
+  (* Flow layout, level grammar, polylines and native UI row edits. *)
+  let module L = Editor_core.Network_layout in
+  let chain = Pxui_graph.create ~width:900 ~height:600 moved_a in
+  let x_source, y_source = Option.get (Pxui_graph.node_position chain (Node.id source_a))
+  and x_dest, y_dest = Option.get (Pxui_graph.node_position chain (Node.id moved_a)) in
+  check (x_source = 0. && x_dest = 252. && y_source = 0. && y_dest = 0.)
+    "Flow columns did not snap the 256-point pitch";
+  check (Pxui_graph.node_positions chain = Pxui_graph.node_positions
+    (Pxui_graph.optimize_layout chain)) "Flow auto layout is not deterministic";
+  check (Pxui_graph.with_graph moved_a chain == chain) "unchanged Flow graph lost its identity path";
+  let wire = (Pxui_graph.Private.edge_query_points chain ~limit:1).(0) in
+  check (Pxui_graph.Private.hit_edge_id chain wire <> None
+    && Pxui_graph.Private.hit_edge_id chain (fst wire, snd wire + 7) = None)
+    "polyline hit tolerance is not six logical points";
+  let chain, changes = update chain (frame ~mouse:wire ~keys:[Input.Alt] ~events:[
+    mouse_press (Input.LeftButton, wire); mouse_release (Input.LeftButton, wire)] ()) in
+  let port = L.slot (Node.id moved_a) 0 in
+  let bends view = Option.value ~default:[] (L.Port_map.find_opt port (Pxui_graph.layout view).bends) in
+  check (List.length (bends chain) = 1 && List.exists (function
+    | Pxui_graph.Bend_changed _ -> true | _ -> false) changes) "Alt-click did not author a bend";
+  let bx, by = List.hd (bends chain) in
+  (* Resolve the bend's screen coordinate through the retained node origin. *)
+  let nx, ny, _, _ = (node (Node.id source_a) chain).bounds in
+  let at = nx + int_of_float bx, ny + int_of_float by in
+  let target = fst at + 24, snd at + 36 in
+  let chain, _ = update chain (frame ~mouse:at ~events:[mouse_press (Input.LeftButton, at)] ()) in
+  let chain, _ = update chain (frame ~mouse:target ~events:[mouse_move target] ()) in
+  let chain, _ = update chain (frame ~mouse:target ~events:[mouse_release (Input.LeftButton, target)] ()) in
+  check (bends chain = [bx +. 24., by +. 36.]) "bend drag did not move and snap the bend";
+  let chain, _ = update chain (frame ~mouse:target ~keys:[Input.Alt] ~events:[
+    mouse_press (Input.LeftButton, target); mouse_release (Input.LeftButton, target)] ()) in
+  check (bends chain = []) "Alt-click did not remove the bend handle";
+  let start = fst wire, snd wire - 30 and finish = fst wire, snd wire + 30 in
+  check (List.length (Pxui_graph.Private.crossed_wires chain start finish) = 1)
+    "knife intersection missed the trunk";
+  check (Pxui_graph.Private.crossed_wires chain (fst wire + 100, snd wire - 30)
+    (fst wire + 100, snd wire + 30) = []) "knife cut a noncrossing wire";
+  let _, changes = update chain (frame ~mouse:finish ~keys:[Input.Meta] ~events:[
+    mouse_press (Input.LeftButton, start); mouse_move finish;
+    mouse_release (Input.LeftButton, finish)] ()) in
+  check (List.exists (function Pxui_graph.Cut_wires_requested [_] -> true | _ -> false) changes)
+    "knife did not emit one atomic cut";
+  let two_branches = Pxui_graph.create ~width:900 ~height:600 graph in
+  let source_x, _, source_w, _ = (node (Node.id source_a) two_branches).bounds
+  and dest_x, _, _, _ = (node (Node.id moved_a) two_branches).bounds in
+  let cut_x = (source_x + source_w + dest_x) / 2 in
+  let crossed = Pxui_graph.Private.crossed_wires two_branches (cut_x, 0) (cut_x, 500) in
+  check (List.map (fun c -> c.Edit_graph.consumer) crossed |> List.sort Int.compare
+    = List.sort Int.compare [Node.id moved_a; Node.id moved_b])
+    "knife did not isolate the two crossed branches";
+  let schema = Parameter.schema ~name:"flow_rows" ~default:(1., "note") [
+    Parameter.field ~name:"amount" ~folder:["Shape"] ~default:1.
+      ~kind:(Parameter.floating ~min:0. ~max:150. ())
+      ~get:fst ~set:(fun v (_, note) -> v, note) ();
+    Parameter.field ~name:"note" ~folder:["Advanced"] ~default:"note" ~kind:Parameter.Text
+      ~get:snd ~set:(fun note (v, _) -> v, note) ()] in
+  let row_node = Custom.map ~operation:"flow_rows" ~schema ~values:(1., "note") source_a
+    (fun ~parameters:_ ~context:_ geometry -> Ok geometry) in
+  let rid = Node.id row_node in
+  let rows = Pxui_graph.create ~width:900 ~height:600 row_node |> Pxui_graph.select rid in
+  let field_bounds view path = Pxui_graph.Private.field_bounds view ~node:rid ~path in
+  check (field_bounds rows "amount" <> None && field_bounds rows "note" = None)
+    "card exposure did not use first-folder defaults";
+  let height view = let _, _, _, h = (node rid view).bounds in h in
+  check (height rows = 78) "card did not render one parameter and one more row";
+  let rows, _ = Pxui_graph.run_command rows Open_detail in
+  check (height rows = 150) "full did not render both folder headers and both fields";
+  check (Pxui_graph.Private.level rows rid = Some L.Full && field_bounds rows "note" <> None)
+    "opening detail did not expose all folders";
+  let rows, _ = Pxui_graph.run_command rows Point_detail in
+  check (Pxui_graph.Private.level rows rid = Some L.Point) "p did not collapse the selection";
+  check (height rows = 24) "point retained card rows";
+  let rows, _ = Pxui_graph.run_command rows Point_detail in
+  check (Pxui_graph.Private.level rows rid = Some L.Full) "p did not restore the prior level";
+  let rows, _ = Pxui_graph.run_command (Pxui_graph.clear_selection rows) Open_all in
+  check (Pxui_graph.Private.level rows rid = Some L.Card) "Shift-O did not open every card";
+  let field = center (Option.get (field_bounds rows "amount")) in
+  let target = fst field + 10, snd field in
+  let _, changes = update rows (frame ~mouse:target ~events:[mouse_press (Input.LeftButton, field);
+    mouse_move target; mouse_release (Input.LeftButton, target)] ()) in
+  check (List.exists (function Pxui_graph.Set_parameter_requested { path="amount";
+    value=Parameter.Float_value v; _ } -> v = 11. | _ -> false) changes)
+    "canvas scrub did not use soft range / 150";
+  let _, changes = update rows (frame ~mouse:target ~keys:[Input.Shift] ~events:[
+    mouse_press (Input.LeftButton, field); mouse_move target;
+    mouse_release (Input.LeftButton, target)] ()) in
+  check (List.exists (function Pxui_graph.Set_parameter_requested { path="amount";
+    value=Parameter.Float_value v; _ } -> v = 2. | _ -> false) changes)
+    "Shift-scrub did not use soft range / 1500";
+  let rows, _ = update rows (frame ~mouse:field ~events:[mouse_press (Input.LeftButton, field);
+    mouse_release (Input.LeftButton, field)] ()) in
+  let _, changes = update rows (frame ~mouse:field ~events:[Event.TextInput "42.25";
+    Event.KeyPressed Input.Enter] ()) in
+  check (List.exists (function Pxui_graph.Set_parameter_requested { path="amount";
+    value=Parameter.Float_value v; _ } -> v = 42.25 | _ -> false) changes)
+    "click-to-type did not commit through the shared text editor";
+  let zoomed, _ = update (Pxui_graph.select rid rows) (frame ~mouse:(600,300)
+    ~events:(mouse_move (600,300) :: List.init 30 (fun _ -> Event.MouseScrolled (0., -1.))) ()) in
+  check (Pxui_graph.Private.zoom zoomed = 0.25 && Pxui_graph.Private.level zoomed rid = Some L.Card)
+    "explicitly opened cards did not ignore the zoom cap";
+  let unpinned = Pxui_graph.with_layout { (Pxui_graph.layout rows) with pinned=L.Int_map.empty } rows in
+  let zoomed, _ = update unpinned (frame ~mouse:(600,300)
+    ~events:(mouse_move (600,300) :: List.init 30 (fun _ -> Event.MouseScrolled (0., -1.))) ()) in
+  check (Pxui_graph.Private.level zoomed rid = Some L.Point)
+    (Printf.sprintf "zoom cap did not collapse unpinned nodes (zoom %.2f)" (Pxui_graph.Private.zoom zoomed));
+  let chipped, _ = update unpinned (frame ~mouse:(600,300)
+    ~events:(mouse_move (600,300) :: List.init 7 (fun _ -> Event.MouseScrolled (0., -1.))) ()) in
+  check (Pxui_graph.Private.zoom chipped >= 0.34 && Pxui_graph.Private.zoom chipped < 0.50
+    && Pxui_graph.Private.level chipped rid = Some L.Chip) "middle zoom cap did not show chips";
+  let point_all, _ = Pxui_graph.run_command rows Point_all in
+  check (List.for_all (fun n -> Pxui_graph.Private.level point_all n.Pxui_graph.id = Some L.Point)
+    (Pxui_graph.node_views point_all)) "Shift-P left expanded nodes";
+  let restored, _ = Pxui_graph.run_command point_all Point_all in
+  check (Pxui_graph.Private.level restored rid = Some L.Card) "Shift-P did not restore prior cards";
+  let chip_layout = { (Pxui_graph.layout rows) with level=L.Int_map.add rid L.Chip L.Int_map.empty } in
+  let bloom = Pxui_graph.with_layout chip_layout rows in
+  let output = output_port (node (Node.id source_a) bloom) in
+  let tx, ty, _, _ = (node rid bloom).bounds in
+  let target = tx + 60, ty + 12 in
+  let bloom, _ = update bloom (frame ~mouse:output
+    ~events:[mouse_press (Input.LeftButton, output)] ()) in
+  let bloom, _ = update bloom (frame ~mouse:target ~events:[mouse_move target] ()) in
+  check (Pxui_graph.Private.level bloom rid = Some L.Full
+    && L.Int_map.find rid (Pxui_graph.layout bloom).level = L.Chip)
+    "wire hover did not temporarily bloom a chip";
+  let bloom, _ = update bloom (frame ~mouse:(800,500) ~events:[mouse_move (800,500)] ()) in
+  check (Pxui_graph.Private.level bloom rid = Some L.Chip) "bloom did not clear when the pointer left";
+  ignore (update bloom (frame ~mouse:(800,500)
+    ~events:[mouse_release (Input.LeftButton, (800,500))] ()));
+  let detail = Pxui_graph.with_layout chip_layout rows in
+  let click_detail view = fst (update view (frame ~mouse:target ~events:[
+    mouse_press (Input.LeftButton, target); mouse_release (Input.LeftButton, target)] ())) in
+  let detail = click_detail detail |> click_detail in
+  check (Pxui_graph.Private.level detail rid = Some L.Card
+    && L.Int_map.find rid (Pxui_graph.layout detail).pinned) "double-click did not open and pin a chip";
+  let amount_hidden = L.String_map.singleton "amount" false in
+  let pin_layout = { (Pxui_graph.layout rows) with rows=L.Int_map.singleton rid amount_hidden } in
+  let hidden = Pxui_graph.with_layout pin_layout rows in
+  check (field_bounds hidden "amount" = None) "row pin did not hide a primary row";
+  let shown = Pxui_graph.with_layout { pin_layout with rows=L.Int_map.singleton rid
+    (L.String_map.singleton "note" true) } rows in
+  check (field_bounds shown "note" <> None) "row pin did not expose a hidden row";
+
+  run_smoke ();
   print_endline "pxui graph tests passed"

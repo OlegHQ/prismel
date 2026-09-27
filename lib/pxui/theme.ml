@@ -24,3 +24,17 @@ let faint_border theme = Prismel.Color.with_alpha theme.foreground 60
 let hover_fill theme = Prismel.Color.blend theme.input theme.accent ~pct:0.11
 let pressed_fill theme = Prismel.Color.blend theme.control theme.accent ~pct:0.18
 let invalid = Prismel.Color.hex_exn "#fb7185"
+
+type ports = {
+  geometry : Prismel.Color.t; float : Prismel.Color.t; int : Prismel.Color.t;
+  vec3 : Prismel.Color.t; bool : Prismel.Color.t; compound : Prismel.Color.t;
+  output : Prismel.Color.t; hint : Prismel.Color.t;
+}
+let ports theme =
+  let dark = theme.panel.Prismel.Color.r + theme.panel.g + theme.panel.b < 384 in
+  let color light night = Prismel.Color.hex_exn (if dark then night else light) in
+  let vec3 = color "#6b50ae" "#a98cf5" in
+  { geometry = theme.accent; float = color "#b0680f" "#e5a54c";
+    int = color "#3b7d4e" "#74c28e"; vec3;
+    bool = color "#b0435f" "#f08aa3"; compound = vec3;
+    output = theme.foreground; hint = Prismel.Color.hex_exn "#f5cf4f" }

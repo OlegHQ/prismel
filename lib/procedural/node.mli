@@ -56,6 +56,9 @@ val apply_parameters :
   (t * Parameter.effects, string) result
 
 module Private : sig
+  val restore_id : int -> t -> (t, string) result
+  (** Restore a saved logical id and reserve it in the shared allocator. *)
+
   type input_policy = All | Only of int
   type cooked = {
     geometry : Pdk.Geometry.t;

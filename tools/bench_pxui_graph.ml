@@ -60,6 +60,8 @@ let paint view (frame : Prismel.Frame.t) =
 
 let measure count =
   let view = Pxui_graph.create ~width:1200 ~height:760 (graph count) in
+  let view = if Array.mem "--points" Sys.argv
+    then fst (Pxui_graph.run_command view Point_all) else view in
   ignore (paint view (frame ()));
   Gc.full_major ();
   let static_before = Gc.allocated_bytes () in
@@ -93,7 +95,7 @@ let measure count =
     let x, y, width, height = node.bounds in
     x >= 0 && y >= 0 && x + width < 1_200 && y + height < 760) nodes in
   let node_x, node_y, node_width, node_height = first_node.bounds in
-  let start = node_x + (node_width / 2), node_y + (node_height / 2) in
+  let start = node_x + min 60 (node_width / 2), node_y + min 12 (node_height / 2) in
   let moving, _ = step (paint (Pxui_graph.select first_node.id view)
       (frame ~mouse:start ()))
       (frame ~mouse:start ~events:[mouse_press
@@ -107,6 +109,8 @@ let measure count =
     let started = Unix.gettimeofday () in
     let next, _ = step !moving
         (frame ~mouse:point ~events:[mouse_move point] ()) in
+    if Pxui_graph.node_position next first_node.id = Pxui_graph.node_position view first_node.id
+    then failwith "graph benchmark did not capture a node drag";
     ignore (Sys.opaque_identity (Pxui.Ui.scene ui));
     move_samples.(index) <- Unix.gettimeofday () -. started;
     moving := next
@@ -146,7 +150,7 @@ let measure count =
   (* Zoom fully out, then pan: every frame re-describes the canvas. *)
   let centre = 600, 380 in
   let zoomed, _ = step (paint view (frame ~mouse:centre ())) (frame ~mouse:centre
-      ~events:(List.init 20 (fun _ -> Prismel.Event.MouseScrolled (0., (-1.)))) ()) in
+      ~events:(mouse_move centre :: List.init 20 (fun _ -> Prismel.Event.MouseScrolled (0., (-1.)))) ()) in
   let panning, _ = step zoomed (frame ~mouse:centre
       ~events:[mouse_press (Prismel.Input.RightButton, centre)] ()) in
   let panning = ref panning and pan_samples = Array.make move_repeats 0. in
@@ -170,6 +174,8 @@ let measure count =
             total + Array.length (Scene_command.Ui_batch.batches batch)
         | _ -> total) 0 staged.layers
     | Error message -> failwith message in
+  ignore (step !panning (frame ~events:[mouse_release (Prismel.Input.RightButton,
+    (fst centre + 3 * move_repeats, snd centre + 2 * move_repeats))] ()));
   let stats = Pxui_graph.stats view in
   Printf.printf
     "pxui_graph_min_zoom_pan,%d,%.9f,%.0f,%d\n%!" count

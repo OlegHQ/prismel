@@ -14,9 +14,9 @@ let run () =
     ~prepare:(fun _ _ -> Ok ()) ~scene2:(fun _ () -> Atomic.incr draws; []) () |> Result.get_ok)
   and count = ref 0 in
   Fun.protect ~finally:(fun () -> E.close !current) (fun () ->
-    let step ?(mouse = (0., 0.)) ?(keys = []) events =
+    let step ?(mouse = (0., 0.)) ?(keys = []) ?(buttons = []) events =
       incr count;
-      current := E.update !current (Test_editor_input.frame ~keys mouse events !count) in
+      current := E.update !current (Test_editor_input.frame ~keys ~buttons mouse events !count) in
     let click point = [Event.MousePressed (Input.LeftButton, point);
       Event.MouseReleased (Input.LeftButton, point)] in
     let wait_draw after = Test_editor_cook.await (fun () -> step []; Atomic.get draws > after) in
@@ -55,4 +55,73 @@ let run () =
     step [Event.KeyPressed Input.Escape];
     check (value (Node.id second) = Parameter.Int_value 1 && E.can_redo !current)
       "cancelled numeric edit changed the document or history";
+    let directory = Filename.temp_dir "prismel-flow-history" "" in
+    Fun.protect ~finally:(fun () ->
+      Array.iter (fun file -> Sys.remove (Filename.concat directory file)) (Sys.readdir directory);
+      Unix.rmdir directory) (fun () ->
+      let snapshot () = E.crash_dump !current directory;
+        Yojson.Safe.from_file (Filename.concat directory "document.json") in
+      let tile id = List.find (fun tile -> tile.Pxui_graph.id = id) (E.graph_nodes !current) in
+      let header id = let x, y, _, _ = (tile id).bounds in float (x + 50), float (y + 12) in
+      let undo () = step ~keys:[Input.Meta] [Event.KeyPressed (Input.KeyChar 'z')] in
+      count := !count + 30;
+      let at = header (Node.id second) in
+      step ~mouse:at (click at); step [];
+      let before = snapshot () in
+      step [Event.KeyPressed (Input.KeyChar 'o')];
+      step [Event.KeyPressed (Input.KeyChar 'p')];
+      check (snapshot () <> before) "detail-level commands did not change saved layout";
+      undo ();
+      check (snapshot () = before) "detail levels did not merge into one Burst entry";
+      step [];
+      count := !count + 90;
+      let x, y, _, _ = (tile (Node.id second)).bounds in
+      let at = float (x + 145), float (y + 36) in
+      let original = value (Node.id second) in
+      step ~mouse:at ~buttons:[Input.LeftButton] [Event.MousePressed (Input.LeftButton, at)];
+      List.iter (fun dx -> let target = fst at +. dx, snd at in
+        step ~mouse:target ~buttons:[Input.LeftButton] [Event.MouseMoved target]) [3.; 6.; 9.];
+      let target = fst at +. 12., snd at in
+      step ~mouse:target [Event.MouseReleased (Input.LeftButton, target)];
+      check (value (Node.id second) <> original) "canvas integer scrub did not edit the node";
+      undo ();
+      check (snapshot () = before) "canvas scrub did not undo in one gesture";
+      step []; count := !count + 90;
+      let at = header (Node.id second) in
+      step ~mouse:at ~buttons:[Input.LeftButton] [Event.MousePressed (Input.LeftButton, at)];
+      List.iter (fun dx -> let target = fst at +. dx, snd at in
+        step ~mouse:target ~buttons:[Input.LeftButton] [Event.MouseMoved target]) [6.; 12.; 18.];
+      let target = fst at +. 24., snd at in
+      step ~mouse:target [Event.MouseReleased (Input.LeftButton, target)];
+      check (snapshot () <> before) "canvas movement did not change saved positions";
+      let first_move = snapshot () in
+      count := !count + 90;
+      let at = header (Node.id second) in
+      step ~mouse:at ~buttons:[Input.LeftButton] [Event.MousePressed (Input.LeftButton, at)];
+      let target = fst at +. 24., snd at in
+      step ~mouse:target ~buttons:[Input.LeftButton] [Event.MouseMoved target];
+      step ~mouse:target [Event.MouseReleased (Input.LeftButton, target)];
+      undo ();
+      check (snapshot () = first_move) "separate node drags merged after release";
+      undo ();
+      check (snapshot () = before) "canvas movement did not undo in one gesture";
+      step []; count := !count + 90;
+      step [Event.KeyPressed Input.Home]; step [];
+      let source_x, source_y, source_w, _ = (tile (Node.id first)).bounds in
+      let root = Edit_graph.root (E.document !current) |> Option.get in
+      let dest_x, dest_y, _, _ = (tile root).bounds in
+      let scale = float source_w /. 196. in
+      let wire = float (source_x + source_w + dest_x) /. 2.,
+        (float (source_y + dest_y) /. 2.) +. 12. *. scale in
+      let before_bend = snapshot () in
+      step ~mouse:wire ~keys:[Input.Alt] ~buttons:[Input.LeftButton]
+        [Event.MousePressed (Input.LeftButton, wire)];
+      List.iter (fun dy -> let target = fst wire, snd wire +. dy in
+        step ~mouse:target ~keys:[Input.Alt] ~buttons:[Input.LeftButton]
+          [Event.MouseMoved target]) [12.; 24.; 36.];
+      let target = fst wire, snd wire +. 36. in
+      step ~mouse:target ~keys:[Input.Alt] [Event.MouseReleased (Input.LeftButton, target)];
+      check (snapshot () <> before_bend) "bend gesture did not change the saved layout";
+      undo ();
+      check (snapshot () = before_bend) "bend add and drag did not undo in one gesture");
     print_endline "editor transactions: stable selection/inspector target, undo agreement and graph-aware drawing reuse passed")

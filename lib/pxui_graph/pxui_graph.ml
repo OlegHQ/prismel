@@ -2,7 +2,8 @@ open Prismel
 open Procedural
 
 module Id_set = Set.Make (Int)
-module Id_map = Map.Make (Int)
+module Layout = Editor_core.Network_layout
+module Id_map = Layout.Int_map
 module Cell_map = Map.Make (Int64)
 module String_set = Set.Make (String)
 
@@ -43,6 +44,10 @@ type change =
   | View_changed
   | Node_moved of int
   | Nodes_moved of int list
+  | Bend_changed of { node : int; slot : int }
+  | Level_changed of int list
+  | Set_parameter_requested of { node : int; path : string; value : Parameter.value }
+  | Cut_wires_requested of Edit_graph.connection list
   | Connection_selected of Edit_graph.connection option
   | Connect_requested of Edit_graph.connection
   | Disconnect_requested of Edit_graph.connection
@@ -54,22 +59,24 @@ type change =
   | Frame_camera_requested of int
   | Open_requested of int
 
+type row = Slot of int | Field of Parameter.field_view * bool | Folder of string list | More of int
+
 type box = {
   info : Edit_graph.node_info;
   tile_id : string;
-  detail : string;
   depth : int;
   gx : float;
   gy : float;
   width : int;
   height : int;
+  level : Layout.level;
+  rows : row array;
 }
 
 type edge = {
   connection : Edit_graph.connection;
   source_index : int;
   consumer_index : int;
-  input_count : int;
 }
 
 type menu = {
@@ -115,6 +122,9 @@ type menu_row = Menu_category of string | Menu_entry of catalog_entry
 (* Pointer capture, press points, and cancellation belong to [Pxui.Ui];
    the canvas keeps only what a gesture means. *)
 type drag =
+  | Pan_canvas
+  | Knife
+  | Bend_wire of { node : int; slot : int; bend : int; on_canvas : bool }
   | Move_nodes of {
       node : int;
       indices : int array;
@@ -127,7 +137,6 @@ type drag =
 
 type edge_bound = {
   edge_id : int;
-  segment : int;
   min_x : float;
   min_y : float;
   max_x : float;
@@ -142,7 +151,6 @@ type edge_bvh = {
   left : int array;
   right : int array;
   edge_id : int array;
-  segment : int array;
   root : int;
 }
 
@@ -154,10 +162,7 @@ type spatial_index = {
   max_edge_candidates : int;
   marks : int array;
   edge_marks : int array;
-  edge_x0 : float array;
-  edge_y0 : float array;
-  edge_x3 : float array;
-  edge_y3 : float array;
+  edge_points : (float * float) array array;
   incident_edges : int array array;
   mutable mark_generation : int;
   mutable visible : int array;
@@ -175,6 +180,7 @@ type t = {
   edges : edge array;
   slots : (int, int) Hashtbl.t;
   positions : (float * float) Id_map.t;
+  layout : Layout.t;
   moved_nodes : Id_set.t;
   moved_cells : Id_set.t Cell_map.t;
   spatial : spatial_index;
@@ -184,6 +190,7 @@ type t = {
   viewed : int;
   flagged : int option;
   flaggable : Edit_graph.node_info -> bool;
+  enterable : Edit_graph.node_info -> bool;
   x : int;
   y : int;
   width : int;
@@ -192,6 +199,8 @@ type t = {
   pan_y : float;
   zoom : float;
   drag : drag option;
+  bloom : int option;
+  before_points : Layout.level Id_map.t;
   menu : menu option;
   context : context option;
   clipboard : clipboard option;
@@ -227,14 +236,11 @@ type stats = {
 }
 
 let node_width = 196
-let node_height = 78
-let horizontal_gap = 34
-let vertical_gap = 74
-let margin = 34
+let horizontal_gap = 60
+let vertical_gap = 36
 let menu_width = 286
 let menu_limit = 10
 let spatial_cell_size = 256.
-let edge_bvh_segments = 1
 
 let clamp low high value = Float.max low (Float.min high value)
 
@@ -261,69 +267,46 @@ let fold_box_cells (box : box) gx gy initial visit =
   done;
   !result
 
-(* Wires leave an output downward and enter an input from above: a cubic
-   with vertical tangents whose handles reach half the vertical span, at
-   least [wire_reach] graph units. *)
-let wire_reach = 24.
-let wire_handle from_y to_y = Float.max wire_reach (Float.abs (to_y -. from_y) /. 2.)
+(* Geometry sockets share the header trunk; additional slots are body rows. *)
+let input_offset index = if index = 0 then 12. else 12. +. (24. *. float index)
 
-let make_edge_bounds edge_id from_x from_y to_x to_y =
-  let handle = wire_handle from_y to_y in
-  let ys = [from_y; from_y +. handle; to_y -. handle; to_y] in
-  [|{ edge_id; segment = 0;
-      min_x = min from_x to_x; max_x = max from_x to_x;
-      min_y = List.fold_left min Float.infinity ys;
-      max_y = List.fold_left max Float.neg_infinity ys }|]
+let graph_output (box : box) (gx, gy) =
+  gx +. (if box.level = Layout.Point then 22. else float box.width), gy +. 12.
+let graph_input (box : box) (gx, gy) index = match box.level with
+  | Layout.Point -> gx +. 2., gy +. 12.
+  | Chip when index > 0 -> gx +. 22. +. (12. *. float (index - 1)), gy +. 24.
+  | Chip | Card | Full -> gx, gy +. input_offset index
 
-let wire_segments = 16
-
-(* Distance to the curve flattened into [wire_segments] chords. *)
-let wire_distance_squared px py x0 y0 x3 y3 segment_distance_squared =
-  let handle = wire_handle y0 y3 in
-  let point t =
-    let s = 1. -. t in
-    let a = s *. s *. s and b = 3. *. s *. s *. t and c = 3. *. s *. t *. t
-    and d = t *. t *. t in
-    (a *. x0) +. (b *. x0) +. (c *. x3) +. (d *. x3),
-    (a *. y0) +. (b *. (y0 +. handle)) +. (c *. (y3 -. handle)) +. (d *. y3) in
-  let best = ref Float.infinity and previous = ref (x0, y0) in
-  for index = 1 to wire_segments do
-    let (x, y) as next = point (float_of_int index /. float_of_int wire_segments) in
-    let ax, ay = !previous in
-    best := Float.min !best (segment_distance_squared px py ax ay x y);
-    previous := next
-  done;
-  !best
+let polyline ~bottom layout connection (from_x, from_y) (to_x, to_y) =
+  let bends = Option.value ~default:[]
+    (Layout.Port_map.find_opt (Layout.slot connection.Edit_graph.consumer
+      connection.input_index) layout.Layout.bends) in
+  let stub = if bottom then to_x, to_y +. 14. else to_x -. 14., to_y in
+  Array.of_list ((from_x, from_y) :: (from_x +. 14., from_y) ::
+    (bends @ [stub; to_x, to_y]))
 
 let stored_box_position positions (box : box) =
   Option.value (Id_map.find_opt box.info.Edit_graph.id positions)
     ~default:(box.gx, box.gy)
 
-let build_edge_index boxes edges positions =
-  let edge_x0 = Array.make (Array.length edges) 0.
-  and edge_y0 = Array.make (Array.length edges) 0.
-  and edge_x3 = Array.make (Array.length edges) 0.
-  and edge_y3 = Array.make (Array.length edges) 0. in
-  let edge_bounds = Array.make (Array.length edges * edge_bvh_segments)
-      { edge_id = 0; segment = 0; min_x = 0.; min_y = 0.; max_x = 0.;
-        max_y = 0. } in
-  Array.iteri (fun index edge ->
+let build_edge_index boxes edges positions layout =
+  let points = Array.map (fun edge ->
     let source = boxes.(edge.source_index)
     and consumer = boxes.(edge.consumer_index) in
     let source_x, source_y = stored_box_position positions source
     and consumer_x, consumer_y = stored_box_position positions consumer in
-    let from_x = source_x +. (float_of_int source.width /. 2.)
-    and from_y = source_y +. float_of_int source.height
-    and to_x = consumer_x +.
-      (float_of_int (consumer.width * (edge.connection.input_index + 1)) /.
-       float_of_int (edge.input_count + 1))
-    and to_y = consumer_y in
-    Array.unsafe_set edge_x0 index from_x;
-    Array.unsafe_set edge_y0 index from_y;
-    Array.unsafe_set edge_x3 index to_x;
-    Array.unsafe_set edge_y3 index to_y;
-    Array.blit (make_edge_bounds index from_x from_y to_x to_y) 0 edge_bounds
-      (index * edge_bvh_segments) edge_bvh_segments) edges;
+    polyline ~bottom:(consumer.level = Layout.Chip && edge.connection.input_index > 0)
+      layout edge.connection
+      (graph_output source (source_x, source_y))
+      (graph_input consumer (consumer_x, consumer_y) edge.connection.input_index)) edges in
+  (* ponytail: one BVH leaf per wire; hits scan its authored segments.
+     Index segments separately only if long bend chains dominate hit time. *)
+  let edge_bounds = Array.mapi (fun edge_id points ->
+    let min_x = ref Float.infinity and min_y = ref Float.infinity
+    and max_x = ref Float.neg_infinity and max_y = ref Float.neg_infinity in
+    Array.iter (fun (x, y) -> min_x := min !min_x x; min_y := min !min_y y;
+      max_x := max !max_x x; max_y := max !max_y y) points;
+    { edge_id; min_x = !min_x; min_y = !min_y; max_x = !max_x; max_y = !max_y }) points in
   Array.sort (fun (left : edge_bound) (right : edge_bound) ->
     let by_x = Float.compare (left.min_x +. left.max_x)
         (right.min_x +. right.max_x) in
@@ -338,8 +321,7 @@ let build_edge_index boxes edges positions =
   and bvh_max_y = Array.make bvh_count 0.
   and bvh_left = Array.make bvh_count (-1)
   and bvh_right = Array.make bvh_count (-1)
-  and bvh_edge_id = Array.make bvh_count (-1)
-  and bvh_segment = Array.make bvh_count (-1) in
+  and bvh_edge_id = Array.make bvh_count (-1) in
   let next_node = ref 0 in
   let rec build_bvh first last =
     let node = !next_node in
@@ -350,8 +332,7 @@ let build_edge_index boxes edges positions =
       Array.unsafe_set bvh_min_y node bound.min_y;
       Array.unsafe_set bvh_max_x node bound.max_x;
       Array.unsafe_set bvh_max_y node bound.max_y;
-      Array.unsafe_set bvh_edge_id node bound.edge_id;
-      Array.unsafe_set bvh_segment node bound.segment
+      Array.unsafe_set bvh_edge_id node bound.edge_id
     end else begin
       let middle = first + ((last - first) / 2) in
       let left = build_bvh first middle and right = build_bvh middle last in
@@ -374,10 +355,10 @@ let build_edge_index boxes edges positions =
   let root = if leaf_count = 0 then -1 else build_bvh 0 leaf_count in
   let edge_bvh = { min_x = bvh_min_x; min_y = bvh_min_y;
     max_x = bvh_max_x; max_y = bvh_max_y; left = bvh_left;
-    right = bvh_right; edge_id = bvh_edge_id; segment = bvh_segment; root } in
-  edge_bvh, edge_x0, edge_y0, edge_x3, edge_y3
+    right = bvh_right; edge_id = bvh_edge_id; root } in
+  edge_bvh, points
 
-let build_spatial_index boxes edges =
+let build_spatial_index boxes edges layout =
   let pending = Hashtbl.create (max 16 (Array.length boxes * 2)) in
   Array.iteri (fun index (box : box) ->
     ignore (fold_box_cells box box.gx box.gy () (fun () key ->
@@ -399,24 +380,56 @@ let build_spatial_index boxes edges =
         index :: pending_incident.(edge.consumer_index)) edges;
   let incident_edges = Array.map (fun reversed ->
     Array.of_list (List.rev reversed)) pending_incident in
-  let edge_bvh, edge_x0, edge_y0, edge_x3, edge_y3 =
-    build_edge_index boxes edges Id_map.empty in
+  let edge_bvh, edge_points =
+    build_edge_index boxes edges Id_map.empty layout in
   { cells; edge_bvh; cell_size = spatial_cell_size;
     max_candidates = !max_candidates;
     max_edge_candidates = 1;
     marks = Array.make (Array.length boxes) 0; mark_generation = 0;
     edge_marks = Array.make (Array.length edges) 0;
-    edge_x0; edge_y0; edge_x3; edge_y3; incident_edges;
+    edge_points; incident_edges;
     visible = Array.make (min 16 (Array.length boxes)) 0; visible_length = 0;
     order = Array.make (min 16 (Array.length boxes)) 0;
     visible_edges = Array.make (min 16 (Array.length edges)) 0;
     visible_edge_length = 0; edge_stack = Array.make 64 0 }
 
 let tile_text (info : Edit_graph.node_info) =
-  "node###pxui-graph-node-" ^ string_of_int info.id,
-  info.operation ^ " · " ^ Context.Dependencies.to_string info.dependencies
+  "node###pxui-graph-node-" ^ string_of_int info.id
 
-let automatic_layout document =
+let shown layout id first_folder (field : Parameter.field_view) =
+  match Option.bind (Id_map.find_opt id layout.Layout.rows)
+      (Layout.String_map.find_opt field.name) with
+  | Some pinned -> pinned
+  | None -> field.current <> field.default || field.folder = first_folder
+
+let shape layout zoom bloom (info : Edit_graph.node_info) =
+  let requested = Option.value ~default:Layout.Card (Id_map.find_opt info.id layout.Layout.level) in
+  let pinned = Option.value ~default:false (Id_map.find_opt info.id layout.Layout.pinned) in
+  let level = if bloom = Some info.id then Layout.Full else
+    if pinned then requested else if zoom < 0.34 then Layout.Point
+    else if zoom < 0.50 && (requested = Card || requested = Full) then Chip else requested in
+  let rows = match level with
+    | Layout.Point | Chip -> [||]
+    | Card | Full ->
+        let fields = Node.parameter_fields info.node in
+        let first_folder = match fields with f :: _ -> f.Parameter.folder | [] -> [] in
+        let visible = List.filter (shown layout info.id first_folder) fields in
+        let parameters = if level = Layout.Card then List.map (fun f -> Field (f, true)) visible
+          else
+            let _, rows = List.fold_left (fun (folder, rows) (f : Parameter.field_view) ->
+              let rows = if folder = Some f.folder || f.folder = [] then rows
+                else Folder f.folder :: rows in
+              Some f.folder, Field (f, shown layout info.id first_folder f) :: rows) (None, []) fields in
+            List.rev rows in
+        let hidden = List.length fields - List.length visible in
+        let more = if level = Layout.Full then [More (-1)]
+          else if hidden > 0 then [More hidden] else [] in
+        Array.of_list (List.init (max 0 (Array.length info.inputs - 1))
+          (fun i -> Slot (i + 1)) @ parameters @ more) in
+  level, rows, (if level = Layout.Point || level = Chip then 24
+    else 30 + (24 * Array.length rows))
+
+let automatic_layout document layout zoom bloom =
   let infos = Edit_graph.inspect document in
   let count = List.length infos in
   let by_id = Hashtbl.create count and depths = Hashtbl.create count in
@@ -441,18 +454,19 @@ let automatic_layout document =
   List.iter (fun info ->
     let depth = Hashtbl.find depths info.Edit_graph.id in
     rows.(depth) <- info :: rows.(depth)) infos;
-  Array.iteri (fun depth row -> rows.(depth) <- List.rev row) rows;
+  Array.iteri (fun depth row -> rows.(depth) <-
+    List.sort (fun a b -> Int.compare a.Edit_graph.id b.Edit_graph.id) row) rows;
   let boxes = ref [] in
   Array.iteri (fun depth row ->
-    let count = List.length row in
-    let row_width = count * node_width + max 0 (count - 1) * horizontal_gap in
-    List.iteri (fun column info ->
-      let tile_id, detail = tile_text info in
-      boxes := { info; tile_id; detail; depth;
-        gx = float_of_int (margin - (row_width / 2)
-          + (column * (node_width + horizontal_gap)));
-        gy = float_of_int (margin + (depth * (node_height + vertical_gap)));
-        width = node_width; height = node_height } :: !boxes) row) rows;
+    let y = ref 0. in
+    List.iter (fun info ->
+      let tile_id = tile_text info in
+      let level, rows, height = shape layout zoom bloom info in
+      boxes := { info; tile_id; depth;
+        gx = Layout.snap (float_of_int (depth * (node_width + horizontal_gap)));
+        gy = Layout.snap !y;
+        width = node_width; height; level; rows } :: !boxes;
+      y := Layout.snap !y +. float (height + vertical_gap)) row) rows;
   Array.of_list (List.rev !boxes)
 
 let preserve_positions overrides previous boxes =
@@ -471,7 +485,6 @@ let build_edges boxes =
     Hashtbl.replace by_id box.info.Edit_graph.id index) boxes;
   let reversed = ref [] in
   Array.iteri (fun consumer_index box ->
-    let input_count = Array.length box.info.Edit_graph.inputs in
     Array.iteri (fun input_index -> function
       | None -> ()
       | Some source ->
@@ -480,7 +493,7 @@ let build_edges boxes =
            | Some source_index ->
                reversed := { connection = { Edit_graph.source;
                    consumer = box.info.id; input_index };
-                 source_index; consumer_index; input_count } :: !reversed))
+                 source_index; consumer_index } :: !reversed))
       box.info.inputs) boxes;
   Array.of_list (List.rev !reversed)
 
@@ -507,14 +520,14 @@ let catalog_array catalog =
 
 let create_document ?(x = 0) ?(y = 0) ?(width = 640) ?(height = 360)
     ?(theme = Pxui.default_theme) ?selected ?(catalog = [])
-    ?(flaggable = fun _ -> false) document =
+    ?(flaggable = fun _ -> false) ?(enterable = fun _ -> false) document =
   if width <= 0 || height <= 0 then invalid_arg
       "Pxui_graph.create_document: width and height must be positive";
   let selected = match selected with
     | Some id when Edit_graph.find document ~node_id:id <> None -> Id_set.singleton id
     | _ -> Id_set.empty in
   let primary = if Id_set.is_empty selected then None else Some (Id_set.choose selected) in
-  let boxes = automatic_layout document in
+  let boxes = automatic_layout document Layout.empty 1. None in
   let edges = build_edges boxes in
   let slots = build_slots boxes in
   let viewed = match Edit_graph.root document with
@@ -523,14 +536,15 @@ let create_document ?(x = 0) ?(y = 0) ?(width = 640) ?(height = 360)
   { source_graph = None; document; boxes; edges; slots;
     positions = Id_map.empty; moved_nodes = Id_set.empty;
     moved_cells = Cell_map.empty;
-    spatial = build_spatial_index boxes edges; selected; primary;
-    selected_edge = None; viewed; flagged = None; flaggable; x; y; width; height;
-    pan_x = float_of_int (width / 2); pan_y = 18.; zoom = 1.; drag = None;
+    layout = Layout.empty;
+    spatial = build_spatial_index boxes edges Layout.empty; selected; primary;
+    selected_edge = None; viewed; flagged = None; flaggable; enterable; x; y; width; height;
+    pan_x = 38.; pan_y = 38.; zoom = 1.; drag = None; bloom = None; before_points = Id_map.empty;
     menu = None; context = None; clipboard = None; catalog = catalog_array catalog;
     visible = true; theme }
 
-let create ?x ?y ?width ?height ?theme ?selected ?catalog ?flaggable graph =
-  let value = create_document ?x ?y ?width ?height ?theme ?selected ?catalog ?flaggable
+let create ?x ?y ?width ?height ?theme ?selected ?catalog ?flaggable ?enterable graph =
+  let value = create_document ?x ?y ?width ?height ?theme ?selected ?catalog ?flaggable ?enterable
       (Edit_graph.of_graph graph) in
   { value with source_graph = Some graph }
 
@@ -540,6 +554,11 @@ let connection_exists document connection =
       && connection.input_index < Array.length inputs ->
       inputs.(connection.input_index) = Some connection.source
   | Some _ | None -> false
+
+let layout_port_exists document (node, path) =
+  match Edit_graph.inputs document ~node_id:node, Layout.slot_index path with
+  | Some inputs, Some index -> index < Array.length inputs && inputs.(index) <> None
+  | _ -> false
 
 (* A parameter-only edit keeps every id and input slot, so positions, edges,
    the spatial index, selection, and paint cache all stay valid. *)
@@ -557,11 +576,25 @@ let with_document document value =
     let boxes = Array.copy value.boxes in
     List.iter (fun (info : Edit_graph.node_info) ->
       let index = Hashtbl.find value.slots info.id in
-      let tile_id, detail = tile_text info in
-      boxes.(index) <- { (boxes.(index)) with info; tile_id; detail }) infos;
-    { value with source_graph = None; document; boxes }
+      let tile_id = tile_text info in
+      let level, rows, height = shape value.layout value.zoom value.bloom info in
+      boxes.(index) <- { (boxes.(index)) with info; tile_id; level; rows; height }) infos;
+    let changed_size = Array.exists (fun (box : box) ->
+      box.height <> value.boxes.(Hashtbl.find value.slots box.info.id).height) boxes in
+    if not changed_size then { value with source_graph = None; document; boxes } else
+    let boxes = preserve_positions value.positions value.boxes boxes in
+    { value with source_graph = None; document; boxes;
+      positions = Id_map.empty; moved_nodes = Id_set.empty; moved_cells = Cell_map.empty;
+      spatial = build_spatial_index boxes value.edges value.layout }
   end else
-    let boxes = automatic_layout document
+    let removed = Array.fold_left (fun ids (box : box) ->
+      if Edit_graph.find document ~node_id:box.info.id = None then box.info.id :: ids else ids)
+      [] value.boxes in
+    let layout = Layout.remove_nodes removed value.layout in
+    let layout = { layout with bends = Layout.Port_map.filter
+      (fun port _ -> layout_port_exists document port) layout.bends } in
+    let value = { value with layout } in
+    let boxes = automatic_layout document value.layout value.zoom value.bloom
         |> preserve_positions value.positions value.boxes in
     let edges = build_edges boxes in
     let slots = build_slots boxes in
@@ -577,7 +610,7 @@ let with_document document value =
     { value with source_graph = None; document; boxes; edges; slots;
       positions = Id_map.empty; moved_nodes = Id_set.empty;
       moved_cells = Cell_map.empty;
-      spatial = build_spatial_index boxes edges;
+      spatial = build_spatial_index boxes edges value.layout;
       selected; primary;
       selected_edge; viewed }
 
@@ -636,13 +669,61 @@ let place_nodes placements value =
     | None -> box
     | Some (gx, gy) -> { box with gx; gy }) value.boxes in
   List.iter (fun (node_id, x, y) -> match Hashtbl.find_opt value.slots node_id with
-    | Some index -> boxes.(index) <- { (boxes.(index)) with gx = x; gy = y }
+    | Some index -> boxes.(index) <- { (boxes.(index)) with
+        gx = Layout.snap x; gy = Layout.snap y }
     | None -> ()) placements;
   let edges = build_edges boxes in
   { value with boxes; edges;
     positions = Id_map.empty; moved_nodes = Id_set.empty;
     moved_cells = Cell_map.empty;
-    spatial = build_spatial_index boxes edges }
+    spatial = build_spatial_index boxes edges value.layout }
+
+let with_layout layout value =
+  let boxes = Array.map (fun (box : box) ->
+    let level, rows, height = shape layout value.zoom value.bloom box.info in
+    let gx, gy = Option.value (Id_map.find_opt box.info.id layout.Layout.at)
+      ~default:(stored_box_position value.positions box) in
+    { box with gx; gy; level; rows; height }) value.boxes in
+  { value with boxes; layout; positions = Id_map.empty; moved_nodes = Id_set.empty;
+    moved_cells = Cell_map.empty; spatial = build_spatial_index boxes value.edges layout }
+
+let reshape value =
+  let boxes = Array.map (fun (box : box) ->
+    let level, rows, height = shape value.layout value.zoom value.bloom box.info in
+    let gx, gy = stored_box_position value.positions box in
+    { box with gx; gy; level; rows; height }) value.boxes in
+  { value with boxes; positions = Id_map.empty; moved_nodes = Id_set.empty;
+    moved_cells = Cell_map.empty;
+    spatial = build_spatial_index boxes value.edges value.layout }
+
+let set_bends ~node ~slot points value =
+  let port = Layout.slot node slot in
+  if not (List.for_all (fun (x, y) -> Float.is_finite x && Float.is_finite y) points) then
+    invalid_arg "Pxui_graph.set_bends: nonfinite coordinates";
+  if points <> [] && not (layout_port_exists value.document port) then
+    invalid_arg "Pxui_graph.set_bends: missing destination slot";
+  let points = List.map (fun (x, y) -> Layout.snap x, Layout.snap y) points in
+  if points = Option.value ~default:[] (Layout.Port_map.find_opt port value.layout.bends)
+  then value else
+  let bends = if points = [] then Layout.Port_map.remove port value.layout.bends
+    else Layout.Port_map.add port points value.layout.bends in
+  reshape { value with layout = { value.layout with bends } }
+
+let set_detail ids ~cards ~points value =
+  let restore = points && List.for_all (fun id ->
+    Id_map.find_opt id value.layout.level = Some Layout.Point) ids in
+  let level, pinned, previous = List.fold_left (fun (levels, pins, previous) id ->
+    if not (Hashtbl.mem value.slots id) then levels, pins, previous else
+    let current = Option.value ~default:Layout.Card (Id_map.find_opt id levels) in
+    let next = if cards then Layout.Card else if points then
+        if restore then Option.value ~default:Layout.Card (Id_map.find_opt id previous)
+        else Layout.Point
+      else match current with Point -> Chip | Chip -> Card | Card | Full -> Full in
+    let previous = if points && not restore && current <> Layout.Point
+      then Id_map.add id current previous else previous in
+    Id_map.add id next levels, Id_map.add id (not points) pins, previous)
+      (value.layout.level, value.layout.pinned, value.before_points) ids in
+  reshape { value with layout = { value.layout with level; pinned }; before_points = previous }
 
 let screen_x value gx = value.x + int_of_float (value.pan_x +. (gx *. value.zoom))
 let screen_y value gy = value.y + int_of_float (value.pan_y +. (gy *. value.zoom))
@@ -656,7 +737,7 @@ let box_graph_position (value : t) (box : box) =
   | Some (Move_nodes { offset_x; offset_y; _ })
       when Id_set.mem box.info.Edit_graph.id value.selected ->
       gx +. offset_x, gy +. offset_y
-  | Some (Move_nodes _ | Box_select _ | Connect_wire _) | None ->
+  | Some (Move_nodes _ | Box_select _ | Connect_wire _ | Bend_wire _ | Pan_canvas | Knife) | None ->
       gx, gy
 
 let box_bounds (value : t) (box : box) =
@@ -665,12 +746,11 @@ let box_bounds (value : t) (box : box) =
   screen_size value box.width, screen_size value box.height
 
 let view_button_bounds (value : t) (box : box) =
-  let x, y, width, height = box_bounds value box in
-  let button_width = max 30 (screen_size value 44)
-  and button_height = max 15 (screen_size value 19) in
-  x + width - button_width - max 5 (screen_size value 7),
-  y + height - button_height - max 5 (screen_size value 7),
-  button_width, button_height
+  let x, y, width, _ = box_bounds value box in
+  let button_width = screen_size value 26
+  and button_height = screen_size value 12 in
+  x + width - button_width - screen_size value 8,
+  y + screen_size value 6, button_width, button_height
 
 (* Tiles the host marks [flaggable] carry a flag button left of VIEW. *)
 let is_flaggable (value : t) (box : box) = value.flaggable box.info
@@ -729,7 +809,7 @@ let iter_edge_bvh spatial query_min_x query_min_y query_max_x query_max_y visit 
           && Array.unsafe_get bvh.min_y node <= query_max_y
           && query_min_y <= Array.unsafe_get bvh.max_y node then
         let edge_id = Array.unsafe_get bvh.edge_id node in
-        if edge_id >= 0 then visit edge_id (Array.unsafe_get bvh.segment node)
+        if edge_id >= 0 then visit edge_id
         else begin
           Array.unsafe_set spatial.edge_stack !stack_length
             (Array.unsafe_get bvh.left node);
@@ -758,51 +838,39 @@ let next_spatial_generation spatial =
   end else spatial.mark_generation <- spatial.mark_generation + 1;
   spatial.mark_generation
 
-let port_x (value : t) (box : box) input_index input_count =
-  let x, _, width, _ = box_bounds value box in
-  x + ((width * (input_index + 1)) / (input_count + 1))
+let input_port (value : t) (box : box) index =
+  let gx, gy = graph_input box (box_graph_position value box) index in
+  screen_x value gx, screen_y value gy
+
+let output_port (value : t) (box : box) =
+  let gx, gy = graph_output box (box_graph_position value box) in
+  screen_x value gx, screen_y value gy
 
 let hit_input value point =
-  if value.zoom < 0.4 then None else
-  let radius = max 8 (screen_size value 9) and found = ref None in
-  let candidates = spatial_candidates value point and cursor = ref 0 in
-  while !cursor < Array.length candidates && !found = None do
-    let index = Array.unsafe_get candidates !cursor in
-    if not (Id_set.mem index value.moved_nodes) then begin
-      let box = Array.unsafe_get value.boxes index in
-      let _, y, _, _ = box_bounds value box in
-      let count = Array.length box.info.Edit_graph.inputs in
-      for input_index = 0 to count - 1 do
-        let px = port_x value box input_index count in
-        let dx = fst point - px and dy = snd point - y in
-        if !found = None && (dx * dx) + (dy * dy) <= radius * radius then
-          found := Some (index, input_index)
-      done
-    end;
-    incr cursor
-  done;
-  Option.iter (Id_set.iter (fun index ->
+  let radius = max 6 (screen_size value 6) and found = ref None in
+  let visit index =
     let box = Array.unsafe_get value.boxes index in
-    let _, y, _, _ = box_bounds value box in
-    let count = Array.length box.info.Edit_graph.inputs in
-    for input_index = 0 to count - 1 do
-      let px = port_x value box input_index count in
-      let dx = fst point - px and dy = snd point - y in
+    for input_index = 0 to Array.length box.info.Edit_graph.inputs - 1 do
+      let px, py = input_port value box input_index in
+      let dx = fst point - px and dy = snd point - py in
       if (dx * dx) + (dy * dy) <= radius * radius
-          && Option.fold ~none:true
-            ~some:(fun (current, _) -> index < current) !found
+          && Option.fold ~none:true ~some:(fun (current, _) -> index < current) !found
       then found := Some (index, input_index)
-    done)) (moved_spatial_candidates value point);
+    done in
+  Array.iter (fun index ->
+    if not (Id_set.mem index value.moved_nodes) then visit index)
+    (spatial_candidates value point);
+  Option.iter (Id_set.iter visit) (moved_spatial_candidates value point);
   !found
 
 let edge_points value edge =
   let source = value.boxes.(edge.source_index)
   and consumer = value.boxes.(edge.consumer_index) in
-  let sx, sy, sw, sh = box_bounds value source in
-  let _, cy, _, _ = box_bounds value consumer in
-  let from_x = sx + (sw / 2) and from_y = sy + sh
-  and to_x = port_x value consumer edge.connection.input_index edge.input_count in
-  from_x, from_y, to_x, cy
+  let sx, sy = box_graph_position value source
+  and cx, cy = box_graph_position value consumer in
+  polyline ~bottom:(consumer.level = Layout.Chip && edge.connection.input_index > 0)
+    value.layout edge.connection (graph_output source (sx, sy))
+    (graph_input consumer (cx, cy) edge.connection.input_index)
 
 let segment_distance_squared px py ax ay bx by =
   let dx = bx -. ax and dy = by -. ay in
@@ -813,22 +881,44 @@ let segment_distance_squared px py ax ay bx by =
   let ex = px -. x and ey = py -. y in
   (ex *. ex) +. (ey *. ey)
 
+let segments_cross (ax, ay) (bx, by) (cx, cy) (dx, dy) =
+  let side ax ay bx by px py = (bx -. ax) *. (py -. ay) -. (by -. ay) *. (px -. ax) in
+  max (min ax bx) (min cx dx) <= min (max ax bx) (max cx dx)
+  && max (min ay by) (min cy dy) <= min (max ay by) (max cy dy)
+  && side ax ay bx by cx cy *. side ax ay bx by dx dy <= 0.
+  && side cx cy dx dy ax ay *. side cx cy dx dy bx by <= 0.
+
+let crossed_wires value (x0, y0) (x1, y1) =
+  let a = graph_x value x0, graph_y value y0
+  and b = graph_x value x1, graph_y value y1 in
+  let generation = next_spatial_generation value.spatial and crossed = ref [] in
+  iter_edge_bvh value.spatial (min (fst a) (fst b)) (min (snd a) (snd b))
+    (max (fst a) (fst b)) (max (snd a) (snd b)) (fun edge ->
+      let points = value.spatial.edge_points.(edge) in
+      let rec crosses i = i < Array.length points - 1
+        && (segments_cross a b points.(i) points.(i + 1) || crosses (i + 1)) in
+      if value.spatial.edge_marks.(edge) <> generation && crosses 0 then begin
+        value.spatial.edge_marks.(edge) <- generation;
+        crossed := value.edges.(edge).connection :: !crossed
+      end);
+  List.sort (fun (a : Edit_graph.connection) b ->
+    compare (a.consumer, a.input_index) (b.consumer, b.input_index)) !crossed
+
 let hit_edge value (px, py) =
   let graph_px = graph_x value px and graph_py = graph_y value py in
-  let threshold = 9. /. value.zoom
+  let threshold = 6. /. value.zoom
   and best = ref None and best_distance = ref Float.infinity in
-  let visit index _segment =
-    let x0, y0, x3, y3 =
-      Array.unsafe_get value.spatial.edge_x0 index,
-      Array.unsafe_get value.spatial.edge_y0 index,
-      Array.unsafe_get value.spatial.edge_x3 index,
-      Array.unsafe_get value.spatial.edge_y3 index in
-    let distance = wire_distance_squared graph_px graph_py x0 y0 x3 y3
-        segment_distance_squared in
+  let visit index =
+    let points = Array.unsafe_get value.spatial.edge_points index in
+    for segment = 0 to Array.length points - 2 do
+    let ax, ay = Array.unsafe_get points segment
+    and bx, by = Array.unsafe_get points (segment + 1) in
+    let distance = segment_distance_squared graph_px graph_py ax ay bx by in
     if distance < !best_distance then begin
       best_distance := distance;
       best := Some index
-    end in
+    end
+    done in
   iter_spatial_edge_candidates value (px, py) visit;
   if !best_distance <= threshold *. threshold then !best else None
 
@@ -868,7 +958,8 @@ let commit_node_move value indices offset_x offset_y =
               if Id_set.is_empty members then Cell_map.remove key cells
               else Cell_map.add key members cells)
       else moved_cells in
-    let next_x = gx +. offset_x and next_y = gy +. offset_y in
+    let next_x = Layout.snap (gx +. offset_x)
+    and next_y = Layout.snap (gy +. offset_y) in
     let moved_cells = fold_box_cells box next_x next_y moved_cells
         (fun cells key ->
           let members = Option.value (Cell_map.find_opt key cells)
@@ -877,12 +968,11 @@ let commit_node_move value indices offset_x offset_y =
     Id_map.add box.info.Edit_graph.id (next_x, next_y) positions,
     Id_set.add index moved_nodes, moved_cells)
       (value.positions, value.moved_nodes, value.moved_cells) indices in
-  (* ponytail: full edge rebuild costs ~11 ms/14 MB for 20k wires on M1;
+  (* ponytail: full edge rebuild costs ~13 ms/22 MB for 20k wires on M1;
      refit affected BVH leaves if release latency exceeds the frame budget. *)
-  let edge_bvh, edge_x0, edge_y0, edge_x3, edge_y3 =
-    build_edge_index value.boxes value.edges positions in
-  let spatial = { value.spatial with edge_bvh; edge_x0; edge_y0; edge_x3;
-    edge_y3; marks = Array.make (Array.length value.boxes) 0;
+  let edge_bvh, edge_points =
+    build_edge_index value.boxes value.edges positions value.layout in
+  let spatial = { value.spatial with edge_bvh; edge_points; marks = Array.make (Array.length value.boxes) 0;
     edge_marks = Array.make (Array.length value.edges) 0;
     mark_generation = 0; visible_length = 0; visible_edge_length = 0;
     visible = Array.make (Array.length value.spatial.visible) 0;
@@ -893,15 +983,17 @@ let commit_node_move value indices offset_x offset_y =
 
 let zoom_at value (mouse_x, mouse_y) delta =
   let old_zoom = value.zoom in
-  let zoom = clamp 0.2 3.5
+  let zoom = clamp 0.25 2.0
       (old_zoom *. Float.pow 1.12 delta) in
   if zoom = old_zoom then value else
     let local_x = mouse_x -. float value.x -. value.pan_x
     and local_y = mouse_y -. float value.y -. value.pan_y in
     let ratio = zoom /. old_zoom in
-    { value with zoom;
+    let next = { value with zoom;
       pan_x = mouse_x -. float value.x -. (local_x *. ratio);
-      pan_y = mouse_y -. float value.y -. (local_y *. ratio) }
+      pan_y = mouse_y -. float value.y -. (local_y *. ratio) } in
+    let cap z = if z < 0.34 then 0 else if z < 0.50 then 1 else 2 in
+    if cap zoom = cap old_zoom then next else reshape next
 
 let frame_boxes value boxes =
   if Array.length boxes = 0 then value else
@@ -917,11 +1009,11 @@ let frame_boxes value boxes =
   let padding = 38. in
   let available_width = max 1. (float_of_int value.width -. (2. *. padding))
   and available_height = max 1. (float_of_int value.height -. (2. *. padding)) in
-  let zoom = clamp 0.2 2.5
+  let zoom = clamp 0.25 2.0
       (min (available_width /. graph_width) (available_height /. graph_height)) in
   let center_x = (!min_x +. !max_x) *. 0.5
   and center_y = (!min_y +. !max_y) *. 0.5 in
-  { value with zoom;
+  reshape { value with zoom;
     pan_x = (float_of_int value.width *. 0.5) -. (center_x *. zoom);
     pan_y = (float_of_int value.height *. 0.5) -. (center_y *. zoom);
     drag = None }
@@ -1033,6 +1125,17 @@ let node_position (value : t) node_id = Option.map (fun index ->
   box_graph_position value (Array.unsafe_get value.boxes index))
     (Hashtbl.find_opt value.slots node_id)
 
+let layout value =
+  { value.layout with at = Id_map.of_list (List.map (fun (id, x, y) -> id, (x, y))
+      (node_positions value)) }
+
+let edit_layout ~nodes ~ports value previous =
+  let at = List.fold_left (fun at id -> match node_position value id with
+    | Some (x, y) -> Id_map.add id (Layout.snap x, Layout.snap y) at
+    | None -> Id_map.remove id at) value.layout.at nodes in
+  let source = { value.layout with at } in
+  Layout.edit ~nodes ~ports ~source previous
+
 let copy_selection (value : t) =
   let ids = selected_nodes value in
   match Edit_graph.copy_nodes ids value.document with
@@ -1113,19 +1216,14 @@ let apply_marquee (value : t) (drag : box_drag) =
     else Some (Id_set.max_elt selected) in
   { value with selected; primary; selected_edge = None; drag = None }
 
-let darken color amount = Color.rgba
-    (max 0 (color.Color.r - amount))
-    (max 0 (color.g - amount))
-    (max 0 (color.b - amount)) color.a
-
-(* Screen-space handle of a wire, matching [wire_handle] in graph units. *)
-let screen_handle (value : t) from_y to_y =
-  Float.max (wire_reach *. value.zoom) (float_of_int (abs (to_y - from_y)) /. 2.)
-
-let wire_bounds (value : t) from_x from_y to_x to_y =
-  let handle = int_of_float (Float.ceil (screen_handle value from_y to_y)) in
-  let top = min from_y (to_y - handle) and bottom = max to_y (from_y + handle) in
-  min from_x to_x, top, abs (to_x - from_x) + 1, bottom - top + 1
+let wire_bounds (value : t) points =
+  let min_x = ref Float.infinity and min_y = ref Float.infinity
+  and max_x = ref Float.neg_infinity and max_y = ref Float.neg_infinity in
+  Array.iter (fun (x, y) ->
+    min_x := min !min_x x; min_y := min !min_y y;
+    max_x := max !max_x x; max_y := max !max_y y) points;
+  let x = screen_x value !min_x and y = screen_y value !min_y in
+  x, y, screen_x value !max_x - x + 1, screen_y value !max_y - y + 1
 
 let ensure_visible_capacity (spatial : spatial_index) needed =
   if needed > Array.length spatial.visible then begin
@@ -1184,7 +1282,7 @@ let visible_node_indices (value : t) viewport =
   done;
   (match value.drag with
    | Some (Move_nodes { indices; _ }) -> Array.iter visit_node indices
-   | Some (Box_select _ | Connect_wire _) | None -> ());
+   | Some (Box_select _ | Connect_wire _ | Bend_wire _ | Pan_canvas | Knife) | None -> ());
   sort_visible_prefix spatial.visible spatial.visible_length;
   spatial.visible_edge_length <- 0;
   let graph_left = graph_x value x
@@ -1194,9 +1292,8 @@ let visible_node_indices (value : t) viewport =
   let visit_edge candidate =
     if Array.unsafe_get spatial.edge_marks candidate <> generation then begin
       Array.unsafe_set spatial.edge_marks candidate generation;
-      let from_x, from_y, to_x, to_y = edge_points value
-          value.edges.(candidate) in
-      if intersects viewport (wire_bounds value from_x from_y to_x to_y) then begin
+      let points = edge_points value value.edges.(candidate) in
+      if intersects viewport (wire_bounds value points) then begin
         ensure_visible_edge_capacity spatial
           (spatial.visible_edge_length + 1);
         Array.unsafe_set spatial.visible_edges spatial.visible_edge_length candidate;
@@ -1205,10 +1302,10 @@ let visible_node_indices (value : t) viewport =
     end in
   iter_edge_bvh spatial (min graph_left graph_right) (min graph_top graph_bottom)
     (max graph_left graph_right) (max graph_top graph_bottom)
-    (fun candidate _segment -> visit_edge candidate);
+    visit_edge;
   (match value.drag with
    | Some (Move_nodes { edge_indices; _ }) -> Array.iter visit_edge edge_indices
-   | Some (Box_select _ | Connect_wire _) | None -> ());
+   | Some (Box_select _ | Connect_wire _ | Bend_wire _ | Pan_canvas | Knife) | None -> ());
   sort_visible_prefix spatial.visible_edges spatial.visible_edge_length;
   spatial.visible, spatial.visible_length,
   spatial.visible_edges, spatial.visible_edge_length
@@ -1244,12 +1341,12 @@ let circle paint (x, y) radius ~fill ~stroke =
   Ui.Paint.circle paint ~at:(float_of_int x, float_of_int y)
     ~radius:(float_of_int radius) ~fill ~stroke ()
 
-let paint_wire (value : t) paint (from_x, from_y) (to_x, to_y) color =
-  let handle = screen_handle value from_y to_y in
-  let x0 = float_of_int from_x and y0 = float_of_int from_y
-  and x3 = float_of_int to_x and y3 = float_of_int to_y in
-  Ui.Paint.wire paint (x0, y0) (x0, y0 +. handle) (x3, y3 -. handle) (x3, y3)
-    ~width:1.5 color
+let paint_wire (value : t) paint points ~width color =
+  for index = 0 to Array.length points - 2 do
+    let screen (x, y) = float (screen_x value x), float (screen_y value y) in
+    Ui.Paint.line paint ~from_:(screen points.(index)) ~to_:(screen points.(index + 1))
+      ~width color
+  done
 
 let canvas_fill (value : t) =
   if value.theme = Pxui.default_theme then Color.hex_exn "#eef2ee"
@@ -1267,81 +1364,202 @@ let paint_background (value : t) paint visible_edges visible_wires =
     ~spacing:(float_of_int spacing) (Color.with_alpha theme.foreground 145);
   for visible_index = 0 to visible_wires - 1 do
     let edge = value.edges.(Array.unsafe_get visible_edges visible_index) in
-    let from_x, from_y, to_x, to_y = edge_points value edge in
-    paint_wire value paint (from_x, from_y) (to_x, to_y)
-      (if value.selected_edge = Some edge.connection then theme.foreground
-       else darken theme.accent 18)
+    let points = edge_points value edge in
+    if value.selected_edge = Some edge.connection then
+      paint_wire value paint points ~width:8. (Color.with_alpha theme.accent 71);
+    paint_wire value paint points ~width:2.4 theme.accent
   done
 
-(* The tile of the retained editor, pixel for pixel. *)
+let field_text : Parameter.value -> string = function
+  | Bool_value b -> string_of_bool b | Int_value n -> string_of_int n
+  | Float_value f -> Printf.sprintf "%.5g" f | Text_value s | Choice_value s -> s
+
+let parse_field (field : Parameter.field_view) text = match field.kind with
+  | Toggle_view -> Option.map (fun x -> Parameter.Bool_value x) (bool_of_string_opt text)
+  | Integer_view _ -> (match int_of_string_opt text with
+      | Some n -> Some (Parameter.Int_value n)
+      | None -> match float_of_string_opt text with
+        | Some n when Float.is_finite n && n >= float min_int && n < float max_int ->
+            Some (Parameter.Int_value (int_of_float (Float.round n)))
+        | _ -> None)
+  | Floating_view _ -> (match float_of_string_opt text with
+      | Some x when Float.is_finite x -> Some (Parameter.Float_value x) | _ -> None)
+  | Text_view -> Some (Parameter.Text_value text)
+  | Choice_view choices ->
+      if Array.mem text choices then Some (Parameter.Choice_value text) else None
+
+let scrub_field (field : Parameter.field_view) =
+  let numeric low high text dx shift =
+    let divisor = if shift then 1500. else 150. in
+    let current = Option.value ~default:0. (float_of_string_opt text) in
+    let next = current +. (dx *. (high -. low) /. divisor) in
+    if Float.is_finite next then Printf.sprintf "%.17g" next else text in
+  match field.kind with
+  | Floating_view r -> Some (numeric r.soft_min r.soft_max)
+  | Integer_view r -> Some (numeric (float r.soft_min) (float r.soft_max))
+  | _ -> None
+
+let build_row_fields value ui (box : box) =
+  Array.fold_left (fun (index, changes, detail, pin) row ->
+    let y = 24 + (24 * index) in
+    let _, gy = box_graph_position value box in
+    let screen_y0 = screen_y value (gy +. float y) in
+    if screen_y0 + screen_size value 24 < value.y || screen_y0 > value.y + value.height then
+      index + 1, changes, detail, pin else
+    let at x y = float (screen_size value x), float (screen_size value y) in
+    let width = screen_size value 76 and height = screen_size value 16 in
+    let emit f v = if v = f.Parameter.current then changes else
+      Set_parameter_requested { node = box.info.id; path = f.name; value = v } :: changes in
+    match row with
+    | Field (f, _) ->
+        let key = "field-" ^ f.name in
+        (match f.current, f.kind with
+         | Bool_value _, _ | _, Choice_view _ ->
+             let field_x, field_w = match f.kind with
+               | Choice_view _ -> 90, 98 | _ -> 112, 76 in
+             let field = Ui.box ui ~flags:Ui.(clickable + tab_stop)
+               ~at:(at field_x (y + 4)) ~w:(Ui.Px (float (screen_size value field_w)))
+               ~h:(Ui.Px (float height)) key in
+             let signal = Ui.signal ui field in
+             let v = if not signal.clicked then f.current else match f.current, f.kind with
+               | Bool_value b, _ -> Parameter.Bool_value (not b)
+               | Choice_value current, Choice_view choices when Array.length choices > 0 ->
+                   let i = Option.value ~default:0 (Array.find_index (( = ) current) choices) in
+                   let delta = if List.mem Input.Shift (Ui.press_keys ui field) then -1 else 1 in
+                   Choice_value choices.((i + delta + Array.length choices) mod Array.length choices)
+               | _ -> f.current in
+             Ui.draw ui field (fun paint (x, y, w, h) ->
+               Ui.Paint.rect paint ~x ~y ~w ~h ~fill:value.theme.track
+                 ~stroke:(Pxui.Theme.faint_border value.theme) ();
+               Ui.Paint.text paint ~at:(x +. 4., y +. 2.) ~size:(max 7 (screen_size value 11))
+                 ~color:value.theme.foreground (field_text v));
+             index + 1, emit f v, detail, pin
+         | _ ->
+             let current = match f.current with
+               | Float_value x -> Printf.sprintf "%.17g" x | _ -> field_text f.current in
+             let fraction = match f.kind, f.current with
+               | Floating_view r, Float_value x when r.soft_max > r.soft_min ->
+                   Some ((x -. r.soft_min) /. (r.soft_max -. r.soft_min))
+               | Integer_view r, Int_value x when r.soft_max > r.soft_min ->
+                   Some ((float x -. float r.soft_min) /. (float r.soft_max -. float r.soft_min))
+               | _ -> None in
+             let text, editing = Ui.value_field ui ~at:(at 112 (y + 4))
+               ~w:(float width) ~h:(float height) ~size:(max 7 (screen_size value 11))
+               ~display:(field_text f.current)
+               ?fraction ?scrub:(scrub_field f)
+               ~valid:(fun text -> parse_field f text <> None) key current in
+             let changes = Option.fold ~none:changes ~some:(emit f) (parse_field f text) in
+             index + 1, changes, detail, pin || editing)
+    | More count ->
+        let button = Ui.box ui ~flags:Ui.(clickable + tab_stop) ~at:(at 0 y)
+          ~w:(Ui.Px (float (screen_size value box.width)))
+          ~h:(Ui.Px (float (screen_size value 24))) "more" in
+        let detail = if (Ui.signal ui button).clicked
+          then Some (if count < 0 then Layout.Card else Layout.Full) else detail in
+        index + 1, changes, detail, pin
+    | Slot _ | Folder _ -> index + 1, changes, detail, pin)
+    (0, [], None, false) box.rows
+  |> fun (_, changes, detail, pin) -> changes, detail, pin
+
+let fitted_text paint size width value =
+  if Ui.Paint.text_width paint ~size value <= width then value else
+  let rec prefix at previous =
+    if at >= String.length value then String.sub value 0 previous ^ "…" else
+    let next = at + Uchar.utf_decode_length (String.get_utf_8_uchar value at) in
+    if Ui.Paint.text_width paint ~size (String.sub value 0 next ^ "…") > width
+    then String.sub value 0 previous ^ "…" else prefix next next in
+  prefix 0 0
+
 let paint_node (value : t) paint (box : box) =
   let theme = value.theme in
+  let gx, gy = box_graph_position value box in
   let x, y, width, height = box_bounds value box in
   let selected = Id_set.mem box.info.Edit_graph.id value.selected
   and viewed = value.viewed = box.info.Edit_graph.id in
-  let stroke = if viewed || selected then theme.accent else theme.foreground in
-  let fill_color = if selected then Color.blend theme.input theme.accent ~pct:0.13
-    else theme.input in
-  framed paint x y width height ~fill:fill_color ~stroke;
-  if value.zoom >= 0.4 then begin
-    let font_size = max 9 (min 14 (screen_size value 13))
-    and detail_size = max 8 (min 11 (screen_size value 10)) in
-    fill paint (x + 1) (y + 1) (max 1 (width - 2)) (max 1 (screen_size value 21))
-      theme.foreground;
-    text paint ~at:(x + 10, y + 5) ~size:font_size ~color:theme.input box.info.label;
-    text paint ~at:(x + 10, y + height - max 23 (screen_size value 25))
-      ~size:detail_size ~color:(darken theme.foreground 55)
-      box.detail;
-    if value.zoom >= 0.45 then begin
-      let radius = max 2 (screen_size value 4) in
-      circle paint (x + width / 2, y + height) radius ~fill:theme.accent
-        ~stroke:theme.panel;
-      Array.iteri (fun input_index connected ->
-        circle paint (port_x value box input_index (Array.length box.info.inputs), y)
-          radius ~stroke:theme.panel
-          ~fill:(if Option.is_some connected then theme.accent
-            else darken theme.foreground 85)) box.info.inputs
+  let accent = (Pxui.Theme.ports theme).geometry in
+  let stroke = if viewed || selected then accent else Pxui.Theme.border theme in
+  let label_size = max 7 (screen_size value 11) in
+  let label at color text_value = text paint ~at ~size:label_size ~color text_value in
+  let at dx dy = screen_x value (gx +. float dx), screen_y value (gy +. float dy) in
+  if box.level = Layout.Point then begin
+    if viewed then begin
+      let cx, cy = at 12 12 in
+      for dash = 0 to 11 do
+        let angle = float dash *. Float.pi /. 6. in
+        Ui.Paint.arc paint ~at:(float cx, float cy) ~radius:(float (screen_size value 15))
+          ~from_:angle ~to_:(angle +. Float.pi /. 12.) ~width:1. accent
+      done
     end;
-    let count = Array.length box.info.inputs in
-    if value.zoom >= 0.75 && count >= 2 then
-      for input_index = 0 to count - 1 do
-        text paint ~at:(port_x value box input_index count - 3, y + 4) ~size:8
-          ~color:theme.input (string_of_int input_index)
-      done;
-    if box.info.has_parameters then
-      text paint ~at:(x + width - 20, y + 8) ~size:9 ~color:theme.accent "P";
-    if value.zoom >= 0.45 then begin
+    if selected then circle paint (at 12 12) (screen_size value 11)
+      ~fill:(Color.with_alpha accent 0) ~stroke:accent;
+    circle paint (at 12 12) (screen_size value 7) ~fill:accent ~stroke:accent;
+    label (at 26 5) theme.foreground box.info.label
+  end else begin
+    Ui.Paint.rect paint ~x:(float x) ~y:(float y) ~w:(float width) ~h:(float height)
+      ~radius:(3. *. value.zoom) ~fill:theme.input ~stroke ();
+    let tx, ty = at 7 7 in
+    fill paint tx ty (screen_size value 10) (screen_size value 10) accent;
+    let title = fitted_text paint label_size (float (screen_size value 130)) box.info.label in
+    label (at 24 5) theme.foreground title;
+    Array.iteri (fun index row ->
+      let y = 24 + (index * 24) in
+      let top = screen_y value (gy +. float y) in
+      if top + screen_size value 24 >= value.y && top <= value.y + value.height then
+      match row with
+      | Slot slot -> label (at 14 (y + 5)) theme.foreground ("in" ^ string_of_int slot)
+      | Field (f, shown) ->
+          let color = if shown then theme.foreground
+            else Pxui.Theme.muted theme in
+          let width = match f.kind with Choice_view _ -> 68 | _ -> 90 in
+          label (at 14 (y + 5)) color
+            (fitted_text paint label_size (float (screen_size value width)) f.label)
+      | Folder folder ->
+          let name = fitted_text paint label_size (float (screen_size value 150))
+            (String.uppercase_ascii (String.concat " / " folder)) in
+          let fx, fy = at 10 (y + 5) in
+          label (fx, fy) accent name;
+          let start = float fx +. Ui.Paint.text_width paint ~size:label_size name +. 8. in
+          let finish, middle = at 188 (y + 12) in
+          if start < float finish then Ui.Paint.line paint ~from_:(start, float middle)
+            ~to_:(float finish, float middle) ~width:1. (Pxui.Theme.faint_border theme)
+      | More count -> label (at 14 (y + 5)) accent
+          (if count < 0 then "− show fewer" else Printf.sprintf "+ %d more" count)) box.rows;
+    let socket connected (px, py) =
+      let r = screen_size value 4 in
+      if py + r >= value.y && py - r <= value.y + value.height then
+        framed paint (px - r) (py - r) (screen_size value 9) (screen_size value 9)
+          ~fill:(if connected then accent else theme.input) ~stroke:accent in
+    socket true (output_port value box);
+    Array.iteri (fun i input -> socket (Option.is_some input) (input_port value box i))
+      box.info.inputs;
+    if viewed then begin
       let bx, by, bw, bh = view_button_bounds value box in
-      framed paint bx by bw bh ~fill:(if viewed then theme.accent else theme.control)
-        ~stroke:theme.foreground;
-      text paint ~at:(bx + max 4 (screen_size value 7), by + 3)
-        ~size:(max 8 (min 10 (screen_size value 9)))
-        ~color:(if viewed then theme.input else theme.foreground) "VIEW";
-      if is_flaggable value box then begin
-        let active = value.flagged = Some box.info.Edit_graph.id in
-        let ax, ay, aw, ah = active_button_bounds value box in
-        framed paint ax ay aw ah ~fill:(if active then theme.accent else theme.control)
-          ~stroke:theme.foreground;
-        text paint ~at:(ax + max 4 (screen_size value 7), ay + 3)
-          ~size:(max 8 (min 10 (screen_size value 9)))
-          ~color:(if active then theme.input else theme.foreground) "ACTIVE"
-      end
+      fill paint bx by bw bh accent;
+      text paint ~at:(bx + 2, by + 1) ~size:(max 7 (screen_size value 8))
+        ~color:theme.input "VIEW"
+    end;
+    if is_flaggable value box then begin
+      let ax, ay, aw, ah = active_button_bounds value box in
+      framed paint ax ay aw ah ~fill:theme.control ~stroke:accent;
+      text paint ~at:(ax + 2, ay + 1) ~size:(max 7 (screen_size value 8))
+        ~color:theme.foreground (if value.flagged = Some box.info.id then "ACTIVE" else "SET")
     end
   end
 
 (* ----------------------------------------------------------- interaction *)
 
 let optimize_layout (value : t) =
-  let boxes = automatic_layout value.document in
+  let boxes = automatic_layout value.document value.layout value.zoom value.bloom in
   let edges = build_edges boxes in
   { value with boxes; edges;
     positions = Id_map.empty; moved_nodes = Id_set.empty;
     moved_cells = Cell_map.empty;
-    spatial = build_spatial_index boxes edges } |> frame_all
+    spatial = build_spatial_index boxes edges value.layout } |> frame_all
 
 let open_menu_at point value = open_menu value point
 
 type command = Copy | Cut | Paste | Duplicate | Delete | Frame_all
+  | Open_detail | Point_detail | Open_all | Point_all
 
 let bindings =
   let open Editor_core.Keymap in
@@ -1353,7 +1571,11 @@ let bindings =
   @ letter 'v' Paste "paste" @ letter 'd' Duplicate "duplicate"
   @ [command "delete" "delete" Delete Input.Delete [];
      command "delete" "delete" Delete Input.Backspace [];
-     command "frame-all" "frame all" Frame_all Input.Home []]
+     command "frame-all" "frame all" Frame_all Input.Home [];
+     command "open" "Open detail" Open_detail (Input.KeyChar 'o') [];
+     command "point" "Toggle points" Point_detail (Input.KeyChar 'p') [];
+     command "open-all" "Open all cards" Open_all (Input.KeyChar 'o') [Input.Shift];
+     command "point-all" "Toggle all points" Point_all (Input.KeyChar 'p') [Input.Shift]]
 
 let run_command (value : t) = function
   | _ when value.menu <> None -> value, []
@@ -1363,6 +1585,14 @@ let run_command (value : t) = function
   | Duplicate -> duplicate_selection value
   | Delete -> delete_selection value
   | Frame_all -> frame_all value, [View_changed]
+  | (Open_detail | Point_detail | Open_all | Point_all) as command ->
+      let ids = if command = Open_all || command = Point_all
+        then Array.to_list (Array.map (fun (box : box) -> box.info.id) value.boxes)
+        else Id_set.elements value.selected in
+      if ids = [] then value, [] else
+      set_detail ids ~cards:(command = Open_all)
+        ~points:(command = Point_detail || command = Point_all) value,
+      [Level_changed ids]
 
 let ints (x, y) = int_of_float x, int_of_float y
 
@@ -1528,28 +1758,41 @@ let update (value : t) ui (frame : Frame.t) =
           ~h:(Ui.Px (float_of_int height)) ~at:(local (x, y))
           box.tile_id in
       let view, output = Ui.within ui tile (fun () ->
-        let view = if value.zoom < 0.45 then None else
+        let view = if box.level = Layout.Point then None else
           let bx, by, bw, bh = view_button_bounds value box in
           Some (Ui.box ui ~flags:Ui.(clickable + tab_stop) ~w:(Ui.Px (float_of_int bw))
             ~h:(Ui.Px (float_of_int bh)) ~at:(float_of_int (bx - x), float_of_int (by - y))
             "view") in
-        let output = if value.zoom < 0.4 then None else
+        let output =
+          let ox, oy = output_port value box in
           let radius = max 7 (screen_size value 8) in
           Some (Ui.box ui ~flags:Ui.clickable ~w:(Ui.Px (float_of_int (2 * radius)))
             ~h:(Ui.Px (float_of_int (2 * radius)))
-            ~at:(float_of_int (width / 2 - radius), float_of_int (height - radius))
+            ~at:(float_of_int (ox - x - radius), float_of_int (oy - y - radius))
             "output") in
-        let active = if value.zoom < 0.45 || not (is_flaggable value box) then None else
+        let active = if box.level = Layout.Point || not (is_flaggable value box) then None else
           let bx, by, bw, bh = active_button_bounds value box in
           Some (Ui.box ui ~flags:Ui.(clickable + tab_stop) ~w:(Ui.Px (float_of_int bw))
             ~h:(Ui.Px (float_of_int bh)) ~at:(float_of_int (bx - x), float_of_int (by - y))
             "active") in
-        (view, active), output) in
+        (view, active, build_row_fields value ui box), output) in
       (* One signal per tile per frame; every pass below reads it. *)
       index, tile, Ui.signal ui tile, view, output) in
     let overlay = Ui.box ui ~w:(Ui.Px (float_of_int value.width))
         ~h:(Ui.Px (float_of_int value.height)) ~at:(0., 0.) "overlay" in
     layer, tiles, overlay) in
+  let bend_handles = Ui.within ui canvas (fun () ->
+    match value.selected_edge with
+    | None -> []
+    | Some c ->
+        let points = Option.value ~default:[]
+          (Layout.Port_map.find_opt (Layout.slot c.consumer c.input_index) value.layout.bends) in
+        List.mapi (fun index (gx, gy) ->
+          let x = screen_x value gx and y = screen_y value gy in
+          let handle = Ui.box ui ~flags:Ui.clickable ~w:(Ui.Px 7.) ~h:(Ui.Px 7.)
+            ~at:(local (x - 3, y - 3)) (Printf.sprintf "bend-%d-%d-%d"
+              c.consumer c.input_index index) in
+          handle, Ui.signal ui handle, c, index) points) in
   (* A right click (under the drag threshold) on a tile, wire, or blank canvas
      opens its context menu; a longer right drag only pans. *)
   let clicked_context =
@@ -1600,7 +1843,16 @@ let update (value : t) ui (frame : Frame.t) =
     Array.fold_left (fun (value, changes) (index, tile, (tile_signal : Ui.signal), view, output) ->
       let id = value.boxes.(index).info.Edit_graph.id in
       let left signal = signal.Ui.button = Some Input.LeftButton in
-      let view, active = view in
+      let view, active, (row_changes, detail, pin) = view in
+      let changes = List.rev_append row_changes changes in
+      let value, changes = if detail <> None || (pin &&
+          not (Option.value ~default:false (Id_map.find_opt id value.layout.pinned))) then
+          let layout = { value.layout with
+            level = Option.fold ~none:value.layout.level
+              ~some:(fun level -> Id_map.add id level value.layout.level) detail;
+            pinned = Id_map.add id true value.layout.pinned } in
+          reshape { value with layout }, Level_changed [id] :: changes
+        else value, changes in
       let value, changes = match view with
         | Some view when (Ui.signal ui view).clicked ->
             { value with viewed = id }, Viewed id :: changes
@@ -1626,8 +1878,17 @@ let update (value : t) ui (frame : Frame.t) =
               value, changes
             end else value, changes
         | None -> value, changes in
-      let changes = if tile_signal.double_clicked && left tile_signal
-        then Open_requested id :: changes else changes in
+      let value, changes = if tile_signal.double_clicked && left tile_signal then
+          if value.enterable value.boxes.(index).info then value, Open_requested id :: changes
+          else
+            let opening = value.boxes.(index).level = Layout.Chip
+                || value.boxes.(index).level = Point in
+            let requested = if opening then Layout.Card else Layout.Chip in
+            let layout = { value.layout with
+              level = Id_map.add id requested value.layout.level;
+              pinned = Id_map.add id true value.layout.pinned } in
+            reshape { value with layout }, Level_changed [id] :: changes
+        else value, changes in
       if tile_signal.pressed && left tile_signal then begin
         let before = value.primary in
         let value = select_node value ~additive:(List.mem Input.Shift (Ui.press_keys ui tile)) index in
@@ -1664,9 +1925,50 @@ let update (value : t) ui (frame : Frame.t) =
                  | _ -> value, changes
                else if signal.held then value, changes
                else { value with drag = None }, changes)
-      | Some (Connect_wire _) | Some (Box_select _) | None -> value, changes in
-    if canvas_signal.pressed && canvas_signal.button = Some Input.LeftButton then
-      match hit_edge value (ints canvas_signal.press_point) with
+      | Some (Connect_wire _ | Box_select _ | Bend_wire _ | Pan_canvas | Knife) | None -> value, changes in
+    let value, changes = List.fold_left (fun (value, changes) (handle, signal, c, index) ->
+      if signal.Ui.button <> Some Input.LeftButton then value, changes else
+      if (signal.pressed && List.mem Input.Alt (Ui.press_keys ui handle)) || signal.double_clicked then
+        let points = Option.value ~default:[] (Layout.Port_map.find_opt
+          (Layout.slot c.Edit_graph.consumer c.input_index) value.layout.bends) in
+        let points = List.filteri (fun i _ -> i <> index) points in
+        { (set_bends ~node:c.consumer ~slot:c.input_index points value) with drag = None },
+        Bend_changed { node = c.consumer; slot = c.input_index } :: changes
+      else if signal.pressed then
+        { value with drag = Some (Bend_wire { node = c.consumer; slot = c.input_index;
+            bend = index; on_canvas = false }) }, changes
+      else value, changes) (value, changes) bend_handles in
+    let value, changes = if canvas_signal.pressed && canvas_signal.button = Some Input.LeftButton then
+      let modifiers = Ui.press_keys ui canvas in
+      if List.mem Input.Ctrl modifiers || List.mem Input.Meta modifiers then
+        { value with drag = Some Knife }, changes
+      else match hit_edge value (ints canvas_signal.press_point) with
+      | Some edge_index when List.mem Input.Alt modifiers ->
+          let edge = value.edges.(edge_index) in
+          let c = edge.connection in
+          let px, py = canvas_signal.press_point in
+          let gx = graph_x value (int_of_float px) and gy = graph_y value (int_of_float py) in
+          let points = edge_points value edge in
+          let segment = ref 0 and distance = ref Float.infinity in
+          for i = 0 to Array.length points - 2 do
+            let ax, ay = points.(i) and bx, by = points.(i + 1) in
+            let d = segment_distance_squared gx gy ax ay bx by in
+            if d < !distance then (segment := i; distance := d)
+          done;
+          let bends = Option.value ~default:[] (Layout.Port_map.find_opt
+            (Layout.slot c.consumer c.input_index) value.layout.bends) in
+          let bend = max 0 (min (List.length bends) (!segment - 1)) in
+          let rec insert i = function
+            | rest when i = 0 -> (gx, gy) :: rest
+            | point :: rest -> point :: insert (i - 1) rest
+            | [] -> [gx, gy] in
+          let value = set_bends ~node:c.consumer ~slot:c.input_index (insert bend bends) value in
+          { value with selected_edge = Some c;
+              drag = Some (Bend_wire { node = c.consumer; slot = c.input_index;
+                bend; on_canvas = true }) },
+          Bend_changed { node = c.consumer; slot = c.input_index } :: changes
+      | None when List.mem Input.Alt modifiers ->
+          { value with drag = Some Pan_canvas }, changes
       | Some edge_index ->
           let connection = value.edges.(edge_index).connection in
           { value with selected_edge = Some connection; selected = Id_set.empty;
@@ -1703,9 +2005,46 @@ let update (value : t) ui (frame : Frame.t) =
             && Option.fold ~none:false ~some:(Ui.active ui) output) tiles) ->
           { value with drag = None }, changes
       | _ -> value, changes in
+    match value.drag with
+    | Some Pan_canvas ->
+        let dx, dy = canvas_signal.drag in
+        let value = pan value dx dy in
+        { value with drag = if canvas_signal.held then value.drag else None },
+        (if dx <> 0. || dy <> 0. then View_changed :: changes else changes)
+    | Some Knife when canvas_signal.released ->
+        let crossed = crossed_wires value (ints canvas_signal.press_point)
+          (ints canvas_signal.release_point) in
+        { value with drag = None },
+        (if crossed = [] then changes else Cut_wires_requested crossed :: changes)
+    | Some Knife when not canvas_signal.held -> { value with drag = None }, changes
+    | Some (Bend_wire { node; slot; bend; on_canvas }) ->
+        let signal = if on_canvas then Some canvas_signal else
+          List.find_map (fun (_, signal, c, index) ->
+            if c.Edit_graph.consumer = node && c.input_index = slot && index = bend
+            then Some signal else None) bend_handles in
+        (match signal with
+         | Some signal when signal.Ui.held || signal.released ->
+             let px, py = if signal.released then signal.release_point else signal.pointer in
+             let point = Layout.snap (graph_x value (int_of_float px)),
+               Layout.snap (graph_y value (int_of_float py)) in
+             let points = Option.value ~default:[]
+               (Layout.Port_map.find_opt (Layout.slot node slot) value.layout.bends) in
+             let changed = List.mapi (fun i p -> if i = bend then point else p) points in
+             let value, changes = if changed = points then value, changes else
+               set_bends ~node ~slot changed value, Bend_changed { node; slot } :: changes in
+             { value with drag = if signal.held then value.drag else None }, changes
+         | _ -> { value with drag = None }, changes)
+    | _ -> value, changes in
   let value = match clicked_context with
     | Some context -> { value with context = Some context; drag = None }
     | None -> value in
+  let bloom = match value.drag with
+    | Some (Connect_wire { source }) -> Array.find_map (fun (index, _, signal, _, _) ->
+        let box = value.boxes.(index) in
+        if signal.Ui.hovered && box.info.id <> source && Array.length box.info.inputs > 0
+        then Some box.info.id else None) tiles
+    | _ -> None in
+  let value = if bloom = value.bloom then value else reshape { value with bloom } in
   Ui.draw ui canvas (fun paint _ ->
     framed paint value.x value.y value.width value.height ~fill:(canvas_fill value)
       ~stroke:value.theme.foreground);
@@ -1726,6 +2065,12 @@ let update (value : t) ui (frame : Frame.t) =
       match Hashtbl.find_opt value.slots id with
       | Some index -> paint_node value paint value.boxes.(index)
       | None -> ())) tiles;
+  List.iter (fun (handle, _, c, index) ->
+    Ui.draw ui handle (fun paint (x, y, w, h) ->
+      let points = Option.value ~default:[]
+        (Layout.Port_map.find_opt (Layout.slot c.Edit_graph.consumer c.input_index) value.layout.bends) in
+      if index < List.length points then
+        Ui.Paint.rect paint ~x ~y ~w ~h ~fill:value.theme.accent ())) bend_handles;
   Ui.draw ui overlay (fun paint _ ->
     match value.drag with
     | Some (Box_select _) ->
@@ -1737,10 +2082,15 @@ let update (value : t) ui (frame : Frame.t) =
         (match Hashtbl.find_opt value.slots source with
          | None -> ()
          | Some index ->
-             let sx, sy, sw, sh = box_bounds value value.boxes.(index) in
-             paint_wire value paint (sx + sw / 2, sy + sh) (ints canvas_signal.pointer)
-               value.theme.accent)
-    | Some (Move_nodes _) | None -> ());
+             let box = value.boxes.(index) in
+             let sx, sy = box_graph_position value box in
+             let px, py = canvas_signal.pointer in
+             let points = [|sx +. float box.width, sy +. 12.;
+               graph_x value (int_of_float px), graph_y value (int_of_float py)|] in
+             paint_wire value paint points ~width:2.4 value.theme.accent)
+    | Some Knife -> Ui.Paint.line paint ~from_:canvas_signal.press_point
+        ~to_:canvas_signal.pointer ~width:1.5 value.theme.accent
+    | Some (Move_nodes _ | Bend_wire _ | Pan_canvas) | None -> ());
   value, List.rev changes
 
 let trunk document =
@@ -1775,17 +2125,29 @@ let trunk document =
   Array.of_list (List.rev !rows)
 
 module Private = struct
+  let zoom value = value.zoom
+  let level value node = Option.map (fun index -> value.boxes.(index).level)
+    (Hashtbl.find_opt value.slots node)
+  let field_bounds value ~node ~path =
+    Option.bind (Hashtbl.find_opt value.slots node) (fun index ->
+      let box = value.boxes.(index) in
+      Option.map (fun row ->
+        let gx, gy = box_graph_position value box in
+        screen_x value (gx +. 112.), screen_y value (gy +. 28. +. (24. *. float row)),
+        screen_size value 76, screen_size value 16)
+        (Array.find_index (function Field (f, _) -> f.Parameter.name = path | _ -> false) box.rows))
+  let crossed_wires = crossed_wires
   let hit_edge_id value point = Option.map (fun index ->
       value.edges.(index).connection) (hit_edge value point)
-  (* Vertical handles cancel at t = 1/2: the curve crosses the chord midpoint. *)
   let edge_query_points value ~limit =
     Array.init (min limit (Array.length value.edges)) (fun index ->
-      let x0, y0, x3, y3 = edge_points value value.edges.(index) in
-      (x0 + x3) / 2, (y0 + y3) / 2)
+      let points = edge_points value value.edges.(index) in
+      let ax, ay = points.(1) and bx, by = points.(2) in
+      screen_x value ((ax +. bx) /. 2.), screen_y value ((ay +. by) /. 2.))
   let hit_edge_candidates value point =
     let generation = next_spatial_generation value.spatial in
     let count = ref 0 in
-    iter_spatial_edge_candidates value point (fun index _segment ->
+    iter_spatial_edge_candidates value point (fun index ->
       if Array.unsafe_get value.spatial.edge_marks index <> generation then begin
         Array.unsafe_set value.spatial.edge_marks index generation;
         incr count

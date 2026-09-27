@@ -95,8 +95,8 @@ open in rename mode.
 
 A SOP list follows each node's first input; other inputs nest under their
 consumer, and a node used twice repeats as a muted `↳` row
-(`Pxui_graph.trunk`). Scene siblings list in tile order, so reordering moves
-tiles.
+(`Pxui_graph.trunk`). Scene siblings list by their canvas y position.
+Reordering swaps the affected siblings' positions and saves both in history.
 
 Inside the World (graph pane focused): `e` flips the selected emitter
 between dome and light, `r` reseeds, `[`/`]` step the time of day, `p`

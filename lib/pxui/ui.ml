@@ -212,6 +212,7 @@ and ui = {
   mutable edit_value : string;
   mutable edit_caret : int;
   mutable edit_anchor : int;
+  mutable scrub_origin : (int * string) option;
   mutable requested_cursor : [`Horizontal_resize|`Vertical_resize] option;
   (* this frame's raw events and logical size, for modal dismissal *)
   mutable frame_events : Event.t list;
@@ -472,6 +473,7 @@ let create ?(theme = Theme.default) ?font ?(font_size = Theme.font_size) () =
     keyboard_focus = false; composition = "";
     previous_keys = []; active_keys = [];
     edit_focus = 0; edit_value = ""; edit_caret = 0; edit_anchor = 0;
+    scrub_origin = None;
     requested_cursor = None;
     frame_events = []; input_frame = None; routed_events = []; cancelled = [];
     modal_key = None; modal_in_frame = false;
@@ -1698,8 +1700,8 @@ let next_utf8 text index =
     else seek (index + 1) in
   if index >= length then length else seek (index + 1)
 
-let text_caret_at ui text x =
-  match face ui None with
+let text_caret_at ui ?size text x =
+  match face ui size with
   | None -> String.length text
   | Some font ->
       let length = String.length text and density = float ui.density in
@@ -1747,8 +1749,8 @@ let replace_text edit inserted =
   edit.caret <- start + String.length inserted;
   edit.anchor <- edit.caret
 
-let point_text_caret ui edit signal ~shift ~x =
-  let at (px, _) = text_caret_at ui edit.text (max 0. (px -. x)) in
+let point_text_caret ui ?size edit signal ~shift ~x =
+  let at (px, _) = text_caret_at ui ?size edit.text (max 0. (px -. x)) in
   if signal.pressed then begin
     let caret = at signal.press_point in
     edit.caret <- caret;
@@ -1804,9 +1806,9 @@ let edit_text_event edit ~accept ~modifiers event =
   | Event.KeyPressed Input.End -> move (String.length edit.text); false
   | _ -> false
 
-let paint_text_edit paint ~control:(cx, cy, cw, ch) ~y ~composition edit =
+let paint_text_edit paint ?size ~control:(cx, cy, cw, ch) ~y ~composition edit =
   let theme = paint.owner.theme in
-  let width text = Paint.text_width paint text /. paint.scale in
+  let width text = Paint.text_width paint ?size text /. paint.scale in
   let before = String.sub edit.text 0 edit.caret in
   let caret_x = float (cx + 8) +. width before in
   Paint.input_region paint ~x:(float cx) ~y:(float cy) ~w:(float cw)
@@ -1819,11 +1821,11 @@ let paint_text_edit paint ~control:(cx, cy, cw, ch) ~y ~composition edit =
       ~w:(width (String.sub edit.text start (stop - start)))
       ~h:(float (max 1 (ch - 4))) (Color.with_alpha theme.accent 100)
   end;
-  if composition = "" then kit_text paint (cx + 8) y edit.text
+  if composition = "" then Paint.text paint ?size ~at:(float (cx + 8), float y) edit.text
   else begin
-    kit_text paint (cx + 8) y before;
-    Paint.text paint ~at:(caret_x, float y) composition;
-    Paint.text paint ~at:(caret_x +. width composition, float y)
+    Paint.text paint ?size ~at:(float (cx + 8), float y) before;
+    Paint.text paint ?size ~at:(caret_x, float y) composition;
+    Paint.text paint ?size ~at:(caret_x +. width composition, float y)
       (String.sub edit.text edit.caret
         (String.length edit.text - edit.caret))
   end;
@@ -1832,12 +1834,14 @@ let paint_text_edit paint ~control:(cx, cy, cw, ch) ~y ~composition edit =
 
 (* Numeric label editing shared by float and integer sliders. The retained
    state records validity; [parse] validates the edit buffer. *)
-let rec numeric_editor ui row signal ~keys ~current ~parse =
+let rec numeric_editor ?size ?control ?(click_to_edit = false)
+    ?(accept = String.for_all numeric_character) ui row signal ~keys ~current ~parse =
   let enter = function
     | Event.KeyPressed Input.Enter, modifiers -> not (command_modifiers modifiers)
     | _ -> false in
   let bounds = ints (rect ui row) in
-  let control = value_control bounds in
+  let control_bounds = Option.value ~default:(value_control bounds) control in
+  let control = control_bounds in
   let inside_control point = contains (floats control) point in
   let editing = text_state ui row in
   let state = state ui row ~default:1 in
@@ -1857,7 +1861,7 @@ let rec numeric_editor ui row signal ~keys ~current ~parse =
       let committed = ref None and state = ref state
       and cancelled = ref false in
       let (cx, _, _, _) = control in
-      point_text_caret ui edit signal ~shift:(press_shift ui row) ~x:(float (cx + 8));
+      point_text_caret ui ?size edit signal ~shift:(press_shift ui row) ~x:(float (cx + 8));
       List.iter (fun ((event : Event.t), modifiers) -> match event with
         | Event.KeyPressed Input.Enter when not (command_modifiers modifiers) ->
             (match parse edit.text with
@@ -1866,7 +1870,7 @@ let rec numeric_editor ui row signal ~keys ~current ~parse =
         | Event.KeyPressed Input.Escape -> cancelled := true
         | event ->
             if edit_text_event edit ~modifiers
-                ~accept:(String.for_all numeric_character) event then
+                ~accept event then
               state := if parse edit.text <> None then 1 else 0) keys;
       if !cancelled then (finish (); unfocus ui; None, false)
       else (match !committed with
@@ -1876,7 +1880,11 @@ let rec numeric_editor ui row signal ~keys ~current ~parse =
             set edit.text ~valid:(!state land 1 <> 0);
             None, true)
   | None ->
-      if (signal.double_clicked && not (inside_control signal.press_point))
+      let click = click_to_edit && signal.clicked
+        && abs_float (fst signal.release_point -. fst signal.press_point) < 4.
+        && abs_float (snd signal.release_point -. snd signal.press_point) < 4. in
+      if click
+          || (signal.double_clicked && not (inside_control signal.press_point))
           || (focused ui row && List.exists enter keys) then begin
         let text = current () in
         set text ~valid:true;
@@ -1886,10 +1894,63 @@ let rec numeric_editor ui row signal ~keys ~current ~parse =
         let rec after_enter = function
           | event :: rest when enter event -> rest
           | _ :: rest -> after_enter rest | [] -> [] in
-        let keys = if signal.double_clicked then keys else after_enter keys in
-        numeric_editor ui row { signal with keys = List.map fst keys; pressed = false;
-          double_clicked = false } ~keys ~current ~parse
+        let keys = if signal.double_clicked || signal.clicked then keys else after_enter keys in
+        numeric_editor ?size ~control:control_bounds ~click_to_edit ~accept ui row
+          { signal with keys = List.map fst keys; pressed = false;
+            clicked = false; double_clicked = false } ~keys ~current ~parse
       end else None, false
+
+let value_field ui ~at ~w ~h ?size ?display ?fraction ?scrub ~valid label value =
+  let box = box ui ~flags:(clickable lor tab_stop lor blocking lor clip)
+    ~at ~w:(Px w) ~h:(Px h) label in
+  let signal = signal ui box in
+  let bounds = ints (rect ui box) in
+  let typed, editing = numeric_editor ?size ~control:bounds ~click_to_edit:true
+    ~accept:(fun _ -> true) ui box signal ~keys:(key_events ui box)
+    ~current:(fun () -> value) ~parse:(fun text -> if valid text then Some text else None) in
+  if editing then ui.b_flags.(box.index) <- clickable lor focusable lor blocking lor clip;
+  let origin = if signal.pressed then begin
+      ui.scrub_origin <- Some (box.box_key, value); value
+    end else match ui.scrub_origin with
+      | Some (key, origin) when key = box.box_key -> origin | _ -> value in
+  let value = match typed, scrub with
+    | Some text, _ -> text
+    | None, Some scrub when not editing && (signal.held || signal.released)
+        && signal.button = Some Input.LeftButton ->
+        let pointer = if signal.released then signal.release_point else signal.pointer in
+        scrub origin (fst pointer -. fst signal.press_point)
+          (List.mem Input.Shift (press_keys ui box))
+    | _ -> value in
+  if not signal.held && Option.fold ~none:false
+      ~some:(fun (key, _) -> key = box.box_key) ui.scrub_origin then ui.scrub_origin <- None;
+  let buffer = text_state ui box in
+  let edit = if editing && focused ui box then
+      load_text_edit ui box.box_key (Option.value ~default:value buffer)
+    else { text = value; caret = 0; anchor = 0 } in
+  let composition = ui.composition and focus = focused ui box in
+  let display = if typed <> None || signal.held || signal.released then value
+    else Option.value ~default:value display in
+  let invalid = state ui box ~default:1 land 1 = 0 in
+  draw ui box (fun paint rect ->
+    let (x, y, w, h) as bounds = ints rect in
+    let previous_clip = paint.clip_rect in
+    paint.clip_rect <- intersect previous_clip
+      ((float x *. paint.scale) +. paint.tx, (float y *. paint.scale) +. paint.ty,
+       float w *. paint.scale, float h *. paint.scale);
+    Paint.rect paint ~x:(float x) ~y:(float y) ~w:(float w) ~h:(float h)
+      ~fill:ui.theme.track ~stroke:(if invalid then Theme.invalid
+        else if editing then ui.theme.accent else Theme.faint_border ui.theme) ();
+    let text_y = y + max 1 ((h - Option.value ~default:ui.font_size size) / 2) in
+    if editing && focus then paint_text_edit paint ?size ~control:bounds ~y:text_y ~composition edit
+    else begin
+      Option.iter (fun f -> Paint.fill paint ~x:(float (x + 1)) ~y:(float (y + 1))
+        ~w:(float (max 0 (w - 2)) *. Float.max 0. (Float.min 1. f))
+        ~h:(float (max 0 (h - 2))) (Color.with_alpha ui.theme.accent 45)) fraction;
+      let width = Paint.text_width paint ?size display in
+      Paint.text paint ?size ~at:(float (x + w - 4) -. width, float text_y) display
+    end;
+    paint.clip_rect <- previous_clip);
+  value, editing
 
 let keyboard_fraction keys ~step value =
   List.fold_left (fun value (event, modifiers) ->

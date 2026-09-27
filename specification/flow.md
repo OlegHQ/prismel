@@ -2,7 +2,7 @@
 
 ## 1. Status and authority
 
-Status: approved target design, revision 2 (2026-09-27). **Not implemented yet.**
+Status: approved design, revision 2 (2026-09-27). **M1 implemented; M2–M7 pending.**
 Milestones M1–M7, the file-level tasks for each, and progress live in
 `flow-migration.md`. The behavioral reference is the prototype at
 `specification/flow/prototype/index.html` (open it in a browser; no build).
@@ -318,12 +318,9 @@ and `display`:
 }
 ```
 
-Loading version 2: nodes keep ids and parameters; `x, y` are transposed so the
-old top-to-bottom arrangement reads left to right: `x' = y · 256 / 152` and
-`y' = x · 120 / 230` (152 and 230 are today's vertical and horizontal tile
-pitches in `pxui_graph`: 78 + 74 and 196 + 34; 256 is the new column pitch
-W + 60), then snapped to 12. Every other layout field takes its default. Version 1
-migration is unchanged. Validation rejects files that violate §3.10 without
+Only version 3 is read and written. Older presets are rejected; the migration
+removes the old editor representation without a compatibility layer.
+Validation rejects files that violate §3.10 without
 changing the installed document (today's rule).
 
 ## 5. Exposure: which rows a card shows
@@ -379,7 +376,7 @@ an expression into a component splits automatically.
 ### 6.1 Direction and auto layout
 
 Data flows left to right. Auto layout (context menu and palette only, as
-today; also on v2 load without positions and for code graphs): column =
+today; also for code graphs): column =
 longest path from any source over all edges; within a column, trunk nodes
 (geometry outputs, compounds, Outputs) first, then value nodes, in
 ascending id; x = column × (W + 60), y accumulates node height + 36, snapped
@@ -1052,7 +1049,7 @@ Window-free logic tests in `runtest` for: exposure rule table (every row of
 change-only application, cook-key identity when unchanged, 1 vs N domains),
 walk and hint labelling (deterministic labels for fixed layouts), Tab
 placement and ripple, fold/unfold identity, group/ungroup/export invariants,
-preset v2 → v3 migration, v3 round trip, printer laws of §11.8 over every
+old preset rejection, v3 round trip, printer laws of §11.8 over every
 catalog factory with non-default literals and drives, every diagnostic code,
 key routing for every new command (`test_prismel_editor_logic`), and gate
 rules. Visual checks go in `@runtest-native` once per milestone
@@ -1073,6 +1070,7 @@ content-addressed cache sharing between instances; macros.
 | Architecture | `flow` overlay beside an unchanged `Edit_graph`, not a rewrite of `Edit_graph` |
 | Value kinds | built into `flow`, context-free; not SOP catalog entries |
 | Edge identity | destination port; no edge ids |
+| Shared saved layout | UI-free `Editor_core.Network_layout`; document and canvas share it without importing presentation into the document |
 | Vec3 | metadata grouping of three float fields; no new `Param.value` case |
 | Primary rows without annotations | the first folder's fields |
 | Compound reuse | shared definitions with "make unique" |
@@ -1084,3 +1082,8 @@ content-addressed cache sharing between instances; macros.
 | Catalog pinning | integer catalog version in the manifest, optional `:catalog N` in files |
 | Cache sharing between instances | none |
 | Guide mode | on by default, persisted off |
+
+2026-09-27: the requested full migration has no backward compatibility;
+version 3 replaces the v1/v2 readers and preserves saved node ids.
+M1 preserves explicit row exposure metadata as part of that layout; vector
+splits and wireless flags stay empty until their milestones.

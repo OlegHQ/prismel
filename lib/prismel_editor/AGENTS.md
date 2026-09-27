@@ -22,9 +22,10 @@
 - One immutable `Document` (the scene network, one network per geometry
   object and World, active camera object, sketch `Settings`) is the only
   thing `Editor_core.History` (128 entries) snapshots; `Core.doc` is always
-  its present. Each network's tile layout is an int-keyed map updated per
-  frame from the ids `Doc.apply` reports placed, moved, or deleted
-  (`Network_view.edit`); never walk every tile on an edit frame. UI-free
+  its present. Each network's `Editor_core.Network_layout` record stores
+  positions, levels, pins, row exposure and wire bends. `Network_view.edit`
+  updates only the ids and destination ports `Doc.apply` reports touched;
+  never walk every node on an edit frame. UI-free
   Document, Settings, Objects, Layers and Preset live in the private
   `editor_document` library, whose transitive presentation ban is gated.
 - Scene objects are nodes of the scene `Edit_graph` (input 0 = parent,
@@ -62,9 +63,10 @@ milestone; `specification/flow-migration.md` lists what each milestone
 changes here and which paragraphs to rewrite when it lands. Until then the
 rules in this file are current. Planned changes that touch this directory:
 
-- M1: left-to-right canvas, polyline wires with bends, levels
-  point/chip/card/full, parameter rows on cards; `Document.network.layout`
-  becomes a layout record; presets version 3 (v2 positions transposed).
+- M1 is implemented: left-to-right canvas, polylines with authored bends,
+  point/chip/card/full, editable card literals and saved layout metadata.
+  Presets read and write only v3 and preserve saved ids. Pointer gestures
+  seal on release; detail changes merge as one-second history bursts.
 - M2: the graph grammar as Command entries with `guide` contexts; the status
   bar becomes the guide strip; World graph keys `e`/`r`/`p` become `t`/`n`/`d`;
   `f` frames the selection or the display node.

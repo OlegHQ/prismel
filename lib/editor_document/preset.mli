@@ -7,8 +7,8 @@
     catalog are recreated from their factory; nodes from the sketch's code
     graph (including custom, non-catalog SOPs) rebind by their stable node
     id, so a preset only loads into the sketch whose code produced it.
-    Version 1 presets (one SOP network) load as the geometry object geo1,
-    their camera SOPs becoming camera objects. *)
+    Version 3 saves Flow layout metadata and stable node ids. Older preset
+    versions are rejected. *)
 
 type loaded = {
   doc : Document.t;

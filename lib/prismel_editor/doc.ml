@@ -45,8 +45,31 @@ let apply factories (document, graph_view, error, effects, placed, pasted) = fun
       (match Edit_graph.disconnect ~consumer:connection.consumer
           ~input_index:connection.input_index document with
        | Error message -> document, graph_view, Some message, effects, placed, pasted
-       | Ok document -> document, Pxui_graph.with_document document graph_view,
+       | Ok document -> document, (graph_view
+           |> Pxui_graph.set_bends ~node:connection.consumer ~slot:connection.input_index []
+           |> Pxui_graph.with_document document),
            None, Parameter.union_effects effects cook_effects, placed, pasted)
+  | Cut_wires_requested connections ->
+      let disconnected = List.fold_left (fun state (c : Edit_graph.connection) ->
+        Result.bind state (Edit_graph.disconnect ~consumer:c.consumer
+          ~input_index:c.input_index)) (Ok document) connections in
+      (match disconnected with
+       | Error message -> document, graph_view, Some message, effects, placed, pasted
+       | Ok document ->
+           let graph_view = List.fold_left (fun view (c : Edit_graph.connection) ->
+             Pxui_graph.set_bends ~node:c.consumer ~slot:c.input_index [] view)
+               graph_view connections |> Pxui_graph.with_document document in
+           document, graph_view, None, Parameter.union_effects effects cook_effects,
+           placed, pasted)
+  | Set_parameter_requested { node; path; value } ->
+      (match Edit_graph.apply_parameters document ~node_id:node [path, value] with
+       | Error message -> document, graph_view, Some message, effects, placed, pasted
+       | Ok (document, changed) ->
+           document, Pxui_graph.with_document document graph_view, None,
+           Parameter.union_effects effects changed, node :: placed, pasted)
+  | Bend_changed _ -> document, graph_view, error, effects, placed, pasted
+  | Level_changed ids -> document, graph_view, error, effects,
+      List.rev_append ids placed, pasted
   | Delete_nodes_requested ids ->
       let document = Edit_graph.remove_nodes ids document in
       document, Pxui_graph.with_document document graph_view, None,

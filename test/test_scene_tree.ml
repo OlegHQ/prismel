@@ -90,6 +90,23 @@ let run () =
 
   let env = step env [] in
   check (label env = Some "key") "the new light row did not open in rename mode";
+  let directory = Filename.temp_dir "prismel-scene-order" "" in
+  let env = Fun.protect ~finally:(fun () ->
+      Array.iter (fun file -> Sys.remove (Filename.concat directory file)) (Sys.readdir directory);
+      Unix.rmdir directory) (fun () ->
+    let snapshot env = E.crash_dump env directory;
+      Yojson.Safe.from_file (Filename.concat directory "document.json") in
+    let positions env = E.graph_nodes env |> List.map (fun tile ->
+      tile.Pxui_graph.id, tile.bounds) in
+    let before = snapshot env and at = positions env in
+    let reordered = step ~keys:[Input.Alt] env [key Input.ArrowUp] in
+    check (snapshot reordered <> before) "scene reorder did not save its positions";
+    check (List.length (List.filter (fun (id, bounds) -> List.assoc id at <> bounds)
+      (positions reordered)) = 2) "scene reorder did not swap exactly two siblings";
+    let restored = step ~keys:[Input.Meta] reordered [char 'z'] in
+    check (snapshot restored = before && positions restored = at)
+      "scene reorder undo did not restore both saved positions";
+    restored) in
   (* Scene edits never re-cook: reparent the light under geo1 with Tab. *)
   let cooked = Atomic.get cooks in
   let position env = match List.rev (E.lights env) with

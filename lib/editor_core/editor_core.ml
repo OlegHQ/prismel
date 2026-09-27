@@ -1,4 +1,5 @@
 module Store = Store
+module Network_layout = Network_layout
 module Param = Param
 
 module History = struct
@@ -51,7 +52,11 @@ module History = struct
     let t = if continuation then amend value t else commit value label t in
     { t with merge = (if merge = Repair then t.merge else Some merge) }
 
-  let seal t = if t.merge = None then t else { t with merge = None }
+  let seal ?(gesture_only = false) t = match t.merge with
+    | None -> t
+    | Some (Gesture _) -> { t with merge = None }
+    | Some _ when not gesture_only -> { t with merge = None }
+    | Some _ -> t
 
   let undo t = match t.past with
     | [] -> None

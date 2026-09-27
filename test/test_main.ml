@@ -4,6 +4,7 @@ let tests = [
   "test_sop_ui", Test_sop_ui.run;
   "test_custom_sop", Test_custom_sop.run;
   "test_pxui_graph", Test_pxui_graph.run;
+  "test_pxui_graph_smoke", Test_pxui_graph.run_smoke;
   "test_prismel_editor", Test_prismel_editor.run;
   "test_prismel_editor_logic", Test_prismel_editor.run_logic;
   "test_editor_document", Test_editor_document.run;

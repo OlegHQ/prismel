@@ -19,9 +19,10 @@ let node ?(x = 0.) ?(params = []) id factory inputs = `Assoc [
   "inputs", `List inputs; "params", `List params; "x", `Float x; "y", `Float 0.]
 
 let network nodes display = `Assoc ["nodes", `List nodes; "display", display]
+let extend json fields = match json with `Assoc current -> `Assoc (fields @ current) | _ -> assert false
 let owned id value = `Assoc ["object", `Int id; "network", value]
 let document ?(camera = `Null) ?(settings = []) ?(view = `Null) scene networks = `Assoc [
-  "version", `Int 2; "scene", scene; "networks", `List networks;
+  "version", `Int 3; "scene", scene; "networks", `List networks;
   "active_camera", camera; "settings", `List settings; "view", view]
 
 let run () =
@@ -48,6 +49,13 @@ let run () =
   let box = node 20 "box" [] in
   let sop = network [box] (`Int 20) in
   let valid = document scene [owned 10 sop] in
+  let flow_sop = extend (network [
+      extend box ["level", `String "full"; "pinned", `Bool true;
+        "rows", `Assoc ["size_x", `Bool false]];
+      node 21 "null" [`Int 20]] (`Int 21))
+      ["geometry_bends", `List [`Assoc ["to", `List [`Int 21; `String "in0"];
+        "bends", `List [`List [`Int 120; `Int 12]]]]] in
+  let flow_document = document scene [owned 10 flow_sop] in
   let empty_scene = document empty [] in
   let empty_sop = document scene [owned 10 empty] in
   List.iter (fun (name, json) ->
@@ -66,7 +74,22 @@ let run () =
           (Document.object_network doc info.id)) in
     check (inspect loaded.doc = inspect reloaded.doc) (name ^ " network changed during round trip"))
     ["scene-empty", empty_scene; "sop-empty", empty_sop; "valid", valid;
+     "flow-layout", flow_document;
      "world-empty", document (network [node 30 "world" []] (`Int 30)) [owned 30 empty]];
+  let flow = load (Preset.path ~directory ~name:"flow-layout-saved") |> Result.get_ok in
+  let graph, _ = Option.get (Document.object_network flow.doc 10) in
+  check (Edit_graph.find graph ~node_id:20 <> None && Edit_graph.find graph ~node_id:21 <> None)
+    "v3 load did not preserve saved node ids";
+  let saved_json = Yojson.Safe.from_file (Preset.path ~directory ~name:"flow-layout-saved") in
+  let open Yojson.Safe.Util in
+  let saved_network = saved_json |> member "sections" |> member "graph" |> member "networks"
+    |> to_list |> List.hd |> member "network" in
+  let saved_box = saved_network |> member "nodes" |> to_list |> List.find (fun json ->
+    json |> member "id" |> to_int = 20) in
+  check (member "level" saved_box = `String "full" && member "pinned" saved_box = `Bool true
+    && member "rows" saved_box = `Assoc ["size_x", `Bool false]
+    && member "geometry_bends" saved_network <> `List [])
+    "v3 round trip dropped detail, pins or bends";
   let successful = Preset.path ~directory ~name:"valid-saved" in
   let before = In_channel.with_open_bin successful In_channel.input_all in
   let loaded = load successful |> Result.get_ok in
@@ -77,6 +100,16 @@ let run () =
     "rejected save replaced the last successful preset";
   let wrong_owner = node 11 "camera" [] in
   let malformed = [
+    "old-version-1", `Assoc ["version", `Int 1; "scene", scene; "networks", `List [owned 10 sop]];
+    "old-version-2", `Assoc ["version", `Int 2; "scene", scene; "networks", `List [owned 10 sop]];
+    "bad-level", document scene [owned 10 (network [extend box ["level", `String "detail"]] (`Int 20))];
+    "bad-pin", document scene [owned 10 (network [extend box ["pinned", `Int 1]] (`Int 20))];
+    "missing-row", document scene [owned 10 (network [extend box ["rows", `Assoc ["absent", `Bool true]]] (`Int 20))];
+    "missing-bend-port", document scene [owned 10 (extend sop ["geometry_bends", `List [
+      `Assoc ["to", `List [`Int 20; `String "in0"]; "bends", `List []]]])];
+    "nonfinite-bend", document scene [owned 10 (extend (network [box; node 21 "null" [`Int 20]] (`Int 21))
+      ["geometry_bends", `List [`Assoc ["to", `List [`Int 21; `String "in0"];
+        "bends", `List [`List [`Float infinity; `Int 12]]]]])];
     "missing-network", document scene [];
     "missing-owner", document scene [owned 99 sop];
     "duplicate-owner", document scene [owned 10 sop; owned 10 sop];
@@ -102,7 +135,7 @@ let run () =
     "bad-display-type", document (network [geometry] (`String "10")) [owned 10 sop];
     "bad-factory-type", document (network [`Assoc ["id", `Int 10;
       "factory_key", `Int 1; "inputs", `List []]] (`Int 10)) [];
-    "duplicate-json-field", `Assoc ["version", `Int 2; "version", `Int 1];
+    "duplicate-json-field", `Assoc ["version", `Int 3; "version", `Int 1];
   ] in
   List.iter (fun (name, json) ->
     match load (write name json) with

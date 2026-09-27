@@ -220,6 +220,9 @@ let run () =
        ~frames:1 ~config:{ Sketch.default_config with width=900; height=640 }
        (Prismel_editor.Editor3.scene environment)
    | None -> ());
+  let environment = Prismel_editor.Editor3.update environment
+      (frame ~events:[Event.KeyPressed Input.Home] 20) in
+  let environment = Prismel_editor.Editor3.update environment (frame 20) in
   let camera_frame = frame ~events:[Event.KeyPressed Input.Space;
       Event.KeyPressed (Input.KeyChar 'c')] 21 in
   let environment = Prismel_editor.Editor3.update environment camera_frame in
@@ -683,11 +686,8 @@ let run () =
   check (Prismel_editor.Editor2.scene environment2 (frame 12) == hidden_scene)
     "unchanged hidden 2D scene composition was rebuilt";
   Prismel_editor.Editor2.close environment2;
-  (* Presets: a version 1 file (one SOP network with a custom code node, an
-     added catalog node, a moved tile, an edited parameter, and a camera SOP)
-     migrates to geo1 plus a camera object; saving it as version 2 and
-     loading again keeps it; a sketch without the custom node, or corrupt
-     JSON, is rejected. *)
+  (* A v3 scene with a custom code node, an added catalog node, edited
+     parameters and authored positions round trips; missing code is rejected. *)
   let module Preset = Prismel_editor.Private.Preset in
   let module Document = Prismel_editor.Private.Document in
   let depth_schema = Parameter.schema ~name:"test_depth" ~default:2.
@@ -701,7 +701,7 @@ let run () =
   let code_graph = code () in
   let grid_id = List.hd (Node.inputs code_graph) |> Node.id in
   let directory = Filename.temp_dir "sketch-ui-presets" "" in
-  let v1 = Filename.concat directory "legacy.json" in
+  let fixture = Filename.concat directory "flow.json" in
   let node ?factory_key ~id ~label ~inputs ?(params = []) ?(x = 0.) () =
     `Assoc ((["id", `Int id] @ (match factory_key with
         | Some key -> ["factory_key", `String key] | None -> [])
@@ -709,19 +709,22 @@ let run () =
          "inputs", `List (List.map (function Some id -> `Int id | None -> `Null) inputs);
          "params", `List (List.map (fun (name, value) -> `List [`String name; value]) params);
          "x", `Float x; "y", `Float (-40.)])) in
-  Yojson.Safe.to_file v1 (`Assoc [
+  Yojson.Safe.to_file fixture (`Assoc [
     "prismel", `Int 1; "kind", `String "preset"; "sketch", `String "test";
-    "version", `Int 1; "view", `Assoc ["fov", `Float 0.5];
+    "version", `Int 3; "view", `Assoc ["fov", `Float 0.5];
+    "scene", `Assoc ["nodes", `List [
+      node ~factory_key:"geometry" ~id:900003 ~label:"geo1" ~inputs:[None] ();
+      node ~factory_key:"camera" ~id:900002 ~label:"camera" ~inputs:[]
+        ~params:["eye_x", `Assoc ["float", `Float 6.]] ()]; "display", `Int 900003];
+    "networks", `List [`Assoc ["object", `Int 900003; "network", `Assoc [
     "nodes", `List [
       node ~id:grid_id ~label:"code-grid" ~inputs:[] ();
       node ~id:(Node.id code_graph) ~label:"code-depth" ~inputs:[Some grid_id]
         ~params:["amount", `Assoc ["float", `Float 7.25]] ();
-      node ~factory_key:"box" ~id:900001 ~label:"box" ~inputs:[] ~x:123.5 ();
-      node ~factory_key:"camera" ~id:900002 ~label:"camera" ~inputs:[]
-        ~params:["eye_x", `Assoc ["float", `Float 6.]] ()];
-    "display", `Int (Node.id code_graph); "active_camera", `Int 900002;
+      node ~factory_key:"box" ~id:900001 ~label:"box" ~inputs:[] ~x:120. ()];
+    "display", `Int (Node.id code_graph)]]]; "active_camera", `Int 900002;
     "settings", `List []]);
-  let loaded = Preset.load ~path:v1 ~code:code_graph ~factories:Sop_catalog.Editor.factories
+  let loaded = Preset.load ~path:fixture ~code:code_graph ~factories:Sop_catalog.Editor.factories
       ~settings:Prismel_editor.Settings.none |> Result.get_ok in
   let objects doc = Edit_graph.inspect (Document.scene_graph doc)
     |> List.map (fun (info : Edit_graph.node_info) -> info.label, info.operation) in
@@ -735,10 +738,10 @@ let run () =
   check (List.sort compare (objects loaded.doc) = ["camera", "camera"; "geo1", "geometry"]
       && fst (describe loaded.doc) = Some "code-depth"
       && List.length (snd (describe loaded.doc)) = 3
-      && List.exists (fun (_, x, _) -> x = 123.5)
+      && List.exists (fun (_, x, _) -> x = 120.)
         (Option.get (Document.positions loaded.doc (geometry loaded.doc).id))
       && loaded.view = `Assoc ["fov", `Float 0.5])
-    "a version 1 preset did not migrate to geo1 and a camera object";
+    "v3 preset did not preserve scene and SOP networks";
   let saved = Preset.save ~directory ~name:"my wall/1" ~sketch:"test" ~doc:loaded.doc
       ~view:loaded.view |> Result.get_ok in
   check (Filename.basename saved = "my_wall_1.json"
@@ -758,9 +761,9 @@ let run () =
     |> Result.get_ok in
   check (describe reloaded.doc = describe loaded.doc
       && List.sort compare (objects reloaded.doc) = List.sort compare (objects loaded.doc))
-    "preset v2 round trip changed the scene or geo1's network";
-  check (Preset.delete ~directory ~name:"legacy" = Ok ())
-    "legacy preset could not be deleted";
+    "preset v3 round trip changed the scene or geo1's network";
+  check (Preset.delete ~directory ~name:"flow" = Ok ())
+    "fixture preset could not be deleted";
   check (Result.is_error (Preset.load ~path:saved ~code:(code ())
       ~factories:Sop_catalog.Editor.factories ~settings:Prismel_editor.Settings.none))
     "a preset loaded into a sketch without its custom node";

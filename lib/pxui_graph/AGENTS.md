@@ -11,19 +11,21 @@ text-entry path.
 
 ## Current contract
 
-Deterministic top-to-bottom layout by input depth (196×78 tiles), cubic
-Bézier wires, output ports below and input ports above, a VIEW button per
-tile, marquee selection on blank-area drag, right/middle-drag pan, pointer
-zoom, and the categorised node menu (`open_menu_at`,
-`catalog_of_factories`). Details: `specification/pxui.md` (Hosts) and
+Deterministic left-to-right layout by longest input path, 196-point cards,
+24-point headers and rows, 12-point snapping, geometry sockets in headers
+and rows, and polyline wires with editable bends. Levels point/chip/card/full
+have zoom caps, explicit pins and temporary full expansion during a wire
+drag. Cards edit literals through `Ui.value_field`. A VIEW flag marks the
+display node; marquee selects, Alt/right/middle-drag pans, pointer motion
+zooms, Alt-click edits bends and Command/Ctrl-drag cuts crossed wires.
+The categorised node menu uses `open_menu_at` and `catalog_of_factories`. Details: `specification/pxui.md` (Hosts) and
 `specification/procedural.md` (Editable graph document).
 
 ## Prismel Flow rework
 
 This library is where most of `specification/flow.md` lands (§6 canvas, §7
-interaction). Follow `specification/flow-migration.md`: M1 replaces layout,
-ports, wires and tiles (left to right, header trunk, polylines with bends,
-levels point/chip/card/full, parameter rows, knife, box select); M2 adds the
+interaction). M1 implements the canvas contract above. Follow
+`specification/flow-migration.md`: M2 adds the
 grammar commands; M3 adds value nodes and row sockets through `flow_sop`.
 Rules that hold throughout:
 
@@ -35,5 +37,5 @@ Rules that hold throughout:
   immutable view value.
 - The exposure rule comes from `Flow_sop.Exposure.shown` (M3); do not
   reimplement it here.
-- Keep unchanged frames allocation-free on the identity fast path and keep
+- Keep unchanged document replacement allocation-free on the identity fast path and keep
   `test/test_pxui_graph`'s 2,001-node smoke within its recorded baseline.
