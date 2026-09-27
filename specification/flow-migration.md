@@ -318,12 +318,21 @@ network with the same canvas, keys, views and text), then plan it here.
 
 ## Log
 
+- 2026-09-28 M3 canvas checkpoint: value tiles and typed drive wires share the
+  geometry canvas's spatial index and PXUI hit tree. Card rows expose typed
+  sockets; dragging a value output to a visible or bloom-revealed row emits a
+  checked connection request. Chip wires attach at bottom sockets, vector
+  rows split and join, `s` pins rows, and `c` includes compatible value ports.
+  Live readouts, the inspector, and cook integration are still pending, so
+  task 7 remains open.
+
 - 2026-09-28 M3 document integration: each saved network owns a context and
   one immutable geometry/value/drive overlay. Preset v3 requires and validates
   its value and drive arrays, logical vector splits, named geometry slots,
   wire bends and wireless flags; scene and World reject value nodes. The graph
   clipboard carries Flow fragments, preserving expression drives on copy and
-  paste. The cook and canvas still display geometry only until M3 tasks 7–9.
+  paste. This checkpoint preceded the value canvas work above; cook integration
+  still follows in task 9.
 
 - 2026-09-27 M3 SOP overlay and lane: `flow_sop` validates ids, grouped ports,
   coercions, vector conflicts and value cycles; copy/paste remaps the induced

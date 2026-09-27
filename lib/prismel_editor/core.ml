@@ -134,6 +134,15 @@ let catalog value = function
 let network value = Option.get (Document.network value.doc value.level)
 let document value = (network value).graph.geometry
 
+let value_catalog =
+  let entry key label category =
+    { Pxui_graph.key = "value/" ^ key; label; category; arity = 0 } in
+  List.map (fun kind -> entry (Flow.Value_kind.key kind)
+    (Flow.Value_kind.label kind) (Flow.Value_kind.category kind))
+    (List.filter (( <> ) Flow.Value_kind.Math) Flow.Value_kind.all)
+  @ List.map (fun (name, _) -> entry ("math/" ^ name)
+      (String.capitalize_ascii name) ["Math"]) Flow.Expr.operators
+
 let projection value =
   match Document.Layout.find_opt (level_key value.level) value.projections with
   | Some projection -> projection
@@ -155,7 +164,8 @@ let view_of value level (frame : Frame.t) =
   Pxui_graph.create_document ~x:gx ~y:gy ~width:(max 1 gw) ~height:(max 1 gh)
     ~namespace:(match level with Document.Scene -> "scene"
       | Inside id when kind value id = Some "world" -> "world" | Inside _ -> "sop")
-    ~catalog:(Pxui_graph.catalog_of_factories (catalog { value with level } level))
+    ~catalog:(Pxui_graph.catalog_of_factories (catalog { value with level } level)
+      @ if (network.context = Flow.Context.Sop) then value_catalog else [])
     ~flaggable:(fun info -> level = Document.Scene && info.Edit_graph.operation = "camera")
     ~enterable:(fun info -> level = Document.Scene && enterable value info.Edit_graph.id)
     network.graph
@@ -647,8 +657,8 @@ let apply_action value (frame : Frame.t) (workspace, graph_view, tree, timeline,
 
 (* The undo label a graph intent gives its document change. *)
 let intent_label = function
-  | Pxui_graph.Connect_requested _ -> Some "Connect"
-  | Disconnect_requested _ -> Some "Disconnect"
+  | Pxui_graph.Connect_requested _ | Value_connect_requested _ -> Some "Connect"
+  | Disconnect_requested _ | Value_disconnect_requested _ -> Some "Disconnect"
   | Delete_nodes_requested _ -> Some "Delete"
   | Dissolve_nodes_requested _ -> Some "Dissolve"
   | Bypass_requested _ -> Some "Bypass"
@@ -661,6 +671,8 @@ let intent_label = function
   | Bend_changed _ -> Some "Bend wire"
   | Level_changed _ -> Some "Detail level"
   | Set_parameter_requested { path; _ } -> Some ("Set " ^ path)
+  | Split_requested {group; _} -> Some ("Split " ^ group)
+  | Row_pinned {path; _} -> Some ("Pin " ^ path)
   | Cut_wires_requested _ -> Some "Cut wires"
   | Selected _ | View_changed | Connection_selected _ | Frame_camera_requested _
   | Open_requested _ | Notice _ -> None
@@ -1258,7 +1270,8 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
           else if world_added then "Add World"
           else if world_label <> None then Option.get world_label
           else if laid_out then "Layout" else result.label)
-        ~merge:(if List.exists (function Pxui_graph.Level_changed _ -> true | _ -> false)
+        ~merge:(if List.exists (function Pxui_graph.Level_changed _ | Split_requested _
+          | Row_pinned _ -> true | _ -> false)
             result.graph_changes && gesture = None then
           Editor_core.History.Burst { key = "layout.level:" ^ string_of_int (level_key value.level);
             at = frame.time; window = 1.0 }

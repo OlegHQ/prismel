@@ -15,7 +15,8 @@ Deterministic left-to-right layout by longest input path, 196-point cards,
 24-point headers and rows, 12-point snapping, geometry sockets in headers
 and rows, and polyline wires with editable bends. Levels point/chip/card/full
 have zoom caps, explicit pins and temporary full expansion during a wire
-drag. Cards edit literals through `Ui.value_field`. A VIEW flag marks the
+drag. Cards edit literals through `Ui.value_field`; value tiles and typed row
+sockets use the same hit tree and spatial wire index. A VIEW flag marks the
 display node; marquee selects, Alt/right/middle-drag pans, pointer motion
 zooms, Alt-click edits bends and Command/Ctrl-drag cuts crossed wires.
 The categorised node menu uses `open_menu_at` and `catalog_of_factories`. Details: `specification/pxui.md` (Hosts) and

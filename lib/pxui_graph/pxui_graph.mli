@@ -1,4 +1,4 @@
-(** Interactive editor for an immutable [Procedural.Edit_graph] document.
+(** Interactive editor for an immutable [Flow_sop.Network] document.
 
     The canvas owns selection, search, pan and zoom, and presents the host's
     saved layout. It emits topology, literal and layout requests but never
@@ -47,10 +47,14 @@ type change =
   | Bend_changed of { node : int; slot : int }
   | Level_changed of int list
   | Set_parameter_requested of { node : int; path : string; value : Procedural.Parameter.value }
+  | Split_requested of { node : int; group : string; split : bool }
+  | Row_pinned of { node : int; path : string; pinned : bool }
   | Cut_wires_requested of Procedural.Edit_graph.connection list
   | Connection_selected of Procedural.Edit_graph.connection option
   | Connect_requested of Procedural.Edit_graph.connection
   | Disconnect_requested of Procedural.Edit_graph.connection
+  | Value_connect_requested of { source : Flow_sop.Port.t; target : Flow_sop.Port.t }
+  | Value_disconnect_requested of Flow_sop.Port.t
   | Delete_nodes_requested of int list
   | Dissolve_nodes_requested of int list
   | Bypass_requested of (int * bool) list
@@ -105,8 +109,7 @@ val create_document :
   ?enterable:(Procedural.Edit_graph.node_info -> bool) ->
   ?namespace:string ->
   Flow_sop.Network.t -> t
-(** Present a Flow network. The M3 canvas currently renders its geometry
-    nodes; value nodes become visible in the following canvas task.
+(** Present a Flow network, including geometry and value tiles and typed wires.
     [flaggable] marks tiles that get a flag button (default: none); the
     graph never interprets operation names itself. *)
 
@@ -155,6 +158,8 @@ val with_layout : Editor_core.Network_layout.t -> t -> t
 val edit_layout : nodes:int list -> ports:(int * string) list ->
   t -> Editor_core.Network_layout.t -> Editor_core.Network_layout.t
 val set_bends : node:int -> slot:int -> (float * float) list -> t -> t
+val set_split : node:int -> group:string -> split:bool -> t -> t
+val set_row_pin : node:int -> path:string -> pinned:bool -> t -> t
 
 val open_menu_at : int * int -> t -> t
 (** Open the hierarchical node menu at a screen point (clamped inside the
@@ -183,7 +188,7 @@ type direction = Left | Down | Up | Right
 type command = Copy | Cut | Paste | Duplicate | Delete | Frame_all
   | Open_detail | Point_detail | Open_all | Point_all
   | Walk of direction | Add | Repeat | Connect_hint | Display | Mute | Dissolve | Find
-  | Frame_selection | Hint_letter of char | Hint_back | Cancel
+  | Frame_selection | Row_pin | Hint_letter of char | Hint_back | Cancel
 val hint_bindings : ('scope, command) Editor_core.Command.t list
 val bindings : ('scope, command) Editor_core.Command.t list
 (* Global key commands; the host scopes them to its graph pane. *)

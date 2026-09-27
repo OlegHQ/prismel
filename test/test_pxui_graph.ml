@@ -164,8 +164,86 @@ let run_grammar () =
     && List.mem (Selected (Some (id output))) changes)
     "find did not select by qualified kind and close its shared picker"
 
+let run_value_wires () =
+  let box = Sop_catalog.Box.create () in
+  let factory = List.find (fun factory -> Edit_graph.factory_key factory = "box")
+      Sop_catalog.Editor.factories in
+  let geometry = Edit_graph.add_node ~factory box Edit_graph.empty |> Result.get_ok in
+  let network, time_id = Flow_sop.Network.add_value_node Flow.Value_kind.Time
+      (Flow_sop.Network.of_geometry geometry) |> Result.get_ok in
+  let box_id = Node.id box in
+  let module Layout = Editor_core.Network_layout in
+  let layout = {Layout.empty with rows = Layout.Int_map.singleton box_id
+      (Layout.String_map.singleton "uniform_scale" true)} in
+  let canvas = Pxui_graph.create_document ~x:20 ~y:30 ~width:800 ~height:520 network
+    |> Pxui_graph.with_layout layout
+    |> Pxui_graph.place_nodes [time_id, 0., 0.; box_id, 300., 0.] in
+  let target = match Pxui_graph.Private.field_bounds canvas ~node:box_id
+      ~path:"uniform_scale" with
+    | Some (x, y, _, h) -> x - 112, y + h / 2
+    | None -> fail "pinned value input did not appear on the card" in
+  let source = output_port (node time_id canvas) in
+  let _, changes = update canvas (frame ~mouse:target ~events:[
+      mouse_press (Input.LeftButton, source); mouse_move target;
+      mouse_release (Input.LeftButton, target)] ()) in
+  let expected = Pxui_graph.Value_connect_requested {
+    source = {Flow_sop.Port.node = time_id; path = "t"};
+    target = {Flow_sop.Port.node = box_id; path = "uniform_scale"} } in
+  check (List.mem expected changes) "value output drag did not target a parameter row";
+  let connected = Flow_sop.Network.connect_value
+      ~source:{Flow_sop.Port.node = time_id; path = "t"}
+      ~target:{Flow_sop.Port.node = box_id; path = "uniform_scale"} network
+    |> Result.get_ok in
+  let wired = Pxui_graph.with_document connected canvas in
+  check ((Pxui_graph.stats wired).wires = 1)
+    "typed wire was not indexed with geometry wires";
+  let point = (Pxui_graph.Private.edge_query_points wired ~limit:1).(0) in
+  let selected, _ = update wired (frame ~mouse:point ~events:[
+      mouse_press (Input.LeftButton, point); mouse_release (Input.LeftButton, point)] ()) in
+  let _, changes = Pxui_graph.delete_selection selected in
+  check (List.mem (Pxui_graph.Value_disconnect_requested
+      {Flow_sop.Port.node = box_id; path = "uniform_scale"}) changes)
+    "selected typed wire did not request disconnection";
+  let hidden = Pxui_graph.create_document ~x:20 ~y:30 ~width:800 ~height:520 network
+    |> Pxui_graph.place_nodes [time_id, 0., 0.; box_id, 300., 0.] in
+  check (Pxui_graph.Private.field_bounds hidden ~node:box_id
+    ~path:"uniform_scale" = None) "hidden-row test chose a visible parameter";
+  let source = output_port (node time_id hidden) in
+  let target_tile = node box_id hidden in
+  let x, y, _, _ = target_tile.bounds in
+  let hover = x + 40, y + 12 in
+  let dragging, _ = update hidden (frame ~mouse:source
+      ~events:[mouse_press (Input.LeftButton, source)] ()) in
+  let bloomed, _ = update dragging (frame ~mouse:hover
+      ~events:[mouse_move hover] ()) in
+  let target = match Pxui_graph.Private.field_bounds bloomed ~node:box_id
+      ~path:"uniform_scale" with
+    | Some (x, y, _, h) -> x - 112, y + h / 2
+    | None -> fail "drag hover did not expand hidden parameter rows" in
+  let _, changes = update bloomed (frame ~mouse:target
+      ~events:[mouse_move target; mouse_release (Input.LeftButton, target)] ()) in
+  check (List.mem expected changes) "hidden-row drop did not request a value drive";
+  let hinted, _ = Pxui_graph.run_command (Pxui_graph.select time_id hidden)
+      Pxui_graph.Connect_hint in
+  let labels = Pxui_graph.Private.hint_labels hinted in
+  let first = match labels with [(label, id, None)] when id = box_id -> label
+    | _ -> fail "value hint did not offer the target tile" in
+  let expanded, changes = Pxui_graph.run_command hinted
+      (Pxui_graph.Hint_letter first.[0]) in
+  check (List.mem (Pxui_graph.Level_changed [box_id]) changes)
+    "value hint did not expose hidden rows";
+  let label, _, _ = List.hd (Pxui_graph.Private.hint_labels expanded) in
+  let _, changes = String.fold_left (fun (value, changes) letter ->
+      let value, emitted = Pxui_graph.run_command value
+          (Pxui_graph.Hint_letter letter) in
+      value, changes @ emitted) (expanded, []) label in
+  check (List.exists (function Pxui_graph.Value_connect_requested {source; target} ->
+      source.node = time_id && target.node = box_id | _ -> false) changes)
+    "value hint did not request a typed connection"
+
 let run () =
   run_grammar ();
+  run_value_wires ();
   let source_a = Sop.points ~label:"Source A" [|0., 0., 0.|]
   and source_b = Sop.points ~label:"Source B" [|1., 0., 0.|] in
   let moved_a = Sop.transform ~label:"Move A"

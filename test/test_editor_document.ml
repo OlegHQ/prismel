@@ -140,8 +140,14 @@ let run () =
   let pane_layout = { Canvas.empty with at = Canvas.Int_map.singleton 9 (-228., 48.);
     bends = Canvas.Port_map.singleton (8, "a") [12., 24.] } in
   let pane = Pxui_graph.create_document overlay |> Pxui_graph.with_layout pane_layout in
+  let tile id = List.find (fun (tile : Pxui_graph.node_view) -> tile.id = id)
+      (Pxui_graph.node_views pane) in
+  check ((tile 9).depth < (tile 8).depth && (tile 8).depth < (tile 20).depth)
+    "value wires did not determine left-to-right canvas depth";
+  check (Pxui_graph.selected (Pxui_graph.select 9 pane) = Some 9)
+    "value tile cannot be selected";
   check (Canvas.Int_map.find_opt 9 (Pxui_graph.layout pane).at = Some (-228., 48.))
-    "geometry-only canvas erased a saved value position";
+    "canvas erased a saved value position";
   let another_box = Sop_catalog.Box.create () in
   let expanded_geometry = Edit_graph.add_node ~factory:(List.find (fun factory ->
     Edit_graph.factory_key factory = "box") factories) another_box overlay.geometry

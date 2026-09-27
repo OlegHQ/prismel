@@ -134,6 +134,11 @@ let set_literal ~(target : Port.t) value network =
         (Procedural.Edit_graph.apply_parameters network.geometry ~node_id:target.node changes))
         (fun (geometry, _) -> with_geometry geometry network)))
 
+let apply_value_parameters network ~node_id changes =
+  Result.map (fun (values, effects) ->
+    (if values == network.values then network else {network with values}), effects)
+    (Flow.Graph.apply_parameters network.values ~node_id changes)
+
 let copy_nodes ids network =
   if ids = [] then error "E_SELECTION" "Select nodes to copy" else
     let selected = Int_set.of_list ids in

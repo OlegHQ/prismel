@@ -41,7 +41,8 @@ let run () =
         "graph.frame-all"; "graph.open"; "graph.point"; "graph.open-all"; "graph.point-all"]
         @ walks @ ["graph.add"; "graph.mute"; "graph.delete"; "graph.dissolve";
           "graph.find"; "graph.frame-tile"];
-      Wire, ["graph.add"; "graph.delete"]; Row, []; Search, []; Text, []];
+      Wire, ["graph.add"; "graph.delete"]; Row, ["graph.row-pin"];
+      Search, []; Text, []];
   let host_ids focus context = Command.for_guide L.keymap ~focus ~context
     |> List.map (fun (c : _ Command.t) -> c.id) in
   check (List.mem "guide.toggle" (host_ids Pxui_shell.Layout.View Canvas)
@@ -67,6 +68,7 @@ let run () =
       Input.KeyChar 'l', [], Walk Right; Input.ArrowRight, [], Walk Right;
       Input.Tab, [], Add; Input.KeyChar '.', [], Repeat; Input.KeyChar 'c', [], Connect_hint;
       Input.KeyChar 'v', [], Display; Input.KeyChar 'm', [], Mute;
+      Input.KeyChar 's', [], Row_pin;
       Input.KeyChar 'x', [], Delete; Input.Delete, [], Delete; Input.Backspace, [], Delete;
       Input.KeyChar 'x', [Input.Shift], Dissolve; Input.KeyChar '/', [], Find;
       Input.KeyChar 'f', [], Frame_selection];

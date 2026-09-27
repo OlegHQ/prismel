@@ -5,9 +5,17 @@ let update_geometry edit document =
   Result.bind (edit document.Flow_sop.Network.geometry) (fun geometry ->
     flow_result (Flow_sop.Network.with_geometry geometry document))
 let apply_parameters document ~node_id values =
-  Result.bind (Edit_graph.apply_parameters document.Flow_sop.Network.geometry ~node_id values)
-    (fun (geometry, effects) -> Result.map (fun document -> document, effects)
-      (update_geometry (fun _ -> Ok geometry) document))
+  match Flow.Graph.find document.Flow_sop.Network.values ~node_id with
+  | Some _ -> flow_result (Flow_sop.Network.apply_value_parameters document ~node_id values)
+  | None -> Result.bind (Edit_graph.apply_parameters document.geometry ~node_id values)
+      (fun (geometry, effects) -> Result.map (fun document -> document, effects)
+        (update_geometry (fun _ -> Ok geometry) document))
+
+let value_kind key = match String.split_on_char '/' key with
+  | ["value"; kind] -> Result.map (fun kind -> kind, None) (flow_result (Flow.Value_kind.of_key kind))
+  | ["value"; "math"; op] when List.mem_assoc op Flow.Expr.operators ->
+      Ok (Flow.Value_kind.Math, Some op)
+  | _ -> Error ("unknown value kind " ^ key)
 
 let cook_effects = Parameter.add_impact Parameter.Cook Parameter.no_effects
 
@@ -58,6 +66,21 @@ let apply factories (document, graph_view, error, effects, placed, pasted) = fun
            |> Pxui_graph.set_bends ~node:connection.consumer ~slot:connection.input_index []
            |> Pxui_graph.with_document document),
            None, Parameter.union_effects effects cook_effects, placed, pasted)
+  | Value_connect_requested {source; target} ->
+      (match flow_result (Flow_sop.Network.connect_value ~source ~target document) with
+       | Error message -> document, graph_view, Some message, effects, placed, pasted
+       | Ok document ->
+           let graph_view = match String.rindex_opt target.path '.' with
+             | None -> graph_view
+             | Some dot -> Pxui_graph.set_split ~node:target.node
+                 ~group:(String.sub target.path 0 dot) ~split:true graph_view in
+           document, Pxui_graph.with_document document graph_view,
+           None, Parameter.union_effects effects cook_effects, placed, pasted)
+  | Value_disconnect_requested target ->
+      (match flow_result (Flow_sop.Network.disconnect ~target document) with
+       | Error message -> document, graph_view, Some message, effects, placed, pasted
+       | Ok document -> document, Pxui_graph.with_document document graph_view,
+           None, Parameter.union_effects effects cook_effects, placed, pasted)
   | Cut_wires_requested connections ->
       let disconnected = List.fold_left (fun state (c : Edit_graph.connection) ->
         Result.bind state (update_geometry (Edit_graph.disconnect ~consumer:c.consumer
@@ -76,6 +99,26 @@ let apply factories (document, graph_view, error, effects, placed, pasted) = fun
        | Ok (document, changed) ->
            document, Pxui_graph.with_document document graph_view, None,
            Parameter.union_effects effects changed, node :: placed, pasted)
+  | Split_requested {node; group; split} ->
+      let target = {Flow_sop.Port.node; path = group} in
+      (match flow_result (Flow_sop.Network.parameter document target) with
+       | Error message -> document, graph_view, Some message, effects, placed, pasted
+       | Ok parameter when parameter.ty <> Some Flow.Port_type.Vec3 ->
+           document, graph_view, Some (group ^ " is not a vector"), effects, placed, pasted
+       | Ok parameter ->
+           let driven path = Flow_sop.Port.Map.mem {target with path} document.drives in
+           let conflict = if split then driven group else
+             List.exists (fun (part : Flow_sop.Port.parameter) -> driven part.path)
+               (Flow_sop.Port.components parameter) in
+           if conflict then document, graph_view,
+             Some ("Clear the " ^ group ^ " drive before changing its split"), effects, placed, pasted
+           else document, Pxui_graph.set_split ~node ~group ~split graph_view,
+             None, effects, node :: placed, pasted)
+  | Row_pinned {node; path; pinned} ->
+      (match flow_result (Flow_sop.Network.parameter document {node; path}) with
+       | Error message -> document, graph_view, Some message, effects, placed, pasted
+       | Ok _ -> document, Pxui_graph.set_row_pin ~node ~path ~pinned graph_view,
+           None, effects, node :: placed, pasted)
   | Bend_changed _ -> document, graph_view, error, effects, placed, pasted
   | Level_changed ids -> document, graph_view, error, effects,
       List.rev_append ids placed, pasted
@@ -105,7 +148,29 @@ let apply factories (document, graph_view, error, effects, placed, pasted) = fun
            Parameter.union_effects effects cook_effects, placed, pasted)
   | Notice _ -> document, graph_view, error, effects, placed, pasted
   | Add_requested request ->
-      (match instantiate factories document request.factory_key request.inputs with
+      (if String.starts_with ~prefix:"value/" request.factory_key then
+         (match value_kind request.factory_key with
+          | Error message -> document, graph_view, Some message, effects, placed, pasted
+          | Ok (kind, op) ->
+              let label = Option.map String.capitalize_ascii op in
+              (match flow_result (Flow_sop.Network.add_value_node ?label kind document) with
+               | Error message -> document, graph_view, Some message, effects, placed, pasted
+               | Ok (added, id) ->
+                   let changed = Option.fold ~none:(Ok added)
+                     ~some:(fun op -> flow_result (Flow_sop.Network.set_literal
+                       ~target:{node = id; path = "op"}
+                       (Flow_sop.Port.Scalar (Parameter.Choice_value op)) added)) op in
+                   (match changed with
+                    | Error message -> document, graph_view, Some message, effects, placed, pasted
+                    | Ok document ->
+                        let x, y = request.at in
+                        let graph_view = graph_view
+                          |> Pxui_graph.with_document document
+                          |> Pxui_graph.place_nodes [id, x, y]
+                          |> Pxui_graph.with_last_added request.factory_key
+                          |> Pxui_graph.select id in
+                        document, graph_view, None, effects, id :: placed, pasted)))
+       else match instantiate factories document request.factory_key request.inputs with
        | Error message -> document, graph_view, Some message, effects, placed, pasted
        | Ok (node, slots, factory) ->
            (match update_geometry (Edit_graph.add_node ~inputs:slots ~factory node) document with

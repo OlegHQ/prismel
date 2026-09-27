@@ -48,10 +48,14 @@ type change =
   | Bend_changed of { node : int; slot : int }
   | Level_changed of int list
   | Set_parameter_requested of { node : int; path : string; value : Parameter.value }
+  | Split_requested of { node : int; group : string; split : bool }
+  | Row_pinned of { node : int; path : string; pinned : bool }
   | Cut_wires_requested of Edit_graph.connection list
   | Connection_selected of Edit_graph.connection option
   | Connect_requested of Edit_graph.connection
   | Disconnect_requested of Edit_graph.connection
+  | Value_connect_requested of { source : Flow_sop.Port.t; target : Flow_sop.Port.t }
+  | Value_disconnect_requested of Flow_sop.Port.t
   | Delete_nodes_requested of int list
   | Dissolve_nodes_requested of int list
   | Bypass_requested of (int * bool) list
@@ -63,10 +67,42 @@ type change =
   | Frame_camera_requested of int
   | Open_requested of int
 
-type row = Slot of int | Field of Parameter.field_view * bool | Folder of string list | More of int
+type row =
+  | Slot of int
+  | Field of Parameter.field_view * bool * string
+  | Vector of Flow_sop.Port.parameter * bool
+  | Vector_head of Flow_sop.Port.parameter * bool
+  | Output of string * Flow.Port_type.t
+  | Folder of string list
+  | More of int
+
+type node_info = {
+  id : int;
+  label : string;
+  operation : string;
+  bypass : bool;
+  inputs : int option array;
+  fields : Parameter.field_view list;
+  has_parameters : bool;
+  geometry : Edit_graph.node_info option;
+  value : Flow.Graph.node option;
+}
+
+let geometry_info (info : Edit_graph.node_info) = {
+  id = info.id; label = info.label; operation = info.operation;
+  bypass = info.bypass; inputs = info.inputs;
+  fields = Node.parameter_fields info.node; has_parameters = info.has_parameters;
+  geometry = Some info; value = None }
+
+let value_info (node : Flow.Graph.node) =
+  let fields = Flow.Value_kind.fields node.parameters in
+  { id = node.id; label = node.label;
+    operation = Flow.Value_kind.key (Flow.Value_kind.kind node.parameters);
+    bypass = false; inputs = [||]; fields; has_parameters = fields <> [];
+    geometry = None; value = Some node }
 
 type box = {
-  info : Edit_graph.node_info;
+  info : node_info;
   tile_id : string;
   depth : int;
   gx : float;
@@ -77,8 +113,11 @@ type box = {
   rows : row array;
 }
 
+type edge_kind = Geometry_edge of Edit_graph.connection
+  | Value_edge of Flow_sop.Port.t * Flow_sop.Port.t
+
 type edge = {
-  connection : Edit_graph.connection;
+  kind : edge_kind;
   port : int * string;
   source_index : int;
   consumer_index : int;
@@ -97,13 +136,16 @@ type menu = {
   ripple : (int * float * float) list;
 }
 
-type hint_target = Hint_port of Edit_graph.connection | Hint_node of int
+type hint_target = Hint_port of Edit_graph.connection
+  | Hint_value of Flow_sop.Port.t * Flow_sop.Port.t
+  | Hint_node of int
 type hints = { source : int; prefix : string; targets : (string * hint_target) list }
 
 type context_target =
   | On_canvas
   | On_tile of int
   | On_wire of Edit_graph.connection
+  | On_value_wire of Flow_sop.Port.t
 
 type context = { at : int * int; target : context_target }
 
@@ -144,7 +186,7 @@ type drag =
       offset_y : float;
     }
   | Box_select of { additive : bool }
-  | Connect_wire of { source : int }
+  | Connect_wire of { source : Flow_sop.Port.t }
 
 type edge_bound = {
   edge_id : int;
@@ -198,6 +240,7 @@ type t = {
   selected : Id_set.t;
   primary : int option;
   selected_edge : Edit_graph.connection option;
+  selected_value_edge : Flow_sop.Port.t option;
   viewed : int;
   flagged : int option;
   flaggable : Edit_graph.node_info -> bool;
@@ -294,6 +337,50 @@ let graph_input (box : box) (gx, gy) index = match box.level with
   | Chip when index > 0 -> gx +. 22. +. (12. *. float (index - 1)), gy +. 24.
   | Chip | Card | Full -> gx, gy +. input_offset index
 
+let row_index box path =
+  Array.find_index (function
+    | Field (_, _, name) -> name = path
+    | Vector (parameter, _) | Vector_head (parameter, _) -> parameter.path = path
+    | Output (name, _) -> name = path
+    | Slot _ | Folder _ | More _ -> false) box.rows
+
+let graph_value_output (box : box) position path =
+  match box.level, row_index box path with
+  | (Layout.Card | Full), Some index when
+      (match box.rows.(index) with Output _ -> true | _ -> false) ->
+      let x, y = position in x +. float box.width, y +. 36. +. 24. *. float index
+  | _ -> graph_output box position
+
+let visible_outputs (box : box) = match box.info.value with
+  | None -> ["geo", Flow.Port_type.Geometry]
+  | Some node ->
+      (match box.level, Flow.Graph.outputs node with
+       | (Layout.Point | Chip), output :: _ -> [output]
+       | _, outputs -> outputs)
+
+let node_wires document id =
+  Flow_sop.Port.Map.to_seq_from {Flow_sop.Port.node = id; path = ""}
+    document.Flow_sop.Network.drives
+  |> Seq.take_while (fun (target, _) -> target.Flow_sop.Port.node = id)
+  |> Seq.filter_map (fun (target, drive) -> match drive with
+      | Flow_sop.Drive.Wire {node; output} ->
+          Some (target, {Flow_sop.Port.node; path = output})
+      | Flow_sop.Drive.Expr _ -> None)
+
+let graph_value_input document (box : box) position path =
+  let x, y = position in
+  match box.level with
+  | Layout.Point -> x +. 12., y +. 12.
+  | Chip ->
+      let index = node_wires document box.info.id
+        |> Seq.fold_left (fun count ((target : Flow_sop.Port.t), _) ->
+          if target.Flow_sop.Port.path < path then count + 1 else count) 0 in
+      x +. 22. +. 12. *. float index, y +. 24.
+  | Card | Full ->
+      (match row_index box path with
+       | Some index -> x, y +. 36. +. 24. *. float index
+       | None -> x, y +. 12.)
+
 let polyline ~bottom layout port (from_x, from_y) (to_x, to_y) =
   let bends = Option.value ~default:[]
     (Layout.Port_map.find_opt port layout.Layout.bends) in
@@ -302,19 +389,26 @@ let polyline ~bottom layout port (from_x, from_y) (to_x, to_y) =
     (bends @ [stub; to_x, to_y]))
 
 let stored_box_position positions (box : box) =
-  Option.value (Id_map.find_opt box.info.Edit_graph.id positions)
+  Option.value (Id_map.find_opt box.info.id positions)
     ~default:(box.gx, box.gy)
 
-let build_edge_index boxes edges positions layout =
-  let points = Array.map (fun edge ->
-    let source = boxes.(edge.source_index)
-    and consumer = boxes.(edge.consumer_index) in
-    let source_x, source_y = stored_box_position positions source
-    and consumer_x, consumer_y = stored_box_position positions consumer in
-    polyline ~bottom:(consumer.level = Layout.Chip && edge.connection.input_index > 0)
-      layout edge.port
-      (graph_output source (source_x, source_y))
-      (graph_input consumer (consumer_x, consumer_y) edge.connection.input_index)) edges in
+let edge_polyline document boxes positions layout (edge : edge) =
+  let source = boxes.(edge.source_index)
+  and consumer = boxes.(edge.consumer_index) in
+  let source_position = stored_box_position positions source
+  and consumer_position = stored_box_position positions consumer in
+  match edge.kind with
+  | Geometry_edge connection ->
+      polyline ~bottom:(consumer.level = Layout.Chip && connection.input_index > 0)
+        layout edge.port (graph_output source source_position)
+        (graph_input consumer consumer_position connection.input_index)
+  | Value_edge (from, target) ->
+      polyline ~bottom:(consumer.level = Layout.Chip) layout edge.port
+        (graph_value_output source source_position from.path)
+        (graph_value_input document consumer consumer_position target.path)
+
+let build_edge_index document boxes edges positions layout =
+  let points = Array.map (edge_polyline document boxes positions layout) edges in
   (* ponytail: one BVH leaf per wire; hits scan its authored segments.
      Index segments separately only if long bend chains dominate hit time. *)
   let edge_bounds = Array.mapi (fun edge_id points ->
@@ -374,7 +468,7 @@ let build_edge_index boxes edges positions layout =
     right = bvh_right; edge_id = bvh_edge_id; root } in
   edge_bvh, points
 
-let build_spatial_index boxes edges layout =
+let build_spatial_index document boxes edges layout =
   let pending = Hashtbl.create (max 16 (Array.length boxes * 2)) in
   Array.iteri (fun index (box : box) ->
     ignore (fold_box_cells box box.gx box.gy () (fun () key ->
@@ -397,7 +491,7 @@ let build_spatial_index boxes edges layout =
   let incident_edges = Array.map (fun reversed ->
     Array.of_list (List.rev reversed)) pending_incident in
   let edge_bvh, edge_points =
-    build_edge_index boxes edges Id_map.empty layout in
+    build_edge_index document boxes edges Id_map.empty layout in
   { cells; edge_bvh; cell_size = spatial_cell_size;
     max_candidates = !max_candidates;
     max_edge_candidates = 1;
@@ -409,7 +503,7 @@ let build_spatial_index boxes edges layout =
     visible_edges = Array.make (min 16 (Array.length edges)) 0;
     visible_edge_length = 0; edge_stack = Array.make 64 0 }
 
-let tile_text (info : Edit_graph.node_info) =
+let tile_text (info : node_info) =
   "node###pxui-graph-node-" ^ string_of_int info.id
 
 let shown layout id first_folder (field : Parameter.field_view) =
@@ -418,7 +512,7 @@ let shown layout id first_folder (field : Parameter.field_view) =
   | Some pinned -> pinned
   | None -> field.current <> field.default || field.folder = first_folder
 
-let shape layout zoom bloom (info : Edit_graph.node_info) =
+let shape document layout zoom bloom (info : node_info) =
   let requested = Option.value ~default:Layout.Card (Id_map.find_opt info.id layout.Layout.level) in
   let pinned = Option.value ~default:false (Id_map.find_opt info.id layout.Layout.pinned) in
   let level = if bloom = Some info.id then Layout.Full else
@@ -427,29 +521,78 @@ let shape layout zoom bloom (info : Edit_graph.node_info) =
   let rows = match level with
     | Layout.Point | Chip -> [||]
     | Card | Full ->
-        let fields = Node.parameter_fields info.node in
+        let fields = info.fields in
         let first_folder = match fields with f :: _ -> f.Parameter.folder | [] -> [] in
-        let visible = List.filter (shown layout info.id first_folder) fields in
-        let parameters = if level = Layout.Card then List.map (fun f -> Field (f, true)) visible
-          else
-            let _, rows = List.fold_left (fun (folder, rows) (f : Parameter.field_view) ->
-              let rows = if folder = Some f.folder || f.folder = [] then rows
-                else Folder f.folder :: rows in
-              Some f.folder, Field (f, shown layout info.id first_folder f) :: rows) (None, []) fields in
-            List.rev rows in
-        let hidden = List.length fields - List.length visible in
+        let params = Flow_sop.Port.parameters fields in
+        let parameters, hidden = match params with
+          | Error _ ->
+              (* A malformed custom schema remains editable as literal fields;
+                 document validation reports the grouping error on save. *)
+              let visible = List.filter (shown layout info.id first_folder) fields in
+              let fields = if level = Layout.Card then visible else fields in
+              List.map (fun f -> Field (f, shown layout info.id first_folder f, f.name)) fields,
+              List.length info.fields - List.length visible
+          | Ok params ->
+              let pin path = Option.bind (Id_map.find_opt info.id layout.Layout.rows)
+                  (Layout.String_map.find_opt path) in
+              let driven (p : Flow_sop.Port.parameter) =
+                let drive path = Flow_sop.Port.Map.mem {node = info.id; path}
+                    document.Flow_sop.Network.drives in
+                drive p.path || List.exists (fun (part : Flow_sop.Port.parameter) -> drive part.path)
+                  (Flow_sop.Port.components p) in
+              let on (p : Flow_sop.Port.parameter) =
+                let active = match info.value, p.fields with
+                  | Some value, f :: _ -> Flow.Value_kind.field_active value.parameters ~name:f.name
+                  | _ -> true in
+                Flow_sop.Exposure.shown ~active ~geometry:false ~driven:(driven p)
+                  ~pin:(pin p.path) ~overridden:(Flow_sop.Exposure.overridden p)
+                  ~primary:(Flow_sop.Exposure.primary ~schema:fields p) () in
+              let hidden = List.length (List.filter (fun p -> not (on p)) params) in
+              let _, rows = List.fold_left (fun (folder, rows) (p : Flow_sop.Port.parameter) ->
+                let visible = on p in
+                if level = Layout.Card && not visible then folder, rows else
+                let first = List.hd p.fields in
+                let rows = if level = Layout.Full && folder <> Some first.folder
+                    && first.folder <> [] then Folder first.folder :: rows else rows in
+                let split = Option.fold ~none:false
+                    ~some:(Layout.String_set.mem p.path)
+                    (Id_map.find_opt info.id layout.split) in
+                let entries = match p.fields with
+                  | [f] -> [Field (f, visible, p.path)]
+                  | [_;_;_] when split ->
+                      Vector_head (p, visible) ::
+                      List.map (fun (part : Flow_sop.Port.parameter) ->
+                        Field (List.hd part.fields, visible, part.path))
+                        (Flow_sop.Port.components p)
+                  | [_;_;_] -> [Vector (p, visible)]
+                  | _ -> [] in
+                Some first.folder, List.rev_append entries rows) (None, []) params in
+              List.rev rows, hidden in
+        let outputs = match info.value with
+          | Some node -> (match Flow.Graph.outputs node with
+              | _ :: _ :: _ as outputs -> List.map (fun (name, ty) -> Output (name, ty)) outputs
+              | _ -> [])
+          | None -> [] in
         let more = if level = Layout.Full then [More (-1)]
           else if hidden > 0 then [More hidden] else [] in
         Array.of_list (List.init (max 0 (Array.length info.inputs - 1))
-          (fun i -> Slot (i + 1)) @ parameters @ more) in
+          (fun i -> Slot (i + 1)) @ outputs @ parameters @ more) in
   level, rows, (if level = Layout.Point || level = Chip then 24
     else 30 + (24 * Array.length rows))
 
-let automatic_layout document layout zoom bloom =
-  let infos = Edit_graph.inspect document in
+let automatic_layout (document : Flow_sop.Network.t) layout zoom bloom =
+  let infos = List.map geometry_info (Edit_graph.inspect document.geometry)
+    @ List.map value_info (Flow.Graph.inspect document.values) in
   let count = List.length infos in
   let by_id = Hashtbl.create count and depths = Hashtbl.create count in
-  List.iter (fun info -> Hashtbl.add by_id info.Edit_graph.id info) infos;
+  List.iter (fun (info : node_info) -> Hashtbl.add by_id info.id info) infos;
+  let value_inputs = Hashtbl.create (Flow_sop.Port.Map.cardinal document.drives) in
+  Flow_sop.Port.Map.iter (fun (target : Flow_sop.Port.t) drive ->
+    match drive with
+    | Flow_sop.Drive.Wire {node; _} ->
+        Hashtbl.replace value_inputs target.node
+          (node :: Option.value ~default:[] (Hashtbl.find_opt value_inputs target.node))
+    | Flow_sop.Drive.Expr _ -> ()) document.drives;
   let rec depth visiting id = match Hashtbl.find_opt depths id with
     | Some depth -> depth
     | None when Id_set.mem id visiting -> 0
@@ -457,27 +600,35 @@ let automatic_layout document layout zoom bloom =
         let visiting = Id_set.add id visiting in
         let depth = match Hashtbl.find_opt by_id id with
           | None -> 0
-          | Some info -> Array.fold_left (fun result -> function
-              | None -> result
-              | Some input_id -> max result (1 + depth visiting input_id))
-              0 info.Edit_graph.inputs in
+          | Some info ->
+              let geometry_depth = Array.fold_left (fun result -> function
+                | None -> result
+                | Some input_id -> max result (1 + depth visiting input_id))
+                0 info.inputs in
+              List.fold_left (fun result source -> max result (1 + depth visiting source))
+                geometry_depth
+                (Option.value ~default:[] (Hashtbl.find_opt value_inputs id)) in
         Hashtbl.add depths id depth;
         depth in
-  List.iter (fun info -> ignore (depth Id_set.empty info.Edit_graph.id)) infos;
-  let max_depth = List.fold_left (fun depth info ->
-    max depth (Hashtbl.find depths info.Edit_graph.id)) 0 infos in
+  List.iter (fun (info : node_info) -> ignore (depth Id_set.empty info.id)) infos;
+  let max_depth = List.fold_left (fun depth (info : node_info) ->
+    max depth (Hashtbl.find depths info.id)) 0 infos in
   let rows = Array.make (max_depth + 1) [] in
-  List.iter (fun info ->
-    let depth = Hashtbl.find depths info.Edit_graph.id in
+  List.iter (fun (info : node_info) ->
+    let depth = Hashtbl.find depths info.id in
     rows.(depth) <- info :: rows.(depth)) infos;
   Array.iteri (fun depth row -> rows.(depth) <-
-    List.sort (fun a b -> Int.compare a.Edit_graph.id b.Edit_graph.id) row) rows;
+    List.sort (fun (a : node_info) b ->
+      match a.geometry, b.geometry with
+      | Some _, None -> -1
+      | None, Some _ -> 1
+      | _ -> Int.compare a.id b.id) row) rows;
   let boxes = ref [] in
   Array.iteri (fun depth row ->
     let y = ref 0. in
     List.iter (fun info ->
       let tile_id = tile_text info in
-      let level, rows, height = shape layout zoom bloom info in
+      let level, rows, height = shape document layout zoom bloom info in
       boxes := { info; tile_id; depth;
         gx = Layout.snap (float_of_int (depth * (node_width + horizontal_gap)));
         gy = Layout.snap !y;
@@ -488,10 +639,10 @@ let automatic_layout document layout zoom bloom =
 let preserve_positions overrides previous boxes =
   let positions = Hashtbl.create (Array.length previous) in
   Array.iter (fun (box : box) ->
-    let position = Option.value (Id_map.find_opt box.info.Edit_graph.id overrides)
+    let position = Option.value (Id_map.find_opt box.info.id overrides)
         ~default:(box.gx, box.gy) in
-    Hashtbl.replace positions box.info.Edit_graph.id position) previous;
-  Array.map (fun box -> match Hashtbl.find_opt positions box.info.Edit_graph.id with
+    Hashtbl.replace positions box.info.id position) previous;
+  Array.map (fun box -> match Hashtbl.find_opt positions box.info.id with
     | None -> box
     | Some (gx, gy) -> { box with gx; gy }) boxes
 
@@ -504,7 +655,7 @@ let geometry_slot document node index =
 let build_edges (document : Flow_sop.Network.t) boxes =
   let by_id = Hashtbl.create (Array.length boxes) in
   Array.iteri (fun index box ->
-    Hashtbl.replace by_id box.info.Edit_graph.id index) boxes;
+    Hashtbl.replace by_id box.info.id index) boxes;
   let reversed = ref [] in
   Array.iteri (fun consumer_index box ->
     let names = Edit_graph.node_slot_names document.geometry ~node_id:box.info.id
@@ -516,16 +667,26 @@ let build_edges (document : Flow_sop.Network.t) boxes =
            | None -> ()
            | Some source_index ->
                reversed := { port = box.info.id, names.(input_index);
-                 connection = { Edit_graph.source;
+                 kind = Geometry_edge { Edit_graph.source;
                    consumer = box.info.id; input_index };
                  source_index; consumer_index } :: !reversed))
       box.info.inputs) boxes;
+  Flow_sop.Port.Map.iter (fun (target : Flow_sop.Port.t) drive ->
+    match drive with
+    | Flow_sop.Drive.Expr _ -> ()
+    | Flow_sop.Drive.Wire {node; output} ->
+        (match Hashtbl.find_opt by_id node, Hashtbl.find_opt by_id target.node with
+         | Some source_index, Some consumer_index ->
+             reversed := {port = target.node, target.path;
+               kind = Value_edge ({node; path = output}, target);
+               source_index; consumer_index} :: !reversed
+         | _ -> ())) document.drives;
   Array.of_list (List.rev !reversed)
 
 let build_slots boxes =
   let slots = Hashtbl.create (Array.length boxes) in
   Array.iteri (fun index box ->
-    Hashtbl.replace slots box.info.Edit_graph.id index) boxes;
+    Hashtbl.replace slots box.info.id index) boxes;
   slots
 
 let catalog_array catalog =
@@ -549,10 +710,11 @@ let create_document ?(x = 0) ?(y = 0) ?(width = 640) ?(height = 360)
   if width <= 0 || height <= 0 then invalid_arg
       "Pxui_graph.create_document: width and height must be positive";
   let selected = match selected with
-    | Some id when Edit_graph.find document.Flow_sop.Network.geometry ~node_id:id <> None -> Id_set.singleton id
+    | Some id when Edit_graph.find document.Flow_sop.Network.geometry ~node_id:id <> None
+        || Flow.Graph.find document.values ~node_id:id <> None -> Id_set.singleton id
     | _ -> Id_set.empty in
   let primary = if Id_set.is_empty selected then None else Some (Id_set.choose selected) in
-  let boxes = automatic_layout document.Flow_sop.Network.geometry Layout.empty 1. None in
+  let boxes = automatic_layout document Layout.empty 1. None in
   let edges = build_edges document boxes in
   let slots = build_slots boxes in
   let viewed = match Edit_graph.root document.Flow_sop.Network.geometry with
@@ -562,8 +724,9 @@ let create_document ?(x = 0) ?(y = 0) ?(width = 640) ?(height = 360)
     positions = Id_map.empty; moved_nodes = Id_set.empty;
     moved_cells = Cell_map.empty;
     layout = Layout.empty;
-    spatial = build_spatial_index boxes edges Layout.empty; selected; primary;
-    selected_edge = None; viewed; flagged = None; flaggable; enterable; x; y; width; height;
+    spatial = build_spatial_index document boxes edges Layout.empty; selected; primary;
+    selected_edge = None; selected_value_edge = None;
+    viewed; flagged = None; flaggable; enterable; x; y; width; height;
     pan_x = 38.; pan_y = 38.; zoom = 1.; drag = None; bloom = None; before_points = Id_map.empty;
     menu = None; context = None; clipboard = None; catalog = catalog_array catalog;
     last_added = None; hints = None; find = None; namespace;
@@ -589,11 +752,16 @@ let layout_port_exists document (node, path) =
   | _ -> (match Flow_sop.Port.Map.find_opt {node; path} document.drives with
     | Some (Flow_sop.Drive.Wire _) -> true | _ -> false)
 
+let node_exists document id =
+  Edit_graph.find document.Flow_sop.Network.geometry ~node_id:id <> None
+  || Flow.Graph.find document.values ~node_id:id <> None
+
 (* A parameter-only edit keeps every id and input slot, so positions, edges,
    the spatial index, selection, and paint cache all stay valid. *)
-let same_topology (value : t) infos =
-  List.compare_length_with infos (Array.length value.boxes) = 0
-  && List.for_all (fun (info : Edit_graph.node_info) ->
+let same_topology (value : t) document infos =
+  value.document.drives == document.Flow_sop.Network.drives
+  && List.compare_length_with infos (Array.length value.boxes) = 0
+  && List.for_all (fun (info : node_info) ->
     match Hashtbl.find_opt value.slots info.id with
     | Some index -> value.boxes.(index).info.inputs = info.inputs
     | None -> false) infos
@@ -601,13 +769,14 @@ let same_topology (value : t) infos =
 let with_document document value =
   if document == value.document then value else
   let value = { value with hints = None } in
-  let infos = Edit_graph.inspect document.Flow_sop.Network.geometry in
-  if same_topology value infos then begin
+  let infos = List.map geometry_info (Edit_graph.inspect document.geometry)
+    @ List.map value_info (Flow.Graph.inspect document.values) in
+  if same_topology value document infos then begin
     let boxes = Array.copy value.boxes in
-    List.iter (fun (info : Edit_graph.node_info) ->
+    List.iter (fun (info : node_info) ->
       let index = Hashtbl.find value.slots info.id in
       let tile_id = tile_text info in
-      let level, rows, height = shape value.layout value.zoom value.bloom info in
+      let level, rows, height = shape document value.layout value.zoom value.bloom info in
       boxes.(index) <- { (boxes.(index)) with info; tile_id; level; rows; height }) infos;
     let changed_size = Array.exists (fun (box : box) ->
       box.height <> value.boxes.(Hashtbl.find value.slots box.info.id).height) boxes in
@@ -615,34 +784,39 @@ let with_document document value =
     let boxes = preserve_positions value.positions value.boxes boxes in
     { value with source_graph = None; document; boxes;
       positions = Id_map.empty; moved_nodes = Id_set.empty; moved_cells = Cell_map.empty;
-      spatial = build_spatial_index boxes value.edges value.layout }
+      spatial = build_spatial_index document boxes value.edges value.layout }
   end else
     let removed = Array.fold_left (fun ids (box : box) ->
-      if Edit_graph.find document.Flow_sop.Network.geometry ~node_id:box.info.id = None then box.info.id :: ids else ids)
+      if not (node_exists document box.info.id) then box.info.id :: ids else ids)
       [] value.boxes in
     let layout = Layout.remove_nodes removed value.layout in
     let layout = { layout with bends = Layout.Port_map.filter
-      (fun port _ -> layout_port_exists document port) layout.bends } in
+      (fun port _ -> layout_port_exists document port) layout.bends;
+      wireless = Layout.Port_set.filter
+        (layout_port_exists document) layout.wireless } in
     let value = { value with layout } in
-    let boxes = automatic_layout document.Flow_sop.Network.geometry value.layout value.zoom value.bloom
+    let boxes = automatic_layout document value.layout value.zoom value.bloom
         |> preserve_positions value.positions value.boxes in
     let edges = build_edges document boxes in
     let slots = build_slots boxes in
     let selected = Id_set.filter (fun id ->
-      Edit_graph.find document.Flow_sop.Network.geometry ~node_id:id <> None) value.selected in
+      node_exists document id) value.selected in
     let primary = match value.primary with
       | Some id when Id_set.mem id selected -> Some id
       | _ -> if Id_set.is_empty selected then None else Some (Id_set.max_elt selected) in
     let selected_edge = Option.bind value.selected_edge (fun connection ->
       if connection_exists document connection then Some connection else None) in
+    let selected_value_edge = Option.bind value.selected_value_edge (fun target ->
+      match Flow_sop.Port.Map.find_opt target document.drives with
+      | Some (Flow_sop.Drive.Wire _) -> Some target | _ -> None) in
     let viewed = if Edit_graph.find document.Flow_sop.Network.geometry ~node_id:value.viewed <> None
       then value.viewed else Option.value ~default:0 (Edit_graph.root document.Flow_sop.Network.geometry) in
     { value with source_graph = None; document; boxes; edges; slots;
       positions = Id_map.empty; moved_nodes = Id_set.empty;
       moved_cells = Cell_map.empty;
-      spatial = build_spatial_index boxes edges value.layout;
+      spatial = build_spatial_index document boxes edges value.layout;
       selected; primary;
-      selected_edge; viewed }
+      selected_edge; selected_value_edge; viewed }
 
 let with_graph graph value = match value.source_graph with
   | Some current when current == graph -> value
@@ -674,22 +848,22 @@ let flagged (value : t) = value.flagged
 let with_flagged flagged (value : t) = { value with flagged }
 
 let select node_id value =
-  if Edit_graph.find value.document.geometry ~node_id = None then invalid_arg
+  if not (node_exists value.document node_id) then invalid_arg
       (Printf.sprintf "Pxui_graph.select: graph has no node #%d" node_id);
   { value with selected = Id_set.singleton node_id; primary = Some node_id;
-    selected_edge = None }
+    selected_edge = None; selected_value_edge = None }
 
 let select_nodes node_ids value =
   let selected = List.fold_left (fun selected node_id ->
-    if Edit_graph.find value.document.geometry ~node_id = None then invalid_arg
+    if not (node_exists value.document node_id) then invalid_arg
         (Printf.sprintf "Pxui_graph.select_nodes: graph has no node #%d" node_id);
     Id_set.add node_id selected) Id_set.empty node_ids in
   { value with selected;
     primary = (match node_ids with id :: _ -> Some id | [] -> None);
-    selected_edge = None }
+    selected_edge = None; selected_value_edge = None }
 
 let clear_selection value = { value with selected = Id_set.empty; primary = None;
-  selected_edge = None }
+  selected_edge = None; selected_value_edge = None }
 
 let view node_id value =
   if Edit_graph.find value.document.geometry ~node_id = None then invalid_arg
@@ -698,7 +872,7 @@ let view node_id value =
 
 let place_nodes placements value =
   let boxes = Array.map (fun box ->
-    match Id_map.find_opt box.info.Edit_graph.id value.positions with
+    match Id_map.find_opt box.info.id value.positions with
     | None -> box
     | Some (gx, gy) -> { box with gx; gy }) value.boxes in
   List.iter (fun (node_id, x, y) -> match Hashtbl.find_opt value.slots node_id with
@@ -709,25 +883,25 @@ let place_nodes placements value =
   { value with boxes; edges;
     positions = Id_map.empty; moved_nodes = Id_set.empty;
     moved_cells = Cell_map.empty;
-    spatial = build_spatial_index boxes edges value.layout }
+    spatial = build_spatial_index value.document boxes edges value.layout }
 
 let with_layout layout value =
   let boxes = Array.map (fun (box : box) ->
-    let level, rows, height = shape layout value.zoom value.bloom box.info in
+    let level, rows, height = shape value.document layout value.zoom value.bloom box.info in
     let gx, gy = Option.value (Id_map.find_opt box.info.id layout.Layout.at)
       ~default:(stored_box_position value.positions box) in
     { box with gx; gy; level; rows; height }) value.boxes in
   { value with boxes; layout; positions = Id_map.empty; moved_nodes = Id_set.empty;
-    moved_cells = Cell_map.empty; spatial = build_spatial_index boxes value.edges layout }
+    moved_cells = Cell_map.empty; spatial = build_spatial_index value.document boxes value.edges layout }
 
 let reshape value =
   let boxes = Array.map (fun (box : box) ->
-    let level, rows, height = shape value.layout value.zoom value.bloom box.info in
+    let level, rows, height = shape value.document value.layout value.zoom value.bloom box.info in
     let gx, gy = stored_box_position value.positions box in
     { box with gx; gy; level; rows; height }) value.boxes in
   { value with boxes; positions = Id_map.empty; moved_nodes = Id_set.empty;
     moved_cells = Cell_map.empty;
-    spatial = build_spatial_index boxes value.edges value.layout }
+    spatial = build_spatial_index value.document boxes value.edges value.layout }
 
 let set_bends ~node ~slot points value =
   let port = geometry_slot value.document node slot in
@@ -758,6 +932,24 @@ let set_detail ids ~cards ~points value =
       (value.layout.level, value.layout.pinned, value.before_points) ids in
   reshape { value with layout = { value.layout with level; pinned }; before_points = previous }
 
+let set_split ~node ~group ~split value =
+  let groups = Option.value ~default:Layout.String_set.empty
+      (Id_map.find_opt node value.layout.split) in
+  let groups = if split then Layout.String_set.add group groups
+    else Layout.String_set.remove group groups in
+  let splits = if Layout.String_set.is_empty groups
+    then Id_map.remove node value.layout.split
+    else Id_map.add node groups value.layout.split in
+  if splits == value.layout.split then value
+  else reshape { value with layout = { value.layout with split = splits } }
+
+let set_row_pin ~node ~path ~pinned value =
+  let rows = Option.value ~default:Layout.String_map.empty
+      (Id_map.find_opt node value.layout.rows) in
+  let rows = Layout.String_map.add path pinned rows in
+  let layout = { value.layout with rows = Id_map.add node rows value.layout.rows } in
+  reshape { value with layout }
+
 let screen_x value gx = value.x + int_of_float (value.pan_x +. (gx *. value.zoom))
 let screen_y value gy = value.y + int_of_float (value.pan_y +. (gy *. value.zoom))
 let screen_size value size = max 1 (int_of_float (float_of_int size *. value.zoom))
@@ -768,7 +960,7 @@ let box_graph_position (value : t) (box : box) =
   let gx, gy = stored_box_position value.positions box in
   match value.drag with
   | Some (Move_nodes { offset_x; offset_y; _ })
-      when Id_set.mem box.info.Edit_graph.id value.selected ->
+      when Id_set.mem box.info.id value.selected ->
       gx +. offset_x, gy +. offset_y
   | Some (Move_nodes _ | Box_select _ | Connect_wire _ | Bend_wire _ | Pan_canvas | Knife) | None ->
       gx, gy
@@ -786,7 +978,8 @@ let view_button_bounds (value : t) (box : box) =
   y + screen_size value 6, button_width, button_height
 
 (* Tiles the host marks [flaggable] carry a flag button left of VIEW. *)
-let is_flaggable (value : t) (box : box) = value.flaggable box.info
+let is_flaggable (value : t) (box : box) = Option.fold ~none:false
+  ~some:value.flaggable box.info.geometry
 
 let active_button_bounds (value : t) (box : box) =
   let x, y, _, height = view_button_bounds value box in
@@ -875,15 +1068,21 @@ let input_port (value : t) (box : box) index =
   let gx, gy = graph_input box (box_graph_position value box) index in
   screen_x value gx, screen_y value gy
 
-let output_port (value : t) (box : box) =
-  let gx, gy = graph_output box (box_graph_position value box) in
-  screen_x value gx, screen_y value gy
+let compatible_value document source target =
+  source.Flow_sop.Port.node <> target.Flow_sop.Port.node &&
+  match Flow_sop.Network.output_type document source,
+    Flow_sop.Network.parameter document target with
+  | Ok source_type, Ok parameter ->
+      Option.fold ~none:false
+        ~some:(fun target_type -> Flow.Port_type.can_connect ~source:source_type ~target:target_type)
+        parameter.ty
+  | Error _, _ | _, Error _ -> false
 
 let hit_input value point =
   let radius = max 6 (screen_size value 6) and found = ref None in
   let visit index =
     let box = Array.unsafe_get value.boxes index in
-    for input_index = 0 to Array.length box.info.Edit_graph.inputs - 1 do
+    for input_index = 0 to Array.length box.info.inputs - 1 do
       let px, py = input_port value box input_index in
       let dx = fst point - px and dy = snd point - py in
       if (dx * dx) + (dy * dy) <= radius * radius
@@ -897,13 +1096,7 @@ let hit_input value point =
   !found
 
 let edge_points value edge =
-  let source = value.boxes.(edge.source_index)
-  and consumer = value.boxes.(edge.consumer_index) in
-  let sx, sy = box_graph_position value source
-  and cx, cy = box_graph_position value consumer in
-  polyline ~bottom:(consumer.level = Layout.Chip && edge.connection.input_index > 0)
-    value.layout edge.port (graph_output source (sx, sy))
-    (graph_input consumer (cx, cy) edge.connection.input_index)
+  edge_polyline value.document value.boxes value.positions value.layout edge
 
 let segment_distance_squared px py ax ay bx by =
   let dx = bx -. ax and dy = by -. ay in
@@ -932,7 +1125,9 @@ let crossed_wires value (x0, y0) (x1, y1) =
         && (segments_cross a b points.(i) points.(i + 1) || crosses (i + 1)) in
       if value.spatial.edge_marks.(edge) <> generation && crosses 0 then begin
         value.spatial.edge_marks.(edge) <- generation;
-        crossed := value.edges.(edge).connection :: !crossed
+        (match value.edges.(edge).kind with
+         | Geometry_edge connection -> crossed := connection :: !crossed
+         | Value_edge _ -> ())
       end);
   List.sort (fun (a : Edit_graph.connection) b ->
     compare (a.consumer, a.input_index) (b.consumer, b.input_index)) !crossed
@@ -998,13 +1193,13 @@ let commit_node_move value indices offset_x offset_y =
           let members = Option.value (Cell_map.find_opt key cells)
               ~default:Id_set.empty in
           Cell_map.add key (Id_set.add index members) cells) in
-    Id_map.add box.info.Edit_graph.id (next_x, next_y) positions,
+    Id_map.add box.info.id (next_x, next_y) positions,
     Id_set.add index moved_nodes, moved_cells)
       (value.positions, value.moved_nodes, value.moved_cells) indices in
   (* ponytail: full edge rebuild costs ~13 ms/22 MB for 20k wires on M1;
      refit affected BVH leaves if release latency exceeds the frame budget. *)
   let edge_bvh, edge_points =
-    build_edge_index value.boxes value.edges positions value.layout in
+    build_edge_index value.document value.boxes value.edges positions value.layout in
   let spatial = { value.spatial with edge_bvh; edge_points; marks = Array.make (Array.length value.boxes) 0;
     edge_marks = Array.make (Array.length value.edges) 0;
     mark_generation = 0; visible_length = 0; visible_edge_length = 0;
@@ -1157,7 +1352,7 @@ let selected_positions (value : t) ids =
         Some (id, gx, gy)) ids
 
 let node_positions (value : t) = Array.to_list value.boxes |> List.map (fun box ->
-  let gx, gy = box_graph_position value box in box.info.Edit_graph.id, gx, gy)
+  let gx, gy = box_graph_position value box in box.info.id, gx, gy)
 
 let node_position (value : t) node_id = Option.map (fun index ->
   box_graph_position value (Array.unsafe_get value.boxes index))
@@ -1204,23 +1399,26 @@ let duplicate_selection (value : t) =
 let delete_selection (value : t) = match value.selected_edge with
   | Some connection ->
       { value with selected_edge = None }, [Disconnect_requested connection]
+  | None when value.selected_value_edge <> None ->
+      let target = Option.get value.selected_value_edge in
+      { value with selected_value_edge = None }, [Value_disconnect_requested target]
   | None when not (Id_set.is_empty value.selected) ->
       let ids = selected_nodes value in
       clear_selection value, [Delete_nodes_requested ids]
   | None -> value, []
 
 let select_node (value : t) ~additive index =
-  let id = value.boxes.(index).info.Edit_graph.id in
+  let id = value.boxes.(index).info.id in
   if additive then
     let selected = if Id_set.mem id value.selected
       then Id_set.remove id value.selected else Id_set.add id value.selected in
     let primary = if Id_set.mem id selected then Some id
       else if Id_set.is_empty selected then None else Some (Id_set.max_elt selected) in
-    { value with selected; primary; selected_edge = None }
+    { value with selected; primary; selected_edge = None; selected_value_edge = None }
   else if Id_set.mem id value.selected then
-    { value with primary = Some id; selected_edge = None }
+    { value with primary = Some id; selected_edge = None; selected_value_edge = None }
   else { value with selected = Id_set.singleton id; primary = Some id;
-    selected_edge = None }
+    selected_edge = None; selected_value_edge = None }
 
 let apply_marquee (value : t) (drag : box_drag) =
   let bounds = normalize_rect drag.start_x drag.start_y drag.current_x drag.current_y in
@@ -1236,7 +1434,7 @@ let apply_marquee (value : t) (drag : box_drag) =
       Array.unsafe_set value.spatial.marks candidate generation;
       let box = Array.unsafe_get value.boxes candidate in
       if intersects bounds (box_bounds value box) then
-        selected := Id_set.add box.info.Edit_graph.id !selected
+        selected := Id_set.add box.info.id !selected
     end in
   for cell_y = min first_y last_y to max first_y last_y do
     for cell_x = min first_x last_x to max first_x last_x do
@@ -1252,7 +1450,8 @@ let apply_marquee (value : t) (drag : box_drag) =
   let selected = !selected in
   let primary = if Id_set.is_empty selected then None
     else Some (Id_set.max_elt selected) in
-  { value with selected; primary; selected_edge = None; drag = None }
+  { value with selected; primary; selected_edge = None;
+    selected_value_edge = None; drag = None }
 
 let wire_bounds (value : t) points =
   let min_x = ref Float.infinity and min_y = ref Float.infinity
@@ -1403,9 +1602,20 @@ let paint_background (value : t) paint visible_edges visible_wires =
   for visible_index = 0 to visible_wires - 1 do
     let edge = value.edges.(Array.unsafe_get visible_edges visible_index) in
     let points = edge_points value edge in
-    if value.selected_edge = Some edge.connection then
+    if (match edge.kind with Geometry_edge connection ->
+        value.selected_edge = Some connection
+      | Value_edge (_, target) -> value.selected_value_edge = Some target) then
       paint_wire value paint points ~width:8. (Color.with_alpha theme.accent 71);
-    paint_wire value paint points ~width:2.4 theme.accent
+    let color = match edge.kind with
+      | Geometry_edge _ -> theme.accent
+      | Value_edge (source, _) ->
+          let palette = Pxui.Theme.ports theme in
+          (match Flow_sop.Network.output_type value.document source with
+           | Ok Flow.Port_type.Float -> palette.float
+           | Ok Int -> palette.int | Ok Bool -> palette.bool
+           | Ok Vec3 -> palette.vec3
+           | Ok Geometry | Error _ -> palette.geometry) in
+    paint_wire value paint points ~width:2.4 color
   done
 
 let field_text : Parameter.value -> string = function
@@ -1449,7 +1659,7 @@ let build_row_fields value ui (box : box) =
     let emit f v = if v = f.Parameter.current then changes else
       Set_parameter_requested { node = box.info.id; path = f.name; value = v } :: changes in
     match row with
-    | Field (f, _) ->
+    | Field (f, _, path) ->
         let container = Ui.box ui ~flags:Ui.clickable ~at:(at 0 y)
           ~w:(Ui.Px (float (screen_size value box.width)))
           ~h:(Ui.Px (float (screen_size value 24))) ("row-" ^ f.name) in
@@ -1457,7 +1667,7 @@ let build_row_fields value ui (box : box) =
         let capture = if signal.pressed || signal.held || signal.released
           then Some container else capture in
         let over = Ui.hovered_within ui container in
-        let hovered = if over then Some (box.info.id, f.name) else hovered in
+        let hovered = if over then Some (box.info.id, path) else hovered in
         let tip = if not value.guide || not over then tip else
           let description = if signal.hovered then
               f.label ^ ". Edit its literal in the field; open all parameters with the more row."
@@ -1467,7 +1677,7 @@ let build_row_fields value ui (box : box) =
               | Floating_view _ | Integer_view _ ->
                   f.label ^ ". Drag to scrub (Shift for fine). Click to type."
               | _ -> f.label ^ ". Click to edit its literal." in
-          Some (Printf.sprintf "row-%d-%s-%b" box.info.id f.name signal.hovered, description) in
+          Some (Printf.sprintf "row-%d-%s-%b" box.info.id path signal.hovered, description) in
         let index, changes, detail, pin = Ui.within ui container (fun () ->
         let key = "field-" ^ f.name in
         (match f.current, f.kind with
@@ -1508,6 +1718,37 @@ let build_row_fields value ui (box : box) =
              let changes = Option.fold ~none:changes ~some:(emit f) (parse_field f text) in
              index + 1, changes, detail, pin || editing)) in
         index, changes, detail, pin, capture, hovered, tip
+    | Vector (parameter, _) | Vector_head (parameter, _) as vector ->
+        let is_header = match vector with Vector_head _ -> true | _ -> false in
+        let container = Ui.box ui ~flags:Ui.clickable ~at:(at 0 y)
+          ~w:(Ui.Px (float (screen_size value box.width)))
+          ~h:(Ui.Px (float (screen_size value 24))) ("row-" ^ parameter.path) in
+        let signal = Ui.signal ui container in
+        let hovered = if Ui.hovered_within ui container then Some (box.info.id, parameter.path)
+          else hovered in
+        let changes = if signal.clicked then
+          Split_requested {node = box.info.id; group = parameter.path; split = not is_header} :: changes
+          else changes in
+        let changes, pin = if is_header then changes, pin else
+          Ui.within ui container (fun () ->
+            List.fold_left (fun (changes, pin) (component, (f : Parameter.field_view)) ->
+              let current = match f.current with Float_value x -> Printf.sprintf "%.17g" x
+                | _ -> field_text f.current in
+              let text, editing = Ui.value_field ui ~at:(at (42 + 50 * component) 4)
+                ~w:(float (screen_size value 44)) ~h:(float height)
+                ~size:(max 7 (screen_size value 10))
+                ~display:(field_text f.current) ?scrub:(scrub_field f)
+                ~valid:(fun text -> parse_field f text <> None)
+                ("vector-" ^ f.name) current in
+              let changes = match parse_field f text with
+                | Some value when value <> f.current ->
+                    Set_parameter_requested {node = box.info.id; path = f.name; value} :: changes
+                | _ -> changes in
+              changes, pin || editing) (changes, pin)
+              (List.mapi (fun index field -> index, field) parameter.fields)) in
+        let capture = if signal.pressed || signal.held || signal.released
+          then Some container else capture in
+        index + 1, changes, detail, pin, capture, hovered, tip
     | More count ->
         let button = Ui.box ui ~flags:Ui.(clickable + tab_stop) ~at:(at 0 y)
           ~w:(Ui.Px (float (screen_size value box.width)))
@@ -1520,7 +1761,7 @@ let build_row_fields value ui (box : box) =
         let detail = if signal.clicked
           then Some (if count < 0 then Layout.Card else Layout.Full) else detail in
         index + 1, changes, detail, pin, capture, hovered, tip
-    | Slot _ | Folder _ -> index + 1, changes, detail, pin, capture, hovered, tip)
+    | Slot _ | Output _ | Folder _ -> index + 1, changes, detail, pin, capture, hovered, tip)
     (0, [], None, false, None, None, None) box.rows
   |> fun (_, changes, detail, pin, capture, hovered, tip) ->
     changes, detail, pin, capture, hovered, tip
@@ -1538,15 +1779,23 @@ let paint_node (value : t) paint (box : box) =
   let theme = value.theme in
   let gx, gy = box_graph_position value box in
   let x, y, width, height = box_bounds value box in
-  let selected = Id_set.mem box.info.Edit_graph.id value.selected
-  and viewed = value.viewed = box.info.Edit_graph.id in
-  let accent = (Pxui.Theme.ports theme).geometry in
+  let selected = Id_set.mem box.info.id value.selected
+  and viewed = value.viewed = box.info.id in
+  let palette = Pxui.Theme.ports theme in
+  let accent = match box.info.value with
+    | None -> palette.geometry
+    | Some node -> (match Flow.Graph.outputs node with
+      | (_, Flow.Port_type.Float) :: _ -> palette.float
+      | (_, Flow.Port_type.Int) :: _ -> palette.int
+      | (_, Flow.Port_type.Bool) :: _ -> palette.bool
+      | (_, Flow.Port_type.Vec3) :: _ -> palette.vec3
+      | (_, Flow.Port_type.Geometry) :: _ | [] -> palette.geometry) in
   let stroke = if viewed || selected then accent else Pxui.Theme.border theme in
   let label_size = max 7 (screen_size value 11) in
   let label at color text_value = text paint ~at ~size:label_size ~color text_value in
   let at dx dy = screen_x value (gx +. float dx), screen_y value (gy +. float dy) in
   if box.level = Layout.Point then begin
-    if viewed then begin
+    if viewed && Option.is_some box.info.geometry then begin
       let cx, cy = at 12 12 in
       for dash = 0 to 11 do
         let angle = float dash *. Float.pi /. 6. in
@@ -1573,12 +1822,20 @@ let paint_node (value : t) paint (box : box) =
       if top + screen_size value 24 >= value.y && top <= value.y + value.height then
       match row with
       | Slot slot -> label (at 14 (y + 5)) theme.foreground ("in" ^ string_of_int slot)
-      | Field (f, shown) ->
+      | Field (f, shown, path) ->
           let color = if shown then theme.foreground
             else Pxui.Theme.muted theme in
           let width = match f.kind with Choice_view _ -> 68 | _ -> 90 in
+          let label_x = if String.contains path '.' then 26 else 14 in
+          label (at label_x (y + 5)) color
+            (fitted_text paint label_size (float (screen_size value width))
+              (if String.contains path '.' then String.sub path (String.rindex path '.' + 1)
+                 (String.length path - String.rindex path '.' - 1) else f.label))
+      | Vector (parameter, shown) | Vector_head (parameter, shown) ->
+          let color = if shown then palette.vec3 else Pxui.Theme.muted theme in
           label (at 14 (y + 5)) color
-            (fitted_text paint label_size (float (screen_size value width)) f.label)
+            (fitted_text paint label_size (float (screen_size value 54)) parameter.path)
+      | Output (name, _) -> label (at 14 (y + 5)) theme.foreground name
       | Folder folder ->
           let name = fitted_text paint label_size (float (screen_size value 150))
             (String.uppercase_ascii (String.concat " / " folder)) in
@@ -1590,14 +1847,44 @@ let paint_node (value : t) paint (box : box) =
             ~to_:(float finish, float middle) ~width:1. (Pxui.Theme.faint_border theme)
       | More count -> label (at 14 (y + 5)) accent
           (if count < 0 then "− show fewer" else Printf.sprintf "+ %d more" count)) box.rows;
-    let socket connected (px, py) =
+    let port_color = function
+      | Flow.Port_type.Geometry -> palette.geometry
+      | Float -> palette.float | Int -> palette.int
+      | Bool -> palette.bool | Vec3 -> palette.vec3 in
+    let socket color connected (px, py) =
       let r = screen_size value 4 in
       if py + r >= value.y && py - r <= value.y + value.height then
         framed paint (px - r) (py - r) (screen_size value 9) (screen_size value 9)
-          ~fill:(if connected then accent else theme.input) ~stroke:accent in
-    socket true (output_port value box);
-    Array.iteri (fun i input -> socket (Option.is_some input) (input_port value box i))
+          ~fill:(if connected then color else theme.input) ~stroke:color in
+    List.iter (fun (path, ty) ->
+      let px, py = graph_value_output box (gx, gy) path in
+      socket (port_color ty) true (screen_x value px, screen_y value py))
+      (visible_outputs box);
+    Array.iteri (fun i input -> socket palette.geometry (Option.is_some input)
+      (input_port value box i))
       box.info.inputs;
+    let parameters = Result.value ~default:[]
+        (Flow_sop.Port.parameters box.info.fields) in
+    Array.iter (fun row ->
+      let path = match row with
+        | Field (_, _, path) -> Some path
+        | Vector (parameter, _) | Vector_head (parameter, _) -> Some parameter.path
+        | Slot _ | Output _ | Folder _ | More _ -> None in
+      Option.iter (fun path -> match Flow_sop.Port.find_parameter parameters path with
+        | Ok parameter -> Option.iter (fun ty ->
+            let target = {Flow_sop.Port.node = box.info.id; path} in
+            let px, py = graph_value_input value.document box (gx, gy) path in
+            socket (port_color ty) (Flow_sop.Port.Map.mem target value.document.drives)
+              (screen_x value px, screen_y value py)) parameter.ty
+        | Error _ -> ()) path) box.rows;
+    if box.level = Layout.Chip then
+      node_wires value.document box.info.id |> Seq.iter
+        (fun ((target : Flow_sop.Port.t), source) ->
+        match Flow_sop.Network.output_type value.document source with
+        | Error _ -> ()
+        | Ok ty ->
+            let px, py = graph_value_input value.document box (gx, gy) target.path in
+            socket (port_color ty) true (screen_x value px, screen_y value py));
     if viewed then begin
       let bx, by, bw, bh = view_button_bounds value box in
       fill paint bx by bw bh accent;
@@ -1615,12 +1902,12 @@ let paint_node (value : t) paint (box : box) =
 (* ----------------------------------------------------------- interaction *)
 
 let optimize_layout (value : t) =
-  let boxes = automatic_layout value.document.geometry value.layout value.zoom value.bloom in
+  let boxes = automatic_layout value.document value.layout value.zoom value.bloom in
   let edges = build_edges value.document boxes in
   { value with boxes; edges;
     positions = Id_map.empty; moved_nodes = Id_set.empty;
     moved_cells = Cell_map.empty;
-    spatial = build_spatial_index boxes edges value.layout } |> frame_all
+    spatial = build_spatial_index value.document boxes edges value.layout } |> frame_all
 
 let open_menu_at point value = open_menu value point
 
@@ -1662,10 +1949,11 @@ let walk value direction =
     | Some index ->
         let box = value.boxes.(index) in
         let connected = match direction with
-          | Left -> Option.bind (Array.find_map Fun.id box.info.inputs) (fun id ->
-                Option.map (Array.get value.boxes) (Hashtbl.find_opt value.slots id))
-          | Right -> Array.to_list value.edges |> List.filter_map (fun edge ->
-              if edge.connection.source = box.info.id
+          | Left -> Array.to_list value.edges |> List.filter_map (fun (edge : edge) ->
+              if edge.consumer_index = index then Some value.boxes.(edge.source_index)
+              else None) |> List.sort compare_origin |> List.find_opt (fun _ -> true)
+          | Right -> Array.to_list value.edges |> List.filter_map (fun (edge : edge) ->
+              if edge.source_index = index
               then Some value.boxes.(edge.consumer_index) else None)
               |> List.sort compare_origin |> List.find_opt (fun _ -> true)
           | Down | Up -> None in
@@ -1711,7 +1999,8 @@ let downstream value source =
       | None -> ()
       | Some index -> Array.iter (fun edge_index ->
           let edge = value.edges.(edge_index) in
-          if edge.connection.source = id then Queue.add edge.connection.consumer pending)
+          if value.boxes.(edge.source_index).info.id = id then
+            Queue.add value.boxes.(edge.consumer_index).info.id pending)
           value.spatial.incident_edges.(index)
     end
   done;
@@ -1722,21 +2011,25 @@ let add_by_context ?(wire = true) value pointer =
   let menu = Option.get opened.menu in
   let menu = match (if wire then value.selected_edge else None), selected_nodes value with
     | Some connection, _ ->
-        (match Array.find_opt (fun edge -> edge.connection = connection) value.edges with
+        (match Array.find_opt (fun edge -> edge.kind = Geometry_edge connection) value.edges with
          | Some edge -> let gx, gy = arc_midpoint (edge_points value edge) in
              { menu with gx; gy; insertion = Some connection; inputs = []; compatible_input = true }
          | None -> { menu with insertion = None; inputs = [] })
     | None, [source] ->
         let x, gy = Option.get (node_position value source) in
         let gx = x +. float (node_width + 60) in
-        let trunks = Array.to_list value.edges |> List.filter (fun edge ->
-          edge.connection.source = source && edge.connection.input_index = 0)
-          |> List.sort (fun a b ->
+        let trunks = Array.to_list value.edges |> List.filter_map (fun edge ->
+          match edge.kind with
+          | Geometry_edge connection when connection.source = source
+              && connection.input_index = 0 -> Some (edge, connection)
+          | Geometry_edge _ | Value_edge _ -> None)
+          |> List.sort (fun (a, (ac : Edit_graph.connection))
+            (b, (bc : Edit_graph.connection)) ->
             let _, ay = box_graph_position value value.boxes.(a.consumer_index)
             and _, by = box_graph_position value value.boxes.(b.consumer_index) in
             let order = Float.compare ay by in if order = 0
-            then Int.compare a.connection.consumer b.connection.consumer else order) in
-        let insertion = Option.map (fun edge -> edge.connection) (List.find_opt (fun _ -> true) trunks) in
+            then Int.compare ac.consumer bc.consumer else order) in
+        let insertion = Option.map snd (List.find_opt (fun _ -> true) trunks) in
         let ripple = match insertion with None -> [] | Some connection ->
           let descendants = downstream value connection.consumer in
           node_positions value |> List.filter_map (fun (id, x, y) ->
@@ -1757,6 +2050,17 @@ let label_hints targets =
     (List.filteri (fun index _ -> index < 676) targets)
 
 let hints_for ?node value source =
+  let source_port = match Hashtbl.find_opt value.slots source with
+    | None -> None
+    | Some index -> Option.map (fun (path, _) ->
+        {Flow_sop.Port.node = source; path})
+        (List.nth_opt (visible_outputs value.boxes.(index)) 0) in
+  match source_port with
+  | None -> []
+  | Some source_port ->
+  match Flow_sop.Network.output_type value.document source_port with
+  | Error _ -> []
+  | Ok source_type ->
   let seen = ref Id_set.empty in
   let rec ancestors id = if not (Id_set.mem id !seen) then begin
     seen := Id_set.add id !seen;
@@ -1766,18 +2070,43 @@ let hints_for ?node value source =
   ancestors source;
   let sx, sy = Option.get (node_position value source) in
   Array.to_list value.boxes |> List.filter (fun box ->
-    not (Id_set.mem box.info.id !seen) && Array.length box.info.inputs > 0
-    && (node = None || node = Some box.info.id))
+    box.info.id <> source && (node = None || node = Some box.info.id))
   |> List.sort (fun a b ->
     let distance box = let x, y = box_graph_position value box in
       Float.hypot (x -. sx) (y -. sy) in
     let order = Float.compare (distance a) (distance b) in
     if order = 0 then Int.compare a.info.id b.info.id else order)
   |> List.concat_map (fun box ->
-    let count = Array.length box.info.inputs in
-    if count = 1 || box.level = Layout.Card || box.level = Layout.Full then
-      List.init count (fun input_index -> Hint_port Edit_graph.{ source;
-        consumer = box.info.id; input_index })
+    let geometry = if source_type = Flow.Port_type.Geometry
+        && not (Id_set.mem box.info.id !seen) then
+        Array.to_list (Array.mapi (fun input_index _ ->
+          Hint_port Edit_graph.{source; consumer = box.info.id; input_index})
+          box.info.inputs)
+      else [] in
+    let values = match Flow_sop.Network.parameters value.document
+        ~node_id:box.info.id with
+      | Error _ -> []
+      | Ok parameters ->
+          List.concat_map (fun (parameter : Flow_sop.Port.parameter) ->
+            let split = Option.fold ~none:false
+                ~some:(Layout.String_set.mem parameter.path)
+                (Id_map.find_opt box.info.id value.layout.split) in
+            let ports = if split then Flow_sop.Port.components parameter
+              else [parameter] in
+            List.filter_map (fun (port : Flow_sop.Port.parameter) ->
+              let target = {Flow_sop.Port.node = box.info.id; path = port.path} in
+              if Result.is_ok (Flow_sop.Network.connect_value
+                  ~source:source_port ~target value.document)
+              then Some (Hint_value (source_port, target)) else None) ports)
+            parameters in
+    let candidates = geometry @ values in
+    let visible = function
+      | Hint_port connection -> box.level = Layout.Card || box.level = Full
+          || connection.input_index = 0
+      | Hint_value (_, target) -> row_index box target.path <> None
+      | Hint_node _ -> false in
+    if candidates = [] then [] else
+    if List.length candidates = 1 || List.for_all visible candidates then candidates
     else [Hint_node box.info.id]) |> label_hints
 
 let hint_letter value letter = match value.hints with
@@ -1786,6 +2115,8 @@ let hint_letter value letter = match value.hints with
       let prefix = hints.prefix ^ String.make 1 letter in
       match List.assoc_opt prefix hints.targets with
       | Some (Hint_port connection) -> { value with hints = None }, [Connect_requested connection]
+      | Some (Hint_value (source, target)) ->
+          { value with hints = None }, [Value_connect_requested {source; target}]
       | Some (Hint_node id) ->
           let layout = { value.layout with
             level = Id_map.add id Layout.Full value.layout.level;
@@ -1800,7 +2131,7 @@ let hint_letter value letter = match value.hints with
 type command = Copy | Cut | Paste | Duplicate | Delete | Frame_all
   | Open_detail | Point_detail | Open_all | Point_all
   | Walk of direction | Add | Repeat | Connect_hint | Display | Mute | Dissolve | Find
-  | Frame_selection | Hint_letter of char | Hint_back | Cancel
+  | Frame_selection | Row_pin | Hint_letter of char | Hint_back | Cancel
 
 let bindings =
   let open Editor_core.Keymap in
@@ -1835,7 +2166,8 @@ let bindings =
      command ~guide:[Node; Multi] "dissolve" "dissolve trunk" Dissolve (Input.KeyChar 'x') [Input.Shift];
      command ~guide:[Canvas; Node; Multi; List] "find" "find node" Find (Input.KeyChar '/') [];
      command ~guide:[Canvas; Node; Multi] "frame-tile" "frame selection / display"
-       Frame_selection (Input.KeyChar 'f') []]
+       Frame_selection (Input.KeyChar 'f') [];
+     command ~guide:[Row] "row-pin" "pin or hide row" Row_pin (Input.KeyChar 's') []]
 
 let hint_bindings =
   let open Editor_core.Keymap in
@@ -1863,6 +2195,22 @@ let run_command ?at (value : t) =
   | Delete -> delete_selection value
   | Frame_all -> frame_all value, [View_changed]
   | Frame_selection -> frame_selection value, [View_changed]
+  | Row_pin -> (match value.hovered_row with
+      | None -> value, [Notice "Hover a parameter row to pin it"]
+      | Some (node, hovered) ->
+          let path = match String.rindex_opt hovered '.' with
+            | None -> hovered | Some i -> String.sub hovered 0 i in
+          let pin = Option.bind (Id_map.find_opt node value.layout.rows)
+              (Layout.String_map.find_opt path) in
+          let shown = Option.bind (Hashtbl.find_opt value.slots node) (fun index ->
+            Array.find_map (function
+              | Field (_, shown, name) when name = path -> Some shown
+              | Vector (parameter, shown) | Vector_head (parameter, shown)
+                when parameter.path = path -> Some shown
+              | _ -> None) value.boxes.(index).rows) in
+          let pinned = match pin with Some pin -> not pin
+            | None -> not (Option.value ~default:true shown) in
+          value, [Row_pinned {node; path; pinned}])
   | Walk direction -> walk value direction
   | Add -> add_by_context value pointer, []
   | Repeat -> (match value.last_added with
@@ -1887,12 +2235,25 @@ let run_command ?at (value : t) =
           else { value with hints = Some { source; targets; prefix = "" } }, []
       | _ -> value, [Notice "Select one source node to connect"])
   | Display -> (match value.primary with
-      | Some id -> view id value, [Viewed id] | None -> value, [])
+      | Some id when Edit_graph.find value.document.geometry ~node_id:id <> None ->
+          view id value, [Viewed id]
+      | Some _ -> value, [Notice "Only geometry nodes can be displayed"]
+      | None -> value, [])
   | Mute | Dissolve when Id_set.is_empty value.selected -> value, []
-  | Mute -> value, [Bypass_requested (List.filter_map (fun id ->
-      Option.map (fun index -> id, not value.boxes.(index).info.bypass)
-        (Hashtbl.find_opt value.slots id)) (selected_nodes value))]
-  | Dissolve -> clear_selection value, [Dissolve_nodes_requested (selected_nodes value)]
+  | Mute ->
+      let changes = List.filter_map (fun id ->
+        Option.bind (Hashtbl.find_opt value.slots id) (fun index ->
+          let box = value.boxes.(index) in
+          if box.info.geometry = None then None
+          else Some (id, not box.info.bypass))) (selected_nodes value) in
+      if changes = [] then value, [Notice "Select geometry nodes to mute"]
+      else value, [Bypass_requested changes]
+  | Dissolve ->
+      let ids = List.filter (fun id ->
+        Edit_graph.find value.document.geometry ~node_id:id <> None)
+          (selected_nodes value) in
+      if ids = [] then value, [Notice "Select geometry nodes to dissolve"]
+      else clear_selection value, [Dissolve_nodes_requested ids]
   | Find -> { value with find = Some ""; hints = None; menu = None; context = None }, []
   | (Open_detail | Point_detail | Open_all | Point_all) as command ->
       let ids = if command = Open_all || command = Point_all
@@ -1999,9 +2360,11 @@ let context_items (value : t) = function
   | On_tile id ->
       let flaggable = match Hashtbl.find_opt value.slots id with
         | Some index -> is_flaggable value value.boxes.(index) | None -> false in
-      ["View", true; "Set active", flaggable; "Duplicate", true; "Delete", true;
-       "Frame camera", true]
+      let geometry = Edit_graph.find value.document.geometry ~node_id:id <> None in
+      ["View", geometry; "Set active", flaggable; "Duplicate", true; "Delete", true;
+       "Frame camera", flaggable]
   | On_wire _ -> ["Insert node…", value.catalog <> [||]; "Delete", true]
+  | On_value_wire _ -> ["Delete", true]
 
 (* Context-menu rows emit the same typed changes as the keyboard and pointer
    paths. *)
@@ -2022,9 +2385,12 @@ let apply_context (value : t) context index =
       [Delete_nodes_requested [id]]
   | On_wire connection, 0 ->
       open_menu { value with selected_edge = Some connection;
+        selected_value_edge = None;
         selected = Id_set.empty; primary = None } context.at, []
   | On_wire connection, _ ->
       { value with selected_edge = None }, [Disconnect_requested connection]
+  | On_value_wire target, _ ->
+      { value with selected_value_edge = None }, [Value_disconnect_requested target]
 
 let update_canvas (value : t) ui (frame : Frame.t) =
   let value = if value.hovered_row = None then value else { value with hovered_row = None } in
@@ -2044,7 +2410,7 @@ let update_canvas (value : t) ui (frame : Frame.t) =
   let canvas_signal = Ui.signal ui canvas in
   (* Visible tiles become boxes keyed by node id; selected tiles on top. *)
   let visible_nodes, visible_edges, stats = visibility value in
-  let is_selected index = Id_set.mem value.boxes.(index).info.Edit_graph.id value.selected in
+  let is_selected index = Id_set.mem value.boxes.(index).info.id value.selected in
   if Array.length value.spatial.order < stats.visible_nodes then
     value.spatial.order <- Array.make (Array.length visible_nodes) 0;
   let order = value.spatial.order in
@@ -2069,29 +2435,50 @@ let update_canvas (value : t) ui (frame : Frame.t) =
       let tile = Ui.box ui ~flags:Ui.clickable ~w:(Ui.Px (float_of_int width))
           ~h:(Ui.Px (float_of_int height)) ~at:(local (x, y))
           box.tile_id in
-      let view, output = Ui.within ui tile (fun () ->
-        let view = if box.level = Layout.Point then None else
+      let view, sockets = Ui.within ui tile (fun () ->
+        let view = if box.level = Layout.Point || Option.is_none box.info.geometry then None else
           let bx, by, bw, bh = view_button_bounds value box in
           Some (Ui.box ui ~flags:Ui.(clickable + tab_stop) ~w:(Ui.Px (float_of_int bw))
             ~h:(Ui.Px (float_of_int bh)) ~at:(float_of_int (bx - x), float_of_int (by - y))
             "view") in
-        let output =
-          let ox, oy = output_port value box in
-          let radius = max 7 (screen_size value 8) in
-          Some (Ui.box ui ~flags:Ui.clickable ~w:(Ui.Px (float_of_int (2 * radius)))
+        let radius = max 7 (screen_size value 8) in
+        let socket key (px, py) =
+          Ui.box ui ~flags:Ui.clickable
+            ~w:(Ui.Px (float_of_int (2 * radius)))
             ~h:(Ui.Px (float_of_int (2 * radius)))
-            ~at:(float_of_int (ox - x - radius), float_of_int (oy - y - radius))
-            "output") in
+            ~at:(float_of_int (px - x - radius), float_of_int (py - y - radius)) key in
+        let outputs = List.map (fun (path, _) ->
+          let source = {Flow_sop.Port.node = box.info.id; path} in
+          let gx, gy = box_graph_position value box in
+          let ox, oy = graph_value_output box (gx, gy) path in
+          source, socket ("output-" ^ path) (screen_x value ox, screen_y value oy))
+            (visible_outputs box) in
+        let parameters = Result.value ~default:[]
+            (Flow_sop.Port.parameters box.info.fields) in
+        let inputs = Array.to_list box.rows |> List.filter_map (fun row ->
+          let path = match row with
+            | Field (_, _, path) -> Some path
+            | Vector (parameter, _) | Vector_head (parameter, _) -> Some parameter.path
+            | Slot _ | Output _ | Folder _ | More _ -> None in
+          Option.bind path (fun path ->
+            match Flow_sop.Port.find_parameter parameters path with
+            | Ok parameter when parameter.ty <> None ->
+                let target = {Flow_sop.Port.node = box.info.id; path} in
+                let gx, gy = box_graph_position value box in
+                let px, py = graph_value_input value.document box (gx, gy) path in
+                Some (target, socket ("input-" ^ path)
+                  (screen_x value px, screen_y value py))
+            | Ok _ | Error _ -> None)) in
         let active = if box.level = Layout.Point || not (is_flaggable value box) then None else
           let bx, by, bw, bh = active_button_bounds value box in
           Some (Ui.box ui ~flags:Ui.(clickable + tab_stop) ~w:(Ui.Px (float_of_int bw))
             ~h:(Ui.Px (float_of_int bh)) ~at:(float_of_int (bx - x), float_of_int (by - y))
             "active") in
-        (view, active, build_row_fields value ui box), output) in
+        (view, active, build_row_fields value ui box), (outputs, inputs)) in
       (* One signal per tile per frame; every pass below reads it. *)
       let _, _, (_, _, _, capture, _, _) = view in
       let signal = Ui.signal ui (Option.value ~default:tile capture) in
-      index, tile, signal, view, output) in
+      index, tile, signal, view, sockets) in
     let overlay = Ui.box ui ~w:(Ui.Px (float_of_int value.width))
         ~h:(Ui.Px (float_of_int value.height)) ~at:(0., 0.) "overlay" in
     layer, tiles, overlay) in
@@ -2114,13 +2501,15 @@ let update_canvas (value : t) ui (frame : Frame.t) =
     match Array.find_map (fun (index, _, signal, _, _) ->
         if Ui.context_clicked signal then
           Some { at = ints signal.release_point;
-                 target = On_tile value.boxes.(index).info.Edit_graph.id }
+                 target = On_tile value.boxes.(index).info.id }
         else None) tiles with
     | Some context -> Some context
     | None when Ui.context_clicked canvas_signal ->
         let at = ints canvas_signal.release_point in
         Some { at; target = match hit_edge value at with
-          | Some edge -> On_wire value.edges.(edge).connection
+          | Some edge -> (match value.edges.(edge).kind with
+              | Geometry_edge connection -> On_wire connection
+              | Value_edge (_, target) -> On_value_wire target)
           | None -> On_canvas }
     | None -> None in
   let value, changes = match value.menu, value.context with
@@ -2154,8 +2543,8 @@ let update_canvas (value : t) ui (frame : Frame.t) =
     let value, changes = if scroll <> 0.
       then zoom_at value frame.mouse scroll, View_changed :: changes
       else value, changes in
-    Array.fold_left (fun (value, changes) (index, tile, (tile_signal : Ui.signal), view, output) ->
-      let id = value.boxes.(index).info.Edit_graph.id in
+    Array.fold_left (fun (value, changes) (index, tile, (tile_signal : Ui.signal), view, sockets) ->
+      let id = value.boxes.(index).info.id in
       let left signal = signal.Ui.button = Some Input.LeftButton in
       let view, active, (row_changes, detail, pin, capture, _, _) = view in
       let changes = List.rev_append row_changes changes in
@@ -2175,25 +2564,34 @@ let update_canvas (value : t) ui (frame : Frame.t) =
         | Some active when (Ui.signal ui active).clicked ->
             { value with flagged = Some id }, Flag_requested id :: changes
         | Some _ | None -> value, changes in
-      let value, changes = match output with
-        | Some output ->
+      let outputs, _ = sockets in
+      let value, changes = List.fold_left (fun (value, changes) (source, output) ->
             let signal = Ui.signal ui output in
             let value = if signal.pressed && left signal
-              then { value with drag = Some (Connect_wire { source = id }) } else value in
+              then { value with drag = Some (Connect_wire { source }) } else value in
             if signal.released && left signal then begin
               let value = { value with drag = None } in
-              let changes = match hit_input value (ints signal.release_point) with
-                | Some (consumer_index, input_index) ->
-                    let consumer = value.boxes.(consumer_index).info.Edit_graph.id in
-                    if consumer <> id then Connect_requested
-                      { Edit_graph.source = id; consumer; input_index } :: changes
-                    else changes
+              let target = Array.find_map (fun (_, _, _, _, (_, inputs)) ->
+                List.find_map (fun (target, socket) ->
+                  if Ui.hovered_within ui socket &&
+                      compatible_value value.document source target
+                  then Some target else None) inputs) tiles in
+              let changes = match target with
+                | Some target -> Value_connect_requested {source; target} :: changes
+                | None when source.path = "geo" ->
+                    (match hit_input value (ints signal.release_point) with
+                     | Some (consumer_index, input_index) ->
+                         let consumer = value.boxes.(consumer_index).info.id in
+                         if consumer <> id then Connect_requested
+                           { Edit_graph.source = id; consumer; input_index } :: changes
+                         else changes
+                     | None -> changes)
                 | None -> changes in
               value, changes
-            end else value, changes
-        | None -> value, changes in
+            end else value, changes) (value, changes) outputs in
       let value, changes = if tile_signal.double_clicked && left tile_signal then
-          if value.enterable value.boxes.(index).info then value, Open_requested id :: changes
+          if Option.fold ~none:false ~some:value.enterable value.boxes.(index).info.geometry
+          then value, Open_requested id :: changes
           else
             let opening = value.boxes.(index).level = Layout.Chip
                 || value.boxes.(index).level = Point in
@@ -2219,15 +2617,15 @@ let update_canvas (value : t) ui (frame : Frame.t) =
     let value, changes = match value.drag with
       | Some (Move_nodes { node; indices; edge_indices; offset_x; offset_y }) ->
           (match Array.find_opt (fun (index, _, _, _, _) ->
-              value.boxes.(index).info.Edit_graph.id = node) tiles with
+              value.boxes.(index).info.id = node) tiles with
            | None -> { value with drag = None }, changes
            | Some (_, _, signal, _, _) ->
                let dx, dy = signal.drag in
                let value, changes = if dx <> 0. || dy <> 0. then begin
                    let change = match indices with
-                     | [|index|] -> Node_moved value.boxes.(index).info.Edit_graph.id
+                     | [|index|] -> Node_moved value.boxes.(index).info.id
                      | _ -> Nodes_moved (Array.to_list (Array.map (fun index ->
-                         value.boxes.(index).info.Edit_graph.id) indices)) in
+                         value.boxes.(index).info.id) indices)) in
                    move_nodes value node indices edge_indices (dx, dy) offset_x offset_y,
                    change :: changes
                  end else value, changes in
@@ -2257,9 +2655,12 @@ let update_canvas (value : t) ui (frame : Frame.t) =
       if List.mem Input.Ctrl modifiers || List.mem Input.Meta modifiers then
         { value with drag = Some Knife }, changes
       else match hit_edge value (ints canvas_signal.press_point) with
-      | Some edge_index when List.mem Input.Alt modifiers ->
+      | Some edge_index when List.mem Input.Alt modifiers &&
+          (match value.edges.(edge_index).kind with
+           | Geometry_edge _ -> true | Value_edge _ -> false) ->
           let edge = value.edges.(edge_index) in
-          let c = edge.connection in
+          let c = match edge.kind with Geometry_edge c -> c
+            | Value_edge _ -> assert false in
           let px, py = canvas_signal.press_point in
           let gx = graph_x value (int_of_float px) and gy = graph_y value (int_of_float py) in
           let points = edge_points value edge in
@@ -2278,18 +2679,26 @@ let update_canvas (value : t) ui (frame : Frame.t) =
             | [] -> [gx, gy] in
           let value = set_bends ~node:c.consumer ~slot:c.input_index (insert bend bends) value in
           { value with selected_edge = Some c;
+              selected_value_edge = None;
               drag = Some (Bend_wire { node = c.consumer; slot = c.input_index;
                 bend; on_canvas = true }) },
           Bend_changed { node = c.consumer; slot = c.input_index } :: changes
       | None when List.mem Input.Alt modifiers ->
           { value with drag = Some Pan_canvas }, changes
       | Some edge_index ->
-          let connection = value.edges.(edge_index).connection in
-          { value with selected_edge = Some connection; selected = Id_set.empty;
-            primary = None; drag = None },
-          Selected None :: Connection_selected (Some connection) :: changes
+          (match value.edges.(edge_index).kind with
+           | Geometry_edge connection ->
+               { value with selected_edge = Some connection;
+                 selected_value_edge = None; selected = Id_set.empty;
+                 primary = None; drag = None },
+               Selected None :: Connection_selected (Some connection) :: changes
+           | Value_edge (_, target) ->
+               { value with selected_edge = None;
+                 selected_value_edge = Some target; selected = Id_set.empty;
+                 primary = None; drag = None },
+               Selected None :: Connection_selected None :: changes)
       | None ->
-          let value = { value with selected_edge = None;
+          let value = { value with selected_edge = None; selected_value_edge = None;
             drag = Some (Box_select { additive = List.mem Input.Shift (Ui.press_keys ui canvas) }) } in
           if canvas_signal.released then begin
             let before = value.primary in
@@ -2314,9 +2723,10 @@ let update_canvas (value : t) ui (frame : Frame.t) =
           { value with drag = None }, changes
       (* A cancelled or culled wire drag has no held output left. *)
       | Some (Connect_wire { source }) when not (Array.exists
-          (fun (index, _, _, _, output) ->
-            value.boxes.(index).info.Edit_graph.id = source
-            && Option.fold ~none:false ~some:(Ui.active ui) output) tiles) ->
+          (fun (index, _, _, _, (outputs, _)) ->
+            value.boxes.(index).info.id = source.node
+            && List.exists (fun (port, output) ->
+              port = source && Ui.active ui output) outputs) tiles) ->
           { value with drag = None }, changes
       | _ -> value, changes in
     match value.drag with
@@ -2353,9 +2763,9 @@ let update_canvas (value : t) ui (frame : Frame.t) =
     | Some context -> { value with context = Some context; drag = None }
     | None -> value in
   let bloom = match value.drag with
-    | Some (Connect_wire { source }) -> Array.find_map (fun (index, _, signal, _, _) ->
+    | Some (Connect_wire { source }) -> Array.find_map (fun (index, tile, _, _, _) ->
         let box = value.boxes.(index) in
-        if signal.Ui.hovered && box.info.id <> source && Array.length box.info.inputs > 0
+        if Ui.hovered_within ui tile && box.info.id <> source.node && box.info.has_parameters
         then Some box.info.id else None) tiles
     | _ -> None in
   let value = if bloom = value.bloom then value else reshape { value with bloom } in
@@ -2374,7 +2784,7 @@ let update_canvas (value : t) ui (frame : Frame.t) =
         edges, stats.visible_wires in
     paint_background value paint edges count);
   Array.iter (fun (index, tile, _, _, _) ->
-    let id = initial.boxes.(index).info.Edit_graph.id in
+    let id = initial.boxes.(index).info.id in
     Ui.draw ui tile (fun paint _ ->
       match Hashtbl.find_opt value.slots id with
       | Some index -> paint_node value paint value.boxes.(index)
@@ -2393,13 +2803,14 @@ let update_canvas (value : t) ui (frame : Frame.t) =
         framed paint x y width height ~fill:(Color.with_alpha value.theme.accent 28)
           ~stroke:value.theme.accent
     | Some (Connect_wire { source }) ->
-        (match Hashtbl.find_opt value.slots source with
+        (match Hashtbl.find_opt value.slots source.node with
          | None -> ()
          | Some index ->
              let box = value.boxes.(index) in
              let sx, sy = box_graph_position value box in
              let px, py = canvas_signal.pointer in
-             let points = [|sx +. float box.width, sy +. 12.;
+             let start = graph_value_output box (sx, sy) source.path in
+             let points = [|start;
                graph_x value (int_of_float px), graph_y value (int_of_float py)|] in
              paint_wire value paint points ~width:2.4 value.theme.accent)
     | Some Knife -> Ui.Paint.line paint ~from_:canvas_signal.press_point
@@ -2408,21 +2819,29 @@ let update_canvas (value : t) ui (frame : Frame.t) =
   Option.iter (fun hints -> Ui.draw ui overlay (fun paint _ ->
     List.iter (fun (label, target) ->
       if String.starts_with ~prefix:hints.prefix label then
-        let id = match target with Hint_node id -> id | Hint_port c -> c.consumer in
+        let id = match target with
+          | Hint_node id -> id | Hint_port c -> c.consumer
+          | Hint_value (_, target) -> target.node in
         match Hashtbl.find_opt value.slots id with
         | None -> ()
         | Some index ->
             let box = value.boxes.(index) in
             let x, y = match target with
               | Hint_port c -> input_port value box c.input_index
+              | Hint_value (_, target) ->
+                  let gx, gy = box_graph_position value box in
+                  let px, py = graph_value_input value.document box (gx, gy) target.path in
+                  screen_x value px, screen_y value py
               | Hint_node _ -> let x, y, _, _ = box_bounds value box in x + 24, y + 12 in
             let width = Ui.Paint.text_width paint ~size:11 label +. 8. in
             Ui.Paint.rect paint ~x:(float x -. 4.) ~y:(float y -. 8.)
               ~w:width ~h:18. ~radius:2. ~fill:value.theme.foreground ();
             Ui.Paint.text paint ~at:(float x, float y -. 6.) ~size:11
               ~color:(Color.hex_exn "#f5cf4f") label) hints.targets)) value.hints;
-  let hovered_row = Array.find_map (fun (_, _, _, (_, _, (_, _, _, _, hovered, _)), _) ->
-      hovered) tiles in
+  let hovered_row = Array.find_map (fun (_, _, _, (_, _, (_, _, _, _, hovered, _)), (_, inputs)) ->
+      match List.find_opt (fun (_, socket) -> Ui.hovered_within ui socket) inputs with
+      | Some ((target : Flow_sop.Port.t), _) -> Some (target.node, target.path)
+      | None -> hovered) tiles in
   let value = { value with hovered_row } in
   if value.guide && value.drag = None && value.menu = None && value.context = None
       && value.find = None then begin
@@ -2441,12 +2860,15 @@ let update_canvas (value : t) ui (frame : Frame.t) =
                 "Geometry input, connected to " ^ label ^ ". Select the wire to delete or insert a node."
             | None -> "Geometry input. Drop a wire here, or select a source and press c." in
           Some (Printf.sprintf "input-%d-%d" box.info.id slot, text)
-      | None -> Array.find_map (fun (index, _, _, _, output) ->
-          match output with
-          | Some output when (Ui.signal ui output).hovered ->
-              Some (Printf.sprintf "output-%d" value.boxes.(index).info.id,
-                "Geometry output. Drag onto an input to wire it, or release on empty canvas to search for a node that takes it.")
-          | _ -> None) tiles in
+      | None -> Array.find_map (fun (_, _, _, _, (outputs, inputs)) ->
+          match List.find_opt (fun (_, socket) -> Ui.hovered_within ui socket) inputs with
+          | Some ((target : Flow_sop.Port.t), _) ->
+              Some (Printf.sprintf "value-input-%d-%s" target.node target.path,
+                "Value input. Drop a compatible output here to drive this row.")
+          | None -> List.find_map (fun ((source : Flow_sop.Port.t), output) ->
+              if not (Ui.hovered_within ui output) then None else
+              Some (Printf.sprintf "output-%d-%s" source.node source.path,
+                "Output. Drag onto a compatible input to wire it.")) outputs) tiles in
     let row = Array.find_map (fun (_, _, _, (_, _, (_, _, _, _, _, tip)), _) -> tip) tiles in
     let header = Array.find_map (fun (index, _, signal, (view, active, _), _) ->
       let box = value.boxes.(index) in
@@ -2459,11 +2881,16 @@ let update_canvas (value : t) ui (frame : Frame.t) =
           box.info.label ^ " · " ^ value.namespace ^ "/"
           ^ Option.value ~default:box.info.operation (Edit_graph.node_factory_key value.document.geometry ~node_id:box.info.id)
           ^ ". Drag to move; double-click to "
-          ^ (if value.enterable box.info then "enter." else "open or close detail."))) tiles in
+          ^ (if Option.fold ~none:false ~some:value.enterable box.info.geometry
+             then "enter." else "open or close detail."))) tiles in
     let wire = if not canvas_signal.hovered then None else
-      Option.map (fun index -> let c = value.edges.(index).connection in
-        Printf.sprintf "wire-%d-%d" c.consumer c.input_index,
-        "Geometry wire. Alt-click adds a bend. Click to select, then Tab inserts a node or x deletes the wire.")
+      Option.map (fun index -> match value.edges.(index).kind with
+        | Geometry_edge c ->
+            Printf.sprintf "wire-%d-%d" c.consumer c.input_index,
+            "Geometry wire. Alt-click adds a bend. Click to select, then Tab inserts a node or x deletes the wire."
+        | Value_edge (_, target) ->
+            Printf.sprintf "value-wire-%d-%s" target.node target.path,
+            "Value wire. Click to select, then x deletes the drive.")
         (hit_edge value (ints canvas_signal.pointer)) in
     match List.find_map Fun.id [bend; socket; row; header; wire] with
     | Some (key, text) -> Ui.tooltip ui ~key ~text | None -> ()
@@ -2540,6 +2967,7 @@ module Private = struct
     | None -> []
     | Some hints -> List.map (fun (label, target) -> match target with
         | Hint_port c -> label, c.consumer, Some c.input_index
+        | Hint_value (_, target) -> label, target.node, None
         | Hint_node id -> label, id, None) hints.targets
   let zoom value = value.zoom
   let level value node = Option.map (fun index -> value.boxes.(index).level)
@@ -2551,10 +2979,14 @@ module Private = struct
         let gx, gy = box_graph_position value box in
         screen_x value (gx +. 112.), screen_y value (gy +. 28. +. (24. *. float row)),
         screen_size value 76, screen_size value 16)
-        (Array.find_index (function Field (f, _) -> f.Parameter.name = path | _ -> false) box.rows))
+        (Array.find_index (function
+          | Field (_, _, name) -> name = path
+          | Vector (p, _) | Vector_head (p, _) -> p.path = path
+          | _ -> false) box.rows))
   let crossed_wires = crossed_wires
-  let hit_edge_id value point = Option.map (fun index ->
-      value.edges.(index).connection) (hit_edge value point)
+  let hit_edge_id value point = Option.bind (hit_edge value point) (fun index ->
+      match value.edges.(index).kind with
+      | Geometry_edge connection -> Some connection | Value_edge _ -> None)
   let edge_query_points value ~limit =
     Array.init (min limit (Array.length value.edges)) (fun index ->
       let points = edge_points value value.edges.(index) in
