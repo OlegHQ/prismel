@@ -125,4 +125,45 @@ let run () =
   check (Edit_graph.inputs pasted ~node_id:(List.assoc (Node.id middle) mapping)
       = Some [|None|])
     "subgraph paste retained an external connection instead of a loose slot";
+  let merged = Sop.merge [source; middle] in
+  let loose = Edit_graph.of_graph merged
+    |> Edit_graph.disconnect ~consumer:(Node.id merged) ~input_index:1 |> get in
+  let bypassed = Edit_graph.set_bypass loose ~node_id:(Node.id merged) true |> get in
+  check (Edit_graph.compile bypassed |> get == source
+      && Edit_graph.set_bypass bypassed ~node_id:(Node.id merged) true |> get == bypassed
+      && Result.is_error (Edit_graph.compile
+        (Edit_graph.set_bypass bypassed ~node_id:(Node.id merged) false |> get)))
+    "bypass did not ignore secondary slots or restore the stored operation";
+  let copied = Edit_graph.copy_nodes [Node.id merged] bypassed |> get in
+  let copy, mapping = Edit_graph.paste copied bypassed |> get in
+  check ((List.find (fun (info : Edit_graph.node_info) ->
+    info.id = List.assoc (Node.id merged) mapping) (Edit_graph.inspect copy)).bypass)
+    "copy dropped bypass metadata";
+  let targets = Sop.points [|0., 0., 0.; 2., 0., 0.; 4., 0., 0.|] in
+  let packed = Sop.copy_to_points ~pack:true ~source ~targets () in
+  let packed_consumer = Sop.null packed in
+  let packed_doc = Edit_graph.of_graph packed_consumer
+    |> fun doc -> Edit_graph.set_bypass doc ~node_id:(Node.id packed_consumer) true |> get in
+  let session = Session.create ~max_entries:16 ~max_payload_bytes:1048576 |> get in
+  Fun.protect ~finally:(fun () -> Session.close session) (fun () ->
+    let cook doc = match Session.cook session ~context:(Context.create () |> get)
+        (Edit_graph.compile doc |> get) with
+      | Ok output -> output | Error error -> fail (Diagnostic.error_to_string error) in
+    let output = cook packed_doc in
+    check (Option.map Array.length output.instances = Some 3
+        && output.geometry == (cook (Edit_graph.of_graph source)).geometry)
+      "bypass materialized packed instances";
+    let empty = Edit_graph.of_graph source
+      |> fun doc -> Edit_graph.set_bypass doc ~node_id:(Node.id source) true |> get in
+    check (Pdk.Geometry.point_count (cook empty).geometry = 0)
+      "bypassed source did not produce empty geometry");
+  let branch = Sop.merge [middle; output] in
+  let dissolved = Edit_graph.dissolve_nodes [Node.id middle; Node.id output]
+      (Edit_graph.of_graph branch) in
+  check (Edit_graph.inputs dissolved ~node_id:(Node.id branch)
+      = Some [|Some (Node.id source); Some (Node.id source)|]
+      && Result.is_ok (Edit_graph.compile dissolved)
+      && Edit_graph.root (Edit_graph.dissolve_nodes [Node.id middle; Node.id output]
+          reconnected) = Some (Node.id source))
+    "dissolve did not reconnect selected chains to every consumer and the root";
   print_endline "editable graph tests passed"

@@ -76,16 +76,23 @@ module Keymap = struct
   type trigger = Leader of string | Chord of Prismel.Input.key * Prismel.Input.key list
 end
 
+module Guide_context = struct
+  type t = Canvas | Node | Value_node | Compound | Multi | Wire | Row | Hints
+    | Leader | Search | List | Text | Inside_compound
+end
+
 module Command = struct
   type ('scope, 'action) t = {
     id : string;
     label : string;
     trigger : Keymap.trigger option;
     scope : 'scope option;
+    guide : Guide_context.t list;
     action : 'action;
   }
 
-  let make ?trigger ?scope ~id ~label action = { id; label; trigger; scope; action }
+  let make ?trigger ?scope ?(guide = []) ~id ~label action =
+    { id; label; trigger; scope; guide; action }
 end
 
 module Router = struct

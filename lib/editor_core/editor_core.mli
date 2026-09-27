@@ -40,6 +40,11 @@ module Keymap : sig
   type trigger = Leader of string | Chord of Prismel.Input.key * Prismel.Input.key list
 end
 
+module Guide_context : sig
+  type t = Canvas | Node | Value_node | Compound | Multi | Wire | Row | Hints
+    | Leader | Search | List | Text | Inside_compound
+end
+
 (** Named editor commands: the one table behind key routing, which-key, and
     the command palette. Pure data; the host decides what [action] does. *)
 module Command : sig
@@ -48,10 +53,12 @@ module Command : sig
     label : string;  (** shown in which-key and the palette *)
     trigger : Keymap.trigger option;  (** [None]: palette only *)
     scope : 'scope option;  (** [None]: global; else only while that pane has focus *)
+    guide : Guide_context.t list;  (** contexts where the guide strip lists this command *)
     action : 'action;
   }
 
-  val make : ?trigger:Keymap.trigger -> ?scope:'scope -> id:string -> label:string ->
+  val make : ?trigger:Keymap.trigger -> ?scope:'scope -> ?guide:Guide_context.t list ->
+    id:string -> label:string ->
     'action -> ('scope, 'action) t
 end
 

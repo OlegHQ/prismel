@@ -36,20 +36,20 @@ type scope = View | Graph
 
 let bindings : (scope, [ `Toggle | `Layout | `Undo | `Redo | `Delete | `Frame | `Palette | `Add_light ])
     Editor_core.Command.t list = Editor_core.Keymap.[
-  { id = "toggle"; trigger = Some (Leader "g"); label = "toggle graph"; scope = None;
+  { id = "toggle"; trigger = Some (Leader "g"); label = "toggle graph"; guide = []; scope = None;
     action = `Toggle };
-  { id = "layout"; trigger = Some (Leader "l"); label = "layout"; scope = Some Graph;
+  { id = "layout"; trigger = Some (Leader "l"); label = "layout"; guide = []; scope = Some Graph;
     action = `Layout };
   { id = "undo"; trigger = Some (Chord (Prismel.Input.KeyChar 'z', [Prismel.Input.Meta]));
-    label = "undo"; scope = None; action = `Undo };
+    label = "undo"; guide = []; scope = None; action = `Undo };
   { id = "redo"; trigger = Some (Chord (Prismel.Input.KeyChar 'z',
       [Prismel.Input.Meta; Prismel.Input.Shift]));
-    label = "redo"; scope = None; action = `Redo };
+    label = "redo"; guide = []; scope = None; action = `Redo };
   { id = "delete"; trigger = Some (Chord (Prismel.Input.Delete, []));
-    label = "delete"; scope = Some Graph; action = `Delete };
+    label = "delete"; guide = []; scope = Some Graph; action = `Delete };
   { id = "frame"; trigger = Some (Chord (Prismel.Input.KeyChar 'f', []));
-    label = "frame"; scope = Some Graph; action = `Frame };
-  { id = "add-light"; trigger = Some (Leader "al"); label = "add light"; scope = None;
+    label = "frame"; guide = []; scope = Some Graph; action = `Frame };
+  { id = "add-light"; trigger = Some (Leader "al"); label = "add light"; guide = []; scope = None;
     action = `Add_light };
   (* No trigger: palette only, never routed from a key. *)
   Editor_core.Command.make ~id:"palette" ~label:"palette only" `Palette;

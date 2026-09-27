@@ -22,6 +22,7 @@ type entry = {
   node : Node.t;
   inputs : int option array;
   factory : factory option;
+  bypass : bool;
 }
 
 type t = {
@@ -46,6 +47,7 @@ type node_info = {
   dependencies : Context.Dependencies.t;
   inputs : int option array;
   has_parameters : bool;
+  bypass : bool;
 }
 
 let of_graph graph =
@@ -53,7 +55,7 @@ let of_graph graph =
   let entries = infos |> List.fold_left (fun entries info ->
     let node = Option.get (Graph.find graph ~node_id:info.Graph.id) in
     let inputs = Array.of_list (List.map Option.some info.input_ids) in
-    Id_map.add info.id { node; inputs; factory = None } entries) Id_map.empty in
+    Id_map.add info.id { node; inputs; factory = None; bypass = false } entries) Id_map.empty in
   { entries; order_rev = List.rev_map (fun info -> info.Graph.id) infos;
     root = Some (Node.id graph) }
 
@@ -71,7 +73,7 @@ let info (entry : entry) : node_info =
     operation = Node.operation node; version = Node.version node;
     parameters = Node.parameters node; cook_mode = Node.cook_mode node;
     dependencies = Node.dependencies node; inputs = Array.copy entry.inputs;
-    has_parameters = Node.has_parameters node }
+    has_parameters = Node.has_parameters node; bypass = entry.bypass }
 
 let inspect value = List.filter_map (fun id ->
   Option.map info (Id_map.find_opt id value.entries)) (List.rev value.order_rev)
@@ -86,6 +88,17 @@ let node_factory_key value ~node_id =
 let inputs value ~node_id = Option.map (fun (entry : entry) ->
     Array.copy entry.inputs)
     (Id_map.find_opt node_id value.entries)
+
+let set_bypass value ~node_id bypass =
+  match Id_map.find_opt node_id value.entries with
+  | None -> Error (Printf.sprintf "editable graph has no node #%d" node_id)
+  | Some entry when entry.bypass = bypass -> Ok value
+  | Some entry -> Ok { value with entries =
+      Id_map.add node_id { entry with bypass } value.entries }
+
+let empty_geometry = lazy (Sop.snapshot (Result.get_ok (Pdk.Geometry.create
+  ~positions:(Pdk.Packed.Float3.Builder.freeze (Pdk.Packed.Float3.Builder.create 0))
+  ~topology:(Pdk.Topology.empty ~point_count:0) ())))
 
 (* One compiled node per document entry. [inputs] are the compiled input
    nodes it was built from, so a later compile can reuse [built] when both the
@@ -139,13 +152,14 @@ let compile_into value ~previous table =
         | None -> Error (Printf.sprintf "editable graph references missing node #%d" id)
         | Some (entry : entry) ->
             Hashtbl.add visiting id ();
-            let count = Array.length entry.inputs in
+            let count = if entry.bypass then min 1 (Array.length entry.inputs)
+              else Array.length entry.inputs in
             let compiled_inputs = Array.make count None in
             let rec build_inputs index =
               if index = count then Ok ()
               else match entry.inputs.(index) with
                 | None ->
-                    let optional = match entry.factory with
+                    let optional = entry.bypass || match entry.factory with
                       | Some factory -> factory.requirements.(index) = Optional
                       | None -> false in
                     if optional then build_inputs (index + 1)
@@ -160,6 +174,13 @@ let compile_into value ~previous table =
               | Some reused when reused.source == entry
                     && same_inputs reused.compiled_inputs compiled_inputs ->
                   reused.built
+              | _ when entry.bypass ->
+                  (* Alias the cooked input rather than a null SOP: this retains
+                     packed instances without materializing their topology. *)
+                  Ok (if count > 0 && compiled_inputs.(0) <> None
+                    then Option.get compiled_inputs.(0)
+                    else Node.Private.adopt_identity ~source:entry.node
+                      (Lazy.force empty_geometry))
               | _ -> rebuild entry compiled_inputs) in
             Hashtbl.remove visiting id;
             (* A cycle error names where the walk entered the cycle, so once one
@@ -237,7 +258,7 @@ let add_node ?inputs ?factory node value =
           "new node %S references missing node #%d" (Node.label node) source)
       | Some None -> assert false
       | None -> Ok { value with
-          entries = Id_map.add id { node; inputs; factory } value.entries;
+          entries = Id_map.add id { node; inputs; factory; bypass = false } value.entries;
           order_rev = id :: value.order_rev }
 
 let remove_nodes ids value =
@@ -254,6 +275,22 @@ let remove_nodes ids value =
     order_rev = List.filter (fun id -> not (Id_set.mem id removed)) value.order_rev;
     root = Option.bind value.root (fun id ->
       if Id_set.mem id removed then None else Some id) }
+
+let dissolve_nodes ids value =
+  let removed = Id_set.of_list ids in
+  let rec trunk seen id =
+    if not (Id_set.mem id removed) then Some id
+    else if Id_set.mem id seen then None
+    else match Id_map.find_opt id value.entries with
+      | Some entry when Array.length entry.inputs > 0 ->
+          Option.bind entry.inputs.(0) (trunk (Id_set.add id seen))
+      | _ -> None in
+  let root = Option.bind value.root (trunk Id_set.empty) in
+  let entries = Id_map.map (fun (entry : entry) ->
+    let inputs = Array.map (fun input ->
+      Option.bind input (trunk Id_set.empty)) entry.inputs in
+    { entry with inputs }) value.entries in
+  remove_nodes ids { value with entries; root }
 
 let depends_on value ~node_id ~candidate =
   let seen = Hashtbl.create 16 in
@@ -314,23 +351,23 @@ let paste fragment value =
          arity; the factory below rebuilds presence from remapped slots. *)
       let placeholders = Node.Private.input_array entry.node in
       old_id, Node.Private.clone_with_inputs entry.node placeholders,
-      entry.inputs, entry.factory)
+      entry.inputs, entry.factory, entry.bypass)
         fragment.fragment_entries in
-    let remap = List.fold_left (fun remap (old_id, node, _, _) ->
+    let remap = List.fold_left (fun remap (old_id, node, _, _, _) ->
       Id_map.add old_id (Node.id node) remap) Id_map.empty clones in
-    let appended_ids = List.map (fun (_, node, _, _) -> Node.id node) clones in
-    let entries = List.fold_left (fun entries (_, node, inputs, factory) ->
+    let appended_ids = List.map (fun (_, node, _, _, _) -> Node.id node) clones in
+    let entries = List.fold_left (fun entries (_, node, inputs, factory, bypass) ->
       let inputs = Array.map (function
         | None -> None
         | Some old_id -> Id_map.find_opt old_id remap) inputs in
-      Id_map.add (Node.id node) { node; inputs; factory } entries)
+      Id_map.add (Node.id node) { node; inputs; factory; bypass } entries)
         value.entries clones in
-    let entries = List.fold_left (fun entries (_, node, _, _) ->
+    let entries = List.fold_left (fun entries (_, node, _, _, _) ->
       let id = Node.id node in
       let entry = Id_map.find id entries in
       let node = rebuild_if_connected entries entry entry.inputs in
       Id_map.add id { entry with node } entries) entries clones in
-    let mapping = List.map (fun (old_id, node, _, _) ->
+    let mapping = List.map (fun (old_id, node, _, _, _) ->
       old_id, Node.id node) clones in
     let root = match value.root, fragment.fragment_root with
       | Some root, _ -> Some root
@@ -374,7 +411,7 @@ let insert_on_connection ?factory connection node value =
   let arity = match factory with
     | None -> List.length (Node.inputs node)
     | Some factory -> Array.length factory.requirements in
-  if arity <> 1 then Error (Printf.sprintf
+  if arity < 1 then Error (Printf.sprintf
       "node %S cannot be inserted on a wire because it has %d inputs"
       (Node.label node) arity)
   else match Id_map.find_opt connection.consumer value.entries with
@@ -386,7 +423,8 @@ let insert_on_connection ?factory connection node value =
     | Some (consumer : entry) when consumer.inputs.(connection.input_index)
         <> Some connection.source -> Error "selected connection is stale"
     | Some _ ->
-        Result.bind (add_node ~inputs:[|Some connection.source|] ?factory node value)
+        Result.bind (add_node ~inputs:(Array.init arity (fun slot ->
+          if slot = 0 then Some connection.source else None)) ?factory node value)
           (connect ~source:(Node.id node) ~consumer:connection.consumer
              ~input_index:connection.input_index)
 

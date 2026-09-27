@@ -32,7 +32,7 @@ accept an intended one with `dune promote`.
 |---|---|---|---|
 | M0 | Spec, prototype, docs aligned | done | 2026-09-27 |
 | M1 | Canvas: direction, polylines, bends, levels, box select, rows, preset v3 layout | done | 2026-09-27 |
-| M2 | Keys and guide mode, World key remap | not started | |
+| M2 | Keys and guide mode, World key remap | in progress | |
 | M3 | Value ports: `flow`, `flow_sop`, value nodes, drives by wire, exposure, vec3, inspector | not started | |
 | M4 | Wireless binds, expressions, fold/unfold, row keys | not started | |
 | M5 | Compounds and contexts | not started | |
@@ -316,6 +316,12 @@ network with the same canvas, keys, views and text), then plan it here.
   the build.
 
 ## Log
+
+- 2026-09-27 M2 foundation: Command guide contexts, immutable bypass
+  metadata shared by cooking/copy/presets, selected-chain dissolve and
+  primary-slot insertion for multi-input nodes. Focused regressions,
+  `@check` and default `runtest` pass; M2 interaction and guide UI remain
+  in progress.
 
 - 2026-09-27 M0: `flow.md`, this file, the prototype under
   `specification/flow/prototype/`, and pointers in `AGENTS.md` files,

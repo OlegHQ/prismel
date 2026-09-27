@@ -27,6 +27,7 @@ type node_info = {
   dependencies : Context.Dependencies.t;
   inputs : int option array;
   has_parameters : bool;
+  bypass : bool;
 }
 
 val of_graph : Graph.t -> t
@@ -38,6 +39,9 @@ val set_root : int -> t -> (t, string) result
 val inspect : t -> node_info list
 val find : t -> node_id:int -> Node.t option
 val inputs : t -> node_id:int -> int option array option
+val set_bypass : t -> node_id:int -> bool -> (t, string) result
+(** Bypass cooking through slot 0, or empty geometry without that slot.
+    Other inputs are ignored. Wiring and literal parameters are retained. *)
 
 val node_factory_key : t -> node_id:int -> string option
 (** The catalog factory a node was added from; [None] for nodes that came from
@@ -69,6 +73,12 @@ val add_node :
   ?inputs:int option array -> ?factory:factory ->
   Node.t -> t -> (t, string) result
 val remove_nodes : int list -> t -> t
+
+(** Remove the selection, reconnecting every consumer to the source of each
+    removed node's primary slot. Selected chains resolve to their first
+    surviving source. The display root follows that source when removed. *)
+val dissolve_nodes : int list -> t -> t
+
 val connect : source:int -> consumer:int -> input_index:int -> t ->
   (t, string) result
 val disconnect : consumer:int -> input_index:int -> t -> (t, string) result
@@ -79,7 +89,8 @@ val disconnect : consumer:int -> input_index:int -> t -> (t, string) result
 val copy_nodes : int list -> t -> (fragment, string) result
 val paste : fragment -> t -> (t * (int * int) list, string) result
 
-(** Atomically insert a one-input node on an existing connection. *)
+(** Atomically insert a node's primary slot on a connection. Extra slots start
+    disconnected. Sources with no input slot cannot be inserted. *)
 val insert_on_connection :
   ?factory:factory -> connection -> Node.t -> t -> (t, string) result
 

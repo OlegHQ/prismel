@@ -4,13 +4,13 @@
   "module_count": 129,
   "modules": [
     {
-      "api_sha256": "a3c8ffa82af778f12d702722381c00d28874e6cbaaf1c6c7ac044543d099b8c9",
+      "api_sha256": "88c7bb6e5dae42d608339608fbbc9004a1d25b7f2b3825dae77c3473b1152467",
       "excluded_legacy_symbols": [],
       "library": "editor_core",
       "module": "Editor_core",
       "source": "lib/editor_core/editor_core.mli",
-      "source_bytes": 3030,
-      "source_sha256": "f4855f531b83e354ec1a60b3d5a50c15478c6e8968f37ea258c0958f0ec3f8e4"
+      "source_bytes": 3321,
+      "source_sha256": "3362d80937ce2e655e23eb3b9f22578fc0b9920968314ed2c433ae4b0f18e74f"
     },
     {
       "api_sha256": "af6968cab7a5985acb98a5dffae30c7d24f36a10da34bb817a272f9b69e494c3",
@@ -1007,13 +1007,13 @@
       "source_sha256": "22768a3498358549067252ba294073b2ae119fad811a66d1c09562c04e0b37fb"
     },
     {
-      "api_sha256": "2fbe891c00c4f761087ec1c982b0768a613dc7601f27c5f4dc025559dc686940",
+      "api_sha256": "4e3973c442780cf121383135fceea0b9b98c12c2f1b871ef07463d8b6bf66e3f",
       "excluded_legacy_symbols": [],
       "library": "procedural",
       "module": "Edit_graph",
       "source": "lib/procedural/edit_graph.mli",
-      "source_bytes": 3965,
-      "source_sha256": "d2eb0cb7bd616309712eee63ecaf3280cbf1cc62123521c2f22df986de8c36a7"
+      "source_bytes": 4539,
+      "source_sha256": "d3515c5f1dbeebdbd113ba8d6b3eef739e39310f638d3f6c2b0c2befabeaa539"
     },
     {
       "api_sha256": "e2b28c62481122de99ba265c82e061740f1c9c514f49cdf82ee76a99d2b9abe7",

@@ -62,6 +62,7 @@ let network_json (network : Document.network) =
       @ (match Edit_graph.node_factory_key network.graph ~node_id:info.id with
         | Some key -> [ "factory_key", `String key ] | None -> [])
       @ [ "label", `String info.label;
+          "bypass", `Bool info.bypass;
           "inputs", `List (Array.to_list (Array.map optional_int info.inputs));
           "params", `List (List.map (fun (field : Parameter.field_view) ->
             `List [ `String field.name; value_json field.current ])
@@ -136,6 +137,7 @@ type saved = {
   level : Layout.level;
   pinned : bool;
   rows : bool Layout.String_map.t;
+  bypass : bool;
 }
 
 let rec all = function
@@ -159,6 +161,8 @@ let saved_node : Yojson.Safe.t -> (saved, string) result = function
       let* label = match field "label" with
         | Some (`String label) -> Ok label | None -> Ok ""
         | _ -> Error "invalid node label" in
+      let* bypass = match field "bypass" with
+        | None -> Ok false | Some (`Bool b) -> Ok b | _ -> Error "invalid bypass" in
       let* inputs = match field "inputs" with
         | Some (`List inputs) -> all (List.map (function
             | `Int id -> Ok (Some id) | `Null -> Ok None
@@ -192,7 +196,7 @@ let saved_node : Yojson.Safe.t -> (saved, string) result = function
       let* () = match field "split" with
         | None | Some (`List []) -> Ok () | _ -> Error "vector splits require value ports" in
       Ok { id; factory_key; label; inputs; params;
-        x = Layout.snap x; y = Layout.snap y; level; pinned; rows }
+        x = Layout.snap x; y = Layout.snap y; level; pinned; rows; bypass }
   | _ -> Error "node is not an object"
 
 let nodes_of = function
@@ -342,6 +346,7 @@ let rebuild ~code ~factories (nodes, display, bends) =
     (Ok document) nodes in
   let* document = List.fold_left (fun state (node : saved) ->
     let* document = state in
+    let* document = Edit_graph.set_bypass document ~node_id:node.id node.bypass in
     if node.params = [] then Ok document
     else Result.map fst (Edit_graph.apply_parameters document ~node_id:node.id node.params))
     (Ok document) nodes in

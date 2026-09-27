@@ -176,8 +176,12 @@ its destination port. There are no edge ids.
 
 ### 3.7 The `sop` network overlay
 
-`Edit_graph` does not change. The `sop` context adds an overlay beside it in
-the new `flow_sop` library:
+`Edit_graph` retains geometry topology and gains a per-entry bypass flag in
+M2. A bypassed SOP passes its primary slot through, including packed
+instances; without a connected primary slot it produces empty geometry.
+Other slots are not cooked while bypassed. The flag preserves the node's
+identity, literal record and wiring and is saved as `bypass` in preset v3.
+The `sop` context adds an overlay beside it in the new `flow_sop` library:
 
 ```ocaml
 (* lib/flow_sop/network.mli *)
@@ -1067,7 +1071,7 @@ content-addressed cache sharing between instances; macros.
 | Decision | Choice |
 |---|---|
 | Wire shape | straight polylines with authored bends; no curves |
-| Architecture | `flow` overlay beside an unchanged `Edit_graph`, not a rewrite of `Edit_graph` |
+| Architecture | `flow` overlay beside the geometry `Edit_graph`; M2 adds bypass metadata to its existing entries |
 | Value kinds | built into `flow`, context-free; not SOP catalog entries |
 | Edge identity | destination port; no edge ids |
 | Shared saved layout | UI-free `Editor_core.Network_layout`; document and canvas share it without importing presentation into the document |
@@ -1087,3 +1091,8 @@ content-addressed cache sharing between instances; macros.
 version 3 replaces the v1/v2 readers and preserves saved node ids.
 M1 preserves explicit row exposure metadata as part of that layout; vector
 splits and wireless flags stay empty until their milestones.
+
+2026-09-27: bypass was specified without a storage or execution path. It is
+an immutable `Edit_graph` entry flag, shared by compile, copy, undo and
+presets, rather than a second host map. Only the primary slot is compiled
+while bypassed; disconnected secondary slots cannot prevent the pass-through.

@@ -51,7 +51,7 @@ let run () =
   let valid = document scene [owned 10 sop] in
   let flow_sop = extend (network [
       extend box ["level", `String "full"; "pinned", `Bool true;
-        "rows", `Assoc ["size_x", `Bool false]];
+        "rows", `Assoc ["size_x", `Bool false]; "bypass", `Bool true];
       node 21 "null" [`Int 20]] (`Int 21))
       ["geometry_bends", `List [`Assoc ["to", `List [`Int 21; `String "in0"];
         "bends", `List [`List [`Int 120; `Int 12]]]]] in
@@ -87,9 +87,10 @@ let run () =
   let saved_box = saved_network |> member "nodes" |> to_list |> List.find (fun json ->
     json |> member "id" |> to_int = 20) in
   check (member "level" saved_box = `String "full" && member "pinned" saved_box = `Bool true
+    && member "bypass" saved_box = `Bool true
     && member "rows" saved_box = `Assoc ["size_x", `Bool false]
     && member "geometry_bends" saved_network <> `List [])
-    "v3 round trip dropped detail, pins or bends";
+    "v3 round trip dropped detail, pins, bypass or bends";
   let successful = Preset.path ~directory ~name:"valid-saved" in
   let before = In_channel.with_open_bin successful In_channel.input_all in
   let loaded = load successful |> Result.get_ok in
@@ -104,6 +105,7 @@ let run () =
     "old-version-2", `Assoc ["version", `Int 2; "scene", scene; "networks", `List [owned 10 sop]];
     "bad-level", document scene [owned 10 (network [extend box ["level", `String "detail"]] (`Int 20))];
     "bad-pin", document scene [owned 10 (network [extend box ["pinned", `Int 1]] (`Int 20))];
+    "bad-bypass", document scene [owned 10 (network [extend box ["bypass", `Int 1]] (`Int 20))];
     "missing-row", document scene [owned 10 (network [extend box ["rows", `Assoc ["absent", `Bool true]]] (`Int 20))];
     "missing-bend-port", document scene [owned 10 (extend sop ["geometry_bends", `List [
       `Assoc ["to", `List [`Int 20; `String "in0"]; "bends", `List []]]])];
