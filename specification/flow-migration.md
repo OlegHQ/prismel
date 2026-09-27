@@ -317,6 +317,13 @@ network with the same canvas, keys, views and text), then plan it here.
 
 ## Log
 
+- 2026-09-27 M3 catalog extraction: an OCaml AST codemod moved the unchanged
+  operation modules into four private files (shapes, topology, attributes,
+  groups) plus common helpers. The public facade keeps all 154 tagged aliases
+  in registry order. Before/after descriptors are exactly equal, including
+  defaults, ranges, slot order and cook keys (canonical snapshot digest
+  `961e191a6b0c7b2ec966250a6ce03714`). Catalog annotations follow separately.
+
 - 2026-09-27 M3 PPX metadata: primary and checked vec3 groups generate
   schema metadata; stable keys and geometry-slot names are checked at the
   declaration. Factory descriptors retain named slots with canonical

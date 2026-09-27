@@ -1022,7 +1022,7 @@ separately (cache keys include node ids; sharing is out of scope).
 | `pxui_shell` | changed | + `flow` (types only) | inspector rows (§9), guide strip in `Status_bar` |
 | `prismel_editor` | changed | + `flow`, `flow_sop` | keys, guide contexts, views, value lane scheduling |
 | `ppx_prismel` | changed | `ppxlib`, + `flow` | `[@sop.primary]`, `[@sop.vec3]`, `[@@sop.node_slots]`, `[%flow]` |
-| `sop_catalog` | changed (M3) | unchanged | annotations only |
+| `sop_catalog` | changed (M3) | unchanged | annotations, private operation groups and one PPX registry facade |
 
 Gate changes in `test/dependency_gate.ml` (M3): add `flow` and `flow_sop` to
 `upper`; rules `"flow", "prismel" :: "prismel_math" :: "pdk" :: "procedural" ::

@@ -2,4 +2,5 @@
  (name sop_catalog)
  (public_name prismel.sop_catalog)
  (libraries prismel pdk procedural)
+ (private_modules shared shapes topology attributes groups)
  (preprocess (pps prismel.ppx)))

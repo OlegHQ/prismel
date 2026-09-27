@@ -1,10 +1,14 @@
 # lib/sop_catalog rules
 
-Define an inspectable editor SOP once in `sop_catalog`: keep its parameter
+Define an inspectable editor SOP once in the matching private operation file
+(`shapes.ml`, `topology.ml`, `attributes.ml`, or `groups.ml`): keep its parameter
 record, stable node key, runtime operation identity, display label, category
 path, input arity, defaults, and rebuild closure together through
 `[@@deriving sop_params, sop_node]`, then
-mark the module `[@@sop.register]`. Write the node as
+register its module alias in `sop_catalog.ml` with `[@@sop.register]`.
+Only the facade carries registration attributes; the private files keep the
+schema and builder together, and `shared.ml` holds their common helpers.
+Write the node as
 `let build = parameters_build (fun ~label parameters input0 ... -> Sop.op ...)`
 and `let factory = parameters_factory build`; the generated build owns the
 input-arity match, optional-slot presence, `Node.parameterize`, and the
