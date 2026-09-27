@@ -96,6 +96,9 @@ let set_bypass value ~node_id bypass =
   | Some entry -> Ok { value with entries =
       Id_map.add node_id { entry with bypass } value.entries }
 
+let is_bypassed value ~node_id = match Id_map.find_opt node_id value.entries with
+  | Some entry -> entry.bypass | None -> false
+
 let empty_geometry = lazy (Sop.snapshot (Result.get_ok (Pdk.Geometry.create
   ~positions:(Pdk.Packed.Float3.Builder.freeze (Pdk.Packed.Float3.Builder.create 0))
   ~topology:(Pdk.Topology.empty ~point_count:0) ())))

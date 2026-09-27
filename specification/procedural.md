@@ -215,8 +215,14 @@ optional input slots, and validates add/delete/connect/disconnect/atomic-wire-
 insert operations. Compilation rebuilds parameterized closures with their
 current inputs, rejects cycles and disconnected paths, and produces an ordinary
 immutable DAG for the existing deterministic Session cook path.
+Bypass is immutable entry metadata: compilation uses only the primary input,
+retains packed instances, and produces empty geometry without an input.
+Copy/paste and v3 presets retain the flag and its unchanged literal record.
+Dissolve reconnects every consumer through the selected chain's primary
+inputs. Wire insertion fills the new node's primary slot and leaves any
+additional slots disconnected.
 
-*Prismel Flow (target, `flow.md`):* `Edit_graph` itself does not change. From
+*Prismel Flow (target, `flow.md`):* geometry remains in `Edit_graph`. From
 milestone M3 each SOP network carries a `flow_sop` overlay beside it: value
 nodes (built into the new `flow` library), drives on parameter ports (a wire
 from a value output or an expression), and later compound definitions. A
@@ -234,8 +240,12 @@ commands for Delete/Backspace, port connections, the searchable node-menu
 catalog, and Command/Ctrl copy, paste, cut, and duplicate. Catalog nodes may be
 created with disconnected input slots. Copy/paste preserves induced-subgraph
 wiring, allocates fresh node IDs, and leaves external inputs disconnected.
-`optimize_layout` and `frame_selected` are host-bound (leader `l`/`f`);
-[Home] frames all. A separate VIEW button
+`optimize_layout` is offered by the context menu and palette; plain `f`
+frames the selection or display node, `Space f` frames the display node,
+and Home frames all. Tab adds by context, `.` repeats the last kind, `c`
+connects by cycle-safe letter hints, and `/` finds nodes by label or qualified
+kind. Append insertion moves only the downstream nodes beyond its position,
+in the same undo entry. A separate VIEW button
 chooses the document node compiled and submitted by `prismel_editor` without changing
 inspector selection. The canvas never mutates the document or cooks geometry;
 `prismel_editor` applies commands, reports validation errors, and retains the prior

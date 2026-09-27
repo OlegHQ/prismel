@@ -113,6 +113,9 @@ module Router = struct
       match command.trigger with
       | Some (Chord (bound, modifiers)) when same_key bound key
           && List.for_all (fun modifier -> List.mem modifier keys) modifiers
+          && (bound <> Prismel.Input.Tab || List.for_all (fun modifier ->
+               List.mem modifier keys = List.mem modifier modifiers)
+               [Prismel.Input.Shift; Prismel.Input.Alt])
           && List.for_all (fun modifier ->
                not (List.mem modifier keys) || List.mem modifier modifiers)
                [Prismel.Input.Meta; Prismel.Input.Ctrl] ->
@@ -149,16 +152,18 @@ module Router = struct
       modifiers := Event.Private.keys_after !modifiers event;
       let command = List.mem Input.Meta !modifiers || List.mem Input.Ctrl !modifiers in
       if !traversing then Idle, actions, event :: passed else match state, event with
-      | _, Event.KeyPressed Input.Tab when not command
-          && chord keymap focus !modifiers Input.Tab = None ->
+      | _, Event.KeyPressed Input.Tab when not command ->
           traversing := true;
-          Idle, actions, event :: passed
+          (match chord keymap focus !modifiers Input.Tab with
+           | None -> Idle, actions, event :: passed
+           | Some action -> Idle, action :: actions, passed)
       | Idle, Event.KeyPressed Input.Space when not text_focus && not command ->
           Pending "", actions, passed
       | Idle, Event.KeyPressed key when not text_focus ->
           (match chord keymap focus !modifiers key with
            | Some action -> Idle, action :: actions, passed
            | None -> Idle, actions, event :: passed)
+      | Idle, Event.TextInput _ when actions <> [] -> Idle, actions, passed
       | Idle, _ -> Idle, actions, event :: passed
       | Pending _, Event.KeyPressed key when modifier key -> state, actions, passed
       | Pending prefix, Event.KeyPressed (Input.KeyChar character) ->
@@ -177,7 +182,5 @@ module Router = struct
       | Pending _, Event.WindowFocusLost -> Idle, actions, event :: passed
       | Pending _, _ -> state, actions, event :: passed)
       (state, [], []) frame.events in
-    let passed = if state = Idle && actions <> [] then List.filter (function
-        | Event.TextInput _ -> false | _ -> true) passed else passed in
     state, List.rev actions, { frame with events = List.rev passed }
 end

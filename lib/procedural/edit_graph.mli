@@ -43,6 +43,8 @@ val set_bypass : t -> node_id:int -> bool -> (t, string) result
 (** Bypass cooking through slot 0, or empty geometry without that slot.
     Other inputs are ignored. Wiring and literal parameters are retained. *)
 
+val is_bypassed : t -> node_id:int -> bool
+
 val node_factory_key : t -> node_id:int -> string option
 (** The catalog factory a node was added from; [None] for nodes that came from
     a code graph ([of_graph]). *)

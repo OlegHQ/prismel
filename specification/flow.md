@@ -181,6 +181,9 @@ M2. A bypassed SOP passes its primary slot through, including packed
 instances; without a connected primary slot it produces empty geometry.
 Other slots are not cooked while bypassed. The flag preserves the node's
 identity, literal record and wiring and is saved as `bypass` in preset v3.
+In the existing scene and World contexts, bypass suppresses the selected
+object's or layer's contribution while retaining parent transforms and
+the layer stack. It does not overwrite visibility literals.
 The `sop` context adds an overlay beside it in the new `flow_sop` library:
 
 ```ocaml

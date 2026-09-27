@@ -11,6 +11,25 @@ let schema = Editor_core.Param.(schema ~name:"command-value" ~default:0
     ~default:0 ~get:Fun.id ~set:(fun value _ -> value) ()])
 
 let run () =
+  let table = List.map (fun (command : _ Command.t) ->
+    {command with scope = Some Pxui_shell.Layout.Graph}) Pxui_graph.bindings in
+  List.iter (fun (pressed, modifiers, expected) ->
+    let input = Test_editor_input.frame ~keys:[] (500.,400.)
+      (List.map key modifiers @ [key pressed]) 1 in
+    let route focus = let _, actions, _ = Editor_core.Router.step table ~focus
+      ~text_focus:false ~frame:input Idle in actions in
+    check (route Pxui_shell.Layout.Graph = [expected]) "Flow grammar key routed the wrong action";
+    check (route Pxui_shell.Layout.View = [] && route Pxui_shell.Layout.Inspector = [])
+      "a Flow grammar key escaped graph scope")
+    Pxui_graph.[Input.KeyChar 'h', [], Walk Left; Input.ArrowLeft, [], Walk Left;
+      Input.KeyChar 'j', [], Walk Down; Input.ArrowDown, [], Walk Down;
+      Input.KeyChar 'k', [], Walk Up; Input.ArrowUp, [], Walk Up;
+      Input.KeyChar 'l', [], Walk Right; Input.ArrowRight, [], Walk Right;
+      Input.Tab, [], Add; Input.KeyChar '.', [], Repeat; Input.KeyChar 'c', [], Connect_hint;
+      Input.KeyChar 'v', [], Display; Input.KeyChar 'm', [], Mute;
+      Input.KeyChar 'x', [], Delete; Input.Delete, [], Delete; Input.Backspace, [], Delete;
+      Input.KeyChar 'x', [Input.Shift], Dissolve; Input.KeyChar '/', [], Find;
+      Input.KeyChar 'f', [], Frame_selection];
   let exercise ~name ~create ~update ~close ~settings ~set_settings =
     let set n env = set_settings env (Settings.make schema n) in
     let bump = set 3 in
@@ -40,9 +59,9 @@ let run () =
     let commands = [make (Leader "K") bump; make (Leader "qq") bump;
       make ~id:"test.modifier" (Chord (Input.KeyChar 'm', [Input.Meta])) (set 30);
       make ~scope:Pxui_shell.Layout.View ~id:"test.view"
-        (Chord (Input.KeyChar 'j', [])) (set 10);
+        (Chord (Input.KeyChar 'g', [])) (set 10);
       make ~scope:Pxui_shell.Layout.Graph ~id:"test.graph"
-        (Chord (Input.KeyChar 'j', [])) (set 20)] in
+        (Chord (Input.KeyChar 'g', [])) (set 20)] in
     let current = ref (create commands |> Result.get_ok) and count = ref 0 in
     Fun.protect ~finally:(fun () -> close !current) (fun () ->
       let step ?(mouse = (100., 300.)) ?(keys = []) events =
@@ -64,12 +83,12 @@ let run () =
       current := set 0 !current;
       step ~keys:[Input.Meta] [char 'm'; key Input.Meta];
       check (value () = 0) (name ^ ": a later modifier press changed an earlier chord");
-      step [char 'j'];
+      step [char 'g'];
       check (value () = 10) (name ^ ": view-scoped chord did not run");
       let point = 500., 500. in
       step ~mouse:point [Event.MousePressed (Input.LeftButton, point);
         Event.MouseReleased (Input.LeftButton, point)];
-      step [char 'j'];
+      step [char 'g'];
       check (value () = 20) (name ^ ": graph-scoped chord did not run")) in
   let graph = Procedural.Sop.box ~size:(Vec3.create 1. 1. 1.) () in
   let module E3 = Prismel_editor.Editor3 in

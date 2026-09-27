@@ -43,15 +43,15 @@ let keymap = [
   command ~id:"graph.projection" ~label:"list / graph" ~trigger:(Leader "l") Toggle_projection;
   command ~id:"scene.world" ~label:"World" ~trigger:(Leader "e") Go_world;
   command ~id:"graph.add-node" ~label:"add (menu)" ~trigger:(Leader "a") Add_node;
-  command ~id:"world.emit" ~label:"dome / light" ~trigger:(Chord (Input.KeyChar 'e', []))
+  command ~id:"world.emit" ~label:"dome / light" ~trigger:(Chord (Input.KeyChar 't', []))
     ~scope:graph World_emit;
-  command ~id:"world.reseed" ~label:"reseed" ~trigger:(Chord (Input.KeyChar 'r', []))
+  command ~id:"world.reseed" ~label:"reseed" ~trigger:(Chord (Input.KeyChar 'n', []))
     ~scope:graph World_reseed;
   command ~id:"world.earlier" ~label:"time -30 min" ~trigger:(Chord (Input.KeyChar '[', []))
     ~scope:graph (World_time (-0.5));
   command ~id:"world.later" ~label:"time +30 min" ~trigger:(Chord (Input.KeyChar ']', []))
     ~scope:graph (World_time 0.5);
-  command ~id:"world.play" ~label:"play day cycle" ~trigger:(Chord (Input.KeyChar 'p', []))
+  command ~id:"world.play" ~label:"play day cycle" ~trigger:(Chord (Input.KeyChar 'd', []))
     ~scope:graph World_play;
 ] @ List.mapi (fun index (name, _) ->
   command ~id:("world.preset." ^ string_of_int (index + 1)) ~label:("preset " ^ name)
@@ -66,7 +66,7 @@ let keymap = [
   command ~id:"graph.layout" ~label:"layout" ~scope:graph Layout;
   command ~id:"graph.frame-tile" ~label:"frame displayed tile" ~trigger:(Leader "f")
     ~scope:graph Frame_tile;
-  command ~id:"graph.frame-tile" ~label:"frame displayed tile / reveal row"
+  command ~id:"graph.frame-tile" ~label:"reveal list selection"
     ~trigger:(Chord (Input.KeyChar 'f', [])) ~scope:graph Frame_tile;
   command ~id:"view.frame-camera" ~label:"focus camera on displayed node"
     ~trigger:(Chord (Input.KeyChar 'f', [])) ~scope:view Frame_camera;

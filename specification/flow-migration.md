@@ -143,11 +143,11 @@ Tasks:
    connect-hint, display, mute, delete, dissolve, find, frame); host-level
    ones go in `lib/prismel_editor/leader.ml`. Validation of overlaps stays as
    today.
-2. Tab contexts and ripple (§7.3), repeat (§7.4), letter hints (§7.5, the
+2. [x] Tab contexts and ripple (§7.3), repeat (§7.4), letter hints (§7.5, the
    `c` half), walk (§7.6), dissolve (`⇧X`: reconnect the primary input's source
    to every consumer), find (§7.10).
-3. `f`: frame the selection, or the display node with none selected.
-4. World keys: `leader.ml` `world.emit` → `t`, `world.reseed` → `n`,
+3. [x] `f`: frame the selection, or the display node with none selected.
+4. [x] World keys: `leader.ml` `world.emit` → `t`, `world.reseed` → `n`,
    `world.play` → `d` (graph scope, World level only, as today).
 5. `Editor_core.Command.t` gains `guide : Guide_context.t list` (pure data,
    default `[]`); `lib/pxui_shell` `Status_bar` renders the strip of §10 for
@@ -316,6 +316,15 @@ network with the same canvas, keys, views and text), then plan it here.
   the build.
 
 ## Log
+
+- 2026-09-27 M2 interaction: walk, contextual Tab/append/ripple, qualified
+  repeat across levels, cycle-safe letter hints, display, mute, delete,
+  dissolve, find and selection framing; World `t/n/d`. Bypass suppresses
+  scene objects and World layers without altering literals; a muted ACTIVE
+  camera falls back to the viewport. Tab yields subsequent ordered events
+  to the UI and Shift-Tab retains traversal. Fixed-layout, routing, shared
+  input, World and camera regressions, `@check` and default `runtest` pass.
+  Guide strip/tooltips, key sheet, preferences and HUD remain for M2.
 
 - 2026-09-27 M2 foundation: Command guide contexts, immutable bypass
   metadata shared by cooking/copy/presets, selected-chain dissolve and

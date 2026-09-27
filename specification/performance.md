@@ -73,6 +73,16 @@ single sample varies substantially between runs (the earlier M1 run was
 45.316 ms). It is outside the held-pointer loop. These measurements do not
 establish an undo latency guarantee.
 
+M2's ACTIVE-camera bypass guard was measured immediately before and after
+the guard on the same machine/profile, with
+`dune exec tools/bench_prismel_editor.exe -- 2000` (200 held-pointer updates,
+UI on the initial domain; seven cook domains, the default on this machine).
+Median drag time was 0.164 → 0.162 ms and p95
+1.565 → 1.554 ms; allocation was 602,507 → 602,603 bytes/frame. This sample
+does not distinguish a timing change; the extra lookup adds 96 bytes/frame.
+The one undo sample was 7.639 → 19.009 ms, consistent with the variability
+above rather than a latency guarantee.
+
 ```sh
 dune exec tools/bench_pxui_graph.exe
 dune exec tools/bench_pxui_graph.exe -- --points

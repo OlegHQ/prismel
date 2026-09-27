@@ -148,6 +148,8 @@ let view_of value level (frame : Frame.t) =
   let network = Option.get (Document.network value.doc level) in
   let gx, gy, gw, gh = (Pxui_shell.Layout.geometry value.workspace frame).graph in
   Pxui_graph.create_document ~x:gx ~y:gy ~width:(max 1 gw) ~height:(max 1 gh)
+    ~namespace:(match level with Document.Scene -> "scene"
+      | Inside id when kind value id = Some "world" -> "world" | Inside _ -> "sop")
     ~catalog:(Pxui_graph.catalog_of_factories (catalog { value with level } level))
     ~flaggable:(fun info -> level = Document.Scene && info.Edit_graph.operation = "camera")
     ~enterable:(fun info -> level = Document.Scene && enterable value info.Edit_graph.id)
@@ -159,7 +161,8 @@ let open_level value level frame =
   if level = value.level then value else
   let world = match level with
     | Document.Inside id -> kind value id = Some "world" | Scene -> false in
-  { value with level; graph_view = view_of value level frame; map_view = world;
+  { value with level; graph_view = view_of value level frame
+      |> Pxui_graph.carry_last_added ~from:value.graph_view; map_view = world;
     tree = Pxui_shell.Tree.create () }
 
 (* The geometry objects to cook: visible ones, each with its network. *)
@@ -167,7 +170,8 @@ let geometry_objects value =
   List.filter_map (fun id ->
     match Edit_graph.find (scene value) ~node_id:id,
         Document.Layout.find_opt id value.doc.Document.networks with
-    | Some node, Some network when Objects.visible node ->
+    | Some node, Some network when Objects.visible node
+        && not (Edit_graph.is_bypassed (scene value) ~node_id:id) ->
         Option.map (fun displayed -> id, network.Document.graph, displayed) network.displayed
     | _ -> None) (Objects.ids "geometry" (scene value))
 
@@ -610,6 +614,8 @@ let intent_label = function
   | Pxui_graph.Connect_requested _ -> Some "Connect"
   | Disconnect_requested _ -> Some "Disconnect"
   | Delete_nodes_requested _ -> Some "Delete"
+  | Dissolve_nodes_requested _ -> Some "Dissolve"
+  | Bypass_requested _ -> Some "Bypass"
   | Add_requested _ -> Some "Add node"
   | Insert_requested _ -> Some "Insert node"
   | Paste_requested _ -> Some "Paste"
@@ -621,7 +627,7 @@ let intent_label = function
   | Set_parameter_requested { path; _ } -> Some ("Set " ^ path)
   | Cut_wires_requested _ -> Some "Cut wires"
   | Selected _ | View_changed | Connection_selected _ | Frame_camera_requested _
-  | Open_requested _ -> None
+  | Open_requested _ | Notice _ -> None
 
 let in_world value = match value.level with
   | Document.Inside id -> kind value id = Some "world" | Scene -> false
@@ -686,10 +692,17 @@ let world_keys value (doc : Document.t) graph_view actions =
 let routed value =
   let graph_shown = not (Pxui_shell.Layout.collapsed value.workspace Pxui_shell.Layout.Graph) in
   let listing = projection value = List_view in
-  List.filter (fun (command : Leader.command) -> match command.action with
+  if Pxui_graph.hinting value.graph_view && not listing then
+    List.map (fun (command : _ Editor_core.Command.t) ->
+      { command with scope = Some Pxui_shell.Layout.Graph;
+        action = Leader.Graph_command command.action }) Pxui_graph.hint_bindings
+  else List.filter (fun (command : Leader.command) -> match command.action with
     | List_command _ -> listing && graph_shown
     | Graph_command Pxui_graph.Frame_all -> not listing && graph_shown
-    | Graph_command _ | Frame_camera -> graph_shown
+    | Graph_command (Walk _ | Add | Connect_hint | Frame_selection) -> not listing && graph_shown
+    | Graph_command _ -> graph_shown
+    | Frame_tile -> graph_shown && (listing || command.trigger = Some (Editor_core.Keymap.Leader "f"))
+    | Frame_camera -> graph_shown
     | Enter | Up | Go_world -> value.scene_level
     | World_emit | World_reseed | World_time _ | World_play | World_preset _ ->
         in_world value
@@ -733,7 +746,7 @@ let parameter_gesture operation level id values =
 
 let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
     ~render_status ~view_state (frame : Frame.t) =
-  let text_focus = text_focus || value.prompt <> None
+  let text_focus = text_focus || value.prompt <> None || Pxui_graph.editing value.graph_view
     || Pxui_shell.Tree.editing value.tree in
   let focus = if all_ui_visible then
       match Pxui.Ui.last_press_within value.ui frame
@@ -772,7 +785,9 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
   let graph_view, command_changes = List.fold_left (fun (graph_view, changes) ->
     function
     | Leader.Graph_command command when graph_shown ->
-        let graph_view, emitted = Pxui_graph.run_command graph_view command in
+        let mx, my = frame.mouse in
+        let graph_view, emitted = Pxui_graph.run_command ~at:(int_of_float mx, int_of_float my)
+            graph_view command in
         graph_view, changes @ emitted
     | _ -> graph_view, changes) (graph_view, []) actions in
   let document = document value in
@@ -1016,7 +1031,7 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
     | _ -> tree in
   let touched = tree_document != document || tree_graph_view != graph_view || List.exists (function
     | Pxui_graph.Selected _ | View_changed | Connection_selected _
-    | Frame_camera_requested _ | Open_requested _ -> false
+    | Frame_camera_requested _ | Open_requested _ | Notice _ -> false
     | _ -> true) result.graph_changes in
   let apply_changes (document, effects, error) = function
     | None -> document, effects, error
@@ -1055,7 +1070,9 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
       | Seek_playback frame -> Sketch_support.Timeline.seek timeline ~frame in
     next, changes @ emitted) (timeline, timeline_changes) result.timeline_intents in
   let prompt, notice, loaded = match result.prompt_intent with
-    | None -> result.prompt, value.notice, None
+    | None -> result.prompt, (match List.find_map (function
+        | Pxui_graph.Notice message -> Some message | _ -> None) result.graph_changes with
+        | Some _ as notice -> notice | None -> value.notice), None
     | Some (Run_action _) -> result.prompt, value.notice, None
     | Some (Save_preset_file name) ->
         let notice = match Preset.save ~directory:value.presets ~name
@@ -1100,7 +1117,7 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
                   [Editor_core.Network_layout.slot c.consumer c.input_index]
               | Cut_wires_requested cs -> List.map (fun (c : Edit_graph.connection) ->
                   Editor_core.Network_layout.slot c.consumer c.input_index) cs
-              | Delete_nodes_requested ids ->
+              | Delete_nodes_requested ids | Dissolve_nodes_requested ids ->
                   Editor_core.Network_layout.Port_map.bindings current.layout.bends
                   |> List.filter_map (fun ((id, path), _) ->
                     let exists = match Edit_graph.inputs result.document ~node_id:id,
@@ -1320,6 +1337,7 @@ let set_settings value settings =
 
 (* The scene's World at timeline [time] (the day cycle advances with it). *)
 let world value ~time = match Objects.ids "world" (scene value) with
+  | id :: _ when Edit_graph.is_bypassed (scene value) ~node_id:id -> None
   | id :: _ ->
       Option.bind (Edit_graph.find (scene value) ~node_id:id) (fun node ->
         Option.bind (Document.Layout.find_opt id value.doc.Document.networks)
@@ -1330,7 +1348,9 @@ let world value ~time = match Objects.ids "world" (scene value) with
 let placed_pieces ?(render = false) value =
   List.filter_map (fun (piece : _ Cook.piece) ->
     match Edit_graph.find (scene value) ~node_id:piece.id with
-    | Some node when Objects.visible node && (not render || Objects.flag "render" node) ->
+    | Some node when Objects.visible node
+        && not (Edit_graph.is_bypassed (scene value) ~node_id:piece.id)
+        && (not render || Objects.flag "render" node) ->
         Some (Objects.world (scene value) piece.id, piece)
     | Some _ | None -> None) (pieces value)
 

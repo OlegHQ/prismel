@@ -69,7 +69,103 @@ let run_smoke () =
   Printf.printf "pxui graph 2,001-node smoke: %.6f s, %.0f allocated bytes\n%!"
     (Unix.gettimeofday () -. started) (Gc.allocated_bytes () -. allocated)
 
+let run_grammar () =
+  let step = update in
+  let a = Sop.points ~label:"a" [|0., 0., 0.|]
+  and b = Sop.points ~label:"b" [|1., 0., 0.|] in
+  let aa = Sop.null ~label:"aa" a and bb = Sop.null ~label:"bb" b in
+  let output = Sop.merge ~label:"out" [aa; bb] in
+  let catalog = [Pxui_graph.{ key="null"; label="Null"; category=["Utility"]; arity=1 }] in
+  let id = Node.id in
+  let canvas = Pxui_graph.create ~catalog ~width:800 ~height:500 output
+    |> Pxui_graph.place_nodes [id a, 0., 0.; id b, 0., 180.; id aa, 252., 0.;
+       id bb, 252., 180.; id output, 516., 0.] in
+  let open Pxui_graph in
+  List.iter (fun (source, targets) -> List.iter (fun (direction, target) ->
+    let next, _ = run_command (select (id source) canvas) (Walk direction) in
+    check (selected next = Some (id target)) "walk chose the wrong connected or directional node") targets)
+    [a, [Left,a; Right,aa; Down,b; Up,a];
+     b, [Left,b; Right,bb; Down,b; Up,a];
+     aa, [Left,a; Right,output; Down,bb; Up,aa];
+     bb, [Left,b; Right,output; Down,bb; Up,aa];
+     output, [Left,aa; Right,output; Down,bb; Up,output]];
+  let next, _ = run_command (clear_selection canvas) (Walk Right) in
+  check (selected next = Some (id a)) "walk with no selection did not choose the leftmost node";
+  let request canvas =
+    let canvas, _ = step canvas (frame ()) in
+    let _, changes = step canvas (frame ~events:[Event.TextInput "Null";
+      Event.KeyPressed Input.Enter] ()) in
+    List.find_map (function Insert_requested r -> Some r | _ -> None) changes |> Option.get in
+  let adding, _ = run_command ~at:(400,300) (select (id a) canvas) Add in
+  let insertion = request adding in
+  check (insertion.connection = Edit_graph.{source=id a; consumer=id aa; input_index=0}
+      && insertion.at = (256., 0.)
+      && List.sort compare insertion.ripple = List.sort compare
+         [id aa, 508., 0.; id output, 772., 0.]
+      && node_positions canvas = node_positions adding)
+    "Tab ripple included an upstream/sibling node, missed a consumer, or moved before reduction";
+  let repeated, changes = run_command (select (id aa) (with_last_added "null" canvas)) Repeat in
+  check (not (editing repeated) && List.exists (function
+    | Insert_requested r -> r.factory_key = "null" && r.connection.source = id aa
+        && r.at = (508., 0.) && r.ripple = [id output, 772., 0.]
+    | _ -> false) changes) "repeat did not use the append rule or opened a menu";
+  let world = create_document ~namespace:"world" ~catalog (Edit_graph.of_graph output)
+    |> carry_last_added ~from:(with_last_added "null" canvas) in
+  let _, changes = run_command world Repeat in
+  check (List.for_all (function Notice _ -> true | _ -> false) changes && changes <> [])
+    "repeat confused equal keys from different contexts";
+  let returned = carry_last_added ~from:world canvas |> select (id aa) in
+  let _, changes = run_command returned Repeat in
+  check (List.exists (function Insert_requested _ -> true | _ -> false) changes)
+    "returning to a level lost the last added kind";
+  let framed, _ = run_command (select_nodes [id a; id bb] canvas) Frame_selection in
+  List.iter (fun node -> let x,y,w,h = (List.find (fun n -> n.id = id node)
+      (node_views framed)).bounds in
+    check (x >= 24 && y >= 24 && x+w <= 800-24 && y+h <= 500-24)
+      "f did not frame the complete selection") [a;bb];
+  let targets = List.init 30 (fun i -> Sop.null ~label:(Printf.sprintf "target-%02d" i) a) in
+  let document = List.fold_left (fun doc target -> Edit_graph.add_node ~inputs:[|None|]
+    target doc |> Result.get_ok) (Edit_graph.add_node a Edit_graph.empty |> Result.get_ok) targets in
+  let hints = create_document document |> place_nodes
+      (List.mapi (fun i node -> id node, 300., float (i*100)) targets)
+      |> select (id a) |> fun value -> fst (run_command value Connect_hint) in
+  let labels = Private.hint_labels hints in
+  check (List.length labels = 30 && List.for_all (fun (label, _, _) -> String.length label = 2) labels
+      && List.filteri (fun i _ -> i < 3) labels =
+         ["aa", id (List.nth targets 0), Some 0;
+          "as", id (List.nth targets 1), Some 0;
+          "ad", id (List.nth targets 2), Some 0])
+    "30-target hints did not get stable distance-ordered two-letter labels";
+  let narrowed, _ = run_command hints (Hint_letter 'a') in
+  check (hinting narrowed) "a prefix selected a two-letter hint early";
+  let back, _ = run_command narrowed Hint_back in
+  let narrowed, _ = run_command back (Hint_letter 'a') in
+  let picked, changes = run_command narrowed (Hint_letter 's') in
+  check (not (hinting picked) && changes = [Connect_requested Edit_graph.{
+    source=id a; consumer=id (List.nth targets 1); input_index=0}])
+    "hint backspace or exact selection connected the wrong port";
+  let cyclic, _ = run_command (select (id aa) canvas) Connect_hint in
+  check (List.for_all (fun (_, candidate, _) -> candidate <> id a && candidate <> id aa)
+      (Private.hint_labels cyclic)) "hints offered a cycle or self connection";
+  let collapsed = fst (run_command (select (id output) canvas) Point_detail)
+    |> select (id a) |> fun v -> fst (run_command v Connect_hint) in
+  let label = List.find_map (fun (label,candidate,slot) ->
+    if candidate = id output && slot = None then Some label else None)
+    (Private.hint_labels collapsed) |> Option.get in
+  let expanded = String.fold_left (fun v c -> fst (run_command v (Hint_letter c))) collapsed label in
+  check (Private.level expanded (id output) = Some Editor_core.Network_layout.Full
+    && Private.hint_labels expanded = ["a", id output, Some 0; "s", id output, Some 1])
+    "a collapsed multi-port hint did not open Full and relabel its ports";
+  let finding, _ = run_command canvas Find in
+  let finding, _ = step finding (frame ()) in
+  let found, changes = step finding (frame ~events:[Event.TextInput "sop/merge";
+    Event.KeyPressed Input.Enter] ()) in
+  check (selected found = Some (id output) && not (editing found)
+    && List.mem (Selected (Some (id output))) changes)
+    "find did not select by qualified kind and close its shared picker"
+
 let run () =
+  run_grammar ();
   let source_a = Sop.points ~label:"Source A" [|0., 0., 0.|]
   and source_b = Sop.points ~label:"Source B" [|1., 0., 0.|] in
   let moved_a = Sop.transform ~label:"Move A"
@@ -440,9 +536,13 @@ let run () =
         ~catalog:full_catalog graph in
     let menu_view, _ = update (Pxui_graph.open_menu_at menu_point menu_view)
         (frame ~mouse:menu_point ()) in
+    let index = Pxui_graph.Private.menu_keys menu_view ~query:entry.key |> Array.to_list
+      |> List.mapi (fun i key -> i, key)
+      |> List.find_map (fun (i,key) -> if key = entry.key then Some i else None) |> Option.get in
     let _, changes = update menu_view
-        (frame ~mouse:menu_point ~events:[Event.TextInput entry.key;
-          Event.KeyPressed Input.Enter] ()) in
+        (frame ~mouse:menu_point ~events:(Event.TextInput entry.key
+          :: List.init index (fun _ -> Event.KeyPressed Input.ArrowDown)
+          @ [Event.KeyPressed Input.Enter]) ()) in
     check (List.exists (function Pxui_graph.Add_requested request ->
         request.factory_key = entry.key | _ -> false) changes)
       ("Space search cannot reach generated SOP " ^ entry.key)) full_catalog;

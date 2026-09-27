@@ -57,7 +57,8 @@ let same_view a b =
     | _ -> false)
 
 let active_node (core : _ Core.t) = Option.bind core.doc.active_camera
-    (fun node_id -> Edit_graph.find (Core.scene core) ~node_id)
+    (fun node_id -> if Edit_graph.is_bypassed (Core.scene core) ~node_id then None
+      else Edit_graph.find (Core.scene core) ~node_id)
 
 (* A default camera, following the viewport, when the catalog offers one. *)
 let add_default_camera ?(lens = Camera.pinhole) ~factories document easy =

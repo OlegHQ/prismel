@@ -63,8 +63,9 @@ module Command : sig
 end
 
 module Router : sig
-  (** Tab without a host binding cancels leader routing and hands the remaining
-      ordered events to UI traversal/activation, including a same-frame Space. *)
+  (** Tab cancels leader routing, runs its exact-modifier host binding or
+      passes to UI traversal, then hands the remaining ordered events to
+      the UI (including a same-frame Space). *)
   type state = Idle | Pending of string  (** leader keys typed so far *)
 
   (** In fly mode, keep pointer/window events and pass Space to the leader

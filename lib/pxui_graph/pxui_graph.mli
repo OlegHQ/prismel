@@ -30,6 +30,7 @@ type insert_request = {
   factory_key : string;
   connection : Procedural.Edit_graph.connection;
   at : float * float;
+  ripple : (int * float * float) list;
 }
 
 type paste_request = {
@@ -51,6 +52,9 @@ type change =
   | Connect_requested of Procedural.Edit_graph.connection
   | Disconnect_requested of Procedural.Edit_graph.connection
   | Delete_nodes_requested of int list
+  | Dissolve_nodes_requested of int list
+  | Bypass_requested of (int * bool) list
+  | Notice of string
   | Add_requested of add_request
   | Insert_requested of insert_request
   | Paste_requested of paste_request
@@ -99,6 +103,7 @@ val create_document :
   ?theme:Pxui.theme -> ?selected:int ->
   ?catalog:catalog_entry list -> ?flaggable:(Procedural.Edit_graph.node_info -> bool) ->
   ?enterable:(Procedural.Edit_graph.node_info -> bool) ->
+  ?namespace:string ->
   Procedural.Edit_graph.t -> t
 (** [flaggable] marks tiles that get a flag button (default: none); the
     graph never interprets operation names itself. *)
@@ -147,7 +152,7 @@ val set_bends : node:int -> slot:int -> (float * float) list -> t -> t
 
 val open_menu_at : int * int -> t -> t
 (** Open the hierarchical node menu at a screen point (clamped inside the
-    canvas). With a selected wire it offers one-input nodes for insertion. *)
+    canvas). With a selected wire it offers nodes with a primary input for insertion. *)
 
 val optimize_layout : t -> t
 (** Re-run automatic layout, dropping manual tile positions, and frame all. *)
@@ -155,17 +160,28 @@ val optimize_layout : t -> t
 val frame_viewed : t -> t
 (** Frame the displayed tile, or all tiles when it is unavailable. *)
 
+val with_last_added : string -> t -> t
+val carry_last_added : from:t -> t -> t
+(** Retain the last qualified kind across host level changes. *)
+
+val hinting : t -> bool
+val editing : t -> bool
+
 val copy_selection : t -> t
 val delete_selection : t -> t * change list
 (** Graph commands return topology requests for the host to apply. *)
 
 val stats : t -> stats
 
+type direction = Left | Down | Up | Right
 type command = Copy | Cut | Paste | Duplicate | Delete | Frame_all
   | Open_detail | Point_detail | Open_all | Point_all
+  | Walk of direction | Add | Repeat | Connect_hint | Display | Mute | Dissolve | Find
+  | Frame_selection | Hint_letter of char | Hint_back | Cancel
+val hint_bindings : ('scope, command) Editor_core.Command.t list
 val bindings : ('scope, command) Editor_core.Command.t list
 (* Global key commands; the host scopes them to its graph pane. *)
-val run_command : t -> command -> t * change list
+val run_command : ?at:(int * int) -> t -> command -> t * change list
 (** Commands are dispatched by the host's key router, not by [update]. *)
 
 (** Interaction contract:
@@ -182,7 +198,7 @@ val run_command : t -> command -> t * change list
       context menu or palette; leader [f] frames and [a] opens the menu);
     - the hierarchical node menu: category paths form submenus,
       while typed search matches labels, keys, and complete breadcrumbs across
-      the entire catalog; on a selected wire it offers one-input nodes for
+      the entire catalog; on a selected wire it offers nodes with a primary input for
       atomic insertion. *)
 val update : t -> Pxui.Ui.t -> Prismel.Frame.t -> t * change list
 (** Build the canvas inside [Pxui.Ui.frame], at the root level, and return
@@ -192,6 +208,8 @@ val update : t -> Pxui.Ui.t -> Prismel.Frame.t -> t * change list
     polylines; the dot grid is one quad. *)
 
 module Private : sig
+  val menu_keys : t -> query:string -> string array
+  val hint_labels : t -> (string * int * int option) list
   val zoom : t -> float
   val level : t -> int -> Editor_core.Network_layout.level option
   val field_bounds : t -> node:int -> path:string -> (int * int * int * int) option

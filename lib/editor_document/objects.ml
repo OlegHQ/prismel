@@ -263,7 +263,8 @@ let ids operation scene = List.filter_map (fun (info : Edit_graph.node_info) ->
 
 let lights ?(render = false) scene = List.filter_map (fun id ->
     match Edit_graph.find scene ~node_id:id with
-    | Some node when visible node && (not render || flag "render" node) -> to_light scene id
+    | Some node when visible node && not (Edit_graph.is_bypassed scene ~node_id:id)
+        && (not render || flag "render" node) -> to_light scene id
     | Some _ | None -> None) (ids "light" scene)
 
 (* Parameters a light object gets from a renderer light. *)

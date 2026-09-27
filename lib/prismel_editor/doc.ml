@@ -74,6 +74,24 @@ let apply factories (document, graph_view, error, effects, placed, pasted) = fun
       let document = Edit_graph.remove_nodes ids document in
       document, Pxui_graph.with_document document graph_view, None,
       Parameter.union_effects effects cook_effects, List.rev_append ids placed, pasted
+  | Dissolve_nodes_requested ids ->
+      let displayed = Pxui_graph.viewed graph_view in
+      let document = if List.mem displayed ids then
+          Result.value ~default:document (Edit_graph.set_root displayed document)
+        else document in
+      let document = Edit_graph.dissolve_nodes ids document in
+      let graph_view = Pxui_graph.with_document document graph_view in
+      document, graph_view, None, Parameter.union_effects effects cook_effects,
+      List.rev_append ids placed, pasted
+  | Bypass_requested changes ->
+      let changed = List.fold_left (fun state (node_id, bypass) ->
+        Result.bind state (fun document -> Edit_graph.set_bypass document ~node_id bypass))
+        (Ok document) changes in
+      (match changed with
+       | Error message -> document, graph_view, Some message, effects, placed, pasted
+       | Ok changed -> changed, Pxui_graph.with_document changed graph_view, None,
+           Parameter.union_effects effects cook_effects, placed, pasted)
+  | Notice _ -> document, graph_view, error, effects, placed, pasted
   | Add_requested request ->
       (match instantiate factories document request.factory_key request.inputs with
        | Error message -> document, graph_view, Some message, effects, placed, pasted
@@ -94,6 +112,7 @@ let apply factories (document, graph_view, error, effects, placed, pasted) = fun
                 let graph_view = graph_view
                   |> Pxui_graph.with_document document
                   |> Pxui_graph.place_nodes [Node.id node, x, y]
+                  |> Pxui_graph.with_last_added request.factory_key
                   |> Pxui_graph.select (Node.id node) in
                 let graph_view = if connected
                   then Pxui_graph.view (Node.id node) graph_view else graph_view in
@@ -112,10 +131,14 @@ let apply factories (document, graph_view, error, effects, placed, pasted) = fun
                 let graph_view = graph_view
                   |> Pxui_graph.with_document document
                   |> Pxui_graph.place_nodes [Node.id node, x, y]
+                  |> Pxui_graph.place_nodes request.ripple
+                  |> Pxui_graph.with_last_added request.factory_key
                   |> Pxui_graph.select (Node.id node)
                   |> Pxui_graph.view (Node.id node) in
                 document, graph_view, None,
-                Parameter.union_effects effects cook_effects, Node.id node :: placed, pasted))
+                Parameter.union_effects effects cook_effects,
+                Node.id node :: List.rev_append (List.map (fun (id, _, _) -> id) request.ripple) placed,
+                pasted))
   | Paste_requested request ->
       (match Edit_graph.paste request.fragment document with
        | Error message -> document, graph_view, Some message, effects, placed, pasted

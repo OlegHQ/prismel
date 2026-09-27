@@ -284,6 +284,7 @@ let stack (network : Document.network) =
              down (Option.get inputs.(0)) acc
          | _ -> acc) in
   Option.fold ~none:[] ~some:(fun id -> down id []) network.displayed
+  |> List.filter (fun node -> not (Edit_graph.is_bypassed network.graph ~node_id:(Node.id node)))
 
 (* The World a scene-level world node and its layer network describe;
    [time] (seconds) advances the time of day by the node's day cycle. *)

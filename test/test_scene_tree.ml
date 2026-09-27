@@ -24,6 +24,7 @@ let run () =
   let cooks = Atomic.make 0 in
   let graph = Sop.box ~label:"box" ~size:(Vec3.create 1. 1. 1.) () in
   let env = E.create ~graph ~factories:Sop_catalog.Editor.factories
+      ~lens:{ aperture = 0.3; focus_distance = None }
       ~max_entries:4 ~max_payload_bytes:(16 * 1024 * 1024)
       ~prepare:(fun _ output -> Atomic.incr cooks;
         Pdk_prismel.Prismel_mesh.to_mesh output.Session.geometry
@@ -53,6 +54,17 @@ let run () =
     if label env = Some name then env
     else if tries = 0 then fail ("no list row named " ^ name)
     else select name (step env [key Input.ArrowDown]) (tries - 1) in
+  let env = select "camera1" env 6 in
+  let camera = E.selected_node env |> Option.get |> Node.id in
+  let env = step env [char 'm'] in
+  check (Edit_graph.is_bypassed (E.document env) ~node_id:camera
+      && Camera.lens (E.render_camera env) = Camera.lens (Easy_camera.camera (E.camera env)))
+    "muted ACTIVE camera did not fall back to the viewport lens";
+  let env = step ~keys:[Input.Meta] env [char 'z'] in
+  check (not (Edit_graph.is_bypassed (E.document env) ~node_id:camera)
+      && (Camera.lens (E.render_camera env)).aperture = 0.3)
+    "undo did not restore the ACTIVE camera's lens and bypass flag";
+  let env = step env [key Input.ArrowUp] in
   let env = select "geo1" env 6 in
   check (E.level env = None) "the editor did not open at the scene level";
   let env = step env [char 'i'] in
@@ -204,12 +216,35 @@ let run () =
       [Event.MousePressed (Input.LeftButton, (float (fst in_list), float (snd in_list)));
        Event.MouseReleased (Input.LeftButton, (float (fst in_list), float (snd in_list)))] in
   let env = select "softbox" env 16 in
-  (* World keys: e flips the selected emitter to a real light, ] moves the
+  (* World keys: t flips the selected emitter to a real light, ] moves the
      time of day, 3 loads the white room preset. *)
-  let env = step env [char 'e'] in
+  let env = step env [char 't'] in
   let env = step env [] in
   check (match E.world env with Some baked -> baked.World.lights <> [] | None -> false)
-    "e did not promote the selected shape to a light";
+    "t did not promote the selected shape to a light";
+  let lit = parameters env selected in
+  let env = step env [char 'm'] |> fun env -> step env [] in
+  check (Edit_graph.is_bypassed (E.document env) ~node_id:selected
+      && parameters env selected = lit
+      && match E.world env with Some baked -> baked.World.lights = [] | None -> false)
+    "mute did not suppress a World layer without overwriting its literals";
+  let env = step env [char 'm'] |> fun env -> step env [] in
+  check (match E.world env with Some baked -> baked.World.lights <> [] | None -> false)
+    "unmuting a World layer did not restore its contribution";
+  let env = add env "scatter" |> fun env -> step env [] in
+  let env = step env [Event.TextInput "constellation"; key Input.Enter] in
+  let scatter = E.selected_node env |> Option.get |> Node.id in
+  let seed env = List.assoc "seed" (parameters env scatter) in
+  let before = seed env in
+  let env = step env [char 'n'] in
+  check (match before, seed env with Int_value a, Int_value b -> b=a+1 | _ -> false)
+    "World n did not reseed the selected scatter layer";
+  let env = step env [char 'd'] in
+  let day_cycle env = List.find_map (fun (info : Edit_graph.node_info) ->
+    if info.operation <> "world" then None else List.find_map (fun (field : Parameter.field_view) ->
+      if field.name = "day_cycle" then Some field.current else None)
+      (Node.parameter_fields info.node)) (Edit_graph.inspect (E.scene_document env)) |> Option.get in
+  check (day_cycle env = Float_value 1.) "World d did not start its day cycle";
   let hours env = List.find_map (fun (info : Edit_graph.node_info) ->
       if info.operation <> "world" then None
       else List.find_map (fun (field : Parameter.field_view) ->
@@ -225,6 +260,9 @@ let run () =
       (Edit_graph.inspect (E.document env))) "3 did not load the white room preset";
   let env = step env [char 'u'] in
   check (E.level env = None) "u did not leave the World";
+  let saved = E.document env and baked = E.world env in
+  let env = step env [char 't'; char 'n'; char 'd'] in
+  check (E.document env == saved && E.world env = baked) "World keys edited the scene level";
   (* Space l flips the scene between list and graph. *)
   let env = step env [key Input.Space; char 'l'] in
   let env = step env [] in

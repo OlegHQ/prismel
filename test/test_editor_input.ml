@@ -201,6 +201,10 @@ let run () =
     still moved "an unrelated command merged with a held tile drag";
     step ~keys:[Input.Meta] [char 'z'];
     still original "undo/history present did not restore the preceding tile drag";
+    (* Tab adds in the graph; shared chrome traversal still works from View. *)
+    let view_point = 100., 300. in
+    step ~mouse:view_point [Event.MousePressed (Input.LeftButton, view_point);
+      Event.MouseReleased (Input.LeftButton, view_point)];
     let _, _, width, _ = (panes !current (frame (0., 0.) [] 0)).Pxui_shell.Layout.view in
     step [key Input.Tab; key Input.Space];
     let _, _, collapsed, _ = (panes !current (frame (0., 0.) [] 0)).Pxui_shell.Layout.view in

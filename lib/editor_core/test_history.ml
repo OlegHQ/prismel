@@ -71,6 +71,18 @@ let () =
       Event.KeyPressed Input.Space]) Idle in
   assert (traversed = Idle && activated = []
     && remaining.events = [Event.KeyPressed Input.Tab; Event.KeyPressed Input.Space]);
+  let add = Editor_core.Command.make ~id:"graph.add" ~label:"add"
+    ~scope:View ~trigger:(Editor_core.Keymap.Chord (Input.Tab, [])) `Add in
+  let state, actions, remaining = Editor_core.Router.step [add] ~focus:View
+    ~text_focus:false ~frame:(frame [Event.KeyPressed Input.Tab;
+      Event.KeyPressed Input.Space; Event.TextInput " "]) (Pending "") in
+  assert (state = Idle && actions = [`Add]
+    && remaining.events = [Event.KeyPressed Input.Space; Event.TextInput " "]);
+  let state, actions, remaining = Editor_core.Router.step [add] ~focus:View
+    ~text_focus:false ~frame:(frame [Event.KeyPressed Input.Shift;
+      Event.KeyPressed Input.Tab; Event.KeyPressed Input.Space]) Idle in
+  assert (state = Idle && actions = [] && List.mem (Event.KeyPressed Input.Tab) remaining.events
+    && List.mem (Event.KeyPressed Input.Space) remaining.events);
   let step ?(focus = View) ?(text_focus = false) state keys =
     Editor_core.Router.step bindings ~focus ~text_focus
       ~frame:(frame (List.map (fun key -> Event.KeyPressed key) keys)) state in

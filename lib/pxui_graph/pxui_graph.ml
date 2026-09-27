@@ -31,6 +31,7 @@ type insert_request = {
   factory_key : string;
   connection : Edit_graph.connection;
   at : float * float;
+  ripple : (int * float * float) list;
 }
 
 type paste_request = {
@@ -52,6 +53,9 @@ type change =
   | Connect_requested of Edit_graph.connection
   | Disconnect_requested of Edit_graph.connection
   | Delete_nodes_requested of int list
+  | Dissolve_nodes_requested of int list
+  | Bypass_requested of (int * bool) list
+  | Notice of string
   | Add_requested of add_request
   | Insert_requested of insert_request
   | Paste_requested of paste_request
@@ -87,7 +91,13 @@ type menu = {
   query : string;
   path : string list;
   insertion : Edit_graph.connection option;
+  inputs : int list;
+  compatible_input : bool;
+  ripple : (int * float * float) list;
 }
+
+type hint_target = Hint_port of Edit_graph.connection | Hint_node of int
+type hints = { source : int; prefix : string; targets : (string * hint_target) list }
 
 type context_target =
   | On_canvas
@@ -205,6 +215,10 @@ type t = {
   context : context option;
   clipboard : clipboard option;
   catalog : catalog_item array;
+  last_added : string option;
+  hints : hints option;
+  find : string option;
+  namespace : string;
   visible : bool;
   theme : Pxui.theme;
 }
@@ -520,7 +534,7 @@ let catalog_array catalog =
 
 let create_document ?(x = 0) ?(y = 0) ?(width = 640) ?(height = 360)
     ?(theme = Pxui.default_theme) ?selected ?(catalog = [])
-    ?(flaggable = fun _ -> false) ?(enterable = fun _ -> false) document =
+    ?(flaggable = fun _ -> false) ?(enterable = fun _ -> false) ?(namespace = "sop") document =
   if width <= 0 || height <= 0 then invalid_arg
       "Pxui_graph.create_document: width and height must be positive";
   let selected = match selected with
@@ -541,6 +555,7 @@ let create_document ?(x = 0) ?(y = 0) ?(width = 640) ?(height = 360)
     selected_edge = None; viewed; flagged = None; flaggable; enterable; x; y; width; height;
     pan_x = 38.; pan_y = 38.; zoom = 1.; drag = None; bloom = None; before_points = Id_map.empty;
     menu = None; context = None; clipboard = None; catalog = catalog_array catalog;
+    last_added = None; hints = None; find = None; namespace;
     visible = true; theme }
 
 let create ?x ?y ?width ?height ?theme ?selected ?catalog ?flaggable ?enterable graph =
@@ -571,6 +586,7 @@ let same_topology (value : t) infos =
 
 let with_document document value =
   if document == value.document then value else
+  let value = { value with hints = None } in
   let infos = Edit_graph.inspect document in
   if same_topology value infos then begin
     let boxes = Array.copy value.boxes in
@@ -1029,16 +1045,20 @@ let lower value = String.lowercase_ascii value
 let category_text category = String.concat " / " category
 
 let search_rank query (item : catalog_item) =
-  if String.equal query item.lower_key then 0
-  else if String.equal query item.lower_label then 1
-  else if String.length query <= String.length item.lower_key
-      && String.sub item.lower_key 0 (String.length query) = query then 2
-  else if String.length query <= String.length item.lower_label
-      && String.sub item.lower_label 0 (String.length query) = query then 3
+  let contains text =
+    let rec at index = index + String.length query <= String.length text
+      && (String.sub text index (String.length query) = query || at (index + 1)) in
+    at 0 in
+  if String.starts_with ~prefix:query item.lower_label then 0
+  else if List.exists (String.starts_with ~prefix:query)
+      (String.split_on_char ' ' item.lower_label) then 1
+  else if contains item.lower_label || contains item.lower_key then 2
+  else if Pxui.Ui.fuzzy_match ~query item.lower_label
+      || Pxui.Ui.fuzzy_match ~query item.lower_key then 3
   else 4
 
 let eligible menu (item : catalog_item) =
-  menu.insertion = None || item.entry.arity = 1
+  (menu.insertion = None && not menu.compatible_input) || item.entry.arity > 0
 
 let rec category_remainder path category = match path, category with
   | [], category -> Some category
@@ -1077,24 +1097,25 @@ let menu_rows (value : t) menu =
     Array.of_list (categories @ exact)
 
 let open_menu (value : t) (x, y) =
+  let gx, gy = graph_x value x, graph_y value y in
   let x = min (value.x + value.width - menu_width - 8) (max (value.x + 8) x) in
   let y = max (value.y + 8) y in
-  { value with menu = Some { x; y; gx = graph_x value x; gy = graph_y value y;
-    query = ""; path = []; insertion = value.selected_edge };
-    drag = None; context = None }
+  { value with menu = Some { x; y; gx; gy;
+    query = ""; path = []; insertion = value.selected_edge;
+    inputs = selected_nodes value; compatible_input = false; ripple = [] };
+    drag = None; context = None; hints = None; find = None }
 
-let menu_request (value : t) menu entry =
+let menu_request (_value : t) menu entry =
   let at = menu.gx, menu.gy in
   match menu.insertion with
   | Some connection -> Insert_requested {
-      factory_key = entry.key; connection; at }
+      factory_key = entry.key; connection; at; ripple = menu.ripple }
   | None ->
       let rec take count values = match count, values with
         | count, _ when count <= 0 -> []
         | _, [] -> []
         | count, value :: rest -> value :: take (count - 1) rest in
-      let inputs = if entry.arity = 1 then Option.to_list value.primary
-        else take entry.arity (selected_nodes value) in
+      let inputs = take entry.arity menu.inputs in
       Add_requested { factory_key = entry.key; inputs; at }
 
 let parent_path path = match List.rev path with
@@ -1499,8 +1520,10 @@ let paint_node (value : t) paint (box : box) =
       ~radius:(3. *. value.zoom) ~fill:theme.input ~stroke ();
     let tx, ty = at 7 7 in
     fill paint tx ty (screen_size value 10) (screen_size value 10) accent;
-    let title = fitted_text paint label_size (float (screen_size value 130)) box.info.label in
+    let title = fitted_text paint label_size
+      (float (screen_size value (if box.info.bypass then 114 else 130))) box.info.label in
     label (at 24 5) theme.foreground title;
+    if box.info.bypass then label (at 150 5) accent "M";
     Array.iteri (fun index row ->
       let y = 24 + (index * 24) in
       let top = screen_y value (gy +. float y) in
@@ -1558,13 +1581,189 @@ let optimize_layout (value : t) =
 
 let open_menu_at point value = open_menu value point
 
+let with_last_added key value = { value with last_added = Some (value.namespace ^ "/" ^ key) }
+let carry_last_added ~from value = { value with last_added = from.last_added }
+let hinting value = value.hints <> None
+let editing value = value.menu <> None || value.find <> None
+
+let frame_selection value =
+  let indices = indices_of_selection value in
+  if Array.length indices = 0 then frame_viewed value
+  else frame_boxes value (Array.map (Array.get value.boxes) indices)
+
+let reveal_node value id = match Hashtbl.find_opt value.slots id with
+  | None -> value
+  | Some index ->
+      let x, y, w, h = box_bounds value value.boxes.(index) in
+      let shift at size origin available =
+        if at < origin + 24 then float (origin + 24 - at)
+        else if at + size > origin + available - 24
+        then float (origin + available - 24 - at - size) else 0. in
+      pan value (shift x w value.x value.width) (shift y h value.y value.height)
+
+type direction = Left | Down | Up | Right
+
+let walk value direction =
+  let position box = box_graph_position value box in
+  let compare_origin a b =
+    let ax, ay = position a and bx, by = position b in
+    let by_y = Float.compare ay by in
+    if by_y <> 0 then by_y else let by_x = Float.compare ax bx in
+    if by_x <> 0 then by_x else Int.compare a.info.id b.info.id in
+  let current = Option.bind value.primary (Hashtbl.find_opt value.slots) in
+  let pick = match current with
+    | None -> Array.to_list value.boxes |> List.sort (fun a b ->
+        let ax, _ = position a and bx, _ = position b in
+        let order = Float.compare ax bx in if order = 0 then compare_origin a b else order)
+        |> List.find_opt (fun _ -> true)
+    | Some index ->
+        let box = value.boxes.(index) in
+        let connected = match direction with
+          | Left -> Option.bind (Array.find_map Fun.id box.info.inputs) (fun id ->
+                Option.map (Array.get value.boxes) (Hashtbl.find_opt value.slots id))
+          | Right -> Array.to_list value.edges |> List.filter_map (fun edge ->
+              if edge.connection.source = box.info.id
+              then Some value.boxes.(edge.consumer_index) else None)
+              |> List.sort compare_origin |> List.find_opt (fun _ -> true)
+          | Down | Up -> None in
+        (match connected with Some _ -> connected | None ->
+          let x, y = position box in
+          Array.to_list value.boxes |> List.filter_map (fun candidate ->
+            let cx, cy = position candidate in
+            let along, across = match direction with
+              | Left -> x -. cx, y -. cy | Right -> cx -. x, cy -. y
+              | Down -> cy -. y, cx -. x | Up -> y -. cy, x -. cx in
+            if along > 10. then Some (along +. 2. *. abs_float across, candidate) else None)
+          |> List.sort (fun (a, left) (b, right) ->
+              let order = Float.compare a b in if order = 0 then compare_origin left right else order)
+          |> List.find_opt (fun _ -> true) |> Option.map snd) in
+  match pick with
+  | None -> value, []
+  | Some box -> select box.info.id value |> fun value -> reveal_node value box.info.id,
+      [Selected (Some box.info.id)]
+
+let arc_midpoint points =
+  let distance (x, y) (xx, yy) = Float.hypot (xx -. x) (yy -. y) in
+  let total = ref 0. in
+  for i = 1 to Array.length points - 1 do
+    total := !total +. distance points.(i - 1) points.(i)
+  done;
+  let rec at i remaining =
+    if i >= Array.length points then points.(Array.length points - 1) else
+    let length = distance points.(i - 1) points.(i) in
+    if remaining > length then at (i + 1) (remaining -. length)
+    else let x, y = points.(i - 1) and xx, yy = points.(i) in
+      let t = if length = 0. then 0. else remaining /. length in
+      x +. t *. (xx -. x), y +. t *. (yy -. y) in
+  at 1 (!total /. 2.)
+
+let downstream value source =
+  let seen = Hashtbl.create 16 and pending = Queue.create () in
+  Queue.add source pending;
+  while not (Queue.is_empty pending) do
+    let id = Queue.take pending in
+    if not (Hashtbl.mem seen id) then begin
+      Hashtbl.add seen id ();
+      match Hashtbl.find_opt value.slots id with
+      | None -> ()
+      | Some index -> Array.iter (fun edge_index ->
+          let edge = value.edges.(edge_index) in
+          if edge.connection.source = id then Queue.add edge.connection.consumer pending)
+          value.spatial.incident_edges.(index)
+    end
+  done;
+  seen
+
+let add_by_context ?(wire = true) value pointer =
+  let opened = open_menu value pointer in
+  let menu = Option.get opened.menu in
+  let menu = match (if wire then value.selected_edge else None), selected_nodes value with
+    | Some connection, _ ->
+        (match Array.find_opt (fun edge -> edge.connection = connection) value.edges with
+         | Some edge -> let gx, gy = arc_midpoint (edge_points value edge) in
+             { menu with gx; gy; insertion = Some connection; inputs = []; compatible_input = true }
+         | None -> { menu with insertion = None; inputs = [] })
+    | None, [source] ->
+        let x, gy = Option.get (node_position value source) in
+        let gx = x +. float (node_width + 60) in
+        let trunks = Array.to_list value.edges |> List.filter (fun edge ->
+          edge.connection.source = source && edge.connection.input_index = 0)
+          |> List.sort (fun a b ->
+            let _, ay = box_graph_position value value.boxes.(a.consumer_index)
+            and _, by = box_graph_position value value.boxes.(b.consumer_index) in
+            let order = Float.compare ay by in if order = 0
+            then Int.compare a.connection.consumer b.connection.consumer else order) in
+        let insertion = Option.map (fun edge -> edge.connection) (List.find_opt (fun _ -> true) trunks) in
+        let ripple = match insertion with None -> [] | Some connection ->
+          let descendants = downstream value connection.consumer in
+          node_positions value |> List.filter_map (fun (id, x, y) ->
+            if Hashtbl.mem descendants id && x >= Layout.snap gx
+            then Some (id, x +. float (node_width + 60), y) else None) in
+        { menu with gx; gy; insertion; inputs = [source]; compatible_input = true; ripple }
+    | None, _ -> { menu with insertion = None; inputs = [] } in
+  { opened with menu = Some menu }
+
+let hint_alphabet = "asdfghjklqwertyuiopzxcvbnm"
+
+let label_hints targets =
+  let two = List.length targets > String.length hint_alphabet in
+  List.mapi (fun index target ->
+    let label = if two then String.init 2 (function
+      | 0 -> hint_alphabet.[index / 26] | _ -> hint_alphabet.[index mod 26])
+      else String.make 1 hint_alphabet.[index] in label, target)
+    (List.filteri (fun index _ -> index < 676) targets)
+
+let hints_for ?node value source =
+  let seen = ref Id_set.empty in
+  let rec ancestors id = if not (Id_set.mem id !seen) then begin
+    seen := Id_set.add id !seen;
+    Option.iter (fun index -> Array.iter (Option.iter ancestors)
+      value.boxes.(index).info.inputs) (Hashtbl.find_opt value.slots id)
+  end in
+  ancestors source;
+  let sx, sy = Option.get (node_position value source) in
+  Array.to_list value.boxes |> List.filter (fun box ->
+    not (Id_set.mem box.info.id !seen) && Array.length box.info.inputs > 0
+    && (node = None || node = Some box.info.id))
+  |> List.sort (fun a b ->
+    let distance box = let x, y = box_graph_position value box in
+      Float.hypot (x -. sx) (y -. sy) in
+    let order = Float.compare (distance a) (distance b) in
+    if order = 0 then Int.compare a.info.id b.info.id else order)
+  |> List.concat_map (fun box ->
+    let count = Array.length box.info.inputs in
+    if count = 1 || box.level = Layout.Card || box.level = Layout.Full then
+      List.init count (fun input_index -> Hint_port Edit_graph.{ source;
+        consumer = box.info.id; input_index })
+    else [Hint_node box.info.id]) |> label_hints
+
+let hint_letter value letter = match value.hints with
+  | None -> value, []
+  | Some hints ->
+      let prefix = hints.prefix ^ String.make 1 letter in
+      match List.assoc_opt prefix hints.targets with
+      | Some (Hint_port connection) -> { value with hints = None }, [Connect_requested connection]
+      | Some (Hint_node id) ->
+          let layout = { value.layout with
+            level = Id_map.add id Layout.Full value.layout.level;
+            pinned = Id_map.add id true value.layout.pinned } in
+          let value = reshape { value with layout } in
+          { value with hints = Some { hints with prefix = "";
+              targets = hints_for ~node:id value hints.source } }, [Level_changed [id]]
+      | None when List.exists (fun (label, _) -> String.starts_with ~prefix label) hints.targets ->
+          { value with hints = Some { hints with prefix } }, []
+      | None -> value, []
+
 type command = Copy | Cut | Paste | Duplicate | Delete | Frame_all
   | Open_detail | Point_detail | Open_all | Point_all
+  | Walk of direction | Add | Repeat | Connect_hint | Display | Mute | Dissolve | Find
+  | Frame_selection | Hint_letter of char | Hint_back | Cancel
 
 let bindings =
   let open Editor_core.Keymap in
-  let command id label action key modifiers = Editor_core.Command.make
-      ~id:("graph." ^ id) ~label ~trigger:(Chord (key, modifiers)) action in
+  let open Editor_core.Guide_context in
+  let command ?(guide = []) id label action key modifiers = Editor_core.Command.make
+      ~id:("graph." ^ id) ~label ~guide ~trigger:(Chord (key, modifiers)) action in
   let letter key action id = List.map (fun modifier ->
     command id id action (Input.KeyChar key) [modifier]) [Input.Meta; Input.Ctrl] in
   letter 'c' Copy "copy" @ letter 'x' Cut "cut"
@@ -1576,8 +1775,41 @@ let bindings =
      command "point" "Toggle points" Point_detail (Input.KeyChar 'p') [];
      command "open-all" "Open all cards" Open_all (Input.KeyChar 'o') [Input.Shift];
      command "point-all" "Toggle all points" Point_all (Input.KeyChar 'p') [Input.Shift]]
+  @ List.concat_map (fun (direction, letter, arrow, name) ->
+      [command ~guide:[Canvas; Node; Multi] ("walk." ^ name) ("walk " ^ name)
+         (Walk direction) (Input.KeyChar letter) [];
+       command ("walk." ^ name) ("walk " ^ name) (Walk direction) arrow []])
+      [Left, 'h', Input.ArrowLeft, "left"; Down, 'j', Input.ArrowDown, "down";
+       Up, 'k', Input.ArrowUp, "up"; Right, 'l', Input.ArrowRight, "right"]
+  @ [command ~guide:[Canvas; Node; Multi; Wire] "add" "add by context" Add Input.Tab [];
+     command ~guide:[Canvas; Node] "repeat" "repeat last add" Repeat (Input.KeyChar '.') [];
+     command ~guide:[Node] "connect-hint" "connect by hints" Connect_hint (Input.KeyChar 'c') [];
+     command ~guide:[Node] "display" "display geometry" Display (Input.KeyChar 'v') [];
+     command ~guide:[Node; Multi] "mute" "toggle bypass" Mute (Input.KeyChar 'm') [];
+     command ~guide:[Node; Multi; Wire] "delete" "delete" Delete (Input.KeyChar 'x') [];
+     command ~guide:[Node; Multi] "dissolve" "dissolve trunk" Dissolve (Input.KeyChar 'x') [Input.Shift];
+     command ~guide:[Canvas; Node; Multi] "find" "find node" Find (Input.KeyChar '/') [];
+     command ~guide:[Canvas; Node; Multi] "frame-tile" "frame selection / display"
+       Frame_selection (Input.KeyChar 'f') []]
 
-let run_command (value : t) = function
+let hint_bindings =
+  let open Editor_core.Keymap in
+  let command id label key action = Editor_core.Command.make ~id:("graph.hint." ^ id)
+    ~label ~trigger:(Chord (key, [])) ~guide:[Editor_core.Guide_context.Hints] action in
+  List.init (String.length hint_alphabet) (fun i -> let letter = hint_alphabet.[i] in
+    command (String.make 1 letter) "pick hint" (Input.KeyChar letter) (Hint_letter letter))
+  @ [command "back" "erase hint letter" Input.Backspace Hint_back;
+     command "cancel" "cancel hints" Input.Escape Cancel]
+
+let run_command ?at (value : t) =
+  let pointer = Option.value ~default:(value.x + value.width / 3, value.y + value.height / 3) at in
+  function
+  | Hint_letter letter -> hint_letter value letter
+  | Hint_back -> (match value.hints with
+      | Some hints when hints.prefix <> "" -> { value with hints = Some { hints with
+          prefix = String.sub hints.prefix 0 (String.length hints.prefix - 1) } }, []
+      | _ -> value, [])
+  | Cancel -> { value with hints = None }, []
   | _ when value.menu <> None -> value, []
   | Copy -> copy_selection value, []
   | Cut -> delete_selection (copy_selection value)
@@ -1585,6 +1817,38 @@ let run_command (value : t) = function
   | Duplicate -> duplicate_selection value
   | Delete -> delete_selection value
   | Frame_all -> frame_all value, [View_changed]
+  | Frame_selection -> frame_selection value, [View_changed]
+  | Walk direction -> walk value direction
+  | Add -> add_by_context value pointer, []
+  | Repeat -> (match value.last_added with
+      | None -> value, [Notice "Add a node first"]
+      | Some kind when not (String.starts_with ~prefix:(value.namespace ^ "/") kind) ->
+          value, [Notice "The last kind is unavailable in this level"]
+      | Some kind ->
+          let key = String.sub kind (String.length value.namespace + 1)
+            (String.length kind - String.length value.namespace - 1) in
+          (match Array.find_opt (fun item -> item.entry.key = key) value.catalog with
+          | None -> value, [Notice "The last kind is unavailable in this level"]
+          | Some item ->
+              let value = add_by_context ~wire:false value pointer in
+              let menu = Option.get value.menu in
+              let menu = if item.entry.arity = 0 then { menu with insertion = None; ripple = [] }
+                else menu in
+              let request = menu_request value menu item.entry in
+              { value with menu = None }, [request]))
+  | Connect_hint -> (match selected_nodes value with
+      | [source] -> let targets = hints_for value source in
+          if targets = [] then value, [Notice "No compatible input can be connected"]
+          else { value with hints = Some { source; targets; prefix = "" } }, []
+      | _ -> value, [Notice "Select one source node to connect"])
+  | Display -> (match value.primary with
+      | Some id -> view id value, [Viewed id] | None -> value, [])
+  | Mute | Dissolve when Id_set.is_empty value.selected -> value, []
+  | Mute -> value, [Bypass_requested (List.filter_map (fun id ->
+      Option.map (fun index -> id, not value.boxes.(index).info.bypass)
+        (Hashtbl.find_opt value.slots id)) (selected_nodes value))]
+  | Dissolve -> clear_selection value, [Dissolve_nodes_requested (selected_nodes value)]
+  | Find -> { value with find = Some ""; hints = None; menu = None; context = None }, []
   | (Open_detail | Point_detail | Open_all | Point_all) as command ->
       let ids = if command = Open_all || command = Point_all
         then Array.to_list (Array.map (fun (box : box) -> box.info.id) value.boxes)
@@ -1717,7 +1981,9 @@ let apply_context (value : t) context index =
   | On_wire connection, _ ->
       { value with selected_edge = None }, [Disconnect_requested connection]
 
-let update (value : t) ui (frame : Frame.t) =
+let update_canvas (value : t) ui (frame : Frame.t) =
+  let value = if Frame.has_event (function Event.MousePressed _ -> true | _ -> false) frame
+    then { value with hints = None } else value in
   if not value.visible then
     (* A hidden canvas (the host shows a list instead) still runs its menu. *)
     match value.menu with
@@ -2091,7 +2357,52 @@ let update (value : t) ui (frame : Frame.t) =
     | Some Knife -> Ui.Paint.line paint ~from_:canvas_signal.press_point
         ~to_:canvas_signal.pointer ~width:1.5 value.theme.accent
     | Some (Move_nodes _ | Bend_wire _ | Pan_canvas) | None -> ());
+  Option.iter (fun hints -> Ui.draw ui overlay (fun paint _ ->
+    List.iter (fun (label, target) ->
+      if String.starts_with ~prefix:hints.prefix label then
+        let id = match target with Hint_node id -> id | Hint_port c -> c.consumer in
+        match Hashtbl.find_opt value.slots id with
+        | None -> ()
+        | Some index ->
+            let box = value.boxes.(index) in
+            let x, y = match target with
+              | Hint_port c -> input_port value box c.input_index
+              | Hint_node _ -> let x, y, _, _ = box_bounds value box in x + 24, y + 12 in
+            let width = Ui.Paint.text_width paint ~size:11 label +. 8. in
+            Ui.Paint.rect paint ~x:(float x -. 4.) ~y:(float y -. 8.)
+              ~w:width ~h:18. ~radius:2. ~fill:value.theme.foreground ();
+            Ui.Paint.text paint ~at:(float x, float y -. 6.) ~size:11
+              ~color:(Color.hex_exn "#f5cf4f") label) hints.targets)) value.hints;
   value, List.rev changes
+
+let find_matches value query = Array.to_list value.boxes |> List.filter (fun box ->
+  Ui.fuzzy_match ~query box.info.label
+  || Ui.fuzzy_match ~query (value.namespace ^ "/" ^ Option.value ~default:box.info.operation
+    (Edit_graph.node_factory_key value.document ~node_id:box.info.id)))
+  |> List.sort (fun a b -> let order = String.compare a.info.label b.info.label in
+    if order = 0 then Int.compare a.info.id b.info.id else order)
+  |> Array.of_list
+
+let update value ui frame =
+  let value, changes = update_canvas value ui frame in
+  match value.find with
+  | None -> value, changes
+  | Some query ->
+      let result = Ui.modal ui ~width:420. "pxui-graph-find" (fun () ->
+        Ui.label ui "Find in this level";
+        Ui.picker ui "Label or kind" ~query (fun query ->
+          find_matches value query |> Array.map (fun box -> box.info.label,
+            value.namespace ^ "/" ^ Option.value ~default:box.info.operation
+              (Edit_graph.node_factory_key value.document ~node_id:box.info.id)))) in
+      let value, changes = match result with
+        | None | Some (_, `Cancel) -> { value with find = None }, changes
+        | Some (query, `Pick index) ->
+            let box = (find_matches value query).(index) in
+            let value = { value with find = None } |> select box.info.id in
+            frame_selection value, Selected (Some box.info.id) :: changes
+        | Some (query, _) -> { value with find = Some query }, changes in
+      if value.find = None then Ui.dismiss_popup ui;
+      value, changes
 
 let trunk document =
   let infos = Edit_graph.inspect document in
@@ -2125,6 +2436,16 @@ let trunk document =
   Array.of_list (List.rev !rows)
 
 module Private = struct
+  let menu_keys value ~query = match value.menu with
+    | None -> [||]
+    | Some menu -> menu_rows value { menu with query } |> Array.to_list
+        |> List.filter_map (function Menu_entry entry -> Some entry.key | Menu_category _ -> None)
+        |> Array.of_list
+  let hint_labels value = match value.hints with
+    | None -> []
+    | Some hints -> List.map (fun (label, target) -> match target with
+        | Hint_port c -> label, c.consumer, Some c.input_index
+        | Hint_node id -> label, id, None) hints.targets
   let zoom value = value.zoom
   let level value node = Option.map (fun index -> value.boxes.(index).level)
     (Hashtbl.find_opt value.slots node)
