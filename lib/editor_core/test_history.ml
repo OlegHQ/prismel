@@ -66,6 +66,25 @@ let frame events : Prismel.Frame.t = {
 let () =
   let open Prismel in
   let open Editor_core.Router in
+  let alias ?scope trigger label = Editor_core.Command.make ~id:"alias" ~label ~trigger
+      ?scope () in
+  let meta = Editor_core.Keymap.Chord (Input.KeyChar 'c', [Input.Meta]) in
+  let view = alias ~scope:View meta "view alias"
+  and graph = alias ~scope:Graph meta "graph alias"
+  and ctrl = alias (Chord (Input.KeyChar 'c', [Input.Ctrl])) "Ctrl alias"
+  and qj = alias (Leader "qj") "first leader alias"
+  and qq = alias (Leader "qq") "second leader alias" in
+  let aliases = [view; graph; ctrl; qj; qq] in
+  let _, matched, _ = Editor_core.Router.step aliases ~focus:Graph ~text_focus:false
+    ~frame:{(frame [Event.KeyPressed (Input.KeyChar 'c')]) with keys=[Input.Meta]} Idle in
+  assert (matched = [graph]);
+  let _, matched, _ = Editor_core.Router.step aliases ~focus:Graph ~text_focus:false
+    ~frame:{(frame [Event.KeyPressed (Input.KeyChar 'c')]) with keys=[Input.Ctrl]} Idle in
+  assert (matched = [ctrl]);
+  let _, matched, _ = Editor_core.Router.step aliases ~focus:View ~text_focus:false
+    ~frame:(frame [Event.KeyPressed Input.Space; Event.KeyPressed (Input.KeyChar 'q');
+      Event.KeyPressed (Input.KeyChar 'q')]) Idle in
+  assert (matched = [qq]);
   let traversed, activated, remaining = Editor_core.Router.step bindings ~focus:View
     ~text_focus:false ~frame:(frame [Event.KeyPressed Input.Tab;
       Event.KeyPressed Input.Space]) Idle in
@@ -76,93 +95,93 @@ let () =
   let state, actions, remaining = Editor_core.Router.step [add] ~focus:View
     ~text_focus:false ~frame:(frame [Event.KeyPressed Input.Tab;
       Event.KeyPressed Input.Space; Event.TextInput " "]) (Pending "") in
-  assert (state = Idle && actions = [`Add]
+  assert (state = Idle && List.map (fun c -> c.Editor_core.Command.action) actions = [`Add]
     && remaining.events = [Event.KeyPressed Input.Space; Event.TextInput " "]);
   let state, actions, remaining = Editor_core.Router.step [add] ~focus:View
     ~text_focus:false ~frame:(frame [Event.KeyPressed Input.Shift;
       Event.KeyPressed Input.Tab; Event.KeyPressed Input.Space]) Idle in
-  assert (state = Idle && actions = [] && List.mem (Event.KeyPressed Input.Tab) remaining.events
+  assert (state = Idle && List.map (fun c -> c.Editor_core.Command.action) actions = [] && List.mem (Event.KeyPressed Input.Tab) remaining.events
     && List.mem (Event.KeyPressed Input.Space) remaining.events);
   let step ?(focus = View) ?(text_focus = false) state keys =
     Editor_core.Router.step bindings ~focus ~text_focus
       ~frame:(frame (List.map (fun key -> Event.KeyPressed key) keys)) state in
   let state, actions, passed = step Idle [Input.Space; Input.KeyChar 'g'] in
-  assert (state = Idle && actions = [`Toggle] && passed.events = []);
+  assert (state = Idle && List.map (fun c -> c.Editor_core.Command.action) actions = [`Toggle] && passed.events = []);
   let state, actions, _ = Editor_core.Router.step bindings ~focus:View
       ~text_focus:false ~frame:(frame [Event.KeyPressed Input.Space;
         Event.TextInput " "]) Idle in
-  assert (state = Pending "" && actions = []);
+  assert (state = Pending "" && List.map (fun c -> c.Editor_core.Command.action) actions = []);
   let state, actions, passed = Editor_core.Router.step bindings ~focus:View
       ~text_focus:false ~frame:(frame [Event.KeyPressed (Input.KeyChar 'g');
         Event.TextInput "g"]) state in
-  assert (state = Idle && actions = [`Toggle] && passed.events = []);
+  assert (state = Idle && List.map (fun c -> c.Editor_core.Command.action) actions = [`Toggle] && passed.events = []);
   let state, actions, _ = step Idle [Input.Space] in
-  assert (state = Pending "" && actions = []);
+  assert (state = Pending "" && List.map (fun c -> c.Editor_core.Command.action) actions = []);
   let state, actions, passed = step state [Input.Escape] in
-  assert (state = Idle && actions = [] && passed.events = []);
+  assert (state = Idle && List.map (fun c -> c.Editor_core.Command.action) actions = [] && passed.events = []);
   let _, actions, _ = step Idle [Input.Space; Input.KeyChar 'l'] in
-  assert (actions = []);
+  assert (List.map (fun c -> c.Editor_core.Command.action) actions = []);
   let _, actions, _ = step ~focus:Graph Idle [Input.Space; Input.KeyChar 'l'] in
-  assert (actions = [`Layout]);
+  assert (List.map (fun c -> c.Editor_core.Command.action) actions = [`Layout]);
   (* Sequences: a proper prefix opens the next which-key page. *)
   let state, actions, _ = step Idle [Input.Space; Input.KeyChar 'a'] in
-  assert (state = Pending "a" && actions = []);
+  assert (state = Pending "a" && List.map (fun c -> c.Editor_core.Command.action) actions = []);
   let state, actions, _ = step state [Input.KeyChar 'L'] in
-  assert (state = Idle && actions = [`Add_light]);
+  assert (state = Idle && List.map (fun c -> c.Editor_core.Command.action) actions = [`Add_light]);
   let state, actions, _ = step Idle [Input.Space; Input.KeyChar 'a'; Input.KeyChar 'q'] in
-  assert (state = Idle && actions = []);
+  assert (state = Idle && List.map (fun c -> c.Editor_core.Command.action) actions = []);
   let state, actions, passed = step ~text_focus:true Idle [Input.Space] in
-  assert (state = Idle && actions = []
+  assert (state = Idle && List.map (fun c -> c.Editor_core.Command.action) actions = []
       && passed.events = [Event.KeyPressed Input.Space]);
   let state, _, _ = step Idle [Input.Space] in
   let state, actions, passed = step ~text_focus:true state
       [Input.KeyChar 'g'] in
-  assert (state = Idle && actions = []
+  assert (state = Idle && List.map (fun c -> c.Editor_core.Command.action) actions = []
       && passed.events = [Event.KeyPressed (Input.KeyChar 'g')]);
   let chord ?(focus = View) ?(text_focus = false) keys events =
     Editor_core.Router.step bindings ~focus ~text_focus
       ~frame:{ (frame events) with keys } Idle in
   let _, actions, passed = chord [Input.Meta] [Event.KeyPressed (Input.KeyChar 'Z');
       Event.TextInput "z"] in
-  assert (actions = [`Undo] && passed.events = []);
+  assert (List.map (fun c -> c.Editor_core.Command.action) actions = [`Undo] && passed.events = []);
   let _, actions, _ = chord [Input.Meta; Input.Shift]
       [Event.KeyPressed (Input.KeyChar 'z')] in
-  assert (actions = [`Redo]);
+  assert (List.map (fun c -> c.Editor_core.Command.action) actions = [`Redo]);
   let _, actions, _ = chord [] [Event.KeyPressed Input.Meta;
       Event.KeyPressed (Input.KeyChar 'z'); Event.KeyPressed Input.Shift;
       Event.KeyPressed (Input.KeyChar 'z'); Event.KeyReleased Input.Shift;
       Event.KeyPressed (Input.KeyChar 'z'); Event.KeyReleased Input.Meta] in
-  assert (actions = [`Undo; `Redo; `Undo]);
+  assert (List.map (fun c -> c.Editor_core.Command.action) actions = [`Undo; `Redo; `Undo]);
   let _, actions, _ = chord [Input.Meta] [Event.KeyPressed (Input.KeyChar 'z');
       Event.KeyPressed Input.Meta] in
-  assert (actions = []);
+  assert (List.map (fun c -> c.Editor_core.Command.action) actions = []);
   let _, actions, _ = Editor_core.Router.step ~previous_keys:[Input.Meta] bindings
       ~focus:View ~text_focus:false ~frame:(frame [
         Event.KeyPressed (Input.KeyChar 'z'); Event.WindowFocusLost;
         Event.KeyPressed (Input.KeyChar 'z')]) Idle in
-  assert (actions = [`Undo]);
+  assert (List.map (fun c -> c.Editor_core.Command.action) actions = [`Undo]);
   let _, actions, _ = Editor_core.Router.step ~previous_keys:[Input.Meta] bindings
       ~focus:View ~text_focus:false ~frame:{ (frame [
         Event.KeyPressed (Input.KeyChar 'z'); Event.KeyPressed Input.Meta;
         Event.KeyPressed (Input.KeyChar 'z')]) with keys = [Input.Meta] } Idle in
-  assert (actions = [`Undo; `Undo]);
+  assert (List.map (fun c -> c.Editor_core.Command.action) actions = [`Undo; `Undo]);
   let _, actions, _ = Editor_core.Router.step ~previous_keys:[] bindings
       ~focus:View ~text_focus:false ~frame:(frame [
         Event.KeyPressed (Input.KeyChar 'z'); Event.KeyReleased Input.Meta]) Idle in
-  assert (actions = []);
+  assert (List.map (fun c -> c.Editor_core.Command.action) actions = []);
   let _, actions, _ = chord ~focus:Graph [] [Event.KeyPressed Input.Delete] in
-  assert (actions = [`Delete]);
+  assert (List.map (fun c -> c.Editor_core.Command.action) actions = [`Delete]);
   let _, actions, _ = chord ~focus:Graph []
       [Event.KeyPressed (Input.KeyChar 'F')] in
-  assert (actions = [`Frame]);
+  assert (List.map (fun c -> c.Editor_core.Command.action) actions = [`Frame]);
   let _, actions, passed = chord ~focus:Graph [Input.Meta]
       [Event.KeyPressed (Input.KeyChar 'f')] in
-  assert (actions = [] && passed.events = [Event.KeyPressed (Input.KeyChar 'f')]);
+  assert (List.map (fun c -> c.Editor_core.Command.action) actions = [] && passed.events = [Event.KeyPressed (Input.KeyChar 'f')]);
   let _, actions, passed = chord [] [Event.KeyPressed Input.Delete] in
-  assert (actions = [] && passed.events = [Event.KeyPressed Input.Delete]);
+  assert (List.map (fun c -> c.Editor_core.Command.action) actions = [] && passed.events = [Event.KeyPressed Input.Delete]);
   let _, actions, passed = chord ~text_focus:true [Input.Meta]
       [Event.KeyPressed (Input.KeyChar 'z')] in
-  assert (actions = [] && passed.events = [Event.KeyPressed (Input.KeyChar 'z')]);
+  assert (List.map (fun c -> c.Editor_core.Command.action) actions = [] && passed.events = [Event.KeyPressed (Input.KeyChar 'z')]);
   let pointer = Event.MouseMoved (4., 5.) in
   let ended, passed = fly (frame [Event.KeyPressed (Input.KeyChar 'w'); pointer]) in
   assert (not ended && passed.events = [pointer]);
@@ -171,7 +190,7 @@ let () =
   assert (ended && passed.events = [Event.KeyPressed Input.Space]);
   let state, actions, passed = Editor_core.Router.step bindings ~focus:View
       ~text_focus:false ~frame:passed Idle in
-  assert (state = Pending "" && actions = [] && passed.events = []);
+  assert (state = Pending "" && List.map (fun c -> c.Editor_core.Command.action) actions = [] && passed.events = []);
   let ended, passed = fly (frame [Event.KeyPressed Input.Escape]) in
   assert (ended && passed.events = []);
   let ended, passed = fly (frame [Event.WindowFocusLost]) in

@@ -38,11 +38,14 @@ end
 
 module Keymap : sig
   type trigger = Leader of string | Chord of Prismel.Input.key * Prismel.Input.key list
+  val label : trigger -> string
+  (** Shared key spelling for guides, which-key and command feedback. *)
 end
 
 module Guide_context : sig
   type t = Canvas | Node | Value_node | Compound | Multi | Wire | Row | Hints
     | Leader | Search | List | Text | Inside_compound
+  val name : t -> string
 end
 
 (** Named editor commands: the one table behind key routing, which-key, and
@@ -60,6 +63,9 @@ module Command : sig
   val make : ?trigger:Keymap.trigger -> ?scope:'scope -> ?guide:Guide_context.t list ->
     id:string -> label:string ->
     'action -> ('scope, 'action) t
+  val for_guide : ('scope, 'action) t list -> focus:'scope -> context:Guide_context.t ->
+    ('scope, 'action) t list
+  (** Applicable commands in their original table order. *)
 end
 
 module Router : sig
@@ -75,8 +81,9 @@ module Router : sig
   val step : ?previous_keys:Prismel.Input.key list ->
     ('scope, 'action) Command.t list -> focus:'scope ->
     text_focus:bool -> frame:Prismel.Frame.t -> state ->
-    state * 'action list * Prismel.Frame.t
-  (** Commands without a trigger never match a key. Modifiers follow event
+    state * ('scope, 'action) Command.t list * Prismel.Frame.t
+  (** Returns the exact matched entries in event order, retaining each alias's
+      trigger, scope and label for feedback. Commands without a trigger never match a key. Modifiers follow event
       order. Supply the previous frame's keys for changed modifiers and focus
       cancellation; omitted previous state assumes no modifiers were held. *)
 end

@@ -32,7 +32,7 @@ accept an intended one with `dune promote`.
 |---|---|---|---|
 | M0 | Spec, prototype, docs aligned | done | 2026-09-27 |
 | M1 | Canvas: direction, polylines, bends, levels, box select, rows, preset v3 layout | done | 2026-09-27 |
-| M2 | Keys and guide mode, World key remap | in progress | |
+| M2 | Keys and guide mode, World key remap | done | 2026-09-27 |
 | M3 | Value ports: `flow`, `flow_sop`, value nodes, drives by wire, exposure, vec3, inspector | not started | |
 | M4 | Wireless binds, expressions, fold/unfold, row keys | not started | |
 | M5 | Compounds and contexts | not started | |
@@ -138,7 +138,7 @@ Preconditions: M1 done.
 
 Tasks:
 
-1. Command entries for every M2 row of `flow.md` §7.2 with the listed ids:
+1. [x] Command entries for every M2 row of `flow.md` §7.2 with the listed ids:
    `Pxui_graph.command` gains the canvas cases (walk, add, repeat,
    connect-hint, display, mute, delete, dissolve, find, frame); host-level
    ones go in `lib/prismel_editor/leader.ml`. Validation of overlaps stays as
@@ -149,7 +149,7 @@ Tasks:
 3. [x] `f`: frame the selection, or the display node with none selected.
 4. [x] World keys: `leader.ml` `world.emit` → `t`, `world.reseed` → `n`,
    `world.play` → `d` (graph scope, World level only, as today).
-5. `Editor_core.Command.t` gains `guide : Guide_context.t list` (pure data,
+5. [x] `Editor_core.Command.t` gains `guide : Guide_context.t list` (pure data,
    default `[]`); `lib/pxui_shell` `Status_bar` renders the strip of §10 for
    the focused graph pane; tooltips after 380 ms (a `Ui` hover-delay helper in
    `pxui`, one path for all tooltips); `Space k` key sheet
@@ -316,6 +316,18 @@ network with the same canvas, keys, views and text), then plan it here.
   the build.
 
 ## Log
+
+- 2026-09-27 M2 complete: contextual guide strip, shared 380 ms hover
+  tooltips, grouped key sheet, atomic user preference toggle/Hide and 1.5 s
+  HUD. Router returns exact matched Command entries, preserving alias keys
+  and labels; every caller is migrated. Guide context/scope, hover reset,
+  modal shielding, preference preservation and HUD alias/expiry regressions
+  pass. `@all`, default `runtest`, smoke, native editor/SOP parity and PXUI
+  parity pass. Native previews verified tooltip, key sheet and HUD; modifier
+  labels use the kit's supported ASCII spelling. Documentation and intended
+  API manifests are updated. Final guide benchmark: 0.175 ms median held
+  frame at 2,000 nodes, 635,543 bytes/frame; see `performance.md` for the
+  before comparison. M3 starts next with schema metadata and catalog split.
 
 - 2026-09-27 M2 interaction: walk, contextual Tab/append/ripple, qualified
   repeat across levels, cycle-safe letter hints, display, mute, delete,

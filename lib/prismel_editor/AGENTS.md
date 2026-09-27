@@ -7,7 +7,7 @@
 
 - State and routing live in `editor_core`: `History` (undo with
   explicit merge rules), `Command` (one pure-data entry type, `id`, `label`,
-  optional `trigger` and `scope`, `action`, for dispatch, which-key, and the
+  optional `trigger` and `scope`, `guide` contexts, `action`, for dispatch, guide, which-key, and the
   palette), `Router` (text focus, leader, chords, and the fly mode layer)
   and `Store` (JSON file persistence). Chrome lives in `pxui_shell`: layout,
   splitters, pane roots, which-key, prompts, status and timeline bars, and
@@ -67,9 +67,11 @@ rules in this file are current. Planned changes that touch this directory:
   point/chip/card/full, editable card literals and saved layout metadata.
   Presets read and write only v3 and preserve saved ids. Pointer gestures
   seal on release; detail changes merge as one-second history bursts.
-- M2: the graph grammar as Command entries with `guide` contexts; the status
-  bar becomes the guide strip; World graph keys `e`/`r`/`p` become `t`/`n`/`d`;
-  `f` frames the selection or the display node.
+- M2 is implemented: graph grammar and guide contexts share the Command
+  table; `?` toggles the contextual strip and 380 ms PXUI tooltips, persisted
+  through Store user preferences. `Space k` opens the grouped key sheet;
+  key feedback lasts 1.5 seconds. World keys are `t`/`n`/`d`, and `f` frames
+  the selection or display node. Tab adds by context; Shift-Tab traverses UI.
 - M3: value nodes and drives through `flow_sop`; `Value_lane.resolve` runs
   in `Cook` before every submission; drives never overwrite literals.
 - M5: compound levels under instances. M6: `Space l` cycles graph, list, text.
@@ -104,7 +106,8 @@ selected node's position-like xyz parameters (drawn only while the UI shows);
 a collapsed graph or inspector column takes no width. Graph tile dragging is presentation-only and
 must preserve connectivity, stable IDs, caches, and cook state. Right/middle
 drag pans, wheel/trackpad motion zooms at the pointer, [Home] frames all, and
-leader `f` and graph-focused [F] frame the displayed tile; viewport-focused [F]
+leader `f` frames the displayed tile and graph-focused [F] frames the selection
+or the display node; viewport-focused [F]
 focuses the camera on the displayed node.
 The node menu (leader `Space a`) must allow every SOP to be
 created even when its inputs are not yet connected. Categories are non-empty

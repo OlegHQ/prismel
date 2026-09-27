@@ -9,6 +9,7 @@ type bounds = Cook.bounds
 type projection = Graph_view | List_view
 
 type prompt =
+  | Keys
   | Saving of string
   | Palette of string  (* command search query *)
   | Browsing of { query : string; presets : (string * float) list }
@@ -46,11 +47,15 @@ type 'panel frame_result = {
   tree_intents : Pxui_shell.Tree.intent list;
   parameter_changes : (int * (string * Parameter.value) list) option;
   settings_changes : (string * Parameter.value) list;
+  hide_guide : bool;
   handle_changes : (int * (string * Parameter.value) list) option;
 }
 
 type 'prepared t = {
   code_graph : Graph.t;
+  preferences : string;
+  guide : bool;
+  hud : (string * float) option;
   presets : string;  (* preset directory *)
   name : string;  (* sketch name recorded in presets *)
   prompt : prompt option;
@@ -481,6 +486,20 @@ let add_world (doc : Document.t) world =
 (* A new World starts as a daylight sky with a sun, ready to turn. *)
 let daylight = Option.value ~default:World.default (List.assoc_opt "daylight" World.presets)
 
+let preferences_file () = match Sys.getenv_opt "PRISMEL_EDITOR_PREFERENCES" with
+  | Some path when path <> "" -> path
+  | Some _ | None -> Filename.concat (Filename.concat
+      (Option.value ~default:"." (Sys.getenv_opt "HOME")) ".prismel") "preferences.json"
+
+let read_preferences filename =
+  Editor_core.Store.Settings.load ~sketch:"prismel-editor" filename
+
+let save_guide filename guide =
+  let ( let* ) = Result.bind in
+  let* values = if Sys.file_exists filename then read_preferences filename else Ok [] in
+  Editor_core.Store.Settings.save ~sketch:"prismel-editor" filename
+    (("guide", Editor_core.Store.Settings.Bool guide) :: List.remove_assoc "guide" values)
+
 let create ?(settings = Settings.none) ?(keymap = Leader.keymap)
     ?(seed_scene = fun _ scene -> scene) ?(scene_level = true) ?world
     ?(name = "sketch") ?presets ?(timeline_frames = 240)
@@ -501,7 +520,11 @@ let create ?(settings = Settings.none) ?(keymap = Leader.keymap)
             (Option.value ~default:"." (Sys.getenv_opt "HOME")) ".prismel")
             (Preset.sanitize name) in
       let level = if scene_level then Document.Scene else Inside geometry in
-      let value = { code_graph = graph; presets; name; prompt = None; notice = None;
+      let preferences = preferences_file () in
+      let guide = match read_preferences preferences with
+        | Ok values -> Option.value ~default:true (Editor_core.Store.Settings.bool values "guide")
+        | Error _ -> true in
+      let value = { preferences; guide; hud = None; code_graph = graph; presets; name; prompt = None; notice = None;
         doc; level; scene_level; projections = Document.Layout.empty; map_view = false;
         rows = None; live_cook = true;
         factories;
@@ -553,20 +576,24 @@ let status_text value =
         "i/double-click enter · Space a add · Space e World"
     | Scene -> ""
     | Inside id when kind value id = Some "world" ->
-        "u up · drag map: move layer/sun · e dome/light · [ ] time · Space l 3D/map"
+        "u up · drag map: move layer/sun · t dome/light · n reseed · d day cycle · [ ] time · Space l 3D/map"
     | Inside _ when value.scene_level -> "u up · Space a add · Space l list/graph"
     | Inside _ -> "Space a add · Space l list/graph" in
   cook ^ " · " ^ level_name value ^ (if hint = "" then "" else " · " ^ hint)
 
 (* The status strip under the view: kit text on a dark bar. *)
-let status_box value ui (frame : Frame.t) ~render_status =
+let status_box value ui (frame : Frame.t) ~render_status ~context ~commands =
   let x, y, width, height = (Pxui_shell.Layout.geometry value.workspace frame).status in
-  if height > 0 then begin
+  if height <= 0 then false
+  else if value.guide && value.focus = Pxui_shell.Layout.Graph then
+    Pxui_shell.Status_bar.guide ui ~bounds:(x, y, width, height) ~context commands
+  else begin
     let text = truncate (max 1 ((width - 80) / 7))
         (status_text value ^ match render_status with
           | None -> "" | Some status -> " · " ^ status) in
     Pxui_shell.Status_bar.draw ui ~bounds:(x, y, width, height)
-      ~text ~fps:value.status_fps
+      ~text ~fps:value.status_fps;
+    false
   end
 
 (* Leader actions owned by the workspace; the environment handles the rest
@@ -605,6 +632,7 @@ let apply_action value (frame : Frame.t) (workspace, graph_view, tree, timeline,
       timeline_step T.toggle_pause
   | Hide_ui | Look_through | Fly | Save_preset | Browse_presets
   | Graph_command _ | List_command _ | Frame_camera | Undo | Redo | Command_palette
+  | Guide_toggle | Guide_keys
   | Sketch_command _ | Toggle_projection | Enter | Up | Go_world | Tool _
   | World_emit | World_reseed | World_time _ | World_play | World_preset _ ->
       workspace, graph_view, tree, timeline, changes
@@ -693,7 +721,8 @@ let routed value =
   let graph_shown = not (Pxui_shell.Layout.collapsed value.workspace Pxui_shell.Layout.Graph) in
   let listing = projection value = List_view in
   if Pxui_graph.hinting value.graph_view && not listing then
-    List.map (fun (command : _ Editor_core.Command.t) ->
+    List.filter (fun (command : Leader.command) -> match command.action with
+      | Guide_toggle | Guide_keys -> true | _ -> false) value.keymap @ List.map (fun (command : _ Editor_core.Command.t) ->
       { command with scope = Some Pxui_shell.Layout.Graph;
         action = Leader.Graph_command command.action }) Pxui_graph.hint_bindings
   else List.filter (fun (command : Leader.command) -> match command.action with
@@ -761,9 +790,19 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
       | Leader.Graph_command _ | Leader.List_command _ | Leader.Frame_camera -> false
       | _ -> true) keymap in
   let held_keys = frame.keys in
-  let leader, actions, frame = Editor_core.Router.step ~previous_keys:value.held_keys
-      keymap ~focus ~text_focus ~frame
-      value.leader in
+  let leader, commands, frame = Editor_core.Router.step ~previous_keys:value.held_keys
+      keymap ~focus ~text_focus ~frame value.leader in
+  let hud = match List.rev commands with
+    | command :: _ -> Some (Editor_core.Keymap.label (Option.get command.trigger)
+        ^ " · " ^ command.label, frame.time +. 1.5)
+    | [] -> (match leader with
+        | Leader.Pending prefix when leader <> value.leader ->
+            Some ((if prefix = "" then "Space" else "Space " ^ prefix) ^ " · leader", frame.time +. 1.5)
+        | _ -> value.hud) in
+  let actions = List.map (fun (command : Leader.command) -> command.action) commands in
+  let hud = match hud with Some (_, until) when frame.time >= until -> None | _ -> hud in
+  let guide = List.fold_left (fun guide -> function Leader.Guide_toggle -> not guide
+    | _ -> guide) value.guide actions in
   let actions = value.queued @ actions in
   let sample_fps = frame.time < value.status_fps_at
     || frame.time -. value.status_fps_at >= 1. in
@@ -828,6 +867,7 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
       root Pxui_shell.Layout.Timeline panes.timeline in
     let gx, gy, gw, gh = panes.graph in
     let graph_view = graph_view
+      |> Pxui_graph.with_guide guide
       |> Pxui_graph.with_bounds ~x:gx ~y:gy ~width:(max 1 gw) ~height:(max 1 gh)
       |> Pxui_graph.with_visible
            (projection value = Graph_view
@@ -907,8 +947,20 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
     let handle_changes = match selected, handle_edits with
       | Some node, _ :: _ -> Some (Node.id node, handle_edits)
       | _ -> None in
-    Pxui.Ui.within ui view_root (fun () ->
-      status_box { value with workspace; status_fps } ui frame ~render_status);
+    let context = match leader with
+      | Leader.Pending _ -> Editor_core.Guide_context.Leader
+      | Idle when value.prompt <> None || Pxui_graph.editing graph_view -> Search
+      | Idle when Pxui_graph.hinting graph_view -> Hints
+      | Idle when projection value = List_view -> List
+      | Idle when Pxui_graph.hovered_row graph_view <> None -> Row
+      | Idle when Pxui_graph.selected_connection graph_view <> None -> Wire
+      | Idle -> (match Pxui_graph.selected_nodes graph_view with
+          | [] -> Canvas | [_] -> Node | _ -> Multi) in
+    let commands = Editor_core.Command.for_guide keymap ~focus ~context in
+    let hide_guide = status_box { value with workspace; status_fps; graph_view; guide; focus }
+        ui frame ~render_status ~context ~commands in
+    if graph_shown then Option.iter (fun (text, _) ->
+      Pxui_shell.Status_bar.hud ui ~bounds:panes.graph ~text) hud;
     let roots = [view, view_root; graph, graph_root;
       inspector_column, inspector_root; timeline_column, timeline_root] in
     let focus = List.fold_left (fun (latest, focus) (column, box) ->
@@ -929,7 +981,7 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
       panel; grab; settings = unchanged; touched = false; placed = []; pasted = [];
       opened; live_cook; label = "Edit";
       graph_changes; tree_intents = list_intents; parameter_changes; settings_changes;
-      handle_changes } in
+      handle_changes; hide_guide } in
   let leader_panel = match leader with
     | Leader.Pending prefix -> Some (fun ui ->
         Pxui_shell.Which_key.panel ui keymap ~prefix ~focus
@@ -942,12 +994,17 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
     | Leader.Save_preset -> Some (Saving (Preset.default_name ()))
     | Browse_presets ->
         Some (Browsing { query = ""; presets = Preset.list ~directory:value.presets })
+    | Guide_keys -> Some Keys
     | Command_palette -> Some (Palette "")
     | _ -> prompt) value.prompt actions in
   let prompt_panel ui prompt =
     let module Ui = Pxui.Ui in
     let next = match prompt with
     | None -> None, None
+    | Some Keys ->
+        let commands = List.filter (fun (command : Leader.command) -> match command.action with
+          | List_command _ | Frame_tile -> false | _ -> true) value.keymap in
+        (if Pxui_shell.Which_key.sheet ui commands then Some Keys else None), None
     | Some (Saving name) ->
         (match Pxui_shell.Prompt.name ui ~key:"preset-save"
             ~title:"Save preset" ~label:"Preset name" ~query:name with
@@ -1007,7 +1064,11 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
         settings = value.doc.settings; touched = false; placed = []; pasted = [];
         opened = None; live_cook = value.live_cook; label = "Edit";
         graph_changes = command_changes; tree_intents = list_intents;
-        parameter_changes = None; settings_changes = []; handle_changes = None } in
+        parameter_changes = None; settings_changes = []; handle_changes = None; hide_guide = false } in
+  let guide = guide && not result.hide_guide in
+  let guide_error = if guide = value.guide then None else
+    match save_guide value.preferences guide with
+    | Ok () -> None | Error message -> Some ("Guide preference not saved: " ^ message) in
   (* The one reduction phase: panes have finished constructing their boxes. *)
   let document, graph_view, edit_error, editor_effects, placed, pasted = List.fold_left
       (Doc.apply (catalog value value.level))
@@ -1288,10 +1349,11 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
     | framed, _ -> framed in
   let document_changed = doc != value.doc in
   { core = { value' with timeline; cook = cooked.cook; edit_error = cooked.edit_error;
-      status_fps; status_fps_at; history; focus = result.focus;
+      status_fps; status_fps_at; history; guide; hud; focus = result.focus;
       pane_keys = result.pane_keys; leader; held_keys; prompt;
       queued = (match result.prompt_intent with Some (Run_action action) -> [action] | _ -> []);
-      notice = if document_changed && Option.is_none loaded && not undone then None
+      notice = if guide_error <> None then guide_error
+        else if document_changed && Option.is_none loaded && not undone then None
         else notice };
     effects; prepared_changed = cooked.prepared_changed;
     scene_changed = doc.scene != value.doc.scene || cooked.prepared_changed;

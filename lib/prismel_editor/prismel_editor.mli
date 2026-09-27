@@ -56,6 +56,7 @@ module Private : sig
       | World_emit | World_reseed | World_time of float | World_play | World_preset of int
       | Graph_command of Pxui_graph.command
       | List_command of Pxui_shell.Tree.command
+      | Guide_toggle | Guide_keys
       | Command_palette
       | Sketch_command of string
 

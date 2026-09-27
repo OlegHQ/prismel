@@ -47,6 +47,9 @@ module Chrome : sig
 end
 
 module Which_key : sig
+  val sheet : Pxui.Ui.t -> ('scope, 'action) Editor_core.Command.t list -> bool
+  (** Grouped Flow key table. False on dismissal or Close. *)
+
   val panel : Pxui.Ui.t -> ('scope, 'action) Editor_core.Command.t list ->
     prefix:string -> focus:'scope -> focus_name:string -> unit
   (** Draw the page of global and focused commands whose leader sequence
@@ -55,6 +58,13 @@ module Which_key : sig
 end
 
 module Status_bar : sig
+  val guide : Pxui.Ui.t -> bounds:Layout.bounds -> context:Editor_core.Guide_context.t ->
+    ('scope, 'action) Editor_core.Command.t list -> bool
+  (** Context and applicable keys in table order; true when Hide is clicked. *)
+
+  val hud : Pxui.Ui.t -> bounds:Layout.bounds -> text:string -> unit
+  (** Noninteractive key feedback in the pane's bottom corner. *)
+
   val draw : Pxui.Ui.t -> bounds:(int * int * int * int) ->
     text:string -> fps:int option -> unit
   (** Paint the standard status strip in logical-point bounds. *)

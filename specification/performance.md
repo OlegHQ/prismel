@@ -83,6 +83,17 @@ does not distinguish a timing change; the extra lookup adds 96 bytes/frame.
 The one undo sample was 7.639 → 19.009 ms, consistent with the variability
 above rather than a latency guarantee.
 
+M2 guide UI and row hover were measured around the guide change using the
+same 2,000-node host benchmark, machine, domain count and profile. Median
+drag time was 0.185 → 0.175 ms, p95 2.467 → 2.054 ms, and allocation
+602,603 → 635,543 bytes/frame. The guide and additional shared row boxes add
+32,940 bytes/frame in this sample. The one undo sample was 18.208 → 24.673 ms;
+these timings do not establish an improvement. An intermediate strip fitter
+remeasured every growing prefix and allocated 711,639 bytes/frame; measuring
+each word once removed 76,096 bytes/frame from that intermediate version.
+The 2,001-node fan-in smoke allocated
+358,455,424 bytes and completed in 0.245 seconds in the focused suite.
+
 ```sh
 dune exec tools/bench_pxui_graph.exe
 dune exec tools/bench_pxui_graph.exe -- --points

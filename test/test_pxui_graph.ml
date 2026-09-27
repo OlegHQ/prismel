@@ -624,6 +624,21 @@ let run () =
   let rows, _ = Pxui_graph.run_command (Pxui_graph.clear_selection rows) Open_all in
   check (Pxui_graph.Private.level rows rid = Some L.Card) "Shift-O did not open every card";
   let field = center (Option.get (field_bounds rows "amount")) in
+  let row_label = let x,y,_,_ = (node rid rows).bounds in x+30,y+36 in
+  let over, _ = update rows (frame ~mouse:row_label ~events:[mouse_move row_label] ()) in
+  check (Pxui_graph.hovered_row over = Some (rid,"amount"))
+    "row labels did not own shared PXUI hover";
+  let over, _ = update over (frame ~mouse:field ~events:[mouse_move field] ()) in
+  check (Pxui_graph.hovered_row over = Some (rid,"amount"))
+    "field hover did not belong to its row";
+  let target = fst row_label+24,snd row_label+12 in
+  let moved, changes = update (Pxui_graph.clear_selection rows)
+      (frame ~mouse:target ~events:[mouse_press (Input.LeftButton,row_label);
+        mouse_move target; mouse_release (Input.LeftButton,target)] ()) in
+  check (Pxui_graph.selected moved = Some rid
+      && Pxui_graph.node_position moved rid <> Pxui_graph.node_position rows rid
+      && List.mem (Pxui_graph.Node_moved rid) changes)
+    "row label capture did not retain node selection and drag";
   let target = fst field + 10, snd field in
   let _, changes = update rows (frame ~mouse:target ~events:[mouse_press (Input.LeftButton, field);
     mouse_move target; mouse_release (Input.LeftButton, target)] ()) in

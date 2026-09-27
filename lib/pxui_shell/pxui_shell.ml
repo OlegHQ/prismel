@@ -295,15 +295,7 @@ module Which_key = struct
             then command.label
             else "+" ^ List.hd (String.split_on_char ' ' command.label)]
       | Some (Chord (key, modifiers)) when prefix = "" && command.scope = scope ->
-          rows @ [(match key with
-            | Prismel.Input.KeyChar key ->
-                (if List.mem Prismel.Input.Meta modifiers then "⌘"
-                 else if List.mem Prismel.Input.Ctrl modifiers then "Ctrl-" else "")
-                ^ String.make 1 key
-            | Prismel.Input.Delete -> "Del"
-            | Prismel.Input.Backspace -> "⌫"
-            | Prismel.Input.Home -> "Home"
-            | _ -> "Key"), command.label]
+          rows @ [Editor_core.Keymap.label (Chord (key, modifiers)), command.label]
       | _ -> rows) [] keymap
 
   let panel ui keymap ~prefix ~focus ~focus_name =
@@ -323,6 +315,42 @@ module Which_key = struct
     ignore (Ui.modal ui ~width:300. "leader" (fun () ->
       section (leader ^ " · global") None;
       section focus_name (Some focus)))
+
+  let sheet ui keymap =
+    let module Ui = Pxui.Ui in
+    let groups = ["Move", ["graph.walk."; "graph.frame-"; "scene.enter"; "scene.up"];
+      "Build", ["graph.add"; "graph.repeat"; "graph.connect-hint"];
+      "Shape", ["graph.open"; "graph.point"; "graph.group"; "graph.ungroup"];
+      "Rows", ["row."];
+      "Change", ["graph.display"; "graph.mute"; "graph.delete"; "graph.dissolve";
+        "graph.copy"; "graph.cut"; "graph.paste"; "graph.duplicate"; "edit."];
+      "Guide", ["guide."; "graph.find"; "graph.projection"]] in
+    let theme = Ui.theme ui in
+    match Ui.modal ui ~width:460. "guide-keys" (fun () ->
+      Ui.label ui "Flow keys";
+      List.iter (fun (title, prefixes) ->
+        let commands = List.filter (fun command -> command.trigger <> None
+          && List.exists (fun prefix -> String.starts_with ~prefix command.id) prefixes) keymap in
+        let commands = List.fold_left (fun seen command ->
+          if List.exists (fun previous -> previous.id = command.id) seen then seen
+          else command :: seen) [] commands |> List.rev in
+        if commands <> [] then begin
+          Ui.label ui title;
+          List.iter (fun command ->
+            let keys = List.filter_map (fun alias -> if alias.id <> command.id then None
+              else match alias.trigger with
+                | Some (Chord (_, modifiers)) when List.mem Input.Ctrl modifiers -> None
+                | Some trigger -> Some (Editor_core.Keymap.label trigger) | None -> None) keymap
+              |> List.sort_uniq String.compare |> String.concat " / " in
+            let row = Ui.box ui ~w:Ui.Grow ~h:(Ui.Px (float (Ui.row_height ui)))
+              ("keys-" ^ command.id) in
+            Ui.draw ui row (fun paint (x, y, _, _) ->
+              Ui.Paint.text paint ~at:(x +. 8., y +. 5.) ~size:11 ~color:theme.accent keys;
+              Ui.Paint.text paint ~at:(x +. 180., y +. 5.) ~size:11
+                ~color:theme.foreground command.label)) commands
+        end) groups;
+      not (Ui.button ui "Close###guide-close")) with
+    | Some open_ -> open_ | None -> false
 end
 
 module Status_bar = struct
@@ -343,6 +371,53 @@ module Status_bar = struct
         Ui.Paint.text paint
           ~at:(fst at +. Ui.Paint.text_width paint ~size:11 text, snd at)
           ~size:11 ~color:theme.input fps)
+    end
+
+  let guide ui ~bounds:(x, y, width, height) ~context commands =
+    let module Ui = Pxui.Ui in
+    if height <= 0 then false else
+    let bar = Ui.box ui ~flags:Ui.(clickable + clip)
+        ~w:(Ui.Px (float width)) ~h:(Ui.Px (float height))
+        ~at:(float x, float y) "workspace-guide" in
+    let keys = List.filter_map (fun (command : _ Editor_core.Command.t) ->
+        Option.map Editor_core.Keymap.label command.trigger) commands |> String.concat "  " in
+    let title = Editor_core.Guide_context.name context in
+    let theme = Ui.theme ui in
+    Ui.draw ui bar (fun paint (x, y, w, h) ->
+      Ui.Paint.fill paint ~x ~y ~w ~h theme.foreground;
+      Ui.Paint.text paint ~at:(x +. 8., y +. 8.) ~size:11 ~color:theme.input
+        (let text = title ^ " · " ^ keys in
+         if Ui.Paint.text_width paint ~size:11 text <= w -. 58. then text else
+         let gap = Ui.Paint.text_width paint ~size:11 " " in
+         let limit = w -. 58. -. Ui.Paint.text_width paint ~size:11 "…" in
+         let rec fit prefix width = function
+           | [] -> prefix ^ "…"
+           | word :: rest ->
+               let width = width +. (if prefix = "" then 0. else gap)
+                 +. Ui.Paint.text_width paint ~size:11 word in
+               let next = if prefix = "" then word else prefix ^ " " ^ word in
+               if width > limit then prefix ^ "…" else fit next width rest in
+         fit "" 0. (String.split_on_char ' ' text)));
+    let hide = Ui.within ui bar (fun () ->
+      Ui.box ui ~flags:Ui.(clickable + tab_stop) ~w:(Ui.Px 42.) ~h:(Ui.Px (float height))
+        ~at:(float (max 0 (width - 42)), 0.) "guide-hide") in
+    Ui.draw ui hide (fun paint (x, y, w, h) ->
+      Ui.Paint.fill paint ~x ~y ~w ~h theme.foreground;
+      Ui.Paint.text paint ~at:(x +. 8., y +. 8.) ~size:11 ~color:theme.input "hide");
+    if (Ui.signal ui bar).hovered then
+      Ui.tooltip ui ~key:"guide-strip" ~text:(title ^ " · " ^ keys ^ " · Space k: all keys");
+    (Ui.signal ui hide).clicked
+
+  let hud ui ~bounds:(x, y, width, height) ~text =
+    let module Ui = Pxui.Ui in
+    if width > 0 && height > 0 then begin
+      let box = Ui.box ui ~flags:Ui.clip ~w:(Ui.Px (float (max 0 (width - 16))))
+        ~h:(Ui.Px 24.) ~at:(float (x + 8), float (y + max 0 (height - 32))) "key-hud" in
+      let theme = Ui.theme ui in
+      Ui.draw ui box (fun paint (x, y, _, _) ->
+        let w = Ui.Paint.text_width paint ~size:11 text +. 16. in
+        Ui.Paint.fill paint ~x ~y ~w ~h:24. theme.foreground;
+        Ui.Paint.text paint ~size:11 ~at:(x +. 8., y +. 6.) ~color:theme.input text)
     end
 end
 

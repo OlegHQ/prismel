@@ -74,11 +74,37 @@ end
 
 module Keymap = struct
   type trigger = Leader of string | Chord of Prismel.Input.key * Prismel.Input.key list
+
+  let label = function
+    | Leader sequence -> "Space " ^ sequence
+    | Chord (key, modifiers) ->
+        let open Prismel.Input in
+        let key, modifiers = if key = KeyChar '/' && List.mem Shift modifiers then
+          KeyChar '?', List.filter (( <> ) Shift) modifiers else key, modifiers in
+        let key = match key with
+          | KeyChar c -> String.make 1 (Char.lowercase_ascii c)
+          | ArrowUp -> "↑" | ArrowDown -> "↓" | ArrowLeft -> "←" | ArrowRight -> "→"
+          | Space -> "Space" | Enter -> "Enter" | Escape -> "Esc" | Backspace -> "Backspace"
+          | Tab -> "Tab" | Home -> "Home" | End -> "End" | PageUp -> "PgUp"
+          | PageDown -> "PgDn" | Insert -> "Ins" | Delete -> "Del"
+          | Shift -> "Shift" | Ctrl -> "Ctrl" | Alt -> "Alt" | Meta -> "⌘"
+          | F1 -> "F1" | F2 -> "F2" | F3 -> "F3" | F4 -> "F4" | F5 -> "F5" | F6 -> "F6"
+          | F7 -> "F7" | F8 -> "F8" | F9 -> "F9" | F10 -> "F10" | F11 -> "F11" | F12 -> "F12"
+          | Unknown code -> "Key " ^ string_of_int code in
+        List.fold_left (fun label (modifier, name) ->
+          if List.mem modifier modifiers then label ^ name else label) ""
+          [Meta, "Cmd-"; Ctrl, "Ctrl-"; Alt, "Alt-"; Shift, "Shift-"] ^ key
 end
 
 module Guide_context = struct
   type t = Canvas | Node | Value_node | Compound | Multi | Wire | Row | Hints
     | Leader | Search | List | Text | Inside_compound
+
+  let name = function
+    | Canvas -> "Canvas" | Node -> "Node" | Value_node -> "Value" | Compound -> "Compound"
+    | Multi -> "Selection" | Wire -> "Wire" | Row -> "Row" | Hints -> "Hints"
+    | Leader -> "Leader" | Search -> "Search" | List -> "List" | Text -> "Text"
+    | Inside_compound -> "Inside compound"
 end
 
 module Command = struct
@@ -93,6 +119,11 @@ module Command = struct
 
   let make ?trigger ?scope ?(guide = []) ~id ~label action =
     { id; label; trigger; scope; guide; action }
+
+  let for_guide commands ~focus ~context =
+    List.filter (fun command -> command.trigger <> None
+      && (command.scope = None || command.scope = Some focus)
+      && List.mem context command.guide) commands
 end
 
 module Router = struct
@@ -119,7 +150,7 @@ module Router = struct
           && List.for_all (fun modifier ->
                not (List.mem modifier keys) || List.mem modifier modifiers)
                [Prismel.Input.Meta; Prismel.Input.Ctrl] ->
-          Some (List.length modifiers, command.action)
+          Some (List.length modifiers, command)
       | _ -> None)
     |> List.fold_left (fun best candidate -> match best with
       | Some (count, _) when count >= fst candidate -> best
@@ -172,7 +203,7 @@ module Router = struct
           let commands = visible keymap focus in
           (match List.find_opt (fun command ->
               command.trigger = Some (Leader typed)) commands with
-           | Some command -> Idle, command.action :: actions, passed
+           | Some command -> Idle, command :: actions, passed
            | None when List.exists (fun command -> match command.trigger with
                | Some (Leader sequence) -> String.starts_with ~prefix:typed sequence
                | _ -> false) commands -> Pending typed, actions, passed

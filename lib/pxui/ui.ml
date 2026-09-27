@@ -200,6 +200,7 @@ and ui = {
   (* input *)
   mutable pointer : float * float;
   mutable hot : int;
+  mutable hover_rest : (string * (float * float) * float * int) option;
   mutable active : int option;  (* Some 0: unconsumed background gesture *)
   mutable active_button : Input.mouse_button;
   mutable active_press : float * float;
@@ -468,7 +469,7 @@ let create ?(theme = Theme.default) ?font ?(font_size = Theme.font_size) () =
     l_ty = Array.make capacity 0.;
     parents = []; overlays = []; seeds = []; building = false; frame_number = 0; density = 1;
     kit_row_height = 24; kit_padding = 3;
-    pointer = (Float.nan, Float.nan); hot = 0; active = None;
+    pointer = (Float.nan, Float.nan); hot = 0; hover_rest = None; active = None;
     active_button = Input.LeftButton; active_press = (0., 0.); focus = 0;
     keyboard_focus = false; composition = "";
     previous_keys = []; active_keys = [];
@@ -1014,6 +1015,7 @@ let focus ui box =
   end;
   ui.focus <- box.box_key
 let active ui box = ui.active = Some box.box_key
+let hovered_within ui box = hit_within ui ui.hot box.box_key
 
 let scroll_offset ui box = ui.scroll_y.(box.box_slot)
 let set_scroll_offset ui box value = ui.scroll_y.(box.box_slot) <- value
@@ -1478,6 +1480,44 @@ let frame ui (frame : Frame.t) f =
   result
 
 (* ------------------------------------------------------ layout helpers *)
+
+let hover_delay ui ~key =
+  let time = match ui.input_frame with Some frame -> frame.time | None -> 0. in
+  if ui.active <> None || ui.modal_in_frame
+      || List.exists (function Event.WindowFocusLost -> true | _ -> false)
+      ui.frame_events then (ui.hover_rest <- None; false)
+  else match ui.hover_rest with
+    | Some (previous, pointer, start, seen) when previous = key && pointer = ui.pointer
+        && (seen = ui.frame_number || seen = ui.frame_number - 1) && time >= start ->
+        ui.hover_rest <- Some (key, pointer, start, ui.frame_number);
+        time -. start >= 0.380
+    | _ -> ui.hover_rest <- Some (key, ui.pointer, time, ui.frame_number); false
+
+let tooltip ui ~key ~text =
+  if hover_delay ui ~key then begin
+    let width = Float.min 400. (Float.max 40. (ui.view_w -. 16.)) in
+    let columns = max 1 (int_of_float ((width -. 16.) /. 7.)) in
+    let lines, last = List.fold_left (fun (lines, line) word ->
+      if line = "" then lines, word
+      else if String.length line + String.length word + 1 <= columns then
+        lines, line ^ " " ^ word
+      else line :: lines, word) ([], "") (String.split_on_char ' ' text) in
+    let lines = List.rev (last :: lines) in
+    let height = 16. +. (16. *. float (List.length lines)) in
+    let px, py = ui.pointer in
+    let x = Float.max 8. (Float.min (px +. 12.) (ui.view_w -. width -. 8.)) in
+    let y = if py +. height +. 24. <= ui.view_h then py +. 20.
+      else Float.max 8. (py -. height -. 8.) in
+    let parents = ui.parents and seeds = ui.seeds in
+    ui.parents <- [0]; ui.seeds <- [0x2c1b3c6d];
+    Fun.protect ~finally:(fun () -> ui.parents <- parents; ui.seeds <- seeds) (fun () ->
+      let tip = box ui ~w:(Px width) ~h:(Px height) ~at:(x, y) "ui-tooltip" in
+      ui.overlays <- tip.index :: ui.overlays;
+      draw ui tip (fun paint (x, y, w, h) ->
+        Paint.rect paint ~x ~y ~w ~h ~fill:ui.theme.foreground ~stroke:ui.theme.accent ();
+        List.iteri (fun i line -> Paint.text paint ~size:11 ~color:ui.theme.input
+          ~at:(x +. 8., y +. 8. +. (16. *. float i)) line) lines))
+  end
 
 let row ui ?(w = Grow) ?(h = Fit) ?(gap = 0.) ?(padding = 0.) label f =
   within ui (box ui ~w ~h ~axis:Row ~gap ~padding label) f

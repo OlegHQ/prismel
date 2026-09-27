@@ -149,6 +149,18 @@ val rect : t -> box -> float * float * float * float
 
 val hit_rect : t -> box -> float * float * float * float
 
+val hovered_within : t -> box -> bool
+(** The box or a hit descendant owns hover in the shared hit tree. *)
+
+val hover_delay : t -> key:string -> bool
+(** Call for the current hovered target during the builder. True after
+    380 ms of pointer rest; movement, a target change, a skipped frame,
+    capture, a popup or focus loss resets the single timer. *)
+
+val tooltip : t -> key:string -> text:string -> unit
+(** Delayed, noninteractive overlay using {!hover_delay}. Call only for the
+    current hovered target. It does not change focus or pointer ownership. *)
+
 val last_press_within : t -> Prismel.Frame.t -> int list -> int option
 (** Last root key pressed in [frame], using PXUI's previous hit tree.
     The keys come from [key] on pane roots; a press on any child counts. *)

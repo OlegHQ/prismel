@@ -680,7 +680,7 @@ scene level, list projection, and World are described in `scene.md`.
 `Space` (with no text field focused) opens a centered which-key panel; the
 next key runs a command from the editor keymap, one list of pure-data
 `Editor_core.Command.t` entries (`id`, `label`, optional `trigger`, optional
-`scope`, `action`) that drives dispatch, the panel, and the `Space /` command
+`scope`, `guide` contexts, `action`) that drives dispatch, the guide, the panel, and the `Space /` command
 palette. Built-ins carry `Leader.action` payloads the update pipeline handles;
 sketch `?commands` are the same entries whose action is a
 `'prepared t -> 'prepared t` function run after the frame. Command/Ctrl
@@ -693,6 +693,9 @@ Supplied commands validate at `create`: built-in IDs are reserved; aliases
 share one action value; overlapping shortcuts and leader prefixes are errors.
 Chord case and modifier order normalize once. Scoped commands are available
 in the palette under the same focus condition as keyboard dispatch.
+`Router.step` returns the exact matched Command entries in event order and
+the remaining frame. Hosts dispatch their `action` values and use the
+retained trigger and label for key feedback, including aliases.
 
 | Key | Scope | Action |
 |---|---|---|
@@ -703,21 +706,41 @@ in the palette under the same focus condition as keyboard dispatch.
 | `a` | global | add menu of the open level (hover submenus, type to search) |
 | `l` / `e` | global | list ⇄ graph (map view in the World) / open the World |
 | `f` | graph | frame displayed tile |
+| `k` | global | grouped Flow key sheet |
 | `w` / `v` | view (3D) | fly mode / look through render camera |
 
-*Planned key changes (`flow.md` §7.2, §7.11):* M2 adds the graph grammar
-(`h j k l`, `Tab`, `.`, `c`, `o`, `p`, `⇧O`, `⇧P`, `v`, `m`, `x`, `⇧X`, `/`,
-`?`, `Space k`), makes `f` frame the selection or the display node, and moves
-World keys `e`/`r`/`p` to `t`/`n`/`d`; M4 adds `b`, `w`, `=`, `r`; M3 `s`; M5
-`e`, `⌘G`, `⇧⌘G`; M6 makes `Space l` cycle graph, list and text. The table
-above is current until then.
+The table above lists keys after `Space`. With the graph focused:
+
+| Key | Action |
+|---|---|
+| `h j k l`, arrows | walk through connections or to the nearest node in that direction |
+| `Tab` | insert on the selected wire, append to one selected node, or add at the pointer |
+| `.` / `c` | repeat the last add / connect by letter hints |
+| `o` / `p` | open selected detail / toggle selected points |
+| `⇧O` / `⇧P` | open all cards / toggle all points |
+| `v` / `m` | display selected geometry / toggle bypass |
+| `x`, Delete, Backspace / `⇧X` | delete selection / dissolve and reconnect the primary trunk |
+| `/` / `f` / Home | find / frame selection or display / frame all |
+| `⌘C/V/X/D`, Ctrl equivalents | copy / paste / cut / duplicate |
+| `⌘Z` / `⇧⌘Z`, Ctrl equivalents | undo / redo |
+
+`?` toggles the contextual guide and delayed tooltips globally. The guide
+starts on and saves its setting in `~/.prismel/preferences.json` through
+`Editor_core.Store` (override with `PRISMEL_EDITOR_PREFERENCES`). Its strip
+uses Command guide membership in table order. `Space k` shows the grouped
+key sheet; key feedback lasts 1.5 seconds. Shared UI text focus owns typing
+and modal dismissal. `Tab` runs Add in the canvas; `Shift-Tab` remains UI
+traversal. World keys are `t`/`n`/`d`, described in `scene.md`.
+
+Later milestones add row pinning, drives and expressions, compounds, and
+the text projection (`flow.md` §7.2).
 
 Plain keys: `i` enters the selected object, `u` goes up; in the view `w`/`e`/`r`
 pick translate/rotate/scale handles and Escape hides them;
 the list's WAI-ARIA keys and the World keys are listed in `scene.md`. Graph
 layout is in the graph context menu and the palette only.
 
-Graph-focused `F` frames the displayed tile in the editor. Viewport-focused
+Graph-focused `f` frames the selection, or the display node with no selection. Viewport-focused
 `F` frames the camera on the displayed node's cooked bounds through the shared
 cook worker; in 3D it uses the orbit camera, and in 2D it centers and zooms the
 pan/zoom camera. Escape still dismisses UI modes. A right

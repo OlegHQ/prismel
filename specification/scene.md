@@ -98,8 +98,8 @@ consumer, and a node used twice repeats as a muted `↳` row
 (`Pxui_graph.trunk`). Scene siblings list by their canvas y position.
 Reordering swaps the affected siblings' positions and saves both in history.
 
-Inside the World (graph pane focused): `e` flips the selected emitter
-between dome and light, `r` reseeds, `[`/`]` step the time of day, `p`
+Inside the World (graph pane focused): `t` flips the selected emitter
+between dome and light, `n` reseeds, `[`/`]` step the time of day, `d`
 plays the day cycle, and `1`–`4` load the presets. Dragging on the lat-long
 map moves the selected layer; with the Sun layer selected it places the sun
 (unlinking it from the time of day). Shift-drag in the 3D view turns the

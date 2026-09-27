@@ -220,6 +220,8 @@ type t = {
   find : string option;
   namespace : string;
   visible : bool;
+  guide : bool;
+  hovered_row : (int * string) option;
   theme : Pxui.theme;
 }
 
@@ -556,7 +558,7 @@ let create_document ?(x = 0) ?(y = 0) ?(width = 640) ?(height = 360)
     pan_x = 38.; pan_y = 38.; zoom = 1.; drag = None; bloom = None; before_points = Id_map.empty;
     menu = None; context = None; clipboard = None; catalog = catalog_array catalog;
     last_added = None; hints = None; find = None; namespace;
-    visible = true; theme }
+    visible = true; guide = false; hovered_row = None; theme }
 
 let create ?x ?y ?width ?height ?theme ?selected ?catalog ?flaggable ?enterable graph =
   let value = create_document ?x ?y ?width ?height ?theme ?selected ?catalog ?flaggable ?enterable
@@ -644,6 +646,9 @@ let with_bounds ~x ~y ~width ~height value =
     pan_x = value.pan_x +. (float_of_int (width - value.width) /. 2.);
     pan_y = value.pan_y +. (float_of_int (height - value.height) /. 2.);
     drag = None; menu = None; context = None }
+
+let with_guide guide value = if value.guide = guide then value else { value with guide }
+let hovered_row value = value.hovered_row
 
 let with_visible visible value =
   if visible = value.visible then value
@@ -1421,25 +1426,44 @@ let scrub_field (field : Parameter.field_view) =
   | _ -> None
 
 let build_row_fields value ui (box : box) =
-  Array.fold_left (fun (index, changes, detail, pin) row ->
+  Array.fold_left (fun (index, changes, detail, pin, capture, hovered, tip) row ->
     let y = 24 + (24 * index) in
     let _, gy = box_graph_position value box in
     let screen_y0 = screen_y value (gy +. float y) in
     if screen_y0 + screen_size value 24 < value.y || screen_y0 > value.y + value.height then
-      index + 1, changes, detail, pin else
+      index + 1, changes, detail, pin, capture, hovered, tip else
     let at x y = float (screen_size value x), float (screen_size value y) in
     let width = screen_size value 76 and height = screen_size value 16 in
     let emit f v = if v = f.Parameter.current then changes else
       Set_parameter_requested { node = box.info.id; path = f.name; value = v } :: changes in
     match row with
     | Field (f, _) ->
+        let container = Ui.box ui ~flags:Ui.clickable ~at:(at 0 y)
+          ~w:(Ui.Px (float (screen_size value box.width)))
+          ~h:(Ui.Px (float (screen_size value 24))) ("row-" ^ f.name) in
+        let signal = Ui.signal ui container in
+        let capture = if signal.pressed || signal.held || signal.released
+          then Some container else capture in
+        let over = Ui.hovered_within ui container in
+        let hovered = if over then Some (box.info.id, f.name) else hovered in
+        let tip = if not value.guide || not over then tip else
+          let description = if signal.hovered then
+              f.label ^ ". Edit its literal in the field; open all parameters with the more row."
+            else match f.kind with
+              | Choice_view _ -> f.label ^ ". Click to change; Shift-click goes back."
+              | Toggle_view -> f.label ^ ". Click to toggle."
+              | Floating_view _ | Integer_view _ ->
+                  f.label ^ ". Drag to scrub (Shift for fine). Click to type."
+              | _ -> f.label ^ ". Click to edit its literal." in
+          Some (Printf.sprintf "row-%d-%s-%b" box.info.id f.name signal.hovered, description) in
+        let index, changes, detail, pin = Ui.within ui container (fun () ->
         let key = "field-" ^ f.name in
         (match f.current, f.kind with
          | Bool_value _, _ | _, Choice_view _ ->
              let field_x, field_w = match f.kind with
                | Choice_view _ -> 90, 98 | _ -> 112, 76 in
              let field = Ui.box ui ~flags:Ui.(clickable + tab_stop)
-               ~at:(at field_x (y + 4)) ~w:(Ui.Px (float (screen_size value field_w)))
+               ~at:(at field_x 4) ~w:(Ui.Px (float (screen_size value field_w)))
                ~h:(Ui.Px (float height)) key in
              let signal = Ui.signal ui field in
              let v = if not signal.clicked then f.current else match f.current, f.kind with
@@ -1464,23 +1488,30 @@ let build_row_fields value ui (box : box) =
                | Integer_view r, Int_value x when r.soft_max > r.soft_min ->
                    Some ((float x -. float r.soft_min) /. (float r.soft_max -. float r.soft_min))
                | _ -> None in
-             let text, editing = Ui.value_field ui ~at:(at 112 (y + 4))
+             let text, editing = Ui.value_field ui ~at:(at 112 4)
                ~w:(float width) ~h:(float height) ~size:(max 7 (screen_size value 11))
                ~display:(field_text f.current)
                ?fraction ?scrub:(scrub_field f)
                ~valid:(fun text -> parse_field f text <> None) key current in
              let changes = Option.fold ~none:changes ~some:(emit f) (parse_field f text) in
-             index + 1, changes, detail, pin || editing)
+             index + 1, changes, detail, pin || editing)) in
+        index, changes, detail, pin, capture, hovered, tip
     | More count ->
         let button = Ui.box ui ~flags:Ui.(clickable + tab_stop) ~at:(at 0 y)
           ~w:(Ui.Px (float (screen_size value box.width)))
           ~h:(Ui.Px (float (screen_size value 24))) "more" in
-        let detail = if (Ui.signal ui button).clicked
+        let signal = Ui.signal ui button in
+        let tip = if not value.guide || not signal.hovered then tip else
+          Some (Printf.sprintf "more-%d" box.info.id, if count < 0 then
+            "Back to the rows the card keeps." else
+            "Show every parameter, grouped by folder.") in
+        let detail = if signal.clicked
           then Some (if count < 0 then Layout.Card else Layout.Full) else detail in
-        index + 1, changes, detail, pin
-    | Slot _ | Folder _ -> index + 1, changes, detail, pin)
-    (0, [], None, false) box.rows
-  |> fun (_, changes, detail, pin) -> changes, detail, pin
+        index + 1, changes, detail, pin, capture, hovered, tip
+    | Slot _ | Folder _ -> index + 1, changes, detail, pin, capture, hovered, tip)
+    (0, [], None, false, None, None, None) box.rows
+  |> fun (_, changes, detail, pin, capture, hovered, tip) ->
+    changes, detail, pin, capture, hovered, tip
 
 let fitted_text paint size width value =
   if Ui.Paint.text_width paint ~size value <= width then value else
@@ -1765,16 +1796,18 @@ let bindings =
   let command ?(guide = []) id label action key modifiers = Editor_core.Command.make
       ~id:("graph." ^ id) ~label ~guide ~trigger:(Chord (key, modifiers)) action in
   let letter key action id = List.map (fun modifier ->
-    command id id action (Input.KeyChar key) [modifier]) [Input.Meta; Input.Ctrl] in
+    command ~guide:(if modifier = Input.Ctrl then [] else
+      if action = Paste then [Canvas; Node; Multi] else [Node; Multi])
+      id id action (Input.KeyChar key) [modifier]) [Input.Meta; Input.Ctrl] in
   letter 'c' Copy "copy" @ letter 'x' Cut "cut"
   @ letter 'v' Paste "paste" @ letter 'd' Duplicate "duplicate"
   @ [command "delete" "delete" Delete Input.Delete [];
      command "delete" "delete" Delete Input.Backspace [];
-     command "frame-all" "frame all" Frame_all Input.Home [];
-     command "open" "Open detail" Open_detail (Input.KeyChar 'o') [];
-     command "point" "Toggle points" Point_detail (Input.KeyChar 'p') [];
-     command "open-all" "Open all cards" Open_all (Input.KeyChar 'o') [Input.Shift];
-     command "point-all" "Toggle all points" Point_all (Input.KeyChar 'p') [Input.Shift]]
+     command ~guide:[Canvas; Node; Multi] "frame-all" "frame all" Frame_all Input.Home [];
+     command ~guide:[Node; Multi] "open" "Open detail" Open_detail (Input.KeyChar 'o') [];
+     command ~guide:[Node; Multi] "point" "Toggle points" Point_detail (Input.KeyChar 'p') [];
+     command ~guide:[Canvas; Node; Multi] "open-all" "Open all cards" Open_all (Input.KeyChar 'o') [Input.Shift];
+     command ~guide:[Canvas; Node; Multi] "point-all" "Toggle all points" Point_all (Input.KeyChar 'p') [Input.Shift]]
   @ List.concat_map (fun (direction, letter, arrow, name) ->
       [command ~guide:[Canvas; Node; Multi] ("walk." ^ name) ("walk " ^ name)
          (Walk direction) (Input.KeyChar letter) [];
@@ -1784,11 +1817,11 @@ let bindings =
   @ [command ~guide:[Canvas; Node; Multi; Wire] "add" "add by context" Add Input.Tab [];
      command ~guide:[Canvas; Node] "repeat" "repeat last add" Repeat (Input.KeyChar '.') [];
      command ~guide:[Node] "connect-hint" "connect by hints" Connect_hint (Input.KeyChar 'c') [];
-     command ~guide:[Node] "display" "display geometry" Display (Input.KeyChar 'v') [];
-     command ~guide:[Node; Multi] "mute" "toggle bypass" Mute (Input.KeyChar 'm') [];
-     command ~guide:[Node; Multi; Wire] "delete" "delete" Delete (Input.KeyChar 'x') [];
+     command ~guide:[Node; List] "display" "display geometry" Display (Input.KeyChar 'v') [];
+     command ~guide:[Node; Multi; List] "mute" "toggle bypass" Mute (Input.KeyChar 'm') [];
+     command ~guide:[Node; Multi; Wire; List] "delete" "delete" Delete (Input.KeyChar 'x') [];
      command ~guide:[Node; Multi] "dissolve" "dissolve trunk" Dissolve (Input.KeyChar 'x') [Input.Shift];
-     command ~guide:[Canvas; Node; Multi] "find" "find node" Find (Input.KeyChar '/') [];
+     command ~guide:[Canvas; Node; Multi; List] "find" "find node" Find (Input.KeyChar '/') [];
      command ~guide:[Canvas; Node; Multi] "frame-tile" "frame selection / display"
        Frame_selection (Input.KeyChar 'f') []]
 
@@ -1982,6 +2015,7 @@ let apply_context (value : t) context index =
       { value with selected_edge = None }, [Disconnect_requested connection]
 
 let update_canvas (value : t) ui (frame : Frame.t) =
+  let value = if value.hovered_row = None then value else { value with hovered_row = None } in
   let value = if Frame.has_event (function Event.MousePressed _ -> true | _ -> false) frame
     then { value with hints = None } else value in
   if not value.visible then
@@ -2043,7 +2077,9 @@ let update_canvas (value : t) ui (frame : Frame.t) =
             "active") in
         (view, active, build_row_fields value ui box), output) in
       (* One signal per tile per frame; every pass below reads it. *)
-      index, tile, Ui.signal ui tile, view, output) in
+      let _, _, (_, _, _, capture, _, _) = view in
+      let signal = Ui.signal ui (Option.value ~default:tile capture) in
+      index, tile, signal, view, output) in
     let overlay = Ui.box ui ~w:(Ui.Px (float_of_int value.width))
         ~h:(Ui.Px (float_of_int value.height)) ~at:(0., 0.) "overlay" in
     layer, tiles, overlay) in
@@ -2109,7 +2145,7 @@ let update_canvas (value : t) ui (frame : Frame.t) =
     Array.fold_left (fun (value, changes) (index, tile, (tile_signal : Ui.signal), view, output) ->
       let id = value.boxes.(index).info.Edit_graph.id in
       let left signal = signal.Ui.button = Some Input.LeftButton in
-      let view, active, (row_changes, detail, pin) = view in
+      let view, active, (row_changes, detail, pin, capture, _, _) = view in
       let changes = List.rev_append row_changes changes in
       let value, changes = if detail <> None || (pin &&
           not (Option.value ~default:false (Id_map.find_opt id value.layout.pinned))) then
@@ -2157,7 +2193,7 @@ let update_canvas (value : t) ui (frame : Frame.t) =
         else value, changes in
       if tile_signal.pressed && left tile_signal then begin
         let before = value.primary in
-        let value = select_node value ~additive:(List.mem Input.Shift (Ui.press_keys ui tile)) index in
+        let value = select_node value ~additive:(List.mem Input.Shift (Ui.press_keys ui (Option.value ~default:tile capture))) index in
         let indices = indices_of_selection value in
         let changes = if before <> value.primary then
           Selected value.primary :: changes else changes in
@@ -2373,6 +2409,53 @@ let update_canvas (value : t) ui (frame : Frame.t) =
               ~w:width ~h:18. ~radius:2. ~fill:value.theme.foreground ();
             Ui.Paint.text paint ~at:(float x, float y -. 6.) ~size:11
               ~color:(Color.hex_exn "#f5cf4f") label) hints.targets)) value.hints;
+  let hovered_row = Array.find_map (fun (_, _, _, (_, _, (_, _, _, _, hovered, _)), _) ->
+      hovered) tiles in
+  let value = { value with hovered_row } in
+  if value.guide && value.drag = None && value.menu = None && value.context = None
+      && value.find = None then begin
+    let bend = List.find_map (fun (_, signal, c, index) ->
+        if not signal.Ui.hovered then None else
+        Some (Printf.sprintf "bend-%d-%d-%d" c.Edit_graph.consumer c.input_index index,
+          "Bend point. Drag to move; Alt-click or double-click removes it.")) bend_handles in
+    let socket = if not (Ui.hovered_within ui canvas) then None else
+      match hit_input value (ints canvas_signal.pointer) with
+      | Some (index, slot) ->
+          let box = value.boxes.(index) in
+          let text = match box.info.inputs.(slot) with
+            | Some source ->
+                let label = match Hashtbl.find_opt value.slots source with
+                  | Some i -> value.boxes.(i).info.label | None -> "source" in
+                "Geometry input, connected to " ^ label ^ ". Select the wire to delete or insert a node."
+            | None -> "Geometry input. Drop a wire here, or select a source and press c." in
+          Some (Printf.sprintf "input-%d-%d" box.info.id slot, text)
+      | None -> Array.find_map (fun (index, _, _, _, output) ->
+          match output with
+          | Some output when (Ui.signal ui output).hovered ->
+              Some (Printf.sprintf "output-%d" value.boxes.(index).info.id,
+                "Geometry output. Drag onto an input to wire it, or release on empty canvas to search for a node that takes it.")
+          | _ -> None) tiles in
+    let row = Array.find_map (fun (_, _, _, (_, _, (_, _, _, _, _, tip)), _) -> tip) tiles in
+    let header = Array.find_map (fun (index, _, signal, (view, active, _), _) ->
+      let box = value.boxes.(index) in
+      if Option.fold ~none:false ~some:(fun button -> (Ui.signal ui button).hovered) view then
+        Some (Printf.sprintf "view-%d" box.info.id, "Display this node's geometry in the viewport.")
+      else if Option.fold ~none:false ~some:(fun button -> (Ui.signal ui button).hovered) active then
+        Some (Printf.sprintf "active-%d" box.info.id, "Use this camera for rendering.")
+      else if not signal.Ui.hovered then None else
+        Some (Printf.sprintf "node-%d" box.info.id,
+          box.info.label ^ " · " ^ value.namespace ^ "/"
+          ^ Option.value ~default:box.info.operation (Edit_graph.node_factory_key value.document ~node_id:box.info.id)
+          ^ ". Drag to move; double-click to "
+          ^ (if value.enterable box.info then "enter." else "open or close detail."))) tiles in
+    let wire = if not canvas_signal.hovered then None else
+      Option.map (fun index -> let c = value.edges.(index).connection in
+        Printf.sprintf "wire-%d-%d" c.consumer c.input_index,
+        "Geometry wire. Alt-click adds a bend. Click to select, then Tab inserts a node or x deletes the wire.")
+        (hit_edge value (ints canvas_signal.pointer)) in
+    match List.find_map Fun.id [bend; socket; row; header; wire] with
+    | Some (key, text) -> Ui.tooltip ui ~key ~text | None -> ()
+  end;
   value, List.rev changes
 
 let find_matches value query = Array.to_list value.boxes |> List.filter (fun box ->

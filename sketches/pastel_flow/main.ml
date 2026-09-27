@@ -113,7 +113,8 @@ let update model (frame:Frame.t) =
     then Editor_core.History.seal history else history in
   let _,undo_redo,_=Editor_core.Router.step keys ~focus:()
       ~text_focus:(Pxui.Ui.text_input_focused model.ui) ~frame Idle in
-  let history,status=List.fold_left (fun (history,status) action ->
+  let history,status=List.fold_left (fun (history,status) command ->
+      let action = command.Editor_core.Command.action in
       match (if action=`Undo then Editor_core.History.undo else Editor_core.History.redo) history with
       | Some history -> history,(if action=`Undo then "Undo" else "Redo")
       | None -> history,status) (history,status) undo_redo in

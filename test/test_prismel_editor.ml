@@ -144,6 +144,12 @@ let run () =
   let environment = Prismel_editor.Editor3.update environment
       (frame ~events:[Event.KeyPressed Input.Space;
         Event.KeyPressed (Input.KeyChar 'h')] 2) in
+  (* Graph focus shows the Flow guide; the ordinary status/FPS strip remains
+     under View focus. Compare sampling in the pane that displays it. *)
+  let environment = Prismel_editor.Editor3.update environment (frame 3) in
+  let environment = Prismel_editor.Editor3.update environment
+      (frame ~mouse:(100,500) ~events:[mouse_press (Input.LeftButton,(100,500));
+        mouse_release (Input.LeftButton,(100,500))] 4) in
   let at count fps={ (frame count) with fps }in
   let status environment frame=ui_bytes(Prismel_editor.Editor3.scene environment frame)in
   let environment=Prismel_editor.Editor3.update environment(at 1_000 60.)in
@@ -586,7 +592,7 @@ let run () =
         ~default:0 ~get:Fun.id ~set:(fun mode _ -> mode) () ]) in
   let module Settings = Prismel_editor.Settings in
   let bump = Editor_core.Command.make ~id:"test.bump" ~label:"bump mode"
-      ~trigger:(Editor_core.Keymap.Leader "k") (fun environment ->
+      ~trigger:(Editor_core.Keymap.Leader "qj") (fun environment ->
         Prismel_editor.Editor3.set_settings environment (Settings.make mode_schema 3)) in
   let environment = Prismel_editor.Editor3.create ~graph
       ~settings:(Settings.make mode_schema 0) ~commands:[bump]
@@ -612,8 +618,9 @@ let run () =
   (* A sketch command runs from its leader key and from the palette. *)
   let mode environment = Settings.get mode_schema (Prismel_editor.Editor3.settings environment) in
   let environment = Prismel_editor.Editor3.update environment (frame ~events:[
-      Event.KeyPressed Input.Space; Event.KeyPressed (Input.KeyChar 'k')] 300) in
-  check (mode environment = 3) "Space k did not run the sketch command";
+      Event.KeyPressed Input.Space; Event.KeyPressed (Input.KeyChar 'q');
+      Event.KeyPressed (Input.KeyChar 'j')] 300) in
+  check (mode environment = 3) "Space qj did not run the sketch command";
   let environment = Prismel_editor.Editor3.update environment (undo 301) in
   check (mode environment = 0) "undo did not revert the sketch command";
   let environment = List.fold_left (fun environment (count, events) ->

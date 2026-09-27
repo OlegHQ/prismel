@@ -112,6 +112,10 @@ val with_document : Procedural.Edit_graph.t -> t -> t
 val with_graph : Procedural.Graph.t -> t -> t
 val with_bounds : x:int -> y:int -> width:int -> height:int -> t -> t
 val with_visible : bool -> t -> t
+val with_guide : bool -> t -> t
+val hovered_row : t -> (int * string) option
+(** The parameter row owning PXUI hover after the last update. *)
+
 val visible : t -> bool
 
 val selected : t -> int option

@@ -24,9 +24,11 @@ The categorised node menu uses `open_menu_at` and `catalog_of_factories`. Detail
 ## Prismel Flow rework
 
 This library is where most of `specification/flow.md` lands (§6 canvas, §7
-interaction). M1 implements the canvas contract above. Follow
-`specification/flow-migration.md`: M2 adds the
-grammar commands; M3 adds value nodes and row sockets through `flow_sop`.
+interaction). M1 implements the canvas contract above. M2 implements walk, contextual
+Tab/append/ripple, qualified repeat, letter hints, mute, dissolve, find and
+selection framing as Command entries with guide contexts. Rows and fields
+own hover through the shared PXUI hit tree; delayed tooltips never capture
+input. Follow `specification/flow-migration.md`: M3 adds value nodes and row sockets through `flow_sop`.
 Rules that hold throughout:
 
 - Wires are polylines drawn with `Ui.line`; no curves after M1.

@@ -296,6 +296,47 @@ let with_scale scale =
 let run () =
   (match Sdl3.Init.init [Sdl3.Init.Video] with
    | Ok () -> () | Error error -> fail (Format.asprintf "%a" Sdl3.pp_error error));
+  let ui = Ui.create () in
+  Fun.protect ~finally:(fun () -> Ui.destroy ui) (fun () ->
+    let build ?(key = "a") ?(skip = false) ui =
+      let parent = Ui.box ui ~flags:Ui.clickable ~w:(Ui.Px 100.) ~h:(Ui.Px 100.) "hover-parent" in
+      let child = Ui.within ui parent (fun () ->
+        Ui.box ui ~flags:Ui.clickable ~w:(Ui.Px 40.) ~h:(Ui.Px 40.) "hover-child") in
+      let ready = not skip && Ui.hovered_within ui parent && Ui.hover_delay ui ~key in
+      if ready then Ui.tooltip ui ~key ~text:"A shared tooltip.";
+      ready, Ui.hovered_within ui parent, (Ui.signal ui child).hovered in
+    let step ?key ?skip time events = Ui.frame ui (frame ~scale:1. ~time events)
+      (build ?key ?skip) in
+    ignore (step 0. []);
+    let ready, parent, child = step 0.1 [move (10,10)] in
+    if ready || not parent || not child then fail "hover ancestry did not use the shared hit tree";
+    let ready,_,_ = step 0.479 [] in
+    if ready then fail "tooltip appeared before 380 ms";
+    let ready,_,_ = step 0.481 [] in
+    if not ready then fail "tooltip did not appear after 380 ms";
+    let ready,_,_ = step 0.5 [move (11,10)] in
+    if ready then fail "pointer motion did not restart hover rest";
+    let ready,_,_ = step 0.881 [] in
+    if not ready then fail "tooltip did not restart after movement";
+    ignore (step 0.9 [Event.WindowFocusLost]);
+    let ready,_,_ = step 0.91 [move (11,10)] in
+    if ready then fail "focus loss kept hover rest";
+    let ready,_,_ = step ~key:"b" 1.3 [] in
+    if ready then fail "a different target inherited hover time";
+    let ready,_,_ = step ~key:"b" 1.681 [] in
+    if not ready then fail "changed target did not settle";
+    ignore (step ~skip:true 1.7 []);
+    let ready,_,_ = step ~key:"b" 2.1 [] in
+    if ready then fail "leaving a target retained its timer";
+    let ready,_,_ = step ~key:"b" 2.6 [press (11,10)] in
+    if ready then fail "pointer capture displayed a tooltip";
+    ignore (step 2.7 [release (11,10)]);
+    let ready,_,_ = step 1. [] in
+    if ready then fail "a backwards clock retained hover time";
+    let ready = Ui.frame ui (frame ~scale:1. ~time:1.5 []) (fun ui ->
+      ignore (Ui.modal ui "hover-modal" (fun () -> Ui.label ui "Modal"));
+      Ui.hover_delay ui ~key:"a") in
+    if ready then fail "a newly opened popup kept a background tooltip");
   with_scale 1.;
   with_scale 2.;
   (* Hover: the topmost control under the pointer, from last frame's rects. *)
