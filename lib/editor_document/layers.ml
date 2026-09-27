@@ -274,17 +274,17 @@ let layer node : World.entry option =
 
 (* The stack from the top (the network's display node) down input 0. *)
 let stack (network : Document.network) =
-  let rec down id acc = match Edit_graph.find network.graph ~node_id:id with
+  let rec down id acc = match Edit_graph.find network.graph.geometry ~node_id:id with
     | None -> acc
     | Some node ->
         let acc = node :: acc in
-        (match Edit_graph.inputs network.graph ~node_id:id with
+        (match Edit_graph.inputs network.graph.geometry ~node_id:id with
          | Some inputs when Array.length inputs > 0 && inputs.(0) <> None
              && not (List.exists (fun other -> Node.id other = Option.get inputs.(0)) acc) ->
              down (Option.get inputs.(0)) acc
          | _ -> acc) in
   Option.fold ~none:[] ~some:(fun id -> down id []) network.displayed
-  |> List.filter (fun node -> not (Edit_graph.is_bypassed network.graph ~node_id:(Node.id node)))
+  |> List.filter (fun node -> not (Edit_graph.is_bypassed network.graph.geometry ~node_id:(Node.id node)))
 
 (* The World a scene-level world node and its layer network describe;
    [time] (seconds) advances the time of day by the node's day cycle. *)
@@ -377,6 +377,5 @@ let network_of_world world =
       Ok (Some graph, Some (Node.id node))) (Ok (None, None)) layers in
   match graph, top with
   | Some graph, Some top ->
-      Ok { Document.graph; layout = Editor_core.Network_layout.empty; displayed = Some top }
-  | _ -> Ok { Document.graph = Edit_graph.empty; layout = Editor_core.Network_layout.empty;
-              displayed = None }
+      Ok (Document.of_geometry ~context:Flow.Context.World graph (Some top))
+  | _ -> Ok (Document.of_geometry ~context:Flow.Context.World Edit_graph.empty None)

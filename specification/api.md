@@ -726,8 +726,10 @@ environment-owned `Value_lane` resolves reachable values before cooking,
 normalizes hard bounds with the same `Param.normalize_value` kernel as
 `Param.apply`, and preserves literal records. Unchanged effective values keep
 the resolved geometry and cook keys; clearing a drive restores its literal.
-`Exposure.shown` is the shared card visibility rule. The editor, inspector
-and preset adapters remain M3 work in progress.
+`Exposure.shown` is the shared card visibility rule. The editor document,
+graph clipboard and preset v3 now carry the overlay. Preset loading rejects
+invalid value and drive records before installing the document. Canvas,
+inspector and cook adapters remain M3 work in progress.
 
 | Key | Scope | Action |
 |---|---|---|

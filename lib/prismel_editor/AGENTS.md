@@ -22,7 +22,9 @@
 - One immutable `Document` (the scene network, one network per geometry
   object and World, active camera object, sketch `Settings`) is the only
   thing `Editor_core.History` (128 entries) snapshots; `Core.doc` is always
-  its present. Each network's `Editor_core.Network_layout` record stores
+  its present. Each network owns one `Flow_sop.Network` with geometry,
+  value nodes and drives; scene and World networks keep empty value overlays.
+  Each network's `Editor_core.Network_layout` record stores
   positions, levels, pins, row exposure and wire bends. `Network_view.edit`
   updates only the ids and destination ports `Doc.apply` reports touched;
   never walk every node on an edit frame. UI-free
@@ -72,8 +74,9 @@ rules in this file are current. Planned changes that touch this directory:
   through Store user preferences. `Space k` opens the grouped key sheet;
   key feedback lasts 1.5 seconds. World keys are `t`/`n`/`d`, and `f` frames
   the selection or display node. Tab adds by context; Shift-Tab traverses UI.
-- M3: value nodes and drives through `flow_sop`; `Value_lane.resolve` runs
-  in `Cook` before every submission; drives never overwrite literals.
+- M3 in progress: documents, clipboard and preset v3 carry `flow_sop` value
+  nodes and drives. The canvas and inspector still show geometry nodes;
+  `Value_lane.resolve` must be connected to `Cook` before every submission.
 - M5: compound levels under instances. M6: `Space l` cycles graph, list, text.
 
 Keep the three-column workspace, `Doc.apply` as the only graph-intent reducer,
@@ -82,8 +85,8 @@ the one Command table, and history labels; the rework extends them.
 ## Adapters
 
 `pxui_graph` and `Pxui_shell.Inspector` are presentation adapters, not graph authorities:
-selection lives in returned immutable UI state, topology in
-`Procedural.Edit_graph`, and this host applies typed editor commands before
+selection lives in returned immutable UI state, geometry topology in
+`Procedural.Edit_graph` within `Flow_sop.Network`, and this host applies typed editor commands before
 compiling a cookable DAG. Parameter edits replace the selected node in that
 same document (or use `Node.apply_parameters` for a standalone node).
 

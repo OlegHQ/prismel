@@ -18,8 +18,13 @@ let node ?(x = 0.) ?(params = []) id factory inputs = `Assoc [
   "id", `Int id; "factory_key", `String factory; "label", `String factory;
   "inputs", `List inputs; "params", `List params; "x", `Float x; "y", `Float 0.]
 
-let network nodes display = `Assoc ["nodes", `List nodes; "display", display]
+let network ?(context = "sop") nodes display = `Assoc [
+  "context", `String context; "nodes", `List nodes; "values", `List [];
+  "drives", `List []; "display", display]
 let extend json fields = match json with `Assoc current -> `Assoc (fields @ current) | _ -> assert false
+let set json key value = match json with `Assoc fields ->
+  `Assoc (List.map (fun (name, previous) -> name, if name = key then value else previous) fields)
+  | _ -> assert false
 let owned id value = `Assoc ["object", `Int id; "network", value]
 let document ?(camera = `Null) ?(settings = []) ?(view = `Null) scene networks = `Assoc [
   "version", `Int 3; "scene", scene; "networks", `List networks;
@@ -44,23 +49,47 @@ let run () =
     let path = Preset.path ~directory ~name in
     Yojson.Safe.to_file ~std:false path (hostile_numbers json); path in
   let empty = network [] `Null in
+  let scene_empty = network ~context:"scene" [] `Null in
+  let world_empty = network ~context:"world" [] `Null in
   let geometry = node 10 "geometry" [`Null] in
-  let scene = network [geometry] (`Int 10) in
+  let scene = network ~context:"scene" [geometry] (`Int 10) in
   let box = node 20 "box" [] in
   let sop = network [box] (`Int 20) in
   let valid = document scene [owned 10 sop] in
   let flow_sop = extend (network [
       extend box ["level", `String "full"; "pinned", `Bool true;
-        "rows", `Assoc ["size_x", `Bool false]; "bypass", `Bool true];
+        "rows", `Assoc ["size", `Bool false]; "bypass", `Bool true];
       node 21 "null" [`Int 20]] (`Int 21))
       ["geometry_bends", `List [`Assoc ["to", `List [`Int 21; `String "in0"];
         "bends", `List [`List [`Int 120; `Int 12]]]]] in
   let flow_document = document scene [owned 10 flow_sop] in
-  let empty_scene = document empty [] in
+  let value id kind label params = `Assoc [
+    "id", `Int id; "kind", `String kind; "label", `String label;
+    "params", `List params; "x", `Int (-228); "y", `Int 48;
+    "level", `String "card"; "pinned", `Bool false;
+    "rows", `Assoc []; "split", `List []] in
+  let time = value 9 "time" "Clock" [`List [`String "speed"; `Assoc ["float", `Float 2.25]]] in
+  let bad_time = value 9 "time" "Clock" [`List [`String "typo"; `Assoc ["float", `Float 1.]]] in
+  let math = value 8 "math" "Sine" [`List [`String "op"; `Assoc ["choice", `String "sin"]]] in
+  let wire id path from output = `Assoc ["to", `List [`Int id; `String path];
+    "wire", `List [`Int from; `String output]; "bends", `List [];
+    "wireless", `Bool false] in
+  let time_wire = wire 8 "a" 9 "t" |> fun json -> set json "wireless" (`Bool true)
+    |> fun json -> set json "bends" (`List [`List [`Int 12; `Int 24]]) in
+  let driven_sop = sop
+    |> fun json -> set json "nodes" (`List [extend box ["split", `List [`String "center"]]])
+    |> fun json -> set json "values" (`List [math; time])
+    |> fun json -> set json "drives" (`List [time_wire;
+      wire 20 "size" 8 "out";
+      `Assoc ["to", `List [`Int 20; `String "center.x"];
+        "expr", `String "sin(t * 0.6)"]]) in
+  let driven_document = document scene [owned 10 driven_sop] in
+  let empty_scene = document scene_empty [] in
   let empty_sop = document scene [owned 10 empty] in
   List.iter (fun (name, json) ->
     let path = write name json in
-    let loaded = load path |> Result.get_ok in
+    let loaded = match load path with Ok loaded -> loaded
+      | Error message -> failwith (name ^ ": " ^ message) in
     let saved = Preset.save ~directory ~name:(name ^ "-saved") ~sketch:"contract"
       ~doc:loaded.doc ~view:loaded.view |> Result.get_ok in
     let reloaded = load saved |> Result.get_ok in
@@ -70,15 +99,15 @@ let run () =
     let inspect doc = Edit_graph.inspect (Document.scene_graph doc)
       |> List.filter_map (fun (info : Edit_graph.node_info) ->
         Option.map (fun (graph, displayed) ->
-          List.length (Edit_graph.inspect graph), Option.is_some displayed)
+          List.length (Edit_graph.inspect graph.Flow_sop.Network.geometry), Option.is_some displayed)
           (Document.object_network doc info.id)) in
     check (inspect loaded.doc = inspect reloaded.doc) (name ^ " network changed during round trip"))
     ["scene-empty", empty_scene; "sop-empty", empty_sop; "valid", valid;
-     "flow-layout", flow_document;
-     "world-empty", document (network [node 30 "world" []] (`Int 30)) [owned 30 empty]];
+     "flow-layout", flow_document; "driven", driven_document;
+     "world-empty", document (network ~context:"scene" [node 30 "world" []] (`Int 30)) [owned 30 world_empty]];
   let flow = load (Preset.path ~directory ~name:"flow-layout-saved") |> Result.get_ok in
   let graph, _ = Option.get (Document.object_network flow.doc 10) in
-  check (Edit_graph.find graph ~node_id:20 <> None && Edit_graph.find graph ~node_id:21 <> None)
+  check (Edit_graph.find graph.Flow_sop.Network.geometry ~node_id:20 <> None && Edit_graph.find graph.Flow_sop.Network.geometry ~node_id:21 <> None)
     "v3 load did not preserve saved node ids";
   let saved_json = Yojson.Safe.from_file (Preset.path ~directory ~name:"flow-layout-saved") in
   let open Yojson.Safe.Util in
@@ -88,9 +117,56 @@ let run () =
     json |> member "id" |> to_int = 20) in
   check (member "level" saved_box = `String "full" && member "pinned" saved_box = `Bool true
     && member "bypass" saved_box = `Bool true
-    && member "rows" saved_box = `Assoc ["size_x", `Bool false]
+    && member "rows" saved_box = `Assoc ["size", `Bool false]
     && member "geometry_bends" saved_network <> `List [])
     "v3 round trip dropped detail, pins, bypass or bends";
+  let driven = load (Preset.path ~directory ~name:"driven-saved") |> Result.get_ok in
+  let overlay, _ = Option.get (Document.object_network driven.doc 10) in
+  check (List.length (Flow.Graph.inspect overlay.values) = 2
+    && Flow_sop.Port.Map.cardinal overlay.drives = 3)
+    "v3 round trip dropped value nodes or drives";
+  let clock = Flow.Graph.find overlay.values ~node_id:9 |> Option.get in
+  check (List.exists (fun (field : Param.field_view) ->
+    field.name = "speed" && field.current = Param.Float_value 2.25)
+    (Flow.Value_kind.fields clock.parameters))
+    "v3 round trip changed a value-node literal";
+  let expr = match Flow_sop.Port.Map.find_opt
+      {Flow_sop.Port.node = 20; path = "center.x"} overlay.drives with
+    | Some (Flow_sop.Drive.Expr expr) -> expr
+    | _ -> failwith "v3 round trip lost an expression drive" in
+  check (abs_float ((Flow.Expr.eval ~time:1. expr |> Result.get_ok) -. sin 0.6) < 1e-12)
+    "v3 round trip changed an expression";
+  let module Canvas = Editor_core.Network_layout in
+  let pane_layout = { Canvas.empty with at = Canvas.Int_map.singleton 9 (-228., 48.);
+    bends = Canvas.Port_map.singleton (8, "a") [12., 24.] } in
+  let pane = Pxui_graph.create_document overlay |> Pxui_graph.with_layout pane_layout in
+  check (Canvas.Int_map.find_opt 9 (Pxui_graph.layout pane).at = Some (-228., 48.))
+    "geometry-only canvas erased a saved value position";
+  let another_box = Sop_catalog.Box.create () in
+  let expanded_geometry = Edit_graph.add_node ~factory:(List.find (fun factory ->
+    Edit_graph.factory_key factory = "box") factories) another_box overlay.geometry
+    |> Result.get_ok in
+  let changed = Flow_sop.Network.with_geometry expanded_geometry overlay |> Result.get_ok in
+  let pane = Pxui_graph.with_document changed pane in
+  check (Canvas.Port_map.mem (8, "a") (Pxui_graph.layout pane).bends)
+    "geometry edit erased a value wire bend";
+  let driven_saved = Yojson.Safe.from_file (Preset.path ~directory ~name:"driven-saved")
+    |> member "sections" |> member "graph" |> member "networks" |> to_list
+    |> List.hd |> member "network" in
+  check (List.length (driven_saved |> member "values" |> to_list) = 2
+    && List.length (driven_saved |> member "drives" |> to_list) = 3
+    && (driven_saved |> member "drives" |> to_list |> List.hd |> member "wireless") = `Bool true)
+    "v3 writer omitted value nodes or drives";
+  let copied, _ = Pxui_graph.run_command
+    (Pxui_graph.select 20 (Pxui_graph.create_document overlay)) Pxui_graph.Copy in
+  let _, pasted = Pxui_graph.run_command copied Pxui_graph.Paste in
+  let fragment = match pasted with [Pxui_graph.Paste_requested request] -> request.fragment
+    | _ -> failwith "graph clipboard lost the Flow fragment" in
+  let pasted, mapping = Flow_sop.Network.paste fragment overlay |> Result.get_ok in
+  let copied_box = List.assoc 20 mapping in
+  check (Flow_sop.Port.Map.mem {Flow_sop.Port.node = copied_box; path = "center.x"} pasted.drives
+    && not (Flow_sop.Port.Map.mem {Flow_sop.Port.node = copied_box; path = "size"} pasted.drives))
+    "copy/paste lost an expression or retained an external value wire";
   let successful = Preset.path ~directory ~name:"valid-saved" in
   let before = In_channel.with_open_bin successful In_channel.input_all in
   let loaded = load successful |> Result.get_ok in
@@ -103,6 +179,31 @@ let run () =
   let malformed = [
     "old-version-1", `Assoc ["version", `Int 1; "scene", scene; "networks", `List [owned 10 sop]];
     "old-version-2", `Assoc ["version", `Int 2; "scene", scene; "networks", `List [owned 10 sop]];
+    "missing-values", document scene [owned 10 (`Assoc ["context", `String "sop";
+      "nodes", `List [box]; "drives", `List []; "display", `Int 20])];
+    "missing-drives", document scene [owned 10 (`Assoc ["context", `String "sop";
+      "nodes", `List [box]; "values", `List []; "display", `Int 20])];
+    "wrong-context", document scene [owned 10 (set sop "context" (`String "world"))];
+    "value-in-scene", document (set scene "values" (`List [time])) [owned 10 sop];
+    "value-id-collision", document scene [owned 10 (set driven_sop "values" (`List [
+      value 20 "time" "Collision" []]))];
+    "invalid-wire", document scene [owned 10 (set driven_sop "drives" (`List [wire 20 "size" 99 "out"]))];
+    "duplicate-drive", document scene [owned 10 (set driven_sop "drives" (`List [time_wire; time_wire]))];
+    "wire-type", document scene [owned 10 (set driven_sop "drives" (`List [wire 20 "normals" 9 "t"]))];
+    "wire-cycle", document scene [owned 10 (set driven_sop "drives" (`List [
+      wire 8 "a" 9 "t"; wire 9 "speed" 8 "out"]))];
+    "split-whole-vector", document scene [owned 10 (set
+      (set driven_sop "nodes" (`List [extend box ["split", `List [`String "size"]]]))
+      "drives" (`List [wire 20 "size" 8 "out"]))];
+    "bad-expression", document scene [owned 10 (set driven_sop "drives" (`List [
+      `Assoc ["to", `List [`Int 20; `String "center.x"]; "expr", `String "sin("]]))];
+    "expression-bends", document scene [owned 10 (set driven_sop "drives" (`List [
+      `Assoc ["to", `List [`Int 20; `String "center.x"]; "expr", `String "t";
+        "bends", `List []]]))];
+    "unknown-geometry-parameter", document scene [owned 10 (network [node ~params:[
+      `List [`String "typo"; `Assoc ["float", `Float 1.]]] 20 "box" []] (`Int 20))];
+    "unknown-value-parameter", document scene [owned 10 (set driven_sop "values" (`List [bad_time]))];
+    "unsplit-component", document scene [owned 10 (set driven_sop "nodes" (`List [box]))];
     "bad-level", document scene [owned 10 (network [extend box ["level", `String "detail"]] (`Int 20))];
     "bad-pin", document scene [owned 10 (network [extend box ["pinned", `Int 1]] (`Int 20))];
     "bad-bypass", document scene [owned 10 (network [extend box ["bypass", `Int 1]] (`Int 20))];
@@ -115,9 +216,9 @@ let run () =
     "missing-network", document scene [];
     "missing-owner", document scene [owned 99 sop];
     "duplicate-owner", document scene [owned 10 sop; owned 10 sop];
-    "wrong-owner", document (network [geometry; wrong_owner] (`Int 10))
+    "wrong-owner", document (network ~context:"scene" [geometry; wrong_owner] (`Int 10))
       [owned 10 sop; owned 11 sop];
-    "duplicate-scene-id", document (network [geometry; geometry] (`Int 10)) [owned 10 sop];
+    "duplicate-scene-id", document (network ~context:"scene" [geometry; geometry] (`Int 10)) [owned 10 sop];
     "duplicate-sop-id", document scene [owned 10 (network [box; box] (`Int 20))];
     "dangling-display", document scene [owned 10 (network [box] (`Int 99))];
     "empty-dangling-display", document scene [owned 10 (network [] (`Int 20))];
@@ -134,8 +235,8 @@ let run () =
     "infinite-settings", document ~settings:[
       `List [`String "any"; `Assoc ["float", `Float infinity]]] scene [owned 10 sop];
     "infinite-viewport", document ~view:(`Assoc ["zoom", `Float infinity]) scene [owned 10 sop];
-    "bad-display-type", document (network [geometry] (`String "10")) [owned 10 sop];
-    "bad-factory-type", document (network [`Assoc ["id", `Int 10;
+    "bad-display-type", document (network ~context:"scene" [geometry] (`String "10")) [owned 10 sop];
+    "bad-factory-type", document (network ~context:"scene" [`Assoc ["id", `Int 10;
       "factory_key", `Int 1; "inputs", `List []]] (`Int 10)) [];
     "duplicate-json-field", `Assoc ["version", `Int 3; "version", `Int 1];
   ] in
@@ -228,7 +329,7 @@ let run () =
         let id = (List.find (fun (info : Edit_graph.node_info) -> info.operation = "geometry")
           (Edit_graph.inspect scene)).id in
         match Document.object_network dumped.doc id with
-        | Some (graph, None) when Edit_graph.inspect graph = [] -> ()
+        | Some (graph, None) when Edit_graph.inspect graph.Flow_sop.Network.geometry = [] -> ()
         | _ -> failwith "crash preset did not preserve an empty SOP");
     step [key Input.Space; char 's']; step [key Input.Enter]; step [];
     let generated = Preset.list ~directory |> List.find_map (fun (name, _) ->

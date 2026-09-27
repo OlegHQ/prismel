@@ -109,7 +109,7 @@ let run_grammar () =
     | Insert_requested r -> r.factory_key = "null" && r.connection.source = id aa
         && r.at = (508., 0.) && r.ripple = [id output, 772., 0.]
     | _ -> false) changes) "repeat did not use the append rule or opened a menu";
-  let world = create_document ~namespace:"world" ~catalog (Edit_graph.of_graph output)
+  let world = create_document ~namespace:"world" ~catalog (Flow_sop.Network.of_geometry (Edit_graph.of_graph output))
     |> carry_last_added ~from:(with_last_added "null" canvas) in
   let _, changes = run_command world Repeat in
   check (List.for_all (function Notice _ -> true | _ -> false) changes && changes <> [])
@@ -126,7 +126,7 @@ let run_grammar () =
   let targets = List.init 30 (fun i -> Sop.null ~label:(Printf.sprintf "target-%02d" i) a) in
   let document = List.fold_left (fun doc target -> Edit_graph.add_node ~inputs:[|None|]
     target doc |> Result.get_ok) (Edit_graph.add_node a Edit_graph.empty |> Result.get_ok) targets in
-  let hints = create_document document |> place_nodes
+  let hints = create_document (Flow_sop.Network.of_geometry document) |> place_nodes
       (List.mapi (fun i node -> id node, 300., float (i*100)) targets)
       |> select (id a) |> fun value -> fst (run_command value Connect_hint) in
   let labels = Private.hint_labels hints in
@@ -476,7 +476,7 @@ let run () =
       |> Edit_graph.disconnect ~consumer:(Node.id moved_b) ~input_index:0
       |> Result.get_ok in
   let connect_view = Pxui_graph.create_document ~x:20 ~y:30 ~width:800
-      ~height:520 disconnected in
+      ~height:520 (Flow_sop.Network.of_geometry disconnected) in
   let from_ = output_port (node (Node.id source_b) connect_view)
   and to_ = unary_input_port (node (Node.id moved_b) connect_view) in
   let _, changes = update connect_view

@@ -1,6 +1,6 @@
 # lib/pxui_graph rules
 
-`pxui_graph` presents one editable network (`Procedural.Edit_graph`) on the
+`pxui_graph` presents one immutable `Flow_sop.Network` on the
 shared PXUI handle and returns typed `change` requests. It never mutates the
 document, cooks, or interprets operation names (hosts pass predicates such as
 `~flaggable`). Keys are exported as `Editor_core.Command` entries through

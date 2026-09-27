@@ -719,11 +719,12 @@ let run () =
   Yojson.Safe.to_file fixture (`Assoc [
     "prismel", `Int 1; "kind", `String "preset"; "sketch", `String "test";
     "version", `Int 3; "view", `Assoc ["fov", `Float 0.5];
-    "scene", `Assoc ["nodes", `List [
+    "scene", `Assoc ["context", `String "scene"; "values", `List []; "drives", `List []; "nodes", `List [
       node ~factory_key:"geometry" ~id:900003 ~label:"geo1" ~inputs:[None] ();
       node ~factory_key:"camera" ~id:900002 ~label:"camera" ~inputs:[]
         ~params:["eye_x", `Assoc ["float", `Float 6.]] ()]; "display", `Int 900003];
     "networks", `List [`Assoc ["object", `Int 900003; "network", `Assoc [
+    "context", `String "sop"; "values", `List []; "drives", `List [];
     "nodes", `List [
       node ~id:grid_id ~label:"code-grid" ~inputs:[] ();
       node ~id:(Node.id code_graph) ~label:"code-depth" ~inputs:[Some grid_id]
@@ -739,8 +740,8 @@ let run () =
       info.operation = "geometry") (Edit_graph.inspect (Document.scene_graph doc)) in
   let describe doc =
     let graph, displayed = Option.get (Document.object_network doc (geometry doc).id) in
-    let label id = Node.label (Option.get (Edit_graph.find graph ~node_id:id)) in
-    Option.map label displayed, Edit_graph.inspect graph |> List.map (fun (info : Edit_graph.node_info) ->
+    let label id = Node.label (Option.get (Edit_graph.find graph.Flow_sop.Network.geometry ~node_id:id)) in
+    Option.map label displayed, Edit_graph.inspect graph.Flow_sop.Network.geometry |> List.map (fun (info : Edit_graph.node_info) ->
       info.label, info.operation, info.parameters, Array.map (Option.map label) info.inputs) in
   check (List.sort compare (objects loaded.doc) = ["camera", "camera"; "geo1", "geometry"]
       && fst (describe loaded.doc) = Some "code-depth"

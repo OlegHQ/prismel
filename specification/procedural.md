@@ -222,13 +222,14 @@ Dissolve reconnects every consumer through the selected chain's primary
 inputs. Wire insertion fills the new node's primary slot and leaves any
 additional slots disconnected.
 
-*Prismel Flow (target, `flow.md`):* geometry remains in `Edit_graph`. From
-milestone M3 each SOP network carries a `flow_sop` overlay beside it: value
-nodes (built into the new `flow` library), drives on parameter ports (a wire
-from a value output or an expression), and later compound definitions. A
-value lane resolves drives before each cook and applies only changed values
-with `Edit_graph.apply_parameters` to a copy; stored literals are never
-overwritten.
+`Editor_document.Document.network` now stores one `Flow_sop.Network`: geometry
+in `Edit_graph`, value nodes from `flow`, and typed wire or expression drives
+on parameter ports. Preset v3 saves all three together with a context and
+layout, rejecting invalid ports, types, cycles and vector splits on load.
+The graph clipboard copies a Flow fragment, so an expression on a copied SOP
+survives paste. The value lane already resolves drives to a temporary graph
+without changing stored literals; hooking it into the editor cook loop is the
+remaining M3 task. Compounds are later M5 work.
 
 `prismel.pxui_graph` presents that document. Its deterministic left-to-right
 layout snaps positions to 12 points. Header and row sockets connect through

@@ -34,7 +34,7 @@ type insert_request = {
 }
 
 type paste_request = {
-  fragment : Procedural.Edit_graph.fragment;
+  fragment : Flow_sop.Network.fragment;
   positions : (int * float * float) list;
 }
 
@@ -104,11 +104,13 @@ val create_document :
   ?catalog:catalog_entry list -> ?flaggable:(Procedural.Edit_graph.node_info -> bool) ->
   ?enterable:(Procedural.Edit_graph.node_info -> bool) ->
   ?namespace:string ->
-  Procedural.Edit_graph.t -> t
-(** [flaggable] marks tiles that get a flag button (default: none); the
+  Flow_sop.Network.t -> t
+(** Present a Flow network. The M3 canvas currently renders its geometry
+    nodes; value nodes become visible in the following canvas task.
+    [flaggable] marks tiles that get a flag button (default: none); the
     graph never interprets operation names itself. *)
 
-val with_document : Procedural.Edit_graph.t -> t -> t
+val with_document : Flow_sop.Network.t -> t -> t
 val with_graph : Procedural.Graph.t -> t -> t
 val with_bounds : x:int -> y:int -> width:int -> height:int -> t -> t
 val with_visible : bool -> t -> t

@@ -88,14 +88,15 @@ module Private : sig
   module Document : sig
     type t
     val scene_graph : t -> Procedural.Edit_graph.t
-    val object_network : t -> int -> (Procedural.Edit_graph.t * int option) option
-    (** An object's network and display node; [None] for an empty network. *)
+    val object_network : t -> int -> (Flow_sop.Network.t * int option) option
+    (** An object's immutable network and optional geometry display node.
+        A missing owner returns [None]; an empty geometry network has no display. *)
 
     val positions : t -> int -> (int * float * float) list option
   end
 
-  (** Presets: the scene, every object's network, the active camera, and
-      settings as version 3 JSON, including saved Flow layout metadata. *)
+  (** Presets: the scene, every object's geometry/value/drive network, the
+      active camera, and settings as version 3 JSON with Flow layout. *)
   module Preset : sig
     type loaded = { doc : Document.t; view : Yojson.Safe.t }
     val sanitize : string -> string

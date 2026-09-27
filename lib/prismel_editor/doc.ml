@@ -1,5 +1,14 @@
 open Procedural
 
+let flow_result result = Result.map_error Flow.Diagnostic.to_string result
+let update_geometry edit document =
+  Result.bind (edit document.Flow_sop.Network.geometry) (fun geometry ->
+    flow_result (Flow_sop.Network.with_geometry geometry document))
+let apply_parameters document ~node_id values =
+  Result.bind (Edit_graph.apply_parameters document.Flow_sop.Network.geometry ~node_id values)
+    (fun (geometry, effects) -> Result.map (fun document -> document, effects)
+      (update_geometry (fun _ -> Ok geometry) document))
+
 let cook_effects = Parameter.add_impact Parameter.Cook Parameter.no_effects
 
 let find_factory factories key = List.find_opt (fun factory ->
@@ -10,7 +19,7 @@ let input_nodes document input_slots =
     | [] -> Ok (List.rev reversed)
     | None :: rest -> loop (None :: reversed) rest
     | Some id :: rest ->
-        (match Edit_graph.find document ~node_id:id with
+        (match Edit_graph.find document.Flow_sop.Network.geometry ~node_id:id with
          | None -> Error (Printf.sprintf "selected input node #%d no longer exists" id)
          | Some node -> loop (Some node :: reversed) rest)
   in
@@ -36,14 +45,14 @@ let instantiate factories document key input_ids =
    document re-reads only those, and [pasted] the (source, copy) id pairs. *)
 let apply factories (document, graph_view, error, effects, placed, pasted) = function
   | Pxui_graph.Connect_requested connection ->
-      (match Edit_graph.connect ~source:connection.source
-          ~consumer:connection.consumer ~input_index:connection.input_index document with
+      (match update_geometry (Edit_graph.connect ~source:connection.source
+          ~consumer:connection.consumer ~input_index:connection.input_index) document with
        | Error message -> document, graph_view, Some message, effects, placed, pasted
        | Ok document -> document, Pxui_graph.with_document document graph_view,
            None, Parameter.union_effects effects cook_effects, placed, pasted)
   | Disconnect_requested connection ->
-      (match Edit_graph.disconnect ~consumer:connection.consumer
-          ~input_index:connection.input_index document with
+      (match update_geometry (Edit_graph.disconnect ~consumer:connection.consumer
+          ~input_index:connection.input_index) document with
        | Error message -> document, graph_view, Some message, effects, placed, pasted
        | Ok document -> document, (graph_view
            |> Pxui_graph.set_bends ~node:connection.consumer ~slot:connection.input_index []
@@ -51,8 +60,8 @@ let apply factories (document, graph_view, error, effects, placed, pasted) = fun
            None, Parameter.union_effects effects cook_effects, placed, pasted)
   | Cut_wires_requested connections ->
       let disconnected = List.fold_left (fun state (c : Edit_graph.connection) ->
-        Result.bind state (Edit_graph.disconnect ~consumer:c.consumer
-          ~input_index:c.input_index)) (Ok document) connections in
+        Result.bind state (update_geometry (Edit_graph.disconnect ~consumer:c.consumer
+          ~input_index:c.input_index))) (Ok document) connections in
       (match disconnected with
        | Error message -> document, graph_view, Some message, effects, placed, pasted
        | Ok document ->
@@ -62,7 +71,7 @@ let apply factories (document, graph_view, error, effects, placed, pasted) = fun
            document, graph_view, None, Parameter.union_effects effects cook_effects,
            placed, pasted)
   | Set_parameter_requested { node; path; value } ->
-      (match Edit_graph.apply_parameters document ~node_id:node [path, value] with
+      (match apply_parameters document ~node_id:node [path, value] with
        | Error message -> document, graph_view, Some message, effects, placed, pasted
        | Ok (document, changed) ->
            document, Pxui_graph.with_document document graph_view, None,
@@ -71,21 +80,24 @@ let apply factories (document, graph_view, error, effects, placed, pasted) = fun
   | Level_changed ids -> document, graph_view, error, effects,
       List.rev_append ids placed, pasted
   | Delete_nodes_requested ids ->
-      let document = Edit_graph.remove_nodes ids document in
-      document, Pxui_graph.with_document document graph_view, None,
-      Parameter.union_effects effects cook_effects, List.rev_append ids placed, pasted
+      (match flow_result (Flow_sop.Network.remove_nodes ids document) with
+       | Error message -> document, graph_view, Some message, effects, placed, pasted
+       | Ok document -> document, Pxui_graph.with_document document graph_view, None,
+           Parameter.union_effects effects cook_effects, List.rev_append ids placed, pasted)
   | Dissolve_nodes_requested ids ->
       let displayed = Pxui_graph.viewed graph_view in
-      let document = if List.mem displayed ids then
-          Result.value ~default:document (Edit_graph.set_root displayed document)
-        else document in
-      let document = Edit_graph.dissolve_nodes ids document in
-      let graph_view = Pxui_graph.with_document document graph_view in
-      document, graph_view, None, Parameter.union_effects effects cook_effects,
-      List.rev_append ids placed, pasted
+      let geometry = document.Flow_sop.Network.geometry in
+      let geometry = if List.mem displayed ids then
+          Result.value ~default:geometry (Edit_graph.set_root displayed geometry) else geometry in
+      let dissolved = Result.bind (flow_result (Flow_sop.Network.remove_nodes ids document))
+          (update_geometry (fun _ -> Ok (Edit_graph.dissolve_nodes ids geometry))) in
+      (match dissolved with
+       | Error message -> document, graph_view, Some message, effects, placed, pasted
+       | Ok document -> document, Pxui_graph.with_document document graph_view, None,
+           Parameter.union_effects effects cook_effects, List.rev_append ids placed, pasted)
   | Bypass_requested changes ->
       let changed = List.fold_left (fun state (node_id, bypass) ->
-        Result.bind state (fun document -> Edit_graph.set_bypass document ~node_id bypass))
+        Result.bind state (fun document -> update_geometry (fun geometry -> Edit_graph.set_bypass geometry ~node_id bypass) document))
         (Ok document) changes in
       (match changed with
        | Error message -> document, graph_view, Some message, effects, placed, pasted
@@ -96,16 +108,16 @@ let apply factories (document, graph_view, error, effects, placed, pasted) = fun
       (match instantiate factories document request.factory_key request.inputs with
        | Error message -> document, graph_view, Some message, effects, placed, pasted
        | Ok (node, slots, factory) ->
-           (match Edit_graph.add_node ~inputs:slots ~factory node document with
+           (match update_geometry (Edit_graph.add_node ~inputs:slots ~factory node) document with
             | Error message -> document, graph_view, Some message, effects, placed, pasted
             | Ok document ->
                 let connected = Edit_graph.factory_ready factory
                     (Array.to_list slots |> List.map (function
                       | None -> None
                       | Some node_id ->
-                          Edit_graph.find document ~node_id)) in
+                          Edit_graph.find document.Flow_sop.Network.geometry ~node_id)) in
                 let document = if connected then
-                    match Edit_graph.set_root (Node.id node) document with
+                    match update_geometry (Edit_graph.set_root (Node.id node)) document with
                     | Ok document -> document | Error _ -> document
                   else document in
                 let x, y = request.at in
@@ -123,8 +135,8 @@ let apply factories (document, graph_view, error, effects, placed, pasted) = fun
           [request.connection.source] with
        | Error message -> document, graph_view, Some message, effects, placed, pasted
        | Ok (node, _, factory) ->
-           (match Edit_graph.insert_on_connection ~factory
-               request.connection node document with
+           (match update_geometry (Edit_graph.insert_on_connection ~factory
+               request.connection node) document with
             | Error message -> document, graph_view, Some message, effects, placed, pasted
             | Ok document ->
                 let x, y = request.at in
@@ -140,7 +152,7 @@ let apply factories (document, graph_view, error, effects, placed, pasted) = fun
                 Node.id node :: List.rev_append (List.map (fun (id, _, _) -> id) request.ripple) placed,
                 pasted))
   | Paste_requested request ->
-      (match Edit_graph.paste request.fragment document with
+      (match flow_result (Flow_sop.Network.paste request.fragment document) with
        | Error message -> document, graph_view, Some message, effects, placed, pasted
        | Ok (document, mapping) ->
            let pasted_mapping = pasted in

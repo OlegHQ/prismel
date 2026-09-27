@@ -129,6 +129,14 @@ they do not establish a timing improvement. The check is in
 `/tmp/prismel-flow-unchanged-write-bench.ml`, with its temporary Dune stanza
 removed after measurement.
 
+M3's named geometry slots were checked with the same 2,001-node/2,000-wire
+fan-in smoke. A first pass converted the 2,000-slot name array to a list for
+each wire and allocated 582,643,272 B, versus the earlier 358,455,424 B.
+Reading names once per consumer reduced the isolated check to 358,611,352 B
+and 0.220 s (one run, default Dune profile on the same machine). The
+155,928 B allocation difference from the earlier smoke is small; the timing
+sample is not evidence of a speed change.
+
 ```sh
 dune exec tools/bench_flow_value_lane.exe -- 200 1000
 ```

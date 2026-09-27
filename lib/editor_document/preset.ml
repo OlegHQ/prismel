@@ -53,36 +53,56 @@ let value_of_json : Yojson.Safe.t -> (Parameter.value, string) result = function
 
 let optional_int = function Some value -> `Int value | None -> `Null
 
+let flow_result result = Result.map_error Flow.Diagnostic.to_string result
+let port_json (id, path) = `List [`Int id; `String path]
+let points_json points = `List (List.map (fun (x, y) -> `List [`Float x; `Float y]) points)
+let params_json fields = `List (List.map (fun (field : Parameter.field_view) ->
+    `List [`String field.name; value_json field.current]) fields)
+
 let network_json (network : Document.network) =
-  let position id = Option.value ~default:(0., 0.)
-      (Document.Layout.find_opt id network.layout.at) in
-  let node (info : Edit_graph.node_info) =
-    let x, y = position info.id in
-    `Assoc ([ "id", `Int info.id ]
-      @ (match Edit_graph.node_factory_key network.graph ~node_id:info.id with
-        | Some key -> [ "factory_key", `String key ] | None -> [])
-      @ [ "label", `String info.label;
-          "bypass", `Bool info.bypass;
-          "inputs", `List (Array.to_list (Array.map optional_int info.inputs));
-          "params", `List (List.map (fun (field : Parameter.field_view) ->
-            `List [ `String field.name; value_json field.current ])
-            (Node.parameter_fields info.node));
-          "x", `Float x; "y", `Float y;
-          "level", `String (match Document.Layout.find_opt info.id network.layout.level with
-            | Some Layout.Point -> "point" | Some Chip -> "chip" | Some Full -> "full"
-            | Some Card | None -> "card");
-          "pinned", `Bool (Option.value ~default:false
-            (Document.Layout.find_opt info.id network.layout.pinned));
-          "rows", `Assoc (Option.value ~default:Layout.String_map.empty
-            (Document.Layout.find_opt info.id network.layout.rows)
-            |> Layout.String_map.bindings |> List.map (fun (name, shown) -> name, `Bool shown));
-          "split", `List [] ]) in
-  `Assoc [ "nodes", `List (List.map node (Edit_graph.inspect network.graph));
-           "display", optional_int network.displayed;
-           "geometry_bends", `List (Layout.Port_map.bindings network.layout.bends
-             |> List.map (fun ((id, slot), points) -> `Assoc [
-               "to", `List [`Int id; `String slot];
-               "bends", `List (List.map (fun (x, y) -> `List [`Float x; `Float y]) points)])) ]
+  let layout id =
+    let x, y = Option.value ~default:(0., 0.) (Document.Layout.find_opt id network.layout.at) in
+    ["x", `Float x; "y", `Float y;
+     "level", `String (match Document.Layout.find_opt id network.layout.level with
+       | Some Layout.Point -> "point" | Some Chip -> "chip" | Some Full -> "full"
+       | Some Card | None -> "card");
+     "pinned", `Bool (Option.value ~default:false (Document.Layout.find_opt id network.layout.pinned));
+     "rows", `Assoc (Option.value ~default:Layout.String_map.empty
+       (Document.Layout.find_opt id network.layout.rows)
+       |> Layout.String_map.bindings |> List.map (fun (name, shown) -> name, `Bool shown));
+     "split", `List (Option.value ~default:Layout.String_set.empty
+       (Document.Layout.find_opt id network.layout.split)
+       |> Layout.String_set.elements |> List.map (fun name -> `String name))] in
+  let node (info : Edit_graph.node_info) = `Assoc (
+    ["id", `Int info.id] @
+    (match Edit_graph.node_factory_key network.graph.geometry ~node_id:info.id with
+     | Some key -> ["factory_key", `String key] | None -> []) @
+    ["label", `String info.label; "bypass", `Bool info.bypass;
+     "inputs", `List (Array.to_list (Array.map optional_int info.inputs));
+     "params", params_json (Node.parameter_fields info.node)] @ layout info.id) in
+  let value (node : Flow.Graph.node) = `Assoc (
+    ["id", `Int node.id; "kind", `String (Flow.Value_kind.key (Flow.Value_kind.kind node.parameters));
+     "label", `String node.label; "params", params_json (Flow.Value_kind.fields node.parameters)] @ layout node.id) in
+  let bends port = Option.value ~default:[] (Layout.Port_map.find_opt port network.layout.bends) in
+  let drive ((target : Flow_sop.Port.t), drive) =
+    let port = target.node, target.path in
+    `Assoc (["to", port_json port] @ match drive with
+    | Flow_sop.Drive.Expr expr -> ["expr", `String (Flow.Expr.infix expr)]
+    | Wire source -> ["wire", port_json (source.node, source.output);
+        "bends", points_json (bends port);
+        "wireless", `Bool (Layout.Port_set.mem port network.layout.wireless)]) in
+  let geometry_ports = Layout.Port_map.fold (fun port _ ports -> Layout.Port_set.add port ports)
+      network.layout.bends network.layout.wireless
+    |> Layout.Port_set.filter (fun (node, path) ->
+      not (Flow_sop.Port.Map.mem {node; path} network.graph.drives)) in
+  `Assoc ["context", `String (Flow.Context.name network.context);
+    "nodes", `List (List.map node (Edit_graph.inspect network.graph.geometry));
+    "values", `List (List.map value (Flow.Graph.inspect network.graph.values));
+    "drives", `List (List.map drive (Flow_sop.Port.Map.bindings network.graph.drives));
+    "display", optional_int network.displayed;
+    "geometry_bends", `List (Layout.Port_set.elements geometry_ports |> List.map (fun port ->
+      `Assoc ["to", port_json port; "bends", points_json (bends port);
+        "wireless", `Bool (Layout.Port_set.mem port network.layout.wireless)]))]
 
 let to_sections ~(doc : Document.t) ~view =
   [ "graph", `Assoc [
@@ -138,6 +158,8 @@ type saved = {
   pinned : bool;
   rows : bool Layout.String_map.t;
   bypass : bool;
+  split : Layout.String_set.t;
+  kind : Flow.Value_kind.kind option;
 }
 
 let rec all = function
@@ -150,11 +172,16 @@ let number = function
   | `Int value -> Ok (float_of_int value)
   | _ -> Error "expected a finite number"
 
-let saved_node : Yojson.Safe.t -> (saved, string) result = function
+let saved_node ~value : Yojson.Safe.t -> (saved, string) result = function
   | `Assoc fields ->
       let* () = unique ~what:"node field" (List.map fst fields) in
       let field name = List.assoc_opt name fields in
       let* id = match field "id" with Some (`Int id) -> Ok id | _ -> Error "node without id" in
+      let* kind = if not value then Ok None else match field "kind" with
+        | Some (`String key) -> Result.map Option.some (flow_result (Flow.Value_kind.of_key key))
+        | _ -> Error "value node without kind" in
+      let* () = if value && (field "factory_key" <> None || field "inputs" <> None || field "bypass" <> None)
+        then Error "value node has geometry fields" else Ok () in
       let* factory_key = match field "factory_key" with
         | Some (`String key) -> Ok (Some key) | None -> Ok None
         | _ -> Error "invalid factory key" in
@@ -163,7 +190,7 @@ let saved_node : Yojson.Safe.t -> (saved, string) result = function
         | _ -> Error "invalid node label" in
       let* bypass = match field "bypass" with
         | None -> Ok false | Some (`Bool b) -> Ok b | _ -> Error "invalid bypass" in
-      let* inputs = match field "inputs" with
+      let* inputs = if value then Ok [] else match field "inputs" with
         | Some (`List inputs) -> all (List.map (function
             | `Int id -> Ok (Some id) | `Null -> Ok None
             | _ -> Error "bad input slot") inputs)
@@ -193,47 +220,100 @@ let saved_node : Yojson.Safe.t -> (saved, string) result = function
               | _ -> Error "invalid row pin") rows) in
             Ok (Layout.String_map.of_list rows)
         | _ -> Error "invalid row pins" in
-      let* () = match field "split" with
-        | None | Some (`List []) -> Ok () | _ -> Error "vector splits require value ports" in
+      let* split = match field "split" with
+        | None -> Ok Layout.String_set.empty
+        | Some (`List groups) ->
+            let* groups = all (List.map (function `String group -> Ok group
+              | _ -> Error "invalid vector split") groups) in
+            let* () = unique ~what:"vector split" groups in
+            Ok (Layout.String_set.of_list groups)
+        | _ -> Error "invalid vector splits" in
       Ok { id; factory_key; label; inputs; params;
-        x = Layout.snap x; y = Layout.snap y; level; pinned; rows; bypass }
+        x = Layout.snap x; y = Layout.snap y; level; pinned; rows; bypass; split; kind }
   | _ -> Error "node is not an object"
 
-let nodes_of = function
-  | Some (`List nodes) -> all (List.map saved_node nodes)
+let nodes_of ~value = function
+  | Some (`List nodes) -> all (List.map (saved_node ~value) nodes)
   | _ -> Error "preset has no nodes"
 
 let optional_of = function
   | Some (`Int id) -> Ok (Some id) | Some `Null | None -> Ok None
   | _ -> Error "expected a node id or null"
 
+type saved_network = {
+  context : Flow.Context.t;
+  nodes : saved list;
+  values : saved list;
+  display : int option;
+  drives : (Flow_sop.Port.t * Flow_sop.Drive.t) list;
+  bends : ((int * string) * (float * float) list) list;
+  wireless : Layout.Port_set.t;
+}
+
+let port_of = function
+  | Some (`List [`Int node; `String path]) -> Ok (node, path)
+  | _ -> Error "expected a node and port name"
+let points_of = function
+  | None -> Ok []
+  | Some (`List points) -> all (List.map (function
+      | `List [x; y] -> let* x = number x in let* y = number y in Ok (Layout.snap x, Layout.snap y)
+      | _ -> Error "invalid bend point") points)
+  | _ -> Error "bend points are not a list"
+let wireless_of = function None -> Ok false | Some (`Bool b) -> Ok b | _ -> Error "invalid wireless flag"
+
 let network_of = function
   | `Assoc fields ->
       let* () = unique ~what:"network field" (List.map fst fields) in
-      let* nodes = nodes_of (List.assoc_opt "nodes" fields) in
-      let* display = optional_of (List.assoc_opt "display" fields) in
-      let* bends = match List.assoc_opt "geometry_bends" fields with
+      let field name = List.assoc_opt name fields in
+      let* context = match field "context" with
+        | Some (`String context) -> flow_result (Flow.Context.of_string context)
+        | _ -> Error "network without context" in
+      let* nodes = nodes_of ~value:false (field "nodes") in
+      let* values = nodes_of ~value:true (field "values") in
+      let* display = optional_of (field "display") in
+      let metadata entry =
+        let* port = port_of (List.assoc_opt "to" entry) in
+        let* bends = points_of (List.assoc_opt "bends" entry) in
+        let* wireless = wireless_of (List.assoc_opt "wireless" entry) in
+        Ok (port, bends, wireless) in
+      let* drives = match field "drives" with
+        | Some (`List entries) -> all (List.map (function
+            | `Assoc entry ->
+                let* () = unique ~what:"drive field" (List.map fst entry) in
+                let* port, bends, wireless = metadata entry in
+                let node, path = port in
+                let* drive = match List.assoc_opt "wire" entry, List.assoc_opt "expr" entry with
+                  | Some wire, None ->
+                      let* node, output = port_of (Some wire) in
+                      Ok (Flow_sop.Drive.Wire {node; output})
+                  | None, Some (`String expression) ->
+                      let* () = if List.assoc_opt "bends" entry <> None || List.assoc_opt "wireless" entry <> None
+                        then Error "expression drives have no wire layout" else Ok () in
+                      Result.map (fun expr -> Flow_sop.Drive.Expr expr) (flow_result (Flow.Expr.parse expression))
+                  | _ -> Error "drive requires exactly one wire or expression" in
+                Ok (({Flow_sop.Port.node; path}, drive), (port, bends, wireless))
+            | _ -> Error "invalid drive") entries)
+        | _ -> Error "network without drives" in
+      let* geometry = match field "geometry_bends" with
         | None -> Ok []
         | Some (`List entries) -> all (List.map (function
             | `Assoc entry ->
-                let* () = unique ~what:"bend entry field" (List.map fst entry) in
-                let* port = match List.assoc_opt "to" entry with
-                  | Some (`List [`Int id; `String slot]) -> Ok (id, slot)
-                  | _ -> Error "bend without destination port" in
-                let* points = match List.assoc_opt "bends" entry with
-                  | Some (`List points) -> all (List.map (function
-                      | `List [x; y] -> let* x = number x in let* y = number y in
-                          Ok (Layout.snap x, Layout.snap y)
-                      | _ -> Error "invalid bend point") points)
-                  | _ -> Error "bend points are not a list" in
-                Ok (port, points)
+                let* () = unique ~what:"bend entry field" (List.map fst entry) in metadata entry
             | _ -> Error "invalid bend entry") entries)
         | _ -> Error "geometry bends are not a list" in
-      let* () = unique ~what:"bend destination" (List.map fst bends) in
-      Ok (nodes, display, bends)
+      let* () = unique ~what:"drive destination" (List.map (fun ((target, _), _) -> target) drives) in
+      let* () = unique ~what:"bend destination" (List.map (fun (port, _, _) -> port) geometry) in
+      let metadata = geometry @ List.map snd drives in
+      let* () = unique ~what:"wire destination" (List.map (fun (port, _, _) -> port) metadata) in
+      let bends = List.filter_map (fun (port, points, _) ->
+          if points = [] then None else Some (port, points)) metadata in
+      (* Even an empty geometry bend entry must name a connected geometry slot. *)
+      let bends = List.fold_left (fun bends (port, points, _) ->
+          if points = [] then (port, []) :: bends else bends) bends geometry in
+      let wireless = List.fold_left (fun flags (port, _, on) ->
+          if on then Layout.Port_set.add port flags else flags) Layout.Port_set.empty metadata in
+      Ok {context; nodes; values; display; drives = List.map fst drives; bends; wireless}
   | _ -> Error "preset network is not an object"
-
-type saved_network = saved list * int option * ((int * string) * (float * float) list) list
 
 type decoded = { scene : saved_network; networks : (int * saved_network) list }
 
@@ -285,7 +365,8 @@ let decode path = match Yojson.Safe.from_file path with
   | _ -> Error "corrupt preset: not an object"
 
 (* Rebuild catalog closures and rebind code nodes, preserving saved ids. *)
-let rebuild ~code ~factories (nodes, display, bends) =
+let rebuild ~code ~factories (saved : saved_network) =
+  let {nodes; display; bends; _} = saved in
   let* () = unique ~what:"node id" (List.map (fun node -> node.id) nodes) in
   let ids = Hashtbl.create (List.length nodes) in
   List.iter (fun node -> Hashtbl.add ids node.id ()) nodes;
@@ -346,6 +427,13 @@ let rebuild ~code ~factories (nodes, display, bends) =
     (Ok document) nodes in
   let* document = List.fold_left (fun state (node : saved) ->
     let* document = state in
+    let known = Option.fold ~none:[] ~some:Node.parameter_fields
+      (Edit_graph.find document ~node_id:node.id) in
+    let* () = List.fold_left (fun checked (name, _) ->
+      let* () = checked in
+      if List.exists (fun (field : Parameter.field_view) -> field.name = name) known
+      then Ok () else Error (Printf.sprintf "preset node #%d has unknown parameter %S" node.id name))
+      (Ok ()) node.params in
     let* document = Edit_graph.set_bypass document ~node_id:node.id node.bypass in
     if node.params = [] then Ok document
     else Result.map fst (Edit_graph.apply_parameters document ~node_id:node.id node.params))
@@ -358,9 +446,20 @@ let rebuild ~code ~factories (nodes, display, bends) =
       level = Layout.Int_map.add node.id node.level layout.level;
       pinned = Layout.Int_map.add node.id node.pinned layout.pinned;
       rows = if Layout.String_map.is_empty node.rows then layout.rows
-        else Layout.Int_map.add node.id node.rows layout.rows })
-      { Layout.empty with bends = Layout.Port_map.of_list bends } nodes in
-  Ok { Document.graph = document; layout; displayed }
+        else Layout.Int_map.add node.id node.rows layout.rows;
+      split = if Layout.String_set.is_empty node.split then layout.split
+        else Layout.Int_map.add node.id node.split layout.split })
+      { Layout.empty with bends = Layout.Port_map.of_list bends; wireless = saved.wireless }
+      (nodes @ saved.values) in
+  let* values = List.fold_left (fun state (node : saved) ->
+    let* values = state in
+    let* value = flow_result (Flow.Graph.node ~id:node.id ~label:node.label (Option.get node.kind)) in
+    let* values = flow_result (Flow.Graph.add_node value values) in
+    Result.map fst (flow_result (Flow.Graph.apply_parameters values ~node_id:node.id node.params)))
+      (Ok Flow.Graph.empty) saved.values in
+  let* graph = flow_result (Flow_sop.Network.of_parts ~geometry:document ~values
+      ~drives:(Flow_sop.Port.Map.of_list saved.drives)) in
+  Ok { Document.context = saved.context; graph; layout; displayed }
 
 let load ~path ~code ~factories ~settings =
   let* decoded, active_camera, values, view = decode path in
@@ -372,7 +471,7 @@ let load ~path ~code ~factories ~settings =
   let* networks = List.fold_left (fun state (id, saved) ->
       let* networks = state in
       let* factories = match Option.map Node.operation
-          (Edit_graph.find scene_network.graph ~node_id:id) with
+          (Edit_graph.find scene_network.graph.geometry ~node_id:id) with
         | Some "world" -> Ok Layers.catalog
         | Some "geometry" -> Ok factories
         | None -> Error (Printf.sprintf "network has missing owner #%d" id)
@@ -381,7 +480,7 @@ let load ~path ~code ~factories ~settings =
       Ok (Document.Layout.add id network networks))
       (Ok Document.Layout.empty) networks in
   let* active_camera = match active_camera with
-    | Some id when Edit_graph.find scene_network.graph ~node_id:id = None ->
+    | Some id when Edit_graph.find scene_network.graph.geometry ~node_id:id = None ->
         Error "preset active camera is missing"
     | value -> Ok value in
   let doc = { Document.scene = scene_network; networks; active_camera; settings } in

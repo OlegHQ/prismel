@@ -7,8 +7,9 @@
     catalog are recreated from their factory; nodes from the sketch's code
     graph (including custom, non-catalog SOPs) rebind by their stable node
     id, so a preset only loads into the sketch whose code produced it.
-    Version 3 saves Flow layout metadata and stable node ids. Older preset
-    versions are rejected. *)
+    Version 3 saves each network's context, geometry and value nodes, typed
+    drives, Flow layout metadata and stable node ids. It rejects invalid
+    references, port types and vector splits, and rejects older versions. *)
 
 type loaded = {
   doc : Document.t;

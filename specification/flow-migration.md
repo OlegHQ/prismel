@@ -196,7 +196,7 @@ Tasks:
    operations of §3.11 for wires), `Exposure.shown` (§5.1, used by canvas, list
    and inspector), `Value_lane.resolve` (§13.1). Expose
    `Procedural.Node.Private.fresh_id` for value-node ids.
-6. `editor_document`: `Document.network` carries the overlay; preset v3
+6. [x] `editor_document`: `Document.network` carries the overlay; preset v3
    `values` and `drives` arrays (§4.4); validation of §3.10.
 7. `pxui_graph`: value nodes, row sockets, drives rendering (← source, live
    readouts), drop onto rows including hidden ones via bloom, chip bottom
@@ -247,7 +247,8 @@ Tasks: definitions and instances (§3.8) in `flow_sop`; `⌘G`, `⇧⌘G`, enter
 and up for compounds with `Document.level` extended to instance paths;
 export, unexport, interface rename/reorder in the inspector of the
 Inputs/Outputs nodes; "make unique" (context menu and palette); `compiled_ids`
-and `Compile.flatten` (§13.3); `context` on every network in presets;
+and `Compile.flatten` (§13.3); definition and instance contexts in presets
+(built-in network contexts already land in M3);
 `E_RECURSIVE` on load.
 
 Tests: group → enter → up keeps ids, values and cooked geometry; ungroup is
@@ -316,6 +317,13 @@ network with the same canvas, keys, views and text), then plan it here.
   the build.
 
 ## Log
+
+- 2026-09-28 M3 document integration: each saved network owns a context and
+  one immutable geometry/value/drive overlay. Preset v3 requires and validates
+  its value and drive arrays, logical vector splits, named geometry slots,
+  wire bends and wireless flags; scene and World reject value nodes. The graph
+  clipboard carries Flow fragments, preserving expression drives on copy and
+  paste. The cook and canvas still display geometry only until M3 tasks 7–9.
 
 - 2026-09-27 M3 SOP overlay and lane: `flow_sop` validates ids, grouped ports,
   coercions, vector conflicts and value cycles; copy/paste remaps the induced
