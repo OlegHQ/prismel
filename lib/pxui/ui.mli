@@ -52,7 +52,21 @@ val font_size : t -> int
 (** {1 Frames} *)
 
 val frame : t -> Prismel.Frame.t -> (t -> 'a) -> 'a
-(** Route the frame's ordered events, run the builder, lay out, and paint. *)
+(** Route the frame's ordered events, run the builder, lay out, and paint.
+    Tab/Shift-Tab traverse visible focusable boxes in presentation order,
+    restricted to an open popup. Enter/Space activate controls; arrows adjust
+    choices, sliders and XY controls, Home/End set slider bounds. Shift makes
+    slider steps ten times larger. Enter opens numeric entry; Enter commits
+    and Escape cancels it. Range controls use Enter/Space to switch handles.
+    Kit controls take keyboard focus through Tab; text-entry controls also
+    focus on a pointer press. *)
+
+val input : ?owner:int -> t -> Prismel.Frame.t
+(** After {!frame}, the ordered events not consumed by UI controls, plus
+    events captured by the exact [owner] box key (e.g. a viewport root).
+    Children of [owner] retain their events. Held keys, buttons and motion
+    follow the same ownership; release or disappearance cancels an excluded
+    gesture. Focus-loss and pointer cancellation always pass through. *)
 
 val scene : t -> Prismel.Scene.t
 (** The most recently completed frame, including text-input regions. *)
@@ -65,9 +79,14 @@ val request_cursor : t -> [`Horizontal_resize|`Vertical_resize] -> unit
 (** Cursor requested by a hovered or captured PXUI control. *)
 
 val text_input_focused : t -> bool
-(** A text field or numeric editor owns keyboard input. *)
+(** A focused control owns keyboard input (including text and numeric entry).
+    Hosts suppress their shortcuts while a control owns it. *)
 
 val unfocus : t -> unit
+
+val dismiss_popup : t -> unit
+(** When the host closes a popup after accepting its result, release focus
+    and capture. Its current frame remains consumed; next frame is unblocked. *)
 
 (** {1 Boxes} *)
 
@@ -84,7 +103,8 @@ type size =
 type axis = Row | Column
 
 (** Box flags: [clickable] boxes receive presses and pointer capture;
-    [focusable] boxes take keyboard focus when pressed; [scroll] boxes receive
+    [focusable] boxes take keyboard focus when pressed or traversed with Tab;
+    their signals click on Enter/Space; [scroll] boxes receive
     wheel events and scroll their children vertically; [clip] clips children
     to the padded content rectangle; [blocking] boxes consume hover and
     presses so boxes below them do not receive them. *)
@@ -93,6 +113,10 @@ type flags
 val none : flags
 val clickable : flags
 val focusable : flags
+val tab_stop : flags
+(** Keyboard traversal focus for a control whose pointer interaction leaves
+    keyboard input with its host. Escape relinquishes this keyboard focus. *)
+
 val scroll : flags
 val clip : flags
 val blocking : flags
@@ -149,6 +173,13 @@ type signal = {
 }
 
 val signal : t -> box -> signal
+val key_events : t -> box -> (Prismel.Event.t * Prismel.Input.key list) list
+(** The focused key/text events paired with their event-time held keys.
+    Use this for custom controls that interpret Shift, Command or Control. *)
+
+val press_keys : t -> box -> Prismel.Input.key list
+(** Held keys at this box's captured press, retained through release. *)
+
 val focused : t -> box -> bool
 val focus : t -> box -> unit
 val active : t -> box -> bool
@@ -265,14 +296,17 @@ val popup :
   at:float * float -> width:float -> height:float -> string ->
   (unit -> 'a) -> 'a option
 (** A floating panel dismissed by Escape, focus loss, or a press outside its
-    last laid-out bounds. [height] supplies the first-frame hit area. *)
+    last laid-out bounds. [height] supplies the first-frame hit area.
+    Build it before the body it shields; it paints on top and consumes
+    underlying input, including its opening/dismissal frame. *)
 
 val modal : t -> ?width:float -> string -> (unit -> 'a) -> 'a option
 (** A kit panel centered in the frame, outlined in the accent colour. Build it
-    last, at the root level, so it is topmost. Escape, window focus loss, or a
+    before the body it shields, at the root level; it paints on top. Escape, window focus loss, or a
     press outside it dismisses it: the builder is skipped and [None] is
     returned, so the host drops its open state. Keys still reach the host and
-    focused children; the host decides what the modal blocks. *)
+    focused children. It consumes underlying input even when opening or
+    closing in this frame; {!val-input} still delivers cancellation. *)
 
 val label : t -> string -> unit
 val button : t -> string -> bool
@@ -324,7 +358,7 @@ val context_menu :
 (** A floating menu at [at] with [(label, enabled)] rows. The host keeps it
     open while this returns [`Open]; a row commits on press and release inside
     it, and Escape, focus loss, or a press outside return [`Dismiss]. Build it
-    last, at the root level. *)
+    before content it shields; it floats at the root regardless of its parent. *)
 
 val accordion :
   t -> ?expanded:bool -> ?set_expanded:bool -> string -> (unit -> 'a) ->

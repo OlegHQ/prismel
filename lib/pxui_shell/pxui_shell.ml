@@ -248,7 +248,7 @@ module Chrome = struct
     let value = splitter second "workspace-splitter-b" Second value in
     let header column title bounds value =
       let box = floating ui bounds ("workspace-header-" ^ title) in
-      let button = floating ui ~flags:Ui.clickable (button_bounds value frame column)
+      let button = floating ui ~flags:Ui.(clickable + tab_stop) (button_bounds value frame column)
           ("workspace-collapse-" ^ title) in
       (if (Ui.signal ui button).clicked then toggle column value else value),
       (column, title, box) in
@@ -544,7 +544,7 @@ module Tree = struct
   (* The row list, its toggle columns, and the filter and rename prompts,
      built inside [Ui.frame]. One box takes every pointer gesture; rows are
      found from the pointer, so only the visible slice is painted. *)
-  let update t ui (frame : Prismel.Frame.t) ~bounds:(x, y, w, h) ?(title = "") ~columns rows
+  let update t ui (_frame : Prismel.Frame.t) ~bounds:(x, y, w, h) ?(title = "") ~columns rows
       ~selected =
     let theme = Ui.theme ui in
     let height = float_of_int (Ui.row_height ui) in
@@ -579,7 +579,7 @@ module Tree = struct
       | Some value -> value | None -> false in
     let is_selected id = List.mem id selected in
     let left = signal.button = Some Prismel.Input.LeftButton in
-    let modifier key = List.mem key frame.keys in
+    let modifier key = List.mem key (Ui.press_keys ui box) in
     (* Presses: select, start a row drag or a toggle paint. *)
     let t, intents = if not (signal.pressed && left) then t, [] else
       match row_at signal.press_point with
@@ -785,9 +785,9 @@ module Tree = struct
       | Some (id, name) ->
           (match Prompt.name ui ~key:"tree-rename" ~title:"Rename" ~label:"Name"
               ~query:name with
-           | None | Some (_, `Cancel) -> Ui.unfocus ui; { t with renaming = None }, intents
+           | None | Some (_, `Cancel) -> Ui.dismiss_popup ui; { t with renaming = None }, intents
            | Some (name, `Submit) ->
-               Ui.unfocus ui; { t with renaming = None },
+               Ui.dismiss_popup ui; { t with renaming = None },
                if String.trim name = "" then intents else intents @ [Rename (id, String.trim name)]
            | Some (name, _) -> { t with renaming = Some (id, name) }, intents) in
     { t with scroll; reveal = false }, intents
@@ -795,14 +795,9 @@ end
 
 module Shell = struct
   let frame ui frame ~visible ~body ~overlay =
-    if visible then Some (Pxui.Ui.frame ui frame (fun ui ->
-      let result = body ui in
+    Pxui.Ui.frame ui frame (fun ui ->
       Option.iter (fun draw -> draw ui) overlay;
-      result))
-    else begin
-      Option.iter (fun draw -> ignore (Pxui.Ui.frame ui frame draw)) overlay;
-      None
-    end
+      if visible then Some (body ui) else None)
 end
 
 module Inspector = struct

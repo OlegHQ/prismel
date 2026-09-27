@@ -10,12 +10,12 @@ module History : sig
   type 'a t
   type merge =
     | Step
-    | Gesture of int
+    | Gesture of string
     | Burst of { key : string; at : float; window : float }
     | Repair
   val create : ?capacity:int -> 'a -> 'a t
   val present : 'a t -> 'a
-  (* [Step] adds an undo entry; matching [Gesture] ids merge until [seal];
+  (* [Step] adds an undo entry; matching [Gesture] operation/target keys merge until [seal];
       matching [Burst] keys merge while edits stay within [window] seconds;
       [Repair] changes the current entry without adding a step. *)
   val record : ?merge:merge -> ?label:string -> 'a -> 'a t -> 'a t
@@ -53,14 +53,19 @@ module Command : sig
 end
 
 module Router : sig
+  (** Tab without a host binding cancels leader routing and hands the remaining
+      ordered events to UI traversal/activation, including a same-frame Space. *)
   type state = Idle | Pending of string  (** leader keys typed so far *)
 
   (** In fly mode, keep pointer/window events and pass Space to the leader
       router after ending the mode. Escape ends fly without opening a shortcut. *)
   val fly : Prismel.Frame.t -> bool * Prismel.Frame.t
 
-  val step : ('scope, 'action) Command.t list -> focus:'scope ->
+  val step : ?previous_keys:Prismel.Input.key list ->
+    ('scope, 'action) Command.t list -> focus:'scope ->
     text_focus:bool -> frame:Prismel.Frame.t -> state ->
     state * 'action list * Prismel.Frame.t
-  (** Commands without a trigger never match a key. *)
+  (** Commands without a trigger never match a key. Modifiers follow event
+      order. Supply the previous frame's keys for changed modifiers and focus
+      cancellation; omitted previous state assumes no modifiers were held. *)
 end

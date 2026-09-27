@@ -11,10 +11,10 @@ let () =
   assert (depth h = 3);
   let rec bottom h = match undo h with Some h -> bottom h | None -> h in
   assert (present (bottom h) = 3 && not (can_undo (bottom h)));
-  let h = record ~merge:(Gesture 7) 7 h
-    |> record ~merge:(Gesture 7) 8 in
+  let h = record ~merge:(Gesture "move/7") 7 h
+    |> record ~merge:(Gesture "move/7") 8 in
   assert (present h = 8 && depth h = 3);
-  let h = seal h |> record ~merge:(Gesture 7) 9 in
+  let h = seal h |> record ~merge:(Gesture "move/7") 9 in
   assert (present (Option.get (undo h)) = 8);
   let burst at value h = record
       ~merge:(Burst { key = "view"; at; window = 0.25 }) value h in
@@ -66,6 +66,11 @@ let frame events : Prismel.Frame.t = {
 let () =
   let open Prismel in
   let open Editor_core.Router in
+  let traversed, activated, remaining = Editor_core.Router.step bindings ~focus:View
+    ~text_focus:false ~frame:(frame [Event.KeyPressed Input.Tab;
+      Event.KeyPressed Input.Space]) Idle in
+  assert (traversed = Idle && activated = []
+    && remaining.events = [Event.KeyPressed Input.Tab; Event.KeyPressed Input.Space]);
   let step ?(focus = View) ?(text_focus = false) state keys =
     Editor_core.Router.step bindings ~focus ~text_focus
       ~frame:(frame (List.map (fun key -> Event.KeyPressed key) keys)) state in
@@ -111,6 +116,28 @@ let () =
   let _, actions, _ = chord [Input.Meta; Input.Shift]
       [Event.KeyPressed (Input.KeyChar 'z')] in
   assert (actions = [`Redo]);
+  let _, actions, _ = chord [] [Event.KeyPressed Input.Meta;
+      Event.KeyPressed (Input.KeyChar 'z'); Event.KeyPressed Input.Shift;
+      Event.KeyPressed (Input.KeyChar 'z'); Event.KeyReleased Input.Shift;
+      Event.KeyPressed (Input.KeyChar 'z'); Event.KeyReleased Input.Meta] in
+  assert (actions = [`Undo; `Redo; `Undo]);
+  let _, actions, _ = chord [Input.Meta] [Event.KeyPressed (Input.KeyChar 'z');
+      Event.KeyPressed Input.Meta] in
+  assert (actions = []);
+  let _, actions, _ = Editor_core.Router.step ~previous_keys:[Input.Meta] bindings
+      ~focus:View ~text_focus:false ~frame:(frame [
+        Event.KeyPressed (Input.KeyChar 'z'); Event.WindowFocusLost;
+        Event.KeyPressed (Input.KeyChar 'z')]) Idle in
+  assert (actions = [`Undo]);
+  let _, actions, _ = Editor_core.Router.step ~previous_keys:[Input.Meta] bindings
+      ~focus:View ~text_focus:false ~frame:{ (frame [
+        Event.KeyPressed (Input.KeyChar 'z'); Event.KeyPressed Input.Meta;
+        Event.KeyPressed (Input.KeyChar 'z')]) with keys = [Input.Meta] } Idle in
+  assert (actions = [`Undo; `Undo]);
+  let _, actions, _ = Editor_core.Router.step ~previous_keys:[] bindings
+      ~focus:View ~text_focus:false ~frame:(frame [
+        Event.KeyPressed (Input.KeyChar 'z'); Event.KeyReleased Input.Meta]) Idle in
+  assert (actions = []);
   let _, actions, _ = chord ~focus:Graph [] [Event.KeyPressed Input.Delete] in
   assert (actions = [`Delete]);
   let _, actions, _ = chord ~focus:Graph []

@@ -1,5 +1,6 @@
 open Prismel
 open Procedural
+open Editor_document
 
 type bounds = Vec3.t * Vec3.t
 
@@ -10,6 +11,8 @@ type 'prepared piece = {
   graph : Graph.t;
   prepared : 'prepared;
   bounds : bounds option;
+  settings : Settings.t;
+  context : string;  (* projection of the graph's declared context dependencies *)
 }
 
 type 'prepared cooked =
@@ -24,7 +27,7 @@ type 'prepared t = {
   schedule : Schedule.t;
   prepare : Settings.t -> Session.output -> ('prepared, string) result;
   pieces : 'prepared piece list;
-  prepared_with : Settings.t option;  (* the settings [pieces] saw *)
+  settings : Settings.t option;  (* the latest desired submission settings *)
   error : string option;
   seconds : float option;
   (* A framing job can supersede a display cook that must be resubmitted. *)
@@ -86,12 +89,13 @@ let create ~prepare ~seed ~grain ?domains ~max_entries ~max_payload_bytes () =
   if domains <= 0 then invalid_arg "Prismel_editor: domains must be positive";
   Result.map (fun worker ->
     { worker; seed; grain; domains; prepare; schedule = Schedule.initial;
-      pieces = []; prepared_with = None; error = None; seconds = None;
+      pieces = []; settings = None; error = None; seconds = None;
       framing = None; force = false; compiled = Document.Layout.empty; graphs = [];
       displayed = [] })
     (Async_cook.create ~max_entries ~max_payload_bytes)
 
 let status value = Async_cook.status value.worker
+let pieces value = value.pieces
 
 let context value timeline = Sketch_support.Timeline.context ~seed:value.seed
     ~grain:value.grain ~domains:value.domains timeline
@@ -133,52 +137,58 @@ let update ?live value ~settings ~objects ~edit_error ~effects ~timeline_changes
   let changed = not (List.equal (fun (a, g) (b, h) -> a = b && g == h) graphs value.graphs) in
   let completion = Async_cook.poll value.worker in
   let resume = value.framing = Some true in
-  let pieces, prepared_with, error, seconds, prepared_changed, framed, framing,
+  let pieces, error, seconds, prepared_changed, framed, framing,
       force_next = match completion with
-    | None -> value.pieces, value.prepared_with, value.error, value.seconds, false,
+    | None -> value.pieces, value.error, value.seconds, false,
         None, value.framing, false
     | Some { Async_cook.result = Ok (Displayed pieces); seconds; _ } ->
-        pieces, Some settings, None, Some seconds, true, None, None, false
+        pieces, None, Some seconds, true, None, None, false
     | Some { result = Ok (Framed bounds); _ } ->
-        value.pieces, value.prepared_with, value.error, value.seconds, false,
+        value.pieces, value.error, value.seconds, false,
         Some bounds, None, resume
     | Some { result = Error _; _ } when value.framing <> None ->
-        value.pieces, value.prepared_with, value.error, value.seconds, false,
+        value.pieces, value.error, value.seconds, false,
         Some None, None, resume
     | Some { result = Error error; seconds; _ } ->
-        value.pieces, value.prepared_with, Some (Async_cook.error_to_string error),
+        value.pieces, Some (Async_cook.error_to_string error),
         Some seconds, false, None, None, false in
-  (* Nothing visible to cook: the scene is simply empty. *)
-  let pieces, prepared_changed = if graphs = [] && pieces <> []
-    then [], true else pieces, prepared_changed in
+  (* Empty/removed objects have no current preview, including when a job
+     from before the deletion completes. Invalid nonempty SOPs keep their
+     last successful graph and preview through the compilation fallback. *)
+  let pieces, prepared_changed =
+    if (changed || Option.is_some completion)
+        && List.exists (fun piece -> not (Document.Layout.mem piece.id compiled)) pieces
+    then List.filter (fun piece -> Document.Layout.mem piece.id compiled) pieces, true
+    else pieces, prepared_changed in
   let schedule, submit = Schedule.step ?live value.schedule
       ~graphs:(List.map snd graphs) ~effects
       ~context_changed:(Sketch_support.Timeline.changed_context timeline_changes)
-      ~force:(changed || value.force)
+      ~force:(changed || value.force
+        || not (Option.fold ~none:false ~some:(( == ) settings) value.settings))
       ~busy:(busy value || framing <> None) ~frame in
   (* Unchanged objects keep their prepared value: the worker only cooks
      (a session cache hit) and re-prepares what changed. *)
-  let previous = pieces and previous_settings = prepared_with in
-  let prepare outputs =
+  let previous = pieces in
+  let prepare context outputs =
     let rec loop reversed graphs outputs = match graphs, outputs with
       | [], [] -> Ok (Displayed (List.rev reversed))
       | (id, graph) :: graphs, (output : Session.output) :: outputs ->
-          let reused = if previous_settings != Some settings then None
-            else List.find_opt (fun piece -> piece.id = id && piece.graph == graph)
-                previous in
+          let projection = Context.cache_projection (Graph.dependencies graph) context in
+          let reused = List.find_opt (fun piece -> piece.id = id && piece.graph == graph
+              && piece.settings == settings && piece.context = projection) previous in
           (match reused with
            | Some piece -> loop (piece :: reversed) graphs outputs
            | None ->
                Result.bind (value.prepare settings output) (fun prepared ->
                  loop ({ id; graph; prepared;
-                         bounds = output_bounds output } :: reversed)
+                         bounds = output_bounds output; settings; context = projection } :: reversed)
                    graphs outputs))
       | _ -> Error "cook returned a different number of outputs" in
     loop [] graphs outputs in
-  let error, framing = if submit && graphs <> [] then match
+  let error, framing = if submit then match
       Result.bind (context value timeline) (fun context ->
         Async_cook.submit_all value.worker ~context
-          ~nodes:(List.map snd graphs) ~prepare) with
+          ~nodes:(List.map snd graphs) ~prepare:(prepare context)) with
     | Ok _ -> None, None
     | Error message -> Some message, None
     else error, framing in
@@ -187,7 +197,10 @@ let update ?live value ~settings ~objects ~edit_error ~effects ~timeline_changes
     | Some (object_id, node_id) ->
         match List.find_opt (fun piece -> piece.id = object_id) pieces,
             List.assoc_opt object_id graphs with
-        | Some piece, Some graph when Node.id graph = node_id && piece.graph == graph ->
+        | Some piece, Some graph when Node.id graph = node_id && piece.graph == graph
+            && Result.fold ~ok:(fun context -> piece.context =
+                Context.cache_projection (Graph.dependencies graph) context)
+              ~error:(fun _ -> false) (context value timeline) ->
             Some piece.bounds, framing
         | _ ->
             (match Option.map (fun (_, compiled) ->
@@ -202,7 +215,7 @@ let update ?live value ~settings ~objects ~edit_error ~effects ~timeline_changes
                          Ok (Framed (output_bounds output)))) with
                  | Ok _ -> framed, Some (was_busy || Option.value ~default:false framing)
                  | Error _ -> Some None, framing) in
-  { cook = { value with schedule; pieces; prepared_with; error; seconds;
+  { cook = { value with schedule; pieces; settings = Some settings; error; seconds;
       framing; force = force_next; compiled; graphs; displayed };
     edit_error; prepared_changed; framed }
 

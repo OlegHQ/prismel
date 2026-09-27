@@ -206,3 +206,13 @@
  (name bench_prismel_editor)
  (modules bench_prismel_editor)
  (libraries prismel procedural pxui_graph prismel_editor unix))
+
+(executable
+ (name bench_editor_cook)
+ (modules bench_editor_cook)
+ (libraries prismel procedural pdk prismel_editor sketch_support unix))
+
+(executable
+ (name bench_camera_input)
+ (modules bench_camera_input)
+ (libraries prismel unix))

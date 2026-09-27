@@ -682,6 +682,10 @@ chords, Delete/Backspace, Home, and focus-dependent `F` use that same table;
 Entries without a trigger appear only in the palette. Global commands always apply; the others
 belong to the focused pane (the last one clicked, outlined in the accent
 colour). Escape, Space, an unknown key, a click, or focus loss cancel it.
+Supplied commands validate at `create`: built-in IDs are reserved; aliases
+share one action value; overlapping shortcuts and leader prefixes are errors.
+Chord case and modifier order normalize once. Scoped commands are available
+in the palette under the same focus condition as keyboard dispatch.
 
 | Key | Scope | Action |
 |---|---|---|
@@ -719,13 +723,42 @@ commands and focused-pane name. `Pxui_shell.Status_bar` paints the common kit
 strip from host-provided status text, FPS, and pane bounds.
 `Pxui_shell.Layout` computes the standard 45/35/20 pane geometry, and
 `Pxui_shell.Chrome` builds its headers, splitters, and focus outline;
-`Prismel_editor.Private.Workspace`
-remains a compatibility facade for tests.
+Editor layout queries return `Pxui_shell.Layout.panes`; tests and other hosts
+use Layout and Chrome directly. `Prismel_editor.Private` is explicitly unstable.
 `Pxui_shell.Timeline_bar` returns playback intents from display values, and
 `Pxui_shell.Prompt` builds name and search modals; the host interprets their
 results and performs file I/O after the frame.
 `Pxui_shell.Shell.frame` is the sketch workspace's `Ui.frame` caller for both
 normal chrome and a pending leader overlay while the rest of the UI is hidden.
+It also advances an empty frame when hidden, cancelling disappeared controls.
+`Ui.input ~owner` returns the viewport root's ordered events after construction;
+child widgets and popups consume their own input. Capture persists across pane
+crossings until release or cancellation. Popup open and close frames consume
+underlying input; overlays build before the body and paint last. Modal height
+history retains at most 32 keys. History `Gesture` keys are strings naming the
+operation and target; unrelated commands use `Step`, even during a drag.
+
+Shortcuts, traversal, text selection and slider steps use the held keys at
+each event. A modifier pressed or released later in the same frame cannot
+change an earlier event. `Ui.key_events` exposes these contexts to custom
+widgets; `Ui.press_keys` retains the keys at a pointer gesture's press through
+release, which graph/tree selection and camera binding selection also use.
+The shared Router accepts the previous frame's held keys, retained by the
+editor. Fly movement still samples held keys for its continuous frame step.
+
+PXUI's visible controls are keyboard stops. Tab/Shift-Tab traverse them in
+presentation order and stay inside an open popup; Enter/Space use the same
+click signal as pointer activation. Choices, sliders and XY controls accept
+arrow keys. Sliders also support Home/End and Shift for larger steps; Enter
+opens numeric entry, which accepts values beyond its soft range, and Escape
+cancels. Range controls switch handles with Enter/Space. `Ui.tab_stop` gives
+custom buttons the same traversal while retaining host shortcuts after
+pointer use; Escape returns keyboard control to the host. Collapse, graph
+VIEW/ACTIVE, and menu buttons use it. The Router yields unbound Tab and all
+subsequent events in that frame to UI, preventing same-frame Tab/Space from
+opening the leader. Existing tree indentation bindings remain available while
+the tree owns keys. Wheel camera control uses the event's pointer position,
+so a later pane crossing in the same frame cannot discard an owned wheel.
 
 `Editor3` keeps camera objects (operation `camera`) in the scene: a
 default one following the viewport is added to a scene without one, exactly
@@ -746,6 +779,13 @@ Presets save the full document to `~/.prismel/<sketch>/<name>.json`
 (version 2: the scene and every object's network); loading rebinds code-graph
 nodes by id, recreates catalog nodes from their factories, migrates version 1
 (one SOP network) to `geo1`, and is one undo entry.
+Empty networks have no display node and clear their preview. Editor3 permits
+an empty scene; Editor2 rejects a preset without a geometry object before
+installation. Both hosts reject ambiguous IDs/owners, invalid references and
+input arity, and nonfinite values without changing the installed state. The
+unstable `Private.Document.object_network` test hook returns an optional
+display ID to represent empty networks. The serializer also writes the
+editor's crash-report preset.
 
 `Easy_camera2` is the immutable 2D view transform. It supplies resize-safe
 viewports and gesture areas, world/screen conversion, captured pan, inertia,

@@ -65,8 +65,8 @@ let run () =
   check (camera_binding "h" Leader.Hide_ui
       && camera_binding "c" Leader.Open_camera)
     "camera visibility commands missing from the host keymap";
-  let workspace = Prismel_editor.Private.Workspace.create Prismel_editor.default_layout in
-  let initial = Prismel_editor.Private.Workspace.geometry workspace (frame ~width:1000 0) in
+  let workspace = Pxui_shell.Layout.create Prismel_editor.default_layout in
+  let initial = Pxui_shell.Layout.geometry workspace (frame ~width:1000 0) in
   check (initial.view_header = (0, 0, width initial.view, 22))
     "workspace header is not a compact single line";
   check (abs (width initial.view - 444) <= 1
@@ -76,24 +76,24 @@ let run () =
   let splitter_x = width initial.view + 2 in
   let ui = Pxui.Ui.create () in
   let workspace_step workspace frame =
-    Pxui.Ui.frame ui frame (fun ui -> Prismel_editor.Private.Workspace.update workspace ui frame) in
+    Pxui.Ui.frame ui frame (fun ui -> Pxui_shell.Chrome.update workspace ui frame) in
   let workspace = workspace_step workspace (frame ~width:1000 0) in
   let resized = workspace_step workspace
       (frame ~width:1000 ~events:[
         mouse_press (Input.LeftButton, (splitter_x, 200));
         mouse_move (splitter_x + 80, 200);
         mouse_release (Input.LeftButton, (splitter_x + 80, 200))] 1) in
-  let resized_panes = Prismel_editor.Private.Workspace.geometry resized (frame ~width:1000 2) in
+  let resized_panes = Pxui_shell.Layout.geometry resized (frame ~width:1000 2) in
   check (width resized_panes.view > width initial.view
       && width resized_panes.graph < width initial.graph)
     "workspace splitter did not resize its adjacent columns";
-  let wider = Prismel_editor.Private.Workspace.geometry resized (frame ~width:1200 3) in
+  let wider = Pxui_shell.Layout.geometry resized (frame ~width:1200 3) in
   check (width wider.view > width resized_panes.view)
     "workspace splitter ratio did not survive a window resize";
   let collapsed = workspace_step
-      (Prismel_editor.Private.Workspace.toggle Prismel_editor.Private.Workspace.Inspector resized) (frame 4) in
+      (Pxui_shell.Layout.toggle Pxui_shell.Layout.Inspector resized) (frame 4) in
   Pxui.Ui.destroy ui;
-  let collapsed_panes = Prismel_editor.Private.Workspace.geometry collapsed (frame 5) in
+  let collapsed_panes = Pxui_shell.Layout.geometry collapsed (frame 5) in
   check (width collapsed_panes.inspector = 0)
     "inspector toggle did not collapse the third column";
 
@@ -730,10 +730,10 @@ let run () =
   let describe doc =
     let graph, displayed = Option.get (Document.object_network doc (geometry doc).id) in
     let label id = Node.label (Option.get (Edit_graph.find graph ~node_id:id)) in
-    label displayed, Edit_graph.inspect graph |> List.map (fun (info : Edit_graph.node_info) ->
+    Option.map label displayed, Edit_graph.inspect graph |> List.map (fun (info : Edit_graph.node_info) ->
       info.label, info.operation, info.parameters, Array.map (Option.map label) info.inputs) in
   check (List.sort compare (objects loaded.doc) = ["camera", "camera"; "geo1", "geometry"]
-      && fst (describe loaded.doc) = "code-depth"
+      && fst (describe loaded.doc) = Some "code-depth"
       && List.length (snd (describe loaded.doc)) = 3
       && List.exists (fun (_, x, _) -> x = 123.5)
         (Option.get (Document.positions loaded.doc (geometry loaded.doc).id))
@@ -867,14 +867,17 @@ let run () =
   let direct camera frame = [Scene.clear (Color.hex_exn "#09090b");
       Scene.view3d ~viewport:(0, 0, frame.Frame.width, frame.height) ~camera
         (mesh_scene mesh)] in
-  (* One window, three frames: look-through, render camera, viewport camera. *)
+  (* One window, three frames: look-through, render camera, viewport camera.
+     Use the render camera's 16:9 aspect: look-through letterboxes a 4:3
+     window, whereas the direct camera otherwise renders the entire 4:3
+     viewport. Placement is identity and both scenes have the same lights. *)
   let views = [| Prismel_editor.Editor3.scene environment;
     direct (Prismel_editor.Editor3.render_camera environment);
     direct (Easy_camera.camera (Prismel_editor.Editor3.camera environment)) |] in
   if !native then begin
   let directory = Filename.temp_dir "sketch-ui-look" "" in
   Sketch.export_state ~directory ~prefix:"look" ~frames:3
-    ~config:{ Sketch.default_config with width = 200; height = 150 }
+    ~config:{ Sketch.default_config with width = 320; height = 180 }
     ~init:(fun _ -> 0) ~update:(fun _ (frame : Frame.t) -> frame.count)
     ~view:(fun count frame -> views.(min 2 (count - 1)) frame) () |> ignore;
   let png index = In_channel.with_open_bin

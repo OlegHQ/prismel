@@ -1,7 +1,7 @@
 (library
  (name prismel_editor)
  (public_name prismel.prismel_editor)
- (private_modules document common workspace leader doc schedule cook core environment
-  viewport2 viewport3 objects layers renderer)
- (libraries prismel procedural editor_core pxui pxui_shell pxui_graph sop_catalog sketch_support yojson unix)
+ (private_modules network_view common leader doc schedule cook core environment
+  viewport2 viewport3 renderer)
+ (libraries editor_document prismel procedural editor_core pxui pxui_shell pxui_graph sop_catalog sketch_support yojson unix)
  (preprocess (pps prismel.ppx)))

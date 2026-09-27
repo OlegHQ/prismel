@@ -1,4 +1,5 @@
 open Prismel
+open Editor_document
 open Procedural
 open Common
 
@@ -51,24 +52,24 @@ module type VIEWPORT = sig
   (** Adapter-owned leader actions; [Some status] replaces the render status. *)
 
   val on_doc : previous:'p Core.t -> 'p Core.t -> camera -> 'p Core.t
-  val navigate : area:Workspace.bounds -> control -> camera -> extra ->
+  val navigate : area:Pxui_shell.Layout.bounds -> control -> camera -> extra ->
     'p Core.t -> raw_frame:Frame.t -> input:Frame.t -> camera * extra
-  val frame_bounds : viewport:Workspace.bounds -> min:Vec3.t -> max:Vec3.t ->
+  val frame_bounds : viewport:Pxui_shell.Layout.bounds -> min:Vec3.t -> max:Vec3.t ->
     camera -> camera
   val on_view : 'p Core.t -> previous:camera -> camera -> extra -> time:float ->
     'p Core.t * camera * extra
   val view_camera : camera -> extra -> pending:bool -> view
-  val film : extra -> Workspace.bounds -> Workspace.bounds
+  val film : extra -> Pxui_shell.Layout.bounds -> Pxui_shell.Layout.bounds
   (** The rect of the view the render fills: the whole view, or the render
       camera's aspect fitted into it while looking through. *)
-  val paint : Workspace.bounds -> view -> rendered -> Scene.t
+  val paint : Pxui_shell.Layout.bounds -> view -> rendered -> Scene.t
   val guides : scene:Edit_graph.t -> selected:Node.t option -> space:Mat4.t ->
-    view -> extra -> bounds:Workspace.bounds -> Scene.t
+    view -> extra -> bounds:Pxui_shell.Layout.bounds -> Scene.t
   (* Editor-only lines over the view (cameras, lights, axes, handles), screen
      space. [space] is the transform the selected node's parameters live in. *)
 
   val handles : Pxui.Ui.t -> selected:Node.t option -> scene:Edit_graph.t ->
-    space:Mat4.t -> view -> extra -> bounds:Workspace.bounds ->
+    space:Mat4.t -> view -> extra -> bounds:Pxui_shell.Layout.bounds ->
     (string * Parameter.value) list * bool * int option
   (* The selected node's handle boxes: parameter edits, whether a handle
       holds the pointer (the camera then ignores it), and a scene object a
@@ -120,7 +121,7 @@ let hidden_only ~ui_visible core =
    so the renderer sees the same [Scene.t]. *)
 let hidden_entry ~background ~rendered ~camera ~paint_view ~cache core
     (frame : Frame.t) =
-  let view_visible = Core.column_visible core Workspace.View in
+  let view_visible = Core.column_visible core Pxui_shell.Layout.View in
   match cache with
   | Some cached when cached.width = frame.width
       && cached.height = frame.height && cached.rendered == rendered
@@ -169,9 +170,64 @@ let map_uv viewport (px, py) =
   let u = (px -. float x) /. float (max 1 w) and v = (py -. float y) /. float (max 1 h) in
   if u < 0. || u > 1. || v < 0. || v > 1. then None else Some (u, v)
 
+type world_operation = Rotate_world of int | Move_layer of int * int | Move_sun of int
+type world_drag = { operation : world_operation; point : float * float;
+                    area : Pxui_shell.Layout.bounds }
+
+let wrap_degrees value = Float.rem (Float.rem (value +. 180.) 360. +. 360.) 360. -. 180.
+
+let world_operation core area point ~shift =
+  match Core.world_id core with
+  | Some world when core.Core.map_view && map_uv area point <> None ->
+      (match Core.selected_node core with
+       | Some node when List.exists (fun (field : Parameter.field_view) ->
+           field.name = "azimuth") (Node.parameter_fields node) ->
+           Some (Move_layer (world, Node.id node))
+       | Some node when Node.operation node = "sun" -> Some (Move_sun world)
+       | _ -> None)
+  | Some world when not core.Core.map_view && shift -> Some (Rotate_world world)
+  | _ -> None
+
+let move_world core drag point =
+  if point = drag.point then core else
+  match drag.operation with
+  | Rotate_world world ->
+      (match Option.bind (Edit_graph.find (Core.scene core) ~node_id:world)
+          (fun node -> List.find_map (fun (field : Parameter.field_view) ->
+            match field.name, field.current with
+            | "rotation", Parameter.Float_value value -> Some value | _ -> None)
+            (Node.parameter_fields node)) with
+       | Some rotation ->
+           let rotation = wrap_degrees (rotation +. 0.5 *. (fst point -. fst drag.point)) in
+           Core.edit_node core Document.Scene world ~label:"Rotate World"
+             ["rotation", Parameter.Float_value rotation]
+       | None -> core)
+  | Move_layer (world, _) | Move_sun world ->
+      let x, y, w, h = map_rect drag.area in
+      let u = Float.max 0. (Float.min 1. ((fst point -. float x) /. float (max 1 w)))
+      and v = Float.max 0. (Float.min 1. ((snd point -. float y) /. float (max 1 h))) in
+      let direction = World.direction_of_uv u v in
+      let rotation = match Core.world core ~time:0. with
+        | Some world -> world.World.rotation | None -> 0. in
+      let degrees radians = radians *. 180. /. Float.pi in
+      let azimuth = wrap_degrees (degrees (Float.atan2 direction.Vec3.x (-. direction.z)
+        -. rotation))
+      and elevation = degrees (Float.asin direction.y) in
+      (match drag.operation with
+       | Move_layer (_, id) ->
+           Core.edit_node core (Document.Inside world) id ~label:"Move layer"
+             ["azimuth", Parameter.Float_value azimuth;
+              "elevation", Parameter.Float_value elevation]
+       | Move_sun _ ->
+           Core.edit_node core Document.Scene world ~label:"Move sun"
+             ["sun_linked", Parameter.Bool_value false;
+              "sun_azimuth", Parameter.Float_value azimuth;
+              "sun_elevation", Parameter.Float_value (Float.max (-10.) elevation)]
+       | Rotate_world _ -> assert false)
+
 let compose_view ?map ~ui_visible ~background ~rendered ~camera ~paint_view ~film ~overlay
     ~guides ~cache core (frame : Frame.t) =
-  let view_visible = Core.column_visible core Workspace.View in
+  let view_visible = Core.column_visible core Pxui_shell.Layout.View in
   let world = match map with
     | Some image when view_visible && core.Core.map_view -> (fun viewport ->
         let x, y, w, _ = map_rect viewport in
@@ -208,7 +264,7 @@ module Make (V : VIEWPORT) = struct
     overlay : Graph.t -> 'prepared option -> Frame.t -> Scene.t;
     status : 'prepared option -> string option;  (* sketch text in the status bar *)
     rendered : V.rendered option;
-    drawn : ('prepared * V.rendered) Document.Layout.t;  (* per object *)
+    drawn : (Graph.t * 'prepared * V.rendered) Document.Layout.t;  (* per object *)
     baked : World.baked option;
     baked_from : (World.t * World.baked) option;
     map : (World.baked * Image.t) option;  (* the lat-long view's upload *)
@@ -217,7 +273,8 @@ module Make (V : VIEWPORT) = struct
     background : Color.t;
     extra : V.extra;
     hidden_scene_cache : (V.rendered, V.view) hidden_scene_cache option;
-    commands : (Workspace.column, 'prepared t -> 'prepared t) Editor_core.Command.t list;
+    commands : (Pxui_shell.Layout.column, 'prepared t -> 'prepared t) Editor_core.Command.t list;
+    world_drag : world_drag option;
   }
 
   (* Scene objects a sketch starts with: its lights as light objects. *)
@@ -238,19 +295,69 @@ module Make (V : VIEWPORT) = struct
       ?(camera = V.default_camera ()) ?lens ?(background = Color.hex_exn "#09090b")
       ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~graph ~prepare ~draw
       ?(overlay = fun _ _ _ -> Scene.empty) ?(status = fun _ -> None) () =
-    Result.map (fun core ->
+    let open Editor_core.Command in
+    let normalize_key = function Input.KeyChar c -> Input.KeyChar (Char.lowercase_ascii c)
+      | key -> key in
+    let normalize = function
+      | Editor_core.Keymap.Leader sequence ->
+          Editor_core.Keymap.Leader (String.lowercase_ascii sequence)
+      | Chord (key, modifiers) ->
+          Chord (normalize_key key, List.sort_uniq compare modifiers) in
+    let commands = List.map (fun command ->
+        { command with trigger = Option.map normalize command.trigger }) commands in
+    let overlaps a b = a.scope = None || b.scope = None || a.scope = b.scope in
+    let conflicts a b = overlaps a b && match a.trigger, b.trigger with
+      | Some a_trigger, Some b_trigger when a.id = b.id && a_trigger = b_trigger -> false
+      | Some (Editor_core.Keymap.Leader a), Some (Leader b) ->
+          String.starts_with ~prefix:a b || String.starts_with ~prefix:b a
+      | Some (Chord (a, am)), Some (Chord (b, bm)) ->
+          a = b && List.length am = List.length bm
+          && List.mem Input.Meta am = List.mem Input.Meta bm
+          && List.mem Input.Ctrl am = List.mem Input.Ctrl bm
+      | Some a, Some b -> normalize a = normalize b
+      | _ -> false in
+    let rec validate seen = function
+      | [] -> Ok ()
+      | command :: rest ->
+          let error = if String.trim command.id = "" || String.trim command.label = "" then
+              Some "command id and label must be nonempty"
+            else if List.exists (fun builtin -> builtin.id = command.id) V.keymap then
+              Some ("command id is reserved: " ^ command.id)
+            else if List.exists (fun previous -> previous.id = command.id
+                && previous.action != command.action) seen then
+              Some ("command aliases must share the same action: " ^ command.id)
+            else match command.trigger with
+              | Some (Editor_core.Keymap.Leader sequence)
+                  when sequence = "" || String.contains sequence ' ' ->
+                  Some ("invalid leader sequence: " ^ command.id)
+              | Some (Chord (Input.Space, modifiers))
+                  when not (List.mem Input.Meta modifiers || List.mem Input.Ctrl modifiers) ->
+                  Some ("Space is reserved for leader routing: " ^ command.id)
+              | Some (Chord (_, modifiers)) when List.exists (function
+                  | Input.Meta | Ctrl | Shift | Alt -> false | _ -> true) modifiers ->
+                  Some ("invalid chord modifier: " ^ command.id)
+              | _ ->
+                  let previous = match List.find_opt (conflicts command) seen with
+                    | Some previous -> Some previous.id
+                    | None -> Option.map (fun previous -> previous.id)
+                        (List.find_opt (conflicts command) V.keymap) in
+                  Option.map (fun id -> "command trigger conflicts: "
+                    ^ command.id ^ " and " ^ id) previous in
+          match error with Some message -> Error message
+            | None -> validate (command :: seen) rest in
+    Result.bind (validate [] commands) (fun () -> Result.map (fun core ->
       let core, extra = V.init core camera in
       { core; camera; control = V.create_control (); draw; overlay; status;
         rendered = None; drawn = Document.Layout.empty; baked = None; baked_from = None; map = None;
         render_status = None; pending_render = None;
-        background; extra; hidden_scene_cache = None; commands })
+        background; extra; hidden_scene_cache = None; commands; world_drag = None })
       (Core.create ?settings ?world ~scene_level:V.scene_level
         ~keymap:(V.keymap @ List.map (fun (c : _ Editor_core.Command.t) ->
           { c with action = Leader.Sketch_command c.id }) commands)
         ~seed_scene:(fun factories scene ->
           V.seed_scene ?lens camera factories (seed_lights lights scene))
         ~layout ?name ?presets ?timeline_frames ?factories ?seed ?grain ?domains
-        ?max_entries ?max_payload_bytes ~graph ~prepare ())
+        ?max_entries ?max_payload_bytes ~graph ~prepare ()))
 
   let graph value = Core.graph value.core
   let document value = Core.document value.core
@@ -305,7 +412,7 @@ module Make (V : VIEWPORT) = struct
     { value with hidden_scene_cache }
 
   (* Recompose when a cook, the scene, or the World changed. Each object's
-     drawing is reused while its prepared value is physically the same, so
+     drawing is reused while its graph and prepared value are physically the same, so
      moving an object only re-places it. *)
   let compose value (update : (_, _) Core.update) ~baked =
     if not (update.prepared_changed || update.scene_changed || update.effects.view
@@ -315,11 +422,11 @@ module Make (V : VIEWPORT) = struct
       let placed = Core.placed_pieces update.core in
       let drawn = List.fold_left (fun drawn (_, (piece : _ Cook.piece)) ->
           match Document.Layout.find_opt piece.id value.drawn with
-          | Some (prepared, rendered) when prepared == piece.prepared ->
-              Document.Layout.add piece.id (prepared, rendered) drawn
+          | Some (graph, prepared, rendered) when graph == piece.graph && prepared == piece.prepared ->
+              Document.Layout.add piece.id (graph, prepared, rendered) drawn
           | Some _ | None ->
               Document.Layout.add piece.id
-                (piece.prepared, value.draw piece.graph piece.prepared) drawn)
+                (piece.graph, piece.prepared, value.draw piece.graph piece.prepared) drawn)
           Document.Layout.empty placed in
       let waiting = placed = [] && Core.geometry_objects update.core <> []
           && Core.pieces update.core = [] in
@@ -330,7 +437,8 @@ module Make (V : VIEWPORT) = struct
       (if waiting then None
        else Some (V.compose ~scene:(Core.scene update.core) ~world:baked
          (List.map (fun (matrix, (piece : _ Cook.piece)) ->
-           matrix, ghost piece.id, snd (Document.Layout.find piece.id drawn)) placed))),
+           let _, _, rendered = Document.Layout.find piece.id drawn in
+           matrix, ghost piece.id, rendered) placed))),
       drawn
 
   let update_with value frame ~inspector =
@@ -370,57 +478,40 @@ module Make (V : VIEWPORT) = struct
     let core = V.on_doc ~previous:value.core core camera in
     let area = if visible then panes.view
       else 0, 0, frame.Frame.width, frame.height in
-    (* The view's own World gestures: dragging on the lat-long map moves the
-       selected layer; Shift-drag in 3D turns the World. *)
-    let held = Frame.mouse_down Input.LeftButton update.input
-      && update.input.mouse_delta <> (0., 0.) in
-    let in_view (px, py) = let x, y, w, h = area in
-      px >= float x && py >= float y && px < float (x + w) && py < float (y + h) in
-    let core, gesture = match Core.world_id core with
-      | Some world when held && in_view update.input.mouse && core.Core.map_view ->
-          (match Core.selected_node core, map_uv area update.input.mouse with
-           | Some node, Some (u, v) when List.exists (fun (field : Parameter.field_view) ->
-               field.name = "azimuth") (Node.parameter_fields node) ->
-               let d = World.direction_of_uv u v in
-               let rotation = match (Core.world core ~time:0.) with
-                 | Some world -> world.World.rotation | None -> 0. in
-               let degrees radians = radians *. 180. /. Float.pi in
-               let azimuth = Float.atan2 d.Vec3.x (-. d.z) -. rotation in
-               let azimuth = Float.rem (azimuth +. (3. *. Float.pi)) (2. *. Float.pi) -. Float.pi in
-               Core.edit_node core (Document.Inside world) (Node.id node) ~label:"Move layer"
-                 [ "azimuth", Parameter.Float_value (degrees azimuth);
-                   "elevation", Parameter.Float_value (degrees (Float.asin d.y)) ], true
-           (* The Sun layer: dragging places the sun, unlinked from the time. *)
-           | Some node, Some (u, v) when Node.operation node = "sun" ->
-               let d = World.direction_of_uv u v in
-               let rotation = match Core.world core ~time:0. with
-                 | Some world -> world.World.rotation | None -> 0. in
-               let degrees radians = radians *. 180. /. Float.pi in
-               let azimuth = Float.rem (Float.atan2 d.Vec3.x (-. d.z) -. rotation
-                   +. (3. *. Float.pi)) (2. *. Float.pi) -. Float.pi in
-               Core.edit_node core Document.Scene world ~label:"Move sun"
-                 [ "sun_linked", Parameter.Bool_value false;
-                   "sun_azimuth", Parameter.Float_value (degrees azimuth);
-                   "sun_elevation", Parameter.Float_value
-                     (Float.max (-10.) (degrees (Float.asin d.y))) ], true
-           | _ -> core, true)
-      | Some world when held && in_view update.input.mouse
-          && List.mem Input.Shift update.input.keys ->
-          let turned = Option.bind (Edit_graph.find (Core.scene core) ~node_id:world)
-              (fun node -> List.find_map (fun (field : Parameter.field_view) ->
-                match field.name, field.current with
-                | "rotation", Parameter.Float_value degrees ->
-                    Some (degrees +. 0.5 *. fst update.input.mouse_delta)
-                | _ -> None) (Node.parameter_fields node)) in
-          (match turned with
-           | Some degrees ->
-               let degrees = Float.rem (degrees +. 540.) 360. -. 180. in
-               Core.edit_node core Document.Scene world ~label:"Rotate World"
-                 ["rotation", Parameter.Float_value degrees], true
-           | None -> core, false)
-      | _ -> core, core.Core.map_view in
-    let camera, extra = if gesture then camera, extra
-      else V.navigate ~area control camera extra core ~raw_frame ~input:update.input in
+    (* Latch the World operation and target at the owned press. Movement and
+       the final release position are reduced before sealing its history. *)
+    let seal core = { core with Core.history = Editor_core.History.seal core.Core.history } in
+    let world_drag = if update.loaded_view <> None
+        || core.Core.level <> value.core.Core.level
+        || core.Core.map_view <> value.core.Core.map_view
+        || List.exists (function Leader.Undo | Redo | Hide_ui -> true | _ -> false) update.actions
+      then None else value.world_drag in
+    let modifiers = ref (Event.Private.keys_before ~previous:value.core.Core.held_keys
+      ~held:update.input.keys update.input.events) in
+    let core, world_drag, events, consumed = List.fold_left
+        (fun (core, drag, events, consumed) event ->
+          modifiers := Event.Private.keys_after !modifiers event;
+          match event, drag with
+          | Event.MousePressed (Input.LeftButton, point), None ->
+              (match world_operation core area point ~shift:(List.mem Input.Shift !modifiers) with
+               | Some operation -> seal core, Some { operation; point; area },
+                   Event.PointerCancelled Input.LeftButton :: events, true
+               | None -> core, drag, event :: events, consumed)
+          | Event.MouseMoved point, Some drag ->
+              move_world core drag point, Some { drag with point }, events, true
+          | Event.MouseReleased (Input.LeftButton, point), Some drag ->
+              seal (move_world core drag point), None,
+                Event.PointerCancelled Input.LeftButton :: events, true
+          | (Event.PointerCancelled Input.LeftButton | Event.WindowFocusLost), _ ->
+              seal core, None, event :: events, consumed || drag <> None
+          | _ -> core, drag, event :: events, consumed)
+        (core, world_drag, [], false) update.input.events in
+    let input = { update.input with events = List.rev events;
+      mouse_buttons = if world_drag = None then update.input.mouse_buttons
+        else List.filter (( <> ) Input.LeftButton) update.input.mouse_buttons;
+      mouse_delta = if consumed then 0., 0. else update.input.mouse_delta } in
+    let camera, extra = if core.Core.map_view then camera, extra
+      else V.navigate ~area control camera extra core ~raw_frame ~input in
     let camera, render_status = match update.framed with
       | Some (Some (min, max)) ->
           V.frame_bounds ~viewport:panes.view ~min ~max camera, render_status
@@ -428,8 +519,10 @@ module Make (V : VIEWPORT) = struct
       | None -> camera, render_status in
     let core, camera, extra = V.on_view core ~previous:value.camera camera extra
         ~time:frame.Frame.time in
-    let live = (Frame.mouse_down Input.LeftButton frame
-                && (Core.in_world core || List.mem Input.Shift frame.keys))
+    let core = if Frame.has_event (function
+        | Event.MouseReleased (Input.LeftButton, _) | PointerCancelled Input.LeftButton
+        | WindowFocusLost -> true | _ -> false) update.input then seal core else core in
+    let live = world_drag <> None
       || Sketch_support.Timeline.mode (Core.timeline core) = Sketch_support.Timeline.Playing in
     let baked_from = bake_world ~previous:value.baked_from core ~live in
     let baked = Option.map snd baked_from in
@@ -447,7 +540,7 @@ module Make (V : VIEWPORT) = struct
       | request :: _ -> Some request | [] -> None in
     let render_status = if pending_render <> None && rendered = None then
         Some "Render unavailable until the first cook completes" else render_status in
-    let value = refresh_hidden { value with core; camera; control; rendered; drawn; baked; baked_from; map;
+    let value = refresh_hidden { value with core; camera; control; rendered; drawn; baked; baked_from; map; world_drag;
       pending_render; render_status; extra } raw_frame in
     (* Sketch commands run last, on the finished frame's model. *)
     List.fold_left (fun value -> function

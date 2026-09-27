@@ -158,6 +158,35 @@ let run () =
   check (layers env = before + 1) "Space a + shape did not add a shape layer";
   let env = step env [] in
   let env = step env [Event.TextInput "softbox"; key Input.Enter] in
+  let selected = E.selected_node env |> Option.get |> Node.id in
+  let parameters env id =
+    Edit_graph.find (E.document env) ~node_id:id |> Option.get |> Node.parameter_fields
+    |> List.map (fun (field : Parameter.field_view) -> field.name, field.current) in
+  let original = parameters env selected in
+  let others = Edit_graph.inspect (E.document env)
+    |> List.filter (fun (info : Edit_graph.node_info) -> info.id <> selected)
+    |> List.map (fun (info : Edit_graph.node_info) -> info.id, parameters env info.id) in
+  let press = 100., 300. and release = 800., 1000. in
+  let camera = E.camera env in
+  let env = step ~mouse:(100, 300) ~buttons:[Input.LeftButton] env
+      [Event.MousePressed (Input.LeftButton, press)] in
+  let env = step ~mouse:(800, 1000) ~buttons:[Input.LeftButton] env
+      [Event.MouseMoved release] in
+  let moved = parameters env selected in
+  check (moved <> original && List.assoc "elevation" moved = Parameter.Float_value (-90.))
+    "captured map-layer movement did not clamp outside the map";
+  check (List.for_all (fun (id, values) -> parameters env id = values) others)
+    "a map-layer gesture edited another stable node";
+  let env = step ~mouse:(800, 1000) env [Event.MouseReleased (Input.LeftButton, release)] in
+  check (Camera.position (Easy_camera.camera (E.camera env))
+      = Camera.position (Easy_camera.camera camera))
+    "map-layer movement also navigated the 3D camera";
+  let env = step ~keys:[Input.Meta] env [char 'z'] in
+  check (parameters env selected = original) "map-layer drag did not undo in one entry";
+  let env = step ~mouse:in_list env
+      [Event.MousePressed (Input.LeftButton, (float (fst in_list), float (snd in_list)));
+       Event.MouseReleased (Input.LeftButton, (float (fst in_list), float (snd in_list)))] in
+  let env = select "softbox" env 16 in
   (* World keys: e flips the selected emitter to a real light, ] moves the
      time of day, 3 loads the white room preset. *)
   let env = step env [char 'e'] in

@@ -16,12 +16,12 @@ type action =
   | Command_palette
   | Sketch_command of string  (* the id of a sketch [Editor_core.Command] *)
 
-type command = (Workspace.column, action) Editor_core.Command.t
+type command = (Pxui_shell.Layout.column, action) Editor_core.Command.t
 
 type state = Editor_core.Router.state = Idle | Pending of string
 
 let command = Editor_core.Command.make
-let graph = Workspace.Graph and view = Workspace.View
+let graph = Pxui_shell.Layout.Graph and view = Pxui_shell.Layout.View
 
 (* One table drives dispatch, which-key, and the command palette. *)
 let keymap = [
@@ -97,5 +97,5 @@ let keymap3 = keymap @ [
 ]
 
 let pane_name = function
-  | Workspace.View -> "View" | Graph -> "Graph" | Inspector -> "Inspector"
+  | Pxui_shell.Layout.View -> "View" | Graph -> "Graph" | Inspector -> "Inspector"
   | Timeline -> "Timeline"

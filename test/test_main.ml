@@ -6,6 +6,11 @@ let tests = [
   "test_pxui_graph", Test_pxui_graph.run;
   "test_prismel_editor", Test_prismel_editor.run;
   "test_prismel_editor_logic", Test_prismel_editor.run_logic;
+  "test_editor_document", Test_editor_document.run;
+  "test_editor_input", Test_editor_input.run;
+  "test_editor_commands", Test_editor_commands.run;
+  "test_editor_cook", Test_editor_cook.run;
+  "test_editor_transactions", Test_editor_transactions.run;
   "test_scene_tree", Test_scene_tree.run;
   "test_sop_catalog", Test_sop_catalog.run;
   "test_sketch_support", Test_sketch_support.run;

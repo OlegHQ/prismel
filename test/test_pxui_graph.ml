@@ -202,9 +202,9 @@ let run () =
       ~catalog graph in
   let click_shift view id =
     let point = center (node id view).bounds in
-    fst (update view (frame ~mouse:point ~keys:[Input.Shift]
-      ~events:[mouse_press (Input.LeftButton, point);
-        mouse_release (Input.LeftButton, point)] ())) in
+    fst (update view (frame ~mouse:point
+      ~events:[Event.KeyPressed Input.Shift; mouse_press (Input.LeftButton, point);
+        Event.KeyReleased Input.Shift; mouse_release (Input.LeftButton, point)] ())) in
   let edit_view = click_shift edit_view (Node.id source_a)
     |> fun view -> click_shift view (Node.id source_b) in
   check (List.length (Pxui_graph.selected_nodes edit_view) = 2)

@@ -25,6 +25,19 @@ per World (keyed by object id), the active camera object, and the sketch
 (list or graph), and the map view are view state. A deleted object's
 network goes with it; a pasted object copies its source's network.
 
+An empty scene or object network has no display node (`null` in presets).
+Deleting every SOP clears that object's preview, including a late cook from
+before deletion. Disconnected nonempty SOPs stay editable; a compile error
+retains the last successful preview with an error. Editor3 preserves an empty
+scene without adding a camera. Editor2 requires a geometry object and rejects
+a scene without one before installation; that object's SOPs may be empty.
+
+Preset load validates unique IDs and owners, owner kinds, input arity and
+references, display and camera references, and finite parameters/coordinates.
+Rejected loads leave the installed document, history, camera and preview
+unchanged. The same serializer writes crash-report presets. Document owns no
+PXUI state; `Network_view` converts saved networks to and from graph presentation.
+
 The sketch's code graph becomes the geometry object `geo1`; camera SOPs in it
 move to the scene as camera objects. `?lights` become light objects and
 `?world` the World. Version 1 presets (one SOP network) migrate the same way.
@@ -85,11 +98,24 @@ map moves the selected layer; with the Sun layer selected it places the sun
 (unlinking it from the time of day). Shift-drag in the 3D view turns the
 World.
 
+PXUI owns the whole pointer gesture. The World edit latches its operation,
+stable node ID, and map bounds at the press; releasing Shift or crossing panes
+does not redirect it. Ordered movement and the release position enter the same
+undo entry. Map coordinates clamp while captured, and popup, pointer, and
+focus cancellation end the edit. World events are consumed before camera
+navigation; they do not also orbit or pan the view.
+
 ## Cooking and drawing
 
 Every visible geometry object's display node cooks in one bounded job
 (`Async_cook.submit_all`); an object whose compiled graph and settings are
-physically unchanged keeps its prepared value. The sketch's `scene3` draws
+physically unchanged keeps its prepared value when the projection of its
+declared context dependencies also matches. Time/Frame-dependent outputs
+prepare again as the timeline changes. Each piece carries the submission's
+settings and context projection; publication does not stamp current settings
+onto an older result. Settings changes invalidate every object, including
+settings whose schema only declares draw effects. Empty object sets submit
+an empty request to supersede previous work. The sketch's `scene3` draws
 each object, cached per prepared value, and the editor places the drawings
 at their world transforms (`Scene3.nodes` under `Scene3.transform`), so
 moving, parenting, hiding, or re-lighting objects never re-cooks SOPs. Light

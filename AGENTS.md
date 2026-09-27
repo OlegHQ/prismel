@@ -31,7 +31,8 @@ when behavior or architecture changes materially.
 | `procedural` | Immutable SOP graphs over `pdk` operations |
 | `sop_catalog` | Inspectable SOP constructors registered by PPX |
 | `param` | Typed parameter schemas; no dependencies (`Procedural.Parameter`, `Editor_core.Param`) |
-| `editor_core` | Pure editor core: labelled `History`, `Command`, `Keymap`, `Router`, `Store` |
+| `editor_core` | Editor state and routing: labelled `History`, `Command`, `Keymap`, `Router`, plus JSON file persistence (`Store`) |
+| `editor_document` | Package-private scene/network/settings model, validation, object/layer schemas and presets; no presentation dependencies |
 | `pxui` | The one immediate-mode UI engine (`Pxui.Ui`) |
 | `pxui_shell` | Editor chrome over PXUI: layout, headers, keys, status, timeline, prompts, frame, `Inspector` |
 | `pxui_graph` | SOP-network presentation; emits typed requests, never edits |

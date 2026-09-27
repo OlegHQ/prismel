@@ -18,4 +18,11 @@ type t =
 module Private : sig
   val key_of_name : string -> Input.key
   (* The runtime key-name contract; exposed for tests. *)
+  val keys_before : previous:Input.key list -> held:Input.key list ->
+    t list -> Input.key list
+  (** Initial held keys: changed keys and focus cancellation take [previous];
+      unchanged keys use the final [held] snapshot. These hooks are internal
+      input plumbing; their output can be advanced through ordered events. *)
+
+  val keys_after : Input.key list -> t -> Input.key list
 end

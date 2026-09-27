@@ -20,6 +20,35 @@ let close left right = abs_float (left -. right) < 1e-8
 
 let run () =
   let viewport = 0, 0, 640, 360 in
+  List.iter (fun modifier ->
+    let events = [Event.KeyPressed modifier; mouse_press (Input.LeftButton, (320, 180));
+      mouse_move (350, 180); Event.KeyReleased modifier;
+      mouse_release (Input.LeftButton, (350, 180))] in
+    let camera2 = Easy_camera2.create ~viewport ~translation_key:modifier ~inertia:false () in
+    let panned = Easy_camera2.update camera2 (frame ~events ()) in
+    if Easy_camera2.center panned = Vec2.zero then fail "ordered 2D translation-key tap did not pan";
+    let camera3 = Easy_camera.create ~translation_key:modifier ~inertia:false () in
+    let panned = Easy_camera.update camera3 (frame ~events ()) in
+    if Camera.target (Easy_camera.camera panned) = Vec3.zero then
+      fail "ordered 3D translation-key tap orbited instead of panning";
+    let late = [mouse_press (Input.LeftButton, (320, 180)); Event.KeyPressed modifier;
+      mouse_move (350, 180); mouse_release (Input.LeftButton, (350, 180))] in
+    if Easy_camera2.center (Easy_camera2.update camera2 (frame ~keys:[modifier] ~events:late ())) <> Vec2.zero
+      || Camera.target (Easy_camera.camera (Easy_camera.update camera3
+          (frame ~keys:[modifier] ~events:late ()))) <> Vec3.zero then
+      fail "a later camera key press changed the already captured interaction";
+    let disabled2 = Easy_camera2.update camera2 (frame ~keys:[modifier] ())
+      |> Easy_camera2.set_enabled false in
+    let disabled3 = Easy_camera.update camera3 (frame ~keys:[modifier] ())
+      |> Easy_camera.set_enabled false in
+    let released = frame ~events:[Event.KeyReleased modifier] () in
+    let resumed2 = Easy_camera2.update disabled2 released |> Easy_camera2.set_enabled true
+    and resumed3 = Easy_camera.update disabled3 released |> Easy_camera.set_enabled true in
+    if Easy_camera2.center (Easy_camera2.update resumed2 (frame ~keys:[modifier] ~events:late ())) <> Vec2.zero
+      || Camera.target (Easy_camera.camera (Easy_camera.update resumed3
+          (frame ~keys:[modifier] ~events:late ()))) <> Vec3.zero then
+      fail "disabled camera input retained a stale translation key")
+    [Input.Shift; Input.KeyChar 'p'];
   let camera = Easy_camera2.create ~viewport ~inertia:false () in
   let world = Vec2.create 42. (-17.) in
   let round_trip = Easy_camera2.world_to_screen ~viewport camera world

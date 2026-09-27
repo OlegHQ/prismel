@@ -1,0 +1,5 @@
+(library
+ (name editor_document)
+ (package prismel)
+ (libraries prismel procedural editor_core yojson unix)
+ (preprocess (pps prismel.ppx)))

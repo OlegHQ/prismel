@@ -164,7 +164,8 @@ val run_command : t -> command -> t * change list
     - Command/Ctrl-C, -V, and -X copy, paste, and cut selected subgraphs;
       Command/Ctrl-D duplicates them with fresh logical node IDs;
     - [Home] frames all; the host binds {!optimize_layout},
-      {!frame_viewed}, and {!open_menu_at} (Prismel_editor: leader [l], [f], [a]);
+      {!frame_viewed}, and {!open_menu_at} (Prismel_editor: layout through the
+      context menu or palette; leader [f] frames and [a] opens the menu);
     - the hierarchical node menu: category paths form submenus,
       while typed search matches labels, keys, and complete breadcrumbs across
       the entire catalog; on a selected wire it offers one-input nodes for

@@ -6,7 +6,7 @@
 
 (executable
  (name test_main)
- (modules test_main test_ui_parity test_ui)
+ (modules test_main test_ui_parity test_ui test_input test_keyboard)
  (libraries prismel pxui scene_command sdl3))
 
 (rule
@@ -20,3 +20,13 @@
  (aliases runtest test_ui)
  (action (setenv SDL_VIDEODRIVER dummy
   (run %{exe:test_main.exe} test_ui))))
+
+(rule
+ (aliases runtest test_input)
+ (action (setenv SDL_VIDEODRIVER dummy
+  (run %{exe:test_main.exe} test_input))))
+
+(rule
+ (aliases runtest test_keyboard)
+ (action (setenv SDL_VIDEODRIVER dummy
+  (run %{exe:test_main.exe} test_keyboard))))

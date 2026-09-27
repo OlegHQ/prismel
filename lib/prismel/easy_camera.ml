@@ -56,6 +56,8 @@ type t = {
   drag : (Input.mouse_button * interaction * (float * float)) option;
   velocity : motion option;
   last_press : (Input.mouse_button * (float * float) * float) option;
+  pointer : (float * float) option;
+  previous_keys : Input.key list;
   initial : settings;
   mutable camera_cache : camera_snapshot option;
 }
@@ -145,6 +147,8 @@ let create ?(target = Vec3.zero) ?(distance = 10.) ?(azimuth = 0.)
     drag = None;
     velocity = None;
     last_press = None;
+    pointer = None;
+    previous_keys = [];
     initial = { target; distance; azimuth; elevation };
     camera_cache = None;
   }
@@ -426,11 +430,11 @@ let apply_delta frame value interaction dx dy =
       in
       { value with distance = Float.max 1e-4 distance }
 
-let interaction_for_button value frame button =
+let interaction_for_button value keys button =
   if button = Input.MiddleButton && not value.middle_button_enabled then None
   else
     match value.translation_key with
-    | Some key when button = Input.LeftButton && Frame.key_down key frame ->
+    | Some key when button = Input.LeftButton && List.mem key keys ->
         Some Pan
     | _ ->
         let eligible binding =
@@ -438,7 +442,7 @@ let interaction_for_button value frame button =
           &&
           match binding.key with
           | None -> true
-          | Some key -> Frame.key_down key frame
+          | Some key -> List.mem key keys
         in
         (match
            List.find_opt
@@ -482,8 +486,15 @@ let apply_inertia frame value =
   | None, Some _ -> { value with velocity = None }
   | _ -> value
 
+let cache_keys (frame : Frame.t) value =
+  if value.previous_keys == frame.keys || value.previous_keys = frame.keys then value
+  else { value with previous_keys = frame.keys }
+
 let update value frame =
-  if not value.enabled then value
+  if not value.enabled then
+    cache_keys frame value
+  else if frame.Frame.events = [] && not value.auto_distance_pending then
+    apply_inertia frame (cache_keys frame value)
   else
     let value =
       if value.auto_distance_pending then
@@ -495,17 +506,29 @@ let update value frame =
         }
       else value
     in
+    let pointer_events = List.fold_left (fun flags -> function
+      | Event.MousePressed _ -> 3
+      | MouseMoved _ | MouseReleased _ -> flags lor 1 | _ -> flags) 0 frame.events in
+    let has_pointer = pointer_events land 1 <> 0 in
+    let pointer = ref (if has_pointer then Option.value ~default:frame.Frame.mouse value.pointer
+      else frame.mouse) in
+    let keys = if pointer_events land 2 <> 0
+      then Some (ref (Event.Private.keys_before ~previous:value.previous_keys
+        ~held:frame.keys frame.events)) else None in
     let value =
       List.fold_left
         (fun value event ->
+          (match keys with Some keys -> keys := Event.Private.keys_after !keys event | None -> ());
           match event with
           | Event.MousePressed (button, point) ->
+              pointer := point;
               if not (contains value point) then value
               else if double_click value button point frame.Frame.time then
                 let value = reset value in
                 { value with last_press = Some (button, point, frame.time) }
               else
-                (match interaction_for_button value frame button with
+                (match interaction_for_button value
+                    (match keys with Some keys -> !keys | None -> frame.keys) button with
                  | None ->
                      { value with last_press = Some (button, point, frame.time) }
                  | Some interaction ->
@@ -517,6 +540,7 @@ let update value frame =
                      })
           | MouseMoved (x, y) ->
               let point = x, y in
+              pointer := point;
               (match value.drag with
                | None -> value
                | Some (button, interaction, (previous_x, previous_y)) ->
@@ -529,7 +553,8 @@ let update value frame =
                      drag = Some (button, interaction, point);
                      velocity = Some { interaction; dx; dy };
                    })
-          | MouseReleased (button, _) ->
+          | MouseReleased (button, point) ->
+              pointer := point;
               (match value.drag with
                | Some (captured, _, _) when captured = button ->
                    {
@@ -539,7 +564,7 @@ let update value frame =
                    }
                | _ -> value)
           | MouseScrolled (horizontal, vertical)
-              when contains value frame.Frame.mouse ->
+              when contains value !pointer ->
               ignore horizontal;
               {
                 value with
@@ -550,13 +575,22 @@ let update value frame =
                           (-.vertical
                            *. value.dolly_sensitivity *. 12.));
                 velocity = None;
+                pointer = Some !pointer;
               }
+          | PointerCancelled button ->
+              (match value.drag with
+               | Some (captured, _, _) when captured = button ->
+                   { value with drag = None; velocity = None }
+               | _ -> value)
           | WindowFocusLost ->
               { value with drag = None; velocity = None; last_press = None }
           | _ -> value)
         value frame.events
     in
-    apply_inertia frame value
+    let value = if not has_pointer then value else match value.pointer with
+      | Some previous when previous = !pointer -> value
+      | _ -> { value with pointer = Some !pointer } in
+    apply_inertia frame (cache_keys frame value)
 
 (* One fly-camera step: held W/S/A/D/Q/E move along view forward, right,
    and the up axis at [speed] units/s (Shift x4); pointer motion yaws about

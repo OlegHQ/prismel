@@ -93,6 +93,29 @@ let () =
   if Pxui_shell.Shell.frame shell frame ~visible:true
       ~body:(fun _ -> 7) ~overlay:None <> Some 7 then
     failwith "visible shell lost editor result";
+  let controls ui =
+    let box = Pxui.Ui.box ui ~flags:Pxui.Ui.(clickable + focusable)
+      ~at:(10., 10.) ~w:(Pxui.Ui.Px 50.) ~h:(Pxui.Ui.Px 50.) "focused-control" in
+    Pxui.Ui.signal ui box in
+  let show events = Pxui_shell.Shell.frame shell { frame with events }
+    ~visible:true ~body:controls ~overlay:None in
+  let hide events = Pxui_shell.Shell.frame shell { frame with events }
+    ~visible:false ~body:controls ~overlay:None in
+  ignore (show []);
+  let captured = show [Event.MousePressed (Input.LeftButton, (20., 20.))] |> Option.get in
+  if not captured.held || not (Pxui.Ui.text_input_focused shell) then
+    failwith "shell did not establish focus and capture";
+  ignore (hide [Event.WindowFocusLost]);
+  if Pxui.Ui.text_input_focused shell || Pxui.Ui.wants_pointer shell then
+    failwith "hidden shell did not process focus-loss cancellation";
+  ignore (show []);
+  ignore (show [Event.MousePressed (Input.LeftButton, (20., 20.))]);
+  ignore (hide []);
+  if Pxui.Ui.text_input_focused shell || Pxui.Ui.wants_pointer shell then
+    failwith "hidden shell did not prune removed controls";
+  let returned = show [Event.MouseReleased (Input.LeftButton, (20., 20.))] |> Option.get in
+  if returned.clicked || returned.held then failwith "hidden control committed after disappearing";
+  Pxui.Ui.destroy shell;
   let hidden = Pxui.Ui.create () in
   ignore (Pxui_shell.Shell.frame hidden frame ~visible:false
     ~body:(fun _ -> ())
@@ -207,5 +230,12 @@ let () =
   let _, intents = step t ~mouse:(center 3) click in
   expect "a double-click activates the row"
     (List.filter (function T.Activate _ -> true | _ -> false) intents) [T.Activate 4];
+  let t, _ = step (T.create ()) [] in
+  let t, _ = step t ~mouse:(center 0) [Event.MousePressed (Input.LeftButton, center 0);
+    Event.MouseReleased (Input.LeftButton, center 0)] in
+  let _, intents = step t ~mouse:(center 2) [Event.KeyPressed Input.Shift;
+    Event.MousePressed (Input.LeftButton, center 2); Event.KeyReleased Input.Shift;
+    Event.MouseReleased (Input.LeftButton, center 2)] in
+  expect "Shift selection uses the captured press keys" intents [T.Select [3; 1; 2]];
   Pxui.Ui.destroy ui;
   print_endline "pxui shell tests passed"

@@ -1,0 +1,136 @@
+open Prismel
+open Procedural
+module Cook = Prismel_editor.Private.Cook
+module Settings = Prismel_editor.Settings
+module Timeline = Sketch_support.Timeline
+
+let check condition message = if not condition then failwith message
+let settings mode = Settings.make Test_editor_commands.schema mode
+let mode settings = Settings.get Test_editor_commands.schema settings
+let network id graph = id, Edit_graph.of_graph graph, Node.id graph
+let frame = { (Test_editor_input.frame (0., 0.) [] 0) with dt = 0. }
+let stopped = fst (Timeline.stop (Timeline.create ()))
+
+let await predicate =
+  let deadline = Unix.gettimeofday () +. 5. in
+  let rec loop () = if predicate () then ()
+    else if Unix.gettimeofday () >= deadline then failwith "editor cook barrier timeout"
+    else (Unix.sleepf 0.0001; loop ()) in
+  loop ()
+
+let barrier () =
+  let mutex = Mutex.create () and ready = Condition.create ()
+  and entered = Atomic.make false and released = ref false in
+  let wait () =
+    Mutex.lock mutex;
+    Fun.protect ~finally:(fun () -> Mutex.unlock mutex) (fun () ->
+      Atomic.set entered true;
+      while not !released do Condition.wait ready mutex done) in
+  let release () =
+    Mutex.lock mutex; released := true; Condition.broadcast ready; Mutex.unlock mutex in
+  entered, wait, release
+
+let with_cook prepare run =
+  let current = ref (Cook.create ~prepare ~seed:42L ~grain:64 ~domains:1
+    ~max_entries:16 ~max_payload_bytes:(16 * 1024 * 1024) () |> Result.get_ok) in
+  Fun.protect ~finally:(fun () -> Cook.close !current) (fun () ->
+    let step ?(settings = Settings.none) ?(timeline = stopped) ?(changes = [])
+        ?(buttons = []) ?frame_request objects =
+      let update = Cook.update ~live:false !current ~settings ~objects ~edit_error:None
+        ~effects:Parameter.no_effects ~timeline_changes:changes ~timeline
+        ~frame:{ frame with mouse_buttons = buttons } ~frame_request in
+      current := update.cook; update in
+    let finish ?settings ?timeline ?changes objects =
+      let published = ref None and first = ref true in
+      await (fun () ->
+        let update = step ?settings ?timeline ?changes:(if !first then changes else None) objects in
+        first := false;
+        if update.prepared_changed && Cook.status !current = Async_cook.Idle then
+          published := Some update;
+        Option.is_some !published);
+      Option.get !published in
+    run current step finish)
+
+let run () =
+  let source = Sop.points [|0., 0., 0.|] in
+  let objects = [network 1 source; network 2 source] in
+  let prepares = Atomic.make 0 in
+  with_cook (fun settings _ -> Atomic.incr prepares; Ok (mode settings))
+    (fun current step finish ->
+      let a = settings 0 and b = settings 1 in
+      ignore (finish ~settings:a objects);
+      let second = List.assoc 2 (List.map (fun (piece : _ Cook.piece) -> piece.id, piece)
+        (Cook.pieces !current)) in
+      let changed = network 1 (Sop.transform (Mat4.translation (Vec3.create 2. 0. 0.)) source) in
+      ignore (finish ~settings:a [changed; List.nth objects 1]);
+      check (Atomic.get prepares = 3) "one changed object re-prepared its static sibling";
+      check (List.find (fun (piece : _ Cook.piece) -> piece.id = 2)
+        (Cook.pieces !current) == second) "static prepared piece lost identity";
+      ignore (finish ~settings:b [changed; List.nth objects 1]);
+      check (Atomic.get prepares = 5 && List.for_all (fun (piece : _ Cook.piece) ->
+        piece.prepared = 1 && piece.settings == b) (Cook.pieces !current))
+        "settings did not invalidate both prepares without a cook effect";
+      for _ = 1 to 5 do ignore (step ~settings:b [changed; List.nth objects 1]) done;
+      check (Atomic.get prepares = 5) "idle frames resubmitted static objects");
+  let dependencies = Context.Dependencies.(union (one Time) (one Frame)) in
+  let dynamic = Sop.custom ~operation:"editor_cook_clock" ~dependencies [source]
+    (fun ~context inputs ->
+      Pdk.Geometry.with_positions (Pdk.Packed.Float3.Private.of_owned_exn
+        ~x:[|Context.time context|] ~y:[|Int64.to_float (Context.frame context)|] ~z:[|0.|]) inputs.(0)) in
+  with_cook (fun _ output -> Ok (Pdk.Packed.Float3.get
+      (Pdk.Geometry.positions output.Session.geometry) 0)) (fun current _ finish ->
+    let objects = [network 1 dynamic; network 2 source] in
+    ignore (finish objects);
+    let static = List.find (fun (piece : _ Cook.piece) -> piece.id = 2) (Cook.pieces !current) in
+    let timeline, changes = Timeline.seek stopped ~frame:60L in
+    ignore (finish ~timeline ~changes objects);
+    let pieces = Cook.pieces !current in
+    check ((List.find (fun (piece : _ Cook.piece) -> piece.id = 1) pieces).prepared = (1., 60., 0.))
+      "Time/Frame prepare reused stale output";
+    check (List.find (fun (piece : _ Cook.piece) -> piece.id = 2) pieces == static)
+      "dynamic context invalidated a static sibling";
+    let timeline, changes = Timeline.seek timeline ~frame:0L in
+    ignore (finish ~timeline ~changes objects);
+    check ((List.hd (Cook.pieces !current)).prepared = (0., 0., 0.)) "seek back kept stale context");
+  let entered, wait, release = barrier () in
+  let first = Atomic.make true in
+  Fun.protect ~finally:release (fun () ->
+    with_cook (fun settings _ -> if Atomic.exchange first false then wait (); Ok (mode settings))
+      (fun current step finish ->
+        let a = settings 0 and b = settings 1 in
+        ignore (step ~settings:a objects); await (fun () -> Atomic.get entered);
+        ignore (step ~settings:b ~buttons:[Input.LeftButton] objects);
+        release (); await (fun () -> Cook.status !current = Async_cook.Idle);
+        ignore (step ~settings:b ~buttons:[Input.LeftButton] objects);
+        check (List.for_all (fun (piece : _ Cook.piece) ->
+          piece.prepared = 0 && piece.settings == a) (Cook.pieces !current)
+          && List.length (Cook.pieces !current) = 2)
+          "delayed completion was stamped with the current settings";
+        ignore (finish ~settings:b objects);
+        check (List.for_all (fun (piece : _ Cook.piece) -> piece.prepared = 1)
+          (Cook.pieces !current)) "held settings change was not replaced after release"));
+  List.iter (fun removed ->
+    let entered, wait, release = barrier () and first = Atomic.make true in
+    Fun.protect ~finally:release (fun () ->
+      with_cook (fun settings _ -> if Atomic.exchange first false then wait (); Ok (mode settings))
+        (fun current step finish ->
+          ignore (step ~settings:(settings 0) objects); await (fun () -> Atomic.get entered);
+          let latest = if removed then [] else objects in
+          let b = settings 2 in
+          ignore (step ~settings:b latest);
+          check (not removed || Cook.pieces !current = []) "empty objects retained previews";
+          release ();
+          ignore (finish ~settings:b latest);
+          check (if removed then Cook.pieces !current = [] else
+            List.for_all (fun (piece : _ Cook.piece) -> piece.prepared = 2 && piece.settings == b)
+              (Cook.pieces !current)) "superseded completion republished old objects/settings"))) [false; true];
+  let entered, wait, release = barrier () and exited = Atomic.make false in
+  Fun.protect ~finally:release (fun () ->
+    with_cook (fun _ _ -> wait (); Atomic.set exited true; Ok ()) (fun current step _ ->
+      ignore (step objects); await (fun () -> Atomic.get entered);
+      let closing = Atomic.make false in
+      let unblock = Domain.spawn (fun () -> await (fun () -> Atomic.get closing); release ()) in
+      Atomic.set closing true;
+      Cook.close !current; Domain.join unblock;
+      check (Atomic.get exited) "close returned before the callback exited"));
+  print_endline "editor cook: per-object reuse, settings/context provenance, explicit late/superseded/empty barriers and joined close passed"

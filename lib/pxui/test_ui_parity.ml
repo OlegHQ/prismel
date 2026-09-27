@@ -37,6 +37,10 @@ let background = Color.rgb 228 139 161
 
 let capture prefix ~init ~update ~view =
   let directory = Filename.temp_dir "pxui-parity" "" in
+  (* A static golden must not depend on the hardware pointer over its window. *)
+  let update state (frame : Frame.t) = update state
+      { frame with mouse = (-100., -100.); mouse_delta = (0., 0.);
+        mouse_buttons = []; keys = []; events = [Event.MouseMoved (-100., -100.)] } in
   ignore (Sketch.export_state ~config ~directory ~prefix ~frames:2 ~init ~update
     ~view ());
   let image = Image.load_exn (Filename.concat directory (prefix ^ "-000001.png")) in

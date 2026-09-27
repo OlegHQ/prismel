@@ -24,6 +24,8 @@ type t = {
   drag : (Input.mouse_button * (float * float)) option;
   velocity : motion option;
   last_press : (Input.mouse_button * (float * float) * float) option;
+  pointer : (float * float) option;
+  previous_keys : Input.key list;
   initial : settings;
 }
 
@@ -62,7 +64,7 @@ let create ?(center = Vec2.zero) ?(zoom = 1.) ?(rotation = 0.)
   validate_nonnegative "zoom sensitivity" zoom_sensitivity;
   { center; zoom; rotation; enabled; viewport; control_area; inertia;
     drag_coefficient; pan_sensitivity; zoom_sensitivity; translation_key;
-    drag = None; velocity = None; last_press = None;
+    drag = None; velocity = None; last_press = None; pointer = None; previous_keys = [];
     initial = { center; zoom; rotation } }
 
 let center value = value.center
@@ -162,6 +164,7 @@ let pan value dx dy =
 let zoom_at value ~viewport point vertical =
   if vertical = 0. then value
   else
+    let pointer = point in
     let point = Vec2.create (fst point) (snd point) in
     let anchored_world = screen_to_world ~viewport value point in
     let zoom = Float.max 1e-6
@@ -170,13 +173,13 @@ let zoom_at value ~viewport point vertical =
     let zoomed = { value with zoom } in
     let after = screen_to_world ~viewport zoomed point in
     { zoomed with center = Vec2.add zoomed.center
-        (Vec2.sub anchored_world after); velocity = None }
+        (Vec2.sub anchored_world after); velocity = None; pointer = Some pointer }
 
-let pan_button value frame button =
+let pan_button value keys button =
   button = Input.MiddleButton || button = Input.RightButton
   || (button = Input.LeftButton
       && (match value.translation_key with
-          | Some key -> Frame.key_down key frame
+          | Some key -> List.mem key keys
           | None -> false))
 
 let double_click value button point time = match value.last_press with
@@ -199,23 +202,43 @@ let apply_inertia frame value = match value.drag, value.velocity with
   | None, Some _ -> { value with velocity = None }
   | _ -> value
 
+let cache_keys (frame : Frame.t) value =
+  if value.previous_keys == frame.keys || value.previous_keys = frame.keys then value
+  else { value with previous_keys = frame.keys }
+
 let update value frame =
-  if not value.enabled then value
+  if not value.enabled then
+    cache_keys frame value
+  else if frame.Frame.events = [] then apply_inertia frame (cache_keys frame value)
   else
     let viewport = effective_viewport value frame in
-    let value = List.fold_left (fun value event -> match event with
+    let pointer_events = List.fold_left (fun flags -> function
+      | Event.MousePressed _ -> 3
+      | MouseMoved _ | MouseReleased _ -> flags lor 1 | _ -> flags) 0 frame.events in
+    let has_pointer = pointer_events land 1 <> 0 in
+    let pointer = ref (if has_pointer then Option.value ~default:frame.Frame.mouse value.pointer
+      else frame.mouse) in
+    let keys = if pointer_events land 2 <> 0
+      then Some (ref (Event.Private.keys_before ~previous:value.previous_keys
+        ~held:frame.keys frame.events)) else None in
+    let value = List.fold_left (fun value event ->
+      (match keys with Some keys -> keys := Event.Private.keys_after !keys event | None -> ());
+      let held = match keys with Some keys -> !keys | None -> frame.keys in
+      match event with
       | Event.MousePressed (button, point) ->
+          pointer := point;
           if not (contains value.control_area point) then value
           else if double_click value button point frame.Frame.time
-                  && pan_button value frame button then
+                  && pan_button value held button then
             let value = reset value in
             { value with last_press = Some (button, point, frame.time) }
-          else if pan_button value frame button then
+          else if pan_button value held button then
             { value with drag = Some (button, point); velocity = None;
               last_press = Some (button, point, frame.time) }
           else { value with last_press = Some (button, point, frame.time) }
       | MouseMoved (x, y) ->
           let point = x, y in
+          pointer := point;
           (match value.drag with
            | None -> value
            | Some (button, (previous_x, previous_y)) ->
@@ -224,7 +247,8 @@ let update value frame =
                let value = pan value dx dy in
                { value with drag = Some (button, point);
                  velocity = Some { dx; dy } })
-      | MouseReleased (button, _) ->
+      | MouseReleased (button, point) ->
+          pointer := point;
           (match value.drag with
            | Some (captured, _) when captured = button ->
                { value with drag = None;
@@ -236,13 +260,16 @@ let update value frame =
                { value with drag = None; velocity = None }
            | _ -> value)
       | MouseScrolled (horizontal, vertical)
-          when contains value.control_area frame.Frame.mouse ->
+          when contains value.control_area !pointer ->
           ignore horizontal;
-          zoom_at value ~viewport frame.mouse vertical
+          zoom_at value ~viewport !pointer vertical
       | WindowFocusLost ->
           { value with drag = None; velocity = None; last_press = None }
       | _ -> value) value frame.events in
-    apply_inertia frame value
+    let value = if not has_pointer then value else match value.pointer with
+      | Some previous when previous = !pointer -> value
+      | _ -> { value with pointer = Some !pointer } in
+    apply_inertia frame (cache_keys frame value)
 
 let scene ?viewport ?(pixel_scale = 1.) value world =
   if not (Float.is_finite pixel_scale) || pixel_scale <= 0. then

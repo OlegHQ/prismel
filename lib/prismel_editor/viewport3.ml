@@ -1,4 +1,5 @@
 open Prismel
+open Editor_document
 open Procedural
 
 module CC = Pxui.Camera_control
@@ -81,10 +82,12 @@ let seed_scene ?lens easy _ scene =
   else Option.value ~default:scene
       (add_default_camera ?lens ~factories:camera_factories scene easy)
 
-(* One ACTIVE camera whenever any exists; losing the last one re-adds the
-   default within the same undo entry. *)
+(* One ACTIVE camera whenever any exists; a nonempty scene losing the last
+   camera re-adds the default within the same undo entry. An intentionally
+   empty scene stays empty. *)
 let sync_cameras ~mode (core : _ Core.t) easy =
-  let core = if camera_ids (Core.scene core) <> [] then core
+  let core = if camera_ids (Core.scene core) <> []
+      || Edit_graph.inspect (Core.scene core) = [] then core
     else match add_default_camera ~factories:camera_factories (Core.scene core) easy with
       | Some scene -> Core.scene_edit core mode scene
       | None -> core in
@@ -169,14 +172,16 @@ let on_doc ~previous core camera =
       && core.Core.doc.active_camera = previous.Core.doc.active_camera
   then core else sync_cameras ~mode:`Amend core camera
 
-let navigate ~area control camera extra core ~raw_frame ~input =
+let navigate ~area control camera extra core ~(raw_frame : Frame.t) ~(input : Frame.t) =
   let active = active_node core in
   let following = Option.fold ~none:false ~some:follows active in
   (* A fixed render camera owns the view while look-through is enabled. *)
   if extra.look_through && active <> None && not following then camera, extra
   else match extra.fly with
     | Some speed ->
-        let camera, speed = Easy_camera.fly ~speed camera raw_frame in
+        let camera, speed = Easy_camera.fly ~speed camera
+          { raw_frame with events = input.events; keys = input.keys;
+            mouse_buttons = input.mouse_buttons; mouse_delta = input.mouse_delta } in
         camera, { extra with fly = Some speed }
     | None -> CC.navigate ~control_area:area control camera input, extra
 

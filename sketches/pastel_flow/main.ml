@@ -105,7 +105,8 @@ let update model (frame:Frame.t) =
   (* A slider drag is one undo entry; presets and loads are one each. *)
   let history=if controls==previous then model.history
     else Editor_core.History.record ~label:"Controls"
-      ~merge:(if Frame.mouse_down Input.LeftButton frame then Gesture 0 else Step)
+      ~merge:(if Frame.mouse_down Input.LeftButton frame && actions = []
+        then Gesture "controls" else Step)
       controls model.history in
   let history=if Frame.has_event (function
       | Event.MouseReleased (Input.LeftButton,_) -> true | _ -> false) frame

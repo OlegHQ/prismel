@@ -1411,7 +1411,7 @@ let build_menu (value : t) ui menu =
                 (Printf.sprintf "column-%d" depth) in
             Ui.within ui column (fun () ->
               Array.iteri (fun index item ->
-                let item_box = Ui.box ui ~flags:Ui.(clickable + blocking) ~w:Ui.Grow
+                let item_box = Ui.box ui ~flags:Ui.(clickable + tab_stop + blocking) ~w:Ui.Grow
                     ~h:(Ui.Px (float_of_int row)) (Printf.sprintf "item-%d" index) in
                 let signal = Ui.signal ui item_box in
                 let label, detail, opened = match item with
@@ -1452,7 +1452,7 @@ let build_menu (value : t) ui menu =
            when List.length prefix < List.length menu.path ->
              Some { menu with path = prefix }, []
          | _ -> Some menu, []) in
-  if menu = None then Ui.unfocus ui;
+  if menu = None then Ui.dismiss_popup ui;
   { value with menu }, requests
 
 let context_items (value : t) = function
@@ -1530,7 +1530,7 @@ let update (value : t) ui (frame : Frame.t) =
       let view, output = Ui.within ui tile (fun () ->
         let view = if value.zoom < 0.45 then None else
           let bx, by, bw, bh = view_button_bounds value box in
-          Some (Ui.box ui ~flags:Ui.clickable ~w:(Ui.Px (float_of_int bw))
+          Some (Ui.box ui ~flags:Ui.(clickable + tab_stop) ~w:(Ui.Px (float_of_int bw))
             ~h:(Ui.Px (float_of_int bh)) ~at:(float_of_int (bx - x), float_of_int (by - y))
             "view") in
         let output = if value.zoom < 0.4 then None else
@@ -1541,7 +1541,7 @@ let update (value : t) ui (frame : Frame.t) =
             "output") in
         let active = if value.zoom < 0.45 || not (is_flaggable value box) then None else
           let bx, by, bw, bh = active_button_bounds value box in
-          Some (Ui.box ui ~flags:Ui.clickable ~w:(Ui.Px (float_of_int bw))
+          Some (Ui.box ui ~flags:Ui.(clickable + tab_stop) ~w:(Ui.Px (float_of_int bw))
             ~h:(Ui.Px (float_of_int bh)) ~at:(float_of_int (bx - x), float_of_int (by - y))
             "active") in
         (view, active), output) in
@@ -1597,7 +1597,7 @@ let update (value : t) ui (frame : Frame.t) =
     let value, changes = if scroll <> 0.
       then zoom_at value frame.mouse scroll, View_changed :: changes
       else value, changes in
-    Array.fold_left (fun (value, changes) (index, _, (tile_signal : Ui.signal), view, output) ->
+    Array.fold_left (fun (value, changes) (index, tile, (tile_signal : Ui.signal), view, output) ->
       let id = value.boxes.(index).info.Edit_graph.id in
       let left signal = signal.Ui.button = Some Input.LeftButton in
       let view, active = view in
@@ -1630,7 +1630,7 @@ let update (value : t) ui (frame : Frame.t) =
         then Open_requested id :: changes else changes in
       if tile_signal.pressed && left tile_signal then begin
         let before = value.primary in
-        let value = select_node value ~additive:(List.mem Input.Shift frame.keys) index in
+        let value = select_node value ~additive:(List.mem Input.Shift (Ui.press_keys ui tile)) index in
         let indices = indices_of_selection value in
         let changes = if before <> value.primary then
           Selected value.primary :: changes else changes in
@@ -1674,13 +1674,14 @@ let update (value : t) ui (frame : Frame.t) =
           Selected None :: Connection_selected (Some connection) :: changes
       | None ->
           let value = { value with selected_edge = None;
-            drag = Some (Box_select { additive = List.mem Input.Shift frame.keys }) } in
+            drag = Some (Box_select { additive = List.mem Input.Shift (Ui.press_keys ui canvas) }) } in
           if canvas_signal.released then begin
             let before = value.primary in
             let (x0, y0), (x1, y1) = ints canvas_signal.press_point,
               ints canvas_signal.release_point in
             let value = apply_marquee value { start_x = x0; start_y = y0;
-              current_x = x1; current_y = y1; additive = List.mem Input.Shift frame.keys } in
+              current_x = x1; current_y = y1;
+              additive = List.mem Input.Shift (Ui.press_keys ui canvas) } in
             value, (if before <> value.primary then
               Selected value.primary :: changes else changes)
           end else value, changes

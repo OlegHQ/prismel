@@ -103,6 +103,7 @@ let rules =
                     :: "sketch_support" :: "prismel_editor" :: gpu;
       "editor_core", ["pxui"; "pxui_shell"; "pxui_graph"; "prismel_editor"; "procedural";
                  "pdk"; "sop_catalog"];
+      "editor_document", ["pxui"; "pxui_shell"; "pxui_graph"; "sketch_support"; "prismel_editor"];
       "pxui", ["editor_core"; "pxui_shell"; "procedural"; "pdk"; "pxui_graph";
                "sketch_support"; "prismel_editor"];
       "pxui_shell", ["procedural"; "pdk"; "sop_catalog";
@@ -203,6 +204,27 @@ let violations graph ~scan =
   direct_errors @ edge_errors @ token_errors @ native_errors
 
 let run () =
+  (* Exercise the actual dune reader, including public-name resolution and
+     a forbidden edge hidden behind an otherwise innocuous private bridge. *)
+  let fixture = Filename.temp_dir "prismel-dependency-gate" "" in
+  Fun.protect ~finally:(fun () -> Sys.remove (Filename.concat fixture "dune");
+    Unix.rmdir fixture) (fun () ->
+    Out_channel.with_open_text (Filename.concat fixture "dune") (fun out ->
+      output_string out "; ignored comment\n(library (name editor_document) (package prismel)\n\
+        (libraries \"fixture.bridge\"))\n\
+        (library (name bridge) (public_name \"fixture.bridge\") (libraries pxui))\n\
+        (library (name pxui))\n(executable (name ignored) (libraries editor_document))\n");
+    let fixture_graph = graph [fixture] in
+    if List.assoc "editor_document" fixture_graph <> ["bridge"]
+        || List.assoc "bridge" fixture_graph <> ["pxui"]
+        || List.length fixture_graph <> 3 then
+      failwith "dune reader lost quoted/public/private library dependencies";
+    if violations fixture_graph ~scan:[] = [] then
+      failwith "gate accepted a parsed transitive presentation dependency";
+    let allowed = List.map (fun (name, dependencies) ->
+      name, if name = "bridge" then [] else dependencies) fixture_graph in
+    if violations allowed ~scan:[] <> [] then
+      failwith "gate rejected the UI-free private document fixture");
   let has_library_field path name key value =
     parse (read path) |> List.exists (function
       | List (Atom "library" :: fields) ->
@@ -228,7 +250,10 @@ let run () =
      "pdk_curve", "pdk_gen"; "pdk_mesh", "pdk_boolean"; "pdk_boolean", "pdk";
      "pdk_core", "prismel";
      "prismel_math", "prismel"; "prismel_execution", "runtime_input";
-     "prismel", "sdl3_ttf"];
+     "prismel", "sdl3_ttf";
+     "editor_document", "pxui"; "editor_document", "pxui_shell";
+     "editor_document", "pxui_graph"; "editor_document", "sketch_support";
+     "editor_document", "prismel_editor"];
   if violations graph ~scan:["lib/prismel/injected.ml", "let x = Metal.Device.system_default"] = []
      || violations graph ~scan:["lib/prismel/injected.ml", "open Ogpu_metal_native"] = []
      || violations graph ~scan:["lib/prismel/injected.ml", "open Ogpu_metal"] = [] then

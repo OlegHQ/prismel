@@ -100,9 +100,53 @@ let measure nodes =
   if E.can_redo !environment |> not then failwith "undo did not step the history";
   E.close !environment
 
+let measure_world () =
+  let open Prismel in
+  let module E = Prismel_editor.Editor3 in
+  Parallel.run ~domains:1 (fun () ->
+    let environment = ref (E.create ~domains:1 ~graph:(Sop.points [||])
+      ~world:{ World.default with layers = []; background = World.Transparent }
+      ~camera:(Easy_camera.create ~inertia:false ())
+      ~prepare:(fun _ _ -> Ok ()) ~scene3:(fun _ () -> Scene3.empty) () |> Result.get_ok) in
+    Fun.protect ~finally:(fun () -> E.close !environment) (fun () ->
+      let input count x events = { (frame ~mouse:(100, 300) ~buttons:[Input.LeftButton]
+          ~events count) with width = 900; height = 640; size = 900, 640;
+          drawable_width = 900; drawable_height = 640; drawable_size = 900, 640;
+          mouse = x, 300.; mouse_delta = 0.02, 0.; keys = [Input.Shift] } in
+      let deadline = Unix.gettimeofday () +. 2. in
+      while E.prepared !environment = None do
+        if Unix.gettimeofday () >= deadline then failwith "initial cook did not settle";
+        environment := E.update !environment (frame 0);
+        Unix.sleepf 0.001
+      done;
+      environment := E.update !environment { (input 1 100.
+        [Event.MousePressed (Input.LeftButton, (100., 300.))]) with mouse_delta = 0., 0. };
+      let samples = Array.make 16 0. in
+      Gc.full_major ();
+      let allocated = Gc.allocated_bytes () in
+      Array.iteri (fun index _ ->
+        let x = 100. +. float (index + 1) *. 0.02 in
+        let input = input (index + 2) x [Event.MouseMoved (x, 300.)] in
+        let started = Unix.gettimeofday () in
+        environment := E.update !environment input;
+        samples.(index) <- Unix.gettimeofday () -. started) samples;
+      let bytes = Gc.allocated_bytes () -. allocated in
+      let rotation = E.scene_document !environment |> Edit_graph.inspect
+        |> List.find_map (fun (info : Edit_graph.node_info) ->
+          if info.operation <> "world" then None else Node.parameter_fields info.node
+          |> List.find_map (fun (field : Parameter.field_view) -> match field.name, field.current with
+            | "rotation", Parameter.Float_value value -> Some value | _ -> None)) |> Option.get in
+      if abs_float (rotation -. 0.16) > 1e-9 then failwith "World input benchmark did not rotate 0.16 degrees";
+      report "prismel_editor_world_frame" 1 samples bytes))
+
 let () =
+  if Array.to_list Sys.argv = [Sys.argv.(0); "--world"] then begin
+    print_endline "name,objects,median_s,p95_s,bytes_per_frame";
+    for _ = 1 to 3 do measure_world () done
+  end else begin
   let sizes = match Array.to_list Sys.argv with
     | _ :: (_ :: _ as sizes) -> List.map int_of_string sizes
     | _ -> [200; 2_000] in
   print_endline "name,nodes,median_s,p95_s,bytes_per_frame";
   List.iter measure sizes
+  end

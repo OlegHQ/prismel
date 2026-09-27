@@ -1,4 +1,5 @@
 
+open Editor_document
 module Settings = Settings
 
 type layout = Pxui_shell.Layout.config = {
@@ -65,6 +66,7 @@ module Editor2 = struct
 end
 
 module Private = struct
-  module Workspace = Workspace module Leader = Leader module Schedule = Schedule
+  module Leader = Leader module Schedule = Schedule
   module Document = Document module Preset = Preset
+  module Cook = Cook
 end

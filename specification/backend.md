@@ -98,7 +98,7 @@ native handles in its public API.
 The dependency-free `param` library owns typed parameter schemas
 (`Procedural.Parameter` and `Editor_core.Param` are aliases of it), so
 `Pxui_shell.Inspector` renders SOP nodes and plain sketch records alike
-without the geometry stack. The pure `editor_core` library owns bounded,
+without the geometry stack. The `editor_core` library owns bounded,
 labelled undo history with explicit edit merge rules, named commands, key
 routing, and atomic JSON storage. Sketch hosts use
 `Editor_core.History`, `Editor_core.Router`, and `Editor_core.Store`;
@@ -112,7 +112,15 @@ headers, and focus outline. Layout geometry is pure and has no mutable cache
 inside the PXUI frame. Its which-key panel reads generic editor commands, while its
 timeline and prompt widgets return requests without knowing about SOPs or
 presets. `Shell.frame` owns the workspace's PXUI frame calls. `prismel_editor`
-supplies commands, playback state, and preset data. PXUI hit ancestry reports
+supplies commands, playback state, and preset data. The one private
+`editor_document` library contains Document, Settings, Objects, Layers and
+Preset. Its package-private status and dependency gate enforce a transitive
+ban on PXUI, shell, graph presentation, sketch_support and prismel_editor.
+`Network_view` remains the host's graph-presentation adapter.
+Loaded documents validate before installation and current levels resolve
+after load, undo, and removal. The host reduces stable-ID pane edits after UI
+construction and records every edit path through its commit helper.
+PXUI hit ancestry reports
 presses on child controls to their pane roots; the sketch host reads those
 signals for pane focus. When a click and scoped key share a frame, the router
 reads the same PXUI hit tree before building the frame. `prismel_editor`'s shared

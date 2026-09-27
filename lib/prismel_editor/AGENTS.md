@@ -5,11 +5,11 @@
 
 ## Editor layering (plan U, shipped)
 
-- Foundations live in the pure `editor_core` library: `History` (undo with
+- State and routing live in `editor_core`: `History` (undo with
   explicit merge rules), `Command` (one pure-data entry type, `id`, `label`,
   optional `trigger` and `scope`, `action`, for dispatch, which-key, and the
   palette), `Router` (text focus, leader, chords, and the fly mode layer)
-  and `Store` (the one save format). Chrome lives in `pxui_shell`: layout,
+  and `Store` (JSON file persistence). Chrome lives in `pxui_shell`: layout,
   splitters, pane roots, which-key, prompts, status and timeline bars, and
   `Shell.frame`, the only `Ui.frame` caller.
 - Panes return intents; `Core.update` is the one dispatcher. Code inside
@@ -24,7 +24,9 @@
   thing `Editor_core.History` (128 entries) snapshots; `Core.doc` is always
   its present. Each network's tile layout is an int-keyed map updated per
   frame from the ids `Doc.apply` reports placed, moved, or deleted
-  (`Document.edit`); never walk every tile on an edit frame.
+  (`Network_view.edit`); never walk every tile on an edit frame. UI-free
+  Document, Settings, Objects, Layers and Preset live in the private
+  `editor_document` library, whose transitive presentation ban is gated.
 - Scene objects are nodes of the scene `Edit_graph` (input 0 = parent,
   parameters = transform and kind settings; `Objects`, `Layers`), so graph,
   list, inspector, handles, presets, and undo have one path. Never add a
@@ -33,7 +35,9 @@
   are applied when composing drawings, never inside SOP networks, so scene
   edits never re-cook (`Async_cook.submit_all` cooks every visible
   geometry object in one job). See `specification/scene.md`. Graph intents go through `Doc.apply`; each recorded entry has a
-  label (`intent_label`), shown as "Undo <label>". Selection, hover, and an
+  label (`intent_label`), shown as "Undo <label>". All panes emit stable-ID
+  edits during construction; Core reduces and commits after `Ui.frame`.
+  Gesture keys name the operation, level, node(s) and fields. Selection, hover, and an
   unlinked viewport camera are view state; a camera node that follows the
   viewport records camera moves as one `Burst` entry. Cooking and framing
   live in `Cook`; `prepare` receives the settings snapshot. Camera math lives
@@ -48,7 +52,8 @@
   `Viewport2` are its instances; `Editor3`/`Editor2` only rename the
   draw callback. Add dimensional behavior to a viewport, never a second
   update path.
-- `Prismel_editor.Private` (`Workspace`, `Leader`) is unstable and test-only.
+- `Prismel_editor.Private` is unstable and test-only. Layout and chrome callers
+  use `Pxui_shell.Layout` and `Pxui_shell.Chrome` directly.
 
 ## Adapters
 

@@ -35,39 +35,11 @@ type layout = Pxui_shell.Layout.config = {
 (** Default 45% view, 35% graph, and 20% inspector proportions. *)
 val default_layout : layout
 
-(** Workspace compatibility facade and leader-key internals, exposed for tests.
+(** Editor internals exposed for tests and diagnostics.
     Layout and chrome live in [Pxui_shell]; sketches use [Editor3]/[2]. *)
 module Private : sig
-  module Workspace : sig
-    type column = View | Graph | Inspector | Timeline
-    (** [Timeline] is the full-width bottom bar, collapsed (hidden) by default. *)
-
-    type bounds = int * int * int * int
-    type t
-
-    type panes = {
-      view : bounds;
-      graph : bounds;
-      inspector : bounds;
-      status : bounds;
-      timeline : bounds;  (** zero height while collapsed *)
-      view_header : bounds;
-      graph_header : bounds;
-      inspector_header : bounds;
-    }
-
-    val create : layout -> t
-    val geometry : t -> Prismel.Frame.t -> panes
-    val collapsed : t -> column -> bool
-    val toggle : column -> t -> t
-    val expand : column -> t -> t
-
-    (** Build and paint the workspace chrome inside [Pxui.Ui.frame]: pane
-        backgrounds, resize splitters, and header bars with collapse buttons.
-        Splitter proportions survive subsequent resizes. *)
-    val update : t -> Pxui.Ui.t -> Prismel.Frame.t -> t
-  end
-
+  (** Unstable test and diagnostic hooks. These are outside the supported
+      sketch API and may change without compatibility shims. *)
   (** Helix-style leader keys. Space (while no text field is focused) opens a
       centered which-key panel; the next key runs a binding from the global
       scope or from the focused pane, the one last clicked. Escape, Space, an
@@ -87,7 +59,7 @@ module Private : sig
       | Command_palette
       | Sketch_command of string
 
-    type command = (Workspace.column, action) Editor_core.Command.t
+    type command = (Pxui_shell.Layout.column, action) Editor_core.Command.t
 
     type state = Editor_core.Router.state = Idle | Pending of string
 
@@ -115,8 +87,8 @@ module Private : sig
   module Document : sig
     type t
     val scene_graph : t -> Procedural.Edit_graph.t
-    val object_network : t -> int -> (Procedural.Edit_graph.t * int) option
-    (** An object's network and display node. *)
+    val object_network : t -> int -> (Procedural.Edit_graph.t * int option) option
+    (** An object's network and display node; [None] for an empty network. *)
 
     val positions : t -> int -> (int * float * float) list option
   end
@@ -144,6 +116,38 @@ module Private : sig
       ?live:bool -> t -> graphs:Procedural.Graph.t list -> effects:Procedural.Parameter.effects ->
       context_changed:bool -> force:bool -> busy:bool -> frame:Prismel.Frame.t ->
       t * bool
+  end
+
+  (** Host cook boundary, exposed for deterministic worker tests and measurements. *)
+  module Cook : sig
+    type bounds = Prismel.Vec3.t * Prismel.Vec3.t
+    type 'prepared piece = {
+      id : int;
+      graph : Procedural.Graph.t;
+      prepared : 'prepared;
+      bounds : bounds option;
+      settings : Settings.t;
+      context : string;
+    }
+    type 'prepared t
+    type 'prepared update = {
+      cook : 'prepared t;
+      edit_error : string option;
+      prepared_changed : bool;
+      framed : bounds option option;
+    }
+    val create : prepare:(Settings.t -> Procedural.Session.output -> ('a, string) result) ->
+      seed:int64 -> grain:int -> ?domains:int -> max_entries:int -> max_payload_bytes:int ->
+      unit -> ('a t, string) result
+    val status : 'a t -> Procedural.Async_cook.status
+    val pieces : 'a t -> 'a piece list
+    val force : 'a t -> 'a t
+    val update : ?live:bool -> 'a t -> settings:Settings.t ->
+      objects:(int * Procedural.Edit_graph.t * int) list -> edit_error:string option ->
+      effects:Procedural.Parameter.effects -> timeline_changes:Sketch_support.Timeline.change list ->
+      timeline:Sketch_support.Timeline.t -> frame:Prismel.Frame.t ->
+      frame_request:(int * int) option -> 'a update
+    val close : 'a t -> unit
   end
 end
 
@@ -197,7 +201,11 @@ module Editor3 : sig
     unit ->
     ('prepared t, string) result
   (** [lens] is the default camera object's depth of field (pinhole
-      otherwise). *)
+      otherwise). [prepare] runs on the cook worker domain with submission settings.
+      It must only do pure CPU work on immutable/disjointly owned data;
+      SDL, Metal, textures, fonts, audio, UI and runtime caches stay on the
+      initial domain. [scene3] and [overlay] run on the initial domain. *)
+
   val update : 'prepared t -> Prismel.Frame.t -> 'prepared t
 
   val update_with :
@@ -220,8 +228,11 @@ module Editor3 : sig
      the sketch's line, e.g. renderer stats); keep view overlays for pictures. *)
   (* [?commands] (on [create]/[run]) add sketch [Editor_core.Command]s to the
      same table as the built-ins: triggers join key routing and which-key, and
-     every command is in the palette ([Space /]). A command's [action] gets
-     this environment after the frame. *)
+     scoped commands appear while their pane has focus. A command's [action]
+     gets this environment after the frame. [create] rejects reserved IDs,
+     overlapping triggers and leader prefixes, and aliases with different
+     action closures. Bind each alias to the same action value. Chord keys
+     and leader sequences are case-insensitive; modifier lists are normalized. *)
 
   (** The workspace keeps one [Editor_core.History] history of the editable document:
       graph edits and inspector commits are entries, continuous slider drags
@@ -298,7 +309,7 @@ module Editor3 : sig
       orbit input is frozen unless the active camera follows the viewport. *)
 
   val timeline : 'prepared t -> Sketch_support.Timeline.t
-  val panes : 'prepared t -> Prismel.Frame.t -> Private.Workspace.panes
+  val panes : 'prepared t -> Prismel.Frame.t -> Pxui_shell.Layout.panes
   val graph_nodes : 'prepared t -> Pxui_graph.node_view list
 
   (** {2 Scene}
@@ -391,6 +402,10 @@ module Editor2 : sig
     ?status:('prepared option -> string option) ->
     unit ->
     ('prepared t, string) result
+  (** [prepare] runs on the cook worker domain with submission settings.
+      It must only do pure CPU work on immutable/disjointly owned data;
+      SDL, Metal, textures, fonts, audio, UI and runtime caches stay on the
+      initial domain. [scene2] and [overlay] run on the initial domain. *)
 
   val update : 'prepared t -> Prismel.Frame.t -> 'prepared t
   val update_with :
@@ -419,7 +434,7 @@ module Editor2 : sig
   val prepared : 'prepared t -> 'prepared option
   val camera : 'prepared t -> Prismel.Easy_camera2.t
   val timeline : 'prepared t -> Sketch_support.Timeline.t
-  val panes : 'prepared t -> Prismel.Frame.t -> Private.Workspace.panes
+  val panes : 'prepared t -> Prismel.Frame.t -> Pxui_shell.Layout.panes
   val graph_nodes : 'prepared t -> Pxui_graph.node_view list
 
   val run :

@@ -283,7 +283,7 @@ let stack (network : Document.network) =
              && not (List.exists (fun other -> Node.id other = Option.get inputs.(0)) acc) ->
              down (Option.get inputs.(0)) acc
          | _ -> acc) in
-  down network.displayed []
+  Option.fold ~none:[] ~some:(fun id -> down id []) network.displayed
 
 (* The World a scene-level world node and its layer network describe;
    [time] (seconds) advances the time of day by the node's day cycle. *)
@@ -376,5 +376,6 @@ let network_of_world world =
       Ok (Some graph, Some (Node.id node))) (Ok (None, None)) layers in
   match graph, top with
   | Some graph, Some top ->
-      Ok { Document.graph; layout = Document.Layout.empty; displayed = top }
-  | _ -> Error "a World needs at least one layer"
+      Ok { Document.graph; layout = Document.Layout.empty; displayed = Some top }
+  | _ -> Ok { Document.graph = Edit_graph.empty; layout = Document.Layout.empty;
+              displayed = None }

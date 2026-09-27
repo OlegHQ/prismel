@@ -4,7 +4,7 @@ module Param = Param
 module History = struct
   type merge =
     | Step
-    | Gesture of int
+    | Gesture of string
     | Burst of { key : string; at : float; window : float }
     | Repair
 
@@ -127,16 +127,24 @@ module Router = struct
     | Prismel.Input.Meta -> true
     | _ -> false
 
-  let step keymap ~focus ~text_focus ~(frame : Prismel.Frame.t) state =
+  let step ?(previous_keys = []) keymap ~focus ~text_focus ~(frame : Prismel.Frame.t) state =
     let open Prismel in
     if text_focus then Idle, [], frame else
-    let command = List.mem Input.Meta frame.keys || List.mem Input.Ctrl frame.keys in
+    let modifiers = ref (Event.Private.keys_before ~previous:previous_keys
+      ~held:frame.keys frame.events) in
+    let traversing = ref false in
     let state, actions, passed = List.fold_left (fun (state, actions, passed) event ->
-      match state, event with
+      modifiers := Event.Private.keys_after !modifiers event;
+      let command = List.mem Input.Meta !modifiers || List.mem Input.Ctrl !modifiers in
+      if !traversing then Idle, actions, event :: passed else match state, event with
+      | _, Event.KeyPressed Input.Tab when not command
+          && chord keymap focus !modifiers Input.Tab = None ->
+          traversing := true;
+          Idle, actions, event :: passed
       | Idle, Event.KeyPressed Input.Space when not text_focus && not command ->
           Pending "", actions, passed
       | Idle, Event.KeyPressed key when not text_focus ->
-          (match chord keymap focus frame.keys key with
+          (match chord keymap focus !modifiers key with
            | Some action -> Idle, action :: actions, passed
            | None -> Idle, actions, event :: passed)
       | Idle, _ -> Idle, actions, event :: passed

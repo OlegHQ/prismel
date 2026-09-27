@@ -14,4 +14,19 @@ let key text=match String.lowercase_ascii text with
   |"insert"->Insert|"delete"->Delete
   |value when String.length value=1->KeyChar value.[0]
   |_->Unknown(Hashtbl.hash text)
-module Private=struct let key_of_name=key end
+module Private = struct
+  let key_of_name = key
+  let add key keys = if List.mem key keys then keys else key :: keys
+  let keys_after keys = function
+    | KeyPressed key -> add key keys
+    | KeyReleased key -> List.filter (( <> ) key) keys
+    | WindowFocusLost -> []
+    | _ -> keys
+
+  let keys_before ~previous ~held events =
+    List.fold_left (fun keys event -> match event with
+      | KeyPressed key | KeyReleased key ->
+          if List.mem key previous then add key keys else List.filter (( <> ) key) keys
+      | WindowFocusLost -> previous
+      | _ -> keys) held events
+end

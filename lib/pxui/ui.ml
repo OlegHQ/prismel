@@ -112,6 +112,10 @@ let focusable = 2
 let scroll = 4
 let clip = 8
 let blocking = 16
+(* Kit controls enter keyboard mode through Tab; pointer editing retains the
+   existing host shortcut behavior. Text-entry rows also focus on a press. *)
+let tab_only = 32
+let tab_stop = focusable lor tab_only
 let add = Stdlib.( + )
 let hit_flags = clickable lor focusable lor scroll lor blocking
 
@@ -196,13 +200,14 @@ and ui = {
   (* input *)
   mutable pointer : float * float;
   mutable hot : int;
-  mutable active : int;
+  mutable active : int option;  (* Some 0: unconsumed background gesture *)
   mutable active_button : Input.mouse_button;
   mutable active_press : float * float;
+  mutable active_keys : Input.key list;
   mutable focus : int;
+  mutable keyboard_focus : bool;
   mutable composition : string;
-  mutable command_down : bool;
-  mutable shift_down : bool;
+  mutable previous_keys : Input.key list;
   mutable edit_focus : int;
   mutable edit_value : string;
   mutable edit_caret : int;
@@ -210,10 +215,15 @@ and ui = {
   mutable requested_cursor : [`Horizontal_resize|`Vertical_resize] option;
   (* this frame's raw events and logical size, for modal dismissal *)
   mutable frame_events : Event.t list;
+  mutable input_frame : Frame.t option;
+  mutable routed_events : (int * Event.t * (float * float)) list;
+  mutable cancelled : Input.mouse_button list;
+  mutable modal_key : int option;
+  mutable modal_in_frame : bool;
   mutable view_w : float;
   mutable view_h : float;
   (* last laid-out height per modal key, kept while the modal is closed *)
-  modal_heights : (int, float) Hashtbl.t;
+  modal_heights : (int, float * int) Hashtbl.t;
   signals : accumulator Int_table.t;
   (* previous frame's hit list, in paint order *)
   mutable hit_count : int;
@@ -243,7 +253,8 @@ and accumulator = {
   mutable button : Input.mouse_button option;
   mutable scroll_x : float;
   mutable scroll_y_steps : float;
-  mutable keys : Event.t list;
+  mutable keys : (Event.t * Input.key list) list;
+  mutable press_keys : Input.key list;
 }
 
 (* ------------------------------------------------------ glyph atlas *)
@@ -456,12 +467,15 @@ let create ?(theme = Theme.default) ?font ?(font_size = Theme.font_size) () =
     l_ty = Array.make capacity 0.;
     parents = []; overlays = []; seeds = []; building = false; frame_number = 0; density = 1;
     kit_row_height = 24; kit_padding = 3;
-    pointer = (Float.nan, Float.nan); hot = 0; active = 0;
-    active_button = Input.LeftButton; active_press = (0., 0.); focus = 0; composition = "";
-    command_down = false; shift_down = false;
+    pointer = (Float.nan, Float.nan); hot = 0; active = None;
+    active_button = Input.LeftButton; active_press = (0., 0.); focus = 0;
+    keyboard_focus = false; composition = "";
+    previous_keys = []; active_keys = [];
     edit_focus = 0; edit_value = ""; edit_caret = 0; edit_anchor = 0;
     requested_cursor = None;
-    frame_events = []; view_w = 0.; view_h = 0.; modal_heights = Hashtbl.create 4;
+    frame_events = []; input_frame = None; routed_events = []; cancelled = [];
+    modal_key = None; modal_in_frame = false;
+    view_w = 0.; view_h = 0.; modal_heights = Hashtbl.create 4;
     signals = Int_table.create 16;
     hit_count = 0; hit_keys = [||]; hit_parent = [||]; hit_flags_of = [||];
     hit_x = [||]; hit_y = [||]; hit_w = [||]; hit_h = [||];
@@ -536,13 +550,17 @@ let prune ui =
       if ui.focus = key then begin
         ui.focus <- 0; ui.composition <- ""; ui.edit_focus <- 0
       end;
-      if ui.active = key then ui.active <- 0
+      if ui.active = Some key then begin
+        ui.cancelled <- ui.active_button :: ui.cancelled; ui.active <- None
+      end;
+      if ui.hot = key then ui.hot <- 0
     end
   done
 
 (* -------------------------------------------------------------- input *)
 
 let contains (x, y, w, h) (px, py) = px >= x && py >= y && px < x +. w && py < y +. h
+let command_modifiers keys = List.mem Input.Meta keys || List.mem Input.Ctrl keys
 
 let accumulator ui key =
   match Int_table.find_opt ui.signals key with
@@ -552,7 +570,8 @@ let accumulator ui key =
         released = false; clicked = false;
         double_clicked = false; moved = false; drag_x = 0.; drag_y = 0.;
         press_point = (0., 0.); release_point = (0., 0.); button = None;
-        scroll_x = 0.; scroll_y_steps = 0.; keys = [] } in
+        scroll_x = 0.; scroll_y_steps = 0.; keys = [];
+        press_keys = if ui.active = Some key then ui.active_keys else [] } in
       Int_table.replace ui.signals key value;
       value
 
@@ -569,6 +588,11 @@ let rec hit_ancestors ui key f =
     let index = hit_index ui key in
     if index >= 0 then hit_ancestors ui ui.hit_parent.(index) f
   end
+
+let rec hit_within ui key ancestor =
+  key = ancestor || (key <> 0 &&
+    let index = hit_index ui key in
+    index >= 0 && hit_within ui ui.hit_parent.(index) ancestor)
 
 let hit_contains ui index point =
   contains (ui.hit_x.(index), ui.hit_y.(index), ui.hit_w.(index), ui.hit_h.(index))
@@ -604,46 +628,100 @@ let scroll_target ui point =
     else search (index - 1) in
   search (ui.hit_count - 1)
 
+let traverse_focus ui ~shift =
+  let eligible index = ui.hit_flags_of.(index) land focusable <> 0
+    && Option.fold ~none:true ~some:(fun modal ->
+      hit_within ui ui.hit_keys.(index) modal) ui.modal_key in
+  let current = hit_index ui ui.focus in
+  let direction = if shift then -1 else 1 in
+  let start = if current >= 0 then current
+    else if direction < 0 then 0 else ui.hit_count - 1 in
+  let rec seek distance =
+    if distance > ui.hit_count then () else
+      let index = (start + (direction * distance) + ui.hit_count) mod ui.hit_count in
+      if eligible index then begin
+        ui.focus <- ui.hit_keys.(index); ui.keyboard_focus <- true;
+        ui.composition <- ""; ui.edit_focus <- 0
+      end else seek (distance + 1) in
+  seek 1
+
 let route ui (frame : Frame.t) =
   Int_table.reset ui.signals;
   ui.requested_cursor <- None;
   ui.frame_events <- frame.events;
-  ui.command_down <- List.mem Input.Meta frame.keys || List.mem Input.Ctrl frame.keys;
-  ui.shift_down <- List.mem Input.Shift frame.keys;
+  ui.input_frame <- Some frame;
+  ui.routed_events <- []; ui.cancelled <- [];
+  ui.modal_in_frame <- ui.modal_key <> None;
+  let modifiers = ref (Event.Private.keys_before ~previous:ui.previous_keys
+    ~held:frame.keys frame.events) in
+  ui.previous_keys <- frame.keys;
   ui.view_w <- float frame.width; ui.view_h <- float frame.height;
   let set_pointer point = ui.pointer <- point in
-  List.iteri (fun event_index (event : Event.t) -> match event with
+  let modal_target target = match ui.modal_key with
+    | Some modal when not (hit_within ui target modal) -> modal
+    | _ -> target in
+  let pointer_target point =
+    match ui.active with Some target -> target | None -> modal_target (topmost ui point) in
+  List.iteri (fun event_index (event : Event.t) ->
+    modifiers := Event.Private.keys_after !modifiers event;
+    let command = command_modifiers !modifiers in
+    (match event with
+     | Event.KeyPressed Input.Tab when not command ->
+         traverse_focus ui ~shift:(List.mem Input.Shift !modifiers)
+     | _ -> ());
+    let owner, delta = match event with
+      | Event.MouseMoved ((x, y) as point) ->
+          pointer_target point,
+          (if Float.is_finite (fst ui.pointer) then x -. fst ui.pointer, y -. snd ui.pointer
+           else 0., 0.)
+      | MousePressed (_, point) | MouseReleased (_, point) -> pointer_target point, (0., 0.)
+      | MouseScrolled _ ->
+          let target = match ui.active with Some target -> target
+            | None -> let scroll = scroll_target ui ui.pointer in
+                modal_target (if scroll <> 0 then scroll else topmost ui ui.pointer) in
+          target, (0., 0.)
+      | KeyPressed Input.Tab when not command ->
+          (if ui.focus = 0 then 0x2c1b3c6d else ui.focus), (0., 0.)
+      | KeyPressed _ | KeyReleased _ | TextInput _ | TextEditing _ ->
+          ui.focus, (0., 0.)
+      | _ -> 0, (0., 0.) in
+    ui.routed_events <- (owner, event, delta) :: ui.routed_events;
+    match event with
     | Event.MouseMoved point ->
         let px, py = ui.pointer in
         set_pointer point;
-        if ui.active <> 0 then begin
-          let value = accumulator ui ui.active in
+        Option.iter (fun active ->
+          let value = accumulator ui active in
           let x, y = ui.pointer in
           if Float.is_finite px then begin
             value.drag_x <- value.drag_x +. (x -. px);
             value.drag_y <- value.drag_y +. (y -. py)
           end;
           value.moved <- true
-        end
+        ) ui.active
     | Event.MousePressed (button, point) ->
         set_pointer point;
-        let target = topmost ui ui.pointer in
+        let target = owner in
         hit_ancestors ui target (fun key ->
           (accumulator ui key).subtree_press <- Some event_index);
         let flags = flags_of_key ui target in
         if button = Input.LeftButton then begin
-          let focus = if flags land focusable <> 0 then target else 0 in
+          let focus = if flags land focusable <> 0 && flags land tab_only = 0
+            then target else 0 in
           if focus <> ui.focus then begin
             ui.composition <- ""; ui.edit_focus <- 0
           end;
-          ui.focus <- focus
+          ui.focus <- focus;
+          ui.keyboard_focus <- false
         end;
-        if flags land clickable <> 0 && ui.active = 0 then begin
-          ui.active <- target; ui.active_button <- button;
+        if (target = 0 || flags land clickable <> 0) && ui.active = None then begin
+          ui.active <- Some target; ui.active_button <- button;
           ui.active_press <- ui.pointer;
+          ui.active_keys <- !modifiers;
           let value = accumulator ui target in
           value.pressed <- true;
           value.press_point <- ui.pointer;
+          value.press_keys <- !modifiers;
           value.button <- Some button;
           let slot = Table.find ui.table target in
           if slot >= 0 && button = Input.LeftButton then begin
@@ -660,21 +738,23 @@ let route ui (frame : Frame.t) =
         end
     | Event.MouseReleased (button, point) ->
         set_pointer point;
-        if ui.active <> 0 && button = ui.active_button then begin
-          let value = accumulator ui ui.active in
+        (match ui.active with
+        | Some active when button = ui.active_button ->
+          let value = accumulator ui active in
           value.released <- true;
           value.release_point <- ui.pointer;
           value.press_point <- ui.active_press;
+          value.press_keys <- ui.active_keys;
           value.button <- Some button;
-          let index = hit_index ui ui.active in
+          let index = hit_index ui active in
           if button = Input.LeftButton && index >= 0
              && hit_contains ui index ui.pointer
              && hit_contains ui index ui.active_press
           then value.clicked <- true;
-          ui.active <- 0
-        end
+          ui.active <- None
+        | _ -> ())
     | Event.MouseScrolled (horizontal, vertical) ->
-        let target = scroll_target ui ui.pointer in
+        let target = modal_target (scroll_target ui ui.pointer) in
         if target <> 0 then begin
           let value = accumulator ui target in
           value.scroll_x <- value.scroll_x +. horizontal;
@@ -682,21 +762,28 @@ let route ui (frame : Frame.t) =
         end
     (* Cancellation ends capture without a release: no click, no commit. *)
     | Event.PointerCancelled button ->
-        if button = ui.active_button then ui.active <- 0
+        if button = ui.active_button then ui.active <- None
     | Event.WindowFocusLost ->
-        ui.active <- 0; ui.focus <- 0; ui.hot <- 0; ui.composition <- "";
-        ui.edit_focus <- 0
+        ui.active <- None; ui.focus <- 0; ui.hot <- 0; ui.composition <- "";
+        ui.edit_focus <- 0; ui.keyboard_focus <- false
     | Event.KeyPressed _ | Event.KeyReleased _ | Event.TextInput _
     | Event.TextEditing _ ->
         if ui.focus <> 0 then begin
           let value = accumulator ui ui.focus in
-          value.keys <- event :: value.keys;
+          value.keys <- (event, !modifiers) :: value.keys;
+          (match event with
+           | Event.KeyPressed (Input.Enter | Space | KeyChar ' ')
+               when not command -> value.clicked <- true
+           | _ -> ());
           (match event with
            | Event.TextEditing { text; _ } -> ui.composition <- text
            | Event.TextInput _ -> ui.composition <- ""
+           | Event.KeyPressed Input.Escape when flags_of_key ui ui.focus land tab_only <> 0 ->
+               ui.focus <- 0; ui.keyboard_focus <- false; ui.edit_focus <- 0
            | _ -> ())
         end
     | _ -> ()) frame.events;
+  ui.routed_events <- List.rev ui.routed_events;
   Int_table.iter (fun _ value -> value.keys <- List.rev value.keys) ui.signals;
   let mouse_x, mouse_y = frame.mouse in
   if not (Float.is_finite (fst ui.pointer)) then
@@ -704,11 +791,41 @@ let route ui (frame : Frame.t) =
   ui.hot <- (if List.exists (function Event.WindowFocusLost -> true | _ -> false)
       frame.events then 0 else topmost ui ui.pointer)
 
-let wants_pointer ui = ui.hot <> 0 || ui.active <> 0
+let wants_pointer ui = ui.hot <> 0 || Option.fold ~none:false ~some:(( <> ) 0) ui.active
 let cursor ui = ui.requested_cursor
 let request_cursor ui shape = ui.requested_cursor <- Some shape
 let text_input_focused ui = ui.focus <> 0
-let unfocus ui = ui.focus <- 0; ui.composition <- ""; ui.edit_focus <- 0
+let unfocus ui = ui.focus <- 0; ui.composition <- ""; ui.edit_focus <- 0;
+  ui.keyboard_focus <- false
+
+let dismiss_popup ui =
+  ui.modal_key <- None;
+  unfocus ui;
+  if ui.active <> None then begin
+    ui.cancelled <- ui.active_button :: ui.cancelled; ui.active <- None
+  end
+
+(* Event ownership is recorded before release/cancellation clears capture.
+   A viewport passes its exact root key: child widgets retain their events. *)
+let input ?(owner = 0) ui =
+  let frame = match ui.input_frame with Some frame -> frame
+    | None -> invalid_arg "Ui.input: no frame has completed" in
+  let accepts target = not ui.modal_in_frame && (target = 0 || target = owner) in
+  let events, delta, complete = List.fold_left (fun (events, (dx, dy), complete)
+      (target, event, (mx, my)) -> match event with
+    | Event.WindowFocusLost | PointerCancelled _ -> event :: events, (dx, dy), complete
+    | _ when accepts target -> event :: events, (dx +. mx, dy +. my), complete
+    | MouseReleased (button, _) ->
+        Event.PointerCancelled button :: events, (dx, dy), false
+    | _ -> events, (dx, dy), false) ([], (0., 0.), true) ui.routed_events in
+  let held = Option.fold ~none:false ~some:accepts ui.active in
+  let pointer = held || (ui.active = None && frame.mouse_buttons = [] && accepts ui.hot) in
+  let cancelled = ui.cancelled @ (if ui.modal_in_frame then frame.mouse_buttons else []) in
+  { frame with events = List.rev events @ List.map (fun button -> Event.PointerCancelled button) cancelled;
+    keys = if ui.modal_in_frame || ui.focus <> 0 then [] else frame.keys;
+    mouse_buttons = if held then frame.mouse_buttons else [];
+    mouse_delta = if not pointer then 0., 0.
+      else if complete then frame.mouse_delta else delta }
 
 (* -------------------------------------------------------------- boxes *)
 
@@ -850,7 +967,7 @@ type signal = {
 
 let signal ui box =
   let key = box.box_key in
-  let held = ui.active = key in
+  let held = ui.active = Some key in
   match Int_table.find_opt ui.signals key with
   | None ->
       { hovered = ui.hot = key; pressed = false; subtree_press = None;
@@ -877,7 +994,16 @@ let signal ui box =
           | Some _ as button -> button
           | None -> if held then Some ui.active_button else None);
         scroll = (value.scroll_x, value.scroll_y_steps);
-        keys = value.keys }
+        keys = List.map fst value.keys }
+
+let key_events ui box = match Int_table.find_opt ui.signals box.box_key with
+  | None -> [] | Some value -> value.keys
+
+let press_keys ui box = match Int_table.find_opt ui.signals box.box_key with
+  | None -> if ui.active = Some box.box_key then ui.active_keys else []
+  | Some value -> value.press_keys
+
+let press_shift ui box = List.mem Input.Shift (press_keys ui box)
 
 let focused ui box = ui.focus = box.box_key
 let focus ui box =
@@ -885,7 +1011,7 @@ let focus ui box =
     ui.composition <- ""; ui.edit_focus <- 0
   end;
   ui.focus <- box.box_key
-let active ui box = ui.active = box.box_key
+let active ui box = ui.active = Some box.box_key
 
 let scroll_offset ui box = ui.scroll_y.(box.box_slot)
 let set_scroll_offset ui box value = ui.scroll_y.(box.box_slot) <- value
@@ -1265,7 +1391,14 @@ let paint_all ui (frame : Frame.t) =
         else clip_rect in
       let parent_hit = if has_hit then ui.b_key.(index) else parent_hit in
       children ui index (fun child -> visit child child_clip parent_hit);
-      run ui.b_overlays.(index) index clip_rect
+      run ui.b_overlays.(index) index clip_rect;
+      if ui.keyboard_focus && ui.focus = ui.b_key.(index) then begin
+        paint.scale <- ui.l_scale.(index); paint.tx <- ui.l_tx.(index);
+        paint.ty <- ui.l_ty.(index); paint.clip_rect <- clip_rect;
+        Paint.stroke paint ~x:(ui.l_x.(index) +. 1.) ~y:(ui.l_y.(index) +. 1.)
+          ~w:(Float.max 0. (ui.l_w.(index) -. 2.))
+          ~h:(Float.max 0. (ui.l_h.(index) -. 2.)) ui.theme.accent
+      end
     end else
       (* Culled: keep retained rectangles current for [rect] queries. *)
       let rec retain index = children ui index (fun child ->
@@ -1299,6 +1432,7 @@ let frame ui (frame : Frame.t) f =
   ui.density <- max 1 (int_of_float (Float.round (Float.max scale_x scale_y)));
   ui.frame_number <- add ui.frame_number 1;
   route ui frame;
+  ui.modal_key <- None;
   ui.count <- 0;
   ui.building <- true;
   ui.parents <- []; ui.seeds <- [];
@@ -1364,7 +1498,7 @@ let splitter ui ?(axis = Row) ?(thickness = 6.) label =
 
 (* --------------------------------------------------------- kit widgets *)
 
-let kit_row ui ?(flags = clickable lor blocking) ?hit label =
+let kit_row ui ?(flags = clickable lor focusable lor blocking lor tab_only) ?hit label =
   box ui ~flags ~w:Grow ~h:(Px (float ui.kit_row_height)) ?hit label
 
 let ints (x, y, w, h) = int_of_float x, int_of_float y, int_of_float w, int_of_float h
@@ -1452,6 +1586,15 @@ let panel ui = panel_with ui
 let popup ui ?stroke ?max_height ?(dismiss_initial = true)
     ~at:(x, y) ~width ~height label f =
   let key = key_of (current_seed ui) label in
+  (* Build a popup before the body it shields. Previous popups arbitrate in
+     [route]; this also shields a newly opened/dismissed popup's frame. *)
+  ui.modal_in_frame <- true;
+  Int_table.filter_map_inplace (fun target signal ->
+    if hit_within ui target key then Some signal else None) ui.signals;
+  if Option.fold ~none:false ~some:(fun active -> not (hit_within ui active key)) ui.active then begin
+    ui.cancelled <- ui.active_button :: ui.cancelled; ui.active <- None
+  end;
+  if ui.focus <> 0 && not (hit_within ui ui.focus key) then unfocus ui;
   let slot = Table.find ui.table key in
   let rect = if slot >= 0 then ui.rx.(slot), ui.ry.(slot), ui.rw.(slot), ui.rh.(slot)
     else x, y, width, height in
@@ -1469,6 +1612,7 @@ let popup ui ?stroke ?max_height ?(dismiss_initial = true)
     Fun.protect ~finally:(fun () -> ui.parents <- parents) (fun () ->
       let result = panel_with ?stroke ?max_height ui ~x ~y ~width label f in
       ui.overlays <- index :: ui.overlays;
+      ui.modal_key <- Some key;
       Some result)
   end
 
@@ -1476,8 +1620,18 @@ let popup ui ?stroke ?max_height ?(dismiss_initial = true)
 let modal ui ?(width = 320.) label f =
   let key = key_of (current_seed ui) label in
   let slot = Table.find ui.table key in
-  if slot >= 0 then Hashtbl.replace ui.modal_heights key ui.rh.(slot);
-  let height = Option.value ~default:0. (Hashtbl.find_opt ui.modal_heights key) in
+  if slot >= 0 then begin
+    if not (Hashtbl.mem ui.modal_heights key) && Hashtbl.length ui.modal_heights >= 32 then begin
+      (* ponytail: scan at most 32 heights on insertion; use LRU if this
+         small working set ever needs a larger capacity. *)
+      let oldest = Hashtbl.fold (fun key (_, seen) oldest -> match oldest with
+        | Some (_, previous) when previous <= seen -> oldest
+        | _ -> Some (key, seen)) ui.modal_heights None in
+      Option.iter (fun (key, _) -> Hashtbl.remove ui.modal_heights key) oldest
+    end;
+    Hashtbl.replace ui.modal_heights key (ui.rh.(slot), ui.frame_number)
+  end;
+  let height = Option.fold ~none:0. ~some:fst (Hashtbl.find_opt ui.modal_heights key) in
   let x = Float.round (Float.max 0. ((ui.view_w -. width) /. 2.))
   and y = Float.round (Float.max 0. ((ui.view_h -. height) /. 2.)) in
   popup ui ~stroke:ui.theme.accent ~dismiss_initial:false ~at:(x, y)
@@ -1564,8 +1718,8 @@ let numeric_character = function
   | '0' .. '9' | '+' | '-' | '.' | 'e' | 'E' -> true
   | _ -> false
 
-let clipboard_command ui = function
-  | Event.KeyPressed (Input.KeyChar key) when ui.command_down ->
+let clipboard_command ~command = function
+  | Event.KeyPressed (Input.KeyChar key) when command ->
       Some (Char.lowercase_ascii key)
   | _ -> None
 
@@ -1593,28 +1747,30 @@ let replace_text edit inserted =
   edit.caret <- start + String.length inserted;
   edit.anchor <- edit.caret
 
-let point_text_caret ui edit signal ~x =
+let point_text_caret ui edit signal ~shift ~x =
   let at (px, _) = text_caret_at ui edit.text (max 0. (px -. x)) in
   if signal.pressed then begin
     let caret = at signal.press_point in
     edit.caret <- caret;
-    if not ui.shift_down then edit.anchor <- caret
+    if not shift then edit.anchor <- caret
   end;
   if signal.dragging then edit.caret <- at signal.pointer
 
-let edit_text_event ui edit ~accept event =
+let edit_text_event edit ~accept ~modifiers event =
+  let command = command_modifiers modifiers
+  and shift = List.mem Input.Shift modifiers in
   let selected () = edit.caret <> edit.anchor in
   let move target =
     edit.caret <- target;
-    if not ui.shift_down then edit.anchor <- target in
+    if not shift then edit.anchor <- target in
   match event with
-  | event when clipboard_command ui event = Some 'a' ->
+  | event when clipboard_command ~command event = Some 'a' ->
       edit.anchor <- 0; edit.caret <- String.length edit.text; false
-  | event when clipboard_command ui event = Some 'c' ->
+  | event when clipboard_command ~command event = Some 'c' ->
       let start, stop = text_selection edit in
       ignore (Clipboard.set_text (if selected () then
         String.sub edit.text start (stop - start) else edit.text)); false
-  | event when clipboard_command ui event = Some 'x' ->
+  | event when clipboard_command ~command event = Some 'x' ->
       let start, stop = text_selection edit in
       let copied = if selected () then
         String.sub edit.text start (stop - start) else edit.text in
@@ -1624,7 +1780,7 @@ let edit_text_event ui edit ~accept event =
         end;
         true
       end else false
-  | event when clipboard_command ui event = Some 'v' ->
+  | event when clipboard_command ~command event = Some 'v' ->
       (match Clipboard.get_text () with
        | Ok text when accept text -> replace_text edit text; true
        | Ok _ | Error _ -> false)
@@ -1636,12 +1792,12 @@ let edit_text_event ui edit ~accept event =
       if not (selected ()) then edit.anchor <- next_utf8 edit.text edit.caret;
       replace_text edit ""; true
   | Event.KeyPressed Input.ArrowLeft ->
-      move (if ui.command_down then 0 else if selected () && not ui.shift_down
+      move (if command then 0 else if selected () && not shift
         then fst (text_selection edit) else previous_utf8 edit.text edit.caret);
       false
   | Event.KeyPressed Input.ArrowRight ->
-      move (if ui.command_down then String.length edit.text
-        else if selected () && not ui.shift_down then snd (text_selection edit)
+      move (if command then String.length edit.text
+        else if selected () && not shift then snd (text_selection edit)
         else next_utf8 edit.text edit.caret);
       false
   | Event.KeyPressed Input.Home -> move 0; false
@@ -1676,7 +1832,10 @@ let paint_text_edit paint ~control:(cx, cy, cw, ch) ~y ~composition edit =
 
 (* Numeric label editing shared by float and integer sliders. The retained
    state records validity; [parse] validates the edit buffer. *)
-let numeric_editor ui row signal ~current ~parse =
+let rec numeric_editor ui row signal ~keys ~current ~parse =
+  let enter = function
+    | Event.KeyPressed Input.Enter, modifiers -> not (command_modifiers modifiers)
+    | _ -> false in
   let bounds = ints (rect ui row) in
   let control = value_control bounds in
   let inside_control point = contains (floats control) point in
@@ -1698,17 +1857,17 @@ let numeric_editor ui row signal ~current ~parse =
       let committed = ref None and state = ref state
       and cancelled = ref false in
       let (cx, _, _, _) = control in
-      point_text_caret ui edit signal ~x:(float (cx + 8));
-      List.iter (fun (event : Event.t) -> match event with
-        | Event.KeyPressed Input.Enter ->
+      point_text_caret ui edit signal ~shift:(press_shift ui row) ~x:(float (cx + 8));
+      List.iter (fun ((event : Event.t), modifiers) -> match event with
+        | Event.KeyPressed Input.Enter when not (command_modifiers modifiers) ->
             (match parse edit.text with
              | Some value -> committed := Some value
              | None -> state := 0)
         | Event.KeyPressed Input.Escape -> cancelled := true
         | event ->
-            if edit_text_event ui edit
+            if edit_text_event edit ~modifiers
                 ~accept:(String.for_all numeric_character) event then
-              state := if parse edit.text <> None then 1 else 0) signal.keys;
+              state := if parse edit.text <> None then 1 else 0) keys;
       if !cancelled then (finish (); unfocus ui; None, false)
       else (match !committed with
         | Some value -> finish (); unfocus ui; Some value, false
@@ -1717,25 +1876,43 @@ let numeric_editor ui row signal ~current ~parse =
             set edit.text ~valid:(!state land 1 <> 0);
             None, true)
   | None ->
-      if signal.double_clicked && not (inside_control signal.press_point) then begin
+      if (signal.double_clicked && not (inside_control signal.press_point))
+          || (focused ui row && List.exists enter keys) then begin
         let text = current () in
         set text ~valid:true;
         focus ui row;
         ui.edit_focus <- row.box_key; ui.edit_value <- text;
         ui.edit_caret <- String.length text; ui.edit_anchor <- 0;
-        None, true
+        let rec after_enter = function
+          | event :: rest when enter event -> rest
+          | _ :: rest -> after_enter rest | [] -> [] in
+        let keys = if signal.double_clicked then keys else after_enter keys in
+        numeric_editor ui row { signal with keys = List.map fst keys; pressed = false;
+          double_clicked = false } ~keys ~current ~parse
       end else None, false
 
-let slider_row ui text ~draw_value ~value_text ~fraction_of ~from_fraction ~parse
+let keyboard_fraction keys ~step value =
+  List.fold_left (fun value (event, modifiers) ->
+    let step = step *. (if List.mem Input.Shift modifiers then 10. else 1.) in
+    match event with
+    | Event.KeyPressed (Input.ArrowLeft | ArrowDown) ->
+        Float.max 0. (value -. step)
+    | Event.KeyPressed (Input.ArrowRight | ArrowUp) ->
+        Float.min 1. (value +. step)
+    | Event.KeyPressed Input.Home -> 0.
+    | Event.KeyPressed Input.End -> 1.
+    | _ -> value) value keys
+
+let slider_row ui text ~draw_value ~value_text ~fraction_of ~from_fraction ~step ~parse
     ~current value =
   let row = kit_row ui text in
   let signal = signal ui row in
   let bounds = ints (rect ui row) in
   let control = value_control bounds in
   let in_control point = contains (floats control) point in
-  let typed, editing = numeric_editor ui row signal ~current:(fun () -> current value)
+  let typed, editing = numeric_editor ui row signal ~keys:(key_events ui row)
+      ~current:(fun () -> current value)
       ~parse in
-  (* Only an open numeric editor takes keyboard focus. *)
   if editing then ui.b_flags.(row.index) <- clickable lor focusable lor blocking;
   let dragging = not editing && (signal.held || signal.released)
     && in_control signal.press_point in
@@ -1745,6 +1922,10 @@ let slider_row ui text ~draw_value ~value_text ~fraction_of ~from_fraction ~pars
         let x = if signal.released then fst signal.release_point
           else fst signal.pointer in
         from_fraction value (fraction_at control x)
+    | None when not editing ->
+        let fraction = fraction_of value in
+        let adjusted = keyboard_fraction (key_events ui row) ~step fraction in
+        if adjusted = fraction then value else from_fraction value adjusted
     | None -> value in
   let theme = ui.theme and shown = display text in
   let hovered = signal.hovered && in_control signal.pointer in
@@ -1781,7 +1962,7 @@ let slider ui text ~range:(low, high) value =
   if not (Float.is_finite low && Float.is_finite high) || high <= low then
     invalid_arg "Ui.slider: range must be finite and increasing";
   if not (Float.is_finite value) then invalid_arg "Ui.slider: value must be finite";
-  slider_row ui text ~draw_value:true ~value_text:compact_float
+  slider_row ui text ~draw_value:true ~value_text:compact_float ~step:0.01
     ~fraction_of:(fun value -> (value -. low) /. (high -. low))
     ~from_fraction:(fun _ fraction -> low +. (fraction *. (high -. low)))
     ~parse:(fun text ->
@@ -1793,6 +1974,7 @@ let slider ui text ~range:(low, high) value =
 let int_slider ui text ~range:(low, high) value =
   if high <= low then invalid_arg "Ui.int_slider: range must be increasing";
   slider_row ui text ~draw_value:true ~value_text:string_of_int
+    ~step:(1. /. float (high - low))
     ~fraction_of:(fun value -> float (value - low) /. float (high - low))
     ~from_fraction:(fun _ fraction ->
       max low (min high (low + int_of_float ((fraction *. float (high - low)) +. 0.5))))
@@ -1808,9 +1990,9 @@ let text_field ui text value =
     { text = value; caret = end_; anchor = end_ } in
   if focused then begin
     let (cx, _, _, _) = value_control (ints (rect ui row)) in
-    point_text_caret ui edit signal ~x:(float (cx + 8));
-    List.iter (fun event -> ignore (edit_text_event ui edit
-      ~accept:(fun _ -> true) event)) signal.keys;
+    point_text_caret ui edit signal ~shift:(press_shift ui row) ~x:(float (cx + 8));
+    List.iter (fun (event, modifiers) -> ignore (edit_text_event edit ~modifiers
+      ~accept:(fun _ -> true) event)) (key_events ui row);
     save_text_edit ui edit
   end;
   let value = edit.text in
@@ -1842,9 +2024,15 @@ let choice ui text options selected =
   let row = kit_row ui ~hit:(control_hit value_control) text in
   let signal = signal ui row in
   let selected =
-    if not signal.clicked then selected else
+    let direction = List.fold_left (fun direction -> function
+      | Event.KeyPressed (Input.ArrowLeft | ArrowDown) -> direction - 1
+      | Event.KeyPressed (Input.ArrowRight | ArrowUp) -> direction + 1
+      | _ -> direction) 0 signal.keys in
+    if direction <> 0 then ((selected + direction) mod count + count) mod count
+    else if not signal.clicked then selected else
       let cx, _, cw, _ = value_control (ints (rect ui row)) in
-      let direction = if fst signal.release_point < float (cx + (cw / 2)) then -1 else 1 in
+      let direction = if signal.button <> None
+        && fst signal.release_point < float (cx + (cw / 2)) then -1 else 1 in
       (selected + direction + count) mod count in
   let theme = ui.theme and shown = display text in
   let hovered = signal.hovered and pressed = signal.held in
@@ -1879,14 +2067,24 @@ let range_slider ui text ~range:(low, high) (lower, upper) =
       and high_x = float (position control (fraction upper)) in
       let handle = if Float.abs (x -. low_x) <= Float.abs (x -. high_x) then 0 else 1 in
       set_state ui row handle; handle
-    end else state ui row ~default:0 in
+    end else
+      let handle = state ui row ~default:0 in
+      let handle = if signal.clicked && signal.button = None then 1 - handle else handle in
+      set_state ui row handle; handle in
   let lower, upper =
     if signal.held || signal.released then
       let x = if signal.released then fst signal.release_point else fst signal.pointer in
       let value = low +. (fraction_at control x *. (high -. low)) in
       if handle = 0 then Float.min value upper, upper
       else lower, Float.max value lower
-    else lower, upper in
+    else
+      let current = if handle = 0 then lower else upper in
+      let fraction = fraction current in
+      let adjusted = keyboard_fraction (key_events ui row) ~step:0.01 fraction in
+      if adjusted = fraction then lower, upper else
+        let value = low +. (adjusted *. (high -. low)) in
+        if handle = 0 then Float.min value upper, upper
+        else lower, Float.max value lower in
   let theme = ui.theme and shown = display text and hovered = signal.hovered in
   draw ui row (fun paint rect ->
     let (x, y, _, h) as bounds = ints rect in
@@ -1919,7 +2117,13 @@ let xy ui text ~x_range:(x_min, x_max) ~y_range:(y_min, y_max) (px, py) =
       let fy = Float.max 0. (Float.min 1. ((y -. float cy) /. float (max 1 (ch - 1)))) in
       x_min +. (fraction_at control x *. (x_max -. x_min)),
       y_min +. (fy *. (y_max -. y_min))
-    else px, py in
+    else
+      List.fold_left (fun (px, py) -> function
+        | Event.KeyPressed Input.ArrowLeft -> clamp x_min x_max (px -. (x_max -. x_min) *. 0.01), py
+        | Event.KeyPressed Input.ArrowRight -> clamp x_min x_max (px +. (x_max -. x_min) *. 0.01), py
+        | Event.KeyPressed Input.ArrowUp -> px, clamp y_min y_max (py -. (y_max -. y_min) *. 0.01)
+        | Event.KeyPressed Input.ArrowDown -> px, clamp y_min y_max (py +. (y_max -. y_min) *. 0.01)
+        | _ -> px, py) (px, py) signal.keys in
   let theme = ui.theme and shown = display text in
   let hovered = signal.hovered and pressed = signal.held in
   draw ui row (fun paint rect ->
@@ -1960,19 +2164,19 @@ let picker ui ?(limit = 10) label ~query rows_of =
   let rows = ref (rows_of query) in
   let count () = Array.length !rows in
   let search = kit_row ui ~flags:(clickable lor focusable lor blocking) label in
-  focus ui search;
+  if ui.focus = 0 || ui.rw.(search.box_slot) = 0. then focus ui search;
   let list = box_keyed ui ~w:Grow ~h:Fit ~axis:Column (int_key search.box_key 0) in
   let search_signal = signal ui search in
-  let keys = search_signal.keys in
+  let keys = key_events ui search in
   let clamp cursor = if count () = 0 then 0 else max 0 (min (count () - 1) cursor) in
   let cursor = ref (clamp (state ui search ~default:0))
   and armed = ref (state ui list ~default:(-1)) and query = ref query
   and result = ref `None in
   let edit = load_text_edit ui search.box_key !query in
   let (sx, _, _, _) = ints (rect ui search) in
-  point_text_caret ui edit search_signal ~x:(float (sx + 8));
+  point_text_caret ui edit search_signal ~shift:(press_shift ui search) ~x:(float (sx + 8));
   let set_query text = query := text; rows := rows_of text; cursor := 0; armed := -1 in
-  List.iter (fun (event : Event.t) -> let count = count () in
+  List.iter (fun ((event : Event.t), modifiers) -> let count = count () in
     if !result = `None then match event with
     | Event.KeyPressed Input.Backspace when edit.text = "" -> result := `Back
     | Event.KeyPressed Input.ArrowLeft when edit.text = "" -> result := `Back
@@ -1988,7 +2192,7 @@ let picker ui ?(limit = 10) label ~query rows_of =
         else armed := !cursor
     | Event.KeyPressed Input.Escape -> result := `Cancel
     | event ->
-        ignore (edit_text_event ui edit ~accept:(fun _ -> true) event);
+        ignore (edit_text_event edit ~modifiers ~accept:(fun _ -> true) event);
         if edit.text <> !query then set_query edit.text) keys;
   save_text_edit ui edit;
   let count = count () and rows = !rows in
@@ -2009,7 +2213,7 @@ let picker ui ?(limit = 10) label ~query rows_of =
   within ui list (fun () ->
     for visible = 0 to length - 1 do
       let index = start + visible in
-      let row = box_keyed ui ~flags:(clickable lor blocking) ~w:Grow
+      let row = box_keyed ui ~flags:(clickable lor focusable lor blocking) ~w:Grow
           ~h:(Px (float ui.kit_row_height)) (int_key list.box_key visible) in
       let row_signal = signal ui row in
       if !result = `None && row_signal.clicked then result := `Pick index;
@@ -2046,7 +2250,7 @@ let context_menu ui ~at:(x, y) label items =
   and y = Float.max 0. (Float.min y (ui.view_h -. height)) in
   match popup ui ~stroke:ui.theme.accent ~at:(x, y) ~width ~height label (fun () ->
       List.mapi (fun index (text, enabled) ->
-        let row = kit_row ui ~flags:(if enabled then clickable lor blocking else blocking)
+        let row = kit_row ui ~flags:(if enabled then clickable lor focusable lor blocking lor tab_only else blocking)
             text in
         let signal = signal ui row in
         let theme = ui.theme and shown = display text in
@@ -2058,8 +2262,8 @@ let context_menu ui ~at:(x, y) label items =
             (rx + 8) (label_y ui y h) shown);
         if enabled && signal.clicked then Some index else None) items
       |> List.find_map Fun.id) with
-  | None -> `Dismiss
-  | Some (Some index) -> `Pick index
+  | None -> dismiss_popup ui; `Dismiss
+  | Some (Some index) -> dismiss_popup ui; `Pick index
   | Some None -> `Open
 
 let accordion ui ?(expanded = false) ?set_expanded text f =

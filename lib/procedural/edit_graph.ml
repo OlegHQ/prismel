@@ -310,7 +310,9 @@ let paste fragment value =
   if fragment.fragment_entries = [] then Error "cannot paste an empty node fragment"
   else
     let clones = List.map (fun (old_id, (entry : entry)) ->
-      let placeholders = Array.make (Array.length entry.inputs) entry.node in
+      (* Editable optional slots include absent inputs. Clone the physical
+         arity; the factory below rebuilds presence from remapped slots. *)
+      let placeholders = Node.Private.input_array entry.node in
       old_id, Node.Private.clone_with_inputs entry.node placeholders,
       entry.inputs, entry.factory)
         fragment.fragment_entries in
