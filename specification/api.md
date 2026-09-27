@@ -700,8 +700,12 @@ retained trigger and label for key feedback, including aliases.
 Parameter schemas also carry presentation metadata: `Param.field ~primary`
 marks a default card row, and `~vec3:(group, component)` groups float fields
 with component indices 0, 1, 2. Field views preserve these annotations; they
-do not change parameter values or cook keys. M3's PPX and editor adapters
-consume them as the value-port milestone lands.
+do not change parameter values or cook keys. `[@sop.primary]` and checked
+`[@sop.vec3 "center"]` annotations generate this metadata. SOP factories
+also expose geometry input names through `Edit_graph.factory_slot_names`:
+`[@@sop.node_slots "input, target"]` supplies names; omitted annotations
+use `in0`, `in1`, and so on. Slot names must be distinct from parameter
+names. M3's editor adapters consume them as the value-port milestone lands.
 
 | Key | Scope | Action |
 |---|---|---|

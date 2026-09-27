@@ -98,6 +98,7 @@ val insert_on_connection :
 
 val factory :
   ?operation:string ->
+  ?slots:string list ->
   key:string ->
   label:string ->
   category:string list ->
@@ -106,6 +107,7 @@ val factory :
   factory
 val factory_slots :
   ?operation:string ->
+  ?slots:string list ->
   key:string ->
   label:string ->
   category:string list ->
@@ -118,6 +120,10 @@ val factory_label : factory -> string
 val factory_category : factory -> string list
 val factory_arity : factory -> int
 val factory_inputs : factory -> input_requirement list
+
+val factory_slot_names : factory -> string list
+(** Named geometry inputs, in slot order; defaults to [in0], [in1], … . *)
+
 val factory_ready : factory -> Node.t option list -> bool
 val instantiate : factory -> Node.t list -> (Node.t, string) result
 val instantiate_optional : factory -> Node.t option list -> (Node.t, string) result

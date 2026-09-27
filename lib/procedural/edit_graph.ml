@@ -15,6 +15,7 @@ type factory = {
   label : string;
   category : string list;
   requirements : input_requirement array;
+  slots : string array;
   build : Node.t option list -> Node.t;
 }
 
@@ -431,7 +432,16 @@ let insert_on_connection ?factory connection node value =
           (connect ~source:(Node.id node) ~consumer:connection.consumer
              ~input_index:connection.input_index)
 
-let factory ?operation ~key ~label ~category ~arity build =
+let slot_names arity = function
+  | None -> Array.init arity (fun index -> "in" ^ string_of_int index)
+  | Some names ->
+      if List.length names <> arity
+          || List.exists (fun name -> String.trim name = "") names
+          || List.length (List.sort_uniq String.compare names) <> arity then
+        invalid_arg "Edit_graph factory slots must have one distinct name per input";
+      Array.of_list names
+
+let factory ?operation ?slots ~key ~label ~category ~arity build =
   let operation = Option.value ~default:key operation in
   if String.trim key = "" || String.trim operation = ""
       || String.trim label = ""
@@ -440,9 +450,10 @@ let factory ?operation ~key ~label ~category ~arity build =
     invalid_arg "Edit_graph.factory names must not be blank";
   if arity < 0 then invalid_arg "Edit_graph.factory arity must be non-negative";
   { key; operation; label; category; requirements = Array.make arity Required;
+    slots = slot_names arity slots;
     build = (fun inputs -> build (List.map Option.get inputs)) }
 
-let factory_slots ?operation ~key ~label ~category ~inputs build =
+let factory_slots ?operation ?slots ~key ~label ~category ~inputs build =
   let operation = Option.value ~default:key operation in
   if String.trim key = "" || String.trim operation = ""
       || String.trim label = ""
@@ -451,7 +462,8 @@ let factory_slots ?operation ~key ~label ~category ~inputs build =
     invalid_arg "Edit_graph.factory_slots names must not be blank";
   if inputs = [] then invalid_arg
       "Edit_graph.factory_slots requires at least one input slot";
-  { key; operation; label; category; requirements = Array.of_list inputs; build }
+  { key; operation; label; category; requirements = Array.of_list inputs;
+    slots = slot_names (List.length inputs) slots; build }
 
 let factory_key (value : factory) = value.key
 let factory_operation (value : factory) = value.operation
@@ -459,6 +471,7 @@ let factory_label (value : factory) = value.label
 let factory_category (value : factory) = value.category
 let factory_arity (value : factory) = Array.length value.requirements
 let factory_inputs (value : factory) = Array.to_list value.requirements
+let factory_slot_names (value : factory) = Array.to_list value.slots
 let factory_ready (value : factory) inputs =
   List.length inputs = Array.length value.requirements
   && List.for_all2 (fun requirement input ->

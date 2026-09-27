@@ -16,6 +16,9 @@ let soft_max_attribute = expression_attribute "sop.max"
 let hard_min_attribute = expression_attribute "sop.hard_min"
 let hard_max_attribute = expression_attribute "sop.hard_max"
 let kind_attribute = expression_attribute "sop.kind"
+let vec3_attribute = expression_attribute "sop.vec3"
+let primary_attribute =
+  Attribute.declare_flag "sop.primary" Attribute.Context.label_declaration
 let ignore_attribute =
   Attribute.declare_flag "sop.ignore" Attribute.Context.label_declaration
 
@@ -29,6 +32,7 @@ let node_label_attribute = type_expression_attribute "sop.node_label"
 let node_category_attribute = type_expression_attribute "sop.node_category"
 let node_inputs_attribute = type_expression_attribute "sop.node_inputs"
 let node_optional_attribute = type_expression_attribute "sop.node_optional"
+let node_slots_attribute = type_expression_attribute "sop.node_slots"
 let register_attribute =
   Attribute.declare_flag "sop.register" Attribute.Context.module_binding
 
@@ -116,20 +120,48 @@ let impact_expression declaration =
   | Some value -> Location.raise_errorf ~loc
       "sop.impact must be \"cook\", \"view\", or \"export\", not %S" value
 
-let folder_expression declaration =
-  let loc = declaration.pld_loc in
-  let parts = match optional_string folder_attribute declaration "sop.folder" with
+let folder_parts declaration =
+  match optional_string folder_attribute declaration "sop.folder" with
     | None -> []
     | Some value -> String.split_on_char '/' value
         |> List.filter (fun item -> String.trim item <> "")
-  in
-  elist ~loc (List.map (estring ~loc) parts)
+
+let folder_expression declaration =
+  let loc = declaration.pld_loc in
+  elist ~loc (List.map (estring ~loc) (folder_parts declaration))
+
+let public_name declaration = Option.value ~default:declaration.pld_name.txt
+    (optional_string name_attribute declaration "sop.name")
+
+let vec3_components declarations =
+  let groups = List.filter_map (fun (index, declaration) ->
+    Option.map (fun name -> name, index, declaration)
+      (optional_string vec3_attribute declaration "sop.vec3"))
+      (List.mapi (fun index declaration -> index, declaration) declarations) in
+  let names = List.map public_name declarations in
+  List.concat_map (fun name ->
+    let fields = List.filter (fun (group, _, _) -> group = name) groups in
+    let _, _, first = List.hd fields in
+    let fail message = Location.raise_errorf ~loc:first.pld_loc
+        "sop.vec3 %S %s" name message in
+    if String.trim name = "" then fail "must not be blank";
+    if List.mem name names then fail "clashes with a parameter name";
+    (match fields with
+     | [(_, a, _); (_, b, _); (_, c, _)] when b = a + 1 && c = b + 1 -> ()
+     | _ -> fail "requires exactly three consecutive float fields in one folder");
+    List.mapi (fun component (_, _, declaration) ->
+      if type_name declaration.pld_type <> Some "float"
+          || Attribute.has_flag ignore_attribute declaration
+          || folder_parts declaration <> folder_parts first then
+        fail "requires exactly three consecutive float fields in one folder";
+      declaration.pld_name.txt, (name, component)) fields)
+    (List.sort_uniq String.compare (List.map (fun (name, _, _) -> name) groups))
 
 let optional_labelled ~loc label = function
   | None -> []
   | Some value -> [Labelled label, estring ~loc value]
 
-let field_expression type_declaration declaration =
+let field_expression components type_declaration declaration =
   let loc = declaration.pld_loc in
   let field_name = declaration.pld_name.txt in
   let record_type = ptyp_constr ~loc
@@ -153,10 +185,13 @@ let field_expression type_declaration declaration =
   let set = pexp_fun ~loc Nolabel None (ppat_var ~loc { loc; txt = "field_value" })
       (pexp_fun ~loc Nolabel None set_record_pattern
         (pexp_record ~loc [field_path, field_value] record_base)) in
-  let public_name = Option.value ~default:field_name
-      (optional_string name_attribute declaration "sop.name") in
   let arguments =
-    [ Labelled "name", estring ~loc public_name ]
+    [ Labelled "name", estring ~loc (public_name declaration);
+      Labelled "primary", ebool ~loc (Attribute.has_flag primary_attribute declaration) ]
+    @ (match List.assoc_opt field_name components with
+       | None -> []
+       | Some (name, index) ->
+           [Labelled "vec3", pexp_tuple ~loc [estring ~loc name; eint ~loc index]])
     @ optional_labelled ~loc "label"
         (optional_string label_attribute declaration "sop.label")
     @ optional_labelled ~loc "description"
@@ -185,6 +220,7 @@ let generate_type type_declaration =
   let loc = type_declaration.ptype_loc in
   match type_declaration.ptype_kind with
   | Ptype_record declarations ->
+      let components = vec3_components declarations in
       let default_name = type_declaration.ptype_name.txt ^ "_default"
       and schema_name = type_declaration.ptype_name.txt ^ "_schema" in
       let defaults = List.map (fun declaration ->
@@ -197,7 +233,7 @@ let generate_type type_declaration =
       let fields = declarations
         |> List.filter (fun declaration ->
           not (Attribute.has_flag ignore_attribute declaration))
-        |> List.map (field_expression type_declaration) in
+        |> List.map (field_expression components type_declaration) in
       let schema_expression = apply ~loc
           (ident ~loc ["Procedural"; "Parameter"; "schema"])
           [ Labelled "name", estring ~loc type_declaration.ptype_name.txt;
@@ -219,6 +255,9 @@ let signature_type ~loc type_declaration =
 
 let generate_signature type_declaration =
   ensure_monomorphic type_declaration;
+  (match type_declaration.ptype_kind with
+   | Ptype_record declarations -> ignore (vec3_components declarations)
+   | _ -> ());
   let loc = type_declaration.ptype_loc in
   let type_ = signature_type ~loc type_declaration in
   let default_name = type_declaration.ptype_name.txt ^ "_default"
@@ -266,6 +305,31 @@ let node_metadata declaration =
       "sop_node key, label, and category must not be blank";
   if inputs < 0 then Location.raise_errorf ~loc:declaration.ptype_loc
       "sop.node_inputs must be non-negative";
+  let valid_key value = String.length value > 0
+      && value.[0] >= 'a' && value.[0] <= 'z'
+      && String.for_all (function 'a' .. 'z' | '0' .. '9' | '_' -> true
+          | _ -> false) value in
+  if not (valid_key key) then Location.raise_errorf ~loc:declaration.ptype_loc
+      "sop.node_key must match [a-z][a-z0-9_]*, not %S" key;
+  let slots = match Attribute.get node_slots_attribute declaration with
+    | None -> List.init inputs (fun index -> "in" ^ string_of_int index)
+    | Some expression ->
+        let names = string_constant expression "sop.node_slots"
+            |> String.split_on_char ',' |> List.map String.trim in
+        if List.length names <> inputs || List.exists (fun name -> not (valid_key name)) names
+            || List.length (List.sort_uniq String.compare names) <> inputs then
+          Location.raise_errorf ~loc:expression.pexp_loc
+            "sop.node_slots requires %d distinct names matching [a-z][a-z0-9_]*" inputs;
+        names in
+  let field_names = match declaration.ptype_kind with
+    | Ptype_record fields -> List.concat_map (fun field ->
+        if Attribute.has_flag ignore_attribute field then [] else
+        public_name field :: Option.to_list
+          (optional_string vec3_attribute field "sop.vec3")) fields
+    | _ -> [] in
+  List.iter (fun slot -> if List.mem slot field_names then
+    Location.raise_errorf ~loc:declaration.ptype_loc
+      "sop.node_slots name %S clashes with a parameter name" slot) slots;
   let optional = match Attribute.get node_optional_attribute declaration with
     | None -> []
     | Some expression ->
@@ -279,7 +343,7 @@ let node_metadata declaration =
                 "sop.node_optional contains invalid slot %S for %d inputs"
                 item inputs)
         |> List.sort_uniq Int.compare in
-  key, operation, label, category, inputs, optional
+  key, operation, label, category, inputs, optional, slots
 
 (* [<t>_build operator] is the recursive, arity-checked node constructor that
    [<t>_factory] consumes. [operator ~label parameters input0 ...] receives one
@@ -375,7 +439,7 @@ let build_expression ~loc type_name label inputs optional =
 let generate_node_type declaration =
   ensure_monomorphic declaration;
   let loc = declaration.ptype_loc in
-  let key, operation, label, category, inputs, optional =
+  let key, operation, label, category, inputs, optional, slots =
     node_metadata declaration in
   let build = evar ~loc "build" and input_nodes = evar ~loc "input_nodes" in
   let construct = apply ~loc build
@@ -388,6 +452,7 @@ let generate_node_type declaration =
     Labelled "key", estring ~loc key;
     Labelled "operation", estring ~loc operation;
     Labelled "label", estring ~loc label;
+    Labelled "slots", elist ~loc (List.map (estring ~loc) slots);
     Labelled "category", elist ~loc (List.map (estring ~loc) category) ] in
   let factory = if optional = [] then
       apply ~loc (ident ~loc ["Procedural"; "Edit_graph"; "factory"])
@@ -430,12 +495,12 @@ let manifest structure =
 let attributes = List.map (fun attribute -> Attribute.T attribute)
     [ default_attribute; label_attribute; name_attribute; description_attribute;
       folder_attribute; impact_attribute; soft_min_attribute; soft_max_attribute;
-      hard_min_attribute; hard_max_attribute; kind_attribute ]
-  @ [Attribute.T ignore_attribute]
+      hard_min_attribute; hard_max_attribute; kind_attribute; vec3_attribute ]
+  @ [Attribute.T ignore_attribute; Attribute.T primary_attribute]
 
 let node_attributes = List.map (fun attribute -> Attribute.T attribute)
     [node_key_attribute; node_operation_attribute; node_label_attribute;
-     node_inputs_attribute; node_optional_attribute]
+     node_inputs_attribute; node_optional_attribute; node_slots_attribute]
 
 let () =
   let structure = Deriving.Generator.V2.make_noarg ~attributes generate_impl

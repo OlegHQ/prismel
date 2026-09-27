@@ -32,6 +32,16 @@ let inspectable_node values =
 let fail message = raise (Failure message)
 
 let run () =
+  (match Sop_params_fixture.Editor.factories with
+   | [factory] ->
+       assert (Edit_graph.factory_key factory = "vector_fixture");
+       assert (Edit_graph.factory_slot_names factory = ["input"; "target"]);
+       let node = Edit_graph.instantiate_optional factory [None; None] |> Result.get_ok in
+       let fields = Node.parameter_fields node in
+       assert (List.map (fun field -> field.Parameter.vec3) fields
+           = [Some ("center", 0); Some ("center", 1); Some ("center", 2)]);
+       assert (List.map (fun field -> field.Parameter.primary) fields = [true; false; false])
+   | _ -> fail "PPX module alias did not produce the single registry entry");
   if Sop_params_fixture.t_default.value <> 3
      || List.length (Parameter.fields Sop_params_fixture.t_schema) <> 1
   then fail "sop_params interface generation did not match implementation";

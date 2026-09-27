@@ -175,7 +175,7 @@ Tasks:
 1. [x] `lib/param`: `primary : bool` (default false) and
    `vec3 : (string * int) option` on `field` and `field_view`; `field` gets
    `?primary` and `?vec3` arguments. Dependency-free still.
-2. `ppx/ppx_prismel`: `[@sop.primary]`, `[@sop.vec3 "name"]` (checks of
+2. [x] `ppx/ppx_prismel`: `[@sop.primary]`, `[@sop.vec3 "name"]` (checks of
    `flow.md` §5.3), `[@@sop.node_slots "a, b"]`, key alphabet check
    `[a-z][a-z0-9_]*`, slot/field name clash check. PPX expect tests for each
    error.
@@ -316,6 +316,12 @@ network with the same canvas, keys, views and text), then plan it here.
   the build.
 
 ## Log
+
+- 2026-09-27 M3 PPX metadata: primary and checked vec3 groups generate
+  schema metadata; stable keys and geometry-slot names are checked at the
+  declaration. Factory descriptors retain named slots with canonical
+  `in0`/`in1` defaults. Located error checks and a compiled tagged module
+  alias fixture pass, alongside the catalog and editable graph regressions.
 
 - 2026-09-27 M3 foundation: dependency-free Param fields and field views
   carry primary/vec3 metadata. The field constructor validates float group

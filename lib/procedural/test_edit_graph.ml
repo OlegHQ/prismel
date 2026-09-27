@@ -72,6 +72,8 @@ let run () =
   let null_factory = Edit_graph.factory ~key:"null" ~label:"Null"
       ~category:["Utility"] ~arity:1 (function
         | [input] -> Sop.null input | _ -> assert false) in
+  check (Edit_graph.factory_slot_names null_factory = ["in0"])
+    "unnamed factory inputs did not use canonical port names";
   let loose_null = Edit_graph.instantiate_optional null_factory [None] |> get in
   let loose_document = Edit_graph.add_node ~inputs:[|None|] loose_null document
       |> get in
@@ -79,10 +81,18 @@ let run () =
       = Some [|None|])
     "factory could not create a node with a disconnected input";
   let match_size_factory = Edit_graph.factory_slots ~key:"match_size"
+      ~slots:["input"; "target"]
       ~label:"Match Size" ~category:["Modify"]
       ~inputs:[Edit_graph.Required; Optional] (function
         | [Some input; target] -> Sop.match_size ?target input
         | _ -> invalid_arg "Match Size requires its geometry input") in
+  check (Edit_graph.factory_slot_names match_size_factory = ["input"; "target"])
+    "optional factory did not retain named input slots";
+  List.iter (fun slots ->
+    match Edit_graph.factory ~slots ~key:"invalid" ~label:"Invalid"
+        ~category:["Test"] ~arity:1 (fun _ -> source) with
+    | _ -> fail "factory accepted missing or blank slot names"
+    | exception Invalid_argument _ -> ()) [[]; [""]; ["a"; "a"]];
   let loose_match = Edit_graph.instantiate_optional match_size_factory
       [None; None] |> get in
   let optional_document = Edit_graph.add_node ~factory:match_size_factory
