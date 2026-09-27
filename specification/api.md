@@ -708,12 +708,15 @@ use `in0`, `in1`, and so on. Slot names must be distinct from parameter
 names. M3's editor adapters consume them as the value-port milestone lands.
 
 The new `flow` library depends only on `param`. Its current value core
-provides checked symbols, contexts, port types and scalar/vector coercions;
+provides checked symbols, contexts, port types, scalar/vector coercions,
+checked expressions and immutable value graphs;
 the PPX uses its shared name validation. Geometry cannot connect to value
 ports, and vectors cannot drive scalars. Float-to-int coercion rounds and
 saturates the machine range before the caller applies the parameter's hard
-bounds. The expression evaluator, value nodes and editor drives remain M3
-work in progress.
+bounds. Its six value kinds use typed `Param` schemas: Time, Value, Math,
+Combine XYZ, Separate XYZ and Remap. Expression parsing returns errors with
+source byte spans; infix and s-expression printers preserve the operation
+tree. The SOP overlay and editor drives remain M3 work in progress.
 
 | Key | Scope | Action |
 |---|---|---|

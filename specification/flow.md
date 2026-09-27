@@ -111,7 +111,7 @@ Coercions happen when a drive's value reaches a port, never in storage:
 | `math` | `op` Choice (`mul`), `a` Float (0), `b` Float (1; hidden for unary ops) | `out` Float | see ops below |
 | `combine_xyz` | `x`, `y`, `z` Float (0) | `out` Vec3 | |
 | `separate_xyz` | `v` Vec3 (0,0,0) | `x`, `y`, `z` Float | |
-| `remap` | `v` Float, `from_min` 0, `from_max` 1, `to_min` 0, `to_max` 1, `clamp` Bool (false) | `out` Float | linear map; `from_min = from_max` gives `to_min` |
+| `remap` | `v` Float (0), `from_min` 0, `from_max` 1, `to_min` 0, `to_max` 1, `clamp` Bool (false) | `out` Float | linear map; `from_min = from_max` gives `to_min`; clamp limits the input fraction to [0,1], including reversed ranges |
 
 Math ops (radians, IEEE doubles, no exceptions): `add`, `sub`, `mul`,
 `div` (b = 0 gives 0), `pow` (|a|^b), `min`, `max`, `sin`, `cos`, `abs`,
@@ -157,10 +157,16 @@ type t = Num of float | Time | Op of op * t list   (* arity checked on construct
 
 The infix form typed into fields: numbers, `t`, `pi`, `+ - * / ^`, unary
 minus, parentheses, calls `sin(x) cos(x) abs(x) floor(x) sqrt(x) min(a, b)
-max(a, b) pow(a, b)`. `^` is right-associative; `*` `/` bind tighter than
-`+` `-`. Parse errors are values (`(t, Flow.Diagnostic.t) result`), never
+max(a, b) pow(a, b)`. Unary minus binds tighter than `^`, following the
+prototype. `^` is right-associative; `*` `/` bind tighter than `+` `-`.
+Printers preserve the operation tree, including parentheses around a
+right-nested sum or product; IEEE arithmetic is not reassociated.
+Parse errors are values (`(t, Flow.Diagnostic.t) result`), never
 exceptions. Fields also accept the s-expression form when the text starts
-with `(`. Fields print infix with minimal parentheses; the text form prints
+with `(`. A known operator head followed by whitespace prefers s-expression
+parsing, with infix as a fallback; otherwise infix is tried first. This makes
+`(- -2 -0)` unambiguously a subtraction. Fields print infix with minimal
+parentheses; the text form prints
 s-expressions (§11.7).
 
 ### 3.6 Edges
@@ -343,6 +349,10 @@ For each parameter row of a node at level `card`, evaluated in order:
 4. A row whose literal differs from its schema default shows.
 5. A primary row (§5.2) shows.
 6. Otherwise it is hidden, and the card ends with a `+ N more` row.
+
+The inactive `b` input of unary Math keeps its literal and drives. It is
+hidden after rules 2–3 unless explicitly pinned; changing `op` never deletes
+its data. Full shows it dimmed when neither driven nor pinned.
 
 Level `full` shows every row, grouped under folder headers in schema order,
 with rows that fail the rule drawn dimmed, and ends with `− show fewer`.
@@ -1111,3 +1121,15 @@ field names and the rule that a group cannot shadow another field.
 Int-to-Float cannot be exact beyond 53 bits. Rounded Float-to-Int saturates
 the machine range before field hard bounds, preventing overflow wraparound;
 non-finite values cannot drive an integer field.
+
+2026-09-27: expression unary minus follows the prototype's tight binding.
+Infix printing preserves right-nested sums/products as well as subtraction,
+division and powers, so a print/parse round trip cannot reassociate IEEE
+operations. The prototype printer now follows that same rule.
+
+2026-09-27: automatic expression parsing prefers a spaced operator head as
+an s-expression; trying infix first changes the meaning of `(- -2 -0)`.
+Unary Math keeps its inactive `b` input, including any drive; driven and
+pinned rows remain visible and full shows all schema fields. Remap's `v`
+defaults to zero and clamping applies to its interpolation fraction, so
+reversed ranges behave consistently.

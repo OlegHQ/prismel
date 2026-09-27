@@ -188,7 +188,7 @@ Tasks:
    an OCaml codemod. Retain one PPX-generated registry, stable keys and
    factory behavior; do not add mutable registration or a second factory
    list. Verify the descriptor set before and after extraction.
-4. New `lib/flow` (`flow.ml`/`.mli` per module, wrapped): `Symbol`,
+4. [x] New `lib/flow` (`flow.ml`/`.mli` per module, wrapped): `Symbol`,
    `Context`, `Port_type` with coercions (§3.2), `Expr` (AST, infix parser,
    printers, evaluator; no exceptions), value kinds with `Param` schemas
    (§3.3), `Graph` (value nodes and outputs), `Diagnostic`.
@@ -316,6 +316,13 @@ network with the same canvas, keys, views and text), then plan it here.
   the build.
 
 ## Log
+
+- 2026-09-27 M3 expression and value graph foundation: expressions have
+  located errors, checked arity, fixed IEEE semantics and exact infix/sexp
+  round trips (4,624 generated cases). Six built-in value kinds keep typed
+  `Param` literals, including grouped vector storage and inactive unary
+  inputs. Immutable value graphs validate ids and preserve unchanged record
+  identity. Focused and default tests pass; SOP overlay work follows.
 
 - 2026-09-27 M3 value-core foundation: `flow` depends only on `param` and
   supplies diagnostics, checked symbols, reserved contexts, port types and

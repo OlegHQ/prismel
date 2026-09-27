@@ -113,7 +113,7 @@ const K = {
   merge: { label: 'Merge', ns: 'sop', cat: 'Combine', ins: [G('a'), G('b')], outs: [G('geo')], eval: i => ({ geo: [...(i.a || []), ...(i.b || [])] }) },
   output: { label: 'Output', ns: 'sop', cat: 'Output', ins: [G('geo')], outs: [], eval: i => ({ geo: i.geo || [] }) },
   time: { label: 'Time', ns: 'value', cat: 'Value', ins: [F('speed', 1, -4, 4, { primary: 1 })], outs: [{ n: 't', t: 'float', label: 't' }], eval: (i, t) => ({ t: t * num(i.speed, 1) }) },
-  value: { label: 'Value', ns: 'value', cat: 'Value', ins: [F('v', 0.5, -2, 2, { label: 'value', primary: 1 })], outs: [{ n: 'out', t: 'float', label: 'out' }], eval: i => ({ out: num(i.v, 0) }) },
+  value: { label: 'Value', ns: 'value', cat: 'Value', ins: [F('v', 0, -2, 2, { label: 'value', primary: 1 })], outs: [{ n: 'out', t: 'float', label: 'out' }], eval: i => ({ out: num(i.v, 0) }) },
   math: { label: 'Math', ns: 'value', cat: 'Math', ins: [{ n: 'op', t: 'op', v: 'mul', label: 'op' }, F('a', 0, -2, 2, { primary: 1 }), F('b', 1, -2, 2, { primary: 1 })], outs: [{ n: 'out', t: 'float', label: 'out' }],
     eval: i => ({ out: (OPS[i.op] || OPS.mul).f(num(i.a, 0), num(i.b, 0)) }) },
   combine: { label: 'Combine XYZ', ns: 'value', sym: 'combine_xyz', cat: 'Vector', ins: [F('x', 0, -3, 3, { primary: 1 }), F('y', 0, -3, 3, { primary: 1 }), F('z', 0, -3, 3, { primary: 1 })], outs: [{ n: 'out', t: 'vec', label: 'out' }],
@@ -138,7 +138,8 @@ const CATALOG = [
 const byId = (g, id) => g.nodes.find(n => n.id === id);
 const insOf = (g, n) => n.k === 'compound' ? n.inner.iface.ins : n.k === 'group_out' ? g.iface.outs : n.k === 'group_in' ? [] : K[n.k].ins;
 const outsOf = (g, n) => n.k === 'compound' ? n.inner.iface.outs : n.k === 'group_in' ? g.iface.ins : n.k === 'group_out' ? [] : K[n.k].outs;
-const visIns = (g, n) => insOf(g, n).filter(p => !(n.k === 'math' && p.n === 'b' && OPS[n.p.op].n === 1));
+const activeInput = (n, p) => !(n.k === 'math' && p.n === 'b' && OPS[n.p.op].n === 1);
+const visIns = (g, n) => insOf(g, n).filter(p => activeInput(n, p) || isDriven(g, n, p.n) || n.show && n.show[p.n]);
 const primaryIn = (g, n) => { const p = insOf(g, n)[0]; return p && p.t === 'geo' ? p : null; };
 const isSplit = (n, pn) => !!(n.split && n.split[pn]);
 function portOf(g, n, pn) {
@@ -162,6 +163,7 @@ function shownOnCard(g, n, p) {
   if (n.k === 'compound' || n.k === 'group_in' || n.k === 'group_out' || p.t === 'geo' || p.t === 'op') return true;
   if (isDriven(g, n, p.n)) return true;
   if (n.show && p.n in n.show) return n.show[p.n];
+  if (!activeInput(n, p)) return false;
   return isOverridden(n, p) || !!p.primary;
 }
 function kindLabel(n) {
@@ -192,7 +194,7 @@ function rowsOf(g, n, lod) {
   if (outs.length > 1) outs.forEach(p => r.push({ dir: 'out', p }));
   const full = lod === 'full';
   let hidden = 0, hideable = 0, folder = null;
-  for (const p of visIns(g, n)) {
+  for (const p of insOf(g, n)) {
     if (p === pi) continue;
     const on = shownOnCard(g, n, p);
     if (!on) hideable++;
@@ -285,7 +287,7 @@ function infix(a, pp = 0) {
   if (a.v) return a.v;
   const pr = PREC[a.op];
   if (pr) {
-    const rightTight = a.op === 'sub' || a.op === 'div' ? 1 : 0, leftTight = a.op === 'pow' ? 1 : 0;
+    const rightTight = a.op === 'pow' ? 0 : 1, leftTight = a.op === 'pow' ? 1 : 0;
     const s = infix(a.args[0], pr + leftTight) + ' ' + SYM[a.op] + ' ' + infix(a.args[1], pr + rightTight);
     return pr < pp ? '(' + s + ')' : s;
   }
@@ -371,7 +373,7 @@ function toLispLines(root, name, opts = {}) {
       if (n.k === 'group_in') continue;
       if (n.k === 'group_out') { result = `(values ${g.iface.outs.map(p => one(n, p)).join(' ')})`; continue; }
       const args = [];
-      if (n.k === 'math') visIns(g, n).filter(p => p.t !== 'op').forEach(p => args.push(arg(n, p)));
+      if (n.k === 'math') insOf(g, n).filter(p => p.t !== 'op' && activeInput(n, p)).forEach(p => args.push(arg(n, p)));
       else for (const p of visIns(g, n)) {
         if (p.t === 'geo') { if (p === primaryIn(g, n)) args.push(arg(n, p)); else if (inc.has(n.id + '|' + p.n)) args.push(`:${p.n} ${arg(n, p)}`); continue; }
         if (!isDriven(g, n, p.n) && !isOverridden(n, p)) continue;
@@ -1097,7 +1099,7 @@ function Editor(host, cfg) {
     let s = `<div class="insp-head"><input class="insp-name" id="${pid}name" data-name value="${esc(label(n))}" aria-label="Node name" spellcheck="false"><div class="insp-kind">${esc(qual(n))} · #${n.id}${n.muted ? ' · muted' : ''}${displayNode() === n && !S.path.length ? ' · displayed' : ''}</div></div>`;
     const geo = insOf(g, n).filter(p => p.t === 'geo');
     if (geo.length) s += `<section><h5>Inputs</h5>${geo.map(p => { const e = inc.get(n.id + '|' + p.n), src = e && byId(g, e.a); return `<div class="irow"><label>${esc(p.label || p.n)}</label><div class="ival">${src ? `<span class="drv">← ${esc(label(src))}</span>` : '<span class="none">not connected</span>'}</div><span></span></div>`; }).join('')}</section>`;
-    const params = visIns(g, n).filter(p => p.t !== 'geo');
+    const params = insOf(g, n).filter(p => p.t !== 'geo');
     const folders = [];
     for (const p of params) { const f = p.folder || (n.k === 'compound' ? 'Interface' : 'Parameters'); let grp = folders.find(x => x.f === f); if (!grp) folders.push(grp = { f, ps: [] }); grp.ps.push(p); }
     const valueEditor = (p, key) => {
