@@ -153,6 +153,20 @@ end
 (** Parameter rows generated from [Editor_core.Param] metadata: the one
     inspector path for SOP nodes and plain sketch settings alike. *)
 module Inspector : sig
+  type flow_row = {
+    path : string;
+    fields : Editor_core.Param.field_view list;
+    shown : bool;
+    locked : bool;
+    drive : string option;
+    live : string option;
+    components : (string * string * string option) list;
+    split : bool option;
+  }
+  type flow_change = Edited of string * Editor_core.Param.value
+    | Pinned of string * bool | Split of string * bool | Reset of string
+  val flow_fields : Pxui.Ui.t -> ?expanded:string list -> flow_row list -> flow_change list
+
   val fields : Pxui.Ui.t -> ?expanded:string list ->
     Editor_core.Param.field_view list -> (string * Editor_core.Param.value) list
   (** One kit widget per field inside the current panel; folders become

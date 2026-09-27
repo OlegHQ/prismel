@@ -7,7 +7,8 @@ module Timeline = Sketch_support.Timeline
 let check condition message = if not condition then failwith message
 let settings mode = Settings.make Test_editor_commands.schema mode
 let mode settings = Settings.get Test_editor_commands.schema settings
-let network id graph = id, Edit_graph.of_graph graph, Node.id graph
+let network id graph = id,
+  Flow_sop.Network.of_geometry (Edit_graph.of_graph graph), Node.id graph
 let frame = { (Test_editor_input.frame (0., 0.) [] 0) with dt = 0. }
 let stopped = fst (Timeline.stop (Timeline.create ()))
 
@@ -30,8 +31,8 @@ let barrier () =
     Mutex.lock mutex; released := true; Condition.broadcast ready; Mutex.unlock mutex in
   entered, wait, release
 
-let with_cook prepare run =
-  let current = ref (Cook.create ~prepare ~seed:42L ~grain:64 ~domains:1
+let with_cook ?(domains = 1) prepare run =
+  let current = ref (Cook.create ~prepare ~seed:42L ~grain:64 ~domains
     ~max_entries:16 ~max_payload_bytes:(16 * 1024 * 1024) () |> Result.get_ok) in
   Fun.protect ~finally:(fun () -> Cook.close !current) (fun () ->
     let step ?(settings = Settings.none) ?(timeline = stopped) ?(changes = [])
@@ -92,6 +93,53 @@ let run () =
     let timeline, changes = Timeline.seek timeline ~frame:0L in
     ignore (finish ~timeline ~changes objects);
     check ((List.hd (Cook.pieces !current)).prepared = (0., 0., 0.)) "seek back kept stale context");
+  let box = Sop_catalog.Box.create () in
+  let factory = List.find (fun factory -> Edit_graph.factory_key factory = "box")
+      Sop_catalog.Editor.factories in
+  let geometry = Edit_graph.add_node ~factory box Edit_graph.empty |> Result.get_ok in
+  let network, time_id = Flow_sop.Network.add_value_node Flow.Value_kind.Time
+      (Flow_sop.Network.of_geometry geometry) |> Result.get_ok in
+  let target = {Flow_sop.Port.node = Node.id box; path = "uniform_scale"} in
+  let network = Flow_sop.Network.connect_value
+      ~source:{Flow_sop.Port.node = time_id; path = "t"} ~target network
+    |> Result.get_ok in
+  let positions _ output =
+      let points = Pdk.Geometry.positions output.Session.geometry in
+      Ok (Array.init (Pdk.Packed.Float3.length points)
+        (Pdk.Packed.Float3.get points)) in
+  let exact first second =
+    Array.length first = Array.length second &&
+    Array.for_all2 (fun (ax, ay, az) (bx, by, bz) ->
+      Int64.bits_of_float ax = Int64.bits_of_float bx
+      && Int64.bits_of_float ay = Int64.bits_of_float by
+      && Int64.bits_of_float az = Int64.bits_of_float bz) first second in
+  let one_domain = ref [||] in
+  with_cook positions (fun current step finish ->
+    let objects = [1, network, Node.id box] in
+    let timeline, changes = Timeline.seek stopped ~frame:60L in
+    ignore (finish ~timeline ~changes objects);
+    let first = (List.hd (Cook.pieces !current)).prepared in
+    one_domain := first;
+    check (Flow_sop.Port.Map.find_opt target
+      (Option.get (Cook.applied !current 1)).applied =
+        Some (Flow.Port_type.Float_value 1.))
+      "cook skipped the time drive at frame 60";
+    let timeline, changes = Timeline.seek timeline ~frame:120L in
+    ignore (finish ~timeline ~changes objects);
+    let second = (List.hd (Cook.pieces !current)).prepared in
+    check (first <> second && Flow_sop.Port.Map.find_opt target
+      (Option.get (Cook.applied !current 1)).applied =
+        Some (Flow.Port_type.Float_value 2.))
+      "timeline seek did not apply a new value before geometry cooking";
+    let before = List.hd (Cook.pieces !current) in
+    for _ = 1 to 3 do ignore (step ~timeline objects) done;
+    check (List.hd (Cook.pieces !current) == before)
+      "unchanged time drive resubmitted a cook");
+  with_cook ~domains:3 positions (fun current _ finish ->
+    let timeline, changes = Timeline.seek stopped ~frame:60L in
+    ignore (finish ~timeline ~changes [1, network, Node.id box]);
+    check (exact !one_domain (List.hd (Cook.pieces !current)).prepared)
+      "driven geometry differed between one and three domains");
   let entered, wait, release = barrier () in
   let first = Atomic.make true in
   Fun.protect ~finally:release (fun () ->

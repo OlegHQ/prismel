@@ -125,6 +125,17 @@ let run () =
   check (List.length (Flow.Graph.inspect overlay.values) = 2
     && Flow_sop.Port.Map.cardinal overlay.drives = 3)
     "v3 round trip dropped value nodes or drives";
+  let renamed_value = Flow_sop.Network.relabel ~node_id:9 "Seconds" overlay
+    |> Result.get_ok in
+  let renamed_box = Flow_sop.Network.relabel ~node_id:20 "Scaled box" renamed_value
+    |> Result.get_ok in
+  check ((Flow.Graph.find renamed_box.values ~node_id:9 |> Option.get).label = "Seconds"
+    && (Edit_graph.find renamed_box.geometry ~node_id:20 |> Option.get
+      |> Node.label) = "Scaled box"
+    && renamed_box.drives == overlay.drives)
+    "Flow rename changed topology or failed to update one node kind";
+  check (Flow_sop.Network.relabel ~node_id:9 "" renamed_box
+    |> Result.get_ok == renamed_box) "blank rename changed the network";
   let clock = Flow.Graph.find overlay.values ~node_id:9 |> Option.get in
   check (List.exists (fun (field : Param.field_view) ->
     field.name = "speed" && field.current = Param.Float_value 2.25)

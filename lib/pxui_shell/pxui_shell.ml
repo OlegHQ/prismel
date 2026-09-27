@@ -879,7 +879,21 @@ module Inspector = struct
   module Param = Editor_core.Param
   module Ui = Pxui.Ui
 
-  type item = Field of Param.field_view | Folder of string * item list
+  type 'a item = Field of 'a | Folder of string * 'a item list
+
+  type flow_row = {
+    path : string;
+    fields : Param.field_view list;
+    shown : bool;
+    locked : bool;
+    drive : string option;
+    live : string option;
+    components : (string * string * string option) list;
+    split : bool option;
+  }
+
+  type flow_change = Edited of string * Param.value
+    | Pinned of string * bool | Split of string * bool | Reset of string
 
   let rec insert path field items = match path with
     | [] -> items @ [Field field]
@@ -930,6 +944,103 @@ module Inspector = struct
           items in
       build [] (List.fold_left (fun items (field : Param.field_view) ->
         insert field.folder field items) [] views)
+
+  let small_button ui key label ?x ~enabled () =
+    let at = Option.map (fun x -> x, 3.) x in
+    let button = Ui.box ui ~flags:(if enabled then Ui.(clickable + tab_stop) else Ui.none)
+        ?at ~w:(Ui.Px 18.) ~h:(Ui.Px (if x = None then 24. else 18.)) key in
+    let clicked = enabled && (Ui.signal ui button).clicked in
+    Ui.draw ui button (fun paint (x, y, w, h) ->
+      let theme = Ui.theme ui in
+      let y, h = if h = 24. then y +. 3., 18. else y, h in
+      Ui.Paint.rect paint ~x ~y ~w ~h ~fill:theme.control
+        ~stroke:(Pxui.Theme.faint_border theme) ();
+      Ui.Paint.text paint ~at:(x +. 3., y +. 2.) ~size:11
+        ~color:(if enabled then theme.foreground else Pxui.Theme.muted theme) label);
+    clicked
+
+  let flow_fields ui ?(expanded = []) rows =
+    let row_widget (row : flow_row) =
+      let shown = if row.shown then "●" else "○" in
+      let pinned = ref false and split = ref false and reset = ref false in
+      let edits = ref [] in
+      let title = match row.fields with
+        | (field : Param.field_view) :: _ when List.length row.fields = 1 -> field.label
+        | _ -> row.path in
+      let header = row.split <> None || row.drive <> None in
+      if header then begin
+        let box = Ui.box ui ~w:Ui.Grow ~h:(Ui.Px 24.)
+            ("flow-header-" ^ row.path) in
+        Ui.draw ui box (fun paint (x, y, _, _) ->
+          Ui.Paint.text paint ~at:(x +. 3., y +. 5.) ~size:11
+            ~color:(Ui.theme ui).foreground title);
+        Ui.within ui box (fun () ->
+          pinned := small_button ui ("pin-" ^ row.path) "●" ~x:62.
+              ~enabled:(not row.locked) ();
+          (match row.split with
+           | Some active -> split := small_button ui ("split-" ^ row.path)
+               (if active then "↥" else "xyz") ~x:82. ~enabled:(not row.locked)
+               ()
+           | None -> ());
+          if row.drive <> None then
+            reset := small_button ui ("reset-" ^ row.path) "×"
+                ~x:104. ~enabled:true ());
+        Option.iter (fun source ->
+          let readout = Option.fold ~none:"" ~some:(fun value -> " " ^ value) row.live in
+          let line = Ui.box ui ~w:Ui.Grow ~h:(Ui.Px 24.)
+              ("flow-source-" ^ row.path) in
+          Ui.draw ui line (fun paint (x, y, _, _) ->
+            Ui.Paint.text paint ~at:(x +. 3., y +. 5.) ~size:10
+              ~color:(Ui.theme ui).accent (source ^ readout))) row.drive
+      end;
+      if row.drive = None then
+        List.iteri (fun index (field : Param.field_view) ->
+          let path = if List.length row.fields = 1 then row.path else
+            row.path ^ "." ^ List.nth ["x"; "y"; "z"] index in
+          let drive = List.find_opt (fun (name, _, _) -> name = path) row.components in
+          match drive with
+          | Some (_, source, live) ->
+              let box = Ui.box ui ~w:Ui.Grow ~h:(Ui.Px 24.)
+                  ("flow-driven-" ^ path) in
+              Ui.draw ui box (fun paint (x, y, _, _) ->
+                Ui.Paint.text paint ~at:(x +. 3., y +. 5.) ~size:11
+                  ~color:(Ui.theme ui).foreground field.label);
+              Ui.within ui box (fun () ->
+                if small_button ui ("reset-" ^ path) "×" ~x:104. ~enabled:true ()
+                then edits := Reset path :: !edits);
+              let line = Ui.box ui ~w:Ui.Grow ~h:(Ui.Px 24.)
+                  ("flow-source-" ^ path) in
+              Ui.draw ui line (fun paint (x, y, _, _) ->
+                Ui.Paint.text paint ~at:(x +. 3., y +. 5.) ~size:10
+                  ~color:(Ui.theme ui).accent
+                  (source ^ Option.fold ~none:"" ~some:(fun v -> " " ^ v) live))
+          | None ->
+              let container = Ui.box ui ~w:Ui.Grow ~h:(Ui.Px 24.)
+                  ~axis:(if header then Ui.Column else Ui.Row)
+                  ("flow-field-" ^ path) in
+              Ui.within ui container (fun () ->
+                if not header && small_button ui ("pin-" ^ row.path) shown
+                    ~enabled:true () then pinned := true;
+                Option.iter (fun (name, value) -> edits := Edited (name, value) :: !edits)
+                  (field_widget ui field))) row.fields;
+      let actions = List.rev !edits in
+      let actions = if !reset then Reset row.path :: actions else actions in
+      let actions = if !split then Split (row.path, not (Option.get row.split)) :: actions
+        else actions in
+      if !pinned then Pinned (row.path, not row.shown) :: actions else actions in
+    let rec build path items = List.concat_map (function
+      | Field row -> row_widget row
+      | Folder (label, children) ->
+          let path = path @ [label] in
+          let key = String.concat "/" path in
+          Option.value ~default:[]
+            (Ui.accordion ui ~expanded:(List.mem key expanded)
+               (label ^ "##flow-folder." ^ key) (fun () -> build path children))) items in
+    if rows = [] then (Ui.label ui "No parameters"; []) else
+      build [] (List.fold_left (fun items (row : flow_row) ->
+        let folder = match row.fields with
+          | (field : Param.field_view) :: _ -> field.folder | [] -> [] in
+        insert folder row items) [] rows)
 
   let record ui ?expanded schema values =
     match fields ui ?expanded (Param.view schema values) with

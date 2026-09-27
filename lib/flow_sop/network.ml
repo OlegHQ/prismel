@@ -94,6 +94,18 @@ let of_parts ~geometry ~values ~drives =
 let with_geometry geometry network =
   if geometry == network.geometry then Ok network else
     let next = {network with geometry} in Result.map (fun () -> next) (validate next)
+let relabel ~node_id label network =
+  if String.trim label = "" then Ok network else
+  match Flow.Graph.find network.values ~node_id with
+  | Some _ -> Result.map (fun values -> if values == network.values then network
+      else {network with values})
+      (Flow.Graph.relabel network.values ~node_id label)
+  | None -> match Procedural.Edit_graph.find network.geometry ~node_id with
+    | None -> error "E_UNBOUND" (Printf.sprintf "No node %d" node_id)
+    | Some node -> Result.map (fun geometry -> if geometry == network.geometry then network
+        else {network with geometry})
+        (geometry_error (Procedural.Edit_graph.replace_node
+          (Procedural.Node.relabel label node) network.geometry))
 let add_value_node ?label kind network =
   let id = Procedural.Node.Private.fresh_id () in
   Result.bind (Flow.Graph.node ~id ?label kind) (fun node ->

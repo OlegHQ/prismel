@@ -197,6 +197,15 @@ let run_value_wires () =
   let wired = Pxui_graph.with_document connected canvas in
   check ((Pxui_graph.stats wired).wires = 1)
     "typed wire was not indexed with geometry wires";
+  (match Sys.getenv_opt "PRISMEL_UI_PREVIEW" with
+   | None -> ()
+   | Some directory ->
+       let resolved = Flow_sop.Value_lane.resolve
+           (Flow_sop.Value_lane.create ()) ~time:1. connected |> Result.get_ok in
+       let preview = Pxui_graph.with_applied resolved.applied wired in
+       Sketch.export ~directory ~prefix:"flow-value" ~frames:1
+         ~config:{Sketch.default_config with width=840; height=560}
+         (fun _ -> Scene.clear (Color.rgb 228 139 161) :: graph_scene preview));
   let point = (Pxui_graph.Private.edge_query_points wired ~limit:1).(0) in
   let selected, _ = update wired (frame ~mouse:point ~events:[
       mouse_press (Input.LeftButton, point); mouse_release (Input.LeftButton, point)] ()) in

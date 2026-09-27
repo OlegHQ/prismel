@@ -48,6 +48,7 @@ type change =
   | Bend_changed of { node : int; slot : int }
   | Level_changed of int list
   | Set_parameter_requested of { node : int; path : string; value : Parameter.value }
+  | Rename_requested of { node : int; label : string }
   | Split_requested of { node : int; group : string; split : bool }
   | Row_pinned of { node : int; path : string; pinned : bool }
   | Cut_wires_requested of Edit_graph.connection list
@@ -229,6 +230,7 @@ type spatial_index = {
 type t = {
   source_graph : Graph.t option;
   document : Flow_sop.Network.t;
+  applied : Flow.Port_type.value Flow_sop.Port.Map.t;
   boxes : box array;
   edges : edge array;
   slots : (int, int) Hashtbl.t;
@@ -554,7 +556,10 @@ let shape document layout zoom bloom (info : node_info) =
                 let first = List.hd p.fields in
                 let rows = if level = Layout.Full && folder <> Some first.folder
                     && first.folder <> [] then Folder first.folder :: rows else rows in
-                let split = Option.fold ~none:false
+                let split = List.exists (fun (part : Flow_sop.Port.parameter) ->
+                    Flow_sop.Port.Map.mem {node = info.id; path = part.path}
+                      document.drives) (Flow_sop.Port.components p)
+                  || Option.fold ~none:false
                     ~some:(Layout.String_set.mem p.path)
                     (Id_map.find_opt info.id layout.split) in
                 let entries = match p.fields with
@@ -720,7 +725,8 @@ let create_document ?(x = 0) ?(y = 0) ?(width = 640) ?(height = 360)
   let viewed = match Edit_graph.root document.Flow_sop.Network.geometry with
     | Some id -> id
     | None -> Option.value ~default:0 primary in
-  { source_graph = None; document; boxes; edges; slots;
+  { source_graph = None; document; applied = Flow_sop.Port.Map.empty;
+    boxes; edges; slots;
     positions = Id_map.empty; moved_nodes = Id_set.empty;
     moved_cells = Cell_map.empty;
     layout = Layout.empty;
@@ -824,6 +830,9 @@ let with_graph graph value = match value.source_graph with
       let value = with_document (Flow_sop.Network.of_geometry (Edit_graph.of_graph graph)) value in
       { value with source_graph = Some graph }
 
+let with_applied applied value =
+  if applied == value.applied then value else { value with applied }
+
 let with_bounds ~x ~y ~width ~height value =
   if width <= 0 || height <= 0 then invalid_arg
       "Pxui_graph.with_bounds: width and height must be positive";
@@ -843,6 +852,7 @@ let visible (value : t) = value.visible
 let selected (value : t) = value.primary
 let selected_nodes (value : t) = Id_set.elements value.selected
 let selected_connection (value : t) = value.selected_edge
+let selected_wire (value : t) = value.selected_edge <> None || value.selected_value_edge <> None
 let viewed (value : t) = value.viewed
 let flagged (value : t) = value.flagged
 let with_flagged flagged (value : t) = { value with flagged }
@@ -1589,6 +1599,27 @@ let canvas_fill (value : t) =
   if value.theme = Pxui.default_theme then Color.hex_exn "#eef2ee"
   else Color.blend value.theme.panel value.theme.accent ~pct:0.25
 
+let live_text : Flow.Port_type.value -> string = function
+  | Float_value x -> Printf.sprintf "%.5g" x
+  | Int_value x -> string_of_int x
+  | Bool_value x -> string_of_bool x
+  | Vec3_value (x, y, z) -> Printf.sprintf "(%.3g, %.3g, %.3g)" x y z
+
+let arc_midpoint points =
+  let distance (x, y) (xx, yy) = Float.hypot (xx -. x) (yy -. y) in
+  let total = ref 0. in
+  for i = 1 to Array.length points - 1 do
+    total := !total +. distance points.(i - 1) points.(i)
+  done;
+  let rec at i remaining =
+    if i >= Array.length points then points.(Array.length points - 1) else
+    let length = distance points.(i - 1) points.(i) in
+    if remaining > length then at (i + 1) (remaining -. length)
+    else let x, y = points.(i - 1) and xx, yy = points.(i) in
+      let t = if length = 0. then 0. else remaining /. length in
+      x +. t *. (xx -. x), y +. t *. (yy -. y) in
+  at 1 (!total /. 2.)
+
 let paint_background (value : t) paint visible_edges visible_wires =
   let theme = value.theme in
   let spacing = max 10 (screen_size value 12) in
@@ -1606,21 +1637,52 @@ let paint_background (value : t) paint visible_edges visible_wires =
         value.selected_edge = Some connection
       | Value_edge (_, target) -> value.selected_value_edge = Some target) then
       paint_wire value paint points ~width:8. (Color.with_alpha theme.accent 71);
-    let color = match edge.kind with
-      | Geometry_edge _ -> theme.accent
+    let ty = match edge.kind with
+      | Geometry_edge _ -> Flow.Port_type.Geometry
       | Value_edge (source, _) ->
-          let palette = Pxui.Theme.ports theme in
-          (match Flow_sop.Network.output_type value.document source with
-           | Ok Flow.Port_type.Float -> palette.float
-           | Ok Int -> palette.int | Ok Bool -> palette.bool
-           | Ok Vec3 -> palette.vec3
-           | Ok Geometry | Error _ -> palette.geometry) in
-    paint_wire value paint points ~width:2.4 color
+          Result.value ~default:Flow.Port_type.Geometry
+            (Flow_sop.Network.output_type value.document source) in
+    let palette = Pxui.Theme.ports theme in
+    let color, width = match ty with
+      | Flow.Port_type.Geometry -> palette.geometry, 2.4
+      | Float -> palette.float, 1.5 | Int -> palette.int, 1.5
+      | Bool -> palette.bool, 1.5 | Vec3 -> palette.vec3, 1.8 in
+    paint_wire value paint points ~width color;
+    (match edge.kind with
+     | Geometry_edge _ -> ()
+     | Value_edge (_, target) ->
+         Option.iter (fun current ->
+           let text = live_text current in
+           let size = max 7 (screen_size value 10) in
+           let gx, gy = arc_midpoint points in
+           let x = float (screen_x value gx) -. Ui.Paint.text_width paint ~size text /. 2.
+           and y = float (screen_y value gy - screen_size value 6) in
+           let outline = canvas_fill value in
+           List.iter (fun (dx, dy) -> Ui.Paint.text paint ~at:(x +. dx, y +. dy)
+             ~size ~color:outline text) [-1., 0.; 1., 0.; 0., -1.; 0., 1.];
+           Ui.Paint.text paint ~at:(x, y) ~size ~color text)
+           (Flow_sop.Port.Map.find_opt target value.applied))
   done
 
 let field_text : Parameter.value -> string = function
   | Bool_value b -> string_of_bool b | Int_value n -> string_of_int n
   | Float_value f -> Printf.sprintf "%.5g" f | Text_value s | Choice_value s -> s
+
+let drive_text value (target : Flow_sop.Port.t) =
+  match Flow_sop.Port.Map.find_opt target value.document.drives with
+  | None -> None
+  | Some drive ->
+      let source = match drive with
+        | Flow_sop.Drive.Wire {node; output} ->
+            let label = match Hashtbl.find_opt value.slots node with
+              | Some index -> value.boxes.(index).info.label
+              | None -> "#" ^ string_of_int node in
+            (if Layout.Port_set.mem (target.node, target.path) value.layout.wireless
+             then "⌁ " else "← ") ^ label ^ "." ^ output
+        | Flow_sop.Drive.Expr _ -> "ƒ" in
+      let live = Option.map live_text
+          (Flow_sop.Port.Map.find_opt target value.applied) in
+      Some (source ^ Option.fold ~none:"" ~some:(fun text -> " " ^ text) live)
 
 let parse_field (field : Parameter.field_view) text = match field.kind with
   | Toggle_view -> Option.map (fun x -> Parameter.Bool_value x) (bool_of_string_opt text)
@@ -1660,6 +1722,8 @@ let build_row_fields value ui (box : box) =
       Set_parameter_requested { node = box.info.id; path = f.name; value = v } :: changes in
     match row with
     | Field (f, _, path) ->
+        let driven = Flow_sop.Port.Map.mem
+            {Flow_sop.Port.node = box.info.id; path} value.document.drives in
         let container = Ui.box ui ~flags:Ui.clickable ~at:(at 0 y)
           ~w:(Ui.Px (float (screen_size value box.width)))
           ~h:(Ui.Px (float (screen_size value 24))) ("row-" ^ f.name) in
@@ -1680,6 +1744,7 @@ let build_row_fields value ui (box : box) =
           Some (Printf.sprintf "row-%d-%s-%b" box.info.id path signal.hovered, description) in
         let index, changes, detail, pin = Ui.within ui container (fun () ->
         let key = "field-" ^ f.name in
+        if driven then index + 1, changes, detail, pin else
         (match f.current, f.kind with
          | Bool_value _, _ | _, Choice_view _ ->
              let field_x, field_w = match f.kind with
@@ -1729,13 +1794,16 @@ let build_row_fields value ui (box : box) =
         let changes = if signal.clicked then
           Split_requested {node = box.info.id; group = parameter.path; split = not is_header} :: changes
           else changes in
-        let changes, pin = if is_header then changes, pin else
+        let driven = Flow_sop.Port.Map.mem
+            {Flow_sop.Port.node = box.info.id; path = parameter.path}
+            value.document.drives in
+        let changes, pin = if is_header || driven then changes, pin else
           Ui.within ui container (fun () ->
             List.fold_left (fun (changes, pin) (component, (f : Parameter.field_view)) ->
               let current = match f.current with Float_value x -> Printf.sprintf "%.17g" x
                 | _ -> field_text f.current in
-              let text, editing = Ui.value_field ui ~at:(at (42 + 50 * component) 4)
-                ~w:(float (screen_size value 44)) ~h:(float height)
+              let text, editing = Ui.value_field ui ~at:(at (82 + 36 * component) 4)
+                ~w:(float (screen_size value 34)) ~h:(float height)
                 ~size:(max 7 (screen_size value 10))
                 ~display:(field_text f.current) ?scrub:(scrub_field f)
                 ~valid:(fun text -> parse_field f text <> None)
@@ -1830,11 +1898,35 @@ let paint_node (value : t) paint (box : box) =
           label (at label_x (y + 5)) color
             (fitted_text paint label_size (float (screen_size value width))
               (if String.contains path '.' then String.sub path (String.rindex path '.' + 1)
-                 (String.length path - String.rindex path '.' - 1) else f.label))
+                 (String.length path - String.rindex path '.' - 1) else f.label));
+          Option.iter (fun readout ->
+            let size = max 7 (screen_size value 10) in
+            let readout = fitted_text paint size (float (screen_size value 103)) readout in
+            let right, top = at 190 (y + 6) in
+            Ui.Paint.text paint
+              ~at:(float right -. Ui.Paint.text_width paint ~size readout, float top)
+              ~size ~color:palette.float readout)
+            (drive_text value {Flow_sop.Port.node = box.info.id; path})
       | Vector (parameter, shown) | Vector_head (parameter, shown) ->
           let color = if shown then palette.vec3 else Pxui.Theme.muted theme in
           label (at 14 (y + 5)) color
-            (fitted_text paint label_size (float (screen_size value 54)) parameter.path)
+            (fitted_text paint label_size (float (screen_size value 54)) parameter.path);
+          (match drive_text value {Flow_sop.Port.node = box.info.id;
+              path = parameter.path} with
+           | Some readout ->
+               let size = max 7 (screen_size value 10) in
+               let readout = fitted_text paint size
+                   (float (screen_size value 110)) readout in
+               let right, top = at 190 (y + 6) in
+               Ui.Paint.text paint
+                 ~at:(float right -. Ui.Paint.text_width paint ~size readout, float top)
+                 ~size ~color:palette.vec3 readout
+           | None ->
+               (match row with Vector _ ->
+                  List.iteri (fun i axis ->
+                    label (at (72 + 36 * i) (y + 5)) palette.vec3 axis)
+                    ["x"; "y"; "z"]
+                | Vector_head _ -> () | _ -> assert false))
       | Output (name, _) -> label (at 14 (y + 5)) theme.foreground name
       | Folder folder ->
           let name = fitted_text paint label_size (float (screen_size value 150))
@@ -1972,21 +2064,6 @@ let walk value direction =
   | None -> value, []
   | Some box -> select box.info.id value |> fun value -> reveal_node value box.info.id,
       [Selected (Some box.info.id)]
-
-let arc_midpoint points =
-  let distance (x, y) (xx, yy) = Float.hypot (xx -. x) (yy -. y) in
-  let total = ref 0. in
-  for i = 1 to Array.length points - 1 do
-    total := !total +. distance points.(i - 1) points.(i)
-  done;
-  let rec at i remaining =
-    if i >= Array.length points then points.(Array.length points - 1) else
-    let length = distance points.(i - 1) points.(i) in
-    if remaining > length then at (i + 1) (remaining -. length)
-    else let x, y = points.(i - 1) and xx, yy = points.(i) in
-      let t = if length = 0. then 0. else remaining /. length in
-      x +. t *. (xx -. x), y +. t *. (yy -. y) in
-  at 1 (!total /. 2.)
 
 let downstream value source =
   let seen = Hashtbl.create 16 and pending = Queue.create () in

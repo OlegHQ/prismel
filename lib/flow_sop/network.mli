@@ -18,6 +18,7 @@ val output_type : t -> Port.t -> (Flow.Port_type.t, Flow.Diagnostic.t) result
 val topological_values : t -> (int list, Flow.Diagnostic.t) result
 
 val add_value_node : ?label:string -> Flow.Value_kind.kind -> t -> (t * int, Flow.Diagnostic.t) result
+val relabel : node_id:int -> string -> t -> (t, Flow.Diagnostic.t) result
 val with_geometry : Procedural.Edit_graph.t -> t -> (t, Flow.Diagnostic.t) result
 val remove_nodes : int list -> t -> (t, Flow.Diagnostic.t) result
 val connect_value : source:Port.t -> target:Port.t -> t -> (t, Flow.Diagnostic.t) result

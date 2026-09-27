@@ -104,5 +104,42 @@ let run () =
   if (Node.parameter_fields normalized |> List.find (fun field ->
       field.Parameter.name = "count")).current <> Parameter.Int_value 10
   then fail "hard range normalization changed";
+  let flow_ui = Pxui.Ui.create () in
+  let count = { (field graph "count") with Parameter.folder = [] } in
+  let flow_row ?drive ?(locked = false) () : Pxui_shell.Inspector.flow_row = {
+    path = "count"; fields = [count]; shown = true; locked;
+    drive; live = Some "3"; components = []; split = None } in
+  let flow_step row events =
+    let settle = frame 2. [] in
+    ignore (Pxui.Ui.frame flow_ui settle (fun ui ->
+      Pxui_shell.Inspector.flow_fields ui [row]));
+    Pxui.Ui.frame flow_ui (frame 2. events) (fun ui ->
+      Pxui_shell.Inspector.flow_fields ui [row]) in
+  if flow_step (flow_row ()) (click 9 12)
+      <> [Pxui_shell.Inspector.Pinned ("count", false)] then
+    fail "Flow inspector pin did not emit the card-row request";
+  if flow_step (flow_row ~drive:"← Clock.t" ~locked:true ()) (click 112 12)
+      <> [Pxui_shell.Inspector.Reset "count"] then
+    fail "Flow inspector reset did not clear the drive";
+  let box = Sop_catalog.Box.create () in
+  let vector = Flow_sop.Port.parameters (Node.parameter_fields box)
+    |> Result.get_ok |> List.find (fun (parameter : Flow_sop.Port.parameter) ->
+      parameter.path = "size") in
+  let vector_row : Pxui_shell.Inspector.flow_row = {
+    path = vector.path;
+    fields = List.map (fun field -> {field with Parameter.folder = []}) vector.fields;
+    shown = true; locked = false; drive = None; live = None;
+    components = []; split = Some false } in
+  if flow_step vector_row (click 90 12)
+      <> [Pxui_shell.Inspector.Split ("size", true)] then
+    fail "Flow inspector xyz control did not request a vector split";
+  (match Sys.getenv_opt "PRISMEL_UI_PREVIEW" with
+   | None -> ()
+   | Some directory ->
+       Prismel.Sketch.export ~directory ~prefix:"flow-inspector" ~frames:1
+         ~config:{Prismel.Sketch.default_config with width=320; height=240}
+         (fun _ -> Prismel.Scene.clear (Prismel.Color.hex_exn "#eef2ee")
+           :: Pxui.Ui.scene flow_ui));
+  Pxui.Ui.destroy flow_ui;
   Pxui.Ui.destroy ui;
   print_endline "SOP UI tests passed"

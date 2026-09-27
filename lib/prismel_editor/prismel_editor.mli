@@ -143,9 +143,10 @@ module Private : sig
       unit -> ('a t, string) result
     val status : 'a t -> Procedural.Async_cook.status
     val pieces : 'a t -> 'a piece list
+    val applied : 'a t -> int -> Flow_sop.Value_lane.resolved option
     val force : 'a t -> 'a t
     val update : ?live:bool -> 'a t -> settings:Settings.t ->
-      objects:(int * Procedural.Edit_graph.t * int) list -> edit_error:string option ->
+      objects:(int * Flow_sop.Network.t * int) list -> edit_error:string option ->
       effects:Procedural.Parameter.effects -> timeline_changes:Sketch_support.Timeline.change list ->
       timeline:Sketch_support.Timeline.t -> frame:Prismel.Frame.t ->
       frame_request:(int * int) option -> 'a update

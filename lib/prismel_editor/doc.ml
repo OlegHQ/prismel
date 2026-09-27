@@ -99,6 +99,11 @@ let apply factories (document, graph_view, error, effects, placed, pasted) = fun
        | Ok (document, changed) ->
            document, Pxui_graph.with_document document graph_view, None,
            Parameter.union_effects effects changed, node :: placed, pasted)
+  | Rename_requested {node; label} ->
+      (match flow_result (Flow_sop.Network.relabel ~node_id:node label document) with
+       | Error message -> document, graph_view, Some message, effects, placed, pasted
+       | Ok document -> document, Pxui_graph.with_document document graph_view,
+           None, effects, node :: placed, pasted)
   | Split_requested {node; group; split} ->
       let target = {Flow_sop.Port.node; path = group} in
       (match flow_result (Flow_sop.Network.parameter document target) with

@@ -47,6 +47,7 @@ type change =
   | Bend_changed of { node : int; slot : int }
   | Level_changed of int list
   | Set_parameter_requested of { node : int; path : string; value : Procedural.Parameter.value }
+  | Rename_requested of { node : int; label : string }
   | Split_requested of { node : int; group : string; split : bool }
   | Row_pinned of { node : int; path : string; pinned : bool }
   | Cut_wires_requested of Procedural.Edit_graph.connection list
@@ -114,6 +115,9 @@ val create_document :
     graph never interprets operation names itself. *)
 
 val with_document : Flow_sop.Network.t -> t -> t
+
+(** Live, normalized values resolved by the host before cooking. *)
+val with_applied : Flow.Port_type.value Flow_sop.Port.Map.t -> t -> t
 val with_graph : Procedural.Graph.t -> t -> t
 val with_bounds : x:int -> y:int -> width:int -> height:int -> t -> t
 val with_visible : bool -> t -> t
@@ -126,6 +130,7 @@ val visible : t -> bool
 val selected : t -> int option
 val selected_nodes : t -> int list
 val selected_connection : t -> Procedural.Edit_graph.connection option
+val selected_wire : t -> bool
 val viewed : t -> int
 val flagged : t -> int option
 val with_flagged : int option -> t -> t

@@ -36,6 +36,8 @@ type 'prepared t = {
   (* Each object's last compiled network, reused node-by-node on the next
      edit, and this frame's displayed graphs. *)
   compiled : (Edit_graph.t * Edit_graph.compiled) Document.Layout.t;
+  value_lanes : Flow_sop.Value_lane.t Document.Layout.t;
+  applied : Flow_sop.Value_lane.resolved Document.Layout.t;
   graphs : (int * Graph.t) list;
   displayed : (int * int) list;  (* the display node each graph compiles *)
 }
@@ -91,11 +93,13 @@ let create ~prepare ~seed ~grain ?domains ~max_entries ~max_payload_bytes () =
     { worker; seed; grain; domains; prepare; schedule = Schedule.initial;
       pieces = []; settings = None; error = None; seconds = None;
       framing = None; force = false; compiled = Document.Layout.empty; graphs = [];
+      value_lanes = Document.Layout.empty; applied = Document.Layout.empty;
       displayed = [] })
     (Async_cook.create ~max_entries ~max_payload_bytes)
 
 let status value = Async_cook.status value.worker
 let pieces value = value.pieces
+let applied value id = Document.Layout.find_opt id value.applied
 
 let context value timeline = Sketch_support.Timeline.context ~seed:value.seed
     ~grain:value.grain ~domains:value.domains timeline
@@ -108,6 +112,29 @@ let force value = { value with force = true }
    display node); [frame_request] is (object, node) to frame. *)
 let update ?live value ~settings ~objects ~edit_error ~effects ~timeline_changes
     ~timeline ~frame ~frame_request =
+  let objects, value_lanes, applied, resolve_error =
+    List.fold_left (fun (objects, lanes, applied, error) (id, network, displayed) ->
+      let lane = match Document.Layout.find_opt id value.value_lanes with
+        | Some lane -> lane | None -> Flow_sop.Value_lane.create () in
+      let lanes = Document.Layout.add id lane lanes in
+      match Flow_sop.Value_lane.resolve lane
+          ~time:(Sketch_support.Timeline.time timeline) network with
+      | Ok resolved -> (id, resolved.geometry, displayed) :: objects,
+          lanes, Document.Layout.add id resolved applied, error
+      | Error diagnostic ->
+          let previous = Document.Layout.find_opt id value.applied in
+          let objects = match previous with
+            | Some previous -> (id, previous.geometry, displayed) :: objects
+            | None -> objects in
+          let applied = match previous with
+            | Some previous -> Document.Layout.add id previous applied
+            | None -> applied in
+          objects, lanes, applied,
+          Some (Flow.Diagnostic.to_string diagnostic))
+      ([], Document.Layout.empty, Document.Layout.empty, None) objects in
+  let objects = List.rev objects in
+  let edit_error = match edit_error with Some _ -> edit_error
+    | None -> resolve_error in
   let compiled = List.fold_left (fun compiled (id, document, _) ->
       match Document.Layout.find_opt id value.compiled with
       | Some (source, _) when source == document -> compiled
@@ -216,7 +243,7 @@ let update ?live value ~settings ~objects ~edit_error ~effects ~timeline_changes
                  | Ok _ -> framed, Some (was_busy || Option.value ~default:false framing)
                  | Error _ -> Some None, framing) in
   { cook = { value with schedule; pieces; settings = Some settings; error; seconds;
-      framing; force = force_next; compiled; graphs; displayed };
+      framing; force = force_next; compiled; value_lanes; applied; graphs; displayed };
     edit_error; prepared_changed; framed }
 
 let close value = Async_cook.close value.worker

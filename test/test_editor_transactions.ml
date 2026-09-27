@@ -30,7 +30,7 @@ let run () =
     step ~mouse:selected (click selected); step [];
     let ix, iy, _, _ = (E.panes !current (Test_editor_input.frame (0., 0.) [] 0))
       .Pxui_shell.Layout.inspector in
-    let control = float (ix + 165), float (iy + 46) in
+    let control = float (ix + 165), float (iy + 70) in
     let before = Atomic.get draws in
     (* Re-select the stable id and edit its already visible inspector in one frame. *)
     step ~mouse:control (click selected @ click control);
@@ -47,7 +47,7 @@ let run () =
     wait_draw before;
     check (Atomic.get draws >= 3) "changed graph with the same prepared value retained a stale drawing";
     count := !count + 30;
-    let label = float (ix + 20), float (iy + 46) in
+    let label = float (ix + 40), float (iy + 70) in
     step ~mouse:label (click label); step ~mouse:label (click label);
     step [Event.TextInput "invalid"]; step [Event.KeyPressed Input.Enter];
     check (value (Node.id second) = Parameter.Int_value 1 && E.can_redo !current)

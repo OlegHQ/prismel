@@ -146,7 +146,7 @@ let run () =
   check (List.length (E.lights env) = lights_before + 1) "undo did not show the light again";
   (* Nor does dragging an object transform slider in the inspector (undo
      itself re-cooks, so let that settle first): rows are 24 points and
-     Translate X is the third row under the pane header. *)
+     Translate X follows the node header, input source and folder. *)
   let env = List.fold_left (fun env _ -> Unix.sleepf 0.005; step env []) env (List.init 40 Fun.id) in
   let cooked = Atomic.get cooks in
   let rec select_up name env tries =
@@ -155,8 +155,14 @@ let run () =
     else select_up name (step env [key Input.ArrowUp]) (tries - 1) in
   let env = select_up "geo1" env 8 in
   let env = step env [] in
+  (match Sys.getenv_opt "PRISMEL_UI_PREVIEW" with
+   | None -> ()
+   | Some directory ->
+       Sketch.export ~directory ~prefix:"scene-inspector" ~frames:1
+         ~config:{Sketch.default_config with width=900; height=640}
+         (fun _ -> E.scene env (frame 0)));
   let ix, iy, iw, _ = (E.panes env (frame 0)).inspector in
-  let slider x = ix + (iw * 55 / 100) + x, iy + 69 in
+  let slider x = ix + (iw * 70 / 100) + x, iy + 141 in
   let at (x, y) = float x, float y in
   let translate_x env = Option.bind (E.selected_node env) (fun node ->
       List.find_map (fun (field : Parameter.field_view) ->

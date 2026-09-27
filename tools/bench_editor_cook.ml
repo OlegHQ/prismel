@@ -26,7 +26,8 @@ let measure () =
   Fun.protect ~finally:(fun () -> Cook.close !cook) (fun () ->
     let timeline = fst (Sketch_support.Timeline.stop (Sketch_support.Timeline.create ())) in
     let source = Sop.grid ~columns:100 ~rows:100 ~size:10. () in
-    let network id graph = id, Edit_graph.of_graph graph, Node.id graph in
+    let network id graph = id,
+      Flow_sop.Network.of_geometry (Edit_graph.of_graph graph), Node.id graph in
     let still = network 2 source in
     let step objects =
       let update = Cook.update !cook ~settings:Prismel_editor.Settings.none ~objects
