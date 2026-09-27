@@ -56,6 +56,8 @@ type 'record field = Field : {
   description : string option;
   folder : string list;
   impact : impact;
+  primary : bool;
+  vec3 : (string * int) option;
   kind : 'value kind;
   default : 'value;
   get : 'record -> 'value;
@@ -86,6 +88,8 @@ type field_view = {
   description : string option;
   folder : string list;
   impact : impact;
+  primary : bool;
+  vec3 : (string * int) option;  (** group name and x/y/z component index (0/1/2) *)
   kind : kind_view;
   default : value;
   current : value;
@@ -116,6 +120,8 @@ val field :
   ?description:string ->
   ?folder:string list ->
   ?impact:impact ->
+  ?primary:bool ->
+  ?vec3:(string * int) ->
   kind:'value kind ->
   default:'value ->
   get:('record -> 'value) ->

@@ -60,6 +60,8 @@ type 'record field = Field : {
   description : string option;
   folder : string list;
   impact : impact;
+  primary : bool;
+  vec3 : (string * int) option;
   kind : 'value kind;
   default : 'value;
   get : 'record -> 'value;
@@ -93,6 +95,8 @@ type field_view = {
   description : string option;
   folder : string list;
   impact : impact;
+  primary : bool;
+  vec3 : (string * int) option;
   kind : kind_view;
   default : value;
   current : value;
@@ -197,17 +201,26 @@ let default_label name =
   else String.mapi (fun index character ->
     if index = 0 then Char.uppercase_ascii character else character) value
 
+let validate_vec3 : type a. a kind -> (string * int) option -> unit = fun kind ->
+  Option.iter (fun (group, component) ->
+    nonblank "Parameter.field vec3 group" group;
+    if component < 0 || component > 2 then invalid_arg "Parameter.field: vec3 component must be 0, 1 or 2";
+    match kind with Floating _ -> ()
+      | _ -> invalid_arg "Parameter.field: vec3 components must be float fields")
+
 let field ~name ?label ?description ?(folder = []) ?(impact = Cook)
+    ?(primary = false) ?vec3
     ~kind ~default ~get ~set () =
   nonblank "Parameter.field name" name;
   List.iter (nonblank "Parameter.field folder") folder;
   let label = Option.value ~default:(default_label name) label in
   nonblank "Parameter.field label" label;
+  validate_vec3 kind vec3;
   let default = match normalize_kind kind default with
     | Ok value -> value
     | Error message -> invalid_arg ("Parameter.field " ^ name ^ ": " ^ message)
   in
-  Field { name; label; description; folder; impact; kind; default; get; set }
+  Field { name; label; description; folder; impact; primary; vec3; kind; default; get; set }
 
 let schema ~name ~default fields =
   nonblank "Parameter.schema name" name;
@@ -261,7 +274,7 @@ let view_field : type record. record -> record field -> field_view =
     in
     { name = field.name; label = field.label;
       description = field.description; folder = field.folder;
-      impact = field.impact; kind; default; current }
+      impact = field.impact; primary = field.primary; vec3 = field.vec3; kind; default; current }
 
 let view schema record = List.map (view_field record) schema.fields
 

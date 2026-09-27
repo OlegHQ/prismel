@@ -33,7 +33,7 @@ accept an intended one with `dune promote`.
 | M0 | Spec, prototype, docs aligned | done | 2026-09-27 |
 | M1 | Canvas: direction, polylines, bends, levels, box select, rows, preset v3 layout | done | 2026-09-27 |
 | M2 | Keys and guide mode, World key remap | done | 2026-09-27 |
-| M3 | Value ports: `flow`, `flow_sop`, value nodes, drives by wire, exposure, vec3, inspector | not started | |
+| M3 | Value ports: `flow`, `flow_sop`, value nodes, drives by wire, exposure, vec3, inspector | in progress | |
 | M4 | Wireless binds, expressions, fold/unfold, row keys | not started | |
 | M5 | Compounds and contexts | not started | |
 | M6 | Views: list with values, read-only text, reader and checker | not started | |
@@ -172,7 +172,7 @@ Preconditions: M2 done.
 
 Tasks:
 
-1. `lib/param`: `primary : bool` (default false) and
+1. [x] `lib/param`: `primary : bool` (default false) and
    `vec3 : (string * int) option` on `field` and `field_view`; `field` gets
    `?primary` and `?vec3` arguments. Dependency-free still.
 2. `ppx/ppx_prismel`: `[@sop.primary]`, `[@sop.vec3 "name"]` (checks of
@@ -316,6 +316,13 @@ network with the same canvas, keys, views and text), then plan it here.
   the build.
 
 ## Log
+
+- 2026-09-27 M3 foundation: dependency-free Param fields and field views
+  carry primary/vec3 metadata. The field constructor validates float group
+  components, and a window-free check proves metadata preserves literal
+  values, updates and both full/cook keys. `@check` and default `runtest`
+  pass; the intended Param API manifest is promoted. PPX annotations and
+  catalog extraction follow before value ports and drives.
 
 - 2026-09-27 M2 complete: contextual guide strip, shared 380 ms hover
   tooltips, grouped key sheet, atomic user preference toggle/Hide and 1.5 s

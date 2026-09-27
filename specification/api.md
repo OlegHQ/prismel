@@ -697,6 +697,12 @@ in the palette under the same focus condition as keyboard dispatch.
 the remaining frame. Hosts dispatch their `action` values and use the
 retained trigger and label for key feedback, including aliases.
 
+Parameter schemas also carry presentation metadata: `Param.field ~primary`
+marks a default card row, and `~vec3:(group, component)` groups float fields
+with component indices 0, 1, 2. Field views preserve these annotations; they
+do not change parameter values or cook keys. M3's PPX and editor adapters
+consume them as the value-port milestone lands.
+
 | Key | Scope | Action |
 |---|---|---|
 | `s` / `b` | global | save preset (name prompt) / preset browser |
