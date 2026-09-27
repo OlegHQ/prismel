@@ -129,7 +129,7 @@ module Subdivide = struct
     recompute_point_normals : bool [@sop.default false]
       [@sop.label "Recompute point normals"];
   } [@@sop.node_key "subdivide"] [@@sop.node_label "Subdivide"]
-    [@@sop.node_category "Topology"] [@@sop.node_inputs 2]
+    [@@sop.node_category "Topology"] [@@sop.node_inputs 2] [@@sop.node_slots "input, creases"]
     [@@sop.node_optional "1"] [@@deriving sop_params, sop_node]
 
   let cracks parameters = match parameters.cracks with
@@ -554,11 +554,11 @@ module Circle_from_edges = struct
     radius : float [@sop.default 1.] [@sop.label "Radius"]
       [@sop.min 0.01] [@sop.max 10.] [@sop.hard_min 0.];
     scale_x : float [@sop.default 1.] [@sop.label "Scale X"]
-      [@sop.folder "Scale"] [@sop.min (-4.)] [@sop.max 4.];
+      [@sop.folder "Scale"] [@sop.min (-4.)] [@sop.max 4.]; [@sop.vec3 "scale"]
     scale_y : float [@sop.default 1.] [@sop.label "Scale Y"]
-      [@sop.folder "Scale"] [@sop.min (-4.)] [@sop.max 4.];
+      [@sop.folder "Scale"] [@sop.min (-4.)] [@sop.max 4.]; [@sop.vec3 "scale"]
     scale_z : float [@sop.default 1.] [@sop.label "Scale Z"]
-      [@sop.folder "Scale"] [@sop.min (-4.)] [@sop.max 4.];
+      [@sop.folder "Scale"] [@sop.min (-4.)] [@sop.max 4.]; [@sop.vec3 "scale"]
     output_group : string [@sop.default ""] [@sop.label "Output group"];
   } [@@sop.node_key "circle_from_edges"]
     [@@sop.node_label "Circle from Edges"]
@@ -991,7 +991,7 @@ module Boolean_fracture = struct
       [@sop.folder "Robustness"];
   } [@@sop.node_key "boolean_fracture"] [@@sop.node_label "Boolean Fracture"]
     [@@sop.node_operation "boolean"]
-    [@@sop.node_category "Boolean"] [@@sop.node_inputs 2]
+    [@@sop.node_category "Boolean"] [@@sop.node_inputs 2] [@@sop.node_slots "source, cutters"]
     [@@deriving sop_params, sop_node]
 
   let build = parameters_build (fun ~label parameters source cutters ->
@@ -1103,7 +1103,7 @@ module Boolean = struct
     right_piece_group : string [@sop.default "boolean_right"]
       [@sop.label "B-only group"] [@sop.folder "Shatter groups"];
   } [@@sop.node_key "boolean"] [@@sop.node_label "Boolean"]
-    [@@sop.node_category "Boolean"] [@@sop.node_inputs 2]
+    [@@sop.node_category "Boolean"] [@@sop.node_inputs 2] [@@sop.node_slots "left, right"]
     [@@deriving sop_params, sop_node]
 
   let require_closed = function
@@ -1175,7 +1175,7 @@ module Boolean_seam = struct
     coincident_group : string [@sop.default "boolean_coincident"]
       [@sop.label "Coincident group"] [@sop.folder "Groups"];
   } [@@sop.node_key "boolean_seam"] [@@sop.node_label "Boolean Seam"]
-    [@@sop.node_category "Boolean/Analysis"] [@@sop.node_inputs 2]
+    [@@sop.node_category "Boolean/Analysis"] [@@sop.node_inputs 2] [@@sop.node_slots "left, right"]
     [@@deriving sop_params, sop_node]
 
   let build = parameters_build (fun ~label parameters left right ->
@@ -1219,7 +1219,7 @@ module Boolean_detect = struct
     self_count_attribute : string [@sop.default ""]
       [@sop.label "Self count attribute"] [@sop.folder "Self outputs"];
   } [@@sop.node_key "boolean_detect"] [@@sop.node_label "Boolean Detect"]
-    [@@sop.node_category "Boolean/Analysis"] [@@sop.node_inputs 2]
+    [@@sop.node_category "Boolean/Analysis"] [@@sop.node_inputs 2] [@@sop.node_slots "input, collision"]
     [@@sop.node_optional "1"] [@@deriving sop_params, sop_node]
 
   let build = parameters_build (fun ~label parameters input collision ->
@@ -1267,7 +1267,7 @@ module Intersection_analysis = struct
       [@sop.label "Point attribute"] [@sop.folder "Output attributes"];
   } [@@sop.node_key "intersection_analysis"]
     [@@sop.node_label "Intersection Analysis"]
-    [@@sop.node_category "Boolean/Analysis"] [@@sop.node_inputs 2]
+    [@@sop.node_category "Boolean/Analysis"] [@@sop.node_inputs 2] [@@sop.node_slots "input, collision"]
     [@@sop.node_optional "1"] [@@deriving sop_params, sop_node]
 
   let build = parameters_build (fun ~label parameters input collision ->
@@ -1460,7 +1460,7 @@ module Fuse = struct
     remove_all_unused_points : bool [@sop.default false]
       [@sop.label "Remove all unused points"] [@sop.folder "Cleanup"];
   } [@@sop.node_key "fuse"] [@@sop.node_label "Fuse"]
-    [@@sop.node_category "Topology/Cleanup"] [@@sop.node_inputs 2]
+    [@@sop.node_category "Topology/Cleanup"] [@@sop.node_inputs 2] [@@sop.node_slots "input, target"]
     [@@sop.node_optional "1"] [@@deriving sop_params, sop_node]
 
   let targeting parameters = match parameters.targeting with
@@ -1597,7 +1597,7 @@ module Edge_relax = struct
     tolerance : float [@sop.default 0.000001] [@sop.label "Tolerance"]
       [@sop.min 0.] [@sop.max 0.1] [@sop.hard_min 0.];
   } [@@sop.node_key "edge_relax"] [@@sop.node_label "Edge Relax"]
-    [@@sop.node_category "Topology/Edge"] [@@sop.node_inputs 2]
+    [@@sop.node_category "Topology/Edge"] [@@sop.node_inputs 2] [@@sop.node_slots "source, reference"]
     [@@deriving sop_params, sop_node]
 
   let build = parameters_build (fun ~label parameters source reference ->
@@ -1635,7 +1635,7 @@ module Poly_loft = struct
     recompute_normals : bool [@sop.default true]
       [@sop.label "Recompute normals"];
   } [@@sop.node_key "poly_loft"] [@@sop.node_label "PolyLoft"]
-    [@@sop.node_category "Topology/Polygon"] [@@sop.node_inputs 2]
+    [@@sop.node_category "Topology/Polygon"] [@@sop.node_inputs 2] [@@sop.node_slots "input, rest"]
     [@@sop.node_optional "1"] [@@deriving sop_params, sop_node]
 
   let build = parameters_build (fun ~label parameters input rest ->
@@ -1685,17 +1685,17 @@ module Revolve = struct
     divisions : int [@sop.default 32] [@sop.label "Divisions"]
       [@sop.min 2] [@sop.max 512] [@sop.hard_min 1];
     origin_x : float [@sop.default 0.] [@sop.label "Origin X"]
-      [@sop.folder "Axis/Origin"] [@sop.min (-100.)] [@sop.max 100.];
+      [@sop.folder "Axis/Origin"] [@sop.min (-100.)] [@sop.max 100.]; [@sop.vec3 "origin"]
     origin_y : float [@sop.default 0.] [@sop.label "Origin Y"]
-      [@sop.folder "Axis/Origin"] [@sop.min (-100.)] [@sop.max 100.];
+      [@sop.folder "Axis/Origin"] [@sop.min (-100.)] [@sop.max 100.]; [@sop.vec3 "origin"]
     origin_z : float [@sop.default 0.] [@sop.label "Origin Z"]
-      [@sop.folder "Axis/Origin"] [@sop.min (-100.)] [@sop.max 100.];
+      [@sop.folder "Axis/Origin"] [@sop.min (-100.)] [@sop.max 100.]; [@sop.vec3 "origin"]
     axis_x : float [@sop.default 0.] [@sop.label "Axis X"]
-      [@sop.folder "Axis/Direction"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "Axis/Direction"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "axis"]
     axis_y : float [@sop.default 1.] [@sop.label "Axis Y"]
-      [@sop.folder "Axis/Direction"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "Axis/Direction"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "axis"]
     axis_z : float [@sop.default 0.] [@sop.label "Axis Z"]
-      [@sop.folder "Axis/Direction"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "Axis/Direction"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "axis"]
   } [@@sop.node_key "revolve"] [@@sop.node_label "Revolve"]
     [@@sop.node_category "Topology/Surface"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
@@ -1763,7 +1763,7 @@ module Sweep = struct
     cross_section_prefix : string [@sop.default "cross_section_"]
       [@sop.label "Cross-section attribute prefix"];
   } [@@sop.node_key "sweep"] [@@sop.node_label "Sweep"]
-    [@@sop.node_category "Topology/Surface"] [@@sop.node_inputs 2]
+    [@@sop.node_category "Topology/Surface"] [@@sop.node_inputs 2] [@@sop.node_slots "backbone, cross_section"]
     [@@deriving sop_params, sop_node]
 
   let build = parameters_build (fun ~label parameters backbone cross_section ->
@@ -2082,17 +2082,17 @@ module Triangulate_2d = struct
     projection : projection [@sop.default Best_fit] [@sop.label "Projection"]
       [@sop.folder "Projection"] [@sop.kind projection_parameter];
     plane_origin_x : float [@sop.default 0.] [@sop.label "Origin X"]
-      [@sop.folder "Projection/Plane"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Projection/Plane"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "plane_origin"]
     plane_origin_y : float [@sop.default 0.] [@sop.label "Origin Y"]
-      [@sop.folder "Projection/Plane"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Projection/Plane"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "plane_origin"]
     plane_origin_z : float [@sop.default 0.] [@sop.label "Origin Z"]
-      [@sop.folder "Projection/Plane"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Projection/Plane"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "plane_origin"]
     plane_normal_x : float [@sop.default 0.] [@sop.label "Normal X"]
-      [@sop.folder "Projection/Plane"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "Projection/Plane"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "plane_normal"]
     plane_normal_y : float [@sop.default 0.] [@sop.label "Normal Y"]
-      [@sop.folder "Projection/Plane"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "Projection/Plane"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "plane_normal"]
     plane_normal_z : float [@sop.default 1.] [@sop.label "Normal Z"]
-      [@sop.folder "Projection/Plane"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "Projection/Plane"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "plane_normal"]
     point_attribute : string [@sop.default "uv"] [@sop.label "Point attribute"]
       [@sop.folder "Projection"];
     seed : int [@sop.default 0] [@sop.label "Seed"]

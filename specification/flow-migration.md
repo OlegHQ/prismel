@@ -179,8 +179,8 @@ Tasks:
    `flow.md` §5.3), `[@@sop.node_slots "a, b"]`, key alphabet check
    `[a-z][a-z0-9_]*`, slot/field name clash check. PPX expect tests for each
    error.
-3. `lib/sop_catalog/sop_catalog.ml`: annotate every `*_x/_y/_z` triple with
-   `[@sop.vec3 "<prefix>"]` (92 triples today; mechanical, verify with a
+3. [x] `lib/sop_catalog`: annotate every `*_x/_y/_z` triple with
+   `[@sop.vec3 "<prefix>"]` (89 float triples today; mechanical, verify with a
    catalog test that no ungrouped `_x/_y/_z` triple remains); add
    `[@sop.primary]` where the first-folder default is wrong; name slots of
    multi-input SOPs. Catalog tests still instantiate every factory.
@@ -316,6 +316,14 @@ network with the same canvas, keys, views and text), then plan it here.
   the build.
 
 ## Log
+
+- 2026-09-27 M3 catalog annotations: an OCaml AST codemod annotated all 89
+  named float triples and 26 PPX input signatures; Switch and Merge retain
+  their custom builders with named slots (28 multi-input factories total).
+  Ten schemas mark their main size/deformation/UV controls primary. The
+  registry regression rejects ungrouped triples and slot/field clashes;
+  descriptors preserve literal defaults, bounds and operator keys. `@check`,
+  catalog/cache-key regressions and default tests pass. `flow` is next.
 
 - 2026-09-27 M3 catalog extraction: an OCaml AST codemod moved the unchanged
   operation modules into four private files (shapes, topology, attributes,

@@ -366,8 +366,10 @@ rejects a group that is not exactly three consecutive `float` fields in one
 folder, or a group name equal to another field's name. The record keeps its
 three fields, so cook code does not change. `Param.field` gains
 `vec3 : (string * int) option` (group name, component index).
-In M3 every catalog triple named `*_x/_y/_z` (currently 92 triples, 278
-fields) is annotated; the group name is the common prefix.
+In M3 every catalog triple named `*_x/_y/_z` (89 float triples, 267 fields
+in the current catalog) is annotated; the group name is the common prefix.
+If that prefix already names another field, use `<prefix>_vector` (Ray's
+`direction_vector` keeps its `direction` choice field unambiguous).
 
 ### 5.4 Split vectors
 
@@ -1099,3 +1101,8 @@ splits and wireless flags stay empty until their milestones.
 an immutable `Edit_graph` entry flag, shared by compile, copy, undo and
 presets, rather than a second host map. Only the primary slot is compiled
 while bypassed; disconnected secondary slots cannot prevent the pass-through.
+
+2026-09-27: an AST inventory found 89 named float triples; the previous
+92/278 count was stale. Ray has both a `direction` choice and
+`direction_x/y/z`; its group is `direction_vector`, preserving the existing
+field names and the rule that a group cannot shadow another field.

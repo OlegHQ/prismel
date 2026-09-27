@@ -3,6 +3,39 @@ open Procedural
 
 let fail message = raise (Failure message)
 let check condition message = if not condition then fail message
+
+let check_metadata factory node =
+  let key = Edit_graph.factory_key factory in
+  let fields = Node.parameter_fields node in
+  let names = Edit_graph.factory_slot_names factory in
+  check (List.length names = Edit_graph.factory_arity factory
+      && List.length (List.sort_uniq String.compare names) = List.length names)
+    (key ^ " has invalid geometry port names");
+  List.iter (fun name -> check
+      (not (List.exists (fun (field : Parameter.field_view) ->
+         field.name = name || Option.fold ~none:false
+           ~some:(fun (group, _) -> group = name) field.vec3) fields))
+      (key ^ " has a geometry port shadowing a parameter port")) names;
+  if List.length names > 1 then
+    check (names <> List.mapi (fun index _ -> "in" ^ string_of_int index) names)
+      (key ^ " still has unnamed multiple inputs");
+  let floating (field : Parameter.field_view) = match field.kind with
+    | Parameter.Floating_view _ -> true | _ -> false in
+  List.fold_left (fun count (x : Parameter.field_view) ->
+    if not (floating x) || not (Filename.check_suffix x.name "_x") then count
+    else
+      let prefix = String.sub x.name 0 (String.length x.name - 2) in
+      let find suffix = List.find_opt (fun (field : Parameter.field_view) ->
+        field.name = prefix ^ suffix && floating field) fields in
+      match find "_y", find "_z" with
+      | Some y, Some z ->
+          let group = if List.exists (fun (field : Parameter.field_view) ->
+              field.name = prefix) fields then prefix ^ "_vector" else prefix in
+          List.iteri (fun component (field : Parameter.field_view) ->
+            check (field.vec3 = Some (group, component) && field.folder = x.folder)
+              (key ^ "." ^ field.name ^ " lost its vector port metadata")) [x; y; z];
+          count + 1
+      | _ -> count) 0 fields
 let edit_parameters graph ~node_id changes =
   Result.bind (Edit_graph.apply_parameters (Edit_graph.of_graph graph)
       ~node_id changes) (fun (document, effects) ->
@@ -289,10 +322,18 @@ let run () =
      "attribute_transfer_surface"; "attribute_copy";
      "attribute_interpolate";
      "promote_attributes"];
+  let vector_groups = ref 0 in
   List.iter (fun factory ->
     let slots = List.init (Edit_graph.factory_arity factory) (fun _ -> None) in
     match Edit_graph.instantiate_optional factory slots with
-    | Ok node -> check
+    | Ok node ->
+        vector_groups := !vector_groups + check_metadata factory node;
+        if Edit_graph.factory_key factory = "box" then
+          check (List.filter_map (fun (field : Parameter.field_view) ->
+              if field.primary then Some field.name else None) (Node.parameter_fields node)
+              = ["size_x"; "size_y"; "size_z"])
+            "Box primary rows still expose topology instead of size";
+        check
         (Node.operation node = Edit_graph.factory_operation factory)
         (Printf.sprintf "registered SOP %s advertises operation %s but builds %s"
           (Edit_graph.factory_key factory)
@@ -301,6 +342,7 @@ let run () =
         "registered SOP %s could not be constructed: %s"
         (Edit_graph.factory_key factory) message))
     Sop_catalog.Editor.factories;
+  check (!vector_groups = 89) "catalog vector inventory changed";
   (* Every cook-impact schema field of every registered SOP participates in
      the cache identity: perturbing any single field changes the node's
      parameter key, so a field forgotten by an operator's own key string can

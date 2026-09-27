@@ -30,11 +30,11 @@ module Box = struct
     normals : Pdk.Box_generator.box_normals [@sop.default Pdk.Box_generator.Box_vertex_normals]
       [@sop.label "Normals"] [@sop.kind normals_parameter];
     size_x : float [@sop.default 1.] [@sop.label "Size X"]
-      [@sop.folder "Size"] [@sop.min 0.01] [@sop.max 10.] [@sop.hard_min 0.];
+      [@sop.folder "Size"] [@sop.min 0.01] [@sop.max 10.] [@sop.hard_min 0.]; [@sop.vec3 "size"] [@sop.primary]
     size_y : float [@sop.default 1.] [@sop.label "Size Y"]
-      [@sop.folder "Size"] [@sop.min 0.01] [@sop.max 10.] [@sop.hard_min 0.];
+      [@sop.folder "Size"] [@sop.min 0.01] [@sop.max 10.] [@sop.hard_min 0.]; [@sop.vec3 "size"] [@sop.primary]
     size_z : float [@sop.default 1.] [@sop.label "Size Z"]
-      [@sop.folder "Size"] [@sop.min 0.01] [@sop.max 10.] [@sop.hard_min 0.];
+      [@sop.folder "Size"] [@sop.min 0.01] [@sop.max 10.] [@sop.hard_min 0.]; [@sop.vec3 "size"] [@sop.primary]
     x_divisions : int [@sop.default 1] [@sop.label "X divisions"]
       [@sop.folder "Divisions"] [@sop.min 1] [@sop.max 24] [@sop.hard_min 1];
     y_divisions : int [@sop.default 1] [@sop.label "Y divisions"]
@@ -44,20 +44,20 @@ module Box = struct
     consolidate_points : bool [@sop.default false]
       [@sop.label "Consolidate points"] [@sop.folder "Topology"];
     center_x : float [@sop.default 0.] [@sop.label "Center X"]
-      [@sop.folder "Transform/Center"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Transform/Center"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "center"]
     center_y : float [@sop.default 0.] [@sop.label "Center Y"]
-      [@sop.folder "Transform/Center"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Transform/Center"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "center"]
     center_z : float [@sop.default 0.] [@sop.label "Center Z"]
-      [@sop.folder "Transform/Center"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Transform/Center"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "center"]
     rotation_x : float [@sop.default 0.] [@sop.label "Rotate X"]
       [@sop.folder "Transform/Rotate"] [@sop.min (-3.14159)]
-      [@sop.max 3.14159];
+      [@sop.max 3.14159]; [@sop.vec3 "rotation"]
     rotation_y : float [@sop.default 0.] [@sop.label "Rotate Y"]
       [@sop.folder "Transform/Rotate"] [@sop.min (-3.14159)]
-      [@sop.max 3.14159];
+      [@sop.max 3.14159]; [@sop.vec3 "rotation"]
     rotation_z : float [@sop.default 0.] [@sop.label "Rotate Z"]
       [@sop.folder "Transform/Rotate"] [@sop.min (-3.14159)]
-      [@sop.max 3.14159];
+      [@sop.max 3.14159]; [@sop.vec3 "rotation"]
     rotation_order : Pdk.Box_generator.box_rotation_order
       [@sop.default Pdk.Box_generator.Box_xyz]
       [@sop.label "Rotation order"] [@sop.folder "Transform/Rotate"]
@@ -154,36 +154,36 @@ module Platonic = struct
   type parameters = {
     kind : Pdk.Parametric_generators.platonic_kind
       [@sop.default Pdk.Parametric_generators.Platonic_dodecahedron]
-      [@sop.label "Type"] [@sop.kind kind_parameter];
+      [@sop.label "Type"] [@sop.kind kind_parameter]; [@sop.primary]
     normals : Pdk.Parametric_generators.platonic_normals
       [@sop.default Pdk.Parametric_generators.Platonic_vertex_normals]
       [@sop.label "Normals"] [@sop.kind normals_parameter];
     radius : float [@sop.default 1.] [@sop.label "Radius"]
-      [@sop.min 0.01] [@sop.max 10.] [@sop.hard_min 0.];
+      [@sop.min 0.01] [@sop.max 10.] [@sop.hard_min 0.]; [@sop.primary]
     orientation : orientation_mode [@sop.default Axis_y]
       [@sop.label "Orientation"] [@sop.folder "Transform"]
       [@sop.kind orientation_parameter];
     axis_x : float [@sop.default 0.] [@sop.label "Axis X"]
-      [@sop.folder "Transform/Custom axis"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "Transform/Custom axis"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "axis"]
     axis_y : float [@sop.default 1.] [@sop.label "Axis Y"]
-      [@sop.folder "Transform/Custom axis"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "Transform/Custom axis"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "axis"]
     axis_z : float [@sop.default 0.] [@sop.label "Axis Z"]
-      [@sop.folder "Transform/Custom axis"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "Transform/Custom axis"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "axis"]
     center_x : float [@sop.default 0.] [@sop.label "Center X"]
-      [@sop.folder "Transform/Center"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Transform/Center"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "center"]
     center_y : float [@sop.default 0.] [@sop.label "Center Y"]
-      [@sop.folder "Transform/Center"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Transform/Center"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "center"]
     center_z : float [@sop.default 0.] [@sop.label "Center Z"]
-      [@sop.folder "Transform/Center"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Transform/Center"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "center"]
     rotation_x : float [@sop.default 0.] [@sop.label "Rotate X"]
       [@sop.folder "Transform/Rotate"] [@sop.min (-3.14159)]
-      [@sop.max 3.14159];
+      [@sop.max 3.14159]; [@sop.vec3 "rotation"]
     rotation_y : float [@sop.default 0.] [@sop.label "Rotate Y"]
       [@sop.folder "Transform/Rotate"] [@sop.min (-3.14159)]
-      [@sop.max 3.14159];
+      [@sop.max 3.14159]; [@sop.vec3 "rotation"]
     rotation_z : float [@sop.default 0.] [@sop.label "Rotate Z"]
       [@sop.folder "Transform/Rotate"] [@sop.min (-3.14159)]
-      [@sop.max 3.14159];
+      [@sop.max 3.14159]; [@sop.vec3 "rotation"]
     rotation_order : Pdk.Parametric_generators.platonic_rotation_order
       [@sop.default Pdk.Parametric_generators.Platonic_xyz]
       [@sop.label "Rotation order"] [@sop.folder "Transform/Rotate"]
@@ -306,26 +306,26 @@ module Spiral = struct
       [@sop.label "Orientation"] [@sop.folder "Transform"]
       [@sop.kind orientation_parameter];
     axis_x : float [@sop.default 0.] [@sop.label "Axis X"]
-      [@sop.folder "Transform/Custom axis"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "Transform/Custom axis"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "axis"]
     axis_y : float [@sop.default 1.] [@sop.label "Axis Y"]
-      [@sop.folder "Transform/Custom axis"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "Transform/Custom axis"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "axis"]
     axis_z : float [@sop.default 0.] [@sop.label "Axis Z"]
-      [@sop.folder "Transform/Custom axis"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "Transform/Custom axis"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "axis"]
     center_x : float [@sop.default 0.] [@sop.label "Center X"]
-      [@sop.folder "Transform/Center"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Transform/Center"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "center"]
     center_y : float [@sop.default 0.] [@sop.label "Center Y"]
-      [@sop.folder "Transform/Center"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Transform/Center"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "center"]
     center_z : float [@sop.default 0.] [@sop.label "Center Z"]
-      [@sop.folder "Transform/Center"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Transform/Center"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "center"]
     rotation_x : float [@sop.default 0.] [@sop.label "Rotate X"]
       [@sop.folder "Transform/Rotate"] [@sop.min (-3.14159)]
-      [@sop.max 3.14159];
+      [@sop.max 3.14159]; [@sop.vec3 "rotation"]
     rotation_y : float [@sop.default 0.] [@sop.label "Rotate Y"]
       [@sop.folder "Transform/Rotate"] [@sop.min (-3.14159)]
-      [@sop.max 3.14159];
+      [@sop.max 3.14159]; [@sop.vec3 "rotation"]
     rotation_z : float [@sop.default 0.] [@sop.label "Rotate Z"]
       [@sop.folder "Transform/Rotate"] [@sop.min (-3.14159)]
-      [@sop.max 3.14159];
+      [@sop.max 3.14159]; [@sop.vec3 "rotation"]
     rotation_order : Pdk.Spiral.rotation_order
       [@sop.default Pdk.Spiral.Spiral_xyz]
       [@sop.label "Rotation order"] [@sop.folder "Transform/Rotate"]
@@ -425,6 +425,7 @@ module Switch = struct
     build ~label:(label "switch" node_label) ~inputs { input = index }
 
   let factory = Edit_graph.factory ~key:"switch" ~label:"Switch"
+      ~slots:["a"; "b"]
       ~category:["Utility"] ~arity:2 (fun inputs -> create inputs)
 end
 
@@ -440,17 +441,17 @@ module Line = struct
     points : int [@sop.default 2] [@sop.label "Points"]
       [@sop.min 2] [@sop.max 128] [@sop.hard_min 1];
     origin_x : float [@sop.default 0.] [@sop.label "Origin X"]
-      [@sop.folder "Origin"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Origin"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "origin"]
     origin_y : float [@sop.default 0.] [@sop.label "Origin Y"]
-      [@sop.folder "Origin"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Origin"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "origin"]
     origin_z : float [@sop.default 0.] [@sop.label "Origin Z"]
-      [@sop.folder "Origin"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Origin"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "origin"]
     direction_x : float [@sop.default 0.] [@sop.label "Direction X"]
-      [@sop.folder "Direction"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "Direction"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "direction"]
     direction_y : float [@sop.default 1.] [@sop.label "Direction Y"]
-      [@sop.folder "Direction"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "Direction"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "direction"]
     direction_z : float [@sop.default 0.] [@sop.label "Direction Z"]
-      [@sop.folder "Direction"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "Direction"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "direction"]
     length : float [@sop.default 1.] [@sop.label "Length"]
       [@sop.min 0.] [@sop.max 10.] [@sop.hard_min 0.];
   } [@@sop.node_key "line"] [@@sop.node_label "Line"]
@@ -493,24 +494,24 @@ module Circle = struct
       [@sop.kind orientation_parameter];
     reverse : bool [@sop.default false] [@sop.label "Reverse"];
     center_x : float [@sop.default 0.] [@sop.label "Center X"]
-      [@sop.folder "Transform"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Transform"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "center"]
     center_y : float [@sop.default 0.] [@sop.label "Center Y"]
-      [@sop.folder "Transform"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Transform"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "center"]
     center_z : float [@sop.default 0.] [@sop.label "Center Z"]
-      [@sop.folder "Transform"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Transform"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "center"]
     radius_x : float [@sop.default 1.] [@sop.label "Radius X"]
       [@sop.folder "Size"] [@sop.min 0.01] [@sop.max 10.]
-      [@sop.hard_min 0.];
+      [@sop.hard_min 0.]; [@sop.primary]
     radius_y : float [@sop.default 1.] [@sop.label "Radius Y"]
       [@sop.folder "Size"] [@sop.min 0.01] [@sop.max 10.]
-      [@sop.hard_min 0.];
+      [@sop.hard_min 0.]; [@sop.primary]
     rotation : float [@sop.default 0.] [@sop.label "Rotation"]
       [@sop.folder "Transform"] [@sop.min (-3.14159)] [@sop.max 3.14159];
     uniform_scale : float [@sop.default 1.] [@sop.label "Uniform scale"]
       [@sop.folder "Size"] [@sop.min 0.01] [@sop.max 10.]
       [@sop.hard_min 0.];
     segments : int [@sop.default 48] [@sop.label "Segments"]
-      [@sop.min 3] [@sop.max 256] [@sop.hard_min 3];
+      [@sop.min 3] [@sop.max 256] [@sop.hard_min 3]; [@sop.primary]
   } [@@sop.node_key "circle"] [@@sop.node_label "Circle"]
     [@@sop.node_category "Create/Curve"] [@@sop.node_inputs 0]
     [@@deriving sop_params, sop_node]
@@ -569,24 +570,24 @@ module Grid = struct
       [@sop.label "Orientation"] [@sop.kind orientation_parameter];
     columns : int [@sop.default 10] [@sop.label "Columns"]
       [@sop.folder "Resolution"] [@sop.min 1] [@sop.max 64]
-      [@sop.hard_min 1];
+      [@sop.hard_min 1]; [@sop.primary]
     rows : int [@sop.default 10] [@sop.label "Rows"]
       [@sop.folder "Resolution"] [@sop.min 1] [@sop.max 64]
-      [@sop.hard_min 1];
+      [@sop.hard_min 1]; [@sop.primary]
     size : float [@sop.default 1.] [@sop.label "Size"]
       [@sop.min 0.01] [@sop.max 10.] [@sop.hard_min 0.];
     width : float [@sop.default 1.] [@sop.label "Width"]
       [@sop.folder "Size"] [@sop.min 0.01] [@sop.max 10.]
-      [@sop.hard_min 0.];
+      [@sop.hard_min 0.]; [@sop.primary]
     height : float [@sop.default 1.] [@sop.label "Height"]
       [@sop.folder "Size"] [@sop.min 0.01] [@sop.max 10.]
-      [@sop.hard_min 0.];
+      [@sop.hard_min 0.]; [@sop.primary]
     center_x : float [@sop.default 0.] [@sop.label "Center X"]
-      [@sop.folder "Transform/Center"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Transform/Center"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "center"]
     center_y : float [@sop.default 0.] [@sop.label "Center Y"]
-      [@sop.folder "Transform/Center"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Transform/Center"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "center"]
     center_z : float [@sop.default 0.] [@sop.label "Center Z"]
-      [@sop.folder "Transform/Center"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Transform/Center"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "center"]
     rotation : float [@sop.default 0.] [@sop.label "Rotation"]
       [@sop.folder "Transform"] [@sop.min (-3.14159)] [@sop.max 3.14159];
     uv_attribute : string [@sop.default ""] [@sop.label "UV attribute"]
@@ -657,37 +658,37 @@ module Uv_sphere = struct
       [@sop.label "Triangular poles"] [@sop.folder "Topology"];
     radius_x : float [@sop.default 1.] [@sop.label "Radius X"]
       [@sop.folder "Size"] [@sop.min 0.01] [@sop.max 10.]
-      [@sop.hard_min 0.];
+      [@sop.hard_min 0.]; [@sop.vec3 "radius"] [@sop.primary]
     radius_y : float [@sop.default 1.] [@sop.label "Radius Y"]
       [@sop.folder "Size"] [@sop.min 0.01] [@sop.max 10.]
-      [@sop.hard_min 0.];
+      [@sop.hard_min 0.]; [@sop.vec3 "radius"] [@sop.primary]
     radius_z : float [@sop.default 1.] [@sop.label "Radius Z"]
       [@sop.folder "Size"] [@sop.min 0.01] [@sop.max 10.]
-      [@sop.hard_min 0.];
+      [@sop.hard_min 0.]; [@sop.vec3 "radius"] [@sop.primary]
     uniform_scale : float [@sop.default 1.] [@sop.label "Uniform scale"]
       [@sop.folder "Size"] [@sop.min 0.01] [@sop.max 10.]
       [@sop.hard_min 0.];
     center_x : float [@sop.default 0.] [@sop.label "Center X"]
-      [@sop.folder "Transform/Center"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Transform/Center"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "center"]
     center_y : float [@sop.default 0.] [@sop.label "Center Y"]
-      [@sop.folder "Transform/Center"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Transform/Center"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "center"]
     center_z : float [@sop.default 0.] [@sop.label "Center Z"]
-      [@sop.folder "Transform/Center"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Transform/Center"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "center"]
     rotation_x : float [@sop.default 0.] [@sop.label "Rotate X"]
       [@sop.folder "Transform/Rotate"] [@sop.min (-3.14159)]
-      [@sop.max 3.14159];
+      [@sop.max 3.14159]; [@sop.vec3 "rotation"]
     rotation_y : float [@sop.default 0.] [@sop.label "Rotate Y"]
       [@sop.folder "Transform/Rotate"] [@sop.min (-3.14159)]
-      [@sop.max 3.14159];
+      [@sop.max 3.14159]; [@sop.vec3 "rotation"]
     rotation_z : float [@sop.default 0.] [@sop.label "Rotate Z"]
       [@sop.folder "Transform/Rotate"] [@sop.min (-3.14159)]
-      [@sop.max 3.14159];
+      [@sop.max 3.14159]; [@sop.vec3 "rotation"]
     segments : int [@sop.default 48] [@sop.label "Segments"]
       [@sop.folder "Resolution"] [@sop.min 3] [@sop.max 256]
-      [@sop.hard_min 3];
+      [@sop.hard_min 3]; [@sop.primary]
     rings : int [@sop.default 24] [@sop.label "Rings"]
       [@sop.folder "Resolution"] [@sop.min 2] [@sop.max 128]
-      [@sop.hard_min 2];
+      [@sop.hard_min 2]; [@sop.primary]
     uv_attribute : string [@sop.default "uv"] [@sop.label "UV attribute"]
       [@sop.folder "Attributes"];
   } [@@sop.node_key "uv_sphere"] [@@sop.node_label "UV Sphere"]
@@ -746,28 +747,28 @@ module Torus = struct
       [@sop.label "Hole axis"] [@sop.kind orientation_parameter];
     major_radius : float [@sop.default 1.] [@sop.label "Major radius"]
       [@sop.folder "Size"] [@sop.min 0.01] [@sop.max 10.]
-      [@sop.hard_min 0.];
+      [@sop.hard_min 0.]; [@sop.primary]
     minor_radius : float [@sop.default 0.25] [@sop.label "Minor radius"]
       [@sop.folder "Size"] [@sop.min 0.01] [@sop.max 5.]
-      [@sop.hard_min 0.];
+      [@sop.hard_min 0.]; [@sop.primary]
     uniform_scale : float [@sop.default 1.] [@sop.label "Uniform scale"]
       [@sop.folder "Size"] [@sop.min 0.01] [@sop.max 10.]
       [@sop.hard_min 0.];
     center_x : float [@sop.default 0.] [@sop.label "Center X"]
-      [@sop.folder "Transform/Center"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Transform/Center"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "center"]
     center_y : float [@sop.default 0.] [@sop.label "Center Y"]
-      [@sop.folder "Transform/Center"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Transform/Center"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "center"]
     center_z : float [@sop.default 0.] [@sop.label "Center Z"]
-      [@sop.folder "Transform/Center"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Transform/Center"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "center"]
     rotation_x : float [@sop.default 0.] [@sop.label "Rotate X"]
       [@sop.folder "Transform/Rotate"] [@sop.min (-3.14159)]
-      [@sop.max 3.14159];
+      [@sop.max 3.14159]; [@sop.vec3 "rotation"]
     rotation_y : float [@sop.default 0.] [@sop.label "Rotate Y"]
       [@sop.folder "Transform/Rotate"] [@sop.min (-3.14159)]
-      [@sop.max 3.14159];
+      [@sop.max 3.14159]; [@sop.vec3 "rotation"]
     rotation_z : float [@sop.default 0.] [@sop.label "Rotate Z"]
       [@sop.folder "Transform/Rotate"] [@sop.min (-3.14159)]
-      [@sop.max 3.14159];
+      [@sop.max 3.14159]; [@sop.vec3 "rotation"]
     u_start : float [@sop.default 0.] [@sop.label "U start"]
       [@sop.folder "Arc/U"] [@sop.min (-6.283185)] [@sop.max 6.283185];
     u_end : float [@sop.default 6.283185307179586] [@sop.label "U end"]
@@ -786,10 +787,10 @@ module Torus = struct
       [@sop.folder "Caps"];
     rows : int [@sop.default 48] [@sop.label "Rows"]
       [@sop.folder "Resolution"] [@sop.min 3] [@sop.max 256]
-      [@sop.hard_min 2];
+      [@sop.hard_min 2]; [@sop.primary]
     columns : int [@sop.default 24] [@sop.label "Columns"]
       [@sop.folder "Resolution"] [@sop.min 3] [@sop.max 256]
-      [@sop.hard_min 2];
+      [@sop.hard_min 2]; [@sop.primary]
     uv_attribute : string [@sop.default "uv"] [@sop.label "UV attribute"]
       [@sop.folder "Attributes"];
   } [@@sop.node_key "torus"] [@@sop.node_label "Torus"]
@@ -850,13 +851,13 @@ module Tube = struct
       [@sop.label "Primary axis"] [@sop.kind orientation_parameter];
     top_radius : float [@sop.default 1.] [@sop.label "Top radius"]
       [@sop.folder "Size"] [@sop.min 0.] [@sop.max 10.]
-      [@sop.hard_min 0.];
+      [@sop.hard_min 0.]; [@sop.primary]
     bottom_radius : float [@sop.default 1.] [@sop.label "Bottom radius"]
       [@sop.folder "Size"] [@sop.min 0.] [@sop.max 10.]
-      [@sop.hard_min 0.];
+      [@sop.hard_min 0.]; [@sop.primary]
     height : float [@sop.default 2.] [@sop.label "Height"]
       [@sop.folder "Size"] [@sop.min 0.01] [@sop.max 10.]
-      [@sop.hard_min 0.];
+      [@sop.hard_min 0.]; [@sop.primary]
     radius_scale : float [@sop.default 1.] [@sop.label "Radius scale"]
       [@sop.folder "Size"] [@sop.min 0.01] [@sop.max 10.]
       [@sop.hard_min 0.];
@@ -865,20 +866,20 @@ module Tube = struct
     consolidate_cap_points : bool [@sop.default false]
       [@sop.label "Consolidate cap points"] [@sop.folder "Caps"];
     center_x : float [@sop.default 0.] [@sop.label "Center X"]
-      [@sop.folder "Transform/Center"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Transform/Center"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "center"]
     center_y : float [@sop.default 0.] [@sop.label "Center Y"]
-      [@sop.folder "Transform/Center"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Transform/Center"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "center"]
     center_z : float [@sop.default 0.] [@sop.label "Center Z"]
-      [@sop.folder "Transform/Center"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Transform/Center"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "center"]
     rotation_x : float [@sop.default 0.] [@sop.label "Rotate X"]
       [@sop.folder "Transform/Rotate"] [@sop.min (-3.14159)]
-      [@sop.max 3.14159];
+      [@sop.max 3.14159]; [@sop.vec3 "rotation"]
     rotation_y : float [@sop.default 0.] [@sop.label "Rotate Y"]
       [@sop.folder "Transform/Rotate"] [@sop.min (-3.14159)]
-      [@sop.max 3.14159];
+      [@sop.max 3.14159]; [@sop.vec3 "rotation"]
     rotation_z : float [@sop.default 0.] [@sop.label "Rotate Z"]
       [@sop.folder "Transform/Rotate"] [@sop.min (-3.14159)]
-      [@sop.max 3.14159];
+      [@sop.max 3.14159]; [@sop.vec3 "rotation"]
     rows : int [@sop.default 1] [@sop.label "Rows"]
       [@sop.folder "Resolution"] [@sop.min 1] [@sop.max 128]
       [@sop.hard_min 1];
@@ -914,23 +915,23 @@ end
 module Transform = struct
   type parameters = {
     translate_x : float [@sop.default 0.] [@sop.label "Translate X"]
-      [@sop.folder "Translate"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Translate"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "translate"]
     translate_y : float [@sop.default 0.] [@sop.label "Translate Y"]
-      [@sop.folder "Translate"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Translate"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "translate"]
     translate_z : float [@sop.default 0.] [@sop.label "Translate Z"]
-      [@sop.folder "Translate"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Translate"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "translate"]
     rotate_x : float [@sop.default 0.] [@sop.label "Rotate X"]
-      [@sop.folder "Rotate"] [@sop.min (-3.14159)] [@sop.max 3.14159];
+      [@sop.folder "Rotate"] [@sop.min (-3.14159)] [@sop.max 3.14159]; [@sop.vec3 "rotate"]
     rotate_y : float [@sop.default 0.] [@sop.label "Rotate Y"]
-      [@sop.folder "Rotate"] [@sop.min (-3.14159)] [@sop.max 3.14159];
+      [@sop.folder "Rotate"] [@sop.min (-3.14159)] [@sop.max 3.14159]; [@sop.vec3 "rotate"]
     rotate_z : float [@sop.default 0.] [@sop.label "Rotate Z"]
-      [@sop.folder "Rotate"] [@sop.min (-3.14159)] [@sop.max 3.14159];
+      [@sop.folder "Rotate"] [@sop.min (-3.14159)] [@sop.max 3.14159]; [@sop.vec3 "rotate"]
     scale_x : float [@sop.default 1.] [@sop.label "Scale X"]
-      [@sop.folder "Scale"] [@sop.min 0.01] [@sop.max 10.];
+      [@sop.folder "Scale"] [@sop.min 0.01] [@sop.max 10.]; [@sop.vec3 "scale"]
     scale_y : float [@sop.default 1.] [@sop.label "Scale Y"]
-      [@sop.folder "Scale"] [@sop.min 0.01] [@sop.max 10.];
+      [@sop.folder "Scale"] [@sop.min 0.01] [@sop.max 10.]; [@sop.vec3 "scale"]
     scale_z : float [@sop.default 1.] [@sop.label "Scale Z"]
-      [@sop.folder "Scale"] [@sop.min 0.01] [@sop.max 10.];
+      [@sop.folder "Scale"] [@sop.min 0.01] [@sop.max 10.]; [@sop.vec3 "scale"]
     uniform_scale : float [@sop.default 1.] [@sop.label "Uniform scale"]
       [@sop.folder "Scale"] [@sop.min 0.01] [@sop.max 10.] [@sop.hard_min 0.];
     preserve_normal_length : bool [@sop.default false]
@@ -996,51 +997,51 @@ module Match_size = struct
       [@sop.folder "Axes/Scale"];
     justify_x : float [@sop.default 0.] [@sop.label "Justify X"]
       [@sop.folder "Justify/Source"] [@sop.min (-1.)] [@sop.max 1.]
-      [@sop.hard_min (-1.)] [@sop.hard_max 1.];
+      [@sop.hard_min (-1.)] [@sop.hard_max 1.]; [@sop.vec3 "justify"]
     justify_y : float [@sop.default 0.] [@sop.label "Justify Y"]
       [@sop.folder "Justify/Source"] [@sop.min (-1.)] [@sop.max 1.]
-      [@sop.hard_min (-1.)] [@sop.hard_max 1.];
+      [@sop.hard_min (-1.)] [@sop.hard_max 1.]; [@sop.vec3 "justify"]
     justify_z : float [@sop.default 0.] [@sop.label "Justify Z"]
       [@sop.folder "Justify/Source"] [@sop.min (-1.)] [@sop.max 1.]
-      [@sop.hard_min (-1.)] [@sop.hard_max 1.];
+      [@sop.hard_min (-1.)] [@sop.hard_max 1.]; [@sop.vec3 "justify"]
     target_justify_x : float [@sop.default 0.] [@sop.label "Justify X"]
       [@sop.folder "Justify/Target"] [@sop.min (-1.)] [@sop.max 1.]
-      [@sop.hard_min (-1.)] [@sop.hard_max 1.];
+      [@sop.hard_min (-1.)] [@sop.hard_max 1.]; [@sop.vec3 "target_justify"]
     target_justify_y : float [@sop.default 0.] [@sop.label "Justify Y"]
       [@sop.folder "Justify/Target"] [@sop.min (-1.)] [@sop.max 1.]
-      [@sop.hard_min (-1.)] [@sop.hard_max 1.];
+      [@sop.hard_min (-1.)] [@sop.hard_max 1.]; [@sop.vec3 "target_justify"]
     target_justify_z : float [@sop.default 0.] [@sop.label "Justify Z"]
       [@sop.folder "Justify/Target"] [@sop.min (-1.)] [@sop.max 1.]
-      [@sop.hard_min (-1.)] [@sop.hard_max 1.];
+      [@sop.hard_min (-1.)] [@sop.hard_max 1.]; [@sop.vec3 "target_justify"]
     offset_x : float [@sop.default 0.] [@sop.label "Offset X"]
-      [@sop.folder "Transform/Offset"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Transform/Offset"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "offset"]
     offset_y : float [@sop.default 0.] [@sop.label "Offset Y"]
-      [@sop.folder "Transform/Offset"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Transform/Offset"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "offset"]
     offset_z : float [@sop.default 0.] [@sop.label "Offset Z"]
-      [@sop.folder "Transform/Offset"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Transform/Offset"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "offset"]
     scale : float [@sop.default 1.] [@sop.label "Scale"]
       [@sop.folder "Transform"] [@sop.min 0.] [@sop.max 10.]
       [@sop.hard_min 0.];
     target_center_x : float [@sop.default 0.] [@sop.label "Center X"]
       [@sop.folder "Numeric target/Center"] [@sop.min (-10.)]
-      [@sop.max 10.];
+      [@sop.max 10.]; [@sop.vec3 "target_center"]
     target_center_y : float [@sop.default 0.] [@sop.label "Center Y"]
       [@sop.folder "Numeric target/Center"] [@sop.min (-10.)]
-      [@sop.max 10.];
+      [@sop.max 10.]; [@sop.vec3 "target_center"]
     target_center_z : float [@sop.default 0.] [@sop.label "Center Z"]
       [@sop.folder "Numeric target/Center"] [@sop.min (-10.)]
-      [@sop.max 10.];
+      [@sop.max 10.]; [@sop.vec3 "target_center"]
     target_size_x : float [@sop.default 1.] [@sop.label "Size X"]
       [@sop.folder "Numeric target/Size"] [@sop.min 0.] [@sop.max 10.]
-      [@sop.hard_min 0.];
+      [@sop.hard_min 0.]; [@sop.vec3 "target_size"]
     target_size_y : float [@sop.default 1.] [@sop.label "Size Y"]
       [@sop.folder "Numeric target/Size"] [@sop.min 0.] [@sop.max 10.]
-      [@sop.hard_min 0.];
+      [@sop.hard_min 0.]; [@sop.vec3 "target_size"]
     target_size_z : float [@sop.default 1.] [@sop.label "Size Z"]
       [@sop.folder "Numeric target/Size"] [@sop.min 0.] [@sop.max 10.]
-      [@sop.hard_min 0.];
+      [@sop.hard_min 0.]; [@sop.vec3 "target_size"]
   } [@@sop.node_key "match_size"] [@@sop.node_label "Match Size"]
-    [@@sop.node_category "Modify"] [@@sop.node_inputs 2]
+    [@@sop.node_category "Modify"] [@@sop.node_inputs 2] [@@sop.node_slots "input, target"]
     [@@sop.node_optional "1"] [@@deriving sop_params, sop_node]
 
   let build = parameters_build (fun ~label parameters input target ->
@@ -1072,17 +1073,17 @@ module Mirror = struct
   type parameters = {
     keep_original : bool [@sop.default true] [@sop.label "Keep original"];
     origin_x : float [@sop.default 0.] [@sop.label "Origin X"]
-      [@sop.folder "Plane/Origin"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Plane/Origin"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "origin"]
     origin_y : float [@sop.default 0.] [@sop.label "Origin Y"]
-      [@sop.folder "Plane/Origin"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Plane/Origin"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "origin"]
     origin_z : float [@sop.default 0.] [@sop.label "Origin Z"]
-      [@sop.folder "Plane/Origin"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Plane/Origin"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "origin"]
     normal_x : float [@sop.default 1.] [@sop.label "Normal X"]
-      [@sop.folder "Plane/Normal"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "Plane/Normal"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "normal"]
     normal_y : float [@sop.default 0.] [@sop.label "Normal Y"]
-      [@sop.folder "Plane/Normal"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "Plane/Normal"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "normal"]
     normal_z : float [@sop.default 0.] [@sop.label "Normal Z"]
-      [@sop.folder "Plane/Normal"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "Plane/Normal"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "normal"]
   } [@@sop.node_key "mirror"] [@@sop.node_label "Mirror"]
     [@@sop.node_category "Modify"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
@@ -1117,17 +1118,17 @@ module Clip = struct
     distance : float [@sop.default 0.] [@sop.label "Distance"]
       [@sop.folder "Plane"] [@sop.min (-10.)] [@sop.max 10.];
     origin_x : float [@sop.default 0.] [@sop.label "Origin X"]
-      [@sop.folder "Plane/Origin"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Plane/Origin"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "origin"]
     origin_y : float [@sop.default 0.] [@sop.label "Origin Y"]
-      [@sop.folder "Plane/Origin"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Plane/Origin"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "origin"]
     origin_z : float [@sop.default 0.] [@sop.label "Origin Z"]
-      [@sop.folder "Plane/Origin"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Plane/Origin"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "origin"]
     normal_x : float [@sop.default 0.] [@sop.label "Normal X"]
-      [@sop.folder "Plane/Normal"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "Plane/Normal"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "normal"]
     normal_y : float [@sop.default 1.] [@sop.label "Normal Y"]
-      [@sop.folder "Plane/Normal"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "Plane/Normal"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "normal"]
     normal_z : float [@sop.default 0.] [@sop.label "Normal Z"]
-      [@sop.folder "Plane/Normal"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "Plane/Normal"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "normal"]
     clip_attribute : string [@sop.default "P"]
       [@sop.label "Clip attribute"] [@sop.folder "Attributes"];
     clipped_edge_group : string [@sop.default ""]
@@ -1176,7 +1177,7 @@ module Copy_to_points = struct
       [@sop.folder "Matching"];
     pack : bool [@sop.default false] [@sop.label "Pack and instance"];
   } [@@sop.node_key "copy_to_points"] [@@sop.node_label "Copy to Points"]
-    [@@sop.node_category "Copy"] [@@sop.node_inputs 2]
+    [@@sop.node_category "Copy"] [@@sop.node_inputs 2] [@@sop.node_slots "source, targets"]
     [@@deriving sop_params, sop_node]
 
   let build = parameters_build (fun ~label parameters source targets ->
@@ -1207,13 +1208,13 @@ module Mountain = struct
       [@sop.min 0.] [@sop.max 2.] [@sop.hard_min 0.];
     frequency_x : float [@sop.default 1.] [@sop.label "Frequency X"]
       [@sop.folder "Frequency"] [@sop.min 0.01] [@sop.max 4.]
-      [@sop.hard_min 0.];
+      [@sop.hard_min 0.]; [@sop.vec3 "frequency"]
     frequency_y : float [@sop.default 1.] [@sop.label "Frequency Y"]
       [@sop.folder "Frequency"] [@sop.min 0.01] [@sop.max 4.]
-      [@sop.hard_min 0.];
+      [@sop.hard_min 0.]; [@sop.vec3 "frequency"]
     frequency_z : float [@sop.default 1.] [@sop.label "Frequency Z"]
       [@sop.folder "Frequency"] [@sop.min 0.01] [@sop.max 4.]
-      [@sop.hard_min 0.];
+      [@sop.hard_min 0.]; [@sop.vec3 "frequency"]
     octaves : int [@sop.default 4] [@sop.label "Octaves"]
       [@sop.folder "Fractal"] [@sop.min 1] [@sop.max 8]
       [@sop.hard_min 1];
@@ -1269,7 +1270,7 @@ module Peak = struct
       [@sop.label "Normalize direction"] [@sop.folder "Direction"];
     mask_attribute : string [@sop.default ""] [@sop.label "Mask attribute"];
     distance : float [@sop.default 0.1] [@sop.label "Distance"]
-      [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.min (-10.)] [@sop.max 10.]; [@sop.primary]
     recompute_normals : bool [@sop.default false]
       [@sop.label "Recompute normals"];
   } [@@sop.node_key "peak"] [@@sop.node_label "Peak"]
@@ -1291,30 +1292,30 @@ module Bend = struct
   type parameters = {
     mask_attribute : string [@sop.default ""] [@sop.label "Mask attribute"];
     origin_x : float [@sop.default 0.] [@sop.label "Origin X"]
-      [@sop.folder "Capture/Origin"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Capture/Origin"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "origin"]
     origin_y : float [@sop.default 0.] [@sop.label "Origin Y"]
-      [@sop.folder "Capture/Origin"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Capture/Origin"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "origin"]
     origin_z : float [@sop.default 0.] [@sop.label "Origin Z"]
-      [@sop.folder "Capture/Origin"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Capture/Origin"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "origin"]
     direction_x : float [@sop.default 0.] [@sop.label "Direction X"]
-      [@sop.folder "Capture/Direction"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "Capture/Direction"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "direction"]
     direction_y : float [@sop.default 1.] [@sop.label "Direction Y"]
-      [@sop.folder "Capture/Direction"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "Capture/Direction"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "direction"]
     direction_z : float [@sop.default 0.] [@sop.label "Direction Z"]
-      [@sop.folder "Capture/Direction"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "Capture/Direction"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "direction"]
     up_x : float [@sop.default 0.] [@sop.label "Up X"]
-      [@sop.folder "Capture/Up"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "Capture/Up"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "up"]
     up_y : float [@sop.default 0.] [@sop.label "Up Y"]
-      [@sop.folder "Capture/Up"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "Capture/Up"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "up"]
     up_z : float [@sop.default 1.] [@sop.label "Up Z"]
-      [@sop.folder "Capture/Up"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "Capture/Up"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "up"]
     length : float [@sop.default 1.] [@sop.label "Length"]
       [@sop.folder "Capture"] [@sop.min 0.01] [@sop.max 10.]
-      [@sop.hard_min 0.];
+      [@sop.hard_min 0.]; [@sop.primary]
     bend_angle : float [@sop.default 0.] [@sop.label "Bend angle"]
-      [@sop.folder "Deformation"] [@sop.min (-6.283185)] [@sop.max 6.283185];
+      [@sop.folder "Deformation"] [@sop.min (-6.283185)] [@sop.max 6.283185]; [@sop.primary]
     twist_angle : float [@sop.default 0.] [@sop.label "Twist angle"]
-      [@sop.folder "Deformation"] [@sop.min (-6.283185)] [@sop.max 6.283185];
+      [@sop.folder "Deformation"] [@sop.min (-6.283185)] [@sop.max 6.283185]; [@sop.primary]
     limit : bool [@sop.default true] [@sop.label "Limit deformation"];
     both_directions : bool [@sop.default false]
       [@sop.label "Capture both directions"];
@@ -1436,11 +1437,11 @@ module Separate_pieces = struct
     translation_attribute : string [@sop.default "piece_translation"]
       [@sop.label "Translation attribute"];
     axis_x : float [@sop.default 1.] [@sop.label "Axis X"]
-      [@sop.folder "Axis"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "Axis"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "axis"]
     axis_y : float [@sop.default 0.] [@sop.label "Axis Y"]
-      [@sop.folder "Axis"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "Axis"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "axis"]
     axis_z : float [@sop.default 0.] [@sop.label "Axis Z"]
-      [@sop.folder "Axis"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "Axis"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "axis"]
     gap : float [@sop.default 0.001] [@sop.label "Gap"]
       [@sop.min 0.] [@sop.max 1.] [@sop.hard_min 0.];
     mode : Pdk.Separate_pieces.mode
@@ -1494,19 +1495,19 @@ module Snap_to_grid = struct
     group : string [@sop.default ""] [@sop.label "Point group"];
     spacing_x : float [@sop.default 1.] [@sop.label "Spacing X"]
       [@sop.folder "Grid/Spacing"] [@sop.min 0.001] [@sop.max 10.]
-      [@sop.hard_min 0.];
+      [@sop.hard_min 0.]; [@sop.vec3 "spacing"]
     spacing_y : float [@sop.default 1.] [@sop.label "Spacing Y"]
       [@sop.folder "Grid/Spacing"] [@sop.min 0.001] [@sop.max 10.]
-      [@sop.hard_min 0.];
+      [@sop.hard_min 0.]; [@sop.vec3 "spacing"]
     spacing_z : float [@sop.default 1.] [@sop.label "Spacing Z"]
       [@sop.folder "Grid/Spacing"] [@sop.min 0.001] [@sop.max 10.]
-      [@sop.hard_min 0.];
+      [@sop.hard_min 0.]; [@sop.vec3 "spacing"]
     offset_x : float [@sop.default 0.] [@sop.label "Offset X"]
-      [@sop.folder "Grid/Offset"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Grid/Offset"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "offset"]
     offset_y : float [@sop.default 0.] [@sop.label "Offset Y"]
-      [@sop.folder "Grid/Offset"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Grid/Offset"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "offset"]
     offset_z : float [@sop.default 0.] [@sop.label "Offset Z"]
-      [@sop.folder "Grid/Offset"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Grid/Offset"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "offset"]
     rounding : Pdk.Fuse_grid.grid_rounding [@sop.default Pdk.Fuse_grid.Grid_nearest]
       [@sop.label "Rounding"] [@sop.kind rounding_parameter];
     limit_distance : bool [@sop.default false]
@@ -1576,13 +1577,13 @@ module Point_jitter = struct
       [@sop.min 0.] [@sop.max 2.] [@sop.hard_min 0.];
     axis_x : float [@sop.default 1.] [@sop.label "Axis X"]
       [@sop.folder "Axis scales"] [@sop.min 0.] [@sop.max 2.]
-      [@sop.hard_min 0.];
+      [@sop.hard_min 0.]; [@sop.vec3 "axis"]
     axis_y : float [@sop.default 1.] [@sop.label "Axis Y"]
       [@sop.folder "Axis scales"] [@sop.min 0.] [@sop.max 2.]
-      [@sop.hard_min 0.];
+      [@sop.hard_min 0.]; [@sop.vec3 "axis"]
     axis_z : float [@sop.default 1.] [@sop.label "Axis Z"]
       [@sop.folder "Axis scales"] [@sop.min 0.] [@sop.max 2.]
-      [@sop.hard_min 0.];
+      [@sop.hard_min 0.]; [@sop.vec3 "axis"]
   } [@@sop.node_key "point_jitter"] [@@sop.node_label "Point Jitter"]
     [@@sop.node_category "Point"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
@@ -1686,17 +1687,17 @@ end
 module Match_axis = struct
   type parameters = {
     from_x : float [@sop.default 0.] [@sop.label "From X"]
-      [@sop.folder "From"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "From"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "from"]
     from_y : float [@sop.default 1.] [@sop.label "From Y"]
-      [@sop.folder "From"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "From"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "from"]
     from_z : float [@sop.default 0.] [@sop.label "From Z"]
-      [@sop.folder "From"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "From"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "from"]
     into_x : float [@sop.default 0.] [@sop.label "Into X"]
-      [@sop.folder "Into"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "Into"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "into"]
     into_y : float [@sop.default 1.] [@sop.label "Into Y"]
-      [@sop.folder "Into"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "Into"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "into"]
     into_z : float [@sop.default 0.] [@sop.label "Into Z"]
-      [@sop.folder "Into"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "Into"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "into"]
   } [@@sop.node_key "match_axis"] [@@sop.node_label "Match Axis"]
     [@@sop.node_category "Modify/Align"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
@@ -1787,17 +1788,17 @@ module Bound = struct
       [@sop.folder "Sphere"] [@sop.min 0.] [@sop.max 10.]
       [@sop.hard_min 0.];
     lower_x : float [@sop.default 0.] [@sop.label "Lower X"]
-      [@sop.folder "Padding/Lower"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Padding/Lower"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "lower"]
     lower_y : float [@sop.default 0.] [@sop.label "Lower Y"]
-      [@sop.folder "Padding/Lower"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Padding/Lower"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "lower"]
     lower_z : float [@sop.default 0.] [@sop.label "Lower Z"]
-      [@sop.folder "Padding/Lower"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Padding/Lower"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "lower"]
     upper_x : float [@sop.default 0.] [@sop.label "Upper X"]
-      [@sop.folder "Padding/Upper"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Padding/Upper"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "upper"]
     upper_y : float [@sop.default 0.] [@sop.label "Upper Y"]
-      [@sop.folder "Padding/Upper"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Padding/Upper"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "upper"]
     upper_z : float [@sop.default 0.] [@sop.label "Upper Z"]
-      [@sop.folder "Padding/Upper"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Padding/Upper"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "upper"]
     bounds_group : string [@sop.default ""] [@sop.label "Bounds group"]
       [@sop.folder "Output"];
     center_attribute : string [@sop.default ""] [@sop.label "Center attribute"]
@@ -1864,11 +1865,11 @@ module Ray = struct
       [@sop.label "Direction"] [@sop.folder "Ray"]
       [@sop.kind direction_parameter];
     direction_x : float [@sop.default 0.] [@sop.label "Direction X"]
-      [@sop.folder "Ray/Vector"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "Ray/Vector"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "direction_vector"]
     direction_y : float [@sop.default 1.] [@sop.label "Direction Y"]
-      [@sop.folder "Ray/Vector"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "Ray/Vector"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "direction_vector"]
     direction_z : float [@sop.default 0.] [@sop.label "Direction Z"]
-      [@sop.folder "Ray/Vector"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "Ray/Vector"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "direction_vector"]
     direction_attribute : string [@sop.default "N"]
       [@sop.label "Direction attribute"] [@sop.folder "Ray"];
     direction_mode : Pdk.Ray.direction_mode
@@ -1928,7 +1929,7 @@ module Ray = struct
     match_groups : bool [@sop.default false] [@sop.label "Match groups"]
       [@sop.folder "Transfer"];
   } [@@sop.node_key "ray"] [@@sop.node_label "Ray"]
-    [@@sop.node_category "Modify/Project"] [@@sop.node_inputs 2]
+    [@@sop.node_category "Modify/Project"] [@@sop.node_inputs 2] [@@sop.node_slots "source, collision"]
     [@@deriving sop_params, sop_node]
 
   let direction parameters = match parameters.direction with
@@ -2114,6 +2115,7 @@ end
 module Merge = struct
   (* Three slots, the first required: a Merge with more inputs chains. *)
   let factory = Edit_graph.factory_slots ~key:"merge" ~label:"Merge"
+      ~slots:["a"; "b"; "c"]
       ~category:["Copy"] ~inputs:Edit_graph.[Required; Optional; Optional]
       (fun inputs -> Sop.merge ~label:"merge" (List.filter_map Fun.id inputs))
 
@@ -2199,26 +2201,26 @@ module Soft_transform = struct
       [@sop.default Pdk.Transform_ops.Transform_xyz] [@sop.label "Rotation order"]
       [@sop.folder "Transform/Rotate"] [@sop.kind rotation_order_parameter];
     translate_x : float [@sop.default 0.] [@sop.label "Translate X"]
-      [@sop.folder "Transform/Translate"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Transform/Translate"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "translate"]
     translate_y : float [@sop.default 0.] [@sop.label "Translate Y"]
-      [@sop.folder "Transform/Translate"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Transform/Translate"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "translate"]
     translate_z : float [@sop.default 0.] [@sop.label "Translate Z"]
-      [@sop.folder "Transform/Translate"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Transform/Translate"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "translate"]
     rotate_x : float [@sop.default 0.] [@sop.label "Rotate X"]
       [@sop.folder "Transform/Rotate"] [@sop.min (-3.141592653589793)]
-      [@sop.max 3.141592653589793];
+      [@sop.max 3.141592653589793]; [@sop.vec3 "rotate"]
     rotate_y : float [@sop.default 0.] [@sop.label "Rotate Y"]
       [@sop.folder "Transform/Rotate"] [@sop.min (-3.141592653589793)]
-      [@sop.max 3.141592653589793];
+      [@sop.max 3.141592653589793]; [@sop.vec3 "rotate"]
     rotate_z : float [@sop.default 0.] [@sop.label "Rotate Z"]
       [@sop.folder "Transform/Rotate"] [@sop.min (-3.141592653589793)]
-      [@sop.max 3.141592653589793];
+      [@sop.max 3.141592653589793]; [@sop.vec3 "rotate"]
     scale_x : float [@sop.default 1.] [@sop.label "Scale X"]
-      [@sop.folder "Transform/Scale"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Transform/Scale"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "scale"]
     scale_y : float [@sop.default 1.] [@sop.label "Scale Y"]
-      [@sop.folder "Transform/Scale"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Transform/Scale"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "scale"]
     scale_z : float [@sop.default 1.] [@sop.label "Scale Z"]
-      [@sop.folder "Transform/Scale"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Transform/Scale"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "scale"]
     shear_xy : float [@sop.default 0.] [@sop.label "Shear XY"]
       [@sop.folder "Transform/Shear"] [@sop.min (-4.)] [@sop.max 4.];
     shear_xz : float [@sop.default 0.] [@sop.label "Shear XZ"]
@@ -2228,20 +2230,20 @@ module Soft_transform = struct
     uniform_scale : float [@sop.default 1.] [@sop.label "Uniform scale"]
       [@sop.folder "Transform"] [@sop.min (-10.)] [@sop.max 10.];
     pivot_x : float [@sop.default 0.] [@sop.label "Pivot X"]
-      [@sop.folder "Transform/Pivot"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Transform/Pivot"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "pivot"]
     pivot_y : float [@sop.default 0.] [@sop.label "Pivot Y"]
-      [@sop.folder "Transform/Pivot"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Transform/Pivot"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "pivot"]
     pivot_z : float [@sop.default 0.] [@sop.label "Pivot Z"]
-      [@sop.folder "Transform/Pivot"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Transform/Pivot"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "pivot"]
     pivot_rotation_x : float [@sop.default 0.] [@sop.label "Pivot rotate X"]
       [@sop.folder "Transform/Pivot rotation"] [@sop.min (-3.141592653589793)]
-      [@sop.max 3.141592653589793];
+      [@sop.max 3.141592653589793]; [@sop.vec3 "pivot_rotation"]
     pivot_rotation_y : float [@sop.default 0.] [@sop.label "Pivot rotate Y"]
       [@sop.folder "Transform/Pivot rotation"] [@sop.min (-3.141592653589793)]
-      [@sop.max 3.141592653589793];
+      [@sop.max 3.141592653589793]; [@sop.vec3 "pivot_rotation"]
     pivot_rotation_z : float [@sop.default 0.] [@sop.label "Pivot rotate Z"]
       [@sop.folder "Transform/Pivot rotation"] [@sop.min (-3.141592653589793)]
-      [@sop.max 3.141592653589793];
+      [@sop.max 3.141592653589793]; [@sop.vec3 "pivot_rotation"]
     invert : bool [@sop.default false] [@sop.label "Invert transform"]
       [@sop.folder "Transform"];
     metric : metric [@sop.default Radius] [@sop.label "Distance metric"]
@@ -2378,29 +2380,29 @@ module Point_replicate = struct
     shape : Pdk.Point_replication.shape [@sop.default Pdk.Point_replication.Replicate_sphere]
       [@sop.label "Shape"] [@sop.folder "Shape"] [@sop.kind shape_parameter];
     center_x : float [@sop.default 0.] [@sop.label "Center X"]
-      [@sop.folder "Shape/Center"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Shape/Center"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "center"]
     center_y : float [@sop.default 0.] [@sop.label "Center Y"]
-      [@sop.folder "Shape/Center"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Shape/Center"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "center"]
     center_z : float [@sop.default 0.] [@sop.label "Center Z"]
-      [@sop.folder "Shape/Center"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Shape/Center"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "center"]
     size_x : float [@sop.default 1.] [@sop.label "Size X"]
       [@sop.folder "Shape/Size"] [@sop.min 0.] [@sop.max 10.]
-      [@sop.hard_min 0.];
+      [@sop.hard_min 0.]; [@sop.vec3 "size"]
     size_y : float [@sop.default 1.] [@sop.label "Size Y"]
       [@sop.folder "Shape/Size"] [@sop.min 0.] [@sop.max 10.]
-      [@sop.hard_min 0.];
+      [@sop.hard_min 0.]; [@sop.vec3 "size"]
     size_z : float [@sop.default 1.] [@sop.label "Size Z"]
       [@sop.folder "Shape/Size"] [@sop.min 0.] [@sop.max 10.]
-      [@sop.hard_min 0.];
+      [@sop.hard_min 0.]; [@sop.vec3 "size"]
     orientation_x : float [@sop.default 0.] [@sop.label "Rotate X"]
       [@sop.folder "Shape/Orientation"] [@sop.min (-3.141592653589793)]
-      [@sop.max 3.141592653589793];
+      [@sop.max 3.141592653589793]; [@sop.vec3 "orientation"]
     orientation_y : float [@sop.default 0.] [@sop.label "Rotate Y"]
       [@sop.folder "Shape/Orientation"] [@sop.min (-3.141592653589793)]
-      [@sop.max 3.141592653589793];
+      [@sop.max 3.141592653589793]; [@sop.vec3 "orientation"]
     orientation_z : float [@sop.default 0.] [@sop.label "Rotate Z"]
       [@sop.folder "Shape/Orientation"] [@sop.min (-3.141592653589793)]
-      [@sop.max 3.141592653589793];
+      [@sop.max 3.141592653589793]; [@sop.vec3 "orientation"]
     uniform_scale : float [@sop.default 1.] [@sop.label "Uniform scale"]
       [@sop.folder "Shape"] [@sop.min 0.] [@sop.max 10.]
       [@sop.hard_min 0.];
@@ -2419,23 +2421,23 @@ module Point_replicate = struct
     use_noise : bool [@sop.default false] [@sop.label "Enable noise"]
       [@sop.folder "Noise"];
     noise_amplitude_x : float [@sop.default 0.1] [@sop.label "Amplitude X"]
-      [@sop.folder "Noise/Amplitude"] [@sop.min 0.] [@sop.max 10.];
+      [@sop.folder "Noise/Amplitude"] [@sop.min 0.] [@sop.max 10.]; [@sop.vec3 "noise_amplitude"]
     noise_amplitude_y : float [@sop.default 0.1] [@sop.label "Amplitude Y"]
-      [@sop.folder "Noise/Amplitude"] [@sop.min 0.] [@sop.max 10.];
+      [@sop.folder "Noise/Amplitude"] [@sop.min 0.] [@sop.max 10.]; [@sop.vec3 "noise_amplitude"]
     noise_amplitude_z : float [@sop.default 0.1] [@sop.label "Amplitude Z"]
-      [@sop.folder "Noise/Amplitude"] [@sop.min 0.] [@sop.max 10.];
+      [@sop.folder "Noise/Amplitude"] [@sop.min 0.] [@sop.max 10.]; [@sop.vec3 "noise_amplitude"]
     noise_frequency_x : float [@sop.default 1.] [@sop.label "Frequency X"]
-      [@sop.folder "Noise/Frequency"] [@sop.min 0.] [@sop.max 20.];
+      [@sop.folder "Noise/Frequency"] [@sop.min 0.] [@sop.max 20.]; [@sop.vec3 "noise_frequency"]
     noise_frequency_y : float [@sop.default 1.] [@sop.label "Frequency Y"]
-      [@sop.folder "Noise/Frequency"] [@sop.min 0.] [@sop.max 20.];
+      [@sop.folder "Noise/Frequency"] [@sop.min 0.] [@sop.max 20.]; [@sop.vec3 "noise_frequency"]
     noise_frequency_z : float [@sop.default 1.] [@sop.label "Frequency Z"]
-      [@sop.folder "Noise/Frequency"] [@sop.min 0.] [@sop.max 20.];
+      [@sop.folder "Noise/Frequency"] [@sop.min 0.] [@sop.max 20.]; [@sop.vec3 "noise_frequency"]
     noise_offset_x : float [@sop.default 0.] [@sop.label "Offset X"]
-      [@sop.folder "Noise/Offset"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Noise/Offset"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "noise_offset"]
     noise_offset_y : float [@sop.default 0.] [@sop.label "Offset Y"]
-      [@sop.folder "Noise/Offset"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Noise/Offset"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "noise_offset"]
     noise_offset_z : float [@sop.default 0.] [@sop.label "Offset Z"]
-      [@sop.folder "Noise/Offset"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Noise/Offset"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "noise_offset"]
     noise_roughness : float [@sop.default 0.5] [@sop.label "Roughness"]
       [@sop.folder "Noise"] [@sop.min 0.] [@sop.max 1.];
     noise_attenuation : float [@sop.default 1.] [@sop.label "Attenuation"]
@@ -2460,7 +2462,7 @@ module Point_replicate = struct
     source_index_attribute : string [@sop.default "sourceindex"]
       [@sop.label "Source index"] [@sop.folder "Output"];
   } [@@sop.node_key "point_replicate"] [@@sop.node_label "Point Replicate"]
-    [@@sop.node_category "Create/Points"] [@@sop.node_inputs 2]
+    [@@sop.node_category "Create/Points"] [@@sop.node_inputs 2] [@@sop.node_slots "input, custom_shape"]
     [@@sop.node_optional "1"] [@@deriving sop_params, sop_node]
   let build = parameters_build (fun ~label parameters input custom_shape ->
     let custom_shape = if parameters.shape = Pdk.Point_replication.Replicate_custom
@@ -2523,13 +2525,13 @@ module Exploded_view = struct
       [@sop.impact "view"];
     scale_x : float [@sop.default 1.] [@sop.label "Scale X"]
       [@sop.folder "Explosion/Scale"] [@sop.min (-2.)] [@sop.max 2.]
-      [@sop.impact "view"];
+      [@sop.impact "view"]; [@sop.vec3 "scale"]
     scale_y : float [@sop.default 1.] [@sop.label "Scale Y"]
       [@sop.folder "Explosion/Scale"] [@sop.min (-2.)] [@sop.max 2.]
-      [@sop.impact "view"];
+      [@sop.impact "view"]; [@sop.vec3 "scale"]
     scale_z : float [@sop.default 1.] [@sop.label "Scale Z"]
       [@sop.folder "Explosion/Scale"] [@sop.min (-2.)] [@sop.max 2.]
-      [@sop.impact "view"];
+      [@sop.impact "view"]; [@sop.vec3 "scale"]
     piece_attribute : string [@sop.default "piece"]
       [@sop.label "Piece attribute"] [@sop.folder "Pieces"];
     noise_amount : float [@sop.default 0.] [@sop.label "Noise amount"]

@@ -111,20 +111,20 @@ module Group_bounds = struct
     shape : shape [@sop.default Box] [@sop.label "Bounding shape"]
       [@sop.kind shape_parameter];
     center_x : float [@sop.default 0.] [@sop.label "Center X"]
-      [@sop.folder "Bounds/Center"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Bounds/Center"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "center"]
     center_y : float [@sop.default 0.] [@sop.label "Center Y"]
-      [@sop.folder "Bounds/Center"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Bounds/Center"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "center"]
     center_z : float [@sop.default 0.] [@sop.label "Center Z"]
-      [@sop.folder "Bounds/Center"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Bounds/Center"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "center"]
     size_x : float [@sop.default 1.] [@sop.label "Size X"]
       [@sop.folder "Bounds/Size"] [@sop.min 0.] [@sop.max 20.]
-      [@sop.hard_min 0.];
+      [@sop.hard_min 0.]; [@sop.vec3 "size"]
     size_y : float [@sop.default 1.] [@sop.label "Size Y"]
       [@sop.folder "Bounds/Size"] [@sop.min 0.] [@sop.max 20.]
-      [@sop.hard_min 0.];
+      [@sop.hard_min 0.]; [@sop.vec3 "size"]
     size_z : float [@sop.default 1.] [@sop.label "Size Z"]
       [@sop.folder "Bounds/Size"] [@sop.min 0.] [@sop.max 20.]
-      [@sop.hard_min 0.];
+      [@sop.hard_min 0.]; [@sop.vec3 "size"]
     radius : float [@sop.default 0.5] [@sop.label "Radius"]
       [@sop.folder "Bounds"] [@sop.min 0.] [@sop.max 10.]
       [@sop.hard_min 0.];
@@ -161,11 +161,11 @@ module Group_normal = struct
       [@sop.label "Group type"] [@sop.kind group_normal_owner_parameter];
     name : string [@sop.default "normal"] [@sop.label "Group name"];
     direction_x : float [@sop.default 0.] [@sop.label "Direction X"]
-      [@sop.folder "Direction"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "Direction"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "direction"]
     direction_y : float [@sop.default 1.] [@sop.label "Direction Y"]
-      [@sop.folder "Direction"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "Direction"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "direction"]
     direction_z : float [@sop.default 0.] [@sop.label "Direction Z"]
-      [@sop.folder "Direction"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "Direction"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "direction"]
     spread_angle : float [@sop.default 0.7853981633974483]
       [@sop.label "Spread angle"] [@sop.min 0.]
       [@sop.max 3.141592653589793] [@sop.hard_min 0.]
@@ -220,11 +220,11 @@ module Group_backface = struct
   type parameters = {
     name : string [@sop.default "backface"] [@sop.label "Group name"];
     viewpoint_x : float [@sop.default 0.] [@sop.label "Viewpoint X"]
-      [@sop.folder "Viewpoint"] [@sop.min (-100.)] [@sop.max 100.];
+      [@sop.folder "Viewpoint"] [@sop.min (-100.)] [@sop.max 100.]; [@sop.vec3 "viewpoint"]
     viewpoint_y : float [@sop.default 0.] [@sop.label "Viewpoint Y"]
-      [@sop.folder "Viewpoint"] [@sop.min (-100.)] [@sop.max 100.];
+      [@sop.folder "Viewpoint"] [@sop.min (-100.)] [@sop.max 100.]; [@sop.vec3 "viewpoint"]
     viewpoint_z : float [@sop.default 10.] [@sop.label "Viewpoint Z"]
-      [@sop.folder "Viewpoint"] [@sop.min (-100.)] [@sop.max 100.];
+      [@sop.folder "Viewpoint"] [@sop.min (-100.)] [@sop.max 100.]; [@sop.vec3 "viewpoint"]
     base : string [@sop.default ""] [@sop.label "Base group"]
       [@sop.folder "Combine"];
     merge : Pdk.Group_ops.boolean_operation
@@ -721,7 +721,7 @@ module Group_copy = struct
       [@sop.kind group_copy_conflict_parameter];
     copy_empty : bool [@sop.default false] [@sop.label "Copy empty groups"];
   } [@@sop.node_key "group_copy"] [@@sop.node_label "Group Copy"]
-    [@@sop.node_category "Group/Transfer"] [@@sop.node_inputs 2]
+    [@@sop.node_category "Group/Transfer"] [@@sop.node_inputs 2] [@@sop.node_slots "source, target"]
     [@@deriving sop_params, sop_node]
   let build = parameters_build (fun ~label parameters source target ->
     Sop.group_copy ~label
@@ -764,7 +764,7 @@ module Group_transfer = struct
     distance : float [@sop.default 0.001] [@sop.label "Maximum distance"]
       [@sop.min 0.] [@sop.max 10.] [@sop.hard_min 0.];
   } [@@sop.node_key "group_transfer"] [@@sop.node_label "Group Transfer"]
-    [@@sop.node_category "Group/Transfer"] [@@sop.node_inputs 2]
+    [@@sop.node_category "Group/Transfer"] [@@sop.node_inputs 2] [@@sop.node_slots "source, target"]
     [@@deriving sop_params, sop_node]
   let build = parameters_build (fun ~label parameters source target ->
     Sop.group_transfer ~label

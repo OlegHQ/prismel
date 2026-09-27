@@ -46,11 +46,15 @@ Workflow for a new node: the `add-sop` skill.
 
 Stable node keys become Lisp symbols verbatim (`sop/uv_sphere`) and field
 names become keywords (`:size_x`), so keys match `[a-z][a-z0-9_]*` and are
-never renamed without an alias. Milestone M3 adds, and until then do not use:
+never renamed without an alias. The PPX supports:
 `[@sop.primary]` (default card rows; without it the first folder's fields are
 primary), `[@sop.vec3 "center"]` on three consecutive float fields (one vec3
-port; every `*_x/_y/_z` triple gets annotated), and `[@@sop.node_slots "a, b"]`
-(slot names; a slot name may not equal a field name). Value nodes (Time,
+port; every `*_x/_y/_z` triple is annotated), and `[@@sop.node_slots "a, b"]`
+(slot names; a slot name may not equal a field or group name). Use the
+common prefix for a vector group, or `<prefix>_vector` if a field already
+uses that prefix (Ray uses `direction_vector`). Every factory with multiple
+inputs names its slots in their existing order; single inputs default to
+`in0`. M3's canvas and inspector integration remains in progress. Value nodes (Time,
 Value, Math, Combine/Separate XYZ, Remap) live in `lib/flow`, never here. M7
 adds `lib/sop_catalog/flow_manifest.sexp`, regenerated and promoted like the
 API manifest.

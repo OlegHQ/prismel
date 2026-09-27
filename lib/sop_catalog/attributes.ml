@@ -80,13 +80,13 @@ module Attribute_noise_quaternion = struct
       [@sop.max 9999];
     frequency_x : float [@sop.default 1.] [@sop.label "Frequency X"]
       [@sop.folder "Frequency"] [@sop.min 0.01] [@sop.max 4.]
-      [@sop.hard_min 0.];
+      [@sop.hard_min 0.]; [@sop.vec3 "frequency"]
     frequency_y : float [@sop.default 1.] [@sop.label "Frequency Y"]
       [@sop.folder "Frequency"] [@sop.min 0.01] [@sop.max 4.]
-      [@sop.hard_min 0.];
+      [@sop.hard_min 0.]; [@sop.vec3 "frequency"]
     frequency_z : float [@sop.default 1.] [@sop.label "Frequency Z"]
       [@sop.folder "Frequency"] [@sop.min 0.01] [@sop.max 4.]
-      [@sop.hard_min 0.];
+      [@sop.hard_min 0.]; [@sop.vec3 "frequency"]
     octaves : int [@sop.default 1] [@sop.label "Octaves"]
       [@sop.min 1] [@sop.max 8] [@sop.hard_min 1];
   } [@@sop.node_key "attribute_noise_quaternion"]
@@ -326,7 +326,7 @@ module Distance_from_geometry = struct
       [@sop.folder "Output"];
   } [@@sop.node_key "distance_from_geometry"]
     [@@sop.node_label "Distance from Geometry"]
-    [@@sop.node_category "Attribute/Distance"] [@@sop.node_inputs 2]
+    [@@sop.node_category "Attribute/Distance"] [@@sop.node_inputs 2] [@@sop.node_slots "source, reference"]
     [@@deriving sop_params, sop_node]
 
   let build = parameters_build (fun ~label parameters source reference ->
@@ -363,17 +363,17 @@ module Distance_from_target = struct
       [@sop.default Pdk.Transform_ops.Distance_target_spherical]
       [@sop.label "Projection"] [@sop.kind projection_parameter];
     origin_x : float [@sop.default 0.] [@sop.label "Origin X"]
-      [@sop.folder "Target/Origin"] [@sop.min (-100.)] [@sop.max 100.];
+      [@sop.folder "Target/Origin"] [@sop.min (-100.)] [@sop.max 100.]; [@sop.vec3 "origin"]
     origin_y : float [@sop.default 0.] [@sop.label "Origin Y"]
-      [@sop.folder "Target/Origin"] [@sop.min (-100.)] [@sop.max 100.];
+      [@sop.folder "Target/Origin"] [@sop.min (-100.)] [@sop.max 100.]; [@sop.vec3 "origin"]
     origin_z : float [@sop.default 0.] [@sop.label "Origin Z"]
-      [@sop.folder "Target/Origin"] [@sop.min (-100.)] [@sop.max 100.];
+      [@sop.folder "Target/Origin"] [@sop.min (-100.)] [@sop.max 100.]; [@sop.vec3 "origin"]
     direction_x : float [@sop.default 0.] [@sop.label "Direction X"]
-      [@sop.folder "Target/Direction"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "Target/Direction"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "direction"]
     direction_y : float [@sop.default 1.] [@sop.label "Direction Y"]
-      [@sop.folder "Target/Direction"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "Target/Direction"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "direction"]
     direction_z : float [@sop.default 0.] [@sop.label "Direction Z"]
-      [@sop.folder "Target/Direction"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "Target/Direction"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "direction"]
     metric : Pdk.Transform_ops.distance_from_target_metric
       [@sop.default Pdk.Transform_ops.Distance_target_absolute]
       [@sop.label "Metric"] [@sop.kind metric_parameter];
@@ -459,35 +459,35 @@ module Uv_project = struct
     name : string [@sop.default "uv"] [@sop.label "UV attribute"];
     group : string [@sop.default ""] [@sop.label "Primitive group"];
     origin_x : float [@sop.default 0.] [@sop.label "Origin X"]
-      [@sop.folder "Projection/Origin"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Projection/Origin"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "origin"]
     origin_y : float [@sop.default 0.] [@sop.label "Origin Y"]
-      [@sop.folder "Projection/Origin"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Projection/Origin"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "origin"]
     origin_z : float [@sop.default 0.] [@sop.label "Origin Z"]
-      [@sop.folder "Projection/Origin"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Projection/Origin"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "origin"]
     axis_x : float [@sop.default 0.] [@sop.label "Axis X"]
-      [@sop.folder "Projection/Axis"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "Projection/Axis"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "axis"]
     axis_y : float [@sop.default 1.] [@sop.label "Axis Y"]
-      [@sop.folder "Projection/Axis"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "Projection/Axis"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "axis"]
     axis_z : float [@sop.default 0.] [@sop.label "Axis Z"]
-      [@sop.folder "Projection/Axis"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "Projection/Axis"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "axis"]
     seam_x : float [@sop.default 1.] [@sop.label "Seam X"]
-      [@sop.folder "Projection/Seam"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "Projection/Seam"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "seam"]
     seam_y : float [@sop.default 0.] [@sop.label "Seam Y"]
-      [@sop.folder "Projection/Seam"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "Projection/Seam"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "seam"]
     seam_z : float [@sop.default 0.] [@sop.label "Seam Z"]
-      [@sop.folder "Projection/Seam"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "Projection/Seam"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "seam"]
     planar_u_x : float [@sop.default 1.] [@sop.label "U axis X"]
-      [@sop.folder "Projection/Planar"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "Projection/Planar"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "planar_u"]
     planar_u_y : float [@sop.default 0.] [@sop.label "U axis Y"]
-      [@sop.folder "Projection/Planar"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "Projection/Planar"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "planar_u"]
     planar_u_z : float [@sop.default 0.] [@sop.label "U axis Z"]
-      [@sop.folder "Projection/Planar"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "Projection/Planar"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "planar_u"]
     planar_v_x : float [@sop.default 0.] [@sop.label "V axis X"]
-      [@sop.folder "Projection/Planar"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "Projection/Planar"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "planar_v"]
     planar_v_y : float [@sop.default 0.] [@sop.label "V axis Y"]
-      [@sop.folder "Projection/Planar"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "Projection/Planar"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "planar_v"]
     planar_v_z : float [@sop.default 1.] [@sop.label "V axis Z"]
-      [@sop.folder "Projection/Planar"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "Projection/Planar"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "planar_v"]
     height : float [@sop.default 1.] [@sop.label "Cylinder height"]
       [@sop.folder "Projection/Cylindrical"] [@sop.min 0.01]
       [@sop.max 10.] [@sop.hard_min 0.];
@@ -537,16 +537,16 @@ module Uv_transform = struct
       [@sop.label "Owner"] [@sop.kind uv_owner_parameter];
     group : string [@sop.default ""] [@sop.label "Group"];
     translate_u : float [@sop.default 0.] [@sop.label "Translate U"]
-      [@sop.folder "Transform/Translate"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Transform/Translate"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.primary]
     translate_v : float [@sop.default 0.] [@sop.label "Translate V"]
-      [@sop.folder "Transform/Translate"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Transform/Translate"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.primary]
     scale_u : float [@sop.default 1.] [@sop.label "Scale U"]
-      [@sop.folder "Transform/Scale"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Transform/Scale"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.primary]
     scale_v : float [@sop.default 1.] [@sop.label "Scale V"]
-      [@sop.folder "Transform/Scale"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Transform/Scale"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.primary]
     angle : float [@sop.default 0.] [@sop.label "Angle"]
       [@sop.folder "Transform"] [@sop.min (-3.141592653589793)]
-      [@sop.max 3.141592653589793];
+      [@sop.max 3.141592653589793]; [@sop.primary]
     pivot_u : float [@sop.default 0.5] [@sop.label "Pivot U"]
       [@sop.folder "Transform/Pivot"] [@sop.min (-10.)] [@sop.max 10.];
     pivot_v : float [@sop.default 0.5] [@sop.label "Pivot V"]
@@ -740,19 +740,19 @@ module Attribute_noise = struct
     range : range [@sop.default Positive] [@sop.label "Range"]
       [@sop.folder "Output"] [@sop.kind range_parameter];
     min_x : float [@sop.default 0.] [@sop.label "Minimum X"]
-      [@sop.folder "Output/Minimum"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Output/Minimum"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "min"]
     min_y : float [@sop.default 0.] [@sop.label "Minimum Y"]
-      [@sop.folder "Output/Minimum"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Output/Minimum"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "min"]
     min_z : float [@sop.default 0.] [@sop.label "Minimum Z"]
-      [@sop.folder "Output/Minimum"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Output/Minimum"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "min"]
     min_w : float [@sop.default 0.] [@sop.label "Minimum W"]
       [@sop.folder "Output/Minimum"] [@sop.min (-10.)] [@sop.max 10.];
     max_x : float [@sop.default 1.] [@sop.label "Maximum X"]
-      [@sop.folder "Output/Maximum"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Output/Maximum"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "max"]
     max_y : float [@sop.default 1.] [@sop.label "Maximum Y"]
-      [@sop.folder "Output/Maximum"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Output/Maximum"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "max"]
     max_z : float [@sop.default 1.] [@sop.label "Maximum Z"]
-      [@sop.folder "Output/Maximum"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Output/Maximum"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "max"]
     max_w : float [@sop.default 1.] [@sop.label "Maximum W"]
       [@sop.folder "Output/Maximum"] [@sop.min (-10.)] [@sop.max 10.];
     operation : Pdk.Attribute_ops.noise_operation
@@ -761,17 +761,17 @@ module Attribute_noise = struct
     blend : float [@sop.default 1.] [@sop.label "Blend"]
       [@sop.folder "Output"] [@sop.min 0.] [@sop.max 1.];
     frequency_x : float [@sop.default 1.] [@sop.label "Frequency X"]
-      [@sop.folder "Noise/Frequency"] [@sop.min 0.] [@sop.max 20.];
+      [@sop.folder "Noise/Frequency"] [@sop.min 0.] [@sop.max 20.]; [@sop.vec3 "frequency"]
     frequency_y : float [@sop.default 1.] [@sop.label "Frequency Y"]
-      [@sop.folder "Noise/Frequency"] [@sop.min 0.] [@sop.max 20.];
+      [@sop.folder "Noise/Frequency"] [@sop.min 0.] [@sop.max 20.]; [@sop.vec3 "frequency"]
     frequency_z : float [@sop.default 1.] [@sop.label "Frequency Z"]
-      [@sop.folder "Noise/Frequency"] [@sop.min 0.] [@sop.max 20.];
+      [@sop.folder "Noise/Frequency"] [@sop.min 0.] [@sop.max 20.]; [@sop.vec3 "frequency"]
     offset_x : float [@sop.default 0.] [@sop.label "Offset X"]
-      [@sop.folder "Noise/Offset"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Noise/Offset"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "offset"]
     offset_y : float [@sop.default 0.] [@sop.label "Offset Y"]
-      [@sop.folder "Noise/Offset"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Noise/Offset"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "offset"]
     offset_z : float [@sop.default 0.] [@sop.label "Offset Z"]
-      [@sop.folder "Noise/Offset"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Noise/Offset"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "offset"]
     octaves : int [@sop.default 1] [@sop.label "Octaves"]
       [@sop.folder "Noise/Fractal"] [@sop.min 1] [@sop.max 12]
       [@sop.hard_min 1];
@@ -835,35 +835,35 @@ module Attribute_remap = struct
     input_range : input_range [@sop.default Automatic]
       [@sop.label "Input range"] [@sop.kind input_parameter];
     input_min_x : float [@sop.default 0.] [@sop.label "Minimum X"]
-      [@sop.folder "Input/Minimum"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Input/Minimum"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "input_min"]
     input_min_y : float [@sop.default 0.] [@sop.label "Minimum Y"]
-      [@sop.folder "Input/Minimum"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Input/Minimum"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "input_min"]
     input_min_z : float [@sop.default 0.] [@sop.label "Minimum Z"]
-      [@sop.folder "Input/Minimum"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Input/Minimum"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "input_min"]
     input_min_w : float [@sop.default 0.] [@sop.label "Minimum W"]
       [@sop.folder "Input/Minimum"] [@sop.min (-10.)] [@sop.max 10.];
     input_max_x : float [@sop.default 1.] [@sop.label "Maximum X"]
-      [@sop.folder "Input/Maximum"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Input/Maximum"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "input_max"]
     input_max_y : float [@sop.default 1.] [@sop.label "Maximum Y"]
-      [@sop.folder "Input/Maximum"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Input/Maximum"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "input_max"]
     input_max_z : float [@sop.default 1.] [@sop.label "Maximum Z"]
-      [@sop.folder "Input/Maximum"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Input/Maximum"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "input_max"]
     input_max_w : float [@sop.default 1.] [@sop.label "Maximum W"]
       [@sop.folder "Input/Maximum"] [@sop.min (-10.)] [@sop.max 10.];
     output_min_x : float [@sop.default 0.] [@sop.label "Minimum X"]
-      [@sop.folder "Output/Minimum"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Output/Minimum"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "output_min"]
     output_min_y : float [@sop.default 0.] [@sop.label "Minimum Y"]
-      [@sop.folder "Output/Minimum"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Output/Minimum"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "output_min"]
     output_min_z : float [@sop.default 0.] [@sop.label "Minimum Z"]
-      [@sop.folder "Output/Minimum"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Output/Minimum"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "output_min"]
     output_min_w : float [@sop.default 0.] [@sop.label "Minimum W"]
       [@sop.folder "Output/Minimum"] [@sop.min (-10.)] [@sop.max 10.];
     output_max_x : float [@sop.default 1.] [@sop.label "Maximum X"]
-      [@sop.folder "Output/Maximum"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Output/Maximum"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "output_max"]
     output_max_y : float [@sop.default 1.] [@sop.label "Maximum Y"]
-      [@sop.folder "Output/Maximum"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Output/Maximum"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "output_max"]
     output_max_z : float [@sop.default 1.] [@sop.label "Maximum Z"]
-      [@sop.folder "Output/Maximum"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Output/Maximum"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "output_max"]
     output_max_w : float [@sop.default 1.] [@sop.label "Maximum W"]
       [@sop.folder "Output/Maximum"] [@sop.min (-10.)] [@sop.max 10.];
     policy : Pdk.Attribute_ops.remap_policy
@@ -928,27 +928,27 @@ module Attribute_randomize = struct
     fraction_attribute : string [@sop.default ""]
       [@sop.label "Fraction attribute"] [@sop.folder "Random"];
     a_x : float [@sop.default 0.] [@sop.label "A / minimum X"]
-      [@sop.folder "Distribution/A"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Distribution/A"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "a"]
     a_y : float [@sop.default 0.] [@sop.label "A / minimum Y"]
-      [@sop.folder "Distribution/A"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Distribution/A"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "a"]
     a_z : float [@sop.default 0.] [@sop.label "A / minimum Z"]
-      [@sop.folder "Distribution/A"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Distribution/A"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "a"]
     a_w : float [@sop.default 0.] [@sop.label "A / minimum W"]
       [@sop.folder "Distribution/A"] [@sop.min (-10.)] [@sop.max 10.];
     b_x : float [@sop.default 1.] [@sop.label "B / maximum X"]
-      [@sop.folder "Distribution/B"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Distribution/B"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "b"]
     b_y : float [@sop.default 1.] [@sop.label "B / maximum Y"]
-      [@sop.folder "Distribution/B"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Distribution/B"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "b"]
     b_z : float [@sop.default 1.] [@sop.label "B / maximum Z"]
-      [@sop.folder "Distribution/B"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Distribution/B"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "b"]
     b_w : float [@sop.default 1.] [@sop.label "B / maximum W"]
       [@sop.folder "Distribution/B"] [@sop.min (-10.)] [@sop.max 10.];
     step_x : float [@sop.default 1.] [@sop.label "Step X"]
-      [@sop.folder "Distribution/Step"] [@sop.min 0.] [@sop.max 10.];
+      [@sop.folder "Distribution/Step"] [@sop.min 0.] [@sop.max 10.]; [@sop.vec3 "step"]
     step_y : float [@sop.default 1.] [@sop.label "Step Y"]
-      [@sop.folder "Distribution/Step"] [@sop.min 0.] [@sop.max 10.];
+      [@sop.folder "Distribution/Step"] [@sop.min 0.] [@sop.max 10.]; [@sop.vec3 "step"]
     step_z : float [@sop.default 1.] [@sop.label "Step Z"]
-      [@sop.folder "Distribution/Step"] [@sop.min 0.] [@sop.max 10.];
+      [@sop.folder "Distribution/Step"] [@sop.min 0.] [@sop.max 10.]; [@sop.vec3 "step"]
     step_w : float [@sop.default 1.] [@sop.label "Step W"]
       [@sop.folder "Distribution/Step"] [@sop.min 0.] [@sop.max 10.];
     probability_b : float [@sop.default 0.5] [@sop.label "Probability B"]
@@ -1063,17 +1063,17 @@ module Attribute_mirror = struct
     method_ : method_ [@sop.default Plane] [@sop.label "Mirror method"]
       [@sop.kind method_parameter];
     origin_x : float [@sop.default 0.] [@sop.label "Origin X"]
-      [@sop.folder "Plane/Origin"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Plane/Origin"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "origin"]
     origin_y : float [@sop.default 0.] [@sop.label "Origin Y"]
-      [@sop.folder "Plane/Origin"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Plane/Origin"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "origin"]
     origin_z : float [@sop.default 0.] [@sop.label "Origin Z"]
-      [@sop.folder "Plane/Origin"] [@sop.min (-10.)] [@sop.max 10.];
+      [@sop.folder "Plane/Origin"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "origin"]
     normal_x : float [@sop.default 1.] [@sop.label "Normal X"]
-      [@sop.folder "Plane/Normal"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "Plane/Normal"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "normal"]
     normal_y : float [@sop.default 0.] [@sop.label "Normal Y"]
-      [@sop.folder "Plane/Normal"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "Plane/Normal"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "normal"]
     normal_z : float [@sop.default 0.] [@sop.label "Normal Z"]
-      [@sop.folder "Plane/Normal"] [@sop.min (-1.)] [@sop.max 1.];
+      [@sop.folder "Plane/Normal"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "normal"]
     distance : float [@sop.default 1000000.] [@sop.label "Maximum distance"]
       [@sop.folder "Plane"] [@sop.min 0.] [@sop.max 1000000.]
       [@sop.hard_min 0.];
@@ -1289,7 +1289,7 @@ module Delete_attributes = struct
   } [@@sop.node_key "delete_attributes"]
     [@@sop.node_operation "attribute_delete_pattern"]
     [@@sop.node_label "Delete Attributes"]
-    [@@sop.node_category "Attribute/Manage"] [@@sop.node_inputs 2]
+    [@@sop.node_category "Attribute/Manage"] [@@sop.node_inputs 2] [@@sop.node_slots "input, reference"]
     [@@sop.node_optional "1"] [@@deriving sop_params, sop_node]
   let build = parameters_build (fun ~label parameters input reference ->
     Sop.delete_attributes ~label ?reference
@@ -1431,7 +1431,7 @@ module Attribute_fade = struct
     visualize : bool [@sop.default false] [@sop.label "Visualize fade"]
       [@sop.folder "Output"];
   } [@@sop.node_key "attribute_fade"] [@@sop.node_label "Attribute Fade"]
-    [@@sop.node_category "Attribute/Motion"] [@@sop.node_inputs 3]
+    [@@sop.node_category "Attribute/Motion"] [@@sop.node_inputs 3] [@@sop.node_slots "input, start_source, hold_source"]
     [@@sop.node_optional "1,2"] [@@deriving sop_params, sop_node]
   let build = parameters_build (fun ~label parameters input start_source hold_source ->
     Sop.attribute_fade ~label ?group:(optional_text parameters.group)
@@ -1474,13 +1474,13 @@ module Point_velocity = struct
       [@sop.label "Initialization"] [@sop.kind initialization_parameter];
     set_x : float [@sop.default 0.] [@sop.label "Velocity X"]
       [@sop.folder "Initialization/Value"] [@sop.min (-100.)]
-      [@sop.max 100.];
+      [@sop.max 100.]; [@sop.vec3 "set"]
     set_y : float [@sop.default 0.] [@sop.label "Velocity Y"]
       [@sop.folder "Initialization/Value"] [@sop.min (-100.)]
-      [@sop.max 100.];
+      [@sop.max 100.]; [@sop.vec3 "set"]
     set_z : float [@sop.default 0.] [@sop.label "Velocity Z"]
       [@sop.folder "Initialization/Value"] [@sop.min (-100.)]
-      [@sop.max 100.];
+      [@sop.max 100.]; [@sop.vec3 "set"]
     source_attribute : string [@sop.default "v"]
       [@sop.label "Source attribute"] [@sop.folder "Initialization/Attribute"];
     source_scale : float [@sop.default 1.] [@sop.label "Source scale"]
@@ -1496,19 +1496,19 @@ module Point_velocity = struct
       [@sop.label "Velocity attribute"] [@sop.folder "Output"];
     add_x : float [@sop.default 0.] [@sop.label "Add X"]
       [@sop.folder "Output/Add velocity"] [@sop.min (-100.)]
-      [@sop.max 100.];
+      [@sop.max 100.]; [@sop.vec3 "add"]
     add_y : float [@sop.default 0.] [@sop.label "Add Y"]
       [@sop.folder "Output/Add velocity"] [@sop.min (-100.)]
-      [@sop.max 100.];
+      [@sop.max 100.]; [@sop.vec3 "add"]
     add_z : float [@sop.default 0.] [@sop.label "Add Z"]
       [@sop.folder "Output/Add velocity"] [@sop.min (-100.)]
-      [@sop.max 100.];
+      [@sop.max 100.]; [@sop.vec3 "add"]
     compute_acceleration : bool [@sop.default false]
       [@sop.label "Compute acceleration"] [@sop.folder "Output"];
     acceleration_attribute : string [@sop.default "accel"]
       [@sop.label "Acceleration attribute"] [@sop.folder "Output"];
   } [@@sop.node_key "point_velocity"] [@@sop.node_label "Point Velocity"]
-    [@@sop.node_category "Attribute/Motion"] [@@sop.node_inputs 3]
+    [@@sop.node_category "Attribute/Motion"] [@@sop.node_inputs 3] [@@sop.node_slots "input, previous, next"]
     [@@sop.node_optional "1,2"] [@@deriving sop_params, sop_node]
   let initialization parameters = match parameters.initialization with
     | Compute -> Pdk.Motion.Compute_from_deformation
@@ -1602,7 +1602,7 @@ module Attribute_copy = struct
       [@sop.label "Rules (owner, pattern, destination)"]
       [@sop.folder "Attributes"] [@sop.kind rules_parameter];
   } [@@sop.node_key "attribute_copy"] [@@sop.node_label "Attribute Copy"]
-    [@@sop.node_category "Attribute/Transfer"] [@@sop.node_inputs 2]
+    [@@sop.node_category "Attribute/Transfer"] [@@sop.node_inputs 2] [@@sop.node_slots "source, target"]
     [@@deriving sop_params, sop_node]
   let match_ parameters = match parameters.match_ with
     | Cyclic -> Pdk.Attribute_ops.Cyclic
@@ -1709,7 +1709,7 @@ module Attribute_interpolate = struct
       [@sop.kind transfer_unmatched_parameter];
   } [@@sop.node_key "attribute_interpolate"]
     [@@sop.node_label "Attribute Interpolate"]
-    [@@sop.node_category "Attribute/Transfer"] [@@sop.node_inputs 2]
+    [@@sop.node_category "Attribute/Transfer"] [@@sop.node_inputs 2] [@@sop.node_slots "source, target"]
     [@@deriving sop_params, sop_node]
   let driver parameters = match parameters.driver with
     | Primitive_uvw -> Pdk.Attribute_ops.Primitive_uvw {
@@ -1800,7 +1800,7 @@ module Attribute_transfer = struct
       [@sop.label "Target group pattern"] [@sop.folder "Groups/Target"];
   } [@@sop.node_key "attribute_transfer"]
     [@@sop.node_label "Attribute Transfer"]
-    [@@sop.node_category "Attribute/Transfer"] [@@sop.node_inputs 2]
+    [@@sop.node_category "Attribute/Transfer"] [@@sop.node_inputs 2] [@@sop.node_slots "source, target"]
     [@@deriving sop_params, sop_node]
   let build = parameters_build (fun ~label parameters source target ->
     let source_group, source_group_pattern = exact_or_pattern
@@ -1895,7 +1895,7 @@ module Attribute_transfer_surface = struct
       [@sop.label "Target group pattern"] [@sop.folder "Groups/Target"];
   } [@@sop.node_key "attribute_transfer_surface"]
     [@@sop.node_label "Attribute Transfer Surface"]
-    [@@sop.node_category "Attribute/Transfer"] [@@sop.node_inputs 2]
+    [@@sop.node_category "Attribute/Transfer"] [@@sop.node_inputs 2] [@@sop.node_slots "source, target"]
     [@@deriving sop_params, sop_node]
   let build = parameters_build (fun ~label parameters source target ->
     let source_group, source_group_pattern = exact_or_pattern
@@ -1954,7 +1954,7 @@ module Attribute_transfer_all = struct
       [@sop.kind transfer_unmatched_parameter];
   } [@@sop.node_key "attribute_transfer_all"]
     [@@sop.node_label "Attribute Transfer All"]
-    [@@sop.node_category "Attribute/Transfer"] [@@sop.node_inputs 2]
+    [@@sop.node_category "Attribute/Transfer"] [@@sop.node_inputs 2] [@@sop.node_slots "source, target"]
     [@@deriving sop_params, sop_node]
   let build = parameters_build (fun ~label parameters source target ->
     Sop.attribute_transfer_all ~label
@@ -2245,7 +2245,7 @@ module Rest_position = struct
     rest_normal_attribute : string [@sop.default "restN"]
       [@sop.label "Rest normal"] [@sop.folder "Attributes"];
   } [@@sop.node_key "rest_position"] [@@sop.node_label "Rest Position"]
-    [@@sop.node_category "Attribute/Motion"] [@@sop.node_inputs 2]
+    [@@sop.node_category "Attribute/Motion"] [@@sop.node_inputs 2] [@@sop.node_slots "input, reference"]
     [@@sop.node_optional "1"] [@@deriving sop_params, sop_node]
   let build = parameters_build (fun ~label parameters input reference ->
     let inputs, cook_mode = match reference with
