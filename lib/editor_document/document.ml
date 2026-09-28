@@ -11,7 +11,7 @@ type network = {
   context : Flow.Context.t;
   graph : Flow_sop.Network.t;
   layout : Canvas.t;
-  displayed : int option;  (* None exactly when geometry is empty *)
+  displayed : int option;  (* None when no node has a geometry output *)
 }
 
 let of_geometry ~context graph displayed =
@@ -228,8 +228,20 @@ let ungroup value level ~instance_id =
         ~displayed:current.displayed ~definition:definition.spec current.graph in
       let displayed = match displayed with
         | Some _ -> displayed
-        | None -> (match List.rev (Edit_graph.inspect graph.geometry) with
-            | node :: _ -> Some node.id | [] -> None) in
+        | None -> List.find_map (fun (node : Edit_graph.node_info) ->
+            let has_geometry = match Flow_sop.Network.Int_map.find_opt
+                node.id graph.instances with
+              | None -> true
+              | Some instance ->
+                  (match String_map.find_opt instance.definition
+                      value.definitions with
+                   | None -> false
+                   | Some definition -> List.exists
+                       (fun (port : Flow_sop.Network.interface_port) ->
+                         port.ty = Flow.Port_type.Geometry)
+                       definition.spec.outputs) in
+            if has_geometry then Some node.id else None)
+            (List.rev (Edit_graph.inspect graph.geometry)) in
       let layout = Canvas.remove_nodes [instance_id] current.layout in
       let instance_x, instance_y = Option.value ~default:(0., 0.)
         (Layout.find_opt instance_id current.layout.at) in
@@ -876,6 +888,15 @@ let validate value =
       node.operation <> "flow_compound"
       || Flow_sop.Network.Int_map.mem node.id network.graph.instances) nodes in
     let geometry_exists id = Edit_graph.find network.graph.geometry ~node_id:id <> None in
+    let displayable id = geometry_exists id &&
+      match Flow_sop.Network.Int_map.find_opt id network.graph.instances with
+      | None -> true
+      | Some instance ->
+          (match String_map.find_opt instance.definition value.definitions with
+           | None -> false
+           | Some definition -> List.exists
+               (fun (port : Flow_sop.Network.interface_port) ->
+                 port.ty = Flow.Port_type.Geometry) definition.spec.outputs) in
     let exists id = geometry_exists id || Flow.Graph.find network.graph.values ~node_id:id <> None in
     let wire = wire_exists network.graph in
     let parameter id path = Flow_sop.Network.parameter network.graph {node = id; path} in
@@ -923,8 +944,10 @@ let validate value =
     if not (Flow.Context.supports_values network.context) &&
         (Flow.Graph.inspect network.graph.values <> [] || not (Flow_sop.Port.Map.is_empty network.graph.drives))
     then Error (name ^ " cannot contain value nodes or drives")
-    else if (match network.displayed, nodes with
-      | None, [] -> false | Some id, _ -> not (geometry_exists id) | None, _ -> true)
+    else if (match network.displayed with
+      | Some id -> not (displayable id)
+      | None -> List.exists (fun (node : Edit_graph.node_info) ->
+          displayable node.id) nodes)
     then Error (name ^ " has an invalid display node")
     else if not (Layout.for_all (fun id (x, y) ->
       exists id && Float.is_finite x && Float.is_finite y) network.layout.at)

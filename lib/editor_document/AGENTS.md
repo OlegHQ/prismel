@@ -13,6 +13,8 @@ once for every instance, and `resolve_level` falls back to a surviving parent
 after undo or load.
 Ungroup prunes compiled-id paths that no longer name an instance and carries
 the definition's canvas layout onto fresh parent ids.
+Value-only compound instances do not require a geometry display; display
+validation accepts only nodes with geometry output.
 Make unique copies a definition with fresh internal ids, rebinds its interface
 factories, and retargets only the selected instance; other instances retain
 the original definition.

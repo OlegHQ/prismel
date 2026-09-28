@@ -284,6 +284,75 @@ let run () =
       (Editor_document.Document.Layout.find 10 grouped.networks).graph.instances
     && Edit_graph.find grouped_definition.spec.body.geometry ~node_id:20 <> None)
     "group did not move the selected node into a valid shared definition";
+  let level = Editor_document.Document.Inside 10 in
+  let source_network = Editor_document.Document.network direct.doc level
+    |> Option.get in
+  let graph, inner_value = Flow_sop.Network.add_value_node
+    Flow.Value_kind.Value source_network.graph |> Result.get_ok in
+  let graph, outer_value = Flow_sop.Network.add_value_node
+    Flow.Value_kind.Value graph |> Result.get_ok in
+  let graph = Flow_sop.Network.set_literal
+    ~target:Flow_sop.Port.{node = outer_value; path = "v"}
+    (Flow_sop.Port.Scalar (Param.Float_value 2.)) graph |> Result.get_ok in
+  let graph = Flow_sop.Network.connect_value
+    ~source:Flow_sop.Port.{node = outer_value; path = "out"}
+    ~target:Flow_sop.Port.{node = inner_value; path = "v"} graph
+    |> Result.get_ok in
+  let graph = Flow_sop.Network.connect_value
+    ~source:Flow_sop.Port.{node = inner_value; path = "out"}
+    ~target:Flow_sop.Port.{node = 20; path = "uniform_scale"} graph
+    |> Result.get_ok in
+  let value_doc = Editor_document.Document.with_network direct.doc level
+    {source_network with graph} in
+  let value_grouped, value_instance = Editor_document.Document.group
+    value_doc level ~selected:[20; inner_value]
+    ~positions:[20, 48., 24.; inner_value, 0., 24.] |> Result.get_ok in
+  check (Result.is_ok (Editor_document.Document.validate value_grouped))
+    "value-aware document group is invalid";
+  let value_grouped_path = Editor_document.Preset.save ~directory
+    ~name:"value-grouped-saved" ~sketch:"contract" ~doc:value_grouped
+    ~view:`Null |> Result.get_ok in
+  let reloaded_value_grouped = Editor_document.Preset.load
+    ~path:value_grouped_path ~code ~factories
+    ~settings:Editor_document.Settings.none |> Result.get_ok in
+  let value_ungrouped, value_mapping = Editor_document.Document.ungroup
+    reloaded_value_grouped.doc level ~instance_id:value_instance
+    |> Result.get_ok in
+  let restored = Editor_document.Document.network value_ungrouped level
+    |> Option.get in
+  let restored_value = List.assoc inner_value value_mapping
+  and restored_sop = List.assoc 20 value_mapping in
+  check (Result.is_ok (Editor_document.Document.validate value_ungrouped)
+    && Flow_sop.Network.Int_map.mem value_instance
+      restored.graph.instances = false
+    && Flow_sop.Port.Map.find
+      Flow_sop.Port.{node = restored_value; path = "v"}
+      restored.graph.drives
+       = Flow_sop.Drive.Wire {node = outer_value; output = "out"}
+    && Flow_sop.Port.Map.find
+      Flow_sop.Port.{node = restored_sop; path = "uniform_scale"}
+      restored.graph.drives
+       = Flow_sop.Drive.Wire {node = restored_value; output = "out"})
+    "value-aware group preset failed ungroup round trip";
+  let bare_graph, bare_value = Flow_sop.Network.add_value_node
+    Flow.Value_kind.Value
+    (Flow_sop.Network.of_geometry Edit_graph.empty) |> Result.get_ok in
+  let bare_doc = Editor_document.Document.with_network direct.doc level
+    {source_network with graph = bare_graph;
+      layout = Editor_core.Network_layout.empty; displayed = None} in
+  let bare_grouped, bare_instance = Editor_document.Document.group
+    bare_doc level ~selected:[bare_value]
+    ~positions:[bare_value, 0., 0.] |> Result.get_ok in
+  let bare_network = Editor_document.Document.network bare_grouped level
+    |> Option.get in
+  check (bare_network.displayed = None
+    && Result.is_ok (Editor_document.Document.validate bare_grouped)
+    && Result.is_ok (Editor_document.Document.allocate_compiled_ids bare_grouped))
+    "value-only compound required a geometry display";
+  let bare_ungrouped, _ = Editor_document.Document.ungroup bare_grouped
+    level ~instance_id:bare_instance |> Result.get_ok in
+  check (Result.is_ok (Editor_document.Document.validate bare_ungrouped))
+    "value-only compound failed ungroup";
   let root_level = Editor_document.Document.Inside 10 in
   let inside = Editor_document.Document.enter_compound grouped root_level
     grouped_id |> Option.get in

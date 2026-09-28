@@ -84,17 +84,17 @@ rules in this file are current. Planned changes that touch this directory:
   and inspector fields accept checked `=…` expressions; `r` clears a drive or
   restores the literal default. The ƒ row action folds unshared value chains
   into expressions and unfolds expressions into placed Math/Time nodes.
-- M5 is in progress: grouping SOP geometry creates shared definitions and
-  instances, retains moved ids, cooks through saved compiled ids, and records
+- M5 is in progress: grouping SOP and value nodes creates shared definitions
+  and instances, retains moved ids, cooks through saved compiled ids, and records
   one history step. Compound instance paths enter shared definitions, and `u`
-  returns to and selects the parent instance. Ungrouping geometry instances
-  replaces them with fresh inner ids in one undo step. Make unique detaches one
+  returns to and selects the parent instance. Ungrouping replaces internal SOP
+  and value nodes with fresh ids in one undo step. Make unique detaches one
   instance from its shared definition through the palette or tile menu. The
   Inputs/Outputs inspector can rename and reorder shared geometry and value
   ports and unexport unused value ports. `e` exports scalar rows inside a
   definition; instance rows edit their own literals, and flattening carries
-  value drives through nested compounds. Whole-Vec3 export, value-aware
-  grouping/ungrouping and geometry-port unexport remain. M6: `Space l` cycles
+  value drives through nested compounds. Whole-Vec3 export, nonuniform Vec3
+  interface defaults and geometry-port unexport remain. M6: `Space l` cycles
   graph, list, text.
 
 Keep the three-column workspace, `Doc.apply` as the only graph-intent reducer,

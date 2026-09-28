@@ -49,15 +49,10 @@ let geometry ~name ~selected ~displayed ~definitions (network : Network.t) =
     error "E_DUPLICATE" ("Compound " ^ name ^ " already exists")
   else if Ids.is_empty selected then error "E_GROUP" "Select nodes to group"
   else if Ids.exists (fun id -> match Procedural.Edit_graph.find network.geometry ~node_id:id with
-      | None -> true
       | Some node -> List.mem (Procedural.Node.operation node)
-          ["flow_inputs"; "flow_outputs"]) selected then
-    error "E_GROUP" "Only ordinary SOP and compound nodes can be grouped"
-  else if Port.Map.exists (fun (target : Port.t) drive ->
-      Ids.mem target.node selected || match drive with
-        | Drive.Expr _ -> false
-        | Drive.Wire source -> Ids.mem source.node selected) network.drives then
-    error "E_GROUP" "Group driven nodes after exporting their value ports"
+          ["flow_inputs"; "flow_outputs"]
+      | None -> Flow.Graph.find network.values ~node_id:id = None) selected then
+    error "E_GROUP" "Only SOP, value and compound nodes can be grouped"
   else
   let* edges = edges network in
   let incoming = List.filter (fun edge ->
@@ -93,17 +88,69 @@ let geometry ~name ~selected ~displayed ~definitions (network : Network.t) =
     (source, port_name) :: sources, Port.Map.add source port_name names)
     ([], Port.Map.empty) output_sources in
   let output_sources = List.rev output_sources_rev in
-  let inputs = List.map (fun (_, name) -> geometry_port name) input_sources
-  and outputs = List.map (fun (_, name) -> geometry_port name) output_sources in
+  let value_edges = Port.Map.bindings network.drives |> List.filter_map
+    (fun (target, drive) -> match drive with
+      | Drive.Expr _ -> None
+      | Drive.Wire source ->
+          Some (Port.{node = source.node; path = source.output}, target)) in
+  let incoming_values = List.filter (fun ((source : Port.t), (target : Port.t)) ->
+    Ids.mem target.node selected && not (Ids.mem source.node selected))
+    value_edges in
+  let outgoing_values = List.filter (fun ((source : Port.t), (target : Port.t)) ->
+    Ids.mem source.node selected && not (Ids.mem target.node selected))
+    value_edges in
+  let geometry_inputs = List.map (fun (_, name) -> geometry_port name) input_sources
+  and geometry_outputs = List.map (fun (_, name) -> geometry_port name) output_sources in
+  let* input_value_sources, input_value_names =
+    List.fold_left (fun state (source, target) ->
+      let* reversed, names = state in
+      if Port.Map.mem source names then Ok (reversed, names) else
+      let* parameter = Network.parameter network target in
+      let* ty = match parameter.ty with
+        | Some ty -> Ok ty
+        | None -> error "E_GROUP" "Literal-only row cannot become a value input" in
+      let field = List.hd parameter.fields in
+      let soft = match field.Param.kind with
+        | Floating_view range -> Some (range.soft_min, range.soft_max)
+        | Integer_view range -> Some (float_of_int range.soft_min,
+            float_of_int range.soft_max)
+        | _ -> None in
+      let default = match Port.literal parameter with
+        | Port.Scalar value -> Some value
+        | Port.Vector (x,y,z) when x = y && y = z -> Some (Param.Float_value x)
+        | Port.Vector _ -> None in
+      let used = List.map (fun (port : Network.interface_port) -> port.name)
+        geometry_inputs @ List.map (fun (_, name, _) -> name) reversed in
+      let name = fresh_name (clean_name target.path) used in
+      let port : Network.interface_port = {name; ty; default;
+        label = field.label; soft} in
+      Ok ((source, name, port) :: reversed, Port.Map.add source name names))
+      (Ok ([], Port.Map.empty)) incoming_values
+    |> Result.map (fun (reversed, names) -> List.rev reversed, names) in
+  let* output_value_sources, output_value_names =
+    List.fold_left (fun state (source, _) ->
+      let* reversed, names = state in
+      if Port.Map.mem source names then Ok (reversed, names) else
+      let* ty = Network.output_type network source in
+      let used = List.map (fun (port : Network.interface_port) -> port.name)
+        geometry_outputs @ List.map (fun (_, name, _) -> name) reversed in
+      let name = fresh_name (clean_name source.path) used in
+      let port : Network.interface_port = {name; ty; default = None;
+        label = String.capitalize_ascii name; soft = None} in
+      Ok ((source, name, port) :: reversed, Port.Map.add source name names))
+      (Ok ([], Port.Map.empty)) outgoing_values
+    |> Result.map (fun (reversed, names) -> List.rev reversed, names) in
+  let inputs = geometry_inputs @ List.map (fun (_, _, port) -> port) input_value_sources
+  and outputs = geometry_outputs @ List.map (fun (_, _, port) -> port) output_value_sources in
   let factories = Compound_node.factories ~name ~inputs ~outputs in
   let inputs_factory = List.nth factories 0
   and outputs_factory = List.nth factories 1
   and instance_factory = List.nth factories 2 in
   let* inputs_node = graph (Procedural.Edit_graph.instantiate_optional inputs_factory []) in
   let* outputs_node = graph (Procedural.Edit_graph.instantiate_optional
-    outputs_factory (List.map (fun _ -> None) outputs)) in
+    outputs_factory (List.map (fun _ -> None) geometry_outputs)) in
   let* instance_node = graph (Procedural.Edit_graph.instantiate_optional
-    instance_factory (List.map (fun _ -> None) inputs)) in
+    instance_factory (List.map (fun _ -> None) geometry_inputs)) in
   let inputs_id = Procedural.Node.id inputs_node
   and outputs_id = Procedural.Node.id outputs_node
   and instance_id = Procedural.Node.id instance_node in
@@ -112,7 +159,7 @@ let geometry ~name ~selected ~displayed ~definitions (network : Network.t) =
   let* body_geometry = graph (Procedural.Edit_graph.add_node
     ~factory:inputs_factory inputs_node body_geometry) in
   let* body_geometry = graph (Procedural.Edit_graph.add_node
-    ~factory:outputs_factory ~inputs:(Array.make (List.length outputs) None)
+    ~factory:outputs_factory ~inputs:(Array.make (List.length geometry_outputs) None)
     outputs_node body_geometry) in
   let* body_geometry = graph (Procedural.Edit_graph.set_root outputs_id body_geometry) in
   let body_outputs = Port.Map.filter (fun (target : Port.t) _ ->
@@ -122,8 +169,16 @@ let geometry ~name ~selected ~displayed ~definitions (network : Network.t) =
     network.geometry_outputs in
   let body_instances = Network.Int_map.filter (fun id _ -> Ids.mem id selected)
     network.instances in
-  let* body = Network.of_parts ~geometry:body_geometry ~values:Flow.Graph.empty
-    ~drives:Port.Map.empty ~geometry_outputs:body_outputs
+  let* body_values = List.fold_left (fun state (node : Flow.Graph.node) ->
+    let* values = state in
+    if Ids.mem node.id selected then Flow.Graph.add_node node values
+    else Ok values) (Ok Flow.Graph.empty) (Flow.Graph.inspect network.values) in
+  let body_drives = Port.Map.filter (fun (target : Port.t) drive ->
+    Ids.mem target.node selected && match drive with
+      | Drive.Expr _ -> true
+      | Drive.Wire source -> Ids.mem source.node selected) network.drives in
+  let* body = Network.of_parts ~geometry:body_geometry ~values:body_values
+    ~drives:body_drives ~geometry_outputs:body_outputs
     ~instances:body_instances in
   let* body = List.fold_left (fun state edge ->
     let* body = state in
@@ -135,11 +190,22 @@ let geometry ~name ~selected ~displayed ~definitions (network : Network.t) =
     let* body = state in
     Network.connect_geometry ~source ~consumer:outputs_id ~input_index:index body)
     (Ok body) (List.mapi (fun index item -> index, item) output_sources) in
+  let* body = List.fold_left (fun state (source, target) ->
+    let* body = state in
+    Network.connect_value
+      ~source:Port.{node = inputs_id;
+        path = Port.Map.find source input_value_names}
+      ~target body) (Ok body) incoming_values in
+  let* body = List.fold_left (fun state (source, name, _) ->
+    let* body = state in
+    Network.connect_value ~source
+      ~target:Port.{node = outputs_id; path = name} body)
+    (Ok body) output_value_sources in
   let definition : Network.definition = {
     name; context = Flow.Context.Sop; inputs; outputs; body} in
   let* parent = Network.remove_nodes (Ids.elements selected) network in
   let* geometry = graph (Procedural.Edit_graph.add_node ~factory:instance_factory
-    ~inputs:(Array.make (List.length inputs) None) instance_node parent.geometry) in
+    ~inputs:(Array.make (List.length geometry_inputs) None) instance_node parent.geometry) in
   let instance : Network.instance = {definition = name;
     literals = Network.String_map.empty} in
   let* parent = Network.of_parts ~geometry ~values:parent.values
@@ -155,6 +221,18 @@ let geometry ~name ~selected ~displayed ~definitions (network : Network.t) =
       path = Port.Map.find edge.source output_names} in
     Network.connect_geometry ~source ~consumer:edge.consumer
       ~input_index:edge.index parent) (Ok parent) outgoing in
+  let* parent = List.fold_left (fun state (source, _, _) ->
+    let* parent = state in
+    Network.connect_value ~source
+      ~target:Port.{node = instance_id;
+        path = Port.Map.find source input_value_names} parent)
+    (Ok parent) input_value_sources in
+  let* parent = List.fold_left (fun state (source, target) ->
+    let* parent = state in
+    Network.connect_value
+      ~source:Port.{node = instance_id;
+        path = Port.Map.find source output_value_names}
+      ~target parent) (Ok parent) outgoing_values in
   let* parent = match display_source with
     | None -> Ok parent
     | Some _ ->
@@ -165,20 +243,9 @@ let geometry ~name ~selected ~displayed ~definitions (network : Network.t) =
 
 let ungroup ~instance_id ~displayed ~(definition : Network.definition)
     (network : Network.t) =
-  let* instance = match Network.Int_map.find_opt instance_id network.instances with
-    | Some instance when instance.definition = definition.name -> Ok instance
+  let* () = match Network.Int_map.find_opt instance_id network.instances with
+    | Some instance when instance.definition = definition.name -> Ok ()
     | Some _ | None -> error "E_UNGROUP" "Select one compound instance to ungroup" in
-  if Flow.Graph.inspect definition.body.values <> []
-      || not (Port.Map.is_empty definition.body.drives)
-      || not (Network.String_map.is_empty instance.literals)
-      || List.exists (fun (port : Network.interface_port) ->
-        port.ty <> Flow.Port_type.Geometry) (definition.inputs @ definition.outputs)
-      || Port.Map.exists (fun (target : Port.t) drive ->
-        target.node = instance_id || match drive with
-          | Drive.Expr _ -> false
-          | Drive.Wire source -> source.node = instance_id) network.drives
-  then error "E_UNGROUP" "Value interfaces are not supported by ungroup yet"
-  else
   let marker operation = Procedural.Edit_graph.inspect definition.body.geometry
     |> List.filter (fun (node : Procedural.Edit_graph.node_info) ->
       node.operation = operation) in
@@ -188,11 +255,15 @@ let ungroup ~instance_id ~displayed ~(definition : Network.definition)
       let nodes = Procedural.Edit_graph.inspect body.geometry
         |> List.filter (fun (node : Procedural.Edit_graph.node_info) ->
           node.id <> inputs_node.id && node.id <> outputs_node.id)
-        |> List.map (fun node -> node.Procedural.Edit_graph.id) in
+        |> List.map (fun node -> node.Procedural.Edit_graph.id)
+        |> fun ids -> ids @ List.map (fun (node : Flow.Graph.node) -> node.id)
+          (Flow.Graph.inspect body.values) in
       let node_ids = Ids.of_list nodes in
       let input_sources = List.map (fun (port : Network.interface_port) ->
         port.name, Network.geometry_source network
-          Port.{node = instance_id; path = port.name}) definition.inputs in
+          Port.{node = instance_id; path = port.name})
+        (List.filter (fun (port : Network.interface_port) ->
+          port.ty = Flow.Port_type.Geometry) definition.inputs) in
       let* body_edges = edges body in
       let incoming = List.filter (fun edge ->
         edge.source.node = inputs_node.id && Ids.mem edge.consumer node_ids) body_edges in
@@ -226,7 +297,9 @@ let ungroup ~instance_id ~displayed ~(definition : Network.definition)
         (Ok parent) incoming in
       let outputs = List.map (fun (port : Network.interface_port) ->
         port.name, Network.geometry_source body
-          Port.{node = outputs_node.id; path = port.name}) definition.outputs in
+          Port.{node = outputs_node.id; path = port.name})
+        (List.filter (fun (port : Network.interface_port) ->
+          port.ty = Flow.Port_type.Geometry) definition.outputs) in
       let* outputs = List.fold_left (fun state (name, original) ->
         let* reversed = state in
         let* source = match original with None -> Ok None
@@ -242,6 +315,125 @@ let ungroup ~instance_id ~displayed ~(definition : Network.definition)
         | None -> error "E_UNGROUP"
             ("Unknown compound output " ^ edge.source.path))
         (Ok parent) outgoing in
+      let component path = match String.rindex_opt path '.' with
+        | None -> None
+        | Some index ->
+            let axis = String.sub path (index + 1)
+              (String.length path - index - 1) in
+            if List.mem axis ["x"; "y"; "z"] then
+              Some (String.sub path 0 index, axis) else None in
+      let splitters = ref Port.Map.empty in
+      let project_value parent axis = function
+        | `Literal (Port.Vector (x,y,z)) ->
+            let number = match axis with "x" -> x | "y" -> y | _ -> z in
+            Ok (parent, `Literal (Port.Scalar (Param.Float_value number)))
+        | `Components parts ->
+            let index = match axis with "x" -> 0 | "y" -> 1 | _ -> 2 in
+            Ok (parent, List.nth parts index)
+        | `Drive (Drive.Wire source) ->
+            let source_port = Port.{node = source.node; path = source.output} in
+            let* parent, splitter = match Port.Map.find_opt source_port !splitters with
+              | Some id -> Ok (parent, id)
+              | None ->
+                  let* parent, id = Network.add_value_node
+                    Flow.Value_kind.Separate_xyz parent in
+                  let* parent = Network.connect_value ~source:source_port
+                    ~target:Port.{node = id; path = "v"} parent in
+                  splitters := Port.Map.add source_port id !splitters;
+                  Ok (parent, id) in
+            Ok (parent, `Drive (Drive.Wire {node = splitter; output = axis}))
+        | _ -> error "E_UNGROUP" "Cannot project a non-vector compound value" in
+      let rec input_value parent path =
+        let target = Port.{node = instance_id; path} in
+        match Port.Map.find_opt target network.drives with
+        | Some drive -> Ok (parent, `Drive drive)
+        | None ->
+            (match component path with
+             | Some (group, axis) ->
+                 (match Port.Map.find_opt {target with path = group}
+                     network.drives with
+                  | Some drive -> project_value parent axis (`Drive drive)
+                  | None -> Result.map (fun parameter ->
+                      parent, `Literal (Port.literal parameter))
+                      (Network.parameter network target))
+             | None ->
+                 let* parameter = Network.parameter network target in
+                 if parameter.ty = Some Flow.Port_type.Vec3
+                   && List.exists (fun axis -> Port.Map.mem
+                     {target with path = path ^ "." ^ axis} network.drives)
+                     ["x"; "y"; "z"] then
+                   let* parent, parts = List.fold_left (fun state axis ->
+                     let* parent, parts = state in
+                     let* parent, part = input_value parent
+                       (path ^ "." ^ axis) in
+                     Ok (parent, part :: parts)) (Ok (parent, []))
+                     ["x"; "y"; "z"] in
+                   Ok (parent, `Components (List.rev parts))
+                 else Ok (parent, `Literal (Port.literal parameter))) in
+      let rec apply_value parent target = function
+        | `Literal literal -> Network.set_literal ~target literal parent
+        | `Drive (Drive.Expr expression) ->
+            Network.set_expr ~target expression parent
+        | `Drive (Drive.Wire source) -> Network.connect_value
+            ~source:Port.{node = source.node; path = source.output}
+            ~target parent
+        | `Components parts ->
+            List.fold_left2 (fun state axis part ->
+              let* parent = state in
+              apply_value parent {target with path = target.path ^ "." ^ axis}
+                part) (Ok parent) ["x"; "y"; "z"] parts in
+      let internal_value_drive parent = function
+        | Drive.Expr expression -> Ok (parent, `Drive (Drive.Expr expression))
+        | Drive.Wire source when source.node = inputs_node.id ->
+            input_value parent source.output
+        | Drive.Wire source ->
+            let* node = mapped source.node in
+            Ok (parent, `Drive (Drive.Wire {source with node})) in
+      let rec output_value parent path =
+        let output = Port.{node = outputs_node.id; path} in
+        match Port.Map.find_opt output body.drives with
+        | Some drive -> internal_value_drive parent drive
+        | None ->
+            (match component path with
+             | Some (group, axis) ->
+                 (match Port.Map.find_opt {output with path = group}
+                     body.drives with
+                  | Some drive ->
+                      let* parent, value = internal_value_drive parent drive in
+                      project_value parent axis value
+                  | None -> Result.map (fun parameter ->
+                      parent, `Literal (Port.literal parameter))
+                      (Network.parameter body output))
+             | None ->
+                 let* parameter = Network.parameter body output in
+                 if parameter.ty = Some Flow.Port_type.Vec3
+                   && List.exists (fun axis -> Port.Map.mem
+                     {output with path = path ^ "." ^ axis} body.drives)
+                     ["x"; "y"; "z"] then
+                   let* parent, parts = List.fold_left (fun state axis ->
+                     let* parent, parts = state in
+                     let* parent, part = output_value parent
+                       (path ^ "." ^ axis) in
+                     Ok (parent, part :: parts)) (Ok (parent, []))
+                     ["x"; "y"; "z"] in
+                   Ok (parent, `Components (List.rev parts))
+                 else Ok (parent, `Literal (Port.literal parameter))) in
+      let* parent = Port.Map.fold (fun (target : Port.t) drive state ->
+        let* parent = state in
+        match drive with
+        | Drive.Wire source when source.node = inputs_node.id
+            && Ids.mem target.node node_ids ->
+            let* node = mapped target.node in
+            let* parent, value = input_value parent source.output in
+            apply_value parent {target with node} value
+        | _ -> Ok parent) body.drives (Ok parent) in
+      let* parent = Port.Map.fold (fun (target : Port.t) drive state ->
+        let* parent = state in
+        match drive with
+        | Drive.Wire source when source.node = instance_id ->
+            let* parent, value = output_value parent source.output in
+            apply_value parent target value
+        | _ -> Ok parent) network.drives (Ok parent) in
       let displayed = if displayed = Some instance_id then
         List.find_map (fun (_, source) -> Option.map (fun (port : Port.t) ->
           port.node) source) outputs else displayed in

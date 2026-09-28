@@ -624,4 +624,91 @@ let () =
     |> fun field -> field.current in
   assert (number nested_inner = Param.Float_value 2.
     && number outside_id = Param.Float_value 2.);
+  let selected_sop = build default in
+  let selected_id = Procedural.Node.id selected_sop in
+  let parent_sop = build default in
+  let parent_id = Procedural.Node.id parent_sop in
+  let geometry = Procedural.Edit_graph.of_graph selected_sop
+    |> Procedural.Edit_graph.add_node parent_sop |> Result.get_ok in
+  let grouped_source = Network.of_geometry geometry in
+  let grouped_source, inner_value = ok (Network.add_value_node
+    Flow.Value_kind.Value grouped_source) in
+  let grouped_source, outer_value = ok (Network.add_value_node
+    Flow.Value_kind.Value grouped_source) in
+  let grouped_source = ok (Network.set_literal
+    ~target:(port outer_value "v")
+    (Port.Scalar (Param.Float_value 2.)) grouped_source) in
+  let grouped_source = ok (Network.connect_value
+    ~source:(port outer_value "out") ~target:(port inner_value "v")
+    grouped_source) in
+  let grouped_source = ok (Network.connect_value
+    ~source:(port inner_value "out") ~target:(port selected_id "a")
+    grouped_source) in
+  let grouped_source = ok (Network.connect_value
+    ~source:(port inner_value "out") ~target:(port parent_id "a")
+    grouped_source) in
+  let grouped, definition, instance = ok (Group.geometry
+    ~name:"value_group" ~selected:[selected_id; inner_value]
+    ~displayed:(Some selected_id) ~definitions:Network.String_map.empty
+    grouped_source) in
+  let flat, _ = ok (Compile.flatten
+    ~definitions:(Network.String_map.singleton definition.name definition)
+    ~compiled_ids:Instance_path.Map.empty grouped) in
+  let cooked = ok (Value_lane.resolve (Value_lane.create ()) ~time:0. flat) in
+  assert (List.exists (fun (port : Network.interface_port) ->
+      port.ty = Flow.Port_type.Float) definition.inputs
+    && List.exists (fun (port : Network.interface_port) ->
+      port.ty = Flow.Port_type.Float) definition.outputs
+    && Network.Int_map.mem instance grouped.instances
+    && cook_graph cooked.geometry = cook_graph
+      (Procedural.Edit_graph.of_graph (build {default with a = 2.})));
+  let ungrouped, mapping, displayed = ok (Group.ungroup
+    ~instance_id:instance ~displayed:(Some instance) ~definition grouped) in
+  let new_sop = List.assoc selected_id mapping
+  and new_value = List.assoc inner_value mapping in
+  assert (displayed = Some new_sop
+    && new_sop <> selected_id && new_value <> inner_value
+    && Port.Map.find (port new_value "v") ungrouped.drives
+       = Drive.Wire {node = outer_value; output = "out"}
+    && Port.Map.find (port new_sop "a") ungrouped.drives
+       = Drive.Wire {node = new_value; output = "out"}
+    && Port.Map.find (port parent_id "a") ungrouped.drives
+       = Drive.Wire {node = new_value; output = "out"});
+  let cooked = ok (Value_lane.resolve (Value_lane.create ())
+    ~time:0. ungrouped) in
+  assert (cook_graph cooked.geometry = cook_graph
+    (Procedural.Edit_graph.of_graph (build {default with a = 2.})));
+  let value_only, value_definition, value_instance = ok (Group.geometry
+    ~name:"value_only" ~selected:[inner_value]
+    ~displayed:(Some selected_id)
+    ~definitions:Network.String_map.empty grouped_source) in
+  assert (List.length value_definition.inputs = 1
+    && List.length value_definition.outputs = 1
+    && Network.Int_map.mem value_instance value_only.instances);
+  let value_flat, _ = ok (Compile.flatten
+    ~definitions:(Network.String_map.singleton value_definition.name
+      value_definition) ~compiled_ids:Instance_path.Map.empty value_only) in
+  let value_cooked = ok (Value_lane.resolve (Value_lane.create ())
+    ~time:0. value_flat) in
+  assert (cook_graph value_cooked.geometry = cook_graph
+    (Procedural.Edit_graph.of_graph (build {default with a = 2.})));
+  let value_ungrouped, value_mapping, _ = ok (Group.ungroup
+    ~instance_id:value_instance ~displayed:(Some selected_id)
+    ~definition:value_definition value_only) in
+  assert (List.length value_mapping = 1
+    && Port.Map.find (port selected_id "a") value_ungrouped.drives
+       = Drive.Wire {node = List.assoc inner_value value_mapping;
+           output = "out"}
+    && Port.Map.find (port parent_id "a") value_ungrouped.drives
+       = Drive.Wire {node = List.assoc inner_value value_mapping;
+           output = "out"});
+  let bare, bare_value = ok (Network.add_value_node Flow.Value_kind.Value
+    (Network.of_geometry Procedural.Edit_graph.empty)) in
+  let bare_grouped, bare_definition, _ = ok (Group.geometry
+    ~name:"bare_value" ~selected:[bare_value] ~displayed:None
+    ~definitions:Network.String_map.empty bare) in
+  let bare_flat, _ = ok (Compile.flatten
+    ~definitions:(Network.String_map.singleton bare_definition.name
+      bare_definition) ~compiled_ids:Instance_path.Map.empty bare_grouped) in
+  assert (Procedural.Edit_graph.root bare_flat.geometry = None);
   print_endline "Flow SOP overlay: validation, change-only lane, literal restoration and 16,384-point 1/4-domain byte parity pass"

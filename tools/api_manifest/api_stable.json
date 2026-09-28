@@ -135,8 +135,8 @@
       "library": "flow_sop",
       "module": "Group",
       "source": "lib/flow_sop/group.mli",
-      "source_bytes": 846,
-      "source_sha256": "eb22b04af23e4e63e97dee2072a2826034cb2fddf79884ed38cb98c125e0fe03"
+      "source_bytes": 934,
+      "source_sha256": "59cd12a21ffe36fabf6e32baa2bb0e73dc588b8fbd01a012bbb1e9bcbb4008a2"
     },
     {
       "api_sha256": "13e51ba6fd0803c83783ae21d917160a0fe5e18e8c21e193343df21b33411666",
