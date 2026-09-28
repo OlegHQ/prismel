@@ -61,7 +61,7 @@ let run () =
               (Ogpu.Backend.texture_id texture)()
           |None->failwith"GPU film reverted to CPU storage"
         done;
-        assert(Hashtbl.length textures=2)));
+        assert(Hashtbl.length textures=3)));
   let after=live_handles()in
   assert(after=baseline);
   print_endline"GPU film: direct texture, explicit readback, zero live delta"

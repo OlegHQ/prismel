@@ -1153,7 +1153,7 @@ let pipeline_for library pipelines shape =
       Hashtbl.add pipelines shape (pipeline, table);
       Ok (pipeline, table)
 
-(* Size-dependent storage: accumulation, two history frames, two output films. *)
+(* Size-dependent storage: accumulation, two history frames, three output films. *)
 type film = {
   accum : B.buffer;
   history_color : B.buffer array;
