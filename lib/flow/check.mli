@@ -47,3 +47,7 @@ val check : catalog -> string -> program option * Diagnostic.t list
 (** Parse and check a file. A failed binding is poisoned, so later references
     to it do not produce cascading errors. Diagnostics include warnings and
     source positions; a program is returned only if there are no errors. *)
+
+val catalog_of_manifest : string -> (catalog * string, Diagnostic.t) result
+(** Read the generated catalog snapshot for compile-time checking, returning
+    its SOP descriptor and digest. Built-in value kinds are added by [check]. *)

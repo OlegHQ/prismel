@@ -139,6 +139,10 @@ let () =
   assert (warning.severity = Diagnostic.Warning
     && warning.position = Some Diagnostic.{line = 2; col = 25}
     && Option.is_some warning.span);
+  (match Check.catalog_of_manifest "(flow_manifest (version 1) (digest \"wrong\") (kinds))" with
+   | Error diagnostic -> assert (diagnostic.code = "E_CATALOG"
+       && diagnostic.message = "Flow manifest digest must be 32 lowercase hex digits")
+   | Ok _ -> failwith "accepted malformed Flow manifest digest");
   let contains text fragment =
     let length = String.length text and width = String.length fragment in
     let rec search index = index + width <= length &&

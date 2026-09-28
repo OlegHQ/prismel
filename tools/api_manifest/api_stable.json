@@ -31,13 +31,13 @@
       "source_sha256": "1eb2e992e75eef835c99ff6d54e455b00cbaaa5a42cc72c2fcac8a3bef9b7c72"
     },
     {
-      "api_sha256": "49b7f167b60ca81b88c28743ef013d700930a4d12de80957a18596af5916ccf3",
+      "api_sha256": "2cf73ca8d56ce9cf453adda9655ddee80693f2cc8441f9c1270596c5eeb7ed96",
       "excluded_legacy_symbols": [],
       "library": "flow",
       "module": "Check",
       "source": "lib/flow/check.mli",
-      "source_bytes": 1629,
-      "source_sha256": "d38fd9bca360bd09679bda878d3a8e2a931e53dc6799d7bfd883f8229f0194d8"
+      "source_bytes": 1864,
+      "source_sha256": "cd1469ce9f22f94d83f5d9c7a01867a70fe23eeeec6836212ccac58220bf5b78"
     },
     {
       "api_sha256": "de8ea37bc3af075d12ef43bb23726c7ddd5d067140eb5fd8c69abe648c58db0e",

@@ -329,6 +329,11 @@ let run () =
     | Error diagnostic -> fail (Flow.Diagnostic.to_string diagnostic) in
   let manifest, digest = Flow_sop.Manifest.generate Sop_catalog.Editor.factories
     |> Result.get_ok in
+  let catalog_from_manifest, read_digest = Flow.Check.catalog_of_manifest manifest
+    |> Result.get_ok in
+  check (read_digest = digest
+    && catalog_from_manifest.kinds = flow_catalog.kinds)
+    "Flow manifest checker descriptor differs from the live catalog";
   check (Flow_sop.Manifest.generate Sop_catalog.Editor.factories
     = Ok (manifest, digest)) "Flow catalog manifest is not deterministic";
   let children name (form : Flow.Sexp.t) = match form.node with

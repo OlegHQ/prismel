@@ -79,7 +79,7 @@ let parameters_of_fields fields =
         (match field.vec3, rest with
          | Some (group, 0), (y : Param.field_view) :: (z : Param.field_view) :: tail
              when y.vec3 = Some (group, 1) && z.vec3 = Some (group, 2) ->
-             gather ({name = group; label = group; ty = Some Port_type.Vec3;
+             gather ({name = group; label = field.label; ty = Some Port_type.Vec3;
                fields = List.map (fun (field : Param.field_view) ->
                  field.name, field.kind, field.default)
                  [field;y;z]} :: reversed) tail
@@ -87,6 +87,136 @@ let parameters_of_fields fields =
              ty = Port_type.of_field_kind field.kind;
              fields = [field.name, field.kind, field.default]} :: reversed) rest) in
   gather [] fields
+
+exception Invalid_manifest of Diagnostic.t
+
+let catalog_of_manifest source =
+  match Sexp.parse source with
+  | Error diagnostic -> Error diagnostic
+  | Ok forms ->
+      let bad form message = raise (Invalid_manifest (Diagnostic.error
+        ~span:form.Sexp.span ~position:form.position ~code:"E_CATALOG" message)) in
+      let tagged tag form = match list form with
+        | Some (head :: fields) when symbol head = Some tag -> fields
+        | _ -> bad form ("Expected (" ^ tag ^ " …) in Flow manifest") in
+      let string form = match form.Sexp.node with
+        | Sexp.Atom (Sexp.String text) -> text
+        | _ -> bad form "Expected a quoted string in Flow manifest" in
+      let word form = match form.Sexp.node with
+        | Sexp.Atom (Sexp.Symbol text | Sexp.Number text) -> text
+        | _ -> bad form "Expected an atom in Flow manifest" in
+      let number parse form = match parse (word form) with
+        | Some value -> value | None -> bad form "Invalid number in Flow manifest" in
+      let integer = number int_of_string_opt in
+      let floating form =
+        let value = number float_of_string_opt form in
+        if Float.is_finite value then value
+        else bad form "Non-finite number in Flow manifest" in
+      let bool form = match word form with
+        | "true" -> true | "false" -> false
+        | _ -> bad form "Expected true or false in Flow manifest" in
+      let one tag form = match tagged tag form with
+        | [value] -> value | _ -> bad form (tag ^ " needs one value") in
+      let optional parse form = if word form = "nil" then None
+        else Some (parse form) in
+      let strings tag form = List.map string (tagged tag form) in
+      let property tag fields parent = match List.find_opt (fun form ->
+          match list form with Some (head :: _) -> symbol head = Some tag
+          | _ -> false) fields with
+        | Some form -> form | None -> bad parent ("Missing " ^ tag ^ " in Flow manifest") in
+      let literal form = match list form with
+        | Some [head; value] ->
+            (match symbol head with
+             | Some "bool" -> Param.Bool_value (bool value)
+             | Some "int" -> Param.Int_value (integer value)
+             | Some "float" -> Param.Float_value (floating value)
+             | Some "text" -> Param.Text_value (string value)
+             | Some "choice" -> Param.Choice_value (string value)
+             | _ -> bad form "Unknown literal kind in Flow manifest")
+        | _ -> bad form "Malformed literal in Flow manifest" in
+      let kind_view form = match list form with
+        | Some [head] when symbol head = Some "bool" -> Param.Toggle_view
+        | Some [head] when symbol head = Some "text" -> Param.Text_view
+        | Some [head; soft; hard] when symbol head = Some "int" ->
+            (match tagged "soft" soft, tagged "hard" hard with
+             | [low; high], [hard_low; hard_high] ->
+                 Param.Integer_view {Param.soft_min = integer low;
+                   soft_max = integer high;
+                   hard_min = optional integer hard_low;
+                   hard_max = optional integer hard_high}
+             | _ -> bad form "Malformed integer range in Flow manifest")
+        | Some [head; soft; hard] when symbol head = Some "float" ->
+            (match tagged "soft" soft, tagged "hard" hard with
+             | [low; high], [hard_low; hard_high] ->
+                 Param.Floating_view {Param.soft_min = floating low;
+                   soft_max = floating high;
+                   hard_min = optional floating hard_low;
+                   hard_max = optional floating hard_high}
+             | _ -> bad form "Malformed float range in Flow manifest")
+        | Some (head :: labels) when symbol head = Some "choice" ->
+            Param.Choice_view (Array.of_list (List.map string labels))
+        | _ -> bad form "Unknown field kind in Flow manifest" in
+      let field form = match tagged "field" form with
+        | [name; label; folder; kind; default; primary; vec3] ->
+            let default = literal default in
+            let vec3 = match tagged "vec3" vec3 with
+              | [] -> None | [name; index] -> Some (string name, integer index)
+              | _ -> bad vec3 "Malformed Vec3 group in Flow manifest" in
+            {Param.name = string name; label = string label;
+              description = None; folder = strings "folder" folder;
+              impact = Param.Cook; primary = bool (one "primary" primary);
+              vec3; kind = kind_view kind; default; current = default}
+        | _ -> bad form "Malformed field in Flow manifest" in
+      let port_type form = match word form with
+        | "geometry" -> Port_type.Geometry | "float" -> Float
+        | "int" -> Int | "bool" -> Bool | "vec3" -> Vec3
+        | _ -> bad form "Unknown output type in Flow manifest" in
+      let kind form = match tagged "kind" form with
+        | qualified :: properties ->
+            let qualified = string qualified in
+            let get tag = property tag properties form in
+            let key = string (one "key" (get "key")) in
+            ignore (string (one "operation" (get "operation")));
+            ignore (string (one "label" (get "label")));
+            ignore (strings "category" (get "category"));
+            let aliases = strings "aliases" (get "aliases") in
+            let slots = tagged "slots" (get "slots") |> List.map (fun slot ->
+              match tagged "slot" slot with
+              | [name; required] ->
+                  {name = string name; required =
+                    (match word required with "required" -> true
+                     | "optional" -> false | _ -> bad required "Unknown slot requirement")}
+              | _ -> bad slot "Malformed slot in Flow manifest") in
+            let fields = List.map field (tagged "fields" (get "fields")) in
+            let outputs = tagged "outputs" (get "outputs") |> List.map (fun output ->
+              match tagged "output" output with
+              | [name; ty] -> string name, port_type ty
+              | _ -> bad output "Malformed output in Flow manifest") in
+            let context = if String.starts_with ~prefix:"sop/" qualified
+              then Some Context.Sop
+              else if String.starts_with ~prefix:"value/" qualified then None
+              else bad form "Unknown kind namespace in Flow manifest" in
+            if not (String.ends_with ~suffix:("/" ^ key) qualified)
+              then bad form "Kind key differs from its qualified name";
+            Option.map (fun context -> {qualified; aliases; context; slots;
+              parameters = parameters_of_fields fields; outputs}) context
+        | _ -> bad form "Malformed kind in Flow manifest" in
+      try match forms with
+      | [root] ->
+          (match tagged "flow_manifest" root with
+           | [version; digest; kinds] ->
+               let version = integer (one "version" version)
+               and digest = string (one "digest" digest) in
+               if version < 0 then bad root "Negative Flow catalog version";
+               if String.length digest <> 32 || not (String.for_all
+                 (function '0' .. '9' | 'a' .. 'f' -> true | _ -> false) digest)
+               then bad root "Flow manifest digest must be 32 lowercase hex digits";
+               let kinds = List.filter_map kind (tagged "kinds" kinds) in
+               Ok ({version; kinds}, digest)
+           | _ -> bad root "Flow manifest needs version, digest and kinds")
+      | _ -> Error (Diagnostic.error ~code:"E_CATALOG"
+          "Flow manifest needs one top-level form")
+      with Invalid_manifest diagnostic -> Error diagnostic
 let builtin_kinds = List.map (fun kind ->
   { qualified = "value/" ^ Value_kind.key kind; aliases = [];
     context = Context.Value; slots = [];
