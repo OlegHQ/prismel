@@ -4,9 +4,33 @@ let flow_result result = Result.map_error Flow.Diagnostic.to_string result
 let update_geometry edit document =
   Result.bind (edit document.Flow_sop.Network.geometry) (fun geometry ->
     flow_result (Flow_sop.Network.with_geometry geometry document))
+let cook_effects = Parameter.add_impact Parameter.Cook Parameter.no_effects
 let apply_parameters document ~node_id values =
   match Flow.Graph.find document.Flow_sop.Network.values ~node_id with
   | Some _ -> flow_result (Flow_sop.Network.apply_value_parameters document ~node_id values)
+  | None when Flow_sop.Network.Int_map.mem node_id document.instances ->
+      Result.bind (flow_result (Flow_sop.Network.parameters document ~node_id))
+        (fun parameters ->
+          Result.map (fun document -> document, cook_effects)
+            (List.fold_left (fun state (name, value) -> Result.bind state
+              (fun document ->
+                let found = List.find_map (fun
+                    (parameter : Flow_sop.Port.parameter) ->
+                  let fields = parameter.fields in
+                  match List.find_index (fun
+                      (field : Parameter.field_view) -> field.name = name) fields with
+                  | None -> None
+                  | Some index -> Some (parameter.path,
+                      if List.length fields = 3 then
+                        "." ^ List.nth ["x"; "y"; "z"] index else ""))
+                  parameters in
+                match found with
+                | None -> Error ("No compound field " ^ name)
+                | Some (path, axis) -> flow_result
+                    (Flow_sop.Network.set_literal
+                      ~target:{Flow_sop.Port.node = node_id; path = path ^ axis}
+                      (Flow_sop.Port.Scalar value) document)))
+              (Ok document) values))
   | None -> Result.bind (Edit_graph.apply_parameters document.geometry ~node_id values)
       (fun (geometry, effects) -> Result.map (fun document -> document, effects)
         (update_geometry (fun _ -> Ok geometry) document))
@@ -16,8 +40,6 @@ let value_kind key = match String.split_on_char '/' key with
   | ["value"; "math"; op] when List.mem_assoc op Flow.Expr.operators ->
       Ok (Flow.Value_kind.Math, Some op)
   | _ -> Error ("unknown value kind " ^ key)
-
-let cook_effects = Parameter.add_impact Parameter.Cook Parameter.no_effects
 
 let find_factory factories key = List.find_opt (fun factory ->
   String.equal key (Edit_graph.factory_key factory)) factories
@@ -200,6 +222,10 @@ let apply factories (document, graph_view, error, effects, placed, pasted) = fun
   | Rename_interface_requested _ ->
       document, graph_view, error, effects, placed, pasted
   | Reorder_interface_requested _ ->
+      document, graph_view, error, effects, placed, pasted
+  | Unexport_requested _ ->
+      document, graph_view, error, effects, placed, pasted
+  | Export_requested _ ->
       document, graph_view, error, effects, placed, pasted
   | Split_requested {node; group; split} ->
       let target = {Flow_sop.Port.node; path = group} in

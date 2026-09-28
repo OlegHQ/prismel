@@ -766,6 +766,8 @@ let intent_label = function
   | Rename_requested _ -> Some "Rename node"
   | Rename_interface_requested _ -> Some "Rename interface port"
   | Reorder_interface_requested _ -> Some "Reorder interface"
+  | Unexport_requested _ -> Some "Unexport interface port"
+  | Export_requested target -> Some ("Export " ^ target.path)
   | Split_requested {group; _} -> Some ("Split " ^ group)
   | Row_pinned {path; _} -> Some ("Pin " ^ path)
   | Cut_wires_requested _ -> Some "Cut wires"
@@ -1073,8 +1075,15 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
           let geometry = Edit_graph.find document ~node_id in
           let value_node = Flow.Graph.find open_network.graph.values ~node_id in
           let fields, label, kind, value_parameters = match geometry, value_node with
-            | Some node, _ -> Node.parameter_fields node, Node.label node,
-                Node.operation node, None
+            | Some node, _ ->
+                let fields = Node.parameter_fields node in
+                let fields = if fields <> [] || Node.operation node = "flow_outputs"
+                  then fields else
+                  Result.value ~default:[] (Result.map (List.concat_map
+                    (fun (parameter : Flow_sop.Port.parameter) -> parameter.fields))
+                    (Flow_sop.Network.parameters open_network.graph
+                      ~node_id)) in
+                fields, Node.label node, Node.operation node, None
             | None, Some node -> Flow.Value_kind.fields node.parameters, node.label,
                 Flow.Value_kind.key (Flow.Value_kind.kind node.parameters),
                 Some node.parameters
@@ -1102,20 +1111,18 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
               let interface_edits = List.concat
                 (List.mapi (fun index (port : Flow_sop.Network.interface_port) ->
                   Pxui.Ui.label ui (Flow.Port_type.name port.ty ^ " · " ^ port.label);
-                  if port.ty <> Flow.Port_type.Geometry then
-                    (Pxui.Ui.label ui port.name; [])
-                  else
                     let edited = Pxui.Ui.text_field ui
                       (Printf.sprintf "Port %d##interface-%d" (index + 1) index)
                       port.name in
-                    let geometry_neighbor offset =
+                    let compatible_neighbor offset =
                       index + offset >= 0
                       && Option.fold ~none:false ~some:(fun
                            (candidate : Flow_sop.Network.interface_port) ->
-                         candidate.ty = Flow.Port_type.Geometry)
+                         (candidate.ty = Flow.Port_type.Geometry)
+                           = (port.ty = Flow.Port_type.Geometry))
                            (List.nth_opt interface_ports (index + offset)) in
-                    let can_up = geometry_neighbor (-1)
-                    and can_down = geometry_neighbor 1 in
+                    let can_up = compatible_neighbor (-1)
+                    and can_down = compatible_neighbor 1 in
                     let up, down = if not can_up && not can_down then
                       false, false else Pxui.Ui.row ui
                       (Printf.sprintf "interface-order-%d" index) (fun () ->
@@ -1126,6 +1133,9 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
                           Pxui.Ui.button ui "Move down" else
                           (Pxui.Ui.label ui " "; false) in
                         up, down) in
+                    let remove = port.ty <> Flow.Port_type.Geometry
+                      && Pxui.Ui.button ui
+                        (Printf.sprintf "Unexport##interface-%d" index) in
                     (if edited = port.name then [] else
                       [Pxui_graph.Rename_interface_requested
                         {node = node_id; from = port.name; into = edited}])
@@ -1133,7 +1143,9 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
                           {node = node_id; name = port.name; delta = -1}]
                        else if down then [Pxui_graph.Reorder_interface_requested
                           {node = node_id; name = port.name; delta = 1}]
-                       else []))
+                       else [])
+                    @ (if remove then [Pxui_graph.Unexport_requested
+                          {node = node_id; name = port.name}] else []))
                     interface_ports) in
               (match geometry with
                | None -> ()
@@ -1582,6 +1594,56 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
                   let graph_view = Network_view.to_view network result.graph_view in
                   next, {result with graph_view; document = network.graph;
                     label = "Reorder interface";
+                    effects = Parameter.union_effects
+                      result.effects Doc.cook_effects})
+         | _ -> next, {result with edit_error =
+             Some "Select an Inputs or Outputs marker inside a compound"})
+    else next, result in
+  let export_request = List.find_map (function
+    | Pxui_graph.Export_requested target -> Some target
+    | _ -> None) result.graph_changes in
+  let next, result = if Option.is_none loaded then match export_request with
+    | None -> next, result
+    | Some target ->
+        (match Document.export_parameter next value.level ~target with
+         | Error diagnostic -> next, {result with
+             edit_error = Some (Flow.Diagnostic.to_string diagnostic)}
+         | Ok (next, name) ->
+             let network = Option.get (Document.network next value.level) in
+             let graph_view = Network_view.to_view network result.graph_view in
+             next, {result with graph_view; document = network.graph;
+               label = "Export " ^ name;
+               effects = Parameter.union_effects
+                 result.effects Doc.cook_effects})
+    else next, result in
+  let unexport_request = List.find_map (function
+    | Pxui_graph.Unexport_requested {node; name} -> Some (node, name)
+    | _ -> None) result.graph_changes in
+  let next, result = if Option.is_none loaded then match unexport_request with
+    | None -> next, result
+    | Some (node, name) ->
+        let name = match rename_request with
+          | Some (renamed_node, from, into)
+            when renamed_node = node && from = name
+              && Option.is_none result.edit_error -> into
+          | _ -> name in
+        let side = match Edit_graph.find result.document.geometry ~node_id:node with
+          | Some marker when Node.operation marker = "flow_inputs" ->
+              Some Document.Input
+          | Some marker when Node.operation marker = "flow_outputs" ->
+              Some Document.Output
+          | _ -> None in
+        (match side, List.rev (Document.compound_names next value.level) with
+         | Some side, definition_name :: _ ->
+             (match Document.unexport_port next ~definition_name
+                 ~side ~name with
+              | Error diagnostic -> next, {result with
+                  edit_error = Some (Flow.Diagnostic.to_string diagnostic)}
+              | Ok next ->
+                  let network = Option.get (Document.network next value.level) in
+                  let graph_view = Network_view.to_view network result.graph_view in
+                  next, {result with graph_view; document = network.graph;
+                    label = "Unexport " ^ name;
                     effects = Parameter.union_effects
                       result.effects Doc.cook_effects})
          | _ -> next, {result with edit_error =

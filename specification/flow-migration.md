@@ -318,6 +318,16 @@ network with the same canvas, keys, views and text), then plan it here.
 
 ## Log
 
+- 2026-09-28 M5 scalar-export checkpoint: `e` on a hovered Float, Int or Bool
+  row inside a definition adds one typed Inputs port, wires it to the row,
+  and rebinds every shared instance. Compound value rows now render on cards
+  and in the inspector; editing an instance changes its own literal. The
+  interface inspector renames and reorders value ports and unexports an
+  unused value port, refusing instance drives or non-default overrides that
+  would be lost. Tests cover preset round trips, shared metadata, value-port
+  rename/reorder, and unexport guards. Vec3 whole-row export, value-aware
+  grouping/ungrouping, and geometry-port unexport remain pending.
+
 - 2026-09-28 M5 value-flatten checkpoint: `Compile.flatten` now substitutes
   instance value inputs and Outputs-marker wires into the flat drive set,
   clones inner value nodes under saved instance-path ids, and carries scalar,

@@ -52,6 +52,8 @@ type change =
   | Rename_requested of { node : int; label : string }
   | Rename_interface_requested of { node : int; from : string; into : string }
   | Reorder_interface_requested of { node : int; name : string; delta : int }
+  | Unexport_requested of { node : int; name : string }
+  | Export_requested of Flow_sop.Port.t
   | Split_requested of { node : int; group : string; split : bool }
   | Row_pinned of { node : int; path : string; pinned : bool }
   | Cut_wires_requested of Procedural.Edit_graph.connection list
@@ -209,7 +211,7 @@ type direction = Left | Down | Up | Right
 type command = Copy | Cut | Paste | Duplicate | Delete | Frame_all
   | Open_detail | Point_detail | Open_all | Point_all
   | Walk of direction | Add | Repeat | Connect_hint | Bind_hint | Show_wireless
-  | Row_reset | Row_expression
+  | Row_reset | Row_expression | Row_export
   | Display | Mute | Dissolve | Find
   | Frame_selection | Row_pin | Hint_letter of char | Hint_back | Cancel
 val hint_bindings : ('scope, command) Editor_core.Command.t list

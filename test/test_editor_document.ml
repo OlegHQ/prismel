@@ -285,6 +285,108 @@ let run () =
     && Edit_graph.find grouped_definition.spec.body.geometry ~node_id:20 <> None)
     "group did not move the selected node into a valid shared definition";
   let root_level = Editor_document.Document.Inside 10 in
+  let inside = Editor_document.Document.enter_compound grouped root_level
+    grouped_id |> Option.get in
+  let exported, exported_name = Editor_document.Document.export_parameter
+    grouped inside ~target:Flow_sop.Port.{node = 20; path = "uniform_scale"}
+    |> Result.get_ok in
+  let exported_definition = Editor_document.Document.String_map.find
+    "compound_1" exported.definitions in
+  let exported_marker = Edit_graph.inspect exported_definition.spec.body.geometry
+    |> List.find (fun (node : Edit_graph.node_info) ->
+      node.operation = "flow_inputs") in
+  let exported_parent = Editor_document.Document.network exported root_level
+    |> Option.get in
+  check (exported_name = "uniform_scale"
+    && List.length exported_definition.spec.inputs = 1
+    && Flow_sop.Port.Map.find
+      Flow_sop.Port.{node = 20; path = "uniform_scale"}
+      exported_definition.spec.body.drives
+       = Flow_sop.Drive.Wire {node = exported_marker.id;
+           output = "uniform_scale"}
+    && Flow_sop.Port.literal (Flow_sop.Network.parameter
+       exported_parent.graph Flow_sop.Port.{node = grouped_id;
+         path = "uniform_scale"} |> Result.get_ok)
+       = Flow_sop.Port.Scalar (Param.Float_value 1.)
+    && Result.is_ok (Editor_document.Document.validate exported)
+    && Result.is_ok (Editor_document.Document.allocate_compiled_ids exported))
+    "export did not add one typed shared input and wire the original row";
+  let exported_path = Editor_document.Preset.save ~directory
+    ~name:"exported-interface-saved" ~sketch:"contract" ~doc:exported
+    ~view:`Null |> Result.get_ok in
+  let reloaded_export = Editor_document.Preset.load ~path:exported_path
+    ~code ~factories ~settings:Editor_document.Settings.none |> Result.get_ok in
+  check (Result.is_ok (Editor_document.Document.validate reloaded_export.doc))
+    "exported value interface failed preset round trip";
+  let twice, _ = Editor_document.Document.export_parameter exported inside
+    ~target:Flow_sop.Port.{node = 20; path = "consolidate_points"}
+    |> Result.get_ok in
+  let reordered_values = Editor_document.Document.reorder_interface twice
+    ~definition_name:"compound_1" ~side:Input
+    ~name:"consolidate_points" ~delta:(-1) |> Result.get_ok in
+  let reordered_definition = Editor_document.Document.String_map.find
+    "compound_1" reordered_values.definitions in
+  check (List.map (fun (port : Flow_sop.Network.interface_port) -> port.name)
+      reordered_definition.spec.inputs = ["consolidate_points"; "uniform_scale"]
+    && Result.is_ok (Editor_document.Document.validate reordered_values)
+    && Result.is_ok (Editor_document.Document.allocate_compiled_ids reordered_values))
+    "value interface reorder lost named wires or factory metadata";
+  let exported_graph = Flow_sop.Network.set_literal
+    ~target:Flow_sop.Port.{node = grouped_id; path = "uniform_scale"}
+    (Flow_sop.Port.Scalar (Param.Float_value 2.)) exported_parent.graph
+    |> Result.get_ok in
+  let exported = Editor_document.Document.with_network exported root_level
+    {exported_parent with graph = exported_graph} in
+  let renamed = Editor_document.Document.rename_interface_port exported
+    ~definition_name:"compound_1" ~side:Input
+    ~from:"uniform_scale" ~into:"scale" |> Result.get_ok in
+  let renamed_definition = Editor_document.Document.String_map.find
+    "compound_1" renamed.definitions in
+  let renamed_parent = Editor_document.Document.network renamed root_level
+    |> Option.get in
+  check (Flow_sop.Port.Map.find
+      Flow_sop.Port.{node = 20; path = "uniform_scale"}
+      renamed_definition.spec.body.drives
+       = Flow_sop.Drive.Wire {node = exported_marker.id; output = "scale"}
+    && Flow_sop.Network.String_map.find "scale"
+       (Flow_sop.Network.Int_map.find grouped_id
+         renamed_parent.graph.instances).literals = Param.Float_value 2.
+    && Result.is_ok (Editor_document.Document.validate renamed)
+    && Result.is_ok (Editor_document.Document.allocate_compiled_ids renamed))
+    "renaming a value input lost its body wire or instance literal";
+  check (Result.is_error (Editor_document.Document.unexport_port renamed
+    ~definition_name:"compound_1" ~side:Input ~name:"scale"))
+    "unexport discarded an instance literal override";
+  let graph = Flow_sop.Network.set_literal
+    ~target:Flow_sop.Port.{node = grouped_id; path = "scale"}
+    (Flow_sop.Port.Scalar (Param.Float_value 1.)) renamed_parent.graph
+    |> Result.get_ok in
+  let layout = {renamed_parent.layout with rows =
+    Editor_core.Network_layout.Int_map.add grouped_id
+      (Editor_core.Network_layout.String_map.singleton "scale" true)
+      renamed_parent.layout.rows} in
+  let reset = Editor_document.Document.with_network renamed root_level
+    {renamed_parent with graph; layout} in
+  let unexported = Editor_document.Document.unexport_port reset
+    ~definition_name:"compound_1" ~side:Input ~name:"scale"
+    |> Result.get_ok in
+  let unexported_definition = Editor_document.Document.String_map.find
+    "compound_1" unexported.definitions in
+  let unexported_parent = Editor_document.Document.network unexported root_level
+    |> Option.get in
+  check (unexported_definition.spec.inputs = []
+    && Flow_sop.Port.Map.is_empty unexported_definition.spec.body.drives
+    && Flow_sop.Network.String_map.is_empty
+       (Flow_sop.Network.Int_map.find grouped_id
+         unexported_parent.graph.instances).literals
+    && (match Editor_core.Network_layout.Int_map.find_opt grouped_id
+        unexported_parent.layout.rows with
+        | None -> true
+        | Some rows -> not (Editor_core.Network_layout.String_map.mem
+            "scale" rows))
+    && Result.is_ok (Editor_document.Document.validate unexported)
+    && Result.is_ok (Editor_document.Document.allocate_compiled_ids unexported))
+    "unexport did not remove the unused shared value input";
   let parent = Editor_document.Document.network grouped root_level
     |> Option.get in
   let fragment = Flow_sop.Network.copy_nodes [grouped_id] parent.graph

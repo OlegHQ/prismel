@@ -59,6 +59,8 @@ type change =
   | Rename_requested of { node : int; label : string }
   | Rename_interface_requested of { node : int; from : string; into : string }
   | Reorder_interface_requested of { node : int; name : string; delta : int }
+  | Unexport_requested of { node : int; name : string }
+  | Export_requested of Flow_sop.Port.t
   | Split_requested of { node : int; group : string; split : bool }
   | Row_pinned of { node : int; path : string; pinned : bool }
   | Cut_wires_requested of Edit_graph.connection list
@@ -106,10 +108,16 @@ type node_info = {
   value : Flow.Graph.node option;
 }
 
-let geometry_info (info : Edit_graph.node_info) = {
+let geometry_info document (info : Edit_graph.node_info) =
+  let fields = Node.parameter_fields info.node in
+  let fields = if fields <> [] then fields else
+    Result.value ~default:[] (Result.map (List.concat_map
+      (fun (parameter : Flow_sop.Port.parameter) -> parameter.fields))
+      (Flow_sop.Network.parameters document ~node_id:info.id)) in
+  {
   id = info.id; label = info.label; operation = info.operation;
   bypass = info.bypass; inputs = info.inputs;
-  fields = Node.parameter_fields info.node; has_parameters = info.has_parameters;
+  fields; has_parameters = fields <> [];
   geometry = Some info; value = None }
 
 let value_info (node : Flow.Graph.node) =
@@ -622,7 +630,7 @@ let shape document definitions layout zoom bloom (info : node_info) =
     else 30 + (24 * Array.length rows))
 
 let automatic_layout (document : Flow_sop.Network.t) definitions layout zoom bloom =
-  let infos = List.map geometry_info (Edit_graph.inspect document.geometry)
+  let infos = List.map (geometry_info document) (Edit_graph.inspect document.geometry)
     @ List.map value_info (Flow.Graph.inspect document.values) in
   let count = List.length infos in
   let by_id = Hashtbl.create count and depths = Hashtbl.create count in
@@ -818,7 +826,7 @@ let same_topology (value : t) document infos =
 let with_document document value =
   if document == value.document then value else
   let value = { value with hints = None } in
-  let infos = List.map geometry_info (Edit_graph.inspect document.geometry)
+  let infos = List.map (geometry_info document) (Edit_graph.inspect document.geometry)
     @ List.map value_info (Flow.Graph.inspect document.values) in
   if same_topology value document infos then begin
     let boxes = Array.copy value.boxes in
@@ -1862,7 +1870,9 @@ let build_row_fields value ui (box : box) =
         let over = Ui.hovered_within ui container in
         let hovered = if over then Some (box.info.id, path) else hovered in
         let tip = if not value.guide || not over then tip else
-          let description = if signal.hovered then
+          let description = if box.info.operation = "flow_outputs" then
+              f.label ^ ". Connect a value to this output."
+            else if signal.hovered then
               f.label ^ ". Edit its literal in the field; open all parameters with the more row."
             else match f.kind with
               | Choice_view _ -> f.label ^ ". Click to change; Shift-click goes back."
@@ -1874,7 +1884,9 @@ let build_row_fields value ui (box : box) =
         let index, changes, detail, pin = Ui.within ui container (fun () ->
         let changes = fold_button {Flow_sop.Port.node = box.info.id; path} changes in
         let key = "field-" ^ f.name in
-        if driven then
+        if box.info.operation = "flow_outputs" then
+          index + 1, changes, detail, pin
+        else if driven then
           (match Flow_sop.Port.Map.find_opt
               {Flow_sop.Port.node = box.info.id; path} value.document.drives with
            | Some (Flow_sop.Drive.Expr expression) ->
@@ -2382,7 +2394,7 @@ let hint_letter value letter = match value.hints with
 type command = Copy | Cut | Paste | Duplicate | Delete | Frame_all
   | Open_detail | Point_detail | Open_all | Point_all
   | Walk of direction | Add | Repeat | Connect_hint | Bind_hint | Show_wireless
-  | Row_reset | Row_expression
+  | Row_reset | Row_expression | Row_export
   | Display | Mute | Dissolve | Find
   | Frame_selection | Row_pin | Hint_letter of char | Hint_back | Cancel
 
@@ -2425,6 +2437,7 @@ let bindings =
        Frame_selection (Input.KeyChar 'f') [];
      command ~guide:[Row] "row-pin" "pin or hide row" Row_pin (Input.KeyChar 's') []]
   @ [command ~guide:[Row] "row-reset" "reset row" Row_reset (Input.KeyChar 'r') [];
+     command ~guide:[Row] "row-export" "export row" Row_export (Input.KeyChar 'e') [];
      command ~guide:[Row] "row-expression" "expression on row" Row_expression
        (Input.KeyChar '=') []]
 
@@ -2474,6 +2487,10 @@ let run_command ?at (value : t) =
       | None -> value, [Notice "Hover a parameter row to reset it"]
       | Some (node, path) ->
           value, [Row_reset_requested {Flow_sop.Port.node; path}])
+  | Row_export -> (match value.hovered_row with
+      | None -> value, [Notice "Hover a parameter row to export it"]
+      | Some (node, path) -> value,
+          [Export_requested {Flow_sop.Port.node; path}])
   | Row_expression -> (match value.hovered_row with
       | None -> value, [Notice "Hover a parameter row to write an expression"]
       | Some (node, path) ->

@@ -216,6 +216,10 @@ let run_value_wires () =
   let position = ux + 30, uy + uh / 2 in
   let hovered, _ = update canvas (frame ~mouse:position
       ~events:[mouse_move position] ()) in
+  let _, changes = Pxui_graph.run_command hovered Pxui_graph.Row_export in
+  check (List.mem (Pxui_graph.Export_requested
+    {Flow_sop.Port.node = box_id; path = "uniform_scale"}) changes)
+    "e did not export the hovered scalar row";
   let expression, _ = Pxui_graph.run_command hovered Pxui_graph.Row_expression in
   let _, changes = update expression (frame ~events:[Event.KeyPressed Input.End;
       Event.TextInput "t*2"; Event.KeyPressed Input.Enter] ()) in

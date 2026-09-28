@@ -377,6 +377,200 @@ let map_networks value update_network =
       value.definitions (Ok String_map.empty) in
   Ok {value with scene; networks; definitions}
 
+let export_parameter value level ~(target : Flow_sop.Port.t) =
+  let ( let* ) = Result.bind in
+  let error message = Error (Flow.Diagnostic.error ~code:"E_INTERFACE" message) in
+  let* definition_name = match List.rev (compound_names value level) with
+    | name :: _ -> Ok name
+    | [] -> error "Enter a compound before exporting a row" in
+  let definition = String_map.find definition_name value.definitions in
+  let body = definition.spec.body in
+  let* () = match Edit_graph.find body.geometry ~node_id:target.node with
+    | Some node when List.mem (Node.operation node)
+        ["flow_inputs"; "flow_outputs"] ->
+        error "Select an ordinary row inside the compound"
+    | _ -> Ok () in
+  let* parameter = Flow_sop.Network.parameter body target in
+  let* field, ty = match parameter.fields, parameter.ty with
+    | [field], Some (Flow.Port_type.Float | Int | Bool as ty) -> Ok (field, ty)
+    | _ -> error "Export a Float, Int or Bool row" in
+  let driven = Flow_sop.Port.Map.mem target body.drives
+    || List.exists (fun (part : Flow_sop.Port.parameter) ->
+      Flow_sop.Port.Map.mem {target with path = part.path} body.drives)
+      (Flow_sop.Port.components parameter)
+    || match String.rindex_opt target.path '.' with
+       | None -> false
+       | Some index -> Flow_sop.Port.Map.mem
+           {target with path = String.sub target.path 0 index} body.drives in
+  if driven then error "Clear the row's drive before exporting it" else
+  let base = String.lowercase_ascii target.path |> String.map (function
+    | 'a' .. 'z' | '0' .. '9' | '_' as character -> character
+    | _ -> '_') in
+  let base = if Flow.Symbol.valid_name base then base else "input_" ^ base in
+  let used = List.map (fun (port : Flow_sop.Network.interface_port) ->
+    port.name) definition.spec.inputs in
+  let rec fresh index =
+    let name = if index = 1 then base else base ^ "_" ^ string_of_int index in
+    if List.mem name used then fresh (index + 1) else name in
+  let name = fresh 1 in
+  let soft = match field.Param.kind with
+    | Floating_view range -> Some (range.soft_min, range.soft_max)
+    | Integer_view range -> Some (float_of_int range.soft_min,
+        float_of_int range.soft_max)
+    | Toggle_view -> None
+    | _ -> None in
+  let port : Flow_sop.Network.interface_port = {
+    name; ty; default = Some field.current; label = field.label; soft} in
+  let spec = {definition.spec with inputs = definition.spec.inputs @ [port]} in
+  let factories = Flow_sop.Compound_node.factories ~name:definition_name
+    ~inputs:spec.inputs ~outputs:spec.outputs in
+  let marker = Edit_graph.inspect body.geometry
+    |> List.find_opt (fun (node : Edit_graph.node_info) ->
+      node.operation = "flow_inputs") in
+  let* marker = match marker with Some node -> Ok node.id
+    | None -> error "Compound Inputs marker is missing" in
+  let* geometry = Result.map_error
+    (Flow.Diagnostic.error ~code:"E_INTERFACE")
+    (Edit_graph.rebind_factory ~node_id:marker (List.hd factories)
+      body.geometry) in
+  let* body = Flow_sop.Network.with_geometry geometry body in
+  let* body = Flow_sop.Network.connect_value
+    ~source:Flow_sop.Port.{node = marker; path = name} ~target body in
+  let definition = {definition with spec = {spec with body}} in
+  let value = {value with definitions = String_map.add definition_name
+    definition value.definitions} in
+  let* value = map_networks value (fun (current : network) ->
+    let matching = Flow_sop.Network.Int_map.bindings current.graph.instances
+      |> List.filter_map (fun (id, instance) ->
+        if instance.Flow_sop.Network.definition = definition_name
+        then Some id else None) in
+    if matching = [] then Ok current else
+    let* geometry = List.fold_left (fun state id ->
+      let* geometry = state in
+      Result.map_error (Flow.Diagnostic.error ~code:"E_INTERFACE")
+        (Edit_graph.rebind_factory ~node_id:id (List.nth factories 2)
+          geometry)) (Ok current.graph.geometry) matching in
+    let* graph = Flow_sop.Network.with_geometry geometry current.graph in
+    Ok {current with graph}) in
+  Ok (value, name)
+
+let unexport_port value ~definition_name ~side ~name =
+  let ( let* ) = Result.bind in
+  let error message = Error (Flow.Diagnostic.error ~code:"E_INTERFACE" message) in
+  let* definition = match String_map.find_opt definition_name value.definitions with
+    | Some definition -> Ok definition
+    | None -> error ("Missing compound " ^ definition_name) in
+  let ports = match side with Input -> definition.spec.inputs
+    | Output -> definition.spec.outputs in
+  let* port = match List.find_opt (fun
+      (port : Flow_sop.Network.interface_port) -> port.name = name) ports with
+    | Some port when port.ty <> Flow.Port_type.Geometry -> Ok port
+    | Some _ -> error "Geometry interface removal needs a geometry rewrite"
+    | None -> error ("No interface port " ^ name) in
+  let matches path = path = name
+    || port.ty = Flow.Port_type.Vec3
+       && String.starts_with ~prefix:(name ^ ".") path in
+  let body = definition.spec.body in
+  let marker = Edit_graph.inspect body.geometry
+    |> List.find_opt (fun (node : Edit_graph.node_info) ->
+      node.operation = (if side = Input then "flow_inputs" else "flow_outputs")) in
+  let* marker = match marker with Some marker -> Ok marker.id
+    | None -> error "Compound interface marker is missing" in
+  let inputs = if side = Input then List.filter (fun
+    (candidate : Flow_sop.Network.interface_port) -> candidate.name <> name)
+    definition.spec.inputs else definition.spec.inputs in
+  let outputs = if side = Output then List.filter (fun
+    (candidate : Flow_sop.Network.interface_port) -> candidate.name <> name)
+    definition.spec.outputs else definition.spec.outputs in
+  let factories = Flow_sop.Compound_node.factories ~name:definition_name
+    ~inputs ~outputs in
+  let* geometry = Result.map_error (Flow.Diagnostic.error ~code:"E_INTERFACE")
+    (Edit_graph.rebind_factory ~node_id:marker
+      (List.nth factories (if side = Input then 0 else 1)) body.geometry) in
+  let remove_drive target drive =
+    if side = Output then target.Flow_sop.Port.node = marker
+      && matches target.path
+    else match drive with
+      | Flow_sop.Drive.Wire source ->
+          source.node = marker && matches source.output
+      | Flow_sop.Drive.Expr _ -> false in
+  let removed_targets = Flow_sop.Port.Map.fold (fun target drive targets ->
+    if remove_drive target drive then (target.node, target.path) :: targets
+    else targets) body.drives [] in
+  let drives = Flow_sop.Port.Map.filter (fun target drive ->
+    not (remove_drive target drive)) body.drives in
+  let* body = Flow_sop.Network.of_parts ~geometry ~values:body.values
+    ~drives ~geometry_outputs:body.geometry_outputs ~instances:body.instances in
+  let layout = {definition.layout with
+    rows = Canvas.Int_map.mapi (fun id rows -> if side <> Output || id <> marker
+      then rows else Canvas.String_map.filter (fun path _ -> not (matches path))
+        rows) definition.layout.rows;
+    split = Canvas.Int_map.mapi (fun id groups -> if side <> Output || id <> marker
+      then groups else Canvas.String_set.filter (fun path -> not (matches path))
+        groups) definition.layout.split;
+    bends = Canvas.Port_map.filter (fun target _ ->
+      not (List.mem target removed_targets)) definition.layout.bends;
+    wireless = Canvas.Port_set.filter (fun target ->
+      not (List.mem target removed_targets)) definition.layout.wireless} in
+  let definition = {definition with spec = {definition.spec with
+    inputs; outputs; body}; layout} in
+  let value = {value with definitions = String_map.add definition_name
+    definition value.definitions} in
+  map_networks value (fun (current : network) ->
+    let graph = current.graph in
+    let matching = Flow_sop.Network.Int_map.bindings graph.instances
+      |> List.filter_map (fun (id, instance) ->
+        if instance.Flow_sop.Network.definition = definition_name
+        then Some id else None) in
+    if matching = [] then Ok current else
+    let uses_port = Flow_sop.Port.Map.exists (fun target drive ->
+      if side = Input then List.mem target.node matching && matches target.path
+      else match drive with
+        | Flow_sop.Drive.Wire source ->
+            List.mem source.node matching && matches source.output
+        | Flow_sop.Drive.Expr _ -> false) graph.drives in
+    if uses_port then error "Disconnect instance value wires before unexporting"
+    else
+    let overridden = List.exists (fun id ->
+      let instance = Flow_sop.Network.Int_map.find id graph.instances in
+      let fields = Edit_graph.node_factory_fields graph.geometry ~node_id:id in
+      Flow_sop.Network.String_map.exists (fun key value ->
+        let belongs = key = name || port.ty = Flow.Port_type.Vec3
+          && List.exists (fun axis -> key = name ^ "_" ^ axis)
+            ["x"; "y"; "z"] in
+        belongs && match List.find_opt (fun (field : Parameter.field_view) ->
+          field.name = key) fields with
+          | Some field -> value <> field.default
+          | None -> true) instance.literals) matching in
+    if overridden then error "Reset instance literals before unexporting"
+    else
+    let* geometry = List.fold_left (fun state id ->
+      let* geometry = state in
+      Result.map_error (Flow.Diagnostic.error ~code:"E_INTERFACE")
+        (Edit_graph.rebind_factory ~node_id:id (List.nth factories 2)
+          geometry)) (Ok graph.geometry) matching in
+    let instances = Flow_sop.Network.Int_map.mapi (fun id
+        (instance : Flow_sop.Network.instance) ->
+      if not (List.mem id matching) || side = Output then instance else
+        {instance with literals = Flow_sop.Network.String_map.filter
+          (fun key _ -> not (key = name || port.ty = Flow.Port_type.Vec3
+            && List.exists (fun axis -> key = name ^ "_" ^ axis)
+              ["x"; "y"; "z"])) instance.literals}) graph.instances in
+    let* graph = Flow_sop.Network.of_parts ~geometry ~values:graph.values
+      ~drives:graph.drives ~geometry_outputs:graph.geometry_outputs
+      ~instances in
+    let layout = if side = Output then current.layout else
+      {current.layout with
+        rows = Canvas.Int_map.mapi (fun id rows ->
+          if not (List.mem id matching) then rows else
+          Canvas.String_map.filter (fun path _ -> not (matches path)) rows)
+          current.layout.rows;
+        split = Canvas.Int_map.mapi (fun id groups ->
+          if not (List.mem id matching) then groups else
+          Canvas.String_set.filter (fun path -> not (matches path)) groups)
+          current.layout.split} in
+    Ok {current with graph; layout})
+
 let rename_interface_port value ~definition_name ~side ~from ~into =
   let ( let* ) = Result.bind in
   let error message = Error (Flow.Diagnostic.error ~code:"E_INTERFACE" message) in
@@ -387,8 +581,7 @@ let rename_interface_port value ~definition_name ~side ~from ~into =
     | Output -> definition.spec.outputs in
   let* port = match List.find_opt (fun (port : Flow_sop.Network.interface_port) ->
       port.name = from) ports with
-    | Some port when port.ty = Flow.Port_type.Geometry -> Ok port
-    | Some _ -> error "Value interface editing is not available yet"
+    | Some port -> Ok port
     | None -> error ("No interface port " ^ from) in
   if not (Flow.Symbol.valid_name into) then error "Invalid interface port name"
   else if from = into then Ok value
@@ -411,13 +604,25 @@ let rename_interface_port value ~definition_name ~side ~from ~into =
     | Some node -> Ok node.id | None -> error "Compound interface marker is missing" in
   let factories = Flow_sop.Compound_node.factories ~name:definition_name
     ~inputs:spec.inputs ~outputs:spec.outputs in
-  let* geometry = match side with
-    | Input -> Ok body.geometry
-    | Output -> Result.map_error (Flow.Diagnostic.error ~code:"E_INTERFACE")
-        (Edit_graph.rebind_factory ~node_id:marker (List.nth factories 1)
-          body.geometry) in
-  let rename_key (id, path) = if id = marker && path = from
-    then id, into else id, path in
+  let* geometry = Result.map_error (Flow.Diagnostic.error ~code:"E_INTERFACE")
+    (Edit_graph.rebind_factory ~node_id:marker
+      (List.nth factories (if side = Input then 0 else 1)) body.geometry) in
+  let rename_path path = if path = from then into
+    else if String.starts_with ~prefix:(from ^ ".") path then
+      into ^ String.sub path (String.length from) (String.length path - String.length from)
+    else path in
+  let rename_key (id, path) = if id = marker then id, rename_path path
+    else id, path in
+  let drives = Flow_sop.Port.Map.fold (fun target drive result ->
+    let target = if side = Output && target.node = marker then
+      {target with path = rename_path target.path} else target in
+    let drive = match drive with
+      | Flow_sop.Drive.Wire source when side = Input
+          && source.node = marker ->
+          Flow_sop.Drive.Wire {source with output = rename_path source.output}
+      | _ -> drive in
+    Flow_sop.Port.Map.add target drive result)
+    body.drives Flow_sop.Port.Map.empty in
   let geometry_outputs = Flow_sop.Port.Map.fold (fun target output result ->
     let source = Flow_sop.Network.geometry_source body target in
     let target = if side = Output then
@@ -430,8 +635,18 @@ let rename_interface_port value ~definition_name ~side ~from ~into =
     Flow_sop.Port.Map.add target output result)
     body.geometry_outputs Flow_sop.Port.Map.empty in
   let* body = Flow_sop.Network.of_parts ~geometry ~values:body.values
-    ~drives:body.drives ~geometry_outputs ~instances:body.instances in
+    ~drives ~geometry_outputs ~instances:body.instances in
   let rename_layout rename (layout : Canvas.t) = {layout with
+    rows = Canvas.Int_map.mapi (fun id rows ->
+      Canvas.String_map.fold (fun path visible result ->
+        let _, path = rename (id, path) in
+        Canvas.String_map.add path visible result)
+        rows Canvas.String_map.empty) layout.rows;
+    split = Canvas.Int_map.mapi (fun id groups ->
+      Canvas.String_set.fold (fun path result ->
+        let _, path = rename (id, path) in
+        Canvas.String_set.add path result)
+        groups Canvas.String_set.empty) layout.split;
     bends = Canvas.Port_map.fold (fun key points result ->
       Canvas.Port_map.add (rename key) points result)
       layout.bends Canvas.Port_map.empty;
@@ -451,14 +666,39 @@ let rename_interface_port value ~definition_name ~side ~from ~into =
     if not (Flow_sop.Network.Int_map.exists (fun _ instance ->
         instance.Flow_sop.Network.definition = definition_name)
         graph.instances) then Ok current else
-    let* geometry = if side = Output then Ok graph.geometry else
-      Flow_sop.Network.Int_map.fold (fun id
-          (instance : Flow_sop.Network.instance) result ->
-        let* geometry = result in
-        if instance.definition <> definition_name then Ok geometry else
-        Result.map_error (Flow.Diagnostic.error ~code:"E_INTERFACE")
-          (Edit_graph.rebind_factory ~node_id:id (List.nth factories 2) geometry))
-        graph.instances (Ok graph.geometry) in
+    let* geometry = Flow_sop.Network.Int_map.fold (fun id
+        (instance : Flow_sop.Network.instance) result ->
+      let* geometry = result in
+      if instance.definition <> definition_name then Ok geometry else
+      Result.map_error (Flow.Diagnostic.error ~code:"E_INTERFACE")
+        (Edit_graph.rebind_factory ~node_id:id (List.nth factories 2) geometry))
+      graph.instances (Ok graph.geometry) in
+    let drives = Flow_sop.Port.Map.fold (fun target drive result ->
+      let target = if side = Input && changed target.node then
+        {target with path = rename_path target.path} else target in
+      let drive = match drive with
+        | Flow_sop.Drive.Wire source when side = Output
+            && changed source.node ->
+            Flow_sop.Drive.Wire {source with output = rename_path source.output}
+        | _ -> drive in
+      Flow_sop.Port.Map.add target drive result)
+      graph.drives Flow_sop.Port.Map.empty in
+    let instances = if side = Output then graph.instances else
+      Flow_sop.Network.Int_map.mapi (fun id
+          (instance : Flow_sop.Network.instance) ->
+        if not (changed id) then instance else
+        let literals = Flow_sop.Network.String_map.fold
+          (fun name value result ->
+            let name = if name = from then into else
+              if port.ty = Flow.Port_type.Vec3
+                && List.exists (fun axis -> name = from ^ "_" ^ axis)
+                  ["x"; "y"; "z"] then
+                into ^ String.sub name (String.length from)
+                  (String.length name - String.length from)
+              else name in
+            Flow_sop.Network.String_map.add name value result)
+          instance.literals Flow_sop.Network.String_map.empty in
+        {instance with literals}) graph.instances in
     let geometry_outputs = Flow_sop.Port.Map.fold (fun target output result ->
       let source = Flow_sop.Network.geometry_source graph target in
       let target = if side = Input && changed target.node
@@ -470,9 +710,9 @@ let rename_interface_port value ~definition_name ~side ~from ~into =
       Flow_sop.Port.Map.add target output result)
       graph.geometry_outputs Flow_sop.Port.Map.empty in
     let* graph = Flow_sop.Network.of_parts ~geometry ~values:graph.values
-      ~drives:graph.drives ~geometry_outputs ~instances:graph.instances in
+      ~drives ~geometry_outputs ~instances in
     let layout = if side = Input then rename_layout (fun (id, path) ->
-      if changed id && path = from then id, into else id, path)
+      if changed id then id, rename_path path else id, path)
         current.layout else current.layout in
     Ok {current with graph; layout} in
   map_networks value update_network
@@ -493,9 +733,8 @@ let reorder_interface value ~definition_name ~side ~name ~delta =
   | Some index ->
       let next = index + delta in
       if next < 0 || next >= List.length ports then Ok value
-      else if List.exists (fun (port : Flow_sop.Network.interface_port) ->
-          port.ty <> Flow.Port_type.Geometry)
-          [List.nth ports index; List.nth ports next] then
+      else if ((List.nth ports index).ty = Flow.Port_type.Geometry)
+          <> ((List.nth ports next).ty = Flow.Port_type.Geometry) then
         error "Move geometry ports before value ports"
       else
         let swapped = Array.of_list ports in
@@ -508,23 +747,24 @@ let reorder_interface value ~definition_name ~side ~name ~delta =
           | Output -> {definition.spec with outputs = ports} in
         let factories = Flow_sop.Compound_node.factories
           ~name:definition_name ~inputs:spec.inputs ~outputs:spec.outputs in
-        let* body = if side = Input then Ok spec.body else
+        let* body =
           let marker = Edit_graph.inspect spec.body.geometry
             |> List.find_opt (fun (node : Edit_graph.node_info) ->
-              node.operation = "flow_outputs") in
+              node.operation = (if side = Input then "flow_inputs"
+                else "flow_outputs")) in
           match marker with
-          | None -> error "Compound Outputs marker is missing"
+          | None -> error "Compound interface marker is missing"
           | Some marker ->
               let* geometry = Result.map_error
                   (Flow.Diagnostic.error ~code:"E_INTERFACE")
                   (Edit_graph.rebind_factory ~preserve_wires_by_name:true
-                    ~node_id:marker.id (List.nth factories 1)
+                    ~node_id:marker.id
+                    (List.nth factories (if side = Input then 0 else 1))
                     spec.body.geometry) in
               Flow_sop.Network.with_geometry geometry spec.body in
         let definition = {definition with spec = {spec with body}} in
         let value = {value with definitions = String_map.add definition_name
           definition value.definitions} in
-        if side = Output then Ok value else
         map_networks value (fun (current : network) ->
           let matching = Flow_sop.Network.Int_map.bindings current.graph.instances
             |> List.filter_map (fun (id, instance) ->
