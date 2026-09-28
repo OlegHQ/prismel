@@ -395,12 +395,12 @@ let () =
     (Network.of_geometry (Procedural.Edit_graph.of_graph inner))) in
   let speed : Network.interface_port = {
     name = "speed"; ty = Flow.Port_type.Float;
-    default = Some (Param.Float_value 1.); label = "Speed";
+    default = Some (Port.Scalar (Param.Float_value 1.)); label = "Speed";
     soft = Some (0., 4.)} in
   let output = {speed with name = "speed_out"; label = "Speed out"} in
   let position : Network.interface_port = {
     name = "position"; ty = Flow.Port_type.Vec3;
-    default = Some (Param.Float_value 1.); label = "Position";
+    default = Some (Port.Vector (1., 1., 1.)); label = "Position";
     soft = Some (0., 4.)} in
   let position_out = {position with name = "position_out";
     label = "Position out"} in
@@ -711,4 +711,31 @@ let () =
     ~definitions:(Network.String_map.singleton bare_definition.name
       bare_definition) ~compiled_ids:Instance_path.Map.empty bare_grouped) in
   assert (Procedural.Edit_graph.root bare_flat.geometry = None);
+  let vector_node = build {default with x = 1.; y = 2.; z = 3.} in
+  let vector_id = Procedural.Node.id vector_node in
+  let vector_graph = Network.of_geometry
+    (Procedural.Edit_graph.of_graph vector_node) in
+  let vector_graph, vector_source = ok (Network.add_value_node
+    Flow.Value_kind.Combine_xyz vector_graph) in
+  let vector_graph = ok (Network.connect_value
+    ~source:(port vector_source "out")
+    ~target:(port vector_id "position") vector_graph) in
+  let vector_grouped, vector_definition, vector_instance = ok
+    (Group.geometry ~name:"vector_default" ~selected:[vector_id]
+      ~displayed:(Some vector_id)
+      ~definitions:Network.String_map.empty vector_graph) in
+  let vector_port = List.find (fun (port : Network.interface_port) ->
+    port.ty = Flow.Port_type.Vec3) vector_definition.inputs in
+  assert (vector_port.default = Some (Port.Vector (1., 2., 3.))
+    && Port.literal (ok (Network.parameter vector_grouped
+       (port vector_instance vector_port.name))) = Port.Vector (1., 2., 3.));
+  let vector_grouped = ok (Network.clear_drive
+    ~target:(port vector_instance vector_port.name) vector_grouped) in
+  let vector_flat, _ = ok (Compile.flatten
+    ~definitions:(Network.String_map.singleton vector_definition.name
+      vector_definition) ~compiled_ids:Instance_path.Map.empty vector_grouped) in
+  let vector_cooked = ok (Value_lane.resolve (Value_lane.create ())
+    ~time:0. vector_flat) in
+  assert (cook_graph vector_cooked.geometry = cook_graph
+    (Procedural.Edit_graph.of_graph vector_node));
   print_endline "Flow SOP overlay: validation, change-only lane, literal restoration and 16,384-point 1/4-domain byte parity pass"

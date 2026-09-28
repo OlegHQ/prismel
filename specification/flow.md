@@ -2,7 +2,7 @@
 
 ## 1. Status and authority
 
-Status: approved design, revision 2 (2026-09-27). **M1–M4 implemented; M5–M7 pending.**
+Status: approved design, revision 3 (2026-09-28). **M1–M4 implemented; M5 in progress; M6–M7 pending.**
 Milestones M1–M7, the file-level tasks for each, and progress live in
 `flow-migration.md`. The behavioral reference is the prototype at
 `specification/flow/prototype/index.html` (open it in a browser; no build).
@@ -211,7 +211,7 @@ exposed in M3). Loading validates disjointness.
 
 ```ocaml
 type interface_port = {
-  name : string; ty : Port_type.t; default : Param.value option;
+  name : string; ty : Port_type.t; default : Port.literal option;
   label : string; soft : (float * float) option;
 }
 type definition = {
@@ -1097,6 +1097,7 @@ content-addressed cache sharing between instances; macros.
 | Edge identity | destination port; no edge ids |
 | Shared saved layout | UI-free `Editor_core.Network_layout`; document and canvas share it without importing presentation into the document |
 | Vec3 | metadata grouping of three float fields; no new `Param.value` case |
+| Compound Vec3 default | `Port.literal` stores the three components on one interface port; scalar defaults remain `Port.Scalar` |
 | Primary rows without annotations | the first folder's fields |
 | Compound reuse | shared definitions with "make unique" |
 | Names in the language | stable keys and field names verbatim (`noise_displace`, `size_x`), `[a-z][a-z0-9_]*` |
@@ -1111,6 +1112,11 @@ content-addressed cache sharing between instances; macros.
 2026-09-28: a bare number has no source node after unfolding, so the
 fold/unfold identity law applies to expressions containing time or an operator.
 Bare numbers become normalized target literals as specified above.
+
+2026-09-28: compound interface defaults use `Port.literal` rather than one
+`Param.value`, because a Vec3 default can have three different components.
+Presets encode that case as a `vec3` triple; scalar defaults keep their
+existing value encoding.
 
 2026-09-27: the requested full migration has no backward compatibility;
 version 3 replaces the v1/v2 readers and preserves saved node ids.

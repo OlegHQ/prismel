@@ -116,7 +116,10 @@ let network_json (network : Document.network) =
 let interface_json (port : Flow_sop.Network.interface_port) = `Assoc [
   "name", `String port.name;
   "type", `String (Flow.Port_type.name port.ty);
-  "default", Option.fold ~none:`Null ~some:value_json port.default;
+  "default", Option.fold ~none:`Null ~some:(function
+    | Flow_sop.Port.Scalar value -> value_json value
+    | Flow_sop.Port.Vector (x,y,z) ->
+        `Assoc ["vec3", `List [`Float x; `Float y; `Float z]]) port.default;
   "label", `String port.label;
   "soft", Option.fold ~none:`Null ~some:(fun (low, high) ->
     `List [`Float low; `Float high]) port.soft]
@@ -405,7 +408,13 @@ let interface_of = function
         | _ -> Error "unknown interface port type" in
       let* default = match field "default" with
         | None | Some `Null -> Ok None
-        | Some value -> Result.map Option.some (value_of_json value) in
+        | Some (`Assoc ["vec3", `List [x;y;z]]) ->
+            let* x = number x in
+            let* y = number y in
+            Result.map (fun z -> Some (Flow_sop.Port.Vector (x,y,z)))
+              (number z)
+        | Some value -> Result.map (fun value ->
+            Some (Flow_sop.Port.Scalar value)) (value_of_json value) in
       let* label = match field "label" with Some (`String label) -> Ok label
         | None -> Ok name | _ -> Error "interface label is not text" in
       let* soft = match field "soft" with

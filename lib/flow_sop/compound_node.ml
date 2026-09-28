@@ -12,34 +12,43 @@ let value_fields ports =
         let low, high = Option.value ~default:(-1., 1.) port.soft in
         let range : Param.float_range = Param.{soft_min = low; soft_max = high;
           hard_min = None; hard_max = None} in
-        let default = match port.default with Some (Param.Float_value _ as value) ->
+        let default = match port.default with
+          | Some (Port.Scalar (Param.Float_value _ as value)) ->
           value | _ -> Param.Float_value 0. in
         [field port.name port.label (Param.Floating_view range) default]
     | Int ->
         let low, high = Option.value ~default:(-10., 10.) port.soft in
         let range : Param.int_range = Param.{soft_min = int_of_float low; soft_max = int_of_float high;
           hard_min = None; hard_max = None} in
-        let default = match port.default with Some (Param.Int_value _ as value) ->
+        let default = match port.default with
+          | Some (Port.Scalar (Param.Int_value _ as value)) ->
           value | _ -> Param.Int_value 0 in
         [field port.name port.label (Param.Integer_view range) default]
     | Bool ->
-        let default = match port.default with Some (Param.Bool_value _ as value) ->
+        let default = match port.default with
+          | Some (Port.Scalar (Param.Bool_value _ as value)) ->
           value | _ -> Param.Bool_value false in
         [field port.name port.label Param.Toggle_view default]
     | Vec3 ->
         let low, high = Option.value ~default:(-1., 1.) port.soft in
         let range : Param.float_range = Param.{soft_min = low; soft_max = high;
           hard_min = None; hard_max = None} in
-        let default = match port.default with
-          | Some (Param.Float_value number) -> number
-          | Some (Param.Int_value number) -> float_of_int number
-          | Some (Param.Bool_value value) -> if value then 1. else 0.
-          | _ -> 0. in
-        List.mapi (fun index axis ->
+        let defaults = match port.default with
+          | Some (Port.Vector (x,y,z)) -> [x;y;z]
+          | Some (Port.Scalar (Param.Float_value number)) ->
+              [number; number; number]
+          | Some (Port.Scalar (Param.Int_value number)) ->
+              let number = float_of_int number in [number; number; number]
+          | Some (Port.Scalar (Param.Bool_value value)) ->
+              let number = if value then 1. else 0. in
+              [number; number; number]
+          | _ -> [0.; 0.; 0.] in
+        List.map2 (fun index axis ->
           field ~vec3:(port.name, index) (port.name ^ "_" ^ axis)
             (port.label ^ " " ^ String.uppercase_ascii axis)
-            (Param.Floating_view range) (Param.Float_value default))
-          ["x"; "y"; "z"] in
+            (Param.Floating_view range)
+            (Param.Float_value (List.nth defaults index)))
+          [0;1;2] ["x"; "y"; "z"] in
   List.concat_map one ports
 
 let key ~name = function

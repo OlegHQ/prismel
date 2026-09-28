@@ -55,11 +55,12 @@ let () =
     && Network.geometry_source grouped (port consumer_id "in0")
        = Some (port instance "result"));
   let float_port name : Network.interface_port =
-    {name; ty = Flow.Port_type.Float; default = Some (Param.Float_value 2.);
+    {name; ty = Flow.Port_type.Float;
+     default = Some (Port.Scalar (Param.Float_value 2.));
      label = String.capitalize_ascii name; soft = Some (0., 10.)} in
   let vec3_port : Network.interface_port =
     {name = "position"; ty = Flow.Port_type.Vec3;
-     default = Some (Param.Float_value 1.); label = "Position";
+     default = Some (Port.Vector (1., 2., 3.)); label = "Position";
      soft = Some (0., 10.)} in
   let value_definition = {definition with
     inputs = definition.inputs @ [float_port "speed"; vec3_port];

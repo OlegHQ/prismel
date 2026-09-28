@@ -93,8 +93,8 @@ rules in this file are current. Planned changes that touch this directory:
   Inputs/Outputs inspector can rename and reorder shared geometry and value
   ports and unexport unused value ports. `e` exports scalar rows inside a
   definition; instance rows edit their own literals, and flattening carries
-  value drives through nested compounds. Whole-Vec3 export, nonuniform Vec3
-  interface defaults and geometry-port unexport remain. M6: `Space l` cycles
+  value drives through nested compounds. Whole-Vec3 export and nonuniform Vec3
+  interface defaults are implemented; geometry-port unexport remains. M6: `Space l` cycles
   graph, list, text.
 
 Keep the three-column workspace, `Doc.apply` as the only graph-intent reducer,

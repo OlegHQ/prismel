@@ -405,7 +405,9 @@ let export_parameter value level ~(target : Flow_sop.Port.t) =
   let* parameter = Flow_sop.Network.parameter body target in
   let* field, ty = match parameter.fields, parameter.ty with
     | [field], Some (Flow.Port_type.Float | Int | Bool as ty) -> Ok (field, ty)
-    | _ -> error "Export a Float, Int or Bool row" in
+    | field :: _ :: _, Some Flow.Port_type.Vec3 ->
+        Ok (field, Flow.Port_type.Vec3)
+    | _ -> error "Export a Float, Int, Bool or Vec3 row" in
   let driven = Flow_sop.Port.Map.mem target body.drives
     || List.exists (fun (part : Flow_sop.Port.parameter) ->
       Flow_sop.Port.Map.mem {target with path = part.path} body.drives)
@@ -414,7 +416,12 @@ let export_parameter value level ~(target : Flow_sop.Port.t) =
        | None -> false
        | Some index -> Flow_sop.Port.Map.mem
            {target with path = String.sub target.path 0 index} body.drives in
-  if driven then error "Clear the row's drive before exporting it" else
+  if driven then error "Clear the row's drive before exporting it"
+  else if ty = Flow.Port_type.Vec3 && Option.fold ~none:false
+      ~some:(Canvas.String_set.mem target.path)
+      (Layout.find_opt target.node definition.layout.split) then
+    error "Join the vector before exporting it"
+  else
   let base = String.lowercase_ascii target.path |> String.map (function
     | 'a' .. 'z' | '0' .. '9' | '_' as character -> character
     | _ -> '_') in
@@ -432,7 +439,9 @@ let export_parameter value level ~(target : Flow_sop.Port.t) =
     | Toggle_view -> None
     | _ -> None in
   let port : Flow_sop.Network.interface_port = {
-    name; ty; default = Some field.current; label = field.label; soft} in
+    name; ty; default = Some (Flow_sop.Port.literal parameter);
+    label = (if ty = Flow.Port_type.Vec3 then
+      String.capitalize_ascii target.path else field.label); soft} in
   let spec = {definition.spec with inputs = definition.spec.inputs @ [port]} in
   let factories = Flow_sop.Compound_node.factories ~name:definition_name
     ~inputs:spec.inputs ~outputs:spec.outputs in
@@ -969,6 +978,11 @@ let validate value =
   let valid_literal ty literal = Option.fold ~none:false ~some:(fun source ->
     Flow.Port_type.can_connect ~source:(Flow.Port_type.value_type source) ~target:ty)
     (literal_value literal) in
+  let valid_interface_literal ty = function
+    | Flow_sop.Port.Scalar value -> valid_literal ty value
+    | Flow_sop.Port.Vector (x,y,z) ->
+        ty = Flow.Port_type.Vec3
+        && Float.is_finite x && Float.is_finite y && Float.is_finite z in
   let validate_instances network =
     Flow_sop.Network.Int_map.fold (fun id (instance : Flow_sop.Network.instance) state ->
       let* () = state in
@@ -1019,7 +1033,8 @@ let validate value =
       Flow.Symbol.valid_name port.name && String.trim port.label <> ""
       && Option.fold ~none:true ~some:(fun (low, high) ->
         Float.is_finite low && Float.is_finite high && low < high) port.soft
-      && Option.fold ~none:true ~some:(valid_literal port.ty) port.default) ports) then
+      && Option.fold ~none:true ~some:(valid_interface_literal port.ty)
+        port.default) ports) then
       Error (name ^ " has invalid interface metadata")
     else
       let rec ordered seen_value = function

@@ -318,6 +318,13 @@ network with the same canvas, keys, views and text), then plan it here.
 
 ## Log
 
+- 2026-09-28 M5 Vec3-default/export checkpoint: compound interface defaults
+  now use `Port.literal`, so a whole Vec3 row keeps all three components.
+  Grouping and `e` export preserve nonuniform defaults; factory fields,
+  instance rows, document validation and preset round trips agree. A split
+  vector must be joined before whole-row export. Geometry-port unexport
+  remains pending.
+
 - 2026-09-28 M5 value-group round-trip checkpoint: grouping accepts mixed SOP
   and value selections, deduplicates typed value boundary ports, and rewires
   internal and external drives. Ungroup clones both node kinds, restores
@@ -325,8 +332,8 @@ network with the same canvas, keys, views and text), then plan it here.
   through a value splitter where needed. A value-only compound needs no
   geometry display. Focused tests cover cooked geometry parity, shared value
   sources, component projection, document validation, and preset round trips.
-  Whole-Vec3 export, geometry-port unexport, and nonuniform Vec3 interface
-  defaults remain pending.
+  At this checkpoint, whole-Vec3 export, geometry-port unexport, and
+  nonuniform Vec3 interface defaults remained pending.
 
 - 2026-09-28 M5 scalar-export checkpoint: `e` on a hovered Float, Int or Bool
   row inside a definition adds one typed Inputs port, wires it to the row,

@@ -387,6 +387,57 @@ let run () =
     ~code ~factories ~settings:Editor_document.Settings.none |> Result.get_ok in
   check (Result.is_ok (Editor_document.Document.validate reloaded_export.doc))
     "exported value interface failed preset round trip";
+  let exported_body = Editor_document.Document.network exported inside
+    |> Option.get in
+  let vector_body = Flow_sop.Network.set_literal
+    ~target:Flow_sop.Port.{node = 20; path = "center"}
+    (Flow_sop.Port.Vector (1., 2., 3.)) exported_body.graph
+    |> Result.get_ok in
+  let vector_doc = Editor_document.Document.with_network exported inside
+    {exported_body with graph = vector_body} in
+  let vector_exported, vector_name = Editor_document.Document.export_parameter
+    vector_doc inside ~target:Flow_sop.Port.{node = 20; path = "center"}
+    |> Result.get_ok in
+  let vector_definition = Editor_document.Document.String_map.find
+    "compound_1" vector_exported.definitions in
+  let vector_port = List.find (fun
+    (port : Flow_sop.Network.interface_port) -> port.name = vector_name)
+    vector_definition.spec.inputs in
+  let vector_parent = Editor_document.Document.network vector_exported
+    root_level |> Option.get in
+  check (vector_port.ty = Flow.Port_type.Vec3
+    && vector_port.default = Some (Flow_sop.Port.Vector (1., 2., 3.))
+    && Flow_sop.Port.literal (Flow_sop.Network.parameter
+       vector_parent.graph Flow_sop.Port.{node = grouped_id;
+         path = vector_name} |> Result.get_ok)
+       = Flow_sop.Port.Vector (1., 2., 3.)
+    && Result.is_ok (Editor_document.Document.validate vector_exported))
+    "Vec3 export lost its nonuniform default";
+  let vector_path = Editor_document.Preset.save ~directory
+    ~name:"vector-export-saved" ~sketch:"contract" ~doc:vector_exported
+    ~view:`Null |> Result.get_ok in
+  let reloaded_vector = Editor_document.Preset.load ~path:vector_path
+    ~code ~factories ~settings:Editor_document.Settings.none
+    |> Result.get_ok in
+  let reloaded_vector_definition = Editor_document.Document.String_map.find
+    "compound_1" reloaded_vector.doc.definitions in
+  check (List.exists (fun (port : Flow_sop.Network.interface_port) ->
+    port.name = vector_name
+    && port.default = Some (Flow_sop.Port.Vector (1., 2., 3.)))
+    reloaded_vector_definition.spec.inputs)
+    "preset round trip lost a Vec3 interface default";
+  let invalid_vector = {vector_port with
+    default = Some (Flow_sop.Port.Vector (nan, 2., 3.))} in
+  let invalid_definition = {vector_definition with spec =
+    {vector_definition.spec with inputs = List.map (fun
+      (port : Flow_sop.Network.interface_port) ->
+      if port.name = vector_name then invalid_vector else port)
+      vector_definition.spec.inputs}} in
+  let invalid_doc = {vector_exported with definitions =
+    Editor_document.Document.String_map.add "compound_1"
+      invalid_definition vector_exported.definitions} in
+  check (Result.is_error (Editor_document.Document.validate invalid_doc))
+    "nonfinite Vec3 interface default passed validation";
   let twice, _ = Editor_document.Document.export_parameter exported inside
     ~target:Flow_sop.Port.{node = 20; path = "consolidate_points"}
     |> Result.get_ok in

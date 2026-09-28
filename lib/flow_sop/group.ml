@@ -115,10 +115,7 @@ let geometry ~name ~selected ~displayed ~definitions (network : Network.t) =
         | Integer_view range -> Some (float_of_int range.soft_min,
             float_of_int range.soft_max)
         | _ -> None in
-      let default = match Port.literal parameter with
-        | Port.Scalar value -> Some value
-        | Port.Vector (x,y,z) when x = y && y = z -> Some (Param.Float_value x)
-        | Port.Vector _ -> None in
+      let default = Some (Port.literal parameter) in
       let used = List.map (fun (port : Network.interface_port) -> port.name)
         geometry_inputs @ List.map (fun (_, name, _) -> name) reversed in
       let name = fresh_name (clean_name target.path) used in

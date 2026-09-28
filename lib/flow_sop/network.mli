@@ -5,7 +5,7 @@ module String_map : Map.S with type key = string
 type interface_port = {
   name : string;
   ty : Flow.Port_type.t;
-  default : Param.value option;
+  default : Port.literal option;
   label : string;
   soft : (float * float) option;
 }
