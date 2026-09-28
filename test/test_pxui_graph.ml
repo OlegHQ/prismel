@@ -397,10 +397,24 @@ let run_compound_outputs () =
   let grouped = Flow_sop.Network.disconnect
     ~target:Flow_sop.Port.{node=id target; path="in0"} grouped |> Result.get_ok in
   let definitions = Flow_sop.Network.String_map.singleton definition.name definition in
+  let inside = Pxui_graph.create_document ~definitions ~display_enabled:false
+    definition.body |> Pxui_graph.select (id first) in
+  let inside, changes = Pxui_graph.run_command inside Pxui_graph.Display in
+  check (List.exists (function Pxui_graph.Notice _ -> true | _ -> false) changes
+    && Pxui_graph.viewed inside = Option.get
+      (Edit_graph.root definition.body.geometry))
+    "display command changed the flag inside a compound";
   let view = Pxui_graph.create_document ~x:20 ~y:30 ~width:800 ~height:520
       ~definitions grouped
     |> Pxui_graph.place_nodes [instance, 252., 0.; id target, 516., 96.] in
   let instance_node = node instance view and target_node = node (id target) view in
+  let at = center instance_node.bounds in
+  let click view = update view (frame ~mouse:at ~events:[
+      mouse_press (Input.LeftButton, at); mouse_release (Input.LeftButton, at)] ()) in
+  let clicked, _ = click view in
+  let _, opening = click clicked in
+  check (List.mem (Pxui_graph.Open_requested instance) opening)
+    "double-clicking a compound did not request entry";
   let x, y, width, _ = instance_node.bounds in
   let from_ = x + width, y + 36
   and to_ = unary_input_port target_node in

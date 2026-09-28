@@ -35,6 +35,8 @@ M4 adds wireless bind visibility, expression fields and ƒ row actions as
 typed requests; the host reduces them after the shared PXUI frame.
 M5 presents compound output names from `Flow_sop.Network.outputs`; geometry
 connect requests carry the selected source port, including its output name.
+Compound bodies hide the display flag; `v` reports that display belongs to
+the enclosing SOP network. Double-click entry follows current instance data.
 Rules that hold throughout:
 
 - Wires are polylines drawn with `Ui.line`; no curves after M1.

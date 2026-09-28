@@ -284,6 +284,51 @@ let run () =
       (Editor_document.Document.Layout.find 10 grouped.networks).graph.instances
     && Edit_graph.find grouped_definition.spec.body.geometry ~node_id:20 <> None)
     "group did not move the selected node into a valid shared definition";
+  let root_level = Editor_document.Document.Inside 10 in
+  let inside = Editor_document.Document.enter_compound grouped root_level grouped_id
+    |> Option.get in
+  let inside_network = Editor_document.Document.network grouped inside
+    |> Option.get in
+  check (Editor_document.Document.parent_level inside = Some (root_level, grouped_id)
+    && Edit_graph.find inside_network.graph.geometry ~node_id:20 <> None
+    && Editor_document.Document.resolve_level ~scene_level:false grouped inside
+       = Ok inside)
+    "compound entry did not resolve the shared definition body";
+  let relabelled = Flow_sop.Network.relabel ~node_id:20 "Inside edit"
+    inside_network.graph |> Result.get_ok in
+  let edited = Editor_document.Document.with_network grouped inside
+    {inside_network with graph = relabelled} in
+  check (Node.label (Edit_graph.find
+      (Editor_document.Document.network edited inside |> Option.get).graph.geometry
+      ~node_id:20 |> Option.get) = "Inside edit"
+    && Result.is_ok (Editor_document.Document.validate edited))
+    "editing inside a compound did not update its shared definition";
+  let nested, nested_id = Editor_document.Document.group grouped inside
+      ~selected:[20] ~positions:[20, 48., 24.] |> Result.get_ok in
+  let nested_level = Editor_document.Document.enter_compound nested inside nested_id
+    |> Option.get in
+  check (Editor_document.Document.parent_level nested_level = Some (inside, nested_id)
+    && Editor_document.Document.resolve_level ~scene_level:false nested nested_level
+       = Ok nested_level
+    && Result.is_ok (Editor_document.Document.validate nested))
+    "nested compound path did not resolve or validate";
+  check (Editor_document.Document.resolve_level ~scene_level:false grouped
+      nested_level = Ok inside)
+    "undoing a nested instance did not return to its surviving parent";
+  let nested = Editor_document.Document.allocate_compiled_ids nested
+    |> Result.get_ok in
+  check (Result.is_ok (Editor_document.Document.validate nested))
+    "nested compound IDs failed allocation";
+  let nested_path = Editor_document.Preset.save ~directory
+    ~name:"nested-group-saved" ~sketch:"contract" ~doc:nested ~view:`Null
+    |> Result.get_ok in
+  let reloaded_nested = Editor_document.Preset.load ~path:nested_path
+    ~code ~factories ~settings:Editor_document.Settings.none
+    |> Result.get_ok in
+  check (Editor_document.Document.resolve_level ~scene_level:false
+      reloaded_nested.doc nested_level = Ok nested_level
+    && reloaded_nested.doc.compiled_ids = nested.compiled_ids)
+    "nested compound path or compiled IDs changed on preset reload";
   let grouped = Editor_document.Document.allocate_compiled_ids grouped
     |> Result.get_ok in
   let grouped_path = Editor_document.Preset.save ~directory

@@ -250,6 +250,7 @@ type t = {
   source_graph : Graph.t option;
   document : Flow_sop.Network.t;
   definitions : Flow_sop.Network.definition Flow_sop.Network.String_map.t;
+  display_enabled : bool;
   applied : Flow.Port_type.value Flow_sop.Port.Map.t;
   boxes : box array;
   edges : edge array;
@@ -384,6 +385,10 @@ let visible_outputs document definitions (box : box) =
   match box.level, output_ports document definitions box.info with
   | (Layout.Point | Chip), output :: _ -> [output]
   | _, outputs -> outputs
+
+let enterable value (box : box) =
+  Flow_sop.Network.Int_map.mem box.info.id value.document.instances
+  || Option.fold ~none:false ~some:value.enterable box.info.geometry
 
 let node_wires document id =
   Flow_sop.Port.Map.to_seq_from {Flow_sop.Port.node = id; path = ""}
@@ -743,6 +748,7 @@ let catalog_array catalog =
 let create_document ?(x = 0) ?(y = 0) ?(width = 640) ?(height = 360)
     ?(theme = Pxui.default_theme) ?selected ?(catalog = [])
     ?(flaggable = fun _ -> false) ?(enterable = fun _ -> false) ?(namespace = "sop")
+    ?(display_enabled = true)
     ?(definitions = Flow_sop.Network.String_map.empty) document =
   if width <= 0 || height <= 0 then invalid_arg
       "Pxui_graph.create_document: width and height must be positive";
@@ -757,7 +763,8 @@ let create_document ?(x = 0) ?(y = 0) ?(width = 640) ?(height = 360)
   let viewed = match Edit_graph.root document.Flow_sop.Network.geometry with
     | Some id -> id
     | None -> Option.value ~default:0 primary in
-  { source_graph = None; document; definitions; applied = Flow_sop.Port.Map.empty;
+  { source_graph = None; document; definitions; display_enabled;
+    applied = Flow_sop.Port.Map.empty;
     boxes; edges; slots;
     positions = Id_map.empty; moved_nodes = Id_set.empty;
     moved_cells = Cell_map.empty;
@@ -1991,7 +1998,7 @@ let paint_node (value : t) paint (box : box) =
   let gx, gy = box_graph_position value box in
   let x, y, width, height = box_bounds value box in
   let selected = Id_set.mem box.info.id value.selected
-  and viewed = value.viewed = box.info.id in
+  and viewed = value.display_enabled && value.viewed = box.info.id in
   let palette = Pxui.Theme.ports theme in
   let accent = match box.info.value with
     | None -> palette.geometry
@@ -2520,6 +2527,8 @@ let run_command ?at (value : t) =
           if targets = [] then value, [Notice "No compatible input can be connected"]
           else { value with hints = Some { source; targets; prefix = ""; bind } }, []
       | _ -> value, [Notice "Select one source node to connect"])
+  | Display when not value.display_enabled ->
+      value, [Notice "Display stays on the enclosing SOP network"]
   | Display -> (match value.primary with
       | Some id when Edit_graph.find value.document.geometry ~node_id:id <> None ->
           view id value, [Viewed id]
@@ -2647,7 +2656,8 @@ let context_items (value : t) = function
       let flaggable = match Hashtbl.find_opt value.slots id with
         | Some index -> is_flaggable value value.boxes.(index) | None -> false in
       let geometry = Edit_graph.find value.document.geometry ~node_id:id <> None in
-      ["View", geometry; "Set active", flaggable; "Duplicate", true; "Delete", true;
+      ["View", geometry && value.display_enabled;
+       "Set active", flaggable; "Duplicate", true; "Delete", true;
        "Frame camera", flaggable]
   | On_wire _ -> ["Insert node…", value.catalog <> [||]; "Delete", true]
   | On_value_wire _ -> ["Delete", true]
@@ -2660,7 +2670,9 @@ let apply_context (value : t) context index =
   | On_canvas, 0 -> open_menu value context.at, []
   | On_canvas, 1 -> optimize_layout value, [View_changed]
   | On_canvas, _ -> frame_all value, [View_changed]
-  | On_tile id, 0 -> { value with viewed = id }, [Viewed id]
+  | On_tile id, 0 when value.display_enabled ->
+      { value with viewed = id }, [Viewed id]
+  | On_tile _, 0 -> value, [Notice "Display stays on the enclosing SOP network"]
   | On_tile id, 1 -> { value with flagged = Some id }, [Flag_requested id]
   | On_tile id, 2 ->
       let value = select id value in
@@ -2722,7 +2734,8 @@ let update_canvas (value : t) ui (frame : Frame.t) =
           ~h:(Ui.Px (float_of_int height)) ~at:(local (x, y))
           box.tile_id in
       let view, sockets = Ui.within ui tile (fun () ->
-        let view = if box.level = Layout.Point || Option.is_none box.info.geometry then None else
+        let view = if not value.display_enabled || box.level = Layout.Point
+            || Option.is_none box.info.geometry then None else
           let bx, by, bw, bh = view_button_bounds value box in
           Some (Ui.box ui ~flags:Ui.(clickable + tab_stop) ~w:(Ui.Px (float_of_int bw))
             ~h:(Ui.Px (float_of_int bh)) ~at:(float_of_int (bx - x), float_of_int (by - y))
@@ -2904,7 +2917,7 @@ let update_canvas (value : t) ui (frame : Frame.t) =
               value, List.rev_append emitted changes
             end else value, changes) (value, changes) outputs in
       let value, changes = if tile_signal.double_clicked && left tile_signal then
-          if Option.fold ~none:false ~some:value.enterable value.boxes.(index).info.geometry
+          if enterable value value.boxes.(index)
           then value, Open_requested id :: changes
           else
             let opening = value.boxes.(index).level = Layout.Chip
@@ -3203,7 +3216,7 @@ let update_canvas (value : t) ui (frame : Frame.t) =
           box.info.label ^ " · " ^ value.namespace ^ "/"
           ^ Option.value ~default:box.info.operation (Edit_graph.node_factory_key value.document.geometry ~node_id:box.info.id)
           ^ ". Drag to move; double-click to "
-          ^ (if Option.fold ~none:false ~some:value.enterable box.info.geometry
+          ^ (if enterable value box
              then "enter." else "open or close detail."))) tiles in
     let wire = if not canvas_signal.hovered then None else
       Option.map (fun index -> match value.edges.(index).kind with

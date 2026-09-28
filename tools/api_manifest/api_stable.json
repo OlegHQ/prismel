@@ -1259,13 +1259,13 @@
       "source_sha256": "e60f5cfa448ba44a06b00ca748f6c98f558be280744890d6c3edd6b9695c807b"
     },
     {
-      "api_sha256": "f08f091c8e9207b351324125710f0b9b2e8f7cf4cfc905828e166f1dd15486b2",
+      "api_sha256": "203fe46ae9f6487f0486b2fe942759543e85b02186f8ae0cd8a176eb0514e3bf",
       "excluded_legacy_symbols": [],
       "library": "pxui_graph",
       "module": "Pxui_graph",
       "source": "lib/pxui_graph/pxui_graph.mli",
-      "source_bytes": 10288,
-      "source_sha256": "351dd5fbfbf4caec77aa32794ae85704bf6c19df15d73dae67fc8f7194dab2de"
+      "source_bytes": 10315,
+      "source_sha256": "9a1d1b07eaf1a7672740109fd9d9cd08b89895710acf808637867ba261e88ed7"
     },
     {
       "api_sha256": "548a44a72d54bb8f050a5ad2720a8744f817a2f7bc330594915cecf1121df580",

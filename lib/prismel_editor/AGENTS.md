@@ -86,8 +86,9 @@ rules in this file are current. Planned changes that touch this directory:
   into expressions and unfolds expressions into placed Math/Time nodes.
 - M5 is in progress: grouping SOP geometry creates shared definitions and
   instances, retains moved ids, cooks through saved compiled ids, and records
-  one history step. Compound levels, value interfaces, ungroup and interface
-  editing remain. M6: `Space l` cycles graph, list, text.
+  one history step. Compound instance paths enter shared definitions, and `u`
+  returns to and selects the parent instance. Value interfaces, ungroup and
+  interface editing remain. M6: `Space l` cycles graph, list, text.
 
 Keep the three-column workspace, `Doc.apply` as the only graph-intent reducer,
 the one Command table, and history labels; the rework extends them.

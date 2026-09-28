@@ -797,7 +797,8 @@ traversal. World keys are `t`/`n`/`d`, described in `scene.md`.
 Later milestones complete compound editing and add the text projection
 (`flow.md` §7.2).
 
-Plain keys: `i` enters the selected object, `u` goes up; in the view `w`/`e`/`r`
+Plain keys: `i` enters the selected object or compound, `u` goes up and selects
+the compound instance; in the view `w`/`e`/`r`
 pick translate/rotate/scale handles and Escape hides them;
 the list's WAI-ARIA keys and the World keys are listed in `scene.md`. Graph
 layout is in the graph context menu and the palette only.

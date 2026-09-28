@@ -135,6 +135,25 @@ let run () =
         "group command did not replace the selected tile with a compound";
       wait_draw before_draws;
       let grouped = snapshot () in
+      let instance = List.find (fun tile ->
+        tile.Pxui_graph.operation = "flow_compound") (E.graph_nodes !current) in
+      let instance_id = instance.id in
+      check (Option.fold ~none:false ~some:(fun node ->
+        Node.id node = instance_id) (E.selected_node !current))
+        "group did not select the new compound instance";
+      step [Event.KeyPressed (Input.KeyChar 'i')];
+      check (List.exists (fun tile -> tile.Pxui_graph.id = Node.id second)
+        (E.graph_nodes !current)
+        && List.exists (fun tile -> tile.Pxui_graph.operation = "flow_inputs")
+          (E.graph_nodes !current))
+        "enter did not open the compound definition";
+      step [Event.KeyPressed (Input.KeyChar 'u')];
+      check (List.exists (fun tile -> tile.Pxui_graph.id = instance_id)
+        (E.graph_nodes !current)
+        && Option.fold ~none:false ~some:(fun node -> Node.id node = instance_id)
+          (E.selected_node !current)
+        && snapshot () = grouped)
+        "up did not restore the parent graph and select its instance";
       undo ();
       check (snapshot () = before_group) "group was not one undo step";
       step ~keys:[Input.Meta; Input.Shift]

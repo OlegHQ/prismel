@@ -56,15 +56,72 @@ let allocate_compiled_ids value =
     else {value with compiled_ids}) ids
 
 (* The network shown in the graph pane. *)
-type level = Scene | Inside of int
+type level = Scene | Inside of int | Compound of { owner : int; path : int list }
+
+let rec compound_definition value graph = function
+  | [] -> None
+  | id :: rest ->
+      Option.bind (Flow_sop.Network.Int_map.find_opt id graph.Flow_sop.Network.instances)
+        (fun instance -> Option.bind
+          (String_map.find_opt instance.definition value.definitions)
+          (fun definition -> if rest = [] then Some (instance.definition, definition)
+            else compound_definition value definition.spec.body rest))
+
+let compound_names value = function
+  | Compound {owner; path} ->
+      (match Layout.find_opt owner value.networks with
+       | None -> []
+       | Some network ->
+           let rec names graph = function
+             | [] -> []
+             | id :: rest ->
+                 (match compound_definition value graph [id] with
+                  | None -> []
+                  | Some (name, definition) -> name :: names definition.spec.body rest) in
+           names network.graph path)
+  | Scene | Inside _ -> []
 
 let network value = function
   | Scene -> Some value.scene
   | Inside id -> Layout.find_opt id value.networks
+  | Compound {owner; path} ->
+      Option.bind (Layout.find_opt owner value.networks) (fun root ->
+        Option.map (fun (_, definition) -> {
+          context = definition.spec.context; graph = definition.spec.body;
+          layout = definition.layout; displayed = definition.displayed})
+          (compound_definition value root.graph path))
 
 let with_network value level network = match level with
   | Scene -> { value with scene = network }
   | Inside id -> { value with networks = Layout.add id network value.networks }
+  | Compound {owner; path} ->
+      (match Layout.find_opt owner value.networks with
+       | None -> value
+       | Some root -> match compound_definition value root.graph path with
+           | None -> value
+           | Some (name, definition) ->
+               let spec = {definition.spec with body = network.graph} in
+               {value with definitions = String_map.add name
+                 {spec; layout = network.layout; displayed = network.displayed}
+                 value.definitions})
+
+let enter_compound value level id =
+  Option.bind (network value level) (fun current ->
+    Option.bind (Flow_sop.Network.Int_map.find_opt id current.graph.instances)
+      (fun instance -> if not (String_map.mem instance.definition value.definitions)
+        then None else match level with
+        | Inside owner -> Some (Compound {owner; path = [id]})
+        | Compound {owner; path} -> Some (Compound {owner; path = path @ [id]})
+        | Scene -> None))
+
+let parent_level = function
+  | Compound {owner; path} ->
+      (match List.rev path with
+       | [] -> None
+       | instance :: parents ->
+           Some ((if parents = [] then Inside owner
+             else Compound {owner; path = List.rev parents}), instance))
+  | Scene | Inside _ -> None
 
 let group value level ~selected ~positions =
   let ( let* ) = Result.bind in
@@ -153,14 +210,21 @@ let wire_exists graph (id, path) =
 let resolve_level ~scene_level value preferred =
   let inside id = Layout.mem id value.networks
     && Edit_graph.find value.scene.graph.geometry ~node_id:id <> None in
-  match preferred with
-  | Inside id when inside id -> Ok preferred
-  | _ when scene_level -> Ok Scene
-  | _ ->
-      match List.find_opt (fun (info : Edit_graph.node_info) ->
-        info.operation = "geometry" && inside info.id) (Edit_graph.inspect value.scene.graph.geometry) with
-      | Some info -> Ok (Inside info.id)
-      | None -> Error "Editor2 requires a geometry object with a SOP network"
+  let rec valid = function
+    | Compound {owner; _} as level when inside owner ->
+        (match network value level with
+         | Some _ -> Ok level
+         | None -> (match parent_level level with
+             | Some (parent, _) -> valid parent
+             | None -> Ok (Inside owner)))
+    | Inside id when inside id -> Ok (Inside id)
+    | _ when scene_level -> Ok Scene
+    | _ ->
+        match List.find_opt (fun (info : Edit_graph.node_info) ->
+          info.operation = "geometry" && inside info.id) (Edit_graph.inspect value.scene.graph.geometry) with
+        | Some info -> Ok (Inside info.id)
+        | None -> Error "Editor2 requires a geometry object with a SOP network" in
+  valid preferred
 
 (* The saved/loaded document boundary. Disconnected SOPs are editable and
    valid; compiling their display is a separate cook-time check. *)

@@ -117,6 +117,7 @@ val create_document :
   ?catalog:catalog_entry list -> ?flaggable:(Procedural.Edit_graph.node_info -> bool) ->
   ?enterable:(Procedural.Edit_graph.node_info -> bool) ->
   ?namespace:string ->
+  ?display_enabled:bool ->
   ?definitions:Flow_sop.Network.definition Flow_sop.Network.String_map.t ->
   Flow_sop.Network.t -> t
 (** Present a Flow network, including geometry and value tiles and typed wires.

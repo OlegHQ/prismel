@@ -4,6 +4,10 @@ open Common
 open Editor_document
 
 type bounds = Cook.bounds
+module Level_map = Map.Make (struct
+  type t = Document.level
+  let compare = Stdlib.compare
+end)
 
 (* How the graph pane shows the open network. *)
 type projection = Graph_view | List_view
@@ -62,7 +66,7 @@ type 'prepared t = {
   doc : Document.t;  (* always the history's present *)
   level : Document.level;
   scene_level : bool;  (* false: one geometry object, no scene to go up to *)
-  projections : projection Document.Layout.t;  (* per level; see [level_key] *)
+  projections : projection Level_map.t;
   map_view : bool;  (* in the World, the view pane shows the lat-long map *)
   live_cook : bool;  (* cook while a drag holds the pointer *)
   rows : (Edit_graph.t * int * Editor_core.Network_layout.t
@@ -171,10 +175,16 @@ let scene value = Document.scene_graph value.doc
 
 let kind value id = Option.map Node.operation (Edit_graph.find (scene value) ~node_id:id)
 
-let level_key = function Document.Scene -> -1 | Inside id -> id
+let level_key = function
+  | Document.Scene -> "scene"
+  | Inside id -> "object:" ^ string_of_int id
+  | Compound {owner; path} ->
+      "compound:" ^ string_of_int owner ^ ":"
+      ^ String.concat ":" (List.map string_of_int path)
 
 let catalog value = function
   | Document.Scene -> Objects.catalog @ [Layers.Settings.factory]
+  | Compound _ -> value.factories
   | Inside id -> (match kind value id with
     | Some "geometry" -> value.factories
     | Some "world" -> Layers.catalog
@@ -198,10 +208,11 @@ let value_catalog =
       (String.capitalize_ascii name) ["Math"]) Flow.Expr.operators
 
 let projection value =
-  match Document.Layout.find_opt (level_key value.level) value.projections with
+  match Level_map.find_opt value.level value.projections with
   | Some projection -> projection
   | None -> (match value.level with
     | Document.Scene -> List_view
+    | Compound _ -> Graph_view
     | Inside id when kind value id = Some "geometry" -> Graph_view
     | Inside _ -> List_view)
 
@@ -217,8 +228,11 @@ let view_of value level (frame : Frame.t) =
   let gx, gy, gw, gh = (Pxui_shell.Layout.geometry value.workspace frame).graph in
   Pxui_graph.create_document ~x:gx ~y:gy ~width:(max 1 gw) ~height:(max 1 gh)
     ~definitions:(Document.flow_definitions value.doc)
+    ~display_enabled:(match level with Compound _ -> false
+      | Scene | Inside _ -> true)
     ~namespace:(match level with Document.Scene -> "scene"
-      | Inside id when kind value id = Some "world" -> "world" | Inside _ -> "sop")
+      | Inside id when kind value id = Some "world" -> "world"
+      | Inside _ -> "sop" | Compound _ -> "sop compound")
     ~catalog:(Pxui_graph.catalog_of_factories (catalog { value with level } level)
       @ if (network.context = Flow.Context.Sop) then value_catalog else [])
     ~flaggable:(fun info -> level = Document.Scene && info.Edit_graph.operation = "camera")
@@ -230,7 +244,8 @@ let view_of value level (frame : Frame.t) =
 let open_level value level frame =
   if level = value.level then value else
   let world = match level with
-    | Document.Inside id -> kind value id = Some "world" | Scene -> false in
+    | Document.Inside id -> kind value id = Some "world"
+    | Scene | Compound _ -> false in
   { value with level; graph_view = view_of value level frame
       |> Pxui_graph.carry_last_added ~from:value.graph_view; map_view = world;
     tree = Pxui_shell.Tree.create () }
@@ -249,6 +264,7 @@ let geometry_objects value =
    one, else the first visible geometry object. *)
 let focus_object value = match value.level with
   | Inside id when kind value id = Some "geometry" -> Some id
+  | Compound {owner; _} -> Some owner
   | Inside _ | Scene ->
       Option.map (fun (id, _, _) -> id) (List.nth_opt (geometry_objects value) 0)
 
@@ -274,6 +290,7 @@ let column_visible value column = not (Pxui_shell.Layout.collapsed value.workspa
    inside it, the selected object's parent chain at the scene level. *)
 let space value = match value.level with
   | Inside id when kind value id = Some "geometry" -> Objects.world (scene value) id
+  | Compound {owner; _} -> Objects.world (scene value) owner
   | Inside _ -> Mat4.identity
   | Scene -> (match Pxui_graph.selected value.graph_view with
     | Some id -> Objects.parent_world (scene value) id
@@ -327,6 +344,7 @@ let trunk_rows document ~flags =
 let rows value document graph_view = match value.level with
   | Document.Scene -> scene_rows ?active:value.doc.active_camera document graph_view,
       ["vis"; "rnd"]
+  | Compound _ -> trunk_rows document ~flags:(fun _ _ -> []), []
   | Inside id when kind value id = Some "geometry" ->
       trunk_rows document ~flags:(fun node_id _ ->
         [node_id = Pxui_graph.viewed graph_view]), ["disp"]
@@ -402,9 +420,11 @@ let apply_tree value (overlay, graph_view, tree, opened, label, rows) intent =
     Pxui_graph.with_document (Result.get_ok (Doc.update_geometry (fun _ -> Ok geometry) overlay)) view in
   let module T = Pxui_shell.Tree in
   let world = match value.level with
-    | Document.Inside id -> kind value id = Some "world" | Scene -> false in
+    | Document.Inside id -> kind value id = Some "world"
+    | Scene | Compound _ -> false in
   let geometry = match value.level with
-    | Document.Inside id -> kind value id = Some "geometry" | Scene -> false in
+    | Document.Inside id -> kind value id = Some "geometry"
+    | Scene | Compound _ -> false in
   let stack () = Array.to_list rows
     |> List.filter_map (fun (row : T.row) -> if row.link then None else Some row.id) in
   let restacked order =
@@ -599,7 +619,7 @@ let create ?(settings = Settings.none) ?(keymap = Leader.keymap)
         | Ok values -> Option.value ~default:true (Editor_core.Store.Settings.bool values "guide")
         | Error _ -> true in
       let value = { preferences; guide; hud = None; code_graph = graph; presets; name; prompt = None; notice = None;
-        doc; level; scene_level; projections = Document.Layout.empty; map_view = false;
+        doc; level; scene_level; projections = Level_map.empty; map_view = false;
         rows = None; live_cook = true;
         factories;
         graph_view = Pxui_graph.create (Sop.points [||]);
@@ -632,6 +652,13 @@ let level_name value = match value.level with
   | Document.Scene -> "scene"
   | Inside id -> "scene › " ^ Option.fold ~none:"?" ~some:Node.label
       (Edit_graph.find (scene value) ~node_id:id)
+  | Compound {owner; _} as level ->
+      let root = Option.fold ~none:"?" ~some:Node.label
+        (Edit_graph.find (scene value) ~node_id:owner) in
+      "scene › " ^ root ^ " › "
+      ^ String.concat " › " (List.map (fun name ->
+        String.capitalize_ascii (String.map (function '_' -> ' ' | c -> c) name)
+        ^ " · sop compound") (Document.compound_names value.doc level))
 
 let status_text value =
   let cook = match Cook.status value.cook with
@@ -652,6 +679,7 @@ let status_text value =
     | Scene -> ""
     | Inside id when kind value id = Some "world" ->
         "u up · drag map: move layer/sun · t dome/light · n reseed · d day cycle · [ ] time · Space l 3D/map"
+    | Compound _ -> "u up · Space a add · Space l list/graph"
     | Inside _ when value.scene_level -> "u up · Space a add · Space l list/graph"
     | Inside _ -> "Space a add · Space l list/graph" in
   cook ^ " · " ^ level_name value ^ (if hint = "" then "" else " · " ^ hint)
@@ -741,11 +769,13 @@ let intent_label = function
   | Open_requested _ | Notice _ -> None
 
 let in_world value = match value.level with
-  | Document.Inside id -> kind value id = Some "world" | Scene -> false
+  | Document.Inside id -> kind value id = Some "world"
+  | Scene | Compound _ -> false
 
 (* World keys: edit the selected layer, or the World node in the scene. *)
 let world_keys value (doc : Document.t) graph_view actions =
-  let world_id = match value.level with Inside id -> Some id | Scene -> None in
+  let world_id = match value.level with Inside id -> Some id
+    | Scene | Compound _ -> None in
   let edit_layer f label (doc, _) = match world_id, Pxui_graph.selected graph_view with
     | Some id, Some layer ->
         (match Document.network doc (Inside id) with
@@ -818,8 +848,14 @@ let routed value =
     | Frame_camera -> graph_shown
     | Group -> graph_shown && (match value.level with
         | Document.Inside id -> kind value id = Some "geometry"
+        | Compound _ -> true | Scene -> false)
+    | Enter -> value.scene_level || (match value.level with
+        | Compound _ -> true
+        | Inside id -> kind value id = Some "geometry"
         | Scene -> false)
-    | Enter | Up | Go_world -> value.scene_level
+    | Up -> value.scene_level || (match value.level with
+        | Compound _ -> true | Scene | Inside _ -> false)
+    | Go_world -> value.scene_level
     | World_emit | World_reseed | World_time _ | World_play | World_preset _ ->
         in_world value
     | _ -> true) value.keymap
@@ -856,7 +892,7 @@ let commit ?(label = "Edit") ?(merge = Editor_core.History.Step) doc history =
   else Editor_core.History.record ~label ~merge doc history
 
 let parameter_gesture operation level id values =
-  operation ^ "/" ^ string_of_int (level_key level) ^ "/" ^ string_of_int id ^ "/"
+  operation ^ "/" ^ level_key level ^ "/" ^ string_of_int id ^ "/"
   ^ String.concat "/" (List.sort_uniq String.compare (List.map fst values))
 
 let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
@@ -906,7 +942,7 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
   let applied = match value.level with
     | Document.Inside id -> Option.map (fun resolved -> resolved.Flow_sop.Value_lane.applied)
         (Cook.applied value.cook id)
-    | Scene -> None in
+    | Scene | Compound _ -> None in
   let graph_view = Pxui_graph.with_applied
       (Option.value ~default:Flow_sop.Port.Map.empty applied) value.graph_view in
   let value = {value with graph_view} in
@@ -1268,6 +1304,7 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
       | Error message -> value.doc.settings, Parameter.no_effects, Some message) in
   let node_effects effects = match value.level with
     | Document.Inside id when kind value id = Some "geometry" -> effects
+    | Compound _ -> effects
     | Inside _ | Scene -> { effects with Parameter.cook = false } in
   let label = match List.find_map intent_label result.graph_changes, tree_label with
     | Some label, _ | None, Some label -> label
@@ -1411,9 +1448,9 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
       || world_added || world_label <> None then None else
     match List.find_map (function
       | Pxui_graph.Bend_changed { node; slot } ->
-          Some (Printf.sprintf "graph.bend:%d:%d:%d" (level_key value.level) node slot)
+          Some (Printf.sprintf "graph.bend:%s:%d:%d" (level_key value.level) node slot)
       | Set_parameter_requested { node; path; _ } ->
-          Some (Printf.sprintf "graph.scrub:%d:%d:%s" (level_key value.level) node path)
+          Some (Printf.sprintf "graph.scrub:%s:%d:%s" (level_key value.level) node path)
       | _ -> None) result.graph_changes with
     | Some key -> Some key
     | None ->
@@ -1429,7 +1466,7 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
     | [], [], None, (_ :: _ as changes) ->
         Some (parameter_gesture "settings" value.level (-1) changes)
     | (_ :: _ as moved), [], None, [] when List.for_all (( <> ) []) moved ->
-        Some ("move/" ^ string_of_int (level_key value.level) ^ "/"
+        Some ("move/" ^ level_key value.level ^ "/"
           ^ String.concat "/" (List.map string_of_int
             (List.sort_uniq Int.compare (List.concat moved))))
     | _ -> None in
@@ -1442,7 +1479,7 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
         ~merge:(if List.exists (function Pxui_graph.Level_changed _ | Split_requested _
           | Row_pinned _ -> true | _ -> false)
             result.graph_changes && gesture = None then
-          Editor_core.History.Burst { key = "layout.level:" ^ string_of_int (level_key value.level);
+          Editor_core.History.Burst { key = "layout.level:" ^ level_key value.level;
             at = frame.time; window = 1.0 }
           else Option.fold ~none:Editor_core.History.Step
             ~some:(fun key -> Editor_core.History.Gesture key) gesture) next value.history in
@@ -1477,10 +1514,13 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
   let graph_view = if doc.definitions == value.doc.definitions then graph_view else
     Pxui_graph.with_definitions (Document.flow_definitions doc) graph_view in
   (* Entering and leaving levels: i / double-click / list activation, u. *)
+  let up = if List.mem Leader.Up actions then Document.parent_level level else None in
   let target = match List.find_opt (function
       | Leader.Enter | Up | Go_world -> true | _ -> false) actions, result.opened with
     | Some Leader.Up, _ -> (match level with
-      | Inside _ when value.scene_level -> Some Document.Scene | _ -> None)
+      | Inside _ when value.scene_level -> Some Document.Scene
+      | Compound _ -> Option.map fst up
+      | Scene | Inside _ -> None)
     | Some Leader.Go_world, _ ->
         Option.map (fun id -> Document.Inside id)
           (List.find_opt (enterable value') (Objects.ids "world" doc.scene.graph.geometry))
@@ -1489,18 +1529,23 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
           | Some id -> Some id | None -> Pxui_graph.selected graph_view in
         (match level, candidate with
          | Document.Scene, Some id when enterable value' id -> Some (Document.Inside id)
+         | (Inside _ | Compound _), Some id -> Document.enter_compound doc level id
          | _ -> None)
     | _ -> None in
   let value' = { value' with graph_view; tree = result.tree } in
   let value' = match target with
     | Some level -> open_level value' level frame
     | None -> value' in
+  let value' = match up with
+    | Some (parent, instance) when value'.level = parent ->
+        {value' with graph_view = Pxui_graph.select instance value'.graph_view}
+    | Some _ | None -> value' in
   (* In the World, Space l flips the view pane to the lat-long map. *)
   let map_view = if List.mem Leader.Toggle_projection actions && in_world value'
     then not value'.map_view else value'.map_view && in_world value' in
   let value' = { value' with map_view } in
   let projections = if List.mem Leader.Toggle_projection actions && not (in_world value') then
-      Document.Layout.add (level_key value'.level)
+      Level_map.add value'.level
         (if projection value' = List_view then Graph_view else List_view) value'.projections
     else value'.projections in
   (* Switching to the graph frames it, so its tiles are on screen. *)
@@ -1526,7 +1571,7 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
             (Cook.applied cooked.cook id) in
         {value' with graph_view = Pxui_graph.with_applied
           (Option.value ~default:Flow_sop.Port.Map.empty applied) value'.graph_view}
-    | Scene -> value' in
+    | Scene | Compound _ -> value' in
   (* Framing: local bounds move into the world with their object; at the
      scene level [F] frames every cooked object. *)
   let lower (a : Vec3.t) (b : Vec3.t) =

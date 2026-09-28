@@ -373,7 +373,7 @@ module Make (V : VIEWPORT) = struct
   let can_redo value = Editor_core.History.can_redo value.core.Core.history
   let level value = match value.core.Core.level with
     | Document.Scene -> None
-    | Inside id -> Some (Option.fold ~none:"" ~some:Node.label
+    | Inside id | Compound {owner = id; _} -> Some (Option.fold ~none:"" ~some:Node.label
         (Edit_graph.find (Core.scene value.core) ~node_id:id))
   let scene_document value = Core.scene value.core
   let lights value = Objects.lights ~render:true (Core.scene value.core)
@@ -433,6 +433,7 @@ module Make (V : VIEWPORT) = struct
       let ghost id = match update.core.Core.level with
         | Document.Inside open_id -> Core.kind update.core open_id = Some "geometry"
             && id <> open_id
+        | Compound {owner; _} -> id <> owner
         | Scene -> false in
       (if waiting then None
        else Some (V.compose ~scene:(Core.scene update.core) ~world:baked
