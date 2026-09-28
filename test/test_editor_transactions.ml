@@ -141,6 +141,22 @@ let run () =
       check (Option.fold ~none:false ~some:(fun node ->
         Node.id node = instance_id) (E.selected_node !current))
         "group did not select the new compound instance";
+      let at = header instance_id in
+      step ~mouse:at [Event.MousePressed (Input.RightButton, at);
+        Event.MouseReleased (Input.RightButton, at)];
+      step [];
+      let action = fst at +. 60., snd at +. 3. +. 5. *. 24. +. 12. in
+      step ~mouse:action (click action);
+      check (snapshot () <> grouped)
+        "compound context menu did not make the instance unique";
+      let unique = snapshot () in
+      undo ();
+      check (snapshot () = grouped) "make unique was not one undo step";
+      step ~keys:[Input.Meta; Input.Shift]
+        [Event.KeyPressed (Input.KeyChar 'z')];
+      check (snapshot () = unique) "make unique redo changed its copied ids";
+      undo ();
+      check (snapshot () = grouped) "make unique undo did not restore sharing";
       step [Event.KeyPressed (Input.KeyChar 'i')];
       check (List.exists (fun tile -> tile.Pxui_graph.id = Node.id second)
         (E.graph_nodes !current)

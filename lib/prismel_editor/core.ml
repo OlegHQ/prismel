@@ -736,7 +736,8 @@ let apply_action value (frame : Frame.t) (workspace, graph_view, tree, timeline,
   | Hide_ui | Look_through | Fly | Save_preset | Browse_presets
   | Graph_command _ | List_command _ | Frame_camera | Undo | Redo | Command_palette
   | Guide_toggle | Guide_keys
-  | Sketch_command _ | Toggle_projection | Enter | Up | Go_world | Group | Ungroup | Tool _
+  | Sketch_command _ | Toggle_projection | Enter | Up | Go_world | Group | Ungroup
+  | Make_unique | Tool _
   | World_emit | World_reseed | World_time _ | World_play | World_preset _ ->
       workspace, graph_view, tree, timeline, changes
 
@@ -751,6 +752,7 @@ let intent_label = function
   | Disconnect_requested _ | Value_disconnect_requested _ -> Some "Disconnect"
   | Delete_nodes_requested _ -> Some "Delete"
   | Dissolve_nodes_requested _ -> Some "Dissolve"
+  | Make_unique_requested _ -> Some "Make unique"
   | Bypass_requested _ -> Some "Bypass"
   | Add_requested _ -> Some "Add node"
   | Insert_requested _ -> Some "Insert node"
@@ -846,7 +848,7 @@ let routed value =
     | Graph_command _ -> graph_shown
     | Frame_tile -> graph_shown && (listing || command.trigger = Some (Editor_core.Keymap.Leader "f"))
     | Frame_camera -> graph_shown
-    | Group | Ungroup -> graph_shown && (match value.level with
+    | Group | Ungroup | Make_unique -> graph_shown && (match value.level with
         | Document.Inside id -> kind value id = Some "geometry"
         | Compound _ -> true | Scene -> false)
     | Enter -> value.scene_level || (match value.level with
@@ -1446,6 +1448,32 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
                  result.effects Doc.cook_effects})
     | _ -> next, {result with edit_error = Some
         "Select one compound instance to ungroup"}
+    else next, result in
+  let unique_request = List.find_map (function
+    | Pxui_graph.Make_unique_requested id -> Some id | _ -> None)
+    result.graph_changes in
+  let unique_request = match unique_request with
+    | Some _ -> unique_request
+    | None when List.mem Leader.Make_unique actions ->
+        (match Pxui_graph.selected_nodes result.graph_view with
+         | [id] -> Some id | _ -> None)
+    | None -> None in
+  let next, result = if Option.is_none loaded then match unique_request with
+    | None ->
+        if List.mem Leader.Make_unique actions then next, {result with
+          edit_error = Some "Select one compound instance to make unique"}
+        else next, result
+    | Some instance_id ->
+        (match Document.make_unique next value.level ~instance_id with
+         | Error diagnostic -> next, {result with
+             edit_error = Some (Flow.Diagnostic.to_string diagnostic)}
+         | Ok (next, _) ->
+             let network = Option.get (Document.network next value.level) in
+             let graph_view = Network_view.to_view network result.graph_view
+               |> Pxui_graph.select instance_id in
+             next, {result with graph_view; document = network.graph;
+               label = "Make unique"; effects = Parameter.union_effects
+                 result.effects Doc.cook_effects})
     else next, result in
   let next, result, compound_error = if next == present then next, result, None else
     match Document.allocate_compiled_ids next with

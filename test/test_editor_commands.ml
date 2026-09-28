@@ -37,6 +37,9 @@ let run () =
       (500., 400.) [char 'g'] 2) Idle in
   check (List.map (fun (c : _ Command.t) -> c.action) ungroup_actions = [L.Ungroup])
     "compound ungroup chord was not routed through the shared command table";
+  check (List.exists (fun (c : _ Command.t) ->
+    c.id = "graph.make-unique" && c.action = L.Make_unique) L.keymap)
+    "make unique is missing from the shared command palette";
   let ids context = Command.for_guide Pxui_graph.bindings ~focus:() ~context
     |> List.map (fun (c : _ Command.t) -> c.id) in
   let walks = ["graph.walk.left"; "graph.walk.down"; "graph.walk.up"; "graph.walk.right"] in

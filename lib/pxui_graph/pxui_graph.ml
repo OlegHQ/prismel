@@ -73,6 +73,7 @@ type change =
   | Unfold_requested of Flow_sop.Port.t
   | Delete_nodes_requested of int list
   | Dissolve_nodes_requested of int list
+  | Make_unique_requested of int
   | Bypass_requested of (int * bool) list
   | Notice of string
   | Add_requested of add_request
@@ -2658,7 +2659,8 @@ let context_items (value : t) = function
       let geometry = Edit_graph.find value.document.geometry ~node_id:id <> None in
       ["View", geometry && value.display_enabled;
        "Set active", flaggable; "Duplicate", true; "Delete", true;
-       "Frame camera", flaggable]
+       "Frame camera", flaggable;
+       "Make unique", Flow_sop.Network.Int_map.mem id value.document.instances]
   | On_wire _ -> ["Insert node…", value.catalog <> [||]; "Delete", true]
   | On_value_wire _ -> ["Delete", true]
 
@@ -2678,6 +2680,9 @@ let apply_context (value : t) context index =
       let value = select id value in
       duplicate_selection value
   | On_tile id, 4 -> value, [Frame_camera_requested id]
+  | On_tile id, 5 when Flow_sop.Network.Int_map.mem id value.document.instances ->
+      value, [Make_unique_requested id]
+  | On_tile _, 5 -> value, []
   | On_tile id, _ ->
       (if Id_set.mem id value.selected then clear_selection value else value),
       [Delete_nodes_requested [id]]

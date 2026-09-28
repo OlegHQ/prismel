@@ -285,6 +285,59 @@ let run () =
     && Edit_graph.find grouped_definition.spec.body.geometry ~node_id:20 <> None)
     "group did not move the selected node into a valid shared definition";
   let root_level = Editor_document.Document.Inside 10 in
+  let parent = Editor_document.Document.network grouped root_level
+    |> Option.get in
+  let fragment = Flow_sop.Network.copy_nodes [grouped_id] parent.graph
+    |> Result.get_ok in
+  let graph, duplicated = Flow_sop.Network.paste fragment parent.graph
+    |> Result.get_ok in
+  let duplicate_id = List.assoc grouped_id duplicated in
+  let shared = Editor_document.Document.with_network grouped root_level
+    {parent with graph} in
+  let unique, unique_name = Editor_document.Document.make_unique shared
+    root_level ~instance_id:grouped_id |> Result.get_ok in
+  let unique_parent = Editor_document.Document.network unique root_level
+    |> Option.get in
+  let unique_instance = Flow_sop.Network.Int_map.find grouped_id
+    unique_parent.graph.instances in
+  let shared_instance = Flow_sop.Network.Int_map.find duplicate_id
+    unique_parent.graph.instances in
+  let unique_definition = Editor_document.Document.String_map.find unique_name
+    unique.definitions in
+  check (unique_name = "compound_1_2"
+    && unique_instance.definition = unique_name
+    && shared_instance.definition = "compound_1"
+    && Edit_graph.find unique_definition.spec.body.geometry ~node_id:20 = None
+    && Result.is_ok (Editor_document.Document.validate unique))
+    "make unique did not detach one instance with fresh definition ids";
+  let unique_inside = Editor_document.Document.enter_compound unique root_level
+    grouped_id |> Option.get in
+  let copied_box = Edit_graph.inspect unique_definition.spec.body.geometry
+    |> List.find (fun (node : Edit_graph.node_info) -> node.operation = "box") in
+  let unique_body = Editor_document.Document.network unique unique_inside
+    |> Option.get in
+  let changed = Flow_sop.Network.relabel ~node_id:copied_box.id
+    "Unique box" unique_body.graph |> Result.get_ok in
+  let unique = Editor_document.Document.with_network unique unique_inside
+    {unique_body with graph = changed} in
+  check (Node.label (Edit_graph.find
+      (Editor_document.Document.String_map.find "compound_1"
+        unique.definitions).spec.body.geometry ~node_id:20 |> Option.get)
+      <> "Unique box"
+    && Result.is_ok (Editor_document.Document.validate unique))
+    "editing a unique definition also changed the shared definition";
+  check (Result.is_ok (Editor_document.Document.allocate_compiled_ids unique))
+    "make unique did not flatten both detached and shared instances";
+  let unique_path = Editor_document.Preset.save ~directory
+    ~name:"unique-saved" ~sketch:"contract" ~doc:unique ~view:`Null
+    |> Result.get_ok in
+  let reloaded_unique = Editor_document.Preset.load ~path:unique_path
+    ~code ~factories ~settings:Editor_document.Settings.none
+    |> Result.get_ok in
+  check (Result.is_ok (Editor_document.Document.validate reloaded_unique.doc)
+    && Editor_document.Document.String_map.cardinal
+      reloaded_unique.doc.definitions = 2)
+    "make unique did not survive preset round trip";
   let inside = Editor_document.Document.enter_compound grouped root_level grouped_id
     |> Option.get in
   let inside_network = Editor_document.Document.network grouped inside

@@ -245,6 +245,7 @@ let apply factories (document, graph_view, error, effects, placed, pasted) = fun
        | Ok changed -> changed, Pxui_graph.with_document changed graph_view, None,
            Parameter.union_effects effects cook_effects, placed, pasted)
   | Notice _ -> document, graph_view, error, effects, placed, pasted
+  | Make_unique_requested _ -> document, graph_view, error, effects, placed, pasted
   | Add_requested request ->
       (if String.starts_with ~prefix:"value/" request.factory_key then
          (match value_kind request.factory_key with

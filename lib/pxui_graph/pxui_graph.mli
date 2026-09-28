@@ -66,6 +66,7 @@ type change =
   | Unfold_requested of Flow_sop.Port.t
   | Delete_nodes_requested of int list
   | Dissolve_nodes_requested of int list
+  | Make_unique_requested of int
   | Bypass_requested of (int * bool) list
   | Notice of string
   | Add_requested of add_request

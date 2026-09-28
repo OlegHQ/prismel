@@ -9,7 +9,7 @@ type action =
   | Layout | Frame_tile | Frame_camera
   | Look_through | Fly | Tool of int  (* 0 none, 1 translate, 2 rotate, 3 scale *)
   | Undo | Redo
-  | Toggle_projection | Enter | Up | Go_world | Group | Ungroup
+  | Toggle_projection | Enter | Up | Go_world | Group | Ungroup | Make_unique
   | World_emit | World_reseed | World_time of float | World_play | World_preset of int
   | Graph_command of Pxui_graph.command
   | List_command of Pxui_shell.Tree.command
@@ -85,6 +85,8 @@ let keymap = [
   command ~id:"graph.layout" ~label:"layout" ~scope:graph Layout;
   command ~id:"graph.frame-tile" ~label:"frame displayed tile" ~trigger:(Leader "f")
     ~scope:graph Frame_tile;
+  command ~id:"graph.make-unique" ~label:"make compound unique"
+    ~guide:Editor_core.Guide_context.[Compound] ~scope:graph Make_unique;
   command ~guide:Editor_core.Guide_context.[List] ~id:"graph.frame-tile" ~label:"reveal list selection"
     ~trigger:(Chord (Input.KeyChar 'f', [])) ~scope:graph Frame_tile;
   command ~id:"view.frame-camera" ~label:"focus camera on displayed node"

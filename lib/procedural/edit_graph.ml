@@ -250,6 +250,20 @@ let replace_node node value =
           (Node.label node) (Array.length entry.inputs) arity)
       else Ok { value with entries = Id_map.add id { entry with node } value.entries }
 
+let rebind_factory ~node_id (factory : factory) value =
+  match Id_map.find_opt node_id value.entries with
+  | None -> Error (Printf.sprintf "editable graph has no node #%d" node_id)
+  | Some entry when Node.operation entry.node <> factory.operation
+      || Array.length entry.inputs <> Array.length factory.slots
+      || node_slot_names value ~node_id <> Some (Array.to_list factory.slots)
+      || Array.exists (( = ) Required) factory.requirements ->
+      Error "replacement factory must have the same operation and optional input slots"
+  | Some entry ->
+      let node = factory.build (List.init (Array.length entry.inputs)
+        (fun _ -> None)) |> Node.Private.adopt_identity ~source:entry.node in
+      Ok {value with entries = Id_map.add node_id
+        {entry with node; factory = Some factory} value.entries}
+
 let apply_parameters value ~node_id changes =
   match find value ~node_id with
   | None -> Error (Printf.sprintf "editable graph has no node #%d" node_id)

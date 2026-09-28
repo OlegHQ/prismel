@@ -318,6 +318,12 @@ network with the same canvas, keys, views and text), then plan it here.
 
 ## Log
 
+- 2026-09-28 M5 make-unique checkpoint: the palette and compound tile context
+  menu copy one shared definition with fresh internal ids, retarget only the
+  chosen instance, preserve its geometry wires and layout, and record one undo
+  step. Presets round-trip both definitions and compiled-id allocation
+  traverses both copies. Value interfaces remain pending.
+
 - 2026-09-28 M5 ungroup checkpoint: `⇧⌘G`/Shift-Ctrl-G replaces one
   geometry-only instance with fresh copies of its inner nodes, reconnects
   named geometry boundaries, carries layout into the parent, prunes stale

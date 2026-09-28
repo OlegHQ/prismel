@@ -88,7 +88,8 @@ rules in this file are current. Planned changes that touch this directory:
   instances, retains moved ids, cooks through saved compiled ids, and records
   one history step. Compound instance paths enter shared definitions, and `u`
   returns to and selects the parent instance. Ungrouping geometry instances
-  replaces them with fresh inner ids in one undo step. Value interfaces and
+  replaces them with fresh inner ids in one undo step. Make unique detaches one
+  instance from its shared definition through the palette or tile menu. Value interfaces and
   interface editing remain. M6: `Space l` cycles graph, list, text.
 
 Keep the three-column workspace, `Doc.apply` as the only graph-intent reducer,

@@ -274,6 +274,89 @@ let ungroup value level ~instance_id =
         compiled_path_exists next path) next.compiled_ids in
       Ok ({next with compiled_ids}, mapping)
 
+let make_unique value level ~instance_id =
+  let ( let* ) = Result.bind in
+  let error message = Error (Flow.Diagnostic.error ~code:"E_COMPOUND" message) in
+  match network value level with
+  | None -> error "No network at this level"
+  | Some current ->
+      let* instance = match Flow_sop.Network.Int_map.find_opt instance_id
+          current.graph.instances with
+        | Some instance -> Ok instance
+        | None -> error "Select one compound instance" in
+      let* original = match String_map.find_opt instance.definition
+          value.definitions with
+        | Some definition -> Ok definition
+        | None -> error ("Missing compound " ^ instance.definition) in
+      let rec free index =
+        let name = instance.definition ^ "_" ^ string_of_int index in
+        if String_map.mem name value.definitions then free (index + 1)
+        else name in
+      let name = free 2 in
+      let body = original.spec.body in
+      let ids = List.map (fun (node : Edit_graph.node_info) -> node.id)
+          (Edit_graph.inspect body.geometry)
+        @ List.map (fun (node : Flow.Graph.node) -> node.id)
+          (Flow.Graph.inspect body.values) in
+      let* fragment = Flow_sop.Network.copy_nodes ids body in
+      let* copied, mapping = Flow_sop.Network.paste fragment
+        (Flow_sop.Network.of_geometry Edit_graph.empty) in
+      let remap = Flow_sop.Network.Int_map.of_list mapping in
+      let mapped id = Flow_sop.Network.Int_map.find id remap in
+      let factories = Flow_sop.Compound_node.factories ~name
+        ~inputs:original.spec.inputs ~outputs:original.spec.outputs in
+      let* geometry = List.fold_left (fun state (operation, factory) ->
+        let* geometry = state in
+        match List.find_opt (fun (node : Edit_graph.node_info) ->
+            node.operation = operation) (Edit_graph.inspect body.geometry) with
+        | None -> error ("Missing compound " ^ operation ^ " marker")
+        | Some marker ->
+            Result.map_error (Flow.Diagnostic.error ~code:"E_COMPOUND")
+              (Edit_graph.rebind_factory ~node_id:(mapped marker.id)
+                factory geometry))
+        (Ok copied.geometry)
+        (List.combine ["flow_inputs"; "flow_outputs"]
+          (List.take 2 factories)) in
+      let* copied = Flow_sop.Network.with_geometry geometry copied in
+      let spec = {original.spec with name; body = copied} in
+      let copy source = Layout.fold (fun old_id value result ->
+        match Flow_sop.Network.Int_map.find_opt old_id remap with
+        | Some new_id -> Layout.add new_id value result
+        | None -> result) source Layout.empty in
+      let copy_ports source = Canvas.Port_map.fold (fun (old_id, path) points result ->
+        match Flow_sop.Network.Int_map.find_opt old_id remap with
+        | Some new_id -> Canvas.Port_map.add (new_id, path) points result
+        | None -> result) source Canvas.Port_map.empty in
+      let layout : Canvas.t = {
+        at = copy original.layout.at;
+        level = copy original.layout.level;
+        pinned = copy original.layout.pinned;
+        rows = copy original.layout.rows;
+        split = copy original.layout.split;
+        bends = copy_ports original.layout.bends;
+        wireless = Canvas.Port_set.fold (fun (old_id, path) result ->
+          match Flow_sop.Network.Int_map.find_opt old_id remap with
+          | Some new_id -> Canvas.Port_set.add (new_id, path) result
+          | None -> result) original.layout.wireless Canvas.Port_set.empty} in
+      let definition = {spec; layout;
+        displayed = Option.map mapped original.displayed} in
+      let instance_factory = List.nth factories 2 in
+      let* geometry = Result.map_error
+          (Flow.Diagnostic.error ~code:"E_COMPOUND")
+          (Edit_graph.rebind_factory ~node_id:instance_id instance_factory
+            current.graph.geometry) in
+      let instances = Flow_sop.Network.Int_map.add instance_id
+        {instance with definition = name} current.graph.instances in
+      let* graph = Flow_sop.Network.of_parts ~geometry
+        ~values:current.graph.values ~drives:current.graph.drives
+        ~geometry_outputs:current.graph.geometry_outputs ~instances in
+      let next = with_network value level {current with graph} in
+      let next = {next with definitions = String_map.add name definition
+        next.definitions} in
+      let compiled_ids = Flow_sop.Instance_path.Map.filter (fun path _ ->
+        compiled_path_exists next path) next.compiled_ids in
+      Ok ({next with compiled_ids}, name)
+
 (* The display node, kept on a node that exists: a deleted display node
    falls back to the previous one, else the last node in the network. *)
 let displayed_of ?previous graph viewed =
