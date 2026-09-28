@@ -107,6 +107,19 @@ let set_bypass value ~node_id bypass =
 let is_bypassed value ~node_id = match Id_map.find_opt node_id value.entries with
   | Some entry -> entry.bypass | None -> false
 
+let subgraph ids value =
+  let selected = Id_set.of_list ids in
+  let entries = Id_map.filter_map (fun id (entry : entry) ->
+    if not (Id_set.mem id selected) then None else
+    Some {entry with inputs = Array.map (function
+      | Some source when Id_set.mem source selected -> Some source
+      | _ -> None) entry.inputs}) value.entries in
+  let order_rev = List.filter (fun id -> Id_map.mem id entries) value.order_rev in
+  let root = match value.root with
+    | Some id when Id_map.mem id entries -> Some id
+    | _ -> List.nth_opt order_rev 0 in
+  {entries; order_rev; root}
+
 let empty_geometry = lazy (Sop.snapshot (Result.get_ok (Pdk.Geometry.create
   ~positions:(Pdk.Packed.Float3.Builder.freeze (Pdk.Packed.Float3.Builder.create 0))
   ~topology:(Pdk.Topology.empty ~point_count:0) ())))

@@ -19,6 +19,17 @@ let run () =
   check (Edit_graph.root document = Some (Node.id output)
       && List.length (Edit_graph.inspect document) = 3)
     "editable graph did not import the compiled DAG";
+  let inner = Edit_graph.subgraph [Node.id source; Node.id middle] document in
+  check (List.map (fun (info : Edit_graph.node_info) -> info.id)
+      (Edit_graph.inspect inner) = [Node.id source; Node.id middle]
+      && Edit_graph.inputs inner ~node_id:(Node.id middle) =
+        Some [|Some (Node.id source)|]
+      && Node.id (Edit_graph.compile inner |> get) = Node.id middle)
+    "compound subgraph did not retain selected ids and their internal wire";
+  let cut = Edit_graph.subgraph [Node.id middle] document in
+  check (Edit_graph.inputs cut ~node_id:(Node.id middle) = Some [|None|]
+      && Result.is_error (Edit_graph.compile cut))
+    "compound subgraph retained a wire from outside its selection";
   let disconnected = Edit_graph.disconnect ~consumer:(Node.id middle)
       ~input_index:0 document |> get in
   check (Result.is_error (Edit_graph.compile disconnected)

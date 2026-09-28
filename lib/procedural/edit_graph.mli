@@ -80,6 +80,11 @@ val add_node :
   Node.t -> t -> (t, string) result
 val remove_nodes : int list -> t -> t
 
+val subgraph : int list -> t -> t
+(* Retain selected entries with their logical ids and internal connections;
+   disconnect inputs from outside the selection. Used when moving a selection
+   into a compound definition. *)
+
 (** Remove the selection, reconnecting every consumer to the source of each
     removed node's primary slot. Selected chains resolve to their first
     surviving source. The display root follows that source when removed. *)

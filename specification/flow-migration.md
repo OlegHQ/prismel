@@ -35,7 +35,7 @@ accept an intended one with `dune promote`.
 | M2 | Keys and guide mode, World key remap | done | 2026-09-27 |
 | M3 | Value ports: `flow`, `flow_sop`, value nodes, drives by wire, exposure, vec3, inspector | done | 2026-09-28 |
 | M4 | Wireless binds, expressions, fold/unfold, row keys | done | 2026-09-28 |
-| M5 | Compounds and contexts | not started | |
+| M5 | Compounds and contexts | in progress | |
 | M6 | Views: list with values, read-only text, reader and checker | not started | |
 | M7 | `[%flow]` PPX and catalog manifest | not started | |
 
@@ -317,6 +317,12 @@ network with the same canvas, keys, views and text), then plan it here.
   the build.
 
 ## Log
+
+- 2026-09-28 M5 foundation: `Edit_graph.subgraph` retains selected SOP ids,
+  internal connections and factory metadata while disconnecting edges from
+  outside the selection. Focused tests cover the retained identity and cut
+  boundary. This supplies the move into a definition without paste's fresh-id
+  behavior; compound definitions, instances and cooking still remain.
 
 - 2026-09-28 M4 complete: `Flow_sop.Network.fold/unfold` converts unshared
   Math/Value/Time chains and checked expressions, with fixed-seed identity and
