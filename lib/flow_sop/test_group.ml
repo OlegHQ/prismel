@@ -54,6 +54,69 @@ let () =
     = Some (port source_id "geo")
     && Network.geometry_source grouped (port consumer_id "in0")
        = Some (port instance "result"));
+  let float_port name : Network.interface_port =
+    {name; ty = Flow.Port_type.Float; default = Some (Param.Float_value 2.);
+     label = String.capitalize_ascii name; soft = Some (0., 10.)} in
+  let vec3_port : Network.interface_port =
+    {name = "position"; ty = Flow.Port_type.Vec3;
+     default = Some (Param.Float_value 1.); label = "Position";
+     soft = Some (0., 10.)} in
+  let value_definition = {definition with
+    inputs = definition.inputs @ [float_port "speed"; vec3_port];
+    outputs = definition.outputs @ [float_port "height"]} in
+  let factories = Compound_node.factories ~name:value_definition.name
+    ~inputs:value_definition.inputs ~outputs:value_definition.outputs in
+  let rebind id factory graph = Procedural.Edit_graph.rebind_factory
+    ~node_id:id factory graph |> Result.get_ok in
+  let value_body = definition.body.geometry
+    |> rebind (interface_id "flow_inputs") (List.nth factories 0)
+    |> rebind (interface_id "flow_outputs") (List.nth factories 1)
+    |> fun geometry -> ok (Network.with_geometry geometry definition.body) in
+  let value_body, value_id = ok (Network.add_value_node Flow.Value_kind.Value value_body) in
+  let value_body = ok (Network.connect_value
+    ~source:(port (interface_id "flow_inputs") "speed")
+    ~target:(port value_id "v") value_body) in
+  let value_body = ok (Network.connect_value
+    ~source:(port value_id "out")
+    ~target:(port (interface_id "flow_outputs") "height") value_body) in
+  let value_grouped = grouped.geometry
+    |> rebind instance (List.nth factories 2)
+    |> fun geometry -> ok (Network.with_geometry geometry grouped) in
+  let value_grouped = ok (Network.set_literal ~target:(port instance "speed")
+    (Port.Scalar (Param.Float_value 4.)) value_grouped) in
+  let value_grouped = ok (Network.set_literal ~target:(port instance "position")
+    (Port.Vector (3., 4., 5.)) value_grouped) in
+  let value_grouped, outside_id = ok (Network.add_value_node
+    Flow.Value_kind.Value value_grouped) in
+  let value_grouped = ok (Network.connect_value
+    ~source:(port instance "height") ~target:(port outside_id "v")
+    value_grouped) in
+  assert (match Network.set_literal ~target:(port instance "speed")
+      (Port.Scalar (Param.Float_value nan)) value_grouped with
+    | Error diagnostic -> diagnostic.Flow.Diagnostic.code = "E_TYPE"
+    | Ok _ -> false);
+  let invalid_instance = {Network.definition = value_definition.name;
+    literals = Network.String_map.singleton "speed" (Param.Text_value "bad")} in
+  assert (match Network.of_parts ~geometry:value_grouped.geometry
+      ~values:value_grouped.values ~drives:value_grouped.drives
+      ~geometry_outputs:value_grouped.geometry_outputs
+      ~instances:(Network.Int_map.add instance invalid_instance
+        value_grouped.instances) with
+    | Error diagnostic -> diagnostic.Flow.Diagnostic.code = "E_TYPE"
+    | Ok _ -> false);
+  assert (Network.output_type value_body
+      (port (interface_id "flow_inputs") "speed") = Ok Flow.Port_type.Float
+    && Network.output_type value_grouped (port instance "height")
+       = Ok Flow.Port_type.Float
+    && Network.topological_values value_body = Ok [value_id]
+    && Network.topological_values value_grouped = Ok [outside_id]
+    && Port.literal (ok (Network.parameter value_grouped
+       (port instance "speed"))) = Port.Scalar (Param.Float_value 4.)
+    && Port.literal (ok (Network.parameter value_grouped
+       (port instance "position"))) = Port.Vector (3., 4., 5.)
+    && Network.String_map.find "speed"
+       (Network.Int_map.find instance value_grouped.instances).literals
+       = Param.Float_value 4.);
   let flat, ids = ok (Compile.flatten
     ~definitions:(Network.String_map.singleton definition.name definition)
     ~compiled_ids:Instance_path.Map.empty grouped) in

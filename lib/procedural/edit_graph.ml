@@ -15,6 +15,7 @@ type factory = {
   label : string;
   category : string list;
   fields : Parameter.field_view list;
+  output_fields : Parameter.field_view list;
   requirements : input_requirement array;
   slots : string array;
   build : Node.t option list -> Node.t;
@@ -86,6 +87,16 @@ let find value ~node_id = Option.map (fun (entry : entry) -> entry.node)
 let node_factory_key value ~node_id =
   Option.bind (Id_map.find_opt node_id value.entries)
     (fun (entry : entry) -> Option.map (fun factory -> factory.key) entry.factory)
+
+let node_factory_fields value ~node_id =
+  Option.fold ~none:[] ~some:(fun factory -> factory.fields)
+    (Option.bind (Id_map.find_opt node_id value.entries)
+      (fun (entry : entry) -> entry.factory))
+
+let node_factory_output_fields value ~node_id =
+  Option.fold ~none:[] ~some:(fun factory -> factory.output_fields)
+    (Option.bind (Id_map.find_opt node_id value.entries)
+      (fun (entry : entry) -> entry.factory))
 
 let inputs value ~node_id = Option.map (fun (entry : entry) ->
     Array.copy entry.inputs)
@@ -511,7 +522,8 @@ let slot_names arity = function
         invalid_arg "Edit_graph factory slots must have one distinct name per input";
       Array.of_list names
 
-let factory ?operation ?slots ?(fields = []) ~key ~label ~category ~arity build =
+let factory ?operation ?slots ?(fields = []) ?(output_fields = [])
+    ~key ~label ~category ~arity build =
   let operation = Option.value ~default:key operation in
   if String.trim key = "" || String.trim operation = ""
       || String.trim label = ""
@@ -519,11 +531,13 @@ let factory ?operation ?slots ?(fields = []) ~key ~label ~category ~arity build 
       || List.exists (fun item -> String.trim item = "") category then
     invalid_arg "Edit_graph.factory names must not be blank";
   if arity < 0 then invalid_arg "Edit_graph.factory arity must be non-negative";
-  { key; operation; label; category; fields; requirements = Array.make arity Required;
+  { key; operation; label; category; fields; output_fields;
+    requirements = Array.make arity Required;
     slots = slot_names arity slots;
     build = (fun inputs -> build (List.map Option.get inputs)) }
 
-let factory_slots ?operation ?slots ?(fields = []) ~key ~label ~category ~inputs build =
+let factory_slots ?operation ?slots ?(fields = []) ?(output_fields = [])
+    ~key ~label ~category ~inputs build =
   let operation = Option.value ~default:key operation in
   if String.trim key = "" || String.trim operation = ""
       || String.trim label = ""
@@ -532,7 +546,8 @@ let factory_slots ?operation ?slots ?(fields = []) ~key ~label ~category ~inputs
     invalid_arg "Edit_graph.factory_slots names must not be blank";
   if inputs = [] then invalid_arg
       "Edit_graph.factory_slots requires at least one input slot";
-  { key; operation; label; category; fields; requirements = Array.of_list inputs;
+  { key; operation; label; category; fields; output_fields;
+    requirements = Array.of_list inputs;
     slots = slot_names (List.length inputs) slots; build }
 
 let factory_key (value : factory) = value.key

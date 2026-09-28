@@ -733,7 +733,17 @@ let validate value =
             let* () = state in
             match List.find_opt (fun (port : Flow_sop.Network.interface_port) ->
               port.name = name) definition.spec.inputs with
-            | None -> Error (Printf.sprintf "instance #%d has unknown input %s" id name)
+            | None ->
+                let component = List.exists (fun (port : Flow_sop.Network.interface_port) ->
+                  port.ty = Flow.Port_type.Vec3
+                  && List.exists (fun axis -> name = port.name ^ "_" ^ axis)
+                    ["x"; "y"; "z"]) definition.spec.inputs in
+                (match component, literal with
+                 | true, Parameter.Float_value number when Float.is_finite number -> Ok ()
+                 | true, _ -> Error (Printf.sprintf
+                     "instance #%d has invalid Vec3 component %s" id name)
+                 | false, _ -> Error (Printf.sprintf
+                     "instance #%d has unknown input %s" id name))
             | Some port ->
                 if not (valid_literal port.ty literal) then
                   Error (Printf.sprintf "instance #%d has invalid literal for %s" id name)

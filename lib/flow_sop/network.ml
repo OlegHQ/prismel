@@ -49,7 +49,15 @@ let geometry_source network target =
 let fields network ~node_id = match Flow.Graph.find network.values ~node_id with
   | Some node -> Ok (Flow.Value_kind.fields node.parameters)
   | None -> match Procedural.Edit_graph.find network.geometry ~node_id with
-      | Some node -> Ok (Procedural.Node.parameter_fields node)
+      | Some node ->
+          let fields = Procedural.Node.parameter_fields node in
+          if fields <> [] then Ok fields else
+          let fields = Procedural.Edit_graph.node_factory_fields network.geometry ~node_id in
+          let literals = match Int_map.find_opt node_id network.instances with
+            | Some instance -> instance.literals | None -> String_map.empty in
+          Ok (List.map (fun (field : Param.field_view) ->
+            {field with current = Option.value ~default:field.current
+              (String_map.find_opt field.name literals)}) fields)
       | None -> error "E_UNBOUND" (Printf.sprintf "No node %d" node_id)
 let parameters network ~node_id = Result.bind (fields network ~node_id) Port.parameters
 let parameter network (port : Port.t) = Result.bind (parameters network ~node_id:port.node)
@@ -59,7 +67,13 @@ let output_type network (port : Port.t) = match Flow.Graph.find network.values ~
       | Some ty -> Ok ty | None -> error "E_PORT" ("No value output " ^ port.path))
   | None -> match Procedural.Edit_graph.find network.geometry ~node_id:port.node with
       | Some _ when port.path = "geo" -> Ok Flow.Port_type.Geometry
-      | Some _ -> error "E_PORT" ("No geometry output " ^ port.path)
+      | Some _ ->
+          let fields = Procedural.Edit_graph.node_factory_output_fields
+            network.geometry ~node_id:port.node in
+          Result.bind (Port.parameters fields) (fun parameters ->
+            match Port.find_parameter parameters port.path with
+            | Ok {Port.ty = Some ty; _} -> Ok ty
+            | _ -> error "E_PORT" ("No value output " ^ port.path))
       | None -> error "E_UNBOUND" (Printf.sprintf "No source node %d" port.node)
 
 let outputs ~definitions network ~node_id =
@@ -88,7 +102,8 @@ type visit = Enter of int | Leave of int
 let topological_values network =
   let nodes = Flow.Graph.inspect network.values in
   let dependencies = Port.Map.fold (fun (target : Port.t) drive dependencies -> match drive with
-    | Drive.Wire source when Flow.Graph.find network.values ~node_id:target.node <> None ->
+    | Drive.Wire source when Flow.Graph.find network.values ~node_id:target.node <> None
+        && Flow.Graph.find network.values ~node_id:source.node <> None ->
         Int_map.update target.node (fun current -> Some (source.node :: Option.value current ~default:[])) dependencies
     | _ -> dependencies) network.drives Int_map.empty in
   let colors = Hashtbl.create (List.length nodes) in
@@ -110,6 +125,10 @@ let topological_values network =
   walk [] (List.map (fun (node : Flow.Graph.node) -> Enter node.id) nodes)
 
 let validate_drive network (target : Port.t) drive =
+  match Procedural.Edit_graph.find network.geometry ~node_id:target.node with
+  | Some node when Procedural.Node.operation node = "flow_inputs" ->
+      error "E_PORT" "Inputs marker has no value inputs"
+  | _ ->
   Result.bind (parameter network target) (fun parameter -> match parameter.Port.ty with
     | None -> error "E_TYPE" ("Port " ^ target.path ^ " is literal-only")
     | Some target_type ->
@@ -140,6 +159,23 @@ let validate network =
       (match missing_instance with
        | Some (id, _) -> error "E_UNBOUND" (Printf.sprintf "No instance node %d" id)
        | None ->
+      let literals = Int_map.fold (fun id (instance : instance) checked ->
+        Result.bind checked (fun () ->
+          let fields = Procedural.Edit_graph.node_factory_fields network.geometry
+            ~node_id:id in
+          String_map.fold (fun name value checked -> Result.bind checked (fun () ->
+            match List.find_opt (fun (field : Param.field_view) ->
+              field.name = name) fields with
+            | None -> error "E_PORT" ("Unknown compound literal " ^ name)
+            | Some field ->
+                let valid = match field.kind, value with
+                  | Param.Floating_view _, Param.Float_value number -> Float.is_finite number
+                  | Integer_view _, Int_value _ | Toggle_view, Bool_value _ -> true
+                  | _ -> false in
+                if valid then Ok () else error "E_TYPE"
+                  ("Invalid compound literal " ^ name))) instance.literals (Ok ())))
+        network.instances (Ok ()) in
+      Result.bind literals (fun () ->
       let geometry_ports = Port.Map.fold (fun target output checked ->
         Result.bind checked (fun () -> match geometry_source_id network.geometry target with
           | None -> error "E_PORT" ("No geometry wire to " ^ target.path)
@@ -162,7 +198,7 @@ let validate network =
             error "E_PORT" "A slot and parameter have the same name" else Ok ()))) (Ok ()) nodes in
       Result.bind checked (fun () -> Result.bind
         (Port.Map.fold (fun target drive checked -> Result.bind checked (fun () -> validate_drive network target drive))
-          network.drives (Ok ())) (fun () -> Result.map (fun _ -> ()) (topological_values network)))))
+          network.drives (Ok ())) (fun () -> Result.map (fun _ -> ()) (topological_values network))))))
 let of_parts ~geometry ~values ~drives ~geometry_outputs ~instances =
   let network = {geometry; values; drives; geometry_outputs; instances} in
   Result.bind (validate network) (fun () ->
@@ -248,13 +284,29 @@ let disconnect ~(target : Port.t) network =
       ~consumer:target.node ~input_index network.geometry)) (fun geometry ->
         with_geometry geometry network)
 let set_literal ~(target : Port.t) value network =
-  Result.bind (parameter network target) (fun parameter -> Result.bind (Port.literal_changes parameter value) (fun changes ->
-    match Flow.Graph.find network.values ~node_id:target.node with
-    | Some _ -> Result.map (fun (values, _) -> if values == network.values then network else {network with values})
-        (Flow.Graph.apply_parameters network.values ~node_id:target.node changes)
-    | None -> Result.bind (Result.map_error (Flow.Diagnostic.error ~code:"E_TYPE")
-        (Procedural.Edit_graph.apply_parameters network.geometry ~node_id:target.node changes))
-        (fun (geometry, _) -> with_geometry geometry network)))
+  Result.bind (parameter network target) (fun parameter ->
+    let changes = if Int_map.mem target.node network.instances then
+      let typed = match value with
+        | Port.Scalar (Param.Float_value value) -> Ok (Flow.Port_type.Float_value value)
+        | Scalar (Param.Int_value value) -> Ok (Flow.Port_type.Int_value value)
+        | Scalar (Param.Bool_value value) -> Ok (Flow.Port_type.Bool_value value)
+        | Vector (x,y,z) -> Ok (Flow.Port_type.Vec3_value (x,y,z))
+        | Scalar _ -> error "E_TYPE" "Compound literals must be Float, Int, Bool or Vec3" in
+      Result.bind typed (fun typed -> Result.map snd (Port.normalize parameter typed))
+    else Port.literal_changes parameter value in
+    Result.bind changes (fun changes ->
+    match Int_map.find_opt target.node network.instances with
+    | Some instance ->
+        let literals = List.fold_left (fun literals (name, value) ->
+          String_map.add name value literals) instance.literals changes in
+        Ok {network with instances = Int_map.add target.node
+          {instance with literals} network.instances}
+    | None -> match Flow.Graph.find network.values ~node_id:target.node with
+      | Some _ -> Result.map (fun (values, _) -> if values == network.values then network else {network with values})
+          (Flow.Graph.apply_parameters network.values ~node_id:target.node changes)
+      | None -> Result.bind (Result.map_error (Flow.Diagnostic.error ~code:"E_TYPE")
+          (Procedural.Edit_graph.apply_parameters network.geometry ~node_id:target.node changes))
+          (fun (geometry, _) -> with_geometry geometry network)))
 
 let set_number ~target number network =
   Result.bind (parameter network target) (fun parameter ->

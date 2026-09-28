@@ -50,6 +50,8 @@ val set_bypass : t -> node_id:int -> bool -> (t, string) result
 val is_bypassed : t -> node_id:int -> bool
 
 val node_factory_key : t -> node_id:int -> string option
+val node_factory_fields : t -> node_id:int -> Parameter.field_view list
+val node_factory_output_fields : t -> node_id:int -> Parameter.field_view list
 (** The catalog factory a node was added from; [None] for nodes that came from
     a code graph ([of_graph]). *)
 
@@ -119,6 +121,7 @@ val factory :
   ?operation:string ->
   ?slots:string list ->
   ?fields:Parameter.field_view list ->
+  ?output_fields:Parameter.field_view list ->
   key:string ->
   label:string ->
   category:string list ->
@@ -129,6 +132,7 @@ val factory_slots :
   ?operation:string ->
   ?slots:string list ->
   ?fields:Parameter.field_view list ->
+  ?output_fields:Parameter.field_view list ->
   key:string ->
   label:string ->
   category:string list ->

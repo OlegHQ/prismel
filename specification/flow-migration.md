@@ -318,6 +318,14 @@ network with the same canvas, keys, views and text), then plan it here.
 
 ## Log
 
+- 2026-09-28 M5 value-interface validation checkpoint: compound factory
+  metadata now exposes typed value inputs and outputs on the Inputs/Outputs
+  markers and on instances. Network validation accepts value wires across
+  those boundaries, and instance literals use the same normalization as
+  ordinary value rows. The focused test covers marker-to-value-node and
+  instance-to-value-node wires. Flattening those drives for cook, export,
+  unexport, and value-aware ungroup remain pending.
+
 - 2026-09-28 M5 geometry-interface reorder checkpoint: Inputs/Outputs
   inspector move controls reorder adjacent geometry ports. Factory slots and
   logical input arrays move together by port name, so two-input/two-output
