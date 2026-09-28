@@ -318,6 +318,12 @@ network with the same canvas, keys, views and text), then plan it here.
 
 ## Log
 
+- 2026-09-28 M5 compiled-id checkpoint: `Edit_graph.paste ~ids` can inline a
+  definition fragment under the document's saved compiled ids while retaining
+  its factory metadata, optional slots and internal wires. It rejects missing,
+  duplicate or occupied id mappings. The ordinary clipboard paste still
+  allocates fresh ids; flattening will use the explicit mapping.
+
 - 2026-09-28 M5 geometry-output checkpoint: `Network.geometry_outputs` records
   a named compound geometry source by destination port while ordinary SOP
   wires continue to use `geo`. Connect, disconnect, copy/paste and preset v3

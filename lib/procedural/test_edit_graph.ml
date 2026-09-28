@@ -149,6 +149,19 @@ let run () =
          = Some [|Some pasted_source|]
       && List.length (Edit_graph.inspect pasted) = 5)
     "subgraph paste did not assign fresh ids and preserve internal wiring";
+  let fixed_source = Node.Private.fresh_id () + 1000 in
+  let fixed_middle = fixed_source + 1 in
+  let fixed, mapping = Edit_graph.paste
+      ~ids:[Node.id source, fixed_source; Node.id middle, fixed_middle]
+      fragment reconnected |> get in
+  check (mapping = [Node.id source, fixed_source; Node.id middle, fixed_middle]
+      && Edit_graph.inputs fixed ~node_id:fixed_middle = Some [|Some fixed_source|]
+      && Node.id (Edit_graph.compile_node fixed ~node_id:fixed_middle |> get)
+        = fixed_middle)
+    "compound paste did not preserve assigned compiled ids";
+  check (Result.is_error (Edit_graph.paste ~ids:[Node.id source, Node.id middle;
+      Node.id middle, Node.id source] fragment reconnected))
+    "compound paste overwrote existing node ids";
   let external_fragment = Edit_graph.copy_nodes [Node.id middle] reconnected
       |> get in
   let pasted, mapping = Edit_graph.paste external_fragment reconnected |> get in

@@ -368,14 +368,34 @@ let copy_nodes ids value =
           if Id_set.mem id selected then Some id else None) in
         Ok { fragment_entries; fragment_root }
 
-let paste fragment value =
+let paste ?ids fragment value =
   if fragment.fragment_entries = [] then Error "cannot paste an empty node fragment"
   else
+    let supplied = Option.map Id_map.of_list ids in
+    let valid_ids = match ids with
+      | None -> Ok ()
+      | Some ids ->
+          let old_ids = List.map fst ids and new_ids = List.map snd ids in
+          let fragment_ids = List.fold_left (fun ids (id, _) -> Id_set.add id ids)
+            Id_set.empty fragment.fragment_entries in
+          if List.length ids <> List.length fragment.fragment_entries
+            || List.length old_ids <> List.length (List.sort_uniq Int.compare old_ids)
+            || List.length new_ids <> List.length (List.sort_uniq Int.compare new_ids)
+            || List.exists (fun (old_id, id) ->
+              not (Id_set.mem old_id fragment_ids)
+              || id < 1 || id = max_int || Id_map.mem id value.entries) ids then
+            Error "invalid compound paste id mapping" else Ok () in
+    Result.bind valid_ids (fun () ->
     let clones = List.map (fun (old_id, (entry : entry)) ->
       (* Editable optional slots include absent inputs. Clone the physical
          arity; the factory below rebuilds presence from remapped slots. *)
       let placeholders = Node.Private.input_array entry.node in
-      old_id, Node.Private.clone_with_inputs entry.node placeholders,
+      let node = Node.Private.clone_with_inputs entry.node placeholders in
+      let node = match supplied with
+        | None -> node
+        | Some supplied -> Node.Private.restore_id (Id_map.find old_id supplied) node
+            |> Result.get_ok in
+      old_id, node,
       entry.inputs, entry.factory, entry.bypass)
         fragment.fragment_entries in
     let remap = List.fold_left (fun remap (old_id, node, _, _, _) ->
@@ -399,7 +419,7 @@ let paste fragment value =
       | None, Some old_id -> Id_map.find_opt old_id remap
       | None, None -> None in
     Ok ({ entries; root;
-          order_rev = List.rev_append appended_ids value.order_rev }, mapping)
+          order_rev = List.rev_append appended_ids value.order_rev }, mapping))
 
 let connect ~source ~consumer ~input_index value =
   if not (Id_map.mem source value.entries) then Error (Printf.sprintf

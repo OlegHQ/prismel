@@ -98,7 +98,9 @@ val disconnect : consumer:int -> input_index:int -> t -> (t, string) result
     selection become disconnected slots. Pasting allocates fresh logical node
     IDs, retains internal wiring, and returns the old-to-new ID mapping. *)
 val copy_nodes : int list -> t -> (fragment, string) result
-val paste : fragment -> t -> (t * (int * int) list, string) result
+val paste : ?ids:(int * int) list -> fragment -> t -> (t * (int * int) list, string) result
+(* [ids] fixes the old-to-new logical ids when inlining a compound. It must
+   cover the fragment exactly with distinct, unused positive ids. *)
 
 (** Atomically insert a node's primary slot on a connection. Extra slots start
     disconnected. Sources with no input slot cannot be inserted. *)

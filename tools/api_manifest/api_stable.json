@@ -1124,13 +1124,13 @@
       "source_sha256": "22768a3498358549067252ba294073b2ae119fad811a66d1c09562c04e0b37fb"
     },
     {
-      "api_sha256": "e6a23347653b95d62199083fa7ac9559a0ae14e3ef95f87d8dcd831f0f2ced02",
+      "api_sha256": "24e86fd4ee695416581b43fba60d298a97972124de49845d3472344b454f558d",
       "excluded_legacy_symbols": [],
       "library": "procedural",
       "module": "Edit_graph",
       "source": "lib/procedural/edit_graph.mli",
-      "source_bytes": 5298,
-      "source_sha256": "47732f01e6e48f0b16ee35f3d061ae082d84e779abe928d6b7065010860a2700"
+      "source_bytes": 5468,
+      "source_sha256": "65de687ed974b0128c0fbf7e9e596f1f35dd9c6d989731073b6c2621e6533163"
     },
     {
       "api_sha256": "e2b28c62481122de99ba265c82e061740f1c9c514f49cdf82ee76a99d2b9abe7",
