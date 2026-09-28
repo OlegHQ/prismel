@@ -1156,8 +1156,8 @@
       "library": "procedural",
       "module": "Edit_graph",
       "source": "lib/procedural/edit_graph.mli",
-      "source_bytes": 6139,
-      "source_sha256": "a9d0b86501d5e1cb2f36968d6e8f034a50121e6895e9dba0879bb7c13d1e21d6"
+      "source_bytes": 6176,
+      "source_sha256": "f831b819348bcadb8e478e92e0775ea6c0c1184a70c27543072ca2bbadd1b2a5"
     },
     {
       "api_sha256": "e2b28c62481122de99ba265c82e061740f1c9c514f49cdf82ee76a99d2b9abe7",

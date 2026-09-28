@@ -139,6 +139,32 @@ let run () =
   check (Node.id without_target_again = Node.id loose_match
       && List.length (Node.inputs without_target_again) = 1)
     "disconnecting an optional slot did not restore the unary SOP";
+  let optional_factory slots = Edit_graph.factory_slots ~key:"optional_null"
+    ~operation:"null" ~slots ~label:"Optional Null"
+    ~category:["Test"]
+    ~inputs:(List.map (fun _ -> Edit_graph.Optional) slots)
+    (fun _ -> Sop.null source) in
+  let wide = optional_factory ["a"; "b"]
+  and narrow = optional_factory ["b"] in
+  let optional_node = Edit_graph.instantiate_optional wide [None; None]
+    |> get in
+  let optional_graph = Edit_graph.add_node ~factory:wide
+    ~inputs:[|None; None|] optional_node document |> get
+    |> Edit_graph.connect ~source:(Node.id source)
+         ~consumer:(Node.id optional_node) ~input_index:1 |> get in
+  let narrowed = Edit_graph.rebind_factory ~preserve_wires_by_name:true
+    ~node_id:(Node.id optional_node) narrow optional_graph |> get in
+  check (Edit_graph.node_slot_names narrowed ~node_id:(Node.id optional_node)
+      = Some ["b"]
+    && Edit_graph.inputs narrowed ~node_id:(Node.id optional_node)
+       = Some [|Some (Node.id source)|])
+    "factory resize lost a wire on a retained named slot";
+  let occupied = Edit_graph.connect ~source:(Node.id source)
+    ~consumer:(Node.id optional_node) ~input_index:0 optional_graph |> get in
+  check (Result.is_error (Edit_graph.rebind_factory
+    ~preserve_wires_by_name:true ~node_id:(Node.id optional_node)
+    narrow occupied))
+    "factory resize removed a connected slot";
   let fragment = Edit_graph.copy_nodes [Node.id source; Node.id middle]
       reconnected |> get in
   let pasted, mapping = Edit_graph.paste fragment reconnected |> get in

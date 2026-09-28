@@ -1,17 +1,15 @@
 # Scene tree
 
-Prismel Editor currently navigates between the scene and each geometry
-object’s SOP network (the World has its layer stack instead). SOP networks can
-hold shared compound definitions created by grouping; entering those
-definitions with `i` or double-click follows the instance path, and `u`
-returns to the parent instance.
+Prismel Editor navigates between the scene and each geometry object’s SOP
+network (the World has its layer stack instead). SOP networks hold shared
+compound definitions created by grouping SOP and value nodes. Entering an
+instance with `i` or double-click follows its instance path into the shared
+definition; `u` returns to and selects the parent instance. There is no
+"no subnetworks" limit within SOP networks. Every network records its
+`sop`, `scene`, or `world` context.
 
-*Prismel Flow (target, `flow.md`):* M5 completes compound editing below
-instances inside SOP networks; every network gains a context (`sop`,
-`scene`, `world`); M6 turns `Space l` into a graph → list → text cycle; M2
-moves the World keys `e`/`r`/`p` to `t`/`n`/`d`. The scene and World become
-Flow contexts in a later revision of `flow.md`. This file is current until
-each milestone lands.
+M6 turns `Space l` into a graph → list → text cycle. Converting the scene and
+World into full Flow contexts remains for a later revision of `flow.md`.
 
 ## Objects are nodes
 

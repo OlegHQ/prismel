@@ -17,6 +17,9 @@ Value-only compound instances do not require a geometry display; display
 validation accepts only nodes with geometry output.
 Compound interface defaults use `Flow_sop.Port.literal`; a Vec3 default holds
 its three components and presets store the triple under `vec3`.
+Geometry interface unexport refuses connected body or instance wires and the
+displayed output; removing an idle port rebinds every shared instance by slot
+name so remaining wires keep their destinations.
 Make unique copies a definition with fresh internal ids, rebinds its interface
 factories, and retargets only the selected instance; other instances retain
 the original definition.

@@ -70,10 +70,10 @@ val compiled_node : compiled -> node_id:int -> (Graph.t, string) result
 (** Replace only the node payload. Its logical id and input arity must match. *)
 val replace_node : Node.t -> t -> (t, string) result
 (* Retarget a factory-backed node to an optional-input factory with the same
-   operation and arity, preserving its id and label. By default wiring stays
-   at each index (for a rename); [preserve_wires_by_name] permutes inputs to
-   follow slot names (for a reorder). Callers update path-keyed metadata on
-   rename. *)
+   operation, preserving its id and label. By default arity is unchanged and
+   wiring stays at each index. [preserve_wires_by_name] follows slot names,
+   allowing optional slots to be added or disconnected slots to be removed.
+   Callers update path-keyed metadata on rename. *)
 val rebind_factory :
   ?preserve_wires_by_name:bool -> node_id:int -> factory -> t ->
   (t, string) result

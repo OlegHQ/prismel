@@ -307,7 +307,14 @@ let run () =
   let value_grouped, value_instance = Editor_document.Document.group
     value_doc level ~selected:[20; inner_value]
     ~positions:[20, 48., 24.; inner_value, 0., 24.] |> Result.get_ok in
-  check (Result.is_ok (Editor_document.Document.validate value_grouped))
+  let value_inside = Editor_document.Document.enter_compound
+    value_grouped level value_instance |> Option.get in
+  let value_body = Editor_document.Document.network value_grouped
+    value_inside |> Option.get in
+  check (Result.is_ok (Editor_document.Document.validate value_grouped)
+    && Flow.Graph.find value_body.graph.values ~node_id:inner_value <> None
+    && Editor_document.Document.parent_level value_inside
+       = Some (level, value_instance))
     "value-aware document group is invalid";
   let value_grouped_path = Editor_document.Preset.save ~directory
     ~name:"value-grouped-saved" ~sketch:"contract" ~doc:value_grouped
@@ -703,10 +710,94 @@ let run () =
     && Result.is_ok (Editor_document.Document.validate reordered)
     && Result.is_ok (Editor_document.Document.allocate_compiled_ids reordered))
     "reordering geometry interface ports swapped or dropped sources";
+  let removable_input = Flow_sop.Network.geometry_source
+    reordered_definition.spec.body
+    Flow_sop.Port.{node = Node.id inner2; path = "in0"}
+    |> Option.get |> fun source -> source.path in
+  let removable_output = Flow_sop.Network.geometry_source
+    reordered_parent.graph
+    Flow_sop.Port.{node = Node.id outer2; path = "in0"}
+    |> Option.get |> fun source -> source.path in
+  check (Result.is_error (Editor_document.Document.unexport_port reordered
+      ~definition_name:"compound_1" ~side:Input ~name:removable_input)
+    && Result.is_error (Editor_document.Document.unexport_port reordered
+      ~definition_name:"compound_1" ~side:Output ~name:removable_output))
+    "unexport discarded a connected geometry port";
+  let removable_level = Editor_document.Document.enter_compound reordered
+    root_level reorder_instance |> Option.get in
+  let removable_body = Editor_document.Document.network reordered
+    removable_level |> Option.get in
+  let body_graph = Flow_sop.Network.disconnect
+    ~target:Flow_sop.Port.{node = Node.id inner2; path = "in0"}
+    removable_body.graph |> Result.get_ok in
+  let body_graph = Flow_sop.Network.disconnect
+    ~target:Flow_sop.Port.{node = outputs_marker.id;
+      path = removable_output} body_graph |> Result.get_ok in
+  let removable = Editor_document.Document.with_network reordered
+    removable_level {removable_body with graph = body_graph} in
+  let removable_parent = Editor_document.Document.network removable
+    root_level |> Option.get in
+  let parent_graph = Flow_sop.Network.disconnect
+    ~target:Flow_sop.Port.{node = reorder_instance;
+      path = removable_input} removable_parent.graph |> Result.get_ok in
+  let parent_graph = Flow_sop.Network.disconnect
+    ~target:Flow_sop.Port.{node = Node.id outer2; path = "in0"}
+    parent_graph |> Result.get_ok in
+  let fragment = Flow_sop.Network.copy_nodes [reorder_instance]
+    parent_graph |> Result.get_ok in
+  let parent_graph, copied = Flow_sop.Network.paste fragment parent_graph
+    |> Result.get_ok in
+  let copied_instance = List.assoc reorder_instance copied in
+  let removable = Editor_document.Document.with_network removable
+    root_level {removable_parent with graph = parent_graph} in
+  let removed_input = Editor_document.Document.unexport_port removable
+    ~definition_name:"compound_1" ~side:Input ~name:removable_input
+    |> function Ok value -> value
+      | Error diagnostic -> failwith (Flow.Diagnostic.to_string diagnostic) in
+  let removed_both = Editor_document.Document.unexport_port removed_input
+    ~definition_name:"compound_1" ~side:Output ~name:removable_output
+    |> Result.get_ok in
+  let reduced_parent = Editor_document.Document.network removed_both
+    root_level |> Option.get in
+  let reduced_definition = Editor_document.Document.String_map.find
+    "compound_1" removed_both.definitions in
+  let remaining_input = List.find (fun name -> name <> removable_input)
+    input_names
+  and remaining_output = List.find (fun name -> name <> removable_output)
+    output_names in
+  check (Edit_graph.node_slot_names reduced_parent.graph.geometry
+      ~node_id:reorder_instance = Some [remaining_input]
+    && Edit_graph.node_slot_names reduced_parent.graph.geometry
+       ~node_id:copied_instance = Some [remaining_input]
+    && Edit_graph.node_slot_names reduced_definition.spec.body.geometry
+      ~node_id:outputs_marker.id = Some [remaining_output]
+    && Flow_sop.Network.geometry_source reduced_parent.graph
+      Flow_sop.Port.{node = reorder_instance; path = remaining_input}
+       = Flow_sop.Network.geometry_source reordered_parent.graph
+         Flow_sop.Port.{node = reorder_instance; path = remaining_input}
+    && Flow_sop.Network.geometry_source reduced_parent.graph
+      Flow_sop.Port.{node = Node.id outer1; path = "in0"}
+       = Flow_sop.Network.geometry_source reordered_parent.graph
+         Flow_sop.Port.{node = Node.id outer1; path = "in0"}
+    && Result.is_ok (Editor_document.Document.validate removed_both)
+    && Result.is_ok (Editor_document.Document.allocate_compiled_ids removed_both))
+    "unexporting idle geometry ports changed a remaining named wire";
   let inside = Editor_document.Document.enter_compound grouped root_level grouped_id
     |> Option.get in
   let inside_network = Editor_document.Document.network grouped inside
     |> Option.get in
+  let output_id = Edit_graph.inspect inside_network.graph.geometry
+    |> List.find (fun (node : Edit_graph.node_info) ->
+      node.operation = "flow_outputs") |> fun node -> node.id in
+  let idle_body = Flow_sop.Network.disconnect
+    ~target:Flow_sop.Port.{node = output_id; path = "result"}
+    inside_network.graph |> Result.get_ok in
+  let displayed_instance = Editor_document.Document.with_network grouped
+    inside {inside_network with graph = idle_body} in
+  check (Result.is_error (Editor_document.Document.unexport_port
+      displayed_instance ~definition_name:"compound_1" ~side:Output
+      ~name:"result"))
+    "unexport removed the displayed compound output";
   check (Editor_document.Document.parent_level inside = Some (root_level, grouped_id)
     && Edit_graph.find inside_network.graph.geometry ~node_id:20 <> None
     && Editor_document.Document.resolve_level ~scene_level:false grouped inside

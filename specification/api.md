@@ -653,9 +653,9 @@ The Prismel Flow canvas flows left to right with polyline wires,
 authored bends, point/chip/card/full levels, editable literal rows, value
 tiles, typed parameter sockets and live drive wires.
 `Editor_core.Network_layout` is the UI-free saved layout shared by the host
-and canvas. Guide mode, value drives, wireless binds, expression fields and
-the ƒ fold/unfold row control are implemented. Compounds,
-graph/list/text views and `[%flow {| … |}]` follow in M5–M7; see
+and canvas. Guide mode, value drives, wireless binds, expression fields, the ƒ
+fold/unfold row control and shared compounds are implemented. Graph/list/text
+views and `[%flow {| … |}]` follow in M6–M7; see
 `flow-migration.md`.
 `prismel.pxui_graph` supplies deterministic initial layout,
 persistent graph-space tile positions, ordered ports/wires, topology-safe node
@@ -781,7 +781,7 @@ The table above lists keys after `Space`. With the graph focused:
 | `x`, Delete, Backspace / `⇧X` | delete selection / dissolve and reconnect the primary trunk |
 | `/` / `f` / Home | find / frame selection or display / frame all |
 | `⌘C/V/X/D`, Ctrl equivalents | copy / paste / cut / duplicate |
-| `⌘G`, Ctrl-G | group selected SOP nodes into a shared compound definition |
+| `⌘G`, Ctrl-G | group selected SOP and value nodes into a shared compound definition |
 | `⇧⌘G`, Shift-Ctrl-G | ungroup one compound instance into fresh inner nodes |
 | `⌘Z` / `⇧⌘Z`, Ctrl equivalents | undo / redo |
 | `b` / `w` | bind by hints or toggle a selected wire's wireless state / show wireless wires |
@@ -795,13 +795,15 @@ key sheet; key feedback lasts 1.5 seconds. Shared UI text focus owns typing
 and modal dismissal. `Tab` runs Add in the canvas; `Shift-Tab` remains UI
 traversal. World keys are `t`/`n`/`d`, described in `scene.md`.
 
-Later milestones complete compound editing and add the text projection
-(`flow.md` §7.2).
+The text projection follows in M6 (`flow.md` §7.2).
 The compound tile menu and command palette offer Make unique, which copies a
 shared definition for one instance while other instances keep the original.
-Inside a compound, the Inputs and Outputs inspector can rename geometry
-interface ports or move them within the geometry section. All instances and
-their wires follow a shared rename or reorder.
+Inside a compound, the Inputs and Outputs inspector renames, reorders and
+unexports geometry and value interface ports. Geometry unexport requires the
+body and every instance wire to be disconnected. Hovering a literal parameter
+row and pressing `e` exports its scalar or whole-Vec3 value to a shared input.
+Interface defaults retain all three Vec3 components. All instances and their
+wires follow a shared rename or reorder.
 
 Plain keys: `i` enters the selected object or compound, `u` goes up and selects
 the compound instance; in the view `w`/`e`/`r`

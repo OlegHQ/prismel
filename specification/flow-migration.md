@@ -35,7 +35,7 @@ accept an intended one with `dune promote`.
 | M2 | Keys and guide mode, World key remap | done | 2026-09-27 |
 | M3 | Value ports: `flow`, `flow_sop`, value nodes, drives by wire, exposure, vec3, inspector | done | 2026-09-28 |
 | M4 | Wireless binds, expressions, fold/unfold, row keys | done | 2026-09-28 |
-| M5 | Compounds and contexts | in progress | |
+| M5 | Compounds and contexts | done | 2026-09-28 |
 | M6 | Views: list with values, read-only text, reader and checker | not started | |
 | M7 | `[%flow]` PPX and catalog manifest | not started | |
 
@@ -318,12 +318,20 @@ network with the same canvas, keys, views and text), then plan it here.
 
 ## Log
 
+- 2026-09-28 M5 complete: geometry-port unexport now refuses connected body
+  and instance wires and the displayed output, then removes an idle port from
+  the definition and every shared instance while preserving other named
+  wires. `Edit_graph.rebind_factory` supports changing optional slot arity by
+  name and refuses deletion of a connected slot. Focused tests cover the
+  shared edit, value-aware group/ungroup, Vec3 defaults, export, nested levels,
+  stable compiled ids, preset round trips and recursive-definition rejection.
+
 - 2026-09-28 M5 Vec3-default/export checkpoint: compound interface defaults
   now use `Port.literal`, so a whole Vec3 row keeps all three components.
   Grouping and `e` export preserve nonuniform defaults; factory fields,
   instance rows, document validation and preset round trips agree. A split
-  vector must be joined before whole-row export. Geometry-port unexport
-  remains pending.
+  vector must be joined before whole-row export. At this checkpoint,
+  geometry-port unexport remained pending.
 
 - 2026-09-28 M5 value-group round-trip checkpoint: grouping accepts mixed SOP
   and value selections, deduplicates typed value boundary ports, and rewires

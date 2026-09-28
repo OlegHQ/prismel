@@ -485,9 +485,77 @@ let unexport_port value ~definition_name ~side ~name =
     | Output -> definition.spec.outputs in
   let* port = match List.find_opt (fun
       (port : Flow_sop.Network.interface_port) -> port.name = name) ports with
-    | Some port when port.ty <> Flow.Port_type.Geometry -> Ok port
-    | Some _ -> error "Geometry interface removal needs a geometry rewrite"
+    | Some port -> Ok port
     | None -> error ("No interface port " ^ name) in
+  if port.ty = Flow.Port_type.Geometry then
+    let body = definition.spec.body in
+    let marker = Edit_graph.inspect body.geometry
+      |> List.find_opt (fun (node : Edit_graph.node_info) ->
+        node.operation = (if side = Input then "flow_inputs"
+          else "flow_outputs")) in
+    let* marker = match marker with Some marker -> Ok marker.id
+      | None -> error "Compound interface marker is missing" in
+    let used_as_source graph ~node =
+      List.exists (fun (info : Edit_graph.node_info) ->
+        let slots = Option.value ~default:[]
+          (Edit_graph.node_slot_names graph.Flow_sop.Network.geometry
+            ~node_id:info.id) in
+        List.exists (fun path ->
+          Flow_sop.Network.geometry_source graph
+            Flow_sop.Port.{node = info.id; path}
+          = Some Flow_sop.Port.{node; path = name}) slots)
+        (Edit_graph.inspect graph.geometry) in
+    let body_used = if side = Input then used_as_source body ~node:marker
+      else Flow_sop.Network.geometry_source body
+        Flow_sop.Port.{node = marker; path = name} <> None in
+    if body_used then error "Disconnect the geometry port inside the compound"
+    else
+    let inputs = if side = Input then List.filter (fun
+      (candidate : Flow_sop.Network.interface_port) -> candidate.name <> name)
+      definition.spec.inputs else definition.spec.inputs in
+    let outputs = if side = Output then List.filter (fun
+      (candidate : Flow_sop.Network.interface_port) -> candidate.name <> name)
+      definition.spec.outputs else definition.spec.outputs in
+    let factories = Flow_sop.Compound_node.factories ~name:definition_name
+      ~inputs ~outputs in
+    let* geometry = Result.map_error
+      (Flow.Diagnostic.error ~code:"E_INTERFACE")
+      (Edit_graph.rebind_factory ~preserve_wires_by_name:true
+        ~node_id:marker (List.nth factories (if side = Input then 0 else 1))
+        body.geometry) in
+    let* body = Flow_sop.Network.with_geometry geometry body in
+    let definition = {definition with spec = {definition.spec with
+      inputs; outputs; body}} in
+    let value = {value with definitions = String_map.add definition_name
+      definition value.definitions} in
+    let first_geometry_output = List.find_opt (fun
+      (candidate : Flow_sop.Network.interface_port) ->
+        candidate.ty = Flow.Port_type.Geometry) ports in
+    map_networks value (fun (current : network) ->
+      let matching = Flow_sop.Network.Int_map.bindings current.graph.instances
+        |> List.filter_map (fun (id, instance) ->
+          if instance.Flow_sop.Network.definition = definition_name
+          then Some id else None) in
+      if matching = [] then Ok current else
+      let in_use = List.exists (fun id -> if side = Input then
+        Flow_sop.Network.geometry_source current.graph
+          Flow_sop.Port.{node = id; path = name} <> None
+        else used_as_source current.graph ~node:id
+          || current.displayed = Some id
+             && Option.fold ~none:false ~some:(fun
+               (candidate : Flow_sop.Network.interface_port) ->
+                 candidate.name = name) first_geometry_output) matching in
+      if in_use then error "Disconnect every instance geometry wire before unexporting"
+      else
+      let* geometry = List.fold_left (fun state id ->
+        let* geometry = state in
+        Result.map_error (Flow.Diagnostic.error ~code:"E_INTERFACE")
+          (Edit_graph.rebind_factory ~preserve_wires_by_name:true
+            ~node_id:id (List.nth factories 2) geometry))
+          (Ok current.graph.geometry) matching in
+      let* graph = Flow_sop.Network.with_geometry geometry current.graph in
+      Ok {current with graph})
+  else
   let matches path = path = name
     || port.ty = Flow.Port_type.Vec3
        && String.starts_with ~prefix:(name ^ ".") path in

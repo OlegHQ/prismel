@@ -2,7 +2,7 @@
 
 ## 1. Status and authority
 
-Status: approved design, revision 3 (2026-09-28). **M1–M4 implemented; M5 in progress; M6–M7 pending.**
+Status: approved design, revision 3 (2026-09-28). **M1–M5 implemented; M6–M7 pending.**
 Milestones M1–M7, the file-level tasks for each, and progress live in
 `flow-migration.md`. The behavioral reference is the prototype at
 `specification/flow/prototype/index.html` (open it in a browser; no build).
@@ -635,6 +635,11 @@ Pan so the new selection is visible.
 - **Export** (`e` on a hovered row inside a definition): add an interface
   input with the row's type, current literal as default, label and range; wire
   Inputs to the row. The instance gains the row. Refused on a driven row.
+- **Unexport** (Inputs/Outputs inspector): remove an interface port across the
+  shared definition and its instances. A geometry port must first have its
+  body wire and every instance wire disconnected; a displayed geometry output
+  is in use. Removing another geometry port preserves the remaining named
+  wires. Value-port removal retains the literal at the body destination.
 - The display flag lives at the top level of a SOP network; `v` inside a
   definition toasts.
 
@@ -1117,6 +1122,11 @@ Bare numbers become normalized target literals as specified above.
 `Param.value`, because a Vec3 default can have three different components.
 Presets encode that case as a `vec3` triple; scalar defaults keep their
 existing value encoding.
+
+2026-09-28: unexporting a connected geometry port would discard topology,
+unlike a value input that can fall back to a literal. Geometry unexport is
+therefore allowed only after body and instance wires are disconnected; the
+displayed output also counts as a use.
 
 2026-09-27: the requested full migration has no backward compatibility;
 version 3 replaces the v1/v2 readers and preserves saved node ids.

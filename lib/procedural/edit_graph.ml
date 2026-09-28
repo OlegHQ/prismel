@@ -266,20 +266,24 @@ let rebind_factory ?(preserve_wires_by_name = false) ~node_id
   match Id_map.find_opt node_id value.entries with
   | None -> Error (Printf.sprintf "editable graph has no node #%d" node_id)
   | Some entry when Node.operation entry.node <> factory.operation
-      || Array.length entry.inputs <> Array.length factory.slots
+      || not preserve_wires_by_name
+         && Array.length entry.inputs <> Array.length factory.slots
       || Array.exists (( = ) Required) factory.requirements ->
       Error "replacement factory must have the same operation and optional input arity"
   | Some entry ->
       let inputs = if not preserve_wires_by_name then Ok entry.inputs else
         let names = Option.get (node_slot_names value ~node_id) in
-        let indexes = List.map (fun name ->
-          List.find_index (String.equal name) names) (Array.to_list factory.slots) in
-        if List.exists Option.is_none indexes
-            || List.length (List.sort_uniq String.compare names)
-               <> Array.length entry.inputs then
-          Error "replacement factory changed the slot names"
-        else Ok (Array.of_list (List.map (fun index ->
-          entry.inputs.(Option.get index)) indexes)) in
+        if List.length (List.sort_uniq String.compare names)
+            <> Array.length entry.inputs then
+          Error "replacement factory has ambiguous old slot names"
+        else if List.exists (fun (index, name) ->
+          not (Array.exists (String.equal name) factory.slots)
+          && entry.inputs.(index) <> None)
+          (List.mapi (fun index name -> index, name) names) then
+          Error "replacement factory would remove a connected slot"
+        else Ok (Array.map (fun name -> match
+          List.find_index (String.equal name) names with
+          | None -> None | Some index -> entry.inputs.(index)) factory.slots) in
       Result.map (fun inputs ->
         let node = factory.build (List.init (Array.length inputs)
           (fun _ -> None)) |> Node.Private.adopt_identity ~source:entry.node in

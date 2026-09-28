@@ -84,7 +84,7 @@ rules in this file are current. Planned changes that touch this directory:
   and inspector fields accept checked `=…` expressions; `r` clears a drive or
   restores the literal default. The ƒ row action folds unshared value chains
   into expressions and unfolds expressions into placed Math/Time nodes.
-- M5 is in progress: grouping SOP and value nodes creates shared definitions
+- M5 is implemented: grouping SOP and value nodes creates shared definitions
   and instances, retains moved ids, cooks through saved compiled ids, and records
   one history step. Compound instance paths enter shared definitions, and `u`
   returns to and selects the parent instance. Ungrouping replaces internal SOP
@@ -93,8 +93,8 @@ rules in this file are current. Planned changes that touch this directory:
   Inputs/Outputs inspector can rename and reorder shared geometry and value
   ports and unexport unused value ports. `e` exports scalar rows inside a
   definition; instance rows edit their own literals, and flattening carries
-  value drives through nested compounds. Whole-Vec3 export and nonuniform Vec3
-  interface defaults are implemented; geometry-port unexport remains. M6: `Space l` cycles
+  value drives through nested compounds. Whole-Vec3 export, nonuniform Vec3
+  defaults, and geometry-port unexport are implemented. M6: `Space l` cycles
   graph, list, text.
 
 Keep the three-column workspace, `Doc.apply` as the only graph-intent reducer,
