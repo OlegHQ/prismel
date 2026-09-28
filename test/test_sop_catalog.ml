@@ -334,6 +334,60 @@ let run () =
   check (read_digest = digest
     && catalog_from_manifest.kinds = flow_catalog.kinds)
     "Flow manifest checker descriptor differs from the live catalog";
+  let source = "(graph demo :context sop (let* [cube (sop/box) moved (sop/transform cube)] moved))" in
+  let checked, diagnostics = Flow.Check.check catalog_from_manifest source in
+  check (diagnostics = []) "valid Flow program has diagnostics";
+  let built = Flow_sop.Build.program ~factories:Sop_catalog.Editor.factories
+    ~manifest_digest:digest (Option.get checked) in
+  (try
+     ignore (Flow_sop.Build.program ~factories:Sop_catalog.Editor.factories
+       ~manifest_digest:"stale" (Option.get checked));
+     fail "Flow builder accepted a stale manifest digest"
+   with Invalid_argument message -> check
+     (String.starts_with ~prefix:"Flow catalog manifest is stale" message)
+     "Flow builder reported the wrong stale-manifest error");
+  check (built.display = Some 2 &&
+    List.length (Edit_graph.inspect built.network.geometry) = 2)
+    "Flow builder did not retain binding IDs and display";
+  let printed = Flow_sop.Print.network ~qualified:true ~name:built.name
+    ~context:Flow.Context.Sop ~catalog:catalog_from_manifest
+    ~display:built.display ~definitions:built.definitions built.network
+    |> Result.get_ok in
+  let reparsed, diagnostics = Flow.Check.check catalog_from_manifest printed.text in
+  check (diagnostics = []) "Flow-built network did not print checkable text";
+  let rebuilt = Flow_sop.Build.program ~factories:Sop_catalog.Editor.factories
+    ~manifest_digest:digest (Option.get reparsed) in
+  let reprinted = Flow_sop.Print.network ~qualified:true ~name:rebuilt.name
+    ~context:Flow.Context.Sop ~catalog:catalog_from_manifest
+    ~display:rebuilt.display ~definitions:rebuilt.definitions rebuilt.network
+    |> Result.get_ok in
+  check (printed.text = reprinted.text) "Flow builder broke canonical reprinting";
+  List.iter (fun source ->
+    let checked, diagnostics = Flow.Check.check catalog_from_manifest source in
+    check (not (List.exists (fun d -> d.Flow.Diagnostic.severity = Error) diagnostics))
+      ("Flow builder sample has diagnostics: " ^ source ^
+      " => " ^ String.concat "; " (List.map Flow.Diagnostic.to_string diagnostics));
+    let built = Flow_sop.Build.program ~factories:Sop_catalog.Editor.factories
+      ~manifest_digest:digest (Option.get checked) in
+    let printed = Flow_sop.Print.network ~qualified:true ~name:built.name
+      ~context:Flow.Context.Sop ~catalog:catalog_from_manifest
+      ~display:built.display ~definitions:built.definitions built.network
+      |> Result.get_ok in
+    let checked, diagnostics = Flow.Check.check catalog_from_manifest printed.text in
+    check (not (List.exists (fun d -> d.Flow.Diagnostic.severity = Error) diagnostics))
+      "Flow builder printed invalid text";
+    let rebuilt = Flow_sop.Build.program ~factories:Sop_catalog.Editor.factories
+      ~manifest_digest:digest (Option.get checked) in
+    let reprinted = Flow_sop.Print.network ~qualified:true ~name:rebuilt.name
+      ~context:Flow.Context.Sop ~catalog:catalog_from_manifest
+      ~display:rebuilt.display ~definitions:rebuilt.definitions rebuilt.network
+      |> Result.get_ok in
+    check (printed.text = reprinted.text) "Flow builder lost a round trip") [
+    "(graph demo (let* [v (value/value :v 2) sum (+ v 1) cube (sop/box :size [sum 1 1])] cube))";
+    "(graph demo (let* [cube (sop/box :size [1 (sin t) 1])] cube))";
+    "(defgraph lift :context sop [(input :geometry)] (sop/transform input))\n(graph demo (let* [b (sop/box) a (user/lift b)] a))";
+    "(defgraph bump :context value [(v :float 1)] (+ v 1))\n(graph demo (let* [num (user/bump :v 2) cube (sop/box :size [num 1 1])] cube))";
+  ];
   check (Flow_sop.Manifest.generate Sop_catalog.Editor.factories
     = Ok (manifest, digest)) "Flow catalog manifest is not deterministic";
   let children name (form : Flow.Sexp.t) = match form.node with

@@ -320,13 +320,20 @@ network with the same canvas, keys, views and text), then plan it here.
 
 ## Log
 
+- 2026-09-28 M7 builder checkpoint: `Flow.Check.catalog_of_manifest` reads the
+  generated snapshot for compile-time checking. `Flow_sop.Program` and
+  `Build.program` reconstruct checked SOP/value nodes, parameter drives and
+  compound definitions, assigning visible IDs in print order and rejecting a
+  stale manifest digest. Focused canonical reprint cases cover geometry,
+  value math, mixed Vec3 drives and both geometry/value definitions. The PPX,
+  editor entry point, and full reconstruction matrix remain.
+
 - 2026-09-28 M7 manifest checkpoint: `Flow_sop.Manifest` serializes the live
   factory registry and value kinds with slots, field kinds/defaults/ranges,
   primary and Vec3 metadata, plus a digest. `tools/flow_manifest.exe` writes
   the checked-in S-expression; the `sop_catalog` runtest diff requires
   promotion when metadata changes. The catalog test parses the generated file
-  and checks every registered SOP key. The PPX reader and runtime digest check
-  are next.
+  and checks every registered SOP key.
 
 - 2026-09-28 M6 complete: reader and checker cover all emitted diagnostic
   codes with located samples and message assertions; nesting has a
