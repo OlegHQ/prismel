@@ -163,6 +163,31 @@ let run () =
         && List.exists (fun tile -> tile.Pxui_graph.operation = "flow_inputs")
           (E.graph_nodes !current))
         "enter did not open the compound definition";
+      step [Event.KeyPressed Input.Home]; step [];
+      let outputs_tile = List.find (fun tile ->
+        tile.Pxui_graph.operation = "flow_outputs") (E.graph_nodes !current) in
+      let ox, oy, ow, oh = outputs_tile.bounds in
+      let at = float (ox + ow / 2), float (oy + oh / 2) in
+      step ~mouse:at (click at); step [];
+      check (Option.fold ~none:false ~some:(fun node ->
+        Node.id node = outputs_tile.id) (E.selected_node !current))
+        "compound Outputs marker was not selected";
+      let before_rename = snapshot () in
+      let ix, iy, _, _ = (E.panes !current
+        (Test_editor_input.frame (0., 0.) [] 0)).Pxui_shell.Layout.inspector in
+      let port_field = float (ix + 100), float (iy + 94) in
+      step ~mouse:port_field (click port_field);
+      step [];
+      step ~keys:[Input.Meta] [Event.KeyPressed (Input.KeyChar 'a')];
+      step [Event.TextInput "mesh"];
+      step [Event.KeyPressed Input.Enter];
+      check (snapshot () <> before_rename)
+        "compound inspector did not rename its output interface";
+      let blank_graph = 430., 500. in
+      step ~mouse:blank_graph (click blank_graph); step [];
+      undo ();
+      check (snapshot () = before_rename)
+        "interface rename was not one undo step";
       step [Event.KeyPressed (Input.KeyChar 'u')];
       check (List.exists (fun tile -> tile.Pxui_graph.id = instance_id)
         (E.graph_nodes !current)

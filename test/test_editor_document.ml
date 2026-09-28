@@ -338,6 +338,85 @@ let run () =
     && Editor_document.Document.String_map.cardinal
       reloaded_unique.doc.definitions = 2)
     "make unique did not survive preset round trip";
+  let source_network = Editor_document.Document.network direct.doc root_level
+    |> Option.get in
+  let source_box = Edit_graph.find source_network.graph.geometry ~node_id:20
+    |> Option.get in
+  let null_factory = List.find (fun factory ->
+    Edit_graph.factory_key factory = "null") factories in
+  let middle = Edit_graph.instantiate null_factory [source_box]
+    |> Result.get_ok in
+  let downstream = Edit_graph.instantiate null_factory [middle]
+    |> Result.get_ok in
+  let middle_id = Node.id middle and downstream_id = Node.id downstream in
+  let renamed_geometry = source_network.graph.geometry
+    |> Edit_graph.add_node ~factory:null_factory middle |> Result.get_ok
+    |> Edit_graph.add_node ~factory:null_factory downstream |> Result.get_ok
+    |> Edit_graph.set_root downstream_id |> Result.get_ok in
+  let graph = Flow_sop.Network.with_geometry renamed_geometry source_network.graph
+    |> Result.get_ok in
+  let wired = Editor_document.Document.with_network direct.doc root_level
+    {source_network with graph; displayed = Some downstream_id} in
+  let wired, wired_instance = Editor_document.Document.group wired root_level
+    ~selected:[middle_id] ~positions:[middle_id, 48., 24.]
+    |> Result.get_ok in
+  let parent = Editor_document.Document.network wired root_level |> Option.get in
+  let fragment = Flow_sop.Network.copy_nodes [wired_instance] parent.graph
+    |> Result.get_ok in
+  let graph, mapping = Flow_sop.Network.paste fragment parent.graph
+    |> Result.get_ok in
+  let second_instance = List.assoc wired_instance mapping in
+  let layout = {parent.layout with bends =
+    Editor_core.Network_layout.Port_map.add (wired_instance, "in0")
+      [12., 24.] parent.layout.bends} in
+  let wired = Editor_document.Document.with_network wired root_level
+    {parent with graph; layout} in
+  let wired = Editor_document.Document.rename_interface_port wired
+    ~definition_name:"compound_1" ~side:Input ~from:"in0" ~into:"entry"
+    |> Result.get_ok in
+  let wired = Editor_document.Document.rename_interface_port wired
+    ~definition_name:"compound_1" ~side:Output ~from:"result" ~into:"mesh"
+    |> Result.get_ok in
+  let wired_parent = Editor_document.Document.network wired root_level
+    |> Option.get in
+  let renamed_definition = Editor_document.Document.String_map.find
+    "compound_1" wired.definitions in
+  let inputs_id = Edit_graph.inspect renamed_definition.spec.body.geometry
+    |> List.find (fun (node : Edit_graph.node_info) ->
+      node.operation = "flow_inputs") |> fun node -> node.id in
+  check (Flow_sop.Network.geometry_source wired_parent.graph
+      Flow_sop.Port.{node = wired_instance; path = "entry"}
+        = Some Flow_sop.Port.{node = 20; path = "geo"}
+    && Flow_sop.Network.geometry_source wired_parent.graph
+      Flow_sop.Port.{node = downstream_id; path = "in0"}
+        = Some Flow_sop.Port.{node = wired_instance; path = "mesh"}
+    && Flow_sop.Network.geometry_source renamed_definition.spec.body
+      Flow_sop.Port.{node = middle_id; path = "in0"}
+        = Some Flow_sop.Port.{node = inputs_id; path = "entry"}
+    && Edit_graph.node_slot_names wired_parent.graph.geometry
+      ~node_id:second_instance = Some ["entry"]
+    && Editor_core.Network_layout.Port_map.find_opt
+      (wired_instance, "entry") wired_parent.layout.bends = Some [12., 24.]
+    && Editor_core.Network_layout.Port_map.find_opt
+      (wired_instance, "in0") wired_parent.layout.bends = None
+    && Result.is_ok (Editor_document.Document.validate wired)
+    && Result.is_ok (Editor_document.Document.allocate_compiled_ids wired))
+    "renaming shared geometry interface ports lost a wire or cook path";
+  check (Result.is_error (Editor_document.Document.rename_interface_port wired
+      ~definition_name:"compound_1" ~side:Input ~from:"entry"
+      ~into:"1bad")
+    && (match Editor_document.Document.rename_interface_port wired
+        ~definition_name:"compound_1" ~side:Output ~from:"mesh"
+        ~into:"mesh" with Ok same -> same == wired | Error _ -> false))
+    "interface rename accepted an invalid name or changed an unchanged port";
+  let renamed_path = Editor_document.Preset.save ~directory
+    ~name:"renamed-interface-saved" ~sketch:"contract" ~doc:wired ~view:`Null
+    |> Result.get_ok in
+  let reloaded_renamed = Editor_document.Preset.load ~path:renamed_path
+    ~code ~factories ~settings:Editor_document.Settings.none
+    |> function Ok value -> value | Error message -> failwith message in
+  check (Result.is_ok (Editor_document.Document.validate reloaded_renamed.doc))
+    "renamed compound interface failed preset round trip";
   let inside = Editor_document.Document.enter_compound grouped root_level grouped_id
     |> Option.get in
   let inside_network = Editor_document.Document.network grouped inside

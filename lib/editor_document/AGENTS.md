@@ -16,3 +16,5 @@ the definition's canvas layout onto fresh parent ids.
 Make unique copies a definition with fresh internal ids, rebinds its interface
 factories, and retargets only the selected instance; other instances retain
 the original definition.
+Renaming a geometry interface port updates the shared definition and every
+referencing instance, including named wires and path-keyed canvas layout.

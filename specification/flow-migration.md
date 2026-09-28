@@ -318,6 +318,12 @@ network with the same canvas, keys, views and text), then plan it here.
 
 ## Log
 
+- 2026-09-28 M5 geometry-interface rename checkpoint: the Inputs/Outputs
+  inspector renames geometry ports on shared definitions. All instances keep
+  their ids; incoming slot names, outgoing named wires, bend keys, compiled
+  geometry and preset round trips follow the new name. Value-port editing
+  and interface reorder/unexport remain pending.
+
 - 2026-09-28 M5 make-unique checkpoint: the palette and compound tile context
   menu copy one shared definition with fresh internal ids, retarget only the
   chosen instance, preserve its geometry wires and layout, and record one undo

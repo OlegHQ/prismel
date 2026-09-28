@@ -764,6 +764,7 @@ let intent_label = function
   | Level_changed _ -> Some "Detail level"
   | Set_parameter_requested { path; _ } -> Some ("Set " ^ path)
   | Rename_requested _ -> Some "Rename node"
+  | Rename_interface_requested _ -> Some "Rename interface port"
   | Split_requested {group; _} -> Some ("Split " ^ group)
   | Row_pinned {path; _} -> Some ("Pin " ^ path)
   | Cut_wires_requested _ -> Some "Cut wires"
@@ -1077,6 +1078,17 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
                 Flow.Value_kind.key (Flow.Value_kind.kind node.parameters),
                 Some node.parameters
             | None, None -> [], "#" ^ string_of_int node_id, "unknown", None in
+          let interface_ports = match value.level, kind with
+            | Document.Compound _, ("flow_inputs" | "flow_outputs") ->
+                (match List.rev (Document.compound_names value.doc value.level) with
+                 | name :: _ ->
+                     (match Document.String_map.find_opt name value.doc.definitions with
+                      | None -> []
+                      | Some definition ->
+                          if kind = "flow_inputs" then definition.spec.inputs
+                          else definition.spec.outputs)
+                 | [] -> [])
+            | _ -> [] in
           let changes = inspector_panel ui panes.inspector (fun () ->
             Pxui.Ui.scope ui (Printf.sprintf "node.%d" node_id) (fun () ->
               let renamed = Pxui.Ui.text_field ui "Label##node-label" label in
@@ -1086,6 +1098,19 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
                 (Flow.Context.name open_network.context) kind node_id
                 (if Edit_graph.is_bypassed document ~node_id then " · muted" else "")
                 (if open_network.displayed = Some node_id then " · displayed" else ""));
+              let interface_edits = List.concat
+                (List.mapi (fun index (port : Flow_sop.Network.interface_port) ->
+                  Pxui.Ui.label ui (Flow.Port_type.name port.ty ^ " · " ^ port.label);
+                  if port.ty <> Flow.Port_type.Geometry then
+                    (Pxui.Ui.label ui port.name; [])
+                  else
+                    let edited = Pxui.Ui.text_field ui
+                      (Printf.sprintf "Port %d##interface-%d" (index + 1) index)
+                      port.name in
+                    if edited = port.name then [] else
+                      [Pxui_graph.Rename_interface_requested
+                        {node = node_id; from = port.name; into = edited}])
+                    interface_ports) in
               (match geometry with
                | None -> ()
                | Some _ ->
@@ -1113,7 +1138,7 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
                       match field.Parameter.folder with [] -> None
                       | first :: _ -> Some first) |> List.sort_uniq String.compare in
                     Pxui_shell.Inspector.flow_fields ui ~expanded rows in
-              rename @ List.map (function
+              rename @ interface_edits @ List.map (function
                 | Pxui_shell.Inspector.Edited (path, value) ->
                     Pxui_graph.Set_parameter_requested {node = node_id; path; value}
                 | Pinned (path, pinned) ->
@@ -1474,6 +1499,35 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
              next, {result with graph_view; document = network.graph;
                label = "Make unique"; effects = Parameter.union_effects
                  result.effects Doc.cook_effects})
+    else next, result in
+  let rename_request = List.find_map (function
+    | Pxui_graph.Rename_interface_requested {node; from; into} ->
+        Some (node, from, into)
+    | _ -> None) result.graph_changes in
+  let next, result = if Option.is_none loaded then match rename_request with
+    | None -> next, result
+    | Some (node, from, into) ->
+        let side = match Edit_graph.find result.document.geometry ~node_id:node with
+          | Some marker when Node.operation marker = "flow_inputs" ->
+              Some Document.Input
+          | Some marker when Node.operation marker = "flow_outputs" ->
+              Some Document.Output
+          | _ -> None in
+        (match side, List.rev (Document.compound_names next value.level) with
+         | Some side, definition_name :: _ ->
+             (match Document.rename_interface_port next ~definition_name
+                 ~side ~from ~into with
+              | Error diagnostic -> next, {result with
+                  edit_error = Some (Flow.Diagnostic.to_string diagnostic)}
+              | Ok next ->
+                  let network = Option.get (Document.network next value.level) in
+                  let graph_view = Network_view.to_view network result.graph_view in
+                  next, {result with graph_view; document = network.graph;
+                    label = "Rename interface port";
+                    effects = Parameter.union_effects
+                      result.effects Doc.cook_effects})
+         | _ -> next, {result with edit_error =
+             Some "Select an Inputs or Outputs marker inside a compound"})
     else next, result in
   let next, result, compound_error = if next == present then next, result, None else
     match Document.allocate_compiled_ids next with

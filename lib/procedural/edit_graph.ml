@@ -255,9 +255,8 @@ let rebind_factory ~node_id (factory : factory) value =
   | None -> Error (Printf.sprintf "editable graph has no node #%d" node_id)
   | Some entry when Node.operation entry.node <> factory.operation
       || Array.length entry.inputs <> Array.length factory.slots
-      || node_slot_names value ~node_id <> Some (Array.to_list factory.slots)
       || Array.exists (( = ) Required) factory.requirements ->
-      Error "replacement factory must have the same operation and optional input slots"
+      Error "replacement factory must have the same operation and optional input arity"
   | Some entry ->
       let node = factory.build (List.init (Array.length entry.inputs)
         (fun _ -> None)) |> Node.Private.adopt_identity ~source:entry.node in

@@ -57,6 +57,7 @@ type change =
   | Level_changed of int list
   | Set_parameter_requested of { node : int; path : string; value : Parameter.value }
   | Rename_requested of { node : int; label : string }
+  | Rename_interface_requested of { node : int; from : string; into : string }
   | Split_requested of { node : int; group : string; split : bool }
   | Row_pinned of { node : int; path : string; pinned : bool }
   | Cut_wires_requested of Edit_graph.connection list

@@ -89,8 +89,9 @@ rules in this file are current. Planned changes that touch this directory:
   one history step. Compound instance paths enter shared definitions, and `u`
   returns to and selects the parent instance. Ungrouping geometry instances
   replaces them with fresh inner ids in one undo step. Make unique detaches one
-  instance from its shared definition through the palette or tile menu. Value interfaces and
-  interface editing remain. M6: `Space l` cycles graph, list, text.
+  instance from its shared definition through the palette or tile menu. The
+  Inputs/Outputs inspector can rename shared geometry interface ports. Value
+  interfaces, reorder and unexport remain. M6: `Space l` cycles graph, list, text.
 
 Keep the three-column workspace, `Doc.apply` as the only graph-intent reducer,
 the one Command table, and history labels; the rework extends them.

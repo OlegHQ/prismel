@@ -1156,8 +1156,8 @@
       "library": "procedural",
       "module": "Edit_graph",
       "source": "lib/procedural/edit_graph.mli",
-      "source_bytes": 5681,
-      "source_sha256": "42dc692565f87c6250840ad9724dbb89ba67d2bcbf5f9ea202577c105014a652"
+      "source_bytes": 5765,
+      "source_sha256": "cab7ac008762b0f95e93a5541b3a9d6064ebb37a83e92b53d815d3b6f3c93e0b"
     },
     {
       "api_sha256": "e2b28c62481122de99ba265c82e061740f1c9c514f49cdf82ee76a99d2b9abe7",
@@ -1259,13 +1259,13 @@
       "source_sha256": "e60f5cfa448ba44a06b00ca748f6c98f558be280744890d6c3edd6b9695c807b"
     },
     {
-      "api_sha256": "345fa68822eefec561b88e4a9069268d16740928c08a9a1aeeab6e7bd2fdae9c",
+      "api_sha256": "744b4dd9c9339f0c9c89871220110f384ed35f7203233ab2488b96ed20fa5a5e",
       "excluded_legacy_symbols": [],
       "library": "pxui_graph",
       "module": "Pxui_graph",
       "source": "lib/pxui_graph/pxui_graph.mli",
-      "source_bytes": 10348,
-      "source_sha256": "2258444dd15c2e2fd415dfcaf9756b1caf2947a0652c385ef13d1292d043f828"
+      "source_bytes": 10427,
+      "source_sha256": "7b5b3b35d412914ada1ef13acc43a6592c9dfcc2adb0edc4ee107b86aeac4640"
     },
     {
       "api_sha256": "548a44a72d54bb8f050a5ad2720a8744f817a2f7bc330594915cecf1121df580",

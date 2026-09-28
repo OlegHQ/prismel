@@ -357,6 +357,122 @@ let make_unique value level ~instance_id =
         compiled_path_exists next path) next.compiled_ids in
       Ok ({next with compiled_ids}, name)
 
+type interface_side = Input | Output
+
+let rename_interface_port value ~definition_name ~side ~from ~into =
+  let ( let* ) = Result.bind in
+  let error message = Error (Flow.Diagnostic.error ~code:"E_INTERFACE" message) in
+  let* definition = match String_map.find_opt definition_name value.definitions with
+    | Some definition -> Ok definition
+    | None -> error ("Missing compound " ^ definition_name) in
+  let ports = match side with Input -> definition.spec.inputs
+    | Output -> definition.spec.outputs in
+  let* port = match List.find_opt (fun (port : Flow_sop.Network.interface_port) ->
+      port.name = from) ports with
+    | Some port when port.ty = Flow.Port_type.Geometry -> Ok port
+    | Some _ -> error "Value interface editing is not available yet"
+    | None -> error ("No interface port " ^ from) in
+  if not (Flow.Symbol.valid_name into) then error "Invalid interface port name"
+  else if from = into then Ok value
+  else if List.exists (fun (port : Flow_sop.Network.interface_port) ->
+      port.name = into) ports then error ("Interface port " ^ into ^ " already exists")
+  else
+  let ports = List.map (fun (candidate : Flow_sop.Network.interface_port) ->
+    if candidate.name = from then {port with name = into;
+      label = (if port.label = String.capitalize_ascii from
+        then String.capitalize_ascii into else port.label)}
+    else candidate) ports in
+  let spec = match side with Input -> {definition.spec with inputs = ports}
+    | Output -> {definition.spec with outputs = ports} in
+  let body = spec.body in
+  let marker operation = Edit_graph.inspect body.geometry
+    |> List.find_opt (fun (node : Edit_graph.node_info) ->
+      node.operation = operation) in
+  let* marker = match marker (match side with Input -> "flow_inputs"
+      | Output -> "flow_outputs") with
+    | Some node -> Ok node.id | None -> error "Compound interface marker is missing" in
+  let factories = Flow_sop.Compound_node.factories ~name:definition_name
+    ~inputs:spec.inputs ~outputs:spec.outputs in
+  let* geometry = match side with
+    | Input -> Ok body.geometry
+    | Output -> Result.map_error (Flow.Diagnostic.error ~code:"E_INTERFACE")
+        (Edit_graph.rebind_factory ~node_id:marker (List.nth factories 1)
+          body.geometry) in
+  let rename_key (id, path) = if id = marker && path = from
+    then id, into else id, path in
+  let geometry_outputs = Flow_sop.Port.Map.fold (fun target output result ->
+    let source = Flow_sop.Network.geometry_source body target in
+    let target = if side = Output then
+      let id, path = rename_key (target.node, target.path) in
+      Flow_sop.Port.{node = id; path} else target in
+    let output = if side = Input && output = from
+        && Option.fold ~none:false ~some:(fun (source : Flow_sop.Port.t) ->
+          source.node = marker)
+          source then into else output in
+    Flow_sop.Port.Map.add target output result)
+    body.geometry_outputs Flow_sop.Port.Map.empty in
+  let* body = Flow_sop.Network.of_parts ~geometry ~values:body.values
+    ~drives:body.drives ~geometry_outputs ~instances:body.instances in
+  let rename_layout rename (layout : Canvas.t) = {layout with
+    bends = Canvas.Port_map.fold (fun key points result ->
+      Canvas.Port_map.add (rename key) points result)
+      layout.bends Canvas.Port_map.empty;
+    wireless = Canvas.Port_set.fold (fun key result ->
+      Canvas.Port_set.add (rename key) result)
+      layout.wireless Canvas.Port_set.empty} in
+  let layout = if side = Output then rename_layout rename_key definition.layout
+    else definition.layout in
+  let definition = {definition with spec = {spec with body}; layout} in
+  let value = {value with definitions = String_map.add definition_name
+    definition value.definitions} in
+  let update_network (current : network) =
+    let graph = current.graph in
+    let changed id = match Flow_sop.Network.Int_map.find_opt id graph.instances with
+      | Some instance -> instance.definition = definition_name
+      | None -> false in
+    if not (Flow_sop.Network.Int_map.exists (fun _ instance ->
+        instance.Flow_sop.Network.definition = definition_name)
+        graph.instances) then Ok current else
+    let* geometry = if side = Output then Ok graph.geometry else
+      Flow_sop.Network.Int_map.fold (fun id
+          (instance : Flow_sop.Network.instance) result ->
+        let* geometry = result in
+        if instance.definition <> definition_name then Ok geometry else
+        Result.map_error (Flow.Diagnostic.error ~code:"E_INTERFACE")
+          (Edit_graph.rebind_factory ~node_id:id (List.nth factories 2) geometry))
+        graph.instances (Ok graph.geometry) in
+    let geometry_outputs = Flow_sop.Port.Map.fold (fun target output result ->
+      let source = Flow_sop.Network.geometry_source graph target in
+      let target = if side = Input && changed target.node
+          && target.path = from then {target with path = into} else target in
+      let output = if side = Output && output = from
+          && Option.fold ~none:false ~some:(fun (source : Flow_sop.Port.t) ->
+            changed source.node)
+            source then into else output in
+      Flow_sop.Port.Map.add target output result)
+      graph.geometry_outputs Flow_sop.Port.Map.empty in
+    let* graph = Flow_sop.Network.of_parts ~geometry ~values:graph.values
+      ~drives:graph.drives ~geometry_outputs ~instances:graph.instances in
+    let layout = if side = Input then rename_layout (fun (id, path) ->
+      if changed id && path = from then id, into else id, path)
+        current.layout else current.layout in
+    Ok {current with graph; layout} in
+  let* scene = update_network value.scene in
+  let* networks = Layout.fold (fun id network result ->
+    let* networks = result in
+    let* network = update_network network in
+    Ok (Layout.add id network networks)) value.networks (Ok Layout.empty) in
+  let* definitions = String_map.fold (fun name definition result ->
+    let* definitions = result in
+    let* network = update_network {context = definition.spec.context;
+      graph = definition.spec.body; layout = definition.layout;
+      displayed = definition.displayed} in
+    Ok (String_map.add name {definition with
+      spec = {definition.spec with body = network.graph};
+      layout = network.layout} definitions))
+      value.definitions (Ok String_map.empty) in
+  Ok {value with scene; networks; definitions}
+
 (* The display node, kept on a node that exists: a deleted display node
    falls back to the previous one, else the last node in the network. *)
 let displayed_of ?previous graph viewed =

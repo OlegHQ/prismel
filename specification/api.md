@@ -799,6 +799,8 @@ Later milestones complete compound editing and add the text projection
 (`flow.md` §7.2).
 The compound tile menu and command palette offer Make unique, which copies a
 shared definition for one instance while other instances keep the original.
+Inside a compound, the Inputs and Outputs inspector can rename geometry
+interface ports; all instances and their wires follow the shared rename.
 
 Plain keys: `i` enters the selected object or compound, `u` goes up and selects
 the compound instance; in the view `w`/`e`/`r`
