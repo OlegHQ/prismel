@@ -86,8 +86,9 @@ let set_expression (document : Flow_sop.Network.t) target text =
    document re-reads only those, and [pasted] the (source, copy) id pairs. *)
 let apply factories (document, graph_view, error, effects, placed, pasted) = function
   | Pxui_graph.Connect_requested connection ->
-      (match update_geometry (Edit_graph.connect ~source:connection.source
-          ~consumer:connection.consumer ~input_index:connection.input_index) document with
+      (match flow_result (Flow_sop.Network.connect_geometry
+          ~source:{node = connection.source; path = "geo"}
+          ~consumer:connection.consumer ~input_index:connection.input_index document) with
        | Error message -> document, graph_view, Some message, effects, placed, pasted
        | Ok document -> document, Pxui_graph.with_document document graph_view,
            None, Parameter.union_effects effects cook_effects, placed, pasted)

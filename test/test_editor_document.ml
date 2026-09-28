@@ -213,8 +213,16 @@ let run () =
   ignore (load saved_definition |> Result.get_ok);
   let instance id definition = `Assoc ["id", `Int id;
     "definition", `String definition; "literals", `List []] in
-  let with_instance = set with_definition "networks" (`List [owned 10
-    (extend sop ["instances", `List [instance 20 "compound_1"]])])
+  let geometry_output = `Assoc ["name", `String "result";
+    "type", `String "Geometry"; "default", `Null;
+    "label", `String "Result"; "soft", `Null] in
+  let instance_definition = set definition "outputs" (`List [geometry_output]) in
+  let instance_network = network [box; node 21 "null" [`Int 20]] (`Int 21)
+    |> fun json -> extend json ["instances", `List [instance 20 "compound_1"];
+      "geometry_outputs", `List [`Assoc ["to", `List [`Int 21; `String "in0"];
+        "output", `String "result"]]] in
+  let with_instance = set with_definition "definitions" (`List [instance_definition])
+    |> fun json -> set json "networks" (`List [owned 10 instance_network])
     |> fun json -> extend json ["compiled_ids", `List [
       `Assoc ["path", `List [`Int 20; `Int 70]; "id", `Int 90]]] in
   let loaded_instance = load (write "instance-ids" with_instance) |> Result.get_ok in
@@ -225,7 +233,16 @@ let run () =
   check (saved_ids = `List [`Assoc ["path", `List [`Int 20; `Int 70];
       "id", `Int 90]])
     "compiled instance ids did not round trip";
+  let saved_network = Yojson.Safe.from_file saved_instance |> member "sections"
+    |> member "graph" |> member "networks" |> to_list |> List.hd
+    |> member "network" in
+  check (saved_network |> member "geometry_outputs" |> to_list
+    |> List.hd |> member "output" = `String "result")
+    "named compound geometry output did not round trip";
   ignore (load saved_instance |> Result.get_ok);
+  let bad_instance_network = set instance_network "geometry_outputs" (`List [
+    `Assoc ["to", `List [`Int 21; `String "in0"];
+      "output", `String "absent"]]) in
   let wrong_owner = node 11 "camera" [] in
   let malformed = [
     "recursive-definition", extend valid ["definitions", `List [set definition "body"
@@ -239,6 +256,8 @@ let run () =
       `Assoc ["path", `List [`Int (-1); `Int 70]; "id", `Int 99]]];
     "orphan-compiled-path", extend with_definition ["compiled_ids", `List [
       `Assoc ["path", `List [`Int 20; `Int 70]; "id", `Int 99]]];
+    "unknown-geometry-output", set with_instance "networks"
+      (`List [owned 10 bad_instance_network]);
     "old-version-1", `Assoc ["version", `Int 1; "scene", scene; "networks", `List [owned 10 sop]];
     "old-version-2", `Assoc ["version", `Int 2; "scene", scene; "networks", `List [owned 10 sop]];
     "missing-values", document scene [owned 10 (`Assoc ["context", `String "sop";

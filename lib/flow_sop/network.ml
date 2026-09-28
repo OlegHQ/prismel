@@ -13,6 +13,7 @@ type t = {
   geometry : Procedural.Edit_graph.t;
   values : Flow.Graph.t;
   drives : Drive.t Port.Map.t;
+  geometry_outputs : string Port.Map.t;
   instances : instance Int_map.t;
 }
 and definition = {
@@ -26,12 +27,25 @@ type fragment = {
   geometry_fragment : Procedural.Edit_graph.fragment option;
   value_nodes : Flow.Graph.node list;
   fragment_drives : Drive.t Port.Map.t;
+  fragment_geometry_outputs : string Port.Map.t;
   fragment_instances : instance Int_map.t;
 }
 let error code message = Error (Flow.Diagnostic.error ~code message)
 let geometry_error result = Result.map_error (Flow.Diagnostic.error ~code:"E_GEOMETRY") result
 let of_geometry geometry = {geometry; values = Flow.Graph.empty;
-  drives = Port.Map.empty; instances = Int_map.empty}
+  drives = Port.Map.empty; geometry_outputs = Port.Map.empty;
+  instances = Int_map.empty}
+let geometry_source_id geometry (port : Port.t) =
+  match Procedural.Edit_graph.node_slot_names geometry ~node_id:port.node,
+    Procedural.Edit_graph.inputs geometry ~node_id:port.node with
+  | Some slots, Some inputs ->
+      Option.bind (List.find_index (String.equal port.path) slots) (fun index ->
+        if index < Array.length inputs then inputs.(index) else None)
+  | _ -> None
+let geometry_source network target =
+  Option.map (fun node -> {Port.node; path =
+    Option.value ~default:"geo" (Port.Map.find_opt target network.geometry_outputs)})
+    (geometry_source_id network.geometry target)
 let fields network ~node_id = match Flow.Graph.find network.values ~node_id with
   | Some node -> Ok (Flow.Value_kind.fields node.parameters)
   | None -> match Procedural.Edit_graph.find network.geometry ~node_id with
@@ -104,6 +118,19 @@ let validate network =
       (match missing_instance with
        | Some (id, _) -> error "E_UNBOUND" (Printf.sprintf "No instance node %d" id)
        | None ->
+      let geometry_ports = Port.Map.fold (fun target output checked ->
+        Result.bind checked (fun () -> match geometry_source_id network.geometry target with
+          | None -> error "E_PORT" ("No geometry wire to " ^ target.path)
+          | Some source ->
+              let is_interface = Int_map.mem source network.instances
+                || match Procedural.Edit_graph.find network.geometry ~node_id:source with
+                   | Some node -> Procedural.Node.operation node = "flow_inputs"
+                   | None -> false in
+              if output = "geo" || not (Flow.Symbol.valid_name output)
+                || not is_interface then
+                error "E_PORT" ("Invalid geometry output " ^ output)
+              else Ok ())) network.geometry_outputs (Ok ()) in
+      Result.bind geometry_ports (fun () ->
       let nodes = List.map (fun (node : Flow.Graph.node) -> node.id) value_nodes
         @ List.map (fun (node : Procedural.Edit_graph.node_info) -> node.id) (Procedural.Edit_graph.inspect network.geometry) in
       let checked = List.fold_left (fun checked id -> Result.bind checked (fun () ->
@@ -113,16 +140,22 @@ let validate network =
             error "E_PORT" "A slot and parameter have the same name" else Ok ()))) (Ok ()) nodes in
       Result.bind checked (fun () -> Result.bind
         (Port.Map.fold (fun target drive checked -> Result.bind checked (fun () -> validate_drive network target drive))
-          network.drives (Ok ())) (fun () -> Result.map (fun _ -> ()) (topological_values network))))
-let of_parts ~geometry ~values ~drives ~instances =
-  let network = {geometry; values; drives; instances} in
+          network.drives (Ok ())) (fun () -> Result.map (fun _ -> ()) (topological_values network)))))
+let of_parts ~geometry ~values ~drives ~geometry_outputs ~instances =
+  let network = {geometry; values; drives; geometry_outputs; instances} in
   Result.bind (validate network) (fun () ->
     Result.map (fun () -> network) (List.fold_left (fun checked (node : Flow.Graph.node) ->
       Result.bind checked (fun () -> geometry_error (Procedural.Node.Private.reserve_id node.id)))
       (Ok ()) (Flow.Graph.inspect values)))
 let with_geometry geometry network =
   if geometry == network.geometry then Ok network else
-    let next = {network with geometry} in Result.map (fun () -> next) (validate next)
+    let geometry_outputs = Port.Map.filter (fun target _ ->
+      match geometry_source_id network.geometry target with
+      | None -> false
+      | Some source -> geometry_source_id geometry target = Some source)
+      network.geometry_outputs in
+    let next = {network with geometry; geometry_outputs} in
+    Result.map (fun () -> next) (validate next)
 let relabel ~node_id label network =
   if String.trim label = "" then Ok network else
   match Flow.Graph.find network.values ~node_id with
@@ -148,8 +181,32 @@ let remove_nodes ids network =
     let values = Flow.Graph.remove_nodes value_ids network.values in
     let drives = Port.Map.filter (fun (target : Port.t) drive -> not (Int_set.mem target.node removed)
       && match drive with Drive.Expr _ -> true | Drive.Wire source -> not (Int_set.mem source.node removed)) network.drives in
-    Ok {geometry; values; drives; instances = Int_map.filter
+    let geometry_outputs = Port.Map.filter (fun target _ ->
+      geometry_source_id geometry target <> None) network.geometry_outputs in
+    Ok {geometry; values; drives; geometry_outputs; instances = Int_map.filter
       (fun id _ -> not (Int_set.mem id removed)) network.instances}
+let connect_geometry ~(source : Port.t) ~consumer ~input_index network =
+  let slots = Option.value ~default:[]
+    (Procedural.Edit_graph.node_slot_names network.geometry ~node_id:consumer) in
+  match List.nth_opt slots input_index with
+  | None -> error "E_PORT" "No geometry input slot"
+  | Some path ->
+      let is_interface = Int_map.mem source.node network.instances
+        || match Procedural.Edit_graph.find network.geometry ~node_id:source.node with
+           | Some node -> Procedural.Node.operation node = "flow_inputs"
+           | None -> false in
+      if source.path <> "geo" && (not is_interface
+        || not (Flow.Symbol.valid_name source.path)) then
+        error "E_PORT" ("No geometry output " ^ source.path)
+      else Result.bind (geometry_error (Procedural.Edit_graph.connect
+        ~source:source.node ~consumer ~input_index network.geometry))
+        (fun geometry ->
+          let target = {Port.node = consumer; path} in
+          let geometry_outputs = if source.path = "geo" then
+            Port.Map.remove target network.geometry_outputs else
+            Port.Map.add target source.path network.geometry_outputs in
+          let next = {network with geometry; geometry_outputs} in
+          Result.map (fun () -> next) (validate next))
 let set_drive ~target drive network =
   if Port.Map.find_opt target network.drives = Some drive then Ok network else
     let next = {network with drives = Port.Map.add target drive network.drives} in
@@ -166,7 +223,8 @@ let disconnect ~(target : Port.t) network =
   match index 0 slots with
   | None -> clear_drive ~target network
   | Some input_index -> Result.bind (geometry_error (Procedural.Edit_graph.disconnect
-      ~consumer:target.node ~input_index network.geometry)) (fun geometry -> with_geometry geometry network)
+      ~consumer:target.node ~input_index network.geometry)) (fun geometry ->
+        with_geometry geometry network)
 let set_literal ~(target : Port.t) value network =
   Result.bind (parameter network target) (fun parameter -> Result.bind (Port.literal_changes parameter value) (fun changes ->
     match Flow.Graph.find network.values ~node_id:target.node with
@@ -330,7 +388,12 @@ let copy_nodes ids network =
           && match drive with Drive.Expr _ -> true | Drive.Wire source -> Int_set.mem source.node selected) network.drives in
         let fragment_instances = Int_map.filter (fun id _ -> Int_set.mem id selected)
           network.instances in
-        {geometry_fragment; value_nodes; fragment_drives; fragment_instances}) geometry_fragment)
+        let fragment_geometry_outputs = Port.Map.filter (fun target _ ->
+          Int_set.mem target.node selected && match geometry_source_id network.geometry target with
+          | Some source -> Int_set.mem source selected | None -> false)
+          network.geometry_outputs in
+        {geometry_fragment; value_nodes; fragment_drives;
+          fragment_geometry_outputs; fragment_instances}) geometry_fragment)
 let paste fragment network =
   let geometry = match fragment.geometry_fragment with
     | None -> Ok (network.geometry, [])
@@ -352,5 +415,9 @@ let paste fragment network =
       let instances = Int_map.fold (fun old_id instance instances ->
         Int_map.add (Int_map.find old_id remap) instance instances)
         fragment.fragment_instances network.instances in
-      let next = {geometry; values; drives; instances} in
+      let geometry_outputs = Port.Map.fold (fun target output geometry_outputs ->
+        Port.Map.add {target with node = Int_map.find target.node remap}
+          output geometry_outputs) fragment.fragment_geometry_outputs
+        network.geometry_outputs in
+      let next = {geometry; values; drives; geometry_outputs; instances} in
       Result.map (fun () -> next, List.sort (fun (a,_) (b,_) -> Int.compare a b) mapping) (validate next)))

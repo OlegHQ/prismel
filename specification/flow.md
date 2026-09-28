@@ -198,6 +198,7 @@ type t = private {
   geometry : Procedural.Edit_graph.t;       (* SOP nodes and geometry edges, as today *)
   values : Flow.Graph.t;                    (* value nodes: kind, label, literal record *)
   drives : Drive.t Port.Map.t;              (* destination -> drive *)
+  geometry_outputs : string Port.Map.t;     (* destination -> named compound source output; absent = geo *)
   instances : Instance.t Int_map.t;         (* compound nodes (M5) *)
 }
 ```
@@ -1138,3 +1139,10 @@ Unary Math keeps its inactive `b` input, including any drive; driven and
 pinned rows remain visible and full shows all schema fields. Remap's `v`
 defaults to zero and clamping applies to its interpolation fraction, so
 reversed ranges behave consistently.
+
+2026-09-28: `Edit_graph` geometry connections identify a source by node id,
+while compound instances may expose multiple geometry outputs. The Flow
+overlay therefore stores a named source output by destination port for those
+connections; an absent entry means the ordinary `geo` output. This keeps
+existing SOP geometry topology and `Edit_graph` APIs intact while preserving
+the selected output through copying and presets.

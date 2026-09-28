@@ -71,6 +71,32 @@ let () =
   let id = Procedural.Node.id node in
   let base = Network.of_geometry (Procedural.Edit_graph.of_graph node) in
   assert (ok (Network.validate base) = ());
+  let consumer = Procedural.Sop.null node in
+  let consumer_id = Procedural.Node.id consumer in
+  let instance : Network.instance = {definition = "compound_1";
+    literals = Network.String_map.empty} in
+  let compound = ok (Network.of_parts
+    ~geometry:(Procedural.Edit_graph.of_graph consumer)
+    ~values:Flow.Graph.empty ~drives:Port.Map.empty
+    ~geometry_outputs:Port.Map.empty
+    ~instances:(Network.Int_map.singleton id instance)) in
+  let target = port consumer_id "in0" in
+  let routed = ok (Network.connect_geometry ~source:(port id "result")
+    ~consumer:consumer_id ~input_index:0 compound) in
+  assert (Network.geometry_source routed target = Some (port id "result"));
+  let fragment = ok (Network.copy_nodes [id; consumer_id] routed) in
+  let pasted, mapping = ok (Network.paste fragment routed) in
+  assert (Network.geometry_source pasted (port (List.assoc consumer_id mapping) "in0")
+    = Some (port (List.assoc id mapping) "result"));
+  let routed = ok (Network.connect_geometry ~source:(port id "geo")
+    ~consumer:consumer_id ~input_index:0 routed) in
+  assert (Network.geometry_source routed target = Some (port id "geo")
+    && Port.Map.is_empty routed.geometry_outputs);
+  let disconnected = ok (Network.disconnect ~target
+    (ok (Network.connect_geometry ~source:(port id "result")
+      ~consumer:consumer_id ~input_index:0 routed))) in
+  assert (Network.geometry_source disconnected target = None
+    && Port.Map.is_empty disconnected.geometry_outputs);
   let network, time = ok (Network.add_value_node Flow.Value_kind.Time base) in
   assert (time <> id);
   let network, vector = ok (Network.add_value_node Flow.Value_kind.Combine_xyz network) in
@@ -98,12 +124,14 @@ let () =
   assert (ok (Network.remove_nodes [-1] network) == network);
   let collision = Flow.Graph.node ~id Flow.Value_kind.Time |> ok |> fun node -> Flow.Graph.add_node node Flow.Graph.empty |> ok in
   rejected "E_DUPLICATE" (Network.of_parts ~geometry:network.geometry ~values:collision
-    ~drives:Port.Map.empty ~instances:Network.Int_map.empty);
+    ~drives:Port.Map.empty ~geometry_outputs:Port.Map.empty
+    ~instances:Network.Int_map.empty);
   let restored_id = Procedural.Node.Private.fresh_id () + 10000 in
   let restored = Flow.Graph.node ~id:restored_id Flow.Value_kind.Value |> ok
     |> fun node -> Flow.Graph.add_node node Flow.Graph.empty |> ok in
   ignore (ok (Network.of_parts ~geometry:base.geometry ~values:restored
-    ~drives:Port.Map.empty ~instances:Network.Int_map.empty));
+    ~drives:Port.Map.empty ~geometry_outputs:Port.Map.empty
+    ~instances:Network.Int_map.empty));
   assert (Procedural.Node.Private.fresh_id () > restored_id);
   let order = ok (Network.topological_values network) in
   let index id = List.find_index (( = ) id) order |> Option.get in

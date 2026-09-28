@@ -103,6 +103,10 @@ let network_json (network : Document.network) =
         `Assoc ["id", `Int id; "definition", `String instance.Flow_sop.Network.definition;
           "literals", `List (Flow_sop.Network.String_map.bindings instance.literals
             |> List.map (fun (name, value) -> `List [`String name; value_json value]))]));
+    "geometry_outputs", `List (Flow_sop.Port.Map.bindings network.graph.geometry_outputs
+      |> List.map (fun ((target : Flow_sop.Port.t), output) ->
+        `Assoc ["to", port_json (target.node, target.path);
+          "output", `String output]));
     "drives", `List (List.map drive (Flow_sop.Port.Map.bindings network.graph.drives));
     "display", optional_int network.displayed;
     "geometry_bends", `List (Layout.Port_set.elements geometry_ports |> List.map (fun port ->
@@ -276,6 +280,7 @@ type saved_network = {
   drives : (Flow_sop.Port.t * Flow_sop.Drive.t) list;
   bends : ((int * string) * (float * float) list) list;
   wireless : Layout.Port_set.t;
+  geometry_outputs : (Flow_sop.Port.t * string) list;
   instances : (int * Flow_sop.Network.instance) list;
 }
 
@@ -318,6 +323,19 @@ let network_of = function
             | _ -> Error "instance entry is not an object") entries)
         | Some _ -> Error "instances are not a list" in
       let* () = unique ~what:"instance id" (List.map fst instances) in
+      let* geometry_outputs = match field "geometry_outputs" with
+        | None -> Ok []
+        | Some (`List entries) -> all (List.map (function
+            | `Assoc fields ->
+                let* () = unique ~what:"geometry output field" (List.map fst fields) in
+                let* node, path = port_of (List.assoc_opt "to" fields) in
+                (match List.assoc_opt "output" fields with
+                 | Some (`String output) -> Ok ({Flow_sop.Port.node; path}, output)
+                 | _ -> Error "geometry output needs a name")
+            | _ -> Error "geometry output entry is not an object") entries)
+        | Some _ -> Error "geometry outputs are not a list" in
+      let* () = unique ~what:"geometry output destination"
+        (List.map fst geometry_outputs) in
       let* display = optional_of (field "display") in
       let metadata entry =
         let* port = port_of (List.assoc_opt "to" entry) in
@@ -361,7 +379,7 @@ let network_of = function
       let wireless = List.fold_left (fun flags (port, _, on) ->
           if on then Layout.Port_set.add port flags else flags) Layout.Port_set.empty metadata in
       Ok {context; nodes; values; display; drives = List.map fst drives;
-        bends; wireless; instances}
+        bends; wireless; geometry_outputs; instances}
   | _ -> Error "preset network is not an object"
 
 type saved_definition = {
@@ -592,6 +610,7 @@ let rebuild ~code ~factories (saved : saved_network) =
       (Ok Flow.Graph.empty) saved.values in
   let* graph = flow_result (Flow_sop.Network.of_parts ~geometry:document ~values
       ~drives:(Flow_sop.Port.Map.of_list saved.drives)
+      ~geometry_outputs:(Flow_sop.Port.Map.of_list saved.geometry_outputs)
       ~instances:(Flow_sop.Network.Int_map.of_list saved.instances)) in
   Ok { Document.context = saved.context; graph; layout; displayed }
 

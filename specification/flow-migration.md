@@ -318,6 +318,13 @@ network with the same canvas, keys, views and text), then plan it here.
 
 ## Log
 
+- 2026-09-28 M5 geometry-output checkpoint: `Network.geometry_outputs` records
+  a named compound geometry source by destination port while ordinary SOP
+  wires continue to use `geo`. Connect, disconnect, copy/paste and preset v3
+  preserve it; load checks that the named output exists on the referenced
+  definition. This supplies the multi-output route that `Edit_graph`'s
+  source-id-only connections cannot express. Group/flatten UI is still pending.
+
 - 2026-09-28 M5 identity/preset checkpoint: the Flow overlay carries instance
   references, and the editor document owns shared definitions plus compiled
   ids keyed by instance path. Preset v3 saves and reloads definitions,

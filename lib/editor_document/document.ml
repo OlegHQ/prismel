@@ -125,7 +125,7 @@ let validate value =
     && List.length compiled_values = List.length (List.sort_uniq Int.compare compiled_values) in
   let finite_fields fields = List.for_all (fun (field : Parameter.field_view) ->
     match field.current with Float_value x -> Float.is_finite x | _ -> true) fields in
-  let validate_network name network =
+  let validate_network ?(interface_inputs = []) name network =
     let* () = Result.map_error Flow.Diagnostic.to_string (Flow_sop.Network.validate network.graph) in
     let nodes = Edit_graph.inspect network.graph.geometry in
     let geometry_exists id = Edit_graph.find network.graph.geometry ~node_id:id <> None in
@@ -146,6 +146,22 @@ let validate value =
       | Some i -> let group = String.sub port.path 0 i in
           Option.fold ~none:false ~some:(Canvas.String_set.mem group)
             (Layout.find_opt port.node network.layout.split)) network.graph.drives in
+    let valid_geometry_outputs = Flow_sop.Port.Map.for_all (fun target output ->
+      match Flow_sop.Network.geometry_source network.graph target with
+      | None -> false
+      | Some source ->
+          let ports = match Flow_sop.Network.Int_map.find_opt source.node
+              network.graph.instances with
+            | Some instance -> Option.map (fun definition -> definition.spec.outputs)
+                (String_map.find_opt instance.definition value.definitions)
+            | None ->
+                (match Edit_graph.find network.graph.geometry ~node_id:source.node with
+                 | Some node when Node.operation node = "flow_inputs" -> Some interface_inputs
+                 | _ -> None) in
+          Option.fold ~none:false ~some:(List.exists
+            (fun (port : Flow_sop.Network.interface_port) ->
+              port.name = output && port.ty = Flow.Port_type.Geometry)) ports)
+      network.graph.geometry_outputs in
     let valid_layout =
       Layout.for_all (fun id _ -> exists id) network.layout.level
       && Layout.for_all (fun id _ -> exists id) network.layout.pinned
@@ -166,7 +182,8 @@ let validate value =
     else if not (Layout.for_all (fun id (x, y) ->
       exists id && Float.is_finite x && Float.is_finite y) network.layout.at)
     then Error (name ^ " has an invalid tile position")
-    else if not (valid_layout && valid_drives) then Error (name ^ " has invalid canvas metadata")
+    else if not (valid_layout && valid_drives && valid_geometry_outputs) then
+      Error (name ^ " has invalid canvas or geometry output metadata")
     else if not (List.for_all (fun (info : Edit_graph.node_info) ->
       Array.for_all (Option.fold ~none:true ~some:geometry_exists) info.inputs
       && finite_fields (Node.parameter_fields info.node)) nodes)
@@ -258,7 +275,8 @@ let validate value =
         definition.spec.inputs in
       let* () = validate_ports ("definition " ^ name ^ " outputs")
         definition.spec.outputs in
-      let* () = validate_network ("definition " ^ name) network in
+      let* () = validate_network ~interface_inputs:definition.spec.inputs
+        ("definition " ^ name) network in
       validate_instances network) value.definitions (Ok ()) in
   let module Names = Set.Make (String) in
   let rec visit stack seen name =
