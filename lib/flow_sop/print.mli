@@ -12,3 +12,11 @@ val network :
   definitions:Network.definition Network.String_map.t ->
   Network.t ->
   (t, Flow.Diagnostic.t) result
+
+val definition :
+  ?qualified:bool ->
+  catalog:Flow.Check.catalog ->
+  definitions:Network.definition Network.String_map.t ->
+  string ->
+  (t, Flow.Diagnostic.t) result
+(** One open compound's body, with binding lines relative to its [defgraph]. *)

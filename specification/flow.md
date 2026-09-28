@@ -682,10 +682,12 @@ frame). Existing WAI-ARIA tree keys stay.
 
 ### 8.3 Text
 
-The canonical printout (§11.7) of the level's document, read-only, one line
+The canonical printout (§11.7) of an SOP network or open compound, read-only, one line
 per binding; clicking a binding line selects its node; the selected node's
 line is highlighted; a "qualified names" toggle prints every symbol with its
-namespace. `j`/`k` move between binding lines. No editing in this revision.
+namespace. `j`/`k` move between binding lines; Enter opens the selected node
+in the graph. Scene and World levels show a reserved-context message until
+their Flow language revision after M7. No editing in this revision.
 
 ### 8.4 Shared state
 
@@ -853,8 +855,9 @@ definitions and live `Flow.Check.catalog`. It returns canonical text and a
 node-id-to-binding-line map for the read-only text view, deterministically
 and independently of layout:
 
-- Header `(graph <name> :context sop` where the name is the sketch or network
-  name; definitions print first as `defgraph` blocks, innermost first, each
+- Header `(graph <name> :context sop` where the sketch or network name follows
+  the binding-name normalization rule below; definitions print first as
+  `defgraph` blocks, innermost first, each
   once.
 - Order: visit nodes by ascending id; before a node, visit the sources of its
   inputs in port order (slots, then fields in declaration order, vec3
@@ -1126,6 +1129,7 @@ content-addressed cache sharing between instances; macros.
 | World keys | `e`→`t`, `r`→`n`, `p`→`d`; grammar letters reserved everywhere |
 | `f` | frames the selection, or the display node when nothing is selected |
 | Editor text view | read-only in this revision |
+| Scene and World text | the third projection shows a reserved-context message until those contexts receive Flow syntax after M7 |
 | Catalog pinning | integer catalog version in the manifest, optional `:catalog N` in files |
 | Cache sharing between instances | none |
 | Guide mode | on by default, persisted off |

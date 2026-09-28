@@ -29,7 +29,7 @@ network is presentation only and never cooks.
 `Document.t` holds the scene network, one network per geometry object and
 per World (keyed by object id), the active camera object, and the sketch
 `Settings`. History snapshots it; the open level, selection, projection
-(list or graph), and the map view are view state. A deleted object's
+(graph, list, or text), and the map view are view state. A deleted object's
 network goes with it; a pasted object copies its source's network.
 
 An empty scene or object network has no display node (`null` in presets).
@@ -47,14 +47,16 @@ PXUI state; `Network_view` converts saved networks to and from graph presentatio
 
 The sketch's code graph becomes the geometry object `geo1`; camera SOPs in it
 move to the scene as camera objects. `?lights` become light objects and
-`?world` the World. Version 1 presets (one SOP network) migrate the same way.
+`?world` the World. Presets use the version 3 document format.
 
 ## Levels and keys
 
 The scene and the World open as lists, a SOP network as a graph; `Space l`
-flips the pane (switching to the graph frames it) and each level remembers
-it; inside the World the view pane opens on the lat-long map and `Space l`
-flips it back to 3D. `i`, a double-click on a tile or row, or the row
+cycles graph → list → text → graph (switching to the graph frames it), and each
+level remembers its projection. The text projection prints SOP networks and
+compound definitions read-only; scene and World levels show a reserved-context
+message until their Flow syntax is specified. Inside the World the view pane
+opens on the lat-long map and `Space l` flips it back to 3D. `i`, a double-click on a tile or row, or the row
 menu's Enter open a geometry object or the World; `u` goes back up (both
 from any pane). `Space e` opens the World, creating it on first use as a
 daylight sky with a sun. `Space a` opens the add menu of the open level

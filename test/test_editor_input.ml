@@ -165,7 +165,8 @@ let run () =
     let cancelled = camera !current in
     step [Event.MouseMoved (190., 350.)];
     check (camera !current = cancelled) (name ^ ": popup did not cancel an existing drag");
-    if scene_level then step [key Input.Space; char 'l'];
+    if scene_level then (step [key Input.Space; char 'l'];
+      step [key Input.Space; char 'l']);
     step [];
     let gx, gy, _, _ = (panes !current (frame (0., 0.) [] 0)).Pxui_shell.Layout.graph in
     let point = float (gx + 25), float (gy + 300) in

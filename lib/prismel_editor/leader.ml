@@ -53,7 +53,7 @@ let keymap = [
   command ~id:"sketch.stop" ~label:"stop" ~trigger:(Leader "x") Stop;
   command ~id:"workspace.command-palette" ~label:"command palette" ~trigger:(Leader "/")
     Command_palette;
-  command ~guide:Editor_core.Guide_context.[Canvas; Node; Multi; List] ~id:"graph.projection" ~label:"list / graph" ~trigger:(Leader "l") Toggle_projection;
+  command ~guide:Editor_core.Guide_context.[Canvas; Node; Multi; List] ~id:"graph.projection" ~label:"graph / list / text" ~trigger:(Leader "l") Toggle_projection;
   command ~id:"scene.world" ~label:"World" ~trigger:(Leader "e") Go_world;
   command ~id:"graph.add-node" ~label:"add (menu)" ~trigger:(Leader "a") Add_node;
   command ~guide:Editor_core.Guide_context.[Node; List]

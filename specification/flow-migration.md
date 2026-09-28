@@ -318,6 +318,14 @@ network with the same canvas, keys, views and text), then plan it here.
 
 ## Log
 
+- 2026-09-28 M6 text-view checkpoint: `Space l` cycles graph, list and text
+  per level. The SOP/compound text pane caches canonical printing, maps
+  binding clicks and `j`/`k` into shared selection, and toggles qualified
+  symbols. Enter in list or text opens and frames the selected graph node.
+  Scene and World show the reserved-context message pending their later Flow
+  syntax revision. Window-free editor interaction and compound binding-line
+  tests cover the new projection; full reconstruction laws remain.
+
 - 2026-09-28 M6 printer checkpoint: `Flow_sop.Print.network` emits canonical
   text and binding-line mappings from the saved network without reading
   layout. It orders SOP and value dependencies, preserves named compound

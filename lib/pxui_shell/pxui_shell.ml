@@ -517,7 +517,8 @@ module Tree = struct
       key "move-down" "move down" ArrowDown Move_down ~modifiers:[Alt];
       key "rename" "rename" F2 Rename_row;
       key "filter" "filter" (KeyChar '/') Filter;
-      key "hide" "hide / show" (KeyChar 'h') Hide ]
+      key "hide" "hide / show" (KeyChar 'h') Hide;
+      key "activate" "open selected in graph" Enter Activate_row ]
 
   let has_children rows index =
     index + 1 < Array.length rows && rows.(index + 1).depth > rows.(index).depth

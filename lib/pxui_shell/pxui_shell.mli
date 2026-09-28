@@ -124,7 +124,7 @@ module Tree : sig
 
   val create : unit -> t
   val bindings : ('scope, command) Editor_core.Command.t list
-  (** Arrows, Home/End, Tab/Shift-Tab, Alt-arrows, F2, [/], [h]; the host
+  (** Arrows, Home/End, Tab/Shift-Tab, Alt-arrows, F2, [/], [h], Enter; the host
       scopes them to its list pane. *)
 
   val run_command : t -> row array -> selected:int list -> command -> t * intent list

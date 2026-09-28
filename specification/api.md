@@ -763,12 +763,16 @@ it. Wireless binds change only saved layout visibility, never evaluation.
 | `h` / `c` | global | hide all UI / camera section |
 | `p` / `r` / `x` | global | play-pause / reset / stop |
 | `a` | global | add menu of the open level (hover submenus, type to search) |
-| `l` / `e` | global | list ⇄ graph (map view in the World) / open the World |
+| `l` / `e` | global | graph → list → text → graph (map view in the World) / open the World |
 | `f` | graph | frame displayed tile |
 | `k` | global | grouped Flow key sheet |
 | `w` / `v` | view (3D) | fly mode / look through render camera |
 
 The table above lists keys after `Space`. With the graph focused:
+
+The list and text projections use `j`/`k` to move between rows or bindings.
+Enter opens the selected node in the graph. The text projection is read-only;
+clicking a binding selects its node, and its header toggles qualified names.
 
 | Key | Action |
 |---|---|

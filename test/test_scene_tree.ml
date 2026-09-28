@@ -2,8 +2,8 @@
    focus, [i] and a double-click enter a geometry object or the World, [u]
    goes up; [Space a l] adds a light (in rename mode), Tab reparents keeping
    its world position, [h] hides; scene edits never re-cook SOPs; [Space e]
-   creates and opens the World, which then bakes; [Space l] flips list and
-   graph. *)
+   creates and opens the World, which then bakes; [Space l] cycles list,
+   text, and graph. *)
 open Prismel
 open Procedural
 
@@ -50,6 +50,14 @@ let run () =
       [Event.MousePressed (Input.LeftButton, (float (fst in_list), float (snd in_list)));
        Event.MouseReleased (Input.LeftButton, (float (fst in_list), float (snd in_list)))] in
   let label env = Option.map Node.label (E.selected_node env) in
+  let env = step env [key Input.Home] in
+  let first = Option.map Node.id (E.selected_node env) in
+  let env = step env [char 'j'] in
+  check (Option.map Node.id (E.selected_node env) <> first)
+    "list j did not move to the next row";
+  let env = step env [char 'k'] in
+  check (Option.map Node.id (E.selected_node env) = first)
+    "list k did not return to the previous row";
   let rec select name env tries =
     if label env = Some name then env
     else if tries = 0 then fail ("no list row named " ^ name)
@@ -71,6 +79,55 @@ let run () =
   check (E.level env = Some "geo1") "i did not enter the focused geometry object";
   check (E.document env |> Edit_graph.inspect |> List.exists (fun (info : Edit_graph.node_info) ->
       info.operation = "box")) "geo1's network is not the sketch's SOP graph";
+  let original = E.document env in
+  let env = step env [key Input.Space; char 'l'] in
+  let env = step env [key Input.Space; char 'l'] in
+  let env = step env [] in
+  let projection env =
+    let directory = Filename.temp_dir "prismel-flow-view" "" in
+    Fun.protect ~finally:(fun () ->
+      Array.iter (fun file -> Sys.remove (Filename.concat directory file))
+        (Sys.readdir directory);
+      Unix.rmdir directory) (fun () ->
+      E.crash_dump env directory;
+      In_channel.with_open_text (Filename.concat directory "editor.txt")
+        (fun channel -> ignore (input_line channel); input_line channel)) in
+  check (projection env = "projection: text") "Space l did not reach Flow text";
+  let gx, gy, _, _ = (E.panes env (frame 0)).graph in
+  let line = gx + 40, gy + 24 + 24 + 12 in
+  let click = [Event.MousePressed (Input.LeftButton,
+    (float (fst line), float (snd line)));
+    Event.MouseReleased (Input.LeftButton,
+      (float (fst line), float (snd line)))] in
+  let env = step ~mouse:line env [] in
+  let env = step ~mouse:line env click in
+  check (Option.map Node.operation (E.selected_node env) = Some "box")
+    "clicking a Flow text binding did not select its node";
+  let env = step env [char 'k'; char 'j'] in
+  check (Option.map Node.operation (E.selected_node env) = Some "box")
+    "text j/k lost the binding selection";
+  let header = gx + 40, gy + 8 in
+  let env = step ~mouse:header env [] in
+  let env = step ~mouse:header env [Event.MousePressed (Input.LeftButton,
+    (float (fst header), float (snd header)));
+    Event.MouseReleased (Input.LeftButton,
+      (float (fst header), float (snd header)))] in
+  check (E.document env == original) "the qualified-name toggle edited the graph";
+  let env = step env [key Input.Enter] in
+  check (projection env = "projection: graph")
+    "text Enter did not return to the graph";
+  let env = step env [key Input.Space; char 'l'] in
+  let env = step env [] in
+  check (projection env = "projection: list") "Space l did not reach Flow list";
+  let row = gx + 40, gy + 24 + 12 in
+  let env = step ~mouse:row env [] in
+  let env = step ~mouse:row env [Event.MousePressed (Input.LeftButton,
+    (float (fst row), float (snd row)));
+    Event.MouseReleased (Input.LeftButton,
+      (float (fst row), float (snd row)))] in
+  let env = step env [key Input.Enter] in
+  check (projection env = "projection: graph")
+    "list Enter did not open the selected node in graph";
   let env = step env [char 'u'] in
   check (E.level env = None) "u did not go back to the scene";
   let env = step env [] in  (* the list is hit-tested from the next frame *)
@@ -269,7 +326,8 @@ let run () =
   let saved = E.document env and baked = E.world env in
   let env = step env [char 't'; char 'n'; char 'd'] in
   check (E.document env == saved && E.world env = baked) "World keys edited the scene level";
-  (* Space l flips the scene between list and graph. *)
+  (* The scene starts in list: two cycles reach graph through text. *)
+  let env = step env [key Input.Space; char 'l'] in
   let env = step env [key Input.Space; char 'l'] in
   let env = step env [] in
   let tile = List.find (fun (tile : Pxui_graph.node_view) -> tile.label = "geo1")
@@ -289,6 +347,7 @@ let run () =
   let env = step env [] in
   let env = select "geo1" env 8 in
   let env = step env [key Input.Delete] in
+  let env = step env [key Input.Space; char 'l'] in
   let env = step env [key Input.Space; char 'l'] in
   let env = step env [key Input.Space; char 'l'] in
   let env = step env [key Input.Space; char 'e'] in

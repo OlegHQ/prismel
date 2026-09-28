@@ -94,8 +94,9 @@ rules in this file are current. Planned changes that touch this directory:
   ports and unexport unused value ports. `e` exports scalar rows inside a
   definition; instance rows edit their own literals, and flattening carries
   value drives through nested compounds. Whole-Vec3 export, nonuniform Vec3
-  defaults, and geometry-port unexport are implemented. M6: `Space l` cycles
-  graph, list, text.
+  defaults, and geometry-port unexport are implemented. M6's read-only text
+  projection and three-view `Space l` cycle now work; round-trip tests and the
+  compile-time layer remain in progress.
 
 Keep the three-column workspace, `Doc.apply` as the only graph-intent reducer,
 the one Command table, and history labels; the rework extends them.

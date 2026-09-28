@@ -586,7 +586,8 @@ module Make (V : VIEWPORT) = struct
          undo: %s (%d entries)\nredo: %s\ncook: %s\nedit error: %s\n\
          load document.json with Space b after copying it to %s\n"
         (Core.level_name core)
-        (match Core.projection core with Core.List_view -> "list" | Graph_view -> "graph")
+        (match Core.projection core with Core.List_view -> "list"
+          | Graph_view -> "graph" | Text_view -> "text")
         core.map_view core.guide (Option.fold ~none:"-" ~some:fst core.hud)
         (Option.fold ~none:"none" ~some:(fun node ->
           Printf.sprintf "%s (#%d, %s)" (Node.label node) (Node.id node) (Node.operation node))

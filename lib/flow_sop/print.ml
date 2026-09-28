@@ -274,7 +274,7 @@ let definition_text ~qualified ~catalog ~definitions (definition : Network.defin
     | [name, text] when List.mem name ["geo"; "out"] -> text
     | _ -> "(values " ^ String.concat " " (List.map (fun (name, text) ->
         ":" ^ name ^ " " ^ text) results) ^ ")" in
-  let body, _ = render_body ~qualified ~catalog ~definitions
+  let body, bindings = render_body ~qualified ~catalog ~definitions
     ~input_marker:(Some inputs)
     network ~result in
   let ports = List.map (fun (port : Network.interface_port) ->
@@ -282,9 +282,10 @@ let definition_text ~qualified ~catalog ~definitions (definition : Network.defin
       (Flow.Port_type.name port.ty) ^
       Option.fold ~none:"" ~some:(fun default -> " " ^ port_literal default)
         port.default ^ ")") definition.inputs in
-  "(defgraph " ^ definition.name ^ " :context " ^
+  let text = "(defgraph " ^ definition.name ^ " :context " ^
     Flow.Context.name definition.context ^ "\n  [" ^ String.concat " " ports ^
-    "]\n  " ^ body ^ ")"
+    "]\n  " ^ body ^ ")" in
+  {text; binding_lines = List.map (fun (id, index) -> id, index + 3) bindings}
 
 let ordered_definitions definitions =
   let seen = Hashtbl.create 16 and active = Hashtbl.create 16 in
@@ -310,8 +311,7 @@ let ordered_definitions definitions =
 let network ?(qualified = false) ~name ~context ~catalog ~display ~definitions network =
   try
     require (Network.validate network);
-    if not (Flow.Symbol.valid_name name) then
-      fail "E_BINDING_NAME" ("Graph name " ^ name ^ " is not a Flow symbol");
+    let name = binding_base name in
     let result names = match display with
       | Some id when Hashtbl.mem names id ->
           let outputs = require (Network.outputs ~definitions network ~node_id:id) in
@@ -327,7 +327,8 @@ let network ?(qualified = false) ~name ~context ~catalog ~display ~definitions n
       | None -> "nil" in
     let body, bindings = render_body ~qualified ~catalog ~definitions ~input_marker:None
       network ~result in
-    let printed_definitions = List.map (definition_text ~qualified ~catalog ~definitions)
+    let printed_definitions = List.map (fun definition ->
+      (definition_text ~qualified ~catalog ~definitions definition).text)
       (ordered_definitions definitions) in
     let prefix = if printed_definitions = [] then "" else
       String.concat "\n\n" printed_definitions ^ "\n\n" in
@@ -338,4 +339,12 @@ let network ?(qualified = false) ~name ~context ~catalog ~display ~definitions n
     let binding_lines = List.map (fun (id, index) ->
       id, prefix_lines + index + 2) bindings in
     Ok {text; binding_lines}
+  with Cannot_print diagnostic -> Error diagnostic
+
+let definition ?(qualified = false) ~catalog ~definitions name =
+  try
+    let definition = match Network.String_map.find_opt name definitions with
+      | Some definition -> definition
+      | None -> fail "E_UNBOUND" ("Unknown compound " ^ name) in
+    Ok (definition_text ~qualified ~catalog ~definitions definition)
   with Cannot_print diagnostic -> Error diagnostic

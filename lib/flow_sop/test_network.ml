@@ -91,6 +91,10 @@ let () =
     (Network.of_geometry Procedural.Edit_graph.empty)) in
   assert (empty.text = "(graph empty :context sop\n  nil)");
   checked catalog empty;
+  let titled = ok (Print.network ~name:"My Sketch" ~context:Flow.Context.Sop
+    ~catalog ~display:None ~definitions:Network.String_map.empty
+    (Network.of_geometry Procedural.Edit_graph.empty)) in
+  assert (titled.text = "(graph my_sketch :context sop\n  nil)");
   let printed = ok (Print.network ~name:"demo" ~context:Flow.Context.Sop ~catalog
     ~display:(Some id) ~definitions:Network.String_map.empty base) in
   assert (printed.binding_lines = [id, 2]);
@@ -504,6 +508,15 @@ let () =
     ~definitions:(Network.String_map.singleton definition.name definition)
     grouped_base) in
   checked catalog printed;
+  let printed_definition = ok (Print.definition ~catalog
+    ~definitions:(Network.String_map.singleton definition.name definition)
+    definition.name) in
+  let lines = String.split_on_char '\n' printed_definition.text in
+  assert (List.for_all (fun (_, line) -> line > 0 && line <= List.length lines
+    && String.contains (List.nth lines (line - 1)) '(')
+    printed_definition.binding_lines);
+  checked catalog {printed_definition with text = printed_definition.text ^
+    "\n\n(graph demo :context sop\n  nil)"};
   let checked_program = fst (Flow.Check.check catalog printed.text) |> Option.get in
   assert ((List.hd checked_program.definitions).outputs =
     List.map (fun (port : Network.interface_port) -> port.name, port.ty)

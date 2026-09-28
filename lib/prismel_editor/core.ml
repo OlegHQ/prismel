@@ -10,7 +10,18 @@ module Level_map = Map.Make (struct
 end)
 
 (* How the graph pane shows the open network. *)
-type projection = Graph_view | List_view
+type projection = Graph_view | List_view | Text_view
+
+type text_cache = {
+  level : Document.level;
+  source : Flow_sop.Network.t;
+  definitions : Document.definition Document.String_map.t;
+  displayed : int option;
+  qualified : bool;
+  printed : (Flow_sop.Print.t, Flow.Diagnostic.t) result;
+  lines : string array;
+  node_at_line : int option array;
+}
 
 type prompt =
   | Keys
@@ -49,6 +60,8 @@ type 'panel frame_result = {
   label : string;  (* names this frame's document change in history *)
   graph_changes : Pxui_graph.change list;
   tree_intents : Pxui_shell.Tree.intent list;
+  text_toggle : bool;
+  open_graph : int option;
   settings_changes : (string * Parameter.value) list;
   hide_guide : bool;
   handle_changes : (int * (string * Parameter.value) list) option;
@@ -67,6 +80,8 @@ type 'prepared t = {
   level : Document.level;
   scene_level : bool;  (* false: one geometry object, no scene to go up to *)
   projections : projection Level_map.t;
+  qualified_text : bool Level_map.t;
+  text_cache : text_cache option;
   map_view : bool;  (* in the World, the view pane shows the lat-long map *)
   live_cook : bool;  (* cook while a drag holds the pointer *)
   rows : (Flow_sop.Network.t * int * Editor_core.Network_layout.t
@@ -653,7 +668,8 @@ let create ?(settings = Settings.none) ?(keymap = Leader.keymap)
         | Ok values -> Option.value ~default:true (Editor_core.Store.Settings.bool values "guide")
         | Error _ -> true in
       let value = { preferences; guide; hud = None; code_graph = graph; presets; name; prompt = None; notice = None;
-        doc; level; scene_level; projections = Level_map.empty; map_view = false;
+        doc; level; scene_level; projections = Level_map.empty;
+        qualified_text = Level_map.empty; text_cache = None; map_view = false;
         rows = None; live_cook = true;
         factories;
         graph_view = Pxui_graph.create (Sop.points [||]);
@@ -693,6 +709,113 @@ let level_name value = match value.level with
       ^ String.concat " › " (List.map (fun name ->
         String.capitalize_ascii (String.map (function '_' -> ' ' | c -> c) name)
         ^ " · sop compound") (Document.compound_names value.doc level))
+
+let printed_level value =
+  let saved = network value in
+  let qualified = Option.value ~default:false
+      (Level_map.find_opt value.level value.qualified_text) in
+  match value.text_cache with
+  | Some cache when cache.level = value.level && cache.source == saved.graph
+      && cache.definitions == value.doc.definitions
+      && cache.displayed = saved.displayed && cache.qualified = qualified -> cache
+  | _ ->
+      let printed = match saved.context with
+        | Flow.Context.Scene | World | Value ->
+            Error (Flow.Diagnostic.error ~code:"E_CONTEXT_RESERVED"
+              "Flow text is available for SOP networks and compounds")
+        | Sop ->
+            let definitions = Document.flow_definitions value.doc in
+            Result.bind (Flow_sop.Catalog.of_factories ~version:1 value.factories)
+              (fun catalog -> match value.level with
+                | Compound _ ->
+                    (match List.rev (Document.compound_names value.doc value.level) with
+                     | name :: _ -> Flow_sop.Print.definition ~qualified ~catalog
+                         ~definitions name
+                     | [] -> Error (Flow.Diagnostic.error ~code:"E_UNBOUND"
+                         "Open compound has no definition"))
+                | Scene | Inside _ ->
+                    Flow_sop.Print.network ~qualified ~name:value.name ~context:saved.context
+                      ~catalog ~display:saved.displayed ~definitions saved.graph) in
+      let lines = Array.of_list (String.split_on_char '\n'
+        (match printed with Ok print -> print.text
+          | Error diagnostic -> diagnostic.message)) in
+      let node_at_line = Array.make (Array.length lines) None in
+      (match printed with
+       | Ok print -> List.iter (fun (id, line) ->
+           if line > 0 && line <= Array.length node_at_line then
+             node_at_line.(line - 1) <- Some id) print.binding_lines
+       | Error _ -> ());
+      {level = value.level; source = saved.graph;
+       definitions = value.doc.definitions; displayed = saved.displayed;
+       qualified; printed; lines; node_at_line}
+
+let move_text_selection cache selected direction =
+  let bindings = match cache.printed with
+    | Ok print -> print.binding_lines | Error _ -> [] in
+  let ids = List.map fst bindings in
+  match ids with
+  | [] -> None
+  | _ ->
+      let index = match selected with
+        | None -> if direction = Pxui_graph.Up then List.length ids - 1 else 0
+        | Some id ->
+            (match List.find_index (( = ) id) ids with
+             | None -> if direction = Pxui_graph.Up then List.length ids - 1 else 0
+             | Some index -> max 0 (min (List.length ids - 1)
+                 (index + if direction = Pxui_graph.Up then -1 else 1))) in
+      List.nth_opt ids index
+
+let text_pane ui ~bounds:(x, y, width, height) ~title ~reveal cache ~selected =
+  let module Ui = Pxui.Ui in
+  let row = float_of_int (Ui.row_height ui) in
+  let x = float_of_int x and y = float_of_int y
+  and width = float_of_int width and height = float_of_int height in
+  let theme = Ui.theme ui in
+  let header = Ui.box ui ~flags:Ui.(clickable + blocking)
+      ~w:(Ui.Px width) ~h:(Ui.Px row) ~at:(x, y) "flow-text-header" in
+  let toggle = (Ui.signal ui header).clicked && Result.is_ok cache.printed in
+  Ui.draw ui header (fun paint _ ->
+    Ui.Paint.fill paint ~x ~y ~w:width ~h:row theme.foreground;
+    Ui.Paint.text paint ~at:(x +. 8., y +. 5.) ~color:theme.input
+      (title ^ (match cache.printed with Error _ -> "  ·  text"
+        | Ok _ -> "  ·  qualified names: " ^
+            (if cache.qualified then "on" else "off"))));
+  let body_y = y +. row and body_h = Float.max 0. (height -. row) in
+  let body = Ui.box ui ~flags:Ui.(clickable + scroll + clip + blocking)
+      ~w:(Ui.Px width) ~h:(Ui.Px body_h) ~at:(x, body_y) "flow-text-body" in
+  let signal = Ui.signal ui body in
+  let visible = max 1 (int_of_float (body_h /. row)) in
+  let maximum = max 0 (Array.length cache.lines - visible) in
+  let first = max 0 (min maximum
+    (Ui.state ui body ~default:0 - int_of_float (snd signal.scroll))) in
+  let first = if not reveal then first else
+    match cache.printed, selected with
+    | Ok print, Some id ->
+        (match List.assoc_opt id print.binding_lines with
+         | Some line when line - 1 < first -> line - 1
+         | Some line when line - 1 >= first + visible ->
+             min maximum (line - visible)
+         | _ -> first)
+    | _ -> first in
+  Ui.set_state ui body first;
+  let picked = if not signal.pressed || signal.button <> Some Input.LeftButton
+    then None else
+    let _, py = signal.press_point in
+    let line = first + int_of_float (Float.floor ((py -. body_y) /. row)) in
+    if line < 0 || line >= Array.length cache.node_at_line then None
+    else cache.node_at_line.(line) in
+  Ui.draw ui body (fun paint _ ->
+    Ui.Paint.fill paint ~x ~y:body_y ~w:width ~h:body_h theme.panel;
+    for index = first to min (Array.length cache.lines - 1) (first + visible) do
+      let line_y = body_y +. float_of_int (index - first) *. row in
+      if cache.node_at_line.(index) = selected then
+        (match selected with Some _ ->
+          Ui.Paint.fill paint ~x ~y:line_y ~w:width ~h:row
+            (Pxui.Theme.pressed_fill theme) | None -> ());
+      Ui.Paint.text paint ~at:(x +. 8., line_y +. 5.)
+        ~color:theme.foreground cache.lines.(index)
+    done);
+  picked, toggle
 
 let status_text value =
   let cook = match Cook.status value.cook with
@@ -873,20 +996,28 @@ let world_keys value (doc : Document.t) graph_view actions =
 let routed value =
   let graph_shown = not (Pxui_shell.Layout.collapsed value.workspace Pxui_shell.Layout.Graph) in
   let listing = projection value = List_view in
-  if Pxui_graph.hinting value.graph_view && not listing then
+  let texting = projection value = Text_view in
+  if Pxui_graph.hinting value.graph_view && not (listing || texting) then
     List.filter (fun (command : Leader.command) -> match command.action with
       | Guide_toggle | Guide_keys -> true | _ -> false) value.keymap @ List.map (fun (command : _ Editor_core.Command.t) ->
       { command with scope = Some Pxui_shell.Layout.Graph;
         action = Leader.Graph_command command.action }) Pxui_graph.hint_bindings
   else List.filter (fun (command : Leader.command) -> match command.action with
+    | List_command Pxui_shell.Tree.Activate_row -> (listing || texting) && graph_shown
     | List_command _ -> listing && graph_shown
-    | Graph_command Pxui_graph.Frame_all -> not listing && graph_shown
+    | Graph_command (Pxui_graph.Walk (Pxui_graph.Up | Pxui_graph.Down))
+      when listing || texting -> graph_shown && (match command.trigger with
+        | Some (Editor_core.Keymap.Chord (Input.KeyChar ('j' | 'k'), [])) -> true
+        | _ -> false)
+    | Graph_command Pxui_graph.Frame_all -> not (listing || texting) && graph_shown
     | Graph_command (Walk _ | Add | Connect_hint | Bind_hint | Show_wireless
-      | Frame_selection) -> not listing && graph_shown
-    | Graph_command _ -> graph_shown
-    | Frame_tile -> graph_shown && (listing || command.trigger = Some (Editor_core.Keymap.Leader "f"))
+      | Frame_selection) -> not (listing || texting) && graph_shown
+    | Graph_command _ -> not texting && graph_shown
+    | Frame_tile -> not texting && graph_shown
+        && (listing || command.trigger = Some (Editor_core.Keymap.Leader "f"))
     | Frame_camera -> graph_shown
-    | Group | Ungroup | Make_unique -> graph_shown && (match value.level with
+    | Add_node | Layout -> not texting && graph_shown
+    | Group | Ungroup | Make_unique -> not texting && graph_shown && (match value.level with
         | Document.Inside id -> kind value id = Some "geometry"
         | Compound _ -> true | Scene -> false)
     | Enter -> value.scene_level || (match value.level with
@@ -990,8 +1121,19 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
       (apply_action value frame)
       (value.workspace, value.graph_view, value.tree, timeline, timeline_changes) actions in
   let graph_shown = all_ui_visible && not (Pxui_shell.Layout.collapsed workspace Pxui_shell.Layout.Graph) in
+  let listing = projection value = List_view in
+  let texting = projection value = Text_view in
+  let text_cache = if texting && graph_shown then Some (printed_level value)
+    else value.text_cache in
   let graph_view, command_changes = List.fold_left (fun (graph_view, changes) ->
     function
+    | Leader.Graph_command (Walk (Pxui_graph.Up | Pxui_graph.Down))
+      when graph_shown && listing -> graph_view, changes
+    | Leader.Graph_command (Walk direction) when graph_shown && texting ->
+        let selected = Option.bind text_cache (fun cache ->
+          move_text_selection cache (Pxui_graph.selected graph_view) direction) in
+        (match selected with Some id -> Pxui_graph.select id graph_view
+          | None -> graph_view), changes
     | Leader.Graph_command command when graph_shown ->
         let mx, my = frame.mouse in
         let graph_view, emitted = Pxui_graph.run_command ~at:(int_of_float mx, int_of_float my)
@@ -1000,7 +1142,6 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
     | _ -> graph_view, changes) (graph_view, []) actions in
   let document = document value in
   let open_network = (network value).graph in
-  let listing = projection value = List_view in
   let rows_cache = match value.rows with
     | Some (source, viewed, layout, rows) when listing && source == open_network
         && viewed = Pxui_graph.viewed graph_view && layout == (network value).layout ->
@@ -1014,11 +1155,26 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
     |> List.sort (fun a b -> if Some a = Pxui_graph.selected graph_view then -1
       else if Some b = Pxui_graph.selected graph_view then 1 else Int.compare a b) in
   let tree, list_intents = List.fold_left (fun (tree, intents) -> function
+    | Leader.Graph_command (Walk direction) when listing && graph_shown ->
+        let command = if direction = Pxui_graph.Up then Pxui_shell.Tree.Up
+          else Pxui_shell.Tree.Down in
+        let tree, emitted = Pxui_shell.Tree.run_command tree rows
+            ~selected:(selected ()) command in
+        tree, intents @ emitted
+    | Leader.List_command Pxui_shell.Tree.Activate_row -> tree, intents
     | Leader.List_command command when graph_shown ->
         let tree, emitted = Pxui_shell.Tree.run_command tree rows
             ~selected:(selected ()) command in
         tree, intents @ emitted
     | _ -> tree, intents) (tree, []) actions in
+  let open_graph = if not graph_shown then None else
+    List.find_map (function
+      | Leader.List_command Pxui_shell.Tree.Activate_row when listing ->
+          (match Pxui_shell.Tree.focused tree with
+           | Some id -> Some id | None -> Pxui_graph.selected graph_view)
+      | Leader.List_command Pxui_shell.Tree.Activate_row when texting ->
+          Pxui_graph.selected graph_view
+      | _ -> None) actions in
   let initial_frame_request = if List.mem Leader.Frame_camera actions
     then Some (Pxui_graph.viewed graph_view) else None in
   let build ui =
@@ -1056,6 +1212,15 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
             ~selected:(selected ())) in
         tree, list_intents @ emitted
       else tree, list_intents in
+    let text_selected, text_toggle = match text_cache with
+      | Some cache when texting && not (Pxui_shell.Layout.collapsed workspace Pxui_shell.Layout.Graph) ->
+          Pxui.Ui.within ui graph_root (fun () ->
+            text_pane ui ~bounds:panes.graph ~title:(level_name value) cache
+              ~reveal:(List.exists (function
+                | Leader.Graph_command (Walk (Pxui_graph.Up | Pxui_graph.Down)) -> true
+                | _ -> false) actions)
+              ~selected:(Pxui_graph.selected graph_view))
+      | _ -> None, false in
     let graph_changes = command_changes @ graph_changes in
     let frame_request = List.fold_left (fun request -> function
       | Pxui_graph.Frame_camera_requested id -> Some id
@@ -1069,6 +1234,8 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
       | Pxui_shell.Tree.Select [] -> Pxui_graph.clear_selection view
       | Select ids -> Pxui_graph.select_nodes ids view
       | _ -> view) graph_view list_intents in
+    let graph_view = match text_selected with
+      | Some id -> Pxui_graph.select id graph_view | None -> graph_view in
     let inspector_visible = not (Pxui_shell.Layout.collapsed workspace Pxui_shell.Layout.Inspector) in
     let selected_ids = Pxui_graph.selected_nodes graph_view in
     let selected_id = match selected_ids with
@@ -1273,7 +1440,8 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
       timeline_intents; frame_request; prompt = None; prompt_intent = None;
       panel; grab; settings = unchanged; touched = false; placed = []; pasted = [];
       opened; live_cook; label = "Edit";
-      graph_changes; tree_intents = list_intents; settings_changes;
+      graph_changes; tree_intents = list_intents; text_toggle; open_graph;
+      settings_changes;
       handle_changes; hide_guide } in
   let leader_panel = match leader with
     | Leader.Pending prefix -> Some (fun ui ->
@@ -1357,6 +1525,7 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
         settings = value.doc.settings; touched = false; placed = []; pasted = [];
         opened = None; live_cook = value.live_cook; label = "Edit";
         graph_changes = command_changes; tree_intents = list_intents;
+        text_toggle = false; open_graph;
         settings_changes = []; handle_changes = None; hide_guide = false } in
   let guide = guide && not result.hide_guide in
   let guide_error = if guide = value.guide then None else
@@ -1785,6 +1954,9 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
          | (Inside _ | Compound _), Some id -> Document.enter_compound doc level id
          | _ -> None)
     | _ -> None in
+  let graph_view = match result.open_graph with
+    | Some id -> Pxui_graph.select id graph_view
+    | None -> graph_view in
   let value' = { value' with graph_view; tree = result.tree } in
   let value' = match target with
     | Some level -> open_level value' level frame
@@ -1797,16 +1969,27 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
   let map_view = if List.mem Leader.Toggle_projection actions && in_world value'
     then not value'.map_view else value'.map_view && in_world value' in
   let value' = { value' with map_view } in
-  let projections = if List.mem Leader.Toggle_projection actions && not (in_world value') then
+  let projections = if result.open_graph <> None then
+      Level_map.add value'.level Graph_view value'.projections
+    else if List.mem Leader.Toggle_projection actions && not (in_world value') then
       Level_map.add value'.level
-        (if projection value' = List_view then Graph_view else List_view) value'.projections
+        (match projection value' with Graph_view -> List_view
+          | List_view -> Text_view | Text_view -> Graph_view) value'.projections
     else value'.projections in
   (* Switching to the graph frames it, so its tiles are on screen. *)
-  let graph_view = if projection { value' with projections } = Graph_view
-      && projection value' = List_view
-    then fst (Pxui_graph.run_command value'.graph_view Pxui_graph.Frame_all)
-    else value'.graph_view in
-  let value' = { value' with projections; rows = rows_cache; graph_view;
+  let graph_view = if result.open_graph <> None then
+      fst (Pxui_graph.run_command value'.graph_view Pxui_graph.Frame_selection)
+    else if projection { value' with projections } = Graph_view
+        && projection value' <> Graph_view
+      then fst (Pxui_graph.run_command value'.graph_view Pxui_graph.Frame_all)
+      else value'.graph_view in
+  let qualified_text = if result.text_toggle then
+      Level_map.add value.level
+        (not (Option.value ~default:false
+          (Level_map.find_opt value.level value.qualified_text))) value.qualified_text
+    else value.qualified_text in
+  let value' = { value' with projections; qualified_text; text_cache;
+    rows = rows_cache; graph_view;
     live_cook = result.live_cook } in
   let frame_request = match result.frame_request, value'.level with
     | Some node, Inside id when kind value' id = Some "geometry" -> Some (id, node)

@@ -1060,7 +1060,8 @@ let run () =
        standard prompt, and reload that exact generated preset. *)
     undo (); if scene_level then undo ();
     settle (fun env -> prepared env <> None);
-    if scene_level then step [key Input.Space; char 'l'];
+    if scene_level then (step [key Input.Space; char 'l'];
+      step [key Input.Space; char 'l']);
     step [];
     let delete label =
       let tile = List.find (fun tile -> tile.Pxui_graph.label = label) (graph_nodes !value) in
