@@ -123,6 +123,32 @@ let parent_level = function
              else Compound {owner; path = List.rev parents}), instance))
   | Scene | Inside _ -> None
 
+let compiled_path_exists value =
+  let rec through instance = function
+    | [] -> false
+    | [inner] ->
+        (match String_map.find_opt instance.Flow_sop.Network.definition
+          value.definitions with
+         | None -> false
+         | Some definition ->
+             Edit_graph.find definition.spec.body.geometry ~node_id:inner <> None
+             || Flow.Graph.find definition.spec.body.values ~node_id:inner <> None)
+    | nested :: rest ->
+        (match String_map.find_opt instance.Flow_sop.Network.definition
+          value.definitions with
+         | None -> false
+         | Some definition ->
+             match Flow_sop.Network.Int_map.find_opt nested
+               definition.spec.body.instances with
+             | None -> false | Some child -> through child rest) in
+  function
+  | [] -> false
+  | first :: rest ->
+      Layout.exists (fun _ network ->
+        match Flow_sop.Network.Int_map.find_opt first network.graph.instances with
+        | None -> false | Some instance -> through instance rest)
+        value.networks
+
 let group value level ~selected ~positions =
   let ( let* ) = Result.bind in
   match network value level with
@@ -184,6 +210,70 @@ let group value level ~selected ~positions =
       let next = {next with definitions = String_map.add name definition next.definitions} in
       Ok (next, instance)
 
+let ungroup value level ~instance_id =
+  let ( let* ) = Result.bind in
+  match network value level with
+  | None -> Error (Flow.Diagnostic.error ~code:"E_UNGROUP" "No network to ungroup")
+  | Some current ->
+      let* definition = match Flow_sop.Network.Int_map.find_opt instance_id
+          current.graph.instances with
+        | None -> Error (Flow.Diagnostic.error ~code:"E_UNGROUP"
+            "Select one compound instance to ungroup")
+        | Some instance ->
+            (match String_map.find_opt instance.definition value.definitions with
+             | Some definition -> Ok definition
+             | None -> Error (Flow.Diagnostic.error ~code:"E_UNBOUND"
+                 ("Missing compound " ^ instance.definition))) in
+      let* graph, mapping, displayed = Flow_sop.Group.ungroup ~instance_id
+        ~displayed:current.displayed ~definition:definition.spec current.graph in
+      let displayed = match displayed with
+        | Some _ -> displayed
+        | None -> (match List.rev (Edit_graph.inspect graph.geometry) with
+            | node :: _ -> Some node.id | [] -> None) in
+      let layout = Canvas.remove_nodes [instance_id] current.layout in
+      let instance_x, instance_y = Option.value ~default:(0., 0.)
+        (Layout.find_opt instance_id current.layout.at) in
+      let origin_x, origin_y = List.fold_left (fun (x, y) (old_id, _) ->
+        match Layout.find_opt old_id definition.layout.at with
+        | None -> x, y
+        | Some (px, py) -> Float.min x px, Float.min y py)
+        (Float.infinity, Float.infinity) mapping in
+      let origin_x, origin_y = if Float.is_finite origin_x then
+        origin_x, origin_y else 0., 0. in
+      let dx, dy = instance_x -. origin_x, instance_y -. origin_y in
+      let copy source target = List.fold_left (fun target (old_id, new_id) ->
+        match Layout.find_opt old_id source with
+        | None -> target | Some value -> Layout.add new_id value target)
+        target mapping in
+      let at = List.fold_left (fun at (old_id, new_id) ->
+        let x, y = Option.value ~default:(origin_x, origin_y)
+          (Layout.find_opt old_id definition.layout.at) in
+        Layout.add new_id (Canvas.snap (x +. dx), Canvas.snap (y +. dy)) at)
+        layout.at mapping in
+      let remap = Flow_sop.Network.Int_map.of_list mapping in
+      let bends = Canvas.Port_map.fold (fun (old_id, path) points bends ->
+        match Flow_sop.Network.Int_map.find_opt old_id remap with
+        | None -> bends
+        | Some new_id -> Canvas.Port_map.add (new_id, path)
+            (List.map (fun (x, y) -> Canvas.snap (x +. dx),
+              Canvas.snap (y +. dy)) points) bends)
+        definition.layout.bends layout.bends in
+      let wireless = Canvas.Port_set.fold (fun (old_id, path) wireless ->
+        match Flow_sop.Network.Int_map.find_opt old_id remap with
+        | None -> wireless
+        | Some new_id -> Canvas.Port_set.add (new_id, path) wireless)
+        definition.layout.wireless layout.wireless in
+      let layout : Canvas.t = {at;
+        level = copy definition.layout.level layout.level;
+        pinned = copy definition.layout.pinned layout.pinned;
+        rows = copy definition.layout.rows layout.rows;
+        split = copy definition.layout.split layout.split;
+        bends; wireless} in
+      let next = with_network value level {current with graph; layout; displayed} in
+      let compiled_ids = Flow_sop.Instance_path.Map.filter (fun path _ ->
+        compiled_path_exists next path) next.compiled_ids in
+      Ok ({next with compiled_ids}, mapping)
+
 (* The display node, kept on a node that exists: a deleted display node
    falls back to the previous one, else the last node in the network. *)
 let displayed_of ?previous graph viewed =
@@ -243,31 +333,9 @@ let validate value =
       value.networks ids
     |> fun ids -> String_map.fold (fun _ definition ids ->
       collect_ids definition.spec.body ids) value.definitions ids in
-  let rec compiled_path instance = function
-    | [] -> false
-    | [inner] ->
-        (match String_map.find_opt instance.Flow_sop.Network.definition value.definitions with
-         | None -> false
-         | Some definition ->
-             Edit_graph.find definition.spec.body.geometry ~node_id:inner <> None
-             || Flow.Graph.find definition.spec.body.values ~node_id:inner <> None)
-    | nested :: rest ->
-        (match String_map.find_opt instance.Flow_sop.Network.definition value.definitions with
-         | None -> false
-         | Some definition ->
-             match Flow_sop.Network.Int_map.find_opt nested
-               definition.spec.body.instances with
-             | None -> false | Some child -> compiled_path child rest) in
-  let compiled_path_exists = function
-    | [] -> false
-    | first :: rest ->
-        Layout.exists (fun _ network ->
-          match Flow_sop.Network.Int_map.find_opt first network.graph.instances with
-          | None -> false | Some instance -> compiled_path instance rest)
-          value.networks in
   let compiled_ok = List.for_all (fun (path, id) ->
     List.length path >= 2 && List.for_all (fun part -> part > 0) path
-    && compiled_path_exists path && id > 0 && id < max_int
+    && compiled_path_exists value path && id > 0 && id < max_int
     && not (Ids.mem id original_ids))
     compiled
     && List.length compiled_values = List.length (List.sort_uniq Int.compare compiled_values) in

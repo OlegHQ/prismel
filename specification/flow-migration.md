@@ -318,21 +318,27 @@ network with the same canvas, keys, views and text), then plan it here.
 
 ## Log
 
+- 2026-09-28 M5 ungroup checkpoint: `⇧⌘G`/Shift-Ctrl-G replaces one
+  geometry-only instance with fresh copies of its inner nodes, reconnects
+  named geometry boundaries, carries layout into the parent, prunes stale
+  compiled paths and records one undo step. Focused tests cover multi-output
+  routing, nested definitions, cooked geometry, Editor2 undo/redo and the
+  command route. Value interfaces remain pending.
+
 - 2026-09-28 M5 compound-level checkpoint: `Document.level` now follows
   instance paths through shared definitions. `i` or double-click enters a
   compound; `u` returns to its parent and selects the instance. Editing at
   that level updates the shared definition, while display selection remains
   on the enclosing SOP network. Nested paths, undo fallback, preset reload
-  and Editor2 navigation have focused tests. Ungroup and value interfaces
-  remain pending.
+  and Editor2 navigation have focused tests. Value interfaces remain pending.
 
 - 2026-09-28 M5 group checkpoint: `⌘G`/Ctrl-G groups selected SOP geometry
   nodes into the first free `compound_<n>` definition, deduplicates external
   geometry sources, rewires named outputs, preserves moved node ids and layout,
   and records one undo step. The canvas shows named compound output sockets
   and preserves the chosen port in new wires. The editor cooks the grouped result; preset
-  round-trip and undo/redo tests pass. Driven/value selections, ungroup
-  and interface editing remain pending.
+  round-trip and undo/redo tests pass. Driven/value selections and interface
+  editing remain pending.
 
 - 2026-09-28 M5 cook checkpoint: document edits allocate instance-path IDs
   before entering history; `Cook.update` flattens geometry before the value

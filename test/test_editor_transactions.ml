@@ -154,6 +154,24 @@ let run () =
           (E.selected_node !current)
         && snapshot () = grouped)
         "up did not restore the parent graph and select its instance";
+      let before_ungroup_draws = Atomic.get draws in
+      step ~keys:[Input.Meta; Input.Shift]
+        [Event.KeyPressed (Input.KeyChar 'g')];
+      check (List.for_all (fun tile ->
+        tile.Pxui_graph.operation <> "flow_compound") (E.graph_nodes !current)
+        && List.exists (fun tile -> tile.Pxui_graph.operation = "points"
+          && tile.id <> Node.id first && tile.id <> Node.id second)
+          (E.graph_nodes !current))
+        "ungroup did not replace the instance with a fresh node";
+      wait_draw before_ungroup_draws;
+      let ungrouped = snapshot () in
+      undo ();
+      check (snapshot () = grouped) "ungroup was not one undo step";
+      step ~keys:[Input.Meta; Input.Shift]
+        [Event.KeyPressed (Input.KeyChar 'z')];
+      check (snapshot () = ungrouped) "ungroup redo changed fresh IDs";
+      undo ();
+      check (snapshot () = grouped) "ungroup undo did not restore the instance";
       undo ();
       check (snapshot () = before_group) "group was not one undo step";
       step ~keys:[Input.Meta; Input.Shift]

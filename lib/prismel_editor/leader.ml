@@ -9,7 +9,7 @@ type action =
   | Layout | Frame_tile | Frame_camera
   | Look_through | Fly | Tool of int  (* 0 none, 1 translate, 2 rotate, 3 scale *)
   | Undo | Redo
-  | Toggle_projection | Enter | Up | Go_world | Group
+  | Toggle_projection | Enter | Up | Go_world | Group | Ungroup
   | World_emit | World_reseed | World_time of float | World_play | World_preset of int
   | Graph_command of Pxui_graph.command
   | List_command of Pxui_shell.Tree.command
@@ -93,6 +93,10 @@ let keymap = [
   command ~id:"graph.group" ~label:"group selection"
     ~guide:Editor_core.Guide_context.[Node; Multi]
     ~trigger:(Chord (Input.KeyChar 'g', [modifier])) ~scope:graph Group;
+  command ~id:"graph.ungroup" ~label:"ungroup compound"
+    ~guide:Editor_core.Guide_context.[Compound]
+    ~trigger:(Chord (Input.KeyChar 'g', [modifier; Input.Shift]))
+    ~scope:graph Ungroup;
   command ~id:"edit.undo" ~label:"undo" ~trigger:(Chord (Input.KeyChar 'z', [modifier])) Undo;
   command ~id:"edit.redo" ~label:"redo"
     ~trigger:(Chord (Input.KeyChar 'z', [modifier; Input.Shift])) Redo;

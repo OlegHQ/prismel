@@ -329,8 +329,28 @@ let run () =
       reloaded_nested.doc nested_level = Ok nested_level
     && reloaded_nested.doc.compiled_ids = nested.compiled_ids)
     "nested compound path or compiled IDs changed on preset reload";
+  let ungrouped_nested, nested_mapping =
+    Editor_document.Document.ungroup nested inside ~instance_id:nested_id
+    |> Result.get_ok in
+  check (List.assoc 20 nested_mapping <> 20
+    && Editor_document.Document.resolve_level ~scene_level:false
+      ungrouped_nested nested_level = Ok inside
+    && Result.is_ok (Editor_document.Document.validate ungrouped_nested))
+    "ungrouping inside a definition kept a stale nested instance path";
   let grouped = Editor_document.Document.allocate_compiled_ids grouped
     |> Result.get_ok in
+  let ungrouped, mapping = Editor_document.Document.ungroup grouped root_level
+    ~instance_id:grouped_id |> Result.get_ok in
+  let replacement = List.assoc 20 mapping in
+  let ungrouped_network = Editor_document.Document.network ungrouped root_level
+    |> Option.get in
+  check (replacement <> 20
+    && Edit_graph.find ungrouped_network.graph.geometry ~node_id:replacement <> None
+    && not (Flow_sop.Network.Int_map.mem grouped_id ungrouped_network.graph.instances)
+    && ungrouped_network.displayed = Some replacement
+    && Flow_sop.Instance_path.Map.is_empty ungrouped.compiled_ids
+    && Result.is_ok (Editor_document.Document.validate ungrouped))
+    "ungroup did not replace the instance with fresh valid nodes";
   let grouped_path = Editor_document.Preset.save ~directory
     ~name:"grouped-saved" ~sketch:"contract" ~doc:grouped ~view:`Null
     |> Result.get_ok in

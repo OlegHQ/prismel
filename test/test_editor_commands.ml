@@ -31,6 +31,12 @@ let run () =
       [key Input.Meta; char 'g'] 1) Idle in
   check (List.map (fun (c : _ Command.t) -> c.action) group_actions = [L.Group])
     "compound group chord was not routed through the shared command table";
+  let _, ungroup_actions, _ = Editor_core.Router.step L.keymap
+    ~focus:Pxui_shell.Layout.Graph ~text_focus:false
+    ~frame:(Test_editor_input.frame ~keys:[Input.Meta; Input.Shift]
+      (500., 400.) [char 'g'] 2) Idle in
+  check (List.map (fun (c : _ Command.t) -> c.action) ungroup_actions = [L.Ungroup])
+    "compound ungroup chord was not routed through the shared command table";
   let ids context = Command.for_guide Pxui_graph.bindings ~focus:() ~context
     |> List.map (fun (c : _ Command.t) -> c.id) in
   let walks = ["graph.walk.left"; "graph.walk.down"; "graph.walk.up"; "graph.walk.right"] in

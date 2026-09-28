@@ -782,6 +782,7 @@ The table above lists keys after `Space`. With the graph focused:
 | `/` / `f` / Home | find / frame selection or display / frame all |
 | `⌘C/V/X/D`, Ctrl equivalents | copy / paste / cut / duplicate |
 | `⌘G`, Ctrl-G | group selected SOP nodes into a shared compound definition |
+| `⇧⌘G`, Shift-Ctrl-G | ungroup one compound instance into fresh inner nodes |
 | `⌘Z` / `⇧⌘Z`, Ctrl equivalents | undo / redo |
 | `b` / `w` | bind by hints or toggle a selected wire's wireless state / show wireless wires |
 | `=` / `r` | edit the hovered row's expression / clear its drive or restore its default |

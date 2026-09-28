@@ -87,7 +87,8 @@ rules in this file are current. Planned changes that touch this directory:
 - M5 is in progress: grouping SOP geometry creates shared definitions and
   instances, retains moved ids, cooks through saved compiled ids, and records
   one history step. Compound instance paths enter shared definitions, and `u`
-  returns to and selects the parent instance. Value interfaces, ungroup and
+  returns to and selects the parent instance. Ungrouping geometry instances
+  replaces them with fresh inner ids in one undo step. Value interfaces and
   interface editing remain. M6: `Space l` cycles graph, list, text.
 
 Keep the three-column workspace, `Doc.apply` as the only graph-intent reducer,

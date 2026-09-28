@@ -61,6 +61,20 @@ let () =
     && positions flat.geometry = positions
       (Procedural.Edit_graph.of_graph first));
   assert (Procedural.Edit_graph.root grouped.geometry = Some instance);
+  let ungrouped, mapping, displayed = ok (Group.ungroup
+    ~instance_id:instance ~displayed:(Some instance) ~definition grouped) in
+  let cloned_first = List.assoc first_id mapping
+  and cloned_second = List.assoc second_id mapping in
+  assert (cloned_first <> first_id && cloned_second <> second_id
+    && displayed = Some cloned_first
+    && Network.geometry_source ungrouped (port cloned_first "in0")
+       = Some (port source_id "geo")
+    && Network.geometry_source ungrouped (port cloned_second "in0")
+       = Some (port source_id "geo")
+    && Network.geometry_source ungrouped (port consumer_id "in0")
+       = Some (port cloned_first "geo")
+    && positions ungrouped.geometry = positions
+      (Procedural.Edit_graph.of_graph first));
   let other_consumer = Procedural.Sop.null second in
   let other_id = Procedural.Node.id other_consumer in
   let two_outputs = Procedural.Edit_graph.add_node other_consumer geometry
@@ -80,6 +94,10 @@ let () =
     ~compiled_ids:Instance_path.Map.empty grouped) in
   assert (positions flat.geometry = positions
     (Procedural.Edit_graph.of_graph first));
+  let ungrouped, mapping, _ = ok (Group.ungroup
+    ~instance_id:instance ~displayed:(Some instance) ~definition grouped) in
+  assert (Network.geometry_source ungrouped (port other_id "in0")
+    = Some (port (List.assoc second_id mapping) "geo"));
   assert (match Group.geometry ~name:"compound_1" ~selected:[]
       ~displayed:None ~definitions:Network.String_map.empty network with
     | Error diagnostic -> diagnostic.Flow.Diagnostic.code = "E_GROUP"

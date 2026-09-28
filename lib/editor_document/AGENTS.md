@@ -11,3 +11,5 @@ Compound levels are view-state instance paths. `Document.network` resolves a
 path to its shared definition; `Document.with_network` edits that definition
 once for every instance, and `resolve_level` falls back to a surviving parent
 after undo or load.
+Ungroup prunes compiled-id paths that no longer name an instance and carries
+the definition's canvas layout onto fresh parent ids.
