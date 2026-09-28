@@ -18,3 +18,5 @@ factories, and retargets only the selected instance; other instances retain
 the original definition.
 Renaming a geometry interface port updates the shared definition and every
 referencing instance, including named wires and path-keyed canvas layout.
+Reordering geometry ports preserves each slot's source by name in every
+instance and in the definition's Outputs marker.

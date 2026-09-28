@@ -359,6 +359,24 @@ let make_unique value level ~instance_id =
 
 type interface_side = Input | Output
 
+let map_networks value update_network =
+  let ( let* ) = Result.bind in
+  let* scene = update_network value.scene in
+  let* networks = Layout.fold (fun id network result ->
+    let* networks = result in
+    let* network = update_network network in
+    Ok (Layout.add id network networks)) value.networks (Ok Layout.empty) in
+  let* definitions = String_map.fold (fun name definition result ->
+    let* definitions = result in
+    let* network = update_network {context = definition.spec.context;
+      graph = definition.spec.body; layout = definition.layout;
+      displayed = definition.displayed} in
+    Ok (String_map.add name {definition with
+      spec = {definition.spec with body = network.graph};
+      layout = network.layout} definitions))
+      value.definitions (Ok String_map.empty) in
+  Ok {value with scene; networks; definitions}
+
 let rename_interface_port value ~definition_name ~side ~from ~into =
   let ( let* ) = Result.bind in
   let error message = Error (Flow.Diagnostic.error ~code:"E_INTERFACE" message) in
@@ -457,21 +475,70 @@ let rename_interface_port value ~definition_name ~side ~from ~into =
       if changed id && path = from then id, into else id, path)
         current.layout else current.layout in
     Ok {current with graph; layout} in
-  let* scene = update_network value.scene in
-  let* networks = Layout.fold (fun id network result ->
-    let* networks = result in
-    let* network = update_network network in
-    Ok (Layout.add id network networks)) value.networks (Ok Layout.empty) in
-  let* definitions = String_map.fold (fun name definition result ->
-    let* definitions = result in
-    let* network = update_network {context = definition.spec.context;
-      graph = definition.spec.body; layout = definition.layout;
-      displayed = definition.displayed} in
-    Ok (String_map.add name {definition with
-      spec = {definition.spec with body = network.graph};
-      layout = network.layout} definitions))
-      value.definitions (Ok String_map.empty) in
-  Ok {value with scene; networks; definitions}
+  map_networks value update_network
+
+let reorder_interface value ~definition_name ~side ~name ~delta =
+  let ( let* ) = Result.bind in
+  let error message = Error (Flow.Diagnostic.error ~code:"E_INTERFACE" message) in
+  if delta <> -1 && delta <> 1 then error "Move an interface port one row"
+  else
+  let* definition = match String_map.find_opt definition_name value.definitions with
+    | Some definition -> Ok definition
+    | None -> error ("Missing compound " ^ definition_name) in
+  let ports = match side with Input -> definition.spec.inputs
+    | Output -> definition.spec.outputs in
+  match List.find_index (fun (port : Flow_sop.Network.interface_port) ->
+      port.name = name) ports with
+  | None -> error ("No interface port " ^ name)
+  | Some index ->
+      let next = index + delta in
+      if next < 0 || next >= List.length ports then Ok value
+      else if List.exists (fun (port : Flow_sop.Network.interface_port) ->
+          port.ty <> Flow.Port_type.Geometry)
+          [List.nth ports index; List.nth ports next] then
+        error "Move geometry ports before value ports"
+      else
+        let swapped = Array.of_list ports in
+        let held = swapped.(index) in
+        swapped.(index) <- swapped.(next);
+        swapped.(next) <- held;
+        let ports = Array.to_list swapped in
+        let spec = match side with
+          | Input -> {definition.spec with inputs = ports}
+          | Output -> {definition.spec with outputs = ports} in
+        let factories = Flow_sop.Compound_node.factories
+          ~name:definition_name ~inputs:spec.inputs ~outputs:spec.outputs in
+        let* body = if side = Input then Ok spec.body else
+          let marker = Edit_graph.inspect spec.body.geometry
+            |> List.find_opt (fun (node : Edit_graph.node_info) ->
+              node.operation = "flow_outputs") in
+          match marker with
+          | None -> error "Compound Outputs marker is missing"
+          | Some marker ->
+              let* geometry = Result.map_error
+                  (Flow.Diagnostic.error ~code:"E_INTERFACE")
+                  (Edit_graph.rebind_factory ~preserve_wires_by_name:true
+                    ~node_id:marker.id (List.nth factories 1)
+                    spec.body.geometry) in
+              Flow_sop.Network.with_geometry geometry spec.body in
+        let definition = {definition with spec = {spec with body}} in
+        let value = {value with definitions = String_map.add definition_name
+          definition value.definitions} in
+        if side = Output then Ok value else
+        map_networks value (fun (current : network) ->
+          let matching = Flow_sop.Network.Int_map.bindings current.graph.instances
+            |> List.filter_map (fun (id, instance) ->
+              if instance.Flow_sop.Network.definition = definition_name
+              then Some id else None) in
+          if matching = [] then Ok current else
+          let* geometry = List.fold_left (fun result id ->
+            let* geometry = result in
+            Result.map_error (Flow.Diagnostic.error ~code:"E_INTERFACE")
+              (Edit_graph.rebind_factory ~preserve_wires_by_name:true
+                ~node_id:id (List.nth factories 2) geometry))
+              (Ok current.graph.geometry) matching in
+          let* graph = Flow_sop.Network.with_geometry geometry current.graph in
+          Ok {current with graph})
 
 (* The display node, kept on a node that exists: a deleted display node
    falls back to the previous one, else the last node in the network. *)

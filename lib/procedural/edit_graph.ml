@@ -250,7 +250,8 @@ let replace_node node value =
           (Node.label node) (Array.length entry.inputs) arity)
       else Ok { value with entries = Id_map.add id { entry with node } value.entries }
 
-let rebind_factory ~node_id (factory : factory) value =
+let rebind_factory ?(preserve_wires_by_name = false) ~node_id
+    (factory : factory) value =
   match Id_map.find_opt node_id value.entries with
   | None -> Error (Printf.sprintf "editable graph has no node #%d" node_id)
   | Some entry when Node.operation entry.node <> factory.operation
@@ -258,10 +259,22 @@ let rebind_factory ~node_id (factory : factory) value =
       || Array.exists (( = ) Required) factory.requirements ->
       Error "replacement factory must have the same operation and optional input arity"
   | Some entry ->
-      let node = factory.build (List.init (Array.length entry.inputs)
-        (fun _ -> None)) |> Node.Private.adopt_identity ~source:entry.node in
-      Ok {value with entries = Id_map.add node_id
-        {entry with node; factory = Some factory} value.entries}
+      let inputs = if not preserve_wires_by_name then Ok entry.inputs else
+        let names = Option.get (node_slot_names value ~node_id) in
+        let indexes = List.map (fun name ->
+          List.find_index (String.equal name) names) (Array.to_list factory.slots) in
+        if List.exists Option.is_none indexes
+            || List.length (List.sort_uniq String.compare names)
+               <> Array.length entry.inputs then
+          Error "replacement factory changed the slot names"
+        else Ok (Array.of_list (List.map (fun index ->
+          entry.inputs.(Option.get index)) indexes)) in
+      Result.map (fun inputs ->
+        let node = factory.build (List.init (Array.length inputs)
+          (fun _ -> None)) |> Node.Private.adopt_identity ~source:entry.node in
+        {value with entries = Id_map.add node_id
+          {entry with node; inputs; factory = Some factory} value.entries})
+        inputs
 
 let apply_parameters value ~node_id changes =
   match find value ~node_id with

@@ -765,6 +765,7 @@ let intent_label = function
   | Set_parameter_requested { path; _ } -> Some ("Set " ^ path)
   | Rename_requested _ -> Some "Rename node"
   | Rename_interface_requested _ -> Some "Rename interface port"
+  | Reorder_interface_requested _ -> Some "Reorder interface"
   | Split_requested {group; _} -> Some ("Split " ^ group)
   | Row_pinned {path; _} -> Some ("Pin " ^ path)
   | Cut_wires_requested _ -> Some "Cut wires"
@@ -1107,9 +1108,32 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
                     let edited = Pxui.Ui.text_field ui
                       (Printf.sprintf "Port %d##interface-%d" (index + 1) index)
                       port.name in
-                    if edited = port.name then [] else
+                    let geometry_neighbor offset =
+                      index + offset >= 0
+                      && Option.fold ~none:false ~some:(fun
+                           (candidate : Flow_sop.Network.interface_port) ->
+                         candidate.ty = Flow.Port_type.Geometry)
+                           (List.nth_opt interface_ports (index + offset)) in
+                    let can_up = geometry_neighbor (-1)
+                    and can_down = geometry_neighbor 1 in
+                    let up, down = if not can_up && not can_down then
+                      false, false else Pxui.Ui.row ui
+                      (Printf.sprintf "interface-order-%d" index) (fun () ->
+                        let up = if can_up then
+                          Pxui.Ui.button ui "Move up" else
+                          (Pxui.Ui.label ui " "; false) in
+                        let down = if can_down then
+                          Pxui.Ui.button ui "Move down" else
+                          (Pxui.Ui.label ui " "; false) in
+                        up, down) in
+                    (if edited = port.name then [] else
                       [Pxui_graph.Rename_interface_requested
                         {node = node_id; from = port.name; into = edited}])
+                    @ (if up then [Pxui_graph.Reorder_interface_requested
+                          {node = node_id; name = port.name; delta = -1}]
+                       else if down then [Pxui_graph.Reorder_interface_requested
+                          {node = node_id; name = port.name; delta = 1}]
+                       else []))
                     interface_ports) in
               (match geometry with
                | None -> ()
@@ -1524,6 +1548,40 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
                   let graph_view = Network_view.to_view network result.graph_view in
                   next, {result with graph_view; document = network.graph;
                     label = "Rename interface port";
+                    effects = Parameter.union_effects
+                      result.effects Doc.cook_effects})
+         | _ -> next, {result with edit_error =
+             Some "Select an Inputs or Outputs marker inside a compound"})
+    else next, result in
+  let reorder_request = List.find_map (function
+    | Pxui_graph.Reorder_interface_requested {node; name; delta} ->
+        Some (node, name, delta)
+    | _ -> None) result.graph_changes in
+  let next, result = if Option.is_none loaded then match reorder_request with
+    | None -> next, result
+    | Some (node, name, delta) ->
+        let name = match rename_request with
+          | Some (renamed_node, from, into)
+            when renamed_node = node && from = name
+              && Option.is_none result.edit_error -> into
+          | _ -> name in
+        let side = match Edit_graph.find result.document.geometry ~node_id:node with
+          | Some marker when Node.operation marker = "flow_inputs" ->
+              Some Document.Input
+          | Some marker when Node.operation marker = "flow_outputs" ->
+              Some Document.Output
+          | _ -> None in
+        (match side, List.rev (Document.compound_names next value.level) with
+         | Some side, definition_name :: _ ->
+             (match Document.reorder_interface next ~definition_name
+                 ~side ~name ~delta with
+              | Error diagnostic -> next, {result with
+                  edit_error = Some (Flow.Diagnostic.to_string diagnostic)}
+              | Ok next ->
+                  let network = Option.get (Document.network next value.level) in
+                  let graph_view = Network_view.to_view network result.graph_view in
+                  next, {result with graph_view; document = network.graph;
+                    label = "Reorder interface";
                     effects = Parameter.union_effects
                       result.effects Doc.cook_effects})
          | _ -> next, {result with edit_error =

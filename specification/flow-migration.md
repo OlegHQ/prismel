@@ -318,6 +318,12 @@ network with the same canvas, keys, views and text), then plan it here.
 
 ## Log
 
+- 2026-09-28 M5 geometry-interface reorder checkpoint: Inputs/Outputs
+  inspector move controls reorder adjacent geometry ports. Factory slots and
+  logical input arrays move together by port name, so two-input/two-output
+  tests retain their sources and compiled graph. Value interfaces and
+  unexport remain pending.
+
 - 2026-09-28 M5 geometry-interface rename checkpoint: the Inputs/Outputs
   inspector renames geometry ports on shared definitions. All instances keep
   their ids; incoming slot names, outgoing named wires, bend keys, compiled

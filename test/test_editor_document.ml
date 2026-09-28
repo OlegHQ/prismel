@@ -417,6 +417,70 @@ let run () =
     |> function Ok value -> value | Error message -> failwith message in
   check (Result.is_ok (Editor_document.Document.validate reloaded_renamed.doc))
     "renamed compound interface failed preset round trip";
+  let source2 = Sop.points [|4., 5., 6.|] in
+  let inner1 = Sop.null source_box and inner2 = Sop.null source2 in
+  let outer1 = Sop.null inner1 and outer2 = Sop.null inner2 in
+  let parent = Editor_document.Document.network direct.doc root_level
+    |> Option.get in
+  let reorder_geometry = parent.graph.geometry
+    |> Edit_graph.add_node source2 |> Result.get_ok
+    |> Edit_graph.add_node inner1 |> Result.get_ok
+    |> Edit_graph.add_node inner2 |> Result.get_ok
+    |> Edit_graph.add_node outer1 |> Result.get_ok
+    |> Edit_graph.add_node outer2 |> Result.get_ok
+    |> Edit_graph.set_root (Node.id outer1) |> Result.get_ok in
+  let graph = Flow_sop.Network.with_geometry reorder_geometry parent.graph
+    |> Result.get_ok in
+  let reorder_source = Editor_document.Document.with_network direct.doc
+    root_level {parent with graph; displayed = Some (Node.id outer1)} in
+  let reorder_source, reorder_instance = Editor_document.Document.group
+    reorder_source root_level
+    ~selected:[Node.id inner1; Node.id inner2]
+    ~positions:[Node.id inner1, 48., 24.; Node.id inner2, 48., 72.]
+    |> Result.get_ok in
+  let reorder_definition = Editor_document.Document.String_map.find
+    "compound_1" reorder_source.definitions in
+  let input_names = List.map (fun (port : Flow_sop.Network.interface_port) ->
+    port.name) reorder_definition.spec.inputs
+  and output_names = List.map (fun (port : Flow_sop.Network.interface_port) ->
+    port.name) reorder_definition.spec.outputs in
+  check (List.length input_names = 2 && List.length output_names = 2)
+    "two-boundary reorder fixture has the wrong interface";
+  let before_parent = Editor_document.Document.network reorder_source root_level
+    |> Option.get in
+  let input_sources = List.map (fun name ->
+    Flow_sop.Network.geometry_source before_parent.graph
+      Flow_sop.Port.{node = reorder_instance; path = name}) input_names in
+  let output_sources = List.map (fun id ->
+    Flow_sop.Network.geometry_source before_parent.graph
+      Flow_sop.Port.{node = id; path = "in0"})
+      [Node.id outer1; Node.id outer2] in
+  let reordered = Editor_document.Document.reorder_interface reorder_source
+    ~definition_name:"compound_1" ~side:Input
+    ~name:(List.hd input_names) ~delta:1 |> Result.get_ok in
+  let reordered = Editor_document.Document.reorder_interface reordered
+    ~definition_name:"compound_1" ~side:Output
+    ~name:(List.hd output_names) ~delta:1 |> Result.get_ok in
+  let reordered_parent = Editor_document.Document.network reordered root_level
+    |> Option.get in
+  let reordered_definition = Editor_document.Document.String_map.find
+    "compound_1" reordered.definitions in
+  let outputs_marker = Edit_graph.inspect reordered_definition.spec.body.geometry
+    |> List.find (fun (node : Edit_graph.node_info) ->
+      node.operation = "flow_outputs") in
+  check (Edit_graph.node_slot_names reordered_parent.graph.geometry
+      ~node_id:reorder_instance = Some (List.rev input_names)
+    && Edit_graph.node_slot_names reordered_definition.spec.body.geometry
+      ~node_id:outputs_marker.id = Some (List.rev output_names)
+    && List.map (fun name -> Flow_sop.Network.geometry_source
+      reordered_parent.graph Flow_sop.Port.{node = reorder_instance; path = name})
+      input_names = input_sources
+    && List.map (fun id -> Flow_sop.Network.geometry_source
+      reordered_parent.graph Flow_sop.Port.{node = id; path = "in0"})
+      [Node.id outer1; Node.id outer2] = output_sources
+    && Result.is_ok (Editor_document.Document.validate reordered)
+    && Result.is_ok (Editor_document.Document.allocate_compiled_ids reordered))
+    "reordering geometry interface ports swapped or dropped sources";
   let inside = Editor_document.Document.enter_compound grouped root_level grouped_id
     |> Option.get in
   let inside_network = Editor_document.Document.network grouped inside

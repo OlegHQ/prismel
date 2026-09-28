@@ -199,6 +199,8 @@ let apply factories (document, graph_view, error, effects, placed, pasted) = fun
            None, effects, node :: placed, pasted)
   | Rename_interface_requested _ ->
       document, graph_view, error, effects, placed, pasted
+  | Reorder_interface_requested _ ->
+      document, graph_view, error, effects, placed, pasted
   | Split_requested {node; group; split} ->
       let target = {Flow_sop.Port.node; path = group} in
       (match flow_result (Flow_sop.Network.parameter document target) with

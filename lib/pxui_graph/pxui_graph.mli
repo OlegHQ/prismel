@@ -51,6 +51,7 @@ type change =
   | Set_parameter_requested of { node : int; path : string; value : Procedural.Parameter.value }
   | Rename_requested of { node : int; label : string }
   | Rename_interface_requested of { node : int; from : string; into : string }
+  | Reorder_interface_requested of { node : int; name : string; delta : int }
   | Split_requested of { node : int; group : string; split : bool }
   | Row_pinned of { node : int; path : string; pinned : bool }
   | Cut_wires_requested of Procedural.Edit_graph.connection list
