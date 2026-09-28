@@ -1,7 +1,7 @@
 {
   "generator": "tools/api_manifest/api_manifest.exe",
   "kind": "stable_high_level",
-  "module_count": 145,
+  "module_count": 146,
   "modules": [
     {
       "api_sha256": "eb1e27ba00670ec546b87d8ec8c8c27cd7d95016240fecb7d6422d45e5154fce",
@@ -74,6 +74,15 @@
       "source": "lib/flow/port_type.mli",
       "source_bytes": 612,
       "source_sha256": "d6ed0db6c248704047907dde2e033f4d75586bcb2cf126dc91bf3e9e47e202db"
+    },
+    {
+      "api_sha256": "e8d8a1ea8d5e9e3594300627dfe76f1318b73bba55701889edaf6d277962a659",
+      "excluded_legacy_symbols": [],
+      "library": "flow",
+      "module": "Sexp",
+      "source": "lib/flow/sexp.mli",
+      "source_bytes": 519,
+      "source_sha256": "36640dd7f64ffb3a95f5ec7f79c1807b8c63104cb569fba122c92ba3b5a7ec68"
     },
     {
       "api_sha256": "fab802964d168e0cfcea3d69515c92a3726d36a84b942904bb443e2466d9a874",

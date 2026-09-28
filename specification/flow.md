@@ -2,7 +2,7 @@
 
 ## 1. Status and authority
 
-Status: approved design, revision 3 (2026-09-28). **M1–M5 implemented; M6–M7 pending.**
+Status: approved design, revision 3 (2026-09-28). **M1–M5 implemented; M6 in progress; M7 pending.**
 Milestones M1–M7, the file-level tasks for each, and progress live in
 `flow-migration.md`. The behavioral reference is the prototype at
 `specification/flow/prototype/index.html` (open it in a browser; no build).

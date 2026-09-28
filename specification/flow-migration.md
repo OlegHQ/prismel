@@ -36,7 +36,7 @@ accept an intended one with `dune promote`.
 | M3 | Value ports: `flow`, `flow_sop`, value nodes, drives by wire, exposure, vec3, inspector | done | 2026-09-28 |
 | M4 | Wireless binds, expressions, fold/unfold, row keys | done | 2026-09-28 |
 | M5 | Compounds and contexts | done | 2026-09-28 |
-| M6 | Views: list with values, read-only text, reader and checker | not started | |
+| M6 | Views: list with values, read-only text, reader and checker | in progress | |
 | M7 | `[%flow]` PPX and catalog manifest | not started | |
 
 ## Original → target map
@@ -317,6 +317,13 @@ network with the same canvas, keys, views and text), then plan it here.
   the build.
 
 ## Log
+
+- 2026-09-28 M6 reader checkpoint: `Flow.Sexp` reads the specified forms with
+  byte spans and 1-based line/column positions, including comments, quoted
+  strings, keywords, vectors and metadata. It reports mismatched/unclosed
+  delimiters and invalid escapes before checking names or types. A focused
+  test covers structure, locations and syntax errors. The catalog checker,
+  canonical printer, list extension and text view follow.
 
 - 2026-09-28 M5 complete: geometry-port unexport now refuses connected body
   and instance wires and the displayed output, then removes an idle port from
