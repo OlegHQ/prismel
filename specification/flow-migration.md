@@ -37,7 +37,7 @@ accept an intended one with `dune promote`.
 | M4 | Wireless binds, expressions, fold/unfold, row keys | done | 2026-09-28 |
 | M5 | Compounds and contexts | done | 2026-09-28 |
 | M6 | Views: list with values, read-only text, reader and checker | done | 2026-09-28 |
-| M7 | `[%flow]` PPX and catalog manifest | not started | |
+| M7 | `[%flow]` PPX and catalog manifest | in progress | |
 
 ## Original → target map
 
@@ -319,6 +319,14 @@ network with the same canvas, keys, views and text), then plan it here.
   the build.
 
 ## Log
+
+- 2026-09-28 M7 manifest checkpoint: `Flow_sop.Manifest` serializes the live
+  factory registry and value kinds with slots, field kinds/defaults/ranges,
+  primary and Vec3 metadata, plus a digest. `tools/flow_manifest.exe` writes
+  the checked-in S-expression; the `sop_catalog` runtest diff requires
+  promotion when metadata changes. The catalog test parses the generated file
+  and checks every registered SOP key. The PPX reader and runtime digest check
+  are next.
 
 - 2026-09-28 M6 complete: reader and checker cover all emitted diagnostic
   codes with located samples and message assertions; nesting has a

@@ -327,6 +327,34 @@ let run () =
       Sop_catalog.Editor.factories with
     | Ok catalog -> catalog
     | Error diagnostic -> fail (Flow.Diagnostic.to_string diagnostic) in
+  let manifest, digest = Flow_sop.Manifest.generate Sop_catalog.Editor.factories
+    |> Result.get_ok in
+  check (Flow_sop.Manifest.generate Sop_catalog.Editor.factories
+    = Ok (manifest, digest)) "Flow catalog manifest is not deterministic";
+  let children name (form : Flow.Sexp.t) = match form.node with
+    | List ({node = Atom (Symbol head); _} :: children) when head = name -> children
+    | _ -> fail ("Malformed Flow manifest " ^ name) in
+  let forms = Flow.Sexp.parse manifest |> Result.get_ok in
+  (match forms with
+   | [root] ->
+       (match children "flow_manifest" root with
+        | [version; hash; kinds] ->
+            (match children "version" version, children "digest" hash with
+             | [{node = Atom (Number number); _}],
+               [{node = Atom (String value); _}] ->
+                 check (int_of_string number = Flow_sop.Manifest.version
+                   && value = digest) "Flow manifest header changed"
+             | _ -> fail "Malformed Flow manifest header");
+            let keys = children "kinds" kinds |> List.map (fun kind ->
+              match children "kind" kind with
+              | {node = Atom (String name); _} :: _ -> name
+              | _ -> fail "Malformed Flow manifest kind") in
+            check (List.length keys = List.length Sop_catalog.Editor.factories
+              + List.length Flow.Value_kind.all) "Flow manifest omitted kinds";
+            List.iter (fun key -> check (List.mem ("sop/" ^ key) keys)
+              ("Flow manifest omitted SOP " ^ key)) factory_keys
+        | _ -> fail "Malformed Flow manifest body")
+   | _ -> fail "Flow manifest needs one top-level form");
   List.iter (fun factory ->
     let slots = List.init (Edit_graph.factory_arity factory) (fun _ -> None) in
     match Edit_graph.instantiate_optional factory slots with

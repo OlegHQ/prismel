@@ -56,6 +56,7 @@ uses that prefix (Ray uses `direction_vector`). Every factory with multiple
 inputs names its slots in their existing order; single inputs default to
 `in0`. Generated factories carry field metadata for the canvas's typed Tab
 search, and the inspector uses the same schema for pins and vector rows.
-Value nodes (Time, Value, Math, Combine/Separate XYZ, Remap) live in `lib/flow`, never here. M7
-adds `lib/sop_catalog/flow_manifest.sexp`, regenerated and promoted like the
-API manifest.
+Value nodes (Time, Value, Math, Combine/Separate XYZ, Remap) live in `lib/flow`, never here.
+`lib/sop_catalog/flow_manifest.sexp` is generated from the registered factories
+and those value kinds. Its runtest rule diffs the live catalog; accept an
+intended metadata change with `dune promote`, as for the API manifest.

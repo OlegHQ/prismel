@@ -4,6 +4,11 @@
  (libraries unix))
 
 (executable
+ (name flow_manifest)
+ (modules flow_manifest)
+ (libraries flow_sop sop_catalog flow))
+
+(executable
  (name bench_sdl3)
  (modules bench_sdl3)
  (libraries prismel.sdl3 prismel.sdl3_mixer unix yojson))

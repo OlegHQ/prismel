@@ -4,3 +4,13 @@
  (libraries prismel pdk procedural)
  (private_modules shared shapes topology attributes groups)
  (preprocess (pps prismel.ppx)))
+
+(rule
+ (targets flow_manifest.gen.sexp)
+ (action
+  (with-stdout-to %{targets}
+   (run %{exe:../../tools/flow_manifest.exe}))))
+
+(rule
+ (alias runtest)
+ (action (diff flow_manifest.sexp flow_manifest.gen.sexp)))
