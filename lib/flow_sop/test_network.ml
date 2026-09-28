@@ -123,7 +123,7 @@ let () =
     && Procedural.Edit_graph.inputs compiled.geometry ~node_id:consumer_id
       = Some [|Some inner_id|]
     && Procedural.Edit_graph.find compiled.geometry ~node_id:inner_id <> None);
-  let cook graph =
+  let cook_graph graph =
     let session = Procedural.Session.create ~max_entries:16
       ~max_payload_bytes:1048576 |> Result.get_ok in
     Fun.protect ~finally:(fun () -> Procedural.Session.close session) (fun () ->
@@ -131,7 +131,7 @@ let () =
       let graph = Procedural.Edit_graph.compile graph |> Result.get_ok in
       let result = Procedural.Session.cook session ~context graph |> Result.get_ok in
       geometry_bytes result.geometry) in
-  assert (cook compiled.geometry = cook
+  assert (cook_graph compiled.geometry = cook_graph
     (Procedural.Edit_graph.of_graph (Procedural.Sop.null inner_box)));
   rejected "E_IDS" (Compile.flatten ~allocate:false
     ~definitions:(Network.String_map.singleton definition.name definition)
@@ -189,7 +189,7 @@ let () =
     ~compiled_ids:Instance_path.Map.empty chained) in
   assert (Procedural.Edit_graph.inputs compiled.geometry ~node_id:downstream_id
     = Some [|Some (Procedural.Node.id source)|]
-    && cook compiled.geometry = cook
+    && cook_graph compiled.geometry = cook_graph
       (Procedural.Edit_graph.of_graph (Procedural.Sop.null source)));
   let network, time = ok (Network.add_value_node Flow.Value_kind.Time base) in
   assert (time <> id);
@@ -387,4 +387,241 @@ let () =
       | Error error -> failwith (Procedural.Diagnostic.error_to_string error)
       | Ok result -> geometry_bytes result.geometry) in
   assert (cook 1 = cook 4);
+  let inner = build default in
+  let inner_id = Procedural.Node.id inner in
+  let grouped, definition, instance = ok (Group.geometry
+    ~name:"value_compound" ~selected:[inner_id] ~displayed:(Some inner_id)
+    ~definitions:Network.String_map.empty
+    (Network.of_geometry (Procedural.Edit_graph.of_graph inner))) in
+  let speed : Network.interface_port = {
+    name = "speed"; ty = Flow.Port_type.Float;
+    default = Some (Param.Float_value 1.); label = "Speed";
+    soft = Some (0., 4.)} in
+  let output = {speed with name = "speed_out"; label = "Speed out"} in
+  let position : Network.interface_port = {
+    name = "position"; ty = Flow.Port_type.Vec3;
+    default = Some (Param.Float_value 1.); label = "Position";
+    soft = Some (0., 4.)} in
+  let position_out = {position with name = "position_out";
+    label = "Position out"} in
+  let definition = {definition with
+    inputs = definition.inputs @ [speed; position];
+    outputs = definition.outputs @ [output; position_out]} in
+  let factories = Compound_node.factories ~name:definition.name
+    ~inputs:definition.inputs ~outputs:definition.outputs in
+  let marker = Procedural.Edit_graph.inspect definition.body.geometry
+    |> List.find (fun (node : Procedural.Edit_graph.node_info) ->
+      node.operation = "flow_inputs") in
+  let outputs_marker = Procedural.Edit_graph.inspect definition.body.geometry
+    |> List.find (fun (node : Procedural.Edit_graph.node_info) ->
+      node.operation = "flow_outputs") in
+  let body_geometry = Procedural.Edit_graph.rebind_factory ~node_id:marker.id
+    (List.hd factories) definition.body.geometry |> Result.get_ok in
+  let body_geometry = Procedural.Edit_graph.rebind_factory
+    ~node_id:outputs_marker.id (List.nth factories 1) body_geometry
+    |> Result.get_ok in
+  let body = ok (Network.with_geometry body_geometry definition.body) in
+  let body, inner_value = ok (Network.add_value_node Flow.Value_kind.Value body) in
+  let body = ok (Network.connect_value ~source:(port marker.id "speed")
+    ~target:(port inner_value "v") body) in
+  let body = ok (Network.connect_value ~source:(port inner_value "out")
+    ~target:(port inner_id "a") body) in
+  let body = ok (Network.connect_value ~source:(port inner_value "out")
+    ~target:(port outputs_marker.id "speed_out") body) in
+  let body = ok (Network.connect_value ~source:(port marker.id "position")
+    ~target:(port inner_id "position") body) in
+  let body = ok (Network.connect_value ~source:(port marker.id "position")
+    ~target:(port outputs_marker.id "position_out") body) in
+  let definition = {definition with body} in
+  let grouped_geometry = Procedural.Edit_graph.rebind_factory
+    ~node_id:instance (List.nth factories 2) grouped.geometry |> Result.get_ok in
+  let grouped = ok (Network.with_geometry grouped_geometry grouped) in
+  let grouped_base = grouped in
+  let grouped = ok (Network.set_literal ~target:(port instance "speed")
+    (Port.Scalar (Param.Float_value 3.)) grouped) in
+  let outside = build default in
+  let outside_id = Procedural.Node.id outside in
+  let geometry = Procedural.Edit_graph.add_node outside grouped.geometry
+    |> Result.get_ok in
+  let grouped = ok (Network.with_geometry geometry grouped) in
+  let grouped = ok (Network.connect_value
+    ~source:(port instance "speed_out") ~target:(port outside_id "a")
+    grouped) in
+  let grouped, vector = ok (Network.add_value_node
+    Flow.Value_kind.Combine_xyz grouped) in
+  let grouped = ok (Network.set_literal ~target:(port vector "x")
+    (Port.Scalar (Param.Float_value 3.)) grouped) in
+  let grouped = ok (Network.connect_value
+    ~source:(port vector "out") ~target:(port instance "position")
+    grouped) in
+  let grouped = ok (Network.connect_value
+    ~source:(port instance "position_out.x")
+    ~target:(port outside_id "position.x") grouped) in
+  let grouped, outside_value = ok (Network.add_value_node
+    Flow.Value_kind.Value grouped) in
+  let grouped = ok (Network.connect_value
+    ~source:(port instance "speed_out") ~target:(port outside_value "v")
+    grouped) in
+  let flat, compiled_ids = ok (Compile.flatten
+    ~definitions:(Network.String_map.singleton definition.name definition)
+    ~compiled_ids:Instance_path.Map.empty grouped) in
+  let cooked = ok (Value_lane.resolve (Value_lane.create ()) ~time:0. flat) in
+  let compiled_inner = Instance_path.Map.find [instance; inner_id]
+    compiled_ids
+  and compiled_value = Instance_path.Map.find [instance; inner_value]
+    compiled_ids in
+  rejected "E_IDS" (Compile.flatten ~allocate:false
+    ~definitions:(Network.String_map.singleton definition.name definition)
+    ~compiled_ids:(Instance_path.Map.remove [instance; inner_value]
+      compiled_ids) grouped);
+  let cyclic = ok (Network.connect_value
+    ~source:(port instance "speed_out") ~target:(port instance "speed")
+    grouped_base) in
+  rejected "E_CYCLE" (Compile.flatten
+    ~definitions:(Network.String_map.singleton definition.name definition)
+    ~compiled_ids:Instance_path.Map.empty cyclic);
+  assert (Flow.Graph.find flat.values ~node_id:compiled_value <> None
+    && Port.Map.find (port outside_id "a") flat.drives
+       = Drive.Wire {node = compiled_value; output = "out"});
+  let field = Procedural.Edit_graph.find cooked.geometry
+    ~node_id:compiled_inner |> Option.get
+    |> Procedural.Node.parameter_fields
+    |> List.find (fun (field : Param.field_view) -> field.name = "a") in
+  let outside_field = Procedural.Edit_graph.find cooked.geometry
+    ~node_id:outside_id |> Option.get
+    |> Procedural.Node.parameter_fields
+    |> List.find (fun (field : Param.field_view) -> field.name = "a") in
+  let component geometry id name = Procedural.Edit_graph.find geometry ~node_id:id
+    |> Option.get |> Procedural.Node.parameter_fields
+    |> List.find (fun (field : Param.field_view) -> field.name = name)
+    |> fun field -> field.current in
+  assert (field.current = Param.Float_value 3.
+    && outside_field.current = Param.Float_value 3.
+    && component cooked.geometry compiled_inner "x" = Param.Float_value 3.
+    && component cooked.geometry outside_id "x" = Param.Float_value 3.
+    && Port.Map.find (port outside_value "out") cooked.outputs
+       = Flow.Port_type.Float_value 3.);
+  assert (cook_graph cooked.geometry = cook_graph (Procedural.Edit_graph.of_graph
+    (build {default with a = 3.; x = 3.})));
+  let components = ok (Network.clear_drive
+    ~target:(port instance "position") grouped) in
+  let components, scalar = ok (Network.add_value_node
+    Flow.Value_kind.Value components) in
+  let components = ok (Network.set_literal ~target:(port scalar "v")
+    (Port.Scalar (Param.Float_value 2.)) components) in
+  let components = ok (Network.connect_value
+    ~source:(port scalar "out") ~target:(port instance "position.x")
+    components) in
+  let flat, same_ids = ok (Compile.flatten ~allocate:false
+    ~definitions:(Network.String_map.singleton definition.name definition)
+    ~compiled_ids components) in
+  let cooked = ok (Value_lane.resolve (Value_lane.create ()) ~time:0. flat) in
+  assert (same_ids = compiled_ids
+    && component cooked.geometry compiled_inner "x" = Param.Float_value 2.
+    && component cooked.geometry compiled_inner "y" = Param.Float_value 1.
+    && component cooked.geometry compiled_inner "z" = Param.Float_value 1.
+    && component cooked.geometry outside_id "x" = Param.Float_value 2.);
+  let second_node = Procedural.Edit_graph.instantiate_optional
+    (List.nth factories 2) [] |> Result.get_ok in
+  let second = Procedural.Node.id second_node in
+  let geometry = Procedural.Edit_graph.add_node
+    ~factory:(List.nth factories 2) second_node grouped.geometry
+    |> Result.get_ok in
+  let second_instance : Network.instance = {
+    definition = definition.name; literals = Network.String_map.empty} in
+  let shared = ok (Network.of_parts ~geometry ~values:grouped.values
+    ~drives:grouped.drives ~geometry_outputs:grouped.geometry_outputs
+    ~instances:(Network.Int_map.add second second_instance grouped.instances)) in
+  let shared = ok (Network.set_literal ~target:(port second "speed")
+    (Port.Scalar (Param.Float_value 2.)) shared) in
+  let second_consumer = Procedural.Sop.null second_node in
+  let geometry = Procedural.Edit_graph.add_node second_consumer shared.geometry
+    |> Result.get_ok in
+  let shared = ok (Network.with_geometry geometry shared) in
+  let shared = ok (Network.connect_geometry
+    ~source:(port second "result")
+    ~consumer:(Procedural.Node.id second_consumer) ~input_index:0 shared) in
+  let flat, shared_ids = ok (Compile.flatten
+    ~definitions:(Network.String_map.singleton definition.name definition)
+    ~compiled_ids shared) in
+  let cooked = ok (Value_lane.resolve (Value_lane.create ()) ~time:0. flat) in
+  let second_inner = Instance_path.Map.find [second; inner_id] shared_ids in
+  assert (Instance_path.Map.find [instance; inner_id] shared_ids = compiled_inner
+    && second_inner <> compiled_inner
+    && (Procedural.Edit_graph.find cooked.geometry ~node_id:second_inner
+      |> Option.get |> Procedural.Node.parameter_fields
+      |> List.find (fun (field : Param.field_view) -> field.name = "a")
+      |> fun field -> field.current) = Param.Float_value 2.);
+  let dynamic = ok (Network.set_expr ~target:(port instance "speed")
+    (ok (Flow.Expr.parse "t * 2")) grouped) in
+  let flat, same_ids = ok (Compile.flatten ~allocate:false
+    ~definitions:(Network.String_map.singleton definition.name definition)
+    ~compiled_ids dynamic) in
+  let cooked = ok (Value_lane.resolve (Value_lane.create ()) ~time:2. flat) in
+  let dynamic_field = Procedural.Edit_graph.find cooked.geometry
+    ~node_id:compiled_inner |> Option.get
+    |> Procedural.Node.parameter_fields
+    |> List.find (fun (field : Param.field_view) -> field.name = "a") in
+  assert (same_ids = compiled_ids && cooked.time_dependent
+    && dynamic_field.current = Param.Float_value 4.);
+  let outer, outer_definition, outer_instance = ok (Group.geometry
+    ~name:"outer" ~selected:[instance] ~displayed:(Some instance)
+    ~definitions:(Network.String_map.singleton definition.name definition)
+    grouped_base) in
+  let outer_definition = {outer_definition with
+    inputs = outer_definition.inputs @ [speed];
+    outputs = outer_definition.outputs @ [output]} in
+  let outer_factories = Compound_node.factories
+    ~name:outer_definition.name ~inputs:outer_definition.inputs
+    ~outputs:outer_definition.outputs in
+  let outer_outputs = Procedural.Edit_graph.inspect
+    outer_definition.body.geometry
+    |> List.find (fun (node : Procedural.Edit_graph.node_info) ->
+      node.operation = "flow_outputs") in
+  let outer_inputs = Procedural.Edit_graph.inspect
+    outer_definition.body.geometry
+    |> List.find (fun (node : Procedural.Edit_graph.node_info) ->
+      node.operation = "flow_inputs") in
+  let body_geometry = Procedural.Edit_graph.rebind_factory
+    ~node_id:outer_inputs.id (List.hd outer_factories)
+    outer_definition.body.geometry |> Result.get_ok in
+  let body_geometry = Procedural.Edit_graph.rebind_factory
+    ~node_id:outer_outputs.id (List.nth outer_factories 1)
+    body_geometry |> Result.get_ok in
+  let body = ok (Network.with_geometry body_geometry outer_definition.body) in
+  let body = ok (Network.connect_value
+    ~source:(port outer_inputs.id "speed")
+    ~target:(port instance "speed") body) in
+  let body = ok (Network.connect_value
+    ~source:(port instance "speed_out")
+    ~target:(port outer_outputs.id "speed_out") body) in
+  let outer_definition = {outer_definition with body} in
+  let geometry = Procedural.Edit_graph.rebind_factory
+    ~node_id:outer_instance (List.nth outer_factories 2)
+    outer.geometry |> Result.get_ok in
+  let outer = ok (Network.with_geometry geometry outer) in
+  let outer = ok (Network.set_literal ~target:(port outer_instance "speed")
+    (Port.Scalar (Param.Float_value 2.)) outer) in
+  let outside = build default in
+  let outside_id = Procedural.Node.id outside in
+  let geometry = Procedural.Edit_graph.add_node outside outer.geometry
+    |> Result.get_ok in
+  let outer = ok (Network.with_geometry geometry outer) in
+  let outer = ok (Network.connect_value
+    ~source:(port outer_instance "speed_out")
+    ~target:(port outside_id "a") outer) in
+  let definitions = Network.String_map.empty
+    |> Network.String_map.add definition.name definition
+    |> Network.String_map.add outer_definition.name outer_definition in
+  let flat, nested_ids = ok (Compile.flatten ~definitions
+    ~compiled_ids:Instance_path.Map.empty outer) in
+  let nested_inner = Instance_path.Map.find
+    [outer_instance; instance; inner_id] nested_ids in
+  let cooked = ok (Value_lane.resolve (Value_lane.create ()) ~time:0. flat) in
+  let number id = Procedural.Edit_graph.find cooked.geometry ~node_id:id
+    |> Option.get |> Procedural.Node.parameter_fields
+    |> List.find (fun (field : Param.field_view) -> field.name = "a")
+    |> fun field -> field.current in
+  assert (number nested_inner = Param.Float_value 2.
+    && number outside_id = Param.Float_value 2.);
   print_endline "Flow SOP overlay: validation, change-only lane, literal restoration and 16,384-point 1/4-domain byte parity pass"

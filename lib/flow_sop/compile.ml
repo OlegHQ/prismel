@@ -4,6 +4,8 @@ type scope = {
   parent : (scope * int) option;
   definition : Network.definition option;
 }
+type lowered = Literal of Port.literal | Driven of Drive.t
+  | Components of lowered list
 
 let error code message = Error (Flow.Diagnostic.error ~code message)
 let geometry result = Result.map_error (Flow.Diagnostic.error ~code:"E_GEOMETRY") result
@@ -19,6 +21,18 @@ let flatten ?(allocate = true) ~(definitions : Network.definition Network.String
     ~compiled_ids (network : Network.t) =
   if Network.Int_map.is_empty network.instances then Ok (network, compiled_ids) else
   let flat = ref Procedural.Edit_graph.empty and ids = ref compiled_ids in
+  let values = ref network.values and drives = ref Port.Map.empty in
+  let pending = ref [] and scopes = Hashtbl.create 32 in
+  let child scope instance_id definition =
+    let path = scope.path @ [instance_id] in
+    match Hashtbl.find_opt scopes path with
+    | Some child -> child
+    | None ->
+        let child = {network = definition.Network.body; path;
+          parent = Some (scope, instance_id); definition = Some definition} in
+        Hashtbl.add scopes path child;
+        pending := child :: !pending;
+        child in
   let built = Hashtbl.create 64 and visiting = Hashtbl.create 64 in
   let compiled path inner =
     if path = [] then Ok inner else
@@ -29,6 +43,12 @@ let flatten ?(allocate = true) ~(definitions : Network.definition Network.String
     | None ->
         let id = Procedural.Node.Private.fresh_id () in
         ids := Instance_path.Map.add key id !ids; Ok id in
+  let clone_value scope (node : Flow.Graph.node) =
+    Result.bind (compiled scope.path node.id) (fun id ->
+      if Flow.Graph.find !values ~node_id:id <> None then Ok id else
+        Result.bind (Flow.Graph.clone_node ~id node) (fun node ->
+          Result.map (fun next -> values := next; id)
+            (Flow.Graph.add_node node !values))) in
   let rec resolve scope (source : Port.t) stack =
     let key = scope.path, source.node, source.path in
     match Hashtbl.find_opt built key with
@@ -55,11 +75,7 @@ let flatten ?(allocate = true) ~(definitions : Network.definition Network.String
               | None -> error "E_PORT" ("No geometry output " ^ source.path)
               | Some index ->
                   let body = definition.body in
-                  if Flow.Graph.inspect body.values <> []
-                    || not (Port.Map.is_empty body.drives) then
-                    error "E_COMPOUND" "Value nodes and drives inside compounds are not flattened yet"
-                  else
-                    (match special "flow_outputs" body with
+                  (match special "flow_outputs" body with
                      | [outputs_node] ->
                          let inputs = Option.get (Procedural.Edit_graph.inputs
                            body.geometry ~node_id:outputs_node.id) in
@@ -73,9 +89,7 @@ let flatten ?(allocate = true) ~(definitions : Network.definition Network.String
                                  |> Array.of_list |> fun slots -> slots.(index) in
                                let input = Option.get (Network.geometry_source body
                                  (port outputs_node.id slot)) in
-                               let child = {network = body; path = scope.path @ [source.node];
-                                 parent = Some (scope, source.node);
-                                 definition = Some definition} in
+                               let child = child scope source.node definition in
                                resolve child input (definition.name :: stack))
                      | _ -> error "E_INTERFACE" "Compound body needs one Outputs node")))
     | None ->
@@ -132,8 +146,161 @@ let flatten ?(allocate = true) ~(definitions : Network.definition Network.String
                            ~source ~consumer:id ~input_index:index graph)))
                      (Ok !flat) (List.mapi (fun index input -> index, input) inputs) in
                    Result.map (fun graph -> flat := graph; id) connected))))) in
+  let value_visiting = Hashtbl.create 64 in
+  let rec lower_input scope (target : Port.t) =
+    match Port.Map.find_opt target scope.network.drives with
+    | Some drive -> lower_drive scope drive
+    | None ->
+        let component = List.find_map (fun axis ->
+          let suffix = "." ^ axis in
+          if String.ends_with ~suffix target.path then
+            Some (String.sub target.path 0
+              (String.length target.path - String.length suffix), axis)
+          else None) ["x"; "y"; "z"] in
+        (match component with
+         | Some (group, axis) ->
+             (match Port.Map.find_opt {target with path = group}
+                 scope.network.drives with
+              | Some drive -> project_drive scope drive axis
+              | None -> Result.map (fun parameter -> Literal (Port.literal parameter))
+                  (Network.parameter scope.network target))
+         | None -> Result.bind (Network.parameter scope.network target)
+             (fun parameter ->
+               let axes = ["x"; "y"; "z"] in
+               if parameter.ty = Some Flow.Port_type.Vec3
+                 && List.exists (fun axis -> Port.Map.mem
+                   {target with path = target.path ^ "." ^ axis}
+                   scope.network.drives) axes then
+                 Result.map (fun parts -> Components (List.rev parts))
+                   (List.fold_left (fun state axis -> Result.bind state (fun parts ->
+                     Result.map (fun part -> part :: parts)
+                       (lower_input scope {target with path = target.path ^ "." ^ axis})))
+                     (Ok []) axes)
+               else Ok (Literal (Port.literal parameter))))
+  and lower_drive scope = function
+    | Drive.Expr expression -> Ok (Driven (Drive.Expr expression))
+    | Drive.Wire source -> lower_source scope source.node source.output
+  and project_drive scope drive axis = match drive with
+    | Drive.Expr expression -> Ok (Driven (Drive.Expr expression))
+    | Drive.Wire source ->
+        Result.bind (Network.output_type scope.network
+          (port source.node source.output)) (function
+          | Flow.Port_type.Vec3 ->
+              (match Flow.Graph.find scope.network.values ~node_id:source.node with
+               | Some node when Flow.Value_kind.kind node.parameters
+                   = Flow.Value_kind.Combine_xyz ->
+                   lower_input scope (port source.node axis)
+               | Some _ -> error "E_TYPE" "Vec3 source cannot expose components"
+               | None -> lower_source scope source.node
+                   (source.output ^ "." ^ axis))
+          | _ -> lower_source scope source.node source.output)
+  and lower_source scope node output =
+    let key = scope.path, node, output in
+    if Hashtbl.mem value_visiting key then
+      error "E_CYCLE" "Compound value wire contains a cycle"
+    else begin
+      Hashtbl.add value_visiting key ();
+      let result = lower_source_uncached scope node output in
+      Hashtbl.remove value_visiting key;
+      result
+    end
+  and lower_source_uncached scope node output =
+    match Flow.Graph.find scope.network.values ~node_id:node with
+    | Some node -> Result.map (fun id -> Driven
+        (Drive.Wire {node = id; output}))
+        (clone_value scope node)
+    | None -> match Network.Int_map.find_opt node scope.network.instances with
+      | Some instance ->
+          (match Network.String_map.find_opt instance.definition definitions with
+           | None -> error "E_UNBOUND" ("Missing compound " ^ instance.definition)
+           | Some definition ->
+               let rec ancestor scope = match scope.definition, scope.parent with
+                 | Some current, Some (parent, _) ->
+                     current.name = definition.name || ancestor parent
+                 | _ -> false in
+               if ancestor scope then error "E_RECURSIVE"
+                 ("Compound " ^ definition.name ^ " contains itself")
+               else (match special "flow_outputs" definition.body with
+                 | [marker] -> lower_input (child scope node definition)
+                     (port marker.id output)
+                 | _ -> error "E_INTERFACE" "Compound body needs one Outputs node"))
+      | None ->
+          (match Procedural.Edit_graph.find scope.network.geometry
+              ~node_id:node with
+           | Some node when Procedural.Node.operation node = "flow_inputs" ->
+               (match scope.parent with
+                | Some (parent, instance_id) -> lower_input parent
+                    (port instance_id output)
+                | None -> error "E_INTERFACE" "Inputs node is outside a compound")
+           | _ -> error "E_PORT" ("No value output " ^ output)) in
+  let typed = function
+    | Port.Scalar (Param.Float_value number) -> Ok (Flow.Port_type.Float_value number)
+    | Scalar (Param.Int_value number) -> Ok (Flow.Port_type.Int_value number)
+    | Scalar (Param.Bool_value value) -> Ok (Flow.Port_type.Bool_value value)
+    | Vector (x,y,z) -> Ok (Flow.Port_type.Vec3_value (x,y,z))
+    | Scalar _ -> error "E_TYPE" "Compound value has no numeric or Boolean literal" in
+  let apply_literal scope target (mapped : Port.t) literal =
+    Result.bind (Network.parameter scope.network target) (fun parameter ->
+      Result.bind (typed literal) (fun value ->
+        Result.bind (Port.normalize parameter value) (fun (_, changes) ->
+          match Flow.Graph.find !values ~node_id:mapped.node with
+          | Some _ -> Result.map (fun (next, _) -> values := next)
+              (Flow.Graph.apply_parameters !values ~node_id:mapped.node changes)
+          | None -> Result.map (fun (next, _) -> flat := next)
+              (geometry (Procedural.Edit_graph.apply_parameters !flat
+                ~node_id:mapped.node changes))))) in
+  let rec apply_lowered scope target mapped = function
+    | Literal literal -> apply_literal scope target mapped literal
+    | Driven drive -> drives := Port.Map.add mapped drive !drives; Ok ()
+    | Components parts ->
+        Result.bind (Network.parameter scope.network target) (fun parameter ->
+          if parameter.ty <> Some Flow.Port_type.Vec3
+            || List.length parts <> 3 then
+            error "E_TYPE" "Compound vector has no Vec3 destination"
+          else List.fold_left2 (fun state axis part -> Result.bind state
+            (fun () -> apply_lowered scope
+              {target with path = target.path ^ "." ^ axis}
+              {mapped with path = mapped.path ^ "." ^ axis} part))
+            (Ok ()) ["x"; "y"; "z"] parts) in
+  let process_drive scope (target : Port.t) drive =
+    if Network.Int_map.mem target.node scope.network.instances then Ok () else
+    match Flow.Graph.find scope.network.values ~node_id:target.node with
+    | Some node ->
+        Result.bind (clone_value scope node) (fun id ->
+          let mapped = {target with node = id} in
+          Result.bind (lower_drive scope drive)
+            (apply_lowered scope target mapped))
+    | None -> match Procedural.Edit_graph.find scope.network.geometry
+        ~node_id:target.node with
+      | Some node when List.mem (Procedural.Node.operation node)
+          ["flow_inputs"; "flow_outputs"] -> Ok ()
+      | Some _ ->
+          let id = if scope.path = [] then Some target.node else
+            Instance_path.Map.find_opt (scope.path @ [target.node]) !ids in
+          (match id with
+           | None -> Ok ()
+           | Some id when Procedural.Edit_graph.find !flat ~node_id:id = None -> Ok ()
+           | Some id ->
+               let mapped = {target with node = id} in
+               Result.bind (lower_drive scope drive)
+                 (apply_lowered scope target mapped))
+      | None -> error "E_UNBOUND" "Compound drive target is missing" in
+  let rec process_scopes () = match !pending with
+    | [] -> Ok ()
+    | scope :: rest ->
+        pending := rest;
+        let cloned = List.fold_left (fun state node -> Result.bind state (fun () ->
+          Result.map (fun _ -> ()) (clone_value scope node))) (Ok ())
+          (Flow.Graph.inspect scope.network.values) in
+        Result.bind cloned (fun () ->
+          Result.bind (Port.Map.fold (fun target drive state ->
+            Result.bind state (fun () -> process_drive scope target drive))
+            scope.network.drives (Ok ())) (fun () -> process_scopes ())) in
+  (* ponytail: recursion follows compound depth; E_DEPTH reports the stack
+     ceiling. Use an explicit work stack if deep compounds become common. *)
   try
     let root_scope = {network; path = []; parent = None; definition = None} in
+    pending := [root_scope];
     let nodes = Procedural.Edit_graph.inspect network.geometry in
     let checked = List.fold_left (fun state (node : Procedural.Edit_graph.node_info) ->
       Result.bind state (fun () ->
@@ -156,8 +323,10 @@ let flatten ?(allocate = true) ~(definitions : Network.definition Network.String
           | None -> Ok !flat
           | Some id -> geometry (Procedural.Edit_graph.set_root id !flat) in
         Result.bind graph (fun geometry ->
-          Result.map (fun network -> network, !ids)
-            (Network.of_parts ~geometry ~values:network.values
-              ~drives:network.drives ~geometry_outputs:Port.Map.empty
-              ~instances:Network.Int_map.empty))))
+          flat := geometry;
+          Result.bind (process_scopes ()) (fun () ->
+            Result.map (fun network -> network, !ids)
+              (Network.of_parts ~geometry:!flat ~values:!values
+                ~drives:!drives ~geometry_outputs:Port.Map.empty
+                ~instances:Network.Int_map.empty)))))
   with Stack_overflow -> error "E_DEPTH" "Compound nesting exceeds the stack capacity"

@@ -318,6 +318,15 @@ network with the same canvas, keys, views and text), then plan it here.
 
 ## Log
 
+- 2026-09-28 M5 value-flatten checkpoint: `Compile.flatten` now substitutes
+  instance value inputs and Outputs-marker wires into the flat drive set,
+  clones inner value nodes under saved instance-path ids, and carries scalar,
+  Vec3/component and expression drives into the value lane. Focused fixtures
+  compare cooked geometry, two instances of one definition, nested value
+  boundaries, time dependence, stable and missing ids, and a boundary cycle.
+  Export/unexport, value-aware grouping/ungrouping, and inspector editing of
+  value interfaces remain pending.
+
 - 2026-09-28 M5 value-interface validation checkpoint: compound factory
   metadata now exposes typed value inputs and outputs on the Inputs/Outputs
   markers and on instances. Network validation accepts value wires across
