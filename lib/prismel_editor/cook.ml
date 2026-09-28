@@ -19,6 +19,14 @@ type 'prepared cooked =
   | Displayed of 'prepared piece list
   | Framed of bounds option
 
+type flattened = {
+  source : Flow_sop.Network.t;
+  displayed : int;
+  definitions : Document.definition Document.String_map.t;
+  compiled_ids : int Flow_sop.Instance_path.Map.t;
+  result : (Flow_sop.Network.t * int, Flow.Diagnostic.t) result;
+}
+
 type 'prepared t = {
   worker : 'prepared cooked Async_cook.t;
   seed : int64;
@@ -36,6 +44,7 @@ type 'prepared t = {
   (* Each object's last compiled network, reused node-by-node on the next
      edit, and this frame's displayed graphs. *)
   compiled : (Edit_graph.t * Edit_graph.compiled) Document.Layout.t;
+  flattened : flattened Document.Layout.t;
   value_lanes : Flow_sop.Value_lane.t Document.Layout.t;
   applied : Flow_sop.Value_lane.resolved Document.Layout.t;
   graphs : (int * Graph.t) list;
@@ -92,7 +101,8 @@ let create ~prepare ~seed ~grain ?domains ~max_entries ~max_payload_bytes () =
   Result.map (fun worker ->
     { worker; seed; grain; domains; prepare; schedule = Schedule.initial;
       pieces = []; settings = None; error = None; seconds = None;
-      framing = None; force = false; compiled = Document.Layout.empty; graphs = [];
+      framing = None; force = false; compiled = Document.Layout.empty;
+      flattened = Document.Layout.empty; graphs = [];
       value_lanes = Document.Layout.empty; applied = Document.Layout.empty;
       displayed = [] })
     (Async_cook.create ~max_entries ~max_payload_bytes)
@@ -110,17 +120,50 @@ let force value = { value with force = true }
 
 (* [objects] are the visible geometry objects as (id, network graph,
    display node); [frame_request] is (object, node) to frame. *)
-let update ?live value ~settings ~objects ~edit_error ~effects ~timeline_changes
+let flatten ~definitions ~compiled_ids network displayed =
+  let geometry = Result.map_error (Flow.Diagnostic.error ~code:"E_GEOMETRY")
+    (Edit_graph.set_root displayed network.Flow_sop.Network.geometry) in
+  Result.bind geometry (fun geometry ->
+    Result.bind (Flow_sop.Network.with_geometry geometry network) (fun network ->
+      let definitions = Document.String_map.fold (fun name definition values ->
+        Flow_sop.Network.String_map.add name definition.Document.spec values)
+        definitions Flow_sop.Network.String_map.empty in
+      Result.bind (Flow_sop.Compile.flatten ~allocate:false ~definitions
+        ~compiled_ids network) (fun (network, _) ->
+          match Edit_graph.root network.geometry with
+          | Some displayed -> Ok (network, displayed)
+          | None -> Error (Flow.Diagnostic.error ~code:"E_INTERFACE"
+              "Compound display has no geometry output"))))
+
+let update ?live ~definitions ~compiled_ids value ~settings ~objects
+    ~edit_error ~effects ~timeline_changes
     ~timeline ~frame ~frame_request =
-  let objects, value_lanes, applied, resolve_error =
-    List.fold_left (fun (objects, lanes, applied, error) (id, network, displayed) ->
+  let objects, value_lanes, applied, flattened, resolve_error =
+    List.fold_left (fun (objects, lanes, applied, flattened, error)
+        (id, (network : Flow_sop.Network.t), displayed) ->
       let lane = match Document.Layout.find_opt id value.value_lanes with
         | Some lane -> lane | None -> Flow_sop.Value_lane.create () in
       let lanes = Document.Layout.add id lane lanes in
-      match Flow_sop.Value_lane.resolve lane
-          ~time:(Sketch_support.Timeline.time timeline) network with
-      | Ok resolved -> (id, resolved.geometry, displayed) :: objects,
-          lanes, Document.Layout.add id resolved applied, error
+      let flat, flattened =
+        if Flow_sop.Network.Int_map.is_empty network.instances then
+          Ok (network, displayed), flattened
+        else match Document.Layout.find_opt id value.flattened with
+          | Some previous when previous.source == network
+              && previous.displayed = displayed
+              && previous.definitions == definitions
+              && previous.compiled_ids == compiled_ids ->
+              previous.result, Document.Layout.add id previous flattened
+          | _ ->
+              let result = flatten ~definitions ~compiled_ids network displayed in
+              let entry = {source = network; displayed; definitions;
+                compiled_ids; result} in
+              result, Document.Layout.add id entry flattened in
+      match Result.bind flat (fun (network, displayed) ->
+        Result.map (fun resolved -> resolved, displayed)
+          (Flow_sop.Value_lane.resolve lane
+            ~time:(Sketch_support.Timeline.time timeline) network)) with
+      | Ok (resolved, displayed) -> (id, resolved.geometry, displayed) :: objects,
+          lanes, Document.Layout.add id resolved applied, flattened, error
       | Error diagnostic ->
           let previous = Document.Layout.find_opt id value.applied in
           let objects = match previous with
@@ -129,9 +172,10 @@ let update ?live value ~settings ~objects ~edit_error ~effects ~timeline_changes
           let applied = match previous with
             | Some previous -> Document.Layout.add id previous applied
             | None -> applied in
-          objects, lanes, applied,
+          objects, lanes, applied, flattened,
           Some (Flow.Diagnostic.to_string diagnostic))
-      ([], Document.Layout.empty, Document.Layout.empty, None) objects in
+      ([], Document.Layout.empty, Document.Layout.empty,
+        Document.Layout.empty, None) objects in
   let objects = List.rev objects in
   let edit_error = match edit_error with Some _ -> edit_error
     | None -> resolve_error in
@@ -243,7 +287,8 @@ let update ?live value ~settings ~objects ~edit_error ~effects ~timeline_changes
                  | Ok _ -> framed, Some (was_busy || Option.value ~default:false framing)
                  | Error _ -> Some None, framing) in
   { cook = { value with schedule; pieces; settings = Some settings; error; seconds;
-      framing; force = force_next; compiled; value_lanes; applied; graphs; displayed };
+      framing; force = force_next; compiled; flattened;
+      value_lanes; applied; graphs; displayed };
     edit_error; prepared_changed; framed }
 
 let close value = Async_cook.close value.worker

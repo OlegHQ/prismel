@@ -133,7 +133,10 @@ let () =
       geometry_bytes result.geometry) in
   assert (cook compiled.geometry = cook
     (Procedural.Edit_graph.of_graph (Procedural.Sop.null inner_box)));
-  let again, same_ids = ok (Compile.flatten
+  rejected "E_IDS" (Compile.flatten ~allocate:false
+    ~definitions:(Network.String_map.singleton definition.name definition)
+    ~compiled_ids:Instance_path.Map.empty compound_routed);
+  let again, same_ids = ok (Compile.flatten ~allocate:false
     ~definitions:(Network.String_map.singleton definition.name definition)
     ~compiled_ids compound_routed) in
   assert (same_ids = compiled_ids

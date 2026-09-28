@@ -32,6 +32,29 @@ type t = {
   settings : Settings.t;
 }
 
+let flow_definitions value = String_map.fold (fun name definition definitions ->
+  Flow_sop.Network.String_map.add name definition.spec definitions)
+  value.definitions Flow_sop.Network.String_map.empty
+
+let allocate_compiled_ids value =
+  let definitions = flow_definitions value in
+  let ids = Layout.fold (fun _ network state -> Result.bind state (fun ids ->
+    if network.context <> Flow.Context.Sop
+      || Flow_sop.Network.Int_map.is_empty network.graph.instances then Ok ids
+    else
+      let geometry = match network.displayed with
+        | None -> Ok network.graph.geometry
+        | Some displayed -> Result.map_error
+            (Flow.Diagnostic.error ~code:"E_GEOMETRY")
+            (Edit_graph.set_root displayed network.graph.geometry) in
+      Result.bind geometry (fun geometry ->
+        Result.bind (Flow_sop.Network.with_geometry geometry network.graph)
+          (fun graph -> Result.map snd
+            (Flow_sop.Compile.flatten ~definitions ~compiled_ids:ids graph)))))
+    value.networks (Ok value.compiled_ids) in
+  Result.map (fun compiled_ids -> if compiled_ids = value.compiled_ids then value
+    else {value with compiled_ids}) ids
+
 (* The network shown in the graph pane. *)
 type level = Scene | Inside of int
 

@@ -15,19 +15,20 @@ let special operation network =
   |> List.filter (fun (node : Procedural.Edit_graph.node_info) ->
     node.operation = operation)
 
-let flatten ~(definitions : Network.definition Network.String_map.t)
+let flatten ?(allocate = true) ~(definitions : Network.definition Network.String_map.t)
     ~compiled_ids (network : Network.t) =
   if Network.Int_map.is_empty network.instances then Ok (network, compiled_ids) else
   let flat = ref Procedural.Edit_graph.empty and ids = ref compiled_ids in
   let built = Hashtbl.create 64 and visiting = Hashtbl.create 64 in
   let compiled path inner =
-    if path = [] then inner else
+    if path = [] then Ok inner else
     let key = path @ [inner] in
     match Instance_path.Map.find_opt key !ids with
-    | Some id -> id
+    | Some id -> Ok id
+    | None when not allocate -> error "E_IDS" "Compound node has no saved compiled id"
     | None ->
         let id = Procedural.Node.Private.fresh_id () in
-        ids := Instance_path.Map.add key id !ids; id in
+        ids := Instance_path.Map.add key id !ids; Ok id in
   let rec resolve scope (source : Port.t) stack =
     let key = scope.path, source.node, source.path in
     match Hashtbl.find_opt built key with
@@ -55,11 +56,8 @@ let flatten ~(definitions : Network.definition Network.String_map.t)
               | Some index ->
                   let body = definition.body in
                   if Flow.Graph.inspect body.values <> []
-                    || not (Port.Map.is_empty body.drives)
-                    || List.exists (fun (port : Network.interface_port) ->
-                      port.ty <> Flow.Port_type.Geometry)
-                        (definition.inputs @ definition.outputs) then
-                    error "E_COMPOUND" "Value ports inside compounds are not flattened yet"
+                    || not (Port.Map.is_empty body.drives) then
+                    error "E_COMPOUND" "Value nodes and drives inside compounds are not flattened yet"
                   else
                     (match special "flow_outputs" body with
                      | [outputs_node] ->
@@ -123,7 +121,7 @@ let flatten ~(definitions : Network.definition Network.String_map.t)
              Result.bind (resolve_inputs 0 []) (fun inputs ->
                Result.bind (geometry (Procedural.Edit_graph.copy_nodes
                  [source.node] scope.network.geometry)) (fun fragment ->
-                 let id = compiled scope.path source.node in
+                 Result.bind (compiled scope.path source.node) (fun id ->
                  Result.bind (geometry (Procedural.Edit_graph.paste
                    ~ids:[source.node, id] fragment !flat)) (fun (graph, _) ->
                    flat := graph;
@@ -133,7 +131,7 @@ let flatten ~(definitions : Network.definition Network.String_map.t)
                        | Some source -> geometry (Procedural.Edit_graph.connect
                            ~source ~consumer:id ~input_index:index graph)))
                      (Ok !flat) (List.mapi (fun index input -> index, input) inputs) in
-                   Result.map (fun graph -> flat := graph; id) connected)))) in
+                   Result.map (fun graph -> flat := graph; id) connected))))) in
   try
     let root_scope = {network; path = []; parent = None; definition = None} in
     let nodes = Procedural.Edit_graph.inspect network.geometry in

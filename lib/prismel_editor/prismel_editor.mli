@@ -145,7 +145,11 @@ module Private : sig
     val pieces : 'a t -> 'a piece list
     val applied : 'a t -> int -> Flow_sop.Value_lane.resolved option
     val force : 'a t -> 'a t
-    val update : ?live:bool -> 'a t -> settings:Settings.t ->
+    val update : ?live:bool ->
+      definitions:Editor_document.Document.definition
+        Editor_document.Document.String_map.t ->
+      compiled_ids:int Flow_sop.Instance_path.Map.t ->
+      'a t -> settings:Settings.t ->
       objects:(int * Flow_sop.Network.t * int) list -> edit_error:string option ->
       effects:Procedural.Parameter.effects -> timeline_changes:Sketch_support.Timeline.change list ->
       timeline:Sketch_support.Timeline.t -> frame:Prismel.Frame.t ->

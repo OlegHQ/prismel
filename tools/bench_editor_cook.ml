@@ -30,7 +30,9 @@ let measure () =
       Flow_sop.Network.of_geometry (Edit_graph.of_graph graph), Node.id graph in
     let still = network 2 source in
     let step objects =
-      let update = Cook.update !cook ~settings:Prismel_editor.Settings.none ~objects
+      let update = Cook.update ~definitions:Editor_document.Document.String_map.empty
+        ~compiled_ids:Flow_sop.Instance_path.Map.empty
+        !cook ~settings:Prismel_editor.Settings.none ~objects
         ~edit_error:None ~effects:Parameter.no_effects ~timeline_changes:[]
         ~timeline ~frame ~frame_request:None in
       cook := update.cook; update.prepared_changed in

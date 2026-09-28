@@ -250,6 +250,25 @@ let run () =
     |> List.hd |> member "output" = `String "result")
     "named compound geometry output did not round trip";
   ignore (load saved_instance |> Result.get_ok);
+  let unallocated = set with_instance "compiled_ids" (`List []) in
+  let direct = Editor_document.Preset.load
+    ~path:(write "instance-unallocated" unallocated) ~code ~factories
+    ~settings:Editor_document.Settings.none |> Result.get_ok in
+  let allocated = match Editor_document.Document.allocate_compiled_ids direct.doc with
+    | Ok doc -> doc
+    | Error diagnostic -> failwith (Flow.Diagnostic.to_string diagnostic) in
+  let saved_id = Flow_sop.Instance_path.Map.find [20; 70]
+    allocated.compiled_ids in
+  check (saved_id > 0 && Result.is_ok (Editor_document.Document.validate allocated))
+    "compound compiled id was not allocated into a valid document";
+  let allocated_path = Editor_document.Preset.save ~directory
+    ~name:"instance-allocated-saved" ~sketch:"contract" ~doc:allocated
+    ~view:`Null |> Result.get_ok in
+  let reloaded_allocated = Editor_document.Preset.load ~path:allocated_path
+    ~code ~factories ~settings:Editor_document.Settings.none |> Result.get_ok in
+  check (Flow_sop.Instance_path.Map.find [20; 70]
+      reloaded_allocated.doc.compiled_ids = saved_id)
+    "compound compiled id changed across save and reload";
   let geometry_input = `Assoc ["name", `String "incoming";
     "type", `String "Geometry"; "default", `Null;
     "label", `String "Incoming"; "soft", `Null] in

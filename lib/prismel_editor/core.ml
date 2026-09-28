@@ -1374,6 +1374,10 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
     | [] when List.mem Leader.Go_world actions && value.scene_level ->
         (match add_world next daylight with Ok doc -> doc, true | Error _ -> next, false)
     | _ -> next, false in
+  let next, compound_error = if next == present then next, None else
+    match Document.allocate_compiled_ids next with
+    | Ok next -> next, None
+    | Error diagnostic -> next, Some (Flow.Diagnostic.to_string diagnostic) in
   let input = Pxui.Ui.input ?owner:(List.find_map (fun (key, column) ->
       if column = Pxui_shell.Layout.View then Some key else None) result.pane_keys) value.ui in
   let dragging = Frame.mouse_down Input.LeftButton frame || Frame.has_event (function
@@ -1482,8 +1486,12 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
   let frame_request = match result.frame_request, value'.level with
     | Some node, Inside id when kind value' id = Some "geometry" -> Some (id, node)
     | _ -> None in
-  let cooked = Cook.update ~live:result.live_cook value.cook ~settings:doc.settings
-      ~objects:(geometry_objects value') ~edit_error:result.edit_error ~effects
+  let cooked = Cook.update ~live:result.live_cook
+      ~definitions:doc.definitions ~compiled_ids:doc.compiled_ids
+      value.cook ~settings:doc.settings
+      ~objects:(geometry_objects value')
+      ~edit_error:(match result.edit_error with Some _ -> result.edit_error
+        | None -> compound_error) ~effects
       ~timeline_changes ~timeline ~frame ~frame_request in
   let value' = match value'.level with
     | Document.Inside id ->

@@ -1023,6 +1023,10 @@ get compiled ids from the document's `compiled_ids : int Instance_path.Map.t`,
 allocated once per (instance path, inner id) and saved in presets, so session
 cache entries survive unrelated edits. Two instances of one definition cook
 separately (cache keys include node ids; sharing is out of scope).
+The editor allocates missing compiled ids into the document before recording
+an edit in history. Cooking calls `flatten ~allocate:false` and reports a
+missing-id diagnostic instead of creating an unsaved id. An unchanged source
+network, definitions, display and id map reuse the same flattened network.
 
 ## 14. Libraries and the dependency gate
 

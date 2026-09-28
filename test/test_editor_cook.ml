@@ -3,6 +3,7 @@ open Procedural
 module Cook = Prismel_editor.Private.Cook
 module Settings = Prismel_editor.Settings
 module Timeline = Sketch_support.Timeline
+module Document = Editor_document.Document
 
 let check condition message = if not condition then failwith message
 let settings mode = Settings.make Test_editor_commands.schema mode
@@ -35,16 +36,20 @@ let with_cook ?(domains = 1) prepare run =
   let current = ref (Cook.create ~prepare ~seed:42L ~grain:64 ~domains
     ~max_entries:16 ~max_payload_bytes:(16 * 1024 * 1024) () |> Result.get_ok) in
   Fun.protect ~finally:(fun () -> Cook.close !current) (fun () ->
-    let step ?(settings = Settings.none) ?(timeline = stopped) ?(changes = [])
+    let step ?(definitions = Document.String_map.empty)
+        ?(compiled_ids = Flow_sop.Instance_path.Map.empty)
+        ?(settings = Settings.none) ?(timeline = stopped) ?(changes = [])
         ?(buttons = []) ?frame_request objects =
-      let update = Cook.update ~live:false !current ~settings ~objects ~edit_error:None
+      let update = Cook.update ~live:false ~definitions ~compiled_ids
+        !current ~settings ~objects ~edit_error:None
         ~effects:Parameter.no_effects ~timeline_changes:changes ~timeline
         ~frame:{ frame with mouse_buttons = buttons } ~frame_request in
       current := update.cook; update in
-    let finish ?settings ?timeline ?changes objects =
+    let finish ?definitions ?compiled_ids ?settings ?timeline ?changes objects =
       let published = ref None and first = ref true in
       await (fun () ->
-        let update = step ?settings ?timeline ?changes:(if !first then changes else None) objects in
+        let update = step ?definitions ?compiled_ids ?settings ?timeline
+          ?changes:(if !first then changes else None) objects in
         first := false;
         if update.prepared_changed && Cook.status !current = Async_cook.Idle then
           published := Some update;
@@ -181,4 +186,74 @@ let run () =
       Atomic.set closing true;
       Cook.close !current; Domain.join unblock;
       check (Atomic.get exited) "close returned before the callback exited"));
+  let name = "cook_compound" in
+  let output : Flow_sop.Network.interface_port = {
+    name = "result"; ty = Flow.Port_type.Geometry; default = None;
+    label = "Result"; soft = None} in
+  let factories = Flow_sop.Compound_node.factories ~name ~inputs:[]
+    ~outputs:[output] in
+  let inputs_factory = List.nth factories 0
+  and outputs_factory = List.nth factories 1
+  and instance_factory = List.nth factories 2 in
+  let source = Sop.points [|1., 2., 3.|] in
+  let inputs = Edit_graph.instantiate_optional inputs_factory [] |> Result.get_ok in
+  let outputs = Edit_graph.instantiate_optional outputs_factory [Some source]
+    |> Result.get_ok in
+  let body = Edit_graph.empty
+    |> Edit_graph.add_node source |> Result.get_ok
+    |> Edit_graph.add_node ~factory:inputs_factory inputs |> Result.get_ok
+    |> Edit_graph.add_node ~factory:outputs_factory
+      ~inputs:[|Some (Node.id source)|] outputs |> Result.get_ok
+    |> Edit_graph.set_root (Node.id outputs) |> Result.get_ok in
+  let spec : Flow_sop.Network.definition = {
+    name; context = Flow.Context.Sop; inputs = []; outputs = [output];
+    body = Flow_sop.Network.of_geometry body} in
+  let definitions = Document.String_map.singleton name
+    {Document.spec; layout = Document.Canvas.empty;
+      displayed = Some (Node.id outputs)} in
+  let instance = Edit_graph.instantiate_optional instance_factory []
+    |> Result.get_ok in
+  let consumer = Sop.null instance in
+  let geometry = Edit_graph.empty
+    |> Edit_graph.add_node ~factory:instance_factory instance |> Result.get_ok
+    |> Edit_graph.add_node consumer |> Result.get_ok
+    |> Edit_graph.set_root (Node.id consumer) |> Result.get_ok in
+  let compound_instance : Flow_sop.Network.instance = {
+    definition = name; literals = Flow_sop.Network.String_map.empty} in
+  let network = Flow_sop.Network.of_parts ~geometry ~values:Flow.Graph.empty
+    ~drives:Flow_sop.Port.Map.empty
+    ~geometry_outputs:Flow_sop.Port.Map.empty
+    ~instances:(Flow_sop.Network.Int_map.singleton (Node.id instance)
+      compound_instance)
+    |> Result.get_ok in
+  let network = Flow_sop.Network.connect_geometry
+    ~source:Flow_sop.Port.{node = Node.id instance; path = "result"}
+    ~consumer:(Node.id consumer) ~input_index:0 network |> Result.get_ok in
+  let _, compiled_ids = Flow_sop.Compile.flatten
+    ~definitions:(Flow_sop.Network.String_map.singleton name spec)
+    ~compiled_ids:Flow_sop.Instance_path.Map.empty network |> Result.get_ok in
+  let objects = [3, network, Node.id consumer] in
+  let positions _ output =
+    let points = Pdk.Geometry.positions output.Session.geometry in
+    Ok (Array.init (Pdk.Packed.Float3.length points)
+      (Pdk.Packed.Float3.get points)) in
+  with_cook positions (fun current step finish ->
+    let ready = finish ~definitions ~compiled_ids objects in
+    check (ready.edit_error = None
+      && (List.hd (Cook.pieces !current)).prepared = [|1., 2., 3.|])
+      "compound geometry was not flattened before cooking";
+    let piece = List.hd (Cook.pieces !current) in
+    ignore (step ~definitions ~compiled_ids objects);
+    check (List.hd (Cook.pieces !current) == piece)
+      "unchanged compound resubmitted a cook");
+  with_cook positions (fun current _ finish ->
+    let ready = finish ~definitions ~compiled_ids
+      [3, network, Node.id instance] in
+    check (ready.edit_error = None
+      && (List.hd (Cook.pieces !current)).prepared = [|1., 2., 3.|])
+      "displaying the compound instance did not resolve its output");
+  with_cook positions (fun _ step _ ->
+    let update = step ~definitions objects in
+    check (Option.is_some update.edit_error)
+      "compound cook accepted an unsaved compiled id");
   print_endline "editor cook: per-object reuse, settings/context provenance, explicit late/superseded/empty barriers and joined close passed"

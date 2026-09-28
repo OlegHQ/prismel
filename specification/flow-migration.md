@@ -318,6 +318,13 @@ network with the same canvas, keys, views and text), then plan it here.
 
 ## Log
 
+- 2026-09-28 M5 cook checkpoint: document edits allocate instance-path IDs
+  before entering history; `Cook.update` flattens geometry before the value
+  lane and uses only saved IDs. It caches the flattened network while the
+  source, definition map, display and ID map are unchanged. Focused tests
+  cover cooked geometry, idle reuse, missing-ID rejection and ID persistence
+  through preset save/reload. Value interfaces and graph commands remain.
+
 - 2026-09-28 M5 structural-node checkpoint: compound Inputs, Outputs and
   instance nodes now have interface-derived factories with stable preset keys.
   Preset v3 restores their named geometry slots from saved definitions;
