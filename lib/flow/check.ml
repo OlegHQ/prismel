@@ -204,14 +204,22 @@ let catalog_of_manifest source =
       try match forms with
       | [root] ->
           (match tagged "flow_manifest" root with
-           | [version; digest; kinds] ->
-               let version = integer (one "version" version)
-               and digest = string (one "digest" digest) in
+           | [version_form; digest_form; kinds_form] ->
+               let version = integer (one "version" version_form)
+               and digest = string (one "digest" digest_form) in
                if version < 0 then bad root "Negative Flow catalog version";
                if String.length digest <> 32 || not (String.for_all
                  (function '0' .. '9' | 'a' .. 'f' -> true | _ -> false) digest)
                then bad root "Flow manifest digest must be 32 lowercase hex digits";
-               let kinds = List.filter_map kind (tagged "kinds" kinds) in
+               let kind_forms = tagged "kinds" kinds_form in
+               let raw form = String.sub source form.Sexp.span.start
+                 (form.Sexp.span.finish - form.Sexp.span.start) in
+               let payload = raw version_form ^ "\n(kinds" ^
+                 (if kind_forms = [] then "" else " " ^
+                   String.concat " " (List.map raw kind_forms)) ^ ")" in
+               if Digest.to_hex (Digest.string payload) <> digest then
+                 bad digest_form "Flow manifest digest does not match its contents";
+               let kinds = List.filter_map kind kind_forms in
                Ok ({version; kinds}, digest)
            | _ -> bad root "Flow manifest needs version, digest and kinds")
       | _ -> Error (Diagnostic.error ~code:"E_CATALOG"
@@ -756,7 +764,8 @@ let check catalog source = match Sexp.parse source with
             (match header state ~definition:true form items with
              | Some (name, context, [interface_form; body_form]) ->
                  if List.exists (fun (definition : definition) -> definition.graph.name = name)
-                    state.definitions then
+                    state.definitions || List.exists (fun (kind : kind) ->
+                      kind.qualified = "user/" ^ name) state.catalog.kinds then
                    error state form "E_DUPLICATE_DEF"
                      ("defgraph " ^ name ^ " is defined twice")
                  else let inputs, env = interface state interface_form in

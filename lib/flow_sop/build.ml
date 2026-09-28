@@ -21,6 +21,7 @@ type write = Port.t * value
 
 type state = {
   factories : Edit.factory list;
+  local_factories : Edit.factory list;
   definitions : Network.definition String_map.t;
   mutable next_id : int;
   mutable geometry : Edit.t;
@@ -43,13 +44,17 @@ let find_factory factories key =
 let linked_factory state kind = match String.split_on_char '/' kind with
   | ["sop"; key] -> find_factory state.factories key, None
   | ["user"; name] ->
+      (match List.find_opt (fun factory -> Edit.factory_key factory = name)
+          state.local_factories with
+       | Some factory -> factory, None
+       | None ->
       let definition = match String_map.find_opt name state.definitions with
         | Some definition -> definition
         | None -> invalid_arg ("Flow build: no definition " ^ name) in
       let factory = match Compound_node.factories ~name
           ~inputs:definition.inputs ~outputs:definition.outputs with
         | [_; _; factory] -> factory | _ -> assert false in
-      factory, Some name
+      factory, Some name)
   | _ -> invalid_arg ("Flow build: invalid geometry kind " ^ kind)
 
 let output built = match built with
@@ -70,8 +75,8 @@ let count_graph (graph : Check.graph) =
     0 graph.bindings +
   List.fold_left (fun count term -> count + count_term term) 0 graph.results
 
-let make_state ~factories ~definitions = {
-  factories; definitions; next_id = 1; geometry = Edit.empty;
+let make_state ~factories ~local_factories ~definitions = {
+  factories; local_factories; definitions; next_id = 1; geometry = Edit.empty;
   values = Graph.empty; instances = Network.Int_map.empty;
   geometry_outputs = Port_map.empty; writes = [];
 }
@@ -166,6 +171,10 @@ let apply_write network (target, value) =
   let scalar network target literal =
     let parameter = get (Network.parameter network target) in
     let literal = match parameter.Port.ty, literal with
+      | None, Param.Text_value text ->
+          (match parameter.fields with
+           | [{Param.kind = Param.Choice_view _; _}] -> Param.Choice_value text
+           | _ -> literal)
       | None, _ -> literal
       | Some _, Param.Text_value _ | Some _, Param.Choice_value _ -> literal
       | Some _, _ ->
@@ -250,7 +259,7 @@ let program ~factories ?(local_factories = []) ~manifest_digest
     List.fold_left (fun n (definition : Check.definition) ->
       n + count_graph definition.graph)
       0 checked.definitions in
-  geometry (Procedural.Node.Private.reserve_id count);
+  if count > 0 then geometry (Procedural.Node.Private.reserve_id count);
   let next_id = ref 1 and definitions = ref String_map.empty in
   List.iter (fun (definition : Check.definition) ->
     let inputs = List.map interface_port definition.inputs in
@@ -258,7 +267,7 @@ let program ~factories ?(local_factories = []) ~manifest_digest
       (name, ty, None)) definition.outputs in
     let name = definition.graph.name in
     let markers = Compound_node.factories ~name ~inputs ~outputs in
-    let state = make_state ~factories:(factories @ local_factories)
+    let state = make_state ~factories ~local_factories
       ~definitions:!definitions in
     state.next_id <- !next_id;
     let input_factory, output_factory = match markers with
@@ -273,7 +282,7 @@ let program ~factories ?(local_factories = []) ~manifest_digest
       {Network.name = name; context = definition.graph.context;
         inputs; outputs; body}
       !definitions) checked.definitions;
-  let state = make_state ~factories:(factories @ local_factories)
+  let state = make_state ~factories ~local_factories
     ~definitions:!definitions in
   state.next_id <- !next_id;
   let network, display = build_graph state checked.graph

@@ -26,10 +26,13 @@ description: Register a new editor SOP node in prismel's sop_catalog through the
    cache key from every cook field. No hand-written factory list, cache key,
    input match, or menu defaults. Add a `create` to `sop_catalog.mli` only when
    code outside the library needs one.
-4. Run `dune build @test/test_sop_catalog`: it rejects duplicate keys,
+4. Run `dune build @test/test_sop_catalog @lib/sop_catalog/runtest`: the
+   catalog test rejects duplicate keys,
    instantiates every factory with placeholder inputs, and finds each key
    from the node menu. Add a case there only if the node needs behaviour
    beyond registration; the PPX fixture lives in `test/sop_params_fixture.ml`.
+   Review the generated `flow_manifest.sexp` diff and accept intended metadata
+   changes with `dune promote`; `[%flow]` uses this snapshot at compile time.
 5. If the node should appear in the gallery or an example, add it there;
    then `@all` and `git diff --check`.
 

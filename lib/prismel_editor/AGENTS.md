@@ -58,7 +58,7 @@
 - `Prismel_editor.Private` is unstable and test-only. Layout and chrome callers
   use `Pxui_shell.Layout` and `Pxui_shell.Chrome` directly.
 
-## Prismel Flow rework (in progress)
+## Prismel Flow
 
 `specification/flow.md` replaces the graph-pane behavior below milestone by
 milestone; `specification/flow-migration.md` lists what each milestone
@@ -95,8 +95,9 @@ rules in this file are current. Planned changes that touch this directory:
   definition; instance rows edit their own literals, and flattening carries
   value drives through nested compounds. Whole-Vec3 export, nonuniform Vec3
   defaults, and geometry-port unexport are implemented. M6's read-only text
-  projection and three-view `Space l` cycle are implemented. M7 supplies
-  `Build.program`, the reconstruction laws, and the compile-time layer.
+  projection and three-view `Space l` cycle are implemented. M7 adds
+  `Build.program`, `[%flow]`, catalog manifest checks, and `?program` editor
+  initialization.
 
 Keep the three-column workspace, `Doc.apply` as the only graph-intent reducer,
 the one Command table, and history labels; the rework extends them.

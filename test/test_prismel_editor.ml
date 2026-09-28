@@ -88,6 +88,21 @@ let run () =
     (Prismel_editor.Editor2.document flow_editor)) = 2)
     "editor lost Flow compound instance";
   Prismel_editor.Editor2.close flow_editor;
+  let checked, diagnostics = Flow.Check.check catalog
+    "(defgraph bump :context value [(v :float 1)] (+ v 1))\n(graph editor (let* [num (user/bump :v 2) cube (sop/box :size [num 1 1])] cube))" in
+  check (not (List.exists (fun diagnostic ->
+    diagnostic.Flow.Diagnostic.severity = Error) diagnostics))
+    "editor value Flow fixture did not check";
+  let program = Flow_sop.Build.program ~factories:Sop_catalog.Editor.factories
+    ~manifest_digest:digest (Option.get checked) in
+  let flow_editor = Prismel_editor.Editor2.create ~program
+    ~factories:Sop_catalog.Editor.factories
+    ~prepare:(fun _ output -> Ok output.Session.geometry)
+    ~scene2:(fun _ _ -> Scene.empty) () |> Result.get_ok in
+  check (List.length (Edit_graph.inspect
+    (Prismel_editor.Editor2.document flow_editor)) = 2)
+    "editor lost Flow value compound";
+  Prismel_editor.Editor2.close flow_editor;
   List.iter (fun (graph : _ Editor_core.Command.t) ->
     check (List.exists (fun (command : Leader.command) ->
       command.id = graph.id && command.trigger = graph.trigger

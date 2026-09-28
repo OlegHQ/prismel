@@ -39,6 +39,8 @@ let run () =
   let factories = Sop_catalog.Editor.factories in
   let flow_catalog = Flow_sop.Catalog.of_factories ~version:1 factories
     |> Result.get_ok in
+  let _, manifest_digest = Flow_sop.Manifest.generate factories
+    |> Result.get_ok in
   let load path = Preset.load ~path ~code ~factories ~settings:Prismel_editor.Settings.none in
   (* Yojson's writer refuses nonfinite floats. Deliberately emit hostile
      numeric tokens to exercise the reader and validation boundary. *)
@@ -114,8 +116,16 @@ let run () =
           ~definitions:Flow_sop.Network.String_map.empty network
           |> Result.get_ok in
         match Flow.Check.check flow_catalog printed.text with
-        | Some _, diagnostics when List.for_all (fun (d : Flow.Diagnostic.t) ->
-            d.severity <> Flow.Diagnostic.Error) diagnostics -> ()
+        | Some checked, diagnostics when List.for_all (fun (d : Flow.Diagnostic.t) ->
+            d.severity <> Flow.Diagnostic.Error) diagnostics ->
+            let rebuilt = Flow_sop.Build.program ~factories
+              ~manifest_digest checked in
+            let canonical = Flow_sop.Print.network ~name
+              ~context:Flow.Context.Sop ~catalog:flow_catalog
+              ~display:rebuilt.display ~definitions:rebuilt.definitions
+              rebuilt.network |> Result.get_ok in
+            check (canonical.text = printed.text)
+              (name ^ " changed during Flow rebuild")
         | _, diagnostics -> failwith (name ^ ": " ^ String.concat "; "
             (List.map Flow.Diagnostic.to_string diagnostics))
       end))

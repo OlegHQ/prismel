@@ -44,6 +44,10 @@ let () =
       program.graph.bindings = ["cube"; "moved"]);
   let empty = valid "(graph empty :context sop nil)" in
   assert (empty.graph.results = [Check.{node = Nil; ty = None}]);
+  let kind_named_binding = valid
+    "(graph same_name (let* [box (sop/box)] box))" in
+  assert (List.map (fun (binding : Check.binding) -> binding.name)
+    kind_named_binding.graph.bindings = ["box"]);
   let program = valid "(defgraph lift :context sop [(input :geometry)]\n  (transform input))\n(graph demo (let* [b (box) a (user/lift b)] a))" in
   assert (List.length program.definitions = 1);
   let named = valid "(defgraph split [(input :geometry)]

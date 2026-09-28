@@ -37,7 +37,7 @@ accept an intended one with `dune promote`.
 | M4 | Wireless binds, expressions, fold/unfold, row keys | done | 2026-09-28 |
 | M5 | Compounds and contexts | done | 2026-09-28 |
 | M6 | Views: list with values, read-only text, reader and checker | done | 2026-09-28 |
-| M7 | `[%flow]` PPX and catalog manifest | in progress | |
+| M7 | `[%flow]` PPX and catalog manifest | done | 2026-09-28 |
 
 ## Original → target map
 
@@ -319,6 +319,15 @@ network with the same canvas, keys, views and text), then plan it here.
   the build.
 
 ## Log
+
+- 2026-09-28 M7 complete: the generated manifest and its reader feed located
+  `[%flow]` checks; the PPX emits checked terms and discovers earlier
+  registered file-local SOP modules. `Build.program` verifies the linked
+  digest and rebuilds SOP/value nodes, drives and definitions. Both editor
+  hosts accept programs, and `sketches/flow_terrain` builds and runs finitely.
+  The checker samples cover §11.9 diagnostics and §11.10 resolution rules;
+  builder tests reprint every registered SOP and the generated v3 preset
+  cases, including a partly driven vector and layout-only changes.
 
 - 2026-09-28 M7 editor-entry checkpoint: `Editor3/2.create` and `run` accept
   `?program` in place of `?graph`; the program's network, display and shared

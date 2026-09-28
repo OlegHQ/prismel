@@ -488,7 +488,9 @@ let manifest structure =
       let factories = List.map (fun name ->
         ident ~loc [name; "factory"]) names in
       let editor = pmod_structure ~loc
-          [value_binding ~loc "factories" (elist ~loc factories)] in
+          [value_binding ~loc "factories" (elist ~loc factories);
+           pstr_value ~loc Nonrecursive [Ast_builder.Default.value_binding ~loc
+             ~pat:(ppat_any ~loc) ~expr:(evar ~loc "factories")]] in
       structure @ [pstr_module ~loc (module_binding ~loc
         ~name:{ loc; txt = Some "Editor" } ~expr:editor)]
 
@@ -503,6 +505,127 @@ let node_attributes = List.map (fun attribute -> Attribute.T attribute)
      node_inputs_attribute; node_optional_attribute; node_slots_attribute]
 
 let flow_manifest_path = ref None
+
+let local_number expression what =
+  let rec text expression = match expression.pexp_desc with
+    | Pexp_constant (Pconst_integer (number, None)) -> number
+    | Pexp_constant (Pconst_float (number, None)) -> number
+    | Pexp_apply ({pexp_desc = Pexp_ident {txt = Longident.Lident "~-"; _}; _},
+        [Nolabel, inner]) -> "-" ^ text inner
+    | _ -> Location.raise_errorf ~loc:expression.pexp_loc
+        "%s needs a numeric literal for compile-time Flow checking" what in
+  text expression
+
+let local_float expression what =
+  let text = local_number expression what in
+  match float_of_string_opt text with
+  | Some number when Float.is_finite number -> number
+  | _ -> Location.raise_errorf ~loc:expression.pexp_loc
+      "%s needs a finite numeric literal" what
+
+let local_int expression what =
+  let text = local_number expression what in
+  match int_of_string_opt text with
+  | Some number -> number
+  | None -> Location.raise_errorf ~loc:expression.pexp_loc
+      "%s needs an integer literal" what
+
+let local_bool expression what = match expression.pexp_desc with
+  | Pexp_construct ({txt = Longident.Lident "true"; _}, None) -> true
+  | Pexp_construct ({txt = Longident.Lident "false"; _}, None) -> false
+  | _ -> Location.raise_errorf ~loc:expression.pexp_loc
+      "%s needs a boolean literal" what
+
+let local_field declaration =
+  let name = public_name declaration in
+  let label = Option.value ~default:name
+    (optional_string label_attribute declaration "sop.label") in
+  let default = required default_attribute declaration "default" in
+  let kind, value, ty = match Attribute.get kind_attribute declaration with
+    | Some _ -> Param.Text_view, Param.Text_value "", None
+    | None -> match type_name declaration.pld_type with
+      | Some "float" ->
+          let soft_min = local_float
+            (required soft_min_attribute declaration "min") "sop.min"
+          and soft_max = local_float
+            (required soft_max_attribute declaration "max") "sop.max" in
+          let hard_min = Option.map (fun value -> local_float value "sop.hard_min")
+            (Attribute.get hard_min_attribute declaration)
+          and hard_max = Option.map (fun value -> local_float value "sop.hard_max")
+            (Attribute.get hard_max_attribute declaration) in
+          Param.Floating_view Param.{soft_min; soft_max; hard_min; hard_max},
+          Param.Float_value (local_float default "sop.default"),
+          Some Flow.Port_type.Float
+      | Some "int" ->
+          let soft_min = local_int
+            (required soft_min_attribute declaration "min") "sop.min"
+          and soft_max = local_int
+            (required soft_max_attribute declaration "max") "sop.max" in
+          let hard_min = Option.map (fun value -> local_int value "sop.hard_min")
+            (Attribute.get hard_min_attribute declaration)
+          and hard_max = Option.map (fun value -> local_int value "sop.hard_max")
+            (Attribute.get hard_max_attribute declaration) in
+          Param.Integer_view Param.{soft_min; soft_max; hard_min; hard_max},
+          Param.Int_value (local_int default "sop.default"),
+          Some Flow.Port_type.Int
+      | Some "bool" -> Param.Toggle_view,
+          Param.Bool_value (local_bool default "sop.default"),
+          Some Flow.Port_type.Bool
+      | Some "string" -> Param.Text_view,
+          Param.Text_value (string_constant default "sop.default"), None
+      | _ -> Location.raise_errorf ~loc:declaration.pld_loc
+          "Flow needs [@sop.kind ...] for custom parameter %s" name in
+  name, label, kind, value, ty,
+  optional_string vec3_attribute declaration "sop.vec3"
+
+let local_parameters declarations =
+  ignore (vec3_components declarations);
+  let fields = List.filter (fun declaration ->
+    not (Attribute.has_flag ignore_attribute declaration)) declarations
+    |> List.map local_field in
+  let rec gather reversed = function
+    | [] -> List.rev reversed
+    | (name, label, kind, value, _, Some group) ::
+        (name_y, _, kind_y, value_y, _, Some group_y) ::
+        (name_z, _, kind_z, value_z, _, Some group_z) :: tail
+        when group = group_y && group = group_z ->
+        let first = name, kind, value in
+        let second = name_y, kind_y, value_y in
+        let third = name_z, kind_z, value_z in
+        gather (Flow.Check.{name = group; label; ty = Some Flow.Port_type.Vec3;
+          fields = [first; second; third]} :: reversed) tail
+    | (name, label, kind, value, ty, _) :: rest ->
+        gather (Flow.Check.{name; label; ty; fields = [name, kind, value]}
+          :: reversed) rest in
+  gather [] fields
+
+let local_kind declaration =
+  let key, _, _, _, _, optional, slots = node_metadata declaration in
+  let parameters = match declaration.ptype_kind with
+    | Ptype_record fields -> local_parameters fields
+    | _ -> Location.raise_errorf ~loc:declaration.ptype_loc
+        "Flow file-local node parameters must be a record" in
+  Flow.Check.{qualified = "user/" ^ key; aliases = [];
+    context = Flow.Context.Sop;
+    slots = List.mapi (fun index name ->
+      {Flow.Check.name; required = not (List.mem index optional)}) slots;
+    parameters; outputs = ["geo", Flow.Port_type.Geometry]}
+
+let local_registered = function
+  | {pstr_desc = Pstr_module binding; _}
+      when Attribute.has_flag register_attribute binding ->
+      (match binding.pmb_name.txt, binding.pmb_expr.pmod_desc with
+       | Some module_name, Pmod_structure items ->
+           List.find_map (function
+             | {pstr_desc = Pstr_type (_, declarations); _} ->
+                 List.find_map (fun declaration ->
+                   match Attribute.get node_key_attribute declaration with
+                   | None -> None
+                   | Some _ -> Some (module_name, local_kind declaration))
+                   declarations
+             | _ -> None) items
+       | _ -> None)
+  | _ -> None
 
 let flow_position ~start source offset =
   let relative = Flow.Sexp.position_of_offset source offset in
@@ -606,7 +729,7 @@ let flow_program ~loc (program : Flow.Check.program) =
             flow_option ~loc (flow_term ~loc) default]) definition.inputs);
         "outputs", flow_ports ~loc definition.outputs]) program.definitions)]
 
-let expand_flow ~loc payload =
+let expand_flow ~loc ~locals payload =
   let source, start = match payload.pexp_desc with
     | Pexp_constant (Pconst_string (source, _, Some delimiter)) ->
         let start = payload.pexp_loc.loc_start in
@@ -625,6 +748,8 @@ let expand_flow ~loc payload =
     | Error diagnostic -> Location.raise_errorf ~loc
         "invalid Flow manifest %s: %s" manifest_path
         (Flow.Diagnostic.to_string diagnostic) in
+  let catalog = {catalog with Flow.Check.kinds = catalog.kinds @
+    List.map snd locals} in
   let program, diagnostics = Flow.Check.check catalog source in
   List.iter (fun (diagnostic : Flow.Diagnostic.t) ->
     if diagnostic.severity = Warning then
@@ -648,12 +773,32 @@ let expand_flow ~loc payload =
        let program = Option.get program in
        apply ~loc (ident ~loc ["Flow_sop"; "Build"; "program"])
          [Labelled "factories", ident ~loc ["Sop_catalog"; "Editor"; "factories"];
+          Labelled "local_factories", elist ~loc
+            (List.map (fun (name, _) -> ident ~loc [name; "factory"]) locals);
           Labelled "manifest_digest", estring ~loc digest;
           Nolabel, flow_program ~loc program])
 
-let flow_extension = Extension.declare "flow" Extension.Context.expression
-    Ast_pattern.(single_expr_payload __)
-    (fun ~loc ~path:_ payload -> expand_flow ~loc payload)
+let flow_structure structure =
+  let locals = ref [] in
+  let mapper = object
+    inherit Ast_traverse.map as super
+    method! expression expression =
+      match expression.pexp_desc with
+      | Pexp_extension ({txt = "flow"; _},
+          PStr [{pstr_desc = Pstr_eval (payload, _); _}]) ->
+          expand_flow ~loc:expression.pexp_loc ~locals:!locals payload
+      | _ -> super#expression expression
+  end in
+  List.map (fun item ->
+    let mapped = mapper#structure_item item in
+    Option.iter (fun ((_, (kind : Flow.Check.kind)) as local) ->
+      if List.exists (fun (_, (previous : Flow.Check.kind)) ->
+        previous.Flow.Check.qualified = kind.qualified) !locals then
+        Location.raise_errorf ~loc:item.pstr_loc
+          "duplicate file-local Flow node %s" kind.qualified;
+      locals := !locals @ [local])
+      (local_registered item);
+    mapped) structure
 
 let () =
   Driver.add_arg "-flow-manifest"
@@ -667,5 +812,4 @@ let () =
       ~attributes:node_attributes generate_node_impl in
   Deriving.add "sop_node" ~str_type_decl:node_structure |> Deriving.ignore;
   Driver.register_transformation "sop_manifest" ~impl:manifest;
-  Driver.register_transformation "flow"
-    ~rules:[Context_free.Rule.extension flow_extension]
+  Driver.register_transformation "flow" ~impl:flow_structure

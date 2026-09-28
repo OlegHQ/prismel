@@ -334,6 +334,14 @@ let run () =
   check (read_digest = digest
     && catalog_from_manifest.kinds = flow_catalog.kinds)
     "Flow manifest checker descriptor differs from the live catalog";
+  let stale_manifest = Bytes.of_string manifest in
+  let version_digit = String.index manifest '2' in
+  Bytes.set stale_manifest version_digit '3';
+  (match Flow.Check.catalog_of_manifest (Bytes.to_string stale_manifest) with
+   | Error diagnostic -> check (diagnostic.code = "E_CATALOG"
+       && diagnostic.message = "Flow manifest digest does not match its contents")
+       "Flow manifest reader reported the wrong digest error"
+   | Ok _ -> fail "Flow manifest reader accepted changed contents");
   let source = "(graph demo :context sop (let* [cube (sop/box) moved (sop/transform cube)] moved))" in
   let checked, diagnostics = Flow.Check.check catalog_from_manifest source in
   check (diagnostics = []) "valid Flow program has diagnostics";
@@ -383,6 +391,7 @@ let run () =
       ~display:rebuilt.display ~definitions:rebuilt.definitions rebuilt.network
       |> Result.get_ok in
     check (printed.text = reprinted.text) "Flow builder lost a round trip") [
+    "(graph empty :context sop nil)";
     "(graph demo (let* [v (value/value :v 2) sum (+ v 1) cube (sop/box :size [sum 1 1])] cube))";
     "(graph demo (let* [cube (sop/box :size [1 (sin t) 1])] cube))";
     "(defgraph lift :context sop [(input :geometry)] (sop/transform input))\n(graph demo (let* [b (sop/box) a (user/lift b)] a))";
@@ -441,9 +450,18 @@ let run () =
           | Ok printed -> printed
           | Error diagnostic -> fail (Flow.Diagnostic.to_string diagnostic) in
         (match Flow.Check.check flow_catalog printed.text with
-         | Some _, diagnostics when List.for_all
+         | Some checked, diagnostics when List.for_all
              (fun (diagnostic : Flow.Diagnostic.t) ->
-               diagnostic.severity = Flow.Diagnostic.Warning) diagnostics -> ()
+               diagnostic.severity = Flow.Diagnostic.Warning) diagnostics ->
+             let rebuilt = Flow_sop.Build.program
+               ~factories:Sop_catalog.Editor.factories
+               ~manifest_digest:digest checked in
+             let reprinted = Flow_sop.Print.network ~name:rebuilt.name
+               ~context:Flow.Context.Sop ~catalog:flow_catalog
+               ~display:rebuilt.display ~definitions:rebuilt.definitions
+               rebuilt.network |> Result.get_ok in
+             check (printed.text = reprinted.text)
+               ("Flow rebuild changed " ^ Edit_graph.factory_key factory)
          | _, diagnostics -> fail (Edit_graph.factory_key factory ^ ": " ^
              String.concat "; " (List.map Flow.Diagnostic.to_string diagnostics)))
     | Error message -> fail (Printf.sprintf
