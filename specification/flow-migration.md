@@ -318,6 +318,15 @@ network with the same canvas, keys, views and text), then plan it here.
 
 ## Log
 
+- 2026-09-28 M6 checker checkpoint: `Flow.Check` accepts plain catalog
+  descriptors and returns a typed, qualified program plus located warnings or
+  errors. It checks top-level forms, ordered definitions, contexts, namespace
+  ambiguity, calls, references and outputs, keywords and slots, numbers,
+  vectors, ranges, metadata and interface defaults. Failed bindings poison
+  their later uses. Focused tests exercise valid SOP/value forms, referenced
+  math, definitions and diagnostic cases. The printer, full round-trip law and
+  text projection remain.
+
 - 2026-09-28 M6 list checkpoint: the existing tree now traverses the full
   `Flow_sop.Network`, placing value nodes before consumers along incoming
   drive edges and repeating shared sources as links. Rows show grouped
