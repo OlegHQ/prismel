@@ -8,7 +8,7 @@ definition; `u` returns to and selects the parent instance. There is no
 "no subnetworks" limit within SOP networks. Every network records its
 `sop`, `scene`, or `world` context.
 
-M6 turns `Space l` into a graph → list → text cycle. Converting the scene and
+`Space l` cycles graph → list → text. Converting the scene and
 World into full Flow contexts remains for a later revision of `flow.md`.
 
 ## Objects are nodes

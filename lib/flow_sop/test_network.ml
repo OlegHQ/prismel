@@ -522,6 +522,14 @@ let () =
     List.map (fun (port : Network.interface_port) -> port.name, port.ty)
       definition.outputs);
   assert (List.assoc instance printed.binding_lines > 2);
+  let recursive = {definition with body = grouped_base} in
+  (match Print.network ~name:"demo" ~context:Flow.Context.Sop ~catalog
+      ~display:(Some instance)
+      ~definitions:(Network.String_map.singleton definition.name recursive)
+      grouped_base with
+   | Error diagnostic -> assert (diagnostic.code = "E_RECURSIVE"
+       && diagnostic.message = "Compound " ^ definition.name ^ " contains itself")
+   | Ok _ -> failwith "printed a recursive compound definition");
   let grouped = ok (Network.set_literal ~target:(port instance "speed")
     (Port.Scalar (Param.Float_value 3.)) grouped) in
   let outside = build default in

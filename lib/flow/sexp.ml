@@ -97,6 +97,7 @@ let tokenize source =
   read []
 
 let parse source =
+  let depth_limit = 256 in
   let ( let* ) = Result.bind in
   let* tokens = tokenize source in
   let index = ref 0 in
@@ -106,24 +107,26 @@ let parse source =
   let diagnostic token code message = Error
     (Diagnostic.error ~span:token.span ~position:token.position
       ~code message) in
-  let rec form () =
+  let rec form depth =
     let token = take () in
-    match token.kind with
+    if depth > depth_limit then diagnostic token "E_DEPTH"
+      (Printf.sprintf "S-expression nesting exceeds %d forms" depth_limit)
+    else match token.kind with
     | Word atom -> Ok {node = Atom atom; span = token.span;
         position = token.position}
-    | Open opening -> group token opening []
+    | Open opening -> group token opening (depth + 1) []
     | Meta_name name ->
         (match (peek ()).kind with
          | End -> diagnostic token "E_UNEXPECTED" "Metadata needs a form after it"
          | _ ->
-             let* inner = form () in
+             let* inner = form (depth + 1) in
              Ok {node = Meta (name, inner);
                span = {start = token.span.start; finish = inner.span.finish};
                position = token.position})
     | Close mark -> diagnostic token "E_UNEXPECTED"
         (Printf.sprintf "Unexpected %C" mark)
     | End -> diagnostic token "E_UNEXPECTED" "Expected a form"
-  and group opening mark reversed =
+  and group opening mark depth reversed =
     let closing = if mark = '(' then ')' else ']' in
     let token = peek () in
     match token.kind with
@@ -139,11 +142,11 @@ let parse source =
     | End -> diagnostic opening "E_UNCLOSED"
         (Printf.sprintf "This %C is never closed" mark)
     | _ ->
-        let* item = form () in
-        group opening mark (item :: reversed) in
+        let* item = form depth in
+        group opening mark depth (item :: reversed) in
   let rec all reversed = match (peek ()).kind with
     | End -> Ok (List.rev reversed)
-    | _ -> let* item = form () in all (item :: reversed) in
+    | _ -> let* item = form 0 in all (item :: reversed) in
   try all [] with Stack_overflow -> Error (Diagnostic.error
     ~position:Diagnostic.{line = 1; col = 1} ~code:"E_DEPTH"
     "S-expression nesting exceeds the stack capacity")

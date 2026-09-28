@@ -19,10 +19,16 @@ let transform = Check.{qualified = "sop/transform"; aliases = [];
 let catalog = Check.{version = 202609; kinds = [box; transform]}
 
 let diagnostics source = snd (Check.check catalog source)
-let codes source = List.map (fun (diagnostic : Diagnostic.t) -> diagnostic.code)
-  (diagnostics source)
+let observed = Hashtbl.create 40
 let expect source expected =
-  let actual = codes source in
+  let found = diagnostics source in
+  List.iter (fun (diagnostic : Diagnostic.t) ->
+    let messages = Option.value ~default:[]
+      (Hashtbl.find_opt observed diagnostic.code) in
+    Hashtbl.replace observed diagnostic.code (diagnostic.message :: messages);
+    assert (diagnostic.message <> "" && Option.is_some diagnostic.position
+      && Option.is_some diagnostic.span)) found;
+  let actual = List.map (fun (diagnostic : Diagnostic.t) -> diagnostic.code) found in
   if actual <> expected then failwith (Printf.sprintf "%S: expected [%s], got [%s]"
     source (String.concat ", " expected) (String.concat ", " actual))
 let valid source = match Check.check catalog source with
@@ -64,6 +70,7 @@ let () =
   expect "(graph a (box)) (graph b (box))" ["E_ONE_GRAPH"];
   expect "(graph a :catalog 202611 (box))" ["E_CATALOG"];
   expect "(graph a :context scene (box))" ["E_CONTEXT_PLANNED"];
+  expect "(graph a :context unknown (box))" ["E_CONTEXT_UNKNOWN"];
   expect "(graph a (let* [cube (box :siz 1) moved (transform cube)] moved))"
     ["E_UNKNOWN_PARAM"];
   expect "(graph a (let* [cube (box :size 1 :size 2)] cube))"
@@ -132,4 +139,34 @@ let () =
   assert (warning.severity = Diagnostic.Warning
     && warning.position = Some Diagnostic.{line = 2; col = 25}
     && Option.is_some warning.span);
+  let contains text fragment =
+    let length = String.length text and width = String.length fragment in
+    let rec search index = index + width <= length &&
+      (String.sub text index width = fragment || search (index + 1)) in
+    search 0 in
+  List.iter (fun (code, fragment) ->
+    match Hashtbl.find_opt observed code with
+    | Some messages when List.exists (fun message -> contains message fragment) messages -> ()
+    | _ -> failwith (code ^ " has no tested diagnostic message containing " ^ fragment))
+    ["E_NO_GRAPH", "No (graph"; "E_TOPLEVEL", "Top-level forms";
+     "E_ONE_GRAPH", "One graph per file"; "E_CATALOG", "needs catalog";
+     "E_CONTEXT_PLANNED", "planned"; "E_CONTEXT_UNKNOWN", "Unknown context";
+     "E_UNKNOWN_PARAM", "no parameter"; "E_DUPLICATE_PARAM", "given twice";
+     "E_MISSING_VALUE", "no value"; "W_SOFT_RANGE", "outside the slider range";
+     "E_HARD_RANGE", "outside its hard range"; "E_INT_LITERAL", "is an integer";
+     "E_TYPE", "must be one of"; "E_EXTRA_POSITIONAL", "extra";
+     "E_POSITIONAL_AFTER_KEYWORD", "before keyword";
+     "E_BINDING_T", "context time"; "E_DUPLICATE_BINDING", "bound twice";
+     "E_BINDING_NAME", "Binding names match";
+     "E_OUTPUT_UNKNOWN", "has no output"; "E_KIND_AS_VALUE", "node kind";
+     "E_NAMESPACE", "Unknown namespace"; "E_UNKNOWN_KIND", "Unknown node";
+     "E_UNBOUND", "not bound"; "E_VECTOR_ARITY", "3 components";
+     "E_VALUES_PLACE", "for defgraph results";
+     "E_RESULT_TYPE", "returns geometry"; "E_ARITY", "takes 1 argument";
+     "W_UNKNOWN_META", "only ^:bypass"; "E_WRONG_CONTEXT", "cannot appear";
+     "E_AMBIGUOUS", "Write the namespace";
+     "E_DUPLICATE_DEF", "defined twice";
+     "E_INTERFACE_ENTRY", "Each interface entry";
+     "E_UNKNOWN_TYPE", "Unknown interface type";
+     "W_NO_DEFAULT", "has no default"];
   print_endline "Flow checker: resolution, typing, poisoning and located diagnostics pass"

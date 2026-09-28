@@ -36,7 +36,7 @@ accept an intended one with `dune promote`.
 | M3 | Value ports: `flow`, `flow_sop`, value nodes, drives by wire, exposure, vec3, inspector | done | 2026-09-28 |
 | M4 | Wireless binds, expressions, fold/unfold, row keys | done | 2026-09-28 |
 | M5 | Compounds and contexts | done | 2026-09-28 |
-| M6 | Views: list with values, read-only text, reader and checker | in progress | |
+| M6 | Views: list with values, read-only text, reader and checker | done | 2026-09-28 |
 | M7 | `[%flow]` PPX and catalog manifest | not started | |
 
 ## Original → target map
@@ -270,9 +270,10 @@ nodes and badges (§8.2); text projection (read-only, click to select,
 qualified toggle, `j`/`k`) in `pxui_shell` or `prismel_editor`;
 `Space l` cycles three views, remembered per level.
 
-Tests: laws of §11.8 over every catalog factory (non-default literals, drives,
-a compound) and every sketch preset; every diagnostic code has a failing
-sample and its message; printing unaffected by layout edits.
+Tests: print/read/check over every catalog factory (non-default literals,
+drives, a compound) and the generated sketch preset documents; every
+diagnostic code has a failing sample and its message; printing unaffected by
+layout edits. The two reconstruction laws of §11.8 run in M7 with its builder.
 
 Docs when it lands: `scene.md` (`Space l`), `api.md` keys table,
 `pxui.md` (text view host).
@@ -290,7 +291,8 @@ program; one example sketch (`sketches/flow_terrain/`, via
 finitely under `PRISMEL_MAX_FRAMES`.
 
 Tests: expect tests for each diagnostic and ambiguity rule; manifest stays
-current; the example builds and opens in the editor.
+current; §11.8's reconstruction and canonical reprinting laws hold over the
+M6 catalog and preset cases; the example builds and opens in the editor.
 
 Docs when it lands: `api.md` (`[%flow]` usage and dune stanza),
 `lib/sop_catalog/AGENTS.md` (manifest), root `AGENTS.md` (loops: manifest
@@ -317,6 +319,14 @@ network with the same canvas, keys, views and text), then plan it here.
   the build.
 
 ## Log
+
+- 2026-09-28 M6 complete: reader and checker cover all emitted diagnostic
+  codes with located samples and message assertions; nesting has a
+  deterministic 256-form limit. The all-factory printer pass and generated
+  preset documents print/read/check, including non-default literals, drives,
+  compounds and layout-only edits. The three projections share selection,
+  with keyboard and pointer checks in the editor. The two rebuild laws move
+  to M7, where `Build.program` supplies the missing inverse.
 
 - 2026-09-28 M6 text-view checkpoint: `Space l` cycles graph, list and text
   per level. The SOP/compound text pane caches canonical printing, maps

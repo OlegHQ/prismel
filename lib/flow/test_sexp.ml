@@ -43,8 +43,25 @@ let () =
      "^:bypass", "E_UNEXPECTED", 0;
      "\"bad\\q\"", "E_UNEXPECTED", 4;
      "\"unfinished", "E_UNCLOSED", 0];
+  (match Sexp.parse "(" with
+   | Error diagnostic -> assert (String.starts_with ~prefix:"This "
+       diagnostic.message && String.ends_with ~suffix:"is never closed"
+       diagnostic.message)
+   | Ok _ -> assert false);
+  (match Sexp.parse "[1 2)" with
+   | Error diagnostic -> assert (String.starts_with ~prefix:"Expected "
+       diagnostic.message && String.ends_with ~suffix:"found ')'"
+       diagnostic.message)
+   | Ok _ -> assert false);
   assert (Sexp.position_of_offset "a\nb\nc" 4
     = Diagnostic.{line = 3; col = 1});
+  let deep = String.make 258 '(' ^ "x" ^ String.make 258 ')' in
+  (match Sexp.parse deep with
+   | Error diagnostic ->
+       assert (diagnostic.code = "E_DEPTH"
+         && diagnostic.position = Some Diagnostic.{line = 1; col = 258}
+         && diagnostic.message = "S-expression nesting exceeds 256 forms")
+   | Ok _ -> failwith "accepted deeply nested s-expression");
   assert ((Diagnostic.warning ~position:Diagnostic.{line = 2; col = 3}
     ~code:"W_SOFT_RANGE" "Outside slider range").severity
     = Diagnostic.Warning);

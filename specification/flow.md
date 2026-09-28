@@ -2,7 +2,7 @@
 
 ## 1. Status and authority
 
-Status: approved design, revision 3 (2026-09-28). **M1–M5 implemented; M6 in progress; M7 pending.**
+Status: approved design, revision 3 (2026-09-28). **M1–M6 implemented; M7 pending.**
 Milestones M1–M7, the file-level tasks for each, and progress live in
 `flow-migration.md`. The behavioral reference is the prototype at
 `specification/flow/prototype/index.html` (open it in a browser; no build).
@@ -880,7 +880,7 @@ and independently of layout:
 - Short names in the text view by default; qualified names in presets'
   debug dumps, `[%flow]` diagnostics and the "qualified names" toggle.
 
-### 11.8 Round-trip laws (tests in M6)
+### 11.8 Round-trip laws (M6 text checks; M7 rebuild checks)
 
 1. `read (print d)` equals `d` up to layout and id renumbering.
 2. `print (read s) = s` for every canonical `s`.
@@ -900,6 +900,7 @@ reference.
 |---|---|---|
 | `E_UNCLOSED` | a `(`/`[` never closes | This "(" is never closed |
 | `E_UNEXPECTED` | stray `)`/`]` or mismatched close | Expected "]" to close the "[" on line 3, found ")" |
+| `E_DEPTH` | more than 256 nested forms | S-expression nesting exceeds 256 forms |
 | `E_TOPLEVEL` | other top-level form | Top-level forms are graph and defgraph |
 | `E_NO_GRAPH` / `E_ONE_GRAPH` | zero / several graphs | No (graph …) form found / One graph per file |
 | `E_CONTEXT_UNKNOWN` / `E_CONTEXT_PLANNED` | bad `:context` | Unknown context x. Known contexts: sop, value |
@@ -1130,6 +1131,7 @@ content-addressed cache sharing between instances; macros.
 | `f` | frames the selection, or the display node when nothing is selected |
 | Editor text view | read-only in this revision |
 | Scene and World text | the third projection shows a reserved-context message until those contexts receive Flow syntax after M7 |
+| Round-trip test staging | M6 checks printed text and layout independence; M7's builder enables document reconstruction and canonical reprinting laws |
 | Catalog pinning | integer catalog version in the manifest, optional `:catalog N` in files |
 | Cache sharing between instances | none |
 | Guide mode | on by default, persisted off |
@@ -1147,6 +1149,12 @@ existing value encoding.
 could only reconstruct `geo`/`out` names, so the `values` form now accepts
 `:name expr` entries. Canonical text writes explicit names whenever a
 definition has multiple outputs or a renamed single output.
+
+2026-09-28: the M6 printer and checker can verify that printed networks are
+well typed and unaffected by layout. The `read(print d)` and `print(read s)`
+laws require reconstructing a network from the checked program, which belongs
+to M7's `Flow_sop.Build.program`; those two laws run in M7 rather than adding
+a throwaway builder in M6.
 
 2026-09-28: saved editor networks can have no display node, and `Program.t`
 already models display as optional. A graph result of `nil` now represents

@@ -37,6 +37,8 @@ let run () =
     Unix.rmdir directory) (fun () ->
   let code = Sop.points [||] in
   let factories = Sop_catalog.Editor.factories in
+  let flow_catalog = Flow_sop.Catalog.of_factories ~version:1 factories
+    |> Result.get_ok in
   let load path = Preset.load ~path ~code ~factories ~settings:Prismel_editor.Settings.none in
   (* Yojson's writer refuses nonfinite floats. Deliberately emit hostile
      numeric tokens to exercise the reader and validation boundary. *)
@@ -101,16 +103,42 @@ let run () =
         Option.map (fun (graph, displayed) ->
           List.length (Edit_graph.inspect graph.Flow_sop.Network.geometry), Option.is_some displayed)
           (Document.object_network doc info.id)) in
-    check (inspect loaded.doc = inspect reloaded.doc) (name ^ " network changed during round trip"))
+    check (inspect loaded.doc = inspect reloaded.doc) (name ^ " network changed during round trip");
+    Edit_graph.inspect (Document.scene_graph loaded.doc)
+    |> List.iter (fun (info : Edit_graph.node_info) ->
+      if info.operation = "geometry" then begin
+        let network, display = Option.get
+          (Document.object_network loaded.doc info.id) in
+        let printed = Flow_sop.Print.network ~name ~context:Flow.Context.Sop
+          ~catalog:flow_catalog ~display
+          ~definitions:Flow_sop.Network.String_map.empty network
+          |> Result.get_ok in
+        match Flow.Check.check flow_catalog printed.text with
+        | Some _, diagnostics when List.for_all (fun (d : Flow.Diagnostic.t) ->
+            d.severity <> Flow.Diagnostic.Error) diagnostics -> ()
+        | _, diagnostics -> failwith (name ^ ": " ^ String.concat "; "
+            (List.map Flow.Diagnostic.to_string diagnostics))
+      end))
     ["scene-empty", empty_scene; "sop-empty", empty_sop; "valid", valid;
      "flow-layout", flow_document; "driven", driven_document;
      "world-empty", document (network ~context:"scene" [node 30 "world" []] (`Int 30)) [owned 30 world_empty]];
   let flow = load (Preset.path ~directory ~name:"flow-layout-saved") |> Result.get_ok in
-  let graph, _ = Option.get (Document.object_network flow.doc 10) in
+  let graph, display = Option.get (Document.object_network flow.doc 10) in
+  let open Yojson.Safe.Util in
+  let moved = set flow_sop "nodes" (`List (List.map (fun node ->
+    set node "x" (`Float 999.)) (flow_sop |> member "nodes" |> to_list))) in
+  let moved = load (write "flow-moved" (document scene [owned 10 moved]))
+    |> Result.get_ok in
+  let moved_graph, moved_display = Option.get
+    (Document.object_network moved.doc 10) in
+  let printed graph display = Flow_sop.Print.network ~name:"flow"
+      ~context:Flow.Context.Sop ~catalog:flow_catalog ~display
+      ~definitions:Flow_sop.Network.String_map.empty graph |> Result.get_ok in
+  check ((printed graph display).text = (printed moved_graph moved_display).text)
+    "moving only saved tile layout changed canonical Flow text";
   check (Edit_graph.find graph.Flow_sop.Network.geometry ~node_id:20 <> None && Edit_graph.find graph.Flow_sop.Network.geometry ~node_id:21 <> None)
     "v3 load did not preserve saved node ids";
   let saved_json = Yojson.Safe.from_file (Preset.path ~directory ~name:"flow-layout-saved") in
-  let open Yojson.Safe.Util in
   let saved_network = saved_json |> member "sections" |> member "graph" |> member "networks"
     |> to_list |> List.hd |> member "network" in
   let saved_box = saved_network |> member "nodes" |> to_list |> List.find (fun json ->
