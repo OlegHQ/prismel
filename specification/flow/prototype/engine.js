@@ -646,7 +646,16 @@ function compileFlow(src) {
     if (!f) { err(pos, 'The body has no result'); return null; }
     if (f.k === 'list' && f.items[0] && f.items[0].k === 'sym' && f.items[0].v === 'values') {
       if (!isDef) { err(f.pos, 'values is for defgraph results; a graph returns its output'); return null; }
-      return f.items.slice(1).map(x => ({ v: build(x, ctx, g, env), pos: x.pos }));
+      const results = [];
+      for (let i = 1; i < f.items.length; i++) {
+        const item = f.items[i];
+        if (item.k === 'kw') {
+          const value = f.items[++i];
+          if (!value) { err(item.pos, `:${item.v} needs an output value`); break; }
+          results.push({ name: item.v, v: build(value, ctx, g, env), pos: value.pos });
+        } else results.push({ name: null, v: build(item, ctx, g, env), pos: item.pos });
+      }
+      return results;
     }
     const v = build(f, ctx, g, env);
     return isDef ? [{ v, pos: f.pos }] : v;
@@ -706,7 +715,8 @@ function compileFlow(src) {
       inner.nodes.push(go);
       res.forEach((r, k) => {
         if (!r.v || r.v.k !== 'ref') { if (r.v) err(r.pos, 'defgraph results must be node outputs'); return; }
-        const nm = r.v.t === 'geo' ? (k ? 'geo' + (k + 1) : 'geo') : 'out' + (k ? k + 1 : '');
+        const nm = r.name || (r.v.t === 'geo' ? (k ? 'geo' + (k + 1) : 'geo') : 'out' + (k ? k + 1 : ''));
+        if (iface.outs.some(p => p.n === nm)) { err(r.pos, `Output ${nm} is named twice`); return; }
         iface.outs.push({ n: nm, t: r.v.t, label: nm });
         inner.edges.push({ id: uid(), a: r.v.a, o: r.v.o, b: go.id, i: nm, pts: [], ghost: false });
       });

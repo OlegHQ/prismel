@@ -530,15 +530,32 @@ let body state context env form ~definition =
         check_pairs rest in
   check_pairs bindings;
   let result_forms = if definition then match list result_form with
-    | Some ({Sexp.node = Sexp.Atom (Sexp.Symbol "values"); _} :: rest) -> rest
-    | _ -> [result_form]
+    | Some ({Sexp.node = Sexp.Atom (Sexp.Symbol "values"); _} :: rest) ->
+        let rec entries reversed = function
+          | [] -> List.rev reversed
+          | key :: value :: tail when keyword key <> None ->
+              let name = Option.get (keyword key) in
+              if not (Symbol.valid_name name) then
+                error state key "E_INTERFACE_ENTRY"
+                  "An output name must match [a-z][a-z0-9_]*";
+              entries ((Some name, value) :: reversed) tail
+          | key :: [] when keyword key <> None ->
+              error state key "E_INTERFACE_ENTRY"
+                (":" ^ Option.get (keyword key) ^ " needs an output value");
+              List.rev reversed
+          | value :: tail -> entries ((None, value) :: reversed) tail in
+        if rest = [] then error state result_form "E_RESULT_TYPE"
+          "values needs at least one output";
+        entries [] rest
+    | _ -> [None, result_form]
   else (match list result_form with
     | Some ({Sexp.node = Sexp.Atom (Sexp.Symbol "values"); _} :: _) ->
         error state result_form "E_VALUES_PLACE"
           "values is for defgraph results; a graph returns one output"; []
-    | _ -> [result_form]) in
-  let results = List.filter_map (fun form ->
-    Option.map (fun value -> value.term) (expression state context !env form))
+    | _ -> [None, result_form]) in
+  let results = List.filter_map (fun (name, form) ->
+    Option.map (fun value -> name, value.term)
+      (expression state context !env form))
     result_forms in
   List.rev !checked_bindings, results
 
@@ -618,16 +635,25 @@ let check catalog source = match Sexp.parse source with
                    let bindings, results = body state context env body_form
                      ~definition:true in
                    let geometry = ref 0 and values = ref 0 in
-                   let outputs = List.map (fun result ->
+                   let outputs = List.map (fun (explicit, result) ->
                      let ty = Option.value ~default:Port_type.Float result.ty in
                      if ty = Port_type.Geometry then (
                        incr geometry;
-                       (if !geometry = 1 then "geo" else "geo" ^ string_of_int !geometry), ty)
+                       (Option.value explicit ~default:(if !geometry = 1 then "geo"
+                         else "geo" ^ string_of_int !geometry)), ty)
                      else (incr values;
-                       (if !values = 1 then "out" else "out" ^ string_of_int !values), ty))
+                       (Option.value explicit ~default:(if !values = 1 then "out"
+                         else "out" ^ string_of_int !values)), ty))
                      results in
+                   let seen = Hashtbl.create 8 in
+                   List.iter (fun (output, _) ->
+                     if Hashtbl.mem seen output then
+                       error state body_form "E_INTERFACE_ENTRY"
+                         ("Output " ^ output ^ " is named twice")
+                     else Hashtbl.add seen output ()) outputs;
                    state.definitions <- state.definitions @
-                     [{graph = {name; context; bindings; results}; inputs; outputs}]
+                     [{graph = {name; context; bindings;
+                       results = List.map snd results}; inputs; outputs}]
              | Some _ -> error state form "E_INTERFACE_ENTRY"
                  "defgraph needs an interface vector and body"
              | None -> ())
@@ -639,10 +665,11 @@ let check catalog source = match Sexp.parse source with
              | Some (name, context, [body_form]) when !graphs_seen = 1 ->
                  let bindings, results = body state context Names.empty
                    body_form ~definition:false in
-                   List.iter (fun result -> if result.ty <> Some Port_type.Geometry
+                   List.iter (fun (_, result) -> if result.ty <> Some Port_type.Geometry
                      then error state body_form "E_RESULT_TYPE"
                        ("A " ^ Context.name context ^ " graph returns geometry")) results;
-                   main := Some {name; context; bindings; results}
+                   main := Some {name; context; bindings;
+                     results = List.map snd results}
              | Some (_, _, [_]) | None -> ()
              | Some _ -> error state form "E_TOPLEVEL"
                  "graph needs one body")

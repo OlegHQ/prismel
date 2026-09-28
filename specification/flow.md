@@ -775,7 +775,8 @@ defgraph  = "(" "defgraph" name [ ":context" context ]
             "[" { "(" name ":" type [ literal ] ")" } "]" body ")" ;
 type      = "geometry" | "float" | "int" | "bool" | "vec3" ;
 body      = "(" "let*" "[" { name expr } "]" result ")" | result ;
-result    = expr | "(" "values" expr { expr } ")" ;          (* values: defgraph only *)
+result    = expr | "(" "values" result_entry { result_entry } ")" ;
+result_entry = expr | ":" name expr ;                       (* values: defgraph only *)
 expr      = literal | "t" | "pi" | name | name "." name | vector
           | [ "^:bypass" ] "(" head { arg } ")" ;
 vector    = "[" expr expr expr "]" ;
@@ -835,8 +836,12 @@ only `value/` and `value` definitions. `scene`, `world` and `shader` are
   The node's label is the binding name.
 - `^:bypass` mutes the node. Other metadata is `W_UNKNOWN_META`.
 - A `graph` result must be a geometry reference; it becomes the display node.
-- A `defgraph` result is one expression or `(values …)`; each value becomes an
-  interface output (`geo`, `geo2`… for geometry, `out`, `out2`… otherwise).
+- A `defgraph` result is one expression or `(values …)`; each unnamed value
+  becomes an interface output (`geo`, `geo2`… for geometry, `out`, `out2`…
+  otherwise). `:name expr` entries give explicit interface output names, so
+  renaming an output remains round-trippable. Duplicate or invalid output
+  names are `E_INTERFACE_ENTRY`. The canonical printer names every output in
+  a multi-output or renamed-output definition.
 - Errors do not cascade: a binding whose form failed is poisoned, and uses of
   it report nothing further.
 
@@ -1106,6 +1111,7 @@ content-addressed cache sharing between instances; macros.
 | Shared saved layout | UI-free `Editor_core.Network_layout`; document and canvas share it without importing presentation into the document |
 | Vec3 | metadata grouping of three float fields; no new `Param.value` case |
 | Compound Vec3 default | `Port.literal` stores the three components on one interface port; scalar defaults remain `Port.Scalar` |
+| Named `defgraph` results | `(values :name expr …)` preserves M5 output renames; unnamed results still receive `geo`/`out` names |
 | Primary rows without annotations | the first folder's fields |
 | Compound reuse | shared definitions with "make unique" |
 | Names in the language | stable keys and field names verbatim (`noise_displace`, `size_x`), `[a-z][a-z0-9_]*` |
@@ -1125,6 +1131,11 @@ Bare numbers become normalized target literals as specified above.
 `Param.value`, because a Vec3 default can have three different components.
 Presets encode that case as a `vec3` triple; scalar defaults keep their
 existing value encoding.
+
+2026-09-28: M5 permits renaming compound outputs. Unnamed `defgraph` results
+could only reconstruct `geo`/`out` names, so the `values` form now accepts
+`:name expr` entries. Canonical text writes explicit names whenever a
+definition has multiple outputs or a renamed single output.
 
 2026-09-28: unexporting a connected geometry port would discard topology,
 unlike a value input that can fall back to a literal. Geometry unexport is

@@ -318,6 +318,12 @@ network with the same canvas, keys, views and text), then plan it here.
 
 ## Log
 
+- 2026-09-28 M6 named-output decision: `defgraph` now accepts
+  `(values :name expr …)` so M5 compound output renames survive text
+  round trips. The checker and prototype recognize named results and reject
+  duplicate or invalid output names; unnamed results retain `geo`/`out`
+  defaults. The printer will emit explicit names where needed.
+
 - 2026-09-28 M6 checker checkpoint: `Flow.Check` accepts plain catalog
   descriptors and returns a typed, qualified program plus located warnings or
   errors. It checks top-level forms, ordered definitions, contexts, namespace

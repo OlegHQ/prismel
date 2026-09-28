@@ -38,6 +38,11 @@ let () =
       program.graph.bindings = ["cube"; "moved"]);
   let program = valid "(defgraph lift :context sop [(input :geometry)]\n  (transform input))\n(graph demo (let* [b (box) a (user/lift b)] a))" in
   assert (List.length program.definitions = 1);
+  let named = valid "(defgraph split [(input :geometry)]
+    (values :left input :right input))
+    (graph demo (let* [b (box) s (user/split b)] s.left))" in
+  assert ((List.hd named.definitions).outputs =
+    ["left", Port_type.Geometry; "right", Port_type.Geometry]);
   let program = valid "(graph demo (let* [a (sop/box :size 3)] a))" in
   (match program.graph.bindings with
    | [{term = {node = Check.Call call; _}; _}] ->
@@ -114,6 +119,12 @@ let () =
     ["E_TYPE"];
   expect "(defgraph x [(foo :float)] foo) (graph a (box))"
     ["W_NO_DEFAULT"];
+  expect "(defgraph x [] (values :same (box) :same (box))) (graph a (box))"
+    ["E_INTERFACE_ENTRY"];
+  expect "(defgraph x [] (values :Bad (box))) (graph a (box))"
+    ["E_INTERFACE_ENTRY"];
+  expect "(defgraph x [] (values :out)) (graph a (box))"
+    ["E_INTERFACE_ENTRY"];
   let warning = List.hd (diagnostics
     "(graph demo\n (let* [cube (box :size 3)] cube))") in
   assert (warning.severity = Diagnostic.Warning
