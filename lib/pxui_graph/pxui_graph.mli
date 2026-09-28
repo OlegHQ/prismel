@@ -62,6 +62,8 @@ type change =
   | Wireless_changed of { target : Flow_sop.Port.t; wireless : bool }
   | Row_reset_requested of Flow_sop.Port.t
   | Expression_requested of { target : Flow_sop.Port.t; text : string }
+  | Fold_requested of Flow_sop.Port.t
+  | Unfold_requested of Flow_sop.Port.t
   | Delete_nodes_requested of int list
   | Dissolve_nodes_requested of int list
   | Bypass_requested of (int * bool) list

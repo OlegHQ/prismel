@@ -34,7 +34,7 @@ accept an intended one with `dune promote`.
 | M1 | Canvas: direction, polylines, bends, levels, box select, rows, preset v3 layout | done | 2026-09-27 |
 | M2 | Keys and guide mode, World key remap | done | 2026-09-27 |
 | M3 | Value ports: `flow`, `flow_sop`, value nodes, drives by wire, exposure, vec3, inspector | done | 2026-09-28 |
-| M4 | Wireless binds, expressions, fold/unfold, row keys | in progress | |
+| M4 | Wireless binds, expressions, fold/unfold, row keys | done | 2026-09-28 |
 | M5 | Compounds and contexts | not started | |
 | M6 | Views: list with values, read-only text, reader and checker | not started | |
 | M7 | `[%flow]` PPX and catalog manifest | not started | |
@@ -317,6 +317,16 @@ network with the same canvas, keys, views and text), then plan it here.
   the build.
 
 ## Log
+
+- 2026-09-28 M4 complete: `Flow_sop.Network.fold/unfold` converts unshared
+  Math/Value/Time chains and checked expressions, with fixed-seed identity and
+  refusal tests. ƒ buttons use the shared PXUI hit tree; the host places
+  unfolded nodes left of the row and records each conversion as one edit.
+  Wireless visibility, expression entry, reset semantics and preset layout
+  were verified in focused and full default tests. `@all`, window-free
+  `runtest`, and `@smoke` pass; native Flow/UI checks pass while the wider
+  native target still reaches the GPU-film assertion at
+  `lib/prismel_pathtracer/test_gpu_film.ml:64`.
 
 - 2026-09-28 M4 expression/reset checkpoint: `=` opens the shared PXUI text
   editor for a hovered numeric row, and a leading `=` in a canvas field or

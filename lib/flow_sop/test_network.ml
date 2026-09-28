@@ -162,6 +162,72 @@ let () =
   assert (field (resolve ~time:0. expression).geometry "a" = Param.Float_value 0.);
   rejected "E_TYPE" (Value_lane.resolve lane ~time:2. expression);
   assert (field (resolve ~time:0. expression).geometry "a" = Param.Float_value 0.);
+  let seed = Random.State.make [|0x51A17|] in
+  let rec random_expr depth =
+    if depth = 0 || Random.State.int seed 4 = 0 then
+      if Random.State.bool seed then Flow.Expr.time else
+        ok (Flow.Expr.num (float (Random.State.int seed 5 - 2) /. 2.))
+    else
+      let _, op = List.nth Flow.Expr.operators
+        (Random.State.int seed (List.length Flow.Expr.operators)) in
+      ok (Flow.Expr.op op (List.init (Flow.Expr.arity op) (fun _ -> random_expr (depth - 1)))) in
+  for _ = 1 to 80 do
+    let op = snd (List.nth Flow.Expr.operators
+      (Random.State.int seed (List.length Flow.Expr.operators))) in
+    let expression = ok (Flow.Expr.op op
+      (List.init (Flow.Expr.arity op) (fun _ -> random_expr 3))) in
+    let expanded, placements = ok (Network.unfold ~target:(port id "a")
+      (ok (Network.set_expr ~target:(port id "a") expression base))) in
+    assert (placements <> []);
+    let folded, removed = ok (Network.fold ~target:(port id "a") expanded) in
+    assert (removed <> []);
+    assert (Port.Map.find (port id "a") folded.drives = Drive.Expr expression);
+    assert (Flow.Graph.inspect folded.values = [])
+  done;
+  let only_time = ok (Network.set_expr ~target:(port id "a") Flow.Expr.time base) in
+  let expanded, placements = ok (Network.unfold ~target:(port id "a") only_time) in
+  assert (List.length placements = 1);
+  let folded, _ = ok (Network.fold ~target:(port id "a") expanded) in
+  assert (Port.Map.find (port id "a") folded.drives = Drive.Expr Flow.Expr.time);
+  let twice = ok (Network.set_expr ~target:(port id "a")
+    (ok (Flow.Expr.parse "t+t")) base) in
+  let expanded, placements = ok (Network.unfold ~target:(port id "a") twice) in
+  assert (List.length placements = 2);
+  let time_nodes = List.filter (fun (node : Flow.Graph.node) ->
+    Flow.Value_kind.kind node.parameters = Flow.Value_kind.Time)
+    (Flow.Graph.inspect expanded.values) in
+  assert (List.length time_nodes = 1);
+  let folded, _ = ok (Network.fold ~target:(port id "a") expanded) in
+  assert (Port.Map.find (port id "a") folded.drives =
+    Drive.Expr (ok (Flow.Expr.parse "t+t")));
+  let only_number = ok (Network.set_expr ~target:(port id "a") (ok (Flow.Expr.num 0.5)) base) in
+  let expanded, placements = ok (Network.unfold ~target:(port id "a") only_number) in
+  assert (placements = [] && not (Port.Map.mem (port id "a") expanded.drives));
+  assert (Port.literal (ok (Network.parameter expanded (port id "a"))) =
+    Port.Scalar (Param.Float_value 0.5));
+  let plain, plain_id = ok (Network.add_value_node Flow.Value_kind.Value base) in
+  let plain = ok (Network.set_literal ~target:(port plain_id "v")
+    (Port.Scalar (Param.Float_value 0.75)) plain) in
+  let plain = ok (Network.connect_value ~source:(port plain_id "out")
+    ~target:(port id "a") plain) in
+  let folded, removed = ok (Network.fold ~target:(port id "a") plain) in
+  assert (removed = [plain_id] && not (Port.Map.mem (port id "a") folded.drives));
+  assert (Port.literal (ok (Network.parameter folded (port id "a"))) =
+    Port.Scalar (Param.Float_value 0.75));
+  let shared = ok (Network.connect_value ~source:(port math "out")
+    ~target:(port id "count") network) in
+  rejected "E_FOLD" (Network.fold ~target:(port id "a") shared);
+  let remap, remap_id = ok (Network.add_value_node Flow.Value_kind.Remap base) in
+  let remap = ok (Network.connect_value ~source:(port remap_id "out")
+    ~target:(port id "a") remap) in
+  rejected "E_FOLD" (Network.fold ~target:(port id "a") remap);
+  let speed, speed_source = ok (Network.add_value_node Flow.Value_kind.Value base) in
+  let speed, clock = ok (Network.add_value_node Flow.Value_kind.Time speed) in
+  let speed = ok (Network.connect_value ~source:(port speed_source "out")
+    ~target:(port clock "speed") speed) in
+  let speed = ok (Network.connect_value ~source:(port clock "t")
+    ~target:(port id "a") speed) in
+  rejected "E_FOLD" (Network.fold ~target:(port id "a") speed);
   let vec = ok (Network.set_literal ~target:(port vector "x") (Port.Scalar (Param.Float_value 1.)) whole) in
   let vec = ok (Network.set_literal ~target:(port vector "y") (Port.Scalar (Param.Float_value 2.)) vec) in
   let vec = ok (Network.set_literal ~target:(port vector "z") (Port.Scalar (Param.Float_value 3.)) vec) in

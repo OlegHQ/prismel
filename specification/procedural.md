@@ -239,6 +239,15 @@ Time-dependent networks resolve on each advancing frame. The environment keeps
 the applied values for live canvas and inspector readouts; unchanged effective
 values retain their graph and cook keys. Compounds are later M5 work.
 
+An expression drive can be entered in a numeric canvas field or inspector
+with `=…`; parse errors carry a source span and leave the network unchanged.
+The ƒ row action folds an unshared Math/Value/Time source tree into an
+expression or unfolds an expression into Math nodes and one shared Time node.
+Shared or unsupported sources produce a diagnostic naming the node. A bare
+number becomes a normalized row literal. Reset clears a drive first; on an
+undriven row it restores the schema default. Wireless binds are saved layout
+flags keyed by destination port and do not affect cooking.
+
 `prismel.pxui_graph` presents that document. Its deterministic left-to-right
 layout snaps positions to 12 points. Header and row sockets connect through
 selectable polyline wires with editable bends. Point/chip/card/full levels

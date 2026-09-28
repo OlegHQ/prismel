@@ -26,6 +26,13 @@ val set_expr : target:Port.t -> Flow.Expr.t -> t -> (t, Flow.Diagnostic.t) resul
 val clear_drive : target:Port.t -> t -> (t, Flow.Diagnostic.t) result
 val disconnect : target:Port.t -> t -> (t, Flow.Diagnostic.t) result
 val set_literal : target:Port.t -> Port.literal -> t -> (t, Flow.Diagnostic.t) result
+(* Replace an unshared math/value/time source tree with an expression. The
+   returned ids are the value nodes removed from the network. *)
+val fold : target:Port.t -> t -> (t * int list, Flow.Diagnostic.t) result
+(* Expand an expression into math nodes and one shared time node. Each
+   placement is [(id, column, row)]; the host maps those relative coordinates
+   to its tile spacing. *)
+val unfold : target:Port.t -> t -> (t * (int * int * float) list, Flow.Diagnostic.t) result
 val apply_value_parameters :
   t -> node_id:int -> (string * Param.value) list ->
   (t * Param.effects, Flow.Diagnostic.t) result

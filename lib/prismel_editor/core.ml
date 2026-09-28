@@ -715,6 +715,8 @@ let intent_label = function
   | Value_bind_requested _ | Wireless_changed _ -> Some "Bind"
   | Row_reset_requested {path; _} -> Some ("Reset " ^ path)
   | Expression_requested {target; _} -> Some ("Expression on " ^ target.path)
+  | Fold_requested {path; _} -> Some ("Fold " ^ path)
+  | Unfold_requested {path; _} -> Some ("Unfold " ^ path)
   | Disconnect_requested _ | Value_disconnect_requested _ -> Some "Disconnect"
   | Delete_nodes_requested _ -> Some "Delete"
   | Dissolve_nodes_requested _ -> Some "Dissolve"
@@ -1333,6 +1335,8 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
               | Value_disconnect_requested target -> [target.node, target.path]
               | Row_reset_requested target -> [target.node, target.path]
               | Expression_requested {target; _} -> [target.node, target.path]
+              | Fold_requested target | Unfold_requested target ->
+                  [target.node, target.path]
               | Disconnect_requested c ->
                   [geometry_port c.consumer c.input_index]
               | Cut_wires_requested cs -> List.map (fun (c : Edit_graph.connection) ->

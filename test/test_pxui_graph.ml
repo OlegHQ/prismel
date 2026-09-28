@@ -229,6 +229,23 @@ let run_value_wires () =
   let wired = Pxui_graph.with_document connected canvas in
   check ((Pxui_graph.stats wired).wires = 1)
     "typed wire was not indexed with geometry wires";
+  let fold_point = ux - 13, uy + 8 in
+  let _, changes = update wired (frame ~mouse:fold_point ~events:[
+      mouse_press (Input.LeftButton, fold_point);
+      mouse_release (Input.LeftButton, fold_point)] ()) in
+  check (List.mem (Pxui_graph.Fold_requested
+    {Flow_sop.Port.node = box_id; path = "uniform_scale"}) changes)
+    "ƒ did not request folding a wired parameter row";
+  let expressed = Flow_sop.Network.set_expr
+      ~target:{Flow_sop.Port.node = box_id; path = "uniform_scale"}
+      (Flow.Expr.parse "t*2" |> Result.get_ok) network |> Result.get_ok in
+  let expressed = Pxui_graph.with_document expressed canvas in
+  let _, changes = update expressed (frame ~mouse:fold_point ~events:[
+      mouse_press (Input.LeftButton, fold_point);
+      mouse_release (Input.LeftButton, fold_point)] ()) in
+  check (List.mem (Pxui_graph.Unfold_requested
+    {Flow_sop.Port.node = box_id; path = "uniform_scale"}) changes)
+    "ƒ did not request unfolding an expression row";
   (match Sys.getenv_opt "PRISMEL_UI_PREVIEW" with
    | None -> ()
    | Some directory ->

@@ -69,6 +69,8 @@ type change =
   | Wireless_changed of { target : Flow_sop.Port.t; wireless : bool }
   | Row_reset_requested of Flow_sop.Port.t
   | Expression_requested of { target : Flow_sop.Port.t; text : string }
+  | Fold_requested of Flow_sop.Port.t
+  | Unfold_requested of Flow_sop.Port.t
   | Delete_nodes_requested of int list
   | Dissolve_nodes_requested of int list
   | Bypass_requested of (int * bool) list
@@ -1779,6 +1781,20 @@ let scrub_field (field : Parameter.field_view) =
   | Integer_view r -> Some (numeric (float r.soft_min) (float r.soft_max))
   | _ -> None
 
+let fold_change value (target : Flow_sop.Port.t) =
+  match Flow_sop.Port.Map.find_opt target value.document.drives with
+  | Some (Flow_sop.Drive.Expr _) -> Some (Unfold_requested target)
+  | Some (Flow_sop.Drive.Wire source) ->
+      (match Flow.Graph.find value.document.values ~node_id:source.node with
+       | Some node ->
+           (match Flow.Value_kind.kind node.parameters, source.output with
+            | Flow.Value_kind.Time, "t" | Flow.Value_kind.Value, "out"
+            | Flow.Value_kind.Math, "out" ->
+                Some (Fold_requested target)
+            | _ -> None)
+       | None -> None)
+  | None -> None
+
 let build_row_fields value ui (box : box) =
   Array.fold_left (fun (index, changes, detail, pin, capture, hovered, tip) row ->
     let y = 24 + (24 * index) in
@@ -1788,6 +1804,13 @@ let build_row_fields value ui (box : box) =
       index + 1, changes, detail, pin, capture, hovered, tip else
     let at x y = float (screen_size value x), float (screen_size value y) in
     let width = screen_size value 76 and height = screen_size value 16 in
+    let fold_button target changes = match fold_change value target with
+      | None -> changes
+      | Some change ->
+          let button = Ui.box ui ~flags:Ui.(clickable + tab_stop) ~at:(at (box.width - 104) 5)
+            ~w:(Ui.Px (float (screen_size value 14)))
+            ~h:(Ui.Px (float (screen_size value 14))) ("fold-" ^ target.path) in
+          if (Ui.signal ui button).clicked then change :: changes else changes in
     let emit f v = if v = f.Parameter.current then changes else
       Set_parameter_requested { node = box.info.id; path = f.name; value = v } :: changes in
     match row with
@@ -1813,6 +1836,7 @@ let build_row_fields value ui (box : box) =
               | _ -> f.label ^ ". Click to edit its literal." in
           Some (Printf.sprintf "row-%d-%s-%b" box.info.id path signal.hovered, description) in
         let index, changes, detail, pin = Ui.within ui container (fun () ->
+        let changes = fold_button {Flow_sop.Port.node = box.info.id; path} changes in
         let key = "field-" ^ f.name in
         if driven then
           (match Flow_sop.Port.Map.find_opt
@@ -1881,7 +1905,10 @@ let build_row_fields value ui (box : box) =
         let signal = Ui.signal ui container in
         let hovered = if Ui.hovered_within ui container then Some (box.info.id, parameter.path)
           else hovered in
-        let changes = if signal.clicked then
+        let previous = changes in
+        let changes = Ui.within ui container (fun () ->
+          fold_button {Flow_sop.Port.node = box.info.id; path = parameter.path} changes) in
+        let changes = if signal.clicked && changes = previous then
           Split_requested {node = box.info.id; group = parameter.path; split = not is_header} :: changes
           else changes in
         let driven = Flow_sop.Port.Map.mem
@@ -1970,6 +1997,14 @@ let paint_node (value : t) paint (box : box) =
       ~radius:(3. *. value.zoom) ~fill:theme.input ~stroke ();
     let tx, ty = at 7 7 in
     fill paint tx ty (screen_size value 10) (screen_size value 10) accent;
+    let paint_fold target row_y = if fold_change value target <> None then begin
+      let fx, fy = at (box.width - 104) (row_y + 5) in
+      let side = float (screen_size value 14) in
+      Ui.Paint.rect paint ~x:(float fx) ~y:(float fy) ~w:side ~h:side
+        ~fill:theme.track ~stroke:accent ();
+      Ui.Paint.text paint ~at:(float fx +. 3., float fy +. 1.)
+        ~size:(max 7 (screen_size value 11)) ~color:accent "ƒ"
+    end in
     let title = fitted_text paint label_size
       (float (screen_size value (if box.info.bypass then 114 else 130))) box.info.label in
     label (at 24 5) theme.foreground title;
@@ -1996,7 +2031,8 @@ let paint_node (value : t) paint (box : box) =
             Ui.Paint.text paint
               ~at:(float right -. Ui.Paint.text_width paint ~size readout, float top)
               ~size ~color:palette.float readout)
-            (drive_text value {Flow_sop.Port.node = box.info.id; path})
+            (drive_text value {Flow_sop.Port.node = box.info.id; path});
+          paint_fold {Flow_sop.Port.node = box.info.id; path} y
       | Vector (parameter, shown) | Vector_head (parameter, shown) ->
           let color = if shown then palette.vec3 else Pxui.Theme.muted theme in
           label (at 14 (y + 5)) color
@@ -2016,7 +2052,8 @@ let paint_node (value : t) paint (box : box) =
                   List.iteri (fun i axis ->
                     label (at (72 + 36 * i) (y + 5)) palette.vec3 axis)
                     ["x"; "y"; "z"]
-                | Vector_head _ -> () | _ -> assert false))
+                | Vector_head _ -> () | _ -> assert false));
+          paint_fold {Flow_sop.Port.node = box.info.id; path = parameter.path} y
       | Output (name, _) -> label (at 14 (y + 5)) theme.foreground name
       | Folder folder ->
           let name = fitted_text paint label_size (float (screen_size value 150))

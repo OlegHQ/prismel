@@ -633,7 +633,9 @@ In Prismel Editor, `Inspector.flow_fields` renders the selected SOP or value
 node from its saved Flow network. It shows the node label, qualified kind,
 flags, geometry inputs, all parameter folders, card pin toggles, grouped vec3
 controls and split state. A driven row shows its source and applied value;
-reset removes the drive so its stored literal takes effect. It returns typed
+reset removes the drive so its stored literal takes effect. Numeric fields
+accept `=…` expressions and reject malformed text without changing the
+document. It returns typed
 requests that `Doc.apply` commits after `Ui.frame`.
 
 `effects.cook` requests a deferred/asynchronous graph cook;
@@ -651,8 +653,9 @@ The Prismel Flow canvas flows left to right with polyline wires,
 authored bends, point/chip/card/full levels, editable literal rows, value
 tiles, typed parameter sockets and live drive wires.
 `Editor_core.Network_layout` is the UI-free saved layout shared by the host
-and canvas. Guide mode and value drives are implemented. Compounds,
-graph/list/text views and `[%flow {| … |}]` follow in M4–M7; see
+and canvas. Guide mode, value drives, wireless binds, expression fields and
+the ƒ fold/unfold row control are implemented. Compounds,
+graph/list/text views and `[%flow {| … |}]` follow in M5–M7; see
 `flow-migration.md`.
 `prismel.pxui_graph` supplies deterministic initial layout,
 persistent graph-space tile positions, ordered ports/wires, topology-safe node
@@ -745,6 +748,14 @@ results, and shows live wire readouts. The inspector displays drive sources,
 applied values and reset controls; the cook adapter resolves dynamic values
 before each visible-object submission.
 
+`Flow_sop.Network.fold` converts an unshared tree of Math, Value and Time
+nodes feeding one row into an expression, removing those nodes. It refuses
+unsupported or shared sources with a diagnostic naming the node. `unfold`
+builds Math nodes for operators and one shared Time node; numeric leaves
+become input literals. The editor places them to the left of the target.
+The row's stored literal remains available while an expression or wire drives
+it. Wireless binds change only saved layout visibility, never evaluation.
+
 | Key | Scope | Action |
 |---|---|---|
 | `s` / `b` | global | save preset (name prompt) / preset browser |
@@ -771,6 +782,8 @@ The table above lists keys after `Space`. With the graph focused:
 | `/` / `f` / Home | find / frame selection or display / frame all |
 | `⌘C/V/X/D`, Ctrl equivalents | copy / paste / cut / duplicate |
 | `⌘Z` / `⇧⌘Z`, Ctrl equivalents | undo / redo |
+| `b` / `w` | bind by hints or toggle a selected wire's wireless state / show wireless wires |
+| `=` / `r` | edit the hovered row's expression / clear its drive or restore its default |
 
 `?` toggles the contextual guide and delayed tooltips globally. The guide
 starts on and saves its setting in `~/.prismel/preferences.json` through
@@ -780,8 +793,7 @@ key sheet; key feedback lasts 1.5 seconds. Shared UI text focus owns typing
 and modal dismissal. `Tab` runs Add in the canvas; `Shift-Tab` remains UI
 traversal. World keys are `t`/`n`/`d`, described in `scene.md`.
 
-Later milestones add row pinning, drives and expressions, compounds, and
-the text projection (`flow.md` §7.2).
+Later milestones add compounds and the text projection (`flow.md` §7.2).
 
 Plain keys: `i` enters the selected object, `u` goes up; in the view `w`/`e`/`r`
 pick translate/rotate/scale handles and Escape hides them;

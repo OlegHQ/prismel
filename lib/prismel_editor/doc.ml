@@ -147,6 +147,27 @@ let apply factories (document, graph_view, error, effects, placed, pasted) = fun
        | Ok (document, changed) ->
            document, Pxui_graph.with_document document graph_view, None,
            Parameter.union_effects effects changed, target.node :: placed, pasted)
+  | Fold_requested target ->
+      (match flow_result (Flow_sop.Network.fold ~target document) with
+       | Error message -> document, graph_view, Some message, effects, placed, pasted
+       | Ok (document, removed) ->
+           document, Pxui_graph.with_document document graph_view, None,
+           Parameter.union_effects effects cook_effects,
+           List.rev_append removed (target.node :: placed), pasted)
+  | Unfold_requested target ->
+      (match flow_result (Flow_sop.Network.unfold ~target document) with
+       | Error message -> document, graph_view, Some message, effects, placed, pasted
+       | Ok (document, nodes) ->
+           let x, y = match List.find_opt (fun (id, _, _) -> id = target.node)
+             (Pxui_graph.node_positions graph_view) with
+             | Some (_, x, y) -> x, y | None -> 0., 0. in
+           let positions = List.map (fun (id, column, row) ->
+             id, x -. float column *. 220., y +. row *. 48.) nodes in
+           let graph_view = graph_view |> Pxui_graph.with_document document
+             |> Pxui_graph.place_nodes positions in
+           document, graph_view, None, Parameter.union_effects effects cook_effects,
+           List.rev_append (List.map (fun (id, _, _) -> id) nodes)
+             (target.node :: placed), pasted)
   | Value_disconnect_requested target ->
       (match flow_result (Flow_sop.Network.disconnect ~target document) with
        | Error message -> document, graph_view, Some message, effects, placed, pasted

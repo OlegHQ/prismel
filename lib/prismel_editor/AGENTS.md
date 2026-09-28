@@ -79,6 +79,11 @@ rules in this file are current. Planned changes that touch this directory:
   and live readouts. The inspector shows pins, vector splits and drive sources.
   `Cook` resolves values before submissions and while time advances, retaining
   the applied-value table for presentation without changing stored literals.
+- M4 is implemented: `b` binds compatible value outputs by hints and toggles a
+  selected wire's wireless flag; `w` reveals wireless wires. Numeric canvas
+  and inspector fields accept checked `=…` expressions; `r` clears a drive or
+  restores the literal default. The ƒ row action folds unshared value chains
+  into expressions and unfolds expressions into placed Math/Time nodes.
 - M5: compound levels under instances. M6: `Space l` cycles graph, list, text.
 
 Keep the three-column workspace, `Doc.apply` as the only graph-intent reducer,

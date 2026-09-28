@@ -2,7 +2,7 @@
 
 ## 1. Status and authority
 
-Status: approved design, revision 2 (2026-09-27). **M1–M3 implemented; M4–M7 pending.**
+Status: approved design, revision 2 (2026-09-27). **M1–M4 implemented; M5–M7 pending.**
 Milestones M1–M7, the file-level tasks for each, and progress live in
 `flow-migration.md`. The behavioral reference is the prototype at
 `specification/flow/prototype/index.html` (open it in a browser; no build).
@@ -612,7 +612,8 @@ Pan so the new selection is visible.
   Place math nodes in columns to the left of the target (W + 24 apart), each
   vertically centred on its inputs; the `time` node goes left of the leftmost
   column. Wire the result into the row.
-- Property: unfold then fold gives back an equal expression (M4 test).
+- Property: unfold then fold gives back an equal expression when it contains
+  `t` or an operator (M4 test). A bare number becomes a literal.
 
 ### 7.8 Compounds (M5)
 
@@ -1101,6 +1102,10 @@ content-addressed cache sharing between instances; macros.
 | Catalog pinning | integer catalog version in the manifest, optional `:catalog N` in files |
 | Cache sharing between instances | none |
 | Guide mode | on by default, persisted off |
+
+2026-09-28: a bare number has no source node after unfolding, so the
+fold/unfold identity law applies to expressions containing time or an operator.
+Bare numbers become normalized target literals as specified above.
 
 2026-09-27: the requested full migration has no backward compatibility;
 version 3 replaces the v1/v2 readers and preserves saved node ids.

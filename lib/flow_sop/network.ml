@@ -146,6 +146,139 @@ let set_literal ~(target : Port.t) value network =
         (Procedural.Edit_graph.apply_parameters network.geometry ~node_id:target.node changes))
         (fun (geometry, _) -> with_geometry geometry network)))
 
+let set_number ~target number network =
+  Result.bind (parameter network target) (fun parameter ->
+    Result.bind (Port.normalize parameter (Flow.Port_type.Float_value number))
+      (fun (value, _) ->
+        let literal = match value with
+          | Flow.Port_type.Float_value value -> Port.Scalar (Param.Float_value value)
+          | Int_value value -> Port.Scalar (Param.Int_value value)
+          | Bool_value value -> Port.Scalar (Param.Bool_value value)
+          | Vec3_value (x,y,z) -> Port.Vector (x,y,z) in
+        Result.bind (clear_drive ~target network) (set_literal ~target literal)))
+
+(* ponytail: recursion follows the expression/value tree; report the stack
+   ceiling until an explicit traversal is needed for very deep networks. *)
+let fold ~target network = try
+  let refuse node message = error "E_FOLD" (node.Flow.Graph.label ^ ": " ^ message) in
+  let field node name = List.find_opt (fun (field : Param.field_view) -> field.name = name)
+    (Flow.Value_kind.fields node.Flow.Graph.parameters) in
+  let number node name = match field node name with
+    | Some {current = Param.Float_value value; _} -> Ok value
+    | _ -> refuse node ("Cannot read " ^ name) in
+  let collected = ref Int_set.empty in
+  let rec input node path =
+    match Port.Map.find_opt {Port.node = node.Flow.Graph.id; path} network.drives with
+    | Some (Drive.Expr expression) -> Ok expression
+    | Some (Drive.Wire source) -> output {Port.node = source.node; path = source.output}
+    | None -> Result.bind (number node path) Flow.Expr.num
+  and output source =
+    match Flow.Graph.find network.values ~node_id:source.Port.node with
+    | None -> error "E_FOLD" (Printf.sprintf "Node %d is not a value node" source.node)
+    | Some node ->
+        let expression = match Flow.Value_kind.kind node.parameters, source.path with
+          | Flow.Value_kind.Time, "t" ->
+              (match Port.Map.find_opt {Port.node = node.id; path = "speed"} network.drives with
+               | Some (Drive.Wire _) -> refuse node "time.speed has a wire"
+               | _ -> Result.bind (input node "speed") (fun speed ->
+                   match speed with
+                   | Flow.Expr.Num 1. -> Ok Flow.Expr.time
+                   | _ -> Flow.Expr.op Flow.Expr.Mul [Flow.Expr.time; speed]))
+          | Flow.Value_kind.Value, "out" -> input node "v"
+          | Flow.Value_kind.Math, "out" ->
+              (match field node "op" with
+               | Some {current = Param.Choice_value name; _} ->
+                   (match List.assoc_opt name Flow.Expr.operators with
+                    | None -> refuse node ("Unknown math operation " ^ name)
+                    | Some operator ->
+                        let paths = if Flow.Expr.arity operator = 1 then ["a"] else ["a";"b"] in
+                        Result.bind (List.fold_left (fun result path ->
+                          Result.bind result (fun expressions ->
+                            Result.map (fun expression -> expression :: expressions) (input node path)))
+                          (Ok []) paths) (fun reversed -> Flow.Expr.op operator (List.rev reversed)))
+               | _ -> refuse node "Cannot read math operation")
+          | _ -> refuse node "Only math, value and time outputs can fold" in
+        Result.map (fun expression ->
+          collected := Int_set.add node.id !collected; expression) expression in
+  match Port.Map.find_opt target network.drives with
+  | Some (Drive.Wire source) ->
+      Result.bind (output {Port.node = source.node; path = source.output}) (fun expression ->
+        let shared = Port.Map.fold (fun destination drive found -> match found, drive with
+          | Some _, _ -> found
+          | None, Drive.Wire source when Int_set.mem source.node !collected
+              && not (Int_set.mem destination.node !collected || destination = target) ->
+              Flow.Graph.find network.values ~node_id:source.node
+          | _ -> None) network.drives None in
+        match shared with
+        | Some node -> refuse node "is also used outside this expression"
+        | None ->
+            let ids = Int_set.elements !collected in
+            Result.bind (remove_nodes ids network) (fun network ->
+              Result.map (fun network -> network, ids) (match expression with
+                | Flow.Expr.Num number -> set_number ~target number network
+                | _ -> set_expr ~target expression network)))
+  | _ -> error "E_FOLD" ("Port " ^ target.path ^ " has no wire to fold")
+  with Stack_overflow -> error "E_DEPTH" "Value chain is too deep to fold"
+
+let unfold ~target network = try
+  match Port.Map.find_opt target network.drives with
+  | Some (Drive.Expr expression) ->
+      let time_id = ref None and time_rows = ref [] and max_column = ref 0 in
+      let positions = ref [] and next_row = ref 0. in
+      let rec build column expression network = match expression with
+        | Flow.Expr.Num number ->
+            let row = !next_row in next_row := row +. 1.;
+            Ok (network, None, Some number, row)
+        | Flow.Expr.Time ->
+            let row = !next_row in next_row := row +. 1.; time_rows := row :: !time_rows;
+            (match !time_id with
+             | Some id -> Ok (network, Some {Port.node = id; path = "t"}, None, row)
+             | None -> Result.map (fun (network, id) ->
+                 time_id := Some id; network, Some {Port.node = id; path = "t"}, None, row)
+                 (add_value_node Flow.Value_kind.Time network))
+        | Flow.Expr.Op (operator, arguments) ->
+            max_column := max !max_column column;
+            Result.bind (List.fold_left (fun result argument ->
+              Result.bind result (fun (network, reversed) ->
+                Result.map (fun (network, source, number, row) ->
+                  network, (source, number, row) :: reversed)
+                  (build (column + 1) argument network)))
+              (Ok (network, [])) arguments) (fun (network, reversed) ->
+                let children = List.rev reversed in
+                let rows = List.map (fun (_, _, row) -> row) children in
+                let row = (List.hd rows +. List.hd (List.rev rows)) /. 2. in
+                Result.bind (add_value_node Flow.Value_kind.Math network) (fun (network, id) ->
+                  let name = fst (List.find (fun (_, candidate) -> candidate = operator)
+                    Flow.Expr.operators) in
+                  Result.bind (set_literal ~target:{Port.node = id; path = "op"}
+                    (Port.Scalar (Param.Choice_value name)) network) (fun network ->
+                    let paths = if Flow.Expr.arity operator = 1 then ["a"] else ["a";"b"] in
+                    Result.bind (List.fold_left2 (fun result path (source, number, _) ->
+                      Result.bind result (fun network -> match source, number with
+                        | Some source, _ -> connect_value ~source ~target:{Port.node = id; path} network
+                        | None, Some number -> set_literal ~target:{Port.node = id; path}
+                            (Port.Scalar (Param.Float_value number)) network
+                        | None, None -> assert false)) (Ok network) paths children) (fun network ->
+                      positions := (id, column, row) :: !positions;
+                      Ok (network, Some {Port.node = id; path = "out"}, None, row))))) in
+      Result.bind (build 1 expression network) (fun (network, source, number, root_row) ->
+        let network = Result.bind (clear_drive ~target network) (fun network ->
+          match source, number with
+          | Some source, _ -> connect_value ~source ~target network
+          | None, Some number -> set_number ~target number network
+          | None, None -> assert false) in
+        Result.map (fun network ->
+          let positions = match !time_id with
+            | None -> !positions
+            | Some id ->
+                let rows = !time_rows in
+                let average = List.fold_left (+.) 0. rows /. float (List.length rows) in
+                (id, !max_column + 1, average) :: !positions in
+          network, List.map (fun (id, column, row) -> id, column, row -. root_row) positions)
+          network)
+  | _ -> error "E_UNFOLD" ("Port " ^ target.path ^ " has no expression to unfold")
+  with Stack_overflow -> error "E_DEPTH" "Expression is too deep to unfold"
+
 let apply_value_parameters network ~node_id changes =
   Result.map (fun (values, effects) ->
     (if values == network.values then network else {network with values}), effects)
