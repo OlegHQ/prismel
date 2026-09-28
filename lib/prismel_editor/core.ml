@@ -592,12 +592,15 @@ let apply_tree value (overlay, graph_view, tree, opened, label, rows) intent =
 (* The document a sketch starts from: its code graph becomes the geometry
    object geo1 (camera SOPs in it move up to the scene as camera objects),
    plus [seed]'s additions to the scene. *)
-let initial_doc ~settings ~seed_scene code_graph =
-  let sop = Edit_graph.of_graph code_graph in
+let initial_doc ~settings ~seed_scene ?program code_graph =
+  let sop = match program with
+    | Some (program : Flow_sop.Program.t) -> program.network
+    | None -> Flow_sop.Network.of_geometry (Edit_graph.of_graph code_graph) in
   let cameras = List.filter_map (fun (info : Edit_graph.node_info) ->
       if info.operation = "camera" then Some info.node else None)
-      (Edit_graph.inspect sop) in
-  let sop = Edit_graph.remove_nodes (List.map Node.id cameras) sop in
+      (Edit_graph.inspect sop.geometry) in
+  let sop = Result.get_ok (Flow_sop.Network.remove_nodes
+      (List.map Node.id cameras) sop) in
   let geometry = Result.get_ok (Edit_graph.instantiate_optional
       Objects.Geometry.factory [None]) |> Node.relabel "geo1" in
   let empty_scene = Result.get_ok (Edit_graph.add_node ~factory:Objects.Geometry.factory
@@ -606,11 +609,27 @@ let initial_doc ~settings ~seed_scene code_graph =
       Result.value ~default:scene (Edit_graph.add_node camera scene))
       empty_scene cameras in
   let scene = seed_scene scene in
-  let displayed = Edit_graph.root sop in
+  let displayed = match program with
+    | Some program when Option.fold ~none:false ~some:(fun id ->
+        Edit_graph.find sop.geometry ~node_id:id <> None) program.display ->
+        program.display
+    | Some _ -> None
+    | None -> Edit_graph.root sop.geometry in
+  let definitions = match program with
+    | None -> Document.String_map.empty
+    | Some program -> Flow_sop.Network.String_map.fold (fun name spec definitions ->
+        let displayed = Edit_graph.inspect spec.Flow_sop.Network.body.geometry
+          |> List.find_opt (fun (info : Edit_graph.node_info) ->
+            info.operation = "flow_outputs")
+          |> Option.map (fun (info : Edit_graph.node_info) -> info.id) in
+        Document.String_map.add name Document.{spec;
+          layout = Editor_core.Network_layout.empty; displayed} definitions)
+        program.definitions Document.String_map.empty in
   { Document.scene = Document.of_geometry ~context:Flow.Context.Scene scene (Some (Node.id geometry));
     networks = Document.Layout.singleton (Node.id geometry)
-      (Document.of_geometry ~context:Flow.Context.Sop sop displayed);
-    definitions = Document.String_map.empty;
+      Document.{context = Flow.Context.Sop; graph = sop;
+        layout = Editor_core.Network_layout.empty; displayed};
+    definitions;
     compiled_ids = Flow_sop.Instance_path.Map.empty;
     active_camera = None; settings },
   Node.id geometry
@@ -650,13 +669,15 @@ let create ?(settings = Settings.none) ?(keymap = Leader.keymap)
     ?(seed = 0L) ?(grain = 16_384)
     ?domains ?(max_entries = 32)
     ?(max_payload_bytes = 256 * 1024 * 1024)
-    ~graph ~prepare () =
+    ?program ~graph ~prepare () =
+  let doc, geometry = initial_doc ~settings ?program
+      ~seed_scene:(seed_scene factories) graph in
+  let doc = match Option.map (add_world doc) world with
+    | Some (Ok doc) -> doc | Some (Error _) | None -> doc in
+  Result.bind (Result.map_error Flow.Diagnostic.to_string
+    (Document.allocate_compiled_ids doc)) (fun doc ->
   Result.map (fun cook ->
       let workspace = Pxui_shell.Layout.create layout in
-      let doc, geometry = initial_doc ~settings
-          ~seed_scene:(seed_scene factories) graph in
-      let doc = match Option.map (add_world doc) world with
-        | Some (Ok doc) -> doc | Some (Error _) | None -> doc in
       let presets = match presets with
         | Some directory -> directory
         | None -> Filename.concat (Filename.concat
@@ -692,7 +713,7 @@ let create ?(settings = Settings.none) ?(keymap = Leader.keymap)
       { value with doc; history = Editor_core.History.create doc;
         graph_view = view_of { value with doc } level initial_frame })
     (Cook.create ~prepare ~seed ~grain ?domains ~max_entries
-      ~max_payload_bytes ())
+      ~max_payload_bytes ()))
 
 let truncate limit text = if String.length text <= limit then text
   else if limit <= 3 then String.make (max 0 limit) '.'

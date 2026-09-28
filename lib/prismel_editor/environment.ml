@@ -293,8 +293,14 @@ module Make (V : VIEWPORT) = struct
   let create ?(layout = Pxui_shell.Layout.default) ?name ?presets ?timeline_frames ?factories
       ?settings ?(commands = []) ?(lights = []) ?world
       ?(camera = V.default_camera ()) ?lens ?(background = Color.hex_exn "#09090b")
-      ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~graph ~prepare ~draw
+      ?seed ?grain ?domains ?max_entries ?max_payload_bytes ?graph ?program ~prepare ~draw
       ?(overlay = fun _ _ _ -> Scene.empty) ?(status = fun _ -> None) () =
+    let graph = match graph, program with
+      | Some graph, None -> Ok graph
+      | None, Some _ -> Ok (Sop.points [||])
+      | Some _, Some _ -> Error "Pass either graph or Flow program"
+      | None, None -> Error "Pass a graph or Flow program" in
+    Result.bind graph (fun graph ->
     let open Editor_core.Command in
     let normalize_key = function Input.KeyChar c -> Input.KeyChar (Char.lowercase_ascii c)
       | key -> key in
@@ -357,7 +363,7 @@ module Make (V : VIEWPORT) = struct
         ~seed_scene:(fun factories scene ->
           V.seed_scene ?lens camera factories (seed_lights lights scene))
         ~layout ?name ?presets ?timeline_frames ?factories ?seed ?grain ?domains
-        ?max_entries ?max_payload_bytes ~graph ~prepare ()))
+        ?max_entries ?max_payload_bytes ?program ~graph ~prepare ())))
 
   let graph value = Core.graph value.core
   let document value = Core.document value.core
@@ -605,12 +611,14 @@ module Make (V : VIEWPORT) = struct
 
   let run ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?lights
       ?world ?camera ?lens ?background ?seed ?grain ?domains ?max_entries ?max_payload_bytes
-      ~config ~graph ~prepare ~draw ?overlay ?status () =
-    let name = Option.value name ~default:(String.lowercase_ascii config.Sketch.title) in
+      ~config ?graph ?program ~prepare ~draw ?overlay ?status () =
+    let name = Option.value name ~default:(match program with
+      | Some program -> program.Flow_sop.Program.name
+      | None -> String.lowercase_ascii config.Sketch.title) in
     let init _frame = create ?layout ~name ?presets ?timeline_frames ?factories ?settings
         ?commands ?lights ?world
         ?camera ?lens ?background ?seed ?grain ?domains ?max_entries ?max_payload_bytes
-        ~graph ~prepare ~draw ?overlay ?status () |> Result.get_ok in
+        ?graph ?program ~prepare ~draw ?overlay ?status () |> Result.get_ok in
     let update value frame =
       let value = update value frame in
       set_ui_cursor value.core.ui (V.ui_visible value.control);

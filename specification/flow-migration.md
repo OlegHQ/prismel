@@ -320,6 +320,13 @@ network with the same canvas, keys, views and text), then plan it here.
 
 ## Log
 
+- 2026-09-28 M7 editor-entry checkpoint: `Editor3/2.create` and `run` accept
+  `?program` in place of `?graph`; the program's network, display and shared
+  definitions seed the initial document. Compiled compound IDs are allocated
+  before the cook worker starts. Window-free editor tests cover a plain Flow
+  network and a geometry compound from the program builder. The example and
+  file-local PPX nodes remain.
+
 - 2026-09-28 M7 PPX checkpoint: `-flow-manifest` loads the checked-in snapshot;
   `[%flow {|…|}]` checks the source at compile time and emits plain typed Flow
   terms for `Build.program`. Error spans map into the quoted OCaml string,
