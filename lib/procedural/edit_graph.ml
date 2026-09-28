@@ -357,7 +357,11 @@ let copy_nodes ids value =
   else match List.find_opt (fun id -> not (Id_map.mem id value.entries)) ids with
     | Some id -> Error (Printf.sprintf "editable graph has no node #%d" id)
     | None ->
-        let fragment_entries = inspect value |> List.filter_map (fun info ->
+        let fragment_entries = if Id_set.cardinal selected = 1 then
+          let id = Id_set.min_elt selected in
+          let entry = Id_map.find id value.entries in
+          [id, {entry with inputs = Array.make (Array.length entry.inputs) None}]
+        else inspect value |> List.filter_map (fun info ->
           if not (Id_set.mem info.id selected) then None else
           let entry = Id_map.find info.id value.entries in
           let inputs = Array.map (function
@@ -390,10 +394,9 @@ let paste ?ids fragment value =
       (* Editable optional slots include absent inputs. Clone the physical
          arity; the factory below rebuilds presence from remapped slots. *)
       let placeholders = Node.Private.input_array entry.node in
-      let node = Node.Private.clone_with_inputs entry.node placeholders in
       let node = match supplied with
-        | None -> node
-        | Some supplied -> Node.Private.restore_id (Id_map.find old_id supplied) node
+        | None -> Node.Private.clone_with_inputs entry.node placeholders
+        | Some supplied -> Node.Private.restore_id (Id_map.find old_id supplied) entry.node
             |> Result.get_ok in
       old_id, node,
       entry.inputs, entry.factory, entry.bypass)

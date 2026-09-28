@@ -318,6 +318,13 @@ network with the same canvas, keys, views and text), then plan it here.
 
 ## Log
 
+- 2026-09-28 M5 geometry flatten checkpoint: `Flow_sop.Compile.flatten`
+  resolves named compound geometry outputs and Inputs/Outputs interfaces,
+  recursively inlines used SOP nodes under saved instance-path ids, and
+  rejects missing ports or recursive definitions. A two-instance chain and
+  cooked-geometry parity pass. Value ports and drives, editor commands,
+  levels, and the cook handoff remain pending.
+
 - 2026-09-28 M5 compiled-id checkpoint: `Edit_graph.paste ~ids` can inline a
   definition fragment under the document's saved compiled ids while retaining
   its factory metadata, optional slots and internal wires. It rejects missing,

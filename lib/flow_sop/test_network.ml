@@ -88,6 +88,7 @@ let () =
   let pasted, mapping = ok (Network.paste fragment routed) in
   assert (Network.geometry_source pasted (port (List.assoc consumer_id mapping) "in0")
     = Some (port (List.assoc id mapping) "result"));
+  let compound_routed = routed in
   let routed = ok (Network.connect_geometry ~source:(port id "geo")
     ~consumer:consumer_id ~input_index:0 routed) in
   assert (Network.geometry_source routed target = Some (port id "geo")
@@ -97,6 +98,96 @@ let () =
       ~consumer:consumer_id ~input_index:0 routed))) in
   assert (Network.geometry_source disconnected target = None
     && Port.Map.is_empty disconnected.geometry_outputs);
+  let marker operation inputs = Procedural.Node.Private.make ~operation
+    ~version:1 ~parameters:"" ~cook_mode:Procedural.Node.Generic
+    ~dependencies:Procedural.Context.Dependencies.static ~inputs
+    (fun ~node_id:_ _ _ -> Error (Procedural.Diagnostic.error
+      ~code:"E_INTERFACE" "Interface nodes must be flattened")) in
+  let inner_box = build default in
+  let inputs_marker = marker "flow_inputs" [||] in
+  let outputs_marker = marker "flow_outputs" [|inner_box|] in
+  let body_geometry = Procedural.Edit_graph.of_graph outputs_marker
+    |> Procedural.Edit_graph.add_node inputs_marker |> Result.get_ok in
+  let definition : Network.definition = {
+    name = "compound_1"; context = Flow.Context.Sop;
+    inputs = [];
+    outputs = [{name = "result"; ty = Flow.Port_type.Geometry;
+      default = None; label = "Result"; soft = None}];
+    body = Network.of_geometry body_geometry} in
+  let compiled, compiled_ids = ok (Compile.flatten
+    ~definitions:(Network.String_map.singleton definition.name definition)
+    ~compiled_ids:Instance_path.Map.empty compound_routed) in
+  let inner_id = Instance_path.Map.find [id; Procedural.Node.id inner_box]
+    compiled_ids in
+  assert (Procedural.Edit_graph.find compiled.geometry ~node_id:id = None
+    && Procedural.Edit_graph.inputs compiled.geometry ~node_id:consumer_id
+      = Some [|Some inner_id|]
+    && Procedural.Edit_graph.find compiled.geometry ~node_id:inner_id <> None);
+  let cook graph =
+    let session = Procedural.Session.create ~max_entries:16
+      ~max_payload_bytes:1048576 |> Result.get_ok in
+    Fun.protect ~finally:(fun () -> Procedural.Session.close session) (fun () ->
+      let context = Procedural.Context.create () |> Result.get_ok in
+      let graph = Procedural.Edit_graph.compile graph |> Result.get_ok in
+      let result = Procedural.Session.cook session ~context graph |> Result.get_ok in
+      geometry_bytes result.geometry) in
+  assert (cook compiled.geometry = cook
+    (Procedural.Edit_graph.of_graph (Procedural.Sop.null inner_box)));
+  let again, same_ids = ok (Compile.flatten
+    ~definitions:(Network.String_map.singleton definition.name definition)
+    ~compiled_ids compound_routed) in
+  assert (same_ids = compiled_ids
+    && Procedural.Edit_graph.inputs again.geometry ~node_id:consumer_id
+      = Some [|Some inner_id|]);
+  let unrelated = build default in
+  let changed_geometry = Procedural.Edit_graph.add_node unrelated
+    compound_routed.geometry |> Result.get_ok in
+  let changed = ok (Network.with_geometry changed_geometry compound_routed) in
+  let changed_flat, stable_ids = ok (Compile.flatten
+    ~definitions:(Network.String_map.singleton definition.name definition)
+    ~compiled_ids changed) in
+  assert (stable_ids = compiled_ids
+    && Procedural.Edit_graph.inputs changed_flat.geometry ~node_id:consumer_id
+      = Some [|Some inner_id|]);
+  let passthrough_inputs = marker "flow_inputs" [||] in
+  let passthrough_outputs = marker "flow_outputs" [|passthrough_inputs|] in
+  let passthrough_body = Network.of_geometry
+    (Procedural.Edit_graph.of_graph passthrough_outputs) in
+  let passthrough_body = ok (Network.connect_geometry
+    ~source:(port (Procedural.Node.id passthrough_inputs) "incoming")
+    ~consumer:(Procedural.Node.id passthrough_outputs) ~input_index:0
+    passthrough_body) in
+  let geometry_port name : Network.interface_port =
+    {name; ty = Flow.Port_type.Geometry; default = None; label = name; soft = None} in
+  let passthrough : Network.definition = {
+    name = "pass"; context = Flow.Context.Sop;
+    inputs = [geometry_port "incoming"];
+    outputs = [geometry_port "result"];
+    body = passthrough_body} in
+  let source = build default in
+  let first = Procedural.Sop.null source in
+  let second = Procedural.Sop.null first in
+  let downstream = Procedural.Sop.null second in
+  let first_id = Procedural.Node.id first and second_id = Procedural.Node.id second
+  and downstream_id = Procedural.Node.id downstream in
+  let instance : Network.instance = {definition = "pass";
+    literals = Network.String_map.empty} in
+  let chained = ok (Network.of_parts
+    ~geometry:(Procedural.Edit_graph.of_graph downstream)
+    ~values:Flow.Graph.empty ~drives:Port.Map.empty
+    ~geometry_outputs:Port.Map.empty
+    ~instances:(Network.Int_map.of_list [first_id, instance; second_id, instance])) in
+  let chained = ok (Network.connect_geometry
+    ~source:(port first_id "result") ~consumer:second_id ~input_index:0 chained) in
+  let chained = ok (Network.connect_geometry
+    ~source:(port second_id "result") ~consumer:downstream_id ~input_index:0 chained) in
+  let compiled, _ = ok (Compile.flatten
+    ~definitions:(Network.String_map.singleton passthrough.name passthrough)
+    ~compiled_ids:Instance_path.Map.empty chained) in
+  assert (Procedural.Edit_graph.inputs compiled.geometry ~node_id:downstream_id
+    = Some [|Some (Procedural.Node.id source)|]
+    && cook compiled.geometry = cook
+      (Procedural.Edit_graph.of_graph (Procedural.Sop.null source)));
   let network, time = ok (Network.add_value_node Flow.Value_kind.Time base) in
   assert (time <> id);
   let network, vector = ok (Network.add_value_node Flow.Value_kind.Combine_xyz network) in

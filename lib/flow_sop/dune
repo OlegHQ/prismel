@@ -1,7 +1,7 @@
 (library
  (name flow_sop)
  (public_name prismel.flow_sop)
- (modules port drive exposure instance_path network value_lane)
+ (modules port drive exposure instance_path network compile value_lane)
  (libraries flow param procedural))
 
 (test
