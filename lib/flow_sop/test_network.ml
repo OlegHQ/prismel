@@ -97,11 +97,13 @@ let () =
   assert (removed.geometry == network.geometry && Port.Map.is_empty removed.drives);
   assert (ok (Network.remove_nodes [-1] network) == network);
   let collision = Flow.Graph.node ~id Flow.Value_kind.Time |> ok |> fun node -> Flow.Graph.add_node node Flow.Graph.empty |> ok in
-  rejected "E_DUPLICATE" (Network.of_parts ~geometry:network.geometry ~values:collision ~drives:Port.Map.empty);
+  rejected "E_DUPLICATE" (Network.of_parts ~geometry:network.geometry ~values:collision
+    ~drives:Port.Map.empty ~instances:Network.Int_map.empty);
   let restored_id = Procedural.Node.Private.fresh_id () + 10000 in
   let restored = Flow.Graph.node ~id:restored_id Flow.Value_kind.Value |> ok
     |> fun node -> Flow.Graph.add_node node Flow.Graph.empty |> ok in
-  ignore (ok (Network.of_parts ~geometry:base.geometry ~values:restored ~drives:Port.Map.empty));
+  ignore (ok (Network.of_parts ~geometry:base.geometry ~values:restored
+    ~drives:Port.Map.empty ~instances:Network.Int_map.empty));
   assert (Procedural.Node.Private.fresh_id () > restored_id);
   let order = ok (Network.topological_values network) in
   let index id = List.find_index (( = ) id) order |> Option.get in

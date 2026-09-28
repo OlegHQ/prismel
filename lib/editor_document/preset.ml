@@ -98,11 +98,34 @@ let network_json (network : Document.network) =
   `Assoc ["context", `String (Flow.Context.name network.context);
     "nodes", `List (List.map node (Edit_graph.inspect network.graph.geometry));
     "values", `List (List.map value (Flow.Graph.inspect network.graph.values));
+    "instances", `List (Flow_sop.Network.Int_map.bindings network.graph.instances
+      |> List.map (fun (id, instance) ->
+        `Assoc ["id", `Int id; "definition", `String instance.Flow_sop.Network.definition;
+          "literals", `List (Flow_sop.Network.String_map.bindings instance.literals
+            |> List.map (fun (name, value) -> `List [`String name; value_json value]))]));
     "drives", `List (List.map drive (Flow_sop.Port.Map.bindings network.graph.drives));
     "display", optional_int network.displayed;
     "geometry_bends", `List (Layout.Port_set.elements geometry_ports |> List.map (fun port ->
       `Assoc ["to", port_json port; "bends", points_json (bends port);
         "wireless", `Bool (Layout.Port_set.mem port network.layout.wireless)]))]
+
+let interface_json (port : Flow_sop.Network.interface_port) = `Assoc [
+  "name", `String port.name;
+  "type", `String (Flow.Port_type.name port.ty);
+  "default", Option.fold ~none:`Null ~some:value_json port.default;
+  "label", `String port.label;
+  "soft", Option.fold ~none:`Null ~some:(fun (low, high) ->
+    `List [`Float low; `Float high]) port.soft]
+
+let definition_json (definition : Document.definition) =
+  let spec = definition.spec in
+  let body : Document.network = {context = spec.context; graph = spec.body;
+    layout = definition.layout; displayed = definition.displayed} in
+  `Assoc ["name", `String spec.name;
+    "context", `String (Flow.Context.name spec.context);
+    "inputs", `List (List.map interface_json spec.inputs);
+    "outputs", `List (List.map interface_json spec.outputs);
+    "body", network_json body]
 
 let to_sections ~(doc : Document.t) ~view =
   [ "graph", `Assoc [
@@ -111,6 +134,11 @@ let to_sections ~(doc : Document.t) ~view =
       "networks", `List (List.map (fun (id, network) ->
         `Assoc [ "object", `Int id; "network", network_json network ])
         (Document.Layout.bindings doc.networks));
+      "compiled_ids", `List (List.map (fun (path, id) ->
+        `Assoc ["path", `List (List.map (fun part -> `Int part) path); "id", `Int id])
+        (Flow_sop.Instance_path.Map.bindings doc.compiled_ids));
+      "definitions", `List (Document.String_map.bindings doc.definitions
+        |> List.map (fun (_, definition) -> definition_json definition));
       "active_camera", optional_int doc.active_camera;
       "settings", `List (List.map (fun (field : Parameter.field_view) ->
         `List [ `String field.name; value_json field.current ])
@@ -248,6 +276,7 @@ type saved_network = {
   drives : (Flow_sop.Port.t * Flow_sop.Drive.t) list;
   bends : ((int * string) * (float * float) list) list;
   wireless : Layout.Port_set.t;
+  instances : (int * Flow_sop.Network.instance) list;
 }
 
 let port_of = function
@@ -270,6 +299,25 @@ let network_of = function
         | _ -> Error "network without context" in
       let* nodes = nodes_of ~value:false (field "nodes") in
       let* values = nodes_of ~value:true (field "values") in
+      let* instances = match field "instances" with
+        | None -> Ok []
+        | Some (`List entries) -> all (List.map (function
+            | `Assoc fields ->
+                let* () = unique ~what:"instance field" (List.map fst fields) in
+                (match List.assoc_opt "id" fields, List.assoc_opt "definition" fields,
+                    List.assoc_opt "literals" fields with
+                 | Some (`Int id), Some (`String definition), Some (`List literals) ->
+                     let* literals = all (List.map (function
+                       | `List [`String name; value] ->
+                           Result.map (fun value -> name, value) (value_of_json value)
+                       | _ -> Error "unreadable instance literal") literals) in
+                     let* () = unique ~what:"instance literal" (List.map fst literals) in
+                     Ok (id, {Flow_sop.Network.definition;
+                       literals = Flow_sop.Network.String_map.of_list literals})
+                 | _ -> Error "instance needs id, definition and literals")
+            | _ -> Error "instance entry is not an object") entries)
+        | Some _ -> Error "instances are not a list" in
+      let* () = unique ~what:"instance id" (List.map fst instances) in
       let* display = optional_of (field "display") in
       let metadata entry =
         let* port = port_of (List.assoc_opt "to" entry) in
@@ -312,10 +360,72 @@ let network_of = function
           if points = [] then (port, []) :: bends else bends) bends geometry in
       let wireless = List.fold_left (fun flags (port, _, on) ->
           if on then Layout.Port_set.add port flags else flags) Layout.Port_set.empty metadata in
-      Ok {context; nodes; values; display; drives = List.map fst drives; bends; wireless}
+      Ok {context; nodes; values; display; drives = List.map fst drives;
+        bends; wireless; instances}
   | _ -> Error "preset network is not an object"
 
-type decoded = { scene : saved_network; networks : (int * saved_network) list }
+type saved_definition = {
+  name : string;
+  context : Flow.Context.t;
+  inputs : Flow_sop.Network.interface_port list;
+  outputs : Flow_sop.Network.interface_port list;
+  body : saved_network;
+}
+
+let interface_of = function
+  | `Assoc fields ->
+      let* () = unique ~what:"interface port field" (List.map fst fields) in
+      let field name = List.assoc_opt name fields in
+      let* name = match field "name" with Some (`String name) -> Ok name
+        | _ -> Error "interface port needs a name" in
+      let* ty = match field "type" with
+        | Some (`String "Geometry") -> Ok Flow.Port_type.Geometry
+        | Some (`String "Float") -> Ok Flow.Port_type.Float
+        | Some (`String "Int") -> Ok Flow.Port_type.Int
+        | Some (`String "Bool") -> Ok Flow.Port_type.Bool
+        | Some (`String "Vec3") -> Ok Flow.Port_type.Vec3
+        | _ -> Error "unknown interface port type" in
+      let* default = match field "default" with
+        | None | Some `Null -> Ok None
+        | Some value -> Result.map Option.some (value_of_json value) in
+      let* label = match field "label" with Some (`String label) -> Ok label
+        | None -> Ok name | _ -> Error "interface label is not text" in
+      let* soft = match field "soft" with
+        | None | Some `Null -> Ok None
+        | Some (`List [low; high]) ->
+            let* low = number low in
+            Result.map (fun high -> Some (low, high)) (number high)
+        | _ -> Error "interface soft range is invalid" in
+      Ok Flow_sop.Network.{name; ty; default; label; soft}
+  | _ -> Error "interface port is not an object"
+
+let definition_of = function
+  | `Assoc fields ->
+      let* () = unique ~what:"definition field" (List.map fst fields) in
+      let field name = List.assoc_opt name fields in
+      let* name = match field "name" with Some (`String name) -> Ok name
+        | _ -> Error "definition needs a name" in
+      let* context = match field "context" with
+        | Some (`String context) -> flow_result (Flow.Context.of_string context)
+        | _ -> Error "definition needs a context" in
+      let* inputs = match field "inputs" with
+        | Some (`List ports) -> all (List.map interface_of ports)
+        | _ -> Error "definition inputs are not a list" in
+      let* outputs = match field "outputs" with
+        | Some (`List ports) -> all (List.map interface_of ports)
+        | _ -> Error "definition outputs are not a list" in
+      let* body = match field "body" with Some body -> network_of body
+        | None -> Error "definition needs a body" in
+      if body.context <> context then Error "definition body has the wrong context" else
+      Ok {name; context; inputs; outputs; body}
+  | _ -> Error "definition is not an object"
+
+type decoded = {
+  scene : saved_network;
+  networks : (int * saved_network) list;
+  definitions : saved_definition list;
+  compiled_ids : int Flow_sop.Instance_path.Map.t;
+}
 
 let decode path = match Yojson.Safe.from_file path with
   | exception Yojson.Json_error message -> Error ("corrupt preset: " ^ message)
@@ -349,7 +459,30 @@ let decode path = match Yojson.Safe.from_file path with
                   | _ -> Error "preset network entry is not an object") entries)
               | None -> Ok [] | _ -> Error "networks are not a list" in
             let* () = unique ~what:"network owner" (List.map fst networks) in
-            Ok { scene; networks }
+            let* definitions = match field "definitions" with
+              | None -> Ok []
+              | Some (`List entries) -> all (List.map definition_of entries)
+              | Some _ -> Error "definitions are not a list" in
+            let* () = unique ~what:"definition name"
+              (List.map (fun definition -> definition.name) definitions) in
+            let* compiled_ids = match field "compiled_ids" with
+              | None -> Ok Flow_sop.Instance_path.Map.empty
+              | Some (`List entries) ->
+                  let* entries = all (List.map (function
+                    | `Assoc fields ->
+                        let* () = unique ~what:"compiled id field" (List.map fst fields) in
+                        (match List.assoc_opt "path" fields, List.assoc_opt "id" fields with
+                         | Some (`List path), Some (`Int id) ->
+                             let* path = all (List.map (function
+                               | `Int part -> Ok part
+                               | _ -> Error "compiled id path contains a non-integer") path) in
+                             Ok (path, id)
+                         | _ -> Error "compiled id needs a path and id")
+                    | _ -> Error "compiled id entry is not an object") entries) in
+                  let* () = unique ~what:"compiled id path" (List.map fst entries) in
+                  Ok (Flow_sop.Instance_path.Map.of_list entries)
+              | Some _ -> Error "compiled ids are not a list" in
+            Ok { scene; networks; definitions; compiled_ids }
         | Some (`Int v) -> Error (Printf.sprintf "unsupported preset version %d" v)
         | _ -> Error "preset has no version" in
       let* settings = match field "settings" with
@@ -373,7 +506,7 @@ let rebuild ~code ~factories (saved : saved_network) =
   let reference id = if Hashtbl.mem ids id then Ok ()
     else Error (Printf.sprintf "preset references missing node #%d" id) in
   let* () = Option.fold ~none:(Ok ()) ~some:reference display in
-  let* () = List.fold_left (fun state node ->
+  let* () = List.fold_left (fun state (node : saved) ->
     let* () = state in
     List.fold_left (fun state input ->
       let* () = state in
@@ -458,14 +591,15 @@ let rebuild ~code ~factories (saved : saved_network) =
     Result.map fst (flow_result (Flow.Graph.apply_parameters values ~node_id:node.id node.params)))
       (Ok Flow.Graph.empty) saved.values in
   let* graph = flow_result (Flow_sop.Network.of_parts ~geometry:document ~values
-      ~drives:(Flow_sop.Port.Map.of_list saved.drives)) in
+      ~drives:(Flow_sop.Port.Map.of_list saved.drives)
+      ~instances:(Flow_sop.Network.Int_map.of_list saved.instances)) in
   Ok { Document.context = saved.context; graph; layout; displayed }
 
 let load ~path ~code ~factories ~settings =
   let* decoded, active_camera, values, view = decode path in
   let code = Edit_graph.of_graph code in
   let* settings = Result.map fst (Settings.apply settings values) in
-  let { scene; networks } = decoded in
+  let { scene; networks; definitions; compiled_ids } = decoded in
   let* scene_network = rebuild ~code
       ~factories:(Objects.catalog @ [Layers.Settings.factory]) scene in
   let* networks = List.fold_left (fun state (id, saved) ->
@@ -479,10 +613,25 @@ let load ~path ~code ~factories ~settings =
       let* network = rebuild ~code ~factories saved in
       Ok (Document.Layout.add id network networks))
       (Ok Document.Layout.empty) networks in
+  let* definitions = List.fold_left (fun state saved ->
+      let* definitions = state in
+      let* network = rebuild ~code:Edit_graph.empty ~factories saved.body in
+      let spec : Flow_sop.Network.definition = {
+        name = saved.name; context = saved.context;
+        inputs = saved.inputs; outputs = saved.outputs; body = network.graph} in
+      let definition : Document.definition = {
+        spec; layout = network.layout; displayed = network.displayed} in
+      Ok (Document.String_map.add saved.name definition definitions))
+    (Ok Document.String_map.empty) definitions in
   let* active_camera = match active_camera with
     | Some id when Edit_graph.find scene_network.graph.geometry ~node_id:id = None ->
         Error "preset active camera is missing"
     | value -> Ok value in
-  let doc = { Document.scene = scene_network; networks; active_camera; settings } in
+  let doc = { Document.scene = scene_network; networks;
+    definitions; compiled_ids;
+    active_camera; settings } in
   let* () = Document.validate doc in
+  let* () = Flow_sop.Instance_path.Map.fold (fun _ id result ->
+    let* () = result in Node.Private.reserve_id id)
+    compiled_ids (Ok ()) in
   Ok { doc; view }

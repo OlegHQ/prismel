@@ -192,8 +192,53 @@ let run () =
     "save accepted a nonfinite viewport";
   check (In_channel.with_open_bin successful In_channel.input_all = before)
     "rejected save replaced the last successful preset";
+  let compound_body = network [node 70 "box" []] (`Int 70) in
+  let interface = `Assoc ["name", `String "amp"; "type", `String "Float";
+    "default", `Assoc ["float", `Float 1.]; "label", `String "Amplitude";
+    "soft", `List [`Float 0.; `Float 2.]] in
+  let definition = `Assoc ["name", `String "compound_1";
+    "context", `String "sop"; "inputs", `List [interface];
+    "outputs", `List []; "body", compound_body] in
+  let with_definition = extend valid ["definitions", `List [definition]] in
+  let loaded_definition = load (write "definition" with_definition) |> Result.get_ok in
+  let saved_definition = Preset.save ~directory ~name:"definition-saved"
+    ~sketch:"contract" ~doc:loaded_definition.doc ~view:`Null |> Result.get_ok in
+  let definition_json = Yojson.Safe.from_file saved_definition
+    |> member "sections" |> member "graph" |> member "definitions" |> to_list in
+  check (List.length definition_json = 1
+      && (List.hd definition_json |> member "name") = `String "compound_1"
+      && (List.hd definition_json |> member "inputs" |> to_list |> List.hd
+          |> member "default") = `Assoc ["float", `Float 1.])
+    "compound definition interface or body did not round trip";
+  ignore (load saved_definition |> Result.get_ok);
+  let instance id definition = `Assoc ["id", `Int id;
+    "definition", `String definition; "literals", `List []] in
+  let with_instance = set with_definition "networks" (`List [owned 10
+    (extend sop ["instances", `List [instance 20 "compound_1"]])])
+    |> fun json -> extend json ["compiled_ids", `List [
+      `Assoc ["path", `List [`Int 20; `Int 70]; "id", `Int 90]]] in
+  let loaded_instance = load (write "instance-ids" with_instance) |> Result.get_ok in
+  let saved_instance = Preset.save ~directory ~name:"instance-ids-saved"
+    ~sketch:"contract" ~doc:loaded_instance.doc ~view:`Null |> Result.get_ok in
+  let saved_ids = Yojson.Safe.from_file saved_instance |> member "sections"
+    |> member "graph" |> member "compiled_ids" in
+  check (saved_ids = `List [`Assoc ["path", `List [`Int 20; `Int 70];
+      "id", `Int 90]])
+    "compiled instance ids did not round trip";
+  ignore (load saved_instance |> Result.get_ok);
   let wrong_owner = node 11 "camera" [] in
   let malformed = [
+    "recursive-definition", extend valid ["definitions", `List [set definition "body"
+      (extend compound_body ["instances", `List [instance 70 "compound_1"]])]];
+    "missing-definition", document scene [owned 10
+      (extend sop ["instances", `List [instance 20 "missing"]])];
+    "duplicate-compiled-id", extend valid ["compiled_ids", `List [
+      `Assoc ["path", `List [`Int 20; `Int 70]; "id", `Int 99];
+      `Assoc ["path", `List [`Int 20; `Int 71]; "id", `Int 99]]];
+    "invalid-compiled-path", extend valid ["compiled_ids", `List [
+      `Assoc ["path", `List [`Int (-1); `Int 70]; "id", `Int 99]]];
+    "orphan-compiled-path", extend with_definition ["compiled_ids", `List [
+      `Assoc ["path", `List [`Int 20; `Int 70]; "id", `Int 99]]];
     "old-version-1", `Assoc ["version", `Int 1; "scene", scene; "networks", `List [owned 10 sop]];
     "old-version-2", `Assoc ["version", `Int 2; "scene", scene; "networks", `List [owned 10 sop]];
     "missing-values", document scene [owned 10 (`Assoc ["context", `String "sop";

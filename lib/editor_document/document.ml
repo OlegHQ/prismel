@@ -4,6 +4,7 @@
 open Procedural
 module Canvas = Editor_core.Network_layout
 module Layout = Canvas.Int_map
+module String_map = Map.Make (String)
 
 (* One node network with its graph-space tile positions and display node. *)
 type network = {
@@ -16,9 +17,17 @@ type network = {
 let of_geometry ~context graph displayed =
   { context; graph = Flow_sop.Network.of_geometry graph; layout = Canvas.empty; displayed }
 
+type definition = {
+  spec : Flow_sop.Network.definition;
+  layout : Canvas.t;
+  displayed : int option;
+}
+
 type t = {
   scene : network;  (* objects: input 0 is the parent *)
   networks : network Layout.t;  (* by object id: SOP networks, the World's layers *)
+  definitions : definition String_map.t;
+  compiled_ids : int Flow_sop.Instance_path.Map.t;
   active_camera : int option;  (* a camera object *)
   settings : Settings.t;
 }
@@ -73,6 +82,47 @@ let resolve_level ~scene_level value preferred =
    valid; compiling their display is a separate cook-time check. *)
 let validate value =
   let ( let* ) = Result.bind in
+  let compiled = Flow_sop.Instance_path.Map.bindings value.compiled_ids in
+  let compiled_values = List.map snd compiled in
+  let module Ids = Set.Make (Int) in
+  let collect_ids network ids =
+    let ids = List.fold_left (fun ids (node : Edit_graph.node_info) ->
+      Ids.add node.id ids) ids (Edit_graph.inspect network.Flow_sop.Network.geometry) in
+    List.fold_left (fun ids (node : Flow.Graph.node) -> Ids.add node.id ids)
+      ids (Flow.Graph.inspect network.values) in
+  let original_ids = collect_ids value.scene.graph Ids.empty
+    |> fun ids -> Layout.fold (fun _ network ids -> collect_ids network.graph ids)
+      value.networks ids
+    |> fun ids -> String_map.fold (fun _ definition ids ->
+      collect_ids definition.spec.body ids) value.definitions ids in
+  let rec compiled_path instance = function
+    | [] -> false
+    | [inner] ->
+        (match String_map.find_opt instance.Flow_sop.Network.definition value.definitions with
+         | None -> false
+         | Some definition ->
+             Edit_graph.find definition.spec.body.geometry ~node_id:inner <> None
+             || Flow.Graph.find definition.spec.body.values ~node_id:inner <> None)
+    | nested :: rest ->
+        (match String_map.find_opt instance.Flow_sop.Network.definition value.definitions with
+         | None -> false
+         | Some definition ->
+             match Flow_sop.Network.Int_map.find_opt nested
+               definition.spec.body.instances with
+             | None -> false | Some child -> compiled_path child rest) in
+  let compiled_path_exists = function
+    | [] -> false
+    | first :: rest ->
+        Layout.exists (fun _ network ->
+          match Flow_sop.Network.Int_map.find_opt first network.graph.instances with
+          | None -> false | Some instance -> compiled_path instance rest)
+          value.networks in
+  let compiled_ok = List.for_all (fun (path, id) ->
+    List.length path >= 2 && List.for_all (fun part -> part > 0) path
+    && compiled_path_exists path && id > 0 && id < max_int
+    && not (Ids.mem id original_ids))
+    compiled
+    && List.length compiled_values = List.length (List.sort_uniq Int.compare compiled_values) in
   let finite_fields fields = List.for_all (fun (field : Parameter.field_view) ->
     match field.current with Float_value x -> Float.is_finite x | _ -> true) fields in
   let validate_network name network =
@@ -107,7 +157,7 @@ let validate value =
       && Canvas.Port_map.for_all (fun key points -> wire key
         && List.for_all (fun (x, y) -> Float.is_finite x && Float.is_finite y) points)
         network.layout.bends in
-    if network.context <> Flow.Context.Sop &&
+    if not (Flow.Context.supports_values network.context) &&
         (Flow.Graph.inspect network.graph.values <> [] || not (Flow_sop.Port.Map.is_empty network.graph.drives))
     then Error (name ^ " cannot contain value nodes or drives")
     else if (match network.displayed, nodes with
@@ -122,8 +172,60 @@ let validate value =
       && finite_fields (Node.parameter_fields info.node)) nodes)
     then Error (name ^ " has invalid inputs or nonfinite parameters")
     else Ok () in
+  let literal_value = function
+    | Parameter.Float_value number when Float.is_finite number ->
+        Some (Flow.Port_type.Float_value number)
+    | Int_value number -> Some (Flow.Port_type.Int_value number)
+    | Bool_value value -> Some (Flow.Port_type.Bool_value value)
+    | Float_value _ | Text_value _ | Choice_value _ -> None in
+  let valid_literal ty literal = Option.fold ~none:false ~some:(fun source ->
+    Flow.Port_type.can_connect ~source:(Flow.Port_type.value_type source) ~target:ty)
+    (literal_value literal) in
+  let validate_instances network =
+    Flow_sop.Network.Int_map.fold (fun id (instance : Flow_sop.Network.instance) state ->
+      let* () = state in
+      match String_map.find_opt instance.definition value.definitions with
+      | None -> Error (Printf.sprintf "instance #%d names missing definition %s"
+          id instance.definition)
+      | Some definition when definition.spec.context = Flow.Context.Sop
+          && network.context <> Flow.Context.Sop ->
+          Error (Printf.sprintf "instance #%d has incompatible context" id)
+      | Some definition when definition.spec.context = Flow.Context.Value
+          && not (Flow.Context.supports_values network.context) ->
+          Error (Printf.sprintf "instance #%d has incompatible context" id)
+      | Some definition ->
+          Flow_sop.Network.String_map.fold (fun name literal state ->
+            let* () = state in
+            match List.find_opt (fun (port : Flow_sop.Network.interface_port) ->
+              port.name = name) definition.spec.inputs with
+            | None -> Error (Printf.sprintf "instance #%d has unknown input %s" id name)
+            | Some port ->
+                if not (valid_literal port.ty literal) then
+                  Error (Printf.sprintf "instance #%d has invalid literal for %s" id name)
+                else Ok ()) instance.literals (Ok ())) network.graph.instances (Ok ()) in
+  let validate_ports name ports =
+    let names = List.map (fun (port : Flow_sop.Network.interface_port) -> port.name) ports in
+    if List.length names <> List.length (List.sort_uniq String.compare names) then
+      Error (name ^ " has duplicate interface ports")
+    else if not (List.for_all (fun (port : Flow_sop.Network.interface_port) ->
+      Flow.Symbol.valid_name port.name && String.trim port.label <> ""
+      && Option.fold ~none:true ~some:(fun (low, high) ->
+        Float.is_finite low && Float.is_finite high && low < high) port.soft
+      && Option.fold ~none:true ~some:(valid_literal port.ty) port.default) ports) then
+      Error (name ^ " has invalid interface metadata")
+    else
+      let rec ordered seen_value = function
+        | [] -> true
+        | (port : Flow_sop.Network.interface_port) :: rest ->
+            if port.ty = Flow.Port_type.Geometry then
+              not seen_value && port.default = None && ordered seen_value rest
+            else ordered true rest in
+      if ordered false ports then Ok ()
+      else Error (name ^ " places geometry after value ports") in
+  let* () = if compiled_ok then Ok () else Error "invalid compiled instance ids" in
   let* () = if value.scene.context = Flow.Context.Scene then Ok () else Error "scene has the wrong context" in
   let* () = validate_network "scene" value.scene in
+  let* () = validate_instances value.scene in
   let* () = List.fold_left (fun state (info : Edit_graph.node_info) ->
     let* () = state in
     match info.operation, Layout.mem info.id value.networks with
@@ -141,8 +243,39 @@ let validate value =
     | Some node ->
         let context = if Node.operation node = "world" then Flow.Context.World else Flow.Context.Sop in
         if network.context <> context then Error (Printf.sprintf "network #%d has the wrong context" id)
-        else validate_network (Printf.sprintf "network of object #%d" id) network)
+        else let* () = validate_network (Printf.sprintf "network of object #%d" id) network in
+          validate_instances network)
       value.networks (Ok ()) in
+  let* () = String_map.fold (fun name definition state ->
+    let* () = state in
+    if not (Flow.Symbol.valid_name name) || name <> definition.spec.name
+      || not (Flow.Context.supports_values definition.spec.context) then
+      Error ("invalid compound definition name " ^ name)
+    else
+      let network = {context = definition.spec.context; graph = definition.spec.body;
+        layout = definition.layout; displayed = definition.displayed} in
+      let* () = validate_ports ("definition " ^ name ^ " inputs")
+        definition.spec.inputs in
+      let* () = validate_ports ("definition " ^ name ^ " outputs")
+        definition.spec.outputs in
+      let* () = validate_network ("definition " ^ name) network in
+      validate_instances network) value.definitions (Ok ()) in
+  let module Names = Set.Make (String) in
+  let rec visit stack seen name =
+    if Names.mem name stack then Error ("E_RECURSIVE: Compound " ^ name ^ " contains itself")
+    else if Names.mem name seen then Ok seen else
+    match String_map.find_opt name value.definitions with
+    | None -> Error ("missing compound definition " ^ name)
+    | Some definition ->
+        let stack = Names.add name stack in
+        let* seen = Flow_sop.Network.Int_map.fold (fun _
+          (instance : Flow_sop.Network.instance) state ->
+          let* seen = state in visit stack seen instance.definition)
+          definition.spec.body.instances (Ok seen) in
+        Ok (Names.add name seen) in
+  let* _ = String_map.fold (fun name _ state ->
+    let* seen = state in visit Names.empty seen name)
+    value.definitions (Ok Names.empty) in
   if not (finite_fields (Settings.fields value.settings))
   then Error "settings contain nonfinite parameters"
   else match value.active_camera with
@@ -170,8 +303,8 @@ let copy_networks value mapping =
 
 (* Read-only views for tests and tools. *)
 let scene_graph value = value.scene.graph.geometry
-let object_network value id = Option.map (fun network ->
+let object_network value id = Option.map (fun (network : network) ->
     network.graph, network.displayed) (Layout.find_opt id value.networks)
-let positions value id = Option.map (fun network ->
+let positions value id = Option.map (fun (network : network) ->
     Layout.fold (fun node (x, y) list -> (node, x, y) :: list) network.layout.at [])
     (Layout.find_opt id value.networks)

@@ -1,15 +1,34 @@
 (** SOP geometry with an immutable value overlay. Layout remains in the
     editor document; value resolution never changes these literal records. *)
+module Int_map : Map.S with type key = int
+module String_map : Map.S with type key = string
+type interface_port = {
+  name : string;
+  ty : Flow.Port_type.t;
+  default : Param.value option;
+  label : string;
+  soft : (float * float) option;
+}
+type instance = { definition : string; literals : Param.value String_map.t }
 type t = private {
   geometry : Procedural.Edit_graph.t;
   values : Flow.Graph.t;
   drives : Drive.t Port.Map.t;
+  instances : instance Int_map.t;
+}
+and definition = {
+  name : string;
+  context : Flow.Context.t;
+  inputs : interface_port list;
+  outputs : interface_port list;
+  body : t;
 }
 type fragment
 
 val of_geometry : Procedural.Edit_graph.t -> t
 val of_parts :
   geometry:Procedural.Edit_graph.t -> values:Flow.Graph.t -> drives:Drive.t Port.Map.t ->
+  instances:instance Int_map.t ->
   (t, Flow.Diagnostic.t) result
 val validate : t -> (unit, Flow.Diagnostic.t) result
 val parameters : t -> node_id:int -> (Port.parameter list, Flow.Diagnostic.t) result

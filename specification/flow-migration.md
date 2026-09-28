@@ -318,6 +318,14 @@ network with the same canvas, keys, views and text), then plan it here.
 
 ## Log
 
+- 2026-09-28 M5 identity/preset checkpoint: the Flow overlay carries instance
+  references, and the editor document owns shared definitions plus compiled
+  ids keyed by instance path. Preset v3 saves and reloads definitions,
+  interfaces, instance literals and compiled ids. Loading rejects unknown or
+  recursively referenced definitions, incompatible contexts, malformed
+  interface data, duplicate compiled ids and orphan paths. Grouping, editor
+  levels and flattening remain in progress.
+
 - 2026-09-28 M5 foundation: `Edit_graph.subgraph` retains selected SOP ids,
   internal connections and factory metadata while disconnecting edges from
   outside the selection. Focused tests cover the retained identity and cut

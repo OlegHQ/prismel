@@ -540,6 +540,8 @@ let initial_doc ~settings ~seed_scene code_graph =
   { Document.scene = Document.of_geometry ~context:Flow.Context.Scene scene (Some (Node.id geometry));
     networks = Document.Layout.singleton (Node.id geometry)
       (Document.of_geometry ~context:Flow.Context.Sop sop displayed);
+    definitions = Document.String_map.empty;
+    compiled_ids = Flow_sop.Instance_path.Map.empty;
     active_camera = None; settings },
   Node.id geometry
 
