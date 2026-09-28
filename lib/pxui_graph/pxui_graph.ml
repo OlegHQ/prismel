@@ -3304,16 +3304,37 @@ let update value ui frame =
       if value.find = None then Ui.dismiss_popup ui;
       value, changes
 
-let trunk document =
-  let infos = Edit_graph.inspect document in
+let trunk (network : Flow_sop.Network.t) =
+  let infos = Edit_graph.inspect network.geometry in
+  let value_nodes = Flow.Graph.inspect network.values in
   let consumed = Hashtbl.create 64 and inputs = Hashtbl.create 64 in
   List.iter (fun (info : Edit_graph.node_info) ->
-    Hashtbl.replace inputs info.id info.inputs;
-    Array.iter (Option.iter (fun id -> Hashtbl.replace consumed id ())) info.inputs)
+    Hashtbl.replace inputs info.id (Array.to_list info.inputs))
     infos;
+  List.iter (fun (node : Flow.Graph.node) ->
+    Hashtbl.replace inputs node.id []) value_nodes;
+  let ids = List.map (fun (info : Edit_graph.node_info) -> info.id) infos
+    @ List.map (fun (node : Flow.Graph.node) -> node.id) value_nodes in
+  List.iter (fun id ->
+    let dependencies = Option.value ~default:[] (Hashtbl.find_opt inputs id) in
+    let driven = match Flow_sop.Network.parameters network ~node_id:id with
+      | Error _ -> []
+      | Ok parameters -> List.concat_map (fun parameter ->
+          let paths = parameter.Flow_sop.Port.path ::
+            List.map (fun component -> component.Flow_sop.Port.path)
+              (Flow_sop.Port.components parameter) in
+          List.filter_map (fun path ->
+            match Flow_sop.Port.Map.find_opt Flow_sop.Port.{node = id; path}
+                network.drives with
+            | Some (Flow_sop.Drive.Wire source) -> Some source.node
+            | _ -> None) paths) parameters in
+    let dependencies = dependencies @ List.map Option.some driven in
+    Hashtbl.replace inputs id dependencies;
+    List.iter (Option.iter (fun source -> Hashtbl.replace consumed source ()))
+      dependencies) ids;
   let emitted = Hashtbl.create 64 and rows = ref [] in
   let first id = match Hashtbl.find_opt inputs id with
-    | Some slots when Array.length slots > 0 -> slots.(0) | _ -> None in
+    | Some slots -> List.find_map Fun.id slots | None -> None in
   let rec emit_trunk id depth =
     (* The chain up the first inputs, stopping at a node already listed. *)
     let rec chain id acc =
@@ -3326,13 +3347,16 @@ let trunk document =
     List.iter (fun id ->
       Hashtbl.replace emitted id ();
       rows := (id, depth, false) :: !rows;
-      Array.iteri (fun index slot -> match slot with
-        | Some side when index > 0 && Hashtbl.mem inputs side ->
-            if Hashtbl.mem emitted side then rows := (side, depth + 1, true) :: !rows
+      let primary_seen = ref false in
+      List.iter (function
+        | Some side when Hashtbl.mem inputs side ->
+            if not !primary_seen then primary_seen := true
+            else if Hashtbl.mem emitted side then
+              rows := (side, depth + 1, true) :: !rows
             else emit_trunk side (depth + 1)
-        | _ -> ()) (Option.value ~default:[||] (Hashtbl.find_opt inputs id))) nodes in
-  List.iter (fun (info : Edit_graph.node_info) ->
-    if not (Hashtbl.mem consumed info.id) then emit_trunk info.id 0) infos;
+        | _ -> ()) (Option.value ~default:[] (Hashtbl.find_opt inputs id))) nodes in
+  List.iter (fun id ->
+    if not (Hashtbl.mem consumed id) then emit_trunk id 0) ids;
   Array.of_list (List.rev !rows)
 
 module Private = struct

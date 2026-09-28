@@ -164,7 +164,7 @@ val place_nodes : (int * float * float) list -> t -> t
 
 val node_views : t -> node_view list
 
-val trunk : Procedural.Edit_graph.t -> (int * int * bool) array
+val trunk : Flow_sop.Network.t -> (int * int * bool) array
 (** The network as list rows [(id, depth, link)], sources first: rows follow
     each node's first input, other inputs nest one level under the node that
     consumes them, and a node reached twice repeats as a [link] row. *)

@@ -231,6 +231,8 @@ let run_value_wires () =
       ~source:{Flow_sop.Port.node = time_id; path = "t"}
       ~target:{Flow_sop.Port.node = box_id; path = "uniform_scale"} network
     |> Result.get_ok in
+  check (Pxui_graph.trunk connected = [|time_id, 0, false; box_id, 0, false|])
+    "list trunk did not include the value source before its SOP consumer";
   let wired = Pxui_graph.with_document connected canvas in
   check ((Pxui_graph.stats wired).wires = 1)
     "typed wire was not indexed with geometry wires";

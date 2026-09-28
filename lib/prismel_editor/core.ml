@@ -69,7 +69,7 @@ type 'prepared t = {
   projections : projection Level_map.t;
   map_view : bool;  (* in the World, the view pane shows the lat-long map *)
   live_cook : bool;  (* cook while a drag holds the pointer *)
-  rows : (Edit_graph.t * int * Editor_core.Network_layout.t
+  rows : (Flow_sop.Network.t * int * Editor_core.Network_layout.t
           * (Pxui_shell.Tree.row array * string list)) option;
   (* the list's rows, cached by network, display node, and tile layout *)
   factories : Edit_graph.factory list;  (* the SOP catalog *)
@@ -305,6 +305,8 @@ let badge operation =
   | "geometry" -> "G", hex "#3f7a52" | "light" -> "L", hex "#b07a1c"
   | "camera" -> "C", hex "#5a4f86" | "world" -> "W", hex "#285f77"
   | "sun" -> "✦", hex "#b07a1c"
+  | "time" | "value" | "math" | "combine_xyz" | "separate_xyz" | "remap" ->
+      "V", hex "#70589a"
   | "gradient" | "sky" | "shape" | "scatter" | "room" -> "·", hex "#6d8a95"
   | _ -> "S", hex "#566463"
 
@@ -331,26 +333,58 @@ let scene_rows ?active document graph_view =
     :: List.concat_map (emit (depth + 1)) (sorted (Some info.id)) in
   Array.of_list (List.concat_map (emit 0) (sorted None))
 
-let trunk_rows document ~flags =
+let trunk_rows (network : Flow_sop.Network.t) ~viewed ~flags =
   Array.map (fun (id, depth, link) ->
-    let node = Edit_graph.find document ~node_id:id in
+    let geometry = Edit_graph.find network.Flow_sop.Network.geometry ~node_id:id in
+    let value = Flow.Graph.find network.values ~node_id:id in
+    let label = match geometry, value with
+      | Some node, _ -> Node.label node
+      | None, Some node -> node.label
+      | None, None -> "" in
+    let operation = match geometry, value with
+      | Some node, _ -> Node.operation node
+      | None, Some node -> Flow.Value_kind.key (Flow.Value_kind.kind node.parameters)
+      | None, None -> "" in
+    let driven, set = match Flow_sop.Network.parameters network ~node_id:id with
+      | Error _ -> 0, 0
+      | Ok parameters -> List.fold_left (fun (driven, set) parameter ->
+          let port path = Flow_sop.Port.{node = id; path} in
+          let wired path = Flow_sop.Port.Map.mem (port path) network.drives in
+          let component_paths = List.map (fun component ->
+            component.Flow_sop.Port.path) (Flow_sop.Port.components parameter) in
+          let is_driven = wired parameter.path || List.exists wired component_paths in
+          let overridden = List.exists (fun (field : Parameter.field_view) ->
+            let path = match field.vec3 with
+              | Some (_, index) ->
+                  parameter.path ^ "." ^ [|"x"; "y"; "z"|].(index)
+              | None -> parameter.path in
+            field.current <> field.default && not (wired parameter.path || wired path))
+            parameter.fields in
+          driven + Bool.to_int is_driven, set + Bool.to_int overridden)
+          (0, 0) parameters in
+    let details = [operation] @
+      (if driven > 0 then [Printf.sprintf "%d driven" driven] else []) @
+      (if set > 0 then [Printf.sprintf "%d set" set] else []) @
+      (if viewed = id then ["VIEW"] else []) @
+      (if Edit_graph.is_bypassed network.geometry ~node_id:id then ["M"] else []) in
     { Pxui_shell.Tree.id; depth; link; ghost = false;
-      label = Option.fold ~none:"" ~some:Node.label node;
-      detail = Option.fold ~none:"" ~some:Node.operation node;
-      badge = badge (Option.fold ~none:"" ~some:Node.operation node);
-      flags = Option.fold ~none:[] ~some:(flags id) node })
-    (Pxui_graph.trunk document)
+      label; detail = String.concat " · " details;
+      badge = badge operation; flags = flags id geometry })
+    (Pxui_graph.trunk network)
 
-let rows value document graph_view = match value.level with
-  | Document.Scene -> scene_rows ?active:value.doc.active_camera document graph_view,
+let rows value (network : Flow_sop.Network.t) graph_view = match value.level with
+  | Document.Scene -> scene_rows ?active:value.doc.active_camera network.Flow_sop.Network.geometry graph_view,
       ["vis"; "rnd"]
-  | Compound _ -> trunk_rows document ~flags:(fun _ _ -> []), []
+  | Compound _ -> trunk_rows network ~viewed:(-1) ~flags:(fun _ _ -> []), []
   | Inside id when kind value id = Some "geometry" ->
-      trunk_rows document ~flags:(fun node_id _ ->
-        [node_id = Pxui_graph.viewed graph_view]), ["disp"]
+      trunk_rows network ~viewed:(Pxui_graph.viewed graph_view) ~flags:(fun node_id node ->
+        match node with Some _ -> [node_id = Pxui_graph.viewed graph_view]
+        | None -> []), ["disp"]
   | Inside _ ->
-      trunk_rows document ~flags:(fun _ node ->
-        if Objects.has_flag "visible" node then [Objects.flag "visible" node] else []),
+      trunk_rows network ~viewed:(-1) ~flags:(fun _ node ->
+        match node with
+        | Some node when Objects.has_flag "visible" node -> [Objects.flag "visible" node]
+        | _ -> []),
       ["vis"]
 
 (* Rewire [ids] under [parent] (None: the scene root), keeping each one's
@@ -965,13 +999,14 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
         graph_view, changes @ emitted
     | _ -> graph_view, changes) (graph_view, []) actions in
   let document = document value in
+  let open_network = (network value).graph in
   let listing = projection value = List_view in
   let rows_cache = match value.rows with
-    | Some (source, viewed, layout, rows) when listing && source == document
+    | Some (source, viewed, layout, rows) when listing && source == open_network
         && viewed = Pxui_graph.viewed graph_view && layout == (network value).layout ->
         Some (source, viewed, layout, rows)
-    | _ when listing -> Some (document, Pxui_graph.viewed graph_view, (network value).layout,
-        rows value document graph_view)
+    | _ when listing -> Some (open_network, Pxui_graph.viewed graph_view, (network value).layout,
+        rows value open_network graph_view)
     | _ -> None in
   let rows, columns = match rows_cache with
     | Some (_, _, _, rows) -> rows | None -> [||], [] in

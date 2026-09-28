@@ -318,6 +318,12 @@ network with the same canvas, keys, views and text), then plan it here.
 
 ## Log
 
+- 2026-09-28 M6 list checkpoint: the existing tree now traverses the full
+  `Flow_sop.Network`, placing value nodes before consumers along incoming
+  drive edges and repeating shared sources as links. Rows show grouped
+  driven/overridden counts plus `VIEW` and mute badges; unchanged networks
+  reuse the cached rows. The text projection and checker still follow.
+
 - 2026-09-28 M6 diagnostics checkpoint: language errors and warnings now carry
   severity, a 1-based source position and a byte span; runtime errors can
   omit source coordinates. Reader errors report the offending token or opener.
