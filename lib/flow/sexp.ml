@@ -1,4 +1,4 @@
-type position = { line : int; col : int }
+type position = Diagnostic.position
 type atom = Symbol of string | Keyword of string | Number of string | String of string
 type t = { node : node; span : Diagnostic.span; position : position }
 and node = Atom of atom | List of t list | Vector of t list | Meta of string * t
@@ -6,7 +6,7 @@ and node = Atom of atom | List of t list | Vector of t list | Meta of string * t
 type kind = Open of char | Close of char | Meta_name of string | Word of atom | End
 type token = { kind : kind; span : Diagnostic.span; position : position }
 
-let position_of_offset source offset =
+let position_of_offset source offset : position =
   let line = ref 1 and col = ref 1 in
   for i = 0 to min (String.length source) offset - 1 do
     if source.[i] = '\n' then (incr line; col := 1) else incr col
@@ -28,14 +28,16 @@ let number text =
 let tokenize source =
   let length = String.length source in
   let offset = ref 0 and line = ref 1 and col = ref 1 in
-  let position () = {line = !line; col = !col} in
+  let position () : position = {line = !line; col = !col} in
   let advance () =
     if source.[!offset] = '\n' then (incr line; col := 1) else incr col;
     incr offset in
   let token kind start position =
     {kind; span = {Diagnostic.start; finish = !offset}; position} in
   let error start code message = Error (Diagnostic.error
-    ~span:{start; finish = !offset} ~code message) in
+    ~span:{start; finish = !offset}
+    ~position:(position_of_offset source start)
+    ~code message) in
   let separator = function
     | ' ' | '\t' | '\r' | '\n' | '(' | ')' | '[' | ']' | ';' | '"' -> true
     | _ -> false in
@@ -102,7 +104,8 @@ let parse source =
   let take () = let token = peek () in
     (match token.kind with End -> () | _ -> incr index); token in
   let diagnostic token code message = Error
-    (Diagnostic.error ~span:token.span ~code message) in
+    (Diagnostic.error ~span:token.span ~position:token.position
+      ~code message) in
   let rec form () =
     let token = take () in
     match token.kind with
@@ -119,7 +122,7 @@ let parse source =
                position = token.position})
     | Close mark -> diagnostic token "E_UNEXPECTED"
         (Printf.sprintf "Unexpected %C" mark)
-    | End -> diagnostic token "E_UNEXPECTED" "Expected a form" 
+    | End -> diagnostic token "E_UNEXPECTED" "Expected a form"
   and group opening mark reversed =
     let closing = if mark = '(' then ')' else ']' in
     let token = peek () in
@@ -142,4 +145,5 @@ let parse source =
     | End -> Ok (List.rev reversed)
     | _ -> let* item = form () in all (item :: reversed) in
   try all [] with Stack_overflow -> Error (Diagnostic.error
-    ~code:"E_DEPTH" "S-expression nesting exceeds the stack capacity")
+    ~position:Diagnostic.{line = 1; col = 1} ~code:"E_DEPTH"
+    "S-expression nesting exceeds the stack capacity")

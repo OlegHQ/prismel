@@ -318,6 +318,10 @@ network with the same canvas, keys, views and text), then plan it here.
 
 ## Log
 
+- 2026-09-28 M6 diagnostics checkpoint: language errors and warnings now carry
+  severity, a 1-based source position and a byte span; runtime errors can
+  omit source coordinates. Reader errors report the offending token or opener.
+
 - 2026-09-28 M6 reader checkpoint: `Flow.Sexp` reads the specified forms with
   byte spans and 1-based line/column positions, including comments, quoted
   strings, keywords, vectors and metadata. It reports mismatched/unclosed

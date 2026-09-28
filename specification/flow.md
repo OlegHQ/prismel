@@ -876,7 +876,10 @@ of layout:
 
 ### 11.9 Diagnostics
 
-`Flow.Diagnostic.t = { code; severity; position : { line; col }; message }`.
+`Flow.Diagnostic.t = { code; severity; position : { line; col } option;
+message; span }`. Source-language diagnostics have a 1-based position and a
+half-open byte span. Runtime diagnostics without source text leave position
+and span absent.
 Messages are sentences that name the fix; the prototype's wording is the
 reference.
 
@@ -1127,6 +1130,10 @@ existing value encoding.
 unlike a value input that can fall back to a literal. Geometry unexport is
 therefore allowed only after body and instance wires are disconnected; the
 displayed output also counts as a use.
+
+2026-09-28: `Flow.Diagnostic` also serves runtime and expression errors, so
+its source position is optional. Language-reader and checker diagnostics always
+populate it; byte spans remain for PPX source mapping.
 
 2026-09-27: the requested full migration has no backward compatibility;
 version 3 replaces the v1/v2 readers and preserves saved node ids.
