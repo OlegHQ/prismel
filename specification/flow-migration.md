@@ -320,6 +320,14 @@ network with the same canvas, keys, views and text), then plan it here.
 
 ## Log
 
+- 2026-09-28 M7 PPX checkpoint: `-flow-manifest` loads the checked-in snapshot;
+  `[%flow {|…|}]` checks the source at compile time and emits plain typed Flow
+  terms for `Build.program`. Error spans map into the quoted OCaml string,
+  with additional diagnostics as located sub-errors; warnings use the OCaml
+  preprocessor warning. A Dune fixture compiles and runs the expansion, and a
+  diagnostic fixture checks source offsets. File-local node discovery, the
+  editor entry point, and the broader diagnostic matrix remain.
+
 - 2026-09-28 M7 builder checkpoint: `Flow.Check.catalog_of_manifest` reads the
   generated snapshot for compile-time checking. `Flow_sop.Program` and
   `Build.program` reconstruct checked SOP/value nodes, parameter drives and

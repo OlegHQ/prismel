@@ -9,3 +9,18 @@
  (name test_sop_metadata)
  (modules test_sop_metadata)
  (libraries ppx_prismel ppxlib))
+
+(test
+ (name test_flow_ppx)
+ (modules test_flow_ppx)
+ (libraries flow_sop sop_catalog flow)
+ (preprocess
+  (pps prismel.ppx -- -flow-manifest lib/sop_catalog/flow_manifest.sexp))
+ (preprocessor_deps ../../lib/sop_catalog/flow_manifest.sexp))
+
+(test
+ (name test_flow_diagnostics)
+ (modules test_flow_diagnostics)
+ (libraries ppx_prismel ppxlib)
+ (deps ../../lib/sop_catalog/flow_manifest.sexp)
+ (action (run %{test} %{dep:../../lib/sop_catalog/flow_manifest.sexp})))

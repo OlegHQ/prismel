@@ -502,7 +502,163 @@ let node_attributes = List.map (fun attribute -> Attribute.T attribute)
     [node_key_attribute; node_operation_attribute; node_label_attribute;
      node_inputs_attribute; node_optional_attribute; node_slots_attribute]
 
+let flow_manifest_path = ref None
+
+let flow_position ~start source offset =
+  let relative = Flow.Sexp.position_of_offset source offset in
+  let pos_cnum = start.Lexing.pos_cnum + offset in
+  let pos_lnum = start.pos_lnum + relative.line - 1 in
+  let pos_bol = if relative.line = 1 then start.pos_bol
+    else pos_cnum - relative.col + 1 in
+  {start with Lexing.pos_cnum; pos_lnum; pos_bol}
+
+let flow_location ~start source (diagnostic : Flow.Diagnostic.t) =
+  let first, last = match diagnostic.span with
+    | Some span -> span.start, span.finish | None -> 0, 0 in
+  {Location.loc_start = flow_position ~start source first;
+   loc_end = flow_position ~start source last; loc_ghost = false}
+
+let flow_construct ~loc path = function
+  | None -> pexp_construct ~loc (located_path ~loc path) None
+  | Some argument -> pexp_construct ~loc (located_path ~loc path) (Some argument)
+let flow_pair ~loc a b = pexp_tuple ~loc [a; b]
+let flow_record ~loc path fields =
+  pexp_constraint ~loc
+    (pexp_record ~loc (List.map (fun (name, value) ->
+      located_lident ~loc name, value) fields) None)
+    (ptyp_constr ~loc (located_path ~loc path) [])
+let flow_option ~loc f = function
+  | None -> flow_construct ~loc ["None"] None
+  | Some value -> flow_construct ~loc ["Some"] (Some (f value))
+let flow_type ~loc = function
+  | ty ->
+      let name = match ty with
+        | Flow.Port_type.Geometry -> "Geometry" | Float -> "Float"
+        | Int -> "Int" | Bool -> "Bool" | Vec3 -> "Vec3" in
+      flow_construct ~loc ["Flow"; "Port_type"; name] None
+let flow_context ~loc = function
+  | Flow.Context.Sop -> flow_construct ~loc ["Flow"; "Context"; "Sop"] None
+  | Value -> flow_construct ~loc ["Flow"; "Context"; "Value"] None
+  | Scene -> flow_construct ~loc ["Flow"; "Context"; "Scene"] None
+  | World -> flow_construct ~loc ["Flow"; "Context"; "World"] None
+let flow_literal ~loc = function
+  | Param.Bool_value value -> flow_construct ~loc ["Param"; "Bool_value"]
+      (Some (ebool ~loc value))
+  | Int_value value -> flow_construct ~loc ["Param"; "Int_value"]
+      (Some (eint ~loc value))
+  | Float_value value -> flow_construct ~loc ["Param"; "Float_value"]
+      (Some (efloat ~loc (Flow.Expr.sexp_number value)))
+  | Text_value value -> flow_construct ~loc ["Param"; "Text_value"]
+      (Some (estring ~loc value))
+  | Choice_value value -> flow_construct ~loc ["Param"; "Choice_value"]
+      (Some (estring ~loc value))
+
+let rec flow_term ~loc (term : Flow.Check.term) =
+  let list = elist ~loc in
+  let node = match term.node with
+    | Literal literal -> flow_construct ~loc ["Flow"; "Check"; "Literal"]
+        (Some (flow_literal ~loc literal))
+    | Nil -> flow_construct ~loc ["Flow"; "Check"; "Nil"] None
+    | Vector terms -> flow_construct ~loc ["Flow"; "Check"; "Vector"]
+        (Some (list (List.map (flow_term ~loc) terms)))
+    | Expression expression ->
+        let parsed = apply ~loc (ident ~loc ["Flow"; "Expr"; "parse_sexp"])
+          [Nolabel, estring ~loc (Flow.Expr.sexp expression)] in
+        let expression = apply ~loc (ident ~loc ["Result"; "get_ok"])
+          [Nolabel, parsed] in
+        flow_construct ~loc ["Flow"; "Check"; "Expression"]
+          (Some expression)
+    | Reference (name, path) ->
+        flow_construct ~loc ["Flow"; "Check"; "Reference"]
+          (Some (flow_pair ~loc (estring ~loc name) (estring ~loc path)))
+    | Call call ->
+        let call = flow_record ~loc ["Flow"; "Check"; "call"] [
+          "kind", estring ~loc call.kind;
+          "arguments", list (List.map (fun (name, term) ->
+            flow_pair ~loc (estring ~loc name) (flow_term ~loc term))
+            call.arguments);
+          "bypass", ebool ~loc call.bypass] in
+        flow_construct ~loc ["Flow"; "Check"; "Call"] (Some call) in
+  flow_record ~loc ["Flow"; "Check"; "term"] [
+    "node", node;
+    "ty", flow_option ~loc (flow_type ~loc) term.ty]
+
+let flow_ports ~loc ports = elist ~loc (List.map (fun (name, ty) ->
+  flow_pair ~loc (estring ~loc name) (flow_type ~loc ty)) ports)
+let flow_graph ~loc (graph : Flow.Check.graph) =
+  flow_record ~loc ["Flow"; "Check"; "graph"] [
+    "name", estring ~loc graph.name;
+    "context", flow_context ~loc graph.context;
+    "bindings", elist ~loc (List.map (fun (binding : Flow.Check.binding) ->
+      flow_record ~loc ["Flow"; "Check"; "binding"] [
+        "name", estring ~loc binding.name;
+        "term", flow_term ~loc binding.term;
+        "outputs", flow_ports ~loc binding.outputs]) graph.bindings);
+    "results", elist ~loc (List.map (flow_term ~loc) graph.results)]
+let flow_program ~loc (program : Flow.Check.program) =
+  flow_record ~loc ["Flow"; "Check"; "program"] [
+    "graph", flow_graph ~loc program.graph;
+    "definitions", elist ~loc (List.map (fun (definition : Flow.Check.definition) ->
+      flow_record ~loc ["Flow"; "Check"; "definition"] [
+        "graph", flow_graph ~loc definition.graph;
+        "inputs", elist ~loc (List.map (fun (name, ty, default) ->
+          pexp_tuple ~loc [estring ~loc name; flow_type ~loc ty;
+            flow_option ~loc (flow_term ~loc) default]) definition.inputs);
+        "outputs", flow_ports ~loc definition.outputs]) program.definitions)]
+
+let expand_flow ~loc payload =
+  let source, start = match payload.pexp_desc with
+    | Pexp_constant (Pconst_string (source, _, Some delimiter)) ->
+        let start = payload.pexp_loc.loc_start in
+        source, {start with pos_cnum = start.pos_cnum + 2 + String.length delimiter}
+    | _ -> Location.raise_errorf ~loc:payload.pexp_loc
+        "flow expects a quoted string such as {| (graph demo ...) |}" in
+  let manifest_path = match !flow_manifest_path with
+    | Some path -> path
+    | None -> Location.raise_errorf ~loc
+        "flow needs -flow-manifest <path> in the dune pps flags" in
+  let manifest = try In_channel.with_open_text manifest_path In_channel.input_all
+    with Sys_error message -> Location.raise_errorf ~loc
+      "cannot read Flow manifest %s: %s" manifest_path message in
+  let catalog, digest = match Flow.Check.catalog_of_manifest manifest with
+    | Ok result -> result
+    | Error diagnostic -> Location.raise_errorf ~loc
+        "invalid Flow manifest %s: %s" manifest_path
+        (Flow.Diagnostic.to_string diagnostic) in
+  let program, diagnostics = Flow.Check.check catalog source in
+  List.iter (fun (diagnostic : Flow.Diagnostic.t) ->
+    if diagnostic.severity = Warning then
+      Ocaml_common.Location.prerr_warning
+        (flow_location ~start source diagnostic)
+        (Ocaml_common.Warnings.Preprocessor
+          (diagnostic.code ^ ": " ^ diagnostic.message)))
+    diagnostics;
+  let errors = List.filter (fun (diagnostic : Flow.Diagnostic.t) ->
+    diagnostic.severity = Error) diagnostics in
+  (match errors with
+   | first :: rest ->
+       let primary = flow_location ~start source first in
+       let sub = List.map (fun diagnostic ->
+         flow_location ~start source diagnostic,
+         diagnostic.code ^ ": " ^ diagnostic.message) rest in
+       let error = Location.Error.make ~loc:primary
+         (first.code ^ ": " ^ first.message) ~sub in
+       pexp_extension ~loc (Location.Error.to_extension error)
+   | [] ->
+       let program = Option.get program in
+       apply ~loc (ident ~loc ["Flow_sop"; "Build"; "program"])
+         [Labelled "factories", ident ~loc ["Sop_catalog"; "Editor"; "factories"];
+          Labelled "manifest_digest", estring ~loc digest;
+          Nolabel, flow_program ~loc program])
+
+let flow_extension = Extension.declare "flow" Extension.Context.expression
+    Ast_pattern.(single_expr_payload __)
+    (fun ~loc ~path:_ payload -> expand_flow ~loc payload)
+
 let () =
+  Driver.add_arg "-flow-manifest"
+    (Arg.String (fun path -> flow_manifest_path := Some path))
+    ~doc:"Path to the generated Flow SOP catalog manifest";
   let structure = Deriving.Generator.V2.make_noarg ~attributes generate_impl
   and signature = Deriving.Generator.V2.make_noarg ~attributes generate_intf in
   Deriving.add "sop_params" ~str_type_decl:structure ~sig_type_decl:signature
@@ -510,4 +666,6 @@ let () =
   let node_structure = Deriving.Generator.V2.make_noarg
       ~attributes:node_attributes generate_node_impl in
   Deriving.add "sop_node" ~str_type_decl:node_structure |> Deriving.ignore;
-  Driver.register_transformation "sop_manifest" ~impl:manifest
+  Driver.register_transformation "sop_manifest" ~impl:manifest;
+  Driver.register_transformation "flow"
+    ~rules:[Context_free.Rule.extension flow_extension]
