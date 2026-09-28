@@ -36,6 +36,8 @@ let () =
   assert (program.graph.name = "demo"
     && List.map (fun (binding : Check.binding) -> binding.name)
       program.graph.bindings = ["cube"; "moved"]);
+  let empty = valid "(graph empty :context sop nil)" in
+  assert (empty.graph.results = [Check.{node = Nil; ty = None}]);
   let program = valid "(defgraph lift :context sop [(input :geometry)]\n  (transform input))\n(graph demo (let* [b (box) a (user/lift b)] a))" in
   assert (List.length program.definitions = 1);
   let named = valid "(defgraph split [(input :geometry)]

@@ -835,7 +835,8 @@ only `value/` and `value` definitions. `scene`, `world` and `shader` are
   expression, a `value` node is created with that literal or expression.
   The node's label is the binding name.
 - `^:bypass` mutes the node. Other metadata is `W_UNKNOWN_META`.
-- A `graph` result must be a geometry reference; it becomes the display node.
+- A `graph` result is a geometry reference (the display node), or `nil` when
+  the network has no display node. Other result types are `E_RESULT_TYPE`.
 - A `defgraph` result is one expression or `(values …)`; each unnamed value
   becomes an interface output (`geo`, `geo2`… for geometry, `out`, `out2`…
   otherwise). `:name expr` entries give explicit interface output names, so
@@ -847,8 +848,10 @@ only `value/` and `value` definitions. `scene`, `world` and `shader` are
 
 ### 11.7 Canonical printing
 
-`Flow_sop.Print.network` prints a level deterministically and independently
-of layout:
+`Flow_sop.Print.network` takes the level's context, display selection,
+definitions and live `Flow.Check.catalog`. It returns canonical text and a
+node-id-to-binding-line map for the read-only text view, deterministically
+and independently of layout:
 
 - Header `(graph <name> :context sop` where the name is the sketch or network
   name; definitions print first as `defgraph` blocks, innermost first, each
@@ -863,7 +866,9 @@ of layout:
   later positional slot is connected); other connected slots as `:slot`;
   parameters in declaration order, only when driven or overridden; vec3 as
   `[x y z]` with per-component drives inline; expressions as s-expressions;
-  math nodes as `(op a b)`; `^:bypass` before muted nodes.
+  math nodes with a reference operand as `(op a b)`; literal-only Math nodes as
+  `value/math` calls so reading does not fold the node into an expression;
+  `^:bypass` before muted nodes.
 - Layout: `let*` with bindings aligned in one column (two-space indent, `(let* [`
   then 9-space continuation), result on its own line, closing parens on the
   last line.
@@ -1112,6 +1117,8 @@ content-addressed cache sharing between instances; macros.
 | Vec3 | metadata grouping of three float fields; no new `Param.value` case |
 | Compound Vec3 default | `Port.literal` stores the three components on one interface port; scalar defaults remain `Port.Scalar` |
 | Named `defgraph` results | `(values :name expr …)` preserves M5 output renames; unnamed results still receive `geo`/`out` names |
+| No display node | a graph result of `nil` preserves `display = None` |
+| Literal-only Math node | explicit `value/math` call preserves the node; operator syntax with no references lowers to an expression |
 | Primary rows without annotations | the first folder's fields |
 | Compound reuse | shared definitions with "make unique" |
 | Names in the language | stable keys and field names verbatim (`noise_displace`, `size_x`), `[a-z][a-z0-9_]*` |
@@ -1136,6 +1143,11 @@ existing value encoding.
 could only reconstruct `geo`/`out` names, so the `values` form now accepts
 `:name expr` entries. Canonical text writes explicit names whenever a
 definition has multiple outputs or a renamed single output.
+
+2026-09-28: saved editor networks can have no display node, and `Program.t`
+already models display as optional. A graph result of `nil` now represents
+that state. Literal-only Math nodes print as explicit `value/math` calls,
+because operator syntax with no references is intentionally an expression.
 
 2026-09-28: unexporting a connected geometry port would discard topology,
 unlike a value input that can fall back to a literal. Geometry unexport is

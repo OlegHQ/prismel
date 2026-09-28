@@ -318,6 +318,14 @@ network with the same canvas, keys, views and text), then plan it here.
 
 ## Log
 
+- 2026-09-28 M6 printer checkpoint: `Flow_sop.Print.network` emits canonical
+  text and binding-line mappings from the saved network without reading
+  layout. It orders SOP and value dependencies, preserves named compound
+  outputs, bypass, scalar and vector literals, drives, optional slots and
+  absent displays. A live factory adapter supplies the checker/printer
+  descriptor; every registered SOP factory prints and checks. Actual
+  network reconstruction and the full `read(print d)` law follow with Build.
+
 - 2026-09-28 M6 named-output decision: `defgraph` now accepts
   `(values :name expr …)` so M5 compound output renames survive text
   round trips. The checker and prototype recognize named results and reject

@@ -323,6 +323,10 @@ let run () =
      "attribute_interpolate";
      "promote_attributes"];
   let vector_groups = ref 0 in
+  let flow_catalog = match Flow_sop.Catalog.of_factories ~version:1
+      Sop_catalog.Editor.factories with
+    | Ok catalog -> catalog
+    | Error diagnostic -> fail (Flow.Diagnostic.to_string diagnostic) in
   List.iter (fun factory ->
     let slots = List.init (Edit_graph.factory_arity factory) (fun _ -> None) in
     match Edit_graph.instantiate_optional factory slots with
@@ -337,7 +341,24 @@ let run () =
         (Node.operation node = Edit_graph.factory_operation factory)
         (Printf.sprintf "registered SOP %s advertises operation %s but builds %s"
           (Edit_graph.factory_key factory)
-          (Edit_graph.factory_operation factory) (Node.operation node))
+          (Edit_graph.factory_operation factory) (Node.operation node));
+        let geometry = match Edit_graph.add_node ~factory
+            ~inputs:(Array.make (Edit_graph.factory_arity factory) None)
+            node Edit_graph.empty with
+          | Ok geometry -> geometry | Error message -> fail message in
+        let printed = match Flow_sop.Print.network ~name:"catalog_test"
+            ~context:Flow.Context.Sop ~catalog:flow_catalog
+            ~display:(Some (Node.id node))
+            ~definitions:Flow_sop.Network.String_map.empty
+            (Flow_sop.Network.of_geometry geometry) with
+          | Ok printed -> printed
+          | Error diagnostic -> fail (Flow.Diagnostic.to_string diagnostic) in
+        (match Flow.Check.check flow_catalog printed.text with
+         | Some _, diagnostics when List.for_all
+             (fun (diagnostic : Flow.Diagnostic.t) ->
+               diagnostic.severity = Flow.Diagnostic.Warning) diagnostics -> ()
+         | _, diagnostics -> fail (Edit_graph.factory_key factory ^ ": " ^
+             String.concat "; " (List.map Flow.Diagnostic.to_string diagnostics)))
     | Error message -> fail (Printf.sprintf
         "registered SOP %s could not be constructed: %s"
         (Edit_graph.factory_key factory) message))

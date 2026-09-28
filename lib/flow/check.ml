@@ -50,8 +50,6 @@ let short qualified = match String.split_on_char '/' qualified with
 let math_names = ["+", Expr.Add; "-", Expr.Sub; "*", Expr.Mul; "/", Expr.Div]
   @ List.filter (fun (name, _) ->
       not (List.mem name ["add"; "sub"; "mul"; "div"])) Expr.operators
-let reserved = ["t"; "pi"; "nil"; "true"; "false"; "let*"; "values";
-  "graph"; "defgraph"] @ List.map fst math_names
 
 let distance a b =
   let rows = Array.init (String.length b + 1) Fun.id in
@@ -513,7 +511,7 @@ let body state context env form ~definition =
              "Binding names match [a-z][a-z0-9_]*"
          | Some name ->
              let code = if name = "t" then Some "E_BINDING_T"
-               else if List.mem name reserved then Some "E_BINDING_NAME"
+               else if Symbol.reserved name then Some "E_BINDING_NAME"
                else if Names.mem name !env then Some "E_DUPLICATE_BINDING"
                else None in
              (match code with
@@ -572,7 +570,7 @@ let interface state form = match vector form with
              | Some name, Some ty_name ->
                  if name = "t" then error state name_form "E_BINDING_T"
                    "t is the context time; pick another interface name";
-                 if List.mem name reserved && name <> "t" then
+                 if Symbol.reserved name && name <> "t" then
                    error state name_form "E_BINDING_NAME"
                      (name ^ " is reserved; pick another interface name");
                  let ty = match ty_name with
@@ -666,6 +664,7 @@ let check catalog source = match Sexp.parse source with
                  let bindings, results = body state context Names.empty
                    body_form ~definition:false in
                    List.iter (fun (_, result) -> if result.ty <> Some Port_type.Geometry
+                     && result.node <> Nil
                      then error state body_form "E_RESULT_TYPE"
                        ("A " ^ Context.name context ^ " graph returns geometry")) results;
                    main := Some {name; context; bindings;
