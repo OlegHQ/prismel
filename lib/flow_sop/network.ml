@@ -62,6 +62,28 @@ let output_type network (port : Port.t) = match Flow.Graph.find network.values ~
       | Some _ -> error "E_PORT" ("No geometry output " ^ port.path)
       | None -> error "E_UNBOUND" (Printf.sprintf "No source node %d" port.node)
 
+let outputs ~definitions network ~node_id =
+  match Flow.Graph.find network.values ~node_id with
+  | Some node -> Ok (Flow.Graph.outputs node)
+  | None -> match Procedural.Edit_graph.find network.geometry ~node_id with
+      | None -> error "E_UNBOUND" (Printf.sprintf "No source node %d" node_id)
+      | Some node ->
+          if Procedural.Node.operation node = "flow_outputs" then Ok [] else
+          let interface = match Int_map.find_opt node_id network.instances with
+            | Some instance -> Some (instance.definition, `Outputs)
+            | None when Procedural.Node.operation node = "flow_inputs" ->
+                Some (Procedural.Node.parameters node, `Inputs)
+            | None -> None in
+          (match interface with
+           | None -> Ok ["geo", Flow.Port_type.Geometry]
+           | Some (name, role) ->
+               (match String_map.find_opt name definitions with
+                | None -> error "E_UNBOUND" ("Missing compound " ^ name)
+                | Some definition ->
+                    let ports = if role = `Inputs then definition.inputs
+                      else definition.outputs in
+                    Ok (List.map (fun (port : interface_port) -> port.name, port.ty) ports)))
+
 type visit = Enter of int | Leave of int
 let topological_values network =
   let nodes = Flow.Graph.inspect network.values in

@@ -25,6 +25,12 @@ let run () =
       && Keymap.label (Chord (Input.ArrowLeft, [])) = "←"
       && Keymap.label (Chord (Input.KeyChar 'z', [Input.Shift; Input.Meta])) = "Cmd-Shift-z")
     "shared key labels lost a modifier or alias";
+  let _, group_actions, _ = Editor_core.Router.step L.keymap
+    ~focus:Pxui_shell.Layout.Graph ~text_focus:false
+    ~frame:(Test_editor_input.frame (500., 400.)
+      [key Input.Meta; char 'g'] 1) Idle in
+  check (List.map (fun (c : _ Command.t) -> c.action) group_actions = [L.Group])
+    "compound group chord was not routed through the shared command table";
   let ids context = Command.for_guide Pxui_graph.bindings ~focus:() ~context
     |> List.map (fun (c : _ Command.t) -> c.id) in
   let walks = ["graph.walk.left"; "graph.walk.down"; "graph.walk.up"; "graph.walk.right"] in

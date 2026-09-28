@@ -66,6 +66,67 @@ let with_network value level network = match level with
   | Scene -> { value with scene = network }
   | Inside id -> { value with networks = Layout.add id network value.networks }
 
+let group value level ~selected ~positions =
+  let ( let* ) = Result.bind in
+  match network value level with
+  | None -> Error (Flow.Diagnostic.error ~code:"E_GROUP" "No network to group")
+  | Some network when network.context <> Flow.Context.Sop ->
+      Error (Flow.Diagnostic.error ~code:"E_GROUP" "Only SOP nodes can be grouped")
+  | Some network ->
+      let rec free index =
+        let name = "compound_" ^ string_of_int index in
+        if String_map.mem name value.definitions then free (index + 1) else name in
+      let name = free 1 in
+      let at = List.fold_left (fun at (id, x, y) ->
+        Layout.add id (Canvas.snap x, Canvas.snap y) at)
+        network.layout.at positions in
+      let original_layout = {network.layout with at} in
+      let network = {network with layout = original_layout} in
+      let* parent, spec, instance = Flow_sop.Group.geometry ~name ~selected
+        ~displayed:network.displayed ~definitions:(flow_definitions value)
+        network.graph in
+      let selected_set = Flow_sop.Network.Int_map.of_list
+        (List.map (fun id -> id, ()) selected) in
+      let inside id = Flow_sop.Network.Int_map.mem id selected_set in
+      let selected_positions = List.filter_map (fun id ->
+        Option.map (fun (x, y) -> x, y) (Layout.find_opt id at)) selected in
+      let min_x, min_y, max_x = match selected_positions with
+        | [] -> 0., 0., 0.
+        | (x, y) :: rest -> List.fold_left (fun (min_x, min_y, max_x) (x, y) ->
+            Float.min min_x x, Float.min min_y y, Float.max max_x x)
+            (x, y, x) rest in
+      let marker operation = List.find_opt
+        (fun (node : Edit_graph.node_info) -> node.operation = operation)
+        (Edit_graph.inspect spec.body.geometry)
+        |> Option.map (fun node -> node.Edit_graph.id) in
+      let inputs = Option.get (marker "flow_inputs")
+      and outputs = Option.get (marker "flow_outputs") in
+      let internal port =
+        let id, path = port in
+        inside id && match Flow_sop.Network.geometry_source network.graph
+          {node = id; path} with
+        | Some source -> inside source.node | None -> false in
+      let ports = Canvas.Port_map.fold (fun port _ ports ->
+        if internal port then Canvas.Port_set.add port ports else ports)
+        original_layout.bends original_layout.wireless
+        |> Canvas.Port_set.filter internal |> Canvas.Port_set.elements in
+      let body_layout = Canvas.edit ~nodes:selected ~ports
+        ~source:original_layout Canvas.empty in
+      let body_layout = {body_layout with at = body_layout.at
+        |> Layout.add inputs (Canvas.snap (min_x -. 240.), min_y)
+        |> Layout.add outputs (Canvas.snap (max_x +. 256.), min_y)} in
+      let parent_layout = Canvas.remove_nodes selected original_layout in
+      let parent_layout = {parent_layout with at =
+        Layout.add instance (min_x, min_y) parent_layout.at} in
+      let displayed = if Option.fold ~none:false ~some:inside network.displayed
+        then Some instance else network.displayed in
+      let network = {network with graph = parent; layout = parent_layout;
+        displayed} in
+      let definition = {spec; layout = body_layout; displayed = Some outputs} in
+      let next = with_network value level network in
+      let next = {next with definitions = String_map.add name definition next.definitions} in
+      Ok (next, instance)
+
 (* The display node, kept on a node that exists: a deleted display node
    falls back to the previous one, else the last node in the network. *)
 let displayed_of ?previous graph viewed =

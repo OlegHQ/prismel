@@ -87,7 +87,7 @@ let set_expression (document : Flow_sop.Network.t) target text =
 let apply factories (document, graph_view, error, effects, placed, pasted) = function
   | Pxui_graph.Connect_requested connection ->
       (match flow_result (Flow_sop.Network.connect_geometry
-          ~source:{node = connection.source; path = "geo"}
+          ~source:connection.source
           ~consumer:connection.consumer ~input_index:connection.input_index document) with
        | Error message -> document, graph_view, Some message, effects, placed, pasted
        | Ok document -> document, Pxui_graph.with_document document graph_view,

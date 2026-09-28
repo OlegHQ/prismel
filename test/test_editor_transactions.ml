@@ -123,5 +123,21 @@ let run () =
       step ~mouse:target ~keys:[Input.Alt] [Event.MouseReleased (Input.LeftButton, target)];
       check (snapshot () <> before_bend) "bend gesture did not change the saved layout";
       undo ();
-      check (snapshot () = before_bend) "bend add and drag did not undo in one gesture");
+      check (snapshot () = before_bend) "bend add and drag did not undo in one gesture";
+      let at = header (Node.id second) in
+      step ~mouse:at (click at); step [];
+      let before_group = snapshot () in
+      let before_draws = Atomic.get draws in
+      step ~keys:[Input.Meta] [Event.KeyPressed (Input.KeyChar 'g')];
+      check (snapshot () <> before_group
+        && List.exists (fun tile -> tile.Pxui_graph.operation = "flow_compound")
+          (E.graph_nodes !current))
+        "group command did not replace the selected tile with a compound";
+      wait_draw before_draws;
+      let grouped = snapshot () in
+      undo ();
+      check (snapshot () = before_group) "group was not one undo step";
+      step ~keys:[Input.Meta; Input.Shift]
+        [Event.KeyPressed (Input.KeyChar 'z')];
+      check (snapshot () = grouped) "redo changed the grouped definition or compiled ids");
     print_endline "editor transactions: stable selection/inspector target, undo agreement and graph-aware drawing reuse passed")

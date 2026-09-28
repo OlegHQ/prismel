@@ -61,7 +61,7 @@ type change =
   | Row_pinned of { node : int; path : string; pinned : bool }
   | Cut_wires_requested of Edit_graph.connection list
   | Connection_selected of Edit_graph.connection option
-  | Connect_requested of Edit_graph.connection
+  | Connect_requested of { source : Flow_sop.Port.t; consumer : int; input_index : int }
   | Disconnect_requested of Edit_graph.connection
   | Value_connect_requested of { source : Flow_sop.Port.t; target : Flow_sop.Port.t }
   | Value_bind_requested of { source : Flow_sop.Port.t; target : Flow_sop.Port.t }
@@ -134,6 +134,7 @@ type edge_kind = Geometry_edge of Edit_graph.connection
 type edge = {
   kind : edge_kind;
   port : int * string;
+  source_port : Flow_sop.Port.t;
   source_index : int;
   consumer_index : int;
 }
@@ -153,7 +154,7 @@ type menu = {
   ripple : (int * float * float) list;
 }
 
-type hint_target = Hint_port of Edit_graph.connection
+type hint_target = Hint_port of { source : Flow_sop.Port.t; consumer : int; input_index : int }
   | Hint_value of Flow_sop.Port.t * Flow_sop.Port.t
   | Hint_node of int
 type hints = { source : int; prefix : string; bind : bool;
@@ -248,6 +249,7 @@ type spatial_index = {
 type t = {
   source_graph : Graph.t option;
   document : Flow_sop.Network.t;
+  definitions : Flow_sop.Network.definition Flow_sop.Network.String_map.t;
   applied : Flow.Port_type.value Flow_sop.Port.Map.t;
   boxes : box array;
   edges : edge array;
@@ -373,12 +375,15 @@ let graph_value_output (box : box) position path =
       let x, y = position in x +. float box.width, y +. 36. +. 24. *. float index
   | _ -> graph_output box position
 
-let visible_outputs (box : box) = match box.info.value with
-  | None -> ["geo", Flow.Port_type.Geometry]
-  | Some node ->
-      (match box.level, Flow.Graph.outputs node with
-       | (Layout.Point | Chip), output :: _ -> [output]
-       | _, outputs -> outputs)
+let output_ports document definitions (info : node_info) = match info.value with
+  | Some node -> Flow.Graph.outputs node
+  | None -> Result.value ~default:[]
+      (Flow_sop.Network.outputs ~definitions document ~node_id:info.id)
+
+let visible_outputs document definitions (box : box) =
+  match box.level, output_ports document definitions box.info with
+  | (Layout.Point | Chip), output :: _ -> [output]
+  | _, outputs -> outputs
 
 let node_wires document id =
   Flow_sop.Port.Map.to_seq_from {Flow_sop.Port.node = id; path = ""}
@@ -422,7 +427,7 @@ let edge_polyline document boxes positions layout (edge : edge) =
   match edge.kind with
   | Geometry_edge connection ->
       polyline ~bottom:(consumer.level = Layout.Chip && connection.input_index > 0)
-        layout edge.port (graph_output source source_position)
+        layout edge.port (graph_value_output source source_position edge.source_port.path)
         (graph_input consumer consumer_position connection.input_index)
   | Value_edge (from, target) ->
       polyline ~bottom:(consumer.level = Layout.Chip) layout edge.port
@@ -534,7 +539,7 @@ let shown layout id first_folder (field : Parameter.field_view) =
   | Some pinned -> pinned
   | None -> field.current <> field.default || field.folder = first_folder
 
-let shape document layout zoom bloom (info : node_info) =
+let shape document definitions layout zoom bloom (info : node_info) =
   let requested = Option.value ~default:Layout.Card (Id_map.find_opt info.id layout.Layout.level) in
   let pinned = Option.value ~default:false (Id_map.find_opt info.id layout.Layout.pinned) in
   let level = if bloom = Some info.id then Layout.Full else
@@ -597,7 +602,10 @@ let shape document layout zoom bloom (info : node_info) =
           | Some node -> (match Flow.Graph.outputs node with
               | _ :: _ :: _ as outputs -> List.map (fun (name, ty) -> Output (name, ty)) outputs
               | _ -> [])
-          | None -> [] in
+          | None -> (match output_ports document definitions info with
+              | _ :: (_ :: _ as rest) ->
+                  List.map (fun (name, ty) -> Output (name, ty)) rest
+              | _ -> []) in
         let more = if level = Layout.Full then [More (-1)]
           else if hidden > 0 then [More hidden] else [] in
         Array.of_list (List.init (max 0 (Array.length info.inputs - 1))
@@ -605,7 +613,7 @@ let shape document layout zoom bloom (info : node_info) =
   level, rows, (if level = Layout.Point || level = Chip then 24
     else 30 + (24 * Array.length rows))
 
-let automatic_layout (document : Flow_sop.Network.t) layout zoom bloom =
+let automatic_layout (document : Flow_sop.Network.t) definitions layout zoom bloom =
   let infos = List.map geometry_info (Edit_graph.inspect document.geometry)
     @ List.map value_info (Flow.Graph.inspect document.values) in
   let count = List.length infos in
@@ -653,7 +661,7 @@ let automatic_layout (document : Flow_sop.Network.t) layout zoom bloom =
     let y = ref 0. in
     List.iter (fun info ->
       let tile_id = tile_text info in
-      let level, rows, height = shape document layout zoom bloom info in
+      let level, rows, height = shape document definitions layout zoom bloom info in
       boxes := { info; tile_id; depth;
         gx = Layout.snap (float_of_int (depth * (node_width + horizontal_gap)));
         gy = Layout.snap !y;
@@ -691,7 +699,9 @@ let build_edges (document : Flow_sop.Network.t) boxes =
           (match Hashtbl.find_opt by_id source with
            | None -> ()
            | Some source_index ->
-               reversed := { port = box.info.id, names.(input_index);
+               let port = {Flow_sop.Port.node = box.info.id; path = names.(input_index)} in
+               let source_port = Option.get (Flow_sop.Network.geometry_source document port) in
+               reversed := { port = box.info.id, names.(input_index); source_port;
                  kind = Geometry_edge { Edit_graph.source;
                    consumer = box.info.id; input_index };
                  source_index; consumer_index } :: !reversed))
@@ -703,6 +713,7 @@ let build_edges (document : Flow_sop.Network.t) boxes =
         (match Hashtbl.find_opt by_id node, Hashtbl.find_opt by_id target.node with
          | Some source_index, Some consumer_index ->
              reversed := {port = target.node, target.path;
+               source_port = {node; path = output};
                kind = Value_edge ({node; path = output}, target);
                source_index; consumer_index} :: !reversed
          | _ -> ())) document.drives;
@@ -731,7 +742,8 @@ let catalog_array catalog =
 
 let create_document ?(x = 0) ?(y = 0) ?(width = 640) ?(height = 360)
     ?(theme = Pxui.default_theme) ?selected ?(catalog = [])
-    ?(flaggable = fun _ -> false) ?(enterable = fun _ -> false) ?(namespace = "sop") document =
+    ?(flaggable = fun _ -> false) ?(enterable = fun _ -> false) ?(namespace = "sop")
+    ?(definitions = Flow_sop.Network.String_map.empty) document =
   if width <= 0 || height <= 0 then invalid_arg
       "Pxui_graph.create_document: width and height must be positive";
   let selected = match selected with
@@ -739,13 +751,13 @@ let create_document ?(x = 0) ?(y = 0) ?(width = 640) ?(height = 360)
         || Flow.Graph.find document.values ~node_id:id <> None -> Id_set.singleton id
     | _ -> Id_set.empty in
   let primary = if Id_set.is_empty selected then None else Some (Id_set.choose selected) in
-  let boxes = automatic_layout document Layout.empty 1. None in
+  let boxes = automatic_layout document definitions Layout.empty 1. None in
   let edges = build_edges document boxes in
   let slots = build_slots boxes in
   let viewed = match Edit_graph.root document.Flow_sop.Network.geometry with
     | Some id -> id
     | None -> Option.value ~default:0 primary in
-  { source_graph = None; document; applied = Flow_sop.Port.Map.empty;
+  { source_graph = None; document; definitions; applied = Flow_sop.Port.Map.empty;
     boxes; edges; slots;
     positions = Id_map.empty; moved_nodes = Id_set.empty;
     moved_cells = Cell_map.empty;
@@ -786,6 +798,7 @@ let node_exists document id =
    the spatial index, selection, and paint cache all stay valid. *)
 let same_topology (value : t) document infos =
   value.document.drives == document.Flow_sop.Network.drives
+  && value.document.geometry_outputs == document.geometry_outputs
   && List.compare_length_with infos (Array.length value.boxes) = 0
   && List.for_all (fun (info : node_info) ->
     match Hashtbl.find_opt value.slots info.id with
@@ -802,7 +815,7 @@ let with_document document value =
     List.iter (fun (info : node_info) ->
       let index = Hashtbl.find value.slots info.id in
       let tile_id = tile_text info in
-      let level, rows, height = shape document value.layout value.zoom value.bloom info in
+      let level, rows, height = shape document value.definitions value.layout value.zoom value.bloom info in
       boxes.(index) <- { (boxes.(index)) with info; tile_id; level; rows; height }) infos;
     let changed_size = Array.exists (fun (box : box) ->
       box.height <> value.boxes.(Hashtbl.find value.slots box.info.id).height) boxes in
@@ -821,7 +834,7 @@ let with_document document value =
       wireless = Layout.Port_set.filter
         (layout_port_exists document) layout.wireless } in
     let value = { value with layout } in
-    let boxes = automatic_layout document value.layout value.zoom value.bloom
+    let boxes = automatic_layout document value.definitions value.layout value.zoom value.bloom
         |> preserve_positions value.positions value.boxes in
     let edges = build_edges document boxes in
     let slots = build_slots boxes in
@@ -843,6 +856,19 @@ let with_document document value =
       spatial = build_spatial_index document boxes edges value.layout;
       selected; primary;
       selected_edge; selected_value_edge; viewed }
+
+let with_definitions definitions value =
+  if definitions == value.definitions then value else
+  let boxes = Array.map (fun (box : box) ->
+    let level, rows, height = shape value.document definitions value.layout
+      value.zoom value.bloom box.info in
+    let gx, gy = stored_box_position value.positions box in
+    {box with gx; gy; level; rows; height}) value.boxes in
+  let edges = build_edges value.document boxes in
+  {value with definitions; boxes; edges;
+    positions = Id_map.empty; moved_nodes = Id_set.empty;
+    moved_cells = Cell_map.empty;
+    spatial = build_spatial_index value.document boxes edges value.layout}
 
 let with_graph graph value = match value.source_graph with
   | Some current when current == graph -> value
@@ -918,7 +944,7 @@ let place_nodes placements value =
 
 let with_layout layout value =
   let boxes = Array.map (fun (box : box) ->
-    let level, rows, height = shape value.document layout value.zoom value.bloom box.info in
+    let level, rows, height = shape value.document value.definitions layout value.zoom value.bloom box.info in
     let gx, gy = Option.value (Id_map.find_opt box.info.id layout.Layout.at)
       ~default:(stored_box_position value.positions box) in
     { box with gx; gy; level; rows; height }) value.boxes in
@@ -934,7 +960,7 @@ let set_wireless ~target ~wireless value =
 
 let reshape value =
   let boxes = Array.map (fun (box : box) ->
-    let level, rows, height = shape value.document value.layout value.zoom value.bloom box.info in
+    let level, rows, height = shape value.document value.definitions value.layout value.zoom value.bloom box.info in
     let gx, gy = stored_box_position value.positions box in
     { box with gx; gy; level; rows; height }) value.boxes in
   { value with boxes; positions = Id_map.empty; moved_nodes = Id_set.empty;
@@ -2078,7 +2104,7 @@ let paint_node (value : t) paint (box : box) =
     List.iter (fun (path, ty) ->
       let px, py = graph_value_output box (gx, gy) path in
       socket (port_color ty) true (screen_x value px, screen_y value py))
-      (visible_outputs box);
+      (visible_outputs value.document value.definitions box);
     Array.iteri (fun i input -> socket palette.geometry (Option.is_some input)
       (input_port value box i))
       box.info.inputs;
@@ -2121,7 +2147,7 @@ let paint_node (value : t) paint (box : box) =
 (* ----------------------------------------------------------- interaction *)
 
 let optimize_layout (value : t) =
-  let boxes = automatic_layout value.document value.layout value.zoom value.bloom in
+  let boxes = automatic_layout value.document value.definitions value.layout value.zoom value.bloom in
   let edges = build_edges value.document boxes in
   { value with boxes; edges;
     positions = Id_map.empty; moved_nodes = Id_set.empty;
@@ -2266,15 +2292,12 @@ let label_hints targets =
 let hints_for ?node ?(bind = false) value source =
   let source_port = match Hashtbl.find_opt value.slots source with
     | None -> None
-    | Some index -> Option.map (fun (path, _) ->
-        {Flow_sop.Port.node = source; path})
-        (List.nth_opt (visible_outputs value.boxes.(index)) 0) in
+    | Some index -> Option.map (fun (path, ty) ->
+        {Flow_sop.Port.node = source; path}, ty)
+        (List.nth_opt (visible_outputs value.document value.definitions value.boxes.(index)) 0) in
   match source_port with
   | None -> []
-  | Some source_port ->
-  match Flow_sop.Network.output_type value.document source_port with
-  | Error _ -> []
-  | Ok source_type ->
+  | Some (source_port, source_type) ->
   let seen = ref Id_set.empty in
   let rec ancestors id = if not (Id_set.mem id !seen) then begin
     seen := Id_set.add id !seen;
@@ -2294,7 +2317,7 @@ let hints_for ?node ?(bind = false) value source =
     let geometry = if not bind && source_type = Flow.Port_type.Geometry
         && not (Id_set.mem box.info.id !seen) then
         Array.to_list (Array.mapi (fun input_index _ ->
-          Hint_port Edit_graph.{source; consumer = box.info.id; input_index})
+          Hint_port {source = source_port; consumer = box.info.id; input_index})
           box.info.inputs)
       else [] in
     let values = match Flow_sop.Network.parameters value.document
@@ -2328,7 +2351,8 @@ let hint_letter value letter = match value.hints with
   | Some hints ->
       let prefix = hints.prefix ^ String.make 1 letter in
       match List.assoc_opt prefix hints.targets with
-      | Some (Hint_port connection) -> { value with hints = None }, [Connect_requested connection]
+      | Some (Hint_port {source; consumer; input_index}) ->
+          { value with hints = None }, [Connect_requested {source; consumer; input_index}]
       | Some (Hint_value (source, target)) ->
           { value with hints = None },
           [if hints.bind then Value_bind_requested {source; target}
@@ -2714,7 +2738,7 @@ let update_canvas (value : t) ui (frame : Frame.t) =
           let gx, gy = box_graph_position value box in
           let ox, oy = graph_value_output box (gx, gy) path in
           source, socket ("output-" ^ path) (screen_x value ox, screen_y value oy))
-            (visible_outputs box) in
+            (visible_outputs value.document value.definitions box) in
         let parameters = Result.value ~default:[]
             (Flow_sop.Port.parameters box.info.fields) in
         let inputs = Array.to_list box.rows |> List.filter_map (fun row ->
@@ -2860,18 +2884,21 @@ let update_canvas (value : t) ui (frame : Frame.t) =
                           Flow.Port_type.can_connect ~source:source_type
                             ~target:target_type) parameter.ty) source_type
                       then Some target else None) parameters)) tiles in
+              let geometry_source = List.assoc_opt source.path
+                  (output_ports value.document value.definitions value.boxes.(index).info)
+                = Some Flow.Port_type.Geometry in
               let emitted = match target with
                 | Some target -> [Value_connect_requested {source; target}]
-                | None when source.path = "geo" ->
+                | None when geometry_source ->
                     (match hit_input value (ints signal.release_point) with
                      | Some (consumer_index, input_index) ->
                          let consumer = value.boxes.(consumer_index).info.id in
                          if consumer <> id then [Connect_requested
-                           { Edit_graph.source = id; consumer; input_index }]
+                           { source; consumer; input_index }]
                          else []
                      | None -> [])
                 | None -> [] in
-              let value = if emitted = [] && source.path <> "geo" && signal.dragging
+              let value = if emitted = [] && not geometry_source && signal.dragging
                   then open_value_menu value source (ints signal.release_point)
                 else value in
               value, List.rev_append emitted changes

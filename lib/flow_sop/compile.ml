@@ -149,7 +149,7 @@ let flatten ?(allocate = true) ~(definitions : Network.definition Network.String
                 (Network.Int_map.find id network.instances).definition definitions with
                | Some definition ->
                    (match geometry_ports definition.outputs with
-                    | [output] -> output.name | _ -> "geo")
+                    | output :: _ -> output.name | [] -> "geo")
                | None -> "geo") else "geo")) []) in
       Result.bind root (fun root ->
         let graph = match root with

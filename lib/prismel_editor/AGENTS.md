@@ -84,7 +84,10 @@ rules in this file are current. Planned changes that touch this directory:
   and inspector fields accept checked `=…` expressions; `r` clears a drive or
   restores the literal default. The ƒ row action folds unshared value chains
   into expressions and unfolds expressions into placed Math/Time nodes.
-- M5: compound levels under instances. M6: `Space l` cycles graph, list, text.
+- M5 is in progress: grouping SOP geometry creates shared definitions and
+  instances, retains moved ids, cooks through saved compiled ids, and records
+  one history step. Compound levels, value interfaces, ungroup and interface
+  editing remain. M6: `Space l` cycles graph, list, text.
 
 Keep the three-column workspace, `Doc.apply` as the only graph-intent reducer,
 the one Command table, and history labels; the rework extends them.

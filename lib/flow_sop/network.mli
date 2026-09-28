@@ -37,6 +37,8 @@ val validate : t -> (unit, Flow.Diagnostic.t) result
 val parameters : t -> node_id:int -> (Port.parameter list, Flow.Diagnostic.t) result
 val parameter : t -> Port.t -> (Port.parameter, Flow.Diagnostic.t) result
 val output_type : t -> Port.t -> (Flow.Port_type.t, Flow.Diagnostic.t) result
+val outputs : definitions:definition String_map.t -> t -> node_id:int ->
+  ((string * Flow.Port_type.t) list, Flow.Diagnostic.t) result
 val geometry_source : t -> Port.t -> Port.t option
 val topological_values : t -> (int list, Flow.Diagnostic.t) result
 

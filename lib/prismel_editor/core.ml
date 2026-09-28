@@ -216,6 +216,7 @@ let view_of value level (frame : Frame.t) =
   let network = Option.get (Document.network value.doc level) in
   let gx, gy, gw, gh = (Pxui_shell.Layout.geometry value.workspace frame).graph in
   Pxui_graph.create_document ~x:gx ~y:gy ~width:(max 1 gw) ~height:(max 1 gh)
+    ~definitions:(Document.flow_definitions value.doc)
     ~namespace:(match level with Document.Scene -> "scene"
       | Inside id when kind value id = Some "world" -> "world" | Inside _ -> "sop")
     ~catalog:(Pxui_graph.catalog_of_factories (catalog { value with level } level)
@@ -707,7 +708,7 @@ let apply_action value (frame : Frame.t) (workspace, graph_view, tree, timeline,
   | Hide_ui | Look_through | Fly | Save_preset | Browse_presets
   | Graph_command _ | List_command _ | Frame_camera | Undo | Redo | Command_palette
   | Guide_toggle | Guide_keys
-  | Sketch_command _ | Toggle_projection | Enter | Up | Go_world | Tool _
+  | Sketch_command _ | Toggle_projection | Enter | Up | Go_world | Group | Tool _
   | World_emit | World_reseed | World_time _ | World_play | World_preset _ ->
       workspace, graph_view, tree, timeline, changes
 
@@ -815,6 +816,9 @@ let routed value =
     | Graph_command _ -> graph_shown
     | Frame_tile -> graph_shown && (listing || command.trigger = Some (Editor_core.Keymap.Leader "f"))
     | Frame_camera -> graph_shown
+    | Group -> graph_shown && (match value.level with
+        | Document.Inside id -> kind value id = Some "geometry"
+        | Scene -> false)
     | Enter | Up | Go_world -> value.scene_level
     | World_emit | World_reseed | World_time _ | World_play | World_preset _ ->
         in_world value
@@ -1374,10 +1378,31 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
     | [] when List.mem Leader.Go_world actions && value.scene_level ->
         (match add_world next daylight with Ok doc -> doc, true | Error _ -> next, false)
     | _ -> next, false in
-  let next, compound_error = if next == present then next, None else
+  let next, result = if List.mem Leader.Group actions && Option.is_none loaded then
+    let selected = Pxui_graph.selected_nodes result.graph_view in
+    let positions = List.filter_map (fun id ->
+      Option.map (fun (x, y) -> id, x, y)
+        (Pxui_graph.node_position result.graph_view id)) selected in
+    (match Document.group next value.level ~selected ~positions with
+     | Error diagnostic -> next, {result with
+         edit_error = Some (Flow.Diagnostic.to_string diagnostic)}
+     | Ok (next, instance) ->
+         let network = Option.get (Document.network next value.level) in
+         let graph_view = Network_view.to_view network result.graph_view
+           |> Pxui_graph.select instance in
+         next, {result with graph_view; document = network.graph;
+           label = "Group"; effects = Parameter.union_effects
+             result.effects Doc.cook_effects})
+    else next, result in
+  let next, result, compound_error = if next == present then next, result, None else
     match Document.allocate_compiled_ids next with
-    | Ok next -> next, None
-    | Error diagnostic -> next, Some (Flow.Diagnostic.to_string diagnostic) in
+    | Ok next -> next, result, None
+    | Error diagnostic ->
+        let previous = network value in
+        present, {result with
+          graph_view = Network_view.to_view previous result.graph_view;
+          document = previous.graph},
+        Some (Flow.Diagnostic.to_string diagnostic) in
   let input = Pxui.Ui.input ?owner:(List.find_map (fun (key, column) ->
       if column = Pxui_shell.Layout.View then Some key else None) result.pane_keys) value.ui in
   let dragging = Frame.mouse_down Input.LeftButton frame || Frame.has_event (function
@@ -1449,6 +1474,8 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
       |> fun view -> match network.displayed with
         | Some id when Pxui_graph.viewed view <> id -> Pxui_graph.view id view
         | _ -> view in
+  let graph_view = if doc.definitions == value.doc.definitions then graph_view else
+    Pxui_graph.with_definitions (Document.flow_definitions doc) graph_view in
   (* Entering and leaving levels: i / double-click / list activation, u. *)
   let target = match List.find_opt (function
       | Leader.Enter | Up | Go_world -> true | _ -> false) actions, result.opened with

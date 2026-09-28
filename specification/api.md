@@ -781,6 +781,7 @@ The table above lists keys after `Space`. With the graph focused:
 | `x`, Delete, Backspace / `⇧X` | delete selection / dissolve and reconnect the primary trunk |
 | `/` / `f` / Home | find / frame selection or display / frame all |
 | `⌘C/V/X/D`, Ctrl equivalents | copy / paste / cut / duplicate |
+| `⌘G`, Ctrl-G | group selected SOP nodes into a shared compound definition |
 | `⌘Z` / `⇧⌘Z`, Ctrl equivalents | undo / redo |
 | `b` / `w` | bind by hints or toggle a selected wire's wireless state / show wireless wires |
 | `=` / `r` | edit the hovered row's expression / clear its drive or restore its default |
@@ -793,7 +794,8 @@ key sheet; key feedback lasts 1.5 seconds. Shared UI text focus owns typing
 and modal dismissal. `Tab` runs Add in the canvas; `Shift-Tab` remains UI
 traversal. World keys are `t`/`n`/`d`, described in `scene.md`.
 
-Later milestones add compounds and the text projection (`flow.md` §7.2).
+Later milestones complete compound editing and add the text projection
+(`flow.md` §7.2).
 
 Plain keys: `i` enters the selected object, `u` goes up; in the view `w`/`e`/`r`
 pick translate/rotate/scale handles and Escape hides them;

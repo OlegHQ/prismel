@@ -1,10 +1,15 @@
 (library
  (name flow_sop)
  (public_name prismel.flow_sop)
- (modules port drive exposure instance_path network compound_node compile value_lane)
+ (modules port drive exposure instance_path network compound_node group compile value_lane)
  (libraries flow param procedural))
 
 (test
  (name test_network)
  (modules test_network)
  (libraries flow_sop flow param procedural pdk))
+
+(test
+ (name test_group)
+ (modules test_group)
+ (libraries flow_sop flow procedural pdk))

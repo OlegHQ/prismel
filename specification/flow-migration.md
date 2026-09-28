@@ -318,6 +318,14 @@ network with the same canvas, keys, views and text), then plan it here.
 
 ## Log
 
+- 2026-09-28 M5 group checkpoint: `⌘G`/Ctrl-G groups selected SOP geometry
+  nodes into the first free `compound_<n>` definition, deduplicates external
+  geometry sources, rewires named outputs, preserves moved node ids and layout,
+  and records one undo step. The canvas shows named compound output sockets
+  and preserves the chosen port in new wires. The editor cooks the grouped result; preset
+  round-trip and undo/redo tests pass. Driven/value selections, ungroup,
+  compound levels and interface editing remain pending.
+
 - 2026-09-28 M5 cook checkpoint: document edits allocate instance-path IDs
   before entering history; `Cook.update` flattens geometry before the value
   lane and uses only saved IDs. It caches the flattened network while the

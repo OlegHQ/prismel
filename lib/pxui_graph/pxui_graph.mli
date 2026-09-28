@@ -54,7 +54,7 @@ type change =
   | Row_pinned of { node : int; path : string; pinned : bool }
   | Cut_wires_requested of Procedural.Edit_graph.connection list
   | Connection_selected of Procedural.Edit_graph.connection option
-  | Connect_requested of Procedural.Edit_graph.connection
+  | Connect_requested of { source : Flow_sop.Port.t; consumer : int; input_index : int }
   | Disconnect_requested of Procedural.Edit_graph.connection
   | Value_connect_requested of { source : Flow_sop.Port.t; target : Flow_sop.Port.t }
   | Value_bind_requested of { source : Flow_sop.Port.t; target : Flow_sop.Port.t }
@@ -117,12 +117,14 @@ val create_document :
   ?catalog:catalog_entry list -> ?flaggable:(Procedural.Edit_graph.node_info -> bool) ->
   ?enterable:(Procedural.Edit_graph.node_info -> bool) ->
   ?namespace:string ->
+  ?definitions:Flow_sop.Network.definition Flow_sop.Network.String_map.t ->
   Flow_sop.Network.t -> t
 (** Present a Flow network, including geometry and value tiles and typed wires.
     [flaggable] marks tiles that get a flag button (default: none); the
     graph never interprets operation names itself. *)
 
 val with_document : Flow_sop.Network.t -> t -> t
+val with_definitions : Flow_sop.Network.definition Flow_sop.Network.String_map.t -> t -> t
 
 (** Live, normalized values resolved by the host before cooking. *)
 val with_applied : Flow.Port_type.value Flow_sop.Port.Map.t -> t -> t

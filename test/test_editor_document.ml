@@ -269,6 +269,28 @@ let run () =
   check (Flow_sop.Instance_path.Map.find [20; 70]
       reloaded_allocated.doc.compiled_ids = saved_id)
     "compound compiled id changed across save and reload";
+  let direct = Editor_document.Preset.load ~path:(write "group-source" valid)
+    ~code ~factories ~settings:Editor_document.Settings.none |> Result.get_ok in
+  let grouped, grouped_id = match Editor_document.Document.group direct.doc
+      (Editor_document.Document.Inside 10) ~selected:[20]
+      ~positions:[20, 48., 24.] with
+    | Ok value -> value
+    | Error diagnostic -> failwith (Flow.Diagnostic.to_string diagnostic) in
+  let grouped_definition = Editor_document.Document.String_map.find
+    "compound_1" grouped.definitions in
+  check (Result.is_ok (Editor_document.Document.validate grouped)
+    && grouped_id <> 20
+    && Flow_sop.Network.Int_map.mem grouped_id
+      (Editor_document.Document.Layout.find 10 grouped.networks).graph.instances
+    && Edit_graph.find grouped_definition.spec.body.geometry ~node_id:20 <> None)
+    "group did not move the selected node into a valid shared definition";
+  let grouped = Editor_document.Document.allocate_compiled_ids grouped
+    |> Result.get_ok in
+  let grouped_path = Editor_document.Preset.save ~directory
+    ~name:"grouped-saved" ~sketch:"contract" ~doc:grouped ~view:`Null
+    |> Result.get_ok in
+  ignore (Editor_document.Preset.load ~path:grouped_path ~code ~factories
+    ~settings:Editor_document.Settings.none |> Result.get_ok);
   let geometry_input = `Assoc ["name", `String "incoming";
     "type", `String "Geometry"; "default", `Null;
     "label", `String "Incoming"; "soft", `Null] in

@@ -52,7 +52,7 @@ module Private : sig
       | Add_node | Layout | Frame_tile | Frame_camera
       | Look_through | Fly | Tool of int
       | Undo | Redo
-      | Toggle_projection | Enter | Up | Go_world
+      | Toggle_projection | Enter | Up | Go_world | Group
       | World_emit | World_reseed | World_time of float | World_play | World_preset of int
       | Graph_command of Pxui_graph.command
       | List_command of Pxui_shell.Tree.command

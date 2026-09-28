@@ -1,10 +1,11 @@
 # Scene tree
 
-Prismel Editor's document has two levels: a scene of objects, and below each
-geometry object its SOP network (the World has its layer stack instead).
-There are no subnetworks.
+Prismel Editor currently navigates between the scene and each geometry
+object's SOP network (the World has its layer stack instead). SOP networks can
+hold shared compound definitions created by grouping; entering those
+definitions is still part of M5.
 
-*Prismel Flow (target, `flow.md`):* M5 adds compound levels below
+*Prismel Flow (target, `flow.md`):* M5 completes compound levels below
 instances inside SOP networks; every network gains a context (`sop`,
 `scene`, `world`); M6 turns `Space l` into a graph → list → text cycle; M2
 moves the World keys `e`/`r`/`p` to `t`/`n`/`d`. The scene and World become

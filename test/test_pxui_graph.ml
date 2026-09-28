@@ -141,8 +141,9 @@ let run_grammar () =
   let back, _ = run_command narrowed Hint_back in
   let narrowed, _ = run_command back (Hint_letter 'a') in
   let picked, changes = run_command narrowed (Hint_letter 's') in
-  check (not (hinting picked) && changes = [Connect_requested Edit_graph.{
-    source=id a; consumer=id (List.nth targets 1); input_index=0}])
+  check (not (hinting picked) && changes = [Connect_requested {
+    source=Flow_sop.Port.{node=id a; path="geo"};
+    consumer=id (List.nth targets 1); input_index=0}])
     "hint backspace or exact selection connected the wrong port";
   let cyclic, _ = run_command (select (id aa) canvas) Connect_hint in
   check (List.for_all (fun (_, candidate, _) -> candidate <> id a && candidate <> id aa)
@@ -378,9 +379,53 @@ let run_value_wires () =
       source.node = time_id && target.node = box_id | _ -> false) changes)
     "value hint did not request a typed connection"
 
+let run_compound_outputs () =
+  let source = Sop.points [|0., 0., 0.|] in
+  let first = Sop.null source and second = Sop.null source in
+  let consumer = Sop.null first and other = Sop.null second
+  and target = Sop.null source in
+  let id = Node.id in
+  let geometry = Edit_graph.of_graph consumer
+    |> Edit_graph.add_node second |> Result.get_ok
+    |> Edit_graph.add_node other |> Result.get_ok
+    |> Edit_graph.add_node target |> Result.get_ok in
+  let grouped, definition, instance =
+    Flow_sop.Group.geometry ~name:"compound_1"
+      ~selected:[id first; id second] ~displayed:(Some (id first))
+      ~definitions:Flow_sop.Network.String_map.empty
+      (Flow_sop.Network.of_geometry geometry) |> Result.get_ok in
+  let grouped = Flow_sop.Network.disconnect
+    ~target:Flow_sop.Port.{node=id target; path="in0"} grouped |> Result.get_ok in
+  let definitions = Flow_sop.Network.String_map.singleton definition.name definition in
+  let view = Pxui_graph.create_document ~x:20 ~y:30 ~width:800 ~height:520
+      ~definitions grouped
+    |> Pxui_graph.place_nodes [instance, 252., 0.; id target, 516., 96.] in
+  let instance_node = node instance view and target_node = node (id target) view in
+  let x, y, width, _ = instance_node.bounds in
+  let from_ = x + width, y + 36
+  and to_ = unary_input_port target_node in
+  let _, changes = update view (frame ~mouse:to_ ~events:[
+      mouse_press (Input.LeftButton, from_); mouse_move to_;
+      mouse_release (Input.LeftButton, to_)] ()) in
+  let request = List.find_map (function
+    | Pxui_graph.Connect_requested {source; consumer; input_index} ->
+        Some (source, consumer, input_index)
+    | _ -> None) changes in
+  check (request = Some (Flow_sop.Port.{node=instance; path="result_2"},
+      id target, 0))
+    "second compound output socket lost its named source";
+  let source, consumer, input_index = Option.get request in
+  let rewired = Flow_sop.Network.connect_geometry ~source ~consumer ~input_index grouped
+    |> Result.get_ok in
+  check (Flow_sop.Network.geometry_source rewired
+      Flow_sop.Port.{node=id target; path="in0"}
+    = Some Flow_sop.Port.{node=instance; path="result_2"})
+    "new compound wire did not retain the output name"
+
 let run () =
   run_grammar ();
   run_value_wires ();
+  run_compound_outputs ();
   let source_a = Sop.points ~label:"Source A" [|0., 0., 0.|]
   and source_b = Sop.points ~label:"Source B" [|1., 0., 0.|] in
   let moved_a = Sop.transform ~label:"Move A"
@@ -698,7 +743,7 @@ let run () =
       (frame ~mouse:to_ ~events:[mouse_press (Input.LeftButton, from_);
         mouse_move to_; mouse_release (Input.LeftButton, to_)] ()) in
   check (List.exists (function Pxui_graph.Connect_requested connection ->
-      connection.source = Node.id source_b
+      connection.source = Flow_sop.Port.{node=Node.id source_b; path="geo"}
       && connection.consumer = Node.id moved_b && connection.input_index = 0
       | _ -> false) changes)
     "port drag did not request a connection";
