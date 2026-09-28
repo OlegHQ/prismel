@@ -202,6 +202,7 @@ let validate_parameter state form (parameter : parameter) (value : checked) =
         List.for_all (fun component -> match component.ty with
           | Some source -> Port_type.can_connect ~source ~target:Port_type.Float
           | None -> false) components
+    | Some Port_type.Vec3, Literal _ -> false
     | Some target, _ -> (match ty with
         | Some source -> Port_type.can_connect ~source ~target
         | None -> false) in
@@ -214,6 +215,10 @@ let validate_parameter state form (parameter : parameter) (value : checked) =
        when Float.floor number <> number ->
        error state form "E_INT_LITERAL"
          (Printf.sprintf ":%s is an integer, not %g" parameter.name number)
+   | Some Port_type.Int, Literal (Param.Float_value number)
+       when number >= float_of_int max_int || number < float_of_int min_int ->
+       error state form "E_HARD_RANGE"
+         (Printf.sprintf ":%s is outside the integer range" parameter.name)
    | _ -> ());
   (match parameter.fields, value.term.node with
    | [(_, Param.Choice_view options, _)],
@@ -232,6 +237,31 @@ let validate_parameter state form (parameter : parameter) (value : checked) =
           (if List.length fields = 3 then fields else List.init 3 (fun _ ->
             "", Param.Text_view, Param.Text_value ""))
     | _ -> ())
+
+let normalize_parameter (parameter : parameter) term =
+  let numeric target value = match numeric_value value with
+    | None -> Literal value
+    | Some number -> (match target with
+        | Port_type.Float -> Literal (Param.Float_value number)
+        | Port_type.Int when Float.floor number = number
+            && number < float_of_int max_int
+            && number >= float_of_int min_int ->
+            Literal (Param.Int_value (int_of_float number))
+        | Port_type.Bool -> Literal (Param.Bool_value (number <> 0.))
+        | _ -> Literal value) in
+  match parameter.ty, term.node with
+  | Some target, Literal value -> {term with node = numeric target value}
+  | Some Port_type.Vec3, Vector components ->
+      {term with node = Vector (List.map (fun component ->
+        match component.node with
+        | Literal value -> {component with node = numeric Port_type.Float value}
+        | _ -> component) components)}
+  | None, Literal (Param.Text_value label) ->
+      (match parameter.fields with
+       | [(_, Param.Choice_view _, _)] ->
+           {term with node = Literal (Param.Choice_value label)}
+       | _ -> term)
+  | _ -> term
 
 let rec expression state context (env : env) form =
   match form.Sexp.node with
@@ -392,11 +422,10 @@ and kind_call state context env _form (kind : kind) args =
                                  (":" ^ name ^ " takes geometry")
                          | `Parameter parameter ->
                              validate_parameter state value_form parameter value);
-                        let term = match descriptor, value.term.node with
-                          | `Parameter {fields = [(_, Param.Choice_view _, _)]; _},
-                              Literal (Param.Text_value label) ->
-                              {value.term with node = Literal (Param.Choice_value label)}
-                          | _ -> value.term in
+                        let term = match descriptor with
+                          | `Parameter parameter ->
+                              normalize_parameter parameter value.term
+                          | `Slot _ -> value.term in
                         arguments := (name, term) :: !arguments)
                         checked));
                loop tail)
@@ -557,7 +586,9 @@ let interface state form = match vector form with
                                     "A geometry input defaults to nil")
                               else validate_parameter state default
                                 {name; label = name; ty = Some ty; fields = []} value;
-                              value.term)
+                              normalize_parameter
+                                {name; label = name; ty = Some ty; fields = []}
+                                value.term)
                               (expression state Context.Value Names.empty default)
                         | _ -> warning state entry "W_NO_DEFAULT"
                             ("Interface input " ^ name ^ " has no default"); None in

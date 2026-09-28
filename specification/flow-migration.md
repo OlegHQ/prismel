@@ -327,6 +327,12 @@ network with the same canvas, keys, views and text), then plan it here.
   math, definitions and diagnostic cases. The printer, full round-trip law and
   text projection remain.
 
+- 2026-09-28 M6 number-printing checkpoint: `Expr.sexp_number` expands
+  scientific notation into exact decimal text accepted by `Flow.Sexp`, even
+  for the smallest subnormal and largest finite Float. The checker normalizes
+  accepted numeric and choice literals to their parameter kinds so the later
+  builder can apply them without guessing a type.
+
 - 2026-09-28 M6 list checkpoint: the existing tree now traverses the full
   `Flow_sop.Network`, placing value nodes before consumers along incoming
   drive edges and repeating shared sources as links. Rows show grouped

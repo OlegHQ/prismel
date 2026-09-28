@@ -225,10 +225,32 @@ let infix root =
         Buffer.add_char buffer ')'
   in write 0 root; Buffer.contents buffer
 
+let sexp_number number =
+  if not (Float.is_finite number) then invalid_arg "Expr.sexp_number: non-finite";
+  let text = Printf.sprintf "%.17g" number in
+  match String.index_opt text 'e' with
+  | None -> text
+  | Some exponent_at ->
+      let negative = text.[0] = '-' in
+      let mantissa = String.sub text (if negative then 1 else 0)
+        (exponent_at - if negative then 1 else 0) in
+      let exponent = int_of_string (String.sub text (exponent_at + 1)
+        (String.length text - exponent_at - 1)) in
+      let point = Option.value ~default:(String.length mantissa)
+        (String.index_opt mantissa '.') in
+      let digits = String.concat "" (String.split_on_char '.' mantissa) in
+      let shifted = point + exponent in
+      let sign = if negative then "-" else "" in
+      if shifted <= 0 then sign ^ "0." ^ String.make (-shifted) '0' ^ digits
+      else if shifted >= String.length digits then
+        sign ^ digits ^ String.make (shifted - String.length digits) '0'
+      else sign ^ String.sub digits 0 shifted ^ "." ^
+        String.sub digits shifted (String.length digits - shifted)
+
 let sexp root =
   let buffer = Buffer.create 64 in
   let rec write = function
-    | Num number -> Printf.bprintf buffer "%.17g" number
+    | Num number -> Buffer.add_string buffer (sexp_number number)
     | Time -> Buffer.add_char buffer 't'
     | Op (operator, arguments) ->
         Buffer.add_char buffer '('; Buffer.add_string buffer (symbol operator);

@@ -19,3 +19,7 @@ val parse : string -> (t, Diagnostic.t) result
 val infix : t -> string
 val sexp : t -> string
 (** Both printers preserve the operation tree. *)
+
+val sexp_number : float -> string
+(** Finite decimal spelling accepted by the Flow S-expression reader,
+    including values normally formatted with an exponent. *)

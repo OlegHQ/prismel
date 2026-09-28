@@ -71,6 +71,12 @@ let () =
    | [{term = {node = Check.Call {arguments = ["mode", {node = Check.Literal
        (Param.Choice_value "wire"); _}]; _}; _}; _}] -> ()
    | _ -> failwith "choice label was not normalized for the builder");
+  let numeric = valid "(graph a (let* [cube (box :size 2 :rows 3.0)] cube))" in
+  (match numeric.graph.bindings with
+   | [{term = {node = Check.Call {arguments = ["size", {node = Check.Literal
+       (Param.Float_value 2.); _}; "rows", {node = Check.Literal
+       (Param.Int_value 3); _}]; _}; _}; _}] -> ()
+   | _ -> failwith "numeric literals were not normalized to parameter kinds");
   expect "(graph a (let* [cube (box 1)] cube))" ["E_EXTRA_POSITIONAL"];
   expect "(graph a (let* [cube (transform :in0 nil (box))] cube))"
     ["E_POSITIONAL_AFTER_KEYWORD"];

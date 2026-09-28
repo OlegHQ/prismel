@@ -17,6 +17,15 @@ let () =
   assert (Result.is_error (num nan));
   assert (Result.is_error (op Sin []));
   assert (Result.is_error (apply Add [1.]));
+  List.iter (fun value ->
+    let printed = sexp_number value in
+    assert (Int64.bits_of_float (float_of_string printed) =
+      Int64.bits_of_float value);
+    match Sexp.parse printed with
+    | Ok [{node = Sexp.Atom (Sexp.Number _); _}] -> ()
+    | _ -> failwith ("Flow reader rejected printed number " ^ printed))
+    [-0.; 1e-100; 1e20; Float.min_float; Float.max_float;
+      Int64.float_of_bits 1L];
   let number value = get (num value) in
   let atoms = [number (-0.); number (-2.); number 1e-100; time] in
   let forms = ref atoms in
