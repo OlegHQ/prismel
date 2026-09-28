@@ -318,6 +318,15 @@ network with the same canvas, keys, views and text), then plan it here.
 
 ## Log
 
+- 2026-09-28 M4 expression/reset checkpoint: `=` opens the shared PXUI text
+  editor for a hovered numeric row, and a leading `=` in a canvas field or
+  inspector expression field submits through the same document reducer.
+  Parsed expressions remain drives; a pure number clears the drive and writes
+  a normalized literal. `r` clears a drive without overwriting its literal,
+  or restores the schema default on an undriven row. Editor-level tests cover
+  dynamic expressions, literal restoration, numeric expressions and rejected
+  malformed text. Fold/unfold remains.
+
 - 2026-09-28 M4 wireless checkpoint: `b` reuses the shared letter-hint path
   for type-checked value binds and toggles a selected geometry or value wire;
   `w` temporarily reveals wireless wires. Wireless links use 2/5 dashes and

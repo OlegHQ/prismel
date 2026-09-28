@@ -165,6 +165,7 @@ module Inspector : sig
   }
   type flow_change = Edited of string * Editor_core.Param.value
     | Pinned of string * bool | Split of string * bool | Reset of string
+    | Expression of string * string
   val flow_fields : Pxui.Ui.t -> ?expanded:string list -> flow_row list -> flow_change list
 
   val fields : Pxui.Ui.t -> ?expanded:string list ->

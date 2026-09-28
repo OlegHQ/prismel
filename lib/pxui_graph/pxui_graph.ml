@@ -67,6 +67,8 @@ type change =
   | Value_bind_requested of { source : Flow_sop.Port.t; target : Flow_sop.Port.t }
   | Value_disconnect_requested of Flow_sop.Port.t
   | Wireless_changed of { target : Flow_sop.Port.t; wireless : bool }
+  | Row_reset_requested of Flow_sop.Port.t
+  | Expression_requested of { target : Flow_sop.Port.t; text : string }
   | Delete_nodes_requested of int list
   | Dissolve_nodes_requested of int list
   | Bypass_requested of (int * bool) list
@@ -154,6 +156,7 @@ type hint_target = Hint_port of Edit_graph.connection
   | Hint_node of int
 type hints = { source : int; prefix : string; bind : bool;
   targets : (string * hint_target) list }
+type expression_edit = { target : Flow_sop.Port.t; query : string }
 
 type context_target =
   | On_canvas
@@ -277,6 +280,7 @@ type t = {
   catalog : catalog_item array;
   last_added : string option;
   hints : hints option;
+  expression : expression_edit option;
   find : string option;
   namespace : string;
   visible : bool;
@@ -749,7 +753,7 @@ let create_document ?(x = 0) ?(y = 0) ?(width = 640) ?(height = 360)
     viewed; flagged = None; flaggable; enterable; x; y; width; height;
     pan_x = 38.; pan_y = 38.; zoom = 1.; drag = None; bloom = None; before_points = Id_map.empty;
     menu = None; context = None; clipboard = None; catalog = catalog_array catalog;
-    last_added = None; hints = None; find = None; namespace;
+    last_added = None; hints = None; expression = None; find = None; namespace;
     visible = true; guide = false; hovered_row = None; theme }
 
 let create ?x ?y ?width ?height ?theme ?selected ?catalog ?flaggable ?enterable graph =
@@ -1314,7 +1318,7 @@ let rec category_remainder path category = match path, category with
       category_remainder path category
   | _ -> None
 
-let menu_rows (value : t) menu =
+let menu_rows (value : t) (menu : menu) =
   let entries = Array.to_list value.catalog |> List.filter (eligible menu) in
   if menu.query <> "" then begin
     let query = lower menu.query in
@@ -1760,6 +1764,10 @@ let parse_field (field : Parameter.field_view) text = match field.kind with
   | Choice_view choices ->
       if Array.mem text choices then Some (Parameter.Choice_value text) else None
 
+let parse_expression_text text =
+  if not (String.starts_with ~prefix:"=" text) then None else
+  Flow.Expr.parse (String.sub text 1 (String.length text - 1)) |> Result.to_option
+
 let scrub_field (field : Parameter.field_view) =
   let numeric low high text dx shift =
     let divisor = if shift then 1500. else 150. in
@@ -1806,7 +1814,22 @@ let build_row_fields value ui (box : box) =
           Some (Printf.sprintf "row-%d-%s-%b" box.info.id path signal.hovered, description) in
         let index, changes, detail, pin = Ui.within ui container (fun () ->
         let key = "field-" ^ f.name in
-        if driven then index + 1, changes, detail, pin else
+        if driven then
+          (match Flow_sop.Port.Map.find_opt
+              {Flow_sop.Port.node = box.info.id; path} value.document.drives with
+           | Some (Flow_sop.Drive.Expr expression) ->
+               let current = "=" ^ Flow.Expr.infix expression in
+               let text, editing = Ui.value_field ui ~at:(at 112 4)
+                 ~w:(float width) ~h:(float height)
+                 ~size:(max 7 (screen_size value 11))
+                 ~valid:(fun text -> parse_expression_text text <> None)
+                 key current in
+               let changes = if text <> current then
+                 Expression_requested {target = {Flow_sop.Port.node = box.info.id; path};
+                   text} :: changes else changes in
+               index + 1, changes, detail, pin || editing
+           | _ -> index + 1, changes, detail, pin)
+        else
         (match f.current, f.kind with
          | Bool_value _, _ | _, Choice_view _ ->
              let field_x, field_w = match f.kind with
@@ -1841,8 +1864,13 @@ let build_row_fields value ui (box : box) =
                ~w:(float width) ~h:(float height) ~size:(max 7 (screen_size value 11))
                ~display:(field_text f.current)
                ?fraction ?scrub:(scrub_field f)
-               ~valid:(fun text -> parse_field f text <> None) key current in
-             let changes = Option.fold ~none:changes ~some:(emit f) (parse_field f text) in
+               ~valid:(fun text -> parse_field f text <> None
+                 || (match f.kind with Floating_view _ | Integer_view _ ->
+                   parse_expression_text text <> None | _ -> false)) key current in
+             let changes = match f.kind, parse_expression_text text with
+               | (Floating_view _ | Integer_view _), Some _ -> Expression_requested
+                   {target = {Flow_sop.Port.node = box.info.id; path}; text} :: changes
+               | _ -> Option.fold ~none:changes ~some:(emit f) (parse_field f text) in
              index + 1, changes, detail, pin || editing)) in
         index, changes, detail, pin, capture, hovered, tip
     | Vector (parameter, _) | Vector_head (parameter, _) as vector ->
@@ -2283,6 +2311,7 @@ let hint_letter value letter = match value.hints with
 type command = Copy | Cut | Paste | Duplicate | Delete | Frame_all
   | Open_detail | Point_detail | Open_all | Point_all
   | Walk of direction | Add | Repeat | Connect_hint | Bind_hint | Show_wireless
+  | Row_reset | Row_expression
   | Display | Mute | Dissolve | Find
   | Frame_selection | Row_pin | Hint_letter of char | Hint_back | Cancel
 
@@ -2324,6 +2353,9 @@ let bindings =
      command ~guide:[Canvas; Node; Multi] "frame-tile" "frame selection / display"
        Frame_selection (Input.KeyChar 'f') [];
      command ~guide:[Row] "row-pin" "pin or hide row" Row_pin (Input.KeyChar 's') []]
+  @ [command ~guide:[Row] "row-reset" "reset row" Row_reset (Input.KeyChar 'r') [];
+     command ~guide:[Row] "row-expression" "expression on row" Row_expression
+       (Input.KeyChar '=') []]
 
 let hint_bindings =
   let open Editor_core.Keymap in
@@ -2367,6 +2399,26 @@ let run_command ?at (value : t) =
           let pinned = match pin with Some pin -> not pin
             | None -> not (Option.value ~default:true shown) in
           value, [Row_pinned {node; path; pinned}])
+  | Row_reset -> (match value.hovered_row with
+      | None -> value, [Notice "Hover a parameter row to reset it"]
+      | Some (node, path) ->
+          value, [Row_reset_requested {Flow_sop.Port.node; path}])
+  | Row_expression -> (match value.hovered_row with
+      | None -> value, [Notice "Hover a parameter row to write an expression"]
+      | Some (node, path) ->
+          let target = {Flow_sop.Port.node; path} in
+          (match Flow_sop.Network.parameter value.document target with
+           | Error diagnostic -> value, [Notice (Flow.Diagnostic.to_string diagnostic)]
+           | Ok parameter when not (Option.fold ~none:false ~some:(fun ty ->
+               Flow.Port_type.can_connect ~source:Flow.Port_type.Float ~target:ty)
+               parameter.ty) -> value, [Notice "This row cannot hold an expression"]
+           | Ok _ ->
+               let query = match Flow_sop.Port.Map.find_opt target value.document.drives with
+                 | Some (Flow_sop.Drive.Expr expression) ->
+                     "=" ^ Flow.Expr.infix expression
+                 | _ -> "=" in
+               { value with expression = Some {target; query}; find = None;
+                 menu = None; context = None }, []))
   | Walk direction -> walk value direction
   | Add -> add_by_context value pointer, []
   | Repeat -> (match value.last_added with
@@ -2439,7 +2491,7 @@ let run_command ?at (value : t) =
 
 let ints (x, y) = int_of_float x, int_of_float y
 
-let picker_rows value menu query =
+let picker_rows value (menu : menu) query =
   menu_rows value { menu with query } |> Array.map (function
     | Menu_category category -> category, "›"
     | Menu_entry entry ->
@@ -2452,7 +2504,7 @@ let picker_rows value menu query =
    it. Typing lists every matching node instead (arrows and Enter pick).
    All columns share one popup, so a press in any of them keeps it open; a
    press outside or Escape closes it. *)
-let build_menu (value : t) ui menu =
+let build_menu (value : t) ui (menu : menu) =
   let row = Ui.row_height ui in
   let searching = menu.query <> "" in
   let rows_of prefix = menu_rows value { menu with path = prefix; query = "" } in
@@ -3113,6 +3165,25 @@ let find_matches value query = Array.to_list value.boxes |> List.filter (fun box
 
 let update value ui frame =
   let value, changes = update_canvas value ui frame in
+  let value, changes = match value.expression with
+    | None -> value, changes
+    | Some edit ->
+        let result = Ui.modal ui ~width:420. "pxui-graph-expression" (fun () ->
+          Ui.label ui (Printf.sprintf "Expression on #%d.%s" edit.target.node
+            edit.target.path);
+          Ui.picker ui "= expression" ~query:edit.query (fun _ -> [||])) in
+        (match result with
+         | None | Some (_, `Cancel) ->
+             Ui.dismiss_popup ui; { value with expression = None }, changes
+         | Some (query, `Submit) when String.starts_with ~prefix:"=" query
+             && String.trim (String.sub query 1 (String.length query - 1)) <> "" ->
+             Ui.dismiss_popup ui;
+             { value with expression = None },
+             Expression_requested {target = edit.target; text = query} :: changes
+         | Some (query, `Submit) ->
+             { value with expression = Some {edit with query} },
+             Notice "Type an expression after =" :: changes
+         | Some (query, _) -> { value with expression = Some {edit with query} }, changes) in
   match value.find with
   | None -> value, changes
   | Some query ->

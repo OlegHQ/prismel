@@ -121,6 +121,14 @@ let run () =
   if flow_step (flow_row ~drive:"← Clock.t" ~locked:true ()) (click 112 12)
       <> [Pxui_shell.Inspector.Reset "count"] then
     fail "Flow inspector reset did not clear the drive";
+  let expression_row = flow_row ~drive:"=t" ~locked:true () in
+  ignore (flow_step expression_row (click 170 36));
+  let edits = Pxui.Ui.frame flow_ui (frame 2. [Prismel.Event.KeyPressed Prismel.Input.End;
+      Prismel.Event.TextInput "*2";
+      Prismel.Event.KeyPressed Prismel.Input.Enter]) (fun ui ->
+        Pxui_shell.Inspector.flow_fields ui [expression_row]) in
+  if edits <> [Pxui_shell.Inspector.Expression ("count", "=t*2")] then
+    fail "Flow inspector expression field did not commit an edit";
   let box = Sop_catalog.Box.create () in
   let vector = Flow_sop.Port.parameters (Node.parameter_fields box)
     |> Result.get_ok |> List.find (fun (parameter : Flow_sop.Port.parameter) ->

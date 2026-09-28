@@ -206,6 +206,22 @@ let run_value_wires () =
   let _, changes = Pxui_graph.run_command hovered Pxui_graph.Row_pin in
   check (List.mem (Pxui_graph.Row_pinned {node = box_id; path = "size";
     pinned = false}) changes) "s did not pin the hovered vector row";
+  let _, changes = Pxui_graph.run_command hovered Pxui_graph.Row_reset in
+  check (List.mem (Pxui_graph.Row_reset_requested
+    {Flow_sop.Port.node = box_id; path = "size"}) changes)
+    "r did not address the hovered vector row";
+  let ux, uy, _, uh = Pxui_graph.Private.field_bounds canvas ~node:box_id
+      ~path:"uniform_scale" |> Option.get in
+  let position = ux + 30, uy + uh / 2 in
+  let hovered, _ = update canvas (frame ~mouse:position
+      ~events:[mouse_move position] ()) in
+  let expression, _ = Pxui_graph.run_command hovered Pxui_graph.Row_expression in
+  let _, changes = update expression (frame ~events:[Event.KeyPressed Input.End;
+      Event.TextInput "t*2"; Event.KeyPressed Input.Enter] ()) in
+  check (List.mem (Pxui_graph.Expression_requested
+    {target = {Flow_sop.Port.node = box_id; path = "uniform_scale"};
+      text = "=t*2"}) changes)
+    "= did not submit an expression on the hovered row";
   let connected = Flow_sop.Network.connect_value
       ~source:{Flow_sop.Port.node = time_id; path = "t"}
       ~target:{Flow_sop.Port.node = box_id; path = "uniform_scale"} network

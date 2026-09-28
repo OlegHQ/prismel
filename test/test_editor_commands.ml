@@ -45,7 +45,8 @@ let run () =
           "graph.delete"; "graph.dissolve";
           "graph.find"; "graph.frame-tile"];
       Wire, ["graph.add"; "graph.bind"; "graph.show-wireless";
-        "graph.delete"]; Row, ["graph.row-pin"];
+        "graph.delete"]; Row, ["graph.row-pin"; "graph.row-reset";
+          "graph.row-expression"];
       Search, []; Text, []];
   let host_ids focus context = Command.for_guide L.keymap ~focus ~context
     |> List.map (fun (c : _ Command.t) -> c.id) in

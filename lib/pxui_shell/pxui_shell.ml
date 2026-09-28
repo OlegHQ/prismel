@@ -894,6 +894,7 @@ module Inspector = struct
 
   type flow_change = Edited of string * Param.value
     | Pinned of string * bool | Split of string * bool | Reset of string
+    | Expression of string * string
 
   let rec insert path field items = match path with
     | [] -> items @ [Field field]
@@ -965,6 +966,23 @@ module Inspector = struct
       let shown = if row.shown then "●" else "○" in
       let pinned = ref false and split = ref false and reset = ref false in
       let edits = ref [] in
+      let source_line path source live =
+        let line = Ui.box ui ~w:Ui.Grow ~h:(Ui.Px 24.)
+            ("flow-source-" ^ path) in
+        if String.starts_with ~prefix:"=" source then
+          Ui.within ui line (fun () ->
+            let text, _ = Ui.value_field ui ~at:(3., 3.) ~w:172. ~h:18.
+              ~size:10 ~valid:(fun text -> String.starts_with ~prefix:"=" text
+                && String.trim (String.sub text 1 (String.length text - 1)) <> "")
+              ("expression-" ^ path) source in
+            if text <> source then edits := Expression (path, text) :: !edits;
+            Option.iter (fun live -> Ui.draw ui line (fun paint (x, y, _, _) ->
+              Ui.Paint.text paint ~at:(x +. 183., y +. 5.) ~size:10
+                ~color:(Ui.theme ui).accent live)) live)
+        else Ui.draw ui line (fun paint (x, y, _, _) ->
+          Ui.Paint.text paint ~at:(x +. 3., y +. 5.) ~size:10
+            ~color:(Ui.theme ui).accent
+            (source ^ Option.fold ~none:"" ~some:(fun value -> " " ^ value) live)) in
       let title = match row.fields with
         | (field : Param.field_view) :: _ when List.length row.fields = 1 -> field.label
         | _ -> row.path in
@@ -986,13 +1004,7 @@ module Inspector = struct
           if row.drive <> None then
             reset := small_button ui ("reset-" ^ row.path) "×"
                 ~x:104. ~enabled:true ());
-        Option.iter (fun source ->
-          let readout = Option.fold ~none:"" ~some:(fun value -> " " ^ value) row.live in
-          let line = Ui.box ui ~w:Ui.Grow ~h:(Ui.Px 24.)
-              ("flow-source-" ^ row.path) in
-          Ui.draw ui line (fun paint (x, y, _, _) ->
-            Ui.Paint.text paint ~at:(x +. 3., y +. 5.) ~size:10
-              ~color:(Ui.theme ui).accent (source ^ readout))) row.drive
+        Option.iter (fun source -> source_line row.path source row.live) row.drive
       end;
       if row.drive = None then
         List.iteri (fun index (field : Param.field_view) ->
@@ -1009,12 +1021,7 @@ module Inspector = struct
               Ui.within ui box (fun () ->
                 if small_button ui ("reset-" ^ path) "×" ~x:104. ~enabled:true ()
                 then edits := Reset path :: !edits);
-              let line = Ui.box ui ~w:Ui.Grow ~h:(Ui.Px 24.)
-                  ("flow-source-" ^ path) in
-              Ui.draw ui line (fun paint (x, y, _, _) ->
-                Ui.Paint.text paint ~at:(x +. 3., y +. 5.) ~size:10
-                  ~color:(Ui.theme ui).accent
-                  (source ^ Option.fold ~none:"" ~some:(fun v -> " " ^ v) live))
+              source_line path source live
           | None ->
               let container = Ui.box ui ~w:Ui.Grow ~h:(Ui.Px 24.)
                   ~axis:(if header then Ui.Column else Ui.Row)

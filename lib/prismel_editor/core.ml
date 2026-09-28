@@ -129,7 +129,8 @@ let inspector_rows (network : Flow_sop.Network.t)
     | Vec3_value (x, y, z) -> Printf.sprintf "(%.3g, %.3g, %.3g)" x y z in
   let source target = match Pmap.find_opt target network.drives with
     | None -> None
-    | Some (Flow_sop.Drive.Expr _) -> Some "ƒ"
+    | Some (Flow_sop.Drive.Expr expression) ->
+        Some ("=" ^ Flow.Expr.infix expression)
     | Some (Flow_sop.Drive.Wire {node; output}) ->
         let label = match Flow.Graph.find network.values ~node_id:node with
           | Some value -> value.label
@@ -712,6 +713,8 @@ let apply_action value (frame : Frame.t) (workspace, graph_view, tree, timeline,
 let intent_label = function
   | Pxui_graph.Connect_requested _ | Value_connect_requested _ -> Some "Connect"
   | Value_bind_requested _ | Wireless_changed _ -> Some "Bind"
+  | Row_reset_requested {path; _} -> Some ("Reset " ^ path)
+  | Expression_requested {target; _} -> Some ("Expression on " ^ target.path)
   | Disconnect_requested _ | Value_disconnect_requested _ -> Some "Disconnect"
   | Delete_nodes_requested _ -> Some "Delete"
   | Dissolve_nodes_requested _ -> Some "Dissolve"
@@ -1072,7 +1075,9 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
                 | Split (group, split) ->
                     Pxui_graph.Split_requested {node = node_id; group; split}
                 | Reset path -> Pxui_graph.Value_disconnect_requested
-                    {Flow_sop.Port.node = node_id; path}) edits)) in
+                    {Flow_sop.Port.node = node_id; path}
+                | Expression (path, text) -> Pxui_graph.Expression_requested
+                    {target = {Flow_sop.Port.node = node_id; path}; text}) edits)) in
           None, changes, [], value.live_cook) in
     let graph_changes = graph_changes @ inspector_changes in
     let timeline_intents = if Pxui_shell.Layout.collapsed workspace Pxui_shell.Layout.Timeline
@@ -1326,6 +1331,8 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
               | Value_bind_requested {target; _} | Wireless_changed {target; _} ->
                   [target.node, target.path]
               | Value_disconnect_requested target -> [target.node, target.path]
+              | Row_reset_requested target -> [target.node, target.path]
+              | Expression_requested {target; _} -> [target.node, target.path]
               | Disconnect_requested c ->
                   [geometry_port c.consumer c.input_index]
               | Cut_wires_requested cs -> List.map (fun (c : Edit_graph.connection) ->

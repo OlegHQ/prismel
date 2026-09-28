@@ -410,14 +410,64 @@ let run () =
       Array.iter (fun file -> Sys.remove (Filename.concat crash_directory file))
         (Sys.readdir crash_directory);
       Unix.rmdir crash_directory) (fun () ->
-      E2.crash_dump !editor crash_directory;
-      let saved = load (Filename.concat crash_directory "document.json")
-        |> Result.get_ok in
-      let overlay, _ = Option.get (Document.object_network saved.doc 10) in
+      let snapshot () =
+        E2.crash_dump !editor crash_directory;
+        let saved = load (Filename.concat crash_directory "document.json")
+          |> Result.get_ok in
+        fst (Option.get (Document.object_network saved.doc 10)) in
+      let overlay = snapshot () in
       let added = Flow.Graph.inspect overlay.values |> List.find (fun (node : Flow.Graph.node) ->
         node.label = "Remap") in
       check (Flow_sop.Port.Map.find_opt
         {Flow_sop.Port.node = added.id; path = "v"} overlay.drives =
         Some (Flow_sop.Drive.Wire {node = 9; output = "t"}))
-        "Tab append from Time did not connect the new value node"));
+        "Tab append from Time did not connect the new value node";
+      let clock = List.find (fun (tile : Pxui_graph.node_view) -> tile.id = 9)
+          (E2.graph_nodes !editor) in
+      ignore clock;
+      step [char 'h'];
+      check (List.exists (fun (tile : Pxui_graph.node_view) ->
+        tile.id = 9 && tile.selected) (E2.graph_nodes !editor))
+        "left walk after Tab did not return to Time";
+      step [char 'o']; step [];
+      let clock = List.find (fun (tile : Pxui_graph.node_view) -> tile.id = 9)
+          (E2.graph_nodes !editor) in
+      let x, y, _, _ = clock.bounds in
+      let speed = float (x + 30), float (y + 20) in
+      step ~mouse:speed [Event.MouseMoved speed]; step ~mouse:speed [char '='];
+      step [key Input.End; Event.TextInput "t*2"; key Input.Enter]; step [];
+      let overlay = snapshot () in
+      let speed_port = {Flow_sop.Port.node = 9; path = "speed"} in
+      check (match Flow_sop.Port.Map.find_opt speed_port overlay.drives with
+        | Some (Flow_sop.Drive.Expr expression) ->
+            Flow.Expr.eval ~time:3. expression = Ok 6.
+        | _ -> false) "= did not install an expression drive";
+      let speed_literal (overlay : Flow_sop.Network.t) =
+        let node = Flow.Graph.find overlay.values ~node_id:9 |> Option.get in
+        let field = List.find (fun (field : Param.field_view) ->
+          field.name = "speed") (Flow.Value_kind.fields node.parameters) in
+        field.current in
+      check (speed_literal overlay = Param.Float_value 2.25)
+        "expression entry overwrote the stored literal";
+      step ~mouse:speed [Event.MouseMoved speed]; step ~mouse:speed [char 'r']; step [];
+      let overlay = snapshot () in
+      check (Flow_sop.Port.Map.find_opt speed_port overlay.drives = None
+        && speed_literal overlay = Param.Float_value 2.25)
+        "r on a driven row did not restore its stored literal";
+      step ~mouse:speed [Event.MouseMoved speed]; step ~mouse:speed [char 'r']; step [];
+      let overlay = snapshot () in
+      check (speed_literal overlay = Param.Float_value 1.)
+        "r on an undriven row did not restore its default";
+      step ~mouse:speed [Event.MouseMoved speed]; step ~mouse:speed [char '='];
+      step [key Input.End; Event.TextInput "3"; key Input.Enter]; step [];
+      let overlay = snapshot () in
+      check (Flow_sop.Port.Map.find_opt speed_port overlay.drives = None
+        && speed_literal overlay = Param.Float_value 3.)
+        "a pure numeric expression did not become a literal";
+      step ~mouse:speed [Event.MouseMoved speed]; step ~mouse:speed [char '='];
+      step [key Input.End; Event.TextInput "sin("; key Input.Enter]; step [];
+      let overlay = snapshot () in
+      check (Flow_sop.Port.Map.find_opt speed_port overlay.drives = None
+        && speed_literal overlay = Param.Float_value 3.)
+        "malformed expression changed the saved document"));
   print_endline "editor document: empty round trips, validation, both hosts, load history and delete-all passed")

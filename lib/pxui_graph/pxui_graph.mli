@@ -60,6 +60,8 @@ type change =
   | Value_bind_requested of { source : Flow_sop.Port.t; target : Flow_sop.Port.t }
   | Value_disconnect_requested of Flow_sop.Port.t
   | Wireless_changed of { target : Flow_sop.Port.t; wireless : bool }
+  | Row_reset_requested of Flow_sop.Port.t
+  | Expression_requested of { target : Flow_sop.Port.t; text : string }
   | Delete_nodes_requested of int list
   | Dissolve_nodes_requested of int list
   | Bypass_requested of (int * bool) list
@@ -199,6 +201,7 @@ type direction = Left | Down | Up | Right
 type command = Copy | Cut | Paste | Duplicate | Delete | Frame_all
   | Open_detail | Point_detail | Open_all | Point_all
   | Walk of direction | Add | Repeat | Connect_hint | Bind_hint | Show_wireless
+  | Row_reset | Row_expression
   | Display | Mute | Dissolve | Find
   | Frame_selection | Row_pin | Hint_letter of char | Hint_back | Cancel
 val hint_bindings : ('scope, command) Editor_core.Command.t list

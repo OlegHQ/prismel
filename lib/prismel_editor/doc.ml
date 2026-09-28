@@ -64,6 +64,23 @@ let append_value_source document ~node_id = function
                   ~target:{Flow_sop.Port.node = node_id; path = parameter.path}
                   document)))
 
+let set_expression (document : Flow_sop.Network.t) target text =
+  let body = if String.starts_with ~prefix:"=" text then
+    String.sub text 1 (String.length text - 1) else text in
+  Result.bind (flow_result (Flow.Expr.parse body)) (function
+    | Flow.Expr.Num number ->
+        let was_driven = Flow_sop.Port.Map.mem target document.drives in
+        Result.bind (flow_result (Flow_sop.Network.parameter document target))
+          (fun parameter -> Result.bind (flow_result (Flow_sop.Port.normalize parameter
+            (Flow.Port_type.Float_value number))) (fun (_, changes) ->
+            Result.bind (flow_result (Flow_sop.Network.clear_drive ~target document))
+              (fun document -> Result.map (fun (document, effects) -> document,
+                if was_driven then Parameter.union_effects effects cook_effects
+                else effects) (apply_parameters document ~node_id:target.node changes))))
+    | expression -> Result.map (fun changed -> changed,
+        if changed == document then Parameter.no_effects else cook_effects)
+        (flow_result (Flow_sop.Network.set_expr ~target expression document)))
+
 (* Folds one graph intent into the document and view; [placed] collects the
    ids whose tile position this frame set, moved, or removed, so the undo
    document re-reads only those, and [pasted] the (source, copy) id pairs. *)
@@ -111,6 +128,25 @@ let apply factories (document, graph_view, error, effects, placed, pasted) = fun
         placed, pasted
       else document, Pxui_graph.set_wireless ~target ~wireless graph_view,
         None, effects, placed, pasted
+  | Row_reset_requested target ->
+      let reset = if Flow_sop.Port.Map.mem target document.drives then
+        Result.map (fun document -> document, cook_effects)
+          (flow_result (Flow_sop.Network.clear_drive ~target document))
+      else Result.bind (flow_result (Flow_sop.Network.parameter document target))
+        (fun parameter -> apply_parameters document ~node_id:target.node
+          (List.map (fun (field : Parameter.field_view) ->
+            field.name, field.default) parameter.fields)) in
+      (match reset with
+       | Error message -> document, graph_view, Some message, effects, placed, pasted
+       | Ok (document, changed) ->
+           document, Pxui_graph.with_document document graph_view, None,
+           Parameter.union_effects effects changed, target.node :: placed, pasted)
+  | Expression_requested {target; text} ->
+      (match set_expression document target text with
+       | Error message -> document, graph_view, Some message, effects, placed, pasted
+       | Ok (document, changed) ->
+           document, Pxui_graph.with_document document graph_view, None,
+           Parameter.union_effects effects changed, target.node :: placed, pasted)
   | Value_disconnect_requested target ->
       (match flow_result (Flow_sop.Network.disconnect ~target document) with
        | Error message -> document, graph_view, Some message, effects, placed, pasted
