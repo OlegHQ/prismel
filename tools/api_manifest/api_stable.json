@@ -1,7 +1,7 @@
 {
   "generator": "tools/api_manifest/api_manifest.exe",
   "kind": "stable_high_level",
-  "module_count": 143,
+  "module_count": 144,
   "modules": [
     {
       "api_sha256": "eb1e27ba00670ec546b87d8ec8c8c27cd7d95016240fecb7d6422d45e5154fce",
@@ -101,6 +101,15 @@
       "source": "lib/flow_sop/compile.mli",
       "source_bytes": 377,
       "source_sha256": "18f9695eb27565972ddc413a7c66b03a75b91bdd9666e2aa0005a8b1929613d0"
+    },
+    {
+      "api_sha256": "e52bd94fc017e491da262ec494b6be03be184a0b2d5919a50c45b62a49dc39b6",
+      "excluded_legacy_symbols": [],
+      "library": "flow_sop",
+      "module": "Compound_node",
+      "source": "lib/flow_sop/compound_node.mli",
+      "source_bytes": 357,
+      "source_sha256": "741ea11b707b5816576aeaba4718338d9e649d07dcadb6bd074de113d000d095"
     },
     {
       "api_sha256": "a0088e6d625577ae5792cc920f0f416ef2ee4a2846b0aba96325c62ebb1025b9",

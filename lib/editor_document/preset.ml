@@ -619,6 +619,9 @@ let load ~path ~code ~factories ~settings =
   let code = Edit_graph.of_graph code in
   let* settings = Result.map fst (Settings.apply settings values) in
   let { scene; networks; definitions; compiled_ids } = decoded in
+  let compound_factories = List.concat_map (fun (definition : saved_definition) ->
+    Flow_sop.Compound_node.factories ~name:definition.name
+      ~inputs:definition.inputs ~outputs:definition.outputs) definitions in
   let* scene_network = rebuild ~code
       ~factories:(Objects.catalog @ [Layers.Settings.factory]) scene in
   let* networks = List.fold_left (fun state (id, saved) ->
@@ -626,7 +629,7 @@ let load ~path ~code ~factories ~settings =
       let* factories = match Option.map Node.operation
           (Edit_graph.find scene_network.graph.geometry ~node_id:id) with
         | Some "world" -> Ok Layers.catalog
-        | Some "geometry" -> Ok factories
+        | Some "geometry" -> Ok (factories @ compound_factories)
         | None -> Error (Printf.sprintf "network has missing owner #%d" id)
         | Some _ -> Error (Printf.sprintf "object #%d cannot own a network" id) in
       let* network = rebuild ~code ~factories saved in
@@ -634,7 +637,8 @@ let load ~path ~code ~factories ~settings =
       (Ok Document.Layout.empty) networks in
   let* definitions = List.fold_left (fun state saved ->
       let* definitions = state in
-      let* network = rebuild ~code:Edit_graph.empty ~factories saved.body in
+      let* network = rebuild ~code:Edit_graph.empty
+        ~factories:(factories @ compound_factories) saved.body in
       let spec : Flow_sop.Network.definition = {
         name = saved.name; context = saved.context;
         inputs = saved.inputs; outputs = saved.outputs; body = network.graph} in

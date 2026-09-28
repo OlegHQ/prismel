@@ -125,9 +125,34 @@ let validate value =
     && List.length compiled_values = List.length (List.sort_uniq Int.compare compiled_values) in
   let finite_fields fields = List.for_all (fun (field : Parameter.field_view) ->
     match field.current with Float_value x -> Float.is_finite x | _ -> true) fields in
-  let validate_network ?(interface_inputs = []) name network =
+  let geometry_names ports = List.filter_map
+    (fun (port : Flow_sop.Network.interface_port) ->
+      if port.ty = Flow.Port_type.Geometry then Some port.name else None) ports in
+  let validate_network ?(interface_inputs = []) ?interface_outputs
+      ?definition_name name network =
     let* () = Result.map_error Flow.Diagnostic.to_string (Flow_sop.Network.validate network.graph) in
     let nodes = Edit_graph.inspect network.graph.geometry in
+    let nodes_named operation = List.filter (fun (node : Edit_graph.node_info) ->
+      node.operation = operation) nodes in
+    let valid_markers = match interface_outputs, definition_name with
+      | None, None -> nodes_named "flow_inputs" = [] && nodes_named "flow_outputs" = []
+      | Some outputs, Some definition_name ->
+          (match nodes_named "flow_inputs", nodes_named "flow_outputs" with
+           | [inputs], [outputs_node] ->
+               Edit_graph.node_slot_names network.graph.geometry ~node_id:inputs.id = Some []
+               && Edit_graph.node_factory_key network.graph.geometry
+                    ~node_id:inputs.id = Some (Flow_sop.Compound_node.key
+                      ~name:definition_name `Inputs)
+               && Edit_graph.node_slot_names network.graph.geometry
+                    ~node_id:outputs_node.id = Some (geometry_names outputs)
+               && Edit_graph.node_factory_key network.graph.geometry
+                    ~node_id:outputs_node.id = Some (Flow_sop.Compound_node.key
+                      ~name:definition_name `Outputs)
+           | _ -> false)
+      | _ -> false in
+    let valid_compounds = List.for_all (fun (node : Edit_graph.node_info) ->
+      node.operation <> "flow_compound"
+      || Flow_sop.Network.Int_map.mem node.id network.graph.instances) nodes in
     let geometry_exists id = Edit_graph.find network.graph.geometry ~node_id:id <> None in
     let exists id = geometry_exists id || Flow.Graph.find network.graph.values ~node_id:id <> None in
     let wire = wire_exists network.graph in
@@ -182,7 +207,8 @@ let validate value =
     else if not (Layout.for_all (fun id (x, y) ->
       exists id && Float.is_finite x && Float.is_finite y) network.layout.at)
     then Error (name ^ " has an invalid tile position")
-    else if not (valid_layout && valid_drives && valid_geometry_outputs) then
+    else if not (valid_layout && valid_drives && valid_geometry_outputs
+      && valid_markers && valid_compounds) then
       Error (name ^ " has invalid canvas or geometry output metadata")
     else if not (List.for_all (fun (info : Edit_graph.node_info) ->
       Array.for_all (Option.fold ~none:true ~some:geometry_exists) info.inputs
@@ -211,6 +237,16 @@ let validate value =
           && not (Flow.Context.supports_values network.context) ->
           Error (Printf.sprintf "instance #%d has incompatible context" id)
       | Some definition ->
+          let geometry_names = geometry_names definition.spec.inputs in
+          let* () = match Edit_graph.find network.graph.geometry ~node_id:id with
+            | Some node when Node.operation node = "flow_compound"
+                && Edit_graph.node_slot_names network.graph.geometry ~node_id:id
+                     = Some geometry_names
+                && Edit_graph.node_factory_key network.graph.geometry ~node_id:id
+                     = Some (Flow_sop.Compound_node.key
+                       ~name:instance.definition `Instance) -> Ok ()
+            | _ -> Error (Printf.sprintf
+                "instance #%d is not a compound node with the definition's input slots" id) in
           Flow_sop.Network.String_map.fold (fun name literal state ->
             let* () = state in
             match List.find_opt (fun (port : Flow_sop.Network.interface_port) ->
@@ -276,6 +312,8 @@ let validate value =
       let* () = validate_ports ("definition " ^ name ^ " outputs")
         definition.spec.outputs in
       let* () = validate_network ~interface_inputs:definition.spec.inputs
+        ~interface_outputs:definition.spec.outputs
+        ~definition_name:name
         ("definition " ^ name) network in
       validate_instances network) value.definitions (Ok ()) in
   let module Names = Set.Make (String) in

@@ -192,7 +192,10 @@ let run () =
     "save accepted a nonfinite viewport";
   check (In_channel.with_open_bin successful In_channel.input_all = before)
     "rejected save replaced the last successful preset";
-  let compound_body = network [node 70 "box" []] (`Int 70) in
+  let compound_body = network [
+    node 71 "flow.inputs:compound_1" [];
+    node 70 "box" [];
+    node 72 "flow.outputs:compound_1" []] (`Int 70) in
   let interface = `Assoc ["name", `String "amp"; "type", `String "Float";
     "default", `Assoc ["float", `Float 1.]; "label", `String "Amplitude";
     "soft", `List [`Float 0.; `Float 2.]] in
@@ -216,8 +219,15 @@ let run () =
   let geometry_output = `Assoc ["name", `String "result";
     "type", `String "Geometry"; "default", `Null;
     "label", `String "Result"; "soft", `Null] in
-  let instance_definition = set definition "outputs" (`List [geometry_output]) in
-  let instance_network = network [box; node 21 "null" [`Int 20]] (`Int 21)
+  let instance_body = network [
+    node 71 "flow.inputs:compound_1" [];
+    node 70 "box" [];
+    node 72 "flow.outputs:compound_1" [`Int 70]] (`Int 72) in
+  let instance_definition = set definition "outputs" (`List [geometry_output])
+    |> fun json -> set json "body" instance_body in
+  let instance_network = network [
+      node 20 "flow.instance:compound_1" [];
+      node 21 "null" [`Int 20]] (`Int 21)
     |> fun json -> extend json ["instances", `List [instance 20 "compound_1"];
       "geometry_outputs", `List [`Assoc ["to", `List [`Int 21; `String "in0"];
         "output", `String "result"]]] in
@@ -240,11 +250,66 @@ let run () =
     |> List.hd |> member "output" = `String "result")
     "named compound geometry output did not round trip";
   ignore (load saved_instance |> Result.get_ok);
+  let geometry_input = `Assoc ["name", `String "incoming";
+    "type", `String "Geometry"; "default", `Null;
+    "label", `String "Incoming"; "soft", `Null] in
+  let marker_body = network [
+      node 71 "flow.inputs:compound_2" [];
+      node 72 "flow.outputs:compound_2" [`Int 71]] (`Int 72)
+    |> fun json -> extend json ["geometry_outputs", `List [
+      `Assoc ["to", `List [`Int 72; `String "result"];
+        "output", `String "incoming"]]] in
+  let marker_definition = `Assoc ["name", `String "compound_2";
+    "context", `String "sop"; "inputs", `List [geometry_input];
+    "outputs", `List [geometry_output]; "body", marker_body] in
+  let marker_network = network [
+      node 22 "box" [];
+      node 20 "flow.instance:compound_2" [`Int 22];
+      node 21 "null" [`Int 20]] (`Int 21)
+    |> fun json -> extend json ["instances", `List [instance 20 "compound_2"];
+      "geometry_outputs", `List [
+        `Assoc ["to", `List [`Int 21; `String "in0"];
+          "output", `String "result"]]] in
+  let marker_preset = document scene [owned 10 marker_network]
+    |> fun json -> extend json ["definitions", `List [marker_definition]] in
+  let loaded_marker = load (write "compound-markers" marker_preset)
+    |> Result.get_ok in
+  let marker_graph, _ = Option.get (Document.object_network loaded_marker.doc 10) in
+  check (Edit_graph.node_slot_names marker_graph.geometry ~node_id:20
+      = Some ["incoming"])
+    "compound instance geometry slot was not restored";
+  let saved_marker = Preset.save ~directory ~name:"compound-markers-saved"
+    ~sketch:"contract" ~doc:loaded_marker.doc ~view:`Null |> Result.get_ok in
+  let reloaded_marker = load saved_marker |> Result.get_ok in
+  let marker_graph, _ = Option.get (Document.object_network reloaded_marker.doc 10) in
+  check (Edit_graph.node_slot_names marker_graph.geometry ~node_id:20
+      = Some ["incoming"])
+    "compound instance lost its input slot on preset round trip";
+  let saved_body = Yojson.Safe.from_file saved_marker |> member "sections"
+    |> member "graph" |> member "definitions" |> to_list |> List.hd
+    |> member "body" in
+  check (saved_body |> member "nodes" |> to_list |> List.exists (fun json ->
+      member "factory_key" json = `String "flow.inputs:compound_2")
+    && saved_body |> member "nodes" |> to_list |> List.exists (fun json ->
+      member "factory_key" json = `String "flow.outputs:compound_2")
+    && saved_body |> member "geometry_outputs" |> to_list |> List.hd
+      |> member "output" = `String "incoming")
+    "compound definition lost its interface markers or routed input";
   let bad_instance_network = set instance_network "geometry_outputs" (`List [
     `Assoc ["to", `List [`Int 21; `String "in0"];
       "output", `String "absent"]]) in
   let wrong_owner = node 11 "camera" [] in
   let malformed = [
+    "missing-interface-markers", set with_definition "definitions"
+      (`List [set definition "body" (network [node 70 "box" []] (`Int 70))]);
+    "orphan-compound-node", set marker_preset "networks"
+      (`List [owned 10 (set marker_network "instances" (`List []))]);
+    "root-interface-marker", set marker_preset "networks"
+      (`List [owned 10 (network
+        [node 20 "flow.inputs:compound_2" []] (`Int 20))]);
+    "wrong-instance-role", set with_instance "networks"
+      (`List [owned 10 (set instance_network "nodes"
+        (`List [box; node 21 "null" [`Int 20]]))]);
     "recursive-definition", extend valid ["definitions", `List [set definition "body"
       (extend compound_body ["instances", `List [instance 70 "compound_1"]])]];
     "missing-definition", document scene [owned 10

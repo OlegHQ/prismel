@@ -318,6 +318,14 @@ network with the same canvas, keys, views and text), then plan it here.
 
 ## Log
 
+- 2026-09-28 M5 structural-node checkpoint: compound Inputs, Outputs and
+  instance nodes now have interface-derived factories with stable preset keys.
+  Preset v3 restores their named geometry slots from saved definitions;
+  document validation requires one Inputs and one Outputs marker per definition
+  and checks each instance's role, definition key and geometry slots. Round-trip
+  and malformed-preset tests cover the boundary. Group/ungroup, value interfaces
+  and cook integration are still pending.
+
 - 2026-09-28 M5 geometry flatten checkpoint: `Flow_sop.Compile.flatten`
   resolves named compound geometry outputs and Inputs/Outputs interfaces,
   recursively inlines used SOP nodes under saved instance-path ids, and
