@@ -1,117 +1,63 @@
-# Composable workspaces design study
+# Workspace study: iteration, scopes and groups
 
-Pending proposal, 28 September 2026. Open **[index.html](index.html)** directly:
+Pending proposal, 29 September 2026. Open **[index.html](index.html)** directly;
+no server, build step or network is needed. It is a behavioral reference, not
+product code and never a web fallback. The native editor stays PXUI on Metal.
 
-```sh
-open specification/workspace/prototype/index.html
-```
-
-No server, build step, package install or network is needed to use the prototype.
-The existing Flow font is loaded locally. This is a standalone research artifact;
-it does not change `specification/flow.md`, native editor behavior, or Dune.
-
-Read **[the HTML proposal](proposal.html)** for research, language semantics,
-architecture, migration stages, open decisions and usability experiments. The
-same report is in [Markdown](../../../reports/Composable%20Lisp%20workspaces.md).
-Research notes are in [research_notes](../../../research_notes/Composable%20Lisp%20workspaces).
+The design is in [../iteration.md](../iteration.md), the reference programs in
+[../case-studies.md](../case-studies.md), and the ambiguity register in
+[../ambiguities.md](../ambiguities.md). The earlier
+[report](../../../reports/Composable%20Lisp%20workspaces.md) covers contexts,
+reuse and the composed shell.
 
 ## Try it
 
-1. In Geometry, select **size**, adjust its slider or apply `0.9`. Switch to
-   List and Lisp: selection and the applied value follow you.
-2. Select **flower**. Its argument controls belong to this call; typed connection
-   menus let you choose an earlier binding without writing Lisp. Enter
-   **Edit shared definition**. Select **disc**, apply
-   `(sop/disc (* radius 0.5))`, and watch both blooms shrink. The header names
-   the caller used for preview. Return to call. **Make unique** copies the body
-   and retargets only this call; Undo reverses it.
-3. Shift-select **size**, **petals** and **flower**. **Group** (`G`) draws a visual
-   frame; repeating removes it. **Make function** (`F`) previews the boundary,
-   asks for a name and extracts one reusable call. Its parameters come from
-   outside dependencies. Undo restores the original bindings.
-4. In Settings, select **exposure** and **Inspect macro expansion**. The authored
-   `(twice 0.5)` expands to `(+ 0.5 0.5)`. To reuse a function across contexts,
-   apply `(half 3.0)` to exposure; `half` also drives geometry's twist.
-5. In Editor, choose **Try workspace layouts**. Three panels, single view and
-   floating tools each change real Lisp and graph structure. The dialog previews
-   the resulting panel tree. **Restore three panels** remains a host control.
-6. In Lisp, replace `size 0.7` (or its current value) with `size "oops"`.
-   **Check & apply** reports the type mismatch while the live study remains at
-   the last applied version. Fix and apply, or discard the draft. Undo/redo each
-   document transaction with the toolbar or Command/Ctrl-Z / Shift-Z.
-7. Use **Actions & keys** for searchable commands. Tab follows browser focus;
-   arrow keys switch focused projection tabs. `1`, `2`, `3` switch views outside
-   text fields; Enter on a function node enters it; Escape returns to its call.
-   **Export Lisp** downloads the applied document.
+1. **Probe a loop.** In *Bloom studio*, drag across the strip of the `ring`
+   zone. Every node inside shows its value at that iteration, and the viewport
+   highlights that petal. Click any petal to jump to the iteration that made
+   it. `[` and `]` step through iterations.
+2. **Scrub.** Drag any number: a literal, a number inside an `ƒ` chip, a vector
+   component, or a dimmed default (which writes the keyword). Inside a loop,
+   the change applies to every iteration.
+3. **Unfold and fold.** In *Square wave*, `y` holds a `Σ` chip. Click its ƒ and
+   it becomes a sum zone inside the `for` zone. The ƒ on the zone's title
+   folds it back.
+4. **Make a loop.** Select `heart` in Bloom and press **R** (Repeat). Then drag
+   from the new zone's `i` onto `radius`, which writes `(* i 0.16)`. **⇧R**
+   (Iterate) wraps a selection in `fold`.
+5. **Hoist.** In *Sunflower*, `turn` carries **↥ same each time**. Click it to
+   move the node out of the loop; the output is unchanged.
+6. **Groups and scopes.** *Facade* draws `▦ attic` and `▦ lit` links from group
+   writers to readers. `marked` is a named `let*` scope.
+7. **Loops in the shell.** *Variations* builds four viewports with a `for` in
+   the editor graph.
+8. **See the code.** Select anything: the Lisp panel shows that binding with
+   everything it depends on, the selection marked, and a text editor for just
+   that binding.
 
-## What is real in this study
+## Files
 
-- One AST feeds graph, list, text, typed inspector, scene illustration and layout
-  preview. Graph references establish dependencies across six named contexts.
-- Shared function definitions, per-call arguments, explicit independent copies,
-  call-context inspection, graph/list selection and source-name highlighting.
-- Typed connection menus for preceding compatible bindings. Expressions and
-  connections are also editable in the inspector or text.
-- Atomic validation and apply, retained invalid draft, 60-step undo capacity,
-  explicit graph-cycle/recursion errors, arity/type/context checks, bounded
-  geometry counts and numeric runtime checks.
-- Binding-free value template macros with a read-only expansion display.
-- Visual grouping, single-output function extraction, source export and a
-  schematic layout preview driven by the checked editor graph.
-
-## Deliberate limits
-
-This is an interaction prototype, **not** a production compiler, usability study,
-complete replacement editor, or browser rendering backend. Its JavaScript flower
-illustration is not Prismel geometry or Metal output.
-
-The language implements the small catalog in `model.js`, positional calls and
-one return per function. It does not support all current Flow syntax, named
-outputs/defaults, general macros, units/effects, arbitrary editor widgets, native
-windows, holes, or lossless source identity. Its value macros cannot introduce
-bindings; full hygienic expansion is a proposed native milestone. Source applies
-normalize formatting and drop comments. New bindings can be authored in Lisp;
-there is no node-creation catalog, wire dragging, graph panning/zooming or node
-position editing in this study. Large graphs scroll in the canvas. Extraction
-is restricted to a selection with one outward result and representable local
-inputs; it rejects unsupported boundaries without changing the document.
-
-Visual frames are session metadata, excluded from Lisp export. Refresh loses
-session edits; a browser unload prompt guards changed state, and Export saves
-the applied source. Saved-literal restoration for parameter drives is specified
-for the native design but is not implemented here: the lab's Apply explicitly
-replaces a binding expression. Settings FPS and seed are checked configuration
-values; the static illustration does not animate or sample randomness.
-
-The panel preview shows layout structure. Selecting a layout changes the editor
-root, but intentionally leaves the lab's inspection shell available; it does not
-instantiate a complete alternate application or operating-system windows. Native
-layout lifecycle and host recovery still need implementation and native tests.
-
-## Verification
-
-The model check uses only Node's standard library:
+| File | Role |
+|---|---|
+| `index.html` | the self-contained study (generated) |
+| `model.js` | reader, canonical printer, two-pass checker and evaluator, 2D illustration kernel |
+| `cases.js` | the case-study workspaces (source of `../case-studies.md`) |
+| `register.js` | the ambiguity register (source of `../ambiguities.md`) |
+| `src/` | page markup, styles and editor code |
+| `build.cjs` | assembles `index.html` from the above |
+| `check.cjs` | model checks, Node standard library only |
 
 ```sh
 node specification/workspace/prototype/check.cjs
+node specification/workspace/prototype/build.cjs   # after editing src/ or the model
 ```
 
-Optional browser checks use an externally installed Playwright and Chrome; no
-project dependency is added:
+## Limits
 
-```sh
-node specification/workspace/prototype/browser-check.cjs \
-  /absolute/path/to/playwright \
-  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
-```
-
-`check.cjs` covers the six roots, semantic print/read round trips, shared and
-independent functions, cross-context value reuse, restricted macros, static
-rejections, cycles, runtime bounds and malformed source. `browser-check.cjs`
-covers actual control interactions, caller preview, source errors preserving
-state, history, extraction preserving output, grouping, layouts, recovery,
-export, keyboard behavior, responsive widths and local proposal links.
-
-These checks establish prototype behavior only. The proposal has separate gates
-for OCaml compilation, lossless projections, multi-output extraction, hygienic
-macros, runtime/resource safety, native windows and formative user testing.
+The preview is a 2D JavaScript illustration of the catalog's semantics, not
+Prismel geometry. Loops, graph inputs and `[%workspace]` are proposals; today's
+`[%flow]` accepts one graph plus `defgraph`s. Macros are binding-free value
+templates only. Positions, frames and collapsed zones are session layout and
+never reach the Lisp. Comments are not preserved through graph edits. The
+study limits (4,096 iterations per zone, 600,000 steps, 20,000 primitives)
+are demonstrative, not measured.

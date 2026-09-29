@@ -2,6 +2,8 @@
 
 **Proposal for discussion, 28 September 2026. This is a future design, not the normative Flow specification or an implementation commitment.**
 
+*Revision, 29 September 2026:* iteration (`for`, `fold`, `scan`, `sum`), `if`, nested scopes, geometry groups, graph inputs and compile-time sketches are specified in [specification/workspace/iteration.md](../specification/workspace/iteration.md), with [case studies](../specification/workspace/case-studies.md) and an [ambiguity register](../specification/workspace/ambiguities.md). The laboratory linked below has been rebuilt around them.
+
 Prismel should extend Flow into one typed, functional document language whose graph, list and Lisp views edit the same authored program. Artists should be able to start with a connected scene, adjust familiar parameters, and gradually turn repeated work into functions; coders should be able to write those same definitions without maintaining a parallel editor model. The language should describe geometry, scenes, world organization, settings and editor layouts, while the native host retains responsibility for resources, input and recovery. Reuse should center on ordinary typed functions, with macros reserved for syntax that functions cannot express. The recommended implementation is one shared OCaml frontend serving both the existing PPX path and a checked live execution plan. The accompanying [interactive laboratory](../specification/workspace/prototype/index.html) tests selected interaction ideas in HTML and JavaScript; it neither proves a sound language nor establishes usability for creative people.
 
 ## Reuse becomes understandable when edit scope stays visible

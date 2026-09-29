@@ -1,0 +1,101 @@
+<div class="page">
+<header class="mast"><div><div class="eyebrow">Prismel · design proposal · 29 Sep 2026</div><h1>Loops you can see.<br>Lisp you can touch.</h1></div>
+<div><p class="lede">One checked Lisp document is the graph, the list, the code and the editor shell. This revision adds iteration, scopes and groups. Every loop in the Lisp is a zone on the canvas, and every zone can show each of its iterations.</p></div>
+<div class="meta"><span>Status</span><b>Pending proposal</b><span>Built on</span><b>Prismel Flow</b><span>Preview</span><b>2D illustration</b></div></header>
+
+<div class="sec-head"><h2>The studio</h2><p>Pick a case study. Drag across a loop’s strip to probe one iteration, click a shape in the viewport to find the iteration that made it, and select anything to see exactly its Lisp.</p></div>
+
+<div class="app" aria-label="Interactive workspace prototype">
+<div class="app-top"><b>Prismel Flow</b><label class="sr-only" for="casesel">Case study</label><select id="casesel" class="casesel"></select><div class="tools"><button id="layouts">Shell layouts</button><button id="undo" title="Undo (Ctrl/⌘ Z)">Undo</button><button id="redo" title="Redo (Ctrl/⌘ Shift Z)">Redo</button><button id="export">Copy Lisp</button></div></div>
+<div id="shell" class="shell" aria-label="Editor shell, composed from the applied editor graph"></div>
+<div class="statusbar"><span id="status" role="status" aria-live="polite">Checked</span><button id="help">Actions &amp; keys</button><button id="recover" title="Host control: rewrites the editor graph to the default shell">Restore layout</button></div>
+</div>
+
+<div class="sec-head"><h2>Anatomy of a zone</h2><p>A loop is a region, not a node. The border is the lexical scope: what crosses it, and in which direction, is exactly what the Lisp says.</p></div>
+<section class="anatomy">
+<figure aria-label="Diagram of a for zone">
+<svg viewBox="0 0 620 300" role="img" aria-labelledby="anat-t"><title id="anat-t">A for zone with its rail, strip, inner nodes, yield and output</title>
+<rect x="60" y="40" width="440" height="200" rx="6" fill="var(--z-for)" stroke="var(--z-for-b)"/>
+<line x1="60" y1="64" x2="500" y2="64" stroke="var(--line)"/><line x1="60" y1="98" x2="500" y2="98" stroke="var(--line)"/>
+<rect x="68" y="47" width="26" height="14" rx="3" fill="var(--accent)"/><text x="72" y="58" class="an-b" fill="var(--on-accent)" style="fill:var(--on-accent)">for</text><text x="100" y="58" class="an-b">ring</text><text x="410" y="58" class="an-t">12× geometry</text>
+<g fill="none" stroke="currentColor" color="var(--t-geo)">
+<rect x="70" y="70" width="20" height="22" rx="3" fill="var(--accent-soft2)"/><circle cx="80" cy="81" r="6"/><circle cx="104" cy="81" r="6"/><circle cx="128" cy="81" r="6"/><circle cx="152" cy="81" r="6"/><circle cx="176" cy="81" r="6"/></g>
+<text x="380" y="85" class="an-b">i = 0 · 1 of 12</text>
+<text x="72" y="122" class="an-a">i ∈ (range 12)</text><circle cx="60" cy="118" r="4.5" fill="var(--input)" stroke="var(--t-int)" stroke-width="1.5"/><circle cx="196" cy="118" r="4.5" fill="var(--t-int)"/>
+<text x="72" y="146" class="an-b">seed</text><text x="110" y="146" class="an-t">same every time</text><circle cx="60" cy="142" r="4.5" fill="var(--t-int)"/><circle cx="196" cy="142" r="4.5" fill="var(--t-int)"/>
+<rect x="222" y="108" width="130" height="68" rx="4" fill="var(--input)" stroke="var(--line-strong)"/><text x="230" y="122" class="an-b">leaf</text><text x="300" y="122" class="an-t">petal</text><line x1="222" y1="128" x2="352" y2="128" stroke="var(--line)"/>
+<text x="230" y="143" class="an-t">length</text><rect x="276" y="134" width="68" height="14" rx="3" fill="var(--expr-bg)" stroke="var(--accent-soft2)"/><text x="281" y="145" class="an-a">ƒ (+ 0.9 …)</text>
+<line x1="222" y1="156" x2="352" y2="156" stroke="var(--line)"/><text x="230" y="170" class="an-t">1 prim</text><path d="M 300 167 l 8 -5 l 8 3 l 8 -6 l 8 4" fill="none" stroke="var(--t-float)"/>
+<path d="M 196 118 H 208 V 142 H 222" fill="none" stroke="var(--t-int)" stroke-dasharray="3 4"/>
+<line x1="382" y1="104" x2="382" y2="232" stroke="var(--line-strong)" stroke-dasharray="3 3"/><text x="394" y="122" class="an-t">collect</text><circle cx="382" cy="118" r="4.5" fill="var(--t-geo)"/>
+<path d="M 352 118 H 382" stroke="var(--t-geo)" stroke-width="2.2"/>
+<rect x="495" y="47" width="10" height="10" rx="2" fill="var(--t-geo)"/><rect x="498" y="50" width="10" height="10" rx="2" fill="none" stroke="var(--t-geo)"/>
+<path d="M 505 52 H 560" stroke="var(--t-geo)" stroke-width="2.2"/><text x="520" y="45" class="an-t">list ×12</text>
+<path d="M 10 142 H 56" stroke="var(--t-int)"/><text x="4" y="136" class="an-t">outer</text>
+<text x="80" y="226" class="an-t">repeat · collect a list</text>
+<g class="an-l"><path d="M 150 30 V 44"/><path d="M 280 30 V 70"/><path d="M 40 270 V 146"/><path d="M 300 270 V 176"/><path d="M 440 270 V 122"/><path d="M 560 270 V 60"/></g>
+<text x="120" y="24" class="an-a">title · count · type</text><text x="250" y="24" class="an-a">strip · drag to probe</text>
+<text x="4" y="286" class="an-a">rail: vars + captures</text><text x="248" y="286" class="an-a">inner node · sparkline</text><text x="400" y="286" class="an-a">yield</text><text x="520" y="286" class="an-a">stacked socket</text>
+</svg>
+</figure>
+<dl>
+<dt>Rail</dt><dd>Loop variables (∈), the accumulator (⟲) and every outer name the body uses. Outer wires stop at the rail; inner wires start there. Captures are derived from the Lisp and never authored, so the rail cannot drift from the code.</dd>
+<dt>Strip</dt><dd>One cell per iteration: a thumbnail for geometry, a bar for numbers, the state after each step for fold. Drag across it and every node inside shows its value at that iteration.</dd>
+<dt>Footer</dt><dd>The value at the probe, a sparkline across iterations and a count. A node that never changes gets a green <b>↥ same each time</b>; click it to move the node out of the loop.</dd>
+<dt>Yield</dt><dd>The only way out. for collects, fold passes <i>next</i> back along the dashed feedback line, Σ adds. Wiring from inside a zone to anything outside is refused with a reason.</dd>
+<dt>Socket</dt><dd>A list output has a stacked socket. Variadic inputs such as merge splice it, so <code>(sop/merge ring)</code> reads as one wire.</dd>
+</dl>
+</section>
+
+<div class="sec-head"><h2>Case studies</h2><p>Reference programs for sketches. Each one isolates a construct and shows it in the graph, in Lisp and as the OCaml a sketch would contain.</p></div>
+<section id="gallery" class="gallery" aria-label="Case studies"></section>
+
+<div class="sec-head"><h2>Sketches are compile-time Lisp</h2><p>A sketch embeds the workspace as a string. The PPX checks it against the catalog manifest at build time, so a typo is an OCaml compile error on the right line inside the string.</p></div>
+<section class="ocaml">
+<pre aria-label="Example OCaml sketch">open Prismel
+
+module Bloom = [%workspace {|
+(workspace bloom
+  (graph flower :context sop [(petals : int 12) (seed : int 7)]
+    (let* [ring (for [i (range petals)]
+                  (let* [r (+ 0.6 (* 0.3 (value/rand seed i)))
+                         a (* (/ i petals) 6.2832)]
+                    (sop/circle :radius 0.18 :center (value/polar r a))))]
+      (sop/merge ring))))
+|}]
+(* Bloom.Flower.inputs = { petals : int; seed : int }
+   Bloom.program : Prismel_workspace.Program.t *)
+
+let () =
+  Bloom.program
+  |> Prismel_workspace.Program.with_inputs
+       Bloom.Flower.{ default_inputs with petals = 16 }
+  |> Prismel_editor.Workspace.run</pre>
+<ol>
+<li><b>No antiquotation.</b> OCaml values enter through graph inputs, which the PPX turns into a typed record with defaults. The string stays checkable on its own and editable from the graph.</li>
+<li><b>Errors at their line.</b> Syntax, names, arity, keywords, both if branches, loop bodies, shadowing, recursion and literal loop bounds are compile-time. Driven counts and the step budget are run-time, with the same codes.</li>
+<li><b>One plan.</b> The PPX embeds checked plan data, as <code>[%flow]</code> already does with <code>Flow_sop.Build</code>. The live editor runs the same plan, so the two cannot disagree.</li>
+<li><b>Write-back is explicit.</b> The running editor edits a live copy. Write back to main.ml rewrites only the string literal, keeps comments and shows a diff first.</li>
+<li><b>Proposed, not built.</b> Today’s <code>[%flow]</code> takes one graph and <code>defgraph</code>s. <code>[%workspace]</code>, loops and graph inputs are this proposal.</li>
+</ol>
+</section>
+
+<div class="sec-head"><h2>Precedents</h2><p>What each system does well for iteration, and what we deliberately do differently.</p></div>
+<section class="research">
+<article><h3>Blender · Repeat and For Each zones</h3><p><b>Take:</b> a loop is a tinted region between paired input and output nodes. Outside links into a zone are constant per iteration, and no link may leave.</p><p><b>Avoid:</b> iteration state is invisible. You see only the final result, never iteration 3.</p><a href="https://docs.blender.org/manual/en/latest/modeling/geometry_nodes/utilities/repeat_zone.html">Repeat Zone manual</a> · <a href="https://docs.blender.org/manual/en/4.3/modeling/geometry_nodes/utilities/for_each_geometry_zone.html">For Each Element</a></article>
+<article><h3>vvvv gamma · regions</h3><p><b>Take:</b> splicer bars (iterate this input) versus plain links (constant), and accumulators that hand a value to the next iteration. That is exactly the difference between an ∈ row, a capture and a ⟲ row.</p><p><b>Avoid:</b> zip-by-shortest as the only multi-input rule.</p><a href="https://thegraybook.vvvv.org/reference/language/loops.html">The Gray Book · loops</a></article>
+<article><h3>Houdini · for-each blocks</h3><p><b>Take:</b> feedback versus merge-each as an explicit choice, and iteration metadata as a readable value.</p><p><b>Avoid:</b> Begin/End nodes that can be wired inconsistently, and metadata fetched through string expressions.</p><a href="https://www.sidefx.com/docs/houdini/model/looping.html">Looping in SOPs</a></article>
+<article><h3>Grasshopper · data trees</h3><p><b>Take:</b> any component runs over a list without ceremony.</p><p><b>Avoid:</b> implicit “longest list” matching, which is the most asked-about behavior in its forums. Prismel iterates only where a zone says so.</p><a href="https://www.grasshopper3d.com/xn/detail/2985220:Comment:666154">Data matching discussion</a></article>
+<article><h3>Bret Victor · Learnable Programming</h3><p><b>Take:</b> show the data, not just the code. Every iteration is visible and scrubbable, and the picture links back to the line that made it.</p><p><b>Adapt:</b> the strip, sparklines and click-to-iteration bring that to a node graph.</p><a href="https://worrydream.com/LearnableProgramming/">Learnable Programming</a></article>
+<article><h3>Enso · dual representation</h3><p><b>Take:</b> text and graph are two equal views of one functional program, edited in either.</p><p><b>Adapt:</b> Prismel keeps Lisp as the canonical text, so macros, scopes and loops have one obvious printed form.</p><a href="https://github.com/enso-org/enso">Enso</a></article>
+</section>
+
+<div class="sec-head" id="ambiguities"><h2>Ambiguity register</h2><p>Every place this design could reasonably be read two ways. Each has a proposed rule, or its options and a lean when still open.</p></div>
+<section id="register" class="register"><div class="rhead"><div class="rfilter" role="group" aria-label="Filter by area"></div><span class="rcount"></span></div><div class="rlist"></div></section>
+
+<section class="limits"><div><h3>What is real</h3><p>One AST feeds every panel. Loops, folds, sums and scopes are checked, run and shown per iteration. Wiring, scrubbing, fold and unfold, Repeat, Iterate, hoist, rename, add, delete and panel edits rewrite the Lisp and pass the checker, or are refused with a reason.</p></div>
+<div><h3>What is not</h3><p>Not Prismel geometry: the preview is a 2D JavaScript illustration of the catalog’s semantics. <code>[%workspace]</code>, graph inputs and loop syntax are proposals; nothing here changes the native editor.</p></div>
+<div><h3>Session only</h3><p>Positions and collapsed zones are layout and never reach the Lisp. Reloading loses edits, so copy the Lisp first.</p></div></section>
+<footer>PRISMEL / COMPOSABLE WORKSPACES · ITERATION REVISION · Separate from the approved Flow specification · The native editor stays PXUI on Metal</footer>
+</div>
+<dialog id="dialog"><div class="dialog-head"><h2 id="dialog-title">Actions</h2><button id="close-dialog" aria-label="Close dialog">×</button></div><div id="dialog-body"></div></dialog>
