@@ -20,6 +20,7 @@ type text_cache = {
   qualified : bool;
   printed : (Flow_sop.Print.t, Flow.Diagnostic.t) result;
   lines : string array;
+  max_columns : int;
   node_at_line : int option array;
 }
 
@@ -129,10 +130,10 @@ let pane_ui bounds =
 
 (* The inspector column's kit panel. *)
 let inspector_panel ui bounds build =
-  let x, y, width, height = pane_ui bounds in
+  let x, y, width, height = bounds in
   Pxui.Ui.panel ui ~x:(float_of_int x) ~y:(float_of_int y)
-    ~width:(float_of_int width) ~max_height:(float_of_int height)
-    "workspace-inspector-panel" build
+    ~width:(float_of_int width) ~height:(float_of_int height)
+    ~padding:0 "workspace-inspector-panel" build
 
 let inspector_rows (network : Flow_sop.Network.t)
     (layout : Editor_core.Network_layout.t)
@@ -258,6 +259,7 @@ let view_of value level (frame : Frame.t) =
 
 let open_level value level frame =
   if level = value.level then value else
+  let () = Pxui.Ui.unfocus value.ui in
   let world = match level with
     | Document.Inside id -> kind value id = Some "world"
     | Scene | Compound _ -> false in
@@ -750,12 +752,12 @@ let printed_level value =
               (fun catalog -> match value.level with
                 | Compound _ ->
                     (match List.rev (Document.compound_names value.doc value.level) with
-                     | name :: _ -> Flow_sop.Print.definition ~qualified ~catalog
+                     | name :: _ -> Flow_sop.Print.definition ~qualified ~precision:6 ~catalog
                          ~definitions name
                      | [] -> Error (Flow.Diagnostic.error ~code:"E_UNBOUND"
                          "Open compound has no definition"))
                 | Scene | Inside _ ->
-                    Flow_sop.Print.network ~qualified ~name:value.name ~context:saved.context
+                    Flow_sop.Print.network ~qualified ~precision:6 ~name:value.name ~context:saved.context
                       ~catalog ~display:saved.displayed ~definitions saved.graph) in
       let lines = Array.of_list (String.split_on_char '\n'
         (match printed with Ok print -> print.text
@@ -768,7 +770,10 @@ let printed_level value =
        | Error _ -> ());
       {level = value.level; source = saved.graph;
        definitions = value.doc.definitions; displayed = saved.displayed;
-       qualified; printed; lines; node_at_line}
+       qualified; printed; lines;
+       max_columns = Array.fold_left (fun longest line ->
+         max longest (String.length line)) 0 lines;
+       node_at_line}
 
 let move_text_selection cache selected direction =
   let bindings = match cache.printed with
@@ -803,37 +808,51 @@ let text_pane ui ~bounds:(x, y, width, height) ~title ~reveal cache ~selected =
             (if cache.qualified then "on" else "off"))));
   let body_y = y +. row and body_h = Float.max 0. (height -. row) in
   let body = Ui.box ui ~flags:Ui.(clickable + scroll + clip + blocking)
-      ~w:(Ui.Px width) ~h:(Ui.Px body_h) ~at:(x, body_y) "flow-text-body" in
+      ~w:(Ui.Px width) ~h:(Ui.Px body_h) ~at:(x, body_y)
+      ~scroll_step:row "flow-text-body-v2" in
   let signal = Ui.signal ui body in
-  let visible = max 1 (int_of_float (body_h /. row)) in
-  let maximum = max 0 (Array.length cache.lines - visible) in
-  let first = max 0 (min maximum
-    (Ui.state ui body ~default:0 - int_of_float (snd signal.scroll))) in
-  let first = if not reveal then first else
+  let maximum = Float.max 0. (float (Array.length cache.lines) *. row -. body_h) in
+  let vertical = Float.max 0. (Float.min maximum (Ui.scroll_offset ui body)) in
+  let vertical = if not reveal then vertical else
     match cache.printed, selected with
     | Ok print, Some id ->
         (match List.assoc_opt id print.binding_lines with
-         | Some line when line - 1 < first -> line - 1
-         | Some line when line - 1 >= first + visible ->
-             min maximum (line - visible)
-         | _ -> first)
-    | _ -> first in
-  Ui.set_state ui body first;
+         | Some line when float (line - 1) *. row < vertical ->
+             float (line - 1) *. row
+         | Some line when float line *. row > vertical +. body_h ->
+             Float.min maximum (float line *. row -. body_h)
+         | _ -> vertical)
+    | _ -> vertical in
+  if reveal then Ui.set_scroll_offset ui body vertical;
+  let content = Ui.within ui body (fun () ->
+    Ui.box ui ~w:(Ui.Px width)
+      ~h:(Ui.Px (Float.max body_h (float (Array.length cache.lines) *. row)))
+      "flow-text-content") in
+  let max_horizontal = Float.max 0. (float cache.max_columns *. 7. -. width +. 16.) in
+  let horizontal = Float.max 0. (Float.min max_horizontal
+    (float (Ui.state ui content ~default:0) /. 1000.
+      +. fst signal.scroll *. row)) in
+  Ui.set_state ui content (int_of_float (Float.round (horizontal *. 1000.)));
   let picked = if not signal.pressed || signal.button <> Some Input.LeftButton
     then None else
     let _, py = signal.press_point in
-    let line = first + int_of_float (Float.floor ((py -. body_y) /. row)) in
+    let line = int_of_float (Float.floor ((py -. body_y +. vertical) /. row)) in
     if line < 0 || line >= Array.length cache.node_at_line then None
     else cache.node_at_line.(line) in
   Ui.draw ui body (fun paint _ ->
-    Ui.Paint.fill paint ~x ~y:body_y ~w:width ~h:body_h theme.panel;
-    for index = first to min (Array.length cache.lines - 1) (first + visible) do
-      let line_y = body_y +. float_of_int (index - first) *. row in
+    Ui.Paint.fill paint ~x ~y:body_y ~w:width ~h:body_h theme.panel);
+  Ui.draw ui content (fun paint (_, content_y, _, _) ->
+    let offset = body_y -. content_y in
+    let first = max 0 (int_of_float (Float.floor (offset /. row))) in
+    let last = min (Array.length cache.lines - 1)
+        (int_of_float (Float.ceil ((offset +. body_h) /. row))) in
+    for index = first to last do
+      let line_y = content_y +. float_of_int index *. row in
       if cache.node_at_line.(index) = selected then
         (match selected with Some _ ->
           Ui.Paint.fill paint ~x ~y:line_y ~w:width ~h:row
             (Pxui.Theme.pressed_fill theme) | None -> ());
-      Ui.Paint.text paint ~at:(x +. 8., line_y +. 5.)
+      Ui.Paint.text paint ~at:(x +. 8. -. horizontal, line_y +. 5.)
         ~color:theme.foreground cache.lines.(index)
     done);
   picked, toggle
@@ -1277,22 +1296,29 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
             let display = Option.fold ~none:"none" ~some:(fun id ->
               Option.fold ~none:("#" ^ string_of_int id) ~some:Node.label
                 (Edit_graph.find document ~node_id:id)) open_network.displayed in
-            Pxui.Ui.label ui (Printf.sprintf "%s · %d nodes · display %s"
-              (Flow.Context.name open_network.context) node_count display);
-            Pxui.Ui.label ui "Card rows show drives, pins, overrides, and primary fields.";
-            let live = Pxui.Ui.toggle ui "Live update while dragging" value.live_cook in
+            ignore (Pxui.Ui.inspector_header ui ~key:"network-header"
+              ~title:(level_name value)
+              ~detail:(Printf.sprintf "%d nodes · display %s"
+                node_count display));
+            let live = Pxui.Ui.inspector_toggle ui
+                ~key:"live-cook" ~label:"Live update while dragging"
+                value.live_cook in
             let changes = match Settings.fields unchanged with
               | [] -> []
               | fields ->
                   Pxui.Ui.scope ui "sketch-settings" (fun () ->
-                    Pxui.Ui.label ui "Settings";
-                    Pxui_shell.Inspector.fields ui fields) in
+                    let _, _, width, _ = panes.inspector in
+                    Option.value ~default:[] (Pxui.Ui.inspector_section ui
+                      ~key:"sketch-settings-section" ~expanded:true "Settings"
+                      (fun () -> Pxui_shell.Inspector.fields ui
+                        ~width:(float width) fields))) in
             changes, live, camera_panel ()) in
           Some panel, [], changes, live
       | _ :: _ :: _ ->
           let () = inspector_panel ui panes.inspector (fun () ->
-            Pxui.Ui.label ui (Printf.sprintf "%d nodes selected · ⌘G to group"
-              (List.length selected_ids))) in
+            ignore (Pxui.Ui.inspector_header ui ~key:"multi-header"
+              ~title:(Printf.sprintf "%d nodes" (List.length selected_ids))
+              ~detail:"Selected · ⌘G to group")) in
           None, [], [], value.live_cook
       | [node_id] ->
           let geometry = Edit_graph.find document ~node_id in
@@ -1324,19 +1350,51 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
             | _ -> [] in
           let changes = inspector_panel ui panes.inspector (fun () ->
             Pxui.Ui.scope ui (Printf.sprintf "node.%d" node_id) (fun () ->
-              let renamed = Pxui.Ui.text_field ui "Label##node-label" label in
+              let _, _, inspector_width, _ = panes.inspector in
+              let inspector_width = float (max 1 inspector_width) in
+              let header = Pxui.Ui.inspector_header ui
+                  ~key:"flow-inspector-header" ~title:label
+                  ~detail:(Printf.sprintf "%s/%s · #%d%s%s"
+                    (Flow.Context.name open_network.context) kind node_id
+                    (if Edit_graph.is_bypassed document ~node_id then " · muted" else "")
+                    (if open_network.displayed = Some node_id then " · displayed" else "")) in
+              let renamed, editing = Pxui.Ui.within ui header (fun () ->
+                Pxui.Ui.value_field ui ~at:(8., 5.)
+                  ~w:(inspector_width -. 22.) ~h:29. ~size:16
+                  ~valid:(fun text -> String.trim text <> "")
+                  "node-label" label) in
+              if not editing then Pxui.Ui.draw_over ui header (fun paint (x, y, w, _) ->
+                let theme = Pxui.Ui.theme ui in
+                Pxui.Ui.Paint.fill paint ~x:(x +. 8.) ~y:(y +. 5.)
+                  ~w:(w -. 16.) ~h:29. theme.input;
+                Pxui.Ui.Paint.text paint ~at:(x +. 9., y +. 8.) ~size:16
+                  ~color:theme.foreground renamed);
               let rename = if renamed = label then [] else
                 [Pxui_graph.Rename_requested {node = node_id; label = renamed}] in
-              Pxui.Ui.label ui (Printf.sprintf "%s/%s · #%d%s%s"
-                (Flow.Context.name open_network.context) kind node_id
-                (if Edit_graph.is_bypassed document ~node_id then " · muted" else "")
-                (if open_network.displayed = Some node_id then " · displayed" else ""));
-              let interface_edits = List.concat
+              let interface_edits =
+                let rows = List.map (fun (port : Flow_sop.Network.interface_port) ->
+                  let field : Editor_core.Param.field_view = {
+                    name = port.name; label = port.label; description = None;
+                    folder = ["Interface"]; impact = Editor_core.Param.Cook;
+                    primary = false; vec3 = None;
+                    kind = Editor_core.Param.Text_view;
+                    default = Editor_core.Param.Text_value port.name;
+                    current = Editor_core.Param.Text_value port.name } in
+                  { Pxui_shell.Inspector.path = port.name; fields = [field];
+                    shown = false; locked = true; drive = None; live = None;
+                    components = []; split = None }) interface_ports in
+                let renamed = if rows = [] then [] else
+                  Pxui_shell.Inspector.flow_fields ui
+                    ~expanded:["Interface"] ~width:inspector_width
+                    ~actions:false rows
+                  |> List.filter_map (function
+                    | Pxui_shell.Inspector.Edited
+                        (from, Editor_core.Param.Text_value into) ->
+                        Some (Pxui_graph.Rename_interface_requested
+                          {node = node_id; from; into})
+                    | _ -> None) in
+                renamed @ List.concat
                 (List.mapi (fun index (port : Flow_sop.Network.interface_port) ->
-                  Pxui.Ui.label ui (Flow.Port_type.name port.ty ^ " · " ^ port.label);
-                    let edited = Pxui.Ui.text_field ui
-                      (Printf.sprintf "Port %d##interface-%d" (index + 1) index)
-                      port.name in
                     let compatible_neighbor offset =
                       index + offset >= 0
                       && Option.fold ~none:false ~some:(fun
@@ -1346,23 +1404,17 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
                            (List.nth_opt interface_ports (index + offset)) in
                     let can_up = compatible_neighbor (-1)
                     and can_down = compatible_neighbor 1 in
-                    let up, down = if not can_up && not can_down then
-                      false, false else Pxui.Ui.row ui
-                      (Printf.sprintf "interface-order-%d" index) (fun () ->
-                        let up = if can_up then
-                          Pxui.Ui.button ui "Move up" else
-                          (Pxui.Ui.label ui " "; false) in
-                        let down = if can_down then
-                          Pxui.Ui.button ui "Move down" else
-                          (Pxui.Ui.label ui " "; false) in
-                        up, down) in
+                    let up = can_up && Pxui.Ui.inspector_button ui
+                      ~key:(Printf.sprintf "interface-up-%d" index)
+                      ("Move " ^ port.label ^ " up") in
+                    let down = can_down && Pxui.Ui.inspector_button ui
+                      ~key:(Printf.sprintf "interface-down-%d" index)
+                      ("Move " ^ port.label ^ " down") in
                     let remove = port.ty <> Flow.Port_type.Geometry
-                      && Pxui.Ui.button ui
-                        (Printf.sprintf "Unexport##interface-%d" index) in
-                    (if edited = port.name then [] else
-                      [Pxui_graph.Rename_interface_requested
-                        {node = node_id; from = port.name; into = edited}])
-                    @ (if up then [Pxui_graph.Reorder_interface_requested
+                      && Pxui.Ui.inspector_button ui
+                        ~key:(Printf.sprintf "interface-remove-%d" index)
+                        ("Unexport " ^ port.label) in
+                    (if up then [Pxui_graph.Reorder_interface_requested
                           {node = node_id; name = port.name; delta = -1}]
                        else if down then [Pxui_graph.Reorder_interface_requested
                           {node = node_id; name = port.name; delta = 1}]
@@ -1377,26 +1429,36 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
                      (Edit_graph.node_slot_names document ~node_id) in
                    let inputs = Option.value ~default:[||]
                      (Edit_graph.inputs document ~node_id) in
-                   if Array.length inputs > 0 then Pxui.Ui.label ui "Inputs";
-                   Array.iteri (fun index input ->
-                     let name = Option.value ~default:("in" ^ string_of_int index)
-                       (List.nth_opt names index) in
-                     let source = match input with
-                       | None -> "empty"
-                       | Some id -> Option.fold ~none:("#" ^ string_of_int id)
-                           ~some:Node.label (Edit_graph.find document ~node_id:id) in
-                     Pxui.Ui.label ui (name ^ " ← " ^ source)) inputs);
+                   if Array.length inputs > 0 then
+                     ignore (Pxui.Ui.inspector_section ui
+                       ~key:"flow-input-heading" ~expanded:true "Inputs"
+                       (fun () -> Array.iteri (fun index input ->
+                         let name = Option.value
+                             ~default:("in" ^ string_of_int index)
+                             (List.nth_opt names index) in
+                         let source = match input with
+                           | None -> "empty"
+                           | Some id -> Option.fold
+                               ~none:("#" ^ string_of_int id)
+                               ~some:Node.label
+                               (Edit_graph.find document ~node_id:id) in
+                         Pxui.Ui.inspector_readout ui ~width:inspector_width
+                           ~key:("flow-input-" ^ string_of_int index)
+                           ~label:name ("← " ^ source)) inputs)));
               let rows = inspector_rows open_network.graph open_network.layout
                   (Option.value ~default:Flow_sop.Port.Map.empty applied)
                   node_id fields value_parameters in
               let edits = match rows with
                 | Error diagnostic ->
-                    Pxui.Ui.label ui (Flow.Diagnostic.to_string diagnostic); []
+                    Pxui.Ui.inspector_message ui ~key:"flow-diagnostic"
+                      (Flow.Diagnostic.to_string diagnostic); []
+                | Ok [] -> []
                 | Ok rows ->
                     let expanded = fields |> List.filter_map (fun field ->
                       match field.Parameter.folder with [] -> None
                       | first :: _ -> Some first) |> List.sort_uniq String.compare in
-                    Pxui_shell.Inspector.flow_fields ui ~expanded rows in
+                    Pxui_shell.Inspector.flow_fields ui ~expanded
+                      ~width:inspector_width rows in
               rename @ interface_edits @ List.map (function
                 | Pxui_shell.Inspector.Edited (path, value) ->
                     Pxui_graph.Set_parameter_requested {node = node_id; path; value}

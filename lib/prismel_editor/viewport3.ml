@@ -133,8 +133,8 @@ let begin_frame extra frame = match extra.fly with
 
 let panel ui ~control ~camera ~extra ~inspector =
   let extra = Option.value ~default:extra
-      (Pxui.Ui.accordion ui ~expanded:true "Viewport" (fun () ->
-        let toggle = Pxui.Ui.toggle ui in
+      (Pxui.Ui.inspector_section ui ~key:"Viewport" ~expanded:true "Viewport" (fun () ->
+        let toggle label value = Pxui.Ui.inspector_toggle ui ~key:label ~label value in
         let look_through = toggle "Look through render camera" extra.look_through in
         (* The ACTIVE camera's own parameter, here so a look-through can be
            set up by orbiting: on, the viewport drives the camera. *)

@@ -94,6 +94,30 @@ let with_scale scale =
   if !amount <> 0. then fail (label "slider did not follow the captured pointer");
   step ui [release (100, row 0)] build;
   if pressed = 5. then fail (label "slider press did not set the value");
+
+  (* Compact inspector sliders use the visible track's position, including
+     on a simple click, and Option-click opens the numeric editor. *)
+  let compact = ref "0" in
+  let build ui =
+    let value, _ = Ui.value_field ui ~at:(20., 20.) ~w:101. ~h:21.
+      ~fraction:(Option.value ~default:0. (float_of_string_opt !compact))
+      ~slide:(fun fraction -> Printf.sprintf "%.17g" fraction)
+      ~valid:(fun text -> float_of_string_opt text <> None) "compact" !compact in
+    compact := value in
+  let ui = Ui.create () in
+  ignore (Ui.frame ui (frame ~scale ~time:0. [] ) build);
+  ignore (Ui.frame ui (frame ~scale ~time:0.5
+    [press (70, 30); release (70, 30)]) build);
+  if abs_float (Option.get (float_of_string_opt !compact) -. 0.5) > 0.02
+      || Ui.text_input_focused ui then
+    fail (label "compact slider click did not jump to the pointer");
+  ignore (Ui.frame ui { (frame ~scale ~time:1. [press (90, 30); release (90, 30)])
+    with keys = [Input.Alt] } build);
+  if not (Ui.text_input_focused ui) then
+    fail (label "Option-click did not open compact numeric entry");
+  let ui = Ui.create () in
+  let build ui = amount := Ui.slider ui "Amount" ~range:(0., 10.) !amount in
+  settle ui build;
   step ui [press (150, row 0)] build;
   let before = !amount in
   step ui [Event.WindowFocusLost; move (400, row 0)] build;
@@ -197,6 +221,57 @@ let with_scale scale =
   if not toggles.(2) || toggles.(0) || toggles.(1) then
     fail (label "scrolled panel did not route the hit to the scrolled row");
 
+  let fixed = Array.make 4 false in
+  let ui = Ui.create () in
+  let fixed_panel events =
+    time := !time +. 0.5;
+    Ui.frame ui (frame ~scale ~time:!time events) (fun ui ->
+      Ui.panel ui ~x:0. ~y:0. ~width:240. ~height:80. "fixed" (fun () ->
+        Array.iteri (fun index value ->
+          fixed.(index) <- Ui.toggle ui (Printf.sprintf "Fixed %d" index) value)
+          fixed)) in
+  fixed_panel [];
+  fixed_panel [move (100, 40); Event.MouseScrolled (0., -2.)];
+  fixed_panel [press (210, 40); release (210, 40)];
+  if not fixed.(2) || fixed.(0) || fixed.(1) then
+    fail (label "fixed-height inspector panel did not scroll its rows");
+
+  let ui = Ui.create () in
+  let child_y = ref 0. in
+  let rubber events =
+    time := !time +. 0.5;
+    let child = Ui.frame ui (frame ~scale ~time:!time events) (fun ui ->
+      let parent = Ui.box ui ~flags:Ui.(scroll + clip) ~at:(0., 0.)
+          ~w:(Ui.Px 100.) ~h:(Ui.Px 80.) ~scroll_step:24. "rubber" in
+      Ui.within ui parent (fun () ->
+        Ui.box ui ~w:(Ui.Px 100.) ~h:(Ui.Px 100.) "content")) in
+    child_y := let _, y, _, _ = Ui.rect ui child in y in
+  rubber [];
+  rubber [move (50, 40); Event.MouseScrolled (0., 1.)];
+  if !child_y <= 0. then fail (label "scroll did not stretch past the top edge");
+  rubber [];
+  if Float.abs !child_y > 0.25 then
+    fail (label "rubber scroll did not spring back to the edge");
+
+  let ui = Ui.create () in
+  let scroll_dir events =
+    time := !time +. 0.5;
+    Ui.frame ui (frame ~scale ~time:!time events) (fun ui ->
+      let parent = Ui.box ui ~flags:Ui.(scroll + clip)
+          ~at:(0., 0.) ~w:(Ui.Px 100.) ~h:(Ui.Px 80.)
+          ~scroll_step:24. "direction" in
+      Ui.within ui parent (fun () ->
+        ignore (Ui.box ui ~w:(Ui.Px 100.) ~h:(Ui.Px 240.) "long"));
+      parent) in
+  let parent = scroll_dir [] in
+  Ui.set_scroll_offset ui parent 80.;
+  let parent = scroll_dir [move (50, 40); Event.MouseScrolled (0., 1.)] in
+  if Ui.scroll_offset ui parent <> 56. then
+    fail (label "positive natural scroll did not move the view up");
+  let parent = scroll_dir [Event.MouseScrolled (0., -1.)] in
+  if Ui.scroll_offset ui parent <> 80. then
+    fail (label "negative wheel scroll did not move the view down");
+
   (* Text fields: UTF-8 entry, Backspace/Delete, focus kept on cancel. *)
   let title = ref "" in
   let build ui = title := Ui.text_field ui "Title" !title in
@@ -272,6 +347,44 @@ let with_scale scale =
   step ui [] build;
   if !short <> "x" || !long <> "long text" then
     fail (label "unfocused short field reused the longer field caret");
+  Ui.destroy ui;
+
+  let long_value = "abcdefghijklmnopqrstuvwxyz0123456789" in
+  let field = ref long_value in
+  let build ui =
+    let value, _ = Ui.value_field ui ~at:(20., 20.) ~w:100. ~h:21.
+      ~valid:(fun _ -> true) "long-field" !field in
+    field := value in
+  let ui = Ui.create () in
+  let field_time = ref 0. in
+  let field_step ?(keys = []) events =
+    field_time := !field_time +. 0.5;
+    ignore (Ui.frame ui { (frame ~scale ~time:!field_time events) with keys }
+      build) in
+  field_step [];
+  field_step [press (40, 30); release (40, 30)];
+  let cursor () = match Scene.Private.text_regions (Ui.scene ui) with
+    | [(_, _, _, _, true, cursor)] -> cursor
+    | regions -> fail (label (Printf.sprintf "long field lost its IME region (%d)"
+        (List.length regions))) in
+  field_step ~keys:[Input.Meta] [Event.KeyPressed Input.ArrowLeft];
+  if cursor () > 12 then fail (label "Command-Left did not reveal the start");
+  field_step ~keys:[Input.Meta] [Event.KeyPressed Input.ArrowRight];
+  if cursor () < 80 || cursor () > 100 then
+    fail (label "Command-Right did not reveal the end");
+  field_step ~keys:[Input.Meta] [Event.KeyPressed Input.ArrowLeft];
+  field_step [press (30, 30)];
+  field_step [move (220, 30)];
+  for _ = 1 to 30 do field_step [] done;
+  field_step [release (220, 30)];
+  let previous_clipboard = Clipboard.get_text () in
+  Fun.protect ~finally:(fun () ->
+    match previous_clipboard with
+    | Ok text -> ignore (Clipboard.set_text text)
+    | Error _ -> ()) (fun () ->
+      field_step ~keys:[Input.Meta] [Event.KeyPressed (Input.KeyChar 'c')];
+      if Clipboard.get_text () <> Ok long_value then
+        fail (label "edge drag did not select through the end"));
   Ui.destroy ui;
 
   (* Choice, range, and XY controls. *)

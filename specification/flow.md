@@ -397,10 +397,28 @@ an expression into a component splits automatically.
 
 Data flows left to right. Auto layout (context menu and palette only, as
 today; also for code graphs): column =
-longest path from any source over all edges; within a column, trunk nodes
-(geometry outputs, compounds, Outputs) first, then value nodes, in
-ascending id; x = column × (W + 60), y accumulates node height + 36, snapped
-to 12.
+longest path from any source over all edges, then move each upstream node
+right to the column immediately before its earliest consumer (processing
+consumers first); destinations of shared sources retain their initial column
+so tightening does not stretch a fan-out across its siblings. This keeps short branches near their join rather than
+stretching them across unrelated columns. Starting at each output, lay out
+its upstream input branches in separate vertical bands in port order;
+place the consumer between its input branches. Shared sources are placed once.
+Independent outputs get separate bands. Keep at least 36 points between cards
+in a column, 60 between input branches, and 96 between independent outputs;
+x = column × (W + 60), with
+positions snapped to 12. Ascending id keeps disconnected nodes deterministic.
+Reserve the requested card/full height regardless of the current zoom cap;
+re-layout at point/chip zoom must leave space for the cards on zoom-in.
+Align unary chains at their header sockets. Re-layout clears old bend points
+along with moving nodes; the host saves the result as one undoable view edit.
+
+This is a deterministic branch heuristic, not a globally optimal DAG drawing.
+Dense shared cross-branch graphs can still need manual bends; dummy edge lanes
+and constrained layer sweeps are the next step if those graphs become common.
+The decomposition follows the separation of ranking, ordering and placement
+used by [ELK Layered](https://eclipse.dev/elk/blog/posts/2025/25-08-21-layered.html)
+and [Graphviz dot](https://graphviz.org/docs/layouts/dot/), without adding a runtime dependency.
 
 ### 6.2 Node geometry (logical points, kit font, 24-point rows)
 
@@ -454,6 +472,9 @@ Positions of nodes and bend points snap to a 12-point grid.
 - `chip`: the header only.
 - `card`: header plus the rows of §5.1.
 - `full`: header plus every row with folder headers.
+- Selected chips, cards and full nodes have a 2-point theme-accent outline;
+  unselected nodes keep the faint neutral outline. The VIEW flag remains
+  separate from selection.
 - Zoom range 0.25–2.0. Zoom caps the shown level: below 0.34 every unpinned
   node shows as a point, below 0.50 at most as a chip. Pinned nodes ignore
   caps. `o`, double-click and opening a field pin a node; `p` and `⇧P` unpin.
@@ -496,16 +517,16 @@ requests; `Doc.apply` applies them after `Ui.frame`.
 | Gesture | Effect |
 |---|---|
 | Left-drag on empty canvas | box select (replaces the selection; Shift adds) |
-| Right-drag, middle-drag, Alt-drag on empty canvas, two-finger scroll | pan |
-| Pinch, Command/Ctrl-wheel, mouse wheel | zoom at the pointer |
+| Right-drag, middle-drag, Alt-drag on empty canvas | pan |
+| Pinch, two-finger scroll, Command/Ctrl-wheel, mouse wheel | zoom at the pointer |
 | Click node | select; Shift toggles |
 | Drag node | move the selection (snap 12) |
 | Double-click node | card ⇄ chip (pins); on a compound: enter |
 | Drag from an output socket | wire; release on a socket connects, on a node body connects to the row under the pointer or the first free compatible input, on empty canvas opens search filtered to kinds with a compatible input |
 | Drag from a connected input socket | picks the wire up (release on empty canvas disconnects) |
 | Drag from an unconnected input socket | reverse wire; release on empty canvas opens search filtered to kinds with a compatible output |
-| Drag a field | scrub; soft range / 150 per point, Shift / 1500 |
-| Click a field | text entry; a leading `=` makes an expression |
+| Click or drag a numeric field | set its soft-range value from the pointer's position on the field |
+| Alt-click a numeric field or double-click its label | text entry; a leading `=` makes an expression |
 | Click a wire | select it |
 | Alt-click a wire | add a bend point and drag it |
 | Ctrl-drag or Command-drag on empty canvas | knife; wires crossing the stroke are removed in one entry |
@@ -852,8 +873,11 @@ only `value/` and `value` definitions. `scene`, `world` and `shader` are
 
 `Flow_sop.Print.network` takes the level's context, display selection,
 definitions and live `Flow.Check.catalog`. It returns canonical text and a
-node-id-to-binding-line map for the read-only text view, deterministically
-and independently of layout:
+node-id-to-binding-line map deterministically and independently of layout.
+The read-only text view requests six significant digits for legibility;
+the default printer retains 17-digit float spelling for exact round trips.
+Parameter fields likewise show six significant digits while retaining full
+precision for editing and storage:
 
 - Header `(graph <name> :context sop` where the sketch or network name follows
   the binding-name normalization rule below; definitions print first as
@@ -1114,6 +1138,7 @@ content-addressed cache sharing between instances; macros.
 | Decision | Choice |
 |---|---|
 | Wire shape | straight polylines with authored bends; no curves |
+| Automatic layout | output-rooted input branches receive separate vertical bands in port order; tighten short branches toward consumers, anchor shared fan-outs, reserve authored detail heights, clear stale bends |
 | Architecture | `flow` overlay beside the geometry `Edit_graph`; M2 adds bypass metadata to its existing entries |
 | Value kinds | built into `flow`, context-free; not SOP catalog entries |
 | Edge identity | destination port; no edge ids |
@@ -1135,6 +1160,7 @@ content-addressed cache sharing between instances; macros.
 | Catalog pinning | integer catalog version in the manifest, optional `:catalog N` in files |
 | Cache sharing between instances | none |
 | Guide mode | on by default, persisted off |
+| Wheel and trackpad scroll | zoom at the pointer after SDL normalizes natural direction; SDL3 wheel events do not identify a trackpad separately, so right/Alt-drag pans |
 
 2026-09-28: a bare number has no source node after unfolding, so the
 fold/unfold identity law applies to expressions containing time or an operator.

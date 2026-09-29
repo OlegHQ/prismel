@@ -12,10 +12,10 @@ let quote value =
     | '\n' -> Buffer.add_string buffer "\\n"
     | character -> Buffer.add_char buffer character) value;
   Buffer.add_char buffer '"'; Buffer.contents buffer
-let literal = function
+let literal ~precision = function
   | Param.Bool_value true -> "true" | Param.Bool_value false -> "false"
   | Param.Int_value value -> string_of_int value
-  | Param.Float_value value -> Flow.Expr.sexp_number value
+  | Param.Float_value value -> Flow.Expr.sexp_number ~precision value
   | Param.Text_value value | Param.Choice_value value -> quote value
 
 let binding_base label =
@@ -102,10 +102,10 @@ let reference ~definitions ~input_marker network names (source : Port.t) =
   | [single, _] when single = source.path -> name
   | _ -> name ^ "." ^ source.path
 
-let parameter_text ~definitions ~input_marker network names id parameter =
+let parameter_text ~precision ~definitions ~input_marker network names id parameter =
   let source path =
     match Port.Map.find_opt Port.{node = id; path} network.Network.drives with
-    | Some (Drive.Expr expr) -> Some (Flow.Expr.sexp expr)
+    | Some (Drive.Expr expr) -> Some (Flow.Expr.sexp ~precision expr)
     | Some (Drive.Wire wire) -> Some (reference ~definitions ~input_marker
         network names Port.{node = wire.node; path = wire.output})
     | None -> None in
@@ -114,7 +114,7 @@ let parameter_text ~definitions ~input_marker network names id parameter =
   | None ->
       (match parameter.Port.fields with
        | [field] ->
-           if field.Param.current <> field.default then Some (literal field.current)
+           if field.Param.current <> field.default then Some (literal ~precision field.current)
            else None
        | [x;y;z] ->
            let components = ["x",x; "y",y; "z",z] in
@@ -124,7 +124,7 @@ let parameter_text ~definitions ~input_marker network names id parameter =
            if List.exists (fun (drive, field) -> drive <> None ||
                field.Param.current <> field.default) values then
              Some ("[" ^ String.concat " " (List.map (fun (drive, field) ->
-               Option.value ~default:(literal field.Param.current) drive) values) ^ "]")
+               Option.value ~default:(literal ~precision field.Param.current) drive) values) ^ "]")
            else None
        | _ -> fail "E_PORT" ("Invalid parameter " ^ parameter.path))
 
@@ -154,7 +154,7 @@ let kind_name ~qualified ~catalog ~definitions network id =
       String.ends_with ~suffix:("/" ^ short) other) used then full
   else short
 
-let call_text ~qualified ~catalog ~definitions ~input_marker network names id =
+let call_text ~precision ~qualified ~catalog ~definitions ~input_marker network names id =
   let math = match Flow.Graph.find network.Network.values ~node_id:id with
     | Some node when Flow.Value_kind.kind node.parameters = Flow.Value_kind.Math ->
         Some node | _ -> None in
@@ -178,10 +178,10 @@ let call_text ~qualified ~catalog ~definitions ~input_marker network names id =
         let symbol = if qualified then "value/" ^ symbol else symbol in
         let argument path =
           let parameter = require (Network.parameter network Port.{node = id; path}) in
-          match parameter_text ~definitions ~input_marker network names id parameter with
+          match parameter_text ~precision ~definitions ~input_marker network names id parameter with
           | Some text -> text
           | None -> (match parameter.fields with
-              | [field] -> literal field.Param.current
+              | [field] -> literal ~precision field.Param.current
               | _ -> fail "E_PORT" ("Math has no " ^ path)) in
         let arguments = if Flow.Expr.arity op = 1 then [argument "a"]
           else [argument "a"; argument "b"] in
@@ -212,18 +212,18 @@ let call_text ~qualified ~catalog ~definitions ~input_marker network names id =
   let parameters = require (Network.parameters network ~node_id:id) in
   let fields = List.filter_map (fun parameter ->
     Option.map (fun value -> ":" ^ parameter.Port.path ^ " " ^ value)
-      (parameter_text ~definitions ~input_marker network names id parameter))
+      (parameter_text ~precision ~definitions ~input_marker network names id parameter))
     parameters in
   let bypass = Procedural.Edit_graph.is_bypassed network.geometry ~node_id:id in
   (if bypass then "^:bypass " else "") ^ "(" ^
   String.concat " " (kind :: primary @ other_slots @ fields) ^ ")"
 
-let render_body ~qualified ~catalog ~definitions ~input_marker network ~result =
+let render_body ~precision ~qualified ~catalog ~definitions ~input_marker network ~result =
   let ids = order network in
   let names = names network ids in
   let bindings = List.map (fun id ->
     id, Hashtbl.find names id,
-    call_text ~qualified ~catalog ~definitions ~input_marker network names id) ids in
+    call_text ~precision ~qualified ~catalog ~definitions ~input_marker network names id) ids in
   let result = result names in
   let body = match bindings with
     | [] -> result
@@ -233,12 +233,12 @@ let render_body ~qualified ~catalog ~definitions ~input_marker network ~result =
           "\n         " ^ name ^ " " ^ form) rest) ^ "]\n    " ^ result ^ ")" in
   body, List.mapi (fun index (id, _, _) -> id, index) bindings
 
-let port_literal = function
-  | Port.Scalar value -> literal value
+let port_literal ~precision = function
+  | Port.Scalar value -> literal ~precision value
   | Port.Vector (x, y, z) ->
-      "[" ^ String.concat " " (List.map Flow.Expr.sexp_number [x; y; z]) ^ "]"
+      "[" ^ String.concat " " (List.map (Flow.Expr.sexp_number ~precision) [x; y; z]) ^ "]"
 
-let definition_text ~qualified ~catalog ~definitions (definition : Network.definition) =
+let definition_text ~precision ~qualified ~catalog ~definitions (definition : Network.definition) =
   let network = definition.body in
   require (Network.validate network);
   let marker operation =
@@ -261,12 +261,12 @@ let definition_text ~qualified ~catalog ~definitions (definition : Network.defin
         | _ ->
             let parameter = require (Network.parameter network
               Port.{node = outputs; path = port.name}) in
-            (match parameter_text ~definitions ~input_marker:(Some inputs)
+            (match parameter_text ~precision ~definitions ~input_marker:(Some inputs)
                 network names outputs parameter with
              | Some text -> text
              | None -> (match port.default with
-                 | Some default -> port_literal default
-                 | None -> port_literal (Port.literal parameter))) in
+                 | Some default -> port_literal ~precision default
+                 | None -> port_literal ~precision (Port.literal parameter))) in
       port.name, text in
     let results = List.map one definition.outputs in
     match results with
@@ -274,13 +274,13 @@ let definition_text ~qualified ~catalog ~definitions (definition : Network.defin
     | [name, text] when List.mem name ["geo"; "out"] -> text
     | _ -> "(values " ^ String.concat " " (List.map (fun (name, text) ->
         ":" ^ name ^ " " ^ text) results) ^ ")" in
-  let body, bindings = render_body ~qualified ~catalog ~definitions
+  let body, bindings = render_body ~precision ~qualified ~catalog ~definitions
     ~input_marker:(Some inputs)
     network ~result in
   let ports = List.map (fun (port : Network.interface_port) ->
     "(" ^ port.name ^ " :" ^ String.lowercase_ascii
       (Flow.Port_type.name port.ty) ^
-      Option.fold ~none:"" ~some:(fun default -> " " ^ port_literal default)
+      Option.fold ~none:"" ~some:(fun default -> " " ^ port_literal ~precision default)
         port.default ^ ")") definition.inputs in
   let text = "(defgraph " ^ definition.name ^ " :context " ^
     Flow.Context.name definition.context ^ "\n  [" ^ String.concat " " ports ^
@@ -308,7 +308,7 @@ let ordered_definitions definitions =
   Network.String_map.iter (fun name _ -> visit name) definitions;
   List.rev !ordered
 
-let network ?(qualified = false) ~name ~context ~catalog ~display ~definitions network =
+let network ?(qualified = false) ?(precision = 17) ~name ~context ~catalog ~display ~definitions network =
   try
     require (Network.validate network);
     let name = binding_base name in
@@ -325,10 +325,10 @@ let network ?(qualified = false) ~name ~context ~catalog ~display ~definitions n
       | Some id -> fail "E_RESULT_TYPE"
           (Printf.sprintf "Display node %d has no binding" id)
       | None -> "nil" in
-    let body, bindings = render_body ~qualified ~catalog ~definitions ~input_marker:None
+    let body, bindings = render_body ~precision ~qualified ~catalog ~definitions ~input_marker:None
       network ~result in
     let printed_definitions = List.map (fun definition ->
-      (definition_text ~qualified ~catalog ~definitions definition).text)
+      (definition_text ~precision ~qualified ~catalog ~definitions definition).text)
       (ordered_definitions definitions) in
     let prefix = if printed_definitions = [] then "" else
       String.concat "\n\n" printed_definitions ^ "\n\n" in
@@ -341,10 +341,10 @@ let network ?(qualified = false) ~name ~context ~catalog ~display ~definitions n
     Ok {text; binding_lines}
   with Cannot_print diagnostic -> Error diagnostic
 
-let definition ?(qualified = false) ~catalog ~definitions name =
+let definition ?(qualified = false) ?(precision = 17) ~catalog ~definitions name =
   try
     let definition = match Network.String_map.find_opt name definitions with
       | Some definition -> definition
       | None -> fail "E_UNBOUND" ("Unknown compound " ^ name) in
-    Ok (definition_text ~qualified ~catalog ~definitions definition)
+    Ok (definition_text ~precision ~qualified ~catalog ~definitions definition)
   with Cannot_print diagnostic -> Error diagnostic

@@ -406,18 +406,54 @@ function highlight(src) {
 /* ---------- layout for graphs that arrive as text ---------- */
 function autolayout(g) {
   const inc = new Map();
-  for (const e of g.edges) { if (!inc.has(e.b)) inc.set(e.b, []); inc.get(e.b).push(e.a); }
-  const depth = new Map();
-  const d = id => { if (depth.has(id)) return depth.get(id); depth.set(id, 0); let m = 0; for (const a of inc.get(id) || []) m = Math.max(m, d(a) + 1); depth.set(id, m); return m; };
-  g.nodes.forEach(n => d(n.id));
-  const cols = new Map();
-  for (const n of g.nodes) { const c = depth.get(n.id); if (!cols.has(c)) cols.set(c, []); cols.get(c).push(n); }
-  const trunk = n => nodeType(g, n) === 'geo' || nodeType(g, n) === 'out' || nodeType(g, n) === 'grp' || n.k === 'compound';
-  for (const [c, list] of cols) {
-    list.sort((a, b) => trunk(b) - trunk(a));
-    let y = 0;
-    for (const n of list) { n.x = c * (W + 60); n.y = snap(y); y += heightOf(g, n, n.lod) + 36; }
+  const consumers = new Map();
+  const used = new Set();
+  for (const e of g.edges) {
+    e.pts = [];
+    if (!inc.has(e.b)) inc.set(e.b, []);
+    inc.get(e.b).push(e); used.add(e.a);
+    if (!consumers.has(e.a)) consumers.set(e.a, []);
+    consumers.get(e.a).push(e.b);
   }
+  const depth = new Map();
+  const d = id => { if (depth.has(id)) return depth.get(id); depth.set(id, 0); let m = 0; for (const e of inc.get(id) || []) m = Math.max(m, d(e.a) + 1); depth.set(id, m); return m; };
+  g.nodes.forEach(n => d(n.id));
+  const reverse = g.nodes.slice().sort((a, b) => depth.get(b.id) - depth.get(a.id));
+  for (const n of reverse) {
+    const next = consumers.get(n.id);
+    const fanout = (inc.get(n.id) || []).some(e => (consumers.get(e.a) || []).length > 1);
+    if (next && !fanout) depth.set(n.id, Math.min(...next.map(id => depth.get(id) - 1)));
+  }
+  const nodes = new Map(g.nodes.map(n => [n.id, n]));
+  const trunk = n => nodeType(g, n) === 'geo' || nodeType(g, n) === 'out' || nodeType(g, n) === 'grp' || n.k === 'compound';
+  const placed = new Map(), active = new Set(), nextY = [];
+  let bottom = 0;
+  const place = (n, floor) => {
+    if (placed.has(n.id)) return placed.get(n.id);
+    if (active.has(n.id)) return floor;
+    active.add(n.id);
+    const ports = insOf(g, n).map(p => p.n);
+    const sources = (inc.get(n.id) || []).slice().sort((a, b) =>
+      ports.indexOf(a.i.split('.')[0]) - ports.indexOf(b.i.split('.')[0]));
+    let first = true;
+    const centers = sources.filter(e => nodes.has(e.a)).map(e => {
+      const branchFloor = first ? floor : bottom + 60;
+      if (!placed.has(e.a)) first = false;
+      return place(nodes.get(e.a), branchFloor);
+    });
+    const h = heightOf(g, n, n.lod), col = depth.get(n.id);
+    const desired = centers.length ? (Math.min(...centers) + Math.max(...centers)) / 2 : floor;
+    n.x = col * (W + 60);
+    n.y = Math.ceil(Math.max(floor, desired, nextY[col] || 0) / SNAP) * SNAP;
+    nextY[col] = n.y + h + 36;
+    bottom = Math.max(bottom, n.y + h);
+    active.delete(n.id); placed.set(n.id, n.y);
+    return n.y;
+  };
+  const order = (a, b) => Number(trunk(b)) - Number(trunk(a)) || a.id - b.id;
+  const roots = g.nodes.filter(n => !used.has(n.id)).sort(order);
+  for (const n of roots.concat(g.nodes.slice().sort(order)))
+    if (!placed.has(n.id)) place(n, placed.size ? bottom + 96 : 0);
   for (const n of g.nodes) if (n.k === 'compound') autolayout(n.inner);
 }
 
@@ -1905,8 +1941,6 @@ function Editor(host, cfg) {
     if (document.activeElement !== host && !host.contains(document.activeElement) && !ev.ctrlKey) return;
     ev.preventDefault();
     const g = cur(), v = g.view, r = rect(), mx = ev.clientX - r.left, my = ev.clientY - r.top;
-    const mouseWheel = ev.deltaMode === 1 || (ev.deltaX === 0 && Math.abs(ev.deltaY) >= 50 && Number.isInteger(ev.deltaY));
-    if (!ev.ctrlKey && !ev.metaKey && !mouseWheel) { v.x -= ev.deltaX; v.y -= ev.deltaY; render(); return; }
     const z = clamp(v.z * Math.exp(-ev.deltaY * (ev.ctrlKey ? 0.01 : 0.0015) * (ev.deltaMode === 1 ? 16 : 1)), 0.25, 2);
     v.x = mx - (mx - v.x) * z / v.z; v.y = my - (my - v.y) * z / v.z; v.z = z;
     render();

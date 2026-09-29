@@ -48,6 +48,21 @@ let run () =
   let reset = Input.snapshot native in
   if reset.mouse_delta <> (0., 0.) || reset.wheel_delta <> (0., 0.) then
     failwith "frame deltas did not reset";
+  get (Runtime_input_sdl3.push native (Sdl3.Event.Mouse_wheel {
+    timestamp_ns = 0L; window_id = 1L; which = 2L; x = 0.5; y = -1.5;
+    direction = Flipped; mouse_x = 9.; mouse_y = 14.;
+    integer_x = 0; integer_y = -1 }));
+  if (Input.snapshot native).wheel_delta <> (0.5, -1.5) then
+    failwith "flipped trackpad scroll was inverted a second time";
+  Input.begin_frame native;
+  get (Runtime_input_sdl3.push native (Sdl3.Event.Mouse_wheel {
+    timestamp_ns = 0L; window_id = 1L; which = 2L; x = 0.5; y = -1.5;
+    direction = Normal; mouse_x = 9.; mouse_y = 14.;
+    integer_x = 0; integer_y = -1 }));
+  if (Input.snapshot native).wheel_delta <> (0.5, -1.5) then
+    failwith "ordinary wheel direction changed";
+  ignore (Input.drain native);
+  Input.begin_frame native;
   get (Runtime_input_sdl3.push native (Sdl3.Event.Key { timestamp_ns = 0L;
     window_id = 1L; which = 2L; scancode = 44; keycode = 32; modifiers = 0;
     raw_scancode = 44; down = true; repeat = false }));

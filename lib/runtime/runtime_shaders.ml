@@ -49,8 +49,11 @@ fragment float4 scene_fragment(UiOut in [[stage_in]],texture2d<float> atlas [[te
   if(kind==2u){float2 a=in.extra.xy,b=in.extra.zw,ab=b-a;float t=clamp(dot(p-a,ab)/max(dot(ab,ab),1e-12),0.,1.);
     float d=length(p-(a+ab*t))-in.params.y*.5;float px=max(length(fwidth(p)),1e-4);
     float coverage=clamp(.5-d/px,0.,1.);return float4(in.color.rgb,in.color.a*coverage);}
-  if(kind==3u){float2 q=p-in.extra.xy;float s=in.extra.z;float2 cell=q-s*floor(q/s);
-    if(cell.x<in.extra.w&&cell.y<in.extra.w)return in.color;discard_fragment();return float4(0.);}
+  if(kind==3u){float2 q=p-in.extra.xy;float s=in.extra.z,dot_size=in.extra.w;
+    float2 cell=q-s*floor(q/s),dist=abs(cell-dot_size*.5);
+    dist=min(dist,s-dist);float2 aa=max(fwidth(p),float2(1e-4));
+    float2 coverage=clamp((dot_size*.5-dist)/aa+.5,0.,1.);
+    return float4(in.color.rgb,in.color.a*coverage.x*coverage.y);}
   float4 box=in.box;float radius=in.params.x,border=in.params.y;
   if(in.params.z<=0.){
     if(border>0.){float h=border*.5;float2 q=p+1e-3;if(q.x>=box.x+h&&q.x<box.z-h&&q.y>=box.y+h&&q.y<box.w-h)discard_fragment();

@@ -30,10 +30,12 @@ let run () =
     step ~mouse:selected (click selected); step [];
     let ix, iy, _, _ = (E.panes !current (Test_editor_input.frame (0., 0.) [] 0))
       .Pxui_shell.Layout.inspector in
-    let control = float (ix + 165), float (iy + 70) in
+    let control = float (ix + 125), float (iy + 80) in
     let before = Atomic.get draws in
     (* Re-select the stable id and edit its already visible inspector in one frame. *)
-    step ~mouse:control (click selected @ click control);
+    let moved = fst control +. 20., snd control in
+    step ~mouse:moved (click selected @ [Event.MousePressed (Input.LeftButton, control);
+      Event.MouseMoved moved; Event.MouseReleased (Input.LeftButton, moved)]);
     check (value (Node.id first) = Parameter.Int_value 0
       && value (Node.id second) <> Parameter.Int_value 1)
       "same-frame selection/inspection edited the wrong stable node";
@@ -47,8 +49,7 @@ let run () =
     wait_draw before;
     check (Atomic.get draws >= 3) "changed graph with the same prepared value retained a stale drawing";
     count := !count + 30;
-    let label = float (ix + 40), float (iy + 70) in
-    step ~mouse:label (click label); step ~mouse:label (click label);
+    step ~mouse:control ~keys:[Input.Alt] (click control);
     step [Event.TextInput "invalid"]; step [Event.KeyPressed Input.Enter];
     check (value (Node.id second) = Parameter.Int_value 1 && E.can_redo !current)
       "invalid numeric edit changed the document or history";
@@ -62,7 +63,8 @@ let run () =
       let snapshot () = E.crash_dump !current directory;
         Yojson.Safe.from_file (Filename.concat directory "document.json") in
       let tile id = List.find (fun tile -> tile.Pxui_graph.id = id) (E.graph_nodes !current) in
-      let header id = let x, y, _, _ = (tile id).bounds in float (x + 50), float (y + 12) in
+      let header id = let x, y, w, h = (tile id).bounds in
+        float (x + min 50 (w / 2)), float (y + min 12 (h / 2)) in
       let undo () = step ~keys:[Input.Meta] [Event.KeyPressed (Input.KeyChar 'z')] in
       count := !count + 30;
       let at = header (Node.id second) in
@@ -175,7 +177,7 @@ let run () =
       let before_rename = snapshot () in
       let ix, iy, _, _ = (E.panes !current
         (Test_editor_input.frame (0., 0.) [] 0)).Pxui_shell.Layout.inspector in
-      let port_field = float (ix + 100), float (iy + 94) in
+      let port_field = float (ix + 125), float (iy + 111) in
       step ~mouse:port_field (click port_field);
       step [];
       step ~keys:[Input.Meta] [Event.KeyPressed (Input.KeyChar 'a')];

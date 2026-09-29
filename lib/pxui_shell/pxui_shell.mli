@@ -166,12 +166,15 @@ module Inspector : sig
   type flow_change = Edited of string * Editor_core.Param.value
     | Pinned of string * bool | Split of string * bool | Reset of string
     | Expression of string * string
-  val flow_fields : Pxui.Ui.t -> ?expanded:string list -> flow_row list -> flow_change list
+  val flow_fields : Pxui.Ui.t -> ?expanded:string list -> ?width:float ->
+    ?actions:bool -> flow_row list -> flow_change list
+  (** Responsive rows shared by Flow, scene, World, and compound interface
+      inspectors. [actions=false] hides card pin and split controls. *)
 
-  val fields : Pxui.Ui.t -> ?expanded:string list ->
+  val fields : Pxui.Ui.t -> ?expanded:string list -> ?width:float ->
     Editor_core.Param.field_view list -> (string * Editor_core.Param.value) list
-  (** One kit widget per field inside the current panel; folders become
-      accordions, open when their ["/"]-joined path is in [expanded]. Returns
+  (** One inspector row per field inside the current panel; folders become
+      sections, open when their ["/"]-joined path is in [expanded]. Returns
       this frame's edits, empty when nothing changed. *)
 
   val record : Pxui.Ui.t -> ?expanded:string list ->

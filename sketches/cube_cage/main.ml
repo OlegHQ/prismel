@@ -95,12 +95,11 @@ type settings = { renderer : Renderer.t; frame : bool; dark : float; seed : int 
 let settings_schema =
   let open Parameter in
   let default = { renderer = Option.value ~default:Renderer.Path_traced (Renderer.of_env "PRISMEL_CAGE_RENDERER")
-                ; frame = true; dark = 0.3; seed = 7 } in
+                ; frame = false; dark = 0.3; seed = 7 } in
   schema ~name:"cube_cage" ~default
     [ Renderer.field ~default:default.renderer ~get:(fun s -> s.renderer)
         ~set:(fun renderer s -> { s with renderer })
-    ; field ~name:"frame" ~label:"Bounding frame"
-        ~kind:(choice ~equal:( = ) [ "Shown", true; "Hidden", false ])
+    ; field ~name:"frame" ~label:"Bounding frame" ~kind:Toggle
         ~default:default.frame ~get:(fun s -> s.frame) ~set:(fun frame s -> { s with frame }) ()
     ; field ~name:"dark" ~label:"Dark cells" ~kind:(floating ~min:0. ~max:1. ())
         ~default:default.dark ~get:(fun s -> s.dark) ~set:(fun dark s -> { s with dark }) ()
@@ -115,7 +114,8 @@ let white = P.material ~roughness:0.55 ~round:0.02 (rgb 0.82 0.82 0.8)
 let black = P.material ~roughness:0.45 ~round:0.02 (rgb 0.012 0.012 0.013)
 let raster_white = Material.create ~diffuse:(Color.rgb 210 210 205) ~ambient:(Color.rgb 12 12 12)
     ~specular:(Color.rgb 50 50 50) ~shininess:24. ()
-let wire_material = Material.unlit (Color.rgb 190 215 225)
+let background = Color.rgb 6 6 7
+let wire_material = Material.unlit (Renderer.wire_color background)
 let point_material = Material.unlit (Color.rgb 251 191 116)
 
 type prepared = { mode : Renderer.t; traced : P.mesh option; raster : Scene3.node option;
@@ -181,7 +181,6 @@ let env name default of_string = Option.value ~default (Option.bind (Sys.getenv_
 let frames = env "PRISMEL_PATHTRACER_FRAMES" 0 int_of_string_opt
 let smoke_export = Sys.getenv_opt "PRISMEL_CAGE_EXPORT"
 let started = Unix.gettimeofday ()
-let background = Color.rgb 6 6 7
 
 (* Studio: one large key softbox up-left, a faint fill from the right, under
    a near-black World (raster units: intensity = radiance * area / pi). *)

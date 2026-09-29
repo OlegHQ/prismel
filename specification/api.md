@@ -612,7 +612,17 @@ The dependency-free `param` library (`Editor_core.Param`, also
 values. `Node.parameterize` attaches a schema, current values, and a pure
 rebuild function to the SOP that owns them. `Pxui_shell.Inspector` builds kit
 rows from any schema, so a SOP node and a plain sketch record share one
-inspector:
+inspector.
+
+`Pxui.Ui.inspector_row` and `inspector_section` supply the same responsive
+layout to those fields and to Camera, Render, Viewport, settings, and compound
+interface controls. `inspector_header`, `inspector_toggle`,
+`inspector_button`, `inspector_readout`, and `inspector_message` cover their
+other content.
+The Prismel Editor inspector panel has no outer padding; long labels move
+above their controls within the row.
+
+Both kinds of caller use the same field adapter:
 
 ```ocaml
 (* inside Pxui.Ui.frame: a sketch record *)
@@ -663,6 +673,9 @@ dragging, independent inspector/display selection through each tile's VIEW
 button, selection clearing, captured pan, zoom, and framing. `Prismel_editor.Editor3.run`
 and `Editor2.run` compose both in a splitter-resizable, independently
 collapsible view/graph/inspector workspace whose default widths are 45/35/20.
+The workspace defaults to a light viewport background. Sketches with a
+wireframe renderer can use `Prismel_editor.Renderer.wire_color background` to
+keep lines legible on either light or dark backgrounds.
 The inspector shows camera/render controls with no selection and generated SOP
 parameters with a selection. Display selection cooks the flagged node while
 retaining the previous successful preview. Overlay callbacks receive a
@@ -699,8 +712,8 @@ sketch `?commands` are the same entries whose action is a
 chords, Delete/Backspace, Home, and focus-dependent `F` use that same table;
 `pxui_graph` exports its graph commands as entries without interpreting keys.
 Entries without a trigger appear only in the palette. Global commands always apply; the others
-belong to the focused pane (the last one clicked, outlined in the accent
-colour). Escape, Space, an unknown key, a click, or focus loss cancel it.
+belong to the focused pane (the last one clicked, marked by an accent rule
+along its top). Escape, Space, an unknown key, a click, or focus loss cancel it.
 Supplied commands validate at `create`: built-in IDs are reserved; aliases
 share one action value; overlapping shortcuts and leader prefixes are errors.
 Chord case and modifier order normalize once. Scoped commands are available
@@ -868,7 +881,8 @@ The leader-key panel is `Pxui_shell.Which_key`; the sketch host supplies its
 commands and focused-pane name. `Pxui_shell.Status_bar` paints the common kit
 strip from host-provided status text, FPS, and pane bounds.
 `Pxui_shell.Layout` computes the standard 45/35/20 pane geometry, and
-`Pxui_shell.Chrome` builds its headers, splitters, and focus outline;
+`Pxui_shell.Chrome` builds its headers, one-point splitters with seven-point
+resize hit areas, and the focused pane's top rule;
 Editor layout queries return `Pxui_shell.Layout.panes`; tests and other hosts
 use Layout and Chrome directly. `Prismel_editor.Private` is explicitly unstable.
 `Pxui_shell.Timeline_bar` returns playback intents from display values, and

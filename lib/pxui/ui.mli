@@ -136,6 +136,9 @@ val box :
     reserve a 10-point scrollbar gutter. [hit] maps the laid-out rectangle to
     the rectangle that receives input (the default is the whole box). *)
 
+val set_at : t -> box -> at:float * float -> unit
+(** Move an already built, absolutely positioned box before layout runs. *)
+
 val within : t -> box -> (unit -> 'a) -> 'a
 (** Build children of [box]. *)
 
@@ -197,6 +200,8 @@ val focus : t -> box -> unit
 val active : t -> box -> bool
 
 val scroll_offset : t -> box -> float
+(* Current painted scroll position, including elastic edge movement. *)
+val scroll_position : t -> box -> float
 val set_scroll_offset : t -> box -> float -> unit
 
 (** Retained per-box scalar state for custom widgets. *)
@@ -298,10 +303,40 @@ val splitter : t -> ?axis:axis -> ?thickness:float -> string -> float
     face. Widgets must be built inside a {!val-panel}. *)
 
 val panel :
-  t -> ?x:float -> ?y:float -> ?width:float -> ?max_height:float ->
+  t -> ?x:float -> ?y:float -> ?width:float -> ?height:float -> ?max_height:float ->
   ?row_height:int -> ?padding:int -> string -> (unit -> 'a) -> 'a
-(** A light panel at [(x, y)] (default [(12, 12)], width 280). Rows beyond
-    [max_height] scroll with the wheel by one row per step. *)
+(** A light panel at [(x, y)] (default [(12, 12)], width 280). [height]
+    fills a fixed pane; otherwise content sets the height. Rows beyond the
+    height or [max_height] use the shared elastic scroll. *)
+
+val inspector_row :
+  t -> ?width:float -> key:string -> label:string -> unit ->
+  box * float * float * float
+(** A responsive inspector row and the local x, y, width of its value control. *)
+
+val inspector_section :
+  t -> key:string -> ?expanded:bool -> ?set_expanded:bool ->
+  string -> (unit -> 'a) -> 'a option
+(** A collapsible inspector section. *)
+
+val inspector_toggle : t -> key:string -> label:string -> bool -> bool
+(** A toggle in the same inspector row used by parameter fields. *)
+
+val inspector_toggle_value : t -> key:string -> at:float * float -> bool -> bool
+(** The value control inside an inspector row. *)
+
+val inspector_header : t -> key:string -> title:string -> detail:string -> box
+(** A compact title and detail header for an inspector context. *)
+
+val inspector_button : t -> key:string -> string -> bool
+(** A full-width action row with the inspector's spacing and colors. *)
+
+val inspector_readout :
+  t -> ?width:float -> key:string -> label:string -> string -> unit
+(** A read-only value in the same responsive inspector row. *)
+
+val inspector_message : t -> key:string -> string -> unit
+(** A short muted inspector note, clipped to the available width. *)
 
 val popup :
   t -> ?stroke:Prismel.Color.t -> ?max_height:float -> ?dismiss_initial:bool ->
@@ -336,10 +371,12 @@ val text_field : t -> string -> string -> string
 
 val value_field : t -> at:float * float -> w:float -> h:float ->
   ?size:int -> ?display:string -> ?fraction:float ->
-  ?scrub:(string -> float -> bool -> string) -> valid:(string -> bool) ->
+  ?slide:(float -> string) ->
+  ?scrub:(string -> float -> bool -> string) -> ?edit:bool ->
+  valid:(string -> bool) ->
   string -> string -> string * bool
-(** Compact canvas field. Click or Enter opens the shared text editor;
-    [scrub] receives horizontal motion and the press-time Shift modifier.
+(** Compact field. Numeric sliders follow the pointer with [slide]; Option-click
+    or [edit] opens text entry. [scrub] handles fields without a track.
     Only valid text commits; the boolean reports an open text editor. *)
 
 val choice : t -> string -> string list -> int -> int

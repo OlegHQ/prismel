@@ -100,6 +100,17 @@ let () =
   assert (printed.binding_lines = [id, 2]);
   assert (printed.text = "(graph demo :context sop\n  (let* [points (points)]\n    points))");
   checked catalog printed;
+  let noisy = ok (Network.set_literal ~target:(port id "a")
+    (Port.Scalar (Param.Float_value 0.040000000000000001)) base) in
+  let print precision = ok (Print.network ~precision ~name:"demo"
+    ~context:Flow.Context.Sop ~catalog ~display:(Some id)
+    ~definitions:Network.String_map.empty noisy) in
+  let exact = print 17 and pretty = print 6 in
+  assert (exact.text <> pretty.text);
+  assert (pretty.text = "(graph demo :context sop\n  (let* [points (points :a 0.04)]\n    points))");
+  assert (Port.literal (ok (Network.parameter noisy (port id "a"))) =
+    Port.Scalar (Param.Float_value 0.040000000000000001));
+  checked catalog pretty;
   let a = Procedural.Node.relabel "1 Weird" (build default) in
   let b = Procedural.Node.relabel "1 Weird" (build default) in
   let merged = Procedural.Sop.merge ~label:"t" [a; b] in

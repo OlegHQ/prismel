@@ -60,8 +60,19 @@ let () =
   let _, _, view_width, _ = panes.view
   and _, _, graph_width, _ = panes.graph
   and _, _, inspector_width, _ = panes.inspector in
-  if (view_width, graph_width, inspector_width) <> (444, 345, 199) then
+  if (view_width, graph_width, inspector_width) <> (449, 349, 200) then
     failwith "shell layout defaults are not 45/35/20";
+  let divider_x = view_width in
+  let hit_ui = Pxui.Ui.create () in
+  let wide_frame = { frame with width = 1000; size = 1000, 300;
+    drawable_width = 1000; drawable_size = 1000, 300 } in
+  let chrome events = ignore (Pxui.Ui.frame hit_ui { wide_frame with events }
+    (fun ui -> Pxui_shell.Chrome.update layout ui wide_frame)) in
+  chrome [];
+  chrome [Prismel.Event.MouseMoved (float (divider_x - 2), 100.)];
+  if Pxui.Ui.cursor hit_ui <> Some `Horizontal_resize then
+    failwith "thin splitter lost its wider resize hit area";
+  Pxui.Ui.destroy hit_ui;
   let collapsed = Pxui_shell.Layout.toggle Pxui_shell.Layout.Inspector layout in
   if not (Pxui_shell.Layout.collapsed collapsed Pxui_shell.Layout.Inspector) then
     failwith "shell layout did not collapse inspector";
@@ -140,8 +151,8 @@ let () =
     [ field ~name:"on" ~label:"On" ~kind:Toggle ~default:false
         ~get:Fun.id ~set:(fun on _ -> on) () ]) in
   let ui = Pxui.Ui.create () in
-  let click = [ Event.MousePressed (Input.LeftButton, (230., 15.));
-                Event.MouseReleased (Input.LeftButton, (230., 15.)) ] in
+  let click = [ Event.MousePressed (Input.LeftButton, (115., 15.));
+                Event.MouseReleased (Input.LeftButton, (115., 15.)) ] in
   let record events value = Pxui.Ui.frame ui { frame with events } (fun ui ->
     Pxui.Ui.panel ui ~x:0. ~y:0. ~width:260. "record" (fun () ->
       Pxui_shell.Inspector.record ui schema value)) in
@@ -205,6 +216,15 @@ let () =
     let t, released = step t ~mouse:to_ [Event.MouseReleased (Input.LeftButton, to_)] in
     t, pressed @ moved @ released in
   let moves intents = List.filter (function T.Move _ -> true | _ -> false) intents in
+  let chevron = 13., snd (center 0) in
+  let t, _ = step (T.create ()) [] in
+  let t, intents = step t ~mouse:chevron
+      [Event.MousePressed (Input.LeftButton, chevron);
+       Event.MouseReleased (Input.LeftButton, chevron)] in
+  expect "chevron click does not select or drag" intents [];
+  let t, _ = run t T.Down in
+  let _, intents = run t T.Down in
+  expect "chevron click folds children" intents [T.Select [4]];
   let x, y = center 0 in
   let t, intents = gesture (T.create ()) (x, y) (x +. 2., y +. 1.) in
   expect "a 2-point drag stays inside the dead zone" (moves intents) [];
@@ -230,6 +250,20 @@ let () =
   let _, intents = step t ~mouse:(center 3) click in
   expect "a double-click activates the row"
     (List.filter (function T.Activate _ -> true | _ -> false) intents) [T.Activate 4];
+  let scroll_rows = Array.init 20 (fun index -> row (index + 1) 0
+      (string_of_int (index + 1))) in
+  let scroll_ui = Pxui.Ui.create () in
+  let scroll_step t events = Pxui.Ui.frame scroll_ui { frame with events;
+      mouse = 200., 60. } (fun ui ->
+    T.update t ui frame ~bounds:(0, 0, 400, 96)
+      ~columns:[] scroll_rows ~selected:[]) in
+  let t, _ = scroll_step (T.create ()) [] in
+  let t, _ = scroll_step t [Event.MouseMoved (200., 60.);
+    Event.MouseScrolled (0., -2.)] in
+  let t, _ = scroll_step t [] in
+  let _, intents = scroll_step t [Event.MousePressed (Input.LeftButton, (200., 60.))] in
+  expect "list uses shared scroll for row hits" intents [T.Select [4]];
+  Pxui.Ui.destroy scroll_ui;
   let t, _ = step (T.create ()) [] in
   let t, _ = step t ~mouse:(center 0) [Event.MousePressed (Input.LeftButton, center 0);
     Event.MouseReleased (Input.LeftButton, center 0)] in

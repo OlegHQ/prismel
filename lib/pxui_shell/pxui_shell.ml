@@ -18,7 +18,7 @@ module Layout = struct
     view_ratio = 0.45;
     graph_ratio = 0.35;
     inspector_ratio = 0.20;
-    splitter_width = 6;
+    splitter_width = 1;
     collapsed_width = 28;
     header_height = 22;
     status_height = 28;
@@ -64,7 +64,7 @@ module Layout = struct
         +. config.inspector_ratio in
     if not (Float.is_finite total) || total <= 0. then
       invalid_arg "Prismel_editor layout ratios must have a positive finite sum";
-    if config.splitter_width < 2 || config.collapsed_width < 18
+    if config.splitter_width < 1 || config.collapsed_width < 18
         || config.header_height < 18 || config.status_height < 0 then
       invalid_arg "Prismel_editor layout dimensions are too small"
 
@@ -235,9 +235,15 @@ module Chrome = struct
     panel "workspace-inspector" panes.inspector;
     let first, second = splitter_bounds value frame in
     let splitter bounds label which value =
-      let box = floating ui ~flags:Ui.(clickable + blocking) bounds label in
+      let x, y, width, height = bounds in
+      let box = Ui.box ui ~flags:Ui.(clickable + blocking)
+          ~at:(float x, float y) ~w:(Ui.Px (float width))
+          ~h:(Ui.Px (float height))
+          ~hit:(fun _ -> float (x - 3), float y,
+            float (width + 6), float height) label in
       Ui.draw ui box (fun paint (x, y, w, h) ->
-        Ui.Paint.fill paint ~x ~y ~w ~h theme.foreground);
+        Ui.Paint.fill paint ~x ~y ~w ~h
+          (Pxui.Theme.faint_border theme));
       let signal = Ui.signal ui box in
       if signal.hovered || signal.held then
         Ui.request_cursor ui `Horizontal_resize;
@@ -258,10 +264,11 @@ module Chrome = struct
     List.iter (fun (column, title, box) ->
       Ui.draw ui box (fun paint (x, y, w, h) ->
         let glyph = if collapsed value column then ">" else "<" in
-        Ui.Paint.rect paint ~x ~y ~w ~h ~fill:theme.foreground ~stroke:theme.foreground ();
+        Ui.Paint.rect paint ~x ~y ~w ~h ~fill:theme.input
+          ~stroke:(Pxui.Theme.faint_border theme) ();
         let x = int_of_float x and y = int_of_float y and w = int_of_float w in
         Ui.Paint.text paint ~at:(float_of_int (x + 10), float_of_int (y + 4)) ~size:11
-          ~color:theme.input title;
+          ~color:theme.foreground title;
         Ui.Paint.text paint ~at:(float_of_int (x + max 7 (w - 19)), float_of_int (y + 4))
           ~size:11 ~color:theme.accent glyph))
       [view_header; graph_header; inspector_header];
@@ -271,10 +278,9 @@ module Chrome = struct
     if width > 2 && height > 2 then begin
       let theme = Pxui.Ui.theme ui in
       Pxui.Ui.draw ui (floating ui (x, y, width, height) "workspace-focus")
-        (fun paint _ -> Pxui.Ui.Paint.stroke paint
-          ~x:(float_of_int x +. 0.5) ~y:(float_of_int y +. 0.5)
-          ~w:(float_of_int (width - 1)) ~h:(float_of_int (height - 1))
-          ~width:1. theme.accent)
+        (fun paint _ -> Pxui.Ui.Paint.fill paint
+          ~x:(float_of_int x) ~y:(float_of_int y)
+          ~w:(float_of_int width) ~h:1. theme.accent)
     end
 end
 
@@ -365,12 +371,12 @@ module Status_bar = struct
       let theme = Ui.theme ui in
       Ui.draw ui box (fun paint _ ->
         Ui.Paint.fill paint ~x:(float_of_int x) ~y:(float_of_int y)
-          ~w:(float_of_int width) ~h:(float_of_int height) theme.foreground;
+          ~w:(float_of_int width) ~h:(float_of_int height) theme.input;
         let at = float_of_int (x + 10), float_of_int (y + 8) in
-        Ui.Paint.text paint ~at ~size:11 ~color:theme.input text;
+        Ui.Paint.text paint ~at ~size:11 ~color:theme.foreground text;
         Ui.Paint.text paint
           ~at:(fst at +. Ui.Paint.text_width paint ~size:11 text, snd at)
-          ~size:11 ~color:theme.input fps)
+          ~size:11 ~color:theme.foreground fps)
     end
 
   let guide ui ~bounds:(x, y, width, height) ~context commands =
@@ -488,12 +494,12 @@ module Tree = struct
 
   type t = { focus : int option; anchor : int option; folded : Ids.t;
              filter : string option; renaming : (int * string) option;
-             scroll : float; drag : drag option; reveal : bool;
+             drag : drag option; reveal : bool;
              context : (float * float * int * int list) option;
              shown : (row array * Ids.t * string option * int array) option }
 
   let create () = { focus = None; anchor = None; folded = Ids.empty; filter = None;
-    renaming = None; scroll = 0.; drag = None; reveal = false; context = None;
+    renaming = None; drag = None; reveal = false; context = None;
     shown = None }
   let rename id label t = { t with renaming = Some (id, label); focus = Some id; reveal = true }
   let reveal t = { t with reveal = true }
@@ -632,9 +638,10 @@ module Tree = struct
     let top = y +. height in
     let body = Float.max height (h -. height) in
     let box = Ui.box ui ~flags:Ui.(clickable + scroll + clip + blocking)
-        ~w:(Ui.Px w) ~h:(Ui.Px h) ~at:(x, y) "tree" in
+        ~w:(Ui.Px w) ~h:(Ui.Px h) ~at:(x, y)
+        ~scroll_step:height "tree" in
     let signal = Ui.signal ui box in
-    let scroll = t.scroll -. snd signal.scroll *. height in
+    let scroll = Ui.scroll_offset ui box in
     let scroll = match t.reveal, Option.bind t.focus (position rows shown) with
       | true, Some k ->
           let row_top = float_of_int k *. height in
@@ -644,6 +651,10 @@ module Tree = struct
       | _ -> scroll in
     let scroll = Float.max 0. (Float.min scroll
         (Float.max 0. (float_of_int count *. height -. body))) in
+    if t.reveal then Ui.set_scroll_offset ui box scroll;
+    ignore (Ui.within ui box (fun () ->
+      Ui.box ui ~w:(Ui.Px w)
+        ~h:(Ui.Px (float_of_int (count + 1) *. height)) "tree-content"));
     let row_at (_, py) =
       let k = int_of_float (Float.floor ((py -. top +. scroll) /. height)) in
       if py < top || k < 0 || k >= count then None else Some k in
@@ -662,7 +673,14 @@ module Tree = struct
       | None -> { t with drag = None }, [Select []]
       | Some k ->
           let row = at k in
-          (match column_at signal.press_point with
+          let px, _ = signal.press_point in
+          let chevron_x = x +. 8. +. float_of_int row.depth *. 14. in
+          if has_children rows shown.(k) && px >= chevron_x -. 4.
+              && px < chevron_x +. 14. then
+            { t with folded = (if Ids.mem row.id t.folded
+                then Ids.remove row.id t.folded else Ids.add row.id t.folded);
+              drag = None }, []
+          else (match column_at signal.press_point with
            | Some column when column < List.length row.flags && not row.ghost ->
                let value = not (flag k column) in
                let ids = if is_selected row.id then selected else [row.id] in
@@ -748,8 +766,6 @@ module Tree = struct
           (if fresh = [] then intents else intents @ [Flag { ids = fresh; column; value }])
       | Some _ -> { t with drag = None }, intents
       | None -> t, intents in
-    let first = int_of_float (scroll /. height) in
-    let last = min (count - 1) (first + int_of_float (body /. height) + 1) in
     let ancestors k =
       let chain = ref [] and depth = ref (at k).depth in
       for candidate = k - 1 downto 0 do
@@ -757,8 +773,6 @@ module Tree = struct
           chain := candidate :: !chain; depth := (at candidate).depth end
       done;
       !chain in
-    let sticky = if count = 0 || scroll <= 0. then []
-      else List.filteri (fun index _ -> index < 3) (ancestors first) in
     let drop_hint = match t.drag with
       | Some (Rows { moved = true; ids }) ->
           (match row_at signal.pointer with
@@ -770,6 +784,12 @@ module Tree = struct
            | _ -> None)
       | _ -> None in
     Ui.draw ui box (fun paint _ ->
+      let scroll = Ui.scroll_position ui box in
+      let first = max 0 (int_of_float (Float.floor (scroll /. height))) in
+      let last = min (count - 1)
+          (int_of_float (Float.ceil ((scroll +. body) /. height))) in
+      let sticky = if count = 0 || scroll <= 0. then []
+        else List.filteri (fun index _ -> index < 3) (ancestors first) in
       let text ?(color = theme.foreground) at label =
         Ui.Paint.text paint ~at ~color label in
       Ui.Paint.fill paint ~x ~y ~w ~h theme.panel;
@@ -789,9 +809,17 @@ module Tree = struct
         done;
         let text_y = row_y +. Float.max 4. ((height -. float_of_int (Ui.font_size ui)) /. 2.) in
         let muted = Pxui.Theme.muted theme in
-        if has_children rows index then
-          text ~color:muted (indent row.depth, text_y)
-            (if Ids.mem row.id t.folded && t.filter = None then "►" else "▼");
+        if has_children rows index then begin
+          let cx = indent row.depth +. 5. and cy = row_y +. height /. 2. in
+          let points = if Ids.mem row.id t.folded && t.filter = None then
+              [cx -. 2., cy -. 4.; cx +. 2., cy; cx -. 2., cy +. 4.]
+            else [cx -. 4., cy -. 2.; cx, cy +. 2.; cx +. 4., cy -. 2.] in
+          (match points with
+           | [ax, ay; bx, by; cx, cy] ->
+               Ui.Paint.line paint ~from_:(ax, ay) ~to_:(bx, by) ~width:2. muted;
+               Ui.Paint.line paint ~from_:(bx, by) ~to_:(cx, cy) ~width:2. muted
+           | _ -> ())
+        end;
         (* The kind badge: a letter on its colour, like the graph tiles. *)
         let badge_x = indent row.depth +. 14. in
         let letter, tint = if row.link then "↳", Pxui.Theme.muted theme else row.badge in
@@ -840,11 +868,11 @@ module Tree = struct
                   theme.accent)
        | None -> ());
       (* Header: column names, or the filter under a prompt. *)
-      Ui.Paint.fill paint ~x ~y ~w ~h:height theme.foreground;
+      Ui.Paint.fill paint ~x ~y ~w ~h:height theme.input;
       if t.filter = None then begin
-        text ~color:theme.input (x +. 8., y +. 5.) (title ^ "  · / filter");
+        text ~color:theme.foreground (x +. 8., y +. 5.) (title ^ "  · / filter");
         List.iteri (fun column name ->
-          text ~color:theme.input (columns_x +. (float_of_int column +. 0.5) *. flag_width
+          text ~color:theme.foreground (columns_x +. (float_of_int column +. 0.5) *. flag_width
             -. (Ui.Paint.text_width paint name /. 2.), y +. 5.) name) columns
       end);
     (* The filter field sits in the header; Escape clears it. *)
@@ -866,7 +894,7 @@ module Tree = struct
                Ui.dismiss_popup ui; { t with renaming = None },
                if String.trim name = "" then intents else intents @ [Rename (id, String.trim name)]
            | Some (name, _) -> { t with renaming = Some (id, name) }, intents) in
-    { t with scroll; reveal = false }, intents
+    { t with reveal = false }, intents
 end
 
 module Shell = struct
@@ -909,147 +937,189 @@ module Inspector = struct
         in
         loop [] items
 
-  (* The field name is the widget key; the label is only displayed. *)
-  let field_widget ui (field : Param.field_view) =
-    let label = field.label ^ "##" ^ field.name in
-    let edited value = if value = field.current then None
-      else Some (field.name, value) in
-    match field.kind, field.current with
-    | Param.Toggle_view, Param.Bool_value value ->
-        edited (Param.Bool_value (Ui.toggle ui label value))
-    | Param.Integer_view range, Param.Int_value value ->
-        edited (Param.Int_value
-          (Ui.int_slider ui label ~range:(range.soft_min, range.soft_max) value))
-    | Param.Floating_view range, Param.Float_value value ->
-        edited (Param.Float_value
-          (Ui.slider ui label ~range:(range.soft_min, range.soft_max) value))
-    | Param.Text_view, Param.Text_value value ->
-        edited (Param.Text_value (Ui.text_field ui label value))
-    | Param.Choice_view options, Param.Choice_value value ->
-        let selected = Option.value ~default:0
-            (Array.find_index (String.equal value) options) in
-        let chosen = Ui.choice ui label (Array.to_list options) selected in
-        edited (Param.Choice_value options.(chosen))
-    | _ -> invalid_arg "Pxui_shell.Inspector: inconsistent field metadata"
-
-  let fields ui ?(expanded = []) views =
-    if views = [] then (Ui.label ui "No exposed parameters"; [])
-    else
-      let rec build path items = List.concat_map (function
-        | Field field -> Option.to_list (field_widget ui field)
-        | Folder (label, children) ->
-            let path = path @ [label] in
-            let key = String.concat "/" path in
-            Option.value ~default:[]
-              (Ui.accordion ui ~expanded:(List.mem key expanded)
-                 (label ^ "##folder." ^ key) (fun () -> build path children)))
-          items in
-      build [] (List.fold_left (fun items (field : Param.field_view) ->
-        insert field.folder field items) [] views)
-
-  let small_button ui key label ?x ~enabled () =
-    let at = Option.map (fun x -> x, 3.) x in
-    let button = Ui.box ui ~flags:(if enabled then Ui.(clickable + tab_stop) else Ui.none)
-        ?at ~w:(Ui.Px 18.) ~h:(Ui.Px (if x = None then 24. else 18.)) key in
-    let clicked = enabled && (Ui.signal ui button).clicked in
-    Ui.draw ui button (fun paint (x, y, w, h) ->
-      let theme = Ui.theme ui in
-      let y, h = if h = 24. then y +. 3., 18. else y, h in
-      Ui.Paint.rect paint ~x ~y ~w ~h ~fill:theme.control
-        ~stroke:(Pxui.Theme.faint_border theme) ();
-      Ui.Paint.text paint ~at:(x +. 3., y +. 2.)
-        ~size:(if label = "xyz" then 9 else 11)
-        ~color:(if enabled then theme.foreground else Pxui.Theme.muted theme) label);
-    clicked
-
-  let flow_fields ui ?(expanded = []) rows =
+  let flow_fields ui ?(expanded = []) ?(width = 280.) ?(actions = true) rows =
+    let theme = Ui.theme ui in
+    let expression text = String.starts_with ~prefix:"=" text
+      && String.length (String.trim text) > 1 in
+    let action ui key label ~x ~y ~enabled =
+      let box = Ui.box ui ~flags:(if enabled then Ui.(clickable + tab_stop) else Ui.none)
+          ~at:(x, y) ~w:(Ui.Px 20.) ~h:(Ui.Px 19.) key in
+      let clicked = enabled && (Ui.signal ui box).clicked in
+      Ui.draw ui box (fun paint (x, y, w, h) ->
+        Ui.Paint.rect paint ~x ~y ~w ~h ~fill:theme.input
+          ~stroke:(Pxui.Theme.faint_border theme) ~radius:3. ();
+        let color = if enabled then theme.accent else Pxui.Theme.muted theme in
+        if label = "●" || label = "○" then
+          Ui.Paint.circle paint ~at:(x +. w /. 2., y +. h /. 2.) ~radius:4.
+            ~fill:(if label = "●" then color else theme.input)
+            ~stroke:color ()
+        else if label = "×" then begin
+          Ui.Paint.line paint ~from_:(x +. 6., y +. 5.)
+            ~to_:(x +. 14., y +. 14.) color;
+          Ui.Paint.line paint ~from_:(x +. 14., y +. 5.)
+            ~to_:(x +. 6., y +. 14.) color
+        end else Ui.Paint.text paint ~at:(x +. 4., y +. 3.) ~size:10
+          ~color label);
+      clicked in
+    let input field path ~edit ~x ~y ~w =
+      let key = "flow-value-" ^ path in
+      let numeric text valid ?display ?fraction ?slide convert =
+        let changed, _ = Ui.value_field ui ~at:(x, y) ~w ~h:21. ~size:11
+            ?display ?fraction ?slide ~edit ~valid:(fun text -> valid text || expression text)
+            key text in
+        if changed = text then [] else if expression changed then
+          [Expression (path, changed)]
+        else Option.fold ~none:[] ~some:(fun value -> [Edited (field.Param.name, value)])
+            (convert changed) in
+      match field.Param.kind, field.current with
+      | Param.Integer_view range, Param.Int_value value ->
+          let fraction = float (value - range.soft_min)
+            /. float (max 1 (range.soft_max - range.soft_min)) in
+          let slide fraction = string_of_int (range.soft_min + int_of_float
+            (Float.round (fraction *. float (range.soft_max - range.soft_min)))) in
+          numeric (string_of_int value) (fun text -> int_of_string_opt text <> None)
+            ~fraction ~slide (fun text -> Option.map (fun n -> Param.Int_value n)
+              (int_of_string_opt text))
+      | Param.Floating_view range, Param.Float_value value ->
+          let fraction = (value -. range.soft_min)
+            /. Float.max 0.000001 (range.soft_max -. range.soft_min) in
+          let slide fraction = Printf.sprintf "%.6g"
+            (range.soft_min +. fraction *. (range.soft_max -. range.soft_min)) in
+          numeric (Printf.sprintf "%.17g" value)
+            (fun text -> Option.fold ~none:false ~some:Float.is_finite
+              (float_of_string_opt text)) ~display:(Printf.sprintf "%.6g" value)
+            ~fraction ~slide
+            (fun text -> Option.map (fun n -> Param.Float_value n)
+              (float_of_string_opt text))
+      | Param.Text_view, Param.Text_value value ->
+          let text, _ = Ui.value_field ui ~at:(x, y) ~w ~h:21. ~size:11
+              ~valid:(fun _ -> true) key value in
+          if text = value then [] else [Edited (field.name, Param.Text_value text)]
+      | Param.Choice_view choices, Param.Choice_value value ->
+          let box = Ui.box ui ~flags:Ui.(clickable + tab_stop)
+              ~at:(x, y) ~w:(Ui.Px w) ~h:(Ui.Px 21.) key in
+          let index = Option.value ~default:0 (Array.find_index (( = ) value) choices) in
+          let just_opened = (Ui.signal ui box).clicked in
+          let open_ = just_opened || Ui.state ui box ~default:0 = 1 in
+          Ui.set_state ui box (if open_ then 1 else 0);
+          Ui.draw ui box (fun paint (x, y, w, h) ->
+            Ui.Paint.rect paint ~x ~y ~w ~h ~fill:theme.control
+              ~stroke:(Pxui.Theme.faint_border theme) ~radius:3. ();
+            Ui.Paint.text paint ~at:(x +. 5., y +. 3.) ~size:11
+              ~color:theme.foreground choices.(index));
+          if not open_ || just_opened then [] else
+            let bx, by, _, bh = Ui.rect ui box in
+            (match Ui.context_menu ui ~at:(bx, by +. bh)
+                (key ^ "-options")
+                (Array.to_list (Array.map (fun choice -> choice, true) choices)) with
+             | `Open -> []
+             | `Dismiss -> Ui.set_state ui box 0; []
+             | `Pick selected ->
+                 Ui.set_state ui box 0;
+                 if selected = index then [] else
+                   [Edited (field.name, Param.Choice_value choices.(selected))])
+      | Param.Toggle_view, Param.Bool_value value ->
+          let edited = Ui.inspector_toggle_value ui ~key ~at:(x, y) value in
+          if edited = value then [] else
+            [Edited (field.name, Param.Bool_value edited)]
+      | _ -> [] in
+    let driven path title source live shown =
+      let box, control_x, control_y, control_w = Ui.inspector_row ui
+          ~width ~key:("flow-row-" ^ path) ~label:title () in
+      Ui.within ui box (fun () ->
+        let source_width = max 4 (int_of_float ((control_w -. 24.) /. 7.)) in
+        let display = if String.length source > source_width then
+          String.sub source 0 (max 0 (source_width - 1)) ^ "…" else source in
+        let edits = if String.starts_with ~prefix:"=" source then
+          let text, _ = Ui.value_field ui ~at:(control_x, control_y)
+              ~w:(control_w -. 24.) ~h:21. ~size:11
+              ~valid:expression ("flow-expression-" ^ path) source in
+          if text = source then [] else [Expression (path, text)]
+        else (Ui.draw ui box (fun paint (x, y, _, _) ->
+          Ui.Paint.text paint ~at:(x +. control_x, y +. control_y +. 3.) ~size:11
+            ~color:theme.accent
+            (display ^ Option.fold ~none:"" ~some:(fun value -> " " ^ value) live)); []) in
+        let reset = action ui ("reset-" ^ path) "×" ~x:(width -. 55.)
+            ~y:(control_y +. 1.) ~enabled:true in
+        let pin = action ui ("pin-" ^ path) (if shown then "●" else "○")
+            ~x:(width -. 28.) ~y:(control_y +. 1.) ~enabled:false in
+        let _ = pin in
+        if reset then Reset path :: edits else edits) in
+    let scalar path title field shown =
+      let box, control_x, control_y, control_w = Ui.inspector_row ui
+          ~width ~key:("flow-row-" ^ path) ~label:title () in
+      Ui.within ui box (fun () ->
+        let label = Ui.box ui ~flags:Ui.clickable ~at:(8., 4.)
+            ~w:(Ui.Px (control_x -. 8.)) ~h:(Ui.Px 21.) "label-edit" in
+        let edit = (Ui.signal ui label).double_clicked in
+        let edits = input field path ~x:control_x ~y:control_y ~w:control_w ~edit in
+        let pinned = actions && action ui ("pin-" ^ path)
+            (if shown then "●" else "○") ~x:(width -. 28.)
+            ~y:(control_y +. 1.) ~enabled:true in
+        if pinned then Pinned (path, not shown) :: edits else edits) in
     let row_widget (row : flow_row) =
-      let shown = if row.shown then "●" else "○" in
-      let pinned = ref false and split = ref false and reset = ref false in
-      let edits = ref [] in
-      let source_line path source live =
-        let line = Ui.box ui ~w:Ui.Grow ~h:(Ui.Px 24.)
-            ("flow-source-" ^ path) in
-        if String.starts_with ~prefix:"=" source then
-          Ui.within ui line (fun () ->
-            let text, _ = Ui.value_field ui ~at:(3., 3.) ~w:172. ~h:18.
-              ~size:10 ~valid:(fun text -> String.starts_with ~prefix:"=" text
-                && String.trim (String.sub text 1 (String.length text - 1)) <> "")
-              ("expression-" ^ path) source in
-            if text <> source then edits := Expression (path, text) :: !edits;
-            Option.iter (fun live -> Ui.draw ui line (fun paint (x, y, _, _) ->
-              Ui.Paint.text paint ~at:(x +. 183., y +. 5.) ~size:10
-                ~color:(Ui.theme ui).accent live)) live)
-        else Ui.draw ui line (fun paint (x, y, _, _) ->
-          Ui.Paint.text paint ~at:(x +. 3., y +. 5.) ~size:10
-            ~color:(Ui.theme ui).accent
-            (source ^ Option.fold ~none:"" ~some:(fun value -> " " ^ value) live)) in
       let title = match row.fields with
-        | (field : Param.field_view) :: _ when List.length row.fields = 1 -> field.label
-        | _ -> row.path in
-      let header = row.split <> None || row.drive <> None in
-      if header then begin
-        let box = Ui.box ui ~w:Ui.Grow ~h:(Ui.Px 24.)
-            ("flow-header-" ^ row.path) in
-        Ui.draw ui box (fun paint (x, y, _, _) ->
-          Ui.Paint.text paint ~at:(x +. 3., y +. 5.) ~size:11
-            ~color:(Ui.theme ui).foreground title);
-        Ui.within ui box (fun () ->
-          pinned := small_button ui ("pin-" ^ row.path) shown ~x:62.
-              ~enabled:(not row.locked) ();
-          (match row.split with
-           | Some active -> split := small_button ui ("split-" ^ row.path)
-               (if active then "↥" else "xyz") ~x:82. ~enabled:(not row.locked)
-               ()
-           | None -> ());
-          if row.drive <> None then
-            reset := small_button ui ("reset-" ^ row.path) "×"
-                ~x:104. ~enabled:true ());
-        Option.iter (fun source -> source_line row.path source row.live) row.drive
-      end;
-      if row.drive = None then
-        List.iteri (fun index (field : Param.field_view) ->
-          let path = if List.length row.fields = 1 then row.path else
-            row.path ^ "." ^ List.nth ["x"; "y"; "z"] index in
-          let drive = List.find_opt (fun (name, _, _) -> name = path) row.components in
-          match drive with
-          | Some (_, source, live) ->
-              let box = Ui.box ui ~w:Ui.Grow ~h:(Ui.Px 24.)
-                  ("flow-driven-" ^ path) in
-              Ui.draw ui box (fun paint (x, y, _, _) ->
-                Ui.Paint.text paint ~at:(x +. 3., y +. 5.) ~size:11
-                  ~color:(Ui.theme ui).foreground field.label);
-              Ui.within ui box (fun () ->
-                if small_button ui ("reset-" ^ path) "×" ~x:104. ~enabled:true ()
-                then edits := Reset path :: !edits);
-              source_line path source live
-          | None ->
-              let container = Ui.box ui ~w:Ui.Grow ~h:(Ui.Px 24.)
-                  ~axis:(if header then Ui.Column else Ui.Row)
-                  ("flow-field-" ^ path) in
-              Ui.within ui container (fun () ->
-                if not header && small_button ui ("pin-" ^ row.path) shown
-                    ~enabled:true () then pinned := true;
-                Option.iter (fun (name, value) -> edits := Edited (name, value) :: !edits)
-                  (field_widget ui field))) row.fields;
-      let actions = List.rev !edits in
-      let actions = if !reset then Reset row.path :: actions else actions in
-      let actions = if !split then Split (row.path, not (Option.get row.split)) :: actions
-        else actions in
-      if !pinned then Pinned (row.path, not row.shown) :: actions else actions in
+        | [field] -> field.Param.label | _ -> row.path in
+      match row.drive, row.fields with
+      | Some source, _ -> driven row.path title source row.live row.shown
+      | None, [field] -> scalar row.path title field row.shown
+      | None, fields ->
+          let box, control_x, control_y, control_w = Ui.inspector_row ui
+              ~width ~key:("flow-row-" ^ row.path) ~label:title () in
+          let whole = Ui.within ui box (fun () ->
+            let split = Option.value ~default:false row.split in
+            let field_width = (control_w -. 22.) /. 3. in
+            let edits = if split || row.components <> [] || control_w < 140. then [] else
+              List.concat (List.mapi (fun index field ->
+                let axis = List.nth ["x"; "y"; "z"] index in
+                Ui.draw ui box (fun paint (x, y, _, _) ->
+                  Ui.Paint.text paint ~at:(x +. control_x +. float index *. field_width,
+                    y +. control_y +. 3.)
+                    ~size:10 ~color:(Pxui.Theme.muted theme) axis);
+                input field (row.path ^ "." ^ axis)
+                  ~edit:false
+                  ~x:(control_x +. float index *. field_width +. 11.)
+                  ~y:control_y
+                  ~w:(field_width -. 13.)) fields) in
+            let toggle = actions && action ui ("split-" ^ row.path) "xyz"
+                ~x:(width -. 55.) ~y:(control_y +. 1.)
+                ~enabled:(not row.locked) in
+            let pin = actions && action ui ("pin-" ^ row.path)
+                (if row.shown then "●" else "○")
+                ~x:(width -. 28.) ~y:(control_y +. 1.)
+                ~enabled:(not row.locked) in
+            edits @ (if toggle then [Split (row.path, not split)] else [])
+            @ (if pin then [Pinned (row.path, not row.shown)] else [])) in
+          if row.split = Some true || row.components <> [] || control_w < 140. then
+            whole @ List.concat (List.mapi (fun index field ->
+              let axis = List.nth ["x"; "y"; "z"] index in
+              let path = row.path ^ "." ^ axis in
+              match List.find_opt (fun (name, _, _) -> name = path) row.components with
+              | Some (_, source, live) -> driven path field.Param.label source live row.shown
+              | None -> scalar path field.label field row.shown) fields)
+          else whole in
     let rec build path items = List.concat_map (function
       | Field row -> row_widget row
       | Folder (label, children) ->
           let path = path @ [label] in
           let key = String.concat "/" path in
           Option.value ~default:[]
-            (Ui.accordion ui ~expanded:(List.mem key expanded)
-               (label ^ "##flow-folder." ^ key) (fun () -> build path children))) items in
-    if rows = [] then (Ui.label ui "No parameters"; []) else
+            (Ui.inspector_section ui ~key:("flow-section-" ^ key)
+              ~expanded:(List.mem key expanded) label
+              (fun () -> build path children))) items in
+    if rows = [] then (Ui.inspector_message ui ~key:"no-parameters" "No parameters"; []) else
       build [] (List.fold_left (fun items (row : flow_row) ->
         let folder = match row.fields with
           | (field : Param.field_view) :: _ -> field.folder | [] -> [] in
         insert folder row items) [] rows)
+
+  let fields ui ?expanded ?width views =
+    let rows = List.map (fun (field : Param.field_view) ->
+      { path = field.name; fields = [field]; shown = false; locked = true;
+        drive = None; live = None; components = []; split = None }) views in
+    flow_fields ui ?expanded ?width ~actions:false rows
+    |> List.filter_map (function Edited (name, value) -> Some (name, value)
+      | _ -> None)
 
   let record ui ?expanded schema values =
     match fields ui ?expanded (Param.view schema values) with

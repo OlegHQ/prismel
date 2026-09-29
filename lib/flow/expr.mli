@@ -17,9 +17,11 @@ val parse : string -> (t, Diagnostic.t) result
     byte spans; unary minus binds tighter than right-associative [^]. *)
 
 val infix : t -> string
-val sexp : t -> string
-(** Both printers preserve the operation tree. *)
+val sexp : ?precision:int -> t -> string
+(** Both printers preserve the operation tree. [sexp] defaults to 17
+    significant digits for exact numeric round trips. *)
 
-val sexp_number : float -> string
+val sexp_number : ?precision:int -> float -> string
 (** Finite decimal spelling accepted by the Flow S-expression reader,
-    including values normally formatted with an exponent. *)
+    including values normally formatted with an exponent. Defaults to 17
+    significant digits; use 6 for a compact display. *)

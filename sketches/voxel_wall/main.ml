@@ -88,7 +88,8 @@ let graph () =
 let concrete = P.material ~roughness:0.6 ~round:0.07 (rgb 0.42 0.42 0.44)
 let raster_material = Material.create ~diffuse:(Color.rgb 150 150 156)
     ~ambient:(Color.rgb 10 10 12) ~specular:(Color.rgb 40 40 40) ~shininess:24. ()
-let wire_material = Material.unlit (Color.rgb 190 215 225)
+let background = Color.rgb 8 8 10
+let wire_material = Material.unlit (Prismel_editor.Renderer.wire_color background)
 
 module Renderer = Prismel_editor.Renderer
 let initial_renderer = Option.value ~default:Renderer.Path_traced
@@ -223,7 +224,7 @@ let init _frame =
     match Prismel_editor.Editor3.create ~name:"voxel_wall"
       ~camera:(Easy_camera.create ~target:(v 0. 0. 1.) ~distance:19. ~azimuth:(-0.22)
         ~elevation:0.08 ~fov_y:0.7 ~inertia:false ())
-      ~background:(Color.rgb 8 8 10) ~seed:7L ~grain:2 ~max_entries:24
+      ~background ~seed:7L ~grain:2 ~max_entries:24
       ~max_payload_bytes:(256 * 1024 * 1024) ~factories ~lights ~world:studio
       ~settings:(Settings.make settings_schema initial_renderer)
       ~graph:(graph ())

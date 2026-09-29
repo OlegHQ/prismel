@@ -16,6 +16,12 @@ let of_env name = match Sys.getenv_opt name with
   | Some "wireframe" -> Some Wireframe
   | Some _ | None -> None
 
+let wire_color background =
+  let lightness = 299 * background.Color.r + 587 * background.g
+    + 114 * background.b in
+  if lightness >= 128000 then Color.hex_exn "#285f77"
+  else Color.hex_exn "#bed7e1"
+
 (* Every polygon edge once, as a line mesh. *)
 let wire_mesh geometry =
   let topology = Pdk.Geometry.topology geometry in

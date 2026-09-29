@@ -292,7 +292,7 @@ module Make (V : VIEWPORT) = struct
 
   let create ?(layout = Pxui_shell.Layout.default) ?name ?presets ?timeline_frames ?factories
       ?settings ?(commands = []) ?(lights = []) ?world
-      ?(camera = V.default_camera ()) ?lens ?(background = Color.hex_exn "#09090b")
+      ?(camera = V.default_camera ()) ?lens ?(background = Color.hex_exn "#f4f5f0")
       ?seed ?grain ?domains ?max_entries ?max_payload_bytes ?graph ?program ~prepare ~draw
       ?(overlay = fun _ _ _ -> Scene.empty) ?(status = fun _ -> None) () =
     let graph = match graph, program with

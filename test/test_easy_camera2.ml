@@ -133,7 +133,7 @@ let run () =
   (* Open Render (row 1), then press its save button (row 3). *)
   let control, _, _ = run control camera (click (30, 39)) in
   let control, _, _ = run control camera (frame ()) in
-  let control, _, requests = run control camera (click (30, 87)) in
+  let control, _, requests = run control camera (click (30, 110)) in
   if List.length requests <> 1 then
     fail "2D camera render section did not request a PNG";
   let control, controlled, _ = run (Control.open_camera control) camera (frame ()) in

@@ -36,7 +36,10 @@ event payload.
   text-input event.
 - Pointer motion, button, and wheel events preserve poll order. Positions are
   fractional logical points and motion contributes to the current frame's
-  float aggregate delta. Wheel deltas retain sub-unit values.
+  float aggregate delta. Wheel deltas retain sub-unit values and SDL's
+  device direction. A `Flipped` event is already natural scrolling; the
+  runtime does not reverse it again. An ordinary wheel keeps SDL's normal
+  direction.
 - The authoritative SDL3 pixel-size/window transition updates logical and
   drawable runtime facts coherently and emits one logical `WindowResized` fact.
 - Focus loss clears held keys and buttons before user update and emits

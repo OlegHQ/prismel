@@ -30,6 +30,69 @@ let graph_scene view =
   ignore (update view (frame ()));
   Pxui.Ui.scene ui
 
+let grid_parameters view =
+  let batch = match Scene.Private.stage_native ~width:1000 ~height:700
+      (graph_scene view) with
+    | Ok staged -> List.find_map (function
+        | Scene.Private.Ui_layer (batch, _) -> Some batch
+        | _ -> None) staged.layers |> Option.get
+    | Error message -> fail message in
+  let bytes = Scene_command.Ui_batch.instances batch in
+  let rec find index =
+    if index = Scene_command.Ui_batch.count batch then fail "graph grid was not painted"
+    else if Bytes.get_int32_le bytes (index * 64 + 40) = 3l then
+      Scene_command.Ui_batch.float batch ~instance:index ~word:4,
+      Scene_command.Ui_batch.float batch ~instance:index ~word:5,
+      Scene_command.Ui_batch.float batch ~instance:index ~word:6
+    else find (index + 1) in
+  find 0
+
+let run_canvas_motion () =
+  let source = Sop.points [|0., 0., 0.|] in
+  let view = Pxui_graph.create ~width:800 ~height:500 source in
+  let _, _, tile_width, _ = (List.hd (Pxui_graph.node_views view)).bounds in
+  check (tile_width > 100) "selection outline check needs an expanded node";
+  let painted view = match Scene.Private.stage_native ~width:1000 ~height:700
+      (graph_scene view) with
+    | Error message -> fail message
+    | Ok staged -> List.fold_left (fun total -> function
+        | Scene.Private.Ui_layer (batch, _) ->
+            total + Scene_command.Ui_batch.count batch
+        | _ -> total) 0 staged.layers in
+  check (painted (Pxui_graph.select (Node.id source) view) > painted view)
+    "selected card did not paint a distinct outline";
+  let ox, _, spacing = grid_parameters view in
+  check (Float.abs (ox -. 14.) < 0.001 && spacing = 24.)
+    "grid did not start on the graph origin at a 24-point pitch";
+  let zoomed, _ = update view (frame ~mouse:(400, 250)
+      ~events:[mouse_move (400, 250); Event.MouseScrolled (0., 0.125)] ()) in
+  let origin, _, pitch = grid_parameters zoomed in
+  let ratio = Pxui_graph.Private.zoom zoomed in
+  let expected_pan = 400. -. (400. -. 38.) *. ratio in
+  check (Float.abs (pitch -. 24. *. ratio) < 0.001
+      && Float.abs (origin -. Float.rem expected_pan pitch) < 0.001)
+    "fractional zoom snapped or detached the grid from graph coordinates";
+  let scrolled, changes = update view (frame ~mouse:(400, 250)
+      ~events:[mouse_move (400, 250); Event.MouseScrolled (0.25, 0.5)] ()) in
+  check (Pxui_graph.Private.zoom scrolled > 1.
+      && List.mem Pxui_graph.View_changed changes)
+    "two-finger scroll did not zoom the canvas";
+  let ui = Pxui.Ui.create () in
+  let direct view frame = Pxui.Ui.frame ui frame (fun ui -> Pxui_graph.update view ui frame) in
+  let view, _ = direct view (frame ()) in
+  let x, y, _, _ = (List.hd (Pxui_graph.node_views view)).bounds in
+  let start = x + 50, y + 12 and finish = x + 310, y + 12 in
+  let view, _ = direct view (frame ~mouse:start
+    ~events:[mouse_press (Input.RightButton, start)] ()) in
+  let view, _ = direct view (frame ~mouse:finish
+    ~events:[mouse_move finish; mouse_release (Input.RightButton, finish)] ()) in
+  let bx, _, _, _ = (List.hd (Pxui_graph.node_views view)).bounds in
+  check (bx = x + 260) "right drag did not pan by the pointer delta";
+  let view, _ = direct view (frame ~mouse:finish
+    ~events:[mouse_press (Input.LeftButton, finish)] ()) in
+  check (Pxui_graph.selected view = Some (Node.id source))
+    "panned tile hit box lagged behind its painted position"
+
 let node id view = List.find (fun node -> node.Pxui_graph.id = id)
     (Pxui_graph.node_views view)
 
@@ -42,6 +105,203 @@ let unary_input_port node =
   x, y + 12
 
 let midpoint (ax, ay) (bx, by) = (ax + bx) / 2, (ay + by) / 2
+
+let run_layout_branches () =
+  let point label = Sop.points ~label [|0., 0., 0.|] in
+  let bars = List.map point ["bar-x"; "bar-y"; "bar-z"] in
+  let cutter = Sop.merge ~label:"cutter" bars in
+  let cell = point "cell" in
+  let cage = Sop.merge ~label:"cage" [cutter; cell] in
+  let core = Sop.null ~label:"core" (point "octahedron") in
+  let prototype = Sop.merge ~label:"prototype" [cage; core] in
+  let octant = point "octant" in
+  let levels = ["coarse"; "mid"; "fine"] in
+  let _, kept = List.fold_left (fun (points, kept) label ->
+    let split = Sop.null ~label:(label ^ "-split") points in
+    let keep = Sop.null ~label:(label ^ "-keep") split in
+    let sub = Sop.merge ~label:(label ^ "-subdivide")
+      [Sop.null ~label:(label ^ "-octant") octant; split] in
+    sub, keep :: kept) (point "lattice", []) levels in
+  let points = Sop.merge ~label:"levels" (List.rev kept) in
+  let graph = Sop.merge ~label:"out" [prototype; Sop.null points] in
+  let view = Pxui_graph.create ~width:4000 ~height:4000 graph in
+  check (Pxui_graph.node_positions view = Pxui_graph.node_positions
+    (Pxui_graph.optimize_layout view)) "branch layout changed on re-layout";
+  let nodes = Pxui_graph.node_views view in
+  let bounds id = (node (Node.id id) view).bounds in
+  let top id = let _, y, _, _ = bounds id in y in
+  let bottom id = let _, y, _, h = bounds id in y + h in
+  check (List.for_all (fun bar -> bottom bar < top cell) bars
+      && bottom cage < top core)
+    "auto layout interleaved separate input branches";
+  List.iter (fun (a : Pxui_graph.node_view) -> List.iter (fun (b : Pxui_graph.node_view) ->
+    if a.id <> b.id then
+    let ax,ay,aw,ah = a.bounds and bx,by,bw,bh = b.bounds in
+    check (ax+aw <= bx || bx+bw <= ax || ay+ah <= by || by+bh <= ay)
+      "auto layout overlapped two node cards") nodes) nodes;
+  let collisions = ref [] in
+  let segments = ref [] in
+  Edit_graph.inspect (Edit_graph.of_graph graph) |> List.iter (fun (info : Edit_graph.node_info) ->
+    Array.iteri (fun index source -> Option.iter (fun source ->
+      let sx,sy,sw,_ = (node source view).bounds in
+      let tx,ty,_,_ = (node info.id view).bounds in
+      let x0 = float (sx+sw+14) and y0 = float (sy+12) in
+      let x1 = float (tx-14) and y1 = float (ty+12+24*index) in
+      segments := (source, info.id, x0, y0, x1, y1) :: !segments;
+      if x1 > x0 then List.iter (fun (other : Pxui_graph.node_view) ->
+        if other.Pxui_graph.id <> source && other.id <> info.id then
+          let ox,oy,ow,oh = other.bounds in
+          let left = max x0 (float ox) and right = min x1 (float (ox+ow)) in
+          if left < right then begin
+            let at x = y0 +. (y1 -. y0) *. (x -. x0) /. (x1 -. x0) in
+            let low = min (at left) (at right) and high = max (at left) (at right) in
+            if low < float (oy+oh) && high > float oy then
+              collisions := (source, info.id, other.id) :: !collisions
+          end) nodes) source) info.inputs);
+  List.iter (fun (a,b,c) -> Printf.eprintf "%s -> %s through %s\n"
+    (node a view).label (node b view).label (node c view).label) !collisions;
+  check (!collisions = []) "auto layout ran a wire through an unrelated card";
+  let crossings = ref [] in
+  List.iter (fun (a,b,x0,y0,x1,y1) -> List.iter (fun (c,d,u0,v0,u1,v1) ->
+    if a <> c && a <> d && b <> c && b <> d && a < c && x1 > x0 && u1 > u0 then begin
+      let left = max x0 u0 and right = min x1 u1 in
+      if left < right then begin
+        let ay x = y0 +. (y1-.y0) *. (x-.x0) /. (x1-.x0) in
+        let by x = v0 +. (v1-.v0) *. (x-.u0) /. (u1-.u0) in
+        if (ay left -. by left) *. (ay right -. by right) < 0. then
+          crossings := (a,b,c,d) :: !crossings
+      end
+    end) !segments) !segments;
+  check (!crossings = []) "auto layout crossed independent branch wires"
+
+let run_cube_cage_layout () =
+  let v = Vec3.create in
+  let box label size = Sop_catalog.Box.create ~label ~size () in
+  let cutter = Sop_catalog.Merge.create ~label:"cutter"
+      [box "bar-x" (v 1.4 0.56 0.56); box "bar-y" (v 0.56 1.4 0.56);
+       box "bar-z" (v 0.56 0.56 1.4)] in
+  let cage = Sop_catalog.Boolean.create ~label:"cage"
+      ~operation:Pdk.Boolean.Difference ~resolve_right_self_intersections:true
+      ~detriangulation:Pdk.Boolean.All_polygons ~right:cutter (box "cell" (v 1. 1. 1.)) in
+  let cage = Sop_catalog.Poly_bevel.create ~label:"chamfer" ~distance:0.04 cage in
+  let core = Sop_catalog.Transform.create ~label:"core" ~uniform_scale:0.3 ~rotate:(v 0.7 0.5 0.)
+      (Sop_catalog.Platonic.create ~label:"octahedron"
+        ~kind:Pdk.Parametric_generators.Platonic_octahedron ~radius:1. ()) in
+  let cell = Sop_catalog.Merge.create ~label:"cell-prototype" [cage; core] in
+  let cube label n step =
+    let side = step *. float (n - 1) in
+    let sheet = Sop_catalog.Grid.create ~label:(label ^ "-sheet")
+        ~orientation:Pdk.Plane_generators.Grid_xz ~connectivity:Pdk.Plane_generators.Grid_points
+        ~center:(v 0. (-. side /. 2.) 0.) ~columns:(n - 1) ~rows:(n - 1)
+        ~width:side ~height:side ~size:side () in
+    Sop_catalog.Duplicate.create ~label ~copies:(n - 1)
+      ~transform:(Mat4.translation (v 0. step 0.)) sheet in
+  let lattice = cube "lattice" 6 1.16 and octant = cube "octant" 2 0.58 in
+  let _, kept = List.fold_left (fun (points, kept) (label, probability, (lo, hi)) ->
+    let chosen = Sop_catalog.Group_random.create ~label:(label ^ "-split")
+        ~seed:(String.length label) ~probability
+        ~owner:Pdk.Group_ops.Group_points ~name:"split" points in
+    let rest = Sop_catalog.Attribute_randomize.create ~label:(label ^ "-scale")
+        ~seed:(String.length label + 1) ~name:"pscale" ~minimum:lo ~maximum:hi
+        (Sop_catalog.Blast.create ~label:(label ^ "-keep")
+           ~owner:Pdk.Group.Point ~group:"split" chosen) in
+    let sub = Sop_catalog.Copy_to_points.create ~label:(label ^ "-subdivide") ~target_group:"split"
+        ~source:(Sop_catalog.Transform.create ~label:(label ^ "-octant") ~uniform_scale:(hi /. 2.) octant)
+        ~targets:chosen () in
+    sub, rest :: kept) (lattice, [])
+      ["coarse", 0.36, (0.84, 1.); "mid", 0.4, (0.42, 0.5); "fine", 0., (0.2, 0.25)] in
+  let points = Sop_catalog.Merge.create ~label:"levels" (List.rev kept) in
+  let holes = Sop_catalog.Group_random.create ~label:"holes" ~seed:3 ~probability:0.1
+      ~owner:Pdk.Group_ops.Group_points ~name:"holes" points in
+  let kept = Sop_catalog.Blast.create ~label:"blast-holes"
+      ~owner:Pdk.Group.Point ~group:"holes" holes in
+  let graph = Sop_catalog.Copy_to_points.create ~label:"copy-cells" ~pack:true
+      ~source:cell ~targets:kept () in
+  let view = Pxui_graph.create ~width:4000 ~height:10000 graph in
+  let positions = Pxui_graph.node_positions view in
+  let zoomed, _ = update view (frame ~mouse:(300, 300)
+    ~events:[Event.MouseScrolled (0., -100.)] ()) in
+  check (Pxui_graph.Private.zoom zoomed < 0.34) "layout check did not zoom to points";
+  check (Pxui_graph.node_positions (Pxui_graph.optimize_layout zoomed) = positions)
+    "re-layout at point zoom did not reserve expanded card sizes";
+  let position n = Option.get (Pxui_graph.node_position view (Node.id n)) in
+  check (fst (position graph) -. fst (position cell) <= 264.)
+    "short cell branch was left far from its consumer";
+  (match Sys.getenv_opt "PRISMEL_LAYOUT_PNG" with
+   | None -> ()
+   | Some path ->
+       let ui = Pxui.Ui.create () in
+       ignore (Sketch.run_state ~max_frames:2
+         ~config:{Sketch.default_config with width=1600; height=950;
+           title="Cube cage layout regression"; domains=Some 1}
+         ~init:(fun _ ->
+           let view = Pxui_graph.create ~width:1600 ~height:950 graph in
+           let layout = Pxui_graph.layout view in
+           (* Keep cards visible in the full-graph QA image. *)
+           Pxui_graph.with_layout {layout with pinned =
+             Editor_core.Network_layout.Int_map.map (fun _ -> true) layout.at} view
+           |> Pxui_graph.optimize_layout)
+         ~update:(fun view (frame : Frame.t) ->
+           let view = Pxui_graph.with_bounds ~x:0 ~y:0 ~width:frame.width
+             ~height:frame.height view |> Pxui_graph.optimize_layout in
+           fst (Pxui.Ui.frame ui frame (fun ui -> Pxui_graph.update view ui frame)))
+         ~view:(fun _ _ -> Pxui.Ui.scene ui)
+         ~after_present:(fun view _ ->
+           check (Canvas.save_screen_png path = Ok ()) "layout capture failed"; view)
+         ~on_stop:(fun _ -> Pxui.Ui.destroy ui) ()));
+  let nodes = Pxui_graph.node_views view in
+  List.iter (fun (a : Pxui_graph.node_view) -> List.iter (fun (b : Pxui_graph.node_view) ->
+    if a.id < b.id then
+      let ax,ay,aw,ah = a.bounds and bx,by,bw,bh = b.bounds in
+      check (ax+aw <= bx || bx+bw <= ax || ay+ah <= by || by+bh <= ay)
+        "cube cage layout overlapped cards") nodes) nodes;
+  if Sys.getenv_opt "PRISMEL_LAYOUT_PROBE" <> None then
+    List.iter (fun (n : Pxui_graph.node_view) ->
+      let x,y,_,h = n.bounds in Printf.eprintf "%2d %5d %5d %4d %s\n"
+        n.depth x y h n.label) nodes;
+  let collisions = ref [] in
+  let segments = ref [] in
+  Edit_graph.inspect (Edit_graph.of_graph graph) |> List.iter (fun (info : Edit_graph.node_info) ->
+    Array.iteri (fun index source -> Option.iter (fun source ->
+      let sx,sy,sw,_ = (node source view).bounds in
+      let tx,ty,_,_ = (node info.id view).bounds in
+      let x0 = float (sx+sw+14) and y0 = float (sy+12) in
+      let x1 = float (tx-14) and y1 = float (ty+12+24*index) in
+      segments := (source, info.id, x0, y0, x1, y1) :: !segments;
+      if x1 > x0 then List.iter (fun (other : Pxui_graph.node_view) ->
+        if other.id <> source && other.id <> info.id then
+          let ox,oy,ow,oh = other.bounds in
+          let left = max x0 (float ox) and right = min x1 (float (ox+ow)) in
+          if left < right then begin
+            let at x = y0 +. (y1 -. y0) *. (x -. x0) /. (x1 -. x0) in
+            let low = min (at left) (at right) and high = max (at left) (at right) in
+            if low < float (oy+oh) && high > float oy then
+              collisions := (source, info.id, other.id) :: !collisions
+          end) nodes) source) info.inputs);
+  if !collisions <> [] then
+    Printf.eprintf "cube cage layout collisions: %s\n"
+      (String.concat ", " (List.map (fun (a,b,c) ->
+        Printf.sprintf "%s->%s through %s"
+          (node a view).label (node b view).label (node c view).label) !collisions));
+  check (!collisions = []) "cube cage layout routed a wire through a card";
+  let crossings = ref [] in
+  List.iter (fun (a,b,x0,y0,x1,y1) -> List.iter (fun (c,d,u0,v0,u1,v1) ->
+    if a <> c && a <> d && b <> c && b <> d && a < c && x1 > x0 && u1 > u0 then begin
+      let left = max x0 u0 and right = min x1 u1 in
+      if left < right then begin
+        let ay x = y0 +. (y1-.y0) *. (x-.x0) /. (x1-.x0) in
+        let by x = v0 +. (v1-.v0) *. (x-.u0) /. (u1-.u0) in
+        if (ay left -. by left) *. (ay right -. by right) < 0. then
+          crossings := (a,b,c,d) :: !crossings
+      end
+    end) !segments) !segments;
+  if !crossings <> [] then
+    Printf.eprintf "cube cage layout crossings: %s\n"
+      (String.concat ", " (List.map (fun (a,b,c,d) ->
+        Printf.sprintf "%s->%s x %s->%s"
+          (node a view).label (node b view).label
+          (node c view).label (node d view).label) !crossings));
+  check (!crossings = []) "cube cage layout crossed independent wires"
 
 let run_smoke () =
   let started = Unix.gettimeofday () and allocated = Gc.allocated_bytes () in
@@ -261,7 +521,16 @@ let run_value_wires () =
        let preview = Pxui_graph.with_applied resolved.applied wired in
        Sketch.export ~directory ~prefix:"flow-value" ~frames:1
          ~config:{Sketch.default_config with width=840; height=560}
-         (fun _ -> Scene.clear (Color.rgb 228 139 161) :: graph_scene preview));
+         (fun _ -> Scene.clear (Color.rgb 228 139 161) :: graph_scene preview);
+       List.iteri (fun index turns ->
+         let zoomed = List.fold_left (fun view _ ->
+           fst (update view (frame ~mouse:(420, 280)
+             ~events:[Event.MouseScrolled (0., 0.125)] ()))) preview
+             (List.init turns Fun.id) in
+         Sketch.export ~directory ~prefix:(Printf.sprintf "zoom-%02d" index)
+           ~frames:1 ~config:{Sketch.default_config with width=840; height=560}
+           (fun _ -> Scene.clear (Color.rgb 228 139 161) :: graph_scene zoomed))
+         [0; 1; 4; 8]);
   let point = (Pxui_graph.Private.edge_query_points wired ~limit:1).(0) in
   let selected, _ = update wired (frame ~mouse:point ~events:[
       mouse_press (Input.LeftButton, point); mouse_release (Input.LeftButton, point)] ()) in
@@ -443,6 +712,8 @@ let run_compound_outputs () =
     "new compound wire did not retain the output name"
 
 let run () =
+  run_layout_branches ();
+  run_cube_cage_layout ();
   run_grammar ();
   run_value_wires ();
   run_compound_outputs ();
@@ -521,7 +792,7 @@ let run () =
     "released graph wire was not queryable after rebuilding the edge index";
   let previous = view in
   let start = center (node (Node.id source_a) view).bounds in
-  let finish = fst start + 120, snd start + 80 in
+  let finish = fst start + 120, snd start - 80 in
   let view, _ = update view (frame ~mouse:start ~events:[
       mouse_press (Input.LeftButton, start)] ()) in
   let view, _ = update view (frame ~mouse:finish ~events:[
@@ -782,6 +1053,7 @@ let run () =
 
   (* Context menus: a right click opens one, a right drag only pans, and rows
      emit the ordinary typed changes. *)
+  let view = Pxui_graph.create ~x:20 ~y:30 ~width:800 ~height:520 graph in
   let right_click (x, y) = frame ~mouse:(x, y) ~events:[
       mouse_press (Input.RightButton, (x, y));
       mouse_release (Input.RightButton, (x, y))] () in
@@ -836,6 +1108,15 @@ let run () =
     "Flow columns did not snap the 256-point pitch";
   check (Pxui_graph.node_positions chain = Pxui_graph.node_positions
     (Pxui_graph.optimize_layout chain)) "Flow auto layout is not deterministic";
+  let upper = Sop.points ~label:"upper" [|0., 0., 0.|]
+  and lower = Sop.points ~label:"lower" [|1., 0., 0.|] in
+  let lower_child = Sop.null lower and upper_child = Sop.null upper in
+  let crossing = Pxui_graph.create ~width:900 ~height:600
+      (Sop.merge [upper_child; lower_child]) in
+  let _, upper_y = Option.get (Pxui_graph.node_position crossing (Node.id upper_child))
+  and _, lower_y = Option.get (Pxui_graph.node_position crossing (Node.id lower_child)) in
+  check (upper_y < lower_y)
+    "auto layout followed node IDs instead of aligning connected lanes";
   check (Pxui_graph.with_graph moved_a chain == chain) "unchanged Flow graph lost its identity path";
   let wire = (Pxui_graph.Private.edge_query_points chain ~limit:1).(0) in
   check (Pxui_graph.Private.hit_edge_id chain wire <> None
@@ -847,6 +1128,8 @@ let run () =
   let bends view = Option.value ~default:[] (L.Port_map.find_opt port (Pxui_graph.layout view).bends) in
   check (List.length (bends chain) = 1 && List.exists (function
     | Pxui_graph.Bend_changed _ -> true | _ -> false) changes) "Alt-click did not author a bend";
+  check (L.Port_map.is_empty (Pxui_graph.layout (Pxui_graph.optimize_layout chain)).bends)
+    "re-layout retained wire bends from old node positions";
   let bx, by = List.hd (bends chain) in
   (* Resolve the bend's screen coordinate through the retained node origin. *)
   let nx, ny, _, _ = (node (Node.id source_a) chain).bounds in
@@ -922,22 +1205,20 @@ let run () =
   let target = fst field + 10, snd field in
   let _, changes = update rows (frame ~mouse:target ~events:[mouse_press (Input.LeftButton, field);
     mouse_move target; mouse_release (Input.LeftButton, target)] ()) in
+  let fx, _, fw, _ = Option.get (field_bounds rows "amount") in
+  let expected = 150. *. float (fst target - fx) /. float (fw - 1) in
   check (List.exists (function Pxui_graph.Set_parameter_requested { path="amount";
-    value=Parameter.Float_value v; _ } -> v = 11. | _ -> false) changes)
-    "canvas scrub did not use soft range / 150";
-  let _, changes = update rows (frame ~mouse:target ~keys:[Input.Shift] ~events:[
-    mouse_press (Input.LeftButton, field); mouse_move target;
-    mouse_release (Input.LeftButton, target)] ()) in
-  check (List.exists (function Pxui_graph.Set_parameter_requested { path="amount";
-    value=Parameter.Float_value v; _ } -> v = 2. | _ -> false) changes)
-    "Shift-scrub did not use soft range / 1500";
-  let rows, _ = update rows (frame ~mouse:field ~events:[mouse_press (Input.LeftButton, field);
+    value=Parameter.Float_value v; _ } -> abs_float (v -. expected) <= 2.1
+    | _ -> false) changes)
+    "canvas slider did not follow the pointer position";
+  let rows, _ = update rows (frame ~mouse:field ~keys:[Input.Alt]
+    ~events:[mouse_press (Input.LeftButton, field);
     mouse_release (Input.LeftButton, field)] ()) in
   let _, changes = update rows (frame ~mouse:field ~events:[Event.TextInput "42.25";
     Event.KeyPressed Input.Enter] ()) in
   check (List.exists (function Pxui_graph.Set_parameter_requested { path="amount";
     value=Parameter.Float_value v; _ } -> v = 42.25 | _ -> false) changes)
-    "click-to-type did not commit through the shared text editor";
+    "Option-click did not commit through the shared text editor";
   let zoomed, _ = update (Pxui_graph.select rid rows) (frame ~mouse:(600,300)
     ~events:(mouse_move (600,300) :: List.init 30 (fun _ -> Event.MouseScrolled (0., -1.))) ()) in
   check (Pxui_graph.Private.zoom zoomed = 0.25 && Pxui_graph.Private.level zoomed rid = Some L.Card)
@@ -985,5 +1266,6 @@ let run () =
     (L.String_map.singleton "note" true) } rows in
   check (field_bounds shown "note" <> None) "row pin did not expose a hidden row";
 
+  run_canvas_motion ();
   run_smoke ();
   print_endline "pxui graph tests passed"

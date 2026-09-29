@@ -118,9 +118,9 @@ let run () =
   let initial = Pxui_shell.Layout.geometry workspace (frame ~width:1000 0) in
   check (initial.view_header = (0, 0, width initial.view, 22))
     "workspace header is not a compact single line";
-  check (abs (width initial.view - 444) <= 1
-      && abs (width initial.graph - 345) <= 1
-      && abs (width initial.inspector - 199) <= 1)
+  check (abs (width initial.view - 449) <= 1
+      && abs (width initial.graph - 349) <= 1
+      && abs (width initial.inspector - 200) <= 1)
     "workspace defaults are not 45/35/20 after splitter space";
   let splitter_x = width initial.view + 2 in
   let ui = Pxui.Ui.create () in

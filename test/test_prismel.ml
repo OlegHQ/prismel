@@ -267,7 +267,7 @@ let run_1 () =
   (* Rows: Camera, Render; opening Render adds Output and the save button. *)
   let camera_control, _, _ = run camera_control easy (click (30, 39)) in
   let camera_control, _, _ = run camera_control easy idle in
-  let camera_control, _, requests = run camera_control easy (click (30, 87)) in
+  let camera_control, _, requests = run camera_control easy (click (30, 110)) in
   if List.map (fun (request : Camera_control.render_request) -> request.filename)
       requests <> ["_out/prismel-render.png"]
   then fail "camera render section did not request a PNG";
@@ -277,9 +277,10 @@ let run_1 () =
   then fail "camera control did not reserve the gesture area beside its panel";
   let camera_control, _, _ = run camera_control controlled idle in
   (* The Camera section is open: its FOV slider is the second row. *)
-  let fov_frame = { idle with mouse = 200., 39.;
-    events = [mouse_press (Input.LeftButton, (200, 39));
-      mouse_release (Input.LeftButton, (200, 39))] } in
+  let fov_frame = { idle with mouse = 220., 48.;
+    events = [mouse_press (Input.LeftButton, (160, 48));
+      mouse_move (220, 48);
+      mouse_release (Input.LeftButton, (220, 48))] } in
   let camera_control, widened, _ = run camera_control controlled fov_frame in
   if Easy_camera.fov_y widened = Easy_camera.fov_y controlled
   then fail "camera control open_camera did not open its FOV slider";

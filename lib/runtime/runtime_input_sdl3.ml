@@ -59,9 +59,7 @@ let translate = function
         (fun value ->
           if down then Pointer_pressed (value, x, y) else Pointer_released (value, x, y))
         (button raw_button)
-  | Mouse_wheel { x; y; direction; _ } ->
-      let sign = match direction with Sdl3.Event.Flipped -> -1. | _ -> 1. in
-      Some (Wheel (sign *. x, sign *. y))
+  | Mouse_wheel { x; y; _ } -> Some (Wheel (x, y))
   | Key { scancode; keycode; modifiers = mods; down; repeat; _ } ->
       let event = { key = key_name ~scancode keycode; modifiers = modifiers mods; repeat } in
       Some (if down then Key_pressed event else Key_released event)

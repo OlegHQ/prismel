@@ -225,9 +225,9 @@ let infix root =
         Buffer.add_char buffer ')'
   in write 0 root; Buffer.contents buffer
 
-let sexp_number number =
+let sexp_number ?(precision = 17) number =
   if not (Float.is_finite number) then invalid_arg "Expr.sexp_number: non-finite";
-  let text = Printf.sprintf "%.17g" number in
+  let text = Printf.sprintf "%.*g" precision number in
   match String.index_opt text 'e' with
   | None -> text
   | Some exponent_at ->
@@ -247,10 +247,10 @@ let sexp_number number =
       else sign ^ String.sub digits 0 shifted ^ "." ^
         String.sub digits shifted (String.length digits - shifted)
 
-let sexp root =
+let sexp ?(precision = 17) root =
   let buffer = Buffer.create 64 in
   let rec write = function
-    | Num number -> Buffer.add_string buffer (sexp_number number)
+    | Num number -> Buffer.add_string buffer (sexp_number ~precision number)
     | Time -> Buffer.add_char buffer 't'
     | Op (operator, arguments) ->
         Buffer.add_char buffer '('; Buffer.add_string buffer (symbol operator);

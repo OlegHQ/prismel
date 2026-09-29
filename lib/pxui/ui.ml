@@ -160,6 +160,10 @@ and ui = {
   mutable hx : float array; mutable hy : float array;
   mutable hw : float array; mutable hh : float array;
   mutable scroll_y : float array;
+  mutable scroll_raw : float array;
+  mutable scroll_visual : float array;
+  mutable scroll_event_time : float array;
+  mutable scroll_frame_time : float array;
   mutable state_values : int array;
   mutable text_values : string option array;
   mutable press_time : float array;
@@ -213,6 +217,7 @@ and ui = {
   mutable edit_value : string;
   mutable edit_caret : int;
   mutable edit_anchor : int;
+  mutable edit_scroll_x : float;
   mutable scrub_origin : (int * string) option;
   mutable requested_cursor : [`Horizontal_resize|`Vertical_resize] option;
   (* this frame's raw events and logical size, for modal dismissal *)
@@ -442,6 +447,9 @@ let create ?(theme = Theme.default) ?font ?(font_size = Theme.font_size) () =
     hx = Array.make capacity 0.; hy = Array.make capacity 0.;
     hw = Array.make capacity 0.; hh = Array.make capacity 0.;
     scroll_y = Array.make capacity 0.;
+    scroll_raw = Array.make capacity 0.; scroll_visual = Array.make capacity 0.;
+    scroll_event_time = Array.make capacity Float.neg_infinity;
+    scroll_frame_time = Array.make capacity 0.;
     state_values = Array.make capacity min_int;
     text_values = Array.make capacity None;
     press_time = Array.make capacity Float.neg_infinity;
@@ -474,6 +482,7 @@ let create ?(theme = Theme.default) ?font ?(font_size = Theme.font_size) () =
     keyboard_focus = false; composition = "";
     previous_keys = []; active_keys = [];
     edit_focus = 0; edit_value = ""; edit_caret = 0; edit_anchor = 0;
+    edit_scroll_x = 0.;
     scrub_origin = None;
     requested_cursor = None;
     frame_events = []; input_frame = None; routed_events = []; cancelled = [];
@@ -514,6 +523,10 @@ let ensure_slot_capacity ui size =
     ui.hx <- grow_float ui.hx size 0.; ui.hy <- grow_float ui.hy size 0.;
     ui.hw <- grow_float ui.hw size 0.; ui.hh <- grow_float ui.hh size 0.;
     ui.scroll_y <- grow_float ui.scroll_y size 0.;
+    ui.scroll_raw <- grow_float ui.scroll_raw size 0.;
+    ui.scroll_visual <- grow_float ui.scroll_visual size 0.;
+    ui.scroll_event_time <- grow_float ui.scroll_event_time size Float.neg_infinity;
+    ui.scroll_frame_time <- grow_float ui.scroll_frame_time size 0.;
     ui.state_values <- grow ui.state_values size min_int;
     ui.text_values <- grow ui.text_values size None;
     ui.press_time <- grow_float ui.press_time size Float.neg_infinity;
@@ -535,6 +548,9 @@ let slot_of ui key =
     ui.rx.(slot) <- 0.; ui.ry.(slot) <- 0.; ui.rw.(slot) <- 0.; ui.rh.(slot) <- 0.;
     ui.hx.(slot) <- 0.; ui.hy.(slot) <- 0.; ui.hw.(slot) <- 0.; ui.hh.(slot) <- 0.;
     ui.scroll_y.(slot) <- 0.; ui.state_values.(slot) <- min_int;
+    ui.scroll_raw.(slot) <- 0.; ui.scroll_visual.(slot) <- 0.;
+    ui.scroll_event_time.(slot) <- Float.neg_infinity;
+    ui.scroll_frame_time.(slot) <- 0.;
     ui.text_values.(slot) <- None; ui.press_time.(slot) <- Float.neg_infinity;
     ui.caches.(slot) <- None;
     Table.add ui.table key slot;
@@ -932,6 +948,11 @@ let box ui ?flags ?w ?h ?max_h ?axis ?padding ?gap ?at ?xform ?text ?text_size
   box_keyed ui ?flags ?w ?h ?max_h ?axis ?padding ?gap ?at ?xform ?text
     ?text_size ?scroll_step ?hit (key_of (current_seed ui) label)
 
+let set_at ui box ~at:(x, y) =
+  require_building ui;
+  ui.b_at_x.(box.index) <- x;
+  ui.b_at_y.(box.index) <- y
+
 let within ui box f =
   require_building ui;
   let parents = ui.parents and seeds = ui.seeds in
@@ -1018,7 +1039,12 @@ let active ui box = ui.active = Some box.box_key
 let hovered_within ui box = hit_within ui ui.hot box.box_key
 
 let scroll_offset ui box = ui.scroll_y.(box.box_slot)
-let set_scroll_offset ui box value = ui.scroll_y.(box.box_slot) <- value
+let scroll_position ui box =
+  ui.scroll_y.(box.box_slot) +. ui.scroll_visual.(box.box_slot)
+let set_scroll_offset ui box value =
+  ui.scroll_y.(box.box_slot) <- value;
+  ui.scroll_raw.(box.box_slot) <- 0.;
+  ui.scroll_visual.(box.box_slot) <- 0.
 
 let state ui box ~default =
   let value = ui.state_values.(box.box_slot) in
@@ -1166,7 +1192,7 @@ let arrange ui =
       else Float.max 0. (((if row then inner_w else inner_h) -. !fixed -. gaps)
         /. float !grow_count) in
     let cursor = ref (padding /. unit) in
-    let scroll_offset = if scrolls then ui.scroll_y.(slot) else 0. in
+    let scroll_offset = if scrolls then ui.scroll_y.(slot) +. ui.scroll_visual.(slot) else 0. in
     children ui index (fun child ->
       if row then begin
         if ui.b_w.(child) = Grow && flow ui child then ui.l_w.(child) <- share;
@@ -1417,15 +1443,40 @@ let paint_all ui (frame : Frame.t) =
 
 (* -------------------------------------------------------------- frame *)
 
-let apply_scroll ui =
+let apply_scroll ui time =
   for index = 0 to ui.count - 1 do
-    if ui.b_flags.(index) land scroll <> 0 then
-      match Int_table.find_opt ui.signals ui.b_key.(index) with
-      | Some value when value.scroll_y_steps <> 0. ->
-          let slot = ui.b_slot.(index) in
-          ui.scroll_y.(slot) <- ui.scroll_y.(slot)
-            -. (value.scroll_y_steps *. ui.b_scroll_step.(index))
-      | Some _ | None -> ()
+    if ui.b_flags.(index) land scroll <> 0 then begin
+      let slot = ui.b_slot.(index) in
+      let max_scroll = Float.max 0. (ui.l_content.(index) -. ui.l_h.(index)) in
+      let clamp x = Float.max 0. (Float.min max_scroll x) in
+      let wheel = match Int_table.find_opt ui.signals ui.b_key.(index) with
+        | Some value -> value.scroll_y_steps
+        | None -> 0. in
+      if wheel <> 0. then begin
+        let next = ui.scroll_y.(slot) +. ui.scroll_raw.(slot)
+          -. (wheel *. ui.b_scroll_step.(index)) in
+        let bounded = clamp next in
+        let raw = next -. bounded in
+        let height = ui.l_h.(index) in
+        ui.scroll_y.(slot) <- bounded;
+        ui.scroll_raw.(slot) <- raw;
+        ui.scroll_visual.(slot) <-
+          if height <= 0. then 0. else
+          0.05 *. raw /. (1. +. 0.05 *. Float.abs raw /. height);
+        ui.scroll_event_time.(slot) <- time
+      end else if ui.scroll_visual.(slot) <> 0.
+          && time -. ui.scroll_event_time.(slot) > 0.08 then begin
+        let dt = Float.max 0. (time -. ui.scroll_frame_time.(slot)) in
+        let visual = ui.scroll_visual.(slot) *. Float.exp (-. dt /. 0.084) in
+        ui.scroll_visual.(slot) <- if Float.abs visual < 0.25 then 0. else visual;
+        let height = ui.l_h.(index) in
+        ui.scroll_raw.(slot) <-
+          if height <= 0. || ui.scroll_visual.(slot) = 0. then 0. else
+          ui.scroll_visual.(slot) /.
+            (0.05 *. (1. -. Float.abs ui.scroll_visual.(slot) /. height))
+      end;
+      ui.scroll_frame_time.(slot) <- time
+    end
   done
 
 let frame ui (frame : Frame.t) f =
@@ -1462,8 +1513,8 @@ let frame ui (frame : Frame.t) f =
       ui.b_last.(0) <- index
     end) (List.rev ui.overlays);
   ui.overlays <- [];
-  apply_scroll ui;
   intrinsic ui;
+  apply_scroll ui frame.time;
   arrange ui;
   let batch = paint_all ui frame in
   prune ui;
@@ -1585,7 +1636,7 @@ let hover_row paint ui (x, y, w, h) =
   fill paint (x, y + 2, w, max 1 (h - 4))
     (Color.with_alpha (Theme.hover_fill ui.theme) 150)
 
-let panel_with ?stroke ui ?(x = 12.) ?(y = 12.) ?(width = 280.) ?max_height
+let panel_with ?stroke ui ?(x = 12.) ?(y = 12.) ?(width = 280.) ?height ?max_height
     ?(row_height = 24) ?(padding = 3) label f =
   if row_height < 24 then invalid_arg "Ui.panel: row_height must be at least 24";
   if padding < 0 then invalid_arg "Ui.panel: padding must be non-negative";
@@ -1593,11 +1644,14 @@ let panel_with ?stroke ui ?(x = 12.) ?(y = 12.) ?(width = 280.) ?max_height
   let max_h = match max_height with
     | Some height -> Float.max height (float (add row_height (2 * padding)))
     | None -> Float.infinity in
-  let panel = box ui ~flags:(scroll lor clip lor blocking) ~w:(Px width) ~h:Fit ~max_h
+  let panel = box ui ~flags:(scroll lor clip lor blocking) ~w:(Px width)
+      ~h:(Option.fold ~none:Fit ~some:(fun height -> Px height) height) ~max_h
       ~axis:Column ~padding:(float padding) ~at:(x, y)
       ~scroll_step:(float row_height) label in
   let theme = ui.theme and index = panel.index in
-  draw ui panel (fun paint (x, y, w, h) -> Paint.fill paint ~x ~y ~w ~h theme.panel);
+  draw ui panel (fun paint (x, y, w, h) ->
+    Paint.fill paint ~x ~y ~w ~h
+      (if Option.is_some height then theme.input else theme.panel));
   draw_over ui panel (fun paint rect ->
     Option.iter (fun color -> let x, y, w, h = rect in
       Paint.stroke paint ~x ~y ~w ~h ~width:1. color) stroke;
@@ -1624,6 +1678,131 @@ let panel_with ?stroke ui ?(x = 12.) ?(y = 12.) ?(width = 280.) ?max_height
     (fun () -> within ui panel f)
 
 let panel ui = panel_with ui
+
+let inspector_width ui =
+  let rec find index =
+    if index <= 0 then 280. else
+    match ui.b_w.(index) with
+    | Px width -> width
+    | _ -> find ui.b_parent.(index) in
+  find (current_parent ui)
+
+let inspector_fit paint ~size ~width text =
+  if Paint.text_width paint ~size text <= width then text else
+  let rec shorten length =
+    if length <= 0 then "…" else
+    let shown = String.sub text 0 length ^ "…" in
+    if Paint.text_width paint ~size shown <= width then shown else
+    let previous = ref (length - 1) in
+    while !previous > 0 && Char.code text.[!previous] land 0xc0 = 0x80 do
+      decr previous
+    done;
+    shorten !previous in
+  shorten (String.length text)
+
+let inspector_row ui ?width ~key ~label () =
+  let width = Option.value width ~default:(inspector_width ui) in
+  let value_x = Float.max 96. (Float.min 150. (width *. 0.34)) in
+  let stacked = float (String.length label) *. 6.5 > value_x -. 16. in
+  let control_x, control_y, control_width, height =
+    if stacked then 8., 26., width -. 40., 51.
+    else value_x, 4., Float.max 40. (width -. value_x -. 32.), 29. in
+  let row = box ui ~w:Grow ~h:(Px height) key in
+  let theme = ui.theme in
+  draw ui row (fun paint (x, y, w, h) ->
+    let available = (if stacked then width else value_x) -. 16. in
+    let rec size value =
+      if value <= 9 || Paint.text_width paint ~size:value label <= available
+      then value else size (value - 1) in
+    let size = size 11 in
+    let shown = inspector_fit paint ~size ~width:available label in
+    Paint.fill paint ~x ~y ~w ~h theme.input;
+    Paint.fill paint ~x ~y:(y +. h -. 1.) ~w ~h:1.
+      (Theme.faint_border theme);
+    Paint.text paint ~at:(x +. 8., y +. 7.) ~size
+      ~color:(Theme.muted theme) shown);
+  row, control_x, control_y, control_width
+
+let inspector_section ui ~key ?(expanded = false) ?set_expanded label f =
+  let theme = ui.theme in
+  let title = box ui ~flags:(clickable lor tab_stop) ~w:Grow ~h:(Px 33.) key in
+  let open_ = state ui title ~default:(if expanded then 1 else 0) <> 0 in
+  let open_ = Option.value set_expanded ~default:open_ in
+  let open_ = if (signal ui title).clicked then not open_ else open_ in
+  set_state ui title (if open_ then 1 else 0);
+  draw ui title (fun paint (x, y, w, h) ->
+    Paint.fill paint ~x ~y ~w ~h theme.input;
+    Paint.text paint ~at:(x +. 8., y +. 8.) ~size:11
+      ~color:theme.accent
+      (inspector_fit paint ~size:11 ~width:(w -. 40.)
+        (String.uppercase_ascii label));
+    Paint.text paint ~at:(x +. w -. 18., y +. 8.) ~size:11
+      ~color:theme.accent (if open_ then "−" else "+");
+    Paint.fill paint ~x ~y:(y +. h -. 1.)
+      ~w ~h:1. (Theme.faint_border theme));
+  if open_ then Some (f ()) else None
+
+let inspector_toggle_value ui ~key ~at:(x, y) value =
+  let control = box ui ~flags:(clickable lor tab_stop) ~at:(x, y)
+      ~w:(Px 40.) ~h:(Px 18.) key in
+  let value = if (signal ui control).clicked then not value else value in
+  draw ui control (fun paint (x, y, w, h) ->
+    Paint.rect paint ~x ~y ~w ~h ~radius:2.
+      ~fill:(if value then Color.blend ui.theme.accent ui.theme.input ~pct:0.28
+        else ui.theme.control)
+      ~stroke:(Theme.faint_border ui.theme) ();
+    Paint.rect paint ~x:(x +. (if value then w -. 15. else 3.))
+      ~y:(y +. 3.) ~w:12. ~h:12. ~radius:1.
+      ~fill:(if value then ui.theme.accent else Theme.muted ui.theme) ());
+  value
+
+let inspector_toggle ui ~key ~label value =
+  let row, x, y, _ = inspector_row ui ~key ~label () in
+  within ui row (fun () -> inspector_toggle_value ui
+    ~key:(key ^ "-value") ~at:(x, y) value)
+
+let inspector_header ui ~key ~title ~detail =
+  let header = box ui ~flags:clip ~w:Grow ~h:(Px 62.) key in
+  draw ui header (fun paint (x, y, w, h) ->
+    Paint.fill paint ~x ~y ~w ~h ui.theme.input;
+    Paint.fill paint ~x ~y:(y +. h -. 1.) ~w ~h:1.
+      (Theme.faint_border ui.theme);
+    Paint.text paint ~at:(x +. 9., y +. 8.) ~size:16
+      ~color:ui.theme.foreground
+      (inspector_fit paint ~size:16 ~width:(w -. 18.) title);
+    Paint.text paint ~at:(x +. 9., y +. 39.) ~size:11
+      ~color:(Theme.muted ui.theme)
+      (inspector_fit paint ~size:11 ~width:(w -. 18.) detail));
+  header
+
+let inspector_button ui ~key label =
+  let row = box ui ~flags:(clickable lor tab_stop) ~w:Grow ~h:(Px 29.) key in
+  let signal = signal ui row in
+  draw ui row (fun paint (x, y, w, h) ->
+    Paint.fill paint ~x ~y ~w ~h
+      (if signal.held then Theme.pressed_fill ui.theme else ui.theme.input);
+    Paint.fill paint ~x ~y:(y +. h -. 1.) ~w ~h:1.
+      (Theme.faint_border ui.theme);
+    Paint.text paint ~at:(x +. 8., y +. 7.) ~size:11
+      ~color:ui.theme.accent
+      (inspector_fit paint ~size:11 ~width:(w -. 16.) label));
+  signal.clicked
+
+let inspector_readout ui ?width ~key ~label value =
+  let row, control_x, control_y, control_width =
+    inspector_row ui ?width ~key ~label () in
+  draw ui row (fun paint (x, y, _, _) ->
+    Paint.text paint ~at:(x +. control_x, y +. control_y +. 3.)
+      ~size:11 ~color:ui.theme.foreground
+      (inspector_fit paint ~size:11 ~width:control_width value))
+
+let inspector_message ui ~key message =
+  let row = box ui ~w:Grow ~h:(Px 29.) key in
+  draw ui row (fun paint (x, y, w, h) ->
+    Paint.fill paint ~x ~y ~w ~h ui.theme.input;
+    Paint.text paint ~at:(x +. 8., y +. 7.) ~size:11
+      ~color:(Theme.muted ui.theme)
+      (inspector_fit paint ~size:11 ~width:(w -. 16.) message))
 
 let popup ui ?stroke ?max_height ?(dismiss_initial = true)
     ~at:(x, y) ~width ~height label f =
@@ -1770,7 +1949,8 @@ type text_edit = { mutable text : string; mutable caret : int; mutable anchor : 
 let load_text_edit ui key text =
   if ui.edit_focus <> key || ui.edit_value <> text then begin
     ui.edit_focus <- key; ui.edit_value <- text;
-    ui.edit_caret <- String.length text; ui.edit_anchor <- ui.edit_caret
+    ui.edit_caret <- String.length text; ui.edit_anchor <- ui.edit_caret;
+    ui.edit_scroll_x <- 0.
   end;
   { text; caret = ui.edit_caret; anchor = ui.edit_anchor }
 
@@ -1789,14 +1969,22 @@ let replace_text edit inserted =
   edit.caret <- start + String.length inserted;
   edit.anchor <- edit.caret
 
-let point_text_caret ui ?size edit signal ~shift ~x =
-  let at (px, _) = text_caret_at ui ?size edit.text (max 0. (px -. x)) in
+let point_text_caret ui ?size edit signal ~shift ~x ~right =
+  let at (px, _) = text_caret_at ui ?size edit.text
+    (Float.max 0. (Float.min right px -. x +. ui.edit_scroll_x)) in
   if signal.pressed then begin
     let caret = at signal.press_point in
     edit.caret <- caret;
     if not shift then edit.anchor <- caret
   end;
-  if signal.dragging then edit.caret <- at signal.pointer
+  if signal.dragging || (signal.held && signal.pointer <> signal.press_point) then begin
+    let px = fst signal.pointer in
+    if px < x then ui.edit_scroll_x <- Float.max 0.
+      (ui.edit_scroll_x -. Float.max 1. (Float.min 24. ((x -. px) *. 0.25)))
+    else if px > right then ui.edit_scroll_x <- ui.edit_scroll_x +.
+      Float.max 1. (Float.min 24. ((px -. right) *. 0.25));
+    edit.caret <- at signal.pointer
+  end
 
 let edit_text_event edit ~accept ~modifiers event =
   let command = command_modifiers modifiers
@@ -1847,34 +2035,51 @@ let edit_text_event edit ~accept ~modifiers event =
   | _ -> false
 
 let paint_text_edit paint ?size ~control:(cx, cy, cw, ch) ~y ~composition edit =
-  let theme = paint.owner.theme in
+  let ui = paint.owner in
+  let theme = ui.theme in
   let width text = Paint.text_width paint ?size text /. paint.scale in
   let before = String.sub edit.text 0 edit.caret in
-  let caret_x = float (cx + 8) +. width before in
+  let visible = float (max 1 (cw - 16)) in
+  let scroll = Float.max 0. (Float.min ui.edit_scroll_x
+    (Float.max 0. (width edit.text -. visible))) in
+  let caret_width = width before in
+  let scroll = if caret_width < scroll then caret_width
+    else if caret_width -. scroll > visible then caret_width -. visible
+    else scroll in
+  ui.edit_scroll_x <- scroll;
+  let text_x = float (cx + 8) -. scroll in
+  let caret_x = text_x +. caret_width in
   Paint.input_region paint ~x:(float cx) ~y:(float cy) ~w:(float cw)
     ~h:(float ch) ~focused:true ~cursor:(caret_x -. float cx) ();
+  let previous_clip = paint.clip_rect in
+  paint.clip_rect <- intersect previous_clip
+    ((float cx *. paint.scale) +. paint.tx,
+     (float cy *. paint.scale) +. paint.ty,
+     float cw *. paint.scale, float ch *. paint.scale);
   if edit.caret <> edit.anchor then begin
     let start, stop = text_selection edit in
     Paint.fill paint
-      ~x:(float (cx + 8) +. width (String.sub edit.text 0 start))
+      ~x:(text_x +. width (String.sub edit.text 0 start))
       ~y:(float (cy + 2))
       ~w:(width (String.sub edit.text start (stop - start)))
       ~h:(float (max 1 (ch - 4))) (Color.with_alpha theme.accent 100)
   end;
-  if composition = "" then Paint.text paint ?size ~at:(float (cx + 8), float y) edit.text
+  if composition = "" then Paint.text paint ?size ~at:(text_x, float y) edit.text
   else begin
-    Paint.text paint ?size ~at:(float (cx + 8), float y) before;
+    Paint.text paint ?size ~at:(text_x, float y) before;
     Paint.text paint ?size ~at:(caret_x, float y) composition;
     Paint.text paint ?size ~at:(caret_x +. width composition, float y)
       (String.sub edit.text edit.caret
         (String.length edit.text - edit.caret))
   end;
   Paint.line paint ~from_:(caret_x, float (cy + 2))
-    ~to_:(caret_x, float (cy + ch - 2)) ~width:1. theme.accent
+    ~to_:(caret_x, float (cy + ch - 2)) ~width:1. theme.accent;
+  paint.clip_rect <- previous_clip
 
 (* Numeric label editing shared by float and integer sliders. The retained
    state records validity; [parse] validates the edit buffer. *)
 let rec numeric_editor ?size ?control ?(click_to_edit = false)
+    ?(edit_request = false) ?(alt_to_edit = false)
     ?(accept = String.for_all numeric_character) ui row signal ~keys ~current ~parse =
   let enter = function
     | Event.KeyPressed Input.Enter, modifiers -> not (command_modifiers modifiers)
@@ -1900,8 +2105,9 @@ let rec numeric_editor ?size ?control ?(click_to_edit = false)
       let edit = load_text_edit ui row.box_key text in
       let committed = ref None and state = ref state
       and cancelled = ref false in
-      let (cx, _, _, _) = control in
-      point_text_caret ui ?size edit signal ~shift:(press_shift ui row) ~x:(float (cx + 8));
+      let (cx, _, cw, _) = control in
+      point_text_caret ui ?size edit signal ~shift:(press_shift ui row)
+        ~x:(float (cx + 8)) ~right:(float (cx + cw - 8));
       List.iter (fun ((event : Event.t), modifiers) -> match event with
         | Event.KeyPressed Input.Enter when not (command_modifiers modifiers) ->
             (match parse edit.text with
@@ -1923,7 +2129,8 @@ let rec numeric_editor ?size ?control ?(click_to_edit = false)
       let click = click_to_edit && signal.clicked
         && abs_float (fst signal.release_point -. fst signal.press_point) < 4.
         && abs_float (snd signal.release_point -. snd signal.press_point) < 4. in
-      if click
+      if edit_request || (alt_to_edit && signal.clicked
+          && List.mem Input.Alt (press_keys ui row)) || click
           || (signal.double_clicked && not (inside_control signal.press_point))
           || (focused ui row && List.exists enter keys) then begin
         let text = current () in
@@ -1931,6 +2138,7 @@ let rec numeric_editor ?size ?control ?(click_to_edit = false)
         focus ui row;
         ui.edit_focus <- row.box_key; ui.edit_value <- text;
         ui.edit_caret <- String.length text; ui.edit_anchor <- 0;
+        ui.edit_scroll_x <- 0.;
         let rec after_enter = function
           | event :: rest when enter event -> rest
           | _ :: rest -> after_enter rest | [] -> [] in
@@ -1940,12 +2148,15 @@ let rec numeric_editor ?size ?control ?(click_to_edit = false)
             clicked = false; double_clicked = false } ~keys ~current ~parse
       end else None, false
 
-let value_field ui ~at ~w ~h ?size ?display ?fraction ?scrub ~valid label value =
+let value_field ui ~at ~w ~h ?size ?display ?fraction ?slide ?scrub
+    ?(edit = false) ~valid label value =
   let box = box ui ~flags:(clickable lor tab_stop lor blocking lor clip)
     ~at ~w:(Px w) ~h:(Px h) label in
   let signal = signal ui box in
   let bounds = ints (rect ui box) in
-  let typed, editing = numeric_editor ?size ~control:bounds ~click_to_edit:true
+  let slider = Option.is_some slide || Option.is_some scrub in
+  let typed, editing = numeric_editor ?size ~control:bounds
+    ~click_to_edit:(not slider) ~edit_request:edit ~alt_to_edit:slider
     ~accept:(fun _ -> true) ui box signal ~keys:(key_events ui box)
     ~current:(fun () -> value) ~parse:(fun text -> if valid text then Some text else None) in
   if editing then ui.b_flags.(box.index) <- clickable lor focusable lor blocking lor clip;
@@ -1953,13 +2164,17 @@ let value_field ui ~at ~w ~h ?size ?display ?fraction ?scrub ~valid label value 
       ui.scrub_origin <- Some (box.box_key, value); value
     end else match ui.scrub_origin with
       | Some (key, origin) when key = box.box_key -> origin | _ -> value in
-  let value = match typed, scrub with
-    | Some text, _ -> text
-    | None, Some scrub when not editing && (signal.held || signal.released)
-        && signal.button = Some Input.LeftButton ->
+  let value = match typed with
+    | Some text -> text
+    | None when not editing && (signal.pressed || signal.held || signal.released)
+        && signal.button = Some Input.LeftButton
+        && not (List.mem Input.Alt (press_keys ui box)) ->
         let pointer = if signal.released then signal.release_point else signal.pointer in
-        scrub origin (fst pointer -. fst signal.press_point)
-          (List.mem Input.Shift (press_keys ui box))
+        (match slide, scrub with
+         | Some slide, _ -> slide (fraction_at bounds (fst pointer))
+         | None, Some scrub -> scrub origin (fst pointer -. fst signal.press_point)
+             (List.mem Input.Shift (press_keys ui box))
+         | None, None -> value)
     | _ -> value in
   if not signal.held && Option.fold ~none:false
       ~some:(fun (key, _) -> key = box.box_key) ui.scrub_origin then ui.scrub_origin <- None;
@@ -2090,8 +2305,9 @@ let text_field ui text value =
     let end_ = String.length value in
     { text = value; caret = end_; anchor = end_ } in
   if focused then begin
-    let (cx, _, _, _) = value_control (ints (rect ui row)) in
-    point_text_caret ui edit signal ~shift:(press_shift ui row) ~x:(float (cx + 8));
+    let (cx, _, cw, _) = value_control (ints (rect ui row)) in
+    point_text_caret ui edit signal ~shift:(press_shift ui row)
+      ~x:(float (cx + 8)) ~right:(float (cx + cw - 8));
     List.iter (fun (event, modifiers) -> ignore (edit_text_event edit ~modifiers
       ~accept:(fun _ -> true) event)) (key_events ui row);
     save_text_edit ui edit
@@ -2274,8 +2490,9 @@ let picker ui ?(limit = 10) label ~query rows_of =
   and armed = ref (state ui list ~default:(-1)) and query = ref query
   and result = ref `None in
   let edit = load_text_edit ui search.box_key !query in
-  let (sx, _, _, _) = ints (rect ui search) in
-  point_text_caret ui edit search_signal ~shift:(press_shift ui search) ~x:(float (sx + 8));
+  let (sx, _, sw, _) = ints (rect ui search) in
+  point_text_caret ui edit search_signal ~shift:(press_shift ui search)
+    ~x:(float (sx + 8)) ~right:(float (sx + sw - 8));
   let set_query text = query := text; rows := rows_of text; cursor := 0; armed := -1 in
   List.iter (fun ((event : Event.t), modifiers) -> let count = count () in
     if !result = `None then match event with

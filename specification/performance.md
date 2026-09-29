@@ -16,6 +16,23 @@ use locally owned mutation and packed storage without exposing mutable aliases.
 
 ### SOP graph interaction smoke baseline
 
+Cluster layout check (2026-09-28), Apple M1, arm64, OCaml 5.3.0,
+default Dune profile, UI on the initial domain: three standalone runs of
+`_build/default/test/test_main.exe test_pxui_graph_smoke`, after
+`dune build test/test_main.exe`. The 2,001-node / 2,000-edge construction and
+paint median was 592.405 ms before and 578.215 ms after; allocations were
+618,720,816 and 619,691,160 bytes. Before substitutes only the HEAD
+`automatic_layout` into the same working tree, retaining the ongoing UI
+changes; this is not a comparison with the historical M1 runtime below.
+The sample does not establish a speedup. The cube-cage regression checks
+separated branches and wire/card collisions, with repeat layout at point
+zoom producing the same positions as card zoom. To inspect a finite native
+render of that fixture:
+
+```sh
+PRISMEL_LAYOUT_PNG=/tmp/cube-cage-layout.png dune exec test/test_main.exe -- test_pxui_graph
+```
+
 The focused graph test includes a 2,001-node/2,000-wire fan-in graph, validates
 packed graph cardinality, off-screen node and row culling, and materializes
 one scene. `test_pxui_graph_smoke` runs that same check in isolation. The

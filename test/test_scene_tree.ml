@@ -219,7 +219,7 @@ let run () =
          ~config:{Sketch.default_config with width=900; height=640}
          (fun _ -> E.scene env (frame 0)));
   let ix, iy, iw, _ = (E.panes env (frame 0)).inspector in
-  let slider x = ix + (iw * 70 / 100) + x, iy + 141 in
+  let slider x = ix + (iw * 70 / 100) + x, iy + 171 in
   let at (x, y) = float x, float y in
   let translate_x env = Option.bind (E.selected_node env) (fun node ->
       List.find_map (fun (field : Parameter.field_view) ->

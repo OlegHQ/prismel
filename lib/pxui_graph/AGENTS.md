@@ -11,14 +11,19 @@ text-entry path.
 
 ## Current contract
 
-Deterministic left-to-right layout by longest input path, 196-point cards,
+Deterministic left-to-right layout by longest input path with short branches
+tightened toward consumers and shared fan-outs anchored. Upstream branches
+are separated in port order; layout reserves authored detail heights at every
+zoom and re-layout clears stale bends. 196-point cards,
 24-point headers and rows, 12-point snapping, geometry sockets in headers
 and rows, and polyline wires with editable bends. Levels point/chip/card/full
 have zoom caps, explicit pins and temporary full expansion during a wire
-drag. Cards edit literals through `Ui.value_field`; value tiles and typed row
+drag. Cards set numeric literals from pointer position through `Ui.value_field`;
+Option-click or label double-click opens text entry. Value tiles and typed row
 sockets use the same hit tree and spatial wire index. A VIEW flag marks the
-display node; marquee selects, Alt/right/middle-drag pans, pointer motion
-zooms, Alt-click edits bends and Command/Ctrl-drag cuts crossed wires.
+display node; marquee selects, Alt/right/middle-drag pans, wheel and
+two-finger scroll zoom at the pointer, Alt-click edits bends and
+Command/Ctrl-drag cuts crossed wires.
 The categorised node menu uses `open_menu_at` and `catalog_of_factories`. Details: `specification/pxui.md` (Hosts) and
 `specification/procedural.md` (Editable graph document).
 

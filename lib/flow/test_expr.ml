@@ -26,6 +26,9 @@ let () =
     | _ -> failwith ("Flow reader rejected printed number " ^ printed))
     [-0.; 1e-100; 1e20; Float.min_float; Float.max_float;
       Int64.float_of_bits 1L];
+  assert (sexp_number ~precision:6 0.040000000000000001 = "0.04");
+  assert (sexp_number ~precision:6 1.3999999999999999 = "1.4");
+  assert (sexp ~precision:6 (get (num 0.56000000000000005)) = "0.56");
   let number value = get (num value) in
   let atoms = [number (-0.); number (-2.); number 1e-100; time] in
   let forms = ref atoms in

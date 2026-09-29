@@ -174,6 +174,9 @@ module Renderer : sig
 
   val wire_mesh : Pdk.Geometry.t -> (Prismel.Mesh.t, string) result
   (** Every polygon edge once, as a line mesh for the wireframe renderer. *)
+
+  val wire_color : Prismel.Color.t -> Prismel.Color.t
+  (** A contrasting blue wire color for a light or dark viewport background. *)
 end
 
 module Editor3 : sig
