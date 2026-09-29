@@ -1,4 +1,4 @@
-# Workspace study: iteration, scopes and groups
+# Workspace study: iteration, functions, data and macros
 
 Pending proposal, 29 September 2026. Open **[index.html](index.html)** directly;
 no server, build step or network is needed. It is a behavioral reference, not
@@ -31,7 +31,16 @@ reuse and the composed shell.
    writers to readers. `marked` is a named `let*` scope.
 7. **Loops in the shell.** *Variations* builds four viewports with a `for` in
    the editor graph.
-8. **See the code.** Select anything: the Lisp panel shows that binding with
+8. **Functions.** In *Garland*, `bead` is a λ zone: its strip shows every
+   call it received. Click a bead in the viewport to find its call. Select
+   `total` and press **L** to turn it into a local function.
+9. **Records and lists.** In *Kit of parts*, `window` returns `values`, so
+   `big` and `small` show one output row per field; drag from a field row.
+   Extend `widths` with + (it continues the step) and reorder with ↑.
+10. **Macros.** In *Rosette*, press ⤵ on `outer` and step through the
+   expansion. Select `soft` and press **M** to make a macro; click B to
+   bypass a node, or type a note in the inspector.
+11. **See the code.** Select anything: the Lisp panel shows that binding with
    everything it depends on, the selection marked, and a text editor for just
    that binding.
 
@@ -58,6 +67,6 @@ The preview is a 2D JavaScript illustration of the catalog's semantics, not
 Prismel geometry. Loops, graph inputs and `[%workspace]` are proposals; today's
 `[%flow]` accepts one graph plus `defgraph`s. Macros are binding-free value
 templates only. Positions, frames and collapsed zones are session layout and
-never reach the Lisp. Comments are not preserved through graph edits. The
+never reach the Lisp. Comments attach to the next binding and survive graph edits. The
 study limits (4,096 iterations per zone, 600,000 steps, 20,000 primitives)
 are demonstrative, not measured.

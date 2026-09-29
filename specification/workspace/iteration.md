@@ -1,4 +1,4 @@
-# Iteration, scopes and groups in workspaces
+# Iteration, functions, data and macros in workspaces
 
 **Proposal, 29 September 2026.** This extends the
 [composable workspaces report](../../reports/Composable%20Lisp%20workspaces.md).
@@ -296,7 +296,95 @@ This is a plan for review, not a milestone commitment.
 5. **PPX.** `[%workspace]` reuses the `[%flow]` reader, manifest and
    diagnostic mapping, and generates the input records.
 
-## 7. References
+## 7. Functions, data, branches and macros
+
+This section extends §2–§3 with the rest of the language a sketch needs.
+The rules are in the [register](ambiguities.md) (F, D, C, M and N items). All
+of them are implemented in the study, and `prototype/check.cjs` covers each.
+
+### 7.1 Grammar delta
+
+```text
+expr    += fn | list | record | cond | case | str | hof | access | quasi ;
+fn       = "(" "fn" "[" { pattern | "(" name ":" type ")" } "]" body ")" ;
+pattern  = name | "[" { pattern } "]" | "{" ":keys" "[" { name } "]" "}" ;
+list     = "(" "list" { expr } ")" ;                   (* homogeneous *)
+record   = "{" { ":" name expr } "}" | "(" "values" { ":" name expr } ")" ;
+access   = name "." name { "." name } | "(" "get" expr ":" name ")" ;
+cond     = "(" "cond" { expr expr } ":else" expr ")" ;
+case     = "(" "case" expr { literal expr } ":else" expr ")" ;
+hof      = "(" ( "map" | "filter" | "reduce" | "sort-by" ) expr { expr } ")" ;
+type    += "fn" | "(" "list" type ")" | "{" { ":" name type } "}" ;
+macro    = "(" "defmacro" name "[" { name } [ "&" name ] "]" template ")" ;
+template = "`" form ;       (* ~p fills a hole, ~@rest splices, x# is fresh *)
+meta     = "^:bypass" form ;
+```
+
+List operations are `first last rest nth reverse take drop concat count`.
+Destructuring works wherever a name is bound: `let*`, loop clauses and `fn`
+parameters.
+
+### 7.2 Semantics that shape the editor
+
+- **Functions are non-escaping values** (F1). A `fn` may be bound, passed to a
+  higher-order form or a defn parameter of type `fn`, and called. It can't be
+  returned, stored or carried through `ref` or `fold`. Every program keeps one
+  finite graph, and recursion stays impossible.
+- **A function is a loop over its calls** (F3). Each call pushes an
+  iteration frame `(function, call index)`. Records, probes, sparklines and
+  viewport provenance therefore work for functions exactly as for loops.
+- **map zips** (F4) and **for multiplies** (L2), so the two forms never
+  overlap. Nothing broadcasts implicitly (D1).
+- **Records are structural** (D2). `values` is a record, so several results
+  and several outputs are the same thing.
+- **Branches are exhaustive** (C1), and `str` formats deterministically (C2),
+  which makes computed group names reproducible (G2).
+- **Macros are hygienic declarative templates** (M1). A hole may be a name
+  chosen by the caller (M2), which is what makes `radial` usable. The
+  expansion is a read-only view (M3).
+- **Comments attach to the next binding by name** (N1), and `^:bypass` is
+  the only metadata (N2).
+
+### 7.3 Drawing and gestures
+
+| Construct | Canvas | Direct manipulation → Lisp |
+|---|---|---|
+| `name (fn [a b] …)` | hollow λ zone; the rail lists parameters and captures; the strip shows every call; the output socket is a diamond | **L** on a selection: outside inputs become parameters, and the selection becomes the first call |
+| `(map f xs)` and other higher-order forms | a card with a diamond `f` row; filter shows `kept a of b` | wire a λ output, a defn or an operator into `f`; an inline `fn` is a chip that ƒ lifts into a zone |
+| `(list …)` | one row per item with its index; a stacked socket | scrub; ↑ moves an item up; + appends, continuing a numeric step; a wire dropped on + appends a symbol |
+| records and `values` | one output row per field under the card | + field takes `name value`; dragging from a field row writes `r.field` |
+| destructuring | a *split* card with one output row per name | every name is wireable |
+| `cond` / `case` | when/then rows with a required else | scrub and wire each arm |
+| `str` | a row per part; the result in the footer | + adds a text part; a wire makes a part |
+| macro call | ◆ card; rows are holes; a binder hole is a pill; ⤵ opens a lens with steps from call to full expansion | **M** on a selection turns chosen literals into holes and inner names into `x#`; *Replace call with expansion* inlines it |
+| `; note` | a note row on the node | type in the inspector (**N**) |
+| `^:bypass` | a B flag and a striped title | click B, or press **B** |
+
+### 7.4 Why these designs
+
+A research pass and three competing mockups per problem converged on one
+principle: add nothing that doesn't extend the existing zone, chip, row and
+socket vocabulary. The precedents we adopted, and what each costs elsewhere:
+
+- **λ zones** follow Blender 5 closure zones and Snap! rings. We avoid Snap!'s
+  implicit parameters and Blender's name-matched sockets.
+- **The call strip** turns Excel's per-element spill of `MAP` into the loop
+  strip that already exists.
+- **Field rows** borrow Unreal's split struct pins, without the lock-out on
+  recombining.
+- **The expansion lens** is DrRacket's macro stepper, driven by the same probe
+  gesture as loops.
+- **Hole punching** follows Figma component properties: a hole is a
+  per-instance override.
+- **The list fill** is the spreadsheet fill handle.
+
+Deferred ideas, recorded so they aren't lost:
+- *spill a list wire* into a floating strip;
+- *override for this call*, which evolves a template from a ghost edit;
+- *livelit rows*, macro-declared widgets for holes;
+- *bypass preview*, ghost sparklines before committing.
+
+## 8. References
 
 - Blender manual: [Repeat Zone](https://docs.blender.org/manual/en/latest/modeling/geometry_nodes/utilities/repeat_zone.html),
   [For Each Geometry Element Zone](https://docs.blender.org/manual/en/4.3/modeling/geometry_nodes/utilities/for_each_geometry_zone.html).

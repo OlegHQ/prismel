@@ -18,14 +18,14 @@ table (`flow.md` §11.10) and does not replace it. Generated from
 | [L7](#l7) | iteration | Are captured values recomputed every iteration? | proposed rule |
 | [L8](#l8) | iteration | Where does per-iteration randomness come from? | proposed rule |
 | [L9](#l9) | iteration | Are both branches of if evaluated? | proposed rule |
-| [L10](#l10) | iteration | How does a loop inside a field expression parse? | **open** |
+| [L10](#l10) | iteration | How does a loop inside a field expression parse? | proposed rule |
 | [L11](#l11) | language | May an inner name shadow an outer one? | proposed rule |
 | [L12](#l12) | language | Is a nested let* a group, and what is a “group”? | proposed rule |
 | [L13](#l13) | language | Keyword or positional arguments? | proposed rule |
 | [L14](#l14) | language | Do graphs take inputs? | proposed rule |
 | [L15](#l15) | language | Is 2.0 an int or a float? | proposed rule |
 | [G1](#g1) | groups | Geometry groups are strings: how do they connect? | proposed rule |
-| [G2](#g2) | groups | What about group names computed in a loop? | **open** |
+| [G2](#g2) | groups | What about group names computed in a loop? | proposed rule |
 | [V1](#v1) | graph | How do outer values enter a loop on the canvas? | proposed rule |
 | [V2](#v2) | graph | Can a value leave a loop except through its result? | proposed rule |
 | [V3](#v3) | graph | What does a node inside a loop display? | proposed rule |
@@ -38,9 +38,25 @@ table (`flow.md` §11.10) and does not replace it. Generated from
 | [O1](#o1) | ocaml | Where is the source of truth for a sketch written in OCaml? | proposed rule |
 | [O2](#o2) | ocaml | How do OCaml values enter a compile-time Lisp string? | proposed rule |
 | [O3](#o3) | ocaml | Which errors are compile-time, which run-time? | proposed rule |
-| [O4](#o4) | ocaml | Does the PPX compile loops to OCaml, or to a plan? | **open** |
+| [O4](#o4) | ocaml | Does the PPX compile loops to OCaml, or to a plan? | proposed rule |
 | [I1](#i1) | identity | What identifies a node inside a loop? | proposed rule |
-| [I2](#i2) | identity | Loops over geometry points: identity by index? | **open** |
+| [I2](#i2) | identity | Loops over geometry points: identity by index? | proposed rule |
+| [F1](#f1) | functions | Can a function be stored, returned or put in a list? | proposed rule |
+| [F2](#f2) | functions | How are unannotated λ parameters typed? | proposed rule |
+| [F3](#f3) | functions | What does a function zone show, and what is its probe? | proposed rule |
+| [F4](#f4) | functions | map over several lists: zip or product? | proposed rule |
+| [D1](#d1) | data | Do scalar operations broadcast over lists? | proposed rule |
+| [D2](#d2) | data | Records: structural or nominal, and what are multiple outputs? | proposed rule |
+| [D3](#d3) | data | What happens when destructuring does not match? | proposed rule |
+| [D4](#d4) | data | How do people build lists without typing? | proposed rule |
+| [C1](#c1) | branches | May cond and case fall through? | proposed rule |
+| [C2](#c2) | branches | How does str format numbers? | proposed rule |
+| [M1](#m1) | macros | What can a macro template do? | proposed rule |
+| [M2](#m2) | macros | May a hole be a binding name? | proposed rule |
+| [M3](#m3) | macros | Is the expansion editable, and where do clicks land? | proposed rule |
+| [M4](#m4) | macros | Macro or function? | proposed rule |
+| [N1](#n1) | notes | Where do comments go when the graph is edited? | proposed rule |
+| [N2](#n2) | notes | What does ^:bypass do? | proposed rule |
 
 ## L1
 
@@ -96,7 +112,7 @@ table (`flow.md` §11.10) and does not replace it. Generated from
 
 *Why it is ambiguous.* vvvv regions carry several accumulators. Multiple state values need either tuples or several named outputs, and neither exists yet.
 
-*Proposed rule.* Exactly one accumulator per fold or scan in the first release. Several values travel as a vec3 or as geometry attributes. Multi-accumulator folds wait for named multi-output values (values :a … :b …).
+*Proposed rule.* Exactly one accumulator per fold or scan, but it may be a record: (fold [s {:shape frame :size 1.0}] …) carries several values, and the rail shows one row per field. There is no second accumulator syntax.
 
 ## L7
 
@@ -134,9 +150,9 @@ table (`flow.md` §11.10) and does not replace it. Generated from
 
 *Why it is ambiguous.* Flow.Expr is the infix language typed into parameter fields, with only t as a variable. Σ needs a bound variable, and fields have no binding syntax.
 
-*Options.* Option A: fields accept only s-expressions for loops, such as (sum [k (range 5)] …). Option B: an infix form such as sum(k, 0, 5, sin(t*k)/k). Option C: loops are never field expressions; they unfold to zones. The proposal leans to A: the Σ chip prints the s-expression, and unfold makes a zone.
+*Proposed rule.* Fields accept s-expressions for everything beyond arithmetic. A field starting with ( is read as Lisp, so (sum [k (range 5)] …) works there, and the chip prints it back the same way. The infix field grammar gains no loop syntax: one spelling per construct. Unfolding the chip turns the loop into a zone.
 
-*In the study.* Wave: y folds a sum into a chip.
+*In the study.* Square wave: y holds a Σ chip, and the inspector field accepts the same s-expression.
 
 ## L11
 
@@ -198,7 +214,9 @@ table (`flow.md` §11.10) and does not replace it. Generated from
 
 *Why it is ambiguous.* (str "floor_" f) makes names at run time. Static tracking and link drawing stop working.
 
-*Options.* Option A: forbid computed group names and use attributes plus value comparisons instead. Option B: allow them and draw the link as “dynamic”, without a warning. Option C: a typed group-name value with a constructor, so the checker knows the set. Needs a case study first.
+*Proposed rule.* Allowed. A computed name is an ordinary text value, so the editor offers Name this group: it binds the expression once, and the writer and every reader take it by wire. The dependency is then a real wire instead of a string coincidence. A reader whose name is a literal still gets W_UNKNOWN_GROUP when no upstream writer makes it; a computed name gets no warning.
+
+*In the study.* Facade: windows are grouped with (str "floor_" f) inside the loop, and gone = (str "floor_" hide) is wired into blast.
 
 ## V1
 
@@ -304,7 +322,7 @@ table (`flow.md` §11.10) and does not replace it. Generated from
 
 *Why it is ambiguous.* Native OCaml loops are fast but make the live editor a second compiler. A shared execution plan is one implementation, but interpreted.
 
-*Options.* Option A: one checked plan for both, with the PPX embedding plan data, as [%flow] does today with Flow_sop.Build. Option B: the PPX generates OCaml for hot numeric zones and falls back to the plan. The proposal recommends A until measured evidence says otherwise.
+*Proposed rule.* One checked plan for both, as [%flow] already embeds plan data through Flow_sop.Build. Generating OCaml for hot numeric zones is a later optimization that must be justified by measurements on the case studies and must produce byte-identical results to the plan.
 
 ## I1
 
@@ -320,4 +338,156 @@ table (`flow.md` §11.10) and does not replace it. Generated from
 
 *Why it is ambiguous.* (for [p (sop/point_list g)] …) orders by point number. An upstream topology change reorders iterations, so probes and cache entries jump.
 
-*Options.* Option A: index, and document the jump. Option B: iterate by a stable id attribute when present. Option C: require an explicit :key. Leaning to B with an A fallback.
+*Proposed rule.* Identity is the index. point_list and piece_list take an optional :key attribute name; when the geometry carries it, iterations are identified by that attribute and ordered by it, so probes and caches follow the element instead of its position. Without :key, the zone title shows “by index” so the instability is visible.
+
+## F1
+
+**Can a function be stored, returned or put in a list?**
+
+*Why it is ambiguous.* First-class functions that escape make the graph unbounded: a list of closures has no single drawing, and a returned closure hides what it captured.
+
+*Proposed rule.* No. fn values are non-escaping: they may be bound in let*, passed to map, filter, reduce, sort-by or to a defn parameter of type fn, and called. Returning one, storing it in a list or record, passing it through ref or carrying it in a fold is E_FN_ESCAPES. Every program therefore still has one finite graph, and recursion stays impossible because a fn cannot see its own name.
+
+*In the study.* Garland: bead, leaf and size are local λ zones; ring takes make : fn.
+
+## F2
+
+**How are unannotated λ parameters typed?**
+
+*Why it is ambiguous.* (fn [x] …) has no types. Requiring annotations everywhere is noisy for artists; inferring them globally is complex and error messages get vague.
+
+*Proposed rule.* Annotations are optional, (fn [(x : float)] …). The static pass types the body with the declared types or with any, then again with the argument types at each call site it can see, such as the element type of the list given to map. Errors name the call site.
+
+## F3
+
+**What does a function zone show, and what is its probe?**
+
+*Why it is ambiguous.* A function runs once per call, not once per iteration, and it may be called from several places. Showing one value hides what it did.
+
+*Proposed rule.* A λ zone is a loop over its calls. Its strip has one cell per call received, in evaluation order; the probe selects a call, and every node inside shows its value in that call. Shapes a call produces are tagged with (function, call), so clicking a bead in the viewport finds the call that made it. The inspector lists each call as arguments → result.
+
+*In the study.* Garland: probe bead; click a bead in the viewport.
+
+## F4
+
+**map over several lists: zip or product?**
+
+*Why it is ambiguous.* L2 made several for clauses a product. A higher-order map over two lists is conventionally a zip.
+
+*Proposed rule.* map takes 1–3 lists and zips them, stopping at the shortest. Products are written with for. The two forms therefore never overlap.
+
+*In the study.* Garland: (map bead ordered (range (count ordered))).
+
+## D1
+
+**Do scalar operations broadcast over lists?**
+
+*Why it is ambiguous.* Implicit broadcasting (Grasshopper, Apparatus spreads) is quick to write but hides cost and makes types ambiguous: is (* xs 2) a list or an error?
+
+*Proposed rule.* No implicit broadcasting. Lists are homogeneous; int and float mix to float. Applying a scalar operation to a list is a type error whose fix wraps the node in map. Lists and geometry stay distinct: a list of shapes is not a shape with pieces until it is merged.
+
+## D2
+
+**Records: structural or nominal, and what are multiple outputs?**
+
+*Why it is ambiguous.* Blender bundles match by name and need a sync button; Houdini multi-output nodes are indexed and brittle.
+
+*Proposed rule.* Records are structural and closed. A record fits where a record with a subset of its fields is expected. (values :a x :b y) is a record, so a function with several results and a node with several outputs are the same thing: the node shows one output row per field, and wiring from a row writes r.field. Renaming a field should rewrite every accessor in one transaction (the study renames bindings, not fields yet); nothing ever syncs by name.
+
+*In the study.* Kit of parts: window returns frame, pane and area.
+
+## D3
+
+**What happens when destructuring does not match?**
+
+*Why it is ambiguous.* [a b] over a list of one, or {:keys [z]} over a record without z, can be silently nil in Clojure.
+
+*Proposed rule.* It is an error that names the pattern and the value’s length or fields. There is no nil. A destructuring binding is one node with one output row per name.
+
+*In the study.* Kit of parts: [left mid right] over widths.
+
+## D4
+
+**How do people build lists without typing?**
+
+*Why it is ambiguous.* A literal (list 0.3 0.45 0.3) is text. Artists expect to add, reorder and fill items like spreadsheet cells.
+
+*Proposed rule.* A list literal is a node with one row per item. Rows scrub like any number, move up with ↑, accept wires, and + extends the list: when the last two items are numbers, the new one continues their step, like a spreadsheet fill handle. Every gesture rewrites the literal.
+
+*In the study.* Kit of parts: widths.
+
+## C1
+
+**May cond and case fall through?**
+
+*Why it is ambiguous.* A missing branch would need nil, and nil would travel into geometry operations.
+
+*Proposed rule.* Both require a final :else. Only the matching arm runs; every arm is typed statically and they must agree. A case matches numbers, text and booleans exactly.
+
+*In the study.* Kit of parts: style (case) and part (cond).
+
+## C2
+
+**How does str format numbers?**
+
+*Why it is ambiguous.* Computed names such as floor_2 must be identical on every run and platform, and 2.0 versus 2 would change a group name.
+
+*Proposed rule.* Ints print plainly; floats print up to 4 decimals with trailing zeros removed; booleans print true or false; vec3 prints [x y z]. The printer is deterministic and independent of locale.
+
+## M1
+
+**What can a macro template do?**
+
+*Why it is ambiguous.* Procedural macros can run arbitrary code at compile time, so the expansion cannot always be shown, stepped or trusted.
+
+*Proposed rule.* Macros are declarative quasiquote templates: ~p fills a hole, ~@rest splices a rest parameter, and x# is a fresh name at every use. A free name in a template must be global (an operator, defn, macro or special form); a name from the call site can only arrive through a hole. That is hygiene in both directions. Expansion depth is at most 32 and output at most 5,000 forms.
+
+*In the study.* Rosette: radial and wobble.
+
+## M2
+
+**May a hole be a binding name?**
+
+*Why it is ambiguous.* Anaphoric macros that silently introduce i are unhygienic, but a macro that repeats a body is useless if the body cannot see the index.
+
+*Proposed rule.* Yes, when the caller supplies it. A parameter used in binding position, as in (for [~i …]), is a binder hole; the call node shows it as a name pill, and the body sees the name the caller wrote.
+
+*In the study.* Rosette: (radial k petals …).
+
+## M3
+
+**Is the expansion editable, and where do clicks land?**
+
+*Why it is ambiguous.* Editing expanded code cannot be mapped back into a template in general.
+
+*Proposed rule.* The call is the only authored form. The ⤵ lens shows the expansion one step at a time, read-only. Replace call with expansion turns it into ordinary nodes as an explicit, undoable edit. Provenance of shapes lands on the call node, never on invisible expanded nodes. Make macro from selection offers the literals as holes and turns the selection’s own names into fresh names.
+
+*In the study.* Rosette: ⤵ on outer.
+
+## M4
+
+**Macro or function?**
+
+*Why it is ambiguous.* Both abstract a selection; users of Unreal and Houdini routinely pick the wrong one.
+
+*Proposed rule.* Prefer a function. A macro is justified only when a hole is a name the body binds or a piece of code evaluated in a new context (such as inside a loop). Make macro says so, and its hint points to λ and defn otherwise.
+
+## N1
+
+**Where do comments go when the graph is edited?**
+
+*Why it is ambiguous.* Graph edits reorder and rebuild bindings, which is exactly what destroys comments in round-trip editors.
+
+*Proposed rule.* A ; comment attaches to the next binding (or top-level form) by name, not by position. Reordering, rewiring and renaming keep it; the graph shows it as a note on the node, and editing the note writes the comment. Deleting a node deletes its note. Comments before a form’s end attach to that form’s end.
+
+*In the study.* Rosette and Garland carry notes.
+
+## N2
+
+**What does ^:bypass do?**
+
+*Why it is ambiguous.* Houdini’s bypass flag passes geometry through, but a bypassed value node has no obvious meaning.
+
+*Proposed rule.* A bypassed call returns its first positional argument when that argument’s type fits the call’s result, and is still type-checked. Otherwise bypass is refused. The node shows a B flag and a striped title. ^:bypass is the only metadata; anything else is an error.
+
+*In the study.* Rosette: soft.

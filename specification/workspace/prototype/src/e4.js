@@ -97,9 +97,9 @@ function fillInspector(panel){
   h+=nameField;
   if(n.kind==='zone'){
     const z=program.zones.get(n.id),iters=n.inner.rail.filter(r=>r.role==='iter'),acc=n.inner.rail.find(r=>r.role==='acc'),caps=n.inner.rail.filter(r=>r.role==='capture');
-    const expl={for:`Runs its body once for every ${iters.map(r=>r.name).join(' × ')} and collects the results into a list${iters.length>1?' (a product: every combination, the last name varying fastest)':''}.`,fold:`Starts ${acc?.name} at its initial value. Each step's result becomes the next ${acc?.name}. The zone returns the last one.`,scan:`Like fold, but returns every step's ${acc?.name} as a list.`,sum:'Adds up what its body returns for every iteration.','let*':'A scope. Its bindings are private: only its result leaves, so it reads as one step from outside.'}[n.zkind];
+    const expl={for:`Runs its body once for every ${iters.map(r=>r.name).join(' × ')} and collects the results into a list${iters.length>1?' (a product: every combination, the last name varying fastest)':''}.`,fold:`Starts ${acc?.name} at its initial value. Each step's result becomes the next ${acc?.name}. The zone returns the last one.`,scan:`Like fold, but returns every step's ${acc?.name} as a list.`,sum:'Adds up what its body returns for every iteration.','let*':'A scope. Its bindings are private: only its result leaves, so it reads as one step from outside.',fn:`A function value. It runs once per call; its strip shows every call it received, and the probe picks one. Pass it by wiring its λ output into map, filter, reduce, sort-by or a defn input of type fn, or call it by name.`}[n.zkind];
     h+=`<div class="type-label">${esc(ZONE_LABEL[n.zkind])} · ${esc(tname(t))}</div><p class="hint">${esc(expl)}</p>`;
-    if(z)h+=`<div class="kv"><span>iterations</span><b>${z.count}${z.runs>1?' over '+z.runs+' runs':''}</b>${iters.map(r=>`<span>${esc(r.name)} ∈</span><b>${esc(M.print(r.expr))}</b>`).join('')}${acc?`<span>${esc(acc.name)} starts</span><b>${esc(M.print(acc.expr))}</b>`:''}${caps.length?`<span>same every time</span><b>${caps.map(c=>esc(c.name)).join(', ')}</b>`:''}<span>result</span><b>${esc(describe(v))}</b></div>`;
+    if(z)h+=`<div class="kv"><span>${n.zkind==='fn'?'calls':'iterations'}</span><b>${z.count}${z.runs>1?' over '+z.runs+' runs':''}</b>${iters.map(r=>`<span>${esc(r.name)} ∈</span><b>${esc(M.print(r.expr))}</b>`).join('')}${acc?`<span>${esc(acc.name)} starts</span><b>${esc(M.print(acc.expr))}</b>`:''}${caps.length?`<span>same every time</span><b>${caps.map(c=>esc(c.name)).join(', ')}</b>`:''}<span>result</span><b>${esc(describe(v))}</b></div>`;
     if(z&&n.zkind!=='let*'){const items=(n.zkind==='fold'?z.states.filter(s=>s.it[s.it.length-1]>=0):z.items).filter(r=>r.it.length===chain.length+1&&chain.every((c,i)=>r.it[i]===(probe[c]||0)));
       h+=`<div class="itab" role="list">${items.slice(0,64).map((r,i)=>`<button class="irow${(probe[n.id]||0)===i?' on':''}" data-probe="${i}"><span>${i+1}</span><b>${esc(describe(r.v))}</b></button>`).join('')}${items.length>64?`<p class="hint">…and ${items.length-64} more.</p>`:''}</div>`;}
     h+=`<div class="inspector-actions"><button class="tog">${meta.collapsed[n.id]?'Expand zone':'Collapse to a card'}</button>${foldInfo(n)?`<button class="do-fold">Fold into ${esc(foldInfo(n).consumer.name)}</button>`:''}</div>`;
@@ -117,8 +117,12 @@ function fillInspector(panel){
     }
     if(fn){h+=`<p class="hint">Arguments belong to this call. The body is shared by <strong>${countCalls(e[0])} calls</strong>.</p><div class="inspector-actions"><button class="enter-fn primary">Edit shared definition</button><button class="unique">Make unique</button></div>`;}
     if(mac)h+=`<div class="inspector-actions"><button class="inspect-macro">Inspect macro expansion</button></div>`;
+    if(n.macro){let ex='';try{ex=M.print(M.expand(program,n.expr));}catch(e){ex=e.message;}h+=`<p class="hint">A call to the macro <b>${esc(n.macro)}</b>. It is rewritten before checking; the rows are its holes. Press ⤵ on the node to step through the expansion.</p><pre class="lisp mini">${hl(ex)}</pre><div class="inspector-actions"><button class="do-inline">Replace call with expansion</button><button class="do-msrc">Template</button></div>`;}
     const fi=foldInfo(n);if(fi)h+=`<div class="inspector-actions"><button class="do-fold">Fold into ${esc(fi.consumer.name==='@result'?'the result':fi.consumer.name)}</button></div>`;
   }
+  if(!n.synthetic)h+=`<div class="field"><label for="ins-note">Note · a ; comment above ${esc(n.name)} in the Lisp</label><textarea id="ins-note" class="notearea" rows="2" placeholder="Why this node exists…">${esc(n.note||'')}</textarea></div>`;
+  if(n.kind==='node'&&isL(n.expr)&&!n.expr.vector&&!M.isMap(n.expr))h+=`<div class="inspector-actions"><button class="do-bypass">${n.bypass?'Run again (remove ^:bypass)':'Bypass (^:bypass)'}</button></div>`;
+  if(n.kind==='zone'&&n.zkind==='fn'){const z=program.zones.get(n.id);if(z?.args)h+=`<p class="hint">Every call this function received, with its arguments and result. Click one to probe it.</p><div class="itab calls">${z.args.slice(0,48).map((a,i)=>`<button class="irow${(probe[n.id]||0)===i?' on':''}" data-probe="${i}"><span>${i+1}</span><b>(${esc(a.v.map(x=>describe(x)).join(' '))}) → ${esc(describe(z.items[i]?.v))}</b></button>`).join('')}</div>`;}
   const users=n.scope.nodes.filter(m=>m!==n&&M.freeSymbols(m.expr).has(n.name));
   h+=`<div class="usedby"><span class="fl">used by</span>${users.map(m=>`<button class="chip2" data-sel="${esc(m.id)}">${esc(m.synthetic?'result':m.name)}</button>`).join('')||(n.scope.result?.link===n.name?'<em>the '+(n.scope.owner?n.scope.owner.zkind+' result':'graph result')+'</em>':'<em>nothing</em>')}</div>`;
   panel.innerHTML=h;
@@ -128,6 +132,10 @@ function fillInspector(panel){
   qa('[data-probe]').forEach(b=>b.onclick=()=>{probe[b.dataset.probeZ||n.id]=Number(b.dataset.probe);renderAll(true);});
   q('.tog')&&(q('.tog').onclick=()=>{meta.collapsed[n.id]=!meta.collapsed[n.id];renderAll();});
   q('.do-fold')&&(q('.do-fold').onclick=()=>fold(n.id));
+  q('.do-bypass')&&(q('.do-bypass').onclick=()=>toggleBypass(n.id));
+  q('.do-inline')&&(q('.do-inline').onclick=()=>inlineMacro(n.id));
+  q('.do-msrc')&&(q('.do-msrc').onclick=()=>macroDialog(n.macro));
+  q('.notearea')&&(q('.notearea').onchange=e=>setNodeNote(n.id,e.target.value));
   q('.do-hoist')&&(q('.do-hoist').onclick=()=>hoist(n.id));
   q('.do-except')&&(q('.do-except').onclick=()=>exceptIteration(n.id,piece.key));
   q('.enter-fn')&&(q('.enter-fn').onclick=()=>enterFunction(n.id));
@@ -138,7 +146,8 @@ function fillInspector(panel){
 /* ---------- Lisp panel: the selection is its own subgraph ---------- */
 function hl(text){
   return esc(text).replace(/(?<!&[a-z0-9#]{1,6});[^\n]*/g,m=>`<span class="cm">${m}</span>`)
-    .replace(/\((?:\u0001)?([^\s()[\]<&\u0001\u0002]+)/g,(m,h)=>m.replace(h,`<span class="kw${['for','fold','scan','sum','let*','if'].includes(h)?' zk':''}">${h}</span>`))
+    .replace(/\((?:\u0001)?([^\s()[\]<&\u0001\u0002]+)/g,(m,h)=>m.replace(h,`<span class="kw${['for','fold','scan','sum','let*','if','fn','cond','case','map','filter','reduce','sort-by'].includes(h)?' zk':''}${program?.macros?.has(h)||h==='defmacro'?' mk':''}">${h}</span>`))
+    .replace(/(\^:[a-z]+)/g,'<span class="meta">$1</span>').replace(/(`|~@|~)/g,'<span class="qq">$1</span>')
     .replace(/(^|[\s[(])(:[a-z_][a-z0-9_-]*)/g,'$1<span class="kwd">$2</span>')
     .replace(/&quot;(.*?)&quot;/g,'<span class="str">&quot;$1&quot;</span>')
     .replace(/\u0001/g,'<mark>').replace(/\u0002/g,'</mark>');

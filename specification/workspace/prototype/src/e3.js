@@ -38,7 +38,7 @@ function mkLeaf(p){
   if(p.kind==='outline')initOutline(body);
   if(p.kind==='lisp')initLisp(body);
   if(p.kind==='viewport')initPreview(body);
-  el.querySelector('.pctl').addEventListener('click',e=>{const b=e.target.closest('[data-a]');if(!b)return;({add:()=>openPalette(null,null,view.root),repeat:()=>wrapInLoop('for'),iterate:()=>wrapInLoop('fold'),extract:extractDialog,ret:returnToCall,play:togglePlay})[b.dataset.a]?.();});
+  el.querySelector('.pctl').addEventListener('click',e=>{const b=e.target.closest('[data-a]');if(!b)return;({add:()=>openPalette(null,null,view.root),repeat:()=>wrapInLoop('for'),iterate:()=>wrapInLoop('fold'),extract:extractDialog,lambda:makeLocalFn,macro:makeMacroDialog,ret:returnToCall,play:togglePlay})[b.dataset.a]?.();});
   el.querySelector('.pctl').addEventListener('change',e=>{if(e.target.classList.contains('scopesel')){returnScope=null;scope=e.target.value;selection=new Set();piece=null;renderAll();}});
   el.querySelector('.pctl').addEventListener('input',e=>{if(e.target.classList.contains('tslider')){time=Number(e.target.value);playing=false;recompute();}});
   leaves.push(el);return el;
@@ -85,7 +85,7 @@ function updateLeaf(el){
   if(k==='graph'){
     const g=body.querySelector('.gscroll'),sx=g.scrollLeft,sy=g.scrollTop;
     const zSel=[...selection].some(id=>view?.all.get(id));
-    ctl.innerHTML=`<select class="scopesel" aria-label="Graph or function">${[...program.graphs.keys()].map(n=>`<option value="${esc(n)}"${n===scope?' selected':''}>${esc(n)}</option>`).join('')}${[...program.defs.keys()].map(n=>`<option value="${esc(n)}"${n===scope?' selected':''}>ƒ ${esc(n)}</option>`).join('')}</select><button data-a="add">Add<kbd>A</kbd></button><button data-a="repeat"${zSel?'':' disabled'} title="Wrap the selection in a for zone">Repeat<kbd>R</kbd></button><button data-a="iterate"${zSel?'':' disabled'} title="Feed the selection back into itself with fold">Iterate<kbd>⇧R</kbd></button><button data-a="extract"${selection.size&&!isDef()?'':' disabled'}>Function<kbd>F</kbd></button>${returnScope?'<button data-a="ret">Return to call</button>':''}`;
+    ctl.innerHTML=`<select class="scopesel" aria-label="Graph or function">${[...program.graphs.keys()].map(n=>`<option value="${esc(n)}"${n===scope?' selected':''}>${esc(n)}</option>`).join('')}${[...program.defs.keys()].map(n=>`<option value="${esc(n)}"${n===scope?' selected':''}>ƒ ${esc(n)}</option>`).join('')}</select><button data-a="add">Add<kbd>A</kbd></button><button data-a="repeat"${zSel?'':' disabled'} title="Wrap the selection in a for zone">Repeat<kbd>R</kbd></button><button data-a="iterate"${zSel?'':' disabled'} title="Feed the selection back into itself with fold">Iterate<kbd>⇧R</kbd></button><button data-a="lambda"${zSel?'':' disabled'} title="Turn the selection into a local function (λ)">λ<kbd>L</kbd></button><button data-a="macro"${zSel?'':' disabled'} title="Turn the selection into a macro template">◆<kbd>M</kbd></button><button data-a="extract"${selection.size&&!isDef()?'':' disabled'} title="Make a shared top-level function">defn<kbd>F</kbd></button>${returnScope?'<button data-a="ret">Return to call</button>':''}`;
     renderGraph(g);g.scrollLeft=sx;g.scrollTop=sy;
   }else if(k==='viewport'){
     const tiled=el.closest('.tile');
@@ -123,7 +123,7 @@ function callerPreview(){
 function zoneOwnerChain(zid){const n=view?.all.get(zid);return n?zoneChain(n.scope):[];}
 /* ---------- viewport: an illustration, with iteration highlights ---------- */
 function focusZone(){
-  const tagging=z=>['for'].includes(program.zones.get(z)?.kind)||['fold','scan'].includes(program.zones.get(z)?.kind);
+  const tagging=z=>['for','fold','scan','fn'].includes(program.zones.get(z)?.kind);
   for(const id of selection){const n=view?.all.get(id);if(!n)continue;const ch=[...zoneChain(n.scope)];if(n.kind==='zone'&&n.zkind!=='let*')ch.push(n.id);for(let i=ch.length-1;i>=0;i--)if(tagging(ch[i]))return ch[i];}
   return null;
 }
@@ -135,7 +135,7 @@ function initPreview(body){
     const fz=focusZone(),zid=keys.includes(fz)?fz:keys.sort((a,b)=>b.length-a.length)[0],g=zid.split('/')[0];
     probe[zid]=tags[zid];if(scope!==g){scope=g;returnScope=null;}
     selection=new Set([zid]);piece=null;renderAll();
-    const z=program.zones.get(zid);status(`That shape came from ${zid.split('/').pop()}, iteration ${tags[zid]+1} of ${z?.count??'?'}. Every node in the loop now shows its value there.`);
+    const z=program.zones.get(zid);status(z?.kind==='fn'?`That shape came from call ${tags[zid]+1} of ${z.count} to ${zid.split('/').pop()}. Every node inside shows its value in that call.`:`That shape came from ${zid.split('/').pop()}, iteration ${tags[zid]+1} of ${z?.count??'?'}. Every node in the loop now shows its value there.`);
   });
   svg.addEventListener('mousemove',e=>{const el=e.target.closest('[data-tags]');const t=el?el.dataset.tags:null;if(t!==hoverTag){hoverTag=t;svg.querySelectorAll('.hov').forEach(x=>x.classList.remove('hov'));if(el){const tg=JSON.parse(t),fz=focusZone();if(fz&&fz in tg)svg.querySelectorAll('[data-tags]').forEach(x=>{if(JSON.parse(x.dataset.tags)[fz]===tg[fz])x.classList.add('hov');});}}});
 }
@@ -166,5 +166,5 @@ function renderPreview(svg,scene,small){
   }
   svg.innerHTML=`<rect class="pvbg" x="${x0}" y="${-y1}" width="${x1-x0}" height="${y1-y0}"/>`+h;
   if(!small){const per=zk?(zk.kind==='fold'||zk.kind==='scan'?zk.states.filter(s=>s.it[s.it.length-1]>=0):zk.items).filter(r=>r.it.length===1||r.it.slice(0,-1).every((x,i)=>x===(probe[zoneOwnerChain(fz)[i]]||0))).length:0;
-    svg.parentElement.dataset.label=fz?`${fz.split('/').pop()} · ${zk?.kind==='fold'||zk?.kind==='scan'?'state after step':'iteration'} ${k+1} of ${per}${tagged||zk?.kind!=='for'?'':' · not in this scene'}`:describeScene(scene);}
+    svg.parentElement.dataset.label=fz?`${fz.split('/').pop()} · ${zk?.kind==='fold'||zk?.kind==='scan'?'state after step':zk?.kind==='fn'?'call':'iteration'} ${k+1} of ${per}${tagged||zk?.kind!=='for'?'':' · not in this scene'}`:describeScene(scene);}
 }

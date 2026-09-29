@@ -24,15 +24,17 @@ function extractDialog(){
     if(!/^[a-z][a-z0-9_]*$/.test(name)||program.defs.has(name)||program.graphs.has(name)||M.OPS[name]){status('Choose a unique lowercase function name.',true);return;}
     const next=M.clone(ast),f=next.slice(2).find(x=>x[1]===scope),s=M.body(f);
     const pairs=[];for(let i=0;i<s[1].length;i+=2)pairs.push([s[1][i],s[1][i+1]]);
-    const inner=pairs.filter(p=>sel.has(p[0])),params=M.vec(free.map(x=>[x,':',typeOfName(S,x)?.startsWith('list:')?'float':typeOfName(S,x)||'float']));
+    const inner=pairs.filter(p=>sel.has(p[0])),params=M.vec(free.map(x=>[x,':',typeAst(typeOfName(S,x))]));
     next.splice(2,0,['defn',name,':context',ctx,params,inner.length===1?inner[0][1]:['let*',M.vec(inner.flat()),outs[0].name]]);
     const last=Math.max(...inner.map(p=>pairs.indexOf(p)));const keep=[];pairs.forEach((p,i)=>{if(!sel.has(p[0]))keep.push(p);if(i===last)keep.push([outs[0].name,[name,...free.flatMap(x=>[':'+x,x])]]);});s[1]=M.vec(keep.flat());
     if(commit(next,`Created ${name} with ${free.length} typed input${free.length===1?'':'s'}.`)){selection=new Set([rootId()+'/'+outs[0].name]);$('#dialog').close();renderAll();}};
 }
 function macroDialog(name,call){
-  const m=program.macros.get(name),args=call?.slice(1)||m[2].map(()=>0.5);
-  const sub=y=>typeof y==='string'&&m[2].includes(y)?args[m[2].indexOf(y)]:isL(y)?y.map(sub):y;
-  dialog('Macro · '+name,`<p>Templates rewrite syntax before type checking. The expansion is read-only; edit the call or the macro.</p><pre>${esc(M.print(m))}</pre><p>Call → expansion</p><pre>${esc(M.print([name,...args]))}\n↓\n${esc(M.print(sub(m[3])))}</pre><p class="hint">The study implements only binding-free value templates. Hygienic macros that introduce names are part of the proposal, not this page.</p>`);
+  const m=program.macros.get(name);if(!m)return;
+  let ex='';if(call){try{ex=M.print(M.expand(program,call));}catch(e){ex=e.message;}}
+  const uses=[];(function w(x){if(isL(x)){if(x[0]===name&&!x.vector)uses.push(x);[...x].forEach(w);}})(ast.slice(2).filter(f=>f[0]!=='defmacro'));
+  dialog('Macro · '+name,`<p>A macro is a template that is filled in before checking. Holes are written <code>~name</code>; names ending in <code>#</code> are fresh at every use, so a template can never capture a name from the call site.</p><pre class="lisp">${hl(M.print(m))}</pre>${call?`<p>This call, expanded</p><pre class="lisp">${hl(ex)}</pre>`:''}<p class="hint">${uses.length} use${uses.length===1?'':'s'} in this workspace. Edit the template in the Document tab; every use changes.</p><button id="macro-source">Edit in Document</button>`);
+  $('#macro-source').onclick=()=>{$('#dialog').close();codeTab='doc';renderAll();const ta=$('.doc-src');if(ta){ta.focus();const at=ta.value.indexOf('(defmacro '+name);if(at>=0)ta.setSelectionRange(at,at+10+name.length);}};
 }
 
 /* ---------- shell layouts ---------- */
@@ -53,7 +55,7 @@ function layoutDialog(){
 }
 function actions(){
   dialog('Actions & keyboard',`<label for="action-search">Find an action</label><input id="action-search" placeholder="repeat, fold, hoist, layout…"><div id="actions"></div><p class="hint">Shortcuts work outside text fields. Drag a number to scrub it, with Shift for fine steps. Drag an output dot onto an input to connect. Drag across a loop’s strip to probe an iteration.</p>`);
-  const entries=[['Add a node · A',()=>openPalette(null,null,view.root)],['Repeat selection in a for zone · R',()=>wrapInLoop('for')],['Iterate selection with fold · Shift R',()=>wrapInLoop('fold')],['Make function · F',extractDialog],['Delete selection · Delete',deleteSelected],['Collapse or expand the selected zone · C',()=>{const id=[...selection][0];if(id){meta.collapsed[id]=!meta.collapsed[id];renderAll();}}],['Next / previous iteration · ] and [',()=>stepProbe(1)],['Compose shell layouts',layoutDialog],['Go to node · / or Ctrl K',()=>$('.ol-search')?.focus()],['Undo · Ctrl/⌘ Z',()=>undo()],['Redo · Ctrl/⌘ Shift Z',()=>undo(true)],['Return to call · Esc',returnToCall],['Restore default shell',()=>applyLayout('three')]];
+  const entries=[['Add a node · A',()=>openPalette(null,null,view.root)],['Repeat selection in a for zone · R',()=>wrapInLoop('for')],['Iterate selection with fold · Shift R',()=>wrapInLoop('fold')],['Make function · F',extractDialog],['Make a local λ function from the selection · L',makeLocalFn],['Make a macro from the selection · M',makeMacroDialog],['Bypass or run the selected node · B',()=>{const id=[...selection][0];if(id)toggleBypass(id);}],['Write a note on the selected node · N',()=>document.querySelector('.ibody .notearea')?.focus()],['Delete selection · Delete',deleteSelected],['Collapse or expand the selected zone · C',()=>{const id=[...selection][0];if(id){meta.collapsed[id]=!meta.collapsed[id];renderAll();}}],['Next / previous iteration · ] and [',()=>stepProbe(1)],['Compose shell layouts',layoutDialog],['Go to node · / or Ctrl K',()=>$('.ol-search')?.focus()],['Undo · Ctrl/⌘ Z',()=>undo()],['Redo · Ctrl/⌘ Shift Z',()=>undo(true)],['Return to call · Esc',returnToCall],['Restore default shell',()=>applyLayout('three')]];
   const draw=()=>{const s=$('#action-search').value.toLowerCase();$('#actions').innerHTML=entries.filter(e=>e[0].toLowerCase().includes(s)).map(e=>`<button class="action" data-i="${entries.indexOf(e)}">${esc(e[0])}</button>`).join('');$$('#actions .action').forEach(b=>b.onclick=()=>{$('#dialog').close();entries[Number(b.dataset.i)][1]();});};
   $('#action-search').oninput=draw;draw();$('#action-search').focus();
 }
@@ -80,6 +82,10 @@ document.addEventListener('keydown',e=>{
   if(e.metaKey||e.ctrlKey||e.altKey)return;
   const key=e.key.toLowerCase();
   if(key==='r'){e.preventDefault();wrapInLoop(e.shiftKey?'fold':'for');}
+  else if(key==='l'){e.preventDefault();makeLocalFn();}
+  else if(key==='m'){e.preventDefault();makeMacroDialog();}
+  else if(key==='b'){const id=[...selection][0];if(id)toggleBypass(id);}
+  else if(key==='n'){const id=[...selection][0];if(id){e.preventDefault();requestAnimationFrame(()=>document.querySelector('.ibody .notearea')?.focus());}}
   else if(key==='f')extractDialog();else if(key==='a'){e.preventDefault();openPalette(null,null,view.root);}
   else if(key==='c'){const id=[...selection][0];const n=view?.all.get(id);if(n?.kind==='zone'){meta.collapsed[id]=!meta.collapsed[id];renderAll();}}
   else if(key===']'||key==='['){e.preventDefault();stepProbe(key===']'?1:-1);}

@@ -107,20 +107,23 @@ const CASES = [
            pattern (sop/merge cells_each)]
       pattern)))`},
 {key: 'facade', title: 'Facade', tag: 'groups · named scope', focus: ['facade', 'facade/marked'],
- teaches: 'Geometry groups are names that flow with geometry. group_bounds and group_random create them; set_color and blast read them. The editor draws a named link from creator to reader. marked is a nested let* scope with its own frame.',
+ teaches: 'Geometry groups are names that flow with geometry. group_bounds and group_random create them; set_color and blast read them, and the editor draws a named link from creator to reader. Each window is grouped by its floor with a computed name, (str "floor_" f); the floor to hide is one bound name wired into blast. marked is a nested let* scope.',
  lisp: `(workspace facade
-  (graph facade :context sop [(floors : int 6) (bays : int 5)]
+  (graph facade :context sop [(floors : int 6) (bays : int 5) (hide : int 2)]
     (let* [wall (sop/box :size [2.2 3.3 0] :center [0 1.55 0])
            windows (for [f (range floors) b (range bays)]
-                     (sop/box :size [0.24 0.3 0]
-                              :center [(- (* b 0.4) 0.8) (+ 0.4 (* f 0.48)) 0]))
+                     (sop/group_bounds (sop/box :size [0.24 0.3 0]
+                                                :center [(- (* b 0.4) 0.8) (+ 0.4 (* f 0.48)) 0])
+                                       :name (str "floor_" f) :min [-9 -9 -1] :max [9 9 1]))
            glass (sop/merge windows)
            marked (let* [top (sop/group_bounds glass :name "attic" :min [-2 2.5 -1] :max [2 4 1])
                          odd (sop/group_random top :name "lit" :ratio 0.35 :seed 4)]
                     odd)
            lit (sop/set_color marked :color "#f5cf4f" :group "lit")
            open (sop/blast lit :group "attic")
-           result (sop/merge wall open)]
+           gone (str "floor_" hide)
+           closed (sop/blast open :group gone)
+           result (sop/merge wall closed)]
       result)))`},
 {key: 'variations', title: 'Variations', tag: 'graph inputs · loops in the editor', focus: ['editor', 'editor/sheet'],
  teaches: 'Graphs take typed inputs, and (ref garden :seed s) calls one like a function. The editor graph itself loops: four viewports, one per seed. Panels made by a loop have no binding of their own, so their headers point back to the loop.',
@@ -144,7 +147,81 @@ const CASES = [
            right (ui/split-at "horizontal" 0.5 left sheet)
            panels (ui/split-at "horizontal" 0.13 outline right)
            shell (ui/workspace panels)]
-      shell)))`}
+      shell)))`},
+{key:'garland',title:'Garland',tag:'λ functions · map · filter · reduce · sort-by',focus:['garland','garland/bead'],
+ teaches:'Functions are values. bead and leaf are local λ zones whose strips show every call they received. ring is a shared defn that takes a function as an input. filter, sort-by and reduce work on the list of sizes, and the viewport maps each bead back to the call that made it.',
+ lisp:`(workspace garland
+  ; ring is a higher-order function: it takes the shape maker as an input.
+  (defn ring :context sop [(n : int 8) (radius : float 1.0) (make : fn)]
+    (sop/merge (map (fn [i]
+                      (sop/transform (make i)
+                                     :rotate (* (/ i n) 360)
+                                     :translate (value/polar radius (* (/ i n) 6.2832))))
+                    (range n))))
+  (graph garland :context sop [(count : int 14) (seed : int 5)]
+    (let* [size (fn [i] (+ 0.05 (* 0.11 (value/rand seed i))))
+           sizes (map size (range count))
+           big (filter (fn [s] (> s 0.09)) sizes)
+           ordered (sort-by (fn [s] (- 0 s)) big)
+           total (reduce + 0 big)
+           ; one bead per kept size, largest first
+           bead (fn [r k] (sop/transform (sop/circle :radius r :segments 18)
+                                         :translate [(- (* k 0.26) 1.3) -1.7 0]))
+           beads (map bead ordered (range (count ordered)))
+           leaf (fn [i] (sop/transform (sop/circle :radius 0.5 :segments 20) :scale [0.14 (+ 0.3 (* 0.02 i)) 1]))
+           wreath (ring :n count :radius 0.95 :make leaf)
+           heart (sop/circle :radius (* 0.25 total) :segments 32)
+           result (sop/merge wreath (sop/merge beads) heart)]
+      result)))`},
+{key:'kit',title:'Kit of parts',tag:'records · values · destructuring · lists · cond · case · str',focus:['kit','kit/tower'],
+ teaches:'window returns several named values; its node spills one output per field. [left mid right] destructures a list literal you edit item by item. The tower is a fold whose accumulator is a record, so it carries a shape and a height at once. case and cond pick colours and parts; str builds a label.',
+ lisp:`(workspace kit
+  ; window returns several values: a record with named fields.
+  (defn window :context sop [(w : float 0.3) (h : float 0.4)]
+    (let* [frame (sop/box :size [w h 0])
+           pane (sop/box :size [(* w 0.8) (* h 0.8) 0])]
+      (values :frame frame :pane pane :area (* w h))))
+  (graph kit :context sop [(floors : int 5)]
+    (let* [widths (list 0.3 0.45 0.3)
+           [left mid right] widths
+           big (window :w mid :h 0.5)
+           small (window :w left)
+           style (fn [f] (case (mod f 3) 0 "#b0680f" 1 "#285f77" :else "#6b50ae"))
+           tower (fold [st {:shape (sop/box :size [0.01 0.01 0]) :y 0.0}]
+                       [f (range floors)]
+                   (let* [{:keys [shape y]} st
+                          part (cond (= f 0) big.frame
+                                     (= f (- floors 1)) small.pane
+                                     :else small.frame)
+                          unit (sop/set_color part :color (style f))
+                          placed (sop/transform unit :translate [0 y 0])]
+                     {:shape (sop/merge shape placed) :y (+ y 0.55)}))
+           label (str "floors " floors " · area " big.area)
+           panes (sop/transform big.pane :translate [0.75 0 0])]
+      (sop/merge tower.shape panes))))`},
+{key:'rosette',title:'Rosette',tag:'hygienic macros · expansion lens · notes · bypass',focus:['rosette','rosette/outer'],
+ teaches:'radial is a macro: a template with holes. Its first hole is a name the caller chooses (k), so the body can use the index. wobble introduces a fresh name (step#) that can never collide with yours. Press ⤵ on a call to step through its expansion. soft is bypassed with ^:bypass; notes are comments that survive every edit.',
+ lisp:`(workspace rosette
+  ; radial repeats a shape n times around the origin.
+  ; The caller names the index, so the body can read it.
+  (defmacro radial [i n body]
+    \`(sop/merge (for [~i (range ~n)]
+                  (sop/transform ~body :rotate (* (/ ~i ~n) 360)))))
+  ; wobble adds a pure random offset; step# is fresh at every use.
+  (defmacro wobble [x amt seed]
+    \`(let* [step# (- (value/rand ~seed) 0.5)]
+       (+ ~x (* ~amt step#))))
+  (graph rosette :context sop [(petals : int 12)]
+    (let* [; the outer ring of petals
+           outer (radial k petals
+                   (sop/transform (sop/circle :radius 0.5 :segments 24)
+                                  :scale [0.2 (wobble 0.9 0.4 k) 1]
+                                  :translate [0 0.9 0]))
+           inner (radial j 6 (sop/circle :radius 0.12 :center [0 0.35 0]))
+           ; switch the bypass off to smooth the inner ring
+           soft ^:bypass (sop/subdivide inner :iterations 2)
+           rose (sop/merge outer soft)]
+      rose)))`}
 ];
 const API = {CASES, EDITOR};
 if (typeof module !== 'undefined') module.exports = API; else root.Cases = API;
