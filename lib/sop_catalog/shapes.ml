@@ -2113,10 +2113,10 @@ module Scatter = struct
 end
 
 module Merge = struct
-  (* Three slots, the first required: a Merge with more inputs chains. *)
+  (* One rest slot: any number of inputs, the first required. *)
   let factory = Edit_graph.factory_slots ~key:"merge" ~label:"Merge"
-      ~slots:["a"; "b"; "c"]
-      ~category:["Copy"] ~inputs:Edit_graph.[Required; Optional; Optional]
+      ~slots:["input"]
+      ~category:["Copy"] ~inputs:Edit_graph.[Rest]
       (fun inputs -> Sop.merge ~label:"merge" (List.filter_map Fun.id inputs))
 
   let create ?label:node_label inputs =

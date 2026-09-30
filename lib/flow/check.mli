@@ -6,7 +6,8 @@ type parameter = {
   ty : Port_type.t option;  (** [None] is a literal-only text/choice field. *)
   fields : (string * Param.kind_view * Param.value) list;
 }
-type slot = { name : string; required : bool }
+type slot = { name : string; required : bool; rest : bool }
+(** [rest]: the last slot repeats; extras are [name_2], [name_3], ... *)
 
 type kind = {
   qualified : string;

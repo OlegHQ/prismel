@@ -131,10 +131,12 @@ let workspace ~factories ?(compiled_ids = Instance_path.Map.empty)
                   provenance := Origins.add (cid, index)
                     {source = compiled.(source); site = s.site; iter = s.iter}
                     !provenance) sources;
-                let arity = List.length sources in
-                let factory = Edit.factory ~key:"flow.merge_n" ~label:"Merge"
-                  ~category:["Flow"] ~arity (fun nodes ->
-                    Procedural.Sop.merge ~source_attribute nodes) in
+                (* the catalog's merge (one rest slot) plus the provenance attribute *)
+                let arity = max 1 (List.length sources) in
+                let factory = Edit.factory_slots ~key:"merge" ~label:"Merge"
+                  ~slots:["input"] ~category:["Copy"] ~inputs:[Edit.Rest]
+                  (fun nodes -> Procedural.Sop.merge ~source_attribute
+                    (List.filter_map Fun.id nodes)) in
                 {cid; factory; arity; changes = [];
                  slots = List.mapi (fun i s -> i, s) sources}
             | "sop/curve" ->

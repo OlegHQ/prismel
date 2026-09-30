@@ -7,7 +7,7 @@ type connection = {
   input_index : int;
 }
 
-type input_requirement = Required | Optional
+type input_requirement = Required | Optional | Rest
 
 type factory = {
   key : string;
@@ -52,6 +52,24 @@ type node_info = {
   has_parameters : bool;
   bypass : bool;
 }
+
+(* ponytail: a trailing [Rest] slot repeats.  An entry holds any number of inputs
+   at least the slot count; the first rest input is required, the others optional,
+   and extras are named [name_2], [name_3], ... *)
+let last_requirement (f : factory) = f.requirements.(Array.length f.requirements - 1)
+let arity_ok (f : factory) n =
+  let len = Array.length f.requirements in
+  n = len || (n > len && last_requirement f = Rest)
+let requirement (f : factory) index =
+  let last = Array.length f.requirements - 1 in
+  match f.requirements.(min index last) with
+  | Rest -> if index = last then Required else Optional
+  | r -> r
+let has_optional (f : factory) = Array.exists (( <> ) Required) f.requirements
+let slot_names_of (f : factory) n =
+  let len = Array.length f.slots in
+  List.init n (fun i -> if i < len then f.slots.(i)
+    else f.slots.(len - 1) ^ "_" ^ string_of_int (i - len + 2))
 
 let of_graph graph =
   let infos = Graph.inspect graph in
@@ -104,7 +122,7 @@ let inputs value ~node_id = Option.map (fun (entry : entry) ->
 
 let node_slot_names value ~node_id = Option.map (fun (entry : entry) ->
     match entry.factory with
-    | Some factory -> Array.to_list factory.slots
+    | Some factory -> slot_names_of factory (Array.length entry.inputs)
     | None -> List.init (Array.length entry.inputs) (fun index -> "in" ^ string_of_int index))
     (Id_map.find_opt node_id value.entries)
 
@@ -162,7 +180,7 @@ let wired_to (node : Node.t) inputs =
 
 let rebuild (entry : entry) compiled_inputs =
   match entry.factory with
-  | Some factory when Array.exists (( = ) Optional) factory.requirements ->
+  | Some factory when has_optional factory ->
       let node = factory.build (Array.to_list compiled_inputs) in
       let changes = Node.parameter_fields entry.node
           |> List.map (fun field -> field.Parameter.name, field.current) in
@@ -195,7 +213,7 @@ let compile_into value ~previous table =
               else match entry.inputs.(index) with
                 | None ->
                     let optional = entry.bypass || match entry.factory with
-                      | Some factory -> factory.requirements.(index) = Optional
+                      | Some factory -> requirement factory index = Optional
                       | None -> false in
                     if optional then build_inputs (index + 1)
                     else Error (Printf.sprintf "node %S input %d is disconnected"
@@ -267,7 +285,7 @@ let rebind_factory ?(preserve_wires_by_name = false) ~node_id
   | None -> Error (Printf.sprintf "editable graph has no node #%d" node_id)
   | Some entry when Node.operation entry.node <> factory.operation
       || not preserve_wires_by_name
-         && Array.length entry.inputs <> Array.length factory.slots
+         && not (arity_ok factory (Array.length entry.inputs))
       || Array.exists (( = ) Required) factory.requirements ->
       Error "replacement factory must have the same operation and optional input arity"
   | Some entry ->
@@ -312,7 +330,10 @@ let add_node ?inputs ?factory node value =
           let id = Node.id input in
           if Id_map.mem id value.entries then Some id else None)
           |> Array.of_list in
-    if Array.length inputs <> arity then Error (Printf.sprintf
+    if not (match factory with
+        | None -> Array.length inputs = arity
+        | Some factory -> arity_ok factory (Array.length inputs))
+    then Error (Printf.sprintf
         "new node %S expects %d inputs, received %d slots"
         (Node.label node) arity (Array.length inputs))
     else
@@ -373,7 +394,7 @@ let depends_on value ~node_id ~candidate =
 
 let rebuild_if_connected entries (entry : entry) inputs =
   match entry.factory with
-  | Some factory when Array.exists (( = ) Optional) factory.requirements ->
+  | Some factory when has_optional factory ->
       (* Optional slots rebuild through the factory, which knows presence. *)
       let nodes = Array.map (fun input -> Option.bind input (fun id ->
           Option.map (fun (source : entry) -> source.node) (Id_map.find_opt id entries)))
@@ -471,13 +492,18 @@ let connect ~source ~consumer ~input_index value =
   else match Id_map.find_opt consumer value.entries with
     | None -> Error (Printf.sprintf "editable graph has no consumer node #%d" consumer)
     | Some (entry : entry) when input_index < 0
-        || input_index >= Array.length entry.inputs ->
+        || input_index > Array.length entry.inputs
+        || input_index = Array.length entry.inputs
+           && not (match entry.factory with
+               | Some f -> last_requirement f = Rest | None -> false) ->
         Error (Printf.sprintf "node %S has no input %d"
           (Node.label entry.node) input_index)
     | Some _ when depends_on value ~node_id:source ~candidate:consumer ->
         Error "connection would create a procedural cycle"
     | Some (entry : entry) ->
-        let inputs = Array.copy entry.inputs in
+        (* a rest slot grows by connecting one past its last input *)
+        let inputs = if input_index = Array.length entry.inputs
+          then Array.append entry.inputs [| None |] else Array.copy entry.inputs in
         inputs.(input_index) <- Some source;
         let node = rebuild_if_connected value.entries entry inputs in
         Ok { value with entries = Id_map.add consumer { entry with node; inputs }
@@ -550,6 +576,8 @@ let factory_slots ?operation ?slots ?(fields = []) ?(output_fields = [])
     invalid_arg "Edit_graph.factory_slots names must not be blank";
   if inputs = [] then invalid_arg
       "Edit_graph.factory_slots requires at least one input slot";
+  if List.exists (( = ) Rest) (List.filteri (fun i _ -> i < List.length inputs - 1) inputs)
+  then invalid_arg "Edit_graph.factory_slots: only the last input may be Rest";
   { key; operation; label; category; fields; output_fields;
     requirements = Array.of_list inputs;
     slots = slot_names (List.length inputs) slots; build }
@@ -563,14 +591,13 @@ let factory_arity (value : factory) = Array.length value.requirements
 let factory_inputs (value : factory) = Array.to_list value.requirements
 let factory_slot_names (value : factory) = Array.to_list value.slots
 let factory_ready (value : factory) inputs =
-  List.length inputs = Array.length value.requirements
-  && List.for_all2 (fun requirement input ->
-    requirement = Optional || Option.is_some input)
-      (Array.to_list value.requirements) inputs
+  arity_ok value (List.length inputs)
+  && List.for_all Fun.id (List.mapi (fun index input ->
+    requirement value index = Optional || Option.is_some input) inputs)
 
 let instantiate (value : factory) inputs =
   let arity = Array.length value.requirements in
-  if List.length inputs <> arity then Error (Printf.sprintf
+  if not (arity_ok value (List.length inputs)) then Error (Printf.sprintf
       "%s expects %d input%s" value.label arity
       (if arity = 1 then "" else "s"))
   else try Ok (value.build (List.map Option.some inputs)) with
@@ -586,16 +613,15 @@ let disconnected_placeholder () =
 
 let instantiate_optional (value : factory) inputs =
   let arity = Array.length value.requirements in
-  if List.length inputs <> arity then Error (Printf.sprintf
+  if not (arity_ok value (List.length inputs)) then Error (Printf.sprintf
       "%s expects %d input slot%s" value.label arity
       (if arity = 1 then "" else "s"))
   else
     let placeholder = lazy (disconnected_placeholder ()) in
-    let inputs = List.map2 (fun requirement input -> match requirement, input with
+    let inputs = List.mapi (fun index input -> match requirement value index, input with
       | _, Some node -> Some node
-      | Optional, None -> None
-      | Required, None -> Some (Lazy.force placeholder))
-        (Array.to_list value.requirements) inputs in
+      | (Optional | Rest), None -> None
+      | Required, None -> Some (Lazy.force placeholder)) inputs in
     try Ok (value.build inputs) with
     | Invalid_argument message -> Error message
     | Failure message -> Error message

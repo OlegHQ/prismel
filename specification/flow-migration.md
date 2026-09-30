@@ -312,13 +312,14 @@ milestone is recorded here with its date, what landed and its deviations.
 
 | Milestone | Status | Landed |
 |---|---|---|
-| W0 fixes and catalog prerequisites | partial | 2026-09-30 |
+| W0 fixes and catalog prerequisites | done | 2026-09-30 |
 | W1 language core (`flow`) | done | 2026-09-30 |
 | W2 lowering and cooking | done | 2026-09-30 |
 | W2b live `t` | partial | 2026-09-30 |
 | W3 document v4 and history | done | 2026-09-30 |
+| W4 graph pane zones | wip (part A) | 2026-09-30 |
 
-### W0 fixes and catalog prerequisites (2026-09-30, partial)
+### W0 fixes and catalog prerequisites (2026-09-30, done with W4 part A)
 
 Landed: `sop/merge` pads group membership across inputs (a group one input
 lacks is padded, bench in progress.md: `merge_pair` unchanged at 0.020 s,
@@ -327,14 +328,8 @@ all elements, a missing one is an error like other group-taking SOPs) and a
 vec3 colour with the v3 preset migration, `Manifest.version` in the text
 view, and the `:rotate` note.
 
-Deviation: the `Rest` slot for `sop/merge` was not built. `Edit_graph`
-entries, presets (`preset.ml` arity), `Prismel_editor.Doc`, `Flow_sop`
-(`Build`, `Catalog`, `Manifest`, `Compound_node`) and `Pxui_graph` all assume a
-slot count fixed by the factory, and existing documents hold three-input
-merges named a/b/c. A rest slot needs growing input arrays and the `+ input`
-row, so it moves to W4; W2 uses the plan's fallback (one `flow.merge_n` node
-per collected list, since `Sop.merge` takes a list). The manifest is unchanged
-for `sop/merge`.
+The `Rest` slot landed with W4 part A (below): `sop/merge` takes any number
+of inputs, W2's per-arity `flow.merge_n` factory is one `merge` factory.
 
 ### W1 language core (2026-09-30, done)
 
@@ -379,8 +374,8 @@ is 512 entries (measured in `progress.md`). `test_workspace_cook` cooks every
 fixture at 1 and 3 domains byte for byte; `tools/bench_workspace_lower.ml`
 records the timings (Bloom lower + cook 2.2 ms).
 
-Deviations: every `sop/merge` lowers to an internal `flow.merge_n` node (no
-Rest slot, see W0); `sop/curve` is a `flow.curve` node (points baked in W2, an encoded parameter driven live in W2b);
+Deviations: every `sop/merge` lowered to an internal `flow.merge_n` node until
+the `Rest` slot landed (W4 part A: one `merge` factory with a rest slot); `sop/curve` is a `flow.curve` node (points baked in W2, an encoded parameter driven live in W2b);
 bypass is resolved by `Eval` so `Edit.set_bypass` is not used yet; four
 fixtures changed so their merges have identical attribute schemas; cooking
 exposed four bugs (Eval `reduce` with an int seed, the `cap_group` default of
@@ -463,6 +458,17 @@ reading types from the IR; the study's `exceptIteration` and
 names a binding may not take. `test_editor_document` builds its fixtures in
 code (the JSON fixtures and rejection matrix are gone) and
 `test_prismel_editor` no longer restores a fixed camera from a preset (the native look-through framebuffer comparison went with it: a following camera does not reproduce it).
+
+### W4 graph pane projection, part A (2026-09-30, wip)
+
+Landed (UI-free): `Flow_sop.Projection` (`of_graph`, `find`, `zones`,
+`layout`, `place`, the row types and card constants), the `Rest` input
+requirement and `sop/merge` with one rest slot (`Edit_graph`, `Check.slot.rest`,
+the manifest, `Build`, `Lower`), `Flow.Workspace.op_signature`, `group_reader`
+and `group_writer`, `Flow_edit.free_names/pat_names/pat_key`, and
+`test/test_projection.ml`. Deviations, the Rest design, and exactly what part
+B (the `Pxui_graph` side) must do are in `specification/workspace/progress.md`
+(W0 `Rest` and W4 part A notes).
 
 ## Do not
 

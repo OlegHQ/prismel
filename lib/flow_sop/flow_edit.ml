@@ -754,3 +754,7 @@ let remap op p = match op with
       Some (List.filteri (fun i _ -> i <> k) p)
   | Delete_nodes { nodes } when List.exists (fun n -> has_prefix ~prefix:n p) nodes -> None
   | _ -> Some p
+
+let free_names e = dedup (free e)
+let pat_names = pat_names
+let pat_key = pat_key

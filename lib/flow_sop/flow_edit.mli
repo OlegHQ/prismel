@@ -104,3 +104,13 @@ val default_for : Flow.Ty.t -> string -> Flow.Syntax.t option
 val literals : Flow.Syntax.t -> (int list * Flow.Syntax.t) list
 (** Number and text leaves of an expression with their child paths, the
     candidates for macro holes. *)
+
+val free_names : Flow.Syntax.t -> string list
+(** Names a form reads and does not declare, first use first (field access
+    [a.b] counts as [a]).  Projection wiring uses it. *)
+
+val pat_names : Flow.Syntax.t -> string list
+(** The names a binding pattern declares. *)
+
+val pat_key : Flow.Syntax.t -> string
+(** A pattern's text, the last segment of its path ([a], [[a b]], [{:keys [a b]}]). *)

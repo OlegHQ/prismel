@@ -1075,7 +1075,7 @@ let check catalog forms =
     end
 
   and apply_kind _cx x (k : Check.kind) (args : arg list) : term * v =
-    let rest_kind = k.qualified = "sop/merge" in
+    let rest_kind = List.exists (fun (s : Check.slot) -> s.rest) k.slots in
     let short = Check.short k.qualified in
     let nslots = List.length k.slots in
     let seen = Hashtbl.create 8 in
@@ -1369,3 +1369,10 @@ let check catalog forms =
 let name_taken s =
   reserved s || Symbol.reserved s || Hashtbl.mem op_table s || Hashtbl.mem op_table ("value/" ^ s)
   || List.mem s type_names
+
+type op_signature = {
+  pos : (string * Ty.t) list; opt : (string * Ty.t) list;
+  rest : (string * Ty.t) option; kw : (string * Ty.t) list }
+
+let op_signature ctx name = Option.map (fun (o : op) ->
+  ({ pos = o.pos; opt = o.opt; rest = o.rest; kw = o.kw } : op_signature)) (find_op name ctx)

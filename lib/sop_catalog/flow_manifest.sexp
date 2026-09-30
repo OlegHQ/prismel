@@ -1,6 +1,6 @@
 (flow_manifest
   (version 202609)
-  (digest "cf374a50564e4d4d9bd45efc4cd001b1")
+  (digest "d110d31a11471d421b438ae03a5a7c23")
   (kinds
     (kind "sop/box"
       (key "box")
@@ -2377,7 +2377,7 @@
       (operation "merge")
       (label "Merge")
       (category "Copy")
-      (slots (slot "a" required) (slot "b" optional) (slot "c" optional))
+      (slots (slot "input" rest))
       (fields)
       (outputs (output "geo" geometry)))
     (kind "sop/compact_points"

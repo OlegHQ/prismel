@@ -125,8 +125,18 @@ let rec evaluate state env (term : Check.term) : built = match term.node with
            Option.iter (fun name -> state.instances <- Network.Int_map.add id
              Network.{definition = name; literals = String_map.empty}
              state.instances) instance;
+           (* a rest slot named n also takes n_2, n_3, ...; connect grows the node *)
+           let slot_index name = match List.find_index (( = ) name) slots with
+             | Some _ as found -> found
+             | None ->
+                 let last = if slots = [] then "" else List.nth slots (List.length slots - 1) ^ "_" in
+                 if last <> "" && List.mem Edit.Rest (Edit.factory_inputs factory)
+                    && String.starts_with ~prefix:last name then
+                   Option.map (fun k -> List.length slots - 2 + k) (int_of_string_opt
+                     (String.sub name (String.length last) (String.length name - String.length last)))
+                 else None in
            List.iter (fun (name, value) ->
-             match List.find_index (( = ) name) slots with
+             match slot_index name with
              | Some index -> (match value with
                  | Nil -> ()
                  | Source source ->

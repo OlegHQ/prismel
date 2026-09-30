@@ -9,12 +9,12 @@ Status: `todo` · `wip` · `done` (gate met) · `partial` (what is missing is na
 
 | Milestone | Status | Commit | Notes |
 |---|---|---|---|
-| W0 fixes & catalog prerequisites | partial | | Merge group padding, set_color group/vec3 colour (its v3 preset migration was deleted with v3 in W3), `Manifest.version` in text view and the `:rotate` note landed. Not done: the `Rest` slot for `sop/merge` (see notes). |
+| W0 fixes & catalog prerequisites | done | | Merge group padding, set_color group/vec3 colour (its v3 preset migration was deleted with v3 in W3), `Manifest.version` in text view and the `:rotate` note landed; the `Rest` slot landed with W4 part A (notes below). |
 | W1 language core (`flow`) | done | | `Flow.Syntax`, `Lisp`, `Ty`, `Macro`, `Workspace` (checker, typed IR, liveness, invariance) and `Eval` (values, loops, functions, records, HOFs, `ref`, the geometry plan, `static` / residual split, `?record`); the 12 fixtures check, print, round-trip and run; the check.cjs suite is ported (119 of 120, see the W1 part C notes). |
 | W2 lowering & cooking | done | | `Flow_sop.Lower.workspace`, `Pdk.Mesh_merge ?source_attribute`, session default 512, `test_workspace_cook`, `bench_workspace_lower`. Live parameters are only recorded (`Lower.pending`); drives are W2b. |
 | W2b live `t` | partial | | `Drive.Live`, `Lower` live drives, `flow.curve` text-encoded points, volatile session slots, `Async_cook.await`, `Cook ?await`, status text, tests and bench (notes below). Gaps: UI text (W4/W5), `Frame` cannot tell a fixed clock. The editor is fed by a workspace since W3. |
 | W3 document v4 + history | done | | `Flow_edit`, `Workspace_doc`, `Layout_by_path`, s-expression presets, the editor opens a workspace and recooks live `t` (notes below). No older presets. Gaps: only workspace documents save; `Layout_by_path` is not read by the pane until W4. |
-| W4 graph pane zones | todo | | |
+| W4 graph pane zones | wip | | Part A (UI-free) done: `Flow_sop.Projection` (scopes, zones, rows, chips, layout), the `Rest` slot, `test_projection`. Part B (Pxui_graph drawing, selector, theme tokens, requests) todo, see the W4 notes. |
 | W5 probes & footers | todo | | |
 | W6 viewport provenance | todo | | |
 | W7 editable text | todo | | |
@@ -28,14 +28,25 @@ Status: `todo` · `wip` · `done` (gate met) · `partial` (what is missing is na
 
 - The build needs dune >= 3.21 (`Pdk` re-exports private `Pdk_mesh` modules);
   the repo-local switch has 3.24.2.
-- W0 deviation: the `Rest` slot was not built. `Edit_graph` entries, presets
-  (`preset.ml` arity), `Prismel_editor.Doc`, `Flow_sop` (`Build`, `Catalog`,
-  `Manifest`, `Compound_node`) and `Pxui_graph` all assume a slot count fixed
-  by the factory, and existing documents hold three-input merges named
-  a/b/c. A rest slot needs growing input arrays plus the `+ input` row, so it
-  moves to W4; W2 uses the plan's `ponytail:` fallback (one `flow.merge_n`
-  node per collected list, since `Sop.merge` takes a list). `sop/merge` keeps
-  its three slots and the manifest is unchanged for it.
+- W0 `Rest` slot (landed in W4 part A). The old obstacles were fixed arity
+  persisted in documents; presets are workspace text now, so `Rest` is a
+  plain factory requirement: `Edit_graph.input_requirement = Required |
+  Optional | Rest`, only last, and an entry then holds any number of inputs
+  at least the slot count (the first rest input required, the rest
+  optional; extras are named `input_2`, `input_3`, ... by `node_slot_names`;
+  `connect` one past the last input appends; a disconnected extra is
+  skipped; `factory_ready`, `instantiate*`, `add_node`, `rebind_factory`,
+  compile and rebuild honour it). `Check.slot` has `rest`, the manifest says
+  `(slot "input" rest)`, `sop/merge` declares one rest slot and calls
+  `Sop.merge` directly, and the workspace checker's `sop/merge` special case
+  is now "has a rest slot". `Check.kind_call` and `Build` accept
+  `:input_2` and positional overflow for a rest slot so the `[%flow]`
+  text round-trips (test sample with four inputs). `Lower` builds one
+  `merge` factory (key `merge`, one rest slot) instead of `flow.merge_n`;
+  it stays a local factory only because it writes `__flow_src` through
+  `Sop.merge ~source_attribute`, which the editor's merge must not. Not done:
+  the legacy flat pane draws a merge with its current inputs only (no
+  `+ input` socket); the projection pane edits the text (`Pos n`).
 - W0 merge bench (`PRISMEL_PDK_OPS_FILTER=merge_pair PRISMEL_PDK_OPS_REPEATS=7
   dune exec tools/bench_pdk_ops.exe`, 1002001-point grid pair, 8 domains,
   Apple Silicon, median s): `merge_pair` before 0.0211 / 0.0205, after 0.0197 /
@@ -208,3 +219,41 @@ Status: `todo` · `wip` · `done` (gate met) · `partial` (what is missing is na
   cases and the fixed-camera preset checks of `test_prismel_editor` (including the
   native look-through framebuffer comparison) are gone with the format. Not ported from the study: `exceptIteration`, `set_layout_ratio`
   (W10). Details: `flow-migration.md` "W3".
+- W4 part A notes. `Flow_sop.Projection.of_graph catalog workspace name` (a
+  graph, or `"def:name"`) returns a `scope` (`path`, `inputs`, `nodes`,
+  `result`). Deviations from the plan's types: it takes the catalog (row
+  labels and defaults of a catalog kind are not in the IR); `row.default`
+  is text (`string option`; graph defaults are expressions); rows also carry
+  `chip` (`No_value | Const | Name | Inline {glyph; text}`); `result` is
+  `Link name | Node path | Literal syntax` (the synthetic `@result` node is
+  in `nodes`, last); `node` has `ty`, `binds`, `live`, `invariant`,
+  `synthetic`. Structure and keys come from the authored syntax, types,
+  liveness and invariance from the checker IR. Only a *bound* loop, `let*`
+  or `fn` is a zone; an inline one is a chip until unfolded. Rows of a
+  built-in operator come from the new `Flow.Workspace.op_signature`; group
+  readers/writers from `Workspace.group_reader/writer`; the Flow_edit
+  helpers `free_names`, `pat_names`, `pat_key` are exported. Layout:
+  `Projection.layout ?at ?collapsed scope` and `place`, the study's
+  constants in logical points. Not ported: macro lens sizes (`macroLens`),
+  the ghost/probe values (W5). `test/test_projection.ml`: 12 fixtures of
+  snapshot counts, row and chip checks on Bloom, Rosette, Kit and Facade,
+  Orrery liveness, Sunflower and Tree invariance, layout (no overlaps, zones
+  contain children, deterministic, `at`, collapsed).
+- What W4 part B must do. Draw `Projection.layout (Projection.of_graph
+  catalog workspace graph) ~at ~collapsed` (with `Layout_by_path.at` and
+  `collapsed` as the closures): `place` gives absolute boxes, a zone's
+  children start at `x + rail_width + 14`, `y + rail_top`. `Pxui_graph` needs
+  a projection entry point (a new `Pxui_graph.set_scope` beside the flat
+  network), zone backgrounds in `paint_background` with new
+  `Pxui.Theme` tokens (`zone_for`, `zone_fold`, `zone_sum`, `zone_fn`; dashed
+  hollow for `Fn`), rail and yield rows with the existing row code, the
+  iteration selector (`Ui.box`, two buttons, a track, a readout; `Probe_set`,
+  view state `Core.probes`), chips (glyphs on `Inline`, scrubbable `Const`),
+  output rows from `node.outputs`, stacked and diamond sockets in
+  `Theme.ports`, `Zone_collapsed`, and mapping every gesture to
+  `Syntax_edit (Flow_edit.op)` with `row.key`: a wire on a row is
+  `Connect {node = path; key; src; iter}`, a scrub `Set_arg`, the `Add` row
+  `Set_arg`/`Connect` at its key, delete `Disconnect`, the ƒ button
+  `Fold_into`/`Unfold`. The `↥` (invariant) and `◷` (live) marks come from
+  `node.invariant` / `node.live`. `Doc.syntax_edit` already reduces the
+  edit; the projection is rebuilt from `Document.workspace` after each.

@@ -13,7 +13,7 @@ let of_factories ~version factories =
           Error (Flow.Diagnostic.error ~code:"E_CATALOG"
             ("Slot signature mismatch for " ^ key))
         else let slots = List.map2 (fun name requirement ->
-          Flow.Check.{name; required = requirement = Required})
+          Flow.Check.{name; required = requirement <> Optional; rest = requirement = Rest})
           names requirements in
         Hashtbl.add seen key ();
         Result.bind (Port.parameters (factory_fields entry))

@@ -414,6 +414,7 @@ let run () =
       |> Result.get_ok in
     check (printed.text = reprinted.text) "Flow builder lost a round trip") [
     "(graph empty :context sop nil)";
+    "(graph demo (let* [a (sop/box) b (sop/box) c (sop/box) d (sop/box) m (sop/merge a b c d)] m))";
     "(graph demo (let* [v (value/value :v 2) sum (+ v 1) cube (sop/box :size [sum 1 1])] cube))";
     "(graph demo (let* [cube (sop/box :size [1 (sin t) 1])] cube))";
     "(defgraph lift :context sop [(input :geometry)] (sop/transform input))\n(graph demo (let* [b (sop/box) a (user/lift b)] a))";

@@ -59,7 +59,8 @@ let sop factory =
   let module Edit = Procedural.Edit_graph in
   let slots = List.map2 (fun name requirement ->
     group "slot" [quote name; (match requirement with
-      | Edit.Required -> "required" | Edit.Optional -> "optional")])
+      | Edit.Required -> "required" | Edit.Optional -> "optional"
+      | Edit.Rest -> "rest")])
       (Edit.factory_slot_names factory) (Edit.factory_inputs factory) in
   entry ~qualified:("sop/" ^ Edit.factory_key factory)
     ~key:(Edit.factory_key factory) ~operation:(Edit.factory_operation factory)

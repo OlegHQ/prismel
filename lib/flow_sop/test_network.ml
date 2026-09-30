@@ -116,7 +116,7 @@ let () =
   let merged = Procedural.Sop.merge ~label:"t" [a; b] in
   let merge_kind = Flow.Check.{qualified = "sop/merge"; aliases = [];
     context = Flow.Context.Sop;
-    slots = [{name = "in0"; required = true}; {name = "in1"; required = true}];
+    slots = [{name = "in0"; required = true; rest = false}; {name = "in1"; required = true; rest = false}];
     parameters = []; outputs = ["geo", Flow.Port_type.Geometry]} in
   let catalog_with_merge = Flow.Check.{catalog with kinds = merge_kind :: catalog.kinds} in
   let printed_merge = ok (Print.network ~name:"demo" ~context:Flow.Context.Sop

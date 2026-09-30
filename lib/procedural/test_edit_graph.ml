@@ -139,6 +139,34 @@ let run () =
   check (Node.id without_target_again = Node.id loose_match
       && List.length (Node.inputs without_target_again) = 1)
     "disconnecting an optional slot did not restore the unary SOP";
+  (* a rest slot grows by connecting one past its last input *)
+  let rest_factory = Edit_graph.factory_slots ~key:"merge" ~label:"Merge"
+      ~slots:["input"] ~category:["Test"] ~inputs:[Edit_graph.Rest]
+      (fun inputs -> Sop.merge (List.filter_map Fun.id inputs)) in
+  check (Result.is_error (Edit_graph.instantiate_optional rest_factory [])
+      && Result.is_ok (Edit_graph.instantiate_optional rest_factory [Some source; None; Some middle])
+      && (try ignore (Edit_graph.factory_slots ~key:"bad" ~label:"Bad" ~category:["T"]
+            ~inputs:[Edit_graph.Rest; Required] (fun _ -> source)); false
+          with Invalid_argument _ -> true))
+    "rest slot arity or position was not validated";
+  let rest_node = Edit_graph.instantiate_optional rest_factory [Some source] |> get in
+  let rest_document = Edit_graph.add_node ~factory:rest_factory ~inputs:[|None|]
+      rest_node document |> get in
+  let grow index source_node d = Edit_graph.connect ~source:(Node.id source_node)
+      ~consumer:(Node.id rest_node) ~input_index:index d in
+  let rest_document = grow 0 source rest_document |> get |> grow 1 middle |> get
+    |> grow 2 source |> get in
+  check (Edit_graph.node_slot_names rest_document ~node_id:(Node.id rest_node)
+      = Some ["input"; "input_2"; "input_3"]
+      && Result.is_error (grow 4 source rest_document)
+      && List.length (Node.inputs (Edit_graph.compile_node rest_document
+           ~node_id:(Node.id rest_node) |> get)) = 3)
+    "rest slot did not grow, name its extras or rebuild through the factory";
+  let rest_document = Edit_graph.disconnect ~consumer:(Node.id rest_node)
+      ~input_index:1 rest_document |> get in
+  check (List.length (Node.inputs (Edit_graph.compile_node rest_document
+      ~node_id:(Node.id rest_node) |> get)) = 2)
+    "a disconnected rest input was not skipped";
   let optional_factory slots = Edit_graph.factory_slots ~key:"optional_null"
     ~operation:"null" ~slots ~label:"Optional Null"
     ~category:["Test"]

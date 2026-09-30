@@ -608,7 +608,7 @@ let local_kind declaration =
   Flow.Check.{qualified = "user/" ^ key; aliases = [];
     context = Flow.Context.Sop;
     slots = List.mapi (fun index name ->
-      {Flow.Check.name; required = not (List.mem index optional)}) slots;
+      {Flow.Check.name; required = not (List.mem index optional); rest = false}) slots;
     parameters; outputs = ["geo", Flow.Port_type.Geometry]}
 
 let local_registered = function

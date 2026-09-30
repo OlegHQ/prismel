@@ -110,3 +110,22 @@ val check : Check.catalog -> Syntax.t list -> t option * Diagnostic.t list
 val name_taken : string -> bool
 (** A name a binding may not take: a special form, built-in operator or type
     name.  Editors use it to pick fresh names. *)
+
+type op_signature = {
+  pos : (string * Ty.t) list;
+  opt : (string * Ty.t) list;
+  rest : (string * Ty.t) option;
+  kw : (string * Ty.t) list;
+}
+(** Positional inputs, optional positional inputs, the repeating input and
+    keyword inputs of a built-in operator. *)
+
+val op_signature : context -> string -> op_signature option
+(** The built-in operator a call head names in a graph of this context
+    ([sin], [value/rand], [scene/object], ...); [None] for kinds and
+    definitions. *)
+
+val group_reader : Check.parameter -> bool
+val group_writer : Check.kind -> Check.parameter -> bool
+(** Which catalog parameters read or write a primitive group (inferred:
+    the manifest has no markers). *)

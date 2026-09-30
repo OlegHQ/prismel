@@ -7,7 +7,11 @@
 
 type t
 type fragment
-type input_requirement = Required | Optional
+type input_requirement = Required | Optional | Rest
+(** [Rest] is only valid last: the slot repeats, so a node holds any number of
+    inputs at least the slot count.  The first rest input is required, the
+    others optional; extras are named [name_2], [name_3], ... (see
+    {!node_slot_names}).  [connect] one past the last input appends one. *)
 type factory
 
 type connection = {

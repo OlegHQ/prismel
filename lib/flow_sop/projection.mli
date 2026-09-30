@@ -1,0 +1,147 @@
+(** The graph pane's view of a checked workspace (plan W4): nodes, zones,
+    rows, chips and their layout, with no drawing.  A port of the study's
+    [buildView] / [buildScope] / [mkNode] / [argRows] (e1.js) and
+    [layoutScope] / [nodeSize] / [place] (e2.js).
+
+    Identity is the {!Flow.Workspace.path} of a binding, so a selection, a
+    probe or a layout position survives every edit that keeps the path.  Every
+    row carries the {!Flow_edit.arg_key} of the input it shows: a wire dropped
+    on a row is [Flow_edit.Connect { node; key; ... }], a scrubbed number is
+    [Flow_edit.Set_arg], the [Add] row's key is where the new input goes.
+
+    Structure comes from the authored syntax (the keys and the notes live
+    there); types, liveness and loop invariance come from the checker.
+    ponytail: only bound loops, [let*] scopes and [fn]s are zones; an inline
+    one is a chip until it is unfolded ({!Flow_edit.Unfold}). *)
+
+type path = Flow.Workspace.path
+
+type chip =
+  | No_value  (** nothing written: the row shows its default *)
+  | Const  (** a number, text, flag or vector: the row's [expr] is scrubbable *)
+  | Name of string  (** a wire from a binding, loop variable or input ([a], [a.field]) *)
+  | Inline of { glyph : string; text : string }
+      (** a nested call [ƒ], loop [for] / [Σ] / [⟲], function [λ], record
+          [{}] or macro call [◆], with its flat Lisp text *)
+
+type row_kind =
+  | Arg
+  | Rest  (** one item of a repeating input *)
+  | Add  (** the [+ input] / [+ field] row; its key is where the new one goes *)
+  | Hole  (** a macro parameter *)
+  | Binder  (** a macro parameter the template uses as a loop or scope name *)
+  | Group_reader
+  | Group_writer
+
+type row = {
+  label : string;
+  key : Flow_edit.arg_key;
+  ty : Flow.Ty.t option;
+  expr : Flow.Syntax.t option;  (** what is written there *)
+  chip : chip;
+  default : string option;  (** the default a missing argument takes, as text *)
+  socket : bool;  (** a wire can land here (literal-only text and choices: no) *)
+  kind : row_kind;
+}
+
+type zone_kind = For | Fold | Scan | Sum | Let | Fn
+type role = Var | Acc | Param | Capture
+
+type rail_row = {
+  name : string;  (** the pattern's text *)
+  names : string list;  (** what it declares *)
+  role : role;
+  ty : Flow.Ty.t option;
+  expr : Flow.Syntax.t option;  (** the collection or initial value; [None] for [Param] and [Capture] *)
+  key : Flow_edit.arg_key option;  (** [Bv] into the zone form; [None] for [Param] and [Capture] *)
+}
+
+type input = { path : path; name : string; ty : Flow.Ty.t; default : Flow.Syntax.t option }
+
+type node = {
+  path : path;
+  name : string;  (** the binding's text; [@result] for a synthetic result node *)
+  binds : string list;  (** the names it declares: [name], or a pattern's names *)
+  head : string;  (** [record], [number], [link], [vector], a call head, a zone keyword *)
+  rows : row list;  (** empty for a zone *)
+  outputs : (string * Flow.Ty.t) list;  (** record fields, or the names of a pattern *)
+  ty : Flow.Ty.t;
+  note : string option;
+  bypass : bool;
+  macro : string option;  (** the macro this node calls *)
+  live : bool;  (** depends on [t] (◷) *)
+  invariant : bool;  (** the same each iteration of its loop (↥) *)
+  synthetic : bool;
+  zone : zone option;
+}
+
+and zone = {
+  kind : zone_kind;
+  rail : rail_row list;
+  scope : scope;
+  yield_label : string;  (** collect, next, add, result, return *)
+}
+
+and scope = {
+  path : path;
+  inputs : input list;  (** graph inputs; empty below the root *)
+  nodes : node list;  (** in authored order, the synthetic result last *)
+  result : result;
+}
+
+and result =
+  | Link of string
+  | Node of path  (** the synthetic [@result] node *)
+  | Literal of Flow.Syntax.t
+
+val of_graph : Flow.Check.catalog -> Flow.Workspace.t -> string -> scope
+(** The root scope of a graph or, for ["def:name"] or a [defn] name, of a
+    definition.  Raises [Invalid_argument] when there is none. *)
+
+val find : scope -> path -> node option
+(** The node at a path, searching zones. *)
+
+val zones : scope -> node list
+(** Every zone below the scope, outer first. *)
+
+(** {2 Layout}  logical points on the 24-point row grid *)
+
+type item = Input of input | Item of node | Return
+
+type placed = {
+  item : item;
+  path : path;
+  x : float;
+  y : float;  (** relative to the scope's origin *)
+  w : float;
+  h : float;
+  collapsed : bool;
+  inner : layout option;  (** an expanded zone's own layout *)
+}
+
+and layout = { placed : placed list; w : float; h : float }
+
+val layout :
+  ?at:(path -> (float * float) option) -> ?collapsed:(path -> bool) ->
+  scope -> layout
+(** Columns by dependency depth, inputs first and the return last; a node
+    stacks below its column's previous one.  [at] overrides a node's position
+    ([Layout_by_path.at]), [collapsed] folds a zone to its card.  A zone's size
+    comes from its inner layout, recursively.  ponytail: no crossing
+    minimisation (like [automatic_layout]). *)
+
+val place : layout -> (path * (float * float * float * float)) list
+(** Absolute [(x, y, w, h)] of every placed item, zones' children included,
+    outer first. *)
+
+val rail_top : node -> float
+(** Offset of a zone's first rail row from the zone's top. *)
+
+val row_height : float
+val head_height : float
+val foot_height : float
+val node_width : float
+val rail_width : float
+val yield_width : float
+val strip_height : float
+(** The constants of the study's card geometry (24-point rows). *)

@@ -2,7 +2,7 @@ type parameter = {
   name : string; label : string; ty : Port_type.t option;
   fields : (string * Param.kind_view * Param.value) list;
 }
-type slot = { name : string; required : bool }
+type slot = { name : string; required : bool; rest : bool }
 type kind = {
   qualified : string; aliases : string list; context : Context.t;
   slots : slot list; parameters : parameter list;
@@ -183,9 +183,11 @@ let catalog_of_manifest source =
             let slots = tagged "slots" (get "slots") |> List.map (fun slot ->
               match tagged "slot" slot with
               | [name; required] ->
-                  {name = string name; required =
-                    (match word required with "required" -> true
-                     | "optional" -> false | _ -> bad required "Unknown slot requirement")}
+                  (match word required with
+                    | "required" -> {name = string name; required = true; rest = false}
+                    | "optional" -> {name = string name; required = false; rest = false}
+                    | "rest" -> {name = string name; required = true; rest = true}
+                    | _ -> bad required "Unknown slot requirement")
               | _ -> bad slot "Malformed slot in Flow manifest") in
             let fields = List.map field (tagged "fields" (get "fields")) in
             let outputs = tagged "outputs" (get "outputs") |> List.map (fun output ->
@@ -236,7 +238,7 @@ let kinds state = state.catalog.kinds @ builtin_kinds @
     { qualified = "user/" ^ graph.name; aliases = [];
       context = graph.context;
       slots = List.filter_map (fun (name, ty, default) ->
-        if ty = Port_type.Geometry then Some {name; required = default = None}
+        if ty = Port_type.Geometry then Some {name; required = default = None; rest = false}
         else None) definition.inputs;
       parameters = List.filter_map (fun (name, ty, _) ->
         if ty = Port_type.Geometry then None else Some
@@ -528,6 +530,14 @@ and math state context env head op args =
             arguments = ("op", term (Literal (Param.Choice_value op_name))) :: arguments;
             bypass = false})))
 
+(* a rest slot named [n] also answers to [n_2], [n_3], ... *)
+and rest_name n extra = if extra = 0 then n else n ^ "_" ^ string_of_int (extra + 1)
+
+and is_slot (kind : kind) name = List.exists (fun (slot : slot) ->
+    slot.name = name || slot.rest && String.starts_with ~prefix:(slot.name ^ "_") name
+      && int_of_string_opt (String.sub name (String.length slot.name + 1)
+        (String.length name - String.length slot.name - 1)) <> None) kind.slots
+
 and kind_call state context env _form (kind : kind) args =
   let before = state.diagnostics in
   let slots = Array.of_list kind.slots in
@@ -543,7 +553,7 @@ and kind_call state context env _form (kind : kind) args =
            | [] -> error state item "E_MISSING_VALUE" (":" ^ name ^ " has no value")
            | value_form :: tail ->
                let descriptor =
-                 if List.exists (fun (slot : slot) -> slot.name = name) kind.slots then
+                 if is_slot kind name then
                    Some (`Slot name)
                  else Option.map (fun p -> `Parameter p)
                    (List.find_opt (fun (p : parameter) -> p.name = name) kind.parameters) in
@@ -579,12 +589,16 @@ and kind_call state context env _form (kind : kind) args =
           if !keyword_seen then
             error state item "E_POSITIONAL_AFTER_KEYWORD"
               "Geometry inputs come before keyword arguments";
-          if !positional >= Array.length slots then
+          let repeats = match List.rev kind.slots with
+            | { rest = true; _ } :: _ -> true | _ -> false in
+          if !positional >= Array.length slots && not repeats then
             error state item "E_EXTRA_POSITIONAL"
               (Printf.sprintf "%s takes %d geometry inputs; this one is extra"
                 (short kind.qualified) (Array.length slots))
           else (
-            let slot = slots.(!positional).name in
+            let last = Array.length slots - 1 in
+            let slot = if !positional <= last then slots.(!positional).name
+              else rest_name slots.(last).name (!positional - last) in
             Hashtbl.replace seen slot ();
             let checked = expression state context env item in
             if checked = None then failed := true;
