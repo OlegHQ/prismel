@@ -234,6 +234,11 @@ their probes that `Cook.update ~probes` counts. A selected node drives
 clicks are `Probe_set`); keep that function free of model mutation like every
 other Ui.frame builder.
 
+Pane gestures (W13): `Scope.Frames_set` reduces to `Doc.layout_edit` on `frames` (history label "Frame");
+`Scope.editing` joins the host's `text_focus`, so leader keys stay out of the pane's name, default and frame-title
+fields. Keys: F2 rename or input default, Shift-G frame, Alt-Up/Down move a list item; a drag on empty canvas is a
+marquee. `sketches/flow_workspace` scripts them with `FLOW_SCRIPT`.
+
 ## Viewport provenance (W6)
 
 `Pick` reads `__flow_src` tags off the displayed geometry, casts a CPU ray
@@ -275,6 +280,9 @@ list and lisp panels are the graph pane's), and never match a `column` or a fixe
   `Close_panel`, `Set_panel_kind` (the header menu).  They address a panel by its binding
   (`Document.origins`).  A panel made by a `for` is `Loop` (its header says so and the status
   names the loop); an inline one is not editable.  Add the op to `Flow_edit`, not to `Core`.
+- Panel keys: `Space o` then `h` `v` (split), `x` (close), `g` `l` `t` `i` `u` `m` `w` (retype to graph,
+  list, text, inspector, outline, timeline, viewport) act on the focused panel; `Core.update` turns them
+  into the same `Chrome` intents as the header menu (`Leader.Panel_*`), so they share its refusals.
 - Recovery (register E1): "Restore layout" (`Space z`) is host state outside the tree
   (`Core.shell.restored`: the default tree until the editor graph's tree changes or the key
   is pressed again).  A refused edit keeps the previous document and layout; an editor graph

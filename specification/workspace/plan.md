@@ -1,6 +1,6 @@
 # Workspace migration plan
 
-**Status: implemented (W0-W12), 30 September 2026. Deviations are summarised in
+**Status: implemented (W0-W12, gaps closed in W13), 30 September 2026. Deviations are summarised in
 `specification/flow-migration.md` "Workspace" and `progress.md`, which also lists what is
 not fully done.** Original text: plan of record for review, 30 September 2026. This turns the workspace
 proposal ([iteration.md](iteration.md), [ambiguities.md](ambiguities.md),

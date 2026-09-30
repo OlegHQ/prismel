@@ -562,6 +562,12 @@ context (§7.11).
 | `?` | `guide.toggle` (global) | guide strip and tooltips on or off | M2 |
 | `Space k` | `guide.keys` (leader) | key sheet | M2 |
 | `Space l` | `graph.projection` (leader, exists) | graph → list → text → graph | M6 (two-way until then) |
+| `F2` | `scope.rename` | rename the selected node, or edit the default of a selected graph input (double-click does the same) | W13 |
+| `⇧G` | `scope.frame` | titled frame around the selected nodes (corner resizes, title double-click renames, cross deletes) | W13 |
+| `⌥↑` / `⌥↓` | `scope.item-up` / `scope.item-down` | move the hovered list item | W13 |
+| drag on empty canvas, `⇧` adds | – | marquee selection of one scope's nodes | W13 |
+| `Space o` `h` `v` `x` | `panel.split-right/below`, `panel.close` | split (side by side, stacked) or close the focused panel | W13 |
+| `Space o` `g` `l` `t` `i` `u` `m` `w` | `panel.graph/list/lisp/inspector/outline/timeline/viewport` | retype the focused panel | W13 |
 | `⌘C/V/X/D`, `⌘Z`, `⇧⌘Z` | exist | unchanged | – |
 
 `Space a` (categorised add menu), `Space f` (frame displayed), `Space /`
@@ -1120,8 +1126,8 @@ World and settings as contexts (W10), macros (W9), loops, records and functions
 (W1, W8). Still deferred: fields and the diamond socket as data; zoom-to-enter;
 depth rings; compound libraries as packages; content-addressed cache sharing
 between instances; `defgraph` as OCaml functions. Deferred by the workspace plan
-and listed in `workspace/plan.md` §4 and `workspace/progress.md` (gaps): marquee
-selection, panel keys, procedural macros, a per-node cache ring for scrubbing.
+and listed in `workspace/plan.md` §4 and `workspace/progress.md` (gaps): procedural macros,
+a per-node cache ring for scrubbing. (Marquee selection and panel keys were built in W13.)
 
 ## 18. Decisions
 

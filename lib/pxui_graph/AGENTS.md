@@ -84,3 +84,10 @@ in the tile: step buttons choose the printed step, "Replace call with expansion"
 (`Projection.bypassable`) has a `B` flag on its title, `Syntax_edit (Toggle_bypass ...)`
 like the `b` key. `m` is `Macro_requested paths`: the host owns the dialog
 (`Pxui_shell.Prompt.macro`) and answers with one `Make_macro`.
+
+W13: every W3 gesture the pane can make is a request. Text entry over a tile or frame is `Ui.value_field ~edit:true`
+(Enter commits, Escape or a click away cancels; `Scope.editing` tells the host to keep its keys out), never a second
+text path. Marquee is the canvas's own drag (`Marquee` in the drag state, one scope's nodes, Shift adds); frames are
+`Frames_set` of a scope's whole list, their boxes are built after the tiles because a zone's tile covers its body,
+and their resize is a `Sizing` drag applied on release. Keep new gestures as tests in `test_pxui_graph.ml`
+(`scope_gestures`), which runs in a 3,000 x 2,000 frame so the zoom stays 1 and every field is built.

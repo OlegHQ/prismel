@@ -1121,3 +1121,13 @@ Also fixed: the `test_workspace_shell` "status names the loop" race (the editor 
 for a live workspace and reported `cook N ms · skipping frames` instead of the notice; `settle` now
 waits that state out too). The remaining audit, per milestone, is the table in
 `specification/workspace/progress.md`.
+
+### W13 audit gaps (2026-09-30, done)
+
+The W12 audit's gaps that the plan's text required were closed (details, tests and numbers in
+`specification/workspace/progress.md` "W13"): the graph pane makes every W3 gesture (rename, input default,
+list item move, frames as `Frames_set` layout edits, marquee selection); `Space o h/v/x/g/l/t/i/u/m/w` split,
+close and retype the focused panel; a binding apply's checker error carries a line and error marks clear on
+typing; instanced pieces are picked per instance; residuals compile to closures (Wave 7.0 to 1.8 ms p50,
+bit-identical); a `.plisp` that differs from the built text reloads on the first poll and `(layout ...)` /
+`(settings ...)` forms in it are honoured. `Space o` had been the removed graph-cycling key.
