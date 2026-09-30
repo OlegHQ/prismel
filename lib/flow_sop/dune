@@ -1,15 +1,5 @@
 (library
  (name flow_sop)
  (public_name prismel.flow_sop)
- (modules port drive exposure instance_path curve network compound_node group compile value_lane catalog manifest lower flow_edit projection probe)
+ (modules port instance_path curve network value_lane catalog manifest lower flow_edit projection probe)
  (libraries flow param procedural))
-
-(test
- (name test_network)
- (modules test_network)
- (libraries flow_sop flow param procedural pdk))
-
-(test
- (name test_group)
- (modules test_group)
- (libraries flow_sop flow procedural pdk))

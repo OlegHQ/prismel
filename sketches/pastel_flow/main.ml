@@ -2,7 +2,7 @@ open Prismel
 
 let preset = ref "waves"
 let export_dir = ref ""
-let settings = ref "_out/pastel-flow.json"
+let settings = ref "_out/pastel-flow.plisp"
 let size = ref 1000
 let domains = ref 1
 let benchmark = ref false

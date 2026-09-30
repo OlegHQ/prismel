@@ -232,9 +232,9 @@ let part_preset () =
     let corrupt = Preset.path ~directory ~name:"corrupt" in
     Out_channel.with_open_text corrupt (fun c -> output_string c "(workspace");
     check (Result.is_error (Preset.load ~path:corrupt ~factories ~settings:Editor_document.Settings.none)) "corrupt text is an error";
-    check (Result.is_error (Preset.save ~directory ~name:"x" ~doc:loaded.doc ~view:(`Assoc [ "zoom", `Float infinity ])))
+    check (Result.is_error (Preset.save ~directory ~name:"x" ~doc:loaded.doc ~view:Flow.Syntax.(make (Map [ make (Kw "zoom"); make (Num "inf") ]))))
       "a nonfinite view is refused";
-    check (Result.is_error (Preset.save ~directory ~name:"" ~doc:loaded.doc ~view:`Null)) "an empty name is refused";
+    check (Result.is_error (Preset.save ~directory ~name:"" ~doc:loaded.doc ~view:(Flow.Syntax.make (Flow.Syntax.Map [])))) "an empty name is refused";
     E3.close e)
 
 (* the view round trips through s-expressions *)
@@ -245,11 +245,12 @@ let part_view () =
     Unix.rmdir directory) (fun () ->
     let doc = match Editor_document.Contexts.of_workspace ~factories (of_text still) with
       | Ok d -> d | Error d -> fail (Flow.Diagnostic.to_string d) in
-    let view = `Assoc [ "eye", `List [ `Float 1.5; `Float (-2.); `Int 3 ]; "look_through", `Bool true;
-      "name", `String "a \"b\""; "none", `Null ] in
+    let view = match Flow.Syntax.parse "{:eye [1.5 -2.0 3] :look_through true :name \"a \\\"b\\\"\"}" with
+      | Ok [ v ] -> v | _ -> fail "view text" in
     let path = Preset.save ~directory ~name:"v" ~doc ~view |> Result.get_ok in
     let loaded = Preset.load ~path ~factories ~settings:Editor_document.Settings.none |> Result.get_ok in
-    check (loaded.view = view) "view round trip")
+    let print v = fst (Flow.Lisp.print [ v ]) in
+    check (print loaded.view = print view) "view round trip")
 
 
 (* W4: the editor's layout gestures edit the layout keys only. *)
@@ -341,7 +342,7 @@ let part_contexts () =
   Fun.protect ~finally:(fun () ->
     Array.iter (fun f -> Sys.remove (Filename.concat directory f)) (Sys.readdir directory);
     Unix.rmdir directory) (fun () ->
-    let path = Preset.save ~directory ~name:"bloom" ~doc ~view:`Null |> Result.get_ok in
+    let path = Preset.save ~directory ~name:"bloom" ~doc ~view:(Flow.Syntax.make (Flow.Syntax.Map [])) |> Result.get_ok in
     let text = In_channel.with_open_bin path In_channel.input_all in
     check (not (has text "(settings :")) "settings owned by a graph are not written a second time";
     let loaded = Preset.load ~path ~factories ~settings:Editor_document.Settings.none |> Result.get_ok in

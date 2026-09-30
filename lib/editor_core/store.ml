@@ -1,7 +1,3 @@
-type kind = Settings
-
-let kind_name = function Settings -> "settings"
-
 let rec ensure_directory path =
   if path <> "" && path <> "." && not (Sys.file_exists path) then (
     let parent = Filename.dirname path in
@@ -29,175 +25,91 @@ let read_text ~filename =
   try Ok (In_channel.with_open_bin filename In_channel.input_all)
   with Sys_error message -> Error message
 
-let save ~filename ~kind ~sketch ~sections =
-  write_text ~filename (Yojson.Safe.to_string (`Assoc [
-    "prismel", `Int 1; "kind", `String (kind_name kind);
-    "sketch", `String sketch; "sections", `Assoc sections ]))
+(* ---- the forms stored beside the documents: all s-expressions ---- *)
+module S = Flow.Syntax
 
-let load ~filename ~kind =
-  try match Yojson.Safe.from_file filename with
-    | `Assoc fields ->
-        let field name = List.assoc_opt name fields in
-        (match field "prismel", field "kind", field "sketch", field "sections" with
-         | Some (`Int 1), Some (`String saved_kind), Some (`String sketch),
-           Some (`Assoc sections) when saved_kind = kind_name kind ->
-             Ok (sketch, sections)
-         | _ -> Error "unsupported Prismel store envelope")
-    | _ -> Error "Prismel store envelope is not an object"
-  with Sys_error message -> Error message
-     | Yojson.Json_error message -> Error message
+let make = S.make
+let kw name = make (S.Kw name)
+let number x =
+  let text = List.find_map (fun p -> let t = Printf.sprintf "%.*g" p x in
+    if float_of_string t = x then Some t else None) [ 15; 16; 17 ] |> Option.get in
+  make (S.Num (if String.exists (function '.' | 'e' | 'n' | 'i' -> true | _ -> false) text then text else text ^ ".0"))
+let vec xs = make (S.Vec (List.map number xs))
+let map pairs = make (S.Map (List.concat_map (fun (k, v) -> [ kw k; v ]) pairs))
+let print form = fst (Flow.Lisp.print [ form ])
+let num_of (f : S.t) = match f.node with
+  | S.Num n -> (match float_of_string_opt n with Some v when Float.is_finite v -> Some v | _ -> None) | _ -> None
+let vec_of (f : S.t) = match f.node with
+  | S.Vec xs -> let values = List.filter_map num_of xs in
+      if List.length values = List.length xs then Some values else None
+  | _ -> None
+let field (f : S.t) name = match f.node with
+  | S.Map items ->
+      let rec go = function
+        | { S.node = S.Kw k; _ } :: v :: _ when k = name -> Some v
+        | _ :: _ :: rest -> go rest | _ -> None in
+      go items
+  | _ -> None
 
+(* The environment's view state in a preset: the viewport camera. *)
 module Viewport = struct
   open Prismel
 
-  let number = function
-    | `Float v when Float.is_finite v -> Some v
-    | `Int v -> Some (float_of_int v)
-    | _ -> None
-
   let encode3 easy ~look_through =
     let camera = Easy_camera.camera easy in
-    let vector (v : Vec3.t) = `List [`Float v.x; `Float v.y; `Float v.z] in
-    `Assoc ["eye", vector (Camera.position camera);
-            "target", vector (Camera.target camera);
-            "fov", `Float (Easy_camera.fov_y easy);
-            "look_through", `Bool look_through]
+    let vector (v : Vec3.t) = vec [ v.x; v.y; v.z ] in
+    map [ "eye", vector (Camera.position camera); "target", vector (Camera.target camera);
+          "fov", number (Easy_camera.fov_y easy);
+          "look_through", make (S.Sym (string_of_bool look_through)) ]
 
-  let decode3 easy = function
-    | `Assoc fields ->
-        let field name = List.assoc_opt name fields in
-        let vector = function
-          | Some (`List [x; y; z]) ->
-              (match number x, number y, number z with
-               | Some x, Some y, Some z -> Some (Vec3.create x y z)
-               | _ -> None)
-          | _ -> None in
-        let easy = match vector (field "eye"), vector (field "target") with
-          | Some eye, Some target -> Easy_camera.of_view ~eye ~target easy
-          | _ -> easy in
-        let easy = match Option.bind (field "fov") number with
-          | Some fov when fov > 0. && fov < Float.pi -> Easy_camera.with_fov_y fov easy
-          | _ -> easy in
-        easy, field "look_through" = Some (`Bool true)
-    | _ -> easy, false
+  let decode3 easy form =
+    let vector name = match Option.bind (field form name) vec_of with
+      | Some [ x; y; z ] -> Some (Vec3.create x y z) | _ -> None in
+    let easy = match vector "eye", vector "target" with
+      | Some eye, Some target -> Easy_camera.of_view ~eye ~target easy
+      | _ -> easy in
+    let easy = match Option.bind (field form "fov") num_of with
+      | Some fov when fov > 0. && fov < Float.pi -> Easy_camera.with_fov_y fov easy
+      | _ -> easy in
+    easy, (match field form "look_through" with Some { S.node = S.Sym "true"; _ } -> true | _ -> false)
 
   let encode2 camera =
     let center = Easy_camera2.center camera in
-    `Assoc ["center", `List [`Float center.Vec2.x; `Float center.y];
-            "zoom", `Float (Easy_camera2.zoom camera);
-            "rotation", `Float (Easy_camera2.rotation camera)]
+    map [ "center", vec [ center.Vec2.x; center.y ]; "zoom", number (Easy_camera2.zoom camera);
+          "rotation", number (Easy_camera2.rotation camera) ]
 
-  let decode2 camera = function
-    | `Assoc fields ->
-        let field name = List.assoc_opt name fields in
-        let camera = match field "center" with
-          | Some (`List [x; y]) ->
-              (match number x, number y with
-               | Some x, Some y -> Easy_camera2.with_center (Vec2.create x y) camera
-               | _ -> camera)
-          | _ -> camera in
-        let camera = match Option.bind (field "zoom") number with
-          | Some zoom when zoom > 0. -> Easy_camera2.with_zoom zoom camera
-          | _ -> camera in
-        (match Option.bind (field "rotation") number with
-         | Some rotation -> Easy_camera2.with_rotation rotation camera
-         | None -> camera)
-    | _ -> camera
+  let decode2 camera form =
+    let camera = match Option.bind (field form "center") vec_of with
+      | Some [ x; y ] -> Easy_camera2.with_center (Vec2.create x y) camera | _ -> camera in
+    let camera = match Option.bind (field form "zoom") num_of with
+      | Some zoom when zoom > 0. -> Easy_camera2.with_zoom zoom camera | _ -> camera in
+    match Option.bind (field form "rotation") num_of with
+    | Some rotation -> Easy_camera2.with_rotation rotation camera | None -> camera
 end
 
+(* A sketch's or the editor's saved settings: one [(settings :sketch "name" :key value ...)] form. *)
 module Settings = struct
   type value =
     | Bool of bool | Float of float | Int of int
     | Text of string | Choice of string | Pair of float * float
   type t = (string * value) list
 
-  let string_of_hex encoded =
-    let nibble = function
-      | '0' .. '9' as c -> Ok (Char.code c - Char.code '0')
-      | 'a' .. 'f' as c -> Ok (10 + Char.code c - Char.code 'a')
-      | 'A' .. 'F' as c -> Ok (10 + Char.code c - Char.code 'A')
-      | c -> Error (Printf.sprintf "invalid hexadecimal digit %C" c) in
-    if String.length encoded mod 2 <> 0 then Error "odd hexadecimal value"
-    else
-      let decoded = Bytes.create (String.length encoded / 2) in
-      let rec loop index =
-        if index = Bytes.length decoded then Ok (Bytes.unsafe_to_string decoded)
-        else match nibble encoded.[index * 2], nibble encoded.[(index * 2) + 1] with
-          | Ok high, Ok low ->
-              Bytes.set decoded index (Char.chr ((high lsl 4) lor low));
-              loop (index + 1)
-          | Error message, _ | _, Error message -> Error message in
-      loop 0
+  let encode = function
+    | Bool v -> make (S.Sym (string_of_bool v))
+    | Float v -> number v
+    | Int v -> make (S.Num (string_of_int v))
+    | Text v -> make (S.Str v)
+    | Choice v -> make (S.List [ make (S.Sym "choice"); make (S.Str v) ])
+    | Pair (x, y) -> vec [ x; y ]
 
-  let decode_legacy encoded =
-    match String.split_on_char '\n' encoded with
-    | "PXUI1" :: entries ->
-        let rec parse line_number values = function
-          | [] -> Ok (List.rev values)
-          | "" :: rest -> parse (line_number + 1) values rest
-          | entry :: rest ->
-              let error message =
-                Error (Printf.sprintf "PXUI settings line %d: %s" line_number message) in
-              (match String.split_on_char '\t' entry with
-               | [kind; encoded_name; raw] ->
-                   (match string_of_hex encoded_name with
-                    | Error message -> error message
-                    | Ok name ->
-                        let value = match kind with
-                          | ("A" | "B") when raw = "0" -> Ok (Bool false)
-                          | ("A" | "B") when raw = "1" -> Ok (Bool true)
-                          | "F" ->
-                              (match float_of_string_opt raw with
-                               | Some value when Float.is_finite value -> Ok (Float value)
-                               | Some _ -> error "non-finite float"
-                               | None -> error "invalid float")
-                          | "I" ->
-                              (match int_of_string_opt raw with
-                               | Some value -> Ok (Int value)
-                               | None -> error "invalid integer")
-                          | "S" -> Result.map (fun s -> Text s) (string_of_hex raw)
-                          | "C" -> Result.map (fun s -> Choice s) (string_of_hex raw)
-                          | "R" | "P" ->
-                              (match String.split_on_char ',' raw with
-                               | [first; second] ->
-                                   (match float_of_string_opt first,
-                                      float_of_string_opt second with
-                                    | Some x, Some y when Float.is_finite x && Float.is_finite y ->
-                                        Ok (Pair (x, y))
-                                    | _ -> error "invalid float pair")
-                               | _ -> error "invalid float pair")
-                          | _ -> error "unknown value kind" in
-                        Result.bind value (fun value ->
-                          parse (line_number + 1)
-                            ((name, value) :: List.remove_assoc name values) rest))
-               | _ -> error "expected three tab-separated fields") in
-        parse 2 [] entries
-    | _ -> Error "PXUI settings: unsupported or missing PXUI1 header"
-
-  let value_json = function
-    | Bool value -> `Assoc ["bool", `Bool value]
-    | Float value -> `Assoc ["float", `Float value]
-    | Int value -> `Assoc ["int", `Int value]
-    | Text value -> `Assoc ["text", `String value]
-    | Choice value -> `Assoc ["choice", `String value]
-    | Pair (x, y) -> `Assoc ["pair", `List [`Float x; `Float y]]
-
-  let number = function
-    | `Int n -> Some (float_of_int n)
-    | `Float n when Float.is_finite n -> Some n
-    | _ -> None
-
-  let value_of_json = function
-    | `Assoc ["bool", `Bool value] -> Ok (Bool value)
-    | `Assoc ["float", json] ->
-        Option.to_result ~none:"invalid settings float" (Option.map (fun n -> Float n) (number json))
-    | `Assoc ["int", `Int value] -> Ok (Int value)
-    | `Assoc ["text", `String value] -> Ok (Text value)
-    | `Assoc ["choice", `String value] -> Ok (Choice value)
-    | `Assoc ["pair", `List [x; y]] ->
-        (match number x, number y with
-         | Some x, Some y -> Ok (Pair (x, y))
-         | _ -> Error "invalid settings pair")
+  let decode (f : S.t) = match f.node with
+    | S.Sym "true" -> Ok (Bool true)
+    | S.Sym "false" -> Ok (Bool false)
+    | S.Num n when int_of_string_opt n <> None -> Ok (Int (int_of_string n))
+    | S.Num _ -> (match num_of f with Some v -> Ok (Float v) | None -> Error "invalid settings number")
+    | S.Str v -> Ok (Text v)
+    | S.List [ { S.node = S.Sym "choice"; _ }; { S.node = S.Str v; _ } ] -> Ok (Choice v)
+    | S.Vec _ -> (match vec_of f with Some [ x; y ] -> Ok (Pair (x, y)) | _ -> Error "invalid settings pair")
     | _ -> Error "invalid settings value"
 
   let save ~sketch filename values =
@@ -205,31 +117,28 @@ module Settings = struct
       | _, Float x -> not (Float.is_finite x)
       | _, Pair (x, y) -> not (Float.is_finite x && Float.is_finite y)
       | _ -> false) values then Error "non-finite settings value"
-    else save ~filename ~kind:Settings ~sketch
-      ~sections:["values", `List (List.map (fun (name, value) ->
-        `List [`String name; value_json value]) values)]
+    else
+      let form = make (S.List (make (S.Sym "settings") :: kw "sketch" :: make (S.Str sketch)
+        :: List.concat_map (fun (name, value) -> [ kw name; encode value ]) values)) in
+      write_text ~filename (print form)
 
   let load ~sketch filename =
     let ( let* ) = Result.bind in
-    let channel = try Ok (open_in_bin filename) with Sys_error message -> Error message in
-    let* channel = channel in
-    let encoded = Fun.protect ~finally:(fun () -> close_in channel)
-      (fun () -> really_input_string channel (in_channel_length channel)) in
-    if String.starts_with ~prefix:"PXUI1\n" encoded then decode_legacy encoded
-    else
-      let* saved_sketch, sections = load ~filename ~kind:Settings in
-      if saved_sketch <> sketch then Error "settings belong to another sketch"
-      else match List.assoc_opt "values" sections with
-        | Some (`List values) ->
-            List.fold_left (fun result entry ->
-              let* values = result in
-              match entry with
-              | `List [`String name; json] ->
-                  let* value = value_of_json json in
-                  Ok ((name, value) :: List.remove_assoc name values)
-              | _ -> Error "invalid settings entry") (Ok []) values
-            |> Result.map List.rev
-        | _ -> Error "settings section has no values"
+    let* text = read_text ~filename in
+    let* forms = Result.map_error Flow.Diagnostic.to_string (S.parse text) in
+    match forms with
+    | [ { S.node = S.List ({ S.node = S.Sym "settings"; _ } :: items); _ } ] ->
+        let rec pairs acc = function
+          | [] -> Ok (List.rev acc)
+          | { S.node = S.Kw "sketch"; _ } :: { S.node = S.Str name; _ } :: rest when name = sketch ->
+              pairs acc rest
+          | { S.node = S.Kw "sketch"; _ } :: _ :: _ -> Error "settings belong to another sketch"
+          | { S.node = S.Kw k; _ } :: v :: rest ->
+              let* value = decode v in
+              pairs ((k, value) :: acc) rest
+          | _ -> Error "invalid settings entry" in
+        pairs [] items
+    | _ -> Error "a settings file is one (settings ...) form"
 
   let find settings name extract = Option.bind (List.assoc_opt name settings) extract
   let bool settings name = find settings name (function Bool v -> Some v | _ -> None)

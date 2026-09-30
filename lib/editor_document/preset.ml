@@ -1,6 +1,8 @@
 let ( let* ) = Result.bind
+module S = Flow.Syntax
+let mk = S.make
 
-type loaded = { doc : Document.t; view : Yojson.Safe.t }
+type loaded = { doc : Document.t; view : S.t }
 
 let sanitize name = String.map (function
   | ('A' .. 'Z' | 'a' .. 'z' | '0' .. '9' | '_' | '-') as character -> character
@@ -14,46 +16,9 @@ let default_name () =
 let suffix = ".plisp"
 let path ~directory ~name = Filename.concat directory (sanitize name ^ suffix)
 
-(* ---- the environment view: a JSON-shaped value kept in memory, written as an s-expression ---- *)
-
-module S = Flow.Syntax
-
-let mk node = S.make node
-let rec view_syntax : Yojson.Safe.t -> S.t = function
-  | `Assoc fields -> mk (S.Map (List.concat_map (fun (k, v) -> [ mk (S.Kw k); view_syntax v ]) fields))
-  | `List l -> mk (S.Vec (List.map view_syntax l))
-  | `Int i -> mk (S.Num (string_of_int i))
-  | `Intlit s -> mk (S.Num s)
-  | `Float x ->
-      let s = List.find_map (fun p -> let s = Printf.sprintf "%.*g" p x in
-        if float_of_string s = x then Some s else None) [ 15; 16; 17 ] in
-      let s = Option.get s in
-      mk (S.Num (if String.exists (function '.' | 'e' -> true | _ -> false) s then s else s ^ ".0"))
-  | `String s -> mk (S.Str s)
-  | `Bool b -> mk (S.Sym (if b then "true" else "false"))
-  | `Null -> mk (S.Sym "nil")
-
-let rec view_json (f : S.t) : (Yojson.Safe.t, string) result = match f.node with
-  | S.Map l ->
-      let rec go acc = function
-        | [] -> Ok (`Assoc (List.rev acc))
-        | { S.node = S.Kw k; _ } :: v :: rest -> let* v = view_json v in go ((k, v) :: acc) rest
-        | _ -> Error "view: expected :name value pairs" in
-      go [] l
-  | S.Vec l -> let* l = List.fold_right (fun x acc -> let* acc = acc in let* x = view_json x in Ok (x :: acc)) l (Ok []) in Ok (`List l)
-  | S.Num n -> (match int_of_string_opt n with
-      | Some i -> Ok (`Int i)
-      | None -> (match float_of_string_opt n with Some x -> Ok (`Float x) | None -> Error "view: bad number"))
-  | S.Str s -> Ok (`String s)
-  | S.Sym "true" -> Ok (`Bool true)
-  | S.Sym "false" -> Ok (`Bool false)
-  | S.Sym "nil" -> Ok `Null
-  | _ -> Error "view: unreadable value"
-
-let rec finite = function
-  | `Float x -> Float.is_finite x
-  | `Assoc fields -> List.for_all (fun (_, v) -> finite v) fields
-  | `List l -> List.for_all finite l
+let rec finite (f : S.t) = match f.node with
+  | S.Num n -> (match float_of_string_opt n with Some x -> Float.is_finite x | None -> false)
+  | S.Vec l | S.Map l | S.List l -> List.for_all finite l
   | _ -> true
 
 (* ---- files ---- *)
@@ -71,7 +36,7 @@ let save ~directory ~name ~(doc : Document.t) ~view =
   if sanitize name = "" then Error "preset name is empty" else
   let* () = if finite view then Ok () else Error "viewport contains nonfinite values" in
   let text = text doc in
-  let view_text = fst (Flow.Lisp.print [ mk (S.List [ mk (S.Sym "view"); view_syntax view ]) ]) in
+  let view_text = fst (Flow.Lisp.print [ mk (S.List [ mk (S.Sym "view"); view ]) ]) in
   let target = path ~directory ~name in
   Editor_core.Store.write_text ~filename:target (text ^ "\n" ^ view_text)
   |> Result.map (fun () -> target)
@@ -102,9 +67,9 @@ let load ~path ~factories ~settings =
     | Ok forms ->
         (match List.find_opt (fun (f : S.t) -> match f.node with
            | S.List ({ S.node = S.Sym "view"; _ } :: _) -> true | _ -> false) forms with
-         | Some { S.node = S.List [ _; v ]; _ } -> view_json v
+         | Some { S.node = S.List [ _; v ]; _ } -> Ok v
          | Some _ -> Error "view: expected one value"
-         | None -> Ok `Null) in
+         | None -> Ok (mk (S.Map []))) in
   let* doc = Result.map_error Flow.Diagnostic.to_string (Contexts.of_workspace ~factories workspace) in
   let* () = Document.validate doc in
   Ok { doc; view }

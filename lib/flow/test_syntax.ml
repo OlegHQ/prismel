@@ -73,7 +73,7 @@ let () =
     | Ok _ -> failwith ("accepted: " ^ source)
     | Error d ->
         assert (d.code = code);
-        assert (d.position = Some (Sexp.position_of_offset source offset));
+        assert (d.position = Some (Diagnostic.position_of_offset source offset));
         assert (Option.map (fun s -> s.Diagnostic.start) d.span = Some offset) in
   fails "(" "E_UNCLOSED" 0;
   fails "(a\n  [b" "E_UNCLOSED" 5;

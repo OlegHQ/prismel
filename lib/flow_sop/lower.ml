@@ -315,11 +315,8 @@ let workspace ~factories ?extra ?(compiled_ids = Instance_path.Map.empty)
       let drives = List.fold_left (fun drives (p : pending) ->
         if Edit.find graph ~node_id:p.node = None then drives
         else Port.Map.add Port.{node = p.node; path = p.field}
-          (Drive.Live p.value) drives) Port.Map.empty (List.rev !pending) in
-      if Port.Map.is_empty drives then network
-      else ok (Network.of_parts ~geometry:network.Network.geometry
-        ~values:network.values ~drives ~geometry_outputs:network.geometry_outputs
-        ~instances:network.instances) in
+          p.value drives) Port.Map.empty (List.rev !pending) in
+      if Port.Map.is_empty drives then network else ok (Network.with_drives drives network) in
     let build index (instance : E.instance) =
       let seen = Hashtbl.create 64 in
       let rec reach id =

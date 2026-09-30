@@ -25,7 +25,7 @@ let number text =
   !i = n && !before + !after > 0
 
 let fail source start finish code message = Error (Diagnostic.error
-  ~span:{start; finish} ~position:(Sexp.position_of_offset source start)
+  ~span:{start; finish} ~position:(Diagnostic.position_of_offset source start)
   ~code message)
 
 let separator = function
@@ -147,7 +147,7 @@ let parse source =
     | Close actual when actual = close_of c -> ignore (take ()); finish leading
     | Close actual -> error token "E_UNEXPECTED"
         (Printf.sprintf "Expected %C to close the %C on line %d, found %C"
-          (close_of c) c (Sexp.position_of_offset source opening.span.start).line actual)
+          (close_of c) c (Diagnostic.position_of_offset source opening.span.start).line actual)
     | End -> error opening "E_UNCLOSED" (Printf.sprintf "This %C is never closed" c)
     | _ ->
         let* item = form leading (depth + 1) in

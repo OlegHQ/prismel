@@ -1,7 +1,6 @@
 (** Pure editor state shared by the sketch host and presentation adapters. *)
 
 module Store = Store
-module Network_layout = Network_layout
 module Panels = Panels
 
 (** Typed parameter schemas (the same values as [Procedural.Parameter]). *)

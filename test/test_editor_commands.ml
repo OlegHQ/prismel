@@ -138,7 +138,7 @@ let run () =
       ~prepare:(fun _ _ -> Ok ()) ~scene2:(fun _ _ -> []) ())
     ~update:E2.update ~close:E2.close ~settings:E2.settings ~set_settings:E2.set_settings;
   let directory = Filename.temp_dir "prismel-guide" "" in
-  let filename = Filename.concat directory "preferences.json" in
+  let filename = Filename.concat directory "preferences.plisp" in
   let previous = Sys.getenv_opt "PRISMEL_EDITOR_PREFERENCES" in
   Unix.putenv "PRISMEL_EDITOR_PREFERENCES" filename;
   let create () = E2.create ~workspace ~prepare:(fun _ _ -> Ok ()) ~scene2:(fun _ _ -> []) ()

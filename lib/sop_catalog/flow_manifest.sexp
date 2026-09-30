@@ -1,6 +1,6 @@
 (flow_manifest
   (version 202609)
-  (digest "d110d31a11471d421b438ae03a5a7c23")
+  (digest "ab7185a362266e4e476ea12002db104b")
   (kinds
     (kind "sop/box"
       (key "box")
@@ -3033,77 +3033,6 @@
         (field "noise_frequency" "Noise frequency" (folder "Noise") (float (soft 0.02 4) (hard 0 nil)) (float 0.80000000000000004) (primary false) (vec3))
         (field "noise_seed" "Noise seed" (folder "Noise") (int (soft 0 9999) (hard nil nil)) (int 0) (primary false) (vec3)))
       (outputs (output "geo" geometry)))
-    (kind "value/time"
-      (key "time")
-      (aliases)
-      (operation "time")
-      (label "Time")
-      (category "Value")
-      (slots)
-      (fields
-        (field "speed" "Speed" (folder) (float (soft -4 4) (hard nil nil)) (float 1) (primary true) (vec3)))
-      (outputs (output "t" float)))
-    (kind "value/value"
-      (key "value")
-      (aliases)
-      (operation "value")
-      (label "Value")
-      (category "Value")
-      (slots)
-      (fields
-        (field "v" "V" (folder) (float (soft -2 2) (hard nil nil)) (float 0) (primary true) (vec3)))
-      (outputs (output "out" float)))
-    (kind "value/math"
-      (key "math")
-      (aliases)
-      (operation "math")
-      (label "Math")
-      (category "Math")
-      (slots)
-      (fields
-        (field "op" "Op" (folder) (choice "add" "sub" "mul" "div" "pow" "min" "max" "sin" "cos" "abs" "floor" "sqrt") (choice "mul") (primary true) (vec3))
-        (field "a" "A" (folder) (float (soft -2 2) (hard nil nil)) (float 0) (primary true) (vec3))
-        (field "b" "B" (folder) (float (soft -2 2) (hard nil nil)) (float 1) (primary true) (vec3)))
-      (outputs (output "out" float)))
-    (kind "value/combine_xyz"
-      (key "combine_xyz")
-      (aliases)
-      (operation "combine_xyz")
-      (label "Combine XYZ")
-      (category "Vector")
-      (slots)
-      (fields
-        (field "x" "X" (folder) (float (soft -3 3) (hard nil nil)) (float 0) (primary true) (vec3))
-        (field "y" "Y" (folder) (float (soft -3 3) (hard nil nil)) (float 0) (primary true) (vec3))
-        (field "z" "Z" (folder) (float (soft -3 3) (hard nil nil)) (float 0) (primary true) (vec3)))
-      (outputs (output "out" vec3)))
-    (kind "value/separate_xyz"
-      (key "separate_xyz")
-      (aliases)
-      (operation "separate_xyz")
-      (label "Separate XYZ")
-      (category "Vector")
-      (slots)
-      (fields
-        (field "v_x" "V x" (folder) (float (soft -3 3) (hard nil nil)) (float 0) (primary true) (vec3 "v" 0))
-        (field "v_y" "V y" (folder) (float (soft -3 3) (hard nil nil)) (float 0) (primary true) (vec3 "v" 1))
-        (field "v_z" "V z" (folder) (float (soft -3 3) (hard nil nil)) (float 0) (primary true) (vec3 "v" 2)))
-      (outputs (output "x" float) (output "y" float) (output "z" float)))
-    (kind "value/remap"
-      (key "remap")
-      (aliases)
-      (operation "remap")
-      (label "Remap")
-      (category "Math")
-      (slots)
-      (fields
-        (field "v" "V" (folder) (float (soft -10 10) (hard nil nil)) (float 0) (primary true) (vec3))
-        (field "from_min" "From min" (folder) (float (soft -10 10) (hard nil nil)) (float 0) (primary true) (vec3))
-        (field "from_max" "From max" (folder) (float (soft -10 10) (hard nil nil)) (float 1) (primary true) (vec3))
-        (field "to_min" "To min" (folder) (float (soft -10 10) (hard nil nil)) (float 0) (primary true) (vec3))
-        (field "to_max" "To max" (folder) (float (soft -10 10) (hard nil nil)) (float 1) (primary true) (vec3))
-        (field "clamp" "Clamp" (folder) (bool) (bool false) (primary true) (vec3)))
-      (outputs (output "out" float)))
     (kind "scene/geometry"
       (key "geometry")
       (aliases)

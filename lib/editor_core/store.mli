@@ -1,8 +1,6 @@
-(** Atomic file writes, and the JSON persistence of user preferences and
-    viewport state.  Documents (presets) are s-expressions, see
-    [Editor_document.Preset]. *)
-
-type kind = Settings
+(** Atomic file writes and the s-expression state stored beside documents: a sketch's or the
+    editor's saved settings and the viewport of a preset.  Documents (presets) are workspace
+    text, see [Editor_document.Preset]. *)
 
 val write_text : filename:string -> string -> (unit, string) result
 (** Write through a temporary file and a rename; creates the directory. *)
@@ -10,11 +8,10 @@ val write_text : filename:string -> string -> (unit, string) result
 val read_text : filename:string -> (string, string) result
 
 module Viewport : sig
-  val encode3 : Prismel.Easy_camera.t -> look_through:bool -> Yojson.Safe.t
-  val decode3 : Prismel.Easy_camera.t -> Yojson.Safe.t ->
-    Prismel.Easy_camera.t * bool
-  val encode2 : Prismel.Easy_camera2.t -> Yojson.Safe.t
-  val decode2 : Prismel.Easy_camera2.t -> Yojson.Safe.t -> Prismel.Easy_camera2.t
+  val encode3 : Prismel.Easy_camera.t -> look_through:bool -> Flow.Syntax.t
+  val decode3 : Prismel.Easy_camera.t -> Flow.Syntax.t -> Prismel.Easy_camera.t * bool
+  val encode2 : Prismel.Easy_camera2.t -> Flow.Syntax.t
+  val decode2 : Prismel.Easy_camera2.t -> Flow.Syntax.t -> Prismel.Easy_camera2.t
 end
 
 module Settings : sig
@@ -24,6 +21,8 @@ module Settings : sig
   type t = (string * value) list
 
   val save : sketch:string -> string -> t -> (unit, string) result
+  (** One [(settings :sketch "name" :key value ...)] form, written atomically. *)
+
   val load : sketch:string -> string -> (t, string) result
 
   val bool : t -> string -> bool option

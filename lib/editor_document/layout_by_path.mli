@@ -1,5 +1,5 @@
 (** Canvas layout keyed by {!type:Flow.Workspace.path}: the fields of
-    {!Editor_core.Network_layout} for the workspace language, plus collapsed
+    the old canvas layout for the workspace language, plus collapsed
     zones and frames.  A path is the lexical identity of a binding, so a key
     survives every text edit that keeps the path; {!Flow_sop.Flow_edit.remap}
     rewrites keys in the same transaction as a rename or a hoist.

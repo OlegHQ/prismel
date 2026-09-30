@@ -174,9 +174,6 @@ module Tree : sig
   (** Build the list inside [Ui.frame] and return this frame's intents;
       [title] leads the header, e.g. the level's breadcrumb. *)
 
-  val rename : int -> string -> t -> t
-  (** Open the rename prompt on a row, e.g. one just added. *)
-
   val reveal : t -> t
   (** Scroll the focused row into view on the next update. *)
 

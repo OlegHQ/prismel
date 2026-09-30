@@ -1,28 +1,13 @@
 (library
  (name flow)
  (public_name prismel.flow)
- (modules diagnostic context symbol port_type expr value_kind graph sexp check syntax ty lisp macro workspace eval)
+ (modules diagnostic context symbol port_type check syntax ty lisp macro workspace eval)
  (libraries param))
 
 (test
  (name test_value_core)
  (modules test_value_core)
  (libraries flow param))
-
-(test
- (name test_expr)
- (modules test_expr)
- (libraries flow))
-
-(test
- (name test_value_graph)
- (modules test_value_graph)
- (libraries flow param))
-
-(test
- (name test_sexp)
- (modules test_sexp)
- (libraries flow))
 
 (test
  (name test_check)

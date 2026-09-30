@@ -1,5 +1,4 @@
 module Store = Store
-module Network_layout = Network_layout
 module Panels = Panels
 module Param = Param
 

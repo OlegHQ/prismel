@@ -1,25 +1,16 @@
 {
   "generator": "tools/api_manifest/api_manifest.exe",
   "kind": "stable_high_level",
-  "module_count": 163,
+  "module_count": 154,
   "modules": [
     {
-      "api_sha256": "a5a48d321e8b113d50eb2ee5770513a186c51b4fb234f356e23d16dd83818224",
+      "api_sha256": "56354aee61958cdcf88f624e5a65d0171444a4a7cfae1a783daa5d74d2d52f3f",
       "excluded_legacy_symbols": [],
       "library": "editor_core",
       "module": "Editor_core",
       "source": "lib/editor_core/editor_core.mli",
-      "source_bytes": 3823,
-      "source_sha256": "4bb9fcee147cc48b63770649d735cc8ed94d3cff1f4bcb39c2c16abb539a7619"
-    },
-    {
-      "api_sha256": "0976ecd0c60a7785dec5f48ae63d2a407d9cdd3d316b87ae3b6f68871f33e109",
-      "excluded_legacy_symbols": [],
-      "library": "editor_core",
-      "module": "Network_layout",
-      "source": "lib/editor_core/network_layout.mli",
-      "source_bytes": 868,
-      "source_sha256": "4b75333223b71b508114387c36d4274176a82c4e7acce184145f4a99e61a642c"
+      "source_bytes": 3784,
+      "source_sha256": "edfc026dc87566d8bf864fd22239454476770d2f4111065c9d597a229e63897c"
     },
     {
       "api_sha256": "7cbb14c29fb33cc2de0c4d6a3e90006292857a7e41f674d1567ecb495b8a8fcb",
@@ -31,22 +22,22 @@
       "source_sha256": "0ba6c967026a9149691f4c79913bccc76f9335a133844edaf19ea073375bf186"
     },
     {
-      "api_sha256": "ae5e2fb6b9cc714dad8ae24648fad8adf2787014a4a1059142c3ba5cdd14e82e",
+      "api_sha256": "1e88e44f36a430126e791eef57fa3e82fdf0e447bdd39a9383867dfb1ffd6422",
       "excluded_legacy_symbols": [],
       "library": "editor_core",
       "module": "Store",
       "source": "lib/editor_core/store.mli",
-      "source_bytes": 1164,
-      "source_sha256": "91e6a9a2340bd1cd2595e8e5b446f4588c80046d431aa504052bc95623543d24"
+      "source_bytes": 1280,
+      "source_sha256": "2cca11268aa4396fe91abb9e182330fceff0d58a1d0c80afd8a69d6e4f979c1e"
     },
     {
-      "api_sha256": "a4aeebc8b613d950e1bd304556b0fe01c77f71680f847e98f50592eec840f4f4",
+      "api_sha256": "364851f0d673387be899f2929ec9ab22f7e4ad141acbade291b664fa60b7e6a9",
       "excluded_legacy_symbols": [],
       "library": "flow",
       "module": "Check",
       "source": "lib/flow/check.mli",
-      "source_bytes": 2081,
-      "source_sha256": "e97f01d84f2faf59eee68d74db861c22d851b800de2684f06bbb6b21eaf34f6b"
+      "source_bytes": 2006,
+      "source_sha256": "016cb0e1aaed05ff7bbea704b3f0b73a5c07b5034d9d24f4089629c9c7257801"
     },
     {
       "api_sha256": "d76047eeb0250aee97c183d2c76812505b25872604478c8c46c9603ec311a916",
@@ -58,13 +49,13 @@
       "source_sha256": "14372b5bdefd8ae16d78a2bfaf8565a4d62492f5ee6e15ec929a412eb6f20174"
     },
     {
-      "api_sha256": "dc871f97ed304ba18b9f15f13b37c3b2f1b14ad8d17b6ed63256aa72c66d3015",
+      "api_sha256": "8ee1e141a8b8c75298ca83d7b96598fe79ccf9efd9f208835c03707da761690c",
       "excluded_legacy_symbols": [],
       "library": "flow",
       "module": "Diagnostic",
       "source": "lib/flow/diagnostic.mli",
-      "source_bytes": 853,
-      "source_sha256": "7f9a59f4fba029ee45a2dad9056e3d1eddc5135ac4b1732a24780e9d92aefc9f"
+      "source_bytes": 971,
+      "source_sha256": "ba57e89f8ea973602060ae279d81f31f0d9111d7974f26b3c6a583e9cf5bf2dd"
     },
     {
       "api_sha256": "2dfe6648a0bc4522fafcdebc0cc78f0e2207b148aa1a475df52a08c55d6cdb1d",
@@ -74,24 +65,6 @@
       "source": "lib/flow/eval.mli",
       "source_bytes": 7237,
       "source_sha256": "770d627b7ad2d09595496b99446a8c4ccb9f374649bb02b378be61f768267bf0"
-    },
-    {
-      "api_sha256": "ecdd3c1710c64ea10a7333a7f8158a82ca4f0365d262eca76c369bccfca6ec02",
-      "excluded_legacy_symbols": [],
-      "library": "flow",
-      "module": "Expr",
-      "source": "lib/flow/expr.mli",
-      "source_bytes": 1204,
-      "source_sha256": "029d834d8652154f0f7869f7a061bcf73cd770e57b138232553350ec13e15f6b"
-    },
-    {
-      "api_sha256": "e00ee9b444d60da90022d0f7ea5e021fd3e6d81adb829dcd191f9a6c6cfcdcd1",
-      "excluded_legacy_symbols": [],
-      "library": "flow",
-      "module": "Graph",
-      "source": "lib/flow/graph.mli",
-      "source_bytes": 861,
-      "source_sha256": "5ff06e763826faaf614004c6d01fc2893742904348e87734b6ca4e394e0c6408"
     },
     {
       "api_sha256": "289c14d364c29caf7e10006e3cc307d26d421906b71c4ef8dd9e90565b70edbc",
@@ -112,22 +85,13 @@
       "source_sha256": "df28eb50cc8aa349cc0dec83cfc398c9702310d8691a7b4506b7db542f4f956d"
     },
     {
-      "api_sha256": "dca71ca62c7db6b7886774b7abb3373cf68513966e07bae4e28134f23f21db5d",
+      "api_sha256": "8165916a3b64f70a3c5c8de1cd60b4b12e13332ac3bd7f04b723e501779426df",
       "excluded_legacy_symbols": [],
       "library": "flow",
       "module": "Port_type",
       "source": "lib/flow/port_type.mli",
-      "source_bytes": 612,
-      "source_sha256": "d6ed0db6c248704047907dde2e033f4d75586bcb2cf126dc91bf3e9e47e202db"
-    },
-    {
-      "api_sha256": "9cf7d05a5bdb3d762a3603258422e017d55121a2941d63d7913fe003c094cd3e",
-      "excluded_legacy_symbols": [],
-      "library": "flow",
-      "module": "Sexp",
-      "source": "lib/flow/sexp.mli",
-      "source_bytes": 513,
-      "source_sha256": "63664d5a39aa9c119dcf96bd2d1aa251c24d271043dc3376a69560a44b62805d"
+      "source_bytes": 584,
+      "source_sha256": "677540946f2c658917ed093f7e0526c4de6a74cc87e277fa017555f50728747c"
     },
     {
       "api_sha256": "04fac91a60e824080df684a664516fe4437f57236bf0340404785681117b4d73",
@@ -144,8 +108,8 @@
       "library": "flow",
       "module": "Syntax",
       "source": "lib/flow/syntax.mli",
-      "source_bytes": 1980,
-      "source_sha256": "a72f65f0fa4d75877361ee20eebf10f74fcedcef9fa6ebc86937bc9cf41ea088"
+      "source_bytes": 2020,
+      "source_sha256": "9c93382e58d6fb6c9db8859a3ad3809549fab1178a1019a8c867fc5097da7716"
     },
     {
       "api_sha256": "05168fbabcb6055ebc5ff8955f560971117a829617ba9d9feac4187099c98a6d",
@@ -155,15 +119,6 @@
       "source": "lib/flow/ty.mli",
       "source_bytes": 1595,
       "source_sha256": "0d6babe585dbce92211db498e121eb3cb28bc4d262a538da0302c3388536ffe1"
-    },
-    {
-      "api_sha256": "4f3af9c4b34f0fbff54a3fa4071a6a602bb82969f3b2e8902a63de497bfdf412",
-      "excluded_legacy_symbols": [],
-      "library": "flow",
-      "module": "Value_kind",
-      "source": "lib/flow/value_kind.mli",
-      "source_bytes": 1032,
-      "source_sha256": "7ea59bb71a00ae45241b97dd5ba4c8e69dada0706caf2f94cfe8ab9b0c1ef524"
     },
     {
       "api_sha256": "ff33d500a8a79e8999310815c983c5c0679c55b7af775f40bc477ed690002fe4",
@@ -184,24 +139,6 @@
       "source_sha256": "75826cace4059a756545f758edfb0177403fb546376f66336f2b8c0913c8f6ae"
     },
     {
-      "api_sha256": "6fdc6bc73204f1d4a50dc11aab2c2a3e8d83b63e2e7979a64e94172fc5684b72",
-      "excluded_legacy_symbols": [],
-      "library": "flow_sop",
-      "module": "Compile",
-      "source": "lib/flow_sop/compile.mli",
-      "source_bytes": 499,
-      "source_sha256": "bb7563656f2c03768105aedd0222f0f6ddaff3a8ed9f0af68cee82a6ae3fd837"
-    },
-    {
-      "api_sha256": "e52bd94fc017e491da262ec494b6be03be184a0b2d5919a50c45b62a49dc39b6",
-      "excluded_legacy_symbols": [],
-      "library": "flow_sop",
-      "module": "Compound_node",
-      "source": "lib/flow_sop/compound_node.mli",
-      "source_bytes": 357,
-      "source_sha256": "741ea11b707b5816576aeaba4718338d9e649d07dcadb6bd074de113d000d095"
-    },
-    {
       "api_sha256": "dcbfd6e8045926b3c8a6958d5b6f0c6073af832d3298b39425d38d501297b117",
       "excluded_legacy_symbols": [],
       "library": "flow_sop",
@@ -211,24 +148,6 @@
       "source_sha256": "5fd2e06a144ffc0da92e08b4697b9e87d34a3e280b275b88733a0ec705c1aada"
     },
     {
-      "api_sha256": "60ada56c91847b12eb967a4008692750f45a9697a75dab040b256f2e6ac04750",
-      "excluded_legacy_symbols": [],
-      "library": "flow_sop",
-      "module": "Drive",
-      "source": "lib/flow_sop/drive.mli",
-      "source_bytes": 411,
-      "source_sha256": "b77aa1ee29a7dcf5ce155e3004dc02cc6965e30d6ff0a75aec2bacb9a586d2ae"
-    },
-    {
-      "api_sha256": "0663edea0a45d29971b9db1190ed732c7422fa8c0dfb5b73f8440279f892e4b3",
-      "excluded_legacy_symbols": [],
-      "library": "flow_sop",
-      "module": "Exposure",
-      "source": "lib/flow_sop/exposure.mli",
-      "source_bytes": 394,
-      "source_sha256": "f9a00432e3188505de724250128700d7c52caef05e29fd8016748a2e5baabdce"
-    },
-    {
       "api_sha256": "ad15673eb2f15e76b78d9524c0a03ecaa76ecb7456993a0dae798118e7d6288d",
       "excluded_legacy_symbols": [],
       "library": "flow_sop",
@@ -236,15 +155,6 @@
       "source": "lib/flow_sop/flow_edit.mli",
       "source_bytes": 7681,
       "source_sha256": "87395dffa002cb748d358c3390693725e7a9426e3ab516599cf976dd69a206c3"
-    },
-    {
-      "api_sha256": "7eecb828ca9bea7e3ce0fc08ea6b4c2ba9eb3e6bc00e13a1aaed772af8fc09e9",
-      "excluded_legacy_symbols": [],
-      "library": "flow_sop",
-      "module": "Group",
-      "source": "lib/flow_sop/group.mli",
-      "source_bytes": 934,
-      "source_sha256": "59cd12a21ffe36fabf6e32baa2bb0e73dc588b8fbd01a012bbb1e9bcbb4008a2"
     },
     {
       "api_sha256": "13e51ba6fd0803c83783ae21d917160a0fe5e18e8c21e193343df21b33411666",
@@ -274,22 +184,22 @@
       "source_sha256": "07f9a3262e7fa45f0cc71551afa7937de3fe2b1a346d190febfeba7abfcbc036"
     },
     {
-      "api_sha256": "b0b5a9af158a32e818c96efbf6c9608e8bed0743f24e6864f00870fda19fc03f",
+      "api_sha256": "9a24b647254a5abe66a877344a633327103a17e832a60d7fa918e71fcf5a0be7",
       "excluded_legacy_symbols": [],
       "library": "flow_sop",
       "module": "Network",
       "source": "lib/flow_sop/network.mli",
-      "source_bytes": 3609,
-      "source_sha256": "759c1681f3a3f9e1722534eb3675b273899f5f7961724e3c32c396093ab36a78"
+      "source_bytes": 1080,
+      "source_sha256": "ebef2f49f969d4bcb5d710a712e96da64a83ddc104826526bce982b8652ca3ed"
     },
     {
-      "api_sha256": "702c250706c2811dccf470a69162512f369a1f4224dae23605a476acbf293b72",
+      "api_sha256": "da9048b2e1207e085936b409ea2feea061b374422d30de8ad39b1c565e48c899",
       "excluded_legacy_symbols": [],
       "library": "flow_sop",
       "module": "Port",
       "source": "lib/flow_sop/port.mli",
-      "source_bytes": 1213,
-      "source_sha256": "a8fa92e05f089bb67b2cccc36cbe1ef0cab31b00991bcd347991525f67daaa4e"
+      "source_bytes": 1168,
+      "source_sha256": "8f1562ff92d6e8c099a546568b93945d03187651cc59f236e2166477fdeb7ae7"
     },
     {
       "api_sha256": "18d4f7724f894fb11642e298a95751c0b879da7f289b1f6d70bcc2269228ecc7",
@@ -310,13 +220,13 @@
       "source_sha256": "64a9760506463d4e876a12f823b1cc49471d81f975b4f227739957c3503a58b0"
     },
     {
-      "api_sha256": "c578fd7b683f342cb1b80a706882a94a74c3dedfb3c7faf0b480e5b96c814e86",
+      "api_sha256": "34e222cfbacc256f00dada326228441213b4d92a5fd2ae68f9b3bb9c1bcf98a3",
       "excluded_legacy_symbols": [],
       "library": "flow_sop",
       "module": "Value_lane",
       "source": "lib/flow_sop/value_lane.mli",
-      "source_bytes": 951,
-      "source_sha256": "1a7ec289baa9b21210ec7c34d6af8371a8dd4a308d06f9ea5e3bc0a458140774"
+      "source_bytes": 846,
+      "source_sha256": "3f184ea84cfd548b230c5dd28975a0f61be23b26b8fc070539c08c27c50fdbae"
     },
     {
       "api_sha256": "36eda840e50af554bd20f3a3351a4e7c1f1f435a1f5bc2d34d94b999b7cfd89b",
@@ -1250,13 +1160,13 @@
       "source_sha256": "7d4d28d6f0b748a24c1fabb8e0a081a7d3a7f7d0b47591333c667b625cad58de"
     },
     {
-      "api_sha256": "14087c7a63577f1df9b026e8d28eb93b3db6b75400a6914dc81db522a0171e3a",
+      "api_sha256": "e01c6fde4d6a5fcc1f24ee85c16dc82fb0f7daaeaa6d926349b986a3d5c7052d",
       "excluded_legacy_symbols": [],
       "library": "prismel_editor",
       "module": "Prismel_editor",
       "source": "lib/prismel_editor/prismel_editor.mli",
-      "source_bytes": 28040,
-      "source_sha256": "6a4398b74d7a8048f537a4bd5115ca57f678ce8d7825016d4510757a3acb9629"
+      "source_bytes": 28854,
+      "source_sha256": "69df2567e90be33763f34de8f22b19a3b7a12b3473022fe2b88e4f05fcb1e84c"
     },
     {
       "api_sha256": "721b7d85a90ba1f309807d0b30c6f9fe611cb973e76ebd72ead992367fdc7d49",
@@ -1412,13 +1322,22 @@
       "source_sha256": "43b40a6ce821e80096a3fd6aa62f48de79be1d0af1c6c33e917f812ce14f42e0"
     },
     {
-      "api_sha256": "18c7f0c47d4cf07cc997b90de7a72f5bb24154c750582f8539478ef5602576c4",
+      "api_sha256": "808467bc9954228b93d4699a64ce4debc4fba7edcb7e7b913f66bfa2964c3680",
+      "excluded_legacy_symbols": [],
+      "library": "pxui_graph",
+      "module": "Node_menu",
+      "source": "lib/pxui_graph/node_menu.mli",
+      "source_bytes": 1137,
+      "source_sha256": "826bc566f8118b3c5205f5fa050ec604df96cb37b3a1747fccf9106afc763d26"
+    },
+    {
+      "api_sha256": "3497113ab63f6c2b86f2783437fecbc2b3f7c16947bc3123377dce5c09813816",
       "excluded_legacy_symbols": [],
       "library": "pxui_graph",
       "module": "Pxui_graph",
       "source": "lib/pxui_graph/pxui_graph.mli",
-      "source_bytes": 10948,
-      "source_sha256": "78cd2653ae60b92a1324d5f876bf167d8d70c59f120920b4c9cd83b40974659c"
+      "source_bytes": 367,
+      "source_sha256": "566ad7a2bc621cf618f4fee5aea1b7a8aa2e950c535c9c8315dbc8c73ef94b84"
     },
     {
       "api_sha256": "58b746e439794852dee80210f66666df67293492a7f9e1c6c43547065165f6c5",
@@ -1430,13 +1349,13 @@
       "source_sha256": "e0dd22757c537e3d0b406431661ba48e7517648650685a5dac127aeadef63c30"
     },
     {
-      "api_sha256": "1b32229e9eb387054fbbb1d69ce7095fb6d8236dc90182bc6242a4842b34c839",
+      "api_sha256": "3c1c43d3a6502cf201739097665ad62b3de1763a9833bd24ff0f4074c0212858",
       "excluded_legacy_symbols": [],
       "library": "pxui_shell",
       "module": "Pxui_shell",
       "source": "lib/pxui_shell/pxui_shell.mli",
-      "source_bytes": 10520,
-      "source_sha256": "4c0b7633762460b43ccd4f7f388cbd3a84f8159639694182f183a1062c3ca472"
+      "source_bytes": 10431,
+      "source_sha256": "b9559d9f1ed288c844eeb6ac8ec3c2925ba0f1aaa13702c06d8dbec64e7c0bea"
     },
     {
       "api_sha256": "3b75473d5d524a02e7590c03eb6f50245673f6d397ca9be097d6c1ab32b6855a",

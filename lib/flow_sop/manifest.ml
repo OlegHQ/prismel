@@ -14,7 +14,27 @@ let quote value =
 let group name values = "(" ^ name ^
   (if values = [] then "" else " " ^ String.concat " " values) ^ ")"
 let strings name values = group name (List.map quote values)
-let number = Flow.Expr.sexp_number
+let number number =
+  if not (Float.is_finite number) then invalid_arg "Manifest.number: non-finite";
+  let text = Printf.sprintf "%.17g" number in
+  match String.index_opt text 'e' with
+  | None -> text
+  | Some exponent_at ->
+      let negative = text.[0] = '-' in
+      let mantissa = String.sub text (if negative then 1 else 0)
+        (exponent_at - if negative then 1 else 0) in
+      let exponent = int_of_string (String.sub text (exponent_at + 1)
+        (String.length text - exponent_at - 1)) in
+      let point = Option.value ~default:(String.length mantissa)
+        (String.index_opt mantissa '.') in
+      let digits = String.concat "" (String.split_on_char '.' mantissa) in
+      let shifted = point + exponent in
+      let sign = if negative then "-" else "" in
+      if shifted <= 0 then sign ^ "0." ^ String.make (-shifted) '0' ^ digits
+      else if shifted >= String.length digits then
+        sign ^ digits ^ String.make (shifted - String.length digits) '0'
+      else sign ^ String.sub digits 0 shifted ^ "." ^
+        String.sub digits shifted (String.length digits - shifted)
 let optional render = function None -> "nil" | Some value -> render value
 let literal = function
   | Param.Bool_value value -> group "bool" [string_of_bool value]
@@ -66,19 +86,11 @@ let descriptor (d : Catalog.descriptor) =
     ~result:(if String.starts_with ~prefix:"sop/" d.qualified
              then ["geo", Flow.Port_type.Geometry] else [])
 
-let value kind =
-  let module Value = Flow.Value_kind in
-  let key = Value.key kind in
-  entry ~qualified:("value/" ^ key) ~key ~operation:key
-    ~label:(Value.label kind) ~category:(Value.category kind) ~slots:[]
-    ~fields:(Value.fields (Value.make kind)) ~result:(Value.outputs kind)
-
-(* The digest covers the sop and value kinds, the catalog the PPX links against; the
+(* The digest covers the sop kinds, the catalog the PPX links against; the
    generated scene, world and settings kinds ([extra]) follow them and are outside it. *)
 let generate ?extra factories =
   Result.map (fun _ ->
-    let kinds = List.map (fun f -> descriptor (Catalog.descriptor f)) factories
-      @ List.map value Flow.Value_kind.all in
+    let kinds = List.map (fun f -> descriptor (Catalog.descriptor f)) factories in
     let payload = group "version" [string_of_int version] ^ "\n" ^
       group "kinds" kinds in
     let digest = Digest.to_hex (Digest.string payload) in

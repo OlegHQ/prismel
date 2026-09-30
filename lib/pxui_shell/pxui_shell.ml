@@ -562,7 +562,6 @@ module Tree = struct
   let create () = { focus = None; anchor = None; folded = Ids.empty; filter = None;
     renaming = None; drag = None; reveal = false; context = None;
     shown = None }
-  let rename id label t = { t with renaming = Some (id, label); focus = Some id; reveal = true }
   let reveal t = { t with reveal = true }
   let focused t = t.focus
   let editing t = t.renaming <> None || t.filter <> None

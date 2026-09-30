@@ -25,14 +25,13 @@ and term_node =
   | Literal of Param.value
   | Nil
   | Vector of term list
-  | Expression of Expr.t
   | Reference of string * string  (** binding, output *)
   | Call of call
 and call = { kind : string; arguments : (string * term) list; bypass : bool }
 
 val catalog_of_manifest : string -> (catalog * string, Diagnostic.t) result
 (** Read the generated catalog snapshot for compile-time checking, returning
-    its SOP descriptor and digest. Built-in value kinds are added by the checker. *)
+    its descriptors and digest. *)
 
 (** {2 Reuse by the workspace checker}
     [Flow.Workspace] calls catalog kinds through the same resolution and

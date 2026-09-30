@@ -46,8 +46,8 @@ module type VIEWPORT = sig
 
   val panel : Pxui.Ui.t -> control:control -> camera:camera -> extra:extra ->
     inspector:(Pxui.Ui.t -> 'a) -> control * camera * request list * extra * 'a
-  val section : camera -> extra -> Yojson.Safe.t
-  val restore : camera -> extra -> Yojson.Safe.t -> camera * extra
+  val section : camera -> extra -> Flow.Syntax.t
+  val restore : camera -> extra -> Flow.Syntax.t -> camera * extra
   val apply_action : camera -> extra -> Leader.action -> extra * string option
   (** Adapter-owned leader actions; [Some status] replaces the render status. *)
 

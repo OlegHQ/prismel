@@ -25,10 +25,9 @@ let () =
   let resolve context name = Check.resolve_kind catalog context name in
   assert (resolve Context.Sop "box" |> Result.map (fun (k : Check.kind) -> k.qualified) = Ok "sop/box");
   assert (resolve Context.Sop "sop/transform" |> Result.is_ok);
-  assert (resolve Context.Sop "value/time" |> Result.is_ok);
   assert (code (resolve Context.Sop "boxx") = "E_UNKNOWN_KIND");
   assert (code (resolve Context.Sop "nope/box") = "E_NAMESPACE");
-  assert (code (resolve Context.Value "sop/box") = "E_WRONG_CONTEXT");
+  assert (code (resolve Context.Scene "sop/box") = "E_WRONG_CONTEXT");
   (match Check.catalog_of_manifest "(flow_manifest (version 1) (digest \"wrong\") (kinds))" with
    | Error diagnostic -> assert (diagnostic.code = "E_CATALOG"
        && diagnostic.message = "Flow manifest digest must be 32 lowercase hex digits")

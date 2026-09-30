@@ -53,7 +53,7 @@ let run () =
   check (Document.dump doc = Document.dump doc && contains (Document.dump doc) "object ")
     "the document dump is not deterministic or lost an object";
   (* the preset text is the workspace text: it loads back to the same document *)
-  let saved = Preset.save ~directory ~name:"round" ~doc ~view:`Null |> Result.get_ok in
+  let saved = Preset.save ~directory ~name:"round" ~doc ~view:(Flow.Syntax.make (Flow.Syntax.Map [])) |> Result.get_ok in
   (match Preset.load ~path:saved ~factories ~settings:doc.settings with
    | Ok loaded ->
        check (Editor_document.Workspace_doc.to_text (fst loaded.doc.workspace)

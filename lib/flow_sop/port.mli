@@ -14,7 +14,6 @@ val parameters : Param.field_view list -> (parameter list, Flow.Diagnostic.t) re
     Underlying component field names are not public port paths. *)
 
 val find_parameter : parameter list -> string -> (parameter, Flow.Diagnostic.t) result
-val components : parameter -> parameter list
 val literal : parameter -> literal
 val literal_changes : parameter -> literal -> ((string * Param.value) list, Flow.Diagnostic.t) result
 val normalize :

@@ -127,12 +127,12 @@ module Private : sig
   (** Presets: the workspace as an s-expression file (source, layout,
       settings) plus the environment view. Only workspace documents save. *)
   module Preset : sig
-    type loaded = { doc : Document.t; view : Yojson.Safe.t }
+    type loaded = { doc : Document.t; view : Flow.Syntax.t }
     val sanitize : string -> string
     val default_name : unit -> string
     val path : directory:string -> name:string -> string
     val save : directory:string -> name:string -> doc:Document.t ->
-      view:Yojson.Safe.t -> (string, string) result
+      view:Flow.Syntax.t -> (string, string) result
     val list : directory:string -> (string * float) list
     val delete : directory:string -> name:string -> (unit, string) result
     val load : path:string -> factories:Procedural.Edit_graph.factory list ->

@@ -3,5 +3,5 @@
  (public_name prismel.prismel_editor)
  (private_modules selection common leader doc schedule pick cook text_pane source_file core environment
   viewport2 viewport3 renderer)
- (libraries editor_document prismel procedural flow flow_sop editor_core pxui pxui_shell pxui_graph sop_catalog sketch_support yojson unix)
+ (libraries editor_document prismel procedural flow flow_sop editor_core pxui pxui_shell pxui_graph sop_catalog sketch_support unix)
  (preprocess (pps prismel.ppx)))

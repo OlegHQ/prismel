@@ -150,7 +150,7 @@ type ('prepared, 'panel) update = {
   scene_changed : bool;  (* objects, lights, or the World changed: recompose *)
   framed : bounds option option;
   (** A framing request finished: [Some None] had no geometry. *)
-  loaded_view : Yojson.Safe.t option;
+  loaded_view : Flow.Syntax.t option;
   (** A preset loaded this frame; its environment view settings. *)
   actions : Leader.action list;
   panel : 'panel option;
@@ -840,7 +840,7 @@ let daylight = Option.value ~default:World.default (List.assoc_opt "daylight" Wo
 let preferences_file () = match Sys.getenv_opt "PRISMEL_EDITOR_PREFERENCES" with
   | Some path when path <> "" -> path
   | Some _ | None -> Filename.concat (Filename.concat
-      (Option.value ~default:"." (Sys.getenv_opt "HOME")) ".prismel") "preferences.json"
+      (Option.value ~default:"." (Sys.getenv_opt "HOME")) ".prismel") "preferences.plisp"
 
 let read_preferences filename =
   Editor_core.Store.Settings.load ~sketch:"prismel-editor" filename

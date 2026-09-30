@@ -96,16 +96,15 @@ let run () =
     let timeline, changes = Timeline.seek timeline ~frame:0L in
     ignore (finish ~timeline ~changes objects);
     check ((List.hd (Cook.pieces !current)).prepared = (0., 0., 0.)) "seek back kept stale context");
-  let box = Sop_catalog.Box.create () in
-  let factory = List.find (fun factory -> Edit_graph.factory_key factory = "box")
-      Sop_catalog.Editor.factories in
-  let geometry = Edit_graph.add_node ~factory box Edit_graph.empty |> Result.get_ok in
-  let network, time_id = Flow_sop.Network.add_value_node Flow.Value_kind.Time
-      (Flow_sop.Network.of_geometry geometry) |> Result.get_ok in
-  let target = {Flow_sop.Port.node = Node.id box; path = "uniform_scale"} in
-  let network = Flow_sop.Network.connect_value
-      ~source:{Flow_sop.Port.node = time_id; path = "t"} ~target network
-    |> Result.get_ok in
+  (* a live drive: the box's scale is the clock *)
+  let lowered = match Flow.Syntax.parse "(workspace live (graph g :context sop (sop/box :uniform_scale t)))" with
+    | Error d -> failwith (Flow.Diagnostic.to_string d)
+    | Ok forms -> (match Flow_sop.Lower.workspace ~extra:Editor_document.Contexts.descriptors
+          ~factories:Sop_catalog.Editor.factories forms with
+        | Ok lowered -> lowered | Error d -> failwith (Flow.Diagnostic.to_string d)) in
+  let graph = List.hd lowered.graphs in
+  let network = graph.network and root = Option.get graph.root in
+  let target = {Flow_sop.Port.node = root; path = "uniform_scale"} in
   let positions _ output =
       let points = Pdk.Geometry.positions output.Session.geometry in
       Ok (Array.init (Pdk.Packed.Float3.length points)
@@ -118,7 +117,7 @@ let run () =
       && Int64.bits_of_float az = Int64.bits_of_float bz) first second in
   let one_domain = ref [||] in
   with_cook positions (fun current step finish ->
-    let objects = [1, network, Node.id box] in
+    let objects = [1, network, root] in
     let timeline, changes = Timeline.seek stopped ~frame:60L in
     ignore (finish ~timeline ~changes objects);
     let first = (List.hd (Cook.pieces !current)).prepared in
@@ -140,7 +139,7 @@ let run () =
       "unchanged time drive resubmitted a cook");
   with_cook ~domains:3 positions (fun current _ finish ->
     let timeline, changes = Timeline.seek stopped ~frame:60L in
-    ignore (finish ~timeline ~changes [1, network, Node.id box]);
+    ignore (finish ~timeline ~changes [1, network, root]);
     check (exact !one_domain (List.hd (Cook.pieces !current)).prepared)
       "driven geometry differed between one and three domains");
   let entered, wait, release = barrier () in

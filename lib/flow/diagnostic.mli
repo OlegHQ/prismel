@@ -6,6 +6,9 @@ type position = { line : int; col : int }
 type t = { code : string; severity : severity; position : position option;
   message : string; span : span option }
 
+val position_of_offset : string -> int -> position
+(** The line and column of a byte offset, both counted from 1. *)
+
 val error : ?span:span -> ?position:position -> code:string -> string -> t
 val warning : ?span:span -> ?position:position -> code:string -> string -> t
 val to_string : t -> string

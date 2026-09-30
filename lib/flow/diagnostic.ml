@@ -29,3 +29,10 @@ let report ~file ~source d =
     | None, None -> (1, 0, 0) in
   Printf.sprintf "File \"%s\", line %d, characters %d-%d:\n%s [%s]: %s" file line a b
     (match d.severity with Error -> "Error" | Warning -> "Warning") d.code d.message
+
+let position_of_offset source offset : position =
+  let line = ref 1 and col = ref 1 in
+  for i = 0 to min (String.length source) offset - 1 do
+    if source.[i] = '\n' then (incr line; col := 1) else incr col
+  done;
+  {line = !line; col = !col}

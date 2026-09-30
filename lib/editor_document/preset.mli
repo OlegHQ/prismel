@@ -9,7 +9,7 @@
 
 type loaded = {
   doc : Document.t;
-  view : Yojson.Safe.t;  (** environment camera/render settings *)
+  view : Flow.Syntax.t;  (** environment camera/render settings *)
 }
 
 val sanitize : string -> string
@@ -22,7 +22,7 @@ val path : directory:string -> name:string -> string
 (** [<directory>/<name>.plisp]. *)
 
 val save :
-  directory:string -> name:string -> doc:Document.t -> view:Yojson.Safe.t ->
+  directory:string -> name:string -> doc:Document.t -> view:Flow.Syntax.t ->
   (string, string) result
 (** Write atomically ({!Editor_core.Store.write_text}); returns the path.
     [Error] when the view has nonfinite numbers or the file cannot be written.

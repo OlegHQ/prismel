@@ -7,7 +7,6 @@ type value =
 
 val name : t -> string
 val of_field_kind : Param.kind_view -> t option
-val value_type : value -> t
 val can_connect : source:t -> target:t -> bool
 val coerce : target:t -> value -> (value, Diagnostic.t) result
 (** Coercion at a driven port. Float-to-int rounds, saturates the machine int

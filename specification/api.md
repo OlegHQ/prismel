@@ -806,7 +806,7 @@ clicking a binding selects its node, and its header toggles qualified names.
 | `=` / `r` | edit the hovered row's expression / clear its drive or restore its default |
 
 `?` toggles the contextual guide and delayed tooltips globally. The guide
-starts on and saves its setting in `~/.prismel/preferences.json` through
+starts on and saves its setting in `~/.prismel/preferences.plisp` through
 `Editor_core.Store` (override with `PRISMEL_EDITOR_PREFERENCES`). Its strip
 uses Command guide membership in table order. `Space k` shows the grouped
 key sheet; key feedback lasts 1.5 seconds. Shared UI text focus owns typing
