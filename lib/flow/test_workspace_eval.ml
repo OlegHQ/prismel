@@ -577,6 +577,46 @@ let () = (* W8: a loop over geometry is one zone node with a template body *)
     err (sop "(let* [g (sop/grid)] (sop/merge (for [p (sop/point_list g)] (if (> p.x 0) (sop/box) (sop/grid)))))") "E_ZONE";
     err (sop "(let* [g (sop/grid)] (sop/merge (for [p (sop/point_list g) i (range 2)] (sop/box))))") "E_ZONE")
 
+let () = (* register L16: :skip leaves iterations out; the others keep their tuples *)
+  let nested l = Eval.List (Array.of_list (List.map ints l)) in
+  let zs src want = if not (same (bound (value ("(let* [z " ^ src ^ "] 1)")) "z") want) then failwith src in
+  t "skip: a for leaves out the listed iterations" (fun () ->
+    zs "(for [i (range 5)] :skip [1 3] i)" (ints [ 0; 2; 4 ]);
+    zs "(for [i (range 5)] :skip [[1] [3]] i)" (ints [ 0; 2; 4 ]);
+    is (value "(count (for [i (range 5)] :skip [0 1 2 3 4] i))") (Eval.Int 0));
+  t "skip: a product skips by its flat index, last clause fastest" (fun () ->
+    zs "(for [i (range 2) j (range 3)] :skip [4] (+ (* 10 i) j))" (ints [ 0; 1; 2; 10; 12 ]));
+  t "skip: a tuple is the enclosing iterations, then this loop's" (fun () ->
+    zs "(for [i (range 3)] (for [j (range 2)] :skip [[1 0] [2 1]] (+ (* 10 i) j)))"
+      (nested [ [ 0; 1 ]; [ 11 ]; [ 20 ] ]);
+    zs "(for [i (range 2)] (for [j (range 2)] (for [k (range 2)] :skip [[1 0 1] [0 1 0]] (+ (* 100 i) (+ (* 10 j) k)))))"
+      (Eval.List [| Eval.List [| ints [ 0; 1 ]; ints [ 11 ] |]; Eval.List [| ints [ 100 ]; ints [ 110; 111 ] |] |]));
+  t "skip: a skipped iteration makes no plan node, the others keep site and tuple" (fun () ->
+    let all = run (check (sop "(sop/merge (for [i (range 4)] (sop/box :size (+ 1 i))))")) in
+    let some = run (check (sop "(sop/merge (for [i (range 4)] :skip [2] (sop/box :size (+ 1 i))))")) in
+    let keys r = List.map (fun (n : Eval.node) -> (n.site, n.iter)) (nodes_of r "sop/box") in
+    assert (count_of all "sop/box" = 4 && count_of some "sop/box" = 3);
+    assert (keys some = List.filter (fun (_, it) -> it <> [ 2 ]) (keys all));
+    (* the boxes that stay are the same plan nodes by key, with the same arguments *)
+    List.iter (fun (n : Eval.node) ->
+      let twin = List.find (fun (m : Eval.node) -> m.site = n.site && m.iter = n.iter) (nodes_of all "sop/box") in
+      assert (n.args = twin.args)) (nodes_of some "sop/box"));
+  t "skip: the loop variable is still recorded at a skipped iteration; the body is not" (fun () ->
+    let rs = records (value "(let* [xs (for [i (range 4)] :skip [2] (* i 2))] (count xs))") in
+    assert (List.length (recs rs [ "g"; "xs"; ":i" ]) = 4);
+    assert (List.map fst (recs rs [ "g"; "xs"; "@result" ]) = [ [ 0 ]; [ 1 ]; [ 3 ] ]));
+  t "skip: a scene/merge leaves out the arguments at the listed tuples" (fun () ->
+    let scene body = "(workspace w (graph s :context scene " ^ body ^ "))" in
+    let r body = List.assoc "s" (run (check (scene body))).results in
+    let args = function Eval.Struct (_, a) -> List.length a | _ -> -1 in
+    assert (args (r "(scene/merge (scene/light) (scene/light) (scene/light))") = 3);
+    assert (args (r "(scene/merge (scene/light) (scene/light) (scene/light) :skip [1])") = 2);
+    assert (args (r "(scene/merge (scene/light) (scene/light) :skip [[0] [1]])") = 0);
+    (* inside a loop the tuple starts with the loop's iteration *)
+    (match r "(scene/merge (for [i (range 2)] (scene/merge (scene/light) (scene/light) :skip [[1 0]])))" with
+     | Eval.Struct (_, [ (_, a); (_, b) ]) -> assert (args a = 2 && args b = 1)
+     | _ -> failwith "the merge of merges"))
+
 let () =
   if !failed <> [] then begin
     List.iter (fun (n, e) -> prerr_endline ("FAIL " ^ n ^ ": " ^ e)) (List.rev !failed);

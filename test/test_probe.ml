@@ -218,6 +218,35 @@ let off_display () =
     "a node on the display has no count";
   Cook.close updated.cook
 
+(* register L16: a skipped iteration is still an iteration of the selector (the tuples do not
+   move), its body has no record, and the sparkline marks where the probe sits among the ones that ran *)
+let skips () =
+  let w = T.workspace_of "(workspace w (graph g :context value \
+    (let* [xs (for [i (range 5)] :skip [1 3] (let* [sq (* i i)] sq))] (count xs))))" in
+  let scope = T.scope w "g" in
+  let r = recorded w in
+  let sq = T.node w "g" [ "xs"; "sq" ] in
+  check (Probe.counts r scope ~probe:(fun _ -> 0) = [ [ "g"; "xs" ], 5 ]) "the selector counts the skipped iterations";
+  check (List.length (Array.to_list (Probe.records r [ "g"; "xs"; ":i" ])) = 5 && List.length (Array.to_list (Probe.records r [ "g"; "xs"; "sq" ])) = 3)
+    "the loop variable is recorded 5 times, the body 3";
+  let f = footer r sq ~probes:[ 2 ] in
+  check (f.value = "4" && f.runs = Some 3) ("footer at a run iteration: " ^ Probe.text f);
+  check ((footer r sq ~probes:[ 1 ]).value = "not run here") "footer at a skipped iteration";
+  (match f.spark, (footer r sq ~probes:[ 4 ]).spark with
+   | Some (values, at), Some (_, last) -> check (values = [| 0.; 4.; 16. |] && at = 1 && last = 2) "the sparkline places the probe among the iterations that ran"
+   | _ -> fail "no sparkline");
+  check (Array.length (Probe.iterations r sq ~probes:[ 0 ]) = 3) "the inspector lists the iterations that ran";
+  (* geometry: the plan node of a probed iteration, none for a skipped one *)
+  let g = T.workspace_of "(workspace w (graph g :context sop \
+    (let* [b (for [i (range 4)] :skip [1] (sop/box :size (+ 1 i)))] (sop/merge b))))" in
+  let rg = recorded g in
+  let plan = (Result.get_ok (Flow.Eval.static ~record:true g)).plan in
+  let node probes = Option.map (fun id -> plan.nodes.(id)) (Probe.plan_node rg [ "g"; "b"; "@result" ] ~probes) in
+  check (node [ 1 ] = None) "a skipped iteration has no plan node to pick";
+  List.iter (fun k -> match node [ k ] with
+    | Some n -> check (n.kind = "sop/box" && n.iter = [ k ] && n.site = [ "g"; "b"; "@result" ]) "a plan node is at its own tuple"
+    | None -> fail "an iteration that ran has no plan node") [ 0; 2; 3 ]
+
 let run () =
-  off_display (); geometry_zone (); bounds (); sunflower (); tree (); branches (); live (); nested (); hoist (); selection ();
+  skips (); off_display (); geometry_zone (); bounds (); sunflower (); tree (); branches (); live (); nested (); hoist (); selection ();
   print_endline "probe tests passed"

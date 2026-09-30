@@ -46,11 +46,12 @@ graph    = "(" "graph" name ":context" context [ inputs ] body ")" ;
 defn     = "(" "defn"  name ":context" context inputs body ")" ;
 inputs   = "[" { "(" name ":" type [ literal ] ")" } "]" ;   (* graph inputs need a default *)
 expr    += for | fold | scan | sum | if | ref | "t" ;
-for      = "(" "for"  "[" clause { clause } "]" body ")" ;
+for      = "(" "for"  "[" clause { clause } "]" [ skip ] body ")" ;
 fold     = "(" "fold" "[" name expr "]" "[" clause { clause } "]" body ")" ;
 scan     = "(" "scan" "[" name expr "]" "[" clause { clause } "]" body ")" ;
 sum      = "(" "sum"  "[" clause { clause } "]" body ")" ;
 clause   = name expr ;                              (* expr is a list *)
+skip     = ":skip" "[" { int | "[" int { int } "]" } "]" ;   (* for, scene/merge: iteration tuples left out *)
 if       = "(" "if" expr expr expr ")" ;
 ref      = "(" "ref" name { ":" name expr } ")" ;   (* input overrides *)
 body     = "(" "let*" "[" { name expr } "]" expr ")" | expr ;
@@ -84,6 +85,20 @@ other slot flattens. That keeps `(sop/merge ring)` a single wire while
 are evaluated once, before the zone runs, and are the same in every
 iteration. Because evaluation is pure, the compiler may hoist a loop-invariant
 body node. The result is identical, so the editor can offer the same move.
+
+**Skipping** (`:skip`, register L16). `(for [x xs …] :skip tuples body)` leaves out the iterations whose
+*iteration tuple* is listed, and `(scene/merge a b … :skip tuples)` leaves out the arguments at the listed
+tuples. A tuple is the running index of each enclosing loop, outermost first (the same tuple records,
+probes and compiled ids use), then the index inside this form: for a `for` the row-major running index of its
+clause product, for a `scene/merge` the position of the argument as written. A tuple of one may be written as
+a bare integer, so `:skip [0 3]` is `:skip [[0] [3]]` for a top-level loop. The list is a static literal of
+non-negative integers (`E_SKIP` otherwise), so it never depends on `t` and cannot raise `E_TIME_COUNT`; only
+`for` and `scene/merge` have it (`sum`, `fold` and `scan` are `E_ZONE`), and a `for` over the elements of
+geometry has none. A skipped iteration is not evaluated, makes no plan node and is absent from the result list;
+the others keep their index, so their compiled ids, per-tuple cache keys and provenance do not move. The loop
+variables are still recorded at a skipped iteration, so a selector counts it and a node inside shows
+`not run here`. A scene sync writes it: deleting a loop-made object adds to a `:skip`, never rewrites the
+collection (register V4).
 
 **Shadowing is an error** (`E_SHADOW`), including for loop and accumulator
 names. On a canvas, two nodes called `x` on either side of a zone border
@@ -272,10 +287,13 @@ is register V4.
 template. Editing a copy in the viewport, list or inspector edits the template: a literal argument (or a
 literal component of a vector) is written once and every copy changes, and the status says so; an argument
 the loop computes from its variable is refused with its expression, and `=(expression)` typed in the row
-replaces it. Renaming writes the template's `:name`. Deleting a copy of a one-clause `for` rewrites its
-collection with `take` and `drop` so the other copies keep their place; when that is not exact (several
-clauses, or only part of what a copy made) the whole loop goes, after a confirmation that says how many
-copies go.
+replaces it. Renaming writes the template's `:name`. Deleting a copy is exact at any nesting depth, for any
+number of clauses, and when a copy makes several objects (register L16): the iteration that made it is added
+to the `:skip` list of its loop (the outermost iteration all of whose objects go, when there is one), or, when
+the iteration makes other objects that stay, the object's place is added to the `:skip` of the `scene/merge`
+that holds it. Nothing else is rewritten: every other copy keeps its iteration tuple, so its id, cache key and
+provenance are unchanged. Repeated deletes accumulate in one list, and a loop whose copies are all deleted stays
+a loop that makes nothing.
 
 ### 3.7 Groups
 

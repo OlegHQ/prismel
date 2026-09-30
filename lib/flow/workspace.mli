@@ -49,10 +49,10 @@ and node =
   | Call of { kind : string; args : (string * term) list }
       (** catalog kind, qualified; slots and keyword parameters in written
           order.  [sop/merge] names every input [input]. *)
-  | Op of { op : string; args : (string * term) list }
+  | Op of { op : string; args : (string * term) list; skip : int list list }
       (** built-in operator ([+], [range], [value/rand], [scene/object],
           [ui/split-at], ...) with its slot names; a rest slot repeats its
-          name. *)
+          name.  [skip] lists the argument tuples a [scene/merge] leaves out (register L16), [[]] otherwise. *)
   | Call_fn of { fn : string; args : term list }
       (** a [defn] (arguments in parameter order, defaults filled in) or a
           local [fn] *)
@@ -60,7 +60,8 @@ and node =
   | Graph_ref of { graph : string; inputs : (string * term) list }
   | Let of (pattern * term) list * term
   | Loop of { kind : [ `For | `Fold | `Scan | `Sum ]; accs : (pattern * term) list;
-              clauses : (pattern * term) list; body : term; zone : path }
+              clauses : (pattern * term) list; skip : int list list; body : term; zone : path }
+      (** [skip]: the iteration tuples a [for] leaves out (register L16); [[]] for other kinds *)
   | If of term * term * term
   | Cond of (term * term) list * term
   | Case of term * (Syntax.t * term) list * term
@@ -106,6 +107,10 @@ val max_iterations : int
 val check : Check.catalog -> Syntax.t list -> t option * Diagnostic.t list
 (** Check one [(workspace name ...)] form.  The workspace is returned only
     without errors; warnings never block it. *)
+
+val skip_tuples : Syntax.t -> int list list option
+(** The tuples of a [:skip] value (register L16): a list of tuples of non-negative integers, a bare
+    integer being a tuple of one; [None] when it is not one. *)
 
 val name_taken : string -> bool
 (** A name a binding may not take: a special form, built-in operator or type

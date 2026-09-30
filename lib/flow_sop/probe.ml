@@ -169,6 +169,18 @@ let across t path ~outer =
 
 let series t path ~probes = if probes = [] then [||] else across t path ~outer:(drop_last probes)
 
+(* Where the probed iteration sits in [series]: the iterations a [:skip] left out have no record,
+   so it is the number of recorded ones before it (the probe itself when none is missing). *)
+let position t path ~probes ~len =
+  let n = List.length probes - 1 in
+  let outer = drop_last probes and p = List.nth probes n in
+  let mine = List.filter (fun (it, _) ->
+    List.compare_length_with it (n + 1) = 0 && List.filteri (fun i _ -> i < n) it = outer)
+    (Array.to_list (records t path)) in
+  (* a loop over geometry has one template record, forced for each element: no iteration is missing *)
+  if List.length mine <> len then min p (len - 1)
+  else min (List.length (List.filter (fun (it, _) -> List.nth it n < p) mine)) (len - 1)
+
 let counts t (s : P.scope) ~probe =
   let chain = chains s in
   List.filter_map (fun (n : P.node) ->
@@ -201,7 +213,7 @@ let compute_footer t (n : P.node) ~probes =
     if probes = [] || n.invariant then None else
     let a = Array.map number (across_probes n.path ~probes) in
     if Array.length a < 2 || Array.exists Option.is_none a then None
-    else Some (Array.map Option.get a, min (List.nth probes (List.length probes - 1)) (Array.length a - 1)) in
+    else Some (Array.map Option.get a, position t n.path ~probes ~len:(Array.length a)) in
   let branch =
     if probes = [] || n.head <> "if" then None else
     Option.bind (arg n 0) (fun c ->

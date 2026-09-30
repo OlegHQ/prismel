@@ -483,7 +483,7 @@ and compile ce (x : W.term) : cnode =
       List.fold_left (fun n f -> match n with
         | Const v -> Const (lookup_field b v f)
         | Dyn g -> Dyn (fun t -> lookup_field b (g t) f)) start fs
-  | W.Op { op; args } when not (op = "sop/curve" || is_element_list op || is_struct_op op) ->
+  | W.Op { op; args; _ } when not (op = "sop/curve" || is_element_list op || is_struct_op op) ->
       let nodes = List.map (fun (_, a) -> compile ce a) args in
       (match nodes with
        | [ Const a; Const b ] when List.mem_assoc op arith_fns -> Const (arith op (List.assoc op arith_fns) a b)
@@ -506,7 +506,7 @@ and compile ce (x : W.term) : cnode =
        | Dyn g ->
            let a = compile ce a and b = compile ce b in
            Dyn (fun t -> if truthy (g t) then run_node a t else run_node b t))
-  | W.Loop { kind = (`Sum | `For) as kind; accs = []; clauses = [ (W.Name p, e) ]; body; _ } ->
+  | W.Loop { kind = (`Sum | `For) as kind; accs = []; clauses = [ (W.Name p, e) ]; skip = []; body; _ } ->
       let items = match compile ce e with
         | Const (List xs) when Array.length xs <= max_iterations -> xs
         | _ -> raise Unsupported in
@@ -631,7 +631,11 @@ and ev_raw c env (x : W.term) : value =
         else vals in
       if List.exists (fun p -> String.starts_with ~prefix:p kind) [ "scene/"; "world/"; "settings/" ]
       then Struct (kind, vals) else mk_node c kind vals
-  | W.Op { op; args } -> apply_op c op (eval_named c env args)
+  | W.Op { op = "scene/merge"; args; skip = _ :: _ as skip } ->
+      (* register L16: the arguments at skipped tuples are not evaluated *)
+      let args = List.filteri (fun p _ -> not (List.mem (c.iter @ [ p ]) skip)) args in
+      apply_op c "scene/merge" (eval_named c env args)
+  | W.Op { op; args; _ } -> apply_op c op (eval_named c env args)
   | W.Call_fn { fn; args } ->
       let vals = evs c env "a" args in
       (match Smap.find_opt fn env with
@@ -649,7 +653,7 @@ and ev_raw c env (x : W.term) : value =
           | Some p -> List.filteri (fun i _ -> i < List.length p - 1) p | None -> [] in
         bind_pat c ~mk:(Some (fun n -> pfx @ [ n ])) ~whole:false pat v env) env binds in
       ev c env res
-  | W.Loop l -> loop c env l.kind l.accs l.clauses l.body l.zone
+  | W.Loop l -> loop c env l.kind l.accs l.clauses l.skip l.body l.zone
   | W.If (cnd, a, b) ->
       if truthy (concrete c (ev (sub c "if") env cnd)) then ev (sub c "then") env a
       else ev (sub c "else") env b
@@ -798,7 +802,7 @@ and hof c env kind f rest =
         | _, r -> coerce_like acc r) init xs
   | _ -> fail "E_ARITY" "A higher-order form got the wrong number of arguments."
 
-and loop c env kind accs clauses body zone =
+and loop c env kind accs clauses skip body zone =
   let cz = { c with base = zone; route = [] } in
   let init = match accs with
     | [ (_, e) ] -> Some (ev (sub cz "init") env e)
@@ -826,6 +830,7 @@ and loop c env kind accs clauses body zone =
       (match acc_pat, !acc with
        | Some p, Some a -> env := bind_pat ci' ~mk ~whole:true p a !env
        | _ -> ());
+      if List.mem ci'.iter skip then incr k else begin
       let v = ev ci' !env body in
       (match kind, !acc with
        | (`Fold | `Scan), Some a ->
@@ -836,12 +841,13 @@ and loop c env kind accs clauses body zone =
        | `Sum, _ -> total := Some (match !total with None -> v | Some t -> add t v)
        | _ -> outs := v :: !outs);
       incr k
+      end
     end else begin
       let p, e = clauses.(ci) in
       (match concrete c (ev (sub cz ("in" ^ string_of_int ci)) env e) with
        | Struct (op, fs) when is_element_list op ->
-           if kind <> `For || n <> 1 then
-             failf "E_ZONE" "%s: only a for with one clause can iterate the elements of geometry." (path_text zone);
+           if kind <> `For || n <> 1 || skip <> [] then
+             failf "E_ZONE" "%s: only a for with one clause and no :skip can iterate the elements of geometry." (path_text zone);
            over_geometry := Some (geometry_loop c cz env op fs p body zone)
        | v ->
            Array.iter (fun item ->

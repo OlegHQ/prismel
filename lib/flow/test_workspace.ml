@@ -59,7 +59,7 @@ let () = (* structure and the typed IR *)
    | Workspace.Let ([ (Workspace.Name "a", { node = Workspace.Call_fn { fn = "f"; args = [ _ ] }; path = Some [ "g"; "a" ]; _ }) ], r) ->
        assert (r.path = Some [ "g"; "@result" ]);
        (match r.node with
-        | Workspace.Op { op = "+"; args = [ _; (_, { node = Workspace.Expanded { macro = "m"; _ }; _ }) ] } -> ()
+        | Workspace.Op { op = "+"; args = [ _; (_, { node = Workspace.Expanded { macro = "m"; _ }; _ }) ]; _ } -> ()
         | _ -> failwith "result is not (+ a expansion)")
    | _ -> failwith "unexpected IR of g");
   bad "" "E_NO_WORKSPACE";
@@ -348,7 +348,7 @@ let () = (* IR shapes, notes and reporting *)
    | Workspace.Let ([ (_, s); (_, l); (_, c); (_, k) ], _) ->
        (match s.node with
         | Workspace.Loop { kind = `Sum; accs = []; clauses = [ (Workspace.Name "i", _) ]; zone = [ "g"; "s" ];
-                           body = { node = Workspace.Call_fn { fn = "f"; args = [ _; _ ] }; _ } } -> ()
+                           body = { node = Workspace.Call_fn { fn = "f"; args = [ _; _ ] }; _ }; _ } -> ()
         | _ -> failwith "sum is not a Loop");
        (match l.node with
         | Workspace.Hof (`Map, [ { node = Workspace.Fn { zone = [ "g"; "l"; "~fn" ]; params = [ (Workspace.Name "k", None) ]; _ }; _ }; _ ]) -> ()
@@ -576,6 +576,25 @@ let () = (* 7. reserved names, and t *)
     ignore (good (sop "(sop/box :size (if (> (sin t) 0.5) 1 0.5))")));
   t "t is reserved: it cannot be bound" (fun () ->
     bad (sop "(let* [t 1] (sop/box))") "E_BINDING" ~text:"context time")
+
+let () = (* register L16: :skip *)
+  t "skip: a for and a scene/merge take it" (fun () ->
+    ignore (good (value "(let* [z (for [i (range 4)] :skip [1 [3]] i)] 1)"));
+    ignore (good (value "(let* [z (for [i (range 2) j (range 2)] :skip [[0 1] [1 0]] i)] 1)"));
+    ignore (good "(workspace w (graph s :context scene (scene/merge (scene/light) (scene/light) :skip [[1]])))"));
+  t "skip: a list of tuples of non-negative integers" (fun () ->
+    bad (value "(let* [z (for [i (range 4)] :skip 3 i)] 1)") "E_SKIP";
+    bad (value "(let* [z (for [i (range 4)] :skip [-1] i)] 1)") "E_SKIP";
+    bad (value "(let* [z (for [i (range 4)] :skip [1.5] i)] 1)") "E_SKIP";
+    bad (value "(let* [z (for [i (range 4)] :skip [[0 x]] i)] 1)") "E_SKIP";
+    bad "(workspace w (graph s :context scene (scene/merge (scene/light) :skip [a])))" "E_SKIP");
+  t "skip: only a for has it" (fun () ->
+    bad (value "(sum [i (range 4)] :skip [1] i)") "E_ZONE";
+    bad (value "(fold [a 0] [i (range 3)] :skip [1] a)") "E_ZONE");
+  t "skip: a static list; a count that depends on t is still rejected" (fun () ->
+    bad (sop "(sop/merge (for [i (range (+ 3 (floor (* 2 (sin t)))))] :skip [0] (sop/box)))") "E_TIME_COUNT";
+    let ws = good (sop "(sop/merge (for [i (range 4)] :skip [2] (sop/box)))") in
+    assert (Workspace.Paths.is_empty ws.live))
 
 let () =
   if !problems <> [] then begin

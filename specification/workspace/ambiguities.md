@@ -24,6 +24,7 @@ table (`flow.md` §11.10) and does not replace it. Generated from
 | [L13](#l13) | language | Keyword or positional arguments? | proposed rule |
 | [L14](#l14) | language | Do graphs take inputs? | proposed rule |
 | [L15](#l15) | language | Is 2.0 an int or a float? | proposed rule |
+| [L16](#l16) | iteration | How is one copy of a loop deleted, at any depth, leaving the others? | proposed rule |
 | [G1](#g1) | groups | Geometry groups are strings: how do they connect? | proposed rule |
 | [G2](#g2) | groups | What about group names computed in a loop? | proposed rule |
 | [V1](#v1) | graph | How do outer values enter a loop on the canvas? | proposed rule |
@@ -201,6 +202,16 @@ table (`flow.md` §11.10) and does not replace it. Generated from
 *Why it is ambiguous.* An integral float must stay a float through print and read, or Int fields could start accepting it and the round trip would change the program.
 
 *Proposed rule.* A literal with a decimal point is a float, and it prints with its point. Scrubbing a float field keeps it float, even at a whole number.
+
+## L16
+
+**How is one copy of a loop deleted, at any depth, leaving the others?**
+
+*Why it is ambiguous.* A copy is an iteration of one template. Rewriting the collection the loop runs over (`take`/`drop`) is exact for one clause only, renumbers the other copies, and cannot leave a copy's sibling objects. Deleting the whole loop is not what was selected.
+
+*Proposed rule.* An object is identified by its producing site and iteration tuple, and deleting it says that tuple in the text. `(for [x xs …] :skip [[i j] …] body)` leaves out iterations and `(scene/merge a b :skip [[i p] …])` leaves out arguments; a tuple is the enclosing loops' running indices, outermost first, then this form's (the row-major running index of the clause product, or the argument position). A tuple of one may be a bare integer. The list is a static literal (`E_SKIP`; it cannot depend on `t`); only `for` and `scene/merge` take it. A skipped iteration is not evaluated and is absent from the list, but it is still an iteration: indices, compiled ids, cache keys and provenance of every other copy are unchanged, the selector counts it, and its body shows `not run here`. A delete writes the outermost iteration all of whose objects go into its loop's list, else the object's position into the merge that holds it; repeated deletes accumulate; a deleted argument of a merge renumbers its list. There is no confirmation and no whole-loop fallback.
+
+*In the study.* Not in the study (`prototype/`): the editor's delete of a loop-made object. Tests: `test_scene_sync.ml` `run_loops`, `run_nested_loops`; `test_workspace_eval.ml` (L16).
 
 ## G1
 

@@ -171,6 +171,23 @@ let with_pos args i v =
       | [] -> [] in
     go 0 args
 
+(* a [:skip] value (register L16): tuples as written, bare integers when every tuple has one *)
+let skip_value tuples =
+  if List.for_all (fun t -> List.length t = 1) tuples then vec (List.map (fun t -> num (List.hd t)) tuples)
+  else vec (List.map (fun t -> vec (List.map num t)) tuples)
+let skip_of_args args = match kw_get args "skip" with
+  | Some v -> Option.value ~default:[] (W.skip_tuples v)
+  | None -> []
+
+(* a [scene/merge]'s [:skip] tuples end in an argument position: when the arguments at [gone]
+   (old positions) leave, the ones after them move up and the ones for them go *)
+let skip_after_removal args gone =
+  let moved = List.filter_map (fun t -> match List.rev t with
+    | p :: outer when not (List.mem p gone) ->
+        Some (List.rev (p - List.length (List.filter (fun g -> g < p) gone) :: outer))
+    | _ -> None) (skip_of_args args) in
+  with_kw args "skip" (if moved = [] then None else Some (skip_value moved))
+
 let arg_get (e : S.t) key = match key, e.node with
   | Whole, _ -> Some e
   | Bv (i, j), _ -> Option.bind (nth_child e i) (fun c -> nth_child c j)
@@ -193,6 +210,12 @@ let arg_set (e : S.t) key (v : S.t option) : S.t = match key, e.node, v with
       (match nth_child e i with Some c -> set_child e i (set_child c j v) | None -> fail "This form has no part %d." i)
   | Bv _, _, None -> fail "A loop clause cannot be removed."
   | Field k, S.Map l, _ -> { e with node = S.Map (flat_pairs (set_pair (pairs l) k v)) }
+  | Pos i, S.List (({ S.node = S.Sym "scene/merge"; _ } as h) :: args), None ->
+      { e with node = S.List (h :: skip_after_removal (with_pos args i None) [ i ]) }
+  | Kw "skip", S.List (({ S.node = S.Sym "for"; _ } as h) :: args), Some v when kw_get args "skip" = None ->
+      (* the body stays last *)
+      let n = List.length args in
+      { e with node = S.List (h :: List.filteri (fun i _ -> i < n - 1) args @ [ kwf "skip"; v; List.nth args (n - 1) ]) }
   | Pos i, S.List (h :: args), _ -> { e with node = S.List (h :: with_pos args i v) }
   | Kw k, S.List (h :: args), _ -> { e with node = S.List (h :: with_kw args k v) }
   | _ -> fail "This form has no such input."
@@ -469,7 +492,10 @@ let rec detach name below (e : S.t) : S.t =
   let e = map_children (detach name below) e in
   match head_sym e with
   | Some "scene/merge" ->
-      { e with node = S.List (List.filter (fun (c : S.t) -> c.node <> S.Sym name) (S.children e)) }
+      let args = List.tl (S.children e) in
+      let gone = List.filter_map (fun x -> x) (List.mapi (fun i (c : S.t) -> if c.node = S.Sym name then Some i else None) (positional args)) in
+      { e with node = S.List (List.hd (S.children e)
+          :: skip_after_removal (List.filter (fun (c : S.t) -> c.node <> S.Sym name) args) gone) }
   | Some h when String.starts_with ~prefix:"world/" h ->
       (match arg_get e (Pos 0) with
        | Some { S.node = S.Sym n; _ } when n = name -> arg_set e (Pos 0) below

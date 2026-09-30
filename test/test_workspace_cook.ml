@@ -62,7 +62,38 @@ let operations (graph : Lower.graph) operation =
   List.length (List.filter (fun (n : Procedural.Edit_graph.node_info) ->
     n.operation = operation) (Procedural.Edit_graph.inspect graph.network.geometry))
 
+(* register L16: a skipped iteration makes no node; the others keep compiled ids, plan keys and
+   provenance, so the cook keeps hitting its cache *)
+let skips () =
+  let text skip = "(workspace w (graph g :context sop (sop/merge (for [i (range 4)] " ^ skip
+    ^ "(sop/transform (sop/box) :translate [i 0 0])))))" in
+  let lower_text ?previous source = match Flow.Syntax.parse source with
+    | Error d -> fail (Flow.Diagnostic.to_string d)
+    | Ok forms ->
+        let compiled_ids = Option.map (fun (l : Lower.t) -> l.compiled_ids) previous
+        and sites = Option.map (fun (l : Lower.t) -> l.sites) previous in
+        (match Lower.workspace ~extra:Editor_document.Contexts.descriptors ~factories ?compiled_ids ?sites forms with
+         | Ok lowered -> lowered | Error d -> fail (Flow.Diagnostic.to_string d)) in
+  let all = lower_text (text "") in
+  let some = lower_text ~previous:all (text ":skip [2] ") in
+  let graph (l : Lower.t) = List.find (fun (g : Lower.graph) -> g.name = "g") l.graphs in
+  check (nodes (graph some) = nodes (graph all) - 2) "a skipped iteration did not remove its two nodes";
+  Instance_path.Map.iter (fun path id ->
+    match Instance_path.Map.find_opt path all.compiled_ids with
+    | Some before -> check (before = id) "a surviving node changed its compiled id"
+    | None -> fail "a skip minted a compiled id") some.compiled_ids;
+  (* provenance: what the merge took names the iteration that made it, not its position *)
+  let iters (l : Lower.t) = List.sort_uniq compare (List.filter_map (fun (o : Lower.origin) ->
+    if o.iter <> [] && List.length o.site > 0 then Some o.iter else None)
+    (List.map snd (Network.Int_map.bindings l.provenance))) in
+  check (iters all = [ [ 0 ]; [ 1 ]; [ 2 ]; [ 3 ] ] && iters some = [ [ 0 ]; [ 1 ]; [ 3 ] ])
+    "the provenance of a skipped loop does not name the iterations that ran";
+  let bytes (l : Lower.t) = geometry_bytes (Option.get (cook ~domains:1 (graph l))) in
+  check (bytes some = geometry_bytes (Option.get (cook ~domains:3 (graph some)))) "a skipped loop cooks differently at 1 and 3 domains";
+  check (bytes some <> bytes all) "a skipped loop cooked like the whole"
+
 let run () =
+  skips ();
   let cooked = ref 0 in
   List.iter (fun name ->
     let lowered = lower name in

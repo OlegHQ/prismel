@@ -145,6 +145,12 @@ and core x ind =
         let col = ind + String.length hd + 2 in
         "(" ^ hd ^ " " ^ bind_vec (nth ks 1) col
         ^ tail 2 (ind + 2) ^ end_n (ind + 2) ^ ")"
+      else if hd = "for" && vec_at 1 && len = 5 && is_kw (nth ks 2) && slots_plain 4 then
+        (* [:skip tuples] stays with the bindings, the body below *)
+        let col = ind + String.length hd + 2 in
+        "(for " ^ bind_vec (nth ks 1) col ^ "\n" ^ sp (ind + 2) ^ flat_ (nth ks 2) ^ " "
+        ^ pp (nth ks 3) (ind + 2 + vis (flat_ (nth ks 2)) + 1)
+        ^ tail 4 (ind + 2) ^ end_n (ind + 2) ^ ")"
       else if (hd = "fold" || hd = "scan") && vec_at 1 && vec_at 2 && len = 4
               && slots_plain 3 then
         let col = ind + String.length hd + 2 in

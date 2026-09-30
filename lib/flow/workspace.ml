@@ -29,13 +29,13 @@ and node =
   | Vec of term list
   | Ref_binding of string * string list
   | Call of { kind : string; args : (string * term) list }
-  | Op of { op : string; args : (string * term) list }
+  | Op of { op : string; args : (string * term) list; skip : int list list }
   | Call_fn of { fn : string; args : term list }
   | Fn_ref of string
   | Graph_ref of { graph : string; inputs : (string * term) list }
   | Let of (pattern * term) list * term
   | Loop of { kind : [ `For | `Fold | `Scan | `Sum ]; accs : (pattern * term) list;
-              clauses : (pattern * term) list; body : term; zone : path }
+              clauses : (pattern * term) list; skip : int list list; body : term; zone : path }
   | If of term * term * term
   | Cond of (term * term) list * term
   | Case of term * (S.t * term) list * term
@@ -246,6 +246,22 @@ let rec pat_names (p : S.t) = match p.node with
   | S.Map [ _; { S.node = S.Vec ks; _ } ] -> List.filter_map sym_of ks
   | _ -> []
 
+(* A [:skip] value (register L16): a list of tuples of non-negative integers, a bare integer
+   being a tuple of one.  A static list, so it never depends on t. *)
+let skip_tuples (v : S.t) : int list list option =
+  let int (n : S.t) = match n.node with
+    | S.Num s -> (match int_of_string_opt s with Some i when i >= 0 -> Some i | _ -> None)
+    | _ -> None in
+  let tuple (t : S.t) = match t.node with
+    | S.Vec (_ :: _ as ns) ->
+        let is = List.filter_map int ns in
+        if List.length is = List.length ns then Some is else None
+    | _ -> Option.map (fun i -> [ i ]) (int t) in
+  match v.node with
+  | S.Vec items when List.for_all (fun t -> tuple t <> None) items ->
+      Some (List.map (fun t -> Option.get (tuple t)) items)
+  | _ -> None
+
 let check catalog forms =
   let diags = ref [] in
   let live = ref Paths.empty and invariant = ref Paths.empty in
@@ -257,6 +273,11 @@ let check catalog forms =
       | Diagnostic.Warning -> Diagnostic.warning ?span ~code msg) :: !diags in
   let err x code msg = add Diagnostic.Error x code msg in
   let bad x code msg = err x code msg; (tm x Ty.Any Nil, poison) in
+  let skip_of (v : S.t) : int list list = match skip_tuples v with
+    | Some tuples -> tuples
+    | None ->
+        err v "E_SKIP" ":skip is a list of iteration tuples of non-negative integers, for example :skip [[0 1] [2 0]].";
+        [] in
   let mark id (v : v) = if v.live then live := Paths.add id !live in
   let names : (string, unit) Hashtbl.t = Hashtbl.create 16 in
   let sigs : (string, signature) Hashtbl.t = Hashtbl.create 8 in
@@ -648,13 +669,15 @@ let check catalog forms =
         let is_acc = kind = `Fold || kind = `Scan in
         let shape = match args with
           | [ { S.node = S.Vec a; _ }; { S.node = S.Vec i; _ }; b ]
-            when is_acc && List.length a mod 2 = 0 && List.length i mod 2 = 0 -> Some (pairs a, pairs i, b)
-          | [ { S.node = S.Vec i; _ }; b ] when (not is_acc) && List.length i mod 2 = 0 -> Some ([], pairs i, b)
+            when is_acc && List.length a mod 2 = 0 && List.length i mod 2 = 0 -> Some (pairs a, pairs i, b, [])
+          | [ { S.node = S.Vec i; _ }; b ] when (not is_acc) && List.length i mod 2 = 0 -> Some ([], pairs i, b, [])
+          | [ { S.node = S.Vec i; _ }; { S.node = S.Kw "skip"; _ }; sk; b ]
+            when h = "for" && List.length i mod 2 = 0 -> Some ([], pairs i, b, skip_of sk)
           | _ -> None in
         (match shape with
          | None -> bad x "E_ZONE" (if is_acc then Printf.sprintf "%s is (%s [acc init] [i collection] body)." h h
              else Printf.sprintf "%s is (%s [i collection …] body)." h h)
-         | Some (accs, iters, b) ->
+         | Some (accs, iters, b, skip) ->
              let seen = Hashtbl.create 8 in
              let ok = List.fold_left (fun ok ((p : S.t), _) -> check_pat cx p seen h true && ok) true (accs @ iters) in
              let ok = ok && (if iters = [] then (err x "E_ZONE" (Printf.sprintf "%s needs at least one [name collection] clause." h); false) else true) in
@@ -662,10 +685,10 @@ let check catalog forms =
                (err x "E_ZONE" (Printf.sprintf "%s carries exactly one accumulator: [acc init]. Carry several values in a record: [{:keys [a b]} {:a 0 :b 1}]." h); false) else true) in
              if not ok then
                (tm x Ty.Any Nil, poison)
-             else zone_typed cx x id h kind accs iters b)
+             else zone_typed cx x id h kind accs iters skip b)
     | _ -> bad x "E_ZONE" "Expected a loop form."
 
-  and zone_typed cx x id h kind accs iters b =
+  and zone_typed cx x id h kind accs iters skip b =
     incr zones;
     let zid = !zones in
     let init = match accs with
@@ -730,7 +753,7 @@ let check catalog forms =
               vary = union (List.filter (( <> ) zid) bv.vary)
                 (List.fold_left (fun a (v : v) -> union a v.vary) [] ins) } in
     (tm x ty (Loop { kind; accs = (match init with Some (p, t, _) -> [ (pat_ir p, t) ] | None -> []);
-                     clauses; body = bt; zone = id }), v)
+                     clauses; skip; body = bt; zone = id }), v)
 
   and mk_fn cx (x : S.t) id name : term * v =
     match x.node with
@@ -955,10 +978,18 @@ let check catalog forms =
                       | _ -> None in
                     (match p with Some (_, Ty.Fn, _) -> true | _ -> false) in
                   apply_def cx x d (args_of cx fn_slot args)
+              | `Op o when o.oname = "scene/merge" ->
+                  (* [:skip] is read here: its value is a list of tuples, not an argument *)
+                  let rec split = function
+                    | { S.node = S.Kw "skip"; _ } :: v :: rest -> let s, r = split rest in skip_of v @ s, r
+                    | y :: rest -> let s, r = split rest in s, y :: r
+                    | [] -> [], [] in
+                  let skip, args = split args in
+                  apply_op ~skip cx x o (args_of cx (fun _ _ -> false) args)
               | `Op o -> apply_op cx x o (args_of cx (fun _ _ -> false) args)
               | `Kind k -> apply_kind cx x k (args_of cx (fun _ _ -> false) args)))
 
-  and apply_op cx x (o : op) (args : arg list) : term * v =
+  and apply_op ?(skip = []) cx x (o : op) (args : arg list) : term * v =
     if o.octx <> Value && o.octx <> cx.ctx then
       bad x "E_WRONG_CONTEXT" (Printf.sprintf "%s belongs to %s; it cannot run in %s. Pass data through a typed input or ref."
         o.oname (context_name o.octx) (context_name cx.ctx))
@@ -1022,7 +1053,7 @@ let check catalog forms =
           | "linspace", [ _; _; Some n ] -> Some (max 0 n)
           | _ -> None in
         let v = { (derive ty avs) with live_len; len } in
-        (tm x ty (Op { op = o.oname; args = List.rev !named }), v)
+        (tm x ty (Op { op = o.oname; args = List.rev !named; skip }), v)
       end
     end
 

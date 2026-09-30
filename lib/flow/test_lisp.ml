@@ -277,3 +277,15 @@ let () =
     && String.contains text '\n');
   assert (Lisp.flat (List.hd broken) = String.concat "" ["(all "; String.concat " "
     (List.init 30 (fun i -> Printf.sprintf "(f%d :k %d)" i i)); ")"])
+
+(* A loop's :skip (register L16) prints between its clauses and its body, flat or broken, and
+   the text reads back to the same forms. *)
+let () =
+  let again text = fst (Lisp.print (get (Syntax.parse text))) in
+  let short = "(for [i (range 4)] :skip [1 3] (scene/light :name \"a\"))" in
+  assert (print short = short ^ "\n");
+  let long = "(for [i (range 4) j (range 3) k (range 5)] :skip [[0 1 2] [1 1 1] [3 2 4]] (scene/light :name \"lamp\" :translate [i j k] :intensity 30))" in
+  let text = print long in
+  assert (String.contains text '\n');
+  assert (again text = text);
+  assert (Lisp.flat (List.hd (get (Syntax.parse (again text)))) = long)
