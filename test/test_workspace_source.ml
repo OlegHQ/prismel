@@ -66,8 +66,11 @@ let run_files () =
   check (read file = text1) "the refused save left the file alone";
   (* the poll: one stat per half second *)
   let source = Source.at ~file ~digest:(sha text0) in
-  let _, changed = Source.poll ~now:0. source in
-  check (changed = None) "a file that already differed at startup reloaded without an edit";
+  let source, changed = Source.poll ~now:0. source in
+  check (changed = Some text1) "a file that already differed at startup did not reload on the first poll";
+  check (snd (Source.poll ~now:1. source) = None) "the startup difference was reported twice";
+  let _, same = Source.poll ~now:0. (Source.at ~file ~digest:(sha text1)) in
+  check (same = None) "a file that matches the built text reloaded";
   let source = Source.at ~file ~digest:(sha text1) in
   let source, _ = Source.poll ~now:0. source in
   write file text0;
@@ -164,17 +167,40 @@ let run_editor () =
   run_for 1.;
   settle ();
   check (has (cook_line !e) "Reloaded") ("the recovered file reloads: " ^ cook_line !e);
+  (* a (layout ...) form edited into the file is the new layout; a file without one keeps it *)
+  write file (text1 ^ {|(layout (node ["g" "@result"] :at [10 20]) (frame ["g"] "Sphere" :at [0 0] :size [200 100]))|});
+  run_for 1.;
+  settle ();
+  let layout () = (Option.get (E3.workspace !e)).Doc.layout in
+  check (Editor_document.Layout_by_path.Path_map.mem [ "g"; "@result" ] (layout ()).at
+         && not (Editor_document.Layout_by_path.Path_map.is_empty (layout ()).frames))
+    "the layout form of the file was ignored";
+  write file text1;
+  run_for 1.;
+  settle ();
+  check (Editor_document.Layout_by_path.Path_map.mem [ "g"; "@result" ] (layout ()).at)
+    "a reload without a layout form dropped the layout";
   E3.close !e;
-  (* a source that is not the text the binary was built from: Save falls back to a preset *)
+  (* a file edited since the build reloads on the first poll, as one history entry *)
   write file text1;
   e := editor ~presets:(Filename.concat dir "presets")
       ~source:(Source.at ~file ~digest:(sha text0)) text0;
   count := 0;
-  step []; step []; settle ();
+  step []; step []; run_for 1.; settle ();
+  check (has (source_text !e) "0.7") ("the edited file was not loaded at startup: " ^ source_text !e);
+  check (E3.undo_label !e = Some "Reload sketch.plisp") "the startup reload is one history entry";
+  E3.close !e;
+  (* a file that differs and does not check keeps the built text; Save then falls back to a preset *)
+  write file typo;
+  e := editor ~presets:(Filename.concat dir "presets")
+      ~source:(Source.at ~file ~digest:(sha text0)) text0;
+  count := 0;
+  step []; step []; run_for 1.; settle ();
+  check (has (cook_line !e) "not reloaded") ("the refused startup file says so: " ^ cook_line !e);
   step ~keys:[ Input.Meta ] [ Event.KeyPressed (Input.KeyChar 's') ];
   settle ();
   check (has (cook_line !e) "saved as preset") ("the status says why: " ^ cook_line !e);
-  check (read file = text1) "the changed source file was not overwritten";
+  check (read file = typo) "the changed source file was not overwritten";
   check (Array.length (Sys.readdir (Filename.concat dir "presets")) = 1) "one preset was written";
   E3.close !e;
   Array.iter (fun f -> Sys.remove (Filename.concat (Filename.concat dir "presets") f))

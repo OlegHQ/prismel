@@ -1362,14 +1362,17 @@ let text_edit ?(label = "Edit text") value text =
     (Doc.text_edit ~factories:value.factories value.doc text)
 
 let binding_edit value path text =
-  let error message = Error [ Flow.Diagnostic.error ~code:"E_EDIT" message ] in
+  let error message = Error [ Flow.Diagnostic.error ~position:{ line = 1; col = 0 } ~code:"E_EDIT" message ] in
   match Flow.Syntax.parse text with
   | Error d -> Error [ d ]
   | Ok [ form ] ->
-      (match Doc.syntax_edit ~factories:value.factories value.doc
+      (match Doc.syntax_edit_result ~factories:value.factories value.doc
           (Flow_sop.Flow_edit.Set_arg { node = path; key = Whole; sub = []; value = form }) with
        | Ok doc -> Ok (install value doc ~label:"Edit text" ~merge:Editor_core.History.Step)
-       | Error message -> error message)
+       | Error d ->
+           (* the checker's position is in the whole document; the pane shows the binding's own
+              text, so the error is marked on its first line *)
+           Error [ { d with position = Some { line = 1; col = 0 }; span = None } ])
   | Ok _ -> error "Expected one expression"
 
 (* Fold the pane's intents: drafts live in [value.text] (view state); a
@@ -1380,13 +1383,14 @@ let apply_text value intents =
     let with_text text = { value with text } in
     match intent with
     | Text_pane.Tab tab -> with_text { text with tab }
-    | Doc_draft draft -> with_text { text with draft = Some draft }
+    | Doc_draft draft -> with_text { text with draft = Some draft; doc_errors = [] }
     | Doc_discard -> with_text { text with draft = None; doc_errors = [] }
     | Doc_apply draft ->
         (match text_edit value draft with
          | Ok value -> { value with text = { text with draft = None; doc_errors = [] } }
          | Error doc_errors -> with_text { text with draft = Some draft; doc_errors })
-    | Binding_draft (path, draft) -> with_text { text with binding_draft = Some (path, draft) }
+    | Binding_draft (path, draft) ->
+        with_text { text with binding_draft = Some (path, draft); binding_errors = [] }
     | Binding_discard -> with_text { text with binding_draft = None; binding_errors = [] }
     | Binding_apply (path, draft) ->
         (match binding_edit value path draft with

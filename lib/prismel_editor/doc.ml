@@ -105,18 +105,21 @@ let set_expression (document : Flow_sop.Network.t) target text =
 
 (* One gesture on a workspace document: rewrite and re-check the source, then
    lower it into the document's objects.  Atomic: an error changes nothing. *)
-let syntax_edit ~factories (doc : Editor_document.Document.t) op =
+let syntax_edit_result ~factories (doc : Editor_document.Document.t) op =
   match doc.workspace with
-  | None -> Error "This document is not a workspace."
+  | None -> Error (Flow.Diagnostic.error ~code:"E_DOCUMENT" "This document is not a workspace.")
   | Some (workspace, _) ->
       let ( let* ) = Result.bind in
-      let flow r = Result.map_error Flow.Diagnostic.to_string r in
-      let* catalog = flow (Editor_document.Contexts.catalog ~version:Flow_sop.Manifest.version factories) in
-      let* workspace = flow (Editor_document.Workspace_doc.edit catalog workspace op) in
-      flow (Editor_document.Contexts.of_workspace ~factories ~previous:doc workspace)
+      let* catalog = Editor_document.Contexts.catalog ~version:Flow_sop.Manifest.version factories in
+      let* workspace = Editor_document.Workspace_doc.edit catalog workspace op in
+      Editor_document.Contexts.of_workspace ~factories ~previous:doc workspace
+
+let syntax_edit ~factories (doc : Editor_document.Document.t) op =
+  if doc.workspace = None then Error "This document is not a workspace."
+  else Result.map_error Flow.Diagnostic.to_string (syntax_edit_result ~factories doc op)
 
 (* The whole workspace text, edited (plan W7): parsed and checked as a
-   document, lowered, atomic.  The layout (keyed by path) and settings stay. *)
+   document, lowered, atomic. *)
 let text_edit ~factories (doc : Editor_document.Document.t) text =
   match doc.workspace with
   | None -> Error [ Flow.Diagnostic.error ~code:"E_DOCUMENT" "This document is not a workspace." ]
@@ -126,7 +129,10 @@ let text_edit ~factories (doc : Editor_document.Document.t) text =
       let* catalog = one (Editor_document.Contexts.catalog ~version:Flow_sop.Manifest.version factories) in
       let* edited = Editor_document.Workspace_doc.of_text ~settings:workspace.settings catalog text in
       one (Editor_document.Contexts.of_workspace ~factories ~previous:doc
-        { edited with layout = workspace.layout; settings = workspace.settings })
+        (* a [(layout ...)] or [(settings ...)] form in the text is the new value; without one
+           the running layout (keyed by path) stays, and the settings the text does not name *)
+        { edited with layout = (if Editor_document.Layout_by_path.is_empty edited.layout
+                                then workspace.layout else edited.layout) })
 
 (* Folds one graph intent into the document and view; [placed] collects the
    ids whose tile position this frame set, moved, or removed, so the undo

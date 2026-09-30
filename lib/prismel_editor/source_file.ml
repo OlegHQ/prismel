@@ -11,9 +11,14 @@ let read file = Editor_core.Store.read_text ~filename:file
 
 let interval = 0.5
 
-let at ~file ~digest =
+(* the file as it is now, whose text has [digest] *)
+let synced ~file ~digest =
   { file; digest; mtime = Option.fold ~none:0. ~some:(fun s -> s.Unix.st_mtime) (stat file);
     polled = neg_infinity; broken = false }
+
+(* No mtime is remembered: the first poll reads the file, so a file that already differs from
+   the text the sketch was built from (edited since the build) reloads at once. *)
+let at ~file ~digest = { (synced ~file ~digest) with mtime = neg_infinity }
 
 (* the first [dune-project] at or above [dir] that is not inside a [_build] *)
 let rec root dir =
@@ -57,7 +62,7 @@ let save t text =
       let perm = Option.fold ~none:0o644 ~some:(fun s -> s.Unix.st_perm) (stat t.file) in
       Result.map (fun () ->
         (try Unix.chmod t.file perm with Unix.Unix_error _ -> ());
-        { (at ~file:t.file ~digest:(sha text)) with polled = t.polled })
+        { (synced ~file:t.file ~digest:(sha text)) with polled = t.polled })
         (Editor_core.Store.write_text ~filename:t.file text)
       |> Result.map_error (fun m -> `Failed m)
   | Ok _ | Error _ -> Error `Changed

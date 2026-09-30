@@ -177,7 +177,12 @@ let summary state =
          Printf.sprintf ", error%s: %s"
            (match line_of draft d with Some l -> Printf.sprintf " at line %d" l | None -> "")
            (Flow.Diagnostic.to_string d)
-     | _, _, d :: _ | d :: _, None, _ -> ", error: " ^ Flow.Diagnostic.to_string d
+     | _, _, d :: _ ->
+         Printf.sprintf ", error%s: %s"
+           (match Option.bind state.binding_draft (fun (_, t) -> line_of t d) with
+            | Some l -> Printf.sprintf " at line %d" l | None -> "")
+           (Flow.Diagnostic.to_string d)
+     | d :: _, None, _ -> ", error: " ^ Flow.Diagnostic.to_string d
      | [], _, [] -> "")
 
 (* ---- the pane ---- *)

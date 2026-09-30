@@ -137,6 +137,11 @@ let editor_text () =
   check (contains text "draft yes") ("an invalid draft left the pane\n" ^ text);
   check (contains text (Printf.sprintf "error at line %d:" line)) (Printf.sprintf "error not at line %d\n%s" line text);
   check (ws () == original && E.undo_label !env = base) "an invalid apply changed the document";
+  (* typing clears the marks: they cannot drift away from the line they named *)
+  click area; step [ Event.TextInput "\n" ];
+  check (not (contains (dump ()) ", error")) ("an edit left its stale error mark\n" ^ dump ());
+  click apply;
+  check (contains (dump ()) "error at line") "the next apply marks its line again";
   (* a valid edit applies atomically, as one history entry *)
   type_text (replace applied ~from:"(seeds : int 240)" ~by:"(seeds : int 100)");
   click apply;
@@ -147,6 +152,48 @@ let editor_text () =
   step ~keys:[ Input.Meta ] [ char 'z' ];
   check (Flow.Lisp.print (ws ()).source |> fst = applied) "undo did not restore the text";
   check (E.redo_label !env = Some "Edit text") "redo label"
+
+(* A checker error from a binding apply is marked on the binding text's line, and typing clears it. *)
+let editor_binding () =
+  let open Prismel in
+  let catalog = Editor_document.Contexts.catalog ~version:Flow_sop.Manifest.version
+      Sop_catalog.Editor.factories |> Result.get_ok in
+  let workspace = Prismel_editor.Workspace_doc.of_text catalog (case "sunflower") |> Result.get_ok in
+  let env = ref (E.create ~workspace
+      ~prepare:(fun _ output -> Pdk_prismel.Prismel_mesh.to_mesh output.Procedural.Session.geometry
+        |> Result.map_error Pdk.Error.to_string)
+      ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) () |> Result.get_ok) in
+  let count = ref 0 in
+  let step ?keys ?(at = (450., 320.)) events =
+    incr count; env := E.update !env (frame ~mouse:at ?keys !count events) in
+  let click (x, y) = step ~at:(x, y) [ Event.MouseMoved (x, y) ];
+    step ~at:(x, y) [ Event.MousePressed (Input.LeftButton, (x, y));
+      Event.MouseReleased (Input.LeftButton, (x, y)) ] in
+  let key k = Event.KeyPressed k and char c = Event.KeyPressed (Input.KeyChar c) in
+  let dump () =
+    let directory = Filename.temp_dir "prismel-text-pane" "" in
+    Fun.protect ~finally:(fun () ->
+      Array.iter (fun f -> Sys.remove (Filename.concat directory f)) (Sys.readdir directory);
+      Unix.rmdir directory) (fun () ->
+      E.crash_dump !env directory;
+      In_channel.with_open_bin (Filename.concat directory "editor.txt") In_channel.input_all) in
+  let settle () = for _ = 1 to 40 do step []; Unix.sleepf 0.002 done in
+  settle ();
+  let gx, gy, _, gh = (E.panes !env (frame 0 [])).graph in
+  click (float (gx + 50), float (gy + 100));
+  step [ char 'j' ]; step [ char 'i' ]; settle ();
+  (* walk to a binding, then show the text pane: its Selection tab edits that binding *)
+  for _ = 1 to 4 do step [ key Input.ArrowRight ] done;
+  step [ key Input.Space; char 'l' ]; step [ key Input.Space; char 'l' ]; step [];
+  check (contains (dump ()) "projection: text") "Space l did not reach the text pane";
+  click (float (gx + 100), float (gy + gh - 60));
+  step ~keys:[ Input.Meta ] [ char 'a' ];
+  step [ Event.TextInput "(sqrt nosuch)" ];
+  click (float (gx + 60), float (gy + gh - 36));
+  check (contains (dump ()) "error at line 1:") ("a binding error has no line\n" ^ dump ());
+  click (float (gx + 100), float (gy + gh - 60));
+  step [ Event.TextInput " " ];
+  check (not (contains (dump ()) ", error")) "typing in the binding left its error mark"
 
 (* W9 through the editor: the 1400x800 window of sketches/flow_workspace, Rosette, the graph
    pane zoomed once (frame 12) so the cards sit where FLOW_W9 clicks them: the B flag of
@@ -205,5 +252,6 @@ let editor_w9 () =
 let run () =
   selection_text ();
   editor_text ();
+  editor_binding ();
   editor_w9 ();
   print_endline "text pane tests passed"
