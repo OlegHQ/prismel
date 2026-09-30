@@ -612,3 +612,9 @@ here with its reason; "cheap" items were done in W12 and are not listed.
 | W12 | single-graph `[%flow]` as sugar | Deleted instead (no caller; see `flow-migration.md`). |
 | W12 | `Drive.Expr` / `Flow.Expr`, flat pane, `Flow.Sexp` | Kept, needed by `?graph` documents and the manifest reader. |
 | W12 | JSON remnants | `Store.Settings` (user preferences), `Store.Viewport` (in-memory `Yojson`, written as an s-expression by `Preset`) and build glue JSON (`api_stable.json`, generated inventories); none is a document. |
+
+W12 verification (clean `dune clean` state, Apple M1): `dune build @all`, window-free `dune runtest`,
+`@runtest-native`, `@smoke`, the full `@smoke-all` sweep (all examples and sketches, including the thirteen
+`.plisp` sketches), `git diff --check`, `dune build @doc` (warnings only, none new) and
+`node specification/workspace/prototype/check.cjs` pass; the dependency gate reports 47 libraries, 45 rules, 0
+listed exceptions. `code_quadtree` needs `ocamllsp` on PATH (a shell without it fails that one rule).
