@@ -384,6 +384,7 @@ op('sop/line', 'sop', {kw: [['origin', 'vec3', [0, 0, 0]], ['direction', 'vec3',
   fn: (_, k) => { const n = Math.max(2, Math.min(512, k.points)), l = Math.hypot(...k.direction) || 1, d = k.direction.map(v => v / l);
     return geo([prim(Array.from({length: n}, (_, i) => k.origin.map((o, j) => o + d[j] * k.length * i / (n - 1))), false)]); }});
 op('sop/poly_path', 'sop', {pos: [['points', 'list:vec3']], kw: [['closed', 'bool', false]], out: 'geometry', fn: ([pts], k) => geo(pts.length ? [prim(pts.map(p => [...p]), !!k.closed)] : [])});
+op('sop/curve', 'sop', {pos: [['points', 'list:vec3']], kw: [['closed', 'bool', false]], out: 'geometry', fn: ([pts], k) => geo(pts.length ? [prim(pts.map(p => [...p]), !!k.closed)] : [])});
 op('sop/points', 'sop', {pos: [['points', 'list:vec3']], kw: [['size', 'float', 0.04, [0, 0.5]]], out: 'geometry', fn: ([pts], k) => geo(pts.map(p => prim([[...p]], false, {size: k.size})))});
 op('sop/transform', 'sop', {pos: [['input', 'geometry']], kw: [['translate', 'vec3', [0, 0, 0]], ['rotate', 'vec3', [0, 0, 0], [-3.1416, 3.1416]], ['scale', 'vec3', [1, 1, 1], [0, 10]], ['uniform_scale', 'float', 1, [0, 10]]], out: 'geometry',
   fn: ([g], k) => mapPts(g, q => { const s = k.scale, u = k.uniform_scale, r = rotXYZ([q[0] * s[0] * u, q[1] * s[1] * u, q[2] * s[2] * u], k.rotate); return [r[0] + k.translate[0], r[1] + k.translate[1], r[2] + k.translate[2]]; })});
@@ -402,8 +403,8 @@ op('sop/set_color', 'sop', {pos: [['input', 'geometry']], kw: [['color', 'color'
   fn: ([g], k) => geo(g.prims.map(p => !k.group || p.groups.includes(k.group) ? {...p, color: toHex(k.color)} : p))});
 op('sop/group_bounds', 'sop', {pos: [['input', 'geometry']], kw: [['name', 'group', 'group1'], ['center', 'vec3', [0, 0, 0]], ['size', 'vec3', [1, 1, 1]]], out: 'geometry',
   fn: ([g], k) => geo(g.prims.map(p => { const c = centroid(p); return c.every((v, i) => Math.abs(v - k.center[i]) <= k.size[i] / 2) ? {...p, groups: [...new Set([...p.groups, k.name])]} : p; }))});
-op('sop/group_random', 'sop', {pos: [['input', 'geometry']], kw: [['name', 'group', 'group1'], ['ratio', 'float', 0.5, [0, 1]], ['seed', 'int', 0, [0, 100]]], out: 'geometry',
-  fn: ([g], k) => { const byUid = new Map(); return geo(g.prims.map((p, i) => { const key = p.tags['#piece'] ?? i; if (!byUid.has(key)) byUid.set(key, hash(k.seed, key, 7) < k.ratio); return byUid.get(key) ? {...p, groups: [...new Set([...p.groups, k.name])]} : p; })); }});
+op('sop/group_random', 'sop', {pos: [['input', 'geometry']], kw: [['name', 'group', 'group1'], ['probability', 'float', 0.5, [0, 1]], ['seed', 'int', 0, [0, 100]]], out: 'geometry',
+  fn: ([g], k) => { const byUid = new Map(); return geo(g.prims.map((p, i) => { const key = p.tags['#piece'] ?? i; if (!byUid.has(key)) byUid.set(key, hash(k.seed, key, 7) < k.probability); return byUid.get(key) ? {...p, groups: [...new Set([...p.groups, k.name])]} : p; })); }});
 op('sop/blast', 'sop', {pos: [['input', 'geometry']], kw: [['group', 'groupref', ''], ['selected', 'bool', true]], out: 'geometry',
   fn: ([g], k) => geo(g.prims.filter(p => p.groups.includes(k.group) !== !!k.selected))});
 op('sop/subdivide', 'sop', {pos: [['input', 'geometry']], kw: [['iterations', 'int', 1, [0, 4]]], out: 'geometry',

@@ -184,7 +184,7 @@ An iterated function system in 3D. Every step puts three scaled, tilted copies o
                                                 :rotate [0 0 spread])
                           a (sop/transform tilted :translate up)
                           b (sop/transform tilted :rotate [0 2.094 0] :translate up)
-                          c (sop/transform tilted :rotate [0 4.189 0] :translate up)]
+                          c (sop/transform tilted :rotate [0 -2.094 0] :translate up)]
                      (sop/merge trunk a b c)))]
       crown)))
 ```
@@ -216,7 +216,7 @@ Loops three deep. y is a Fourier sum folded into a Σ chip inside a for over sam
                                                 (/ (sin (* (+ x (+ t (* row 0.4))) (+ (* 2 k) 1)))
                                                    (+ (* 2 k) 1))))]
                                     [(- (/ x 3.1416) 1) y (- (* row 0.3) 0.75)]))]
-                       (sop/polywire (sop/poly_path pts) :radius 0.015 :sides 4)))
+                       (sop/polywire (sop/curve pts) :radius 0.015 :sides 4)))
            sheet (sop/merge strands)]
       sheet)))
 ```
@@ -339,13 +339,16 @@ Geometry groups are names that flow with geometry. group_bounds and group_random
                      (sop/group_bounds (sop/box :size [0.24 0.3 0.06]
                                                 :center [(- (* b 0.4) 0.8) (+ 0.4 (* f 0.48)) 0.31])
                                        :name (str "floor_" f)
-                                       :size [99 99 99]))
+                                       :size [20 20 20]))
            glass (sop/merge windows)
            marked (let* [top (sop/group_bounds glass
                                                :name "attic"
                                                :center [0 3 0]
                                                :size [4 1 4])
-                         odd (sop/group_random top :name "lit" :ratio 0.35 :seed 4)]
+                         odd (sop/group_random top
+                                               :name "lit"
+                                               :probability 0.35
+                                               :seed 4)]
                     odd)
            lit (sop/set_color marked :color "#f5cf4f" :group "lit")
            open (sop/blast lit :group "attic")
@@ -374,7 +377,7 @@ Graphs take typed inputs, and (ref garden :seed s) calls one like a function. Th
 (workspace variations
 
   (graph garden :context sop [(seed : int 1) (count : int 40)]
-    (let* [bed (sop/circle :radius 1 :segments 48)
+    (let* [bed (sop/tube :top_radius 1 :bottom_radius 1 :height 0.04 :columns 48)
            spots (sop/scatter bed :count count :seed seed)
            dot (sop/uv_sphere :radius 0.06 :segments 8 :rings 4)
            dots (sop/copy_to_points dot spots)

@@ -247,7 +247,7 @@ let known_prefix state name = List.mem name ["sop"; "value"; "user"] ||
     (kinds state)
 let allowed context (kind : kind) =
   kind.context = Context.Value || kind.context = context
-let resolve state context form head =
+let resolve_report state context report head =
   let all = kinds state in
   let matches name = List.filter (fun kind ->
     kind.qualified = name || List.mem name kind.aliases) all in
@@ -259,24 +259,34 @@ let resolve state context form head =
   match candidates with
   | [kind] when allowed context kind -> Some kind
   | [kind] ->
-      error state form "E_WRONG_CONTEXT"
+      report "E_WRONG_CONTEXT"
         (Printf.sprintf "%s is a %s node and cannot appear in a %s graph"
           kind.qualified (Context.name kind.context) (Context.name context)); None
   | _ :: _ :: _ ->
-      error state form "E_AMBIGUOUS"
+      report "E_AMBIGUOUS"
         (Printf.sprintf "%s is ambiguous: %s. Write the namespace to choose"
           head (String.concat " or " (List.map (fun kind -> kind.qualified) candidates)));
       None
   | [] ->
       (match String.split_on_char '/' head with
        | prefix :: _ :: _ when not (known_prefix state prefix) ->
-           error state form "E_NAMESPACE"
+           report "E_NAMESPACE"
              (Printf.sprintf "Unknown namespace %s. This file knows sop, value and user" prefix)
        | _ ->
            let names = List.map (fun kind -> short kind.qualified) all in
-           error state form "E_UNKNOWN_KIND"
+           report "E_UNKNOWN_KIND"
              ("Unknown node " ^ head ^ "." ^ suggestion head names));
       None
+
+let resolve state context form head =
+  resolve_report state context (error state form) head
+
+let resolve_kind catalog context head =
+  let failure = ref None in
+  let state = {catalog; definitions = []; diagnostics = []} in
+  match resolve_report state context (fun code message -> failure := Some (code, message)) head with
+  | Some kind -> Ok kind
+  | None -> Error (Option.value !failure ~default:("E_UNKNOWN_KIND", "Unknown node " ^ head))
 
 let term ?ty node = {node; ty}
 let numeric_value = function
@@ -306,30 +316,30 @@ let new_error state before =
         diagnostic.Diagnostic.severity = Diagnostic.Error || loop rest in
   loop state.diagnostics
 
-let validate_range state form (parameter : parameter) field value =
+let validate_range report (parameter : parameter) field value =
   match field, numeric_value value with
   | (_, Param.Integer_view range, _), Some number ->
       if Float.floor number <> number then ()
       else if Option.fold ~none:false ~some:(fun n -> number < float_of_int n) range.hard_min
            || Option.fold ~none:false ~some:(fun n -> number > float_of_int n) range.hard_max then
-        error state form "E_HARD_RANGE"
+        report Diagnostic.Error "E_HARD_RANGE"
           (Printf.sprintf ":%s is outside its hard range" parameter.name)
       else if number < float_of_int range.soft_min || number > float_of_int range.soft_max then
-        warning state form "W_SOFT_RANGE"
+        report Diagnostic.Warning "W_SOFT_RANGE"
           (Printf.sprintf ":%s %g is outside the slider range %d–%d. Allowed, but check it"
             parameter.name number range.soft_min range.soft_max)
   | (_, Param.Floating_view range, _), Some number ->
       if Option.fold ~none:false ~some:(fun n -> number < n) range.hard_min
            || Option.fold ~none:false ~some:(fun n -> number > n) range.hard_max then
-        error state form "E_HARD_RANGE"
+        report Diagnostic.Error "E_HARD_RANGE"
           (Printf.sprintf ":%s is outside its hard range" parameter.name)
       else if number < range.soft_min || number > range.soft_max then
-        warning state form "W_SOFT_RANGE"
+        report Diagnostic.Warning "W_SOFT_RANGE"
           (Printf.sprintf ":%s %g is outside the slider range %g–%g. Allowed, but check it"
             parameter.name number range.soft_min range.soft_max)
   | _ -> ()
 
-let validate_parameter state form (parameter : parameter) (value : checked) =
+let validate_parameter report (parameter : parameter) (value : checked) =
   let ty = value.term.ty in
   let good = match parameter.ty, value.term.node with
     | None, Literal (Param.Text_value _ | Param.Choice_value _) -> true
@@ -342,33 +352,33 @@ let validate_parameter state form (parameter : parameter) (value : checked) =
     | Some target, _ -> (match ty with
         | Some source -> Port_type.can_connect ~source ~target
         | None -> false) in
-  if not good then error state form "E_TYPE"
+  if not good then report Diagnostic.Error "E_TYPE"
     (Printf.sprintf ":%s takes %s, but this is %s" parameter.name
       (Option.fold ~none:"text" ~some:Port_type.name parameter.ty)
       (Option.fold ~none:"nil or text" ~some:Port_type.name ty));
   (match parameter.ty, value.term.node with
    | Some Port_type.Int, Literal (Param.Float_value number)
        when Float.floor number <> number ->
-       error state form "E_INT_LITERAL"
+       report Diagnostic.Error "E_INT_LITERAL"
          (Printf.sprintf ":%s is an integer, not %g" parameter.name number)
    | Some Port_type.Int, Literal (Param.Float_value number)
        when number >= float_of_int max_int || number < float_of_int min_int ->
-       error state form "E_HARD_RANGE"
+       report Diagnostic.Error "E_HARD_RANGE"
          (Printf.sprintf ":%s is outside the integer range" parameter.name)
    | _ -> ());
   (match parameter.fields, value.term.node with
    | [(_, Param.Choice_view options, _)],
        Literal (Param.Text_value label | Param.Choice_value label)
        when not (Array.exists (( = ) label) options) ->
-       error state form "E_TYPE"
+       report Diagnostic.Error "E_TYPE"
          (Printf.sprintf ":%s must be one of %s" parameter.name
            (String.concat ", " (Array.to_list options)))
    | _ -> ());
   if good then (match value.term.node, parameter.fields with
-    | Literal literal, field :: _ -> validate_range state form parameter field literal
+    | Literal literal, field :: _ -> validate_range report parameter field literal
     | Vector components, fields ->
         List.iter2 (fun component field -> match component.node with
-          | Literal literal -> validate_range state form parameter field literal
+          | Literal literal -> validate_range report parameter field literal
           | _ -> ()) components
           (if List.length fields = 3 then fields else List.init 3 (fun _ ->
             "", Param.Text_view, Param.Text_value ""))
@@ -557,7 +567,7 @@ and kind_call state context env _form (kind : kind) args =
                                error state value_form "E_TYPE"
                                  (":" ^ name ^ " takes geometry")
                          | `Parameter parameter ->
-                             validate_parameter state value_form parameter value);
+                             validate_parameter (emit state value_form) parameter value);
                         let term = match descriptor with
                           | `Parameter parameter ->
                               normalize_parameter parameter value.term
@@ -737,7 +747,7 @@ let interface state form = match vector form with
                                 if value.term.node <> Nil then
                                   error state default "E_TYPE"
                                     "A geometry input defaults to nil")
-                              else validate_parameter state default
+                              else validate_parameter (emit state default)
                                 {name; label = name; ty = Some ty; fields = []} value;
                               normalize_parameter
                                 {name; label = name; ty = Some ty; fields = []}
@@ -823,3 +833,6 @@ let check catalog source = match Sexp.parse source with
        | Some graph when not has_errors ->
            Some {graph; definitions = state.definitions}, diagnostics
        | _ -> None, diagnostics)
+
+let validate_parameter report parameter term =
+  validate_parameter report parameter (checked term)

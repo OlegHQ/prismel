@@ -51,3 +51,23 @@ val check : catalog -> string -> program option * Diagnostic.t list
 val catalog_of_manifest : string -> (catalog * string, Diagnostic.t) result
 (** Read the generated catalog snapshot for compile-time checking, returning
     its SOP descriptor and digest. Built-in value kinds are added by [check]. *)
+
+(** {2 Reuse by the workspace checker}
+    [Flow.Workspace] calls catalog kinds through the same resolution and
+    parameter validation as [%flow]. *)
+
+val resolve_kind : catalog -> Context.t -> string -> (kind, string * string) result
+(** Resolve a short or qualified kind name for a graph of the given context;
+    [Error (code, message)] carries the diagnostic. Built-in [value/*] kinds
+    are included. *)
+
+val validate_parameter :
+  (Diagnostic.severity -> string -> string -> unit) -> parameter -> term -> unit
+(** Type, integer-literal, choice and range checks of one keyword argument;
+    the callback receives severity, code and message. *)
+
+val suggestion : string -> string list -> string
+(** [" Did you mean x?"] for a close candidate, else [""]. *)
+
+val short : string -> string
+(** Unqualified kind name. *)

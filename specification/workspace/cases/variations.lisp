@@ -1,7 +1,7 @@
 (workspace variations
 
   (graph garden :context sop [(seed : int 1) (count : int 40)]
-    (let* [bed (sop/circle :radius 1 :segments 48)
+    (let* [bed (sop/tube :top_radius 1 :bottom_radius 1 :height 0.04 :columns 48)
            spots (sop/scatter bed :count count :seed seed)
            dot (sop/uv_sphere :radius 0.06 :segments 8 :rings 4)
            dots (sop/copy_to_points dot spots)

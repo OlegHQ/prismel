@@ -7,13 +7,16 @@
                      (sop/group_bounds (sop/box :size [0.24 0.3 0.06]
                                                 :center [(- (* b 0.4) 0.8) (+ 0.4 (* f 0.48)) 0.31])
                                        :name (str "floor_" f)
-                                       :size [99 99 99]))
+                                       :size [20 20 20]))
            glass (sop/merge windows)
            marked (let* [top (sop/group_bounds glass
                                                :name "attic"
                                                :center [0 3 0]
                                                :size [4 1 4])
-                         odd (sop/group_random top :name "lit" :ratio 0.35 :seed 4)]
+                         odd (sop/group_random top
+                                               :name "lit"
+                                               :probability 0.35
+                                               :seed 4)]
                     odd)
            lit (sop/set_color marked :color "#f5cf4f" :group "lit")
            open (sop/blast lit :group "attic")

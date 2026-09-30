@@ -9,6 +9,6 @@
                                                 (/ (sin (* (+ x (+ t (* row 0.4))) (+ (* 2 k) 1)))
                                                    (+ (* 2 k) 1))))]
                                     [(- (/ x 3.1416) 1) y (- (* row 0.3) 0.75)]))]
-                       (sop/polywire (sop/poly_path pts) :radius 0.015 :sides 4)))
+                       (sop/polywire (sop/curve pts) :radius 0.015 :sides 4)))
            sheet (sop/merge strands)]
       sheet)))
