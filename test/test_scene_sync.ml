@@ -289,3 +289,22 @@ let run () =
   check (Prismel_editor.Editor3.undo_label env = Some "Add node") "adding an object is not one entry";
   Prismel_editor.Editor3.close env;
   print_endline "scene sync: fields, inline, rename, reparent, delete, camera, World, settings, host objects, add by key ok"
+
+(* Command: dune exec test/test_main.exe -- bench_scene_sync (from _build/default/test).  One handle-drag frame on an
+   object of a workspace: the derived edit, its text rewrite and the new lowering, median of 50. *)
+let bench () =
+  let case name =
+    In_channel.with_open_bin (Filename.concat "../specification/workspace/cases" (name ^ ".lisp")) In_channel.input_all in
+  List.iter (fun (name, label) ->
+    let doc = open_text (case name) in
+    let id = node_id doc label in
+    let runs = 50 in
+    let times = List.init runs (fun i ->
+      let after = set doc label [ float "translate_x" (Stdlib.float_of_int i *. 0.01) ] in
+      let start = Unix.gettimeofday () in
+      ignore (ok (reconcile doc after));
+      (Unix.gettimeofday () -. start) *. 1000.) in
+    ignore id;
+    let sorted = List.sort compare times in
+    Printf.printf "reconcile of one transform edit, %s: %.2f ms (median of %d)\n%!" name (List.nth sorted (runs / 2)) runs)
+    [ "bloom", "flower"; "variations", "garden" ]

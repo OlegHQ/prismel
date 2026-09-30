@@ -711,6 +711,8 @@ written from the derived objects at its first explicit edit; a camera following 
 inspector of a lowered node is read-only and its rows select the node in the pane; handles of the node selected in the pane
 write its arguments. A re-lowered network that is field-for-field the previous one is kept physically, so moving a scene
 object never recooks or re-prepares (`test_scene_tree`: "an object transform edit re-cooked SOPs" holds with `~await`).
+Cost: a handle-drag frame now rewrites the text and lowers it again; `dune exec test/test_main.exe -- bench_scene_sync` (from
+`_build/default/test`, Apple M1, median of 50, one domain): Bloom 2.8 ms, Variations 1.0 ms per frame, none of it a recook.
 Tests: `test_scene_sync.ml` (every kind of edit, the saved text opens as the same document by labels, refusals and
 atomicity, adoption), `test_scene_tree.ml` (the same through real list, inspector and World key events, with undo labels and the
 text reloaded), `test_workspace_edit.ml` (Add_node/Delete_nodes attach and detach, mixed argument order, Set_graph).
