@@ -106,3 +106,7 @@ val max_iterations : int
 val check : Check.catalog -> Syntax.t list -> t option * Diagnostic.t list
 (** Check one [(workspace name ...)] form.  The workspace is returned only
     without errors; warnings never block it. *)
+
+val name_taken : string -> bool
+(** A name a binding may not take: a special form, built-in operator or type
+    name.  Editors use it to pick fresh names. *)

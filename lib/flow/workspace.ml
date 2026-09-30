@@ -1365,3 +1365,7 @@ let check catalog forms =
               macros = List.rev !macro_forms; source = forms; live = !live; invariant = !invariant },
        diagnostics)
   | _ -> (None, diagnostics)
+
+let name_taken s =
+  reserved s || Symbol.reserved s || Hashtbl.mem op_table s || Hashtbl.mem op_table ("value/" ^ s)
+  || List.mem s type_names
