@@ -181,6 +181,56 @@ let run_editor () =
   check (focus_after (float (hx + 30), float (hy + 100)) = "View") "a press in a viewport focuses a viewport";
   ()
 
+(* Space o ...: the focused panel is split, closed or retyped by keys, the header menu's edits *)
+let run_panel_keys () =
+  let started () =
+    let e = ref (editor (case "variations")) and count = ref 0 in
+    let step ?(mouse = (300., 150.)) events = incr count; e := E3.update !e (frame mouse events !count) in
+    step []; step [];
+    (* a press in the graph panel focuses it *)
+    step [ Event.MouseMoved (300., 150.) ];
+    step [ Event.MousePressed (Input.LeftButton, (300., 150.)) ];
+    step [ Event.MouseReleased (Input.LeftButton, (300., 150.)) ];
+    step [];
+    check (dump_line !e "focus" = "Graph") ("focus is the graph panel: " ^ dump_line !e "focus");
+    e, step in
+  let key k = Event.KeyPressed k and ch c = Event.KeyPressed (Input.KeyChar c) in
+  let e, step = started () in
+  step [ key Input.Space; ch 'o'; ch 'h' ]; step [];
+  check (E3.undo_label !e = Some "Split panel" && has (source !e) "network_a") "Space o h split the focused panel";
+  step [ key Input.Space; ch 'o'; ch 'x' ]; step [];
+  check (E3.undo_label !e = Some "Close panel") "Space o x closed it again";
+  let e, step = started () in
+  step [ key Input.Space; ch 'o'; ch 'v' ]; step [];
+  check (E3.undo_label !e = Some "Split panel" && has (source !e) "\"vertical\" 0.5 network_a network_b")
+    "Space o v split it stacked";
+  let e, step = started () in
+  step [ key Input.Space; ch 'o'; ch 'l' ]; step [];
+  check (E3.undo_label !e = Some "Retype panel" && has (source !e) "(ui/list") "Space o l retyped it to a list"
+
+let run_frame_key () =
+  (* the graph pane's keys reach the document: Shift-G frames the walked-to node (layout data, one entry);
+     the rosette is entered as in test_text_pane's W9 scenario *)
+  Unix.putenv "PRISMEL_MAX_FRAMES" "40";
+  let e = ref (editor (case "rosette")) in
+  let key k = Event.KeyPressed k in
+  for n = 1 to 24 do
+    let click p = [ Event.MouseMoved p; Event.MousePressed (Input.LeftButton, p); Event.MouseReleased (Input.LeftButton, p) ] in
+    let events = match n with
+      | 4 -> click (900., 300.) | 6 -> [ key (Input.KeyChar 'j') ] | 8 -> [ key (Input.KeyChar 'i') ]
+      | 16 -> [ key Input.ArrowRight ] | 18 -> [ key Input.Shift; key (Input.KeyChar 'g') ] | _ -> [] in
+    let f : Frame.t = { width = 1400; height = 800; size = 1400, 800; drawable_width = 1400;
+      drawable_height = 800; drawable_size = 1400, 800; pixel_scale = 1., 1.;
+      time = float n /. 60.; dt = 1. /. 60.; fps = 60.; count = n; mouse = (640., 360.);
+      mouse_delta = 0., 0.; keys = (if n = 18 then [ Input.Shift ] else []); mouse_buttons = []; events } in
+    e := E3.update !e f;
+    Unix.sleepf 0.002
+  done;
+  check (E3.undo_label !e = Some "Frame") ("g made a frame: " ^ Option.value ~default:"-" (E3.undo_label !e));
+  check (match E3.workspace !e with
+      | Some ws -> not (Editor_document.Layout_by_path.Path_map.is_empty ws.Doc.layout.frames) | None -> false)
+    "the frame is in the layout"
+
 let panes_graph e = let _, _, w, _ = (E3.panes e (frame (0., 0.) [] 0)).graph in w
 
 let run_ops () =
@@ -275,7 +325,7 @@ let run_views () =
       let viewports = List.length (List.filter (function Scene.Private.Scene3_layer _ -> true | _ -> false) staged.layers) in
       check (viewports = 4) (Printf.sprintf "four viewports draw four 3D layers, got %d" viewports)
 
-let run () = run_lowering (); run_ops (); run_editor (); run_restore (); run_views ()
+let run () = run_lowering (); run_ops (); run_panel_keys (); run_frame_key (); run_editor (); run_restore (); run_views ()
 
 (* Native: a real window draws Variations' four viewports, each its own scene instance (the
    frame's 3D layers were once cached per frame, so only the first drew). *)

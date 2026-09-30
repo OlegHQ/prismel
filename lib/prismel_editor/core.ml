@@ -1164,6 +1164,7 @@ let apply_action value (frame : Frame.t) (workspace, graph_view, tree, timeline,
   | Graph_command _ | List_command _ | Frame_camera | Undo | Redo | Command_palette
   | Guide_toggle | Guide_keys
   | Sketch_command _ | Scope_command _ | Toggle_projection | Enter | Up | Go_world | Group | Ungroup
+  | Panel_split _ | Panel_close | Panel_retype _
   | Make_unique | Tool _
   | World_emit | World_reseed | World_time _ | World_play | World_preset _ ->
       workspace, graph_view, tree, timeline, changes
@@ -1463,7 +1464,7 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
     ~render_status ~view_state (frame : Frame.t) =
   let value = sync_scope value in
   let text_focus = text_focus || value.prompt <> None || Pxui_graph.editing value.graph_view
-    || Pxui_shell.Tree.editing value.tree in
+    || Pxui_graph.Scope.editing value.scope_view || Pxui_shell.Tree.editing value.tree in
   let focus = if all_ui_visible then
       match Pxui.Ui.last_press_within value.ui frame
           (List.map fst value.pane_keys) with
@@ -1589,6 +1590,14 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
        shell now (a fold, a drag) or become one editor-graph edit after the frame. *)
     let intents = Pxui_shell.Chrome.update ~hidden:workspace.hidden ~title:(panel_title vw)
         (shell_tree value workspace) ui shortcut_frame in
+    (* Space o ...: the focused panel's split, close and retype, as its header menu *)
+    let intents = intents @ (match Pxui_shell.Layout.find (geometry value workspace frame) focus with
+      | None -> []
+      | Some leaf -> List.filter_map (function
+          | Leader.Panel_split axis -> Some (Pxui_shell.Chrome.Split_panel (leaf.path, axis))
+          | Panel_close -> Some (Pxui_shell.Chrome.Close_panel leaf.path)
+          | Panel_retype panel -> Some (Pxui_shell.Chrome.Retype_panel (leaf.path, panel))
+          | _ -> None) actions) in
     let workspace, layout_changes = layout_intents vw workspace intents in
     let vw = { vw with workspace } in
     let g = geometry value workspace frame in
@@ -2241,6 +2250,11 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
             M.add path (x, y) at) l.at placed }),
           { result with label = "Move" }, probes
       | Probe_set { zone; index } -> next, result, M.add zone index probes
+      | Frames_set { scope; frames } ->
+          Doc.layout_edit next (fun l -> { l with frames =
+            if frames = [] then M.remove scope l.frames
+            else M.add scope (List.map (fun (title, at, size) -> { Layout_by_path.title; at; size }) frames) l.frames }),
+          { result with label = "Frame" }, probes
       | Syntax_edit _ | Selected _ | Notice _ | Macro_requested _ -> next, result, probes)
       (next, result, value.probes) result.scope_changes in
   let next, world_label = if in_world value

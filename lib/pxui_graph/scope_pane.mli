@@ -21,6 +21,10 @@ type change =
       (** dragged items, at their new position inside their scope *)
   | Macro_requested of path list
       (** [m]: the host opens its make-macro dialog over these nodes *)
+  | Frames_set of { scope : path; frames : (string * (float * float) * (float * float)) list }
+      (** the titled frames of one scope after a gesture: Shift-G makes one around the selection,
+          its corner resizes it, a double-click on its title renames it, its cross deletes it
+          (layout data, never printed) *)
   | Notice of string
 
 type direction = Left | Down | Up | Right
@@ -28,6 +32,11 @@ type command =
   | Delete  (** the hovered wired row's wire, else the selected nodes *)
   | Fold_into | Unfold | Hoist | Bypass | Wrap_repeat | Wrap_iterate | Make_fn | Make_macro
   | Collapse | Probe_step of int | Frame_all | Walk of direction
+  | Edit_name
+      (** F2, or a double-click on a title: a text field over the selected node's name
+          ([Rename]) or, on a graph input, over its default ([Set_input_default]) *)
+  | Item_up | Item_down  (** Alt-Up / Alt-Down on the hovered list row: [Move_item]; each row has an [↑] button *)
+  | Make_frame  (** Shift-G *)
 
 type stats = {
   nodes : int; zones : int; rows : int;  (** of the whole scope *)
@@ -62,6 +71,9 @@ val macro_step : t -> path -> int option
     "Replace call with expansion" button is [Syntax_edit (Inline_macro ...)].  A node
     that can be bypassed has a [B] flag on its title: a click is
     [Syntax_edit (Toggle_bypass ...)]. *)
+
+val editing : t -> bool
+(** A text field (a name, an input default, a frame title) is open: the host keeps its keys out. *)
 
 val selected : t -> path list
 val select : path list -> t -> t

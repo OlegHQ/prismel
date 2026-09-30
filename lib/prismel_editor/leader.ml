@@ -10,6 +10,8 @@ type action =
   | Layout | Frame_tile | Frame_camera
   | Look_through | Fly | Tool of int  (* 0 none, 1 translate, 2 rotate, 3 scale *)
   | Undo | Redo
+  | Panel_split of Pxui_shell.Layout.axis | Panel_close | Panel_retype of Pxui_shell.Layout.panel
+      (* Space o ...: the focused panel, as the header menu does *)
   | Toggle_projection | Restore_layout | Enter | Up | Go_world | Group | Ungroup | Make_unique
   | World_emit | World_reseed | World_time of float | World_play | World_preset of int
   | Graph_command of Pxui_graph.command
@@ -63,6 +65,22 @@ let keymap = [
   command ~guide:Editor_core.Guide_context.[Canvas; Node; Multi; List] ~id:"graph.projection" ~label:"graph / list / text" ~trigger:(Leader "l") Toggle_projection;
   command ~id:"workspace.restore-layout" ~label:"restore layout" ~trigger:(Leader "z")
     Restore_layout;
+  command ~id:"panel.split-right" ~label:"split panel, side by side" ~trigger:(Leader "oh")
+    (Panel_split `H);
+  command ~id:"panel.split-below" ~label:"split panel, stacked" ~trigger:(Leader "ov")
+    (Panel_split `V);
+  command ~id:"panel.close" ~label:"close panel" ~trigger:(Leader "ox") Panel_close;
+  command ~id:"panel.graph" ~label:"panel becomes graph" ~trigger:(Leader "og") (Panel_retype Graph);
+  command ~id:"panel.list" ~label:"panel becomes list" ~trigger:(Leader "ol") (Panel_retype List);
+  command ~id:"panel.lisp" ~label:"panel becomes text" ~trigger:(Leader "ot") (Panel_retype Lisp);
+  command ~id:"panel.inspector" ~label:"panel becomes inspector" ~trigger:(Leader "oi")
+    (Panel_retype Inspector);
+  command ~id:"panel.outline" ~label:"panel becomes outline" ~trigger:(Leader "ou")
+    (Panel_retype Outline);
+  command ~id:"panel.timeline" ~label:"panel becomes timeline" ~trigger:(Leader "om")
+    (Panel_retype Timeline);
+  command ~id:"panel.viewport" ~label:"panel becomes viewport" ~trigger:(Leader "ow")
+    (Panel_retype (View ""));
   command ~id:"scene.world" ~label:"World" ~trigger:(Leader "e") Go_world;
   command ~id:"graph.add-node" ~label:"add (menu)" ~trigger:(Leader "a") Add_node;
   command ~guide:Editor_core.Guide_context.[Node; List]

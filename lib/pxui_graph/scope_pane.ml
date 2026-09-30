@@ -22,12 +22,17 @@ type change =
   | Selected of path list
   | Moved of (path * float * float) list
   | Macro_requested of path list  (** the host opens the make-macro dialog over these nodes *)
+  | Frames_set of { scope : path; frames : (string * (float * float) * (float * float)) list }
+      (** the frames of one scope after a gesture (create, resize, retitle, delete) *)
   | Notice of string
 
 type direction = Left | Down | Up | Right
 type command =
   | Delete | Fold_into | Unfold | Hoist | Bypass | Wrap_repeat | Wrap_iterate | Make_fn | Make_macro
   | Collapse | Probe_step of int | Frame_all | Walk of direction
+  | Edit_name  (** rename the selected node, or edit the default of a selected graph input *)
+  | Item_up | Item_down  (** move the hovered list item *)
+  | Make_frame  (** a titled frame around the selected nodes *)
 
 type stats = {
   nodes : int; zones : int; rows : int;
@@ -156,6 +161,13 @@ type wiring = { src : string; ty : Ty.t option; iter : bool; from : float * floa
 type drag =
   | Moving of { paths : path list; dx : float; dy : float; moved : bool }
   | Wiring of wiring
+  | Marquee of { base : Path_set.t }  (* from the canvas press point to the pointer, screen space *)
+  | Sizing of { scope : path; index : int; dw : float; dh : float }  (* a frame's corner *)
+
+(* the text field open over the pane: a node's name, a graph input's default, a frame's title *)
+type editing = Name of path | Default of path | Title of path * int
+
+type fr = string * (float * float) * (float * float)
 
 type t = {
   x : int; y : int; width : int; height : int;
@@ -177,6 +189,7 @@ type t = {
   selected : Path_set.t;
   hovered_row : (path * E.arg_key) option;
   drag : drag option;
+  editing : editing option;
   context : ((float * float) * path) option;
   stats : stats;
 }
@@ -188,7 +201,7 @@ let create ?(x = 0) ?(y = 0) ?(width = 640) ?(height = 360) ?(theme = Pxui.defau
   chains = Hashtbl.create 1; counts = Hashtbl.create 1;
   frames = (fun _ -> []); framed = true;
   layout = { P.placed = []; w = 0.; h = 0. }; geo = empty_geo; pan_x = 12.; pan_y = 12.; zoom = 1.;
-  selected = Path_set.empty; hovered_row = None; drag = None; context = None; stats = no_stats }
+  selected = Path_set.empty; hovered_row = None; drag = None; editing = None; context = None; stats = no_stats }
 
 let with_bounds ~x ~y ~width ~height t =
   if t.x = x && t.y = y && t.width = width && t.height = height then t
@@ -196,6 +209,7 @@ let with_bounds ~x ~y ~width ~height t =
 let with_visible visible t = if t.visible = visible then t else { t with visible }
 let with_guide guide t = if t.guide = guide then t else { t with guide }
 let selected t = Path_set.elements t.selected
+let editing t = t.editing <> None
 let select paths t = { t with selected = Path_set.of_list paths }
 let clear_selection t = if Path_set.is_empty t.selected then t else { t with selected = Path_set.empty }
 let stats t = t.stats
@@ -238,7 +252,10 @@ let with_scope ?(at = fun _ -> None) ?(collapsed = fun _ -> false) ?(probe = fun
     stats = { t.stats with nodes = n; zones = z; rows = r } } in
   (* an edit that removed or moved a node drops it from the selection *)
   let t = { (refresh t) with selected = Path_set.filter (Hashtbl.mem t.geo.pos) t.selected } in
-  if key <> t.key then { t with key; framed = false; selected = Path_set.empty; drag = None } else t
+  let t = match t.editing with
+    | Some (Name p | Default p) when not (Hashtbl.mem t.geo.pos p) -> { t with editing = None }
+    | _ -> t in
+  if key <> t.key then { t with key; framed = false; selected = Path_set.empty; drag = None; editing = None } else t
 
 (* the panel of a macro call opened or stepped: its card changes size *)
 let relayout t = match t.scope with
@@ -274,6 +291,37 @@ let fallback (r : P.row) = Option.bind r.ty (fun ty -> E.default_for ty r.label)
 
 let wired (r : P.row) = match r.expr with
   | Some e -> E.free_names e <> [] | None -> false
+
+(* ---------------------------------------------------------------- frames *)
+
+let scope_of_path path = List.rev (List.tl (List.rev path))
+
+(* a frame's size while its corner is dragged *)
+let frame_list t scope : fr list = match t.drag with
+  | Some (Sizing s) when s.scope = scope ->
+      List.mapi (fun i ((title, at, (w, h)) : fr) ->
+        if i = s.index then title, at, (Float.max 48. (w +. s.dw), Float.max 32. (h +. s.dh))
+        else title, at, (w, h)) (t.frames scope)
+  | _ -> t.frames scope
+
+(* a frame around the selected nodes of one scope, in that scope's coordinates *)
+let new_frame t =
+  match List.filter (fun p -> Hashtbl.mem t.geo.pos p) (selected t) with
+  | [] -> None
+  | first :: _ as paths ->
+      let scope = scope_of_path first in
+      let boxes = List.filter_map (fun p ->
+        if scope_of_path p = scope then Hashtbl.find_opt t.geo.pos p else None) paths in
+      let ox, oy = Option.value ~default:(0., 0.) (List.assoc_opt scope t.geo.origins) in
+      let x0 = List.fold_left (fun a (x, _, _, _) -> Float.min a x) infinity boxes
+      and y0 = List.fold_left (fun a (_, y, _, _) -> Float.min a y) infinity boxes
+      and x1 = List.fold_left (fun a (x, _, w, _) -> Float.max a (x +. w)) neg_infinity boxes
+      and y1 = List.fold_left (fun a (_, y, _, h) -> Float.max a (y +. h)) neg_infinity boxes in
+      Some (scope, ("frame", (x0 -. 12. -. ox, y0 -. 24. -. oy), (x1 -. x0 +. 24., y1 -. y0 +. 36.)))
+
+let input_of t path = match t.scope with
+  | Some s -> List.find_opt (fun (i : P.input) -> i.path = path) s.inputs
+  | None -> None
 
 (* ------------------------------------------------------------- commands *)
 
@@ -317,10 +365,26 @@ let action_changes t command =
             if count <= 0 then None else
             let index = max 0 (min (count - 1) (t.probe n.path + delta)) in
             if index = t.probe n.path then None else Some (Probe_set { zone = n.path; index })) nodes
-  | Frame_all | Walk _ -> []
+  | Frame_all | Walk _ | Edit_name | Make_frame -> []
+  | Item_up | Item_down ->
+      (match t.hovered_row with
+       | Some (path, E.Pos i) when (match node_of t path with
+           | Some n -> List.mem n.head [ "list"; "str" ] | None -> false) ->
+           edit (E.Move_item { node = path; pos = if command = Item_up then i else i + 1 })
+       | _ -> [ Notice "Hover a list item to move it" ])
 
 let run_command t = function
   | Frame_all -> frame_all t, []
+  | Edit_name ->
+      (match selected t with
+       | [ path ] when (match node_of t path with Some n -> not n.synthetic | None -> false) ->
+           { t with editing = Some (Name path) }, []
+       | [ path ] when input_of t path <> None -> { t with editing = Some (Default path) }, []
+       | _ -> t, [ Notice "Select one node or graph input to edit" ])
+  | Make_frame ->
+      (match new_frame t with
+       | Some (scope, frame) -> t, [ Frames_set { scope; frames = t.frames scope @ [ frame ] } ]
+       | None -> t, [ Notice "Select nodes to frame" ])
   | Walk direction ->
       let center (p : P.placed) (_, ax, ay) = ax +. p.w /. 2., ay +. p.h /. 2. in
       let current = match selected t with
@@ -366,7 +430,11 @@ let bindings =
     make "collapse" "collapse or expand zone" Collapse (ch 'c') [];
     make "probe-prev" "previous iteration" (Probe_step (-1)) (ch '[') [];
     make "probe-next" "next iteration" (Probe_step 1) (ch ']') [];
-    make "frame-all" "frame all" Frame_all Input.Home [] ]
+    make "frame-all" "frame all" Frame_all Input.Home [];
+    make "rename" "rename node / edit input default" Edit_name Input.F2 [];
+    make "frame" "frame the selection (titled box)" Make_frame (ch 'g') [ Input.Shift ];
+    make "item-up" "move list item up" Item_up Input.ArrowUp [ Input.Alt ];
+    make "item-down" "move list item down" Item_down Input.ArrowDown [ Input.Alt ] ]
   @ List.map (fun (direction, arrow, name) ->
       make ("walk." ^ name) ("walk " ^ name) (Walk direction) arrow [])
     [ Left, Input.ArrowLeft, "left"; Down, Input.ArrowDown, "down";
@@ -727,6 +795,12 @@ let paint_node paint t ~z ~fs ?footer ?lens_step (p : P.placed) (n : P.node) ~se
   (match z_ with
    | None ->
        paint_rows paint t ~z ~fs ~x ~y:rows_y ~w n.rows ~selected_row:row_hover;
+       if n.head = "list" || n.head = "str" then
+         List.iteri (fun i (r : P.row) -> match r.kind, r.key with
+           | P.Rest, E.Pos k when k >= 1 ->
+               Ui.Paint.text paint ~at:(x +. w -. 20. *. z, rows_y +. (float i *. P.row_height +. 6.) *. z) ~size:fs
+                 ~color:theme.accent "↑"
+           | _ -> ()) n.rows;
        paint_outputs paint t ~z ~fs ~x ~y:rows_y ~w n
    | Some zn when p.collapsed -> paint_rail paint t ~z ~fs ~x ~y:(y +. P.head_height *. z) ~expanded:false zn.rail
    | Some _ -> ());
@@ -847,7 +921,12 @@ let paint_background paint t ~viewport (zones : (P.node * P.zone * P.placed * fl
       Ui.Paint.rect paint ~x ~y ~w:(fw *. z) ~h:(fh *. z) ~radius:4. ~fill:(Color.with_alpha theme.foreground 10)
         ~stroke:(Pxui.Theme.faint_border theme) ();
       Ui.Paint.text paint ~at:(x +. 6., y +. 4.) ~size:(max 7 (int_of_float (10. *. z)))
-        ~color:(Pxui.Theme.muted theme) title) (t.frames scope_path)) t.geo.origins;
+        ~color:(Pxui.Theme.muted theme) title;
+      (* delete cross top right, resize grip bottom right *)
+      Ui.Paint.text paint ~at:(x +. fw *. z -. 14., y +. 4.) ~size:(max 7 (int_of_float (10. *. z)))
+        ~color:(Pxui.Theme.muted theme) "x";
+      Ui.Paint.fill paint ~x:(x +. fw *. z -. 8.) ~y:(y +. fh *. z -. 8.) ~w:6. ~h:6.
+        (Color.with_alpha theme.accent 160)) (frame_list t scope_path)) t.geo.origins;
   Array.iter (fun w ->
     let pts = List.map (fun (x, y) -> sx t x, sy t y) (wire_points w.a w.b) in
     let width = Float.max 1. (1.6 *. z) in
@@ -855,6 +934,7 @@ let paint_background paint t ~viewport (zones : (P.node * P.zone * P.placed * fl
 
 (* ---------------------------------------------------------------- update *)
 
+let left_button (s : Ui.signal) = s.button = Some Input.LeftButton
 let contains (x, y, w, h) (px, py) = px >= x && px < x +. w && py >= y && py < y +. h
 
 let num_field ui ~at ~w ~h ~size label text =
@@ -874,6 +954,27 @@ let row_index (n : P.node) ~ay ~py =
   let top = rows_top n ay in
   if py < top then None else Some (int_of_float ((py -. top) /. P.row_height))
 
+(* the nodes of one scope a rubber band touches (an expanded zone only when it is inside it) *)
+let marquee_hits t (rx, ry, rw, rh) =
+  let z = t.zoom in
+  let hits = Array.fold_left (fun acc ((p : P.placed), ax, ay) -> match p.item with
+    | P.Item n when not n.synthetic ->
+        let x, y, w, h = sx t ax, sy t ay, p.w *. z, p.h *. z in
+        let touches = x < rx +. rw && x +. w > rx && y < ry +. rh && y +. h > ry in
+        let inside = x >= rx && y >= ry && x +. w <= rx +. rw && y +. h <= ry +. rh in
+        if ((p.inner = None || p.collapsed) && touches) || inside then p.path :: acc else acc
+    | _ -> acc) [] t.geo.items in
+  match List.rev hits with
+  | [] -> Path_set.empty
+  | first :: _ as hits ->
+      let scope = scope_of_path first in
+      Path_set.of_list (List.filter (fun p -> scope_of_path p = scope) hits)
+
+let valid_name s =
+  s <> "" && not (String.exists (fun c -> List.mem c [ ' '; '('; ')'; '['; ']'; '{'; '}'; '"'; ';'; '\'' ]) s)
+
+let single_form text = match Flow.Syntax.parse text with Ok [ form ] -> Some form | _ -> None
+
 let context_items t path =
   match node_of t path with
   | None -> []
@@ -890,7 +991,7 @@ let context_command = function
   | 5 -> Wrap_repeat | 6 -> Wrap_iterate | 7 -> Make_fn | 8 -> Make_macro | _ -> Delete
 
 let update t ui (frame : Frame.t) =
-  if not t.visible then { t with drag = None; context = None }, [] else
+  if not t.visible then { t with drag = None; context = None; editing = None }, [] else
   let t = if t.framed then t else { (frame_all t) with framed = true } in
   let changes = ref [] in
   let emit c = changes := c :: !changes in
@@ -940,6 +1041,47 @@ let update t ui (frame : Frame.t) =
              Hashtbl.replace footers n.path (Flow_sop.Probe.footer records n ~probes:(List.map t.probe chain))
          | _ -> ()) visible
    | _ -> ());
+  let finished = ref false in
+  let edit_field ~at ~w ~h key current valid commit =
+    let v, open_ = Ui.value_field ui ~at ~w ~h ~size:fs ~edit:true ~valid key current in
+    if not open_ then finished := true;
+    if (not open_) && v <> current && valid v then [ commit v ] else [] in
+  (* frames sit under the tiles: a title strip, a delete cross and a resize corner *)
+  let frame_boxes = Ui.within ui canvas (fun () ->
+    List.concat_map (fun (scope, (ox, oy)) ->
+      List.mapi (fun i ((title, (fx, fy), (fw, fh)) : fr) ->
+        let x = sx t (ox +. fx) and y = sy t (oy +. fy) in
+        let w = fw *. z and h = fh *. z in
+        let box k (bx, by) (bw, bh) =
+          Ui.box ui ~flags:Ui.clickable ~w:(Ui.Px bw) ~h:(Ui.Px bh) ~at:(local (bx, by))
+            (Printf.sprintf "fr:%s:%d:%s" (String.concat "/" scope) i k) in
+        (scope, i, title, (x, y, w, h)),
+        (box "t" (x, y) (Float.max 8. (w -. 20.), 18. *. z), box "x" (x +. w -. 18., y +. 2.) (16., 16.),
+         box "r" (x +. w -. 12., y +. h -. 12.) (12., 12.))) (t.frames scope)) t.geo.origins) in
+  let t = List.fold_left (fun t ((scope, i, title, (x, y, w, _)), (tb, xb, rb)) ->
+    let ts = Ui.signal ui tb and xs = Ui.signal ui xb and rs = Ui.signal ui rb in
+    let all = t.frames scope in
+    (match t.editing with
+     | Some (Title (sp, k)) when sp = scope && k = i ->
+         List.iter emit (edit_field ~at:(local (x +. 4., y +. 2.)) ~w:(Float.max 40. (w -. 24.)) ~h:(16. *. z)
+           (Printf.sprintf "frt%d" i) title (fun s -> s <> "" && not (String.contains s '"'))
+           (fun v -> Frames_set { scope; frames = List.mapi (fun j (((_, at, size) as f) : fr) ->
+             if j = i then (v, at, size) else f) all }))
+     | _ -> ());
+    if xs.clicked then begin
+      emit (Frames_set { scope; frames = List.filteri (fun j _ -> j <> i) all }); t
+    end else if ts.double_clicked && t.editing = None then { t with editing = Some (Title (scope, i)) }
+    else if rs.pressed && left_button rs then
+      { t with drag = Some (Sizing { scope; index = i; dw = 0.; dh = 0. }) }
+    else match t.drag with
+      | Some (Sizing s) when s.scope = scope && s.index = i && (rs.held || rs.released) ->
+          let dx, dy = rs.drag in
+          let t = { t with drag = Some (Sizing { scope; index = i; dw = s.dw +. dx /. z; dh = s.dh +. dy /. z }) } in
+          if rs.released then begin
+            emit (Frames_set { scope; frames = frame_list t scope });
+            { t with drag = None }
+          end else t
+      | _ -> t) t frame_boxes in
   (* tiles *)
   let tiles = Ui.within ui canvas (fun () ->
     List.map (fun ((p : P.placed), ax, ay) ->
@@ -1076,7 +1218,32 @@ let update t ui (frame : Frame.t) =
                 | _, P.Inline _ -> [ Syntax_edit (E.Unfold { node = n.path; key = r.key; sub = [] }) ]
                 | _ -> []) n.rows))
         | _ -> [] in
-      p, ax, ay, tile, Ui.signal ui tile, sub, fields @ add_clicks) visible) in
+      let editors = match t.editing, p.item with
+        | Some (Name path), P.Item n when path = n.path ->
+            Ui.within ui tile (fun () ->
+              edit_field ~at:(44. *. z, 3. *. z) ~w:((p.w -. 56.) *. z) ~h:(18. *. z) "name" n.name valid_name
+                (fun v -> Syntax_edit (E.Rename { node = n.path; to_ = v })))
+        | Some (Default path), P.Input i when path = i.path ->
+            Ui.within ui tile (fun () ->
+              let text = match i.default with Some d -> Flow.Lisp.flat d | None -> "" in
+              edit_field ~at:(14. *. z, (P.head_height +. 2.) *. z) ~w:((p.w -. 28.) *. z) ~h:(18. *. z) "default" text
+                (fun v -> single_form v <> None)
+                (fun v -> Syntax_edit (E.Set_input_default { form = List.hd i.path; input = i.name;
+                  value = Option.get (single_form v) })))
+        | _ -> [] in
+      let movers = match p.item with
+        | P.Item ({ zone = None; head = ("list" | "str"); _ } as n) when z >= 0.5 ->
+            Ui.within ui tile (fun () ->
+              let top = rows_top n 0. in
+              List.concat (List.mapi (fun i (r : P.row) -> match r.kind, r.key with
+                | P.Rest, E.Pos k when k >= 1 ->
+                    let b = Ui.box ui ~flags:Ui.(clickable + tab_stop) ~w:(Ui.Px (16. *. z)) ~h:(Ui.Px (16. *. z))
+                        ~at:((p.w -. 22.) *. z, (top +. float i *. P.row_height +. 4.) *. z) ("mv" ^ string_of_int i) in
+                    if (Ui.signal ui b).clicked then [ Syntax_edit (E.Move_item { node = n.path; pos = k }) ] else []
+                | _ -> []) n.rows))
+        | _ -> [] in
+      p, ax, ay, tile, Ui.signal ui tile, sub, fields @ add_clicks @ editors @ movers) visible) in
+  let t = if !finished then { t with editing = None } else t in
   let overlay = Ui.within ui canvas (fun () ->
     Ui.box ui ~w:(Ui.Px (float t.width)) ~h:(Ui.Px (float t.height)) ~at:(0., 0.) "overlay") in
   ignore overlay;
@@ -1104,9 +1271,22 @@ let update t ui (frame : Frame.t) =
   let t = if canvas_signal.pressed && left canvas_signal && t.context = None
     && not (List.exists (fun (_, _, _, _, (s : Ui.signal), _, _) -> s.pressed) tiles)
     then begin
-      if not (Path_set.is_empty t.selected) then emit (Selected []);
-      { t with selected = Path_set.empty }
+      let additive = List.mem Input.Shift (Ui.press_keys ui canvas) in
+      if (not additive) && not (Path_set.is_empty t.selected) then emit (Selected []);
+      let base = if additive then t.selected else Path_set.empty in
+      { t with selected = base; drag = Some (Marquee { base }) }
     end else t in
+  (* the rubber band selects the nodes of one scope it touches *)
+  let t = match t.drag with
+    | Some (Marquee m) when canvas_signal.held || canvas_signal.released ->
+        let px, py = if canvas_signal.released then canvas_signal.release_point else canvas_signal.pointer in
+        let x0, y0 = canvas_signal.press_point in
+        let rw = abs_float (px -. x0) and rh = abs_float (py -. y0) in
+        let selected = if rw < 3. && rh < 3. then m.base
+          else Path_set.union m.base (marquee_hits t (Float.min x0 px, Float.min y0 py, rw, rh)) in
+        if not (Path_set.equal selected t.selected) then emit (Selected (Path_set.elements selected));
+        { t with selected; drag = (if canvas_signal.released then None else t.drag) }
+    | _ -> t in
   let lens_next = ref t.lens in
   (* tile presses select and start a move; sockets start a wire *)
   let t = List.fold_left (fun t ((p : P.placed), _, _, tile, (s : Ui.signal), (sub : _), fields) ->
@@ -1121,6 +1301,15 @@ let update t ui (frame : Frame.t) =
         emit (Selected (Path_set.elements selected));
         { t with selected; drag = Some (Moving { paths = parents_removed (Path_set.elements selected);
                                                  dx = 0.; dy = 0.; moved = false }) }
+      end else t in
+    let t =
+      if s.double_clicked && left s && t.context = None && t.editing = None then begin
+        let _, top, _, _ = Ui.rect ui tile in
+        match p.item with
+        | P.Item n when (not n.synthetic) && snd s.release_point < top +. P.head_height *. z ->
+            { t with editing = Some (Name p.path) }
+        | P.Input _ -> { t with editing = Some (Default p.path) }
+        | _ -> t
       end else t in
     let t = match t.drag with
       | Some (Moving m) when s.held && left s && (Path_set.mem p.path t.selected) ->
@@ -1271,6 +1460,12 @@ let update t ui (frame : Frame.t) =
     (match band with
      | Some w -> Ui.Paint.line paint ~from_:w.from ~to_:mouse ~width:1.5 (ty_color snapshot w.ty)
      | None -> ());
+    (match snapshot.drag with
+     | Some (Marquee _) ->
+         let x0, y0 = canvas_signal.press_point and mx, my = mouse in
+         Ui.Paint.rect paint ~x:(Float.min x0 mx) ~y:(Float.min y0 my) ~w:(abs_float (mx -. x0)) ~h:(abs_float (my -. y0))
+           ~fill:(Color.with_alpha snapshot.theme.accent 28) ~stroke:snapshot.theme.accent ()
+     | _ -> ());
     (match hover with
      | Some (n, ax, ay, i) ->
          let r = List.nth n.rows i in

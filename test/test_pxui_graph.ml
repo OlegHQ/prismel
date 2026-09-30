@@ -1308,6 +1308,179 @@ let scope_click view point =
   scope_step view (frame ~mouse:point ~events:(mouse_move point :: click point) ())
 let rect_center (x, y, w, h) = int_of_float (x +. w /. 2.), int_of_float (y +. h /. 2.)
 
+(* W12b: every W3 gesture the pane can make reaches the host as its request. *)
+let scope_gestures () =
+  let module E = Flow_sop.Flow_edit in
+  let module S = Flow.Syntax in
+  let syntax op = Scope.Syntax_edit op in
+  (* a large window keeps the zoom at 1, where every field is built *)
+  let frame ?mouse ?keys ?events () =
+    { (frame ?mouse ?keys ?events ()) with width = 3000; height = 2000; size = (3000, 2000);
+      drawable_width = 3000; drawable_height = 2000; drawable_size = (3000, 2000) } in
+  let scope_click view point =
+    scope_step view (frame ~mouse:point ~events:(mouse_move point :: click point) ()) in
+  let center_of view path = let x, y, w, h = Option.get (Scope.Private.box_of view path) in x, y, w, h in
+  let settled view = fst (scope_step view (frame ())) in
+  let scope_view ?inputs ?probe ?at ?collapsed workspace graph =
+    ignore (inputs, probe, at, collapsed);
+    let scope = P.of_graph scope_catalog workspace graph in
+    Scope.create ~width:3000 ~height:2000 () |> Scope.with_scope ~key:graph scope
+    |> Scope.with_records (recorded workspace), scope in
+  let double_click view point = scope_click (fst (scope_click view point)) point in
+  let type_text view text =
+    scope_step view (frame ~events:[ Event.TextInput text; Event.KeyPressed Input.Enter ] ()) in
+  (* rename: a double-click on the title opens a field, Enter commits Rename; F2 does the same *)
+  let w = load_workspace "bloom" in
+  let heart = [ "flower"; "heart" ] in
+  let view = settled (fst (scope_view w "flower")) in
+  let x, y, _, _ = center_of view heart in
+  let view, _ = double_click view (int_of_float x + 100, int_of_float y + 8) in
+  check (Scope.editing view) "a double-click on a title did not open the name field";
+  let view = settled view in
+  let view, changes = type_text view "core" in
+  check (List.mem (syntax (E.Rename { node = heart; to_ = "core" })) changes) "typing a name did not become Rename";
+  check (not (Scope.editing view)) "the name field stayed open after Enter";
+  let view, changes = Scope.run_command (Scope.select [ heart ] view) Scope.Edit_name in
+  check (changes = [] && Scope.editing view) "F2 did not open the name field";
+  let view = settled view in
+  let view, changes = scope_step view (frame ~events:[ Event.TextInput "two words"; Event.KeyPressed Input.Enter ] ()) in
+  check (changes = [] || not (List.exists (function Scope.Syntax_edit (E.Rename _) -> true | _ -> false) changes))
+    "a name with a space was accepted";
+  let view = fst (scope_step view (frame ~events:[ Event.KeyPressed Input.Escape ] ())) in
+  check (not (Scope.editing view)) "Escape left the name field open";
+  let _, changes = Scope.run_command (Scope.select [] view) Scope.Edit_name in
+  check (match changes with [ Scope.Notice _ ] -> true | _ -> false) "F2 with nothing selected";
+  (* a graph input's default: double-click its tile, type a form *)
+  let petals = [ "flower"; ":petals" ] in
+  let view = settled (Scope.clear_selection view) in
+  let x, y, _, _ = center_of view petals in
+  let view, _ = double_click view (int_of_float x + 60, int_of_float y + 30) in
+  check (Scope.editing view) "a double-click on a graph input did not open its default";
+  let view = settled view in
+  let _, changes = type_text view "9" in
+  check (List.exists (function
+    | Scope.Syntax_edit (E.Set_input_default { form = "flower"; input = "petals"; value = { S.node = S.Num "9"; _ } }) -> true
+    | _ -> false) changes) "typing an input default did not become Set_input_default";
+  (* scrub: a drag on a number field is Set_arg *)
+  let view = settled (fst (scope_view w "flower")) in
+  let node = Option.get (P.find (P.of_graph scope_catalog w "flower") heart) in
+  let i = Option.get (List.find_index (fun (r : P.row) -> r.label = "radius") node.rows) in
+  let fx, fy = Option.get (Scope.Private.row_center view heart i) in
+  let from = int_of_float fx, int_of_float fy in
+  let view, _ = scope_step view (frame ~mouse:from ~events:[ mouse_move from; mouse_press (Input.LeftButton, from) ] ()) in
+  let towards = fst from + 40, snd from in
+  let view, moved = scope_step view (frame ~mouse:towards ~events:[ mouse_move towards ] ()) in
+  let _, released = scope_step view (frame ~mouse:towards ~events:[ mouse_release (Input.LeftButton, towards) ] ()) in
+  check (List.exists (function Scope.Syntax_edit (E.Set_arg { node; sub = [ _ ]; _ }) -> node = heart | _ -> false)
+           (moved @ released)) "scrubbing a vector field did not become Set_arg";
+  (* the selection commands and their requests *)
+  let view = settled (Scope.select [ heart ] (fst (scope_view w "flower"))) in
+  let only command = snd (Scope.run_command view command) in
+  check (only Scope.Fold_into = [ syntax (E.Fold_into { node = heart }) ]) "f: Fold_into";
+  check (only Scope.Hoist = [ syntax (E.Hoist { node = heart }) ]) "h: Hoist";
+  check (only Scope.Wrap_repeat = [ syntax (E.Wrap { nodes = [ heart ]; loop = E.For }) ]) "r: Wrap For";
+  check (only Scope.Wrap_iterate = [ syntax (E.Wrap { nodes = [ heart ]; loop = E.Fold }) ]) "Shift-r: Wrap Fold";
+  check (only Scope.Make_fn = [ syntax (E.Make_local_fn { nodes = [ heart ] }) ]) "l: Make_local_fn";
+  (* list rows: the + item row, the up arrow and Alt-Up move an item, a record's + field row *)
+  let kw = load_workspace "kit" in
+  let kit_scope = P.of_graph scope_catalog kw "kit" in
+  let view, _ = scope_view kw "kit" in
+  let view = settled view in
+  let widths = [ "kit"; "widths" ] in
+  let node = Option.get (P.find kit_scope widths) in
+  let add = Option.get (List.find_index (fun (r : P.row) -> r.kind = P.Add) node.rows) in
+  let ax, ay = Option.get (Scope.Private.row_center view widths add) in
+  let _, changes = scope_click view (int_of_float ax, int_of_float ay) in
+  check (List.mem (syntax (E.Add_item { node = widths })) changes) "the + item row did not become Add_item";
+  let bx, by, bw, _ = center_of view widths in
+  let second = Option.get (List.find_index (fun (r : P.row) -> r.key = E.Pos 1) node.rows) in
+  let ux = bx +. bw -. 14. *. Scope.zoom view and uy = snd (Option.get (Scope.Private.row_center view widths second)) in
+  ignore by;
+  let _, changes = scope_click view (int_of_float ux, int_of_float uy) in
+  check (List.mem (syntax (E.Move_item { node = widths; pos = 1 })) changes) "the row arrow did not become Move_item";
+  let hover = int_of_float (fst (Option.get (Scope.Private.row_center view widths second))), int_of_float uy in
+  let hovered, _ = scope_step view (frame ~mouse:hover ~events:[ mouse_move hover ] ()) in
+  check (snd (Scope.run_command hovered Scope.Item_up) = [ syntax (E.Move_item { node = widths; pos = 1 }) ]) "Alt-Up: Move_item";
+  check (snd (Scope.run_command hovered Scope.Item_down) = [ syntax (E.Move_item { node = widths; pos = 2 }) ]) "Alt-Down: Move_item";
+  check (match snd (Scope.run_command view Scope.Item_up) with [ Scope.Notice _ ] -> true | _ -> false)
+    "Alt-Up with no hovered item";
+  let rec records (nodes : P.node list) = List.concat_map (fun (n : P.node) ->
+    (if n.head = "record" && n.zone = None then [ n ] else [])
+    @ (match n.zone with Some z -> records z.scope.nodes | None -> [])) nodes in
+  (match records kit_scope.nodes with
+   | record :: _ ->
+       let add = Option.get (List.find_index (fun (r : P.row) -> r.kind = P.Add) record.rows) in
+       (match Scope.Private.row_center view record.path add with
+        | Some (rx, ry) ->
+            let _, changes = scope_click view (int_of_float rx, int_of_float ry) in
+            check (List.exists (function Scope.Syntax_edit (E.Add_field { node; _ }) -> node = record.path | _ -> false) changes)
+              "the + field row did not become Add_field"
+        | None -> ())
+   | [] -> fail "kit has no record node");
+  (* frames: Shift-G makes one around the selection, the corner resizes it, the cross deletes it *)
+  let view = settled (Scope.select [ heart; [ "flower"; "bloom" ] ] (fst (scope_view w "flower"))) in
+  let view, changes = Scope.run_command view Scope.Make_frame in
+  let made = match changes with
+    | [ Scope.Frames_set { scope = [ "flower" ]; frames = [ (title, at, size) ] } ] -> title, at, size
+    | _ -> fail "Shift-G did not make one frame" in
+  let title, at, (fw, fh) = made in
+  let framed = Scope.with_scope ~frames:(fun p -> if p = [ "flower" ] then [ made ] else []) ~key:"flower"
+      (P.of_graph scope_catalog w "flower") view in
+  let framed = settled framed in
+  let fx0, fy0 = at in
+  let ox, oy = let x, y, _, _ = center_of framed [ "flower"; "heart" ] in ignore (x, y); 0., 0. in
+  ignore (ox, oy);
+  (* the frame's screen position: its scope's origin is the pane's, so use the pan through a tile *)
+  let tile_x, tile_y, _, _ = center_of framed heart in
+  let heart_rel = P.layout ~at:(fun _ -> None) (P.of_graph scope_catalog w "flower") in
+  let hp = List.find (fun (p : P.placed) -> p.path = heart) heart_rel.placed in
+  let z = Scope.zoom framed in
+  let sx0 = tile_x -. hp.x *. z and sy0 = tile_y -. hp.y *. z in
+  let corner = int_of_float (sx0 +. (fx0 +. fw) *. z -. 6.), int_of_float (sy0 +. (fy0 +. fh) *. z -. 6.) in
+  let drag_to = fst corner + 30, snd corner + 20 in
+  let sized, _ = scope_step framed (frame ~mouse:corner ~events:[ mouse_move corner; mouse_press (Input.LeftButton, corner) ] ()) in
+  let sized, _ = scope_step sized (frame ~mouse:drag_to ~events:[ mouse_move drag_to ] ()) in
+  let _, changes = scope_step sized (frame ~mouse:drag_to ~events:[ mouse_release (Input.LeftButton, drag_to) ] ()) in
+  (match List.find_map (function Scope.Frames_set { frames = [ (_, _, (w', h')) ]; _ } -> Some (w', h') | _ -> None) changes with
+   | Some (w', h') -> check (w' > fw && h' > fh) "dragging the corner did not grow the frame"
+   | None -> fail "dragging the corner did not emit Frames_set");
+  let cross = int_of_float (sx0 +. (fx0 +. fw) *. z -. 10.), int_of_float (sy0 +. fy0 *. z +. 10.) in
+  let _, changes = scope_click framed cross in
+  check (List.exists (function Scope.Frames_set { frames = []; _ } -> true | _ -> false) changes) "the cross did not delete the frame";
+  let title_at = int_of_float (sx0 +. fx0 *. z +. 20.), int_of_float (sy0 +. fy0 *. z +. 8.) in
+  let retitled, _ = double_click framed title_at in
+  check (Scope.editing retitled) "a double-click on a frame title did not open its field";
+  let retitled = settled retitled in
+  let _, changes = type_text retitled "legs" in
+  check (List.exists (function Scope.Frames_set { frames = [ (t, _, _) ]; _ } -> t = "legs" && t <> title | _ -> false) changes)
+    "typing a frame title did not emit Frames_set";
+  (* marquee: a drag on empty canvas selects the nodes of one scope it covers; Shift adds *)
+  let view = settled (fst (scope_view w "flower")) in
+  let sc = P.of_graph scope_catalog w "flower" in
+  let boxes = List.map (fun (n : P.node) -> Option.get (Scope.Private.box_of view n.path)) sc.nodes in
+  let x0 = List.fold_left (fun a (x, _, _, _) -> Float.min a x) infinity boxes -. 8.
+  and y0 = List.fold_left (fun a (_, y, _, _) -> Float.min a y) infinity boxes -. 8.
+  and x1 = List.fold_left (fun a (x, _, w, _) -> Float.max a (x +. w)) neg_infinity boxes +. 8.
+  and y1 = List.fold_left (fun a (_, y, _, h) -> Float.max a (y +. h)) neg_infinity boxes +. 8. in
+  let a = int_of_float x0, int_of_float y0 and b = int_of_float x1, int_of_float y1 in
+  let drag view ?(shift = false) a b =
+    let view, _ = scope_step view (frame ~mouse:a ~events:((if shift then [ Event.KeyPressed Input.Shift ] else [])
+      @ [ mouse_move a; mouse_press (Input.LeftButton, a) ]) ()) in
+    let view, moved = scope_step view (frame ~mouse:b ~events:[ mouse_move b ] ()) in
+    let view, released = scope_step view (frame ~mouse:b ~events:[ mouse_release (Input.LeftButton, b) ] ()) in
+    view, moved @ released in
+  let view, changes = drag view a b in
+  let covered = List.filter (fun p -> List.mem p (Scope.selected view)) (List.map (fun (n : P.node) -> n.path) sc.nodes) in
+  check (List.length covered >= 4 && List.mem heart covered) "a marquee over the graph did not select its nodes";
+  check (List.exists (function Scope.Selected l -> List.mem heart l | _ -> false) changes) "a marquee did not emit Selected";
+  let view = settled (Scope.select [ heart ] (fst (scope_view w "flower"))) in
+  let rx, ry, rw, rh = Option.get (Scope.Private.box_of view [ "flower"; "result" ]) in
+  let view, _ = drag view ~shift:true (int_of_float (rx -. 4.), int_of_float (ry -. 4.)) (int_of_float (rx +. rw +. 4.), int_of_float (ry +. rh +. 4.)) in
+  check (List.mem heart (Scope.selected view) && List.mem [ "flower"; "result" ] (Scope.selected view))
+    "Shift marquee did not add to the selection";
+  let view, _ = drag (settled (Scope.select [ heart ] (fst (scope_view w "flower")))) (int_of_float (rx -. 4.), int_of_float (ry -. 4.)) (int_of_float (rx +. rw +. 4.), int_of_float (ry +. rh +. 4.)) in
+  check (not (List.mem heart (Scope.selected view))) "a plain marquee kept the old selection"
+
 let run_scope () =
   (* every fixture's graphs draw: the pane's counts are the projection's *)
   List.iter (fun (name, graph, nodes, zones, rows) ->
@@ -1435,6 +1608,7 @@ let run_scope () =
   check (changes = [ Scope.Macro_requested [ soft ] ]) "m did not request the dialog";
   let _, changes = Scope.run_command (Scope.select [] view) Scope.Make_macro in
   check (match changes with [ Scope.Notice _ ] -> true | _ -> false) "m with nothing selected";
+  scope_gestures ();
   print_endline "pxui graph scope pane tests passed"
 
 (* Frame cost of the graph pane on Sunflower (240 iterations): the flat pane

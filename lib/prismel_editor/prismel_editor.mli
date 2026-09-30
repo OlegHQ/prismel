@@ -78,6 +78,7 @@ module Private : sig
       | Add_node | Layout | Frame_tile | Frame_camera
       | Look_through | Fly | Tool of int
       | Undo | Redo
+      | Panel_split of Pxui_shell.Layout.axis | Panel_close | Panel_retype of Pxui_shell.Layout.panel
       | Toggle_projection | Restore_layout | Enter | Up | Go_world | Group | Ungroup | Make_unique
       | World_emit | World_reseed | World_time of float | World_play | World_preset of int
       | Graph_command of Pxui_graph.command
