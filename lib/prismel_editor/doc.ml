@@ -385,3 +385,10 @@ let apply factories (document, graph_view, error, effects, placed, pasted) = fun
   | Selected _ | Viewed _ | View_changed | Open_requested _
   | Connection_selected _ | Flag_requested _ | Frame_camera_requested _ ->
       document, graph_view, error, effects, placed, pasted
+
+(* A change to the workspace's layout keys (a moved item, a collapsed zone):
+   the source and the lowering are untouched, so nothing recooks. *)
+let layout_edit (doc : Editor_document.Document.t) f = match doc.workspace with
+  | None -> doc
+  | Some (workspace, lowered) ->
+      { doc with workspace = Some ({ workspace with layout = f workspace.layout }, lowered) }

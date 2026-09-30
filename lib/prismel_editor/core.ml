@@ -24,6 +24,13 @@ type text_cache = {
   node_at_line : int option array;
 }
 
+(* What the workspace pane was last laid out from: the document, the probes, the
+   graph and the iteration counts of its last evaluation. *)
+type scope_key = {
+  ws : Workspace_doc.t; probe_map : int Layout_by_path.Path_map.t; graph : string;
+  counts : (Layout_by_path.path * int) list;
+}
+
 type prompt =
   | Keys
   | Saving of string
@@ -41,6 +48,8 @@ type 'panel frame_result = {
   workspace : Pxui_shell.Layout.t;
   focus : Pxui_shell.Layout.column;
   pane_keys : (int * Pxui_shell.Layout.column) list;
+  scope_view : Pxui_graph.Scope.t;
+  scope_changes : Pxui_graph.Scope.change list;
   graph_view : Pxui_graph.t;
   tree : Pxui_shell.Tree.t;
   document : Flow_sop.Network.t;  (* the open network after this frame's edits *)
@@ -90,6 +99,10 @@ type 'prepared t = {
   (* the list's rows, cached by network, display node, and tile layout *)
   factories : Edit_graph.factory list;  (* the SOP catalog *)
   graph_view : Pxui_graph.t;
+  scope_view : Pxui_graph.Scope.t;  (* the workspace document's graph pane *)
+  probes : int Layout_by_path.Path_map.t;  (* the iteration each zone shows: view state, not history *)
+  scope_key : scope_key option;
+  flow_catalog : Flow.Check.catalog option Lazy.t;
   tree : Pxui_shell.Tree.t;
   ui : Pxui.Ui.t;
   workspace : Pxui_shell.Layout.t;
@@ -232,6 +245,71 @@ let projection value =
     | Compound _ -> Graph_view
     | Inside id when kind value id = Some "geometry" -> Graph_view
     | Inside _ -> List_view)
+
+(* The workspace graph the pane shows with zones and selectors: a geometry
+   object of a workspace document opened as a graph (its label is the [sop]
+   graph's name).  Everything else keeps the flat network pane. *)
+let scope_name value = match value.doc.Document.workspace, value.level with
+  | Some (ws, _), Document.Inside id
+    when kind value id = Some "geometry" && projection value = Graph_view ->
+      Option.bind (Edit_graph.find (scene value) ~node_id:id) (fun node ->
+        let name = Node.label node in
+        if List.exists (fun (g : Flow.Workspace.graph) -> g.name = name) ws.checked.graphs
+        then Some name else None)
+  | _ -> None
+
+(* Lay the workspace pane out again when the document, the probes or the
+   graph changed; the iteration counts come from one recording evaluation per
+   checked source, not per move. *)
+let sync_scope value = match scope_name value, value.doc.Document.workspace, Lazy.force value.flow_catalog with
+  | Some name, Some (ws, _), Some catalog ->
+      (match value.scope_key with
+       | Some key when key.ws == ws && key.probe_map == value.probes && key.graph = name -> value
+       | previous ->
+           let module M = Layout_by_path.Path_map in
+           let scope = Flow_sop.Projection.of_graph catalog ws.checked name in
+           let counts = match previous with
+             | Some key when key.ws.checked == ws.checked && key.graph = name -> key.counts
+             | _ when Flow_sop.Projection.zones scope = [] -> []
+             | _ -> (match Flow.Eval.static ~record:true ws.checked with
+                 | Ok evaluated -> Flow_sop.Projection.counts evaluated scope
+                 | Error _ -> []) in
+           let layout = ws.layout in
+           let scope_view = Pxui_graph.Scope.with_scope ~key:name scope value.scope_view
+             ~at:(fun path -> M.find_opt path layout.at)
+             ~collapsed:(fun path -> Option.value ~default:false (M.find_opt path layout.collapsed))
+             ~probe:(fun path -> Option.value ~default:0 (M.find_opt path value.probes))
+             ~count:(fun path -> Option.value ~default:0 (List.assoc_opt path counts))
+             ~frames:(fun path -> List.map (fun (f : Layout_by_path.frame) -> f.title, f.at, f.size)
+               (Option.value ~default:[] (M.find_opt path layout.frames))) in
+           { value with scope_view; scope_key = Some { ws; probe_map = value.probes; graph = name; counts } })
+  | _ -> value
+
+(* The [+ node] menu of the flat pane, read in a workspace: one [Add_node] at
+   the selected zone (else the graph body), wired to the selected node when
+   the kind takes a geometry input. *)
+let scope_add value (request : Pxui_graph.add_request) =
+  match value.doc.Document.workspace, scope_name value with
+  | Some (ws, _), Some graph ->
+      if String.starts_with ~prefix:"value/" request.factory_key then
+        Pxui_graph.Notice "Value nodes are written as expressions in a workspace"
+      else begin
+        let selected = Pxui_graph.Scope.selected value.scope_view in
+        let arity = match List.find_opt (fun f -> Edit_graph.factory_key f = request.factory_key) value.factories with
+          | Some factory -> Edit_graph.factory_arity factory | None -> 0 in
+        let scope, input = match selected with
+          | [ path ] when List.length path >= 2 ->
+              let last = List.nth path (List.length path - 1) in
+              List.filteri (fun i _ -> i < List.length path - 1) path,
+              (if arity > 0 && last.[0] <> ':' && last.[0] <> '@' then Some last else None)
+          | _ -> [ graph ], None in
+        let head = Flow.Syntax.make (Flow.Syntax.Sym ("sop/" ^ request.factory_key)) in
+        let expr = Flow.Syntax.make (Flow.Syntax.List (head ::
+          (match input with Some n -> [ Flow.Syntax.make (Flow.Syntax.Sym n) ] | None -> []))) in
+        let name = Flow_sop.Flow_edit.fresh_name ws.source ~root:graph request.factory_key in
+        Pxui_graph.Syntax_edit (Flow_sop.Flow_edit.Add_node { scope; name; expr })
+      end
+  | _ -> Pxui_graph.Notice "Not a workspace"
 
 let enterable value id = match kind value id with
   | Some ("geometry" | "world") ->
@@ -716,6 +794,10 @@ let create ?(settings = Settings.none) ?(keymap = Leader.keymap)
         rows = None; live_cook = true;
         factories;
         graph_view = Pxui_graph.create (Sop.points [||]);
+        scope_view = Pxui_graph.Scope.create (); probes = Layout_by_path.Path_map.empty;
+        scope_key = None;
+        flow_catalog = lazy (Result.to_option (Flow_sop.Catalog.of_factories
+          ~version:Flow_sop.Manifest.version factories));
         tree = Pxui_shell.Tree.create (); held_keys = [];
         ui = Pxui.Ui.create (); workspace;
         timeline = Sketch_support.Timeline.create (); cook;
@@ -960,7 +1042,7 @@ let apply_action value (frame : Frame.t) (workspace, graph_view, tree, timeline,
   | Hide_ui | Look_through | Fly | Save_preset | Browse_presets
   | Graph_command _ | List_command _ | Frame_camera | Undo | Redo | Command_palette
   | Guide_toggle | Guide_keys
-  | Sketch_command _ | Toggle_projection | Enter | Up | Go_world | Group | Ungroup
+  | Sketch_command _ | Scope_command _ | Toggle_projection | Enter | Up | Go_world | Group | Ungroup
   | Make_unique | Tool _
   | World_emit | World_reseed | World_time _ | World_play | World_preset _ ->
       workspace, graph_view, tree, timeline, changes
@@ -1077,6 +1159,9 @@ let routed value =
       when listing || texting -> graph_shown && (match command.trigger with
         | Some (Editor_core.Keymap.Chord (Input.KeyChar ('j' | 'k'), [])) -> true
         | _ -> false)
+    | Graph_command Add when scope_name value <> None -> graph_shown
+    | Graph_command _ when scope_name value <> None -> false
+    | Scope_command _ -> scope_name value <> None && graph_shown && not texting
     | Graph_command Pxui_graph.Frame_all -> not (listing || texting) && graph_shown
     | Graph_command (Walk _ | Add | Connect_hint | Bind_hint | Show_wireless
       | Frame_selection) -> not (listing || texting) && graph_shown
@@ -1136,6 +1221,7 @@ let parameter_gesture operation level id values =
 
 let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
     ~render_status ~view_state (frame : Frame.t) =
+  let value = sync_scope value in
   let text_focus = text_focus || value.prompt <> None || Pxui_graph.editing value.graph_view
     || Pxui_shell.Tree.editing value.tree in
   let focus = if all_ui_visible then
@@ -1208,6 +1294,12 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
             graph_view command in
         graph_view, changes @ emitted
     | _ -> graph_view, changes) (graph_view, []) actions in
+  let scope_active = graph_shown && scope_name value <> None in
+  let scope_view, scope_command_changes = List.fold_left (fun (view, changes) -> function
+    | Leader.Scope_command command when scope_active ->
+        let view, emitted = Pxui_graph.Scope.run_command view command in
+        view, changes @ emitted
+    | _ -> view, changes) (value.scope_view, []) actions in
   let document = document value in
   let open_network = (network value).graph in
   let rows_cache = match value.rows with
@@ -1264,8 +1356,16 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
       |> Pxui_graph.with_guide guide
       |> Pxui_graph.with_bounds ~x:gx ~y:gy ~width:(max 1 gw) ~height:(max 1 gh)
       |> Pxui_graph.with_visible
-           (projection value = Graph_view
+           (projection value = Graph_view && not scope_active
             && not (Pxui_shell.Layout.collapsed workspace Pxui_shell.Layout.Graph)) in
+    let scope_view, scope_frame_changes =
+      if not scope_active then scope_view, []
+      else Pxui.Ui.within ui graph_root (fun () ->
+        scope_view
+        |> Pxui_graph.Scope.with_guide guide
+        |> Pxui_graph.Scope.with_bounds ~x:gx ~y:gy ~width:(max 1 gw) ~height:(max 1 gh)
+        |> Pxui_graph.Scope.with_visible true
+        |> fun view -> Pxui_graph.Scope.update view ui shortcut_frame) in
     let graph_view, graph_changes =
       if not (Pxui_shell.Layout.collapsed workspace Pxui_shell.Layout.Graph)
       then Pxui.Ui.within ui graph_root (fun () ->
@@ -1289,7 +1389,14 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
                 | _ -> false) actions)
               ~selected:(Pxui_graph.selected graph_view))
       | _ -> None, false in
-    let graph_changes = command_changes @ graph_changes in
+    let scope_changes = scope_command_changes @ scope_frame_changes in
+    let graph_changes = List.concat_map (function
+      | Pxui_graph.Add_requested request when scope_active -> [ scope_add value request ]
+      | change -> [ change ]) (command_changes @ graph_changes)
+      @ List.filter_map (function
+        | Pxui_graph.Scope.Syntax_edit op -> Some (Pxui_graph.Syntax_edit op)
+        | Notice message -> Some (Pxui_graph.Notice message)
+        | _ -> None) scope_changes in
     let frame_request = List.fold_left (fun request -> function
       | Pxui_graph.Frame_camera_requested id -> Some id
       | _ -> request) initial_frame_request graph_changes in
@@ -1546,7 +1653,7 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
       | Pxui_shell.Layout.View -> panes.view | Graph -> panes.graph
       | Inspector -> panes.inspector | Timeline -> panes.timeline in
     Pxui_shell.Chrome.focus ui ~bounds;
-    { workspace; focus; pane_keys; graph_view; tree; document = (network value).graph; edit_error = value.edit_error;
+    { workspace; focus; pane_keys; graph_view; scope_view; scope_changes; tree; document = (network value).graph; edit_error = value.edit_error;
       effects = Parameter.no_effects;
       timeline_intents; frame_request; prompt = None; prompt_intent = None;
       panel; grab; settings = unchanged; touched = false; placed = []; pasted = [];
@@ -1628,7 +1735,7 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
         { result with prompt; prompt_intent }) with
     | Some result -> result
     | None ->
-      { workspace; focus; pane_keys = []; graph_view; tree; document = (network value).graph;
+      { workspace; focus; pane_keys = []; graph_view; scope_view; scope_changes = scope_command_changes; tree; document = (network value).graph;
         edit_error = value.edit_error;
         effects = Parameter.no_effects; timeline_intents = [];
         frame_request = initial_frame_request; prompt = initial_prompt;
@@ -1795,6 +1902,23 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
                effects = Parameter.union_effects result.effects Doc.cook_effects }
            | Error message -> next, { (result : _ frame_result) with edit_error = Some message })
       | _ -> next, result) (next, result) result.graph_changes in
+  (* The workspace pane's layout gestures: moving an item and collapsing a zone
+     edit the layout keys (one history entry each); the probe is view state and
+     never reaches history. *)
+  let module M = Layout_by_path.Path_map in
+  let next, result, probes = if Option.is_some loaded then next, result, value.probes else
+    List.fold_left (fun (next, result, probes) -> function
+      | Pxui_graph.Scope.Zone_collapsed { zone; collapsed } ->
+          Doc.layout_edit next (fun l -> { l with collapsed =
+            if collapsed then M.add zone true l.collapsed else M.remove zone l.collapsed }),
+          { (result : _ frame_result) with label = if collapsed then "Collapse zone" else "Expand zone" }, probes
+      | Moved placed ->
+          Doc.layout_edit next (fun l -> { l with at = List.fold_left (fun at (path, x, y) ->
+            M.add path (x, y) at) l.at placed }),
+          { result with label = "Move" }, probes
+      | Probe_set { zone; index } -> next, result, M.add zone index probes
+      | Syntax_edit _ | Selected _ | Notice _ -> next, result, probes)
+      (next, result, value.probes) result.scope_changes in
   let next, world_label = if in_world value
     then world_keys value next result.graph_view actions else next, None in
   (* Space e opens the World, creating the singleton on first use. *)
@@ -2078,7 +2202,7 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
   let graph_view = match result.open_graph with
     | Some id -> Pxui_graph.select id graph_view
     | None -> graph_view in
-  let value' = { value' with graph_view; tree = result.tree } in
+  let value' = { value' with graph_view; tree = result.tree; scope_view = result.scope_view; probes } in
   let value' = match target with
     | Some level -> open_level value' level frame
     | None -> value' in

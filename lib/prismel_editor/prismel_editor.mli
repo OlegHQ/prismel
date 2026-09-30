@@ -59,6 +59,7 @@ module Private : sig
       | Toggle_projection | Enter | Up | Go_world | Group | Ungroup | Make_unique
       | World_emit | World_reseed | World_time of float | World_play | World_preset of int
       | Graph_command of Pxui_graph.command
+      | Scope_command of Pxui_graph.Scope.command
       | List_command of Pxui_shell.Tree.command
       | Guide_toggle | Guide_keys
       | Command_palette

@@ -202,3 +202,17 @@ while retaining the prior successful preview.
 - Iterative sketches expose reset and optional checkpoint hooks. Repeatable
   runs use `Sketch.Fixed dt`, explicit immutable seeds, stable input streams,
   and exact one-domain/multi-domain state and framebuffer regressions.
+
+## Workspace graph pane (W4)
+
+For a geometry object of a workspace document opened as a graph
+(`Core.scope_name`), `Core` shows `Pxui_graph.Scope` instead of the flat
+pane and routes `Leader.Scope_command` keys (the flat `Graph_command`s are
+filtered out except `Add`, whose menu becomes one `Add_node`). `Core.sync_scope`
+rebuilds the projection when the workspace document or `Core.probes` changes;
+counts come from one recording evaluation per checked source. `probes`
+(iteration per zone) is view state: not in `Document`, not in history. Moving
+an item and collapsing a zone are layout edits (`Doc.layout_edit`, one
+history entry, no lowering, no recook); `Syntax_edit` requests reduce
+through `Doc.syntax_edit` as before. `sketches/flow_workspace` opens a case
+and, with `FLOW_EXPORT=<dir>`, renders the editor to PNG frames.

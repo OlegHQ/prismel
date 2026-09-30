@@ -1,0 +1,16 @@
+(rule
+ (targets cases.ml)
+ (deps ../../specification/workspace/cases/bloom.lisp
+       ../../specification/workspace/cases/sunflower.lisp
+       ../../specification/workspace/cases/orrery.lisp)
+ (action
+  (with-stdout-to cases.ml
+   (progn
+    (echo "let bloom = {|") (cat ../../specification/workspace/cases/bloom.lisp) (echo "|}\n")
+    (echo "let sunflower = {|") (cat ../../specification/workspace/cases/sunflower.lisp) (echo "|}\n")
+    (echo "let orrery = {|") (cat ../../specification/workspace/cases/orrery.lisp) (echo "|}\n")))))
+
+(executable
+ (name main)
+ (modules main cases)
+ (libraries prismel procedural pdk pdk_prismel sop_catalog flow flow_sop prismel_editor))

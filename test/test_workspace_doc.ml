@@ -252,4 +252,16 @@ let part_view () =
     let loaded = Preset.load ~path ~factories ~settings:Editor_document.Settings.none |> Result.get_ok in
     check (loaded.view = view) "view round trip")
 
-let run () = List.iter (fun f -> f ()) [ part_text; part_edit; part_view; part_editor; part_live; part_preset ]
+
+(* W4: the editor's layout gestures edit the layout keys only. *)
+let part_pane_layout () =
+  let module M = Layout.Path_map in
+  let doc = of_text still in
+  let opened = Document.of_workspace ~factories doc |> function Ok d -> d | Error m -> fail (Flow.Diagnostic.to_string m) in
+  let ws = fst (Option.get opened.workspace) in
+  let ws = { ws with layout = { ws.layout with at = M.add [ "g"; "a" ] (40., 60.) ws.layout.at;
+                                               collapsed = M.add [ "g"; "z" ] true ws.layout.collapsed } } in
+  let again = of_text (Doc.to_text ws) in
+  check (M.find [ "g"; "a" ] again.layout.at = (40., 60.) && M.mem [ "g"; "z" ] again.layout.collapsed)
+    "moved items and collapsed zones round-trip through the s-expression"
+let run () = List.iter (fun f -> f ()) [ part_text; part_edit; part_view; part_editor; part_live; part_preset; part_pane_layout ]

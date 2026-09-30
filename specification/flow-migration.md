@@ -317,7 +317,7 @@ milestone is recorded here with its date, what landed and its deviations.
 | W2 lowering and cooking | done | 2026-09-30 |
 | W2b live `t` | partial | 2026-09-30 |
 | W3 document v4 and history | done | 2026-09-30 |
-| W4 graph pane zones | wip (part A) | 2026-09-30 |
+| W4 graph pane zones | done | 2026-09-30 |
 
 ### W0 fixes and catalog prerequisites (2026-09-30, done with W4 part A)
 
@@ -447,8 +447,7 @@ objects, compounds, value nodes) that has no workspace text yet (W10, W12),
 so `Space s` reports why and the crash report writes `document.txt` (a
 deterministic text of any document) but no `.plisp`. Loading a preset gives
 geometry objects only; the editor adds its default camera. `Layout_by_path` is
-stored, remapped and saved, but the pane does not read it until W4 (`frames`
-is a titled rectangle, unused until then). `Doc.apply`'s `Syntax_edit` case
+stored, remapped and saved, and the workspace pane reads it since W4 (`frames` are titled rectangles under the tiles). `Doc.apply`'s `Syntax_edit` case
 is a no-op inside the network fold; `Doc.syntax_edit` is the reduction (the
 source is not a `Flow_sop.Network`). `Wrap` uses the checker as its type
 oracle (geometry, then number shape; each candidate feedback input) instead of
@@ -459,7 +458,7 @@ names a binding may not take. `test_editor_document` builds its fixtures in
 code (the JSON fixtures and rejection matrix are gone) and
 `test_prismel_editor` no longer restores a fixed camera from a preset (the native look-through framebuffer comparison went with it: a following camera does not reproduce it).
 
-### W4 graph pane projection, part A (2026-09-30, wip)
+### W4 graph pane, part A (projection) and part B (drawing) (2026-09-30, done)
 
 Landed (UI-free): `Flow_sop.Projection` (`of_graph`, `find`, `zones`,
 `layout`, `place`, the row types and card constants), the `Rest` input
@@ -469,6 +468,39 @@ and `group_writer`, `Flow_edit.free_names/pat_names/pat_key`, and
 `test/test_projection.ml`. Deviations, the Rest design, and exactly what part
 B (the `Pxui_graph` side) must do are in `specification/workspace/progress.md`
 (W0 `Rest` and W4 part A notes).
+
+Part B: `Pxui_graph.Scope` (`lib/pxui_graph/scope_pane.ml`) draws a
+`Projection.scope`: zones under the tiles in the canvas paint (`Theme.zone_*`,
+dashed and hollow for `fn` and `let*`), rail rows with source sockets, a yield
+row, the fold feedback line, the iteration selector (two buttons, a track and
+a readout, plain boxes; it emits `Probe_set`), chips with the glyphs
+`ƒ for Σ ↵ λ {} ◊` (hover expands, the glyph unfolds), scrubbable numbers
+(`Ui.value_field ~scrub`, `Set_arg`), output rows under a record or pattern
+card, stacked (list), diamond (fn) and pill (record) sockets, the ◷ and ↥
+marks. A wire dropped on a row is `Connect` (`iter` when its source is a loop
+name), the input socket of a wired row disconnects, Delete on a hovered wired
+row is `Disconnect`, the `+` row is `Add_item` / `Add_field` / `Set_arg`, the
+context menu and keys (`r R l H F U b m c [ ] Del Home`, arrows) are the
+rest; every one is a `Scope.change`, mapped to `Pxui_graph.Syntax_edit` by
+`Core`. Only visible items are built and a zone's body is drawn once whatever
+its count. `Core` shows the pane for a geometry object of a workspace document
+(`scope_name`), reads `Layout_by_path.at`, `collapsed` and `frames` (a frame
+is a titled rectangle under the tiles; nothing creates one before W10), keeps
+the probes in `Core.probes` (view state, no history) and writes moves and
+collapses as layout edits (`Doc.layout_edit`, one history entry, no recook).
+Iteration counts come from one `Eval.static ~record:true` per checked source
+(`Projection.counts`). Deviations: the pane has its own `Scope.change` type
+(the flat pane's `change` and `Scope` cannot share one); the flat pane and its
+BVH stay for non-workspace documents (converting it is a later ponytail);
+DepartureMono lacks ⟲ ◆ ◷ ↥ ▸ ▾ so the pane draws ↵ ◊ t ↑ ► ▼; the
+`[%flow]`-style value nodes have no pane in a workspace (`Add_requested`
+becomes `Add_node`); there is no marquee (shift-click multi-selects);
+the inspector still shows the lowered object (W5+). Perf, Sunflower with 240
+iterations, `dune exec test/test_main.exe -- bench_scope_pane` (M-series, one
+run): flat pane over the 241-node lowered network 0.135 ms and 503 KB per
+frame; workspace pane zone expanded 0.259 ms, 675 KB; collapsed 0.070 ms,
+173 KB. The 2,001-node smoke is unchanged (0.56 s, 619.7 MB standalone, baseline
+578 ms / 619.7 MB).
 
 ## Do not
 

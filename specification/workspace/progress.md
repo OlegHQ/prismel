@@ -13,8 +13,8 @@ Status: `todo` · `wip` · `done` (gate met) · `partial` (what is missing is na
 | W1 language core (`flow`) | done | | `Flow.Syntax`, `Lisp`, `Ty`, `Macro`, `Workspace` (checker, typed IR, liveness, invariance) and `Eval` (values, loops, functions, records, HOFs, `ref`, the geometry plan, `static` / residual split, `?record`); the 12 fixtures check, print, round-trip and run; the check.cjs suite is ported (119 of 120, see the W1 part C notes). |
 | W2 lowering & cooking | done | | `Flow_sop.Lower.workspace`, `Pdk.Mesh_merge ?source_attribute`, session default 512, `test_workspace_cook`, `bench_workspace_lower`. Live parameters are only recorded (`Lower.pending`); drives are W2b. |
 | W2b live `t` | partial | | `Drive.Live`, `Lower` live drives, `flow.curve` text-encoded points, volatile session slots, `Async_cook.await`, `Cook ?await`, status text, tests and bench (notes below). Gaps: UI text (W4/W5), `Frame` cannot tell a fixed clock. The editor is fed by a workspace since W3. |
-| W3 document v4 + history | done | | `Flow_edit`, `Workspace_doc`, `Layout_by_path`, s-expression presets, the editor opens a workspace and recooks live `t` (notes below). No older presets. Gaps: only workspace documents save; `Layout_by_path` is not read by the pane until W4. |
-| W4 graph pane zones | wip | | Part A (UI-free) done: `Flow_sop.Projection` (scopes, zones, rows, chips, layout), the `Rest` slot, `test_projection`. Part B (Pxui_graph drawing, selector, theme tokens, requests) todo, see the W4 notes. |
+| W3 document v4 + history | done | | `Flow_edit`, `Workspace_doc`, `Layout_by_path`, s-expression presets, the editor opens a workspace and recooks live `t` (notes below). No older presets. Gaps: only workspace documents save. |
+| W4 graph pane zones | done | | Part A (`Flow_sop.Projection`, `Rest`) and part B (`Pxui_graph.Scope`, zone tokens, selectors, `Core` wiring, layout by path, probes); see the W4 part B notes and `flow-migration.md`. Gaps: no marquee, the inspector still shows the lowered object, the flat pane remains for non-workspace documents, only `sop` graphs open. |
 | W5 probes & footers | todo | | |
 | W6 viewport provenance | todo | | |
 | W7 editable text | todo | | |
@@ -257,3 +257,14 @@ Status: `todo` · `wip` · `done` (gate met) · `partial` (what is missing is na
   `Fold_into`/`Unfold`. The `↥` (invariant) and `◷` (live) marks come from
   `node.invariant` / `node.live`. `Doc.syntax_edit` already reduces the
   edit; the projection is rebuilt from `Document.workspace` after each.
+- W4 part B notes. `Pxui_graph.Scope` is a separate pane module with its own
+  `change` type (`Syntax_edit`, `Probe_set`, `Zone_collapsed`, `Selected`,
+  `Moved`, `Notice`), not new cases of the flat pane's `change`; `Core` maps
+  them. Theme tokens: `Theme.zone_for/fold/sum/fn/let`, `Theme.ports` `text`,
+  `fn`, `record`, `Theme.dark`; parity fixture `kit_zones_1x.png` (1x: the
+  headless renderer is 1x, the 2x fixtures stay). Iteration counts:
+  `Projection.counts` from a recording `Eval.static`. Native check:
+  `sketches/flow_workspace` (`FLOW_CASE=bloom|sunflower|orrery`,
+  `FLOW_EXPORT=dir` renders the editor to PNG frames by driving a click, `j`
+  and `i`): zones, rails, selector, chips, notes, marks and wires draw. Glyph
+  fallbacks and perf numbers are in `flow-migration.md`.

@@ -12,6 +12,7 @@ type action =
   | Toggle_projection | Enter | Up | Go_world | Group | Ungroup | Make_unique
   | World_emit | World_reseed | World_time of float | World_play | World_preset of int
   | Graph_command of Pxui_graph.command
+  | Scope_command of Pxui_graph.Scope.command  (* the workspace pane, see [Core.scope_name] *)
   | List_command of Pxui_shell.Tree.command
   | Guide_toggle | Guide_keys
   | Command_palette
@@ -106,6 +107,8 @@ let keymap = [
   [Input.Meta; Input.Ctrl]
 @ List.map (fun (c : _ Editor_core.Command.t) ->
   { c with scope = Some graph; action = Graph_command c.action }) Pxui_graph.bindings
+@ List.map (fun (c : _ Editor_core.Command.t) ->
+  { c with scope = Some graph; action = Scope_command c.action }) Pxui_graph.Scope.bindings
 @ List.map (fun (c : _ Editor_core.Command.t) ->
   { c with scope = Some graph; guide = [Editor_core.Guide_context.List];
     action = List_command c.action }) Pxui_shell.Tree.bindings
