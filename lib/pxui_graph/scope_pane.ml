@@ -198,7 +198,6 @@ let with_guide guide t = if t.guide = guide then t else { t with guide }
 let selected t = Path_set.elements t.selected
 let select paths t = { t with selected = Path_set.of_list paths }
 let clear_selection t = if Path_set.is_empty t.selected then t else { t with selected = Path_set.empty }
-let hovered_row t = t.hovered_row
 let stats t = t.stats
 let zoom t = t.zoom
 
@@ -1298,8 +1297,6 @@ let update t ui (frame : Frame.t) =
 module Private = struct
   let box_of t path = Hashtbl.find_opt t.geo.pos path
     |> Option.map (fun (x, y, w, h) -> sx t x, sy t y, w *. t.zoom, h *. t.zoom)
-  let wires t = Array.length t.geo.wires
-  let placed t = Array.length t.geo.items
   let selector t path = Option.map (fun (x, y, w, _) ->
     let z = t.zoom in let top = y +. (P.head_height +. 6.) *. z in
     (x +. 2. *. z, top, 22. *. z, 22. *. z), (x +. 28. *. z, top, (w -. 56. *. z), 22. *. z),

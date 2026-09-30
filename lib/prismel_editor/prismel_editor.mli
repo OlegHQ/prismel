@@ -122,8 +122,6 @@ module Private : sig
     val object_network : t -> int -> (Flow_sop.Network.t * int option) option
     (** An object's immutable network and optional geometry display node.
         A missing owner returns [None]; an empty geometry network has no display. *)
-
-    val positions : t -> int -> (int * float * float) list option
   end
 
   (** Presets: the workspace as an s-expression file (source, layout,

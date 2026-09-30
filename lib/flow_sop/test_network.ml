@@ -3,12 +3,6 @@ let ok = function Ok value -> value | Error diagnostic -> failwith (Flow.Diagnos
 let rejected code = function
   | Ok _ -> failwith ("Expected " ^ code)
   | Error diagnostic -> assert (diagnostic.Flow.Diagnostic.code = code)
-let checked catalog (printed : Print.t) =
-  match Flow.Check.check catalog printed.text with
-  | Some _, diagnostics when List.for_all (fun (diagnostic : Flow.Diagnostic.t) ->
-      diagnostic.severity = Flow.Diagnostic.Warning) diagnostics -> ()
-  | _, diagnostics -> failwith (printed.text ^ "\n" ^
-      String.concat "; " (List.map Flow.Diagnostic.to_string diagnostics))
 
 type parameters = { a : float; count : int; on : bool; x : float; y : float; z : float; text : string }
 let default = {a = 1.; count = 0; on = false; x = 0.; y = 0.; z = 0.; text = "plain"}
@@ -77,63 +71,10 @@ let () =
   let id = Procedural.Node.id node in
   let base = Network.of_geometry (Procedural.Edit_graph.of_graph node) in
   assert (ok (Network.validate base) = ());
-  let check_parameters = List.map (fun parameter ->
-    Flow.Check.{name = parameter.Port.path; label = parameter.path;
-      ty = parameter.ty;
-      fields = List.map (fun (field : Param.field_view) ->
-        field.name, field.kind, field.default) parameter.fields}) rows in
-  let catalog = Flow.Check.{version = 1; kinds = [
-    {qualified = "sop/" ^ Procedural.Node.operation node; aliases = [];
-      context = Flow.Context.Sop; slots = []; parameters = check_parameters;
-      outputs = ["geo", Flow.Port_type.Geometry]}]} in
-  let empty = ok (Print.network ~name:"empty" ~context:Flow.Context.Sop ~catalog
-    ~display:None ~definitions:Network.String_map.empty
-    (Network.of_geometry Procedural.Edit_graph.empty)) in
-  assert (empty.text = "(graph empty :context sop\n  nil)");
-  checked catalog empty;
-  let titled = ok (Print.network ~name:"My Sketch" ~context:Flow.Context.Sop
-    ~catalog ~display:None ~definitions:Network.String_map.empty
-    (Network.of_geometry Procedural.Edit_graph.empty)) in
-  assert (titled.text = "(graph my_sketch :context sop\n  nil)");
-  let printed = ok (Print.network ~name:"demo" ~context:Flow.Context.Sop ~catalog
-    ~display:(Some id) ~definitions:Network.String_map.empty base) in
-  assert (printed.binding_lines = [id, 2]);
-  assert (printed.text = "(graph demo :context sop\n  (let* [points (points)]\n    points))");
-  checked catalog printed;
   let noisy = ok (Network.set_literal ~target:(port id "a")
     (Port.Scalar (Param.Float_value 0.040000000000000001)) base) in
-  let print precision = ok (Print.network ~precision ~name:"demo"
-    ~context:Flow.Context.Sop ~catalog ~display:(Some id)
-    ~definitions:Network.String_map.empty noisy) in
-  let exact = print 17 and pretty = print 6 in
-  assert (exact.text <> pretty.text);
-  assert (pretty.text = "(graph demo :context sop\n  (let* [points (points :a 0.04)]\n    points))");
   assert (Port.literal (ok (Network.parameter noisy (port id "a"))) =
     Port.Scalar (Param.Float_value 0.040000000000000001));
-  checked catalog pretty;
-  let a = Procedural.Node.relabel "1 Weird" (build default) in
-  let b = Procedural.Node.relabel "1 Weird" (build default) in
-  let merged = Procedural.Sop.merge ~label:"t" [a; b] in
-  let merge_kind = Flow.Check.{qualified = "sop/merge"; aliases = [];
-    context = Flow.Context.Sop;
-    slots = [{name = "in0"; required = true; rest = false}; {name = "in1"; required = true; rest = false}];
-    parameters = []; outputs = ["geo", Flow.Port_type.Geometry]} in
-  let catalog_with_merge = Flow.Check.{catalog with kinds = merge_kind :: catalog.kinds} in
-  let printed_merge = ok (Print.network ~name:"demo" ~context:Flow.Context.Sop
-    ~catalog:catalog_with_merge ~display:(Some (Procedural.Node.id merged))
-    ~definitions:Network.String_map.empty
-    (Network.of_geometry (Procedural.Edit_graph.of_graph merged))) in
-  let checked_merge = fst (Flow.Check.check catalog_with_merge printed_merge.text)
-    |> Option.get in
-  assert (List.map (fun (binding : Flow.Check.binding) -> binding.name)
-    checked_merge.graph.bindings = ["n1_weird"; "n1_weird_2"; "n_t"]);
-  let second_only = Procedural.Edit_graph.of_graph merged
-    |> Procedural.Edit_graph.disconnect ~consumer:(Procedural.Node.id merged)
-      ~input_index:0 |> Result.get_ok in
-  let printed_second = ok (Print.network ~name:"demo" ~context:Flow.Context.Sop
-    ~catalog:catalog_with_merge ~display:(Some (Procedural.Node.id merged))
-    ~definitions:Network.String_map.empty (Network.of_geometry second_only)) in
-  checked catalog_with_merge printed_second;
   let consumer = Procedural.Sop.null node in
   let consumer_id = Procedural.Node.id consumer in
   let instance : Network.instance = {definition = "compound_1";
@@ -260,14 +201,6 @@ let () =
   let network, math = ok (Network.add_value_node Flow.Value_kind.Math network) in
   let network = ok (Network.connect_value ~source:(port time "t") ~target:(port math "a") network) in
   let network = ok (Network.connect_value ~source:(port math "out") ~target:(port id "a") network) in
-  let printed = ok (Print.network ~name:"demo" ~context:Flow.Context.Sop ~catalog
-    ~display:(Some id) ~definitions:Network.String_map.empty network) in
-  assert (String.contains printed.text '*');
-  checked catalog printed;
-  let qualified = ok (Print.network ~qualified:true ~name:"demo"
-    ~context:Flow.Context.Sop ~catalog ~display:(Some id)
-    ~definitions:Network.String_map.empty network) in
-  checked catalog qualified;
   assert (ok (Network.connect_value ~source:(port math "out") ~target:(port id "a") network) == network);
   assert (Network.parameter network (port id "a") |> ok |> Port.literal = Port.Scalar (Param.Float_value 1.));
   rejected "E_TYPE" (Network.connect_value ~source:(port vector "out") ~target:(port id "a") network);
@@ -279,14 +212,8 @@ let () =
   let whole = ok (Network.connect_value ~source:(port vector "out") ~target:(port id "position") network) in
   rejected "E_VEC3_CONFLICT" (Network.connect_value ~source:(port time "t") ~target:(port id "position.y") whole);
   let component = ok (Network.connect_value ~source:(port time "t") ~target:(port id "position.y") network) in
-  let printed = ok (Print.network ~name:"demo" ~context:Flow.Context.Sop ~catalog
-    ~display:(Some id) ~definitions:Network.String_map.empty component) in
-  checked catalog printed;
   rejected "E_VEC3_CONFLICT" (Network.connect_value ~source:(port vector "out") ~target:(port id "position") component);
   let literal = ok (Network.set_literal ~target:(port id "position") (Port.Vector (1.,2.,3.)) network) in
-  let printed = ok (Print.network ~name:"demo" ~context:Flow.Context.Sop ~catalog
-    ~display:(Some id) ~definitions:Network.String_map.empty literal) in
-  checked catalog printed;
   rejected "E_TYPE" (Network.set_literal ~target:(port id "count") (Port.Scalar (Param.Float_value 1.5)) network);
   assert (Port.literal (ok (Network.parameter literal (port id "position"))) = Port.Vector (1.,2.,3.));
   assert (Port.literal (ok (Network.parameter network (port id "position"))) = Port.Vector (0.,0.,0.));
@@ -514,33 +441,6 @@ let () =
     ~node_id:instance (List.nth factories 2) grouped.geometry |> Result.get_ok in
   let grouped = ok (Network.with_geometry grouped_geometry grouped) in
   let grouped_base = grouped in
-  let printed = ok (Print.network ~name:"demo" ~context:Flow.Context.Sop ~catalog
-    ~display:(Some instance)
-    ~definitions:(Network.String_map.singleton definition.name definition)
-    grouped_base) in
-  checked catalog printed;
-  let printed_definition = ok (Print.definition ~catalog
-    ~definitions:(Network.String_map.singleton definition.name definition)
-    definition.name) in
-  let lines = String.split_on_char '\n' printed_definition.text in
-  assert (List.for_all (fun (_, line) -> line > 0 && line <= List.length lines
-    && String.contains (List.nth lines (line - 1)) '(')
-    printed_definition.binding_lines);
-  checked catalog {printed_definition with text = printed_definition.text ^
-    "\n\n(graph demo :context sop\n  nil)"};
-  let checked_program = fst (Flow.Check.check catalog printed.text) |> Option.get in
-  assert ((List.hd checked_program.definitions).outputs =
-    List.map (fun (port : Network.interface_port) -> port.name, port.ty)
-      definition.outputs);
-  assert (List.assoc instance printed.binding_lines > 2);
-  let recursive = {definition with body = grouped_base} in
-  (match Print.network ~name:"demo" ~context:Flow.Context.Sop ~catalog
-      ~display:(Some instance)
-      ~definitions:(Network.String_map.singleton definition.name recursive)
-      grouped_base with
-   | Error diagnostic -> assert (diagnostic.code = "E_RECURSIVE"
-       && diagnostic.message = "Compound " ^ definition.name ^ " contains itself")
-   | Ok _ -> failwith "printed a recursive compound definition");
   let grouped = ok (Network.set_literal ~target:(port instance "speed")
     (Port.Scalar (Param.Float_value 3.)) grouped) in
   let outside = build default in

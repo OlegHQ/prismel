@@ -100,12 +100,6 @@ type t = {
           live value is a [Residual] until forced ({!run}, {!Flow_sop.Probe}). *)
 }
 
-val max_steps : int
-(** Evaluation budget: 600,000 evaluation steps ([E_EVAL_BUDGET]). *)
-
-val max_concat : int
-(** Elements one [concat] may produce: 4,096. *)
-
 val static :
   ?record:bool -> ?inputs:(string * (string * value) list) list -> Workspace.t ->
   (t, Diagnostic.t) result

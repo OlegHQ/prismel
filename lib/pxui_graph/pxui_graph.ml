@@ -980,7 +980,6 @@ let hovered_row value = value.hovered_row
 let with_visible visible value =
   if visible = value.visible then value
   else { value with visible; drag = None; context = None }
-let visible (value : t) = value.visible
 let selected (value : t) = value.primary
 let selected_nodes (value : t) = Id_set.elements value.selected
 let selected_connection (value : t) = value.selected_edge

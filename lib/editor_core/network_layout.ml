@@ -22,12 +22,6 @@ let empty = {
 }
 let snap x = Float.round (x /. 12.) *. 12.
 let slot node index = node, "in" ^ string_of_int index
-let slot_index path =
-  if not (String.starts_with ~prefix:"in" path) then None else
-  let suffix = String.sub path 2 (String.length path - 2) in
-  match int_of_string_opt suffix with
-  | Some n when n >= 0 && string_of_int n = suffix -> Some n
-  | _ -> None
 
 let remove_nodes ids t =
   let removed = Int_map.of_list (List.map (fun id -> id, ()) ids) in

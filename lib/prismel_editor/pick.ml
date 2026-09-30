@@ -6,8 +6,7 @@
    ponytail: a CPU ray over [Pdk.Surface_index] (a BVH of the displayed
    geometry, built at the first click and kept with the piece), not an ID
    buffer.  The upgrade path when meshes pass about 1M triangles is an OGPU
-   ID-buffer feature (skill add-ogpu-feature) fed by
-   [Pdk_prismel.Prismel_mesh.to_mesh_with_primitives]. *)
+   ID-buffer feature (skill add-ogpu-feature). *)
 open Prismel
 
 module Set = Set.Make (Int)

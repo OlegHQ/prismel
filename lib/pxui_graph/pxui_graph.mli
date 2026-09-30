@@ -144,8 +144,6 @@ val with_guide : bool -> t -> t
 val hovered_row : t -> (int * string) option
 (** The parameter row owning PXUI hover after the last update. *)
 
-val visible : t -> bool
-
 val selected : t -> int option
 val selected_nodes : t -> int list
 val selected_connection : t -> Procedural.Edit_graph.connection option

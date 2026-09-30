@@ -66,7 +66,6 @@ val macro_step : t -> path -> int option
 val selected : t -> path list
 val select : path list -> t -> t
 val clear_selection : t -> t
-val hovered_row : t -> (path * Flow_sop.Flow_edit.arg_key) option
 val stats : t -> stats
 val zoom : t -> float
 
@@ -78,8 +77,6 @@ val update : t -> Pxui.Ui.t -> Prismel.Frame.t -> t * change list
 
 module Private : sig
   val box_of : t -> path -> (float * float * float * float) option
-  val wires : t -> int
-  val placed : t -> int
   (* previous button, track, next button, in screen points *)
   val selector : t -> path ->
     ((float * float * float * float) * (float * float * float * float) * (float * float * float * float)) option

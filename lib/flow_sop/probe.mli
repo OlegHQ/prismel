@@ -36,10 +36,6 @@ val plan_node : t -> path -> probes:int list -> int option
 val records : t -> path -> (int list * summary) array
 (** Every record of a path in evaluation order (at most 4,096). *)
 
-val describe : summary -> string
-(** The study's [describe]: numbers to three decimals, [[x y z]], [n × …]
-    lists, [{f v · g w}] records, [n prims · groups a, b]. *)
-
 val chains : Projection.scope -> (path, path list) Hashtbl.t
 (** The enclosing iterating zones of every node below the scope, outermost
     first ([let*] zones do not iterate and are left out). *)
@@ -48,10 +44,6 @@ val counts : t -> Projection.scope -> probe:(path -> int) -> (path * int) list
 (** Iterations (or calls) each zone ran under the probes of the zones around
     it: the records of its first loop name or parameter with the outer
     tuple.  A zone with no record is missing. *)
-
-val series : t -> path -> probes:int list -> summary array
-(** The path's values across the innermost zone, the outer zones held at their
-    probes; the last of [probes] is ignored.  [probes = []] is empty. *)
 
 type footer = {
   value : string;  (** at the probe; its type when never recorded, [not run here] in a zone it skipped *)

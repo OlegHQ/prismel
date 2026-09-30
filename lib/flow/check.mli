@@ -1,5 +1,5 @@
-(** Context-independent checking of the Flow text form. The catalog is plain
-    data so the editor and the PPX can check against the same description. *)
+(** Context-independent checking of the catalog. The catalog is plain
+    data so the editor and the checker share one description. *)
 type parameter = {
   name : string;
   label : string;
@@ -30,32 +30,13 @@ and term_node =
   | Call of call
 and call = { kind : string; arguments : (string * term) list; bypass : bool }
 
-type binding = { name : string; term : term; outputs : (string * Port_type.t) list }
-type graph = {
-  name : string;
-  context : Context.t;
-  bindings : binding list;
-  results : term list;
-}
-type definition = {
-  graph : graph;
-  inputs : (string * Port_type.t * term option) list;
-  outputs : (string * Port_type.t) list;
-}
-type program = { graph : graph; definitions : definition list }
-
-val check : catalog -> string -> program option * Diagnostic.t list
-(** Parse and check a file. A failed binding is poisoned, so later references
-    to it do not produce cascading errors. Diagnostics include warnings and
-    source positions; a program is returned only if there are no errors. *)
-
 val catalog_of_manifest : string -> (catalog * string, Diagnostic.t) result
 (** Read the generated catalog snapshot for compile-time checking, returning
-    its SOP descriptor and digest. Built-in value kinds are added by [check]. *)
+    its SOP descriptor and digest. Built-in value kinds are added by the checker. *)
 
 (** {2 Reuse by the workspace checker}
     [Flow.Workspace] calls catalog kinds through the same resolution and
-    parameter validation as [%flow]. *)
+    parameter validation as the sketch language. *)
 
 val resolve_kind : catalog -> Context.t -> string -> (kind, string * string) result
 (** Resolve a short or qualified kind name for a graph of the given context;

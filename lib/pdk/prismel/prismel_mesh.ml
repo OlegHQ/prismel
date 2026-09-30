@@ -263,29 +263,3 @@ let to_mesh ?cancel geometry =
 let of_mesh ?cancel mesh =
   protected "of_mesh" (fun () -> of_mesh_raw_impl ?cancel mesh)
 
-(* Triangle [t] of the mesh is primitive [t] of the triangulated geometry, so
-   tagging every primitive with its index first makes the triangulation report
-   its own map (a polygon of n corners gives n - 2 triangles, a collapsed quad
-   one). *)
-let primitive_tag = "__prim"
-
-let to_mesh_with_primitives ?cancel geometry =
-  protected "to_mesh" (fun () ->
-    let topology = Geometry.topology geometry in
-    let count = Topology.primitive_count topology in
-    if count = 0 || all_curves topology then
-      Result.map (fun mesh -> mesh, [||]) (to_mesh_raw_impl ?cancel geometry)
-    else if Topology.all_triangles topology then
-      Result.map (fun mesh -> mesh, Array.init count Fun.id)
-        (to_mesh_raw_impl ?cancel geometry)
-    else
-      let ( let* ) = Result.bind in
-      let* tag = Attribute.create_owned ~name:primitive_tag ~owner:Attribute.Primitive
-          (Attribute.Int (Array.init count Fun.id)) in
-      let* tagged = Geometry.with_attribute tag geometry in
-      let* triangulated = Result.map_error Error.to_string (Triangulate.run ?cancel tagged) in
-      let* mesh = to_mesh_raw_impl ?cancel triangulated in
-      match Option.map Attribute.Private.storage
-              (Geometry.find_attribute ~owner:Attribute.Primitive primitive_tag triangulated) with
-      | Some (Attribute.Int map) -> Ok (mesh, map)
-      | _ -> Error "Pdk.Prismel_mesh.to_mesh_with_primitives: lost the primitive map")

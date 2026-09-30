@@ -20,27 +20,6 @@ let lower name =
   | Ok forms -> (match Lower.workspace ~extra:Editor_document.Contexts.descriptors ~factories:Sop_catalog.Editor.factories forms with
       | Ok lowered -> lowered | Error d -> fail (Flow.Diagnostic.to_string d))
 
-let triangle_map () =
-  let get = function Ok v -> v | Error e -> fail (Pdk.Error.to_string e) in
-  (* a triangle, a quad and a pentagon *)
-  let xs = [| 0.; 1.; 0.; 2.; 2.; 5.; 6.; 6.5; 5.5; 4.5 |]
-  and ys = [| 0.; 0.; 1.; 0.; 1.; 0.; 0.; 1.; 2.; 1. |] in
-  let topology = Pdk.Topology.polygons_owned ~point_count:10
-      ~vertex_points:[| 0; 1; 2;  1; 3; 4; 2;  5; 6; 7; 8; 9 |]
-      ~primitive_offsets:[| 0; 3; 7; 12 |] |> Result.get_ok in
-  let mixed = Geometry.create ~topology ~positions:(Result.get_ok (Pdk.Packed.Float3.of_owned
-      ~x:xs ~y:ys ~z:(Array.make 10 0.))) () |> Result.get_ok in
-  let mesh, map = Pdk_prismel.Prismel_mesh.to_mesh_with_primitives mixed |> Result.get_ok in
-  check (Array.length (Prismel.Mesh.Private.packed_view mesh).indices = 18) "six triangles";
-  check (map = [| 0; 1; 1; 2; 2; 2 |]) "a polygon of n corners maps n - 2 triangles";
-  let _, map = Pdk_prismel.Prismel_mesh.to_mesh_with_primitives
-      (Pdk.Triangulate.run mixed |> get) |> Result.get_ok in
-  check (map = Array.init 6 Fun.id) "triangles keep their own index";
-  let points = Geometry.create ~positions:(Result.get_ok (Pdk.Packed.Float3.of_owned
-      ~x:[| 0. |] ~y:[| 0. |] ~z:[| 0. |])) ~topology:(Pdk.Topology.empty ~point_count:1) ()
-    |> Result.get_ok in
-  let _, none = Pdk_prismel.Prismel_mesh.to_mesh_with_primitives points |> Result.get_ok in
-  check (none = [||]) "no primitives, no map"
 
 (* the cooked piece of a lowered fixture *)
 let cooked ?(lit = Pick.Set.empty) ?cook lowered ~prepared =
@@ -90,7 +69,6 @@ let present geometry tag = Array.exists (( = ) tag) (Option.get (Pick.tags geome
 let down = Prismel.Vec3.create 0. (-1.) 0.
 
 let pick_run () =
-  triangle_map ();
   (* --- sunflower: one merge, tag = the seed --- *)
   let sunflower = lower "sunflower" in
   let prepared = ref 0 in

@@ -19,7 +19,6 @@ type t = {
 val empty : t
 val snap : float -> float
 val slot : int -> int -> int * string
-val slot_index : string -> int option
 val remove_nodes : int list -> t -> t
 val edit : nodes:int list -> ports:(int * string) list -> source:t -> t -> t
 (** Copy only the named nodes and destination ports from [source]. *)

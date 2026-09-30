@@ -1219,10 +1219,6 @@ let copy_networks value mapping =
 let scene_graph value = value.scene.graph.geometry
 let object_network value id = Option.map (fun (network : network) ->
     network.graph, network.displayed) (Layout.find_opt id value.networks)
-let positions value id = Option.map (fun (network : network) ->
-    Layout.fold (fun node (x, y) list -> (node, x, y) :: list) network.layout.at [])
-    (Layout.find_opt id value.networks)
-
 
 (* A deterministic text of everything the editor keeps in a document, for
    crash reports and for tests that compare two documents.  Not loadable:

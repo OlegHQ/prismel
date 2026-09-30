@@ -9,11 +9,6 @@ val write_text : filename:string -> string -> (unit, string) result
 
 val read_text : filename:string -> (string, string) result
 
-val save : filename:string -> kind:kind -> sketch:string ->
-  sections:(string * Yojson.Safe.t) list -> (unit, string) result
-val load : filename:string -> kind:kind ->
-  (string * (string * Yojson.Safe.t) list, string) result
-
 module Viewport : sig
   val encode3 : Prismel.Easy_camera.t -> look_through:bool -> Yojson.Safe.t
   val decode3 : Prismel.Easy_camera.t -> Yojson.Safe.t ->
