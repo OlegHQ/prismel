@@ -408,7 +408,7 @@ let node_wires document id =
   |> Seq.filter_map (fun (target, drive) -> match drive with
       | Flow_sop.Drive.Wire {node; output} ->
           Some (target, {Flow_sop.Port.node; path = output})
-      | Flow_sop.Drive.Expr _ -> None)
+      | Flow_sop.Drive.Expr _ | Flow_sop.Drive.Live _ -> None)
 
 let graph_value_input document (box : box) position path =
   let x, y = position in
@@ -652,7 +652,7 @@ let automatic_layout (document : Flow_sop.Network.t) definitions layout zoom blo
     | Flow_sop.Drive.Wire {node; _} ->
         Hashtbl.replace value_inputs target.node
           (node :: Option.value ~default:[] (Hashtbl.find_opt value_inputs target.node))
-    | Flow_sop.Drive.Expr _ -> ()) document.drives;
+    | Flow_sop.Drive.Expr _ | Flow_sop.Drive.Live _ -> ()) document.drives;
   let rec depth visiting id = match Hashtbl.find_opt depths id with
     | Some depth -> depth
     | None when Id_set.mem id visiting -> 0
@@ -791,7 +791,7 @@ let build_edges (document : Flow_sop.Network.t) boxes =
       box.info.inputs) boxes;
   Flow_sop.Port.Map.iter (fun (target : Flow_sop.Port.t) drive ->
     match drive with
-    | Flow_sop.Drive.Expr _ -> ()
+    | Flow_sop.Drive.Expr _ | Flow_sop.Drive.Live _ -> ()
     | Flow_sop.Drive.Wire {node; output} ->
         (match Hashtbl.find_opt by_id node, Hashtbl.find_opt by_id target.node with
          | Some source_index, Some consumer_index ->
@@ -1852,7 +1852,8 @@ let drive_text value (target : Flow_sop.Port.t) =
               | None -> "#" ^ string_of_int node in
             (if Layout.Port_set.mem (target.node, target.path) value.layout.wireless
              then "⌁ " else "← ") ^ label ^ "." ^ output
-        | Flow_sop.Drive.Expr _ -> "ƒ" in
+        | Flow_sop.Drive.Expr _ -> "ƒ"
+        | Flow_sop.Drive.Live _ -> "◷" in
       let live = Option.map live_text
           (Flow_sop.Port.Map.find_opt target value.applied) in
       Some (source ^ Option.fold ~none:"" ~some:(fun text -> " " ^ text) live)
@@ -1888,6 +1889,7 @@ let slide_field (field : Parameter.field_view) =
 let fold_change value (target : Flow_sop.Port.t) =
   match Flow_sop.Port.Map.find_opt target value.document.drives with
   | Some (Flow_sop.Drive.Expr _) -> Some (Unfold_requested target)
+  | Some (Flow_sop.Drive.Live _) -> None
   | Some (Flow_sop.Drive.Wire source) ->
       (match Flow.Graph.find value.document.values ~node_id:source.node with
        | Some node ->

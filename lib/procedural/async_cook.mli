@@ -49,6 +49,18 @@ val submit_all :
     prepared together, e.g. every visible object of a scene; the first cook
     error fails the request. *)
 
+val set_volatile : 'a t -> (int -> bool) -> unit
+(** [Session.set_volatile] on the worker's session. *)
+
+val stats : 'a t -> Session.stats
+(** The worker's session counters (hits, misses, evictions, volatile). Call
+    while idle for a settled reading. *)
+
+val await : 'a t -> 'a completion
+(** Block until the newest submitted request completes and take it, like
+    [poll]. For fixed-step runs only (an interactive sketch never blocks);
+    raises [Invalid_argument] when nothing is pending or the worker is closed. *)
+
 val poll : 'a t -> 'a completion option
 (** Remove and return the newest completed result, if any. *)
 

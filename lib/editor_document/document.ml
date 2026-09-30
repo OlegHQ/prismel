@@ -582,7 +582,7 @@ let unexport_port value ~definition_name ~side ~name =
     else match drive with
       | Flow_sop.Drive.Wire source ->
           source.node = marker && matches source.output
-      | Flow_sop.Drive.Expr _ -> false in
+      | Flow_sop.Drive.Expr _ | Flow_sop.Drive.Live _ -> false in
   let removed_targets = Flow_sop.Port.Map.fold (fun target drive targets ->
     if remove_drive target drive then (target.node, target.path) :: targets
     else targets) body.drives [] in
@@ -617,7 +617,7 @@ let unexport_port value ~definition_name ~side ~name =
       else match drive with
         | Flow_sop.Drive.Wire source ->
             List.mem source.node matching && matches source.output
-        | Flow_sop.Drive.Expr _ -> false) graph.drives in
+        | Flow_sop.Drive.Expr _ | Flow_sop.Drive.Live _ -> false) graph.drives in
     if uses_port then error "Disconnect instance value wires before unexporting"
     else
     let overridden = List.exists (fun id ->

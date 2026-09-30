@@ -12,7 +12,7 @@ Status: `todo` · `wip` · `done` (gate met) · `partial` (what is missing is na
 | W0 fixes & catalog prerequisites | partial | | Merge group padding, set_color group/vec3 colour + v3 migration, `Manifest.version` in text view and the `:rotate` note landed. Not done: the `Rest` slot for `sop/merge` (see notes). |
 | W1 language core (`flow`) | done | | `Flow.Syntax`, `Lisp`, `Ty`, `Macro`, `Workspace` (checker, typed IR, liveness, invariance) and `Eval` (values, loops, functions, records, HOFs, `ref`, the geometry plan, `static` / residual split, `?record`); the 12 fixtures check, print, round-trip and run; the check.cjs suite is ported (119 of 120, see the W1 part C notes). |
 | W2 lowering & cooking | done | | `Flow_sop.Lower.workspace`, `Pdk.Mesh_merge ?source_attribute`, session default 512, `test_workspace_cook`, `bench_workspace_lower`. Live parameters are only recorded (`Lower.pending`); drives are W2b. |
-| W2b live `t` | todo | | |
+| W2b live `t` | partial | | `Drive.Live`, `Lower` live drives, `flow.curve` text-encoded points, volatile session slots, `Async_cook.await`, `Cook ?await`, status text, tests and bench (notes below). Gaps: UI text (W4/W5), the running editor is not fed by a workspace until W3, `Frame` cannot tell a fixed clock. |
 | W3 document v4 + history | todo | | |
 | W4 graph pane zones | todo | | |
 | W5 probes & footers | todo | | |
@@ -144,3 +144,50 @@ Status: `todo` · `wip` · `done` (gate met) · `partial` (what is missing is na
   panel checks, nonfinite math, the hash, residual evaluation, and for every
   fixture: runs, deterministic, unique plan keys, structure independent of
   `t`).
+- W2b notes. Landed as listed in `flow-migration.md` "W2b". Deviations:
+  `Session.set_volatile` instead of `create ?volatile` (see there);
+  `Drive.Live` holds an `Eval.value`; a live list parameter is a
+  text-encoded `points` parameter (`Flow_sop.Curve`, lossless hexadecimal
+  floats, in the cook key) because `Sop.polyline`'s key was only the point
+  count (`Sop.points` has the same latent key; not changed). Each `Lower`
+  network is built once with its live drives; `Value_lane` applies the ones
+  that changed. Cooking stays bit-identical to the static evaluation at that
+  time (test: the symbol `t` replaced by a literal, Orrery, Wave, live
+  Sunflower at four times, including going back).
+- W2b bench: `dune exec tools/bench_workspace_live.exe -- 600 1` (also `600 3`;
+  `BENCH_CASE=wave` filters), Apple M1, 8 cores, 600 frames at 1/60 s, synchronous
+  `Async_cook.submit` then `await`, medians (p50) in ms. Cook is the worker's
+  Session cook plus prepare; hits/misses are the whole run.
+
+  | case | live args | volatile nodes | resolve | compile | submit | cook | total p50 | total p99 |
+  |---|---|---|---|---|---|---|---|---|
+  | Orrery | 50 | 52 | 0.41 | 0.11 | 0.004 | 0.31 | 0.91 | 3.2 (1.4 at 3 domains) |
+  | Wave | 6 lists (540 residuals) | 13 | 6.61 | 0.07 | 0.007 | 0.49 | 7.27 | 13.3 (8.1 at 3 domains) |
+  | Sunflower (static) | 0 | 0 | 0 | 0.07 | 0.001 | 0.19 | 0.26 | 0.38 |
+  | Sunflower live `spread` | 240 | 241 | 2.99 | 0.08 | 0.007 | 1.35 | 4.43 | 4.9 |
+
+  Session counters: Orrery 4 static misses then 2,396 hits (599 frames x 4),
+  31,200 volatile misses (52 x 600), 0 evictions, retained 4 + 52 slots.
+  Orrery meets 60 fps with a large margin (0.9 ms of a 16.7 ms frame); the
+  static nodes stay cached. Bottlenecks measured, not guessed: Wave's frame is
+  `Eval.force` of its 540 residuals (5.7 ms of the 6.6 ms resolve; a `sample`
+  profile of the main thread shows the tree-walking interpreter itself: route
+  strings built per subterm, `Hashtbl` memo per residual, string-dispatched
+  operators, `Printf` from `string_of_int`), about 10 us per residual of about
+  a hundred steps; its cook is 0.5 ms. Sunflower live: `Eval.force` is 0.42 ms
+  of the 3.0 ms resolve, the remaining 2.6 ms is 240 `Edit_graph.apply_parameters`
+  (about 11 us each), and the cook 1.3 ms. Fixes, when wanted: skip route
+  building in live evaluation (routes only key plan nodes) and free-variable
+  pruning of residual environments; a batched `apply_parameters` per network.
+  Wave is under a frame (7.3 ms) so neither was done. 3 domains changes only
+  the cook column slightly (these cooks are small).
+- W2b gaps: no UI text (W4/W5); `Cook.update` is not yet fed by a lowered
+  workspace in the running editor (W3 makes documents v4; `Lower.objects`,
+  `Cook.set_volatile` and `~await:true` are the connection); `Frame.t` does
+  not say the clock is fixed, so `Cook.create ?await` defaults to
+  `PRISMEL_MAX_FRAMES` being set and `Sketch.export` hosts must pass it;
+  `Drive.Live` is not covered by a `test_network.ml` unit test (the lane tests
+  run through `Lower`, which needs the catalog, in `test/test_workspace_live.ml`);
+  the one-slot volatile cache recooks when scrubbing back (a per-node ring is
+  the `ponytail:` fix); live text drives support colour text and choice
+  parameters only.

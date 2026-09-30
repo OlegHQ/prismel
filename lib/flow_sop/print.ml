@@ -108,6 +108,7 @@ let parameter_text ~precision ~definitions ~input_marker network names id parame
     | Some (Drive.Expr expr) -> Some (Flow.Expr.sexp ~precision expr)
     | Some (Drive.Wire wire) -> Some (reference ~definitions ~input_marker
         network names Port.{node = wire.node; path = wire.output})
+    | Some (Drive.Live _) -> Some "(live)"
     | None -> None in
   match source parameter.Port.path with
   | Some text -> Some text

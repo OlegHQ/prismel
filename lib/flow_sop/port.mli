@@ -22,3 +22,6 @@ val normalize :
   (Flow.Port_type.value * (string * Param.value) list, Flow.Diagnostic.t) result
 (** Coerce and use [Param.normalize_value] for hard bounds, matching writes
     through [Param.apply]. The returned value is the effective live readout. *)
+
+val color_of_text : string -> (float * float * float) option
+(** ["#rgb"], ["#rrggbb"] or ["#rrggbbaa"] (alpha ignored) as a vec3. *)

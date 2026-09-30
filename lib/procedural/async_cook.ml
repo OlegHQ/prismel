@@ -33,6 +33,7 @@ type 'a t = {
   session : Session.t;
   mutex : Mutex.t;
   ready : Condition.t;
+  finished : Condition.t;  (* a request completed or the worker stopped *)
   mutable worker : unit Domain.t option;
   mutable pending : 'a request option;
   mutable active : active option;
@@ -98,7 +99,8 @@ let rec worker_loop value =
             request_id = request.id;
             seconds;
             result;
-          });
+          };
+        Condition.broadcast value.finished);
       worker_loop value
 
 let create ~max_entries ~max_payload_bytes =
@@ -107,6 +109,7 @@ let create ~max_entries ~max_payload_bytes =
       session;
       mutex = Mutex.create ();
       ready = Condition.create ();
+      finished = Condition.create ();
       worker = None;
       pending = None;
       active = None;
@@ -143,6 +146,21 @@ let submit value ~context ~node ~prepare =
     | [output] -> prepare output
     | _ -> Error "Async_cook.submit: expected one output")
 
+let set_volatile value predicate = Session.set_volatile value.session predicate
+
+let stats value = Session.stats value.session
+
+let await value = with_lock value (fun () ->
+  if value.closed || value.stopping then invalid_arg "Async_cook.await: worker is closed";
+  if Option.is_none value.completion && Option.is_none value.pending && Option.is_none value.active then
+    invalid_arg "Async_cook.await: nothing was submitted";
+  while Option.is_none value.completion && (Option.is_some value.pending || Option.is_some value.active) do
+    Condition.wait value.finished value.mutex
+  done;
+  match value.completion with
+  | Some completion -> value.completion <- None; completion
+  | None -> invalid_arg "Async_cook.await: request was superseded")
+
 let poll value = with_lock value (fun () ->
   let completion = value.completion in
   value.completion <- None;
@@ -173,6 +191,7 @@ let close value =
       value.pending <- None;
       value.completion <- None;
       Condition.broadcast value.ready;
+      Condition.broadcast value.finished;
       value.worker
     end)
   in

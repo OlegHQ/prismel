@@ -139,9 +139,16 @@ module Private : sig
       framed : bounds option option;
     }
     val create : prepare:(Settings.t -> Procedural.Session.output -> ('a, string) result) ->
-      seed:int64 -> grain:int -> ?domains:int -> max_entries:int -> max_payload_bytes:int ->
-      unit -> ('a t, string) result
+      seed:int64 -> grain:int -> ?domains:int -> ?await:bool -> max_entries:int ->
+      max_payload_bytes:int -> unit -> ('a t, string) result
+    (** [await] (default: [PRISMEL_MAX_FRAMES] is set) makes [update] block on
+        the cook it submits, so a fixed-step run shows exactly frame n. *)
     val status : 'a t -> Procedural.Async_cook.status
+    val set_volatile : 'a t -> (int -> bool) -> unit
+    (** Pass [Flow_sop.Lower.is_volatile lowered] after each lowering (W3). *)
+    val stats : 'a t -> Procedural.Session.stats
+    val seconds : 'a t -> float option
+    (** The last completed cook, in seconds. *)
     val pieces : 'a t -> 'a piece list
     val applied : 'a t -> int -> Flow_sop.Value_lane.resolved option
     val force : 'a t -> 'a t

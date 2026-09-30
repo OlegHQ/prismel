@@ -18,6 +18,7 @@ type t = {
   compiled : int Network.Int_map.t;
   pending : pending list;
   provenance : origin Origins.t;
+  volatile : unit Network.Int_map.t;
   plan : E.plan;
 }
 
@@ -34,18 +35,9 @@ type prepared = {
   changes : (string * Param.value) list;
 }
 
-let hex text =
-  let digit c = match c with
-    | '0' .. '9' -> Char.code c - 48 | 'a' .. 'f' -> Char.code c - 87
-    | 'A' .. 'F' -> Char.code c - 55
-    | _ -> fail "E_LOWER" ("Bad colour " ^ text) in
-  let n = String.length text in
-  let channel i = match n with
-    | 4 -> float (17 * digit text.[i]) /. 255.
-    | 7 | 9 -> float (16 * digit text.[2 * i - 1] + digit text.[2 * i]) /. 255.
-    | _ -> fail "E_LOWER" ("Bad colour " ^ text) in
-  if n = 0 || text.[0] <> '#' then fail "E_LOWER" ("Not a colour: " ^ text);
-  E.Vec3 (channel 1, channel 2, channel 3)
+let hex text = match Port.color_of_text text with
+  | Some (r, g, b) -> E.Vec3 (r, g, b)
+  | None -> fail "E_LOWER" ("Bad colour " ^ text)
 
 let typed = function
   | E.Int n -> Port_type.Int_value n
@@ -67,6 +59,12 @@ let changes_of (parameter : Port.parameter) value =
 
 let at_zero value =
   if E.is_live value then ok (E.force value ~live:{E.t = 0.}) else value
+
+let is_volatile lowered id = Network.Int_map.mem id lowered.volatile
+
+let objects lowered = List.filter_map (fun (graph : graph) ->
+  Option.map (fun root -> graph.instance, graph.network, root) graph.root)
+  lowered.graphs
 
 let workspace ~factories ?(compiled_ids = Instance_path.Map.empty)
     ?(sites = []) ?inputs source =
@@ -146,11 +144,8 @@ let workspace ~factories ?(compiled_ids = Instance_path.Map.empty)
                       | _ -> fail "E_LOWER" "sop/curve points must be vec3")
                       values
                   | _ -> fail "E_LOWER" "sop/curve needs :points" in
-                let factory = Edit.factory ~key:"flow.curve" ~label:"Curve"
-                  ~category:["Flow"] ~arity:0 (fun _ ->
-                    Procedural.Sop.polyline points) in
-                {cid; factory; arity = 0; changes = [];
-                 slots = []}
+                {cid; factory = Curve.factory; arity = 0; slots = [];
+                 changes = [Curve.parameter, Param.Text_value (Curve.encode points)]}
             | kind ->
                 let key = match String.split_on_char '/' kind with
                   | ["sop"; key] -> key
@@ -180,6 +175,24 @@ let workspace ~factories ?(compiled_ids = Instance_path.Map.empty)
     Array.iter (fun (node : E.node) ->
       if sop_instance plan.instances.(node.inst) then
         compiled.(node.id) <- compiled_id node) plan.nodes;
+    (* volatile: live, or fed by a volatile node (plan order: inputs first) *)
+    let volatile_nodes = ref Network.Int_map.empty in
+    let volatile = Array.make (Array.length plan.nodes) false in
+    Array.iter (fun (node : E.node) ->
+      if compiled.(node.id) <> 0 && List.exists (fun (_, v) -> match v with
+          | E.Geo j -> volatile.(j) | v -> E.is_live v) node.args then begin
+        volatile.(node.id) <- true;
+        volatile_nodes := Network.Int_map.add compiled.(node.id) () !volatile_nodes
+      end) plan.nodes;
+    let live_network network graph =
+      let drives = List.fold_left (fun drives (p : pending) ->
+        if Edit.find graph ~node_id:p.node = None then drives
+        else Port.Map.add Port.{node = p.node; path = p.field}
+          (Drive.Live p.value) drives) Port.Map.empty (List.rev !pending) in
+      if Port.Map.is_empty drives then network
+      else ok (Network.of_parts ~geometry:network.Network.geometry
+        ~values:network.values ~drives ~geometry_outputs:network.geometry_outputs
+        ~instances:network.instances) in
     let build index (instance : E.instance) =
       let seen = Hashtbl.create 64 in
       let rec reach id =
@@ -214,7 +227,7 @@ let workspace ~factories ?(compiled_ids = Instance_path.Map.empty)
       let graph = match root with
         | Some id -> edit (Edit.set_root id graph) | None -> graph in
       {name = instance.graph; instance = index; inputs = instance.inputs;
-       network = Network.of_geometry graph; root} in
+       network = live_network (Network.of_geometry graph) graph; root} in
     let graphs = List.concat (List.mapi (fun index instance ->
       if sop_instance instance then [build index instance] else [])
       (Array.to_list plan.instances)) in
@@ -224,5 +237,10 @@ let workspace ~factories ?(compiled_ids = Instance_path.Map.empty)
           |> List.filter (fun (_, id) -> id <> 0)
           |> List.fold_left (fun m (i, id) -> Network.Int_map.add i id m)
                Network.Int_map.empty;
-        pending = List.rev !pending; provenance = !provenance; plan}
+        pending = List.rev !pending; provenance = !provenance;
+        volatile = !volatile_nodes; plan}
   with Fail diagnostic -> Error diagnostic
+
+let counts lowered =
+  let live = Network.Int_map.cardinal lowered.volatile in
+  live, Network.Int_map.cardinal lowered.compiled - live

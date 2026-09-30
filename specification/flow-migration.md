@@ -314,6 +314,8 @@ milestone is recorded here with its date, what landed and its deviations.
 |---|---|---|
 | W0 fixes and catalog prerequisites | partial | 2026-09-30 |
 | W1 language core (`flow`) | done | 2026-09-30 |
+| W2 lowering and cooking | done | 2026-09-30 |
+| W2b live `t` | partial | 2026-09-30 |
 
 ### W0 fixes and catalog prerequisites (2026-09-30, partial)
 
@@ -368,7 +370,7 @@ rejects the literal at check time. Details and measurements are in
 `ref` override tuple, shared nodes keeping their ids), with compiled ids per
 `(instance, site, iteration tuple)` in the existing
 `compiled_ids : int Instance_path.Map.t` (an iteration segment is `-(index+1)`),
-a plan-to-compiled id map, the live parameters still to become drives (W2b) and
+a plan-to-compiled id map, the live parameters (drives since W2b) and
 a provenance table `(merge id, input index) -> (site, iteration tuple)` for W6.
 Merges write `__flow_src` through the new `?source_attribute` of
 `Pdk.Mesh_merge.merge` and `Procedural.Sop.merge`. The editor `Session` default
@@ -377,11 +379,46 @@ fixture at 1 and 3 domains byte for byte; `tools/bench_workspace_lower.ml`
 records the timings (Bloom lower + cook 2.2 ms).
 
 Deviations: every `sop/merge` lowers to an internal `flow.merge_n` node (no
-Rest slot, see W0); `sop/curve` is a `flow.curve` node with baked points;
+Rest slot, see W0); `sop/curve` is a `flow.curve` node (points baked in W2, an encoded parameter driven live in W2b);
 bypass is resolved by `Eval` so `Edit.set_bypass` is not used yet; four
 fixtures changed so their merges have identical attribute schemas; cooking
 exposed four bugs (Eval `reduce` with an int seed, the `cap_group` default of
 PolyWire/Revolve/Sweep, Tube's default `rows`), fixed in this milestone.
+
+### W2b live `t` (2026-09-30, partial)
+
+Landed: `Flow_sop.Drive.Live of Flow.Eval.value` (a value holding residuals),
+evaluated by `Value_lane.resolve` beside `Expr`; `time_dependent` is true with
+any live drive; only changed ports are applied (scalars and vec3 by value,
+colour text as vec3, text and lists by their encoded text in the new
+`resolved.applied_text`). `Lower.workspace` installs one live drive per pending
+argument in every network holding the node, keyed (compiled id, argument
+name); `Lower.is_volatile`, `objects` and `counts` serve the session, the
+editor cook and the viewport header. `sop/curve` lowers to
+`Flow_sop.Curve.factory` (`flow.curve`, a text-encoded `points` parameter that
+is part of the cook key), so Wave animates with one drive per strand.
+`Procedural.Session.set_volatile` gives a volatile node one replaced-in-place
+slot outside the LRU (`volatile_hits`, `volatile_misses`, `volatile_entries`
+in `stats`); `Async_cook.await`, `set_volatile` and `stats`; `Cook.create
+?await` (default: `PRISMEL_MAX_FRAMES` set) makes `Cook.update` wait for the
+cook it submits, so a fixed-step run shows exactly frame n; the status reads
+`cook N ms · skipping frames` while playing with a newer frame queued. Tests:
+`test/test_workspace_live.ml` (live equals the static evaluation at that time
+for Orrery, Wave and a live Sunflower; Orrery 600 frames with session
+counters; 1 and 3 domains; the realtime-edit cone; the editor cook path with
+await) and `test_procedural.ml` (volatile slots, await).
+`tools/bench_workspace_live.ml`; numbers in `progress.md`.
+
+Deviations: `?volatile` is `Session.set_volatile` (an optional argument on
+`create` cannot be erased at its 100+ callers, and each lowering changes the
+set); `Drive.Live` holds an `Eval.value` (Wave needs lists, Orrery colour
+text) and is not type checked. What W3 must connect: `Cook.set_volatile cook
+(Lower.is_volatile lowered)` and `Cook.update ~objects:(Lower.objects
+lowered)` after each lowering (`Cook.update` is otherwise unchanged; the
+document still holds v3 networks), and an export host passes `~await:true`.
+Not done: the UI text (◷ chips, the inspector cook line, the viewport header)
+is W4/W5, which read `Lower.pending`, `Lower.counts` and `Cook.seconds`.
+
 
 ## Do not
 

@@ -232,6 +232,11 @@
  (libraries flow_sop flow procedural param unix))
 
 (executable
+ (name bench_workspace_live)
+ (modules bench_workspace_live)
+ (libraries flow_sop sop_catalog flow procedural param str unix))
+
+(executable
  (name bench_workspace_lower)
  (modules bench_workspace_lower)
  (libraries flow_sop sop_catalog flow procedural pdk param unix))

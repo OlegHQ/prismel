@@ -90,7 +90,7 @@ let geometry ~name ~selected ~displayed ~definitions (network : Network.t) =
   let output_sources = List.rev output_sources_rev in
   let value_edges = Port.Map.bindings network.drives |> List.filter_map
     (fun (target, drive) -> match drive with
-      | Drive.Expr _ -> None
+      | Drive.Expr _ | Drive.Live _ -> None
       | Drive.Wire source ->
           Some (Port.{node = source.node; path = source.output}, target)) in
   let incoming_values = List.filter (fun ((source : Port.t), (target : Port.t)) ->
@@ -172,7 +172,7 @@ let geometry ~name ~selected ~displayed ~definitions (network : Network.t) =
     else Ok values) (Ok Flow.Graph.empty) (Flow.Graph.inspect network.values) in
   let body_drives = Port.Map.filter (fun (target : Port.t) drive ->
     Ids.mem target.node selected && match drive with
-      | Drive.Expr _ -> true
+      | Drive.Expr _ | Drive.Live _ -> true
       | Drive.Wire source -> Ids.mem source.node selected) network.drives in
   let* body = Network.of_parts ~geometry:body_geometry ~values:body_values
     ~drives:body_drives ~geometry_outputs:body_outputs
@@ -371,6 +371,7 @@ let ungroup ~instance_id ~displayed ~(definition : Network.definition)
         | `Literal literal -> Network.set_literal ~target literal parent
         | `Drive (Drive.Expr expression) ->
             Network.set_expr ~target expression parent
+        | `Drive (Drive.Live value) -> Network.set_live ~target value parent
         | `Drive (Drive.Wire source) -> Network.connect_value
             ~source:Port.{node = source.node; path = source.output}
             ~target parent
@@ -381,6 +382,7 @@ let ungroup ~instance_id ~displayed ~(definition : Network.definition)
                 part) (Ok parent) ["x"; "y"; "z"] parts in
       let internal_value_drive parent = function
         | Drive.Expr expression -> Ok (parent, `Drive (Drive.Expr expression))
+        | Drive.Live value -> Ok (parent, `Drive (Drive.Live value))
         | Drive.Wire source when source.node = inputs_node.id ->
             input_value parent source.output
         | Drive.Wire source ->

@@ -11,7 +11,10 @@ type stats = {
   hits : int;
   misses : int;
   evictions : int;
+  volatile_hits : int;
+  volatile_misses : int;
   retained_entries : int;
+  volatile_entries : int;
   retained_payload_bytes : int;
   last_node : node_timing option;
 }
@@ -54,6 +57,10 @@ type t = {
   mutable cooks : int;
   mutable hits : int;
   mutable misses : int;
+  mutable volatile : int -> bool;
+  slots : (int, string * output) Hashtbl.t;  (* volatile node id -> latest *)
+  mutable volatile_hits : int;
+  mutable volatile_misses : int;
   mutable evictions : int;
   mutable last_node : node_timing option;
   mutable closed : bool;
@@ -84,6 +91,7 @@ let create ~max_entries ~max_payload_bytes =
     payload;
     inspection_cache = [];
     cooks = 0; hits = 0; misses = 0; evictions = 0;
+    volatile = (fun _ -> false); slots = Hashtbl.create 16; volatile_hits = 0; volatile_misses = 0;
     last_node = None; closed = false; materialized = [];
   }
 
@@ -130,6 +138,27 @@ let insert session key output =
     session.evictions <- session.evictions + before
       + (if replaced then 0 else 1) - Entry_cache.length session.cache
   end
+
+let lookup session ~volatile node key =
+  if not volatile then
+    (match Entry_cache.find session.cache key with
+     | entry -> Some entry.output | exception Not_found -> None)
+  else match Hashtbl.find_opt session.slots (Node.id node) with
+    | Some (latest, output) when String.equal latest key -> Some output
+    | _ -> None
+
+let store_volatile session node key output =
+  if session.max_entries > 0 then begin
+    (* bounded: one slot per node id, dropped wholesale past max_entries *)
+    if Hashtbl.length session.slots >= session.max_entries then
+      Hashtbl.reset session.slots;
+    Hashtbl.replace session.slots (Node.id node) (key, output)
+  end
+
+let set_volatile session predicate =
+  session.volatile <- predicate;
+  Hashtbl.filter_map_inplace (fun id slot ->
+    if predicate id then Some slot else None) session.slots
 
 (* An opaque, unambiguous cache identity: integers are fixed-width binary and
    every variable-length string is length-prefixed, so no field boundary can
@@ -225,13 +254,16 @@ and evaluate_uncached memo session context node =
     | Ok () ->
         let geometries = Array.map Option.get geometries in
         let key = cache_key node context geometries in
-        match Entry_cache.find session.cache key with
-        | entry ->
+        let volatile = session.volatile (Node.id node) in
+        match lookup session ~volatile node key with
+        | Some output ->
             session.hits <- session.hits + 1;
+            if volatile then session.volatile_hits <- session.volatile_hits + 1;
             session.last_node <- Some (timing node ~seconds:0. ~cache_hit:true);
-            Ok entry.output
-        | exception Not_found ->
+            Ok output
+        | None ->
             session.misses <- session.misses + 1;
+            if volatile then session.volatile_misses <- session.volatile_misses + 1;
             session.cooks <- session.cooks + 1;
             let started = Unix.gettimeofday () in
             let cooked =
@@ -251,7 +283,8 @@ and evaluate_uncached memo session context node =
                 in
                 let output = { geometry = cooked.geometry; diagnostics;
                   instances = cooked.instances } in
-                insert session key output;
+                if volatile then store_volatile session node key output
+                else insert session key output;
                 Ok output
 
 let deduplicate diagnostics =
@@ -278,7 +311,10 @@ let stats session = {
   hits = session.hits;
   misses = session.misses;
   evictions = session.evictions;
+  volatile_hits = session.volatile_hits;
+  volatile_misses = session.volatile_misses;
   retained_entries = Entry_cache.length session.cache;
+  volatile_entries = Hashtbl.length session.slots;
   retained_payload_bytes = session.payload.bytes;
   last_node = session.last_node;
 }
@@ -286,6 +322,7 @@ let stats session = {
 let clear session =
   session.inspection_cache <- [];
   Entry_cache.clear session.cache;
+  Hashtbl.reset session.slots;
   Hashtbl.clear session.payload.refs;
   session.payload.bytes <- 0
 

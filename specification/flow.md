@@ -1051,6 +1051,14 @@ domain:
 4. Cook the resulting graph. An unchanged value leaves the node's cook key
    unchanged, so nothing re-cooks.
 
+A lowered workspace (specification/workspace/plan.md W2b) adds one more drive kind,
+`Drive.Live`: an argument that depends on `t`, held as an `Eval` value with its
+static captures folded in. `resolve` evaluates it beside expression drives
+(a scalar, a vec3, a colour text, or a list of vec3 for a text-encoded list
+parameter such as `flow.curve`'s points) and applies it only when the value
+changed. Its nodes are marked volatile in the session (one replaced slot each,
+outside the LRU), so playing never evicts the static entries.
+
 A network whose drives read `t` is time-dependent: it resolves every frame
 while the timeline plays, and its SOP nodes' cook keys change each frame.
 `Async_cook`'s latest-request rule bounds the work to one active and one

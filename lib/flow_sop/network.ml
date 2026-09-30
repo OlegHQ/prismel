@@ -129,10 +129,11 @@ let validate_drive network (target : Port.t) drive =
   | Some node when Procedural.Node.operation node = "flow_inputs" ->
       error "E_PORT" "Inputs marker has no value inputs"
   | _ ->
+  match drive with Drive.Live _ -> Ok () | _ ->
   Result.bind (parameter network target) (fun parameter -> match parameter.Port.ty with
     | None -> error "E_TYPE" ("Port " ^ target.path ^ " is literal-only")
     | Some target_type ->
-        let source_type = match drive with Drive.Expr _ -> Ok Flow.Port_type.Float
+        let source_type = match drive with Drive.Expr _ | Drive.Live _ -> Ok Flow.Port_type.Float
           | Drive.Wire source -> output_type network {node = source.node; path = source.output} in
         Result.bind source_type (fun source_type ->
           if not (Flow.Port_type.can_connect ~source:source_type ~target:target_type) then
@@ -238,7 +239,7 @@ let remove_nodes ids network =
     let geometry = if geometry_ids = [] then network.geometry else Procedural.Edit_graph.remove_nodes geometry_ids network.geometry in
     let values = Flow.Graph.remove_nodes value_ids network.values in
     let drives = Port.Map.filter (fun (target : Port.t) drive -> not (Int_set.mem target.node removed)
-      && match drive with Drive.Expr _ -> true | Drive.Wire source -> not (Int_set.mem source.node removed)) network.drives in
+      && match drive with Drive.Expr _ | Drive.Live _ -> true | Drive.Wire source -> not (Int_set.mem source.node removed)) network.drives in
     let geometry_outputs = Port.Map.filter (fun target _ ->
       geometry_source_id geometry target <> None) network.geometry_outputs in
     Ok {geometry; values; drives; geometry_outputs; instances = Int_map.filter
@@ -265,13 +266,19 @@ let connect_geometry ~(source : Port.t) ~consumer ~input_index network =
             Port.Map.add target source.path network.geometry_outputs in
           let next = {network with geometry; geometry_outputs} in
           Result.map (fun () -> next) (validate next))
+let same_drive a b = match a, b with
+  | Drive.Live x, Drive.Live y -> x == y
+  | Drive.Live _, _ | _, Drive.Live _ -> false
+  | a, b -> a = b
 let set_drive ~target drive network =
-  if Port.Map.find_opt target network.drives = Some drive then Ok network else
+  if (match Port.Map.find_opt target network.drives with
+      | Some current -> same_drive current drive | None -> false) then Ok network else
     let next = {network with drives = Port.Map.add target drive network.drives} in
     Result.map (fun () -> next) (validate next)
 let connect_value ~(source : Port.t) ~target network =
   set_drive ~target (Drive.Wire {node = source.node; output = source.path}) network
 let set_expr ~target expression network = set_drive ~target (Drive.Expr expression) network
+let set_live ~target value network = set_drive ~target (Drive.Live value) network
 let clear_drive ~target network = Result.map (fun _ ->
   if Port.Map.mem target network.drives then {network with drives = Port.Map.remove target network.drives} else network)
   (parameter network target)
@@ -333,6 +340,7 @@ let fold ~target network = try
     match Port.Map.find_opt {Port.node = node.Flow.Graph.id; path} network.drives with
     | Some (Drive.Expr expression) -> Ok expression
     | Some (Drive.Wire source) -> output {Port.node = source.node; path = source.output}
+    | Some (Drive.Live _) -> refuse node "Cannot fold a live drive"
     | None -> Result.bind (number node path) Flow.Expr.num
   and output source =
     match Flow.Graph.find network.values ~node_id:source.Port.node with
@@ -459,7 +467,7 @@ let copy_nodes ids network =
         let value_nodes = List.filter (fun (node : Flow.Graph.node) -> Int_set.mem node.id selected)
           (Flow.Graph.inspect network.values) in
         let fragment_drives = Port.Map.filter (fun (target : Port.t) drive -> Int_set.mem target.node selected
-          && match drive with Drive.Expr _ -> true | Drive.Wire source -> Int_set.mem source.node selected) network.drives in
+          && match drive with Drive.Expr _ | Drive.Live _ -> true | Drive.Wire source -> Int_set.mem source.node selected) network.drives in
         let fragment_instances = Int_map.filter (fun id _ -> Int_set.mem id selected)
           network.instances in
         let fragment_geometry_outputs = Port.Map.filter (fun target _ ->
@@ -482,7 +490,7 @@ let paste fragment network =
     Result.bind values (fun (values, mapping) ->
       let remap = List.fold_left (fun remap (old_id, new_id) -> Int_map.add old_id new_id remap) Int_map.empty mapping in
       let drives = Port.Map.fold (fun (target : Port.t) drive drives ->
-        let drive = match drive with Drive.Expr _ -> drive | Drive.Wire source ->
+        let drive = match drive with Drive.Expr _ | Drive.Live _ -> drive | Drive.Wire source ->
           Drive.Wire {source with node = Int_map.find source.node remap} in
         Port.Map.add {target with node = Int_map.find target.node remap} drive drives)
         fragment.fragment_drives network.drives in

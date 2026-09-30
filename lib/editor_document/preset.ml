@@ -88,6 +88,7 @@ let network_json (network : Document.network) =
     let port = target.node, target.path in
     `Assoc (["to", port_json port] @ match drive with
     | Flow_sop.Drive.Expr expr -> ["expr", `String (Flow.Expr.infix expr)]
+    | Live _ -> ["live", `String "t"]  (* lowered workspaces only; never saved *)
     | Wire source -> ["wire", port_json (source.node, source.output);
         "bends", points_json (bends port);
         "wireless", `Bool (Layout.Port_set.mem port network.layout.wireless)]) in

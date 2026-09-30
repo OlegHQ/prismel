@@ -4521,7 +4521,51 @@ let test_packed_copy_contract () =
   assert ((Session.stats session).hits > hits);
   Session.close session
 
+(* A volatile node keeps one slot outside the LRU: it never evicts static
+   entries, and a hit needs the same key. *)
+let test_volatile_slots () =
+  let evaluator = session ~entries:2 () in
+  let static = Sop.points [|0., 0., 0.|] in
+  let live_node x = Sop.custom ~operation:"volatile_test" ~version:1
+    ~parameters:(Printf.sprintf "x=%g" x) [static] (fun ~context:_ inputs -> Ok inputs.(0)) in
+  let first = live_node 0. in
+  Session.set_volatile evaluator (fun id -> id = Node.id first);
+  let c = context () in
+  ignore (cook_ok evaluator c static);
+  for step = 0 to 19 do
+    let node = Node.Private.adopt_identity ~source:first (live_node (float step)) in
+    ignore (cook_ok evaluator c node)
+  done;
+  let stats = Session.stats evaluator in
+  check (stats.evictions = 0 && stats.retained_entries = 1 && stats.volatile_entries = 1
+    && stats.volatile_misses = 20 && stats.volatile_hits = 0)
+    "volatile node churned the LRU or kept more than one slot";
+  ignore (cook_ok evaluator c static);
+  let stats = Session.stats evaluator in
+  check (stats.hits = 21 && stats.misses = 21) "the static entry was evicted by a volatile node";
+  let same = Node.Private.adopt_identity ~source:first (live_node 19.) in
+  ignore (cook_ok evaluator c same);
+  check ((Session.stats evaluator).volatile_hits = 1) "the latest volatile entry did not hit";
+  Session.set_volatile evaluator (fun _ -> false);
+  check ((Session.stats evaluator).volatile_entries = 0) "set_volatile kept a stale slot";
+  Session.close evaluator
+
+let test_async_await () =
+  let worker = Async_cook.create ~max_entries:4 ~max_payload_bytes:4_000_000 |> get_ok in
+  let node = Sop.points [|0., 0., 0.; 1., 0., 0.|] in
+  let prepare output = Ok (Pdk.Geometry.point_count output.Session.geometry) in
+  ignore (Async_cook.submit worker ~context:(context ()) ~node ~prepare |> get_ok);
+  let completion = Async_cook.await worker in
+  check (completion.result = Ok 2 && Async_cook.status worker = Idle
+    && Async_cook.poll worker = None) "await did not return the submitted cook";
+  check ((Async_cook.stats worker).misses = 1) "await: the session did not cook";
+  check (match Async_cook.await worker with _ -> false | exception Invalid_argument _ -> true)
+    "await without a request returned";
+  Async_cook.close worker
+
 let run () =
+  test_volatile_slots ();
+  test_async_await ();
   test_node_owned_parameters_and_graph_edit ();
   test_shared_input_memo ();
   test_encoded_parameter ();

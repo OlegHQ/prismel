@@ -151,6 +151,7 @@ let inspector_rows (network : Flow_sop.Network.t)
     | None -> None
     | Some (Flow_sop.Drive.Expr expression) ->
         Some ("=" ^ Flow.Expr.infix expression)
+    | Some (Flow_sop.Drive.Live _) -> Some "◷ t"
     | Some (Flow_sop.Drive.Wire {node; output}) ->
         let label = match Flow.Graph.find network.values ~node_id:node with
           | Some value -> value.label
@@ -860,6 +861,10 @@ let text_pane ui ~bounds:(x, y, width, height) ~title ~reveal cache ~selected =
 
 let status_text value =
   let cook = match Cook.status value.cook with
+    | Async_cook.Cooking { seconds; queued = true; _ }
+      when Sketch_support.Timeline.mode value.timeline = Sketch_support.Timeline.Playing ->
+        (* playing and a newer frame is already waiting: frames are skipped *)
+        Printf.sprintf "cook %d ms · skipping frames" (int_of_float (seconds *. 1000.))
     | Async_cook.Cooking { seconds; queued; _ } ->
         Printf.sprintf "Cooking… %.1fs%s" seconds
           (if queued then " · latest queued" else "")

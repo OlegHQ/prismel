@@ -32,6 +32,7 @@ type 'prepared t = {
   seed : int64;
   grain : int;
   domains : int;
+  await : bool;  (* block on each cook: fixed-step runs, see [create] *)
   schedule : Schedule.t;
   prepare : Settings.t -> Session.output -> ('prepared, string) result;
   pieces : 'prepared piece list;
@@ -93,13 +94,20 @@ let output_bounds (output : Session.output) =
         done) transforms;
       Some (!lower, !upper)
 
-let create ~prepare ~seed ~grain ?domains ~max_entries ~max_payload_bytes () =
+(* [await]: a fixed-step run (export, PRISMEL_MAX_FRAMES, tests) must show the
+   geometry of exactly frame n, so [update] waits for the cook it submitted;
+   interactive play never blocks (latest request wins). ponytail: the default
+   reads PRISMEL_MAX_FRAMES because [Frame.t] does not say the clock is fixed;
+   an export host passes [~await:true]. *)
+let create ~prepare ~seed ~grain ?domains ?await ~max_entries ~max_payload_bytes () =
+  let await = match await with Some flag -> flag
+    | None -> Sys.getenv_opt "PRISMEL_MAX_FRAMES" <> None in
   if grain <= 0 then invalid_arg "Prismel_editor: grain must be positive";
   let domains = Option.value ~default:
       (max 1 (Parallel.recommended_domains () - 1)) domains in
   if domains <= 0 then invalid_arg "Prismel_editor: domains must be positive";
   Result.map (fun worker ->
-    { worker; seed; grain; domains; prepare; schedule = Schedule.initial;
+    { worker; seed; grain; domains; await; prepare; schedule = Schedule.initial;
       pieces = []; settings = None; error = None; seconds = None;
       framing = None; force = false; compiled = Document.Layout.empty;
       flattened = Document.Layout.empty; graphs = [];
@@ -108,6 +116,11 @@ let create ~prepare ~seed ~grain ?domains ~max_entries ~max_payload_bytes () =
     (Async_cook.create ~max_entries ~max_payload_bytes)
 
 let status value = Async_cook.status value.worker
+
+(* [Lower.is_volatile] of the current lowering: the nodes that recook per frame. *)
+let set_volatile value predicate = Async_cook.set_volatile value.worker predicate
+let stats value = Async_cook.stats value.worker
+let seconds value = value.seconds
 let pieces value = value.pieces
 let applied value id = Document.Layout.find_opt id value.applied
 
@@ -263,6 +276,18 @@ let update ?live ~definitions ~compiled_ids value ~settings ~objects
     | Ok _ -> None, None
     | Error message -> Some message, None
     else error, framing in
+  (* A fixed-step run waits for the cook it just submitted. *)
+  let pieces, error, seconds, prepared_changed =
+    if submit && Option.is_none error && value.await then
+      let awaited = Async_cook.await value.worker in
+      match awaited.result with
+      | Ok (Displayed pieces) ->
+          List.filter (fun piece -> Document.Layout.mem piece.id compiled) pieces,
+          None, Some awaited.seconds, true
+      | Ok (Framed _) -> pieces, error, seconds, prepared_changed
+      | Error failure -> pieces, Some (Async_cook.error_to_string failure),
+          Some awaited.seconds, prepared_changed
+    else pieces, error, seconds, prepared_changed in
   let framed, framing = match frame_request with
     | None -> framed, framing
     | Some (object_id, node_id) ->

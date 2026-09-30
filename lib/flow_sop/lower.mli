@@ -27,14 +27,16 @@
       [Procedural.Sop.merge ~source_attribute:{!source_attribute}] with one slot
       per collected input, so a spliced list is one node, not a chain.
     - [sop/curve] (a workspace operator) becomes a [flow.curve] node over
-      [Procedural.Sop.polyline].  Its points are baked into the node
-      (ponytail: a list parameter is not a catalog field; W2b replaces the
-      node to animate it).
+      {!Curve.factory} (a [flow.curve] node with an encoded [points] parameter).
     - [^:bypass] never reaches lowering: {!Flow.Eval} passes the input through
       and the call makes no plan node.
 
-    A parameter that depends on [t] is not evaluated: the node cooks with its
-    value at [t = 0] and the argument is listed in {!t.pending} for W2b. *)
+    A parameter that depends on [t] cooks at [t = 0] in the literal network
+    and is listed in {!t.pending}; every network also carries one
+    {!Drive.Live} drive per pending argument of its nodes, keyed (compiled id,
+    argument name), which {!Value_lane.resolve} evaluates for each time.
+    [sop/curve] lowers to {!Curve.factory} (a text-encoded [points]
+    parameter), so a live list is one drive. *)
 
 val source_attribute : string
 (** ["__flow_src"]: the primitive int attribute every collecting merge writes. *)
@@ -66,8 +68,19 @@ type t = {
   provenance : origin Origins.t;
       (** (merge compiled id, input index) -> its source; the index is the
           value of the merge's {!source_attribute} for that input's primitives *)
+  volatile : unit Network.Int_map.t;  (** compiled ids, see {!is_volatile} *)
   plan : Flow.Eval.plan;
 }
+
+val is_volatile : t -> int -> bool
+(** A compiled node is volatile when it is live (an argument depends on [t])
+    or fed by a volatile node: its cache key changes with the time.  Pass
+    [is_volatile lowered] to [Procedural.Session.set_volatile]. *)
+
+val objects : t -> (int * Network.t * int) list
+(** Every graph that returns geometry as (instance index, network, displayed
+    node): the [~objects] of the editor's [Cook.update] (the document-driven
+    caller is W3). *)
 
 val workspace :
   factories:Procedural.Edit_graph.factory list ->
@@ -76,3 +89,7 @@ val workspace :
   Flow.Syntax.t list -> (t, Flow.Diagnostic.t) result
 (** [factories] is the SOP catalog ([Sop_catalog.Editor.factories]).  Errors:
     the checker's first error, the evaluator's, or [E_LOWER]. *)
+
+val counts : t -> int * int
+(** (live, cached) node counts for the viewport header
+    [◷ N live · M cached] (W5). *)

@@ -50,6 +50,8 @@ val connect_geometry : source:Port.t -> consumer:int -> input_index:int -> t ->
 val remove_nodes : int list -> t -> (t, Flow.Diagnostic.t) result
 val connect_value : source:Port.t -> target:Port.t -> t -> (t, Flow.Diagnostic.t) result
 val set_expr : target:Port.t -> Flow.Expr.t -> t -> (t, Flow.Diagnostic.t) result
+val set_live : target:Port.t -> Flow.Eval.value -> t -> (t, Flow.Diagnostic.t) result
+(* Install a Drive.Live drive (lowering of a time-dependent argument). *)
 val clear_drive : target:Port.t -> t -> (t, Flow.Diagnostic.t) result
 val disconnect : target:Port.t -> t -> (t, Flow.Diagnostic.t) result
 val set_literal : target:Port.t -> Port.literal -> t -> (t, Flow.Diagnostic.t) result

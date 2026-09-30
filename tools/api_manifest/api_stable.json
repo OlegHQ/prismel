@@ -1,7 +1,7 @@
 {
   "generator": "tools/api_manifest/api_manifest.exe",
   "kind": "stable_high_level",
-  "module_count": 159,
+  "module_count": 160,
   "modules": [
     {
       "api_sha256": "eb1e27ba00670ec546b87d8ec8c8c27cd7d95016240fecb7d6422d45e5154fce",
@@ -202,13 +202,22 @@
       "source_sha256": "741ea11b707b5816576aeaba4718338d9e649d07dcadb6bd074de113d000d095"
     },
     {
-      "api_sha256": "a0088e6d625577ae5792cc920f0f416ef2ee4a2846b0aba96325c62ebb1025b9",
+      "api_sha256": "5dda729f31f9b1c3370e5a21cbf584eec7584f6785beaf689711c902ae9fd823",
+      "excluded_legacy_symbols": [],
+      "library": "flow_sop",
+      "module": "Curve",
+      "source": "lib/flow_sop/curve.mli",
+      "source_bytes": 498,
+      "source_sha256": "9cc5d69b1c791c1b5c682dd5f0f491721382628de5489b8b9a1f4c0405fc17f8"
+    },
+    {
+      "api_sha256": "60ada56c91847b12eb967a4008692750f45a9697a75dab040b256f2e6ac04750",
       "excluded_legacy_symbols": [],
       "library": "flow_sop",
       "module": "Drive",
       "source": "lib/flow_sop/drive.mli",
-      "source_bytes": 77,
-      "source_sha256": "8b37b0b4642e2424adb463f59b49a0cff2e6cad39b4d2fde2080626233edf4b7"
+      "source_bytes": 411,
+      "source_sha256": "b77aa1ee29a7dcf5ce155e3004dc02cc6965e30d6ff0a75aec2bacb9a586d2ae"
     },
     {
       "api_sha256": "0663edea0a45d29971b9db1190ed732c7422fa8c0dfb5b73f8440279f892e4b3",
@@ -238,13 +247,13 @@
       "source_sha256": "8cf95ef11c084e7d058d22a4108165f69fcd09a03f0fc277ba437983d500842c"
     },
     {
-      "api_sha256": "fb42858a534f15f68cf0ea851b58b60fd3661817ec6132ca15206dae456c1d52",
+      "api_sha256": "038767142e479946096bd936c2837704af0ed12fd7f98e07f1665c454d6b7400",
       "excluded_legacy_symbols": [],
       "library": "flow_sop",
       "module": "Lower",
       "source": "lib/flow_sop/lower.mli",
-      "source_bytes": 3699,
-      "source_sha256": "881606714923c6bc52917b023255c9d06c0e0098c8cb7bbfcc526082945deec2"
+      "source_bytes": 4544,
+      "source_sha256": "c48141bbf0a4e3608b0d5c4022c6f9c8de2993b0a11504e59d19e9ceeff39f98"
     },
     {
       "api_sha256": "dd91704ce31dcdf0f51a256313cb5b901fecc438cd740242c169f1123a1fe9bf",
@@ -256,22 +265,22 @@
       "source_sha256": "b9df0e19a9b703175a20f892282d25cf7adb593c70a97eab460472fcc7920337"
     },
     {
-      "api_sha256": "2c56cb65bb979773147356011db11041e8464e13177181aebbe945d0b09fe0e2",
+      "api_sha256": "b0b5a9af158a32e818c96efbf6c9608e8bed0743f24e6864f00870fda19fc03f",
       "excluded_legacy_symbols": [],
       "library": "flow_sop",
       "module": "Network",
       "source": "lib/flow_sop/network.mli",
-      "source_bytes": 3449,
-      "source_sha256": "3bfd38f72384876569fed838e701c3185e74171c36c51ce63663c08d77f265ef"
+      "source_bytes": 3609,
+      "source_sha256": "759c1681f3a3f9e1722534eb3675b273899f5f7961724e3c32c396093ab36a78"
     },
     {
-      "api_sha256": "bb901eec97339f645d3fd9f42dd2e72c8119e805324dceb7e6b21f1d248ca054",
+      "api_sha256": "702c250706c2811dccf470a69162512f369a1f4224dae23605a476acbf293b72",
       "excluded_legacy_symbols": [],
       "library": "flow_sop",
       "module": "Port",
       "source": "lib/flow_sop/port.mli",
-      "source_bytes": 1078,
-      "source_sha256": "7d66a4e170b514d470046e69363cd43291ddc5ebb03de61c6e45cb1d49b4997b"
+      "source_bytes": 1213,
+      "source_sha256": "a8fa92e05f089bb67b2cccc36cbe1ef0cab31b00991bcd347991525f67daaa4e"
     },
     {
       "api_sha256": "0af344a23d20fd0716754bd381f4ea8d0989ebf4baf3c0787a83a98a63ba63f7",
@@ -292,13 +301,13 @@
       "source_sha256": "4b00b409199741dedf61c8144c499bad498656c503df822fd853f848708668eb"
     },
     {
-      "api_sha256": "af7a1089c3308c693dd9bdafe7f966761108456e6386b6de9346742033b6bcca",
+      "api_sha256": "c578fd7b683f342cb1b80a706882a94a74c3dedfb3c7faf0b480e5b96c814e86",
       "excluded_legacy_symbols": [],
       "library": "flow_sop",
       "module": "Value_lane",
       "source": "lib/flow_sop/value_lane.mli",
-      "source_bytes": 772,
-      "source_sha256": "c421411c55e67d9e0ea3881f6d8cdb6c094e93179c625eb231cba1e53d5901bc"
+      "source_bytes": 951,
+      "source_sha256": "1a7ec289baa9b21210ec7c34d6af8371a8dd4a308d06f9ea5e3bc0a458140774"
     },
     {
       "api_sha256": "36eda840e50af554bd20f3a3351a4e7c1f1f435a1f5bc2d34d94b999b7cfd89b",
@@ -1232,22 +1241,22 @@
       "source_sha256": "7d4d28d6f0b748a24c1fabb8e0a081a7d3a7f7d0b47591333c667b625cad58de"
     },
     {
-      "api_sha256": "4bbabd4319779c37aae75d58cdfe17e18d1ddf25adb853fdb4818595466f4a30",
+      "api_sha256": "2667c40ec32921d6dc2856e96f5ae1e9d3f4374bfe66823ead33881bc13adde5",
       "excluded_legacy_symbols": [],
       "library": "prismel_editor",
       "module": "Prismel_editor",
       "source": "lib/prismel_editor/prismel_editor.mli",
-      "source_bytes": 21422,
-      "source_sha256": "882e9a18f1522709d773771b7b73f5de5ee74cb5849dac36df320c098177787f"
+      "source_bytes": 21859,
+      "source_sha256": "6baa940a1b7ab70d729d983b7b0d3db5c0ac8b8e6cc5a6d49f0fc11a1fc465fa"
     },
     {
-      "api_sha256": "e6c9991310b3f7635a760441bbb358542b5bf828f1709a4619b8c29a9e66707e",
+      "api_sha256": "721b7d85a90ba1f309807d0b30c6f9fe611cb973e76ebd72ead992367fdc7d49",
       "excluded_legacy_symbols": [],
       "library": "procedural",
       "module": "Async_cook",
       "source": "lib/procedural/async_cook.mli",
-      "source_bytes": 1654,
-      "source_sha256": "b1f427cc110f312a2326cc689540e50da7cec0c6d3a31f10e5f90737a70e6a81"
+      "source_bytes": 2176,
+      "source_sha256": "b6ee2f2b2f797ccecf9440b126568ae0242f664870dc6ea428bdea855d8bec16"
     },
     {
       "api_sha256": "4437e6b79727580e2cdb0ffa0d6bc9cfc823465eb5984a5adf15c7b959d642c7",
@@ -1331,13 +1340,13 @@
       "source_sha256": "9dd8940deb5209910bc91b456786dbe119464363e70155106a03ce184db8109a"
     },
     {
-      "api_sha256": "74ac7b296f02a9590051a9971f2000c5dc3ebe5f68e6c9a5a5f7a8134fb76abe",
+      "api_sha256": "4c96026f2ee1e441c98b7301a0fbe4020c0d2692202fc594466f6fc5744e4df7",
       "excluded_legacy_symbols": [],
       "library": "procedural",
       "module": "Session",
       "source": "lib/procedural/session.mli",
-      "source_bytes": 1233,
-      "source_sha256": "159fe8f49b9619408736b67d0d20e8d7b9a4e2273a512ffe251c50a383d6673f"
+      "source_bytes": 2145,
+      "source_sha256": "1d21ca65cb87c00c00fbd048eb88b0453a95096e6ec37254d12f093610d3c233"
     },
     {
       "api_sha256": "1b5038c9a345ef0ba11694eea3071e9949be284f96c3b24c7b501f620ca5e1bb",

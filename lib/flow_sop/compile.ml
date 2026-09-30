@@ -178,10 +178,10 @@ let flatten ?(allocate = true) ~(definitions : Network.definition Network.String
                      (Ok []) axes)
                else Ok (Literal (Port.literal parameter))))
   and lower_drive scope = function
-    | Drive.Expr expression -> Ok (Driven (Drive.Expr expression))
+    | Drive.(Expr _ | Live _) as drive -> Ok (Driven drive)
     | Drive.Wire source -> lower_source scope source.node source.output
   and project_drive scope drive axis = match drive with
-    | Drive.Expr expression -> Ok (Driven (Drive.Expr expression))
+    | Drive.(Expr _ | Live _) as drive -> Ok (Driven drive)
     | Drive.Wire source ->
         Result.bind (Network.output_type scope.network
           (port source.node source.output)) (function

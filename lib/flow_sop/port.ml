@@ -72,3 +72,17 @@ let normalize parameter value =
             Result.map (fun c -> Flow.Port_type.Vec3_value (a,b,c),
               [x.name, Param.Float_value a; y.name, Param.Float_value b; z.name, Param.Float_value c]) (normalize_float z c)))
       | _ -> error "E_TYPE" ("Value does not match port " ^ parameter.path))
+
+let color_of_text text =
+  let digit c = match c with
+    | '0' .. '9' -> Some (Char.code c - 48) | 'a' .. 'f' -> Some (Char.code c - 87)
+    | 'A' .. 'F' -> Some (Char.code c - 55) | _ -> None in
+  let n = String.length text in
+  let channel i = match n with
+    | 4 -> Option.map (fun d -> float (17 * d) /. 255.) (digit text.[i])
+    | 7 | 9 -> (match digit text.[2 * i - 1], digit text.[2 * i] with
+        | Some a, Some b -> Some (float (16 * a + b) /. 255.) | _ -> None)
+    | _ -> None in
+  if n = 0 || text.[0] <> '#' then None
+  else match channel 1, channel 2, channel 3 with
+    | Some r, Some g, Some b -> Some (r, g, b) | _ -> None
