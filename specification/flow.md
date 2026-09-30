@@ -35,6 +35,9 @@ Rules for implementers:
   prototype, if affected) in the same change as the code, and record the
   decision in §18.
 
+> Status (Gap A, 2026-09-30): value nodes, compounds and expression drives described below were deleted with the
+> flat pane; read them as historical design. The live model is `.plisp` workspace text.
+
 ## 2. Scope, non-goals and vocabulary
 
 In scope: the SOP network canvas; keys and guide mode; the inspector's role;
@@ -1237,3 +1240,8 @@ the selected output through copying and presets.
 2026-09-30 (W12): the M1-M7 text stack is deleted: `[%flow]`, `Flow.Check.check`,
 `Flow_sop.Build`/`Print`/`Program`, `?program`. The flat single-graph pane stays for
 documents built from an OCaml `Procedural.Graph` (`?graph`), which have no text.
+
+2026-09-30 (Gap A): the flat pane and `?graph` are deleted too, together with value nodes, compounds (group,
+ungroup, make unique), `Flow.Expr`/`Drive.Expr` and `Flow.Sexp`. Sections above describing them (value nodes,
+compound definitions, expression drives, the flat canvas keys, `Network_layout`) are historical design; the
+implemented editor is the workspace text plus `Pxui_graph.Scope`.

@@ -1,7 +1,9 @@
 # lib/pxui_graph rules
 
-`pxui_graph` presents one immutable `Flow_sop.Network` on the
-shared PXUI handle and returns typed `change` requests. It never mutates the
+`pxui_graph` exports two modules, `Scope` (the graph pane over one `Flow_sop.Projection.scope` of workspace text) and
+`Node_menu` (the categorised add menu). The flat pane that once presented a `Flow_sop.Network` was deleted in Gap A;
+the two sections below that describe its layout, levels, value tiles, wireless and compounds are historical. The pane
+shares the PXUI handle and returns typed `change` requests. It never mutates the
 document, cooks, or interprets operation names (hosts pass predicates such as
 `~flaggable`). Keys are exported as `Editor_core.Command` entries through
 `bindings`; the host scopes and dispatches them. Every interactive element is
@@ -67,7 +69,7 @@ selector, socket, field and toggle boxes are its children. It has its own
 items (a zone body is drawn once, whatever its iteration count); a row under
 the pointer comes from the pointer and the tile's rectangle, never a second
 hit tree; DepartureMono lacks ⟲ ◆ ◷ ↥ ▸ ▾, use the substitutes in
-`scope_pane.ml`. The flat pane above stays for other documents.
+`scope_pane.ml`. It is the only graph pane.
 
 Footers (W5): `with_records` takes a `Flow_sop.Probe.t`; footers are built
 only for visible cards at zoom >= 0.4, a sparkline draws at most 16 segments

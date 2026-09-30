@@ -47,8 +47,8 @@ Read `lib/prismel_editor/AGENTS.md` first. Pick the lowest level that works:
    pass lights as `?lights` and read `Editor3.objects`/`lights`/`world` for
    their own renderers; see `specification/scene.md`.
 
-8. **Graph pane work** (canvas, graph keys, parameter drives, value nodes,
-   compounds, list/text views, guide strip): this is the Prismel Flow rework.
+8. **Graph pane work** (canvas, graph keys, parameter drives,
+   list/text views, guide strip): the graph pane is `Pxui_graph.Scope` over workspace text.
    Follow `specification/flow.md` and the next open milestone in
    `specification/flow-migration.md` (skill `implement-flow-milestone`); new
    graph commands carry their `guide` contexts from M2 on.

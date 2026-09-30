@@ -211,8 +211,7 @@ Status: `todo` · `wip` · `done` (gate met) · `partial` (what is missing is na
   preferences (`Store.Settings`), the viewport encoders (`Store.Viewport`, an
   in-memory `Yojson` value that `Preset` writes as an s-expression) and build
   glue (`api_stable.json`, generated inventories). Only a workspace document
-  saves; sketches opened with `?graph` or `?program` keep the legacy scene
-  network and cannot save until W10/W12 give it a text. `Document.workspace`
+  saves; since Gap A every document is a workspace and saves. `Document.workspace`
   holds the `Workspace_doc` and its `Lower.t` (compiled ids and sites), so
   undo restores both; the derived scene and networks feed the old graph pane
   and the cook. The tests that built documents from JSON (`test_editor_document`)
@@ -590,8 +589,8 @@ here with its reason; "cheap" items were done in W12 and are not listed.
 | W2b | `Drive.Live` unit test in `test_network.ml` | Covered through `Lower` in `test_workspace_live.ml`. |
 | W2b/W5 | viewport header shows the live/cached/cook text | It is the status strip (`t N live · M cached · cook X ms`), a deviation. |
 | W2b | per-node cache ring for scrubbing back | Not built (plan §4), volatile single slot. |
-| W3 | only workspace documents save | `?graph` documents (four sketches, many tests) have no text; see the W12 note in `flow-migration.md`. |
-| W4 | the flat pane remains | Kept: `?graph` documents (OCaml `Procedural.Graph`, four sketches and most editor tests) are not workspaces. |
+| W3 | only workspace documents save | Closed (Gap A): every document is a workspace; Command-S writes text, layout and settings (`test_workspace_source`, `test_prismel_editor`, `test_editor_document`). `?graph` and `?program` are deleted. |
+| W4 | the flat pane remains | Closed (Gap A): the flat pane, its BVH path and `Network_view` are deleted; `Pxui_graph.Scope` is the only graph pane and `Pxui_graph.Node_menu` the add menu. Scene and World graphs are shown through Scope when the workspace has one; their derived object edits (inspector, handles, reparent, rename, delete, World keys) still act on the derived `Edit_graph` and are not written back to the text (open). |
 | W5 | no zone footer while expanded; geometry of a node not upstream of the display shows only its type | As recorded (W5 notes). |
 | W6 | `Viewport2` never picks; a pick inside a collapsed zone does not expand it | As recorded. Instanced pieces are picked per instance since W13. `to_mesh_with_primitives` was deleted in W12 (unused; the pick's hit names its primitive). |
 | W6 | pick BVH build and re-prepare on the initial domain | About 1.3 us per triangle at the first click (a 1M-triangle mesh hitches about a second); `ponytail:` in `pick.ml`. |
@@ -604,8 +603,8 @@ here with its reason; "cheap" items were done in W12 and are not listed.
 | W11 | `check` diagnostics one fixture per class | `check.t` has 9 codes of about 70; the workspace checker's own tests cover the rest. |
 | W11 | no `Flow_sop.Workspace_program`, `with_inputs`, `?config`; assets glob `*.png` and `*.ttf` only | As recorded. |
 | W12 | single-graph `[%flow]` as sugar | Deleted instead (no caller; see `flow-migration.md`). |
-| W12 | `Drive.Expr` / `Flow.Expr`, flat pane, `Flow.Sexp` | Kept, needed by `?graph` documents and the manifest reader. |
-| W12 | JSON remnants | `Store.Settings` (user preferences), `Store.Viewport` (in-memory `Yojson`, written as an s-expression by `Preset`) and build glue JSON (`api_stable.json`, generated inventories); none is a document. |
+| W12 | `Drive.Expr` / `Flow.Expr`, flat pane, `Flow.Sexp` | Closed (Gap A): all deleted, together with `Flow.Graph`, `Flow.Value_kind`, `Flow_sop.{Drive,Compound_node,Group,Compile,Exposure}` and `Editor_core.Network_layout`. The manifest reader uses `Flow.Syntax`; `Flow_sop.Network` keeps only geometry plus live drives. |
+| W12 | JSON remnants | Closed (Gap A): `Store.Settings` and `Store.Viewport` are s-expressions (`(settings :sketch "name" :key value)`; default files `*.plisp`); JSON remains only in build glue (`api_stable.json`, generated inventories) and `sketches/code_quadtree` (LSP wire protocol). |
 
 W12 verification (clean `dune clean` state, Apple M1): `dune build @all`, window-free `dune runtest`,
 `@runtest-native`, `@smoke`, the full `@smoke-all` sweep (all examples and sketches, including the thirteen
@@ -669,3 +668,15 @@ save; `Viewport2` never picks; W5 zone footer and non-upstream geometry count; W
 button, Enter to create, inspector bypass toggle; a frame is neither dragged nor moved with its nodes; keyboard
 gestures for frames other than creation; panels made by a loop and unbound panels are not editable by keys;
 viewports share one camera; `Ui.text_area` has no Tab or wrapping.
+
+### Gap A (2026-09-30, closed)
+
+Cube_cage, shattered_cube, voxel_wall and `examples/sop_gallery` are workspace text (`sketch.plisp`, `gallery.plisp`,
+embedded by `prismel-plisp source`; `Workspace.open_text`, `Workspace.load ?factories`, `Workspace.sop_graphs`).
+Renders were compared to the pre-port screenshots. The flat document path, flat pane, `Flow.Expr`, `Flow.Sexp`,
+value nodes, compounds and expression drives are deleted; the editor tests are written against workspace text
+(`ws_fixture.ml`). Behaviour intentionally dropped with the flat pane: value nodes, group/ungroup/make unique, drive
+Wire/Expr rows, fold/unfold, wireless, VIEW toggle on lowered nodes, Command-D duplicate, scene Reorder by tile y,
+`j`/`k` list walk, adding scene objects and World layers by key. Still open: derived scene/World object edits are not
+written back to text; `Editor_core.Guide_context` still names the dead Value_node/Compound/Wire/Row/Inside_compound
+contexts; the native `test_prismel_editor` batch bound moved from 16 to 24 (22 measured with the Scope pane).

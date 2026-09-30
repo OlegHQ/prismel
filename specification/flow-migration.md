@@ -1109,13 +1109,7 @@ pick); ten dead exports found by `prune-dead-code` (`Network_layout.slot_index`,
 `Document.positions`, `Curve.decode/key`, `Probe.describe/series`, `Eval.max_*`, several `pxui_graph`
 ones). Unknown-operator errors now suggest (`sop/bx`: "Did you mean box?").
 
-Kept, with the reason: the flat `Pxui_graph` pane and `Drive.Expr`/`Flow.Expr` (documents opened with
-`?graph`, four sketches (`cube_cage`, `shattered_cube`, `voxel_wall`, `examples/sop_gallery`) and many
-tests, have no workspace text; value nodes and expression drives live there); `Flow.Sexp` (the manifest
-reader and `Syntax`'s positions; the v3 reader role is gone); `Store.Settings` (user preferences,
-JSON) and `Store.Viewport` (an in-memory `Yojson` value written as an s-expression by `Preset`), which
-are not documents, and build glue JSON (`api_stable.json`, generated inventories). The old
-`Flow_sop.Print.network` editor use had already gone with W7.
+Kept at W12 and deleted by Gap A (below): the flat `Pxui_graph` pane, `Drive.Expr`/`Flow.Expr`, `Flow.Sexp`, JSON `Store.Settings`/`Store.Viewport`.
 
 Also fixed: the `test_workspace_shell` "status names the loop" race (the editor recooks every frame
 for a live workspace and reported `cook N ms · skipping frames` instead of the notice; `settle` now
@@ -1131,3 +1125,11 @@ close and retype the focused panel; a binding apply's checker error carries a li
 typing; instanced pieces are picked per instance; residuals compile to closures (Wave 7.0 to 1.8 ms p50,
 bit-identical); a `.plisp` that differs from the built text reloads on the first poll and `(layout ...)` /
 `(settings ...)` forms in it are honoured. `Space o` had been the removed graph-cycling key.
+
+### Gap A (2026-09-30, done)
+Every document is a workspace. The four `?graph` sketches are workspace text; `?graph`, the flat document
+constructors, `Network_view`, the flat `Pxui_graph` pane (and its BVH path), `Flow.{Expr,Value_kind,Graph,Sexp}`,
+`Flow_sop.{Drive,Compound_node,Group,Compile,Exposure}` and `Editor_core.Network_layout` are deleted
+(about 4000 lines net). `Flow_sop.Network` is geometry plus live drives. `Pxui_graph` is `Scope` plus `Node_menu`.
+`Store.Settings` and `Store.Viewport` are s-expressions; `Preset.loaded.view` is a `Flow.Syntax.t`. Flow manifests no
+longer list value kinds (promoted). Known limits: see the Gap A entry in `specification/workspace/progress.md`.

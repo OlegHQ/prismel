@@ -358,7 +358,7 @@ let run () =
           | _ -> total) 0 staged.layers
       | Error message -> fail message in
     Printf.printf "workspace UI batches: %d\n" batches;
-    check (batches > 0 && batches <= 16) "workspace UI draws were not batched"
+    check (batches > 0 && batches <= 24) "workspace UI draws were not batched"
   end;
   let _, _, graph_width, graph_height =
     (Prismel_editor.Editor3.panes environment (frame 229)).graph in

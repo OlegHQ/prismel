@@ -9,7 +9,7 @@
   explicit merge rules), `Command` (one pure-data entry type, `id`, `label`,
   optional `trigger` and `scope`, `guide` contexts, `action`, for dispatch, guide, which-key, and the
   palette), `Router` (text focus, leader, chords, and the fly mode layer)
-  and `Store` (atomic file writes, JSON user preferences). Chrome lives in `pxui_shell`: layout,
+  and `Store` (atomic file writes, s-expression user preferences and viewport). Chrome lives in `pxui_shell`: layout,
   splitters, pane roots, which-key, prompts, status and timeline bars, and
   `Shell.frame`, the only `Ui.frame` caller.
 - Panes return intents; `Core.update` is the one dispatcher. Code inside
@@ -22,87 +22,15 @@
 - One immutable `Document` (the scene network, one network per geometry
   object and World, active camera object, sketch `Settings`) is the only
   thing `Editor_core.History` (128 entries) snapshots; `Core.doc` is always
-  its present. Each network owns one `Flow_sop.Network` with geometry,
-  value nodes and drives; scene and World networks keep empty value overlays.
-  Each network's `Editor_core.Network_layout` record stores
-  positions, levels, pins, row exposure and wire bends. `Network_view.edit`
-  updates only the ids and destination ports `Doc.apply` reports touched;
-  never walk every node on an edit frame. UI-free
-  Document, Settings, Objects, Layers and Preset live in the private
-  `editor_document` library, whose transitive presentation ban is gated.
-- Scene objects are nodes of the scene `Edit_graph` (input 0 = parent,
-  parameters = transform and kind settings; `Objects`, `Layers`), so graph,
-  list, inspector, handles, presets, and undo have one path. Never add a
-  parallel object model. Levels (`Document.level`) are view state; `i`,
-  double-click, and list activation enter, `u` leaves. Object transforms
-  are applied when composing drawings, never inside SOP networks, so scene
-  edits never re-cook (`Async_cook.submit_all` cooks every visible
-  geometry object in one job). See `specification/scene.md`. Graph intents go through `Doc.apply`; each recorded entry has a
-  label (`intent_label`), shown as "Undo <label>". All panes emit stable-ID
-  edits during construction; Core reduces and commits after `Ui.frame`.
-  Gesture keys name the operation, level, node(s) and fields. Selection, hover, and an
-  unlinked viewport camera are view state; a camera node that follows the
-  viewport records camera moves as one `Burst` entry. Cooking and framing
-  live in `Cook`; `prepare` receives the settings snapshot. Camera math lives
-  in `prismel` (`Easy_camera`).
-- Sketches extend the editor only through `?settings`, `?commands`
-  (`Editor_core.Command` entries whose action is the run function, listed
-  in which-key and the `Space /` palette exactly like built-ins),
-  `?factories`, and `update_with`. Prismel Editor holds composition, not
-  reusable logic: anything a second shell would want lives in `pxui_shell`
-  or `editor_core`. See the `extend-prismel-editor` skill.
-- `Environment.Make (V : VIEWPORT)` is the one environment. `Viewport3` and
-  `Viewport2` are its instances; `Editor3`/`Editor2` only rename the
-  draw callback. Add dimensional behavior to a viewport, never a second
-  update path.
-- Source file (W11): `Source_file` (public as `Prismel_editor.Source`) is immutable state in `Environment.t`
-  (`?source`): `poll` is one `stat` per half second of frame time, `Core.reload`/`reload_failed` replace the
-  document as one history entry or show the diagnostics (the Lisp panel's Document tab, the status notice),
-  and Command-S (`Leader.Save_source`) writes over the file only while its digest is the remembered one, else
-  a preset. Never poll per frame, from a domain, or on a path that scales with the document.
-- `Prismel_editor.Private` is unstable and test-only. Layout and chrome callers
-  use `Pxui_shell.Layout` and `Pxui_shell.Chrome` directly.
-
-## Prismel Flow
-
-`specification/flow.md` replaces the graph-pane behavior below milestone by
-milestone; `specification/flow-migration.md` lists what each milestone
-changes here and which paragraphs to rewrite when it lands. Until then the
-rules in this file are current. Planned changes that touch this directory:
-
-- M1 is implemented: left-to-right canvas, polylines with authored bends,
-  point/chip/card/full, editable card literals and saved layout metadata.
-  Presets were then v3 JSON; they are s-expression workspace files now (W3). Pointer gestures
-  seal on release; detail changes merge as one-second history bursts.
-- M2 is implemented: graph grammar and guide contexts share the Command
-  table; `?` toggles the contextual strip and 380 ms PXUI tooltips, persisted
-  through Store user preferences. `Space k` opens the grouped key sheet;
-  key feedback lasts 1.5 seconds. World keys are `t`/`n`/`d`, and `f` frames
-  the selection or display node. Tab adds by context; Shift-Tab traverses UI.
-- M3 is implemented: documents and clipboard carry `flow_sop` value
-  nodes and drives. The canvas shows value tiles, typed sockets, drive wires
-  and live readouts. The inspector shows pins, vector splits and drive sources.
-  `Cook` resolves values before submissions and while time advances, retaining
-  the applied-value table for presentation without changing stored literals.
-- M4 is implemented: `b` binds compatible value outputs by hints and toggles a
-  selected wire's wireless flag; `w` reveals wireless wires. Numeric canvas
-  and inspector fields accept checked `=…` expressions; `r` clears a drive or
-  restores the literal default. The ƒ row action folds unshared value chains
-  into expressions and unfolds expressions into placed Math/Time nodes.
-- M5 is implemented: grouping SOP and value nodes creates shared definitions
-  and instances, retains moved ids, cooks through saved compiled ids, and records
-  one history step. Compound instance paths enter shared definitions, and `u`
-  returns to and selects the parent instance. Ungrouping replaces internal SOP
-  and value nodes with fresh ids in one undo step. Make unique detaches one
-  instance from its shared definition through the palette or tile menu. The
-  Inputs/Outputs inspector can rename and reorder shared geometry and value
-  ports and unexport unused value ports. `e` exports scalar rows inside a
-  definition; instance rows edit their own literals, and flattening carries
-  value drives through nested compounds. Whole-Vec3 export, nonuniform Vec3
-  defaults, and geometry-port unexport are implemented. The
-  three-view `Space l` cycle is implemented; the M6 read-only text projection,
-  `Build.program`, `[%flow]` and `?program` were deleted in W12 (the Lisp pane
-  edits the workspace text since W7).
+  its present. Each network is `{context; graph; displayed}`
+  over one lowered `Flow_sop.Network` (geometry plus live drives of `t` expressions); layout lives by path in the
+  workspace text's layout (`Editor_document.Layout_by_path`). UI-free `Cook` resolves the live drives before
+  submissions and while time advances, without changing the stored text.
+- The graph pane is `Pxui_graph.Scope` (the only one); list rows use `Selection` (ids plus a primary). The
+  add-menu is `Pxui_graph.Node_menu`. Value nodes, compounds (group, ungroup, make unique), wireless binds,
+  expression fields and fold/unfold were deleted with the flat pane (Gap A); a drive is written in the text.
+  Limit: scene and World object edits that the inspector, handles, reparent, rename, delete and World keys make act
+  on the derived `Edit_graph` and are not written back to the text; Save writes text, layout and settings.
 
 Keep `Doc.apply` as the only graph-intent reducer, the one Command table, and
 history labels; the rework extends them.  The workspace layout is described in
@@ -112,9 +40,8 @@ history labels; the rework extends them.  The workspace layout is described in
 
 `Document.workspace` holds the checked `Workspace_doc` and its `Lower.t`;
 `Document.of_workspace` lowers it into one geometry object per `sop` graph
-(object ids, tile layout and lowering ids survive edits), so the old graph
-pane, list and inspector show the lowered top-level networks until W4 replaces
-them, and undo restores the source and the lowering together. A gesture is a
+(object ids, tile layout and lowering ids survive edits), so the list
+and inspector show the lowered top-level networks, and undo restores the source and the lowering together. A gesture is a
 `Flow_sop.Flow_edit.op`: `Pxui_graph.Syntax_edit` in a frame or
 `Editor3/2.edit` from a host reduce through `Doc.syntax_edit` (rewrite,
 re-check, lower; atomic), one history entry named by `Flow_edit.label`, with
@@ -123,8 +50,9 @@ re-check, lower; atomic), one history entry named by `Flow_edit.label`, with
 recook each frame and static nodes stay cached. Open one with `?workspace`
 (`Editor3`/`Editor2` `create` and `run`; without `?factories` the whole SOP
 catalog). Presets save and load only workspace documents (s-expression
-`.plisp`: source, layout, settings, view); a sketch opened with `?graph`
-cannot save (it has no text). Old presets are not read.
+`.plisp`: source, layout, settings, view). Every document is a workspace
+(`?graph` was deleted); sketches open text through `Workspace.load`/`Workspace.open_text`,
+so Command-S writes over their file. Old presets are not read.
 
 ## Adapters
 
