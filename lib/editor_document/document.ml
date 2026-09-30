@@ -1218,9 +1218,11 @@ let of_workspace ~factories ?previous (workspace : Workspace_doc.t) =
     | Some (_, (lowered : Flow_sop.Lower.t)) -> Some lowered.compiled_ids, Some lowered.sites
     | None -> None, None in
   let* lowered = Flow_sop.Lower.workspace ~factories ?compiled_ids ?sites workspace.source in
+  (* one object per graph: the instance with its own defaults, not a [ref] override *)
+  let shown = List.filter (fun (g : Flow_sop.Lower.graph) -> g.default) lowered.graphs in
   let scene_graph = match previous with
     | Some doc -> doc.scene.graph.geometry | None -> Edit_graph.empty in
-  let names = List.map (fun (g : Flow_sop.Lower.graph) -> g.name) lowered.graphs in
+  let names = List.map (fun (g : Flow_sop.Lower.graph) -> g.name) shown in
   let geometry (info : Edit_graph.node_info) = info.operation = "geometry" in
   let stale = List.filter_map (fun (info : Edit_graph.node_info) ->
     if geometry info && not (List.mem (Node.label info.node) names) then Some info.id else None)
@@ -1237,7 +1239,7 @@ let of_workspace ~factories ?previous (workspace : Workspace_doc.t) =
         let node = Node.relabel g.name node in
         let* scene_graph = flow (Edit_graph.add_node ~factory:Objects.Geometry.factory
           ~inputs:[| None |] node scene_graph) in
-        Ok (scene_graph, (Node.id node, g) :: objects)) (Ok (scene_graph, [])) lowered.graphs in
+        Ok (scene_graph, (Node.id node, g) :: objects)) (Ok (scene_graph, [])) shown in
   let objects = List.rev objects in
   let scene = match previous with
     | Some doc -> doc.scene | None -> of_geometry ~context:Flow.Context.Scene Edit_graph.empty None in

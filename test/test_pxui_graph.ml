@@ -1289,10 +1289,13 @@ let scope_step view (frame : Frame.t) =
   let settle = { frame with events = [] } in
   let view, _ = Pxui.Ui.frame scope_ui settle (fun ui -> Scope.update view ui settle) in
   Pxui.Ui.frame scope_ui frame (fun ui -> Scope.update view ui frame)
-let scope_view ?count ?probe ?at ?collapsed workspace graph =
+let recorded ?inputs workspace =
+  Flow_sop.Probe.make (Result.get_ok (Flow.Eval.static ~record:true ?inputs workspace))
+let scope_view ?inputs ?probe ?at ?collapsed workspace graph =
   let scope = P.of_graph scope_catalog workspace graph in
   Scope.create ~width:1000 ~height:700 ()
-  |> Scope.with_scope ?count ?probe ?at ?collapsed ~key:graph scope, scope
+  |> Scope.with_scope ?probe ?at ?collapsed ~key:graph scope
+  |> Scope.with_records (recorded ?inputs workspace), scope
 let scope_paint view =
   ignore (scope_step view (frame ()));
   match Scene.Private.stage_native ~width:1000 ~height:700 (Pxui.Ui.scene scope_ui) with
@@ -1321,8 +1324,7 @@ let run_scope () =
   (* the iteration selector: buttons and track are hit-tested boxes *)
   let w = load_workspace "sunflower" in
   let zone = [ "sunflower"; "seeds_each" ] in
-  let count p = if p = zone then 240 else 0 in
-  let view, _ = scope_view ~count ~probe:(fun _ -> 5) w "sunflower" in
+  let view, _ = scope_view ~probe:(fun _ -> 5) w "sunflower" in
   let view, _ = scope_step view (frame ()) in
   let prev, track, next = Option.get (Scope.Private.selector view zone) in
   let _, changes = scope_click view (rect_center next) in
@@ -1342,12 +1344,13 @@ let run_scope () =
   check (List.mem (Scope.Zone_collapsed { zone; collapsed = true }) changes) "the toggle did not collapse the zone";
   (* only visible zones draw: 1,000 iterations draw what 3 do *)
   let draw_with n =
-    let view, _ = scope_view ~count:(fun _ -> n) w "sunflower" in
+    let view, _ = scope_view ~inputs:[ "sunflower", [ "seeds", Flow.Eval.Int n ] ] w "sunflower" in
     let view, _ = scope_step view (frame ()) in
     (Scope.stats view).drawn_items, scope_paint view in
   let items3, paint3 = draw_with 3 and items1000, paint1000 = draw_with 1000 in
   check (items3 = items1000) "iterations changed how many tiles are built";
-  check (paint1000 < paint3 + 400) "a 1,000-iteration zone painted much more than a 3-iteration one";
+  (* what grows is the sparklines: at most 16 segments each, whatever the count *)
+  check (paint1000 < paint3 + 30 * items3) "a 1,000-iteration zone painted much more than a 3-iteration one";
   let collapsed_view, _ = scope_view ~collapsed:(fun p -> p = zone) w "sunflower" in
   let collapsed_view, _ = scope_step collapsed_view (frame ()) in
   check ((Scope.stats collapsed_view).drawn_zones = 0) "a collapsed zone drew its body";
@@ -1411,9 +1414,32 @@ let bench_scope_pane () =
     (Pxui_graph.create_document ~width:1000 ~height:700 network)
     (fun view ui f -> Pxui_graph.update view ui f);
   let zone = [ "sunflower"; "seeds_each" ] in
-  let scoped collapsed =
-    Scope.create ~width:1000 ~height:700 ()
-    |> Scope.with_scope ~collapsed:(fun p -> collapsed && p = zone) ~count:(fun _ -> 240) ~key:"sunflower"
-         (P.of_graph scope_catalog w "sunflower") in
+  let scoped ?(records = true) collapsed =
+    let view = Scope.create ~width:1000 ~height:700 ()
+      |> Scope.with_scope ~collapsed:(fun p -> collapsed && p = zone) ~key:"sunflower"
+           (P.of_graph scope_catalog w "sunflower") in
+    if records then Scope.with_records (recorded w) view else view in
+  time "scope pane, no records" (scoped ~records:false false) (fun view ui f -> Scope.update view ui f);
   time "scope pane, zone expanded" (scoped false) (fun view ui f -> Scope.update view ui f);
-  time "scope pane, zone collapsed" (scoped true) (fun view ui f -> Scope.update view ui f)
+  time "scope pane, zone collapsed" (scoped true) (fun view ui f -> Scope.update view ui f);
+  (* the costs around the frame: one recording evaluation (a document change),
+     and Orrery's live records rebuilt every frame (Probe.make and the footers) *)
+  let timed label n f =
+    let started = Unix.gettimeofday () in
+    for _ = 1 to n do ignore (Sys.opaque_identity (f ())) done;
+    Printf.printf "%-28s %.3f ms\n%!" label ((Unix.gettimeofday () -. started) *. 1000. /. float n) in
+  timed "record eval, Sunflower" 20 (fun () -> Flow.Eval.static ~record:true w);
+  let orrery = load_workspace "orrery" in
+  timed "record eval, Orrery" 20 (fun () -> Flow.Eval.static ~record:true orrery);
+  let evaluated = Result.get_ok (Flow.Eval.static ~record:true orrery) in
+  let scope = P.of_graph scope_catalog orrery "orrery" in
+  let live_view records =
+    Scope.create ~width:1000 ~height:700 ()
+    |> Scope.with_scope ~key:"orrery" scope
+    |> fun view -> match records with
+      | None -> view | Some t -> Scope.with_records (Flow_sop.Probe.make ~time:t evaluated) view in
+  time "orrery pane, no records" (live_view None) (fun view ui f -> Scope.update view ui f);
+  let t = ref 0. in
+  time "orrery pane, live records" (live_view (Some 0.)) (fun view ui f ->
+    t := !t +. 0.016;
+    Scope.update (Scope.with_records (Flow_sop.Probe.make ~time:!t evaluated) view) ui f)

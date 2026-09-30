@@ -487,16 +487,3 @@ let place (l : layout) =
         | Some inner, Item n -> go (ax +. rail_width +. pad) (ay +. rail_top n) inner
         | _ -> [])) l.placed in
   go 0. 0. l
-
-(* ---- iteration counts ---- *)
-
-let counts (t : Flow.Eval.t) (s : scope) =
-  let by_path = Hashtbl.create 64 in
-  List.iter (fun (p, l) -> Hashtbl.replace by_path p (List.length l)) t.records;
-  List.filter_map (fun (n : node) ->
-    let z = Option.get n.zone in
-    List.find_map (fun (r : rail_row) ->
-      if r.role = Capture then None
-      else Option.map (fun c -> n.path, c)
-        (Hashtbl.find_opt by_path (n.path @ [ ":" ^ List.hd r.names ]))) z.rail)
-    (zones s)

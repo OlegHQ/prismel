@@ -54,6 +54,7 @@ module Origins : Map.S with type key = int * int
 type graph = {
   name : string;
   instance : int;  (** index in [Flow.Eval.plan.instances] *)
+  default : bool;  (** the graph with its own default inputs, not a [ref] override *)
   inputs : (string * Flow.Eval.value) list;
   network : Network.t;
   root : int option;  (** displayed node (the graph result); [None] for [nil] *)
@@ -91,5 +92,8 @@ val workspace :
     the checker's first error, the evaluator's, or [E_LOWER]. *)
 
 val counts : t -> int * int
-(** (live, cached) node counts for the viewport header
-    [◷ N live · M cached] (W5). *)
+(** (live, cached) node counts. *)
+
+val status : t -> seconds:float -> string option
+(** The viewport header [t N live · M cached · cook X ms] ([t] for the study's
+    ◷, which DepartureMono lacks); [None] when nothing is live. *)

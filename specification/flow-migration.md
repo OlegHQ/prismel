@@ -318,6 +318,7 @@ milestone is recorded here with its date, what landed and its deviations.
 | W2b live `t` | partial | 2026-09-30 |
 | W3 document v4 and history | done | 2026-09-30 |
 | W4 graph pane zones | done | 2026-09-30 |
+| W5 probes and footers | done | 2026-09-30 |
 
 ### W0 fixes and catalog prerequisites (2026-09-30, done with W4 part A)
 
@@ -501,6 +502,22 @@ run): flat pane over the 241-node lowered network 0.135 ms and 503 KB per
 frame; workspace pane zone expanded 0.259 ms, 675 KB; collapsed 0.070 ms,
 173 KB. The 2,001-node smoke is unchanged (0.56 s, 619.7 MB standalone, baseline
 578 ms / 619.7 MB).
+
+### W5 probes, footers and sparklines (2026-09-30, done)
+
+Landed: `Flow_sop.Probe` (values at the probe, footers, per-outer-probe
+iteration counts, inspector rows), `Pxui_graph.Scope.with_records`, footers on
+node and collapsed-zone cards (value, sparkline of at most 16 segments across
+the innermost zone, `×n`, `then a · else b`, `kept a of b`, `↑ same each time`
+as the Hoist button, `t` on live nodes), geometry counts from the cook
+(`Cook.update ?probes`, `Cook.geometry`), `Core.workspace_inspector` (value at
+probe, cook mode, Hoist, the node's catalog parameters through `Set_arg`, the
+per-iteration list with `Probe_set`), the status strip `t N live · M cached ·
+cook X ms`, and the W4 leftovers (a node added from the menu is selected, nested
+zones count per outer iteration). Deviations, the perf table and the
+`Eval`/`Lower` `default` instance fix (the editor had been showing a `ref`
+override as the object) are in `specification/workspace/progress.md`. Native
+check: `sketches/flow_workspace` (`FLOW_CASE`, `FLOW_ADD=1`, `FLOW_EXPORT`).
 
 ## Do not
 

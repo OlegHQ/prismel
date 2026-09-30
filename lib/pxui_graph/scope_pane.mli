@@ -40,11 +40,18 @@ val with_guide : bool -> t -> t
 
 val with_scope :
   ?at:(path -> (float * float) option) -> ?collapsed:(path -> bool) ->
-  ?probe:(path -> int) -> ?count:(path -> int) ->
+  ?probe:(path -> int) ->
   ?frames:(path -> (string * (float * float) * (float * float)) list) -> key:string ->
   Flow_sop.Projection.scope -> t -> t
 (** Lay a scope out.  A new [key] (the graph's name) frames it and clears the
     selection; the same key keeps pan, zoom and selection. *)
+
+val with_records : Flow_sop.Probe.t -> t -> t
+(** What a recording evaluation saw ({!Flow_sop.Probe}): footers show the
+    value at each node's probe, a sparkline across the innermost zone and the
+    tags, and the selectors read their iteration counts from it.  Call it
+    when the evaluation, the cooked geometry counts or the time (a live
+    document) changed; a change of probe or scope is [with_scope]. *)
 
 val selected : t -> path list
 val select : path list -> t -> t

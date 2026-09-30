@@ -15,8 +15,11 @@ type 'prepared piece = {
   context : string;  (* projection of the graph's declared context dependencies *)
 }
 
+(* What a footer shows of a geometry value: its object and compiled node. *)
+type summary = (int * int) * Flow_sop.Probe.geometry
+
 type 'prepared cooked =
-  | Displayed of 'prepared piece list
+  | Displayed of 'prepared piece list * summary list
   | Framed of bounds option
 
 type flattened = {
@@ -50,6 +53,8 @@ type 'prepared t = {
   applied : Flow_sop.Value_lane.resolved Document.Layout.t;
   graphs : (int * Graph.t) list;
   displayed : (int * int) list;  (* the display node each graph compiles *)
+  probing : (int * int) list;  (* the (object, node) pairs the last submission asked to summarise *)
+  summaries : summary list;
 }
 
 type 'prepared update = {
@@ -112,7 +117,7 @@ let create ~prepare ~seed ~grain ?domains ?await ~max_entries ~max_payload_bytes
       framing = None; force = false; compiled = Document.Layout.empty;
       flattened = Document.Layout.empty; graphs = [];
       value_lanes = Document.Layout.empty; applied = Document.Layout.empty;
-      displayed = [] })
+      displayed = []; probing = []; summaries = [] })
     (Async_cook.create ~max_entries ~max_payload_bytes)
 
 let status value = Async_cook.status value.worker
@@ -122,6 +127,8 @@ let set_volatile value predicate = Async_cook.set_volatile value.worker predicat
 let stats value = Async_cook.stats value.worker
 let seconds value = value.seconds
 let pieces value = value.pieces
+(* the counts of a compiled node of an object, once a cook has reported them *)
+let geometry value ~object_id ~node_id = List.assoc_opt (object_id, node_id) value.summaries
 let applied value id = Document.Layout.find_opt id value.applied
 
 let context value timeline = Sketch_support.Timeline.context ~seed:value.seed
@@ -148,7 +155,7 @@ let flatten ~definitions ~compiled_ids network displayed =
           | None -> Error (Flow.Diagnostic.error ~code:"E_INTERFACE"
               "Compound display has no geometry output"))))
 
-let update ?live ~definitions ~compiled_ids value ~settings ~objects
+let update ?live ?(probes = []) ~definitions ~compiled_ids value ~settings ~objects
     ~edit_error ~effects ~timeline_changes
     ~timeline ~frame ~frame_request =
   let objects, value_lanes, applied, flattened, resolve_error =
@@ -221,11 +228,13 @@ let update ?live ~definitions ~compiled_ids value ~settings ~objects
   let changed = not (List.equal (fun (a, g) (b, h) -> a = b && g == h) graphs value.graphs) in
   let completion = Async_cook.poll value.worker in
   let resume = value.framing = Some true in
+  let summaries = ref value.summaries in
   let pieces, error, seconds, prepared_changed, framed, framing,
       force_next = match completion with
     | None -> value.pieces, value.error, value.seconds, false,
         None, value.framing, false
-    | Some { Async_cook.result = Ok (Displayed pieces); seconds; _ } ->
+    | Some { Async_cook.result = Ok (Displayed (pieces, found)); seconds; _ } ->
+        summaries := found;
         pieces, None, Some seconds, true, None, None, false
     | Some { result = Ok (Framed bounds); _ } ->
         value.pieces, value.error, value.seconds, false,
@@ -247,15 +256,28 @@ let update ?live ~definitions ~compiled_ids value ~settings ~objects
   let schedule, submit = Schedule.step ?live value.schedule
       ~graphs:(List.map snd graphs) ~effects
       ~context_changed:(Sketch_support.Timeline.changed_context timeline_changes)
-      ~force:(changed || value.force
+      ~force:(changed || value.force || probes <> value.probing
         || not (Option.fold ~none:false ~some:(( == ) settings) value.settings))
       ~busy:(busy value || framing <> None) ~frame in
   (* Unchanged objects keep their prepared value: the worker only cooks
      (a session cache hit) and re-prepares what changed. *)
   let previous = pieces in
+  (* the probed nodes are cooked after the displayed ones, so they are cache
+     hits (or the volatile slots) of the display cook; only nodes upstream of
+     the display are asked for, so a footer never fails the display *)
+  let probed = if not submit then [] else List.filter_map (fun ((object_id, node_id) as key) ->
+    Option.bind (List.assoc_opt object_id graphs) (fun graph ->
+      Option.map (fun node -> key, node) (Graph.find graph ~node_id)))
+    (List.filteri (fun i _ -> i < 64) probes) in
+  let summary (key, _) (output : Session.output) =
+    let g = output.geometry in
+    key, { Flow_sop.Probe.prims = Pdk.Geometry.primitive_count g; data_id = Pdk.Geometry.data_id g;
+           groups = List.sort_uniq compare (List.map Pdk.Group.name (Pdk.Geometry.groups g)) } in
   let prepare context outputs =
     let rec loop reversed graphs outputs = match graphs, outputs with
-      | [], [] -> Ok (Displayed (List.rev reversed))
+      | [], rest when List.length rest = List.length probed ->
+          let found = List.map2 summary probed rest in
+          Ok (Displayed (List.rev reversed, found))
       | (id, graph) :: graphs, (output : Session.output) :: outputs ->
           let projection = Context.cache_projection (Graph.dependencies graph) context in
           let reused = List.find_opt (fun piece -> piece.id = id && piece.graph == graph
@@ -272,7 +294,7 @@ let update ?live ~definitions ~compiled_ids value ~settings ~objects
   let error, framing = if submit then match
       Result.bind (context value timeline) (fun context ->
         Async_cook.submit_all value.worker ~context
-          ~nodes:(List.map snd graphs) ~prepare:(prepare context)) with
+          ~nodes:(List.map snd graphs @ List.map snd probed) ~prepare:(prepare context)) with
     | Ok _ -> None, None
     | Error message -> Some message, None
     else error, framing in
@@ -281,7 +303,8 @@ let update ?live ~definitions ~compiled_ids value ~settings ~objects
     if submit && Option.is_none error && value.await then
       let awaited = Async_cook.await value.worker in
       match awaited.result with
-      | Ok (Displayed pieces) ->
+      | Ok (Displayed (pieces, found)) ->
+          summaries := found;
           List.filter (fun piece -> Document.Layout.mem piece.id compiled) pieces,
           None, Some awaited.seconds, true
       | Ok (Framed _) -> pieces, error, seconds, prepared_changed
@@ -313,7 +336,8 @@ let update ?live ~definitions ~compiled_ids value ~settings ~objects
                  | Error _ -> Some None, framing) in
   { cook = { value with schedule; pieces; settings = Some settings; error; seconds;
       framing; force = force_next; compiled; flattened;
-      value_lanes; applied; graphs; displayed };
+      value_lanes; applied; graphs; displayed;
+      probing = (if submit then probes else value.probing); summaries = !summaries };
     edit_error; prepared_changed; framed }
 
 let close value = Async_cook.close value.worker

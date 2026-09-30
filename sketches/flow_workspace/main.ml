@@ -1,6 +1,6 @@
 (* A workspace document in the editor: the graph pane draws it with zones,
    rails and iteration selectors.  FLOW_CASE picks bloom (default),
-   sunflower or orrery.  FLOW_EXPORT=<dir> renders the editor's UI to PNG
+   sunflower or orrery.  FLOW_ADD=1 adds a box from the Tab menu.  FLOW_EXPORT=<dir> renders the editor's UI to PNG
    frames instead of opening a window (a check of the graph pane). *)
 open Prismel
 module E3 = Prismel_editor.Editor3
@@ -32,6 +32,11 @@ let () = match Sys.getenv_opt "FLOW_EXPORT" with
           | 4 -> click (900., 300.)
           | 6 -> [ Event.KeyPressed (Input.KeyChar 'j') ]
           | 8 -> [ Event.KeyPressed (Input.KeyChar (Char.chr 105)) ]
+          | 16 -> click (960., 466.)
+          | 20 when Sys.getenv_opt "FLOW_ADD" <> None -> [ Event.KeyPressed Input.Tab ]
+          | 22 when Sys.getenv_opt "FLOW_ADD" <> None -> [ Event.TextInput "box" ]
+          | 24 when Sys.getenv_opt "FLOW_ADD" <> None -> [ Event.KeyPressed Input.Enter ]
+          | 30 when Sys.getenv_opt "FLOW_ADD" <> None -> click (1240., 178.)
           | n when n >= 12 && n mod 2 = 0 && n <= 14 -> [ Event.MouseMoved (780., 380.); Event.MouseScrolled (0., 5.) ]
           | _ -> [] in
         { frame with events = events @ frame.events } in

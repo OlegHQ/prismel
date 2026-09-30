@@ -68,3 +68,9 @@ items (a zone body is drawn once, whatever its iteration count); a row under
 the pointer comes from the pointer and the tile's rectangle, never a second
 hit tree; DepartureMono lacks ⟲ ◆ ◷ ↥ ▸ ▾, use the substitutes in
 `scope_pane.ml`. The flat pane above stays for other documents.
+
+Footers (W5): `with_records` takes a `Flow_sop.Probe.t`; footers are built
+only for visible cards at zoom >= 0.4, a sparkline draws at most 16 segments
+whatever the count (the paint test bounds it), and the `↑ same each time`
+button is a `Ui.box` emitting `Syntax_edit (Hoist ...)`. `with_scope` drops
+selected paths that no longer exist.

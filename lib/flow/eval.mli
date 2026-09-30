@@ -80,6 +80,7 @@ type live = { t : float }
 
 type instance = {
   graph : string;
+  default : bool;  (** the graph evaluated with its own defaults: the one an editor shows, and the one that records *)
   inputs : (string * value) list;  (** every input, defaults filled in *)
   result : value;
 }
@@ -95,7 +96,8 @@ type t = {
       (** with [~record:true]: the values seen at each path, per iteration tuple,
           in evaluation order, at most 4,096 per path (bindings, results,
           zone variables [":x"], [fn] parameters, graph inputs).  Geometry is a
-          [Geo] reference; counts and groups come from the cook (W5). *)
+          [Geo] reference (its counts come from the cook, {!Flow_sop.Probe}); a
+          live value is a [Residual] until forced ({!run}, {!Flow_sop.Probe}). *)
 }
 
 val max_steps : int

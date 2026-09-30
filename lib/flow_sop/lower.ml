@@ -8,7 +8,7 @@ type pending = { node : int; field : string; value : E.value }
 type origin = { source : int; site : Workspace.path; iter : int list }
 module Origins = Map.Make (struct type t = int * int let compare = compare end)
 type graph = {
-  name : string; instance : int; inputs : (string * E.value) list;
+  name : string; instance : int; default : bool; inputs : (string * E.value) list;
   network : Network.t; root : int option;
 }
 type t = {
@@ -228,7 +228,7 @@ let workspace ~factories ?(compiled_ids = Instance_path.Map.empty)
         | _ -> fail "E_LOWER" ("Graph " ^ instance.graph ^ " does not return geometry") in
       let graph = match root with
         | Some id -> edit (Edit.set_root id graph) | None -> graph in
-      {name = instance.graph; instance = index; inputs = instance.inputs;
+      {name = instance.graph; instance = index; default = instance.default; inputs = instance.inputs;
        network = live_network (Network.of_geometry graph) graph; root} in
     let graphs = List.concat (List.mapi (fun index instance ->
       if sop_instance instance then [build index instance] else [])
@@ -246,3 +246,8 @@ let workspace ~factories ?(compiled_ids = Instance_path.Map.empty)
 let counts lowered =
   let live = Network.Int_map.cardinal lowered.volatile in
   live, Network.Int_map.cardinal lowered.compiled - live
+
+let status lowered ~seconds =
+  match counts lowered with
+  | 0, _ -> None
+  | live, cached -> Some (Printf.sprintf "t %d live · %d cached · cook %.1f ms" live cached (seconds *. 1000.))

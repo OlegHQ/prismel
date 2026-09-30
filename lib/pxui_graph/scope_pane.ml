@@ -163,7 +163,9 @@ type t = {
   scope : P.scope option;
   collapsed : path -> bool;
   probe : path -> int;
-  count : path -> int;
+  records : Flow_sop.Probe.t option;
+  chains : (path, path list) Hashtbl.t;  (* the iterating zones around each node *)
+  counts : (path, int) Hashtbl.t;  (* iterations each zone ran, under the probes *)
   frames : path -> (string * (float * float) * (float * float)) list;
   framed : bool;
   layout : P.layout;
@@ -179,7 +181,8 @@ type t = {
 let no_stats = { nodes = 0; zones = 0; rows = 0; drawn_items = 0; drawn_zones = 0; drawn_rows = 0 }
 let create ?(x = 0) ?(y = 0) ?(width = 640) ?(height = 360) ?(theme = Pxui.default_theme) () = {
   x; y; width; height; theme; visible = true; guide = false; key = ""; scope = None;
-  collapsed = (fun _ -> false); probe = (fun _ -> 0); count = (fun _ -> 0);
+  collapsed = (fun _ -> false); probe = (fun _ -> 0); records = None;
+  chains = Hashtbl.create 1; counts = Hashtbl.create 1;
   frames = (fun _ -> []); framed = true;
   layout = { P.placed = []; w = 0.; h = 0. }; geo = empty_geo; pan_x = 12.; pan_y = 12.; zoom = 1.;
   selected = Path_set.empty; hovered_row = None; drag = None; context = None; stats = no_stats }
@@ -209,15 +212,33 @@ let frame_all t =
   let zoom = Float.max 0.25 (Float.min 1. (Float.min (float t.width /. w) (float t.height /. h))) in
   { t with zoom; pan_x = (float t.width -. w *. zoom) /. 2.; pan_y = Float.max 8. ((float t.height -. h *. zoom) /. 2.) }
 
+let count_of t path = Option.value ~default:0 (Hashtbl.find_opt t.counts path)
+
+(* the iteration counts follow the scope, the probes and what was recorded *)
+let refresh t = match t.scope, t.records with
+  | Some scope, Some records ->
+      let counts = Hashtbl.create 16 in
+      List.iter (fun (p, c) -> Hashtbl.replace counts p c) (Flow_sop.Probe.counts records scope ~probe:t.probe);
+      { t with counts }
+  | _ -> { t with counts = Hashtbl.create 1 }
+
 let no_shift _ = 0., 0.
 let with_scope ?(at = fun _ -> None) ?(collapsed = fun _ -> false) ?(probe = fun _ -> 0)
-    ?(count = fun _ -> 0) ?(frames = fun _ -> []) ~key scope t =
+    ?(frames = fun _ -> []) ~key scope t =
   let layout = P.layout ~at ~collapsed scope in
   let n, z, r = count_scope scope in
-  let t = { t with scope = Some scope; collapsed; probe; count; frames; layout;
+  let t = { t with scope = Some scope; collapsed; probe; frames; layout;
+    chains = Flow_sop.Probe.chains scope;
     geo = compute scope layout ~shift:no_shift;
     stats = { t.stats with nodes = n; zones = z; rows = r } } in
+  (* an edit that removed or moved a node drops it from the selection *)
+  let t = { (refresh t) with selected = Path_set.filter (Hashtbl.mem t.geo.pos) t.selected } in
   if key <> t.key then { t with key; framed = false; selected = Path_set.empty; drag = None } else t
+
+let with_records records t =
+  match t.records with
+  | Some previous when Flow_sop.Probe.same_eval previous records -> { t with records = Some records }
+  | _ -> refresh { t with records = Some records }
 
 (* ------------------------------------------------------------- lookups *)
 
@@ -279,7 +300,7 @@ let action_changes t command =
       List.filter_map (fun (n : P.node) -> match n.zone with
         | Some { kind = P.Let; _ } | None -> None
         | Some _ ->
-            let count = t.count n.path in
+            let count = count_of t n.path in
             if count <= 0 then None else
             let index = max 0 (min (count - 1) (t.probe n.path + delta)) in
             if index = t.probe n.path then None else Some (Probe_set { zone = n.path; index })) nodes
@@ -554,7 +575,57 @@ let paint_header paint t ~z ~fs ~x ~y ~w (n : P.node) ~toggle =
       Ui.Paint.text paint ~at:(hx, y +. 7. *. z) ~size ~color:(Pxui.Theme.muted theme) head_label
   end
 
-let paint_node paint t ~z ~fs (p : P.placed) (n : P.node) ~selected ~row_hover (x, y, w, h) =
+(* The footer strip of a node card or a collapsed zone: the value at the probe,
+   a sparkline across the innermost zone, the tags, and the hoist button.
+   The tags use ↑ for the study's ↥ and t for ◷ (DepartureMono lacks both). *)
+let hoist_x = 116.
+let paint_footer paint t ~z ~fs (f : Flow_sop.Probe.footer) (ty : Ty.t) (x, y, w, h) =
+  let theme = t.theme in
+  let size = max 6 (fs - 1) in
+  let fy = y +. h -. P.foot_height *. z in
+  let text_y = fy +. 5. *. z in
+  Ui.Paint.line paint ~from_:(x +. 8. *. z, fy) ~to_:(x +. w -. 8. *. z, fy) ~width:1. (Pxui.Theme.faint_border theme);
+  let right = ref (x +. w -. 8. *. z) in
+  let put_right color s =
+    let tw = Ui.Paint.text_width paint ~size s in
+    Ui.Paint.text paint ~at:(!right -. tw, text_y) ~size ~color s;
+    right := !right -. tw -. 6. *. z in
+  if f.invariant then begin
+    let room = (hoist_x -. 8.) *. z in
+    let label = fitted paint size room "↑ same each time" in
+    let tw = Ui.Paint.text_width paint ~size label in
+    Ui.Paint.text paint ~at:(x +. w -. 8. *. z -. tw, text_y) ~size ~color:theme.accent label;
+    right := x +. w -. hoist_x *. z
+  end;
+  if f.live then put_right theme.accent "t";
+  let tags = String.concat " · " (List.filter_map Fun.id [ f.branch; f.kept; Option.map (Printf.sprintf "×%d") f.runs ]) in
+  if tags <> "" then
+    put_right (Pxui.Theme.muted theme) (fitted paint size (Float.max 0. (!right -. x) *. 0.5) tags);
+  let left = x +. 8. *. z in
+  (match f.spark with
+   | Some (values, at) ->
+       let sw = 36. *. z and sh = 10. *. z in
+       let sx0 = Float.max (left +. 30. *. z) (!right -. sw) in
+       let lo = Array.fold_left Float.min infinity values and hi = Array.fold_left Float.max neg_infinity values in
+       let px i = sx0 +. float i /. float (Array.length values - 1) *. sw
+       and py v = if hi = lo then fy +. 4. *. z +. sh /. 2. else fy +. 4. *. z +. sh -. (v -. lo) /. (hi -. lo) *. sh in
+       (* at most 16 segments: a 240-iteration series draws as many as a 20-iteration one *)
+       let n = Array.length values in
+       let step = max 1 (n / 16) in
+       let i = ref 0 in
+       while !i < n - 1 do
+         let j = min (n - 1) (!i + step) in
+         Ui.Paint.line paint ~from_:(px !i, py values.(!i)) ~to_:(px j, py values.(j)) ~width:1.
+           (ty_color t (Some ty));
+         i := j
+       done;
+       Ui.Paint.fill paint ~x:(px at -. 1.5 *. z) ~y:(py values.(at) -. 1.5 *. z) ~w:(3. *. z) ~h:(3. *. z) theme.accent;
+       right := sx0 -. 6. *. z
+   | None -> ());
+  Ui.Paint.text paint ~at:(left, text_y) ~size ~color:(ty_color t (Some ty))
+    (fitted paint size (Float.max 0. (!right -. left)) f.value)
+
+let paint_node paint t ~z ~fs ?footer (p : P.placed) (n : P.node) ~selected ~row_hover (x, y, w, h) =
   let theme = t.theme in
   let z_ = n.zone in
   let stacked = match z_ with Some _ -> p.collapsed | None -> false in
@@ -586,6 +657,7 @@ let paint_node paint t ~z ~fs (p : P.placed) (n : P.node) ~selected ~row_hover (
        paint_outputs paint t ~z ~fs ~x ~y:rows_y ~w n
    | Some zn when p.collapsed -> paint_rail paint t ~z ~fs ~x ~y:(y +. P.head_height *. z) ~expanded:false zn.rail
    | Some _ -> ());
+  Option.iter (fun f -> paint_footer paint t ~z ~fs f n.ty (x, y, w, h)) footer;
   if selected then
     Ui.Paint.stroke paint ~x:(x +. 0.5) ~y:(y +. 0.5) ~w:(w -. 1.) ~h:(h -. 1.) ~width:2. ~radius:(3. *. z) theme.accent
 
@@ -781,6 +853,16 @@ let update t ui (frame : Frame.t) =
     | _ -> None) visible in
   let local (x, y) = x -. float t.x, y -. float t.y in
   let mouse = frame.mouse in
+  (* footers: only for what is in view, and not when too small to read *)
+  let footers = Hashtbl.create 16 in
+  (match t.records with
+   | Some records when z >= 0.4 ->
+       List.iter (fun ((p : P.placed), _, _) -> match p.item with
+         | P.Item n when n.zone = None || p.collapsed ->
+             let chain = Option.value ~default:[] (Hashtbl.find_opt t.chains n.path) in
+             Hashtbl.replace footers n.path (Flow_sop.Probe.footer records n ~probes:(List.map t.probe chain))
+         | _ -> ()) visible
+   | _ -> ());
   (* tiles *)
   let tiles = Ui.within ui canvas (fun () ->
     List.map (fun ((p : P.placed), ax, ay) ->
@@ -800,6 +882,9 @@ let update t ui (frame : Frame.t) =
          | Item n ->
              let node_src = if n.binds = [ n.name ] then Some n.name else None in
              Option.iter (fun s -> out "out" s (Some n.ty) (p.w, 12.)) node_src;
+             (match Hashtbl.find_opt footers n.path with
+              | Some { invariant = true; _ } -> tap "hoist" (p.w -. hoist_x, p.h -. P.foot_height +. 2.) (hoist_x -. 6., 16.) `Hoist
+              | _ -> ());
              (match n.zone with
               | Some zn when not p.collapsed ->
                   let top = P.rail_top n in
@@ -962,14 +1047,15 @@ let update t ui (frame : Frame.t) =
     let t = List.fold_left (fun t (b, on) ->
       let bs = Ui.signal ui b in
       (match p.item, on with
+       | P.Item n, `Hoist when bs.clicked -> emit (Syntax_edit (E.Hoist { node = n.path }))
        | P.Item n, `Toggle when bs.clicked ->
            emit (Zone_collapsed { zone = n.path; collapsed = not p.collapsed })
        | P.Item n, `Step d when bs.clicked ->
-           let count = t.count n.path in
+           let count = count_of t n.path in
            let index = max 0 (min (count - 1) (t.probe n.path + d)) in
            if count > 0 && index <> t.probe n.path then emit (Probe_set { zone = n.path; index })
        | P.Item n, `Track when bs.pressed || bs.held ->
-           let count = t.count n.path in
+           let count = count_of t n.path in
            let x, _, w, _ = Ui.rect ui b in
            if count > 0 && w > 0. then begin
              let px = fst (if bs.released then bs.release_point else bs.pointer) in
@@ -1069,10 +1155,10 @@ let update t ui (frame : Frame.t) =
           (match n.zone with
            | Some zn when not p.collapsed ->
                paint_zone_frame paint snapshot ~z ~fs n zn ~selected:isel (x, y, w, h)
-                 ~probe:(snapshot.probe n.path) ~count:(snapshot.count n.path)
+                 ~probe:(snapshot.probe n.path) ~count:(count_of snapshot n.path)
            | _ ->
                let rh = match row_hover with Some (rp, i) when rp = n.path -> Some i | _ -> None in
-               paint_node paint snapshot ~z ~fs p n ~selected:isel ~row_hover:rh (x, y, w, h)));
+               paint_node paint snapshot ~z ~fs ?footer:(Hashtbl.find_opt footers n.path) p n ~selected:isel ~row_hover:rh (x, y, w, h)));
     ignore (ax, ay); ignore node_placed; drawn_rows := !drawn_rows) tiles;
   let rows = List.fold_left (fun a ((p : P.placed), _, _, _, _, _, _) -> match p.item with
     | P.Item n -> a + List.length n.rows | _ -> a) 0 tiles in

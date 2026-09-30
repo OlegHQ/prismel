@@ -14,8 +14,8 @@ Status: `todo` · `wip` · `done` (gate met) · `partial` (what is missing is na
 | W2 lowering & cooking | done | | `Flow_sop.Lower.workspace`, `Pdk.Mesh_merge ?source_attribute`, session default 512, `test_workspace_cook`, `bench_workspace_lower`. Live parameters are only recorded (`Lower.pending`); drives are W2b. |
 | W2b live `t` | partial | | `Drive.Live`, `Lower` live drives, `flow.curve` text-encoded points, volatile session slots, `Async_cook.await`, `Cook ?await`, status text, tests and bench (notes below). Gaps: UI text (W4/W5), `Frame` cannot tell a fixed clock. The editor is fed by a workspace since W3. |
 | W3 document v4 + history | done | | `Flow_edit`, `Workspace_doc`, `Layout_by_path`, s-expression presets, the editor opens a workspace and recooks live `t` (notes below). No older presets. Gaps: only workspace documents save. |
-| W4 graph pane zones | done | | Part A (`Flow_sop.Projection`, `Rest`) and part B (`Pxui_graph.Scope`, zone tokens, selectors, `Core` wiring, layout by path, probes); see the W4 part B notes and `flow-migration.md`. Gaps: no marquee, the inspector still shows the lowered object, the flat pane remains for non-workspace documents, only `sop` graphs open. |
-| W5 probes & footers | todo | | |
+| W4 graph pane zones | done | | Part A (`Flow_sop.Projection`, `Rest`) and part B (`Pxui_graph.Scope`, zone tokens, selectors, `Core` wiring, layout by path, probes); see the W4 part B notes and `flow-migration.md`. Gaps: no marquee (the inspector follows the selection since W5), the flat pane remains for non-workspace documents, only `sop` graphs open. |
+| W5 probes & footers | done | | `Flow_sop.Probe` (records, footers, counts, inspector rows), `Pxui_graph.Scope.with_records`, cook geometry counts piggybacked on the display cook, the workspace inspector, the `t N live · M cached` status, auto-select of an added node (notes below). Gaps: no zone footer while expanded, the geometry of a node that is not upstream of the display shows only its type. |
 | W6 viewport provenance | todo | | |
 | W7 editable text | todo | | |
 | W8 loops over geometry | todo | | |
@@ -257,6 +257,48 @@ Status: `todo` · `wip` · `done` (gate met) · `partial` (what is missing is na
   `Fold_into`/`Unfold`. The `↥` (invariant) and `◷` (live) marks come from
   `node.invariant` / `node.live`. `Doc.syntax_edit` already reduces the
   edit; the projection is rebuilt from `Document.workspace` after each.
+- W5 notes. `Flow_sop.Probe` is the UI-free half: `make ?time ?geometry
+  eval` (records forced at the time shown, memoised per path, series and
+  footer), `describe`, `footer` (value at the probe, sparkline across the
+  innermost zone, `then a · else b`, `kept a of b`, `×n`, `↑ same each time`,
+  `t`), `counts` (per outer probe: a nested zone counts the iterations of the
+  selected outer iteration, not the whole product), `series`, `iterations`,
+  `readouts` (the inspector rows), `geometry_targets`. Deviations from the plan:
+  `Cook` does not expose `records`; `Core` builds the `Probe.t` from its own
+  recording evaluation (`Eval.static ~record:true`, once per checked source,
+  kept in `scope_key`) and `Cook` reports geometry counts (`Cook.geometry`,
+  `summary`): `Cook.update ?probes` appends up to 64 `(object, compiled node)`
+  pairs to the display job's `submit_all` (cache hits, only nodes upstream of the
+  display, so a footer cannot fail the display) and returns `Probe.geometry`
+  (`prims`, `groups`, `data_id`) per pair; a changed target list forces one
+  cheap resubmit. `Eval` now records a live term as its `Residual` (forced by
+  the probe at the time shown), and `Eval.instance.default` /
+  `Lower.graph.default` mark the graph evaluated with its own inputs: the
+  editor showed the last `ref` override of a graph (Bloom's `petals 7`) as its
+  object until now, `Document.of_workspace` keeps only the default instance.
+  `Projection.counts` moved to `Probe.counts`; `Scope.with_scope` lost
+  `~count` (the pane reads the counts from `with_records`). Footers draw at
+  zoom >= 0.4, on node cards and collapsed zone cards only (an expanded zone
+  has no foot; its header carries the marks and its selector the count).
+  `t` stands for ◷ and `↑` for ↥ (DepartureMono). The workspace inspector
+  (`Core.workspace_inspector`): value at probe, `cook: live, recooks every frame`
+  or `cached`, Move out of the loop, the lowered node's catalog parameters at
+  the probed iteration (an edit is `Set_arg` on the authored argument, a
+  non-literal argument is locked and shows its expression) and the per-iteration
+  list (64 rows, a click is `Probe_set`). The status strip reads
+  `t N live · M cached · cook X ms` (`Lower.status`) for a document with live
+  nodes. A node added from the menu is selected, and `with_scope` drops a
+  selection whose path no longer exists. Tests: `test/test_probe.ml`. Perf
+  (`bench_scope_pane`, `tools/bench_workspace_live.exe`; M-series, one run):
+  Sunflower pane frame 0.27 ms and 676 KB with no records, 0.44 ms and 985 KB
+  with records (first cut 2.4 ms before the series and footer memo and the
+  16-segment sparkline cap); Orrery pane frame 0.53 ms without records, 0.86 ms
+  with `Probe.make` and the forced footers rebuilt every frame; one recording
+  evaluation 0.93 ms (Sunflower) and 0.17 ms (Orrery), only when the checked
+  source changes; the idle frame only compares the key. Orrery playback with the
+  64 probe nodes added to the cook (`BENCH_PROBES=1 BENCH_CASE=orrery
+  ./_build/default/tools/bench_workspace_live.exe 600 1`): total p50 0.79 ms to
+  0.93 ms (Session hits, no extra misses).
 - W4 part B notes. `Pxui_graph.Scope` is a separate pane module with its own
   `change` type (`Syntax_edit`, `Probe_set`, `Zone_collapsed`, `Selected`,
   `Moved`, `Notice`), not new cases of the flat pane's `change`; `Core` maps

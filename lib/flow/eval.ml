@@ -56,10 +56,10 @@ and st = {
 and node = { id : int; inst : int; site : W.path; iter : int list; kind : string;
              args : (string * value) list }
 
-and cell = { cgraph : string; mutable cinputs : (string * value) list; mutable cresult : value }
+and cell = { cgraph : string; cdefault : bool; mutable cinputs : (string * value) list; mutable cresult : value }
 
 type live = { t : float }
-type instance = { graph : string; inputs : (string * value) list; result : value }
+type instance = { graph : string; default : bool; inputs : (string * value) list; result : value }
 type plan = { instances : instance array; nodes : node array }
 type t = { plan : plan; results : (string * value) list;
            records : (W.path * (int list * value) list) list }
@@ -429,7 +429,9 @@ and ev c env (x : W.term) : value =
            (* ponytail: nodes made by the abandoned attempt are dropped, its records are kept *)
            st.nodes <- saved; st.nnodes <- saved_n;
            st.rids <- st.rids + 1;
-           Residual { rid = st.rids; rterm = x; renv = env; rc = c }
+           let r = Residual { rid = st.rids; rterm = x; renv = env; rc = c } in
+           (* the record is the residual: a probe forces it at the time it shows *)
+           (match x.path with Some p -> note c p r | None -> ()); r
        | exception Fail (code, msg, None) -> raise (Fail (code, msg, span_of x)))
   | Some _ ->
       (match concrete c (ev_raw c env x) with
@@ -749,7 +751,7 @@ and graph_value ?(rec_ = true) c name over =
        | Some cell -> cell.cresult
        | None ->
            let cid = List.length st.cells in
-           let cell = { cgraph = name; cinputs = []; cresult = No_geo } in
+           let cell = { cgraph = name; cdefault = (over = []); cinputs = []; cresult = No_geo } in
            st.cells <- cell :: st.cells;
            Hashtbl.replace st.cache key cell;
            let v, ins = run cid in
@@ -787,7 +789,7 @@ let static ?(record = false) ?(inputs = []) ws =
       let over = Option.value (List.assoc_opt g.name inputs) ~default:[] in
       (g.name, graph_value c g.name over)) ws.W.graphs in
     let instances = st.cells |> List.rev |> List.map (fun cell ->
-      { graph = cell.cgraph; inputs = cell.cinputs; result = cell.cresult }) |> Array.of_list in
+      { graph = cell.cgraph; default = cell.cdefault; inputs = cell.cinputs; result = cell.cresult }) |> Array.of_list in
     let records = Hashtbl.fold (fun p (_, l) acc -> (p, List.rev l) :: acc) st.recs []
       |> List.sort (fun (a, _) (b, _) -> compare a b) in
     { plan = { instances; nodes = Array.of_list (List.rev st.nodes) }; results; records })

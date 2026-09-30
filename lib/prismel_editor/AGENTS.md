@@ -216,3 +216,13 @@ an item and collapsing a zone are layout edits (`Doc.layout_edit`, one
 history entry, no lowering, no recook); `Syntax_edit` requests reduce
 through `Doc.syntax_edit` as before. `sketches/flow_workspace` opens a case
 and, with `FLOW_EXPORT=<dir>`, renders the editor to PNG frames.
+
+Probes and footers (W5): `sync_scope` also keeps the recording evaluation
+(`scope_key.evaluated`, one per checked source) and a `Flow_sop.Probe.t`
+rebuilt only when the evaluation, the cook's geometry counts
+(`Cook.summaries`) or, for a document with live nodes, the time changed; an
+idle frame only compares the key. `scope_key.targets` are the geometry nodes at
+their probes that `Cook.update ~probes` counts. A selected node drives
+`workspace_inspector` (edits are `Set_arg` on the authored argument, iteration
+clicks are `Probe_set`); keep that function free of model mutation like every
+other Ui.frame builder.

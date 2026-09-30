@@ -24,11 +24,16 @@ type text_cache = {
   node_at_line : int option array;
 }
 
-(* What the workspace pane was last laid out from: the document, the probes, the
-   graph and the iteration counts of its last evaluation. *)
+(* What the workspace pane was last laid out from: the document, the probes and
+   the graph, the recording evaluation of the checked source, and what its
+   footers read (the cook's geometry counts, the time of a live document). *)
 type scope_key = {
   ws : Workspace_doc.t; probe_map : int Layout_by_path.Path_map.t; graph : string;
-  counts : (Layout_by_path.path * int) list;
+  evaluated : Flow.Eval.t option;
+  summaries : Cook.summary list; time : float option;
+  records : Flow_sop.Probe.t option;
+  scope : Flow_sop.Projection.scope;
+  targets : (int * int) list;  (* (object, compiled node) the cook is asked to count *)
 }
 
 type prompt =
@@ -223,6 +228,94 @@ let catalog value = function
 let network value = Option.get (Document.network value.doc value.level)
 let document value = (network value).graph.geometry
 
+(* The inspector of the node selected in the workspace pane (plan W5): its
+   value at the probe, whether it recooks every frame, the list of its
+   iterations (a click moves the zone's probe), and the catalog parameters of
+   the lowered node at that iteration.  An edit is a [Set_arg] on the authored
+   argument; an argument that is not a literal shows its expression and is
+   locked.  Returns the graph requests and the probe moves. *)
+let workspace_inspector value ui ~width path =
+  let module P = Flow_sop.Projection in
+  let module Probe = Flow_sop.Probe in
+  let module S = Flow.Syntax in
+  match value.scope_key, value.doc.Document.workspace with
+  | Some { scope; records = Some records; _ }, Some (_, lowered) ->
+      (match P.find scope path with
+       | None -> [], []
+       | Some n ->
+           let probe p = Option.value ~default:0 (Layout_by_path.Path_map.find_opt p value.probes) in
+           let chain = Option.value ~default:[] (Hashtbl.find_opt (Probe.chains scope) n.path) in
+           let probes = List.map probe chain in
+           let footer = Probe.footer records n ~probes in
+           ignore (Pxui.Ui.inspector_header ui ~key:"ws-header" ~title:(if n.synthetic then "result" else n.name)
+             ~detail:(Printf.sprintf "%s · %s" n.head (Flow.Ty.to_string n.ty)));
+           List.iter (fun (label, text) ->
+             Pxui.Ui.inspector_readout ui ~width ~key:("ws-" ^ label) ~label text)
+             (Probe.readouts records n ~probes);
+           let hoist = if footer.invariant && Pxui.Ui.inspector_button ui ~key:"ws-hoist" "Move out of the loop"
+             then [ Pxui_graph.Syntax_edit (Flow_sop.Flow_edit.Hoist { node = n.path }) ] else [] in
+           let node = Option.bind (Probe.plan_node records n.path ~probes) (fun id ->
+             Option.bind (Flow_sop.Network.Int_map.find_opt id lowered.compiled) (fun node_id ->
+               Edit_graph.find (document value) ~node_id)) in
+           let fields = match node with Some node -> Node.parameter_fields node | None -> [] in
+           let parameters = Result.value ~default:[] (Flow_sop.Port.parameters fields) in
+           let literal = function
+             | { S.node = S.Num _ | S.Str _ | S.Sym ("true" | "false"); _ } -> true
+             | { S.node = S.Vec l; _ } -> List.for_all (fun (e : S.t) -> match e.node with S.Num _ -> true | _ -> false) l
+             | _ -> false in
+           let authored (parameter : Flow_sop.Port.parameter) =
+             Option.bind (List.find_opt (fun (r : P.row) -> r.key = Flow_sop.Flow_edit.Kw parameter.path) n.rows)
+               (fun (r : P.row) -> r.expr) in
+           let rows = List.map (fun (parameter : Flow_sop.Port.parameter) ->
+             let wired = match authored parameter with Some e -> not (literal e) | None -> false in
+             { Pxui_shell.Inspector.path = parameter.path; fields = parameter.fields; shown = true; locked = wired;
+               drive = (match authored parameter with Some e when wired -> Some (Flow.Lisp.flat e) | _ -> None);
+               live = None; components = []; split = None }) parameters in
+           let expanded = List.filter_map (fun (f : Parameter.field_view) ->
+             match f.folder with [] -> None | first :: _ -> Some first) fields |> List.sort_uniq String.compare in
+           let num f =
+             let t = Printf.sprintf "%.6g" f in
+             S.make (S.Num (if String.exists (fun c -> c = '.' || c = 'e' || c = 'n' || c = 'i') t then t else t ^ ".0")) in
+           let edits = if rows = [] then [] else
+             Pxui_shell.Inspector.flow_fields ui ~expanded ~width ~actions:false rows
+             |> List.filter_map (function
+               | Pxui_shell.Inspector.Edited (name, edited) ->
+                   List.find_map (fun (parameter : Flow_sop.Port.parameter) ->
+                     match List.find_index (fun (f : Parameter.field_view) -> f.name = name) parameter.fields with
+                     | None -> None
+                     | Some index ->
+                         let syntax = match edited with
+                           | Editor_core.Param.Float_value f -> num f
+                           | Int_value i -> S.make (S.Num (string_of_int i))
+                           | Bool_value b -> S.make (S.Sym (string_of_bool b))
+                           | Text_value t | Choice_value t -> S.make (S.Str t) in
+                         let syntax = if List.length parameter.fields <> 3 then syntax else
+                           S.make (S.Vec (List.mapi (fun i (f : Parameter.field_view) ->
+                             if i = index then syntax else match f.current with
+                               | Editor_core.Param.Float_value x -> num x
+                               | Int_value x -> num (float x) | _ -> S.make (S.Num "0.0")) parameter.fields)) in
+                         Some (Pxui_graph.Syntax_edit (Flow_sop.Flow_edit.Set_arg
+                           { node = n.path; key = Flow_sop.Flow_edit.Kw parameter.path; sub = []; value = syntax })))
+                     parameters
+               | _ -> None) in
+           let iterations = Probe.iterations records n ~probes in
+           let zone = List.nth_opt (List.rev chain) 0 in
+           let picks = match zone with
+             | Some z when Array.length iterations > 0 ->
+                 Pxui.Ui.inspector_message ui ~key:"ws-runs"
+                   (Printf.sprintf "Inside %s: runs %d times. %s" (List.nth z (List.length z - 1))
+                      (Option.value ~default:(Array.length iterations) footer.runs)
+                      (if n.invariant then "The same every time, so it can move out of the loop."
+                       else "It changes with the loop variable."));
+                 let current = List.nth probes (List.length probes - 1) in
+                 List.concat (List.init (min 64 (Array.length iterations)) (fun k ->
+                   if Pxui.Ui.inspector_button ui ~key:(Printf.sprintf "ws-iter-%d" k)
+                       (Printf.sprintf "%s%d  %s" (if k = current then "► " else "  ") (k + 1) iterations.(k))
+                   then [ Pxui_graph.Scope.Probe_set { zone = z; index = k } ] else []))
+             | _ -> [] in
+           hoist @ edits, picks)
+  | _ -> [], []
+
 let value_catalog =
   let entry kind key label category =
     let ports = Flow_sop.Port.parameters
@@ -259,30 +352,55 @@ let scope_name value = match value.doc.Document.workspace, value.level with
   | _ -> None
 
 (* Lay the workspace pane out again when the document, the probes or the
-   graph changed; the iteration counts come from one recording evaluation per
-   checked source, not per move. *)
+   graph changed; the footers are rebuilt when the recording evaluation, the
+   cook's geometry counts or (a live document) the time changed.  The
+   evaluation runs once per checked source, never per move or per frame. *)
 let sync_scope value = match scope_name value, value.doc.Document.workspace, Lazy.force value.flow_catalog with
-  | Some name, Some (ws, _), Some catalog ->
-      (match value.scope_key with
-       | Some key when key.ws == ws && key.probe_map == value.probes && key.graph = name -> value
-       | previous ->
-           let module M = Layout_by_path.Path_map in
-           let scope = Flow_sop.Projection.of_graph catalog ws.checked name in
-           let counts = match previous with
-             | Some key when key.ws.checked == ws.checked && key.graph = name -> key.counts
-             | _ when Flow_sop.Projection.zones scope = [] -> []
-             | _ -> (match Flow.Eval.static ~record:true ws.checked with
-                 | Ok evaluated -> Flow_sop.Projection.counts evaluated scope
-                 | Error _ -> []) in
-           let layout = ws.layout in
-           let scope_view = Pxui_graph.Scope.with_scope ~key:name scope value.scope_view
-             ~at:(fun path -> M.find_opt path layout.at)
-             ~collapsed:(fun path -> Option.value ~default:false (M.find_opt path layout.collapsed))
-             ~probe:(fun path -> Option.value ~default:0 (M.find_opt path value.probes))
-             ~count:(fun path -> Option.value ~default:0 (List.assoc_opt path counts))
-             ~frames:(fun path -> List.map (fun (f : Layout_by_path.frame) -> f.title, f.at, f.size)
-               (Option.value ~default:[] (M.find_opt path layout.frames))) in
-           { value with scope_view; scope_key = Some { ws; probe_map = value.probes; graph = name; counts } })
+  | Some name, Some (ws, lowered), Some catalog ->
+      let module M = Layout_by_path.Path_map in
+      let object_id = match value.level with Document.Inside id -> id | _ -> 0 in
+      let previous = value.scope_key in
+      let same k = k.ws == ws && k.graph = name in
+      let moved = match previous with
+        | Some k -> not (same k && k.probe_map == value.probes) | None -> true in
+      let evaluated = match previous with
+        | Some k when k.ws.checked == ws.checked -> k.evaluated
+        | _ -> Result.to_option (Flow.Eval.static ~record:true ws.checked) in
+      let time = if fst (Flow_sop.Lower.counts lowered) > 0
+        then Some (Sketch_support.Timeline.time value.timeline) else None in
+      let summaries = value.cook.Cook.summaries in
+      let fresh = match previous with
+        | Some k -> not (k.evaluated == evaluated && k.summaries == summaries && k.time = time)
+        | None -> true in
+      if not moved && not fresh then value else begin
+        let scope = match previous with
+          | Some k when not moved -> k.scope
+          | _ -> Flow_sop.Projection.of_graph catalog ws.checked name in
+        let scope_view = if not moved then value.scope_view else begin
+          let layout = ws.layout in
+          Pxui_graph.Scope.with_scope ~key:name scope value.scope_view
+            ~at:(fun path -> M.find_opt path layout.at)
+            ~collapsed:(fun path -> Option.value ~default:false (M.find_opt path layout.collapsed))
+            ~probe:(fun path -> Option.value ~default:0 (M.find_opt path value.probes))
+            ~frames:(fun path -> List.map (fun (f : Layout_by_path.frame) -> f.title, f.at, f.size)
+              (Option.value ~default:[] (M.find_opt path layout.frames))) end in
+        let geometry id = Option.bind (Flow_sop.Network.Int_map.find_opt id lowered.compiled)
+          (fun node_id -> Cook.geometry value.cook ~object_id ~node_id) in
+        let records = Option.map (Flow_sop.Probe.make ?time ~geometry) evaluated in
+        let scope_view = match records with
+          | Some records when fresh || moved -> Pxui_graph.Scope.with_records records scope_view
+          | _ -> scope_view in
+        let targets = match records, previous with
+          | Some _, Some k when not moved && k.evaluated == evaluated -> k.targets
+          | Some records, _ ->
+              List.filter_map (fun id ->
+                Option.map (fun node_id -> object_id, node_id) (Flow_sop.Network.Int_map.find_opt id lowered.compiled))
+                (Flow_sop.Probe.geometry_targets records scope
+                   ~probe:(fun path -> Option.value ~default:0 (M.find_opt path value.probes)))
+          | None, _ -> [] in
+        { value with scope_view; scope_key = Some { ws; probe_map = value.probes; graph = name;
+            evaluated; summaries; time; records; scope; targets } }
+      end
   | _ -> value
 
 (* The [+ node] menu of the flat pane, read in a workspace: one [Add_node] at
@@ -976,7 +1094,11 @@ let status_text value =
          | Some error, _, _ -> "Graph edit rejected: " ^ truncate 49 error
          | None, Some error, _ -> "Cook rejected: " ^ truncate 54 error
          | None, None, _ when value.notice <> None -> Option.get value.notice
-         | None, None, Some seconds -> Printf.sprintf "Cook complete · %.3fs" seconds
+         | None, None, Some seconds ->
+             (match Option.bind value.doc.Document.workspace (fun (_, lowered) ->
+                  Flow_sop.Lower.status lowered ~seconds) with
+              | Some text -> text
+              | None -> Printf.sprintf "Cook complete · %.3fs" seconds)
          | None, None, None -> "Waiting for first cook") in
   (* What the open level's keys do, so the World and the menu are findable. *)
   let hint = match value.level with
@@ -1418,11 +1540,23 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
     let selected = Option.bind selected_id
         (fun node_id -> Edit_graph.find document ~node_id) in
     let unchanged = value.doc.settings in
+    let scope_selected = if scope_active then Pxui_graph.Scope.selected scope_view else [] in
+    let workspace_requests = ref [] and workspace_moves = ref [] in
     let open_network = network value in
     let panel, inspector_changes, settings_changes, live_cook =
       Pxui.Ui.within ui inspector_root (fun () -> match selected_ids with
       | _ when not inspector_visible ->
           None, [], [], value.live_cook
+      | _ when scope_selected <> [] ->
+          let () = match scope_selected with
+            | [ path ] ->
+                let requests, moves = inspector_panel ui panes.inspector (fun () ->
+                  workspace_inspector value ui ~width:(float (let _, _, w, _ = panes.inspector in max 1 w)) path) in
+                workspace_requests := requests; workspace_moves := moves
+            | paths -> inspector_panel ui panes.inspector (fun () ->
+                ignore (Pxui.Ui.inspector_header ui ~key:"multi-header"
+                  ~title:(Printf.sprintf "%d nodes" (List.length paths)) ~detail:"Selected")) in
+          None, !workspace_requests, [], value.live_cook
       | [] ->
           (* Sketch settings above the environment's camera/render panel. *)
           let changes, live, panel = inspector_panel ui panes.inspector (fun () ->
@@ -1607,6 +1741,7 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
                     {target = {Flow_sop.Port.node = node_id; path}; text}) edits)) in
           None, changes, [], value.live_cook) in
     let graph_changes = graph_changes @ inspector_changes in
+    let scope_changes = scope_changes @ !workspace_moves in
     let timeline_intents = if Pxui_shell.Layout.collapsed workspace Pxui_shell.Layout.Timeline
       then [] else Pxui.Ui.within ui timeline_root (fun () ->
         Pxui_shell.Timeline_bar.draw ui ~bounds:panes.timeline
@@ -1894,11 +2029,16 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
         else { doc with settings = result.settings } in
   (* Workspace gestures: one rewrite of the source per gesture, lowered into
      the document, one history entry named by the op. *)
+  let added = ref None in
   let next, result = if Option.is_some loaded then next, result else
     List.fold_left (fun (next, result) change -> match change with
       | Pxui_graph.Syntax_edit op ->
           (match Doc.syntax_edit ~factories:value.factories next op with
-           | Ok doc -> doc, { (result : _ frame_result) with label = Flow_sop.Flow_edit.label op;
+           | Ok doc ->
+               (match op with
+                | Flow_sop.Flow_edit.Add_node { scope; name; _ } -> added := Some (scope @ [ name ])
+                | _ -> ());
+               doc, { (result : _ frame_result) with label = Flow_sop.Flow_edit.label op;
                effects = Parameter.union_effects result.effects Doc.cook_effects }
            | Error message -> next, { (result : _ frame_result) with edit_error = Some message })
       | _ -> next, result) (next, result) result.graph_changes in
@@ -2202,7 +2342,11 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
   let graph_view = match result.open_graph with
     | Some id -> Pxui_graph.select id graph_view
     | None -> graph_view in
-  let value' = { value' with graph_view; tree = result.tree; scope_view = result.scope_view; probes } in
+  let value' = { value' with graph_view; tree = result.tree; probes;
+    (* a node added from the menu is the selection *)
+    scope_view = (match !added with
+      | Some path -> Pxui_graph.Scope.select [ path ] result.scope_view
+      | None -> result.scope_view) } in
   let value' = match target with
     | Some level -> open_level value' level frame
     | None -> value' in
@@ -2243,7 +2387,8 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
     Cook.set_volatile value.cook (match doc.workspace with
       | Some (_, lowered) -> Flow_sop.Lower.is_volatile lowered
       | None -> fun _ -> false);
-  let cooked = Cook.update ~live:result.live_cook
+  let probes = match value.scope_key with Some k when scope_name value <> None -> k.targets | _ -> [] in
+  let cooked = Cook.update ~live:result.live_cook ~probes
       ~definitions:doc.definitions ~compiled_ids:doc.compiled_ids
       value.cook ~settings:doc.settings
       ~objects:(geometry_objects value')
