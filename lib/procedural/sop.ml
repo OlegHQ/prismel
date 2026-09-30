@@ -5476,14 +5476,70 @@ let set_transform ?label value input =
           (Pdk.Packed.Float_array.create_owned ~offsets ~values)
       end) input
 
-let set_color ?label ~owner value input =
+let set_color_values ?label ?group ~owner ~r ~g ~b ~a input =
+  if Option.fold ~none:false ~some:(fun name -> String.trim name = "") group then
+    invalid_arg "Sop.set_color: group name must not be blank";
+  Node.Private.make ?label ~operation:"set_color" ~version:1
+    ~parameters:(Printf.sprintf "owner=%s;group=%s;value=%s,%s,%s,%s"
+      (attribute_owner_key owner) (option_string_key group)
+      (float_key r) (float_key g) (float_key b) (float_key a))
+    ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
+    ~inputs:[|input|] (fun ~node_id:_ _context inputs ->
+      let geometry = inputs.(0) in
+      let count = attribute_count geometry owner in
+      let group_owner = match owner with
+        | Pdk.Attribute.Point -> Some Pdk.Group.Point
+        | Vertex -> Some Pdk.Group.Vertex
+        | Primitive -> Some Pdk.Group.Primitive
+        | Detail -> None in
+      let selected = match group, group_owner with
+        | None, _ -> Ok None
+        | Some _, None -> Error "a detail color cannot be restricted to a group"
+        | Some name, Some group_owner ->
+            (match Pdk.Geometry.find_group ~owner:group_owner name geometry with
+             | Some found -> Ok (Some found)
+             | None -> Error (Printf.sprintf "could not find group %S" name)) in
+      let existing = match selected with
+        | Ok (Some _) ->
+            Pdk.Geometry.find_attribute ~owner "Cd" geometry
+            |> Fun.flip Option.bind (Pdk.Attribute.get (Pdk.Attribute.color ~owner))
+        | _ -> None in
+      match selected with
+      | Error message -> pdk_error "set_color" message
+      | Ok selected ->
+          let channel index fill = match existing with
+            | Some packed -> Array.copy (index (Pdk.Packed.Float4.Private.view packed))
+            | None -> Array.make count fill in
+          let red = channel (fun v -> v.Pdk.Packed.Float4.Private.x) 1.
+          and green = channel (fun v -> v.y) 1.
+          and blue = channel (fun v -> v.z) 1.
+          and alpha = channel (fun v -> v.w) 1. in
+          (match selected with
+           | None ->
+               Array.fill red 0 count r; Array.fill green 0 count g;
+               Array.fill blue 0 count b; Array.fill alpha 0 count a
+           | Some found ->
+               Pdk.Group.iter (fun index ->
+                 red.(index) <- r; green.(index) <- g;
+                 blue.(index) <- b; alpha.(index) <- a) found);
+          match Pdk.Packed.Float4.of_owned ~x:red ~y:green ~z:blue ~w:alpha with
+          | Error message -> pdk_error "set_color" message
+          | Ok color ->
+              match Pdk.Attribute.create_owned ~name:"Cd" ~owner
+                  (Pdk.Attribute.Float4 color) with
+              | Error message -> pdk_error "set_color" message
+              | Ok attribute ->
+                  match Pdk.Geometry.with_attribute attribute geometry with
+                  | Ok geometry -> cooked geometry
+                  | Error message -> pdk_error "set_color" message)
+
+let set_color ?label ?group ~owner value input =
   let r, g, b, a = Color.to_floats value in
-  set_attribute_node ?label ~operation:"set_color"
-    ~parameters:(Printf.sprintf "owner=%s;value=%s"
-      (attribute_owner_key owner) (color_key value)) ~owner ~name:"Cd"
-    (fun count -> Result.map (fun values -> Pdk.Attribute.Float4 values)
-      (Pdk.Packed.Float4.of_owned ~x:(Array.make count r) ~y:(Array.make count g)
-        ~z:(Array.make count b) ~w:(Array.make count a))) input
+  set_color_values ?label ?group ~owner ~r ~g ~b ~a input
+
+let set_color_float ?label ?group ~owner ~color ~alpha input =
+  set_color_values ?label ?group ~owner ~r:color.Vec3.x ~g:color.y
+    ~b:color.z ~a:alpha input
 
 let validate_attribute_pattern operation = function
   | None -> ()

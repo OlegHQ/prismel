@@ -87,6 +87,28 @@ let test_motion () =
    | Ok _ -> fail "Point Velocity SOP accepted a missing group");
   Session.close session
 
+let set_color_test () =
+  let session = Session.create ~max_entries:8 ~max_payload_bytes:1_000_000
+    |> Result.get_ok in
+  let box = catalog_node "box" [] [] in
+  let colors node =
+    match Pdk.Geometry.find_attribute ~owner:Pdk.Attribute.Point "Cd"
+        (cook session node) with
+    | Some attribute -> (match Pdk.Attribute.Private.storage attribute with
+        | Pdk.Attribute.Float4 values -> Pdk.Packed.Float4.Private.view values
+        | _ -> fail "set_color did not write a float4 Cd")
+    | None -> fail "set_color wrote no Cd" in
+  let plain = colors (catalog_node "set_color" [Some box] []) in
+  check (Array.for_all (( = ) 1.) plain.x && Array.for_all (( = ) 1.) plain.w)
+    "set_color defaults are not opaque white";
+  let grouped = Sop.group ~name:"g" (Select.point_indices [|0|]) box in
+  let tinted = colors (catalog_node "set_color" [Some grouped]
+    Parameter.["group", Text_value "g"; "color_r", Float_value 0.25;
+      "alpha", Float_value 0.5]) in
+  check (tinted.x.(0) = 0.25 && tinted.w.(0) = 0.5 && tinted.x.(1) = 1.
+      && tinted.w.(1) = 1.) "set_color group did not restrict the write";
+  Session.close session
+
 let run () =
   test_motion ();
   let source = Sop_catalog.Box.create ~label:"box"
@@ -627,4 +649,5 @@ let run () =
   check (Node.operation graph = "exploded_view" && explosion.amount = 0.32
       && explosion.piece_attribute = "piece")
     "standard Exploded View node lost its operation or PPX defaults";
+  set_color_test ();
   print_endline "SOP catalog tests passed"

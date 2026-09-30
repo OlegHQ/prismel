@@ -78,7 +78,7 @@ let concatenate_attribute template attributes =
   Attribute.create_owned ~name:(Attribute.name template)
     ~owner:(Attribute.owner template) storage
 
-let merge ?cancel ?(grain = 16_384) geometries =
+let merge ?cancel ?(grain = 16_384) ?(pad_groups = true) geometries =
   if grain <= 0 then invalid_arg "Pdk.Mesh_merge.merge: grain must be positive";
   match geometries with
   | [] -> Ok (points [||])
@@ -86,6 +86,15 @@ let merge ?cancel ?(grain = 16_384) geometries =
       let first_attributes = Geometry.attributes first in
       let first_groups = Geometry.groups first in
       let first_edge_groups = Geometry.edge_groups first in
+      let group_union same groups =
+        List.fold_left (fun union geometry ->
+          List.fold_left (fun union group ->
+            if List.exists (same group) union then union else union @ [group])
+            union (groups geometry)) [] geometries in
+      let groups = group_union same_group_schema Geometry.groups
+      and edge_groups = group_union (fun left right ->
+        String.equal (Edge_group.name left) (Edge_group.name right))
+        Geometry.edge_groups in
       let exact_schema geometry =
         let attributes = Geometry.attributes geometry in
         List.length attributes = List.length first_attributes
@@ -103,9 +112,9 @@ let merge ?cancel ?(grain = 16_384) geometries =
           find_matching_edge_group template geometry <> None) first_edge_groups in
       if not (List.for_all exact_schema geometries) then
         Error "Pdk.Mesh_merge.merge: attribute schemas must match exactly"
-      else if not (List.for_all exact_group_schema geometries) then
+      else if not pad_groups && not (List.for_all exact_group_schema geometries) then
         Error "Pdk.Mesh_merge.merge: group schemas must match exactly"
-      else if not (List.for_all exact_edge_group_schema geometries) then
+      else if not pad_groups && not (List.for_all exact_edge_group_schema geometries) then
         Error "Pdk.Mesh_merge.merge: edge group schemas must match exactly"
       else if List.exists (fun attribute -> Attribute.owner attribute = Attribute.Detail)
           first_attributes then
@@ -170,24 +179,27 @@ let merge ?cancel ?(grain = 16_384) geometries =
                   ~name:(Group.name template) total in
               let offset = ref 0 in
               let sources = List.map (fun geometry ->
-                let group = Option.get (find_matching_group template geometry) in
-                Group.iter (fun index -> Group.Builder.set builder (!offset + index) true) group;
                 let source_offset = !offset in
                 offset := !offset + owner_count geometry (Group.owner template);
-                source_offset, group) geometries in
+                source_offset, find_matching_group template geometry) geometries in
+              List.iter (fun (source_offset, group) -> Option.iter (fun group ->
+                Group.iter (fun index ->
+                  Group.Builder.set builder (source_offset + index) true) group)
+                group) sources;
               let target = Group.Builder.freeze builder in
-              if not (List.exists (fun (_, group) -> Group.is_ordered group) sources)
+              if not (List.exists (fun (_, group) ->
+                  Option.fold ~none:false ~some:Group.is_ordered group) sources)
               then target
               else begin
                 let order = Array.make (Group.cardinality target) 0
                 and output = ref 0 in
-                List.iter (fun (source_offset, group) ->
+                List.iter (fun (source_offset, group) -> Option.iter (fun group ->
                   Group.iter_ordered (fun element ->
                     order.(!output) <- source_offset + element;
-                    incr output) group) sources;
+                    incr output) group) group) sources;
                 Group.Private.with_owned_order order target
-              end) first_groups in
-            let edge_groups = match first_edge_groups with
+              end) groups in
+            let edge_groups = match edge_groups with
               | [] -> []
               | templates ->
                   let target_index = Topology_index.create ?cancel topology in
@@ -198,15 +210,14 @@ let merge ?cancel ?(grain = 16_384) geometries =
                     List.iter (fun geometry ->
                       let source_index = Topology_index.create ?cancel
                           (Geometry.topology geometry) in
-                      let group = Option.get
-                          (find_matching_edge_group template geometry) in
-                      Edge_group.iter (fun edge ->
-                        let a, b = Topology_index.edge_points source_index edge in
-                        match Topology_index.find_edge target_index
-                            ~a:(a + !point_offset) ~b:(b + !point_offset) with
-                        | None -> ()
-                        | Some target -> Edge_group.Builder.set builder target true)
-                        group;
+                      Option.iter (fun group ->
+                        Edge_group.iter (fun edge ->
+                          let a, b = Topology_index.edge_points source_index edge in
+                          match Topology_index.find_edge target_index
+                              ~a:(a + !point_offset) ~b:(b + !point_offset) with
+                          | None -> ()
+                          | Some target -> Edge_group.Builder.set builder target true)
+                          group) (find_matching_edge_group template geometry);
                       point_offset := !point_offset + Geometry.point_count geometry)
                       geometries;
                     Edge_group.Builder.freeze builder) templates in

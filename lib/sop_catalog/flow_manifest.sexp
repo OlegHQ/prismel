@@ -1,6 +1,6 @@
 (flow_manifest
   (version 202609)
-  (digest "59573807a9b46b623b58c566bf32c1bb")
+  (digest "70e28047e372ffe5d783f3746037203d")
   (kinds
     (kind "sop/box"
       (key "box")
@@ -2931,11 +2931,12 @@
       (category "Attribute" "Set")
       (slots (slot "in0" required))
       (fields
+        (field "group" "Group" (folder) (text) (text "") (primary false) (vec3))
         (field "owner" "Owner" (folder) (choice "Point" "Vertex" "Primitive" "Detail") (choice "Point") (primary false) (vec3))
-        (field "red" "Red" (folder) (int (soft 0 255) (hard 0 255)) (int 255) (primary false) (vec3))
-        (field "green" "Green" (folder) (int (soft 0 255) (hard 0 255)) (int 255) (primary false) (vec3))
-        (field "blue" "Blue" (folder) (int (soft 0 255) (hard 0 255)) (int 255) (primary false) (vec3))
-        (field "alpha" "Alpha" (folder) (int (soft 0 255) (hard 0 255)) (int 255) (primary false) (vec3)))
+        (field "color_r" "Red" (folder) (float (soft 0 1) (hard 0 1)) (float 1) (primary false) (vec3 "color" 0))
+        (field "color_g" "Green" (folder) (float (soft 0 1) (hard 0 1)) (float 1) (primary false) (vec3 "color" 1))
+        (field "color_b" "Blue" (folder) (float (soft 0 1) (hard 0 1)) (float 1) (primary false) (vec3 "color" 2))
+        (field "alpha" "Alpha" (folder) (float (soft 0 1) (hard 0 1)) (float 1) (primary false) (vec3)))
       (outputs (output "geo" geometry)))
     (kind "sop/rest_position"
       (key "rest_position")

@@ -748,7 +748,8 @@ let printed_level value =
               "Flow text is available for SOP networks and compounds")
         | Sop ->
             let definitions = Document.flow_definitions value.doc in
-            Result.bind (Flow_sop.Catalog.of_factories ~version:1 value.factories)
+            Result.bind (Flow_sop.Catalog.of_factories
+              ~version:Flow_sop.Manifest.version value.factories)
               (fun catalog -> match value.level with
                 | Compound _ ->
                     (match List.rev (Document.compound_names value.doc value.level) with

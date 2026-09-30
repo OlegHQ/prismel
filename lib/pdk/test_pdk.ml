@@ -4035,6 +4035,36 @@ let run () =
   let merged = Mesh_merge.run [grid; grid] |> get_ok in
   if Geometry.point_count merged <> 90 || Geometry.primitive_count merged <> 128
   then fail "merge cardinality";
+  let grouped_inputs = List.map (fun name ->
+    let group = Group.init ~owner:Group.Primitive ~name
+        (Geometry.primitive_count box) (fun primitive -> primitive = 0) in
+    Geometry.with_group group box |> get_ok)
+      ["floor_0"; "floor_1"; "floor_2"] in
+  let grouped_merge = Mesh_merge.run grouped_inputs |> get_ok in
+  List.iteri (fun index name ->
+    match Geometry.find_group ~owner:Group.Primitive name grouped_merge with
+    | Some group when Group.length group = 3 * Geometry.primitive_count box
+        && Group.cardinality group = 1
+        && Group.mem (index * Geometry.primitive_count box) group -> ()
+    | _ -> fail ("merge did not pad group " ^ name))
+    ["floor_0"; "floor_1"; "floor_2"];
+  (match Mesh_merge.merge ~pad_groups:false grouped_inputs with
+   | Error _ -> ()
+   | Ok _ -> fail "merge ignored strict group schema mode");
+  let grouped_merge_parallel = Parallel.run ~domains:4 (fun () ->
+    Mesh_merge.run ~grain:1 grouped_inputs |> get_ok) in
+  let topology = Topology.Private.view (Geometry.topology grouped_merge)
+  and parallel_topology =
+    Topology.Private.view (Geometry.topology grouped_merge_parallel) in
+  let memberships geometry = List.map (fun group ->
+    Array.init (Group.length group) (fun index -> Group.mem index group))
+      (Geometry.groups geometry) in
+  if not (equal_positions grouped_merge grouped_merge_parallel)
+      || topology.vertex_points <> parallel_topology.vertex_points
+      || topology.primitive_offsets <> parallel_topology.primitive_offsets
+      || topology.primitive_kinds <> parallel_topology.primitive_kinds
+      || memberships grouped_merge <> memberships grouped_merge_parallel then
+    fail "group-padded merge differs across domain counts";
   let degenerate_positions = Packed.Float3.Private.of_owned_exn
       ~x:[|0.; 1.; 2.|] ~y:[|0.; 0.; 0.|] ~z:[|0.; 0.; 0.|] in
   let degenerate_topology = Topology.Builder.create ~point_count:3 () in

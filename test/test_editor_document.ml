@@ -132,6 +132,26 @@ let run () =
     ["scene-empty", empty_scene; "sop-empty", empty_sop; "valid", valid;
      "flow-layout", flow_document; "driven", driven_document;
      "world-empty", document (network ~context:"scene" [node 30 "world" []] (`Int 30)) [owned 30 world_empty]];
+  (* v3 set_color saved with int 0-255 channels loads as 0-1 floats. *)
+  let old_color = network [box; node 22 "set_color" [`Int 20] ~params:[
+      `List [`String "owner"; `Assoc ["choice", `String "Point"]];
+      `List [`String "red"; `Assoc ["int", `Int 255]];
+      `List [`String "green"; `Assoc ["int", `Int 51]];
+      `List [`String "blue"; `Assoc ["int", `Int 0]];
+      `List [`String "alpha"; `Assoc ["int", `Int 102]]]] (`Int 22) in
+  let migrated = load (write "old-set-color" (document scene [owned 10 old_color]))
+    |> (function Ok loaded -> loaded | Error message -> failwith message) in
+  let colored, _ = Option.get (Document.object_network migrated.doc 10) in
+  let color_fields = Edit_graph.find colored.Flow_sop.Network.geometry ~node_id:22
+    |> Option.get |> Node.parameter_fields in
+  let color_value name = (List.find (fun (field : Parameter.field_view) ->
+    field.name = name) color_fields).current in
+  let near expected = function
+    | Parameter.Float_value actual -> abs_float (actual -. expected) < 1e-9
+    | _ -> false in
+  check (near 1. (color_value "color_r") && near 0.2 (color_value "color_g")
+      && near 0. (color_value "color_b") && near 0.4 (color_value "alpha"))
+    "v3 set_color int channels were not migrated to 0-1 floats";
   let flow = load (Preset.path ~directory ~name:"flow-layout-saved") |> Result.get_ok in
   let graph, display = Option.get (Document.object_network flow.doc 10) in
   let open Yojson.Safe.Util in

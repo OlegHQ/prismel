@@ -527,6 +527,17 @@ let decode path = match Yojson.Safe.from_file path with
 (* Rebuild catalog closures and rebind code nodes, preserving saved ids. *)
 let rebuild ~code ~factories (saved : saved_network) =
   let {nodes; display; bends; _} = saved in
+  let migrate_parameters (node : saved) =
+    match node.factory_key with
+    | Some "set_color" ->
+        List.filter_map (fun (name, value) -> match name, value with
+          | ("red" | "green" | "blue"), Parameter.Int_value channel ->
+              Some ("color_" ^ String.sub name 0 1, Parameter.Float_value (float_of_int channel /. 255.))
+          | "alpha", Parameter.Int_value channel ->
+              Some (name, Parameter.Float_value (float_of_int channel /. 255.))
+          | ("red" | "green" | "blue"), _ -> None
+          | name, value -> Some (name, value)) node.params
+    | _ -> node.params in
   let* () = unique ~what:"node id" (List.map (fun node -> node.id) nodes) in
   let ids = Hashtbl.create (List.length nodes) in
   List.iter (fun node -> Hashtbl.add ids node.id ()) nodes;
@@ -587,16 +598,17 @@ let rebuild ~code ~factories (saved : saved_network) =
     (Ok document) nodes in
   let* document = List.fold_left (fun state (node : saved) ->
     let* document = state in
+    let params = migrate_parameters node in
     let known = Option.fold ~none:[] ~some:Node.parameter_fields
       (Edit_graph.find document ~node_id:node.id) in
     let* () = List.fold_left (fun checked (name, _) ->
       let* () = checked in
       if List.exists (fun (field : Parameter.field_view) -> field.name = name) known
       then Ok () else Error (Printf.sprintf "preset node #%d has unknown parameter %S" node.id name))
-      (Ok ()) node.params in
+      (Ok ()) params in
     let* document = Edit_graph.set_bypass document ~node_id:node.id node.bypass in
-    if node.params = [] then Ok document
-    else Result.map fst (Edit_graph.apply_parameters document ~node_id:node.id node.params))
+    if params = [] then Ok document
+    else Result.map fst (Edit_graph.apply_parameters document ~node_id:node.id params))
     (Ok document) nodes in
   let displayed = match display with Some _ -> display | None -> Edit_graph.root document in
   let* document = Option.fold ~none:(Ok document)

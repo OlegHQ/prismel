@@ -1687,8 +1687,11 @@ val set_orient : ?label:string -> Prismel_math.Quat.t -> Node.t -> Node.t
    must be finite and affine. *)
 val set_transform : ?label:string -> Prismel_math.Mat4.t -> Node.t -> Node.t
 val set_color :
-  ?label:string -> owner:Pdk.Attribute.owner -> Prismel_math.Color.t ->
+  ?label:string -> ?group:string -> owner:Pdk.Attribute.owner -> Prismel_math.Color.t ->
   Node.t -> Node.t
+val set_color_float :
+  ?label:string -> ?group:string -> owner:Pdk.Attribute.owner ->
+  color:Prismel_math.Vec3.t -> alpha:float -> Node.t -> Node.t
 (* Delete or keep ordinary attributes with owner-specific compiled patterns.
     Optional reference geometry prepends its attribute names to each owner
     selection, matching Attribute Delete SOP reference semantics. *)

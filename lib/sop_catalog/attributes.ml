@@ -2203,23 +2203,28 @@ end
 
 module Set_color = struct
   type parameters = {
+    group : string [@sop.default ""] [@sop.label "Group"];
     owner : Pdk.Attribute.owner [@sop.default Pdk.Attribute.Point]
       [@sop.label "Owner"] [@sop.kind attribute_owner_parameter];
-    red : int [@sop.default 255] [@sop.label "Red"] [@sop.min 0]
-      [@sop.max 255] [@sop.hard_min 0] [@sop.hard_max 255];
-    green : int [@sop.default 255] [@sop.label "Green"] [@sop.min 0]
-      [@sop.max 255] [@sop.hard_min 0] [@sop.hard_max 255];
-    blue : int [@sop.default 255] [@sop.label "Blue"] [@sop.min 0]
-      [@sop.max 255] [@sop.hard_min 0] [@sop.hard_max 255];
-    alpha : int [@sop.default 255] [@sop.label "Alpha"] [@sop.min 0]
-      [@sop.max 255] [@sop.hard_min 0] [@sop.hard_max 255];
+    color_r : float [@sop.default 1.] [@sop.label "Red"]
+      [@sop.min 0.] [@sop.max 1.] [@sop.hard_min 0.] [@sop.hard_max 1.]
+      [@sop.vec3 "color"];
+    color_g : float [@sop.default 1.] [@sop.label "Green"]
+      [@sop.min 0.] [@sop.max 1.] [@sop.hard_min 0.] [@sop.hard_max 1.]
+      [@sop.vec3 "color"];
+    color_b : float [@sop.default 1.] [@sop.label "Blue"]
+      [@sop.min 0.] [@sop.max 1.] [@sop.hard_min 0.] [@sop.hard_max 1.]
+      [@sop.vec3 "color"];
+    alpha : float [@sop.default 1.] [@sop.label "Alpha"] [@sop.min 0.]
+      [@sop.max 1.] [@sop.hard_min 0.] [@sop.hard_max 1.];
   } [@@sop.node_key "set_color"] [@@sop.node_label "Set Color"]
     [@@sop.node_category "Attribute/Set"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
   let build = parameters_build (fun ~label parameters input ->
-    Sop.set_color ~label ~owner:parameters.owner
-        (Color.rgba parameters.red parameters.green parameters.blue
-          parameters.alpha) input)
+    Sop.set_color_float ~label ?group:(optional_text parameters.group)
+      ~owner:parameters.owner
+      ~color:(Vec3.create parameters.color_r parameters.color_g parameters.color_b)
+      ~alpha:parameters.alpha input)
   let factory = parameters_factory build
 end
 

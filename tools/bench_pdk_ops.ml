@@ -5332,6 +5332,13 @@ let () =
     mesh_output;
   measure "merge_pair" (fun () -> Mesh_merge.run ~grain [source; source] |> get_ok)
     geometry_output;
+  if benchmark_enabled "merge_pair_padded" then begin
+    let grouped = Geometry.with_group (Group.init ~owner:Group.Primitive
+        ~name:"half" (Geometry.primitive_count source) (fun index -> index land 1 = 0))
+        source |> get_ok in
+    measure "merge_pair_padded" (fun () ->
+      Mesh_merge.run ~grain [grouped; source] |> get_ok) geometry_output
+  end;
   let prototype = Box_generator.box ~size:(Vec3.create 0.08 0.16 0.08) () |> get_ok
   and targets = Plane_generators.grid ~columns:320 ~rows:320 ~size:100. () |> get_ok in
   measure "copy_to_points" (fun () ->

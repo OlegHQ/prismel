@@ -544,3 +544,7 @@ radial is a macro: a template with holes. Its first hole is a name the caller ch
            rose (sop/merge outer soft)]
       rose)))
 ```
+
+Note: `sop/transform` takes `:rotate` while the generators take `:rotation`.
+This is a catalog naming difference, not a bug; add aliases only if users
+complain (plan W0 item 5).
