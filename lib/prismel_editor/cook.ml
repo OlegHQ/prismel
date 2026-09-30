@@ -357,7 +357,22 @@ let update ?live ?(probes = []) ?(lit = Pick.Set.empty) ~definitions ~compiled_i
 
 let close value = Async_cook.close value.worker
 
-(* The nearest displayed primitive under a ray in the piece's own space, as
-   (distance, provenance tag). *)
+(* The nearest displayed primitive under a ray in the piece's own space, as (t, provenance tag)
+   where the hit is [origin + t * direction]: the parameter, not the local distance, so hits of
+   pieces and instances with any scale compare in the world's units.  A piece drawn as instances
+   casts the ray into each instance's own frame (about 2 us each; per click, never per frame). *)
 let pick piece ~origin ~direction =
-  Pick.cast (Lazy.force piece.surface) piece.output.geometry ~origin ~direction
+  let cast ~origin ~direction =
+    Option.map (fun (distance, tag) -> distance /. Vec3.length direction, tag)
+      (Pick.cast (Lazy.force piece.surface) piece.output.geometry ~origin ~direction) in
+  match piece.output.instances with
+  | None | Some [||] -> cast ~origin ~direction
+  | Some transforms ->
+      Array.fold_left (fun best matrix -> match Mat4.inverse matrix with
+        | None -> best
+        | Some inverse ->
+            match cast ~origin:(Mat4.transform_point inverse origin)
+                ~direction:(Mat4.transform_direction inverse direction), best with
+            | Some (t, _), Some (nearer, _) when t >= nearer -> best
+            | (Some _ as hit), _ -> hit
+            | None, _ -> best) None transforms

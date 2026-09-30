@@ -86,6 +86,25 @@ let pick_run () =
    | Some (_, tag) -> check (tag = tag83) "the ray finds seed 83"
    | None -> fail "the ray missed seed 83");
   check (Cook.pick piece ~origin:(Prismel.Vec3.create 0. 9. 9.) ~direction:down = None) "a miss";
+  (* instanced pieces: the prototype is picked at every instance, hits compare in world units *)
+  let module M = Prismel.Mat4 in
+  let module V = Prismel.Vec3 in
+  let over = above piece.output.geometry tag83 in
+  let instanced transforms = { piece with output = { piece.output with instances = Some transforms } } in
+  let hit p origin = Cook.pick p ~origin ~direction:down in
+  let d1 = match hit piece over with Some (d, _) -> d | None -> fail "no plain hit" in
+  let shifted = V.create (over.V.x +. 100.) over.y over.z in
+  (match hit (instanced [| M.identity; M.translation (V.create 100. 0. 0.) |]) shifted with
+   | Some (d, tag) -> check (tag = tag83 && Float.abs (d -. d1) < 1e-9) "the second instance was not picked"
+   | None -> fail "an instanced piece was not picked");
+  check (hit (instanced [| M.translation (V.create 100. 0. 0.) |]) over = None) "the prototype at the origin was picked without an instance there";
+  let big = V.create (2. *. over.V.x) (2. *. over.y) (2. *. over.z) in
+  (match hit (instanced [| M.scaling (V.create 2. 2. 2.) |]) big with
+   | Some (d, tag) -> check (tag = tag83 && Float.abs (d -. 2. *. d1) < 1e-7) "a scaled instance's distance is not in world units"
+   | None -> fail "a scaled instance was not picked");
+  (match hit (instanced [| M.translation (V.create 0. (-5.) 0.); M.identity |]) over with
+   | Some (d, _) -> check (Float.abs (d -. d1) < 1e-9) "the nearest instance wins"
+   | None -> fail "the nearest instance was not picked");
   (* --- the highlight: prepared again from the kept output, never recooked --- *)
   let misses = (Cook.stats cook).misses and before = !prepared in
   let lit = Pick.Set.singleton tag83 in

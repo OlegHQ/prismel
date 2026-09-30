@@ -2748,9 +2748,9 @@ let edit_node value level node_id values ~label =
    the selection is that node and every enclosing zone probes that iteration,
    so the highlight ({!lit_tags}), the selectors and the inspector agree.  A
    click on nothing deselects.  A merge of merges keeps the innermost tag, so
-   the origin is exact through nested collecting merges.  ponytail: geometry
-   drawn as instances is not picked, and distances compare in each object's
-   own units (exact for the usual uniform scale). *)
+   the origin is exact through nested collecting merges.  Geometry drawn as
+   instances is picked per instance ({!Cook.pick}), and hits compare by the
+   ray parameter, so any scale is exact. *)
 let pick value ~origin ~direction =
   match value.doc.Document.workspace, value.scope_key with
   | Some (_, lowered), Some { scope; _ } when scope_name value <> None ->
