@@ -74,7 +74,7 @@ t('fn: a macro is not a function value', () => bad('(workspace w (defmacro dbl [
 t('fn: user HOF with a fn-typed defn input', () => {
   const R = '(defn ring :context sop [(n : int 8) (make : fn)] (sop/merge (map make (range n))))';
   const p = prog(`(workspace w ${R} (defn dot :context sop [(i : int)] (sop/circle :radius (* 0.1 (+ i 1)) :segments 5)) (graph g :context sop (sop/merge (ring :n 3 :make dot) (let* [mk (fn [i] (sop/box))] (ring :n 2 :make mk)))))`);
-  eq(p.cache.get('g').d.prims.length, 5); eq(p.zones.get('g~/mk').count, 2);
+  eq(p.cache.get('g').d.prims.length, 15); eq(p.zones.get('g~/mk').count, 2);
 });
 t('fn: defn inputs typed as lists and records', () => is('(workspace w (defn tot :context value [(xs : (list float)) (r : {:k float})] (* r.k (reduce + 0 xs))) (graph g :context value (tot (list 1 2) {:k 2 :extra 1})))', 6));
 t('fn: defn recursion through a function value is rejected', () => bad('(workspace w (defn app :context value [(f : fn) (x : float)] (f f x)) (graph g :context value (app app 1)))', /Recursive call/));

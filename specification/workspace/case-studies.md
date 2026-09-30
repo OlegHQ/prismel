@@ -17,9 +17,9 @@ editor graph get the study’s default shell and scene when opened.
 |---|---|---|
 | [Bloom studio](#bloom-studio) | for · function · six contexts | ring for ×12 |
 | [Sunflower](#sunflower) | for · sparklines · invariants | seeds_each for ×240 |
-| [Tunnel](#tunnel) | fold · feedback | nested fold ×18 |
-| [Fractal tree](#fractal-tree) | fold · doubling · scope | crown fold ×7 |
-| [Square wave](#square-wave) | Σ in an expression · nested loops · t | y (inline) sum ×800, pts for ×160 |
+| [Gyroscope](#gyroscope) | fold · feedback | nested fold ×18 |
+| [Fractal tree](#fractal-tree) | fold · doubling · scope | crown fold ×5 |
+| [Square wave](#square-wave) | Σ in an expression · nested loops · t | y (inline) sum ×2700, pts for ×540, strands for ×6 |
 | [Ten print](#ten-print) | nested for · if · rand | cells_each for ×64 |
 | [Facade](#facade) | groups · named scope | windows for ×30 |
 | [Variations](#variations) | graph inputs · loops in the editor | sheet (inline) for ×4 |
@@ -33,7 +33,7 @@ A for zone repeats one shared petal function. Per-petal variation comes from the
 
 **In the graph**
 
-- `ring` is a for zone. Its rail has `i ∈ (range petals)` plus the captured `petals` and `seed`; its strip has 12 petal thumbnails.
+- `ring` is a for zone. Its rail has `i ∈ (range petals)` plus the captured `petals` and `seed`; its iteration selector steps through the 12 petals, and the 3D viewport highlights the probed one.
 - `u` and `wobble` show sparklines across the 12 iterations. `leaf` is a call to the shared `petal` function; double-click it to edit the definition.
 - Clicking a petal in the viewport selects `ring` and probes that petal’s iteration.
 - The scene calls `(ref flower :petals 7 :seed 2)`: the same graph with overridden inputs.
@@ -57,20 +57,22 @@ module Bloom = [%workspace {|
     (+ x x))
 
   (defn petal :context sop [(length : float 1.0) (width : float 0.3)]
-    (sop/transform (sop/circle :radius 0.5 :segments 28)
-                   :scale [width length 1]
-                   :translate [0 (half length) 0]))
+    (sop/transform (sop/uv_sphere :radius [(half length) 0.04 width]
+                                  :center [(half length) 0 0]
+                                  :segments 14
+                                  :rings 6)
+                   :rotate [0 0 0.35]))
 
   (graph flower :context sop [(petals : int 12) (seed : int 7)]
     (let* [ring (for [i (range petals)]
                   (let* [u (/ i petals)
                          wobble (* 0.35 (value/rand seed i))
-                         leaf (petal :length (+ 0.9 wobble) :width 0.26)
+                         leaf (petal :length (+ 0.9 wobble) :width 0.22)
                          tint (sop/set_color leaf
                                              :color (value/hsv (+ 0.05 (* u 0.12)) 0.55 0.92))]
-                    (sop/transform tint :rotate (* u 360))))
+                    (sop/transform tint :rotate [0 (* u 6.2832) 0])))
            bloom (sop/merge ring)
-           heart (sop/circle :radius 0.16)
+           heart (sop/uv_sphere :radius [0.22 0.12 0.22] :center [0 0.05 0])
            result (sop/merge bloom (sop/set_color heart :color "#6b7650"))]
       result))
 
@@ -78,8 +80,8 @@ module Bloom = [%workspace {|
     (let* [main (scene/object (ref flower) :color "#d69f61")
            accent (scene/object (ref flower :petals 7 :seed 2)
                                 :color "#6fa6a1"
-                                :at [2.3 -0.9 0]
-                                :scale 0.5)
+                                :at [2.2 0 -1.2]
+                                :scale 0.55)
            composed (scene/merge main accent)]
       composed))
 
@@ -111,7 +113,7 @@ Phyllotaxis: each seed sits at a golden-angle turn and a square-root radius. The
 **An implementation must show**
 
 - Hoisting is output-identical (byte-compare the geometry).
-- The strip samples 240 cells down to what fits, and the probe maps back to the true index.
+- The selector covers all 240 iterations without drawing 240 cells.
 
 ```ocaml
 open Prismel
@@ -124,10 +126,12 @@ module Sunflower = [%workspace {|
                         (let* [turn (/ (* 137.508 pi) 180)
                                r (* spread (sqrt i))
                                a (* i turn)
+                               lift (- 0.3 (* 0.3 (* r r)))
                                size (+ 0.012 (* 0.022 (/ i seeds)))]
-                          (sop/circle :radius size
-                                      :segments 8
-                                      :center (value/polar r a))))
+                          (sop/uv_sphere :radius size
+                                         :center (value/polar r a lift)
+                                         :segments 6
+                                         :rings 4)))
            head (sop/merge seeds_each)]
       head)))
 |}]
@@ -138,13 +142,13 @@ module Sunflower = [%workspace {|
 let () = Prismel_editor.Workspace.run Sunflower.program
 ```
 
-## Tunnel
+## Gyroscope
 
-fold carries a value from one iteration to the next. Each step shrinks and turns everything so far, then adds the frame again. The strip shows the state after every step.
+fold carries a value from one iteration to the next. Each step shrinks and turns everything so far, then adds the ring again, so 18 steps nest 19 rings. The iteration selector steps through the state after each step.
 
 **In the graph**
 
-- A fold zone: rail `shape ⟲ from frame`, a dashed feedback line, and strip cells showing the state after each step.
+- A fold zone: rail `shape ⟲ from frame`, a dashed feedback line, and an iteration selector over the state after each step.
 - Selecting the zone overlays the state at the probe in the viewport.
 
 **An implementation must show**
@@ -156,17 +160,20 @@ fold carries a value from one iteration to the next. Each step shrinks and turns
 open Prismel
 
 module Tunnel = [%workspace {|
-(workspace tunnel
+(workspace rings
 
-  (graph tunnel :context sop [(steps : int 18) (turn : float 5.0)]
-    (let* [frame (sop/box :size [2 2 0])
+  (graph rings :context sop [(steps : int 18) (turn : float 0.18)]
+    (let* [frame (sop/torus :major_radius 1 :minor_radius 0.03 :rows 5 :columns 40)
            nested (fold [shape frame]
                         [i (range steps)]
-                    (sop/merge frame (sop/transform shape :scale 0.88 :rotate turn)))]
+                    (sop/merge frame
+                               (sop/transform shape
+                                              :uniform_scale 0.87
+                                              :rotate [turn (* 0.5 turn) 0])))]
       nested)))
 |}]
 (* generated:
-   Tunnel.Tunnel.inputs = { steps : int; turn : float }
+   Tunnel.Rings.inputs = { steps : int; turn : float }
    Tunnel.program : Prismel_workspace.Program.t *)
 
 let () = Prismel_editor.Workspace.run Tunnel.program
@@ -174,11 +181,11 @@ let () = Prismel_editor.Workspace.run Tunnel.program
 
 ## Fractal tree
 
-An iterated function system. Every step puts two scaled, rotated copies of the whole tree on top of the trunk, so step n holds 2ⁿ⁺¹−1 branches. A bounded fold replaces recursion, which the language forbids.
+An iterated function system in 3D. Every step puts three scaled, tilted copies of the whole tree on top of the trunk, turned a third of a circle apart, so step n holds (3ⁿ⁺¹−1)/2 branches. A bounded fold replaces recursion, which the language forbids.
 
 **In the graph**
 
-- A fold whose body is a scope (`up`, `left`, `right`). Step n holds 2ⁿ⁺¹−1 branches.
+- A fold whose body is a scope (`up`, `tilted`, `a`, `b`, `c`). Three tilted copies a third of a turn apart make step n hold (3ⁿ⁺¹−1)/2 branches, drawn as polywire tubes.
 - `up` is loop-invariant.
 
 **An implementation must show**
@@ -192,20 +199,18 @@ open Prismel
 module Tree = [%workspace {|
 (workspace tree
 
-  (graph tree :context sop [(depth : int 7) (spread : float 24.0) (shrink : float 0.7)]
-    (let* [trunk (sop/line :length 1 :angle 90)
+  (graph tree :context sop [(depth : int 5) (spread : float 0.6) (shrink : float 0.62)]
+    (let* [trunk (sop/polywire (sop/line :length 1) :radius 0.05 :sides 5)
            crown (fold [tree trunk]
                        [level (range depth)]
                    (let* [up [0 1 0]
-                          left (sop/transform tree
-                                              :scale shrink
-                                              :rotate spread
-                                              :translate up)
-                          right (sop/transform tree
-                                               :scale shrink
-                                               :rotate (- 0 spread)
-                                               :translate up)]
-                     (sop/merge trunk left right)))]
+                          tilted (sop/transform tree
+                                                :uniform_scale shrink
+                                                :rotate [0 0 spread])
+                          a (sop/transform tilted :translate up)
+                          b (sop/transform tilted :rotate [0 2.094 0] :translate up)
+                          c (sop/transform tilted :rotate [0 4.189 0] :translate up)]
+                     (sop/merge trunk a b c)))]
       crown)))
 |}]
 (* generated:
@@ -217,16 +222,16 @@ let () = Prismel_editor.Workspace.run Tree.program
 
 ## Square wave
 
-A loop inside an expression. y is a Fourier sum folded into a Σ chip. Unfold it with ƒ and it becomes a sum zone inside the for zone. Time t moves the phase; press play in the viewport.
+Loops three deep. y is a Fourier sum folded into a Σ chip inside a for over samples, inside a for over rows; each row is a tube offset in phase. Unfold the Σ with ƒ and it becomes a sum zone. Time t moves the phase; press play in the viewport.
 
 **In the graph**
 
-- `y` holds a Σ chip inside the `pts` for zone. Unfolding it creates a sum zone nested in the for zone: 800 evaluations over 160 runs.
+- `strands` (for over rows) contains `pts` (for over samples), and `y` holds a Σ chip. Unfolding it creates a sum zone three levels deep: 2,700 terms over 540 runs.
 - With `t`, the viewport can play; the Σ probe follows the outer probe.
 
 **An implementation must show**
 
-- Nested probe semantics: the inner strip shows the 5 terms at the outer `j`.
+- Nested probe semantics: the inner selector covers the 5 terms at the outer `j` and `row`.
 - Fold (ƒ) on the sum zone restores the original chip text exactly.
 
 ```ocaml
@@ -235,18 +240,21 @@ open Prismel
 module Wave = [%workspace {|
 (workspace wave
 
-  (graph wave :context sop [(harmonics : int 5) (samples : int 160)]
-    (let* [pts (for [j (range samples)]
-                 (let* [x (* (/ j samples) 6.2832)
-                        y (* 0.7
-                             (sum [k (range harmonics)]
-                               (/ (sin (* (+ x t) (+ (* 2 k) 1))) (+ (* 2 k) 1))))]
-                   [(- (/ x 3.1416) 1) y 0]))
-           curve (sop/poly_path pts)]
-      curve)))
+  (graph wave :context sop [(harmonics : int 5) (samples : int 90) (rows : int 6)]
+    (let* [strands (for [row (range rows)]
+                     (let* [pts (for [j (range samples)]
+                                  (let* [x (* (/ j samples) 6.2832)
+                                         y (* 0.5
+                                              (sum [k (range harmonics)]
+                                                (/ (sin (* (+ x (+ t (* row 0.4))) (+ (* 2 k) 1)))
+                                                   (+ (* 2 k) 1))))]
+                                    [(- (/ x 3.1416) 1) y (- (* row 0.3) 0.75)]))]
+                       (sop/polywire (sop/poly_path pts) :radius 0.015 :sides 4)))
+           sheet (sop/merge strands)]
+      sheet)))
 |}]
 (* generated:
-   Wave.Wave.inputs = { harmonics : int; samples : int }
+   Wave.Wave.inputs = { harmonics : int; samples : int; rows : int }
    Wave.program : Prismel_workspace.Program.t *)
 
 let () = Prismel_editor.Workspace.run Wave.program
@@ -254,17 +262,17 @@ let () = Prismel_editor.Workspace.run Wave.program
 
 ## Ten print
 
-Two clauses in one for make a grid: x and y form a product, 64 iterations. A pure hash picks each diagonal. The if node counts how often each branch ran.
+Two clauses in one for make a grid: x and z form a product, 64 iterations. A pure hash picks each wall's diagonal, so the walls form a maze. The if nodes count how often each branch ran.
 
 **In the graph**
 
-- Two clauses make one zone of 64 iterations (x × y, y fastest).
-- `coin` is a Bool sparkline; `angle` and `lift` show `then a · else b` branch counts.
+- Two clauses make one zone of 64 iterations (x × z, z fastest); each iteration places one wall of the maze.
+- `coin` is a Bool sparkline; `angle` and the colour `if` show `then a · else b` branch counts.
 
 **An implementation must show**
 
 - Product order is row-major.
-- `(value/rand seed x y)` is identical across runs and domain counts.
+- `(value/rand seed x z)` is identical across runs and domain counts.
 
 ```ocaml
 open Prismel
@@ -275,18 +283,17 @@ module Tiles = [%workspace {|
   (graph tiles :context sop [(cells : int 8) (seed : int 3)]
     (let* [size (/ 2.0 cells)
            cells_each (for [x (range cells)
-                            y (range cells)]
-                        (let* [coin (< (value/rand seed x y) 0.5)
-                               angle (if coin 45 -45)
-                               lift (if coin 0 size)
-                               stroke (sop/line :length (* size 1.4142)
-                                                :angle angle)
-                               ink (sop/set_color stroke
+                            z (range cells)]
+                        (let* [coin (< (value/rand seed x z) 0.5)
+                               angle (if coin 0.7854 -0.7854)
+                               wall (sop/box :size [(* size 1.4142) 0.3 0.05]
+                                             :rotation [0 angle 0])
+                               ink (sop/set_color wall
                                                   :color (if coin "#285f77" "#b0680f"))]
                           (sop/transform ink
-                                         :translate [(- (* x size) 1) (- (+ (* y size) lift) 1) 0])))
-           pattern (sop/merge cells_each)]
-      pattern)))
+                                         :translate [(- (* (+ x 0.5) size) 1) 0.15 (- (* (+ z 0.5) size) 1)])))
+           maze (sop/merge cells_each)]
+      maze)))
 |}]
 (* generated:
    Tiles.Tiles.inputs = { cells : int; seed : int }
@@ -301,7 +308,7 @@ Geometry groups are names that flow with geometry. group_bounds and group_random
 
 **In the graph**
 
-- `windows` is a 6 × 5 product zone.
+- `windows` is a 6 × 5 product zone; each window is grouped by its floor with `(str "floor_" f)`.
 - `marked` is a named scope (dashed) around two group writers.
 - Dotted `▦ attic` and `▦ lit` links run from writers to readers; a misspelled reader shows `?`.
 
@@ -317,19 +324,18 @@ module Facade = [%workspace {|
 (workspace facade
 
   (graph facade :context sop [(floors : int 6) (bays : int 5) (hide : int 2)]
-    (let* [wall (sop/box :size [2.2 3.3 0] :center [0 1.55 0])
+    (let* [wall (sop/box :size [2.2 3.3 0.6] :center [0 1.65 0])
            windows (for [f (range floors)
                          b (range bays)]
-                     (sop/group_bounds (sop/box :size [0.24 0.3 0]
-                                                :center [(- (* b 0.4) 0.8) (+ 0.4 (* f 0.48)) 0])
+                     (sop/group_bounds (sop/box :size [0.24 0.3 0.06]
+                                                :center [(- (* b 0.4) 0.8) (+ 0.4 (* f 0.48)) 0.31])
                                        :name (str "floor_" f)
-                                       :min [-9 -9 -1]
-                                       :max [9 9 1]))
+                                       :size [99 99 99]))
            glass (sop/merge windows)
            marked (let* [top (sop/group_bounds glass
                                                :name "attic"
-                                               :min [-2 2.5 -1]
-                                               :max [2 4 1])
+                                               :center [0 3 0]
+                                               :size [4 1 4])
                          odd (sop/group_random top :name "lit" :ratio 0.35 :seed 4)]
                     odd)
            lit (sop/set_color marked :color "#f5cf4f" :group "lit")
@@ -369,7 +375,7 @@ module Variations = [%workspace {|
   (graph garden :context sop [(seed : int 1) (count : int 40)]
     (let* [bed (sop/circle :radius 1 :segments 48)
            spots (sop/scatter bed :count count :seed seed)
-           dot (sop/circle :radius 0.06 :segments 10)
+           dot (sop/uv_sphere :radius 0.06 :segments 8 :rings 4)
            dots (sop/copy_to_points dot spots)
            result (sop/merge bed dots)]
       result))
@@ -403,7 +409,7 @@ Functions are values. bead and leaf are local λ zones whose strips show every c
 
 **In the graph**
 
-- size, bead and leaf are λ zones. Each strip shows every call the function received; probing bead shows r and k for that call.
+- size, bead and leaf are λ zones. Each selector steps through every call the function received; probing bead shows r and k for that call.
 - sizes, big, ordered and total are map, filter, sort-by and reduce cards with a diamond f row; big reports how many sizes it kept.
 - ring is a shared defn whose make input is a function; wreath passes leaf into it.
 - Clicking a bead in the viewport selects bead and probes the call that drew it.
@@ -421,9 +427,10 @@ module Garland = [%workspace {|
 
   (defn ring :context sop [(n : int 8) (radius : float 1.0) (make : fn)]
     (sop/merge (map (fn [i]
-                      (sop/transform (make i)
-                                     :rotate (* (/ i n) 360)
-                                     :translate (value/polar radius (* (/ i n) 6.2832))))
+                      (let* [a (* (/ i n) 6.2832)]
+                        (sop/transform (make i)
+                                       :rotate [0 (- 0 a) 0]
+                                       :translate (value/polar radius a))))
                     (range n))))
 
   (graph garland :context sop [(count : int 14) (seed : int 5)]
@@ -434,14 +441,17 @@ module Garland = [%workspace {|
            total (reduce + 0 big)
            ; one bead per kept size, largest first
            bead (fn [r k]
-                  (sop/transform (sop/circle :radius r :segments 18)
-                                 :translate [(- (* k 0.26) 1.3) -1.7 0]))
+                  (sop/uv_sphere :radius r
+                                 :center [(- (* k 0.28) 1.1) r 1.6]
+                                 :segments 12
+                                 :rings 6))
            beads (map bead ordered (range (count ordered)))
            leaf (fn [i]
-                  (sop/transform (sop/circle :radius 0.5 :segments 20)
-                                 :scale [0.14 (+ 0.3 (* 0.02 i)) 1]))
+                  (sop/uv_sphere :radius [0.3 0.05 (+ 0.08 (* 0.004 i))]
+                                 :segments 10
+                                 :rings 5))
            wreath (ring :n count :radius 0.95 :make leaf)
-           heart (sop/circle :radius (* 0.25 total) :segments 32)
+           heart (sop/uv_sphere :radius (* 0.25 total) :center [0 0.1 0])
            result (sop/merge wreath (sop/merge beads) heart)]
       result)))
 |}]
@@ -475,8 +485,8 @@ module Kit = [%workspace {|
 (workspace kit
 
   (defn window :context sop [(w : float 0.3) (h : float 0.4)]
-    (let* [frame (sop/box :size [w h 0])
-           pane (sop/box :size [(* w 0.8) (* h 0.8) 0])]
+    (let* [frame (sop/box :size [w h 0.3])
+           pane (sop/box :size [(* w 0.8) (* h 0.8) 0.34])]
       (values :frame frame :pane pane :area (* w h))))
 
   (graph kit :context sop [(floors : int 5)]
@@ -485,7 +495,7 @@ module Kit = [%workspace {|
            big (window :w mid :h 0.5)
            small (window :w left)
            style (fn [f] (case (mod f 3) 0 "#b0680f" 1 "#285f77" :else "#6b50ae"))
-           tower (fold [st {:shape (sop/box :size [0.01 0.01 0]) :y 0.0}]
+           tower (fold [st {:shape (sop/box :size [0.01 0.01 0.01]) :y 0.0}]
                        [f (range floors)]
                    (let* [{:keys [shape y]} st
                           part (cond
@@ -493,7 +503,9 @@ module Kit = [%workspace {|
                                  (= f (- floors 1)) small.pane
                                  :else small.frame)
                           unit (sop/set_color part :color (style f))
-                          placed (sop/transform unit :translate [0 y 0])]
+                          placed (sop/transform unit
+                                                :translate [0 y 0]
+                                                :rotate [0 (* f 0.3) 0])]
                      {:shape (sop/merge shape placed) :y (+ y 0.55)}))
            label (str "floors " floors " · area " big.area)
            panes (sop/transform big.pane :translate [0.75 0 0])]
@@ -530,7 +542,7 @@ module Rosette = [%workspace {|
 
   (defmacro radial [i n body]
     `(sop/merge (for [~i (range ~n)]
-                  (sop/transform ~body :rotate (* (/ ~i ~n) 360)))))
+                  (sop/transform ~body :rotate [0 (* (/ ~i ~n) 6.2832) 0]))))
 
   (defmacro wobble [x amt seed]
     `(let* [step# (- (value/rand ~seed) 0.5)] (+ ~x (* ~amt step#))))
@@ -540,12 +552,19 @@ module Rosette = [%workspace {|
            ; the outer ring of petals
            outer (radial k
                          petals
-                         (sop/transform (sop/circle :radius 0.5 :segments 24)
-                                        :scale [0.2 (wobble 0.9 0.4 k) 1]
-                                        :translate [0 0.9 0]))
-           inner (radial j 6 (sop/circle :radius 0.12 :center [0 0.35 0]))
+                         (sop/uv_sphere :radius [0.45 0.04 0.12]
+                                        :center [0.5 0 0]
+                                        :rotation [0 0 (wobble 0.35 0.4 k)]
+                                        :segments 12
+                                        :rings 6))
+           inner (radial j
+                         6
+                         (sop/uv_sphere :radius 0.1
+                                        :center [0.25 0.12 0]
+                                        :segments 8
+                                        :rings 4))
            ; switch the bypass off to smooth the inner ring
-           soft ^:bypass (sop/subdivide inner :iterations 2)
+           soft ^:bypass (sop/subdivide inner :iterations 1)
            rose (sop/merge outer soft)]
       rose)))
 |}]

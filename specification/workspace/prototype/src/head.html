@@ -629,4 +629,18 @@ pre.lisp.mini{padding:6px 10px;background:var(--track);border-radius:3px;margin-
 .vocab code{font-size:12px}
 .vocab td:nth-child(3){color:var(--text2)}
 .vwrap{overflow-x:auto;border:1px solid var(--line);border-radius:6px;background:var(--input)}
+.zsel{gap:6px;cursor:default}
+.zstep{flex:none;width:22px;height:22px;padding:0;border:1px solid var(--line-strong);border-radius:3px;background:var(--input);color:var(--ink);font:13px/1 var(--mono)}
+.zstep:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.ztrack{position:relative;flex:1;min-width:60px;height:22px;cursor:ew-resize;touch-action:none;outline:none;border-radius:3px}
+.ztrack::before{content:'';position:absolute;left:0;right:0;top:10px;height:3px;border-radius:2px;background:var(--track)}
+.ztrack.ticked{background-image:linear-gradient(to right,var(--line-strong) 1px,transparent 1px);background-position:0 15px;background-repeat:repeat-x;background-size:10% 5px}
+.zfill{position:absolute;left:0;top:10px;height:3px;border-radius:2px;background:var(--accent)}
+.zthumb{position:absolute;top:4px;width:14px;height:14px;margin-left:-7px;border-radius:50%;background:var(--input);border:2px solid var(--accent);box-shadow:0 1px 3px var(--shadow)}
+.ztrack:focus-visible .zthumb{outline:2px solid var(--accent);outline-offset:2px}
+.zsel .zread{flex:none;margin-left:4px}
+canvas.pv{flex:1;width:100%;height:100%;min-height:0;display:block;cursor:grab;background:var(--canvas)}
+canvas.pv:active{cursor:grabbing}
+.cthumb canvas{width:120px;height:120px;display:block}
+@media(max-width:860px){.cthumb canvas{width:84px;height:84px}}
 </style>

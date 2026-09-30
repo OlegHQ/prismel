@@ -25,7 +25,7 @@ const BODY={
   list:'<div class="lbody"></div>',
   lisp:'<div class="ctabs" role="tablist"></div><div class="csel"></div><div class="cdoc" hidden><div class="source-toolbar"><span>Whole workspace · editable draft</span><button class="discard">Discard</button><button class="apply primary">Check &amp; apply<kbd>Ctrl ↵</kbd></button></div><textarea class="doc-src" spellcheck="false" aria-label="Workspace Lisp source"></textarea><div class="source-note">Apply is atomic. Invalid text stays here while every other panel keeps the last valid document.</div></div>',
   inspector:'<div class="ibody"></div>',
-  viewport:'<div class="pvwrap"><svg class="pv" role="img" aria-label="Illustrative 2D preview driven by the checked document"></svg></div>'
+  viewport:'<div class="pvwrap"><canvas class="pv" role="img" aria-label="Illustrative 3D preview driven by the checked document. Drag to orbit, scroll to zoom, click a shape to find what made it."></canvas></div>'
 };
 function mkLeaf(p){
   const el=document.createElement('section');el.className='panel';el.dataset.kind=p.kind;
@@ -90,7 +90,7 @@ function updateLeaf(el){
   }else if(k==='viewport'){
     const tiled=el.closest('.tile');
     ctl.innerHTML=tiled?`<span class="ptag">${esc(describeScene(p.scene))}</span>`:usesTime()?`<button data-a="play" class="${playing?'on':''}">${playing?'Pause':'Play'}</button><input class="tslider" type="range" min="0" max="6.283" step="0.01" value="${time}" aria-label="Time t"><span class="ptag">t ${time.toFixed(2)}</span>`:'<span class="ptag">static · no t</span>';
-    renderPreview(body.querySelector('svg'),p.scene,!!tiled);
+    renderPreview(body.querySelector('canvas'),p.scene,!!tiled);
   }else if(k==='outline'){ctl.innerHTML='';fillOutline(body);}
   else if(k==='list'){ctl.innerHTML='<span class="ptag">nested bindings</span>';fillList(body);}
   else if(k==='inspector'){ctl.innerHTML='';fillInspector(body.querySelector('.ibody'));}
@@ -127,44 +127,76 @@ function focusZone(){
   for(const id of selection){const n=view?.all.get(id);if(!n)continue;const ch=[...zoneChain(n.scope)];if(n.kind==='zone'&&n.zkind!=='let*')ch.push(n.id);for(let i=ch.length-1;i>=0;i--)if(tagging(ch[i]))return ch[i];}
   return null;
 }
-function initPreview(body){
-  const svg=body.querySelector('svg');
-  svg.addEventListener('click',e=>{
-    const el=e.target.closest('[data-tags]');if(!el)return;const tags=JSON.parse(el.dataset.tags);const keys=Object.keys(tags).filter(k=>!k.startsWith('#'));
-    if(!keys.length){status('This shape is not made by a loop.');return;}
-    const fz=focusZone(),zid=keys.includes(fz)?fz:keys.sort((a,b)=>b.length-a.length)[0],g=zid.split('/')[0];
-    probe[zid]=tags[zid];if(scope!==g){scope=g;returnScope=null;}
-    selection=new Set([zid]);piece=null;renderAll();
-    const z=program.zones.get(zid);status(z?.kind==='fn'?`That shape came from call ${tags[zid]+1} of ${z.count} to ${zid.split('/').pop()}. Every node inside shows its value in that call.`:`That shape came from ${zid.split('/').pop()}, iteration ${tags[zid]+1} of ${z?.count??'?'}. Every node in the loop now shows its value there.`);
-  });
-  svg.addEventListener('mousemove',e=>{const el=e.target.closest('[data-tags]');const t=el?el.dataset.tags:null;if(t!==hoverTag){hoverTag=t;svg.querySelectorAll('.hov').forEach(x=>x.classList.remove('hov'));if(el){const tg=JSON.parse(t),fz=focusZone();if(fz&&fz in tg)svg.querySelectorAll('[data-tags]').forEach(x=>{if(JSON.parse(x.dataset.tags)[fz]===tg[fz])x.classList.add('hov');});}}});
+/* ---------- viewport: a small 3D painter's-algorithm renderer (an illustration, not Metal) ---------- */
+const CAM=new WeakMap();
+function camOf(cv){let c=CAM.get(cv);if(!c){c={yaw:-0.7,pitch:0.45,zoom:1,key:''};CAM.set(cv,c);}return c;}
+function rgbOf(hex){const h=String(hex||'#888888').replace('#','');const n=parseInt(h.length===3?h.split('').map(c=>c+c).join(''):h.slice(0,6),16);return [(n>>16)&255,(n>>8)&255,n&255];}
+function cssVar(n,fb){try{return getComputedStyle(document.documentElement).getPropertyValue(n).trim()||fb;}catch(e){return fb;}}
+/* draw scene items into a canvas; returns the drawn list for picking */
+function drawScene(cv,items,opt={}){
+  const dpr=Math.min(2,window.devicePixelRatio||1),W=Math.max(40,cv.clientWidth||cv.width),H=Math.max(40,cv.clientHeight||cv.height);
+  if(cv.width!==Math.round(W*dpr)||cv.height!==Math.round(H*dpr)){cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr);}
+  const g=cv.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,W,H);
+  const cam=camOf(cv),xf=(it,q)=>[q[0]*it.scale+it.at[0],q[1]*it.scale+it.at[1],q[2]*it.scale+it.at[2]];
+  const lo=[Infinity,Infinity,Infinity],hi=[-Infinity,-Infinity,-Infinity];
+  items.forEach(it=>it.geo.prims.forEach(p=>p.pts.forEach(q=>{const w=xf(it,q);for(let i=0;i<3;i++){lo[i]=Math.min(lo[i],w[i]);hi[i]=Math.max(hi[i],w[i]);}})));
+  if(!isFinite(lo[0])){lo.fill(-1);hi.fill(1);}
+  const key=opt.fitKey||'';if(cam.key!==key||!cam.center){cam.key=key;cam.center=lo.map((v,i)=>(v+hi[i])/2);cam.radius=Math.max(0.5,Math.hypot(hi[0]-lo[0],hi[1]-lo[1],hi[2]-lo[2])/2);}
+  const cy=Math.cos(cam.yaw),sy=Math.sin(cam.yaw),cp=Math.cos(cam.pitch),sp=Math.sin(cam.pitch),dist=cam.radius*3.2/cam.zoom,f=Math.min(W,H)*0.44*cam.radius*3.2/cam.radius;
+  const proj=w=>{let x=w[0]-cam.center[0],y=w[1]-cam.center[1],z=w[2]-cam.center[2];[x,z]=[x*cy-z*sy,x*sy+z*cy];[y,z]=[y*cp-z*sp,y*sp+z*cp];const d=dist-z;return [W/2+x*f/d,H/2-y*f/d,d];};
+  const L=[0.45,0.8,0.4],Ll=Math.hypot(...L),ink=cssVar('--ink','#222'),acc=cssVar('--accent','#285f77');
+  const list=[],focus=opt.focus,k=opt.k;
+  // ground grid under the model
+  const gy=lo[1],R=cam.radius*1.6,cx=cam.center[0],cz=cam.center[2];
+  g.strokeStyle=cssVar('--dot','rgba(0,0,0,.15)');g.lineWidth=1;
+  for(let i=-4;i<=4;i++){const a=proj([cx+i*R/4,gy,cz-R]),b=proj([cx+i*R/4,gy,cz+R]),c=proj([cx-R,gy,cz+i*R/4]),d=proj([cx+R,gy,cz+i*R/4]);g.beginPath();g.moveTo(a[0],a[1]);g.lineTo(b[0],b[1]);g.moveTo(c[0],c[1]);g.lineTo(d[0],d[1]);g.stroke();}
+  items.forEach(it=>it.geo.prims.forEach(p=>{
+    const w=p.pts.map(q=>xf(it,q)),s=w.map(proj),depth=s.reduce((a,q)=>a+q[2],0)/s.length;
+    const tagged=focus&&(focus in p.tags),dim=focus&&opt.tagged&&!(tagged&&p.tags[focus]===k),hiP=focus&&tagged&&p.tags[focus]===k;
+    list.push({p,s,depth,col:p.color||it.color,dim,hi:hiP,w});
+  }));
+  list.sort((a,b)=>b.depth-a.depth);
+  for(const d of list){
+    const [r,gg,b]=rgbOf(d.col),a=d.dim?0.18:1;
+    if(d.p.kind==='face'&&d.s.length>2){
+      const n=faceNormalW(d.w),sh=0.38+0.62*Math.abs((n[0]*L[0]+n[1]*L[1]+n[2]*L[2])/Ll);
+      g.beginPath();d.s.forEach((q,i)=>i?g.lineTo(q[0],q[1]):g.moveTo(q[0],q[1]));g.closePath();
+      g.fillStyle=`rgba(${r*sh|0},${gg*sh|0},${b*sh|0},${a})`;g.fill();
+      g.strokeStyle=d.hi?ink:`rgba(${r*sh*0.8|0},${gg*sh*0.8|0},${b*sh*0.8|0},${a*0.6})`;g.lineWidth=d.hi?1.4:0.5;g.stroke();
+    }else if(d.s.length===1){const q=d.s[0],rad=Math.max(1.5,(d.p.size||0.04)*f/q[2]);g.beginPath();g.arc(q[0],q[1],rad,0,Math.PI*2);g.fillStyle=`rgba(${r},${gg},${b},${a})`;g.fill();}
+    else{g.beginPath();d.s.forEach((q,i)=>i?g.lineTo(q[0],q[1]):g.moveTo(q[0],q[1]));if(d.p.closed)g.closePath();g.strokeStyle=d.hi?ink:`rgba(${r},${gg},${b},${a})`;g.lineWidth=d.hi?2.4:1.6;g.stroke();}
+  }
+  if(opt.ghost){g.save();g.setLineDash([4,3]);g.strokeStyle=cssVar('--t-vec','#6b50ae');g.lineWidth=1.2;
+    opt.ghost.prims.forEach(p=>{const s=p.pts.map(q=>proj(xf(items[0],q)));g.beginPath();s.forEach((q,i)=>i?g.lineTo(q[0],q[1]):g.moveTo(q[0],q[1]));if(p.closed)g.closePath();g.stroke();});g.restore();}
+  cv._drawn=list;return list;
 }
-function renderPreview(svg,scene,small){
-  const settings=[...program.cache.values()].find(v=>v.t==='settings')?.d;
+function faceNormalW(w){const [a,b,c]=w,u=[b[0]-a[0],b[1]-a[1],b[2]-a[2]],v=[c[0]-a[0],c[1]-a[1],c[2]-a[2]],n=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]],l=Math.hypot(...n)||1;return n.map(x=>x/l);}
+function pickAt(cv,x,y){const L=cv._drawn||[];for(let i=L.length-1;i>=0;i--){const s=L[i].s;if(s.length===1){if(Math.hypot(s[0][0]-x,s[0][1]-y)<5)return L[i].p;continue;}
+  if(s.length>2&&L[i].p.kind==='face'){let c=false;for(let a=0,b=s.length-1;a<s.length;b=a++){if((s[a][1]>y)!==(s[b][1]>y)&&x<(s[b][0]-s[a][0])*(y-s[a][1])/(s[b][1]-s[a][1])+s[a][0])c=!c;}if(c)return L[i].p;}}return null;}
+function initPreview(body){
+  const cv=body.querySelector('canvas');let drag=null;
+  cv.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY,moved:false};cv.setPointerCapture(e.pointerId);});
+  cv.addEventListener('pointermove',e=>{if(!drag)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(!drag.moved&&Math.hypot(dx,dy)<4)return;drag.moved=true;const c=camOf(cv);c.yaw+=dx*0.01;c.pitch=Math.max(-1.4,Math.min(1.4,c.pitch+dy*0.01));drag.x=e.clientX;drag.y=e.clientY;drawScene(cv,cv._items||[],cv._opt||{});});
+  cv.addEventListener('pointerup',e=>{const d=drag;drag=null;if(!d||d.moved)return;
+    const r=cv.getBoundingClientRect(),p=pickAt(cv,e.clientX-r.left,e.clientY-r.top);if(!p){status('Drag to orbit, scroll to zoom, click a shape to find what made it.');return;}
+    const keys=Object.keys(p.tags).filter(k=>!k.startsWith('#'));
+    if(!keys.length){status('This shape is not made by a loop or a function call.');return;}
+    const fz=focusZone(),zid=keys.includes(fz)?fz:keys.sort((a,b)=>b.length-a.length)[0],g=zid.split('/')[0];
+    probe[zid]=p.tags[zid];if(scope!==g&&program.graphs.has(g)){scope=g;returnScope=null;}
+    selection=new Set([zid]);piece=null;renderAll();
+    const z=program.zones.get(zid);status(z?.kind==='fn'?`That shape came from call ${p.tags[zid]+1} of ${z.count} to ${zid.split('/').pop()}. Every node inside shows its value in that call.`:`That shape came from ${zid.split('/').pop()}, iteration ${p.tags[zid]+1}. Every node in the loop now shows its value there.`);});
+  cv.addEventListener('wheel',e=>{e.preventDefault();const c=camOf(cv);c.zoom=Math.max(0.3,Math.min(6,c.zoom*(e.deltaY<0?1.1:1/1.1)));drawScene(cv,cv._items||[],cv._opt||{});},{passive:false});
+  cv.addEventListener('dblclick',()=>{const c=camOf(cv);c.key='';c.zoom=1;c.yaw=-0.7;c.pitch=0.45;drawScene(cv,cv._items||[],cv._opt||{});});
+}
+function renderPreview(cv,scene,small){
   scene=scene||[...program.cache.values()].find(v=>v.t==='scene')?.d;
   const items=scene?.items||[];
-  const xf=(it,[x,y])=>[x*it.scale+it.at[0],y*it.scale+it.at[1]];
-  let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;
-  items.forEach(it=>it.geo.prims.forEach(p=>p.pts.forEach(q=>{const [x,y]=xf(it,q);x0=Math.min(x0,x);x1=Math.max(x1,x);y0=Math.min(y0,y);y1=Math.max(y1,y);})));
-  if(!isFinite(x0)){x0=-1;y0=-1;x1=1;y1=1;}
-  const pad=Math.max(x1-x0,y1-y0)*0.08+0.05;x0-=pad;y0-=pad;x1+=pad;y1+=pad;
-  svg.setAttribute('viewBox',`${x0} ${-y1} ${x1-x0} ${y1-y0}`);svg.setAttribute('preserveAspectRatio','xMidYMid meet');
   const fz=small?null:focusZone(),zk=fz?program.zones.get(fz):null,k=fz?probe[fz]||0:0;
-  const tagged=fz&&items.some(it=>it.geo.prims.some(p=>fz in p.tags));
-  const exposure=Math.min(1,(settings?.exposure??1));
-  let h='';
-  const pt=(it,q)=>{const [x,y]=xf(it,q);return `${x.toFixed(4)},${(-y).toFixed(4)}`;};
-  items.forEach(it=>it.geo.prims.forEach(p=>{
-    const col=p.color||it.color,cls=tagged?(p.tags[fz]===k?' hi':' dim'):'',tags=esc(JSON.stringify(p.tags));
-    if(p.point||p.pts.length===1){const [x,y]=xf(it,p.pts[0]);h+=`<circle class="pp${cls}" cx="${x}" cy="${-y}" r="${(p.point||0.03)*it.scale}" fill="${col}" data-tags="${tags}"/>`;}
-    else if(p.closed)h+=`<polygon class="pp${cls}" points="${p.pts.map(q=>pt(it,q)).join(' ')}" fill="${col}" fill-opacity="${(p.color?0.82:0.14)*exposure}" stroke="${col}" data-tags="${tags}"/>`;
-    else h+=`<polyline class="pp line${cls}" points="${p.pts.map(q=>pt(it,q)).join(' ')}" stroke="${col}" data-tags="${tags}"/>`;
-  }));
-  if(zk&&(zk.kind==='fold'||zk.kind==='scan')&&items[0]){
-    const st=zk.states.filter(s=>s.it[s.it.length-1]===k)[0];
-    if(st&&st.v.t==='geometry')h+=st.v.d.prims.map(p=>p.pts.length>1?`<${p.closed?'polygon':'polyline'} class="fghost" points="${p.pts.map(q=>pt(items[0],q)).join(' ')}"/>`:'').join('');
-  }
-  svg.innerHTML=`<rect class="pvbg" x="${x0}" y="${-y1}" width="${x1-x0}" height="${y1-y0}"/>`+h;
+  const tagged=!!fz&&items.some(it=>it.geo.prims.some(p=>fz in p.tags));
+  let ghost=null;if(zk&&(zk.kind==='fold'||zk.kind==='scan')){const st=zk.states.filter(s=>s.it[s.it.length-1]===k)[0];if(st&&st.v.t==='geometry')ghost=st.v.d;}
+  const opt={focus:fz,k,tagged,ghost,fitKey:caseKey+'|'+scope};
+  cv._items=items;cv._opt=opt;
+  requestAnimationFrame(()=>drawScene(cv,items,opt));
   if(!small){const per=zk?(zk.kind==='fold'||zk.kind==='scan'?zk.states.filter(s=>s.it[s.it.length-1]>=0):zk.items).filter(r=>r.it.length===1||r.it.slice(0,-1).every((x,i)=>x===(probe[zoneOwnerChain(fz)[i]]||0))).length:0;
-    svg.parentElement.dataset.label=fz?`${fz.split('/').pop()} · ${zk?.kind==='fold'||zk?.kind==='scan'?'state after step':zk?.kind==='fn'?'call':'iteration'} ${k+1} of ${per}${tagged||zk?.kind!=='for'?'':' · not in this scene'}`:describeScene(scene);}
+    cv.parentElement.dataset.label=fz?`${fz.split('/').pop()} · ${zk?.kind==='fold'||zk?.kind==='scan'?'state after step':zk?.kind==='fn'?'call':'iteration'} ${k+1} of ${per}`:`${describeScene(scene)} · drag to orbit`;}
 }

@@ -636,6 +636,20 @@ pre.lisp.mini{padding:6px 10px;background:var(--track);border-radius:3px;margin-
 .vocab code{font-size:12px}
 .vocab td:nth-child(3){color:var(--text2)}
 .vwrap{overflow-x:auto;border:1px solid var(--line);border-radius:6px;background:var(--input)}
+.zsel{gap:6px;cursor:default}
+.zstep{flex:none;width:22px;height:22px;padding:0;border:1px solid var(--line-strong);border-radius:3px;background:var(--input);color:var(--ink);font:13px/1 var(--mono)}
+.zstep:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.ztrack{position:relative;flex:1;min-width:60px;height:22px;cursor:ew-resize;touch-action:none;outline:none;border-radius:3px}
+.ztrack::before{content:'';position:absolute;left:0;right:0;top:10px;height:3px;border-radius:2px;background:var(--track)}
+.ztrack.ticked{background-image:linear-gradient(to right,var(--line-strong) 1px,transparent 1px);background-position:0 15px;background-repeat:repeat-x;background-size:10% 5px}
+.zfill{position:absolute;left:0;top:10px;height:3px;border-radius:2px;background:var(--accent)}
+.zthumb{position:absolute;top:4px;width:14px;height:14px;margin-left:-7px;border-radius:50%;background:var(--input);border:2px solid var(--accent);box-shadow:0 1px 3px var(--shadow)}
+.ztrack:focus-visible .zthumb{outline:2px solid var(--accent);outline-offset:2px}
+.zsel .zread{flex:none;margin-left:4px}
+canvas.pv{flex:1;width:100%;height:100%;min-height:0;display:block;cursor:grab;background:var(--canvas)}
+canvas.pv:active{cursor:grabbing}
+.cthumb canvas{width:120px;height:120px;display:block}
+@media(max-width:860px){.cthumb canvas{width:84px;height:84px}}
 </style>
 
 </head>
@@ -643,9 +657,9 @@ pre.lisp.mini{padding:6px 10px;background:var(--track);border-radius:3px;margin-
 <div class="page">
 <header class="mast"><div><div class="eyebrow">Prismel · design proposal · 29 Sep 2026</div><h1>Loops you can see.<br>Lisp you can touch.</h1></div>
 <div><p class="lede">One checked Lisp document is the graph, the list, the code and the editor shell. Loops, functions, records, lists, branches and macros each have one drawing and one gesture set, so you can build anything without typing, or type anything and see it drawn.</p></div>
-<div class="meta"><span>Status</span><b>Pending proposal</b><span>Built on</span><b>Prismel Flow</b><span>Preview</span><b>2D illustration</b></div></header>
+<div class="meta"><span>Status</span><b>Pending proposal</b><span>Built on</span><b>Prismel Flow</b><span>Preview</span><b>3D illustration</b></div></header>
 
-<div class="sec-head"><h2>The studio</h2><p>Pick a case study. Drag across a loop’s strip to probe one iteration, click a shape in the viewport to find the iteration that made it, and select anything to see exactly its Lisp.</p></div>
+<div class="sec-head"><h2>The studio</h2><p>Pick a case study. Use a loop’s iteration selector (‹ slider ›) to probe one iteration, orbit the 3D viewport, and click a shape to find the iteration that made it, and select anything to see exactly its Lisp.</p></div>
 
 <div class="app" aria-label="Interactive workspace prototype">
 <div class="app-top"><b>Prismel Flow</b><label class="sr-only" for="casesel">Case study</label><select id="casesel" class="casesel"></select><div class="tools"><button id="layouts">Shell layouts</button><button id="undo" title="Undo (Ctrl/⌘ Z)">Undo</button><button id="redo" title="Redo (Ctrl/⌘ Shift Z)">Redo</button><button id="export">Copy Lisp</button></div></div>
@@ -656,13 +670,12 @@ pre.lisp.mini{padding:6px 10px;background:var(--track);border-radius:3px;margin-
 <div class="sec-head"><h2>Anatomy of a zone</h2><p>A loop is a region, not a node. The border is the lexical scope: what crosses it, and in which direction, is exactly what the Lisp says.</p></div>
 <section class="anatomy">
 <figure aria-label="Diagram of a for zone">
-<svg viewBox="0 0 620 300" role="img" aria-labelledby="anat-t"><title id="anat-t">A for zone with its rail, strip, inner nodes, yield and output</title>
+<svg viewBox="0 0 620 300" role="img" aria-labelledby="anat-t"><title id="anat-t">A for zone with its rail, iteration selector, inner nodes, yield and output</title>
 <rect x="60" y="40" width="440" height="200" rx="6" fill="var(--z-for)" stroke="var(--z-for-b)"/>
 <line x1="60" y1="64" x2="500" y2="64" stroke="var(--line)"/><line x1="60" y1="98" x2="500" y2="98" stroke="var(--line)"/>
 <rect x="68" y="47" width="26" height="14" rx="3" fill="var(--accent)"/><text x="72" y="58" class="an-b" fill="var(--on-accent)" style="fill:var(--on-accent)">for</text><text x="100" y="58" class="an-b">ring</text><text x="410" y="58" class="an-t">12× geometry</text>
-<g fill="none" stroke="currentColor" color="var(--t-geo)">
-<rect x="70" y="70" width="20" height="22" rx="3" fill="var(--accent-soft2)"/><circle cx="80" cy="81" r="6"/><circle cx="104" cy="81" r="6"/><circle cx="128" cy="81" r="6"/><circle cx="152" cy="81" r="6"/><circle cx="176" cy="81" r="6"/></g>
-<text x="380" y="85" class="an-b">i = 0 · 1 of 12</text>
+<rect x="68" y="72" width="18" height="18" rx="3" fill="var(--input)" stroke="var(--line-strong)"/><text x="73" y="85" class="an-b">‹</text><line x1="96" y1="81" x2="300" y2="81" stroke="var(--track)" stroke-width="3"/><line x1="96" y1="81" x2="210" y2="81" stroke="var(--accent)" stroke-width="3"/><circle cx="210" cy="81" r="6" fill="var(--input)" stroke="var(--accent)" stroke-width="2"/><rect x="308" y="72" width="18" height="18" rx="3" fill="var(--input)" stroke="var(--line-strong)"/><text x="313" y="85" class="an-b">›</text>
+<text x="336" y="85" class="an-b">i = 6 · 7 of 12</text>
 <text x="72" y="122" class="an-a">i ∈ (range 12)</text><circle cx="60" cy="118" r="4.5" fill="var(--input)" stroke="var(--t-int)" stroke-width="1.5"/><circle cx="196" cy="118" r="4.5" fill="var(--t-int)"/>
 <text x="72" y="146" class="an-b">seed</text><text x="110" y="146" class="an-t">same every time</text><circle cx="60" cy="142" r="4.5" fill="var(--t-int)"/><circle cx="196" cy="142" r="4.5" fill="var(--t-int)"/>
 <rect x="222" y="108" width="130" height="68" rx="4" fill="var(--input)" stroke="var(--line-strong)"/><text x="230" y="122" class="an-b">leaf</text><text x="300" y="122" class="an-t">petal</text><line x1="222" y1="128" x2="352" y2="128" stroke="var(--line)"/>
@@ -676,13 +689,13 @@ pre.lisp.mini{padding:6px 10px;background:var(--track);border-radius:3px;margin-
 <path d="M 10 142 H 56" stroke="var(--t-int)"/><text x="4" y="136" class="an-t">outer</text>
 <text x="80" y="226" class="an-t">repeat · collect a list</text>
 <g class="an-l"><path d="M 150 30 V 44"/><path d="M 280 30 V 70"/><path d="M 40 270 V 146"/><path d="M 300 270 V 176"/><path d="M 440 270 V 122"/><path d="M 560 270 V 60"/></g>
-<text x="120" y="24" class="an-a">title · count · type</text><text x="250" y="24" class="an-a">strip · drag to probe</text>
+<text x="120" y="24" class="an-a">title · count · type</text><text x="250" y="24" class="an-a">iteration selector</text>
 <text x="4" y="286" class="an-a">rail: vars + captures</text><text x="248" y="286" class="an-a">inner node · sparkline</text><text x="400" y="286" class="an-a">yield</text><text x="520" y="286" class="an-a">stacked socket</text>
 </svg>
 </figure>
 <dl>
 <dt>Rail</dt><dd>Loop variables (∈), the accumulator (⟲) and every outer name the body uses. Outer wires stop at the rail; inner wires start there. Captures are derived from the Lisp and never authored, so the rail cannot drift from the code.</dd>
-<dt>Strip</dt><dd>One cell per iteration: a thumbnail for geometry, a bar for numbers, the state after each step for fold. Drag across it and every node inside shows its value at that iteration.</dd>
+<dt>Selector</dt><dd>‹ and › step one iteration; the slider jumps anywhere; arrow keys work when it has focus. Every node inside shows its value at that iteration, and the viewport highlights what it made. For fold it selects the state after each step, for a function the call.</dd>
 <dt>Footer</dt><dd>The value at the probe, a sparkline across iterations and a count. A node that never changes gets a green <b>↥ same each time</b>; click it to move the node out of the loop.</dd>
 <dt>Yield</dt><dd>The only way out. for collects, fold passes <i>next</i> back along the dashed feedback line, Σ adds. Wiring from inside a zone to anything outside is refused with a reason.</dd>
 <dt>Socket</dt><dd>A list output has a stacked socket. Variadic inputs such as merge splice it, so <code>(sop/merge ring)</code> reads as one wire.</dd>
@@ -693,8 +706,8 @@ pre.lisp.mini{padding:6px 10px;background:var(--track);border-radius:3px;margin-
 <section class="vwrap"><table class="vocab">
 <thead><tr><th>Construct</th><th>Lisp</th><th>On the canvas</th><th>Make it without typing</th></tr></thead>
 <tbody>
-<tr><td>Loop</td><td><code>(for [i (range 12)] …)</code>, <code>fold</code>, <code>scan</code>, <code>Σ sum</code></td><td>Tinted zone: rail of loop names and captures, strip of iterations, yield on the right. fold draws its feedback line.</td><td>Select nodes, press <b>R</b> (repeat) or <b>⇧R</b> (feed back). Drag the loop variable onto a number to make it a step.</td></tr>
-<tr><td>Function</td><td><code>(fn [r k] …)</code> bound in <code>let*</code></td><td>Hollow λ zone with a diamond output. Its strip shows every call it received; the probe picks a call.</td><td>Select nodes, press <b>L</b>: outside inputs become parameters and the selection becomes the first call.</td></tr>
+<tr><td>Loop</td><td><code>(for [i (range 12)] …)</code>, <code>fold</code>, <code>scan</code>, <code>Σ sum</code></td><td>Tinted zone: rail of loop names and captures, iteration selector of iterations, yield on the right. fold draws its feedback line.</td><td>Select nodes, press <b>R</b> (repeat) or <b>⇧R</b> (feed back). Drag the loop variable onto a number to make it a step.</td></tr>
+<tr><td>Function</td><td><code>(fn [r k] …)</code> bound in <code>let*</code></td><td>Hollow λ zone with a diamond output. Its selector steps through every call it received.</td><td>Select nodes, press <b>L</b>: outside inputs become parameters and the selection becomes the first call.</td></tr>
 <tr><td>Higher-order</td><td><code>map</code> <code>filter</code> <code>reduce</code> <code>sort-by</code></td><td>Ordinary cards with a diamond <b>f</b> row. filter reports how many items it kept.</td><td>Wire a λ output, a defn or an operator into the f row. Inline lambdas are chips; ƒ lifts them into a zone.</td></tr>
 <tr><td>List</td><td><code>(list 0.3 0.45 0.3)</code>, <code>first</code> <code>nth</code> <code>take</code> …</td><td>One row per item with an index; a stacked socket.</td><td>Scrub items, move them up, click + to extend (a number continues the step), or drop a wire on +.</td></tr>
 <tr><td>Record</td><td><code>{:shape g :y 0.5}</code>, <code>(values …)</code>, <code>r.shape</code></td><td>One output row per field under the card. A function returning <code>values</code> is a node with several outputs.</td><td>Type a name and value in + field. Drag from a field row to wire <code>r.field</code>.</td></tr>
@@ -745,7 +758,7 @@ let () =
 <article><h3>vvvv gamma · regions</h3><p><b>Take:</b> splicer bars (iterate this input) versus plain links (constant), and accumulators that hand a value to the next iteration. That is exactly the difference between an ∈ row, a capture and a ⟲ row.</p><p><b>Avoid:</b> zip-by-shortest as the only multi-input rule.</p><a href="https://thegraybook.vvvv.org/reference/language/loops.html">The Gray Book · loops</a></article>
 <article><h3>Houdini · for-each blocks</h3><p><b>Take:</b> feedback versus merge-each as an explicit choice, and iteration metadata as a readable value.</p><p><b>Avoid:</b> Begin/End nodes that can be wired inconsistently, and metadata fetched through string expressions.</p><a href="https://www.sidefx.com/docs/houdini/model/looping.html">Looping in SOPs</a></article>
 <article><h3>Grasshopper · data trees</h3><p><b>Take:</b> any component runs over a list without ceremony.</p><p><b>Avoid:</b> implicit “longest list” matching, which is the most asked-about behavior in its forums. Prismel iterates only where a zone says so.</p><a href="https://www.grasshopper3d.com/xn/detail/2985220:Comment:666154">Data matching discussion</a></article>
-<article><h3>Bret Victor · Learnable Programming</h3><p><b>Take:</b> show the data, not just the code. Every iteration is visible and scrubbable, and the picture links back to the line that made it.</p><p><b>Adapt:</b> the strip, sparklines and click-to-iteration bring that to a node graph.</p><a href="https://worrydream.com/LearnableProgramming/">Learnable Programming</a></article>
+<article><h3>Bret Victor · Learnable Programming</h3><p><b>Take:</b> show the data, not just the code. Every iteration is selectable, and the picture links back to the line that made it.</p><p><b>Adapt:</b> the strip, sparklines and click-to-iteration bring that to a node graph.</p><a href="https://worrydream.com/LearnableProgramming/">Learnable Programming</a></article>
 <article><h3>Snap! · rings</h3><p><b>Take:</b> a function is the same expression with a ring around it, left where it is; ringify and unringify are one gesture.</p><p><b>Avoid:</b> implicit parameters from empty slots. Our λ zones list parameters on the rail.</p><a href="https://forum.snap.berkeley.edu/t/why-are-ring-parameters-weird/11553">Ring parameters</a></article>
 <article><h3>Excel · LAMBDA and spill</h3><p><b>Take:</b> MAP spills one result per element beside the call, so a function’s effect is visible per item.</p><p><b>Adapt:</b> a λ zone’s strip shows every call instead of a spilled range, with the same click-to-inspect.</p><a href="https://spreadsheetplanet.com/excel-functions/lambda/">LAMBDA</a></article>
 <article><h3>DrRacket · macro stepper</h3><p><b>Take:</b> expansion shown as steps you can move between.</p><p><b>Adapt:</b> the ⤵ lens is a stepper on the node itself, using the same strip-and-probe gesture as loops.</p><a href="https://docs.racket-lang.org/macro-debugger/">Macro debugger</a></article>
@@ -759,13 +772,13 @@ let () =
 <section id="register" class="register"><div class="rhead"><div class="rfilter" role="group" aria-label="Filter by area"></div><span class="rcount"></span></div><div class="rlist"></div></section>
 
 <section class="limits"><div><h3>What is real</h3><p>One AST feeds every panel. Loops, functions, records, lists, branches, text and hygienic macros are checked, run and shown per iteration or per call. Every gesture in the table above rewrites the Lisp and passes the checker, or is refused with a reason. Comments and ^:bypass survive every edit.</p></div>
-<div><h3>What is not</h3><p>Not Prismel geometry: the preview is a 2D JavaScript illustration of the catalog’s semantics. <code>[%workspace]</code>, graph inputs and loop syntax are proposals; nothing here changes the native editor.</p></div>
+<div><h3>What is not</h3><p>Not Prismel geometry: the preview is a small 3D JavaScript renderer illustrating the catalog’s semantics. <code>[%workspace]</code>, graph inputs and loop syntax are proposals; nothing here changes the native editor.</p></div>
 <div><h3>Session only</h3><p>Positions and collapsed zones are layout and never reach the Lisp. Reloading loses edits, so copy the Lisp first.</p></div></section>
 <footer>PRISMEL / COMPOSABLE WORKSPACES · ITERATION REVISION · Separate from the approved Flow specification · The native editor stays PXUI on Metal</footer>
 </div>
 <dialog id="dialog"><div class="dialog-head"><h2 id="dialog-title">Actions</h2><button id="close-dialog" aria-label="Close dialog">×</button></div><div id="dialog-body"></div></dialog>
 <script>/* Design artifact only: a small checked Lisp interpreter for the workspace study.
-   Not product code, not a renderer. Geometry is a 2D illustration kernel. */
+   Not product code, not a renderer. Geometry is a small 3D illustration kernel. */
 (function (root) {
 'use strict';
 const isL = Array.isArray;
@@ -1039,33 +1052,60 @@ function show(t, d) {
   return t;
 }
 
-/* ---------------- 2D illustration kernel ---------------- */
+/* ---------------- 3D illustration kernel ----------------
+   Polygons (faces), polylines and points in 3D. Enough to show the language; not pdk. */
 let uidN = 0;
-const prim = (pts, closed, extra) => ({pts, closed, color: null, groups: [], tags: {}, uid: ++uidN, ...extra});
+const prim = (pts, closed, extra) => ({pts, closed, kind: closed ? 'face' : pts.length === 1 ? 'point' : 'line', color: null, groups: [], tags: {}, uid: ++uidN, ...extra});
 const geo = prims => ({prims});
 const EMPTY = geo([]);
 function hash(...xs) { let h = 0x9e3779b9 | 0; for (const x of xs) { const k = Math.floor(Number(x) * 1000003) | 0; h = Math.imul(h ^ k, 0x85ebca6b); h ^= h >>> 13; h = Math.imul(h, 0xc2b2ae35); h ^= h >>> 16; } return ((h >>> 0) % 1000000) / 1000000; }
-function noise2(x, y, seed) {
-  const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi, s = t => t * t * (3 - 2 * t);
-  const a = hash(seed, xi, yi), b = hash(seed, xi + 1, yi), c = hash(seed, xi, yi + 1), d = hash(seed, xi + 1, yi + 1);
-  const u = s(xf), v = s(yf); return (a * (1 - u) + b * u) * (1 - v) + (c * (1 - u) + d * u) * v - 0.5;
+function noise3(x, y, z, seed) {
+  const xi = Math.floor(x), yi = Math.floor(y), zi = Math.floor(z), s = t => t * t * (3 - 2 * t), u = s(x - xi), v = s(y - yi), w = s(z - zi);
+  const h = (a, b, c) => hash(seed, xi + a, yi + b, zi + c), L = (a, b, t) => a + (b - a) * t;
+  return L(L(L(h(0, 0, 0), h(1, 0, 0), u), L(h(0, 1, 0), h(1, 1, 0), u), v), L(L(h(0, 0, 1), h(1, 0, 1), u), L(h(0, 1, 1), h(1, 1, 1), u), v), w) - 0.5;
 }
 const mapPts = (g, fn) => geo(g.prims.map(p => ({...p, pts: p.pts.map(fn)})));
-function bbox(g) { let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity; g.prims.forEach(p => p.pts.forEach(([x, y]) => { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); })); return {x0, y0, x1, y1}; }
-function centroid(p) { let x = 0, y = 0; p.pts.forEach(q => { x += q[0]; y += q[1]; }); return [x / p.pts.length, y / p.pts.length]; }
-function inside(pt, poly) { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const [xi, yi] = poly[i], [xj, yj] = poly[j]; if ((yi > pt[1]) !== (yj > pt[1]) && pt[0] < (xj - xi) * (pt[1] - yi) / (yj - yi) + xi) c = !c; } return c; }
+function bbox(g) { const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity]; g.prims.forEach(p => p.pts.forEach(q => { for (let i = 0; i < 3; i++) { lo[i] = Math.min(lo[i], q[i]); hi[i] = Math.max(hi[i], q[i]); } })); return {x0: lo[0], y0: lo[1], z0: lo[2], x1: hi[0], y1: hi[1], z1: hi[2]}; }
+function centroid(p) { const c = [0, 0, 0]; p.pts.forEach(q => { c[0] += q[0]; c[1] += q[1]; c[2] += q[2]; }); return c.map(v => v / p.pts.length); }
+/* rotation in radians, XYZ order, then translate: the catalog's transform convention */
+function rotXYZ([x, y, z], [rx, ry, rz]) {
+  let c = Math.cos(rx), s = Math.sin(rx); [y, z] = [y * c - z * s, y * s + z * c];
+  c = Math.cos(ry); s = Math.sin(ry); [x, z] = [x * c + z * s, -x * s + z * c];
+  c = Math.cos(rz); s = Math.sin(rz); [x, y] = [x * c - y * s, x * s + y * c];
+  return [x, y, z];
+}
+const place = (pts, k) => pts.map(q => { const us = k.uniform_scale ?? 1, r = rotXYZ([q[0] * us, q[1] * us, q[2] * us], k.rotation || [0, 0, 0]), c = k.center || [0, 0, 0]; return [r[0] + c[0], r[1] + c[1], r[2] + c[2]]; });
+function sphere(r, seg, rings) {
+  const out = [], P = (i, j) => { const th = i / seg * Math.PI * 2, ph = j / rings * Math.PI; return [r[0] * Math.sin(ph) * Math.cos(th), r[1] * Math.cos(ph), r[2] * Math.sin(ph) * Math.sin(th)]; };
+  for (let j = 0; j < rings; j++) for (let i = 0; i < seg; i++) out.push([P(i, j), P(i + 1, j), P(i + 1, j + 1), P(i, j + 1)]);
+  return out;
+}
+function faceNormal(p) { const [a, b, c] = p.pts; if (!c) return [0, 1, 0]; const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]], n = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]], l = Math.hypot(...n) || 1; return n.map(x => x / l); }
+function subdivideFace(p) { // one face into quads around its centroid (linear); smoothing is left to the real kernel
+  const c = centroid(p), n = p.pts.length, mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2];
+  return p.pts.map((q, i) => ({...p, pts: [q, mid(q, p.pts[(i + 1) % n]), c, mid(p.pts[(i + n - 1) % n], q)], uid: ++uidN}));
+}
 function chaikin(p) {
-  const P = p.pts, n = P.length; if (n < 3) return p; const out = [];
-  const m = p.closed ? n : n - 1;
+  const P = p.pts, n = P.length; if (n < 3) return p; const out = [], L = (a, b, t) => a.map((v, i) => v * (1 - t) + b[i] * t);
   if (!p.closed) out.push(P[0]);
-  for (let i = 0; i < m; i++) { const a = P[i], b = P[(i + 1) % n]; out.push([a[0] * .75 + b[0] * .25, a[1] * .75 + b[1] * .25], [a[0] * .25 + b[0] * .75, a[1] * .25 + b[1] * .75]); }
+  for (let i = 0; i < (p.closed ? n : n - 1); i++) { const a = P[i], b = P[(i + 1) % n]; out.push(L(a, b, .25), L(a, b, .75)); }
   if (!p.closed) out.push(P[n - 1]);
   return {...p, pts: out};
 }
+function wire(p, radius, sides) { // polywire: a prism around every segment of a line
+  const out = [], P = p.pts;
+  for (let s = 0; s + 1 < P.length; s++) {
+    const a = P[s], b = P[s + 1], d = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], L = Math.hypot(...d) || 1, t = d.map(x => x / L);
+    const up = Math.abs(t[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0], u0 = [t[1] * up[2] - t[2] * up[1], t[2] * up[0] - t[0] * up[2], t[0] * up[1] - t[1] * up[0]], ul = Math.hypot(...u0), u = u0.map(x => x / ul), v = [t[1] * u[2] - t[2] * u[1], t[2] * u[0] - t[0] * u[2], t[0] * u[1] - t[1] * u[0]];
+    const ring = (c, k) => { const th = k / sides * Math.PI * 2; return [0, 1, 2].map(i => c[i] + radius * (Math.cos(th) * u[i] + Math.sin(th) * v[i])); };
+    for (let k = 0; k < sides; k++) out.push({...p, kind: 'face', closed: true, pts: [ring(a, k), ring(a, k + 1), ring(b, k + 1), ring(b, k)], uid: ++uidN});
+  }
+  return out;
+}
 const toHex = c => typeof c === 'string' ? c : '#' + c.map(v => Math.round(Math.max(0, Math.min(1, v)) * 255).toString(16).padStart(2, '0')).join('');
 function hsv(h, s, v) { h = ((h % 1) + 1) % 1; const i = Math.floor(h * 6), f = h * 6 - i, p = v * (1 - s), q = v * (1 - f * s), t = v * (1 - (1 - f) * s); return [[v, t, p], [q, v, p], [p, v, t], [p, q, v], [t, p, v], [v, p, q]][i % 6]; }
-const V2 = v => [v[0], v[1]];
-function countPrims(g) { if (g.prims.length > 20000) throw Error('Geometry exceeds 20,000 primitives in this study.'); return g; }
+function countPrims(g) { if (g.prims.length > 40000) throw Error('Geometry exceeds 40,000 primitives in this study.'); return g; }
+function pointsOf(g) { const seen = new Set(), out = []; g.prims.forEach(p => p.pts.forEach(q => { const k = q.map(v => v.toFixed(5)).join(','); if (!seen.has(k)) { seen.add(k); out.push(q); } })); return out; }
 
 /* ---------------- operator catalog ----------------
    pos: positional slots, rest: variadic slot type (lists splice), kw: [name, type, default, [soft min, max]]. */
@@ -1092,42 +1132,66 @@ op('value/rand', 'value', {rest: 'float', restName: 'key', out: 'float', fn: (_,
 op('value/hsv', 'value', {pos: [['h', 'float'], ['s', 'float'], ['v', 'float']], out: 'vec3', fn: ([h, s, v]) => hsv(h, s, v)});
 op('value/lerp', 'value', {pos: [['a', 'float'], ['b', 'float'], ['u', 'float']], out: ts => ts[0] === 'vec3' || ts[1] === 'vec3' ? 'vec3' : 'float', anyNum: true,
   fn: ([a, b, u]) => Array.isArray(a) || Array.isArray(b) ? [0, 1, 2].map(i => (Array.isArray(a) ? a[i] : a) * (1 - u) + (Array.isArray(b) ? b[i] : b) * u) : a * (1 - u) + b * u});
-op('value/polar', 'value', {pos: [['radius', 'float'], ['angle', 'float']], out: 'vec3', fn: ([r, a]) => [r * Math.cos(a), r * Math.sin(a), 0], doc: 'A point at radius and angle (radians).'});
+op('value/polar', 'value', {pos: [['radius', 'float'], ['angle', 'float']], opt: [['height', 'float']], out: 'vec3', fn: ([r, a, h]) => [r * Math.cos(a), h ?? 0, r * Math.sin(a)], doc: 'A point on the ground plane at radius and angle (radians), lifted by height.'});
 op('range', 'value', {pos: [['count', 'int']], opt: [['end', 'int']], out: 'list:int', fn: ([a, b]) => { const lo = b === undefined ? 0 : a, hi = b === undefined ? a : b; if (hi - lo > 4096) throw Error(`range ${lo}‥${hi} exceeds 4,096 iterations.`); const o = []; for (let k = lo; k < hi; k++) o.push(k); return o; }});
 op('linspace', 'value', {pos: [['from', 'float'], ['to', 'float'], ['count', 'int']], out: 'list:float', fn: ([a, b, n]) => { if (n > 4096) throw Error('linspace exceeds 4,096 values.'); const o = []; for (let k = 0; k < n; k++) o.push(n === 1 ? a : a + (b - a) * k / (n - 1)); return o; }});
 op('count', 'value', {pos: [['list', 'list:any']], out: 'int', fn: ([xs]) => xs.length});
 
-op('sop/circle', 'sop', {kw: [['radius', 'float', 0.5, [0, 3]], ['segments', 'int', 32, [3, 96]], ['center', 'vec3', [0, 0, 0]]],
-  out: 'geometry', fn: (_, k) => { const n = Math.max(3, Math.min(256, k.segments)), c = k.center; return geo([prim(Array.from({length: n}, (_, i) => [c[0] + k.radius * Math.cos(i / n * Math.PI * 2), c[1] + k.radius * Math.sin(i / n * Math.PI * 2)]), true)]); }});
-op('sop/box', 'sop', {kw: [['size', 'vec3', [1, 1, 1]], ['center', 'vec3', [0, 0, 0]]], out: 'geometry',
-  fn: (_, k) => { const [w, h] = k.size, [cx, cy] = k.center; return geo([prim([[cx - w / 2, cy - h / 2], [cx + w / 2, cy - h / 2], [cx + w / 2, cy + h / 2], [cx - w / 2, cy + h / 2]], true)]); }});
-op('sop/line', 'sop', {kw: [['length', 'float', 1, [0, 4]], ['points', 'int', 2, [2, 64]], ['angle', 'float', 90, [-180, 180]]], out: 'geometry',
-  fn: (_, k) => { const a = k.angle * Math.PI / 180, n = Math.max(2, Math.min(512, k.points)); return geo([prim(Array.from({length: n}, (_, i) => [Math.cos(a) * k.length * i / (n - 1), Math.sin(a) * k.length * i / (n - 1)]), false)]); }});
-op('sop/poly_path', 'sop', {pos: [['points', 'list:vec3']], kw: [['closed', 'bool', false]], out: 'geometry', fn: ([pts], k) => geo(pts.length ? [prim(pts.map(V2), !!k.closed)] : [])});
-op('sop/points', 'sop', {pos: [['points', 'list:vec3']], kw: [['size', 'float', 0.03, [0, 0.3]]], out: 'geometry', fn: ([pts], k) => geo(pts.map(p => prim([V2(p)], false, {point: k.size})))});
-op('sop/transform', 'sop', {pos: [['input', 'geometry']], kw: [['translate', 'vec3', [0, 0, 0]], ['rotate', 'float', 0, [-180, 180]], ['scale', 'vec3', [1, 1, 1], [0, 3]], ['pivot', 'vec3', [0, 0, 0]]], out: 'geometry',
-  fn: ([g], k) => { const a = k.rotate * Math.PI / 180, c = Math.cos(a), s = Math.sin(a), [px, py] = k.pivot, [tx, ty] = k.translate, sc = Array.isArray(k.scale) ? k.scale : [k.scale, k.scale, k.scale];
-    return mapPts(g, ([x, y]) => { x = (x - px) * sc[0]; y = (y - py) * sc[1]; return [x * c - y * s + px + tx, x * s + y * c + py + ty]; }); }});
+const XFORM = [['center', 'vec3', [0, 0, 0]], ['rotation', 'vec3', [0, 0, 0]], ['uniform_scale', 'float', 1, [0.01, 10]]];
+const faces = (quads, k) => { const piece = ++uidN; return geo(quads.map(q => prim(place(q, k), true, {tags: {'#piece': piece}}))); };
+op('sop/box', 'sop', {kw: [['size', 'vec3', [1, 1, 1], [0.01, 10]], ...XFORM], out: 'geometry',
+  fn: (_, k) => { const [a, b, c] = k.size.map(v => v / 2), V = (x, y, z) => [x * a, y * b, z * c];
+    return faces([[V(-1, -1, 1), V(1, -1, 1), V(1, 1, 1), V(-1, 1, 1)], [V(1, -1, -1), V(-1, -1, -1), V(-1, 1, -1), V(1, 1, -1)], [V(-1, 1, 1), V(1, 1, 1), V(1, 1, -1), V(-1, 1, -1)], [V(-1, -1, -1), V(1, -1, -1), V(1, -1, 1), V(-1, -1, 1)], [V(1, -1, 1), V(1, -1, -1), V(1, 1, -1), V(1, 1, 1)], [V(-1, -1, -1), V(-1, -1, 1), V(-1, 1, 1), V(-1, 1, -1)]], k); }});
+op('sop/uv_sphere', 'sop', {kw: [['radius', 'vec3', [0.5, 0.5, 0.5], [0.01, 10]], ...XFORM, ['segments', 'int', 16, [3, 48]], ['rings', 'int', 8, [2, 32]]], out: 'geometry',
+  fn: (_, k) => faces(sphere(k.radius, Math.min(64, k.segments), Math.min(32, k.rings)), k)});
+op('sop/tube', 'sop', {kw: [['top_radius', 'float', 0.5, [0, 10]], ['bottom_radius', 'float', 0.5, [0, 10]], ['height', 'float', 1, [0, 10]], ['end_caps', 'bool', true], ...XFORM, ['columns', 'int', 16, [3, 48]]], out: 'geometry',
+  fn: (_, k) => { const n = Math.min(64, k.columns), h = k.height / 2, R = (r, y, i) => [r * Math.cos(i / n * Math.PI * 2), y, r * Math.sin(i / n * Math.PI * 2)], q = [];
+    for (let i = 0; i < n; i++) q.push([R(k.bottom_radius, -h, i), R(k.bottom_radius, -h, i + 1), R(k.top_radius, h, i + 1), R(k.top_radius, h, i)]);
+    if (k.end_caps) { q.push(Array.from({length: n}, (_, i) => R(k.top_radius, h, n - i))); q.push(Array.from({length: n}, (_, i) => R(k.bottom_radius, -h, i))); }
+    return faces(q, k); }});
+op('sop/torus', 'sop', {kw: [['major_radius', 'float', 1, [0, 10]], ['minor_radius', 'float', 0.25, [0, 10]], ...XFORM, ['rows', 'int', 12, [3, 48]], ['columns', 'int', 24, [3, 64]]], out: 'geometry',
+  fn: (_, k) => { const R = k.major_radius, r = k.minor_radius, P = (i, j) => { const u = i / k.columns * Math.PI * 2, v = j / k.rows * Math.PI * 2; return [(R + r * Math.cos(v)) * Math.cos(u), r * Math.sin(v), (R + r * Math.cos(v)) * Math.sin(u)]; }, q = [];
+    for (let i = 0; i < k.columns; i++) for (let j = 0; j < k.rows; j++) q.push([P(i, j), P(i + 1, j), P(i + 1, j + 1), P(i, j + 1)]);
+    return faces(q, k); }});
+op('sop/circle', 'sop', {kw: [['radius', 'float', 0.5, [0, 10]], ['segments', 'int', 32, [3, 96]], ['filled', 'bool', true], ...XFORM], out: 'geometry',
+  fn: (_, k) => { const n = Math.max(3, Math.min(256, k.segments)), pts = place(Array.from({length: n}, (_, i) => [k.radius * Math.cos(i / n * Math.PI * 2), 0, k.radius * Math.sin(i / n * Math.PI * 2)]), k); return geo([prim(pts, !!k.filled)]); }});
+op('sop/grid', 'sop', {kw: [['width', 'float', 2, [0, 20]], ['height', 'float', 2, [0, 20]], ['columns', 'int', 8, [1, 64]], ['rows', 'int', 8, [1, 64]], ...XFORM], out: 'geometry',
+  fn: (_, k) => { const q = [], P = (i, j) => [(i / k.columns - .5) * k.width, 0, (j / k.rows - .5) * k.height];
+    for (let i = 0; i < k.columns; i++) for (let j = 0; j < k.rows; j++) q.push([P(i, j), P(i, j + 1), P(i + 1, j + 1), P(i + 1, j)]);
+    return faces(q, k); }});
+op('sop/line', 'sop', {kw: [['origin', 'vec3', [0, 0, 0]], ['direction', 'vec3', [0, 1, 0]], ['length', 'float', 1, [0, 10]], ['points', 'int', 2, [2, 64]]], out: 'geometry',
+  fn: (_, k) => { const n = Math.max(2, Math.min(512, k.points)), l = Math.hypot(...k.direction) || 1, d = k.direction.map(v => v / l);
+    return geo([prim(Array.from({length: n}, (_, i) => k.origin.map((o, j) => o + d[j] * k.length * i / (n - 1))), false)]); }});
+op('sop/poly_path', 'sop', {pos: [['points', 'list:vec3']], kw: [['closed', 'bool', false]], out: 'geometry', fn: ([pts], k) => geo(pts.length ? [prim(pts.map(p => [...p]), !!k.closed)] : [])});
+op('sop/points', 'sop', {pos: [['points', 'list:vec3']], kw: [['size', 'float', 0.04, [0, 0.5]]], out: 'geometry', fn: ([pts], k) => geo(pts.map(p => prim([[...p]], false, {size: k.size})))});
+op('sop/transform', 'sop', {pos: [['input', 'geometry']], kw: [['translate', 'vec3', [0, 0, 0]], ['rotate', 'vec3', [0, 0, 0], [-3.1416, 3.1416]], ['scale', 'vec3', [1, 1, 1], [0, 10]], ['uniform_scale', 'float', 1, [0, 10]]], out: 'geometry',
+  fn: ([g], k) => mapPts(g, q => { const s = k.scale, u = k.uniform_scale, r = rotXYZ([q[0] * s[0] * u, q[1] * s[1] * u, q[2] * s[2] * u], k.rotate); return [r[0] + k.translate[0], r[1] + k.translate[1], r[2] + k.translate[2]]; })});
 op('sop/merge', 'sop', {rest: 'geometry', restName: 'input', out: 'geometry', fn: (_, __, rest) => countPrims(geo(rest.flatMap(g => g.prims)))});
-op('sop/copy_to_points', 'sop', {pos: [['input', 'geometry'], ['target', 'geometry']], out: 'geometry',
-  fn: ([g, t]) => countPrims(geo(t.prims.flatMap((tp, k) => { const [x, y] = centroid(tp); return g.prims.map(p => ({...p, pts: p.pts.map(q => [q[0] + x, q[1] + y]), tags: {...p.tags, '#copy': k}})); })))});
-op('sop/scatter', 'sop', {pos: [['input', 'geometry']], kw: [['count', 'int', 60, [1, 400]], ['seed', 'int', 0, [0, 100]]], out: 'geometry',
-  fn: ([g], k) => { const b = bbox(g), polys = g.prims.filter(p => p.closed), out = []; let tries = 0;
-    while (out.length < Math.min(2000, k.count) && tries++ < k.count * 40) { const x = b.x0 + hash(k.seed, tries, 1) * (b.x1 - b.x0), y = b.y0 + hash(k.seed, tries, 2) * (b.y1 - b.y0); if (!polys.length || polys.some(p => inside([x, y], p.pts))) out.push(prim([[x, y]], false, {point: 0.03})); }
+op('sop/copy_to_points', 'sop', {pos: [['source', 'geometry'], ['targets', 'geometry']], out: 'geometry',
+  fn: ([g, t]) => countPrims(geo(pointsOf(t).flatMap((c, k) => g.prims.map(p => ({...p, pts: p.pts.map(q => [q[0] + c[0], q[1] + c[1], q[2] + c[2]]), tags: {...p.tags, '#copy': k}, uid: ++uidN})))))});
+op('sop/scatter', 'sop', {pos: [['input', 'geometry']], kw: [['count', 'int', 60, [1, 2000]], ['seed', 'int', 0, [0, 100]]], out: 'geometry',
+  fn: ([g], k) => { const fs = g.prims.filter(p => p.kind === 'face'), out = [];
+    if (!fs.length) return geo([]);
+    const area = fs.map(p => { const n = p.pts.length; let a = 0; for (let i = 1; i + 1 < n; i++) { const u = p.pts[i].map((v, j) => v - p.pts[0][j]), w = p.pts[i + 1].map((v, j) => v - p.pts[0][j]); a += Math.hypot(u[1] * w[2] - u[2] * w[1], u[2] * w[0] - u[0] * w[2], u[0] * w[1] - u[1] * w[0]) / 2; } return a; }), tot = area.reduce((a, b) => a + b, 0) || 1;
+    for (let s = 0; s < Math.min(2000, k.count); s++) { let r = hash(k.seed, s, 1) * tot, f = 0; while (f < fs.length - 1 && r > area[f]) { r -= area[f]; f++; }
+      const P = fs[f].pts, i = 1 + Math.floor(hash(k.seed, s, 2) * (P.length - 2)); let a = hash(k.seed, s, 3), b = hash(k.seed, s, 4); if (a + b > 1) { a = 1 - a; b = 1 - b; }
+      out.push(prim([[0, 1, 2].map(j => P[0][j] + a * (P[i][j] - P[0][j]) + b * (P[i + 1][j] - P[0][j]))], false, {size: 0.04})); }
     return geo(out); }});
 op('sop/set_color', 'sop', {pos: [['input', 'geometry']], kw: [['color', 'color', '#285f77'], ['group', 'groupref', '']], out: 'geometry',
   fn: ([g], k) => geo(g.prims.map(p => !k.group || p.groups.includes(k.group) ? {...p, color: toHex(k.color)} : p))});
-op('sop/group_bounds', 'sop', {pos: [['input', 'geometry']], kw: [['name', 'group', 'group1'], ['min', 'vec3', [-1, -1, -1]], ['max', 'vec3', [1, 1, 1]]], out: 'geometry',
-  fn: ([g], k) => geo(g.prims.map(p => { const [x, y] = centroid(p); return x >= k.min[0] && x <= k.max[0] && y >= k.min[1] && y <= k.max[1] ? {...p, groups: [...new Set([...p.groups, k.name])]} : p; }))});
+op('sop/group_bounds', 'sop', {pos: [['input', 'geometry']], kw: [['name', 'group', 'group1'], ['center', 'vec3', [0, 0, 0]], ['size', 'vec3', [1, 1, 1]]], out: 'geometry',
+  fn: ([g], k) => geo(g.prims.map(p => { const c = centroid(p); return c.every((v, i) => Math.abs(v - k.center[i]) <= k.size[i] / 2) ? {...p, groups: [...new Set([...p.groups, k.name])]} : p; }))});
 op('sop/group_random', 'sop', {pos: [['input', 'geometry']], kw: [['name', 'group', 'group1'], ['ratio', 'float', 0.5, [0, 1]], ['seed', 'int', 0, [0, 100]]], out: 'geometry',
-  fn: ([g], k) => geo(g.prims.map((p, i) => hash(k.seed, i, 7) < k.ratio ? {...p, groups: [...new Set([...p.groups, k.name])]} : p))});
-op('sop/blast', 'sop', {pos: [['input', 'geometry']], kw: [['group', 'groupref', ''], ['invert', 'bool', false]], out: 'geometry',
-  fn: ([g], k) => geo(g.prims.filter(p => p.groups.includes(k.group) === !!k.invert))});
+  fn: ([g], k) => { const byUid = new Map(); return geo(g.prims.map((p, i) => { const key = p.tags['#piece'] ?? i; if (!byUid.has(key)) byUid.set(key, hash(k.seed, key, 7) < k.ratio); return byUid.get(key) ? {...p, groups: [...new Set([...p.groups, k.name])]} : p; })); }});
+op('sop/blast', 'sop', {pos: [['input', 'geometry']], kw: [['group', 'groupref', ''], ['selected', 'bool', true]], out: 'geometry',
+  fn: ([g], k) => geo(g.prims.filter(p => p.groups.includes(k.group) !== !!k.selected))});
 op('sop/subdivide', 'sop', {pos: [['input', 'geometry']], kw: [['iterations', 'int', 1, [0, 4]]], out: 'geometry',
-  fn: ([g], k) => { let ps = g.prims; for (let i = 0; i < Math.min(5, k.iterations); i++) ps = ps.map(chaikin); return geo(ps); }});
-op('sop/noise_displace', 'sop', {pos: [['input', 'geometry']], kw: [['amp', 'float', 0.1, [0, 1]], ['frequency', 'float', 2, [0, 10]], ['seed', 'int', 0, [0, 100]]], out: 'geometry',
-  fn: ([g], k) => mapPts(g, ([x, y]) => [x + k.amp * noise2(x * k.frequency, y * k.frequency, k.seed), y + k.amp * noise2(x * k.frequency + 17, y * k.frequency - 9, k.seed)])});
-op('sop/point_list', 'sop', {pos: [['input', 'geometry']], out: 'list:vec3', fn: ([g]) => g.prims.flatMap(p => p.pts.map(q => [q[0], q[1], 0])).slice(0, 4096)});
+  fn: ([g], k) => { let ps = g.prims; for (let i = 0; i < Math.min(4, k.iterations); i++) ps = ps.flatMap(p => p.kind === 'face' ? subdivideFace(p) : p.kind === 'line' ? [chaikin(p)] : [p]); return countPrims(geo(ps)); }});
+op('sop/noise_displace', 'sop', {pos: [['input', 'geometry']], kw: [['amplitude', 'float', 0.1, [0, 2]], ['frequency', 'float', 2, [0, 10]], ['seed', 'int', 0, [0, 100]]], out: 'geometry',
+  fn: ([g], k) => mapPts(g, ([x, y, z]) => { const f = k.frequency, a = k.amplitude; return [x + a * noise3(x * f, y * f, z * f, k.seed), y + a * noise3(x * f + 17, y * f - 9, z * f + 3, k.seed), z + a * noise3(x * f - 5, y * f + 11, z * f - 13, k.seed)]; })});
+op('sop/polywire', 'sop', {pos: [['input', 'geometry']], kw: [['radius', 'float', 0.03, [0, 1]], ['sides', 'int', 6, [3, 16]]], out: 'geometry',
+  fn: ([g], k) => countPrims(geo(g.prims.flatMap(p => p.kind === 'line' ? wire(p, k.radius, Math.max(3, Math.min(16, k.sides))) : [p])))});
+op('sop/point_list', 'sop', {pos: [['input', 'geometry']], out: 'list:vec3', fn: ([g]) => pointsOf(g).slice(0, 4096)});
 op('sop/piece_list', 'sop', {pos: [['input', 'geometry']], out: 'list:geometry', fn: ([g]) => g.prims.slice(0, 4096).map(p => geo([p]))});
 
 op('scene/object', 'scene', {pos: [['geometry', 'geometry']], kw: [['color', 'color', '#285f77'], ['at', 'vec3', [0, 0, 0]], ['scale', 'float', 1, [0, 3]]], out: 'scene',
@@ -1783,23 +1847,24 @@ const CASES = [
   (defn half :context value [(x : float)] (* x 0.5))
   (defmacro twice [x] (+ x x))
   (defn petal :context sop [(length : float 1.0) (width : float 0.3)]
-    (sop/transform (sop/circle :radius 0.5 :segments 28)
-                   :scale [width length 1]
-                   :translate [0 (half length) 0]))
+    (sop/transform (sop/uv_sphere :radius [(half length) 0.04 width]
+                                  :center [(half length) 0 0]
+                                  :segments 14 :rings 6)
+                   :rotate [0 0 0.35]))
   (graph flower :context sop [(petals : int 12) (seed : int 7)]
     (let* [ring (for [i (range petals)]
                   (let* [u (/ i petals)
                          wobble (* 0.35 (value/rand seed i))
-                         leaf (petal :length (+ 0.9 wobble) :width 0.26)
+                         leaf (petal :length (+ 0.9 wobble) :width 0.22)
                          tint (sop/set_color leaf :color (value/hsv (+ 0.05 (* u 0.12)) 0.55 0.92))]
-                    (sop/transform tint :rotate (* u 360))))
+                    (sop/transform tint :rotate [0 (* u 6.2832) 0])))
            bloom (sop/merge ring)
-           heart (sop/circle :radius 0.16)
+           heart (sop/uv_sphere :radius [0.22 0.12 0.22] :center [0 0.05 0])
            result (sop/merge bloom (sop/set_color heart :color "#6b7650"))]
       result))
   (graph scene :context scene
     (let* [main (scene/object (ref flower) :color "#d69f61")
-           accent (scene/object (ref flower :petals 7 :seed 2) :color "#6fa6a1" :at [2.3 -0.9 0] :scale 0.5)
+           accent (scene/object (ref flower :petals 7 :seed 2) :color "#6fa6a1" :at [2.2 0 -1.2] :scale 0.55)
            composed (scene/merge main accent)]
       composed))
   (graph world :context world
@@ -1818,67 +1883,71 @@ const CASES = [
                         (let* [turn (/ (* 137.508 pi) 180)
                                r (* spread (sqrt i))
                                a (* i turn)
+                               lift (- 0.3 (* 0.3 (* r r)))
                                size (+ 0.012 (* 0.022 (/ i seeds)))]
-                          (sop/circle :radius size :segments 8 :center (value/polar r a))))
+                          (sop/uv_sphere :radius size :center (value/polar r a lift) :segments 6 :rings 4)))
            head (sop/merge seeds_each)]
       head)))`},
-{key: 'tunnel', title: 'Tunnel', tag: 'fold · feedback', focus: ['tunnel', 'tunnel/nested'],
- teaches: 'fold carries a value from one iteration to the next. Each step shrinks and turns everything so far, then adds the frame again. The strip shows the state after every step.',
- lisp: `(workspace tunnel
-  (graph tunnel :context sop [(steps : int 18) (turn : float 5.0)]
-    (let* [frame (sop/box :size [2 2 0])
+{key: 'tunnel', title:'Gyroscope', tag: 'fold · feedback', focus:['rings', 'rings/nested'],
+ teaches:'fold carries a value from one iteration to the next. Each step shrinks and turns everything so far, then adds the ring again, so 18 steps nest 19 rings. The iteration selector steps through the state after each step.',
+ lisp: `(workspace rings
+  (graph rings :context sop [(steps : int 18) (turn : float 0.18)]
+    (let* [frame (sop/torus :major_radius 1 :minor_radius 0.03 :rows 5 :columns 40)
            nested (fold [shape frame]
                         [i (range steps)]
-                    (sop/merge frame (sop/transform shape :scale 0.88 :rotate turn)))]
+                    (sop/merge frame (sop/transform shape :uniform_scale 0.87 :rotate [turn (* 0.5 turn) 0])))]
       nested)))`},
 {key: 'tree', title: 'Fractal tree', tag: 'fold · doubling · scope', focus: ['tree', 'tree/crown'],
- teaches: 'An iterated function system. Every step puts two scaled, rotated copies of the whole tree on top of the trunk, so step n holds 2ⁿ⁺¹−1 branches. A bounded fold replaces recursion, which the language forbids.',
+ teaches:'An iterated function system in 3D. Every step puts three scaled, tilted copies of the whole tree on top of the trunk, turned a third of a circle apart, so step n holds (3ⁿ⁺¹−1)/2 branches. A bounded fold replaces recursion, which the language forbids.',
  lisp: `(workspace tree
-  (graph tree :context sop [(depth : int 7) (spread : float 24.0) (shrink : float 0.7)]
-    (let* [trunk (sop/line :length 1 :angle 90)
+  (graph tree :context sop [(depth : int 5) (spread : float 0.6) (shrink : float 0.62)]
+    (let* [trunk (sop/polywire (sop/line :length 1) :radius 0.05 :sides 5)
            crown (fold [tree trunk]
                        [level (range depth)]
                    (let* [up [0 1 0]
-                          left (sop/transform tree :scale shrink :rotate spread :translate up)
-                          right (sop/transform tree :scale shrink :rotate (- 0 spread) :translate up)]
-                     (sop/merge trunk left right)))]
+                          tilted (sop/transform tree :uniform_scale shrink :rotate [0 0 spread])
+                          a (sop/transform tilted :translate up)
+                          b (sop/transform tilted :rotate [0 2.094 0] :translate up)
+                          c (sop/transform tilted :rotate [0 4.189 0] :translate up)]
+                     (sop/merge trunk a b c)))]
       crown)))`},
-{key: 'wave', title: 'Square wave', tag: 'Σ in an expression · nested loops · t', focus: ['wave', 'wave/pts/y'],
- teaches: 'A loop inside an expression. y is a Fourier sum folded into a Σ chip. Unfold it with ƒ and it becomes a sum zone inside the for zone. Time t moves the phase; press play in the viewport.',
+{key: 'wave', title: 'Square wave', tag: 'Σ in an expression · nested loops · t', focus:['wave', 'wave/strands/pts/y'],
+ teaches:'Loops three deep. y is a Fourier sum folded into a Σ chip inside a for over samples, inside a for over rows; each row is a tube offset in phase. Unfold the Σ with ƒ and it becomes a sum zone. Time t moves the phase; press play in the viewport.',
  lisp: `(workspace wave
-  (graph wave :context sop [(harmonics : int 5) (samples : int 160)]
-    (let* [pts (for [j (range samples)]
-                 (let* [x (* (/ j samples) 6.2832)
-                        y (* 0.7 (sum [k (range harmonics)]
-                                   (/ (sin (* (+ x t) (+ (* 2 k) 1))) (+ (* 2 k) 1))))]
-                   [(- (/ x 3.1416) 1) y 0]))
-           curve (sop/poly_path pts)]
-      curve)))`},
-{key: 'tiles', title: 'Ten print', tag: 'nested for · if · rand', focus: ['tiles', 'tiles/cells_each/coin'],
- teaches: 'Two clauses in one for make a grid: x and y form a product, 64 iterations. A pure hash picks each diagonal. The if node counts how often each branch ran.',
+  (graph wave :context sop [(harmonics : int 5) (samples : int 90) (rows : int 6)]
+    (let* [strands (for [row (range rows)]
+                     (let* [pts (for [j (range samples)]
+                                  (let* [x (* (/ j samples) 6.2832)
+                                         y (* 0.5 (sum [k (range harmonics)]
+                                                    (/ (sin (* (+ x (+ t (* row 0.4))) (+ (* 2 k) 1))) (+ (* 2 k) 1))))]
+                                    [(- (/ x 3.1416) 1) y (- (* row 0.3) 0.75)]))]
+                       (sop/polywire (sop/poly_path pts) :radius 0.015 :sides 4)))
+           sheet (sop/merge strands)]
+      sheet)))`},
+{key: 'tiles', title: 'Ten print', tag: 'nested for · if · rand', focus:['tiles', 'tiles/cells_each/coin'],
+ teaches:"Two clauses in one for make a grid: x and z form a product, 64 iterations. A pure hash picks each wall's diagonal, so the walls form a maze. The if nodes count how often each branch ran.",
  lisp: `(workspace tiles
   (graph tiles :context sop [(cells : int 8) (seed : int 3)]
     (let* [size (/ 2.0 cells)
-           cells_each (for [x (range cells) y (range cells)]
-                        (let* [coin (< (value/rand seed x y) 0.5)
-                               angle (if coin 45 -45)
-                               lift (if coin 0 size)
-                               stroke (sop/line :length (* size 1.4142) :angle angle)
-                               ink (sop/set_color stroke :color (if coin "#285f77" "#b0680f"))]
-                          (sop/transform ink :translate [(- (* x size) 1) (- (+ (* y size) lift) 1) 0])))
-           pattern (sop/merge cells_each)]
-      pattern)))`},
+           cells_each (for [x (range cells) z (range cells)]
+                        (let* [coin (< (value/rand seed x z) 0.5)
+                               angle (if coin 0.7854 -0.7854)
+                               wall (sop/box :size [(* size 1.4142) 0.3 0.05] :rotation [0 angle 0])
+                               ink (sop/set_color wall :color (if coin "#285f77" "#b0680f"))]
+                          (sop/transform ink :translate [(- (* (+ x 0.5) size) 1) 0.15 (- (* (+ z 0.5) size) 1)])))
+           maze (sop/merge cells_each)]
+      maze)))`},
 {key: 'facade', title: 'Facade', tag: 'groups · named scope', focus: ['facade', 'facade/marked'],
  teaches: 'Geometry groups are names that flow with geometry. group_bounds and group_random create them; set_color and blast read them, and the editor draws a named link from creator to reader. Each window is grouped by its floor with a computed name, (str "floor_" f); the floor to hide is one bound name wired into blast. marked is a nested let* scope.',
  lisp: `(workspace facade
   (graph facade :context sop [(floors : int 6) (bays : int 5) (hide : int 2)]
-    (let* [wall (sop/box :size [2.2 3.3 0] :center [0 1.55 0])
+    (let* [wall (sop/box :size [2.2 3.3 0.6] :center [0 1.65 0])
            windows (for [f (range floors) b (range bays)]
-                     (sop/group_bounds (sop/box :size [0.24 0.3 0]
-                                                :center [(- (* b 0.4) 0.8) (+ 0.4 (* f 0.48)) 0])
-                                       :name (str "floor_" f) :min [-9 -9 -1] :max [9 9 1]))
+                     (sop/group_bounds (sop/box :size [0.24 0.3 0.06]
+                                                :center [(- (* b 0.4) 0.8) (+ 0.4 (* f 0.48)) 0.31])
+                                       :name (str "floor_" f) :size [99 99 99]))
            glass (sop/merge windows)
-           marked (let* [top (sop/group_bounds glass :name "attic" :min [-2 2.5 -1] :max [2 4 1])
+           marked (let* [top (sop/group_bounds glass :name "attic" :center [0 3 0] :size [4 1 4])
                          odd (sop/group_random top :name "lit" :ratio 0.35 :seed 4)]
                     odd)
            lit (sop/set_color marked :color "#f5cf4f" :group "lit")
@@ -1893,7 +1962,7 @@ const CASES = [
   (graph garden :context sop [(seed : int 1) (count : int 40)]
     (let* [bed (sop/circle :radius 1 :segments 48)
            spots (sop/scatter bed :count count :seed seed)
-           dot (sop/circle :radius 0.06 :segments 10)
+           dot (sop/uv_sphere :radius 0.06 :segments 8 :rings 4)
            dots (sop/copy_to_points dot spots)
            result (sop/merge bed dots)]
       result))
@@ -1912,13 +1981,12 @@ const CASES = [
       shell)))`},
 {key:'garland',title:'Garland',tag:'λ functions · map · filter · reduce · sort-by',focus:['garland','garland/bead'],
  teaches:'Functions are values. bead and leaf are local λ zones whose strips show every call they received. ring is a shared defn that takes a function as an input. filter, sort-by and reduce work on the list of sizes, and the viewport maps each bead back to the call that made it.',
- lisp:`(workspace garland
+ lisp: `(workspace garland
   ; ring is a higher-order function: it takes the shape maker as an input.
   (defn ring :context sop [(n : int 8) (radius : float 1.0) (make : fn)]
     (sop/merge (map (fn [i]
-                      (sop/transform (make i)
-                                     :rotate (* (/ i n) 360)
-                                     :translate (value/polar radius (* (/ i n) 6.2832))))
+                      (let* [a (* (/ i n) 6.2832)]
+                        (sop/transform (make i) :rotate [0 (- 0 a) 0] :translate (value/polar radius a))))
                     (range n))))
   (graph garland :context sop [(count : int 14) (seed : int 5)]
     (let* [size (fn [i] (+ 0.05 (* 0.11 (value/rand seed i))))
@@ -1927,21 +1995,20 @@ const CASES = [
            ordered (sort-by (fn [s] (- 0 s)) big)
            total (reduce + 0 big)
            ; one bead per kept size, largest first
-           bead (fn [r k] (sop/transform (sop/circle :radius r :segments 18)
-                                         :translate [(- (* k 0.26) 1.3) -1.7 0]))
+           bead (fn [r k] (sop/uv_sphere :radius r :center [(- (* k 0.28) 1.1) r 1.6] :segments 12 :rings 6))
            beads (map bead ordered (range (count ordered)))
-           leaf (fn [i] (sop/transform (sop/circle :radius 0.5 :segments 20) :scale [0.14 (+ 0.3 (* 0.02 i)) 1]))
+           leaf (fn [i] (sop/uv_sphere :radius [0.3 0.05 (+ 0.08 (* 0.004 i))] :segments 10 :rings 5))
            wreath (ring :n count :radius 0.95 :make leaf)
-           heart (sop/circle :radius (* 0.25 total) :segments 32)
+           heart (sop/uv_sphere :radius (* 0.25 total) :center [0 0.1 0])
            result (sop/merge wreath (sop/merge beads) heart)]
       result)))`},
 {key:'kit',title:'Kit of parts',tag:'records · values · destructuring · lists · cond · case · str',focus:['kit','kit/tower'],
  teaches:'window returns several named values; its node spills one output per field. [left mid right] destructures a list literal you edit item by item. The tower is a fold whose accumulator is a record, so it carries a shape and a height at once. case and cond pick colours and parts; str builds a label.',
- lisp:`(workspace kit
+ lisp: `(workspace kit
   ; window returns several values: a record with named fields.
   (defn window :context sop [(w : float 0.3) (h : float 0.4)]
-    (let* [frame (sop/box :size [w h 0])
-           pane (sop/box :size [(* w 0.8) (* h 0.8) 0])]
+    (let* [frame (sop/box :size [w h 0.3])
+           pane (sop/box :size [(* w 0.8) (* h 0.8) 0.34])]
       (values :frame frame :pane pane :area (* w h))))
   (graph kit :context sop [(floors : int 5)]
     (let* [widths (list 0.3 0.45 0.3)
@@ -1949,26 +2016,26 @@ const CASES = [
            big (window :w mid :h 0.5)
            small (window :w left)
            style (fn [f] (case (mod f 3) 0 "#b0680f" 1 "#285f77" :else "#6b50ae"))
-           tower (fold [st {:shape (sop/box :size [0.01 0.01 0]) :y 0.0}]
+           tower (fold [st {:shape (sop/box :size [0.01 0.01 0.01]) :y 0.0}]
                        [f (range floors)]
                    (let* [{:keys [shape y]} st
                           part (cond (= f 0) big.frame
                                      (= f (- floors 1)) small.pane
                                      :else small.frame)
                           unit (sop/set_color part :color (style f))
-                          placed (sop/transform unit :translate [0 y 0])]
+                          placed (sop/transform unit :translate [0 y 0] :rotate [0 (* f 0.3) 0])]
                      {:shape (sop/merge shape placed) :y (+ y 0.55)}))
            label (str "floors " floors " · area " big.area)
            panes (sop/transform big.pane :translate [0.75 0 0])]
       (sop/merge tower.shape panes))))`},
 {key:'rosette',title:'Rosette',tag:'hygienic macros · expansion lens · notes · bypass',focus:['rosette','rosette/outer'],
  teaches:'radial is a macro: a template with holes. Its first hole is a name the caller chooses (k), so the body can use the index. wobble introduces a fresh name (step#) that can never collide with yours. Press ⤵ on a call to step through its expansion. soft is bypassed with ^:bypass; notes are comments that survive every edit.',
- lisp:`(workspace rosette
-  ; radial repeats a shape n times around the origin.
+ lisp: `(workspace rosette
+  ; radial repeats a shape n times around the vertical axis.
   ; The caller names the index, so the body can read it.
   (defmacro radial [i n body]
     \`(sop/merge (for [~i (range ~n)]
-                  (sop/transform ~body :rotate (* (/ ~i ~n) 360)))))
+                  (sop/transform ~body :rotate [0 (* (/ ~i ~n) 6.2832) 0]))))
   ; wobble adds a pure random offset; step# is fresh at every use.
   (defmacro wobble [x amt seed]
     \`(let* [step# (- (value/rand ~seed) 0.5)]
@@ -1976,12 +2043,11 @@ const CASES = [
   (graph rosette :context sop [(petals : int 12)]
     (let* [; the outer ring of petals
            outer (radial k petals
-                   (sop/transform (sop/circle :radius 0.5 :segments 24)
-                                  :scale [0.2 (wobble 0.9 0.4 k) 1]
-                                  :translate [0 0.9 0]))
-           inner (radial j 6 (sop/circle :radius 0.12 :center [0 0.35 0]))
+                   (sop/uv_sphere :radius [0.45 0.04 0.12] :center [0.5 0 0]
+                                  :rotation [0 0 (wobble 0.35 0.4 k)] :segments 12 :rings 6))
+           inner (radial j 6 (sop/uv_sphere :radius 0.1 :center [0.25 0.12 0] :segments 8 :rings 4))
            ; switch the bypass off to smooth the inner ring
-           soft ^:bypass (sop/subdivide inner :iterations 2)
+           soft ^:bypass (sop/subdivide inner :iterations 1)
            rose (sop/merge outer soft)]
       rose)))`}
 ];
@@ -2062,7 +2128,7 @@ window.Register=[
  rule:'No. Wiring from inside a zone to a node outside is rejected with an explanation. The only exit is the yield row on the right rail: collect, next, add or result.'},
 {id:'V3',area:'graph',status:'decided',q:'What does a node inside a loop display?',
  why:'One value per node hides that it has 12 or 240. Showing all of them does not fit on a card.',
- rule:'The footer shows the value at the probed iteration, a sparkline across iterations for numbers, and a count ×n. The zone strip draws thumbnails or bars per iteration and sets the probe. The inspector lists every value. Nested zones probe the inner loop at the outer probe.'},
+ rule:'The footer shows the value at the probed iteration, a sparkline across iterations for numbers, and a count ×n. The zone’s iteration selector (‹ slider ›) sets the probe; the viewport shows the result. The inspector lists every value. Nested zones probe the inner loop at the outer probe.'},
 {id:'V4',area:'graph',status:'decided',q:'Scrubbing a number inside a loop: one iteration or all?',
  why:'Direct manipulation invites “make this petal longer”. But the number is code, so it changes every petal.',
  rule:'It changes every iteration, and the status says so while scrubbing. A separate action, Only iteration k differs, writes (if (= i k) new old) explicitly, so the special case is visible in both Lisp and graph.'},
@@ -2109,7 +2175,7 @@ window.Register=[
  rule:'Annotations are optional, (fn [(x : float)] …). The static pass types the body with the declared types or with any, then again with the argument types at each call site it can see, such as the element type of the list given to map. Errors name the call site.'},
 {id:'F3',area:'functions',status:'decided',q:'What does a function zone show, and what is its probe?',
  why:'A function runs once per call, not once per iteration, and it may be called from several places. Showing one value hides what it did.',
- rule:'A λ zone is a loop over its calls. Its strip has one cell per call received, in evaluation order; the probe selects a call, and every node inside shows its value in that call. Shapes a call produces are tagged with (function, call), so clicking a bead in the viewport finds the call that made it. The inspector lists each call as arguments → result.',
+ rule:'A λ zone is a loop over its calls. Its selector steps through the calls received, in evaluation order; the probe selects a call, and every node inside shows its value in that call. Shapes a call produces are tagged with (function, call), so clicking a bead in the viewport finds the call that made it. The inspector lists each call as arguments → result.',
  study:'Garland: probe bead; click a bead in the viewport.'},
 {id:'F4',area:'functions',status:'decided',q:'map over several lists: zip or product?',
  why:'L2 made several for clauses a product. A higher-order map over two lists is conventionally a zip.',
@@ -2800,16 +2866,9 @@ function stripHTML(n){
   const cnt=items.length,k=Math.min(probe[n.id]||0,Math.max(0,cnt-1));
   const iv=n.inner.rail.find(r=>r.role==='iter'||r.role==='param'),vals=iv?(n.zkind==='fn'?(program.records.get(n.id+'/:'+iv.name)||[]).map(r=>r.v):seriesOf(n.id+'/:'+iv.name,[...chain,n.id])):null;
   const cur=vals&&vals[k]?describe(vals[k]):k;
-  let viz='';const maxT=Math.max(8,Math.floor((expandedWidth(n)-150)/24));
-  const idx=cnt<=maxT?items.map((_,i)=>i):Array.from({length:maxT},(_,j)=>Math.round(j*(cnt-1)/(maxT-1)));
-  const t=items[0]?.v?.t;
-  if(t==='geometry')viz=idx.map(i=>`<span class="tcell${i===k?' on':''}" data-k="${i}">${geoThumb(items[i].v.d,20,i===k)}</span>`).join('');
-  else if(t==='float'||t==='int'){const ns=items.map(x=>x.v.d),lo=Math.min(0,...ns),hi=Math.max(...ns,lo+1e-9);viz=idx.map(i=>`<span class="tcell bar${i===k?' on':''}" data-k="${i}"><i style="height:${Math.max(1,(ns[i]-lo)/(hi-lo)*20)}px"></i></span>`).join('');}
-  else if(t&&t.startsWith('rec{'))viz=idx.map(i=>`<span class="tcell dotc${i===k?' on':''}" data-k="${i}">{}</span>`).join('');
-  else viz=idx.map(i=>`<span class="tcell dotc${i===k?' on':''}" data-k="${i}">${esc(items[i]?.v?.t==='panel'?items[i].v.d.kind[0]:'•')}</span>`).join('');
-  if(n.zkind==='fn'&&!cnt)return `<div class="zstrip" data-zone="${esc(n.id)}"><span class="zread">never called · wire its λ output into map, filter or reduce, or call it by name</span></div>`;
   const label=n.zkind==='fn'?`call ${k+1} of ${cnt}`:n.zkind==='fold'?`after step ${k+1} of ${cnt}`:n.zkind==='sum'?`term ${k+1} of ${cnt} · Σ ${describe(recordAt(n.id,chain))}`:`${k+1} of ${cnt}`;
-  return `<div class="zstrip" data-zone="${esc(n.id)}" title="Drag to probe an iteration. Every node inside shows its value there; the viewport highlights it."><span class="zcells">${viz}</span><span class="zread">${iv?`<b>${esc(iv.name)} = ${esc(cur)}</b> · `:''}${esc(label)}</span></div>`;
+  const frac=cnt>1?k/(cnt-1):0,ticks=cnt>1&&cnt<=48?`background-size:calc(100% / ${cnt-1}) 100%`:'';
+  return `<div class="zstrip zsel" data-zone="${esc(n.id)}"><button class="zstep" data-zstep="-1" data-zone="${esc(n.id)}" aria-label="Previous ${n.zkind==='fn'?'call':'iteration'}"${k<=0?' disabled':''}>‹</button><div class="ztrack${ticks?' ticked':''}" data-zone="${esc(n.id)}" data-cnt="${cnt}" role="slider" tabindex="0" aria-label="${n.zkind==='fn'?'Call':'Iteration'}" aria-valuemin="1" aria-valuemax="${cnt}" aria-valuenow="${k+1}" style="${ticks}"><i class="zfill" style="width:${frac*100}%"></i><i class="zthumb" style="left:${frac*100}%"></i></div><button class="zstep" data-zstep="1" data-zone="${esc(n.id)}" aria-label="Next ${n.zkind==='fn'?'call':'iteration'}"${k>=cnt-1?' disabled':''}>›</button><span class="zread">${iv?`<b>${esc(iv.name)} = ${esc(cur)}</b> · `:''}${esc(label)}</span></div>`;
 }
 const expandedWidth=n=>{const L=layoutScope(n.inner);return RAILW+PAD+Math.max(L.w,72)+PAD+YW;};
 function nodeFoot(n,S){
@@ -2946,8 +3005,10 @@ function initGraph(g){
     const up=t.closest('[data-up]');if(up){moveItem(up.dataset.up,Number(up.dataset.pos));e.preventDefault();return;}
     const ad=t.closest('[data-add]');if(ad){addItem(ad.dataset.id);e.preventDefault();return;}
     const nt=t.closest('[data-note]');if(nt){setSel(new Set([nt.dataset.note]));requestAnimationFrame(()=>document.querySelector('.ibody .notearea')?.focus());e.preventDefault();return;}
-    const strip=t.closest('.zstrip');
-    if(strip){e.preventDefault();g.setPointerCapture(e.pointerId);drag={kind:'probe',zone:strip.dataset.zone};probeFrom(strip,e);if(!selection.has(strip.dataset.zone))setSel(new Set([strip.dataset.zone]));return;}
+    const zs=t.closest('[data-zstep]');if(zs){e.preventDefault();stepZone(zs.dataset.zone,Number(zs.dataset.zstep));return;}
+    const track=t.closest('.ztrack');
+    if(track){e.preventDefault();g.setPointerCapture(e.pointerId);drag={kind:'probe',zone:track.dataset.zone};probeFrom(track,e);if(!selection.has(track.dataset.zone))setSel(new Set([track.dataset.zone]));return;}
+    if(t.closest('.zstrip'))return;
     const out=t.closest('.sock.out');
     if(out){e.preventDefault();g.setPointerCapture(e.pointerId);const S=findScope(out.dataset.sid);drag={kind:'wire',src:out.dataset.src,S,role:out.dataset.role,from:out};g.classList.add('wiring');markTargets(g,drag);return;}
     const sin=t.closest('.sock.in');
@@ -2981,7 +3042,7 @@ function initGraph(g){
   });
   g.addEventListener('pointermove',e=>{
     if(!drag)return;
-    if(drag.kind==='probe'){const s=g.querySelector(`.zstrip[data-zone="${CSS.escape(drag.zone)}"]`);if(s)probeFrom(s,e);return;}
+    if(drag.kind==='probe'){const s=g.querySelector(`.ztrack[data-zone="${CSS.escape(drag.zone)}"]`);if(s)probeFrom(s,e);return;}
     if(drag.kind==='wire'){const p=canvasPoint(g,e),r=drag.from.getBoundingClientRect(),c=g.querySelector('.gcanvas').getBoundingClientRect(),a={x:r.left-c.left+r.width/2,y:r.top-c.top+r.height/2},tmp=g.querySelector('.tmpw');if(tmp){tmp.removeAttribute('hidden');tmp.setAttribute('d',wirePath(a,p));tmp.setAttribute('class','wire tmpw w-'+tc(typeOfName(drag.S,drag.src)));}return;}
     if(drag.kind==='move'){const p=canvasPoint(g,e),dx=p.x-drag.start.x,dy=p.y-drag.start.y;if(!drag.moved&&Math.hypot(dx,dy)<4)return;drag.moved=true;
       const m=structuredClone(meta);drag.ids.forEach(n=>{const o=drag.orig.get(n);m.pos[n]={x:Math.max(0,Math.round((o.x+dx)/8)*8),y:Math.max(0,Math.round((o.y+dy)/8)*8)};});meta=m;renderAll(true);return;}
@@ -3020,6 +3081,7 @@ function initGraph(g){
     if(e.target.closest('.gcanvas')&&!e.target.closest('.zone-fg')){const {S,origin}=scopeAt(g,e),p=canvasPoint(g,e);openPalette({x:p.x-origin.x,y:p.y-origin.y},null,S);}
   });
   g.addEventListener('keydown',e=>{
+    const tr=e.target.closest?.('.ztrack');if(tr&&(e.key==='ArrowLeft'||e.key==='ArrowRight'||e.key==='Home'||e.key==='End')){e.preventDefault();const cnt=Number(tr.dataset.cnt)||1,z=tr.dataset.zone;probe[z]=e.key==='Home'?0:e.key==='End'?cnt-1:Math.max(0,Math.min(cnt-1,(probe[z]||0)+(e.key==='ArrowLeft'?-1:1)));renderAll(true);requestAnimationFrame(()=>document.querySelector(`.ztrack[data-zone="${CSS.escape(z)}"]`)?.focus());return;}
     const inp=e.target.closest?.('.aedit');
     if(inp){if(e.key==='Enter'){e.preventDefault();const ed=editing;editing=null;if(!setRowText(ed.id,ed.key,inp.value))editing=ed,renderAll();}
       else if(e.key==='Escape'){e.preventDefault();editing=null;renderAll();g.focus();}return;}
@@ -3035,11 +3097,12 @@ function layoutRel(id){ // position relative to the node's scope origin
 }
 function findScope(id){let f=null;(function w(S){if(S.id===id)f=S;S.nodes.forEach(n=>n.inner&&w(n.inner));})(view.root);return f||view.root;}
 function resolveNodeId(S,name){for(let s=S;s;s=s.parent){const e=s.names.get(name);if(!e)continue;if(e.node)return e.node.id;if(e.param)return e.id;if(e.rail)return s.owner.id;}return null;}
-function probeFrom(strip,e){
-  const cells=[...strip.querySelectorAll('.tcell')];if(!cells.length)return;
-  let best=cells[0],bd=1e9;cells.forEach(c=>{const r=c.getBoundingClientRect(),d=Math.abs(r.left+r.width/2-e.clientX);if(d<bd){bd=d;best=c;}});
-  const k=Number(best.dataset.k);if(probe[strip.dataset.zone]!==k){probe[strip.dataset.zone]=k;renderAll(true);}
+function probeFrom(track,e){
+  const cnt=Number(track.dataset.cnt)||0;if(cnt<1)return;const r=track.getBoundingClientRect();
+  const k=Math.max(0,Math.min(cnt-1,Math.round((e.clientX-r.left)/Math.max(1,r.width)*(cnt-1))));
+  if(probe[track.dataset.zone]!==k){probe[track.dataset.zone]=k;renderAll(true);}
 }
+function stepZone(zone,d){const tr=document.querySelector(`.ztrack[data-zone="${CSS.escape(zone)}"]`),cnt=Number(tr?.dataset.cnt)||0;if(!cnt)return;probe[zone]=Math.max(0,Math.min(cnt-1,(probe[zone]||0)+d));if(!selection.has(zone))selection=new Set([zone]);renderAll(true);}
 function markTargets(g,d){const t=typeOfName(d.S,d.src);g.querySelectorAll('.arow,.rrow[data-key],.yrow').forEach(r=>{const T=targetScope(r);if(!T||!visibleFrom(T,d.src))return;if(r.dataset.id&&r.dataset.id.startsWith(d.S.id+'/'+d.src))return;if(r.classList.contains('yrow')||r.classList.contains('rrow')||!r.dataset.type||ok(t,r.dataset.type))r.classList.add('ok');});}
 
 /* ---------- add palette ---------- */
@@ -3092,7 +3155,7 @@ const BODY={
   list:'<div class="lbody"></div>',
   lisp:'<div class="ctabs" role="tablist"></div><div class="csel"></div><div class="cdoc" hidden><div class="source-toolbar"><span>Whole workspace · editable draft</span><button class="discard">Discard</button><button class="apply primary">Check &amp; apply<kbd>Ctrl ↵</kbd></button></div><textarea class="doc-src" spellcheck="false" aria-label="Workspace Lisp source"></textarea><div class="source-note">Apply is atomic. Invalid text stays here while every other panel keeps the last valid document.</div></div>',
   inspector:'<div class="ibody"></div>',
-  viewport:'<div class="pvwrap"><svg class="pv" role="img" aria-label="Illustrative 2D preview driven by the checked document"></svg></div>'
+  viewport:'<div class="pvwrap"><canvas class="pv" role="img" aria-label="Illustrative 3D preview driven by the checked document. Drag to orbit, scroll to zoom, click a shape to find what made it."></canvas></div>'
 };
 function mkLeaf(p){
   const el=document.createElement('section');el.className='panel';el.dataset.kind=p.kind;
@@ -3157,7 +3220,7 @@ function updateLeaf(el){
   }else if(k==='viewport'){
     const tiled=el.closest('.tile');
     ctl.innerHTML=tiled?`<span class="ptag">${esc(describeScene(p.scene))}</span>`:usesTime()?`<button data-a="play" class="${playing?'on':''}">${playing?'Pause':'Play'}</button><input class="tslider" type="range" min="0" max="6.283" step="0.01" value="${time}" aria-label="Time t"><span class="ptag">t ${time.toFixed(2)}</span>`:'<span class="ptag">static · no t</span>';
-    renderPreview(body.querySelector('svg'),p.scene,!!tiled);
+    renderPreview(body.querySelector('canvas'),p.scene,!!tiled);
   }else if(k==='outline'){ctl.innerHTML='';fillOutline(body);}
   else if(k==='list'){ctl.innerHTML='<span class="ptag">nested bindings</span>';fillList(body);}
   else if(k==='inspector'){ctl.innerHTML='';fillInspector(body.querySelector('.ibody'));}
@@ -3194,46 +3257,78 @@ function focusZone(){
   for(const id of selection){const n=view?.all.get(id);if(!n)continue;const ch=[...zoneChain(n.scope)];if(n.kind==='zone'&&n.zkind!=='let*')ch.push(n.id);for(let i=ch.length-1;i>=0;i--)if(tagging(ch[i]))return ch[i];}
   return null;
 }
-function initPreview(body){
-  const svg=body.querySelector('svg');
-  svg.addEventListener('click',e=>{
-    const el=e.target.closest('[data-tags]');if(!el)return;const tags=JSON.parse(el.dataset.tags);const keys=Object.keys(tags).filter(k=>!k.startsWith('#'));
-    if(!keys.length){status('This shape is not made by a loop.');return;}
-    const fz=focusZone(),zid=keys.includes(fz)?fz:keys.sort((a,b)=>b.length-a.length)[0],g=zid.split('/')[0];
-    probe[zid]=tags[zid];if(scope!==g){scope=g;returnScope=null;}
-    selection=new Set([zid]);piece=null;renderAll();
-    const z=program.zones.get(zid);status(z?.kind==='fn'?`That shape came from call ${tags[zid]+1} of ${z.count} to ${zid.split('/').pop()}. Every node inside shows its value in that call.`:`That shape came from ${zid.split('/').pop()}, iteration ${tags[zid]+1} of ${z?.count??'?'}. Every node in the loop now shows its value there.`);
-  });
-  svg.addEventListener('mousemove',e=>{const el=e.target.closest('[data-tags]');const t=el?el.dataset.tags:null;if(t!==hoverTag){hoverTag=t;svg.querySelectorAll('.hov').forEach(x=>x.classList.remove('hov'));if(el){const tg=JSON.parse(t),fz=focusZone();if(fz&&fz in tg)svg.querySelectorAll('[data-tags]').forEach(x=>{if(JSON.parse(x.dataset.tags)[fz]===tg[fz])x.classList.add('hov');});}}});
+/* ---------- viewport: a small 3D painter's-algorithm renderer (an illustration, not Metal) ---------- */
+const CAM=new WeakMap();
+function camOf(cv){let c=CAM.get(cv);if(!c){c={yaw:-0.7,pitch:0.45,zoom:1,key:''};CAM.set(cv,c);}return c;}
+function rgbOf(hex){const h=String(hex||'#888888').replace('#','');const n=parseInt(h.length===3?h.split('').map(c=>c+c).join(''):h.slice(0,6),16);return [(n>>16)&255,(n>>8)&255,n&255];}
+function cssVar(n,fb){try{return getComputedStyle(document.documentElement).getPropertyValue(n).trim()||fb;}catch(e){return fb;}}
+/* draw scene items into a canvas; returns the drawn list for picking */
+function drawScene(cv,items,opt={}){
+  const dpr=Math.min(2,window.devicePixelRatio||1),W=Math.max(40,cv.clientWidth||cv.width),H=Math.max(40,cv.clientHeight||cv.height);
+  if(cv.width!==Math.round(W*dpr)||cv.height!==Math.round(H*dpr)){cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr);}
+  const g=cv.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,W,H);
+  const cam=camOf(cv),xf=(it,q)=>[q[0]*it.scale+it.at[0],q[1]*it.scale+it.at[1],q[2]*it.scale+it.at[2]];
+  const lo=[Infinity,Infinity,Infinity],hi=[-Infinity,-Infinity,-Infinity];
+  items.forEach(it=>it.geo.prims.forEach(p=>p.pts.forEach(q=>{const w=xf(it,q);for(let i=0;i<3;i++){lo[i]=Math.min(lo[i],w[i]);hi[i]=Math.max(hi[i],w[i]);}})));
+  if(!isFinite(lo[0])){lo.fill(-1);hi.fill(1);}
+  const key=opt.fitKey||'';if(cam.key!==key||!cam.center){cam.key=key;cam.center=lo.map((v,i)=>(v+hi[i])/2);cam.radius=Math.max(0.5,Math.hypot(hi[0]-lo[0],hi[1]-lo[1],hi[2]-lo[2])/2);}
+  const cy=Math.cos(cam.yaw),sy=Math.sin(cam.yaw),cp=Math.cos(cam.pitch),sp=Math.sin(cam.pitch),dist=cam.radius*3.2/cam.zoom,f=Math.min(W,H)*0.44*cam.radius*3.2/cam.radius;
+  const proj=w=>{let x=w[0]-cam.center[0],y=w[1]-cam.center[1],z=w[2]-cam.center[2];[x,z]=[x*cy-z*sy,x*sy+z*cy];[y,z]=[y*cp-z*sp,y*sp+z*cp];const d=dist-z;return [W/2+x*f/d,H/2-y*f/d,d];};
+  const L=[0.45,0.8,0.4],Ll=Math.hypot(...L),ink=cssVar('--ink','#222'),acc=cssVar('--accent','#285f77');
+  const list=[],focus=opt.focus,k=opt.k;
+  // ground grid under the model
+  const gy=lo[1],R=cam.radius*1.6,cx=cam.center[0],cz=cam.center[2];
+  g.strokeStyle=cssVar('--dot','rgba(0,0,0,.15)');g.lineWidth=1;
+  for(let i=-4;i<=4;i++){const a=proj([cx+i*R/4,gy,cz-R]),b=proj([cx+i*R/4,gy,cz+R]),c=proj([cx-R,gy,cz+i*R/4]),d=proj([cx+R,gy,cz+i*R/4]);g.beginPath();g.moveTo(a[0],a[1]);g.lineTo(b[0],b[1]);g.moveTo(c[0],c[1]);g.lineTo(d[0],d[1]);g.stroke();}
+  items.forEach(it=>it.geo.prims.forEach(p=>{
+    const w=p.pts.map(q=>xf(it,q)),s=w.map(proj),depth=s.reduce((a,q)=>a+q[2],0)/s.length;
+    const tagged=focus&&(focus in p.tags),dim=focus&&opt.tagged&&!(tagged&&p.tags[focus]===k),hiP=focus&&tagged&&p.tags[focus]===k;
+    list.push({p,s,depth,col:p.color||it.color,dim,hi:hiP,w});
+  }));
+  list.sort((a,b)=>b.depth-a.depth);
+  for(const d of list){
+    const [r,gg,b]=rgbOf(d.col),a=d.dim?0.18:1;
+    if(d.p.kind==='face'&&d.s.length>2){
+      const n=faceNormalW(d.w),sh=0.38+0.62*Math.abs((n[0]*L[0]+n[1]*L[1]+n[2]*L[2])/Ll);
+      g.beginPath();d.s.forEach((q,i)=>i?g.lineTo(q[0],q[1]):g.moveTo(q[0],q[1]));g.closePath();
+      g.fillStyle=`rgba(${r*sh|0},${gg*sh|0},${b*sh|0},${a})`;g.fill();
+      g.strokeStyle=d.hi?ink:`rgba(${r*sh*0.8|0},${gg*sh*0.8|0},${b*sh*0.8|0},${a*0.6})`;g.lineWidth=d.hi?1.4:0.5;g.stroke();
+    }else if(d.s.length===1){const q=d.s[0],rad=Math.max(1.5,(d.p.size||0.04)*f/q[2]);g.beginPath();g.arc(q[0],q[1],rad,0,Math.PI*2);g.fillStyle=`rgba(${r},${gg},${b},${a})`;g.fill();}
+    else{g.beginPath();d.s.forEach((q,i)=>i?g.lineTo(q[0],q[1]):g.moveTo(q[0],q[1]));if(d.p.closed)g.closePath();g.strokeStyle=d.hi?ink:`rgba(${r},${gg},${b},${a})`;g.lineWidth=d.hi?2.4:1.6;g.stroke();}
+  }
+  if(opt.ghost){g.save();g.setLineDash([4,3]);g.strokeStyle=cssVar('--t-vec','#6b50ae');g.lineWidth=1.2;
+    opt.ghost.prims.forEach(p=>{const s=p.pts.map(q=>proj(xf(items[0],q)));g.beginPath();s.forEach((q,i)=>i?g.lineTo(q[0],q[1]):g.moveTo(q[0],q[1]));if(p.closed)g.closePath();g.stroke();});g.restore();}
+  cv._drawn=list;return list;
 }
-function renderPreview(svg,scene,small){
-  const settings=[...program.cache.values()].find(v=>v.t==='settings')?.d;
+function faceNormalW(w){const [a,b,c]=w,u=[b[0]-a[0],b[1]-a[1],b[2]-a[2]],v=[c[0]-a[0],c[1]-a[1],c[2]-a[2]],n=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]],l=Math.hypot(...n)||1;return n.map(x=>x/l);}
+function pickAt(cv,x,y){const L=cv._drawn||[];for(let i=L.length-1;i>=0;i--){const s=L[i].s;if(s.length===1){if(Math.hypot(s[0][0]-x,s[0][1]-y)<5)return L[i].p;continue;}
+  if(s.length>2&&L[i].p.kind==='face'){let c=false;for(let a=0,b=s.length-1;a<s.length;b=a++){if((s[a][1]>y)!==(s[b][1]>y)&&x<(s[b][0]-s[a][0])*(y-s[a][1])/(s[b][1]-s[a][1])+s[a][0])c=!c;}if(c)return L[i].p;}}return null;}
+function initPreview(body){
+  const cv=body.querySelector('canvas');let drag=null;
+  cv.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY,moved:false};cv.setPointerCapture(e.pointerId);});
+  cv.addEventListener('pointermove',e=>{if(!drag)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(!drag.moved&&Math.hypot(dx,dy)<4)return;drag.moved=true;const c=camOf(cv);c.yaw+=dx*0.01;c.pitch=Math.max(-1.4,Math.min(1.4,c.pitch+dy*0.01));drag.x=e.clientX;drag.y=e.clientY;drawScene(cv,cv._items||[],cv._opt||{});});
+  cv.addEventListener('pointerup',e=>{const d=drag;drag=null;if(!d||d.moved)return;
+    const r=cv.getBoundingClientRect(),p=pickAt(cv,e.clientX-r.left,e.clientY-r.top);if(!p){status('Drag to orbit, scroll to zoom, click a shape to find what made it.');return;}
+    const keys=Object.keys(p.tags).filter(k=>!k.startsWith('#'));
+    if(!keys.length){status('This shape is not made by a loop or a function call.');return;}
+    const fz=focusZone(),zid=keys.includes(fz)?fz:keys.sort((a,b)=>b.length-a.length)[0],g=zid.split('/')[0];
+    probe[zid]=p.tags[zid];if(scope!==g&&program.graphs.has(g)){scope=g;returnScope=null;}
+    selection=new Set([zid]);piece=null;renderAll();
+    const z=program.zones.get(zid);status(z?.kind==='fn'?`That shape came from call ${p.tags[zid]+1} of ${z.count} to ${zid.split('/').pop()}. Every node inside shows its value in that call.`:`That shape came from ${zid.split('/').pop()}, iteration ${p.tags[zid]+1}. Every node in the loop now shows its value there.`);});
+  cv.addEventListener('wheel',e=>{e.preventDefault();const c=camOf(cv);c.zoom=Math.max(0.3,Math.min(6,c.zoom*(e.deltaY<0?1.1:1/1.1)));drawScene(cv,cv._items||[],cv._opt||{});},{passive:false});
+  cv.addEventListener('dblclick',()=>{const c=camOf(cv);c.key='';c.zoom=1;c.yaw=-0.7;c.pitch=0.45;drawScene(cv,cv._items||[],cv._opt||{});});
+}
+function renderPreview(cv,scene,small){
   scene=scene||[...program.cache.values()].find(v=>v.t==='scene')?.d;
   const items=scene?.items||[];
-  const xf=(it,[x,y])=>[x*it.scale+it.at[0],y*it.scale+it.at[1]];
-  let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;
-  items.forEach(it=>it.geo.prims.forEach(p=>p.pts.forEach(q=>{const [x,y]=xf(it,q);x0=Math.min(x0,x);x1=Math.max(x1,x);y0=Math.min(y0,y);y1=Math.max(y1,y);})));
-  if(!isFinite(x0)){x0=-1;y0=-1;x1=1;y1=1;}
-  const pad=Math.max(x1-x0,y1-y0)*0.08+0.05;x0-=pad;y0-=pad;x1+=pad;y1+=pad;
-  svg.setAttribute('viewBox',`${x0} ${-y1} ${x1-x0} ${y1-y0}`);svg.setAttribute('preserveAspectRatio','xMidYMid meet');
   const fz=small?null:focusZone(),zk=fz?program.zones.get(fz):null,k=fz?probe[fz]||0:0;
-  const tagged=fz&&items.some(it=>it.geo.prims.some(p=>fz in p.tags));
-  const exposure=Math.min(1,(settings?.exposure??1));
-  let h='';
-  const pt=(it,q)=>{const [x,y]=xf(it,q);return `${x.toFixed(4)},${(-y).toFixed(4)}`;};
-  items.forEach(it=>it.geo.prims.forEach(p=>{
-    const col=p.color||it.color,cls=tagged?(p.tags[fz]===k?' hi':' dim'):'',tags=esc(JSON.stringify(p.tags));
-    if(p.point||p.pts.length===1){const [x,y]=xf(it,p.pts[0]);h+=`<circle class="pp${cls}" cx="${x}" cy="${-y}" r="${(p.point||0.03)*it.scale}" fill="${col}" data-tags="${tags}"/>`;}
-    else if(p.closed)h+=`<polygon class="pp${cls}" points="${p.pts.map(q=>pt(it,q)).join(' ')}" fill="${col}" fill-opacity="${(p.color?0.82:0.14)*exposure}" stroke="${col}" data-tags="${tags}"/>`;
-    else h+=`<polyline class="pp line${cls}" points="${p.pts.map(q=>pt(it,q)).join(' ')}" stroke="${col}" data-tags="${tags}"/>`;
-  }));
-  if(zk&&(zk.kind==='fold'||zk.kind==='scan')&&items[0]){
-    const st=zk.states.filter(s=>s.it[s.it.length-1]===k)[0];
-    if(st&&st.v.t==='geometry')h+=st.v.d.prims.map(p=>p.pts.length>1?`<${p.closed?'polygon':'polyline'} class="fghost" points="${p.pts.map(q=>pt(items[0],q)).join(' ')}"/>`:'').join('');
-  }
-  svg.innerHTML=`<rect class="pvbg" x="${x0}" y="${-y1}" width="${x1-x0}" height="${y1-y0}"/>`+h;
+  const tagged=!!fz&&items.some(it=>it.geo.prims.some(p=>fz in p.tags));
+  let ghost=null;if(zk&&(zk.kind==='fold'||zk.kind==='scan')){const st=zk.states.filter(s=>s.it[s.it.length-1]===k)[0];if(st&&st.v.t==='geometry')ghost=st.v.d;}
+  const opt={focus:fz,k,tagged,ghost,fitKey:caseKey+'|'+scope};
+  cv._items=items;cv._opt=opt;
+  requestAnimationFrame(()=>drawScene(cv,items,opt));
   if(!small){const per=zk?(zk.kind==='fold'||zk.kind==='scan'?zk.states.filter(s=>s.it[s.it.length-1]>=0):zk.items).filter(r=>r.it.length===1||r.it.slice(0,-1).every((x,i)=>x===(probe[zoneOwnerChain(fz)[i]]||0))).length:0;
-    svg.parentElement.dataset.label=fz?`${fz.split('/').pop()} · ${zk?.kind==='fold'||zk?.kind==='scan'?'state after step':zk?.kind==='fn'?'call':'iteration'} ${k+1} of ${per}${tagged||zk?.kind!=='for'?'':' · not in this scene'}`:describeScene(scene);}
+    cv.parentElement.dataset.label=fz?`${fz.split('/').pop()} · ${zk?.kind==='fold'||zk?.kind==='scan'?'state after step':zk?.kind==='fn'?'call':'iteration'} ${k+1} of ${per}`:`${describeScene(scene)} · drag to orbit`;}
 }
 
 /* ---------- navigator: a map of the workspace, not a menu ---------- */
@@ -3497,7 +3592,7 @@ function layoutDialog(){
 }
 function actions(){
   dialog('Actions & keyboard',`<label for="action-search">Find an action</label><input id="action-search" placeholder="repeat, fold, hoist, layout…"><div id="actions"></div><p class="hint">Shortcuts work outside text fields. Drag a number to scrub it, with Shift for fine steps. Drag an output dot onto an input to connect. Drag across a loop’s strip to probe an iteration.</p>`);
-  const entries=[['Add a node · A',()=>openPalette(null,null,view.root)],['Repeat selection in a for zone · R',()=>wrapInLoop('for')],['Iterate selection with fold · Shift R',()=>wrapInLoop('fold')],['Make function · F',extractDialog],['Make a local λ function from the selection · L',makeLocalFn],['Make a macro from the selection · M',makeMacroDialog],['Bypass or run the selected node · B',()=>{const id=[...selection][0];if(id)toggleBypass(id);}],['Write a note on the selected node · N',()=>document.querySelector('.ibody .notearea')?.focus()],['Delete selection · Delete',deleteSelected],['Collapse or expand the selected zone · C',()=>{const id=[...selection][0];if(id){meta.collapsed[id]=!meta.collapsed[id];renderAll();}}],['Next / previous iteration · ] and [',()=>stepProbe(1)],['Compose shell layouts',layoutDialog],['Go to node · / or Ctrl K',()=>$('.ol-search')?.focus()],['Undo · Ctrl/⌘ Z',()=>undo()],['Redo · Ctrl/⌘ Shift Z',()=>undo(true)],['Return to call · Esc',returnToCall],['Restore default shell',()=>applyLayout('three')]];
+  const entries=[['Add a node · A',()=>openPalette(null,null,view.root)],['Repeat selection in a for zone · R',()=>wrapInLoop('for')],['Iterate selection with fold · Shift R',()=>wrapInLoop('fold')],['Make function · F',extractDialog],['Make a local λ function from the selection · L',makeLocalFn],['Make a macro from the selection · M',makeMacroDialog],['Bypass or run the selected node · B',()=>{const id=[...selection][0];if(id)toggleBypass(id);}],['Write a note on the selected node · N',()=>document.querySelector('.ibody .notearea')?.focus()],['Delete selection · Delete',deleteSelected],['Collapse or expand the selected zone · C',()=>{const id=[...selection][0];if(id){meta.collapsed[id]=!meta.collapsed[id];renderAll();}}],['Next / previous iteration · ] and [ (or ← → on a selector)',()=>stepProbe(1)],['Compose shell layouts',layoutDialog],['Go to node · / or Ctrl K',()=>$('.ol-search')?.focus()],['Undo · Ctrl/⌘ Z',()=>undo()],['Redo · Ctrl/⌘ Shift Z',()=>undo(true)],['Return to call · Esc',returnToCall],['Restore default shell',()=>applyLayout('three')]];
   const draw=()=>{const s=$('#action-search').value.toLowerCase();$('#actions').innerHTML=entries.filter(e=>e[0].toLowerCase().includes(s)).map(e=>`<button class="action" data-i="${entries.indexOf(e)}">${esc(e[0])}</button>`).join('');$$('#actions .action').forEach(b=>b.onclick=()=>{$('#dialog').close();entries[Number(b.dataset.i)][1]();});};
   $('#action-search').oninput=draw;draw();$('#action-search').focus();
 }
@@ -3547,8 +3642,10 @@ function ocamlOf(c){
 }
 function renderGallery(){
   const host=$('#gallery');if(!host)return;
-  host.innerHTML=Cases.CASES.map(c=>{let thumb='';try{const p=M.compile(withShell(c.lisp)),g=[...p.graphs].find(([,f])=>f[3]==='sop');thumb=geoThumb(p.cache.get(g[0]).d,120);}catch(e){thumb='';}
-    return `<article class="case"><div class="cthumb">${thumb}</div><div class="cbody"><span class="eyebrow">${esc(c.tag)}</span><h3>${esc(c.title)}</h3><p>${esc(c.teaches)}</p><div class="cbtns"><button class="primary" data-open-case="${c.key}">Open in the studio</button><button data-ocaml="${c.key}">OCaml sketch</button></div></div></article>`;}).join('');
+  const scenes={};
+  host.innerHTML=Cases.CASES.map(c=>{try{const p=M.compile(withShell(c.lisp)),sc=[...p.cache.values()].find(v=>v.t==='scene');scenes[c.key]=sc?sc.d.items:[];}catch(e){scenes[c.key]=[];}
+    return `<article class="case"><div class="cthumb"><canvas data-thumb="${c.key}" width="120" height="120" aria-hidden="true"></canvas></div><div class="cbody"><span class="eyebrow">${esc(c.tag)}</span><h3>${esc(c.title)}</h3><p>${esc(c.teaches)}</p><div class="cbtns"><button class="primary" data-open-case="${c.key}">Open in the studio</button><button data-ocaml="${c.key}">OCaml sketch</button></div></div></article>`;}).join('');
+  requestAnimationFrame(()=>host.querySelectorAll('canvas[data-thumb]').forEach(cv=>drawScene(cv,scenes[cv.dataset.thumb],{fitKey:'thumb'})));
   host.querySelectorAll('[data-open-case]').forEach(b=>b.onclick=()=>{loadCase(b.dataset.openCase);$('.app').scrollIntoView({behavior:'smooth',block:'start'});});
   host.querySelectorAll('[data-ocaml]').forEach(b=>b.onclick=()=>{const c=Cases.CASES.find(c=>c.key===b.dataset.ocaml);dialog(c.title+' · as an OCaml sketch',`<p>Sketches embed the workspace as a compile-time string. The PPX checks it, reports errors at the right line inside the string, and generates typed inputs. <b>Proposed API</b>: today’s <code>[%flow]</code> accepts one graph plus <code>defgraph</code>s.</p><pre class="lisp">${hl(ocamlOf(c))}</pre>`);});
 }

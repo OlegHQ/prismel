@@ -21,23 +21,24 @@ const CASES = [
   (defn half :context value [(x : float)] (* x 0.5))
   (defmacro twice [x] (+ x x))
   (defn petal :context sop [(length : float 1.0) (width : float 0.3)]
-    (sop/transform (sop/circle :radius 0.5 :segments 28)
-                   :scale [width length 1]
-                   :translate [0 (half length) 0]))
+    (sop/transform (sop/uv_sphere :radius [(half length) 0.04 width]
+                                  :center [(half length) 0 0]
+                                  :segments 14 :rings 6)
+                   :rotate [0 0 0.35]))
   (graph flower :context sop [(petals : int 12) (seed : int 7)]
     (let* [ring (for [i (range petals)]
                   (let* [u (/ i petals)
                          wobble (* 0.35 (value/rand seed i))
-                         leaf (petal :length (+ 0.9 wobble) :width 0.26)
+                         leaf (petal :length (+ 0.9 wobble) :width 0.22)
                          tint (sop/set_color leaf :color (value/hsv (+ 0.05 (* u 0.12)) 0.55 0.92))]
-                    (sop/transform tint :rotate (* u 360))))
+                    (sop/transform tint :rotate [0 (* u 6.2832) 0])))
            bloom (sop/merge ring)
-           heart (sop/circle :radius 0.16)
+           heart (sop/uv_sphere :radius [0.22 0.12 0.22] :center [0 0.05 0])
            result (sop/merge bloom (sop/set_color heart :color "#6b7650"))]
       result))
   (graph scene :context scene
     (let* [main (scene/object (ref flower) :color "#d69f61")
-           accent (scene/object (ref flower :petals 7 :seed 2) :color "#6fa6a1" :at [2.3 -0.9 0] :scale 0.5)
+           accent (scene/object (ref flower :petals 7 :seed 2) :color "#6fa6a1" :at [2.2 0 -1.2] :scale 0.55)
            composed (scene/merge main accent)]
       composed))
   (graph world :context world
@@ -56,67 +57,71 @@ const CASES = [
                         (let* [turn (/ (* 137.508 pi) 180)
                                r (* spread (sqrt i))
                                a (* i turn)
+                               lift (- 0.3 (* 0.3 (* r r)))
                                size (+ 0.012 (* 0.022 (/ i seeds)))]
-                          (sop/circle :radius size :segments 8 :center (value/polar r a))))
+                          (sop/uv_sphere :radius size :center (value/polar r a lift) :segments 6 :rings 4)))
            head (sop/merge seeds_each)]
       head)))`},
-{key: 'tunnel', title: 'Tunnel', tag: 'fold · feedback', focus: ['tunnel', 'tunnel/nested'],
- teaches: 'fold carries a value from one iteration to the next. Each step shrinks and turns everything so far, then adds the frame again. The strip shows the state after every step.',
- lisp: `(workspace tunnel
-  (graph tunnel :context sop [(steps : int 18) (turn : float 5.0)]
-    (let* [frame (sop/box :size [2 2 0])
+{key: 'tunnel', title:'Gyroscope', tag: 'fold · feedback', focus:['rings', 'rings/nested'],
+ teaches:'fold carries a value from one iteration to the next. Each step shrinks and turns everything so far, then adds the ring again, so 18 steps nest 19 rings. The iteration selector steps through the state after each step.',
+ lisp: `(workspace rings
+  (graph rings :context sop [(steps : int 18) (turn : float 0.18)]
+    (let* [frame (sop/torus :major_radius 1 :minor_radius 0.03 :rows 5 :columns 40)
            nested (fold [shape frame]
                         [i (range steps)]
-                    (sop/merge frame (sop/transform shape :scale 0.88 :rotate turn)))]
+                    (sop/merge frame (sop/transform shape :uniform_scale 0.87 :rotate [turn (* 0.5 turn) 0])))]
       nested)))`},
 {key: 'tree', title: 'Fractal tree', tag: 'fold · doubling · scope', focus: ['tree', 'tree/crown'],
- teaches: 'An iterated function system. Every step puts two scaled, rotated copies of the whole tree on top of the trunk, so step n holds 2ⁿ⁺¹−1 branches. A bounded fold replaces recursion, which the language forbids.',
+ teaches:'An iterated function system in 3D. Every step puts three scaled, tilted copies of the whole tree on top of the trunk, turned a third of a circle apart, so step n holds (3ⁿ⁺¹−1)/2 branches. A bounded fold replaces recursion, which the language forbids.',
  lisp: `(workspace tree
-  (graph tree :context sop [(depth : int 7) (spread : float 24.0) (shrink : float 0.7)]
-    (let* [trunk (sop/line :length 1 :angle 90)
+  (graph tree :context sop [(depth : int 5) (spread : float 0.6) (shrink : float 0.62)]
+    (let* [trunk (sop/polywire (sop/line :length 1) :radius 0.05 :sides 5)
            crown (fold [tree trunk]
                        [level (range depth)]
                    (let* [up [0 1 0]
-                          left (sop/transform tree :scale shrink :rotate spread :translate up)
-                          right (sop/transform tree :scale shrink :rotate (- 0 spread) :translate up)]
-                     (sop/merge trunk left right)))]
+                          tilted (sop/transform tree :uniform_scale shrink :rotate [0 0 spread])
+                          a (sop/transform tilted :translate up)
+                          b (sop/transform tilted :rotate [0 2.094 0] :translate up)
+                          c (sop/transform tilted :rotate [0 4.189 0] :translate up)]
+                     (sop/merge trunk a b c)))]
       crown)))`},
-{key: 'wave', title: 'Square wave', tag: 'Σ in an expression · nested loops · t', focus: ['wave', 'wave/pts/y'],
- teaches: 'A loop inside an expression. y is a Fourier sum folded into a Σ chip. Unfold it with ƒ and it becomes a sum zone inside the for zone. Time t moves the phase; press play in the viewport.',
+{key: 'wave', title: 'Square wave', tag: 'Σ in an expression · nested loops · t', focus:['wave', 'wave/strands/pts/y'],
+ teaches:'Loops three deep. y is a Fourier sum folded into a Σ chip inside a for over samples, inside a for over rows; each row is a tube offset in phase. Unfold the Σ with ƒ and it becomes a sum zone. Time t moves the phase; press play in the viewport.',
  lisp: `(workspace wave
-  (graph wave :context sop [(harmonics : int 5) (samples : int 160)]
-    (let* [pts (for [j (range samples)]
-                 (let* [x (* (/ j samples) 6.2832)
-                        y (* 0.7 (sum [k (range harmonics)]
-                                   (/ (sin (* (+ x t) (+ (* 2 k) 1))) (+ (* 2 k) 1))))]
-                   [(- (/ x 3.1416) 1) y 0]))
-           curve (sop/poly_path pts)]
-      curve)))`},
-{key: 'tiles', title: 'Ten print', tag: 'nested for · if · rand', focus: ['tiles', 'tiles/cells_each/coin'],
- teaches: 'Two clauses in one for make a grid: x and y form a product, 64 iterations. A pure hash picks each diagonal. The if node counts how often each branch ran.',
+  (graph wave :context sop [(harmonics : int 5) (samples : int 90) (rows : int 6)]
+    (let* [strands (for [row (range rows)]
+                     (let* [pts (for [j (range samples)]
+                                  (let* [x (* (/ j samples) 6.2832)
+                                         y (* 0.5 (sum [k (range harmonics)]
+                                                    (/ (sin (* (+ x (+ t (* row 0.4))) (+ (* 2 k) 1))) (+ (* 2 k) 1))))]
+                                    [(- (/ x 3.1416) 1) y (- (* row 0.3) 0.75)]))]
+                       (sop/polywire (sop/poly_path pts) :radius 0.015 :sides 4)))
+           sheet (sop/merge strands)]
+      sheet)))`},
+{key: 'tiles', title: 'Ten print', tag: 'nested for · if · rand', focus:['tiles', 'tiles/cells_each/coin'],
+ teaches:"Two clauses in one for make a grid: x and z form a product, 64 iterations. A pure hash picks each wall's diagonal, so the walls form a maze. The if nodes count how often each branch ran.",
  lisp: `(workspace tiles
   (graph tiles :context sop [(cells : int 8) (seed : int 3)]
     (let* [size (/ 2.0 cells)
-           cells_each (for [x (range cells) y (range cells)]
-                        (let* [coin (< (value/rand seed x y) 0.5)
-                               angle (if coin 45 -45)
-                               lift (if coin 0 size)
-                               stroke (sop/line :length (* size 1.4142) :angle angle)
-                               ink (sop/set_color stroke :color (if coin "#285f77" "#b0680f"))]
-                          (sop/transform ink :translate [(- (* x size) 1) (- (+ (* y size) lift) 1) 0])))
-           pattern (sop/merge cells_each)]
-      pattern)))`},
+           cells_each (for [x (range cells) z (range cells)]
+                        (let* [coin (< (value/rand seed x z) 0.5)
+                               angle (if coin 0.7854 -0.7854)
+                               wall (sop/box :size [(* size 1.4142) 0.3 0.05] :rotation [0 angle 0])
+                               ink (sop/set_color wall :color (if coin "#285f77" "#b0680f"))]
+                          (sop/transform ink :translate [(- (* (+ x 0.5) size) 1) 0.15 (- (* (+ z 0.5) size) 1)])))
+           maze (sop/merge cells_each)]
+      maze)))`},
 {key: 'facade', title: 'Facade', tag: 'groups · named scope', focus: ['facade', 'facade/marked'],
  teaches: 'Geometry groups are names that flow with geometry. group_bounds and group_random create them; set_color and blast read them, and the editor draws a named link from creator to reader. Each window is grouped by its floor with a computed name, (str "floor_" f); the floor to hide is one bound name wired into blast. marked is a nested let* scope.',
  lisp: `(workspace facade
   (graph facade :context sop [(floors : int 6) (bays : int 5) (hide : int 2)]
-    (let* [wall (sop/box :size [2.2 3.3 0] :center [0 1.55 0])
+    (let* [wall (sop/box :size [2.2 3.3 0.6] :center [0 1.65 0])
            windows (for [f (range floors) b (range bays)]
-                     (sop/group_bounds (sop/box :size [0.24 0.3 0]
-                                                :center [(- (* b 0.4) 0.8) (+ 0.4 (* f 0.48)) 0])
-                                       :name (str "floor_" f) :min [-9 -9 -1] :max [9 9 1]))
+                     (sop/group_bounds (sop/box :size [0.24 0.3 0.06]
+                                                :center [(- (* b 0.4) 0.8) (+ 0.4 (* f 0.48)) 0.31])
+                                       :name (str "floor_" f) :size [99 99 99]))
            glass (sop/merge windows)
-           marked (let* [top (sop/group_bounds glass :name "attic" :min [-2 2.5 -1] :max [2 4 1])
+           marked (let* [top (sop/group_bounds glass :name "attic" :center [0 3 0] :size [4 1 4])
                          odd (sop/group_random top :name "lit" :ratio 0.35 :seed 4)]
                     odd)
            lit (sop/set_color marked :color "#f5cf4f" :group "lit")
@@ -131,7 +136,7 @@ const CASES = [
   (graph garden :context sop [(seed : int 1) (count : int 40)]
     (let* [bed (sop/circle :radius 1 :segments 48)
            spots (sop/scatter bed :count count :seed seed)
-           dot (sop/circle :radius 0.06 :segments 10)
+           dot (sop/uv_sphere :radius 0.06 :segments 8 :rings 4)
            dots (sop/copy_to_points dot spots)
            result (sop/merge bed dots)]
       result))
@@ -150,13 +155,12 @@ const CASES = [
       shell)))`},
 {key:'garland',title:'Garland',tag:'λ functions · map · filter · reduce · sort-by',focus:['garland','garland/bead'],
  teaches:'Functions are values. bead and leaf are local λ zones whose strips show every call they received. ring is a shared defn that takes a function as an input. filter, sort-by and reduce work on the list of sizes, and the viewport maps each bead back to the call that made it.',
- lisp:`(workspace garland
+ lisp: `(workspace garland
   ; ring is a higher-order function: it takes the shape maker as an input.
   (defn ring :context sop [(n : int 8) (radius : float 1.0) (make : fn)]
     (sop/merge (map (fn [i]
-                      (sop/transform (make i)
-                                     :rotate (* (/ i n) 360)
-                                     :translate (value/polar radius (* (/ i n) 6.2832))))
+                      (let* [a (* (/ i n) 6.2832)]
+                        (sop/transform (make i) :rotate [0 (- 0 a) 0] :translate (value/polar radius a))))
                     (range n))))
   (graph garland :context sop [(count : int 14) (seed : int 5)]
     (let* [size (fn [i] (+ 0.05 (* 0.11 (value/rand seed i))))
@@ -165,21 +169,20 @@ const CASES = [
            ordered (sort-by (fn [s] (- 0 s)) big)
            total (reduce + 0 big)
            ; one bead per kept size, largest first
-           bead (fn [r k] (sop/transform (sop/circle :radius r :segments 18)
-                                         :translate [(- (* k 0.26) 1.3) -1.7 0]))
+           bead (fn [r k] (sop/uv_sphere :radius r :center [(- (* k 0.28) 1.1) r 1.6] :segments 12 :rings 6))
            beads (map bead ordered (range (count ordered)))
-           leaf (fn [i] (sop/transform (sop/circle :radius 0.5 :segments 20) :scale [0.14 (+ 0.3 (* 0.02 i)) 1]))
+           leaf (fn [i] (sop/uv_sphere :radius [0.3 0.05 (+ 0.08 (* 0.004 i))] :segments 10 :rings 5))
            wreath (ring :n count :radius 0.95 :make leaf)
-           heart (sop/circle :radius (* 0.25 total) :segments 32)
+           heart (sop/uv_sphere :radius (* 0.25 total) :center [0 0.1 0])
            result (sop/merge wreath (sop/merge beads) heart)]
       result)))`},
 {key:'kit',title:'Kit of parts',tag:'records · values · destructuring · lists · cond · case · str',focus:['kit','kit/tower'],
  teaches:'window returns several named values; its node spills one output per field. [left mid right] destructures a list literal you edit item by item. The tower is a fold whose accumulator is a record, so it carries a shape and a height at once. case and cond pick colours and parts; str builds a label.',
- lisp:`(workspace kit
+ lisp: `(workspace kit
   ; window returns several values: a record with named fields.
   (defn window :context sop [(w : float 0.3) (h : float 0.4)]
-    (let* [frame (sop/box :size [w h 0])
-           pane (sop/box :size [(* w 0.8) (* h 0.8) 0])]
+    (let* [frame (sop/box :size [w h 0.3])
+           pane (sop/box :size [(* w 0.8) (* h 0.8) 0.34])]
       (values :frame frame :pane pane :area (* w h))))
   (graph kit :context sop [(floors : int 5)]
     (let* [widths (list 0.3 0.45 0.3)
@@ -187,26 +190,26 @@ const CASES = [
            big (window :w mid :h 0.5)
            small (window :w left)
            style (fn [f] (case (mod f 3) 0 "#b0680f" 1 "#285f77" :else "#6b50ae"))
-           tower (fold [st {:shape (sop/box :size [0.01 0.01 0]) :y 0.0}]
+           tower (fold [st {:shape (sop/box :size [0.01 0.01 0.01]) :y 0.0}]
                        [f (range floors)]
                    (let* [{:keys [shape y]} st
                           part (cond (= f 0) big.frame
                                      (= f (- floors 1)) small.pane
                                      :else small.frame)
                           unit (sop/set_color part :color (style f))
-                          placed (sop/transform unit :translate [0 y 0])]
+                          placed (sop/transform unit :translate [0 y 0] :rotate [0 (* f 0.3) 0])]
                      {:shape (sop/merge shape placed) :y (+ y 0.55)}))
            label (str "floors " floors " · area " big.area)
            panes (sop/transform big.pane :translate [0.75 0 0])]
       (sop/merge tower.shape panes))))`},
 {key:'rosette',title:'Rosette',tag:'hygienic macros · expansion lens · notes · bypass',focus:['rosette','rosette/outer'],
  teaches:'radial is a macro: a template with holes. Its first hole is a name the caller chooses (k), so the body can use the index. wobble introduces a fresh name (step#) that can never collide with yours. Press ⤵ on a call to step through its expansion. soft is bypassed with ^:bypass; notes are comments that survive every edit.',
- lisp:`(workspace rosette
-  ; radial repeats a shape n times around the origin.
+ lisp: `(workspace rosette
+  ; radial repeats a shape n times around the vertical axis.
   ; The caller names the index, so the body can read it.
   (defmacro radial [i n body]
     \`(sop/merge (for [~i (range ~n)]
-                  (sop/transform ~body :rotate (* (/ ~i ~n) 360)))))
+                  (sop/transform ~body :rotate [0 (* (/ ~i ~n) 6.2832) 0]))))
   ; wobble adds a pure random offset; step# is fresh at every use.
   (defmacro wobble [x amt seed]
     \`(let* [step# (- (value/rand ~seed) 0.5)]
@@ -214,12 +217,11 @@ const CASES = [
   (graph rosette :context sop [(petals : int 12)]
     (let* [; the outer ring of petals
            outer (radial k petals
-                   (sop/transform (sop/circle :radius 0.5 :segments 24)
-                                  :scale [0.2 (wobble 0.9 0.4 k) 1]
-                                  :translate [0 0.9 0]))
-           inner (radial j 6 (sop/circle :radius 0.12 :center [0 0.35 0]))
+                   (sop/uv_sphere :radius [0.45 0.04 0.12] :center [0.5 0 0]
+                                  :rotation [0 0 (wobble 0.35 0.4 k)] :segments 12 :rings 6))
+           inner (radial j 6 (sop/uv_sphere :radius 0.1 :center [0.25 0.12 0] :segments 8 :rings 4))
            ; switch the bypass off to smooth the inner ring
-           soft ^:bypass (sop/subdivide inner :iterations 2)
+           soft ^:bypass (sop/subdivide inner :iterations 1)
            rose (sop/merge outer soft)]
       rose)))`}
 ];

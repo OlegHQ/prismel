@@ -240,7 +240,7 @@ table (`flow.md` §11.10) and does not replace it. Generated from
 
 *Why it is ambiguous.* One value per node hides that it has 12 or 240. Showing all of them does not fit on a card.
 
-*Proposed rule.* The footer shows the value at the probed iteration, a sparkline across iterations for numbers, and a count ×n. The zone strip draws thumbnails or bars per iteration and sets the probe. The inspector lists every value. Nested zones probe the inner loop at the outer probe.
+*Proposed rule.* The footer shows the value at the probed iteration, a sparkline across iterations for numbers, and a count ×n. The zone’s iteration selector (‹ slider ›) sets the probe; the viewport shows the result. The inspector lists every value. Nested zones probe the inner loop at the outer probe.
 
 ## V4
 
@@ -364,7 +364,7 @@ table (`flow.md` §11.10) and does not replace it. Generated from
 
 *Why it is ambiguous.* A function runs once per call, not once per iteration, and it may be called from several places. Showing one value hides what it did.
 
-*Proposed rule.* A λ zone is a loop over its calls. Its strip has one cell per call received, in evaluation order; the probe selects a call, and every node inside shows its value in that call. Shapes a call produces are tagged with (function, call), so clicking a bead in the viewport finds the call that made it. The inspector lists each call as arguments → result.
+*Proposed rule.* A λ zone is a loop over its calls. Its selector steps through the calls received, in evaluation order; the probe selects a call, and every node inside shows its value in that call. Shapes a call produces are tagged with (function, call), so clicking a bead in the viewport finds the call that made it. The inspector lists each call as arguments → result.
 
 *In the study.* Garland: probe bead; click a bead in the viewport.
 

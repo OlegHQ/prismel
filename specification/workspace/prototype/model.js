@@ -1,5 +1,5 @@
 /* Design artifact only: a small checked Lisp interpreter for the workspace study.
-   Not product code, not a renderer. Geometry is a 2D illustration kernel. */
+   Not product code, not a renderer. Geometry is a small 3D illustration kernel. */
 (function (root) {
 'use strict';
 const isL = Array.isArray;
@@ -273,33 +273,60 @@ function show(t, d) {
   return t;
 }
 
-/* ---------------- 2D illustration kernel ---------------- */
+/* ---------------- 3D illustration kernel ----------------
+   Polygons (faces), polylines and points in 3D. Enough to show the language; not pdk. */
 let uidN = 0;
-const prim = (pts, closed, extra) => ({pts, closed, color: null, groups: [], tags: {}, uid: ++uidN, ...extra});
+const prim = (pts, closed, extra) => ({pts, closed, kind: closed ? 'face' : pts.length === 1 ? 'point' : 'line', color: null, groups: [], tags: {}, uid: ++uidN, ...extra});
 const geo = prims => ({prims});
 const EMPTY = geo([]);
 function hash(...xs) { let h = 0x9e3779b9 | 0; for (const x of xs) { const k = Math.floor(Number(x) * 1000003) | 0; h = Math.imul(h ^ k, 0x85ebca6b); h ^= h >>> 13; h = Math.imul(h, 0xc2b2ae35); h ^= h >>> 16; } return ((h >>> 0) % 1000000) / 1000000; }
-function noise2(x, y, seed) {
-  const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi, s = t => t * t * (3 - 2 * t);
-  const a = hash(seed, xi, yi), b = hash(seed, xi + 1, yi), c = hash(seed, xi, yi + 1), d = hash(seed, xi + 1, yi + 1);
-  const u = s(xf), v = s(yf); return (a * (1 - u) + b * u) * (1 - v) + (c * (1 - u) + d * u) * v - 0.5;
+function noise3(x, y, z, seed) {
+  const xi = Math.floor(x), yi = Math.floor(y), zi = Math.floor(z), s = t => t * t * (3 - 2 * t), u = s(x - xi), v = s(y - yi), w = s(z - zi);
+  const h = (a, b, c) => hash(seed, xi + a, yi + b, zi + c), L = (a, b, t) => a + (b - a) * t;
+  return L(L(L(h(0, 0, 0), h(1, 0, 0), u), L(h(0, 1, 0), h(1, 1, 0), u), v), L(L(h(0, 0, 1), h(1, 0, 1), u), L(h(0, 1, 1), h(1, 1, 1), u), v), w) - 0.5;
 }
 const mapPts = (g, fn) => geo(g.prims.map(p => ({...p, pts: p.pts.map(fn)})));
-function bbox(g) { let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity; g.prims.forEach(p => p.pts.forEach(([x, y]) => { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); })); return {x0, y0, x1, y1}; }
-function centroid(p) { let x = 0, y = 0; p.pts.forEach(q => { x += q[0]; y += q[1]; }); return [x / p.pts.length, y / p.pts.length]; }
-function inside(pt, poly) { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const [xi, yi] = poly[i], [xj, yj] = poly[j]; if ((yi > pt[1]) !== (yj > pt[1]) && pt[0] < (xj - xi) * (pt[1] - yi) / (yj - yi) + xi) c = !c; } return c; }
+function bbox(g) { const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity]; g.prims.forEach(p => p.pts.forEach(q => { for (let i = 0; i < 3; i++) { lo[i] = Math.min(lo[i], q[i]); hi[i] = Math.max(hi[i], q[i]); } })); return {x0: lo[0], y0: lo[1], z0: lo[2], x1: hi[0], y1: hi[1], z1: hi[2]}; }
+function centroid(p) { const c = [0, 0, 0]; p.pts.forEach(q => { c[0] += q[0]; c[1] += q[1]; c[2] += q[2]; }); return c.map(v => v / p.pts.length); }
+/* rotation in radians, XYZ order, then translate: the catalog's transform convention */
+function rotXYZ([x, y, z], [rx, ry, rz]) {
+  let c = Math.cos(rx), s = Math.sin(rx); [y, z] = [y * c - z * s, y * s + z * c];
+  c = Math.cos(ry); s = Math.sin(ry); [x, z] = [x * c + z * s, -x * s + z * c];
+  c = Math.cos(rz); s = Math.sin(rz); [x, y] = [x * c - y * s, x * s + y * c];
+  return [x, y, z];
+}
+const place = (pts, k) => pts.map(q => { const us = k.uniform_scale ?? 1, r = rotXYZ([q[0] * us, q[1] * us, q[2] * us], k.rotation || [0, 0, 0]), c = k.center || [0, 0, 0]; return [r[0] + c[0], r[1] + c[1], r[2] + c[2]]; });
+function sphere(r, seg, rings) {
+  const out = [], P = (i, j) => { const th = i / seg * Math.PI * 2, ph = j / rings * Math.PI; return [r[0] * Math.sin(ph) * Math.cos(th), r[1] * Math.cos(ph), r[2] * Math.sin(ph) * Math.sin(th)]; };
+  for (let j = 0; j < rings; j++) for (let i = 0; i < seg; i++) out.push([P(i, j), P(i + 1, j), P(i + 1, j + 1), P(i, j + 1)]);
+  return out;
+}
+function faceNormal(p) { const [a, b, c] = p.pts; if (!c) return [0, 1, 0]; const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]], n = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]], l = Math.hypot(...n) || 1; return n.map(x => x / l); }
+function subdivideFace(p) { // one face into quads around its centroid (linear); smoothing is left to the real kernel
+  const c = centroid(p), n = p.pts.length, mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2];
+  return p.pts.map((q, i) => ({...p, pts: [q, mid(q, p.pts[(i + 1) % n]), c, mid(p.pts[(i + n - 1) % n], q)], uid: ++uidN}));
+}
 function chaikin(p) {
-  const P = p.pts, n = P.length; if (n < 3) return p; const out = [];
-  const m = p.closed ? n : n - 1;
+  const P = p.pts, n = P.length; if (n < 3) return p; const out = [], L = (a, b, t) => a.map((v, i) => v * (1 - t) + b[i] * t);
   if (!p.closed) out.push(P[0]);
-  for (let i = 0; i < m; i++) { const a = P[i], b = P[(i + 1) % n]; out.push([a[0] * .75 + b[0] * .25, a[1] * .75 + b[1] * .25], [a[0] * .25 + b[0] * .75, a[1] * .25 + b[1] * .75]); }
+  for (let i = 0; i < (p.closed ? n : n - 1); i++) { const a = P[i], b = P[(i + 1) % n]; out.push(L(a, b, .25), L(a, b, .75)); }
   if (!p.closed) out.push(P[n - 1]);
   return {...p, pts: out};
 }
+function wire(p, radius, sides) { // polywire: a prism around every segment of a line
+  const out = [], P = p.pts;
+  for (let s = 0; s + 1 < P.length; s++) {
+    const a = P[s], b = P[s + 1], d = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], L = Math.hypot(...d) || 1, t = d.map(x => x / L);
+    const up = Math.abs(t[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0], u0 = [t[1] * up[2] - t[2] * up[1], t[2] * up[0] - t[0] * up[2], t[0] * up[1] - t[1] * up[0]], ul = Math.hypot(...u0), u = u0.map(x => x / ul), v = [t[1] * u[2] - t[2] * u[1], t[2] * u[0] - t[0] * u[2], t[0] * u[1] - t[1] * u[0]];
+    const ring = (c, k) => { const th = k / sides * Math.PI * 2; return [0, 1, 2].map(i => c[i] + radius * (Math.cos(th) * u[i] + Math.sin(th) * v[i])); };
+    for (let k = 0; k < sides; k++) out.push({...p, kind: 'face', closed: true, pts: [ring(a, k), ring(a, k + 1), ring(b, k + 1), ring(b, k)], uid: ++uidN});
+  }
+  return out;
+}
 const toHex = c => typeof c === 'string' ? c : '#' + c.map(v => Math.round(Math.max(0, Math.min(1, v)) * 255).toString(16).padStart(2, '0')).join('');
 function hsv(h, s, v) { h = ((h % 1) + 1) % 1; const i = Math.floor(h * 6), f = h * 6 - i, p = v * (1 - s), q = v * (1 - f * s), t = v * (1 - (1 - f) * s); return [[v, t, p], [q, v, p], [p, v, t], [p, q, v], [t, p, v], [v, p, q]][i % 6]; }
-const V2 = v => [v[0], v[1]];
-function countPrims(g) { if (g.prims.length > 20000) throw Error('Geometry exceeds 20,000 primitives in this study.'); return g; }
+function countPrims(g) { if (g.prims.length > 40000) throw Error('Geometry exceeds 40,000 primitives in this study.'); return g; }
+function pointsOf(g) { const seen = new Set(), out = []; g.prims.forEach(p => p.pts.forEach(q => { const k = q.map(v => v.toFixed(5)).join(','); if (!seen.has(k)) { seen.add(k); out.push(q); } })); return out; }
 
 /* ---------------- operator catalog ----------------
    pos: positional slots, rest: variadic slot type (lists splice), kw: [name, type, default, [soft min, max]]. */
@@ -326,42 +353,66 @@ op('value/rand', 'value', {rest: 'float', restName: 'key', out: 'float', fn: (_,
 op('value/hsv', 'value', {pos: [['h', 'float'], ['s', 'float'], ['v', 'float']], out: 'vec3', fn: ([h, s, v]) => hsv(h, s, v)});
 op('value/lerp', 'value', {pos: [['a', 'float'], ['b', 'float'], ['u', 'float']], out: ts => ts[0] === 'vec3' || ts[1] === 'vec3' ? 'vec3' : 'float', anyNum: true,
   fn: ([a, b, u]) => Array.isArray(a) || Array.isArray(b) ? [0, 1, 2].map(i => (Array.isArray(a) ? a[i] : a) * (1 - u) + (Array.isArray(b) ? b[i] : b) * u) : a * (1 - u) + b * u});
-op('value/polar', 'value', {pos: [['radius', 'float'], ['angle', 'float']], out: 'vec3', fn: ([r, a]) => [r * Math.cos(a), r * Math.sin(a), 0], doc: 'A point at radius and angle (radians).'});
+op('value/polar', 'value', {pos: [['radius', 'float'], ['angle', 'float']], opt: [['height', 'float']], out: 'vec3', fn: ([r, a, h]) => [r * Math.cos(a), h ?? 0, r * Math.sin(a)], doc: 'A point on the ground plane at radius and angle (radians), lifted by height.'});
 op('range', 'value', {pos: [['count', 'int']], opt: [['end', 'int']], out: 'list:int', fn: ([a, b]) => { const lo = b === undefined ? 0 : a, hi = b === undefined ? a : b; if (hi - lo > 4096) throw Error(`range ${lo}‥${hi} exceeds 4,096 iterations.`); const o = []; for (let k = lo; k < hi; k++) o.push(k); return o; }});
 op('linspace', 'value', {pos: [['from', 'float'], ['to', 'float'], ['count', 'int']], out: 'list:float', fn: ([a, b, n]) => { if (n > 4096) throw Error('linspace exceeds 4,096 values.'); const o = []; for (let k = 0; k < n; k++) o.push(n === 1 ? a : a + (b - a) * k / (n - 1)); return o; }});
 op('count', 'value', {pos: [['list', 'list:any']], out: 'int', fn: ([xs]) => xs.length});
 
-op('sop/circle', 'sop', {kw: [['radius', 'float', 0.5, [0, 3]], ['segments', 'int', 32, [3, 96]], ['center', 'vec3', [0, 0, 0]]],
-  out: 'geometry', fn: (_, k) => { const n = Math.max(3, Math.min(256, k.segments)), c = k.center; return geo([prim(Array.from({length: n}, (_, i) => [c[0] + k.radius * Math.cos(i / n * Math.PI * 2), c[1] + k.radius * Math.sin(i / n * Math.PI * 2)]), true)]); }});
-op('sop/box', 'sop', {kw: [['size', 'vec3', [1, 1, 1]], ['center', 'vec3', [0, 0, 0]]], out: 'geometry',
-  fn: (_, k) => { const [w, h] = k.size, [cx, cy] = k.center; return geo([prim([[cx - w / 2, cy - h / 2], [cx + w / 2, cy - h / 2], [cx + w / 2, cy + h / 2], [cx - w / 2, cy + h / 2]], true)]); }});
-op('sop/line', 'sop', {kw: [['length', 'float', 1, [0, 4]], ['points', 'int', 2, [2, 64]], ['angle', 'float', 90, [-180, 180]]], out: 'geometry',
-  fn: (_, k) => { const a = k.angle * Math.PI / 180, n = Math.max(2, Math.min(512, k.points)); return geo([prim(Array.from({length: n}, (_, i) => [Math.cos(a) * k.length * i / (n - 1), Math.sin(a) * k.length * i / (n - 1)]), false)]); }});
-op('sop/poly_path', 'sop', {pos: [['points', 'list:vec3']], kw: [['closed', 'bool', false]], out: 'geometry', fn: ([pts], k) => geo(pts.length ? [prim(pts.map(V2), !!k.closed)] : [])});
-op('sop/points', 'sop', {pos: [['points', 'list:vec3']], kw: [['size', 'float', 0.03, [0, 0.3]]], out: 'geometry', fn: ([pts], k) => geo(pts.map(p => prim([V2(p)], false, {point: k.size})))});
-op('sop/transform', 'sop', {pos: [['input', 'geometry']], kw: [['translate', 'vec3', [0, 0, 0]], ['rotate', 'float', 0, [-180, 180]], ['scale', 'vec3', [1, 1, 1], [0, 3]], ['pivot', 'vec3', [0, 0, 0]]], out: 'geometry',
-  fn: ([g], k) => { const a = k.rotate * Math.PI / 180, c = Math.cos(a), s = Math.sin(a), [px, py] = k.pivot, [tx, ty] = k.translate, sc = Array.isArray(k.scale) ? k.scale : [k.scale, k.scale, k.scale];
-    return mapPts(g, ([x, y]) => { x = (x - px) * sc[0]; y = (y - py) * sc[1]; return [x * c - y * s + px + tx, x * s + y * c + py + ty]; }); }});
+const XFORM = [['center', 'vec3', [0, 0, 0]], ['rotation', 'vec3', [0, 0, 0]], ['uniform_scale', 'float', 1, [0.01, 10]]];
+const faces = (quads, k) => { const piece = ++uidN; return geo(quads.map(q => prim(place(q, k), true, {tags: {'#piece': piece}}))); };
+op('sop/box', 'sop', {kw: [['size', 'vec3', [1, 1, 1], [0.01, 10]], ...XFORM], out: 'geometry',
+  fn: (_, k) => { const [a, b, c] = k.size.map(v => v / 2), V = (x, y, z) => [x * a, y * b, z * c];
+    return faces([[V(-1, -1, 1), V(1, -1, 1), V(1, 1, 1), V(-1, 1, 1)], [V(1, -1, -1), V(-1, -1, -1), V(-1, 1, -1), V(1, 1, -1)], [V(-1, 1, 1), V(1, 1, 1), V(1, 1, -1), V(-1, 1, -1)], [V(-1, -1, -1), V(1, -1, -1), V(1, -1, 1), V(-1, -1, 1)], [V(1, -1, 1), V(1, -1, -1), V(1, 1, -1), V(1, 1, 1)], [V(-1, -1, -1), V(-1, -1, 1), V(-1, 1, 1), V(-1, 1, -1)]], k); }});
+op('sop/uv_sphere', 'sop', {kw: [['radius', 'vec3', [0.5, 0.5, 0.5], [0.01, 10]], ...XFORM, ['segments', 'int', 16, [3, 48]], ['rings', 'int', 8, [2, 32]]], out: 'geometry',
+  fn: (_, k) => faces(sphere(k.radius, Math.min(64, k.segments), Math.min(32, k.rings)), k)});
+op('sop/tube', 'sop', {kw: [['top_radius', 'float', 0.5, [0, 10]], ['bottom_radius', 'float', 0.5, [0, 10]], ['height', 'float', 1, [0, 10]], ['end_caps', 'bool', true], ...XFORM, ['columns', 'int', 16, [3, 48]]], out: 'geometry',
+  fn: (_, k) => { const n = Math.min(64, k.columns), h = k.height / 2, R = (r, y, i) => [r * Math.cos(i / n * Math.PI * 2), y, r * Math.sin(i / n * Math.PI * 2)], q = [];
+    for (let i = 0; i < n; i++) q.push([R(k.bottom_radius, -h, i), R(k.bottom_radius, -h, i + 1), R(k.top_radius, h, i + 1), R(k.top_radius, h, i)]);
+    if (k.end_caps) { q.push(Array.from({length: n}, (_, i) => R(k.top_radius, h, n - i))); q.push(Array.from({length: n}, (_, i) => R(k.bottom_radius, -h, i))); }
+    return faces(q, k); }});
+op('sop/torus', 'sop', {kw: [['major_radius', 'float', 1, [0, 10]], ['minor_radius', 'float', 0.25, [0, 10]], ...XFORM, ['rows', 'int', 12, [3, 48]], ['columns', 'int', 24, [3, 64]]], out: 'geometry',
+  fn: (_, k) => { const R = k.major_radius, r = k.minor_radius, P = (i, j) => { const u = i / k.columns * Math.PI * 2, v = j / k.rows * Math.PI * 2; return [(R + r * Math.cos(v)) * Math.cos(u), r * Math.sin(v), (R + r * Math.cos(v)) * Math.sin(u)]; }, q = [];
+    for (let i = 0; i < k.columns; i++) for (let j = 0; j < k.rows; j++) q.push([P(i, j), P(i + 1, j), P(i + 1, j + 1), P(i, j + 1)]);
+    return faces(q, k); }});
+op('sop/circle', 'sop', {kw: [['radius', 'float', 0.5, [0, 10]], ['segments', 'int', 32, [3, 96]], ['filled', 'bool', true], ...XFORM], out: 'geometry',
+  fn: (_, k) => { const n = Math.max(3, Math.min(256, k.segments)), pts = place(Array.from({length: n}, (_, i) => [k.radius * Math.cos(i / n * Math.PI * 2), 0, k.radius * Math.sin(i / n * Math.PI * 2)]), k); return geo([prim(pts, !!k.filled)]); }});
+op('sop/grid', 'sop', {kw: [['width', 'float', 2, [0, 20]], ['height', 'float', 2, [0, 20]], ['columns', 'int', 8, [1, 64]], ['rows', 'int', 8, [1, 64]], ...XFORM], out: 'geometry',
+  fn: (_, k) => { const q = [], P = (i, j) => [(i / k.columns - .5) * k.width, 0, (j / k.rows - .5) * k.height];
+    for (let i = 0; i < k.columns; i++) for (let j = 0; j < k.rows; j++) q.push([P(i, j), P(i, j + 1), P(i + 1, j + 1), P(i + 1, j)]);
+    return faces(q, k); }});
+op('sop/line', 'sop', {kw: [['origin', 'vec3', [0, 0, 0]], ['direction', 'vec3', [0, 1, 0]], ['length', 'float', 1, [0, 10]], ['points', 'int', 2, [2, 64]]], out: 'geometry',
+  fn: (_, k) => { const n = Math.max(2, Math.min(512, k.points)), l = Math.hypot(...k.direction) || 1, d = k.direction.map(v => v / l);
+    return geo([prim(Array.from({length: n}, (_, i) => k.origin.map((o, j) => o + d[j] * k.length * i / (n - 1))), false)]); }});
+op('sop/poly_path', 'sop', {pos: [['points', 'list:vec3']], kw: [['closed', 'bool', false]], out: 'geometry', fn: ([pts], k) => geo(pts.length ? [prim(pts.map(p => [...p]), !!k.closed)] : [])});
+op('sop/points', 'sop', {pos: [['points', 'list:vec3']], kw: [['size', 'float', 0.04, [0, 0.5]]], out: 'geometry', fn: ([pts], k) => geo(pts.map(p => prim([[...p]], false, {size: k.size})))});
+op('sop/transform', 'sop', {pos: [['input', 'geometry']], kw: [['translate', 'vec3', [0, 0, 0]], ['rotate', 'vec3', [0, 0, 0], [-3.1416, 3.1416]], ['scale', 'vec3', [1, 1, 1], [0, 10]], ['uniform_scale', 'float', 1, [0, 10]]], out: 'geometry',
+  fn: ([g], k) => mapPts(g, q => { const s = k.scale, u = k.uniform_scale, r = rotXYZ([q[0] * s[0] * u, q[1] * s[1] * u, q[2] * s[2] * u], k.rotate); return [r[0] + k.translate[0], r[1] + k.translate[1], r[2] + k.translate[2]]; })});
 op('sop/merge', 'sop', {rest: 'geometry', restName: 'input', out: 'geometry', fn: (_, __, rest) => countPrims(geo(rest.flatMap(g => g.prims)))});
-op('sop/copy_to_points', 'sop', {pos: [['input', 'geometry'], ['target', 'geometry']], out: 'geometry',
-  fn: ([g, t]) => countPrims(geo(t.prims.flatMap((tp, k) => { const [x, y] = centroid(tp); return g.prims.map(p => ({...p, pts: p.pts.map(q => [q[0] + x, q[1] + y]), tags: {...p.tags, '#copy': k}})); })))});
-op('sop/scatter', 'sop', {pos: [['input', 'geometry']], kw: [['count', 'int', 60, [1, 400]], ['seed', 'int', 0, [0, 100]]], out: 'geometry',
-  fn: ([g], k) => { const b = bbox(g), polys = g.prims.filter(p => p.closed), out = []; let tries = 0;
-    while (out.length < Math.min(2000, k.count) && tries++ < k.count * 40) { const x = b.x0 + hash(k.seed, tries, 1) * (b.x1 - b.x0), y = b.y0 + hash(k.seed, tries, 2) * (b.y1 - b.y0); if (!polys.length || polys.some(p => inside([x, y], p.pts))) out.push(prim([[x, y]], false, {point: 0.03})); }
+op('sop/copy_to_points', 'sop', {pos: [['source', 'geometry'], ['targets', 'geometry']], out: 'geometry',
+  fn: ([g, t]) => countPrims(geo(pointsOf(t).flatMap((c, k) => g.prims.map(p => ({...p, pts: p.pts.map(q => [q[0] + c[0], q[1] + c[1], q[2] + c[2]]), tags: {...p.tags, '#copy': k}, uid: ++uidN})))))});
+op('sop/scatter', 'sop', {pos: [['input', 'geometry']], kw: [['count', 'int', 60, [1, 2000]], ['seed', 'int', 0, [0, 100]]], out: 'geometry',
+  fn: ([g], k) => { const fs = g.prims.filter(p => p.kind === 'face'), out = [];
+    if (!fs.length) return geo([]);
+    const area = fs.map(p => { const n = p.pts.length; let a = 0; for (let i = 1; i + 1 < n; i++) { const u = p.pts[i].map((v, j) => v - p.pts[0][j]), w = p.pts[i + 1].map((v, j) => v - p.pts[0][j]); a += Math.hypot(u[1] * w[2] - u[2] * w[1], u[2] * w[0] - u[0] * w[2], u[0] * w[1] - u[1] * w[0]) / 2; } return a; }), tot = area.reduce((a, b) => a + b, 0) || 1;
+    for (let s = 0; s < Math.min(2000, k.count); s++) { let r = hash(k.seed, s, 1) * tot, f = 0; while (f < fs.length - 1 && r > area[f]) { r -= area[f]; f++; }
+      const P = fs[f].pts, i = 1 + Math.floor(hash(k.seed, s, 2) * (P.length - 2)); let a = hash(k.seed, s, 3), b = hash(k.seed, s, 4); if (a + b > 1) { a = 1 - a; b = 1 - b; }
+      out.push(prim([[0, 1, 2].map(j => P[0][j] + a * (P[i][j] - P[0][j]) + b * (P[i + 1][j] - P[0][j]))], false, {size: 0.04})); }
     return geo(out); }});
 op('sop/set_color', 'sop', {pos: [['input', 'geometry']], kw: [['color', 'color', '#285f77'], ['group', 'groupref', '']], out: 'geometry',
   fn: ([g], k) => geo(g.prims.map(p => !k.group || p.groups.includes(k.group) ? {...p, color: toHex(k.color)} : p))});
-op('sop/group_bounds', 'sop', {pos: [['input', 'geometry']], kw: [['name', 'group', 'group1'], ['min', 'vec3', [-1, -1, -1]], ['max', 'vec3', [1, 1, 1]]], out: 'geometry',
-  fn: ([g], k) => geo(g.prims.map(p => { const [x, y] = centroid(p); return x >= k.min[0] && x <= k.max[0] && y >= k.min[1] && y <= k.max[1] ? {...p, groups: [...new Set([...p.groups, k.name])]} : p; }))});
+op('sop/group_bounds', 'sop', {pos: [['input', 'geometry']], kw: [['name', 'group', 'group1'], ['center', 'vec3', [0, 0, 0]], ['size', 'vec3', [1, 1, 1]]], out: 'geometry',
+  fn: ([g], k) => geo(g.prims.map(p => { const c = centroid(p); return c.every((v, i) => Math.abs(v - k.center[i]) <= k.size[i] / 2) ? {...p, groups: [...new Set([...p.groups, k.name])]} : p; }))});
 op('sop/group_random', 'sop', {pos: [['input', 'geometry']], kw: [['name', 'group', 'group1'], ['ratio', 'float', 0.5, [0, 1]], ['seed', 'int', 0, [0, 100]]], out: 'geometry',
-  fn: ([g], k) => geo(g.prims.map((p, i) => hash(k.seed, i, 7) < k.ratio ? {...p, groups: [...new Set([...p.groups, k.name])]} : p))});
-op('sop/blast', 'sop', {pos: [['input', 'geometry']], kw: [['group', 'groupref', ''], ['invert', 'bool', false]], out: 'geometry',
-  fn: ([g], k) => geo(g.prims.filter(p => p.groups.includes(k.group) === !!k.invert))});
+  fn: ([g], k) => { const byUid = new Map(); return geo(g.prims.map((p, i) => { const key = p.tags['#piece'] ?? i; if (!byUid.has(key)) byUid.set(key, hash(k.seed, key, 7) < k.ratio); return byUid.get(key) ? {...p, groups: [...new Set([...p.groups, k.name])]} : p; })); }});
+op('sop/blast', 'sop', {pos: [['input', 'geometry']], kw: [['group', 'groupref', ''], ['selected', 'bool', true]], out: 'geometry',
+  fn: ([g], k) => geo(g.prims.filter(p => p.groups.includes(k.group) !== !!k.selected))});
 op('sop/subdivide', 'sop', {pos: [['input', 'geometry']], kw: [['iterations', 'int', 1, [0, 4]]], out: 'geometry',
-  fn: ([g], k) => { let ps = g.prims; for (let i = 0; i < Math.min(5, k.iterations); i++) ps = ps.map(chaikin); return geo(ps); }});
-op('sop/noise_displace', 'sop', {pos: [['input', 'geometry']], kw: [['amp', 'float', 0.1, [0, 1]], ['frequency', 'float', 2, [0, 10]], ['seed', 'int', 0, [0, 100]]], out: 'geometry',
-  fn: ([g], k) => mapPts(g, ([x, y]) => [x + k.amp * noise2(x * k.frequency, y * k.frequency, k.seed), y + k.amp * noise2(x * k.frequency + 17, y * k.frequency - 9, k.seed)])});
-op('sop/point_list', 'sop', {pos: [['input', 'geometry']], out: 'list:vec3', fn: ([g]) => g.prims.flatMap(p => p.pts.map(q => [q[0], q[1], 0])).slice(0, 4096)});
+  fn: ([g], k) => { let ps = g.prims; for (let i = 0; i < Math.min(4, k.iterations); i++) ps = ps.flatMap(p => p.kind === 'face' ? subdivideFace(p) : p.kind === 'line' ? [chaikin(p)] : [p]); return countPrims(geo(ps)); }});
+op('sop/noise_displace', 'sop', {pos: [['input', 'geometry']], kw: [['amplitude', 'float', 0.1, [0, 2]], ['frequency', 'float', 2, [0, 10]], ['seed', 'int', 0, [0, 100]]], out: 'geometry',
+  fn: ([g], k) => mapPts(g, ([x, y, z]) => { const f = k.frequency, a = k.amplitude; return [x + a * noise3(x * f, y * f, z * f, k.seed), y + a * noise3(x * f + 17, y * f - 9, z * f + 3, k.seed), z + a * noise3(x * f - 5, y * f + 11, z * f - 13, k.seed)]; })});
+op('sop/polywire', 'sop', {pos: [['input', 'geometry']], kw: [['radius', 'float', 0.03, [0, 1]], ['sides', 'int', 6, [3, 16]]], out: 'geometry',
+  fn: ([g], k) => countPrims(geo(g.prims.flatMap(p => p.kind === 'line' ? wire(p, k.radius, Math.max(3, Math.min(16, k.sides))) : [p])))});
+op('sop/point_list', 'sop', {pos: [['input', 'geometry']], out: 'list:vec3', fn: ([g]) => pointsOf(g).slice(0, 4096)});
 op('sop/piece_list', 'sop', {pos: [['input', 'geometry']], out: 'list:geometry', fn: ([g]) => g.prims.slice(0, 4096).map(p => geo([p]))});
 
 op('scene/object', 'scene', {pos: [['geometry', 'geometry']], kw: [['color', 'color', '#285f77'], ['at', 'vec3', [0, 0, 0]], ['scale', 'float', 1, [0, 3]]], out: 'scene',

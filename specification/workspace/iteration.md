@@ -118,7 +118,7 @@ geometry is checked when the program runs.
 | `name (op …)` in a `let*` | node card: title, one row per slot and keyword, footer |
 | a keyword left at its default | a dimmed row; scrubbing it writes the keyword |
 | a nested call in an argument | a chip, `ƒ (op …)`, whose numbers stay scrubbable |
-| `name (for …)` / `fold` / `scan` / `sum` | a **zone**: a tinted region with rail, strip, body and yield |
+| `name (for …)` / `fold` / `scan` / `sum` | a **zone**: a tinted region with rail, iteration selector, body and yield |
 | `name (let* …)` | a **scope**: a dashed region with a rail and a result |
 | an inline loop or scope in an argument | a chip whose glyph names it: `for`, `⟲`, `Σ`, `let` |
 | a symbol argument | a wire, solid for a whole argument, dashed when inside an expression |
@@ -140,10 +140,13 @@ iterations themselves.
 
 - **Title**: the kind glyph, the binding name, the total count and the result
   type, with a collapse toggle. A list output has a *stacked* socket.
-- **Strip**: one cell per iteration. Geometry cells are thumbnails, number
-  cells are bars, and a `fold` shows the state after each step. Dragging
-  across the strip sets the zone's **probe**. The readout names the loop
-  variable's value, for example `i = 5 · 6 of 12`.
+- **Iteration selector**: `‹`, a slider and `›`, with ticks when there are
+  48 iterations or fewer. It sets the zone's **probe**; arrow keys, Home and
+  End work when it has focus. The readout names the loop variable's value,
+  for example `i = 5 · 6 of 12`. For `fold` it selects the state after each
+  step, for a λ zone the call. It deliberately shows no thumbnails: the
+  viewport is where results are seen, and it highlights the probed
+  iteration.
 - **Rail** (left): one row per iteration clause (`i ∈ (range petals)`, with
   the count scrubbable in place), the accumulator (`shape ⟲ from frame`) and
   every captured outer name (`seed · same for all`). Outer wires end at the
@@ -157,7 +160,7 @@ iterations themselves.
 - **Collapsed**: a stacked card that keeps the rail rows, so its wiring stays
   readable. Collapse is layout.
 
-Nested zones probe independently. An inner zone's strip and values are those
+Nested zones probe independently. An inner zone's selector and values are those
 of the inner loop *at the outer probe*.
 
 ### 3.3 Scopes and frames
@@ -289,7 +292,7 @@ This is a plan for review, not a milestone commitment.
    `(path, index)`. Measure both approaches on the case studies before
    choosing (flow.md §15). Keep the value lane's determinism regression, and
    add a one-domain versus multi-domain check for zones.
-4. **Canvas.** `pxui_graph` draws zones, rails, strips and chips as widgets
+4. **Canvas.** `pxui_graph` draws zones, rails, iteration selectors and chips as widgets
    over `Ui.box`, with no second hit-test or capture path. It emits typed
    requests (`Wrap_in_loop`, `Hoist`, `Set_probe`), and the reducer applies
    them outside `Ui.frame`.
@@ -349,7 +352,7 @@ parameters.
 
 | Construct | Canvas | Direct manipulation → Lisp |
 |---|---|---|
-| `name (fn [a b] …)` | hollow λ zone; the rail lists parameters and captures; the strip shows every call; the output socket is a diamond | **L** on a selection: outside inputs become parameters, and the selection becomes the first call |
+| `name (fn [a b] …)` | hollow λ zone; the rail lists parameters and captures; the selector steps through every call; the output socket is a diamond | **L** on a selection: outside inputs become parameters, and the selection becomes the first call |
 | `(map f xs)` and other higher-order forms | a card with a diamond `f` row; filter shows `kept a of b` | wire a λ output, a defn or an operator into `f`; an inline `fn` is a chip that ƒ lifts into a zone |
 | `(list …)` | one row per item with its index; a stacked socket | scrub; ↑ moves an item up; + appends, continuing a numeric step; a wire dropped on + appends a symbol |
 | records and `values` | one output row per field under the card | + field takes `name value`; dragging from a field row writes `r.field` |
@@ -368,8 +371,8 @@ socket vocabulary. The precedents we adopted, and what each costs elsewhere:
 
 - **λ zones** follow Blender 5 closure zones and Snap! rings. We avoid Snap!'s
   implicit parameters and Blender's name-matched sockets.
-- **The call strip** turns Excel's per-element spill of `MAP` into the loop
-  strip that already exists.
+- **Calls as iterations** turn Excel's per-element spill of `MAP` into the
+  loop's iteration selector that already exists.
 - **Field rows** borrow Unreal's split struct pins, without the lock-out on
   recombining.
 - **The expansion lens** is DrRacket's macro stepper, driven by the same probe

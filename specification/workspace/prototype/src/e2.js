@@ -127,16 +127,9 @@ function stripHTML(n){
   const cnt=items.length,k=Math.min(probe[n.id]||0,Math.max(0,cnt-1));
   const iv=n.inner.rail.find(r=>r.role==='iter'||r.role==='param'),vals=iv?(n.zkind==='fn'?(program.records.get(n.id+'/:'+iv.name)||[]).map(r=>r.v):seriesOf(n.id+'/:'+iv.name,[...chain,n.id])):null;
   const cur=vals&&vals[k]?describe(vals[k]):k;
-  let viz='';const maxT=Math.max(8,Math.floor((expandedWidth(n)-150)/24));
-  const idx=cnt<=maxT?items.map((_,i)=>i):Array.from({length:maxT},(_,j)=>Math.round(j*(cnt-1)/(maxT-1)));
-  const t=items[0]?.v?.t;
-  if(t==='geometry')viz=idx.map(i=>`<span class="tcell${i===k?' on':''}" data-k="${i}">${geoThumb(items[i].v.d,20,i===k)}</span>`).join('');
-  else if(t==='float'||t==='int'){const ns=items.map(x=>x.v.d),lo=Math.min(0,...ns),hi=Math.max(...ns,lo+1e-9);viz=idx.map(i=>`<span class="tcell bar${i===k?' on':''}" data-k="${i}"><i style="height:${Math.max(1,(ns[i]-lo)/(hi-lo)*20)}px"></i></span>`).join('');}
-  else if(t&&t.startsWith('rec{'))viz=idx.map(i=>`<span class="tcell dotc${i===k?' on':''}" data-k="${i}">{}</span>`).join('');
-  else viz=idx.map(i=>`<span class="tcell dotc${i===k?' on':''}" data-k="${i}">${esc(items[i]?.v?.t==='panel'?items[i].v.d.kind[0]:'•')}</span>`).join('');
-  if(n.zkind==='fn'&&!cnt)return `<div class="zstrip" data-zone="${esc(n.id)}"><span class="zread">never called · wire its λ output into map, filter or reduce, or call it by name</span></div>`;
   const label=n.zkind==='fn'?`call ${k+1} of ${cnt}`:n.zkind==='fold'?`after step ${k+1} of ${cnt}`:n.zkind==='sum'?`term ${k+1} of ${cnt} · Σ ${describe(recordAt(n.id,chain))}`:`${k+1} of ${cnt}`;
-  return `<div class="zstrip" data-zone="${esc(n.id)}" title="Drag to probe an iteration. Every node inside shows its value there; the viewport highlights it."><span class="zcells">${viz}</span><span class="zread">${iv?`<b>${esc(iv.name)} = ${esc(cur)}</b> · `:''}${esc(label)}</span></div>`;
+  const frac=cnt>1?k/(cnt-1):0,ticks=cnt>1&&cnt<=48?`background-size:calc(100% / ${cnt-1}) 100%`:'';
+  return `<div class="zstrip zsel" data-zone="${esc(n.id)}"><button class="zstep" data-zstep="-1" data-zone="${esc(n.id)}" aria-label="Previous ${n.zkind==='fn'?'call':'iteration'}"${k<=0?' disabled':''}>‹</button><div class="ztrack${ticks?' ticked':''}" data-zone="${esc(n.id)}" data-cnt="${cnt}" role="slider" tabindex="0" aria-label="${n.zkind==='fn'?'Call':'Iteration'}" aria-valuemin="1" aria-valuemax="${cnt}" aria-valuenow="${k+1}" style="${ticks}"><i class="zfill" style="width:${frac*100}%"></i><i class="zthumb" style="left:${frac*100}%"></i></div><button class="zstep" data-zstep="1" data-zone="${esc(n.id)}" aria-label="Next ${n.zkind==='fn'?'call':'iteration'}"${k>=cnt-1?' disabled':''}>›</button><span class="zread">${iv?`<b>${esc(iv.name)} = ${esc(cur)}</b> · `:''}${esc(label)}</span></div>`;
 }
 const expandedWidth=n=>{const L=layoutScope(n.inner);return RAILW+PAD+Math.max(L.w,72)+PAD+YW;};
 function nodeFoot(n,S){
@@ -273,8 +266,10 @@ function initGraph(g){
     const up=t.closest('[data-up]');if(up){moveItem(up.dataset.up,Number(up.dataset.pos));e.preventDefault();return;}
     const ad=t.closest('[data-add]');if(ad){addItem(ad.dataset.id);e.preventDefault();return;}
     const nt=t.closest('[data-note]');if(nt){setSel(new Set([nt.dataset.note]));requestAnimationFrame(()=>document.querySelector('.ibody .notearea')?.focus());e.preventDefault();return;}
-    const strip=t.closest('.zstrip');
-    if(strip){e.preventDefault();g.setPointerCapture(e.pointerId);drag={kind:'probe',zone:strip.dataset.zone};probeFrom(strip,e);if(!selection.has(strip.dataset.zone))setSel(new Set([strip.dataset.zone]));return;}
+    const zs=t.closest('[data-zstep]');if(zs){e.preventDefault();stepZone(zs.dataset.zone,Number(zs.dataset.zstep));return;}
+    const track=t.closest('.ztrack');
+    if(track){e.preventDefault();g.setPointerCapture(e.pointerId);drag={kind:'probe',zone:track.dataset.zone};probeFrom(track,e);if(!selection.has(track.dataset.zone))setSel(new Set([track.dataset.zone]));return;}
+    if(t.closest('.zstrip'))return;
     const out=t.closest('.sock.out');
     if(out){e.preventDefault();g.setPointerCapture(e.pointerId);const S=findScope(out.dataset.sid);drag={kind:'wire',src:out.dataset.src,S,role:out.dataset.role,from:out};g.classList.add('wiring');markTargets(g,drag);return;}
     const sin=t.closest('.sock.in');
@@ -308,7 +303,7 @@ function initGraph(g){
   });
   g.addEventListener('pointermove',e=>{
     if(!drag)return;
-    if(drag.kind==='probe'){const s=g.querySelector(`.zstrip[data-zone="${CSS.escape(drag.zone)}"]`);if(s)probeFrom(s,e);return;}
+    if(drag.kind==='probe'){const s=g.querySelector(`.ztrack[data-zone="${CSS.escape(drag.zone)}"]`);if(s)probeFrom(s,e);return;}
     if(drag.kind==='wire'){const p=canvasPoint(g,e),r=drag.from.getBoundingClientRect(),c=g.querySelector('.gcanvas').getBoundingClientRect(),a={x:r.left-c.left+r.width/2,y:r.top-c.top+r.height/2},tmp=g.querySelector('.tmpw');if(tmp){tmp.removeAttribute('hidden');tmp.setAttribute('d',wirePath(a,p));tmp.setAttribute('class','wire tmpw w-'+tc(typeOfName(drag.S,drag.src)));}return;}
     if(drag.kind==='move'){const p=canvasPoint(g,e),dx=p.x-drag.start.x,dy=p.y-drag.start.y;if(!drag.moved&&Math.hypot(dx,dy)<4)return;drag.moved=true;
       const m=structuredClone(meta);drag.ids.forEach(n=>{const o=drag.orig.get(n);m.pos[n]={x:Math.max(0,Math.round((o.x+dx)/8)*8),y:Math.max(0,Math.round((o.y+dy)/8)*8)};});meta=m;renderAll(true);return;}
@@ -347,6 +342,7 @@ function initGraph(g){
     if(e.target.closest('.gcanvas')&&!e.target.closest('.zone-fg')){const {S,origin}=scopeAt(g,e),p=canvasPoint(g,e);openPalette({x:p.x-origin.x,y:p.y-origin.y},null,S);}
   });
   g.addEventListener('keydown',e=>{
+    const tr=e.target.closest?.('.ztrack');if(tr&&(e.key==='ArrowLeft'||e.key==='ArrowRight'||e.key==='Home'||e.key==='End')){e.preventDefault();const cnt=Number(tr.dataset.cnt)||1,z=tr.dataset.zone;probe[z]=e.key==='Home'?0:e.key==='End'?cnt-1:Math.max(0,Math.min(cnt-1,(probe[z]||0)+(e.key==='ArrowLeft'?-1:1)));renderAll(true);requestAnimationFrame(()=>document.querySelector(`.ztrack[data-zone="${CSS.escape(z)}"]`)?.focus());return;}
     const inp=e.target.closest?.('.aedit');
     if(inp){if(e.key==='Enter'){e.preventDefault();const ed=editing;editing=null;if(!setRowText(ed.id,ed.key,inp.value))editing=ed,renderAll();}
       else if(e.key==='Escape'){e.preventDefault();editing=null;renderAll();g.focus();}return;}
@@ -362,11 +358,12 @@ function layoutRel(id){ // position relative to the node's scope origin
 }
 function findScope(id){let f=null;(function w(S){if(S.id===id)f=S;S.nodes.forEach(n=>n.inner&&w(n.inner));})(view.root);return f||view.root;}
 function resolveNodeId(S,name){for(let s=S;s;s=s.parent){const e=s.names.get(name);if(!e)continue;if(e.node)return e.node.id;if(e.param)return e.id;if(e.rail)return s.owner.id;}return null;}
-function probeFrom(strip,e){
-  const cells=[...strip.querySelectorAll('.tcell')];if(!cells.length)return;
-  let best=cells[0],bd=1e9;cells.forEach(c=>{const r=c.getBoundingClientRect(),d=Math.abs(r.left+r.width/2-e.clientX);if(d<bd){bd=d;best=c;}});
-  const k=Number(best.dataset.k);if(probe[strip.dataset.zone]!==k){probe[strip.dataset.zone]=k;renderAll(true);}
+function probeFrom(track,e){
+  const cnt=Number(track.dataset.cnt)||0;if(cnt<1)return;const r=track.getBoundingClientRect();
+  const k=Math.max(0,Math.min(cnt-1,Math.round((e.clientX-r.left)/Math.max(1,r.width)*(cnt-1))));
+  if(probe[track.dataset.zone]!==k){probe[track.dataset.zone]=k;renderAll(true);}
 }
+function stepZone(zone,d){const tr=document.querySelector(`.ztrack[data-zone="${CSS.escape(zone)}"]`),cnt=Number(tr?.dataset.cnt)||0;if(!cnt)return;probe[zone]=Math.max(0,Math.min(cnt-1,(probe[zone]||0)+d));if(!selection.has(zone))selection=new Set([zone]);renderAll(true);}
 function markTargets(g,d){const t=typeOfName(d.S,d.src);g.querySelectorAll('.arow,.rrow[data-key],.yrow').forEach(r=>{const T=targetScope(r);if(!T||!visibleFrom(T,d.src))return;if(r.dataset.id&&r.dataset.id.startsWith(d.S.id+'/'+d.src))return;if(r.classList.contains('yrow')||r.classList.contains('rrow')||!r.dataset.type||ok(t,r.dataset.type))r.classList.add('ok');});}
 
 /* ---------- add palette ---------- */

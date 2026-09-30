@@ -12,10 +12,10 @@ reuse and the composed shell.
 
 ## Try it
 
-1. **Probe a loop.** In *Bloom studio*, drag across the strip of the `ring`
-   zone. Every node inside shows its value at that iteration, and the viewport
-   highlights that petal. Click any petal to jump to the iteration that made
-   it. `[` and `]` step through iterations.
+1. **Probe a loop.** In *Bloom studio*, use the `ring` zone's iteration
+   selector (‹, slider, ›). Every node inside shows its value at that
+   iteration, and the 3D viewport highlights that petal. Click any petal to
+   jump to the iteration that made it; drag to orbit, scroll to zoom.
 2. **Scrub.** Drag any number: a literal, a number inside an `ƒ` chip, a vector
    component, or a dimmed default (which writes the keyword). Inside a loop,
    the change applies to every iteration.
@@ -31,8 +31,8 @@ reuse and the composed shell.
    writers to readers. `marked` is a named `let*` scope.
 7. **Loops in the shell.** *Variations* builds four viewports with a `for` in
    the editor graph.
-8. **Functions.** In *Garland*, `bead` is a λ zone: its strip shows every
-   call it received. Click a bead in the viewport to find its call. Select
+8. **Functions.** In *Garland*, `bead` is a λ zone: its selector steps through
+   every call it received. Click a bead in the viewport to find its call. Select
    `total` and press **L** to turn it into a local function.
 9. **Records and lists.** In *Kit of parts*, `window` returns `values`, so
    `big` and `small` show one output row per field; drag from a field row.
@@ -49,7 +49,7 @@ reuse and the composed shell.
 | File | Role |
 |---|---|
 | `index.html` | the self-contained study (generated) |
-| `model.js` | reader, canonical printer, two-pass checker and evaluator, 2D illustration kernel |
+| `model.js` | reader, canonical printer, two-pass checker and evaluator, small 3D illustration kernel (faces, lines, points) |
 | `cases.js` | the case-study workspaces (source of `../case-studies.md`) |
 | `register.js` | the ambiguity register (source of `../ambiguities.md`) |
 | `src/` | page markup, styles and editor code |
@@ -63,8 +63,8 @@ node specification/workspace/prototype/build.cjs   # after editing src/ or the m
 
 ## Limits
 
-The preview is a 2D JavaScript illustration of the catalog's semantics, not
-Prismel geometry. Loops, graph inputs and `[%workspace]` are proposals; today's
+The preview is a small 3D JavaScript renderer (painter's algorithm) illustrating
+the catalog's semantics, not Prismel geometry or Metal. Loops, graph inputs and `[%workspace]` are proposals; today's
 `[%flow]` accepts one graph plus `defgraph`s. Macros are binding-free value
 templates only. Positions, frames and collapsed zones are session layout and
 never reach the Lisp. Comments attach to the next binding and survive graph edits. The
