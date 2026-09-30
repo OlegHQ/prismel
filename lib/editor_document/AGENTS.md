@@ -35,12 +35,20 @@ keys and map drags, the camera following the viewport) still mutates the documen
 `Edit_graph`; `reconcile before after` then turns each difference into `Flow_edit` ops on the graph
 that declares the object and lowers the new text again (`Doc.reconcile`, called by `Core` after
 every frame's derived edits, by `Core.edit_node` and by the camera follow).  Where an object lives is
-`Document.homes` (`Bound_at` a binding, `Inline_in` an argument of another home, `Looped`); an
-inline call is unfolded into a binding first, a loop's object is refused, and ids are claimed by
-home before (operation, label), so a rename keeps the id.  A declared object's text is the whole
+`Document.homes` (`Bound_at` a binding, `Inline_in` an argument of another home, `Copy` of a loop's
+template, `Looped`); an inline call is unfolded into a binding first, and ids are claimed by
+home before (operation, label), so a rename keeps the id.  The copies of a loop are one template
+(register V4): editing a literal field (or a literal component of a computed vector) of one writes
+the template, every copy changes; a field the loop computes is refused with its expression (type
+`=(expression)` in the row); deleting a copy rewrites the loop's collection with `take`/`drop`
+(one clause, nothing else of the copy stays), else `reconcile ~whole:true` deletes the whole loop after
+the `Confirming` prompt.  A declared object's text is the whole
 truth: a field it does not name is the schema's default.  `:parent "label"` and `:active true` are
-keywords of the kinds (not fields of the nodes).  An object only the host made (its camera and
-lights, one geometry object per `sop` graph, a World given by `?world`) has no text until its
-first explicit edit writes the scene (or World) graph from the derived objects (`adopt`);
+keywords of the kinds (not fields of the nodes).  A scene graph is authoritative for every object
+kind and a world graph for the World: what it does not say is not there (an empty `(scene/merge)`
+has no camera and no light, `(world/none)` no World) and the host seeds nothing.  Only a workspace
+with no such graph gets the host's camera and lights, one geometry object per `sop` graph and a
+World given by `?world`; such an object has no text until its first explicit edit, or its
+deletion, writes the scene (or World) graph from all the derived objects (`adopt`);
 `~adopt:false` (a camera following the viewport) leaves such edits to the host.  Keep new derived
 edits on this path: never write a second write-back.

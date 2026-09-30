@@ -356,9 +356,9 @@ module Editor3 : sig
 
   val render_camera : 'prepared t -> Prismel.Camera.t
   (** The ACTIVE camera object's view and lens (the viewport camera when the
-      document has none). A default camera following the viewport is added
-      to a document without one, and again if the last is deleted (inside
-      the same undo entry). With follow viewport on, viewport motion writes
+      document has none). A workspace with no scene graph starts with a default camera
+      following the viewport; a scene graph is authoritative (an empty one
+      means no camera, and deleting the host's camera writes one). With follow viewport on, viewport motion writes
       the node (one undo entry per gesture) and node edits or undo move the
       viewport. PNG export and look-through use it. *)
 

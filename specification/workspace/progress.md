@@ -442,8 +442,9 @@ Status: `todo` · `wip` · `done` (gate met) · `partial` (what is missing is na
   `t = 0` (no animated scene values). Ranges are the schema's: literals are check errors,
   computed values clamp like any write. `Document.of_workspace` moved to
   `Contexts.of_workspace` (the old flat path is deleted): without a scene graph it still makes one
-  geometry object per sop graph. The workspace owns geometry always, cameras/lights only when its
-  scene declares one (else the host's seeded ones stay), the World only with a world graph;
+  geometry object per sop graph. The workspace owns geometry always; a scene graph is authoritative for
+  every object kind (an empty one means no camera and no light, see "Ownership" below) and a world graph for the
+  World (`(world/none)` means none); without them the host seeds its camera, lights and World;
   ids are matched by (operation, label) across rebuilds, params it does not mention keep their
   document value. A settings graph becomes `doc.settings` (workspace schema) and is not written
   as a trailing `(settings ...)` form; inspector edits of it are overwritten on the next edit.
@@ -607,11 +608,6 @@ here with its reason. Gap A and Gap B (below) closed every row that was open; wh
 
 ### Remaining (each a plan non-goal, a plan `ponytail:` decision, or a stated limit)
 
-- A host-made object the user deletes (its camera, a light, a World given by `?world`) is not written as "none": a scene
-  graph that declares a kind replaces the host's, and the text has no way to say "no lights" (plan W10: "No new scene
-  features"). A reload seeds it again; every edit of it, and deleting a declared one, is written.
-- An object or World layer made by a loop cannot be edited one copy at a time: the message says to edit the loop
-  (ambiguities V4: a value in a loop is one template; "only iteration k differs" is a proposal, not in the plan's build).
 - The list inspector of a geometry object's lowered nodes is read-only; its rows select the node in the pane, whose
   inspector edits the arguments (the lowered node is a derived value, the text is the truth).
 - `v` (view a node) applies to the object that is open (the scene shows every object's result); the entry is saved in
@@ -757,3 +753,39 @@ footer strip, `dot`'s footer `↑ same each time`, the inspector with note, name
 with its cross; `bed` selected and `v` pressed: the viewport shows only the bed, the card carries `VIEW`, the guide strip names
 `v · view in the viewport`; a zone dragged by its header moved with its contents; the highlight of a selected zone tints its
 elements. Zoomed out below 0.4 no footer is drawn, by design.
+
+### Gap C (2026-09-30, closed): ownership and loop copies
+
+**Ownership (plan W10).** A scene graph is authoritative for every object kind and a world graph for the World: what
+the text does not say is not there, and the host seeds nothing. An empty `(scene/merge)` is a scene with no camera and no
+light (it renders, unlit); `(world/none)` (a built-in op of the world context) is a world graph with no World. A workspace
+with no such graph still gets the host's camera, lights (`Editor3.create ?lights`), one geometry object per `sop` graph
+and `?world`. Deleting a host-made object therefore writes the scene (world) graph: `Scene_sync.adopt_objects` writes all
+the host's remaining objects together (an empty graph when none remain), then the deleted one is simply absent; a deleted
+World is `Set_graph` of `(world/none)` (a removed graph would let the host seed it again). `Contexts.of_workspace` owns
+every kind when a scene graph exists (`owned`), drops the host's World when a world graph returns none, and relabels a
+claimed node to the label its text gives (a rename of a loop's template reaches every copy). `Viewport3.sync_cameras` no
+longer re-adds a default camera to a workspace with a scene graph; the camera following the viewport is still the host's
+and is not written (`~adopt:false`). `sketches/ws_variations` declared a scene with no light and lived on the host's:
+it now declares a directional light (PNG checked). Every other sketch and example scene graph already declares its camera
+and light. Tests: `test_scene_sync.ml` (ownership both ways, delete camera/light/last objects/World, same text after
+reload), `test_scene_tree.ml` `run_host` (list Delete, Save text, reload, undo: "Delete"), `test_prismel_editor.ml`
+(deleting the last camera is written, not re-seeded).
+
+**Loop copies (register V4, iteration.md 3.6).** The copies of a loop are instances of one template. `Document.Copy
+{loop; rel; index}` is the home of a loop-made object (`Contexts.walk` walks a `for` body beside each element, and a merge
+lines its values up with its arguments, one loop taking the rest). Edit: a literal argument of the template (or a
+literal component of a vector the loop partly computes) is written to the template, every copy changes, status "Edited the
+loop template (name); N copies change."; an argument the loop computes is refused with its expression (never a silent
+drop), and `=(expression)` typed in a row of the scene-object inspector (`Object_arg`, new: the row's expression was
+dropped before) is written as the template's argument. Rename is the template's `:name` (the copies share it: there is no
+suffix rule). Delete of one copy rewrites the collection the loop runs over: `(drop 1 xs)` or `(concat (take k xs) (drop
+k+1 xs))`, exact when the loop has one clause and the copy made nothing else that stays; the other copies keep their
+place. Otherwise (several clauses, or only part of a copy's objects deleted) the edit is refused and
+`Scene_sync.confirming` gives the question; `Pxui_shell.Prompt.confirm` asks "Delete all N copies of <loop>?", and a yes
+is `reconcile ~whole:true` (history "Delete loop"). `Flow_edit.Delete_nodes` of a loop detaches it from the merge.
+Inline loops are unfolded into a binding first. Tests: `test_scene_sync.ml` `run_loops` (bound and inline loops: edit,
+component edit, refusal, rename, delete first/middle/two, confirm, pairs), `test_workspace_shell.ml` `run_loop_copies`,
+`run_loop_expression` (slider drag, list rename, Delete, the confirm button, typed `=(* i 3)`; Save text reopens the same).
+Native: `FLOW_CASE=lamps` (new) and `FLOW_CASE=<workspace file>` with `FLOW_SCRIPT` (`key Delete`) were read as PNGs.
+Open: a loop inside a loop nests `Copy` homes and works by the same rules, but has no test of its own.

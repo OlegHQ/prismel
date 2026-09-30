@@ -577,10 +577,10 @@ let rewrite src op : (unit -> S.t list) list =
               gone := Some (snd (List.nth sc.ps j));
               collapse sc (List.filteri (fun k _ -> k <> j) sc.ps) sc.res
           | _ -> fail "Only a named node can be deleted.") in
-        (* a scene object or World layer also leaves the result that held it *)
+        (* a scene object, World layer or loop of scene objects also leaves the result that held it *)
         match !gone with
-        | Some e when starts_with "scene/" (head_sym e) || starts_with "world/" (head_sym e) ->
-            with_root src (List.hd sp) (detach leaf (arg_get e (Pos 0)))
+        | Some e when starts_with "scene/" (head_sym e) || starts_with "world/" (head_sym e) || is_zone e ->
+            with_root src (List.hd sp) (detach leaf (if is_zone e then None else arg_get e (Pos 0)))
         | _ -> src) src by_depth in
       List.iter (fun node ->
         let name = snd (split_node node) in

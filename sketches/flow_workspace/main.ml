@@ -1,6 +1,6 @@
 (* A workspace document in the editor: the graph pane draws it with zones,
    rails and iteration selectors.  FLOW_CASE picks bloom (default),
-   sunflower, orrery, garden (W8, a loop over points) or rosette (W9, macro calls and a bypassed node).  FLOW_W9 / FLOW_W9KEY / FLOW_W9TEXT script clicks, a key and typed text by frame (see the script).
+   a workspace file path, sunflower, orrery, garden (W8, a loop over points), lamps (a loop of scene objects: copies of one template) or rosette (W9, macro calls and a bypassed node).  FLOW_W9 / FLOW_W9KEY / FLOW_W9TEXT script clicks, a key and typed text by frame (see the script).
    FLOW_SCROLL=<n> is the one wheel step at frame 12 (the pane zoom; default two steps of 5).
    FLOW_ADD=1 adds a box from the Tab menu.  FLOW_EXPORT=<dir> renders the editor's UI to PNG
    frames instead of opening a window (a check of the graph pane).
@@ -13,8 +13,10 @@ module E3 = Prismel_editor.Editor3
 let workspace =
   let text = match Sys.getenv_opt "FLOW_CASE" with
     | Some "sunflower" -> Cases.sunflower | Some "orrery" -> Cases.orrery
-    | Some "garden" -> Cases.garden | Some "rosette" -> Cases.rosette
-    | Some "variations" -> Cases.variations | _ -> Cases.bloom in
+    | Some "garden" -> Cases.garden | Some "lamps" -> Cases.lamps | Some "rosette" -> Cases.rosette
+    | Some "variations" -> Cases.variations
+    | Some path when Sys.file_exists path -> In_channel.with_open_bin path In_channel.input_all
+    | _ -> Cases.bloom in
   let catalog = Prismel_editor.workspace_catalog () |> Result.get_ok in
   match Prismel_editor.Workspace_doc.of_text catalog text with
   | Ok workspace -> workspace
@@ -97,7 +99,7 @@ let () = match Sys.getenv_opt "FLOW_EXPORT" with
                           | "key" -> [ Event.KeyPressed (match arg with
                               | "F2" -> Input.F2 | "Space" -> Input.Space | "Enter" -> Input.Enter | "Escape" -> Input.Escape
                               | "Right" -> Input.ArrowRight | "Left" -> Input.ArrowLeft
-                              | "Down" -> Input.ArrowDown | "Up" -> Input.ArrowUp
+                              | "Down" -> Input.ArrowDown | "Up" -> Input.ArrowUp | "Delete" -> Input.Delete
                               | k -> Input.KeyChar k.[0]) ]
                           | _ -> []))
                 | _ -> []) (String.split_on_char ';' (Sys.getenv "FLOW_SCRIPT"))

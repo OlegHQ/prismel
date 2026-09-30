@@ -1146,3 +1146,10 @@ wrapping and Command-Enter and the Graph text tab edits; a zone whose body reads
 `E_ZONE_LIVE` removed), footers force element-dependent values per element and count nodes off the display
 (`Async_cook.submit_some`). `Editor3/2.create ?await` replaces the clock in tests. Details, tests and what remains:
 `specification/workspace/progress.md`.
+
+## Gap C: ownership and loop copies (2026-09-30)
+
+A scene graph is authoritative for cameras and lights, and a world graph for the World (`(world/none)` says none): the
+host seeds only a workspace with no such graph, and deleting a host object writes the graph, so Save and reload keep
+it. The copies of a loop are one template: editing one edits the template, deleting one rewrites the loop's collection
+(or asks to delete the loop). Details, tests and native checks: `workspace/progress.md` "Gap C".

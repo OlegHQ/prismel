@@ -13,8 +13,8 @@ let tests = [
   "test_editor_commands", Test_editor_commands.run;
   "test_editor_cook", Test_editor_cook.run;
   "test_editor_transactions", Test_editor_transactions.run;
-  "test_scene_tree", Test_scene_tree.run;
-  "test_scene_sync", Test_scene_sync.run;
+  "test_scene_tree", (fun () -> Test_scene_tree.run (); Test_scene_tree.run_host ());
+  "test_scene_sync", (fun () -> Test_scene_sync.run (); Test_scene_sync.run_loops ());
   "bench_scene_sync", Test_scene_sync.bench;
   "test_sop_catalog", Test_sop_catalog.run;
   "test_sketch_support", Test_sketch_support.run;

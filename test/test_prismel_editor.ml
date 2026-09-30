@@ -500,9 +500,11 @@ let run () =
       mouse_press (Input.LeftButton, at); mouse_release (Input.LeftButton, at)] 12) in
   let environment = Prismel_editor.Editor3.update environment
       (frame ~events:[Event.KeyPressed Input.Delete] 16) in
-  check (List.length (cameras environment) = 1 && List.length (active environment) = 1
-      && (List.hd (cameras environment)).id <> camera_id)
-    "deleting the last camera did not re-add an ACTIVE default";
+  (* the host's camera is an object like any: deleting the last one is written (a scene graph
+     that declares no camera), not re-seeded, and one undo gives it back *)
+  check (cameras environment = [] && active environment = []
+         && has (text_of environment) "graph scene" && not (has (text_of environment) "scene/camera"))
+    "deleting the last camera was not written as no camera";
   let environment = Prismel_editor.Editor3.update environment (command 'z' 17) in
   check (List.map (fun info -> info.Edit_graph.id) (cameras environment) = [camera_id])
     "undo after deleting the camera did not restore the original in one step";

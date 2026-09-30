@@ -63,5 +63,7 @@ let layout_edit (doc : Editor_document.Document.t) f =
   { doc with workspace = { workspace with layout = f workspace.layout }, lowered }
 
 (* A derived edit (an object's field, a reparent, a World layer) written to the text. *)
-let reconcile ~factories ?adopt before after =
-  Editor_document.Scene_sync.reconcile ~factories ?adopt before after
+let reconcile ~factories ?adopt ?whole before after =
+  Editor_document.Scene_sync.reconcile ~factories ?adopt ?whole before after
+
+let confirming = Editor_document.Scene_sync.confirming

@@ -30,9 +30,12 @@ type prompt =
   | Browsing of { query : string; presets : (string * float) list }
   | Making_macro of { nodes : Flow.Workspace.path list; draft : Flow_sop.Flow_edit.macro_draft;
                       state : Pxui_shell.Prompt.macro }  (* the make-macro dialog (plan W9) *)
+  | Confirming of { question : string; after : Document.t }
+      (* a loop's copy cannot be deleted alone: the edited document waits for a yes *)
 
 type prompt_intent = Save_preset_file of string | Load_preset_file of string
   | Edit_source of Flow_sop.Flow_edit.op  (* the dialog's answer: one workspace gesture *)
+  | Delete_loop of Document.t  (* a yes: the whole loop goes *)
   | Delete_preset_file of { name : string; query : string }
   | Run_action of Leader.action
 
@@ -58,6 +61,9 @@ type change =
       (** the expression at [key] of the call at [home] is written in place: the call is bound to
           a name first, then the expression, and [make] gives the gesture on that name (several
           rewrites, one history entry) *)
+  | Object_arg of { node : int; key : string; sub : int list; expr : Flow.Syntax.t }
+      (** an expression typed in a row of a scene object or World layer: written to the argument of
+          the call that holds it (for a loop's copy, of the loop's template) *)
   | Notice of string
   | Set_parameter of { node : int; path : string; value : Parameter.value }
   | Rename of { node : int; label : string }
@@ -248,6 +254,13 @@ let catalog value = function
 let network value = Option.get (Document.network value.doc value.level)
 let document value = (network value).graph.geometry
 
+(* "=(* 2 t)" typed in a row: the expression after the "=", any Lisp expression *)
+let expression_text text =
+  match Flow.Syntax.parse (String.sub text 1 (String.length text - 1)) with
+  | Ok [ expr ] -> Ok expr
+  | Ok _ -> Error "Write one expression after the ="
+  | Error d -> Error ("Expression: " ^ d.Flow.Diagnostic.message)
+
 (* The inspector of the node selected in the workspace pane (plan W5): its
    value at the probe, whether it recooks every frame, the list of its
    iterations (a click moves the zone's probe), and the catalog parameters of
@@ -380,18 +393,15 @@ let workspace_inspector value ui ~width path =
                            { node = n.path; key = Flow_sop.Flow_edit.Kw parameter.path; sub = []; value = syntax })))
                      parameters
                | Pxui_shell.Inspector.Expression (path, text) ->
-                   (* "=(* 2 t)": the text after the "=" is the argument, any Lisp expression *)
-                   let key_path, component = match String.index_opt path '.' with
-                     | Some i -> String.sub path 0 i, List.assoc_opt (String.sub path (i + 1) (String.length path - i - 1))
-                         [ "x", 0; "y", 1; "z", 2 ]
-                     | None -> path, None in
-                   (match Flow.Syntax.parse (String.sub text 1 (String.length text - 1)) with
-                    | Ok [ value ] ->
+                   let key, sub = match String.index_opt path '.' with
+                     | Some i -> String.sub path 0 i, List.filter_map Fun.id [ List.assoc_opt
+                         (String.sub path (i + 1) (String.length path - i - 1)) [ "x", 0; "y", 1; "z", 2 ] ]
+                     | None -> path, [] in
+                   (match expression_text text with
+                    | Ok value ->
                         Some (Syntax_edit (Flow_sop.Flow_edit.Set_arg { node = n.path;
-                          key = Flow_sop.Flow_edit.Kw key_path;
-                          sub = (match component with Some c -> [ c ] | None -> []); value }))
-                    | Ok _ -> Some (Notice "Write one expression after the =")
-                    | Error d -> Some (Notice ("Expression: " ^ d.Flow.Diagnostic.message)))
+                          key = Flow_sop.Flow_edit.Kw key; sub; value }))
+                    | Error message -> Some (Notice message))
                | Pxui_shell.Inspector.Reset path ->
                    Some (Syntax_edit (Flow_sop.Flow_edit.Disconnect { node = n.path;
                      key = Flow_sop.Flow_edit.Kw (List.hd (String.split_on_char '.' path)); fallback = None }))
@@ -986,14 +996,13 @@ let workspace_doc ~factories ~seed_scene workspace =
   let flow r = Result.map_error Flow.Diagnostic.to_string r in
   let* doc = flow (Editor_document.Contexts.of_workspace ~factories workspace) in
   let declared = doc.scene.graph.geometry in
-  let scene = seed_scene declared in
-  (* the sketch's lights are defaults: a workspace that declares its own keeps only those *)
-  let scene = if Objects.ids "light" declared = [] then scene
-    else Edit_graph.remove_nodes (List.filter (fun id -> not (List.mem id (Objects.ids "light" declared)))
-      (Objects.ids "light" scene)) scene in
+  (* the host's camera and lights are defaults of a workspace with no scene graph; a scene
+     graph is authoritative (it may say there are none) *)
+  let has_scene = Editor_document.Contexts.graph_of workspace Flow.Workspace.Scene <> None in
+  let scene = if has_scene then declared else seed_scene declared in
   let* graph = flow (Flow_sop.Network.with_geometry scene doc.scene.graph) in
   let doc = { doc with scene = { doc.scene with graph };
-    active_camera = List.nth_opt (Objects.ids "camera" scene) 0 } in
+    active_camera = if has_scene then doc.active_camera else List.nth_opt (Objects.ids "camera" scene) 0 } in
   Ok (doc, List.nth_opt (Objects.ids "geometry" scene) 0)
 
 (* A World object for [world], with its layer network. *)
@@ -1036,7 +1045,9 @@ let create ?(settings = Settings.none) ?(keymap = Leader.keymap)
   let opened = workspace_doc ~factories ~seed_scene:(seed_scene factories)
       { workspace with Workspace_doc.settings } in
   Result.bind opened (fun (doc, geometry) ->
-  let doc = match (if Objects.ids "world" doc.scene.graph.geometry = [] then Option.map (add_world doc) world else None) with
+  let has_world = Editor_document.Contexts.graph_of workspace Flow.Workspace.World <> None in
+  let doc = match (if Objects.ids "world" doc.scene.graph.geometry = [] && not has_world
+                   then Option.map (add_world doc) world else None) with
     | Some (Ok doc) -> doc | Some (Error _) | None -> doc in
   Result.map (fun cook ->
       let workspace = { tree = layout; hidden = [ Pxui_shell.Layout.Timeline ]; live = None;
@@ -1079,6 +1090,12 @@ let create ?(settings = Settings.none) ?(keymap = Leader.keymap)
 let truncate limit text = if String.length text <= limit then text
   else if limit <= 3 then String.make (max 0 limit) '.'
   else String.sub text 0 (limit - 3) ^ "..."
+
+(* the open dialog, for the crash report *)
+let prompt_name value = match value.prompt with
+  | None -> "-" | Some Keys -> "keys" | Some (Saving _) -> "save preset" | Some (Palette _) -> "commands"
+  | Some (Browsing _) -> "presets" | Some (Making_macro _) -> "make macro"
+  | Some (Confirming { question; _ }) -> "confirm: " ^ question
 
 let level_name value = match value.level with
   | Document.Scene -> "scene"
@@ -1176,6 +1193,7 @@ let intent_label = function
   | Syntax_edit op -> Some (Flow_sop.Flow_edit.label op)
   | Syntax_inline { make; _ } -> Some (Flow_sop.Flow_edit.label (make []))
   | Set_parameter { path; _ } -> Some ("Set " ^ path)
+  | Object_arg _ -> Some "Edit expression"
   | Rename _ -> Some "Rename node"
   | Notice _ -> None
 
@@ -1344,17 +1362,12 @@ let apply_text value intents =
              with_text { text with binding_draft = Some (path, draft); binding_errors })) value intents
 
 
-(* the binding a home is, for a message *)
-let home_name = function
-  | Document.Bound_at path -> List.nth path (List.length path - 1)
-  | Inline_in _ | Looped -> "an expression"
-
 (* A panel header's title: its type, and where a looped panel comes from (register E1). *)
 let panel_title value (leaf : Pxui_shell.Layout.leaf) =
   let name = Editor_core.Panels.name leaf.panel in
   match Option.bind value.doc.Document.shell (fun s ->
       if value.workspace.restored then None else List.assoc_opt leaf.path s.origins) with
-  | Some (Document.Loop (from, _)) -> name ^ " · from loop " ^ home_name from
+  | Some (Document.Loop (from, _)) -> name ^ " · from loop " ^ Document.home_name from
   | _ -> name
 
 (* The outline: the graphs of the workspace, one row each (a row opens its graph). *)
@@ -1388,7 +1401,7 @@ let layout_intents value (workspace : shell) intents =
               | Flow_sop.Flow_edit.Set_panel_kind { kind; _ } ->
                   [ Syntax_inline { home; key; make = (fun p ->
                       Flow_sop.Flow_edit.Set_panel_kind { node = p @ [ "@result" ]; kind }) } ]
-              | _ -> [ Notice ("These panels are copies made by a loop in " ^ home_name home
+              | _ -> [ Notice ("These panels are copies made by a loop in " ^ Document.home_name home
                   ^ ": retype them (Space o), or edit the loop in the editor graph.") ])
          | None -> [ Notice "This panel is not part of the editor graph's tree." ])
     | _ -> [ Notice (if workspace.restored then "The default layout is showing. \
@@ -1430,7 +1443,7 @@ let apply_change (document, error, effects) = function
       (match Doc.relabel document ~node_id:node label with
        | Error message -> document, Some message, effects
        | Ok document -> document, None, effects)
-  | Syntax_edit _ | Syntax_inline _ | Notice _ -> document, error, effects
+  | Syntax_edit _ | Syntax_inline _ | Object_arg _ | Notice _ -> document, error, effects
 
 (* The kinds the node menu offers where the pane shows [graph], at a screen point. *)
 let open_menu value (x, y) =
@@ -1774,7 +1787,18 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
               rename @ List.filter_map (function
                 | Pxui_shell.Inspector.Edited (path, value) ->
                     Some (Set_parameter {node = node_id; path; value})
-                | Pinned _ | Split _ | Reset _ | Expression _ -> None) edits)) in
+                | Pxui_shell.Inspector.Expression (path, text) ->
+                    (* a row is a field of the node; its argument is the parameter holding it (a
+                       vector's field is one component of it) *)
+                    let parameters = Result.value ~default:[] (Flow_sop.Port.parameters (Editor_document.Contexts.group_triples fields)) in
+                    let key_sub = List.find_map (fun (p : Flow_sop.Port.parameter) ->
+                      Option.map (fun i -> p.path, if List.length p.fields = 3 then [ i ] else [])
+                        (List.find_index (fun (f : Parameter.field_view) -> f.name = path) p.fields)) parameters in
+                    (match expression_text text, key_sub with
+                     | Ok expr, Some (key, sub) -> Some (Object_arg { node = node_id; key; sub; expr })
+                     | Error message, _ -> Some (Notice message)
+                     | Ok _, None -> None)
+                | Pinned _ | Split _ | Reset _ -> None) edits)) in
           None, changes, [], value.live_cook) in
     let changes = changes @ inspector_changes @ layout_changes in
     let scope_changes = scope_changes @ !workspace_moves in
@@ -1884,6 +1908,12 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
          | None | Some (_, `Cancel) -> None, None
          | Some (name, `Submit) -> None, Some (Save_preset_file name)
          | Some (name, _) -> Some (Saving name), None)
+    | Some (Confirming { question; after }) ->
+        (match Pxui_shell.Prompt.confirm ui ~key:"confirm-loop" ~title:"Delete the loop?"
+            ~message:(String.split_on_char '\n' question) ~action:"Delete loop" with
+         | None -> None, None
+         | Some `Yes -> None, Some (Delete_loop after)
+         | Some `Wait -> prompt, None)
     | Some (Making_macro m) ->
         (match Pxui_shell.Prompt.macro ui ~key:"make-macro" ~title:"Make a macro from the selection"
             ~literals:(Array.of_list (List.map (fun (_, e) -> Flow.Lisp.flat e) m.draft.literals))
@@ -2000,7 +2030,7 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
     | None -> result.prompt, (match List.find_map (function
         | Notice message -> Some message | _ -> None) result.changes with
         | Some _ as notice -> notice | None -> value.notice), None
-    | Some (Run_action _ | Edit_source _) -> result.prompt, value.notice, None
+    | Some (Run_action _ | Edit_source _ | Delete_loop _) -> result.prompt, value.notice, None
     | Some (Save_preset_file name) ->
         let notice = match Preset.save ~directory:value.presets ~name
             ~doc:value.doc ~view:(view_state result.panel) with
@@ -2059,11 +2089,24 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
     | _ -> next in
   (* the scene and World edits above act on derived objects: each difference is written to
      the text (a refused one changes nothing) *)
-  let reconciled ~before next result =
-    match Doc.reconcile ~factories:value.factories before next with
-    | Ok doc -> doc, result
-    | Error message -> before, { (result : _ frame_result) with edit_error = Some message } in
-  let next, result = if Option.is_some loaded then next, result else reconciled ~before:present next result in
+  let edit_note = ref None and asking = ref None in
+  let reconciled ?(whole = false) ~before next result =
+    match Doc.reconcile ~factories:value.factories ~whole before next with
+    | Ok doc ->
+        Option.iter (fun note -> edit_note := Some note) (Editor_document.Scene_sync.note before next);
+        doc, result
+    | Error message ->
+        (* a loop's copy cannot go alone: the person is asked whether the whole loop goes *)
+        (match Doc.confirming ~factories:value.factories before next with
+         | Some question -> asking := Some (Confirming { question; after = next })
+         | None -> ());
+        before, { (result : _ frame_result) with edit_error = Some message } in
+  let next, result = if Option.is_some loaded then next, result else
+    match result.prompt_intent with
+    | Some (Delete_loop after) ->
+        let doc, result = reconciled ~whole:true ~before:present after result in
+        doc, { result with label = "Delete loop" }
+    | _ -> reconciled ~before:present next result in
   (* Workspace gestures: one rewrite of the source per gesture, lowered into
      the document, one history entry named by the op. *)
   let added = ref [] in
@@ -2080,6 +2123,25 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
                doc, { (result : _ frame_result) with label = Flow_sop.Flow_edit.label op;
                effects = Parameter.union_effects result.effects Doc.cook_effects }
            | Error message -> next, { (result : _ frame_result) with edit_error = Some message })
+      | Object_arg { node; key; sub; expr } ->
+          (* the expression typed in a row is the argument of the call that holds the object (of a
+             loop's template: every copy changes) *)
+          let ( let* ) = Result.bind in
+          let home = match value.level with
+            | Document.Scene -> List.assoc_opt node next.Document.homes.objects
+            | Inside _ -> List.assoc_opt node next.homes.layers in
+          (match home with
+           | None -> next, { (result : _ frame_result) with edit_error = Some "That object is not in the text yet: \
+               change one of its values, which writes it." }
+           | Some home ->
+               let op path = Flow_sop.Flow_edit.Set_arg { node = path; key = Kw key; sub; value = expr } in
+               (match (let* doc, path = Editor_document.Scene_sync.bind_home ~factories:value.factories next home in
+                       Doc.syntax_edit ~factories:value.factories doc (op path)) with
+                | Ok doc ->
+                    edit_note := Editor_document.Scene_sync.template_note next home;
+                    doc, { result with label = "Edit expression";
+                      effects = Parameter.union_effects result.effects Doc.cook_effects }
+                | Error message -> next, { result with edit_error = Some message }))
       | Syntax_inline { home; key; make } ->
           (* bind what is written in place (the call holding it, then the expression), then
              the gesture on its name *)
@@ -2301,10 +2363,11 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
   let document_changed = doc != value.doc in
   { core = apply_text { value' with timeline; cook = cooked.cook; lit = lit_cache; edit_error = cooked.edit_error;
       status_fps; status_fps_at; history; guide; hud; focus = result.focus;
-      pane_keys = result.pane_keys; leader; held_keys; prompt;
+      pane_keys = result.pane_keys; leader; held_keys;
+      prompt = (match !asking with Some asked -> Some asked | None -> prompt);
       queued = (match result.prompt_intent with Some (Run_action action) -> [action] | _ -> []);
       notice = if guide_error <> None then guide_error
-        else if document_changed && Option.is_none loaded && not undone then None
+        else if document_changed && Option.is_none loaded && not undone then !edit_note
         else notice } result.text_intents;
     effects; prepared_changed = cooked.prepared_changed;
     scene_changed = doc.scene != value.doc.scene || cooked.prepared_changed;

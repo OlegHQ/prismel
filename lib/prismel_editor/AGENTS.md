@@ -70,7 +70,7 @@ so Command-S writes over their file. Old presets are not read.
 - The workspace inspector edits an argument as a number or as `=(expression)` (the pane's expression is the same
   text; the cross removes the keyword), renames the node, toggles Bypass, edits a graph input's default and moves list
   items.  The editor graph's panels are editable by `Space o` keys and the header menu even when written in place (the
-  call holding them is unfolded) or made by a loop (a retype edits the loop's template).
+  call holding them is unfolded) or made by a loop (a retype edits the loop's template).  Scene objects made by a loop are copies of one template: an edit, a rename or `=(expression)` writes the template, a delete rewrites the collection or asks to delete the whole loop.
 - Text pane: `Ui.text_area` keeps Tab (two spaces), wraps long lines and reports Command/Ctrl-Enter; the Graph tab is
   editable (`Set_graph`, one "Edit text" entry); Command-Enter applies in every editable tab.
 - Each viewport keeps its own orbit (`Environment.follow_focus`, `viewport_camera`); a camera following the viewport

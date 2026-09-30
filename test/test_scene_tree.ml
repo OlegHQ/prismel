@@ -19,14 +19,15 @@ let frame ?(mouse = 450, 320) ?(events = []) ?(keys = []) ?(buttons = []) count 
 
 module E = Prismel_editor.Editor3
 
-(* geo1 (one box), two lights, the host's camera, a World of sky, softbox and constellation *)
+(* geo1 (one box), two lights, a camera, a World of sky, softbox and constellation *)
 let text = {|(workspace scene_tree
   (graph geo :context sop (sop/box))
   (graph scene :context scene
     (let* [body (scene/geometry (ref geo) :name "geo1")
            key (scene/light :name "key")
-           fill (scene/light :name "fill" :translate [-3 4 2])]
-      (scene/merge body key fill)))
+           fill (scene/light :name "fill" :translate [-3 4 2])
+           cam (scene/camera :name "camera1" :aperture 0.3)]
+      (scene/merge body key fill cam)))
   (graph world :context world
     (world/world :name "world" (world/scatter (world/shape (world/sky :name "sky") :name "softbox")
                                 :name "constellation"))))|}
@@ -90,7 +91,7 @@ let run () =
     else select name (step env [key Input.ArrowDown]) (tries - 1) in
   let env = select "camera1" env 6 in
   check ((Camera.lens (E.render_camera env)).aperture = 0.3)
-    "the ACTIVE camera did not carry the sketch's lens";
+    "the ACTIVE camera did not carry its text lens";
   let env = step env [key Input.Home] in
   let env = select "geo1" env 6 in
   check (E.level env = None) "the editor did not open at the scene level";
@@ -322,8 +323,7 @@ let run () =
     ~prepare:(fun _ output -> Pdk_prismel.Prismel_mesh.to_mesh output.Session.geometry
       |> Result.map_error Pdk.Error.to_string)
     ~scene3:(fun _ mesh -> Scene3.create [Scene3.mesh mesh]) () |> Result.get_ok in
-  let declared env = List.filter (fun (l, _, _, _) -> l <> "camera1") (labelled env) in
-  check (declared reopened = declared env) "the saved text does not open as the edited scene";
+  check (labelled reopened = labelled env) "the saved text does not open as the edited scene";
   E.close reopened;
   (* The list's right-click menu enters the row under the pointer. *)
   let env = step env [] in
@@ -360,3 +360,63 @@ let run () =
     | None -> fail "the domain-count cook did not finish" in
   check (digest 1 = digest 4) "one domain and four domains cooked different geometry";
   print_endline "scene tree: list keys, enter/up, lights, reparent, World, graph, domains ok"
+
+(* What the host made (its camera, its light, its World) is deleted like any object, and the
+   deletion is in the saved text: a scene graph (world graph) is authoritative, so a reload does
+   not seed it again.  Through the list's Delete key, then Save (the text) and reload. *)
+let run_host () =
+  let lights = [ Light.directional ~direction:(Vec3.create (-1.) (-1.) (-1.)) ~diffuse:Color.white () ] in
+  let open_text text =
+    E.create ~await:true ~lights ~world:World.default ~workspace:(Ws_fixture.of_text text)
+      ~prepare:(fun _ output -> Pdk_prismel.Prismel_mesh.to_mesh output.Session.geometry
+        |> Result.map_error Pdk.Error.to_string)
+      ~scene3:(fun _ mesh -> Scene3.create [Scene3.mesh mesh]) () |> Result.get_ok in
+  let count = ref 0 in
+  let step ?keys env events = incr count; E.update env (frame ?keys ~events !count) in
+  let key k = Event.KeyPressed k in
+  let names env = List.sort compare (List.map (fun (i : Edit_graph.node_info) -> i.label)
+    (Edit_graph.inspect (E.scene_document env))) in
+  let delete env name =
+    let gx, gy, _, _ = (E.panes env (frame 0)).graph in
+    let at = float (gx + 40), float (gy + 400) in
+    let env = step env [ Event.MousePressed (Input.LeftButton, at); Event.MouseReleased (Input.LeftButton, at) ] in
+    let rec select env tries =
+      if Option.map Node.label (E.selected_node env) = Some name then env
+      else if tries = 0 then fail ("no list row named " ^ name ^ " among " ^ String.concat "," (names env))
+      else select (step env [ key Input.ArrowDown ]) (tries - 1) in
+    step (select (step env [ key Input.Home ]) 8) [ key Input.Delete ] in
+  let source env = Prismel_editor.Workspace_doc.to_text (E.workspace env) in
+  let env = step (open_text "(workspace host (graph g :context sop (sop/box)))") [] in
+  check (names env = List.sort compare [ "camera1"; "g"; "light1"; "world" ])
+    ("the host did not seed its camera, light and World: " ^ String.concat "," (names env));
+  let reopen env what present absent =
+    let reopened = step (open_text (source env)) [] in
+    check (List.for_all (fun n -> List.mem n (names reopened)) present
+           && not (List.exists (fun n -> List.mem n (names reopened)) absent)) (what ^ " came back on reload");
+    reopened in
+  (* the camera *)
+  let no_camera = delete env "camera1" in
+  check (not (List.mem "camera1" (names no_camera))) "Delete did not remove the host camera";
+  check (E.undo_label no_camera = Some "Delete") "deleting the host camera is not one 'Delete' entry";
+  check (contains (source no_camera) "graph scene" && contains (source no_camera) "scene/light"
+         && not (contains (source no_camera) "scene/camera")) "a deleted host camera is not in the text";
+  E.close (reopen no_camera "the deleted camera" [ "light1"; "g"; "world" ] [ "camera1" ]);
+  let undone = step ~keys:[ Input.Meta ] no_camera [ key (Input.KeyChar 'z') ] in
+  check (List.mem "camera1" (names undone) && not (contains (source undone) "graph scene"))
+    "undo did not give the host camera back";
+  (* the light *)
+  let no_light = delete env "light1" in
+  check (not (contains (source no_light) "scene/light") && contains (source no_light) "scene/camera"
+         && E.lights no_light = []) "a deleted host light is not in the text";
+  let reopened = reopen no_light "the deleted light" [ "camera1"; "g" ] [ "light1" ] in
+  check (E.lights reopened = []) "a reload lit a scene whose light was deleted";
+  E.close reopened;
+  (* the World *)
+  let no_world = delete env "world" in
+  check (contains (source no_world) "world/none" && E.undo_label no_world = Some "Delete")
+    "a deleted host World is not in the text";
+  let reopened = reopen no_world "the deleted World" [ "camera1"; "light1" ] [ "world" ] in
+  check (E.world reopened = None) "a reload seeded the deleted World again";
+  E.close reopened;
+  List.iter E.close [ env; no_camera; undone; no_light; no_world ];
+  print_endline "scene tree: host camera, light and World deletions survive Save and reload ok"

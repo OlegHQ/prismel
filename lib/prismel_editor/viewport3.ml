@@ -85,12 +85,14 @@ let seed_scene ?lens easy _ scene =
   else Option.value ~default:scene
       (add_default_camera ?lens ~factories:camera_factories scene easy)
 
-(* One ACTIVE camera whenever any exists; a nonempty scene losing the last
-   camera re-adds the default within the same undo entry. An intentionally
+(* One ACTIVE camera whenever any exists; a nonempty scene of a workspace with no scene graph
+   losing the last camera re-adds the default within the same undo entry. An intentionally
    empty scene stays empty. *)
 let sync_cameras ~mode (core : _ Core.t) easy =
   let core = if camera_ids (Core.scene core) <> []
-      || Edit_graph.inspect (Core.scene core) = [] then core
+      || Edit_graph.inspect (Core.scene core) = []
+      (* a scene graph is authoritative: no camera object is a camera it does not declare *)
+      || Contexts.graph_of (fst core.doc.workspace) Flow.Workspace.Scene <> None then core
     else match add_default_camera ~factories:camera_factories (Core.scene core) easy with
       | Some scene -> Core.scene_edit core mode scene
       | None -> core in

@@ -88,7 +88,7 @@ module Workspace = struct
     | Ok doc -> doc, Source.find ~path ~digest
 
   (* The viewport starts where the scene's first camera is (else the default orbit); the host's
-     light below is a default that a scene declaring a light replaces (Contexts.of_workspace).
+     light below is a default of a workspace with no scene graph (Contexts.of_workspace).
      ponytail: the geometry is drawn as one mesh. *)
   (* Every [sop] graph of the document, lowered and compiled, for headless cooking. *)
   let sop_graphs ?(factories = Sop_catalog.Editor.factories) (doc : Workspace_doc.t) =

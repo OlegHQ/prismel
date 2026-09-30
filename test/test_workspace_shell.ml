@@ -3,6 +3,7 @@
    the editor graph with history entries; "Restore layout" survives a layout that
    hides everything. *)
 open Prismel
+open Procedural
 module Doc = Editor_document.Workspace_doc
 module Document = Editor_document.Document
 module Contexts = Editor_document.Contexts
@@ -512,7 +513,164 @@ let run_views () =
       let viewports = List.length (List.filter (function Scene.Private.Scene3_layer _ -> true | _ -> false) staged.layers) in
       check (viewports = 4) (Printf.sprintf "four viewports draw four 3D layers, got %d" viewports)
 
-let run () = run_cameras (); run_lowering (); run_ops (); run_panel_keys (); run_unbound_panels (); run_values (); run_duplicate_and_view (); run_movers (); run_frame_key (); run_editor (); run_restore (); run_views ()
+
+(* ---- the copies of a loop are one template, through the editor (register V4) ---- *)
+
+let count_of text piece =
+  let n = String.length piece in
+  let rec go i acc = if i + n > String.length text then acc
+    else go (i + 1) (if String.sub text i n = piece then acc + 1 else acc) in
+  go 0 0
+
+(* the list's rows, walked with the arrows: the row under the focus is the selection *)
+let select_row e count k =
+  let step ?(mouse = (450., 300.)) events = incr count; e := E3.update !e (frame mouse events !count) in
+  step []; step [];
+  let gx, gy, _, _ = (E3.panes !e (frame (0., 0.) [] 0)).graph in
+  let p = float (gx + 40), float (gy + 400) in
+  step ~mouse:p [ Event.MousePressed (Input.LeftButton, p); Event.MouseReleased (Input.LeftButton, p) ];
+  step [ Event.KeyPressed Input.Home ];
+  for _ = 1 to k do step [ Event.KeyPressed Input.ArrowDown ] done;
+  step []
+
+(* a drag across the inspector's slider at [row] points under the panel's top *)
+let drag_slider e count row =
+  let step ?(buttons = []) ?(mouse = (450., 300.)) events = incr count; e := E3.update !e (frame ~buttons mouse events !count) in
+  let ix, iy, iw, _ = (E3.panes !e (frame (0., 0.) [] 0)).inspector in
+  let at x = float (ix + (iw * 70 / 100) + x), float (iy + row) in
+  step ~mouse:(at 0) ~buttons:[ Input.LeftButton ] [ Event.MousePressed (Input.LeftButton, at 0) ];
+  List.iter (fun x -> step ~mouse:(at x) ~buttons:[ Input.LeftButton ] []) [ 4; 8; 12; 16 ];
+  step ~mouse:(at 20) [ Event.MouseReleased (Input.LeftButton, at 20) ];
+  step []
+
+let objects e = Edit_graph.inspect (E3.scene_document e)
+let field_of (i : Edit_graph.node_info) name = List.find_map (fun (f : Parameter.field_view) ->
+  if f.name = name then Some f.current else None) (Node.parameter_fields i.node)
+
+let run_loop_copies () =
+  (* copies that differ only by the graph they place: every field of the template is a literal *)
+  let text = {|(workspace copies
+    (graph g :context sop [(seed : int 1)] (sop/box :size [seed 1 1]))
+    (graph scene :context scene
+      (let* [row (for [i (range 3)] (scene/geometry (ref g :seed (+ i 1))))]
+        (scene/merge row))))|} in
+  let e = ref (editor text) and count = ref 0 in
+  select_row e count 1;
+  let x () = List.map (fun i -> field_of i "translate_x") (objects !e) in
+  check (List.length (objects !e) = 3 && List.for_all (fun v -> v = Some (Parameter.Float_value 0.)) (x ()))
+    "the loop did not make three objects at the origin";
+  drag_slider e count 171;
+  let moved = x () in
+  check (List.for_all (fun v -> v = List.hd moved && v <> Some (Parameter.Float_value 0.)) moved)
+    "dragging a literal field of one copy did not move all three";
+  check (count_of (source !e) ":translate [" = 1) ("the template was not edited once: " ^ source !e);
+  check (E3.undo_label !e = Some "Set translate_x") "the drag is not one history entry named for the field";
+  check (has (dump_line !e "cook") "loop template" && has (dump_line !e "cook") "3 copies")
+    ("the status does not say the template changed: " ^ dump_line !e "cook");
+  let saved = source !e in
+  E3.close !e;
+  e := editor saved;
+  check (x () = moved) "the saved text does not reopen with the same copies";
+  (* one undo gives them all back *)
+  e := E3.update !e { (frame (450., 300.) [ Event.KeyPressed (Input.KeyChar 'z') ] (incr count; !count)) with keys = [ Input.Meta ] };
+  E3.close !e;
+  (* a rename from the list is the template's :name: every copy takes it *)
+  let e = ref (editor text) and count = ref 0 in
+  select_row e count 2;
+  let step events = incr count; e := E3.update !e (frame (450., 300.) events !count) in
+  step [ Event.KeyPressed Input.F2 ]; step [ Event.TextInput "spot" ]; step [ Event.KeyPressed Input.Enter ]; step [];
+  check (List.for_all (fun (i : Edit_graph.node_info) -> i.label = "gspot") (objects !e)
+         && count_of (source !e) ":name \"gspot\"" = 1 && E3.undo_label !e = Some "Rename")
+    ("a rename of one copy did not rename the template: " ^ source !e ^ String.concat "," (List.map (fun (i : Edit_graph.node_info) -> i.label) (objects !e)));
+  E3.close !e;
+  (* a copy computed from its index has no value of its own *)
+  let text = {|(workspace lamps
+    (graph g :context sop (sop/box))
+    (graph scene :context scene
+      (let* [row (for [i (range 3)] (scene/light :name "lamp" :translate [i 2 0]))]
+        (scene/merge (scene/geometry (ref g)) row))))|} in
+  let e = ref (editor text) and count = ref 0 in
+  select_row e count 2;
+  let before = source !e in
+  drag_slider e count 195;
+  check (source !e = before && E3.undo_label !e = None) "a computed field of a copy was written";
+  check (has (dump_line !e "edit error") "computed by the loop") ("no reason for the refused edit: " ^ dump_line !e "edit error");
+  (* deleting one copy rewrites the collection: the others stay where they are *)
+  select_row e count 2;
+  e := E3.update !e (frame (450., 300.) [ Event.KeyPressed Input.Delete ] (incr count; !count));
+  let lamps () = List.filter (fun (i : Edit_graph.node_info) -> i.operation = "light") (objects !e) in
+  check (List.length (lamps ()) = 2 && has (source !e) "drop" && E3.undo_label !e = Some "Delete")
+    ("deleting a copy did not skip it in the loop: " ^ source !e);
+  check (List.map (fun i -> field_of i "translate_x") (lamps ())
+         = [ Some (Parameter.Float_value 0.); Some (Parameter.Float_value 2.) ])
+    "the copies after a deleted one moved";
+  E3.close !e;
+  (* a loop with two clauses has no copy to delete alone: the person is asked, how many go *)
+  let text = {|(workspace grid
+    (graph g :context sop (sop/box))
+    (graph scene :context scene
+      (let* [row (for [i (range 2) j (range 3)] (scene/light :translate [i j 0]))]
+        (scene/merge (scene/geometry (ref g)) row))))|} in
+  let e = ref (editor text) and count = ref 0 in
+  select_row e count 2;
+  let before = source !e in
+  e := E3.update !e (frame (450., 300.) [ Event.KeyPressed Input.Delete ] (incr count; !count));
+  check (source !e = before && List.length (objects !e) = 7) "a copy of a two-clause loop went without a yes";
+  e := E3.update !e (frame (450., 300.) [] (incr count; !count));
+  (* a click on the prompt's button: its row is the last of the dialog, around the window's middle *)
+  let rec press y =
+    if y > 400 || not (has (source !e) "for [") then ()
+    else begin
+     List.iter (fun x ->
+      let p = float x, float y in
+      e := E3.update !e (frame p [] (incr count; !count));
+      e := E3.update !e (frame ~buttons:[ Input.LeftButton ] p [ Event.MousePressed (Input.LeftButton, p) ] (incr count; !count));
+      e := E3.update !e (frame p [ Event.MouseReleased (Input.LeftButton, p) ] (incr count; !count))) [ 262; 300; 360; 450 ];
+      press (y + 6) end in
+  check (has (dump_line !e "prompt") "all 6 copies") ("the question did not open: " ^ dump_line !e "prompt");
+  press 320;
+  check (not (has (source !e) "for [") && List.length (objects !e) = 1 && E3.undo_label !e = Some "Delete loop")
+    ("confirming did not delete the loop: " ^ source !e);
+  E3.close !e;
+  print_endline "workspace shell: a loop's copies are one template (edit, computed refusal, delete, confirm) ok"
+
+(* an expression typed in a row of a copy is the template's argument: every copy follows it *)
+let run_loop_expression () =
+  let text = {|(workspace lamps
+    (graph g :context sop (sop/box))
+    (graph scene :context scene
+      (let* [row (for [i (range 3)] (scene/light :name "lamp" :translate [i 2 0]))]
+        (scene/merge (scene/geometry (ref g)) row))))|} in
+  let e = ref (editor text) and count = ref 0 in
+  select_row e count 2;
+  let step ?(mouse = (450., 300.)) events = incr count; e := E3.update !e (frame mouse events !count) in
+  let ix, iy, _, _ = (E3.panes !e (frame (0., 0.) [] 0)).inspector in
+  let label = float (ix + 30), float (iy + 195) in
+  step ~mouse:label [ Event.MouseMoved label ];
+  List.iter (fun () ->
+    step ~mouse:label [ Event.MousePressed (Input.LeftButton, label) ];
+    step ~mouse:label [ Event.MouseReleased (Input.LeftButton, label) ]) [ (); () ];
+  step ~mouse:label [ Event.KeyPressed (Input.KeyChar 'a') ];
+  step ~mouse:label [ Event.TextInput "=(* i 3)" ];
+  step ~mouse:label [ Event.KeyPressed Input.Enter ];
+  step ~mouse:label [];
+  let lamps () = List.filter (fun (i : Edit_graph.node_info) -> i.operation = "light") (objects !e) in
+  check (has (source !e) ":translate [(* i 3) 2 0]") ("the expression did not reach the template: " ^ source !e);
+  check (List.map (fun i -> field_of i "translate_x") (lamps ())
+         = List.map (fun v -> Some (Parameter.Float_value v)) [ 0.; 3.; 6. ])
+    "the copies did not follow the expression";
+  check (E3.undo_label !e = Some "Edit expression" && dump_line !e "edit error" = "-"
+         && has (dump_line !e "cook") "loop template") "the expression edit is not one entry with its status";
+  let saved = source !e in
+  E3.close !e;
+  e := editor saved;
+  check (List.map (fun i -> field_of i "translate_x") (lamps ())
+         = List.map (fun v -> Some (Parameter.Float_value v)) [ 0.; 3.; 6. ]) "the saved text does not reopen with the same copies";
+  E3.close !e;
+  print_endline "workspace shell: an expression typed in a copy edits the template ok"
+
+
+let run () = run_cameras (); run_lowering (); run_ops (); run_panel_keys (); run_unbound_panels (); run_values (); run_duplicate_and_view (); run_movers (); run_frame_key (); run_loop_copies (); run_loop_expression (); run_editor (); run_restore (); run_views ()
 
 (* Native: a real window draws Variations' four viewports, each its own scene instance (the
    frame's 3D layers were once cached per frame, so only the first drew). *)

@@ -268,6 +268,15 @@ A scrub inside a loop changes every iteration. The status line says so while
 dragging, and the explicit per-iteration special case is the `if` above. That
 is register V4.
 
+**Loop-made objects (normative).** The copies of a loop that makes scene objects are instances of one
+template. Editing a copy in the viewport, list or inspector edits the template: a literal argument (or a
+literal component of a vector) is written once and every copy changes, and the status says so; an argument
+the loop computes from its variable is refused with its expression, and `=(expression)` typed in the row
+replaces it. Renaming writes the template's `:name`. Deleting a copy of a one-clause `for` rewrites its
+collection with `take` and `drop` so the other copies keep their place; when that is not exact (several
+clauses, or only part of what a copy made) the whole loop goes, after a confirmation that says how many
+copies go.
+
 ### 3.7 Groups
 
 Geometry groups are named selections carried on geometry. The catalog marks

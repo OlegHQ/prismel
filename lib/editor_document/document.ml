@@ -17,11 +17,16 @@ let of_geometry ~context graph displayed =
   { context; graph = Flow_sop.Network.of_geometry graph; displayed }
 
 (* Where the text of a scene object, a World layer or the settings lives: a binding of its
-   graph, an argument of another home (an inline call, written in place), or nowhere an edit
-   can reach (made by a loop).  Edits to the derived objects are written back through it. *)
+   graph, an argument of another home (an inline call, written in place), a copy of a loop's
+   template, or nowhere an edit can reach.  Edits to the derived objects are written back
+   through it.  The copies of a loop are instances of ONE template (register V4): [Copy]
+   names the loop (its binding, or the argument holding it), the template's path inside the
+   loop body ([["@result"]] or a binding of the body) and which copy this is; an edit of a
+   copy is an edit of the template, so every copy changes. *)
 type home =
   | Bound_at of Flow.Workspace.path
   | Inline_in of home * Flow_sop.Flow_edit.arg_key
+  | Copy of { loop : home; rel : string list; index : int }
   | Looped
 
 type homes = {
@@ -194,3 +199,26 @@ let dump value =
   line "camera %s" (match value.active_camera with Some c -> string_of_int c | None -> "-");
   line "settings %s" (fields (Settings.fields value.settings));
   Buffer.contents b
+
+(* the binding a home is, for a message; the loop that makes a copy *)
+let rec home_name = function
+  | Bound_at path -> List.nth path (List.length path - 1)
+  | Copy { loop; _ } -> home_name loop
+  | Inline_in _ | Looped -> "an expression"
+
+(* a home with its copy indices erased: the copies of one loop share it *)
+let rec template = function
+  | Copy { loop; rel; _ } -> Copy { loop = template loop; rel; index = 0 }
+  | Inline_in (home, key) -> Inline_in (template home, key)
+  | home -> home
+
+(* the loop that holds a home's template, erased, and how many of the document's objects are
+   copies from it *)
+let rec loop_of = function
+  | Copy { loop; _ } -> Some (template loop)
+  | Inline_in (home, _) -> loop_of home
+  | Bound_at _ | Looped -> None
+
+let copies doc home = match loop_of home with
+  | None -> 0
+  | key -> List.length (List.filter (fun (_, h) -> loop_of h = key) doc.homes.objects)

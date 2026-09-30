@@ -120,6 +120,8 @@ let ops = [
   mk ~octx:Sop ~kw:[ "key", Ty.Text ] "sop/point_list" [ "geometry", Ty.Geometry ] (fun _ -> Ty.List Ty.Vec3);
   mk ~octx:Sop ~kw:[ "key", Ty.Text ] "sop/piece_list" [ "geometry", Ty.Geometry ] (fun _ -> Ty.List Ty.Geometry);
   mk ~octx:Scene ~rest:("scene", Ty.Scene) "scene/merge" [] (fun _ -> Ty.Scene);
+  (* a world graph is authoritative (plan W10): this is how its text says there is no World *)
+  mk ~octx:World "world/none" [] (fun _ -> Ty.World);
   mk ~octx:Editor "ui/workspace" [ "root", Ty.Panel ] (fun _ -> Ty.Editor);
   panel "ui/viewport" [ "scene", Ty.Scene ];
   { (panel "ui/graph" []) with opt = [ "graph", Ty.Text ] }; panel "ui/inspector" [];

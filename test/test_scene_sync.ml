@@ -189,24 +189,19 @@ let run () =
   let edited = ok (reconcile doc preset) in
   check (contains (source edited) "world/room") "a World preset did not reach the text";
   same_after_reload edited "world preset";
-  (* deleting the World takes its graph *)
+  (* deleting the World: its graph stays and says none (a removed graph would be seeded again) *)
   let worldless = Document.prune (with_scene doc (Edit_graph.remove_nodes [ wid ] (scene doc))) in
   let edited = ok (reconcile doc worldless) in
-  check (not (contains (source edited) "graph world") && Objects.ids "world" (scene edited) = [])
-    "a deleted World stayed in the text";
+  check (contains (source edited) "world/none" && Objects.ids "world" (scene edited) = [])
+    "a deleted World was not written as none";
   same_after_reload edited "world delete";
+  check (Objects.ids "world" (scene (open_text (source edited))) = []) "a deleted World came back on reload";
   (* settings graph *)
   let settings = fst (Result.get_ok (Editor_document.Settings.apply doc.settings [ "width", Parameter.Int_value 800 ])) in
   let edited = ok (reconcile doc { doc with settings }) in
   check (contains (source edited) ":width 800") "a settings edit did not reach the text";
   same_after_reload edited "settings";
-  (* an object made by a loop, and a name two objects share, are refused whole *)
-  let looped = open_text {|(workspace loop
-    (graph scene :context scene
-      (scene/merge (for [i (range 2)] (scene/light :name "lamp" :translate [i 0 0])))))|} in
-  (match reconcile looped (set looped "lamp" [ float "intensity" 5. ]) with
-   | Error _ -> ()
-   | Ok _ -> failwith "an object made by a loop was edited");
+  (* a name two objects share is refused whole *)
   let twins = open_text {|(workspace twins
     (graph scene :context scene
       (scene/merge (scene/light :name "a") (scene/light :name "a") (scene/light :name "b"))))|} in
@@ -251,6 +246,41 @@ let run () =
   (* the host's own camera and light are not in the text, only the World is *)
   let layers (doc : Document.t) = let _, layers, _, _ = snapshot doc in layers in
   check (layers (open_text (source edited)) = layers edited) "added world: the saved text is not the document";
+  (* a scene graph is authoritative for cameras and lights (and a world graph for the World): what
+     it does not say is not there, and the host seeds nothing *)
+  let names doc = List.sort compare (List.map (fun (i : Edit_graph.node_info) -> i.label) (Edit_graph.inspect (scene doc))) in
+  let with_graphs extra = Ws_fixture.of_text ("(workspace bare (graph g :context sop (sop/box))" ^ extra ^ ")") in
+  check (names (lower ~previous:bare (with_graphs "")) = [ "camera1"; "g"; "light1" ])
+    "a workspace with no scene graph lost the host's camera and light";
+  check (names (lower ~previous:bare (with_graphs " (graph scene :context scene (scene/merge (scene/geometry (ref g))))")) = [ "g" ])
+    "a scene graph kept the host's camera or light";
+  check (names (lower ~previous:bare (with_graphs " (graph scene :context scene (scene/merge))")) = [])
+    "an empty scene graph kept an object";
+  let with_world = match Objects.ids "world" (scene worlded) with _ :: _ -> worlded | [] -> failwith "no host World" in
+  check (Objects.ids "world" (scene (lower ~previous:with_world (with_graphs ""))) <> [])
+    "a workspace with no world graph lost the host's World";
+  check (Objects.ids "world" (scene (lower ~previous:with_world (with_graphs " (graph world :context world (world/none))"))) = [])
+    "(world/none) kept the host's World";
+  (* deleting a host-made camera or light adopts the other host objects into a scene graph and
+     removes the one; the saved text has no seed to bring it back *)
+  let without (doc : Document.t) label =
+    Document.prune (with_scene doc (Edit_graph.remove_nodes [ node_id doc label ] (scene doc))) in
+  let no_camera = ok (reconcile bare (without bare "camera1")) in
+  check (contains (source no_camera) "graph scene" && contains (source no_camera) "scene/light"
+         && not (contains (source no_camera) "scene/camera")) "a deleted host camera was not written as absent";
+  check (names no_camera = [ "g"; "light1" ] && names (open_text (source no_camera)) = [ "g"; "light1" ])
+    "a deleted host camera came back on reload";
+  same_after_reload no_camera "host camera delete";
+  let no_light = ok (reconcile bare (without bare "light1")) in
+  check (not (contains (source no_light) "scene/light") && contains (source no_light) "scene/camera"
+         && names (open_text (source no_light)) = [ "camera1"; "g" ]) "a deleted host light came back on reload";
+  let nothing = ok (reconcile no_camera (without no_camera "light1")) in
+  check (names (open_text (source nothing)) = [ "g" ]) "deleting the last host objects was not written";
+  (* the host's World, deleted: the world graph says none *)
+  let no_world = ok (reconcile with_world (Document.prune (with_scene with_world
+    (Edit_graph.remove_nodes (Objects.ids "world" (scene with_world)) (scene with_world))))) in
+  check (contains (source no_world) "world/none" && Objects.ids "world" (scene (open_text (source no_world))) = [])
+    "a deleted host World came back on reload";
   (* adding by key: an object joins the scene's merge, a layer goes on top of the stack; a document
      with no scene graph (or World graph) gets one, its host objects written first *)
   let add doc name expr = Result.get_ok (Flow_sop.Flow_edit.apply_checked
@@ -308,3 +338,113 @@ let bench () =
     let sorted = List.sort compare times in
     Printf.printf "reconcile of one transform edit, %s: %.2f ms (median of %d)\n%!" name (List.nth sorted (runs / 2)) runs)
     [ "bloom", "flower"; "variations", "garden" ]
+
+(* ---- the copies of a loop are one template (register V4) ---- *)
+
+let lamps (doc : Document.t) =
+  List.filter_map (fun (i : Edit_graph.node_info) -> if i.operation = "light" then Some i else None)
+    (Edit_graph.inspect (scene doc))
+
+let field (i : Edit_graph.node_info) name =
+  List.find_map (fun (f : Parameter.field_view) -> if f.name = name then Some f.current else None)
+    (Node.parameter_fields i.node)
+
+let set_id (doc : Document.t) id values =
+  with_scene doc (fst (Result.get_ok (Edit_graph.apply_parameters (scene doc) ~node_id:id values)))
+
+let without_ids (doc : Document.t) ids =
+  Document.prune (with_scene doc (Edit_graph.remove_nodes ids (scene doc)))
+
+let refused = function Error message -> message | Ok _ -> failwith "an edit the loop cannot take was written"
+
+let run_loops () =
+  let body_loop = {|(workspace lamps
+    (graph g :context sop (sop/box))
+    (graph scene :context scene
+      (let* [body (scene/geometry (ref g) :name "body")
+             row (for [i (range 4)] (scene/light :name "lamp" :intensity 30 :translate [i 2 0]))]
+        (scene/merge body row))))|} in
+  (* both spellings: the loop bound to a name, and written in the merge *)
+  List.iter (fun (what, text) ->
+    let doc = open_text text in
+    check (List.length (lamps doc) = 4) (what ^ ": the loop did not make four lamps");
+    check (List.length (List.filter (fun (_, h) -> Document.loop_of h <> None) doc.homes.objects) = 4)
+      (what ^ ": the copies have no home in the loop");
+    let third = (List.nth (lamps doc) 2).id in
+    (* a literal field: the template is edited, every copy changes, the text says it once *)
+    let edited = ok (reconcile doc (set_id doc third [ float "intensity" 77. ])) in
+    check (List.for_all (fun i -> field i "intensity" = Some (Parameter.Float_value 77.)) (lamps edited))
+      (what ^ ": an edit of one copy did not change them all");
+    check (List.length (lamps edited) = 4 && contains (source edited) ":intensity 77.0"
+           && not (contains (source edited) ":intensity 30"))
+      (what ^ ": the template was not edited");
+    check (snapshot (open_text (source edited)) = snapshot edited) (what ^ ": the saved text is not the document");
+    check (match Sync.note doc edited with Some n -> contains n "loop template" && contains n "4 copies" | None -> false)
+      (what ^ ": the status does not say the loop template and the copies: "
+       ^ Option.value ~default:"none" (Sync.note doc edited));
+    (* a field the loop computes from its variable has no value of its own *)
+    let message = refused (reconcile doc (set_id doc third [ float "translate_x" 9. ])) in
+    check (contains message "translate is computed by the loop" && contains message "(now i)")
+      (what ^ ": a computed component was not refused with its expression: " ^ message);
+    (* a component the loop does not compute is the template's: every copy follows *)
+    let lifted = ok (reconcile doc (set_id doc third [ float "translate_y" 5. ])) in
+    check (contains (source lifted) ":translate [i 5.0 0]"
+           && List.for_all (fun i -> field i "translate_y" = Some (Parameter.Float_value 5.)) (lamps lifted)
+           && List.map (fun i -> field i "translate_x") (lamps lifted) = List.map (fun i -> field i "translate_x") (lamps doc))
+      (what ^ ": a literal component of a computed vector was not edited in the template: " ^ source lifted);
+    (* rename: the template's :name *)
+    let renamed = with_scene doc (Result.get_ok (Edit_graph.replace_node
+      (Node.relabel "spot" (Option.get (Edit_graph.find (scene doc) ~node_id:third))) (scene doc))) in
+    let renamed = ok (reconcile doc renamed) in
+    check (List.for_all (fun (i : Edit_graph.node_info) -> i.label = "spot") (lamps renamed)
+           && contains (source renamed) ":name \"spot\"" && not (contains (source renamed) ":name \"lamp\""))
+      (what ^ ": a rename did not reach the template :name: " ^ source renamed ^ String.concat "," (List.map (fun (i : Edit_graph.node_info) -> i.label) (lamps renamed)));
+    (* delete one copy: the collection skips it, the others keep their place *)
+    let x doc = List.map (fun i -> field i "translate_x") (lamps doc) in
+    let gone = ok (reconcile doc (without_ids doc [ third ])) in
+    check (contains (source gone) "take 2" && contains (source gone) "drop 3") (what ^ ": copy 3 was not skipped: " ^ source gone);
+    check (x (open_text (source gone)) = List.map (fun v -> Some (Parameter.Float_value v)) [ 0.; 1.; 3. ])
+      (what ^ ": the copies after a deleted one moved");
+    same_after_reload gone (what ^ " delete a copy");
+    let first = (List.hd (lamps doc)).id in
+    let gone = ok (reconcile doc (without_ids doc [ first ])) in
+    check (contains (source gone) "drop 1" && not (contains (source gone) "concat")) (what ^ ": deleting the first copy");
+    let gone2 = ok (reconcile doc (without_ids doc [ (List.nth (lamps doc) 1).id; (List.nth (lamps doc) 3).id ])) in
+    check (x (open_text (source gone2)) = List.map (fun v -> Some (Parameter.Float_value v)) [ 0.; 2. ])
+      (what ^ ": two copies deleted together")) [
+    "bound", body_loop;
+    "inline", {|(workspace lamps
+      (graph g :context sop (sop/box))
+      (graph scene :context scene
+        (scene/merge (scene/geometry (ref g) :name "body")
+                     (for [i (range 4)] (scene/light :name "lamp" :intensity 30 :translate [i 2 0])))))|} ];
+  (* a loop with several clauses has no single copy to remove: the whole loop, after a yes *)
+  let grid = open_text {|(workspace grid
+    (graph g :context sop (sop/box))
+    (graph scene :context scene
+      (scene/merge (scene/geometry (ref g) :name "body")
+                   (for [i (range 2) j (range 3)] (scene/light :name "lamp" :translate [i j 0])))))|} in
+  check (List.length (lamps grid) = 6) "the two-clause loop did not make six lamps";
+  let one = without_ids grid [ (List.nth (lamps grid) 4).id ] in
+  check (Result.is_error (reconcile grid one)) "a copy of a two-clause loop was deleted alone";
+  (match Sync.confirming ~factories grid one with
+   | Some question -> check (contains question "all 6 copies") ("the question does not count the copies: " ^ question)
+   | None -> failwith "a refused loop deletion did not ask");
+  let all = ok (Sync.reconcile ~factories ~whole:true grid one) in
+  check (lamps all = [] && contains (source all) "scene/geometry" && not (contains (source all) "for ["))
+    "confirming did not delete the whole loop";
+  same_after_reload all "whole loop";
+  (* a copy that made two objects: deleting only one of them is not a copy to remove *)
+  let pairs = open_text {|(workspace pairs
+    (graph g :context sop (sop/box))
+    (graph scene :context scene
+      (scene/merge (scene/geometry (ref g) :name "body")
+                   (for [i (range 3)]
+                     (scene/merge (scene/light :name "a" :translate [i 0 0]) (scene/light :name "b" :translate [i 1 0]))))))|} in
+  check (List.length (lamps pairs) = 6) "the loop of pairs did not make six lamps";
+  let half = without_ids pairs [ (List.hd (lamps pairs)).id ] in
+  check (Sync.confirming ~factories pairs half <> None) "half a copy was deleted without asking";
+  let both = ok (reconcile pairs (without_ids pairs (List.map (fun (i : Edit_graph.node_info) -> i.id)
+    (List.filter (fun (i : Edit_graph.node_info) -> field i "translate_x" = Some (Parameter.Float_value 1.)) (lamps pairs))))) in
+  check (List.length (lamps (open_text (source both))) = 4) "deleting both objects of a copy did not remove the copy";
+  print_endline "scene sync: loop copies are one template: edit, computed refusal, rename, delete, confirm ok"

@@ -900,6 +900,18 @@ element key, so an unchanged element is a cache hit.
    - `ponytail:` only the object, layer and settings kinds that exist today
      get Lisp spellings, each generated from its existing schema. No new
      scene features.
+   - **Ownership.** A `scene` graph is authoritative for cameras, lights and every
+     other object: absence means none, and the host seeds nothing (an empty
+     `(scene/merge)` is valid and renders unlit). A `world` graph is
+     authoritative for the World: `(world/none)` says there is none. The host
+     seeds its camera, lights and `?world` only for a workspace with no such
+     graph, and deleting a seeded object writes the graph (all remaining host
+     objects are adopted together), so Save and reload keep the deletion. A
+     camera following the viewport stays the host's and is not written.
+   - **Loops.** The copies of a loop are one template (register V4): an edit of
+     a copy edits the template, a computed argument is refused, deleting a
+     copy rewrites the loop's collection or, when that is inexact, deletes the
+     loop after a confirmation (`iteration.md` 3.6).
 2. **Layout tree.** Replace `Pxui_shell.Layout`'s record with:
    ```ocaml
    type panel = View of string | Graph | List | Lisp | Inspector | Outline | Timeline

@@ -49,6 +49,11 @@ let differing ~before node =
     if List.exists (fun (f : Param.field_view) -> current before f.name <> Some f.current) p.fields
     then Some (p.path, Some (value_syntax p.fields)) else None) (ports node)
 
+(* a node's argument as text *)
+let current_syntax node key =
+  List.find_map (fun (p : Flow_sop.Port.parameter) ->
+    if p.path = key then Some (value_syntax p.fields) else None) (ports node)
+
 let non_default node =
   List.filter_map (fun (p : Flow_sop.Port.parameter) ->
     if List.exists (fun (f : Param.field_view) -> f.current <> f.default) p.fields
@@ -66,9 +71,10 @@ let apply st op = match Workspace_doc.edit st.catalog st.workspace op with
 (* The binding of a home; an inline call is unfolded into one first. *)
 let rec bind st : Document.home -> F.path = function
   | Bound_at path -> path
-  | Looped -> stop "It is made by a loop or an expression; edit the text."
+  | Looped -> stop "It is made by an expression; edit the text."
+  | Copy { loop; rel; _ } -> bind st loop @ rel
   | Inline_in (parent, key) as home ->
-      (match List.assoc_opt home st.unfolded with
+      (match List.assoc_opt (Document.template home) st.unfolded with
        | Some path -> path
        | None ->
            let node = bind st parent in
@@ -76,16 +82,85 @@ let rec bind st : Document.home -> F.path = function
            (match F.arg_text st.workspace.source node key with
             | Some { S.node = S.Sym name; _ } ->
                 let path = List.rev (name :: List.tl (List.rev node)) in
-                st.unfolded <- (home, path) :: st.unfolded; path
+                st.unfolded <- (Document.template home, path) :: st.unfolded; path
             | _ -> stop "The call could not be named."))
 
-let set st home edits =
+(* An edit of a copy is an edit of the loop's template.  A literal argument takes it (every copy
+   changes); so does a component of a vector whose other components the loop computes.  An argument
+   or component the loop computes from its variable has no value of its own: writing a number would
+   flatten every copy, so the edit is refused and says where the expression is.  [before] gives
+   the copy's value before the edit, to find the components that changed. *)
+let literal (e : S.t) = match e.node with
+  | S.Num _ | S.Str _ | S.Sym ("true" | "false") -> true
+  | S.Vec l -> List.for_all (fun (c : S.t) -> match c.node with S.Num _ -> true | _ -> false) l
+  | _ -> false
+
+let set ?(before = fun _ -> None) st home edits =
   if edits <> [] then begin
     let node = bind st home in
-    List.iter (fun (key, value) -> match value with
-      | Some value -> apply st (F.Set_arg { node; key = F.Kw key; sub = []; value })
-      | None -> apply st (F.Disconnect { node; key = F.Kw key; fallback = None })) edits
+    let looped = Document.loop_of home <> None in
+    List.iter (fun (key, value) ->
+      let write ?(sub = []) value = apply st (F.Set_arg { node; key = F.Kw key; sub; value }) in
+      match value, (if looped then F.arg_text st.workspace.source node (F.Kw key) else None) with
+      | None, _ -> apply st (F.Disconnect { node; key = F.Kw key; fallback = None })
+      | Some value, (None | Some _ as written) ->
+          let computed e = stop "%s is computed by the loop: type =(expression) in its row (now %s)."
+            key (Flow.Lisp.flat e) in
+          (match written, value.S.node, Option.map (fun (b : S.t) -> b.node) (before key) with
+           | None, _, _ -> write value
+           | Some e, _, _ when literal e -> write value
+           | Some { S.node = S.Vec template; _ }, S.Vec now, Some (S.Vec was)
+             when List.length template = List.length now && List.length now = List.length was ->
+               List.iteri (fun i (c : S.t) ->
+                 if c.node <> (List.nth was i).node then begin
+                   if literal (List.nth template i) then write ~sub:[ i ] c
+                   else computed (List.nth template i)
+                 end) now
+           | Some e, _, _ -> computed e)) edits
   end
+
+(* ---- loops: deleting copies ---- *)
+
+exception Confirm of string
+
+let rec index_of = function
+  | Document.Copy { index; _ } -> index
+  | Inline_in (home, _) -> index_of home
+  | Bound_at _ | Looped -> 0
+
+(* The copies of a loop that the edit deleted.  One copy goes by rewriting the collection it
+   loops over ([take] and [drop] around its place), which is exact when the loop has one clause
+   and the copy made nothing else that stays.  Otherwise there is no copy to remove alone: the
+   whole loop goes, and only when [whole] says the person confirmed it.  [gone] holds the
+   deleted objects of loops, [(id, home)]. *)
+let delete_loops st ~whole (before : Document.t) gone =
+  let loops = List.sort_uniq compare (List.filter_map (fun (_, h) -> Document.loop_of h) gone) in
+  let deleted_whole = ref [] in
+  List.iter (fun key ->
+    let mine objects = List.filter (fun (_, h) -> Document.loop_of h = Some key) objects in
+    let members = mine before.homes.objects and deleted = mine gone in
+    let path = bind st key in
+    let clause i = F.arg_text st.workspace.source path (F.Bv (1, i)) in
+    let indices = List.sort_uniq (fun a b -> compare b a) (List.map (fun (_, h) -> index_of h) deleted) in
+    let alone i = List.for_all (fun (id, h) -> index_of h <> i || List.mem_assoc id deleted) members in
+    let copies = 1 + List.fold_left (fun m (_, h) -> max m (index_of h)) 0 members in
+    if whole then deleted_whole := path :: !deleted_whole
+    else if clause 3 = None && List.for_all alone indices then
+      List.iter (fun i -> match clause 1 with
+        | Some xs ->
+            let call head args = mk (S.List (sym head :: args)) in
+            let int n = mk (S.Num (string_of_int n)) in
+            let rest = call "drop" [ int (i + 1); xs ] in
+            let value = if i = 0 then rest else call "concat" [ call "take" [ int i; xs ]; rest ] in
+            apply st (F.Set_arg { node = path; key = F.Bv (1, 1); sub = []; value })
+        | None -> stop "The loop has no collection to remove a copy from.") indices
+    else
+      raise (Confirm (Printf.sprintf "Delete all %d copies of %s?\nOne copy cannot go alone (%s)."
+        copies (Document.home_name key)
+        (if clause 3 <> None then "the loop has several clauses" else "a copy made other objects"))))
+    loops;
+  (* a whole loop goes last: leaving its merge moves the positions of what follows *)
+  fun () -> List.iter (fun path -> apply st (F.Delete_nodes { nodes = [ path ] })) !deleted_whole
 
 (* ---- the scene ---- *)
 
@@ -110,7 +185,7 @@ let unique graph id =
   | Some _ -> stop "Two objects are named %S. Rename one of them first." (Option.value ~default:"" (label graph id))
   | None -> ()
 
-let objects st (before : Document.t) (after : Document.t) =
+let objects st ~whole (before : Document.t) (after : Document.t) =
   let b = Document.scene_graph before and a = Document.scene_graph after in
   let gone = ref [] in
   List.iter (fun (id, home) -> if homed before id then
@@ -118,21 +193,24 @@ let objects st (before : Document.t) (after : Document.t) =
     | Some nb, Some na ->
         let edits = object_edits ~before:b ~after:a id nb na in
         if List.mem_assoc "parent" edits then Option.iter (unique a) (Objects.parent a id);
-        set st home edits
-    | Some _, None -> gone := home :: !gone
+        set ~before:(current_syntax nb) st home edits
+    | Some _, None -> gone := (id, home) :: !gone
     | None, _ -> ()) before.homes.objects;
   (* deletions: an inline call leaves its merge (the last one first, so positions hold), then a
      binding goes whole *)
-  let bound, inline = List.partition (function Document.Bound_at _ -> true | _ -> false) !gone in
+  let looped, rest = List.partition (fun (_, h) -> Document.loop_of h <> None) !gone in
+  let finish = delete_loops st ~whole before looped in
+  let bound, inline = List.partition (function Document.Bound_at _ -> true | _ -> false) (List.map snd rest) in
   let position = function Document.Inline_in (_, F.Pos i) -> i | _ -> -1 in
   List.iter (function
     | Document.Inline_in (parent, (F.Pos _ as key)) ->
         apply st (F.Disconnect { node = bind st parent; key; fallback = None })
-    | _ -> stop "That object is made by a loop; edit the text.")
+    | _ -> stop "That object is made by an expression; edit the text.")
     (List.sort (fun x y -> compare (position y) (position x)) inline);
   List.iter (function
     | Document.Bound_at path -> apply st (F.Delete_nodes { nodes = [ path ] })
     | _ -> ()) bound;
+  finish ();
   if before.active_camera <> after.active_camera then begin
     (match Option.bind before.active_camera (fun id -> List.assoc_opt id before.homes.objects) with
      | Some home when Option.fold ~none:false ~some:(fun id -> Edit.find a ~node_id:id <> None) before.active_camera ->
@@ -225,11 +303,15 @@ let object_binding (doc : Document.t) used id (info : Edit.node_info) =
   call_of ~kind:("scene/" ^ info.operation) ~label:info.label ~default_label ~slots
     ~extra:(parent @ active) info.node
 
-(* the text of every object no binding holds, into the scene graph (made when there is none) *)
+(* the text of every object no binding holds, into the scene graph (made when there is none,
+   even with nothing to write: the graph is what says "no camera, no lights").  The scene graph
+   is authoritative, so all of the host's objects are written together. *)
 let adopt_objects st (doc : Document.t) =
   let graph = Document.scene_graph doc in
   let unhomed = List.filter (fun (i : Edit.node_info) ->
     i.operation <> "world" && not (homed doc i.id)) (Edit.inspect graph) in
+  if unhomed = [] && Contexts.graph_of st.workspace Flow.Workspace.Scene = None then
+    apply st (F.Set_graph { name = "scene"; form = graph_form "scene" "scene" (mk (S.List [ sym "scene/merge" ])) });
   if unhomed <> [] then begin
     let used = ref (owned st.workspace) in
     let bindings = List.map (fun (i : Edit.node_info) -> object_binding doc used i.id i) unhomed in
@@ -243,6 +325,14 @@ let adopt_objects st (doc : Document.t) =
           ignore i;
           apply st (F.Add_node { scope = [ g.name ]; name; expr })) bindings unhomed
   end
+
+(* the workspace's world graph (written under its own name), else "world" *)
+let set_world st body =
+  let name = match Contexts.graph_of st.workspace Flow.Workspace.World with
+    | Some g -> g.name | None -> "world" in
+  apply st (F.Set_graph { name; form = graph_form name "world" body })
+
+let none_world = mk (S.List [ sym "world/none" ])
 
 (* the World of the derived document as a world graph: layers bound bottom first, the world call last *)
 let adopt_world st (doc : Document.t) =
@@ -265,12 +355,15 @@ let adopt_world st (doc : Document.t) =
       let node = Option.get (Edit.find graph ~node_id:wid) in
       let world = call_of ~kind:"world/world" ~label:(Node.label node) ~default_label:"World" ~slots:top node in
       let body = if layers = [] then world else let_star layers world in
-      apply st (F.Set_graph { name = "world"; form = graph_form "world" "world" body })
+      set_world st body
 
 (* ---- the whole reconciliation ---- *)
 
 let world st (before : Document.t) (after : Document.t) =
   match world_id before, before.homes.world with
+  | Some wid, None when Edit.find (Document.scene_graph after) ~node_id:wid = None ->
+      (* the host's World, deleted: the world graph says so (it is authoritative) *)
+      set_world st none_world
   | Some wid, Some home ->
       let b = Document.scene_graph before and a = Document.scene_graph after in
       (match Edit.find b ~node_id:wid, Edit.find a ~node_id:wid with
@@ -278,12 +371,9 @@ let world st (before : Document.t) (after : Document.t) =
            let name = if Node.label nb <> Node.label na then [ "name", Some (mk (S.Str (Node.label na))) ] else [] in
            set st home (name @ differing ~before:nb na)
        | Some _, None ->
-           (* a deleted World takes its graph with it *)
-           let rec root = function
-             | Document.Bound_at path -> List.hd path
-             | Inline_in (h, _) -> root h
-             | Looped -> stop "The World is made by a loop; edit the text." in
-           apply st (F.Remove_graph { name = root home })
+           (* a deleted World: its graph says none (removing the graph would let the host seed it) *)
+           (match home with Document.Looped -> stop "The World is made by a loop; edit the text." | _ -> ());
+           set_world st none_world
        | _ -> ());
       (match Document.Int_map.find_opt wid before.networks, Document.Int_map.find_opt wid after.networks with
        | Some bn, Some an ->
@@ -360,25 +450,52 @@ let world_changed (before : Document.t) (after : Document.t) =
    the result is [after] with the edit written to its text and lowered again.  [adopt]: an
    explicit edit of an object the text lacks writes it (a follow-the-viewport camera move is
    not one, so it stays the host's). *)
-let reconcile ~factories ?(adopt = true) (before : Document.t) (after : Document.t) =
+let run ~factories ~adopt ~whole (before : Document.t) (after : Document.t) =
   if before.scene == after.scene && before.networks == after.networks
      && before.active_camera = after.active_camera && before.settings == after.settings
   then Ok after
   else
     let ( let* ) = Result.bind in
-    let* catalog = Result.map_error Flow.Diagnostic.to_string
+    let* catalog = Result.map_error (fun d -> `Stop (Flow.Diagnostic.to_string d))
         (Contexts.catalog ~version:Flow_sop.Manifest.version factories) in
     let st = { catalog; workspace = fst before.workspace; unfolded = [] } in
     try
-      objects st before after;
+      objects st ~whole before after;
       world st before after;
       settings st before after;
       if adopt && unhomed_changes before after then adopt_objects st after;
       if adopt && before.homes.world = None && world_changed before after then adopt_world st after;
       if st.workspace == fst before.workspace then Ok after
       else Contexts.of_workspace ~factories ~previous:after st.workspace
-           |> Result.map_error Flow.Diagnostic.to_string
-    with Stop message -> Error message
+           |> Result.map_error (fun d -> `Stop (Flow.Diagnostic.to_string d))
+    with Stop message -> Error (`Stop message) | Confirm message -> Error (`Confirm message)
+
+let reconcile ~factories ?(adopt = true) ?(whole = false) before after =
+  Result.map_error (function `Stop m | `Confirm m -> m) (run ~factories ~adopt ~whole before after)
+
+(* What deleting the copies of a loop asks the person to confirm, if anything (see [delete_loops]). *)
+let confirming ~factories before after =
+  match run ~factories ~adopt:true ~whole:false before after with
+  | Error (`Confirm message) -> Some message | Ok _ | Error (`Stop _) -> None
+
+
+(* The status line for an edit of a loop's copies (they are one template: every copy changes),
+   given the home the edit was written to. *)
+let template_note (doc : Document.t) home =
+  Option.map (fun loop -> Printf.sprintf "Edited the loop template (%s); %d copies change."
+                (Document.home_name loop) (Document.copies doc home)) (Document.loop_of home)
+
+(* What an edit of the derived objects did to the copies of a loop, for the status line. *)
+let note (before : Document.t) (after : Document.t) =
+  let b = Document.scene_graph before and a = Document.scene_graph after in
+  List.find_map (fun (id, home) -> match Document.loop_of home with
+    | None -> None
+    | Some loop ->
+        (match Edit.find b ~node_id:id, Edit.find a ~node_id:id with
+         | Some nb, Some na when object_edits ~before:b ~after:a id nb na <> [] -> template_note before home
+         | Some _, None ->
+             Some (Printf.sprintf "Removed a copy from the loop (%s)." (Document.home_name loop))
+         | _ -> None)) before.homes.objects
 
 (* The scene graph (or the World graph) of a document that has none: the objects the host
    made (or its World, else an empty one) are written, so that an object or layer can be added
@@ -391,14 +508,8 @@ let adopt ~factories ~world (doc : Document.t) =
   try
     if world then begin
       if world_id doc <> None then adopt_world st doc
-      else apply st (F.Set_graph { name = "world";
-        form = graph_form "world" "world" (mk (S.List [ sym "world/world" ])) })
-    end else begin
-      adopt_objects st doc;
-      if Contexts.graph_of st.workspace Flow.Workspace.Scene = None then
-        apply st (F.Set_graph { name = "scene";
-          form = graph_form "scene" "scene" (mk (S.List [ sym "scene/merge" ])) })
-    end;
+      else set_world st (mk (S.List [ sym "world/world" ]))
+    end else adopt_objects st doc;
     Contexts.of_workspace ~factories ~previous:doc st.workspace |> Result.map_error Flow.Diagnostic.to_string
   with Stop message -> Error message
 

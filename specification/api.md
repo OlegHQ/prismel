@@ -923,7 +923,7 @@ the stanzas of `sketches/dune.plisp.inc` (checked in: `dune build @runtest; dune
 sketch; `dune exec tools/new_example.exe -- --plisp <name>` scaffolds one). The generated program is
 `Prismel_editor.Workspace.main ~path ~digest ~catalog text`; OCaml hosts call `Workspace.load` (parse and
 check) and `Workspace.run ?source doc` (the window from the `settings` graph, the viewport starting at the
-scene's first camera, the host's light replaced by a declared one).
+scene's first camera, a scene graph is authoritative: it replaces the host's camera and lights, and an empty one means none).
 
 The running window follows the file. `Prismel_editor.Source` finds it (the first `dune-project` not under
 `_build`, walking up from the executable and then the working directory, joined with `path`). Command-S

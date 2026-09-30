@@ -195,9 +195,32 @@ let rec loose ~want ~below = function
   | E.List xs -> List.concat_map (loose ~want ~below) (Array.to_list xs)
   | _ -> []
 
+(* The home of a call in a loop body, as a copy: the template's path goes relative to the loop,
+   a call written inside another call of the body keeps that nesting, a loop in a loop nests. *)
+let rec copy ~zone ~loop index : Document.home -> Document.home = function
+  | Bound_at p when List.length p > List.length zone
+                    && List.filteri (fun i _ -> i < List.length zone) p = zone ->
+      Copy { loop; rel = List.filteri (fun i _ -> i >= List.length zone) p; index }
+  | Inline_in (h, k) -> Inline_in (copy ~zone ~loop index h, k)
+  | Copy c -> Copy { c with loop = copy ~zone ~loop index c.loop }
+  | h -> h
+
 (* Walk the terms of a graph beside its evaluated result: each wanted call, bottom layer
    first, with its binding, or the argument of another call that holds it. [below kind] names
    the slot a call stacks its predecessor in. *)
+let is_loop env (t : W.term) = match t.node with
+  | W.Loop { kind = `For; _ } -> true
+  | W.Ref_binding (n, []) ->
+      (match List.assoc_opt n env with
+       | Some { W.node = W.Loop { kind = `For; _ }; _ } -> true | _ -> false)
+  | _ -> false
+
+(* a merge's values line up with its arguments: one each, and at most one loop takes the rest *)
+let merge_fits env targs vargs =
+  let loops = List.length (List.filter (fun (_, t) -> is_loop env t) targs) in
+  let extra = List.length vargs - List.length targs in
+  if loops = 0 then extra = 0 else loops = 1 && extra >= -1
+
 let rec walk ~want ~below env place (t : W.term) (v : E.value) =
   let home () = match t.path, place with
     | Some p, _ -> Document.Bound_at p
@@ -220,10 +243,23 @@ let rec walk ~want ~below env place (t : W.term) (v : E.value) =
         | None | exception Not_found -> [] in
       under @ [ { kind; args = vargs; home = here } ]
   | W.Op { op = "scene/merge"; args = targs }, E.Struct ("scene/merge", vargs)
-    when List.length targs = List.length vargs ->
+    when merge_fits env targs vargs ->
       let here = home () in
-      List.concat (List.mapi (fun i (_, term) ->
-        walk ~want ~below env (Some (here, F.Pos i)) term (snd (List.nth vargs i))) targs)
+      (* an argument gives one value, a loop the rest: its copies *)
+      let extra = List.length vargs - List.length targs in
+      let _, found = List.fold_left (fun (at, found) (i, (_, (term : W.term))) ->
+        let n = if is_loop env term then extra + 1 else 1 in
+        let value = if is_loop env term then E.List (Array.of_list (List.map snd (List.filteri
+            (fun j _ -> j >= at && j < at + n) vargs))) else snd (List.nth vargs at) in
+        at + n, found @ walk ~want ~below env (Some (here, F.Pos i)) term value)
+        (0, []) (List.mapi (fun i a -> i, a) targs) in
+      found
+  | W.Loop { kind = `For; body; zone; _ }, E.List xs ->
+      (* the body is one template, walked beside each copy's value *)
+      let loop = home () in
+      List.concat (List.mapi (fun i x ->
+        List.map (fun c -> { c with home = copy ~zone ~loop i c.home })
+          (walk ~want ~below env None body x)) (Array.to_list xs))
   | _ -> loose ~want ~below v
 
 let graph_of (workspace : Workspace_doc.t) context =
@@ -315,6 +351,11 @@ let apply factory graph id values =
   match defaults @ values with
   | [] -> Ok graph
   | values -> Result.map fst (flow (Edit.apply_parameters graph ~node_id:id values))
+
+(* a claimed node takes the label the text gives it *)
+let relabel graph id label = match Edit.find graph ~node_id:id with
+  | Some node when Node.label node <> label -> flow (Edit.replace_node (Node.relabel label node) graph)
+  | _ -> Ok graph
 
 let empty_inputs factory = List.map (fun _ -> None) (Edit.factory_inputs factory)
 
@@ -514,9 +555,9 @@ let same_network (a : Document.network) (b : Document.network) =
    of a world graph, the settings of a settings graph.  [previous] keeps object ids
    (matched by home, then by operation and label), tile layouts and the objects the
    workspace does not declare (the host's camera and lights): the workspace owns geometry
-   always, cameras and lights when its scene declares one, and the World when it has a
-   world graph.  Whatever a declared object's text does not say is the schema's default,
-   so the text is the whole truth of it. *)
+   always, every object when it has a scene graph (an empty one means none), and the World
+   when it has a world graph ([world/none] means none).  Whatever a declared object's text
+   does not say is the schema's default, so the text is the whole truth of it. *)
 let of_workspace ~factories ?previous (workspace : Workspace_doc.t) =
   let compiled_ids, sites = match previous with
     | Some (doc : Document.t) ->
@@ -550,8 +591,11 @@ let of_workspace ~factories ?previous (workspace : Workspace_doc.t) =
   let scene = match previous with
     | Some (doc : Document.t) -> doc.scene
     | None -> Document.of_geometry ~context:Flow.Context.Scene Edit.empty None in
-  let declares operation = List.exists (fun i -> Edit.factory_operation i.factory = operation) items in
-  let owned operation = operation = "geometry" || declares operation in
+  (* a scene graph is authoritative for every object kind: what it does not say is not there
+     (no camera, no lights), and the host seeds nothing *)
+  let has_scene = graph_of workspace Flow.Workspace.Scene <> None in
+  let has_world = graph_of workspace Flow.Workspace.World <> None in
+  let owned operation = operation = "geometry" || (has_scene && operation <> "world") in
   let* stack = calls ~want:is_world_kind ~below:world_below workspace lowered.plan Flow.Workspace.World in
   let* world, layers = match List.rev stack with
     | [] -> Ok (None, [])
@@ -564,6 +608,7 @@ let of_workspace ~factories ?previous (workspace : Workspace_doc.t) =
     let home = if item.group = None then item.home else Document.Looped in
     match find_claim graph used operation ~home ~label:item.label old_homes.objects with
     | Some id ->
+        let* graph = relabel graph id item.label in
         let* graph = apply item.factory graph id item.values in
         Ok (graph, id :: used, (id, item) :: objects)
     | None ->
@@ -583,7 +628,10 @@ let of_workspace ~factories ?previous (workspace : Workspace_doc.t) =
   let* graph = link_parents graph objects in
   (* the World node *)
   let* graph, world_id, world_network, layer_homes = match world with
-    | None -> Ok (graph, None, None, [])
+    | None ->
+        (* a world graph that returns no World removes the host's *)
+        let gone = if has_world then Objects.ids "world" graph else [] in
+        Ok (Edit.remove_nodes gone graph, None, None, [])
     | Some { args; home; _ } ->
         let factory = Layers.Settings.factory in
         let label = Option.value (label_arg args) ~default:"World" in
@@ -646,7 +694,7 @@ let of_workspace ~factories ?previous (workspace : Workspace_doc.t) =
     | None ->
         (match Option.bind previous (fun (doc : Document.t) -> doc.active_camera) with
          | Some id when List.mem id cameras -> Some id
-         | _ -> if declares "camera" then List.nth_opt cameras 0 else None) in
+         | _ -> if has_scene then List.nth_opt cameras 0 else None) in
   let workspace = if has_settings workspace then workspace
     else { workspace with Workspace_doc.settings } in
   let homes = { Document.objects = List.filter_map (fun (id, item) ->

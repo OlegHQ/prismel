@@ -36,9 +36,10 @@ val of_workspace : factories:Procedural.Edit_graph.factory list -> ?previous:Doc
     of its world graph with its layers as a network, and its settings graph as
     the document settings.  [previous] keeps object ids (matched by where the text
     is, then by operation and label), tile layouts, the objects the workspace does not declare (the host's
-    camera and lights), and the lowering's compiled ids.  The workspace owns
-    geometry always, cameras and lights when its scene declares one, and the
-    World when it has a world graph. *)
+    camera, lights and World), and the lowering's compiled ids.  The workspace owns
+    geometry always, every object when it has a scene graph (an empty one means
+    none: the host seeds nothing) and the World when it has a world graph
+    ([world/none] means none). *)
 
 val group_triples : Editor_core.Param.field_view list -> Editor_core.Param.field_view list
 (** Three consecutive [_x _y _z] (or [_r _g _b]) floats of one folder as one vec3 field. *)
