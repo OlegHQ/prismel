@@ -140,3 +140,13 @@ val hash : float list -> float
 
 val show : value -> string
 (** [str] formatting (register C2); a residual shows as [?]. *)
+
+module Private : sig
+  val compile_residuals : bool ref
+  (** [true] (the default): a residual is forced through its compiled closure
+      when its term is in the compilable subset.  Tests switch it off to compare the
+      closure against the interpreter bit for bit. *)
+
+  val compiled : value -> int
+  (** How many residuals inside the value have a compiled closure (after a {!force}). *)
+end

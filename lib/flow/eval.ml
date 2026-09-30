@@ -32,8 +32,11 @@ and fn =
                  zone : W.path; calls : int ref; at : ctx }
   | Named of { name : string; ncalls : int ref }
 
-(* ponytail: [renv] is the whole scope of the term, not only its free variables. *)
-and residual = { rid : int; rterm : W.term; renv : value Smap.t; rc : ctx }
+(* ponytail: [renv] is the whole scope of the term, not only its free variables; the
+   compiled form ({!fast_of}) only reads the names the term uses. *)
+and residual = { rid : int; rterm : W.term; renv : value Smap.t; rc : ctx; mutable fast : fast }
+
+and fast = Untried | Failed | Ready of (float -> value)
 
 and ctx = { st : st; inst : int; prefix : W.path; base : W.path; route : string list;
             iter : int list; depth : int; rec_ : bool }
@@ -281,18 +284,15 @@ let list_arg = function
   | Geo _ -> fail "E_TYPE" "A loop over geometry yields its merged geometry, not a list; give it to sop/merge."
   | _ -> fail "E_TYPE" "Expected a list."
 
+let arith_fns = [ "+", ( +. ); "-", ( -. ); "*", ( *. );
+  "/", (fun x y -> if y = 0. then 0. else x /. y);
+  "mod", (fun x y -> if y = 0. then 0. else Float.rem (Float.rem x y +. y) y);
+  "pow", (fun x y -> Float.pow (Float.abs x) y); "min", Float.min; "max", Float.max ]
+
 let value_op name (vs : value list) : value =
   let arity () = failf "E_ARITY" "%s got the wrong number of inputs." name in
   match name, vs with
-  | "+", [ a; b ] -> arith name ( +. ) a b
-  | "-", [ a; b ] -> arith name ( -. ) a b
-  | "*", [ a; b ] -> arith name ( *. ) a b
-  | "/", [ a; b ] -> arith name (fun x y -> if y = 0. then 0. else x /. y) a b
-  | "mod", [ a; b ] ->
-      arith name (fun x y -> if y = 0. then 0. else Float.rem (Float.rem x y +. y) y) a b
-  | "pow", [ a; b ] -> arith name (fun x y -> Float.pow (Float.abs x) y) a b
-  | "min", [ a; b ] -> arith name Float.min a b
-  | "max", [ a; b ] -> arith name Float.max a b
+  | _, [ a; b ] when List.mem_assoc name arith_fns -> arith name (List.assoc name arith_fns) a b
   | "sin", [ x ] -> Float (fin name (sin (num x)))
   | "cos", [ x ] -> Float (fin name (cos (num x)))
   | "sqrt", [ x ] -> Float (sqrt (Float.abs (num x)))
@@ -404,6 +404,122 @@ let check_struct name args =
       if n < 1 || n > 16 then range_error "A tile holds 1–16 panels."
   | _ -> ()
 
+(* ---- compiled residuals ----
+   A residual is forced every frame while a live value plays, and most of its term does not
+   depend on [t]: [fast_of] partially evaluates it once against its captured scope (constant
+   subterms fold, a loop over a static list unrolls with its item known) into a closure of [t]
+   that applies the same operators to the same values in the same order, so its result is
+   bit-identical to the interpreter's.  A term outside the subset (calls, functions, records,
+   geometry, a loop over anything but a static list) is left to the interpreter; so is any
+   failure at run time, which re-runs the term there for its exact diagnostic.
+   ponytail: no dynamic [let*] binding and at most [compile_budget] compiled nodes per root. *)
+exception Unsupported
+
+type cnode = Const of value | Dyn of (float -> value)
+type cenv = { base : value Smap.t; over : cnode Smap.t; budget : int ref }
+
+let compile_budget = 2048
+let compile_residuals = ref true
+
+let add_values a b = match a, b with
+  | Vec3 (x, y, z), Vec3 (p, q, r) -> Vec3 (x +. p, y +. q, z +. r)
+  | (Int _ as a), (Int _ as b) -> Int (int_of a + int_of b)
+  | a, b -> Float (num a +. num b)
+
+let run_node n t = match n with Const v -> v | Dyn f -> f t
+
+let map_nodes f nodes = match List.for_all (function Const _ -> true | Dyn _ -> false) nodes with
+  | true -> Const (f (List.map (function Const v -> v | Dyn _ -> assert false) nodes))
+  | false -> Dyn (fun t -> f (List.map (fun n -> run_node n t) nodes))
+
+let rec fast_of (r : residual) : (float -> value) option =
+  if not !compile_residuals then None else
+  match r.fast with
+  | Ready f -> Some f
+  | Failed -> None
+  | Untried ->
+      r.fast <- Failed;  (* a residual met again while it compiles is a cycle: interpreted *)
+      (match compile { base = r.renv; over = Smap.empty; budget = ref compile_budget } r.rterm with
+       | node ->
+           (* a residual read twice in one frame (a chain of sums) is evaluated once: it depends
+              on [t] alone, so its last value is kept for the same [t], compared bit for bit *)
+           let raw = run_node node in
+           let last_t = ref 0L and last = ref None in
+           let f t =
+             let bits = Int64.bits_of_float t in
+             match !last with
+             | Some v when Int64.equal bits !last_t -> v
+             | _ -> let v = raw t in last_t := bits; last := Some v; v in
+           r.fast <- Ready f; Some f
+       | exception (Unsupported | Fail _ | Not_found | Invalid_argument _ | Failure _) -> None)
+
+and cnode_of_value = function
+  | Residual r -> (match fast_of r with Some f -> Dyn f | None -> raise Unsupported)
+  | v -> Const v
+
+and compile ce (x : W.term) : cnode =
+  decr ce.budget;
+  if !(ce.budget) < 0 then raise Unsupported;
+  match x.node with
+  | W.Lit (Param.Int_value n) -> Const (Int n)
+  | W.Lit (Param.Float_value f) -> Const (Float f)
+  | W.Lit (Param.Bool_value b) -> Const (Bool b)
+  | W.Text s -> Const (Text s)
+  | W.Nil -> Const No_geo
+  | W.Time -> Dyn (fun t -> Float t)
+  | W.Vec [ a; b; d ] ->
+      let a = compile ce a in let b = compile ce b in let d = compile ce d in
+      (match a, b, d with
+       | Const a, Const b, Const d -> Const (Vec3 (num a, num b, num d))
+       | _ ->
+           let comp = function Const v -> let f = num v in (fun _ -> f) | Dyn g -> (fun t -> num (g t)) in
+           let ga = comp a and gb = comp b and gd = comp d in
+           Dyn (fun t -> let x = ga t in let y = gb t in let z = gd t in Vec3 (x, y, z)))
+  | W.Ref_binding (b, _) when String.starts_with ~prefix:"$elem:" b -> raise Unsupported
+  | W.Ref_binding (b, fs) ->
+      let start = match Smap.find_opt b ce.over with
+        | Some n -> n
+        | None -> (match Smap.find_opt b ce.base with Some v -> cnode_of_value v | None -> raise Unsupported) in
+      List.fold_left (fun n f -> match n with
+        | Const v -> Const (lookup_field b v f)
+        | Dyn g -> Dyn (fun t -> lookup_field b (g t) f)) start fs
+  | W.Op { op; args } when not (op = "sop/curve" || is_element_list op || is_struct_op op) ->
+      let nodes = List.map (fun (_, a) -> compile ce a) args in
+      (match nodes with
+       | [ Const a; Const b ] when List.mem_assoc op arith_fns -> Const (arith op (List.assoc op arith_fns) a b)
+       | [ a; b ] when List.mem_assoc op arith_fns ->
+           let f = arith op (List.assoc op arith_fns) in
+           (match a, b with
+            | Dyn g, Dyn h -> Dyn (fun t -> let x = g t in f x (h t))
+            | Dyn g, Const y -> Dyn (fun t -> f (g t) y)
+            | Const x, Dyn h -> Dyn (fun t -> f x (h t))
+            | Const _, Const _ -> assert false)
+       | _ -> map_nodes (value_op op) nodes)
+  | W.Let (binds, res) ->
+      let over = List.fold_left (fun over ((pat : W.pattern), t) -> match pat, compile { ce with over } t with
+        | W.Name n, (Const _ as node) -> Smap.add n node over
+        | _ -> raise Unsupported) ce.over binds in
+      compile { ce with over } res
+  | W.If (c, a, b) ->
+      (match compile ce c with
+       | Const v -> if truthy v then compile ce a else compile ce b
+       | Dyn g ->
+           let a = compile ce a and b = compile ce b in
+           Dyn (fun t -> if truthy (g t) then run_node a t else run_node b t))
+  | W.Loop { kind = (`Sum | `For) as kind; accs = []; clauses = [ (W.Name p, e) ]; body; _ } ->
+      let items = match compile ce e with
+        | Const (List xs) when Array.length xs <= max_iterations -> xs
+        | _ -> raise Unsupported in
+      let bodies = Array.map (fun item ->
+        compile { ce with over = Smap.add p (Const item) ce.over } body) items in
+      let collect vs = match kind with
+        | `Sum -> if vs = [||] then Int 0 else Array.fold_left add_values vs.(0) (Array.sub vs 1 (Array.length vs - 1))
+        | `For -> List (join_values vs) in
+      if Array.for_all (function Const _ -> true | Dyn _ -> false) bodies
+      then Const (collect (Array.map (fun n -> run_node n 0.) bodies))
+      else Dyn (fun t -> collect (Array.map (fun n -> run_node n t) bodies))
+  | _ -> raise Unsupported
+
 let rec concrete c v =
   match v with
   | Residual r -> (match c.st.time with None -> raise Needs_t | Some _ -> force_res c r)
@@ -413,7 +529,11 @@ and force_res c r =
   match Hashtbl.find_opt c.st.memo r.rid with
   | Some v -> v
   | None ->
-      let v = ev { r.rc with st = c.st } r.renv r.rterm in
+      let slow () = ev { r.rc with st = c.st } r.renv r.rterm in
+      let v = match c.st.time, fast_of r with
+        | Some t, Some f ->
+            (try f t with Fail _ | Needs_t | Not_found | Invalid_argument _ | Failure _ -> slow ())
+        | _ -> slow () in
       Hashtbl.replace c.st.memo r.rid v;
       v
 
@@ -432,7 +552,7 @@ and ev c env (x : W.term) : value =
            (* ponytail: nodes made by the abandoned attempt are dropped, its records are kept *)
            st.nodes <- saved; st.nnodes <- saved_n;
            st.rids <- st.rids + 1;
-           let r = Residual { rid = st.rids; rterm = x; renv = env; rc = c } in
+           let r = Residual { rid = st.rids; rterm = x; renv = env; rc = c; fast = Untried } in
            (* the record is the residual: a probe forces it at the time it shows *)
            (match x.path with Some p -> note c p r | None -> ()); r
        | exception Fail (code, msg, None) -> raise (Fail (code, msg, span_of x)))
@@ -753,7 +873,7 @@ and geometry_loop c cz env op fs p body zone =
     if points then begin
       c.st.rids <- c.st.rids + 1;
       let term = { W.path = None; ty = Ty.Vec3; node = W.Ref_binding (ekey, []); form = body.W.form } in
-      Residual { rid = c.st.rids; rterm = term; renv = Smap.empty; rc = ci }, Text ekey
+      Residual { rid = c.st.rids; rterm = term; renv = Smap.empty; rc = ci; fast = Untried }, Text ekey
     end else
       (match mk_node (sub ci "element") "zone/element" [] with
        | Geo id as g -> g, Int id
@@ -892,3 +1012,12 @@ let run ?record ?inputs ~time ws =
        with Stop d -> Error d)
 
 let show v = show_with Fun.id v
+
+module Private = struct
+  let compile_residuals = compile_residuals
+  let rec compiled = function
+    | Residual { fast = Ready _; _ } -> 1
+    | List xs -> Array.fold_left (fun n x -> n + compiled x) 0 xs
+    | Record fs | Struct (_, fs) -> List.fold_left (fun n (_, x) -> n + compiled x) 0 fs
+    | _ -> 0
+end

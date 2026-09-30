@@ -352,6 +352,60 @@ let () = (* t: live values and the split evaluation *)
     let shape time = Array.map (fun (n : Eval.node) -> (n.kind, n.site, n.iter)) (run ~time ws).plan.nodes in
     assert (shape 0. = shape 5.3 && shape 0. = shape 100.))
 
+(* the compiled residuals against the interpreter: same bits at every time *)
+let () =
+  let rec same_bits (a : Eval.value) (b : Eval.value) = match a, b with
+    | Float x, Float y -> Int64.equal (Int64.bits_of_float x) (Int64.bits_of_float y)
+    | Vec3 (a, b, c), Vec3 (x, y, z) ->
+        List.for_all2 (fun p q -> Int64.equal (Int64.bits_of_float p) (Int64.bits_of_float q)) [ a; b; c ] [ x; y; z ]
+    | List xs, List ys -> Array.length xs = Array.length ys && Array.for_all2 same_bits xs ys
+    | Record fs, Record gs | Struct (_, fs), Struct (_, gs) ->
+        List.length fs = List.length gs && List.for_all2 (fun (n, x) (m, y) -> n = m && same_bits x y) fs gs
+    | Fn _, Fn _ -> true
+    | a, b -> a = b in
+  let run_with fast ws time =
+    Eval.Private.compile_residuals := fast;
+    Fun.protect ~finally:(fun () -> Eval.Private.compile_residuals := true) (fun () -> ok (Eval.run ~time ws)) in
+  let same_run ws time =
+    let a = run_with true ws time and b = run_with false ws time in
+    Array.length a.plan.nodes = Array.length b.plan.nodes
+    && Array.for_all2 (fun (x : Eval.node) (y : Eval.node) ->
+         x.kind = y.kind && x.site = y.site && List.for_all2 (fun (_, p) (_, q) -> same_bits p q) x.args y.args)
+         a.plan.nodes b.plan.nodes
+    && List.for_all2 (fun (_, p) (_, q) -> same_bits p q) a.results b.results in
+  let times = [ 0.; 0.37; 1.9; 6.28; 100.25; -3. ] in
+  t "compiled residuals are the interpreter's, bit for bit (fixtures)" (fun () ->
+    List.iter (fun name ->
+      let ws = check (read (Filename.concat cases (name ^ ".lisp"))) in
+      List.iter (fun time -> assert (same_run ws time)) times) [ "wave"; "orrery"; "sunflower"; "bloom"; "tiles" ];
+    let wave = check (read (Filename.concat cases "wave.lisp")) in
+    let s = static wave in
+    let forced = List.fold_left (fun n (node : Eval.node) ->
+      List.fold_left (fun n (_, v) -> ignore (Eval.force v ~live:{ t = 1.5 }); n + Eval.Private.compiled v) n node.args)
+      0 (Array.to_list s.plan.nodes) in
+    assert (forced > 0));
+  t "compiled residuals: loops, ifs, lets, vectors and shared chains" (fun () ->
+    List.iter (fun src ->
+      let ws = check (value src) in
+      List.iter (fun time -> assert (same_run ws time)) times)
+      [ "(sum [k (range 6)] (/ (sin (* (+ t k) (+ (* 2 k) 1))) (+ (* 2 k) 1)))";
+        "(let* [a 3 b (* a 2)] (+ (* t b) (mod t 0.7)))";
+        "(if (> (sin t) 0.2) (pow t 2) (- 0 t))";
+        "(let* [v [(* t 2) (+ t 1) (min t 3)]] (+ v.x v.y))";
+        "(nth (for [i (range 4)] (* i t)) 2)";
+        "(sum [x (for [i (range 4)] (+ (* i t) 1))] (* x 2))";
+        "(sum [i (range 5)] (sum [j (range 3)] (* (+ t i) j)))";
+        "(let* [a t a1 (+ a a) a2 (+ a1 a1) a3 (+ a2 a2)] (* a3 0.5))";
+        "(let* [c (value/lerp [1 2 3] [t 0 1] 0.25)] c.z)";
+        "(sum [i (range 0)] t)";
+        "(/ t 0)" ]);
+  t "an error in a compiled residual is the interpreter's" (fun () ->
+    let ws = check (value "(sqrt (/ (- t 2) 0))") in
+    let msg fast = Eval.Private.compile_residuals := fast;
+      Fun.protect ~finally:(fun () -> Eval.Private.compile_residuals := true) (fun () ->
+        match Eval.run ~time:1. ws with Ok _ -> "ok" | Error d -> Diagnostic.to_string d) in
+    assert (msg true = msg false))
+
 let () = (* value/rand: the bit-exact hash (iteration.md 2.2) *)
   t "hash: vectors ported from the study's hash" (fun () ->
     let h = Eval.hash in
