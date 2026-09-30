@@ -21,12 +21,12 @@
    (rule (alias smoke-all)
     (action (setenv PRISMEL_MAX_FRAMES 120 (run ./main.exe)))))
 
-A directory with both a dune file and a sketch.plisp is an error.
+A directory with its own dune file is hand-written (a sketch with its own main.ml uses
+`prismel-plisp source`) and is skipped.
 
   $ cp s/one/sketch.plisp s/plain/sketch.plisp
-  $ prismel-plisp dune s; echo $?
-  s/plain has both dune and sketch.plisp; delete s/plain/dune
-  1
+  $ prismel-plisp dune s | grep -c subdir
+  2
 
 An empty directory lists nothing.
 

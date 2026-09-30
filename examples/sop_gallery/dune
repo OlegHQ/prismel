@@ -1,6 +1,12 @@
+(rule
+ (target gallery_source.ml)
+ (deps gallery.plisp)
+ (action (chdir %{workspace_root}
+  (with-stdout-to %{target} (run %{bin:prismel-plisp} source %{dep:gallery.plisp})))))
+
 (executable
  (name main)
- (libraries prismel pdk_prismel procedural sop_catalog prismel_editor))
+ (libraries prismel pdk_prismel procedural flow sop_catalog prismel_editor))
 
 (rule
  (alias runtest)

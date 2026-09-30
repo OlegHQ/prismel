@@ -1,3 +1,9 @@
+(rule
+ (target sketch_source.ml)
+ (deps sketch.plisp)
+ (action (chdir %{workspace_root}
+  (with-stdout-to %{target} (run %{bin:prismel-plisp} source %{dep:sketch.plisp})))))
+
 (executable
  (name main)
  (libraries prismel prismel_pathtracer pdk pdk_prismel procedural sop_catalog prismel_editor unix))

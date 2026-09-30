@@ -1,8 +1,14 @@
 # SOP gallery and editable presets
 
-Run `dune exec examples/sop_gallery/main.exe -- --entry boolean`.
+Run `dune exec examples/sop_gallery/main.exe -- --entry boolean`; `--list` names the
+entries and `--check-all` cooks each without a window (part of `dune runtest`).
 
-Select `geo1` in the scene list and press `i` to edit its SOP network.
+The gallery is one workspace, `gallery.plisp`: a `sop` graph per entry, and a scene
+showing the one `--entry` names. The `gallery_*` nodes (point clouds, curves and meshes the
+catalog has no node for) are OCaml source SOPs registered beside the catalog in `main.ml`.
+Save writes a preset (the workspace text); the entry is a rewritten scene ref, not a file.
+
+Select `gallery` in the scene list and press `i` to edit its SOP network.
 Deleting every SOP clears the preview. `Space s` then Enter saves that empty
 network; `Space b`, the saved name, then Enter restores it. Command/Ctrl-Z
 undoes the load and Shift-Command/Ctrl-Z redoes it.

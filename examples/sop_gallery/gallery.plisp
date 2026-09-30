@@ -1,0 +1,135 @@
+; SOP gallery: one sop graph per catalog operation worth seeing. The scene
+; shows one of them; `main.exe --entry NAME` rewrites the scene's ref to a graph,
+; and the outline or the graph pane opens the others. The gallery_* sources
+; are OCaml (main.ml): point clouds, curves and meshes that the catalog has
+; no node for.
+(workspace sop_gallery
+
+  (graph attribute_laplacian :context sop
+    (sop/attribute_laplacian (sop/torus :rows 28 :columns 36 :major_radius 1.4 :minor_radius 0.45 :uv_attribute "")))
+
+  (graph boolean :context sop
+    (let* [box (sop/box :size [2 2 2] :consolidate_points true :normals "Point")
+           cutter (sop/transform box :translate [0.65 0 0] :rotate [0 0.4 0])]
+      (sop/normals (sop/boolean box cutter :operation "Subtract B from A") :weighting "Face area")))
+
+  (graph boolean_detect :context sop
+    (let* [source (sop/grid :counts "Point counts" :connectivity "Alternating triangles"
+                            :columns 28 :rows 24 :size 3.8 :width 3.8 :height 3.8)
+           collision (sop/transform source :rotate [1.08 0 0.18])]
+      (sop/boolean_detect source collision :self_intersecting_group "")))
+
+  (graph circle_from_edges :context sop
+    (sop/polywire (sop/circle_from_edges (sop/circle :segments 80) :scale [1 0.72 1])
+                  :sides 6 :radius 0.025))
+
+  (graph convex_hull :context sop
+    (sop/normals (sop/convex_hull (sop/gallery_fibonacci) :source_point_attribute "" :hull_group "")
+                 :weighting "Face area"))
+
+  (graph extract_centroid :context sop
+    (let* [targets (sop/extract_centroid (sop/box :size [2 2 2] :consolidate_points true :normals "Point")
+                                         :run_over "Primitives" :method_ "Bounding box")]
+      (sop/copy_to_points (sop/uv_sphere :uv_attribute "" :segments 12 :rings 8 :radius [0.13 0.13 0.13])
+                          targets)))
+
+  (graph extract_point_curve :context sop
+    (let* [signal (sop/attribute_randomize (sop/gallery_zigzag) :seed 2026 :name "signal")
+           targets (sop/extract_point_from_curve signal :constant 0.5 :distance_attribute "signal")]
+      (sop/copy_to_points (sop/uv_sphere :uv_attribute "" :segments 12 :rings 8 :radius [0.14 0.14 0.14])
+                          targets)))
+
+  (graph graph_color :context sop
+    (sop/graph_color (sop/grid :connectivity "Quads" :columns 18 :rows 12 :size 2 :width 2 :height 2)
+                     :connectivity "Primitives by edge"))
+
+  (graph intersection_analysis :context sop
+    (let* [source (sop/grid :counts "Point counts" :connectivity "Alternating triangles"
+                            :columns 28 :rows 24 :size 3.8 :width 3.8 :height 3.8)
+           collision (sop/transform source :rotate [1.08 0 0.18])
+           targets (sop/intersection_analysis source collision)]
+      (sop/copy_to_points (sop/uv_sphere :uv_attribute "" :segments 9 :rings 6 :radius [0.045 0.045 0.045])
+                          targets)))
+
+  (graph measure_curvature :context sop
+    (sop/measure_curvature (sop/torus :rows 28 :columns 36 :major_radius 1.4 :minor_radius 0.45 :uv_attribute "")))
+
+  (graph remesh :context sop
+    (let* [sphere (sop/uv_sphere :uv_attribute "" :segments 24 :rings 16)
+           rough (sop/mountain sphere :seed 91 :height 0.12 :frequency [2.2 1.7 2.5] :octaves 4)]
+      (sop/remesh rough :target_length 0.25 :iterations 2 :smoothing 0.35)))
+
+  (graph triangulate_2d :context sop
+    (sop/triangulate_2d (sop/gallery_disc)))
+
+  (graph procedural_terrain :context sop
+    (let* [grid (sop/grid :columns 100 :rows 100 :size 10 :width 10 :height 10)
+           bumpy (sop/noise_displace grid :seed 42 :amplitude 1.25 :frequency 0.22)]
+      (sop/color_by_height bumpy :low_red 23 :low_green 37 :low_blue 84
+                                 :high_red 251 :high_green 191 :high_blue 36)))
+
+  ; union, intersection and difference of a sphere and a moved box
+  (graph geom_csg :context sop
+    (let* [left (sop/uv_sphere :uv_attribute "" :segments 24 :rings 16)
+           right (sop/transform (sop/box :size [2 2 2] :consolidate_points true :normals "Point") :translate [0.35 0 0])
+           piece (fn [operation x]
+                   (sop/transform (sop/boolean left right :operation operation) :translate [x 0 0]))]
+      (sop/merge (piece "Union" -3) (piece "Intersection" 0) (piece "Subtract B from A" 3))))
+
+  ; a rose, a superformula and a Catmull-Rom spline as wires
+  (graph geom_curves :context sop
+    (let* [wire (fn [curve radius x]
+                  (sop/transform (sop/polywire curve :sides 6 :radius radius) :translate [x 0 0]))]
+      (sop/merge (wire (sop/gallery_rose) 0.018 -3)
+                 (wire (sop/gallery_superformula) 0.018 0)
+                 (wire (sop/gallery_spline) 0.03 3))))
+
+  ; an extruded star, a lathe, a swept helix and a subdivided sphere, without attributes
+  (graph geom_meshes :context sop
+    (let* [subdivide (fn [input scheme iterations]
+                       (sop/subdivide input :scheme scheme :iterations iterations :hole_group "" :crease_weight 0
+                                      :generate_resulting_creases true :remove_holes true
+                                      :boundary_interpolation "Edge only"
+                                      :face_varying_interpolation "All"))
+           plain (fn [node x]
+                   (sop/delete_attributes (sop/transform node :translate [x 0 0])
+                                          :point_pattern "*" :vertex_pattern "*"
+                                          :primitive_pattern "*" :detail_pattern "*"))
+           extruded (sop/poly_extrude (sop/gallery_star) :distance 0.65)
+           lathe (sop/revolve (sop/gallery_profile) :divisions 36 :caps true :cap_group "")
+           swept (sop/polywire (sop/resample (sop/gallery_helix) :use_segments false
+                                             :use_maximum_segment_length true
+                                             :maximum_segment_length 0.08)
+                               :sides 8 :radius 0.12)
+           smooth (subdivide (sop/triangulate (sop/uv_sphere :uv_attribute "" :segments 24 :rings 16))
+                             "Loop" 1)]
+      (sop/merge (plain extruded -3.3) (plain lathe -1.1) (plain swept 1.1) (plain smooth 3.3))))
+
+  ; Loop and Catmull-Clark subdivision of an icosahedron
+  (graph geom_subdivision :context sop
+    (let* [source (sop/platonic :kind "Icosahedron" :radius 1.15)
+           subdivide (fn [input scheme iterations]
+                       (sop/subdivide input :scheme scheme :iterations iterations :hole_group "" :crease_weight 0
+                                      :generate_resulting_creases true :remove_holes true
+                                      :boundary_interpolation "Edge only"
+                                      :face_varying_interpolation "All"))
+           plain (fn [node x]
+                   (sop/delete_attributes (sop/transform node :translate [x 0 0])
+                                          :point_pattern "*" :vertex_pattern "*"
+                                          :primitive_pattern "*" :detail_pattern "*"))]
+      (sop/merge (plain (subdivide source "Loop" 2) -1.25)
+                 (plain (subdivide source "Catmull-Clark" 2) 1.25))))
+
+  (graph geom_isosurface :context sop
+    (sop/gallery_isosurface))
+
+  (graph geom_voronoi :context sop
+    (sop/polywire (sop/gallery_voronoi) :sides 6 :radius 0.014))
+
+  (graph scene :context scene
+    (let* [shown (scene/geometry (ref boolean) :name "gallery")
+           camera (scene/camera :eye [3.182458 2.057387 4.651787] :target [0 0 0]
+                                :follow_viewport true)
+           light (scene/light :name "key" :shape "Directional" :translate [8 9.6 16]
+                              :intensity 1)]
+      (scene/merge shown camera light))))

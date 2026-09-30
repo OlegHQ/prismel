@@ -588,8 +588,21 @@ module Workspace : sig
   (** Where a workspace came from: [path] relative to the project root, [digest]
       the SHA-256 of its text. *)
 
-  val load : string -> (Workspace_doc.t, Flow.Diagnostic.t list) result
+  val load : ?factories:Procedural.Edit_graph.factory list -> string ->
+    (Workspace_doc.t, Flow.Diagnostic.t list) result
   (** Parse and check a [.plisp] text against {!workspace_catalog}. *)
+
+  val open_text : ?factories:Procedural.Edit_graph.factory list -> path:string -> digest:string ->
+    string -> Workspace_doc.t * Source.t option
+  (** For a sketch that has its own [main.ml] (custom renderer, settings, SOPs): [load] the text
+      of [path] (its SHA-256 [digest], both from the generated [Sketch_source] module) and find
+      the file, so [Editor3.run ~workspace ?source] saves and reloads it like {!main}. On a
+      failure it prints the diagnostics and exits 1. *)
+
+  val sop_graphs : ?factories:Procedural.Edit_graph.factory list -> Workspace_doc.t ->
+    ((string * Procedural.Graph.t) list, string) result
+  (** Every [sop] graph of the document with its result compiled, by name, for cooking without
+      an editor (a check, a batch). A graph without a result node is left out. *)
 
   val run : ?source:source -> Workspace_doc.t -> unit
   (** Open {!Editor3} on the document, with the window title, size, frame rate

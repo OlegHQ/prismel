@@ -35,58 +35,10 @@ module Settings = Prismel_editor.Settings
 let rgb = P.Linear_color.rgb
 let v = Vec3.create
 
-(* ---- SOP network ---- *)
-
+(* The document (network, studio lights, camera, World) is sketch.plisp. *)
 let cells = 6
 let pitch = 1.16
 let extent = pitch *. float (cells - 1)
-let hole = 0.56
-
-(* An octree lattice: a coarse point grid, a random share of whose cells
-   split into a 2x2x2 cluster of half-pitch cells, a share of which split
-   again. Every level is a point cloud with its own pscale range, merged
-   before one packed Copy to Points, so the whole lattice is one prototype. *)
-let graph () =
-  let box label size = Sop_catalog.Box.create ~label ~size () in
-  let cutter = Sop_catalog.Merge.create ~label:"cutter"
-      [ box "bar-x" (v 1.4 hole hole); box "bar-y" (v hole 1.4 hole); box "bar-z" (v hole hole 1.4) ] in
-  let cage = Sop_catalog.Boolean.create ~label:"cage" ~operation:Pdk.Boolean.Difference
-      ~resolve_right_self_intersections:true ~detriangulation:Pdk.Boolean.All_polygons
-      ~right:cutter (box "cell" (v 1. 1. 1.)) in
-  let cage = Sop_catalog.Poly_bevel.create ~label:"chamfer" ~distance:0.04 cage in
-  let core = Sop_catalog.Transform.create ~label:"core" ~uniform_scale:0.3 ~rotate:(v 0.7 0.5 0.)
-      (Sop_catalog.Platonic.create ~label:"octahedron"
-         ~kind:Pdk.Parametric_generators.Platonic_octahedron ~radius:1. ()) in
-  let cell = Sop_catalog.Merge.create ~label:"cell" [ cage; core ] in
-  (* Point clouds: an n x n x n cube of points at [step], centred. *)
-  let cube label n step =
-    let side = step *. float (n - 1) in
-    let sheet = Sop_catalog.Grid.create ~label:(label ^ "-sheet")
-        ~orientation:Pdk.Plane_generators.Grid_xz ~connectivity:Pdk.Plane_generators.Grid_points
-        ~center:(v 0. (-. side /. 2.) 0.) ~columns:(n - 1) ~rows:(n - 1)
-        ~width:side ~height:side ~size:side () in
-    Sop_catalog.Duplicate.create ~label ~copies:(n - 1) ~transform:(Mat4.translation (v 0. step 0.)) sheet in
-  let lattice = cube "lattice" cells pitch in
-  let octant = cube "octant" 2 (pitch /. 2.) in
-  (* Each level: a random share of its points splits into eight sub-points
-     (the next level); the rest keep a pscale in [lo, hi]. Every level shares
-     the "split" group so the clouds merge (the last level's share is 0). *)
-  let levels = [ "coarse", 0.36, (0.84, 1.); "mid", 0.4, (0.42, 0.5); "fine", 0., (0.2, 0.25) ] in
-  let _, kept = List.fold_left (fun (points, kept) (label, probability, (lo, hi)) ->
-      let chosen = Sop_catalog.Group_random.create ~label:(label ^ "-split") ~seed:(String.length label)
-          ~probability ~owner:Pdk.Group_ops.Group_points ~name:"split" points in
-      let rest = Sop_catalog.Attribute_randomize.create ~label:(label ^ "-scale") ~seed:(String.length label + 1)
-          ~name:"pscale" ~minimum:lo ~maximum:hi
-          (Sop_catalog.Blast.create ~label:(label ^ "-keep") ~owner:Pdk.Group.Point ~group:"split" chosen) in
-      let sub = Sop_catalog.Copy_to_points.create ~label:(label ^ "-subdivide") ~target_group:"split"
-          ~source:(Sop_catalog.Transform.create ~label:(label ^ "-octant") ~uniform_scale:(hi /. 2.) octant)
-          ~targets:chosen () in
-      sub, rest :: kept) (lattice, []) levels in
-  let points = Sop_catalog.Merge.create ~label:"levels" (List.rev kept) in
-  let holes = Sop_catalog.Group_random.create ~label:"holes" ~seed:3 ~probability:0.1
-      ~owner:Pdk.Group_ops.Group_points ~name:"holes" points in
-  let kept = Sop_catalog.Blast.create ~label:"blast-holes" ~owner:Pdk.Group.Point ~group:"holes" holes in
-  Sop_catalog.Copy_to_points.create ~label:"copy-cells" ~pack:true ~source:cell ~targets:kept ()
 
 (* ---- settings (inspector, undo, presets) ---- *)
 
@@ -182,22 +134,6 @@ let frames = env "PRISMEL_PATHTRACER_FRAMES" 0 int_of_string_opt
 let smoke_export = Sys.getenv_opt "PRISMEL_CAGE_EXPORT"
 let started = Unix.gettimeofday ()
 
-(* Studio: one large key softbox up-left, a faint fill from the right, under
-   a near-black World (raster units: intensity = radiance * area / pi). *)
-let softbox ~radiance ~size at =
-  Light.area ~intensity:(radiance *. size *. size /. Float.pi) ~at
-    ~direction:(Vec3.normalize (Vec3.sub Vec3.zero at)) ~width:size ~height:size
-    ~attenuation:(Light.attenuation ~constant:0. ~quadratic:1. ()) ()
-
-let lights = [ softbox ~radiance:14. ~size:14. (v (-16.) 22. 12.);
-               softbox ~radiance:1.4 ~size:16. (v 20. 2. (-6.)) ]
-
-let studio =
-  let dark = World.rgb 0.003 0.003 0.004 in
-  { World.default with
-    layers = [ { name = "studio"; visible = true;
-                 layer = Gradient { zenith = dark; horizon = dark; nadir = dark; sharpness = 1. } } ] }
-
 (* A progressive export: its own tracer at the camera's resolution, a few
    samples per frame until max samples, then the PNG. *)
 type export = { film : P.t; camera : Camera.t; path : string; max_spp : int }
@@ -236,14 +172,14 @@ let init _frame =
     match P.create ~bounces:4 ~exposure:1. ~width:64 ~height:64 empty_scene
     with Ok tracer -> tracer | Error message -> failwith message in
   let env =
+    let workspace, source = Prismel_editor.Workspace.open_text ~path:Sketch_source.path
+        ~digest:Sketch_source.digest Sketch_source.text in
     match Editor.create ~name:"cube_cage"
       ~camera:(Easy_camera.create ~target:Vec3.zero ~distance:30. ~azimuth:0.7
         ~elevation:0.5 ~fov_y:0.5 ~inertia:false ())
-      ~lens:{ aperture = 0.5; focus_distance = None }
       ~background ~seed:7L ~grain:2 ~max_entries:24 ~max_payload_bytes:(256 * 1024 * 1024)
-      ~factories:Sop_catalog.Editor.factories ~lights ~world:studio
       ~settings:(Settings.make settings_schema (Parameter.default settings_schema))
-      ~graph:(graph ()) ~prepare ~scene3 ~status:(status tracer) ~overlay:(overlay tracer) ()
+      ~workspace ?source ~prepare ~scene3 ~status:(status tracer) ~overlay:(overlay tracer) ()
     with Ok env -> env | Error message -> failwith message in
   { env; tracer; shown = []; lit = []; world = None; traced_camera = None; export = None }
 

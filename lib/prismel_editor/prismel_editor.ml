@@ -74,14 +74,35 @@ end
 module Workspace = struct
   type source = { path : string; digest : string }
 
-  let load text =
-    match workspace_catalog () with
+  let load ?factories text =
+    match workspace_catalog ?factories () with
     | Error d -> Error [ d ]
     | Ok catalog -> Workspace_doc.of_text catalog text
+
+  (* A hand-written host: the checked document and its file, or the diagnostics and exit 1. *)
+  let open_text ?factories ~path ~digest text =
+    match load ?factories text with
+    | Error ds ->
+        List.iter (fun d -> prerr_endline (Flow.Diagnostic.report ~file:path ~source:text d)) ds;
+        exit 1
+    | Ok doc -> doc, Source.find ~path ~digest
 
   (* The viewport starts where the scene's first camera is (else the default orbit); the host's
      light below is a default that a scene declaring a light replaces (Contexts.of_workspace).
      ponytail: the geometry is drawn as one mesh. *)
+  (* Every [sop] graph of the document, lowered and compiled, for headless cooking. *)
+  let sop_graphs ?(factories = Sop_catalog.Editor.factories) (doc : Workspace_doc.t) =
+    let ( let* ) = Result.bind in
+    let* lowered = Result.map_error Flow.Diagnostic.to_string
+        (Flow_sop.Lower.workspace ~extra:Contexts.descriptors ~factories doc.source) in
+    List.fold_right (fun (g : Flow_sop.Lower.graph) rest ->
+      let* rest = rest in
+      match g.root with
+      | None -> Ok rest
+      | Some node_id ->
+          let* graph = Procedural.Edit_graph.compile_node g.network.geometry ~node_id in
+          Ok ((g.name, graph) :: rest)) lowered.graphs (Ok [])
+
   let declared_camera doc base =
     match Contexts.of_workspace ~factories:Sop_catalog.Editor.factories doc with
     | Error _ -> base

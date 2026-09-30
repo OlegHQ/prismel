@@ -3,12 +3,10 @@ open Procedural
 
 let color hex = Color.hex_exn hex
 let v = Vec3.create
-let move x y z node = Sop.transform (Mat4.translation (v x y z)) node
-let box () = Sop.box ~connectivity:Pdk.Box_generator.Box_quads
-    ~consolidate_points:true ~size:(v 2. 2. 2.) ()
-let sphere () = Sop.uv_sphere ~segments:24 ~rings:16 ~radius:1. ()
-let torus () = Sop.torus ~rows:28 ~columns:36 ~major_radius:1.4
-    ~minor_radius:0.45 ()
+
+(* The inputs the catalog has no node for: point clouds, curves and meshes built in OCaml
+   from Pdk. Each is a source SOP of its own (gallery.plisp spells them sop/gallery_NAME),
+   which is how a sketch adds nodes beside the catalog. *)
 let polygon points =
   let count = Array.length points in
   let positions = Pdk.Packed.Float3.Private.of_owned_exn
@@ -21,150 +19,61 @@ let polygon points =
   Pdk.Geometry.create ~positions ~topology () |> Result.get_ok
   |> Sop.snapshot
 
-let boolean () =
-  let left = box () in
-  let right = box () |> Sop.transform (Mat4.mul
-      (Mat4.translation (v 0.65 0. 0.)) (Mat4.rotation_y 0.4)) in
-  Sop.boolean ~operation:Pdk.Boolean.Difference ~right left
-  |> Sop.normals ~owner:Pdk.Attribute.Vertex
 
-let collision_pair () =
-  let source = Sop.grid ~counts:Pdk.Plane_generators.Grid_point_counts
-      ~connectivity:Pdk.Plane_generators.Grid_alternating_triangles
-      ~columns:28 ~rows:24 ~size:3.8 () in
-  let collision = source |> Sop.transform (Mat4.mul
-      (Mat4.rotation_z 0.18) (Mat4.rotation_x 1.08)) in
-  source, collision
-
-let circle_from_edges () =
-  Sop.circle ~segments:80 ~radius:1. ()
-  |> Sop.circle_from_edges ~scale:(v 1. 0.72 1.)
-  |> Sop.polywire ~sides:6 ~radius:0.025
-
-let convex_hull () =
-  let points = Array.init 1_000 (fun i ->
-      let a = float i *. 2.399963 and h = 1. -. (2. *. float i /. 999.) in
-      let r = sqrt (max 0. (1. -. (h *. h))) in
-      r *. cos a, h, r *. sin a) in
-  Sop.points points |> Sop.convex_hull
-  |> Sop.normals ~owner:Pdk.Attribute.Vertex
-
-let extract_centroid () =
-  let targets = box () |> Sop.extract_centroid
-      ~run_over:Pdk.Curve_topology.Centroid_primitives
-      ~method_:Pdk.Curve_topology.Centroid_bounding_box in
-  Sop.copy_to_points ~source:(Sop.uv_sphere ~segments:12 ~rings:8
-      ~radius:0.13 ()) ~targets ()
-
-let extract_point_curve () =
-  let source = Sop.polyline [|(-1.5,0.,0.);(-0.5,0.8,0.);
-      (0.5,-0.8,0.);(1.5,0.,0.)|]
-    |> Sop.attribute_randomize ~seed:2026 ~owner:Pdk.Attribute.Point
-         ~name:"signal" (Pdk.Attribute_ops.Random_uniform {
-           min=Pdk.Attribute_ops.Scalar 0.;
-           max=Pdk.Attribute_ops.Scalar 1.}) in
-  let targets = source |> Sop.extract_point_from_curve
-      ~cut:(Sop.Extract_point_constant 0.5) ~distance_attribute:"signal" in
-  Sop.copy_to_points ~source:(Sop.uv_sphere ~segments:12 ~rings:8
-      ~radius:0.14 ()) ~targets ()
-
-let graph_color () =
-  Sop.grid ~connectivity:Pdk.Plane_generators.Grid_quads
-    ~columns:18 ~rows:12 ~size:2. ()
-  |> Sop.graph_color ~connectivity:Pdk.Graph_color.Graph_primitives_by_edge
-
-let intersection_analysis () =
-  let source, collision = collision_pair () in
-  let targets = Sop.intersection_analysis ~collision source in
-  Sop.copy_to_points ~source:(Sop.uv_sphere ~segments:9 ~rings:6
-      ~radius:0.045 ()) ~targets ()
-
-let remesh () =
-  sphere () |> Sop.mountain ~seed:91 ~height:0.12
-      ~frequency:(v 2.2 1.7 2.5) ~octaves:4
-  |> Sop.remesh ~target_length:0.25 ~iterations:2 ~smoothing:0.35
-
-let terrain () =
-  Sop.grid ~columns:100 ~rows:100 ~size:10. ()
-  |> Sop.noise_displace ~seed:42 ~amplitude:1.25 ~frequency:0.22
-  |> Sop.color_by_height ~low:(color "#172554") ~high:(color "#fbbf24")
-
-let triangulate_2d () =
-  let points = Array.init 80 (fun i ->
-      let a = float i *. 2.399963 and r = 1.8 *. sqrt (float i /. 79.) in
-      r *. cos a, r *. sin a, 0.) in
-  Sop.points points |> Sop.triangulate_2d
-
-let curve_mesh () =
-  let points = Array.init 72 (fun i ->
-      let u = float i /. 71. in
-      let a = u *. 4. *. Float.pi in
-      1.2 *. cos a, (u -. 0.5) *. 2.8, 1.2 *. sin a) in
-  Sop.polyline points |> Sop.resample ~maximum_segment_length:0.08
-  |> Sop.sweep_circle ~sides:8 ~radius:0.12
-
-let csg () =
-  let left = sphere () and right = box () |> move 0.35 0. 0. in
-  let result op x = Sop.boolean ~operation:op ~right left |> move x 0. 0. in
-  Sop.merge [result Pdk.Boolean.Union (-3.);
-    result Pdk.Boolean.Intersection 0.;
-    result Pdk.Boolean.Difference 3.]
-
-let meshes () =
-  let star = Array.init 18 (fun i ->
+let star () =
+  polygon (Array.init 18 (fun i ->
       let a = Float.pi *. float i /. 9. in
       let r = if i mod 2 = 0 then 1. else 0.45 in
-      r *. cos a, 0., r *. sin a) in
-  let extrusion = polygon star
-    |> Sop.poly_extrude ~distance:0.65 |> move (-3.3) 0. 0. in
+      r *. cos a, 0., r *. sin a))
+
+let profile () =
   let profile = [Vec2.create 0.05 (-1.2); Vec2.create 0.8 (-1.);
       Vec2.create 0.5 0.; Vec2.create 0.9 0.8;
       Vec2.create 0.1 1.2] in
-  let lathe = Pdk.Curve_sampling.catmull_rom2 ~resolution:7 profile
-    |> Result.get_ok |> List.map (fun (p : Vec2.t) -> p.x,p.y,0.)
-    |> Array.of_list |> Sop.polyline
-    |> Sop.revolve ~divisions:36 ~origin:Vec3.zero ~axis:Vec3.unit_y
-      ~caps:true |> move (-1.1) 0. 0. in
-  let sweep = curve_mesh () |> move 1.1 0. 0. in
-  let subdivided = sphere () |> Sop.triangulate
-    |> Sop.subdivide ~scheme:Pdk.Subdivide.Loop ~iterations:1
-    |> move 3.3 0. 0. in
-  let plain node = Sop.delete_attributes ~point_pattern:"*"
-      ~vertex_pattern:"*" ~primitive_pattern:"*" ~detail_pattern:"*" node in
-  Sop.merge (List.map plain [extrusion; lathe; sweep; subdivided])
+  Pdk.Curve_sampling.catmull_rom2 ~resolution:7 profile
+  |> Result.get_ok |> List.map (fun (p : Vec2.t) -> p.x,p.y,0.)
+  |> Array.of_list |> Sop.polyline
 
-let subdivision () =
-  let source = Pdk.Parametric_generators.platonic ~kind:Pdk.Parametric_generators.Platonic_icosahedron
-      ~radius:1.15 () |> Result.get_ok in
-  let plain node = Sop.delete_attributes ~point_pattern:"*"
-      ~vertex_pattern:"*" ~primitive_pattern:"*" ~detail_pattern:"*" node in
-  Sop.merge (List.map plain [
-    Sop.snapshot source |> Sop.subdivide ~scheme:Pdk.Subdivide.Loop
-      ~iterations:2 |> move (-1.25) 0. 0.;
-    Sop.snapshot source |> Sop.subdivide ~scheme:Pdk.Subdivide.Catmull_clark
-      ~iterations:2 |> move 1.25 0. 0.])
+let helix () =
+  Sop.polyline (Array.init 72 (fun i ->
+      let u = float i /. 71. in
+      let a = u *. 4. *. Float.pi in
+      1.2 *. cos a, (u -. 0.5) *. 2.8, 1.2 *. sin a))
 
-let curves () =
-  let rose = Array.init 720 (fun i ->
+let fibonacci () =
+  Sop.points (Array.init 1_000 (fun i ->
+      let a = float i *. 2.399963 and h = 1. -. (2. *. float i /. 999.) in
+      let r = sqrt (max 0. (1. -. (h *. h))) in
+      r *. cos a, h, r *. sin a))
+
+let disc () =
+  Sop.points (Array.init 80 (fun i ->
+      let a = float i *. 2.399963 and r = 1.8 *. sqrt (float i /. 79.) in
+      r *. cos a, r *. sin a, 0.))
+
+let zigzag () =
+  Sop.polyline [|(-1.5,0.,0.);(-0.5,0.8,0.);(0.5,-0.8,0.);(1.5,0.,0.)|]
+
+let rose () =
+  Sop.polyline ~closed:true (Array.init 720 (fun i ->
       let a = Float.pi *. 2. *. float i /. 720. in
       let r = 1.45 *. cos (7. *. a) in
-      r *. cos a, r *. sin a, 0.) in
-  let superformula = Array.init 360 (fun i ->
+      r *. cos a, r *. sin a, 0.))
+
+let superformula () =
+  Sop.polyline ~closed:true (Array.init 360 (fun i ->
       let a = Float.pi *. 2. *. float i /. 360. in
       let ca = abs_float (cos (5. *. a /. 4.))
       and sa = abs_float (sin (5. *. a /. 4.)) in
       let r = 1. /. ((ca ** 0.8 +. sa ** 0.8) ** (1. /. 0.35)) in
-      1.4 *. r *. cos a, 1.4 *. r *. sin a, 0.) in
+      1.4 *. r *. cos a, 1.4 *. r *. sin a, 0.))
+
+let spline () =
   let controls = [Vec2.create (-1.) 0.; Vec2.create (-0.5) 1.;
       Vec2.create 0.5 (-1.); Vec2.create 1. 0.] in
-  let sampled = Pdk.Curve_sampling.catmull_rom2 ~resolution:24 controls
-    |> Result.get_ok |> List.map (fun (p : Vec2.t) -> p.x,p.y,0.)
-    |> Array.of_list in
-  let wire ~x points = Sop.polyline ~closed:true points
-      |> Sop.polywire ~sides:6 ~radius:0.018 |> move x 0. 0. in
-  Sop.merge [wire ~x:(-3.) rose; wire ~x:0. superformula;
-    Sop.polyline sampled |> Sop.polywire ~sides:6 ~radius:0.03
-      |> move 3. 0. 0.]
+  Pdk.Curve_sampling.catmull_rom2 ~resolution:24 controls
+  |> Result.get_ok |> List.map (fun (p : Vec2.t) -> p.x,p.y,0.)
+  |> Array.of_list |> Sop.polyline
 
 let voronoi () =
   let sites = List.init 24 (fun i ->
@@ -190,7 +99,7 @@ let voronoi () =
       offset := !offset + count) cells;
   Pdk.Geometry.create ~positions
     ~topology:(Pdk.Topology.Builder.freeze topology) ()
-  |> Result.get_ok |> Sop.snapshot |> Sop.polywire ~sides:6 ~radius:0.014
+  |> Result.get_ok |> Sop.snapshot
 
 let isosurface () =
   let minimum = v (-1.4) (-1.4) (-1.4)
@@ -200,29 +109,24 @@ let isosurface () =
     ~field:(Pdk.Iso_surface.Field.gyroid ~scale:2.6 ()) ()
   |> Result.get_ok |> Sop.snapshot
 
-let entries = [|
-  "attribute_laplacian", (fun () -> torus ()
-    |> Sop.attribute_laplacian ~source:"P");
-  "boolean", boolean;
-  "boolean_detect", (fun () -> let a,b = collision_pair () in
-    Sop.boolean_detect ~collision:b a);
-  "circle_from_edges", circle_from_edges;
-  "convex_hull", convex_hull;
-  "extract_centroid", extract_centroid;
-  "extract_point_curve", extract_point_curve;
-  "graph_color", graph_color;
-  "intersection_analysis", intersection_analysis;
-  "measure_curvature", (fun () -> torus () |> Sop.measure_curvature);
-  "remesh", remesh;
-  "triangulate_2d", triangulate_2d;
-  "procedural_terrain", terrain;
-  "geom_csg", csg;
-  "geom_curves", curves;
-  "geom_meshes", meshes;
-  "geom_subdivision", subdivision;
-  "geom_isosurface", isosurface;
-  "geom_voronoi", voronoi;
-|]
+
+let sources = [
+  "gallery_star", "Star polygon", star;
+  "gallery_profile", "Lathe profile", profile;
+  "gallery_helix", "Helix", helix;
+  "gallery_fibonacci", "Fibonacci sphere points", fibonacci;
+  "gallery_disc", "Disc points", disc;
+  "gallery_zigzag", "Zigzag curve", zigzag;
+  "gallery_rose", "Rose curve", rose;
+  "gallery_superformula", "Superformula curve", superformula;
+  "gallery_spline", "Catmull-Rom spline", spline;
+  "gallery_voronoi", "Voronoi cells", voronoi;
+  "gallery_isosurface", "Gyroid isosurface", isosurface;
+]
+
+let factories = List.map (fun (key, label, build) ->
+    Edit_graph.factory ~key ~label ~category:["Gallery"] ~arity:0 (fun _ -> build ()))
+  sources @ Sop_catalog.Editor.factories
 
 let material = Material.create ~diffuse:Color.white
     ~ambient:(color "#172554") ~specular:Color.white ~shininess:36. ()
@@ -242,13 +146,31 @@ let scene3 _graph (mesh, instances) =
     | Some transforms -> Scene3.instances_array ~cull:Scene3.Cull_none ~material mesh transforms
     | None -> Scene3.mesh ~cull:Scene3.Cull_none ~material mesh]
 
+
+let load ?(entry = "boolean") () =
+  (* the scene shows (ref boolean); another entry is another ref *)
+  let text = Gallery_source.text and marker = "(ref boolean)" in
+  let text = if entry = "boolean" then text else
+    let rec find i = if String.sub text i (String.length marker) = marker then i else find (i + 1) in
+    let i = find 0 in
+    String.sub text 0 i ^ "(ref " ^ entry ^ ")"
+    ^ String.sub text (i + String.length marker) (String.length text - i - String.length marker) in
+  match Prismel_editor.Workspace.load ~factories text with
+  | Ok doc -> doc
+  | Error ds -> List.iter (fun d -> prerr_endline (Flow.Diagnostic.report ~file:Gallery_source.path
+      ~source:text d)) ds; exit 1
+
+let graphs () = match Prismel_editor.Workspace.sop_graphs ~factories (load ()) with
+  | Ok graphs -> graphs
+  | Error message -> failwith message
+
 let check_all () =
   let context = Context.create ~seed:2026L ~domains:1 () |> Result.get_ok in
-  Array.iter (fun (name, graph) ->
+  List.iter (fun (name, graph) ->
       let session = Session.create ~max_entries:24
           ~max_payload_bytes:134_217_728 |> Result.get_ok in
       Fun.protect ~finally:(fun () -> Session.close session) (fun () ->
-        match Session.cook session ~context (graph ()) with
+        match Session.cook session ~context graph with
         | Error error -> failwith (name ^ ": " ^
             Diagnostic.error_to_string error)
         | Ok output ->
@@ -260,7 +182,7 @@ let check_all () =
              | Error error -> failwith (name ^ ": " ^ error));
             Printf.printf "%s: %d points, %d primitives\n%!" name
               (Pdk.Geometry.point_count output.geometry)
-              (Pdk.Geometry.primitive_count output.geometry))) entries
+              (Pdk.Geometry.primitive_count output.geometry))) (graphs ())
 
 let () =
   let entry = ref "boolean" and list = ref false and check = ref false in
@@ -269,18 +191,16 @@ let () =
              "--check-all", Arg.Set check, "Cook every entry without a window"]
     (fun _ -> raise (Arg.Bad "unexpected argument"))
     "sop_gallery [--list | --check-all | --entry NAME]";
-  if !list then Array.iter (fun (name, _) -> print_endline name) entries
+  if !list then List.iter (fun (name, _) -> print_endline name) (graphs ())
   else if !check then check_all ()
-  else match Array.find_opt (fun (name, _) -> name = !entry) entries with
-    | None -> failwith ("unknown gallery entry: " ^ !entry)
-    | Some (name, graph) ->
-        Prismel_editor.Editor3.run
-          ~config:{Sketch.default_config with width=1100; height=720;
-            title="Prismel SOP gallery · " ^ name}
-          ~name:"sop_gallery" ~factories:Sop_catalog.Editor.factories
-          ~lights:[Light.directional ~direction:(v (-1.) (-1.2) (-2.))
-            ~diffuse:Color.white ()]
-          ~camera:(Easy_camera.create ~target:Vec3.zero ~distance:6.
-            ~azimuth:0.6 ~elevation:0.35 ())
-          ~seed:2026L ~max_entries:24 ~max_payload_bytes:134_217_728
-          ~graph:(graph ()) ~prepare:(fun _ -> prepare) ~scene3 ()
+  else begin
+    if not (List.mem_assoc !entry (graphs ())) then failwith ("unknown gallery entry: " ^ !entry);
+    Prismel_editor.Editor3.run
+      ~config:{Sketch.default_config with width=1100; height=720;
+        title="Prismel SOP gallery · " ^ !entry}
+      ~name:"sop_gallery" ~factories
+      ~camera:(Easy_camera.create ~target:Vec3.zero ~distance:6.
+        ~azimuth:0.6 ~elevation:0.35 ())
+      ~seed:2026L ~max_entries:24 ~max_payload_bytes:134_217_728
+      ~workspace:(load ~entry:!entry ()) ~prepare:(fun _ -> prepare) ~scene3 ()
+  end

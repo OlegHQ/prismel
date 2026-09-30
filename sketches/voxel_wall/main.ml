@@ -76,12 +76,7 @@ let factories =
       | _ -> invalid_arg "Wall Depth expects one input")
   :: Sop_catalog.Editor.factories
 
-let graph () =
-  let grid = Sop_catalog.Grid.create ~label:"wall-grid" ~orientation:Pdk.Plane_generators.Grid_xy
-      ~columns:35 ~rows:59 ~width:35. ~height:59. ~size:35. () in
-  let cube = Sop_catalog.Box.create ~label:"cube" ~size:(v 0.86 0.86 1.) ~center:(v 0. 0. 0.5) () in
-  Sop_catalog.Copy_to_points.create ~label:"copy-cubes" ~pack:true ~source:cube
-    ~targets:(wall_depth grid) ()
+(* The document (network, studio lights, camera, World) is sketch.plisp. *)
 
 (* ---- preparation (cook worker, pure) ---- *)
 
@@ -165,24 +160,6 @@ let renderer env = Settings.get settings_schema (Prismel_editor.Editor3.settings
 type model = { env : prepared Prismel_editor.Editor3.t; tracer : P.t;
   shown : (Mat4.t * prepared) list; lit : Light.t list; world : World.baked option }
 
-(* The studio: two big softboxes as area light objects (raster units: a rect
-   of radiance L and area A is intensity L * A / pi) under a near-black World,
-   so raster and the path tracer light the wall the same way. *)
-let softbox ~radiance ~size at =
-  Light.area ~intensity:(radiance *. size *. size /. Float.pi) ~at
-    ~direction:(Vec3.normalize (Vec3.sub Vec3.zero at)) ~width:size ~height:size
-    ~attenuation:(Light.attenuation ~constant:0. ~quadratic:1. ()) ()
-
-let lights = [ softbox ~radiance:9. ~size:24. (v (-34.) 40. 30.);
-               softbox ~radiance:1.2 ~size:30. (v 30. (-10.) 26.) ]
-
-let studio =
-  let dark r g b = World.rgb r g b in
-  { World.default with
-    layers = [ { name = "studio"; visible = true;
-                 layer = Gradient { zenith = dark 0.006 0.007 0.009; horizon = dark 0.006 0.007 0.009;
-                                    nadir = dark 0.002 0.002 0.003; sharpness = 1. } } ] }
-
 let scene3 _graph prepared =
   match prepared.mode with
   | Path_traced -> Scene3.create []
@@ -221,13 +198,15 @@ let init _frame =
           ; P.rect_light ~intensity:1.2 ~size:(30., 30.) ~target:(v 0. 0. 0.) (v 30. (-10.) 26.) ] }
     with Ok tracer -> tracer | Error message -> failwith message in
   let env =
+    let workspace, source = Prismel_editor.Workspace.open_text ~factories ~path:Sketch_source.path
+        ~digest:Sketch_source.digest Sketch_source.text in
     match Prismel_editor.Editor3.create ~name:"voxel_wall"
       ~camera:(Easy_camera.create ~target:(v 0. 0. 1.) ~distance:19. ~azimuth:(-0.22)
         ~elevation:0.08 ~fov_y:0.7 ~inertia:false ())
       ~background ~seed:7L ~grain:2 ~max_entries:24
-      ~max_payload_bytes:(256 * 1024 * 1024) ~factories ~lights ~world:studio
+      ~max_payload_bytes:(256 * 1024 * 1024) ~factories
       ~settings:(Settings.make settings_schema initial_renderer)
-      ~graph:(graph ())
+      ~workspace ?source
       ~prepare:(fun settings -> prepare (Settings.get settings_schema settings))
       ~scene3 ~overlay:(overlay tracer) ~status:(status tracer) ()
     with Ok env -> env | Error message -> failwith message in

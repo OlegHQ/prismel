@@ -1,53 +1,10 @@
 open Prismel
 open Procedural
 
-let graph () =
-  let cube = Sop_catalog.Box.create ~label:"cube"
-      ~size:(Vec3.create 2.6 2.6 2.6) ~connectivity:Pdk.Box_generator.Box_quads
-      ~consolidate_points:true ~normals:Pdk.Box_generator.Box_vertex_normals ()
-  and dodecahedron = Sop_catalog.Platonic.create ~label:"dodecahedron"
-      ~kind:Pdk.Parametric_generators.Platonic_dodecahedron
-      ~normals:Pdk.Parametric_generators.Platonic_vertex_normals
-      ~rotation:(Vec3.create 0.173 0.291 0.113) ~radius:2.25 () in
-  let source = Sop_catalog.Switch.create ~label:"source-switch"
-      [cube; dodecahedron] in
-  let cutter_grid = Sop_catalog.Grid.create ~label:"cutter-grid"
-      ~counts:Pdk.Plane_generators.Grid_divisions ~connectivity:Pdk.Plane_generators.Grid_triangles
-      ~columns:2 ~rows:2 ~size:4.8 ()
-    |> Sop_catalog.Mountain.create ~label:"cutter-mountain" ~seed:0
-         ~height:0.35 ~frequency:(Vec3.create 0.27 1. 0.27)
-         ~octaves:1 ~lacunarity:2. ~roughness:0.5
-         ~recompute_normals:true
-    |> Sop_catalog.Normal.create ~label:"cutter-normals"
-         ~owner:Pdk.Attribute.Vertex ~cusp_angle:Float.pi in
-  let cutter_points = Sop_catalog.Point_generate.origin
-      ~label:"cutter-points" ~points:50 ()
-    |> Sop_catalog.Attribute_noise_quaternion.create
-         ~label:"orient-noise" ~seed:7349 ~owner:Pdk.Attribute.Point
-         ~name:"orient" ~location:Pdk.Attribute_ops.Noise_element_number
-         ~range:Pdk.Attribute_ops.Noise_zero_centered
-         ~frequency:(Vec3.create 0.173 0.173 0.173) ~octaves:2
-    |> Sop_catalog.Point_jitter.create ~label:"position-jitter" ~seed:7350
-         ~id_attribute:"sourceindex" ~scale:0.45 in
-  Sop_catalog.Copy_to_points.create ~label:"copy-cutters" ~source:cutter_grid
-    ~targets:cutter_points ()
-  |> fun cutters -> Sop_catalog.Boolean_fracture.create
-       ~label:"boolean-fracture" ~resolve_cutter_self_intersections:true
-       ~detriangulation:Pdk.Boolean.Triangles ~require_closed:true
-       ~piece_attribute:"piece" ~cutters source
-  |> Sop_catalog.Normal.create ~label:"fracture-normals"
-       ~owner:Pdk.Attribute.Vertex ~cusp_angle:0.65
-  |> Sop_catalog.Exploded_view.create ~label:"exploded-view"
+(* The document (network, lights, camera) is sketch.plisp. *)
 
 let material = Material.create ~diffuse:(Color.hex_exn "#f2b36d")
     ~ambient:(Color.hex_exn "#422006") ~specular:Color.white ~shininess:48. ()
-
-let lights = [
-  Light.directional ~direction:(Vec3.create (-1.) (-1.5) (-2.))
-    ~diffuse:(Color.hex_exn "#fff7ed") ();
-  Light.directional ~direction:(Vec3.create 1.2 0.4 (-0.8))
-    ~diffuse:(Color.hex_exn "#7dd3fc") ~intensity:0.55 ();
-]
 
 (* [Mesh] carries a packed cook's instance transforms. *)
 type preview = Pieces of Sketch_support.Packed_pieces.t
@@ -121,6 +78,8 @@ let overlay graph preview frame =
   ]
 
 let () =
+  let workspace, source = Prismel_editor.Workspace.open_text ~path:Sketch_source.path
+      ~digest:Sketch_source.digest Sketch_source.text in
   Prismel_editor.Editor3.run
     ~config:{ Sketch.default_config with width = 1200; height = 760;
       title = "Prismel sketch · shattered cube"; domains = Some 1 }
@@ -128,7 +87,6 @@ let () =
       ~azimuth:0.72 ~elevation:0.42 ())
     ~seed:7349L ~grain:2 ~max_entries:24
     ~max_payload_bytes:(256 * 1024 * 1024)
-    ~factories:Sop_catalog.Editor.factories ~lights
-    ~graph:(graph ())
+    ~workspace ?source
     ~prepare:(fun _ -> prepare)
     ~scene3 ~overlay ()
