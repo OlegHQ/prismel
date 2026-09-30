@@ -1,7 +1,7 @@
 (** Every graph gesture as a pure rewrite of the workspace source (plan W3;
     a port of the study's [e1.js] / [e2.js] primitives).
 
-    A gesture names its target by a {!Flow.Workspace.path}: the scope path of
+    A gesture names its target by a {!type:Flow.Workspace.path}: the scope path of
     the binding, then its name ([["flower"; "ring"; "u"]], or [["g"; "@result"]]
     for a body result).  Nothing is stored beside the text, so layout keyed by
     path survives every edit that keeps the path.

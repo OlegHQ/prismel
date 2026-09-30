@@ -1,6 +1,6 @@
-type kind = Preset | Settings
+type kind = Settings
 
-let kind_name = function Preset -> "preset" | Settings -> "settings"
+let kind_name = function Settings -> "settings"
 
 let rec ensure_directory path =
   if path <> "" && path <> "." && not (Sys.file_exists path) then (
@@ -8,7 +8,8 @@ let rec ensure_directory path =
     if parent <> path then ensure_directory parent;
     try Unix.mkdir path 0o755 with Unix.Unix_error (Unix.EEXIST, _, _) -> ())
 
-let save ~filename ~kind ~sketch ~sections =
+(* Written to a temporary file and renamed, so a crash never leaves a torn file. *)
+let write_text ~filename text =
   try
     let directory = Filename.dirname filename in
     ensure_directory directory;
@@ -17,14 +18,21 @@ let save ~filename ~kind ~sketch ~sections =
     Fun.protect ~finally:(fun () ->
       close_out_noerr channel;
       if Sys.file_exists temporary then Sys.remove temporary) (fun () ->
-      Yojson.Safe.to_channel channel (`Assoc [
-        "prismel", `Int 1; "kind", `String (kind_name kind);
-        "sketch", `String sketch; "sections", `Assoc sections ]);
+      output_string channel text;
       close_out channel;
       Sys.rename temporary filename);
     Ok ()
   with Sys_error message -> Error message
      | Unix.Unix_error (error, _, _) -> Error (Unix.error_message error)
+
+let read_text ~filename =
+  try Ok (In_channel.with_open_bin filename In_channel.input_all)
+  with Sys_error message -> Error message
+
+let save ~filename ~kind ~sketch ~sections =
+  write_text ~filename (Yojson.Safe.to_string (`Assoc [
+    "prismel", `Int 1; "kind", `String (kind_name kind);
+    "sketch", `String sketch; "sections", `Assoc sections ]))
 
 let load ~filename ~kind =
   try match Yojson.Safe.from_file filename with

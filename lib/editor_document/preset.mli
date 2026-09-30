@@ -1,15 +1,11 @@
-(** Sketch presets: the full editable document as versioned JSON.
+(** Sketch presets: the editable document as one s-expression file.
 
-    A preset records the scene network (objects, their parents and
-    parameters), every object's own network (a geometry object's SOPs, the
-    World's layers) with tile positions and display nodes, the active camera,
-    sketch settings, and environment view settings. Nodes added from a
-    catalog are recreated from their factory; nodes from the sketch's code
-    graph (including custom, non-catalog SOPs) rebind by their stable node
-    id, so a preset only loads into the sketch whose code produced it.
-    Version 3 saves each network's context, geometry and value nodes, typed
-    drives, Flow layout metadata and stable node ids. It rejects invalid
-    references, port types and vector splits, and rejects older versions. *)
+    A preset is a workspace ({!Workspace_doc.to_text}: the [(workspace ...)]
+    form, then optional [(layout ...)] and [(settings ...)] forms) followed by
+    a [(view {...})] form holding the environment's camera and render
+    settings.  Comments in the source survive save and load.  There is no
+    other format and no older version: a file that is not this fails with a
+    message, and a document that is not a workspace cannot be saved. *)
 
 type loaded = {
   doc : Document.t;
@@ -23,12 +19,14 @@ val default_name : unit -> string
 (** Local time as [YYYY-MM-DD_HH-MM-SS]. *)
 
 val path : directory:string -> name:string -> string
+(** [<directory>/<name>.plisp]. *)
 
 val save :
-  directory:string -> name:string -> sketch:string -> doc:Document.t ->
-  view:Yojson.Safe.t -> (string, string) result
-(** Write [<directory>/<name>.json] through {!Editor_core.Store}'s atomic JSON
-    envelope; returns the path. *)
+  directory:string -> name:string -> doc:Document.t -> view:Yojson.Safe.t ->
+  (string, string) result
+(** Write atomically ({!Editor_core.Store.write_text}); returns the path.
+    [Error] when [doc] has no workspace or the view has nonfinite numbers.
+    The document's current settings are saved. *)
 
 val list : directory:string -> (string * float) list
 (** Preset names with modification times, newest first; empty when the
@@ -37,10 +35,8 @@ val list : directory:string -> (string * float) list
 val delete : directory:string -> name:string -> (unit, string) result
 
 val load :
-  path:string -> code:Procedural.Graph.t ->
-  factories:Procedural.Edit_graph.factory list -> settings:Settings.t ->
-  (loaded, string) result
-(** Rebuild the saved document from [code] and the catalogs; [settings] is
-    the sketch's settings value the saved fields apply to. Corrupt JSON, an
-    unknown version, a missing code node, or an unknown factory is an
-    [Error]; the caller's document is never touched. *)
+  path:string -> factories:Procedural.Edit_graph.factory list ->
+  settings:Settings.t -> (loaded, string) result
+(** Parse, check and lower the file; [settings] is the sketch's settings
+    value the saved fields apply to.  An unreadable, unchecked or unlowerable
+    file is an [Error] carrying the diagnostic text; nothing else is touched. *)

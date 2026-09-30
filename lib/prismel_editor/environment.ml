@@ -293,13 +293,13 @@ module Make (V : VIEWPORT) = struct
   let create ?(layout = Pxui_shell.Layout.default) ?name ?presets ?timeline_frames ?factories
       ?settings ?(commands = []) ?(lights = []) ?world
       ?(camera = V.default_camera ()) ?lens ?(background = Color.hex_exn "#f4f5f0")
-      ?seed ?grain ?domains ?max_entries ?max_payload_bytes ?graph ?program ~prepare ~draw
+      ?seed ?grain ?domains ?max_entries ?max_payload_bytes ?graph ?program ?workspace ~prepare ~draw
       ?(overlay = fun _ _ _ -> Scene.empty) ?(status = fun _ -> None) () =
-    let graph = match graph, program with
-      | Some graph, None -> Ok graph
-      | None, Some _ -> Ok (Sop.points [||])
-      | Some _, Some _ -> Error "Pass either graph or Flow program"
-      | None, None -> Error "Pass a graph or Flow program" in
+    let graph = match graph, program, workspace with
+      | Some graph, None, None -> Ok graph
+      | None, Some _, None | None, None, Some _ -> Ok (Sop.points [||])
+      | None, None, None -> Error "Pass a graph, Flow program or workspace"
+      | _ -> Error "Pass only one of a graph, a Flow program and a workspace" in
     Result.bind graph (fun graph ->
     let open Editor_core.Command in
     let normalize_key = function Input.KeyChar c -> Input.KeyChar (Char.lowercase_ascii c)
@@ -363,7 +363,7 @@ module Make (V : VIEWPORT) = struct
         ~seed_scene:(fun factories scene ->
           V.seed_scene ?lens camera factories (seed_lights lights scene))
         ~layout ?name ?presets ?timeline_frames ?factories ?seed ?grain ?domains
-        ?max_entries ?max_payload_bytes ?program ~graph ~prepare ())))
+        ?max_entries ?max_payload_bytes ?program ?workspace ~graph ~prepare ())))
 
   let graph value = Core.graph value.core
   let document value = Core.document value.core
@@ -377,6 +377,11 @@ module Make (V : VIEWPORT) = struct
   let graph_nodes value = Pxui_graph.node_views value.core.graph_view
   let can_undo value = Editor_core.History.can_undo value.core.Core.history
   let can_redo value = Editor_core.History.can_redo value.core.Core.history
+  let undo_label value = if can_undo value
+    then Some (Editor_core.History.label value.core.Core.history) else None
+  let redo_label value = Editor_core.History.redo_label value.core.Core.history
+  let workspace value = Option.map fst value.core.Core.doc.workspace
+  let edit value op = Result.map (fun core -> { value with core }) (Core.syntax_edit value.core op)
   let level value = match value.core.Core.level with
     | Document.Scene -> None
     | Inside id | Compound {owner = id; _} -> Some (Option.fold ~none:"" ~some:Node.label
@@ -583,14 +588,18 @@ module Make (V : VIEWPORT) = struct
      summary of the view state and undo history. *)
   let crash_dump value directory =
     let core = value.core in
-    ignore (Preset.save ~directory ~name:"document" ~sketch:core.Core.name ~doc:core.doc
+    (* document.txt is the text of any document; document.plisp is the
+       loadable preset, written for workspace documents *)
+    Out_channel.with_open_text (Filename.concat directory "document.txt") (fun channel ->
+      output_string channel (Document.dump core.doc));
+    ignore (Preset.save ~directory ~name:"document" ~doc:core.doc
       ~view:(V.section value.camera value.extra));
     let history = core.history in
     Out_channel.with_open_text (Filename.concat directory "editor.txt") (fun channel ->
       Printf.fprintf channel
         "level: %s\nprojection: %s\nmap view: %b\nguide: %b\nkey hud: %s\nselected: %s\nfocus: %s\n\
          undo: %s (%d entries)\nredo: %s\ncook: %s\nedit error: %s\n\
-         load document.json with Space b after copying it to %s\n"
+         load document.plisp with Space b (workspace documents only) after copying it to %s\n"
         (Core.level_name core)
         (match Core.projection core with Core.List_view -> "list"
           | Graph_view -> "graph" | Text_view -> "text")
@@ -611,14 +620,15 @@ module Make (V : VIEWPORT) = struct
 
   let run ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?lights
       ?world ?camera ?lens ?background ?seed ?grain ?domains ?max_entries ?max_payload_bytes
-      ~config ?graph ?program ~prepare ~draw ?overlay ?status () =
-    let name = Option.value name ~default:(match program with
-      | Some program -> program.Flow_sop.Program.name
-      | None -> String.lowercase_ascii config.Sketch.title) in
+      ~config ?graph ?program ?workspace ~prepare ~draw ?overlay ?status () =
+    let name = Option.value name ~default:(match program, workspace with
+      | Some program, _ -> program.Flow_sop.Program.name
+      | None, Some workspace -> Workspace_doc.name workspace
+      | None, None -> String.lowercase_ascii config.Sketch.title) in
     let init _frame = create ?layout ~name ?presets ?timeline_frames ?factories ?settings
         ?commands ?lights ?world
         ?camera ?lens ?background ?seed ?grain ?domains ?max_entries ?max_payload_bytes
-        ?graph ?program ~prepare ~draw ?overlay ?status () |> Result.get_ok in
+        ?graph ?program ?workspace ~prepare ~draw ?overlay ?status () |> Result.get_ok in
     let update value frame =
       let value = update value frame in
       set_ui_cursor value.core.ui (V.ui_visible value.control);

@@ -103,6 +103,18 @@ let set_expression (document : Flow_sop.Network.t) target text =
         if changed == document then Parameter.no_effects else cook_effects)
         (flow_result (Flow_sop.Network.set_expr ~target expression document)))
 
+(* One gesture on a workspace document: rewrite and re-check the source, then
+   lower it into the document's objects.  Atomic: an error changes nothing. *)
+let syntax_edit ~factories (doc : Editor_document.Document.t) op =
+  match doc.workspace with
+  | None -> Error "This document is not a workspace."
+  | Some (workspace, _) ->
+      let ( let* ) = Result.bind in
+      let flow r = Result.map_error Flow.Diagnostic.to_string r in
+      let* catalog = flow (Flow_sop.Catalog.of_factories ~version:Flow_sop.Manifest.version factories) in
+      let* workspace = flow (Editor_document.Workspace_doc.edit catalog workspace op) in
+      flow (Editor_document.Document.of_workspace ~factories ~previous:doc workspace)
+
 (* Folds one graph intent into the document and view; [placed] collects the
    ids whose tile position this frame set, moved, or removed, so the undo
    document re-reads only those, and [pasted] the (source, copy) id pairs. *)
@@ -275,6 +287,8 @@ let apply factories (document, graph_view, error, effects, placed, pasted) = fun
        | Ok changed -> changed, Pxui_graph.with_document changed graph_view, None,
            Parameter.union_effects effects cook_effects, placed, pasted)
   | Notice _ -> document, graph_view, error, effects, placed, pasted
+  | Syntax_edit _ -> document, graph_view, error, effects, placed, pasted
+  (* the workspace source is not a [Flow_sop.Network]; [syntax_edit] applies it *)
   | Make_unique_requested _ -> document, graph_view, error, effects, placed, pasted
   | Add_requested request ->
       (if String.starts_with ~prefix:"value/" request.factory_key then

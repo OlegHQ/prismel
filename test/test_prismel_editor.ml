@@ -744,100 +744,9 @@ let run () =
   check (Prismel_editor.Editor2.scene environment2 (frame 12) == hidden_scene)
     "unchanged hidden 2D scene composition was rebuilt";
   Prismel_editor.Editor2.close environment2;
-  (* A v3 scene with a custom code node, an added catalog node, edited
-     parameters and authored positions round trips; missing code is rejected. *)
+  (* Presets are workspace documents: a sketch that is not a workspace says
+     so instead of saving, and the prompt owns the keyboard while it is open. *)
   let module Preset = Prismel_editor.Private.Preset in
-  let module Document = Prismel_editor.Private.Document in
-  let depth_schema = Parameter.schema ~name:"test_depth" ~default:2.
-      [Parameter.field ~name:"amount" ~label:"Amount"
-         ~kind:(Parameter.floating ~min:0. ~max:10. ()) ~default:2.
-         ~get:Fun.id ~set:(fun amount _ -> amount) ()] in
-  let code () =
-    let grid = Sop_catalog.Grid.create ~label:"code-grid" ~columns:2 ~rows:2 ~size:1. () in
-    Custom.map ~label:"code-depth" ~operation:"test_depth" ~schema:depth_schema
-      ~values:2. grid (fun ~parameters:_ ~context:_ geometry -> Ok geometry) in
-  let code_graph = code () in
-  let grid_id = List.hd (Node.inputs code_graph) |> Node.id in
-  let directory = Filename.temp_dir "sketch-ui-presets" "" in
-  let fixture = Filename.concat directory "flow.json" in
-  let node ?factory_key ~id ~label ~inputs ?(params = []) ?(x = 0.) () =
-    `Assoc ((["id", `Int id] @ (match factory_key with
-        | Some key -> ["factory_key", `String key] | None -> [])
-      @ ["label", `String label;
-         "inputs", `List (List.map (function Some id -> `Int id | None -> `Null) inputs);
-         "params", `List (List.map (fun (name, value) -> `List [`String name; value]) params);
-         "x", `Float x; "y", `Float (-40.)])) in
-  Yojson.Safe.to_file fixture (`Assoc [
-    "prismel", `Int 1; "kind", `String "preset"; "sketch", `String "test";
-    "version", `Int 3; "view", `Assoc ["fov", `Float 0.5];
-    "scene", `Assoc ["context", `String "scene"; "values", `List []; "drives", `List []; "nodes", `List [
-      node ~factory_key:"geometry" ~id:900003 ~label:"geo1" ~inputs:[None] ();
-      node ~factory_key:"camera" ~id:900002 ~label:"camera" ~inputs:[]
-        ~params:["eye_x", `Assoc ["float", `Float 6.]] ()]; "display", `Int 900003];
-    "networks", `List [`Assoc ["object", `Int 900003; "network", `Assoc [
-    "context", `String "sop"; "values", `List []; "drives", `List [];
-    "nodes", `List [
-      node ~id:grid_id ~label:"code-grid" ~inputs:[] ();
-      node ~id:(Node.id code_graph) ~label:"code-depth" ~inputs:[Some grid_id]
-        ~params:["amount", `Assoc ["float", `Float 7.25]] ();
-      node ~factory_key:"box" ~id:900001 ~label:"box" ~inputs:[] ~x:120. ()];
-    "display", `Int (Node.id code_graph)]]]; "active_camera", `Int 900002;
-    "settings", `List []]);
-  let loaded = Preset.load ~path:fixture ~code:code_graph ~factories:Sop_catalog.Editor.factories
-      ~settings:Prismel_editor.Settings.none |> Result.get_ok in
-  let objects doc = Edit_graph.inspect (Document.scene_graph doc)
-    |> List.map (fun (info : Edit_graph.node_info) -> info.label, info.operation) in
-  let geometry doc = List.find (fun (info : Edit_graph.node_info) ->
-      info.operation = "geometry") (Edit_graph.inspect (Document.scene_graph doc)) in
-  let describe doc =
-    let graph, displayed = Option.get (Document.object_network doc (geometry doc).id) in
-    let label id = Node.label (Option.get (Edit_graph.find graph.Flow_sop.Network.geometry ~node_id:id)) in
-    Option.map label displayed, Edit_graph.inspect graph.Flow_sop.Network.geometry |> List.map (fun (info : Edit_graph.node_info) ->
-      info.label, info.operation, info.parameters, Array.map (Option.map label) info.inputs) in
-  check (List.sort compare (objects loaded.doc) = ["camera", "camera"; "geo1", "geometry"]
-      && fst (describe loaded.doc) = Some "code-depth"
-      && List.length (snd (describe loaded.doc)) = 3
-      && List.exists (fun (_, x, _) -> x = 120.)
-        (Option.get (Document.positions loaded.doc (geometry loaded.doc).id))
-      && loaded.view = `Assoc ["fov", `Float 0.5])
-    "v3 preset did not preserve scene and SOP networks";
-  let saved = Preset.save ~directory ~name:"my wall/1" ~sketch:"test" ~doc:loaded.doc
-      ~view:loaded.view |> Result.get_ok in
-  check (Filename.basename saved = "my_wall_1.json"
-      && List.mem "my_wall_1" (List.map fst (Preset.list ~directory)))
-    "preset save did not sanitize the name or list the file";
-  (match Yojson.Safe.from_file saved with
-   | `Assoc fields -> check (List.assoc_opt "prismel" fields = Some (`Int 1)
-       && List.assoc_opt "kind" fields = Some (`String "preset")
-       && (match List.assoc_opt "sections" fields with
-           | Some (`Assoc sections) ->
-               List.mem_assoc "graph" sections && List.mem_assoc "viewport" sections
-           | _ -> false))
-       "preset lacks the shared sectioned envelope"
-   | _ -> check false "preset is not a JSON object");
-  let reloaded = Preset.load ~path:saved ~code:code_graph
-      ~factories:Sop_catalog.Editor.factories ~settings:Prismel_editor.Settings.none
-    |> Result.get_ok in
-  check (describe reloaded.doc = describe loaded.doc
-      && List.sort compare (objects reloaded.doc) = List.sort compare (objects loaded.doc))
-    "preset v3 round trip changed the scene or geo1's network";
-  check (Preset.delete ~directory ~name:"flow" = Ok ())
-    "fixture preset could not be deleted";
-  check (Result.is_error (Preset.load ~path:saved ~code:(code ())
-      ~factories:Sop_catalog.Editor.factories ~settings:Prismel_editor.Settings.none))
-    "a preset loaded into a sketch without its custom node";
-  let corrupt = Filename.concat directory "corrupt.json" in
-  Out_channel.with_open_text corrupt (fun channel -> output_string channel "{nope");
-  check (Result.is_error (Preset.load ~path:corrupt ~code:code_graph
-      ~factories:Sop_catalog.Editor.factories ~settings:Prismel_editor.Settings.none))
-    "corrupt preset JSON loaded";
-  check (Preset.delete ~directory ~name:"corrupt" = Ok ()
-      && List.map fst (Preset.list ~directory) = ["my_wall_1"])
-    "preset delete did not remove the file";
-
-  (* Workspace presets: Space s + Enter saves; Space b loads a preset whose
-     camera does not follow the viewport, as one undo step, and looking
-     through it renders exactly the render camera's framebuffer. *)
   let presets = Filename.temp_dir "sketch-ui-workspace-presets" "" in
   let mesh_scene mesh = Scene3.create [Scene3.mesh mesh] in
   let environment = Prismel_editor.Editor3.create ~graph ~presets
@@ -858,41 +767,16 @@ let run () =
       = graph_width) "open preset prompt let a workspace shortcut toggle the graph";
   let environment = Prismel_editor.Editor3.update environment
       (frame ~events:[key Input.Enter] 51) in
-  check (List.length (Preset.list ~directory:presets) = 1)
-    "Space s + Enter did not save a preset";
-  (* A copy of that preset whose camera object stops following the view. *)
-  let camera_id = (List.hd (cameras environment)).id in
-  let rec retarget = function
-    | `Assoc fields when List.assoc_opt "id" fields = Some (`Int camera_id) ->
-        `Assoc (List.map (fun (name, value) -> name, match name with
-          | "params" -> `List [
-              `List [`String "follow_viewport"; `Assoc ["bool", `Bool false]];
-              `List [`String "eye_x"; `Assoc ["float", `Float 6.]];
-              `List [`String "eye_y"; `Assoc ["float", `Float 2.]];
-              `List [`String "eye_z"; `Assoc ["float", `Float 6.]]]
-          | _ -> value) fields)
-    | `Assoc fields -> `Assoc (List.map (fun (name, value) ->
-        name, if name = "viewport" then `Assoc ["look_through", `Bool true]
-          else retarget value) fields)
-    | `List items -> `List (List.map retarget items)
-    | json -> json in
-  let first = fst (List.hd (Preset.list ~directory:presets)) in
-  Yojson.Safe.to_file (Preset.path ~directory:presets ~name:"fixed")
-    (retarget (Yojson.Safe.from_file (Preset.path ~directory:presets ~name:first)));
+  check (Preset.list ~directory:presets = [])
+    "a document that is not a workspace saved a preset";
+  (* Looking through the camera fits the film to its aspect (the render
+     resolution); otherwise the whole pane. *)
   let environment = Prismel_editor.Editor3.update environment
-      (frame ~events:[key Input.Space; key (Input.KeyChar 'b')] 52) in
-  let environment = Prismel_editor.Editor3.update environment
-      (frame ~events:[Event.TextInput "fixed"; key Input.Enter] 53) in
-  let environment = Prismel_editor.Editor3.update environment (frame 54) in
-  check (near (eye environment) (Vec3.create 6. 2. 6.)
-      && Prismel_editor.Editor3.look_through environment
-      && not (near (viewport_eye environment) (Vec3.create 6. 2. 6.)))
-    "loading a preset did not restore its fixed render camera and look-through";
-  check (near (Camera.position (Prismel_editor.Editor3.view_camera environment))
-      (Vec3.create 6. 2. 6.))
-    "look-through did not make the view camera the fixed render camera";
-  (* Looking through, the film is the camera's aspect (its render
-     resolution) fitted into the pane; otherwise the whole pane. *)
+      (frame ~events:[key Input.Space; key (Input.KeyChar 'v')] 52) in
+  let environment = Prismel_editor.Editor3.update environment (frame 53) in
+  check (Prismel_editor.Editor3.look_through environment
+      && near (Camera.position (Prismel_editor.Editor3.view_camera environment)) (eye environment))
+    "Space v did not look through the render camera";
   let settings = Prismel_editor.Editor3.render_settings environment in
   let _, _, pane_w, pane_h = (Prismel_editor.Editor3.panes environment (frame 54)).view in
   let fx, fy, fw, fh = Prismel_editor.Editor3.film environment (frame 54) in
@@ -902,13 +786,12 @@ let run () =
       && abs (fw * 1080 - fh * 1920) <= 1920 && fx = (pane_w - fw) / 2 && fy = (pane_h - fh) / 2)
     "look-through did not letterbox the film to the camera's aspect";
   (* Space v toggles look-through off: the view camera is the free viewport
-     with the fixed camera's aperture, focused on the orbit target. *)
+     (a following camera keeps it at the viewport). *)
   let environment = Prismel_editor.Editor3.update environment
       (frame ~events:[key Input.Space; key (Input.KeyChar 'v')] 54) in
   check (not (Prismel_editor.Editor3.look_through environment)
       && near (Camera.position (Prismel_editor.Editor3.view_camera environment))
-           (viewport_eye environment)
-      && (view_lens environment).focus_distance = None)
+           (viewport_eye environment))
     "with look-through off the view camera did not follow the free viewport";
   check (Prismel_editor.Editor3.film environment (frame 54) = (0, 0, pane_w, pane_h))
     "without look-through the film did not fill the view pane";
@@ -929,29 +812,24 @@ let run () =
   let direct camera frame = [Scene.clear (Color.hex_exn "#09090b");
       Scene.view3d ~viewport:(0, 0, frame.Frame.width, frame.height) ~camera
         (mesh_scene mesh)] in
-  (* One window, three frames: look-through, render camera, viewport camera.
-     Use the render camera's 16:9 aspect: look-through letterboxes a 4:3
-     window, whereas the direct camera otherwise renders the entire 4:3
-     viewport. Placement is identity and both scenes have the same lights. *)
+  (* One window, two frames: look-through and the render camera. Use the
+     render camera's 16:9 aspect: look-through letterboxes a 4:3 window,
+     whereas the direct camera otherwise renders the entire 4:3 viewport.
+     Placement is identity and both scenes have the same lights. *)
   let views = [| Prismel_editor.Editor3.scene environment;
-    direct (Prismel_editor.Editor3.render_camera environment);
-    direct (Easy_camera.camera (Prismel_editor.Editor3.camera environment)) |] in
+    direct (Prismel_editor.Editor3.render_camera environment) |] in
   if !native then begin
   let directory = Filename.temp_dir "sketch-ui-look" "" in
-  Sketch.export_state ~directory ~prefix:"look" ~frames:3
+  Sketch.export_state ~directory ~prefix:"look" ~frames:2
     ~config:{ Sketch.default_config with width = 320; height = 180 }
     ~init:(fun _ -> 0) ~update:(fun _ (frame : Frame.t) -> frame.count)
-    ~view:(fun count frame -> views.(min 2 (count - 1)) frame) () |> ignore;
+    ~view:(fun count frame -> views.(min 1 (count - 1)) frame) () |> ignore;
   let png index = In_channel.with_open_bin
       (Filename.concat directory (Printf.sprintf "look-%06d.png" index))
       In_channel.input_all in
-  check (png 0 = png 1 && png 0 <> png 2)
+  check (png 0 = png 1)
     "look-through framebuffer differs from the render camera's"
   end;
-  let environment = Prismel_editor.Editor3.update environment (command 'z' 90) in
-  let environment = Prismel_editor.Editor3.update environment (frame 91) in
-  check (not (near (eye environment) (Vec3.create 6. 2. 6.)))
-    "one undo did not revert the loaded preset";
   Prismel_editor.Editor3.close environment;
 
   (* Finite native smoke: the relative-pointer boundary toggles on a live

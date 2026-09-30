@@ -73,6 +73,9 @@ type change =
   | Make_unique_requested of int
   | Bypass_requested of (int * bool) list
   | Notice of string
+  | Syntax_edit of Flow_sop.Flow_edit.op
+      (** a gesture on a workspace document (plan W3); the host rewrites the
+          source with {!Editor_document.Workspace_doc.edit} *)
   | Add_requested of add_request
   | Insert_requested of insert_request
   | Paste_requested of paste_request

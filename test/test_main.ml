@@ -19,6 +19,7 @@ let tests = [
   "test_workspace_cook", Test_workspace_cook.run;
   "test_workspace_live", Test_workspace_live.run;
   "test_workspace_edit", Test_workspace_edit.run;
+  "test_workspace_doc", Test_workspace_doc.run;
   "dependency_gate", Dependency_gate.run;
   "sop_render_parity", Sop_render_parity.run;
 ]

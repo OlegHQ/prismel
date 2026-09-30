@@ -7,6 +7,10 @@
     still-image renderer. Overlay callbacks receive a frame and coordinates
     local to the current view pane. *)
 
+(** The v4 document a sketch can open the editor on: a checked workspace, its
+    layout by path and its settings (see [Editor_document.Workspace_doc]). *)
+module Workspace_doc = Editor_document.Workspace_doc
+
 (** Sketch-owned settings in the editor document. *)
 module Settings : sig
   type t
@@ -95,20 +99,19 @@ module Private : sig
     val positions : t -> int -> (int * float * float) list option
   end
 
-  (** Presets: the scene, every object's geometry/value/drive network, the
-      active camera, and settings as version 3 JSON with Flow layout. *)
+  (** Presets: the workspace as an s-expression file (source, layout,
+      settings) plus the environment view. Only workspace documents save. *)
   module Preset : sig
     type loaded = { doc : Document.t; view : Yojson.Safe.t }
     val sanitize : string -> string
     val default_name : unit -> string
     val path : directory:string -> name:string -> string
-    val save : directory:string -> name:string -> sketch:string -> doc:Document.t ->
+    val save : directory:string -> name:string -> doc:Document.t ->
       view:Yojson.Safe.t -> (string, string) result
     val list : directory:string -> (string * float) list
     val delete : directory:string -> name:string -> (unit, string) result
-    val load : path:string -> code:Procedural.Graph.t ->
-      factories:Procedural.Edit_graph.factory list -> settings:Settings.t ->
-      (loaded, string) result
+    val load : path:string -> factories:Procedural.Edit_graph.factory list ->
+      settings:Settings.t -> (loaded, string) result
   end
 
   module Schedule : sig
@@ -211,6 +214,7 @@ module Editor3 : sig
     ?max_payload_bytes:int ->
     ?graph:Procedural.Graph.t ->
     ?program:Flow_sop.Program.t ->
+    ?workspace:Workspace_doc.t ->
     prepare:(Settings.t -> Procedural.Session.output -> ('prepared, string) result) ->
     scene3:(Procedural.Graph.t -> 'prepared -> Prismel.Scene3.t) ->
     ?overlay:(Procedural.Graph.t -> 'prepared option -> Prismel.Frame.t ->
@@ -258,6 +262,18 @@ module Editor3 : sig
       Ctrl-Y step it. *)
   val can_undo : 'prepared t -> bool
   val can_redo : 'prepared t -> bool
+  val undo_label : 'prepared t -> string option
+  (** The label of the edit undo would revert ("Repeat", "Connect", ...). *)
+
+  val redo_label : 'prepared t -> string option
+
+  val workspace : 'prepared t -> Workspace_doc.t option
+  (** The v4 document when the editor was opened on one ([?workspace]). *)
+
+  val edit : 'prepared t -> Flow_sop.Flow_edit.op -> ('prepared t, string) result
+  (** One gesture on the workspace: rewrite the source, re-check, lower into
+      the scene's objects, recook, and record one history entry named by the
+      op. An error changes nothing. *)
   val scene : 'prepared t -> Prismel.Frame.t -> Prismel.Scene.t
   val close : 'prepared t -> unit
   val crash_dump : 'prepared t -> string -> unit
@@ -382,6 +398,7 @@ module Editor3 : sig
     config:Prismel.Sketch.config ->
     ?graph:Procedural.Graph.t ->
     ?program:Flow_sop.Program.t ->
+    ?workspace:Workspace_doc.t ->
     prepare:(Settings.t -> Procedural.Session.output -> ('prepared, string) result) ->
     scene3:(Procedural.Graph.t -> 'prepared -> Prismel.Scene3.t) ->
     ?overlay:(Procedural.Graph.t -> 'prepared option -> Prismel.Frame.t ->
@@ -415,6 +432,7 @@ module Editor2 : sig
     ?max_payload_bytes:int ->
     ?graph:Procedural.Graph.t ->
     ?program:Flow_sop.Program.t ->
+    ?workspace:Workspace_doc.t ->
     prepare:(Settings.t -> Procedural.Session.output -> ('prepared, string) result) ->
     scene2:(Procedural.Graph.t -> 'prepared -> Prismel.Scene.t) ->
     ?overlay:(Procedural.Graph.t -> 'prepared option -> Prismel.Frame.t ->
@@ -441,6 +459,18 @@ module Editor2 : sig
   val set_settings : 'prepared t -> Settings.t -> 'prepared t
   val can_undo : 'prepared t -> bool
   val can_redo : 'prepared t -> bool
+  val undo_label : 'prepared t -> string option
+  (** The label of the edit undo would revert ("Repeat", "Connect", ...). *)
+
+  val redo_label : 'prepared t -> string option
+
+  val workspace : 'prepared t -> Workspace_doc.t option
+  (** The v4 document when the editor was opened on one ([?workspace]). *)
+
+  val edit : 'prepared t -> Flow_sop.Flow_edit.op -> ('prepared t, string) result
+  (** One gesture on the workspace: rewrite the source, re-check, lower into
+      the scene's objects, recook, and record one history entry named by the
+      op. An error changes nothing. *)
   val scene : 'prepared t -> Prismel.Frame.t -> Prismel.Scene.t
   val close : 'prepared t -> unit
   val crash_dump : 'prepared t -> string -> unit
@@ -477,6 +507,7 @@ module Editor2 : sig
     config:Prismel.Sketch.config ->
     ?graph:Procedural.Graph.t ->
     ?program:Flow_sop.Program.t ->
+    ?workspace:Workspace_doc.t ->
     prepare:(Settings.t -> Procedural.Session.output -> ('prepared, string) result) ->
     scene2:(Procedural.Graph.t -> 'prepared -> Prismel.Scene.t) ->
     ?overlay:(Procedural.Graph.t -> 'prepared option -> Prismel.Frame.t ->

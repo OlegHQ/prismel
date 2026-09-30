@@ -30,6 +30,11 @@ type t = {
   compiled_ids : int Flow_sop.Instance_path.Map.t;
   active_camera : int option;  (* a camera object *)
   settings : Settings.t;
+  workspace : (Workspace_doc.t * Flow_sop.Lower.t) option;
+  (* the authored v4 document and its lowering when this is a workspace:
+     [scene] and [networks] are then that lowering, one geometry object per
+     [sop] graph; the lowering (compiled ids, volatile set) is history state
+     so undo restores both *)
 }
 
 let flow_definitions value = String_map.fold (fun name definition definitions ->
@@ -1202,3 +1207,124 @@ let object_network value id = Option.map (fun (network : network) ->
 let positions value id = Option.map (fun (network : network) ->
     Layout.fold (fun node (x, y) list -> (node, x, y) :: list) network.layout.at [])
     (Layout.find_opt id value.networks)
+
+
+(* The document of a workspace: one geometry object per [sop] graph holding
+   its lowered network.  [previous] keeps the object ids (matched by graph
+   name), the tile layout and the lowering's ids stable across edits. *)
+let of_workspace ~factories ?previous (workspace : Workspace_doc.t) =
+  let ( let* ) = Result.bind in
+  let compiled_ids, sites = match Option.bind previous (fun doc -> doc.workspace) with
+    | Some (_, (lowered : Flow_sop.Lower.t)) -> Some lowered.compiled_ids, Some lowered.sites
+    | None -> None, None in
+  let* lowered = Flow_sop.Lower.workspace ~factories ?compiled_ids ?sites workspace.source in
+  let scene_graph = match previous with
+    | Some doc -> doc.scene.graph.geometry | None -> Edit_graph.empty in
+  let names = List.map (fun (g : Flow_sop.Lower.graph) -> g.name) lowered.graphs in
+  let geometry (info : Edit_graph.node_info) = info.operation = "geometry" in
+  let stale = List.filter_map (fun (info : Edit_graph.node_info) ->
+    if geometry info && not (List.mem (Node.label info.node) names) then Some info.id else None)
+    (Edit_graph.inspect scene_graph) in
+  let scene_graph = Edit_graph.remove_nodes stale scene_graph in
+  let flow r = Result.map_error (Flow.Diagnostic.error ~code:"E_DOCUMENT") r in
+  let* scene_graph, objects = List.fold_left (fun state (g : Flow_sop.Lower.graph) ->
+    let* scene_graph, objects = state in
+    match List.find_opt (fun (info : Edit_graph.node_info) ->
+        geometry info && Node.label info.node = g.name) (Edit_graph.inspect scene_graph) with
+    | Some info -> Ok (scene_graph, (info.id, g) :: objects)
+    | None ->
+        let* node = flow (Edit_graph.instantiate_optional Objects.Geometry.factory [ None ]) in
+        let node = Node.relabel g.name node in
+        let* scene_graph = flow (Edit_graph.add_node ~factory:Objects.Geometry.factory
+          ~inputs:[| None |] node scene_graph) in
+        Ok (scene_graph, (Node.id node, g) :: objects)) (Ok (scene_graph, [])) lowered.graphs in
+  let objects = List.rev objects in
+  let scene = match previous with
+    | Some doc -> doc.scene | None -> of_geometry ~context:Flow.Context.Scene Edit_graph.empty None in
+  let* scene_network = Flow_sop.Network.with_geometry scene_graph scene.graph in
+  let first = match objects with (id, _) :: _ -> Some id | [] -> None in
+  let scene = { scene with graph = scene_network;
+    displayed = (match scene.displayed with
+      | Some id when Edit_graph.find scene_graph ~node_id:id <> None -> Some id | _ -> first) } in
+  let settings = match previous with Some doc -> doc.settings | None -> workspace.settings in
+  let networks = List.fold_left (fun networks (id, (g : Flow_sop.Lower.graph)) ->
+    let layout = match previous with
+      | Some doc -> (match Layout.find_opt id doc.networks with
+          | Some (n : network) -> n.layout | None -> Canvas.empty)
+      | None -> Canvas.empty in
+    Layout.add id { context = Flow.Context.Sop; graph = g.network; layout; displayed = g.root } networks)
+    Layout.empty objects in
+  let doc = { scene; networks; definitions = String_map.empty;
+    compiled_ids = Flow_sop.Instance_path.Map.empty;
+    active_camera = Option.bind previous (fun doc -> doc.active_camera); settings;
+    workspace = Some ({ workspace with settings }, lowered) } in
+  Ok doc
+
+
+(* A deterministic text of everything the editor keeps in a document, for
+   crash reports and for tests that compare two documents.  Not loadable:
+   only a workspace has a text form ([Preset]). *)
+let dump value =
+  let b = Buffer.create 4096 in
+  let line fmt = Printf.ksprintf (fun s -> Buffer.add_string b s; Buffer.add_char b '\n') fmt in
+  let pv : Param.value -> string = function
+    | Bool_value x -> string_of_bool x | Int_value x -> string_of_int x
+    | Float_value x -> Printf.sprintf "%h" x
+    | Text_value x | Choice_value x -> Printf.sprintf "%S" x in
+  let fields fs = String.concat " " (List.map (fun (f : Param.field_view) ->
+    f.name ^ "=" ^ pv f.current) fs) in
+  let pair (x, y) = Printf.sprintf "[%h %h]" x y in
+  let layout (l : Canvas.t) =
+    Layout.iter (fun id v -> line "  at %d %s" id (pair v)) l.at;
+    Layout.iter (fun id v -> line "  level %d %s" id (match v with
+      | Canvas.Point -> "point" | Chip -> "chip" | Card -> "card" | Full -> "full")) l.level;
+    Layout.iter (fun id v -> line "  pinned %d %b" id v) l.pinned;
+    Layout.iter (fun id rows -> line "  rows %d %s" id (String.concat "," (List.map (fun (k, v) ->
+      k ^ ":" ^ string_of_bool v) (Canvas.String_map.bindings rows)))) l.rows;
+    Layout.iter (fun id split -> line "  split %d %s" id
+      (String.concat "," (Canvas.String_set.elements split))) l.split;
+    Canvas.Port_map.iter (fun (id, port) pts -> line "  bend %d %s %s" id port
+      (String.concat " " (List.map pair pts))) l.bends;
+    Canvas.Port_set.iter (fun (id, port) -> line "  wireless %d %s" id port) l.wireless in
+  let graph (n : Flow_sop.Network.t) =
+    List.iter (fun (info : Edit_graph.node_info) ->
+      line "  node %d %s %S %s slots=%s inputs=%s%s %s" info.id
+        (Option.value ~default:info.operation (Edit_graph.node_factory_key n.geometry ~node_id:info.id))
+        info.label (if info.bypass then "bypass" else "-")
+        (String.concat "," (Option.value ~default:[] (Edit_graph.node_slot_names n.geometry ~node_id:info.id)))
+        (String.concat "," (Array.to_list (Array.map (function Some i -> string_of_int i | None -> "_") info.inputs)))
+        (match Edit_graph.root n.geometry with Some r when r = info.id -> " root" | _ -> "")
+        (fields (Node.parameter_fields info.node))) (Edit_graph.inspect n.geometry);
+    List.iter (fun (v : Flow.Graph.node) ->
+      line "  value %d %S %s" v.id v.label (fields (Flow.Value_kind.fields v.parameters)))
+      (Flow.Graph.inspect n.values);
+    Flow_sop.Port.Map.iter (fun (p : Flow_sop.Port.t) drive -> line "  drive %d.%s %s" p.node p.path
+      (match drive with
+       | Flow_sop.Drive.Wire w -> Printf.sprintf "wire %d.%s" w.node w.output
+       | Expr e -> "expr " ^ Flow.Expr.sexp e
+       | Live _ -> "live")) n.drives;
+    Flow_sop.Network.Int_map.iter (fun id (i : Flow_sop.Network.instance) ->
+      line "  instance %d %s" id i.definition) n.instances in
+  let net name (n : network) =
+    line "%s %s display=%s" name (Flow.Context.name n.context)
+      (match n.displayed with Some d -> string_of_int d | None -> "-");
+    graph n.graph; layout n.layout in
+  net "scene" value.scene;
+  Layout.iter (fun id n -> net (Printf.sprintf "object %d" id) n) value.networks;
+  String_map.iter (fun name (d : definition) ->
+    line "definition %s display=%s" name (match d.displayed with Some x -> string_of_int x | None -> "-");
+    let port side (p : Flow_sop.Network.interface_port) =
+      line "  %s %S %s %S default=%s" side p.name (Flow.Port_type.name p.ty) p.label
+        (match p.default with
+         | None -> "-"
+         | Some (Flow_sop.Port.Scalar v) -> pv v
+         | Some (Vector (x, y, z)) -> Printf.sprintf "[%h %h %h]" x y z) in
+    List.iter (port "input") d.spec.inputs;
+    List.iter (port "output") d.spec.outputs;
+    graph d.spec.body;
+    layout d.layout) value.definitions;
+  Flow_sop.Instance_path.Map.iter (fun path id ->
+    line "compiled %s %d" (String.concat "/" (List.map string_of_int path)) id) value.compiled_ids;
+  line "camera %s" (match value.active_camera with Some c -> string_of_int c | None -> "-");
+  line "settings %s" (fields (Settings.fields value.settings));
+  Buffer.contents b

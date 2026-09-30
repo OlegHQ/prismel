@@ -1,6 +1,13 @@
-(** Versioned, atomic JSON persistence shared by editor panes. *)
+(** Atomic file writes, and the JSON persistence of user preferences and
+    viewport state.  Documents (presets) are s-expressions, see
+    [Editor_document.Preset]. *)
 
-type kind = Preset | Settings
+type kind = Settings
+
+val write_text : filename:string -> string -> (unit, string) result
+(** Write through a temporary file and a rename; creates the directory. *)
+
+val read_text : filename:string -> (string, string) result
 
 val save : filename:string -> kind:kind -> sketch:string ->
   sections:(string * Yojson.Safe.t) list -> (unit, string) result

@@ -1,6 +1,7 @@
 
 open Editor_document
 module Settings = Settings
+module Workspace_doc = Workspace_doc
 
 type layout = Pxui_shell.Layout.config = {
   view_ratio : float;
@@ -33,17 +34,17 @@ module Editor3 = struct
   let look_through value = (extra value).Viewport3.look_through
 
   let create ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?lights ?world ?camera ?lens
-      ?background ?seed ?grain ?domains ?max_entries ?max_payload_bytes ?graph ?program ~prepare ~scene3
+      ?background ?seed ?grain ?domains ?max_entries ?max_payload_bytes ?graph ?program ?workspace ~prepare ~scene3
       ?overlay ?status () =
     create ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?lights ?world ?camera ?lens
-      ?background ?seed ?grain ?domains ?max_entries ?max_payload_bytes ?graph ?program ~prepare
+      ?background ?seed ?grain ?domains ?max_entries ?max_payload_bytes ?graph ?program ?workspace ~prepare
       ~draw:scene3 ?overlay ?status ()
 
   let run ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?lights ?world ?camera ?lens
-      ?background ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~config ?graph ?program ~prepare
+      ?background ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~config ?graph ?program ?workspace ~prepare
       ~scene3 ?overlay ?status () =
     run ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?lights ?world ?camera ?lens
-      ?background ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~config ?graph ?program ~prepare
+      ?background ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~config ?graph ?program ?workspace ~prepare
       ~draw:scene3 ?overlay ?status ()
 end
 
@@ -51,17 +52,17 @@ module Editor2 = struct
   include Environment.Make (Viewport2)
 
   let create ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?lights ?world ?camera ?background
-      ?seed ?grain ?domains ?max_entries ?max_payload_bytes ?graph ?program ~prepare ~scene2
+      ?seed ?grain ?domains ?max_entries ?max_payload_bytes ?graph ?program ?workspace ~prepare ~scene2
       ?overlay ?status () =
     create ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?lights ?world ?camera ?background
-      ?seed ?grain ?domains ?max_entries ?max_payload_bytes ?graph ?program ~prepare
+      ?seed ?grain ?domains ?max_entries ?max_payload_bytes ?graph ?program ?workspace ~prepare
       ~draw:scene2 ?overlay ?status ()
 
   let run ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?lights ?world ?camera ?background
-      ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~config ?graph ?program ~prepare
+      ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~config ?graph ?program ?workspace ~prepare
       ~scene2 ?overlay ?status () =
     run ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?lights ?world ?camera ?background
-      ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~config ?graph ?program ~prepare
+      ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~config ?graph ?program ?workspace ~prepare
       ~draw:scene2 ?overlay ?status ()
 end
 

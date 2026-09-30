@@ -24,7 +24,7 @@ let run () =
       current := update !current (frame ?buttons ?keys ?delta mouse events !count) in
     let snapshot () =
       dump !current directory;
-      Yojson.Safe.from_file (Filename.concat directory "document.json") in
+      In_channel.with_open_bin (Filename.concat directory "document.txt") In_channel.input_all in
     let still before message = check (snapshot () = before) (name ^ ": " ^ message) in
     let modal_gestures () =
       step ~mouse:(330., 300.) (wheel (330., 300.));
@@ -62,14 +62,13 @@ let run () =
     still original "same-frame popup dismissal leaked a press/move/release/wheel";
     step [];
     let rotation () =
-      let open Yojson.Safe.Util in
-      let world = snapshot () |> member "sections" |> member "graph"
-        |> member "scene" |> member "nodes" |> to_list
-        |> List.find (fun node -> member "factory_key" node = `String "world") in
-      world |> member "params" |> to_list
-        |> List.find_map (function
-          | `List [`String "rotation"; value] -> Some (member "float" value |> to_number)
-          | _ -> None) |> Option.get in
+      let line = String.split_on_char '\n' (snapshot ())
+        |> List.find (fun line -> String.length line > 0 && String.trim line <> ""
+          && List.mem "world" (String.split_on_char ' ' line) && String.starts_with ~prefix:"  node" line) in
+      String.split_on_char ' ' line |> List.find_map (fun word ->
+        if String.starts_with ~prefix:"rotation=" word
+        then Some (float_of_string (String.sub word 9 (String.length word - 9))) else None)
+      |> Option.get in
     let original = snapshot () and before = camera !current in
     step ~mouse:(140., 300.) [key Input.Shift;
       Event.MousePressed (Input.LeftButton, (100., 300.));

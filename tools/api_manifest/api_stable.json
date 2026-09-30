@@ -1,7 +1,7 @@
 {
   "generator": "tools/api_manifest/api_manifest.exe",
   "kind": "stable_high_level",
-  "module_count": 160,
+  "module_count": 161,
   "modules": [
     {
       "api_sha256": "eb1e27ba00670ec546b87d8ec8c8c27cd7d95016240fecb7d6422d45e5154fce",
@@ -22,13 +22,13 @@
       "source_sha256": "a72493b08075ea7097b9cde98b68a33ab316b458c4bdac09543d4ed0c2df743c"
     },
     {
-      "api_sha256": "c720b345045b4ff759e69018c4fbc8217192f0356cc83f1892a18af03ca335ab",
+      "api_sha256": "3db8787f8c45d387fc6984c398bd9f571c02081d664fddd99317a792684365c2",
       "excluded_legacy_symbols": [],
       "library": "editor_core",
       "module": "Store",
       "source": "lib/editor_core/store.mli",
-      "source_bytes": 1093,
-      "source_sha256": "1eb2e992e75eef835c99ff6d54e455b00cbaaa5a42cc72c2fcac8a3bef9b7c72"
+      "source_bytes": 1392,
+      "source_sha256": "75b1ce2389b631ba8fcd0be11389c4aee2efe2a7d4b09a449cc6005acfc45848"
     },
     {
       "api_sha256": "de2a4d993401f03d4b4ec2b5840500d506f110d76478f860518a11ca2f9736f2",
@@ -157,13 +157,13 @@
       "source_sha256": "7ea59bb71a00ae45241b97dd5ba4c8e69dada0706caf2f94cfe8ab9b0c1ef524"
     },
     {
-      "api_sha256": "35ea7d158c28c49db2c4fcb0dcfaedda7408aaeefc37c08b94071f861182dca9",
+      "api_sha256": "13f14a9ce39970b84054ffba3e5a7aaf1029657d65b848c40e79e85e104c58a5",
       "excluded_legacy_symbols": [],
       "library": "flow",
       "module": "Workspace",
       "source": "lib/flow/workspace.mli",
-      "source_bytes": 4916,
-      "source_sha256": "6958545b0f2e3719ed972adae62494ec7c8005157a7e3cf1c9edb898a0b53578"
+      "source_bytes": 5076,
+      "source_sha256": "571aff79c81b01e4e528f0c2b2a52d496cdca1bc4a17144b5dbb81e84a31e10a"
     },
     {
       "api_sha256": "681fc36f6599449647230e96647736f04e6f3157e44d83d87e78e87ed801d36c",
@@ -227,6 +227,15 @@
       "source": "lib/flow_sop/exposure.mli",
       "source_bytes": 394,
       "source_sha256": "f9a00432e3188505de724250128700d7c52caef05e29fd8016748a2e5baabdce"
+    },
+    {
+      "api_sha256": "2f796e238bda5151e20ba3b4ed397693b7b11be0fe2f2558237e22348e511f5a",
+      "excluded_legacy_symbols": [],
+      "library": "flow_sop",
+      "module": "Flow_edit",
+      "source": "lib/flow_sop/flow_edit.mli",
+      "source_bytes": 5614,
+      "source_sha256": "cbba5c70585d8885c68134065597d4a7f22ec8963a7b2ffb443651cf72975ae4"
     },
     {
       "api_sha256": "7eecb828ca9bea7e3ce0fc08ea6b4c2ba9eb3e6bc00e13a1aaed772af8fc09e9",
@@ -1241,13 +1250,13 @@
       "source_sha256": "7d4d28d6f0b748a24c1fabb8e0a081a7d3a7f7d0b47591333c667b625cad58de"
     },
     {
-      "api_sha256": "2667c40ec32921d6dc2856e96f5ae1e9d3f4374bfe66823ead33881bc13adde5",
+      "api_sha256": "4ddc00f8c5928122ed0cc06b2ff5d2cddd1f9b16971256fd7343f44de1007282",
       "excluded_legacy_symbols": [],
       "library": "prismel_editor",
       "module": "Prismel_editor",
       "source": "lib/prismel_editor/prismel_editor.mli",
-      "source_bytes": 21859,
-      "source_sha256": "6baa940a1b7ab70d729d983b7b0d3db5c0ac8b8e6cc5a6d49f0fc11a1fc465fa"
+      "source_bytes": 23318,
+      "source_sha256": "16005189f4833392b30d8720025e4846d188f8474586c2c2a1e43547cd0c34d6"
     },
     {
       "api_sha256": "721b7d85a90ba1f309807d0b30c6f9fe611cb973e76ebd72ead992367fdc7d49",
@@ -1394,13 +1403,13 @@
       "source_sha256": "056bdd75828d575408612869460a007ce313f10baf74a88a027ae2a98ebb19b7"
     },
     {
-      "api_sha256": "1786bf83c168cbc0f8c70fa25406993f9722a11944df8b0c5265745e2800127e",
+      "api_sha256": "cc7bd7f51cfb0ddeceee269e14e2fc7d3fe9c163a6e2faf13207a1794bedbc14",
       "excluded_legacy_symbols": [],
       "library": "pxui_graph",
       "module": "Pxui_graph",
       "source": "lib/pxui_graph/pxui_graph.mli",
-      "source_bytes": 10609,
-      "source_sha256": "f18fa98b73d6aaf12311a1f0fd3667e98e072c9667f08fe0d9fcd6c60218e3c9"
+      "source_bytes": 10790,
+      "source_sha256": "d8adea09af30d67444492595e58b828cb631b2d8b16c8b3b1c1cc995b4f71954"
     },
     {
       "api_sha256": "c0068793a9eb554212e19d6c7e7f7339fdb1aa1ffa6cf78456b202f94e93708e",

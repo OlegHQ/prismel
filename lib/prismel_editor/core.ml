@@ -634,8 +634,20 @@ let initial_doc ~settings ~seed_scene ?program code_graph =
         layout = Editor_core.Network_layout.empty; displayed};
     definitions;
     compiled_ids = Flow_sop.Instance_path.Map.empty;
-    active_camera = None; settings },
-  Node.id geometry
+    active_camera = None; settings; workspace = None },
+  Some (Node.id geometry)
+
+(* The document a workspace starts from: one geometry object per [sop] graph
+   beside the sketch's own scene objects ([seed_scene]). *)
+let workspace_doc ~factories ~seed_scene workspace =
+  let ( let* ) = Result.bind in
+  let flow r = Result.map_error Flow.Diagnostic.to_string r in
+  let* doc = flow (Document.of_workspace ~factories workspace) in
+  let scene = seed_scene doc.scene.graph.geometry in
+  let* graph = flow (Flow_sop.Network.with_geometry scene doc.scene.graph) in
+  let doc = { doc with scene = { doc.scene with graph };
+    active_camera = List.nth_opt (Objects.ids "camera" scene) 0 } in
+  Ok (doc, List.nth_opt (Objects.ids "geometry" scene) 0)
 
 (* A World object for [world], with its layer network. *)
 let add_world (doc : Document.t) world =
@@ -672,9 +684,14 @@ let create ?(settings = Settings.none) ?(keymap = Leader.keymap)
     ?(seed = 0L) ?(grain = 16_384)
     ?domains ?(max_entries = 512)
     ?(max_payload_bytes = 256 * 1024 * 1024)
-    ?program ~graph ~prepare () =
-  let doc, geometry = initial_doc ~settings ?program
-      ~seed_scene:(seed_scene factories) graph in
+    ?program ?workspace ~graph ~prepare () =
+  let factories = if workspace <> None && factories = [] then Sop_catalog.Editor.factories
+    else factories in
+  let opened = match workspace with
+    | None -> Ok (initial_doc ~settings ?program ~seed_scene:(seed_scene factories) graph)
+    | Some workspace -> workspace_doc ~factories ~seed_scene:(seed_scene factories)
+        { workspace with Workspace_doc.settings } in
+  Result.bind opened (fun (doc, geometry) ->
   let doc = match Option.map (add_world doc) world with
     | Some (Ok doc) -> doc | Some (Error _) | None -> doc in
   Result.bind (Result.map_error Flow.Diagnostic.to_string
@@ -686,7 +703,9 @@ let create ?(settings = Settings.none) ?(keymap = Leader.keymap)
         | None -> Filename.concat (Filename.concat
             (Option.value ~default:"." (Sys.getenv_opt "HOME")) ".prismel")
             (Preset.sanitize name) in
-      let level = if scene_level then Document.Scene else Inside geometry in
+      let level = match geometry with
+        | Some id when not scene_level -> Document.Inside id
+        | Some _ | None -> Document.Scene in
       let preferences = preferences_file () in
       let guide = match read_preferences preferences with
         | Ok values -> Option.value ~default:true (Editor_core.Store.Settings.bool values "guide")
@@ -713,10 +732,12 @@ let create ?(settings = Settings.none) ?(keymap = Leader.keymap)
             (Network_view.of_view network view))
           doc (Document.Scene :: List.map (fun (id, _) -> Document.Inside id)
             (Document.Layout.bindings doc.networks)) in
+      Option.iter (fun (_, lowered) -> Cook.set_volatile cook (Flow_sop.Lower.is_volatile lowered))
+        doc.workspace;
       { value with doc; history = Editor_core.History.create doc;
         graph_view = view_of { value with doc } level initial_frame })
     (Cook.create ~prepare ~seed ~grain ?domains ~max_entries
-      ~max_payload_bytes ()))
+      ~max_payload_bytes ())))
 
 let truncate limit text = if String.length text <= limit then text
   else if limit <= 3 then String.make (max 0 limit) '.'
@@ -974,6 +995,7 @@ let intent_label = function
   | Split_requested {group; _} -> Some ("Split " ^ group)
   | Row_pinned {path; _} -> Some ("Pin " ^ path)
   | Cut_wires_requested _ -> Some "Cut wires"
+  | Syntax_edit op -> Some (Flow_sop.Flow_edit.label op)
   | Selected _ | View_changed | Connection_selected _ | Frame_camera_requested _
   | Open_requested _ | Notice _ -> None
 
@@ -1688,14 +1710,13 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
     | Some (Run_action _) -> result.prompt, value.notice, None
     | Some (Save_preset_file name) ->
         let notice = match Preset.save ~directory:value.presets ~name
-            ~sketch:value.name ~doc:value.doc ~view:(view_state result.panel) with
+            ~doc:value.doc ~view:(view_state result.panel) with
           | Ok path -> "Saved preset " ^ Filename.basename path
           | Error message -> "Preset not saved: " ^ message in
         result.prompt, Some notice, None
     | Some (Load_preset_file name) ->
         (match Preset.load ~path:(Preset.path ~directory:value.presets ~name)
-            ~code:value.code_graph ~factories:value.factories
-            ~settings:value.doc.settings with
+            ~factories:value.factories ~settings:value.doc.settings with
          | Ok preset ->
              (match Document.resolve_level ~scene_level:value.scene_level preset.doc Document.Scene with
               | Ok _ -> result.prompt, Some ("Loaded preset " ^ name), Some preset
@@ -1764,6 +1785,16 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
           else { doc with active_camera } in
         if result.settings == doc.settings then doc
         else { doc with settings = result.settings } in
+  (* Workspace gestures: one rewrite of the source per gesture, lowered into
+     the document, one history entry named by the op. *)
+  let next, result = if Option.is_some loaded then next, result else
+    List.fold_left (fun (next, result) change -> match change with
+      | Pxui_graph.Syntax_edit op ->
+          (match Doc.syntax_edit ~factories:value.factories next op with
+           | Ok doc -> doc, { (result : _ frame_result) with label = Flow_sop.Flow_edit.label op;
+               effects = Parameter.union_effects result.effects Doc.cook_effects }
+           | Error message -> next, { (result : _ frame_result) with edit_error = Some message })
+      | _ -> next, result) (next, result) result.graph_changes in
   let next, world_label = if in_world value
     then world_keys value next result.graph_view actions else next, None in
   (* Space e opens the World, creating the singleton on first use. *)
@@ -1962,6 +1993,7 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
           Some (Printf.sprintf "graph.bend:%s:%d:%d" (level_key value.level) node slot)
       | Set_parameter_requested { node; path; _ } ->
           Some (Printf.sprintf "graph.scrub:%s:%d:%s" (level_key value.level) node path)
+      | Syntax_edit op -> Flow_sop.Flow_edit.gesture op
       | _ -> None) result.graph_changes with
     | Some key -> Some key
     | None ->
@@ -2012,7 +2044,7 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
     |> Result.get_ok in
   let value' = { value with doc; level; workspace = result.workspace } in
   let graph_view = if level <> value.level then view_of value' level frame
-    else if undone || Option.is_some loaded then
+    else if undone || Option.is_some loaded || doc.workspace != value.doc.workspace then
       Network_view.to_view (network value') result.graph_view
       |> Pxui_graph.with_flagged (if level = Document.Scene then doc.active_camera else None)
     else
@@ -2083,6 +2115,10 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
   let frame_request = match result.frame_request, value'.level with
     | Some node, Inside id when kind value' id = Some "geometry" -> Some (id, node)
     | _ -> None in
+  if doc.workspace != value.doc.workspace then
+    Cook.set_volatile value.cook (match doc.workspace with
+      | Some (_, lowered) -> Flow_sop.Lower.is_volatile lowered
+      | None -> fun _ -> false);
   let cooked = Cook.update ~live:result.live_cook
       ~definitions:doc.definitions ~compiled_ids:doc.compiled_ids
       value.cook ~settings:doc.settings
@@ -2173,6 +2209,25 @@ let set_settings value settings =
   let doc = { value.doc with settings } in
   { value with doc; cook = Cook.force value.cook;
     history = commit ~label:"Settings" doc value.history }
+
+(* A host-driven gesture on a workspace document ([Editor3.edit], W11's
+   entry): the same reduction as a [Syntax_edit] intent, committed as one
+   history entry named by the op ([Gesture] merge for a scrub). *)
+let syntax_edit value op =
+  Result.bind (Doc.syntax_edit ~factories:value.factories value.doc op) (fun doc ->
+    let level = Result.get_ok
+      (Document.resolve_level ~scene_level:value.scene_level doc value.level) in
+    let value' = { value with doc; level } in
+    Cook.set_volatile value.cook (match doc.workspace with
+      | Some (_, lowered) -> Flow_sop.Lower.is_volatile lowered
+      | None -> fun _ -> false);
+    Ok { value' with
+      history = commit ~label:(Flow_sop.Flow_edit.label op)
+        ~merge:(Option.fold ~none:Editor_core.History.Step
+          ~some:(fun key -> Editor_core.History.Gesture key) (Flow_sop.Flow_edit.gesture op))
+        doc value.history;
+      graph_view = Network_view.to_view (network value') value.graph_view
+        |> Pxui_graph.with_flagged (if level = Document.Scene then doc.active_camera else None) })
 
 (* The scene's World at timeline [time] (the day cycle advances with it). *)
 let world value ~time = match Objects.ids "world" (scene value) with

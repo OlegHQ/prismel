@@ -164,7 +164,7 @@ let run () =
       Array.iter (fun file -> Sys.remove (Filename.concat directory file)) (Sys.readdir directory);
       Unix.rmdir directory) (fun () ->
     let snapshot env = E.crash_dump env directory;
-      Yojson.Safe.from_file (Filename.concat directory "document.json") in
+      In_channel.with_open_bin (Filename.concat directory "document.txt") In_channel.input_all in
     let positions env = E.graph_nodes env |> List.map (fun tile ->
       tile.Pxui_graph.id, tile.bounds) in
     let before = snapshot env and at = positions env in

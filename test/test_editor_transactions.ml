@@ -61,7 +61,7 @@ let run () =
       Array.iter (fun file -> Sys.remove (Filename.concat directory file)) (Sys.readdir directory);
       Unix.rmdir directory) (fun () ->
       let snapshot () = E.crash_dump !current directory;
-        Yojson.Safe.from_file (Filename.concat directory "document.json") in
+        In_channel.with_open_bin (Filename.concat directory "document.txt") In_channel.input_all in
       let tile id = List.find (fun tile -> tile.Pxui_graph.id = id) (E.graph_nodes !current) in
       let header id = let x, y, w, h = (tile id).bounds in
         float (x + min 50 (w / 2)), float (y + min 12 (h / 2)) in
