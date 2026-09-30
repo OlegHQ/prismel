@@ -5,8 +5,7 @@ module E = Eval
 let source_attribute = "__flow_src"
 
 type pending = { node : int; field : string; value : E.value }
-type origin = { source : int; site : Workspace.path; iter : int list }
-module Origins = Map.Make (struct type t = int * int let compare = compare end)
+type origin = { merge : int; input : int; source : int; site : Workspace.path; iter : int list }
 type graph = {
   name : string; instance : int; default : bool; inputs : (string * E.value) list;
   network : Network.t; root : int option;
@@ -17,7 +16,7 @@ type t = {
   sites : Workspace.path list;
   compiled : int Network.Int_map.t;
   pending : pending list;
-  provenance : origin Origins.t;
+  provenance : origin Network.Int_map.t;
   volatile : unit Network.Int_map.t;
   plan : E.plan;
 }
@@ -109,7 +108,7 @@ let workspace ~factories ?(compiled_ids = Instance_path.Map.empty)
         Edit.factory_key factory = key) factories with
       | Some factory -> factory
       | None -> fail "E_LOWER" ("Linked catalog has no " ^ key) in
-    let pending = ref [] and provenance = ref Origins.empty in
+    let pending = ref [] and provenance = ref Network.Int_map.empty and tags = ref 0 in
     let prepared = Hashtbl.create 256 in
     let prepare (node : E.node) =
       match Hashtbl.find_opt prepared node.id with
@@ -126,16 +125,18 @@ let workspace ~factories ?(compiled_ids = Instance_path.Map.empty)
           let p = match node.kind with
             | "sop/merge" ->
                 let sources = geo_ids args in
+                let base = !tags in
+                tags := base + List.length sources;
                 List.iteri (fun index source ->
                   let s = plan.nodes.(source) in
-                  provenance := Origins.add (cid, index)
-                    {source = compiled.(source); site = s.site; iter = s.iter}
-                    !provenance) sources;
+                  provenance := Network.Int_map.add (base + index)
+                    {merge = cid; input = index; source = compiled.(source);
+                     site = s.site; iter = s.iter} !provenance) sources;
                 (* the catalog's merge (one rest slot) plus the provenance attribute *)
                 let arity = max 1 (List.length sources) in
                 let factory = Edit.factory_slots ~key:"merge" ~label:"Merge"
                   ~slots:["input"] ~category:["Copy"] ~inputs:[Edit.Rest]
-                  (fun nodes -> Procedural.Sop.merge ~source_attribute
+                  (fun nodes -> Procedural.Sop.merge ~source_attribute ~source_base:base
                     (List.filter_map Fun.id nodes)) in
                 {cid; factory; arity; changes = [];
                  slots = List.mapi (fun i s -> i, s) sources}

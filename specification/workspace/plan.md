@@ -370,6 +370,9 @@ unroll geometry.**
    - Every collecting merge passes `~source_attribute:"__flow_src"`. This is
      a new optional pdk argument that writes the input index per primitive
      as a prim int attribute; the Mesh_merge change is ~20 lines.
+     (W6 refined this: the value is a workspace-wide tag and an input that
+     already has it keeps it, so nested merges resolve exactly; see
+     progress.md.)
    - `Lower` records a table `(merge node id, input index) → (zone path,
      iteration tuple)`.
    - `ponytail:` no per-iteration tag nodes. The merge is the only place

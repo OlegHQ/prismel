@@ -319,6 +319,7 @@ milestone is recorded here with its date, what landed and its deviations.
 | W3 document v4 and history | done | 2026-09-30 |
 | W4 graph pane zones | done | 2026-09-30 |
 | W5 probes and footers | done | 2026-09-30 |
+| W6 viewport provenance | done | 2026-09-30 |
 
 ### W0 fixes and catalog prerequisites (2026-09-30, done with W4 part A)
 
@@ -368,7 +369,7 @@ rejects the literal at check time. Details and measurements are in
 `(instance, site, iteration tuple)` in the existing
 `compiled_ids : int Instance_path.Map.t` (an iteration segment is `-(index+1)`),
 a plan-to-compiled id map, the live parameters (drives since W2b) and
-a provenance table `(merge id, input index) -> (site, iteration tuple)` for W6.
+a provenance table (W6: tag -> merge, input, site, iteration tuple).
 Merges write `__flow_src` through the new `?source_attribute` of
 `Pdk.Mesh_merge.merge` and `Procedural.Sop.merge`. The editor `Session` default
 is 512 entries (measured in `progress.md`). `test_workspace_cook` cooks every
@@ -927,3 +928,22 @@ check: `sketches/flow_workspace` (`FLOW_CASE`, `FLOW_ADD=1`, `FLOW_EXPORT`).
   texture-count assertion fails at `test_gpu_film.ml:64` on both the
   unchanged `af55fffc` baseline and this change. Matched benchmark numbers
   and release/undo limits are in `performance.md`.
+
+### W6 viewport provenance (2026-09-30, done)
+
+Landed: clicking the view selects the node and iteration that made the shape
+under the pointer, and the selection highlights it. `Mesh_merge` and
+`Sop.merge` take `?source_base` and keep an input's existing tag, so
+`__flow_src` is a workspace-wide tag (a running count over merge inputs) that
+survives merges of merges; `Lower.provenance` maps tag to `{merge; input;
+source; site; iter}`. `Pdk_prismel.Prismel_mesh.to_mesh_with_primitives`
+returns the triangle to primitive map. `Prismel_editor.Pick` casts a CPU ray
+over `Pdk.Surface_index` (built at the first click, kept per piece) and tints
+by a per-corner `Cd`; `Viewport3.pick_ray`, the click recogniser in
+`Environment`, `Core.pick` (select the site, probe every enclosing zone) and
+`Core.lit_tags` / `Cook.update ?lit` (the highlight, prepared again from the
+kept output, never recooked or lowered). Tests: `test_viewport_pick`,
+`test_pdk`, `test_workspace_cook`. Native check: `sketches/flow_workspace`
+with `FLOW_PICK`. Deviations, the bench numbers and the ceilings (BVH build at
+the first click, instances, collapsed zones) are in
+`specification/workspace/progress.md`.

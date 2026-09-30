@@ -45,11 +45,10 @@ type pending = { node : int; field : string; value : Flow.Eval.value }
 (** A live parameter: compiled node id, argument name, and the argument as
     evaluated (a residual, or a list/vec3 holding residuals). *)
 
-type origin = { source : int; site : Flow.Workspace.path; iter : int list }
-(** Where a merge input came from: the compiled id of the source node and its
-    plan key. *)
-
-module Origins : Map.S with type key = int * int
+type origin = { merge : int; input : int; source : int;
+                site : Flow.Workspace.path; iter : int list }
+(** Where a merge input came from: the merge and input index, the compiled id
+    of the source node and its plan key. *)
 
 type graph = {
   name : string;
@@ -66,9 +65,11 @@ type t = {
   sites : Flow.Workspace.path list;
   compiled : int Network.Int_map.t;  (** plan node id -> compiled id *)
   pending : pending list;
-  provenance : origin Origins.t;
-      (** (merge compiled id, input index) -> its source; the index is the
-          value of the merge's {!source_attribute} for that input's primitives *)
+  provenance : origin Network.Int_map.t;
+      (** tag -> its origin: the value of {!source_attribute} is a running count over the
+          inputs of every merge in lowering order, so it is deterministic for one
+          source.   A merge of merges keeps the innermost tag, so a
+          primitive of the displayed geometry names the merge input that made it *)
   volatile : unit Network.Int_map.t;  (** compiled ids, see {!is_volatile} *)
   plan : Flow.Eval.plan;
 }

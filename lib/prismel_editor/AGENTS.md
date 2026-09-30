@@ -226,3 +226,13 @@ their probes that `Cook.update ~probes` counts. A selected node drives
 `workspace_inspector` (edits are `Set_arg` on the authored argument, iteration
 clicks are `Probe_set`); keep that function free of model mutation like every
 other Ui.frame builder.
+
+## Viewport provenance (W6)
+
+`Pick` reads `__flow_src` tags off the displayed geometry, casts a CPU ray
+(`Pdk.Surface_index`, built at the first click and kept with the `Cook.piece`)
+and tints by a per-corner `Cd`. A click (press and release within 4 points among
+the events the UI did not consume) reaches `Core.pick` through
+`VIEWPORT.pick_ray`; the highlight is `Core.lit_tags` (selection and probes)
+handed to `Cook.update ?lit`, which prepares a piece again from its kept
+`output`. Never recook or lower for a highlight.

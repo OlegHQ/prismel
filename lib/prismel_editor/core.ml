@@ -82,6 +82,13 @@ type 'panel frame_result = {
   handle_changes : (int * (string * Parameter.value) list) option;
 }
 
+(* The tags {!Pick.tint} highlights: those of the merge inputs made by the selected
+   node at the current probes.  Cached by what it was computed from. *)
+type lit_cache = {
+  site : Flow.Workspace.path; at : int Layout_by_path.Path_map.t;
+  lowered : Flow_sop.Lower.t; scope : Flow_sop.Projection.scope; tags : Pick.Set.t;
+}
+
 type 'prepared t = {
   code_graph : Graph.t;
   preferences : string;
@@ -106,6 +113,7 @@ type 'prepared t = {
   graph_view : Pxui_graph.t;
   scope_view : Pxui_graph.Scope.t;  (* the workspace document's graph pane *)
   probes : int Layout_by_path.Path_map.t;  (* the iteration each zone shows: view state, not history *)
+  lit : lit_cache option;  (* the highlight of the selected node at the probes, see {!lit_tags} *)
   scope_key : scope_key option;
   flow_catalog : Flow.Check.catalog option Lazy.t;
   tree : Pxui_shell.Tree.t;
@@ -350,6 +358,25 @@ let scope_name value = match value.doc.Document.workspace, value.level with
         if List.exists (fun (g : Flow.Workspace.graph) -> g.name = name) ws.checked.graphs
         then Some name else None)
   | _ -> None
+
+let lit_tags value =
+  match value.doc.Document.workspace, value.scope_key,
+        Pxui_graph.Scope.selected value.scope_view with
+  | Some (_, lowered), Some { scope; _ }, [ site ] when scope_name value <> None ->
+      (match value.lit with
+       | Some c when c.site = site && c.at == value.probes && c.lowered == lowered
+           && c.scope == scope -> c.tags, value.lit
+       | _ ->
+           let chain = Option.value ~default:[]
+               (Hashtbl.find_opt (Flow_sop.Probe.chains scope) site) in
+           let iter = List.map (fun zone ->
+             Option.value ~default:0 (Layout_by_path.Path_map.find_opt zone value.probes)) chain in
+           let tags = Flow_sop.Network.Int_map.fold
+               (fun tag (o : Flow_sop.Lower.origin) tags ->
+                 if o.site = site && o.iter = iter then Pick.Set.add tag tags else tags)
+               lowered.provenance Pick.Set.empty in
+           tags, Some { site; at = value.probes; lowered; scope; tags })
+  | _ -> Pick.Set.empty, None
 
 (* Lay the workspace pane out again when the document, the probes or the
    graph changed; the footers are rebuilt when the recording evaluation, the
@@ -912,7 +939,7 @@ let create ?(settings = Settings.none) ?(keymap = Leader.keymap)
         rows = None; live_cook = true;
         factories;
         graph_view = Pxui_graph.create (Sop.points [||]);
-        scope_view = Pxui_graph.Scope.create (); probes = Layout_by_path.Path_map.empty;
+        scope_view = Pxui_graph.Scope.create (); probes = Layout_by_path.Path_map.empty; lit = None;
         scope_key = None;
         flow_catalog = lazy (Result.to_option (Flow_sop.Catalog.of_factories
           ~version:Flow_sop.Manifest.version factories));
@@ -2388,7 +2415,8 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
       | Some (_, lowered) -> Flow_sop.Lower.is_volatile lowered
       | None -> fun _ -> false);
   let probes = match value.scope_key with Some k when scope_name value <> None -> k.targets | _ -> [] in
-  let cooked = Cook.update ~live:result.live_cook ~probes
+  let lit, lit_cache = lit_tags value' in
+  let cooked = Cook.update ~live:result.live_cook ~probes ~lit
       ~definitions:doc.definitions ~compiled_ids:doc.compiled_ids
       value.cook ~settings:doc.settings
       ~objects:(geometry_objects value')
@@ -2430,7 +2458,7 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
               Some (lower lo a, upper hi b)) None cooked.cook.pieces)
     | framed, _ -> framed in
   let document_changed = doc != value.doc in
-  { core = { value' with timeline; cook = cooked.cook; edit_error = cooked.edit_error;
+  { core = { value' with timeline; cook = cooked.cook; lit = lit_cache; edit_error = cooked.edit_error;
       status_fps; status_fps_at; history; guide; hud; focus = result.focus;
       pane_keys = result.pane_keys; leader; held_keys; prompt;
       queued = (match result.prompt_intent with Some (Run_action action) -> [action] | _ -> []);
@@ -2535,3 +2563,39 @@ let edit_node value level node_id values ~label =
               (parameter_gesture label level node_id values)) doc value.history;
             graph_view = if level = value.level
               then Pxui_graph.with_document (Option.get (Document.network doc level)).graph value.graph_view else value.graph_view }
+
+(* A click in the view (plan W6): the primitive under the ray, its
+   [__flow_src] tag, the merge input that made it (`Lower.provenance`), then
+   the selection is that node and every enclosing zone probes that iteration,
+   so the highlight ({!lit_tags}), the selectors and the inspector agree.  A
+   click on nothing deselects.  A merge of merges keeps the innermost tag, so
+   the origin is exact through nested collecting merges.  ponytail: geometry
+   drawn as instances is not picked, and distances compare in each object's
+   own units (exact for the usual uniform scale). *)
+let pick value ~origin ~direction =
+  match value.doc.Document.workspace, value.scope_key with
+  | Some (_, lowered), Some { scope; _ } when scope_name value <> None ->
+      let nearest = List.fold_left (fun best (matrix, piece) ->
+        match Mat4.inverse matrix with
+        | None -> best
+        | Some inverse ->
+            match Cook.pick piece ~origin:(Mat4.transform_point inverse origin)
+                ~direction:(Mat4.transform_direction inverse direction), best with
+            | Some (distance, _), Some (nearer, _) when distance >= nearer -> best
+            | Some hit, _ -> Some hit
+            | None, _ -> best) None (placed_pieces value) in
+      let hit = Option.bind nearest (fun (_, tag) ->
+        Flow_sop.Network.Int_map.find_opt tag lowered.provenance) in
+      (match hit with
+       | Some o ->
+           (match Hashtbl.find_opt (Flow_sop.Probe.chains scope) o.site with
+            | Some chain ->
+                let probes = List.fold_left2 (fun probes zone index ->
+                  Layout_by_path.Path_map.add zone index probes) value.probes chain
+                  (if List.compare_lengths chain o.iter = 0 then o.iter
+                   else List.map (fun _ -> 0) chain) in
+                { value with probes;
+                  scope_view = Pxui_graph.Scope.select [ o.site ] value.scope_view }
+            | None -> value)
+       | None -> { value with scope_view = Pxui_graph.Scope.clear_selection value.scope_view })
+  | _ -> value

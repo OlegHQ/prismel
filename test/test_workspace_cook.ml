@@ -100,12 +100,13 @@ let run () =
          else None) (Procedural.Edit_graph.inspect flower.network.geometry)
          |> Option.get in
        for k = 0 to 11 do
-         let origin = Lower.Origins.find (ring, k) bloom.provenance in
+         let origin = snd (List.find (fun (_, (o : Lower.origin)) -> o.merge = ring && o.input = k)
+           (Network.Int_map.bindings bloom.provenance)) in
          check (origin.iter = [k]) "bloom provenance iteration";
          check (Some origin.source = (Option.get (Procedural.Edit_graph.inputs
            flower.network.geometry ~node_id:ring)).(k)) "bloom provenance source"
        done;
-       check (Lower.Origins.cardinal bloom.provenance
+       check (Network.Int_map.cardinal bloom.provenance
          = 12 + 2 + 7 + 2) "bloom provenance size"
    | graphs -> fail (Printf.sprintf "bloom has %d sop networks" (List.length graphs)));
   (* every collecting merge tags its primitives with the input index *)

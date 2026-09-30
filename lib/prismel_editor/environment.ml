@@ -62,6 +62,10 @@ module type VIEWPORT = sig
   val film : extra -> Pxui_shell.Layout.bounds -> Pxui_shell.Layout.bounds
   (** The rect of the view the render fills: the whole view, or the render
       camera's aspect fitted into it while looking through. *)
+  val pick_ray : viewport:Pxui_shell.Layout.bounds -> view -> float * float ->
+    (Vec3.t * Vec3.t) option
+  (** The world ray (origin, direction) under a screen point of the film, if
+      the view is a 3D camera. *)
   val paint : Pxui_shell.Layout.bounds -> view -> rendered -> Scene.t
   val guides : scene:Edit_graph.t -> selected:Node.t option -> space:Mat4.t ->
     view -> extra -> bounds:Pxui_shell.Layout.bounds -> Scene.t
@@ -275,6 +279,7 @@ module Make (V : VIEWPORT) = struct
     hidden_scene_cache : (V.rendered, V.view) hidden_scene_cache option;
     commands : (Pxui_shell.Layout.column, 'prepared t -> 'prepared t) Editor_core.Command.t list;
     world_drag : world_drag option;
+    pick_press : (float * float) option;  (* a left press in the view that may become a click *)
   }
 
   (* Scene objects a sketch starts with: its lights as light objects. *)
@@ -356,7 +361,7 @@ module Make (V : VIEWPORT) = struct
       { core; camera; control = V.create_control (); draw; overlay; status;
         rendered = None; drawn = Document.Layout.empty; baked = None; baked_from = None; map = None;
         render_status = None; pending_render = None;
-        background; extra; hidden_scene_cache = None; commands; world_drag = None })
+        background; extra; hidden_scene_cache = None; commands; world_drag = None; pick_press = None })
       (Core.create ?settings ?world ~scene_level:V.scene_level
         ~keymap:(V.keymap @ List.map (fun (c : _ Editor_core.Command.t) ->
           { c with action = Leader.Sketch_command c.id }) commands)
@@ -522,6 +527,21 @@ module Make (V : VIEWPORT) = struct
       mouse_buttons = if world_drag = None then update.input.mouse_buttons
         else List.filter (( <> ) Input.LeftButton) update.input.mouse_buttons;
       mouse_delta = if consumed then 0., 0. else update.input.mouse_delta } in
+    (* A press and release within 4 points is a click: the view picks. *)
+    let pick_press, clicks = List.fold_left (fun (press, clicks) -> function
+      | Event.MousePressed (Input.LeftButton, point) -> Some point, clicks
+      | MouseReleased (Input.LeftButton, (qx, qy)) ->
+          (match press with
+           | Some (px, py) when Float.hypot (qx -. px) (qy -. py) < 4. ->
+               None, (qx, qy) :: clicks
+           | _ -> None, clicks)
+      | PointerCancelled Input.LeftButton | WindowFocusLost -> None, clicks
+      | _ -> press, clicks) (value.pick_press, []) input.events in
+    let core = if core.Core.map_view then core else
+      List.fold_left (fun core at ->
+        match V.pick_ray ~viewport:(V.film extra area) (view_camera value) at with
+        | Some (origin, direction) -> Core.pick core ~origin ~direction
+        | None -> core) core (List.rev clicks) in
     let camera, extra = if core.Core.map_view then camera, extra
       else V.navigate ~area control camera extra core ~raw_frame ~input in
     let camera, render_status = match update.framed with
@@ -556,7 +576,7 @@ module Make (V : VIEWPORT) = struct
       | request :: _ -> Some request | [] -> None in
     let render_status = if pending_render <> None && rendered = None then
         Some "Render unavailable until the first cook completes" else render_status in
-    let value = refresh_hidden { value with core; camera; control; rendered; drawn; baked; baked_from; map; world_drag;
+    let value = refresh_hidden { value with core; camera; control; rendered; drawn; baked; baked_from; map; world_drag; pick_press;
       pending_render; render_status; extra } raw_frame in
     (* Sketch commands run last, on the finished frame's model. *)
     List.fold_left (fun value -> function

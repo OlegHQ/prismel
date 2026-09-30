@@ -13,6 +13,9 @@ type 'prepared piece = {
   bounds : bounds option;
   settings : Settings.t;
   context : string;  (* projection of the graph's declared context dependencies *)
+  output : Session.output;  (* what [prepared] was made from, before the tint *)
+  lit : Pick.Set.t;  (* the provenance tags [prepared] highlights, see {!Pick} *)
+  surface : Pdk.Surface_index.t option Lazy.t;  (* built by the first click *)
 }
 
 (* What a footer shows of a geometry value: its object and compiled node. *)
@@ -155,7 +158,7 @@ let flatten ~definitions ~compiled_ids network displayed =
           | None -> Error (Flow.Diagnostic.error ~code:"E_INTERFACE"
               "Compound display has no geometry output"))))
 
-let update ?live ?(probes = []) ~definitions ~compiled_ids value ~settings ~objects
+let update ?live ?(probes = []) ?(lit = Pick.Set.empty) ~definitions ~compiled_ids value ~settings ~objects
     ~edit_error ~effects ~timeline_changes
     ~timeline ~frame ~frame_request =
   let objects, value_lanes, applied, flattened, resolve_error =
@@ -281,12 +284,14 @@ let update ?live ?(probes = []) ~definitions ~compiled_ids value ~settings ~obje
       | (id, graph) :: graphs, (output : Session.output) :: outputs ->
           let projection = Context.cache_projection (Graph.dependencies graph) context in
           let reused = List.find_opt (fun piece -> piece.id = id && piece.graph == graph
-              && piece.settings == settings && piece.context = projection) previous in
+              && piece.settings == settings && piece.context = projection
+              && Pick.same_set piece.lit lit) previous in
           (match reused with
            | Some piece -> loop (piece :: reversed) graphs outputs
            | None ->
-               Result.bind (value.prepare settings output) (fun prepared ->
-                 loop ({ id; graph; prepared;
+               Result.bind (value.prepare settings (Pick.tint output lit)) (fun prepared ->
+                 loop ({ id; graph; prepared; output; lit;
+                         surface = lazy (Pick.surface output.geometry);
                          bounds = output_bounds output; settings; context = projection } :: reversed)
                    graphs outputs))
       | _ -> Error "cook returned a different number of outputs" in
@@ -311,6 +316,16 @@ let update ?live ?(probes = []) ~definitions ~compiled_ids value ~settings ~obje
       | Error failure -> pieces, Some (Async_cook.error_to_string failure),
           Some awaited.seconds, prepared_changed
     else pieces, error, seconds, prepared_changed in
+  (* a piece prepared under another highlight is prepared again from its kept
+     output: no recook, no lowering, and nothing when no tag is involved *)
+  let retinted = ref false in
+  let pieces = List.map (fun piece ->
+    if Pick.same_set piece.lit lit then piece
+    else if Pick.tags piece.output.geometry = None then { piece with lit }
+    else match value.prepare piece.settings (Pick.tint piece.output lit) with
+      | Ok prepared -> retinted := true; { piece with prepared; lit }
+      | Error _ -> piece) pieces in
+  let prepared_changed = prepared_changed || !retinted in
   let framed, framing = match frame_request with
     | None -> framed, framing
     | Some (object_id, node_id) ->
@@ -341,3 +356,8 @@ let update ?live ?(probes = []) ~definitions ~compiled_ids value ~settings ~obje
     edit_error; prepared_changed; framed }
 
 let close value = Async_cook.close value.worker
+
+(* The nearest displayed primitive under a ray in the piece's own space, as
+   (distance, provenance tag). *)
+let pick piece ~origin ~direction =
+  Pick.cast (Lazy.force piece.surface) piece.output.geometry ~origin ~direction

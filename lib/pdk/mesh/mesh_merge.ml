@@ -78,8 +78,6 @@ let concatenate_attribute template attributes =
   Attribute.create_owned ~name:(Attribute.name template)
     ~owner:(Attribute.owner template) storage
 
-(* ponytail: an input that already carries [name] (a merge of merges) loses it,
-   so provenance names the outermost merge's input only. *)
 let merge_plain ?cancel ?(grain = 16_384) ?(pad_groups = true) geometries =
   if grain <= 0 then invalid_arg "Pdk.Mesh_merge.merge: grain must be positive";
   match geometries with
@@ -225,22 +223,27 @@ let merge_plain ?cancel ?(grain = 16_384) ?(pad_groups = true) geometries =
                     Edge_group.Builder.freeze builder) templates in
             Geometry.create ~positions ~topology ~attributes ~groups ~edge_groups ()))
 
-let merge ?cancel ?grain ?pad_groups ?source_attribute geometries =
+(* An input without [name] is tagged [base + its index]; one that has it keeps
+   its values, so nested merges keep the innermost tag. *)
+let tag_inputs name base geometries =
+  let owner = Attribute.Primitive in
+  let tag index geometry =
+    if Geometry.find_attribute ~owner name geometry <> None then Ok geometry
+    else
+      Result.bind (Attribute.create_owned ~name ~owner
+        (Attribute.Int (Array.make (Geometry.primitive_count geometry) (base + index))))
+        (fun attribute -> Geometry.with_attribute attribute geometry) in
+  List.fold_left (fun acc geometry -> Result.bind acc (fun tagged ->
+    Result.map (fun g -> g :: tagged) (tag (List.length tagged) geometry)))
+    (Ok []) geometries |> Result.map List.rev
+
+let merge ?cancel ?grain ?pad_groups ?source_attribute ?(source_base = 0) geometries =
   match source_attribute with
   | None -> merge_plain ?cancel ?grain ?pad_groups geometries
   | Some name ->
-      let owner = Attribute.Primitive in
-      let stripped = List.map (Geometry.without_attribute ~owner name) geometries in
-      Result.bind (merge_plain ?cancel ?grain ?pad_groups stripped) (fun merged ->
-        let source = Array.make (Geometry.primitive_count merged) 0 in
-        let at = ref 0 in
-        List.iteri (fun index geometry ->
-          let count = Geometry.primitive_count geometry in
-          Array.fill source !at count index;
-          at := !at + count) stripped;
-        Result.bind (Attribute.create_owned ~name ~owner (Attribute.Int source))
-          (fun attribute -> Geometry.with_attribute attribute merged))
+      Result.bind (tag_inputs name source_base geometries)
+        (merge_plain ?cancel ?grain ?pad_groups)
 
-let run ?cancel ?grain ?source_attribute geometries =
+let run ?cancel ?grain ?source_attribute ?source_base geometries =
   Error.guard ~operation:"merge" ~code:"schema_mismatch"
-    (fun () -> merge ?cancel ?grain ?source_attribute geometries)
+    (fun () -> merge ?cancel ?grain ?source_attribute ?source_base geometries)

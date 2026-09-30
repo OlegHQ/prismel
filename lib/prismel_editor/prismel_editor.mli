@@ -125,6 +125,15 @@ module Private : sig
   end
 
   (** Host cook boundary, exposed for deterministic worker tests and measurements. *)
+  module Pick : sig
+    module Set : Set.S with type elt = int
+    val tags : Pdk.Geometry.t -> int array option
+    (** The [__flow_src] tag of every primitive, when the geometry has them. *)
+    val tint : Procedural.Session.output -> Set.t -> Procedural.Session.output
+    (** The primitives whose tag is in the set take the selection tint, the
+        rest are dimmed (a vertex [Cd]); the empty set changes nothing. *)
+  end
+
   module Cook : sig
     type bounds = Prismel.Vec3.t * Prismel.Vec3.t
     type 'prepared piece = {
@@ -134,6 +143,9 @@ module Private : sig
       bounds : bounds option;
       settings : Settings.t;
       context : string;
+      output : Procedural.Session.output;
+      lit : Pick.Set.t;
+      surface : Pdk.Surface_index.t option Lazy.t;
     }
     type 'prepared t
     type 'prepared update = {
@@ -158,7 +170,11 @@ module Private : sig
     val force : 'a t -> 'a t
     val geometry : 'a t -> object_id:int -> node_id:int -> Flow_sop.Probe.geometry option
     (** The counts of a compiled node an object's last [~probes] asked for. *)
-    val update : ?live:bool -> ?probes:(int * int) list ->
+    val pick : 'a piece -> origin:Prismel.Vec3.t -> direction:Prismel.Vec3.t ->
+      (float * int) option
+    (** The nearest displayed primitive under a ray in the piece's own space:
+        its distance and provenance tag. *)
+    val update : ?live:bool -> ?probes:(int * int) list -> ?lit:Pick.Set.t ->
       definitions:Editor_document.Document.definition
         Editor_document.Document.String_map.t ->
       compiled_ids:int Flow_sop.Instance_path.Map.t ->

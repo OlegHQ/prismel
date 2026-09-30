@@ -51,6 +51,7 @@ let view_camera camera () ~pending:_ = camera
 let film () viewport = viewport
 let paint viewport camera rendered = Easy_camera2.scene ~viewport camera rendered
 let guides ~scene:_ ~selected:_ ~space:_ _ () ~bounds:_ = []
+let pick_ray ~viewport:_ _ _ = None
 let handles _ ~selected:_ ~scene:_ ~space:_ _ () ~bounds:_ = [], false, None
 let save = CC2.save
 let filename request = request.CC2.filename

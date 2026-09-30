@@ -4046,11 +4046,10 @@ let run () =
      Array.make (Geometry.primitive_count box) 1;
      Array.make (Geometry.primitive_count grid) 2] in
    if ints tagged <> expected then fail "merge source attribute values";
-   (* a merge of tagged merges keeps one outermost attribute *)
-   let nested = Mesh_merge.run ~source_attribute:source [tagged; box] |> get_ok in
+   (* a merge of tagged merges keeps the inner tags; a base offsets the others *)
+   let nested = Mesh_merge.run ~source_attribute:source ~source_base:100 [tagged; box] |> get_ok in
    let outer = ints nested in
-   if Array.length outer <> Geometry.primitive_count nested
-      || outer.(0) <> 0 || outer.(Array.length outer - 1) <> 1
+   if outer <> Array.append expected (Array.make (Geometry.primitive_count box) 101)
    then fail "nested merge source attribute";
    let plain = Mesh_merge.run [grid; box; grid] |> get_ok in
    if Geometry.find_attribute ~owner:Attribute.Primitive source plain <> None

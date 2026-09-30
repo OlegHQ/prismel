@@ -232,6 +232,9 @@ let view_camera _camera extra ~pending =
 (* Looking through the camera, the render fills the largest rect of the
    camera's aspect (its render resolution) centred in the pane; otherwise
    the whole pane. *)
+let pick_ray ~viewport view at =
+  Camera.screen_ray ~viewport view ~at
+
 let film extra (x, y, width, height) =
   if not extra.look_through then x, y, width, height else
   let aspect = float extra.render.width /. float (max 1 extra.render.height) in

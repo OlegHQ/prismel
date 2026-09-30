@@ -16,7 +16,7 @@ Status: `todo` · `wip` · `done` (gate met) · `partial` (what is missing is na
 | W3 document v4 + history | done | | `Flow_edit`, `Workspace_doc`, `Layout_by_path`, s-expression presets, the editor opens a workspace and recooks live `t` (notes below). No older presets. Gaps: only workspace documents save. |
 | W4 graph pane zones | done | | Part A (`Flow_sop.Projection`, `Rest`) and part B (`Pxui_graph.Scope`, zone tokens, selectors, `Core` wiring, layout by path, probes); see the W4 part B notes and `flow-migration.md`. Gaps: no marquee (the inspector follows the selection since W5), the flat pane remains for non-workspace documents, only `sop` graphs open. |
 | W5 probes & footers | done | | `Flow_sop.Probe` (records, footers, counts, inspector rows), `Pxui_graph.Scope.with_records`, cook geometry counts piggybacked on the display cook, the workspace inspector, the `t N live · M cached` status, auto-select of an added node (notes below). Gaps: no zone footer while expanded, the geometry of a node that is not upstream of the display shows only its type. |
-| W6 viewport provenance | todo | | |
+| W6 viewport provenance | done | | `Pdk_prismel.Prismel_mesh.to_mesh_with_primitives`, global `__flow_src` tags that survive nested merges, `Pick` (CPU ray over `Pdk.Surface_index`, per-corner tint), `Core.pick`, the highlight follows the selection and probes; click in Viewport3 selects the node and probes its iteration (notes below). Gaps: geometry drawn as instances is not picked, a collapsed zone stays collapsed. |
 | W7 editable text | todo | | |
 | W8 loops over geometry | todo | | |
 | W9 macros UI, notes, bypass | todo | | |
@@ -310,3 +310,59 @@ Status: `todo` · `wip` · `done` (gate met) · `partial` (what is missing is na
   `FLOW_EXPORT=dir` renders the editor to PNG frames by driving a click, `j`
   and `i`): zones, rails, selector, chips, notes, marks and wires draw. Glyph
   fallbacks and perf numbers are in `flow-migration.md`.
+- W6 notes. Tags. `__flow_src` is no longer the input index: every collecting
+  merge writes `base + input index` where `base` is a running count over the
+  inputs of all merges in lowering order (deterministic for one source), and an
+  input that already carries the attribute KEEPS its values
+  (`Mesh_merge ?source_base`, `Sop.merge ?source_base`). So a merge of merges
+  keeps the innermost tag and the ceiling of the plan ("nested merges keep only
+  the outermost input") is gone: Bloom's petals resolve to their own iteration
+  through two merges. `Lower.provenance` is `origin Int_map.t` keyed by tag
+  (`origin = {merge; input; source; site; iter}`), replacing `Origins`. Cost:
+  a merge's `base` is in its cook key, so adding inputs to an early merge
+  shifts the later merges' bases and recooks them. Pick. `Pdk_prismel.
+  Prismel_mesh.to_mesh_with_primitives` (a separate function, not
+  `to_mesh ?prim_of_triangle`, because the result type differs) returns the
+  triangle to primitive map by tagging primitives with their index before the
+  triangulation `to_mesh` does anyway. The editor's pick does not need it:
+  `Pick` (`lib/prismel_editor/pick.ml`) builds a `Pdk.Surface_index` on the
+  displayed geometry at the first click (kept per piece, lazy) and its hit
+  already names the source primitive; the map is what an ID-buffer upgrade
+  would use (`ponytail:` in `pick.ml`). Flow. Viewport3 `pick_ray` (screen ray
+  of the film rect), `Environment` recognises a left press and release within 4
+  points among the events the UI did not consume (handles keep theirs, an orbit
+  drag is not a click), `Core.pick` casts the ray against every placed piece in
+  its own space, reads the tag, looks up the origin, selects the site node in
+  the workspace pane and sets the probe of every enclosing zone to the origin's
+  iteration tuple; a miss deselects. Highlight. `Core.lit_tags` (cached by
+  selection, probes, lowering and scope) is the set of tags whose origin is the
+  selected node at the current probes; `Cook.update ?lit` prepares a piece
+  again from its kept `output` with `Pick.tint` (a vertex `Cd`: the lit
+  primitives mix 60% toward the theme accent, the rest are scaled by 0.3), only
+  when the set changed and only for pieces that carry tags, never recooking or
+  lowering. Selecting any merge-input node in the pane lights its iteration too
+  (the highlight is a function of selection and probes, not of the click), the
+  selectors move it, deselecting restores the original geometry. Tests:
+  `test/test_viewport_pick.ml` (triangle map on a triangle, quad and pentagon;
+  Sunflower seed 83 and Bloom petal 4 through two merges picked by a ray and
+  resolved to `(site, iteration)`; the tint values; one prepare per changed
+  highlight, none unchanged, no recook misses; deselect restores physically),
+  `test_pdk` (merge tag semantics), `test_workspace_cook` (provenance). Native:
+  `sketches/flow_workspace` with `FLOW_PICK="x,y[;x,y]"` clicks the view at
+  frames 26 and 32 (`FLOW_CASE=bloom FLOW_PICK="330,300;100,600"`): petal 4 is
+  tinted, the rest dim, the selector track sits at 4, the inspector shows its
+  transform node, and the miss restores the colours. The sketch got a light and
+  a closer camera (the default scene was unlit and black). Bench
+  (`dune build test/test_main.exe @test/test_viewport_pick && cd
+  _build/default/test && ./test_main.exe bench_viewport_pick`, M-series, one
+  domain, ms): Sunflower (8,640 triangles, 240 tags) first pick with the BVH
+  build 11, later picks 0.0024, tint 0.65, `to_mesh` 1.3, tint + `to_mesh` 3.9
+  (all of it only when the highlight changes); Bloom (3,888 triangles, 23 tags)
+  first pick 3.5, pick 0.0016, tint 0.3, `to_mesh` 1.6, tint + `to_mesh` 2.2;
+  `Cook.update` with nothing picked or with a highlight held 0.0002-0.0004 ms
+  (the same code path; a frame never scales with the scene). Ceilings: the BVH
+  build is about 1.3 us per triangle, so a 1M-triangle mesh hitches about a
+  second at its first click and the re-prepare runs on the initial domain
+  (`ponytail:` move both to the worker or use the ID buffer); instanced pieces
+  are not picked; a pick inside a collapsed zone selects the node but the zone
+  stays collapsed (expanding it is a layout edit); `Viewport2` never picks.

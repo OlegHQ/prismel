@@ -69,5 +69,6 @@ end
 module Private = struct
   module Leader = Leader module Schedule = Schedule
   module Document = Document module Preset = Preset
+  module Pick = Pick
   module Cook = Cook
 end
