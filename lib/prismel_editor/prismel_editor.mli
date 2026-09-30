@@ -172,6 +172,37 @@ module Private : sig
     val line_of : string -> Flow.Diagnostic.t -> int option
   end
 
+  (** The host bars: where their buttons sit. *)
+  module Bars : sig
+    type tool = Add | Repeat | Iterate | Fn | Macro | Defn
+    val height : int
+    val top_button_rect : width:float -> string -> float * float * float * float
+    val tools_from : string -> float
+    val tool_rect : header:int * int * int * int -> from:float -> tool -> (float * float * float * float) option
+  end
+
+  (** The Navigator panel: its rows and where each is drawn. *)
+  module Navigator : sig
+    type state
+    val initial : state
+    val with_query : string -> state -> state
+    type params = {
+      workspace : Flow.Workspace.t;
+      title : string;
+      active : string option;
+      scope : Flow_sop.Projection.scope option;
+      records : Flow_sop.Probe.t option;
+      probes : string list -> int;
+      selected : string list list;
+      shell : Editor_core.Panels.t option;
+    }
+    type row
+    val rows : state -> params -> row array
+    val describe : row -> string
+    val row_rects : ?row_height:int -> state -> params -> bounds:int * int * int * int ->
+      (row * (float * float * float * float)) array
+  end
+
   module Cook : sig
     type bounds = Prismel.Vec3.t * Prismel.Vec3.t
     type 'prepared piece = {

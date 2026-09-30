@@ -23,6 +23,7 @@ Status: `todo` · `wip` · `done` (gate met) · `partial` (what is missing is na
 | W10 contexts & composable shell | done | | Part A (contexts): `scene`, `world`, `settings` graphs check, lower into the document and open in the pane. Part B (shell): `Editor_core.Panels` and `Pxui_shell.Layout` (the tree and its geometry), the editor graph lowered into `Document.shell`, focus and commands keyed by panel, split/close/retype/resize as `Flow_edit` ops, Restore layout, one scene instance per viewport override, `ui/graph` names its graph (notes below). W13 added `Space o` keys for split, close and retype. Gap B: each viewport has its own orbit and the editor graph's panels are editable by keys whether bound, written in place or made by a loop. |
 | W11 `.plisp` sketches | done | | Part A (tool, dune wiring, scaffolding, the twelve `sketches/ws_*`) and part B: Command-S rewrites the source file (comments kept) only while its SHA-256 is the remembered digest, else a preset; the running window reloads a changed file as one history entry "Reload sketch.plisp", a failing file keeps the last good document and shows diagnostics (notes below). W13: a file that differs from the built text reloads on the first poll, and a `(layout ...)` or `(settings ...)` form in the file is honoured on reload. Gaps: polling, not file events; no three-way merge. |
 | W12 migration & removal | done | | `flow_terrain` is a `.plisp` sketch; `[%flow]`, the v3 checker/printer/builder, `?program` and `to_mesh_with_primitives` deleted (about 2,400 lines); docs and benches recorded; the completeness audit is the table below (notes at the end). |
+| W14 Bloom studio shell | done | | The study's studio chrome in the native editor (notes at the end): the Navigator panel (`Prismel_editor.Navigator`), the host bars (`Bars`: top bar and graph toolbar), Make defn (`Flow_edit.Make_defn`, key `d`), functions open in the pane (`def:name`), panel titles with subtitles, the viewport's iteration caption, the loop description in the inspector, and `ws_bloom` opening on `flower`. |
 
 ## Notes
 
@@ -816,3 +817,37 @@ reload), `lib/flow/test_workspace.ml` (checker positive and negative, `E_TIME_CO
 670,420@24;key Home@26;key Down@28;key Down@30;key Down@32;key Delete@36"` deleted exactly the selected bead of a 3 x 2
 nested loop (PNG read: five spheres, the others in place). Limits, each by design: a stale merge `:skip` entry is kept
 when its iteration is later skipped as a whole (harmless); a deleted object that shares its iteration with others that stay, and is bound in a `let*` deeper than the loop body's own (or is not an argument of any `scene/merge`), has no merge to skip it in: it is refused with the loop named, to be edited as text.
+
+## W14 Bloom studio shell (2 October 2026)
+
+The proposal's studio (navigator, graph with a toolbar, Lisp with tabs, inspector, viewport caption, the bar above) is
+what `sketches/ws_bloom` opens as.
+
+- **Navigator** (`lib/prismel_editor/navigator.ml`, the `Outline` panel, titled Navigator): a case-study header (graph,
+  loop, function and macro counts), the open graph's inputs as sliders (`Set_input_default`, one "Input default" entry
+  per change), the COMPOSITION (every graph with its context colour and loop count; the open one unfolds into its
+  bindings and loops with their value at the probe and `12×` counts), REUSABLE (`defn`s with call counts, macros with
+  uses), DATA FLOW (`reads` / `read by` graphs, from the `(ref ...)` forms) and SHELL (the applied editor graph's panel
+  tree). A row opens its graph in the pane (`Core.pane_graph`, which now wins over the name a `(ui/graph "g")` panel
+  gives), selects and frames a node; the search field lists matching graphs, functions and bindings. A `defn` opens as
+  `def:name` (`graph_name` accepts it; `Projection.of_graph` already did).
+- **Host bars** (`lib/prismel_editor/bars.ml`). The top bar (28 points, only for a document with an editor graph;
+  `Pxui_shell.Layout.geometry ?top` leaves it): "Prismel Flow", the workspace title, the checker's verdict, Keys,
+  Shell layouts (Default, Graph + code, Focus, Floating, Restore layout; each is one `Set_graph` of the editor graph,
+  one "Edit graph" entry, `Bars.layout_text`), Undo, Redo, Copy Lisp (the whole document to the clipboard). The graph
+  panel's header carries Add, Repeat, Iterate, λ, macro and defn; a click runs the command the key would
+  (`Run_action`, next frame), so the toolbar and the keys cannot drift.
+- **Make defn** (`Flow_edit.Make_defn`, `defn_draft`; key `d`, menu row, toolbar): the selected bindings (one scope, one
+  result) become a top-level `(defn name :context ctx [(p : type) ...] body)` and a call replaces them. `Core.defn_change`
+  types the names the selection reads from the projection (geometry, numbers, vectors, text, lists, `fn`) and picks
+  `sop` for a geometry result, `value` otherwise; a name of another type is refused with a notice.
+- Panel titles are `Graph  network flower`, `Viewport  preview static · no t` (or live), `Lisp  code flower`, a left click
+  on a header opens its menu; the viewport says `ring · iteration 1 of 12` for the selected node; the inspector of a loop
+  says what it is ("Runs its body once for every i ...") and lists its rail (`i in (range petals)`, captures
+  `same for all`).
+- Tests: `test/test_bloom_studio.ml` (the sketch opens on flower; Navigator rows, clicks on a function, a graph and a
+  node; the slider's default; search; toolbar defn; Undo, Redo and a layout from the bar), `test_workspace_shell.ml`
+  (coordinates under the bar). Native: `FLOW_CASE=sketches/ws_bloom/sketch.plisp FLOW_SHELL=none
+  FLOW_SCRIPT="click 75,388@22" FLOW_EXPORT=<dir>` renders the studio.
+- Not done, by design: a case-study selector (the twelve studies are separate sketches, one per `.plisp`); dragging a
+  Navigator row onto the canvas to insert a `ref` or call (Add's menu does it); a multi-line note in the Navigator.

@@ -30,8 +30,9 @@ module Layout : sig
                     timeline_at : bounds }
   (** Leaves in tree order, floats last (drawn over the rest). *)
 
-  val geometry : ?hidden:panel list -> t -> Prismel.Frame.t -> geometry
-  (** [hidden] (default the timeline) panels vanish; a hidden viewport keeps a
+  val geometry : ?hidden:panel list -> ?top:int -> t -> Prismel.Frame.t -> geometry
+  (** [top] (default 0) points are left above the tree for a host bar.
+      [hidden] (default the timeline) panels vanish; a hidden viewport keeps a
       28-point strip with its expand button.  The timeline strip sits under the
       tree unless the tree has a [Timeline] leaf.  Every point of the frame above
       the timeline strip is covered exactly once, floats aside. *)
@@ -58,12 +59,12 @@ module Chrome : sig
     | Close_panel of Layout.path
     | Retype_panel of Layout.path * Layout.panel  (** [View ""] means a viewport *)
 
-  val update : ?hidden:Layout.panel list -> ?title:(Layout.leaf -> string) -> Layout.t ->
+  val update : ?hidden:Layout.panel list -> ?top:int -> ?title:(Layout.leaf -> string) -> Layout.t ->
     Pxui.Ui.t -> Prismel.Frame.t -> intent list
   (** Panel backgrounds, the drawn gutters, headers with their collapse button and
       right-click menu.  Pure: the host applies the intents. *)
 
-  val splitters : ?hidden:Layout.panel list -> Layout.t -> Pxui.Ui.t -> Prismel.Frame.t ->
+  val splitters : ?hidden:Layout.panel list -> ?top:int -> Layout.t -> Pxui.Ui.t -> Prismel.Frame.t ->
     intent list
   (** The gutters' drag targets, wider than they are drawn ([Resize], [Settled]).  Call it
       after the panes' boxes so a gutter is not shadowed by its neighbours' hit areas. *)

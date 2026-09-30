@@ -69,6 +69,8 @@ module Private = struct
   module Pick = Pick
   module Cook = Cook
   module Text_pane = Text_pane
+  module Navigator = Navigator
+  module Bars = Bars
 end
 
 module Workspace = struct

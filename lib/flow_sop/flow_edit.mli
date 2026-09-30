@@ -50,6 +50,10 @@ type op =
   | Hoist of { node : path }  (** a loop-invariant binding moves out of its loop or scope *)
   | Rename of { node : path; to_ : string }
   | Make_local_fn of { nodes : path list }
+  | Make_defn of { nodes : path list; name : string; context : string; params : (string * string) list }
+      (** the selected bindings (one scope, one result leaving) become a new top-level
+          [(defn name :context context [(p : type) ...] body)]; [params] types every name the
+          selection reads from outside ({!defn_draft}), and a call replaces the bindings *)
   | Make_macro of { nodes : path list; name : string; holes : (int list * string) list }
       (** [holes] are child paths into the template (the binding expression, or
           [let*] over several bindings, see {!literals}) *)
@@ -101,6 +105,12 @@ type macro_draft = {
 val macro_draft : Flow.Syntax.t list -> path list -> (macro_draft, Flow.Diagnostic.t) result
 (** What [Make_macro] over these nodes would template, for the dialog that picks its
     holes.  The errors are [Make_macro]'s (one scope, one result leaving). *)
+
+type defn_draft = { free : string list;  (** the names the selection reads from outside *)
+                    name : string  (** a suggested function name *) }
+
+val defn_draft : Flow.Syntax.t list -> path list -> (defn_draft, Flow.Diagnostic.t) result
+(** What [Make_defn] over these nodes needs typed: the outside names.  The errors are [Make_defn]'s. *)
 
 val macro_op : macro_draft -> nodes:path list -> name:string -> (bool * string) array -> op
 (** The [Make_macro] a dialog's answer means: entry [i] says whether literal [i] is a

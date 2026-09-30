@@ -20,6 +20,7 @@ type change =
   | Moved of (path * float * float) list
       (** dragged items, at their new position inside their scope *)
   | Macro_requested of path list
+  | Defn_requested of path list
       (** [m]: the host opens its make-macro dialog over these nodes *)
   | Frames_set of { scope : path; frames : (string * (float * float) * (float * float)) list }
       (** the titled frames of one scope after a gesture: Shift-G makes one around the selection,
@@ -33,7 +34,7 @@ type change =
 type direction = Left | Down | Up | Right
 type command =
   | Delete  (** the hovered wired row's wire, else the selected nodes *)
-  | Fold_into | Unfold | Hoist | Bypass | Wrap_repeat | Wrap_iterate | Make_fn | Make_macro
+  | Fold_into | Unfold | Hoist | Bypass | Wrap_repeat | Wrap_iterate | Make_fn | Make_macro | Make_defn
   | Collapse | Probe_step of int | Frame_all | Walk of direction
   | Edit_name
       (** F2, or a double-click on a title: a text field over the selected node's name

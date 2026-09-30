@@ -102,7 +102,7 @@ module Layout = struct
     | x :: under, y :: path -> x = y && prefix under path
     | _ -> false
 
-  let geometry ?(hidden = [ Timeline ]) tree (frame : Frame.t) =
+  let geometry ?(hidden = [ Timeline ]) ?(top = 0) tree (frame : Frame.t) =
     let all = Editor_core.Panels.leaves tree in
     let header = min header_height (max 0 (frame.height - 1)) in
     let timeline = if List.mem Timeline hidden || List.exists (fun (_, p) -> p = Timeline) all
@@ -178,7 +178,7 @@ module Layout = struct
             if r > 0 && c = 0 then splitters := { node = None; axis = `V;
               bounds = (x, cy - splitter_width, w, splitter_width); start = 0; span = 1 } :: !splitters;
             place (cx, cy, widths.(r).(c), heights.(r)) (path @ [ i ]) cell) cells in
-    place (0, 0, frame.width, max 1 bottom) [] tree;
+    place (0, top, frame.width, max 1 (bottom - top)) [] tree;
     let rec drain () = match List.rev !floats with
       | [] -> ()
       | queue -> floats := [];
@@ -225,10 +225,10 @@ module Chrome = struct
   (* Chrome of the retained workspace, painted and hit through PXUI boxes:
      panel backgrounds, splitters, and header bars with a collapse button and a
      right-click menu (split, close, retype). *)
-  let update ?(hidden = [ Timeline ]) ?(title = fun (l : leaf) -> Editor_core.Panels.name l.panel)
+  let update ?(hidden = [ Timeline ]) ?(top = 0) ?(title = fun (l : leaf) -> Editor_core.Panels.name l.panel)
       tree ui (frame : Frame.t) =
     let module Ui = Pxui.Ui in
-    let geometry = geometry ~hidden tree frame in
+    let geometry = geometry ~hidden ~top tree frame in
     let theme = Ui.theme ui in
     List.iter (fun l -> match l.panel with
       | View _ | Timeline -> ()
@@ -252,7 +252,8 @@ module Chrome = struct
           (x + max 0 (w - size), y + ((h - size) / 2), size, size) ("workspace-collapse-" ^ label) in
       if (Ui.signal ui button).clicked then emit (Toggle l.panel);
       let opened = Ui.state ui box ~default:0 = 1 in
-      let opened = opened || Ui.context_clicked (Ui.signal ui box) in
+      let header_signal = Ui.signal ui box in
+      let opened = opened || Ui.context_clicked header_signal || header_signal.clicked in
       Ui.set_state ui box (if opened then 1 else 0);
       if opened then begin
         let rows = [ "Split side by side", true; "Split top and bottom", true; "Close", true ]
@@ -273,8 +274,15 @@ module Chrome = struct
         Ui.Paint.rect paint ~x ~y ~w ~h ~fill:theme.input
           ~stroke:(Pxui.Theme.faint_border theme) ();
         let x = int_of_float x and y = int_of_float y and w = int_of_float w in
+        (* "Title<TAB>subtitle": the subtitle follows in the muted colour *)
+        let main, sub = match String.index_opt text '\t' with
+          | Some i -> String.sub text 0 i, String.sub text (i + 1) (String.length text - i - 1)
+          | None -> text, "" in
         Ui.Paint.text paint ~at:(float_of_int (x + 10), float_of_int (y + 4)) ~size:11
-          ~color:theme.foreground text;
+          ~color:theme.foreground (main ^ (if List.mem l.panel hidden then "" else " v"));
+        if sub <> "" then
+          Ui.Paint.text paint ~at:(float_of_int (x + 10 + (7 * (String.length main + 4))), float_of_int (y + 4))
+            ~size:11 ~color:(Pxui.Theme.muted theme) sub;
         Ui.Paint.text paint ~at:(float_of_int (x + max 7 (w - 19)), float_of_int (y + 4))
           ~size:11 ~color:theme.accent glyph)) headers;
     List.rev !intents
@@ -287,7 +295,7 @@ module Chrome = struct
 
   (* The draggable gutters, wider than they are drawn.  Build them after the panes so
      they sit on top of the neighbours' hit rectangles. *)
-  let splitters ?(hidden = [ Timeline ]) tree ui (frame : Frame.t) =
+  let splitters ?(hidden = [ Timeline ]) ?(top = 0) tree ui (frame : Frame.t) =
     let module Ui = Pxui.Ui in
     let intents = ref [] in
     List.iteri (fun n (s : splitter) -> match s.node with
@@ -311,7 +319,7 @@ module Chrome = struct
                        :: !intents
           end;
           if signal.released then intents := Settled :: !intents)
-      (geometry ~hidden tree frame).splitters;
+      (geometry ~hidden ~top tree frame).splitters;
     List.rev !intents
 
   let focus ui ~bounds:(x, y, width, height) =

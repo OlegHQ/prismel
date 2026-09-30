@@ -16,6 +16,7 @@ type op =
   | Hoist of { node : path }
   | Rename of { node : path; to_ : string }
   | Make_local_fn of { nodes : path list }
+  | Make_defn of { nodes : path list; name : string; context : string; params : (string * string) list }
   | Make_macro of { nodes : path list; name : string; holes : (int list * string) list }
   | Inline_macro of { node : path }
   | Toggle_bypass of { node : path }
@@ -731,6 +732,30 @@ let rewrite src op : (unit -> S.t list) list =
         let added = [ fst x.out, call name (hole_vals @ List.map sym free) ] in
         reorder (rebuild x.sc (insert_at x.keep (min x.first (List.length x.keep)) added) x.sc.res)) in
       map_items out (fun items -> Option.get !defn :: items))
+  | Make_defn { nodes; name; context; params } -> one (fun () ->
+      let sp = scope_path_of nodes in
+      let root = List.hd sp in
+      let rootf = root_form src root in
+      let _, items = workspace_parts src in
+      let taken = List.filter_map (fun (i : S.t) -> match i.node with
+        | S.List ({ S.node = S.Sym ("graph" | "defn" | "defmacro"); _ } :: { S.node = S.Sym n; _ } :: _) -> Some n
+        | _ -> None) items in
+      if not (valid_name name) || List.mem name taken || W.name_taken name then
+        fail "Pick a new lowercase function name.";
+      let defn = ref None in
+      let out = edit_scope src sp (fun s ->
+        let x = select s nodes "A function" in
+        let outer = outside_names ~root:rootf x in
+        if List.sort compare (List.map fst params) <> List.sort compare outer then
+          fail "The function reads %s from outside; each needs a type."
+            (if outer = [] then "nothing" else String.concat ", " outer);
+        let typed = List.map (fun n ->
+          let ty = List.assoc n params in
+          mk (S.List [ sym n; sym ":"; sym ty ])) outer in
+        defn := Some (call "defn" [ sym name; kwf "context"; sym context; vec typed; body_of x ]);
+        let added = [ fst x.out, call name (List.map sym outer) ] in
+        reorder (rebuild x.sc (insert_at x.keep (min x.first (List.length x.keep)) added) x.sc.res)) in
+      map_items out (fun items -> Option.get !defn :: items))
   | Inline_macro { node } -> one (fun () ->
       let sp, leaf = split_node node in
       let _, items = workspace_parts src in
@@ -913,6 +938,7 @@ let label = function
   | Set_input_default _ -> "Input default" | Unfold _ -> "Unfold" | Fold_into _ -> "Fold"
   | Wrap { loop = For; _ } -> "Repeat" | Wrap { loop = Fold; _ } -> "Iterate"
   | Hoist _ -> "Move out" | Rename _ -> "Rename" | Make_local_fn _ -> "Make function"
+  | Make_defn _ -> "Make reusable function"
   | Make_macro _ -> "Make macro" | Inline_macro _ -> "Inline macro"
   | Toggle_bypass _ -> "Bypass" | Set_note _ -> "Note" | Add_item _ -> "Add item"
   | Move_item _ -> "Move item" | Add_field _ -> "Add field" | Add_node _ -> "Add node"
@@ -945,6 +971,21 @@ let macro_draft src nodes =
       let x = select s nodes "A macro" in
       draft := Some { literals = literals (body_of x); free = outside_names ~root:rootf x;
                       name = fresh_name src ~root (x.out_name ^ "_tpl") };
+      s));
+    Ok (Option.get !draft)
+  with Fail d -> Error d
+
+type defn_draft = { free : string list; name : string }
+
+let defn_draft src nodes =
+  try
+    let sp = scope_path_of nodes in
+    let root = List.hd sp in
+    let rootf = root_form src root in
+    let draft = ref None in
+    ignore (edit_scope src sp (fun s ->
+      let x = select s nodes "A function" in
+      draft := Some { free = outside_names ~root:rootf x; name = fresh_name src ~root x.out_name };
       s));
     Ok (Option.get !draft)
   with Fail d -> Error d

@@ -154,14 +154,14 @@ let run_editor () =
   check (E3.undo_label !e = Some "Resize panel") "one history entry named Resize panel";
   (* the header menu of the graph panel: split side by side *)
   let hx = 400. in
-  click ~button:Input.RightButton (hx, 10.);
+  click ~button:Input.RightButton (hx, 10. +. 28.);  (* under the 28-point host bar *)
   step [];
-  click (340., 37.);
+  click (340., 37. +. 28.);
   step [];
   check (E3.undo_label !e = Some "Split panel") ("the menu split the graph panel: " ^ Option.value ~default:"-" (E3.undo_label !e));
   check (has (source !e) "network_a" && has (source !e) "network_b") "the split bound two new panels";
   (* a panel made by a loop cannot be split: the status says where it comes from *)
-  let geometry = Layout.geometry ~hidden:[ Layout.Timeline ] (shell_of (build_ok (E3.workspace !e)))
+  let geometry = Layout.geometry ~hidden:[ Layout.Timeline ] ~top:28 (shell_of (build_ok (E3.workspace !e)))
       .tree (frame (0., 0.) [] 0) in
   let leaf = Option.get (Layout.find geometry (Layout.View "v1.1.2")) in
   let hx, hy, hw, _ = leaf.header in
@@ -443,7 +443,7 @@ let run_cameras () =
   let step ?(buttons = []) ?(delta = (0., 0.)) (x, y) events =
     incr count; e := E3.update !e (Test_editor_input.frame ~buttons ~delta (x, y) events !count) in
   for _ = 1 to 8 do step (450., 300.) [] done;
-  let geometry () = Layout.geometry ~hidden:[ Layout.Timeline ] (shell_of (build_ok (E3.workspace !e))).tree
+  let geometry () = Layout.geometry ~hidden:[ Layout.Timeline ] ~top:28 (shell_of (build_ok (E3.workspace !e))).tree
       (frame (0., 0.) [] 0) in
   let center key =
     let leaf = Option.get (Layout.find (geometry ()) (Layout.View key)) in

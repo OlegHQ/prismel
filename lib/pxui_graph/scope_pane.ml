@@ -22,6 +22,7 @@ type change =
   | Selected of path list
   | Moved of (path * float * float) list
   | Macro_requested of path list  (** the host opens the make-macro dialog over these nodes *)
+  | Defn_requested of path list  (** the host types the outside names and writes the [defn] *)
   | Frames_set of { scope : path; frames : (string * (float * float) * (float * float)) list }
       (** the frames of one scope after a gesture (create, resize, retitle, delete) *)
   | Display_set of path  (** show this geometry node in the viewport (the shown one: its result) *)
@@ -29,7 +30,7 @@ type change =
 
 type direction = Left | Down | Up | Right
 type command =
-  | Delete | Fold_into | Unfold | Hoist | Bypass | Wrap_repeat | Wrap_iterate | Make_fn | Make_macro
+  | Delete | Fold_into | Unfold | Hoist | Bypass | Wrap_repeat | Wrap_iterate | Make_fn | Make_macro | Make_defn
   | Collapse | Probe_step of int | Frame_all | Walk of direction
   | Edit_name  (** rename the selected node, or edit the default of a selected graph input *)
   | Item_up | Item_down  (** move the hovered list item *)
@@ -362,6 +363,7 @@ let action_changes t command =
   | Wrap_iterate -> if paths = [] then [ Notice "Select nodes to iterate" ] else edit (E.Wrap { nodes = paths; loop = E.Fold })
   | Make_fn -> if paths = [] then [ Notice "Select nodes to make a function" ] else edit (E.Make_local_fn { nodes = paths })
   | Make_macro -> if paths = [] then [ Notice "Select nodes to make a macro" ] else [ Macro_requested paths ]
+  | Make_defn -> if paths = [] then [ Notice "Select nodes to make a reusable function" ] else [ Defn_requested paths ]
   | Collapse ->
       List.filter_map (fun (n : P.node) -> match n.zone with
         | Some { kind = P.Let; _ } | None -> None
@@ -459,6 +461,7 @@ let bindings =
     make ~guide:some "repeat" "repeat (loop)" Wrap_repeat (ch 'r') [];
     make ~guide:some "iterate" "iterate (feed back)" Wrap_iterate (ch 'r') [ Input.Shift ];
     make ~guide:some "function" "make function" Make_fn (ch 'l') [];
+    make ~guide:some "defn" "make reusable function (defn)" Make_defn (ch 'd') [];
     make ~guide:some "collapse" "collapse or expand zone" Collapse (ch 'c') [];
     make ~guide:one "probe-prev" "previous iteration" (Probe_step (-1)) (ch '[') [];
     make ~guide:one "probe-next" "next iteration" (Probe_step 1) (ch ']') [];
@@ -1034,11 +1037,11 @@ let context_items t path =
         (match zone with Some n -> if t.collapsed n.path then "Expand zone" else "Collapse zone"
                        | None -> "Collapse zone"), zone <> None;
         "Toggle bypass", true; "Repeat (loop)", true; "Iterate (feed back)", true;
-        "Make function", true; "Make macro", true; "Delete", true ]
+        "Make function", true; "Make macro", true; "Make defn", true; "Delete", true ]
 
 let context_command = function
   | 0 -> Fold_into | 1 -> Unfold | 2 -> Hoist | 3 -> Collapse | 4 -> Bypass
-  | 5 -> Wrap_repeat | 6 -> Wrap_iterate | 7 -> Make_fn | 8 -> Make_macro | _ -> Delete
+  | 5 -> Wrap_repeat | 6 -> Wrap_iterate | 7 -> Make_fn | 8 -> Make_macro | 9 -> Make_defn | _ -> Delete
 
 let update t ui (frame : Frame.t) =
   if not t.visible then { t with drag = None; context = None; editing = None }, [] else

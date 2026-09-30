@@ -1,0 +1,147 @@
+(* Bloom studio: the ws_bloom sketch through the editor, the way the study's proposal shows it.
+   The Navigator lists the document and opens a graph or a node from a click, the host bars
+   run the commands the graph pane has keys for, and Make defn writes a reusable function. *)
+open Prismel
+module E3 = Prismel_editor.Editor3
+module N = Prismel_editor.Private.Navigator
+module Bars = Prismel_editor.Private.Bars
+module Layout = Pxui_shell.Layout
+module Doc = Editor_document.Workspace_doc
+module Document = Editor_document.Document
+
+let fail message = failwith ("test_bloom_studio: " ^ message)
+let check condition message = if not condition then fail message
+let has text sub =
+  let n = String.length sub in
+  let rec at i = i + n <= String.length text && (String.sub text i n = sub || at (i + 1)) in
+  at 0
+
+let bloom () = In_channel.with_open_bin "../sketches/ws_bloom/sketch.plisp" In_channel.input_all
+let factories = Sop_catalog.Editor.factories
+let catalog = Editor_document.Contexts.catalog ~version:1 factories |> Result.get_ok
+
+(* tall enough to show the whole Navigator without scrolling *)
+let width = 1400 and height = 1400
+let frame ?(buttons = []) mouse events count =
+  { (Test_editor_input.frame ~buttons mouse events count) with
+    width; height; size = width, height; drawable_width = width; drawable_height = height;
+    drawable_size = width, height }
+
+let editor () =
+  let workspace = match Doc.of_text catalog (bloom ()) with
+    | Ok d -> d | Error ds -> fail (String.concat "; " (List.map Flow.Diagnostic.to_string ds)) in
+  E3.create ~await:true ~workspace
+    ~prepare:(fun _ output -> Pdk_prismel.Prismel_mesh.to_mesh output.Procedural.Session.geometry
+      |> Result.map_error Pdk.Error.to_string)
+    ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) ()
+  |> function Ok e -> e | Error m -> fail m
+
+let dump_line = Test_workspace_shell.dump_line
+let source e = fst (Flow.Lisp.print (E3.workspace e).Doc.source)
+
+let run () =
+  let e = ref (editor ()) and count = ref 0 in
+  let step ?(buttons = []) ?(mouse = (450., 300.)) events =
+    incr count; e := E3.update !e (frame ~buttons mouse events !count) in
+  let click ?(button = Input.LeftButton) (x, y) =
+    step ~mouse:(x, y) [ Event.MouseMoved (x, y) ];
+    step ~buttons:[ button ] ~mouse:(x, y) [ Event.MousePressed (button, (x, y)) ];
+    step ~mouse:(x, y) [ Event.MouseReleased (button, (x, y)) ];
+    step [] in
+  for _ = 1 to 12 do step [] done;
+  (* the sketch opens on flower's network, with the host bar above the panels *)
+  check (dump_line !e "projection" = "graph" && dump_line !e "pane graph" = "flower")
+    ("the sketch opens on the network of flower: " ^ dump_line !e "projection" ^ " / " ^ dump_line !e "pane graph");
+  let shell () = match (E3.workspace !e |> fun w -> Editor_document.Contexts.of_workspace ~factories w) with
+    | Ok d -> Option.get d.Document.shell | Error d -> fail (Flow.Diagnostic.to_string d) in
+  let geometry () = Layout.geometry ~hidden:[ Layout.Timeline ] ~top:Bars.height (shell ()).tree (frame (0., 0.) [] 0) in
+  let outline () = (Option.get (Layout.find (geometry ()) Layout.Outline)).body in
+  let graph_leaf () = Option.get (Layout.find (geometry ()) Layout.Graph) in
+  check (let _, y, _, _ = (graph_leaf ()).header in y = Bars.height) "the panels start under the host bar";
+  (* the Navigator lists the document *)
+  let ws = E3.workspace !e in
+  let params ?(active = "flower") scope : N.params = { workspace = ws.Doc.checked; title = ws.checked.name;
+    active = Some active; scope; records = None; probes = (fun _ -> 0); selected = [];
+    shell = Some (shell ()).tree } in
+  let scope = Some (Flow_sop.Projection.of_graph catalog ws.checked "flower") in
+  let lines = Array.to_list (Array.map N.describe (N.rows N.initial (params scope))) in
+  let listed text = List.exists (fun l -> has l text) lines in
+  check (listed "Bloom studio") "the case study header names the workspace";
+  check (listed "input petals = 12" && listed "input seed = 7") ("the inputs of flower: " ^ String.concat " | " lines);
+  check (listed "> flower · 1 loop" && listed "scene · scene") "the composition lists every graph, the open one marked";
+  check (listed "for ring") "the open graph's loop is a tree row";
+  check (listed "ƒ half · 2 calls" && listed "ƒ petal · 1 call" && listed "λ twice · 1 use")
+    "the reusable functions and macros count their uses";
+  check (listed "read by scene") "the data flow names who reads flower";
+  check (listed "split side by side") "the shell tree follows the editor graph";
+  (* a click on a row of the Navigator opens that graph in the pane *)
+  let row_centre text =
+    let active = dump_line !e "pane graph" in
+    let scope = Some (Flow_sop.Projection.of_graph catalog ws.checked active) in
+    let rects = N.row_rects N.initial (params ~active scope) ~bounds:(outline ()) in
+    let row, (x, y, w, h) = match List.find_opt (fun (r, _) -> has (N.describe r) text) (Array.to_list rects) with
+      | Some found -> found | None -> fail ("no Navigator row " ^ text) in
+    ignore row;
+    x +. 20. +. (w /. 8.), y +. h /. 2. in
+  click (row_centre "scene · scene");
+  click (row_centre "flower · 1 loop");
+  click (row_centre "ƒ half");
+  check (dump_line !e "pane graph" = "def:half") ("a function opens in the pane: " ^ dump_line !e "pane graph");
+  check (dump_line !e "projection" = "graph") "the function shows as a network";
+  click (row_centre "scene · scene");
+  check (dump_line !e "pane graph" = "scene") "a graph row opens that graph";
+  click (row_centre "flower · 1 loop");
+  check (dump_line !e "pane graph" = "flower") "and back to flower";
+  (* a node row opens its graph and selects the node there *)
+  click (row_centre "wobble");
+  check (dump_line !e "scope selected" = "flower/ring/wobble")
+    ("a node row selects it in the pane: " ^ dump_line !e "scope selected");
+  (* an input's slider writes the graph input's default: one history entry, the text follows *)
+  let slider_y, slider_x, slider_w =
+    let rects = N.row_rects N.initial (params scope) ~bounds:(outline ()) in
+    match List.find_opt (fun (r, _) -> has (N.describe r) "input petals") (Array.to_list rects) with
+    | Some (_, (x, y, w, h)) -> y +. (h /. 2.), x +. 76., w -. 86.
+    | None -> fail "no petals slider" in
+  let from = (slider_x +. (slider_w *. 0.3), slider_y) and to_ = (slider_x +. (slider_w *. 0.9), slider_y) in
+  step ~mouse:from [ Event.MouseMoved from ];
+  step ~buttons:[ Input.LeftButton ] ~mouse:from [ Event.MousePressed (Input.LeftButton, from) ];
+  step ~buttons:[ Input.LeftButton ] ~mouse:to_ [ Event.MouseMoved to_ ];
+  step ~mouse:to_ [ Event.MouseReleased (Input.LeftButton, to_) ];
+  step [];
+  check (not (has (source !e) "(petals : int 12)") && has (source !e) "(petals : int ")
+    ("the slider changed the input's default: " ^ source !e);
+  check (E3.undo_label !e = Some "Input default") ("named in history: " ^ Option.value ~default:"-" (E3.undo_label !e));
+  check (dump_line !e "edit error" = "-") "and checks";
+  (* the search field lists matches instead of the tree *)
+  let matches = Array.to_list (Array.map N.describe
+      (N.rows (N.with_query "wob" N.initial) (params scope))) in
+  check (List.exists (fun l -> has l "wobble") matches && not (List.exists (fun l -> has l "scene · scene") matches))
+    "a search shows the matching bindings";
+  (* the toolbar: Defn makes a reusable function from the selection, as the D key does *)
+  let header = (graph_leaf ()).header in
+  let from = Bars.tools_from "Graph network  flower" in
+  let tool t = match Bars.tool_rect ~header ~from t with
+    | Some (x, y, w, h) -> x +. (w /. 2.), y +. (h /. 2.) | None -> fail "the toolbar is cut off" in
+  let before = source !e in
+  click (row_centre "heart");
+  check (dump_line !e "scope selected" = "flower/heart") "the heart is selected";
+  click (tool Bars.Defn);
+  check (E3.undo_label !e = Some "Make reusable function") ("the defn tool made a function: "
+    ^ Option.value ~default:"-" (E3.undo_label !e) ^ " / " ^ dump_line !e "edit error");
+  check (has (source !e) "(defn heart_2 :context sop []") ("a defn with its own name: " ^ source !e);
+  check (source !e <> before) "the text changed";
+  (* the top bar: Undo takes it back, Redo brings it again *)
+  let bar_button label =
+    let x, y, w, h = Bars.top_button_rect ~width:(float width) label in x +. (w /. 2.), y +. (h /. 2.) in
+  click (bar_button "Undo");
+  check (source !e = before && E3.undo_label !e <> Some "Make reusable function") "Undo in the bar undoes the edit";
+  click (bar_button "Redo");
+  check (has (source !e) "(defn heart_2") "Redo in the bar redoes it";
+  (* Shell layouts: the menu's second row rewrites the editor graph *)
+  let x, y, w, h = Bars.top_button_rect ~width:(float width) "Shell layouts" in
+  click (x +. (w /. 2.), y +. (h /. 2.));
+  click (x +. 20., y +. h +. 3. +. 24. +. 12.);
+  check (E3.undo_label !e = Some "Edit graph" && has (source !e) "right (ui/split-at")
+    ("the Graph + code layout: " ^ Option.value ~default:"-" (E3.undo_label !e));
+  E3.close !e;
+  print_endline "bloom studio: navigator rows and clicks, toolbar defn, top bar undo/redo and layouts ok"

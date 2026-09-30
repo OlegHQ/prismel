@@ -249,3 +249,16 @@ list and lisp panels are the graph pane's), and never match a `column` or a fixe
   overlay (an inset of its parent); there are no OS windows.
 - Build the gutters' drag targets last in `Core.update` (`Chrome.splitters`): a pane root's
   hit rectangle is created after the chrome and would shadow them otherwise.
+
+## Bloom studio shell (W14)
+
+`Navigator` (the Outline panel, titled Navigator) and `Bars` are private modules over the same immutable `Core`
+model: both are built inside `Ui.frame`, return intents and never mutate it. `Core.navigator_params` is everything the
+Navigator reads (the checked workspace, the open graph's projection, the probe records, the applied panel tree);
+`Navigator.Open` sets `pane_graph` (which outranks a `(ui/graph "name")` panel) and selects and frames a node;
+`Navigator.Set_default` is `Flow_edit.Set_input_default`. A document with an editor graph has a 28-point host bar:
+`Core.bar_height` is the `?top` every `Pxui_shell.Layout.geometry`, `Chrome.update` and `Chrome.splitters` call passes, so
+a test computing geometry passes `~top:Bars.height`. A bar or toolbar click that means a command sets `bar_action`, run
+next frame like a palette pick; one that means an edit is a `Syntax_edit` change. `Bars.layout_text` writes the editor
+graph of each shell layout (the `Set_graph` text), `Bars.top_button_rect` and `tool_rect` are the one source of a
+button's place for the draw and for tests. Make defn (`Flow_edit.Make_defn`) is typed by `Core.defn_change`.

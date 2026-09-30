@@ -54,7 +54,7 @@
 
   (graph editor :context editor
     (let* [outline (ui/outline)
-           network (ui/graph)
+           network (ui/graph "flower")
            preview (ui/viewport (ref scene))
            inspector (ui/inspector)
            code (ui/lisp)
