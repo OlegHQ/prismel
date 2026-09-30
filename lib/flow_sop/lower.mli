@@ -104,8 +104,13 @@ val objects : t -> (int * Network.t * int) list
     node): the [~objects] of the editor's [Cook.update] (the document-driven
     caller is W3). *)
 
+val changes : Port.parameter -> Flow.Eval.value -> ((string * Param.value) list, Flow.Diagnostic.t) result
+(** The field values a catalog parameter takes from an evaluated argument (colour text,
+    number, vec3, choice or text), hard bounds applied.  Scene, world and settings
+    lowering ([Editor_document.Contexts]) reads its structs through it. *)
+
 val workspace :
-  factories:Procedural.Edit_graph.factory list ->
+  factories:Procedural.Edit_graph.factory list -> ?extra:Catalog.descriptor list ->
   ?compiled_ids:int Instance_path.Map.t -> ?sites:Flow.Workspace.path list ->
   ?inputs:(string * (string * Flow.Eval.value) list) list ->
   Flow.Syntax.t list -> (t, Flow.Diagnostic.t) result

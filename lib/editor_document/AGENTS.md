@@ -36,3 +36,7 @@ the derived scene and networks (never edit those directly). `Preset` is the
 only persisted form: one s-expression file, no version and no older reader.
 `Document.dump` is a deterministic text of any document for crash reports and
 tests; it is not loadable.
+
+`Contexts` generates the scene, world and settings kinds of a workspace from the object, layer
+and settings schemas and builds the document of a workspace (`of_workspace`); add a field to a
+schema and it is a keyword. Do not hand-write per-kind Lisp glue there.

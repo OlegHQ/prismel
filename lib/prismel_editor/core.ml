@@ -105,6 +105,7 @@ type 'prepared t = {
   probes : int Layout_by_path.Path_map.t;  (* the iteration each zone shows: view state, not history *)
   lit : lit_cache option;  (* the highlight of the selected node at the probes, see {!lit_tags} *)
   scope_key : scope_key option;
+  pane_graph : string option;  (* a scene, world or settings graph the pane shows instead of the level's own *)
   flow_catalog : Flow.Check.catalog option Lazy.t;
   tree : Pxui_shell.Tree.t;
   ui : Pxui.Ui.t;
@@ -359,16 +360,47 @@ let projection value =
     | Inside id when kind value id = Some "geometry" -> Graph_view
     | Inside _ -> List_view)
 
-(* The workspace graph the pane shows with zones and selectors: a geometry
-   object of a workspace document opened as a graph (its label is the [sop]
-   graph's name).  Everything else keeps the flat network pane. *)
-let graph_name value = match value.doc.Document.workspace, value.level with
-  | Some (ws, _), Document.Inside id when kind value id = Some "geometry" ->
-      Option.bind (Edit_graph.find (scene value) ~node_id:id) (fun node ->
-        let name = Node.label node in
-        if List.exists (fun (g : Flow.Workspace.graph) -> g.name = name) ws.checked.graphs
-        then Some name else None)
-  | _ -> None
+(* The workspace graph the pane shows with zones and selectors: the one
+   [Cycle_graph] picked (scene, world or settings), else the graph of the
+   geometry object opened (the one its network was lowered from, else the
+   [sop] graph its label names) or of the World opened.  Everything else keeps
+   the flat network pane. *)
+let graph_name value = match value.doc.Document.workspace with
+  | None -> None
+  | Some (ws, lowered) ->
+      let exists name = List.exists (fun (g : Flow.Workspace.graph) -> g.name = name) ws.checked.graphs in
+      (match value.pane_graph, value.level with
+       | Some name, _ when exists name -> Some name
+       | _, Document.Inside id when kind value id = Some "geometry" ->
+           let lowered_from = Option.bind (Document.Layout.find_opt id value.doc.Document.networks)
+             (fun (n : Document.network) ->
+               List.find_map (fun (g : Flow_sop.Lower.graph) ->
+                 if g.network == n.graph then Some g.name else None) lowered.graphs) in
+           (match lowered_from with
+            | Some _ as name -> name
+            | None -> Option.bind (Edit_graph.find (scene value) ~node_id:id) (fun node ->
+                let name = Node.label node in if exists name then Some name else None))
+       | _, Inside id when kind value id = Some "world" ->
+           List.find_map (fun (g : Flow.Workspace.graph) ->
+             if g.context = Flow.Workspace.World then Some g.name else None) ws.checked.graphs
+       | _ -> None)
+
+(* The next graph of [Cycle_graph]: scene, world and settings graphs in source
+   order, then back to the level's own. *)
+let next_pane_graph value = match value.doc.Document.workspace with
+  | None -> None
+  | Some (ws, _) ->
+      let names = List.filter_map (fun (g : Flow.Workspace.graph) ->
+        if g.context = Flow.Workspace.Sop || g.context = Value || g.context = Editor then None
+        else Some g.name) ws.checked.graphs in
+      (match value.pane_graph with
+       | None -> List.nth_opt names 0
+       | Some current ->
+           let rec after = function
+             | x :: next :: _ when x = current -> Some next
+             | _ :: rest -> after rest
+             | [] -> None in
+           after names)
 
 let scope_name value = if projection value = Graph_view then graph_name value else None
 
@@ -459,7 +491,9 @@ let scope_add value (request : Pxui_graph.add_request) =
               List.filteri (fun i _ -> i < List.length path - 1) path,
               (if arity > 0 && last.[0] <> ':' && last.[0] <> '@' then Some last else None)
           | _ -> [ graph ], None in
-        let head = Flow.Syntax.make (Flow.Syntax.Sym ("sop/" ^ request.factory_key)) in
+        let namespace = match List.find_opt (fun (g : Flow.Workspace.graph) -> g.name = graph) ws.checked.graphs with
+          | Some g -> Flow.Workspace.context_name g.context | None -> "sop" in
+        let head = Flow.Syntax.make (Flow.Syntax.Sym (namespace ^ "/" ^ request.factory_key)) in
         let expr = Flow.Syntax.make (Flow.Syntax.List (head ::
           (match input with Some n -> [ Flow.Syntax.make (Flow.Syntax.Sym n) ] | None -> []))) in
         let name = Flow_sop.Flow_edit.fresh_name ws.source ~root:graph request.factory_key in
@@ -498,7 +532,7 @@ let open_level value level frame =
   let world = match level with
     | Document.Inside id -> kind value id = Some "world"
     | Scene | Compound _ -> false in
-  { value with level; graph_view = view_of value level frame
+  { value with level; pane_graph = None; graph_view = view_of value level frame
       |> Pxui_graph.carry_last_added ~from:value.graph_view; map_view = world;
     tree = Pxui_shell.Tree.create () }
 
@@ -876,8 +910,13 @@ let initial_doc ~settings ~seed_scene ?program code_graph =
 let workspace_doc ~factories ~seed_scene workspace =
   let ( let* ) = Result.bind in
   let flow r = Result.map_error Flow.Diagnostic.to_string r in
-  let* doc = flow (Document.of_workspace ~factories workspace) in
-  let scene = seed_scene doc.scene.graph.geometry in
+  let* doc = flow (Editor_document.Contexts.of_workspace ~factories workspace) in
+  let declared = doc.scene.graph.geometry in
+  let scene = seed_scene declared in
+  (* the sketch's lights are defaults: a workspace that declares its own keeps only those *)
+  let scene = if Objects.ids "light" declared = [] then scene
+    else Edit_graph.remove_nodes (List.filter (fun id -> not (List.mem id (Objects.ids "light" declared)))
+      (Objects.ids "light" scene)) scene in
   let* graph = flow (Flow_sop.Network.with_geometry scene doc.scene.graph) in
   let doc = { doc with scene = { doc.scene with graph };
     active_camera = List.nth_opt (Objects.ids "camera" scene) 0 } in
@@ -926,7 +965,7 @@ let create ?(settings = Settings.none) ?(keymap = Leader.keymap)
     | Some workspace -> workspace_doc ~factories ~seed_scene:(seed_scene factories)
         { workspace with Workspace_doc.settings } in
   Result.bind opened (fun (doc, geometry) ->
-  let doc = match Option.map (add_world doc) world with
+  let doc = match (if Objects.ids "world" doc.scene.graph.geometry = [] then Option.map (add_world doc) world else None) with
     | Some (Ok doc) -> doc | Some (Error _) | None -> doc in
   Result.bind (Result.map_error Flow.Diagnostic.to_string
     (Document.allocate_compiled_ids doc)) (fun doc ->
@@ -951,8 +990,8 @@ let create ?(settings = Settings.none) ?(keymap = Leader.keymap)
         factories;
         graph_view = Pxui_graph.create (Sop.points [||]);
         scope_view = Pxui_graph.Scope.create (); probes = Layout_by_path.Path_map.empty; lit = None;
-        scope_key = None;
-        flow_catalog = lazy (Result.to_option (Flow_sop.Catalog.of_factories
+        scope_key = None; pane_graph = None;
+        flow_catalog = lazy (Result.to_option (Editor_document.Contexts.catalog
           ~version:Flow_sop.Manifest.version factories));
         tree = Pxui_shell.Tree.create (); held_keys = [];
         ui = Pxui.Ui.create (); workspace;
@@ -1080,7 +1119,7 @@ let apply_action value (frame : Frame.t) (workspace, graph_view, tree, timeline,
   | Hide_ui | Look_through | Fly | Save_preset | Browse_presets
   | Graph_command _ | List_command _ | Frame_camera | Undo | Redo | Command_palette
   | Guide_toggle | Guide_keys
-  | Sketch_command _ | Scope_command _ | Toggle_projection | Enter | Up | Go_world | Group | Ungroup
+  | Sketch_command _ | Scope_command _ | Toggle_projection | Cycle_graph | Enter | Up | Go_world | Group | Ungroup
   | Make_unique | Tool _
   | World_emit | World_reseed | World_time _ | World_play | World_preset _ ->
       workspace, graph_view, tree, timeline, changes
@@ -2346,7 +2385,9 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
   let map_view = if List.mem Leader.Toggle_projection actions && in_world value'
     then not value'.map_view else value'.map_view && in_world value' in
   let value' = { value' with map_view } in
-  let projections = if result.open_graph <> None then
+  let value' = if List.mem Leader.Cycle_graph actions
+    then { value' with pane_graph = next_pane_graph value' } else value' in
+  let projections = if result.open_graph <> None || List.mem Leader.Cycle_graph actions then
       Level_map.add value'.level Graph_view value'.projections
     else if List.mem Leader.Toggle_projection actions && not (in_world value') then
       Level_map.add value'.level

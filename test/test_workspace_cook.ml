@@ -11,7 +11,7 @@ let factories = Sop_catalog.Editor.factories
 let lower ?inputs name =
   match Flow.Syntax.parse (read (Filename.concat cases (name ^ ".lisp"))) with
   | Error d -> fail (Flow.Diagnostic.to_string d)
-  | Ok forms -> (match Lower.workspace ~factories ?inputs forms with
+  | Ok forms -> (match Lower.workspace ~extra:Editor_document.Contexts.descriptors ~factories ?inputs forms with
       | Ok lowered -> lowered
       | Error d -> fail (name ^ ": " ^ Flow.Diagnostic.to_string d))
 
@@ -133,14 +133,14 @@ let run () =
   check (Option.is_some (cook ~domains:1 (List.hd wave.graphs))) "wave cooks";
   (* ids are stable when the previous ids and sites are passed back *)
   let again = match Flow.Syntax.parse (read (Filename.concat cases "bloom.lisp")) with
-    | Ok forms -> Lower.workspace ~factories ~compiled_ids:bloom.compiled_ids
+    | Ok forms -> Lower.workspace ~extra:Editor_document.Contexts.descriptors ~factories ~compiled_ids:bloom.compiled_ids
         ~sites:bloom.sites forms |> Result.get_ok
     | Error _ -> fail "parse" in
   check (again.compiled_ids = bloom.compiled_ids
     && Flow_sop.Network.Int_map.equal ( = ) again.compiled bloom.compiled)
     "compiled ids are stable";
   (* the checker runs first *)
-  (match Lower.workspace ~factories
+  (match Lower.workspace ~extra:Editor_document.Contexts.descriptors ~factories
      (Flow.Syntax.parse "(workspace w (graph g :context sop (sop/nope)))" |> Result.get_ok) with
    | Error _ -> ()
    | Ok _ -> fail "lowering accepted an unchecked workspace");

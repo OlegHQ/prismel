@@ -1276,7 +1276,7 @@ module Scope = Pxui_graph.Scope
 module P = Flow_sop.Projection
 
 let cases = "../specification/workspace/cases"
-let scope_catalog = Flow_sop.Catalog.of_factories ~version:1 Sop_catalog.Editor.factories |> Result.get_ok
+let scope_catalog = Editor_document.Contexts.catalog ~version:1 Sop_catalog.Editor.factories |> Result.get_ok
 let load_workspace name =
   let text = In_channel.with_open_bin (Filename.concat cases (name ^ ".lisp")) In_channel.input_all in
   match Flow.Syntax.parse text with
@@ -1443,7 +1443,7 @@ let run_scope () =
 let bench_scope_pane () =
   let w = load_workspace "sunflower" in
   let source = Result.get_ok (Flow.Syntax.parse (In_channel.with_open_bin (Filename.concat cases "sunflower.lisp") In_channel.input_all)) in
-  let lowered = Result.get_ok (Flow_sop.Lower.workspace ~factories:Sop_catalog.Editor.factories source) in
+  let lowered = Result.get_ok (Flow_sop.Lower.workspace ~extra:Editor_document.Contexts.descriptors ~factories:Sop_catalog.Editor.factories source) in
   let network = (List.hd lowered.graphs).network in
   let ui = Pxui.Ui.create () in
   let frames = 300 in

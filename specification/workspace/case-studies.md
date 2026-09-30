@@ -76,21 +76,28 @@ A for zone repeats one shared petal function. Per-petal variation comes from the
       result))
 
   (graph scene :context scene
-    (let* [main (scene/object (ref flower) :color "#d69f61")
-           accent (scene/object (ref flower :petals 7 :seed 2)
-                                :color "#6fa6a1"
-                                :at [2.2 0 -1.2]
-                                :scale 0.55)
-           composed (scene/merge main accent)]
+    (let* [main (scene/geometry (ref flower) :name "flower")
+           accent (scene/geometry (ref flower :petals 7 :seed 2)
+                                  :name "accent"
+                                  :translate [2.2 0 -1.2]
+                                  :scale [0.55 0.55 0.55])
+           camera (scene/camera :eye [0.5 1.8 6] :target [0.8 0.3 0] :fov 50)
+           light (scene/light :translate [4 6 5] :intensity 60)
+           composed (scene/merge main accent camera light)]
       composed))
 
   (graph world :context world
-    (world/layer (ref scene) :name "Bloom study"))
+    (world/world (world/sun (world/sky :turbidity 3) :intensity 1500)
+                 :name "Bloom study"
+                 :exposure -0.5))
 
   (graph settings :context settings
-    (let* [fps 60
-           seed 42
-           config (settings/config :fps fps :seed seed :exposure (twice 0.5))]
+    (let* [seed 42
+           config (settings/config :title "Bloom study"
+                                   :width 1400
+                                   :height 800
+                                   :fps (twice 30)
+                                   :seed seed)]
       config)))
 ```
 
@@ -382,11 +389,11 @@ Graphs take typed inputs, and (ref garden :seed s) calls one like a function. Th
            spots (sop/scatter bed :count count :seed seed)
            dot (sop/uv_sphere :radius 0.06 :segments 8 :rings 4)
            dots (sop/copy_to_points dot spots)
-           result (sop/merge bed dots)]
+           result (sop/set_color (sop/merge bed dots) :color "#3b7d4e")]
       result))
 
   (graph scene :context scene [(seed : int 1)]
-    (scene/object (ref garden :seed seed) :color "#3b7d4e"))
+    (scene/geometry (ref garden :seed seed)))
 
   (graph editor :context editor
     (let* [sheet (ui/tile (for [s (range 4)]

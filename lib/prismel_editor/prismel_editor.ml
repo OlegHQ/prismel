@@ -3,6 +3,13 @@ open Editor_document
 module Settings = Settings
 module Workspace_doc = Workspace_doc
 
+let workspace_catalog ?(factories = Sop_catalog.Editor.factories) () =
+  Contexts.catalog ~version:Flow_sop.Manifest.version factories
+
+type window = Contexts.window =
+  { title : string; width : int; height : int; fps : int; seed : int }
+let workspace_window = Contexts.window
+
 type layout = Pxui_shell.Layout.config = {
   view_ratio : float;
   graph_ratio : float;

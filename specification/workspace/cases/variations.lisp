@@ -5,11 +5,11 @@
            spots (sop/scatter bed :count count :seed seed)
            dot (sop/uv_sphere :radius 0.06 :segments 8 :rings 4)
            dots (sop/copy_to_points dot spots)
-           result (sop/merge bed dots)]
+           result (sop/set_color (sop/merge bed dots) :color "#3b7d4e")]
       result))
 
   (graph scene :context scene [(seed : int 1)]
-    (scene/object (ref garden :seed seed) :color "#3b7d4e"))
+    (scene/geometry (ref garden :seed seed)))
 
   (graph editor :context editor
     (let* [sheet (ui/tile (for [s (range 4)]

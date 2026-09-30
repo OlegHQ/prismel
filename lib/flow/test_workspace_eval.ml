@@ -397,7 +397,7 @@ let () = (* D3 at run time, nonfinite math, and the panel checks *)
     is (value "(/ 1 0)") (Eval.Int 0);
     is (value "(mod 5 0)") (Eval.Int 0);
     is (value "(sqrt -4)") (Eval.Int 2));
-  t "ui/tile holds 1 to 16 panels, split takes horizontal or vertical, settings are ranged" (fun () ->
+  t "ui/tile holds 1 to 16 panels, split takes horizontal or vertical" (fun () ->
     let ed b = "(workspace w (graph g :context editor [(n : int 3)] (ui/workspace " ^ b ^ ")))" in
     let tile = ed "(ui/tile (for [i (range n)] (ui/graph)))" in
     ignore (static (check tile));
@@ -407,9 +407,8 @@ let () = (* D3 at run time, nonfinite math, and the panel checks *)
     err (ed "(ui/split (str \"dia\" \"gonal\") (ui/graph) (ui/lisp))") "E_RANGE" ~text:"axis";
     err (ed "(ui/split-at \"vertical\" (* n 0.5) (ui/graph) (ui/lisp))") "E_RANGE" ~text:"ratio";
     ignore (static (check (ed "(ui/split-at \"vertical\" (* n 0.1) (ui/graph) (ui/lisp))")));
-    let cfg = "(workspace w (graph g :context settings [(f : int 60)] (settings/config :fps f)))" in
-    ignore (static (check cfg));
-    err ~inputs:[ ("g", [ ("f", Eval.Int 500) ]) ] cfg "E_RANGE" ~text:"FPS")
+    (* settings ranges are the schema's: Editor_document.Contexts checks them when it lowers *)
+    ignore (static (check "(workspace w (graph g :context settings [(f : int 60)] (settings/config :fps f)))")))
 
 let () = (* C2: str formatting *)
   t "C2: ints plain, floats up to 4 decimals, no trailing zeros, ties away from zero" (fun () ->

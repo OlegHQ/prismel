@@ -20,7 +20,7 @@ Status: `todo` · `wip` · `done` (gate met) · `partial` (what is missing is na
 | W7 editable text | done | | `Ui.text_area`, the text pane's Selection, Graph and Document tabs (`Prismel_editor.Text_pane`), atomic Check & apply (`Doc.text_edit`, `Core.text_edit`/`binding_edit`, one "Edit text" entry), per-binding apply, error marks at their line; the old read-only text pane and the flat network text view are deleted (notes below). Gaps: the Graph tab is read-only, no Tab key, wrapping or Cmd-Enter apply. |
 | W8 loops over geometry | done | | `point_list` / `piece_list`, the zone node (`Eval` template, `Procedural.Zone` + `Node.Private.expand` + `Session`), lowering by `Lower.instantiate`, zone provenance and count, `FLOW_CASE=garden`, `test_workspace_zone`, bench (notes below). Gaps: values inside the loop read the template record, no `t` in the body, no "by index" title, sequential. |
 | W9 macros UI, notes, bypass | done | | `Projection` lens and `layout ?lens`, the panel and `B` flag in `Scope`, `Macro_requested` + `Flow_edit.macro_draft` / `macro_op` + `Pxui_shell.Prompt.macro`, the inspector note field, tests through the pane and the editor, `FLOW_CASE=rosette` (notes below). Gaps: no Template button, no Enter to create, no inspector bypass toggle. |
-| W10 contexts & composable shell | todo | | |
+| W10 contexts & composable shell | wip | | Part A (contexts) done: `scene`, `world`, `settings` graphs check, lower into the document and open in the pane; part B (layout tree, editor graph) todo, see the W10 notes below. |
 | W11 `.plisp` sketches | todo | | |
 | W12 migration & removal | todo | | |
 
@@ -431,3 +431,35 @@ Status: `todo` · `wip` · `done` (gate met) · `partial` (what is missing is na
   and Create (a `soft_tpl` call), and a typed note (`FLOW_W9`, PNG frames read). A macro
   made from `inner` (a call whose loop variable is a binder) is refused by the checker
   (`E_MACRO_CAPTURE`) and reported in the status strip.
+
+- W10 part A notes (contexts). Lisp spellings are generated from the schemas
+  (`Editor_document.Contexts`, one `Flow_sop.Catalog.descriptor` per kind, also written to
+  `flow_manifest.sexp` after the sop and value kinds): `scene/geometry`, `scene/light`,
+  `scene/camera` (Objects), `world/world`, `world/gradient|sky|sun|shape|scatter|room` (Layers),
+  `settings/config` (title, width, height, fps, seed: the new `Contexts.window` record).
+  Keywords are schema fields; three consecutive `_x _y _z` / `_r _g _b` floats are one vec3 or
+  colour (`:translate [0 1 0]`, `:color "#..."`; a stem that is a field name becomes `p_color`),
+  `:name` is the node label. A geometry object's first argument is its `(ref sopgraph ...)`; a
+  layer's is the layer below (`world/world` takes the top). `scene/merge` stays a hand op.
+  `Context.t` has `Settings`; the checker takes a kind's result type from its context and a
+  world kind's slot type is `world`. Eval returns these calls as `Struct`; args are forced at
+  `t = 0` (no animated scene values). Ranges are the schema's: literals are check errors,
+  computed values clamp like any write. `Document.of_workspace` moved to
+  `Contexts.of_workspace` (the old flat path is deleted): without a scene graph it still makes one
+  geometry object per sop graph. The workspace owns geometry always, cameras/lights only when its
+  scene declares one (else the host's seeded ones stay), the World only with a world graph;
+  ids are matched by (operation, label) across rebuilds, params it does not mention keep their
+  document value. A settings graph becomes `doc.settings` (workspace schema) and is not written
+  as a trailing `(settings ...)` form; inspector edits of it are overwritten on the next edit.
+  `Prismel_editor.workspace_catalog` / `workspace_window` are the host's entry points. The
+  manifest digest covers only sop and value kinds (the PPX links those). Fixtures: Bloom and
+  Variations use the new spellings (`:color` on objects is gone: colour lives in the geometry;
+  the prototype HTML no longer runs them). Pane: `Space o` (`Cycle_graph`) cycles scene, world
+  and settings graphs; a geometry object shows the sop graph its network was lowered from
+  (an override instance shows the graph's defaults), the World its world graph.
+  Part B must: replace `Pxui_shell.Layout` by the layout tree, evaluate `(graph editor ...)`
+  (Eval already returns `ui/*` Structs; `Contexts` has no editor lowering, viewports over
+  `(ref scene :seed n)` need one scene instance per override: `Contexts.result` only reads the
+  default instance), key focus by panel, make the panels of a `for` addressable (E1), keep
+  "Restore layout" outside the tree, let `ui/graph` name its graph (then drop `Cycle_graph`),
+  feed `Contexts.window` into `Workspace.main` (W11), update `prismel_editor/AGENTS.md`.

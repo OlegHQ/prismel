@@ -9,7 +9,7 @@ type action =
   | Layout | Frame_tile | Frame_camera
   | Look_through | Fly | Tool of int  (* 0 none, 1 translate, 2 rotate, 3 scale *)
   | Undo | Redo
-  | Toggle_projection | Enter | Up | Go_world | Group | Ungroup | Make_unique
+  | Toggle_projection | Cycle_graph | Enter | Up | Go_world | Group | Ungroup | Make_unique
   | World_emit | World_reseed | World_time of float | World_play | World_preset of int
   | Graph_command of Pxui_graph.command
   | Scope_command of Pxui_graph.Scope.command  (* the workspace pane, see [Core.scope_name] *)
@@ -55,6 +55,8 @@ let keymap = [
   command ~id:"workspace.command-palette" ~label:"command palette" ~trigger:(Leader "/")
     Command_palette;
   command ~guide:Editor_core.Guide_context.[Canvas; Node; Multi; List] ~id:"graph.projection" ~label:"graph / list / text" ~trigger:(Leader "l") Toggle_projection;
+  command ~id:"workspace.cycle-graph" ~label:"scene / world / settings graph" ~trigger:(Leader "o")
+    Cycle_graph;
   command ~id:"scene.world" ~label:"World" ~trigger:(Leader "e") Go_world;
   command ~id:"graph.add-node" ~label:"add (menu)" ~trigger:(Leader "a") Add_node;
   command ~guide:Editor_core.Guide_context.[Node; List]

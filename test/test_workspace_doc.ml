@@ -13,7 +13,7 @@ module Document = Editor_document.Document
 let fail message = failwith ("test_workspace_doc: " ^ message)
 let check condition message = if not condition then fail message
 let factories = Sop_catalog.Editor.factories
-let catalog = Catalog.of_factories ~version:1 factories |> Result.get_ok
+let catalog = Editor_document.Contexts.catalog ~version:1 factories |> Result.get_ok
 let show ds = String.concat "; " (List.map Flow.Diagnostic.to_string ds)
 
 let has text sub =
@@ -244,7 +244,7 @@ let part_view () =
   Fun.protect ~finally:(fun () ->
     Array.iter (fun f -> Sys.remove (Filename.concat directory f)) (Sys.readdir directory);
     Unix.rmdir directory) (fun () ->
-    let doc = match Document.of_workspace ~factories (of_text still) with
+    let doc = match Editor_document.Contexts.of_workspace ~factories (of_text still) with
       | Ok d -> d | Error d -> fail (Flow.Diagnostic.to_string d) in
     let view = `Assoc [ "eye", `List [ `Float 1.5; `Float (-2.); `Int 3 ]; "look_through", `Bool true;
       "name", `String "a \"b\""; "none", `Null ] in
@@ -257,11 +257,161 @@ let part_view () =
 let part_pane_layout () =
   let module M = Layout.Path_map in
   let doc = of_text still in
-  let opened = Document.of_workspace ~factories doc |> function Ok d -> d | Error m -> fail (Flow.Diagnostic.to_string m) in
+  let opened = Editor_document.Contexts.of_workspace ~factories doc |> function Ok d -> d | Error m -> fail (Flow.Diagnostic.to_string m) in
   let ws = fst (Option.get opened.workspace) in
   let ws = { ws with layout = { ws.layout with at = M.add [ "g"; "a" ] (40., 60.) ws.layout.at;
                                                collapsed = M.add [ "g"; "z" ] true ws.layout.collapsed } } in
   let again = of_text (Doc.to_text ws) in
   check (M.find [ "g"; "a" ] again.layout.at = (40., 60.) && M.mem [ "g"; "z" ] again.layout.collapsed)
     "moved items and collapsed zones round-trip through the s-expression"
-let run () = List.iter (fun f -> f ()) [ part_text; part_edit; part_view; part_editor; part_live; part_preset; part_pane_layout ]
+
+(* W10: scene, world and settings graphs become the document's objects, World and settings *)
+let case name = In_channel.with_open_bin
+  (Filename.concat "../specification/workspace/cases" (name ^ ".lisp")) In_channel.input_all
+
+let part_contexts () =
+  let module Objects = Editor_document.Objects in
+  let module Layers = Editor_document.Layers in
+  let module Contexts = Editor_document.Contexts in
+  let module Edit = Procedural.Edit_graph in
+  let build ?previous ws = match Contexts.of_workspace ~factories ?previous ws with
+    | Ok d -> d | Error d -> fail (Flow.Diagnostic.to_string d) in
+  let bloom = of_text (case "bloom") in
+  let doc = build bloom in
+  let scene = Document.scene_graph doc in
+  let infos = Edit.inspect scene in
+  let ops op = List.filter (fun (i : Edit.node_info) -> i.operation = op) infos in
+  let label (i : Edit.node_info) = i.label in
+  check (List.map label (ops "geometry") = [ "flower"; "accent" ]) "the scene graph's geometry objects, by :name";
+  check (List.length (ops "camera") = 1 && List.length (ops "light") = 1 && List.length (ops "world") = 1)
+    "camera, light and World come from the workspace";
+  check (Document.validate doc = Ok ()) "the document validates";
+  let accent = (List.nth (ops "geometry") 1).node in
+  (match Objects.geometry accent with
+   | Some p -> check (p.translate_x = 2.2 && p.translate_z = -1.2 && p.scale_x = 0.55 && p.scale_y = 0.55
+                      && p.rotate_y = 0.) "a vec3 keyword sets its three fields"
+   | None -> fail "accent is not a geometry object");
+  (match Objects.Camera.of_node (List.hd (ops "camera")).node with
+   | Some (camera, _) -> check (Prismel.Camera.position camera = Prismel.Vec3.create 0.5 1.8 6.) "camera eye"
+   | None -> fail "no camera");
+  (match Objects.light (List.hd (ops "light")).node with
+   | Some p -> check (p.intensity = 60. && p.translate_x = 4.) "light fields"
+   | None -> fail "no light");
+  check (doc.active_camera = Some (List.hd (ops "camera")).id) "the workspace's camera is the active one";
+  (* each geometry object owns the lowered network of the sop graph it refers to *)
+  let flower = (List.hd (ops "geometry")).id and accent_id = (List.nth (ops "geometry") 1).id in
+  let network id = Option.get (Document.Layout.find_opt id doc.networks) in
+  check ((network flower).displayed <> None && (network accent_id).displayed <> None
+         && (network flower).graph != (network accent_id).graph)
+    "two refs of one graph with different inputs are two networks";
+  (* the World: a node and its layer stack, bottom first *)
+  let world_id = (List.hd (ops "world")).id in
+  let world_node = (List.hd (ops "world")).node in
+  check (Procedural.Node.label world_node = "Bloom study") "the World's name";
+  (match Layers.to_world world_node (network world_id) with
+   | Some w ->
+       check (w.exposure = -0.5) "World exposure";
+       check (match w.layers with
+         | [ { layer = Prismel.World.Sky s; _ }; { layer = Prismel.World.Sun u; _ } ] ->
+             s.turbidity = 3. && u.intensity = 1500.
+         | _ -> false) "World layers, bottom first"
+   | None -> fail "the World does not read");
+  (* settings: the window the host opens *)
+  let window = match Contexts.window bloom with Ok w -> w | Error d -> fail (Flow.Diagnostic.to_string d) in
+  check (window = { Contexts.title = "Bloom study"; width = 1400; height = 800; fps = 60; seed = 42 })
+    "settings graph: window title, size, fps (a macro call) and seed";
+  (match Contexts.window (of_text (case "tree")) with
+   | Ok w -> check (w.title = "Prismel" && w.fps = 60) "no settings graph: defaults"
+   | Error d -> fail (Flow.Diagnostic.to_string d));
+  check (List.exists (fun (f : Editor_core.Param.field_view) -> f.name = "title" && f.current = Text_value "Bloom study")
+    (Editor_document.Settings.fields doc.settings)) "the settings graph is the document's settings";
+  (* determinism, print/parse and preset round trips *)
+  (* ids are fresh per build; everything else is a function of the source *)
+  let shape (d : Document.t) =
+    List.map (fun (i : Edit.node_info) -> i.operation, i.label, i.parameters) (Edit.inspect (Document.scene_graph d)),
+    List.filter_map (fun (i : Edit.node_info) -> if i.operation <> "world" then None else
+      Option.bind (Document.Layout.find_opt i.id d.networks) (fun n -> Layers.to_world i.node n))
+      (Edit.inspect (Document.scene_graph d)),
+    Editor_document.Settings.fields d.settings in
+  check (shape (build bloom) = shape doc) "the same source builds the same document twice";
+  check (Document.dump (build ~previous:doc bloom) = Document.dump doc) "rebuilding over the previous document changes nothing";
+  let again = of_text (Doc.to_text bloom) in
+  check (Doc.to_text again = Doc.to_text bloom) "print and parse are a fixed point";
+  check (shape (build again) = shape doc) "the printed text builds the same document";
+  let directory = Filename.temp_dir "prismel-contexts" "" in
+  Fun.protect ~finally:(fun () ->
+    Array.iter (fun f -> Sys.remove (Filename.concat directory f)) (Sys.readdir directory);
+    Unix.rmdir directory) (fun () ->
+    let path = Preset.save ~directory ~name:"bloom" ~doc ~view:`Null |> Result.get_ok in
+    let text = In_channel.with_open_bin path In_channel.input_all in
+    check (not (has text "(settings :")) "settings owned by a graph are not written a second time";
+    let loaded = Preset.load ~path ~factories ~settings:Editor_document.Settings.none |> Result.get_ok in
+    check (shape loaded.doc = shape doc) "the preset round trips scene, World and settings");
+  (* a Flow_edit on the scene graph rebuilds it; ids, and viewport edits of unmentioned fields, stay *)
+  let edited = match Doc.edit catalog bloom (E.Set_arg { node = [ "scene"; "accent" ]; key = Kw "translate";
+      sub = []; value = Flow.Syntax.make (S.Vec (List.map (fun n -> S.make (S.Num n)) [ "4"; "0"; "1" ])) }) with
+    | Ok d -> d | Error d -> fail (Flow.Diagnostic.to_string d) in
+  let doc2 = build ~previous:doc edited in
+  let accent2 = List.nth (List.filter (fun (i : Edit.node_info) -> i.operation = "geometry")
+    (Edit.inspect (Document.scene_graph doc2))) 1 in
+  check (accent2.id = accent_id) "an edit keeps the object's id";
+  check ((Option.get (Objects.geometry accent2.node)).translate_x = 4.) "the edit reaches the object";
+  check (has (Doc.to_text edited) ":translate [4 0 1]") "the source carries the edit";
+  (* negative lowering: computed arguments outside a schema bound, and a wrong result *)
+  let settings_of body = of_text ("(workspace w (graph c :context settings [(f : int 60)] " ^ body ^ "))") in
+  check (Result.is_ok (Contexts.window (settings_of "(settings/config :fps f)"))) "a settings graph with an input";
+  (* a literal past a hard bound is a check error; a computed one is clamped like any write *)
+  check ((Result.get_ok (Contexts.window (settings_of "(settings/config :fps (* f 100))"))).fps = 240)
+    "a computed fps above the hard bound is clamped when lowered";
+  check (match Contexts.of_workspace ~factories (of_text "(workspace w (graph x :context world (world/sky)))") with
+    | Error d -> has d.message "world/world" | Ok _ -> false) "a world graph must return world/world";
+  (* the implicit scene: without a scene graph, one geometry object per sop graph *)
+  let plain = build (of_text still) in
+  check (List.map label (List.filter (fun (i : Edit.node_info) -> i.operation = "geometry")
+    (Edit.inspect (Document.scene_graph plain))) = [ "g" ]) "no scene graph: one object per sop graph";
+  (* Variations: one garden object, the graph opened for a viewport *)
+  let variations = build (of_text (case "variations")) in
+  check (List.map label (Edit.inspect (Document.scene_graph variations)) = [ "garden" ]) "variations scene";
+  (* the manifest kinds equal the runtime kinds *)
+  let manifest, _ = Flow_sop.Manifest.generate ~extra:Contexts.descriptors factories |> Result.get_ok in
+  let from_manifest, _ = Flow.Check.catalog_of_manifest manifest |> Result.get_ok in
+  check (from_manifest.kinds = (Result.get_ok (Contexts.catalog ~version:from_manifest.version factories)).kinds)
+    "the generated scene, world and settings kinds survive the manifest"
+
+(* W10: Space o cycles the pane through the scene, world and settings graphs; the
+   scene's objects and the World come from the workspace *)
+let part_editor_contexts () =
+  let module E3 = Prismel_editor.Editor3 in
+  let e = ref (editor (case "bloom")) in
+  let count = ref 0 in
+  let step events = incr count; e := E3.update !e (frame events !count) in
+  for _ = 1 to 10 do step []; Unix.sleepf 0.002 done;
+  let dump () =
+    let directory = Filename.temp_dir "prismel-contexts-dump" "" in
+    Fun.protect ~finally:(fun () ->
+      Array.iter (fun f -> Sys.remove (Filename.concat directory f)) (Sys.readdir directory);
+      Unix.rmdir directory) (fun () ->
+      E3.crash_dump !e directory;
+      In_channel.with_open_bin (Filename.concat directory "editor.txt") In_channel.input_all) in
+  let objects () = List.map (fun (i : Procedural.Edit_graph.node_info) -> i.label, i.operation)
+    (Procedural.Edit_graph.inspect (E3.document !e)) in
+  check (List.mem ("accent", "geometry") (objects ()) && List.mem ("Bloom study", "world") (objects ()))
+    "the editor opens the workspace's objects and World";
+  check (List.length (List.filter (fun (_, op) -> op = "camera") (objects ())) = 1
+         && List.length (List.filter (fun (_, op) -> op = "light") (objects ())) = 1)
+    "a scene that declares a camera and a light gets no seeded ones";
+  List.iter (fun graph ->
+    step [ key Input.Space; char 'o' ]; step [];
+    check (has (dump ()) ("pane graph: " ^ graph ^ "\n")) ("Space o shows the " ^ graph ^ " graph\n" ^ dump ()))
+    [ "scene"; "world"; "settings" ];
+  step [ key Input.Space; char 'o' ]; step [];
+  check (has (dump ()) "pane graph: -\n") "Space o cycles back to the level's own graph";
+  (* an edit on the scene graph reaches the objects, in one history entry *)
+  let e' = E3.edit !e (E.Set_arg { node = [ "scene"; "accent" ]; key = Kw "scale"; sub = [];
+    value = S.make (S.Vec (List.map (fun n -> S.make (S.Num n)) [ "1"; "1"; "1" ])) }) |> Result.get_ok in
+  check (E3.undo_label e' = Some "Edit value") "one history entry";
+  check (List.exists (fun (i : Procedural.Edit_graph.node_info) -> i.label = "accent"
+    && (Option.get (Editor_document.Objects.geometry i.node)).scale_x = 1.) (Procedural.Edit_graph.inspect (E3.document e')))
+    "the scene edit reached the object"
+
+let run () = List.iter (fun f -> f ()) [ part_text; part_edit; part_view; part_editor; part_live; part_preset; part_pane_layout; part_contexts; part_editor_contexts ]

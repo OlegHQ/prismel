@@ -55,19 +55,16 @@ let entry ~qualified ~key ~operation ~label ~category ~slots ~fields ~result =
     group "operation" [quote operation]; group "label" [quote label];
     strings "category" category; group "slots" slots; fields; outputs result] ^ ")"
 
-let sop factory =
+let descriptor (d : Catalog.descriptor) =
   let module Edit = Procedural.Edit_graph in
-  let slots = List.map2 (fun name requirement ->
+  let slots = List.map (fun (name, requirement) ->
     group "slot" [quote name; (match requirement with
       | Edit.Required -> "required" | Edit.Optional -> "optional"
-      | Edit.Rest -> "rest")])
-      (Edit.factory_slot_names factory) (Edit.factory_inputs factory) in
-  entry ~qualified:("sop/" ^ Edit.factory_key factory)
-    ~key:(Edit.factory_key factory) ~operation:(Edit.factory_operation factory)
-    ~label:(Edit.factory_label factory)
-    ~category:(Edit.factory_category factory) ~slots
-    ~fields:(Edit.factory_fields factory)
-    ~result:["geo", Flow.Port_type.Geometry]
+      | Edit.Rest -> "rest")]) d.slots in
+  entry ~qualified:d.qualified ~key:d.key ~operation:d.operation ~label:d.label
+    ~category:d.category ~slots ~fields:d.fields
+    ~result:(if String.starts_with ~prefix:"sop/" d.qualified
+             then ["geo", Flow.Port_type.Geometry] else [])
 
 let value kind =
   let module Value = Flow.Value_kind in
@@ -76,14 +73,18 @@ let value kind =
     ~label:(Value.label kind) ~category:(Value.category kind) ~slots:[]
     ~fields:(Value.fields (Value.make kind)) ~result:(Value.outputs kind)
 
-let generate factories =
+(* The digest covers the sop and value kinds, the catalog the PPX links against; the
+   generated scene, world and settings kinds ([extra]) follow them and are outside it. *)
+let generate ?extra factories =
   Result.map (fun _ ->
-    let kinds = List.map sop factories @ List.map value Flow.Value_kind.all in
+    let kinds = List.map (fun f -> descriptor (Catalog.descriptor f)) factories
+      @ List.map value Flow.Value_kind.all in
     let payload = group "version" [string_of_int version] ^ "\n" ^
       group "kinds" kinds in
     let digest = Digest.to_hex (Digest.string payload) in
+    let all = kinds @ List.map descriptor (Option.value extra ~default:[]) in
     let text = "(flow_manifest\n  " ^ group "version" [string_of_int version] ^
       "\n  " ^ group "digest" [quote digest] ^
-      "\n  (kinds\n    " ^ String.concat "\n    " kinds ^ "))\n" in
+      "\n  (kinds\n    " ^ String.concat "\n    " all ^ "))\n" in
     text, digest)
-    (Catalog.of_factories ~version factories)
+    (Catalog.of_factories ~version ?extra factories)

@@ -1209,60 +1209,6 @@ let positions value id = Option.map (fun (network : network) ->
     (Layout.find_opt id value.networks)
 
 
-(* The document of a workspace: one geometry object per [sop] graph holding
-   its lowered network.  [previous] keeps the object ids (matched by graph
-   name), the tile layout and the lowering's ids stable across edits. *)
-let of_workspace ~factories ?previous (workspace : Workspace_doc.t) =
-  let ( let* ) = Result.bind in
-  let compiled_ids, sites = match Option.bind previous (fun doc -> doc.workspace) with
-    | Some (_, (lowered : Flow_sop.Lower.t)) -> Some lowered.compiled_ids, Some lowered.sites
-    | None -> None, None in
-  let* lowered = Flow_sop.Lower.workspace ~factories ?compiled_ids ?sites workspace.source in
-  (* one object per graph: the instance with its own defaults, not a [ref] override *)
-  let shown = List.filter (fun (g : Flow_sop.Lower.graph) -> g.default) lowered.graphs in
-  let scene_graph = match previous with
-    | Some doc -> doc.scene.graph.geometry | None -> Edit_graph.empty in
-  let names = List.map (fun (g : Flow_sop.Lower.graph) -> g.name) shown in
-  let geometry (info : Edit_graph.node_info) = info.operation = "geometry" in
-  let stale = List.filter_map (fun (info : Edit_graph.node_info) ->
-    if geometry info && not (List.mem (Node.label info.node) names) then Some info.id else None)
-    (Edit_graph.inspect scene_graph) in
-  let scene_graph = Edit_graph.remove_nodes stale scene_graph in
-  let flow r = Result.map_error (Flow.Diagnostic.error ~code:"E_DOCUMENT") r in
-  let* scene_graph, objects = List.fold_left (fun state (g : Flow_sop.Lower.graph) ->
-    let* scene_graph, objects = state in
-    match List.find_opt (fun (info : Edit_graph.node_info) ->
-        geometry info && Node.label info.node = g.name) (Edit_graph.inspect scene_graph) with
-    | Some info -> Ok (scene_graph, (info.id, g) :: objects)
-    | None ->
-        let* node = flow (Edit_graph.instantiate_optional Objects.Geometry.factory [ None ]) in
-        let node = Node.relabel g.name node in
-        let* scene_graph = flow (Edit_graph.add_node ~factory:Objects.Geometry.factory
-          ~inputs:[| None |] node scene_graph) in
-        Ok (scene_graph, (Node.id node, g) :: objects)) (Ok (scene_graph, [])) shown in
-  let objects = List.rev objects in
-  let scene = match previous with
-    | Some doc -> doc.scene | None -> of_geometry ~context:Flow.Context.Scene Edit_graph.empty None in
-  let* scene_network = Flow_sop.Network.with_geometry scene_graph scene.graph in
-  let first = match objects with (id, _) :: _ -> Some id | [] -> None in
-  let scene = { scene with graph = scene_network;
-    displayed = (match scene.displayed with
-      | Some id when Edit_graph.find scene_graph ~node_id:id <> None -> Some id | _ -> first) } in
-  let settings = match previous with Some doc -> doc.settings | None -> workspace.settings in
-  let networks = List.fold_left (fun networks (id, (g : Flow_sop.Lower.graph)) ->
-    let layout = match previous with
-      | Some doc -> (match Layout.find_opt id doc.networks with
-          | Some (n : network) -> n.layout | None -> Canvas.empty)
-      | None -> Canvas.empty in
-    Layout.add id { context = Flow.Context.Sop; graph = g.network; layout; displayed = g.root } networks)
-    Layout.empty objects in
-  let doc = { scene; networks; definitions = String_map.empty;
-    compiled_ids = Flow_sop.Instance_path.Map.empty;
-    active_camera = Option.bind previous (fun doc -> doc.active_camera); settings;
-    workspace = Some ({ workspace with settings }, lowered) } in
-  Ok doc
-
-
 (* A deterministic text of everything the editor keeps in a document, for
    crash reports and for tests that compare two documents.  Not loadable:
    only a workspace has a text form ([Preset]). *)

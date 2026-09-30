@@ -4,7 +4,7 @@ open Port_type
 let () =
   List.iter (fun context ->
     assert (Context.of_string (Context.name context) = Ok context))
-    Context.[Sop; Value; Scene; World];
+    Context.[Sop; Value; Scene; World; Settings];
   assert (Context.supports_values Sop && not (Context.supports_values World));
   assert (Result.is_error (Context.of_string "shader"));
   assert (Symbol.to_string (Symbol.of_string "uv_sphere" |> Result.get_ok) = "uv_sphere");

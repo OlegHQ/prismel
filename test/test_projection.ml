@@ -9,7 +9,7 @@ let fail message = failwith ("test_projection: " ^ message)
 let check condition message = if not condition then fail message
 let read path = In_channel.with_open_bin path In_channel.input_all
 let cases = "../specification/workspace/cases"
-let catalog = Catalog.of_factories ~version:1 Sop_catalog.Editor.factories |> Result.get_ok
+let catalog = Editor_document.Contexts.catalog ~version:1 Sop_catalog.Editor.factories |> Result.get_ok
 let fixtures = [ "bloom"; "facade"; "garland"; "kit"; "orrery"; "rosette";
                  "sunflower"; "tiles"; "tree"; "tunnel"; "variations"; "wave" ]
 
@@ -33,7 +33,7 @@ let rec counts (s : P.scope) =
     (0, 0, 0) s.nodes
 
 let snapshot = [
-  "bloom", [ "flower", (9, 1, 35); "scene", (3, 0, 11); "world", (1, 0, 2); "settings", (3, 0, 6);
+  "bloom", [ "flower", (9, 1, 35); "scene", (5, 0, 43); "world", (1, 0, 13); "settings", (2, 0, 6);
              "editor", (10, 0, 18); "half", (1, 0, 2); "petal", (1, 0, 7) ];
   "facade", [ "facade", (12, 2, 59) ];
   "garland", [ "garland", (14, 3, 59); "ring", (1, 0, 2) ];
@@ -44,7 +44,7 @@ let snapshot = [
   "tiles", [ "tiles", (8, 1, 34) ];
   "tree", [ "tree", (8, 1, 67) ];
   "tunnel", [ "rings", (3, 1, 22) ];
-  "variations", [ "garden", (5, 0, 52); "scene", (1, 0, 4); "editor", (8, 0, 15) ];
+  "variations", [ "garden", (5, 0, 54); "scene", (1, 0, 7); "editor", (8, 0, 15) ];
   "wave", [ "wave", (6, 2, 39) ];
 ]
 

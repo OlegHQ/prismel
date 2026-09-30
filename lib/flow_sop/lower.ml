@@ -66,6 +66,8 @@ let changes_of (parameter : Port.parameter) value =
   | Some _, E.Text text -> snd (ok (Port.normalize parameter (typed (hex text))))
   | Some _, value -> snd (ok (Port.normalize parameter (typed value)))
 
+let changes parameter value = try Ok (changes_of parameter value) with Fail d -> Error d
+
 let at_zero value =
   if E.is_live value then ok (E.force value ~live:{E.t = 0.}) else value
 
@@ -78,10 +80,10 @@ let objects lowered = List.filter_map (fun (graph : graph) ->
   Option.map (fun root -> graph.instance, graph.network, root) graph.root)
   lowered.graphs
 
-let workspace ~factories ?(compiled_ids = Instance_path.Map.empty)
+let workspace ~factories ?extra ?(compiled_ids = Instance_path.Map.empty)
     ?(sites = []) ?inputs source =
   try
-    let catalog = ok (Catalog.of_factories ~version:Manifest.version factories) in
+    let catalog = ok (Catalog.of_factories ~version:Manifest.version ?extra factories) in
     let checked = match Workspace.check catalog source with
       | Some checked, _ -> checked
       | None, diagnostics ->

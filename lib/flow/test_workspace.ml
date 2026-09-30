@@ -169,8 +169,8 @@ let () = (* other static diagnostics of the study *)
   bad (sop "(sop/box (sop/box))") "E_EXTRA_POSITIONAL";
   bad (sop "(sop/nothing)") "E_UNKNOWN_KIND" ~text:"Unknown operator";
   bad (value "(sop/box)") "E_WRONG_CONTEXT";
-  bad "(workspace w (graph g :context scene (scene/object (sop/box))))" "E_WRONG_CONTEXT";
-  bad (sop "(scene/object (sop/box))") "E_WRONG_CONTEXT" ~text:"belongs to scene";
+  bad "(workspace w (graph g :context scene (scene/geometry (sop/box))))" "E_WRONG_CONTEXT";
+  bad (sop "(scene/geometry (sop/box))") "E_WRONG_CONTEXT" ~text:"scene node";
   bad "(workspace w (defn f :context sop [(x : float)] (f x)) (graph g :context sop (f 1)))" "E_RECURSION" ~text:"Use fold";
   bad "(workspace w (defn app :context value [(f : fn) (x : float)] (f f x)) (graph g :context value (app app 1)))" "E_RECURSION";
   bad "(workspace w (graph a :context value [(n : int 2)] n) (graph b :context value (ref a :m 1)))" "E_UNKNOWN_PARAM" ~text:"no input :m";
@@ -310,8 +310,34 @@ let () = (* macros through the workspace (M1, M2) *)
   ignore (good "(workspace w (defn f :context value [(x : float)] x) (defmacro a [x] `(f ~x)) (defmacro b [x] `(a ~x)) (graph g :context value (b 1)))")
 
 let () = (* the other contexts: scene, world, settings, editor *)
-  ignore (good "(workspace w (graph a :context sop (sop/box)) (graph s :context scene (scene/merge (scene/object (ref a)) (scene/object (ref a) :at [1 0 0]))) (graph x :context world (world/layer (ref s) :name \"L\")))");
-  bad "(workspace w (graph s :context settings (settings/config :fps 500)))" "E_RANGE" ~text:"FPS";
+  ignore (good "(workspace w (graph a :context sop (sop/box)) (graph s :context scene (scene/merge (scene/geometry (ref a)) (scene/geometry (ref a) :translate [1 0 0] :name \"b\") (scene/camera :eye [0 2 6]) (scene/light :color \"#ffcc88\"))) (graph x :context world (world/world (world/sun (world/sky)) :name \"L\")) (graph c :context settings (settings/config :title \"t\" :fps 30)))");
+  (* the kinds are the schemas' kinds: an unknown kind, keyword or type is reported per context *)
+  let scene b = "(workspace w (graph a :context sop (sop/box)) (graph s :context scene " ^ b ^ "))" in
+  let world b = "(workspace w (graph x :context world " ^ b ^ "))" in
+  let settings b = "(workspace w (graph c :context settings " ^ b ^ "))" in
+  bad (scene "(scene/nothing)") "E_UNKNOWN_KIND";
+  bad (scene "(scene/geometry)") "E_MISSING_INPUT";
+  bad (scene "(scene/geometry 3)") "E_TYPE" ~text:"takes geometry";
+  bad (scene "(scene/geometry (ref a) :nothing 1)") "E_UNKNOWN_PARAM";
+  bad (scene "(scene/geometry (ref a) :translate \"a\")") "E_TYPE";
+  bad (scene "(scene/geometry (ref a) :visible \"x\")") "E_TYPE";
+  bad (scene "(scene/light :shape \"Cube\")") "E_TYPE";
+  bad (scene "(scene/camera :fov 200)") "E_HARD_RANGE";
+  bad (scene "(scene/merge (ref a))") "E_TYPE";
+  bad (scene "(world/sky)") "E_WRONG_CONTEXT";
+  bad (world "(world/sky (sop/box))") "E_WRONG_CONTEXT";
+  bad (world "(world/sun 3)") "E_TYPE" ~text:"takes world";
+  bad (world "(world/sky :turbidity -1)") "E_HARD_RANGE";
+  bad (world "(scene/light)") "E_WRONG_CONTEXT";
+  bad (world "(sop/box)") "E_WRONG_CONTEXT";
+  bad (settings "(settings/config :fps 500)") "E_HARD_RANGE";
+  bad (settings "(settings/config :nothing 1)") "E_UNKNOWN_PARAM";
+  bad (settings "(settings/config :title 3)") "E_TYPE";
+  bad (settings "(world/world)") "E_WRONG_CONTEXT";
+  (* a graph's result has its context's type *)
+  bad (scene "(world/world)") "E_WRONG_CONTEXT";
+  bad "(workspace w (graph a :context sop (sop/box)) (graph s :context scene (ref a)))" "E_TYPE";
+  bad (world "(scene/merge)") "E_WRONG_CONTEXT";
   bad "(workspace w (graph e :context editor (ui/workspace (ui/split \"diagonal\" (ui/graph) (ui/lisp)))))" "E_RANGE" ~text:"axis";
   bad "(workspace w (graph e :context editor (ui/workspace (ui/split-at \"vertical\" 0.95 (ui/graph) (ui/lisp)))))" "E_RANGE" ~text:"ratio"
 

@@ -11,6 +11,18 @@
     layout by path and its settings (see [Editor_document.Workspace_doc]). *)
 module Workspace_doc = Editor_document.Workspace_doc
 
+val workspace_catalog : ?factories:Procedural.Edit_graph.factory list -> unit ->
+  (Flow.Check.catalog, Flow.Diagnostic.t) result
+(** The catalog a workspace text is checked against ({!Workspace_doc.of_text}):
+    the SOP factories (default [Sop_catalog.Editor.factories]) plus the scene,
+    world and settings kinds generated from the editor's schemas. *)
+
+type window = Editor_document.Contexts.window =
+  { title : string; width : int; height : int; fps : int; seed : int }
+
+val workspace_window : Workspace_doc.t -> (window, Flow.Diagnostic.t) result
+(** The window a workspace's settings graph asks for (defaults without one). *)
+
 (** Sketch-owned settings in the editor document. *)
 module Settings : sig
   type t
@@ -56,7 +68,7 @@ module Private : sig
       | Add_node | Layout | Frame_tile | Frame_camera
       | Look_through | Fly | Tool of int
       | Undo | Redo
-      | Toggle_projection | Enter | Up | Go_world | Group | Ungroup | Make_unique
+      | Toggle_projection | Cycle_graph | Enter | Up | Go_world | Group | Ungroup | Make_unique
       | World_emit | World_reseed | World_time of float | World_play | World_preset of int
       | Graph_command of Pxui_graph.command
       | Scope_command of Pxui_graph.Scope.command

@@ -24,7 +24,7 @@ let garden ?(result = "(sop/merge bed dots)") ~count () = Printf.sprintf {|
 
 let lower source = match Flow.Syntax.parse source with
   | Error d -> fail (Flow.Diagnostic.to_string d)
-  | Ok forms -> (match Lower.workspace ~factories forms with
+  | Ok forms -> (match Lower.workspace ~extra:Editor_document.Contexts.descriptors ~factories forms with
       | Ok lowered -> lowered
       | Error d -> fail (Flow.Diagnostic.to_string d))
 
@@ -137,7 +137,7 @@ let run () =
   let plain = Result.get_ok (Procedural.Zone.elements Points keyed) in
   check (plain.(0).position = Pdk.Packed.Float3.get (Pdk.Geometry.positions base) 0) "index order without a key";
   (* a body that reads t is refused, and one that branches on an element *)
-  (match Lower.workspace ~factories (match Flow.Syntax.parse {|
+  (match Lower.workspace ~extra:Editor_document.Contexts.descriptors ~factories (match Flow.Syntax.parse {|
 (workspace w (graph g :context sop
   (let* [f (sop/grid)] (sop/merge (for [p (sop/point_list f)] (sop/transform (sop/box) :translate [t 0 0]))))))|} with
      | Ok forms -> forms | Error d -> fail (Flow.Diagnostic.to_string d)) with

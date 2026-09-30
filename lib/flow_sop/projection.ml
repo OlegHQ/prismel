@@ -165,21 +165,22 @@ let macro_rows c (m : S.t) pos =
       req_rows @ rest_rows
 
 let catalog_context : W.context -> Flow.Context.t = function
-  | Sop -> Sop | Scene -> Scene | World -> World | Value | Settings | Editor -> Value
+  | Sop -> Sop | Scene -> Scene | World -> World | Settings -> Settings | Value | Editor -> Value
 
 let kind_rows c (k : Flow.Check.kind) pos kws =
   let npos = List.length pos in
+  let slot_ty = if k.context = Flow.Context.World then Ty.World else Ty.Geometry in
   let slot_rows = List.concat (List.mapi (fun i (s : Flow.Check.slot) ->
     if s.rest then
       List.filteri (fun j _ -> j >= i) pos |> List.mapi (fun j a ->
-        row c ~ty:Ty.Geometry ~kind:Rest (if j = 0 then s.name else Printf.sprintf "%s %d" s.name (j + 1))
+        row c ~ty:slot_ty ~kind:Rest (if j = 0 then s.name else Printf.sprintf "%s %d" s.name (j + 1))
           (E.Pos (i + j)) (Some a))
-      |> fun rows -> rows @ [ add c ("+ " ^ s.name) (E.Pos (max npos i)) (Some Ty.Geometry) ]
+      |> fun rows -> rows @ [ add c ("+ " ^ s.name) (E.Pos (max npos i)) (Some slot_ty) ]
     else match List.nth_opt pos i, List.assoc_opt s.name kws with
-      | Some a, _ -> [ row c ~ty:Ty.Geometry s.name (E.Pos i) (Some a) ]
-      | None, Some a -> [ row c ~ty:Ty.Geometry s.name (E.Kw s.name) (Some a) ]
+      | Some a, _ -> [ row c ~ty:slot_ty s.name (E.Pos i) (Some a) ]
+      | None, Some a -> [ row c ~ty:slot_ty s.name (E.Kw s.name) (Some a) ]
       | None, None ->
-          [ row c ~ty:Ty.Geometry s.name (if s.required && i = npos then E.Pos i else E.Kw s.name) None ])
+          [ row c ~ty:slot_ty s.name (if s.required && i = npos then E.Pos i else E.Kw s.name) None ])
     k.slots) in
   let param_rows = List.map (fun (p : Flow.Check.parameter) ->
     let kind = if W.group_reader p then Group_reader else if W.group_writer k p then Group_writer else Arg in

@@ -24,7 +24,7 @@ let () =
   let repeats = if Array.length Sys.argv > 2 then int_of_string Sys.argv.(2) else 21 in
   Printf.printf "domains available %d, repeats %d (medians, ms)\n"
     (Domain.recommended_domain_count ()) repeats;
-  let catalog = ok (Catalog.of_factories ~version:Manifest.version factories) in
+  let catalog = ok (Editor_document.Contexts.catalog ~version:Manifest.version factories) in
   Printf.printf "%-11s %8s %8s %8s %8s %8s %6s\n" "fixture" "check" "eval" "lower" "cook1" "l+cook" "nodes";
   let forms name = ok (Flow.Syntax.parse
     (In_channel.with_open_bin (Filename.concat dir (name ^ ".lisp")) In_channel.input_all)) in
@@ -38,7 +38,7 @@ let () =
     let ws = check () in
     let t_check = median check repeats in
     let t_eval = median (fun () -> ok (Flow.Eval.static ws)) repeats in
-    let lower () = ok (Lower.workspace ~factories forms) in
+    let lower () = ok (Lower.workspace ~extra:Editor_document.Contexts.descriptors ~factories forms) in
     let t_total = median lower repeats in
     let lowered = lower () in
     let graph = List.hd lowered.graphs in
@@ -60,7 +60,7 @@ let () =
   print_endline "\nSession capacity: cold cook, then the same cook again (warm), per max_entries";
   Printf.printf "%-11s %8s %10s %10s %8s %8s %10s\n" "fixture" "entries" "cold ms" "warm ms" "retained" "evicted" "payload MB";
   List.iter (fun name ->
-    let graph = List.hd (ok (Lower.workspace ~factories (forms name))).graphs in
+    let graph = List.hd (ok (Lower.workspace ~extra:Editor_document.Contexts.descriptors ~factories (forms name))).graphs in
     List.iter (fun entries ->
       Gc.compact ();
       let session = Result.get_ok (Procedural.Session.create ~max_entries:entries

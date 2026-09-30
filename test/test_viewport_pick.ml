@@ -17,7 +17,7 @@ let case name = In_channel.with_open_bin
 let lower name =
   match Flow.Syntax.parse (case name) with
   | Error d -> fail (Flow.Diagnostic.to_string d)
-  | Ok forms -> (match Lower.workspace ~factories:Sop_catalog.Editor.factories forms with
+  | Ok forms -> (match Lower.workspace ~extra:Editor_document.Contexts.descriptors ~factories:Sop_catalog.Editor.factories forms with
       | Ok lowered -> lowered | Error d -> fail (Flow.Diagnostic.to_string d))
 
 let triangle_map () =

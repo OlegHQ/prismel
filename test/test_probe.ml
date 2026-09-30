@@ -108,14 +108,14 @@ let live () =
   check (Probe.readouts (recorded ~time:1. w) spin ~probes:[] = [ "value", "0.8"; "cook", "live, recooks every frame" ])
     "live inspector rows";
   (* the viewport header *)
-  let lowered = match Lower.workspace ~factories:Sop_catalog.Editor.factories
+  let lowered = match Lower.workspace ~extra:Editor_document.Contexts.descriptors ~factories:Sop_catalog.Editor.factories
       (Result.get_ok (Flow.Syntax.parse (T.read (Filename.concat T.cases "orrery.lisp")))) with
     | Ok l -> l | Error d -> fail (Flow.Diagnostic.to_string d) in
   let live_count, cached = Lower.counts lowered in
   check (live_count > 0 && cached > 0) "orrery has live and cached nodes";
   check (Lower.status lowered ~seconds:0.0013 = Some (Printf.sprintf "t %d live · %d cached · cook 1.3 ms" live_count cached))
     "viewport header text";
-  let lowered = Result.get_ok (Lower.workspace ~factories:Sop_catalog.Editor.factories
+  let lowered = Result.get_ok (Lower.workspace ~extra:Editor_document.Contexts.descriptors ~factories:Sop_catalog.Editor.factories
       (Result.get_ok (Flow.Syntax.parse (T.read (Filename.concat T.cases "sunflower.lisp"))))) in
   check (Lower.status lowered ~seconds:0.001 = None) "a static document has no live header"
 

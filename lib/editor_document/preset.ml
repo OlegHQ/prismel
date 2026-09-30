@@ -58,7 +58,7 @@ let rec finite = function
 
 (* ---- files ---- *)
 
-let flow_catalog factories = Flow_sop.Catalog.of_factories ~version:1 factories
+let flow_catalog factories = Contexts.catalog ~version:1 factories
 
 let save ~directory ~name ~(doc : Document.t) ~view =
   if sanitize name = "" then Error "preset name is empty" else
@@ -66,7 +66,10 @@ let save ~directory ~name ~(doc : Document.t) ~view =
   | None -> Error "this document is not a workspace, so it has no text to save"
   | Some (workspace, _) ->
       let* () = if finite view then Ok () else Error "viewport contains nonfinite values" in
-      let text = Workspace_doc.to_text { workspace with settings = doc.settings } in
+      (* a settings graph owns the settings; else the document's are the sketch's, saved beside the text *)
+      let workspace = if Contexts.has_settings workspace then workspace
+        else { workspace with settings = doc.settings } in
+      let text = Workspace_doc.to_text workspace in
       let view_text = fst (Flow.Lisp.print [ mk (S.List [ mk (S.Sym "view"); view_syntax view ]) ]) in
       let target = path ~directory ~name in
       Editor_core.Store.write_text ~filename:target (text ^ "\n" ^ view_text)
@@ -101,6 +104,6 @@ let load ~path ~factories ~settings =
          | Some { S.node = S.List [ _; v ]; _ } -> view_json v
          | Some _ -> Error "view: expected one value"
          | None -> Ok `Null) in
-  let* doc = Result.map_error Flow.Diagnostic.to_string (Document.of_workspace ~factories workspace) in
+  let* doc = Result.map_error Flow.Diagnostic.to_string (Contexts.of_workspace ~factories workspace) in
   let* () = Document.validate doc in
   Ok { doc; view }

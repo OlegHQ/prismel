@@ -111,9 +111,9 @@ let syntax_edit ~factories (doc : Editor_document.Document.t) op =
   | Some (workspace, _) ->
       let ( let* ) = Result.bind in
       let flow r = Result.map_error Flow.Diagnostic.to_string r in
-      let* catalog = flow (Flow_sop.Catalog.of_factories ~version:Flow_sop.Manifest.version factories) in
+      let* catalog = flow (Editor_document.Contexts.catalog ~version:Flow_sop.Manifest.version factories) in
       let* workspace = flow (Editor_document.Workspace_doc.edit catalog workspace op) in
-      flow (Editor_document.Document.of_workspace ~factories ~previous:doc workspace)
+      flow (Editor_document.Contexts.of_workspace ~factories ~previous:doc workspace)
 
 (* The whole workspace text, edited (plan W7): parsed and checked as a
    document, lowered, atomic.  The layout (keyed by path) and settings stay. *)
@@ -123,9 +123,9 @@ let text_edit ~factories (doc : Editor_document.Document.t) text =
   | Some (workspace, _) ->
       let ( let* ) = Result.bind in
       let one result = Result.map_error (fun d -> [ d ]) result in
-      let* catalog = one (Flow_sop.Catalog.of_factories ~version:Flow_sop.Manifest.version factories) in
+      let* catalog = one (Editor_document.Contexts.catalog ~version:Flow_sop.Manifest.version factories) in
       let* edited = Editor_document.Workspace_doc.of_text ~settings:workspace.settings catalog text in
-      one (Editor_document.Document.of_workspace ~factories ~previous:doc
+      one (Editor_document.Contexts.of_workspace ~factories ~previous:doc
         { edited with layout = workspace.layout; settings = workspace.settings })
 
 (* Folds one graph intent into the document and view; [placed] collects the

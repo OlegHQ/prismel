@@ -664,6 +664,7 @@ let flow_context ~loc = function
   | Value -> flow_construct ~loc ["Flow"; "Context"; "Value"] None
   | Scene -> flow_construct ~loc ["Flow"; "Context"; "Scene"] None
   | World -> flow_construct ~loc ["Flow"; "Context"; "World"] None
+  | Settings -> flow_construct ~loc ["Flow"; "Context"; "Settings"] None
 let flow_literal ~loc = function
   | Param.Bool_value value -> flow_construct ~loc ["Param"; "Bool_value"]
       (Some (ebool ~loc value))

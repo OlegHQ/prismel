@@ -99,6 +99,7 @@
 
 (rule
  (aliases runtest test_workspace_doc)
+ (deps (glob_files ../specification/workspace/cases/*.lisp))
  (action (run %{exe:test_main.exe} test_workspace_doc)))
 
 (rule

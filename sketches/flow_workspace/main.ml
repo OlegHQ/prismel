@@ -14,8 +14,7 @@ let workspace =
   let text = match Sys.getenv_opt "FLOW_CASE" with
     | Some "sunflower" -> Cases.sunflower | Some "orrery" -> Cases.orrery
     | Some "garden" -> Cases.garden | Some "rosette" -> Cases.rosette | _ -> Cases.bloom in
-  let catalog = Flow_sop.Catalog.of_factories ~version:Flow_sop.Manifest.version
-      Sop_catalog.Editor.factories |> Result.get_ok in
+  let catalog = Prismel_editor.workspace_catalog () |> Result.get_ok in
   match Prismel_editor.Workspace_doc.of_text catalog text with
   | Ok workspace -> workspace
   | Error ds -> failwith (String.concat "; " (List.map Flow.Diagnostic.to_string ds))

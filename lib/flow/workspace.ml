@@ -14,10 +14,10 @@ let context_of_name = function
 let context_ty = function
   | Sop -> Ty.Geometry | Value -> Ty.Float | Scene -> Ty.Scene | World -> Ty.World
   | Settings -> Ty.Settings | Editor -> Ty.Editor
-(* Catalog kinds know sop, value, scene and world; the other contexts only see value kinds. *)
+(* Catalog kinds know every context but the editor, which only sees value kinds. *)
 let catalog_context = function
   | Sop -> Context.Sop | Scene -> Context.Scene | World -> Context.World
-  | Value | Settings | Editor -> Context.Value
+  | Settings -> Context.Settings | Value | Editor -> Context.Value
 
 type pattern = Name of string | Seq of pattern list | Keys of string list
 type term = { path : path option; ty : Ty.t; node : node; form : S.t }
@@ -119,12 +119,7 @@ let ops = [
      runs (Eval makes a zone node), see [Eval] *)
   mk ~octx:Sop ~kw:[ "key", Ty.Text ] "sop/point_list" [ "geometry", Ty.Geometry ] (fun _ -> Ty.List Ty.Vec3);
   mk ~octx:Sop ~kw:[ "key", Ty.Text ] "sop/piece_list" [ "geometry", Ty.Geometry ] (fun _ -> Ty.List Ty.Geometry);
-  mk ~octx:Scene ~kw:[ "color", Ty.Color; "at", Ty.Vec3; "scale", fl ] "scene/object"
-    [ "geometry", Ty.Geometry ] (fun _ -> Ty.Scene);
   mk ~octx:Scene ~rest:("scene", Ty.Scene) "scene/merge" [] (fun _ -> Ty.Scene);
-  mk ~octx:World ~kw:[ "name", Ty.Text ] "world/layer" [ "scene", Ty.Scene ] (fun _ -> Ty.World);
-  mk ~octx:Settings ~kw:[ "fps", Ty.Int; "seed", Ty.Int; "exposure", fl; "background", Ty.Color ]
-    "settings/config" [] (fun _ -> Ty.Settings);
   mk ~octx:Editor "ui/workspace" [ "root", Ty.Panel ] (fun _ -> Ty.Editor);
   panel "ui/viewport" [ "scene", Ty.Scene ]; panel "ui/graph" []; panel "ui/inspector" [];
   panel "ui/outline" []; panel "ui/list" []; panel "ui/lisp" [];
@@ -208,10 +203,11 @@ let param_ty (p : Check.parameter) = match p.ty with
   | Some Port_type.Vec3 when is_color p -> Ty.Color
   | Some t -> ty_of_port t
   | None -> Ty.Text
-let kind_out (k : Check.kind) = match k.outputs with
-  | [ (_, t) ] -> ty_of_port t
-  | [] -> Ty.Any
-  | outs -> Ty.Record (List.map (fun (n, t) -> (n, ty_of_port t)) outs)
+let kind_out (k : Check.kind) = match k.context, k.outputs with
+  | Context.Scene, _ -> Ty.Scene | World, _ -> Ty.World | Settings, _ -> Ty.Settings
+  | _, [ (_, t) ] -> ty_of_port t
+  | _, [] -> Ty.Any
+  | _, outs -> Ty.Record (List.map (fun (n, t) -> (n, ty_of_port t)) outs)
 (* ponytail: the catalog has no group markers yet; a `group` parameter reads a group and
    `name` on a `sop/group_*` kind writes one. *)
 let group_reader (p : Check.parameter) = p.name = "group"
@@ -1032,7 +1028,6 @@ let check catalog forms =
     let int_of a = match a.aterm.node with Lit (Param.Int_value n) -> Some n | _ -> None in
     let num_of a = match a.aterm.node with
       | Lit (Param.Int_value n) -> Some (float_of_int n) | Lit (Param.Float_value f) -> Some f | _ -> None in
-    let kw k = List.find_opt (fun a -> a.key = Some k) args in
     match o.oname with
     | "range" ->
         (match List.map int_of pos with
@@ -1044,10 +1039,6 @@ let check catalog forms =
         (match List.map int_of pos with
          | [ _; _; Some n ] when n > max_iterations -> err x "E_ITER_BOUND" "linspace exceeds 4,096 values."
          | _ -> ())
-    | "settings/config" ->
-        let out_of lo hi a = match Option.bind a num_of with Some n -> n < lo || n > hi | None -> false in
-        let fps = Option.map (fun a -> a) (kw "fps") and ex = kw "exposure" in
-        if out_of 1. 240. fps || out_of 0. 4. ex then err x "E_RANGE" "FPS must be 1–240 and exposure 0–4."
     | "ui/split" | "ui/split-at" ->
         (match pos with
          | { aterm = { node = Text axis; _ }; _ } :: _ when axis <> "horizontal" && axis <> "vertical" ->
@@ -1085,13 +1076,14 @@ let check catalog forms =
     let seen = Hashtbl.create 8 in
     let out = ref [] and npos = ref 0 and writes = ref [] in
     let groups_in = List.fold_left (fun g a -> union g a.av.groups) [] args in
+    let slot_ty = if k.context = Context.World then Ty.World else Ty.Geometry in
     let slot_arg a sname =
-      if Ty.fits a.av.ty Ty.Geometry then ()
+      if Ty.fits a.av.ty slot_ty then ()
       else if rest_kind && (match a.av.ty with Ty.List e -> Ty.fits e Ty.Geometry | _ -> false) then begin
         if a.av.live_len then
           err a.aform "E_TIME_COUNT" (Printf.sprintf
             "The list passed to %s changes length with t. The network keeps its shape while playing; animate parameters instead, for example scale a piece to 0." k.qualified)
-      end else err a.aform "E_TYPE" (Printf.sprintf "Input %s takes geometry" sname) in
+      end else err a.aform "E_TYPE" (Printf.sprintf "Input %s takes %s" sname (show slot_ty)) in
     List.iter (fun a ->
       match a.key with
       | None ->

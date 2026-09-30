@@ -392,11 +392,6 @@ let check_struct name args =
         | _ -> range_error "Split axis is horizontal or vertical.") v
     | None -> () in
   match name with
-  | "settings/config" ->
-      let out lo hi k = match get k with
-        | Some v -> (match v with Residual _ -> false | v -> let n = num v in n < lo || n > hi)
-        | None -> false in
-      if out 1. 240. "fps" || out 0. 4. "exposure" then range_error "FPS must be 1–240 and exposure 0–4."
   | "ui/split" -> axis ()
   | "ui/split-at" ->
       axis ();
@@ -514,7 +509,8 @@ and ev_raw c env (x : W.term) : value =
             | v -> [ (n, v) ]) vals
           |> List.filter (fun (_, v) -> match v with No_geo -> false | _ -> true)
         else vals in
-      mk_node c kind vals
+      if List.exists (fun p -> String.starts_with ~prefix:p kind) [ "scene/"; "world/"; "settings/" ]
+      then Struct (kind, vals) else mk_node c kind vals
   | W.Op { op; args } -> apply_op c op (eval_named c env args)
   | W.Call_fn { fn; args } ->
       let vals = evs c env "a" args in

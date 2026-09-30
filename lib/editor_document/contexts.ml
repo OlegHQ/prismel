@@ -1,0 +1,353 @@
+(* The scene, world and settings contexts of a workspace (plan W10, part A).
+
+   Their Lisp spellings are generated from the schemas that exist: one kind
+   per object factory ([scene/geometry], [scene/light], [scene/camera]), per
+   World node and layer factory ([world/world], [world/gradient], ...) and
+   the workspace settings record ([settings/config]).  A kind's keywords are
+   its schema's fields, three consecutive [_x _y _z] or [_r _g _b] floats
+   grouped as one vec3 or colour ([:translate [0 1 0]], [:color "#3b7d4e"]),
+   plus [:name], the node's label.  Nothing here is written per kind: a new
+   field in a schema is a new keyword.
+
+   The evaluator returns these calls as [Struct] values; [of_workspace] walks
+   the scene, world and settings results into the editor document:
+   objects become nodes of the scene network, the World a node with its layer
+   stack as a network, settings a [Settings.t]. *)
+open Procedural
+module E = Flow.Eval
+module Edit = Edit_graph
+module Param = Editor_core.Param
+
+let ( let* ) = Result.bind
+let diag code message = Flow.Diagnostic.error ~code message
+let flow r = Result.map_error (diag "E_DOCUMENT") r
+
+(* ---- the kinds ---- *)
+
+let name_field : Param.field_view = {
+  name = "name"; label = "Name"; description = None; folder = []; impact = Param.Cook;
+  primary = false; vec3 = None; kind = Param.Text_view; default = Param.Text_value "";
+  current = Param.Text_value "" }
+
+(* Three consecutive floats [p_x p_y p_z] (or [_r _g _b]) of one folder become the
+   vec3 [p]; a stem that is already a field name becomes [p_color]. *)
+let group_triples (fields : Param.field_view list) =
+  let names = List.map (fun (f : Param.field_view) -> f.name) fields in
+  let floating (f : Param.field_view) = match f.kind with
+    | Param.Floating_view _ -> true | _ -> false in
+  let stem (f : Param.field_view) = List.find_map (fun suffixes ->
+    if floating f && f.vec3 = None
+       && String.ends_with ~suffix:(List.hd suffixes) f.name
+    then Some (String.sub f.name 0 (String.length f.name - 2), suffixes) else None)
+    [ [ "_x"; "_y"; "_z" ]; [ "_r"; "_g"; "_b" ] ] in
+  let rec go = function
+    | (x : Param.field_view) :: (y : Param.field_view) :: (z : Param.field_view) :: rest
+      when (match stem x with
+          | Some (p, [ _; sy; sz ]) -> y.name = p ^ sy && z.name = p ^ sz && floating y
+              && floating z && y.folder = x.folder && z.folder = x.folder
+          | _ -> false) ->
+        let p = fst (Option.get (stem x)) in
+        let group = if List.mem p names then p ^ "_color" else p in
+        { x with vec3 = Some (group, 0) } :: { y with vec3 = Some (group, 1) }
+        :: { z with vec3 = Some (group, 2) } :: go rest
+    | x :: rest -> x :: go rest
+    | [] -> [] in
+  go fields
+
+let scene_kinds = List.map (fun f -> "scene/" ^ Edit.factory_key f, f) Objects.catalog
+let world_kinds = List.map (fun f -> "world/" ^ Edit.factory_key f, f)
+    (Layers.Settings.factory :: Layers.catalog)
+
+(* Workspace settings: what the host needs to open the window. *)
+type window = { title : string; width : int; height : int; fps : int; seed : int }
+
+let window_schema =
+  let integer min max hard_min = Param.integer ~hard_min ~min ~max () in
+  let int_field name label kind default get set =
+    Param.field ~name ~label ~kind ~default ~get ~set () in
+  Param.schema ~name:"workspace" ~default:{ title = "Prismel"; width = 1280; height = 800;
+                                            fps = 60; seed = 1 } [
+    Param.field ~name:"title" ~label:"Title" ~kind:Param.Text ~default:"Prismel"
+      ~get:(fun w -> w.title) ~set:(fun title w -> { w with title }) ();
+    int_field "width" "Width" (integer 320 3840 64) 1280 (fun w -> w.width)
+      (fun width w -> { w with width });
+    int_field "height" "Height" (integer 240 2160 64) 800 (fun w -> w.height)
+      (fun height w -> { w with height });
+    int_field "fps" "Frames per second" (Param.integer ~hard_min:1 ~hard_max:240 ~min:1 ~max:120 ())
+      60 (fun w -> w.fps) (fun fps w -> { w with fps });
+    int_field "seed" "Seed" (Param.integer ~hard_min:0 ~min:0 ~max:9999 ()) 1
+      (fun w -> w.seed) (fun seed w -> { w with seed }) ]
+
+let window_fields = Param.view window_schema (Param.default window_schema)
+
+(* slot of each kind: a geometry object takes its geometry, a World layer the layer below *)
+let kind_slots qualified = match qualified with
+  | "scene/geometry" -> [ "geometry", Edit.Required ]
+  | "world/world" -> [ "layers", Edit.Optional ]
+  | q when String.starts_with ~prefix:"world/" q -> [ "below", Edit.Optional ]
+  | _ -> []
+
+let descriptors : Flow_sop.Catalog.descriptor list =
+  List.map (fun (qualified, factory) ->
+    { Flow_sop.Catalog.qualified; key = Edit.factory_key factory;
+      operation = Edit.factory_operation factory; label = Edit.factory_label factory;
+      category = Edit.factory_category factory; slots = kind_slots qualified;
+      fields = name_field :: group_triples (Edit.factory_fields factory) })
+    (scene_kinds @ world_kinds)
+  @ [ { Flow_sop.Catalog.qualified = "settings/config"; key = "config"; operation = "config";
+        label = "Settings"; category = [ "Workspace" ]; slots = [];
+        fields = window_fields } ]
+
+let catalog ~version factories = Flow_sop.Catalog.of_factories ~version ~extra:descriptors factories
+
+let ports qualified =
+  match List.find_opt (fun (d : Flow_sop.Catalog.descriptor) -> d.qualified = qualified) descriptors with
+  | Some d -> Result.get_ok (Flow_sop.Port.parameters d.fields)  (* valid by construction *)
+  | None -> []
+
+(* ---- lowering a struct ---- *)
+
+let slot_names = [ "geometry"; "layers"; "below"; "name" ]
+
+(* The field changes a struct's keywords make, checked against the schema's bounds. *)
+let changes qualified args =
+  let ports = ports qualified in
+  List.fold_left (fun acc (key, value) ->
+    let* acc = acc in
+    if List.mem key slot_names then Ok acc
+    else
+      let* port = Flow_sop.Port.find_parameter ports key in
+      let* changes = Flow_sop.Lower.changes port value in
+      Ok (acc @ changes)) (Ok []) args
+
+let label_arg args = match List.assoc_opt "name" args with
+  | Some (E.Text s) when s <> "" -> Some s | _ -> None
+
+(* The evaluated result of the first graph of a context, at t = 0: scene, world
+   and settings arguments do not animate yet (ponytail: no live scene values). *)
+let result (workspace : Workspace_doc.t) (plan : E.plan) context =
+  match List.find_opt (fun (g : Flow.Workspace.graph) -> g.context = context)
+          workspace.checked.graphs with
+  | None -> Ok None
+  | Some graph ->
+      (match List.find_opt (fun (i : E.instance) -> i.default && i.graph = graph.name)
+               (Array.to_list plan.instances) with
+       | None -> Ok None
+       | Some instance ->
+           Result.map Option.some (E.force instance.result ~live:{ E.t = 0. }))
+
+let has_settings (workspace : Workspace_doc.t) =
+  List.exists (fun (g : Flow.Workspace.graph) -> g.context = Flow.Workspace.Settings)
+    workspace.checked.graphs
+
+let settings_of = function
+  | E.Struct ("settings/config", args) ->
+      let* changes = changes "settings/config" args in
+      let* settings, _ = Result.map_error (diag "E_RANGE")
+          (Settings.apply (Settings.make window_schema (Param.default window_schema)) changes) in
+      Ok settings
+  | _ -> Error (diag "E_LOWER" "A settings graph returns a (settings/config ...) call.")
+
+(* The window the settings graph asks for; defaults without one. *)
+let window (workspace : Workspace_doc.t) =
+  let* evaluated = E.static workspace.checked in
+  let* value = result workspace evaluated.plan Flow.Workspace.Settings in
+  match value with
+  | None -> Ok (Param.default window_schema)
+  | Some value -> Result.map (Settings.get window_schema) (settings_of value)
+
+(* ---- the scene ---- *)
+
+type item = { factory : Edit.factory; label : string; values : (string * Param.value) list;
+              geometry : Flow_sop.Lower.graph option }
+
+let rec scene_calls = function
+  | E.Struct ("scene/merge", args) -> List.concat_map (fun (_, v) -> scene_calls v) args
+  | E.Struct (kind, args) when List.mem_assoc kind scene_kinds -> [ kind, args ]
+  | E.List xs -> List.concat_map scene_calls (Array.to_list xs)
+  | _ -> []
+
+let item_of (lowered : Flow_sop.Lower.t) (kind, args) =
+  let factory = List.assoc kind scene_kinds in
+  let* values = changes kind args in
+  let* geometry = match List.assoc_opt "geometry" args with
+    | Some (E.Geo id) ->
+        let inst = lowered.plan.nodes.(id).inst in
+        (match List.find_opt (fun (g : Flow_sop.Lower.graph) -> g.instance = inst) lowered.graphs with
+         | Some g -> Ok (Some g)
+         | None -> Error (diag "E_LOWER" "A scene object's geometry comes from a sop graph."))
+    | _ -> Ok None in
+  let label = match label_arg args, geometry with
+    | Some label, _ -> label
+    | None, Some g -> g.name
+    | None, None -> String.lowercase_ascii (Edit.factory_label factory) in
+  Ok { factory; label; values; geometry }
+
+(* The objects of a workspace: its scene graph's calls, else one geometry object
+   per sop graph. *)
+let items workspace (lowered : Flow_sop.Lower.t) =
+  let* scene = result workspace lowered.plan Flow.Workspace.Scene in
+  match scene with
+  | Some value ->
+      List.fold_right (fun call rest ->
+        let* rest = rest in let* item = item_of lowered call in Ok (item :: rest))
+        (scene_calls value) (Ok [])
+  | None ->
+      Ok (List.filter_map (fun (g : Flow_sop.Lower.graph) ->
+        if g.default then Some { factory = Objects.Geometry.factory; label = g.name; values = [];
+                                 geometry = Some g } else None) lowered.graphs)
+
+let find_node graph used operation label =
+  List.find_opt (fun (info : Edit.node_info) ->
+    info.operation = operation && info.label = label && not (List.mem info.id used))
+    (Edit.inspect graph)
+
+let apply graph id values =
+  if values = [] then Ok graph
+  else Result.map fst (flow (Edit.apply_parameters graph ~node_id:id values))
+
+let empty_inputs factory = List.map (fun _ -> None) (Edit.factory_inputs factory)
+
+let add_node graph factory label =
+  let* node = flow (Edit.instantiate_optional factory (empty_inputs factory)) in
+  let node = Node.relabel label node in
+  let* graph = flow (Edit.add_node ~factory
+    ~inputs:(Array.of_list (empty_inputs factory)) node graph) in
+  Ok (graph, Node.id node)
+
+(* ---- the World ---- *)
+
+(* The layers bottom first: [below] chains down from the top. *)
+let rec layer_stack = function
+  | E.Struct (kind, args) when List.mem_assoc kind world_kinds && kind <> "world/world" ->
+      (match List.assoc_opt "below" args with Some below -> layer_stack below | None -> [])
+      @ [ kind, args ]
+  | _ -> []
+
+(* The layer network of a [world/world] call; layer ids are reused from [previous]. *)
+let layer_network ?previous args =
+  let old = match previous with Some (n : Document.network) -> n.graph.geometry | None -> Edit.empty in
+  let top = match List.assoc_opt "layers" args with Some v -> layer_stack v | None -> [] in
+  let* graph, _, below, _ = List.fold_left (fun state (kind, largs) ->
+    let* graph, used, below, _ = state in
+    let factory = List.assoc kind world_kinds in
+    let label = Option.value (label_arg largs) ~default:(Edit.factory_label factory) in
+    let* node = flow (Edit.instantiate_optional factory [ None ]) in
+    let* node = match find_node old used (Edit.factory_operation factory) label with
+      | Some info -> flow (Node.Private.restore_id info.id node)
+      | None -> Ok node in
+    let node = Node.relabel label node in
+    let* graph = flow (Edit.add_node ~factory ~inputs:[| None |] node graph) in
+    let* graph = match below with
+      | Some below -> flow (Edit.connect ~source:below ~consumer:(Node.id node) ~input_index:0 graph)
+      | None -> Ok graph in
+    let* values = changes kind largs in
+    let* graph = apply graph (Node.id node) values in
+    Ok (graph, Node.id node :: used, Some (Node.id node), ())) (Ok (Edit.empty, [], None, ())) top in
+  let layout = match previous with Some (n : Document.network) -> n.layout | None -> Document.Canvas.empty in
+  Ok { (Document.of_geometry ~context:Flow.Context.World graph below) with layout }
+
+(* ---- the document of a workspace ---- *)
+
+(* One geometry object per geometry item beside the sketch's own objects, the World
+   of a world graph, the settings of a settings graph.  [previous] keeps object ids
+   (matched by operation and label), tile layouts and the objects the workspace does
+   not declare (the host's camera and lights): the workspace owns geometry always,
+   cameras and lights when its scene declares one, and the World when it has a
+   world graph. *)
+let of_workspace ~factories ?previous (workspace : Workspace_doc.t) =
+  let compiled_ids, sites = match Option.bind previous (fun (doc : Document.t) -> doc.workspace) with
+    | Some (_, (lowered : Flow_sop.Lower.t)) -> Some lowered.compiled_ids, Some lowered.sites
+    | None -> None, None in
+  let* lowered = Flow_sop.Lower.workspace ~factories ~extra:descriptors ?compiled_ids ?sites
+      workspace.source in
+  let* items = items workspace lowered in
+  let scene = match previous with
+    | Some (doc : Document.t) -> doc.scene
+    | None -> Document.of_geometry ~context:Flow.Context.Scene Edit.empty None in
+  let declares operation = List.exists (fun i -> Edit.factory_operation i.factory = operation) items in
+  let owned operation = operation = "geometry" || declares operation in
+  let* world = result workspace lowered.plan Flow.Workspace.World in
+  let* world = match world with
+    | None -> Ok None
+    | Some (E.Struct ("world/world", args)) -> Ok (Some args)
+    | Some _ -> Error (diag "E_LOWER" "A world graph returns a (world/world ...) call.") in
+  (* claim or create a node per item, then drop the owned nodes nothing claimed *)
+  let* graph, used, objects = List.fold_left (fun state item ->
+    let* graph, used, objects = state in
+    let operation = Edit.factory_operation item.factory in
+    match find_node graph used operation item.label with
+    | Some info ->
+        let* graph = apply graph info.id item.values in
+        Ok (graph, info.id :: used, (info.id, item) :: objects)
+    | None ->
+        let* graph, id = add_node graph item.factory item.label in
+        let* graph = apply graph id item.values in
+        Ok (graph, id :: used, (id, item) :: objects))
+    (Ok (scene.graph.geometry, [], [])) items in
+  let objects = List.rev objects in
+  let stale = List.filter_map (fun (info : Edit.node_info) ->
+    if owned info.operation && not (List.mem info.id used)
+    then Some info.id else None) (Edit.inspect graph) in
+  let graph = Edit.remove_nodes stale graph in
+  (* the World node *)
+  let* graph, world_id, world_network = match world with
+    | None -> Ok (graph, None, None)
+    | Some args ->
+        let factory = Layers.Settings.factory in
+        let label = Option.value (label_arg args) ~default:"World" in
+        let* graph, id = match find_node graph [] "world" label with
+          | Some info -> Ok (graph, info.id)
+          | None ->
+              let old = List.filter (fun (info : Edit.node_info) -> info.operation = "world")
+                  (Edit.inspect graph) in
+              let graph = Edit.remove_nodes (List.map (fun (info : Edit.node_info) -> info.id) old) graph in
+              add_node graph factory label in
+        let* values = changes "world/world" args in
+        let* graph = apply graph id values in
+        let previous_network = Option.bind previous (fun (doc : Document.t) ->
+          Document.Layout.find_opt id doc.networks) in
+        let* network = layer_network ?previous:previous_network args in
+        Ok (graph, Some id, Some network) in
+  let* scene_network = Flow_sop.Network.with_geometry graph scene.graph in
+  let first = match objects with (id, _) :: _ -> Some id | [] -> None in
+  let scene = { scene with graph = scene_network;
+    displayed = (match scene.displayed with
+      | Some id when Edit.find graph ~node_id:id <> None -> Some id | _ -> first) } in
+  (* networks: geometry objects' lowered graphs, the World's layers, and the previous
+     networks of objects that survive *)
+  let carried = match previous with
+    | None -> Document.Layout.empty
+    | Some (doc : Document.t) -> Document.Layout.filter (fun id _ ->
+        Edit.find graph ~node_id:id <> None && not (List.mem_assoc id objects)
+        && Some id <> world_id) doc.networks in
+  let networks = List.fold_left (fun networks (id, item) ->
+    if Edit.factory_operation item.factory <> "geometry" then networks
+    else
+      let layout = match previous with
+        | Some (doc : Document.t) ->
+            (match Document.Layout.find_opt id doc.networks with
+             | Some (n : Document.network) -> n.layout | None -> Document.Canvas.empty)
+        | None -> Document.Canvas.empty in
+      let network = match item.geometry with
+        | Some g -> { Document.context = Flow.Context.Sop; graph = g.network; layout; displayed = g.root }
+        | None -> { Document.context = Flow.Context.Sop;
+                    graph = Flow_sop.Network.of_geometry Edit.empty; layout; displayed = None } in
+      Document.Layout.add id network networks) carried objects in
+  let networks = match world_id, world_network with
+    | Some id, Some network -> Document.Layout.add id network networks
+    | _ -> networks in
+  let* settings = result workspace lowered.plan Flow.Workspace.Settings in
+  let* settings = match settings with
+    | Some value -> settings_of value
+    | None -> Ok (match previous with Some doc -> doc.settings | None -> workspace.settings) in
+  let cameras = Objects.ids "camera" graph in
+  let active_camera =
+    match Option.bind previous (fun (doc : Document.t) -> doc.active_camera) with
+    | Some id when List.mem id cameras -> Some id
+    | _ -> if declares "camera" then List.nth_opt cameras 0 else None in
+  let workspace = if has_settings workspace then workspace
+    else { workspace with Workspace_doc.settings } in
+  Ok { Document.scene; networks; definitions = Document.String_map.empty;
+       compiled_ids = Flow_sop.Instance_path.Map.empty; active_camera; settings;
+       workspace = Some (workspace, lowered) }

@@ -76,7 +76,7 @@ module E = Prismel_editor.Editor3
 
 let editor_text () =
   let open Prismel in
-  let catalog = Flow_sop.Catalog.of_factories ~version:Flow_sop.Manifest.version
+  let catalog = Editor_document.Contexts.catalog ~version:Flow_sop.Manifest.version
       Sop_catalog.Editor.factories |> Result.get_ok in
   let workspace = Prismel_editor.Workspace_doc.of_text catalog (case "sunflower") |> Result.get_ok in
   let env = ref (E.create ~workspace
@@ -154,7 +154,7 @@ let editor_text () =
    mouse stays at the window centre (the pointer is the events'), as the export driver's does. *)
 let editor_w9 () =
   let open Prismel in
-  let catalog = Flow_sop.Catalog.of_factories ~version:Flow_sop.Manifest.version
+  let catalog = Editor_document.Contexts.catalog ~version:Flow_sop.Manifest.version
       Sop_catalog.Editor.factories |> Result.get_ok in
   let scenario script =
     Unix.putenv "PRISMEL_MAX_FRAMES" "40";

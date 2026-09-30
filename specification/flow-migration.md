@@ -323,6 +323,7 @@ milestone is recorded here with its date, what landed and its deviations.
 | W7 editable text | done | 2026-09-30 |
 | W8 loops over geometry | done | 2026-09-30 |
 | W9 macros UI, notes, bypass | done | 2026-09-30 |
+| W10 contexts and shell | wip (part A) | 2026-09-30 |
 
 ### W0 fixes and catalog prerequisites (2026-09-30, done with W4 part A)
 
@@ -1044,3 +1045,13 @@ window and pointer conventions). Native: `FLOW_CASE=rosette` with `FLOW_W9` / `F
 binder is refused (`E_MACRO_CAPTURE`, shown in the status); the lens has no "Template" button (the
 study's `macroDialog` of an existing macro); the dialog cannot be submitted with Enter; step
 buttons past 13 overflow the panel; the inspector has no bypass toggle.
+
+### W10 part A: scene, world and settings contexts (2026-09-30, wip)
+
+The three contexts check and lower. Their spellings are generated from the object, layer and
+settings schemas (`Editor_document.Contexts`), so a new schema field is a new keyword. Scene
+calls become nodes of the scene network (geometry objects own the network lowered from the sop
+graph they `ref`), the World a node with its layer stack as a network, settings the document
+`Settings.t` and `Contexts.window` (title, size, fps, seed) for the host. Presets and `Flow_edit`
+work unchanged (source text); `Space o` opens the graphs in the pane. Deviations and the part B
+list are in `specification/workspace/progress.md` (W10 part A notes).
