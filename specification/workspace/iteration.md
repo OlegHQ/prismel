@@ -23,9 +23,13 @@ otherwise make two ways.
 3. **Bounded, pure and deterministic.** There is no `while`, no recursion and
    no stateful randomness. Parallel and sequential evaluation give identical
    bytes, as `AGENTS.md` requires.
-4. **Sketches stay OCaml.** A sketch embeds its workspace as a compile-time
-   string. The PPX checks it, reports errors at lines inside the string, and
-   exposes typed inputs to OCaml.
+4. **A sketch is a `.plisp` file.** `sketches/<name>/sketch.plisp` holds one
+   workspace with no OCaml wrapper. `dune build` checks it, reports errors at
+   lines in the file, and links a native program. The running editor saves
+   back to the file and reloads it when it changes on disk.
+5. **Time is live, structure is not.** `t` drives parameters and recooks only
+   the nodes that depend on it. Loop counts and shape choices never depend
+   on `t`.
 
 ## 2. Language additions
 
@@ -96,7 +100,7 @@ The checker has two passes, both implemented in the study's `model.js`:
    whatever the iteration count, and types both branches of every `if`.
    Arity, keywords, contexts, shadowing, recursion, fold accumulator
    agreement (`E_ACC_TYPE`), group names (`W_UNKNOWN_GROUP`, §3.7) and
-   literal loop bounds are all reported here. This is what the PPX runs.
+   literal loop bounds are all reported here. This is what `prismel-plisp check` runs at build time.
 2. **Run pass.** It evaluates with records. Driven counts over the bound,
    the step budget, nonfinite math and allocation limits are reported here,
    with the zone's path in the message.
@@ -241,39 +245,69 @@ links to the loop node. Structural panel edits (split, close, retype) happen
 on the loop, and panel focus is keyed by iteration index (register E1). The
 host's Restore layout stays outside the described tree.
 
-## 5. Sketches as compile-time Lisp
+## 5. Sketches as `.plisp` files
 
-```ocaml
-module Bloom = [%workspace {|
+```lisp
+; sketches/bloom/sketch.plisp: the only authored file
 (workspace bloom
   (graph flower :context sop [(petals : int 12) (seed : int 7)]
     (let* [ring (for [i (range petals)] …)]
       (sop/merge ring))))
-|}]
-(* Bloom.Flower.inputs = { petals : int; seed : int }
-   Bloom.Flower.default_inputs
-   Bloom.program : Prismel_workspace.Program.t *)
-
-let () =
-  Bloom.program
-  |> Prismel_workspace.Program.with_inputs Bloom.Flower.{ default_inputs with petals = 16 }
-  |> Prismel_editor.Workspace.run
 ```
 
-- **The string is the source of truth.** There is no antiquotation (register
-  O2). OCaml values enter through graph inputs, for which the PPX generates a
-  typed record with defaults. The editor shows an input overridden from OCaml
-  as driven.
-- **Errors map to lines inside the string**, using the existing `[%flow]`
-  mechanism (flow.md §12.3). Compile-time and run-time checks split as in
-  §2.3.
-- **One plan.** The PPX emits checked plan data, as `[%flow]` does today
-  through `Flow_sop.Build.program`, and the live editor runs the same plan
-  (register O4).
-- **Write-back is explicit.** Edits in a running sketch change a live copy.
-  Write back to main.ml rewrites only the string literal, keeps comments and
-  shows a diff first; otherwise the edits persist as a document preset that
-  records the manifest digest (register O1).
+- **The build.**
+  - `sketches/dune` includes a generated `dune.plisp.inc`, which
+    `prismel-plisp dune sketches` writes.
+  - `runtest` diffs the include, and `dune promote` accepts a new sketch.
+  - For each sketch the include has a `subdir` stanza: a rule running
+    `prismel-plisp ml sketch.plisp` to produce `main.ml`, an executable, and
+    a `smoke-all` run.
+  - There is no custom dune stanza and no per-sketch `dune` file. Plan W11
+    has the full text.
+- **Errors at their line.** `prismel-plisp check` prints `File "…/sketch.plisp",
+  line L, characters A-B:` diagnostics, the OCaml compiler's format, so dune
+  and editors jump to them (register O3). Warnings are errors.
+- **One plan.** The generated `main.ml` embeds the verbatim source and its
+  digest, and calls `Prismel_editor.Workspace.main`. That re-parses the
+  source at startup and runs the same plan the live editor edits (register
+  O4).
+- **The file is the source** (register O1).
+  - Save rewrites `sketch.plisp` atomically with the comment-preserving
+    printer, if its digest still matches the build.
+  - Otherwise edits are saved as a document preset.
+  - Changes to the file on disk reload the running sketch as one history
+    entry. Probes and layout are kept by path id.
+- **OCaml hosts.**
+  - There is no antiquotation (register O2).
+  - A host program calls `Workspace.load` on a `.plisp` and overrides graph
+    inputs with `Workspace_program.with_inputs`.
+  - The editor shows an overridden input as driven from OCaml.
+  - A `[%workspace]` PPX with generated input records is deferred until a
+    host needs it.
+
+## 5a. Live values and realtime recooking
+
+- **Liveness** (register T1). A term is live when it mentions `t` or depends
+  on a live binding, capture, accumulator, `ref` override, graph or
+  function. Live nodes show **◷ t**. While playing, they and their
+  downstream nodes recook every frame, and every other node stays cached.
+  `t` is reserved.
+- **Fixed structure** (T2, T3).
+  - `E_TIME_COUNT`: a loop count, collection or geometry list length
+    depends on `t`.
+  - `E_TIME_BRANCH`: a live test chooses between geometry arms.
+  - Live choices between values are parameters and are allowed. One
+    lowering serves every frame.
+- **Realtime** (T4). Each frame, live parameters are re-evaluated and only
+  changed ones are applied. Then comes an incremental compile and a
+  latest-request background cook.
+  - A slow cook shows the last finished result and never blocks.
+  - Fixed-step runs and exports wait for each frame and are deterministic.
+  - Live nodes keep one cache slot, so they never evict static entries.
+- **Drags are live edits.** Scrubbing a value recooks the affected cone and
+  commits one history entry on release.
+- **Case study.** The [Orrery](case-studies.md#orrery). Plan W2b has the
+  implementation.
 
 ## 6. Mapping onto Flow
 
@@ -296,8 +330,8 @@ This is a plan for review, not a milestone commitment.
    over `Ui.box`, with no second hit-test or capture path. It emits typed
    requests (`Wrap_in_loop`, `Hoist`, `Set_probe`), and the reducer applies
    them outside `Ui.frame`.
-5. **PPX.** `[%workspace]` reuses the `[%flow]` reader, manifest and
-   diagnostic mapping, and generates the input records.
+5. **Build.** `.plisp` files compile through a small `prismel-plisp` tool
+   and generated dune rules (§5). `[%flow]` remains for OCaml sketches.
 
 ## 7. Functions, data, branches and macros
 

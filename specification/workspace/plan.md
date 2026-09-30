@@ -49,7 +49,8 @@ contract, the milestone names the spec section to update.
 | Graph pane | `Pxui_graph` tiles, rows, wires, BVH hit tests, `automatic_layout`, the ƒ fold/unfold rows, `with_applied` | nodes and rows; zones are added on top |
 | Shell | `Pxui_shell.Layout` (fixed three columns), `Tree`, `Inspector.flow_fields`, `Prompt` | W10 replaces only the layout |
 | Presets | `Editor_document.Preset` v3, `Editor_core.Store` | the v4 loader wraps v3 |
-| PPX | `ppx_prismel` `[%flow]`: reads the manifest, maps spans to OCaml locations, emits `Build.program` | `[%workspace]` extends it |
+| PPX | `ppx_prismel` `[%flow]`: reads the manifest, maps spans to OCaml locations, emits `Build.program` | kept for OCaml sketches; `.plisp` files replace it for pure sketches (W11) |
+| Generated-file flow | `flow_manifest.sexp` and `api_stable.json`: a rule regenerates, `runtest` diffs, `dune promote` accepts | `sketches/dune.plisp.inc` (W11) |
 | Groups | `Pdk.Group`, `Group_ops.valid_group_name`, `find_group` | computed group names are plain text |
 | Provenance ids | scatter/point_generate write point `id` | stable point iteration (W8) |
 
@@ -105,7 +106,7 @@ contract, the milestone names the spec section to update.
 
 This matches the report's "store authored syntax … derive typed IR and
 execution plans" and the study's architecture, which is proven there with
-48 register rules.
+52 register rules.
 
 `ponytail:` we do not build an id-preserving diff from free text to the
 old network (the survey's "id-preserving reconciliation"). The syntax *is*
@@ -119,19 +120,19 @@ transaction (register I1).
 
 ```text
 W0  fixes & catalog prerequisites ─┐
-W1  language core (flow)           ├─► W2 lowering & cooking ─► W3 document v4 + history ─► W4 graph pane zones
-                                   │                                   │                        │
-                                   │                                   ├─► W7 text editing      ├─► W5 probes & footers ─► W6 viewport provenance
-                                   │                                   │                        │
-W11 [%workspace] PPX ◄─────────────┘ (needs W1, W2)                    └─► W9 macros UI, notes  └─► W8 geometry-driven loops
-W10 contexts & composable shell (needs W3, W4)          W12 migration & removal (last)
+W1  language core (flow)           ├─► W2 lowering & cooking ─► W2b live t ─┬─► W3 document v4 + history ─┬─► W4 graph pane zones ─┬─► W5 probes & footers ─► W6 viewport provenance
+                                   │                                        │                             ├─► W7 text editing       └─► W8 geometry-driven loops
+                                   │                                        │                             └─► W9 macros UI, notes
+                                   └────────────────────────────────────────┴─► W11 .plisp sketches + dune (needs W1, W2, W2b)
+W10 contexts & composable shell (needs W3, W4)                    W12 migration & removal (last)
 ```
 
 | Milestone | Size | Libraries touched | User-visible result |
 |---|---|---|---|
 | W0 | S | pdk, sop_catalog, prismel_editor | loops can merge grouped pieces; set_color takes a colour and a group |
-| W1 | L | flow | the full language checks and prints, tested on the 11 case studies |
+| W1 | L | flow | the full language checks and prints, tested on the 12 case studies |
 | W2 | L | flow, flow_sop, procedural | workspaces cook; loops are unrolled deterministically |
+| W2b | M | flow, flow_sop, procedural, prismel_editor | `t` animates in real time: live nodes recook each frame, static nodes stay cached; `E_TIME_COUNT`, `E_TIME_BRANCH` |
 | W3 | M | editor_document, prismel_editor, editor_core | the editor opens and saves workspaces (preset v4); v3 converts |
 | W4 | L | pxui_graph, prismel_editor | zones, rails, iteration selectors, λ zones, chips and output rows in the graph |
 | W5 | M | flow, prismel_editor, pxui_graph | values per iteration, sparklines, branch counts, invariant badges |
@@ -140,7 +141,7 @@ W10 contexts & composable shell (needs W3, W4)          W12 migration & removal 
 | W8 | M | procedural, flow_sop | `for` over points and pieces, cached per (path, index) |
 | W9 | S | prismel_editor, pxui_graph | macro lens and make-macro, notes, bypass flag |
 | W10 | L | flow, editor_document, pxui_shell, prismel_editor | scene/world/settings graphs; the editor shell is an editor graph |
-| W11 | M | ppx_prismel, flow_sop | `[%workspace]` in sketches, typed inputs, write-back |
+| W11 | M | tools/plisp, flow_sop, prismel_editor | `sketches/<name>/sketch.plisp` compiled by dune, errors at `.plisp` lines, Save and live reload on the file |
 | W12 | S | sketches, examples, specs | everything migrated; the old single-graph path removed |
 
 One milestone is one PR, or several if it has sub-steps. Merge only on the
@@ -312,13 +313,13 @@ start as `Any` (register F2).
 - OCaml tests read the same files with `(deps (glob_files …))`.
 
 **Tests** (`lib/flow/test_workspace.ml`, plain asserts like `test_check.ml`):
-- **The check.cjs suite, 114 cases.**
+- **The check.cjs suite, 120 cases.**
   - Port each `t('…', …)` into an OCaml assertion.
   - The value expectations need W2's evaluator; put those in
     `test_workspace_eval.ml` once `Flow.Eval` exists (end of W1).
 - **Every register rule marked as a proposed rule** gets at least one
   positive and one negative test.
-- **Round-trip law** on the 11 fixtures and a construct-coverage file.
+- **Round-trip law** on the 12 fixtures and a construct-coverage file.
 - **Macro hygiene and limits.**
   - `(radial k …)` works.
   - A template naming a caller variable is `E_MACRO_CAPTURE`.
@@ -331,7 +332,7 @@ start as `Any` (register F2).
   lands. Change their status line.
 
 **Done when**
-- all 11 fixtures check, print canonically and round-trip;
+- all 12 fixtures check, print canonically and round-trip;
 - the ported model tests pass;
 - `dune build @lib/flow/runtest` is green;
 - the gate still shows `flow` depending only on `param`.
@@ -361,12 +362,10 @@ unroll geometry.**
        need other segment kinds.
    - **Merging lists.** A list of geometry spliced into `sop/merge` becomes
      one merge node with a rest slot (W0.2).
-   - **Parameters driven by `t`.** They stay `Expr` drives through the
-     existing value lane, so animation does not re-lower.
-3. **Rule `E_TIME_COUNT`.** Loop *counts* and *collections* may not depend
-   on `t`, because that would re-lower every frame. Parameters may.
-   - `ponytail:` this keeps unrolling valid. Lift the rule only if a case
-     needs time-varying counts, and then prefer the W8 zone step.
+   - **Parameters that depend on `t`** are not evaluated here. They become
+     live drives (W2b), so animation never re-lowers.
+3. **Structure never depends on `t`** (`E_TIME_COUNT` and `E_TIME_BRANCH`,
+   specified in W2b), so one lowering serves every frame.
 4. **Graph inputs and `ref`.** `(ref g :k v)` evaluates `g` with overrides.
    - Geometry refs lower to a shared sub-network per distinct input tuple,
      cached by value like the study's `graph()` cache.
@@ -419,6 +418,184 @@ unroll geometry.**
 
 **Done when** all fixtures with sop graphs cook deterministically and
 their benches are recorded.
+
+---
+
+### W2b — Live evaluation: `t`, per-frame recooks and realtime edits (`flow`, `flow_sop`, `procedural`, `prismel_editor`)
+
+The goal is that time-driven workspaces animate in real time: only what
+depends on `t` recooks, and everything else stays cached. The
+[Orrery](case-studies.md#orrery) case is the acceptance fixture. The study
+implements the rules: it has the ◷ t marks, the live and cached readout,
+and the two errors (`prototype/check.cjs`, "t …" tests).
+
+**What exists and is reused.** The editor already has the whole per-frame
+path for scalar drives (`lib/prismel_editor/cook.ml`):
+
+1. `Sketch_support.Timeline` (play, pause, seek; `Play_pause` in the
+   keymap) supplies `time`.
+2. `Flow_sop.Value_lane.resolve ~time` re-evaluates drives. Its plan
+   already knows `time_dependent`, and it applies **only changed SOP
+   ports**. A static network reuses its previous result.
+3. `Edit_graph.compile_all ?previous` recompiles incrementally, and an
+   unchanged graph is physically equal, so an idle frame never
+   resubmits.
+4. `Async_cook` is latest-request: a slow cook never blocks the frame, and
+   intermediate times are skipped.
+5. `Procedural.Session` caches by node key, and `stats` reports
+   hits, misses and evictions.
+
+W2b changes what drives look like. It adds no new per-frame machinery.
+
+**Build.**
+
+1. **Liveness analysis** in `Flow.Workspace.check`. This is the same
+   dependency pass that computes loop-invariance (`↥`), with a different
+   source.
+   - A term is **live** when it mentions `t`, or depends on a live binding,
+     rail capture, fold accumulator (its init or body), `ref` override,
+     graph, or function whose body is live.
+   - The result is `live : Path.Set.t` on the checked workspace. It is
+     exposed to the canvas (W4) and the inspector (W5).
+   - `ponytail:` the only live source is `t`. Add `mouse`, `frame` or an
+     audio level when a case needs one: each is a reserved name plus a field
+     of the `~live` environment below. The analysis does not care which
+     source it is.
+2. **Structural rules**, checked statically on the liveness set:
+   - `E_TIME_COUNT`: a loop collection or count, a `range` argument, a fold
+     step count, or any list whose length depends on `t` and reaches
+     geometry is an error. A `filter` over a live predicate is one example.
+     Value-only lists, such as `(sum (filter …))`, are fine.
+   - `E_TIME_BRANCH`: an `if`, `cond` or `case` with a live test whose
+     result type is geometry (or a list of it) is an error. A live choice
+     between values, such as a size, a colour or a group name, is fine
+     because it is a parameter.
+   - Both messages name the binding and suggest the value form: "scale the
+     piece to 0", "pick the colour, not the shape".
+   - The study checks these rules by evaluating at t, t+0.7 and t+2.3 and
+     comparing zone counts, geometry bindings and branch arms. Native code
+     checks them statically on `live`, so the study's sampling is not
+     ported.
+   - `ponytail:` rejecting the case is the whole cost. When a case needs a
+     time-switched shape, lower both arms and use `sop/switch` with a
+     driven selector field. The manifest's switch has slots `a` and `b`
+     and no field today, so this needs a W0-sized catalog change.
+3. **Split evaluation.**
+   - `Flow.Eval.run ~time` becomes:
+     ```ocaml
+     val static : inputs:… -> Workspace.t -> (Static.t, Diagnostic.t list) result
+     (* every non-live term evaluated once per document change *)
+
+     type residual            (* a live term with its static free variables folded in *)
+     val residual_eval : residual -> live:{ t : float } -> (Flow.Value.t, Diagnostic.t) result
+     ```
+   - `Lower` emits one **live drive** per live parameter slot:
+     `(compiled id, field) → residual`.
+     - The loop index and every static capture are folded in as
+       constants.
+     - A Vec3 parameter is one residual whose result writes the three
+       manifest component fields (`center_x`, `center_y`, `center_z`),
+       which the manifest already splits.
+     - An iteration of an unrolled loop gets its own residual, so the
+       count of live drives is at most the count of unrolled nodes, which
+       is already bounded.
+   - **One drive kind.** Add `Drive.Live of Flow.Eval.residual` and
+     evaluate it inside `Value_lane.resolve` beside `Drive.Expr`.
+     `time_dependent` becomes true when any `Live` drive exists.
+     - `ponytail:` residuals cover everything `Flow.Expr` can express and
+       more (`value/hsv`, `value/rand` of t, `if` on values, records,
+       `str`), so there is one live path.
+     - `Drive.Expr` remains only for `[%flow]` and v3 documents, and is
+       removed in W12.
+     - Cost: Orrery evaluates about 100 residuals per frame, which should
+       be microseconds. W2b's bench confirms it.
+4. **Per-frame path (unchanged).**
+   1. Timeline time.
+   2. `Value_lane.resolve`, which applies changed ports only.
+   3. Incremental `compile_all`.
+   4. `Async_cook.submit`, latest request.
+   5. The Session recooks the nodes whose parameters changed and their
+      downstream cone. Static upstream nodes hit the cache.
+   - In Orrery, `base` and `plinth` cook once; `sun`, `glow`, every moon
+     and the merges cook each frame.
+5. **Cache policy for volatile nodes.**
+   - The problem: a live node makes a new cache key every frame, so it
+     would churn the Session's LRU (512 entries after W2) and evict static
+     entries, the very ones that make playback cheap.
+   - The fix: add `?volatile:(int -> bool)` to `Session.create` (or a flag
+     on the compiled node).
+   - A volatile node keeps exactly **one** entry, its latest. It is
+     replaced in place and never counted in, or evicted from, the LRU.
+   - `Lower` marks a node volatile when it is live, or downstream of a
+     live node in the same graph.
+   - `ponytail:` one slot per volatile node, so scrubbing back and forth
+     recooks. Add a small per-node ring when scrub-back latency is
+     measured to matter.
+6. **Frame pacing and determinism.**
+   - Interactive play never blocks. When a cook exceeds the frame, the
+     viewport shows the last completed result, which is the existing
+     latest-request rule.
+   - The status bar shows `cook 23 ms · skipping frames` while that
+     happens (the `Status` text already exists).
+   - `Sketch.Fixed dt`, `Sketch.export`, and runs under
+     `PRISMEL_MAX_FRAMES` must produce the geometry for exactly frame *n*'s
+     time.
+   - Before building, read how `Editor3` export cooks today (`cook.ml`,
+     `take_export`). If it goes through `Async_cook`, add
+     `Async_cook.await : 'a t -> 'a completion` and use it only on
+     fixed-step runs.
+   - Artifacts must be byte-identical at 1 and 3 domains.
+7. **Realtime edits, not only time.**
+   - Scrubbing a parameter or a graph input is a live edit without a
+     history entry, committed once on release, as today.
+   - Each drag event re-runs `Eval.static` and `Lower`.
+   - `compile_all ?previous` keeps the unchanged nodes, so only the edited
+     node's downstream cone recooks.
+   - A scrub that changes a loop count re-lowers; W2's gate "Bloom lower +
+     cook < one frame" covers that.
+   - Live reload of a `.plisp` file (W11) is the same path, triggered by
+     the file instead of the pointer.
+
+**UI (built in W4/W5, specified here).**
+- A **◷ t** chip on every live node and zone. It sits beside `↥ same each
+  time` and uses the accent colour.
+- The inspector shows `cook: live, recooks every frame` or `cook: cached`.
+- The viewport header shows `◷ N live · M cached · cook X ms`.
+- Transport is the existing timeline bar and `Play_pause`. W2b adds no
+  second transport.
+
+**Tests.**
+- Liveness:
+  - direct `t`;
+  - through a binding, a capture, a fold accumulator, a function and a
+    graph `ref`;
+  - `t` is reserved and cannot be bound;
+  - a macro gensym named `t#` is not `t`.
+- `E_TIME_COUNT`: `range` over a live count, a live `filter` spliced into
+  merge, and a value-only live `filter` summed (accepted).
+- `E_TIME_BRANCH`: geometry arms rejected; value arms accepted.
+- `Value_lane`: a static network is resolved once; a live network applies
+  only the changed ports (existing test style in `test_network.ml`).
+- **Orrery playback**, 600 frames at `Fixed (1/60)`, with Session `stats`
+  asserted:
+  - `base` and `plinth` miss exactly once, then always hit;
+  - live nodes miss every frame;
+  - the eviction count of static entries is 0.
+- Determinism: an Orrery fixed-step export is byte-identical at 1 and 3
+  domains.
+
+**Bench.**
+- `tools/bench_workspace_live.ml`: Orrery, Wave and Sunflower (the last
+  made live by animating `spread`).
+- It reports the p50 and p99 frame cost split into resolve, compile,
+  submit and cook, plus Session hits and misses.
+- Record the command and the numbers in the PR.
+
+**Done when**
+- Orrery plays at 60 fps on the reference machine with its static nodes
+  cached, or the PR records the measured bottleneck.
+- Both errors report at their binding.
+- The fixed-step export is deterministic.
 
 ---
 
@@ -590,6 +767,9 @@ selectors, and all gestures from W3 are reachable by mouse and keys.
    - `kept a of b` for `filter`;
    - `↥ same each time` (loop-invariant, from `Flow.Workspace`'s dependency
      analysis), which emits `Syntax_edit_requested (Hoist path)`.
+   - `◷ t` on live nodes and zones, from W2b's liveness set, plus the
+     inspector's `cook: live` or `cook: cached` row and the viewport
+     header's `◷ N live · M cached · cook X ms`.
 4. The inspector lists per-iteration values; clicking one emits
    `Probe_set`.
 
@@ -751,53 +931,226 @@ element key, so an unchanged element is a cache hit.
 
 ---
 
-### W11 — `[%workspace]` (`ppx_prismel`, `flow_sop`)
+### W11 — `.plisp` sketches compiled by dune (`tools/plisp`, `flow_sop`, `prismel_editor`)
 
-**Reuse.** The whole `[%flow]` rewriter: payload read, manifest,
-diagnostic location mapping and local node discovery.
+A sketch is one file, `sketches/<name>/sketch.plisp`, holding one
+`(workspace …)` form. It has no `main.ml` and no per-sketch `dune`.
+`dune build` checks it against the catalog, reports errors at lines inside
+the `.plisp` file, and links a native executable. The running editor writes
+edits back to the same file.
+
+```text
+sketches/bloom/sketch.plisp        ← the only file an author writes
+sketches/dune.plisp.inc            ← generated, checked in, kept current by `dune promote`
+_build/default/sketches/bloom/main.ml   ← generated per build, never checked in
+```
+
+**The ponytail ladder, applied.**
+1. *Do we need a new build stanza?* No. Dune has no plugins. Its existing
+   `include`, `subdir`, `rule` and promotion features are enough.
+2. *Does the codebase have the pieces?*
+   - W1 gives the reader, checker and printer.
+   - W2 gives evaluation.
+   - `Editor3.run` gives the host.
+   - The `api_manifest` and `flow_manifest.sexp` flows already use the
+     "generated file checked by `diff` in `runtest`, accepted with
+     `dune promote`" pattern.
+3. *Can the generated OCaml be one line?* Nearly. `main.ml` embeds the source
+   text and calls one function (below).
+4. *Then the minimum:* one small tool with three subcommands.
 
 **Build.**
-1. `[%workspace {| … |}]` uses `Flow.Syntax.parse`, `Flow.Macro` and
-   `Flow.Workspace.check` against the manifest, with diagnostics at their
-   lines inside the string (as `[%flow]` does). It emits a module:
-   ```ocaml
-   module Bloom = [%workspace {| (workspace bloom …) |}]
-   (* expands to *)
-   module Bloom : sig
-     val program : Flow_sop.Workspace_program.t          (* source text + manifest digest *)
-     module Flower : sig type inputs = { petals : int; seed : int } val default_inputs : inputs end
-   end
+
+1. **`tools/plisp/plisp.ml`**, an executable with `(public_name prismel-plisp)`
+   in package `prismel`. It links `flow`, `flow_sop` and `sop_catalog`, so it
+   uses the in-process catalog and never reads the manifest file. Three
+   subcommands, with no dependency beyond `Stdlib` and `Arg`:
+   - **`prismel-plisp check FILE…`** parses, expands macros and checks each
+     file. It prints diagnostics in the OCaml compiler's format, so dune,
+     editors and compilation modes jump to the line:
+     ```text
+     File "sketches/bloom/sketch.plisp", line 6, characters 17-24:
+     Error [E_UNKNOWN_NODE]: sop/circel is not in the catalog; did you mean sop/circle?
+     ```
+     It exits 1 on any error. Warnings are errors, as for OCaml (`AGENTS.md`),
+     unless the file has `^:allow-warnings` on its `workspace` form.
+   - **`prismel-plisp ml FILE`** runs `check`, then prints `main.ml` to
+     stdout:
+     ```ocaml
+     (* generated by prismel-plisp from sketches/bloom/sketch.plisp; do not edit *)
+     let () =
+       Prismel_editor.Workspace.main
+         ~path:"sketches/bloom/sketch.plisp"
+         ~digest:"<sha256 of the source text>"
+         ~catalog:"<Sop_catalog manifest digest>"
+         {plisp_7f3a|…source text, verbatim…|plisp_7f3a}
+     ```
+     - The quoted-string delimiter is `plisp_` plus the first 4 hex digits
+       of the digest. If that delimiter occurs in the source, the tool
+       appends a digit until it does not.
+     - The text is embedded verbatim, not re-printed, so comments and
+       layout survive. `Workspace.main` re-parses it at startup in low
+       milliseconds (register O4, and see the risk row in §5).
+   - **`prismel-plisp dune DIR`** scans `DIR/*/sketch.plisp` in sorted order
+     and prints the include file:
+     ```dune
+     ; generated by prismel-plisp dune sketches; accept changes with dune promote
+     (subdir bloom
+      (rule
+       (target main.ml)
+       (deps sketch.plisp (glob_files *.png) (glob_files *.ttf))
+       (action (with-stdout-to %{target} (run %{bin:prismel-plisp} ml sketch.plisp))))
+      (executable (name main) (modules main) (libraries prismel_editor))
+      (rule (alias smoke-all)
+       (action (setenv PRISMEL_MAX_FRAMES 120 (run ./main.exe)))))
+     ```
+     - The `glob_files` deps cover assets next to the sketch, so assets
+       rebuild with it. The asset extensions are whatever
+       `Runtime_resources` loads.
+     - `ponytail:` the smoke frame count is fixed at 120. Add a per-sketch
+       count when a sketch needs one: read it from `settings` (W10).
+
+2. **The dune wiring**, once per directory that holds sketches (`sketches/`,
+   and `examples/` if examples adopt it):
+   ```dune
+   ; sketches/dune
+   (include dune.plisp.inc)
+   (rule
+    (target dune.plisp.inc.gen)
+    (deps (glob_files_rec sketch.plisp))
+    (action (with-stdout-to %{target} (run %{bin:prismel-plisp} dune .))))
+   (rule (alias runtest) (action (diff dune.plisp.inc dune.plisp.inc.gen)))
    ```
-   - **Emitting source text.** The PPX embeds the canonical source text,
-     not AST data. At run time `Workspace_program.load` re-parses and checks
-     it (milliseconds) and verifies the manifest digest.
-   - `ponytail:` this keeps the emitter tiny and makes write-back trivial.
-     Emitting data is an optimisation for later, if startup measurement
-     says so (register O4).
-2. `Workspace_program.with_inputs : t -> graph:string -> (string * value)
-   list -> t` sets overrides. The typed record converts to that list.
-3. `Prismel_editor.Workspace.run : ?config … -> Workspace_program.t -> unit`
-   is a thin wrapper over `Editor3.run` with `?program` replaced.
-4. **Write back to main.ml** (register O1):
-   - The editor knows the source file and span from `Workspace_program.t`,
-     recorded by the PPX (`__FILE__` and the string's offsets).
-   - The command writes only that string literal after showing a diff in a
-     `Prompt`.
-   - It is disabled when the file changed since build (compare an mtime
-     and hash recorded at startup).
+   - Adding a sketch means creating `sketches/foo/sketch.plisp` and then
+     running `dune build @runtest; dune promote`. The same flow is already
+     documented for `flow_manifest.sexp`.
+   - A bootstrap `dune.plisp.inc` is checked in empty. Dune requires an
+     included file to exist.
+   - Check early: `subdir` targets a source directory that has no `dune`
+     file of its own, and `glob_files_rec` needs lang 3.0 or later (the
+     repo is on 3.17). Both are supported, but W11's first commit must
+     prove them on one sketch before generating the rest.
+   - Existing OCaml sketches keep their own `dune` files. The generator only
+     lists directories that contain `sketch.plisp` and no `dune`. A
+     directory with both is an error that names the file to delete.
+
+3. **`Prismel_editor.Workspace`**, a new module with an `.mli`:
+   ```ocaml
+   val main :
+     path:string -> digest:string -> catalog:string -> string -> unit
+   (** Entry point for generated [main.ml]. Parses and checks the embedded
+       source, runs [Editor3] on it, and exits non-zero with diagnostics on
+       failure. [path] is relative to the project root. *)
+
+   val run :
+     ?config:Editor3.config -> ?source:source -> Flow_sop.Workspace_program.t -> unit
+   (** For OCaml hosts. [main] is [run] after [load]. *)
+
+   type source = { path : string; digest : string }
+
+   val load : string -> (Flow_sop.Workspace_program.t, Flow.Diagnostic.t list) result
+   ```
+   - `Flow_sop.Workspace_program.t` is the checked workspace (W1–W2) plus
+     its input overrides.
+   - `with_inputs : t -> graph:string -> (string * Flow.Value.t) list ->
+     (t, Flow.Diagnostic.t) result` checks names and types at run time.
+   - The window title, size and seed come from the workspace's `settings`
+     graph (W10). Before W10 they come from `Editor3.default_config`, with
+     the title set to the workspace name.
+   - `catalog` mismatch: when the running catalog digest differs from the
+     one at build time, `main` re-checks and reports rather than trusting
+     stale plan data. That cannot happen in one dune build, but it can for a
+     copied binary.
+
+4. **Save writes the `.plisp` file** (register O1). No OCaml literal splicing
+   is needed.
+   - At startup, `main` looks for the source file: it walks up from the
+     executable's directory, and then the working directory, to the first
+     `dune-project` not under `_build`, then joins `path`.
+   - It enables **Save** (⌘S) only when that file exists and its SHA-256
+     equals `digest`, meaning it is the text the binary was built from.
+   - Save prints the document with `Flow.Lisp` (comment-preserving, W1),
+     writes it atomically (temp file plus `Sys.rename`) and updates the
+     remembered digest.
+   - Otherwise Save falls back to a preset (the v4 document) under the
+     editor's store, and the status bar says why. For example: "source
+     changed since build; saved as preset".
+   - `ponytail:` there is no three-way merge. Add one when two writers of
+     one sketch are common.
+
+5. **Live reload from disk.** While the sketch runs, the editor polls the
+   source file's mtime at most twice a second, on the initial domain, from
+   the frame loop.
+   - When the mtime and digest change, it re-parses and re-checks.
+   - On success it replaces the document as one history entry,
+     "Reload sketch.plisp", keeping probes and layout by path id.
+   - On failure it keeps the last good document and shows the diagnostics
+     in the text tab and the status bar.
+   - Save from the editor updates the remembered digest first, so its own
+     writes do not reload.
+   - This is the loop the format exists for: edit the `.plisp` in any text
+     editor, and the graph and viewport follow without rebuilding.
+   - `ponytail:` it polls rather than using `inotify` or `FSEvents` (no new
+     dependency). The ceiling is one `stat` per 500 ms. Add native file
+     events when watching many files.
+
+6. **`prismel-plisp fmt FILE`** prints the canonical text with the W1
+   printer. That is the same text Save writes, so a hand-formatted file and
+   an editor-saved file converge. `ponytail:` it is not wired into
+   `dune fmt`. Add that when `.plisp` files are reviewed in PRs often
+   enough that format diffs hurt.
+
+7. **Scaffolding.** `tools/new_example.exe -- --plisp <name>` writes
+   `sketches/<name>/sketch.plisp` from the Bloom fixture, then prints the
+   `dune build @runtest; dune promote` step.
+
+**Skipped, and when to add it.**
+
+| Skipped | Add when |
+|---|---|
+| `[%workspace]` PPX and generated typed input records | an OCaml host needs Lisp and OCaml in one file, or overrides inputs often enough that run-time name errors hurt. `Workspace.run` with `with_inputs` covers the rest. |
+| Several sketches or OCaml callbacks per `.plisp` | a case needs host code. It then becomes an OCaml sketch that calls `Workspace.load` on its `.plisp` (with a `(rule (alias runtest) (action (run %{bin:prismel-plisp} check x.plisp)))`). |
+| Compiling Lisp to OCaml | measurement shows the plan interpreter too slow (O4, §4). |
+| An LSP or syntax highlighting | `.plisp` is s-expressions, so any Lisp mode highlights it. `check` output already drives compilation-mode jumps. |
+| Hot reload of changed catalog code | never at run time. Rebuilding is the answer. |
 
 **Tests.**
-- ppx expansion tests for every diagnostic class.
-- Input record generation.
-- A write-back test on a temp file.
+- `tools/plisp/test/` covers:
+  - expect tests for `check` on one fixture per diagnostic class, asserting
+    the exact `File …, line …, characters …` lines;
+  - `ml` output, including the delimiter-collision case;
+  - `dune` output for a directory with two sketches, a sketch with a `dune`
+    file (an error) and an empty directory.
+- A dune test (`test/plisp_build/`, a `cram` test with `(using directory-targets)`
+  already enabled) builds a temp project containing:
+  - one valid sketch, which must build;
+  - one with a typo, which must fail with the `.plisp` line.
+- `Workspace.main` tests:
+  - digest match enables Save;
+  - digest mismatch falls back to a preset;
+  - an atomic write followed by an identical re-read;
+  - reload keeps probes by path id;
+  - a failed reload keeps the last good document.
+- All twelve `specification/workspace/cases/*.lisp` fixtures (W1) are copied
+  to `sketches/ws_<case>/sketch.plisp` and run under `@smoke-all`.
+
+**Done when.**
+- `sketches/ws_bloom/sketch.plisp` is the only authored file for that
+  sketch.
+- A typo in it fails `dune build` at the right line.
+- `dune build @smoke-all` runs it.
+- Editing it in a text editor updates the running window, and ⌘S in the
+  window rewrites it with comments intact.
 
 ---
 
 ### W12 — Migration and removal
 
-1. Port sketches that use `[%flow]` (for example `sketches/flow_terrain`)
-   to `[%workspace]`. Keep `[%flow]` as sugar: a single `graph` payload
-   becomes `(workspace <name> <graph>)`.
+1. Port sketches that are only a `[%flow]` graph plus an `Editor3.run` call
+   (for example `sketches/flow_terrain`) to `sketches/<name>/sketch.plisp`,
+   deleting their `main.ml` and `dune`. Keep `[%flow]` for OCaml sketches
+   that mix host code, as sugar: a single `graph` payload becomes
+   `(workspace <name> <graph>)`.
 2. Delete:
    - `Flow_sop.Print.network`'s editor use (keep it only for the v3
      loader, then delete the loader after one release; record that in
@@ -806,7 +1159,9 @@ diagnostic location mapping and local node discovery.
    - `Check.program`'s single-graph path, once `[%flow]` is sugar.
 3. Update the docs:
    - `flow.md`: status, §8.3, §11 pointer, §17.
-   - `api.md`: `[%workspace]`, `Workspace.run`.
+   - `api.md`: `.plisp` sketches, `prismel-plisp`, `Workspace.main`, `Workspace.load`, `Workspace.run`.
+   - `AGENTS.md`: the sketch layout (`sketches/<name>/sketch.plisp`), and the `dune promote` step for `dune.plisp.inc`.
+   - `tools/new_example`: document `--plisp`.
    - `backend.md`: the gate, if boundaries changed.
    - `pxui.md`: `text_area` and the layout tree.
    - `performance.md`: the new benches.
@@ -845,6 +1200,10 @@ diagnostic location mapping and local node discovery.
 | `for-zip` form | a case needs zipped iteration that `map` over lists can't express (L2, F4) |
 | several fold accumulators | never; records cover it (L6) |
 | native OCaml code generation from zones | measurements show the plan interpreter too slow (O4) |
+| live sources other than `t` (mouse, frame, audio) | a case needs one; it is a reserved name plus a field of the `~live` environment (W2b) |
+| time-switched shapes (`sop/switch` with a driven selector) | a case needs `t` to pick between shapes (T3) |
+| per-node cache ring for scrubbing back in time | scrub-back latency is measured to matter (W2b) |
+| a `[%workspace]` PPX | an OCaml host needs Lisp and OCaml in one file (W11) |
 | OS windows for floating panels | the in-window `Float` is insufficient in practice |
 | geometry thumbnails in the selector | never in the selector; a viewport overlay if needed |
 | record field rename across accessors | first user request (D2 notes the study lacks it too) |
@@ -862,7 +1221,10 @@ diagnostic location mapping and local node discovery.
 | Pixel parity breaks with new theme tokens | Add tokens only; the parity fixtures gain a zone panel; review PNG diffs |
 | The dependency gate: `Flow_edit` / `Projection` needing UI | Both live in `flow_sop` and are UI-free by construction; the gate test enforces it |
 | Merge padding changes existing geometry | Padding only adds empty groups when inputs differ; existing merges with identical schemas produce identical bytes (tested) |
-| PPX startup cost of re-parsing text | Measure; parse + check of the Bloom fixture is expected in the low milliseconds. Switch to data emission only if measured |
+| Startup cost of re-parsing the embedded `.plisp` text | Measure; parse + check of the Bloom fixture is expected in the low milliseconds. Switch to data emission only if measured |
+| dune `subdir` or `glob_files_rec` behaving differently than expected for generated sketch stanzas | W11's first commit proves the wiring on one sketch before generating the rest; fallback is a two-line checked-in `dune` per sketch, still with no OCaml |
+| Live nodes churn the Session cache during playback | W2b's volatile single-slot policy, asserted by Session `stats` in the Orrery playback test |
+| Playback slower than the frame | Latest-request cooking already skips frames without blocking; W2b's bench records p50/p99 per phase so the slow phase is known, not guessed |
 
 ---
 
@@ -886,7 +1248,7 @@ diagnostic location mapping and local node discovery.
    - `smoke` for native checks;
    - `prune-dead-code` in W12.
 4. **Tests come from the study.**
-   - The eleven fixtures, the 114 model checks and the 48 register rules are
+   - The twelve fixtures, the 120 model checks and the 52 register rules are
      the acceptance tests.
    - When the study and this plan disagree, the register wins. Update the
      study so they agree.

@@ -195,7 +195,7 @@ function pp(x, ind = 0, mark, parent, i, bare) {
   return wrap('(' + hs + ' ' + (col === ind + 4 && units.length > 1 && vis(first) > 30 ? '\n' + sp(col) : '') + units.map(u).join('\n' + sp(col)) + ')');
 }
 function top(x, mark) { NM = new WeakMap(); const lead = getNote(x, '$lead'); return (lead ? nl(lead, 0) : '') + pp(x, 0, mark); }
-const print = (x, mark) => top(x, mark).replace(/[\u0001\u0002]/g, '');
+const print = (x, mark) => top(x, mark).replace(/[\u0001\u0002]/g, '').replace(/[ \t]+\n/g, '\n');
 const printMarked = (x, mark) => top(x, mark);
 
 /* ---------------- types and values ----------------
@@ -593,10 +593,12 @@ function expandOnce(p, x, st = {n: 0, size: 0}) {
 }
 
 /* ---------------- compiler / evaluator ---------------- */
+let branchIds = 0;
+const usesTime = x => x === 't' || (Array.isArray(x) && x.some(usesTime));
 function compile(ast, opts = {}) {
   const time = opts.time ?? 0;
   if (!isL(ast) || ast[0] !== 'workspace' || !NAME.test(ast[1])) throw Error('Expected (workspace name …).');
-  const graphs = new Map(), defs = new Map(), macros = new Map(), all = new Set();
+  const graphs = new Map(), defs = new Map(), macros = new Map(), all = new Set(), branches = new Map();
   for (const f of ast.slice(2)) {
     if (!isCall(f) || !['graph', 'defn', 'defmacro'].includes(f[0])) throw Error('Workspace children are graph, defn and defmacro forms.');
     if (!NAME.test(f[1]) || RESERVED.has(f[1]) || all.has(f[1]) || OPS[f[1]]) throw Error(`Invalid, reserved or duplicate name: ${f[1]}.`);
@@ -621,6 +623,11 @@ function compile(ast, opts = {}) {
   const prov = new Set(); // types recorded while a fn body is typed with its declared parameter types; a real call replaces them
   let steps = 0;
   const pT = p => typeExpr(p[2]);
+  // which arm a geometry branch took, so a t-driven choice between shapes can be reported (E_TIME_BRANCH)
+  function pick(x, E, arm, v) {
+    if (v.t === 'geometry') branches.set(E.path + ' ' + (x.bid ??= ++branchIds) + ' ' + E.iters.map(i => i.k).join('.'), arm);
+    return v;
+  }
   function rec(E, id, v) {
     if (!E) return;
     if (E.mode === 'static') { if (E.prov) { if (!types.has(id)) { types.set(id, v.t); prov.add(id); } } else if (!types.has(id) || types.get(id) === 'any' || prov.delete(id)) types.set(id, v.t); return; }
@@ -705,7 +712,7 @@ function compile(ast, opts = {}) {
         noFn(a.t, 'An if branch'); noFn(b.t, 'An if branch');
         return val(unify(a.t, b.t) || a.t, undefined);
       }
-      return ev(c.d ? args[1] : args[2], E);
+      return pick(x, E, c.d ? 1 : 2, ev(c.d ? args[1] : args[2], E));
     }
     if (head === 'cond' || head === 'case') return evCond(x, E);
     if (head === 'ref') {
@@ -795,7 +802,7 @@ function compile(ast, opts = {}) {
       for (const [c, e] of arms) { if (c !== ':else') test(c); const v = ev(e, E); noFn(v.t, `A ${h} arm`); const j = t === null ? v.t : unify(t, v.t); if (!j) throw Error(`All arms of ${h} must have one type: ${t} and ${v.t}.`); t = j; }
       return val(t, undefined);
     }
-    for (const [c, e] of arms) if (c === ':else' || test(c).d) return ev(e, E);
+    for (let k = 0; k < arms.length; k++) { const [c, e] = arms[k]; if (c === ':else' || test(c).d) return pick(x, E, k, ev(e, E)); }
   }
   /* function values */
   function evArg(x, E) { // a bare defn or operator name in a function position is a function value
@@ -1032,13 +1039,32 @@ function compile(ast, opts = {}) {
     if (!fits(t.t, CONTEXTS[f[3]])) throw Error(`${name} must return ${CONTEXTS[f[3]]}, but its result is ${t.t}.`);
   }
   for (const name of graphs.keys()) graph(name);
-  return {ast, graphs, defs, macros, cache, records, types, zones, steps, time,
+  // t may drive parameters, never structure: loop counts and geometry branches must not change with time.
+  if (opts.timeCheck !== false && usesTime(ast)) {
+    const shape = (zs, rs, bs) => { const o = new Map();
+      for (const [k, arm] of bs) o.set('arm  ' + k.split(' ')[0], arm);
+      for (const [k, z] of zs) if (z.kind !== 'fn') o.set('zone ' + k, z.count + '×' + (z.runs || 1));
+      for (const [k, r] of rs) if (!k.startsWith('def:') && r.some(e => e.v && e.v.t === 'geometry')) o.set('node ' + k, r.length);
+      return o; };
+    const a = shape(zones, records, branches);
+    for (const dt of [0.7, 2.3]) {
+      const q = compile(ast, {...opts, time: time + dt, timeCheck: false}), b = shape(q.zones, q.records, q.branches);
+      for (const k of new Set([...a.keys(), ...b.keys()])) if (a.get(k) !== b.get(k)) {
+        const [kind, id] = [k.slice(0, 4), k.slice(5)];
+        throw Error(kind === 'zone'
+          ? `E_TIME_COUNT: the number of iterations of ${id} changes with t (${a.get(k)} at t=${time.toFixed(2)}, ${b.get(k)} at t=${(time + dt).toFixed(2)}). Loop counts are fixed while playing; animate parameters instead, for example scale a piece to 0.`
+          : kind === 'arm ' ? `E_TIME_BRANCH: a branch in ${id} picks between shapes by t (arm ${a.get(k)} at t=${time.toFixed(2)}, arm ${b.get(k)} at t=${(time + dt).toFixed(2)}). The network keeps its shape while playing; pick a value instead, for example an if on a size or a colour.`
+          : `E_TIME_BRANCH: ${id} makes geometry only at some times, so t picks between shapes. Pick with a value instead, for example an if on a size or a colour.`);
+      }
+    }
+  }
+  return {ast, graphs, defs, macros, cache, records, types, zones, steps, time, branches,
     expand: x => expandCall(x),
     inspect(fnName, x, ctx, env) { steps = 0; [...records.keys()].forEach(k => k.startsWith('def:') && records.delete(k)); [...zones.keys()].forEach(k => k.startsWith('def:') && zones.delete(k));
       return evCall(defs.get(fnName), x, {mode: 'run', ctx, env, stack: [], scope: 'preview', path: 'preview', iters: [], record: false, inspect: true}); }};
 }
 
-const API = {read, print, printMarked, compile, OPS, CONTEXTS, SPECIAL, RESERVED, ZONES, HOFS, TYPES, body, bindings, paramsOf, callArgs, zoneVars, zoneBody, freeSymbols,
+const API = {read, print, usesTime, printMarked, compile, OPS, CONTEXTS, SPECIAL, RESERVED, ZONES, HOFS, TYPES, body, bindings, paramsOf, callArgs, zoneVars, zoneBody, freeSymbols,
   clone, vec, str, isStr, isKw, isNum, numOf, mkNum, fmtNum, atom, fits, elemOf, listOf, hash, toHex, bbox, M1, M2,
   mkMap, isMap, isCall, amap, getNote, setNote, patNames, patKey, typeExpr, parseType, formatType, recT, recFields, joinT, hasFn, coerce, show,
   expand, expandOnce, macroParams, isOpName};

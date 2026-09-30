@@ -23,7 +23,9 @@ function withShell(src){ // cases may omit the scene and editor graphs; the stud
   if(!has('editor'))a.push(M.read(Cases.EDITOR));
   return a;
 }
-const compileDoc=a=>M.compile(a,{time});
+let cookMs=0;
+/* while playing, the structural t check (E_TIME_COUNT, E_TIME_BRANCH) already passed on the paused document */
+const compileDoc=a=>{const t0=performance.now(),p=M.compile(a,{time,timeCheck:!playing});cookMs=performance.now()-t0;return p;};
 function loadCase(key,push=true){
   const c=Cases.CASES.find(c=>c.key===key);if(!c)return;
   const next=withShell(c.lisp);
@@ -166,6 +168,29 @@ function seriesOf(id,chain){ // values across the innermost zone at the current 
   const L=chain.length,m=r=>r.it.length>=L&&outer.every((k,i)=>r.it[r.it.length-L+i]===k);
   const ex=rs.filter(r=>r.it.length===L&&m(r));return (ex.length?ex:rs.filter(m)).map(r=>r.v);
 }
+/* live nodes depend on t, directly or through a binding, capture, accumulator, graph or function; they recook every frame while playing */
+const liveMemo=new WeakMap(),formMemo=new WeakMap();
+function atomsOf(e,o=[]){if(typeof e==='string'){if(!M.isKw?.(e)&&e[0]!==':'&&!M.isStr(e))o.push(e);}else if(Array.isArray(e))e.forEach(x=>atomsOf(x,o));else if(M.isMap(e))Object.values(e.fields||e).forEach(x=>atomsOf(x,o));return o;}
+function formLive(name,seen=new Set()){
+  let m=formMemo.get(program);if(!m)formMemo.set(program,m=new Map());if(m.has(name))return m.get(name);
+  if(seen.has(name))return false;seen.add(name);
+  const f=program.graphs.get(name)||program.defs.get(name);
+  const v=!!f&&atomsOf(M.body(f)).some(a=>a==='t'||(a!==name&&(program.graphs.has(a)||program.defs.has(a))&&formLive(a,seen)));
+  m.set(name,v);return v;
+}
+function exprLive(e,S){
+  for(const a of new Set(atomsOf(e))){
+    if(a==='t')return true;
+    if((program.graphs.has(a)||program.defs.has(a))&&formLive(a))return true;
+    for(let s=S;s;s=s.parent){const en=s.names.get(a);if(!en)continue;
+      if(en.node){if(isLive(en.node))return true;break;}
+      if(en.rail){const r=s.rail.find(r=>(r.names||[r.name]).includes(a));if(!r||r.role==='capture')continue;if(r.expr!==undefined&&exprLive(r.expr,s.parent))return true;}
+      break;}
+  }
+  return false;
+}
+function isLive(n){if(!n||n.kind==='param')return false;if(liveMemo.has(n))return liveMemo.get(n);liveMemo.set(n,false);const v=exprLive(n.expr,n.scope);liveMemo.set(n,v);return v;}
+function liveCounts(){let live=0,all=0;view?.all.forEach(n=>{if(n.kind==='param'||n.synthetic)return;all++;if(isLive(n))live++;});return {live,cached:all-live};}
 /* does a node change from one iteration to the next of its innermost zone? */
 function variesIn(n){
   const S=n.scope;if(!S.owner||!isZone(S.owner.expr))return true;

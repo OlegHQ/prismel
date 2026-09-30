@@ -142,6 +142,7 @@ function nodeFoot(n,S){
     else h+=`<span class="fb">×${recs.length}</span>`;
   }
   if(isL(n.expr)&&n.expr[0]==='filter'&&v?.d){const src=n.expr[2],sv=typeof src==='string'?recordAt(n.scope.id+'/'+src,chain):null;if(sv?.d)h+=`<span class="fb">kept ${v.d.length} of ${sv.d.length}</span>`;}
+  if(isLive(n))h+=`<span class="live" title="Depends on t: recooks every frame while the viewport plays. Unmarked nodes stay cached.">◷ t</span>`;
   if(n.bypass)h+=`<span class="fb byp">bypassed</span>`;
   return h;
 }

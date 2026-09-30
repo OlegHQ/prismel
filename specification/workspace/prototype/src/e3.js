@@ -89,7 +89,12 @@ function updateLeaf(el){
     renderGraph(g);g.scrollLeft=sx;g.scrollTop=sy;
   }else if(k==='viewport'){
     const tiled=el.closest('.tile');
-    ctl.innerHTML=tiled?`<span class="ptag">${esc(describeScene(p.scene))}</span>`:usesTime()?`<button data-a="play" class="${playing?'on':''}">${playing?'Pause':'Play'}</button><input class="tslider" type="range" min="0" max="6.283" step="0.01" value="${time}" aria-label="Time t"><span class="ptag">t ${time.toFixed(2)}</span>`:'<span class="ptag">static · no t</span>';
+    const pb=!tiled&&usesTime()&&ctl.querySelector('[data-a="play"]'),c=liveCounts();
+    if(pb){ // update in place: rebuilding the controls every tick would detach Pause under the pointer
+      pb.textContent=playing?'Pause':'Play';pb.classList.toggle('on',playing);
+      const sl=ctl.querySelector('.tslider');if(document.activeElement!==sl)sl.value=time;
+      ctl.querySelector('.ttag').textContent=`t ${time.toFixed(2)}`;ctl.querySelector('.live-read').textContent=`◷ ${c.live} live · ${c.cached} cached · ${cookMs.toFixed(1)} ms`;
+    }else ctl.innerHTML=tiled?`<span class="ptag">${esc(describeScene(p.scene))}</span>`:usesTime()?`<button data-a="play" class="${playing?'on':''}">${playing?'Pause':'Play'}</button><input class="tslider" type="range" min="0" max="6.283" step="0.01" value="${time}" aria-label="Time t"><span class="ptag ttag">t ${time.toFixed(2)}</span>${(()=>{return `<span class="ptag live-read" title="In ${esc(scope)}: nodes marked ◷ t recook each frame; the rest are cached. The study recompiles everything; Prismel recooks only the live nodes.">◷ ${c.live} live · ${c.cached} cached · ${cookMs.toFixed(1)} ms</span>`;})()}`:'<span class="ptag">static · no t</span>';
     renderPreview(body.querySelector('canvas'),p.scene,!!tiled);
   }else if(k==='outline'){ctl.innerHTML='';fillOutline(body);}
   else if(k==='list'){ctl.innerHTML='<span class="ptag">nested bindings</span>';fillList(body);}

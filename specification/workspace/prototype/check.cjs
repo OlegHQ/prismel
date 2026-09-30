@@ -217,4 +217,20 @@ t('round trip: print(read(print(x))) is stable for every new construct', () => {
   const p = M.compile(M.read(s)); if (!p.cache.get('g').d.prims.length) throw Error('empty');
   eq(p.types.get('g/state'), 'rec{n:int,acc:float}'); eq(p.records.get('g/[x y z]')[0].v.d, [1, 4, 3]);
 });
+t('t drives parameters: the same network shape at every time, different values', () => {
+  const src = W(`[(n : int 5)] (sop/merge (for [i (range n)] (sop/box :size 0.1 :center [(+ i (sin t)) 0 0])))`);
+  const a = M.compile(M.read(src), {time: 0}), b = M.compile(M.read(src), {time: 1.2});
+  eq(a.zones.get('g/@0')?.count ?? [...a.zones.values()][0].count, 5); eq([...b.zones.values()][0].count, 5);
+  if (JSON.stringify(a.cache.get('g').d) === JSON.stringify(b.cache.get('g').d)) throw Error('t did not change the geometry');
+});
+t('E_TIME_COUNT: a loop count that depends on t is rejected', () => bad(W(`(sop/merge (for [i (range (+ 3 (floor (* 2 (sin t)))))] (sop/box)))`), /E_TIME_COUNT/));
+t('E_TIME_BRANCH: t choosing between shapes is rejected; t choosing a value is fine', () => {
+  bad(W(`(if (> (sin t) 0.5) (sop/box) (sop/uv_sphere))`), /E_TIME_BRANCH/);
+  M.compile(M.read(W(`(sop/box :size (if (> (sin t) 0.5) 1 0.5))`)));
+});
+t('t is reserved: it cannot be bound', () => bad(W(`(let* [t 1] (sop/box))`), /context time/));
+t('the Orrery case keeps its shape over time', () => {
+  const c = CASES.find(c => c.key === 'orrery'), n = x => M.compile(M.read(c.lisp), {time: x}).cache.get('orrery').d.prims.length;
+  eq(n(0), n(3.1));
+});
 process.exit(fail ? 1 : 0);

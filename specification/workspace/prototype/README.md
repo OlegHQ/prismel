@@ -40,7 +40,13 @@ reuse and the composed shell.
 10. **Macros.** In *Rosette*, press ⤵ on `outer` and step through the
    expansion. Select `soft` and press **M** to make a macro; click B to
    bypass a node, or type a note in the inspector.
-11. **See the code.** Select anything: the Lisp panel shows that binding with
+11. **Live values.** In *Orrery*, nodes that depend on `t` show **◷ t**.
+   Press Play in the viewport: the header counts the live and cached nodes
+   and shows the cook time. Make a loop count depend on `t` to see
+   `E_TIME_COUNT`.
+12. **Sketch files.** Each gallery card's **.plisp file** button shows the case
+   as the file dune would compile, with its generated stanza.
+13. **See the code.** Select anything: the Lisp panel shows that binding with
    everything it depends on, the selection marked, and a text editor for just
    that binding.
 
@@ -64,7 +70,7 @@ node specification/workspace/prototype/build.cjs   # after editing src/ or the m
 ## Limits
 
 The preview is a small 3D JavaScript renderer (painter's algorithm) illustrating
-the catalog's semantics, not Prismel geometry or Metal. Loops, graph inputs and `[%workspace]` are proposals; today's
+the catalog's semantics, not Prismel geometry or Metal. Loops, graph inputs, live drives and `.plisp` sketches are proposals; today's
 `[%flow]` accepts one graph plus `defgraph`s. Macros are binding-free value
 templates only. Positions, frames and collapsed zones are session layout and
 never reach the Lisp. Comments attach to the next binding and survive graph edits. The

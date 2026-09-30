@@ -96,21 +96,19 @@ document.addEventListener('keydown',e=>{
 });
 
 /* ---------- page: case gallery and ambiguity register ---------- */
-function ocamlOf(c){
-  const a=M.read(c.lisp),mod=c.key[0].toUpperCase()+c.key.slice(1);
+function plispOf(c){
+  const a=M.read(c.lisp),name=c.key;
   const kept=M.print(['workspace',a[1],...a.slice(2).filter(f=>!(f[0]==='graph'&&f[3]==='editor'&&c.key!=='variations'))]);
-  const gs=a.slice(2).filter(f=>f[0]==='graph'&&M.paramsOf(f).length);
-  const sig=gs.map(g=>`   ${mod}.${g[1][0].toUpperCase()+g[1].slice(1)}.inputs = { ${M.paramsOf(g).map(p=>`${p[0]} : ${p[2]==='float'?'float':p[2]==='int'?'int':p[2]}`).join('; ')} }`).join('\n');
-  return `(* Proposed [%workspace]: checked at compile time against the catalog manifest. *)\nmodule ${mod} = [%workspace {|\n${kept}\n|}]\n${sig?`(* generates, per graph with inputs:\n${sig}\n   and ${mod}.program : Prismel_workspace.Program.t *)\n`:''}\nlet () = Prismel_editor.Workspace.run ${mod}.program`;
+  return `; sketches/${name}/sketch.plisp: the only authored file. dune build checks it and links sketches/${name}/main.exe.\n${kept}\n\n; generated into sketches/dune.plisp.inc by prismel-plisp dune sketches\n(subdir ${name}\n (rule (target main.ml) (deps sketch.plisp)\n  (action (with-stdout-to %{target} (run %{bin:prismel-plisp} ml sketch.plisp))))\n (executable (name main) (modules main) (libraries prismel_editor)))`;
 }
 function renderGallery(){
   const host=$('#gallery');if(!host)return;
   const scenes={};
   host.innerHTML=Cases.CASES.map(c=>{try{const p=M.compile(withShell(c.lisp)),sc=[...p.cache.values()].find(v=>v.t==='scene');scenes[c.key]=sc?sc.d.items:[];}catch(e){scenes[c.key]=[];}
-    return `<article class="case"><div class="cthumb"><canvas data-thumb="${c.key}" width="120" height="120" aria-hidden="true"></canvas></div><div class="cbody"><span class="eyebrow">${esc(c.tag)}</span><h3>${esc(c.title)}</h3><p>${esc(c.teaches)}</p><div class="cbtns"><button class="primary" data-open-case="${c.key}">Open in the studio</button><button data-ocaml="${c.key}">OCaml sketch</button></div></div></article>`;}).join('');
+    return `<article class="case"><div class="cthumb"><canvas data-thumb="${c.key}" width="120" height="120" aria-hidden="true"></canvas></div><div class="cbody"><span class="eyebrow">${esc(c.tag)}</span><h3>${esc(c.title)}</h3><p>${esc(c.teaches)}</p><div class="cbtns"><button class="primary" data-open-case="${c.key}">Open in the studio</button><button data-ocaml="${c.key}">.plisp file</button></div></div></article>`;}).join('');
   requestAnimationFrame(()=>host.querySelectorAll('canvas[data-thumb]').forEach(cv=>drawScene(cv,scenes[cv.dataset.thumb],{fitKey:'thumb'})));
   host.querySelectorAll('[data-open-case]').forEach(b=>b.onclick=()=>{loadCase(b.dataset.openCase);$('.app').scrollIntoView({behavior:'smooth',block:'start'});});
-  host.querySelectorAll('[data-ocaml]').forEach(b=>b.onclick=()=>{const c=Cases.CASES.find(c=>c.key===b.dataset.ocaml);dialog(c.title+' · as an OCaml sketch',`<p>Sketches embed the workspace as a compile-time string. The PPX checks it, reports errors at the right line inside the string, and generates typed inputs. <b>Proposed API</b>: today’s <code>[%flow]</code> accepts one graph plus <code>defgraph</code>s.</p><pre class="lisp">${hl(ocamlOf(c))}</pre>`);});
+  host.querySelectorAll('[data-ocaml]').forEach(b=>b.onclick=()=>{const c=Cases.CASES.find(c=>c.key===b.dataset.ocaml);dialog(c.title+' · as a .plisp sketch',`<p>A sketch is one <code>.plisp</code> file with no OCaml wrapper. <code>dune build</code> checks it against the catalog, reports errors at lines in the file, and links a native program. Save in the running sketch writes the file back, and editing the file reloads the window. <b>Proposed</b> (plan W11): today’s <code>[%flow]</code> takes one graph inside OCaml.</p><pre class="lisp">${hl(plispOf(c))}</pre>`);});
 }
 function renderRegister(){
   const host=$('#register');if(!host)return;

@@ -1,6 +1,6 @@
 # Workspace case studies
 
-**Proposal, 29 September 2026.** These are the reference programs for sketches
+**Proposal, 30 September 2026.** These are the reference programs for sketches
 that use iteration, scopes, groups, functions, records, lists, branches and macros. Each isolates one construct. The
 [study](prototype/index.html) opens every one of them: pick it from the case
 menu or from its gallery card. The design they exercise is in
@@ -8,9 +8,9 @@ menu or from its gallery card. The design they exercise is in
 [ambiguities.md](ambiguities.md).
 
 This file is generated from `prototype/cases.js`, so the Lisp here is
-exactly what the study checks. The OCaml wrapper uses the proposed
-`[%workspace]` extension: today’s `[%flow]` accepts one `graph` plus
-`defgraph`s and does not yet have loops or graph inputs. Studies without an
+exactly what the study checks. Each is shown as the `sketch.plisp` file
+that dune would compile (plan W11). Today’s `[%flow]` accepts one `graph`
+inside OCaml and does not yet have loops or graph inputs. Studies without an
 editor graph get the study’s default shell and scene when opened.
 
 | Case | Construct | Iterations |
@@ -20,6 +20,7 @@ editor graph get the study’s default shell and scene when opened.
 | [Gyroscope](#gyroscope) | fold · feedback | nested fold ×18 |
 | [Fractal tree](#fractal-tree) | fold · doubling · scope | crown fold ×5 |
 | [Square wave](#square-wave) | Σ in an expression · nested loops · t | y (inline) sum ×2700, pts for ×540, strands for ×6 |
+| [Orrery](#orrery) | t · live and cached · recook | moons_each for ×24 |
 | [Ten print](#ten-print) | nested for · if · rand | cells_each for ×64 |
 | [Facade](#facade) | groups · named scope | windows for ×30 |
 | [Variations](#variations) | graph inputs · loops in the editor | sheet (inline) for ×4 |
@@ -44,10 +45,8 @@ A for zone repeats one shared petal function. Per-petal variation comes from the
 - `(ref flower :petals 7)` does not overwrite the records of the base evaluation.
 - Editing `petal` changes both flowers; Make unique affects one.
 
-```ocaml
-open Prismel
-
-module Bloom = [%workspace {|
+```lisp
+; sketches/bloom/sketch.plisp
 (workspace bloom_studio
 
   (defn half :context value [(x : float)]
@@ -93,12 +92,6 @@ module Bloom = [%workspace {|
            seed 42
            config (settings/config :fps fps :seed seed :exposure (twice 0.5))]
       config)))
-|}]
-(* generated:
-   Bloom.Flower.inputs = { petals : int; seed : int }
-   Bloom.program : Prismel_workspace.Program.t *)
-
-let () = Prismel_editor.Workspace.run Bloom.program
 ```
 
 ## Sunflower
@@ -115,10 +108,8 @@ Phyllotaxis: each seed sits at a golden-angle turn and a square-root radius. The
 - Hoisting is output-identical (byte-compare the geometry).
 - The selector covers all 240 iterations without drawing 240 cells.
 
-```ocaml
-open Prismel
-
-module Sunflower = [%workspace {|
+```lisp
+; sketches/sunflower/sketch.plisp
 (workspace sunflower
 
   (graph sunflower :context sop [(seeds : int 240) (spread : float 0.062)]
@@ -134,12 +125,6 @@ module Sunflower = [%workspace {|
                                          :rings 4)))
            head (sop/merge seeds_each)]
       head)))
-|}]
-(* generated:
-   Sunflower.Sunflower.inputs = { seeds : int; spread : float }
-   Sunflower.program : Prismel_workspace.Program.t *)
-
-let () = Prismel_editor.Workspace.run Sunflower.program
 ```
 
 ## Gyroscope
@@ -156,10 +141,8 @@ fold carries a value from one iteration to the next. Each step shrinks and turns
 - Zero steps return `frame`.
 - The accumulator type is checked: a body returning a number is `E_ACC_TYPE`.
 
-```ocaml
-open Prismel
-
-module Tunnel = [%workspace {|
+```lisp
+; sketches/tunnel/sketch.plisp
 (workspace rings
 
   (graph rings :context sop [(steps : int 18) (turn : float 0.18)]
@@ -171,12 +154,6 @@ module Tunnel = [%workspace {|
                                               :uniform_scale 0.87
                                               :rotate [turn (* 0.5 turn) 0])))]
       nested)))
-|}]
-(* generated:
-   Tunnel.Rings.inputs = { steps : int; turn : float }
-   Tunnel.program : Prismel_workspace.Program.t *)
-
-let () = Prismel_editor.Workspace.run Tunnel.program
 ```
 
 ## Fractal tree
@@ -193,10 +170,8 @@ An iterated function system in 3D. Every step puts three scaled, tilted copies o
 - Growth is bounded by the primitive limit, with a diagnostic that names `crown`.
 - Recursion `(defn tree … (tree …))` is rejected, and the message suggests fold.
 
-```ocaml
-open Prismel
-
-module Tree = [%workspace {|
+```lisp
+; sketches/tree/sketch.plisp
 (workspace tree
 
   (graph tree :context sop [(depth : int 5) (spread : float 0.6) (shrink : float 0.62)]
@@ -212,12 +187,6 @@ module Tree = [%workspace {|
                           c (sop/transform tilted :rotate [0 4.189 0] :translate up)]
                      (sop/merge trunk a b c)))]
       crown)))
-|}]
-(* generated:
-   Tree.Tree.inputs = { depth : int; spread : float; shrink : float }
-   Tree.program : Prismel_workspace.Program.t *)
-
-let () = Prismel_editor.Workspace.run Tree.program
 ```
 
 ## Square wave
@@ -234,10 +203,8 @@ Loops three deep. y is a Fourier sum folded into a Σ chip inside a for over sam
 - Nested probe semantics: the inner selector covers the 5 terms at the outer `j` and `row`.
 - Fold (ƒ) on the sum zone restores the original chip text exactly.
 
-```ocaml
-open Prismel
-
-module Wave = [%workspace {|
+```lisp
+; sketches/wave/sketch.plisp
 (workspace wave
 
   (graph wave :context sop [(harmonics : int 5) (samples : int 90) (rows : int 6)]
@@ -252,12 +219,64 @@ module Wave = [%workspace {|
                        (sop/polywire (sop/poly_path pts) :radius 0.015 :sides 4)))
            sheet (sop/merge strands)]
       sheet)))
-|}]
-(* generated:
-   Wave.Wave.inputs = { harmonics : int; samples : int; rows : int }
-   Wave.program : Prismel_workspace.Program.t *)
+```
 
-let () = Prismel_editor.Workspace.run Wave.program
+## Orrery
+
+Time t is a live input. A node that depends on it carries a ◷ t mark and recooks every frame while the viewport plays; everything else, like the displaced plinth, cooks once and stays cached. Loop counts cannot depend on t (E_TIME_COUNT), so the unrolled network keeps its shape and only parameters change. Press play, scrub t, or drag a moon count while it runs.
+
+**In the graph**
+
+- Time `t` is a live input. `spin`, `pulse`, `sun`, `glow`, `moons_each` (and `a`, `bob` and `moon` inside it), `orbit` and `system` carry the ◷ t mark; `base`, `plinth`, `radius` and `size` do not.
+- Press play: the viewport header counts ◷ 10 live · 4 cached nodes and the cook time. Moons orbit at a speed that falls with their ring and bob in phase; the sun pulses and shifts hue.
+- Moon colour is an `if` on the live `bob`: a live choice between values, which is allowed.
+
+**An implementation must show**
+
+- Playback recooks only the live cone: over 600 fixed-step frames `base` and `plinth` miss the cache once and never again, and no static entry is evicted (W2b).
+- `(range (+ moons (floor (* 2 (sin t)))))` is E_TIME_COUNT at `moons_each`; `(if (> (sin t) 0.5) (sop/merge moons_each) plinth)` is E_TIME_BRANCH.
+- The number of primitives is the same at every t; a fixed-step export is byte-identical at 1 and 3 domains.
+
+```lisp
+; sketches/orrery/sketch.plisp
+(workspace orrery
+
+  (graph orrery :context sop [(rings : int 3) (moons : int 8) (seed : int 5)]
+    (let* [
+           ; no t here: cooked once and cached while playing
+           base (sop/noise_displace
+                    (sop/tube :top_radius 1.3
+                              :bottom_radius 1.5
+                              :height 0.12
+                              :columns 40)
+                    :amplitude 0.05
+                    :frequency 3
+                    :seed seed)
+           plinth (sop/set_color base :color "#6b7650")
+           ; t enters here, and everything downstream of it is live
+           spin (* t 0.8)
+           pulse (+ 0.28 (* 0.03 (sin (* t 3))))
+           sun (sop/uv_sphere :radius pulse
+                              :center [0 0.9 0]
+                              :segments 16
+                              :rings 10)
+           glow (sop/set_color sun
+                               :color (value/hsv (+ 0.08 (* 0.03 (sin t))) 0.7 0.95))
+           moons_each (for [r (range rings)
+                            m (range moons)]
+                        (let* [radius (+ 0.6 (* r 0.35))
+                               size (+ 0.05 (* 0.025 (value/rand seed r m)))
+                               a (+ (* (/ m moons) 6.2832) (/ spin (+ r 1)))
+                               bob (* 0.1 (sin (+ (* t 2) (+ m r))))
+                               moon (sop/uv_sphere :radius size
+                                                   :center (value/polar radius a (+ 0.9 bob))
+                                                   :segments 8
+                                                   :rings 5)]
+                          (sop/set_color moon
+                                         :color (if (> bob 0) "#d69f61" "#6fa6a1"))))
+           orbit (sop/merge moons_each)
+           system (sop/merge plinth glow orbit)]
+      system)))
 ```
 
 ## Ten print
@@ -274,10 +293,8 @@ Two clauses in one for make a grid: x and z form a product, 64 iterations. A pur
 - Product order is row-major.
 - `(value/rand seed x z)` is identical across runs and domain counts.
 
-```ocaml
-open Prismel
-
-module Tiles = [%workspace {|
+```lisp
+; sketches/tiles/sketch.plisp
 (workspace tiles
 
   (graph tiles :context sop [(cells : int 8) (seed : int 3)]
@@ -294,12 +311,6 @@ module Tiles = [%workspace {|
                                          :translate [(- (* (+ x 0.5) size) 1) 0.15 (- (* (+ z 0.5) size) 1)])))
            maze (sop/merge cells_each)]
       maze)))
-|}]
-(* generated:
-   Tiles.Tiles.inputs = { cells : int; seed : int }
-   Tiles.program : Prismel_workspace.Program.t *)
-
-let () = Prismel_editor.Workspace.run Tiles.program
 ```
 
 ## Facade
@@ -317,10 +328,8 @@ Geometry groups are names that flow with geometry. group_bounds and group_random
 - `W_UNKNOWN_GROUP` for `:group "atic"`.
 - Renaming `marked` keeps its inner names private.
 
-```ocaml
-open Prismel
-
-module Facade = [%workspace {|
+```lisp
+; sketches/facade/sketch.plisp
 (workspace facade
 
   (graph facade :context sop [(floors : int 6) (bays : int 5) (hide : int 2)]
@@ -344,12 +353,6 @@ module Facade = [%workspace {|
            closed (sop/blast open :group gone)
            result (sop/merge wall closed)]
       result)))
-|}]
-(* generated:
-   Facade.Facade.inputs = { floors : int; bays : int; hide : int }
-   Facade.program : Prismel_workspace.Program.t *)
-
-let () = Prismel_editor.Workspace.run Facade.program
 ```
 
 ## Variations
@@ -366,10 +369,8 @@ Graphs take typed inputs, and (ref garden :seed s) calls one like a function. Th
 - Cached `(ref scene :seed s)` evaluations, one per distinct input value.
 - Panel focus survives a count change from 4 to 6 (keyed by index).
 
-```ocaml
-open Prismel
-
-module Variations = [%workspace {|
+```lisp
+; sketches/variations/sketch.plisp
 (workspace variations
 
   (graph garden :context sop [(seed : int 1) (count : int 40)]
@@ -394,13 +395,6 @@ module Variations = [%workspace {|
            panels (ui/split-at "horizontal" 0.13 outline right)
            shell (ui/workspace panels)]
       shell)))
-|}]
-(* generated:
-   Variations.Garden.inputs = { seed : int; count : int }
-   Variations.Scene.inputs = { seed : int }
-   Variations.program : Prismel_workspace.Program.t *)
-
-let () = Prismel_editor.Workspace.run Variations.program
 ```
 
 ## Garland
@@ -419,10 +413,8 @@ Functions are values. bead and leaf are local λ zones whose strips show every c
 - A function value that escapes (returned, stored in a list or record, passed through ref) is E_FN_ESCAPES.
 - Calls are recorded per function with a call index, and viewport provenance lands on (function, call).
 
-```ocaml
-open Prismel
-
-module Garland = [%workspace {|
+```lisp
+; sketches/garland/sketch.plisp
 (workspace garland
 
   (defn ring :context sop [(n : int 8) (radius : float 1.0) (make : fn)]
@@ -454,12 +446,6 @@ module Garland = [%workspace {|
            heart (sop/uv_sphere :radius (* 0.25 total) :center [0 0.1 0])
            result (sop/merge wreath (sop/merge beads) heart)]
       result)))
-|}]
-(* generated:
-   Garland.Garland.inputs = { count : int; seed : int }
-   Garland.program : Prismel_workspace.Program.t *)
-
-let () = Prismel_editor.Workspace.run Garland.program
 ```
 
 ## Kit of parts
@@ -478,10 +464,8 @@ window returns several named values; its node spills one output per field. [left
 - Destructuring a list that is too short names the pattern and the length.
 - A record fits where a subset of its fields is expected.
 
-```ocaml
-open Prismel
-
-module Kit = [%workspace {|
+```lisp
+; sketches/kit/sketch.plisp
 (workspace kit
 
   (defn window :context sop [(w : float 0.3) (h : float 0.4)]
@@ -510,12 +494,6 @@ module Kit = [%workspace {|
            label (str "floors " floors " · area " big.area)
            panes (sop/transform big.pane :translate [0.75 0 0])]
       (sop/merge tower.shape panes))))
-|}]
-(* generated:
-   Kit.Kit.inputs = { floors : int }
-   Kit.program : Prismel_workspace.Program.t *)
-
-let () = Prismel_editor.Workspace.run Kit.program
 ```
 
 ## Rosette
@@ -534,10 +512,8 @@ radial is a macro: a template with holes. Its first hole is a name the caller ch
 - wobble’s step# expands to a fresh name at every use, so two uses never collide.
 - A template that names a caller’s variable directly is rejected as capture.
 
-```ocaml
-open Prismel
-
-module Rosette = [%workspace {|
+```lisp
+; sketches/rosette/sketch.plisp
 (workspace rosette
 
   (defmacro radial [i n body]
@@ -567,10 +543,4 @@ module Rosette = [%workspace {|
            soft ^:bypass (sop/subdivide inner :iterations 1)
            rose (sop/merge outer soft)]
       rose)))
-|}]
-(* generated:
-   Rosette.Rosette.inputs = { petals : int }
-   Rosette.program : Prismel_workspace.Program.t *)
-
-let () = Prismel_editor.Workspace.run Rosette.program
 ```

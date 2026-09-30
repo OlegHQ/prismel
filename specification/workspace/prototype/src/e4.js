@@ -46,7 +46,7 @@ function fillOutline(body){
   const c=Cases.CASES.find(c=>c.key===caseKey);
   let h=c?`<div class="ol-case"><span class="eyebrow">Case study</span><b>${esc(c.title)}</b><small>${esc(c.tag)}</small></div>`:'';
   const f=curForm(),ps=M.paramsOf(f);
-  if(ps.length){h+=`<div class="ol-sec">INPUTS · ${esc(scope)}</div><p class="ol-note">Defaults. OCaml and <code>(ref ${esc(scope)} …)</code> can override them.</p>`;
+  if(ps.length){h+=`<div class="ol-sec">INPUTS · ${esc(scope)}</div><p class="ol-note">Defaults. An OCaml host and <code>(ref ${esc(scope)} …)</code> can override them.</p>`;
     ps.forEach(p=>{if(!M.isNum(p[3]))return;const v=M.numOf(p[3]),isF=p[2]==='float',max=Math.max(isF?2:24,v*2.5),mn=Math.min(0,v);h+=`<label class="ol-param"><span>${esc(p[0])}</span><input class="pslider" type="range" data-graph="${esc(scope)}" data-param="${esc(p[0])}" data-t="${p[2]}" min="${mn}" max="${+max.toFixed(3)}" step="${isF?0.001:1}" value="${v}" aria-label="${esc(p[0])}"><output>${esc(M.atom(p[3]))}</output></label>`;});}
   h+='<div class="ol-sec">COMPOSITION</div>';
   program.graphs.forEach((g,sc)=>{
@@ -109,6 +109,7 @@ function fillInspector(panel){
     h+=`<div class="type-label">${esc(tname(t))}</div><div class="badge">${badge}</div>`;
     h+=`<form class="field expression-form"><label for="ins-expr">Expression</label><div class="field-line"><input id="ins-expr" class="expression" value="${esc(M.print(e).replace(/\s+/g,' '))}" spellcheck="false"><button type="submit">Apply</button></div></form>`;
     h+=`<div class="kv"><span>value${chain.length?' at probe':''}</span><b>${esc(describe(v))}</b></div>`;
+    if(usesTime())h+=`<div class="kv"><span>cook</span><b>${isLive(n)?'◷ live: recooks every frame while playing':'cached: t does not reach it'}</b></div>`;
     if(chain.length){
       const ser=seriesOf(n.id,chain)||[],zid=chain[chain.length-1],zn=view.all.get(zid);
       h+=`<p class="hint">Inside <b>${esc(zn?.name||'')}</b>: this node runs ${program.records.get(n.id)?.length||0} times. ${variesIn(n)?'It changes with the loop variable.':'It is the same every time, so it can move out of the loop.'}</p>`;
