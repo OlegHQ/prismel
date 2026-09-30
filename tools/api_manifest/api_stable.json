@@ -1,7 +1,7 @@
 {
   "generator": "tools/api_manifest/api_manifest.exe",
   "kind": "stable_high_level",
-  "module_count": 152,
+  "module_count": 155,
   "modules": [
     {
       "api_sha256": "eb1e27ba00670ec546b87d8ec8c8c27cd7d95016240fecb7d6422d45e5154fce",
@@ -76,6 +76,15 @@
       "source_sha256": "5ff06e763826faaf614004c6d01fc2893742904348e87734b6ca4e394e0c6408"
     },
     {
+      "api_sha256": "289c14d364c29caf7e10006e3cc307d26d421906b71c4ef8dd9e90565b70edbc",
+      "excluded_legacy_symbols": [],
+      "library": "flow",
+      "module": "Lisp",
+      "source": "lib/flow/lisp.mli",
+      "source_bytes": 661,
+      "source_sha256": "0fca55d907b504e2a0f5e181b65bda14741e44e0b333a5fbabed32292d9ab5c7"
+    },
+    {
       "api_sha256": "dca71ca62c7db6b7886774b7abb3373cf68513966e07bae4e28134f23f21db5d",
       "excluded_legacy_symbols": [],
       "library": "flow",
@@ -101,6 +110,24 @@
       "source": "lib/flow/symbol.mli",
       "source_bytes": 246,
       "source_sha256": "c112936a6b72d1746eba9a6f4201e2f62798ef06e82070740d7558563802eecf"
+    },
+    {
+      "api_sha256": "cd4ecdaf56974b9096cf4e7391b2eb9bdc3508873743e0457bd364a54fc1eab8",
+      "excluded_legacy_symbols": [],
+      "library": "flow",
+      "module": "Syntax",
+      "source": "lib/flow/syntax.mli",
+      "source_bytes": 1980,
+      "source_sha256": "a72f65f0fa4d75877361ee20eebf10f74fcedcef9fa6ebc86937bc9cf41ea088"
+    },
+    {
+      "api_sha256": "05168fbabcb6055ebc5ff8955f560971117a829617ba9d9feac4187099c98a6d",
+      "excluded_legacy_symbols": [],
+      "library": "flow",
+      "module": "Ty",
+      "source": "lib/flow/ty.mli",
+      "source_bytes": 1595,
+      "source_sha256": "0d6babe585dbce92211db498e121eb3cb28bc4d262a538da0302c3388536ffe1"
     },
     {
       "api_sha256": "4f3af9c4b34f0fbff54a3fa4071a6a602bb82969f3b2e8902a63de497bfdf412",

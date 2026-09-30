@@ -10,7 +10,7 @@ Status: `todo` · `wip` · `done` (gate met) · `partial` (what is missing is na
 | Milestone | Status | Commit | Notes |
 |---|---|---|---|
 | W0 fixes & catalog prerequisites | partial | | Merge group padding, set_color group/vec3 colour + v3 migration, `Manifest.version` in text view and the `:rotate` note landed. Not done: the `Rest` slot for `sop/merge` (see notes). |
-| W1 language core (`flow`) | todo | | |
+| W1 language core (`flow`) | wip | | Part A done: `Flow.Syntax`, `Flow.Lisp`, `Flow.Ty`, the 12 fixtures in `cases/` (single source for study and OCaml tests) and their tests. Left for part B: `Flow.Macro` and `Flow.Workspace` (checker/IR, rules and limits from the plan). Left for part C: `Flow.Eval`, `test_workspace.ml` (the 120 check.cjs cases, one positive and one negative test per proposed register rule, macro hygiene), `test_workspace_eval.ml`, flow.md §11 pointer, iteration.md §2/§7 status line. See the W1 part A notes. |
 | W2 lowering & cooking | todo | | |
 | W2b live `t` | todo | | |
 | W3 document v4 + history | todo | | |
@@ -44,3 +44,18 @@ Status: `todo` · `wip` · `done` (gate met) · `partial` (what is missing is na
   0.0296.
 - W0 set_color: a missing `group` now errors like other group-taking SOPs;
   an empty `group` means all elements.
+- W1 part A notes. `Syntax.t` has a sixth field `tail` (comments before a
+  closing bracket; comments after the last top-level form join that form's
+  `tail` if it is a container, otherwise they are dropped). `Ty.t` also has
+  `Color` (the study's `fits` needs it for catalog colour parameters); the
+  value-level `coerceD` belongs to `Eval`. `Lisp.print` returns text plus a
+  span for every form id (`?mark` is not needed: the map subsumes it) and
+  `Lisp.flat` is the one-line spelling for messages. Deliberate differences
+  from the study printer: a blank `;` comment line is kept, numbers are
+  normalised losslessly (`.5` to `0.5`, `1.` to `1.0`, but `007` and
+  `0.0000001` stay), `(quote x)` is a plain call while `'x` is a `Quote`,
+  and `^:flag` applies to any form. The 12 fixtures are the study printer's
+  canonical text (the study's own sources were not canonical); `prototype/build.cjs`
+  injects them as `CASE_SOURCES`, `cases.js` reads them from disk under node;
+  `check.cjs` still passes 120/120. The golden layout cases in `test_lisp.ml`
+  were generated with the study's `print`.
