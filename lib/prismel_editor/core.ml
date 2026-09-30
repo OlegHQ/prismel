@@ -216,10 +216,10 @@ let inspector_panel ui bounds build =
     ~padding:0 "workspace-inspector-panel" build
 
 (* The inspector rows of a scene object or a World layer: its fields, a vec3 in one row. *)
-let object_rows fields =
+let object_rows ?(locked = false) fields =
   Result.map (List.map (fun (parameter : Flow_sop.Port.parameter) ->
     { Pxui_shell.Inspector.path = parameter.path; fields = parameter.fields; shown = false;
-      locked = false; drive = None; live = None; components = [];
+      locked; drive = None; live = None; components = [];
       split = if parameter.ty = Some Flow.Port_type.Vec3 then Some false else None }))
     (Flow_sop.Port.parameters fields)
 
@@ -404,6 +404,20 @@ let graph_name value = match value.doc.Document.workspace with
        | _ -> None)
 
 let scope_name value = if projection value = Graph_view then graph_name value else None
+
+(* The lowered node of the node selected in the graph pane, at the iteration its zones probe. *)
+let scope_node value =
+  match value.scope_key, value.doc.Document.workspace, Pxui_graph.Scope.selected value.scope_view with
+  | Some { scope; records = Some records; _ }, (_, lowered), [ path ] when scope_name value <> None ->
+      Option.bind (Flow_sop.Projection.find scope path) (fun (n : Flow_sop.Projection.node) ->
+        let chain = Option.value ~default:[] (Hashtbl.find_opt (Flow_sop.Probe.chains scope) n.path) in
+        let probes = List.map (fun p ->
+          Option.value ~default:0 (Layout_by_path.Path_map.find_opt p value.probes)) chain in
+        Option.bind (Flow_sop.Probe.plan_node records n.path ~probes) (fun id ->
+          Option.bind (Flow_sop.Network.Int_map.find_opt id lowered.compiled) (fun node_id ->
+            Option.map (fun node -> n.path, node) (Edit_graph.find (document value) ~node_id))))
+  | _ -> None
+
 
 let lit_tags value =
   match value.doc.Document.workspace, value.scope_key,
@@ -1503,6 +1517,10 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
               ~detail:"Selected")) in
           None, [], [], value.live_cook
       | [node_id] ->
+          (* the nodes of a geometry object are the lowering of its graph: the graph pane's node
+             is the one to edit (its arguments are the text) *)
+          let derived = match value.level with
+            | Document.Inside id -> kind value id = Some "geometry" | Scene -> false in
           let fields, label, kind = match Edit_graph.find document ~node_id with
             | Some node -> Node.parameter_fields node, Node.label node, Node.operation node
             | None -> [], "#" ^ string_of_int node_id, "unknown" in
@@ -1527,7 +1545,7 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
                   ~w:(w -. 16.) ~h:29. theme.input;
                 Pxui.Ui.Paint.text paint ~at:(x +. 9., y +. 8.) ~size:16
                   ~color:theme.foreground renamed);
-              let rename = if renamed = label then [] else
+              let rename = if renamed = label || derived then [] else
                 [Rename {node = node_id; label = renamed}] in
               let names = Option.value ~default:[]
                 (Edit_graph.node_slot_names document ~node_id) in
@@ -1549,7 +1567,9 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
                     Pxui.Ui.inspector_readout ui ~width:inspector_width
                       ~key:("flow-input-" ^ string_of_int index)
                       ~label:name ("← " ^ source)) inputs));
-              let edits = match object_rows fields with
+              if derived then Pxui.Ui.inspector_message ui ~key:"flow-derived"
+                "Made from the graph's text. Select the node in the graph pane to edit its arguments.";
+              let edits = match object_rows ~locked:derived fields with
                 | Error diagnostic ->
                     Pxui.Ui.inspector_message ui ~key:"flow-diagnostic"
                       (Flow.Diagnostic.to_string diagnostic); []
@@ -1579,18 +1599,35 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
               ~time:(Sketch_support.Timeline.time timeline)
               ~max_frame:value.timeline_frames)
       | _ -> [] in
+    (* a lowered node is edited through its text: the handles of the node selected in the
+       graph pane write its arguments, the list's rows of a geometry object have none *)
+    let scope_target = if scope_active then scope_node value else None in
+    let lowered_level = match value.level with
+      | Document.Inside id -> kind value id = Some "geometry" | Scene -> false in
+    let handle_target = if lowered_level then Option.map snd scope_target else selected in
     let handle_edits, grab, picked = match active with
       | Some leaf when visible workspace leaf.Pxui_shell.Layout.panel ->
           Pxui.Ui.within ui view_root (fun () ->
-            view_handles ui ~selected ~space:(space { value with selection })
+            view_handles ui ~selected:handle_target ~space:(space { value with selection })
               ~bounds:leaf.body)
       | _ -> [], false, None in
     let selection = match picked with
       | Some id when value.level = Document.Scene -> Selection.select id selection
       | Some _ | None -> selection in
-    let handle_changes = match selected, handle_edits with
-      | Some node, _ :: _ -> Some (Node.id node, handle_edits)
-      | _ -> None in
+    let handle_ops, handle_changes = match scope_target, handle_target, handle_edits with
+      | Some (path, node), _, _ :: _ when lowered_level ->
+          let parameters = Result.value ~default:[] (Flow_sop.Port.parameters (Node.parameter_fields node)) in
+          List.filter_map (fun (p : Flow_sop.Port.parameter) ->
+            if List.exists (fun (f : Parameter.field_view) -> List.mem_assoc f.name handle_edits) p.fields
+            then Some (Syntax_edit (Flow_sop.Flow_edit.Set_arg { node = path;
+              key = Flow_sop.Flow_edit.Kw p.path; sub = [];
+              value = Editor_document.Scene_sync.value_syntax (List.map (fun (f : Parameter.field_view) ->
+                match List.assoc_opt f.name handle_edits with
+                | Some current -> { f with current } | None -> f) p.fields) }))
+            else None) parameters, None
+      | _, Some node, _ :: _ -> [], Some (Node.id node, handle_edits)
+      | _ -> [], None in
+    let changes = changes @ handle_ops in
     let context = match leader with
       | Leader.Pending _ -> Editor_core.Guide_context.Leader
       | Idle when value.prompt <> None || menu <> None
@@ -1831,6 +1868,13 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
       | _ -> None) result.tree_intents with
     | Some id when next.active_camera <> Some id -> { next with active_camera = Some id }
     | _ -> next in
+  (* the scene and World edits above act on derived objects: each difference is written to
+     the text (a refused one changes nothing) *)
+  let reconciled ~before next result =
+    match Doc.reconcile ~factories:value.factories before next with
+    | Ok doc -> doc, result
+    | Error message -> before, { (result : _ frame_result) with edit_error = Some message } in
+  let next, result = if Option.is_some loaded then next, result else reconciled ~before:present next result in
   (* Workspace gestures: one rewrite of the source per gesture, lowered into
      the document, one history entry named by the op. *)
   let added = ref None in
@@ -1868,6 +1912,7 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
           { result with label = "Frame" }, probes
       | Syntax_edit _ | Selected _ | Notice _ | Macro_requested _ -> next, result, probes)
       (next, result, value.probes) result.scope_changes in
+  let before_world = next in
   let next, world_label = if in_world value
     then world_keys value next result.selection actions else next, None in
   (* Space e opens the World, creating the singleton on first use. *)
@@ -1875,6 +1920,8 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
     | [] when List.mem Leader.Go_world actions && value.scene_level ->
         (match add_world next daylight with Ok doc -> doc, true | Error _ -> next, false)
     | _ -> next, false in
+  let next, result = if Option.is_some loaded then next, result
+    else reconciled ~before:before_world next result in
   let is_view = function Pxui_shell.Layout.View _ -> true | _ -> false in
   let owner = match List.find_opt (fun (_, panel) -> panel = result.focus && is_view panel)
       result.pane_keys with
@@ -2044,9 +2091,14 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
    [`View time] coalesces a burst of view edits (a drag, a wheel gesture)
    into one undo entry. *)
 let scene_edit value mode ?(active_camera = value.doc.active_camera) scene =
-  let doc = { value.doc with scene = { value.doc.scene with graph = Result.get_ok (Flow_sop.Network.with_geometry scene value.doc.scene.graph);
+  let edited = { value.doc with scene = { value.doc.scene with graph = Result.get_ok (Flow_sop.Network.with_geometry scene value.doc.scene.graph);
       displayed = Document.displayed_of ?previous:value.doc.scene.displayed (Flow_sop.Network.of_geometry scene) None };
     active_camera } in
+  (* a camera that follows the viewport is an edit of the text when the text declares it *)
+  let doc = match mode with
+    | `View _ -> (match Doc.reconcile ~factories:value.factories ~adopt:false value.doc edited with
+        | Ok doc -> doc | Error _ -> edited)
+    | `Reset | `Amend -> edited in
   let history = match mode with
     | `Reset -> Editor_core.History.create doc
     | `Amend -> commit ~merge:Repair doc value.history
@@ -2118,10 +2170,14 @@ let edit_node value level node_id values ~label =
       match Edit_graph.apply_parameters network.graph.geometry ~node_id values with
       | Error _ -> value
       | Ok (graph, _) ->
-          let doc = Document.with_network value.doc level { network with graph = Result.get_ok (Flow_sop.Network.with_geometry graph network.graph) } in
-          { value with doc;
-            history = commit ~label ~merge:(Gesture
-              (parameter_gesture label level node_id values)) doc value.history }
+          let edited = Document.with_network value.doc level { network with graph = Result.get_ok (Flow_sop.Network.with_geometry graph network.graph) } in
+          (match Doc.reconcile ~factories:value.factories value.doc edited with
+           | Error message -> { value with edit_error = Some message }
+           | Ok doc ->
+               Cook.set_volatile value.cook (Flow_sop.Lower.is_volatile (snd doc.workspace));
+               { value with doc;
+                 history = commit ~label ~merge:(Gesture
+                   (parameter_gesture label level node_id values)) doc value.history })
 
 (* A click in the view (plan W6): the primitive under the ray, its
    [__flow_src] tag, the merge input that made it (`Lower.provenance`), then

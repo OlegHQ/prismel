@@ -3042,6 +3042,7 @@
       (slots (slot "geometry" required))
       (fields
         (field "name" "Name" (folder) (text) (text "") (primary false) (vec3))
+        (field "parent" "Parent" (folder) (text) (text "") (primary false) (vec3))
         (field "translate_x" "Translate X" (folder "Transform") (float (soft -20 20) (hard nil nil)) (float 0) (primary false) (vec3 "translate" 0))
         (field "translate_y" "Translate Y" (folder "Transform") (float (soft -20 20) (hard nil nil)) (float 0) (primary false) (vec3 "translate" 1))
         (field "translate_z" "Translate Z" (folder "Transform") (float (soft -20 20) (hard nil nil)) (float 0) (primary false) (vec3 "translate" 2))
@@ -3063,6 +3064,7 @@
       (slots)
       (fields
         (field "name" "Name" (folder) (text) (text "") (primary false) (vec3))
+        (field "parent" "Parent" (folder) (text) (text "") (primary false) (vec3))
         (field "shape" "Type" (folder) (choice "Area" "Point" "Spot" "Directional") (choice "Area") (primary false) (vec3))
         (field "translate_x" "Translate X" (folder "Transform") (float (soft -20 20) (hard nil nil)) (float 3) (primary false) (vec3 "translate" 0))
         (field "translate_y" "Translate Y" (folder "Transform") (float (soft -20 20) (hard nil nil)) (float 5) (primary false) (vec3 "translate" 1))
@@ -3089,6 +3091,7 @@
       (slots)
       (fields
         (field "name" "Name" (folder) (text) (text "") (primary false) (vec3))
+        (field "active" "Active camera" (folder) (bool) (bool false) (primary false) (vec3))
         (field "eye_x" "Eye X" (folder "Eye") (float (soft -100 100) (hard nil nil)) (float 0) (primary false) (vec3 "eye" 0))
         (field "eye_y" "Eye Y" (folder "Eye") (float (soft -100 100) (hard nil nil)) (float 0) (primary false) (vec3 "eye" 1))
         (field "eye_z" "Eye Z" (folder "Eye") (float (soft -100 100) (hard nil nil)) (float 7) (primary false) (vec3 "eye" 2))

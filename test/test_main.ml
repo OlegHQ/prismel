@@ -14,6 +14,7 @@ let tests = [
   "test_editor_cook", Test_editor_cook.run;
   "test_editor_transactions", Test_editor_transactions.run;
   "test_scene_tree", Test_scene_tree.run;
+  "test_scene_sync", Test_scene_sync.run;
   "test_sop_catalog", Test_sop_catalog.run;
   "test_sketch_support", Test_sketch_support.run;
   "test_terminal_boolean_normals", Test_terminal_boolean_normals.run;

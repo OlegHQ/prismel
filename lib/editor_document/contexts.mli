@@ -34,11 +34,20 @@ val of_workspace : factories:Procedural.Edit_graph.factory list -> ?previous:Doc
     scene network (each geometry object owning the lowered network of its sop
     graph; without a scene graph, one geometry object per sop graph), the World
     of its world graph with its layers as a network, and its settings graph as
-    the document settings.  [previous] keeps object ids (matched by operation and
-    label), tile layouts, the objects the workspace does not declare (the host's
+    the document settings.  [previous] keeps object ids (matched by where the text
+    is, then by operation and label), tile layouts, the objects the workspace does not declare (the host's
     camera and lights), and the lowering's compiled ids.  The workspace owns
     geometry always, cameras and lights when its scene declares one, and the
     World when it has a world graph. *)
+
+val group_triples : Editor_core.Param.field_view list -> Editor_core.Param.field_view list
+(** Three consecutive [_x _y _z] (or [_r _g _b]) floats of one folder as one vec3 field. *)
+
+val graph_of : Workspace_doc.t -> Flow.Workspace.context -> Flow.Workspace.graph option
+(** The first graph of a context. *)
+
+val world_kinds : (string * Procedural.Edit_graph.factory) list
+(** The qualified World kinds ([world/sky], ...) with their factories. *)
 
 val sha256 : string -> string
 (** Lower-case hex SHA-256: the digest of a sketch source. *)

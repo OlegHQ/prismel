@@ -30,12 +30,30 @@ type shell = {
   views : (string * int list) list;
 }
 
+(* Where the text of a scene object, a World layer or the settings lives: a binding of its
+   graph, an argument of another home (an inline call, written in place), or nowhere an edit
+   can reach (made by a loop).  Edits to the derived objects are written back through it. *)
+type home =
+  | Bound_at of Flow.Workspace.path
+  | Inline_in of home * Flow_sop.Flow_edit.arg_key
+  | Looped
+
+type homes = {
+  objects : (int * home) list;  (* scene object id *)
+  world : home option;  (* the [world/world] call *)
+  layers : (int * home) list;  (* World layer id *)
+  settings : home option;  (* the [settings/config] call *)
+}
+
+let no_homes = { objects = []; world = None; layers = []; settings = None }
+
 type t = {
   scene : network;  (* objects: input 0 is the parent *)
   networks : network Int_map.t;  (* by object id: SOP networks, the World's layers *)
   active_camera : int option;  (* a camera object *)
   settings : Settings.t;
   shell : shell option;  (* the [editor] graph of the workspace, if it has one *)
+  homes : homes;  (* where each derived object is written in the text *)
   workspace : Workspace_doc.t * Flow_sop.Lower.t;
   (* the authored document and its lowering: [scene] and [networks] are that lowering, one
      geometry object per [sop] graph; the lowering (compiled ids, volatile set) is history

@@ -31,6 +31,22 @@ let text = {|(workspace scene_tree
     (world/world :name "world" (world/scatter (world/shape (world/sky :name "sky") :name "softbox")
                                 :name "constellation"))))|}
 
+let contains text piece =
+  let n = String.length piece in
+  let rec at i = i + n <= String.length text && (String.sub text i n = piece || at (i + 1)) in
+  at 0
+
+(* the workspace text is the truth of every scene edit: what the list, the inspector, the
+   handles and the World keys did is in it, and it opens as the same scene *)
+let source env = Prismel_editor.Workspace_doc.to_text (E.workspace env)
+let labelled env =
+  let graph = E.scene_document env in
+  List.sort compare (List.map (fun (info : Edit_graph.node_info) ->
+    info.label, info.operation,
+    Option.bind (if Array.length info.inputs > 0 then info.inputs.(0) else None) (fun id -> Option.map Node.label (Edit_graph.find graph ~node_id:id)),
+    List.map (fun (f : Parameter.field_view) -> f.name, f.current) (Node.parameter_fields info.node))
+    (Edit_graph.inspect graph))
+
 let run () =
   let cooks = Atomic.make 0 in
   let env = E.create ~workspace:(Ws_fixture.of_text text)
@@ -137,18 +153,24 @@ let run () =
     |> List.find (fun (info : Edit_graph.node_info) -> info.label = "key")
     |> fun info -> info.inputs.(0) in
   check (parent env <> None) "Tab did not reparent the light under the row above";
+  check (contains (source env) ":parent \"geo1\"") "Tab did not write the parent to the text";
+  check (E.undo_label env = Some "Reparent") "reparenting is not one 'Reparent' entry";
   check (Vec3.nearly_equal (position env) before ~eps:1e-6)
     "reparenting moved the light in the world";
   let env = step ~keys:[Input.Shift] env [key Input.Tab] in
   check (parent env = None) "Shift-Tab did not move the light back to the scene root";
+  check (not (contains (source env) ":parent")) "Shift-Tab left the parent in the text";
   let env = step env [char 'h'] in
   check (List.length (E.lights env) = lights_before - 1) "h did not hide the light";
+  check (contains (source env) ":visible false") "h did not write the hidden flag to the text";
+  check (E.undo_label env = Some "Hide") "hiding is not one 'Hide' entry";
   let env = List.fold_left (fun env _ -> step env []) env [1; 2; 3; 4; 5] in
   check (Atomic.get cooks = cooked) "a scene-level edit re-cooked SOPs";
   (* Undo walks back through the scene edits. *)
   let undo env = step ~keys:[Input.Meta] env [char 'z'] in
   let env = undo env in
   check (List.length (E.lights env) = lights_before) "undo did not show the light again";
+  check (not (contains (source env) ":visible false")) "undo left the hidden flag in the text";
   (* Nor does dragging an object transform slider in the inspector (undo
      itself re-cooks, so let that settle first): rows are 24 points and
      Translate X follows the node header, input source and folder. *)
@@ -181,6 +203,8 @@ let run () =
   let env = step ~mouse:(slider 20) env [Event.MouseReleased (Input.LeftButton, at (slider 20))] in
   check (before <> None && translate_x env <> before)
     "dragging the Translate X slider did not edit geo1";
+  check (contains (source env) ":translate [") "the Translate X drag did not reach the text";
+  check (E.undo_label env = Some "Set translate_x") "the slider drag is not one entry named for the field";
   check (List.map fst (E.objects env) <> [Mat4.identity]) "the transform did not reach objects";
   let env = List.fold_left (fun env _ -> Unix.sleepf 0.005; step env []) env (List.init 20 Fun.id) in
   check (Atomic.get cooks = cooked) "an object transform edit re-cooked SOPs";
@@ -213,6 +237,7 @@ let run () =
   let moved = parameters env selected in
   check (moved <> original && List.assoc "elevation" moved = Parameter.Float_value (-90.))
     "captured map-layer movement did not clamp outside the map";
+  check (contains (source env) ":elevation -90.0") "the map-layer drag did not reach the text";
   check (List.for_all (fun (id, values) -> parameters env id = values) others)
     "a map-layer gesture edited another stable node";
   let env = step ~mouse:(800, 1000) env [Event.MouseReleased (Input.LeftButton, release)] in
@@ -221,6 +246,7 @@ let run () =
     "map-layer movement also navigated the 3D camera";
   let env = step ~keys:[Input.Meta] env [char 'z'] in
   check (parameters env selected = original) "map-layer drag did not undo in one entry";
+  check (not (contains (source env) ":elevation -90.0")) "undoing the map-layer drag left the text edited";
   let env = step ~mouse:in_list env
       [Event.MousePressed (Input.LeftButton, (float (fst in_list), float (snd in_list)));
        Event.MouseReleased (Input.LeftButton, (float (fst in_list), float (snd in_list)))] in
@@ -232,6 +258,7 @@ let run () =
   let env = step env [] in
   check (match E.world env with Some baked -> baked.World.lights <> [] | None -> false)
     "t did not promote the selected shape to a light";
+  check (contains (source env) ":emit \"Light\"") "World t did not write the emitter to the text";
   let env = select "constellation" env 16 in
   let scatter = E.selected_node env |> Option.get |> Node.id in
   let seed env = List.assoc "seed" (parameters env scatter) in
@@ -245,6 +272,7 @@ let run () =
       if field.name = "day_cycle" then Some field.current else None)
       (Node.parameter_fields info.node)) (Edit_graph.inspect (E.scene_document env)) |> Option.get in
   check (day_cycle env = Float_value 1.) "World d did not start its day cycle";
+  check (contains (source env) ":day_cycle 1.0" && contains (source env) ":seed") "World n and d did not reach the text";
   let hours env = List.find_map (fun (info : Edit_graph.node_info) ->
       if info.operation <> "world" then None
       else List.find_map (fun (field : Parameter.field_view) ->
@@ -258,6 +286,8 @@ let run () =
   let env = step env [char '3'] in
   check (List.exists (fun (info : Edit_graph.node_info) -> info.operation = "room")
       (Edit_graph.inspect (E.document env))) "3 did not load the white room preset";
+  check (contains (source env) "world/room" && E.undo_label env = Some "Preset white room")
+    "the white room preset did not replace the World graph in the text";
   let env = step env [char 'u'] in
   check (E.level env = None) "u did not leave the World";
   let saved = E.document env and baked = E.world env in
@@ -287,6 +317,16 @@ let run () =
   let env = step env [key Input.Space; char 'e'] in
   let env = step env [char 'u'] in
   check (E.level env = None) "the scene broke after deleting its display object";
+  check (not (contains (source env) "(scene/geometry")) "deleting geo1 left it in the text";
+  (* what was written opens as the same scene *)
+  let reopened = E.create ~workspace:(Ws_fixture.of_text (source env))
+    ~lens:{ aperture = 0.3; focus_distance = None }
+    ~prepare:(fun _ output -> Pdk_prismel.Prismel_mesh.to_mesh output.Session.geometry
+      |> Result.map_error Pdk.Error.to_string)
+    ~scene3:(fun _ mesh -> Scene3.create [Scene3.mesh mesh]) () |> Result.get_ok in
+  let declared env = List.filter (fun (l, _, _, _) -> l <> "camera1") (labelled env) in
+  check (declared reopened = declared env) "the saved text does not open as the edited scene";
+  E.close reopened;
   (* The list's right-click menu enters the row under the pointer. *)
   let env = step env [] in
   let env, point, _ = row_of "world" 0 env in

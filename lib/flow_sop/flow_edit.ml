@@ -29,6 +29,7 @@ type op =
   | Split_panel of { node : path; axis : [ `H | `V ] }
   | Close_panel of { node : path }
   | Set_panel_kind of { node : path; kind : string }
+  | Set_graph of { name : string; form : S.t }
 
 exception Fail of Flow.Diagnostic.t
 
@@ -130,28 +131,49 @@ let keep_notes (old : S.t) (v : S.t) = if v.notes = [] then { v with notes = old
 
 (* ---- call arguments: positional ones, then :keyword pairs ---- *)
 
-let split_args l =
-  let rec go acc = function
-    | ({ S.node = S.Kw _; _ } :: _) as rest -> List.rev acc, rest
-    | x :: r -> go (x :: acc) r
-    | [] -> List.rev acc, [] in
-  go [] l
+let is_kw (x : S.t) = match x.node with S.Kw _ -> true | _ -> false
 let kw_name (k : S.t) = match k.node with S.Kw s -> s | _ -> ""
+(* a call's arguments are positional ones and [:keyword value] pairs, in any order *)
+let positional args =
+  let rec go = function k :: _ :: r when is_kw k -> go r | x :: r -> x :: go r | [] -> [] in
+  go args
+let kw_get args k =
+  let rec go = function
+    | a :: b :: r -> if is_kw a && kw_name a = k then Some b else go (if is_kw a then r else b :: r)
+    | _ -> None in
+  go args
+let with_kw args k v =
+  let rec go = function
+    | a :: b :: r when is_kw a ->
+        if kw_name a = k then (match v with Some v -> a :: keep_notes b v :: r | None -> r)
+        else a :: b :: go r
+    | x :: r -> x :: go r
+    | [] -> (match v with Some v -> [ kwf k; v ] | None -> []) in
+  go args
+let with_pos args i v =
+  let n = List.length (positional args) in
+  if i >= n then (match v with Some v -> v :: args | None -> args)
+  else
+    let rec go k = function
+      | a :: b :: r when is_kw a -> a :: b :: go k r
+      | x :: r -> if k = i then (match v with Some v -> keep_notes x v :: r | None -> r) else x :: go (k + 1) r
+      | [] -> [] in
+    go 0 args
+
+let arg_get (e : S.t) key = match key, e.node with
+  | Whole, _ -> Some e
+  | Bv (i, j), _ -> Option.bind (nth_child e i) (fun c -> nth_child c j)
+  | Field k, S.Map l -> List.find_map (fun (a, b) -> if kw_name a = k then Some b else None) (pairs l)
+  | Pos i, S.List (_ :: args) -> List.nth_opt (positional args) i
+  | Kw k, S.List (_ :: args) -> kw_get args k
+  | _ -> None
+
 let set_pair ps k v =
   if List.exists (fun (a, _) -> kw_name a = k) ps then
     (match v with
      | Some v -> List.map (fun (a, b) -> if kw_name a = k then a, keep_notes b v else a, b) ps
      | None -> List.filter (fun (a, _) -> kw_name a <> k) ps)
   else match v with Some v -> ps @ [ kwf k, v ] | None -> ps
-
-let arg_get (e : S.t) key = match key, e.node with
-  | Whole, _ -> Some e
-  | Bv (i, j), _ -> Option.bind (nth_child e i) (fun c -> nth_child c j)
-  | Field k, S.Map l -> List.find_map (fun (a, b) -> if kw_name a = k then Some b else None) (pairs l)
-  | Pos i, S.List (_ :: args) -> List.nth_opt (fst (split_args args)) i
-  | Kw k, S.List (_ :: args) ->
-      List.find_map (fun (a, b) -> if kw_name a = k then Some b else None) (pairs (snd (split_args args)))
-  | _ -> None
 
 let arg_set (e : S.t) key (v : S.t option) : S.t = match key, e.node, v with
   | Whole, _, Some v -> keep_notes e v
@@ -160,16 +182,8 @@ let arg_set (e : S.t) key (v : S.t option) : S.t = match key, e.node, v with
       (match nth_child e i with Some c -> set_child e i (set_child c j v) | None -> fail "This form has no part %d." i)
   | Bv _, _, None -> fail "A loop clause cannot be removed."
   | Field k, S.Map l, _ -> { e with node = S.Map (flat_pairs (set_pair (pairs l) k v)) }
-  | Pos i, S.List (h :: args), _ ->
-      let pos, rest = split_args args in
-      let pos = match v with
-        | Some v when i < List.length pos -> List.mapi (fun j c -> if j = i then keep_notes c v else c) pos
-        | Some v -> pos @ [ v ]
-        | None -> List.filteri (fun j _ -> j <> i) pos in
-      { e with node = S.List (h :: pos @ rest) }
-  | Kw k, S.List (h :: args), _ ->
-      let pos, rest = split_args args in
-      { e with node = S.List (h :: pos @ flat_pairs (set_pair (pairs rest) k v)) }
+  | Pos i, S.List (h :: args), _ -> { e with node = S.List (h :: with_pos args i v) }
+  | Kw k, S.List (h :: args), _ -> { e with node = S.List (h :: with_kw args k v) }
   | _ -> fail "This form has no such input."
 
 (* ---- scopes: a let* (or a bare expression) whose bindings are the nodes ---- *)
@@ -407,6 +421,50 @@ let note_lines text =
   let text = String.trim text in
   if text = "" then [] else List.map String.trim (String.split_on_char '\n' text)
 
+(* ---- scene objects and World layers: they join and leave their graph's result ---- *)
+
+let starts_with prefix (h : string option) = match h with
+  | Some h -> String.starts_with ~prefix h | None -> false
+
+(* where the result of a scope is written: a named binding, or the result itself *)
+let result_target sc = match sc.res.node with
+  | S.Sym r -> (match find_pair sc r with Some j -> `At j, snd (List.nth sc.ps j) | None -> `Result, sc.res)
+  | _ -> `Result, sc.res
+let put_target sc ps = function
+  | `At j, e -> rebuild sc (List.mapi (fun k (p, v) -> if k = j then p, keep_notes v e else p, v) ps) sc.res
+  | `Result, e -> rebuild sc ps (keep_notes sc.res e)
+
+(* a new scene object is one more argument of the scene's [scene/merge] (made when the result
+   is something else); a new World layer goes on top of the stack: the [world/world] call
+   takes it and it takes the layer that was on top.  [ps] holds the new binding last. *)
+let attach sc ps name (expr : S.t) =
+  let head = head_sym expr in
+  let target, e = result_target sc in
+  if starts_with "scene/" head && head <> Some "scene/merge" then
+    (match head_sym e with
+     | Some "scene/merge" ->
+         let n = List.length (positional (List.tl (S.children e))) in
+         put_target sc ps (target, arg_set e (Pos n) (Some (sym name))), expr
+     | _ -> rebuild sc ps (call "scene/merge" [ sc.res; sym name ]), expr)
+  else if starts_with "world/" head && head <> Some "world/world" && head_sym e = Some "world/world" then
+    let top = arg_get e (Pos 0) in
+    let layer = arg_set expr (Pos 0) top in
+    put_target sc ps (target, arg_set e (Pos 0) (Some (sym name))), layer
+  else rebuild sc ps sc.res, expr
+
+(* a deleted object leaves the merge that held it; a deleted layer leaves the stack, the layer
+   above it taking the one below *)
+let rec detach name below (e : S.t) : S.t =
+  let e = map_children (detach name below) e in
+  match head_sym e with
+  | Some "scene/merge" ->
+      { e with node = S.List (List.filter (fun (c : S.t) -> c.node <> S.Sym name) (S.children e)) }
+  | Some h when String.starts_with ~prefix:"world/" h ->
+      (match arg_get e (Pos 0) with
+       | Some { S.node = S.Sym n; _ } when n = name -> arg_set e (Pos 0) below
+       | _ -> e)
+  | _ -> e
+
 let rewrite src op : (unit -> S.t list) list =
   let one f = [ f ] in
   match op with
@@ -491,12 +549,19 @@ let rewrite src op : (unit -> S.t list) list =
       let by_depth = List.sort (fun a b -> compare (List.length b) (List.length a)) nodes in
       let out = List.fold_left (fun src node ->
         let sp, leaf = split_node node in
-        edit_scope src sp (fun s ->
+        let gone = ref None in
+        let src = edit_scope src sp (fun s ->
           match scope_of s with
           | Some sc when leaf <> "@result" ->
               let j = first_pair_index sc leaf in
+              gone := Some (snd (List.nth sc.ps j));
               collapse sc (List.filteri (fun k _ -> k <> j) sc.ps) sc.res
-          | _ -> fail "Only a named node can be deleted.")) src by_depth in
+          | _ -> fail "Only a named node can be deleted.") in
+        (* a scene object or World layer also leaves the result that held it *)
+        match !gone with
+        | Some e when starts_with "scene/" (head_sym e) || starts_with "world/" (head_sym e) ->
+            with_root src (List.hd sp) (detach leaf (arg_get e (Pos 0)))
+        | _ -> src) src by_depth in
       List.iter (fun node ->
         let name = snd (split_node node) in
         if List.mem name (sym_list (root_form out (List.hd node))) then
@@ -694,7 +759,12 @@ let rewrite src op : (unit -> S.t list) list =
          || W.name_taken name then fail "Pick a new lowercase name that is not used in this graph.";
       edit_scope src scope (fun s ->
         let sc = ensure s in
-        reorder (rebuild sc (sc.ps @ [ sym name, expr ]) sc.res)))
+        let ps = sc.ps @ [ sym name, expr ] in
+        let body, expr = if List.length scope = 1 then attach sc ps name expr else rebuild sc ps sc.res, expr in
+        let body = match scope_of body with
+          | Some b -> rebuild b (List.map (fun (p, v) -> if p.S.node = S.Sym name then p, expr else p, v) b.ps) b.res
+          | None -> body in
+        reorder body))
 
   | Set_layout_ratio { node; ratio } -> one (fun () ->
       let sp, leaf = split_node node in
@@ -748,6 +818,13 @@ let rewrite src op : (unit -> S.t list) list =
               if p == pp then Some (p, Option.get (sibling pe))
               else if pat_key p = leaf then None else Some (p, e)) sc.ps in
             reorder (rebuild sc ps sc.res)))
+  | Set_graph { name; form } -> one (fun () ->
+      (* the whole [(graph name ...)] form: replaced, or appended when the workspace has none *)
+      if root_name form <> Some name then fail "That form is not the graph %s." name;
+      let exists = List.exists (fun i -> root_name i = Some name) (snd (workspace_parts src)) in
+      map_items src (fun items ->
+        if exists then List.map (fun i -> if root_name i = Some name then form else i) items
+        else items @ [ form ]))
   | Set_panel_kind { node; kind } -> one (fun () ->
       let sp, leaf = split_node node in
       let rec context = function
@@ -780,6 +857,7 @@ let label = function
   | Delete_nodes _ -> "Delete"
   | Set_layout_ratio _ -> "Resize panel" | Split_panel _ -> "Split panel"
   | Close_panel _ -> "Close panel" | Set_panel_kind _ -> "Retype panel"
+  | Set_graph _ -> "Edit graph"
 
 let key_text = function
   | Whole -> "" | Pos i -> string_of_int i | Kw k | Field k -> k | Bv (i, j) -> Printf.sprintf "%d.%d" i j
@@ -854,6 +932,12 @@ let remap op p = match op with
   | Delete_nodes { nodes } when List.exists (fun n -> has_prefix ~prefix:n p) nodes -> None
   | Close_panel { node } when has_prefix ~prefix:node p -> None
   | _ -> Some p
+
+let arg_text src node key =
+  let sp, leaf = split_node node in
+  let found = ref None in
+  (try ignore (edit_scope src sp (fun s -> found := arg_get (get_node s leaf) key; s)) with Fail _ -> ());
+  !found
 
 let free_names e = dedup (free e)
 let pat_names = pat_names

@@ -33,7 +33,7 @@ let rec counts (s : P.scope) =
     (0, 0, 0) s.nodes
 
 let snapshot = [
-  "bloom", [ "flower", (9, 1, 35); "scene", (5, 0, 43); "world", (1, 0, 13); "settings", (2, 0, 6);
+  "bloom", [ "flower", (9, 1, 35); "scene", (5, 0, 47); "world", (1, 0, 13); "settings", (2, 0, 6);
              "editor", (10, 0, 18); "half", (1, 0, 2); "petal", (1, 0, 7) ];
   "facade", [ "facade", (12, 2, 59) ];
   "garland", [ "garland", (14, 3, 59); "ring", (1, 0, 2) ];
@@ -44,7 +44,7 @@ let snapshot = [
   "tiles", [ "tiles", (8, 1, 34) ];
   "tree", [ "tree", (8, 1, 67) ];
   "tunnel", [ "rings", (3, 1, 22) ];
-  "variations", [ "garden", (5, 0, 54); "scene", (1, 0, 7); "editor", (8, 0, 15) ];
+  "variations", [ "garden", (5, 0, 54); "scene", (1, 0, 8); "editor", (8, 0, 15) ];
   "wave", [ "wave", (6, 2, 39) ];
 ]
 

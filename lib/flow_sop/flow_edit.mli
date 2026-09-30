@@ -76,6 +76,9 @@ type op =
   | Set_panel_kind of { node : path; kind : string }
       (** [outline], [graph], [list], [lisp], [inspector], [timeline] or [viewport] (over the first
           scene graph) *)
+  | Set_graph of { name : string; form : Flow.Syntax.t }
+      (** the whole [(graph name ...)] form, replacing the graph or appended; the scene and World
+          graphs written from the editor's own objects (plan W10 write-back) *)
 (** ponytail: one variant and one [apply]; no command objects.  The four panel
     operations address a binding of an editor graph by its path, as every other
     op does; panels made by a loop have no binding, so they are edited on the loop. *)
@@ -131,6 +134,9 @@ val default_for : Flow.Ty.t -> string -> Flow.Syntax.t option
 val literals : Flow.Syntax.t -> (int list * Flow.Syntax.t) list
 (** Number and text leaves of an expression with their child paths, the
     candidates for macro holes. *)
+
+val arg_text : Flow.Syntax.t list -> path -> arg_key -> Flow.Syntax.t option
+(** The argument [key] of the binding [node], as written (what an {!Unfold} put there). *)
 
 val free_names : Flow.Syntax.t -> string list
 (** Names a form reads and does not declare, first use first (field access
