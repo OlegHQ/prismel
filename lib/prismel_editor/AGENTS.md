@@ -99,8 +99,9 @@ rules in this file are current. Planned changes that touch this directory:
   `Build.program`, `[%flow]`, catalog manifest checks, and `?program` editor
   initialization.
 
-Keep the three-column workspace, `Doc.apply` as the only graph-intent reducer,
-the one Command table, and history labels; the rework extends them.
+Keep `Doc.apply` as the only graph-intent reducer, the one Command table, and
+history labels; the rework extends them.  The workspace layout is described in
+"Workspace shell (W10)" below.
 
 ## Workspace documents (W3)
 
@@ -137,9 +138,10 @@ selected-node inspection, reactive cooking, camera/render
 controls, resize handling, status, export, and finite native termination;
 sketch source should primarily define its graph and scene preparation.
 
-Keep the standard sketch workspace as three independently collapsible columns:
-view, graph, and inspector, with default flexible proportions 45/35/20.
-Splitters retain ratios across window resize. An empty graph selection shows
+The default shell is `Pxui_shell.Layout.default`: three independently collapsible
+columns, view, graph, and inspector, with default flexible proportions 45/35/20 (the
+default editor graph *is* this layout; a workspace's own `(graph editor ...)` replaces
+it, see "Workspace shell (W10)").  Splitters retain ratios across window resize. An empty graph selection shows
 camera/render controls in the inspector; selecting a node shows only that
 node's generated SOP parameters. The empty-selection Viewport section toggles
 look-through, camera frustums, the axis gizmo, and translate handles on the
@@ -250,3 +252,38 @@ history entry "Edit text" (`Core.install`, shared with `Core.syntax_edit`). The
 text itself comes from `Flow.Lisp.print` and its span map; keep new text
 features on that map, never on string search. Text entry is `Ui.text_area`
 only.
+
+## Workspace shell (W10)
+
+The shell is a tree of panels, `Editor_core.Panels.t` (leaf, split, tile, float), drawn by
+`Pxui_shell.Layout` and `Chrome`.  `Core` keys focus, pane roots and command scopes by
+`Layout.panel` (`View key`, `Graph`, `List`, `Lisp`, `Inspector`, `Outline`, `Timeline`);
+`Leader.scope` maps a panel to the scope of its commands (every viewport is `View ""`, the
+list and lisp panels are the graph pane's), and never match a `column` or a fixed pane.
+
+- The tree comes from the document: `Contexts.of_workspace` evaluates the `editor` graph
+  into `Document.shell` (`tree`, `origins`, `named`, `views`), so undo restores it with the
+  source.  A document without an editor graph uses `Core.shell.tree` (the host's `?layout`,
+  resized locally, no history).  Never store layout anywhere else.
+- Gestures are `Flow_edit` ops on the editor graph, one history entry each: `Set_layout_ratio`
+  (a drag; the split is view state, `Core.shell.live`, until release), `Split_panel`,
+  `Close_panel`, `Set_panel_kind` (the header menu).  They address a panel by its binding
+  (`Document.origins`).  A panel made by a `for` is `Loop` (its header says so and the status
+  names the loop); an inline one is not editable.  Add the op to `Flow_edit`, not to `Core`.
+- Recovery (register E1): "Restore layout" (`Space z`) is host state outside the tree
+  (`Core.shell.restored`: the default tree until the editor graph's tree changes or the key
+  is pressed again).  A refused edit keeps the previous document and layout; an editor graph
+  that hides everything is valid, so keep this command working with any tree.
+- Graph, list and lisp panels are the graph pane's three projections: a `List` or `Lisp`
+  panel draws its own, otherwise `Space l` cycles them inside the `Graph` panel
+  (`projection` is normalised by which panels exist).  `(ui/graph "name")` names the pane's
+  graph (`Document.shell.named`); an `Outline` row picks one; there is no graph cycling key.
+  A panel kind draws once (the first leaf); a second says it is shown elsewhere.
+- Viewports: every `View` panel draws the scene instance its `(ref scene :k v)` names.  An
+  override gets objects of its own in the scene network (`Document.shell.views`, labelled
+  `garden (v1.1.1)`), drawn only by that viewport (`Core.placed_pieces ~view`); the default
+  instance is the primary scene.  The viewports share one camera, and handles, picking and
+  the sketch overlay follow the focused one (`Core.active_view`).  Float is an in-window
+  overlay (an inset of its parent); there are no OS windows.
+- Build the gutters' drag targets last in `Core.update` (`Chrome.splitters`): a pane root's
+  hit rectangle is created after the chrome and would shadow them otherwise.

@@ -273,11 +273,11 @@ of the [Network Editor](https://www.sidefx.com/docs/houdini/ref/panes/network.ht
 and [automatic layout](https://www.sidefx.com/docs/houdini/network/layout.html),
 without copying implementation or assets.
 
-`prismel.prismel_editor` composes a responsive three-column view/graph/inspector
-workspace, selected-node inspector, dimensional `Easy_camera`/`Easy_camera2`
+`prismel.prismel_editor` composes a responsive workspace of panels (by default the
+view/graph/inspector columns; a workspace's editor graph describes its own), selected-node inspector, dimensional `Easy_camera`/`Easy_camera2`
 render controls, a sketch-owned playback clock, and one bounded latest-request
 cook worker. Default column ratios are 45/35/20; splitters preserve user ratios
-through resize and every column can collapse. Empty selection puts camera/render
+through resize and every panel can collapse. Empty selection puts camera/render
 controls in the inspector, while node selection puts generated parameters there.
 Display selection remains independent and keeps the previous successful image
 visible while the newly flagged node cooks. Overlay scenes use view-local

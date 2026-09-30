@@ -40,3 +40,10 @@ tests; it is not loadable.
 `Contexts` generates the scene, world and settings kinds of a workspace from the object, layer
 and settings schemas and builds the document of a workspace (`of_workspace`); add a field to a
 schema and it is a keyword. Do not hand-write per-kind Lisp glue there.
+
+`Contexts.editor` evaluates the `editor` graph into `Document.shell` (the `Editor_core.Panels`
+tree, the origin of each named or looped panel, the graph a `ui/graph` names, and the scene
+objects of each viewport over a non-default scene instance): a `ui/*` call is a `Struct`, so a
+new panel kind is a `Flow.Workspace` op, a case in `panel_tree` and a `Panels.panel`.  Origins
+come from walking the checked terms beside the values, never from string search.  An evaluation
+or tree error refuses the whole document, like any other graph.

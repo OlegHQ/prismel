@@ -20,7 +20,7 @@ Status: `todo` · `wip` · `done` (gate met) · `partial` (what is missing is na
 | W7 editable text | done | | `Ui.text_area`, the text pane's Selection, Graph and Document tabs (`Prismel_editor.Text_pane`), atomic Check & apply (`Doc.text_edit`, `Core.text_edit`/`binding_edit`, one "Edit text" entry), per-binding apply, error marks at their line; the old read-only text pane and the flat network text view are deleted (notes below). Gaps: the Graph tab is read-only, no Tab key, wrapping or Cmd-Enter apply. |
 | W8 loops over geometry | done | | `point_list` / `piece_list`, the zone node (`Eval` template, `Procedural.Zone` + `Node.Private.expand` + `Session`), lowering by `Lower.instantiate`, zone provenance and count, `FLOW_CASE=garden`, `test_workspace_zone`, bench (notes below). Gaps: values inside the loop read the template record, no `t` in the body, no "by index" title, sequential. |
 | W9 macros UI, notes, bypass | done | | `Projection` lens and `layout ?lens`, the panel and `B` flag in `Scope`, `Macro_requested` + `Flow_edit.macro_draft` / `macro_op` + `Pxui_shell.Prompt.macro`, the inspector note field, tests through the pane and the editor, `FLOW_CASE=rosette` (notes below). Gaps: no Template button, no Enter to create, no inspector bypass toggle. |
-| W10 contexts & composable shell | wip | | Part A (contexts) done: `scene`, `world`, `settings` graphs check, lower into the document and open in the pane; part B (layout tree, editor graph) todo, see the W10 notes below. |
+| W10 contexts & composable shell | done | | Part A (contexts): `scene`, `world`, `settings` graphs check, lower into the document and open in the pane. Part B (shell): `Editor_core.Panels` and `Pxui_shell.Layout` (the tree and its geometry), the editor graph lowered into `Document.shell`, focus and commands keyed by panel, split/close/retype/resize as `Flow_edit` ops, Restore layout, one scene instance per viewport override, `ui/graph` names its graph (notes below). Gaps: `Contexts.window` is still not fed into a host (W11); no key for split/close/retype (the header menu only); viewports share one camera; only bound panels are editable. |
 | W11 `.plisp` sketches | todo | | |
 | W12 migration & removal | todo | | |
 
@@ -457,9 +457,47 @@ Status: `todo` · `wip` · `done` (gate met) · `partial` (what is missing is na
   the prototype HTML no longer runs them). Pane: `Space o` (`Cycle_graph`) cycles scene, world
   and settings graphs; a geometry object shows the sop graph its network was lowered from
   (an override instance shows the graph's defaults), the World its world graph.
-  Part B must: replace `Pxui_shell.Layout` by the layout tree, evaluate `(graph editor ...)`
+  Part B (landed, see its notes) had to: replace `Pxui_shell.Layout` by the layout tree, evaluate `(graph editor ...)`
   (Eval already returns `ui/*` Structs; `Contexts` has no editor lowering, viewports over
   `(ref scene :seed n)` need one scene instance per override: `Contexts.result` only reads the
   default instance), key focus by panel, make the panels of a `for` addressable (E1), keep
   "Restore layout" outside the tree, let `ui/graph` name its graph (then drop `Cycle_graph`),
   feed `Contexts.window` into `Workspace.main` (W11), update `prismel_editor/AGENTS.md`.
+
+- W10 part B notes (shell). The tree type is `Editor_core.Panels` (`panel`, `t`, `path`,
+  `default`, `set_ratio`, `valid`, `leaves`; the document library cannot import `pxui_shell`, which
+  re-exports it as `Pxui_shell.Layout`).  `Layout.geometry ?hidden tree frame` returns a record
+  (`leaves` with `path`, `panel`, `header`, `body`; `splitters`; `status_at`; `timeline_at`), not the
+  plan's `(panel * bounds) list`: the header and the path are needed by every caller.  A run of
+  splits along one axis is one row of columns, weights being the products of the ratios, so the default
+  tree (0.45, then 0.35/0.55) reproduces the retired fixed columns; the old `distribute` (minimum
+  widths, hidden columns vanishing, a hidden viewport keeping a 28-point strip, the rounding remainder
+  to the last column) is generalised, and `test_shell` holds golden rectangles of the old layout at five
+  sizes and states.  One degenerate state differs by one point (300 points wide, graph hidden: float
+  weights).  Tiles are a grid of `ceil sqrt n` columns (a short last row stretches), with one-point
+  gutters; a `Float` is the parent's rectangle inset by an eighth, drawn last, never a window.  The
+  timeline strip stays outside the tree (30 points, hidden until `Space t`) unless the tree has a
+  `Timeline` panel.  Dragging a splitter now resizes only the split it belongs to (the columns after it scale
+  together), as in the study; the old layout kept the third column fixed.  A drag is `Core.shell.live` until
+  release (one `Set_layout_ratio`, "Resize panel"); a document without an editor graph keeps the resized tree
+  locally (no history).  The drag targets are built last (`Chrome.splitters`): pane roots created after
+  the chrome would cover the seven-point hit area.
+  `Contexts.editor` lowers the graph into `Document.shell` (`tree`, `origins`, `named`, `views`): the
+  origins walk the checked terms beside the values (a bound panel keeps its binding; a panel in a `for`
+  names the loop, register E1; an inline one is not editable), viewport keys are tile indices (`v1.1.2`),
+  so a count change keeps the first panels.  A viewport over a scene instance other than the default gets
+  objects of its own in the scene network (`garden (v1.1.1)`, listed in `views`, drawn only by that
+  viewport); the default instance is the primary scene.  Viewports share one camera and the handles,
+  picking and the sketch overlay follow the focused one; picking does not look in another instance.
+  `ui/graph` takes an optional graph name, `ui/timeline` is a panel; `Space o` and `Cycle_graph` are gone
+  (an `Outline` row picks a graph, `(ui/graph "name")` pins one).  `List` and `Lisp` panels are the graph
+  pane's projections drawn on their own (`Space l` cycles them inside `Graph` when there are none); a
+  second panel of a kind says it is shown elsewhere.  `Flow_edit` has `Set_layout_ratio`, `Split_panel`,
+  `Close_panel`, `Set_panel_kind` (labels "Resize panel", "Split panel", "Close panel", "Retype panel");
+  the header right-click menu emits them.  Recovery: `Space z` is "Restore layout" (`Core.shell.restored`, status
+  text "Default layout"), and any edit that changes the tree ends it; a refused edit (checker or evaluator error,
+  a ratio outside 0.1-0.9) changes nothing, so an invalid editor graph never reaches the editor.
+  Two defects found on the way are fixed: a frame with several 3D layers reused the first layer's draws
+  (`Native_scene_lowering` cached per frame; regression: `test_workspace_shell_native`), and the workspace graph
+  pane painted its grid, zones and wires outside its clip.  `FLOW_CASE=variations` and `FLOW_SHELL=drag|split|close|retype|restore`
+  drive the native check in `sketches/flow_workspace`.

@@ -41,7 +41,7 @@ in a browser, never product code and never a web fallback.
 | `param` | Typed parameter schemas; no dependencies (`Procedural.Parameter`, `Editor_core.Param`) |
 | `flow` | UI-free value nodes, graphs, expressions, contexts and coercions over `param` |
 | `flow_sop` | Typed SOP/value overlay, drives, exposure and environment-owned value lane |
-| `editor_core` | Editor state and routing: labelled `History`, `Command`, `Keymap`, `Router`, plus atomic file writes and JSON user preferences (`Store`) |
+| `editor_core` | Editor state and routing: labelled `History`, `Command`, `Keymap`, `Router`, the shell's panel tree (`Panels`), plus atomic file writes and JSON user preferences (`Store`) |
 | `editor_document` | Package-private scene/network/settings model, workspace document (`Workspace_doc`, `Layout_by_path`), validation, object/layer schemas and s-expression presets; no presentation dependencies |
 | `pxui` | The one immediate-mode UI engine (`Pxui.Ui`) |
 | `pxui_shell` | Editor chrome over PXUI: layout, headers, keys, status, timeline, prompts, frame, `Inspector` |

@@ -323,7 +323,7 @@ milestone is recorded here with its date, what landed and its deviations.
 | W7 editable text | done | 2026-09-30 |
 | W8 loops over geometry | done | 2026-09-30 |
 | W9 macros UI, notes, bypass | done | 2026-09-30 |
-| W10 contexts and shell | wip (part A) | 2026-09-30 |
+| W10 contexts and shell | done | 2026-09-30 |
 
 ### W0 fixes and catalog prerequisites (2026-09-30, done with W4 part A)
 
@@ -458,7 +458,7 @@ is a no-op inside the network fold; `Doc.syntax_edit` is the reduction (the
 source is not a `Flow_sop.Network`). `Wrap` uses the checker as its type
 oracle (geometry, then number shape; each candidate feedback input) instead of
 reading types from the IR; the study's `exceptIteration` and
-`set_layout_ratio` (W10) are not ported. A new binding's name comes from
+`set_layout_ratio` (W10 part B: `Set_layout_ratio`) are not ported. A new binding's name comes from
 `fresh_name`, so a caller can select it. `Flow.Workspace.name_taken` says which
 names a binding may not take. `test_editor_document` builds its fixtures in
 code (the JSON fixtures and rejection matrix are gone) and
@@ -1053,5 +1053,17 @@ settings schemas (`Editor_document.Contexts`), so a new schema field is a new ke
 calls become nodes of the scene network (geometry objects own the network lowered from the sop
 graph they `ref`), the World a node with its layer stack as a network, settings the document
 `Settings.t` and `Contexts.window` (title, size, fps, seed) for the host. Presets and `Flow_edit`
-work unchanged (source text); `Space o` opens the graphs in the pane. Deviations and the part B
-list are in `specification/workspace/progress.md` (W10 part A notes).
+work unchanged (source text). Deviations are in `specification/workspace/progress.md` (W10 part A notes).
+
+### W10 part B: the composable shell (2026-09-30, done)
+
+The editor graph is the shell. `Pxui_shell.Layout`'s fixed three columns became a tree of panels
+(`Editor_core.Panels`: leaf, split, tile, float; panels `View key`, `Graph`, `List`, `Lisp`, `Inspector`,
+`Outline`, `Timeline`) whose default reproduces the columns; `Contexts` lowers `(graph editor ...)` into
+`Document.shell`, so the tree, its history and its text are the document's. Focus, pane roots and command
+scopes are keyed by panel; viewports over `(ref scene :seed n)` draw one scene instance per override (Variations
+renders four); split, close, retype and resize are `Flow_edit` ops emitted by the header menu and the
+splitters (one history entry each); "Restore layout" (`Space z`) is host state outside the tree; a
+`(ui/graph "name")` names the pane's graph and `Space o` is removed. Deviations, the geometry API and
+the gaps are in `specification/workspace/progress.md` (W10 part B notes); `lib/prismel_editor/AGENTS.md`
+has the rules (its "keep the three-column workspace" rule is replaced by "Workspace shell (W10)").

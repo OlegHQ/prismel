@@ -672,7 +672,9 @@ persistent graph-space tile positions, ordered ports/wires, topology-safe node
 dragging, independent inspector/display selection through each tile's VIEW
 button, selection clearing, captured pan, zoom, and framing. `Prismel_editor.Editor3.run`
 and `Editor2.run` compose both in a splitter-resizable, independently
-collapsible view/graph/inspector workspace whose default widths are 45/35/20.
+collapsible workspace of panels (view, graph, list, lisp, inspector, outline, timeline) whose
+default is the view/graph/inspector columns at 45/35/20; a workspace's `(graph editor …)` replaces the
+layout (`Editor_core.Panels`, `specification/workspace/plan.md` W10).
 The workspace defaults to a light viewport background. Sketches with a
 wireframe renderer can use `Prismel_editor.Renderer.wire_color background` to
 keep lines legible on either light or dark backgrounds.
@@ -879,11 +881,14 @@ by the model returned from `after_present`.
 The leader-key panel is `Pxui_shell.Which_key`; the sketch host supplies its
 commands and focused-pane name. `Pxui_shell.Status_bar` paints the common kit
 strip from host-provided status text, FPS, and pane bounds.
-`Pxui_shell.Layout` computes the standard 45/35/20 pane geometry, and
-`Pxui_shell.Chrome` builds its headers, one-point splitters with seven-point
-resize hit areas, and the focused pane's top rule;
-Editor layout queries return `Pxui_shell.Layout.panes`; tests and other hosts
-use Layout and Chrome directly. `Prismel_editor.Private` is explicitly unstable.
+`Pxui_shell.Layout` gives a tree of panels (`Editor_core.Panels`: a leaf, a split, a tile or a
+float) its geometry (a run of splits along one axis is one row of columns, so the default tree
+is the standard 45/35/20), and `Pxui_shell.Chrome` builds the panels' headers with their
+right-click menu (split, close, retype), the drawn gutters, and the focused pane's top rule;
+`Chrome.splitters` builds the one-point gutters' seven-point drag targets last, over the
+panes. Chrome returns intents, never edits. Editor layout queries return
+`Pxui_shell.Layout.panes` (the first view, graph and inspector); tests and other hosts
+use Layout and Chrome directly. A host passes a `Layout.t` as `?layout`. `Prismel_editor.Private` is explicitly unstable.
 `Pxui_shell.Timeline_bar` returns playback intents from display values, and
 `Pxui_shell.Prompt` builds name and search modals; the host interprets their
 results and performs file I/O after the frame.
