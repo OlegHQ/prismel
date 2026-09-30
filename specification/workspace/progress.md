@@ -21,7 +21,7 @@ Status: `todo` · `wip` · `done` (gate met) · `partial` (what is missing is na
 | W8 loops over geometry | done | | `point_list` / `piece_list`, the zone node (`Eval` template, `Procedural.Zone` + `Node.Private.expand` + `Session`), lowering by `Lower.instantiate`, zone provenance and count, `FLOW_CASE=garden`, `test_workspace_zone`, bench (notes below). Gaps: values inside the loop read the template record, no `t` in the body, no "by index" title, sequential. |
 | W9 macros UI, notes, bypass | done | | `Projection` lens and `layout ?lens`, the panel and `B` flag in `Scope`, `Macro_requested` + `Flow_edit.macro_draft` / `macro_op` + `Pxui_shell.Prompt.macro`, the inspector note field, tests through the pane and the editor, `FLOW_CASE=rosette` (notes below). Gaps: no Template button, no Enter to create, no inspector bypass toggle. |
 | W10 contexts & composable shell | done | | Part A (contexts): `scene`, `world`, `settings` graphs check, lower into the document and open in the pane. Part B (shell): `Editor_core.Panels` and `Pxui_shell.Layout` (the tree and its geometry), the editor graph lowered into `Document.shell`, focus and commands keyed by panel, split/close/retype/resize as `Flow_edit` ops, Restore layout, one scene instance per viewport override, `ui/graph` names its graph (notes below). Gaps: `Contexts.window` is still not fed into a host (W11); no key for split/close/retype (the header menu only); viewports share one camera; only bound panels are editable. |
-| W11 `.plisp` sketches | todo | | |
+| W11 `.plisp` sketches | wip | | Part A (tool, dune wiring, scaffolding, tests, the twelve `sketches/ws_*`): `prismel-plisp check|ml|dune|fmt`, `sketches/dune` + checked-in `dune.plisp.inc`, `Prismel_editor.Workspace.load/run/main` (minimal), `new_example --plisp`, cram tests. Part B is open: Save, live reload, `Workspace.main` tests (notes below). |
 | W12 migration & removal | todo | | |
 
 ## Notes
@@ -501,3 +501,41 @@ Status: `todo` · `wip` · `done` (gate met) · `partial` (what is missing is na
   (`Native_scene_lowering` cached per frame; regression: `test_workspace_shell_native`), and the workspace graph
   pane painted its grid, zones and wires outside its clip.  `FLOW_CASE=variations` and `FLOW_SHELL=drag|split|close|retype|restore`
   drive the native check in `sketches/flow_workspace`.
+- W11 part A notes. `tools/plisp` (`prismel-plisp`, links `flow`, `editor_document`,
+  `sop_catalog`; Stdlib only plus `Digestif.SHA256` through `Contexts.sha256`) with
+  `check`, `ml`, `dune`, `fmt`; the wiring is `sketches/dune` (`include`,
+  the `dune.plisp.inc.gen` rule with `glob_files_rec sketch.plisp` and `glob_files_rec dune`,
+  the runtest `diff`) and the checked-in `sketches/dune.plisp.inc`. Proven first on `ws_bloom`:
+  `subdir` on a source directory with no `dune` file and `glob_files_rec` both work (dune 3.24,
+  lang 3.17), no fallback needed. Adding a sketch: create `sketches/<n>/sketch.plisp` (or
+  `dune exec tools/new_example.exe -- --plisp <n>`), `dune build @runtest; dune promote`.
+  All twelve cases are `sketches/ws_<case>/sketch.plisp` and each runs 120 frames
+  (`dune build @sketches/ws_<case>/smoke-all`, 3-4 s each; the whole-repo `@smoke-all` also
+  includes them). A typo fails `dune build ./sketches/ws_bloom/main.exe` with
+  `File "sketches/ws_bloom/sketch.plisp", line 11, characters 19-67:`.
+  Deviations. (1) The quoted-string delimiter cannot contain digits in OCaml, so the four hex digits
+  0-9 become g-p and a collision appends letters (`Delimiter`, unit-tested). (2) The rule runs
+  `(chdir %{workspace_root} ... ml %{dep:sketch.plisp})`, so `~path` and every diagnostic are
+  project-relative (`sketches/ws_bloom/sketch.plisp`), as the plan's example shows; the
+  `dune` scan sees dune files through `(glob_files_rec dune)`. (3) There is no
+  `Flow_sop.Workspace_program`: `Workspace.load` returns a `Workspace_doc.t` and `run` takes one
+  (`with_inputs`, O2, is not built); `run` has no `?config`. (4) `^:allow-warnings` goes before the
+  form (`^:allow-warnings (workspace ...)`), the reader's flag position. (5) `check` also reads the
+  optional `(layout ...)` and `(settings ...)` forms (`Workspace_doc.of_text`), so what `check`
+  accepts is what the editor opens. (6) Assets globs are `*.png` and `*.ttf` only
+  (`ponytail:`). `Flow.Diagnostic.report` is the OCaml-format printer, used by the tool and by
+  `Workspace.main`; `Contexts.catalog_digest` is the SHA-256 of the generated manifest text.
+  Tests: `tools/plisp/test` (cram `check.t` one fixture per class with exact `File` lines,
+  `ml.t`, `dune.t` two sketches / both files error / empty dir; `test_delimiter`) and
+  `test/plisp_build.t` (nested dune on a temp project: a valid sketch yields `main.ml`, a typo
+  fails at its `.plisp` line; only `main.ml` is built there because the executables need the
+  repo's libraries). The `Workspace` module lives in `prismel_editor.ml` (it needs `Editor3`).
+  Part B must: read the source file from the walk up to `dune-project` and enable Save (Cmd-S)
+  only when its SHA-256 equals `digest` (atomic temp file plus rename, `Workspace_doc.to_text`,
+  else preset fallback with the status text); poll the mtime twice a second and reload as one
+  history entry "Reload sketch.plisp" keeping probes and layout by path id, keeping the last good
+  document and showing diagnostics on failure; make `run` use `?source`
+  (ignored now: the argument is accepted and dropped); add the `Workspace.main` tests (digest
+  match, mismatch, atomic write re-read, reload keeps probes, failed reload keeps the document).
+  The window is fed from `Contexts.window` already (title, size, fps, seed); the fixed light and
+  camera in `run` should give way to the scene graph's.

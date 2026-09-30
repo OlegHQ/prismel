@@ -1067,3 +1067,11 @@ splitters (one history entry each); "Restore layout" (`Space z`) is host state o
 `(ui/graph "name")` names the pane's graph and `Space o` is removed. Deviations, the geometry API and
 the gaps are in `specification/workspace/progress.md` (W10 part B notes); `lib/prismel_editor/AGENTS.md`
 has the rules (its "keep the three-column workspace" rule is replaced by "Workspace shell (W10)").
+
+### W11 part A: `.plisp` sketches compiled by dune (2026-09-30, wip)
+
+`tools/plisp` (`prismel-plisp check | ml | dune | fmt`), `sketches/dune` with the checked-in
+`dune.plisp.inc` (promote after adding a sketch), `Prismel_editor.Workspace.load | run | main`
+(minimal: no Save, no reload), `new_example --plisp`, and the twelve `sketches/ws_*` cases
+running under `smoke-all`. Deviations and what part B (Save, live reload) must do are in
+`specification/workspace/progress.md` (W11 part A notes).

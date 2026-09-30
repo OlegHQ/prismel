@@ -554,3 +554,23 @@ module Editor2 : sig
     unit ->
     unit
 end
+
+(** A [.plisp] sketch as a program (plan W11; Save and reload are still to do). *)
+module Workspace : sig
+  type source = { path : string; digest : string }
+  (** Where a workspace came from: [path] relative to the project root, [digest]
+      the SHA-256 of its text. *)
+
+  val load : string -> (Workspace_doc.t, Flow.Diagnostic.t list) result
+  (** Parse and check a [.plisp] text against {!workspace_catalog}. *)
+
+  val run : ?source:source -> Workspace_doc.t -> unit
+  (** Open {!Editor3} on the document, with the window title, size, frame rate
+      and seed of its settings graph. *)
+
+  val main : path:string -> digest:string -> catalog:string -> string -> unit
+  (** Entry point of a generated [main.ml]: [load] then [run]; on failure prints
+      the diagnostics in the OCaml format and exits 1. [catalog] is
+      {!Editor_document.Contexts.catalog_digest} at build time; a different
+      running catalog is reported and the source checked again. *)
+end

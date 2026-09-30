@@ -39,3 +39,11 @@ val of_workspace : factories:Procedural.Edit_graph.factory list -> ?previous:Doc
     camera and lights), and the lowering's compiled ids.  The workspace owns
     geometry always, cameras and lights when its scene declares one, and the
     World when it has a world graph. *)
+
+val sha256 : string -> string
+(** Lower-case hex SHA-256: the digest of a sketch source. *)
+
+val catalog_digest : Procedural.Edit_graph.factory list -> string
+(** {!sha256} of the manifest text the catalog generates (with {!descriptors}),
+    or of its error: what a [.plisp] binary compares against the catalog it
+    runs with. *)

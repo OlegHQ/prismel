@@ -1,7 +1,7 @@
 (executable
  (name new_example)
  (modules new_example)
- (libraries unix))
+ (libraries unix str))
 
 (executable
  (name flow_manifest)

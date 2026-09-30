@@ -462,3 +462,10 @@ let of_workspace ~factories ?previous (workspace : Workspace_doc.t) =
        shell = Option.map (fun e -> { Document.tree = e.tree; origins = e.origins;
                                       named = e.named; views }) editor;
        workspace = Some (workspace, lowered) }
+
+let sha256 s = Digestif.SHA256.(to_hex (digest_string s))
+
+let catalog_digest factories =
+  sha256 (match Flow_sop.Manifest.generate ~extra:descriptors factories with
+    | Ok (text, _) -> text
+    | Error d -> Flow.Diagnostic.to_string d)

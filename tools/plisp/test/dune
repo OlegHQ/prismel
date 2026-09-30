@@ -1,0 +1,8 @@
+(cram
+ (deps %{bin:prismel-plisp}))
+
+(copy_files ../delimiter.ml)
+
+(test
+ (name test_delimiter)
+ (modules test_delimiter delimiter))

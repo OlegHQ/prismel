@@ -1,5 +1,5 @@
 (library
  (name editor_document)
  (package prismel)
- (libraries prismel procedural flow flow_sop editor_core yojson unix)
+ (libraries prismel procedural flow flow_sop editor_core digestif.c yojson unix)
  (preprocess (pps prismel.ppx)))

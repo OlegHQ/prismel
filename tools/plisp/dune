@@ -1,0 +1,6 @@
+(executable
+ (name plisp)
+ (modules plisp delimiter)
+ (public_name prismel-plisp)
+ (package prismel)
+ (libraries flow flow_sop editor_document sop_catalog))

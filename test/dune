@@ -155,3 +155,7 @@
  (aliases runtest test_viewport_pick)
  (deps (glob_files ../specification/workspace/cases/*.lisp))
  (action (run %{exe:test_main.exe} test_viewport_pick)))
+
+(cram
+ (applies_to plisp_build)
+ (deps %{bin:prismel-plisp}))

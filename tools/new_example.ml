@@ -33,16 +33,19 @@ let () =
 |} name name
 
 let () =
-  let root = ref "examples" in
+  let root = ref None in
+  let plisp = ref false in
   let name = ref None in
   let specs = [
-    "--root", Arg.Set_string root, "DIR Parent directory (default: examples)";
+    "--plisp", Arg.Set plisp, " Create sketches/NAME/sketch.plisp from the Bloom fixture";
+    "--root", Arg.String (fun r -> root := Some r), "DIR Parent directory (default: examples)";
   ] in
   Arg.parse specs (fun value ->
     match !name with
     | None -> name := Some value
     | Some _ -> fail "expected one example name")
     "Create a Prismel sketch: dune exec tools/new_example.exe -- NAME";
+  let root = ref (match !root with Some r -> r | None -> if !plisp then "sketches" else "examples") in
   let name = match !name with Some name -> name | None -> fail "missing NAME" in
   if not (valid_name name) then
     fail "NAME must contain only lowercase letters, digits, _ or -";
@@ -51,6 +54,14 @@ let () =
   if not (Sys.file_exists !root && Sys.is_directory !root) then
     fail "root directory %s does not exist" !root;
   Unix.mkdir directory 0o755;
+  if !plisp then begin
+    (* ponytail: the fixture is read from the working directory, the repo root *)
+    let bloom = In_channel.with_open_bin "specification/workspace/cases/bloom.lisp" In_channel.input_all in
+    let bloom = Str.global_replace (Str.regexp_string "bloom_studio") (String.map (function '-' -> '_' | c -> c) name) bloom in
+    write (Filename.concat directory "sketch.plisp") bloom;
+    Printf.printf "Created %s/sketch.plisp\nRun: dune build @runtest; dune promote\n%!" directory;
+    exit 0
+  end;
   write (Filename.concat directory "dune")
     "(executable\n (name main)\n (libraries prismel))\n";
   write (Filename.concat directory "main.ml") (template name);
