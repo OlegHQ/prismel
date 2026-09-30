@@ -1,7 +1,10 @@
 (* A workspace document in the editor: the graph pane draws it with zones,
    rails and iteration selectors.  FLOW_CASE picks bloom (default),
    sunflower or orrery.  FLOW_ADD=1 adds a box from the Tab menu.  FLOW_EXPORT=<dir> renders the editor's UI to PNG
-   frames instead of opening a window (a check of the graph pane). *)
+   frames instead of opening a window (a check of the graph pane).
+   FLOW_TEXT=selection|graph|document|edit|error|binding shows the text pane (Space l
+   twice) after the click that selects r: a tab, or an edit typed into the
+   Document tab (a valid one applied, or an invalid one applied and refused). *)
 open Prismel
 module E3 = Prismel_editor.Editor3
 
@@ -46,9 +49,32 @@ let () = match Sys.getenv_opt "FLOW_EXPORT" with
           | 22 when Sys.getenv_opt "FLOW_ADD" <> None -> [ Event.TextInput "box" ]
           | 24 when Sys.getenv_opt "FLOW_ADD" <> None -> [ Event.KeyPressed Input.Enter ]
           | 30 when Sys.getenv_opt "FLOW_ADD" <> None -> click (1240., 178.)
+          | 20 | 22 when Sys.getenv_opt "FLOW_TEXT" <> None ->
+              [ Event.KeyPressed Input.Space; Event.KeyPressed (Input.KeyChar 'l') ]
+          | 26 when Sys.getenv_opt "FLOW_TEXT" = Some "graph" -> click (735., 34.)
+          | 26 when List.mem (Sys.getenv_opt "FLOW_TEXT") [ Some "edit"; Some "error" ] -> click (810., 34.)
+          | 28 when List.mem (Sys.getenv_opt "FLOW_TEXT") [ Some "edit"; Some "error" ] -> click (900., 300.)
+          | 28 when Sys.getenv_opt "FLOW_TEXT" = Some "binding" -> click (900., 600.)
+          | 30 when List.mem (Sys.getenv_opt "FLOW_TEXT") [ Some "edit"; Some "error"; Some "binding" ] ->
+              [ Event.KeyPressed (Input.KeyChar 'a') ]
+          | 32 when Sys.getenv_opt "FLOW_TEXT" = Some "binding" -> [ Event.TextInput "(* spread (sqrt (+ i 1)))" ]
+          | 32 when List.mem (Sys.getenv_opt "FLOW_TEXT") [ Some "edit"; Some "error" ] ->
+              let text = fst (Flow.Lisp.print workspace.Prismel_editor.Workspace_doc.source) in
+              let replace from by =
+                let n = String.length from in
+                let rec at i = if i + n > String.length text then None
+                  else if String.sub text i n = from then Some i else at (i + 1) in
+                match at 0 with
+                | Some i -> String.sub text 0 i ^ by ^ String.sub text (i + n) (String.length text - i - n)
+                | None -> text in
+              [ Event.TextInput (if Sys.getenv_opt "FLOW_TEXT" = Some "edit"
+                  then replace "(seeds : int 240)" "(seeds : int 60)"
+                  else replace "(sqrt i)" "(sqrt nosuch)") ]
+          | 36 when List.mem (Sys.getenv_opt "FLOW_TEXT") [ Some "edit"; Some "error"; Some "binding" ] -> click (690., 764.)
           | n when n >= 12 && n mod 2 = 0 && n <= 14 -> [ Event.MouseMoved (780., 380.); Event.MouseScrolled (0., 5.) ]
           | _ -> [] in
-        { frame with events = events @ frame.events } in
-      ignore (Sketch.export_state ~config ~directory ~prefix:"workspace" ~frames:40
+        { frame with events = events @ frame.events;
+          keys = if frame.count = 30 then Input.Meta :: frame.keys else frame.keys } in
+      ignore (Sketch.export_state ~config ~directory ~prefix:"workspace" ~frames:(if Sys.getenv_opt "FLOW_TEXT" = None then 40 else 48)
         ~init:(fun _ -> create ()) ~update:(fun e frame -> E3.update e (script frame))
         ~view:E3.scene ~on_stop:E3.close ())

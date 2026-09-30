@@ -320,6 +320,7 @@ milestone is recorded here with its date, what landed and its deviations.
 | W4 graph pane zones | done | 2026-09-30 |
 | W5 probes and footers | done | 2026-09-30 |
 | W6 viewport provenance | done | 2026-09-30 |
+| W7 editable text | done | 2026-09-30 |
 
 ### W0 fixes and catalog prerequisites (2026-09-30, done with W4 part A)
 
@@ -947,3 +948,16 @@ kept output, never recooked or lowered). Tests: `test_viewport_pick`,
 with `FLOW_PICK`. Deviations, the bench numbers and the ceilings (BVH build at
 the first click, instances, collapsed zones) are in
 `specification/workspace/progress.md`.
+
+### W7 editable text (2026-09-30, done)
+
+Landed: `Pxui.Ui.text_area` (multiline, gutter, error lines, shared text-entry
+path with `text_field`) and the workspace text pane, `Space l` from list: tabs
+Selection (top-level ancestor and upstream closure of the selected binding,
+marked; the binding editable), Graph (the active graph, selection marked) and
+Document (the whole workspace as a draft). Check & apply is atomic and one
+"Edit text" history entry; an invalid draft stays in the pane with its error
+line marked while every other pane shows the last applied document; Discard
+reverts. The read-only text pane and the flat network's text view are deleted:
+only a workspace graph object has a text projection. Tests: `test_ui`,
+`test_text_pane`. Deviations and gaps are in `specification/workspace/progress.md`.

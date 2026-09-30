@@ -12,18 +12,6 @@ end)
 (* How the graph pane shows the open network. *)
 type projection = Graph_view | List_view | Text_view
 
-type text_cache = {
-  level : Document.level;
-  source : Flow_sop.Network.t;
-  definitions : Document.definition Document.String_map.t;
-  displayed : int option;
-  qualified : bool;
-  printed : (Flow_sop.Print.t, Flow.Diagnostic.t) result;
-  lines : string array;
-  max_columns : int;
-  node_at_line : int option array;
-}
-
 (* What the workspace pane was last laid out from: the document, the probes and
    the graph, the recording evaluation of the checked source, and what its
    footers read (the cook's geometry counts, the time of a live document). *)
@@ -75,7 +63,7 @@ type 'panel frame_result = {
   label : string;  (* names this frame's document change in history *)
   graph_changes : Pxui_graph.change list;
   tree_intents : Pxui_shell.Tree.intent list;
-  text_toggle : bool;
+  text_intents : Text_pane.intent list;
   open_graph : int option;
   settings_changes : (string * Parameter.value) list;
   hide_guide : bool;
@@ -102,8 +90,7 @@ type 'prepared t = {
   level : Document.level;
   scene_level : bool;  (* false: one geometry object, no scene to go up to *)
   projections : projection Level_map.t;
-  qualified_text : bool Level_map.t;
-  text_cache : text_cache option;
+  text : Text_pane.state;  (* the workspace text pane: tab, drafts, errors (view state) *)
   map_view : bool;  (* in the World, the view pane shows the lat-long map *)
   live_cook : bool;  (* cook while a drag holds the pointer *)
   rows : (Flow_sop.Network.t * int * Editor_core.Network_layout.t
@@ -350,14 +337,15 @@ let projection value =
 (* The workspace graph the pane shows with zones and selectors: a geometry
    object of a workspace document opened as a graph (its label is the [sop]
    graph's name).  Everything else keeps the flat network pane. *)
-let scope_name value = match value.doc.Document.workspace, value.level with
-  | Some (ws, _), Document.Inside id
-    when kind value id = Some "geometry" && projection value = Graph_view ->
+let graph_name value = match value.doc.Document.workspace, value.level with
+  | Some (ws, _), Document.Inside id when kind value id = Some "geometry" ->
       Option.bind (Edit_graph.find (scene value) ~node_id:id) (fun node ->
         let name = Node.label node in
         if List.exists (fun (g : Flow.Workspace.graph) -> g.name = name) ws.checked.graphs
         then Some name else None)
   | _ -> None
+
+let scope_name value = if projection value = Graph_view then graph_name value else None
 
 let lit_tags value =
   match value.doc.Document.workspace, value.scope_key,
@@ -935,7 +923,7 @@ let create ?(settings = Settings.none) ?(keymap = Leader.keymap)
         | Error _ -> true in
       let value = { preferences; guide; hud = None; code_graph = graph; presets; name; prompt = None; notice = None;
         doc; level; scene_level; projections = Level_map.empty;
-        qualified_text = Level_map.empty; text_cache = None; map_view = false;
+        text = Text_pane.initial; map_view = false;
         rows = None; live_cook = true;
         factories;
         graph_view = Pxui_graph.create (Sop.points [||]);
@@ -982,131 +970,6 @@ let level_name value = match value.level with
         String.capitalize_ascii (String.map (function '_' -> ' ' | c -> c) name)
         ^ " · sop compound") (Document.compound_names value.doc level))
 
-let printed_level value =
-  let saved = network value in
-  let qualified = Option.value ~default:false
-      (Level_map.find_opt value.level value.qualified_text) in
-  match value.text_cache with
-  | Some cache when cache.level = value.level && cache.source == saved.graph
-      && cache.definitions == value.doc.definitions
-      && cache.displayed = saved.displayed && cache.qualified = qualified -> cache
-  | _ ->
-      let printed = match saved.context with
-        | Flow.Context.Scene | World | Value ->
-            Error (Flow.Diagnostic.error ~code:"E_CONTEXT_RESERVED"
-              "Flow text is available for SOP networks and compounds")
-        | Sop ->
-            let definitions = Document.flow_definitions value.doc in
-            Result.bind (Flow_sop.Catalog.of_factories
-              ~version:Flow_sop.Manifest.version value.factories)
-              (fun catalog -> match value.level with
-                | Compound _ ->
-                    (match List.rev (Document.compound_names value.doc value.level) with
-                     | name :: _ -> Flow_sop.Print.definition ~qualified ~precision:6 ~catalog
-                         ~definitions name
-                     | [] -> Error (Flow.Diagnostic.error ~code:"E_UNBOUND"
-                         "Open compound has no definition"))
-                | Scene | Inside _ ->
-                    Flow_sop.Print.network ~qualified ~precision:6 ~name:value.name ~context:saved.context
-                      ~catalog ~display:saved.displayed ~definitions saved.graph) in
-      let lines = Array.of_list (String.split_on_char '\n'
-        (match printed with Ok print -> print.text
-          | Error diagnostic -> diagnostic.message)) in
-      let node_at_line = Array.make (Array.length lines) None in
-      (match printed with
-       | Ok print -> List.iter (fun (id, line) ->
-           if line > 0 && line <= Array.length node_at_line then
-             node_at_line.(line - 1) <- Some id) print.binding_lines
-       | Error _ -> ());
-      {level = value.level; source = saved.graph;
-       definitions = value.doc.definitions; displayed = saved.displayed;
-       qualified; printed; lines;
-       max_columns = Array.fold_left (fun longest line ->
-         max longest (String.length line)) 0 lines;
-       node_at_line}
-
-let move_text_selection cache selected direction =
-  let bindings = match cache.printed with
-    | Ok print -> print.binding_lines | Error _ -> [] in
-  let ids = List.map fst bindings in
-  match ids with
-  | [] -> None
-  | _ ->
-      let index = match selected with
-        | None -> if direction = Pxui_graph.Up then List.length ids - 1 else 0
-        | Some id ->
-            (match List.find_index (( = ) id) ids with
-             | None -> if direction = Pxui_graph.Up then List.length ids - 1 else 0
-             | Some index -> max 0 (min (List.length ids - 1)
-                 (index + if direction = Pxui_graph.Up then -1 else 1))) in
-      List.nth_opt ids index
-
-let text_pane ui ~bounds:(x, y, width, height) ~title ~reveal cache ~selected =
-  let module Ui = Pxui.Ui in
-  let row = float_of_int (Ui.row_height ui) in
-  let x = float_of_int x and y = float_of_int y
-  and width = float_of_int width and height = float_of_int height in
-  let theme = Ui.theme ui in
-  let header = Ui.box ui ~flags:Ui.(clickable + blocking)
-      ~w:(Ui.Px width) ~h:(Ui.Px row) ~at:(x, y) "flow-text-header" in
-  let toggle = (Ui.signal ui header).clicked && Result.is_ok cache.printed in
-  Ui.draw ui header (fun paint _ ->
-    Ui.Paint.fill paint ~x ~y ~w:width ~h:row theme.foreground;
-    Ui.Paint.text paint ~at:(x +. 8., y +. 5.) ~color:theme.input
-      (title ^ (match cache.printed with Error _ -> "  ·  text"
-        | Ok _ -> "  ·  qualified names: " ^
-            (if cache.qualified then "on" else "off"))));
-  let body_y = y +. row and body_h = Float.max 0. (height -. row) in
-  let body = Ui.box ui ~flags:Ui.(clickable + scroll + clip + blocking)
-      ~w:(Ui.Px width) ~h:(Ui.Px body_h) ~at:(x, body_y)
-      ~scroll_step:row "flow-text-body-v2" in
-  let signal = Ui.signal ui body in
-  let maximum = Float.max 0. (float (Array.length cache.lines) *. row -. body_h) in
-  let vertical = Float.max 0. (Float.min maximum (Ui.scroll_offset ui body)) in
-  let vertical = if not reveal then vertical else
-    match cache.printed, selected with
-    | Ok print, Some id ->
-        (match List.assoc_opt id print.binding_lines with
-         | Some line when float (line - 1) *. row < vertical ->
-             float (line - 1) *. row
-         | Some line when float line *. row > vertical +. body_h ->
-             Float.min maximum (float line *. row -. body_h)
-         | _ -> vertical)
-    | _ -> vertical in
-  if reveal then Ui.set_scroll_offset ui body vertical;
-  let content = Ui.within ui body (fun () ->
-    Ui.box ui ~w:(Ui.Px width)
-      ~h:(Ui.Px (Float.max body_h (float (Array.length cache.lines) *. row)))
-      "flow-text-content") in
-  let max_horizontal = Float.max 0. (float cache.max_columns *. 7. -. width +. 16.) in
-  let horizontal = Float.max 0. (Float.min max_horizontal
-    (float (Ui.state ui content ~default:0) /. 1000.
-      +. fst signal.scroll *. row)) in
-  Ui.set_state ui content (int_of_float (Float.round (horizontal *. 1000.)));
-  let picked = if not signal.pressed || signal.button <> Some Input.LeftButton
-    then None else
-    let _, py = signal.press_point in
-    let line = int_of_float (Float.floor ((py -. body_y +. vertical) /. row)) in
-    if line < 0 || line >= Array.length cache.node_at_line then None
-    else cache.node_at_line.(line) in
-  Ui.draw ui body (fun paint _ ->
-    Ui.Paint.fill paint ~x ~y:body_y ~w:width ~h:body_h theme.panel);
-  Ui.draw ui content (fun paint (_, content_y, _, _) ->
-    let offset = body_y -. content_y in
-    let first = max 0 (int_of_float (Float.floor (offset /. row))) in
-    let last = min (Array.length cache.lines - 1)
-        (int_of_float (Float.ceil ((offset +. body_h) /. row))) in
-    for index = first to last do
-      let line_y = content_y +. float_of_int index *. row in
-      if cache.node_at_line.(index) = selected then
-        (match selected with Some _ ->
-          Ui.Paint.fill paint ~x ~y:line_y ~w:width ~h:row
-            (Pxui.Theme.pressed_fill theme) | None -> ());
-      Ui.Paint.text paint ~at:(x +. 8. -. horizontal, line_y +. 5.)
-        ~color:theme.foreground cache.lines.(index)
-    done);
-  picked, toggle
-
 let status_text value =
   let cook = match Cook.status value.cook with
     | Async_cook.Cooking { seconds; queued = true; _ }
@@ -1118,6 +981,9 @@ let status_text value =
           (if queued then " · latest queued" else "")
     | Idle ->
         (match value.edit_error, value.cook.error, value.cook.seconds with
+         | _ when projection value = Text_view && Text_pane.first_error value.text <> None ->
+             "Text rejected: " ^ truncate 52 (Flow.Diagnostic.to_string
+               (Option.get (Text_pane.first_error value.text)))
          | Some error, _, _ -> "Graph edit rejected: " ^ truncate 49 error
          | None, Some error, _ -> "Cook rejected: " ^ truncate 54 error
          | None, None, _ when value.notice <> None -> Option.get value.notice
@@ -1302,10 +1168,10 @@ let routed value =
       { command with scope = Some Pxui_shell.Layout.Graph;
         action = Leader.Graph_command command.action }) Pxui_graph.hint_bindings
   else List.filter (fun (command : Leader.command) -> match command.action with
-    | List_command Pxui_shell.Tree.Activate_row -> (listing || texting) && graph_shown
+    | List_command Pxui_shell.Tree.Activate_row -> listing && graph_shown
     | List_command _ -> listing && graph_shown
     | Graph_command (Pxui_graph.Walk (Pxui_graph.Up | Pxui_graph.Down))
-      when listing || texting -> graph_shown && (match command.trigger with
+      when listing -> graph_shown && (match command.trigger with
         | Some (Editor_core.Keymap.Chord (Input.KeyChar ('j' | 'k'), [])) -> true
         | _ -> false)
     | Graph_command Add when scope_name value <> None -> graph_shown
@@ -1368,6 +1234,61 @@ let parameter_gesture operation level id values =
   operation ^ "/" ^ level_key level ^ "/" ^ string_of_int id ^ "/"
   ^ String.concat "/" (List.sort_uniq String.compare (List.map fst values))
 
+(* A workspace edit installed as the present: the source and its lowering are
+   one history entry, the open level is re-resolved and the cook told about
+   the new volatile nodes. *)
+let install value doc ~label ~merge =
+  let level = Result.get_ok
+    (Document.resolve_level ~scene_level:value.scene_level doc value.level) in
+  let value' = { value with doc; level } in
+  Cook.set_volatile value.cook (match doc.workspace with
+    | Some (_, lowered) -> Flow_sop.Lower.is_volatile lowered
+    | None -> fun _ -> false);
+  { value' with
+    history = commit ~label ~merge doc value.history;
+    graph_view = Network_view.to_view (network value') value.graph_view
+      |> Pxui_graph.with_flagged (if level = Document.Scene then doc.active_camera else None) }
+
+(* The text pane's applies (plan W7): the whole workspace text, or one
+   binding's expression; atomic, one history entry "Edit text". *)
+let text_edit value text =
+  Result.map (fun doc -> install value doc ~label:"Edit text" ~merge:Editor_core.History.Step)
+    (Doc.text_edit ~factories:value.factories value.doc text)
+
+let binding_edit value path text =
+  let error message = Error [ Flow.Diagnostic.error ~code:"E_EDIT" message ] in
+  match Flow.Syntax.parse text with
+  | Error d -> Error [ d ]
+  | Ok [ form ] ->
+      (match Doc.syntax_edit ~factories:value.factories value.doc
+          (Flow_sop.Flow_edit.Set_arg { node = path; key = Whole; sub = []; value = form }) with
+       | Ok doc -> Ok (install value doc ~label:"Edit text" ~merge:Editor_core.History.Step)
+       | Error message -> error message)
+  | Ok _ -> error "Expected one expression"
+
+(* Fold the pane's intents: drafts live in [value.text] (view state); a
+   refused apply keeps the draft and its errors and changes nothing else. *)
+let apply_text value intents =
+  List.fold_left (fun value intent ->
+    let text = value.text in
+    let with_text text = { value with text } in
+    match intent with
+    | Text_pane.Tab tab -> with_text { text with tab }
+    | Doc_draft draft -> with_text { text with draft = Some draft }
+    | Doc_discard -> with_text { text with draft = None; doc_errors = [] }
+    | Doc_apply draft ->
+        (match text_edit value draft with
+         | Ok value -> { value with text = { text with draft = None; doc_errors = [] } }
+         | Error doc_errors -> with_text { text with draft = Some draft; doc_errors })
+    | Binding_draft (path, draft) -> with_text { text with binding_draft = Some (path, draft) }
+    | Binding_discard -> with_text { text with binding_draft = None; binding_errors = [] }
+    | Binding_apply (path, draft) ->
+        (match binding_edit value path draft with
+         | Ok value -> { value with text = { text with binding_draft = None; binding_errors = [] } }
+         | Error binding_errors ->
+             with_text { text with binding_draft = Some (path, draft); binding_errors })) value intents
+
+
 let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
     ~render_status ~view_state (frame : Frame.t) =
   let value = sync_scope value in
@@ -1426,17 +1347,17 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
   let graph_shown = all_ui_visible && not (Pxui_shell.Layout.collapsed workspace Pxui_shell.Layout.Graph) in
   let listing = projection value = List_view in
   let texting = projection value = Text_view in
-  let text_cache = if texting && graph_shown then Some (printed_level value)
-    else value.text_cache in
+  let text, text_shown = match value.doc.Document.workspace, graph_name value with
+    | Some (ws, _), Some graph when texting && graph_shown ->
+        let selected = match Pxui_graph.Scope.selected value.scope_view with
+          | [ path ] -> Some path | _ -> None in
+        let text, shown = Text_pane.shown value.text ~source:ws.source ~graph ~selected in
+        text, Some shown
+    | _ -> value.text, None in
   let graph_view, command_changes = List.fold_left (fun (graph_view, changes) ->
     function
     | Leader.Graph_command (Walk (Pxui_graph.Up | Pxui_graph.Down))
       when graph_shown && listing -> graph_view, changes
-    | Leader.Graph_command (Walk direction) when graph_shown && texting ->
-        let selected = Option.bind text_cache (fun cache ->
-          move_text_selection cache (Pxui_graph.selected graph_view) direction) in
-        (match selected with Some id -> Pxui_graph.select id graph_view
-          | None -> graph_view), changes
     | Leader.Graph_command command when graph_shown ->
         let mx, my = frame.mouse in
         let graph_view, emitted = Pxui_graph.run_command ~at:(int_of_float mx, int_of_float my)
@@ -1481,8 +1402,6 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
       | Leader.List_command Pxui_shell.Tree.Activate_row when listing ->
           (match Pxui_shell.Tree.focused tree with
            | Some id -> Some id | None -> Pxui_graph.selected graph_view)
-      | Leader.List_command Pxui_shell.Tree.Activate_row when texting ->
-          Pxui_graph.selected graph_view
       | _ -> None) actions in
   let initial_frame_request = if List.mem Leader.Frame_camera actions
     then Some (Pxui_graph.viewed graph_view) else None in
@@ -1529,15 +1448,11 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
             ~selected:(selected ())) in
         tree, list_intents @ emitted
       else tree, list_intents in
-    let text_selected, text_toggle = match text_cache with
-      | Some cache when texting && not (Pxui_shell.Layout.collapsed workspace Pxui_shell.Layout.Graph) ->
+    let text_intents = match text_shown with
+      | Some shown when not (Pxui_shell.Layout.collapsed workspace Pxui_shell.Layout.Graph) ->
           Pxui.Ui.within ui graph_root (fun () ->
-            text_pane ui ~bounds:panes.graph ~title:(level_name value) cache
-              ~reveal:(List.exists (function
-                | Leader.Graph_command (Walk (Pxui_graph.Up | Pxui_graph.Down)) -> true
-                | _ -> false) actions)
-              ~selected:(Pxui_graph.selected graph_view))
-      | _ -> None, false in
+            Text_pane.view ui ~bounds:panes.graph text shown)
+      | _ -> [] in
     let scope_changes = scope_command_changes @ scope_frame_changes in
     let graph_changes = List.concat_map (function
       | Pxui_graph.Add_requested request when scope_active -> [ scope_add value request ]
@@ -1558,8 +1473,6 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
       | Pxui_shell.Tree.Select [] -> Pxui_graph.clear_selection view
       | Select ids -> Pxui_graph.select_nodes ids view
       | _ -> view) graph_view list_intents in
-    let graph_view = match text_selected with
-      | Some id -> Pxui_graph.select id graph_view | None -> graph_view in
     let inspector_visible = not (Pxui_shell.Layout.collapsed workspace Pxui_shell.Layout.Inspector) in
     let selected_ids = Pxui_graph.selected_nodes graph_view in
     let selected_id = match selected_ids with
@@ -1820,7 +1733,7 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
       timeline_intents; frame_request; prompt = None; prompt_intent = None;
       panel; grab; settings = unchanged; touched = false; placed = []; pasted = [];
       opened; live_cook; label = "Edit";
-      graph_changes; tree_intents = list_intents; text_toggle; open_graph;
+      graph_changes; tree_intents = list_intents; text_intents; open_graph;
       settings_changes;
       handle_changes; hide_guide } in
   let leader_panel = match leader with
@@ -1905,7 +1818,7 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
         settings = value.doc.settings; touched = false; placed = []; pasted = [];
         opened = None; live_cook = value.live_cook; label = "Edit";
         graph_changes = command_changes; tree_intents = list_intents;
-        text_toggle = false; open_graph;
+        text_intents = []; open_graph;
         settings_changes = []; handle_changes = None; hide_guide = false } in
   let guide = guide && not result.hide_guide in
   let guide_error = if guide = value.guide then None else
@@ -2390,7 +2303,8 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
     else if List.mem Leader.Toggle_projection actions && not (in_world value') then
       Level_map.add value'.level
         (match projection value' with Graph_view -> List_view
-          | List_view -> Text_view | Text_view -> Graph_view) value'.projections
+          | List_view -> if graph_name value' <> None then Text_view else Graph_view
+          | Text_view -> Graph_view) value'.projections
     else value'.projections in
   (* Switching to the graph frames it, so its tiles are on screen. *)
   let graph_view = if result.open_graph <> None then
@@ -2399,12 +2313,7 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
         && projection value' <> Graph_view
       then fst (Pxui_graph.run_command value'.graph_view Pxui_graph.Frame_all)
       else value'.graph_view in
-  let qualified_text = if result.text_toggle then
-      Level_map.add value.level
-        (not (Option.value ~default:false
-          (Level_map.find_opt value.level value.qualified_text))) value.qualified_text
-    else value.qualified_text in
-  let value' = { value' with projections; qualified_text; text_cache;
+  let value' = { value' with projections; text;
     rows = rows_cache; graph_view;
     live_cook = result.live_cook } in
   let frame_request = match result.frame_request, value'.level with
@@ -2458,13 +2367,13 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
               Some (lower lo a, upper hi b)) None cooked.cook.pieces)
     | framed, _ -> framed in
   let document_changed = doc != value.doc in
-  { core = { value' with timeline; cook = cooked.cook; lit = lit_cache; edit_error = cooked.edit_error;
+  { core = apply_text { value' with timeline; cook = cooked.cook; lit = lit_cache; edit_error = cooked.edit_error;
       status_fps; status_fps_at; history; guide; hud; focus = result.focus;
       pane_keys = result.pane_keys; leader; held_keys; prompt;
       queued = (match result.prompt_intent with Some (Run_action action) -> [action] | _ -> []);
       notice = if guide_error <> None then guide_error
         else if document_changed && Option.is_none loaded && not undone then None
-        else notice };
+        else notice } result.text_intents;
     effects; prepared_changed = cooked.prepared_changed;
     scene_changed = doc.scene != value.doc.scene || cooked.prepared_changed;
     framed;
@@ -2511,20 +2420,10 @@ let set_settings value settings =
    entry): the same reduction as a [Syntax_edit] intent, committed as one
    history entry named by the op ([Gesture] merge for a scrub). *)
 let syntax_edit value op =
-  Result.bind (Doc.syntax_edit ~factories:value.factories value.doc op) (fun doc ->
-    let level = Result.get_ok
-      (Document.resolve_level ~scene_level:value.scene_level doc value.level) in
-    let value' = { value with doc; level } in
-    Cook.set_volatile value.cook (match doc.workspace with
-      | Some (_, lowered) -> Flow_sop.Lower.is_volatile lowered
-      | None -> fun _ -> false);
-    Ok { value' with
-      history = commit ~label:(Flow_sop.Flow_edit.label op)
-        ~merge:(Option.fold ~none:Editor_core.History.Step
-          ~some:(fun key -> Editor_core.History.Gesture key) (Flow_sop.Flow_edit.gesture op))
-        doc value.history;
-      graph_view = Network_view.to_view (network value') value.graph_view
-        |> Pxui_graph.with_flagged (if level = Document.Scene then doc.active_camera else None) })
+  Result.map (fun doc -> install value doc ~label:(Flow_sop.Flow_edit.label op)
+    ~merge:(Option.fold ~none:Editor_core.History.Step
+      ~some:(fun key -> Editor_core.History.Gesture key) (Flow_sop.Flow_edit.gesture op)))
+    (Doc.syntax_edit ~factories:value.factories value.doc op)
 
 (* The scene's World at timeline [time] (the day cycle advances with it). *)
 let world value ~time = match Objects.ids "world" (scene value) with

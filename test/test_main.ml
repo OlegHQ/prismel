@@ -22,6 +22,7 @@ let tests = [
   "test_workspace_live", Test_workspace_live.run;
   "test_workspace_edit", Test_workspace_edit.run;
   "test_projection", Test_projection.run;
+  "test_text_pane", Test_text_pane.run;
   "test_probe", Test_probe.run;
   "test_viewport_pick", Test_viewport_pick.run;
   "bench_viewport_pick", Test_viewport_pick.bench;

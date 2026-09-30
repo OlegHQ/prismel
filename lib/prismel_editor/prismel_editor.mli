@@ -134,6 +134,19 @@ module Private : sig
         rest are dimmed (a vertex [Cd]); the empty set changes nothing. *)
   end
 
+  (** The workspace text pane's pure part: the text each tab shows. *)
+  module Text_pane : sig
+    type tab = Selection | Graph | Document
+    type shown = {
+      text : string;
+      mark : (int * int) option;
+      binding : (string list * string) option;
+      applied : string Lazy.t;
+    }
+    val make_shown : Flow.Syntax.t list -> string -> string list option -> tab -> shown
+    val line_of : string -> Flow.Diagnostic.t -> int option
+  end
+
   module Cook : sig
     type bounds = Prismel.Vec3.t * Prismel.Vec3.t
     type 'prepared piece = {

@@ -71,4 +71,5 @@ module Private = struct
   module Document = Document module Preset = Preset
   module Pick = Pick
   module Cook = Cook
+  module Text_pane = Text_pane
 end

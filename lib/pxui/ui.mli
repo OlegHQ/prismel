@@ -369,6 +369,19 @@ val slider : t -> string -> range:float * float -> float -> float
 val int_slider : t -> string -> range:int * int -> int -> int
 val text_field : t -> string -> string -> string
 
+val text_area :
+  t -> at:float * float -> w:float -> h:float -> ?readonly:bool ->
+  ?errors:int list -> ?spans:(int * int) list -> ?reveal:int ->
+  string -> string -> string
+(** [text_area ui ~at ~w ~h label text] is a scrolling multiline editor with a
+    line-number gutter, returning the edited text. It shares [text_field]'s
+    focus, IME composition, clipboard and caret code; Enter inserts a line,
+    Up/Down keep the column, Home/End are line-scoped, Escape leaves it.
+    [readonly] keeps the caret and selection (copy works) but never changes
+    the text. [errors] are 1-based lines marked in the gutter, [spans] byte
+    ranges tinted (a marked selection), and [reveal] a byte offset scrolled into
+    view once each time it or the text length changes. The value lives in the caller's model. *)
+
 val value_field : t -> at:float * float -> w:float -> h:float ->
   ?size:int -> ?display:string -> ?fraction:float ->
   ?slide:(float -> string) ->

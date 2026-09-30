@@ -2332,6 +2332,201 @@ let text_field ui text value =
     end);
   value
 
+(* Multiline text: the same focus, IME composition, clipboard and edit
+   events as [text_field] ([edit_text_event], the [ui.edit_*] retained
+   state); only Enter, the vertical keys and line-scoped Home/End are added,
+   and the pointer maps to (line, column).  ponytail: line starts are found
+   per frame (O(text)), only visible lines are drawn; no Tab insertion and no
+   wrapping. *)
+let text_width ui text =
+  match face ui None with
+  | None -> 0.
+  | Some font ->
+      let density = float ui.density in
+      let rec sum index width =
+        if index >= String.length text then width else
+          let decoded = String.get_utf_8_uchar text index in
+          let advance = match glyph ui.atlas font ~density:ui.density
+              (Uchar.to_int (Uchar.utf_decode_uchar decoded)) with
+            | Some glyph -> float glyph.advance /. density | None -> 0. in
+          sum (index + Uchar.utf_decode_length decoded) (width +. advance) in
+      sum 0 0.
+
+let line_starts text =
+  let starts = ref [ 0 ] in
+  String.iteri (fun index c -> if c = '\n' then starts := (index + 1) :: !starts) text;
+  Array.of_list (List.rev !starts)
+
+(* the line holding byte [index] *)
+let line_at starts index =
+  let rec seek low high =
+    if low >= high then low else
+      let middle = (low + high + 1) / 2 in
+      if starts.(middle) <= index then seek middle high else seek low (middle - 1) in
+  seek 0 (Array.length starts - 1)
+
+let text_area ui ~at ~w ~h ?(readonly = false) ?(errors = []) ?(spans = []) ?reveal
+    label text =
+  let row = float ui.kit_row_height in
+  let body = box ui ~flags:(clickable lor focusable lor blocking lor scroll lor clip)
+      ~at ~w:(Px w) ~h:(Px h) ~scroll_step:row label in
+  let starts = line_starts text in
+  let count = Array.length starts in
+  let line_stop line = if line + 1 < count then starts.(line + 1) - 1 else String.length text in
+  let line_text line = String.sub text starts.(line) (line_stop line - starts.(line)) in
+  let content = within ui body (fun () ->
+    box ui ~w:(Px w) ~h:(Px (float count *. row)) (label ^ "-content")) in
+  let signal = signal ui body in
+  let focused = focused ui body in
+  let char_w = text_width ui "0" in
+  let gutter = 12. +. char_w *. float (max 3 (String.length (string_of_int count))) in
+  let bx, by, bw, bh = rect ui body in
+  let horizontal = ref (float (state ui body ~default:0)) in
+  let point_at (px, py) =
+    let line = max 0 (min (count - 1)
+      (int_of_float (Float.floor ((py -. by +. scroll_offset ui body) /. row)))) in
+    let x = Float.max 0. (px -. bx -. gutter -. 8. +. !horizontal) in
+    starts.(line) + text_caret_at ui (line_text line) x in
+  let edit = if focused then load_text_edit ui body.box_key text
+    else { text; caret = String.length text; anchor = String.length text } in
+  let moved = ref false in
+  if focused then begin
+    let caret0 = edit.caret in
+    if signal.pressed && signal.button = Some Input.LeftButton then begin
+      edit.caret <- point_at signal.press_point;
+      if not (press_shift ui body) then edit.anchor <- edit.caret
+    end else if signal.dragging || (signal.held && signal.pointer <> signal.press_point) then
+      edit.caret <- point_at signal.pointer;
+    List.iter (fun ((event : Event.t), modifiers) ->
+      let command = command_modifiers modifiers and shift = List.mem Input.Shift modifiers in
+      let starts = line_starts edit.text in
+      let count = Array.length starts in
+      let line_stop line = if line + 1 < count then starts.(line + 1) - 1
+        else String.length edit.text in
+      let line_text line = String.sub edit.text starts.(line) (line_stop line - starts.(line)) in
+      let x_of line index = text_width ui
+        (String.sub edit.text starts.(line) (index - starts.(line))) in
+      let line = line_at starts edit.caret in
+      let move target = edit.caret <- target; if not shift then edit.anchor <- target in
+      let vertical step =
+        let target = line + step in
+        if target < 0 then move 0
+        else if target >= count then move (String.length edit.text)
+        else move (starts.(target)
+          + text_caret_at ui (line_text target) (x_of line edit.caret)) in
+      match event with
+      | Event.KeyPressed Input.Escape -> unfocus ui
+      | Event.KeyPressed Input.Enter when not command ->
+          if not readonly then replace_text edit "\n"
+      | Event.KeyPressed Input.ArrowUp -> vertical (-1)
+      | Event.KeyPressed Input.ArrowDown -> vertical 1
+      | Event.KeyPressed (Input.Home | Input.ArrowLeft) when command || event = Event.KeyPressed Input.Home ->
+          move starts.(line)
+      | Event.KeyPressed (Input.End | Input.ArrowRight) when command || event = Event.KeyPressed Input.End ->
+          move (line_stop line)
+      | event ->
+          let before = edit.text, edit.caret, edit.anchor in
+          if edit_text_event edit ~accept:(fun _ -> true) ~modifiers event && readonly
+          then (let text, caret, anchor = before in
+                edit.text <- text; edit.caret <- caret; edit.anchor <- anchor))
+      (key_events ui body);
+    save_text_edit ui edit;
+    moved := edit.caret <> caret0 || edit.text != text || signal.pressed
+  end;
+  (* scrolling: the wheel, then whatever keeps the caret (or [reveal]) in view *)
+  let final = edit.text in
+  let starts = if final == text then starts else line_starts final in
+  let count = Array.length starts in
+  (* [reveal] scrolls once per (offset, length): the content box remembers it *)
+  let revealed = match reveal with
+    | Some index when bw > 0.
+        && state ui content ~default:0 <> (index * 1_000_003) + String.length final + 1 ->
+        set_state ui content ((index * 1_000_003) + String.length final + 1); Some index
+    | _ -> None in
+  let target = if !moved then Some edit.caret
+    else Option.map (fun index -> min (String.length final) index) revealed in
+  let longest = ref 0 in
+  Array.iteri (fun i start ->
+    let stop = if i + 1 < count then starts.(i + 1) - 1 else String.length final in
+    longest := max !longest (stop - start)) starts;
+  let visible = Float.max 1. (bw -. gutter -. 16.) in
+  let max_x = Float.max 0. (float !longest *. char_w -. visible) in
+  horizontal := Float.max 0. (Float.min max_x (!horizontal +. fst signal.scroll *. row));
+  let vertical = ref (Float.max 0. (Float.min (Float.max 0. (float count *. row -. bh))
+    (scroll_offset ui body))) in
+  Option.iter (fun index ->
+    let line = line_at starts index in
+    let top = float line *. row in
+    if top < !vertical then vertical := top
+    else if top +. row > !vertical +. bh then vertical := top +. row -. bh;
+    let stop = if line + 1 < count then starts.(line + 1) - 1 else String.length final in
+    let x = text_width ui (String.sub final starts.(line) (min index stop - starts.(line))) in
+    if x < !horizontal then horizontal := x
+    else if x -. !horizontal > visible then horizontal := x -. visible) target;
+  set_state ui body (int_of_float !horizontal);
+  if !vertical <> scroll_offset ui body then set_scroll_offset ui body !vertical;
+  let offset = !vertical and horizontal = !horizontal in
+  let theme = ui.theme and composition = ui.composition in
+  draw ui body (fun paint (bx, by, bw, bh) ->
+    let width text = Paint.text_width paint text /. paint.scale in
+    Paint.rect paint ~x:bx ~y:by ~w:bw ~h:bh ~fill:(if readonly then theme.panel else theme.input)
+      ~stroke:(if focused then theme.accent else Theme.border theme) ();
+    let previous = paint.clip_rect in
+    let clip x w = paint.clip_rect <- intersect previous
+      ((x *. paint.scale) +. paint.tx, (by *. paint.scale) +. paint.ty,
+       w *. paint.scale, bh *. paint.scale) in
+    let text_x = bx +. gutter +. 8. -. horizontal in
+    Paint.fill paint ~x:bx ~y:by ~w:gutter ~h:bh (Color.with_alpha theme.foreground 14);
+    let first = max 0 (int_of_float (Float.floor (offset /. row)))
+    and last = min (count - 1) (int_of_float (Float.floor ((offset +. bh) /. row))) in
+    let caret_line = line_at starts edit.caret in
+    let selected = focused && edit.caret <> edit.anchor in
+    let s0, s1 = text_selection edit in
+    let band line (start, stop) color y =
+      let ls = starts.(line) and le = if line + 1 < count then starts.(line + 1) - 1
+        else String.length final in
+      let start = max start ls and stop = min stop le in
+      if start < stop || (start <= le && stop > le) then
+        let x0 = width (String.sub final ls (min start le - ls)) in
+        let x1 = if stop > le then width (String.sub final ls (le - ls)) +. char_w
+          else width (String.sub final ls (stop - ls)) in
+        Paint.fill paint ~x:(text_x +. x0) ~y ~w:(Float.max 1. (x1 -. x0)) ~h:row color in
+    for line = first to last do
+      let y = by -. offset +. float line *. row in
+      let text_y = y +. float (label_y ui 0 ui.kit_row_height) in
+      clip bx bw;
+      if List.mem (line + 1) errors then begin
+        Paint.fill paint ~x:bx ~y ~w:bw ~h:row (Color.with_alpha Theme.invalid 40);
+        Paint.fill paint ~x:bx ~y ~w:3. ~h:row Theme.invalid
+      end;
+      let number = string_of_int (line + 1) in
+      Paint.text paint ~at:(bx +. gutter -. 6. -. width number, text_y)
+        ~color:(if List.mem (line + 1) errors then Theme.invalid else Theme.muted theme) number;
+      clip (bx +. gutter) (bw -. gutter);
+      List.iter (fun span -> band line span (Color.with_alpha theme.accent 70) y) spans;
+      if selected then band line (s0, s1) (Color.with_alpha theme.accent 100) y;
+      let line_str = String.sub final starts.(line)
+        ((if line + 1 < count then starts.(line + 1) - 1 else String.length final) - starts.(line)) in
+      if focused && line = caret_line && composition <> "" then begin
+        let before = String.sub final starts.(line) (edit.caret - starts.(line)) in
+        let caret_x = text_x +. width before in
+        Paint.text paint ~at:(text_x, text_y) ~color:theme.foreground before;
+        Paint.text paint ~at:(caret_x, text_y) ~color:theme.foreground composition;
+        Paint.text paint ~at:(caret_x +. width composition, text_y) ~color:theme.foreground
+          (String.sub line_str (String.length before) (String.length line_str - String.length before))
+      end else Paint.text paint ~at:(text_x, text_y) ~color:theme.foreground line_str
+    done;
+    clip (bx +. gutter) (bw -. gutter);
+    if focused then begin
+      let y = by -. offset +. float caret_line *. row in
+      let caret_x = text_x +. width (String.sub final starts.(caret_line)
+        (edit.caret - starts.(caret_line))) in
+      Paint.input_region paint ~x:bx ~y ~w:bw ~h:row ~focused:true ~cursor:(caret_x -. bx) ();
+      Paint.line paint ~from_:(caret_x, y +. 2.) ~to_:(caret_x, y +. row -. 2.) ~width:1. theme.accent
+    end else Paint.input_region paint ~x:bx ~y:by ~w:bw ~h:bh ~focused:false ();
+    paint.clip_rect <- previous);
+  final
+
 let choice ui text options selected =
   let options = Array.of_list options in
   let count = Array.length options in

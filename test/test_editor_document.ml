@@ -696,8 +696,7 @@ let run () =
       done;
       check (predicate !value) "cook did not settle" in
     settle (fun env -> prepared env <> None);
-    if scene_level then (step [key Input.Space; char 'l'];
-      step [key Input.Space; char 'l']);
+    if scene_level then step [key Input.Space; char 'l'];
     step [];
     let delete label =
       let tile = List.find (fun tile -> tile.Pxui_graph.label = label) (graph_nodes !value) in

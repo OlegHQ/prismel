@@ -617,12 +617,13 @@ module Make (V : VIEWPORT) = struct
     let history = core.history in
     Out_channel.with_open_text (Filename.concat directory "editor.txt") (fun channel ->
       Printf.fprintf channel
-        "level: %s\nprojection: %s\nmap view: %b\nguide: %b\nkey hud: %s\nselected: %s\nfocus: %s\n\
+        "level: %s\nprojection: %s\ntext: %s\nmap view: %b\nguide: %b\nkey hud: %s\nselected: %s\nfocus: %s\n\
          undo: %s (%d entries)\nredo: %s\ncook: %s\nedit error: %s\n\
          load document.plisp with Space b (workspace documents only) after copying it to %s\n"
         (Core.level_name core)
         (match Core.projection core with Core.List_view -> "list"
           | Graph_view -> "graph" | Text_view -> "text")
+        (Text_pane.summary core.text)
         core.map_view core.guide (Option.fold ~none:"-" ~some:fst core.hud)
         (Option.fold ~none:"none" ~some:(fun node ->
           Printf.sprintf "%s (#%d, %s)" (Node.label node) (Node.id node) (Node.operation node))

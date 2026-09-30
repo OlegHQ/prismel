@@ -631,6 +631,67 @@ let run () =
   menu [press (300, 200)];
   if !result <> `Dismiss then fail "press outside did not dismiss the context menu";
   Ui.destroy ui;
+  (* Text areas: the text_field edit and IME path over lines. *)
+  let area = ref "" and readonly = ref false and errors = ref [] in
+  let ui = Ui.create () and time = ref 0. in
+  let area_step ?(keys = []) events =
+    time := !time +. 0.5;
+    ignore (Ui.frame ui { (frame ~scale:1. ~time:!time events) with keys } (fun ui ->
+      area := Ui.text_area ui ~at:(0., 0.) ~w:300. ~h:96. ~readonly:!readonly
+        ~errors:!errors "area" !area)) in
+  let region () = match Scene.Private.text_regions (Ui.scene ui) with
+    | [(_, y, _, _, true, cursor)] -> y, cursor
+    | _ -> fail "text area lost its IME region" in
+  let expect what want = if !area <> want then
+    fail (Printf.sprintf "text area %s: %S" what !area) in
+  area_step [];
+  area_step [press (150, 12); release (150, 12); Event.TextInput "ab"; Event.KeyPressed Input.Enter;
+    Event.TextInput "cd"];
+  expect "insert and Enter" "ab\ncd";
+  area_step [Event.KeyPressed Input.ArrowUp; Event.TextInput "X"];
+  expect "Up keeps the column" "abX\ncd";
+  area_step [Event.KeyPressed Input.Home; Event.TextInput "_"];
+  expect "Home is line-scoped" "_abX\ncd";
+  area_step [Event.KeyPressed Input.ArrowDown; Event.KeyPressed Input.End; Event.KeyPressed Input.Backspace];
+  expect "Down then End then Backspace" "_abX\nc";
+  area_step [Event.KeyPressed Input.Delete];
+  expect "Delete at the end" "_abX\nc";
+  let cursor = snd (region ()) in
+  area_step [Event.TextEditing { text = "e"; start = 0; length = 1 }];
+  if snd (region ()) <> cursor then fail "composition moved the caret";
+  area_step [Event.TextInput "é"];
+  expect "IME commit" "_abX\ncé";
+  let previous_clipboard = Clipboard.get_text () in
+  Fun.protect ~finally:(fun () -> match previous_clipboard with
+    | Ok text -> ignore (Clipboard.set_text text) | Error _ -> ()) (fun () ->
+    area_step ~keys:[Input.Shift] [Event.KeyPressed Input.ArrowLeft];
+    area_step ~keys:[Input.Meta] [Event.KeyPressed (Input.KeyChar 'c')];
+    if Clipboard.get_text () <> Ok "é" then fail "text area copy ignored the selection";
+    area_step ~keys:[Input.Meta] [Event.KeyPressed (Input.KeyChar 'a')];
+    area_step ~keys:[Input.Meta] [Event.KeyPressed (Input.KeyChar 'x')];
+    expect "cut all" "";
+    if Clipboard.get_text () <> Ok "_abX\ncé" then fail "text area cut lost the text";
+    area_step ~keys:[Input.Meta] [Event.KeyPressed (Input.KeyChar 'v')];
+    expect "paste keeps the newline" "_abX\ncé";
+    readonly := true;
+    area_step [Event.TextInput "no"; Event.KeyPressed Input.Backspace; Event.KeyPressed Input.Enter];
+    expect "readonly" "_abX\ncé";
+    area_step ~keys:[Input.Meta] [Event.KeyPressed (Input.KeyChar 'a')];
+    area_step ~keys:[Input.Meta] [Event.KeyPressed (Input.KeyChar 'c')];
+    if Clipboard.get_text () <> Ok "_abX\ncé" then fail "readonly text area cannot copy";
+    readonly := false);
+  (* scrolling: the caret line stays inside the 96-point area *)
+  area := String.concat "\n" (List.init 40 string_of_int);
+  errors := [ 3; 40 ];
+  area_step [press (150, 12); release (150, 12)];
+  area_step ~keys:[Input.Meta] [Event.KeyPressed Input.ArrowDown];
+  for _ = 1 to 39 do area_step [Event.KeyPressed Input.ArrowDown] done;
+  area_step [];
+  let y, _ = region () in
+  if y < 0 || y > 96 then fail (Printf.sprintf "caret line left the area (y %d)" y);
+  area_step [Event.KeyPressed Input.Escape];
+  if Ui.text_input_focused ui then fail "Escape did not leave the text area";
+  Ui.destroy ui;
   (* Modal: centered, and Escape or a press outside dismisses it. *)
   let ui = Ui.create () and shown = ref None in
   let modal events = Ui.frame ui (frame ~scale:1. ~time:0. events) (fun ui ->

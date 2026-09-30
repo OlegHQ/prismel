@@ -236,3 +236,17 @@ the events the UI did not consume) reaches `Core.pick` through
 `VIEWPORT.pick_ray`; the highlight is `Core.lit_tags` (selection and probes)
 handed to `Cook.update ?lit`, which prepares a piece again from its kept
 `output`. Never recook or lower for a highlight.
+
+## Workspace text pane (W7)
+
+`Space l` from the list opens `Text_pane` for a workspace graph object (no
+other document has a text projection). `Core.text` is its view state: tab,
+Document draft, binding draft and the errors of the last refused apply; the
+draft is never in the document. `Text_pane.view` runs inside `Ui.frame` and
+only returns intents; `Core.apply_text` folds them after the frame. A Check &
+apply goes through `Doc.text_edit` (whole text, layout and settings kept) or
+`Doc.syntax_edit` with `Set_arg { key = Whole }` (one binding) and is one
+history entry "Edit text" (`Core.install`, shared with `Core.syntax_edit`). The
+text itself comes from `Flow.Lisp.print` and its span map; keep new text
+features on that map, never on string search. Text entry is `Ui.text_area`
+only.

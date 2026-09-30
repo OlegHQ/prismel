@@ -17,7 +17,7 @@ Status: `todo` · `wip` · `done` (gate met) · `partial` (what is missing is na
 | W4 graph pane zones | done | | Part A (`Flow_sop.Projection`, `Rest`) and part B (`Pxui_graph.Scope`, zone tokens, selectors, `Core` wiring, layout by path, probes); see the W4 part B notes and `flow-migration.md`. Gaps: no marquee (the inspector follows the selection since W5), the flat pane remains for non-workspace documents, only `sop` graphs open. |
 | W5 probes & footers | done | | `Flow_sop.Probe` (records, footers, counts, inspector rows), `Pxui_graph.Scope.with_records`, cook geometry counts piggybacked on the display cook, the workspace inspector, the `t N live · M cached` status, auto-select of an added node (notes below). Gaps: no zone footer while expanded, the geometry of a node that is not upstream of the display shows only its type. |
 | W6 viewport provenance | done | | `Pdk_prismel.Prismel_mesh.to_mesh_with_primitives`, global `__flow_src` tags that survive nested merges, `Pick` (CPU ray over `Pdk.Surface_index`, per-corner tint), `Core.pick`, the highlight follows the selection and probes; click in Viewport3 selects the node and probes its iteration (notes below). Gaps: geometry drawn as instances is not picked, a collapsed zone stays collapsed. |
-| W7 editable text | todo | | |
+| W7 editable text | done | | `Ui.text_area`, the text pane's Selection, Graph and Document tabs (`Prismel_editor.Text_pane`), atomic Check & apply (`Doc.text_edit`, `Core.text_edit`/`binding_edit`, one "Edit text" entry), per-binding apply, error marks at their line; the old read-only text pane and the flat network text view are deleted (notes below). Gaps: the Graph tab is read-only, no Tab key, wrapping or Cmd-Enter apply. |
 | W8 loops over geometry | todo | | |
 | W9 macros UI, notes, bypass | todo | | |
 | W10 contexts & composable shell | todo | | |
@@ -366,3 +366,39 @@ Status: `todo` · `wip` · `done` (gate met) · `partial` (what is missing is na
   (`ponytail:` move both to the worker or use the ID buffer); instanced pieces
   are not picked; a pick inside a collapsed zone selects the node but the zone
   stays collapsed (expanding it is a layout edit); `Viewport2` never picks.
+- W7 notes. `Ui.text_area ui ~at ~w ~h ?readonly ?errors ?spans ?reveal label text`
+  returns the edited text. It is `text_field`'s path over lines: the same
+  `ui.edit_*` state and `load_text_edit` / `save_text_edit`, the same
+  `edit_text_event` (clipboard through `Clipboard`, IME composition and
+  `input_region`, Backspace/Delete/arrows); added are Enter (a newline), Up and
+  Down (column kept), line-scoped Home/End/Cmd-arrows, Escape leaving, pointer to
+  (line, column), the wheel and follow-the-caret scrolling, a line-number gutter
+  and error lines. `ponytail:` line starts are recomputed per frame (O(text)),
+  only visible lines are drawn, no wrapping and no Tab insertion. Only additive to
+  the kit: no parity fixture (the gutter and marks are new pixels outside the
+  guarded rows). The pane keeps `Text_pane.state` in `Core.text` (view state, not
+  history): tab, the Document draft, the binding draft and the errors of the
+  last refused apply. The draft lives there, never in the document; every other
+  pane reads the applied document. Selection prints the top-level ancestor of
+  the selected binding as a `let*` over the root bindings it needs (a note names
+  the count and the graph inputs it reads) with the binding marked from the
+  printer's span map, and edits the selected binding's expression (one
+  `Set_arg { key = Whole }` through `Doc.syntax_edit`); Document applies
+  `Workspace_doc.of_text` with the current layout (keyed by path) and settings
+  kept. A refused apply keeps the draft and its errors (line from
+  `Diagnostic.position`, else the span), marks the line in the gutter, shows the
+  message under the buttons and in the status text while the pane is open.
+  Errors persist until the next apply or Discard; a line mark can
+  drift while typing (`ponytail:`). Binding-apply errors from the checker carry
+  no line (they are checked in the whole workspace). Deleted: `Core.text_pane`,
+  `printed_level`, `text_cache`, the qualified-name toggle and j/k text walking;
+  the text projection exists only for a workspace graph object, so `Space l` on
+  any other document cycles list and graph (tests updated). Tests:
+  `test_ui` (text_area: insert, Enter, Up, Home/End, Delete, IME, copy/cut/paste,
+  readonly, scrolling, Escape), `test_text_pane` (Sunflower and Bloom closures and
+  marks, error lines, then the editor driven through the UI: draft, Discard,
+  invalid apply at the right line with the document `==` unchanged, apply, one
+  "Edit text" entry, undo and redo labels). Native: `FLOW_TEXT=selection|graph|
+  edit|error|binding` on `sketches/flow_workspace`; each tab, a typed edit
+  (240 to 60 seeds re-cooked), a refused edit (line 6 marked) and a binding edit
+  were read from the PNGs.

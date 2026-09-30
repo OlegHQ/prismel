@@ -36,15 +36,12 @@ let ui_bytes scene =
           Some (Bytes.to_string (Scene_command.Ui_batch.instances batch))
       | _ -> None) staged.layers)
 
-(* The scene opens as a list; two [Space l] cycles show the graph, where a
+(* The scene opens as a list; [Space l] shows the graph, where a
    double-click on geo1 enters its SOP network. *)
 let enter_geo1 ?(toggle = true) ~update ~graph_nodes environment count =
   let environment = if not toggle then environment else
     update environment (frame ~events:[Event.KeyPressed Input.Space;
       Event.KeyPressed (Input.KeyChar 'l')] count) in
-  let environment = if not toggle then environment else
-    update environment (frame ~events:[Event.KeyPressed Input.Space;
-      Event.KeyPressed (Input.KeyChar 'l')] (count + 1)) in
   let environment = update environment (frame (count + 2)) in
   let tile = List.find (fun tile -> tile.Pxui_graph.label = "geo1")
       (graph_nodes environment) in
@@ -504,8 +501,6 @@ let run () =
   (* Cameras are scene objects: show the scene as a graph to click them. *)
   let environment = Prismel_editor.Editor3.update environment
       (frame ~events:[Event.KeyPressed Input.Space; Event.KeyPressed (Input.KeyChar 'l')] 0) in
-  let environment = Prismel_editor.Editor3.update environment
-      (frame ~events:[Event.KeyPressed Input.Space; Event.KeyPressed (Input.KeyChar 'l')] 1) in
   let environment = List.fold_left (fun environment count ->
       Prismel_editor.Editor3.update environment (frame count)) environment [0; 1; 2] in
   check (not (Prismel_editor.Editor3.can_undo environment)

@@ -115,6 +115,19 @@ let syntax_edit ~factories (doc : Editor_document.Document.t) op =
       let* workspace = flow (Editor_document.Workspace_doc.edit catalog workspace op) in
       flow (Editor_document.Document.of_workspace ~factories ~previous:doc workspace)
 
+(* The whole workspace text, edited (plan W7): parsed and checked as a
+   document, lowered, atomic.  The layout (keyed by path) and settings stay. *)
+let text_edit ~factories (doc : Editor_document.Document.t) text =
+  match doc.workspace with
+  | None -> Error [ Flow.Diagnostic.error ~code:"E_DOCUMENT" "This document is not a workspace." ]
+  | Some (workspace, _) ->
+      let ( let* ) = Result.bind in
+      let one result = Result.map_error (fun d -> [ d ]) result in
+      let* catalog = one (Flow_sop.Catalog.of_factories ~version:Flow_sop.Manifest.version factories) in
+      let* edited = Editor_document.Workspace_doc.of_text ~settings:workspace.settings catalog text in
+      one (Editor_document.Document.of_workspace ~factories ~previous:doc
+        { edited with layout = workspace.layout; settings = workspace.settings })
+
 (* Folds one graph intent into the document and view; [placed] collects the
    ids whose tile position this frame set, moved, or removed, so the undo
    document re-reads only those, and [pasted] the (source, copy) id pairs. *)
