@@ -440,21 +440,49 @@ let origins (graph : W.graph) value =
   let env = List.filter_map (fun (p, t) -> match p with W.Name n -> Some (n, t) | _ -> None) bindings in
   let found = ref [] in
   let add path o = found := (List.rev path, o) :: !found in
-  let rec walk current path (t : W.term) (v : E.value) = match t.node, v with
+  (* a panel that is not a name is written in place: the argument [key] of the call around it *)
+  let inline home path key (t : W.term) = match t.node with
+    | W.Ref_binding (_, []) | W.Loop _ -> ()
+    | _ -> add path (Document.Inline (home, key)) in
+  let rec walk place path (t : W.term) (v : E.value) =
+    let here () = match t.path, place with
+      | Some p, _ -> Document.Bound_at p
+      | None, Some (parent, key) -> Document.Inline_in (parent, key)
+      | None, None -> Document.Looped in
+    let pos i = Flow_sop.Flow_edit.Pos i in
+    match t.node, v with
     | W.Ref_binding (n, []), _ ->
         add path (Document.Bound n);
-        Option.iter (fun t' -> walk n path t' v) (List.assoc_opt n env)
-    | W.Op { op = "ui/workspace"; args = [ _, r ] }, E.Struct (_, [ _, rv ]) -> walk current path r rv
+        Option.iter (fun t' -> walk None path t' v) (List.assoc_opt n env)
+    | W.Op { op = "ui/workspace"; args = [ _, r ] }, E.Struct (_, [ _, rv ]) ->
+        let h = here () in
+        inline h path (pos 0) r;
+        walk (Some (h, pos 0)) path r rv
     | W.Op { op = "ui/split" | "ui/split-at"; args }, E.Struct (_, vargs) ->
+        let h = here () in
         List.iteri (fun i key -> match List.assoc_opt key args, List.assoc_opt key vargs with
-          | Some a, Some va -> walk current (i :: path) a va | _ -> ()) [ "first"; "second" ]
-    | W.Op { op = "ui/floating"; args = [ _, a ] }, E.Struct (_, [ _, va ]) -> walk current (0 :: path) a va
+          | Some a, Some va ->
+              let k = pos (Option.get (List.find_index (fun (n, _) -> n = key) args)) in
+              inline h (i :: path) k a;
+              walk (Some (h, k)) (i :: path) a va
+          | _ -> ()) [ "first"; "second" ]
+    | W.Op { op = "ui/floating"; args = [ _, a ] }, E.Struct (_, [ _, va ]) ->
+        let h = here () in
+        inline h (0 :: path) (pos 0) a;
+        walk (Some (h, pos 0)) (0 :: path) a va
     | W.Op { op = "ui/tile"; args }, E.Struct (_, vargs) ->
+        let h = here () in
         if List.exists (fun (_, (a : W.term)) -> match a.node with W.Loop _ -> true | _ -> false) args
-        then List.iteri (fun i _ -> add (i :: path) (Document.Loop current)) vargs
-        else List.iteri (fun i (_, a) -> Option.iter (walk current (i :: path) a) (List.nth_opt (List.map snd vargs) i)) args
+        then begin
+          let key = pos (Option.get (List.find_index (fun (_, (a : W.term)) ->
+            match a.node with W.Loop _ -> true | _ -> false) args)) in
+          List.iteri (fun i _ -> add (i :: path) (Document.Loop (h, key))) vargs
+        end
+        else List.iteri (fun i (_, a) ->
+          inline h (i :: path) (pos i) a;
+          Option.iter (walk (Some (h, pos i)) (i :: path) a) (List.nth_opt (List.map snd vargs) i)) args
     | _ -> () in
-  walk "" [] result value;
+  walk None [] result value;
   !found
 
 let editor (workspace : Workspace_doc.t) (plan : E.plan) =

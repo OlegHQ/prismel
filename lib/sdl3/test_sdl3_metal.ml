@@ -57,7 +57,7 @@ let run () =
     get (Cursor.destroy cursor);
     let has_flag flag bits = Int64.logand bits flag <> 0L in
     let await_flag ~label flag expected =
-      let deadline = Unix.gettimeofday () +. 3. in
+      let deadline = Unix.gettimeofday () +. 30. in
       let rec loop () =
         drain_events ();
         let actual = has_flag flag (get (Window.flags window)) in

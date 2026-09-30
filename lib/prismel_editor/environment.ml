@@ -315,7 +315,7 @@ module Make (V : VIEWPORT) = struct
   let create ?(layout = Pxui_shell.Layout.default) ?name ?presets ?timeline_frames ?factories
       ?settings ?(commands = []) ?(lights = []) ?world
       ?(camera = V.default_camera ()) ?lens ?(background = Color.hex_exn "#f4f5f0")
-      ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~workspace ?source ~prepare ~draw
+      ?seed ?grain ?domains ?max_entries ?max_payload_bytes ?await ~workspace ?source ~prepare ~draw
       ?(overlay = fun _ _ _ -> Scene.empty) ?(status = fun _ -> None) () =
     let open Editor_core.Command in
     let normalize_key = function Input.KeyChar c -> Input.KeyChar (Char.lowercase_ascii c)
@@ -379,7 +379,7 @@ module Make (V : VIEWPORT) = struct
         ~seed_scene:(fun factories scene ->
           V.seed_scene ?lens camera factories (seed_lights lights scene))
         ~layout ?name ?presets ?timeline_frames ?factories ?seed ?grain ?domains
-        ?max_entries ?max_payload_bytes ~workspace ~prepare ()))
+        ?max_entries ?max_payload_bytes ?await ~workspace ~prepare ()))
 
   let graph value = Core.graph value.core
   let document value = Core.document value.core

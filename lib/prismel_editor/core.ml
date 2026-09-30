@@ -53,6 +53,11 @@ type shell = {
    of a scene object or World layer (the inspector), a message. *)
 type change =
   | Syntax_edit of Flow_sop.Flow_edit.op
+  | Syntax_inline of { home : Document.home; key : Flow_sop.Flow_edit.arg_key;
+                       make : Flow.Workspace.path -> Flow_sop.Flow_edit.op }
+      (** the expression at [key] of the call at [home] is written in place: the call is bound to
+          a name first, then the expression, and [make] gives the gesture on that name (several
+          rewrites, one history entry) *)
   | Notice of string
   | Set_parameter of { node : int; path : string; value : Parameter.value }
   | Rename of { node : int; label : string }
@@ -254,9 +259,26 @@ let workspace_inspector value ui ~width path =
   let module Probe = Flow_sop.Probe in
   let module S = Flow.Syntax in
   match value.scope_key, value.doc.Document.workspace with
-  | Some { scope; records = Some records; _ }, (_, lowered) ->
+  | Some { scope; records = Some records; graph; _ }, (_, lowered) ->
       (match P.find scope path with
-       | None -> [], []
+       | None ->
+           (* a graph input: its type, and its default as one Lisp form (the pane's field, here) *)
+           (match List.find_opt (fun (i : P.input) -> i.path = path) scope.inputs with
+            | None -> [], []
+            | Some input ->
+                ignore (Pxui.Ui.inspector_header ui ~key:"ws-input" ~title:input.name
+                  ~detail:("input · " ^ Flow.Ty.to_string input.ty));
+                let shown = match input.default with Some d -> Flow.Lisp.flat d | None -> "" in
+                let box, cx, cy, cw = Pxui.Ui.inspector_row ui ~width ~key:"ws-input-default" ~label:"default" () in
+                let text = Pxui.Ui.within ui box (fun () ->
+                  fst (Pxui.Ui.value_field ui ~at:(cx, cy) ~w:cw ~h:21. ~size:11
+                    ~valid:(fun t -> String.trim t <> "") "ws-input-default-field" shown)) in
+                (match (if text = shown then Ok [] else Flow.Syntax.parse text) with
+                 | Ok [ form ] ->
+                     [ Syntax_edit (Flow_sop.Flow_edit.Set_input_default { form = graph; input = input.name; value = form }) ], []
+                 | Ok [] -> [], []
+                 | Ok _ -> [ Notice "A default is one Lisp form" ], []
+                 | Error d -> [ Notice ("Default: " ^ d.Flow.Diagnostic.message) ], []))
        | Some n ->
            let probe p = Option.value ~default:0 (Layout_by_path.Path_map.find_opt p value.probes) in
            let chain = Option.value ~default:[] (Hashtbl.find_opt (Probe.chains scope) n.path) in
@@ -291,6 +313,27 @@ let workspace_inspector value ui ~width path =
                if text = current then []
                else [ Syntax_edit (Flow_sop.Flow_edit.Set_note { node = n.path; text }) ]
              end end in
+           (* the node's name: editing it is the pane's Rename (the text's binding name) *)
+           let rename = if n.synthetic then [] else begin
+             let box, cx, cy, cw = Pxui.Ui.inspector_row ui ~width ~key:"ws-rename" ~label:"name" () in
+             let text = Pxui.Ui.within ui box (fun () ->
+               fst (Pxui.Ui.value_field ui ~at:(cx, cy) ~w:cw ~h:21. ~size:11
+                 ~valid:(fun t -> Flow.Symbol.valid_name t) "ws-rename-field" n.name)) in
+             if text = n.name then [] else [ Syntax_edit (Flow_sop.Flow_edit.Rename { node = n.path; to_ = text }) ]
+           end in
+           (* the items of a list or a string: each can move up a place *)
+           let movers = if n.synthetic || not (List.mem n.head [ "list"; "str" ]) then [] else
+             List.concat_map (fun (r : P.row) -> match r.key with
+               | Flow_sop.Flow_edit.Pos k when k >= 1 && k < 24 ->
+                   if Pxui.Ui.inspector_button ui ~key:(Printf.sprintf "ws-move-%d" k)
+                       (Printf.sprintf "Move item %d up" (k + 1))
+                   then [ Syntax_edit (Flow_sop.Flow_edit.Move_item { node = n.path; pos = k }) ] else []
+               | _ -> []) n.rows in
+           (* the B flag of the card, as a toggle: a bypassed call passes its first input through *)
+           let bypass = if not (P.bypassable n) then [] else begin
+             let on = Pxui.Ui.inspector_toggle ui ~key:"ws-bypass" ~label:"Bypass" n.bypass in
+             if on <> n.bypass then [ Syntax_edit (Flow_sop.Flow_edit.Toggle_bypass { node = n.path }) ] else []
+           end in
            let node = Option.bind (Probe.plan_node records n.path ~probes) (fun id ->
              Option.bind (Flow_sop.Network.Int_map.find_opt id lowered.compiled) (fun node_id ->
                Edit_graph.find (document value) ~node_id)) in
@@ -368,7 +411,7 @@ let workspace_inspector value ui ~width path =
                        (Printf.sprintf "%s%d  %s" (if k = current then "► " else "  ") (k + 1) iterations.(k))
                    then [ Pxui_graph.Scope.Probe_set { zone = z; index = k } ] else []))
              | _ -> [] in
-           hoist @ macro @ note @ edits, picks)
+           hoist @ macro @ rename @ note @ movers @ bypass @ edits, picks)
   | _ -> [], []
 
 (* The node of the graph pane that a lowered node of the open object was made by, at the iterations
@@ -512,8 +555,10 @@ let sync_scope value = match graph_name value, value.doc.Document.workspace, Laz
         let scope_view, select_later =
           if value.select_later <> [] && List.for_all (fun p -> List.hd p = name) value.select_later
           then Pxui_graph.Scope.select value.select_later scope_view, [] else scope_view, value.select_later in
+        let element zone k = Option.map (fun (name, (x, y, z)) -> [ name, Flow.Eval.Vec3 (x, y, z) ])
+          (Flow_sop.Lower.zone_element lowered zone k) in
         let records = Option.map (Flow_sop.Probe.make ?time ~geometry
-          ~dynamic:(Flow_sop.Lower.zone_count lowered)) evaluated in
+          ~dynamic:(Flow_sop.Lower.zone_count lowered) ~element) evaluated in
         let scope_view = match records with
           | Some records when fresh || moved -> Pxui_graph.Scope.with_records records scope_view
           | _ -> scope_view in
@@ -985,7 +1030,7 @@ let create ?(settings = Settings.none) ?(keymap = Leader.keymap)
     ?(layout = Pxui_shell.Layout.default) ?(factories = [])
     ?(seed = 0L) ?(grain = 16_384)
     ?domains ?(max_entries = 512)
-    ?(max_payload_bytes = 256 * 1024 * 1024)
+    ?(max_payload_bytes = 256 * 1024 * 1024) ?await
     ~workspace ~prepare () =
   let factories = if factories = [] then Sop_catalog.Editor.factories else factories in
   let opened = workspace_doc ~factories ~seed_scene:(seed_scene factories)
@@ -1028,7 +1073,7 @@ let create ?(settings = Settings.none) ?(keymap = Leader.keymap)
         keymap; timeline_frames = max 1 timeline_frames; queued = [] } in
       Cook.set_volatile cook (Flow_sop.Lower.is_volatile (snd doc.workspace));
       { value with history = Editor_core.History.create doc })
-    (Cook.create ~prepare ~seed ~grain ?domains ~max_entries
+    (Cook.create ~prepare ~seed ~grain ?domains ?await ~max_entries
       ~max_payload_bytes ()))
 
 let truncate limit text = if String.length text <= limit then text
@@ -1129,6 +1174,7 @@ let apply_action value (workspace, selection, tree, timeline, changes) action =
 (* The undo label a graph intent gives its document change. *)
 let intent_label = function
   | Syntax_edit op -> Some (Flow_sop.Flow_edit.label op)
+  | Syntax_inline { make; _ } -> Some (Flow_sop.Flow_edit.label (make []))
   | Set_parameter { path; _ } -> Some ("Set " ^ path)
   | Rename _ -> Some "Rename node"
   | Notice _ -> None
@@ -1298,12 +1344,17 @@ let apply_text value intents =
              with_text { text with binding_draft = Some (path, draft); binding_errors })) value intents
 
 
+(* the binding a home is, for a message *)
+let home_name = function
+  | Document.Bound_at path -> List.nth path (List.length path - 1)
+  | Inline_in _ | Looped -> "an expression"
+
 (* A panel header's title: its type, and where a looped panel comes from (register E1). *)
 let panel_title value (leaf : Pxui_shell.Layout.leaf) =
   let name = Editor_core.Panels.name leaf.panel in
   match Option.bind value.doc.Document.shell (fun s ->
       if value.workspace.restored then None else List.assoc_opt leaf.path s.origins) with
-  | Some (Document.Loop from) -> name ^ " · from loop " ^ from
+  | Some (Document.Loop (from, _)) -> name ^ " · from loop " ^ home_name from
   | _ -> name
 
 (* The outline: the graphs of the workspace, one row each (a row opens its graph). *)
@@ -1330,10 +1381,16 @@ let layout_intents value (workspace : shell) intents =
     | Some graph, Some s ->
         (match List.assoc_opt path s.origins with
          | Some (Document.Bound name) -> [ Syntax_edit (make [ graph; name ]) ]
-         | Some (Loop from) -> [ Notice ("This panel comes from a loop in " ^ from
-             ^ ". Edit the loop in the editor graph.") ]
-         | None -> [ Notice "This panel is written inline in the editor graph. Bind it \
-             to a name to split, close or retype it." ])
+         | Some (Inline (home, key)) -> [ Syntax_inline { home; key; make } ]
+         | Some (Loop (home, key)) ->
+             (* a loop's panels are copies of its one template: retyping edits the template *)
+             (match make [] with
+              | Flow_sop.Flow_edit.Set_panel_kind { kind; _ } ->
+                  [ Syntax_inline { home; key; make = (fun p ->
+                      Flow_sop.Flow_edit.Set_panel_kind { node = p @ [ "@result" ]; kind }) } ]
+              | _ -> [ Notice ("These panels are copies made by a loop in " ^ home_name home
+                  ^ ": retype them (Space o), or edit the loop in the editor graph.") ])
+         | None -> [ Notice "This panel is not part of the editor graph's tree." ])
     | _ -> [ Notice (if workspace.restored then "The default layout is showing. \
         Space z returns to the editor graph."
       else "This document has no editor graph. Add (graph editor :context editor ...) to change \
@@ -1373,7 +1430,7 @@ let apply_change (document, error, effects) = function
       (match Doc.relabel document ~node_id:node label with
        | Error message -> document, Some message, effects
        | Ok document -> document, None, effects)
-  | Syntax_edit _ | Notice _ -> document, error, effects
+  | Syntax_edit _ | Syntax_inline _ | Notice _ -> document, error, effects
 
 (* The kinds the node menu offers where the pane shows [graph], at a screen point. *)
 let open_menu value (x, y) =
@@ -2022,6 +2079,25 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
                 | _ -> ());
                doc, { (result : _ frame_result) with label = Flow_sop.Flow_edit.label op;
                effects = Parameter.union_effects result.effects Doc.cook_effects }
+           | Error message -> next, { (result : _ frame_result) with edit_error = Some message })
+      | Syntax_inline { home; key; make } ->
+          (* bind what is written in place (the call holding it, then the expression), then
+             the gesture on its name *)
+          let ( let* ) = Result.bind in
+          let bound =
+            let* doc, node = Editor_document.Scene_sync.bind_home ~factories:value.factories next home in
+            let* doc = Doc.syntax_edit ~factories:value.factories doc
+              (Flow_sop.Flow_edit.Unfold { node; key; sub = [] }) in
+            (match Flow_sop.Flow_edit.arg_text (fst doc.workspace).source node key with
+             | Some { Flow.Syntax.node = Sym name; _ } ->
+                 let path = List.rev (name :: List.tl (List.rev node)) in
+                 let* doc = Doc.syntax_edit ~factories:value.factories doc (make path) in
+                 Ok (doc, make path)
+             | _ -> Error "The panel could not be named.") in
+          (match bound with
+           | Ok (doc, op) ->
+               doc, { (result : _ frame_result) with label = Flow_sop.Flow_edit.label op;
+                 effects = Parameter.union_effects result.effects Doc.cook_effects }
            | Error message -> next, { (result : _ frame_result) with edit_error = Some message })
       | _ -> next, result) (next, result) result.changes in
   (* The workspace pane's layout gestures: moving an item and collapsing a zone

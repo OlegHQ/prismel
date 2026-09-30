@@ -12,7 +12,9 @@ let run () =
   Audio.Sample.stop channel;
   require (not (Audio.Sample.is_playing channel)) "sample stopped";
   let channel = Result.get_ok (Audio.Sample.play sample) in
-  Unix.sleepf 0.45;
+  (* a 0.2 s sample finishes: wait for the mixer to say so (a failure bound, not a pace) *)
+  let deadline = Unix.gettimeofday () +. 30. in
+  while Audio.Sample.is_playing channel && Unix.gettimeofday () < deadline do Unix.sleepf 0.01 done;
   require (not (Audio.Sample.is_playing channel)) "finished sample still playing";
   Audio.Sample.destroy sample;
   Audio.shutdown ();

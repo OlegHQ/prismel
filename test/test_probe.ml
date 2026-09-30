@@ -172,7 +172,19 @@ let geometry_zone () =
   check (Probe.counts r scope ~probe:(fun _ -> 0) = [ zone, 100 ]) "the cook's element count";
   let m = T.node w "g" [ "d"; "m" ] in
   check ((footer r m ~probes:[ 41 ]).value <> "not run here") "every element reads the template record";
-  check ((footer (Probe.make eval) m ~probes:[ 41 ]).value = "not run here") "without a count only iteration 0 ran"
+  check ((footer (Probe.make eval) m ~probes:[ 41 ]).value = "not run here") "without a count only iteration 0 ran";
+  (* a value that reads the element is forced for the element the probe names, once the zone cooked *)
+  let w = T.workspace_of "(workspace w (graph g :context sop (let* [f (sop/grid) \
+    d (for [p (sop/point_list f)] (let* [q (+ p [1 0 0]) m (sop/transform (sop/box) :translate q)] m)) r (sop/merge f d)] r)))" in
+  let eval = Result.get_ok (Flow.Eval.static ~record:true w) in
+  let q = T.node w "g" [ "d"; "q" ] in
+  check ((footer (Probe.make ~dynamic eval) q ~probes:[ 3 ]).value = "?") "an element-dependent value reads ? before any element is known";
+  let key = Option.get (List.find_map (fun (n : Flow.Eval.node) -> match n.kind, List.assoc_opt "element" n.args with
+    | "zone/points", Some (Flow.Eval.Text k) -> Some k | _ -> None) (Array.to_list eval.plan.nodes)) in
+  let element path k = if path = zone then Some [ key, Flow.Eval.Vec3 (float k, 0., 0.) ] else None in
+  let r = Probe.make ~dynamic ~element eval in
+  check ((footer r q ~probes:[ 3 ]).value = "[4 0 0]" && (footer r q ~probes:[ 41 ]).value = "[42 0 0]")
+    "an element-dependent value is not forced for the probed element"
 
 (* a footer counts a node that is not upstream of the display too: the cook is asked for it, and a
    failure there never fails the display (Async_cook.submit_some) *)

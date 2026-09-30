@@ -394,3 +394,19 @@ let adopt ~factories ~world (doc : Document.t) =
     end;
     Contexts.of_workspace ~factories ~previous:doc st.workspace |> Result.map_error Flow.Diagnostic.to_string
   with Stop message -> Error message
+
+(* The binding of a home, unfolding what is written in place: the document with that edit and
+   the binding's path (panels of the editor graph are edited through it). *)
+let bind_home ~factories (doc : Document.t) home =
+  let ( let* ) = Result.bind in
+  let* catalog = Result.map_error Flow.Diagnostic.to_string
+      (Contexts.catalog ~version:Flow_sop.Manifest.version factories) in
+  let st = { catalog; workspace = fst doc.workspace; unfolded = [] } in
+  try
+    let path = bind st home in
+    if st.workspace == fst doc.workspace then Ok (doc, path)
+    else
+      Result.map (fun doc -> doc, path)
+        (Contexts.of_workspace ~factories ~previous:doc st.workspace
+         |> Result.map_error Flow.Diagnostic.to_string)
+  with Stop message -> Error message

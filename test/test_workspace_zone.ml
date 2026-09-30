@@ -115,6 +115,36 @@ let run () =
   Printf.printf "moved one point of %d: %d misses, %d hits\n" n misses hits;
   check (misses <= 5) (Printf.sprintf "%d misses after moving one point" misses);
   check (hits >= n - 1) (Printf.sprintf "only %d hits after moving one point" hits);
+  (* a body that reads t: the zone depends on the time, its elements are cooked at it, and the
+     result is what the same graph gives with t replaced by a number; the elements' copies share
+     their template's volatile slot, so the cache does not churn *)
+  let buzz t_text = lower (Printf.sprintf {|
+(workspace buzz
+  (graph buzz :context sop
+    (let* [field (sop/uv_sphere :radius 1 :segments 6 :rings 3)
+           bees (for [p (sop/point_list field)]
+                  (sop/transform (sop/uv_sphere :radius 0.05 :segments 6 :rings 3)
+                                 :translate (+ p [0 (* 0.3 (sin %s)) 0])))]
+      (sop/merge field bees))))|} t_text) in
+  let live = buzz "t" in
+  let live_graph = List.hd live.graphs in
+  check (fst (Lower.counts live) > 0 && snd (Lower.counts live) >= 0) "a live loop body is counted as live";
+  let at time graph lowered =
+    let s = session () in
+    Session.set_volatile s (Lower.is_volatile lowered);
+    let context = Result.get_ok (Procedural.Context.create ~domains:1 ~grain:97 ~seed:42L ~time ()) in
+    let root = Option.get (graph : Lower.graph).root in
+    let compiled = Result.get_ok (Edit.compile_node graph.network.geometry ~node_id:root) in
+    match Session.cook s ~context compiled with
+    | Ok output -> output.geometry, Session.stats s
+    | Error e -> fail (Procedural.Diagnostic.error_to_string e) in
+  let g0, _ = at 0. live_graph live and g1, stats = at 1.25 live_graph live in
+  check (geometry_bytes g0 <> geometry_bytes g1) "a loop body that reads t did not move with t";
+  let fixed = buzz "1.25" in
+  check (fst (Lower.counts fixed) = 0) "a body with a number is not live";
+  let f1, _ = at 0. (List.hd fixed.graphs) fixed in
+  check (geometry_bytes g1 = geometry_bytes f1) "a live loop differs from the same loop with t replaced";
+  check (stats.volatile_entries <= 6) (Printf.sprintf "a live zone keeps %d volatile slots" stats.volatile_entries);
   (* pieces: each primitive of two boxes is one element *)
   let pieces = lower {|
 (workspace bricks
@@ -136,14 +166,16 @@ let run () =
     (Pdk.Geometry.positions base) (n - 1)) "elements follow the key attribute";
   let plain = Result.get_ok (Procedural.Zone.elements Points keyed) in
   check (plain.(0).position = Pdk.Packed.Float3.get (Pdk.Geometry.positions base) 0) "index order without a key";
-  (* a body that reads t is refused, and one that branches on an element *)
-  (match Lower.workspace ~extra:Editor_document.Contexts.descriptors ~factories (match Flow.Syntax.parse {|
+  (* a body that reads t only is live; one that reads only its element is not *)
+  let counts text = Lower.counts (lower text) in
+  check (fst (counts {|
 (workspace w (graph g :context sop
-  (let* [f (sop/grid)] (sop/merge (for [p (sop/point_list f)] (sop/transform (sop/box) :translate [t 0 0]))))))|} with
-     | Ok forms -> forms | Error d -> fail (Flow.Diagnostic.to_string d)) with
-   | Error d when d.code = "E_ZONE_LIVE" -> ()
-   | Error d -> fail ("wrong error " ^ Flow.Diagnostic.to_string d)
-   | Ok _ -> fail "a body that reads t lowered");
+  (let* [f (sop/grid)] (sop/merge (for [p (sop/point_list f)] (sop/transform (sop/box) :translate [t 0 0]))))))|}) > 0)
+    "a body that reads t is not live";
+  check (fst (counts {|
+(workspace w (graph g :context sop
+  (let* [f (sop/grid)] (sop/merge (for [p (sop/point_list f)] (sop/transform (sop/box) :translate p))))))|}) = 0)
+    "a body that reads its element is live";
   print_endline "workspace zone: ok"
 
 (* [test_main.exe bench_workspace_zone]: a scatter of N points, a for over them with a

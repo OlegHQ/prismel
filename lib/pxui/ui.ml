@@ -817,6 +817,8 @@ let wants_pointer ui = ui.hot <> 0 || Option.fold ~none:false ~some:(( <> ) 0) u
 let cursor ui = ui.requested_cursor
 let request_cursor ui shape = ui.requested_cursor <- Some shape
 let text_input_focused ui = ui.focus <> 0
+let key_pressed ui key =
+  List.exists (function Event.KeyPressed k -> k = key | _ -> false) ui.frame_events
 let unfocus ui = ui.focus <- 0; ui.composition <- ""; ui.edit_focus <- 0;
   ui.keyboard_focus <- false
 

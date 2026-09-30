@@ -570,6 +570,7 @@ let marks ?(viewed = false) (n : P.node) =
   (if viewed then [ "VIEW" ] else [])
   @ (if n.live then [ "t" ] else []) @ (if n.invariant then [ "↑" ] else [])
   @ (if n.macro <> None then [ "◊" ] else [])
+  @ (match n.zone with Some { order = Some o; _ } -> [ o ] | _ -> [])
 
 let paint_marks paint theme ~size ~x ~y marks =
   List.fold_left (fun x m ->
@@ -762,7 +763,10 @@ let paint_footer paint t ~z ~fs (f : Flow_sop.Probe.footer) (ty : Ty.t) (x, y, w
 (* The expansion panel under a macro call, in graph units relative to its top: step
    buttons on the first row ("call", 1, 2, ...), the printed step, and the replace
    button with the reading on the last row. *)
-let lens_button_box i = if i = 0 then (8., 4.), (36., 16.) else (8. +. 40. +. float (i - 1) *. 28., 4.), (24., 16.)
+let lens_button_box ~len i =
+  if i = 0 then (8., 4.), (36., 16.)
+  else if i >= len then (8. +. 40. +. float (max 0 (len - 1)) *. 28. +. 4., 4.), (64., 16.)  (* the template *)
+  else (8. +. 40. +. float (i - 1) *. 28., 4.), (24., 16.)
 let lens_replace_box lh = (8., lh -. P.row_height +. 3.), (196., 18.)
 let bypassable (n : P.node) = P.bypassable n
 
@@ -770,18 +774,21 @@ let paint_lens paint t ~z ~fs (l : P.lens) ~step (x, y, w) ~lh =
   let theme = t.theme in
   Ui.Paint.fill paint ~x:(x +. 1.) ~y ~w:(w -. 2.) ~h:(lh *. z -. 1.) (Color.with_alpha theme.control 140);
   Ui.Paint.line paint ~from_:(x +. 8. *. z, y) ~to_:(x +. w -. 8. *. z, y) ~width:1. (Pxui.Theme.faint_border theme);
-  Array.iteri (fun i _ ->
-    let (bx, by), (bw, bh) = lens_button_box i in
+  let len = Array.length l.steps in
+  for i = 0 to len do
+    let (bx, by), (bw, bh) = lens_button_box ~len i in
     let on = i = step in
     Ui.Paint.rect paint ~x:(x +. bx *. z) ~y:(y +. by *. z) ~w:(bw *. z) ~h:(bh *. z) ~radius:(3. *. z)
       ~fill:(if on then theme.accent else theme.input) ~stroke:(Pxui.Theme.faint_border theme) ();
-    let label = if i = 0 then "call" else string_of_int i in
+    let label = if i = 0 then "call" else if i = len then "Template" else string_of_int i in
     let tw = Ui.Paint.text_width paint ~size:(max 6 (fs - 1)) label in
     Ui.Paint.text paint ~at:(x +. (bx +. bw /. 2.) *. z -. tw /. 2., y +. (by +. 3.) *. z) ~size:(max 6 (fs - 1))
-      ~color:(if on then theme.input else theme.foreground) label) l.steps;
-  let text = match l.error with
-    | Some message when step >= Array.length l.steps -> message
-    | _ -> l.steps.(max 0 (min step (Array.length l.steps - 1))) in
+      ~color:(if on then theme.input else theme.foreground) label
+  done;
+  let text = if step >= len then (if l.template = "" then "(no definition)" else l.template)
+    else match l.error with
+      | Some message when step >= len -> message
+      | _ -> l.steps.(max 0 step) in
   let lines = String.split_on_char '\n' text in
   List.iteri (fun k line ->
     if k < 16 then
@@ -793,7 +800,8 @@ let paint_lens paint t ~z ~fs (l : P.lens) ~step (x, y, w) ~lh =
   Ui.Paint.text paint ~at:(x +. (rx +. 8.) *. z, y +. (ry +. 4.) *. z) ~size:(max 6 (fs - 1)) ~color:theme.accent
     "Replace call with expansion";
   let reading = match l.error with
-    | Some message when step >= Array.length l.steps - 1 && step > 0 -> message
+    | _ when step >= len -> "the macro's template"
+    | Some message when step >= len - 1 && step > 0 -> message
     | _ -> if step = 0 then "as written" else Printf.sprintf "after %d expansion step%s" step (if step > 1 then "s" else "") in
   let size = max 6 (fs - 1) in
   let tw = Ui.Paint.text_width paint ~size reading in
@@ -1144,9 +1152,11 @@ let update t ui (frame : Frame.t) =
                         | Some step ->
                             let lh = P.lens_height l ~step in
                             let top = p.h -. lh in
-                            Array.iteri (fun i _ ->
-                              let (bx, by), size = lens_button_box i in
-                              tap ("ls" ^ string_of_int i) (bx, top +. by) size (`Lens_step i)) l.steps;
+                            let len = Array.length l.steps in
+                            for i = 0 to len do
+                              let (bx, by), size = lens_button_box ~len i in
+                              tap ("ls" ^ string_of_int i) (bx, top +. by) size (`Lens_step i)
+                            done;
                             let (rx, ry), size = lens_replace_box lh in
                             tap "lr" (rx, top +. ry) size `Replace
                         | None -> ())
@@ -1584,8 +1594,8 @@ module Private = struct
     | Some { lens = Some _; _ }, Some (_, _, w, _) -> tile_point t path (w -. 22., 2.) (20., 20.)
     | _ -> None
   let lens_step_button t path i = match node_of t path, lens_of t path, Hashtbl.find_opt t.geo.pos path with
-    | Some { lens = Some l; _ }, Some step, Some (_, _, _, h) when i < Array.length l.steps ->
-        let (bx, by), size = lens_button_box i in
+    | Some { lens = Some l; _ }, Some step, Some (_, _, _, h) when i <= Array.length l.steps ->
+        let (bx, by), size = lens_button_box ~len:(Array.length l.steps) i in
         tile_point t path (bx, h -. P.lens_height l ~step +. by) size
     | _ -> None
   let lens_replace t path = match node_of t path, lens_of t path, Hashtbl.find_opt t.geo.pos path with

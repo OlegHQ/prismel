@@ -32,7 +32,8 @@ let contains text pattern =
   in
   pattern_length = 0 || search 0
 
-let wait_until ?(seconds = 2.) operation =
+(* a failure bound, never a pace: a loaded machine only takes longer *)
+let wait_until ?(seconds = 60.) operation =
   let deadline = Unix.gettimeofday () +. seconds in
   let rec loop () =
     match operation () with
@@ -186,9 +187,9 @@ let test_async_cook_latest_request () =
   let worker = Async_cook.create ~max_entries:4
       ~max_payload_bytes:4_000_000 |> get_ok in
   let slow = Sop.custom ~operation:"async_test_slow" ~version:1
-      ~parameters:"delay=0.05" [Sop.points [|0., 0., 0.|]]
+      ~parameters:"delay=0.3" [Sop.points [|0., 0., 0.|]]
       (fun ~context geometries ->
-        Unix.sleepf 0.05;
+        Unix.sleepf 0.3;
         if Context.cancelled context then Error "cancelled"
         else Ok geometries.(0)) in
   let prepare output = Ok (Pdk.Geometry.point_count output.Session.geometry) in

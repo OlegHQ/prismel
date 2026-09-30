@@ -16,20 +16,6 @@ type network = {
 let of_geometry ~context graph displayed =
   { context; graph = Flow_sop.Network.of_geometry graph; displayed }
 
-(* Where a panel of the shell tree came from in the editor graph. *)
-type origin = Bound of string | Loop of string  (* its binding; the binding holding the loop *)
-
-(* The lowered editor graph (plan W10): the shell tree, the origin of each named or
-   looped panel (any other panel is inline), the graph a [(ui/graph "name")] shows
-   and, for each viewport over a scene other than the default one, the scene objects
-   of that instance (they live in [scene], and no other viewport draws them). *)
-type shell = {
-  tree : Editor_core.Panels.t;
-  origins : (Editor_core.Panels.path * origin) list;
-  named : string option;
-  views : (string * int list) list;
-}
-
 (* Where the text of a scene object, a World layer or the settings lives: a binding of its
    graph, an argument of another home (an inline call, written in place), or nowhere an edit
    can reach (made by a loop).  Edits to the derived objects are written back through it. *)
@@ -46,6 +32,24 @@ type homes = {
 }
 
 let no_homes = { objects = []; world = None; layers = []; settings = None }
+
+(* Where a panel of the shell tree came from in the editor graph. *)
+type origin =
+  | Bound of string  (* its binding *)
+  | Loop of home * Flow_sop.Flow_edit.arg_key
+      (* the tile call a loop makes panels for, and the loop's argument in it *)
+  | Inline of home * Flow_sop.Flow_edit.arg_key  (* written in place: an argument of this call *)
+
+(* The lowered editor graph (plan W10): the shell tree, the origin of each named or
+   looped panel (any other panel is inline), the graph a [(ui/graph "name")] shows
+   and, for each viewport over a scene other than the default one, the scene objects
+   of that instance (they live in [scene], and no other viewport draws them). *)
+type shell = {
+  tree : Editor_core.Panels.t;
+  origins : (Editor_core.Panels.path * origin) list;
+  named : string option;
+  views : (string * int list) list;
+}
 
 type t = {
   scene : network;  (* objects: input 0 is the parent *)

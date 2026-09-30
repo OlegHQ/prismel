@@ -217,7 +217,21 @@ let layout () =
   let p = List.find (fun (p : P.placed) -> p.path = head) l.placed in
   check (p.w = P.node_width && p.h = P.head_height +. 2. *. P.row_height +. P.foot_height) "node size"
 
+(* a loop over the points or pieces of geometry says how its elements are ordered *)
+let zone_order () =
+  let order text = let w = workspace_of text in
+    match (scope w "g").nodes with
+    | n :: _ -> (match n.zone with Some z -> z.order | None -> fail "not a zone")
+    | [] -> fail "no node" in
+  check (order "(workspace w (graph g :context sop (let* [z (for [p (sop/point_list (sop/grid))] (sop/box))] (sop/merge z))))" = Some "by index")
+    "a loop over points is ordered by index";
+  check (order "(workspace w (graph g :context sop (let* [z (for [p (sop/piece_list (sop/grid) :key \"id\")] (sop/box))] (sop/merge z))))" = Some "by id")
+    "a loop over pieces keyed by an attribute is ordered by it";
+  check (order "(workspace w (graph g :context sop (let* [z (for [i (range 3)] (sop/box))] (sop/merge z))))" = None)
+    "a loop over a range has no order to show"
+
 let run () =
+  zone_order ();
   snapshots ();
   rows ();
   flags ();

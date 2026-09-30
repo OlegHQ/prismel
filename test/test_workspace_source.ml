@@ -109,7 +109,7 @@ let run_find () =
 (* ---- through the editor ---- *)
 
 let editor ?presets ~source text =
-  E3.create ~workspace:(Result.get_ok (Doc.of_text catalog text)) ?presets ~source
+  E3.create ~await:true ~workspace:(Result.get_ok (Doc.of_text catalog text)) ?presets ~source
     ~prepare:(fun _ output -> Pdk_prismel.Prismel_mesh.to_mesh output.Procedural.Session.geometry
       |> Result.map_error Pdk.Error.to_string)
     ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) ()
@@ -127,12 +127,8 @@ let run_editor () =
   let step ?keys events =
     incr count; e := E3.update !e (Test_editor_input.frame ?keys (450., 300.) events !count) in
   let run_for seconds = for _ = 1 to int_of_float (seconds *. 60.) do step [] done in
-  let settle () =
-    let deadline = Unix.gettimeofday () +. 20. in
-    while not (String.starts_with ~prefix:"Cook complete" (cook_line !e)
-               || not (List.exists (fun p -> String.starts_with ~prefix:p (cook_line !e))
-                         [ "Cooking"; "Waiting" ]) ) && Unix.gettimeofday () < deadline
-    do Unix.sleepf 0.005; step [] done in
+  (* the editor awaits each frame's cook: nothing is cooking after a frame (a check, not a wait) *)
+  let settle () = step [] in
   step []; step []; settle ();
   let history = E3.undo_label !e in
   (* Command-S over the matching source *)

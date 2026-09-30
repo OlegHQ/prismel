@@ -71,11 +71,10 @@ let run () =
     Fun.protect ~finally:(fun () -> close !value) (fun () ->
     let step ?keys ?mouse events =
       incr count; value := update !value (frame ?keys ?mouse events !count) in
+    (* the editors await each frame's cook: a bounded number of frames, not a wait on the clock *)
     let settle predicate =
-      let deadline = Unix.gettimeofday () +. 5. in
-      while not (predicate !value) && Unix.gettimeofday () < deadline do
-        step []; Unix.sleepf 0.001
-      done;
+      let frames = ref 0 in
+      while not (predicate !value) && !frames < 200 do step []; incr frames done;
       check (predicate !value) "cook did not settle" in
     settle (fun env -> prepared env <> None);
     step [];
@@ -102,12 +101,12 @@ let run () =
   let prepare _ _ = Atomic.incr prepares; Ok (Atomic.get prepares) in
   let module E3 = Prismel_editor.Editor3 in
   exercise ~scene_level:true
-    ~create:(fun () -> E3.create ~workspace ~presets:directory ~factories ~prepare
+    ~create:(fun () -> E3.create ~await:true ~workspace ~presets:directory ~factories ~prepare
       ~scene3:(fun _ _ -> Scene3.create []) () |> Result.get_ok)
     ~update:E3.update ~close:E3.close ~document:E3.document ~prepared:E3.prepared ~panes:E3.panes;
   let module E2 = Prismel_editor.Editor2 in
   exercise ~scene_level:false
-    ~create:(fun () -> E2.create ~workspace ~presets:directory ~factories ~prepare
+    ~create:(fun () -> E2.create ~await:true ~workspace ~presets:directory ~factories ~prepare
       ~scene2:(fun _ _ -> []) () |> Result.get_ok)
     ~update:E2.update ~close:E2.close ~document:E2.document ~prepared:E2.prepared ~panes:E2.panes;
   print_endline "editor document: validation, dump, preset round trip, both hosts and delete-all passed")

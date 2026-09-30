@@ -74,16 +74,23 @@ let element_node element =
     ~inputs:[||] (fun ~node_id:_ _ _ ->
       Ok Node.Private.{ geometry; diagnostics = []; instances = None })
 
-let node ?label ?(report = ignore) ~kind ?key ~source_attribute ~source_base ~body ~inputs () =
-  let parameters = Printf.sprintf "kind=%s;key=%S;source=%S;base=%d;inputs=%d"
+let node ?label ?(report : element array -> unit = ignore) ?(live = false) ~kind ?key ~source_attribute ~source_base ~body
+    ~inputs () =
+  let parameters = Printf.sprintf "kind=%s;key=%S;source=%S;base=%d;inputs=%d;live=%b"
       (match kind with Points -> "points" | Pieces -> "pieces")
-      (Option.value key ~default:"") source_attribute source_base (Array.length inputs) in
+      (Option.value key ~default:"") source_attribute source_base (Array.length inputs) live in
   Node.Private.make ?label ~operation:"zone" ~version:1 ~parameters
-    ~cook_mode:Node.Generic ~dependencies:Context.Dependencies.static ~inputs
-    ~expand:(fun _ nodes geometries ->
+    ~cook_mode:Node.Generic
+    ~dependencies:(if live then Context.Dependencies.one Context.Dependencies.Time
+                   else Context.Dependencies.static) ~inputs
+    ~expand:(fun context nodes geometries ->
       match elements kind ?key geometries.(0) with
       | Error _ as error -> error
-      | Ok elements -> report (Array.length elements); Ok (Array.map (body ~inputs:nodes) elements))
+      | Ok elements ->
+          report elements;
+          (* the body is built once per cook: what does not read the element is shared *)
+          let element = body ~inputs:nodes ~time:(Context.time context) in
+          Ok (Array.map element elements))
     (fun ~node_id:_ context parts ->
       match Pdk.Mesh_merge.run ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ~source_attribute ~source_base

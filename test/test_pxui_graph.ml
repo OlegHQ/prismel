@@ -436,6 +436,14 @@ let run_scope () =
   let view, _ = scope_click view (button 1) in
   check (Scope.macro_step view outer = Some 1) "a step button chooses the step";
   let view, _ = scope_step view (frame ()) in
+  (* the Template button shows the macro's definition, one step past the expansions *)
+  check (List.exists (String.starts_with ~prefix:"(defmacro radial") (String.split_on_char '\n' lens.template))
+    "the lens carries the macro's template";
+  let view, changes = scope_click view (button (Array.length lens.steps)) in
+  check (Scope.macro_step view outer = Some (Array.length lens.steps) && changes = []) "the Template button shows the definition, no edit";
+  let view, _ = scope_step view (frame ()) in
+  let view, _ = scope_click view (button 1) in
+  let view, _ = scope_step view (frame ()) in
   let bx, by, bw, bh = Option.get (Scope.Private.box_of view outer) in
   check (bh > (let _, _, _, h0 = Option.get (Scope.Private.box_of (fst (scope_view w "rosette")) outer) in h0)
          && bw >= Flow_sop.Projection.lens_width *. Scope.zoom view -. 1.) "an open panel grows its card";

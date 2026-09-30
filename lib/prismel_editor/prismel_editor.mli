@@ -266,6 +266,7 @@ module Editor3 : sig
     ?domains:int ->
     ?max_entries:int ->
     ?max_payload_bytes:int ->
+    ?await:bool ->
     workspace:Workspace_doc.t ->
     ?source:Source.t ->
     prepare:(Settings.t -> Procedural.Session.output -> ('prepared, string) result) ->
@@ -276,7 +277,9 @@ module Editor3 : sig
     unit ->
     ('prepared t, string) result
   (** [lens] is the default camera object's depth of field (pinhole
-      otherwise). [prepare] runs on the cook worker domain with submission settings.
+      otherwise). [await] (default: [PRISMEL_MAX_FRAMES] is set) makes each
+      [update] block on the cook it submits, so a fixed-step run or a test sees the
+      settled result of every frame instead of racing the worker. [prepare] runs on the cook worker domain with submission settings.
       It must only do pure CPU work on immutable/disjointly owned data;
       SDL, Metal, textures, fonts, audio, UI and runtime caches stay on the
       initial domain. [scene3] and [overlay] run on the initial domain. *)
@@ -496,6 +499,7 @@ module Editor2 : sig
     ?domains:int ->
     ?max_entries:int ->
     ?max_payload_bytes:int ->
+    ?await:bool ->
     workspace:Workspace_doc.t ->
     prepare:(Settings.t -> Procedural.Session.output -> ('prepared, string) result) ->
     scene2:(Procedural.Graph.t -> 'prepared -> Prismel.Scene.t) ->

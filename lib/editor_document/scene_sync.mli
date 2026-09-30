@@ -21,3 +21,8 @@ val adopt : factories:Procedural.Edit_graph.factory list -> world:bool -> Docume
   (Document.t, string) result
 (** The scene graph ([~world:false]) or the World graph of a document that has none, written
     from the objects or World the host made (an empty one when there are none). *)
+
+val bind_home : factories:Procedural.Edit_graph.factory list -> Document.t -> Document.home ->
+  (Document.t * Flow.Workspace.path, string) result
+(** The binding that holds a home, made by unfolding what is written in place (several rewrites,
+    one new document); an error when a loop or an expression made it. *)

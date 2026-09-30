@@ -72,7 +72,7 @@ let run_lowering () =
   check (origin [ 0 ] = Some (Document.Bound "outline") && origin [ 1; 0; 0 ] = Some (Document.Bound "network")
          && origin [ 1; 0 ] = Some (Document.Bound "left") && origin [] = Some (Document.Bound "panels"))
     "named panels keep their binding";
-  check (origin [ 1; 1; 2 ] = Some (Document.Loop "sheet") && origin [ 1; 1 ] = Some (Document.Bound "sheet"))
+  check (origin [ 1; 1; 2 ] = Some (Document.Loop (Document.Bound_at [ "editor"; "sheet" ], Flow_sop.Flow_edit.Pos 0)) && origin [ 1; 1 ] = Some (Document.Bound "sheet"))
     "a panel made by a loop names the loop";
   (* a count change keeps the first panels' keys *)
   let more = build_ok (of_text (replace (case "variations") "(range 4)" "(range 6)")) in
@@ -102,8 +102,10 @@ let run_lowering () =
 (* ---- through the editor ---- *)
 
 let frame ?(buttons = []) mouse events count = Test_editor_input.frame ~buttons mouse events count
+(* every editor here awaits the cook its frame submits: what a frame shows is settled, never racing
+   the worker *)
 let editor ?camera text =
-  E3.create ?camera ~workspace:(of_text text)
+  E3.create ?camera ~await:true ~workspace:(of_text text)
     ~prepare:(fun _ output -> Pdk_prismel.Prismel_mesh.to_mesh output.Procedural.Session.geometry
       |> Result.map_error Pdk.Error.to_string)
     ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) ()
@@ -128,14 +130,11 @@ let run_editor () =
   let step ?(buttons = []) ?(mouse = (450., 300.)) events =
     incr count; e := E3.update !e (frame ~buttons mouse events !count) in
   step []; step [];
+  (* the editor awaits each cook, so after a frame nothing is cooking: a check, not a wait *)
   let settle () =
-    let deadline = Unix.gettimeofday () +. 20. in
-    let busy line = String.starts_with ~prefix:"Cooking" line || String.starts_with ~prefix:"Waiting" line
-      || has line "skipping frames" in
-    while busy (dump_line !e "cook") do
-      if Unix.gettimeofday () > deadline then fail "the editor did not cook";
-      Unix.sleepf 0.005; step []
-    done in
+    let line = dump_line !e "cook" in
+    check (not (String.starts_with ~prefix:"Cooking" line || String.starts_with ~prefix:"Waiting" line
+                || has line "skipping frames")) ("the editor is still cooking: " ^ line) in
   settle ();
   let click ?(button = Input.LeftButton) (x, y) =
     step ~mouse:(x, y) [ Event.MouseMoved (x, y) ];
@@ -172,7 +171,7 @@ let run_editor () =
   step [];
   check (E3.undo_label !e = depth) "a looped panel did not change the graph";
   settle ();
-  check (has (dump_line !e "cook") "comes from a loop in sheet") ("the status names the loop: " ^ dump_line !e "cook");
+  check (has (dump_line !e "cook") "made by a loop in sheet") ("the status names the loop: " ^ dump_line !e "cook" ^ " / " ^ dump_line !e "edit error");
   (* focus is a panel: a press in a panel focuses it *)
   let focus_after (x, y) =
     click (x, y); step []; dump_line !e "focus" in
@@ -207,10 +206,46 @@ let run_panel_keys () =
   step [ key Input.Space; ch 'o'; ch 'l' ]; step [];
   check (E3.undo_label !e = Some "Retype panel" && has (source !e) "(ui/list") "Space o l retyped it to a list"
 
+(* panels written in place, and panels made by a loop, are edited through the keys too: an
+   inline panel is bound to a name first (one history entry), a loop's panels are retyped
+   through their template *)
+let run_unbound_panels () =
+  let started text focus_at =
+    let e = ref (editor text) and count = ref 0 in
+    let step ?(mouse = focus_at) events = incr count; e := E3.update !e (frame mouse events !count) in
+    step []; step [];
+    step [ Event.MouseMoved focus_at ];
+    step [ Event.MousePressed (Input.LeftButton, focus_at) ];
+    step [ Event.MouseReleased (Input.LeftButton, focus_at) ];
+    step [];
+    e, step in
+  let key k = Event.KeyPressed k and ch c = Event.KeyPressed (Input.KeyChar c) in
+  let inline = with_editor "    (ui/workspace (ui/split-at \"vertical\" 0.5 (ui/graph) (ui/viewport (ref scene))))" in
+  let e, step = started inline (300., 100.) in
+  check (dump_line !e "focus" = "Graph") ("focus is the inline graph panel: " ^ dump_line !e "focus");
+  step [ key Input.Space; ch 'o'; ch 'l' ]; step [];
+  check (E3.undo_label !e = Some "Retype panel" && has (source !e) "(ui/list)" && has (source !e) "(ui/viewport (ref scene))")
+    ("an inline panel was retyped: " ^ Option.value ~default:"-" (E3.undo_label !e) ^ "\n" ^ source !e);
+  E3.close !e;
+  let e, step = started inline (300., 100.) in
+  step [ key Input.Space; ch 'o'; ch 'h' ]; step [];
+  check (E3.undo_label !e = Some "Split panel" && has (source !e) "graph_a" || has (source !e) "ui/split-at \"horizontal\" 0.5")
+    ("an inline panel was split: " ^ Option.value ~default:"-" (E3.undo_label !e) ^ "\n" ^ source !e);
+  E3.close !e;
+  (* a loop's panels: retyping edits the template, splitting them says why it cannot *)
+  let e, step = started (case "variations") (800., 100.) in
+  check (dump_line !e "focus" = "View") "focus is a looped viewport";
+  step [ key Input.Space; ch 'o'; ch 'x' ]; step [];
+  check (E3.undo_label !e = None && has (dump_line !e "cook") "copies made by a loop")
+    ("closing a looped panel said why not: " ^ Option.value ~default:"-" (E3.undo_label !e) ^ " / " ^ dump_line !e "cook");
+  step [ key Input.Space; ch 'o'; ch 'l' ]; step [];
+  check (E3.undo_label !e = Some "Retype panel" && has (source !e) "(ui/list)")
+    ("retyping a looped panel edits its template: " ^ Option.value ~default:"-" (E3.undo_label !e));
+  E3.close !e
+
 let run_frame_key () =
   (* the graph pane's keys reach the document: Shift-G frames the walked-to node (layout data, one entry);
      the rosette is entered as in test_text_pane's W9 scenario *)
-  Unix.putenv "PRISMEL_MAX_FRAMES" "40";
   let e = ref (editor (case "rosette")) in
   let key k = Event.KeyPressed k in
   for n = 1 to 24 do
@@ -222,8 +257,7 @@ let run_frame_key () =
       drawable_height = 800; drawable_size = 1400, 800; pixel_scale = 1., 1.;
       time = float n /. 60.; dt = 1. /. 60.; fps = 60.; count = n; mouse = (640., 360.);
       mouse_delta = 0., 0.; keys = (if n = 18 then [ Input.Shift ] else []); mouse_buttons = []; events } in
-    e := E3.update !e f;
-    Unix.sleepf 0.002
+    e := E3.update !e f
   done;
   check (E3.undo_label !e = Some "Frame") ("g made a frame: " ^ Option.value ~default:"-" (E3.undo_label !e));
   check (not (Editor_document.Layout_by_path.Path_map.is_empty (E3.workspace !e).Doc.layout.frames))
@@ -365,19 +399,15 @@ let run_cameras () =
   click "v1.1.2";
   check (dump_line !e "pane graph" = "garden" && scope_selected () <> "-")
     (Printf.sprintf "a click in another instance's viewport selected nothing (pane %s, selected %s)"
-       (dump_line !e "pane graph") (scope_selected ()))
+       (dump_line !e "pane graph") (scope_selected ()));
+  E3.close !e
 
 (* the frame draws one 3D layer per viewport, each over its own scene instance *)
 let run_views () =
   let e = ref (editor (case "variations")) in
-  let deadline = Unix.gettimeofday () +. 20. in
-  let rec settle count =
-    e := E3.update !e (frame (450., 300.) [] count);
-    if List.length (E3.objects !e) >= 1 && Option.is_some (E3.prepared !e) && count > 10 then ()
-    else if Unix.gettimeofday () > deadline then fail "the editor did not cook"
-    else (Unix.sleepf 0.005; settle (count + 1)) in
-  settle 1;
-  for c = 200 to 230 do e := E3.update !e (frame (450., 300.) [] c); Unix.sleepf 0.005 done;
+  for c = 1 to 12 do e := E3.update !e (frame (450., 300.) [] c) done;
+  check (List.length (E3.objects !e) >= 1 && Option.is_some (E3.prepared !e)) "the editor did not cook";
+  for c = 200 to 230 do e := E3.update !e (frame (450., 300.) [] c) done;
   let scene = E3.scene !e (frame (450., 300.) [] 231) in
   match Scene.Private.stage_native ~width:900 ~height:640 scene with
   | Error m -> fail m
@@ -385,7 +415,7 @@ let run_views () =
       let viewports = List.length (List.filter (function Scene.Private.Scene3_layer _ -> true | _ -> false) staged.layers) in
       check (viewports = 4) (Printf.sprintf "four viewports draw four 3D layers, got %d" viewports)
 
-let run () = run_lowering (); run_ops (); run_panel_keys (); run_frame_key (); run_editor (); run_restore (); run_cameras (); run_views ()
+let run () = run_cameras (); run_lowering (); run_ops (); run_panel_keys (); run_unbound_panels (); run_frame_key (); run_editor (); run_restore (); run_views ()
 
 (* Native: a real window draws Variations' four viewports, each its own scene instance (the
    frame's 3D layers were once cached per frame, so only the first drew). *)

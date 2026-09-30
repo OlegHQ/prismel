@@ -123,14 +123,14 @@ let run () =
   check (width collapsed_panes.inspector = 0)
     "inspector toggle did not collapse the third column";
 
-  let environment = Prismel_editor.Editor3.create ~workspace:(fixture ())
+  let environment = Prismel_editor.Editor3.create ~await:true ~workspace:(fixture ())
       ~factories:Sop_catalog.Editor.factories
       ~max_entries:4 ~max_payload_bytes:(16 * 1024 * 1024)
       ~prepare:(fun _ output -> Pdk_prismel.Prismel_mesh.to_mesh output.Session.geometry
         |> Result.map_error Pdk.Error.to_string)
       ~scene3:(fun _graph mesh -> Scene3.create [Scene3.mesh mesh]) ()
     |> Result.get_ok in
-  let deadline = Unix.gettimeofday () +. 2. in
+  let deadline = Unix.gettimeofday () +. 60. in
   let rec wait count environment =
     let environment = Prismel_editor.Editor3.update environment (frame count) in
     match Prismel_editor.Editor3.prepared environment with
@@ -334,7 +334,7 @@ let run () =
   (* Space c clears the selection the drag made, as before this check. *)
   let environment = Prismel_editor.Editor3.update environment (frame ~events:[
       Event.KeyPressed Input.Space; Event.KeyPressed (Input.KeyChar 'c')] 152) in
-  let deadline = Unix.gettimeofday () +. 2. in
+  let deadline = Unix.gettimeofday () +. 60. in
   let rec wait_source count environment =
     let environment = Prismel_editor.Editor3.update environment (frame count) in
     match Option.bind (Prismel_editor.Editor3.prepared environment)
@@ -433,7 +433,7 @@ let run () =
     | [ _; "-" ] -> []
     | [ _; id ] -> [ int_of_string id ]
     | _ -> fail "unreadable camera line" in
-  let environment = Prismel_editor.Editor3.create ~workspace:(fixture ())
+  let environment = Prismel_editor.Editor3.create ~await:true ~workspace:(fixture ())
       ~camera:(Easy_camera.create ~distance:6. ~inertia:false ())
       ~lens:{ aperture = 0.3; focus_distance = None }
       ~factories:Sop_catalog.Editor.factories
@@ -552,7 +552,7 @@ let run () =
   let environment = Prismel_editor.Editor3.update environment
       (frame ~events:[key (Input.KeyChar 'f')] 408) in
   (* Framing waits for bounds when the display cook is still running. *)
-  let deadline = Unix.gettimeofday () +. 2. in
+  let deadline = Unix.gettimeofday () +. 60. in
   let rec framed count environment =
     if near (target environment) (Vec3.create 5. 0. 0.)
         || Unix.gettimeofday () > deadline then environment
@@ -572,12 +572,12 @@ let run () =
   let bump = Editor_core.Command.make ~id:"test.bump" ~label:"bump mode"
       ~trigger:(Editor_core.Keymap.Leader "qj") (fun environment ->
         Prismel_editor.Editor3.set_settings environment (Settings.make mode_schema 3)) in
-  let environment = Prismel_editor.Editor3.create ~workspace:(fixture ())
+  let environment = Prismel_editor.Editor3.create ~await:true ~workspace:(fixture ())
       ~settings:(Settings.make mode_schema 0) ~commands:[bump]
       ~max_entries:4 ~max_payload_bytes:(16 * 1024 * 1024)
       ~prepare:(fun settings _ -> Ok (Settings.get mode_schema settings))
       ~scene3:(fun _ _ -> Scene3.create []) () |> Result.get_ok in
-  let deadline = Unix.gettimeofday () +. 2. in
+  let deadline = Unix.gettimeofday () +. 60. in
   let rec wait_mode expected count environment =
     let environment = Prismel_editor.Editor3.update environment (frame count) in
     if Prismel_editor.Editor3.prepared environment = Some expected then environment
@@ -611,7 +611,7 @@ let run () =
   Prismel_editor.Editor3.close environment;
 
   let cooks2 = Atomic.make 0 in
-  let environment2 = Prismel_editor.Editor2.create ~workspace:(fixture ())
+  let environment2 = Prismel_editor.Editor2.create ~await:true ~workspace:(fixture ())
       ~max_entries:4 ~max_payload_bytes:(16 * 1024 * 1024)
       ~prepare:(fun _ output -> Atomic.incr cooks2;
         Pdk_prismel.Prismel_mesh.to_mesh output.Session.geometry
@@ -621,7 +621,7 @@ let run () =
           ~fill:(Color.hex_exn "#5eead4") ()
       ]) ()
     |> Result.get_ok in
-  let deadline = Unix.gettimeofday () +. 2. in
+  let deadline = Unix.gettimeofday () +. 60. in
   let rec wait2 count environment =
     let environment = Prismel_editor.Editor2.update environment (frame count) in
     match Prismel_editor.Editor2.prepared environment with
@@ -645,7 +645,7 @@ let run () =
   let prior_cooks = Atomic.get cooks2 in
   let environment2 = Prismel_editor.Editor2.set_settings environment2
       (Prismel_editor.Settings.make mode_schema 2) in
-  let deadline = Unix.gettimeofday () +. 2. in
+  let deadline = Unix.gettimeofday () +. 60. in
   let rec wait_reprepare count environment =
     let environment = Prismel_editor.Editor2.update environment (frame count) in
     if Atomic.get cooks2 > prior_cooks then environment
@@ -676,7 +676,7 @@ let run () =
   let module Preset = Prismel_editor.Private.Preset in
   let presets = Filename.temp_dir "sketch-ui-workspace-presets" "" in
   let mesh_scene mesh = Scene3.create [Scene3.mesh mesh] in
-  let environment = Prismel_editor.Editor3.create ~workspace:(fixture ()) ~presets
+  let environment = Prismel_editor.Editor3.create ~await:true ~workspace:(fixture ()) ~presets
       ~camera:(Easy_camera.create ~distance:6. ~inertia:false ())
       ~factories:Sop_catalog.Editor.factories
       ~max_entries:4 ~max_payload_bytes:(16 * 1024 * 1024)

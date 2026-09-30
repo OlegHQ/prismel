@@ -152,9 +152,8 @@ let flat text clicks =
   let open Prismel in
   let module E2 = Prismel_editor.Editor2 in
   let workspace = Ws_fixture.of_text text in
-  (* the cook is awaited, not waited for: a fixed-step run blocks on the job it submits *)
-  Unix.putenv "PRISMEL_MAX_FRAMES" "100";
-  let env = ref (E2.create ~workspace
+  (* the cook is awaited, not waited for: the editor blocks on the job each frame submits *)
+  let env = ref (E2.create ~await:true ~workspace
       ~prepare:(fun _ output -> Pdk_prismel.Prismel_mesh.to_mesh output.Procedural.Session.geometry
         |> Result.map_error Pdk.Error.to_string)
       ~scene2:(fun _ _ -> Scene.empty) () |> Result.get_ok) in

@@ -31,10 +31,10 @@ module Editor3 = struct
   let look_through value = (extra value).Viewport3.look_through
 
   let create ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?lights ?world ?camera ?lens
-      ?background ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~workspace ?source ~prepare ~scene3
+      ?background ?seed ?grain ?domains ?max_entries ?max_payload_bytes ?await ~workspace ?source ~prepare ~scene3
       ?overlay ?status () =
     create ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?lights ?world ?camera ?lens
-      ?background ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~workspace ?source ~prepare
+      ?background ?seed ?grain ?domains ?max_entries ?max_payload_bytes ?await ~workspace ?source ~prepare
       ~draw:scene3 ?overlay ?status ()
 
   let run ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?lights ?world ?camera ?lens
@@ -49,10 +49,10 @@ module Editor2 = struct
   include Environment.Make (Viewport2)
 
   let create ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?lights ?world ?camera ?background
-      ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~workspace ~prepare ~scene2
+      ?seed ?grain ?domains ?max_entries ?max_payload_bytes ?await ~workspace ~prepare ~scene2
       ?overlay ?status () =
     create ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?lights ?world ?camera ?background
-      ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~workspace ~prepare
+      ?seed ?grain ?domains ?max_entries ?max_payload_bytes ?await ~workspace ~prepare
       ~draw:scene2 ?overlay ?status ()
 
   let run ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?lights ?world ?camera ?background

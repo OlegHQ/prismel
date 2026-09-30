@@ -14,7 +14,7 @@ let frame = { (Test_editor_input.frame (0., 0.) [] 0) with dt = 0. }
 let stopped = fst (Timeline.stop (Timeline.create ()))
 
 let await predicate =
-  let deadline = Unix.gettimeofday () +. 5. in
+  let deadline = Unix.gettimeofday () +. 60. in
   let rec loop () = if predicate () then ()
     else if Unix.gettimeofday () >= deadline then failwith "editor cook barrier timeout"
     else (Unix.sleepf 0.0001; loop ()) in

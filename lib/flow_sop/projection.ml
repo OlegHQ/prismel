@@ -22,7 +22,7 @@ type rail_row = {
 
 type input = { path : path; name : string; ty : Ty.t; default : S.t option }
 
-type lens = { steps : string array; error : string option }
+type lens = { steps : string array; error : string option; template : string }
 
 type node = {
   path : path; name : string; binds : string list; head : string; rows : row list;
@@ -30,11 +30,15 @@ type node = {
   macro : string option; lens : lens option; live : bool; invariant : bool; synthetic : bool;
   zone : zone option;
 }
-and zone = { kind : zone_kind; rail : rail_row list; scope : scope; yield_label : string }
+and zone = { kind : zone_kind; rail : rail_row list; scope : scope; yield_label : string;
+             order : string option }
 and scope = { path : path; inputs : input list; nodes : node list; result : result }
 and result = Link of string | Node of path | Literal of S.t
 
 (* the call, then each [expand_once] of it (at most 12 steps, like the study's lens) *)
+let head_sym_of (e : S.t) = match e.node with
+  | S.List ({ S.node = S.Sym h; _ } :: _) -> Some h | _ -> None
+
 let macro_lens (w : W.t) (call : S.t) =
   let state = Flow.Macro.state () in
   let text f = let t = fst (Flow.Lisp.print [ f ]) in
@@ -45,7 +49,12 @@ let macro_lens (w : W.t) (call : S.t) =
     | Error (d : Flow.Diagnostic.t) -> acc, Some d.message
     | Ok next -> if next == cur then acc, None else go next (text next :: acc) (n + 1) in
   let steps, error = go call [ text call ] 0 in
-  { steps = Array.of_list (List.rev steps); error }
+  let template = match head_sym_of call with
+    | Some name -> (match List.find_opt (fun (m : S.t) -> match S.children m with
+        | _ :: { S.node = S.Sym n; _ } :: _ -> n = name | _ -> false) w.macros with
+        | Some m -> text m | None -> "")
+    | None -> "" in
+  { steps = Array.of_list (List.rev steps); error; template }
 
 (* ---- what the projection reads ---- *)
 
@@ -371,7 +380,16 @@ and node_of c ~visible (scope_path : path) (pat : S.t option) (e : S.t) : node =
     let rail = rail_of c k e term ~visible in
     let inner_visible = List.concat_map (fun (r : rail_row) -> if r.role = Capture then [] else r.names) rail @ visible in
     let body = if k = Let then e else last e in
-    { kind = k; rail; yield_label = yield_label k;
+    (* a loop over the points or pieces of geometry says how its elements are ordered *)
+    let order = List.find_map (fun (r : rail_row) -> match r.role, r.expr with
+      | Var, Some { S.node = S.List ({ S.node = S.Sym ("sop/point_list" | "sop/piece_list"); _ } :: args); _ } ->
+          let rec key = function
+            | { S.node = S.Kw "key"; _ } :: { S.node = S.Str k; _ } :: _ -> Some ("by " ^ k)
+            | _ :: rest -> key rest
+            | [] -> None in
+          Some (Option.value ~default:"by index" (key args))
+      | _ -> None) rail in
+    { kind = k; rail; yield_label = yield_label k; order;
       scope = scope_of c ~visible:inner_visible ~inputs:[] p body }) kind in
   let macro = match head_sym e with Some h when List.mem_assoc h c.macros -> Some h | _ -> None in
   let lens = Option.map (fun _ -> macro_lens c.w e) macro in
@@ -442,9 +460,10 @@ let count l = float_of_int (List.length l)
 
 let lens_width = 400.
 let lens_height (l : lens) ~step =
-  let lines = match l.error with Some _ -> 2 | None ->
-    min 16 (1 + String.fold_left (fun a c -> if c = '\n' then a + 1 else a) 0
-      l.steps.(max 0 (min step (Array.length l.steps - 1)))) in
+  let shown = if step >= Array.length l.steps then l.template
+    else l.steps.(max 0 step) in
+  let lines = match l.error with Some _ when step < Array.length l.steps -> 2 | _ ->
+    min 16 (1 + String.fold_left (fun a c -> if c = '\n' then a + 1 else a) 0 shown) in
   row_height +. 10. +. float lines *. 15. +. row_height
 
 let rec size ~at ~collapsed ~lens (it : item) : float * float * bool * layout option = match it with

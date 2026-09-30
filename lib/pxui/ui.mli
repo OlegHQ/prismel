@@ -78,6 +78,9 @@ val cursor : t -> [`Horizontal_resize|`Vertical_resize] option
 val request_cursor : t -> [`Horizontal_resize|`Vertical_resize] -> unit
 (** Cursor requested by a hovered or captured PXUI control. *)
 
+val key_pressed : t -> Prismel.Input.key -> bool
+(** The key was pressed in this frame's events (a dialog's Enter). *)
+
 val text_input_focused : t -> bool
 (** A focused control owns keyboard input (including text and numeric entry).
     Hosts suppress their shortcuts while a control owns it. *)

@@ -13,6 +13,8 @@ type footer = {
 type t = {
   time : float option;
   dynamic : path -> int option;
+  element : path -> int -> (string * E.value) list option;
+      (* the element [k] of the loop over geometry at this path, by its name *)
   geometry : int -> geometry option;
   raw : (path, (int list * E.value) list) Hashtbl.t;
   forced : (path, (int list * summary) array) Hashtbl.t;  (* memo: forcing is per lookup, not per frame *)
@@ -20,10 +22,11 @@ type t = {
   feet : (path * int list, footer) Hashtbl.t;  (* memo of [footer]: the pane asks every frame *)
 }
 
-let make ?time ?(geometry = fun _ -> None) ?(dynamic = fun _ -> None) (eval : E.t) =
+let make ?time ?(geometry = fun _ -> None) ?(dynamic = fun _ -> None)
+    ?(element = fun _ _ -> None) (eval : E.t) =
   let raw = Hashtbl.create 64 in
   List.iter (fun (p, l) -> Hashtbl.replace raw p l) eval.records;
-  { time; dynamic; geometry; raw; forced = Hashtbl.create 64; across = Hashtbl.create 64; feet = Hashtbl.create 64 }
+  { time; dynamic; element; geometry; raw; forced = Hashtbl.create 64; across = Hashtbl.create 64; feet = Hashtbl.create 64 }
 
 let same_eval a b = a.raw == b.raw
 
@@ -104,18 +107,28 @@ let chains (s : P.scope) =
 let rec drop_last = function [] | [ _ ] -> [] | x :: r -> x :: drop_last r
 
 (* the record with exactly this tuple; inside a loop over geometry the body is one template
-   record (its iteration is 0), so every element reads it *)
+   record (its iteration is 0), which reads the element: with the element's position known (the
+   zone cooked) the value is forced for it, else it reads [?] *)
 let at t path ~probes =
   let rs = records t path in
   match Array.find_map (fun (it, s) -> if it = probes then Some s else None) rs with
   | Some _ as found -> found
   | None ->
-      let inside = List.exists (fun i -> t.dynamic (List.filteri (fun j _ -> j < i) path) <> None)
+      let zones = List.filter (fun i -> t.dynamic (List.filteri (fun j _ -> j < i) path) <> None)
         (List.init (max 0 (List.length path - 1)) succ) in
-      if not inside then None
-      else Array.find_map (fun (it, s) ->
-        if List.compare_lengths it probes = 0 && List.for_all2 (fun r p -> r = p || r = 0) it probes
-        then Some s else None) rs
+      if zones = [] then None
+      else
+        let template it = List.compare_lengths it probes = 0 && List.for_all2 (fun r p -> r = p || r = 0) it probes in
+        let zone = List.filteri (fun j _ -> j < List.fold_left max 0 zones) path in
+        let raw = List.find_map (fun (it, v) -> if template it then Some v else None)
+            (Option.value ~default:[] (Hashtbl.find_opt t.raw path)) in
+        let elems = if probes = [] then None else t.element zone (List.nth probes (List.length probes - 1)) in
+        match raw, elems with
+        | Some raw, Some elems when E.is_live raw ->
+            (match E.force ~elems raw ~live:{ E.t = Option.value ~default:0. t.time } with
+             | Ok v -> Some (summarize t v)
+             | Error _ -> Array.find_map (fun (it, s) -> if template it then Some s else None) rs)
+        | _ -> Array.find_map (fun (it, s) -> if template it then Some s else None) rs
 
 (* the records whose tuple is [outer] followed by one more index, in order *)
 let across t path ~outer =

@@ -79,7 +79,7 @@ let editor_text () =
   let catalog = Editor_document.Contexts.catalog ~version:Flow_sop.Manifest.version
       Sop_catalog.Editor.factories |> Result.get_ok in
   let workspace = Prismel_editor.Workspace_doc.of_text catalog (case "sunflower") |> Result.get_ok in
-  let env = ref (E.create ~workspace
+  let env = ref (E.create ~await:true ~workspace
       ~prepare:(fun _ output -> Pdk_prismel.Prismel_mesh.to_mesh output.Procedural.Session.geometry
         |> Result.map_error Pdk.Error.to_string)
       ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) () |> Result.get_ok) in
@@ -97,7 +97,7 @@ let editor_text () =
       Unix.rmdir directory) (fun () ->
       E.crash_dump !env directory;
       In_channel.with_open_bin (Filename.concat directory "editor.txt") In_channel.input_all) in
-  let settle () = for _ = 1 to 40 do step []; Unix.sleepf 0.002 done in
+  let settle () = for _ = 1 to 4 do step [] done in
   settle ();
   let gx, gy, _, gh = (E.panes !env (frame 0 [])).graph in
   (* enter the sunflower object, then Space l twice: graph -> list -> text *)
@@ -183,7 +183,7 @@ let editor_binding () =
   let catalog = Editor_document.Contexts.catalog ~version:Flow_sop.Manifest.version
       Sop_catalog.Editor.factories |> Result.get_ok in
   let workspace = Prismel_editor.Workspace_doc.of_text catalog (case "sunflower") |> Result.get_ok in
-  let env = ref (E.create ~workspace
+  let env = ref (E.create ~await:true ~workspace
       ~prepare:(fun _ output -> Pdk_prismel.Prismel_mesh.to_mesh output.Procedural.Session.geometry
         |> Result.map_error Pdk.Error.to_string)
       ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) () |> Result.get_ok) in
@@ -201,7 +201,7 @@ let editor_binding () =
       Unix.rmdir directory) (fun () ->
       E.crash_dump !env directory;
       In_channel.with_open_bin (Filename.concat directory "editor.txt") In_channel.input_all) in
-  let settle () = for _ = 1 to 40 do step []; Unix.sleepf 0.002 done in
+  let settle () = for _ = 1 to 4 do step [] done in
   settle ();
   let gx, gy, _, gh = (E.panes !env (frame 0 [])).graph in
   click (float (gx + 50), float (gy + 100));
@@ -228,9 +228,8 @@ let editor_w9 () =
   let catalog = Editor_document.Contexts.catalog ~version:Flow_sop.Manifest.version
       Sop_catalog.Editor.factories |> Result.get_ok in
   let scenario script =
-    Unix.putenv "PRISMEL_MAX_FRAMES" "40";
     let workspace = Prismel_editor.Workspace_doc.of_text catalog (case "rosette") |> Result.get_ok in
-    let env = ref (E.create ~workspace
+    let env = ref (E.create ~await:true ~workspace
         ~prepare:(fun _ output -> Pdk_prismel.Prismel_mesh.to_mesh output.Procedural.Session.geometry
           |> Result.map_error Pdk.Error.to_string)
         ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) () |> Result.get_ok) in
@@ -250,10 +249,8 @@ let editor_w9 () =
         drawable_height = 800; drawable_size = 1400, 800; pixel_scale = 1., 1.;
         time = float n /. 60.; dt = 1. /. 60.; fps = 60.; count = n; mouse = !mouse;
         mouse_delta = 0., 0.; keys = []; mouse_buttons = []; events } in
-      env := E.update !env f;
-      Unix.sleepf 0.002
+      env := E.update !env f
     done;
-    Unix.sleepf 0.05;
     let ws = E.workspace !env in
     Flow.Lisp.print ws.source |> fst, E.undo_label !env in
   let untouched, _ = scenario [] in
@@ -262,6 +259,22 @@ let editor_w9 () =
   let text, label = scenario [ 22, (fun click -> click (1044., 236.)) ] in
   check (not (contains text "^:bypass") && label = Some "Bypass")
     (Printf.sprintf "the B flag: %s, bypass %b" (Option.value label ~default:"-") (contains text "^:bypass"));
+  (* the inspector's Bypass toggle is the flag's request too *)
+  let text, label = scenario [ 22, (fun click -> click (1075., 236.)); 26, (fun click -> click (1236., 213.)) ] in
+  check (not (contains text "^:bypass") && label = Some "Bypass")
+    (Printf.sprintf "the inspector's Bypass toggle: %s" (Option.value label ~default:"-"));
+  (* and its name field is the pane's rename *)
+  let text, label = scenario [ 22, (fun click -> click (1075., 236.)); 26, (fun click -> click (1290., 187.));
+    28, (fun _ -> [ Event.KeyPressed (Input.KeyChar 'a') ]); 30, (fun _ -> [ Event.TextInput "gentle" ]);
+    32, (fun _ -> [ Event.KeyPressed Input.Enter ]) ] in
+  check (contains text "gentle ^:bypass (sop/subdivide" && not (contains text "soft ^:bypass") && label = Some "Rename")
+    ("the inspector's name field: " ^ Option.value label ~default:"-");
+  (* a graph input's default is edited in the inspector too *)
+  let text, label = scenario [ 22, (fun click -> click (700., 240.)); 26, (fun click -> click (1290., 98.));
+    28, (fun _ -> [ Event.KeyPressed (Input.KeyChar 'a') ]); 30, (fun _ -> [ Event.TextInput "7" ]);
+    32, (fun _ -> [ Event.KeyPressed Input.Enter ]) ] in
+  check (contains text "(petals : int 7)" && label = Some "Input default")
+    ("the inspector's input default: " ^ Option.value label ~default:"-");
   (* the inspector note: click the field, type, Enter *)
   let text, label = scenario [ 22, (fun click -> click (1075., 236.)); 26, (fun click -> click (1290., 158.));
     28, (fun _ -> [ Event.KeyPressed (Input.KeyChar 'a') ]); 30, (fun _ -> [ Event.TextInput "a fresh note" ]);
@@ -271,7 +284,13 @@ let editor_w9 () =
   let text, label = scenario [ 22, (fun click -> click (1075., 236.));
     26, (fun _ -> [ Event.KeyPressed (Input.KeyChar 'm') ]); 30, (fun click -> click (700., 463.)) ] in
   check (contains text "(defmacro soft_tpl [p1 inner]" && label = Some "Make macro")
-    ("the make-macro dialog: " ^ Option.value label ~default:"-")
+    ("the make-macro dialog: " ^ Option.value label ~default:"-");
+  (* Enter in the name field creates the macro too *)
+  let text, label = scenario [ 22, (fun click -> click (1075., 236.));
+    26, (fun _ -> [ Event.KeyPressed (Input.KeyChar 'm') ]); 30, (fun click -> click (700., 433.));
+    34, (fun _ -> [ Event.KeyPressed Input.Enter ]) ] in
+  check (contains text "(defmacro soft_tpl [p1 inner]" && label = Some "Make macro")
+    ("Enter in the make-macro dialog: " ^ Option.value label ~default:"-")
 
 let run () =
   selection_text ();

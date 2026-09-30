@@ -121,7 +121,7 @@ let char c = key (Input.KeyChar c)
 
 let editor ?presets text =
   let workspace = of_text text in
-  Prismel_editor.Editor3.create ~workspace ?presets
+  Prismel_editor.Editor3.create ~await:true ~workspace ?presets
     ~prepare:(fun _ output -> Ok output.Procedural.Session.geometry)
     ~scene3:(fun _ _ -> Scene3.create []) () |> function
   | Ok e -> e | Error m -> fail m
@@ -130,14 +130,14 @@ let first_x geometry =
   let view = Pdk.Packed.Float3.Private.view (Pdk.Geometry.positions geometry) in
   view.x.(0)
 
-(* update frames until [ok] holds *)
+(* update frames until [ok] holds: the editor awaits each frame's cook, so a bounded number of
+   frames, not a wait on the clock *)
 let settle ?(from = 0) e ok =
-  let deadline = Unix.gettimeofday () +. 10. in
   let rec go count e =
     let e = Prismel_editor.Editor3.update e (frame [] count) in
     if ok e then e, count
-    else if Unix.gettimeofday () > deadline then fail "the editor did not settle"
-    else (Unix.sleepf 0.001; go (count + 1) e) in
+    else if count > from + 200 then fail "the editor did not settle"
+    else go (count + 1) e in
   go from e
 
 let part_editor () =
@@ -189,12 +189,10 @@ let part_live () =
   let e, count = settle e (fun e -> E3.prepared e <> None) in
   let xs = ref [] in
   let e = ref e and count = ref count in
-  let deadline = Unix.gettimeofday () +. 10. in
-  while List.length (List.sort_uniq compare !xs) < 4 && Unix.gettimeofday () < deadline do
+  while List.length (List.sort_uniq compare !xs) < 4 && !count < 400 do
     e := E3.update !e (frame [] !count);
     incr count;
-    Option.iter (fun g -> xs := first_x g :: !xs) (E3.prepared !e);
-    Unix.sleepf 0.002
+    Option.iter (fun g -> xs := first_x g :: !xs) (E3.prepared !e)
   done;
   check (List.length (List.sort_uniq compare !xs) >= 4) "a time-driven workspace animates in the editor";
   E3.close !e
@@ -385,7 +383,7 @@ let part_editor_contexts () =
   let e = ref (editor (case "bloom")) in
   let count = ref 0 in
   let step events = incr count; e := E3.update !e (frame events !count) in
-  for _ = 1 to 10 do step []; Unix.sleepf 0.002 done;
+  for _ = 1 to 10 do step [] done;
   let dump () =
     let directory = Filename.temp_dir "prismel-contexts-dump" "" in
     Fun.protect ~finally:(fun () ->

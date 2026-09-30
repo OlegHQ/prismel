@@ -58,10 +58,11 @@ type rail_row = {
 
 type input = { path : path; name : string; ty : Flow.Ty.t; default : Flow.Syntax.t option }
 
-type lens = { steps : string array; error : string option }
+type lens = { steps : string array; error : string option; template : string }
 (** A macro call and its expansion, one step at a time: [steps.(0)] is the call as
     written, [steps.(k)] the text after [k] {!Flow.Macro.expand_once} steps (at most 12);
-    [error] is the diagnostic that stopped them. *)
+    [error] is the diagnostic that stopped them.  [template] is the macro's definition, which
+    the lens shows as one step more than [steps] ({!lens_height}'s [step] past the last). *)
 
 type node = {
   path : path;
@@ -86,6 +87,9 @@ and zone = {
   rail : rail_row list;
   scope : scope;
   yield_label : string;  (** collect, next, add, result, return *)
+  order : string option;
+      (** a loop over [sop/point_list] or [sop/piece_list] says how its elements are ordered:
+          ["by index"], or ["by id"] for [:key "id"] *)
 }
 
 and scope = {

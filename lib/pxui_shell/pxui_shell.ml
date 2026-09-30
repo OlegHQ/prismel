@@ -511,6 +511,8 @@ module Prompt = struct
      rest stay copied into it *)
   let macro ui ~key ~title ~literals ~free (m : macro) =
     Pxui.Ui.modal ui ~width:480. key (fun () ->
+      (* Enter in one of its fields creates the macro, like the button *)
+      let enter = Pxui.Ui.text_input_focused ui && Pxui.Ui.key_pressed ui Prismel.Input.Enter in
       Pxui.Ui.label ui title;
       Pxui.Ui.inspector_message ui ~key:(key ^ "-hint")
         (match free with
@@ -524,7 +526,7 @@ module Prompt = struct
         end) m.holes in
       let name = Pxui.Ui.text_field ui "Macro name" m.name in
       let submit = Pxui.Ui.button ui "Create macro" in
-      { name; holes }, if submit then `Submit else `None)
+      { name; holes }, if submit || enter then `Submit else `None)
 end
 
 module Tree = struct

@@ -51,7 +51,8 @@ type origin = { merge : int; input : int; source : int;
     of the source node and its plan key. *)
 
 type zone = { cid : int; site : Flow.Workspace.path; iter : int list;
-              body_site : Flow.Workspace.path; base : int; count : int Atomic.t }
+              body_site : Flow.Workspace.path; base : int; count : int Atomic.t; ekey : string option;
+              positions : (float * float * float) array Atomic.t }
 (** A loop over geometry ({!zones}): its compiled id, plan key, the site of its body
     result, the first of the {!Procedural.Zone.max_elements} tags it reserves and the
     element count of the last cook that ran it ([-1] before any). *)
@@ -89,6 +90,10 @@ val origin : t -> int -> origin option
 val tags : t -> site:Flow.Workspace.path -> iter:int list -> int list
 (** Every tag whose origin is this site at this iteration tuple; the loop over geometry
     itself, at its own tuple, gives every element's tag. *)
+
+val zone_element : t -> Flow.Workspace.path -> int -> (string * (float * float * float)) option
+(** The name a loop over points binds its element to, and the position of element [k] in the
+    order of the zone's last cook; [None] before a cook, for a loop over pieces, or out of range. *)
 
 val zone_count : t -> Flow.Workspace.path -> int option
 (** The elements the loop over geometry bound at this path ran over in its last

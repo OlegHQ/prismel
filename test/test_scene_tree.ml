@@ -49,7 +49,7 @@ let labelled env =
 
 let run () =
   let cooks = Atomic.make 0 in
-  let env = E.create ~workspace:(Ws_fixture.of_text text)
+  let env = E.create ~await:true ~workspace:(Ws_fixture.of_text text)
       ~lens:{ aperture = 0.3; focus_distance = None }
       ~max_entries:4 ~max_payload_bytes:(16 * 1024 * 1024)
       ~prepare:(fun _ output -> Atomic.incr cooks;
@@ -60,12 +60,10 @@ let run () =
   let step ?mouse ?keys ?buttons env events =
     incr count; E.update env (frame ?mouse ?keys ?buttons ~events !count) in
   let key k = Event.KeyPressed k and char c = Event.KeyPressed (Input.KeyChar c) in
-  let deadline = Unix.gettimeofday () +. 2. in
-  let rec settle env =
+  (* the editor awaits the cook each frame submits: one frame cooks geo1 *)
+  let settle env =
     let env = step env [] in
-    if E.prepared env <> None && Atomic.get cooks > 0 then env
-    else if Unix.gettimeofday () < deadline then (Unix.sleepf 0.001; settle env)
-    else fail "the scene did not cook geo1" in
+    if E.prepared env <> None && Atomic.get cooks > 0 then env else fail "the scene did not cook geo1" in
   let env = settle env in
   let gx, gy, _, _ = (E.panes env (frame 0)).graph in
   (* Focus the graph pane (the list), then walk the rows. *)
@@ -174,7 +172,7 @@ let run () =
   (* Nor does dragging an object transform slider in the inspector (undo
      itself re-cooks, so let that settle first): rows are 24 points and
      Translate X follows the node header, input source and folder. *)
-  let env = List.fold_left (fun env _ -> Unix.sleepf 0.005; step env []) env (List.init 40 Fun.id) in
+  let env = List.fold_left (fun env _ -> step env []) env (List.init 40 Fun.id) in
   let cooked = Atomic.get cooks in
   let rec select_up name env tries =
     if label env = Some name then env
@@ -206,7 +204,7 @@ let run () =
   check (contains (source env) ":translate [") "the Translate X drag did not reach the text";
   check (E.undo_label env = Some "Set translate_x") "the slider drag is not one entry named for the field";
   check (List.map fst (E.objects env) <> [Mat4.identity]) "the transform did not reach objects";
-  let env = List.fold_left (fun env _ -> Unix.sleepf 0.005; step env []) env (List.init 20 Fun.id) in
+  let env = List.fold_left (fun env _ -> step env []) env (List.init 20 Fun.id) in
   check (Atomic.get cooks = cooked) "an object transform edit re-cooked SOPs";
   let env = step ~mouse:in_list env
       [Event.MousePressed (Input.LeftButton, (float (fst in_list), float (snd in_list)));
@@ -319,7 +317,7 @@ let run () =
   check (E.level env = None) "the scene broke after deleting its display object";
   check (not (contains (source env) "(scene/geometry")) "deleting geo1 left it in the text";
   (* what was written opens as the same scene *)
-  let reopened = E.create ~workspace:(Ws_fixture.of_text (source env))
+  let reopened = E.create ~await:true ~workspace:(Ws_fixture.of_text (source env))
     ~lens:{ aperture = 0.3; focus_distance = None }
     ~prepare:(fun _ output -> Pdk_prismel.Prismel_mesh.to_mesh output.Session.geometry
       |> Result.map_error Pdk.Error.to_string)
@@ -348,7 +346,7 @@ let run () =
         (sop/mountain (sop/grid :columns 40 :rows 40 :size 4 :width 4 :height 4)
                       :seed 3 :height 0.4 :frequency [1 1 1] :octaves 3 :lacunarity 2
                       :roughness 0.5 :recompute_normals true)))|} in
-    let env = E.create ~workspace ~domains ~grain:16 ~max_entries:4
+    let env = E.create ~await:true ~workspace ~domains ~grain:16 ~max_entries:4
         ~max_payload_bytes:(16 * 1024 * 1024)
         ~prepare:(fun _ output ->
           let points = Pdk.Geometry.positions output.Session.geometry in
@@ -356,12 +354,9 @@ let run () =
             (fun index -> let x, y, z = Pdk.Packed.Float3.get points index in
               Printf.sprintf "%h %h %h" x y z)))))
         ~scene3:(fun _ _ -> Scene3.create []) () |> Result.get_ok in
-    let deadline = Unix.gettimeofday () +. 5. in
-    let rec wait count env = let env = E.update env (frame count) in
-      match E.prepared env with
-      | Some digest -> E.close env; digest
-      | None when Unix.gettimeofday () < deadline -> Unix.sleepf 0.001; wait (count + 1) env
-      | None -> fail "the domain-count cook did not finish" in
-    wait 0 env in
+    let env = E.update env (frame 0) in
+    match E.prepared env with
+    | Some digest -> E.close env; digest
+    | None -> fail "the domain-count cook did not finish" in
   check (digest 1 = digest 4) "one domain and four domains cooked different geometry";
   print_endline "scene tree: list keys, enter/up, lights, reparent, World, graph, domains ok"
