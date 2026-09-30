@@ -23,7 +23,7 @@
  (description "A clean, type-safe API for creating interactive graphics applications, games, and generative art in OCaml")
  (depends
   (ocaml (>= 5.2))
-  (dune (>= 3.17))
+  (dune (>= 3.21))
   digestif
   dune-configurator
   ppxlib

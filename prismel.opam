@@ -12,7 +12,7 @@ doc: "https://nexo.sh/prismel"
 bug-reports: "https://github.com/nexo-tech/prismel/issues"
 depends: [
   "ocaml" {>= "5.2"}
-  "dune" {>= "3.17" & >= "3.17"}
+  "dune" {>= "3.17" & >= "3.21"}
   "digestif"
   "dune-configurator"
   "ppxlib"
