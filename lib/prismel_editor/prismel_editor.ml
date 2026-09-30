@@ -1,6 +1,7 @@
 
 open Editor_document
 module Settings = Settings
+module Source = Source_file
 module Workspace_doc = Workspace_doc
 
 let workspace_catalog ?(factories = Sop_catalog.Editor.factories) () =
@@ -30,17 +31,17 @@ module Editor3 = struct
   let look_through value = (extra value).Viewport3.look_through
 
   let create ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?lights ?world ?camera ?lens
-      ?background ?seed ?grain ?domains ?max_entries ?max_payload_bytes ?graph ?program ?workspace ~prepare ~scene3
+      ?background ?seed ?grain ?domains ?max_entries ?max_payload_bytes ?graph ?program ?workspace ?source ~prepare ~scene3
       ?overlay ?status () =
     create ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?lights ?world ?camera ?lens
-      ?background ?seed ?grain ?domains ?max_entries ?max_payload_bytes ?graph ?program ?workspace ~prepare
+      ?background ?seed ?grain ?domains ?max_entries ?max_payload_bytes ?graph ?program ?workspace ?source ~prepare
       ~draw:scene3 ?overlay ?status ()
 
   let run ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?lights ?world ?camera ?lens
-      ?background ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~config ?graph ?program ?workspace ~prepare
+      ?background ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~config ?graph ?program ?workspace ?source ~prepare
       ~scene3 ?overlay ?status () =
     run ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?lights ?world ?camera ?lens
-      ?background ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~config ?graph ?program ?workspace ~prepare
+      ?background ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~config ?graph ?program ?workspace ?source ~prepare
       ~draw:scene3 ?overlay ?status ()
 end
 
@@ -78,9 +79,22 @@ module Workspace = struct
     | Error d -> Error [ d ]
     | Ok catalog -> Workspace_doc.of_text catalog text
 
-  (* ponytail: the geometry is drawn as one mesh under a fixed light and camera;
-     scene cameras and lights are part B's business. *)
-  let run ?source:_ doc =
+  (* The viewport starts where the scene's first camera is (else the default orbit); the host's
+     light below is a default that a scene declaring a light replaces (Contexts.of_workspace).
+     ponytail: the geometry is drawn as one mesh. *)
+  let declared_camera doc base =
+    match Contexts.of_workspace ~factories:Sop_catalog.Editor.factories doc with
+    | Error _ -> base
+    | Ok document ->
+        let scene = document.Document.scene.graph.Flow_sop.Network.geometry in
+        (match Option.bind (List.nth_opt (Objects.ids "camera" scene) 0) (fun node_id ->
+            Option.bind (Procedural.Edit_graph.find scene ~node_id) Objects.Camera.of_node) with
+         | Some (view, _) -> Prismel.Easy_camera.of_view ~eye:(Prismel.Camera.position view)
+             ~target:(Prismel.Camera.target view) base
+         | None -> base)
+
+  let run ?source doc =
+    let source = Option.bind source (fun { path; digest } -> Source.find ~path ~digest) in
     let window = match workspace_window doc with
       | Ok w -> w | Error d -> failwith (Flow.Diagnostic.to_string d) in
     let config = { Prismel.Sketch.default_config with width = window.width; height = window.height;
@@ -90,9 +104,9 @@ module Workspace = struct
     let scene3 _ mesh = Prismel.Scene3.create [ Prismel.Scene3.mesh ~cull:Prismel.Scene3.Cull_none mesh ] in
     let lights = [ Prismel.Light.directional ~direction:(Prismel.Vec3.create (-1.) (-1.4) (-0.8))
                      ~diffuse:Prismel.Color.white () ] in
-    let camera = Prismel.Easy_camera.create ~target:Prismel.Vec3.zero ~distance:3.6 ~azimuth:0.4
-        ~elevation:0.6 () in
-    Editor3.run ~config ~lights ~camera ~seed:(Int64.of_int window.seed) ~workspace:doc ~prepare ~scene3 ()
+    let camera = declared_camera doc (Prismel.Easy_camera.create ~target:Prismel.Vec3.zero ~distance:3.6
+        ~azimuth:0.4 ~elevation:0.6 ()) in
+    Editor3.run ~config ~lights ~camera ~seed:(Int64.of_int window.seed) ~workspace:doc ?source ~prepare ~scene3 ()
 
   let main ~path ~digest ~catalog text =
     if catalog <> Contexts.catalog_digest Sop_catalog.Editor.factories then

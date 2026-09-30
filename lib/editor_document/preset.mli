@@ -28,6 +28,10 @@ val save :
     [Error] when [doc] has no workspace or the view has nonfinite numbers.
     The document's current settings are saved. *)
 
+val text : Document.t -> (string, string) result
+(** The canonical workspace text of [doc] (its settings beside it), as a preset
+    or a [.plisp] source is written; [Error] when [doc] is not a workspace. *)
+
 val list : directory:string -> (string * float) list
 (** Preset names with modification times, newest first; empty when the
     directory is missing. *)

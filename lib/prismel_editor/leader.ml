@@ -3,6 +3,7 @@ open Prismel
 open Editor_core.Keymap
 type action =
   | Save_preset | Browse_presets
+  | Save_source  (* Command-S: rewrite the sketch's .plisp, else a preset *)
   | Toggle_timeline | Toggle_graph | Toggle_inspector | Hide_ui | Open_camera
   | Play_pause | Reset | Stop
   | Add_node
@@ -107,6 +108,7 @@ let keymap = [
     ~guide:Editor_core.Guide_context.[Compound]
     ~trigger:(Chord (Input.KeyChar 'g', [modifier; Input.Shift]))
     ~scope:graph Ungroup;
+  command ~id:"file.save" ~label:"save sketch" ~trigger:(Chord (Input.KeyChar 's', [modifier])) Save_source;
   command ~id:"edit.undo" ~label:"undo" ~trigger:(Chord (Input.KeyChar 'z', [modifier])) Undo;
   command ~id:"edit.redo" ~label:"redo"
     ~trigger:(Chord (Input.KeyChar 'z', [modifier; Input.Shift])) Redo;

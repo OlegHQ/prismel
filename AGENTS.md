@@ -52,7 +52,11 @@ in a browser, never product code and never a web fallback.
 `examples/<name>/` are short teaching programs; `sketches/<name>/` are
 experiments. Each has its own `dune`, depends only on what it shows, keeps
 framework code out, and runs finitely under `PRISMEL_MAX_FRAMES`. Scaffold an
-example with `dune exec tools/new_example.exe -- <name>`. Prefer
+example with `dune exec tools/new_example.exe -- <name>`. A sketch that is only a Flow workspace is
+`sketches/<name>/sketch.plisp` with no `dune` or `main.ml` (`--plisp <name>` scaffolds it): `sketches/dune`
+generates its executable with `prismel-plisp`, and after adding or removing one you run
+`dune build @runtest; dune promote` to update the checked-in `sketches/dune.plisp.inc`. Command-S in
+its window rewrites the file (comments kept) and an edit of the file reloads the window. Prefer
 `Prismel_editor.Editor3`/`2` for SOP sketches, SOP graphs for geometry, and
 deterministic seeds.
 

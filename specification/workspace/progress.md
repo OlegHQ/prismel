@@ -21,7 +21,7 @@ Status: `todo` · `wip` · `done` (gate met) · `partial` (what is missing is na
 | W8 loops over geometry | done | | `point_list` / `piece_list`, the zone node (`Eval` template, `Procedural.Zone` + `Node.Private.expand` + `Session`), lowering by `Lower.instantiate`, zone provenance and count, `FLOW_CASE=garden`, `test_workspace_zone`, bench (notes below). Gaps: values inside the loop read the template record, no `t` in the body, no "by index" title, sequential. |
 | W9 macros UI, notes, bypass | done | | `Projection` lens and `layout ?lens`, the panel and `B` flag in `Scope`, `Macro_requested` + `Flow_edit.macro_draft` / `macro_op` + `Pxui_shell.Prompt.macro`, the inspector note field, tests through the pane and the editor, `FLOW_CASE=rosette` (notes below). Gaps: no Template button, no Enter to create, no inspector bypass toggle. |
 | W10 contexts & composable shell | done | | Part A (contexts): `scene`, `world`, `settings` graphs check, lower into the document and open in the pane. Part B (shell): `Editor_core.Panels` and `Pxui_shell.Layout` (the tree and its geometry), the editor graph lowered into `Document.shell`, focus and commands keyed by panel, split/close/retype/resize as `Flow_edit` ops, Restore layout, one scene instance per viewport override, `ui/graph` names its graph (notes below). Gaps: `Contexts.window` is still not fed into a host (W11); no key for split/close/retype (the header menu only); viewports share one camera; only bound panels are editable. |
-| W11 `.plisp` sketches | wip | | Part A (tool, dune wiring, scaffolding, tests, the twelve `sketches/ws_*`): `prismel-plisp check|ml|dune|fmt`, `sketches/dune` + checked-in `dune.plisp.inc`, `Prismel_editor.Workspace.load/run/main` (minimal), `new_example --plisp`, cram tests. Part B is open: Save, live reload, `Workspace.main` tests (notes below). |
+| W11 `.plisp` sketches | done | | Part A (tool, dune wiring, scaffolding, the twelve `sketches/ws_*`) and part B: Command-S rewrites the source file (comments kept) only while its SHA-256 is the remembered digest, else a preset; the running window reloads a changed file as one history entry "Reload sketch.plisp", a failing file keeps the last good document and shows diagnostics (notes below). Gaps: the reload keeps the running layout, so a `(layout ...)` form edited in the file is ignored until restart; polling, not file events; no three-way merge. |
 | W12 migration & removal | todo | | |
 
 ## Notes
@@ -539,3 +539,32 @@ Status: `todo` · `wip` · `done` (gate met) · `partial` (what is missing is na
   match, mismatch, atomic write re-read, reload keeps probes, failed reload keeps the document).
   The window is fed from `Contexts.window` already (title, size, fps, seed); the fixed light and
   camera in `run` should give way to the scene graph's.
+- W11 part B notes. `Source_file` (public `Prismel_editor.Source`: `at`, `find`, `file`, `poll`, `save`) is the
+  immutable state in `Environment.t` (`?source` on `Editor3.create/run`, `Workspace.run ?source` finds the
+  file with `find`). `find` walks up from the executable then the working directory to the first
+  `dune-project` not under `_build` and joins `path`; the file need not match the digest to be watched.
+  `poll ~now` costs one `stat` per 0.5 s of frame time (a float compare otherwise), reads the file only when
+  the mtime changed, and returns the text when its SHA-256 differs from the remembered digest (or the last
+  reload failed, so undoing a typo reloads). The initial mtime is the file's at startup: a file that already
+  differed from the built text is reloaded on its next edit, and until then Save falls back to a preset.
+  Reload is `Core.reload` (`text_edit` with the label "Reload <file>", notice "Reloaded <file>") applied
+  right after `Core.update` with `scene_changed` forced, so lights and objects recompose that frame; layout,
+  settings, probes (`Editor3.probe/set_probe`, new) and the selection stay by path. A refused text is
+  `Core.reload_failed`: the Lisp panel's Document tab holds the file's text as its draft with the diagnostics
+  and the status says "<file> not reloaded: line N, message"; the last good document stays (nothing enters
+  history). Save (`Leader.Save_source`, Command-S and Ctrl-S, `file.save`) writes `Preset.text doc`
+  (new; the text a preset holds, settings beside it) through `Store.write_text` (temporary file, rename,
+  then the old permissions) after re-reading the file and comparing its digest, then remembers the written
+  text's digest, so its own write never reloads. A changed file, or no source, saves a preset instead with
+  "source changed since build; saved as preset <name>" (no overwrite, no merge). The printer prints `;;`
+  comments as `;` and moves a trailing comment inside the form; `ws_bloom` round-trips byte for byte.
+  Item 3: the ownership rules were already W10 (a declared light replaces the host's, a declared camera
+  is the active one); `Workspace.run` now starts the viewport at the scene's first camera's eye and target
+  (`Easy_camera.of_view`, its fov is the default's) instead of the fixed orbit. Tests: `test_workspace_source`
+  (find under `_build`, save/re-read with comments, mismatch refusal, poll rate limit, no self-reload, the
+  editor end to end: Command-S, reload as one entry with a probe kept, a typo keeping the document and
+  naming line 1, recovery, preset fallback). Native (a scripted `Editor3` window over `ws_bloom` in a
+  temporary project, PNGs read): edit at frame 60 to 4 petals reloaded ("Reloaded sketch.plisp", one
+  "Reload sketch.plisp" entry), Command-S rewrote the file byte-identically, and a typo at line 25 kept the
+  4 petals, opened the Document tab with the file text and `E_UNKNOWN_KIND` under it. `dune build
+  @sketches/ws_<case>/smoke-all` passes for all twelve.

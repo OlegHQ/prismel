@@ -31,6 +31,7 @@ let tests = [
   "test_workspace_doc", Test_workspace_doc.run;
   "test_workspace_shell", Test_workspace_shell.run;
   "test_workspace_shell_native", Test_workspace_shell.run_native;
+  "test_workspace_source", Test_workspace_source.run;
   "dependency_gate", Dependency_gate.run;
   "sop_render_parity", Sop_render_parity.run;
 ]

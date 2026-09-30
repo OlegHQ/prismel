@@ -55,6 +55,11 @@
   `Viewport2` are its instances; `Editor3`/`Editor2` only rename the
   draw callback. Add dimensional behavior to a viewport, never a second
   update path.
+- Source file (W11): `Source_file` (public as `Prismel_editor.Source`) is immutable state in `Environment.t`
+  (`?source`): `poll` is one `stat` per half second of frame time, `Core.reload`/`reload_failed` replace the
+  document as one history entry or show the diagnostics (the Lisp panel's Document tab, the status notice),
+  and Command-S (`Leader.Save_source`) writes over the file only while its digest is the remembered one, else
+  a preset. Never poll per frame, from a domain, or on a path that scales with the document.
 - `Prismel_editor.Private` is unstable and test-only. Layout and chrome callers
   use `Pxui_shell.Layout` and `Pxui_shell.Chrome` directly.
 

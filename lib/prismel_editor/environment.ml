@@ -293,6 +293,7 @@ module Make (V : VIEWPORT) = struct
     commands : (Pxui_shell.Layout.panel, 'prepared t -> 'prepared t) Editor_core.Command.t list;
     world_drag : world_drag option;
     pick_press : (float * float) option;  (* a left press in the view that may become a click *)
+    source : Source_file.t option;  (* the .plisp the document came from: polled, saved over *)
   }
 
   (* Scene objects a sketch starts with: its lights as light objects. *)
@@ -311,7 +312,7 @@ module Make (V : VIEWPORT) = struct
   let create ?(layout = Pxui_shell.Layout.default) ?name ?presets ?timeline_frames ?factories
       ?settings ?(commands = []) ?(lights = []) ?world
       ?(camera = V.default_camera ()) ?lens ?(background = Color.hex_exn "#f4f5f0")
-      ?seed ?grain ?domains ?max_entries ?max_payload_bytes ?graph ?program ?workspace ~prepare ~draw
+      ?seed ?grain ?domains ?max_entries ?max_payload_bytes ?graph ?program ?workspace ?source ~prepare ~draw
       ?(overlay = fun _ _ _ -> Scene.empty) ?(status = fun _ -> None) () =
     let graph = match graph, program, workspace with
       | Some graph, None, None -> Ok graph
@@ -374,7 +375,7 @@ module Make (V : VIEWPORT) = struct
       { core; camera; control = V.create_control (); draw; overlay; status;
         rendered = None; views = []; drawn = Document.Layout.empty; baked = None; baked_from = None; map = None;
         render_status = None; pending_render = None;
-        background; extra; hidden_scene_cache = None; commands; world_drag = None; pick_press = None })
+        background; extra; hidden_scene_cache = None; commands; world_drag = None; pick_press = None; source })
       (Core.create ?settings ?world ~scene_level:V.scene_level
         ~keymap:(V.keymap @ List.map (fun (c : _ Editor_core.Command.t) ->
           { c with action = Leader.Sketch_command c.id }) commands)
@@ -399,6 +400,9 @@ module Make (V : VIEWPORT) = struct
     then Some (Editor_core.History.label value.core.Core.history) else None
   let redo_label value = Editor_core.History.redo_label value.core.Core.history
   let workspace value = Option.map fst value.core.Core.doc.workspace
+  let probe value zone = Layout_by_path.Path_map.find_opt zone value.core.Core.probes
+  let set_probe value zone index =
+    { value with core = { value.core with Core.probes = Layout_by_path.Path_map.add zone index value.core.Core.probes } }
   let edit value op = Result.map (fun core -> { value with core }) (Core.syntax_edit value.core op)
   let level value = match value.core.Core.level with
     | Document.Scene -> None
@@ -477,6 +481,36 @@ module Make (V : VIEWPORT) = struct
       (if waiting then None else Some (compose_pieces (Core.placed_pieces update.core))),
       views, drawn
 
+  (* The source file, at most every half second: a changed text reloads the document. *)
+  let reload_source source (update : (_, _) Core.update) ~now = match source with
+    | None -> None, update
+    | Some file ->
+        (match Source_file.poll ~now file with
+         | file, None -> Some file, update
+         | file, Some text ->
+             let name = Filename.basename (Source_file.file file) in
+             (match Core.reload update.core ~name text with
+              | Ok core -> Some (Source_file.accepted file text), { update with core; scene_changed = true }
+              | Error diagnostics ->
+                  Some (Source_file.rejected file),
+                  { update with core = Core.reload_failed update.core ~name text diagnostics }))
+
+  (* Command-S: over the source file while it is what the document came from, else a preset. *)
+  let save_source core source view =
+    let notice text = { core with Core.notice = Some text } in
+    let preset why = match Preset.save ~directory:core.Core.presets ~name:(Preset.default_name ())
+        ~doc:core.doc ~view with
+      | Ok path -> notice (why ^ "; saved as preset " ^ Filename.basename path)
+      | Error message -> notice ("Not saved: " ^ message) in
+    match Preset.text core.doc, source with
+    | Error message, _ -> notice ("Not saved: " ^ message), source
+    | Ok _, None -> preset "no source file", source
+    | Ok text, Some file ->
+        (match Source_file.save file text with
+         | Ok file -> notice ("Saved " ^ Filename.basename (Source_file.file file)), Some file
+         | Error `Changed -> preset "source changed since build", Some file
+         | Error (`Failed message) -> notice ("Not saved: " ^ message), Some file)
+
   let update_with value frame ~inspector =
     let ui = value.core.Core.ui in
     let raw_frame = frame in
@@ -495,6 +529,7 @@ module Make (V : VIEWPORT) = struct
         ~view_state:(function
           | Some (_, camera, _, extra, _) -> V.section camera extra
           | None -> V.section value.camera extra) frame in
+    let source, update = reload_source value.source update ~now:frame.Frame.time in
     let core = update.core and panes = Core.panes update.core frame in
     let control, camera, requests, extra, inspected = match update.panel with
       | Some (control, camera, requests, extra, inspected) ->
@@ -512,6 +547,8 @@ module Make (V : VIEWPORT) = struct
               control, extra, (if notice = None then status else notice))
         (control, extra, value.render_status) update.actions in
     let core = V.on_doc ~previous:value.core core camera in
+    let core, source = if List.mem Leader.Save_source update.actions
+      then save_source core source (V.section camera extra) else core, source in
     let area = if visible then panes.view
       else 0, 0, frame.Frame.width, frame.height in
     (* Latch the World operation and target at the owned press. Movement and
@@ -596,7 +633,7 @@ module Make (V : VIEWPORT) = struct
     let render_status = if pending_render <> None && rendered = None then
         Some "Render unavailable until the first cook completes" else render_status in
     let value = refresh_hidden { value with core; camera; control; rendered; views; drawn; baked; baked_from; map; world_drag; pick_press;
-      pending_render; render_status; extra } raw_frame in
+      pending_render; render_status; extra; source } raw_frame in
     (* Sketch commands run last, on the finished frame's model. *)
     List.fold_left (fun value -> function
       | Leader.Sketch_command id -> (List.find (fun (c : _ Editor_core.Command.t) ->
@@ -661,7 +698,7 @@ module Make (V : VIEWPORT) = struct
 
   let run ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?lights
       ?world ?camera ?lens ?background ?seed ?grain ?domains ?max_entries ?max_payload_bytes
-      ~config ?graph ?program ?workspace ~prepare ~draw ?overlay ?status () =
+      ~config ?graph ?program ?workspace ?source ~prepare ~draw ?overlay ?status () =
     let name = Option.value name ~default:(match program, workspace with
       | Some program, _ -> program.Flow_sop.Program.name
       | None, Some workspace -> Workspace_doc.name workspace
@@ -669,7 +706,7 @@ module Make (V : VIEWPORT) = struct
     let init _frame = create ?layout ~name ?presets ?timeline_frames ?factories ?settings
         ?commands ?lights ?world
         ?camera ?lens ?background ?seed ?grain ?domains ?max_entries ?max_payload_bytes
-        ?graph ?program ?workspace ~prepare ~draw ?overlay ?status () |> Result.get_ok in
+        ?graph ?program ?workspace ?source ~prepare ~draw ?overlay ?status () |> Result.get_ok in
     let update value frame =
       let value = update value frame in
       set_ui_cursor value.core.ui (V.ui_visible value.control);

@@ -1177,7 +1177,7 @@ let apply_action value (frame : Frame.t) (workspace, graph_view, tree, timeline,
   | Frame_tile -> workspace, Pxui_graph.frame_viewed graph_view, tree, timeline, changes
   | World_play when Sketch_support.Timeline.mode timeline <> Sketch_support.Timeline.Playing ->
       timeline_step T.toggle_pause
-  | Hide_ui | Look_through | Fly | Save_preset | Browse_presets
+  | Hide_ui | Look_through | Fly | Save_preset | Browse_presets | Save_source
   | Graph_command _ | List_command _ | Frame_camera | Undo | Redo | Command_palette
   | Guide_toggle | Guide_keys
   | Sketch_command _ | Scope_command _ | Toggle_projection | Enter | Up | Go_world | Group | Ungroup
@@ -1373,8 +1373,8 @@ let install value doc ~label ~merge =
 
 (* The text pane's applies (plan W7): the whole workspace text, or one
    binding's expression; atomic, one history entry "Edit text". *)
-let text_edit value text =
-  Result.map (fun doc -> install value doc ~label:"Edit text" ~merge:Editor_core.History.Step)
+let text_edit ?(label = "Edit text") value text =
+  Result.map (fun doc -> install value doc ~label ~merge:Editor_core.History.Step)
     (Doc.text_edit ~factories:value.factories value.doc text)
 
 let binding_edit value path text =
@@ -2777,3 +2777,22 @@ let pick value ~origin ~direction =
             | None -> value)
        | None -> { value with scope_view = Pxui_graph.Scope.clear_selection value.scope_view })
   | _ -> value
+
+(* A changed source file (plan W11): the whole text replaces the document as one
+   history entry; layout, settings, probes and the selection (all keyed by path)
+   stay.  A refused text changes nothing but the pane: it shows the file's text
+   with the diagnostics, and the status says the last good document is kept. *)
+let reload value ~name text =
+  Result.map (fun value ->
+    { value with notice = Some ("Reloaded " ^ name);
+      text = { value.text with draft = None; doc_errors = []; binding_draft = None; binding_errors = [] } })
+    (text_edit ~label:("Reload " ^ name) value text)
+
+let reload_failed value ~name text diagnostics =
+  let first = match diagnostics with
+    | [] -> ""
+    | d :: _ -> (match Text_pane.line_of text d with
+        | Some line -> Printf.sprintf ": line %d, %s" line d.Flow.Diagnostic.message
+        | None -> ": " ^ d.Flow.Diagnostic.message) in
+  { value with notice = Some (Printf.sprintf "%s not reloaded%s" name first);
+    text = { value.text with tab = Text_pane.Document; draft = Some text; doc_errors = diagnostics } }

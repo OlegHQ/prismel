@@ -24,6 +24,26 @@ val workspace_window : Workspace_doc.t -> (window, Flow.Diagnostic.t) result
 (** The window a workspace's settings graph asks for (defaults without one). *)
 
 (** Sketch-owned settings in the editor document. *)
+(** The [.plisp] file a running sketch came from: polled for edits, saved over. *)
+module Source : sig
+  type t
+  val at : file:string -> digest:string -> t
+  (** The file, whose text has SHA-256 [digest]. *)
+
+  val find : path:string -> digest:string -> t option
+  (** [path] under the first [dune-project] not inside [_build], walking up from the
+      executable and then the working directory; [None] when there is no such file. *)
+
+  val file : t -> string
+  val poll : now:float -> t -> t * string option
+  (** At most one [stat] per half second of [now]; the text when the file changed and
+      differs from what the document has. *)
+
+  val save : t -> string -> (t, [ `Changed | `Failed of string ]) result
+  (** Atomically replace the file with the text, only while its digest is still the
+      remembered one ([`Changed] otherwise); the write does not reload. *)
+end
+
 module Settings : sig
   type t
   val none : t
@@ -52,7 +72,7 @@ module Private : sig
       unknown key, a click, or window focus loss cancel it. *)
   module Leader : sig
     type action =
-      | Save_preset | Browse_presets
+      | Save_preset | Browse_presets | Save_source
       | Toggle_timeline | Toggle_graph | Toggle_inspector | Hide_ui | Open_camera
       | Play_pause | Reset | Stop
       | Add_node | Layout | Frame_tile | Frame_camera
@@ -253,6 +273,7 @@ module Editor3 : sig
     ?graph:Procedural.Graph.t ->
     ?program:Flow_sop.Program.t ->
     ?workspace:Workspace_doc.t ->
+    ?source:Source.t ->
     prepare:(Settings.t -> Procedural.Session.output -> ('prepared, string) result) ->
     scene3:(Procedural.Graph.t -> 'prepared -> Prismel.Scene3.t) ->
     ?overlay:(Procedural.Graph.t -> 'prepared option -> Prismel.Frame.t ->
@@ -307,6 +328,12 @@ module Editor3 : sig
 
   val workspace : 'prepared t -> Workspace_doc.t option
   (** The v4 document when the editor was opened on one ([?workspace]). *)
+
+  val probe : 'prepared t -> Flow.Workspace.path -> int option
+  (** The iteration the zone at that path shows (view state, kept by path across
+      edits and reloads, never in history). *)
+
+  val set_probe : 'prepared t -> Flow.Workspace.path -> int -> 'prepared t
 
   val edit : 'prepared t -> Flow_sop.Flow_edit.op -> ('prepared t, string) result
   (** One gesture on the workspace: rewrite the source, re-check, lower into
@@ -437,6 +464,7 @@ module Editor3 : sig
     ?graph:Procedural.Graph.t ->
     ?program:Flow_sop.Program.t ->
     ?workspace:Workspace_doc.t ->
+    ?source:Source.t ->
     prepare:(Settings.t -> Procedural.Session.output -> ('prepared, string) result) ->
     scene3:(Procedural.Graph.t -> 'prepared -> Prismel.Scene3.t) ->
     ?overlay:(Procedural.Graph.t -> 'prepared option -> Prismel.Frame.t ->
@@ -555,7 +583,11 @@ module Editor2 : sig
     unit
 end
 
-(** A [.plisp] sketch as a program (plan W11; Save and reload are still to do). *)
+(** A [.plisp] sketch as a program (plan W11).  Command-S rewrites the file when it is
+    still the text the document came from (comments intact), else saves a preset;
+    an edit of the file from any editor reloads the running document as one history
+    entry, "Reload <file>", and a file that does not check leaves the last good
+    document with the diagnostics in the status bar and the text pane. *)
 module Workspace : sig
   type source = { path : string; digest : string }
   (** Where a workspace came from: [path] relative to the project root, [digest]
@@ -566,7 +598,9 @@ module Workspace : sig
 
   val run : ?source:source -> Workspace_doc.t -> unit
   (** Open {!Editor3} on the document, with the window title, size, frame rate
-      and seed of its settings graph. *)
+      and seed of its settings graph, saving and reloading through [source] (found
+      from the executable, then the working directory; without the file the sketch
+      runs unwired). *)
 
   val main : path:string -> digest:string -> catalog:string -> string -> unit
   (** Entry point of a generated [main.ml]: [load] then [run]; on failure prints

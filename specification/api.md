@@ -953,6 +953,29 @@ lower leaves the installed state unchanged. The unstable
 `Private.Document.object_network` test hook returns an optional display ID to
 represent empty networks.
 
+#### `.plisp` sketches
+
+`sketches/<name>/sketch.plisp` is a whole sketch: one `(workspace ...)` form, no `main.ml`, no `dune`.
+`prismel-plisp check|ml|dune|fmt FILE` (`tools/plisp`) checks it with the editor's catalog (a typo fails
+`dune build` at the `.plisp` line), generates `main.ml` (the text embedded, its SHA-256 as `digest`) and
+the stanzas of `sketches/dune.plisp.inc` (checked in: `dune build @runtest; dune promote` after adding a
+sketch; `dune exec tools/new_example.exe -- --plisp <name>` scaffolds one). The generated program is
+`Prismel_editor.Workspace.main ~path ~digest ~catalog text`; OCaml hosts call `Workspace.load` (parse and
+check) and `Workspace.run ?source doc` (the window from the `settings` graph, the viewport starting at the
+scene's first camera, the host's light replaced by a declared one).
+
+The running window follows the file. `Prismel_editor.Source` finds it (the first `dune-project` not under
+`_build`, walking up from the executable and then the working directory, joined with `path`). Command-S
+(also Ctrl-S) rewrites it with the canonical text (`Workspace_doc.to_text`; comments kept, `;;` printed as
+`;`) through a temporary file and a rename, but only while the file is still the text the document last
+came from (its SHA-256 is the remembered digest); any other state falls back to a preset (`Preset.save`,
+status "source changed since build; saved as preset ...") and never overwrites. Once a half second the frame
+loop `stat`s the file; a changed mtime and digest re-check the text and replace the document as one history
+entry "Reload sketch.plisp", keeping layout, settings, probes and selection by path; text that fails keeps
+the last good document, shows the diagnostics in the Lisp panel's Document tab and the status bar, and a
+later good text (also the last good one) reloads. The editor's own write updates the digest first, so it
+does not reload. There is no three-way merge and no file-system events (`ponytail:` polling).
+
 `Easy_camera2` is the immutable 2D view transform. It supplies resize-safe
 viewports and gesture areas, world/screen conversion, captured pan, inertia,
 rotation, pointer-anchored zoom, and pure `Scene` composition. `Render2.save_png`

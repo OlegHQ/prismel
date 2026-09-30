@@ -324,6 +324,7 @@ milestone is recorded here with its date, what landed and its deviations.
 | W8 loops over geometry | done | 2026-09-30 |
 | W9 macros UI, notes, bypass | done | 2026-09-30 |
 | W10 contexts and shell | done | 2026-09-30 |
+| W11 `.plisp` sketches | done | 2026-09-30 |
 
 ### W0 fixes and catalog prerequisites (2026-09-30, done with W4 part A)
 
@@ -1068,10 +1069,15 @@ splitters (one history entry each); "Restore layout" (`Space z`) is host state o
 the gaps are in `specification/workspace/progress.md` (W10 part B notes); `lib/prismel_editor/AGENTS.md`
 has the rules (its "keep the three-column workspace" rule is replaced by "Workspace shell (W10)").
 
-### W11 part A: `.plisp` sketches compiled by dune (2026-09-30, wip)
+### W11 `.plisp` sketches (2026-09-30, done)
 
-`tools/plisp` (`prismel-plisp check | ml | dune | fmt`), `sketches/dune` with the checked-in
-`dune.plisp.inc` (promote after adding a sketch), `Prismel_editor.Workspace.load | run | main`
-(minimal: no Save, no reload), `new_example --plisp`, and the twelve `sketches/ws_*` cases
-running under `smoke-all`. Deviations and what part B (Save, live reload) must do are in
-`specification/workspace/progress.md` (W11 part A notes).
+Part A: `tools/plisp` (`prismel-plisp check | ml | dune | fmt`), `sketches/dune` with the checked-in
+`dune.plisp.inc` (promote after adding a sketch), `Prismel_editor.Workspace.load | run | main`,
+`new_example --plisp`, and the twelve `sketches/ws_*` cases running under `smoke-all`.
+
+Part B: Save and live reload. Command-S rewrites the sketch's `.plisp` (comments kept, atomic) while the
+file is still the text the document came from, else saves a preset; the frame loop polls the file twice a
+second and reloads a changed file as one history entry "Reload sketch.plisp" (layout, settings, probes and
+selection kept by path), or keeps the last good document and shows the diagnostics. The viewport starts at
+the scene's camera. Deviations, notes and the gaps are in `specification/workspace/progress.md` (W11 part A
+and part B notes).
