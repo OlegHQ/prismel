@@ -54,3 +54,17 @@ Rules that hold throughout:
   reimplement it here.
 - Keep unchanged document replacement allocation-free on the identity fast path and keep
   `test/test_pxui_graph`'s 2,001-node smoke within its recorded baseline.
+
+## Workspace pane (`Scope`, plan W4)
+
+`Pxui_graph.Scope` (`scope_pane.ml`) presents one `Flow_sop.Projection.scope`
+for workspace documents: zones are painted in the canvas pass under the
+tiles (`Pxui.Theme.zone_*`), each item is a `Ui.box` tile, and the iteration
+selector, socket, field and toggle boxes are its children. It has its own
+`change` type; the host maps `Syntax_edit` to `Doc.syntax_edit`, and layout
+(`Moved`, `Zone_collapsed`) and probes are the host's, passed back through
+`with_scope ~at ~collapsed ~probe ~count ~frames`. Rules: build only visible
+items (a zone body is drawn once, whatever its iteration count); a row under
+the pointer comes from the pointer and the tile's rectangle, never a second
+hit tree; DepartureMono lacks ⟲ ◆ ◷ ↥ ▸ ▾, use the substitutes in
+`scope_pane.ml`. The flat pane above stays for other documents.

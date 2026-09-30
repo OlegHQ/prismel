@@ -257,3 +257,7 @@ module Private : sig
   val edge_query_points : t -> limit:int -> (int * int) array
   val hit_edge_candidates : t -> int * int -> int
 end
+
+(** The graph pane of a workspace document (plan W4): zones, rails, iteration
+    selectors, chips and typed sockets over a [Flow_sop.Projection.scope]. *)
+module Scope = Scope_pane

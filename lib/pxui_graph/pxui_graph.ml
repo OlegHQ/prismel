@@ -3495,3 +3495,5 @@ module Private = struct
       end);
     !count
 end
+
+module Scope = Scope_pane

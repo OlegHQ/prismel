@@ -1269,3 +1269,151 @@ let run () =
   run_canvas_motion ();
   run_smoke ();
   print_endline "pxui graph tests passed"
+
+(* ------------------------------------------------- the workspace pane (W4) *)
+
+module Scope = Pxui_graph.Scope
+module P = Flow_sop.Projection
+
+let cases = "../specification/workspace/cases"
+let scope_catalog = Flow_sop.Catalog.of_factories ~version:1 Sop_catalog.Editor.factories |> Result.get_ok
+let load_workspace name =
+  let text = In_channel.with_open_bin (Filename.concat cases (name ^ ".lisp")) In_channel.input_all in
+  match Flow.Syntax.parse text with
+  | Error d -> fail (Flow.Diagnostic.to_string d)
+  | Ok forms -> (match Flow.Workspace.check scope_catalog forms with
+      | Some w, _ -> w
+      | None, _ -> fail (name ^ " did not check"))
+let scope_ui = Pxui.Ui.create ()
+let scope_step view (frame : Frame.t) =
+  let settle = { frame with events = [] } in
+  let view, _ = Pxui.Ui.frame scope_ui settle (fun ui -> Scope.update view ui settle) in
+  Pxui.Ui.frame scope_ui frame (fun ui -> Scope.update view ui frame)
+let scope_view ?count ?probe ?at ?collapsed workspace graph =
+  let scope = P.of_graph scope_catalog workspace graph in
+  Scope.create ~width:1000 ~height:700 ()
+  |> Scope.with_scope ?count ?probe ?at ?collapsed ~key:graph scope, scope
+let scope_paint view =
+  ignore (scope_step view (frame ()));
+  match Scene.Private.stage_native ~width:1000 ~height:700 (Pxui.Ui.scene scope_ui) with
+  | Error message -> fail message
+  | Ok staged -> List.fold_left (fun total -> function
+      | Scene.Private.Ui_layer (batch, _) -> total + Scene_command.Ui_batch.count batch
+      | _ -> total) 0 staged.layers
+let click point = [mouse_press (Input.LeftButton, point); mouse_release (Input.LeftButton, point)]
+let scope_click view point =
+  scope_step view (frame ~mouse:point ~events:(mouse_move point :: click point) ())
+let rect_center (x, y, w, h) = int_of_float (x +. w /. 2.), int_of_float (y +. h /. 2.)
+
+let run_scope () =
+  (* every fixture's graphs draw: the pane's counts are the projection's *)
+  List.iter (fun (name, graph, nodes, zones, rows) ->
+    let w = load_workspace name in
+    let view, _ = scope_view w graph in
+    let view, _ = scope_step view (frame ()) in
+    let s = Scope.stats view in
+    check (s.nodes = nodes && s.zones = zones && s.rows = rows)
+      (Printf.sprintf "%s/%s: pane counts %d/%d/%d" name graph s.nodes s.zones s.rows);
+    check (s.drawn_items > 0 && s.drawn_zones <= s.zones) (name ^ ": nothing drawn"))
+    [ "bloom", "flower", 9, 1, 35; "sunflower", "sunflower", 8, 1, 24; "orrery", "orrery", 15, 1, 62;
+      "facade", "facade", 12, 2, 59; "kit", "kit", 15, 2, 49; "tree", "tree", 8, 1, 67;
+      "garland", "garland", 14, 3, 59; "wave", "wave", 6, 2, 39; "tiles", "tiles", 8, 1, 34 ];
+  (* the iteration selector: buttons and track are hit-tested boxes *)
+  let w = load_workspace "sunflower" in
+  let zone = [ "sunflower"; "seeds_each" ] in
+  let count p = if p = zone then 240 else 0 in
+  let view, _ = scope_view ~count ~probe:(fun _ -> 5) w "sunflower" in
+  let view, _ = scope_step view (frame ()) in
+  let prev, track, next = Option.get (Scope.Private.selector view zone) in
+  let _, changes = scope_click view (rect_center next) in
+  check (List.mem (Scope.Probe_set { zone; index = 6 }) changes) "the next button did not step the probe";
+  let _, changes = scope_click view (rect_center prev) in
+  check (List.mem (Scope.Probe_set { zone; index = 4 }) changes) "the previous button did not step the probe";
+  let x, y, tw, th = track in
+  let _, changes = scope_click view (int_of_float (x +. tw *. 0.75), int_of_float (y +. th /. 2.)) in
+  check (List.exists (function Scope.Probe_set { zone = z; index } -> z = zone && index >= 178 && index <= 181
+                              | _ -> false) changes) "the track did not map the pointer to an iteration";
+  let _, changes = scope_click view (10, 690) in
+  check (changes = [] || List.for_all (function Scope.Selected _ -> true | _ -> false) changes)
+    "a blank click made an edit";
+  (* the toggle collapses the zone; a collapsed zone has no selector *)
+  let tx, ty, _, _ = Option.get (Scope.Private.box_of view zone) in
+  let _, changes = scope_click view (int_of_float tx + 10, int_of_float ty + 10) in
+  check (List.mem (Scope.Zone_collapsed { zone; collapsed = true }) changes) "the toggle did not collapse the zone";
+  (* only visible zones draw: 1,000 iterations draw what 3 do *)
+  let draw_with n =
+    let view, _ = scope_view ~count:(fun _ -> n) w "sunflower" in
+    let view, _ = scope_step view (frame ()) in
+    (Scope.stats view).drawn_items, scope_paint view in
+  let items3, paint3 = draw_with 3 and items1000, paint1000 = draw_with 1000 in
+  check (items3 = items1000) "iterations changed how many tiles are built";
+  check (paint1000 < paint3 + 400) "a 1,000-iteration zone painted much more than a 3-iteration one";
+  let collapsed_view, _ = scope_view ~collapsed:(fun p -> p = zone) w "sunflower" in
+  let collapsed_view, _ = scope_step collapsed_view (frame ()) in
+  check ((Scope.stats collapsed_view).drawn_zones = 0) "a collapsed zone drew its body";
+  (* gestures become requests: scrub, wire, delete *)
+  let ws = load_workspace "bloom" in
+  let view, scope = scope_view ws "flower" in
+  let view, _ = scope_step view (frame ()) in
+  let heart = [ "flower"; "heart" ] in
+  let node = Option.get (P.find scope heart) in
+  let i = Option.get (List.find_index (fun (r : P.row) -> r.label = "radius") node.rows) in
+  let fx, fy = Option.get (Scope.Private.row_center view heart i) in
+  ignore (fx, fy);
+  (* wire: a node's output socket dropped on another node's geometry row *)
+  let source = [ "flower"; "bloom" ] and target = [ "flower"; "result" ] in
+  let sx, sy = Option.get (Scope.Private.output_socket view source) in
+  let start = int_of_float sx, int_of_float sy in
+  let tnode = Option.get (P.find scope target) in
+  let row = Option.get (List.find_index (fun (r : P.row) -> r.socket && r.kind = P.Rest) tnode.rows) in
+  let rx, ry = Option.get (Scope.Private.row_center view target row) in
+  let stop = int_of_float rx, int_of_float ry in
+  let view, _ = scope_step view (frame ~mouse:start ~events:[mouse_move start; mouse_press (Input.LeftButton, start)] ()) in
+  let view, _ = scope_step view (frame ~mouse:stop ~events:[mouse_move stop] ()) in
+  let _, changes = scope_step view (frame ~mouse:stop ~events:[mouse_release (Input.LeftButton, stop)] ()) in
+  check (List.exists (function
+      | Scope.Syntax_edit (Flow_sop.Flow_edit.Connect { node; src = "bloom"; iter = false; _ }) -> node = target
+      | _ -> false) changes) "a wire dropped on a row did not become Connect";
+  (* delete: the selected node *)
+  let view, _ = scope_click view start in
+  let view = Scope.select [ heart ] view in
+  let _, changes = Scope.run_command view Scope.Delete in
+  check (changes = [ Scope.Syntax_edit (Flow_sop.Flow_edit.Delete_nodes { nodes = [ heart ] }) ])
+    "Delete did not become Delete_nodes";
+  (* keys and menu: every key command maps to a request *)
+  let some name = check (List.exists (fun (c : (_, Scope.command) Editor_core.Command.t) -> c.id = "scope." ^ name)
+    Scope.bindings) ("no key for " ^ name) in
+  List.iter some [ "delete"; "fold"; "unfold"; "hoist"; "bypass"; "repeat"; "iterate"; "function"; "collapse";
+                   "probe-prev"; "probe-next"; "frame-all"; "walk.left" ];
+  let _, changes = Scope.run_command (Scope.select [ heart ] view) Scope.Bypass in
+  check (changes = [ Scope.Syntax_edit (Flow_sop.Flow_edit.Toggle_bypass { node = heart }) ]) "Bypass";
+  print_endline "pxui graph scope pane tests passed"
+
+(* Frame cost of the graph pane on Sunflower (240 iterations): the flat pane
+   over the lowered 241-node network, and the workspace pane expanded and
+   collapsed.  Command: dune exec test/test_main.exe -- bench_scope_pane *)
+let bench_scope_pane () =
+  let w = load_workspace "sunflower" in
+  let source = Result.get_ok (Flow.Syntax.parse (In_channel.with_open_bin (Filename.concat cases "sunflower.lisp") In_channel.input_all)) in
+  let lowered = Result.get_ok (Flow_sop.Lower.workspace ~factories:Sop_catalog.Editor.factories source) in
+  let network = (List.hd lowered.graphs).network in
+  let ui = Pxui.Ui.create () in
+  let frames = 300 in
+  let time label build step =
+    let view = ref build in
+    for _ = 1 to 20 do view := fst (Pxui.Ui.frame ui (frame ()) (fun ui -> step !view ui (frame ()))) done;
+    let started = Unix.gettimeofday () and allocated = Gc.allocated_bytes () in
+    for _ = 1 to frames do view := fst (Pxui.Ui.frame ui (frame ()) (fun ui -> step !view ui (frame ()))) done;
+    Printf.printf "%-28s %.3f ms/frame, %.0f bytes/frame\n%!" label
+      ((Unix.gettimeofday () -. started) *. 1000. /. float frames)
+      ((Gc.allocated_bytes () -. allocated) /. float frames) in
+  time "flat pane, 241 nodes"
+    (Pxui_graph.create_document ~width:1000 ~height:700 network)
+    (fun view ui f -> Pxui_graph.update view ui f);
+  let zone = [ "sunflower"; "seeds_each" ] in
+  let scoped collapsed =
+    Scope.create ~width:1000 ~height:700 ()
+    |> Scope.with_scope ~collapsed:(fun p -> collapsed && p = zone) ~count:(fun _ -> 240) ~key:"sunflower"
+         (P.of_graph scope_catalog w "sunflower") in
+  time "scope pane, zone expanded" (scoped false) (fun view ui f -> Scope.update view ui f);
+  time "scope pane, zone collapsed" (scoped true) (fun view ui f -> Scope.update view ui f)
