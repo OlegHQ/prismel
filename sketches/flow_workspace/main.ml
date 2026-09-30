@@ -75,6 +75,32 @@ let () = match Sys.getenv_opt "FLOW_EXPORT" with
                | Some p -> (match String.split_on_char ',' p with
                    | [ x; y ] -> click (float_of_string x, float_of_string y) | _ -> [])
                | None -> [])
+          | n when n >= 20 && Sys.getenv_opt "FLOW_SCRIPT" <> None ->
+              (* FLOW_SCRIPT=action@frame[;action@frame]... over the graph pane (W13): click x,y;
+                 dbl x,y (a double-click); press x,y, move x,y, release x,y (a drag);
+                 key Name (F2, Enter, Escape, Right); shiftkey c; text words *)
+              List.concat_map (fun item -> match String.split_on_char '@' item with
+                | [ what; f ] when int_of_string_opt f = Some n ->
+                    let point v = match String.split_on_char ',' v with
+                      | [ x; y ] -> (float_of_string x, float_of_string y) | _ -> (0., 0.) in
+                    (match String.index_opt what ' ' with
+                     | None -> []
+                     | Some i ->
+                         let verb = String.sub what 0 i and arg = String.sub what (i + 1) (String.length what - i - 1) in
+                         (match verb with
+                          | "click" -> click (point arg)
+                          | "dbl" -> click (point arg) @ click (point arg)
+                          | "press" -> press (point arg) | "move" -> move (point arg)
+                          | "release" -> release (point arg)
+                          | "text" -> [ Event.TextInput arg ]
+                          | "shiftkey" -> [ Event.KeyPressed Input.Shift; Event.KeyPressed (Input.KeyChar arg.[0]) ]
+                          | "key" -> [ Event.KeyPressed (match arg with
+                              | "F2" -> Input.F2 | "Space" -> Input.Space | "Enter" -> Input.Enter | "Escape" -> Input.Escape
+                              | "Right" -> Input.ArrowRight | "Left" -> Input.ArrowLeft
+                              | "Down" -> Input.ArrowDown | "Up" -> Input.ArrowUp
+                              | k -> Input.KeyChar k.[0]) ]
+                          | _ -> []))
+                | _ -> []) (String.split_on_char ';' (Sys.getenv "FLOW_SCRIPT"))
           | n when n >= 20 && Sys.getenv_opt "FLOW_W9" <> None ->
               (* FLOW_W9=x,y@frame[;x,y@frame]... clicks the graph pane at those frames (a
                  macro lens toggle, a step, a flag); FLOW_W9KEY=c@frame presses a key;
@@ -120,7 +146,12 @@ let () = match Sys.getenv_opt "FLOW_EXPORT" with
                   Event.MouseScrolled (0., Option.fold ~none:5. ~some:float_of_string (Sys.getenv_opt "FLOW_SCROLL")) ]
           | _ -> [] in
         { frame with events = events @ frame.events;
-          keys = if frame.count = 30 then Input.Meta :: frame.keys else frame.keys } in
+          keys = (if frame.count = 30 then [ Input.Meta ] else [])
+            @ (if List.exists (fun item -> String.starts_with ~prefix:"shiftkey" item
+                                && String.ends_with ~suffix:("@" ^ string_of_int frame.count) item)
+                 (String.split_on_char ';' (Option.value ~default:"" (Sys.getenv_opt "FLOW_SCRIPT")))
+               then [ Input.Shift ] else [])
+            @ frame.keys } in
       ignore (Sketch.export_state ~config ~directory ~prefix:"workspace" ~frames:(if Sys.getenv_opt "FLOW_TEXT" = None then 40 else 48)
         ~init:(fun _ -> create ()) ~update:(fun e frame -> E3.update e (script frame))
         ~view:E3.scene ~on_stop:E3.close ())

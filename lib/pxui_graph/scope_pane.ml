@@ -1046,42 +1046,6 @@ let update t ui (frame : Frame.t) =
     let v, open_ = Ui.value_field ui ~at ~w ~h ~size:fs ~edit:true ~valid key current in
     if not open_ then finished := true;
     if (not open_) && v <> current && valid v then [ commit v ] else [] in
-  (* frames sit under the tiles: a title strip, a delete cross and a resize corner *)
-  let frame_boxes = Ui.within ui canvas (fun () ->
-    List.concat_map (fun (scope, (ox, oy)) ->
-      List.mapi (fun i ((title, (fx, fy), (fw, fh)) : fr) ->
-        let x = sx t (ox +. fx) and y = sy t (oy +. fy) in
-        let w = fw *. z and h = fh *. z in
-        let box k (bx, by) (bw, bh) =
-          Ui.box ui ~flags:Ui.clickable ~w:(Ui.Px bw) ~h:(Ui.Px bh) ~at:(local (bx, by))
-            (Printf.sprintf "fr:%s:%d:%s" (String.concat "/" scope) i k) in
-        (scope, i, title, (x, y, w, h)),
-        (box "t" (x, y) (Float.max 8. (w -. 20.), 18. *. z), box "x" (x +. w -. 18., y +. 2.) (16., 16.),
-         box "r" (x +. w -. 12., y +. h -. 12.) (12., 12.))) (t.frames scope)) t.geo.origins) in
-  let t = List.fold_left (fun t ((scope, i, title, (x, y, w, _)), (tb, xb, rb)) ->
-    let ts = Ui.signal ui tb and xs = Ui.signal ui xb and rs = Ui.signal ui rb in
-    let all = t.frames scope in
-    (match t.editing with
-     | Some (Title (sp, k)) when sp = scope && k = i ->
-         List.iter emit (edit_field ~at:(local (x +. 4., y +. 2.)) ~w:(Float.max 40. (w -. 24.)) ~h:(16. *. z)
-           (Printf.sprintf "frt%d" i) title (fun s -> s <> "" && not (String.contains s '"'))
-           (fun v -> Frames_set { scope; frames = List.mapi (fun j (((_, at, size) as f) : fr) ->
-             if j = i then (v, at, size) else f) all }))
-     | _ -> ());
-    if xs.clicked then begin
-      emit (Frames_set { scope; frames = List.filteri (fun j _ -> j <> i) all }); t
-    end else if ts.double_clicked && t.editing = None then { t with editing = Some (Title (scope, i)) }
-    else if rs.pressed && left_button rs then
-      { t with drag = Some (Sizing { scope; index = i; dw = 0.; dh = 0. }) }
-    else match t.drag with
-      | Some (Sizing s) when s.scope = scope && s.index = i && (rs.held || rs.released) ->
-          let dx, dy = rs.drag in
-          let t = { t with drag = Some (Sizing { scope; index = i; dw = s.dw +. dx /. z; dh = s.dh +. dy /. z }) } in
-          if rs.released then begin
-            emit (Frames_set { scope; frames = frame_list t scope });
-            { t with drag = None }
-          end else t
-      | _ -> t) t frame_boxes in
   (* tiles *)
   let tiles = Ui.within ui canvas (fun () ->
     List.map (fun ((p : P.placed), ax, ay) ->
@@ -1243,6 +1207,45 @@ let update t ui (frame : Frame.t) =
                 | _ -> []) n.rows))
         | _ -> [] in
       p, ax, ay, tile, Ui.signal ui tile, sub, fields @ add_clicks @ editors @ movers) visible) in
+  let t = if !finished then { t with editing = None } else t in
+  (* frames: a title strip, a delete cross and a resize corner, over the tiles (a zone's tile
+     covers its whole body) and clear of the nodes, which keep 12 points inside the frame *)
+  let frame_boxes = Ui.within ui canvas (fun () ->
+    List.concat_map (fun (scope, (ox, oy)) ->
+      List.mapi (fun i ((title, (fx, fy), (fw, fh)) : fr) ->
+        let x = sx t (ox +. fx) and y = sy t (oy +. fy) in
+        let w = fw *. z and h = fh *. z in
+        let box k (bx, by) (bw, bh) =
+          Ui.box ui ~flags:Ui.clickable ~w:(Ui.Px bw) ~h:(Ui.Px bh) ~at:(local (bx, by))
+            (Printf.sprintf "fr:%s:%d:%s" (String.concat "/" scope) i k) in
+        (scope, i, title, (x, y, w, h)),
+        (box "t" (x, y) (Float.max 8. (w -. 20.), 18. *. z), box "x" (x +. w -. 18., y +. 2.) (16., 16.),
+         box "r" (x +. w -. 12., y +. h -. 12.) (12., 12.))) (t.frames scope)) t.geo.origins) in
+  let t = List.fold_left (fun t ((scope, i, title, (x, y, w, _)), (tb, xb, rb)) ->
+    let ts = Ui.signal ui tb and xs = Ui.signal ui xb and rs = Ui.signal ui rb in
+    let all = t.frames scope in
+    (match t.editing with
+     | Some (Title (sp, k)) when sp = scope && k = i ->
+         List.iter emit (Ui.within ui canvas (fun () ->
+           edit_field ~at:(local (x +. 4., y +. 2.)) ~w:(Float.max 40. (w -. 24.)) ~h:(16. *. z)
+             (Printf.sprintf "frt%d" i) title (fun s -> s <> "" && not (String.contains s '"'))
+             (fun v -> Frames_set { scope; frames = List.mapi (fun j (((_, at, size) as f) : fr) ->
+               if j = i then (v, at, size) else f) all })))
+     | _ -> ());
+    if xs.clicked then begin
+      emit (Frames_set { scope; frames = List.filteri (fun j _ -> j <> i) all }); t
+    end else if ts.double_clicked && t.editing = None then { t with editing = Some (Title (scope, i)) }
+    else if rs.pressed && left_button rs then
+      { t with drag = Some (Sizing { scope; index = i; dw = 0.; dh = 0. }) }
+    else match t.drag with
+      | Some (Sizing s) when s.scope = scope && s.index = i && (rs.held || rs.released) ->
+          let dx, dy = rs.drag in
+          let t = { t with drag = Some (Sizing { scope; index = i; dw = s.dw +. dx /. z; dh = s.dh +. dy /. z }) } in
+          if rs.released then begin
+            emit (Frames_set { scope; frames = frame_list t scope });
+            { t with drag = None }
+          end else t
+      | _ -> t) t frame_boxes in
   let t = if !finished then { t with editing = None } else t in
   let overlay = Ui.within ui canvas (fun () ->
     Ui.box ui ~w:(Ui.Px (float t.width)) ~h:(Ui.Px (float t.height)) ~at:(0., 0.) "overlay") in
@@ -1464,7 +1467,7 @@ let update t ui (frame : Frame.t) =
      | Some (Marquee _) ->
          let x0, y0 = canvas_signal.press_point and mx, my = mouse in
          Ui.Paint.rect paint ~x:(Float.min x0 mx) ~y:(Float.min y0 my) ~w:(abs_float (mx -. x0)) ~h:(abs_float (my -. y0))
-           ~fill:(Color.with_alpha snapshot.theme.accent 28) ~stroke:snapshot.theme.accent ()
+           ~fill:(Color.with_alpha snapshot.theme.accent 45) ~stroke:snapshot.theme.accent ()
      | _ -> ());
     (match hover with
      | Some (n, ax, ay, i) ->
