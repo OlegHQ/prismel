@@ -47,7 +47,7 @@ PXUI state; `Network_view` converts saved networks to and from graph presentatio
 
 The sketch's code graph becomes the geometry object `geo1`; camera SOPs in it
 move to the scene as camera objects. `?lights` become light objects and
-`?world` the World. Presets use the version 3 document format.
+`?world` the World. Presets are workspace documents (s-expressions, see `api.md`).
 
 ## Levels and keys
 

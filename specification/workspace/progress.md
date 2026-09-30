@@ -9,11 +9,11 @@ Status: `todo` · `wip` · `done` (gate met) · `partial` (what is missing is na
 
 | Milestone | Status | Commit | Notes |
 |---|---|---|---|
-| W0 fixes & catalog prerequisites | partial | | Merge group padding, set_color group/vec3 colour + v3 migration, `Manifest.version` in text view and the `:rotate` note landed. Not done: the `Rest` slot for `sop/merge` (see notes). |
+| W0 fixes & catalog prerequisites | partial | | Merge group padding, set_color group/vec3 colour (its v3 preset migration was deleted with v3 in W3), `Manifest.version` in text view and the `:rotate` note landed. Not done: the `Rest` slot for `sop/merge` (see notes). |
 | W1 language core (`flow`) | done | | `Flow.Syntax`, `Lisp`, `Ty`, `Macro`, `Workspace` (checker, typed IR, liveness, invariance) and `Eval` (values, loops, functions, records, HOFs, `ref`, the geometry plan, `static` / residual split, `?record`); the 12 fixtures check, print, round-trip and run; the check.cjs suite is ported (119 of 120, see the W1 part C notes). |
 | W2 lowering & cooking | done | | `Flow_sop.Lower.workspace`, `Pdk.Mesh_merge ?source_attribute`, session default 512, `test_workspace_cook`, `bench_workspace_lower`. Live parameters are only recorded (`Lower.pending`); drives are W2b. |
-| W2b live `t` | partial | | `Drive.Live`, `Lower` live drives, `flow.curve` text-encoded points, volatile session slots, `Async_cook.await`, `Cook ?await`, status text, tests and bench (notes below). Gaps: UI text (W4/W5), the running editor is not fed by a workspace until W3, `Frame` cannot tell a fixed clock. |
-| W3 document v4 + history | todo | | |
+| W2b live `t` | partial | | `Drive.Live`, `Lower` live drives, `flow.curve` text-encoded points, volatile session slots, `Async_cook.await`, `Cook ?await`, status text, tests and bench (notes below). Gaps: UI text (W4/W5), `Frame` cannot tell a fixed clock. The editor is fed by a workspace since W3. |
+| W3 document v4 + history | done | | `Flow_edit`, `Workspace_doc`, `Layout_by_path`, s-expression presets, the editor opens a workspace and recooks live `t` (notes below). No older presets. Gaps: only workspace documents save; `Layout_by_path` is not read by the pane until W4. |
 | W4 graph pane zones | todo | | |
 | W5 probes & footers | todo | | |
 | W6 viewport provenance | todo | | |
@@ -191,3 +191,20 @@ Status: `todo` · `wip` · `done` (gate met) · `partial` (what is missing is na
   the one-slot volatile cache recooks when scrubbing back (a per-node ring is
   the `ponytail:` fix); live text drives support colour text and choice
   parameters only.
+- W3 notes. Documents and presets are s-expressions: one `.plisp` file holds
+  the workspace form (comments kept), optional `(layout ...)` keyed by path,
+  `(settings ...)` for non-default settings and `(view ...)`; no JSON and no
+  older format (the v3 reader and writer, the set_color preset migration and
+  `Store`'s preset kind are deleted). Still JSON, and not documents: user
+  preferences (`Store.Settings`), the viewport encoders (`Store.Viewport`, an
+  in-memory `Yojson` value that `Preset` writes as an s-expression) and build
+  glue (`api_stable.json`, generated inventories). Only a workspace document
+  saves; sketches opened with `?graph` or `?program` keep the legacy scene
+  network and cannot save until W10/W12 give it a text. `Document.workspace`
+  holds the `Workspace_doc` and its `Lower.t` (compiled ids and sites), so
+  undo restores both; the derived scene and networks feed the old graph pane
+  and the cook. The tests that built documents from JSON (`test_editor_document`)
+  build them in code now; the preset-format, migration and rejection-matrix
+  cases and the fixed-camera preset checks of `test_prismel_editor` (including the
+  native look-through framebuffer comparison) are gone with the format. Not ported from the study: `exceptIteration`, `set_layout_ratio`
+  (W10). Details: `flow-migration.md` "W3".

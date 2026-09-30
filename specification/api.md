@@ -754,8 +754,7 @@ normalizes hard bounds with the same `Param.normalize_value` kernel as
 `Param.apply`, and preserves literal records. Unchanged effective values keep
 the resolved geometry and cook keys; clearing a drive restores its literal.
 `Exposure.shown` is the shared card visibility rule. The editor document,
-graph clipboard and preset v3 now carry the overlay. Preset loading rejects
-invalid value and drive records before installing the document. The canvas
+graph clipboard now carry the overlay. The canvas
 connects value outputs to visible or hidden parameter rows, filters typed Tab
 results, and shows live wire readouts. The inspector displays drive sources,
 applied values and reset controls; the cook adapter resolves dynamic values
@@ -935,17 +934,19 @@ still reach the workspace.
 `Camera.lens` (thin-lens aperture and focus distance). It currently supports
 unshifted perspective cameras and returns an error for other projections,
 forced aspect, or vertical flip.
-Presets save the full document to `~/.prismel/<sketch>/<name>.json`
-(version 3: the scene, every object's network and Flow layout); loading
-rebinds code-graph nodes by id, recreates catalog nodes from their factories,
-preserves saved node ids, and is one undo entry. Older versions are rejected.
-Empty networks have no display node and clear their preview. Editor3 permits
-an empty scene; Editor2 rejects a preset without a geometry object before
-installation. Both hosts reject ambiguous IDs/owners, invalid references and
-input arity, and nonfinite values without changing the installed state. The
-unstable `Private.Document.object_network` test hook returns an optional
-display ID to represent empty networks. The serializer also writes the
-editor's crash-report preset.
+Presets save a workspace document to `~/.prismel/<sketch>/<name>.plisp`, one
+s-expression file: the `(workspace ...)` source with its comments, then
+optional `(layout ...)` by path, `(settings ...)` and `(view ...)` forms
+(`specification/flow.md` §4.4). Loading checks and lowers the source into one
+geometry object per `sop` graph and is one undo entry; there is no older
+format. Only a workspace document saves (open one with `?workspace` on
+`Editor3`/`Editor2`; `Editor3.edit` applies a `Flow_sop.Flow_edit.op` as one
+history entry named by the op); the crash report writes `document.txt` (a text
+of any document) and `document.plisp` for a workspace. Empty networks have no
+display node and clear their preview. A preset that fails to parse, check or
+lower leaves the installed state unchanged. The unstable
+`Private.Document.object_network` test hook returns an optional display ID to
+represent empty networks.
 
 `Easy_camera2` is the immutable 2D view transform. It supplies resize-safe
 viewports and gesture areas, world/screen conversion, captured pan, inertia,

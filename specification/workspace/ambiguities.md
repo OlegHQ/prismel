@@ -302,7 +302,7 @@ table (`flow.md` §11.10) and does not replace it. Generated from
 
 *Why it is ambiguous.* A sketch is compiled at build time, and the running editor then changes the program. Saving into source, keeping a separate document, and refusing edits are all defensible. When the Lisp lived inside main.ml, saving meant splicing a string literal.
 
-*Proposed rule.* The file is the source. A sketch is sketches/<name>/sketch.plisp, with no OCaml wrapper. Save (⌘S) rewrites that file atomically with the comment-preserving printer, but only when its digest equals the digest the binary was built from. Otherwise edits are saved as a document preset and the status bar says why. The editor also reloads the file when it changes on disk.
+*Proposed rule.* The file is the source. A sketch is sketches/<name>/sketch.plisp, with no OCaml wrapper. Save (⌘S) rewrites that file atomically with the comment-preserving printer, but only when its digest equals the digest the binary was built from. Otherwise edits are saved as a document preset (an s-expression: the same text plus layout and settings) and the status bar says why. The editor also reloads the file when it changes on disk.
 
 *In the study.* Every case shows its .plisp file and the generated dune stanza (the button on each case study).
 

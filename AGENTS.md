@@ -41,8 +41,8 @@ in a browser, never product code and never a web fallback.
 | `param` | Typed parameter schemas; no dependencies (`Procedural.Parameter`, `Editor_core.Param`) |
 | `flow` | UI-free value nodes, graphs, expressions, contexts and coercions over `param` |
 | `flow_sop` | Typed SOP/value overlay, drives, exposure and environment-owned value lane |
-| `editor_core` | Editor state and routing: labelled `History`, `Command`, `Keymap`, `Router`, plus JSON file persistence (`Store`) |
-| `editor_document` | Package-private scene/network/settings model, validation, object/layer schemas and presets; no presentation dependencies |
+| `editor_core` | Editor state and routing: labelled `History`, `Command`, `Keymap`, `Router`, plus atomic file writes and JSON user preferences (`Store`) |
+| `editor_document` | Package-private scene/network/settings model, workspace document (`Workspace_doc`, `Layout_by_path`), validation, object/layer schemas and s-expression presets; no presentation dependencies |
 | `pxui` | The one immediate-mode UI engine (`Pxui.Ui`) |
 | `pxui_shell` | Editor chrome over PXUI: layout, headers, keys, status, timeline, prompts, frame, `Inspector` |
 | `pxui_graph` | SOP-network presentation; emits typed requests, never edits |
@@ -96,7 +96,7 @@ test run, set `SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy` on `dune runtest`.
 
 A fatal exception in a running sketch writes a report folder under
 `/tmp/prismel-crash` (exception, backtrace, recent input, and the editor's
-document as a preset); read it first when asked to investigate a crash.
+document as text, plus a loadable `.plisp` for a workspace); read it first when asked to investigate a crash.
 
 Default `runtest` is green on a clean checkout. Display-dependent tests live in
 `@runtest-native`; long, SDK-, driver-, or machine-specific checks in

@@ -27,3 +27,12 @@ Renaming a geometry interface port updates the shared definition and every
 referencing instance, including named wires and path-keyed canvas layout.
 Reordering geometry ports preserves each slot's source by name in every
 instance and in the definition's Outputs marker.
+
+`Workspace_doc` (source, checked, layout by path, settings) and `Layout_by_path`
+are UI-free and hold the authored truth of a workspace document; `edit` applies
+one `Flow_sop.Flow_edit.op` atomically and rewrites layout keys in the same
+step. `Document.workspace` pairs it with its `Lower.t`; `of_workspace` rebuilds
+the derived scene and networks (never edit those directly). `Preset` is the
+only persisted form: one s-expression file, no version and no older reader.
+`Document.dump` is a deterministic text of any document for crash reports and
+tests; it is not loadable.

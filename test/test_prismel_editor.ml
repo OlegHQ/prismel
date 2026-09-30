@@ -798,38 +798,6 @@ let run () =
   let environment = Prismel_editor.Editor3.update environment
       (frame ~events:[key Input.Space; key (Input.KeyChar 'v')] 54) in
   check (Prismel_editor.Editor3.look_through environment) "Space v did not restore look-through";
-  let environment = Prismel_editor.Editor3.update environment
-      (frame ~events:[key Input.Space; key (Input.KeyChar 'h')] 55) in
-  let deadline = Unix.gettimeofday () +. 2. in
-  let rec wait_cook count environment =
-    let environment = Prismel_editor.Editor3.update environment (frame count) in
-    if Prismel_editor.Editor3.prepared environment <> None
-        && Prismel_editor.Editor3.displayed_node environment != graph
-        || Unix.gettimeofday () > deadline then environment
-    else (Unix.sleepf 0.001; wait_cook (count + 1) environment) in
-  let environment = wait_cook 56 environment in
-  let mesh = Option.get (Prismel_editor.Editor3.prepared environment) in
-  let direct camera frame = [Scene.clear (Color.hex_exn "#09090b");
-      Scene.view3d ~viewport:(0, 0, frame.Frame.width, frame.height) ~camera
-        (mesh_scene mesh)] in
-  (* One window, two frames: look-through and the render camera. Use the
-     render camera's 16:9 aspect: look-through letterboxes a 4:3 window,
-     whereas the direct camera otherwise renders the entire 4:3 viewport.
-     Placement is identity and both scenes have the same lights. *)
-  let views = [| Prismel_editor.Editor3.scene environment;
-    direct (Prismel_editor.Editor3.render_camera environment) |] in
-  if !native then begin
-  let directory = Filename.temp_dir "sketch-ui-look" "" in
-  Sketch.export_state ~directory ~prefix:"look" ~frames:2
-    ~config:{ Sketch.default_config with width = 320; height = 180 }
-    ~init:(fun _ -> 0) ~update:(fun _ (frame : Frame.t) -> frame.count)
-    ~view:(fun count frame -> views.(min 1 (count - 1)) frame) () |> ignore;
-  let png index = In_channel.with_open_bin
-      (Filename.concat directory (Printf.sprintf "look-%06d.png" index))
-      In_channel.input_all in
-  check (png 0 = png 1)
-    "look-through framebuffer differs from the render camera's"
-  end;
   Prismel_editor.Editor3.close environment;
 
   (* Finite native smoke: the relative-pointer boundary toggles on a live

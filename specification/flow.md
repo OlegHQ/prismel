@@ -33,7 +33,7 @@ Rules for implementers:
 In scope: the SOP network canvas; keys and guide mode; the inspector's role;
 graph, list and text views; value ports, value nodes and drives; compounds;
 per-level contexts; the canonical Lisp text form with its reader and checker;
-the `[%flow]` PPX; preset version 3.
+the `[%flow]` PPX; workspace presets (s-expressions).
 
 Not in scope (do not build): Bézier wires anywhere in the graph; an editable
 text view in the editor; per-element fields (the diamond socket and `Field`
@@ -186,7 +186,7 @@ its destination port. There are no edge ids.
 M2. A bypassed SOP passes its primary slot through, including packed
 instances; without a connected primary slot it produces empty geometry.
 Other slots are not cooked while bypassed. The flag preserves the node's
-identity, literal record and wiring and is saved as `bypass` in preset v3.
+identity, literal record and wiring and is saved as `^:bypass` in the workspace text.
 In the existing scene and World contexts, bypass suppresses the selected
 object's or layer's contribution while retaining parent transforms and
 the layer stack. It does not overwrite visibility literals.
@@ -311,31 +311,19 @@ Each gesture is one `Editor_core.History` entry with a label shown as
 
 Undo restores selection only where the selected ids still exist.
 
-### 4.4 Presets version 3
+### 4.4 Presets
 
-`Preset.version` becomes 3. A network's JSON gains, beside today's `nodes`
-and `display`:
-
-```json
-{
-  "context": "sop",
-  "nodes": [ { "id": 3, "factory_key": "grid", "label": "Grid", "inputs": [null],
-               "params": [["size", {"float": 4.4}]], "x": 0, "y": 0,
-               "level": "card", "pinned": false, "rows": {"seed": true}, "split": ["center"] } ],
-  "values": [ { "id": 9, "kind": "math", "label": "Sine", "params": [["op", {"choice": "sin"}]],
-                "x": -228, "y": 192, "level": "card" } ],
-  "drives": [ { "to": [5, "amp"], "wire": [10, "out"], "bends": [[228, 204], [228, 36]], "wireless": false },
-              { "to": [5, "freq"], "expr": "0.8 + sin(t * 0.6) * 0.3" } ],
-  "geometry_bends": [ { "to": [5, "in0"], "bends": [[120, 12]] } ],
-  "definitions": [ ],
-  "display": 7
-}
-```
-
-Only version 3 is read and written. Older presets are rejected; the migration
-removes the old editor representation without a compatibility layer.
-Validation rejects files that violate §3.10 without
-changing the installed document (today's rule).
+A preset is one s-expression file (`.plisp`), the same text a workspace
+sketch is written in: the `(workspace ...)` form with its comments, then
+optional `(layout ...)` (tile positions, pins, row exposure, bends, wireless
+flags, collapsed zones and frames, keyed by lexical path, so they survive text
+edits), `(settings :name value ...)` for settings that differ from their
+default, and `(view {...})` for the environment's camera and render settings.
+Nothing else is written: no JSON, no version number, and no reader for older
+presets (the migration removed the old editor representation without a
+compatibility layer). A file that does not parse, check or lower is
+rejected without changing the installed document; only a workspace document
+can be saved. See `workspace/plan.md` W3.
 
 ## 5. Exposure: which rows a card shows
 
@@ -1103,7 +1091,7 @@ W2b, so a frame never re-lowers.
 | `param` | changed (M3) | nothing | adds `primary : bool` and `vec3 : (string * int) option` to fields and field views |
 | `flow` | new (M3) | `param` | `Symbol`, `Context`, `Port_type`, `Expr`, value kinds, `Graph`, `Sexp` (reader with positions, printer primitives), `Check`, `Diagnostic` |
 | `flow_sop` | new (M3) | `flow`, `param`, `procedural` | `Network`, `Drive`, `Exposure`, `Value_lane`, `Compile`, `Print`, `Build`, `Program`, manifest writer |
-| `editor_document` | changed | + `flow_sop` | overlay and layout record in `Document.network`; preset v3 |
+| `editor_document` | changed | + `flow_sop` | overlay and layout record in `Document.network`; `Workspace_doc`, `Layout_by_path`, s-expression presets |
 | `pxui_graph` | changed | + `flow`, `flow_sop` | the canvas of §6–§7 |
 | `pxui_shell` | changed | + `flow` (types only) | inspector rows (§9), guide strip in `Status_bar` |
 | `prismel_editor` | changed | + `flow`, `flow_sop` | keys, guide contexts, views, value lane scheduling |
@@ -1142,7 +1130,7 @@ Window-free logic tests in `runtest` for: exposure rule table (every row of
 change-only application, cook-key identity when unchanged, 1 vs N domains),
 walk and hint labelling (deterministic labels for fixed layouts), Tab
 placement and ripple, fold/unfold identity, group/ungroup/export invariants,
-old preset rejection, v3 round trip, printer laws of §11.8 over every
+preset round trip, printer laws of §11.8 over every
 catalog factory with non-default literals and drives, every diagnostic code,
 key routing for every new command (`test_prismel_editor_logic`), and gate
 rules. Visual checks go in `@runtest-native` once per milestone
@@ -1222,6 +1210,9 @@ populate it; byte spans remain for PPX source mapping.
 version 3 replaces the v1/v2 readers and preserves saved node ids.
 M1 preserves explicit row exposure metadata as part of that layout; vector
 splits and wireless flags stay empty until their milestones.
+
+2026-09-30 (W3): the v3 JSON preset reader and writer are deleted; presets are
+s-expression workspace files (§4.4) and old presets are not supported.
 
 2026-09-27: bypass was specified without a storage or execution path. It is
 an immutable `Edit_graph` entry flag, shared by compile, copy, undo and

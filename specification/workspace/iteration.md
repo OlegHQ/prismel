@@ -321,7 +321,8 @@ host's Restore layout stays outside the described tree.
 - **The file is the source** (register O1).
   - Save rewrites `sketch.plisp` atomically with the comment-preserving
     printer, if its digest still matches the build.
-  - Otherwise edits are saved as a document preset.
+  - Otherwise edits are saved as a document preset (an s-expression: the
+    same text plus layout and settings).
   - Changes to the file on disk reload the running sketch as one history
     entry. Probes and layout are kept by path id.
 - **OCaml hosts.**

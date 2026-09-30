@@ -110,7 +110,8 @@ The dependency-free `param` library owns typed parameter schemas
 `Pxui_shell.Inspector` renders SOP nodes and plain sketch records alike
 without the geometry stack. The `editor_core` library owns bounded,
 labelled undo history with explicit edit merge rules, named commands, key
-routing, and atomic JSON storage. Sketch hosts use
+routing, and atomic file storage (user preferences are JSON; documents are
+s-expressions). Sketch hosts use
 `Editor_core.History`, `Editor_core.Router`, and `Editor_core.Store`;
 the router filters fly-mode keyboard events before leader and chord routing,
 while passing Space through to arm the leader after fly exits.

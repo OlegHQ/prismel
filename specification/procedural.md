@@ -223,15 +223,14 @@ current inputs, rejects cycles and disconnected paths, and produces an ordinary
 immutable DAG for the existing deterministic Session cook path.
 Bypass is immutable entry metadata: compilation uses only the primary input,
 retains packed instances, and produces empty geometry without an input.
-Copy/paste and v3 presets retain the flag and its unchanged literal record.
+Copy/paste retains the flag and its unchanged literal record.
 Dissolve reconnects every consumer through the selected chain's primary
 inputs. Wire insertion fills the new node's primary slot and leaves any
 additional slots disconnected.
 
 `Editor_document.Document.network` now stores one `Flow_sop.Network`: geometry
 in `Edit_graph`, value nodes from `flow`, and typed wire or expression drives
-on parameter ports. Preset v3 saves all three together with a context and
-layout, rejecting invalid ports, types, cycles and vector splits on load.
+on parameter ports.
 The graph clipboard copies a Flow fragment, so an expression on a copied SOP
 survives paste. Before each visible-object cook submission, the editor's value
 lane resolves drives to a temporary graph without changing stored literals.

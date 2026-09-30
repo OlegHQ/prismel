@@ -316,6 +316,7 @@ milestone is recorded here with its date, what landed and its deviations.
 | W1 language core (`flow`) | done | 2026-09-30 |
 | W2 lowering and cooking | done | 2026-09-30 |
 | W2b live `t` | partial | 2026-09-30 |
+| W3 document v4 and history | done | 2026-09-30 |
 
 ### W0 fixes and catalog prerequisites (2026-09-30, partial)
 
@@ -419,6 +420,49 @@ document still holds v3 networks), and an export host passes `~await:true`.
 Not done: the UI text (◷ chips, the inspector cook line, the viewport header)
 is W4/W5, which read `Lower.pending`, `Lower.counts` and `Cook.seconds`.
 
+
+### W3 document v4 and history (2026-09-30, done)
+
+Landed: `Flow_sop.Flow_edit` (one `op` variant, `apply`, `apply_checked`,
+`label`, `gesture`, `remap`, `fresh_name`, `default_for`, `literals`, the
+`arg_key` type), `Editor_document.Workspace_doc` (`of_text`, `to_text`,
+`edit`) and `Layout_by_path`, `Document.workspace` and `Document.of_workspace`,
+s-expression presets (`Preset`), `Document.dump`, `Doc.syntax_edit`,
+`Pxui_graph.Syntax_edit`, `Editor3/2 ?workspace`, `edit`, `workspace`,
+`undo_label`, `redo_label`. The editor is fed by a workspace: every gesture
+lowers again and `Cook.set_volatile` gets `Lower.is_volatile`, so time-driven
+workspaces animate in the editor and static nodes stay cached
+(`test_workspace_doc`). `Lower`'s `sites` and `compiled_ids` travel in
+`Document.workspace` (history state), so ids stay stable across edits and
+undo. Tests: `test_workspace_edit` (every study gesture as a text test),
+`test_workspace_doc`.
+
+Decisions: no older presets are read or converted. The v3 JSON reader and
+writer, W0's set_color migration and the `Preset` kind of `Editor_core.Store`
+are deleted. A preset is one `.plisp` file: the workspace form with its
+comments, then optional `(layout ...)`, `(settings ...)` and `(view ...)`
+forms, the same text a W11 sketch is. JSON remains only where it is not a
+document: user preferences and viewport encoders (`Store.Settings`,
+`Store.Viewport`, the in-memory `view` value, which `Preset` writes as an
+s-expression) and build glue such as `api_stable.json`.
+
+Deviations and gaps: only workspace documents save; a sketch opened with
+`?graph` or `?program` has the legacy scene network (camera and light
+objects, compounds, value nodes) that has no workspace text yet (W10, W12),
+so `Space s` reports why and the crash report writes `document.txt` (a
+deterministic text of any document) but no `.plisp`. Loading a preset gives
+geometry objects only; the editor adds its default camera. `Layout_by_path` is
+stored, remapped and saved, but the pane does not read it until W4 (`frames`
+is a titled rectangle, unused until then). `Doc.apply`'s `Syntax_edit` case
+is a no-op inside the network fold; `Doc.syntax_edit` is the reduction (the
+source is not a `Flow_sop.Network`). `Wrap` uses the checker as its type
+oracle (geometry, then number shape; each candidate feedback input) instead of
+reading types from the IR; the study's `exceptIteration` and
+`set_layout_ratio` (W10) are not ported. A new binding's name comes from
+`fresh_name`, so a caller can select it. `Flow.Workspace.name_taken` says which
+names a binding may not take. `test_editor_document` builds its fixtures in
+code (the JSON fixtures and rejection matrix are gone) and
+`test_prismel_editor` no longer restores a fixed camera from a preset (the native look-through framebuffer comparison went with it: a following camera does not reproduce it).
 
 ## Do not
 

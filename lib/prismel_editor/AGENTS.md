@@ -9,7 +9,7 @@
   explicit merge rules), `Command` (one pure-data entry type, `id`, `label`,
   optional `trigger` and `scope`, `guide` contexts, `action`, for dispatch, guide, which-key, and the
   palette), `Router` (text focus, leader, chords, and the fly mode layer)
-  and `Store` (JSON file persistence). Chrome lives in `pxui_shell`: layout,
+  and `Store` (atomic file writes, JSON user preferences). Chrome lives in `pxui_shell`: layout,
   splitters, pane roots, which-key, prompts, status and timeline bars, and
   `Shell.frame`, the only `Ui.frame` caller.
 - Panes return intents; `Core.update` is the one dispatcher. Code inside
@@ -67,14 +67,14 @@ rules in this file are current. Planned changes that touch this directory:
 
 - M1 is implemented: left-to-right canvas, polylines with authored bends,
   point/chip/card/full, editable card literals and saved layout metadata.
-  Presets read and write only v3 and preserve saved ids. Pointer gestures
+  Presets were then v3 JSON; they are s-expression workspace files now (W3). Pointer gestures
   seal on release; detail changes merge as one-second history bursts.
 - M2 is implemented: graph grammar and guide contexts share the Command
   table; `?` toggles the contextual strip and 380 ms PXUI tooltips, persisted
   through Store user preferences. `Space k` opens the grouped key sheet;
   key feedback lasts 1.5 seconds. World keys are `t`/`n`/`d`, and `f` frames
   the selection or display node. Tab adds by context; Shift-Tab traverses UI.
-- M3 is implemented: documents, clipboard and preset v3 carry `flow_sop` value
+- M3 is implemented: documents and clipboard carry `flow_sop` value
   nodes and drives. The canvas shows value tiles, typed sockets, drive wires
   and live readouts. The inspector shows pins, vector splits and drive sources.
   `Cook` resolves values before submissions and while time advances, retaining
@@ -101,6 +101,24 @@ rules in this file are current. Planned changes that touch this directory:
 
 Keep the three-column workspace, `Doc.apply` as the only graph-intent reducer,
 the one Command table, and history labels; the rework extends them.
+
+## Workspace documents (W3)
+
+`Document.workspace` holds the checked `Workspace_doc` and its `Lower.t`;
+`Document.of_workspace` lowers it into one geometry object per `sop` graph
+(object ids, tile layout and lowering ids survive edits), so the old graph
+pane, list and inspector show the lowered top-level networks until W4 replaces
+them, and undo restores the source and the lowering together. A gesture is a
+`Flow_sop.Flow_edit.op`: `Pxui_graph.Syntax_edit` in a frame or
+`Editor3/2.edit` from a host reduce through `Doc.syntax_edit` (rewrite,
+re-check, lower; atomic), one history entry named by `Flow_edit.label`, with
+`Flow_edit.gesture` as the `Gesture` merge key of a scrub. After each lowering
+`Cook.set_volatile` gets `Lower.is_volatile`, so time-driven workspaces
+recook each frame and static nodes stay cached. Open one with `?workspace`
+(`Editor3`/`Editor2` `create` and `run`; without `?factories` the whole SOP
+catalog). Presets save and load only workspace documents (s-expression
+`.plisp`: source, layout, settings, view); a sketch opened with `?graph` or
+`?program` cannot save until it is a workspace. Old presets are not read.
 
 ## Adapters
 

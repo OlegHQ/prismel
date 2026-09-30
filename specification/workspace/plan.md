@@ -41,14 +41,14 @@ contract, the milestone names the spec section to update.
 | Network | `Flow_sop.Network.t` (geometry `Edit_graph`, value graph, drives, instances) | the cooked form of each graph after lowering |
 | Compounds | `Flow_sop.Compile.flatten`, `Instance_path.t = int list`, persisted `compiled_ids` (`flow.md` §13.3) | per-(path, iteration) ids when loops are unrolled |
 | Build | `Flow_sop.Build.program`, which turns a checked term into a `Network` | the lowering back end |
-| Printer | `Flow_sop.Print.network` with `binding_lines` | v3 → v4 conversion only |
-| Bypass | `^:bypass` → `Check.call.bypass` → `Edit.set_bypass` → print, plus `Edit_graph.set_bypass` and the preset field | as is |
+| Printer | `Flow_sop.Print.network` with `binding_lines` | the text view only; deleted with it in W12 |
+| Bypass | `^:bypass` → `Check.call.bypass` → `Edit.set_bypass` → print, plus `Edit_graph.set_bypass` | as is |
 | Value lane | `Flow_sop.Value_lane.resolve ~time` (scalar drives, per-frame) | `t`-driven parameters |
-| Cooking | `Procedural.Session`, `Async_cook` (latest-request rule, bounded cache, `Parallel.run`) | unchanged, except the cache capacity (W3) |
+| Cooking | `Procedural.Session`, `Async_cook` (latest-request rule, bounded cache, `Parallel.run`) | unchanged, except the cache capacity (W2) |
 | Editor loop | `Core.update` → `Shell.frame` → `Doc.apply` reducer → `History.record ~label`, intents only (`lib/prismel_editor`) | every new gesture is an intent reduced once per frame |
 | Graph pane | `Pxui_graph` tiles, rows, wires, BVH hit tests, `automatic_layout`, the ƒ fold/unfold rows, `with_applied` | nodes and rows; zones are added on top |
 | Shell | `Pxui_shell.Layout` (fixed three columns), `Tree`, `Inspector.flow_fields`, `Prompt` | W10 replaces only the layout |
-| Presets | `Editor_document.Preset` v3, `Editor_core.Store` | the v4 loader wraps v3 |
+| Presets | `Editor_document.Preset` (JSON), `Editor_core.Store` | s-expression `.plisp` files (W3); no JSON, no older format |
 | PPX | `ppx_prismel` `[%flow]`: reads the manifest, maps spans to OCaml locations, emits `Build.program` | kept for OCaml sketches; `.plisp` files replace it for pure sketches (W11) |
 | Generated-file flow | `flow_manifest.sexp` and `api_stable.json`: a rule regenerates, `runtest` diffs, `dune promote` accepts | `sketches/dune.plisp.inc` (W11) |
 | Groups | `Pdk.Group`, `Group_ops.valid_group_name`, `find_group` | computed group names are plain text |
@@ -133,7 +133,7 @@ W10 contexts & composable shell (needs W3, W4)                    W12 migration 
 | W1 | L | flow | the full language checks and prints, tested on the 12 case studies |
 | W2 | L | flow, flow_sop, procedural | workspaces cook; loops are unrolled deterministically |
 | W2b | M | flow, flow_sop, procedural, prismel_editor | `t` animates in real time: live nodes recook each frame, static nodes stay cached; `E_TIME_COUNT`, `E_TIME_BRANCH` |
-| W3 | M | editor_document, prismel_editor, editor_core | the editor opens and saves workspaces (preset v4); v3 converts |
+| W3 | M | editor_document, prismel_editor, editor_core | the editor opens and saves workspaces (s-expression preset) |
 | W4 | L | pxui_graph, prismel_editor | zones, rails, iteration selectors, λ zones, chips and output rows in the graph |
 | W5 | M | flow, prismel_editor, pxui_graph | values per iteration, sparklines, branch counts, invariant badges |
 | W6 | M | pdk, pdk_prismel, prismel_editor | clicking a shape selects the node and iteration that made it |
@@ -172,22 +172,13 @@ dune build @all && dune runtest && dune build @smoke && git diff --check
      `floor_2`. Every result group has the right membership bitset.
    - Bench: `tools/bench_*` merge, before and after, recorded in the PR
      (`lib/pdk/AGENTS.md` requires numbers).
-2. **`sop/merge` accepts any number of inputs** by turning the three fixed
-   slots into a rest slot.
-   - `Edit_graph.factory_slots` takes `?slots`. Add a `Rest of string` slot
-     kind in `Edit_graph.input_requirement`: an array of any length ≥ 1.
-   - The `sop/merge` factory declares `[Rest "input"]` and calls `Sop.merge`
-     directly.
-   - Manifest: `(slots (slot "input" rest))`. Accept with `dune promote`.
-   - `ponytail:` if a rest slot turns out to touch too much of `Edit_graph`,
-     W2 can instead build one internal `flow.merge_n` node per collected
-     list (`Sop.merge` already takes a list). Try the rest slot first,
-     because Pxui_graph's `+ input` row needs it anyway.
+2. **`sop/merge` accepts any number of inputs.** W2 lowers every merge to
+   one internal `flow.merge_n` node (`Sop.merge` already takes a list). The
+   rest slot (`Rest of string` in `Edit_graph.input_requirement`, manifest
+   `(slot "input" rest)`, and the `+ input` row of `Pxui_graph`) moves to W4.
 3. **`sop/set_color` gets a `group` text field and a `color` vec3 group.**
    - `color_r color_g color_b` are floats 0–1 with `[@sop.vec3 "color"]`;
      `alpha` becomes a float.
-   - The preset v3 loader maps old `red/green/blue/alpha` ints by dividing by
-     255.
    - Files: `lib/sop_catalog/attributes.ml` (the Set_color record) and
      `Sop.set_color ?group`.
    - `ponytail:` a hex text parameter is not added. `value/hsv` and vec3
@@ -201,7 +192,6 @@ dune build @all && dune runtest && dune build @smoke && git diff --check
 **Tests.**
 - `lib/pdk/mesh/test_mesh_merge*`
 - `test/test_sop_catalog.ml`: manifest round trip and set_color defaults
-- editor preset v3 load test for set_color migration
 - the 1-domain vs N-domain merge byte test
 
 **Done when** the checks pass, the manifest is promoted, and `api_stable.json`
@@ -361,7 +351,7 @@ unroll geometry.**
      - `ponytail:` negative-int encoding; switch to a variant if paths ever
        need other segment kinds.
    - **Merging lists.** A list of geometry spliced into `sop/merge` becomes
-     one merge node with a rest slot (W0.2).
+     one internal `flow.merge_n` node.
    - **Parameters that depend on `t`** are not evaluated here. They become
      live drives (W2b), so animation never re-lowers.
 3. **Structure never depends on `t`** (`E_TIME_COUNT` and `E_TIME_BRANCH`,
@@ -505,8 +495,8 @@ W2b changes what drives look like. It adds no new per-frame machinery.
      - `ponytail:` residuals cover everything `Flow.Expr` can express and
        more (`value/hsv`, `value/rand` of t, `if` on values, records,
        `str`), so there is one live path.
-     - `Drive.Expr` remains only for `[%flow]` and v3 documents, and is
-       removed in W12.
+     - `Drive.Expr` remains only for `[%flow]` and the legacy graph pane,
+       and is removed in W12.
      - Cost: Orrery evaluates about 100 residuals per frame, which should
        be microseconds. W2b's bench confirms it.
 4. **Per-frame path (unchanged).**
@@ -522,8 +512,9 @@ W2b changes what drives look like. It adds no new per-frame machinery.
    - The problem: a live node makes a new cache key every frame, so it
      would churn the Session's LRU (512 entries after W2) and evict static
      entries, the very ones that make playback cheap.
-   - The fix: add `?volatile:(int -> bool)` to `Session.create` (or a flag
-     on the compiled node).
+   - The fix: `Session.set_volatile`, a predicate replaced after each
+     lowering (an optional argument of `create` would not reach its many
+     callers).
    - A volatile node keeps exactly **one** entry, its latest. It is
      replaced in place and never counted in, or evicted from, the LRU.
    - `Lower` marks a node volatile when it is live, or downstream of a
@@ -604,66 +595,62 @@ W2b changes what drives look like. It adds no new per-frame machinery.
 **Reuse.**
 - `Editor_core.History.record ~label ~merge`, which already holds whole
   immutable documents.
-- `Store` and the `Preset` v3 loader.
-- `Network_layout` for per-network view data.
+- `Network_layout`'s fields for per-node view data.
 
 **Build.**
-1. `Editor_document.Workspace_doc` (new, UI-free):
+1. **`Flow_sop.Flow_edit`**, UI-free, holding every gesture as a pure syntax
+   rewrite (port of e1.js/e2.js): `set_arg`, `connect`, `disconnect`,
+   `unfold`, `fold`, `wrap_in_loop (For|Fold)`, `hoist`, `rename`,
+   `make_local_fn`, `make_macro ~holes`, `inline_macro`, `toggle_bypass`,
+   `set_note`, `add_item`, `move_item`, `add_field`, `add_node`,
+   `delete_nodes`, `set_input_default` (`set_layout_ratio` is W10).
+   - One `op` variant and one `apply`; no command objects. Each op keeps
+     notes (a comment travels with its binding name), prints canonically,
+     re-parses and re-checks atomically.
+   - `ponytail:` the checker is the type oracle: `Wrap` tries the geometry
+     and number shapes (or each candidate feedback input) and keeps the first
+     that checks.
+2. **`Editor_document.Workspace_doc`** and `Layout_by_path`:
    ```ocaml
-   type t = { source : Flow.Syntax.t list;          (* authored truth *)
-              checked : Flow.Workspace.t;           (* cached, derived *)
-              layout : Layout_by_path.t;            (* positions, collapsed zones, frames; keyed by path *)
-              settings : Settings.t }
-   val of_text : catalog -> string -> (t, Flow.Diagnostic.t list) result
-   val edit : catalog -> t -> Flow_edit.op -> (t, Flow.Diagnostic.t) result   (* re-checks atomically *)
+   type t = { source : Flow.Syntax.t list; checked : Flow.Workspace.t;
+              layout : Layout_by_path.t; settings : Settings.t }
+   val of_text : ?settings -> catalog -> string -> (t, Flow.Diagnostic.t list) result
+   val edit : catalog -> t -> Flow_edit.op -> (t, Flow.Diagnostic.t) result
    ```
-   - `Layout_by_path` is `Network_layout.t`'s fields keyed by
-     `Workspace.path`: at, pinned, rows, bends and wireless, plus
-     `collapsed : bool` and `frames`.
-2. **`Flow_edit`**, a new module in `flow_sop` so that it stays UI-free,
-   holding every gesture as a pure syntax rewrite. Port e1.js/e2.js:
-   - `set_arg`, `connect`, `disconnect`, `unfold`, `fold`
-   - `wrap_in_loop (For|Fold)`, `hoist`, `rename`
-   - `make_local_fn`, `make_macro ~holes`, `inline_macro`
-   - `toggle_bypass`, `set_note`
-   - `add_item`, `move_item`, `add_field`, `add_node`, `delete_nodes`
-   - `set_input_default`, `set_layout_ratio` (W10)
-
-   Each returns `(Syntax.t list, Diagnostic.t) result` and keeps notes (the
-   `revec` rule).
-   - `ponytail:` one `op` variant type, one `apply`. There is no command
-     object hierarchy.
-3. **Preset v4:** `{"version":4,"source":"<canonical text>","layout":{…by
-   path…},"settings":…}`.
-   - The loader accepts v3 by printing the v3 document to text with the
-     existing `Flow_sop.Print.network` / `definition`, wrapped in
-     `(workspace <name> …)`, and mapping layout ids to paths through
-     `binding_lines`.
-   - The round-trip laws in `test/test_editor_document.ml` already prove
-     this text is faithful.
-   - The v3 writer is deleted.
-4. **Core.** `Doc.apply` gets one new case, `Syntax_edit of Flow_edit.op`.
-   Its label comes from the op (for example "Repeat", "Unfold",
-   "Make macro"). One gesture is one history entry, and scrubs use
-   `Gesture` merge as today.
+   - `Layout_by_path` is `Network_layout`'s fields keyed by
+     `Workspace.path` (at, pinned, rows, bends, wireless) plus `collapsed` and
+     `frames`. Keys survive text edits by construction; `Flow_edit.remap`
+     rewrites them in the same transaction as a rename or a hoist.
+3. **Presets are s-expressions.** One `.plisp` file: the `(workspace ...)`
+   form with its comments, then optional `(layout ...)`, `(settings ...)` and
+   `(view ...)` forms. `.plisp` sketches (W11) are the same text without the
+   trailing forms.
+   - No JSON, no version number, no older format: the v3 reader and writer
+     and W0's set_color migration are deleted. Only a workspace document
+     saves; `Editor_core.Store` gains atomic text writes and keeps JSON only
+     for user preferences and viewport encoders.
+4. **Core.**
+   - `Document.workspace` pairs the `Workspace_doc` with its `Lower.t`;
+     `Document.of_workspace` lowers it into one geometry object per `sop`
+     graph, so undo restores both and the old graph pane shows the lowered
+     top-level networks until W4.
+   - `Pxui_graph.Syntax_edit of Flow_edit.op` and `Doc.syntax_edit` reduce a
+     gesture: one history entry named by `Flow_edit.label`, `Gesture` merge
+     for a scrub. `Editor3/2` accept `?workspace` and offer `edit`.
+   - After each lowering `Cook.set_volatile` gets `Lower.is_volatile`.
 
 **Tests.**
-- Every Playwright gesture from the study becomes a pure test in
-  `test/test_workspace_edit.ml`: apply the op to a fixture and compare the
-  printed text with the expected text. This covers:
-  - scrub, connect, the unfold/fold round trip, Repeat, Iterate, hoist,
-    rename, make λ, make macro, inline, bypass, notes, list add/move and
-    record field add.
-- v3 → v4 conversion of every preset in the repo and in the test
-  fixtures.
-- Undo/redo labels.
+- `test/test_workspace_edit.ml`: every study gesture as a pure text test.
+- `test/test_workspace_doc.ml`: text, layout and settings round trip; atomic
+  edits and layout key rewrites; the editor opens a workspace; labels and
+  merged scrubs through undo and redo; `t` recooks and static nodes stay
+  cached; save and load through `Space s` / `Space b`.
+- Existing editor tests pass.
 
 **Done when**
-- the editor opens a v4 workspace;
-- all existing v3 presets load and resave as v4 with an identical cook
-  (byte compare);
-- existing editor tests pass with the graph pane still showing the
-  top-level graph through the old path, which is replaced in W4.
+- the editor opens and saves a workspace, and time-driven ones animate;
+- existing editor tests pass with the graph pane still showing the top-level
+  graph through the old path, which W4 replaces.
 
 ---
 
@@ -697,7 +684,7 @@ iteration selectors, chips, output rows and λ zones.
    - Accept a `Projection.scope` in place of the flat network for workspace
      documents.
      - `ponytail:` keep one code path by converting the flat network case
-       into a projection too, once W3 converts documents.
+       into a projection too, once every document is a workspace.
    - Zones are painted in `paint_background` under tiles, using new theme
      tokens in `Pxui.Theme`: `zone_for`, `zone_fold`, `zone_sum` and
      `zone_fn`, with the hollow dashed style for λ zones.
@@ -721,12 +708,12 @@ iteration selectors, chips, output rows and λ zones.
    - **Stacked sockets** for lists and the diamond socket for fn use new
      `Theme.ports` entries.
    - **New `change` cases:**
-     - `Syntax_edit_requested of Flow_edit.op`
+     - `Syntax_edit of Flow_edit.op` (already in `change` since W3)
      - `Probe_set of {zone : path; index : int}`
      - `Zone_collapsed of {zone : path; collapsed : bool}`
 
      `ponytail:` one edit request, not twenty.
-3. **Prismel_editor.** `Doc.apply` handles `Syntax_edit_requested` (W3).
+3. **Prismel_editor.** `Doc.syntax_edit` already handles the pane's `Syntax_edit` (W3).
    The probe is view state (`Core.probes : int Path_map.t`), not document
    data, and not recorded in history.
 
@@ -766,7 +753,7 @@ selectors, and all gestures from W3 are reachable by mouse and keys.
    - `then a · else b` for `if`;
    - `kept a of b` for `filter`;
    - `↥ same each time` (loop-invariant, from `Flow.Workspace`'s dependency
-     analysis), which emits `Syntax_edit_requested (Hoist path)`.
+     analysis), which emits `Syntax_edit (Hoist ...)`.
    - `◷ t` on live nodes and zones, from W2b's liveness set, plus the
      inspector's `cook: live` or `cook: cached` row and the viewport
      header's `◷ N live · M cached · cook X ms`.
@@ -1152,10 +1139,7 @@ _build/default/sketches/bloom/main.ml   ← generated per build, never checked i
    that mix host code, as sugar: a single `graph` payload becomes
    `(workspace <name> <graph>)`.
 2. Delete:
-   - `Flow_sop.Print.network`'s editor use (keep it only for the v3
-     loader, then delete the loader after one release; record that in
-     `flow-migration.md`);
-   - the read-only `text_pane`;
+   - the read-only `text_pane` and `Flow_sop.Print.network`'s editor use;
    - `Check.program`'s single-graph path, once `[%flow]` is sugar.
 3. Update the docs:
    - `flow.md`: status, §8.3, §11 pointer, §17.
@@ -1217,7 +1201,6 @@ _build/default/sketches/bloom/main.ml   ← generated per build, never checked i
 | Risk | Mitigation |
 |---|---|
 | Unrolling blows the session cache or frame budget (Sunflower 240, Wave 540 iterations) | W2 benches are gating. Raise capacity with measurement; W8's zone step caches per element, so move heavy loops there. |
-| The v3 → v4 conversion loses layout | Layout maps ids to paths via `binding_lines`; test every repo preset; keep the v3 loader for one release |
 | Pixel parity breaks with new theme tokens | Add tokens only; the parity fixtures gain a zone panel; review PNG diffs |
 | The dependency gate: `Flow_edit` / `Projection` needing UI | Both live in `flow_sop` and are UI-free by construction; the gate test enforces it |
 | Merge padding changes existing geometry | Padding only adds empty groups when inputs differ; existing merges with identical schemas produce identical bytes (tested) |
