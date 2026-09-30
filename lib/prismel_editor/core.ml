@@ -40,14 +40,26 @@ type prompt_intent = Save_preset_file of string | Load_preset_file of string
 type timeline_intent = Pxui_shell.Timeline_bar.intent =
   Pause_toggle | Stop_playback | Reset_playback | Seek_playback of int64
 
+(* The shell as the editor shows it (view state, not history): the tree used when the
+   document has no editor graph, the panels folded away, a splitter drag in progress
+   and whether the default tree replaces the document's ("Restore layout"). *)
+type shell = {
+  tree : Pxui_shell.Layout.t;
+  hidden : Pxui_shell.Layout.panel list;
+  live : (Pxui_shell.Layout.path * float) option;  (* the split being dragged, its ratio *)
+  restored : bool;
+}
+
 type 'panel frame_result = {
-  workspace : Pxui_shell.Layout.t;
-  focus : Pxui_shell.Layout.column;
-  pane_keys : (int * Pxui_shell.Layout.column) list;
+  workspace : shell;
+  focus : Pxui_shell.Layout.panel;
+  pane_keys : (int * Pxui_shell.Layout.panel) list;
   scope_view : Pxui_graph.Scope.t;
   scope_changes : Pxui_graph.Scope.change list;
   graph_view : Pxui_graph.t;
   tree : Pxui_shell.Tree.t;
+  outline : Pxui_shell.Tree.t;
+  outline_intents : Pxui_shell.Tree.intent list;
   document : Flow_sop.Network.t;  (* the open network after this frame's edits *)
   edit_error : string option;
   effects : Parameter.effects;
@@ -108,16 +120,17 @@ type 'prepared t = {
   pane_graph : string option;  (* a scene, world or settings graph the pane shows instead of the level's own *)
   flow_catalog : Flow.Check.catalog option Lazy.t;
   tree : Pxui_shell.Tree.t;
+  outline : Pxui_shell.Tree.t;  (* the outline panel's list of graphs *)
   ui : Pxui.Ui.t;
-  workspace : Pxui_shell.Layout.t;
+  workspace : shell;
   timeline : Sketch_support.Timeline.t;
   cook : 'prepared Cook.t;
   edit_error : string option;
   status_fps : int option;
   status_fps_at : float;
   history : Document.t Editor_core.History.t;
-  focus : Pxui_shell.Layout.column;
-  pane_keys : (int * Pxui_shell.Layout.column) list;
+  focus : Pxui_shell.Layout.panel;
+  pane_keys : (int * Pxui_shell.Layout.panel) list;
   leader : Leader.state;
   held_keys : Input.key list;
   keymap : Leader.command list;
@@ -140,6 +153,51 @@ type ('prepared, 'panel) update = {
      input handling. *)
   input : Frame.t;
 }
+
+(* ---- the shell ---- *)
+
+(* The tree drawn now: the editor graph's (the host's when the document has none, or
+   after "Restore layout"), with the split being dragged at its live ratio. *)
+let shell_tree value (shell : shell) =
+  let base = if shell.restored then shell.tree
+    else match value.doc.Document.shell with Some s -> s.tree | None -> shell.tree in
+  match shell.live with
+  | Some (node, ratio) -> Editor_core.Panels.set_ratio node ratio base
+  | None -> base
+
+let visible (shell : shell) panel = not (List.mem panel shell.hidden)
+
+(* An edit that changes the editor graph's tree ends "Restore layout". *)
+let unrestore (before : Document.t) (after : Document.t) (shell : shell) =
+  let tree (doc : Document.t) = Option.map (fun (s : Document.shell) -> s.tree) doc.shell in
+  if tree before <> tree after then { shell with restored = false } else shell
+let geometry value (shell : shell) frame =
+  Pxui_shell.Layout.geometry ~hidden:shell.hidden (shell_tree value shell) frame
+let has_panel value panel =
+  visible value.workspace panel
+  && List.exists (fun (_, p) -> p = panel) (Editor_core.Panels.leaves (shell_tree value value.workspace))
+
+(* The viewport that keyboard focus and the camera follow: the focused one, else the first. *)
+let active_view value (g : Pxui_shell.Layout.geometry) = match value.focus with
+  | View _ as panel when Pxui_shell.Layout.find g panel <> None -> Pxui_shell.Layout.find g panel
+  | _ -> Pxui_shell.Layout.first_view g
+
+let panes value frame =
+  let g = geometry value value.workspace frame in
+  let panes = Pxui_shell.Layout.panes g in
+  match active_view value g with
+  | Some leaf -> { panes with view = leaf.body }
+  | None -> panes
+
+(* The viewports on screen and the bodies they are drawn in. *)
+let view_bodies value frame =
+  List.filter_map (fun (leaf : Pxui_shell.Layout.leaf) -> match leaf.panel with
+    | View key -> Some (key, leaf.body) | _ -> None)
+    (geometry value value.workspace frame).leaves
+
+let view_visible value =
+  List.exists (fun (_, p) -> match p with Pxui_shell.Layout.View _ -> visible value.workspace p | _ -> false)
+    (Editor_core.Panels.leaves (shell_tree value value.workspace))
 
 let pane_ui bounds =
   let x, y, width, height = bounds in
@@ -351,7 +409,7 @@ let value_catalog =
   @ List.map (fun (name, _) -> entry Flow.Value_kind.Math ("math/" ^ name)
       (String.capitalize_ascii name) ["Math"]) Flow.Expr.operators
 
-let projection value =
+let stored_projection value =
   match Level_map.find_opt value.level value.projections with
   | Some projection -> projection
   | None -> (match value.level with
@@ -360,8 +418,23 @@ let projection value =
     | Inside id when kind value id = Some "geometry" -> Graph_view
     | Inside _ -> List_view)
 
-(* The workspace graph the pane shows with zones and selectors: the one
-   [Cycle_graph] picked (scene, world or settings), else the graph of the
+(* Any of the panels that hold the graph pane's views is on screen. *)
+let graph_family value = has_panel value Pxui_shell.Layout.Graph || has_panel value List
+  || has_panel value Lisp
+
+(* What the graph panel shows: a list or lisp panel of its own takes over that view. *)
+let projection value = match stored_projection value with
+  | List_view when has_panel value List -> Graph_view
+  | Text_view when has_panel value Lisp -> Graph_view
+  | projection -> projection
+
+(* Which keys the focused panel takes: the list's and the text pane's own panels, else
+   the graph panel's projection. *)
+let listing value = value.focus = List || (value.focus <> Lisp && projection value = List_view)
+let texting value = value.focus = Lisp || (value.focus <> List && projection value = Text_view)
+
+(* The workspace graph the pane shows with zones and selectors: the one a
+   [(ui/graph "name")] panel names, else the one the outline picked, else the graph of the
    geometry object opened (the one its network was lowered from, else the
    [sop] graph its label names) or of the World opened.  Everything else keeps
    the flat network pane. *)
@@ -369,7 +442,8 @@ let graph_name value = match value.doc.Document.workspace with
   | None -> None
   | Some (ws, lowered) ->
       let exists name = List.exists (fun (g : Flow.Workspace.graph) -> g.name = name) ws.checked.graphs in
-      (match value.pane_graph, value.level with
+      let named = Option.bind value.doc.Document.shell (fun s -> s.Document.named) in
+      (match (if named <> None then named else value.pane_graph), value.level with
        | Some name, _ when exists name -> Some name
        | _, Document.Inside id when kind value id = Some "geometry" ->
            let lowered_from = Option.bind (Document.Layout.find_opt id value.doc.Document.networks)
@@ -384,23 +458,6 @@ let graph_name value = match value.doc.Document.workspace with
            List.find_map (fun (g : Flow.Workspace.graph) ->
              if g.context = Flow.Workspace.World then Some g.name else None) ws.checked.graphs
        | _ -> None)
-
-(* The next graph of [Cycle_graph]: scene, world and settings graphs in source
-   order, then back to the level's own. *)
-let next_pane_graph value = match value.doc.Document.workspace with
-  | None -> None
-  | Some (ws, _) ->
-      let names = List.filter_map (fun (g : Flow.Workspace.graph) ->
-        if g.context = Flow.Workspace.Sop || g.context = Value || g.context = Editor then None
-        else Some g.name) ws.checked.graphs in
-      (match value.pane_graph with
-       | None -> List.nth_opt names 0
-       | Some current ->
-           let rec after = function
-             | x :: next :: _ when x = current -> Some next
-             | _ :: rest -> after rest
-             | [] -> None in
-           after names)
 
 let scope_name value = if projection value = Graph_view then graph_name value else None
 
@@ -510,7 +567,7 @@ let enterable value id = match kind value id with
    frames it all; framing large networks here would draw every tile). *)
 let view_of value level (frame : Frame.t) =
   let network = Option.get (Document.network value.doc level) in
-  let gx, gy, gw, gh = (Pxui_shell.Layout.geometry value.workspace frame).graph in
+  let gx, gy, gw, gh = (panes value frame).graph in
   Pxui_graph.create_document ~x:gx ~y:gy ~width:(max 1 gw) ~height:(max 1 gh)
     ~definitions:(Document.flow_definitions value.doc)
     ~display_enabled:(match level with Compound _ -> false
@@ -569,9 +626,6 @@ let settings value = value.doc.Document.settings
 let timeline value = value.timeline
 let selected_node value = Option.bind (Pxui_graph.selected value.graph_view)
     (fun node_id -> Edit_graph.find (document value) ~node_id)
-let panes value frame = Pxui_shell.Layout.geometry value.workspace frame
-let column_visible value column = not (Pxui_shell.Layout.collapsed value.workspace column)
-
 (* The transform the open network's handles live in: an object's own when
    inside it, the selected object's parent chain at the scene level. *)
 let space value = match value.level with
@@ -902,7 +956,7 @@ let initial_doc ~settings ~seed_scene ?program code_graph =
         layout = Editor_core.Network_layout.empty; displayed};
     definitions;
     compiled_ids = Flow_sop.Instance_path.Map.empty;
-    active_camera = None; settings; workspace = None },
+    active_camera = None; settings; shell = None; workspace = None },
   Some (Node.id geometry)
 
 (* The document a workspace starts from: one geometry object per [sop] graph
@@ -970,7 +1024,8 @@ let create ?(settings = Settings.none) ?(keymap = Leader.keymap)
   Result.bind (Result.map_error Flow.Diagnostic.to_string
     (Document.allocate_compiled_ids doc)) (fun doc ->
   Result.map (fun cook ->
-      let workspace = Pxui_shell.Layout.create layout in
+      let workspace = { tree = layout; hidden = [ Pxui_shell.Layout.Timeline ]; live = None;
+                        restored = false } in
       let presets = match presets with
         | Some directory -> directory
         | None -> Filename.concat (Filename.concat
@@ -993,13 +1048,13 @@ let create ?(settings = Settings.none) ?(keymap = Leader.keymap)
         scope_key = None; pane_graph = None;
         flow_catalog = lazy (Result.to_option (Editor_document.Contexts.catalog
           ~version:Flow_sop.Manifest.version factories));
-        tree = Pxui_shell.Tree.create (); held_keys = [];
+        tree = Pxui_shell.Tree.create (); outline = Pxui_shell.Tree.create (); held_keys = [];
         ui = Pxui.Ui.create (); workspace;
         timeline = Sketch_support.Timeline.create (); cook;
         edit_error = None; status_fps = None;
         status_fps_at = Float.neg_infinity;
         history = Editor_core.History.create doc;
-        focus = Pxui_shell.Layout.View; pane_keys = []; leader = Leader.Idle;
+        focus = Editor_core.Panels.main; pane_keys = []; leader = Leader.Idle;
         keymap; timeline_frames = max 1 timeline_frames; queued = [] } in
       (* Record the laid-out positions of every network as the first state. *)
       let doc = List.fold_left (fun doc level ->
@@ -1065,13 +1120,14 @@ let status_text value =
     | Compound _ -> "u up · Space a add · Space l list/graph"
     | Inside _ when value.scene_level -> "u up · Space a add · Space l list/graph"
     | Inside _ -> "Space a add · Space l list/graph" in
-  cook ^ " · " ^ level_name value ^ (if hint = "" then "" else " · " ^ hint)
+  (if value.workspace.restored then "Default layout · Space z returns to the editor graph · " else "")
+  ^ cook ^ " · " ^ level_name value ^ (if hint = "" then "" else " · " ^ hint)
 
 (* The status strip under the view: kit text on a dark bar. *)
 let status_box value ui (frame : Frame.t) ~render_status ~context ~commands =
-  let x, y, width, height = (Pxui_shell.Layout.geometry value.workspace frame).status in
+  let x, y, width, height = (geometry value value.workspace frame).status_at in
   if height <= 0 then false
-  else if value.guide && value.focus = Pxui_shell.Layout.Graph then
+  else if value.guide && Leader.scope value.focus = Pxui_shell.Layout.Graph then
     Pxui_shell.Status_bar.guide ui ~bounds:(x, y, width, height) ~context commands
   else begin
     let text = truncate (max 1 ((width - 80) / 7))
@@ -1088,27 +1144,32 @@ let apply_action value (frame : Frame.t) (workspace, graph_view, tree, timeline,
   let module T = Sketch_support.Timeline in
   let timeline_step step = let timeline, more = step timeline in
     workspace, graph_view, tree, timeline, changes @ more in
+  let toggle panel (workspace : shell) =
+    { workspace with hidden = Pxui_shell.Layout.toggle panel workspace.hidden } in
+  let expand panel (workspace : shell) =
+    { workspace with hidden = Pxui_shell.Layout.expand panel workspace.hidden } in
   let pointer () =
-    let gx, gy, gw, gh = (Pxui_shell.Layout.geometry workspace frame).graph in
+    let gx, gy, gw, gh = (Pxui_shell.Layout.panes (geometry value workspace frame)).graph in
     let mx, my = frame.mouse in
     if mx >= float gx && my >= float gy && mx < float (gx + gw) && my < float (gy + gh)
     then int_of_float mx, int_of_float my
     else gx + (gw / 3), gy + (gh / 3) in
   match action with
-  | Leader.Toggle_timeline ->
-      Pxui_shell.Layout.toggle Pxui_shell.Layout.Timeline workspace, graph_view, tree, timeline, changes
-  | Toggle_graph ->
-      Pxui_shell.Layout.toggle Pxui_shell.Layout.Graph workspace, graph_view, tree, timeline, changes
-  | Toggle_inspector ->
-      Pxui_shell.Layout.toggle Pxui_shell.Layout.Inspector workspace, graph_view, tree, timeline, changes
+  | Leader.Toggle_timeline -> toggle Pxui_shell.Layout.Timeline workspace, graph_view, tree, timeline, changes
+  | Toggle_graph -> toggle Pxui_shell.Layout.Graph workspace, graph_view, tree, timeline, changes
+  | Toggle_inspector -> toggle Pxui_shell.Layout.Inspector workspace, graph_view, tree, timeline, changes
+  | Restore_layout ->
+      (if workspace.restored then { workspace with restored = false; live = None }
+       else { tree = Pxui_shell.Layout.default; hidden = [ Pxui_shell.Layout.Timeline ]; live = None;
+              restored = true }), graph_view, tree, timeline, changes
   | Open_camera ->
-      Pxui_shell.Layout.expand Pxui_shell.Layout.Inspector workspace,
+      expand Pxui_shell.Layout.Inspector workspace,
       Pxui_graph.clear_selection graph_view, tree, timeline, changes
   | Play_pause -> timeline_step T.toggle_pause
   | Reset -> timeline_step T.reset
   | Stop -> timeline_step T.stop
   | Add_node ->
-      Pxui_shell.Layout.expand Pxui_shell.Layout.Graph workspace,
+      expand Pxui_shell.Layout.Graph workspace,
       Pxui_graph.open_menu_at (pointer ()) graph_view, tree, timeline, changes
   | Layout -> workspace, Pxui_graph.optimize_layout graph_view, tree, timeline, changes
   | Frame_tile when projection value = List_view ->
@@ -1119,7 +1180,7 @@ let apply_action value (frame : Frame.t) (workspace, graph_view, tree, timeline,
   | Hide_ui | Look_through | Fly | Save_preset | Browse_presets
   | Graph_command _ | List_command _ | Frame_camera | Undo | Redo | Command_palette
   | Guide_toggle | Guide_keys
-  | Sketch_command _ | Scope_command _ | Toggle_projection | Cycle_graph | Enter | Up | Go_world | Group | Ungroup
+  | Sketch_command _ | Scope_command _ | Toggle_projection | Enter | Up | Go_world | Group | Ungroup
   | Make_unique | Tool _
   | World_emit | World_reseed | World_time _ | World_play | World_preset _ ->
       workspace, graph_view, tree, timeline, changes
@@ -1221,9 +1282,8 @@ let world_keys value (doc : Document.t) graph_view actions =
 
 (* Commands that only mean something on this level and projection. *)
 let routed value =
-  let graph_shown = not (Pxui_shell.Layout.collapsed value.workspace Pxui_shell.Layout.Graph) in
-  let listing = projection value = List_view in
-  let texting = projection value = Text_view in
+  let graph_shown = graph_family value in
+  let listing = listing value and texting = texting value in
   if Pxui_graph.hinting value.graph_view && not (listing || texting) then
     List.filter (fun (command : Leader.command) -> match command.action with
       | Guide_toggle | Guide_keys -> true | _ -> false) value.keymap @ List.map (fun (command : _ Editor_core.Command.t) ->
@@ -1302,7 +1362,7 @@ let parameter_gesture operation level id values =
 let install value doc ~label ~merge =
   let level = Result.get_ok
     (Document.resolve_level ~scene_level:value.scene_level doc value.level) in
-  let value' = { value with doc; level } in
+  let value' = { value with doc; level; workspace = unrestore value.doc doc value.workspace } in
   Cook.set_volatile value.cook (match doc.workspace with
     | Some (_, lowered) -> Flow_sop.Lower.is_volatile lowered
     | None -> fun _ -> false);
@@ -1351,6 +1411,71 @@ let apply_text value intents =
              with_text { text with binding_draft = Some (path, draft); binding_errors })) value intents
 
 
+(* A panel header's title: its type, and where a looped panel comes from (register E1). *)
+let panel_title value (leaf : Pxui_shell.Layout.leaf) =
+  let name = Editor_core.Panels.name leaf.panel in
+  match Option.bind value.doc.Document.shell (fun s ->
+      if value.workspace.restored then None else List.assoc_opt leaf.path s.origins) with
+  | Some (Document.Loop from) -> name ^ " · from loop " ^ from
+  | _ -> name
+
+(* The outline: the graphs of the workspace, one row each (a row opens its graph). *)
+let outline_graphs value = match value.doc.Document.workspace with
+  | Some (ws, _) -> ws.checked.graphs | None -> []
+
+let outline_rows value =
+  Array.of_list (List.mapi (fun i (g : Flow.Workspace.graph) ->
+    { Pxui_shell.Tree.id = i + 1; depth = 0; label = g.name;
+      detail = Flow.Workspace.context_name g.context;
+      badge = String.uppercase_ascii (String.sub (Flow.Workspace.context_name g.context) 0 1),
+        Color.hex_exn "#566463";
+      link = false; ghost = false; flags = [] }) (outline_graphs value))
+
+(* What a header or splitter gesture means: folding a panel and dragging a split are view
+   state; the rest is one edit of the editor graph (a history entry) or a notice saying
+   why there is none. *)
+let layout_intents value (workspace : shell) intents =
+  let base = shell_tree value { workspace with live = None } in
+  let editor = Option.bind value.doc.Document.workspace (fun (ws, _) ->
+    List.find_map (fun (g : Flow.Workspace.graph) ->
+      if g.context = Flow.Workspace.Editor then Some g.name else None) ws.checked.graphs) in
+  let shell = if workspace.restored then None else value.doc.Document.shell in
+  let edit path make = match editor, shell with
+    | Some graph, Some s ->
+        (match List.assoc_opt path s.origins with
+         | Some (Document.Bound name) -> [ Pxui_graph.Syntax_edit (make [ graph; name ]) ]
+         | Some (Loop from) -> [ Pxui_graph.Notice ("This panel comes from a loop in " ^ from
+             ^ ". Edit the loop in the editor graph.") ]
+         | None -> [ Pxui_graph.Notice "This panel is written inline in the editor graph. Bind it \
+             to a name to split, close or retype it." ])
+    | _ -> [ Pxui_graph.Notice (if workspace.restored then "The default layout is showing. \
+        Space z returns to the editor graph."
+      else "This document has no editor graph. Add (graph editor :context editor ...) to change \
+        the layout.") ] in
+  let kind : Pxui_shell.Layout.panel -> string = function
+    | View _ -> "viewport" | Graph -> "graph" | List -> "list" | Lisp -> "lisp"
+    | Inspector -> "inspector" | Outline -> "outline" | Timeline -> "timeline" in
+  List.fold_left (fun ((w : shell), changes) -> function
+    | Pxui_shell.Chrome.Toggle panel ->
+        { w with hidden = Pxui_shell.Layout.toggle panel w.hidden }, changes
+    | Resize { node; ratio } -> { w with live = Some (node, ratio) }, changes
+    | Settled ->
+        (match w.live with
+         | None -> w, changes
+         | Some (node, ratio) ->
+             let w = { w with live = None } in
+             if shell <> None then
+               w, changes @ edit node (fun node -> Flow_sop.Flow_edit.Set_layout_ratio { node; ratio })
+             else { w with tree = Editor_core.Panels.set_ratio node ratio base }, changes)
+    | Split_panel (path, axis) ->
+        w, changes @ edit path (fun node -> Flow_sop.Flow_edit.Split_panel { node; axis })
+    | Close_panel path ->
+        w, changes @ edit path (fun node -> Flow_sop.Flow_edit.Close_panel { node })
+    | Retype_panel (path, panel) ->
+        w, changes @ edit path (fun node ->
+          Flow_sop.Flow_edit.Set_panel_kind { node; kind = kind panel }))
+    (workspace, []) intents
+
 let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
     ~render_status ~view_state (frame : Frame.t) =
   let value = sync_scope value in
@@ -1363,14 +1488,14 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
           (List.assoc_opt key value.pane_keys)
       | None -> value.focus
     else value.focus in
-  let keymap = routed value in
+  let keymap = routed { value with focus } in
   let keymap = if all_ui_visible then keymap else List.filter (fun command ->
       match command.Editor_core.Command.action with
       | Leader.Graph_command _ | Leader.List_command _ | Leader.Frame_camera -> false
       | _ -> true) keymap in
   let held_keys = frame.keys in
   let leader, commands, frame = Editor_core.Router.step ~previous_keys:value.held_keys
-      keymap ~focus ~text_focus ~frame value.leader in
+      keymap ~focus:(Leader.scope focus) ~text_focus ~frame value.leader in
   let hud = match List.rev commands with
     | command :: _ -> Some (Editor_core.Keymap.label (Option.get command.trigger)
         ^ " · " ^ command.label, frame.time +. 1.5)
@@ -1406,11 +1531,20 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
   let workspace, graph_view, tree, timeline, timeline_changes = List.fold_left
       (apply_action value frame)
       (value.workspace, value.graph_view, value.tree, timeline, timeline_changes) actions in
-  let graph_shown = all_ui_visible && not (Pxui_shell.Layout.collapsed workspace Pxui_shell.Layout.Graph) in
-  let listing = projection value = List_view in
-  let texting = projection value = Text_view in
-  let text, text_shown = match value.doc.Document.workspace, graph_name value with
-    | Some (ws, _), Some graph when texting && graph_shown ->
+  let vw = { value with workspace; focus } in
+  let graph_shown = all_ui_visible && graph_family vw in
+  let listing = listing vw in
+  let list_drawn = all_ui_visible && (has_panel vw List
+    || (projection vw = List_view && has_panel vw Pxui_shell.Layout.Graph)) in
+  let text_drawn = all_ui_visible && (has_panel vw Lisp
+    || (projection vw = Text_view && has_panel vw Pxui_shell.Layout.Graph)) in
+  (* a lisp panel with no graph open reads the first graph of the workspace *)
+  let text_graph = match graph_name value, value.doc.Document.workspace with
+    | None, Some (ws, _) when text_drawn && has_panel vw Lisp ->
+        Option.map (fun (g : Flow.Workspace.graph) -> g.name) (List.nth_opt ws.checked.graphs 0)
+    | graph, _ -> graph in
+  let text, text_shown = match value.doc.Document.workspace, text_graph with
+    | Some (ws, _), Some graph when text_drawn ->
         let selected = match Pxui_graph.Scope.selected value.scope_view with
           | [ path ] -> Some path | _ -> None in
         let text, shown = Text_pane.shown value.text ~source:ws.source ~graph ~selected in
@@ -1435,10 +1569,10 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
   let document = document value in
   let open_network = (network value).graph in
   let rows_cache = match value.rows with
-    | Some (source, viewed, layout, rows) when listing && source == open_network
+    | Some (source, viewed, layout, rows) when (listing || list_drawn) && source == open_network
         && viewed = Pxui_graph.viewed graph_view && layout == (network value).layout ->
         Some (source, viewed, layout, rows)
-    | _ when listing -> Some (open_network, Pxui_graph.viewed graph_view, (network value).layout,
+    | _ when listing || list_drawn -> Some (open_network, Pxui_graph.viewed graph_view, (network value).layout,
         rows value open_network graph_view)
     | _ -> None in
   let rows, columns = match rows_cache with
@@ -1468,26 +1602,46 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
   let initial_frame_request = if List.mem Leader.Frame_camera actions
     then Some (Pxui_graph.viewed graph_view) else None in
   let build ui =
-    let workspace = Pxui_shell.Chrome.update workspace ui shortcut_frame in
-    let panes = Pxui_shell.Layout.geometry workspace frame in
-    let root column bounds =
-      column, Pxui_shell.Chrome.pane_root ui frame ~bounds
-        ("workspace-pane-" ^ Leader.pane_name column) in
-    let vx, vy, vw, _ = panes.view in
-    let _, sy, _, sh = panes.status in
-    let view, view_root = root Pxui_shell.Layout.View (vx, vy, vw, sy + sh - vy) in
-    let graph, graph_root = root Pxui_shell.Layout.Graph panes.graph in
-    let inspector_column, inspector_root =
-      root Pxui_shell.Layout.Inspector panes.inspector in
-    let timeline_column, timeline_root =
-      root Pxui_shell.Layout.Timeline panes.timeline in
+    (* Chrome first: panel backgrounds, splitters and headers.  Its intents fold into the
+       shell now (a fold, a drag) or become one editor-graph edit after the frame. *)
+    let intents = Pxui_shell.Chrome.update ~hidden:workspace.hidden ~title:(panel_title vw)
+        (shell_tree value workspace) ui shortcut_frame in
+    let workspace, layout_changes = layout_intents vw workspace intents in
+    let vw = { vw with workspace } in
+    let g = geometry value workspace frame in
+    let panes = Pxui_shell.Layout.panes g in
+    let root (leaf : Pxui_shell.Layout.leaf) =
+      let x, y, w, h = leaf.body and sx, sy, sw, sh = g.status_at in
+      let bounds = if sw > 0 && sx = x && sy = y + h then x, y, w, h + sh else x, y, w, h in
+      Pxui_shell.Chrome.pane_root ui frame ~bounds
+        ("workspace-pane-" ^ Leader.pane_name leaf.panel ^ Pxui_shell.Chrome.key leaf.path) in
+    let roots = List.map (fun leaf -> leaf, root leaf) g.leaves in
+    let timeline_root = if Pxui_shell.Layout.find g Timeline <> None then None
+      else Some (Pxui_shell.Layout.Timeline, Pxui_shell.Chrome.pane_root ui frame ~bounds:g.timeline_at
+        "workspace-pane-Timeline") in
+    (* the first panel of a kind draws; a second one only says so *)
+    let first panel = match Pxui_shell.Layout.find g panel with
+      | Some leaf -> Some (leaf, snd (List.find (fun ((l : Pxui_shell.Layout.leaf), _) -> l == leaf) roots))
+      | None -> None in
+    let none_root () = Pxui_shell.Chrome.pane_root ui frame ~bounds:(0, 0, 0, 0) "workspace-pane-none" in
+    let root_of panel = match first panel with Some (_, box) -> box | None -> none_root () in
+    let inspector_root = root_of Pxui_shell.Layout.Inspector and graph_root = root_of Pxui_shell.Layout.Graph in
+    let active = active_view vw g in
+    let view_root = match active with
+      | Some leaf -> snd (List.find (fun ((l : Pxui_shell.Layout.leaf), _) -> l == leaf) roots)
+      | None -> none_root () in
+    let host panel projection_shown = match first panel with
+      | Some hosted -> Some hosted
+      | None when projection_shown -> first Pxui_shell.Layout.Graph
+      | None -> None in
+    let list_host = host List (projection vw = List_view)
+    and text_host = host Lisp (projection vw = Text_view) in
     let gx, gy, gw, gh = panes.graph in
     let graph_view = graph_view
       |> Pxui_graph.with_guide guide
       |> Pxui_graph.with_bounds ~x:gx ~y:gy ~width:(max 1 gw) ~height:(max 1 gh)
       |> Pxui_graph.with_visible
-           (projection value = Graph_view && not scope_active
-            && not (Pxui_shell.Layout.collapsed workspace Pxui_shell.Layout.Graph)) in
+           (projection vw = Graph_view && not scope_active && has_panel vw Pxui_shell.Layout.Graph) in
     let scope_view, scope_frame_changes =
       if not scope_active then scope_view, []
       else Pxui.Ui.within ui graph_root (fun () ->
@@ -1497,24 +1651,35 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
         |> Pxui_graph.Scope.with_visible true
         |> fun view -> Pxui_graph.Scope.update view ui shortcut_frame) in
     let graph_view, graph_changes =
-      if not (Pxui_shell.Layout.collapsed workspace Pxui_shell.Layout.Graph)
+      if has_panel vw Pxui_shell.Layout.Graph
       then Pxui.Ui.within ui graph_root (fun () ->
         Pxui_graph.update graph_view ui shortcut_frame)
       else graph_view, [] in
     let tree, list_intents =
-      if projection value = List_view
-          && not (Pxui_shell.Layout.collapsed workspace Pxui_shell.Layout.Graph) then
-        let tree, emitted = Pxui.Ui.within ui graph_root (fun () ->
-          Pxui_shell.Tree.update tree ui shortcut_frame ~bounds:panes.graph
-            ~title:(level_name value) ~columns rows
-            ~selected:(selected ())) in
-        tree, list_intents @ emitted
-      else tree, list_intents in
-    let text_intents = match text_shown with
-      | Some shown when not (Pxui_shell.Layout.collapsed workspace Pxui_shell.Layout.Graph) ->
-          Pxui.Ui.within ui graph_root (fun () ->
-            Text_pane.view ui ~bounds:panes.graph text shown)
+      match list_host with
+      | Some ((leaf : Pxui_shell.Layout.leaf), hosted) when list_drawn ->
+          let tree, emitted = Pxui.Ui.within ui hosted (fun () ->
+            Pxui_shell.Tree.update tree ui shortcut_frame ~bounds:leaf.body
+              ~title:(level_name value) ~columns rows
+              ~selected:(selected ())) in
+          tree, list_intents @ emitted
+      | _ -> tree, list_intents in
+    let text_intents = match text_shown, text_host with
+      | Some shown, Some (leaf, hosted) ->
+          Pxui.Ui.within ui hosted (fun () ->
+            Text_pane.view ui ~bounds:leaf.Pxui_shell.Layout.body text shown)
       | _ -> [] in
+    let outline, outline_intents = match first Pxui_shell.Layout.Outline with
+      | Some (leaf, hosted) ->
+          Pxui.Ui.within ui hosted (fun () ->
+            Pxui_shell.Tree.update value.outline ui shortcut_frame ~bounds:leaf.body
+              ~title:"Graphs" ~columns:[] (outline_rows value) ~selected:[])
+      | None -> value.outline, [] in
+    List.iter (fun ((leaf : Pxui_shell.Layout.leaf), _) ->
+      let unique = match leaf.panel with
+        | View _ -> true | panel -> (match first panel with Some (l, _) -> l == leaf | None -> true) in
+      if not unique then Pxui.Ui.within ui (List.assq leaf roots) (fun () ->
+        Pxui_shell.Chrome.note ui ~bounds:leaf.body "Shown in another panel")) roots;
     let scope_changes = scope_command_changes @ scope_frame_changes in
     let graph_changes = List.concat_map (function
       | Pxui_graph.Add_requested request when scope_active -> [ scope_add value request ]
@@ -1535,7 +1700,7 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
       | Pxui_shell.Tree.Select [] -> Pxui_graph.clear_selection view
       | Select ids -> Pxui_graph.select_nodes ids view
       | _ -> view) graph_view list_intents in
-    let inspector_visible = not (Pxui_shell.Layout.collapsed workspace Pxui_shell.Layout.Inspector) in
+    let inspector_visible = has_panel vw Pxui_shell.Layout.Inspector in
     let selected_ids = Pxui_graph.selected_nodes graph_view in
     let selected_id = match selected_ids with
       | [_] -> Pxui_graph.selected graph_view | _ -> None in
@@ -1742,20 +1907,26 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
                 | Expression (path, text) -> Pxui_graph.Expression_requested
                     {target = {Flow_sop.Port.node = node_id; path}; text}) edits)) in
           None, changes, [], value.live_cook) in
-    let graph_changes = graph_changes @ inspector_changes in
+    let graph_changes = graph_changes @ inspector_changes @ layout_changes in
     let scope_changes = scope_changes @ !workspace_moves in
-    let timeline_intents = if Pxui_shell.Layout.collapsed workspace Pxui_shell.Layout.Timeline
-      then [] else Pxui.Ui.within ui timeline_root (fun () ->
-        Pxui_shell.Timeline_bar.draw ui ~bounds:panes.timeline
-          ~playing:(Sketch_support.Timeline.mode timeline = Sketch_support.Timeline.Playing)
-          ~frame:(Sketch_support.Timeline.frame timeline)
-          ~time:(Sketch_support.Timeline.time timeline)
-          ~max_frame:value.timeline_frames) in
-    let handle_edits, grab, picked =
-      if Pxui_shell.Layout.collapsed workspace Pxui_shell.Layout.View then [], false, None
-      else Pxui.Ui.within ui view_root (fun () ->
-        view_handles ui ~selected ~space:(space { value with graph_view })
-          ~bounds:panes.view) in
+    let timeline_slot = match first Timeline with
+      | Some (l, box) -> Some (l.Pxui_shell.Layout.body, box)
+      | None -> Option.map (fun (_, box) -> g.timeline_at, box) timeline_root in
+    let timeline_intents = match timeline_slot with
+      | Some (((_, _, _, height) as bounds), box) when height > 0 ->
+          Pxui.Ui.within ui box (fun () ->
+            Pxui_shell.Timeline_bar.draw ui ~bounds
+              ~playing:(Sketch_support.Timeline.mode timeline = Sketch_support.Timeline.Playing)
+              ~frame:(Sketch_support.Timeline.frame timeline)
+              ~time:(Sketch_support.Timeline.time timeline)
+              ~max_frame:value.timeline_frames)
+      | _ -> [] in
+    let handle_edits, grab, picked = match active with
+      | Some leaf when visible workspace leaf.Pxui_shell.Layout.panel ->
+          Pxui.Ui.within ui view_root (fun () ->
+            view_handles ui ~selected ~space:(space { value with graph_view })
+              ~bounds:leaf.body)
+      | _ -> [], false, None in
     let graph_view = match picked with
       | Some id when value.level = Document.Scene -> Pxui_graph.select id graph_view
       | Some _ | None -> graph_view in
@@ -1766,31 +1937,34 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
       | Leader.Pending _ -> Editor_core.Guide_context.Leader
       | Idle when value.prompt <> None || Pxui_graph.editing graph_view -> Search
       | Idle when Pxui_graph.hinting graph_view -> Hints
-      | Idle when projection value = List_view -> List
+      | Idle when listing -> List
       | Idle when Pxui_graph.hovered_row graph_view <> None -> Row
       | Idle when Pxui_graph.selected_wire graph_view -> Wire
       | Idle -> (match Pxui_graph.selected_nodes graph_view with
           | [] -> Canvas | [_] -> Node | _ -> Multi) in
-    let commands = Editor_core.Command.for_guide keymap ~focus ~context in
+    let commands = Editor_core.Command.for_guide keymap ~focus:(Leader.scope focus) ~context in
     let hide_guide = status_box { value with workspace; status_fps; graph_view; guide; focus }
         ui frame ~render_status ~context ~commands in
     if graph_shown then Option.iter (fun (text, _) ->
       Pxui_shell.Status_bar.hud ui ~bounds:panes.graph ~text) hud;
-    let roots = [view, view_root; graph, graph_root;
-      inspector_column, inspector_root; timeline_column, timeline_root] in
-    let focus = List.fold_left (fun (latest, focus) (column, box) ->
+    let pane_roots = List.map (fun ((l : Pxui_shell.Layout.leaf), box) -> l.panel, box) roots
+      @ Option.to_list timeline_root in
+    let focus = List.fold_left (fun (latest, focus) (panel, box) ->
       match (Pxui.Ui.signal ui box).subtree_press with
-      | Some index when index >= latest -> index, column
-      | _ -> latest, focus) (-1, focus) roots
+      | Some index when index >= latest -> index, panel
+      | _ -> latest, focus) (-1, focus) pane_roots
       |> snd in
-    let pane_keys = List.map (fun (column, box) -> Pxui.Ui.key box, column)
-      roots in
+    let pane_keys = List.map (fun (panel, box) -> Pxui.Ui.key box, panel) pane_roots in
+    (* The gutters last, on top of every pane's hit area: a drag applies from the next frame. *)
+    let grips = Pxui_shell.Chrome.splitters ~hidden:workspace.hidden (shell_tree value workspace) ui
+           shortcut_frame in
+    let workspace, drag_changes = layout_intents vw workspace grips in
+    let graph_changes = graph_changes @ drag_changes in
     (* The focused pane's accent outline. *)
-    let bounds = match focus with
-      | Pxui_shell.Layout.View -> panes.view | Graph -> panes.graph
-      | Inspector -> panes.inspector | Timeline -> panes.timeline in
-    Pxui_shell.Chrome.focus ui ~bounds;
-    { workspace; focus; pane_keys; graph_view; scope_view; scope_changes; tree; document = (network value).graph; edit_error = value.edit_error;
+    (match Pxui_shell.Layout.find g focus with
+     | Some leaf -> Pxui_shell.Chrome.focus ui ~bounds:leaf.body
+     | None -> if focus = Timeline then Pxui_shell.Chrome.focus ui ~bounds:g.timeline_at);
+    { workspace; focus; pane_keys; outline; outline_intents; graph_view; scope_view; scope_changes; tree; document = (network value).graph; edit_error = value.edit_error;
       effects = Parameter.no_effects;
       timeline_intents; frame_request; prompt = None; prompt_intent = None;
       panel; grab; settings = unchanged; touched = false; placed = []; pasted = [];
@@ -1800,7 +1974,7 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
       handle_changes; hide_guide } in
   let leader_panel = match leader with
     | Leader.Pending prefix -> Some (fun ui ->
-        Pxui_shell.Which_key.panel ui keymap ~prefix ~focus
+        Pxui_shell.Which_key.panel ui keymap ~prefix ~focus:(Leader.scope focus)
           ~focus_name:(Leader.pane_name focus))
     | Idle -> None in
   (* Presets: Space s names and saves the document, Space b browses, loads
@@ -1857,7 +2031,7 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
     | Some (Palette query) ->
         (* Every keymap command once per id (undo has several chords). *)
         let commands = List.fold_left (fun seen (command : Leader.command) ->
-            if command.scope <> None && command.scope <> Some focus then seen else
+            if command.scope <> None && command.scope <> Some (Leader.scope focus) then seen else
             if List.exists (fun (c : Leader.command) -> c.id = command.id) seen then seen
             else command :: seen) [] keymap |> List.rev in
         let matches query = List.filter (fun (c : Leader.command) ->
@@ -1881,7 +2055,7 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
         { result with prompt; prompt_intent }) with
     | Some result -> result
     | None ->
-      { workspace; focus; pane_keys = []; graph_view; scope_view; scope_changes = scope_command_changes; tree; document = (network value).graph;
+      { workspace; focus; pane_keys = []; outline = value.outline; outline_intents = []; graph_view; scope_view; scope_changes = scope_command_changes; tree; document = (network value).graph;
         edit_error = value.edit_error;
         effects = Parameter.no_effects; timeline_intents = [];
         frame_request = initial_frame_request; prompt = initial_prompt;
@@ -2273,8 +2447,13 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
           graph_view = Network_view.to_view previous result.graph_view;
           document = previous.graph},
         Some (Flow.Diagnostic.to_string diagnostic) in
-  let input = Pxui.Ui.input ?owner:(List.find_map (fun (key, column) ->
-      if column = Pxui_shell.Layout.View then Some key else None) result.pane_keys) value.ui in
+  let is_view = function Pxui_shell.Layout.View _ -> true | _ -> false in
+  let owner = match List.find_opt (fun (_, panel) -> panel = result.focus && is_view panel)
+      result.pane_keys with
+    | Some (key, _) -> Some key
+    | None -> List.find_map (fun (key, panel) -> if is_view panel then Some key else None)
+        result.pane_keys in
+  let input = Pxui.Ui.input ?owner value.ui in
   let dragging = Frame.mouse_down Input.LeftButton frame || Frame.has_event (function
     | Event.MouseReleased (Input.LeftButton, _) -> true | _ -> false) frame in
   let gesture = if not dragging || Option.is_some loaded || laid_out
@@ -2333,7 +2512,7 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
   let level = Document.resolve_level ~scene_level:value.scene_level doc
       (if Option.is_some loaded then Document.Scene else value.level)
     |> Result.get_ok in
-  let value' = { value with doc; level; workspace = result.workspace } in
+  let value' = { value with doc; level; workspace = unrestore value.doc doc result.workspace } in
   let graph_view = if level <> value.level then view_of value' level frame
     else if undone || Option.is_some loaded || doc.workspace != value.doc.workspace then
       Network_view.to_view (network value') result.graph_view
@@ -2385,13 +2564,17 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
   let map_view = if List.mem Leader.Toggle_projection actions && in_world value'
     then not value'.map_view else value'.map_view && in_world value' in
   let value' = { value' with map_view } in
-  let value' = if List.mem Leader.Cycle_graph actions
-    then { value' with pane_graph = next_pane_graph value' } else value' in
-  let projections = if result.open_graph <> None || List.mem Leader.Cycle_graph actions then
+  (* a row of the outline opens its graph in the graph panel *)
+  let outlined = List.find_map (function
+    | Pxui_shell.Tree.Activate id -> List.nth_opt (outline_graphs value') (id - 1)
+    | _ -> None) result.outline_intents in
+  let value' = { value' with outline = result.outline;
+    pane_graph = (match outlined with Some g -> Some g.Flow.Workspace.name | None -> value'.pane_graph) } in
+  let projections = if result.open_graph <> None || outlined <> None then
       Level_map.add value'.level Graph_view value'.projections
     else if List.mem Leader.Toggle_projection actions && not (in_world value') then
       Level_map.add value'.level
-        (match projection value' with Graph_view -> List_view
+        (match stored_projection value' with Graph_view -> List_view
           | List_view -> if graph_name value' <> None then Text_view else Graph_view
           | Text_view -> Graph_view) value'.projections
     else value'.projections in
@@ -2523,11 +2706,18 @@ let world value ~time = match Objects.ids "world" (scene value) with
           (fun network -> Layers.to_world ~time node network))
   | [] -> None
 
-(* Visible objects' world transforms with their latest cook. *)
-let placed_pieces ?(render = false) value =
+(* Visible objects' world transforms with their latest cook.  Objects that only a viewport
+   over another scene instance draws ([Document.shell]'s views) are left out unless asked
+   for: [`All], or [`Only key] for that viewport. *)
+let placed_pieces ?(render = false) ?(view = `Primary) value =
+  let views = match value.doc.Document.shell with Some s -> s.views | None -> [] in
+  let wanted id = match view with
+    | `All -> true
+    | `Primary -> not (List.exists (fun (_, ids) -> List.mem id ids) views)
+    | `Only key -> (match List.assoc_opt key views with Some ids -> List.mem id ids | None -> false) in
   List.filter_map (fun (piece : _ Cook.piece) ->
     match Edit_graph.find (scene value) ~node_id:piece.id with
-    | Some node when Objects.visible node
+    | Some node when wanted piece.id && Objects.visible node
         && not (Edit_graph.is_bypassed (scene value) ~node_id:piece.id)
         && (not render || Objects.flag "render" node) ->
         Some (Objects.world (scene value) piece.id, piece)

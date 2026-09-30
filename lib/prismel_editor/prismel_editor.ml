@@ -10,18 +10,7 @@ type window = Contexts.window =
   { title : string; width : int; height : int; fps : int; seed : int }
 let workspace_window = Contexts.window
 
-type layout = Pxui_shell.Layout.config = {
-  view_ratio : float;
-  graph_ratio : float;
-  inspector_ratio : float;
-  splitter_width : int;
-  collapsed_width : int;
-  header_height : int;
-  status_height : int;
-  min_view_width : int;
-  min_graph_width : int;
-  min_inspector_width : int;
-}
+type layout = Pxui_shell.Layout.t
 
 let default_layout = Pxui_shell.Layout.default
 

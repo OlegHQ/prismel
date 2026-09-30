@@ -13,7 +13,8 @@ module E3 = Prismel_editor.Editor3
 let workspace =
   let text = match Sys.getenv_opt "FLOW_CASE" with
     | Some "sunflower" -> Cases.sunflower | Some "orrery" -> Cases.orrery
-    | Some "garden" -> Cases.garden | Some "rosette" -> Cases.rosette | _ -> Cases.bloom in
+    | Some "garden" -> Cases.garden | Some "rosette" -> Cases.rosette
+    | Some "variations" -> Cases.variations | _ -> Cases.bloom in
   let catalog = Prismel_editor.workspace_catalog () |> Result.get_ok in
   match Prismel_editor.Workspace_doc.of_text catalog text with
   | Ok workspace -> workspace
@@ -35,7 +36,34 @@ let () = match Sys.getenv_opt "FLOW_EXPORT" with
       let script (frame : Frame.t) =
         let click p = [ Event.MouseMoved p; Event.MousePressed (Input.LeftButton, p);
                         Event.MouseReleased (Input.LeftButton, p) ] in
-        let events = match frame.count with
+        let press p = [ Event.MouseMoved p; Event.MousePressed (Input.LeftButton, p) ]
+        and move p = [ Event.MouseMoved p ]
+        and release p = [ Event.MouseReleased (Input.LeftButton, p) ] in
+        (* the header menu of the panel whose header holds (x, 10), which opens at the header's left
+           edge (FLOW_MENUX): right-click, then a row *)
+        let menux = Option.fold ~none:200. ~some:float_of_string (Sys.getenv_opt "FLOW_MENUX") in
+        let menu x row = function
+          | 6 -> [ Event.MouseMoved (x, 10.) ]
+          | 7 -> [ Event.MousePressed (Input.RightButton, (x, 10.)) ]
+          | 8 -> [ Event.MouseReleased (Input.RightButton, (x, 10.)) ]
+          | 10 -> [ Event.MouseMoved (menux, 22. +. 3. +. (24. *. float_of_int row) +. 12.) ]
+          | 12 -> click (menux, 22. +. 3. +. (24. *. float_of_int row) +. 12.)
+          | _ -> [] in
+        let shell = Sys.getenv_opt "FLOW_SHELL" in
+        (* FLOW_DRAGX is the gutter to drag (default: the view | graph gutter of 1400 points) *)
+        let dragx = Option.fold ~none:629.5 ~some:float_of_string (Sys.getenv_opt "FLOW_DRAGX") in
+        let events = match shell, frame.count with
+          | Some "drag", 6 -> press (dragx, 300.)
+          | Some "drag", 8 -> move (dragx +. 90., 300.)
+          | Some "drag", 10 -> move (dragx +. 180., 300.)
+          | Some "drag", 12 -> release (dragx +. 180., 300.)
+          | Some "split", n -> menu 700. 0 n
+          | Some "close", n -> menu 700. 2 n
+          | Some "retype", n -> menu 700. 5 n
+          | Some "restore", 6 -> [ Event.KeyPressed Input.Space; Event.KeyPressed (Input.KeyChar 'z') ]
+          | _ -> [] in
+        let events = if events <> [] then events else match frame.count with
+          | 4 when shell <> None -> []
           | 4 -> click (900., 300.)
           | 6 -> [ Event.KeyPressed (Input.KeyChar 'j') ]
           | 8 -> [ Event.KeyPressed (Input.KeyChar (Char.chr 105)) ]

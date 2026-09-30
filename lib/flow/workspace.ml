@@ -121,8 +121,9 @@ let ops = [
   mk ~octx:Sop ~kw:[ "key", Ty.Text ] "sop/piece_list" [ "geometry", Ty.Geometry ] (fun _ -> Ty.List Ty.Geometry);
   mk ~octx:Scene ~rest:("scene", Ty.Scene) "scene/merge" [] (fun _ -> Ty.Scene);
   mk ~octx:Editor "ui/workspace" [ "root", Ty.Panel ] (fun _ -> Ty.Editor);
-  panel "ui/viewport" [ "scene", Ty.Scene ]; panel "ui/graph" []; panel "ui/inspector" [];
-  panel "ui/outline" []; panel "ui/list" []; panel "ui/lisp" [];
+  panel "ui/viewport" [ "scene", Ty.Scene ];
+  { (panel "ui/graph" []) with opt = [ "graph", Ty.Text ] }; panel "ui/inspector" [];
+  panel "ui/outline" []; panel "ui/list" []; panel "ui/lisp" []; panel "ui/timeline" [];
   panel "ui/split" [ "axis", Ty.Text; "first", Ty.Panel; "second", Ty.Panel ];
   panel "ui/split-at" [ "axis", Ty.Text; "ratio", fl; "first", Ty.Panel; "second", Ty.Panel ];
   { (panel "ui/tile" []) with rest = Some ("panel", Ty.Panel) };

@@ -1,7 +1,7 @@
 (library
  (name editor_core)
  (public_name prismel.editor_core)
- (modules editor_core store network_layout)
+ (modules editor_core store network_layout panels)
  (libraries param prismel yojson unix))
 
 (test

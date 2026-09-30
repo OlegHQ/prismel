@@ -1,48 +1,79 @@
 (** Editor chrome built with the shared PXUI handle. *)
 
+(** The shell's panels as a tree ({!Editor_core.Panels}) and its geometry.  A run of
+    splits along one axis is one row of columns, so the default three columns
+    divide the width once: 45/35/20 of what the two one-point splitters leave. *)
 module Layout : sig
-  type config = {
-    view_ratio : float;
-    graph_ratio : float;
-    inspector_ratio : float;
-    splitter_width : int;
-    collapsed_width : int;
-    header_height : int;
-    status_height : int;
-    min_view_width : int;
-    min_graph_width : int;
-    min_inspector_width : int;
-  }
-
-  val default : config
-  (** 45% view, 35% graph, 20% inspector. *)
-
-  type column = View | Graph | Inspector | Timeline
+  type panel = Editor_core.Panels.panel =
+    | View of string | Graph | List | Lisp | Inspector | Outline | Timeline
+  type axis = Editor_core.Panels.axis
+  type t = Editor_core.Panels.t =
+    | Leaf of panel
+    | Split of { axis : axis; ratio : float; a : t; b : t }
+    | Tile of t list
+    | Float of t
+  type path = int list
   type bounds = int * int * int * int
-  type panes = {
-    view : bounds;
-    graph : bounds;
-    inspector : bounds;
-    status : bounds;
-    timeline : bounds;
-    view_header : bounds;
-    graph_header : bounds;
-    inspector_header : bounds;
-  }
-  type t
 
-  val create : config -> t
-  val geometry : t -> Prismel.Frame.t -> panes
-  val collapsed : t -> column -> bool
-  val toggle : column -> t -> t
-  val expand : column -> t -> t
+  val default : t
+
+  type leaf = { path : path; panel : panel; header : bounds; body : bounds }
+  (** One panel: its 22-point header and the body below it.  The body of the
+      first viewport stops above the status strip. *)
+
+  type splitter = { node : path option; axis : axis; bounds : bounds; start : int; span : int }
+  (** A gutter.  [node] is the split it resizes (none for a tile's fixed gutters);
+      [start] and [span] are the extent, along [axis], of the columns that split
+      divides, so a pointer position maps to a ratio. *)
+
+  type geometry = { leaves : leaf list; splitters : splitter list; status_at : bounds;
+                    timeline_at : bounds }
+  (** Leaves in tree order, floats last (drawn over the rest). *)
+
+  val geometry : ?hidden:panel list -> t -> Prismel.Frame.t -> geometry
+  (** [hidden] (default the timeline) panels vanish; a hidden viewport keeps a
+      28-point strip with its expand button.  The timeline strip sits under the
+      tree unless the tree has a [Timeline] leaf.  Every point of the frame above
+      the timeline strip is covered exactly once, floats aside. *)
+
+  val toggle : panel -> panel list -> panel list
+  val expand : panel -> panel list -> panel list
+
+  type panes = { view : bounds; graph : bounds; inspector : bounds; status : bounds;
+                 timeline : bounds }
+  val panes : geometry -> panes
+  (** The bodies of the first viewport, graph and inspector panels (all zero when
+      absent): what a host names its panes by. *)
+
+  val find : geometry -> panel -> leaf option
+  val first_view : geometry -> leaf option
 end
 
 module Chrome : sig
-  val update : Layout.t -> Pxui.Ui.t -> Prismel.Frame.t -> Layout.t
+  type intent =
+    | Resize of { node : Layout.path; ratio : float }  (** a splitter is being dragged ({!splitters}) *)
+    | Settled  (** the drag ended *)
+    | Toggle of Layout.panel  (** a header's collapse button *)
+    | Split_panel of Layout.path * Layout.axis  (** the header menu *)
+    | Close_panel of Layout.path
+    | Retype_panel of Layout.path * Layout.panel  (** [View ""] means a viewport *)
+
+  val update : ?hidden:Layout.panel list -> ?title:(Layout.leaf -> string) -> Layout.t ->
+    Pxui.Ui.t -> Prismel.Frame.t -> intent list
+  (** Panel backgrounds, the drawn gutters, headers with their collapse button and
+      right-click menu.  Pure: the host applies the intents. *)
+
+  val splitters : ?hidden:Layout.panel list -> Layout.t -> Pxui.Ui.t -> Prismel.Frame.t ->
+    intent list
+  (** The gutters' drag targets, wider than they are drawn ([Resize], [Settled]).  Call it
+      after the panes' boxes so a gutter is not shadowed by its neighbours' hit areas. *)
+
   (* A pane's PXUI hit ancestor; children keep screen-space coordinates. *)
   val pane_root : Pxui.Ui.t -> Prismel.Frame.t -> bounds:Layout.bounds ->
     string -> Pxui.Ui.box
+  val key : Layout.path -> string  (* a panel's path as text, to key its boxes *)
+  val note : Pxui.Ui.t -> bounds:Layout.bounds -> string -> unit
+  (* a muted line at the top of a panel body that has nothing to show *)
   val focus : Pxui.Ui.t -> bounds:Layout.bounds -> unit
 end
 

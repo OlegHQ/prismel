@@ -1,16 +1,16 @@
 {
   "generator": "tools/api_manifest/api_manifest.exe",
   "kind": "stable_high_level",
-  "module_count": 165,
+  "module_count": 166,
   "modules": [
     {
-      "api_sha256": "eb1e27ba00670ec546b87d8ec8c8c27cd7d95016240fecb7d6422d45e5154fce",
+      "api_sha256": "a5a48d321e8b113d50eb2ee5770513a186c51b4fb234f356e23d16dd83818224",
       "excluded_legacy_symbols": [],
       "library": "editor_core",
       "module": "Editor_core",
       "source": "lib/editor_core/editor_core.mli",
-      "source_bytes": 3800,
-      "source_sha256": "821ec503baf8452ae066d3615e804ba2bf580a0333d04ce911eb999aeaa27481"
+      "source_bytes": 3823,
+      "source_sha256": "4bb9fcee147cc48b63770649d735cc8ed94d3cff1f4bcb39c2c16abb539a7619"
     },
     {
       "api_sha256": "af6968cab7a5985acb98a5dffae30c7d24f36a10da34bb817a272f9b69e494c3",
@@ -20,6 +20,15 @@
       "source": "lib/editor_core/network_layout.mli",
       "source_bytes": 906,
       "source_sha256": "a72493b08075ea7097b9cde98b68a33ab316b458c4bdac09543d4ed0c2df743c"
+    },
+    {
+      "api_sha256": "7cbb14c29fb33cc2de0c4d6a3e90006292857a7e41f674d1567ecb495b8a8fcb",
+      "excluded_legacy_symbols": [],
+      "library": "editor_core",
+      "module": "Panels",
+      "source": "lib/editor_core/panels.mli",
+      "source_bytes": 1656,
+      "source_sha256": "0ba6c967026a9149691f4c79913bccc76f9335a133844edaf19ea073375bf186"
     },
     {
       "api_sha256": "3db8787f8c45d387fc6984c398bd9f571c02081d664fddd99317a792684365c2",
@@ -229,13 +238,13 @@
       "source_sha256": "f9a00432e3188505de724250128700d7c52caef05e29fd8016748a2e5baabdce"
     },
     {
-      "api_sha256": "d51ef97d0fab9c6b3127ce0effee8116ef6a140ee3f312058046936c3cb9ae7f",
+      "api_sha256": "ad15673eb2f15e76b78d9524c0a03ecaa76ecb7456993a0dae798118e7d6288d",
       "excluded_legacy_symbols": [],
       "library": "flow_sop",
       "module": "Flow_edit",
       "source": "lib/flow_sop/flow_edit.mli",
-      "source_bytes": 6793,
-      "source_sha256": "8f18d1b11616273e22faf25ac88df4e24e3d6661d601f667da56d116e5538453"
+      "source_bytes": 7681,
+      "source_sha256": "87395dffa002cb748d358c3390693725e7a9426e3ab516599cf976dd69a206c3"
     },
     {
       "api_sha256": "7eecb828ca9bea7e3ce0fc08ea6b4c2ba9eb3e6bc00e13a1aaed772af8fc09e9",
@@ -1268,13 +1277,13 @@
       "source_sha256": "7d4d28d6f0b748a24c1fabb8e0a081a7d3a7f7d0b47591333c667b625cad58de"
     },
     {
-      "api_sha256": "6603f97f62103243eda96e09fdc01c725f80514e7c7c83b10551c8826d5e34de",
+      "api_sha256": "757fc053101509cab5e255846c6a3960e2fe82b3c0df07df9b6b268dd1d2fe56",
       "excluded_legacy_symbols": [],
       "library": "prismel_editor",
       "module": "Prismel_editor",
       "source": "lib/prismel_editor/prismel_editor.mli",
-      "source_bytes": 25463,
-      "source_sha256": "ba2e8082cb302ee32591291b30d1a99c7701250abbb83a5ead778b89c25af42b"
+      "source_bytes": 25495,
+      "source_sha256": "d30bf90f6977dc9c77829def5846c9b924ba771b4d8c84d313e22e0e83e26c2e"
     },
     {
       "api_sha256": "721b7d85a90ba1f309807d0b30c6f9fe611cb973e76ebd72ead992367fdc7d49",
@@ -1448,13 +1457,13 @@
       "source_sha256": "63f888a355610a7a1c61fbe7d1911ab7b91b6738c7e2e7d297752c87ff1035a7"
     },
     {
-      "api_sha256": "5d6d88c39f6458c209dadae221ddc701db6109baa75f3e36e956aab1417237bd",
+      "api_sha256": "1b32229e9eb387054fbbb1d69ce7095fb6d8236dc90182bc6242a4842b34c839",
       "excluded_legacy_symbols": [],
       "library": "pxui_shell",
       "module": "Pxui_shell",
       "source": "lib/pxui_shell/pxui_shell.mli",
-      "source_bytes": 8013,
-      "source_sha256": "343b19d99b65b55e942333c51fb2752ec442fc4045be1edb370694fbb68a8643"
+      "source_bytes": 10520,
+      "source_sha256": "4c0b7633762460b43ccd4f7f388cbd3a84f8159639694182f183a1062c3ca472"
     },
     {
       "api_sha256": "3b75473d5d524a02e7590c03eb6f50245673f6d397ca9be097d6c1ab32b6855a",

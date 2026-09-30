@@ -64,8 +64,21 @@ type op =
   | Add_node of { scope : path; name : string; expr : Flow.Syntax.t }
       (** [scope] is a scope path, [["g"]] for the graph body *)
   | Delete_nodes of { nodes : path list }
-(** ponytail: one variant and one [apply]; no command objects.  The layout
-    ratio gesture belongs to W10. *)
+  | Set_layout_ratio of { node : path; ratio : float }
+      (** the binding [node] of an editor graph is a [ui/split] or [ui/split-at]; it becomes
+          [ui/split-at] with this ratio (clamped to 0.1-0.9, two decimals) *)
+  | Split_panel of { node : path; axis : [ `H | `V ] }
+      (** the panel [node] becomes a half of a new [ui/split-at] (a fresh lisp panel beside
+          it, a graph panel beside a lisp one) *)
+  | Close_panel of { node : path }
+      (** the split holding panel [node] becomes the other half; a panel outside a split
+          does not close *)
+  | Set_panel_kind of { node : path; kind : string }
+      (** [outline], [graph], [list], [lisp], [inspector], [timeline] or [viewport] (over the first
+          scene graph) *)
+(** ponytail: one variant and one [apply]; no command objects.  The four panel
+    operations address a binding of an editor graph by its path, as every other
+    op does; panels made by a loop have no binding, so they are edited on the loop. *)
 
 val label : op -> string
 (** The history label: "Repeat", "Iterate", "Unfold", "Make macro", ... *)

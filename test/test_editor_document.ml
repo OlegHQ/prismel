@@ -66,7 +66,7 @@ let run () =
       (Editor_document.Document.of_geometry ~context:Flow.Context.Sop box_graph (Some 20));
     definitions = Editor_document.Document.String_map.empty;
     compiled_ids = Flow_sop.Instance_path.Map.empty;
-    active_camera = None; settings = Editor_document.Settings.none; workspace = None } in
+    active_camera = None; settings = Editor_document.Settings.none; shell = None; workspace = None } in
   check (Result.is_ok (Editor_document.Document.validate valid)) "the fixture document is valid";
   let direct = { doc = valid } in
   (* Value nodes and drives: a clock feeds a sine that drives the box's

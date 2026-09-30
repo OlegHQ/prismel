@@ -111,9 +111,13 @@ let run () =
   check (camera_binding "h" Leader.Hide_ui
       && camera_binding "c" Leader.Open_camera)
     "camera visibility commands missing from the host keymap";
-  let workspace = Pxui_shell.Layout.create Prismel_editor.default_layout in
-  let initial = Pxui_shell.Layout.geometry workspace (frame ~width:1000 0) in
-  check (initial.view_header = (0, 0, width initial.view, 22))
+  let module Layout = Pxui_shell.Layout in
+  let workspace = Prismel_editor.default_layout in
+  let panes ?hidden tree frame = Layout.(panes (geometry ?hidden tree frame)) in
+  let initial = panes workspace (frame ~width:1000 0) in
+  let header = (Option.get (Layout.find (Layout.geometry workspace (frame ~width:1000 0))
+    Editor_core.Panels.main)).header in
+  check (header = (0, 0, width initial.view, 22))
     "workspace header is not a compact single line";
   check (abs (width initial.view - 449) <= 1
       && abs (width initial.graph - 349) <= 1
@@ -122,24 +126,27 @@ let run () =
   let splitter_x = width initial.view + 2 in
   let ui = Pxui.Ui.create () in
   let workspace_step workspace frame =
-    Pxui.Ui.frame ui frame (fun ui -> Pxui_shell.Chrome.update workspace ui frame) in
-  let workspace = workspace_step workspace (frame ~width:1000 0) in
-  let resized = workspace_step workspace
+    Pxui.Ui.frame ui frame (fun ui -> let a = Pxui_shell.Chrome.update workspace ui frame in
+      a @ Pxui_shell.Chrome.splitters workspace ui frame) in
+  ignore (workspace_step workspace (frame ~width:1000 0));
+  let dragged = workspace_step workspace
       (frame ~width:1000 ~events:[
         mouse_press (Input.LeftButton, (splitter_x, 200));
         mouse_move (splitter_x + 80, 200);
         mouse_release (Input.LeftButton, (splitter_x + 80, 200))] 1) in
-  let resized_panes = Pxui_shell.Layout.geometry resized (frame ~width:1000 2) in
-  check (width resized_panes.view > width initial.view
+  let resized = List.fold_left (fun tree -> function
+    | Pxui_shell.Chrome.Resize { node; ratio } -> Editor_core.Panels.set_ratio node ratio tree
+    | _ -> tree) workspace dragged in
+  let resized_panes = panes resized (frame ~width:1000 2) in
+  check (List.mem Pxui_shell.Chrome.Settled dragged && resized != workspace
+      && width resized_panes.view > width initial.view
       && width resized_panes.graph < width initial.graph)
     "workspace splitter did not resize its adjacent columns";
-  let wider = Pxui_shell.Layout.geometry resized (frame ~width:1200 3) in
+  let wider = panes resized (frame ~width:1200 3) in
   check (width wider.view > width resized_panes.view)
     "workspace splitter ratio did not survive a window resize";
-  let collapsed = workspace_step
-      (Pxui_shell.Layout.toggle Pxui_shell.Layout.Inspector resized) (frame 4) in
   Pxui.Ui.destroy ui;
-  let collapsed_panes = Pxui_shell.Layout.geometry collapsed (frame 5) in
+  let collapsed_panes = panes ~hidden:[Layout.Timeline; Inspector] resized (frame 5) in
   check (width collapsed_panes.inspector = 0)
     "inspector toggle did not collapse the third column";
 

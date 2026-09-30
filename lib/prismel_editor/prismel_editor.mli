@@ -35,20 +35,10 @@ module Settings : sig
       does not describe it. *)
 end
 
-type layout = Pxui_shell.Layout.config = {
-  view_ratio : float;
-  graph_ratio : float;
-  inspector_ratio : float;
-  splitter_width : int;
-  collapsed_width : int;
-  header_height : int;
-  status_height : int;
-  min_view_width : int;
-  min_graph_width : int;
-  min_inspector_width : int;
-}
+type layout = Pxui_shell.Layout.t
 
-(** Default 45% view, 35% graph, and 20% inspector proportions. *)
+(** The shell of a document without an editor graph: view 45%, graph 35%, inspector 20%.
+    A workspace with a [(graph editor ...)] brings its own. *)
 val default_layout : layout
 
 (** Editor internals exposed for tests and diagnostics.
@@ -68,7 +58,7 @@ module Private : sig
       | Add_node | Layout | Frame_tile | Frame_camera
       | Look_through | Fly | Tool of int
       | Undo | Redo
-      | Toggle_projection | Cycle_graph | Enter | Up | Go_world | Group | Ungroup | Make_unique
+      | Toggle_projection | Restore_layout | Enter | Up | Go_world | Group | Ungroup | Make_unique
       | World_emit | World_reseed | World_time of float | World_play | World_preset of int
       | Graph_command of Pxui_graph.command
       | Scope_command of Pxui_graph.Scope.command
@@ -77,9 +67,13 @@ module Private : sig
       | Command_palette
       | Sketch_command of string
 
-    type command = (Pxui_shell.Layout.column, action) Editor_core.Command.t
+    type command = (Pxui_shell.Layout.panel, action) Editor_core.Command.t
 
     type state = Editor_core.Router.state = Idle | Pending of string
+
+    val scope : Pxui_shell.Layout.panel -> Pxui_shell.Layout.panel
+    (** The scope a focused panel's commands use: every viewport is [View ""], the list and
+        lisp panels are the graph pane's. *)
 
     val keymap : command list
     (** The single table behind dispatch, which-key, and the palette. *)
@@ -245,7 +239,7 @@ module Editor3 : sig
     ?timeline_frames:int ->
     ?factories:Procedural.Edit_graph.factory list ->
     ?settings:Settings.t ->
-    ?commands:(Pxui_shell.Layout.column, 'prepared t -> 'prepared t) Editor_core.Command.t list ->
+    ?commands:(Pxui_shell.Layout.panel, 'prepared t -> 'prepared t) Editor_core.Command.t list ->
     ?lights:Prismel.Light.t list ->
     ?world:Prismel.World.t ->
     ?camera:Prismel.Easy_camera.t ->
@@ -428,7 +422,7 @@ module Editor3 : sig
     ?timeline_frames:int ->
     ?factories:Procedural.Edit_graph.factory list ->
     ?settings:Settings.t ->
-    ?commands:(Pxui_shell.Layout.column, 'prepared t -> 'prepared t) Editor_core.Command.t list ->
+    ?commands:(Pxui_shell.Layout.panel, 'prepared t -> 'prepared t) Editor_core.Command.t list ->
     ?lights:Prismel.Light.t list ->
     ?world:Prismel.World.t ->
     ?camera:Prismel.Easy_camera.t ->
@@ -464,7 +458,7 @@ module Editor2 : sig
     ?timeline_frames:int ->
     ?factories:Procedural.Edit_graph.factory list ->
     ?settings:Settings.t ->
-    ?commands:(Pxui_shell.Layout.column, 'prepared t -> 'prepared t) Editor_core.Command.t list ->
+    ?commands:(Pxui_shell.Layout.panel, 'prepared t -> 'prepared t) Editor_core.Command.t list ->
     ?lights:Prismel.Light.t list ->
     ?world:Prismel.World.t ->
     ?camera:Prismel.Easy_camera2.t ->
@@ -538,7 +532,7 @@ module Editor2 : sig
     ?timeline_frames:int ->
     ?factories:Procedural.Edit_graph.factory list ->
     ?settings:Settings.t ->
-    ?commands:(Pxui_shell.Layout.column, 'prepared t -> 'prepared t) Editor_core.Command.t list ->
+    ?commands:(Pxui_shell.Layout.panel, 'prepared t -> 'prepared t) Editor_core.Command.t list ->
     ?lights:Prismel.Light.t list ->
     ?world:Prismel.World.t ->
     ?camera:Prismel.Easy_camera2.t ->

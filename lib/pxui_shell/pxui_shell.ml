@@ -1,217 +1,213 @@
 open Prismel
 
 module Layout = struct
-  type config = {
-    view_ratio : float;
-    graph_ratio : float;
-    inspector_ratio : float;
-    splitter_width : int;
-    collapsed_width : int;
-    header_height : int;
-    status_height : int;
-    min_view_width : int;
-    min_graph_width : int;
-    min_inspector_width : int;
-  }
-
-  let default = {
-    view_ratio = 0.45;
-    graph_ratio = 0.35;
-    inspector_ratio = 0.20;
-    splitter_width = 1;
-    collapsed_width = 28;
-    header_height = 22;
-    status_height = 28;
-    min_view_width = 220;
-    min_graph_width = 180;
-    min_inspector_width = 120;
-  }
-
-  type column = View | Graph | Inspector | Timeline
+  type panel = Editor_core.Panels.panel =
+    | View of string | Graph | List | Lisp | Inspector | Outline | Timeline
+  type axis = Editor_core.Panels.axis
+  type t = Editor_core.Panels.t =
+    | Leaf of panel
+    | Split of { axis : axis; ratio : float; a : t; b : t }
+    | Tile of t list
+    | Float of t
+  type path = int list
   type bounds = int * int * int * int
 
-  (* One kit row plus panel padding. *)
+  let default = Editor_core.Panels.default
+
+  let splitter_width = 1
+  let collapsed_width = 28
+  let header_height = 22
+  let status_height = 28
   let timeline_height = 30
 
-  type panes = {
-    view : bounds;
-    graph : bounds;
-    inspector : bounds;
-    status : bounds;
-    timeline : bounds;
-    view_header : bounds;
-    graph_header : bounds;
-    inspector_header : bounds;
-  }
+  type leaf = { path : path; panel : panel; header : bounds; body : bounds }
+  type splitter = { node : path option; axis : axis; bounds : bounds; start : int; span : int }
+  type geometry = { leaves : leaf list; splitters : splitter list; status_at : bounds;
+                    timeline_at : bounds }
+  type panes = { view : bounds; graph : bounds; inspector : bounds; status : bounds;
+                 timeline : bounds }
 
-  type splitter = First | Second
+  let toggle panel hidden =
+    if List.mem panel hidden then List.filter (( <> ) panel) hidden else panel :: hidden
+  let expand panel hidden = List.filter (( <> ) panel) hidden
 
-  (* Ratios and collapsed columns are model state; pointer capture for the
-     splitters and header buttons belongs to the UI. *)
-  type t = {
-    config : config;
-    view_ratio : float;
-    graph_ratio : float;
-    inspector_ratio : float;
-    view_collapsed : bool;
-    graph_collapsed : bool;
-    inspector_collapsed : bool;
-    timeline_collapsed : bool;
-  }
+  (* A hidden panel vanishes; a hidden viewport keeps a strip with its expand button. *)
+  type presence = Live | Strip | Gone
+  let join x y = match x, y with
+    | Live, _ | _, Live -> Live | Strip, _ | _, Strip -> Strip | Gone, Gone -> Gone
+  let rec presence hidden = function
+    | Leaf p -> if not (List.mem p hidden) then Live
+        else (match p with View _ -> Strip | _ -> Gone)
+    | Float _ -> Gone
+    | Split { a; b; _ } -> join (presence hidden a) (presence hidden b)
+    | Tile cells -> List.fold_left (fun r c -> join r (presence hidden c)) Gone cells
 
-  let validate (config : config) =
-    let total = config.view_ratio +. config.graph_ratio
-        +. config.inspector_ratio in
-    if not (Float.is_finite total) || total <= 0. then
-      invalid_arg "Prismel_editor layout ratios must have a positive finite sum";
-    if config.splitter_width < 1 || config.collapsed_width < 18
-        || config.header_height < 18 || config.status_height < 0 then
-      invalid_arg "Prismel_editor layout dimensions are too small"
+  let is_float = function Float _ -> true | _ -> false
 
-  let create (config : config) =
-    validate config;
-    let total = config.view_ratio +. config.graph_ratio
-        +. config.inspector_ratio in
-    { config; view_ratio = config.view_ratio /. total;
-      graph_ratio = config.graph_ratio /. total;
-      inspector_ratio = config.inspector_ratio /. total;
-      view_collapsed = false; graph_collapsed = false;
-      inspector_collapsed = false; timeline_collapsed = true }
+  (* A run of splits along one axis is one row of columns whose weights are the
+     products of the ratios, so [0.45 | 0.55 * 0.6364 | ...] divides the width once. *)
+  let rec columns axis weight path = function
+    | Split s when s.axis = axis && not (is_float s.a || is_float s.b) ->
+        columns axis (weight *. s.ratio) (path @ [ 0 ]) s.a
+        @ columns axis (weight *. (1. -. s.ratio)) (path @ [ 1 ]) s.b
+    | tree -> [ weight, path, tree ]
 
-  let collapsed value = function
-    | View -> value.view_collapsed
-    | Graph -> value.graph_collapsed
-    | Inspector -> value.inspector_collapsed
-    | Timeline -> value.timeline_collapsed
+  let rec minimum axis = function
+    | Leaf p when axis = `H ->
+        (match p with View _ -> 220 | Graph | List | Lisp -> 180 | _ -> 120)
+    | Split { a; b; _ } -> max (minimum axis a) (minimum axis b)
+    | Tile cells -> List.fold_left (fun m c -> max m (minimum axis c)) 0 cells
+    | Leaf _ | Float _ -> 0
 
-  let with_collapsed column state value = match column with
-    | View -> { value with view_collapsed = state }
-    | Graph -> { value with graph_collapsed = state }
-    | Inspector -> { value with inspector_collapsed = state }
-    | Timeline -> { value with timeline_collapsed = state }
-
-  let toggle column value = with_collapsed column (not (collapsed value column)) value
-  let expand column value = with_collapsed column false value
-
-  (* Collapsed Graph and Inspector vanish (the leader keymap reopens them);
-     a collapsed View keeps a strip with its expand button. *)
-  let splitters value =
-    let s = value.config.splitter_width in
-    (if value.graph_collapsed && value.inspector_collapsed then 0 else s),
-    (if value.graph_collapsed || value.inspector_collapsed then 0 else s)
-
-  let distribute value width =
-    let config = value.config in
-    let first, second = splitters value in
-    let available = max 3 (width - first - second) in
-    let collapsed = [|value.view_collapsed; value.graph_collapsed;
-      value.inspector_collapsed|] in
-    let ratios = [|value.view_ratio; value.graph_ratio;
-      value.inspector_ratio|] in
-    let minimums = [|config.min_view_width; config.min_graph_width;
-      config.min_inspector_width|] in
-    let widths = Array.make 3 0 in
-    let fixed = ref 0 and weight = ref 0. in
-    for index = 0 to 2 do
-      if collapsed.(index) then begin
-        let strip = if index = 0 then config.collapsed_width else 0 in
-        widths.(index) <- strip;
-        fixed := !fixed + strip
-      end else weight := !weight +. ratios.(index)
-    done;
+  (* Sizes of the columns of one row: strips are fixed, the rest share what is
+     left by weight, each at least its minimum when the minimums fit, the last
+     live one taking the rounding remainder. *)
+  let distribute total cols =
+    let n = Array.length cols in
+    let present = Array.fold_left (fun k (p, _, _) -> if p = Gone then k else k + 1) 0 cols in
+    let available = max 3 (total - (max 0 (present - 1) * splitter_width)) in
+    let sizes = Array.make n 0 in
+    let fixed = ref 0 and weight = ref 0. and required = ref 0 and live = ref (-1)
+    and last = ref (-1) in
+    Array.iteri (fun i (p, w, m) ->
+      if p <> Gone then last := i;
+      match p with
+      | Strip -> sizes.(i) <- collapsed_width; fixed := !fixed + collapsed_width
+      | Live -> weight := !weight +. w; required := !required + m; live := i
+      | Gone -> ()) cols;
     let flexible = max 3 (available - !fixed) in
-    for index = 0 to 2 do
-      if not collapsed.(index) then widths.(index) <- max 1
-          (int_of_float (float_of_int flexible *. ratios.(index) /. !weight))
-    done;
-    let used = Array.fold_left ( + ) 0 widths in
-    let last_visible = ref 2 in
-    while !last_visible > 0 && collapsed.(!last_visible) do decr last_visible done;
-    widths.(!last_visible) <- max 1 (widths.(!last_visible) + available - used);
-    let required = ref 0 in
-    for index = 0 to 2 do
-      if not collapsed.(index) then required := !required + minimums.(index)
-    done;
-    let needs_minimum = ref false in
-    for index = 0 to 2 do
-      if not collapsed.(index) && widths.(index) < minimums.(index)
-      then needs_minimum := true
-    done;
-    if !required <= flexible && !needs_minimum then begin
-      let extra = flexible - !required and assigned = ref 0
-      and last = ref 0 in
-      for index = 0 to 2 do
-        if not collapsed.(index) then begin
-          last := index;
-          let addition = int_of_float
-              (float_of_int extra *. ratios.(index) /. !weight) in
-          widths.(index) <- minimums.(index) + addition;
-          assigned := !assigned + widths.(index)
-        end
-      done;
-      widths.(!last) <- widths.(!last) + flexible - !assigned
+    Array.iteri (fun i (p, w, _) -> if p = Live then
+      sizes.(i) <- max 1 (int_of_float (float_of_int flexible *. w /. !weight))) cols;
+    if !last >= 0 then begin
+      let used = Array.fold_left ( + ) 0 sizes in
+      sizes.(!last) <- max 1 (sizes.(!last) + available - used)
     end;
-    widths
+    let short = ref false in
+    Array.iteri (fun i (p, _, m) -> if p = Live && sizes.(i) < m then short := true) cols;
+    if !live >= 0 && !required <= flexible && !short then begin
+      let extra = flexible - !required and assigned = ref 0 in
+      Array.iteri (fun i (p, w, m) -> if p = Live then begin
+        sizes.(i) <- m + int_of_float (float_of_int extra *. w /. !weight);
+        assigned := !assigned + sizes.(i) end) cols;
+      sizes.(!live) <- sizes.(!live) + flexible - !assigned
+    end;
+    sizes
 
-  (* ponytail: the layout has three columns, so recompute instead of mutating
-     a cache during Ui.frame; thread panes through the frame if this grows. *)
-  let geometry value frame =
-    let widths = distribute value frame.Frame.width in
-    let first, second = splitters value in
-    let x0 = 0 and x1 = widths.(0) + first
-    and x2 = widths.(0) + first + widths.(1) + second in
-    let header = min value.config.header_height (max 0 (frame.height - 1)) in
-    let timeline = if value.timeline_collapsed then 0
-      else min timeline_height (max 0 (frame.height - header - 1)) in
+  let rec common a b = match a, b with
+    | x :: a, y :: b when x = y -> x :: common a b
+    | _ -> []
+
+  let rec prefix under path = match under, path with
+    | [], _ -> true
+    | x :: under, y :: path -> x = y && prefix under path
+    | _ -> false
+
+  let geometry ?(hidden = [ Timeline ]) tree (frame : Frame.t) =
+    let all = Editor_core.Panels.leaves tree in
+    let header = min header_height (max 0 (frame.height - 1)) in
+    let timeline = if List.mem Timeline hidden || List.exists (fun (_, p) -> p = Timeline) all
+      then 0 else min timeline_height (max 0 (frame.height - header - 1)) in
     let bottom = frame.height - timeline in
-    let content_height = max 1 (bottom - header) in
-    let status_height = min value.config.status_height
-        (max 0 (content_height - 1)) in
-    { view = x0, header, widths.(0), content_height - status_height;
-      graph = x1, header, widths.(1), content_height;
-      inspector = x2, header, widths.(2), content_height;
-      status = x0, bottom - status_height, widths.(0), status_height;
-      timeline = 0, bottom, frame.width, timeline;
-      view_header = x0, 0, widths.(0), header;
-      graph_header = x1, 0, widths.(1), header;
-      inspector_header = x2, 0, widths.(2), header }
+    let status_path = match List.find_opt (fun (_, p) -> match p with View _ -> true | _ -> false) all,
+      all with
+      | Some (path, _), _ | None, (path, _) :: _ -> path
+      | None, [] -> [] in
+    let leaves = ref [] and splitters = ref [] and status = ref (0, bottom, 0, 0)
+    and floats = ref [] in
+    let leaf path panel (x, y, w, h) =
+      let hh = min header_height (max 0 (h - 1)) in
+      let body = max 1 (h - hh) in
+      let strip = if path = status_path then min status_height (max 0 (body - 1)) else 0 in
+      if path = status_path then status := (x, y + hh + body - strip, w, strip);
+      leaves := { path; panel; header = (x, y, w, hh);
+                  body = (x, y + hh, w, body - strip) } :: !leaves in
+    let cut total n = (* n cells and n-1 gutters over [total] *)
+      let cell = max 1 ((total - ((n - 1) * splitter_width)) / n) in
+      Array.init n (fun i -> if i = n - 1 then max 1 (total - (i * (cell + splitter_width))) else cell) in
+    let rec place ((x, y, w, h) as rect) path = function
+      | Leaf p -> if presence hidden (Leaf p) <> Gone then leaf path p rect
+      | Float t -> floats := ((x + (w / 8), y + (h / 8), w - (w / 4), h - (h / 4)), path @ [ 0 ], t)
+                             :: !floats
+      | Split { a; b; _ } when is_float a || is_float b ->
+          place rect (path @ [ 0 ]) a; place rect (path @ [ 1 ]) b
+      | Split { axis; _ } as tree ->
+          let cols = Array.of_list (columns axis 1. [] tree) in
+          let info = Array.map (fun (weight, _, sub) ->
+            presence hidden sub, weight, minimum axis sub) cols in
+          let horizontal = axis = `H in
+          let sizes = distribute (if horizontal then w else h) info in
+          let cursor = ref (if horizontal then x else y) in
+          let prior = ref None and placed = ref [] and gutters = ref [] in
+          Array.iteri (fun i (_, col_path, sub) ->
+            let p, _, _ = info.(i) in
+            if p <> Gone then begin
+              Option.iter (fun before ->
+                gutters := (common before col_path, if horizontal then (!cursor, y, splitter_width, h)
+                            else (x, !cursor, w, splitter_width)) :: !gutters;
+                cursor := !cursor + splitter_width) !prior;
+              let rect = if horizontal then (!cursor, y, sizes.(i), h) else (x, !cursor, w, sizes.(i)) in
+              place rect (path @ col_path) sub;
+              placed := (col_path, if horizontal then !cursor, sizes.(i) else !cursor, sizes.(i)) :: !placed;
+              cursor := !cursor + sizes.(i);
+              prior := Some col_path
+            end) cols;
+          let extent node =
+            match List.filter (fun (cp, _) -> prefix node cp) (List.rev !placed) with
+            | [] -> 0, 1
+            | (_, (start, _)) :: _ as under ->
+                let _, (s, len) = List.nth under (List.length under - 1) in start, s + len - start in
+          List.iter (fun (node, bounds) ->
+            let start, span = extent node in
+            splitters := { node = Some (path @ node); axis; bounds; start; span } :: !splitters)
+            (List.rev !gutters)
+      | Tile cells ->
+          let n = List.length cells in
+          let columns = int_of_float (Float.ceil (sqrt (float_of_int n))) in
+          let rows = (n + columns - 1) / columns in
+          let heights = cut h rows in
+          let offset sizes k = let s = ref 0 in
+            for j = 0 to k - 1 do s := !s + sizes.(j) + splitter_width done; !s in
+          (* a short last row stretches its cells over the whole width *)
+          let widths = Array.init rows (fun r -> cut w (min columns (n - (r * columns)))) in
+          List.iteri (fun i cell ->
+            let c = i mod columns and r = i / columns in
+            let cx = x + offset widths.(r) c and cy = y + offset heights r in
+            if c > 0 then splitters := { node = None; axis = `H;
+              bounds = (cx - splitter_width, cy, splitter_width, heights.(r)); start = 0; span = 1 }
+              :: !splitters;
+            if r > 0 && c = 0 then splitters := { node = None; axis = `V;
+              bounds = (x, cy - splitter_width, w, splitter_width); start = 0; span = 1 } :: !splitters;
+            place (cx, cy, widths.(r).(c), heights.(r)) (path @ [ i ]) cell) cells in
+    place (0, 0, frame.width, max 1 bottom) [] tree;
+    let rec drain () = match List.rev !floats with
+      | [] -> ()
+      | queue -> floats := [];
+          List.iter (fun (rect, path, t) -> place rect path t) queue; drain () in
+    drain ();
+    { leaves = List.rev !leaves; splitters = List.rev !splitters; status_at = !status;
+      timeline_at = (0, bottom, frame.width, timeline) }
 
-  let splitter_bounds value frame =
-    let panes = geometry value frame in
-    let vx, _, vw, _ = panes.view and gx, _, gw, _ = panes.graph in
-    let first, second = splitters value in
-    (vx + vw, 0, first, frame.height), (gx + gw, 0, second, frame.height)
+  let find geometry panel = List.find_opt (fun l -> l.panel = panel) geometry.leaves
+  let first_view geometry = List.find_opt (fun l -> match l.panel with View _ -> true | _ -> false)
+      geometry.leaves
 
-  let button_bounds value frame column =
-    let panes = geometry value frame in
-    let x, y, width, height = match column with
-      | View -> panes.view_header
-      | Graph -> panes.graph_header
-      | Inspector -> panes.inspector_header
-      | Timeline -> panes.timeline in
-    let size = min height 26 in
-    x + max 0 (width - size), y + ((height - size) / 2), size, size
-
-  let adjust value (frame : Frame.t) splitter delta =
-    let available = max 1 (frame.width - (2 * value.config.splitter_width)) in
-    let amount = delta /. float_of_int available in
-    let floor = 0.03 in
-    match splitter with
-    | First when not value.view_collapsed && not value.graph_collapsed ->
-        let amount = max (floor -. value.view_ratio)
-            (min (value.graph_ratio -. floor) amount) in
-        { value with view_ratio = value.view_ratio +. amount;
-          graph_ratio = value.graph_ratio -. amount }
-    | Second when not value.graph_collapsed && not value.inspector_collapsed ->
-        let amount = max (floor -. value.graph_ratio)
-            (min (value.inspector_ratio -. floor) amount) in
-        { value with graph_ratio = value.graph_ratio +. amount;
-          inspector_ratio = value.inspector_ratio -. amount }
-    | _ -> value
+  let zero = (0, 0, 0, 0)
+  let panes g =
+    let body panel = match find g panel with Some l -> l.body | None -> zero in
+    { view = (match first_view g with Some l -> l.body | None -> zero);
+      graph = body Graph; inspector = body Inspector; status = g.status_at; timeline = g.timeline_at }
 end
 
 module Chrome = struct
   open Layout
+  type intent =
+    | Resize of { node : path; ratio : float }
+    | Settled
+    | Toggle of panel
+    | Split_panel of path * axis
+    | Close_panel of path
+    | Retype_panel of path * panel
+
   let floating ui ?(flags = Pxui.Ui.none) (x, y, width, height) label =
     Pxui.Ui.box ui ~flags ~w:(Pxui.Ui.Px (float_of_int width))
       ~h:(Pxui.Ui.Px (float_of_int height)) ~at:(float_of_int x, float_of_int y) label
@@ -222,57 +218,101 @@ module Chrome = struct
       ~h:(Pxui.Ui.Px (float_of_int frame.height)) ~at:(0., 0.)
       ~hit:(fun _ -> float x, float y, float width, float height) label
 
+  let key path = String.concat "." (List.map string_of_int path)
+  let retypes = [ "Graph", Graph; "List", List; "Lisp", Lisp; "Inspector", Inspector;
+                  "Outline", Outline; "Timeline", Timeline; "Viewport", View "" ]
+
   (* Chrome of the retained workspace, painted and hit through PXUI boxes:
-     pane backgrounds, splitters, and header bars with collapse buttons. *)
-  let update value ui (frame : Frame.t) =
+     panel backgrounds, splitters, and header bars with a collapse button and a
+     right-click menu (split, close, retype). *)
+  let update ?(hidden = [ Timeline ]) ?(title = fun (l : leaf) -> Editor_core.Panels.name l.panel)
+      tree ui (frame : Frame.t) =
     let module Ui = Pxui.Ui in
-    let panes = geometry value frame in
+    let geometry = geometry ~hidden tree frame in
     let theme = Ui.theme ui in
-    let panel label bounds =
-      let box = floating ui bounds label in
-      Ui.draw ui box (fun paint (x, y, w, h) -> Ui.Paint.fill paint ~x ~y ~w ~h theme.panel) in
-    panel "workspace-graph" panes.graph;
-    panel "workspace-inspector" panes.inspector;
-    let first, second = splitter_bounds value frame in
-    let splitter bounds label which value =
-      let x, y, width, height = bounds in
-      let box = Ui.box ui ~flags:Ui.(clickable + blocking)
-          ~at:(float x, float y) ~w:(Ui.Px (float width))
-          ~h:(Ui.Px (float height))
-          ~hit:(fun _ -> float (x - 3), float y,
-            float (width + 6), float height) label in
+    List.iter (fun l -> match l.panel with
+      | View _ | Timeline -> ()
+      | p ->
+          let box = floating ui l.body ("workspace-" ^ String.lowercase_ascii (Editor_core.Panels.name p)
+                                        ^ key l.path) in
+          Ui.draw ui box (fun paint (x, y, w, h) -> Ui.Paint.fill paint ~x ~y ~w ~h theme.panel))
+      geometry.leaves;
+    let intents = ref [] in
+    let emit i = intents := i :: !intents in
+    List.iteri (fun n (s : splitter) ->
+      let box = floating ui s.bounds ("workspace-gutter-" ^ string_of_int n) in
       Ui.draw ui box (fun paint (x, y, w, h) ->
-        Ui.Paint.fill paint ~x ~y ~w ~h
-          (Pxui.Theme.faint_border theme));
-      let signal = Ui.signal ui box in
-      if signal.hovered || signal.held then
-        Ui.request_cursor ui `Horizontal_resize;
-      let dx, _ = signal.drag in
-      if (signal.held || signal.released) && dx <> 0. then adjust value frame which dx
-      else value in
-    let value = splitter first "workspace-splitter-a" First value in
-    let value = splitter second "workspace-splitter-b" Second value in
-    let header column title bounds value =
-      let box = floating ui bounds ("workspace-header-" ^ title) in
-      let button = floating ui ~flags:Ui.(clickable + tab_stop) (button_bounds value frame column)
-          ("workspace-collapse-" ^ title) in
-      (if (Ui.signal ui button).clicked then toggle column value else value),
-      (column, title, box) in
-    let value, view_header = header View "VIEW" panes.view_header value in
-    let value, graph_header = header Graph "GRAPH" panes.graph_header value in
-    let value, inspector_header = header Inspector "INSPECTOR" panes.inspector_header value in
-    List.iter (fun (column, title, box) ->
+        Ui.Paint.fill paint ~x ~y ~w ~h (Pxui.Theme.faint_border theme))) geometry.splitters;
+    let headers = List.map (fun (l : leaf) ->
+      let x, y, w, h = l.header in
+      let label = String.lowercase_ascii (Editor_core.Panels.name l.panel) ^ key l.path in
+      let box = floating ui ~flags:Ui.clickable l.header ("workspace-header-" ^ label) in
+      let size = min h 26 in
+      let button = floating ui ~flags:Ui.(clickable + tab_stop)
+          (x + max 0 (w - size), y + ((h - size) / 2), size, size) ("workspace-collapse-" ^ label) in
+      if (Ui.signal ui button).clicked then emit (Toggle l.panel);
+      let opened = Ui.state ui box ~default:0 = 1 in
+      let opened = opened || Ui.context_clicked (Ui.signal ui box) in
+      Ui.set_state ui box (if opened then 1 else 0);
+      if opened then begin
+        let rows = [ "Split side by side", true; "Split top and bottom", true; "Close", true ]
+          @ List.map (fun (name, _) -> "Retype: " ^ name, true) retypes in
+        match Ui.context_menu ui ~at:(float x, float (y + h)) ("workspace-menu-" ^ label) rows with
+        | `Open -> ()
+        | `Dismiss -> Ui.set_state ui box 0
+        | `Pick i -> Ui.set_state ui box 0;
+            emit (match i with
+              | 0 -> Split_panel (l.path, `H) | 1 -> Split_panel (l.path, `V)
+              | 2 -> Close_panel l.path
+              | i -> Retype_panel (l.path, snd (List.nth retypes (i - 3))))
+      end;
+      l, title l, box) geometry.leaves in
+    List.iter (fun ((l : leaf), text, box) ->
       Ui.draw ui box (fun paint (x, y, w, h) ->
-        let glyph = if collapsed value column then ">" else "<" in
+        let glyph = if List.mem l.panel hidden then ">" else "<" in
         Ui.Paint.rect paint ~x ~y ~w ~h ~fill:theme.input
           ~stroke:(Pxui.Theme.faint_border theme) ();
         let x = int_of_float x and y = int_of_float y and w = int_of_float w in
         Ui.Paint.text paint ~at:(float_of_int (x + 10), float_of_int (y + 4)) ~size:11
-          ~color:theme.foreground title;
+          ~color:theme.foreground text;
         Ui.Paint.text paint ~at:(float_of_int (x + max 7 (w - 19)), float_of_int (y + 4))
-          ~size:11 ~color:theme.accent glyph))
-      [view_header; graph_header; inspector_header];
-    value
+          ~size:11 ~color:theme.accent glyph)) headers;
+    List.rev !intents
+
+  let note ui ~bounds:(x, y, width, height) text =
+    let theme = Pxui.Ui.theme ui in
+    Pxui.Ui.draw ui (floating ui (x, y, width, height) (Printf.sprintf "workspace-note-%d-%d" x y))
+      (fun paint (x, y, _, _) -> Pxui.Ui.Paint.text paint ~at:(x +. 10., y +. 8.) ~size:11
+        ~color:(Pxui.Theme.muted theme) text)
+
+  (* The draggable gutters, wider than they are drawn.  Build them after the panes so
+     they sit on top of the neighbours' hit rectangles. *)
+  let splitters ?(hidden = [ Timeline ]) tree ui (frame : Frame.t) =
+    let module Ui = Pxui.Ui in
+    let intents = ref [] in
+    List.iteri (fun n (s : splitter) -> match s.node with
+      | None -> ()
+      | Some node ->
+          let x, y, width, height = s.bounds in
+          let gx, gy = if s.axis = `H then 3, 0 else 0, 3 in
+          let box = Ui.box ui ~flags:Ui.(clickable + blocking)
+              ~at:(float x, float y) ~w:(Ui.Px (float width)) ~h:(Ui.Px (float height))
+              ~hit:(fun _ -> float (x - gx), float (y - gy),
+                float (width + (2 * gx)), float (height + (2 * gy)))
+              ("workspace-grip-" ^ string_of_int n) in
+          let signal = Ui.signal ui box in
+          if signal.hovered || signal.held then Ui.request_cursor ui
+            (if s.axis = `H then `Horizontal_resize else `Vertical_resize);
+          let dx, dy = signal.drag in
+          if (signal.held || signal.released) && (if s.axis = `H then dx else dy) <> 0. then begin
+            let px, py = signal.pointer in
+            let along = if s.axis = `H then px else py in
+            intents := Resize { node; ratio = (along -. float s.start) /. float (max 1 s.span) }
+                       :: !intents
+          end;
+          if signal.released then intents := Settled :: !intents)
+      (geometry ~hidden tree frame).splitters;
+    List.rev !intents
 
   let focus ui ~bounds:(x, y, width, height) =
     if width > 2 && height > 2 then begin

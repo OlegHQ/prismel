@@ -899,6 +899,9 @@ let update t ui (frame : Frame.t) =
       ~w:(Ui.Px (float t.width)) ~h:(Ui.Px (float t.height))
       ~at:(float t.x, float t.y) "pxui-scope" in
   let canvas_signal = Ui.signal ui canvas in
+  (* the grid, zones and wires paint in a child, so the canvas's clip holds them too *)
+  let layer = Ui.within ui canvas (fun () ->
+    Ui.box ui ~w:(Ui.Px (float t.width)) ~h:(Ui.Px (float t.height)) ~at:(0., 0.) "pxui-scope-layer") in
   let t =
     let _, wheel = canvas_signal.scroll in
     if wheel = 0. || t.context <> None then t else begin
@@ -1238,7 +1241,7 @@ let update t ui (frame : Frame.t) =
   let selected = t.selected in
   let snapshot = t in
   let row_hover = match hover with Some (n, _, _, i) -> Some (n.path, i) | None -> None in
-  Ui.draw ui canvas (fun paint (rx, ry, rw, rh) ->
+  Ui.draw ui layer (fun paint (rx, ry, rw, rh) ->
     paint_background paint snapshot ~viewport:(rx, ry, rw, rh) zones);
   List.iter (fun ((p : P.placed), ax, ay, tile, _, _, _) ->
     let path = p.path in

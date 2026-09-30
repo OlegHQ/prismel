@@ -25,6 +25,10 @@ type op =
   | Add_field of { node : path; name : string; value : S.t }
   | Add_node of { scope : path; name : string; expr : S.t }
   | Delete_nodes of { nodes : path list }
+  | Set_layout_ratio of { node : path; ratio : float }
+  | Split_panel of { node : path; axis : [ `H | `V ] }
+  | Close_panel of { node : path }
+  | Set_panel_kind of { node : path; kind : string }
 
 exception Fail of Flow.Diagnostic.t
 
@@ -692,6 +696,77 @@ let rewrite src op : (unit -> S.t list) list =
         let sc = ensure s in
         reorder (rebuild sc (sc.ps @ [ sym name, expr ]) sc.res)))
 
+  | Set_layout_ratio { node; ratio } -> one (fun () ->
+      let sp, leaf = split_node node in
+      let ratio = Float.round (Float.max 0.1 (Float.min 0.9 ratio) *. 100.) /. 100. in
+      let text = mk (S.Num (Printf.sprintf "%.2f" ratio |> fun t ->
+        if String.ends_with ~suffix:"0" t then String.sub t 0 (String.length t - 1) else t)) in
+      edit_scope src sp (fun s ->
+        let e = get_node s leaf in
+        set_node s leaf (match e.node with
+          | S.List (({ S.node = S.Sym "ui/split-at"; _ } as h) :: axis :: _ :: rest) ->
+              { e with node = S.List (h :: axis :: text :: rest) }
+          | S.List ({ S.node = S.Sym "ui/split"; _ } :: axis :: rest) ->
+              { e with node = S.List (sym "ui/split-at" :: axis :: text :: rest) }
+          | _ -> fail "That panel is not a split.")))
+  | Split_panel { node; axis } -> one (fun () ->
+      let sp, leaf = split_node node in
+      let used = root_used src (List.hd sp) in
+      edit_scope src sp (fun s ->
+        let sc = match scope_of s with
+          | Some sc -> sc
+          | None -> fail "This editor graph is a single expression. Edit it in Lisp." in
+        let j = first_pair_index sc leaf in
+        let a = fresh used (leaf ^ "_a") in
+        let b = fresh used (leaf ^ "_b") in
+        let p, orig = List.nth sc.ps j in
+        let other = if head_sym orig = Some "ui/lisp" then "ui/graph" else "ui/lisp" in
+        let split = call "ui/split-at"
+          [ mk (S.Str (if axis = `H then "horizontal" else "vertical")); mk (S.Num "0.5");
+            sym a; sym b ] in
+        let before = List.filteri (fun k _ -> k < j) sc.ps
+        and after = List.filteri (fun k _ -> k > j) sc.ps in
+        reorder (rebuild sc (before @ [ sym a, orig; sym b, call other []; p, split ] @ after) sc.res)))
+  | Close_panel { node } -> one (fun () ->
+      let sp, leaf = split_node node in
+      edit_scope src sp (fun s ->
+        let sc = match scope_of s with
+          | Some sc -> sc
+          | None -> fail "This editor graph is a single expression. Edit it in Lisp." in
+        let is_leaf (x : S.t) = x.node = S.Sym leaf in
+        let sibling (e : S.t) = match e.node with
+          | S.List ({ S.node = S.Sym ("ui/split" | "ui/split-at"); _ } :: args) ->
+              (match List.rev args with
+               | y :: x :: _ when is_leaf x -> Some y
+               | y :: x :: _ when is_leaf y -> Some x
+               | _ -> None)
+          | _ -> None in
+        match List.find_opt (fun (_, e) -> sibling e <> None) sc.ps with
+        | None -> fail "Only a panel inside a split can close. Restore layout brings the shell back."
+        | Some (pp, pe) ->
+            let ps = List.filter_map (fun (p, e) ->
+              if p == pp then Some (p, Option.get (sibling pe))
+              else if pat_key p = leaf then None else Some (p, e)) sc.ps in
+            reorder (rebuild sc ps sc.res)))
+  | Set_panel_kind { node; kind } -> one (fun () ->
+      let sp, leaf = split_node node in
+      let rec context = function
+        | { S.node = S.Kw "context"; _ } :: { S.node = S.Sym c; _ } :: _ -> Some c
+        | _ :: rest -> context rest
+        | [] -> None in
+      let scene = List.find_map (fun (item : S.t) -> match item.node with
+        | S.List ({ S.node = S.Sym "graph"; _ } :: { S.node = S.Sym n; _ } :: rest)
+          when context rest = Some "scene" -> Some n
+        | _ -> None) (snd (workspace_parts src)) in
+      let expr = match kind with
+        | "outline" | "graph" | "list" | "lisp" | "inspector" | "timeline" -> call ("ui/" ^ kind) []
+        | "viewport" ->
+            (match scene with
+             | Some n -> call "ui/viewport" [ call "ref" [ sym n ] ]
+             | None -> fail "A viewport needs a scene graph.")
+        | _ -> fail "Unknown panel type %s." kind in
+      edit_scope src sp (fun s -> set_node s leaf expr))
+
 (* ---- the public functions ---- *)
 
 let label = function
@@ -703,6 +778,8 @@ let label = function
   | Toggle_bypass _ -> "Bypass" | Set_note _ -> "Note" | Add_item _ -> "Add item"
   | Move_item _ -> "Move item" | Add_field _ -> "Add field" | Add_node _ -> "Add node"
   | Delete_nodes _ -> "Delete"
+  | Set_layout_ratio _ -> "Resize panel" | Split_panel _ -> "Split panel"
+  | Close_panel _ -> "Close panel" | Set_panel_kind _ -> "Retype panel"
 
 let key_text = function
   | Whole -> "" | Pos i -> string_of_int i | Kw k | Field k -> k | Bv (i, j) -> Printf.sprintf "%d.%d" i j
@@ -775,6 +852,7 @@ let remap op p = match op with
       let k = List.length node - 2 in
       Some (List.filteri (fun i _ -> i <> k) p)
   | Delete_nodes { nodes } when List.exists (fun n -> has_prefix ~prefix:n p) nodes -> None
+  | Close_panel { node } when has_prefix ~prefix:node p -> None
   | _ -> Some p
 
 let free_names e = dedup (free e)

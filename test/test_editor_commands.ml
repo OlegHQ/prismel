@@ -20,7 +20,7 @@ let run () =
       check (List.map (fun (c : _ Command.t) -> c.action) actions = [expected]) "guide key failed outside or inside graph focus")
       [key Input.Shift :: [char '/'], L.Guide_toggle;
        [char '?'], L.Guide_toggle; [key Input.Space; char 'k'], L.Guide_keys])
-    Pxui_shell.Layout.[View; Graph; Inspector; Timeline];
+    Pxui_shell.Layout.[View ""; View "v1.0"; Graph; List; Lisp; Inspector; Outline; Timeline];
   check (Keymap.label (Chord (Input.KeyChar '/', [Input.Shift])) = "?"
       && Keymap.label (Chord (Input.ArrowLeft, [])) = "←"
       && Keymap.label (Chord (Input.KeyChar 'z', [Input.Shift; Input.Meta])) = "Cmd-Shift-z")
@@ -66,11 +66,22 @@ let run () =
       Search, []; Text, []];
   let host_ids focus context = Command.for_guide L.keymap ~focus ~context
     |> List.map (fun (c : _ Command.t) -> c.id) in
-  check (List.mem "guide.toggle" (host_ids Pxui_shell.Layout.View Canvas)
-      && not (List.mem "graph.add" (host_ids Pxui_shell.Layout.View Canvas))
+  check (List.mem "guide.toggle" (host_ids (Pxui_shell.Layout.View "") Canvas)
+      && not (List.mem "graph.add" (host_ids (Pxui_shell.Layout.View "") Canvas))
       && List.mem "graph.projection" (host_ids Pxui_shell.Layout.Graph List)
       && List.mem "preset.save" (host_ids Pxui_shell.Layout.Graph Leader))
     "host guide lost a context or ignored command scope";
+  (* focus is a panel; commands are scoped by its kind: every viewport is one scope, and the
+     list and lisp panels are graph-pane projections *)
+  let module P = Pxui_shell.Layout in
+  check (List.for_all (fun panel -> L.scope panel = P.Graph) [P.Graph; P.List; P.Lisp]
+      && L.scope (P.View "v1.2") = P.View "" && L.scope (P.View "main") = L.scope (P.View "v0")
+      && L.scope P.Inspector = P.Inspector && L.scope P.Outline = P.Outline)
+    "panel kinds do not map to the scopes commands use";
+  check (host_ids (L.scope P.Lisp) Canvas = host_ids P.Graph Canvas
+      && host_ids (L.scope (P.View "v3")) Canvas = host_ids (P.View "") Canvas
+      && host_ids (L.scope P.Outline) Canvas <> host_ids P.Graph Canvas)
+    "a lisp or second viewport panel routed to the wrong scope";
   check (List.length (Command.for_guide Pxui_graph.hint_bindings ~focus:() ~context:Hints) = 28)
     "hint guide lost target letters, back or cancel";
   let table = List.map (fun (command : _ Command.t) ->
@@ -81,7 +92,7 @@ let run () =
     let route focus = let _, actions, _ = Editor_core.Router.step table ~focus
       ~text_focus:false ~frame:input Idle in List.map (fun (c : _ Command.t) -> c.action) actions in
     check (route Pxui_shell.Layout.Graph = [expected]) "Flow grammar key routed the wrong action";
-    check (route Pxui_shell.Layout.View = [] && route Pxui_shell.Layout.Inspector = [])
+    check (route (Pxui_shell.Layout.View "") = [] && route Pxui_shell.Layout.Inspector = [])
       "a Flow grammar key escaped graph scope")
     Pxui_graph.[Input.KeyChar 'h', [], Walk Left; Input.ArrowLeft, [], Walk Left;
       Input.KeyChar 'j', [], Walk Down; Input.ArrowDown, [], Walk Down;
@@ -121,7 +132,7 @@ let run () =
     rejected [make ~id:"" (Leader "qj") bump] "empty id was accepted";
     let commands = [make (Leader "QJ") bump; make (Leader "qq") bump;
       make ~id:"test.modifier" (Chord (Input.KeyChar 'm', [Input.Meta])) (set 30);
-      make ~scope:Pxui_shell.Layout.View ~id:"test.view"
+      make ~scope:(Pxui_shell.Layout.View "") ~id:"test.view"
         (Chord (Input.KeyChar 'g', [])) (set 10);
       make ~scope:Pxui_shell.Layout.Graph ~id:"test.graph"
         (Chord (Input.KeyChar 'g', [])) (set 20)] in

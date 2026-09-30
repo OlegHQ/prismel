@@ -54,9 +54,10 @@ let () =
   if root.subtree_press <> None then
     failwith "pane root accepted a press outside its hit bounds";
   Pxui.Ui.destroy ui;
-  let layout = Pxui_shell.Layout.create Pxui_shell.Layout.default in
-  let panes = Pxui_shell.Layout.geometry layout { frame with width = 1000;
-    size = 1000, 300; drawable_width = 1000; drawable_size = 1000, 300 } in
+  let layout = Pxui_shell.Layout.default in
+  let wide_frame = { frame with width = 1000; size = 1000, 300;
+    drawable_width = 1000; drawable_size = 1000, 300 } in
+  let panes = Pxui_shell.Layout.(panes (geometry layout wide_frame)) in
   let _, _, view_width, _ = panes.view
   and _, _, graph_width, _ = panes.graph
   and _, _, inspector_width, _ = panes.inspector in
@@ -64,25 +65,111 @@ let () =
     failwith "shell layout defaults are not 45/35/20";
   let divider_x = view_width in
   let hit_ui = Pxui.Ui.create () in
-  let wide_frame = { frame with width = 1000; size = 1000, 300;
-    drawable_width = 1000; drawable_size = 1000, 300 } in
   let chrome events = ignore (Pxui.Ui.frame hit_ui { wide_frame with events }
-    (fun ui -> Pxui_shell.Chrome.update layout ui wide_frame)) in
+    (fun ui -> ignore (Pxui_shell.Chrome.update layout ui wide_frame);
+      Pxui_shell.Chrome.splitters layout ui wide_frame)) in
   chrome [];
   chrome [Prismel.Event.MouseMoved (float (divider_x - 2), 100.)];
   if Pxui.Ui.cursor hit_ui <> Some `Horizontal_resize then
     failwith "thin splitter lost its wider resize hit area";
   Pxui.Ui.destroy hit_ui;
-  let collapsed = Pxui_shell.Layout.toggle Pxui_shell.Layout.Inspector layout in
-  if not (Pxui_shell.Layout.collapsed collapsed Pxui_shell.Layout.Inspector) then
-    failwith "shell layout did not collapse inspector";
-  let wide = { frame with width = 1000; size = 1000, 300;
-    drawable_width = 1000; drawable_size = 1000, 300 } in
-  let _, _, inspector_width, _ = (Pxui_shell.Layout.geometry collapsed wide).inspector in
-  let hidden_both = Pxui_shell.Layout.toggle Pxui_shell.Layout.Graph collapsed in
-  let _, _, view_width, _ = (Pxui_shell.Layout.geometry hidden_both wide).view in
+  let inspector_hidden = [Pxui_shell.Layout.Timeline; Inspector] in
+  let _, _, inspector_width, _ =
+    (Pxui_shell.Layout.(panes (geometry ~hidden:inspector_hidden layout wide_frame))).inspector in
+  let hidden_both = Pxui_shell.Layout.[Timeline; Inspector; Graph] in
+  let _, _, view_width, _ = (Pxui_shell.Layout.(panes (geometry ~hidden:hidden_both layout wide_frame))).view in
   if inspector_width <> 0 || view_width <> 1000 then
     failwith "collapsed graph and inspector did not vanish";
+  (* the default three columns match the retired fixed layout at these sizes and states *)
+  let golden (w, h) hidden (view, graph_w, inspector_w, status, timeline) =
+    let f = { frame with width = w; height = h; size = w, h; drawable_width = w;
+      drawable_height = h; drawable_size = w, h } in
+    let p = Pxui_shell.Layout.(panes (geometry ~hidden layout f)) in
+    let width (_, _, w, _) = w in
+    if p.view <> view || width p.graph <> graph_w || width p.inspector <> inspector_w
+       || p.status <> status || p.timeline <> timeline then
+      failwith (Printf.sprintf "default layout changed at %dx%d" w h) in
+  let module L = Pxui_shell.Layout in
+  golden (800, 600) [L.Timeline] ((0, 22, 359, 550), 279, 160, (0, 572, 359, 28), (0, 600, 800, 0));
+  golden (1280, 800) [L.Timeline; Graph] ((0, 22, 885, 750), 0, 394, (0, 772, 885, 28), (0, 800, 1280, 0));
+  golden (1920, 1080) [L.View "main"] ((0, 22, 28, 1000), 1202, 688, (0, 1022, 28, 28), (0, 1050, 1920, 30));
+  golden (1000, 300) [L.Inspector] ((0, 22, 561, 220), 438, 0, (0, 242, 561, 28), (0, 270, 1000, 30));
+  golden (500, 400) [L.Timeline] ((0, 22, 224, 350), 174, 100, (0, 372, 224, 28), (0, 400, 500, 0));
+  (* every tree covers the area above the timeline exactly once, gutters included *)
+  let views n = L.Tile (List.init n (fun i -> L.Leaf (L.View (string_of_int i)))) in
+  let trees = [
+    "default", L.default;
+    "sheet", L.Split { axis = `V; ratio = 0.13; a = Leaf Outline; b =
+      Split { axis = `H; ratio = 0.5; a = Split { axis = `V; ratio = 0.58; a = Leaf Graph; b = Leaf Lisp };
+              b = views 4 } };
+    "tile of five", views 5;
+    "vertical stack", Split { axis = `V; ratio = 0.3; a = Leaf Graph; b =
+      Split { axis = `V; ratio = 0.5; a = Leaf Inspector; b = Leaf List } };
+    "nested", Split { axis = `H; ratio = 0.3; a = Split { axis = `V; ratio = 0.4; a = Leaf Graph;
+      b = Leaf List }; b = Split { axis = `H; ratio = 0.5; a = Leaf Inspector; b = Leaf (View "z") } } ] in
+  List.iter (fun (name, tree) ->
+    List.iter (fun (w, h) ->
+      let f = { frame with width = w; height = h; size = w, h } in
+      let g = L.geometry tree f in
+      let seen = Array.make_matrix w h 0 in
+      let cover (x, y, cw, ch) = for i = x to x + cw - 1 do for j = y to y + ch - 1 do
+        if i >= 0 && j >= 0 && i < w && j < h then seen.(i).(j) <- seen.(i).(j) + 1
+        else failwith (name ^ ": a rectangle leaves the frame") done done in
+      List.iter (fun (l : L.leaf) ->
+        let hx, hy, hw, hh = l.header and bx, by, bw, bh = l.body in
+        cover (hx, hy, hw, hh); cover (bx, by, bw, bh)) g.leaves;
+      cover g.status_at;
+      List.iter (fun (s : L.splitter) -> cover s.bounds) g.splitters;
+      Array.iter (Array.iter (fun n -> if n <> 1 then
+        failwith (Printf.sprintf "%s at %dx%d: a point is covered %d times" name w h n))) seen)
+      [ 1000, 600; 640, 480; 333, 217 ]) trees;
+  (* floats overlay the rectangle of their parent and come last *)
+  let floated = L.Split { axis = `H; ratio = 0.5; a = Leaf Graph; b = Float (Leaf Inspector) } in
+  let g = L.geometry floated wide_frame in
+  (match List.map (fun (l : L.leaf) -> l.panel) g.leaves, List.rev g.leaves with
+   | [ Graph; Inspector ], { body = bx, by, bw, bh; _ } :: _ ->
+       let gx, _, gw, _ = (Option.get (L.find g Graph)).body in
+       if gx <> 0 || gw <> 1000 || bx <= 0 || bx + bw >= 1000 || by <= 22 || bh <= 0 then
+         failwith "a float is not an inset overlay over a full-size sibling"
+   | _ -> failwith "float leaves are not last");
+  (* a nested split takes its share of what its parent leaves it *)
+  (match (L.geometry (L.Split { axis = `V; ratio = 0.25; a = Leaf Graph; b = Leaf Lisp })
+      wide_frame).leaves with
+   | [ a; b ] -> let _, _, _, ah = a.body and _, _, _, bh = b.body in
+       if ah + 22 >= bh + 22 then failwith "a vertical split ignored its ratio"
+   | _ -> failwith "vertical split lost a panel");
+  (* dragging a splitter reports a ratio, and the header menu reports its intents *)
+  let drag_ui = Pxui.Ui.create () in
+  let chrome tree ?(mouse = 0., 0.) events =
+    let f = { wide_frame with events; mouse } in
+    Pxui.Ui.frame drag_ui f (fun ui -> let a = Pxui_shell.Chrome.update tree ui f in
+      a @ Pxui_shell.Chrome.splitters tree ui f) in
+  ignore (chrome L.default []);
+  let x = 449. in
+  ignore (chrome L.default ~mouse:(x, 100.) [Event.MouseMoved (x, 100.)]);
+  ignore (chrome L.default ~mouse:(x, 100.) [Event.MousePressed (Input.LeftButton, (x, 100.))]);
+  let moved = chrome L.default ~mouse:(300., 100.) [Event.MouseMoved (300., 100.)] in
+  (match moved with
+   | [ Pxui_shell.Chrome.Resize { node = []; ratio } ] ->
+       if Float.abs (ratio -. 0.3) > 0.01 then failwith "splitter ratio does not follow the pointer"
+   | _ -> failwith "a drag did not report one resize of the outer split");
+  let released = chrome L.default ~mouse:(300., 100.) [Event.MouseReleased (Input.LeftButton, (300., 100.))] in
+  if not (List.mem Pxui_shell.Chrome.Settled released) then failwith "a drag did not settle";
+  ignore (chrome L.default ~mouse:(600., 10.) [Event.MouseMoved (600., 10.)]);
+  ignore (chrome L.default ~mouse:(600., 10.) [Event.MousePressed (Input.RightButton, (600., 10.))]);
+  ignore (chrome L.default ~mouse:(600., 10.) [Event.MouseReleased (Input.RightButton, (600., 10.))]);
+  ignore (chrome L.default ~mouse:(470., 34.) [Event.MouseMoved (470., 34.)]);
+  let pick = [Event.MousePressed (Input.LeftButton, (470., 34.));
+    Event.MouseReleased (Input.LeftButton, (470., 34.))] in
+  (match chrome L.default ~mouse:(470., 34.) pick with
+   | [ Pxui_shell.Chrome.Split_panel ([ 1; 0 ], `H) ] -> ()
+   | _ -> failwith "the header menu did not split the graph panel");
+  let collapse = [Event.MousePressed (Input.LeftButton, (985., 10.));
+    Event.MouseReleased (Input.LeftButton, (985., 10.))] in
+  ignore (chrome L.default ~mouse:(985., 10.) [Event.MouseMoved (985., 10.)]);
+  if not (List.mem (Pxui_shell.Chrome.Toggle L.Inspector) (chrome L.default ~mouse:(985., 10.) collapse)) then
+    failwith "the collapse button did not toggle the inspector";
+  Pxui.Ui.destroy drag_ui;
   if instances "view" <= instances "other" then
     failwith "focused leader bindings were not drawn";
   if status_instances 28 <= 0 || status_instances 0 <> 0 then
@@ -145,7 +232,7 @@ let () =
     let start_alloc = Gc.allocated_bytes () and start = Sys.time () in
     let width_sum = ref 0 in
     for _ = 1 to 200_000 do
-      let panes = Pxui_shell.Layout.geometry layout benchmark_frame in
+      let panes = Pxui_shell.Layout.(panes (geometry layout benchmark_frame)) in
       let _, _, width, _ = panes.view in
       width_sum := !width_sum + width
     done;

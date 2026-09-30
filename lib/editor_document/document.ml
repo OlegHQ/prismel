@@ -23,6 +23,20 @@ type definition = {
   displayed : int option;
 }
 
+(* Where a panel of the shell tree came from in the editor graph. *)
+type origin = Bound of string | Loop of string  (* its binding; the binding holding the loop *)
+
+(* The lowered editor graph (plan W10): the shell tree, the origin of each named or
+   looped panel (any other panel is inline), the graph a [(ui/graph "name")] shows
+   and, for each viewport over a scene other than the default one, the scene objects
+   of that instance (they live in [scene], and no other viewport draws them). *)
+type shell = {
+  tree : Editor_core.Panels.t;
+  origins : (Editor_core.Panels.path * origin) list;
+  named : string option;
+  views : (string * int list) list;
+}
+
 type t = {
   scene : network;  (* objects: input 0 is the parent *)
   networks : network Layout.t;  (* by object id: SOP networks, the World's layers *)
@@ -30,6 +44,7 @@ type t = {
   compiled_ids : int Flow_sop.Instance_path.Map.t;
   active_camera : int option;  (* a camera object *)
   settings : Settings.t;
+  shell : shell option;  (* the [editor] graph of the workspace, if it has one *)
   workspace : (Workspace_doc.t * Flow_sop.Lower.t) option;
   (* the authored v4 document and its lowering when this is a workspace:
      [scene] and [networks] are then that lowering, one geometry object per

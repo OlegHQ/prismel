@@ -9,7 +9,7 @@ type action =
   | Layout | Frame_tile | Frame_camera
   | Look_through | Fly | Tool of int  (* 0 none, 1 translate, 2 rotate, 3 scale *)
   | Undo | Redo
-  | Toggle_projection | Cycle_graph | Enter | Up | Go_world | Group | Ungroup | Make_unique
+  | Toggle_projection | Restore_layout | Enter | Up | Go_world | Group | Ungroup | Make_unique
   | World_emit | World_reseed | World_time of float | World_play | World_preset of int
   | Graph_command of Pxui_graph.command
   | Scope_command of Pxui_graph.Scope.command  (* the workspace pane, see [Core.scope_name] *)
@@ -18,7 +18,12 @@ type action =
   | Command_palette
   | Sketch_command of string  (* the id of a sketch [Editor_core.Command] *)
 
-type command = (Pxui_shell.Layout.column, action) Editor_core.Command.t
+(* A command's scope is a kind of panel: any viewport is [View ""], and the list and the
+   lisp panel are the graph pane's other projections. *)
+type command = (Pxui_shell.Layout.panel, action) Editor_core.Command.t
+
+let scope : Pxui_shell.Layout.panel -> Pxui_shell.Layout.panel = function
+  | View _ -> View "" | List | Lisp -> Graph | panel -> panel
 
 type state = Editor_core.Router.state = Idle | Pending of string
 
@@ -26,7 +31,7 @@ let command ?trigger ?scope ?(guide = []) ~id ~label action =
   let guide = match trigger with Some (Leader _) -> Editor_core.Guide_context.Leader :: guide
     | _ -> guide in
   Editor_core.Command.make ?trigger ?scope ~guide ~id ~label action
-let graph = Pxui_shell.Layout.Graph and view = Pxui_shell.Layout.View
+let graph = Pxui_shell.Layout.Graph and view = Pxui_shell.Layout.View ""
 
 (* One table drives dispatch, which-key, and the command palette. *)
 let keymap = [
@@ -55,8 +60,8 @@ let keymap = [
   command ~id:"workspace.command-palette" ~label:"command palette" ~trigger:(Leader "/")
     Command_palette;
   command ~guide:Editor_core.Guide_context.[Canvas; Node; Multi; List] ~id:"graph.projection" ~label:"graph / list / text" ~trigger:(Leader "l") Toggle_projection;
-  command ~id:"workspace.cycle-graph" ~label:"scene / world / settings graph" ~trigger:(Leader "o")
-    Cycle_graph;
+  command ~id:"workspace.restore-layout" ~label:"restore layout" ~trigger:(Leader "z")
+    Restore_layout;
   command ~id:"scene.world" ~label:"World" ~trigger:(Leader "e") Go_world;
   command ~id:"graph.add-node" ~label:"add (menu)" ~trigger:(Leader "a") Add_node;
   command ~guide:Editor_core.Guide_context.[Node; List]
@@ -131,5 +136,5 @@ let keymap3 = keymap @ [
 ]
 
 let pane_name = function
-  | Pxui_shell.Layout.View -> "View" | Graph -> "Graph" | Inspector -> "Inspector"
-  | Timeline -> "Timeline"
+  | Pxui_shell.Layout.View _ -> "View" | Graph -> "Graph" | List -> "List" | Lisp -> "Lisp"
+  | Inspector -> "Inspector" | Outline -> "Outline" | Timeline -> "Timeline"

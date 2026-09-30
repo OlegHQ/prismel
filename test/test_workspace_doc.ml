@@ -371,15 +371,15 @@ let part_contexts () =
     (Edit.inspect (Document.scene_graph plain))) = [ "g" ]) "no scene graph: one object per sop graph";
   (* Variations: one garden object, the graph opened for a viewport *)
   let variations = build (of_text (case "variations")) in
-  check (List.map label (Edit.inspect (Document.scene_graph variations)) = [ "garden" ]) "variations scene";
+  check (List.map label (Edit.inspect (Document.scene_graph variations))
+         = [ "garden"; "garden (v1.1.1)"; "garden (v1.1.2)"; "garden (v1.1.3)" ]) "variations scene";
   (* the manifest kinds equal the runtime kinds *)
   let manifest, _ = Flow_sop.Manifest.generate ~extra:Contexts.descriptors factories |> Result.get_ok in
   let from_manifest, _ = Flow.Check.catalog_of_manifest manifest |> Result.get_ok in
   check (from_manifest.kinds = (Result.get_ok (Contexts.catalog ~version:from_manifest.version factories)).kinds)
     "the generated scene, world and settings kinds survive the manifest"
 
-(* W10: Space o cycles the pane through the scene, world and settings graphs; the
-   scene's objects and the World come from the workspace *)
+(* W10: the scene's objects and the World come from the workspace *)
 let part_editor_contexts () =
   let module E3 = Prismel_editor.Editor3 in
   let e = ref (editor (case "bloom")) in
@@ -400,12 +400,7 @@ let part_editor_contexts () =
   check (List.length (List.filter (fun (_, op) -> op = "camera") (objects ())) = 1
          && List.length (List.filter (fun (_, op) -> op = "light") (objects ())) = 1)
     "a scene that declares a camera and a light gets no seeded ones";
-  List.iter (fun graph ->
-    step [ key Input.Space; char 'o' ]; step [];
-    check (has (dump ()) ("pane graph: " ^ graph ^ "\n")) ("Space o shows the " ^ graph ^ " graph\n" ^ dump ()))
-    [ "scene"; "world"; "settings" ];
-  step [ key Input.Space; char 'o' ]; step [];
-  check (has (dump ()) "pane graph: -\n") "Space o cycles back to the level's own graph";
+  check (has (dump ()) "pane graph: -\n") "the pane follows the level until an outline row or a named panel picks a graph";
   (* an edit on the scene graph reaches the objects, in one history entry *)
   let e' = E3.edit !e (E.Set_arg { node = [ "scene"; "accent" ]; key = Kw "scale"; sub = [];
     value = S.make (S.Vec (List.map (fun n -> S.make (S.Num n)) [ "1"; "1"; "1" ])) }) |> Result.get_ok in
