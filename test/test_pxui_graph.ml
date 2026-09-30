@@ -195,6 +195,20 @@ let scope_gestures () =
   check (only Scope.Wrap_iterate = [ syntax (E.Wrap { nodes = [ heart ]; loop = E.Fold }) ]) "Shift-r: Wrap Fold";
   check (only Scope.Make_fn = [ syntax (E.Make_local_fn { nodes = [ heart ] }) ]) "l: Make_local_fn";
   check (only Scope.Duplicate = [ syntax (E.Duplicate { nodes = [ heart ] }) ]) "Command-D: Duplicate";
+  (* fold and unfold: the keys, and the right-click menu's rows *)
+  let result = [ "flower"; "result" ] in
+  (match snd (Scope.run_command (Scope.select [ result ] view) Scope.Unfold) with
+   | [ Scope.Syntax_edit (E.Unfold { node; sub = []; _ }) ] when node = result -> ()
+   | _ -> failwith "Shift-U on a call with an inline call did not become Unfold");
+  let hx, hy, _, _ = center_of view heart in
+  let at = int_of_float hx + 20, int_of_float hy + 8 in
+  let menu, _ = scope_step view (frame ~mouse:at ~events:[ mouse_move at; mouse_press (Input.RightButton, at);
+    mouse_release (Input.RightButton, at) ] ()) in
+  let menu, _ = scope_step menu (frame ~mouse:at ()) in
+  let item i = fst at + 30, snd at + 3 + (24 * i) + 12 in
+  let _, picked = scope_step menu (frame ~mouse:(item 0) ~events:[ mouse_move (item 0); mouse_press (Input.LeftButton, item 0);
+    mouse_release (Input.LeftButton, item 0) ] ()) in
+  check (List.mem (syntax (E.Fold_into { node = heart })) picked) "the right-click menu's first row did not become Fold_into";
   check (only Scope.Display = [ Scope.Display_set heart ]) "v: a geometry node is shown in the viewport";
   (match snd (Scope.run_command (Scope.select [ [ "flower"; "petals" ] ] view) Scope.Display) with
    | [ Scope.Notice _ ] -> () | _ -> failwith "v on a number did not say only geometry can be viewed");

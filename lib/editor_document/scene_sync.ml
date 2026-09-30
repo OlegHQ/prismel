@@ -277,6 +277,13 @@ let world st (before : Document.t) (after : Document.t) =
        | Some nb, Some na ->
            let name = if Node.label nb <> Node.label na then [ "name", Some (mk (S.Str (Node.label na))) ] else [] in
            set st home (name @ differing ~before:nb na)
+       | Some _, None ->
+           (* a deleted World takes its graph with it *)
+           let rec root = function
+             | Document.Bound_at path -> List.hd path
+             | Inline_in (h, _) -> root h
+             | Looped -> stop "The World is made by a loop; edit the text." in
+           apply st (F.Remove_graph { name = root home })
        | _ -> ());
       (match Document.Int_map.find_opt wid before.networks, Document.Int_map.find_opt wid after.networks with
        | Some bn, Some an ->

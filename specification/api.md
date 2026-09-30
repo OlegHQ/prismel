@@ -905,7 +905,9 @@ optional `(layout ...)` by path, `(settings ...)` and `(view ...)` forms
 geometry object per `sop` graph and is one undo entry; there is no older
 format. Only a workspace document saves (open one with `?workspace` on
 `Editor3`/`Editor2`; `Editor3.edit` applies a `Flow_sop.Flow_edit.op` as one
-history entry named by the op); the crash report writes `document.txt` (a text
+history entry named by the op). Scene and World edits made through the list, the inspector, the handles or the
+World keys are written back to the text in the same frame (`Editor_document.Scene_sync`), so Save round-trips them;
+`create ?await` makes each frame block on the cook it submits (a fixed-step run, a test); the crash report writes `document.txt` (a text
 of any document) and `document.plisp` for a workspace. Empty networks have no
 display node and clear their preview. A preset that fails to parse, check or
 lower leaves the installed state unchanged. The unstable

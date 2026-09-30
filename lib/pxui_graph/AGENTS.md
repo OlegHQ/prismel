@@ -93,3 +93,14 @@ text path. Marquee is the canvas's own drag (`Marquee` in the drag state, one sc
 `Frames_set` of a scope's whole list, their boxes are built after the tiles because a zone's tile covers its body,
 and their resize is a `Sizing` drag applied on release. Keep new gestures as tests in `test_pxui_graph.ml`
 (`scope_gestures`), which runs in a 3,000 x 2,000 frame so the zoom stays 1 and every field is built.
+
+## Gap A additions
+
+`Scope.bindings` now lists, per guide context (`Canvas` empty canvas, `Node` one node, `Multi` several), only the keys
+that act there: walking and framing on the canvas; editing needs a selection; `Duplicate` (Command/Ctrl-D) and
+`Delete` take several nodes, `Rename`, `Display` (`v`, `Display_set`) and `Fold_into` one.  A frame is dragged by its
+title (`Carrying`: the nodes of the scope whose centres lie inside it travel with it, one `Moved` and one
+`Frames_set`); `f` (`Frame_selection`) pans and zooms to the selection.  A zone draws its own footer under its body
+(the layout reserves `foot_height`), and a loop over `sop/point_list` or `sop/piece_list` says `by index` or `by <key>`
+in its header.  The macro lens has a Template button (one step past the expansions) and every footer of a node
+inside a geometry loop is forced for the probed element once the zone cooked.

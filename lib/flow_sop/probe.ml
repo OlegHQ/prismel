@@ -106,6 +106,16 @@ let chains (s : P.scope) =
 
 let rec drop_last = function [] | [ _ ] -> [] | x :: r -> x :: drop_last r
 
+(* the template record of [path] forced for element [k] of the loop over geometry at [zone] *)
+let at_element t path zone k =
+  let raw = List.find_map (fun (it, v) -> if List.for_all (( = ) 0) it then Some v else None)
+      (Option.value ~default:[] (Hashtbl.find_opt t.raw path)) in
+  match raw, t.element zone k with
+  | Some raw, Some elems when E.is_live raw ->
+      (match E.force ~elems raw ~live:{ E.t = Option.value ~default:0. t.time } with
+       | Ok v -> Some (summarize t v) | Error _ -> None)
+  | _ -> None
+
 (* the record with exactly this tuple; inside a loop over geometry the body is one template
    record (its iteration is 0), which reads the element: with the element's position known (the
    zone cooked) the value is forced for it, else it reads [?] *)
@@ -130,7 +140,9 @@ let at t path ~probes =
              | Error _ -> Array.find_map (fun (it, s) -> if template it then Some s else None) rs)
         | _ -> Array.find_map (fun (it, s) -> if template it then Some s else None) rs
 
-(* the records whose tuple is [outer] followed by one more index, in order *)
+(* the records whose tuple is [outer] followed by one more index, in order; in a loop over
+   geometry the body has one template record, which is forced for each element once the zone
+   cooked *)
 let across t path ~outer =
   match Hashtbl.find_opt t.across (path, outer) with
   | Some a -> a
@@ -140,6 +152,19 @@ let across t path ~outer =
         && List.for_all2 ( = ) outer (List.filteri (fun i _ -> i < n) it) in
       let a = Array.of_seq (Seq.filter_map (fun (it, s) -> if matches it then Some s else None)
         (Array.to_seq (records t path))) in
+      let a =
+        if Array.length a > 1 || outer <> [] then a else
+        let zones = List.filter (fun i -> t.dynamic (List.filteri (fun j _ -> j < i) path) <> None)
+          (List.init (max 0 (List.length path - 1)) succ) in
+        match zones with
+        | [] -> a
+        | _ ->
+            let zone = List.filteri (fun j _ -> j < List.fold_left max 0 zones) path in
+            (match t.dynamic zone with
+             | Some count when count > 1 ->
+                 let forced = Array.init count (fun k -> at_element t path zone k) in
+                 if Array.for_all Option.is_some forced then Array.map Option.get forced else a
+             | _ -> a) in
       Hashtbl.replace t.across (path, outer) a; a
 
 let series t path ~probes = if probes = [] then [||] else across t path ~outer:(drop_last probes)

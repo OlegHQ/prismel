@@ -184,7 +184,11 @@ let geometry_zone () =
   let element path k = if path = zone then Some [ key, Flow.Eval.Vec3 (float k, 0., 0.) ] else None in
   let r = Probe.make ~dynamic ~element eval in
   check ((footer r q ~probes:[ 3 ]).value = "[4 0 0]" && (footer r q ~probes:[ 41 ]).value = "[42 0 0]")
-    "an element-dependent value is not forced for the probed element"
+    "an element-dependent value is not forced for the probed element";
+  (* and the inspector's list of iterations has every element's value *)
+  let every = Probe.iterations r q ~probes:[ 3 ] in
+  check (Array.length every = 100 && every.(41) = "[42 0 0]" && every.(0) = "[1 0 0]")
+    "the per-iteration list of a loop over geometry is not forced for every element"
 
 (* a footer counts a node that is not upstream of the display too: the cook is asked for it, and a
    failure there never fails the display (Async_cook.submit_some) *)

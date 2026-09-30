@@ -243,6 +243,103 @@ let run_unbound_panels () =
     ("retyping a looped panel edits its template: " ^ Option.value ~default:"-" (E3.undo_label !e));
   E3.close !e
 
+(* Value nodes are bindings: the add menu offers a number, the time, a vector and every operator, and
+   each becomes one [Add_node] with the expression written *)
+let run_values () =
+  let started () =
+    let e = ref (editor "(workspace w (graph g :context sop (sop/box)))") and count = ref 0 in
+    let step ?(mouse = (450., 300.)) events = incr count; e := E3.update !e (frame mouse events !count) in
+    step []; step [];
+    let gx, gy, _, _ = (E3.panes !e (frame (0., 0.) [] 0)).graph in
+    let p = float (gx + 40), float (gy + 40) in
+    step ~mouse:p [ Event.MouseMoved p ];
+    step ~mouse:p [ Event.MousePressed (Input.LeftButton, p) ];
+    step ~mouse:p [ Event.MouseReleased (Input.LeftButton, p) ];
+    step ~mouse:p [ Event.KeyPressed Input.Home ];
+    step ~mouse:p [ Event.KeyPressed (Input.KeyChar 'i') ];
+    step ~mouse:p [];
+    e, (fun events -> step ~mouse:p events) in
+  let key k = Event.KeyPressed k and ch c = Event.KeyPressed (Input.KeyChar c) in
+  let add text =
+    let e, step = started () in
+    check (E3.level !e = Some "g") "the box graph is open";
+    step [ key Input.Space; ch 'a' ]; step [ Event.TextInput text ]; step [ key Input.Enter ]; step [];
+    !e in
+  let e = add "number" in
+  check (E3.undo_label e = Some "Add node" && has (source e) "value 1.0") ("a number binding: " ^ source e);
+  E3.close e;
+  let e = add "time" in
+  check (has (source e) "time t") ("a time binding: " ^ source e);
+  E3.close e;
+  let e = add "sin" in
+  check (has (source e) "(sin 0.5)") ("an operator binding with typed defaults: " ^ source e);
+  E3.close e
+
+(* Command-D duplicates the selected nodes (fresh names, one history entry) and selects the copies; v
+   views a node in the viewport (a layout entry, one history entry) and again returns to the result *)
+let run_duplicate_and_view () =
+  let e = ref (editor "(workspace w (graph g :context sop (let* [a (sop/box) b (sop/transform a :translate [1 0 0])] b)))") and count = ref 0 in
+  let step ?(mouse = (450., 300.)) ?(keys = []) events =
+    incr count; e := E3.update !e (Test_editor_input.frame ~keys mouse events !count) in
+  step []; step [];
+  let gx, gy, _, _ = (E3.panes !e (frame (0., 0.) [] 0)).graph in
+  let p = float (gx + 40), float (gy + 40) in
+  step ~mouse:p [ Event.MouseMoved p ];
+  step ~mouse:p [ Event.MousePressed (Input.LeftButton, p) ];
+  step ~mouse:p [ Event.MouseReleased (Input.LeftButton, p) ];
+  step ~mouse:p [ Event.KeyPressed Input.Home ];
+  step ~mouse:p [ Event.KeyPressed (Input.KeyChar 'i') ];
+  step ~mouse:p [];
+  let selected () = dump_line !e "scope selected" in
+  step ~mouse:p [ Event.KeyPressed Input.ArrowRight ];
+  check (selected () <> "-") "a walk key selected a node";
+  let node = selected () in
+  step ~mouse:p [ Event.KeyPressed (Input.KeyChar 'v') ];
+  check (E3.undo_label !e = Some "View node"
+         && Editor_document.Layout_by_path.Path_map.mem [ "g" ] (E3.workspace !e).Doc.layout.display)
+    ("v did not view the node: " ^ Option.value ~default:"-" (E3.undo_label !e));
+  check (has (fst (Flow.Lisp.print [ Editor_document.Layout_by_path.to_syntax (E3.workspace !e).Doc.layout ])) "(display")
+    "the viewed node is saved in the layout";
+  step ~mouse:p [ Event.KeyPressed (Input.KeyChar 'v') ];
+  check (Editor_document.Layout_by_path.Path_map.is_empty (E3.workspace !e).Doc.layout.display) "v again returns to the result";
+  step ~mouse:p ~keys:[ Input.Meta ] [ Event.KeyPressed (Input.KeyChar 'd') ];
+  check (E3.undo_label !e = Some "Duplicate" && has (source !e) "_2") ("Command-D made no copy: " ^ source !e);
+  check (selected () <> node && selected () <> "-") "the copy is the selection";
+  E3.close !e
+
+(* the inspector moves a list item up (Move_item), as the row arrow does *)
+let run_movers () =
+  let text = "(workspace w (graph g :context sop (let* [widths (list 1 2 3) r (for [i (range 2)] (sop/box :size [(nth widths i) 1 1]))] (sop/merge r))))" in
+  let attempt y =
+    let e = ref (editor text) and count = ref 0 in
+    let step ?(mouse = (450., 300.)) events = incr count; e := E3.update !e (frame mouse events !count) in
+    step []; step [];
+    let gx, gy, _, _ = (E3.panes !e (frame (0., 0.) [] 0)).graph in
+    let p = float (gx + 40), float (gy + 40) in
+    step ~mouse:p [ Event.MouseMoved p ];
+    step ~mouse:p [ Event.MousePressed (Input.LeftButton, p) ];
+    step ~mouse:p [ Event.MouseReleased (Input.LeftButton, p) ];
+    step ~mouse:p [ Event.KeyPressed Input.Home ];
+    step ~mouse:p [ Event.KeyPressed (Input.KeyChar 'i') ];
+    step ~mouse:p [];
+    let bx, by, bw, bh = Option.get (E3.node_box !e [ "g"; "widths" ]) in
+    let c = float (bx + bw / 2), float (by + 8) in
+    step ~mouse:c [ Event.MouseMoved c ];
+    step ~mouse:c [ Event.MousePressed (Input.LeftButton, c) ];
+    step ~mouse:c [ Event.MouseReleased (Input.LeftButton, c) ];
+    step ~mouse:c [];
+    ignore bh;
+    let ix, _, iw, _ = (E3.panes !e (frame (0., 0.) [] 0)).inspector in
+    let q = float (ix + iw / 2), y in
+    step ~mouse:q [ Event.MouseMoved q ];
+    step ~mouse:q [ Event.MousePressed (Input.LeftButton, q) ];
+    step ~mouse:q [ Event.MouseReleased (Input.LeftButton, q) ];
+    step ~mouse:q [];
+    let label = E3.undo_label !e and moved = has (source !e) "(list 1 3 2" || has (source !e) "(list 2 1 3" in
+    E3.close !e; label, moved in
+  let label, moved = attempt 210. in
+  check (label = Some "Move item" && moved) "the inspector's Move item button did not move a list item up"
+
 let run_frame_key () =
   (* the graph pane's keys reach the document: Shift-G frames the walked-to node (layout data, one entry);
      the rosette is entered as in test_text_pane's W9 scenario *)
@@ -415,7 +512,7 @@ let run_views () =
       let viewports = List.length (List.filter (function Scene.Private.Scene3_layer _ -> true | _ -> false) staged.layers) in
       check (viewports = 4) (Printf.sprintf "four viewports draw four 3D layers, got %d" viewports)
 
-let run () = run_cameras (); run_lowering (); run_ops (); run_panel_keys (); run_unbound_panels (); run_frame_key (); run_editor (); run_restore (); run_views ()
+let run () = run_cameras (); run_lowering (); run_ops (); run_panel_keys (); run_unbound_panels (); run_values (); run_duplicate_and_view (); run_movers (); run_frame_key (); run_editor (); run_restore (); run_views ()
 
 (* Native: a real window draws Variations' four viewports, each its own scene instance (the
    frame's 3D layers were once cached per frame, so only the first drew). *)

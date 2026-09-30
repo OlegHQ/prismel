@@ -82,6 +82,9 @@ type op =
   | Duplicate of { nodes : path list }
       (** the bindings of one scope, copied with fresh names (the copies read each other where the
           originals did, and notes stay with the originals) *)
+  | Remove_graph of { name : string }
+      (** the whole graph goes (the World graph of a deleted World); the checker refuses it while a
+          [(ref ...)] still reads it *)
 (** ponytail: one variant and one [apply]; no command objects.  The four panel
     operations address a binding of an editor graph by its path, as every other
     op does; panels made by a loop have no binding, so they are edited on the loop. *)

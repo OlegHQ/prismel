@@ -12,15 +12,15 @@ Status: `todo` · `wip` · `done` (gate met) · `partial` (what is missing is na
 | W0 fixes & catalog prerequisites | done | | Merge group padding, set_color group/vec3 colour (its v3 preset migration was deleted with v3 in W3), `Manifest.version` in text view and the `:rotate` note landed; the `Rest` slot landed with W4 part A (notes below). |
 | W1 language core (`flow`) | done | | `Flow.Syntax`, `Lisp`, `Ty`, `Macro`, `Workspace` (checker, typed IR, liveness, invariance) and `Eval` (values, loops, functions, records, HOFs, `ref`, the geometry plan, `static` / residual split, `?record`); the 12 fixtures check, print, round-trip and run; the check.cjs suite is ported (119 of 120, see the W1 part C notes). |
 | W2 lowering & cooking | done | | `Flow_sop.Lower.workspace`, `Pdk.Mesh_merge ?source_attribute`, session default 512, `test_workspace_cook`, `bench_workspace_lower`. Live parameters are only recorded (`Lower.pending`); drives are W2b. |
-| W2b live `t` | partial | | `Drive.Live`, `Lower` live drives, `flow.curve` text-encoded points, volatile session slots, `Async_cook.await`, `Cook ?await`, status text, tests and bench (notes below). Gaps: UI text (W4/W5), `Frame` cannot tell a fixed clock. The editor is fed by a workspace since W3. Wave's per-frame cost is fixed (W13: compiled residuals, 7.0 -> 1.8 ms p50). |
-| W3 document v4 + history | done | | `Flow_edit`, `Workspace_doc`, `Layout_by_path`, s-expression presets, the editor opens a workspace and recooks live `t` (notes below). No older presets. Gaps: only workspace documents save. |
-| W4 graph pane zones | done | | Part A (`Flow_sop.Projection`, `Rest`) and part B (`Pxui_graph.Scope`, zone tokens, selectors, `Core` wiring, layout by path, probes); see the W4 part B notes and `flow-migration.md`. W13 closed the gesture gaps: rename, input default, list item move, frames and marquee selection are pane gestures with request-mapping tests. Gaps: the flat pane remains for non-workspace documents, only `sop` graphs open. |
-| W5 probes & footers | done | | `Flow_sop.Probe` (records, footers, counts, inspector rows), `Pxui_graph.Scope.with_records`, cook geometry counts piggybacked on the display cook, the workspace inspector, the `t N live · M cached` status, auto-select of an added node (notes below). Gaps: no zone footer while expanded, the geometry of a node that is not upstream of the display shows only its type. |
-| W6 viewport provenance | done | | global `__flow_src` tags that survive nested merges, `Pick` (CPU ray over `Pdk.Surface_index`, per-corner tint), `Core.pick`, the highlight follows the selection and probes; click in Viewport3 selects the node and probes its iteration (notes below). W13: geometry drawn as instances is picked per instance. Gaps: `Viewport2` never picks, a collapsed zone stays collapsed. |
-| W7 editable text | done | | `Ui.text_area`, the text pane's Selection, Graph and Document tabs (`Prismel_editor.Text_pane`), atomic Check & apply (`Doc.text_edit`, `Core.text_edit`/`binding_edit`, one "Edit text" entry), per-binding apply, error marks at their line; the old read-only text pane and the flat network text view are deleted (notes below). W13: a binding apply's checker error is marked on the binding text's line and typing clears error marks. Gaps: no Tab key, wrapping or Cmd-Enter apply; the Graph tab is read-only as the plan specifies (only Selection and Document are editable). |
-| W8 loops over geometry | done | | `point_list` / `piece_list`, the zone node (`Eval` template, `Procedural.Zone` + `Node.Private.expand` + `Session`), lowering by `Lower.instantiate`, zone provenance and count, `FLOW_CASE=garden`, `test_workspace_zone`, bench (notes below). Gaps: values inside the loop read the template record, no `t` in the body, no "by index" title, sequential. |
-| W9 macros UI, notes, bypass | done | | `Projection` lens and `layout ?lens`, the panel and `B` flag in `Scope`, `Macro_requested` + `Flow_edit.macro_draft` / `macro_op` + `Pxui_shell.Prompt.macro`, the inspector note field, tests through the pane and the editor, `FLOW_CASE=rosette` (notes below). Gaps: no Template button, no Enter to create, no inspector bypass toggle. |
-| W10 contexts & composable shell | done | | Part A (contexts): `scene`, `world`, `settings` graphs check, lower into the document and open in the pane. Part B (shell): `Editor_core.Panels` and `Pxui_shell.Layout` (the tree and its geometry), the editor graph lowered into `Document.shell`, focus and commands keyed by panel, split/close/retype/resize as `Flow_edit` ops, Restore layout, one scene instance per viewport override, `ui/graph` names its graph (notes below). W13 added `Space o` keys for split, close and retype. Gaps: viewports share one camera; only bound panels are editable. |
+| W2b live `t` | partial | | `Drive.Live`, `Lower` live drives, `flow.curve` text-encoded points, volatile session slots, `Async_cook.await`, `Cook ?await`, status text, tests and bench (notes below). A zone whose body reads `t` is live too (Gap B: the zone declares the time, its elements' copies share their template's volatile slot). The editor is fed by a workspace since W3; `Editor3/2.create ?await` is the explicit knob for a fixed clock (`Frame` still does not say so). Wave's per-frame cost is fixed (W13: compiled residuals, 7.0 -> 1.8 ms p50). |
+| W3 document v4 + history | done | | `Flow_edit`, `Workspace_doc`, `Layout_by_path`, s-expression presets, the editor opens a workspace and recooks live `t` (notes below). No older presets. Every document is a workspace and saves (Gap A). |
+| W4 graph pane zones | done | | Part A (`Flow_sop.Projection`, `Rest`) and part B (`Pxui_graph.Scope`, zone tokens, selectors, `Core` wiring, layout by path, probes); see the W4 part B notes and `flow-migration.md`. W13 closed the gesture gaps: rename, input default, list item move, frames and marquee selection are pane gestures with request-mapping tests. The flat pane is gone (Gap A); the scene, World and settings graphs open in it too. |
+| W5 probes & footers | done | | `Flow_sop.Probe` (records, footers, counts, inspector rows), `Pxui_graph.Scope.with_records`, cook geometry counts piggybacked on the display cook, the workspace inspector, the `t N live · M cached` status, auto-select of an added node (notes below). Gap B: an expanded zone has its own footer, and a node that is not upstream of the display is counted too (the cook asks for it as an optional node that may fail). |
+| W6 viewport provenance | done | | global `__flow_src` tags that survive nested merges, `Pick` (CPU ray over `Pdk.Surface_index`, per-corner tint), `Core.pick`, the highlight follows the selection and probes; click in Viewport3 selects the node and probes its iteration (notes below). W13: geometry drawn as instances is picked per instance. Gap B: `Viewport2` picks (a ray straight down onto the drawing), a pick inside a collapsed loop selects the loop, and a viewport over another scene instance picks in its own objects. |
+| W7 editable text | done | | `Ui.text_area`, the text pane's Selection, Graph and Document tabs (`Prismel_editor.Text_pane`), atomic Check & apply (`Doc.text_edit`, `Core.text_edit`/`binding_edit`, one "Edit text" entry), per-binding apply, error marks at their line; the old read-only text pane and the flat network text view are deleted (notes below). W13: a binding apply's checker error is marked on the binding text's line and typing clears error marks. Gap B: `Ui.text_area` keeps Tab (two spaces, Shift-Tab takes them off), wraps long lines and reports Command/Ctrl-Enter (the pane's apply); the Graph tab is editable through `Set_graph`. |
+| W8 loops over geometry | done | | `point_list` / `piece_list`, the zone node (`Eval` template, `Procedural.Zone` + `Node.Private.expand` + `Session`), lowering by `Lower.instantiate`, zone provenance and count, `FLOW_CASE=garden`, `test_workspace_zone`, bench (notes below). Gap B: a body may read `t` (a live zone), a value that reads the element is forced for the probed element (footer, sparkline and the inspector's list), the zone title says `by index` or `by <key>`. Elements are cooked sequentially (plan `ponytail:`). |
+| W9 macros UI, notes, bypass | done | | `Projection` lens and `layout ?lens`, the panel and `B` flag in `Scope`, `Macro_requested` + `Flow_edit.macro_draft` / `macro_op` + `Pxui_shell.Prompt.macro`, the inspector note field, tests through the pane and the editor, `FLOW_CASE=rosette` (notes below). Gap B: the lens has a Template button, Enter in the make-macro dialog creates, the inspector has a Bypass toggle. |
+| W10 contexts & composable shell | done | | Part A (contexts): `scene`, `world`, `settings` graphs check, lower into the document and open in the pane. Part B (shell): `Editor_core.Panels` and `Pxui_shell.Layout` (the tree and its geometry), the editor graph lowered into `Document.shell`, focus and commands keyed by panel, split/close/retype/resize as `Flow_edit` ops, Restore layout, one scene instance per viewport override, `ui/graph` names its graph (notes below). W13 added `Space o` keys for split, close and retype. Gap B: each viewport has its own orbit and the editor graph's panels are editable by keys whether bound, written in place or made by a loop. |
 | W11 `.plisp` sketches | done | | Part A (tool, dune wiring, scaffolding, the twelve `sketches/ws_*`) and part B: Command-S rewrites the source file (comments kept) only while its SHA-256 is the remembered digest, else a preset; the running window reloads a changed file as one history entry "Reload sketch.plisp", a failing file keeps the last good document and shows diagnostics (notes below). W13: a file that differs from the built text reloads on the first poll, and a `(layout ...)` or `(settings ...)` form in the file is honoured on reload. Gaps: polling, not file events; no three-way merge. |
 | W12 migration & removal | done | | `flow_terrain` is a `.plisp` sketch; `[%flow]`, the v3 checker/printer/builder, `?program` and `to_mesh_with_primitives` deleted (about 2,400 lines); docs and benches recorded; the completeness audit is the table below (notes at the end). |
 
@@ -577,7 +577,7 @@ Status: `todo` · `wip` · `done` (gate met) · `partial` (what is missing is na
 
 Every "Build", "Tests" and "Done when" item of W0-W11 was checked against the code (two independent read-only
 passes, then the known gaps of earlier agents). Items done as written are not listed. Anything not fully done is
-here with its reason; "cheap" items were done in W12 and are not listed.
+here with its reason. Gap A and Gap B (below) closed every row that was open; what remains is listed in "Remaining".
 
 | Milestone | Item | Status and reason |
 |---|---|---|
@@ -585,26 +585,45 @@ here with its reason; "cheap" items were done in W12 and are not listed.
 | W1 | `Lisp.print ?mark` | Replaced by the span map (deviation, W1 notes). |
 | W2 | per-fixture lowered node counts | Asserted for Bloom and Sunflower only (`test_workspace_cook.ml`); the other fixtures are cooked, byte-compared at 1 and 3 domains and unique-keyed, not counted. |
 | W2b | E_TIME_COUNT / E_TIME_BRANCH "name the binding" | The `for` and `if`/`cond` messages name the loop or target; list-splice messages name the operator or kind only. |
-| W2b | `Frame` cannot tell a fixed clock | `Cook.create ?await` keys off `PRISMEL_MAX_FRAMES`; an `Sketch.export` host passes `~await:true`. |
-| W2b | `Drive.Live` unit test in `test_network.ml` | Covered through `Lower` in `test_workspace_live.ml`. |
+| W2b | `Frame` cannot tell a fixed clock | `Cook.create ?await` and `Editor3/2.create ?await` are the knob (default: `PRISMEL_MAX_FRAMES` is set); a `Sketch.export` host passes `~await:true`. |
+| W2b | `Drive.Live` unit test in `test_network.ml` | Covered through `Lower` in `test_workspace_live.ml` and `test_workspace_zone.ml` (a live loop body). |
 | W2b/W5 | viewport header shows the live/cached/cook text | It is the status strip (`t N live · M cached · cook X ms`), a deviation. |
-| W2b | per-node cache ring for scrubbing back | Not built (plan §4), volatile single slot. |
-| W3 | only workspace documents save | Closed (Gap A): every document is a workspace; Command-S writes text, layout and settings (`test_workspace_source`, `test_prismel_editor`, `test_editor_document`). `?graph` and `?program` are deleted. |
-| W4 | the flat pane remains | Closed (Gap A): the flat pane, its BVH path and `Network_view` are deleted; `Pxui_graph.Scope` is the only graph pane and `Pxui_graph.Node_menu` the add menu. Scene and World graphs are shown through Scope when the workspace has one; their derived object edits (inspector, handles, reparent, rename, delete, World keys) still act on the derived `Edit_graph` and are not written back to the text (open). |
-| W5 | no zone footer while expanded; geometry of a node not upstream of the display shows only its type | As recorded (W5 notes). |
-| W6 | `Viewport2` never picks; a pick inside a collapsed zone does not expand it | As recorded. Instanced pieces are picked per instance since W13. `to_mesh_with_primitives` was deleted in W12 (unused; the pick's hit names its primitive). |
-| W6 | pick BVH build and re-prepare on the initial domain | About 1.3 us per triangle at the first click (a 1M-triangle mesh hitches about a second); `ponytail:` in `pick.ml`. |
-| W7 | no Tab key, wrapping or Cmd-Enter apply in `Ui.text_area` | By design for the first cut (`ponytail:` in `Ui.text_area`). The Graph tab is read-only: plan W7 makes only Selection and Document editable. |
-| W8 | values inside the loop read the template record, no `t` in the body, no "by index" title | As recorded. Zone elements are cooked sequentially (parallelising them is not required and needs a byte-identical regression first). |
-| W9 | no Template button, no Enter to create, no inspector bypass toggle | As recorded. |
-| W10 | panels made by a loop are not editable | By design (register E1): the status names the loop; edit the loop in the editor graph. |
-| W10 | viewports share one camera; only bound panels are editable | As recorded. |
+| W2b | per-node cache ring for scrubbing back | Not built: plan section 4 lists it as "not building" until scrub-back latency is measured. |
+| W3, W4, W12 | flat pane, flat document, only workspace documents save, `Flow.Expr`/`Sexp`, JSON remnants | Closed in Gap A. |
+| W4 | gestures | Closed in W13 and Gap A/B (duplicate, view node, frame drag, frame selection, list selects in the pane). |
+| W5 | zone footer while expanded; counts off the display | Closed in Gap B (`test_probe.ml` `off_display`, the pane draws the footer; projection layout reserves the strip). |
+| W6 | `Viewport2` picking, collapsed zone, other scene instances | Closed in Gap B (`test_viewport_pick.ml` `run_2d`, `test_workspace_shell.ml` `run_cameras`). |
+| W6 | pick BVH build and re-prepare on the initial domain | About 1.3 us per triangle at the first click (a 1M-triangle mesh hitches about a second); `ponytail:` in `pick.ml`. Not a correctness gap: measured and recorded (plan section 6.6 asks for measurements, not for a worker). |
+| W7 | Tab, wrapping, Cmd-Enter; Graph tab | Closed in Gap B (`test_ui.ml`, `test_text_pane.ml`). |
+| W8 | `t` in the body, "by index", element-dependent values | Closed in Gap B (`test_workspace_zone.ml`, `test_projection.ml`, `test_probe.ml`). Zone elements are cooked sequentially (plan W8 `ponytail:`: parallelise only after a byte-identical test and a bench show a win). |
+| W9 | Template button, Enter to create, inspector bypass toggle | Closed in Gap B (`test_pxui_graph.ml`, `test_text_pane.ml`). |
+| W10 | loop-made and unbound panels; one camera | Closed in Gap B (`test_workspace_shell.ml` `run_unbound_panels`, `run_cameras`). A loop's panels are copies of one template, so retyping edits the template; splitting or closing one copy says why it cannot (register E1). |
+| W10 | scene and World edits are not written back | Closed in Gap B (`test_scene_sync.ml`, `test_scene_tree.ml`). |
 | W10 | World in the raster view of Bloom looked black | Investigated with a native screenshot: the sky and horizon draw (the viewport shows the Nishita sky above the horizon and the 0.3 x horizon fade below it); the camera looks near the horizon, so the lower half is dark by construction (`environment.md`). Not a defect. |
 | W11 | `check` diagnostics one fixture per class | `check.t` has 9 codes of about 70; the workspace checker's own tests cover the rest. |
-| W11 | no `Flow_sop.Workspace_program`, `with_inputs`, `?config`; assets glob `*.png` and `*.ttf` only | As recorded. |
+| W11 | no `Flow_sop.Workspace_program`, `with_inputs`, `?config`; assets glob `*.png` and `*.ttf` only | As recorded (deviation). |
+| W11 | polling, not file events | The plan specifies polling twice a second. |
 | W12 | single-graph `[%flow]` as sugar | Deleted instead (no caller; see `flow-migration.md`). |
-| W12 | `Drive.Expr` / `Flow.Expr`, flat pane, `Flow.Sexp` | Closed (Gap A): all deleted, together with `Flow.Graph`, `Flow.Value_kind`, `Flow_sop.{Drive,Compound_node,Group,Compile,Exposure}` and `Editor_core.Network_layout`. The manifest reader uses `Flow.Syntax`; `Flow_sop.Network` keeps only geometry plus live drives. |
-| W12 | JSON remnants | Closed (Gap A): `Store.Settings` and `Store.Viewport` are s-expressions (`(settings :sketch "name" :key value)`; default files `*.plisp`); JSON remains only in build glue (`api_stable.json`, generated inventories) and `sketches/code_quadtree` (LSP wire protocol). |
+
+### Remaining (each a plan non-goal, a plan `ponytail:` decision, or a stated limit)
+
+- A host-made object the user deletes (its camera, a light, a World given by `?world`) is not written as "none": a scene
+  graph that declares a kind replaces the host's, and the text has no way to say "no lights" (plan W10: "No new scene
+  features"). A reload seeds it again; every edit of it, and deleting a declared one, is written.
+- An object or World layer made by a loop cannot be edited one copy at a time: the message says to edit the loop
+  (ambiguities V4: a value in a loop is one template; "only iteration k differs" is a proposal, not in the plan's build).
+- The list inspector of a geometry object's lowered nodes is read-only; its rows select the node in the pane, whose
+  inspector edits the arguments (the lowered node is a derived value, the text is the truth).
+- `v` (view a node) applies to the object that is open (the scene shows every object's result); the entry is saved in
+  the layout.
+- Zone elements are cooked one after the other (plan W8 `ponytail:`), the pick's BVH builds on the initial domain
+  (`ponytail:` in `pick.ml`), and `Session` keeps a single volatile slot per node (plan section 4: no per-node ring).
+- Superseded by the workspace language (not gaps): group / ungroup / make unique (flat compounds) are make function
+  (`l`) and make macro (`m`), with fold (`Shift-F`), inline macro (inspector) and undo as their inverses, and a function
+  is shared by design; value nodes are bindings of expressions (the add menu's "Value" category, typed `=(...)` in an
+  inspector row); drive Wire/Expr rows are the argument's expression (`=(* 2 t)`, live when it reads `t`); wireless
+  binds are names; copy, paste and cut of nodes are Duplicate in a graph and the text pane's copy and paste across graphs;
+  scene Reorder by tile y is the order of the merge's arguments.
 
 W12 verification (clean `dune clean` state, Apple M1): `dune build @all`, window-free `dune runtest`,
 `@runtest-native`, `@smoke`, the full `@smoke-all` sweep (all examples and sketches, including the thirteen
@@ -627,8 +646,8 @@ Closed after the W12 audit, in this order (tests are named where they live):
   starts outside zones. Frames (`layout` data, never printed; the study's rule L12): Shift-G frames the
   selection, the corner grip resizes, a double-click on the title retitles, the cross deletes; the pane
   emits `Frames_set` (the scope's whole frame list) and `Core` writes `Layout_by_path.frames` (one entry,
-  "Frame"). The frame's boxes sit over the tiles, because a zone's tile covers its body. A frame does not
-  move with its nodes and cannot be dragged (ponytail). Tests: `test_pxui_graph.ml` (`scope_gestures`: rename,
+  "Frame"). The frame's boxes sit over the tiles, because a zone's tile covers its body. Dragging a frame by
+  its title carries the nodes inside it (Gap B). Tests: `test_pxui_graph.ml` (`scope_gestures`: rename,
   F2, input default, scrub `Set_arg`, `Fold_into`, `Hoist`, `Wrap` both ways, `Make_local_fn`, `Add_item`,
   the row arrow and Alt-Up/Down `Move_item`, `Add_field`, frames, marquee with and without Shift) and
   `test_workspace_shell.ml` (`run_frame_key` through the editor).
@@ -663,20 +682,76 @@ Closed after the W12 audit, in this order (tests are named where they live):
   release, key, shiftkey, text) next to the older drivers; the marquee band, a frame with its title field
   and grip, the rename field and `Space o h` were rendered and read as PNGs.
 
-Still open after W13 (all listed in the audit table with their reasons): documents without a workspace do not
-save; `Viewport2` never picks; W5 zone footer and non-upstream geometry count; W8 loop-body limits; W9 template
-button, Enter to create, inspector bypass toggle; a frame is neither dragged nor moved with its nodes; keyboard
-gestures for frames other than creation; panels made by a loop and unbound panels are not editable by keys;
-viewports share one camera; `Ui.text_area` has no Tab or wrapping.
-
 ### Gap A (2026-09-30, closed)
 
 Cube_cage, shattered_cube, voxel_wall and `examples/sop_gallery` are workspace text (`sketch.plisp`, `gallery.plisp`,
 embedded by `prismel-plisp source`; `Workspace.open_text`, `Workspace.load ?factories`, `Workspace.sop_graphs`).
 Renders were compared to the pre-port screenshots. The flat document path, flat pane, `Flow.Expr`, `Flow.Sexp`,
 value nodes, compounds and expression drives are deleted; the editor tests are written against workspace text
-(`ws_fixture.ml`). Behaviour intentionally dropped with the flat pane: value nodes, group/ungroup/make unique, drive
-Wire/Expr rows, fold/unfold, wireless, VIEW toggle on lowered nodes, Command-D duplicate, scene Reorder by tile y,
-`j`/`k` list walk, adding scene objects and World layers by key. Still open: derived scene/World object edits are not
-written back to text; `Editor_core.Guide_context` still names the dead Value_node/Compound/Wire/Row/Inside_compound
-contexts; the native `test_prismel_editor` batch bound moved from 16 to 24 (22 measured with the Scope pane).
+(`ws_fixture.ml`). Behaviour dropped with the flat pane and what took its place: see "Gap B" (every gesture that has a workspace meaning was restored;
+the rest is listed as superseded in the audit's "Remaining"). The native `test_prismel_editor` batch bound moved from 16 to 24
+(22 measured with the Scope pane).
+
+### Gap B (2026-09-30, closed)
+
+**Scene and World edits are text edits.** Every edit the list, the inspector, the handles and the World keys make
+to the derived scene still mutates its `Edit_graph`; `Editor_document.Scene_sync.reconcile` then turns each difference
+into `Flow_edit` ops on the graph that declares the object and lowers the new text again, in the same frame (`Doc.reconcile`
+in `Core.update`, `Core.edit_node` for map drags, `Core.scene_edit` for a camera following the viewport). `Document.homes`
+says where each object, layer and the World call are written (`Bound_at` a binding, `Inline_in` an argument; an inline
+call is unfolded into a binding first, a loop's is refused); ids are claimed by home, then by (operation, label), so a
+rename keeps the id; a declared object's text is the whole truth (fields it does not name are the defaults). New keywords
+of the object kinds: `:parent "label"` (reparent; keeps the world placement through the translate/rotate/scale it also
+writes) and `:active true` (the render camera). A World preset or a new World layer set writes the world graph whole
+(`Flow_edit.Set_graph`), a deleted World removes it (`Remove_graph`), adding an object or layer by key attaches it to the
+scene's `scene/merge` or the top of the World stack (`Flow_edit.Add_node`, `Delete_nodes` detach). An object the host made
+(its camera and lights, the geometry objects of a workspace without a scene graph, `?world`) gets a scene (World) graph
+written from the derived objects at its first explicit edit; a camera following the viewport stays the host's (`~adopt:false`).
+`Flow_edit` arguments are now "positional ones and `:keyword value` pairs in any order". Geometry-level: the list
+inspector of a lowered node is read-only and its rows select the node in the pane; handles of the node selected in the pane
+write its arguments. A re-lowered network that is field-for-field the previous one is kept physically, so moving a scene
+object never recooks or re-prepares (`test_scene_tree`: "an object transform edit re-cooked SOPs" holds with `~await`).
+Tests: `test_scene_sync.ml` (every kind of edit, the saved text opens as the same document by labels, refusals and
+atomicity, adoption), `test_scene_tree.ml` (the same through real list, inspector and World key events, with undo labels and the
+text reloaded), `test_workspace_edit.ml` (Add_node/Delete_nodes attach and detach, mixed argument order, Set_graph).
+
+**Gestures restored or given a workspace meaning.** Command/Ctrl-D duplicates (`Flow_edit.Duplicate`), `v` views a node
+(`Layout_by_path.display`, `Core.display_node`, a `VIEW` mark), `f` frames the selection, a frame is dragged by its title
+with its nodes, `j`/`k` walk the list, a list row selects its node in the pane, `Space a` offers a "Value" category (number,
+`t`, vector, text, every operator) and adds an object or layer to the right place (a missing scene or World graph is written
+first), the inspector edits an argument as `=(expression)` (the cross removes the keyword; a computed argument reads as its
+expression), renames, toggles Bypass, edits a graph input's default and moves list items. Fold and unfold are `Shift-F`,
+`Shift-U` and the right-click menu (tested). `Editor_core.Guide_context` lost `Value_node`, `Compound`, `Wire`, `Row` and
+`Inside_compound`; the pane's keys are listed per context (`test_editor_commands.ml`). Panels of the editor graph are edited
+by `Space o` keys and the header menu whether bound, written in place (`Document.origin = Inline`, the call holding them is
+unfolded) or made by a loop (a retype edits the template; split and close say why not).
+
+**Viewport and text.** Each viewport has its own orbit (`Environment.follow_focus`, `Editor3.viewport_camera`); a camera
+following the viewport is written by the focused viewport only and the others keep theirs. A click picks in the focused
+viewport's scene instance and, when that geometry belongs to another graph, shows it in the pane and selects the node;
+`Viewport2.pick_ray` is a ray straight down onto the plane; a pick inside a collapsed loop selects the loop. `Ui.text_area`
+keeps Tab, wraps (`~wrap`) and reports Command/Ctrl-Enter (`text_area_submit`); the Graph tab edits one graph
+(`Set_graph`, "Edit text"). Tests: `test_ui.ml`, `test_text_pane.ml`, `test_viewport_pick.ml`, `test_workspace_shell.ml`.
+
+**Loops and footers.** A zone whose body reads `t` is live: `Zone.node ~live` depends on the time and builds its body
+per cook, the template nodes are volatile (their element copies share a slot); `E_ZONE_LIVE` is gone. A value that reads the
+element is forced for the probed element (`Probe.make ~element`, `Lower.zone_element`): footer, sparkline and the inspector's
+list. A zone has its own footer strip; a loop over `sop/point_list` / `sop/piece_list` says `by index` or `by <key>`; a footer
+counts a node off the display (`Async_cook.submit_some`: optional nodes whose failure never fails the display). The macro
+lens has a Template button and Enter creates in its dialog. Tests: `test_workspace_zone.ml`, `test_probe.ml`,
+`test_projection.ml`, `test_pxui_graph.ml`, `test_procedural.ml`.
+
+**Determinism.** The editor tests no longer wait on the clock: `Editor3/2.create ~await:true` blocks each frame on the cook it
+submits, so after a frame nothing is cooking and the status text is settled (the old "status names the loop" race was the
+worker still cooking and the status reading `Cooking...` or `skipping frames`); wait loops became bounded frame counts or
+checks, and the deadlines that remain are failure bounds (30 to 60 s), never paces. Environments that a test opened and did not
+close leaked a worker domain each: the process ran out of domains (`failed to allocate domain`), so the new tests close theirs.
+Two timing assertions were fixed (`test_scene.ml` compares the best of eight runs; the async-cook test lengthens its slow node).
+`dune build @runtest --force` under eight busy loops: three runs, no failure (before the fix: one failure in the first run,
+the path tracer's median-of-8 timing ratio).
+
+**Native check** (`sketches/flow_workspace`, PNGs read): the garden graph with `by index` in the zone header, the zone's own
+footer strip, `dot`'s footer `↑ same each time`, the inspector with note, name, Bypass, the driven `Count` row reading `=count`
+with its cross; `bed` selected and `v` pressed: the viewport shows only the bed, the card carries `VIEW`, the guide strip names
+`v · view in the viewport`; a zone dragged by its header moved with its contents; the highlight of a selected zone tints its
+elements. Zoomed out below 0.4 no footer is drawn, by design.

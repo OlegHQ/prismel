@@ -548,12 +548,12 @@ context (§7.11).
 | `p` | `graph.point` | selection to points, or back to its previous level | M1 |
 | `⇧O` | `graph.open-all` | every node to card | M1 |
 | `⇧P` | `graph.point-all` | every node to a point, or every node back to its previous level | M1 |
-| `v` | `graph.display` | display the selected geometry node | M2 |
+| `v` | `scope.display` | view the selected geometry node in the viewport instead of the graph's result (a `(display ...)` entry of the layout, one history entry; again returns to the result) | Gap A |
 | `m` | `graph.mute` | toggle bypass | M2 |
 | `x`, Delete, Backspace | `graph.delete` | delete selection or selected wire | M2 (Delete/Backspace exist) |
 | `⇧X` | `graph.dissolve` | delete and reconnect the trunk | M2 |
 | `/` | `graph.find` | find a node by name in the current level | M2 |
-| `f` | `graph.frame-tile` | frame the selection, or the display node when nothing is selected | M2 |
+| `f` | `scope.frame-selection` | pan and zoom the pane to the selection (all with none); in the list `f` reveals the selection | Gap A |
 | Home | `graph.frame-all` | frame all (exists) | – |
 | `w` | `graph.show-wireless` | show every wireless wire | M4 |
 | `=` | `row.expression` | expression on the hovered row | M4 |
@@ -571,7 +571,10 @@ context (§7.11).
 | drag on empty canvas, `⇧` adds | – | marquee selection of one scope's nodes | W13 |
 | `Space o` `h` `v` `x` | `panel.split-right/below`, `panel.close` | split (side by side, stacked) or close the focused panel | W13 |
 | `Space o` `g` `l` `t` `i` `u` `m` `w` | `panel.graph/list/lisp/inspector/outline/timeline/viewport` | retype the focused panel | W13 |
-| `⌘C/V/X/D`, `⌘Z`, `⇧⌘Z` | exist | unchanged | – |
+| `⌘D` / Ctrl-D | `scope.duplicate` | copy the selected bindings of one scope with fresh names (the copies read each other), select the copies | Gap A |
+| `j` / `k` (list) | `list.down` / `list.up` | walk the list like the arrows; a row of a geometry object's list selects its node in the pane | Gap A |
+| drag a frame by its title | – | the frame and the nodes whose centres lie inside move together (one `Moved`, one `Frames_set`) | Gap A |
+| `⌘C/V/X`, `⌘Z`, `⇧⌘Z` | exist | unchanged | – |
 
 `Space a` (categorised add menu), `Space f` (frame displayed), `Space /`
 (palette) and every other leader key keep their current meaning.

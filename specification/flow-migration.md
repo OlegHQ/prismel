@@ -1112,8 +1112,8 @@ ones). Unknown-operator errors now suggest (`sop/bx`: "Did you mean box?").
 Kept at W12 and deleted by Gap A (below): the flat `Pxui_graph` pane, `Drive.Expr`/`Flow.Expr`, `Flow.Sexp`, JSON `Store.Settings`/`Store.Viewport`.
 
 Also fixed: the `test_workspace_shell` "status names the loop" race (the editor recooks every frame
-for a live workspace and reported `cook N ms · skipping frames` instead of the notice; `settle` now
-waits that state out too). The remaining audit, per milestone, is the table in
+for a live workspace and reported `cook N ms · skipping frames` instead of the notice; `settle` waited
+that state out, and Gap B removed the wait: the tests use `Editor3/2.create ~await:true`). The remaining audit, per milestone, is the table in
 `specification/workspace/progress.md`.
 
 ### W13 audit gaps (2026-09-30, done)
@@ -1133,3 +1133,16 @@ constructors, `Network_view`, the flat `Pxui_graph` pane (and its BVH path), `Fl
 (about 4000 lines net). `Flow_sop.Network` is geometry plus live drives. `Pxui_graph` is `Scope` plus `Node_menu`.
 `Store.Settings` and `Store.Viewport` are s-expressions; `Preset.loaded.view` is a `Flow.Syntax.t`. Flow manifests no
 longer list value kinds (promoted). Known limits: see the Gap A entry in `specification/workspace/progress.md`.
+
+### Gap B (2026-09-30, done)
+The text is the single truth of the scene and World: `Editor_document.Scene_sync` writes every derived-object edit
+back as `Flow_edit` ops (`Doc.reconcile`), `Document.homes` and `Document.origin = Inline` say where things are
+written, `:parent` and `:active` are keywords of the object kinds, and `Flow_edit` gained `Duplicate`, `Set_graph`,
+`Remove_graph` and mixed positional/keyword arguments. Workspace gestures were restored (duplicate, view node, frame
+drag, frame selection, list walk and selection, the "Value" add menu, expression and reset rows, inspector rename,
+Bypass, input default and list movers, editable in-place and looped panels); `Editor_core.Guide_context` lost its
+five dead contexts; each viewport has its own orbit and picks in its own scene instance; `Ui.text_area` gained Tab,
+wrapping and Command-Enter and the Graph text tab edits; a zone whose body reads `t` is live (`Zone.node ~live`,
+`E_ZONE_LIVE` removed), footers force element-dependent values per element and count nodes off the display
+(`Async_cook.submit_some`). `Editor3/2.create ?await` replaces the clock in tests. Details, tests and what remains:
+`specification/workspace/progress.md`.

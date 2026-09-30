@@ -227,6 +227,10 @@ let zone_order () =
     "a loop over points is ordered by index";
   check (order "(workspace w (graph g :context sop (let* [z (for [p (sop/piece_list (sop/grid) :key \"id\")] (sop/box))] (sop/merge z))))" = Some "by id")
     "a loop over pieces keyed by an attribute is ordered by it";
+  check ((match (scope (workspace_of "(workspace w (graph g :context sop (let* [pts (sop/point_list (sop/grid)) z (for [p pts] (sop/box))] (sop/merge z))))") "g").nodes with
+             | [ _; n; _ ] -> (match n.zone with Some z -> z.order = Some "by index" | None -> false)
+             | _ -> false))
+    "a loop over a bound point list is ordered by index too";
   check (order "(workspace w (graph g :context sop (let* [z (for [i (range 3)] (sop/box))] (sop/merge z))))" = None)
     "a loop over a range has no order to show"
 

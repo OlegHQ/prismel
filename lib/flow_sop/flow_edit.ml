@@ -31,6 +31,7 @@ type op =
   | Set_panel_kind of { node : path; kind : string }
   | Set_graph of { name : string; form : S.t }
   | Duplicate of { nodes : path list }
+  | Remove_graph of { name : string }
 
 exception Fail of Flow.Diagnostic.t
 
@@ -849,6 +850,10 @@ let rewrite src op : (unit -> S.t list) list =
           | _ -> fail "Only a named node can be duplicated.") selected in
         let last = List.fold_left max 0 (List.filter_map (fun (p, _) -> find_pair sc (pat_key p)) selected) in
         reorder (rebuild sc (insert_at sc.ps (last + 1) copies) sc.res)))
+  | Remove_graph { name } -> one (fun () ->
+      if not (List.exists (fun i -> root_name i = Some name) (snd (workspace_parts src))) then
+        fail "No graph or definition %s." name;
+      map_items src (List.filter (fun i -> root_name i <> Some name)))
   | Set_graph { name; form } -> one (fun () ->
       (* the whole [(graph name ...)] form: replaced, or appended when the workspace has none *)
       if root_name form <> Some name then fail "That form is not the graph %s." name;
@@ -890,6 +895,7 @@ let label = function
   | Close_panel _ -> "Close panel" | Set_panel_kind _ -> "Retype panel"
   | Set_graph _ -> "Edit graph"
   | Duplicate _ -> "Duplicate"
+  | Remove_graph _ -> "Remove graph"
 
 let key_text = function
   | Whole -> "" | Pos i -> string_of_int i | Kw k | Field k -> k | Bv (i, j) -> Printf.sprintf "%d.%d" i j

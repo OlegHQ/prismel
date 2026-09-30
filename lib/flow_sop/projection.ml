@@ -381,14 +381,24 @@ and node_of c ~visible (scope_path : path) (pat : S.t option) (e : S.t) : node =
     let inner_visible = List.concat_map (fun (r : rail_row) -> if r.role = Capture then [] else r.names) rail @ visible in
     let body = if k = Let then e else last e in
     (* a loop over the points or pieces of geometry says how its elements are ordered *)
-    let order = List.find_map (fun (r : rail_row) -> match r.role, r.expr with
-      | Var, Some { S.node = S.List ({ S.node = S.Sym ("sop/point_list" | "sop/piece_list"); _ } :: args); _ } ->
-          let rec key = function
-            | { S.node = S.Kw "key"; _ } :: { S.node = S.Str k; _ } :: _ -> Some ("by " ^ k)
-            | _ :: rest -> key rest
-            | [] -> None in
-          Some (Option.value ~default:"by index" (key args))
-      | _ -> None) rail in
+    let order = List.find_map (fun (r : rail_row) ->
+      (* the collection is the call itself, or a name bound to it *)
+      let call = match r.role, r.expr with
+        | Var, Some ({ S.node = S.List ({ S.node = S.Sym ("sop/point_list" | "sop/piece_list"); _ } :: _); _ } as e) -> Some e
+        | Var, Some { S.node = S.Sym n; _ } ->
+            Hashtbl.fold (fun (path : path) (t : W.term) found ->
+              if found = None && path <> [] && List.nth path (List.length path - 1) = n then
+                (match t.form.node with
+                 | S.List ({ S.node = S.Sym ("sop/point_list" | "sop/piece_list"); _ } :: _) -> Some t.form
+                 | _ -> None)
+              else found) c.terms None
+        | _ -> None in
+      Option.map (fun (e : S.t) ->
+        let rec key = function
+          | { S.node = S.Kw "key"; _ } :: { S.node = S.Str k; _ } :: _ -> Some ("by " ^ k)
+          | _ :: rest -> key rest
+          | [] -> None in
+        Option.value ~default:"by index" (key (S.children e))) call) rail in
     { kind = k; rail; yield_label = yield_label k; order;
       scope = scope_of c ~visible:inner_visible ~inputs:[] p body }) kind in
   let macro = match head_sym e with Some h when List.mem_assoc h c.macros -> Some h | _ -> None in

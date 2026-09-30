@@ -148,13 +148,13 @@
       "source_sha256": "5fd2e06a144ffc0da92e08b4697b9e87d34a3e280b275b88733a0ec705c1aada"
     },
     {
-      "api_sha256": "01f77a9c67ef3f8a909a3bc07cd522282818f0dca754afabd1e7a8d8a1efbe62",
+      "api_sha256": "3bb48557cea2a15510c20812758866f164b07da0984963c0fcc15ef839cfe94e",
       "excluded_legacy_symbols": [],
       "library": "flow_sop",
       "module": "Flow_edit",
       "source": "lib/flow_sop/flow_edit.mli",
-      "source_bytes": 8444,
-      "source_sha256": "1e8c76ff79e3cebc75e9580f5550a83e83bcb60a7f9869d10288dbd21059ec82"
+      "source_bytes": 8622,
+      "source_sha256": "1c4d64c0387ff738e16436f32b4830f2dd1cc5eb050ee6a32893d6fdf22b4e97"
     },
     {
       "api_sha256": "13e51ba6fd0803c83783ae21d917160a0fe5e18e8c21e193343df21b33411666",

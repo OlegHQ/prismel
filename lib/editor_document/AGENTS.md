@@ -28,3 +28,19 @@ objects of each viewport over a non-default scene instance): a `ui/*` call is a 
 new panel kind is a `Flow.Workspace` op, a case in `panel_tree` and a `Panels.panel`.  Origins
 come from walking the checked terms beside the values, never from string search.  An evaluation
 or tree error refuses the whole document, like any other graph.
+
+`Scene_sync` makes the text the truth of the derived scene and World.  Every edit of a derived
+object (the inspector, the handles, reparent, rename, delete, hide, the render camera, the World
+keys and map drags, the camera following the viewport) still mutates the document's
+`Edit_graph`; `reconcile before after` then turns each difference into `Flow_edit` ops on the graph
+that declares the object and lowers the new text again (`Doc.reconcile`, called by `Core` after
+every frame's derived edits, by `Core.edit_node` and by the camera follow).  Where an object lives is
+`Document.homes` (`Bound_at` a binding, `Inline_in` an argument of another home, `Looped`); an
+inline call is unfolded into a binding first, a loop's object is refused, and ids are claimed by
+home before (operation, label), so a rename keeps the id.  A declared object's text is the whole
+truth: a field it does not name is the schema's default.  `:parent "label"` and `:active true` are
+keywords of the kinds (not fields of the nodes).  An object only the host made (its camera and
+lights, one geometry object per `sop` graph, a World given by `?world`) has no text until its
+first explicit edit writes the scene (or World) graph from the derived objects (`adopt`);
+`~adopt:false` (a camera following the viewport) leaves such edits to the host.  Keep new derived
+edits on this path: never write a second write-back.

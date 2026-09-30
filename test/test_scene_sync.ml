@@ -189,6 +189,12 @@ let run () =
   let edited = ok (reconcile doc preset) in
   check (contains (source edited) "world/room") "a World preset did not reach the text";
   same_after_reload edited "world preset";
+  (* deleting the World takes its graph *)
+  let worldless = Document.prune (with_scene doc (Edit_graph.remove_nodes [ wid ] (scene doc))) in
+  let edited = ok (reconcile doc worldless) in
+  check (not (contains (source edited) "graph world") && Objects.ids "world" (scene edited) = [])
+    "a deleted World stayed in the text";
+  same_after_reload edited "world delete";
   (* settings graph *)
   let settings = fst (Result.get_ok (Editor_document.Settings.apply doc.settings [ "width", Parameter.Int_value 800 ])) in
   let edited = ok (reconcile doc { doc with settings }) in

@@ -29,8 +29,12 @@
 - The graph pane is `Pxui_graph.Scope` (the only one); list rows use `Selection` (ids plus a primary). The
   add-menu is `Pxui_graph.Node_menu`. Value nodes, compounds (group, ungroup, make unique), wireless binds,
   expression fields and fold/unfold were deleted with the flat pane (Gap A); a drive is written in the text.
-  Limit: scene and World object edits that the inspector, handles, reparent, rename, delete and World keys make act
-  on the derived `Edit_graph` and are not written back to the text; Save writes text, layout and settings.
+  Scene and World edits (inspector, handles, reparent, rename, delete, World keys, the render camera)
+  mutate the derived `Edit_graph` and are written back to the text in the same frame by
+  `Doc.reconcile` (`Editor_document.Scene_sync`, see its AGENTS.md): the workspace text is the single
+  truth and Save round-trips every such edit.  A geometry object's own nodes are the lowering of its graph:
+  their list rows select the node in the pane, whose inspector edits the arguments (`Set_arg`), and its
+  handles write the node's arguments too.
 
 Keep `Doc.apply` as the only graph-intent reducer, the one Command table, and
 history labels; the rework extends them.  The workspace layout is described in
@@ -53,6 +57,27 @@ catalog). Presets save and load only workspace documents (s-expression
 `.plisp`: source, layout, settings, view). Every document is a workspace
 (`?graph` was deleted); sketches open text through `Workspace.load`/`Workspace.open_text`,
 so Command-S writes over their file. Old presets are not read.
+
+## Workspace gestures added in Gap A (details in `specification/workspace/progress.md`)
+
+- Keys (graph pane): Command/Ctrl-D duplicates the selected bindings (`Flow_edit.Duplicate`, copies selected),
+  `v` views the selected geometry node (`Layout_by_path.display`, honoured for the open object by
+  `Core.display_node`; the pane marks it `VIEW`), `f` frames the selection, dragging a frame by its title carries the
+  nodes inside it, `j`/`k` walk the list.  A row of a geometry object's list selects its node in the pane.
+- `Space a` offers every kind of the level plus a "Value" category: a number, `t`, a vector, text and every
+  built-in operator, each one `Add_node` of a binding.  Adding an object or a World layer attaches it to the scene's
+  `scene/merge` or the top of the World stack (`Flow_edit`); a missing scene or World graph is written first.
+- The workspace inspector edits an argument as a number or as `=(expression)` (the pane's expression is the same
+  text; the cross removes the keyword), renames the node, toggles Bypass, edits a graph input's default and moves list
+  items.  The editor graph's panels are editable by `Space o` keys and the header menu even when written in place (the
+  call holding them is unfolded) or made by a loop (a retype edits the loop's template).
+- Text pane: `Ui.text_area` keeps Tab (two spaces), wraps long lines and reports Command/Ctrl-Enter; the Graph tab is
+  editable (`Set_graph`, one "Edit text" entry); Command-Enter applies in every editable tab.
+- Each viewport keeps its own orbit (`Environment.follow_focus`, `viewport_camera`); a camera following the viewport
+  is written by the focused one only.  A click picks in the focused viewport's scene instance, selects a collapsed
+  loop instead of a node inside it, and 2D editors pick the same way (a ray down onto the plane).
+- Tests never wait on the clock for a cook: `Editor3/2.create ~await:true` blocks each frame on the cook it
+  submits; bounded frame counts replace deadlines; deadlines left are failure bounds only.
 
 ## Adapters
 
@@ -89,14 +114,10 @@ The node menu (leader `Space a`) must allow every SOP to be
 created even when its inputs are not yet connected. Categories are non-empty
 paths rendered as nested submenus; typed search remains global and matches the
 full breadcrumb. A visual row limit must window the complete result set, never
-truncate accessible SOPs. Command/Ctrl-C/V/X and
-Command/Ctrl-D copy, paste, cut, and duplicate selected induced subgraphs with
-fresh IDs, retained internal wires and relative positions, and disconnected
-external inputs. Delete and Backspace remove selected nodes or wires.
-Inspection selection and display selection are
-independent: every tile exposes a VIEW button, the displayed tile is visibly
-flagged, and switching it submits that node through the bounded cook worker
-while retaining the prior successful preview.
+truncate accessible SOPs. Command/Ctrl-D duplicates the selected bindings with fresh names (the copies keep
+their wires between each other); copying across graphs is the text pane's copy and paste. Delete and Backspace remove
+selected nodes or wires (an object leaves its scene's merge, a layer its World stack). `v` views the selected geometry
+node in the viewport (a layout entry, separate from the graph's result) and the card carries a VIEW mark.
 
 ## PXUI host behavior
 
