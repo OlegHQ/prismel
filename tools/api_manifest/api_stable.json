@@ -1349,13 +1349,13 @@
       "source_sha256": "78bc1c9ba6d3565640b90728a1c7c20a3f8a0b170d18a8101f94ee6d024d23c1"
     },
     {
-      "api_sha256": "5541e0167aac0b84a204c163fb77bfe54bb9ddd904abf52bac9d19d4e3221612",
+      "api_sha256": "b52cc1412209b0a701f21550e5eaeac120820422fe972d7299944ace0ade697d",
       "excluded_legacy_symbols": [],
       "library": "pxui_shell",
       "module": "Pxui_shell",
       "source": "lib/pxui_shell/pxui_shell.mli",
-      "source_bytes": 10699,
-      "source_sha256": "7643887359370aefaee4c5c90e524668d04051dbbb4560537ab67a00f78ffe4a"
+      "source_bytes": 10718,
+      "source_sha256": "2b121d85652ef5ecd73ff08b47511f56acc84dd8c62a3f8ec8a545dd3a2cf745"
     },
     {
       "api_sha256": "3b75473d5d524a02e7590c03eb6f50245673f6d397ca9be097d6c1ab32b6855a",
