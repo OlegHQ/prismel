@@ -382,6 +382,16 @@ val text_area :
     ranges tinted (a marked selection), and [reveal] a byte offset scrolled into
     view once each time it or the text length changes. The value lives in the caller's model. *)
 
+val text_area_submit :
+  t -> at:float * float -> w:float -> h:float -> ?readonly:bool -> ?wrap:bool ->
+  ?errors:int list -> ?spans:(int * int) list -> ?reveal:int ->
+  string -> string -> string * bool
+(** {!text_area} that also reports Command- or Ctrl-Enter pressed in it this frame (the host's
+    "apply").  Tab inserts two spaces and Shift-Tab takes up to two leading spaces off the line
+    (the editor keeps Tab instead of moving the focus).  With [wrap] a long line continues on
+    the next row, so nothing scrolls sideways; the gutter numbers logical lines and [errors] are
+    logical lines. *)
+
 val value_field : t -> at:float * float -> w:float -> h:float ->
   ?size:int -> ?display:string -> ?fraction:float ->
   ?slide:(float -> string) ->

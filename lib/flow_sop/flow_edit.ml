@@ -30,6 +30,7 @@ type op =
   | Close_panel of { node : path }
   | Set_panel_kind of { node : path; kind : string }
   | Set_graph of { name : string; form : S.t }
+  | Duplicate of { nodes : path list }
 
 exception Fail of Flow.Diagnostic.t
 
@@ -474,6 +475,15 @@ let rec detach name below (e : S.t) : S.t =
        | _ -> e)
   | _ -> e
 
+(* the copies a duplicate makes: each selected binding with a fresh name; the copies read each
+   other where the originals did *)
+let duplicate_plan src nodes =
+  let sp = scope_path_of nodes in
+  let used = root_used src (List.hd sp) in
+  let leaves = dedup (List.map (fun n -> snd (split_node n)) nodes) in
+  if List.mem "@result" leaves then fail "The result cannot be duplicated.";
+  sp, List.map (fun leaf -> leaf, fresh used leaf) leaves
+
 let rewrite src op : (unit -> S.t list) list =
   let one f = [ f ] in
   match op with
@@ -827,6 +837,18 @@ let rewrite src op : (unit -> S.t list) list =
               if p == pp then Some (p, Option.get (sibling pe))
               else if pat_key p = leaf then None else Some (p, e)) sc.ps in
             reorder (rebuild sc ps sc.res)))
+  | Duplicate { nodes } -> one (fun () ->
+      let sp, names = duplicate_plan src nodes in
+      edit_scope src sp (fun s ->
+        let sc = ensure s in
+        let selected = List.filter (fun (p, _) -> List.mem_assoc (pat_key p) names) sc.ps in
+        if List.length selected <> List.length names then fail "A selected node no longer exists.";
+        let rename e = List.fold_left (fun e (old, fresh) -> rename_ref old fresh e) e names in
+        let copies = List.map (fun (p, e) -> match p.S.node with
+          | S.Sym n -> { p with S.node = S.Sym (List.assoc n names); notes = [] }, rename e
+          | _ -> fail "Only a named node can be duplicated.") selected in
+        let last = List.fold_left max 0 (List.filter_map (fun (p, _) -> find_pair sc (pat_key p)) selected) in
+        reorder (rebuild sc (insert_at sc.ps (last + 1) copies) sc.res)))
   | Set_graph { name; form } -> one (fun () ->
       (* the whole [(graph name ...)] form: replaced, or appended when the workspace has none *)
       if root_name form <> Some name then fail "That form is not the graph %s." name;
@@ -867,6 +889,7 @@ let label = function
   | Set_layout_ratio _ -> "Resize panel" | Split_panel _ -> "Split panel"
   | Close_panel _ -> "Close panel" | Set_panel_kind _ -> "Retype panel"
   | Set_graph _ -> "Edit graph"
+  | Duplicate _ -> "Duplicate"
 
 let key_text = function
   | Whole -> "" | Pos i -> string_of_int i | Kw k | Field k -> k | Bv (i, j) -> Printf.sprintf "%d.%d" i j
@@ -947,6 +970,11 @@ let arg_text src node key =
   let found = ref None in
   (try ignore (edit_scope src sp (fun s -> found := arg_get (get_node s leaf) key; s)) with Fail _ -> ());
   !found
+
+let duplicated src nodes =
+  match duplicate_plan src nodes with
+  | exception Fail _ -> []
+  | sp, names -> List.map (fun (_, fresh) -> sp @ [ fresh ]) names
 
 let free_names e = dedup (free e)
 let pat_names = pat_names

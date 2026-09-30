@@ -125,6 +125,10 @@ val op_signature : context -> string -> op_signature option
     ([sin], [value/rand], [scene/object], ...); [None] for kinds and
     definitions. *)
 
+val value_ops : string list
+(** The built-in operators any graph may call ([+], [sin], [value/rand], [range], ...): the value
+    part of the add menu. *)
+
 val group_reader : Check.parameter -> bool
 val group_writer : Check.kind -> Check.parameter -> bool
 (** Which catalog parameters read or write a primitive group (inferred:

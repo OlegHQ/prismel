@@ -1371,5 +1371,7 @@ type op_signature = {
   pos : (string * Ty.t) list; opt : (string * Ty.t) list;
   rest : (string * Ty.t) option; kw : (string * Ty.t) list }
 
+let value_ops = List.filter_map (fun (o : op) -> if o.octx = Value then Some o.oname else None) ops
+
 let op_signature ctx name = Option.map (fun (o : op) ->
   ({ pos = o.pos; opt = o.opt; rest = o.rest; kw = o.kw } : op_signature)) (find_op name ctx)

@@ -632,13 +632,15 @@ let run () =
   if !result <> `Dismiss then fail "press outside did not dismiss the context menu";
   Ui.destroy ui;
   (* Text areas: the text_field edit and IME path over lines. *)
-  let area = ref "" and readonly = ref false and errors = ref [] in
+  let area = ref "" and readonly = ref false and errors = ref [] and wrapped = ref false
+  and submitted = ref false in
   let ui = Ui.create () and time = ref 0. in
   let area_step ?(keys = []) events =
     time := !time +. 0.5;
     ignore (Ui.frame ui { (frame ~scale:1. ~time:!time events) with keys } (fun ui ->
-      area := Ui.text_area ui ~at:(0., 0.) ~w:300. ~h:96. ~readonly:!readonly
-        ~errors:!errors "area" !area)) in
+      let text, submit = Ui.text_area_submit ui ~at:(0., 0.) ~w:300. ~h:96. ~readonly:!readonly
+        ~wrap:!wrapped ~errors:!errors "area" !area in
+      area := text; submitted := submit)) in
   let region () = match Scene.Private.text_regions (Ui.scene ui) with
     | [(_, y, _, _, true, cursor)] -> y, cursor
     | _ -> fail "text area lost its IME region" in
@@ -680,6 +682,52 @@ let run () =
     area_step ~keys:[Input.Meta] [Event.KeyPressed (Input.KeyChar 'c')];
     if Clipboard.get_text () <> Ok "_abX\ncé" then fail "readonly text area cannot copy";
     readonly := false);
+  (* Tab keeps the focus and inserts two spaces, Shift-Tab takes them off, Command-Enter is the
+     host's apply *)
+  area := "ab";
+  area_step [press (150, 12); release (150, 12)];
+  area_step [Event.KeyPressed Input.Tab];
+  expect "Tab" "ab  ";
+  if not (Ui.text_input_focused ui) then fail "Tab moved the focus out of the text area";
+  area_step [Event.KeyPressed Input.Home; Event.KeyPressed Input.Tab];
+  expect "Tab at the start of the line" "  ab  ";
+  area_step ~keys:[Input.Shift] [Event.KeyPressed Input.Tab];
+  expect "Shift-Tab takes two spaces" "ab  ";
+  area_step [Event.TextInput "x"];
+  area_step ~keys:[Input.Shift] [Event.KeyPressed Input.Tab];
+  expect "Shift-Tab on an unindented line" "xab  ";
+  if !submitted then fail "an edit submitted the text area";
+  area_step ~keys:[Input.Meta] [Event.KeyPressed Input.Enter];
+  if not !submitted then fail "Command-Enter did not report an apply";
+  expect "Command-Enter inserts nothing" "xab  ";
+  area_step ~keys:[Input.Ctrl] [Event.KeyPressed Input.Enter];
+  if not !submitted then fail "Control-Enter did not report an apply";
+  readonly := true;
+  area_step [Event.KeyPressed Input.Tab];
+  expect "readonly Tab" "xab  ";
+  readonly := false;
+  (* soft wrapping: one long line is several rows, the caret and Up/Down follow the rows, and
+     nothing scrolls sideways *)
+  area := String.make 100 'a';
+  wrapped := true;
+  area_step [press (150, 60); release (150, 60)];
+  area_step [Event.TextInput "X"];
+  let x_at = String.index !area 'X' in
+  if x_at < 60 || x_at > 99 then fail (Printf.sprintf "a click on the third row landed at column %d" x_at);
+  let y_third, _ = region () in
+  if y_third < 40 then fail (Printf.sprintf "a wrapped caret is on the first row (y %d)" y_third);
+  area_step [Event.KeyPressed Input.ArrowUp; Event.TextInput "Y"];
+  let y_at = String.index !area 'Y' in
+  if y_at >= x_at || x_at - y_at > 60 then
+    fail (Printf.sprintf "Up did not move to the row above (%d then %d)" x_at y_at);
+  area_step [Event.KeyPressed Input.Home; Event.TextInput "H"];
+  let h_at = String.index !area 'H' in
+  if h_at = 0 || h_at > y_at then fail "Home on a wrapped row was not row-scoped";
+  area_step [Event.KeyPressed Input.ArrowUp; Event.KeyPressed Input.ArrowUp; Event.KeyPressed Input.ArrowUp];
+  area_step [Event.TextInput "T"];
+  if String.index !area 'T' > 40 then fail "Up at the first row did not go to the start";
+  wrapped := false;
+  area_step [];
   (* scrolling: the caret line stays inside the 96-point area *)
   area := String.concat "\n" (List.init 40 string_of_int);
   errors := [ 3; 40 ];

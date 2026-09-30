@@ -222,22 +222,26 @@ let update ?live ?(probes = []) ?(lit = Pick.Set.empty) value ~settings ~objects
   (* Unchanged objects keep their prepared value: the worker only cooks
      (a session cache hit) and re-prepares what changed. *)
   let previous = pieces in
-  (* the probed nodes are cooked after the displayed ones, so they are cache
-     hits (or the volatile slots) of the display cook; only nodes upstream of
-     the display are asked for, so a footer never fails the display *)
-  let probed = if not submit then [] else List.filter_map (fun ((object_id, node_id) as key) ->
+  (* the probed nodes are cooked after the displayed ones, so an upstream one is a cache hit (or a
+     volatile slot); one that is not upstream of the display is cooked too, and either may fail
+     without failing the display *)
+  let node_of (object_id, node_id) =
     Option.bind (List.assoc_opt object_id graphs) (fun graph ->
-      Option.map (fun node -> key, node) (Graph.find graph ~node_id)))
-    (List.filteri (fun i _ -> i < 64) probes) in
+      match Graph.find graph ~node_id with
+      | Some node -> Some node
+      | None -> Option.bind (Document.Int_map.find_opt object_id compiled) (fun (_, c) ->
+          Result.to_option (Edit_graph.compiled_node c ~node_id))) in
+  let probed = if not submit then [] else List.filter_map (fun key ->
+    Option.map (fun node -> key, node) (node_of key)) (List.filteri (fun i _ -> i < 64) probes) in
   let summary (key, _) (output : Session.output) =
     let g = output.geometry in
     key, { Flow_sop.Probe.prims = Pdk.Geometry.primitive_count g; data_id = Pdk.Geometry.data_id g;
            groups = List.sort_uniq compare (List.map Pdk.Group.name (Pdk.Geometry.groups g)) } in
-  let prepare context outputs =
+  let prepare context outputs optional =
+    let found = List.filter_map Fun.id (List.map2 (fun target output ->
+      Option.map (summary target) output) probed optional) in
     let rec loop reversed graphs outputs = match graphs, outputs with
-      | [], rest when List.length rest = List.length probed ->
-          let found = List.map2 summary probed rest in
-          Ok (Displayed (List.rev reversed, found))
+      | [], [] -> Ok (Displayed (List.rev reversed, found))
       | (id, graph) :: graphs, (output : Session.output) :: outputs ->
           let projection = Context.cache_projection (Graph.dependencies graph) context in
           let reused = List.find_opt (fun piece -> piece.id = id && piece.graph == graph
@@ -255,8 +259,8 @@ let update ?live ?(probes = []) ?(lit = Pick.Set.empty) value ~settings ~objects
     loop [] graphs outputs in
   let error, framing = if submit then match
       Result.bind (context value timeline) (fun context ->
-        Async_cook.submit_all value.worker ~context
-          ~nodes:(List.map snd graphs @ List.map snd probed) ~prepare:(prepare context)) with
+        Async_cook.submit_some value.worker ~context
+          ~nodes:(List.map snd graphs) ~optional:(List.map snd probed) ~prepare:(prepare context)) with
     | Ok _ -> None, None
     | Error message -> Some message, None
     else error, framing in

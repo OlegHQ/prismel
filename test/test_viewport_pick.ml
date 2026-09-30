@@ -146,7 +146,66 @@ let pick_run () =
   Cook.close cook;
   print_endline "viewport pick tests passed"
 
-let run = pick_run
+(* The 2D editor picks the same way: a click is a ray down onto the drawing, and the node that
+   made the clicked box is selected in the graph pane. *)
+let flat text clicks =
+  let open Prismel in
+  let module E2 = Prismel_editor.Editor2 in
+  let workspace = Ws_fixture.of_text text in
+  (* the cook is awaited, not waited for: a fixed-step run blocks on the job it submits *)
+  Unix.putenv "PRISMEL_MAX_FRAMES" "100";
+  let env = ref (E2.create ~workspace
+      ~prepare:(fun _ output -> Pdk_prismel.Prismel_mesh.to_mesh output.Procedural.Session.geometry
+        |> Result.map_error Pdk.Error.to_string)
+      ~scene2:(fun _ _ -> Scene.empty) () |> Result.get_ok) in
+  let count = ref 0 in
+  let step ?(buttons = []) mouse events =
+    incr count; env := E2.update !env (Test_editor_input.frame ~buttons mouse events !count) in
+  let selected () =
+    let directory = Filename.temp_dir "prismel-pick2" "" in
+    Fun.protect ~finally:(fun () ->
+      Array.iter (fun f -> Sys.remove (Filename.concat directory f)) (Sys.readdir directory);
+      Unix.rmdir directory) (fun () ->
+      E2.crash_dump !env directory;
+      let text = In_channel.with_open_bin (Filename.concat directory "editor.txt") In_channel.input_all in
+      List.find_map (fun line -> if String.starts_with ~prefix:"scope selected: " line
+        then Some (String.sub line 16 (String.length line - 16)) else None)
+        (String.split_on_char '\n' text) |> Option.get) in
+  for _ = 1 to 6 do step (450., 300.) [] done;
+  let viewport = (E2.panes !env (Test_editor_input.frame (0., 0.) [] 0)).view in
+  let at world = let p = Easy_camera2.world_to_screen ~viewport (E2.camera !env) (Vec2.create (fst world) (snd world)) in
+    p.Vec2.x, p.y in
+  let click world =
+    let p = at world in
+    step p [ Event.MouseMoved p ];
+    step ~buttons:[ Input.LeftButton ] p [ Event.MousePressed (Input.LeftButton, p) ];
+    step p [ Event.MouseReleased (Input.LeftButton, p) ]; step p [] in
+  List.iter (fun (world, expected, message) ->
+    click world;
+    if selected () <> expected then failwith (message ^ ": " ^ selected ())) clicks;
+  E2.close !env
+
+let run_2d () =
+  flat {|(workspace flat
+    (graph g :context sop
+      (let* [left (sop/transform (sop/box) :translate [-2 0 0])
+             right (sop/transform (sop/box) :translate [2 0 0])]
+        (sop/merge left right))))|}
+    [ (2., 0.), "g/right", "a click on the right box selected";
+      (-2., 0.), "g/left", "a click on the left box selected";
+      (0., 40.), "-", "a click on nothing kept the selection" ];
+  (* a pick inside a collapsed loop selects the loop, which shows what is inside *)
+  let loop = {|(workspace looped
+    (graph g :context sop
+      (let* [boxes (for [i (range 2)] (sop/transform (sop/box) :translate [(- (* i 4) 2) 0 0]))
+             all (sop/merge boxes)]
+        all)))%s|} in
+  flat (Printf.sprintf (Scanf.format_from_string loop "%s") "")
+    [ (-2., 0.), "g/boxes/@result", "a click inside an open loop selects the body's node" ];
+  flat (Printf.sprintf (Scanf.format_from_string loop "%s") "\n(layout (node [\"g\" \"boxes\"] :collapsed true))")
+    [ (-2., 0.), "g/boxes", "a click inside a collapsed loop did not select the loop" ]
+
+let run () = pick_run (); run_2d ()
 
 (* Command: dune exec test/test_main.exe -- bench_viewport_pick *)
 let bench () =

@@ -4561,6 +4561,17 @@ let test_async_await () =
   check ((Async_cook.stats worker).misses = 1) "await: the session did not cook";
   check (match Async_cook.await worker with _ -> false | exception Invalid_argument _ -> true)
     "await without a request returned";
+  (* optional nodes: cooked after the required ones, a failing one is [None] and fails nothing *)
+  let failing = Sop.custom ~operation:"async_test_fail" ~version:1 [Sop.points [|0., 0., 0.|]]
+      (fun ~context:_ _ -> Error "no geometry") in
+  let other = Sop.points [|0., 0., 0.; 1., 0., 0.; 2., 0., 0.|] in
+  Async_cook.close worker;
+  let worker = Async_cook.create ~max_entries:4 ~max_payload_bytes:4_000_000 |> get_ok in
+  ignore (Async_cook.submit_some worker ~context:(context ()) ~nodes:[node]
+    ~optional:[failing; other]
+    ~prepare:(fun outputs optional -> Ok (List.length outputs, List.map Option.is_some optional)) |> get_ok);
+  check ((Async_cook.await worker).result = Ok (1, [false; true]))
+    "a failing optional node failed the request or hid the others";
   Async_cook.close worker
 
 let run () =

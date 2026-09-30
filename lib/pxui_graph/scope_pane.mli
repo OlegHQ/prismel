@@ -25,6 +25,9 @@ type change =
       (** the titled frames of one scope after a gesture: Shift-G makes one around the selection,
           its corner resizes it, a double-click on its title renames it, its cross deletes it
           (layout data, never printed) *)
+  | Display_set of path
+      (** [v]: show this geometry node in the viewport instead of the graph's result (the node
+          already shown goes back to the result) *)
   | Notice of string
 
 type direction = Left | Down | Up | Right
@@ -37,6 +40,9 @@ type command =
           ([Rename]) or, on a graph input, over its default ([Set_input_default]) *)
   | Item_up | Item_down  (** Alt-Up / Alt-Down on the hovered list row: [Move_item]; each row has an [↑] button *)
   | Make_frame  (** Shift-G *)
+  | Duplicate  (** Command-D: copy the selected nodes with fresh names ({!Flow_sop.Flow_edit.Duplicate}) *)
+  | Display  (** [v]: {!Display_set} for the selected geometry node *)
+  | Frame_selection  (** [f]: pan and zoom to the selected nodes (all of them with none selected) *)
 
 type stats = {
   nodes : int; zones : int; rows : int;  (** of the whole scope *)
@@ -52,7 +58,8 @@ val with_guide : bool -> t -> t
 val with_scope :
   ?at:(path -> (float * float) option) -> ?collapsed:(path -> bool) ->
   ?probe:(path -> int) ->
-  ?frames:(path -> (string * (float * float) * (float * float)) list) -> key:string ->
+  ?frames:(path -> (string * (float * float) * (float * float)) list) -> ?display:path ->
+  key:string ->
   Flow_sop.Projection.scope -> t -> t
 (** Lay a scope out.  A new [key] (the graph's name) frames it and clears the
     selection; the same key keeps pan, zoom and selection. *)

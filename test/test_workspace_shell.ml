@@ -102,8 +102,8 @@ let run_lowering () =
 (* ---- through the editor ---- *)
 
 let frame ?(buttons = []) mouse events count = Test_editor_input.frame ~buttons mouse events count
-let editor text =
-  E3.create ~workspace:(of_text text)
+let editor ?camera text =
+  E3.create ?camera ~workspace:(of_text text)
     ~prepare:(fun _ output -> Pdk_prismel.Prismel_mesh.to_mesh output.Procedural.Session.geometry
       |> Result.map_error Pdk.Error.to_string)
     ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) ()
@@ -304,6 +304,69 @@ let run_restore () =
   step [ key Input.Space; key (Input.KeyChar 'z') ]; step [];
   check (panes_graph !e = 0) "the second Space z returns to the editor graph"
 
+(* one orbit camera per viewport: the drag of the focused viewport moves only it, and focusing
+   another keeps what each one showed *)
+let run_cameras () =
+  let e = ref (editor ~camera:(Easy_camera.with_inertia false (Easy_camera.create ~target:Vec3.zero ~distance:7. ())) (case "variations")) and count = ref 0 in
+  let step ?(buttons = []) ?(delta = (0., 0.)) (x, y) events =
+    incr count; e := E3.update !e (Test_editor_input.frame ~buttons ~delta (x, y) events !count) in
+  for _ = 1 to 8 do step (450., 300.) [] done;
+  let geometry () = Layout.geometry ~hidden:[ Layout.Timeline ] (shell_of (build_ok (E3.workspace !e))).tree
+      (frame (0., 0.) [] 0) in
+  let center key =
+    let leaf = Option.get (Layout.find (geometry ()) (Layout.View key)) in
+    let x, y, w, h = leaf.body in float (x + (w / 2)), float (y + (h / 2)) in
+  let position key = Camera.position (E3.viewport_camera !e key) in
+  let keys = [ "v1.1.0"; "v1.1.1"; "v1.1.2"; "v1.1.3" ] in
+  let click key =
+    let p = center key in
+    step p [ Event.MouseMoved p ];
+    step ~buttons:[ Input.LeftButton ] p [ Event.MousePressed (Input.LeftButton, p) ];
+    step p [ Event.MouseReleased (Input.LeftButton, p) ]; step p [] in
+  (* a press at the point of the click just before would be a double click *)
+  let orbit key delta =
+    let x, y = let x, y = center key in x, y +. 40. in
+    step (x, y) [ Event.MouseMoved (x, y) ];
+    step ~buttons:[ Input.LeftButton ] (x, y) [ Event.MousePressed (Input.LeftButton, (x, y)) ];
+    for k = 1 to 6 do
+      let p = x +. float k *. fst delta, y +. float k *. snd delta in
+      step ~buttons:[ Input.LeftButton ] ~delta p [ Event.MouseMoved p ]
+    done;
+    let last = x +. 6. *. fst delta, y +. 6. *. snd delta in
+    step last [ Event.MouseReleased (Input.LeftButton, last) ]; step last [] in
+  let same a b = Vec3.nearly_equal a b ~eps:1e-9 in
+  click "v1.1.1";
+  let start = List.map (fun k -> k, position k) keys in
+  check (List.for_all (fun (_, p) -> same p (snd (List.hd start))) start) "viewports start from one orbit";
+  orbit "v1.1.1" (20., 0.);
+  check (not (same (position "v1.1.1") (List.assoc "v1.1.1" start))) "a drag did not orbit the focused viewport";
+  List.iter (fun k -> check (same (position k) (List.assoc k start)) (k ^ " moved with another viewport's drag"))
+    [ "v1.1.0"; "v1.1.2"; "v1.1.3" ];
+  let first = position "v1.1.1" in
+  click "v1.1.2";
+  check (same (position "v1.1.1") first) "focusing another viewport moved the one left";
+  orbit "v1.1.2" (-20., 10.);
+  check (not (same (position "v1.1.2") (List.assoc "v1.1.2" start)) && not (same (position "v1.1.2") first))
+    "the second viewport did not orbit on its own";
+  check (same (position "v1.1.1") first && same (position "v1.1.0") (List.assoc "v1.1.0" start))
+    "the second drag disturbed the first viewport";
+  click "v1.1.1";
+  check (same (position "v1.1.1") first) "returning to a viewport lost its orbit";
+  (* a click on the geometry of a viewport over another scene instance selects the node that made
+     it: the pane shows that graph and the node is selected there *)
+  let graph_pane = 100., 300. in
+  step graph_pane [ Event.MouseMoved graph_pane ];
+  step ~buttons:[ Input.LeftButton ] graph_pane [ Event.MousePressed (Input.LeftButton, graph_pane) ];
+  step graph_pane [ Event.MouseReleased (Input.LeftButton, graph_pane) ];
+  let key k = Event.KeyPressed k and ch c = Event.KeyPressed (Input.KeyChar c) in
+  step graph_pane [ key Input.Space; ch 'l' ]; step graph_pane [ key Input.Space; ch 'l' ]; step graph_pane [];
+  check (has (dump_line !e "projection") "graph") ("the pane is not showing a graph: " ^ dump_line !e "projection");
+  let scope_selected () = dump_line !e "scope selected" in
+  click "v1.1.2";
+  check (dump_line !e "pane graph" = "garden" && scope_selected () <> "-")
+    (Printf.sprintf "a click in another instance's viewport selected nothing (pane %s, selected %s)"
+       (dump_line !e "pane graph") (scope_selected ()))
+
 (* the frame draws one 3D layer per viewport, each over its own scene instance *)
 let run_views () =
   let e = ref (editor (case "variations")) in
@@ -322,7 +385,7 @@ let run_views () =
       let viewports = List.length (List.filter (function Scene.Private.Scene3_layer _ -> true | _ -> false) staged.layers) in
       check (viewports = 4) (Printf.sprintf "four viewports draw four 3D layers, got %d" viewports)
 
-let run () = run_lowering (); run_ops (); run_panel_keys (); run_frame_key (); run_editor (); run_restore (); run_views ()
+let run () = run_lowering (); run_ops (); run_panel_keys (); run_frame_key (); run_editor (); run_restore (); run_cameras (); run_views ()
 
 (* Native: a real window draws Variations' four viewports, each its own scene instance (the
    frame's 3D layers were once cached per frame, so only the first drew). *)

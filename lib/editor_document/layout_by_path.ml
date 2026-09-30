@@ -16,11 +16,12 @@ type t = {
   wireless : Port_set.t;
   collapsed : bool Path_map.t;
   frames : frame list Path_map.t;
+  display : path Path_map.t;
 }
 
 let empty = { at = Path_map.empty; pinned = Path_map.empty; rows = Path_map.empty;
   bends = Port_map.empty; wireless = Port_set.empty; collapsed = Path_map.empty;
-  frames = Path_map.empty }
+  frames = Path_map.empty; display = Path_map.empty }
 
 let is_empty t = t = empty
 
@@ -30,7 +31,9 @@ let remap f t =
     | Some k -> Port_map.add (k, p) v acc | None -> acc) m Port_map.empty in
   { at = keys t.at; pinned = keys t.pinned; rows = keys t.rows; bends = port_keys t.bends;
     wireless = Port_set.filter_map (fun (k, p) -> Option.map (fun k -> k, p) (f k)) t.wireless;
-    collapsed = keys t.collapsed; frames = keys t.frames }
+    collapsed = keys t.collapsed; frames = keys t.frames;
+    display = Path_map.fold (fun k v acc -> match f k, f v with
+      | Some k, Some v -> Path_map.add k v acc | _ -> acc) t.display Path_map.empty }
 
 (* ---- s-expression ---- *)
 
@@ -65,7 +68,9 @@ let to_syntax t =
   let frames = List.concat_map (fun (p, fs) -> List.map (fun f ->
     mk (S.List [ sym "frame"; path_form p; str f.title; kw "at"; pair f.at; kw "size"; pair f.size ])) fs)
     (Path_map.bindings t.frames) in
-  mk (S.List (sym "layout" :: node_forms @ bends @ wireless @ frames))
+  let display = List.map (fun (p, v) -> mk (S.List [ sym "display"; path_form p; path_form v ]))
+    (Path_map.bindings t.display) in
+  mk (S.List (sym "layout" :: node_forms @ bends @ wireless @ frames @ display))
 
 let ( let* ) = Result.bind
 let fail fmt = Printf.ksprintf (fun m -> Error ("layout: " ^ m)) fmt
@@ -111,6 +116,9 @@ let of_syntax (form : S.t) = match form.node with
         | S.List [ { S.node = S.Sym "wireless"; _ }; p; port ] ->
             let* p = read_path p in let* port = read_str port in
             Ok { t with wireless = Port_set.add (p, port) t.wireless }
+        | S.List [ { S.node = S.Sym "display"; _ }; p; v ] ->
+            let* p = read_path p in let* v = read_path v in
+            Ok { t with display = Path_map.add p v t.display }
         | S.List [ { S.node = S.Sym "frame"; _ }; p; title; { S.node = S.Kw "at"; _ }; at;
                    { S.node = S.Kw "size"; _ }; size ] ->
             let* p = read_path p in let* title = read_str title in

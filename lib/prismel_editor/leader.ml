@@ -38,14 +38,12 @@ let graph = Pxui_shell.Layout.Graph and view = Pxui_shell.Layout.View ""
 (* One table drives dispatch, which-key, and the command palette. *)
 let keymap = [
   command ~id:"guide.toggle" ~label:"toggle guide"
-    ~guide:Editor_core.Guide_context.[Canvas; Node; Value_node; Compound; Multi; Wire; Row;
-      Hints; Leader; List; Inside_compound]
+    ~guide:Editor_core.Guide_context.[Canvas; Node; Multi; Hints; Leader; List]
     ~trigger:(Chord (Input.KeyChar '/', [Input.Shift])) Guide_toggle;
   command ~id:"guide.toggle" ~label:"toggle guide"
     ~trigger:(Chord (Input.KeyChar '?', [])) Guide_toggle;
   command ~id:"guide.keys" ~label:"all Flow keys"
-    ~guide:Editor_core.Guide_context.[Canvas; Node; Value_node; Compound; Multi; Wire; Row;
-      Hints; List; Inside_compound] ~trigger:(Leader "k") Guide_keys;
+    ~guide:Editor_core.Guide_context.[Canvas; Node; Multi; Hints; List] ~trigger:(Leader "k") Guide_keys;
   command ~id:"preset.save" ~label:"save preset" ~trigger:(Leader "s") Save_preset;
   command ~id:"preset.browse" ~label:"browse presets" ~trigger:(Leader "b") Browse_presets;
   command ~id:"workspace.toggle-timeline" ~label:"toggle timeline" ~trigger:(Leader "t")
@@ -103,9 +101,9 @@ let keymap = [
     ~trigger:(Chord (Input.KeyChar (Char.chr (Char.code '1' + index)), []))
     ~scope:graph (World_preset index)) World.presets
 @ [
-  command ~guide:Editor_core.Guide_context.[Node; Compound] ~id:"scene.enter" ~label:"enter object"
+  command ~guide:Editor_core.Guide_context.[Node; List] ~id:"scene.enter" ~label:"enter object"
     ~trigger:(Chord (Input.KeyChar 'i', [])) Enter;
-  command ~guide:Editor_core.Guide_context.[Canvas; Node; Multi; Inside_compound] ~id:"scene.up" ~label:"up a level"
+  command ~guide:Editor_core.Guide_context.[Canvas; Node; Multi; List] ~id:"scene.up" ~label:"up a level"
     ~trigger:(Chord (Input.KeyChar 'u', [])) Up;
   (* Rare: the graph context menu and the palette, no leader key. *)
   command ~id:"graph.frame-tile" ~label:"frame displayed tile" ~trigger:(Leader "f")

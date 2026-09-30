@@ -10,7 +10,8 @@
         (node ["g" "ring"] :at [120 40] :pinned true :collapsed true :rows {:radius false})
         (bend ["g" "b"] "in0" [12 24] [30 40])
         (wireless ["g" "b"] "in0")
-        (frame ["g"] "Legs" :at [0 0] :size [200 100]))
+        (frame ["g"] "Legs" :at [0 0] :size [200 100])
+        (display ["g"] ["g" "ring" "u"]))
     ]} *)
 
 type path = Flow.Workspace.path
@@ -31,6 +32,8 @@ type t = {
   wireless : Port_set.t;
   collapsed : bool Path_map.t;
   frames : frame list Path_map.t;
+  display : path Path_map.t;
+      (** a graph (its path is its name) to the node the viewport shows instead of its result *)
 }
 
 val empty : t

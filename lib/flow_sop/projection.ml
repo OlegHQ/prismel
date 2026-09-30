@@ -458,7 +458,8 @@ let rec size ~at ~collapsed ~lens (it : item) : float * float * bool * layout op
         let (l : layout) = layout ~at ~collapsed ~lens z.scope in
         let body = Float.max (Float.max (rail *. row_height +. 8.) l.h) (row_height +. 14.) in
         rail_width +. pad +. Float.max l.w 72. +. pad +. yield_width,
-        head_height +. strip n +. body +. (if z.kind = Fold || z.kind = Scan then 22. else 10.),
+        head_height +. strip n +. body +. (if z.kind = Fold || z.kind = Scan then 22. else 10.)
+        +. (if z.kind = Let then 0. else foot_height),  (* the zone's own footer *)
         false, Some l
   | Item n ->
       let open_lens = match n.lens, lens n.path with

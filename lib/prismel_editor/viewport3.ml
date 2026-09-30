@@ -21,9 +21,11 @@ type show = { cameras : bool; axes : bool; handles : bool }
    (both refreshed each update, the latter physically stable while
    unchanged so hidden-scene caching holds), and the guides. *)
 type extra = { look_through : bool; fly : float option; render_camera : Camera.t;
-               free_view : Camera.t; render : Objects.Camera.render;
+               free_view : Camera.t; viewing : Easy_camera.t;  (* the orbit camera [free_view] shows *)
+               render : Objects.Camera.render;
                following : bool option;  (* the ACTIVE camera follows the viewport *)
                follow_request : bool option;  (* the Viewport panel's toggle, applied on the next update *)
+               written : Camera.t option;  (* the view the viewport last wrote to the camera node *)
                show : show; tool : tool }
 
 let keymap = Leader.keymap3
@@ -119,9 +121,9 @@ let init core camera =
   let core = sync_cameras ~mode:`Reset core camera in
   let render_camera = render_camera_of core camera in
   core, { look_through = false; fly = None; render_camera;
-          free_view = free_view_of ~render_camera ~previous:None camera;
+          free_view = free_view_of ~render_camera ~previous:None camera; viewing = camera;
           render = render_of core; following = Option.map follows (active_node core);
-          follow_request = None;
+          follow_request = None; written = None;
           show = { cameras = true; axes = true; handles = true }; tool = Move }
 
 let begin_frame extra frame = match extra.fly with
@@ -196,6 +198,7 @@ let on_view core ~previous camera extra ~time =
         Core.edit_node core Document.Scene (Node.id node)
           ["follow_viewport", Parameter.Bool_value value] ~label:"Follow viewport"
     | _ -> core in
+  let written = ref extra.written in
   let core, camera = match active_node core with
     | Some node when follows node ->
         let moved = not (same_view (Easy_camera.camera previous)
@@ -206,28 +209,38 @@ let on_view core ~previous camera extra ~time =
                match Edit_graph.apply_parameters (Core.scene core) ~node_id:(Node.id node)
                    (view_parameters camera) with
                | Ok (scene, _) ->
+                   written := Some (Easy_camera.camera camera);
                    Core.scene_edit core (`View time) scene, camera
                | Error _ -> core, camera
-             else core,
+             else if (match !written with Some w -> same_view w node_view | None -> false) then
+               (* the node shows what a viewport last wrote: another viewport took over, and
+                  keeps its own orbit *)
+               core, camera
+             else begin
+               written := Some node_view;
+               core,
                (match Camera.projection node_view with
                 | Perspective { fov_y; _ } -> Easy_camera.with_fov_y fov_y camera
                 | _ -> camera)
                |> Easy_camera.of_view ~eye:(Camera.position node_view)
                     ~target:(Camera.target node_view)
+             end
          | Some _ | None -> core, camera)
     | Some _ | None -> core, camera in
   let render_camera = render_camera_of core camera in
   core, camera, { extra with render_camera;
-    free_view = free_view_of ~render_camera ~previous:(Some extra.free_view) camera;
+    free_view = free_view_of ~render_camera ~previous:(Some extra.free_view) camera; viewing = camera;
     render = render_of core; following = Option.map follows (active_node core);
-    follow_request = None }
+    follow_request = None; written = !written }
 
 (* The view shows the render camera while looking through it and on the
    frame whose framebuffer a PNG request captures; otherwise the viewport
    camera carries the ACTIVE camera's lens, focused on the orbit target
    unless the node follows the viewport. *)
-let view_camera _camera extra ~pending =
-  if extra.look_through || pending then extra.render_camera else extra.free_view
+let view_camera camera extra ~pending =
+  if extra.look_through || pending then extra.render_camera
+  else if camera == extra.viewing then extra.free_view
+  else free_view_of ~render_camera:extra.render_camera ~previous:None camera  (* another viewport's own orbit *)
 
 (* Looking through the camera, the render fills the largest rect of the
    camera's aspect (its render resolution) centred in the pane; otherwise

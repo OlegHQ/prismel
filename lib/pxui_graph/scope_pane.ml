@@ -24,6 +24,7 @@ type change =
   | Macro_requested of path list  (** the host opens the make-macro dialog over these nodes *)
   | Frames_set of { scope : path; frames : (string * (float * float) * (float * float)) list }
       (** the frames of one scope after a gesture (create, resize, retitle, delete) *)
+  | Display_set of path  (** show this geometry node in the viewport (the shown one: its result) *)
   | Notice of string
 
 type direction = Left | Down | Up | Right
@@ -33,6 +34,8 @@ type command =
   | Edit_name  (** rename the selected node, or edit the default of a selected graph input *)
   | Item_up | Item_down  (** move the hovered list item *)
   | Make_frame  (** a titled frame around the selected nodes *)
+  | Duplicate | Display
+  | Frame_selection  (** [f]: pan and zoom to the selected nodes (all, with none selected) *)
 
 type stats = {
   nodes : int; zones : int; rows : int;
@@ -163,6 +166,8 @@ type drag =
   | Wiring of wiring
   | Marquee of { base : Path_set.t }  (* from the canvas press point to the pointer, screen space *)
   | Sizing of { scope : path; index : int; dw : float; dh : float }  (* a frame's corner *)
+  | Carrying of { scope : path; index : int; paths : path list; dx : float; dy : float }
+      (* a frame by its title, with the nodes inside it *)
 
 (* the text field open over the pane: a node's name, a graph input's default, a frame's title *)
 type editing = Name of path | Default of path | Title of path * int
@@ -182,6 +187,7 @@ type t = {
   chains : (path, path list) Hashtbl.t;  (* the iterating zones around each node *)
   counts : (path, int) Hashtbl.t;  (* iterations each zone ran, under the probes *)
   frames : path -> (string * (float * float) * (float * float)) list;
+  display : path option;  (* the node the viewport shows instead of the graph's result *)
   framed : bool;
   layout : P.layout;
   geo : geo;
@@ -199,7 +205,7 @@ let create ?(x = 0) ?(y = 0) ?(width = 640) ?(height = 360) ?(theme = Pxui.defau
   x; y; width; height; theme; visible = true; guide = false; key = ""; scope = None;
   at = (fun _ -> None); collapsed = (fun _ -> false); lens = []; probe = (fun _ -> 0); records = None;
   chains = Hashtbl.create 1; counts = Hashtbl.create 1;
-  frames = (fun _ -> []); framed = true;
+  frames = (fun _ -> []); display = None; framed = true;
   layout = { P.placed = []; w = 0.; h = 0. }; geo = empty_geo; pan_x = 12.; pan_y = 12.; zoom = 1.;
   selected = Path_set.empty; hovered_row = None; drag = None; editing = None; context = None; stats = no_stats }
 
@@ -243,10 +249,10 @@ let lens_of t path = List.assoc_opt path t.lens
 let macro_step = lens_of
 
 let with_scope ?(at = fun _ -> None) ?(collapsed = fun _ -> false) ?(probe = fun _ -> 0)
-    ?(frames = fun _ -> []) ~key scope t =
+    ?(frames = fun _ -> []) ?display ~key scope t =
   let layout = P.layout ~at ~collapsed ~lens:(lens_of t) scope in
   let n, z, r = count_scope scope in
-  let t = { t with scope = Some scope; at; collapsed; probe; frames; layout;
+  let t = { t with scope = Some scope; at; collapsed; probe; frames; display; layout;
     chains = Flow_sop.Probe.chains scope;
     geo = compute scope layout ~shift:no_shift;
     stats = { t.stats with nodes = n; zones = z; rows = r } } in
@@ -302,6 +308,9 @@ let frame_list t scope : fr list = match t.drag with
       List.mapi (fun i ((title, at, (w, h)) : fr) ->
         if i = s.index then title, at, (Float.max 48. (w +. s.dw), Float.max 32. (h +. s.dh))
         else title, at, (w, h)) (t.frames scope)
+  | Some (Carrying c) when c.scope = scope ->
+      List.mapi (fun i ((title, (x, y), size) : fr) ->
+        if i = c.index then title, (x +. c.dx, y +. c.dy), size else title, (x, y), size) (t.frames scope)
   | _ -> t.frames scope
 
 (* a frame around the selected nodes of one scope, in that scope's coordinates *)
@@ -365,7 +374,11 @@ let action_changes t command =
             if count <= 0 then None else
             let index = max 0 (min (count - 1) (t.probe n.path + delta)) in
             if index = t.probe n.path then None else Some (Probe_set { zone = n.path; index })) nodes
-  | Frame_all | Walk _ | Edit_name | Make_frame -> []
+  | Frame_all | Frame_selection | Walk _ | Edit_name | Make_frame -> []
+  | Duplicate -> if paths = [] then [ Notice "Select nodes to duplicate" ] else edit (E.Duplicate { nodes = paths })
+  | Display -> one (fun n ->
+      if n.synthetic || n.ty <> Ty.Geometry then [ Notice "Only a geometry node can be viewed" ]
+      else [ Display_set n.path ])
   | Item_up | Item_down ->
       (match t.hovered_row with
        | Some (path, E.Pos i) when (match node_of t path with
@@ -373,8 +386,23 @@ let action_changes t command =
            edit (E.Move_item { node = path; pos = if command = Item_up then i else i + 1 })
        | _ -> [ Notice "Hover a list item to move it" ])
 
+let frame_selection t =
+  match List.filter_map (Hashtbl.find_opt t.geo.pos) (selected t) with
+  | [] -> frame_all t
+  | boxes ->
+      let x0 = List.fold_left (fun a (x, _, _, _) -> Float.min a x) infinity boxes
+      and y0 = List.fold_left (fun a (_, y, _, _) -> Float.min a y) infinity boxes
+      and x1 = List.fold_left (fun a (x, _, w, _) -> Float.max a (x +. w)) neg_infinity boxes
+      and y1 = List.fold_left (fun a (_, y, _, h) -> Float.max a (y +. h)) neg_infinity boxes in
+      let w = Float.max 1. (x1 -. x0) and h = Float.max 1. (y1 -. y0) in
+      let zoom = Float.max 0.25 (Float.min 1.5
+        (Float.min ((float t.width -. 40.) /. w) ((float t.height -. 40.) /. h))) in
+      { t with zoom; pan_x = (float t.width -. w *. zoom) /. 2. -. x0 *. zoom;
+               pan_y = (float t.height -. h *. zoom) /. 2. -. y0 *. zoom }
+
 let run_command t = function
   | Frame_all -> frame_all t, []
+  | Frame_selection -> frame_selection t, []
   | Edit_name ->
       (match selected t with
        | [ path ] when (match node_of t path with Some n -> not n.synthetic | None -> false) ->
@@ -414,29 +442,37 @@ let run_command t = function
 let bindings =
   let open Editor_core.Keymap in
   let open Editor_core.Guide_context in
-  let make ?(guide = [ Canvas; Node; Multi ]) id label action key modifiers =
+  (* the guide strip lists a key where it does something: on the empty canvas, with one node
+     selected, or with several *)
+  let make ~guide id label action key modifiers =
     Editor_core.Command.make ~id:("scope." ^ id) ~label ~guide ~trigger:(Chord (key, modifiers)) action in
   let ch c = Input.KeyChar c in
-  [ make "delete" "delete" Delete Input.Delete []; make "delete" "delete" Delete Input.Backspace [];
-    make "delete" "delete" Delete (ch 'x') [];
-    make "fold" "fold into use" Fold_into (ch 'f') [ Input.Shift ];
-    make "unfold" "unfold a call" Unfold (ch 'u') [ Input.Shift ];
-    make "hoist" "hoist out" Hoist (ch 'h') [ Input.Shift ];
-    make "bypass" "toggle bypass" Bypass (ch 'b') [];
-    make "macro" "make macro" Make_macro (ch 'm') [];
-    make "repeat" "repeat (loop)" Wrap_repeat (ch 'r') [];
-    make "iterate" "iterate (feed back)" Wrap_iterate (ch 'r') [ Input.Shift ];
-    make "function" "make function" Make_fn (ch 'l') [];
-    make "collapse" "collapse or expand zone" Collapse (ch 'c') [];
-    make "probe-prev" "previous iteration" (Probe_step (-1)) (ch '[') [];
-    make "probe-next" "next iteration" (Probe_step 1) (ch ']') [];
-    make "frame-all" "frame all" Frame_all Input.Home [];
-    make "rename" "rename node / edit input default" Edit_name Input.F2 [];
-    make "frame" "frame the selection (titled box)" Make_frame (ch 'g') [ Input.Shift ];
-    make "item-up" "move list item up" Item_up Input.ArrowUp [ Input.Alt ];
-    make "item-down" "move list item down" Item_down Input.ArrowDown [ Input.Alt ] ]
+  let any = [ Canvas; Node; Multi ] and some = [ Node; Multi ] and one = [ Node ] in
+  [ make ~guide:some "delete" "delete" Delete Input.Delete [];
+    make ~guide:some "delete" "delete" Delete Input.Backspace [];
+    make ~guide:some "delete" "delete" Delete (ch 'x') [];
+    make ~guide:one "fold" "fold into use" Fold_into (ch 'f') [ Input.Shift ];
+    make ~guide:one "unfold" "unfold a call" Unfold (ch 'u') [ Input.Shift ];
+    make ~guide:one "hoist" "hoist out" Hoist (ch 'h') [ Input.Shift ];
+    make ~guide:one "bypass" "toggle bypass" Bypass (ch 'b') [];
+    make ~guide:some "macro" "make macro" Make_macro (ch 'm') [];
+    make ~guide:some "repeat" "repeat (loop)" Wrap_repeat (ch 'r') [];
+    make ~guide:some "iterate" "iterate (feed back)" Wrap_iterate (ch 'r') [ Input.Shift ];
+    make ~guide:some "function" "make function" Make_fn (ch 'l') [];
+    make ~guide:some "collapse" "collapse or expand zone" Collapse (ch 'c') [];
+    make ~guide:one "probe-prev" "previous iteration" (Probe_step (-1)) (ch '[') [];
+    make ~guide:one "probe-next" "next iteration" (Probe_step 1) (ch ']') [];
+    make ~guide:any "frame-all" "frame all" Frame_all Input.Home [];
+    make ~guide:any "frame-selection" "frame the selection" Frame_selection (ch 'f') [];
+    make ~guide:one "rename" "rename node / edit input default" Edit_name Input.F2 [];
+    make ~guide:some "frame" "frame the selection (titled box)" Make_frame (ch 'g') [ Input.Shift ];
+    make ~guide:some "duplicate" "duplicate" Duplicate (ch 'd') [ Input.Meta ];
+    make ~guide:some "duplicate" "duplicate" Duplicate (ch 'd') [ Input.Ctrl ];
+    make ~guide:one "display" "view in the viewport" Display (ch 'v') [];
+    make ~guide:one "item-up" "move list item up" Item_up Input.ArrowUp [ Input.Alt ];
+    make ~guide:one "item-down" "move list item down" Item_down Input.ArrowDown [ Input.Alt ] ]
   @ List.map (fun (direction, arrow, name) ->
-      make ("walk." ^ name) ("walk " ^ name) (Walk direction) arrow [])
+      make ~guide:any ("walk." ^ name) ("walk " ^ name) (Walk direction) arrow [])
     [ Left, Input.ArrowLeft, "left"; Down, Input.ArrowDown, "down";
       Up, Input.ArrowUp, "up"; Right, Input.ArrowRight, "right" ]
 
@@ -530,8 +566,9 @@ let note_colors theme =
   else Color.hex_exn "#f3e6a8", Color.hex_exn "#4a3f10"
 
 (* the marks a node or zone carries: live time, loop-invariant, bypass, macro *)
-let marks (n : P.node) =
-  (if n.live then [ "t" ] else []) @ (if n.invariant then [ "↑" ] else [])
+let marks ?(viewed = false) (n : P.node) =
+  (if viewed then [ "VIEW" ] else [])
+  @ (if n.live then [ "t" ] else []) @ (if n.invariant then [ "↑" ] else [])
   @ (if n.macro <> None then [ "◊" ] else [])
 
 let paint_marks paint theme ~size ~x ~y marks =
@@ -622,6 +659,7 @@ let paint_rail paint t ~z ~fs ~x ~y ~expanded (rail : P.rail_row list) =
       paint_socket paint theme r.ty ~connected:true ~z (x +. P.rail_width *. z, ry +. 12. *. z)) rail
 
 let paint_header paint t ~z ~fs ~x ~y ~w (n : P.node) ~toggle ?flag ?lens_open () =
+  let viewed = t.display = Some n.path in
   let theme = t.theme in
   let size = max 6 (fs - 1) in
   let head = P.head_height *. z in
@@ -651,7 +689,7 @@ let paint_header paint t ~z ~fs ~x ~y ~w (n : P.node) ~toggle ?flag ?lens_open (
    | Some open_ -> Ui.Paint.text paint ~at:(x +. 6. *. z, y +. 6. *. z) ~size:fs
        ~color:(Pxui.Theme.muted theme) (if open_ then "▼" else "►")
    | None -> ());
-  let m = marks n in
+  let m = marks ~viewed n in
   let marks_w = List.fold_left (fun a s -> a +. Ui.Paint.text_width paint ~size s +. 5.) 0. m in
   let right = match lens_open with
     | Some open_ ->
@@ -810,8 +848,12 @@ let paint_node paint t ~z ~fs ?footer ?lens_step (p : P.placed) (n : P.node) ~se
     Ui.Paint.stroke paint ~x:(x +. 0.5) ~y:(y +. 0.5) ~w:(w -. 1.) ~h:(h -. 1.) ~width:2. ~radius:(3. *. z) theme.accent
 
 (* the expanded zone's frame, rail, yield and selector, over its tint *)
-let paint_zone_frame paint t ~z ~fs (n : P.node) (zn : P.zone) ~selected (x, y, w, h) ~probe ~count =
+let paint_zone_frame paint t ~z ~fs ?footer (n : P.node) (zn : P.zone) ~selected (x, y, w, h) ~probe ~count =
   let theme = t.theme in
+  (* the zone's own footer under its body; the yield line and the feedback line end above it *)
+  let h = match footer with
+    | Some f -> paint_footer paint t ~z ~fs f n.ty (x, y, w, h); h -. P.foot_height *. z
+    | None -> h in
   let edge = (zone_style theme zn.kind).edge in
   Ui.Paint.line paint ~from_:(x, y +. P.head_height *. z) ~to_:(x +. w, y +. P.head_height *. z) ~width:1.
     (Color.with_alpha edge 90);
@@ -1017,6 +1059,9 @@ let update t ui (frame : Frame.t) =
         let paths = m.paths in
         { t with geo = compute scope t.layout ~shift:(fun p ->
             if List.mem p paths then m.dx, m.dy else 0., 0.) }
+    | Some (Carrying c), Some scope when Float.hypot c.dx c.dy > 0. ->
+        { t with geo = compute scope t.layout ~shift:(fun p ->
+            if List.mem p c.paths then c.dx, c.dy else 0., 0.) }
     | _ -> t in
   let z = t.zoom in
   let fs = max 7 (int_of_float (Float.round (11. *. z))) in
@@ -1036,7 +1081,7 @@ let update t ui (frame : Frame.t) =
   (match t.records with
    | Some records when z >= 0.4 ->
        List.iter (fun ((p : P.placed), _, _) -> match p.item with
-         | P.Item n when n.zone = None || p.collapsed ->
+         | P.Item n when (match n.zone with Some { kind = P.Let; _ } -> p.collapsed | _ -> true) ->
              let chain = Option.value ~default:[] (Hashtbl.find_opt t.chains n.path) in
              Hashtbl.replace footers n.path (Flow_sop.Probe.footer records n ~probes:(List.map t.probe chain))
          | _ -> ()) visible
@@ -1234,10 +1279,37 @@ let update t ui (frame : Frame.t) =
      | _ -> ());
     if xs.clicked then begin
       emit (Frames_set { scope; frames = List.filteri (fun j _ -> j <> i) all }); t
-    end else if ts.double_clicked && t.editing = None then { t with editing = Some (Title (scope, i)) }
+    end else if ts.double_clicked && t.editing = None then { t with drag = None; editing = Some (Title (scope, i)) }
     else if rs.pressed && left_button rs then
       { t with drag = Some (Sizing { scope; index = i; dw = 0.; dh = 0. }) }
     else match t.drag with
+      | None when ts.held && left_button ts && t.editing = None
+                  && Float.hypot (fst ts.pointer -. fst ts.press_point) (snd ts.pointer -. snd ts.press_point) > 3. ->
+          (* a drag by the title (a click or a double-click stays one): the nodes of the scope
+             whose centres lie inside the frame travel with it *)
+          let ox, oy = Option.value ~default:(0., 0.) (List.assoc_opt scope t.geo.origins) in
+          let _, (fx, fy), (fw, fh) = List.nth (t.frames scope) i in
+          let inside path = scope_of_path path = scope && (match Hashtbl.find_opt t.geo.pos path with
+            | Some (bx, by, bw, bh) ->
+                let cx = bx +. bw /. 2. and cy = by +. bh /. 2. in
+                cx >= ox +. fx && cx <= ox +. fx +. fw && cy >= oy +. fy && cy <= oy +. fy +. fh
+            | None -> false) in
+          let paths = Hashtbl.fold (fun path _ found -> if inside path then path :: found else found) t.geo.pos [] in
+          let dx = (fst ts.pointer -. fst ts.press_point) /. z and dy = (snd ts.pointer -. snd ts.press_point) /. z in
+          { t with drag = Some (Carrying { scope; index = i; paths; dx; dy }) }
+      | Some (Carrying c) when c.scope = scope && c.index = i && (ts.held || ts.released) ->
+          let ddx, ddy = ts.drag in
+          let t = { t with drag = Some (Carrying { c with dx = c.dx +. ddx /. z; dy = c.dy +. ddy /. z }) } in
+          if ts.released then begin
+            (match t.drag with
+             | Some (Carrying c) when Float.hypot c.dx c.dy > 3. /. z ->
+                 emit (Moved (List.filter_map (fun path -> match Hashtbl.find_opt t.geo.rel path with
+                   | Some (rx, ry) -> Some (path, rx +. c.dx, ry +. c.dy)
+                   | None -> None) c.paths));
+                 emit (Frames_set { scope; frames = frame_list t scope })
+             | _ -> ());
+            { t with drag = None }
+          end else t
       | Some (Sizing s) when s.scope = scope && s.index = i && (rs.held || rs.released) ->
           let dx, dy = rs.drag in
           let t = { t with drag = Some (Sizing { scope; index = i; dw = s.dw +. dx /. z; dh = s.dh +. dy /. z }) } in
@@ -1446,7 +1518,7 @@ let update t ui (frame : Frame.t) =
       | Item n ->
           (match n.zone with
            | Some zn when not p.collapsed ->
-               paint_zone_frame paint snapshot ~z ~fs n zn ~selected:isel (x, y, w, h)
+               paint_zone_frame paint snapshot ~z ~fs ?footer:(Hashtbl.find_opt footers n.path) n zn ~selected:isel (x, y, w, h)
                  ~probe:(snapshot.probe n.path) ~count:(count_of snapshot n.path)
            | _ ->
                let rh = match row_hover with Some (rp, i) when rp = n.path -> Some i | _ -> None in

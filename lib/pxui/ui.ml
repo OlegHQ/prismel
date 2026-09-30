@@ -116,6 +116,8 @@ let blocking = 16
    existing host shortcut behavior. Text-entry rows also focus on a press. *)
 let tab_only = 32
 let tab_stop = focusable lor tab_only
+(* a multiline editor keeps Tab for itself (two spaces) instead of moving the focus *)
+let keep_tab = 64
 let add = Stdlib.( + )
 let hit_flags = clickable lor focusable lor scroll lor blocking
 
@@ -686,7 +688,8 @@ let route ui (frame : Frame.t) =
     let command = command_modifiers !modifiers in
     (match event with
      | Event.KeyPressed Input.Tab when not command ->
-         traverse_focus ui ~shift:(List.mem Input.Shift !modifiers)
+         if flags_of_key ui ui.focus land keep_tab = 0 then
+           traverse_focus ui ~shift:(List.mem Input.Shift !modifiers)
      | _ -> ());
     let owner, delta = match event with
       | Event.MouseMoved ((x, y) as point) ->
@@ -2334,10 +2337,10 @@ let text_field ui text value =
 
 (* Multiline text: the same focus, IME composition, clipboard and edit
    events as [text_field] ([edit_text_event], the [ui.edit_*] retained
-   state); only Enter, the vertical keys and line-scoped Home/End are added,
-   and the pointer maps to (line, column).  ponytail: line starts are found
-   per frame (O(text)), only visible lines are drawn; no Tab insertion and no
-   wrapping. *)
+   state); added are Enter, Tab (two spaces), the vertical keys and row-scoped Home/End,
+   and the pointer maps to (row, column).  With [wrap] a long line continues on the next row
+   (DepartureMono is monospaced: a row holds as many characters as fit).  ponytail: rows are
+   found per frame (O(text)), only visible rows are drawn. *)
 let text_width ui text =
   match face ui None with
   | None -> 0.
@@ -2352,44 +2355,74 @@ let text_width ui text =
           sum (index + Uchar.utf_decode_length decoded) (width +. advance) in
       sum 0 0.
 
-let line_starts text =
-  let starts = ref [ 0 ] in
-  String.iteri (fun index c -> if c = '\n' then starts := (index + 1) :: !starts) text;
-  Array.of_list (List.rev !starts)
+(* The rows of a text: (start, stop, logical line) with [stop] exclusive and before the newline.
+   Without [cols] a row is a line; with it a line continues every [cols] characters. *)
+let text_rows ?cols text =
+  let n = String.length text in
+  let rows = ref [] in
+  let rec line start logical =
+    let stop = match String.index_from_opt text start '\n' with Some i -> i | None -> n in
+    let rec chunk from = match cols with
+      | None -> rows := (from, stop, logical) :: !rows
+      | Some cols ->
+          let rec advance i k =
+            if k = 0 || i >= stop then i
+            else advance (i + Uchar.utf_decode_length (String.get_utf_8_uchar text i)) (k - 1) in
+          let upto = advance from (max 1 cols) in
+          if upto >= stop then rows := (from, stop, logical) :: !rows
+          else (rows := (from, upto, logical) :: !rows; chunk upto) in
+    chunk start;
+    if stop < n then line (stop + 1) (logical + 1) in
+  line 0 0;
+  Array.of_list (List.rev !rows)
 
-(* the line holding byte [index] *)
-let line_at starts index =
+(* the row holding byte [index] *)
+let row_at rows index =
+  let start i = let s, _, _ = rows.(i) in s in
   let rec seek low high =
     if low >= high then low else
       let middle = (low + high + 1) / 2 in
-      if starts.(middle) <= index then seek middle high else seek low (middle - 1) in
-  seek 0 (Array.length starts - 1)
+      if start middle <= index then seek middle high else seek low (middle - 1) in
+  seek 0 (Array.length rows - 1)
 
-let text_area ui ~at ~w ~h ?(readonly = false) ?(errors = []) ?(spans = []) ?reveal
-    label text =
+let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors = []) ?(spans = [])
+    ?reveal label text =
   let row = float ui.kit_row_height in
-  let body = box ui ~flags:(clickable lor focusable lor blocking lor scroll lor clip)
+  let body = box ui
+      ~flags:(clickable lor focusable lor blocking lor scroll lor clip
+              lor (if readonly then 0 else keep_tab))
       ~at ~w:(Px w) ~h:(Px h) ~scroll_step:row label in
-  let starts = line_starts text in
-  let count = Array.length starts in
-  let line_stop line = if line + 1 < count then starts.(line + 1) - 1 else String.length text in
-  let line_text line = String.sub text starts.(line) (line_stop line - starts.(line)) in
+  let char_w = text_width ui "0" in
+  let columns_of count =
+    if not wrap then None
+    else
+      let gutter = 12. +. char_w *. float (max 3 (String.length (string_of_int count))) in
+      Some (int_of_float (Float.floor (Float.max 1. (w -. gutter -. 16.) /. Float.max 1. char_w))) in
+  (* the gutter width follows the number of logical lines, the wrap width follows the gutter *)
+  let rows_of text =
+    let logical = 1 + String.fold_left (fun n c -> if c = '\n' then n + 1 else n) 0 text in
+    text_rows ?cols:(columns_of logical) text in
+  let rows = rows_of text in
+  let count = Array.length rows in
+  let logical_count rows = let _, _, l = rows.(Array.length rows - 1) in l + 1 in
+  let start_of rows i = let s, _, _ = rows.(i) in s in
+  let stop_of rows i = let _, e, _ = rows.(i) in e in
+  let row_text text rows i = String.sub text (start_of rows i) (stop_of rows i - start_of rows i) in
   let content = within ui body (fun () ->
     box ui ~w:(Px w) ~h:(Px (float count *. row)) (label ^ "-content")) in
   let signal = signal ui body in
   let focused = focused ui body in
-  let char_w = text_width ui "0" in
-  let gutter = 12. +. char_w *. float (max 3 (String.length (string_of_int count))) in
+  let gutter = 12. +. char_w *. float (max 3 (String.length (string_of_int (logical_count rows)))) in
   let bx, by, bw, bh = rect ui body in
   let horizontal = ref (float (state ui body ~default:0)) in
   let point_at (px, py) =
     let line = max 0 (min (count - 1)
       (int_of_float (Float.floor ((py -. by +. scroll_offset ui body) /. row)))) in
     let x = Float.max 0. (px -. bx -. gutter -. 8. +. !horizontal) in
-    starts.(line) + text_caret_at ui (line_text line) x in
+    start_of rows line + text_caret_at ui (row_text text rows line) x in
   let edit = if focused then load_text_edit ui body.box_key text
     else { text; caret = String.length text; anchor = String.length text } in
-  let moved = ref false in
+  let moved = ref false and submitted = ref false in
   if focused then begin
     let caret0 = edit.caret in
     if signal.pressed && signal.button = Some Input.LeftButton then begin
@@ -2399,31 +2432,44 @@ let text_area ui ~at ~w ~h ?(readonly = false) ?(errors = []) ?(spans = []) ?rev
       edit.caret <- point_at signal.pointer;
     List.iter (fun ((event : Event.t), modifiers) ->
       let command = command_modifiers modifiers and shift = List.mem Input.Shift modifiers in
-      let starts = line_starts edit.text in
-      let count = Array.length starts in
-      let line_stop line = if line + 1 < count then starts.(line + 1) - 1
-        else String.length edit.text in
-      let line_text line = String.sub edit.text starts.(line) (line_stop line - starts.(line)) in
+      let rows = rows_of edit.text in
+      let count = Array.length rows in
       let x_of line index = text_width ui
-        (String.sub edit.text starts.(line) (index - starts.(line))) in
-      let line = line_at starts edit.caret in
+        (String.sub edit.text (start_of rows line) (index - start_of rows line)) in
+      let line = row_at rows edit.caret in
       let move target = edit.caret <- target; if not shift then edit.anchor <- target in
       let vertical step =
         let target = line + step in
         if target < 0 then move 0
         else if target >= count then move (String.length edit.text)
-        else move (starts.(target)
-          + text_caret_at ui (line_text target) (x_of line edit.caret)) in
+        else move (start_of rows target
+          + text_caret_at ui (row_text edit.text rows target) (x_of line edit.caret)) in
       match event with
       | Event.KeyPressed Input.Escape -> unfocus ui
-      | Event.KeyPressed Input.Enter when not command ->
+      | Event.KeyPressed Input.Enter when command -> submitted := true
+      | Event.KeyPressed Input.Enter ->
           if not readonly then replace_text edit "\n"
+      | Event.KeyPressed Input.Tab when not command && not readonly ->
+          if not shift then replace_text edit "  "
+          else begin
+            (* Shift-Tab: up to two spaces leave the start of the line *)
+            let line_start = let rec back i = if i > 0 && edit.text.[i - 1] <> '\n' then back (i - 1) else i in
+              back edit.caret in
+            let spaces = if line_start < String.length edit.text && edit.text.[line_start] = ' '
+              then (if line_start + 1 < String.length edit.text && edit.text.[line_start + 1] = ' ' then 2 else 1)
+              else 0 in
+            if spaces > 0 then begin
+              edit.text <- String.sub edit.text 0 line_start
+                ^ String.sub edit.text (line_start + spaces) (String.length edit.text - line_start - spaces);
+              edit.caret <- max line_start (edit.caret - spaces); edit.anchor <- edit.caret
+            end
+          end
       | Event.KeyPressed Input.ArrowUp -> vertical (-1)
       | Event.KeyPressed Input.ArrowDown -> vertical 1
       | Event.KeyPressed (Input.Home | Input.ArrowLeft) when command || event = Event.KeyPressed Input.Home ->
-          move starts.(line)
+          move (start_of rows line)
       | Event.KeyPressed (Input.End | Input.ArrowRight) when command || event = Event.KeyPressed Input.End ->
-          move (line_stop line)
+          move (stop_of rows line)
       | event ->
           let before = edit.text, edit.caret, edit.anchor in
           if edit_text_event edit ~accept:(fun _ -> true) ~modifiers event && readonly
@@ -2435,8 +2481,8 @@ let text_area ui ~at ~w ~h ?(readonly = false) ?(errors = []) ?(spans = []) ?rev
   end;
   (* scrolling: the wheel, then whatever keeps the caret (or [reveal]) in view *)
   let final = edit.text in
-  let starts = if final == text then starts else line_starts final in
-  let count = Array.length starts in
+  let rows = if final == text then rows else rows_of final in
+  let count = Array.length rows in
   (* [reveal] scrolls once per (offset, length): the content box remembers it *)
   let revealed = match reveal with
     | Some index when bw > 0.
@@ -2446,21 +2492,18 @@ let text_area ui ~at ~w ~h ?(readonly = false) ?(errors = []) ?(spans = []) ?rev
   let target = if !moved then Some edit.caret
     else Option.map (fun index -> min (String.length final) index) revealed in
   let longest = ref 0 in
-  Array.iteri (fun i start ->
-    let stop = if i + 1 < count then starts.(i + 1) - 1 else String.length final in
-    longest := max !longest (stop - start)) starts;
+  Array.iteri (fun i _ -> longest := max !longest (stop_of rows i - start_of rows i)) rows;
   let visible = Float.max 1. (bw -. gutter -. 16.) in
-  let max_x = Float.max 0. (float !longest *. char_w -. visible) in
+  let max_x = if wrap then 0. else Float.max 0. (float !longest *. char_w -. visible) in
   horizontal := Float.max 0. (Float.min max_x (!horizontal +. fst signal.scroll *. row));
   let vertical = ref (Float.max 0. (Float.min (Float.max 0. (float count *. row -. bh))
     (scroll_offset ui body))) in
   Option.iter (fun index ->
-    let line = line_at starts index in
+    let line = row_at rows index in
     let top = float line *. row in
     if top < !vertical then vertical := top
     else if top +. row > !vertical +. bh then vertical := top +. row -. bh;
-    let stop = if line + 1 < count then starts.(line + 1) - 1 else String.length final in
-    let x = text_width ui (String.sub final starts.(line) (min index stop - starts.(line))) in
+    let x = text_width ui (String.sub final (start_of rows line) (min index (stop_of rows line) - start_of rows line)) in
     if x < !horizontal then horizontal := x
     else if x -. !horizontal > visible then horizontal := x -. visible) target;
   set_state ui body (int_of_float !horizontal);
@@ -2479,13 +2522,14 @@ let text_area ui ~at ~w ~h ?(readonly = false) ?(errors = []) ?(spans = []) ?rev
     Paint.fill paint ~x:bx ~y:by ~w:gutter ~h:bh (Color.with_alpha theme.foreground 14);
     let first = max 0 (int_of_float (Float.floor (offset /. row)))
     and last = min (count - 1) (int_of_float (Float.floor ((offset +. bh) /. row))) in
-    let caret_line = line_at starts edit.caret in
+    let caret_line = row_at rows edit.caret in
     let selected = focused && edit.caret <> edit.anchor in
     let s0, s1 = text_selection edit in
     let band line (start, stop) color y =
-      let ls = starts.(line) and le = if line + 1 < count then starts.(line + 1) - 1
-        else String.length final in
-      let start = max start ls and stop = min stop le in
+      let ls = start_of rows line and le = stop_of rows line in
+      (* a selection runs on past the end of a row that ends a line *)
+      let newline = le < String.length final && final.[le] = '\n' in
+      let start = max start ls and stop = min stop (if newline then le + 1 else le) in
       if start < stop || (start <= le && stop > le) then
         let x0 = width (String.sub final ls (min start le - ls)) in
         let x1 = if stop > le then width (String.sub final ls (le - ls)) +. char_w
@@ -2494,21 +2538,24 @@ let text_area ui ~at ~w ~h ?(readonly = false) ?(errors = []) ?(spans = []) ?rev
     for line = first to last do
       let y = by -. offset +. float line *. row in
       let text_y = y +. float (label_y ui 0 ui.kit_row_height) in
+      let _, _, logical = rows.(line) in
+      let starts_line = line = 0 || (let _, _, before = rows.(line - 1) in before <> logical) in
       clip bx bw;
-      if List.mem (line + 1) errors then begin
+      if List.mem (logical + 1) errors then begin
         Paint.fill paint ~x:bx ~y ~w:bw ~h:row (Color.with_alpha Theme.invalid 40);
         Paint.fill paint ~x:bx ~y ~w:3. ~h:row Theme.invalid
       end;
-      let number = string_of_int (line + 1) in
-      Paint.text paint ~at:(bx +. gutter -. 6. -. width number, text_y)
-        ~color:(if List.mem (line + 1) errors then Theme.invalid else Theme.muted theme) number;
+      if starts_line then begin
+        let number = string_of_int (logical + 1) in
+        Paint.text paint ~at:(bx +. gutter -. 6. -. width number, text_y)
+          ~color:(if List.mem (logical + 1) errors then Theme.invalid else Theme.muted theme) number
+      end;
       clip (bx +. gutter) (bw -. gutter);
       List.iter (fun span -> band line span (Color.with_alpha theme.accent 70) y) spans;
       if selected then band line (s0, s1) (Color.with_alpha theme.accent 100) y;
-      let line_str = String.sub final starts.(line)
-        ((if line + 1 < count then starts.(line + 1) - 1 else String.length final) - starts.(line)) in
+      let line_str = String.sub final (start_of rows line) (stop_of rows line - start_of rows line) in
       if focused && line = caret_line && composition <> "" then begin
-        let before = String.sub final starts.(line) (edit.caret - starts.(line)) in
+        let before = String.sub final (start_of rows line) (edit.caret - start_of rows line) in
         let caret_x = text_x +. width before in
         Paint.text paint ~at:(text_x, text_y) ~color:theme.foreground before;
         Paint.text paint ~at:(caret_x, text_y) ~color:theme.foreground composition;
@@ -2519,13 +2566,16 @@ let text_area ui ~at ~w ~h ?(readonly = false) ?(errors = []) ?(spans = []) ?rev
     clip (bx +. gutter) (bw -. gutter);
     if focused then begin
       let y = by -. offset +. float caret_line *. row in
-      let caret_x = text_x +. width (String.sub final starts.(caret_line)
-        (edit.caret - starts.(caret_line))) in
+      let caret_x = text_x +. width (String.sub final (start_of rows caret_line)
+        (edit.caret - start_of rows caret_line)) in
       Paint.input_region paint ~x:bx ~y ~w:bw ~h:row ~focused:true ~cursor:(caret_x -. bx) ();
       Paint.line paint ~from_:(caret_x, y +. 2.) ~to_:(caret_x, y +. row -. 2.) ~width:1. theme.accent
     end else Paint.input_region paint ~x:bx ~y:by ~w:bw ~h:bh ~focused:false ();
     paint.clip_rect <- previous);
-  final
+  final, !submitted
+
+let text_area ui ~at ~w ~h ?readonly ?errors ?spans ?reveal label text =
+  fst (text_area_submit ui ~at ~w ~h ?readonly ?errors ?spans ?reveal label text)
 
 let choice ui text options selected =
   let options = Array.of_list options in

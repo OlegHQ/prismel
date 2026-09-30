@@ -97,14 +97,11 @@ module Keymap = struct
 end
 
 module Guide_context = struct
-  type t = Canvas | Node | Value_node | Compound | Multi | Wire | Row | Hints
-    | Leader | Search | List | Text | Inside_compound
+  type t = Canvas | Node | Multi | Hints | Leader | Search | List | Text
 
   let name = function
-    | Canvas -> "Canvas" | Node -> "Node" | Value_node -> "Value" | Compound -> "Compound"
-    | Multi -> "Selection" | Wire -> "Wire" | Row -> "Row" | Hints -> "Hints"
+    | Canvas -> "Canvas" | Node -> "Node" | Multi -> "Selection" | Hints -> "Hints"
     | Leader -> "Leader" | Search -> "Search" | List -> "List" | Text -> "Text"
-    | Inside_compound -> "Inside compound"
 end
 
 module Command = struct

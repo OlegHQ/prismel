@@ -194,6 +194,19 @@ let scope_gestures () =
   check (only Scope.Wrap_repeat = [ syntax (E.Wrap { nodes = [ heart ]; loop = E.For }) ]) "r: Wrap For";
   check (only Scope.Wrap_iterate = [ syntax (E.Wrap { nodes = [ heart ]; loop = E.Fold }) ]) "Shift-r: Wrap Fold";
   check (only Scope.Make_fn = [ syntax (E.Make_local_fn { nodes = [ heart ] }) ]) "l: Make_local_fn";
+  check (only Scope.Duplicate = [ syntax (E.Duplicate { nodes = [ heart ] }) ]) "Command-D: Duplicate";
+  check (only Scope.Display = [ Scope.Display_set heart ]) "v: a geometry node is shown in the viewport";
+  (match snd (Scope.run_command (Scope.select [ [ "flower"; "petals" ] ] view) Scope.Display) with
+   | [ Scope.Notice _ ] -> () | _ -> failwith "v on a number did not say only geometry can be viewed");
+  check (match snd (Scope.run_command (Scope.select [] view) Scope.Duplicate) with [ Scope.Notice _ ] -> true | _ -> false)
+    "Command-D with nothing selected did not say so";
+  (* the viewed node carries the VIEW mark; the key bindings are the Command table's *)
+  let viewed = Scope.with_scope ~key:"flower" ~display:heart (P.of_graph scope_catalog w "flower") view in
+  ignore viewed;
+  List.iter (fun (id, modifiers) ->
+    check (List.exists (fun (c : _ Editor_core.Command.t) -> c.id = id && c.trigger = Some (Editor_core.Keymap.Chord (
+      Input.KeyChar (if id = "scope.display" then 'v' else 'd'), modifiers))) Scope.bindings) (id ^ " is not bound"))
+    [ "scope.duplicate", [ Input.Meta ]; "scope.duplicate", [ Input.Ctrl ]; "scope.display", [] ];
   (* list rows: the + item row, the up arrow and Alt-Up move an item, a record's + field row *)
   let kw = load_workspace "kit" in
   let kit_scope = P.of_graph scope_catalog kw "kit" in
@@ -267,6 +280,31 @@ let scope_gestures () =
   let _, changes = type_text retitled "legs" in
   check (List.exists (function Scope.Frames_set { frames = [ (t, _, _) ]; _ } -> t = "legs" && t <> title | _ -> false) changes)
     "typing a frame title did not emit Frames_set";
+  (* a drag on the title carries the frame with the nodes inside it, as one Moved and one Frames_set *)
+  let towards = fst title_at + 40, snd title_at + 30 in
+  let carried, _ = scope_step framed (frame ~mouse:title_at ~events:[ mouse_move title_at; mouse_press (Input.LeftButton, title_at) ] ()) in
+  let carried, _ = scope_step carried (frame ~mouse:towards ~events:[ mouse_move towards ] ()) in
+  let carried, _ = scope_step carried (frame ~mouse:towards ~events:[] ()) in
+  let moved_box = Scope.Private.box_of carried heart and still_box = Scope.Private.box_of framed heart in
+  check (match moved_box, still_box with Some (x, _, _, _), Some (x0, _, _, _) -> x > x0 +. 10. | _ -> false)
+    "the nodes did not travel with the frame while it was dragged";
+  let _, changes = scope_step carried (frame ~mouse:towards ~events:[ mouse_release (Input.LeftButton, towards) ] ()) in
+  (match List.filter_map (function Scope.Moved placed -> Some placed | _ -> None) changes,
+         List.filter_map (function Scope.Frames_set { frames = [ (_, (x, y), _) ]; _ } -> Some (x, y) | _ -> None) changes with
+   | [ placed ], [ (x, y) ] ->
+       check (List.exists (fun (p, _, _) -> p = heart) placed && List.exists (fun (p, _, _) -> p = [ "flower"; "bloom" ]) placed)
+         "the frame did not move the nodes inside it";
+       check (Float.abs (x -. (fx0 +. 40. /. z)) < 2. && Float.abs (y -. (fy0 +. 30. /. z)) < 2.) "the frame did not move with the pointer"
+   | _ -> fail "dragging the frame title did not emit one Moved and one Frames_set");
+  (* f frames the selection, with nothing selected all of it *)
+  let far = Scope.with_bounds ~x:0 ~y:0 ~width:400 ~height:300 framed in
+  let zoomed = Scope.select [ heart ] far |> fun v -> fst (Scope.run_command v Scope.Frame_selection) in
+  (match Scope.Private.box_of zoomed heart with
+   | Some (x, y, w, h) -> check (x >= 0. && y >= 0. && x +. w <= 400. && y +. h <= 300. && w *. h > 0.)
+       "framing the selection left the node out of view"
+   | None -> fail "the framed node has no box");
+  check (Scope.zoom (fst (Scope.run_command (Scope.select [] far) Scope.Frame_selection)) = Scope.zoom (fst (Scope.run_command far Scope.Frame_all)))
+    "framing an empty selection is framing all";
   (* marquee: a drag on empty canvas selects the nodes of one scope it covers; Shift adds *)
   let view = settled (fst (scope_view w "flower")) in
   let sc = P.of_graph scope_catalog w "flower" in

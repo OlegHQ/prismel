@@ -174,6 +174,34 @@ let geometry_zone () =
   check ((footer r m ~probes:[ 41 ]).value <> "not run here") "every element reads the template record";
   check ((footer (Probe.make eval) m ~probes:[ 41 ]).value = "not run here") "without a count only iteration 0 ran"
 
+(* a footer counts a node that is not upstream of the display too: the cook is asked for it, and a
+   failure there never fails the display (Async_cook.submit_some) *)
+let off_display () =
+  let module Cook = Prismel_editor.Private.Cook in
+  let text = "(workspace w (graph g :context sop (let* [a (sop/box) orphan (sop/uv_sphere) r (sop/transform a)] r)))" in
+  let forms = match Flow.Syntax.parse text with Ok f -> f | Error d -> fail (Flow.Diagnostic.to_string d) in
+  let lowered = match Lower.workspace ~extra:Editor_document.Contexts.descriptors
+      ~factories:Sop_catalog.Editor.factories forms with Ok l -> l | Error d -> fail (Flow.Diagnostic.to_string d) in
+  let compiled site = List.find_map (fun (n : Flow.Eval.node) ->
+    if n.site = site then Network.Int_map.find_opt n.id lowered.compiled else None)
+    (Array.to_list lowered.plan.nodes) in
+  let orphan = Option.get (compiled [ "g"; "orphan" ]) and shown = Option.get (compiled [ "g"; "r" ]) in
+  let cook = Result.get_ok (Cook.create ~await:true ~prepare:(fun _ output -> Ok output.Procedural.Session.geometry)
+    ~seed:1L ~grain:97 ~domains:1 ~max_entries:512 ~max_payload_bytes:(256 * 1024 * 1024) ()) in
+  let update probes = Cook.update ~live:false ~probes cook ~settings:Prismel_editor.Settings.none
+    ~objects:(Lower.objects lowered) ~edit_error:None ~effects:Procedural.Parameter.no_effects
+    ~timeline_changes:[] ~timeline:(Sketch_support.Timeline.create ())
+    ~frame:{ (Test_editor_input.frame (0., 0.) [] 0) with dt = 0. } ~frame_request:None in
+  let object_id = let id, _, _ = List.hd (Lower.objects lowered) in id in
+  let updated = update [ object_id, shown; object_id, orphan ] in
+  check (updated.edit_error = None) "the probed nodes failed the display";
+  let counted node = Cook.geometry updated.cook ~object_id ~node_id:node in
+  check (Option.fold ~none:false ~some:(fun (g : Probe.geometry) -> g.prims > 0) (counted orphan))
+    "a node off the display has no count";
+  check (Option.fold ~none:false ~some:(fun (g : Probe.geometry) -> g.prims > 0) (counted shown))
+    "a node on the display has no count";
+  Cook.close updated.cook
+
 let run () =
-  geometry_zone (); bounds (); sunflower (); tree (); branches (); live (); nested (); hoist (); selection ();
+  off_display (); geometry_zone (); bounds (); sunflower (); tree (); branches (); live (); nested (); hoist (); selection ();
   print_endline "probe tests passed"

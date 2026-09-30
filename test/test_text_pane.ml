@@ -151,7 +151,31 @@ let editor_text () =
   check (E.undo_label !env = Some "Edit text") "the history label is not Edit text";
   step ~keys:[ Input.Meta ] [ char 'z' ];
   check (Flow.Lisp.print (ws ()).source |> fst = applied) "undo did not restore the text";
-  check (E.redo_label !env = Some "Edit text") "redo label"
+  check (E.redo_label !env = Some "Edit text") "redo label";
+  (* the Graph tab edits one graph through the same apply; Command-Enter is the button *)
+  let original = ws () in
+  let tab_graph = float (gx + 8 + 81 + 20), float (gy + 12) in
+  click tab_graph;
+  check (contains (dump ()) "graph tab, draft no") ("Graph tab\n" ^ dump ());
+  let graph_text = (Prismel_editor.Private.Text_pane.make_shown original.source "sunflower" None Graph).text in
+  check (contains graph_text "(graph sunflower") "the Graph tab does not show the graph";
+  click area;
+  step ~keys:[ Input.Meta ] [ char 'a' ];
+  step [ Event.TextInput (replace graph_text ~from:"(seeds : int 240)" ~by:"(seeds : int 77)") ];
+  check (contains (dump ()) "graph tab, draft yes") ("the Graph tab kept no draft\n" ^ dump ());
+  check (ws () == original) "a Graph draft changed the document";
+  step ~keys:[ Input.Meta ] [ key Input.Enter ];
+  check (contains (dump ()) "graph tab, draft no") ("Command-Enter did not apply\n" ^ dump ());
+  check (contains (Flow.Lisp.print (ws ()).source |> fst) "(seeds : int 77)"
+         && E.undo_label !env = Some "Edit text") "the Graph tab's apply is not one Edit text entry";
+  (* a graph that does not check stays in the pane, the document does not change *)
+  let applied_graph = ws () in
+  click area;
+  step ~keys:[ Input.Meta ] [ char 'a' ];
+  step [ Event.TextInput (replace graph_text ~from:"(sqrt i)" ~by:"(sqrt nosuch)") ];
+  step ~keys:[ Input.Meta ] [ key Input.Enter ];
+  check (contains (dump ()) "graph tab, draft yes, error") ("a refused graph left the pane\n" ^ dump ());
+  check (ws () == applied_graph) "a refused Graph apply changed the document"
 
 (* A checker error from a binding apply is marked on the binding text's line, and typing clears it. *)
 let editor_binding () =

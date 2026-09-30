@@ -229,6 +229,47 @@ let part10 () = (* add and delete *)
   same "delete a chain" (g "(let* [a (sop/uv_sphere) u (sop/transform a) v (sop/transform u) b (sop/transform a)] b)")
     (E.Delete_nodes { nodes = [ node [ "u" ]; node [ "v" ] ] }) (g "(let* [a (sop/uv_sphere) b (sop/transform a)] b)")
 
+let part10b () = (* duplicate; positional arguments in any order; scene and World graphs *)
+  let three = g "(let* [a (sop/uv_sphere) b (sop/transform a :translate [1 2 3]) c (sop/subdivide b)] c)" in
+  same "duplicate one" three (E.Duplicate { nodes = [ node [ "b" ] ] })
+    (g "(let* [a (sop/uv_sphere) b (sop/transform a :translate [1 2 3]) b_2 (sop/transform a :translate [1 2 3]) c (sop/subdivide b)] c)");
+  same "duplicate a chain: the copies read each other" three (E.Duplicate { nodes = [ node [ "b" ]; node [ "c" ] ] })
+    (g "(let* [a (sop/uv_sphere) b (sop/transform a :translate [1 2 3]) c (sop/subdivide b) b_2 (sop/transform a :translate [1 2 3]) c_2 (sop/subdivide b_2)] c)");
+  same "duplicate twice takes fresh names"
+    (g "(let* [a (sop/uv_sphere) a_2 (sop/uv_sphere) b (sop/transform a)] b)")
+    (E.Duplicate { nodes = [ node [ "a" ] ] })
+    (g "(let* [a (sop/uv_sphere) a_3 (sop/uv_sphere) a_2 (sop/uv_sphere) b (sop/transform a)] b)");
+  refused "duplicate the result" three (E.Duplicate { nodes = [ node [ "@result" ] ] });
+  refused "duplicate across scopes" (g "(let* [ring (for [i (range n)] (let* [u (sop/uv_sphere)] u)) m (sop/merge ring)] m)")
+    (E.Duplicate { nodes = [ node [ "ring" ]; [ "g"; "ring"; "u" ] ] });
+  check (E.duplicated (parse three) [ node [ "b" ]; node [ "c" ] ] = [ node [ "b_2" ]; node [ "c_2" ] ]
+         && E.duplicated (parse three) [ node [ "@result" ] ] = []) "the copies' paths";
+  check (E.label (E.Duplicate { nodes = [] }) = "Duplicate") "duplicate label";
+  (* a keyword before the positional argument is still an argument of the call *)
+  let mixed = "(workspace w\n  (graph world :context world\n    (world/world :name \"w\" (world/sky :name \"s\"))))" in
+  check (has (apply mixed (E.Set_arg { node = [ "world"; "@result" ]; key = Pos 0; sub = [];
+    value = S.make (S.List [ sym "world/sun" ]) })) "(world/sun)") "a positional argument after a keyword pair is found";
+  (* a scene object joins the merge, a World layer goes on top of the stack, deleting takes them out *)
+  let scene = "(workspace w\n  (graph g :context sop (sop/box))\n  (graph scene :context scene\n    (let* [a (scene/geometry (ref g)) all (scene/merge a)] all)))" in
+  let added = apply scene (E.Add_node { scope = [ "scene" ]; name = "lamp"; expr = S.make (S.List [ sym "scene/light" ]) }) in
+  check (has added "(scene/merge a lamp)" && has added "lamp (scene/light)") ("a new object did not join the merge\n" ^ added);
+  check (has (apply added (E.Delete_nodes { nodes = [ [ "scene"; "lamp" ] ] })) "(scene/merge a)"
+         && not (has (apply added (E.Delete_nodes { nodes = [ [ "scene"; "lamp" ] ] })) "lamp")) "a deleted object stayed in the merge";
+  let single = "(workspace w\n  (graph g :context sop (sop/box))\n  (graph scene :context scene (scene/geometry (ref g))))" in
+  check (has (apply single (E.Add_node { scope = [ "scene" ]; name = "lamp"; expr = S.make (S.List [ sym "scene/light" ]) }))
+           "(scene/merge (scene/geometry (ref g)) lamp)") "a scene that is one object becomes a merge";
+  let world = "(workspace w\n  (graph world :context world\n    (let* [sky (world/sky) all (world/world sky)] all)))" in
+  let layered = apply world (E.Add_node { scope = [ "world" ]; name = "sun"; expr = S.make (S.List [ sym "world/sun" ]) }) in
+  check (has layered "sun (world/sun sky)" && has layered "(world/world sun)") ("a new layer is not on top\n" ^ layered);
+  let closed = apply layered (E.Delete_nodes { nodes = [ [ "world"; "sun" ] ] }) in
+  check (has closed "(world/world sky)" && not (has closed "world/sun")) ("the stack did not close over a deleted layer\n" ^ closed);
+  let graph = S.make (S.List [ sym "graph"; sym "g"; S.make (S.Kw "context"); sym "sop"; S.make (S.List [ sym "sop/box" ]) ]) in
+  check (has (apply scene (E.Set_graph { name = "g"; form = graph })) "(graph g :context sop"
+         && has (apply "(workspace w (graph g :context sop (sop/box)))"
+           (E.Set_graph { name = "extra"; form = S.make (S.List [ sym "graph"; sym "extra"; S.make (S.Kw "context"); sym "sop"; S.make (S.List [ sym "sop/box" ]) ]) })) "(graph extra")
+    "Set_graph replaces a graph or appends one";
+  refused "Set_graph with another name" scene (E.Set_graph { name = "other"; form = graph })
+
 let part11 () = (* atomic: a refused edit changes nothing; labels *)
   let before = norm base in
   (match E.apply catalog (parse base) (E.Rename { node = node [ "b" ]; to_ = "a" }) with
@@ -273,4 +314,4 @@ let part12 () = (* the 12 fixtures: notes survive, edits round trip *)
        | Error d -> fail (Flow.Diagnostic.to_string d))
 
 let run () =
-  List.iter (fun f -> f ()) [ part1; part2; part3; part4; part5; part6; part7; dialog; part8; part9; part10; part11; part12 ]
+  List.iter (fun f -> f ()) [ part1; part2; part3; part4; part5; part6; part7; dialog; part8; part9; part10; part10b; part11; part12 ]

@@ -162,6 +162,7 @@ module Private : sig
   module Text_pane : sig
     type tab = Selection | Graph | Document
     type shown = {
+      graph : string;
       text : string;
       mark : (int * int) option;
       binding : (string list * string) option;
@@ -393,6 +394,11 @@ module Editor3 : sig
       with "Camera follows viewport" (the ACTIVE camera's own parameter, one
       undo entry), so a fixed camera is set up by looking through it and
       orbiting. *)
+
+  val viewport_camera : 'prepared t -> string -> Prismel.Camera.t
+  (** What the viewport with this key (the tile index in a [ui/tile], [""] for the default
+      shell's only one) shows: each viewport keeps its own orbit, a copy of the focused one's at
+      the first focus, and the wheel, drag and fly of the focused viewport move only it. *)
 
   val flying : 'prepared t -> bool
   (** [Space w] with the view focused: held W/S/A/D/Q/E fly the viewport

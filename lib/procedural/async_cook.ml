@@ -21,7 +21,8 @@ type 'a request = {
   id : int;
   context : Context.t;
   nodes : Node.t list;
-  prepare : Session.output list -> ('a, string) result;
+  optional : Node.t list;  (* cooked after [nodes]; one that fails is [None] *)
+  prepare : Session.output list -> Session.output option list -> ('a, string) result;
 }
 
 type active = {
@@ -66,7 +67,9 @@ let execute session request =
     match cook [] request.nodes with
     | Error error -> Error error
     | Ok outputs ->
-        (match request.prepare outputs with
+        let optional = List.map (fun node ->
+          Result.to_option (Session.cook session ~context:request.context node)) request.optional in
+        (match request.prepare outputs optional with
          | Ok prepared -> Ok prepared
          | Error message -> Error (Prepare_error message))
   with exn -> Error (Uncaught_exception (Printexc.to_string exn))
@@ -126,7 +129,7 @@ let create ~max_entries ~max_payload_bytes =
     value)
     (Session.create ~max_entries ~max_payload_bytes)
 
-let submit_all value ~context ~nodes ~prepare =
+let submit_some value ~context ~nodes ~optional ~prepare =
   with_lock value (fun () ->
     if value.closed || value.stopping then
       Error "Async_cook.submit: worker is closed"
@@ -135,11 +138,14 @@ let submit_all value ~context ~nodes ~prepare =
       Option.iter (fun active -> Pdk.Cancel.cancel active.cancel) value.active;
       value.latest_id <- value.latest_id + 1;
       let id = value.latest_id in
-      value.pending <- Some { id; context; nodes; prepare };
+      value.pending <- Some { id; context; nodes; optional; prepare };
       value.completion <- None;
       Condition.signal value.ready;
       Ok id
     end)
+
+let submit_all value ~context ~nodes ~prepare =
+  submit_some value ~context ~nodes ~optional:[] ~prepare:(fun outputs _ -> prepare outputs)
 
 let submit value ~context ~node ~prepare =
   submit_all value ~context ~nodes:[node] ~prepare:(function

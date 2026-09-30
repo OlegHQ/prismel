@@ -122,6 +122,7 @@ type 'prepared t = {
   probes : int Layout_by_path.Path_map.t;  (* the iteration each zone shows: view state, not history *)
   lit : lit_cache option;  (* the highlight of the selected node at the probes, see {!lit_tags} *)
   scope_key : scope_key option;
+  select_later : Flow.Workspace.path list;  (* nodes to select once the pane shows their graph *)
   pane_graph : string option;  (* a scene, world or settings graph the pane shows instead of the level's own *)
   flow_catalog : Flow.Check.catalog option Lazy.t;
   tree : Pxui_shell.Tree.t;
@@ -304,8 +305,10 @@ let workspace_inspector value ui ~width path =
                (fun (r : P.row) -> r.expr) in
            let rows = List.map (fun (parameter : Flow_sop.Port.parameter) ->
              let wired = match authored parameter with Some e -> not (literal e) | None -> false in
-             { Pxui_shell.Inspector.path = parameter.path; fields = parameter.fields; shown = true; locked = wired;
-               drive = (match authored parameter with Some e when wired -> Some (Flow.Lisp.flat e) | _ -> None);
+             { Pxui_shell.Inspector.path = parameter.path; fields = parameter.fields; shown = true; locked = false;
+               (* a computed argument reads as its expression, "=" first: typing another one, or
+                  a number, replaces it; the cross removes it *)
+               drive = (match authored parameter with Some e when wired -> Some ("=" ^ Flow.Lisp.flat e) | _ -> None);
                live = None; components = []; split = None }) parameters in
            let expanded = List.filter_map (fun (f : Parameter.field_view) ->
              match f.folder with [] -> None | first :: _ -> Some first) fields |> List.sort_uniq String.compare in
@@ -333,6 +336,22 @@ let workspace_inspector value ui ~width path =
                          Some (Syntax_edit (Flow_sop.Flow_edit.Set_arg
                            { node = n.path; key = Flow_sop.Flow_edit.Kw parameter.path; sub = []; value = syntax })))
                      parameters
+               | Pxui_shell.Inspector.Expression (path, text) ->
+                   (* "=(* 2 t)": the text after the "=" is the argument, any Lisp expression *)
+                   let key_path, component = match String.index_opt path '.' with
+                     | Some i -> String.sub path 0 i, List.assoc_opt (String.sub path (i + 1) (String.length path - i - 1))
+                         [ "x", 0; "y", 1; "z", 2 ]
+                     | None -> path, None in
+                   (match Flow.Syntax.parse (String.sub text 1 (String.length text - 1)) with
+                    | Ok [ value ] ->
+                        Some (Syntax_edit (Flow_sop.Flow_edit.Set_arg { node = n.path;
+                          key = Flow_sop.Flow_edit.Kw key_path;
+                          sub = (match component with Some c -> [ c ] | None -> []); value }))
+                    | Ok _ -> Some (Notice "Write one expression after the =")
+                    | Error d -> Some (Notice ("Expression: " ^ d.Flow.Diagnostic.message)))
+               | Pxui_shell.Inspector.Reset path ->
+                   Some (Syntax_edit (Flow_sop.Flow_edit.Disconnect { node = n.path;
+                     key = Flow_sop.Flow_edit.Kw (List.hd (String.split_on_char '.' path)); fallback = None }))
                | _ -> None) in
            let iterations = Probe.iterations records n ~probes in
            let zone = List.nth_opt (List.rev chain) 0 in
@@ -351,6 +370,24 @@ let workspace_inspector value ui ~width path =
              | _ -> [] in
            hoist @ macro @ note @ edits, picks)
   | _ -> [], []
+
+(* The node of the graph pane that a lowered node of the open object was made by, at the iterations
+   the selectors probe. *)
+let node_path value node_id =
+  match value.scope_key, value.doc.Document.workspace with
+  | Some { scope; records = Some records; _ }, (_, lowered) ->
+      let chains = Flow_sop.Probe.chains scope in
+      let rec search (s : Flow_sop.Projection.scope) =
+        List.find_map (fun (n : Flow_sop.Projection.node) ->
+          let probes = List.map (fun zone ->
+            Option.value ~default:0 (Layout_by_path.Path_map.find_opt zone value.probes))
+            (Option.value ~default:[] (Hashtbl.find_opt chains n.path)) in
+          match Flow_sop.Probe.plan_node records n.path ~probes with
+          | Some plan when Flow_sop.Network.Int_map.find_opt plan lowered.compiled = Some node_id ->
+              Some n.path
+          | _ -> Option.bind n.zone (fun (z : Flow_sop.Projection.zone) -> search z.scope)) s.nodes in
+      search scope
+  | _ -> None
 
 let stored_projection value =
   match Level_map.find_opt value.level value.projections with
@@ -439,7 +476,7 @@ let lit_tags value =
    graph changed; the footers are rebuilt when the recording evaluation, the
    cook's geometry counts or (a live document) the time changed.  The
    evaluation runs once per checked source, never per move or per frame. *)
-let sync_scope value = match scope_name value, value.doc.Document.workspace, Lazy.force value.flow_catalog with
+let sync_scope value = match graph_name value, value.doc.Document.workspace, Lazy.force value.flow_catalog with
   | Some name, (ws, lowered), Some catalog ->
       let module M = Layout_by_path.Path_map in
       let object_id = match value.level with Document.Inside id -> id | _ -> 0 in
@@ -467,9 +504,14 @@ let sync_scope value = match scope_name value, value.doc.Document.workspace, Laz
             ~collapsed:(fun path -> Option.value ~default:false (M.find_opt path layout.collapsed))
             ~probe:(fun path -> Option.value ~default:0 (M.find_opt path value.probes))
             ~frames:(fun path -> List.map (fun (f : Layout_by_path.frame) -> f.title, f.at, f.size)
-              (Option.value ~default:[] (M.find_opt path layout.frames))) end in
+              (Option.value ~default:[] (M.find_opt path layout.frames)))
+            ?display:(M.find_opt [ name ] layout.display) end in
         let geometry id = Option.bind (Flow_sop.Network.Int_map.find_opt id lowered.compiled)
           (fun node_id -> Cook.geometry value.cook ~object_id ~node_id) in
+        (* a pick in another graph's geometry asked for its node to be selected here *)
+        let scope_view, select_later =
+          if value.select_later <> [] && List.for_all (fun p -> List.hd p = name) value.select_later
+          then Pxui_graph.Scope.select value.select_later scope_view, [] else scope_view, value.select_later in
         let records = Option.map (Flow_sop.Probe.make ?time ~geometry
           ~dynamic:(Flow_sop.Lower.zone_count lowered)) evaluated in
         let scope_view = match records with
@@ -483,7 +525,7 @@ let sync_scope value = match scope_name value, value.doc.Document.workspace, Laz
                 (Flow_sop.Probe.geometry_targets records scope
                    ~probe:(fun path -> Option.value ~default:0 (M.find_opt path value.probes)))
           | None, _ -> [] in
-        { value with scope_view; scope_key = Some { ws; probe_map = value.probes; graph = name;
+        { value with scope_view; select_later; scope_key = Some { ws; probe_map = value.probes; graph = name;
             evaluated; summaries; time; records; scope; targets } }
       end
   | _ -> value
@@ -503,46 +545,79 @@ let add_target value =
        | Inside id when kind value id = Some "world" -> Some ("world", World)
        | _ -> None)
 
+(* The menu's "Value" entries: a value is a binding with an expression (a number, the time, an
+   operator call), which the other nodes read by name ("=number", "=t", "=+", ...). *)
+let value_entries =
+  let entry key label = { Pxui_graph.Node_menu.key; label; category = [ "Value" ]; arity = 0 } in
+  [ entry "=number" "Number"; entry "=t" "Time (t)"; entry "=vec3" "Vector"; entry "=text" "Text" ]
+  @ List.map (fun op -> entry ("=" ^ op) op) Flow.Workspace.value_ops
+
+(* the expression and the name a "Value" entry makes *)
+let value_expression context key =
+  let module S = Flow.Syntax in
+  let mk node = S.make node in
+  let num n = mk (S.Num n) in
+  let op = String.sub key 1 (String.length key - 1) in
+  match op with
+  | "number" -> mk (S.Num "1.0"), "value"
+  | "t" -> mk (S.Sym "t"), "time"
+  | "vec3" -> mk (S.Vec [ num "0.0"; num "0.0"; num "0.0" ]), "vector"
+  | "text" -> mk (S.Str "text"), "text"
+  | op ->
+      let signature = Flow.Workspace.op_signature context op in
+      let argument (label, ty) = match Flow_sop.Flow_edit.default_for ty label with
+        | Some d -> d
+        | None -> (match ty with
+            | Flow.Ty.List _ -> mk (S.List [ mk (S.Sym "range"); num "4" ])
+            | _ -> num "0.5") in
+      let args = match signature with
+        | Some s -> List.map argument s.Flow.Workspace.pos | None -> [] in
+      mk (S.List (mk (S.Sym op) :: args)),
+      (match op with
+       | "+" -> "sum" | "-" -> "difference" | "*" -> "product" | "/" -> "quotient"
+       | "<" | ">" | "<=" | ">=" | "=" -> "test" | op -> op)
+
 (* A kind picked in the node menu, as one [Add_node] at the selected zone (else the graph
    body), wired to the selected node when the kind takes a geometry input. *)
 let scope_add value key =
   match add_target value with
   | Some (graph, context) ->
       let ws, _ = value.doc.Document.workspace in
-      if String.starts_with ~prefix:"value/" key then
-        Notice "Value nodes are written as expressions in a workspace"
-      else begin
-        let arity = match List.find_opt (fun f -> Edit_graph.factory_key f = key)
-            (catalog value context) with
-          | Some factory -> Edit_graph.factory_arity factory | None -> 0 in
-        let selected = Pxui_graph.Scope.selected value.scope_view in
-        let scope, input = match selected with
-          | _ when context = Flow.Workspace.Scene || context = World ->
-              (* an object joins the scene's merge and a layer goes on top of the stack: the
-                 edit itself does that *)
-              [ graph ], None
-          | [ path ] when List.length path >= 2 ->
-              let last = List.nth path (List.length path - 1) in
-              List.filteri (fun i _ -> i < List.length path - 1) path,
-              (if arity > 0 && last.[0] <> ':' && last.[0] <> '@' then Some last else None)
-          | _ ->
-              (* nothing selected: a kind with an input reads the graph's result, so the text
-                 still checks (a required input is never left open) *)
-              let result = match value.scope_key with
-                | Some { scope = { Flow_sop.Projection.result = Link name; _ }; _ } -> Some name
-                | _ -> None in
-              [ graph ], (if arity > 0 then result else None) in
-        let head = Flow.Syntax.make (Flow.Syntax.Sym (Flow.Workspace.context_name context ^ "/" ^ key)) in
-        let geometry = match context, key, List.find_opt (fun (g : Flow.Workspace.graph) ->
-            g.context = Flow.Workspace.Sop) ws.checked.graphs with
-          | Scene, "geometry", Some g -> [ Flow.Syntax.make (Flow.Syntax.List
-              [ Flow.Syntax.make (Flow.Syntax.Sym "ref"); Flow.Syntax.make (Flow.Syntax.Sym g.name) ]) ]
-          | _ -> [] in
-        let expr = Flow.Syntax.make (Flow.Syntax.List (head :: geometry
-          @ (match input with Some n -> [ Flow.Syntax.make (Flow.Syntax.Sym n) ] | None -> []))) in
-        let name = Flow_sop.Flow_edit.fresh_name ws.source ~root:graph key in
-        Syntax_edit (Flow_sop.Flow_edit.Add_node { scope; name; expr })
-      end
+      let is_value = String.length key > 0 && key.[0] = '=' in
+      let arity = match List.find_opt (fun f -> Edit_graph.factory_key f = key)
+          (catalog value context) with
+        | Some factory -> Edit_graph.factory_arity factory | None -> 0 in
+      let selected = Pxui_graph.Scope.selected value.scope_view in
+      let scope, input = match selected with
+        | _ when (context = Flow.Workspace.Scene || context = World) && not is_value ->
+            (* an object joins the scene's merge and a layer goes on top of the stack: the
+               edit itself does that *)
+            [ graph ], None
+        | [ path ] when List.length path >= 2 ->
+            let last = List.nth path (List.length path - 1) in
+            List.filteri (fun i _ -> i < List.length path - 1) path,
+            (if arity > 0 && last.[0] <> ':' && last.[0] <> '@' then Some last else None)
+        | _ ->
+            (* nothing selected: a kind with an input reads the graph's result, so the text
+               still checks (a required input is never left open) *)
+            let result = match value.scope_key with
+              | Some { scope = { Flow_sop.Projection.result = Link name; _ }; _ } -> Some name
+              | _ -> None in
+            [ graph ], (if arity > 0 then result else None) in
+      let expr, base =
+        if is_value then value_expression context key
+        else begin
+          let head = Flow.Syntax.make (Flow.Syntax.Sym (Flow.Workspace.context_name context ^ "/" ^ key)) in
+          let geometry = match context, key, List.find_opt (fun (g : Flow.Workspace.graph) ->
+              g.context = Flow.Workspace.Sop) ws.checked.graphs with
+            | Scene, "geometry", Some g -> [ Flow.Syntax.make (Flow.Syntax.List
+                [ Flow.Syntax.make (Flow.Syntax.Sym "ref"); Flow.Syntax.make (Flow.Syntax.Sym g.name) ]) ]
+            | _ -> [] in
+          Flow.Syntax.make (Flow.Syntax.List (head :: geometry
+            @ (match input with Some n -> [ Flow.Syntax.make (Flow.Syntax.Sym n) ] | None -> []))), key
+        end in
+      let name = Flow_sop.Flow_edit.fresh_name ws.source ~root:graph base in
+      Syntax_edit (Flow_sop.Flow_edit.Add_node { scope; name; expr })
   | None -> Notice "Open a graph to add a node to it"
 
 let enterable value id = match kind value id with
@@ -560,6 +635,20 @@ let open_level value level =
   { value with level; pane_graph = None; selection = Selection.empty; map_view = world;
     tree = Pxui_shell.Tree.create () }
 
+(* The node of the open object's graph the viewport shows: the one the layout names
+   ([v] in the pane) at the iterations the selectors probe, else its result. *)
+let display_node value id =
+  match value.level, value.scope_key, value.doc.Document.workspace with
+  | Document.Inside open_id, Some { scope; records = Some records; graph; _ }, (ws, lowered)
+    when open_id = id ->
+      Option.bind (Layout_by_path.Path_map.find_opt [ graph ] ws.layout.display) (fun path ->
+        let chain = Option.value ~default:[] (Hashtbl.find_opt (Flow_sop.Probe.chains scope) path) in
+        let probes = List.map (fun zone ->
+          Option.value ~default:0 (Layout_by_path.Path_map.find_opt zone value.probes)) chain in
+        Option.bind (Flow_sop.Probe.plan_node records path ~probes) (fun plan ->
+          Flow_sop.Network.Int_map.find_opt plan lowered.compiled))
+  | _ -> None
+
 (* The geometry objects to cook: visible ones, each with its network. *)
 let geometry_objects value =
   List.filter_map (fun id ->
@@ -567,7 +656,11 @@ let geometry_objects value =
         Document.Int_map.find_opt id value.doc.Document.networks with
     | Some node, Some network when Objects.visible node
         && not (Edit_graph.is_bypassed (scene value) ~node_id:id) ->
-        Option.map (fun displayed -> id, network.Document.graph, displayed) network.displayed
+        Option.map (fun displayed ->
+          let shown = match display_node value id with
+            | Some node when Edit_graph.find network.Document.graph.geometry ~node_id:node <> None -> node
+            | _ -> displayed in
+          id, network.Document.graph, shown) network.displayed
     | _ -> None) (Objects.ids "geometry" (scene value))
 
 (* The object the sketch-facing single-object accessors describe: the open
@@ -922,7 +1015,7 @@ let create ?(settings = Settings.none) ?(keymap = Leader.keymap)
         factories;
         selection = Selection.empty; menu = None;
         scope_view = Pxui_graph.Scope.create (); probes = Layout_by_path.Path_map.empty; lit = None;
-        scope_key = None; pane_graph = None;
+        scope_key = None; select_later = []; pane_graph = None;
         flow_catalog = lazy (Result.to_option (Editor_document.Contexts.catalog
           ~version:Flow_sop.Manifest.version factories));
         tree = Pxui_shell.Tree.create (); outline = Pxui_shell.Tree.create (); held_keys = [];
@@ -1161,6 +1254,19 @@ let binding_edit value path text =
            Error [ { d with position = Some { line = 1; col = 0 }; span = None } ])
   | Ok _ -> error "Expected one expression"
 
+(* The Graph tab's apply: the draft must be the one graph (or function) form, which replaces the
+   graph's; atomic like every apply. *)
+let graph_edit value name text =
+  let error message = Error [ Flow.Diagnostic.error ~position:{ line = 1; col = 0 } ~code:"E_EDIT" message ] in
+  match Flow.Syntax.parse text with
+  | Error d -> Error [ d ]
+  | Ok [ form ] ->
+      (match Doc.syntax_edit_result ~factories:value.factories value.doc
+          (Flow_sop.Flow_edit.Set_graph { name; form }) with
+       | Ok doc -> Ok (install value doc ~label:"Edit text" ~merge:Editor_core.History.Step)
+       | Error d -> Error [ { d with position = Some { line = 1; col = 0 }; span = None } ])
+  | Ok _ -> error "Expected the one graph form"
+
 (* Fold the pane's intents: drafts live in [value.text] (view state); a
    refused apply keeps the draft and its errors and changes nothing else. *)
 let apply_text value intents =
@@ -1178,6 +1284,13 @@ let apply_text value intents =
     | Binding_draft (path, draft) ->
         with_text { text with binding_draft = Some (path, draft); binding_errors = [] }
     | Binding_discard -> with_text { text with binding_draft = None; binding_errors = [] }
+    | Graph_draft (graph, draft) ->
+        with_text { text with graph_draft = Some (graph, draft); graph_errors = [] }
+    | Graph_discard -> with_text { text with graph_draft = None; graph_errors = [] }
+    | Graph_apply (graph, draft) ->
+        (match graph_edit value graph draft with
+         | Ok value -> { value with text = { text with graph_draft = None; graph_errors = [] } }
+         | Error graph_errors -> with_text { text with graph_draft = Some (graph, draft); graph_errors })
     | Binding_apply (path, draft) ->
         (match binding_edit value path draft with
          | Ok value -> { value with text = { text with binding_draft = None; binding_errors = [] } }
@@ -1267,7 +1380,7 @@ let open_menu value (x, y) =
   match add_target value with
   | Some (_, context) ->
       Some (Pxui_graph.Node_menu.create ~x ~y
-        (Pxui_graph.Node_menu.entries_of_factories (catalog value context)))
+        (Pxui_graph.Node_menu.entries_of_factories (catalog value context) @ value_entries))
   | None -> None
 
 let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
@@ -1485,7 +1598,11 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
     let selected = Option.bind selected_id
         (fun node_id -> Edit_graph.find document ~node_id) in
     let unchanged = value.doc.settings in
-    let scope_selected = if scope_active then Pxui_graph.Scope.selected scope_view else [] in
+    let lowered_level = match value.level with
+      | Document.Inside id -> kind value id = Some "geometry" | Scene -> false in
+    (* a row of a geometry object's list selects its node in the pane: the inspector follows it *)
+    let scope_selected = if scope_active || (lowered_level && value.scope_key <> None)
+      then Pxui_graph.Scope.selected scope_view else [] in
     let workspace_requests = ref [] and workspace_moves = ref [] in
     let open_network = network value in
     let panel, inspector_changes, settings_changes, live_cook =
@@ -1619,8 +1736,6 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
     (* a lowered node is edited through its text: the handles of the node selected in the
        graph pane write its arguments, the list's rows of a geometry object have none *)
     let scope_target = if scope_active then scope_node value else None in
-    let lowered_level = match value.level with
-      | Document.Inside id -> kind value id = Some "geometry" | Scene -> false in
     let handle_target = if lowered_level then Option.map snd scope_target else selected in
     let handle_edits, grab, picked = match active with
       | Some leaf when visible workspace leaf.Pxui_shell.Layout.panel ->
@@ -1894,14 +2009,16 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
   let next, result = if Option.is_some loaded then next, result else reconciled ~before:present next result in
   (* Workspace gestures: one rewrite of the source per gesture, lowered into
      the document, one history entry named by the op. *)
-  let added = ref None in
+  let added = ref [] in
   let next, result = if Option.is_some loaded then next, result else
     List.fold_left (fun (next, result) change -> match change with
       | Syntax_edit op ->
           (match Doc.syntax_edit ~factories:value.factories next op with
            | Ok doc ->
                (match op with
-                | Flow_sop.Flow_edit.Add_node { scope; name; _ } -> added := Some (scope @ [ name ])
+                | Flow_sop.Flow_edit.Add_node { scope; name; _ } -> added := [ scope @ [ name ] ]
+                | Duplicate { nodes } ->
+                    added := Flow_sop.Flow_edit.duplicated (fst next.workspace).source nodes
                 | _ -> ());
                doc, { (result : _ frame_result) with label = Flow_sop.Flow_edit.label op;
                effects = Parameter.union_effects result.effects Doc.cook_effects }
@@ -1927,6 +2044,13 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
             if frames = [] then M.remove scope l.frames
             else M.add scope (List.map (fun (title, at, size) -> { Layout_by_path.title; at; size }) frames) l.frames }),
           { result with label = "Frame" }, probes
+      | Display_set path ->
+          (* the graph's name is its path; the shown node goes back to the result when chosen again *)
+          let graph = [ List.hd path ] in
+          Doc.layout_edit next (fun l -> { l with display =
+            if M.find_opt graph l.display = Some path then M.remove graph l.display
+            else M.add graph path l.display }),
+          { result with label = "View node" }, probes
       | Syntax_edit _ | Selected _ | Notice _ | Macro_requested _ -> next, result, probes)
       (next, result, value.probes) result.scope_changes in
   let before_world = next in
@@ -2023,8 +2147,18 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
   let value' = { value' with selection; menu = result.menu; tree = result.tree; probes;
     (* a node added from the menu is the selection *)
     scope_view = (match !added with
-      | Some path -> Pxui_graph.Scope.select [ path ] result.scope_view
-      | None -> result.scope_view) } in
+      | [] ->
+          (* a row chosen in the list of a geometry object selects the node that made it in the
+             graph pane, whose inspector edits the text *)
+          (match List.find_map (function Pxui_shell.Tree.Select [ id ] -> Some id | _ -> None)
+                   result.tree_intents with
+           | Some id when (match value.level with
+               | Document.Inside oid -> kind value oid = Some "geometry" | Scene -> false) ->
+               (match node_path value id with
+                | Some path -> Pxui_graph.Scope.select [ path ] result.scope_view
+                | None -> result.scope_view)
+           | _ -> result.scope_view)
+      | paths -> Pxui_graph.Scope.select paths result.scope_view) } in
   let value' = match target with
     | Some level -> open_level value' level
     | None -> value' in
@@ -2204,9 +2338,13 @@ let edit_node value level node_id values ~label =
    the origin is exact through nested collecting merges.  Geometry drawn as
    instances is picked per instance ({!Cook.pick}), and hits compare by the
    ray parameter, so any scale is exact. *)
-let pick value ~origin ~direction =
+let pick ?view value ~origin ~direction =
+  (* the focused viewport's own scene instance, when it has objects of its own *)
+  let view = match view, value.doc.Document.shell with
+    | Some key, Some shell when List.mem_assoc key shell.views -> `Only key
+    | _ -> `Primary in
   match value.doc.Document.workspace, value.scope_key with
-  | (_, lowered), Some { scope; _ } when scope_name value <> None ->
+  | (ws, lowered), Some { scope; _ } when scope_name value <> None ->
       let nearest = List.fold_left (fun best (matrix, piece) ->
         match Mat4.inverse matrix with
         | None -> best
@@ -2215,19 +2353,34 @@ let pick value ~origin ~direction =
                 ~direction:(Mat4.transform_direction inverse direction), best with
             | Some (distance, _), Some (nearer, _) when distance >= nearer -> best
             | Some hit, _ -> Some hit
-            | None, _ -> best) None (placed_pieces value) in
+            | None, _ -> best) None (placed_pieces ~view value) in
       let hit = Option.bind nearest (fun (_, tag) ->
         Flow_sop.Lower.origin lowered tag) in
       (match hit with
        | Some o ->
+           (* geometry of another graph (a viewport over another scene instance draws its own
+              objects): the pane shows that graph, the node is selected there once it does *)
+           let root = List.hd o.site in
+           let value, scope = if root = (match value.scope_key with Some k -> k.graph | None -> root)
+             then value, scope
+             else match Lazy.force value.flow_catalog with
+               | Some catalog -> { value with pane_graph = Some root },
+                   Flow_sop.Projection.of_graph catalog ws.checked root
+               | None -> value, scope in
            (match Hashtbl.find_opt (Flow_sop.Probe.chains scope) o.site with
             | Some chain ->
+                (* the outermost collapsed loop stands for what is inside it *)
+                let collapsed zone = Layout_by_path.Path_map.find_opt zone ws.layout.collapsed = Some true in
+                let shown = match List.find_opt collapsed chain with Some zone -> zone | None -> o.site in
                 let probes = List.fold_left2 (fun probes zone index ->
                   Layout_by_path.Path_map.add zone index probes) value.probes chain
                   (if List.compare_lengths chain o.iter = 0 then o.iter
                    else List.map (fun _ -> 0) chain) in
+                let in_pane = root = (match value.scope_key with Some k -> k.graph | None -> root) in
                 { value with probes;
-                  scope_view = Pxui_graph.Scope.select [ o.site ] value.scope_view }
+                  select_later = (if in_pane then [] else [ shown ]);
+                  scope_view = if in_pane then Pxui_graph.Scope.select [ shown ] value.scope_view
+                    else value.scope_view }
             | None -> value)
        | None -> { value with scope_view = Pxui_graph.Scope.clear_selection value.scope_view })
   | _ -> value

@@ -79,6 +79,9 @@ type op =
   | Set_graph of { name : string; form : Flow.Syntax.t }
       (** the whole [(graph name ...)] form, replacing the graph or appended; the scene and World
           graphs written from the editor's own objects (plan W10 write-back) *)
+  | Duplicate of { nodes : path list }
+      (** the bindings of one scope, copied with fresh names (the copies read each other where the
+          originals did, and notes stay with the originals) *)
 (** ponytail: one variant and one [apply]; no command objects.  The four panel
     operations address a binding of an editor graph by its path, as every other
     op does; panels made by a loop have no binding, so they are edited on the loop. *)
@@ -134,6 +137,9 @@ val default_for : Flow.Ty.t -> string -> Flow.Syntax.t option
 val literals : Flow.Syntax.t -> (int list * Flow.Syntax.t) list
 (** Number and text leaves of an expression with their child paths, the
     candidates for macro holes. *)
+
+val duplicated : Flow.Syntax.t list -> path list -> path list
+(** The paths the copies of [Duplicate { nodes }] get, in order; [[]] when it cannot apply. *)
 
 val arg_text : Flow.Syntax.t list -> path -> arg_key -> Flow.Syntax.t option
 (** The argument [key] of the binding [node], as written (what an {!Unfold} put there). *)

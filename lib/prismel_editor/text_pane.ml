@@ -12,6 +12,7 @@ type tab = Selection | Graph | Document
 type path = Flow.Workspace.path
 
 type shown = {
+  graph : string;  (* the graph the Selection and Graph tabs read *)
   text : string;
   mark : (int * int) option;  (* byte span of the selected binding in [text] *)
   binding : (path * string) option;  (* the selected binding and its expression's text *)
@@ -22,13 +23,15 @@ type state = {
   tab : tab;
   draft : string option;  (* the Document tab's unapplied text *)
   binding_draft : (path * string) option;
+  graph_draft : (string * string) option;  (* the Graph tab's unapplied text, and its graph *)
   doc_errors : Flow.Diagnostic.t list;  (* of the last refused apply *)
   binding_errors : Flow.Diagnostic.t list;
+  graph_errors : Flow.Diagnostic.t list;
   cache : ((S.t list * string * path option * tab) * shown) option;
 }
 
-let initial = { tab = Selection; draft = None; binding_draft = None;
-  doc_errors = []; binding_errors = []; cache = None }
+let initial = { tab = Selection; draft = None; binding_draft = None; graph_draft = None;
+  doc_errors = []; binding_errors = []; graph_errors = []; cache = None }
 
 (* ---- reading the source ---- *)
 
@@ -123,10 +126,10 @@ let closure (root : S.t) top =
 let make_shown source graph selected tab =
   let applied = lazy (fst (Flow.Lisp.print source)) in
   match tab with
-  | Document -> { text = Lazy.force applied; mark = None; binding = None; applied }
+  | Document -> { graph; text = Lazy.force applied; mark = None; binding = None; applied }
   | Selection | Graph ->
       (match root_form source graph with
-       | None -> { text = ""; mark = None; binding = None; applied }
+       | None -> { graph; text = ""; mark = None; binding = None; applied }
        | Some root ->
            let names = match selected with Some (_ :: names) -> names | _ -> [] in
            let found = Option.bind (last root) (fun body -> find_binding body names) in
@@ -134,7 +137,7 @@ let make_shown source graph selected tab =
              | Selection, top :: _ -> Option.value ~default:root (closure root top)
              | _ -> root in
            let text, spans = Flow.Lisp.print [ form ] in
-           { text; mark = mark spans found;
+           { graph; text; mark = mark spans found;
              binding = (match found, selected with
                | Some (_, v), Some path ->
                    Some (path, String.trim (fst (Flow.Lisp.print [ v ])))
@@ -163,15 +166,19 @@ let line_of text (d : Flow.Diagnostic.t) = match d.position, d.span with
 
 let real_errors = List.filter (fun (d : Flow.Diagnostic.t) -> d.severity = Flow.Diagnostic.Error)
 
-let first_error state = match real_errors state.doc_errors, real_errors state.binding_errors with
-  | d :: _, _ | [], d :: _ -> Some d
-  | [], [] -> None
+let first_error state =
+  match real_errors state.doc_errors, real_errors state.binding_errors, real_errors state.graph_errors with
+  | d :: _, _, _ | [], d :: _, _ | [], [], d :: _ -> Some d
+  | [], [], [] -> None
 
 (* one line for the crash report and tests: the tab, the draft, the first error *)
 let summary state =
   Printf.sprintf "%s tab, draft %s%s"
     (match state.tab with Selection -> "selection" | Graph -> "graph" | Document -> "document")
-    (if state.draft <> None then "yes" else "no")
+    (if (match state.tab with
+         | Document -> state.draft <> None
+         | Graph -> state.graph_draft <> None
+         | Selection -> state.binding_draft <> None) then "yes" else "no")
     (match real_errors state.doc_errors, state.draft, real_errors state.binding_errors with
      | d :: _, Some draft, _ ->
          Printf.sprintf ", error%s: %s"
@@ -183,7 +190,10 @@ let summary state =
             | Some l -> Printf.sprintf " at line %d" l | None -> "")
            (Flow.Diagnostic.to_string d)
      | d :: _, None, _ -> ", error: " ^ Flow.Diagnostic.to_string d
-     | [], _, [] -> "")
+     | [], _, [] ->
+         (match real_errors state.graph_errors with
+          | d :: _ -> ", error: " ^ Flow.Diagnostic.to_string d
+          | [] -> ""))
 
 (* ---- the pane ---- *)
 
@@ -195,6 +205,9 @@ type intent =
   | Binding_draft of path * string
   | Binding_apply of path * string
   | Binding_discard
+  | Graph_draft of string * string
+  | Graph_apply of string * string
+  | Graph_discard
 
 let dirty state (shown : shown) = match state.draft with
   | Some d -> d <> Lazy.force shown.applied | None -> false
@@ -235,11 +248,13 @@ let view ui ~bounds:(x, y, width, height) state (shown : shown) =
   let body_h = Float.max row (height -. row) in
   (* the toolbar and the message row under an editable area *)
   let editor key ~at:(ey, eh) ~text ~errors ~spans ~apply ~discard ~can_apply ~message ~draft =
-    let text' = Ui.text_area ui ~at:(x, ey) ~w:width ~h:(Float.max row (eh -. footer))
-        ~errors:(List.filter_map (line_of text) errors |> fun lines -> lines) ~spans key text in
+    let text', submitted = Ui.text_area_submit ui ~at:(x, ey) ~w:width ~h:(Float.max row (eh -. footer))
+        ~wrap:true ~errors:(List.filter_map (line_of text) errors |> fun lines -> lines) ~spans key text in
     if text' <> text then emit (draft text');
     let ty = ey +. Float.max row (eh -. footer) in
-    if chip (key ^ "-apply") ~at:(x, ty) ~w:118. ~active:false ~enabled:can_apply "Check & apply"
+    (* Command-Enter in the area is the button *)
+    if (chip (key ^ "-apply") ~at:(x, ty) ~w:118. ~active:false ~enabled:can_apply "Check & apply")
+       || (submitted && can_apply)
     then emit (apply text');
     if chip (key ^ "-discard") ~at:(x +. 120., ty) ~w:74. ~active:false ~enabled:can_apply "Discard"
     then emit discard;
@@ -262,13 +277,22 @@ let view ui ~bounds:(x, y, width, height) state (shown : shown) =
          ~spans:[] ~apply:(fun t -> Doc_apply t) ~discard:Doc_discard ~can_apply:dirty
          ~message:(message state.doc_errors ~dirty ~clean:"Source matches the applied document.")
          ~draft:(fun t -> Doc_draft t)
-   | Graph | Selection ->
+   | Graph ->
+       let text = match state.graph_draft with
+         | Some (g, t) when g = shown.graph -> t | _ -> shown.text in
+       let dirty = text <> shown.text in
+       editor "text-graph" ~at:(body_y, body_h) ~text ~errors:(real_errors state.graph_errors)
+         ~spans:[] ~apply:(fun t -> Graph_apply (shown.graph, t)) ~discard:Graph_discard ~can_apply:dirty
+         ~message:(message state.graph_errors ~dirty
+           ~clean:(Printf.sprintf "Edit %s as text; Check & apply checks the whole workspace." shown.graph))
+         ~draft:(fun t -> Graph_draft (shown.graph, t))
+   | Selection ->
        let spans = Option.to_list shown.mark in
        let reveal = Option.map fst shown.mark in
        (match state.tab, shown.binding with
         | Selection, Some (path, expr) ->
             let upper = Float.max (2. *. row) (Float.floor ((body_h -. row) /. row *. 0.5) *. row) in
-            ignore (Ui.text_area ui ~at:(x, body_y) ~w:width ~h:upper ~readonly:true
+            ignore (Ui.text_area_submit ui ~at:(x, body_y) ~w:width ~h:upper ~readonly:true ~wrap:true
               ~spans ?reveal "text-selection" shown.text);
             let name = List.nth path (List.length path - 1) in
             let text = match state.binding_draft with
@@ -281,6 +305,6 @@ let view ui ~bounds:(x, y, width, height) state (shown : shown) =
                 ~clean:(Printf.sprintf "Edit %s as text; Check & apply checks the whole workspace." name))
               ~draft:(fun t -> Binding_draft (path, t))
         | _ ->
-            ignore (Ui.text_area ui ~at:(x, body_y) ~w:width ~h:body_h ~readonly:true ~spans ?reveal
-              "text-readonly" shown.text)));
+            ignore (Ui.text_area_submit ui ~at:(x, body_y) ~w:width ~h:body_h ~readonly:true ~wrap:true
+              ~spans ?reveal "text-readonly" shown.text)));
   List.rev !intents

@@ -49,6 +49,17 @@ val submit_all :
     prepared together, e.g. every visible object of a scene; the first cook
     error fails the request. *)
 
+val submit_some :
+  'a t ->
+  context:Context.t ->
+  nodes:Node.t list ->
+  optional:Node.t list ->
+  prepare:(Session.output list -> Session.output option list -> ('a, string) result) ->
+  (int, string) result
+(** {!submit_all} with [optional] nodes cooked after the required ones: a node that fails (or
+    was cancelled) is [None] and never fails the request.  The editor asks for the nodes its
+    footers count this way. *)
+
 val set_volatile : 'a t -> (int -> bool) -> unit
 (** [Session.set_volatile] on the worker's session. *)
 

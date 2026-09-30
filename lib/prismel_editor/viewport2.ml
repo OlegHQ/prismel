@@ -51,7 +51,10 @@ let view_camera camera () ~pending:_ = camera
 let film () viewport = viewport
 let paint viewport camera rendered = Easy_camera2.scene ~viewport camera rendered
 let guides ~scene:_ ~selected:_ ~space:_ _ () ~bounds:_ = []
-let pick_ray ~viewport:_ _ _ = None
+(* A click on the drawing is a ray straight down onto the plane the geometry lies in. *)
+let pick_ray ~viewport camera (x, y) =
+  let point = Easy_camera2.screen_to_world ~viewport camera (Vec2.create x y) in
+  Some (Vec3.create point.Vec2.x point.y 1., Vec3.create 0. 0. (-1.))
 let handles _ ~selected:_ ~scene:_ ~space:_ _ () ~bounds:_ = [], false, None
 let save = CC2.save
 let filename request = request.CC2.filename

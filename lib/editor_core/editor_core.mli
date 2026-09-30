@@ -43,8 +43,7 @@ module Keymap : sig
 end
 
 module Guide_context : sig
-  type t = Canvas | Node | Value_node | Compound | Multi | Wire | Row | Hints
-    | Leader | Search | List | Text | Inside_compound
+  type t = Canvas | Node | Multi | Hints | Leader | Search | List | Text
   val name : t -> string
 end
 

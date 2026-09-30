@@ -28,10 +28,18 @@ let run () =
   let module Scope = Pxui_graph.Scope in
   let ids context = Command.for_guide Scope.bindings ~focus:() ~context
     |> List.map (fun (c : _ Command.t) -> c.id) in
-  check (ids Canvas <> [] && ids Canvas = ids Node && ids Node = ids Multi
-         && List.mem "scope.walk.left" (ids Canvas) && List.mem "scope.delete" (ids Canvas)
-         && ids Search = [] && ids Text = [] && ids List = [])
-    "the workspace pane's guide contents differ between its contexts";
+  (* the strip lists a key where it does something: walking and framing on the empty canvas;
+     editing needs a selection; duplicate and delete take several nodes, rename and view one *)
+  check (List.mem "scope.walk.left" (ids Canvas) && List.mem "scope.frame-all" (ids Canvas)
+         && not (List.mem "scope.delete" (ids Canvas)) && not (List.mem "scope.duplicate" (ids Canvas))
+         && List.mem "scope.delete" (ids Node) && List.mem "scope.rename" (ids Node)
+         && List.mem "scope.display" (ids Node) && List.mem "scope.fold" (ids Node)
+         && List.mem "scope.duplicate" (ids Multi) && List.mem "scope.repeat" (ids Multi)
+         && not (List.mem "scope.display" (ids Multi)) && not (List.mem "scope.fold" (ids Multi))
+         && ids Search = [] && ids Text = [] && ids List = [] && ids Leader = [] && ids Hints = [])
+    "the workspace pane's guide lost or misplaced a key for its contexts";
+  check (List.for_all (fun (c : _ Command.t) -> c.guide <> []) Scope.bindings)
+    "a workspace pane key is listed in no guide context";
   let host_ids focus context = Command.for_guide L.keymap ~focus ~context
     |> List.map (fun (c : _ Command.t) -> c.id) in
   check (List.mem "guide.toggle" (host_ids (Pxui_shell.Layout.View "") Canvas)
@@ -39,6 +47,21 @@ let run () =
       && List.mem "graph.projection" (host_ids Pxui_shell.Layout.Graph List)
       && List.mem "preset.save" (host_ids Pxui_shell.Layout.Graph Leader))
     "host guide lost a context or ignored command scope";
+  (* Enter needs a selected object, up a level does not; the list has both *)
+  check (List.mem "scene.enter" (host_ids Pxui_shell.Layout.Graph Node)
+         && not (List.mem "scene.enter" (host_ids Pxui_shell.Layout.Graph Canvas))
+         && List.mem "scene.up" (host_ids Pxui_shell.Layout.Graph Canvas)
+         && List.mem "scene.enter" (host_ids Pxui_shell.Layout.Graph List)
+         && List.mem "guide.keys" (host_ids Pxui_shell.Layout.Graph Hints)
+         && List.mem "list.up" (host_ids Pxui_shell.Layout.Graph List)
+         && not (List.mem "list.up" (host_ids Pxui_shell.Layout.Graph Canvas)))
+    "the host guide contexts changed";
+  (* the list walks with j and k as with the arrows *)
+  let list_step key_char expected =
+    let _, actions, _ = Editor_core.Router.step L.keymap ~focus:Pxui_shell.Layout.Graph ~text_focus:false
+      ~frame:(Test_editor_input.frame (500., 400.) [ char key_char ] 1) Idle in
+    List.exists (fun (c : _ Command.t) -> c.action = L.List_command expected) actions in
+  check (list_step 'j' Pxui_shell.Tree.Down && list_step 'k' Pxui_shell.Tree.Up) "j and k do not walk the list";
   (* focus is a panel; commands are scoped by its kind: every viewport is one scope, and the
      list and lisp panels are graph-pane projections *)
   let module P = Pxui_shell.Layout in

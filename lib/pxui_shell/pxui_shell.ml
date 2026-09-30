@@ -572,6 +572,7 @@ module Tree = struct
         ~id:("list." ^ id) ~label ~trigger:(Chord (key, modifiers)) action in
     let open Prismel.Input in
     [ key "up" "previous row" ArrowUp Up; key "down" "next row" ArrowDown Down;
+      key "up" "previous row" (KeyChar 'k') Up; key "down" "next row" (KeyChar 'j') Down;
       key "extend-up" "extend selection up" ArrowUp Extend_up ~modifiers:[Shift];
       key "extend-down" "extend selection down" ArrowDown Extend_down ~modifiers:[Shift];
       key "collapse" "fold / parent" ArrowLeft Collapse;
