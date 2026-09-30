@@ -97,6 +97,12 @@ let () =
       ~query:"draft") in
   if query <> Some ("draft", `None) then
     failwith "name prompt lost its initial query";
+  (* the make-macro dialog keeps the host's state until something is pressed *)
+  let macro = { Pxui_shell.Prompt.name = "shifted"; holes = [| true, "p1"; false, "p2"; true, "p3" |] } in
+  let answer = Pxui.Ui.frame ui frame (fun ui ->
+    Pxui_shell.Prompt.macro ui ~key:"macro" ~title:"Make a macro" ~literals:[| "0.5"; "12"; "\"a\"" |]
+      ~free:[ "seed" ] macro) in
+  if answer <> Some (macro, `None) then failwith "macro prompt changed its state or submitted on its own";
   let shell = Pxui.Ui.create () in
   if Pxui_shell.Shell.frame shell frame ~visible:false
       ~body:(fun _ -> 7) ~overlay:None <> None then

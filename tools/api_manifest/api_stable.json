@@ -1,7 +1,7 @@
 {
   "generator": "tools/api_manifest/api_manifest.exe",
   "kind": "stable_high_level",
-  "module_count": 164,
+  "module_count": 165,
   "modules": [
     {
       "api_sha256": "eb1e27ba00670ec546b87d8ec8c8c27cd7d95016240fecb7d6422d45e5154fce",
@@ -58,13 +58,13 @@
       "source_sha256": "4ce498234d31702192cefd906c8a00dbfca308a650bbfd96b4badcc175327872"
     },
     {
-      "api_sha256": "41e429306c9e1af3e394fa572ed0e083367dc441d884ad98c6b0c0225bcce18c",
+      "api_sha256": "ef0def5c246166f130194abc38a6463ec76a490cbea80ac8e15f34269d71e1df",
       "excluded_legacy_symbols": [],
       "library": "flow",
       "module": "Eval",
       "source": "lib/flow/eval.mli",
-      "source_bytes": 6648,
-      "source_sha256": "dc0fe60f67bf845851b0d670515dcf131561d0734945229ba9fabef7014282e2"
+      "source_bytes": 7001,
+      "source_sha256": "7b3b9547b9eb50d4c501f76727f61570576e51695ad7cb5e3d42e2491cd9db42"
     },
     {
       "api_sha256": "ecdd3c1710c64ea10a7333a7f8158a82ca4f0365d262eca76c369bccfca6ec02",
@@ -229,13 +229,13 @@
       "source_sha256": "f9a00432e3188505de724250128700d7c52caef05e29fd8016748a2e5baabdce"
     },
     {
-      "api_sha256": "627e4054d3504c0f20797477c772a0b49ec688245481e2548493a60ad241dca9",
+      "api_sha256": "d51ef97d0fab9c6b3127ce0effee8116ef6a140ee3f312058046936c3cb9ae7f",
       "excluded_legacy_symbols": [],
       "library": "flow_sop",
       "module": "Flow_edit",
       "source": "lib/flow_sop/flow_edit.mli",
-      "source_bytes": 6010,
-      "source_sha256": "c3adc93ce9068bb58af77b2f20835f77fc11cbc5d26a196459d9a323d2702112"
+      "source_bytes": 6793,
+      "source_sha256": "8f18d1b11616273e22faf25ac88df4e24e3d6661d601f667da56d116e5538453"
     },
     {
       "api_sha256": "7eecb828ca9bea7e3ce0fc08ea6b4c2ba9eb3e6bc00e13a1aaed772af8fc09e9",
@@ -256,13 +256,13 @@
       "source_sha256": "8cf95ef11c084e7d058d22a4108165f69fcd09a03f0fc277ba437983d500842c"
     },
     {
-      "api_sha256": "ed10fafc698374fb2c6583daf9909cf841d8c18e820fdedc07b948e1aaa33b4e",
+      "api_sha256": "9d968b27723674db3715495f16486ee534eee9874f7c4abd1c3bdde6c9a6edb2",
       "excluded_legacy_symbols": [],
       "library": "flow_sop",
       "module": "Lower",
       "source": "lib/flow_sop/lower.mli",
-      "source_bytes": 4966,
-      "source_sha256": "43686add94c22b239a23120a2e67df0454d0a246b7d5bc3a4aad856442154294"
+      "source_bytes": 6035,
+      "source_sha256": "f8323f61f8e557d269257b1615db12055a390f29506c814978f6ddaea561f907"
     },
     {
       "api_sha256": "dd91704ce31dcdf0f51a256313cb5b901fecc438cd740242c169f1123a1fe9bf",
@@ -301,13 +301,13 @@
       "source_sha256": "87cdb0e8ac900133cca204ee108554d0626f2ad135de9ca787d77ce0ceab54ad"
     },
     {
-      "api_sha256": "4b48a48516dec550c90e7bdfd8cc2c4d1ef60ec682d0848c6db2c27cafb2cd7e",
+      "api_sha256": "b2542f70b53e208afead8aeb5a1c986f4a141ac2b3e3fcd6d5533fc8c97f1553",
       "excluded_legacy_symbols": [],
       "library": "flow_sop",
       "module": "Probe",
       "source": "lib/flow_sop/probe.mli",
-      "source_bytes": 3700,
-      "source_sha256": "02290cd1ffd077ef5d09b83715c8625df132b4b49a87f8885676a16b5fea352b"
+      "source_bytes": 3937,
+      "source_sha256": "03f95c0a1b6e81452f033e650e4fd73cf10ff631124ba41c8e95d80f9cd9a7f1"
     },
     {
       "api_sha256": "2b99d9dee067e5ad0e5a328c6566880ba85eba4b0c304adef9f7b5f0ed137c5b",
@@ -319,13 +319,13 @@
       "source_sha256": "4b00b409199741dedf61c8144c499bad498656c503df822fd853f848708668eb"
     },
     {
-      "api_sha256": "68a35086e985363fa3a44015067ff7f7f1128b2aac6daa603d7d00c8ac055e5e",
+      "api_sha256": "616c6d3d0c452d19ab8c1d1399d0eb6e5b33fe8d6416a00abebd31abbdf3dc2e",
       "excluded_legacy_symbols": [],
       "library": "flow_sop",
       "module": "Projection",
       "source": "lib/flow_sop/projection.mli",
-      "source_bytes": 5460,
-      "source_sha256": "3050afb5de02e8b954340c30be97ed999f67a54e0273004abec595e1683833fb"
+      "source_bytes": 6372,
+      "source_sha256": "64a9760506463d4e876a12f823b1cc49471d81f975b4f227739957c3503a58b0"
     },
     {
       "api_sha256": "c578fd7b683f342cb1b80a706882a94a74c3dedfb3c7faf0b480e5b96c814e86",
@@ -1340,13 +1340,13 @@
       "source_sha256": "0b3761f896a07a208255f7e042c9cb01702a538b145907c27c288590f6b69134"
     },
     {
-      "api_sha256": "9b3fd1a102e5bf2165e125885c59a697cc87e8ae6367eb2441037775995638cf",
+      "api_sha256": "2e2f5025f748407afcd57995e9962bf9fbec288c1c44e7e89b074c46585bf1d2",
       "excluded_legacy_symbols": [],
       "library": "procedural",
       "module": "Node",
       "source": "lib/procedural/node.mli",
-      "source_bytes": 3669,
-      "source_sha256": "b82aaa2d88f8835c9c0fb77b6500d06cead498c9ecca78a103b62353dd9fcd5d"
+      "source_bytes": 4169,
+      "source_sha256": "4435711f23f6cbd893f64d3d14fb015f1203df0e7d1855d8bf2b44c2d7cb5648"
     },
     {
       "api_sha256": "a66932621a4d6277027c6dfbb9fcf0b0e0b9e0057d4be7b23a51ecfbd997c4b4",
@@ -1383,6 +1383,15 @@
       "source": "lib/procedural/sop.mli",
       "source_bytes": 95004,
       "source_sha256": "291a0ab4f3b3aa132e387c5a61a3b4891521e1c59a0da0404ebff08e63365a78"
+    },
+    {
+      "api_sha256": "6dd0954e560976315994f79f093b767c1c4405e20cfa5dd52ec3397dbe73f8a7",
+      "excluded_legacy_symbols": [],
+      "library": "procedural",
+      "module": "Zone",
+      "source": "lib/procedural/zone.mli",
+      "source_bytes": 2022,
+      "source_sha256": "dd64056045bd52697781566599299eac4334c8c29d3336249731a6cb774780d0"
     },
     {
       "api_sha256": "a07dc249d7631da8b4e38fe93e9e43898cdc8cec6e30be0a7c921a086e386fba",
@@ -1430,22 +1439,22 @@
       "source_sha256": "22d2cdc11510b7f34ee8598a1a102a24ce3d8ac60d82b632c82091012d87dfa1"
     },
     {
-      "api_sha256": "59d48b2bb036be55754886d8f3470f7f0231b7ef060d1ab7290717c7da8c3f99",
+      "api_sha256": "b214ca2410dd498fbe65a72223bac2194dcb939309ac85be841b165081bdf7c3",
       "excluded_legacy_symbols": [],
       "library": "pxui_graph",
       "module": "Scope_pane",
       "source": "lib/pxui_graph/scope_pane.mli",
-      "source_bytes": 3627,
-      "source_sha256": "08c4f25e70c9fbfcbc8ad750560d0e637747a571bf2de639a0fff1884c824f35"
+      "source_bytes": 4531,
+      "source_sha256": "63f888a355610a7a1c61fbe7d1911ab7b91b6738c7e2e7d297752c87ff1035a7"
     },
     {
-      "api_sha256": "c0068793a9eb554212e19d6c7e7f7339fdb1aa1ffa6cf78456b202f94e93708e",
+      "api_sha256": "5d6d88c39f6458c209dadae221ddc701db6109baa75f3e36e956aab1417237bd",
       "excluded_legacy_symbols": [],
       "library": "pxui_shell",
       "module": "Pxui_shell",
       "source": "lib/pxui_shell/pxui_shell.mli",
-      "source_bytes": 7433,
-      "source_sha256": "229358f94c4ccd43a4fe547f133b329d6425cb2bcd4c01471e3150dfc2ec26aa"
+      "source_bytes": 8013,
+      "source_sha256": "343b19d99b65b55e942333c51fb2752ec442fc4045be1edb370694fbb68a8643"
     },
     {
       "api_sha256": "3b75473d5d524a02e7590c03eb6f50245673f6d397ca9be097d6c1ab32b6855a",

@@ -74,3 +74,13 @@ only for visible cards at zoom >= 0.4, a sparkline draws at most 16 segments
 whatever the count (the paint test bounds it), and the `↑ same each time`
 button is a `Ui.box` emitting `Syntax_edit (Hoist ...)`. `with_scope` drops
 selected paths that no longer exist.
+
+W9: a macro call card has a toggle at the right of its title; the open panel (its
+step, in `Scope` view state, not the document) is part of the card's height and width
+through `Projection.layout ~lens`, so opening it re-lays the graph out for the next frame
+(the frame that opened it is painted with the old geometry). Its buttons are `Ui.box`es
+in the tile: step buttons choose the printed step, "Replace call with expansion" is
+`Syntax_edit (Inline_macro ...)`. A call whose first input fits its result
+(`Projection.bypassable`) has a `B` flag on its title, `Syntax_edit (Toggle_bypass ...)`
+like the `b` key. `m` is `Macro_requested paths`: the host owns the dialog
+(`Pxui_shell.Prompt.macro`) and answers with one `Make_macro`.

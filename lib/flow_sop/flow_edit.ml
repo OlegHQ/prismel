@@ -711,7 +711,29 @@ let gesture = function
   | Set_arg { node; key; sub; _ } ->
       Some (Printf.sprintf "scrub:%s:%s:%s" (String.concat "/" node) (key_text key)
         (String.concat "." (List.map string_of_int sub)))
+  | Set_note { node; _ } -> Some ("note:" ^ String.concat "/" node)
   | _ -> None
+
+type macro_draft = { literals : (int list * S.t) list; free : string list; name : string }
+
+let macro_draft src nodes =
+  try
+    let sp = scope_path_of nodes in
+    let root = List.hd sp in
+    let rootf = root_form src root in
+    let draft = ref None in
+    ignore (edit_scope src sp (fun s ->
+      let x = select s nodes "A macro" in
+      draft := Some { literals = literals (body_of x); free = outside_names ~root:rootf x;
+                      name = fresh_name src ~root (x.out_name ^ "_tpl") };
+      s));
+    Ok (Option.get !draft)
+  with Fail d -> Error d
+
+let macro_op draft ~nodes ~name choices =
+  Make_macro { nodes; name; holes = List.filteri (fun i _ -> i < Array.length choices) draft.literals
+    |> List.mapi (fun i (path, _) -> path, choices.(i))
+    |> List.filter_map (fun (path, (on, hole)) -> if on then Some (path, hole) else None) }
 
 let check catalog forms =
   let text, _ = Flow.Lisp.print forms in

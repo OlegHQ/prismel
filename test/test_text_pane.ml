@@ -148,7 +148,62 @@ let editor_text () =
   check (Flow.Lisp.print (ws ()).source |> fst = applied) "undo did not restore the text";
   check (E.redo_label !env = Some "Edit text") "redo label"
 
+(* W9 through the editor: the 1400x800 window of sketches/flow_workspace, Rosette, the graph
+   pane zoomed once (frame 12) so the cards sit where FLOW_W9 clicks them: the B flag of
+   `soft`, its note in the inspector, and the make-macro dialog (m, Create macro).  The frame's
+   mouse stays at the window centre (the pointer is the events'), as the export driver's does. *)
+let editor_w9 () =
+  let open Prismel in
+  let catalog = Flow_sop.Catalog.of_factories ~version:Flow_sop.Manifest.version
+      Sop_catalog.Editor.factories |> Result.get_ok in
+  let scenario script =
+    Unix.putenv "PRISMEL_MAX_FRAMES" "40";
+    let workspace = Prismel_editor.Workspace_doc.of_text catalog (case "rosette") |> Result.get_ok in
+    let env = ref (E.create ~workspace
+        ~prepare:(fun _ output -> Pdk_prismel.Prismel_mesh.to_mesh output.Procedural.Session.geometry
+          |> Result.map_error Pdk.Error.to_string)
+        ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) () |> Result.get_ok) in
+    let mouse = ref (640., 360.) in
+    for n = 1 to 40 do
+      let click p =
+        [ Event.MouseMoved p; Event.MousePressed (Input.LeftButton, p); Event.MouseReleased (Input.LeftButton, p) ] in
+      let events = match List.assoc_opt n script with
+        | Some events -> events click
+        | None -> match n with
+          | 4 -> click (900., 300.) | 6 -> [ Event.KeyPressed (Input.KeyChar 'j') ]
+          | 8 -> [ Event.KeyPressed (Input.KeyChar 'i') ]
+          | 12 -> [ Event.MouseMoved (780., 380.); Event.MouseScrolled (0., 9.) ]
+          | 16 -> click (960., 466.)
+          | _ -> [] in
+      let f : Frame.t = { width = 1400; height = 800; size = 1400, 800; drawable_width = 1400;
+        drawable_height = 800; drawable_size = 1400, 800; pixel_scale = 1., 1.;
+        time = float n /. 60.; dt = 1. /. 60.; fps = 60.; count = n; mouse = !mouse;
+        mouse_delta = 0., 0.; keys = []; mouse_buttons = []; events } in
+      env := E.update !env f;
+      Unix.sleepf 0.002
+    done;
+    Unix.sleepf 0.05;
+    let ws = Option.get (E.workspace !env) in
+    Flow.Lisp.print ws.source |> fst, E.undo_label !env in
+  let untouched, _ = scenario [] in
+  check (contains untouched "^:bypass (sop/subdivide inner") "soft starts bypassed";
+  (* the flag *)
+  let text, label = scenario [ 22, (fun click -> click (1044., 236.)) ] in
+  check (not (contains text "^:bypass") && label = Some "Bypass")
+    (Printf.sprintf "the B flag: %s, bypass %b" (Option.value label ~default:"-") (contains text "^:bypass"));
+  (* the inspector note: click the field, type, Enter *)
+  let text, label = scenario [ 22, (fun click -> click (1075., 236.)); 26, (fun click -> click (1290., 158.));
+    28, (fun _ -> [ Event.KeyPressed (Input.KeyChar 'a') ]); 30, (fun _ -> [ Event.TextInput "a fresh note" ]);
+    32, (fun _ -> [ Event.KeyPressed Input.Enter ]) ] in
+  check (contains text "; a fresh note" && label = Some "Note") ("the note edit: " ^ Option.value label ~default:"-");
+  (* the dialog: m over the selection, then Create macro *)
+  let text, label = scenario [ 22, (fun click -> click (1075., 236.));
+    26, (fun _ -> [ Event.KeyPressed (Input.KeyChar 'm') ]); 30, (fun click -> click (700., 463.)) ] in
+  check (contains text "(defmacro soft_tpl [p1 inner]" && label = Some "Make macro")
+    ("the make-macro dialog: " ^ Option.value label ~default:"-")
+
 let run () =
   selection_text ();
   editor_text ();
+  editor_w9 ();
   print_endline "text pane tests passed"

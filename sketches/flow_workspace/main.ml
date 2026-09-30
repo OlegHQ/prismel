@@ -1,6 +1,7 @@
 (* A workspace document in the editor: the graph pane draws it with zones,
    rails and iteration selectors.  FLOW_CASE picks bloom (default),
-   sunflower, orrery or garden (W8, a loop over points).  FLOW_SCROLL=<n> is the one wheel step at frame 12 (the pane zoom; default two steps of 5).
+   sunflower, orrery, garden (W8, a loop over points) or rosette (W9, macro calls and a bypassed node).  FLOW_W9 / FLOW_W9KEY / FLOW_W9TEXT script clicks, a key and typed text by frame (see the script).
+   FLOW_SCROLL=<n> is the one wheel step at frame 12 (the pane zoom; default two steps of 5).
    FLOW_ADD=1 adds a box from the Tab menu.  FLOW_EXPORT=<dir> renders the editor's UI to PNG
    frames instead of opening a window (a check of the graph pane).
    FLOW_TEXT=selection|graph|document|edit|error|binding shows the text pane (Space l
@@ -12,7 +13,7 @@ module E3 = Prismel_editor.Editor3
 let workspace =
   let text = match Sys.getenv_opt "FLOW_CASE" with
     | Some "sunflower" -> Cases.sunflower | Some "orrery" -> Cases.orrery
-    | Some "garden" -> Cases.garden | _ -> Cases.bloom in
+    | Some "garden" -> Cases.garden | Some "rosette" -> Cases.rosette | _ -> Cases.bloom in
   let catalog = Flow_sop.Catalog.of_factories ~version:Flow_sop.Manifest.version
       Sop_catalog.Editor.factories |> Result.get_ok in
   match Prismel_editor.Workspace_doc.of_text catalog text with
@@ -47,6 +48,21 @@ let () = match Sys.getenv_opt "FLOW_EXPORT" with
                | Some p -> (match String.split_on_char ',' p with
                    | [ x; y ] -> click (float_of_string x, float_of_string y) | _ -> [])
                | None -> [])
+          | n when n >= 20 && Sys.getenv_opt "FLOW_W9" <> None ->
+              (* FLOW_W9=x,y@frame[;x,y@frame]... clicks the graph pane at those frames (a
+                 macro lens toggle, a step, a flag); FLOW_W9KEY=c@frame presses a key;
+                 FLOW_W9TEXT=text@frame types it *)
+              let at spec = List.filter_map (fun item -> match String.split_on_char '@' item with
+                | [ what; f ] when int_of_string_opt f = Some n -> Some what | _ -> None)
+                (String.split_on_char ';' spec) in
+              List.concat_map (fun what -> match String.split_on_char ',' what with
+                | [ x; y ] -> click (float_of_string x, float_of_string y) | _ -> [])
+                (at (Sys.getenv "FLOW_W9"))
+              @ List.concat_map (fun k -> if k = "Enter" then [ Event.KeyPressed Input.Enter ]
+                                 else if String.length k = 1 then [ Event.KeyPressed (Input.KeyChar k.[0]) ] else [])
+                  (at (Option.value ~default:"" (Sys.getenv_opt "FLOW_W9KEY")))
+              @ List.map (fun text -> Event.TextInput text)
+                  (at (Option.value ~default:"" (Sys.getenv_opt "FLOW_W9TEXT")))
           | 20 when Sys.getenv_opt "FLOW_ADD" <> None -> [ Event.KeyPressed Input.Tab ]
           | 22 when Sys.getenv_opt "FLOW_ADD" <> None -> [ Event.TextInput "box" ]
           | 24 when Sys.getenv_opt "FLOW_ADD" <> None -> [ Event.KeyPressed Input.Enter ]

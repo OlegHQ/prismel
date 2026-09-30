@@ -19,7 +19,7 @@ Status: `todo` · `wip` · `done` (gate met) · `partial` (what is missing is na
 | W6 viewport provenance | done | | `Pdk_prismel.Prismel_mesh.to_mesh_with_primitives`, global `__flow_src` tags that survive nested merges, `Pick` (CPU ray over `Pdk.Surface_index`, per-corner tint), `Core.pick`, the highlight follows the selection and probes; click in Viewport3 selects the node and probes its iteration (notes below). Gaps: geometry drawn as instances is not picked, a collapsed zone stays collapsed. |
 | W7 editable text | done | | `Ui.text_area`, the text pane's Selection, Graph and Document tabs (`Prismel_editor.Text_pane`), atomic Check & apply (`Doc.text_edit`, `Core.text_edit`/`binding_edit`, one "Edit text" entry), per-binding apply, error marks at their line; the old read-only text pane and the flat network text view are deleted (notes below). Gaps: the Graph tab is read-only, no Tab key, wrapping or Cmd-Enter apply. |
 | W8 loops over geometry | done | | `point_list` / `piece_list`, the zone node (`Eval` template, `Procedural.Zone` + `Node.Private.expand` + `Session`), lowering by `Lower.instantiate`, zone provenance and count, `FLOW_CASE=garden`, `test_workspace_zone`, bench (notes below). Gaps: values inside the loop read the template record, no `t` in the body, no "by index" title, sequential. |
-| W9 macros UI, notes, bypass | todo | | |
+| W9 macros UI, notes, bypass | done | | `Projection` lens and `layout ?lens`, the panel and `B` flag in `Scope`, `Macro_requested` + `Flow_edit.macro_draft` / `macro_op` + `Pxui_shell.Prompt.macro`, the inspector note field, tests through the pane and the editor, `FLOW_CASE=rosette` (notes below). Gaps: no Template button, no Enter to create, no inspector bypass toggle. |
 | W10 contexts & composable shell | todo | | |
 | W11 `.plisp` sketches | todo | | |
 | W12 migration & removal | todo | | |
@@ -421,3 +421,13 @@ Status: `todo` · `wip` · `done` (gate met) · `partial` (what is missing is na
   a template node with its parameters in one step, keep the expansion between cooks when
   the collection's points are unchanged, and `Parallel.map_array` over elements once a
   byte-identical test and a bench show a win.
+- W9 notes. Details are in `flow-migration.md` "W9". Bypass stays Eval-level:
+  `^:bypass` never makes a plan node, so nothing lowered can carry a flag and
+  `Edit_graph.set_bypass` remains only the flat pane's; the pane and inspector edit the source.
+  The lens panel is part of the card (layout height and width), not an overlay, so the nodes
+  below move down; the lens state is view state. `m` now makes a macro (bypass is `b` and the
+  `B` flag). Native: a rosette with the lens open on `outer` at step 2, a step click, Replace
+  (the call becomes `sop/merge` with a `for` chip), the flag toggling `soft`, `m` over `soft`
+  and Create (a `soft_tpl` call), and a typed note (`FLOW_W9`, PNG frames read). A macro
+  made from `inner` (a call whose loop variable is a binder) is refused by the checker
+  (`E_MACRO_CAPTURE`) and reported in the status strip.

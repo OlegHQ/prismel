@@ -155,6 +155,27 @@ let part7 () = (* functions and macros *)
   let out = apply two (E.Make_macro { nodes = [ node [ "a" ]; node [ "b" ] ]; name = "pair"; holes = [ [ 1; 1; 2 ], "r" ] }) in
   check (has out "a#") ("multi-binding macro uses fresh names:\n" ^ out)
 
+(* W9: what the make-macro dialog answers is one Make_macro, and its draft lists the holes' candidates *)
+let dialog () =
+  let src = parse base in
+  let draft = match E.macro_draft src [ node [ "b" ] ] with
+    | Ok d -> d | Error d -> fail (Flow.Diagnostic.to_string d) in
+  check (List.map fst draft.literals = [ [ 3; 0 ]; [ 3; 1 ]; [ 3; 2 ] ] && draft.free = [ "a" ]
+         && draft.name = "b_tpl") "the draft of b";
+  let op = E.macro_op draft ~nodes:[ node [ "b" ] ] ~name:"shifted" [| true, "dx"; false, "dy"; true, "dz" |] in
+  check (op = E.Make_macro { nodes = [ node [ "b" ] ]; name = "shifted"; holes = [ [ 3; 0 ], "dx"; [ 3; 2 ], "dz" ] })
+    "unticked literals are not holes";
+  let out = apply base op in
+  check (has out "(defmacro shifted [dx dz a]" && has out "b (shifted 1 3 a)") ("the dialog's macro:\n" ^ out);
+  (match E.macro_draft src [ node [ "b" ]; node [ "@result" ] ] with
+   | Error d -> check (d.code = "E_EDIT") "a result cannot be templated"
+   | Ok _ -> fail "a result was templated");
+  (* notes: typing merges into one history entry per node *)
+  check (E.gesture (E.Set_note { node = node [ "b" ]; text = "x" }) = E.gesture (E.Set_note { node = node [ "b" ]; text = "xy" })
+         && E.gesture (E.Set_note { node = node [ "b" ]; text = "x" }) <> None
+         && E.gesture (E.Set_note { node = node [ "b" ]; text = "x" }) <> E.gesture (E.Set_note { node = node [ "c" ]; text = "x" }))
+    "note typing is one gesture per node"
+
 let part8 () = (* bypass and notes *)
   let by = apply base (E.Toggle_bypass { node = node [ "b" ] }) in
   check (norm by = norm (g "(let* [a (sop/uv_sphere :radius 0.5) b ^:bypass (sop/transform a :translate [1 2 3]) c (sop/subdivide b :iterations 1)] c)")) "bypass on";
@@ -252,4 +273,4 @@ let part12 () = (* the 12 fixtures: notes survive, edits round trip *)
        | Error d -> fail (Flow.Diagnostic.to_string d))
 
 let run () =
-  List.iter (fun f -> f ()) [ part1; part2; part3; part4; part5; part6; part7; part8; part9; part10; part11; part12 ]
+  List.iter (fun f -> f ()) [ part1; part2; part3; part4; part5; part6; part7; dialog; part8; part9; part10; part11; part12 ]

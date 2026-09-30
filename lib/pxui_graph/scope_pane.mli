@@ -19,12 +19,14 @@ type change =
   | Selected of path list
   | Moved of (path * float * float) list
       (** dragged items, at their new position inside their scope *)
+  | Macro_requested of path list
+      (** [m]: the host opens its make-macro dialog over these nodes *)
   | Notice of string
 
 type direction = Left | Down | Up | Right
 type command =
   | Delete  (** the hovered wired row's wire, else the selected nodes *)
-  | Fold_into | Unfold | Hoist | Bypass | Wrap_repeat | Wrap_iterate | Make_fn
+  | Fold_into | Unfold | Hoist | Bypass | Wrap_repeat | Wrap_iterate | Make_fn | Make_macro
   | Collapse | Probe_step of int | Frame_all | Walk of direction
 
 type stats = {
@@ -53,6 +55,14 @@ val with_records : Flow_sop.Probe.t -> t -> t
     when the evaluation, the cooked geometry counts or the time (a live
     document) changed; a change of probe or scope is [with_scope]. *)
 
+val macro_step : t -> path -> int option
+(** The step shown by the open expansion panel of a macro call ([0] is the call as
+    written); [None] while the panel is closed.  The panel is opened by the toggle at the
+    right of the card's title and its step buttons choose the step (view state); its
+    "Replace call with expansion" button is [Syntax_edit (Inline_macro ...)].  A node
+    that can be bypassed has a [B] flag on its title: a click is
+    [Syntax_edit (Toggle_bypass ...)]. *)
+
 val selected : t -> path list
 val select : path list -> t -> t
 val clear_selection : t -> t
@@ -75,4 +85,9 @@ module Private : sig
     ((float * float * float * float) * (float * float * float * float) * (float * float * float * float)) option
   val output_socket : t -> path -> (float * float) option
   val row_center : t -> path -> int -> (float * float) option
+  val lens_toggle : t -> path -> (float * float) option
+  (* centres, in screen points, of the panel's parts *)
+  val lens_step_button : t -> path -> int -> (float * float) option
+  val lens_replace : t -> path -> (float * float) option
+  val bypass_flag : t -> path -> (float * float) option
 end

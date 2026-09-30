@@ -70,6 +70,20 @@ type op =
 val label : op -> string
 (** The history label: "Repeat", "Iterate", "Unfold", "Make macro", ... *)
 
+type macro_draft = {
+  literals : (int list * Flow.Syntax.t) list;  (** the candidate holes of the template ({!literals}) *)
+  free : string list;  (** outside names the template reads: they always become holes *)
+  name : string;  (** a suggested macro name *)
+}
+
+val macro_draft : Flow.Syntax.t list -> path list -> (macro_draft, Flow.Diagnostic.t) result
+(** What [Make_macro] over these nodes would template, for the dialog that picks its
+    holes.  The errors are [Make_macro]'s (one scope, one result leaving). *)
+
+val macro_op : macro_draft -> nodes:path list -> name:string -> (bool * string) array -> op
+(** The [Make_macro] a dialog's answer means: entry [i] says whether literal [i] is a
+    hole and how it is named.  Unchecked entries are copied into the template. *)
+
 val gesture : op -> string option
 (** A history merge key for a gesture that repeats while dragged (scrubbing
     an argument), [None] for everything else. *)

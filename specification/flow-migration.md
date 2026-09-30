@@ -322,6 +322,7 @@ milestone is recorded here with its date, what landed and its deviations.
 | W6 viewport provenance | done | 2026-09-30 |
 | W7 editable text | done | 2026-09-30 |
 | W8 loops over geometry | done | 2026-09-30 |
+| W9 macros UI, notes, bypass | done | 2026-09-30 |
 
 ### W0 fixes and catalog prerequisites (2026-09-30, done with W4 part A)
 
@@ -1010,3 +1011,36 @@ one point, pieces, keys, `E_ZONE_LIVE`), `test/test_probe.ml`. Bench
 `specification/workspace/progress.md`. Native: `FLOW_CASE=garden` in
 `sketches/flow_workspace` (40 dots over a scattered bed; selecting the zone
 lights every element, the rest dims).
+
+### W9 macros UI, notes, bypass (2026-09-30, done)
+
+Landed: **Macro lens.** `Projection.node.lens` (the call, then each `Flow.Macro.expand_once`
+step printed by `Flow.Lisp`, at most 12) and `Projection.layout ?lens` (an open panel adds
+`lens_height` and widens the card to `lens_width`). `Scope` draws a toggle at the right of a macro
+call's title; the open panel has step buttons (`call`, 1, 2, ...), the printed step (at most 16
+lines), the reading, and "Replace call with expansion" = `Syntax_edit (Inline_macro ...)`. The open
+state and step are `Scope` view state (`macro_step`), not history; a change lays the graph out
+again for the next frame. **Make macro.** `m` (the old `m` alias of bypass is gone; `b` remains)
+and a context-menu entry emit `Scope.Macro_requested`; `Flow_edit.macro_draft` lists the template's
+literals and the outside names that always become holes, `Pxui_shell.Prompt.macro` (a modal: a
+toggle and a hole name per literal, the first 12, the macro name, Create) is the dialog (state in
+`Core`'s `Making_macro` prompt; the first two literals start ticked, as in the study), and
+`Flow_edit.macro_op` turns the answer into one `Make_macro`, reduced like any other gesture (a bad
+name or a capture is `edit_error` and the prompt closes). **Notes.** The note row on the card
+already existed; the workspace inspector has a `note` field whose edits are `Set_note`, merged into
+one history entry per node (`Flow_edit.gesture`); a note of several lines is edited in the text
+pane. The inspector also lists a macro call's "Replace call with expansion". **Bypass.** The `M`
+mark is replaced by a `B` flag on the title of a call whose first input fits its result
+(`Projection.bypassable`; the checker refuses the rest), filled while bypassed; the click is
+`Toggle_bypass`, the request of the key. Decision: bypass stays an Eval-level pass-through
+(`^:bypass` is metadata on the authored form and the evaluator makes no plan node for it), so a
+lowered network never holds a bypassed node and `Edit.set_bypass` (the flat pane's flag on a compiled
+node) has nothing to flag; the pane and the inspector only edit the source. Tests:
+`test_pxui_graph` (lens toggle, step, panel size, replace request, bypass flag, `m`),
+`lib/pxui_shell/test_shell.ml` (dialog state), `test_workspace_edit` (`macro_draft`, `macro_op`, note
+gesture), `test_text_pane` (the editor driven: flag, note, make-macro Create; the sketch's 1400x800
+window and pointer conventions). Native: `FLOW_CASE=rosette` with `FLOW_W9` / `FLOW_W9KEY` /
+`FLOW_W9TEXT` and `FLOW_SCROLL=9`. Gaps: making a macro from a macro call whose loop variable is a
+binder is refused (`E_MACRO_CAPTURE`, shown in the status); the lens has no "Template" button (the
+study's `macroDialog` of an existing macro); the dialog cannot be submitted with Enter; step
+buttons past 13 overflow the panel; the inspector has no bypass toggle.

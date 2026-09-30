@@ -29,8 +29,11 @@ type prompt =
   | Saving of string
   | Palette of string  (* command search query *)
   | Browsing of { query : string; presets : (string * float) list }
+  | Making_macro of { nodes : Flow.Workspace.path list; draft : Flow_sop.Flow_edit.macro_draft;
+                      state : Pxui_shell.Prompt.macro }  (* the make-macro dialog (plan W9) *)
 
 type prompt_intent = Save_preset_file of string | Load_preset_file of string
+  | Edit_source of Flow_sop.Flow_edit.op  (* the dialog's answer: one workspace gesture *)
   | Delete_preset_file of { name : string; query : string }
   | Run_action of Leader.action
 
@@ -249,6 +252,28 @@ let workspace_inspector value ui ~width path =
              (Probe.readouts records n ~probes);
            let hoist = if footer.invariant && Pxui.Ui.inspector_button ui ~key:"ws-hoist" "Move out of the loop"
              then [ Pxui_graph.Syntax_edit (Flow_sop.Flow_edit.Hoist { node = n.path }) ] else [] in
+           (* a macro call: what it is, and the request the pane's lens button makes *)
+           let macro = match n.macro with
+             | Some name ->
+                 Pxui.Ui.inspector_message ui ~key:"ws-macro"
+                   ("Macro " ^ name ^ ": its rows are the holes.");
+                 if Pxui.Ui.inspector_button ui ~key:"ws-inline" "Replace call with expansion"
+                 then [ Pxui_graph.Syntax_edit (Flow_sop.Flow_edit.Inline_macro { node = n.path }) ] else []
+             | None -> [] in
+           (* the note above the binding in the Lisp: one line here, typing is one history entry *)
+           let note = if n.synthetic then [] else begin
+             let current = Option.value n.note ~default:"" in
+             if String.contains current '\n' then begin
+               Pxui.Ui.inspector_message ui ~key:"ws-note-lines" "A note of several lines is edited in the text pane.";
+               []
+             end else begin
+               let box, control_x, control_y, control_w = Pxui.Ui.inspector_row ui ~width ~key:"ws-note" ~label:"note" () in
+               let text = Pxui.Ui.within ui box (fun () ->
+                 fst (Pxui.Ui.value_field ui ~at:(control_x, control_y) ~w:control_w ~h:21. ~size:11
+                   ~valid:(fun _ -> true) "ws-note-field" current)) in
+               if text = current then []
+               else [ Pxui_graph.Syntax_edit (Flow_sop.Flow_edit.Set_note { node = n.path; text }) ]
+             end end in
            let node = Option.bind (Probe.plan_node records n.path ~probes) (fun id ->
              Option.bind (Flow_sop.Network.Int_map.find_opt id lowered.compiled) (fun node_id ->
                Edit_graph.find (document value) ~node_id)) in
@@ -308,7 +333,7 @@ let workspace_inspector value ui ~width path =
                        (Printf.sprintf "%s%d  %s" (if k = current then "► " else "  ") (k + 1) iterations.(k))
                    then [ Pxui_graph.Scope.Probe_set { zone = z; index = k } ] else []))
              | _ -> [] in
-           hoist @ edits, picks)
+           hoist @ macro @ note @ edits, picks)
   | _ -> [], []
 
 let value_catalog =
@@ -1763,6 +1788,15 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
          | None | Some (_, `Cancel) -> None, None
          | Some (name, `Submit) -> None, Some (Save_preset_file name)
          | Some (name, _) -> Some (Saving name), None)
+    | Some (Making_macro m) ->
+        (match Pxui_shell.Prompt.macro ui ~key:"make-macro" ~title:"Make a macro from the selection"
+            ~literals:(Array.of_list (List.map (fun (_, e) -> Flow.Lisp.flat e) m.draft.literals))
+            ~free:m.draft.free m.state with
+         | None -> None, None
+         | Some (state, `Submit) ->
+             None, Some (Edit_source (Flow_sop.Flow_edit.macro_op m.draft ~nodes:m.nodes
+               ~name:state.name state.holes))
+         | Some (state, `None) -> Some (Making_macro { m with state }), None)
     | Some (Browsing { query; presets }) ->
         let rows query = List.filter (fun (name, _) -> Ui.fuzzy_match ~query name) presets
           |> List.map (fun (name, time) ->
@@ -1818,6 +1852,9 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
         graph_changes = command_changes; tree_intents = list_intents;
         text_intents = []; open_graph;
         settings_changes = []; handle_changes = None; hide_guide = false } in
+  let result = match result.prompt_intent with
+    | Some (Edit_source op) -> { result with graph_changes = result.graph_changes @ [ Pxui_graph.Syntax_edit op ] }
+    | _ -> result in
   let guide = guide && not result.hide_guide in
   let guide_error = if guide = value.guide then None else
     match save_guide value.preferences guide with
@@ -1887,7 +1924,7 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
     | None -> result.prompt, (match List.find_map (function
         | Pxui_graph.Notice message -> Some message | _ -> None) result.graph_changes with
         | Some _ as notice -> notice | None -> value.notice), None
-    | Some (Run_action _) -> result.prompt, value.notice, None
+    | Some (Run_action _ | Edit_source _) -> result.prompt, value.notice, None
     | Some (Save_preset_file name) ->
         let notice = match Preset.save ~directory:value.presets ~name
             ~doc:value.doc ~view:(view_state result.panel) with
@@ -1908,6 +1945,19 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
           | Error message -> "Preset not deleted: " ^ message in
         Some (Browsing { query; presets = Preset.list ~directory:value.presets }),
         Some notice, None in
+  (* [m] in the workspace pane: the make-macro dialog over the selection, its first two
+     literals ticked as in the study. *)
+  let prompt, notice = match List.find_map (function
+      | Pxui_graph.Scope.Macro_requested nodes -> Some nodes | _ -> None) result.scope_changes,
+      value.doc.Document.workspace with
+    | Some nodes, Some (ws, _) ->
+        (match Flow_sop.Flow_edit.macro_draft ws.source nodes with
+         | Ok draft ->
+             Some (Making_macro { nodes; draft; state = { name = draft.name;
+               holes = Array.of_list (List.mapi (fun i _ -> i < 2, "p" ^ string_of_int (i + 1)) draft.literals) } }),
+             notice
+         | Error d -> prompt, Some d.Flow.Diagnostic.message)
+    | _ -> prompt, notice in
   (* Shared undo stack: every document change (graph edits, node creation,
      paste, inspector commits) becomes one history entry; Command/Ctrl-Z
      undoes, Shift-Command/Ctrl-Z or Ctrl-Y redoes. An edit frame re-reads
@@ -1995,7 +2045,7 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
             M.add path (x, y) at) l.at placed }),
           { result with label = "Move" }, probes
       | Probe_set { zone; index } -> next, result, M.add zone index probes
-      | Syntax_edit _ | Selected _ | Notice _ -> next, result, probes)
+      | Syntax_edit _ | Selected _ | Notice _ | Macro_requested _ -> next, result, probes)
       (next, result, value.probes) result.scope_changes in
   let next, world_label = if in_world value
     then world_keys value next result.graph_view actions else next, None in

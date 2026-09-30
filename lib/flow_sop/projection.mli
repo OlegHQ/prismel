@@ -58,6 +58,11 @@ type rail_row = {
 
 type input = { path : path; name : string; ty : Flow.Ty.t; default : Flow.Syntax.t option }
 
+type lens = { steps : string array; error : string option }
+(** A macro call and its expansion, one step at a time: [steps.(0)] is the call as
+    written, [steps.(k)] the text after [k] {!Flow.Macro.expand_once} steps (at most 12);
+    [error] is the diagnostic that stopped them. *)
+
 type node = {
   path : path;
   name : string;  (** the binding's text; [@result] for a synthetic result node *)
@@ -69,6 +74,7 @@ type node = {
   note : string option;
   bypass : bool;
   macro : string option;  (** the macro this node calls *)
+  lens : lens option;  (** the expansion, for a macro call *)
   live : bool;  (** depends on [t] (◷) *)
   invariant : bool;  (** the same each iteration of its loop (↥) *)
   synthetic : bool;
@@ -98,6 +104,10 @@ val of_graph : Flow.Check.catalog -> Flow.Workspace.t -> string -> scope
 (** The root scope of a graph or, for ["def:name"] or a [defn] name, of a
     definition.  Raises [Invalid_argument] when there is none. *)
 
+val bypassable : node -> bool
+(** A call whose first input fits its result, or one already bypassed: it can carry the
+    [B] flag (the checker refuses the rest with [E_BYPASS]). *)
+
 val find : scope -> path -> node option
 (** The node at a path, searching zones. *)
 
@@ -123,12 +133,19 @@ and layout = { placed : placed list; w : float; h : float }
 
 val layout :
   ?at:(path -> (float * float) option) -> ?collapsed:(path -> bool) ->
-  scope -> layout
+  ?lens:(path -> int option) -> scope -> layout
 (** Columns by dependency depth, inputs first and the return last; a node
     stacks below its column's previous one.  [at] overrides a node's position
-    ([Layout_by_path.at]), [collapsed] folds a zone to its card.  A zone's size
+    ([Layout_by_path.at]), [collapsed] folds a zone to its card, [lens] gives the step of
+    a macro call whose expansion panel is open (the card grows by {!lens_height} and
+    widens to {!lens_width}).  A zone's size
     comes from its inner layout, recursively.  ponytail: no crossing
     minimisation (like [automatic_layout]). *)
+
+val lens_width : float
+val lens_height : lens -> step:int -> float
+(** The expansion panel under a macro call: a row of step buttons, the printed step
+    (at most 16 lines of 15 points) and the button row. *)
 
 val place : layout -> (path * (float * float * float * float)) list
 (** Absolute [(x, y, w, h)] of every placed item, zones' children included,

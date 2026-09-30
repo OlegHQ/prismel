@@ -21,11 +21,12 @@ type change =
   | Zone_collapsed of { zone : path; collapsed : bool }
   | Selected of path list
   | Moved of (path * float * float) list
+  | Macro_requested of path list  (** the host opens the make-macro dialog over these nodes *)
   | Notice of string
 
 type direction = Left | Down | Up | Right
 type command =
-  | Delete | Fold_into | Unfold | Hoist | Bypass | Wrap_repeat | Wrap_iterate | Make_fn
+  | Delete | Fold_into | Unfold | Hoist | Bypass | Wrap_repeat | Wrap_iterate | Make_fn | Make_macro
   | Collapse | Probe_step of int | Frame_all | Walk of direction
 
 type stats = {
@@ -161,7 +162,9 @@ type t = {
   theme : Pxui.theme; visible : bool; guide : bool;
   key : string;
   scope : P.scope option;
+  at : path -> (float * float) option;
   collapsed : path -> bool;
+  lens : (path * int) list;  (* macro calls whose expansion panel is open, and its step *)
   probe : path -> int;
   records : Flow_sop.Probe.t option;
   chains : (path, path list) Hashtbl.t;  (* the iterating zones around each node *)
@@ -181,7 +184,7 @@ type t = {
 let no_stats = { nodes = 0; zones = 0; rows = 0; drawn_items = 0; drawn_zones = 0; drawn_rows = 0 }
 let create ?(x = 0) ?(y = 0) ?(width = 640) ?(height = 360) ?(theme = Pxui.default_theme) () = {
   x; y; width; height; theme; visible = true; guide = false; key = ""; scope = None;
-  collapsed = (fun _ -> false); probe = (fun _ -> 0); records = None;
+  at = (fun _ -> None); collapsed = (fun _ -> false); lens = []; probe = (fun _ -> 0); records = None;
   chains = Hashtbl.create 1; counts = Hashtbl.create 1;
   frames = (fun _ -> []); framed = true;
   layout = { P.placed = []; w = 0.; h = 0. }; geo = empty_geo; pan_x = 12.; pan_y = 12.; zoom = 1.;
@@ -223,17 +226,27 @@ let refresh t = match t.scope, t.records with
   | _ -> { t with counts = Hashtbl.create 1 }
 
 let no_shift _ = 0., 0.
+let lens_of t path = List.assoc_opt path t.lens
+let macro_step = lens_of
+
 let with_scope ?(at = fun _ -> None) ?(collapsed = fun _ -> false) ?(probe = fun _ -> 0)
     ?(frames = fun _ -> []) ~key scope t =
-  let layout = P.layout ~at ~collapsed scope in
+  let layout = P.layout ~at ~collapsed ~lens:(lens_of t) scope in
   let n, z, r = count_scope scope in
-  let t = { t with scope = Some scope; collapsed; probe; frames; layout;
+  let t = { t with scope = Some scope; at; collapsed; probe; frames; layout;
     chains = Flow_sop.Probe.chains scope;
     geo = compute scope layout ~shift:no_shift;
     stats = { t.stats with nodes = n; zones = z; rows = r } } in
   (* an edit that removed or moved a node drops it from the selection *)
   let t = { (refresh t) with selected = Path_set.filter (Hashtbl.mem t.geo.pos) t.selected } in
   if key <> t.key then { t with key; framed = false; selected = Path_set.empty; drag = None } else t
+
+(* the panel of a macro call opened or stepped: its card changes size *)
+let relayout t = match t.scope with
+  | None -> t
+  | Some scope ->
+      let layout = P.layout ~at:t.at ~collapsed:t.collapsed ~lens:(lens_of t) scope in
+      { t with layout; geo = compute scope layout ~shift:no_shift }
 
 let with_records records t =
   match t.records with
@@ -292,6 +305,7 @@ let action_changes t command =
   | Wrap_repeat -> if paths = [] then [ Notice "Select nodes to repeat" ] else edit (E.Wrap { nodes = paths; loop = E.For })
   | Wrap_iterate -> if paths = [] then [ Notice "Select nodes to iterate" ] else edit (E.Wrap { nodes = paths; loop = E.Fold })
   | Make_fn -> if paths = [] then [ Notice "Select nodes to make a function" ] else edit (E.Make_local_fn { nodes = paths })
+  | Make_macro -> if paths = [] then [ Notice "Select nodes to make a macro" ] else [ Macro_requested paths ]
   | Collapse ->
       List.filter_map (fun (n : P.node) -> match n.zone with
         | Some { kind = P.Let; _ } | None -> None
@@ -346,7 +360,7 @@ let bindings =
     make "unfold" "unfold a call" Unfold (ch 'u') [ Input.Shift ];
     make "hoist" "hoist out" Hoist (ch 'h') [ Input.Shift ];
     make "bypass" "toggle bypass" Bypass (ch 'b') [];
-    make "bypass" "toggle bypass" Bypass (ch 'm') [];
+    make "macro" "make macro" Make_macro (ch 'm') [];
     make "repeat" "repeat (loop)" Wrap_repeat (ch 'r') [];
     make "iterate" "iterate (feed back)" Wrap_iterate (ch 'r') [ Input.Shift ];
     make "function" "make function" Make_fn (ch 'l') [];
@@ -451,7 +465,7 @@ let note_colors theme =
 (* the marks a node or zone carries: live time, loop-invariant, bypass, macro *)
 let marks (n : P.node) =
   (if n.live then [ "t" ] else []) @ (if n.invariant then [ "↑" ] else [])
-  @ (if n.bypass then [ "M" ] else []) @ (if n.macro <> None then [ "◊" ] else [])
+  @ (if n.macro <> None then [ "◊" ] else [])
 
 let paint_marks paint theme ~size ~x ~y marks =
   List.fold_left (fun x m ->
@@ -540,7 +554,7 @@ let paint_rail paint t ~z ~fs ~x ~y ~expanded (rail : P.rail_row list) =
     if expanded then
       paint_socket paint theme r.ty ~connected:true ~z (x +. P.rail_width *. z, ry +. 12. *. z)) rail
 
-let paint_header paint t ~z ~fs ~x ~y ~w (n : P.node) ~toggle =
+let paint_header paint t ~z ~fs ~x ~y ~w (n : P.node) ~toggle ?flag ?lens_open () =
   let theme = t.theme in
   let size = max 6 (fs - 1) in
   let head = P.head_height *. z in
@@ -556,21 +570,36 @@ let paint_header paint t ~z ~fs ~x ~y ~w (n : P.node) ~toggle =
         gx +. Ui.Paint.text_width paint ~size g +. 14. *. z
     | None ->
         Ui.Paint.fill paint ~x:(x +. 7. *. z) ~y:(y +. 7. *. z) ~w:(10. *. z) ~h:(10. *. z) (ty_color t (Some n.ty));
-        x +. 24. *. z in
+        (match flag with
+         | Some on ->
+             (* the bypass flag: filled while the node is bypassed *)
+             let fx = x +. 22. *. z in
+             Ui.Paint.rect paint ~x:fx ~y:(y +. 4. *. z) ~w:(16. *. z) ~h:(16. *. z) ~radius:(3. *. z)
+               ~fill:(if on then theme.accent else theme.input) ~stroke:(Pxui.Theme.faint_border theme) ();
+             Ui.Paint.text paint ~at:(fx +. 4. *. z, y +. 6. *. z) ~size
+               ~color:(if on then theme.input else Pxui.Theme.muted theme) "B";
+             x +. 44. *. z
+         | None -> x +. 24. *. z) in
   (match toggle with
    | Some open_ -> Ui.Paint.text paint ~at:(x +. 6. *. z, y +. 6. *. z) ~size:fs
        ~color:(Pxui.Theme.muted theme) (if open_ then "▼" else "►")
    | None -> ());
   let m = marks n in
   let marks_w = List.fold_left (fun a s -> a +. Ui.Paint.text_width paint ~size s +. 5.) 0. m in
-  paint_marks paint theme ~size ~x:(x +. w -. 10. *. z) ~y:(y +. 6. *. z) m;
+  let right = match lens_open with
+    | Some open_ ->
+        Ui.Paint.text paint ~at:(x +. w -. 18. *. z, y +. 6. *. z) ~size:fs
+          ~color:(Pxui.Theme.muted theme) (if open_ then "▼" else "►");
+        x +. w -. 22. *. z
+    | None -> x +. w -. 10. *. z in
+  paint_marks paint theme ~size ~x:right ~y:(y +. 6. *. z) m;
   let title = if n.synthetic then "result" else n.name in
   Ui.Paint.text paint ~at:(name_x, y +. 6. *. z) ~size:fs ~color:(if n.synthetic then Pxui.Theme.muted theme else theme.foreground)
     (fitted paint fs (x +. w -. name_x -. marks_w -. 12. *. z -. 40. *. z) title);
   let head_label = n.head in
   if n.zone = None && n.head <> n.name then begin
     let hw = Ui.Paint.text_width paint ~size head_label in
-    let hx = x +. w -. 10. *. z -. marks_w -. hw in
+    let hx = right -. marks_w -. hw in
     if hx > name_x +. 40. *. z then
       Ui.Paint.text paint ~at:(hx, y +. 7. *. z) ~size ~color:(Pxui.Theme.muted theme) head_label
   end
@@ -625,7 +654,48 @@ let paint_footer paint t ~z ~fs (f : Flow_sop.Probe.footer) (ty : Ty.t) (x, y, w
   Ui.Paint.text paint ~at:(left, text_y) ~size ~color:(ty_color t (Some ty))
     (fitted paint size (Float.max 0. (!right -. left)) f.value)
 
-let paint_node paint t ~z ~fs ?footer (p : P.placed) (n : P.node) ~selected ~row_hover (x, y, w, h) =
+(* The expansion panel under a macro call, in graph units relative to its top: step
+   buttons on the first row ("call", 1, 2, ...), the printed step, and the replace
+   button with the reading on the last row. *)
+let lens_button_box i = if i = 0 then (8., 4.), (36., 16.) else (8. +. 40. +. float (i - 1) *. 28., 4.), (24., 16.)
+let lens_replace_box lh = (8., lh -. P.row_height +. 3.), (196., 18.)
+let bypassable (n : P.node) = P.bypassable n
+
+let paint_lens paint t ~z ~fs (l : P.lens) ~step (x, y, w) ~lh =
+  let theme = t.theme in
+  Ui.Paint.fill paint ~x:(x +. 1.) ~y ~w:(w -. 2.) ~h:(lh *. z -. 1.) (Color.with_alpha theme.control 140);
+  Ui.Paint.line paint ~from_:(x +. 8. *. z, y) ~to_:(x +. w -. 8. *. z, y) ~width:1. (Pxui.Theme.faint_border theme);
+  Array.iteri (fun i _ ->
+    let (bx, by), (bw, bh) = lens_button_box i in
+    let on = i = step in
+    Ui.Paint.rect paint ~x:(x +. bx *. z) ~y:(y +. by *. z) ~w:(bw *. z) ~h:(bh *. z) ~radius:(3. *. z)
+      ~fill:(if on then theme.accent else theme.input) ~stroke:(Pxui.Theme.faint_border theme) ();
+    let label = if i = 0 then "call" else string_of_int i in
+    let tw = Ui.Paint.text_width paint ~size:(max 6 (fs - 1)) label in
+    Ui.Paint.text paint ~at:(x +. (bx +. bw /. 2.) *. z -. tw /. 2., y +. (by +. 3.) *. z) ~size:(max 6 (fs - 1))
+      ~color:(if on then theme.input else theme.foreground) label) l.steps;
+  let text = match l.error with
+    | Some message when step >= Array.length l.steps -> message
+    | _ -> l.steps.(max 0 (min step (Array.length l.steps - 1))) in
+  let lines = String.split_on_char '\n' text in
+  List.iteri (fun k line ->
+    if k < 16 then
+      Ui.Paint.text paint ~at:(x +. 10. *. z, y +. (P.row_height +. 6. +. float k *. 15.) *. z) ~size:fs
+        ~color:theme.foreground (fitted paint fs (w -. 20. *. z) (if k = 15 && List.length lines > 16 then line ^ " …" else line))) lines;
+  let (rx, ry), (rw, rh) = lens_replace_box lh in
+  Ui.Paint.rect paint ~x:(x +. rx *. z) ~y:(y +. ry *. z) ~w:(rw *. z) ~h:(rh *. z) ~radius:(3. *. z)
+    ~fill:theme.input ~stroke:theme.accent ();
+  Ui.Paint.text paint ~at:(x +. (rx +. 8.) *. z, y +. (ry +. 4.) *. z) ~size:(max 6 (fs - 1)) ~color:theme.accent
+    "Replace call with expansion";
+  let reading = match l.error with
+    | Some message when step >= Array.length l.steps - 1 && step > 0 -> message
+    | _ -> if step = 0 then "as written" else Printf.sprintf "after %d expansion step%s" step (if step > 1 then "s" else "") in
+  let size = max 6 (fs - 1) in
+  let tw = Ui.Paint.text_width paint ~size reading in
+  Ui.Paint.text paint ~at:(x +. w -. 8. *. z -. tw, y +. (ry +. 4.) *. z) ~size ~color:(Pxui.Theme.muted theme)
+    (fitted paint size (w -. (rx +. rw +. 24.) *. z) reading)
+
+let paint_node paint t ~z ~fs ?footer ?lens_step (p : P.placed) (n : P.node) ~selected ~row_hover (x, y, w, h) =
   let theme = t.theme in
   let z_ = n.zone in
   let stacked = match z_ with Some _ -> p.collapsed | None -> false in
@@ -639,8 +709,12 @@ let paint_node paint t ~z ~fs ?footer (p : P.placed) (n : P.node) ~selected ~row
        (* an expanded zone: the tint is painted under the tiles; the tile draws the frame *)
        ignore zn
    | _ -> ());
+  let lens = match n.lens, lens_step with Some l, Some step -> Some (l, step) | _ -> None in
+  let lh = match lens with Some (l, step) -> P.lens_height l ~step | None -> 0. in
   paint_header paint t ~z ~fs ~x ~y ~w n
-    ~toggle:(match z_ with Some { kind = P.Let; _ } | None -> None | Some _ -> Some (not p.collapsed));
+    ~toggle:(match z_ with Some { kind = P.Let; _ } | None -> None | Some _ -> Some (not p.collapsed))
+    ?flag:(if bypassable n then Some n.bypass else None)
+    ?lens_open:(if n.lens <> None then Some (lens <> None) else None) ();
   paint_socket paint theme (Some n.ty) ~connected:true ~z (x +. w, y +. 12. *. z);
   let body_y = y +. P.head_height *. z in
   (match n.note with
@@ -657,7 +731,8 @@ let paint_node paint t ~z ~fs ?footer (p : P.placed) (n : P.node) ~selected ~row
        paint_outputs paint t ~z ~fs ~x ~y:rows_y ~w n
    | Some zn when p.collapsed -> paint_rail paint t ~z ~fs ~x ~y:(y +. P.head_height *. z) ~expanded:false zn.rail
    | Some _ -> ());
-  Option.iter (fun f -> paint_footer paint t ~z ~fs f n.ty (x, y, w, h)) footer;
+  Option.iter (fun f -> paint_footer paint t ~z ~fs f n.ty (x, y, w, h -. lh *. z)) footer;
+  Option.iter (fun (l, step) -> paint_lens paint t ~z ~fs l ~step (x, y +. h -. lh *. z, w) ~lh) lens;
   if selected then
     Ui.Paint.stroke paint ~x:(x +. 0.5) ~y:(y +. 0.5) ~w:(w -. 1.) ~h:(h -. 1.) ~width:2. ~radius:(3. *. z) theme.accent
 
@@ -667,7 +742,7 @@ let paint_zone_frame paint t ~z ~fs (n : P.node) (zn : P.zone) ~selected (x, y, 
   let edge = (zone_style theme zn.kind).edge in
   Ui.Paint.line paint ~from_:(x, y +. P.head_height *. z) ~to_:(x +. w, y +. P.head_height *. z) ~width:1.
     (Color.with_alpha edge 90);
-  paint_header paint t ~z ~fs ~x ~y ~w n ~toggle:(if zn.kind = P.Let then None else Some true);
+  paint_header paint t ~z ~fs ~x ~y ~w n ~toggle:(if zn.kind = P.Let then None else Some true) ();
   paint_socket paint theme (Some n.ty) ~connected:true ~z (x +. w, y +. 12. *. z);
   let top = y +. P.rail_top n *. z in
   paint_rail paint t ~z ~fs ~x ~y:top ~expanded:true zn.rail;
@@ -809,11 +884,11 @@ let context_items t path =
         (match zone with Some n -> if t.collapsed n.path then "Expand zone" else "Collapse zone"
                        | None -> "Collapse zone"), zone <> None;
         "Toggle bypass", true; "Repeat (loop)", true; "Iterate (feed back)", true;
-        "Make function", true; "Delete", true ]
+        "Make function", true; "Make macro", true; "Delete", true ]
 
 let context_command = function
   | 0 -> Fold_into | 1 -> Unfold | 2 -> Hoist | 3 -> Collapse | 4 -> Bypass
-  | 5 -> Wrap_repeat | 6 -> Wrap_iterate | 7 -> Make_fn | _ -> Delete
+  | 5 -> Wrap_repeat | 6 -> Wrap_iterate | 7 -> Make_fn | 8 -> Make_macro | _ -> Delete
 
 let update t ui (frame : Frame.t) =
   if not t.visible then { t with drag = None; context = None }, [] else
@@ -908,6 +983,21 @@ let update t ui (frame : Frame.t) =
                   if zn.kind <> P.Let then tap "toggle" (2., 2.) (20., 20.) `Toggle
               | Some _ -> ()
               | None ->
+                  if bypassable n then tap "bypass" (22., 4.) (18., 16.) `Bypass;
+                  (match n.lens with
+                   | Some l ->
+                       tap "lens" (p.w -. 22., 2.) (20., 20.) `Lens;
+                       (match lens_of t n.path with
+                        | Some step ->
+                            let lh = P.lens_height l ~step in
+                            let top = p.h -. lh in
+                            Array.iteri (fun i _ ->
+                              let (bx, by), size = lens_button_box i in
+                              tap ("ls" ^ string_of_int i) (bx, top +. by) size (`Lens_step i)) l.steps;
+                            let (rx, ry), size = lens_replace_box lh in
+                            tap "lr" (rx, top +. ry) size `Replace
+                        | None -> ())
+                   | None -> ());
                   let top = rows_top n 0. in
                   List.iteri (fun j (f, ty) ->
                     let src = if n.binds = [ n.name ] then n.name ^ "." ^ f else f in
@@ -1015,6 +1105,7 @@ let update t ui (frame : Frame.t) =
       if not (Path_set.is_empty t.selected) then emit (Selected []);
       { t with selected = Path_set.empty }
     end else t in
+  let lens_next = ref t.lens in
   (* tile presses select and start a move; sockets start a wire *)
   let t = List.fold_left (fun t ((p : P.placed), _, _, tile, (s : Ui.signal), (sub : _), fields) ->
     let outs, dels, taps = sub in
@@ -1050,6 +1141,13 @@ let update t ui (frame : Frame.t) =
        | P.Item n, `Hoist when bs.clicked -> emit (Syntax_edit (E.Hoist { node = n.path }))
        | P.Item n, `Toggle when bs.clicked ->
            emit (Zone_collapsed { zone = n.path; collapsed = not p.collapsed })
+       | P.Item n, `Bypass when bs.clicked -> emit (Syntax_edit (E.Toggle_bypass { node = n.path }))
+       | P.Item n, `Replace when bs.clicked -> emit (Syntax_edit (E.Inline_macro { node = n.path }))
+       | P.Item n, `Lens when bs.clicked ->
+           lens_next := if List.mem_assoc n.path !lens_next then List.remove_assoc n.path !lens_next
+             else (n.path, (match n.lens with Some l -> Array.length l.steps - 1 | None -> 0)) :: !lens_next
+       | P.Item n, `Lens_step i when bs.clicked ->
+           lens_next := (n.path, i) :: List.remove_assoc n.path !lens_next
        | P.Item n, `Step d when bs.clicked ->
            let count = count_of t n.path in
            let index = max 0 (min (count - 1) (t.probe n.path + d)) in
@@ -1158,7 +1256,7 @@ let update t ui (frame : Frame.t) =
                  ~probe:(snapshot.probe n.path) ~count:(count_of snapshot n.path)
            | _ ->
                let rh = match row_hover with Some (rp, i) when rp = n.path -> Some i | _ -> None in
-               paint_node paint snapshot ~z ~fs ?footer:(Hashtbl.find_opt footers n.path) p n ~selected:isel ~row_hover:rh (x, y, w, h)));
+               paint_node paint snapshot ~z ~fs ?footer:(Hashtbl.find_opt footers n.path) ?lens_step:(lens_of snapshot n.path) p n ~selected:isel ~row_hover:rh (x, y, w, h)));
     ignore (ax, ay); ignore node_placed; drawn_rows := !drawn_rows) tiles;
   let rows = List.fold_left (fun a ((p : P.placed), _, _, _, _, _, _) -> match p.item with
     | P.Item n -> a + List.length n.rows | _ -> a) 0 tiles in
@@ -1187,7 +1285,10 @@ let update t ui (frame : Frame.t) =
               end
           | _ -> ())
      | None -> ()));
-  { t with stats = { t.stats with drawn_items; drawn_zones; drawn_rows = rows } }, List.rev !changes
+  let t = { t with stats = { t.stats with drawn_items; drawn_zones; drawn_rows = rows } } in
+  (* an opened or stepped expansion panel changes its card's size: lay out again for the next frame *)
+  let t = if !lens_next == t.lens then t else relayout { t with lens = !lens_next } in
+  t, List.rev !changes
 
 (* ------------------------------------------------------------- test hooks *)
 
@@ -1206,6 +1307,25 @@ module Private = struct
     match node_of t path, Hashtbl.find_opt t.geo.pos path with
     | Some n, Some (x, y, _, _) ->
         Some (sx t (x +. 100.), sy t (rows_top n y +. (float i +. 0.5) *. P.row_height))
+    | _ -> None
+  let tile_point t path (dx, dy) (w, h) = Hashtbl.find_opt t.geo.pos path
+    |> Option.map (fun (x, y, _, _) -> sx t x +. (dx +. w /. 2.) *. t.zoom, sy t y +. (dy +. h /. 2.) *. t.zoom)
+  let lens_toggle t path = match node_of t path, Hashtbl.find_opt t.geo.pos path with
+    | Some { lens = Some _; _ }, Some (_, _, w, _) -> tile_point t path (w -. 22., 2.) (20., 20.)
+    | _ -> None
+  let lens_step_button t path i = match node_of t path, lens_of t path, Hashtbl.find_opt t.geo.pos path with
+    | Some { lens = Some l; _ }, Some step, Some (_, _, _, h) when i < Array.length l.steps ->
+        let (bx, by), size = lens_button_box i in
+        tile_point t path (bx, h -. P.lens_height l ~step +. by) size
+    | _ -> None
+  let lens_replace t path = match node_of t path, lens_of t path, Hashtbl.find_opt t.geo.pos path with
+    | Some { lens = Some l; _ }, Some step, Some (_, _, _, h) ->
+        let lh = P.lens_height l ~step in
+        let (rx, ry), size = lens_replace_box lh in
+        tile_point t path (rx, h -. lh +. ry) size
+    | _ -> None
+  let bypass_flag t path = match node_of t path with
+    | Some n when bypassable n -> tile_point t path (22., 4.) (18., 16.)
     | _ -> None
   let _ = contains
 end

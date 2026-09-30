@@ -1390,6 +1390,51 @@ let run_scope () =
                    "probe-prev"; "probe-next"; "frame-all"; "walk.left" ];
   let _, changes = Scope.run_command (Scope.select [ heart ] view) Scope.Bypass in
   check (changes = [ Scope.Syntax_edit (Flow_sop.Flow_edit.Toggle_bypass { node = heart }) ]) "Bypass";
+  (* W9: the macro lens, the bypass flag, the make-macro key *)
+  let w = load_workspace "rosette" in
+  let view, scope = scope_view w "rosette" in
+  let view, _ = scope_step view (frame ()) in
+  let outer = [ "rosette"; "outer" ] and soft = [ "rosette"; "soft" ] in
+  let node = Option.get (P.find scope outer) in
+  let lens = Option.get node.lens in
+  check (Array.length lens.steps >= 2 && lens.error = None
+         && String.starts_with ~prefix:"(radial" lens.steps.(0)
+         && String.starts_with ~prefix:"(sop/merge" lens.steps.(1)) "the lens steps are the call, then its expansions";
+  check (Scope.macro_step view outer = None) "the lens starts closed";
+  let toggle = Scope.Private.lens_toggle view outer |> Option.get in
+  let view, _ = scope_click view (int_of_float (fst toggle), int_of_float (snd toggle)) in
+  check (Scope.macro_step view outer = Some (Array.length lens.steps - 1)) "the toggle opens the last step";
+  let view, _ = scope_step view (frame ()) in
+  let button i = let x, y = Option.get (Scope.Private.lens_step_button view outer i) in int_of_float x, int_of_float y in
+  let view, changes = scope_click view (button 0) in
+  check (Scope.macro_step view outer = Some 0 && changes = []) "the call button shows the call, no edit";
+  let view, _ = scope_step view (frame ()) in
+  let view, _ = scope_click view (button 1) in
+  check (Scope.macro_step view outer = Some 1) "a step button chooses the step";
+  let view, _ = scope_step view (frame ()) in
+  let bx, by, bw, bh = Option.get (Scope.Private.box_of view outer) in
+  check (bh > (let _, _, _, h0 = Option.get (Scope.Private.box_of (fst (scope_view w "rosette")) outer) in h0)
+         && bw >= Flow_sop.Projection.lens_width *. Scope.zoom view -. 1.) "an open panel grows its card";
+  ignore (bx, by);
+  let rx, ry = Option.get (Scope.Private.lens_replace view outer) in
+  let _, changes = scope_click view (int_of_float rx, int_of_float ry) in
+  check (List.mem (Scope.Syntax_edit (Flow_sop.Flow_edit.Inline_macro { node = outer })) changes)
+    "the replace button did not become Inline_macro";
+  let tx, ty = Option.get (Scope.Private.lens_toggle view outer) in
+  let view, _ = scope_click view (int_of_float tx, int_of_float ty) in
+  check (Scope.macro_step view outer = None) "the toggle closes the panel";
+  (* the bypass flag: a title flag on a call whose input fits, the same request as the key *)
+  check (Scope.Private.bypass_flag view outer = None) "a macro call has no bypass flag";
+  let fx, fy = Option.get (Scope.Private.bypass_flag view soft) in
+  let _, changes = scope_click view (int_of_float fx, int_of_float fy) in
+  check (List.mem (Scope.Syntax_edit (Flow_sop.Flow_edit.Toggle_bypass { node = soft })) changes)
+    "the bypass flag did not become Toggle_bypass";
+  check ((Option.get (P.find scope soft)).bypass) "soft is authored bypassed";
+  (* m asks the host for the make-macro dialog over the selection *)
+  let _, changes = Scope.run_command (Scope.select [ soft ] view) Scope.Make_macro in
+  check (changes = [ Scope.Macro_requested [ soft ] ]) "m did not request the dialog";
+  let _, changes = Scope.run_command (Scope.select [] view) Scope.Make_macro in
+  check (match changes with [ Scope.Notice _ ] -> true | _ -> false) "m with nothing selected";
   print_endline "pxui graph scope pane tests passed"
 
 (* Frame cost of the graph pane on Sunflower (240 iterations): the flat pane

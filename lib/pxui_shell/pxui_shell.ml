@@ -464,6 +464,27 @@ module Prompt = struct
     Pxui.Ui.modal ui ~width:420. key (fun () ->
       Pxui.Ui.label ui title;
       Pxui.Ui.picker ui label ~query rows)
+
+  type macro = { name : string; holes : (bool * string) array }
+
+  (* ponytail: the first 12 literals only; a template with more is rare and the
+     rest stay copied into it *)
+  let macro ui ~key ~title ~literals ~free (m : macro) =
+    Pxui.Ui.modal ui ~width:480. key (fun () ->
+      Pxui.Ui.label ui title;
+      Pxui.Ui.inspector_message ui ~key:(key ^ "-hint")
+        (match free with
+         | [] -> "Tick the literals that become holes."
+         | names -> "Holes: ticked literals and " ^ String.concat ", " names);
+      let holes = Array.mapi (fun i (on, name) ->
+        if i >= 12 || i >= Array.length literals then on, name else begin
+          let on = Pxui.Ui.toggle ui (Printf.sprintf "%d  %s" (i + 1) literals.(i)) on in
+          let name = if on then Pxui.Ui.text_field ui (Printf.sprintf "hole %d" (i + 1)) name else name in
+          on, name
+        end) m.holes in
+      let name = Pxui.Ui.text_field ui "Macro name" m.name in
+      let submit = Pxui.Ui.button ui "Create macro" in
+      { name; holes }, if submit then `Submit else `None)
 end
 
 module Tree = struct

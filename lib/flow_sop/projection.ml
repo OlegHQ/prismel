@@ -22,15 +22,30 @@ type rail_row = {
 
 type input = { path : path; name : string; ty : Ty.t; default : S.t option }
 
+type lens = { steps : string array; error : string option }
+
 type node = {
   path : path; name : string; binds : string list; head : string; rows : row list;
   outputs : (string * Ty.t) list; ty : Ty.t; note : string option; bypass : bool;
-  macro : string option; live : bool; invariant : bool; synthetic : bool;
+  macro : string option; lens : lens option; live : bool; invariant : bool; synthetic : bool;
   zone : zone option;
 }
 and zone = { kind : zone_kind; rail : rail_row list; scope : scope; yield_label : string }
 and scope = { path : path; inputs : input list; nodes : node list; result : result }
 and result = Link of string | Node of path | Literal of S.t
+
+(* the call, then each [expand_once] of it (at most 12 steps, like the study's lens) *)
+let macro_lens (w : W.t) (call : S.t) =
+  let state = Flow.Macro.state () in
+  let text f = let t = fst (Flow.Lisp.print [ f ]) in
+    if String.ends_with ~suffix:"\n" t then String.sub t 0 (String.length t - 1) else t in
+  let rec go cur acc n =
+    if n = 12 then acc, None else
+    match Flow.Macro.expand_once ~state w.macros cur with
+    | Error (d : Flow.Diagnostic.t) -> acc, Some d.message
+    | Ok next -> if next == cur then acc, None else go next (text next :: acc) (n + 1) in
+  let steps, error = go call [ text call ] 0 in
+  { steps = Array.of_list (List.rev steps); error }
 
 (* ---- what the projection reads ---- *)
 
@@ -358,14 +373,23 @@ and node_of c ~visible (scope_path : path) (pat : S.t option) (e : S.t) : node =
     { kind = k; rail; yield_label = yield_label k;
       scope = scope_of c ~visible:inner_visible ~inputs:[] p body }) kind in
   let macro = match head_sym e with Some h when List.mem_assoc h c.macros -> Some h | _ -> None in
+  let lens = Option.map (fun _ -> macro_lens c.w e) macro in
   { path = p; name; binds = (match pat with Some pt -> E.pat_names pt | None -> [ name ]);
     head = (match kind with
       | Some Let -> "let*" | Some _ -> Option.get (head_sym e) | None -> head_label c e);
     rows = (if kind = None then rows_of c e else []); outputs = outputs pat ty; ty;
     note = (match pat with Some { S.notes = (_ :: _ as l); _ } -> Some (String.concat "\n" l) | _ -> None);
-    bypass = List.mem "bypass" e.meta; macro;
+    bypass = List.mem "bypass" e.meta; macro; lens;
     live = W.Paths.mem p c.w.live; invariant = W.Paths.mem p c.w.invariant;
     synthetic = pat = None; zone }
+
+let bypassable (n : node) =
+  n.zone = None && (not n.synthetic) && n.macro = None
+  && not (List.mem n.head [ "record"; "number"; "text"; "link"; "vector"; "list"; "str"; "if"; "cond"; "case" ])
+  && (n.bypass
+      || (match List.find_opt (fun (r : row) -> r.kind = Arg) n.rows with
+          | Some { ty = Some ty; _ } -> Ty.fits ty n.ty
+          | _ -> false))
 
 let of_graph catalog (w : W.t) name =
   let def = String.starts_with ~prefix:"def:" name in
@@ -415,7 +439,14 @@ let rail_top (n : node) = head_height +. strip n +. 4.
 let nrows n = float_of_int (List.length n.rows)
 let count l = float_of_int (List.length l)
 
-let rec size ~at ~collapsed (it : item) : float * float * bool * layout option = match it with
+let lens_width = 400.
+let lens_height (l : lens) ~step =
+  let lines = match l.error with Some _ -> 2 | None ->
+    min 16 (1 + String.fold_left (fun a c -> if c = '\n' then a + 1 else a) 0
+      l.steps.(max 0 (min step (Array.length l.steps - 1)))) in
+  row_height +. 10. +. float lines *. 15. +. row_height
+
+let rec size ~at ~collapsed ~lens (it : item) : float * float * bool * layout option = match it with
   | Input _ -> node_width, head_height +. row_height +. foot_height, false, None
   | Return -> node_width -. 40., head_height +. row_height, false, None
   | Item ({ zone = Some z; _ } as n) ->
@@ -423,17 +454,20 @@ let rec size ~at ~collapsed (it : item) : float * float * bool * layout option =
       if collapsed n.path then
         node_width, head_height +. Float.max 1. rail *. row_height +. foot_height, true, None
       else
-        let (l : layout) = layout ~at ~collapsed z.scope in
+        let (l : layout) = layout ~at ~collapsed ~lens z.scope in
         let body = Float.max (Float.max (rail *. row_height +. 8.) l.h) (row_height +. 14.) in
         rail_width +. pad +. Float.max l.w 72. +. pad +. yield_width,
         head_height +. strip n +. body +. (if z.kind = Fold || z.kind = Scan then 22. else 10.),
         false, Some l
   | Item n ->
-      node_width,
+      let open_lens = match n.lens, lens n.path with
+        | Some l, Some step -> Some (l, step) | _ -> None in
+      (match open_lens with Some _ -> Float.max node_width lens_width | None -> node_width),
       head_height +. (if n.note <> None then row_height else 0.) +. (nrows n +. count n.outputs) *. row_height
-      +. foot_height, false, None
+      +. foot_height
+      +. (match open_lens with Some (l, step) -> lens_height l ~step | None -> 0.), false, None
 
-and layout ?(at = fun _ -> None) ?(collapsed = fun _ -> false) (s : scope) : layout =
+and layout ?(at = fun _ -> None) ?(collapsed = fun _ -> false) ?(lens = fun _ -> None) (s : scope) : layout =
   let root = s.inputs <> [] in
   let items =
     List.map (fun (i : input) -> Input i, i.path, [], [ i.name ]) s.inputs
@@ -469,7 +503,7 @@ and layout ?(at = fun _ -> None) ?(collapsed = fun _ -> false) (s : scope) : lay
     let y = ref 12. and cw = ref 0. in
     Array.iteri (fun k (it, path, _, _) ->
       if level.(k) = l then begin
-        let iw, ih, coll, inner = size ~at ~collapsed it in
+        let iw, ih, coll, inner = size ~at ~collapsed ~lens it in
         let px, py = match at path with Some (ax, ay) -> ax, ay | None -> !x, !y in
         placed := { item = it; path; x = px; y = py; w = iw; h = ih; collapsed = coll; inner } :: !placed;
         y := !y +. ih +. 18.; cw := Float.max !cw iw;
