@@ -22,7 +22,7 @@ Status: `todo` · `wip` · `done` (gate met) · `partial` (what is missing is na
 | W9 macros UI, notes, bypass | done | | `Projection` lens and `layout ?lens`, the panel and `B` flag in `Scope`, `Macro_requested` + `Flow_edit.macro_draft` / `macro_op` + `Pxui_shell.Prompt.macro`, the inspector note field, tests through the pane and the editor, `FLOW_CASE=rosette` (notes below). Gaps: no Template button, no Enter to create, no inspector bypass toggle. |
 | W10 contexts & composable shell | done | | Part A (contexts): `scene`, `world`, `settings` graphs check, lower into the document and open in the pane. Part B (shell): `Editor_core.Panels` and `Pxui_shell.Layout` (the tree and its geometry), the editor graph lowered into `Document.shell`, focus and commands keyed by panel, split/close/retype/resize as `Flow_edit` ops, Restore layout, one scene instance per viewport override, `ui/graph` names its graph (notes below). Gaps: `Contexts.window` is still not fed into a host (W11); no key for split/close/retype (the header menu only); viewports share one camera; only bound panels are editable. |
 | W11 `.plisp` sketches | done | | Part A (tool, dune wiring, scaffolding, the twelve `sketches/ws_*`) and part B: Command-S rewrites the source file (comments kept) only while its SHA-256 is the remembered digest, else a preset; the running window reloads a changed file as one history entry "Reload sketch.plisp", a failing file keeps the last good document and shows diagnostics (notes below). Gaps: the reload keeps the running layout, so a `(layout ...)` form edited in the file is ignored until restart; polling, not file events; no three-way merge. |
-| W12 migration & removal | todo | | |
+| W12 migration & removal | done | | `flow_terrain` is a `.plisp` sketch; `[%flow]`, the v3 checker/printer/builder, `?program` and `to_mesh_with_primitives` deleted (about 2,400 lines); docs and benches recorded; the completeness audit is the table below (notes at the end). |
 
 ## Notes
 
@@ -564,3 +564,51 @@ Status: `todo` · `wip` · `done` (gate met) · `partial` (what is missing is na
   "Reload sketch.plisp" entry), Command-S rewrote the file byte-identically, and a typo at line 25 kept the
   4 petals, opened the Document tab with the file text and `E_UNKNOWN_KIND` under it. `dune build
   @sketches/ws_<case>/smoke-all` passes for all twelve.
+- W2 session default, measured (`dune exec tools/bench_workspace_lower.exe`, Apple M1, 8 cores, medians; the
+  capacity table): a cold cook then the same cook again. Sunflower (241 nodes): 32 entries 1.81 ms cold, 2.28 ms
+  warm, 1,896 evictions (the cache is smaller than the graph, so a warm cook recooks); 512 entries 1.83 / 0.21 ms,
+  0 evictions, 1.84 MB payload. Bloom 32 entries 0.48 / 0.47 ms (384 evictions), 512 entries 0.45 / 0.035 ms;
+  Wave and Tree fit in both. Lowering per fixture (ms, check / eval / lower / first cook): Bloom 0.09 / 0.12 /
+  1.5 / 1.0 (84 nodes, under a 60 fps frame together), Sunflower 0.02 / 0.85 / 5.2 / 2.4 (241), Tiles 0.02 /
+  0.30 / 3.2 / 0.90 (193), Wave 0.02 / 3.2 / 7.7 / 0.85 (13). The editor default of 512 stays: 241 nodes was
+  the largest fixture, and a `for` zone of more than about 500 elements misses (W8 notes).
+
+## W12 completeness audit
+
+Every "Build", "Tests" and "Done when" item of W0-W11 was checked against the code (two independent read-only
+passes, then the known gaps of earlier agents). Items done as written are not listed. Anything not fully done is
+here with its reason; "cheap" items were done in W12 and are not listed.
+
+| Milestone | Item | Status and reason |
+|---|---|---|
+| W1 | test "construct-coverage file" for the round trip | Not done: the 12 fixtures and about 20 inline golden strings in `test_lisp.ml` cover the constructs; no separate file. |
+| W1 | `Lisp.print ?mark` | Replaced by the span map (deviation, W1 notes). |
+| W2 | per-fixture lowered node counts | Asserted for Bloom and Sunflower only (`test_workspace_cook.ml`); the other fixtures are cooked, byte-compared at 1 and 3 domains and unique-keyed, not counted. |
+| W2b | E_TIME_COUNT / E_TIME_BRANCH "name the binding" | The `for` and `if`/`cond` messages name the loop or target; list-splice messages name the operator or kind only. |
+| W2b | `Frame` cannot tell a fixed clock | `Cook.create ?await` keys off `PRISMEL_MAX_FRAMES`; an `Sketch.export` host passes `~await:true`. |
+| W2b | `Drive.Live` unit test in `test_network.ml` | Covered through `Lower` in `test_workspace_live.ml`. |
+| W2b/W5 | viewport header shows the live/cached/cook text | It is the status strip (`t N live · M cached · cook X ms`), a deviation. |
+| W2b | Wave residual evaluation cost | Recorded, not fixed: 7.3 ms p50 per frame, 5.7 ms in `Eval.force` of 540 residuals (route strings, per-residual `Hashtbl` memo, string-dispatched operators). Under a frame; fixes are listed in the W2b bench note. |
+| W2b | per-node cache ring for scrubbing back | Not built (plan §4), volatile single slot. |
+| W3 | only workspace documents save | `?graph` documents (four sketches, many tests) have no text; see the W12 note in `flow-migration.md`. |
+| W4 | "all W3 gestures reachable by mouse and keys" | `Move_item`, `Set_input_default` and `Rename` are emitted by no pane (`Rename` is reachable through the text pane); the inspector and text pane cover them. |
+| W4 | marquee selection | Not built: shift-click multi-selects; the inspector follows the selection. |
+| W4 | `frames` in `Layout_by_path` | Stored, remapped, saved and drawn (titled rectangles); no gesture creates or resizes one. |
+| W4 | gesture-to-request mapping tests | `test_pxui_graph.ml` maps Connect, Delete, bypass, Inline_macro, Disconnect, Unfold and probes; the `Set_arg` scrub, `Fold_into`, `Wrap`, `Hoist`, `Add_item`, `Add_field` and `Make_local_fn` are exercised through the editor (`test_workspace_edit`, `test_text_pane`, native scripts) not through the pane. |
+| W4 | the flat pane remains | Kept: `?graph` documents (OCaml `Procedural.Graph`, four sketches and most editor tests) are not workspaces. |
+| W5 | no zone footer while expanded; geometry of a node not upstream of the display shows only its type | As recorded (W5 notes). |
+| W6 | instanced pieces are not picked; `Viewport2` never picks; a pick inside a collapsed zone does not expand it | As recorded. `to_mesh_with_primitives` was deleted in W12 (unused; the pick's hit names its primitive). |
+| W6 | pick BVH build and re-prepare on the initial domain | About 1.3 us per triangle at the first click (a 1M-triangle mesh hitches about a second); `ponytail:` in `pick.ml`. |
+| W7 | Graph tab read-only, no Tab key, wrapping or Cmd-Enter apply | By design for the first cut (`ponytail:` in `Ui.text_area`). |
+| W8 | values inside the loop read the template record, no `t` in the body, no "by index" title | As recorded. Zone elements are cooked sequentially (parallelising them is not required and needs a byte-identical regression first). |
+| W9 | no Template button, no Enter to create, no inspector bypass toggle | As recorded. |
+| W10 | keys for split / close / retype | Not added: the header menu emits them. A key needs the focused panel's tree path (focus is a panel kind today) and three Leader actions; not cheap. |
+| W10 | panels made by a loop are not editable | By design (register E1): the status names the loop; edit the loop in the editor graph. |
+| W10 | viewports share one camera; only bound panels are editable | As recorded. |
+| W10 | World in the raster view of Bloom looked black | Investigated with a native screenshot: the sky and horizon draw (the viewport shows the Nishita sky above the horizon and the 0.3 x horizon fade below it); the camera looks near the horizon, so the lower half is dark by construction (`environment.md`). Not a defect. |
+| W11 | a `(layout ...)` form edited in the file is ignored until restart | As recorded (reload keeps the running layout). |
+| W11 | `check` diagnostics one fixture per class | `check.t` has 9 codes of about 70; the workspace checker's own tests cover the rest. |
+| W11 | no `Flow_sop.Workspace_program`, `with_inputs`, `?config`; assets glob `*.png` and `*.ttf` only | As recorded. |
+| W12 | single-graph `[%flow]` as sugar | Deleted instead (no caller; see `flow-migration.md`). |
+| W12 | `Drive.Expr` / `Flow.Expr`, flat pane, `Flow.Sexp` | Kept, needed by `?graph` documents and the manifest reader. |
+| W12 | JSON remnants | `Store.Settings` (user preferences), `Store.Viewport` (in-memory `Yojson`, written as an s-expression by `Preset`) and build glue JSON (`api_stable.json`, generated inventories); none is a document. |

@@ -37,7 +37,7 @@ accept an intended one with `dune promote`.
 | M4 | Wireless binds, expressions, fold/unfold, row keys | done | 2026-09-28 |
 | M5 | Compounds and contexts | done | 2026-09-28 |
 | M6 | Views: list with values, read-only text, reader and checker | done | 2026-09-28 |
-| M7 | `[%flow]` PPX and catalog manifest | done | 2026-09-28 |
+| M7 | `[%flow]` PPX and catalog manifest | done (PPX, `Build`, `Program` deleted in W12; the manifest stays) | 2026-09-28 |
 
 ## Original → target map
 
@@ -325,6 +325,7 @@ milestone is recorded here with its date, what landed and its deviations.
 | W9 macros UI, notes, bypass | done | 2026-09-30 |
 | W10 contexts and shell | done | 2026-09-30 |
 | W11 `.plisp` sketches | done | 2026-09-30 |
+| W12 migration and removal | done | 2026-09-30 |
 
 ### W0 fixes and catalog prerequisites (2026-09-30, done with W4 part A)
 
@@ -1048,7 +1049,7 @@ binder is refused (`E_MACRO_CAPTURE`, shown in the status); the lens has no "Tem
 study's `macroDialog` of an existing macro); the dialog cannot be submitted with Enter; step
 buttons past 13 overflow the panel; the inspector has no bypass toggle.
 
-### W10 part A: scene, world and settings contexts (2026-09-30, wip)
+### W10 part A: scene, world and settings contexts (2026-09-30, done)
 
 The three contexts check and lower. Their spellings are generated from the object, layer and
 settings schemas (`Editor_document.Contexts`), so a new schema field is a new keyword. Scene
@@ -1082,3 +1083,41 @@ second and reloads a changed file as one history entry "Reload sketch.plisp" (la
 selection kept by path), or keeps the last good document and shows the diagnostics. The viewport starts at
 the scene's camera. Deviations, notes and the gaps are in `specification/workspace/progress.md` (W11 part A
 and part B notes).
+
+### W12 migration and removal (2026-09-30, done)
+
+Migrated: `sketches/flow_terrain` is `sketch.plisp` (the only sketch or example that was a `[%flow]`
+graph plus an `Editor3.run` call; `value/time :speed 0.4` became the live `t`), its `main.ml`, `dune`
+and smoke rule are gone and `sketches/dune.plisp.inc` was promoted. Decision on `[%flow]`: after that
+port nothing used it but its own two tests, and making a single `graph` payload sugar for
+`(workspace name graph)` would have kept the PPX, `Flow.Check.check`, `Build`, `Program`, `Print` and
+`?program` alive for no caller (the sugar would also have had to re-emit checked terms for the workspace
+checker, or lose its compile-time diagnostics). The leaner option was taken: `[%flow]` is deleted, an
+OCaml host with its own code passes a workspace text through `Workspace_doc.of_text` /
+`Workspace.load`. Also lost: file-local `user/<node_key>` nodes in `[%flow]` (no workspace spelling
+uses them) and the `-flow-manifest` PPX flag.
+
+Deleted (net of the commit range, about 2,400 lines): the `[%flow]` rewriter (about 300 lines of
+`ppx_prismel.ml`) and its two tests; `Flow.Check.check` and its term/graph/binding/definition/program
+types (about 530 lines; `Check` keeps the catalog types, `catalog_of_manifest`, `resolve_kind`,
+`validate_parameter`, `suggestion`, `short` for the workspace checker); `Flow_sop.Build`, `Program`,
+`Print` (about 650 lines); `?program` of `Editor3/2` and the program branch of `Core.initial_doc`; the
+v3 round-trip tests (`test_network` print/check blocks, `test_sop_catalog` build/print samples, the
+three `?program` editor fixtures and the Time-source value-node UI test of `test_editor_document`, which
+needed a `Program` to start from); `Prismel_mesh.to_mesh_with_primitives` and its test (unused by the
+pick); ten dead exports found by `prune-dead-code` (`Network_layout.slot_index`, `Store.load/save`,
+`Document.positions`, `Curve.decode/key`, `Probe.describe/series`, `Eval.max_*`, several `pxui_graph`
+ones). Unknown-operator errors now suggest (`sop/bx`: "Did you mean box?").
+
+Kept, with the reason: the flat `Pxui_graph` pane and `Drive.Expr`/`Flow.Expr` (documents opened with
+`?graph`, four sketches (`cube_cage`, `shattered_cube`, `voxel_wall`, `examples/sop_gallery`) and many
+tests, have no workspace text; value nodes and expression drives live there); `Flow.Sexp` (the manifest
+reader and `Syntax`'s positions; the v3 reader role is gone); `Store.Settings` (user preferences,
+JSON) and `Store.Viewport` (an in-memory `Yojson` value written as an s-expression by `Preset`), which
+are not documents, and build glue JSON (`api_stable.json`, generated inventories). The old
+`Flow_sop.Print.network` editor use had already gone with W7.
+
+Also fixed: the `test_workspace_shell` "status names the loop" race (the editor recooks every frame
+for a live workspace and reported `cook N ms · skipping frames` instead of the notice; `settle` now
+waits that state out too). The remaining audit, per milestone, is the table in
+`specification/workspace/progress.md`.
