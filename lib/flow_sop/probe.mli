@@ -18,9 +18,13 @@ type summary = Value of Flow.Eval.value | Geometry of geometry
 
 type t
 
-val make : ?time:float -> ?geometry:(int -> geometry option) -> Flow.Eval.t -> t
+val make :
+  ?time:float -> ?geometry:(int -> geometry option) -> ?dynamic:(path -> int option) ->
+  Flow.Eval.t -> t
 (** [time] forces live (residual) values on lookup; [geometry] maps a plan
-    node id to its cooked counts. *)
+    node id to its cooked counts; [dynamic] gives the element count a loop over
+    geometry ran over in the last cook (plan W8): {!counts} reports it, and a
+    node inside such a loop reads its one template record at every element. *)
 
 val same_eval : t -> t -> bool
 (** Both come from one evaluation (only the time or the geometry counts may

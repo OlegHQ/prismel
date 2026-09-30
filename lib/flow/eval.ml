@@ -48,6 +48,7 @@ and st = {
   memo : (int, value) Hashtbl.t;
   mutable rids : int;
   record : bool;
+  elems : value Smap.t;  (* live evaluation: the element bound in each geometry zone *)
   recs : (W.path, int * (int list * value) list) Hashtbl.t;
   graphs : (string, W.graph) Hashtbl.t;
   defs : (string, W.graph) Hashtbl.t;
@@ -123,10 +124,14 @@ let fmt4 x =
 
 (* ---- typing values dynamically ---- *)
 
+let is_element_list n = n = "sop/point_list" || n = "sop/piece_list"
+let element_key zone = "$elem:" ^ String.concat "/" zone
+
 let struct_ty n =
   let p x = String.starts_with ~prefix:x n in
   if p "scene/" then Ty.Scene else if p "world/" then Ty.World
-  else if p "settings/" then Ty.Settings else if n = "ui/workspace" then Ty.Editor else Ty.Panel
+  else if p "settings/" then Ty.Settings else if n = "ui/workspace" then Ty.Editor
+  else if is_element_list n then Ty.List Ty.Any else Ty.Panel
 
 let rec ty_of = function
   | Int _ -> Ty.Int | Float _ -> Ty.Float | Bool _ -> Ty.Bool | Text _ -> Ty.Text
@@ -271,7 +276,10 @@ let range lo hi =
     failf "E_ITER_BOUND" "range %d‥%d exceeds 4,096 iterations." lo hi;
   List (Array.init (max 0 (hi - lo)) (fun i -> Int (lo + i)))
 
-let list_arg = function List xs -> xs | _ -> fail "E_TYPE" "Expected a list."
+let list_arg = function
+  | List xs -> xs
+  | Geo _ -> fail "E_TYPE" "A loop over geometry yields its merged geometry, not a list; give it to sop/merge."
+  | _ -> fail "E_TYPE" "Expected a list."
 
 let value_op name (vs : value list) : value =
   let arity () = failf "E_ARITY" "%s got the wrong number of inputs." name in
@@ -491,6 +499,8 @@ and ev_raw c env (x : W.term) : value =
       let f i t = num (concrete c (ev (sub c (string_of_int i)) env t)) in
       let a = f 0 a in let b = f 1 b in let d = f 2 d in Vec3 (a, b, d)
   | W.Vec cs -> failf "E_VECTOR" "A vector has 3 components [x y z]; this one has %d." (List.length cs)
+  | W.Ref_binding (b, []) when String.starts_with ~prefix:"$elem:" b ->
+      (match Smap.find_opt b c.st.elems with Some v -> v | None -> raise Needs_t)
   | W.Ref_binding (b, fs) ->
       (match Smap.find_opt b env with
        | None -> failf "E_UNBOUND" "%s is not bound." b
@@ -583,6 +593,7 @@ and ev_raw c env (x : W.term) : value =
 
 and apply_op c name (vals : (string * value) list) : value =
   if name = "sop/curve" then mk_node c name vals
+  else if is_element_list name then Struct (name, vals)
   else if is_struct_op name then begin
     let splice = name = "scene/merge" || name = "ui/tile" in
     let vals =
@@ -678,7 +689,7 @@ and loop c env kind accs clauses body zone =
     | _ -> None in
   let acc_pat = match accs with [ (p, _) ] -> Some p | _ -> None in
   let acc = ref init in
-  let k = ref 0 and outs = ref [] and total = ref None in
+  let k = ref 0 and outs = ref [] and total = ref None and over_geometry = ref None in
   let clauses = Array.of_list clauses in
   let n = Array.length clauses in
   let mk = Some (fun v -> zone @ [ ":" ^ v ]) in
@@ -711,15 +722,57 @@ and loop c env kind accs clauses body zone =
       incr k
     end else begin
       let p, e = clauses.(ci) in
-      let coll = list_arg (concrete c (ev (sub cz ("in" ^ string_of_int ci)) env e)) in
-      Array.iter (fun item ->
-        go (ci + 1) (bind_pat c ~mk:None ~whole:false p item env) (item :: items)) coll
+      (match concrete c (ev (sub cz ("in" ^ string_of_int ci)) env e) with
+       | Struct (op, fs) when is_element_list op ->
+           if kind <> `For || n <> 1 then
+             failf "E_ZONE" "%s: only a for with one clause can iterate the elements of geometry." (path_text zone);
+           over_geometry := Some (geometry_loop c cz env op fs p body zone)
+       | v ->
+           Array.iter (fun item ->
+             go (ci + 1) (bind_pat c ~mk:None ~whole:false p item env) (item :: items)) (list_arg v))
     end in
   go 0 env [];
+  match !over_geometry with Some v -> v | None ->
   match kind with
   | `Fold -> Option.get !acc
   | `Sum -> (match !total with None -> Int 0 | Some t -> concrete c t)
   | `For | `Scan -> List (join_values (Array.of_list (List.rev !outs)))
+
+
+(* W8: [(for [p (sop/point_list g)] body)].  The count is known only when [g] cooks, so
+   the body is evaluated once, as a template, with the element unknown: a point is a residual
+   read from [st.elems] when forced, a piece a plan node [zone/element].  The template's nodes
+   (ids [lo] .. [hi - 1]) are not part of the graph; the plan node [zone/points] or
+   [zone/pieces] (a [Geo], the merge of the elements) tells lowering how to cook them. *)
+and geometry_loop c cz env op fs p body zone =
+  if c.st.time <> None then failf "E_LIVE_GEOMETRY" "%s iterates geometry while evaluating a live value." (path_text zone);
+  let src = match List.assoc_opt "geometry" fs with
+    | Some (Geo id) -> id | _ -> failf "E_TYPE" "%s: %s needs geometry." (path_text zone) op in
+  let key = List.assoc_opt "key" fs in
+  let points = op = "sop/point_list" in
+  let ci = { cz with iter = c.iter @ [ 0 ] } in
+  let ekey = element_key zone in
+  let lo = c.st.nnodes in
+  let elem, elem_arg =
+    if points then begin
+      c.st.rids <- c.st.rids + 1;
+      let term = { W.path = None; ty = Ty.Vec3; node = W.Ref_binding (ekey, []); form = body.W.form } in
+      Residual { rid = c.st.rids; rterm = term; renv = Smap.empty; rc = ci }, Text ekey
+    end else
+      (match mk_node (sub ci "element") "zone/element" [] with
+       | Geo id as g -> g, Int id
+       | _ -> assert false) in
+  let mk = Some (fun v -> zone @ [ ":" ^ v ]) in
+  let env = bind_pat ci ~mk ~whole:true p elem env in
+  let v = ev ci env body in
+  let root = match v with
+    | Geo id -> id
+    | Residual _ -> failf "E_ZONE" "%s: what a loop over geometry builds cannot depend on the element; only arguments can." (path_text zone)
+    | _ -> failf "E_TYPE" "%s: the body of a loop over geometry returns geometry." (path_text zone) in
+  let hi = c.st.nnodes in
+  mk_node c (if points then "zone/points" else "zone/pieces")
+    ((("geometry", Geo src) :: (match key with Some k -> [ ("key", k) ] | None -> []))
+     @ [ ("body", Int root); ("lo", Int lo); ("hi", Int hi); ("element", elem_arg) ])
 
 and graph_value ?(rec_ = true) c name over =
   let st = c.st in
@@ -768,10 +821,10 @@ let new_state ~record ws =
   List.iter (fun (g : W.graph) -> Hashtbl.replace graphs g.name g) ws.W.graphs;
   List.iter (fun (g : W.graph) -> Hashtbl.replace defs g.name g) ws.W.defs;
   { time = None; steps = 0; nodes = []; nnodes = 0; cells = []; cache = Hashtbl.create 8;
-    memo = Hashtbl.create 1; rids = 0; record; recs = Hashtbl.create 64; graphs; defs }
+    memo = Hashtbl.create 1; rids = 0; record; elems = Smap.empty; recs = Hashtbl.create 64; graphs; defs }
 
-let live_state (st : st) (l : live) =
-  { st with time = Some l.t; steps = 0; memo = Hashtbl.create 16; record = false }
+let live_state (st : st) ?(elems = Smap.empty) (l : live) =
+  { st with time = Some l.t; steps = 0; memo = Hashtbl.create 16; record = false; elems }
 
 let root st = { st; inst = -1; prefix = []; base = []; route = []; iter = []; depth = 0; rec_ = true }
 
@@ -801,22 +854,23 @@ let rec is_live = function
   | _ -> false
 
 (* one live state per call, made from the first residual met *)
-let with_live (l : live) (f : (residual -> ctx) -> 'a) : ('a, Diagnostic.t) result =
+let with_live ?elems (l : live) (f : (residual -> ctx) -> 'a) : ('a, Diagnostic.t) result =
+  let elems = Option.map Smap.of_list elems in
   let live = ref None in
   let ctx_of r =
     let st = match !live with
       | Some s -> s
-      | None -> let s = live_state r.rc.st l in live := Some s; s in
+      | None -> let s = live_state r.rc.st ?elems l in live := Some s; s in
     { r.rc with st } in
   protect (fun () -> f ctx_of)
 
-let residual_eval r ~live =
-  with_live live (fun ctx_of -> let c = ctx_of r in force_res c r)
+let residual_eval ?elems r ~live =
+  with_live ?elems live (fun ctx_of -> let c = ctx_of r in force_res c r)
 
-let force v ~live =
+let force ?elems v ~live =
   if not (is_live v) then Ok v
   else
-    with_live live (fun ctx_of ->
+    with_live ?elems live (fun ctx_of ->
       let rec go v = match v with
         | Residual r -> let c = ctx_of r in go (force_res c r)
         | List xs -> List (Array.map go xs)

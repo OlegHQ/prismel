@@ -1,0 +1,40 @@
+(** The zone cook step (plan W8): a loop over the elements of cooked geometry.
+
+    A zone node has the collection as input 0 (and any outer geometry its body
+    reads as further inputs).  When the session cooks it, {!Node.Private.expand}
+    derives the elements of the collection, asks [body] for the sub-graph of
+    each one, cooks those through the same session (so an element whose
+    sub-graph is unchanged is a cache hit) and merges the results, writing
+    [source_base + element index] into [source_attribute]. *)
+
+type kind = Points | Pieces
+(** A point is its position; a piece is one primitive, or the primitives that
+    share a value of the key attribute. *)
+
+type element = {
+  index : int;  (** position in the ordered list *)
+  key : int;  (** the [key] attribute's value, or the source index *)
+  position : float * float * float;  (** a point's position; a piece's first point *)
+  piece : Pdk.Geometry.t option;  (** the geometry of a piece *)
+  digest : string;  (** identity of a piece's content ([""] for a point) *)
+}
+
+val max_elements : int
+(** 4,096, as for every loop. *)
+
+val elements : kind -> ?key:string -> Pdk.Geometry.t -> (element array, Diagnostic.error) result
+(** Ordered by [key] (an int or float attribute of the points, or of the
+    primitives for pieces) when the geometry carries it, else by index (ties
+    keep index order). *)
+
+val element_node : element -> Node.t
+(** The geometry of a piece as a node, keyed by its content digest so the
+    nodes fed by it hit the session cache while it is unchanged. *)
+
+val node :
+  ?label:string -> ?report:(int -> unit) -> kind:kind -> ?key:string ->
+  source_attribute:string -> source_base:int ->
+  body:(inputs:Node.t array -> element -> Node.t) -> inputs:Node.t array -> unit -> Node.t
+(** [report] receives the element count of each cook that runs (not of a cache
+    hit).  [body] gets the node's current inputs (a rebuilt node keeps its closures, so it
+    must not capture the [inputs] it was made with) and must be pure. *)

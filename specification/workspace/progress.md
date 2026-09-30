@@ -18,7 +18,7 @@ Status: `todo` · `wip` · `done` (gate met) · `partial` (what is missing is na
 | W5 probes & footers | done | | `Flow_sop.Probe` (records, footers, counts, inspector rows), `Pxui_graph.Scope.with_records`, cook geometry counts piggybacked on the display cook, the workspace inspector, the `t N live · M cached` status, auto-select of an added node (notes below). Gaps: no zone footer while expanded, the geometry of a node that is not upstream of the display shows only its type. |
 | W6 viewport provenance | done | | `Pdk_prismel.Prismel_mesh.to_mesh_with_primitives`, global `__flow_src` tags that survive nested merges, `Pick` (CPU ray over `Pdk.Surface_index`, per-corner tint), `Core.pick`, the highlight follows the selection and probes; click in Viewport3 selects the node and probes its iteration (notes below). Gaps: geometry drawn as instances is not picked, a collapsed zone stays collapsed. |
 | W7 editable text | done | | `Ui.text_area`, the text pane's Selection, Graph and Document tabs (`Prismel_editor.Text_pane`), atomic Check & apply (`Doc.text_edit`, `Core.text_edit`/`binding_edit`, one "Edit text" entry), per-binding apply, error marks at their line; the old read-only text pane and the flat network text view are deleted (notes below). Gaps: the Graph tab is read-only, no Tab key, wrapping or Cmd-Enter apply. |
-| W8 loops over geometry | todo | | |
+| W8 loops over geometry | done | | `point_list` / `piece_list`, the zone node (`Eval` template, `Procedural.Zone` + `Node.Private.expand` + `Session`), lowering by `Lower.instantiate`, zone provenance and count, `FLOW_CASE=garden`, `test_workspace_zone`, bench (notes below). Gaps: values inside the loop read the template record, no `t` in the body, no "by index" title, sequential. |
 | W9 macros UI, notes, bypass | todo | | |
 | W10 contexts & composable shell | todo | | |
 | W11 `.plisp` sketches | todo | | |
@@ -402,3 +402,22 @@ Status: `todo` · `wip` · `done` (gate met) · `partial` (what is missing is na
   edit|error|binding` on `sketches/flow_workspace`; each tab, a typed edit
   (240 to 60 seeds re-cooked), a refused edit (line 6 marked) and a binding edit
   were read from the PNGs.
+- W8 notes. Design and deviations are in `flow-migration.md` "W8". Bench
+  (`dune build test/test_main.exe && cd _build/default/test && ./test_main.exe
+  bench_workspace_zone`, Apple M1, one domain, one run; a scatter of N points, a
+  `for` over them whose body is a `uv_sphere` (element-invariant, built once) and a
+  `transform :translate p`, then a merge): with a 16,384-entry session, cold cook /
+  recook after point 0 moved / recook misses and hits / allocation: N=100 2.2 ms /
+  2.4 ms / 4 and 101 / 0.76 Mwords, N=1,000 28.7 / 25.1 ms / 4 and 1,001 / 8.9
+  Mwords, N=4,000 196 / 181 ms / 4 and 4,001 / 53 Mwords. A recook is about as
+  slow as a cold cook because expanding (instantiating the varying nodes of every
+  element: about 15 us of the 25 us per element at N=1,000, `Edit.instantiate_optional` then
+  `Node.apply_parameters`), the merge (2.5 ms) and the session lookups run for every element
+  even when every cook is a hit; the win is the elements' cooks and their outputs' identity
+  (downstream data ids stay, so nothing after the zone recooks but the merge).
+  With the editor's default of 512 entries the same run misses (1,004 misses at N=1,000,
+  1 hit): the cache holds fewer entries than the elements need. Per-element cost is not
+  linear (45 us at N=4,000 against 25 us at 1,000, not profiled). Ideas, not done: build
+  a template node with its parameters in one step, keep the expansion between cooks when
+  the collection's points are unchanged, and `Parallel.map_array` over elements once a
+  byte-identical test and a bench show a win.

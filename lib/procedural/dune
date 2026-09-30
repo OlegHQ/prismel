@@ -3,7 +3,7 @@
  (public_name prismel.procedural)
  (libraries param prismel_math pdk lru unix)
  (modules context diagnostic parameter node session async_cook select instances
-  sop custom graph edit_graph))
+  sop zone custom graph edit_graph))
 
 (executable
  (name test_main)

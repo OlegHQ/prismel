@@ -500,6 +500,30 @@ let () = (* the Wave fixture's sop/curve: a plan node whose points are live *)
     (match arg (List.hd (nodes_of r "sop/curve")) "points" with
      | Eval.List pts -> assert (Array.for_all (function Eval.Vec3 _ -> true | _ -> false) pts)
      | _ -> failwith "points"))
+let () = (* W8: a loop over geometry is one zone node with a template body *)
+  t "W8: for over point_list is a zone node; the body is a template" (fun () ->
+    let ws = check (sop "(let* [g (sop/grid) spots (sop/scatter g :count 5 :seed 3) dot (sop/box)
+      dots (for [p (sop/point_list spots :key \"id\")] (sop/transform dot :translate p))
+      result (sop/merge g dots)] result)") in
+    let s = static ws in
+    let zone = List.hd (nodes_of s "zone/points") in
+    let lo, hi = match arg zone "lo", arg zone "hi" with Eval.Int a, Eval.Int b -> a, b | _ -> failwith "range" in
+    assert (hi - lo = 1);
+    assert (arg zone "key" = Eval.Text "id");
+    (* the element is a residual, forced with the element bound *)
+    let tr = List.hd (nodes_of s "sop/transform") in
+    let p = arg tr "translate" in
+    assert (Eval.is_live p);
+    let key = Eval.element_key [ "g"; "dots" ] in
+    (match Eval.force ~elems:[ (key, Eval.Vec3 (1., 2., 3.)) ] p ~live:{ Eval.t = 0. } with
+     | Ok (Eval.Vec3 (1., 2., 3.)) -> ()
+     | _ -> failwith "element not bound");
+    assert (Result.is_error (Eval.force p ~live:{ Eval.t = 0. }));
+    (* not a list: only sop/merge takes it, and the structure cannot read the element *)
+    err (sop "(let* [g (sop/grid) n (count (for [p (sop/point_list g)] (sop/box)))] g)") "E_TYPE";
+    err (sop "(let* [g (sop/grid)] (sop/merge (for [p (sop/point_list g)] (if (> p.x 0) (sop/box) (sop/grid)))))") "E_ZONE";
+    err (sop "(let* [g (sop/grid)] (sop/merge (for [p (sop/point_list g) i (range 2)] (sop/box))))") "E_ZONE")
+
 let () =
   if !failed <> [] then begin
     List.iter (fun (n, e) -> prerr_endline ("FAIL " ^ n ^ ": " ^ e)) (List.rev !failed);

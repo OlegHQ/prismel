@@ -159,6 +159,21 @@ let selection () =
   let view = Scope.with_scope ~key:"sunflower" scope view in
   check (Scope.selected view = [ turn ]) "the selection kept a path that no longer exists"
 
+(* W8: a loop over geometry has one template record; the count comes from the cook *)
+let geometry_zone () =
+  let w = T.workspace_of "(workspace w (graph g :context sop (let* [f (sop/grid) \
+    d (for [p (sop/point_list f)] (let* [b (sop/box) m (sop/transform b :translate p)] m)) r (sop/merge f d)] r)))" in
+  let scope = T.scope w "g" in
+  let zone = [ "g"; "d" ] in
+  let dynamic path = if path = zone then Some 100 else None in
+  let eval = Result.get_ok (Flow.Eval.static ~record:true w) in
+  check (Probe.counts (Probe.make eval) scope ~probe:(fun _ -> 0) = [ zone, 1 ]) "template count before a cook";
+  let r = Probe.make ~dynamic eval in
+  check (Probe.counts r scope ~probe:(fun _ -> 0) = [ zone, 100 ]) "the cook's element count";
+  let m = T.node w "g" [ "d"; "m" ] in
+  check ((footer r m ~probes:[ 41 ]).value <> "not run here") "every element reads the template record";
+  check ((footer (Probe.make eval) m ~probes:[ 41 ]).value = "not run here") "without a count only iteration 0 ran"
+
 let run () =
-  bounds (); sunflower (); tree (); branches (); live (); nested (); hoist (); selection ();
+  geometry_zone (); bounds (); sunflower (); tree (); branches (); live (); nested (); hoist (); selection ();
   print_endline "probe tests passed"

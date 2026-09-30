@@ -19,6 +19,8 @@ let tests = [
   "test_sketch_support", Test_sketch_support.run;
   "test_terminal_boolean_normals", Test_terminal_boolean_normals.run;
   "test_workspace_cook", Test_workspace_cook.run;
+  "test_workspace_zone", Test_workspace_zone.run;
+  "bench_workspace_zone", Test_workspace_zone.bench;
   "test_workspace_live", Test_workspace_live.run;
   "test_workspace_edit", Test_workspace_edit.run;
   "test_projection", Test_projection.run;

@@ -533,7 +533,7 @@ let () = (* 6. comments and metadata *)
       let rec at i = i + n <= String.length text && (String.sub text i n = sub || at (i + 1)) in at 0 in
     assert (has "b ^:bypass (sop/subdivide a)"));
   t "bypass needs a fitting input" (fun () ->
-    bad (sop "(sop/points ^:bypass (sop/point_list (sop/box)))") "E_UNKNOWN_KIND";
+    bad (sop "(sop/points ^:bypass (sop/point_list (sop/box)))") "E_BYPASS" ~text:"can't bypass sop/point_list";
     bad (sop "^:bypass (sop/box :size 2)") "E_BYPASS" ~text:"can't bypass");
   t "unknown metadata lists ^:bypass" (fun () ->
     bad (sop "^:mute (sop/box)") "E_META" ~text:"only metadata is ^:bypass")

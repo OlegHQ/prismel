@@ -226,6 +226,33 @@ let rec evaluate memo session context node =
       Hashtbl.add memo (Node.id node) (node, result);
       result
 
+(* A zone node (plan W8) cooks the sub-graph of each element through this
+   session, so an unchanged element is a cache hit, then merges their outputs.
+   ponytail: sequential over elements; parallelise with [Parallel.map_array]
+   only after a byte-identical test and a bench show a win. *)
+and cook_node memo session context node geometries input_diagnostics =
+  match Node.Private.expand node with
+  | None -> Node.Private.cook node context geometries
+  | Some expand ->
+      match expand context (Node.Private.input_array node) geometries with
+      | Error _ as error -> error
+      | Ok roots ->
+          let outputs = Array.make (Array.length roots) None in
+          let rec go index =
+            if index = Array.length roots then Ok ()
+            else match evaluate memo session context roots.(index) with
+              | Error error -> Error (Diagnostic.prepend_trace (Node.trace node) error)
+              | Ok output ->
+                  (match input_geometry session output with
+                   | Error error -> Error (Diagnostic.prepend_trace (Node.trace node) error)
+                   | Ok geometry ->
+                       outputs.(index) <- Some geometry;
+                       input_diagnostics := output.diagnostics :: !input_diagnostics;
+                       go (index + 1)) in
+          match go 0 with
+          | Error _ as error -> error
+          | Ok () -> Node.Private.cook node context (Array.map Option.get outputs)
+
 and evaluate_uncached memo session context node =
   if Context.cancelled context then Error (cancellation_error node)
   else
@@ -267,7 +294,8 @@ and evaluate_uncached memo session context node =
             session.cooks <- session.cooks + 1;
             let started = Unix.gettimeofday () in
             let cooked =
-              try Node.Private.cook node context geometries with exn ->
+              try cook_node memo session context node geometries input_diagnostics
+              with exn ->
                 Error (Diagnostic.error ~code:"uncaught_node_exception"
                   ~cause:(Printexc.to_string exn)
                   "a procedural node raised an exception while cooking")

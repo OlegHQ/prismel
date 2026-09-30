@@ -50,6 +50,12 @@ type origin = { merge : int; input : int; source : int;
 (** Where a merge input came from: the merge and input index, the compiled id
     of the source node and its plan key. *)
 
+type zone = { cid : int; site : Flow.Workspace.path; iter : int list;
+              body_site : Flow.Workspace.path; base : int; count : int Atomic.t }
+(** A loop over geometry ({!zones}): its compiled id, plan key, the site of its body
+    result, the first of the {!Procedural.Zone.max_elements} tags it reserves and the
+    element count of the last cook that ran it ([-1] before any). *)
+
 type graph = {
   name : string;
   instance : int;  (** index in [Flow.Eval.plan.instances] *)
@@ -70,9 +76,23 @@ type t = {
           inputs of every merge in lowering order, so it is deterministic for one
           source.   A merge of merges keeps the innermost tag, so a
           primitive of the displayed geometry names the merge input that made it *)
+  zones : zone list;
   volatile : unit Network.Int_map.t;  (** compiled ids, see {!is_volatile} *)
   plan : Flow.Eval.plan;
 }
+
+val origin : t -> int -> origin option
+(** The origin of a tag: {!t.provenance}, else a loop over geometry, whose element
+    [i] has tag [base + i], site [body_site] and iteration [iter @ [i]] (the
+    iteration of an enclosing loop is the template's, 0). *)
+
+val tags : t -> site:Flow.Workspace.path -> iter:int list -> int list
+(** Every tag whose origin is this site at this iteration tuple; the loop over geometry
+    itself, at its own tuple, gives every element's tag. *)
+
+val zone_count : t -> Flow.Workspace.path -> int option
+(** The elements the loop over geometry bound at this path ran over in its last
+    cook, [None] before it cooked. *)
 
 val is_volatile : t -> int -> bool
 (** A compiled node is volatile when it is live (an argument depends on [t])

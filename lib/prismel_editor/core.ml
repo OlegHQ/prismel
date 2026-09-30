@@ -359,10 +359,7 @@ let lit_tags value =
                (Hashtbl.find_opt (Flow_sop.Probe.chains scope) site) in
            let iter = List.map (fun zone ->
              Option.value ~default:0 (Layout_by_path.Path_map.find_opt zone value.probes)) chain in
-           let tags = Flow_sop.Network.Int_map.fold
-               (fun tag (o : Flow_sop.Lower.origin) tags ->
-                 if o.site = site && o.iter = iter then Pick.Set.add tag tags else tags)
-               lowered.provenance Pick.Set.empty in
+           let tags = Pick.Set.of_list (Flow_sop.Lower.tags lowered ~site ~iter) in
            tags, Some { site; at = value.probes; lowered; scope; tags })
   | _ -> Pick.Set.empty, None
 
@@ -401,7 +398,8 @@ let sync_scope value = match scope_name value, value.doc.Document.workspace, Laz
               (Option.value ~default:[] (M.find_opt path layout.frames))) end in
         let geometry id = Option.bind (Flow_sop.Network.Int_map.find_opt id lowered.compiled)
           (fun node_id -> Cook.geometry value.cook ~object_id ~node_id) in
-        let records = Option.map (Flow_sop.Probe.make ?time ~geometry) evaluated in
+        let records = Option.map (Flow_sop.Probe.make ?time ~geometry
+          ~dynamic:(Flow_sop.Lower.zone_count lowered)) evaluated in
         let scope_view = match records with
           | Some records when fresh || moved -> Pxui_graph.Scope.with_records records scope_view
           | _ -> scope_view in
@@ -2484,7 +2482,7 @@ let pick value ~origin ~direction =
             | Some hit, _ -> Some hit
             | None, _ -> best) None (placed_pieces value) in
       let hit = Option.bind nearest (fun (_, tag) ->
-        Flow_sop.Network.Int_map.find_opt tag lowered.provenance) in
+        Flow_sop.Lower.origin lowered tag) in
       (match hit with
        | Some o ->
            (match Hashtbl.find_opt (Flow_sop.Probe.chains scope) o.site with

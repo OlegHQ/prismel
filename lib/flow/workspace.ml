@@ -115,6 +115,10 @@ let ops = [
   (* ponytail: the catalog has no "curve from a list of points" kind (its sop/poly_path takes
      geometry); the workspace names one and W2 lowering must supply the native node. *)
   mk ~octx:Sop ~kw:[ "closed", Ty.Bool ] "sop/curve" [ "points", Ty.List Ty.Vec3 ] (fun _ -> Ty.Geometry);
+  (* W8: lists whose length is known only when the geometry cooks; only a [for] over one
+     runs (Eval makes a zone node), see [Eval] *)
+  mk ~octx:Sop ~kw:[ "key", Ty.Text ] "sop/point_list" [ "geometry", Ty.Geometry ] (fun _ -> Ty.List Ty.Vec3);
+  mk ~octx:Sop ~kw:[ "key", Ty.Text ] "sop/piece_list" [ "geometry", Ty.Geometry ] (fun _ -> Ty.List Ty.Geometry);
   mk ~octx:Scene ~kw:[ "color", Ty.Color; "at", Ty.Vec3; "scale", fl ] "scene/object"
     [ "geometry", Ty.Geometry ] (fun _ -> Ty.Scene);
   mk ~octx:Scene ~rest:("scene", Ty.Scene) "scene/merge" [] (fun _ -> Ty.Scene);

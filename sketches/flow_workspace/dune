@@ -2,13 +2,15 @@
  (targets cases.ml)
  (deps ../../specification/workspace/cases/bloom.lisp
        ../../specification/workspace/cases/sunflower.lisp
-       ../../specification/workspace/cases/orrery.lisp)
+       ../../specification/workspace/cases/orrery.lisp
+       garden.plisp)
  (action
   (with-stdout-to cases.ml
    (progn
     (echo "let bloom = {|") (cat ../../specification/workspace/cases/bloom.lisp) (echo "|}\n")
     (echo "let sunflower = {|") (cat ../../specification/workspace/cases/sunflower.lisp) (echo "|}\n")
-    (echo "let orrery = {|") (cat ../../specification/workspace/cases/orrery.lisp) (echo "|}\n")))))
+    (echo "let orrery = {|") (cat ../../specification/workspace/cases/orrery.lisp) (echo "|}\n")
+    (echo "let garden = {|") (cat garden.plisp) (echo "|}\n")))))
 
 (executable
  (name main)

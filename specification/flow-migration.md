@@ -321,6 +321,7 @@ milestone is recorded here with its date, what landed and its deviations.
 | W5 probes and footers | done | 2026-09-30 |
 | W6 viewport provenance | done | 2026-09-30 |
 | W7 editable text | done | 2026-09-30 |
+| W8 loops over geometry | done | 2026-09-30 |
 
 ### W0 fixes and catalog prerequisites (2026-09-30, done with W4 part A)
 
@@ -961,3 +962,51 @@ line marked while every other pane shows the last applied document; Discard
 reverts. The read-only text pane and the flat network's text view are deleted:
 only a workspace graph object has a text projection. Tests: `test_ui`,
 `test_text_pane`. Deviations and gaps are in `specification/workspace/progress.md`.
+
+### W8 loops over geometry (2026-09-30, done)
+
+Landed: `(sop/point_list g :key "id")` and `(sop/piece_list g :key "id")` are
+workspace operators (typed `list vec3` / `list geometry`, next to `sop/curve`),
+and `(for [p (sop/point_list g)] body)` (one clause, `for` only) is a **zone
+node**. `Flow.Eval` evaluates the body once, as a template, with the element
+unknown: a point is a residual read from `Eval.force ?elems` (bound by
+`Eval.element_key zone`), a piece is a plan node `zone/element`; the template's
+nodes (ids `lo` to `hi - 1`) and the plan node `zone/points` / `zone/pieces`
+(a `Geo`, the merged elements) carry `input`, `key`, `body`, `lo`, `hi` and
+`element`. A body whose structure reads the element is `E_ZONE`, a `count` or
+other list use of the result `E_TYPE` (only `sop/merge` takes it), a body that
+reads `t` is `E_ZONE_LIVE` at lowering. `Procedural.Zone` is the cook step: a
+node with an optional `expand` (`Node.Private.make ?expand`) that
+`Session` calls after cooking the inputs: it derives the elements (points, or
+pieces from `Pdk.Deletion.primitive_partitions`, ordered by the int/float
+`key` attribute when present, else by index, at most 4,096), asks the
+zone for each element's sub-graph, cooks them through the same session and
+hands their outputs to the node's merge (`__flow_src` = `base + element
+index`; `Lower` reserves 4,096 tags per zone). `Lower` keeps template nodes out
+of the network; each element's copy is built by `instantiate` (element-invariant
+nodes once per cook of the zone, the rest per element, the element's arguments
+forced with `?elems`), so the network holds one `zone` node. `Lower.origin`,
+`Lower.tags` and `Lower.zone_count` extend provenance to zones; `Core.pick` and
+`Core.lit_tags` use them, `Probe.make ?dynamic` reports the last cook's element
+count in the selector and every element reads the template's record.
+Deviations from the plan: cache identity is `(template node id, forced
+arguments, input data ids)` instead of new ids per `(path, element key)`: an
+unchanged element has the same key, so it is a hit, and two equal elements
+share a result; the zone's own key changes with any change of the collection,
+so it re-expands and merges (misses: the zone, its merge and the changed
+element). A piece element is a `zone_element` node keyed by a content digest of
+the piece (its data id is fresh per cook). Gaps: a body may read the element
+only through arguments; values inside the loop read the template record (an
+element-dependent value shows `?`); `t` inside the body; a merge inside the
+body keeps its own (template) tags, so a pick resolves to the template
+iteration; the zone title does not say "by index"; sequential over elements
+(`ponytail:`). Session capacity matters: two cache entries per element and a
+default of 512 entries mean the editor default only caches a few hundred
+elements; pass `?max_entries`. Tests: `lib/flow/test_workspace_eval.ml`, `test/test_workspace_zone.ml` (Garden-like
+scatter then for over points, 1 vs 3 domains byte-identical, deterministic,
+one zone node and no template in the network, provenance, hits after moving
+one point, pieces, keys, `E_ZONE_LIVE`), `test/test_probe.ml`. Bench
+(`test_main.exe bench_workspace_zone` from `_build/default/test`): see
+`specification/workspace/progress.md`. Native: `FLOW_CASE=garden` in
+`sketches/flow_workspace` (40 dots over a scattered bed; selecting the zone
+lights every element, the rest dims).

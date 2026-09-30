@@ -117,11 +117,16 @@ val static :
     driven list), [E_NONFINITE], [E_RANGE] ([ui/tile], [ui/split],
     [settings/config] with computed arguments), [E_DEPTH], [E_LIVE_GEOMETRY]. *)
 
-val residual_eval : residual -> live:live -> (value, Diagnostic.t) result
+val residual_eval : ?elems:(string * value) list -> residual -> live:live -> (value, Diagnostic.t) result
 (** A live term's value at a time (never a [Residual] at the top). *)
 
-val force : value -> live:live -> (value, Diagnostic.t) result
-(** Every residual inside a value replaced by its value at the time. *)
+val force : ?elems:(string * value) list -> value -> live:live -> (value, Diagnostic.t) result
+(** Every residual inside a value replaced by its value at the time.  [elems] binds
+    the element of each geometry zone ({!element_key}) to its value (a point
+    is a [Vec3]); a residual that reads an unbound element is an error. *)
+
+val element_key : Workspace.path -> string
+(** The name under which {!force} binds the element of the zone at this path. *)
 
 val is_live : value -> bool
 (** A residual anywhere inside. *)

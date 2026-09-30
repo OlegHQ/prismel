@@ -1,0 +1,13 @@
+; W8: a loop over the points of geometry.  The count is known only after the
+; scatter cooks; `:key "id"` would order the elements by a point attribute.
+(workspace garden
+
+  (graph garden :context sop [(seed : int 1) (count : int 40)]
+    (let* [bed (sop/tube :top_radius 1 :bottom_radius 1 :height 0.04 :columns 48)
+           spots (sop/scatter bed :count count :seed seed)
+           dots (for [p (sop/point_list spots)]
+                  (let* [dot (sop/uv_sphere :radius 0.06 :segments 8 :rings 4)
+                         moved (sop/transform dot :translate p)]
+                    moved))
+           result (sop/merge bed dots)]
+      result)))

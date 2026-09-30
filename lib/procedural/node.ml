@@ -29,6 +29,7 @@ type t = {
   inputs : t array;
   cook : node_id:int -> Context.t -> Pdk.Geometry.t array ->
     (Private_types.cooked, Diagnostic.error) result;
+  expand : (Context.t -> t array -> Pdk.Geometry.t array -> (t array, Diagnostic.error) result) option;
   parameterization : parameterization option;
 }
 and parameterization = Parameters : {
@@ -104,7 +105,7 @@ module Private = struct
   let restore_id id value = Result.map (fun () -> {value with id}) (reserve_id id)
 
   let make ?label ~operation ~version ~parameters ~cook_mode ~dependencies
-      ?(input_policy = All) ~inputs cook =
+      ?(input_policy = All) ?expand ~inputs cook =
     if version < 0 then invalid_arg "Node.make: version must be non-negative";
     if String.trim operation = "" then invalid_arg "Node.make: empty operation";
     let label = match label with
@@ -119,7 +120,7 @@ module Private = struct
      | Only _ -> invalid_arg "Node.make: selected input is out of bounds");
     { id = fresh_id (); label; operation; version; parameters;
       parameter_key = ""; cook_mode;
-      dependencies; input_policy; inputs; cook; parameterization = None }
+      dependencies; input_policy; inputs; cook; expand; parameterization = None }
 
   let input_policy value = value.input_policy
   let input_array value = Array.copy value.inputs
@@ -148,4 +149,5 @@ module Private = struct
   let adopt_identity ~source value =
     { value with id = source.id; label = source.label }
   let cook value context inputs = value.cook ~node_id:value.id context inputs
+  let expand value = value.expand
 end

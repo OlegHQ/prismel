@@ -12,6 +12,7 @@ type footer = {
 
 type t = {
   time : float option;
+  dynamic : path -> int option;
   geometry : int -> geometry option;
   raw : (path, (int list * E.value) list) Hashtbl.t;
   forced : (path, (int list * summary) array) Hashtbl.t;  (* memo: forcing is per lookup, not per frame *)
@@ -19,10 +20,10 @@ type t = {
   feet : (path * int list, footer) Hashtbl.t;  (* memo of [footer]: the pane asks every frame *)
 }
 
-let make ?time ?(geometry = fun _ -> None) (eval : E.t) =
+let make ?time ?(geometry = fun _ -> None) ?(dynamic = fun _ -> None) (eval : E.t) =
   let raw = Hashtbl.create 64 in
   List.iter (fun (p, l) -> Hashtbl.replace raw p l) eval.records;
-  { time; geometry; raw; forced = Hashtbl.create 64; across = Hashtbl.create 64; feet = Hashtbl.create 64 }
+  { time; dynamic; geometry; raw; forced = Hashtbl.create 64; across = Hashtbl.create 64; feet = Hashtbl.create 64 }
 
 let same_eval a b = a.raw == b.raw
 
@@ -102,9 +103,19 @@ let chains (s : P.scope) =
 
 let rec drop_last = function [] | [ _ ] -> [] | x :: r -> x :: drop_last r
 
-(* the record with exactly this tuple *)
+(* the record with exactly this tuple; inside a loop over geometry the body is one template
+   record (its iteration is 0), so every element reads it *)
 let at t path ~probes =
-  Array.find_map (fun (it, s) -> if it = probes then Some s else None) (records t path)
+  let rs = records t path in
+  match Array.find_map (fun (it, s) -> if it = probes then Some s else None) rs with
+  | Some _ as found -> found
+  | None ->
+      let inside = List.exists (fun i -> t.dynamic (List.filteri (fun j _ -> j < i) path) <> None)
+        (List.init (max 0 (List.length path - 1)) succ) in
+      if not inside then None
+      else Array.find_map (fun (it, s) ->
+        if List.compare_lengths it probes = 0 && List.for_all2 (fun r p -> r = p || r = 0) it probes
+        then Some s else None) rs
 
 (* the records whose tuple is [outer] followed by one more index, in order *)
 let across t path ~outer =
@@ -125,6 +136,7 @@ let counts t (s : P.scope) ~probe =
   List.filter_map (fun (n : P.node) ->
     let z = Option.get n.zone in
     let outer = List.map probe (Option.value ~default:[] (Hashtbl.find_opt chain n.path)) in
+    match t.dynamic n.path with Some count -> Some (n.path, count) | None ->
     List.find_map (fun (r : P.rail_row) ->
       if r.role = P.Capture then None
       else match across t (n.path @ [ ":" ^ List.hd r.names ]) ~outer with

@@ -1,6 +1,7 @@
 (* A workspace document in the editor: the graph pane draws it with zones,
    rails and iteration selectors.  FLOW_CASE picks bloom (default),
-   sunflower or orrery.  FLOW_ADD=1 adds a box from the Tab menu.  FLOW_EXPORT=<dir> renders the editor's UI to PNG
+   sunflower, orrery or garden (W8, a loop over points).  FLOW_SCROLL=<n> is the one wheel step at frame 12 (the pane zoom; default two steps of 5).
+   FLOW_ADD=1 adds a box from the Tab menu.  FLOW_EXPORT=<dir> renders the editor's UI to PNG
    frames instead of opening a window (a check of the graph pane).
    FLOW_TEXT=selection|graph|document|edit|error|binding shows the text pane (Space l
    twice) after the click that selects r: a tab, or an edit typed into the
@@ -10,7 +11,8 @@ module E3 = Prismel_editor.Editor3
 
 let workspace =
   let text = match Sys.getenv_opt "FLOW_CASE" with
-    | Some "sunflower" -> Cases.sunflower | Some "orrery" -> Cases.orrery | _ -> Cases.bloom in
+    | Some "sunflower" -> Cases.sunflower | Some "orrery" -> Cases.orrery
+    | Some "garden" -> Cases.garden | _ -> Cases.bloom in
   let catalog = Flow_sop.Catalog.of_factories ~version:Flow_sop.Manifest.version
       Sop_catalog.Editor.factories |> Result.get_ok in
   match Prismel_editor.Workspace_doc.of_text catalog text with
@@ -71,7 +73,8 @@ let () = match Sys.getenv_opt "FLOW_EXPORT" with
                   then replace "(seeds : int 240)" "(seeds : int 60)"
                   else replace "(sqrt i)" "(sqrt nosuch)") ]
           | 36 when List.mem (Sys.getenv_opt "FLOW_TEXT") [ Some "edit"; Some "error"; Some "binding" ] -> click (690., 764.)
-          | n when n >= 12 && n mod 2 = 0 && n <= 14 -> [ Event.MouseMoved (780., 380.); Event.MouseScrolled (0., 5.) ]
+          | n when n >= 12 && n mod 2 = 0 && n <= (if Sys.getenv_opt "FLOW_SCROLL" = None then 14 else 12) -> [ Event.MouseMoved (780., 380.);
+                  Event.MouseScrolled (0., Option.fold ~none:5. ~some:float_of_string (Sys.getenv_opt "FLOW_SCROLL")) ]
           | _ -> [] in
         { frame with events = events @ frame.events;
           keys = if frame.count = 30 then Input.Meta :: frame.keys else frame.keys } in
