@@ -627,7 +627,7 @@ let run_loop_copies () =
       e := E3.update !e (frame ~buttons:[ Input.LeftButton ] p [ Event.MousePressed (Input.LeftButton, p) ] (incr count; !count));
       e := E3.update !e (frame p [ Event.MouseReleased (Input.LeftButton, p) ] (incr count; !count))) [ 262; 300; 360; 450 ];
       press (y + 6) end in
-  check (has (dump_line !e "prompt") "all 6 copies") ("the question did not open: " ^ dump_line !e "prompt");
+  check (has (dump_line !e "prompt") "all 6 objects (6 copies) made by row") ("the question did not open: " ^ dump_line !e "prompt");
   press 320;
   check (not (has (source !e) "for [") && List.length (objects !e) = 1 && E3.undo_label !e = Some "Delete loop")
     ("confirming did not delete the loop: " ^ source !e);

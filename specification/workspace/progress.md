@@ -792,5 +792,5 @@ Nested loops (`(for [i ..] (scene/merge (for [j ..] light)))`, bare nested `for`
 `test_scene_sync.ml` `run_nested_loops`: a literal edit and a rename write the inner template (all copies, saved text
 reopens the same), a computed field is refused naming `(now i)`, and deleting one inner copy, or every object of one outer
 copy, is refused and asked ("Delete all 2 copies ..."; a yes rewrites and reloads identically). No bug found. Limit: the
-outer-copy delete is not rewritten with take/drop, it asks; the question names the loop "an expression". No shell test
+outer-copy delete is not rewritten with take/drop, it asks; the question names the loop structurally (`for [j (range 2)]` (line 9, in "scene"), or its binding: `Document.describe`, read from the workspace source, never a fallback string) and says it is nested (an inner copy exists once per outer copy). No shell test
 for nesting (the shell path is the same `Sync.confirming`).

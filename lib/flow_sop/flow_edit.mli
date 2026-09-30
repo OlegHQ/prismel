@@ -147,6 +147,9 @@ val duplicated : Flow.Syntax.t list -> path list -> path list
 val arg_text : Flow.Syntax.t list -> path -> arg_key -> Flow.Syntax.t option
 (** The argument [key] of the binding [node], as written (what an {!Unfold} put there). *)
 
+val arg_of : Flow.Syntax.t -> arg_key -> Flow.Syntax.t option
+(** The argument [key] of an expression, as written. *)
+
 val free_names : Flow.Syntax.t -> string list
 (** Names a form reads and does not declare, first use first (field access
     [a.b] counts as [a]).  Projection wiring uses it. *)

@@ -1367,7 +1367,7 @@ let panel_title value (leaf : Pxui_shell.Layout.leaf) =
   let name = Editor_core.Panels.name leaf.panel in
   match Option.bind value.doc.Document.shell (fun s ->
       if value.workspace.restored then None else List.assoc_opt leaf.path s.origins) with
-  | Some (Document.Loop (from, _)) -> name ^ " · from loop " ^ Document.home_name from
+  | Some (Document.Loop (from, _)) -> name ^ " · from loop " ^ Document.describe (fst value.doc.Document.workspace).source from
   | _ -> name
 
 (* The outline: the graphs of the workspace, one row each (a row opens its graph). *)
@@ -1401,7 +1401,7 @@ let layout_intents value (workspace : shell) intents =
               | Flow_sop.Flow_edit.Set_panel_kind { kind; _ } ->
                   [ Syntax_inline { home; key; make = (fun p ->
                       Flow_sop.Flow_edit.Set_panel_kind { node = p @ [ "@result" ]; kind }) } ]
-              | _ -> [ Notice ("These panels are copies made by a loop in " ^ Document.home_name home
+              | _ -> [ Notice ("These panels are copies made by a loop in " ^ Document.describe (fst value.doc.Document.workspace).source home
                   ^ ": retype them (Space o), or edit the loop in the editor graph.") ])
          | None -> [ Notice "This panel is not part of the editor graph's tree." ])
     | _ -> [ Notice (if workspace.restored then "The default layout is showing. \

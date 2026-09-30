@@ -200,11 +200,82 @@ let dump value =
   line "settings %s" (fields (Settings.fields value.settings));
   Buffer.contents b
 
-(* the binding a home is, for a message; the loop that makes a copy *)
-let rec home_name = function
-  | Bound_at path -> List.nth path (List.length path - 1)
-  | Copy { loop; _ } -> home_name loop
-  | Inline_in _ | Looped -> "an expression"
+(* ---- naming a home for a message: structural, read from the workspace source ---- *)
+
+module S = Flow.Syntax
+
+(* the form a home is written as, when the source can be walked to it: a loop's body is its last
+   child, and a copy's [rel] walks the body's [let*] bindings to the template *)
+let rec syntax_of (source : S.t list) = function
+  | Bound_at path -> Flow_sop.Flow_edit.arg_text source path Flow_sop.Flow_edit.Whole
+  | Inline_in (parent, key) ->
+      Option.bind (syntax_of source parent) (fun e -> Flow_sop.Flow_edit.arg_of e key)
+  | Copy { loop; rel; _ } ->
+      let rec last = function [] -> None | [ x ] -> Some x | _ :: r -> last r in
+      let rec walk (e : S.t) = function
+        | [] -> Some e
+        | step :: rest ->
+            (match e.node with
+             | S.List (({ node = S.Sym "let*"; _ }) :: { node = S.Vec bs; _ } :: body) ->
+                 if step = "@result" then Option.bind (last body) (fun b -> walk b rest)
+                 else
+                   let rec find = function
+                     | { S.node = S.Sym n; _ } :: v :: _ when n = step -> Some v
+                     | _ :: _ :: r -> find r | _ -> None in
+                   Option.bind (find bs) (fun v -> walk v rest)
+             | _ -> if step = "@result" then walk e rest else None) in
+      Option.bind (syntax_of source loop) (fun e ->
+        match e.node with
+        | S.List (_ :: rest) -> Option.bind (last rest) (fun body -> walk body rel)
+        | _ -> None)
+  | Looped -> None
+
+(* the nearest named binding around a home: the graph, or the let* binding *)
+let rec enclosing = function
+  | Bound_at path -> List.find_opt (fun n -> n <> "" && n.[0] <> '@') (List.rev path)
+  | Copy { loop; _ } -> enclosing loop
+  | Inline_in (parent, _) -> enclosing parent
+  | Looped -> None
+
+let truncate n s = if String.length s <= n then s else String.sub s 0 (n - 3) ^ "..."
+
+(* The head of a form for a message: [for [j (range 2)]], [scene/light]. *)
+let head_text (e : S.t) = match e.node with
+  | S.List ({ node = S.Sym h; _ } :: { node = S.Vec _ as v; span; id; _ } :: _) ->
+      h ^ " " ^ Flow.Lisp.flat { e with node = v; span; id }
+  | S.List ({ node = S.Sym h; _ } :: _) -> h
+  | _ -> Flow.Lisp.flat e
+
+(* The line of a form in the printed text of the workspace, when it is part of it. *)
+let line_of source (e : S.t) =
+  let text, spans = Flow.Lisp.print source in
+  match List.assoc_opt e.id spans with
+  | Some { Flow.Diagnostic.start; _ } when start <= String.length text ->
+      let n = ref 1 in
+      String.iteri (fun i c -> if i < start && c = '\n' then incr n) text;
+      Some !n
+  | _ -> None
+
+(* What a loop or an expression is called in a message: its binding if it has one, else its head
+   form, with its line and the binding around it: [`for [j (range 2)]` (line 12, in "lights")].
+   A copy is named by the loop that makes it.  [source] is the workspace's forms. *)
+let rec describe source = function
+  | Bound_at path when path <> [] -> List.nth path (List.length path - 1)
+  | Copy { loop; _ } -> describe source loop
+  | home ->
+      (match syntax_of source home with
+       | None -> (match enclosing home with Some n -> Printf.sprintf "a form in %S" n | None -> "a form")
+       | Some e ->
+           let where = (match line_of source e with Some l -> [ Printf.sprintf "line %d" l ] | None -> [])
+             @ (match enclosing home with Some n -> [ Printf.sprintf "in %S" n ] | None -> []) in
+           Printf.sprintf "`%s`%s" (truncate 40 (head_text e))
+             (if where = [] then "" else " (" ^ String.concat ", " where ^ ")"))
+
+(* whether a loop sits inside another loop's body: its copies repeat once per outer copy *)
+let rec nested = function
+  | Copy _ -> true
+  | Inline_in (parent, _) -> nested parent
+  | Bound_at _ | Looped -> false
 
 (* a home with its copy indices erased: the copies of one loop share it *)
 let rec template = function

@@ -971,6 +971,8 @@ let remap op p = match op with
   | Close_panel { node } when has_prefix ~prefix:node p -> None
   | _ -> Some p
 
+let arg_of = arg_get
+
 let arg_text src node key =
   let sp, leaf = split_node node in
   let found = ref None in

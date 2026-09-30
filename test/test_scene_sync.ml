@@ -428,8 +428,21 @@ let run_loops () =
   let one = without_ids grid [ (List.nth (lamps grid) 4).id ] in
   check (Result.is_error (reconcile grid one)) "a copy of a two-clause loop was deleted alone";
   (match Sync.confirming ~factories grid one with
-   | Some question -> check (contains question "all 6 copies") ("the question does not count the copies: " ^ question)
+   | Some question -> check (contains question "all 6 objects (6 copies) made by `for [i (range 2) j (range 3)]` (line 8, in \"scene\")"                        && contains question "several clauses")
+         ("the question does not name the loop: " ^ question)
    | None -> failwith "a refused loop deletion did not ask");
+  (* a bound loop is named by its binding *)
+  let bound_grid = open_text {|(workspace grid
+    (graph g :context sop (sop/box))
+    (graph scene :context scene
+      (let* [body (scene/geometry (ref g) :name "body")
+             lamps (for [i (range 2) j (range 3)] (scene/light :name "lamp" :translate [i j 0]))]
+        (scene/merge body lamps))))|} in
+  let one_bound = without_ids bound_grid [ (List.nth (lamps bound_grid) 4).id ] in
+  (match Sync.confirming ~factories bound_grid one_bound with
+   | Some q -> check (contains q "all 6 objects (6 copies) made by lamps?" && contains q "several clauses")
+                 ("the question does not name the bound loop: " ^ q)
+   | None -> failwith "a refused bound loop deletion did not ask");
   let all = ok (Sync.reconcile ~factories ~whole:true grid one) in
   check (lamps all = [] && contains (source all) "scene/geometry" && not (contains (source all) "for ["))
     "confirming did not delete the whole loop";
@@ -488,7 +501,9 @@ let run_nested_loops () =
   (* one inner copy cannot go alone: the question counts the copies, a yes removes the loop *)
   let one = without_ids doc [ pick 3 ] in
   (match Sync.confirming ~factories doc one with
-   | Some q -> check (contains q "all 2 copies") ("the nested question: " ^ q)
+   | Some q -> check (contains q "all 6 objects (2 copies) made by `for [j (range 2)]` (line 9, in \"scene\")"
+                    && contains q "nested in another loop" && contains q "once per outer copy")
+       ("the nested question: " ^ q)
    | None -> failwith "deleting one inner copy did not ask");
   same_after_reload (ok (Sync.reconcile ~factories ~whole:true doc one)) "nested whole delete";
   (* both objects of an outer copy: the inner loop still cannot lose a whole copy's worth silently; it asks *)

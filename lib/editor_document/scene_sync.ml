@@ -71,7 +71,7 @@ let apply st op = match Workspace_doc.edit st.catalog st.workspace op with
 (* The binding of a home; an inline call is unfolded into one first. *)
 let rec bind st : Document.home -> F.path = function
   | Bound_at path -> path
-  | Looped -> stop "It is made by an expression; edit the text."
+  | Looped -> stop "Made by a macro; edit the text."
   | Copy { loop; rel; _ } -> bind st loop @ rel
   | Inline_in (parent, key) as home ->
       (match List.assoc_opt (Document.template home) st.unfolded with
@@ -144,6 +144,7 @@ let delete_loops st ~whole (before : Document.t) gone =
     let indices = List.sort_uniq (fun a b -> compare b a) (List.map (fun (_, h) -> index_of h) deleted) in
     let alone i = List.for_all (fun (id, h) -> index_of h <> i || List.mem_assoc id deleted) members in
     let copies = 1 + List.fold_left (fun m (_, h) -> max m (index_of h)) 0 members in
+    let source = (fst before.workspace).source in
     if whole then deleted_whole := path :: !deleted_whole
     else if clause 3 = None && List.for_all alone indices then
       List.iter (fun i -> match clause 1 with
@@ -155,9 +156,11 @@ let delete_loops st ~whole (before : Document.t) gone =
             apply st (F.Set_arg { node = path; key = F.Bv (1, 1); sub = []; value })
         | None -> stop "The loop has no collection to remove a copy from.") indices
     else
-      raise (Confirm (Printf.sprintf "Delete all %d copies of %s?\nOne copy cannot go alone (%s)."
-        copies (Document.home_name key)
-        (if clause 3 <> None then "the loop has several clauses" else "a copy made other objects"))))
+      raise (Confirm (Printf.sprintf "Delete all %d objects (%d copies) made by %s?\nOne copy cannot go alone (%s)."
+        (List.length members) copies (Document.describe source key)
+        (if clause 3 <> None then "the loop has several clauses"
+         else if Document.nested key then "it is nested in another loop: an inner copy exists once per outer copy, so removing it would delete objects you did not select"
+         else "a copy made other objects"))))
     loops;
   (* a whole loop goes last: leaving its merge moves the positions of what follows *)
   fun () -> List.iter (fun path -> apply st (F.Delete_nodes { nodes = [ path ] })) !deleted_whole
@@ -205,7 +208,7 @@ let objects st ~whole (before : Document.t) (after : Document.t) =
   List.iter (function
     | Document.Inline_in (parent, (F.Pos _ as key)) ->
         apply st (F.Disconnect { node = bind st parent; key; fallback = None })
-    | _ -> stop "That object is made by an expression; edit the text.")
+    | home -> stop "Made by %s; edit the text." (Document.describe (fst before.workspace).source home))
     (List.sort (fun x y -> compare (position y) (position x)) inline);
   List.iter (function
     | Document.Bound_at path -> apply st (F.Delete_nodes { nodes = [ path ] })
@@ -483,7 +486,7 @@ let confirming ~factories before after =
    given the home the edit was written to. *)
 let template_note (doc : Document.t) home =
   Option.map (fun loop -> Printf.sprintf "Edited the loop template (%s); %d copies change."
-                (Document.home_name loop) (Document.copies doc home)) (Document.loop_of home)
+                (Document.describe (fst doc.workspace).source loop) (Document.copies doc home)) (Document.loop_of home)
 
 (* What an edit of the derived objects did to the copies of a loop, for the status line. *)
 let note (before : Document.t) (after : Document.t) =
@@ -494,7 +497,7 @@ let note (before : Document.t) (after : Document.t) =
         (match Edit.find b ~node_id:id, Edit.find a ~node_id:id with
          | Some nb, Some na when object_edits ~before:b ~after:a id nb na <> [] -> template_note before home
          | Some _, None ->
-             Some (Printf.sprintf "Removed a copy from the loop (%s)." (Document.home_name loop))
+             Some (Printf.sprintf "Removed a copy from the loop (%s)." (Document.describe (fst before.workspace).source loop))
          | _ -> None)) before.homes.objects
 
 (* The scene graph (or the World graph) of a document that has none: the objects the host
