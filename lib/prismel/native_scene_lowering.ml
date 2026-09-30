@@ -23,6 +23,7 @@ let draw_of_scene3_entry (entry : Scene_execution.scene3_entry) =
     entry.draw
 
 type retained_draws={staged:Scene.Private.staged_native;
+  layer:Scene_execution.prepared_scene3;  (* a frame with several 3D layers caches each *)
   draws:Prismel_execution.draw list}
 let retained_draw_capacity=16
 let retained_draw_caches=Domain.DLS.new_key(fun()->ref[])
@@ -31,7 +32,7 @@ let draws_of_prepared (staged:Scene.Private.staged_native) prepared=
   |None->Array.to_list prepared.Scene_execution.entries|>List.map draw_of_scene3_entry
   |Some _->
       let cache=Domain.DLS.get retained_draw_caches in
-      match List.find_opt(fun cached->cached.staged==staged)!cache with
+      match List.find_opt(fun cached->cached.staged==staged&&cached.layer==prepared)!cache with
       |Some cached->cached.draws
       |None->
           let entries=prepared.Scene_execution.entries in
@@ -40,7 +41,7 @@ let draws_of_prepared (staged:Scene.Private.staged_native) prepared=
             else build(index+1)(draw_of_scene3_entry
               (Array.unsafe_get entries index)::reversed)in
           let draws=build 0[]in
-          cache:={staged;draws}::!cache;
+          cache:={staged;layer=prepared;draws}::!cache;
           if List.length!cache>retained_draw_capacity then
             cache:=List.filteri(fun index _->index<retained_draw_capacity)!cache;
           draws
