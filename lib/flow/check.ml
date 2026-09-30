@@ -247,7 +247,7 @@ let resolve_report state context report head =
        | _ ->
            let names = List.map (fun kind -> short kind.qualified) all in
            report "E_UNKNOWN_KIND"
-             ("Unknown node " ^ head ^ "." ^ suggestion head names));
+             ("Unknown node " ^ head ^ "." ^ suggestion (short head) names));
       None
 
 let resolve_kind catalog context head =

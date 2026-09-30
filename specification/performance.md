@@ -171,8 +171,6 @@ sample is not evidence of a speed change.
 dune exec tools/bench_flow_value_lane.exe -- 200 1000
 ```
 
-M6 adds the 2,000-node printing case.
-
 This is a repeatable scale smoke baseline, not a claim that every wire-heavy
 graph has constant frame cost: scene traversal remains O(nodes + wires), while
 unchanged graph replacement is an identity fast path and node scene allocation
@@ -5032,6 +5030,23 @@ PRISMEL_EXTRACT_REPEATS=5 PRISMEL_BENCH_DOMAINS=1 /usr/bin/time -v \
 # Repeat with PRISMEL_BENCH_DOMAINS=4. For the long-curve campaign add:
 # PRISMEL_EXTRACT_CURVES=1 PRISMEL_EXTRACT_POINTS_PER_CURVE=1000001
 ```
+
+## Workspace benches (W2-W11)
+
+Apple M1, 8 cores, one run, default Dune profile unless noted; every number is a
+median sample, not a claim of constant frame cost. Notes and analysis per
+milestone are in `specification/workspace/progress.md`.
+
+| Bench | Command | Recorded numbers |
+|---|---|---|
+| `bench_workspace_lower` | `dune exec tools/bench_workspace_lower.exe` | medians of 21, ms: Bloom check 0.09 / eval 0.12 / lower 1.5 / cook 1.0 (84 nodes); Sunflower 0.02 / 0.85 / 5.2 / 2.4 (241); Tiles 0.02 / 0.30 / 3.2 / 0.90 (193); Wave 0.02 / 3.2 / 7.7 / 0.85 (13). Also the session-capacity table (32 vs 512 entries: Sunflower warm 2.3 ms evicting, 0.21 ms held) |
+| `bench_workspace_live` | `dune exec tools/bench_workspace_live.exe -- 600 1` (`BENCH_CASE=wave`, `BENCH_PROBES=1`) | total p50 per frame: Orrery 0.91 ms (52 volatile nodes), Wave 7.3 ms (`Eval.force` of 540 residuals is 5.7 ms of it: the case to watch, recorded not fixed), Sunflower static 0.26 ms, live 4.4 ms |
+| `bench_workspace_zone` | `dune build test/test_main.exe && cd _build/default/test && ./test_main.exe bench_workspace_zone` | scatter of N points, a `for` zone over them: N=100 2.4 ms, N=1,000 29 ms, N=4,000 200 ms cold; the recook after one point moved costs about the same (expansion runs per element; 4 misses and N+1 hits with a 16,384-entry session; with the editor default of 512 entries the run misses on every element) |
+| `bench_scope_pane` | same, `./test_main.exe bench_scope_pane` | per frame: flat pane over 241 nodes 0.13 ms and 503 KB; workspace pane Sunflower without records 0.26 ms / 696 KB, zone expanded 0.43 ms / 1.0 MB, collapsed 0.08 ms / 191 KB; Orrery 0.53 ms without records, 0.84 ms with live records; one recording evaluation 0.98 ms (Sunflower), 0.15 ms (Orrery), only when the checked source changes |
+| `bench_viewport_pick` | same, `./test_main.exe bench_viewport_pick` | Sunflower (8,640 triangles): first pick with the BVH build 11 ms, later picks 0.002 ms, tint 0.7 ms, tint + `to_mesh` 3.9 ms (only when the highlight changes); Bloom (3,888 triangles) 3.7 ms first pick; `Cook.update` idle 0.0002-0.0004 ms |
+
+The BVH build is about 1.3 us per triangle, so a 1M-triangle mesh hitches about a
+second at its first click (`ponytail:` in `lib/prismel_editor/pick.ml`).
 
 ## Hot-path review checklist
 

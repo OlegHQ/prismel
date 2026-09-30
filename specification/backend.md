@@ -115,12 +115,11 @@ s-expressions). Sketch hosts use
 `Editor_core.History`, `Editor_core.Router`, and `Editor_core.Store`;
 the router filters fly-mode keyboard events before leader and chord routing,
 while passing Space through to arm the leader after fly exits.
-`flow` currently supplies the context-free expression/value model and
-diagnostics over `param`; the M6 graph reader and checker will live there
-too. `ppx_prismel` already depends on `flow` for declaration checks and gains
-`[%flow]` in M7.
-`flow_sop` depends on `flow`, `param` and `procedural` for the SOP overlay and
-value lane; compound inlining and printing follow in M5–M6. The editor runs
+`flow` supplies the expression/value model, diagnostics and the workspace language
+(reader, checker, evaluator) over `param`. `ppx_prismel` depends on `flow` for
+declaration checks only (its `[%flow]` rewriter was deleted in W12; no gate edge changed).
+`flow_sop` depends on `flow`, `param` and `procedural` for the SOP overlay, value
+lane, lowering, edits, projection and probes. The editor runs
 the value lane on its initial domain before cook submissions and retains
 applied values for the graph and inspector. The gate forbids
 `flow` from reaching anything but `param`, and `flow_sop` from reaching UI,

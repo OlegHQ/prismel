@@ -1,6 +1,8 @@
 # Workspace migration plan
 
-**Plan of record for review, 30 September 2026.** This turns the workspace
+**Status: implemented (W0-W12), 30 September 2026. Deviations are summarised in
+`specification/flow-migration.md` "Workspace" and `progress.md`, which also lists what is
+not fully done.** Original text: plan of record for review, 30 September 2026. This turns the workspace
 proposal ([iteration.md](iteration.md), [ambiguities.md](ambiguities.md),
 [case-studies.md](case-studies.md), the [study](prototype/index.html)) into
 native Prismel code. It is written for an implementer, human or Codex, to

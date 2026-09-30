@@ -16,7 +16,7 @@ Status: `todo` · `wip` · `done` (gate met) · `partial` (what is missing is na
 | W3 document v4 + history | done | | `Flow_edit`, `Workspace_doc`, `Layout_by_path`, s-expression presets, the editor opens a workspace and recooks live `t` (notes below). No older presets. Gaps: only workspace documents save. |
 | W4 graph pane zones | done | | Part A (`Flow_sop.Projection`, `Rest`) and part B (`Pxui_graph.Scope`, zone tokens, selectors, `Core` wiring, layout by path, probes); see the W4 part B notes and `flow-migration.md`. Gaps: no marquee (the inspector follows the selection since W5), the flat pane remains for non-workspace documents, only `sop` graphs open. |
 | W5 probes & footers | done | | `Flow_sop.Probe` (records, footers, counts, inspector rows), `Pxui_graph.Scope.with_records`, cook geometry counts piggybacked on the display cook, the workspace inspector, the `t N live · M cached` status, auto-select of an added node (notes below). Gaps: no zone footer while expanded, the geometry of a node that is not upstream of the display shows only its type. |
-| W6 viewport provenance | done | | `Pdk_prismel.Prismel_mesh.to_mesh_with_primitives`, global `__flow_src` tags that survive nested merges, `Pick` (CPU ray over `Pdk.Surface_index`, per-corner tint), `Core.pick`, the highlight follows the selection and probes; click in Viewport3 selects the node and probes its iteration (notes below). Gaps: geometry drawn as instances is not picked, a collapsed zone stays collapsed. |
+| W6 viewport provenance | done | | global `__flow_src` tags that survive nested merges, `Pick` (CPU ray over `Pdk.Surface_index`, per-corner tint), `Core.pick`, the highlight follows the selection and probes; click in Viewport3 selects the node and probes its iteration (notes below). Gaps: geometry drawn as instances is not picked, a collapsed zone stays collapsed. |
 | W7 editable text | done | | `Ui.text_area`, the text pane's Selection, Graph and Document tabs (`Prismel_editor.Text_pane`), atomic Check & apply (`Doc.text_edit`, `Core.text_edit`/`binding_edit`, one "Edit text" entry), per-binding apply, error marks at their line; the old read-only text pane and the flat network text view are deleted (notes below). Gaps: the Graph tab is read-only, no Tab key, wrapping or Cmd-Enter apply. |
 | W8 loops over geometry | done | | `point_list` / `piece_list`, the zone node (`Eval` template, `Procedural.Zone` + `Node.Private.expand` + `Session`), lowering by `Lower.instantiate`, zone provenance and count, `FLOW_CASE=garden`, `test_workspace_zone`, bench (notes below). Gaps: values inside the loop read the template record, no `t` in the body, no "by index" title, sequential. |
 | W9 macros UI, notes, bypass | done | | `Projection` lens and `layout ?lens`, the panel and `B` flag in `Scope`, `Macro_requested` + `Flow_edit.macro_draft` / `macro_op` + `Pxui_shell.Prompt.macro`, the inspector note field, tests through the pane and the editor, `FLOW_CASE=rosette` (notes below). Gaps: no Template button, no Enter to create, no inspector bypass toggle. |
@@ -320,15 +320,11 @@ Status: `todo` · `wip` · `done` (gate met) · `partial` (what is missing is na
   through two merges. `Lower.provenance` is `origin Int_map.t` keyed by tag
   (`origin = {merge; input; source; site; iter}`), replacing `Origins`. Cost:
   a merge's `base` is in its cook key, so adding inputs to an early merge
-  shifts the later merges' bases and recooks them. Pick. `Pdk_prismel.
-  Prismel_mesh.to_mesh_with_primitives` (a separate function, not
-  `to_mesh ?prim_of_triangle`, because the result type differs) returns the
-  triangle to primitive map by tagging primitives with their index before the
-  triangulation `to_mesh` does anyway. The editor's pick does not need it:
-  `Pick` (`lib/prismel_editor/pick.ml`) builds a `Pdk.Surface_index` on the
+  shifts the later merges' bases and recooks them. Pick. (`Prismel_mesh.to_mesh_with_primitives`, a triangle to primitive map, was added
+  and then deleted in W12 as unused.) `Pick` (`lib/prismel_editor/pick.ml`) builds a `Pdk.Surface_index` on the
   displayed geometry at the first click (kept per piece, lazy) and its hit
-  already names the source primitive; the map is what an ID-buffer upgrade
-  would use (`ponytail:` in `pick.ml`). Flow. Viewport3 `pick_ray` (screen ray
+  already names the source primitive; an ID-buffer upgrade would need such a map
+  again (`ponytail:` in `pick.ml`). Flow. Viewport3 `pick_ray` (screen ray
   of the film rect), `Environment` recognises a left press and release within 4
   points among the events the UI did not consume (handles keep theirs, an orbit
   drag is not a click), `Core.pick` casts the ray against every placed piece in

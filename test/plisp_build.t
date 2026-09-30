@@ -15,5 +15,5 @@ valid sketch yields it, a typo fails the build at the .plisp line.
     Prismel_editor.Workspace.main
   $ dune build ./bad/main.ml 2>&1
   File "bad/sketch.plisp", line 3, characters 4-12:
-  Error [E_UNKNOWN_KIND]: Unknown operator “sop/bx”.
+  Error [E_UNKNOWN_KIND]: Unknown operator “sop/bx”. Did you mean box?
   [1]

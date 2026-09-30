@@ -941,8 +941,9 @@ under the pointer, and the selection highlights it. `Mesh_merge` and
 `Sop.merge` take `?source_base` and keep an input's existing tag, so
 `__flow_src` is a workspace-wide tag (a running count over merge inputs) that
 survives merges of merges; `Lower.provenance` maps tag to `{merge; input;
-source; site; iter}`. `Pdk_prismel.Prismel_mesh.to_mesh_with_primitives`
-returns the triangle to primitive map. `Prismel_editor.Pick` casts a CPU ray
+source; site; iter}`. (A triangle-to-primitive map,
+`Prismel_mesh.to_mesh_with_primitives`, was added here and deleted in W12: the pick's hit already
+names its primitive, so only an ID-buffer upgrade would need it.) `Prismel_editor.Pick` casts a CPU ray
 over `Pdk.Surface_index` (built at the first click, kept per piece) and tints
 by a per-corner `Cd`; `Viewport3.pick_ray`, the click recogniser in
 `Environment`, `Core.pick` (select the site, probe every enclosing zone) and

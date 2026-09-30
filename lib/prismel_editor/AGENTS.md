@@ -99,10 +99,10 @@ rules in this file are current. Planned changes that touch this directory:
   ports and unexport unused value ports. `e` exports scalar rows inside a
   definition; instance rows edit their own literals, and flattening carries
   value drives through nested compounds. Whole-Vec3 export, nonuniform Vec3
-  defaults, and geometry-port unexport are implemented. M6's read-only text
-  projection and three-view `Space l` cycle are implemented. M7 adds
-  `Build.program`, `[%flow]`, catalog manifest checks, and `?program` editor
-  initialization.
+  defaults, and geometry-port unexport are implemented. The
+  three-view `Space l` cycle is implemented; the M6 read-only text projection,
+  `Build.program`, `[%flow]` and `?program` were deleted in W12 (the Lisp pane
+  edits the workspace text since W7).
 
 Keep `Doc.apply` as the only graph-intent reducer, the one Command table, and
 history labels; the rework extends them.  The workspace layout is described in
@@ -123,8 +123,8 @@ re-check, lower; atomic), one history entry named by `Flow_edit.label`, with
 recook each frame and static nodes stay cached. Open one with `?workspace`
 (`Editor3`/`Editor2` `create` and `run`; without `?factories` the whole SOP
 catalog). Presets save and load only workspace documents (s-expression
-`.plisp`: source, layout, settings, view); a sketch opened with `?graph` or
-`?program` cannot save until it is a workspace. Old presets are not read.
+`.plisp`: source, layout, settings, view); a sketch opened with `?graph`
+cannot save (it has no text). Old presets are not read.
 
 ## Adapters
 

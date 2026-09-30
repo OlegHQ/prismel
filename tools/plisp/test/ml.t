@@ -24,5 +24,5 @@ failing check prints its diagnostics and no OCaml.
   > X
   $ prismel-plisp ml bad.plisp
   File "bad.plisp", line 1, characters 35-43:
-  Error [E_UNKNOWN_KIND]: Unknown operator “sop/bx”.
+  Error [E_UNKNOWN_KIND]: Unknown operator “sop/bx”. Did you mean box?
   [1]

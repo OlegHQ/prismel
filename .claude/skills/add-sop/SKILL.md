@@ -32,7 +32,7 @@ description: Register a new editor SOP node in prismel's sop_catalog through the
    from the node menu. Add a case there only if the node needs behaviour
    beyond registration; the PPX fixture lives in `test/sop_params_fixture.ml`.
    Review the generated `flow_manifest.sexp` diff and accept intended metadata
-   changes with `dune promote`; `[%flow]` uses this snapshot at compile time.
+   changes with `dune promote`; `.plisp` sketches are checked against this snapshot at build time.
 5. If the node should appear in the gallery or an example, add it there;
    then `@all` and `git diff --check`.
 

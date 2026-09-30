@@ -2,9 +2,16 @@
 
 ## 1. Status and authority
 
-Status: approved design, revision 3 (2026-09-28). **M1–M7 implemented.**
-Milestones M1–M7, the file-level tasks for each, and progress live in
-`flow-migration.md`. The behavioral reference is the prototype at
+Status: approved design, revision 3 (2026-09-28). **M1–M7 implemented; the
+workspace plan (W0–W12, `workspace/plan.md`) is implemented too and supersedes
+the text form of this file.** Milestones M1–M7, the file-level tasks for each,
+progress and the W12 removals live in `flow-migration.md`. What W12 deleted
+(the v3 text checker, printer and builder, `Flow_sop.Program`, the `[%flow]`
+PPX and the `?program` editor argument) is marked where it is described below;
+those paragraphs are the origin of the value semantics, not a guide to code
+that still exists. The language, the projection pane, probes, the editable text
+pane, contexts, the composable shell and `.plisp` sketches are specified in
+`workspace/` (`iteration.md` §2 and §7 are normative). The behavioral reference is the prototype at
 `specification/flow/prototype/index.html` (open it in a browser; no build).
 
 Authority, in order:
@@ -33,7 +40,7 @@ Rules for implementers:
 In scope: the SOP network canvas; keys and guide mode; the inspector's role;
 graph, list and text views; value ports, value nodes and drives; compounds;
 per-level contexts; the canonical Lisp text form with its reader and checker;
-the `[%flow]` PPX; workspace presets (s-expressions).
+the `[%flow]` PPX (removed in W12); workspace presets (s-expressions).
 
 Not in scope (do not build): Bézier wires anywhere in the graph; an editable
 text view in the editor; per-element fields (the diamond socket and `Field`
@@ -691,12 +698,14 @@ frame). Existing WAI-ARIA tree keys stay.
 
 ### 8.3 Text
 
-The canonical printout (§11.7) of an SOP network or open compound, read-only, one line
-per binding; clicking a binding line selects its node; the selected node's
-line is highlighted; a "qualified names" toggle prints every symbol with its
-namespace. `j`/`k` move between binding lines; Enter opens the selected node
-in the graph. Scene and World levels show a reserved-context message until
-their Flow language revision after M7. No editing in this revision.
+Since W7 the Lisp pane is editable (`Prismel_editor.Text_pane`, `Ui.text_area`).
+Its tabs: Selection (the top-level ancestor of the selected binding as a `let*`
+over the root bindings it needs, the binding marked; an edit is one `Set_arg`),
+Graph (the current graph's text, read-only) and Document (the whole workspace
+text; Check and apply is atomic, one "Edit text" history entry, a refused apply
+keeps the draft and marks the error line). The qualified-names toggle and the
+network printer of M6 are gone (W12); a document that is not a workspace has no
+text projection. See `workspace/plan.md` W7 and `flow-migration.md`.
 
 ### 8.4 Shared state
 
@@ -756,7 +765,11 @@ parameter row is hovered.
 
 ## 11. Language
 
-The workspace language is in `specification/workspace/`; §11 applies to `[%flow]`.
+The workspace language is in `specification/workspace/` (`iteration.md` §2 and §7)
+and is what the editor reads, checks, prints and lowers. The rest of §11 is the
+M1–M7 single-graph language; its reader, checker, printer and builder were deleted
+in W12 and it is kept for the value semantics (types, coercions, expressions) that
+the workspace language inherits.
 
 ### 11.1 Lexical syntax
 
@@ -861,7 +874,8 @@ only `value/` and `value` definitions. `scene`, `world` and `shader` are
 
 ### 11.7 Canonical printing
 
-`Flow_sop.Print.network` takes the level's context, display selection,
+*(Removed in W12: the printer of the M6 text view. `Flow.Lisp.print` prints workspaces.)*
+`Flow_sop.Print.network` took the level's context, display selection,
 definitions and live `Flow.Check.catalog`. It returns canonical text and a
 node-id-to-binding-line map deterministically and independently of layout.
 The read-only text view requests six significant digits for legibility;
@@ -962,21 +976,16 @@ parameters also match labels written with `_` for spaces.
 | 11 | bypass | metadata `^:bypass`, never a parameter |
 | 12 | partly driven vector | `[0 wave 0]`; splitting is implied |
 
-## 12. `[%flow]` (M7)
+## 12. `[%flow]` (M7, removed in W12)
 
-### 12.1 Surface
+The `[%flow]` PPX, `Flow_sop.Build.program`, `Flow_sop.Program.t`, `Flow.Check.check`
+and the editors' `?program` argument were deleted in W12: no sketch needed them once
+single-graph sketches became `sketches/<name>/sketch.plisp` (`workspace/plan.md` W11-W12),
+and a workspace is the one document. An OCaml sketch that mixes host code passes a
+workspace text through `Prismel_editor.Workspace_doc.of_text`, or writes the `.plisp`
+beside it (`Prismel_editor.Workspace.load`).
 
-```ocaml
-let network : Flow_sop.Program.t = [%flow {| (graph terrain :context sop …) |}]
-```
-
-The payload is one quoted string (`{| … |}` or `{id| … |id}`). The value is a
-`Flow_sop.Program.t = { name; network : Flow_sop.Network.t; display : int option;
-definitions }`, which `Prismel_editor.Editor3/2` accept wherever they accept a
-code graph today (the exact argument is chosen in M7 and documented in
-`api.md`).
-
-### 12.2 Catalog manifest
+### 12.2 Catalog manifest (still current)
 
 `tools/flow_manifest.exe` (OCaml, links `sop_catalog` and `flow_sop`) writes
 `lib/sop_catalog/flow_manifest.sexp`: catalog version, digest, and for every
@@ -984,40 +993,8 @@ factory its key, aliases, label, category path, slots (name, required),
 fields (name, label, folder, kind, default, soft and hard range, primary,
 vec3 group), outputs; plus the value kinds. The file is checked in; a runtest
 rule regenerates it and diffs, and an intended change is accepted with
-`dune promote` (the same flow as `tools/api_manifest`).
-
-### 12.3 Expansion
-
-`ppx_prismel` gains the `[%flow]` rewriter, linking `flow` (reader, checker)
-and reading the manifest given by the driver flag `-flow-manifest <path>`;
-the sketch's dune file lists the manifest as a preprocessor dependency (exact
-spelling decided in M7 and shown in `api.md`). The rewriter:
-
-1. reads and checks the payload with `Flow.Check` against the manifest plus
-   file-local nodes;
-2. reports every diagnostic as an OCaml error or warning located at the
-   payload offset (line and column inside the string map to the source);
-3. on success emits a single expression calling `Flow_sop.Build.program`
-   with plain data (node keys, literal `Param.value`s, drives, definitions),
-   node ids assigned 1…n in print order, and the manifest digest.
-
-`Flow_sop.Build.program` re-checks against the linked catalog. If the digest
-differs (a stale manifest, which the promotion test prevents) it raises
-`Invalid_argument` naming the manifest to regenerate; it cannot fail otherwise.
-
-### 12.4 File-local custom nodes
-
-Modules earlier in the same structure with `[@@sop.register]` and
-`[@@sop.node_key "rings"]` are visible as `user/rings`. The rewriter reads
-their parameter records syntactically: Float, Int, Bool fields and
-`[@sop.vec3]` groups get full checking; fields with a custom `[@sop.kind]`
-accept only string literals, validated at `Build` time.
-
-### 12.5 Tests
-
-Expect tests over sample files for every diagnostic code in §11.9 and every
-ambiguity rule in §11.10; one example sketch written with `[%flow]` that
-builds, runs finitely under `PRISMEL_MAX_FRAMES`, and opens in the editor.
+`dune promote` (the same flow as `tools/api_manifest`). `tools/plisp` and the
+workspace checker read it (`Flow.Check.catalog_of_manifest`).
 
 ## 13. Evaluation
 
@@ -1090,12 +1067,12 @@ W2b, so a frame never re-lowers.
 |---|---|---|---|
 | `param` | changed (M3) | nothing | adds `primary : bool` and `vec3 : (string * int) option` to fields and field views |
 | `flow` | new (M3) | `param` | `Symbol`, `Context`, `Port_type`, `Expr`, value kinds, `Graph`, `Sexp` (reader with positions, printer primitives), `Check`, `Diagnostic` |
-| `flow_sop` | new (M3) | `flow`, `param`, `procedural` | `Network`, `Drive`, `Exposure`, `Value_lane`, `Compile`, `Print`, `Build`, `Program`, manifest writer |
+| `flow_sop` | new (M3) | `flow`, `param`, `procedural` | `Network`, `Drive`, `Exposure`, `Value_lane`, `Compile`, manifest writer, and since W2-W9 `Lower`, `Flow_edit`, `Projection`, `Probe` (`Print`, `Build`, `Program` were deleted in W12) |
 | `editor_document` | changed | + `flow_sop` | overlay and layout record in `Document.network`; `Workspace_doc`, `Layout_by_path`, s-expression presets |
 | `pxui_graph` | changed | + `flow`, `flow_sop` | the canvas of §6–§7 |
 | `pxui_shell` | changed | + `flow` (types only) | inspector rows (§9), guide strip in `Status_bar` |
 | `prismel_editor` | changed | + `flow`, `flow_sop` | keys, guide contexts, views, value lane scheduling |
-| `ppx_prismel` | changed | `ppxlib`, + `flow` | `[@sop.primary]`, `[@sop.vec3]`, `[@@sop.node_slots]`, `[%flow]` |
+| `ppx_prismel` | changed | `ppxlib`, + `flow` | `[@sop.primary]`, `[@sop.vec3]`, `[@@sop.node_slots]` (`[%flow]` was deleted in W12) |
 | `sop_catalog` | changed (M3) | unchanged | annotations, private operation groups and one PPX registry facade |
 
 Gate changes in `test/dependency_gate.ml` (M3): add `flow` and `flow_sop` to
@@ -1138,10 +1115,13 @@ rules. Visual checks go in `@runtest-native` once per milestone
 
 ## 17. Deferred
 
-Fields and the diamond socket; zoom-to-enter; editable text view; depth rings;
-variadic `+` slots (Softimage-style) for Merge; the scene and World as Flow
-contexts; `defgraph` as OCaml functions; compound libraries as packages;
-content-addressed cache sharing between instances; macros.
+Done since this revision (workspace plan): the editable text view (W7), the scene,
+World and settings as contexts (W10), macros (W9), loops, records and functions
+(W1, W8). Still deferred: fields and the diamond socket as data; zoom-to-enter;
+depth rings; compound libraries as packages; content-addressed cache sharing
+between instances; `defgraph` as OCaml functions. Deferred by the workspace plan
+and listed in `workspace/plan.md` §4 and `workspace/progress.md` (gaps): marquee
+selection, panel keys, procedural macros, a per-node cache ring for scrubbing.
 
 ## 18. Decisions
 
@@ -1164,7 +1144,7 @@ content-addressed cache sharing between instances; macros.
 | Names in the text view | short by default, qualified toggle; qualified in diagnostics |
 | World keys | `e`→`t`, `r`→`n`, `p`→`d`; grammar letters reserved everywhere |
 | `f` | frames the selection, or the display node when nothing is selected |
-| Editor text view | read-only in this revision |
+| Editor text view | read-only in this revision; editable since W7 |
 | Scene and World text | the third projection shows a reserved-context message until those contexts receive Flow syntax after M7 |
 | Round-trip test staging | M6 checks printed text and layout independence; M7's builder enables document reconstruction and canonical reprinting laws |
 | Catalog pinning | integer catalog version in the manifest, optional `:catalog N` in files |
@@ -1247,3 +1227,7 @@ overlay therefore stores a named source output by destination port for those
 connections; an absent entry means the ordinary `geo` output. This keeps
 existing SOP geometry topology and `Edit_graph` APIs intact while preserving
 the selected output through copying and presets.
+
+2026-09-30 (W12): the M1-M7 text stack is deleted: `[%flow]`, `Flow.Check.check`,
+`Flow_sop.Build`/`Print`/`Program`, `?program`. The flat single-graph pane stays for
+documents built from an OCaml `Procedural.Graph` (`?graph`), which have no text.

@@ -22,7 +22,7 @@ One fixture per diagnostic class: the exact File line.
   > X
   $ prismel-plisp check kind.plisp
   File "kind.plisp", line 3, characters 4-12:
-  Error [E_UNKNOWN_KIND]: Unknown operator “sop/bx”.
+  Error [E_UNKNOWN_KIND]: Unknown operator “sop/bx”. Did you mean box?
   [1]
   $ cat > param.plisp <<'X'
   > (workspace w
@@ -87,7 +87,7 @@ Warnings are errors unless the workspace says otherwise; two files, one exit cod
   > X
   $ prismel-plisp check good.plisp kind.plisp good.plisp; echo $?
   File "kind.plisp", line 3, characters 4-12:
-  Error [E_UNKNOWN_KIND]: Unknown operator “sop/bx”.
+  Error [E_UNKNOWN_KIND]: Unknown operator “sop/bx”. Did you mean box?
   1
 
 fmt prints the canonical text.

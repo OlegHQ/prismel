@@ -60,9 +60,5 @@ Value nodes (Time, Value, Math, Combine/Separate XYZ, Remap) live in `lib/flow`,
 `lib/sop_catalog/flow_manifest.sexp` is generated from the registered factories
 and those value kinds. Its runtest rule diffs the live catalog; accept an
 intended metadata change with `dune promote`, as for the API manifest.
-Sketches using `[%flow {|…|}]` pass
-`-flow-manifest lib/sop_catalog/flow_manifest.sexp` to `prismel.ppx` and list
-the file under `preprocessor_deps`; the PPX checks the quoted text against
-this snapshot and `Flow_sop.Build.program` verifies its digest against the
-linked factories. Add a registered custom module earlier in the same sketch
-file to make `user/<node_key>` visible to that file's `[%flow]` expressions.
+`tools/plisp` and the workspace checker read this snapshot
+(`Flow.Check.catalog_of_manifest`); a `.plisp` sketch is checked against it at build time.

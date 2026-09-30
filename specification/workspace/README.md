@@ -1,6 +1,9 @@
-# Workspace proposal
+# Workspace
 
-A plan for evolving Prismel Flow into a *workspace*: authored Lisp is the
+Status: **implemented** (W0-W12, PR #1; the record of what landed, the deviations and the
+remaining gaps is [progress.md](progress.md) and `specification/flow-migration.md` "Workspace").
+The study in `prototype/` stays a behavioural reference. What follows was the proposal:
+the evolution of Prismel Flow into a *workspace*: authored Lisp is the
 document, networks are derived from it, and the editor supports both direct
 manipulation and text editing, each rewriting the other.
 
