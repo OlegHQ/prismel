@@ -917,10 +917,8 @@ let apply_tree value (overlay, graph_view, tree, opened, label, rows) intent =
 (* The document a sketch starts from: its code graph becomes the geometry
    object geo1 (camera SOPs in it move up to the scene as camera objects),
    plus [seed]'s additions to the scene. *)
-let initial_doc ~settings ~seed_scene ?program code_graph =
-  let sop = match program with
-    | Some (program : Flow_sop.Program.t) -> program.network
-    | None -> Flow_sop.Network.of_geometry (Edit_graph.of_graph code_graph) in
+let initial_doc ~settings ~seed_scene code_graph =
+  let sop = Flow_sop.Network.of_geometry (Edit_graph.of_graph code_graph) in
   let cameras = List.filter_map (fun (info : Edit_graph.node_info) ->
       if info.operation = "camera" then Some info.node else None)
       (Edit_graph.inspect sop.geometry) in
@@ -934,27 +932,12 @@ let initial_doc ~settings ~seed_scene ?program code_graph =
       Result.value ~default:scene (Edit_graph.add_node camera scene))
       empty_scene cameras in
   let scene = seed_scene scene in
-  let displayed = match program with
-    | Some program when Option.fold ~none:false ~some:(fun id ->
-        Edit_graph.find sop.geometry ~node_id:id <> None) program.display ->
-        program.display
-    | Some _ -> None
-    | None -> Edit_graph.root sop.geometry in
-  let definitions = match program with
-    | None -> Document.String_map.empty
-    | Some program -> Flow_sop.Network.String_map.fold (fun name spec definitions ->
-        let displayed = Edit_graph.inspect spec.Flow_sop.Network.body.geometry
-          |> List.find_opt (fun (info : Edit_graph.node_info) ->
-            info.operation = "flow_outputs")
-          |> Option.map (fun (info : Edit_graph.node_info) -> info.id) in
-        Document.String_map.add name Document.{spec;
-          layout = Editor_core.Network_layout.empty; displayed} definitions)
-        program.definitions Document.String_map.empty in
+  let displayed = Edit_graph.root sop.geometry in
   { Document.scene = Document.of_geometry ~context:Flow.Context.Scene scene (Some (Node.id geometry));
     networks = Document.Layout.singleton (Node.id geometry)
       Document.{context = Flow.Context.Sop; graph = sop;
         layout = Editor_core.Network_layout.empty; displayed};
-    definitions;
+    definitions = Document.String_map.empty;
     compiled_ids = Flow_sop.Instance_path.Map.empty;
     active_camera = None; settings; shell = None; workspace = None },
   Some (Node.id geometry)
@@ -1011,11 +994,11 @@ let create ?(settings = Settings.none) ?(keymap = Leader.keymap)
     ?(seed = 0L) ?(grain = 16_384)
     ?domains ?(max_entries = 512)
     ?(max_payload_bytes = 256 * 1024 * 1024)
-    ?program ?workspace ~graph ~prepare () =
+    ?workspace ~graph ~prepare () =
   let factories = if workspace <> None && factories = [] then Sop_catalog.Editor.factories
     else factories in
   let opened = match workspace with
-    | None -> Ok (initial_doc ~settings ?program ~seed_scene:(seed_scene factories) graph)
+    | None -> Ok (initial_doc ~settings ~seed_scene:(seed_scene factories) graph)
     | Some workspace -> workspace_doc ~factories ~seed_scene:(seed_scene factories)
         { workspace with Workspace_doc.settings } in
   Result.bind opened (fun (doc, geometry) ->

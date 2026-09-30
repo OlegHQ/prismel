@@ -1,7 +1,0 @@
-(executable
- (name main)
- (modules main)
- (libraries prismel procedural pdk pdk_prismel sop_catalog flow flow_sop prismel_editor)
- (preprocess
-  (pps prismel.ppx -- -flow-manifest lib/sop_catalog/flow_manifest.sexp))
- (preprocessor_deps ../../lib/sop_catalog/flow_manifest.sexp))

@@ -271,7 +271,6 @@ module Editor3 : sig
     ?max_entries:int ->
     ?max_payload_bytes:int ->
     ?graph:Procedural.Graph.t ->
-    ?program:Flow_sop.Program.t ->
     ?workspace:Workspace_doc.t ->
     ?source:Source.t ->
     prepare:(Settings.t -> Procedural.Session.output -> ('prepared, string) result) ->
@@ -462,7 +461,6 @@ module Editor3 : sig
     ?max_payload_bytes:int ->
     config:Prismel.Sketch.config ->
     ?graph:Procedural.Graph.t ->
-    ?program:Flow_sop.Program.t ->
     ?workspace:Workspace_doc.t ->
     ?source:Source.t ->
     prepare:(Settings.t -> Procedural.Session.output -> ('prepared, string) result) ->
@@ -497,7 +495,6 @@ module Editor2 : sig
     ?max_entries:int ->
     ?max_payload_bytes:int ->
     ?graph:Procedural.Graph.t ->
-    ?program:Flow_sop.Program.t ->
     ?workspace:Workspace_doc.t ->
     prepare:(Settings.t -> Procedural.Session.output -> ('prepared, string) result) ->
     scene2:(Procedural.Graph.t -> 'prepared -> Prismel.Scene.t) ->
@@ -572,7 +569,6 @@ module Editor2 : sig
     ?max_payload_bytes:int ->
     config:Prismel.Sketch.config ->
     ?graph:Procedural.Graph.t ->
-    ?program:Flow_sop.Program.t ->
     ?workspace:Workspace_doc.t ->
     prepare:(Settings.t -> Procedural.Session.output -> ('prepared, string) result) ->
     scene2:(Procedural.Graph.t -> 'prepared -> Prismel.Scene.t) ->

@@ -312,13 +312,13 @@ module Make (V : VIEWPORT) = struct
   let create ?(layout = Pxui_shell.Layout.default) ?name ?presets ?timeline_frames ?factories
       ?settings ?(commands = []) ?(lights = []) ?world
       ?(camera = V.default_camera ()) ?lens ?(background = Color.hex_exn "#f4f5f0")
-      ?seed ?grain ?domains ?max_entries ?max_payload_bytes ?graph ?program ?workspace ?source ~prepare ~draw
+      ?seed ?grain ?domains ?max_entries ?max_payload_bytes ?graph ?workspace ?source ~prepare ~draw
       ?(overlay = fun _ _ _ -> Scene.empty) ?(status = fun _ -> None) () =
-    let graph = match graph, program, workspace with
-      | Some graph, None, None -> Ok graph
-      | None, Some _, None | None, None, Some _ -> Ok (Sop.points [||])
-      | None, None, None -> Error "Pass a graph, Flow program or workspace"
-      | _ -> Error "Pass only one of a graph, a Flow program and a workspace" in
+    let graph = match graph, workspace with
+      | Some graph, None -> Ok graph
+      | None, Some _ -> Ok (Sop.points [||])
+      | None, None -> Error "Pass a graph or a workspace"
+      | _ -> Error "Pass only one of a graph and a workspace" in
     Result.bind graph (fun graph ->
     let open Editor_core.Command in
     let normalize_key = function Input.KeyChar c -> Input.KeyChar (Char.lowercase_ascii c)
@@ -382,7 +382,7 @@ module Make (V : VIEWPORT) = struct
         ~seed_scene:(fun factories scene ->
           V.seed_scene ?lens camera factories (seed_lights lights scene))
         ~layout ?name ?presets ?timeline_frames ?factories ?seed ?grain ?domains
-        ?max_entries ?max_payload_bytes ?program ?workspace ~graph ~prepare ())))
+        ?max_entries ?max_payload_bytes ?workspace ~graph ~prepare ())))
 
   let graph value = Core.graph value.core
   let document value = Core.document value.core
@@ -698,15 +698,14 @@ module Make (V : VIEWPORT) = struct
 
   let run ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?lights
       ?world ?camera ?lens ?background ?seed ?grain ?domains ?max_entries ?max_payload_bytes
-      ~config ?graph ?program ?workspace ?source ~prepare ~draw ?overlay ?status () =
-    let name = Option.value name ~default:(match program, workspace with
-      | Some program, _ -> program.Flow_sop.Program.name
-      | None, Some workspace -> Workspace_doc.name workspace
-      | None, None -> String.lowercase_ascii config.Sketch.title) in
+      ~config ?graph ?workspace ?source ~prepare ~draw ?overlay ?status () =
+    let name = Option.value name ~default:(match workspace with
+      | Some workspace -> Workspace_doc.name workspace
+      | None -> String.lowercase_ascii config.Sketch.title) in
     let init _frame = create ?layout ~name ?presets ?timeline_frames ?factories ?settings
         ?commands ?lights ?world
         ?camera ?lens ?background ?seed ?grain ?domains ?max_entries ?max_payload_bytes
-        ?graph ?program ?workspace ?source ~prepare ~draw ?overlay ?status () |> Result.get_ok in
+        ?graph ?workspace ?source ~prepare ~draw ?overlay ?status () |> Result.get_ok in
     let update value frame =
       let value = update value frame in
       set_ui_cursor value.core.ui (V.ui_visible value.control);

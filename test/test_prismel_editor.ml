@@ -54,52 +54,6 @@ let enter_geo1 ?(toggle = true) ~update ~graph_nodes environment count =
 
 let run () =
   let module Leader = Prismel_editor.Private.Leader in
-  let manifest, digest = Flow_sop.Manifest.generate
-    Sop_catalog.Editor.factories |> Result.get_ok in
-  let catalog, _ = Flow.Check.catalog_of_manifest manifest |> Result.get_ok in
-  let checked, diagnostics = Flow.Check.check catalog
-    "(graph editor (let* [source (sop/box) output (sop/transform source)] output))" in
-  check (diagnostics = []) "editor Flow fixture did not check";
-  let program = Flow_sop.Build.program ~factories:Sop_catalog.Editor.factories
-    ~manifest_digest:digest (Option.get checked) in
-  let flow_editor = Prismel_editor.Editor2.create ~program
-    ~factories:Sop_catalog.Editor.factories
-    ~prepare:(fun _ output -> Ok output.Session.geometry)
-    ~scene2:(fun _ _ -> Scene.empty) () |> Result.get_ok in
-  check (List.length (Edit_graph.inspect
-    (Prismel_editor.Editor2.document flow_editor)) = 2)
-    "editor did not start from the Flow program network";
-  Prismel_editor.Editor2.close flow_editor;
-  let checked, diagnostics = Flow.Check.check catalog
-    "(defgraph lift :context sop [(input :geometry)] (sop/transform input))\n(graph editor (let* [source (sop/box) output (user/lift source)] output))" in
-  check (not (List.exists (fun diagnostic ->
-    diagnostic.Flow.Diagnostic.severity = Error) diagnostics))
-    "editor compound Flow fixture did not check";
-  let program = Flow_sop.Build.program ~factories:Sop_catalog.Editor.factories
-    ~manifest_digest:digest (Option.get checked) in
-  let flow_editor = Prismel_editor.Editor2.create ~program
-    ~factories:Sop_catalog.Editor.factories
-    ~prepare:(fun _ output -> Ok output.Session.geometry)
-    ~scene2:(fun _ _ -> Scene.empty) () |> Result.get_ok in
-  check (List.length (Edit_graph.inspect
-    (Prismel_editor.Editor2.document flow_editor)) = 2)
-    "editor lost Flow compound instance";
-  Prismel_editor.Editor2.close flow_editor;
-  let checked, diagnostics = Flow.Check.check catalog
-    "(defgraph bump :context value [(v :float 1)] (+ v 1))\n(graph editor (let* [num (user/bump :v 2) cube (sop/box :size [num 1 1])] cube))" in
-  check (not (List.exists (fun diagnostic ->
-    diagnostic.Flow.Diagnostic.severity = Error) diagnostics))
-    "editor value Flow fixture did not check";
-  let program = Flow_sop.Build.program ~factories:Sop_catalog.Editor.factories
-    ~manifest_digest:digest (Option.get checked) in
-  let flow_editor = Prismel_editor.Editor2.create ~program
-    ~factories:Sop_catalog.Editor.factories
-    ~prepare:(fun _ output -> Ok output.Session.geometry)
-    ~scene2:(fun _ _ -> Scene.empty) () |> Result.get_ok in
-  check (List.length (Edit_graph.inspect
-    (Prismel_editor.Editor2.document flow_editor)) = 2)
-    "editor lost Flow value compound";
-  Prismel_editor.Editor2.close flow_editor;
   List.iter (fun (graph : _ Editor_core.Command.t) ->
     check (List.exists (fun (command : Leader.command) ->
       command.id = graph.id && command.trigger = graph.trigger
