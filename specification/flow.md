@@ -768,6 +768,8 @@ parameter row is hovered.
 
 ## 11. Language
 
+The workspace language is in `specification/workspace/`; §11 applies to `[%flow]`.
+
 ### 11.1 Lexical syntax
 
 - Whitespace separates tokens. `;` starts a comment to the end of the line.

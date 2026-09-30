@@ -70,9 +70,12 @@ node specification/workspace/prototype/build.cjs   # after editing src/ or the m
 ## Limits
 
 The preview is a small 3D JavaScript renderer (painter's algorithm) illustrating
-the catalog's semantics, not Prismel geometry or Metal. Loops, graph inputs, live drives and `.plisp` sketches are proposals; today's
-`[%flow]` accepts one graph plus `defgraph`s. Macros are binding-free value
-templates only. Positions, frames and collapsed zones are session layout and
+the catalog's semantics, not Prismel geometry or Metal. The language core (loops, functions, records, hygienic macros, graph inputs, `ref`
+and `t`) is implemented in `lib/flow` (`Syntax`, `Lisp`, `Macro`, `Workspace`,
+`Eval`) and `check.cjs` is ported to `lib/flow/test_workspace*.ml`; `model.js`
+remains the behavioral reference. Live drives and `.plisp` sketches are still
+proposals; today's `[%flow]` accepts one graph plus `defgraph`s and binding-free
+value templates. Positions, frames and collapsed zones are session layout and
 never reach the Lisp. Comments attach to the next binding and survive graph edits. The
-study limits (4,096 iterations per zone, 600,000 steps, 20,000 primitives)
-are demonstrative, not measured.
+study limits (4,096 iterations per zone, 600,000 steps) are constants of `Flow.Workspace`
+and `Flow.Eval` still to be measured (W2); 20,000 primitives exists only in the study.

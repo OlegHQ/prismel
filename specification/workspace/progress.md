@@ -10,7 +10,7 @@ Status: `todo` · `wip` · `done` (gate met) · `partial` (what is missing is na
 | Milestone | Status | Commit | Notes |
 |---|---|---|---|
 | W0 fixes & catalog prerequisites | partial | | Merge group padding, set_color group/vec3 colour + v3 migration, `Manifest.version` in text view and the `:rotate` note landed. Not done: the `Rest` slot for `sop/merge` (see notes). |
-| W1 language core (`flow`) | wip | | Parts A and B done: `Flow.Syntax`, `Flow.Lisp`, `Flow.Ty`, `Flow.Macro`, `Flow.Workspace` (checker, typed IR, liveness, invariance) and the 12 fixtures, which check with no diagnostics against the real catalog. Left for part C: `Flow.Eval`, the 120 check.cjs cases ported (static ones can use `test_workspace.ml`'s `good`/`bad`), `test_workspace_eval.ml`, flow.md §11 pointer, iteration.md §2/§7 status line. See the W1 part A and B notes. |
+| W1 language core (`flow`) | done | | `Flow.Syntax`, `Lisp`, `Ty`, `Macro`, `Workspace` (checker, typed IR, liveness, invariance) and `Eval` (values, loops, functions, records, HOFs, `ref`, the geometry plan, `static` / residual split, `?record`); the 12 fixtures check, print, round-trip and run; the check.cjs suite is ported (119 of 120, see the W1 part C notes). |
 | W2 lowering & cooking | todo | | |
 | W2b live `t` | todo | | |
 | W3 document v4 + history | todo | | |
@@ -94,10 +94,53 @@ Status: `todo` · `wip` · `done` (gate met) · `partial` (what is missing is na
   `sop/circle` has `radius_x`/`radius_y`), and Wave uses a new workspace
   operator `sop/curve` (list of vec3 to a polyline) because the catalog's
   `sop/poly_path` takes geometry. W2 must give `sop/curve` a native node.
-- Left for part C (Eval time): driven counts over 4,096 (`range`, loops, `concat`
-  over 4,096 elements), the step budget, `first`/`nth` out of range, list
-  lengths that are not literals (D3 length errors), nonfinite math, `ui/tile`
-  panel count, `settings/config` and `ui/split` arguments that are not
-  literals. `Workspace` only bounds literal `range`/`linspace`/`list` counts
-  and their products. Part C reads `Workspace.t` (`graphs`, `defs`, terms with
-  `path` and `form`) and `live` / `invariant`.
+- W1 part C notes. `Flow.Eval` (`eval.ml`, `eval.mli` documents the plan): values
+  are dynamic (`Int`, `Float`, `Bool`, `Text`, `Vec3`, `List`, `Record`, `Geo`,
+  `No_geo`, `Struct`, `Fn`, `Residual`); geometry calls become plan nodes keyed
+  by `(site, iter)` and never run. `static` evaluates every non-live term once;
+  a live term is a `Residual` (the term plus its environment) that
+  `residual_eval` / `force` evaluate for a time, memoised per call so a chain
+  that reads its predecessor twice stays linear; `run ~time` is both. `t`
+  is discovered while evaluating (an exception at the first use of `t` or of a
+  residual, caught at the nearest term), not by a separate analysis, so the
+  static liveness set of part B is for the canvas and Eval agrees with it by
+  construction; the fixtures' plans are identical at every time (test).
+  `?record:true` is implemented (bindings, results, zone variables `:x`, `fn`
+  parameters, graph inputs; at most 4,096 per path; only instances without
+  overrides record, like the study; `defn` bodies record for every call).
+  `hash` is specified in iteration.md 2.2 with vectors from the study. `str`
+  matches JS `toFixed(4)` including exact ties (0.03125 is 0.0313).
+  Bounds at run time: `E_ITER_BOUND`, `E_EVAL_BUDGET` (600,000 steps),
+  `E_LIST_RANGE`, `E_PATTERN`, `E_NONFINITE`, `E_RANGE` (`ui/tile`, computed
+  split and settings arguments), `E_DEPTH`.
+- W1 part C deviations. The study's "only the taken branch runs" and "cond is
+  lazy" use a literal `(range 9999)` in the untaken arm; the checker rejects
+  that literal statically (L3), so the ports use a graph input. IR types of a
+  `fn` body are those of its declared types or `Any` (`float` for arithmetic),
+  not refined per call as the study's `types` are. `freeSymbols` (a JS helper
+  of the canvas) is the one check.cjs case with no OCaml counterpart. `Eval`
+  returns the first error as one `Diagnostic.t`, not a list. `point_list` and
+  `piece_list` are not workspace operators yet (W8). A catalog kind used as a
+  function value has positional plan arguments named `$0`, `$1`, ... and the
+  kind as written. Nodes made by an attempt abandoned because it turned out
+  live are dropped, its records are not.
+- Wave's `sop/curve`: the catalog has no node that builds a polyline from a
+  list of points (`sop/line` is two points from an origin, `sop/poly_path` and
+  `sop/join_curves` take geometry, `sop/points` generates points), so
+  `sop/curve` stays a workspace operator that `Eval` turns into a plan node
+  with a `points` argument; W2 gives it a native node. In Wave the points
+  depend on `t`, so each point is a residual inside the list (540 of them): W2b
+  must drive a whole list parameter (one residual list) or lower the curve
+  live.
+- Timings (`Eval.static` / `Eval.run ~time:1.0`, Apple Silicon, one domain,
+  mean of 50, plan nodes): Bloom 0.11 / 0.11 ms (84), Sunflower 0.75 / 0.76 ms
+  (241), Tiles 0.26 / 0.26 ms (193), Orrery 0.15 / 0.25 ms (55), Wave 3.0 /
+  8.6 ms (13; 540 residuals of about a hundred steps each), the rest under
+  0.1 ms. Wave is the case to watch in W2b (`residual` environments hold the
+  whole scope; no free-variable pruning yet).
+- Tests: `test_workspace.ml` (12 fixtures, then 55 check.cjs cases: the static
+  half) and `test_workspace_eval.ml` (53 check.cjs cases with values, plus the
+  register rules that run: L2, L3, L4, L5, L6, L14, C2, D3, W5 bounds, the
+  panel checks, nonfinite math, the hash, residual evaluation, and for every
+  fixture: runs, deterministic, unique plan keys, structure independent of
+  `t`).

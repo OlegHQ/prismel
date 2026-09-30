@@ -344,4 +344,216 @@ let () = (* IR shapes, notes and reporting *)
    | Some _, [ { severity = Diagnostic.Warning; _ } ] -> ()
    | _ -> failwith "warning blocked the workspace")
 
-let () = print_endline "Flow workspace: 12 fixtures, register rules, liveness and macros pass"
+(* ---- the check.cjs suite, static half: one [t] per study test ---- *)
+
+let ported = ref 0 and problems = ref []
+let t name f = match f () with
+  | () -> incr ported
+  | exception e -> problems := (name, Printexc.to_string e) :: !problems
+
+let printed forms = fst (Lisp.print forms)
+let one source = match parse source with [ f ] -> f | _ -> failwith "expected one form"
+let workspace_children source = match (one source).Syntax.node with
+  | Syntax.List (_ :: _ :: children) -> children
+  | _ -> failwith "not a workspace"
+let head_is name (x : Syntax.t) = match x.node with
+  | Syntax.List ({ node = Syntax.Sym h; _ } :: _) -> h = name
+  | _ -> false
+let macros_of source = List.filter (head_is "defmacro") (workspace_children source)
+let get_ok = function Ok x -> x | Error d -> failwith (Diagnostic.to_string d)
+let trim s = String.trim s
+
+let () = (* the 12 case studies: check, print canonically, round-trip *)
+  let files = Sys.readdir cases |> Array.to_list
+    |> List.filter (fun f -> Filename.check_suffix f ".lisp") |> List.sort compare in
+  List.iter (fun file -> t ("case " ^ file ^ " checks and round-trips") (fun () ->
+    let source = read (Filename.concat cases file) in
+    let text = printed (parse source) in
+    ignore (good text);
+    if printed (parse text) <> text then failwith "canonical print is not stable")) files
+
+let () = (* the first block *)
+  t "shadowing is an error" (fun () ->
+    bad (sop "(let* [a 1 b (for [a (range 3)] (sop/box))] (sop/merge b))") "E_SHADOW" ~text:"shadows");
+  t "fold body must match the accumulator" (fun () ->
+    bad (sop "(fold [g (sop/box)] [i (range 3)] 1.0)") "E_ACC_TYPE" ~text:"accumulator type");
+  t "for iterates lists only" (fun () ->
+    bad (sop "(sop/merge (for [i 3] (sop/box)))") "E_TYPE" ~text:"iterates a list");
+  t "iteration bound names the zone" (fun () ->
+    bad (sop "(sop/merge (for [i (range 5000)] (sop/box)))") "E_ITER_BOUND" ~text:"4,096");
+  t "recursion is rejected, fold suggested" (fun () ->
+    bad "(workspace w (defn f :context sop [(x : float)] (f x)) (graph g :context sop (f 1)))" "E_RECURSION" ~text:"Use fold");
+  t "both if branches are typed" (fun () ->
+    bad (sop "(if (< 1 2) (sop/box) 3)") "E_TYPE" ~text:"Both branches");
+  t "values cannot leave through an unbound name" (fun () ->
+    bad (sop "(let* [a (for [i (range 2)] (sop/box))] (sop/transform (sop/merge a) :rotate [0 0 i]))") "E_UNBOUND" ~text:"not bound");
+  t "unknown ref input" (fun () ->
+    bad "(workspace w (graph a :context value [(n : int 2)] n) (graph b :context value (ref a :m 1)))" "E_UNKNOWN_PARAM" ~text:"no input :m");
+  t "graph inputs need defaults" (fun () ->
+    bad "(workspace w (graph a :context value [(n : int)] n))" "E_INPUT_DEFAULT" ~text:"needs a default");
+  t "2.0 stays a float" (fun () ->
+    let text = printed (parse "(workspace w (graph g :context value 2.0))") in
+    let has s sub = let n = String.length sub in
+      let rec at i = i + n <= String.length s && (String.sub s i n = sub || at (i + 1)) in at 0 in
+    assert (has text "2.0"))
+
+let () = (* 1. function values *)
+  t "fn: arity is checked" (fun () ->
+    bad (value "(let* [f (fn [a b] a)] (f 1))") "E_ARITY" ~text:"takes 2 arguments; got 1");
+  t "fn: annotated type is checked statically" (fun () ->
+    bad (value "(let* [f (fn [(a : float)] a)] (if false (f \"x\") 1))") "E_TYPE" ~text:"expected float, got text");
+  t "fn: a function cannot see its own name" (fun () ->
+    bad (value "(let* [f (fn [x] (f x))] (f 1))") "E_UNKNOWN_KIND" ~text:"Unknown operator");
+  let escapes = "cannot be stored or returned" in
+  t "fn: escaping as a graph result is an error" (fun () -> bad (value "(let* [f (fn [x] x)] f)") "E_FN_ESCAPES" ~text:escapes);
+  t "fn: escaping into a list is an error" (fun () -> bad (value "(let* [f (fn [x] x) l (list f)] 1)") "E_FN_ESCAPES" ~text:escapes);
+  t "fn: escaping into a record is an error" (fun () -> bad (value "(let* [f (fn [x] x) r {:f f}] 1)") "E_FN_ESCAPES" ~text:escapes);
+  t "fn: escaping as a fold accumulator is an error" (fun () ->
+    bad (value "(let* [f (fn [x] x)] (fold [a f] [i (range 2)] 1))") "E_FN_ESCAPES" ~text:escapes);
+  t "fn: escaping from a function body or HOF is an error" (fun () ->
+    bad (value "(count (map (fn [x] (fn [y] y)) (list 1)))") "E_FN_ESCAPES" ~text:escapes);
+  t "fn: escaping through a ref input is an error" (fun () ->
+    bad "(workspace w (graph a :context value [(n : int 2)] n) (graph g :context value (let* [f (fn [x] x)] (ref a :n f))))" "E_FN_ESCAPES" ~text:escapes);
+  t "fn: escaping as a defn result is an error" (fun () ->
+    bad "(workspace w (defn h :context value [(k : fn)] k) (graph g :context value 1))" "E_FN_ESCAPES" ~text:escapes);
+  t "fn: graph inputs cannot be functions" (fun () ->
+    bad "(workspace w (graph g :context value [(k : fn)] 1))" "E_FN_ESCAPES" ~text:escapes);
+  t "fn: a macro is not a function value" (fun () ->
+    bad "(workspace w (defmacro dbl [x] (+ x x)) (graph g :context value (count (map dbl (list 1)))))" "E_MACRO_AS_VALUE" ~text:"macro is not a function value");
+  t "fn: defn recursion through a function value is rejected" (fun () ->
+    bad "(workspace w (defn app :context value [(f : fn) (x : float)] (f f x)) (graph g :context value (app app 1)))" "E_RECURSION" ~text:"Recursive call");
+  t "hof: filter predicate must return bool" (fun () ->
+    bad (value "(count (filter (fn [x] \"no\") (list 1)))") "E_TYPE" ~text:"predicate returns bool");
+  t "hof: reduce checks the accumulator type" (fun () ->
+    bad (value "(reduce (fn [a x] \"s\") 0 (list 1))") "E_TYPE" ~text:"accumulator type")
+
+let () = (* 2. lists, patterns; 3. records; 4. branches *)
+  t "list: elements share one type" (fun () -> bad (value "(count (list 1 \"a\"))") "E_TYPE" ~text:"share one type");
+  t "pattern: too few elements is an error" (fun () ->
+    bad (value "(let* [[a b c] (list 1 2)] a)") "E_PATTERN" ~text:"needs 3 elements; the list has 2");
+  t "pattern: a missing record field is a static error" (fun () ->
+    bad (value "(let* [{:keys [a c]} {:a 1}] a)") "E_FIELD" ~text:"no field c");
+  t "pattern: names must not be reserved words" (fun () ->
+    bad (value "(let* [map 1] map)") "E_BINDING" ~text:"Invalid binding name map";
+    bad (value "(let* [[a list] (list 1 2)] a)") "E_BINDING" ~text:"Invalid binding name list");
+  t "record: assoc keeps the field type" (fun () ->
+    bad (value "(let* [r {:a 1} s (assoc r :a \"x\")] 1)") "E_TYPE" ~text:"assoc :a is int; got text");
+  t "record: unknown field" (fun () -> bad (value "(let* [r {:a 1}] r.b)") "E_FIELD" ~text:"no field b. Fields: a");
+  t "record: fits is structural and field order does not matter" (fun () ->
+    let ty s = Option.get (Ty.of_string s) in
+    assert (Ty.fits (ty "rec{a:int,b:vec3}") (ty "rec{b:vec3}"));
+    assert (not (Ty.fits (ty "rec{b:vec3}") (ty "rec{a:int,b:vec3}")));
+    assert (Ty.fits (ty "list:rec{pos:vec3,size:int}") (ty "list:rec{size:float}")));
+  t "record: type strings nest" (fun () ->
+    let s = "list:rec{pos:vec3,kids:list:rec{n:int}}" in
+    assert (Ty.to_string (Option.get (Ty.of_string s)) = s);
+    assert (Ty.of_string "rec{a:list:rec{x:float},b:int}"
+            = Some (Ty.Record [ ("a", Ty.List (Ty.Record [ ("x", Ty.Float) ])); ("b", Ty.Int) ])));
+  t "record: reader makes flagged arrays" (fun () ->
+    (match (one "{:a 1 :b [1 2 3]}").node with
+     | Syntax.Map [ _; _; _; { node = Syntax.Vec [ _; _; _ ]; _ } ] -> ()
+     | _ -> failwith "not a map");
+    assert (trim (printed (parse "{:a 1 :b [1 2 3]}")) = "{:a 1 :b [1 2 3]}"));
+  t "cond needs :else" (fun () -> bad (value "(cond (< 2 1) 1)") "E_NO_ELSE" ~text:"final :else");
+  t "cond arms must agree" (fun () -> bad (value "(cond true 1 :else \"a\")") "E_TYPE" ~text:"one type");
+  t "case needs :else and literal tests" (fun () ->
+    bad (value "(case 1 1 2)") "E_NO_ELSE" ~text:"final :else";
+    bad (value "(let* [k 1] (case 1 k 2 :else 0))") "E_CASE" ~text:"literal")
+
+let () = (* 5. macros *)
+  let radial = "(defmacro radial [i n body] `(sop/merge (for [~i (range ~n)] (sop/transform ~body :rotate (* (/ ~i ~n) 360)))))" in
+  let swap = "(defmacro add1 [a] `(let* [t# ~a] (+ t# 1)))" in
+  t "macro: expand is deterministic and fresh names are distinct" (fun () ->
+    let ms = macros_of ("(workspace w " ^ swap ^ " (graph g :context value 1))") in
+    let call = one "(+ (add1 1) (add1 (add1 2)))" in
+    let a = printed [ get_ok (Macro.expand ms call) ] in
+    assert (a = printed [ get_ok (Macro.expand ms call) ]);
+    assert (trim a = "(+ (let* [t__1 1] (+ t__1 1)) (let* [t__2 (let* [t__3 2] (+ t__3 1))] (+ t__2 1)))"));
+  t "macro: expandOnce steps leftmost-outermost" (fun () ->
+    let ms = macros_of ("(workspace w " ^ swap ^ " " ^ radial ^ " (graph g :context value 1))") in
+    let st = Macro.state () in
+    let x = one "(radial k 2 (add1 1))" in
+    let s1 = get_ok (Macro.expand_once ~state:st ms x) in
+    assert (trim (printed [ s1 ]) = "(sop/merge (for [k (range 2)] (sop/transform (add1 1) :rotate (* (/ k 2) 360))))");
+    let s2 = get_ok (Macro.expand_once ~state:st ms s1) in
+    assert (get_ok (Macro.expand_once ~state:st ms s2) == s2);
+    assert (printed [ s2 ] = printed [ get_ok (Macro.expand ms x) ]));
+  t "macro: free template names would capture" (fun () ->
+    bad "(workspace w (defmacro m [x] `(+ ~x y)) (graph g :context value (let* [y 1] (m 2))))" "E_MACRO_CAPTURE" ~text:"would capture a name from the call site");
+  t "macro: template bindings must be fresh" (fun () ->
+    bad "(workspace w (defmacro m [x] `(let* [tmp ~x] tmp)) (graph g :context value (m 2)))" "E_MACRO_CAPTURE" ~text:"would capture");
+  t "macro: only parameters are unquoted" (fun () ->
+    bad "(workspace w (defmacro m [x] `(+ ~x ~(+ 1 2))) (graph g :context value (m 2)))" "E_MACRO_UNQUOTE" ~text:"macros unquote only their parameters");
+  t "macro: expansion depth is limited" (fun () ->
+    bad "(workspace w (defmacro m [x] `(m ~x)) (graph g :context value (m 2)))" "E_MACRO_DEPTH" ~text:"32 nested expansions");
+  t "macro: expansion size is limited" (fun () ->
+    bad ("(workspace w (defmacro d [x] `(+ ~x ~x)) (graph g :context value " ^ String.concat "" (List.init 12 (fun _ -> "(d ")) ^ "1" ^ String.make 12 ')' ^ "))") "E_MACRO_SIZE" ~text:"5,000 forms");
+  t "macro: arity is checked" (fun () ->
+    bad ("(workspace w " ^ radial ^ " (graph g :context sop (radial k 2)))") "E_MACRO_ARITY" ~text:"expects 3 arguments; got 2")
+
+(* not ported: "freeSymbols understands fn, patterns, records and quoting" tests a JS helper the
+   canvas uses; the OCaml checker computes liveness and captures inside Workspace instead. *)
+let () = (* 6. comments and metadata *)
+  let noted = "; lead\n(workspace w\n  ; a helper\n  (defn f :context value [(x : float)] (* x 2))\n  (graph g :context value\n    (let* [; first\n           a 1\n           ; the pattern\n           [b c] (list 1 2)\n           q (f a)]\n      ; result note\n      (+ a (+ b (* c q)))))\n  ; tail\n  )" in
+  t "notes attach to the next element by name" (fun () ->
+    let ws = one noted in
+    assert (ws.notes = [ "lead" ] && ws.tail = [ "tail" ]);
+    let defn = List.find (head_is "defn") (workspace_children noted) in
+    assert (defn.notes = [ "a helper" ]);
+    let graph = List.find (head_is "graph") (workspace_children noted) in
+    match graph.node with
+    | Syntax.List [ _; _; _; _; { node = Syntax.List [ _; { node = Syntax.Vec (a :: _ :: bc :: _); _ }; result ]; _ } ] ->
+        assert (a.notes = [ "first" ] && bc.notes = [ "the pattern" ] && result.notes = [ "result note" ])
+    | _ -> failwith "graph shape");
+  t "notes survive clone and print stably" (fun () ->
+    let text = printed (parse noted) in
+    let has sub = let n = String.length sub in
+      let rec at i = i + n <= String.length text && (String.sub text i n = sub || at (i + 1)) in at 0 in
+    assert (has "  ; a helper\n  (defn f" && has "; the pattern\n           [b c]");
+    assert (printed (parse text) = text));
+  t "setNote edits and removes notes" (fun () ->
+    let x = one (value "(let* [a 1 b 2] b)") in
+    let rec set_notes key notes (y : Syntax.t) =
+      let y = if y.node = Syntax.Sym key && y.span.start > 0 then y else y in
+      let map = List.map (set_notes key notes) in
+      let node = match y.node with
+        | Syntax.List l -> Syntax.List (map l) | Syntax.Vec l -> Syntax.Vec (map l)
+        | Syntax.Map l -> Syntax.Map (map l) | n -> n in
+      { y with node; notes = (match y.node with Syntax.Sym k when k = key -> notes | _ -> y.notes) } in
+    let has s sub = let n = String.length sub in
+      let rec at i = i + n <= String.length s && (String.sub s i n = sub || at (i + 1)) in at 0 in
+    let edited = printed [ set_notes "b" [ "two"; "lines" ] x ] in
+    assert (has edited "; two\n" && has edited "; lines\n");
+    assert (not (has (printed [ set_notes "b" [] (set_notes "b" [ "two" ] x) ]) ";")));
+  t "bypass prints and clones" (fun () ->
+    let x = one (sop "(let* [a (sop/box) b ^:bypass (sop/subdivide a)] b)") in
+    let y, _ = Syntax.renumber 1000 x in
+    let text = printed [ y ] in
+    let has sub = let n = String.length sub in
+      let rec at i = i + n <= String.length text && (String.sub text i n = sub || at (i + 1)) in at 0 in
+    assert (has "b ^:bypass (sop/subdivide a)"));
+  t "bypass needs a fitting input" (fun () ->
+    bad (sop "(sop/points ^:bypass (sop/point_list (sop/box)))") "E_UNKNOWN_KIND";
+    bad (sop "^:bypass (sop/box :size 2)") "E_BYPASS" ~text:"can't bypass");
+  t "unknown metadata lists ^:bypass" (fun () ->
+    bad (sop "^:mute (sop/box)") "E_META" ~text:"only metadata is ^:bypass")
+
+let () = (* 7. reserved names, and t *)
+  t "SPECIAL and RESERVED name the new forms" (fun () ->
+    List.iter (fun k -> bad (value (Printf.sprintf "(let* [%s 1] 1)" k)) "E_BINDING" ~text:"Invalid binding name")
+      [ "fn"; "cond"; "case"; "list"; "values"; "quote"; "quasiquote"; "unquote"; "get"; "assoc";
+        "str"; "map"; "filter"; "reduce"; "sort-by"; "concat" ]);
+  t "E_TIME_COUNT: a loop count that depends on t is rejected" (fun () ->
+    bad (sop "(sop/merge (for [i (range (+ 3 (floor (* 2 (sin t)))))] (sop/box)))") "E_TIME_COUNT");
+  t "E_TIME_BRANCH: t choosing between shapes is rejected; t choosing a value is fine" (fun () ->
+    bad (sop "(if (> (sin t) 0.5) (sop/box) (sop/uv_sphere))") "E_TIME_BRANCH";
+    ignore (good (sop "(sop/box :size (if (> (sin t) 0.5) 1 0.5))")));
+  t "t is reserved: it cannot be bound" (fun () ->
+    bad (sop "(let* [t 1] (sop/box))") "E_BINDING" ~text:"context time")
+
+let () =
+  if !problems <> [] then begin
+    List.iter (fun (n, e) -> prerr_endline ("FAIL " ^ n ^ ": " ^ e)) (List.rev !problems);
+    exit 1
+  end;
+  Printf.printf "Flow workspace: 12 fixtures, register rules, liveness and macros pass (%d check.cjs cases ported here)\n" !ported

@@ -303,6 +303,64 @@ promotion), `add-sop` skill.
 Revise `flow.md` for the scene and World contexts (objects as a `scene`
 network with the same canvas, keys, views and text), then plan it here.
 
+## Workspace
+
+The workspace plan (`specification/workspace/plan.md`, milestones W0-W12)
+evolves Flow into Lisp documents with loops, functions, data, macros and live
+`t`. Progress and notes are in `specification/workspace/progress.md`; each
+milestone is recorded here with its date, what landed and its deviations.
+
+| Milestone | Status | Landed |
+|---|---|---|
+| W0 fixes and catalog prerequisites | partial | 2026-09-30 |
+| W1 language core (`flow`) | done | 2026-09-30 |
+
+### W0 fixes and catalog prerequisites (2026-09-30, partial)
+
+Landed: `sop/merge` pads group membership across inputs (a group one input
+lacks is padded, bench in progress.md: `merge_pair` unchanged at 0.020 s,
+`merge_pair_padded` 0.028-0.030 s), `sop/set_color` takes a `group` (empty means
+all elements, a missing one is an error like other group-taking SOPs) and a
+vec3 colour with the v3 preset migration, `Manifest.version` in the text
+view, and the `:rotate` note.
+
+Deviation: the `Rest` slot for `sop/merge` was not built. `Edit_graph`
+entries, presets (`preset.ml` arity), `Prismel_editor.Doc`, `Flow_sop`
+(`Build`, `Catalog`, `Manifest`, `Compound_node`) and `Pxui_graph` all assume a
+slot count fixed by the factory, and existing documents hold three-input
+merges named a/b/c. A rest slot needs growing input arrays and the `+ input`
+row, so it moves to W4; W2 uses the plan's fallback (one `flow.merge_n` node
+per collected list, since `Sop.merge` takes a list). The manifest is unchanged
+for `sop/merge`.
+
+### W1 language core (2026-09-30, done)
+
+Landed in `lib/flow` (which still depends only on `param`): `Syntax` (authored
+tree with notes, meta and stable form ids), `Lisp` (canonical 84-column printer
+with spans per form), `Ty`, `Macro` (hygienic quasiquote expansion, limits 32
+and 5,000), `Workspace` (checker and typed IR, liveness for `t`, loop
+invariance), and `Eval` (the evaluator of everything that is not geometry: a
+geometry plan keyed by `(site, iteration tuple)`, the `static` / residual split
+for live `t`, `?record`, the bit-exact `value/rand` hash specified in
+`iteration.md` 2.2, and the run-time bounds). The 12 case fixtures
+(`specification/workspace/cases/*.lisp`) are the single source for the study
+and the OCaml tests; they check with no diagnostics, print canonically,
+round-trip and run deterministically at any `t`. 119 of the study's 120
+`check.cjs` cases are ported (`test_workspace.ml`, `test_workspace_eval.ml`);
+`freeSymbols`, a JS helper of the canvas, has no OCaml counterpart.
+`flow.md` 11 points to the workspace language and `iteration.md` 2 and 7 are
+normative.
+
+Deviations: fixtures were changed to fit the real catalog (`group_random`
+takes `:probability`, `sop/circle` has `radius_x` and `radius_y` so Variations
+uses a tube, Tree's third rotation is inside the soft range) and Wave uses a
+workspace operator `sop/curve` because no catalog node builds a polyline from a
+list of points (W2 gives it a native node). `Workspace.context` carries
+`Settings` and `Editor` until `Context.t` does (W10). Two study tests that put
+a literal `(range 9999)` in an untaken branch use a graph input, because L3
+rejects the literal at check time. Details and measurements are in
+`specification/workspace/progress.md`.
+
 ## Do not
 
 - Do not draw curved wires or keep Bézier code for the graph after M1.

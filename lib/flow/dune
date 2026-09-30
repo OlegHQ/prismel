@@ -1,7 +1,7 @@
 (library
  (name flow)
  (public_name prismel.flow)
- (modules diagnostic context symbol port_type expr value_kind graph sexp check syntax ty lisp macro workspace)
+ (modules diagnostic context symbol port_type expr value_kind graph sexp check syntax ty lisp macro workspace eval)
  (libraries param))
 
 (test
@@ -53,6 +53,14 @@
 (test
  (name test_workspace)
  (modules test_workspace)
+ (deps
+  (glob_files ../../specification/workspace/cases/*.lisp)
+  ../sop_catalog/flow_manifest.sexp)
+ (libraries flow param))
+
+(test
+ (name test_workspace_eval)
+ (modules test_workspace_eval)
  (deps
   (glob_files ../../specification/workspace/cases/*.lisp)
   ../sop_catalog/flow_manifest.sexp)

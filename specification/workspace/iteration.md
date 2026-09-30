@@ -1,10 +1,12 @@
 # Iteration, functions, data and macros in workspaces
 
-**Proposal, 29 September 2026.** This extends the
+**§2 and §7 are normative for the workspace language as of W1, 30 September
+2026** (`Flow.Syntax`, `Flow.Lisp`, `Flow.Macro`, `Flow.Workspace` and
+`Flow.Eval` implement them; the study's `prototype/check.cjs` is ported to
+`lib/flow/test_workspace*.ml`). §1 and §3–§6 remain proposals. This extends the
 [composable workspaces report](../../reports/Composable%20Lisp%20workspaces.md).
-It is not the normative Flow specification: [`flow.md`](../flow.md) §11
-remains the language that `[%flow]` accepts today. Nothing here changes
-native code, Dune or the catalog.
+[`flow.md`](../flow.md) §11 remains the language that `[%flow]` accepts today.
+The language core adds no native code, Dune rule or catalog change.
 
 The interactive study is [`prototype/index.html`](prototype/index.html). It
 checks and runs every construct below and draws it in the Pxui kit. The
@@ -92,6 +94,33 @@ its keys in `[0, 1)`. Per-iteration variation passes the index explicitly,
 as in `(value/rand seed i)`, so hoisting, reordering and parallel evaluation
 cannot change a result.
 
+**The hash, bit for bit** (`Flow.Eval.hash`; the study's `hash`). All
+arithmetic is on 32-bit integers, kept unsigned:
+
+```text
+h := 0x9e3779b9
+for each key x (Int, Float or Bool, read as a double; Bool is 0 or 1):
+  k := ToInt32(floor(x * 1000003.0))   (* JS ToInt32: NaN and infinities give 0,
+                                          otherwise truncate and reduce mod 2^32 *)
+  h := imul(h xor k, 0x85ebca6b)        (* low 32 bits of the product *)
+  h := h xor (h >>> 13)                 (* logical shift *)
+  h := imul(h, 0xc2b2ae35)
+  h := h xor (h >>> 16)
+result := float(h mod 1000000) / 1000000.0
+```
+
+No keys give `0.435769`; other vectors: `(value/rand 0)` is `0.009611`,
+`(value/rand 3 4 5)` is `0.706664`, `(value/rand 1.5 -2)` is `0.622571`,
+`(value/rand 1 2 3 4 5 6)` is `0.659002`. A key beyond 2^53 loses its low
+bits before the floor, on every platform alike, because the product is a
+double.
+
+**Formatting** (`str`, register C2). An int prints as its digits. A float
+prints as `toFixed(4)` with trailing zeros and a trailing point removed, and
+`-0` prints as `0`; an exact tie at the fifth decimal rounds away from zero
+(`0.03125` is `0.0313`). A vec3 prints `[x y z]` with the same rule per
+component, a list `[a b]`, a record `{:a 1 :b 2}` in written order.
+
 ### 2.3 Checking
 
 The checker has two passes, both implemented in the study's `model.js`:
@@ -101,9 +130,27 @@ The checker has two passes, both implemented in the study's `model.js`:
    Arity, keywords, contexts, shadowing, recursion, fold accumulator
    agreement (`E_ACC_TYPE`), group names (`W_UNKNOWN_GROUP`, §3.7) and
    literal loop bounds are all reported here. This is what `prismel-plisp check` runs at build time.
-2. **Run pass.** It evaluates with records. Driven counts over the bound,
-   the step budget, nonfinite math and allocation limits are reported here,
-   with the zone's path in the message.
+2. **Run pass.** `Flow.Eval` evaluates everything that is not geometry, in
+   order, on IEEE doubles. Geometry calls become a plan (see `eval.mli`), so
+   nothing here cooks. These are reported here, each with its code and the
+   path of the zone or term in the message:
+
+   | Code | When |
+   |---|---|
+   | `E_ITER_BOUND` | a `range`, `linspace` or `concat` past 4,096, or a zone running more than 4,096 iterations, with a count that was not a literal |
+   | `E_EVAL_BUDGET` | more than 600,000 evaluation steps |
+   | `E_LIST_RANGE` | `first`, `last` or `nth` outside the list |
+   | `E_PATTERN` | a pattern longer than a driven list |
+   | `E_NONFINITE` | a scalar result that is NaN or infinite (`pow`, `*`) |
+   | `E_RANGE` | `ui/tile` holds 1–16 panels; a computed split axis, ratio or settings value out of range |
+   | `E_DEPTH` | more than 64 nested calls |
+
+   Division and `mod` by zero give 0 and `sqrt` takes the absolute value, as
+   in the study.
+
+   `t` is not known to the static run: a term that depends on it is kept as
+   a *residual* (the term with its environment) and evaluated by
+   `Flow.Eval.residual_eval` for a given time (register T1; W2b).
 
 ### 2.4 Bounds
 
