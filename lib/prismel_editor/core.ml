@@ -30,12 +30,9 @@ type prompt =
   | Browsing of { query : string; presets : (string * float) list }
   | Making_macro of { nodes : Flow.Workspace.path list; draft : Flow_sop.Flow_edit.macro_draft;
                       state : Pxui_shell.Prompt.macro }  (* the make-macro dialog (plan W9) *)
-  | Confirming of { question : string; after : Document.t }
-      (* a loop's copy cannot be deleted alone: the edited document waits for a yes *)
 
 type prompt_intent = Save_preset_file of string | Load_preset_file of string
   | Edit_source of Flow_sop.Flow_edit.op  (* the dialog's answer: one workspace gesture *)
-  | Delete_loop of Document.t  (* a yes: the whole loop goes *)
   | Delete_preset_file of { name : string; query : string }
   | Run_action of Leader.action
 
@@ -1095,7 +1092,6 @@ let truncate limit text = if String.length text <= limit then text
 let prompt_name value = match value.prompt with
   | None -> "-" | Some Keys -> "keys" | Some (Saving _) -> "save preset" | Some (Palette _) -> "commands"
   | Some (Browsing _) -> "presets" | Some (Making_macro _) -> "make macro"
-  | Some (Confirming { question; _ }) -> "confirm: " ^ question
 
 let level_name value = match value.level with
   | Document.Scene -> "scene"
@@ -1908,12 +1904,6 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
          | None | Some (_, `Cancel) -> None, None
          | Some (name, `Submit) -> None, Some (Save_preset_file name)
          | Some (name, _) -> Some (Saving name), None)
-    | Some (Confirming { question; after }) ->
-        (match Pxui_shell.Prompt.confirm ui ~key:"confirm-loop" ~title:"Delete the loop?"
-            ~message:(String.split_on_char '\n' question) ~action:"Delete loop" with
-         | None -> None, None
-         | Some `Yes -> None, Some (Delete_loop after)
-         | Some `Wait -> prompt, None)
     | Some (Making_macro m) ->
         (match Pxui_shell.Prompt.macro ui ~key:"make-macro" ~title:"Make a macro from the selection"
             ~literals:(Array.of_list (List.map (fun (_, e) -> Flow.Lisp.flat e) m.draft.literals))
@@ -2030,7 +2020,7 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
     | None -> result.prompt, (match List.find_map (function
         | Notice message -> Some message | _ -> None) result.changes with
         | Some _ as notice -> notice | None -> value.notice), None
-    | Some (Run_action _ | Edit_source _ | Delete_loop _) -> result.prompt, value.notice, None
+    | Some (Run_action _ | Edit_source _) -> result.prompt, value.notice, None
     | Some (Save_preset_file name) ->
         let notice = match Preset.save ~directory:value.presets ~name
             ~doc:value.doc ~view:(view_state result.panel) with
@@ -2089,24 +2079,16 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
     | _ -> next in
   (* the scene and World edits above act on derived objects: each difference is written to
      the text (a refused one changes nothing) *)
-  let edit_note = ref None and asking = ref None in
-  let reconciled ?(whole = false) ~before next result =
-    match Doc.reconcile ~factories:value.factories ~whole before next with
+  let edit_note = ref None in
+  let reconciled ~before next result =
+    match Doc.reconcile ~factories:value.factories before next with
     | Ok doc ->
         Option.iter (fun note -> edit_note := Some note) (Editor_document.Scene_sync.note before next);
         doc, result
     | Error message ->
-        (* a loop's copy cannot go alone: the person is asked whether the whole loop goes *)
-        (match Doc.confirming ~factories:value.factories before next with
-         | Some question -> asking := Some (Confirming { question; after = next })
-         | None -> ());
         before, { (result : _ frame_result) with edit_error = Some message } in
   let next, result = if Option.is_some loaded then next, result else
-    match result.prompt_intent with
-    | Some (Delete_loop after) ->
-        let doc, result = reconciled ~whole:true ~before:present after result in
-        doc, { result with label = "Delete loop" }
-    | _ -> reconciled ~before:present next result in
+    reconciled ~before:present next result in
   (* Workspace gestures: one rewrite of the source per gesture, lowered into
      the document, one history entry named by the op. *)
   let added = ref [] in
@@ -2364,7 +2346,7 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
   { core = apply_text { value' with timeline; cook = cooked.cook; lit = lit_cache; edit_error = cooked.edit_error;
       status_fps; status_fps_at; history; guide; hud; focus = result.focus;
       pane_keys = result.pane_keys; leader; held_keys;
-      prompt = (match !asking with Some asked -> Some asked | None -> prompt);
+      prompt;
       queued = (match result.prompt_intent with Some (Run_action action) -> [action] | _ -> []);
       notice = if guide_error <> None then guide_error
         else if document_changed && Option.is_none loaded && not undone then !edit_note

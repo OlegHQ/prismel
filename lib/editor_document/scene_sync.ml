@@ -121,49 +121,81 @@ let set ?(before = fun _ -> None) st home edits =
 
 (* ---- loops: deleting copies ---- *)
 
-exception Confirm of string
+(* The iteration tuple of a loop-made home: the running index of each enclosing loop, outermost
+   first (what [Flow.Eval] calls the iteration, and what a [:skip] lists). *)
+let rec tuple = function
+  | Document.Copy { loop; index; _ } -> tuple loop @ [ index ]
+  | Inline_in (home, _) -> tuple home
+  | Bound_at _ | Looped -> []
 
-let rec index_of = function
-  | Document.Copy { index; _ } -> index
-  | Inline_in (home, _) -> index_of home
-  | Bound_at _ | Looped -> 0
+(* The loops a home is a copy of, innermost first, each with the tuple of its iteration. *)
+let rec levels = function
+  | Document.Copy { loop; _ } as home -> (Document.template loop, tuple home) :: levels loop
+  | Inline_in (home, _) -> levels home
+  | Bound_at _ | Looped -> []
 
-(* The copies of a loop that the edit deleted.  One copy goes by rewriting the collection it
-   loops over ([take] and [drop] around its place), which is exact when the loop has one clause
-   and the copy made nothing else that stays.  Otherwise there is no copy to remove alone: the
-   whole loop goes, and only when [whole] says the person confirmed it.  [gone] holds the
-   deleted objects of loops, [(id, home)]. *)
-let delete_loops st ~whole (before : Document.t) gone =
-  let loops = List.sort_uniq compare (List.filter_map (fun (_, h) -> Document.loop_of h) gone) in
-  let deleted_whole = ref [] in
-  List.iter (fun key ->
-    let mine objects = List.filter (fun (_, h) -> Document.loop_of h = Some key) objects in
-    let members = mine before.homes.objects and deleted = mine gone in
-    let path = bind st key in
-    let clause i = F.arg_text st.workspace.source path (F.Bv (1, i)) in
-    let indices = List.sort_uniq (fun a b -> compare b a) (List.map (fun (_, h) -> index_of h) deleted) in
-    let alone i = List.for_all (fun (id, h) -> index_of h <> i || List.mem_assoc id deleted) members in
-    let copies = 1 + List.fold_left (fun m (_, h) -> max m (index_of h)) 0 members in
-    let source = (fst before.workspace).source in
-    if whole then deleted_whole := path :: !deleted_whole
-    else if clause 3 = None && List.for_all alone indices then
-      List.iter (fun i -> match clause 1 with
-        | Some xs ->
-            let call head args = mk (S.List (sym head :: args)) in
-            let int n = mk (S.Num (string_of_int n)) in
-            let rest = call "drop" [ int (i + 1); xs ] in
-            let value = if i = 0 then rest else call "concat" [ call "take" [ int i; xs ]; rest ] in
-            apply st (F.Set_arg { node = path; key = F.Bv (1, 1); sub = []; value })
-        | None -> stop "The loop has no collection to remove a copy from.") indices
-    else
-      raise (Confirm (Printf.sprintf "Delete all %d objects (%d copies) made by %s?\nOne copy cannot go alone (%s)."
-        (List.length members) copies (Document.describe source key)
-        (if clause 3 <> None then "the loop has several clauses"
-         else if Document.nested key then "it is nested in another loop: an inner copy exists once per outer copy, so removing it would delete objects you did not select"
-         else "a copy made other objects"))))
-    loops;
-  (* a whole loop goes last: leaving its merge moves the positions of what follows *)
-  fun () -> List.iter (fun path -> apply st (F.Delete_nodes { nodes = [ path ] })) !deleted_whole
+(* The [scene/merge] that holds a copy's object, and the position of the object among its
+   arguments: a call written in it, or a binding of the loop body it names. *)
+let holder source : Document.home -> (Document.home * int) option = function
+  | Inline_in (parent, F.Pos p) -> Some (parent, p)
+  | Copy { loop; rel = [ name ]; index } ->
+      let positional args =
+        let rec go = function
+          | { S.node = S.Kw _; _ } :: _ :: rest -> go rest
+          | x :: rest -> x :: go rest
+          | [] -> [] in
+        go args in
+      let in_merge (e : S.t) = match e.node with
+        | S.List ({ node = S.Sym "scene/merge"; _ } :: args) ->
+            List.find_index (fun (a : S.t) -> a.node = S.Sym name) (positional args)
+        | _ -> None in
+      let rec last = function [] -> None | [ x ] -> Some x | _ :: r -> last r in
+      Option.bind (Document.syntax_of source loop) (fun (e : S.t) -> match e.node with
+        | S.List (_ :: rest) ->
+            Option.bind (last rest) (fun (body : S.t) ->
+              let bindings, result = match body.node with
+                | S.List [ { S.node = S.Sym "let*"; _ }; { S.node = S.Vec bs; _ }; res ] ->
+                    let rec pairs = function
+                      | { S.node = S.Sym n; _ } :: v :: r -> (n, v) :: pairs r | _ :: _ :: r -> pairs r | _ -> [] in
+                    pairs bs, res
+                | _ -> [], body in
+              let homes = List.map (fun (n, v) -> n, v) bindings @ [ "@result", result ] in
+              List.find_map (fun (n, v) ->
+                Option.map (fun p -> Document.Copy { loop; rel = [ n ]; index }, p) (in_merge v)) homes)
+        | _ -> None)
+  | _ -> None
+
+(* The deleted objects of loops, [(id, home)], are left out of the text by skipping them: the
+   iteration that made all of an iteration's objects (the outermost such one) is listed in the
+   [:skip] of its loop; an object that shares its iteration with others that stay is left out
+   of the [scene/merge] that holds it, at this iteration's tuple and its position.  Nothing else
+   changes: the other copies keep their iteration tuples, so their ids, cache keys and
+   provenance stay. *)
+let delete_loops st (before : Document.t) gone =
+  let source = (fst before.workspace).source in
+  let deleted id = List.mem_assoc id gone in
+  let made (key, t) = List.filter (fun (_, h) ->
+    List.exists (fun (k, u) -> k = key && u = t) (levels h)) before.homes.objects in
+  let skips = ref [] in
+  let add home entry =
+    let path = bind st home in
+    let known = Option.value ~default:[] (List.assoc_opt path !skips) in
+    if not (List.mem entry known) then skips := (path, known @ [ entry ]) :: List.remove_assoc path !skips in
+  List.iter (fun (_, home) ->
+    let outward = List.rev (levels home) in
+    match List.find_opt (fun level -> List.for_all (fun (i, _) -> deleted i) (made level)) outward with
+    | Some (key, t) -> add key t
+    | None ->
+        (match holder source home, levels home with
+         | Some (merge, p), (_, t) :: _ -> add (Document.template merge) (t @ [ p ])
+         | _ ->
+             stop "An object made by %s cannot be deleted alone here; edit the text." (Document.describe source home)))
+    gone;
+  List.iter (fun (path, entries) ->
+    let old = match F.arg_text st.workspace.source path (F.Kw "skip") with
+      | Some e -> Option.value ~default:[] (Flow.Workspace.skip_tuples e) | None -> [] in
+    let all = List.sort_uniq compare (old @ entries) in
+    apply st (F.Set_arg { node = path; key = F.Kw "skip"; sub = []; value = F.skip_value all })) !skips
 
 (* ---- the scene ---- *)
 
@@ -188,7 +220,7 @@ let unique graph id =
   | Some _ -> stop "Two objects are named %S. Rename one of them first." (Option.value ~default:"" (label graph id))
   | None -> ()
 
-let objects st ~whole (before : Document.t) (after : Document.t) =
+let objects st (before : Document.t) (after : Document.t) =
   let b = Document.scene_graph before and a = Document.scene_graph after in
   let gone = ref [] in
   List.iter (fun (id, home) -> if homed before id then
@@ -202,7 +234,7 @@ let objects st ~whole (before : Document.t) (after : Document.t) =
   (* deletions: an inline call leaves its merge (the last one first, so positions hold), then a
      binding goes whole *)
   let looped, rest = List.partition (fun (_, h) -> Document.loop_of h <> None) !gone in
-  let finish = delete_loops st ~whole before looped in
+  delete_loops st before looped;
   let bound, inline = List.partition (function Document.Bound_at _ -> true | _ -> false) (List.map snd rest) in
   let position = function Document.Inline_in (_, F.Pos i) -> i | _ -> -1 in
   List.iter (function
@@ -213,7 +245,6 @@ let objects st ~whole (before : Document.t) (after : Document.t) =
   List.iter (function
     | Document.Bound_at path -> apply st (F.Delete_nodes { nodes = [ path ] })
     | _ -> ()) bound;
-  finish ();
   if before.active_camera <> after.active_camera then begin
     (match Option.bind before.active_camera (fun id -> List.assoc_opt id before.homes.objects) with
      | Some home when Option.fold ~none:false ~some:(fun id -> Edit.find a ~node_id:id <> None) before.active_camera ->
@@ -453,33 +484,27 @@ let world_changed (before : Document.t) (after : Document.t) =
    the result is [after] with the edit written to its text and lowered again.  [adopt]: an
    explicit edit of an object the text lacks writes it (a follow-the-viewport camera move is
    not one, so it stays the host's). *)
-let run ~factories ~adopt ~whole (before : Document.t) (after : Document.t) =
+let run ~factories ~adopt (before : Document.t) (after : Document.t) =
   if before.scene == after.scene && before.networks == after.networks
      && before.active_camera = after.active_camera && before.settings == after.settings
   then Ok after
   else
     let ( let* ) = Result.bind in
-    let* catalog = Result.map_error (fun d -> `Stop (Flow.Diagnostic.to_string d))
+    let* catalog = Result.map_error Flow.Diagnostic.to_string
         (Contexts.catalog ~version:Flow_sop.Manifest.version factories) in
     let st = { catalog; workspace = fst before.workspace; unfolded = [] } in
     try
-      objects st ~whole before after;
+      objects st before after;
       world st before after;
       settings st before after;
       if adopt && unhomed_changes before after then adopt_objects st after;
       if adopt && before.homes.world = None && world_changed before after then adopt_world st after;
       if st.workspace == fst before.workspace then Ok after
       else Contexts.of_workspace ~factories ~previous:after st.workspace
-           |> Result.map_error (fun d -> `Stop (Flow.Diagnostic.to_string d))
-    with Stop message -> Error (`Stop message) | Confirm message -> Error (`Confirm message)
+           |> Result.map_error Flow.Diagnostic.to_string
+    with Stop message -> Error message
 
-let reconcile ~factories ?(adopt = true) ?(whole = false) before after =
-  Result.map_error (function `Stop m | `Confirm m -> m) (run ~factories ~adopt ~whole before after)
-
-(* What deleting the copies of a loop asks the person to confirm, if anything (see [delete_loops]). *)
-let confirming ~factories before after =
-  match run ~factories ~adopt:true ~whole:false before after with
-  | Error (`Confirm message) -> Some message | Ok _ | Error (`Stop _) -> None
+let reconcile ~factories ?(adopt = true) before after = run ~factories ~adopt before after
 
 
 (* The status line for an edit of a loop's copies (they are one template: every copy changes),

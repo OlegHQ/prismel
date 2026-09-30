@@ -118,11 +118,6 @@ module Prompt : sig
     (string * Pxui.Ui.pick) option
   (** Standard name and searchable-picker modals; hosts interpret the result. *)
 
-  val confirm : Pxui.Ui.t -> key:string -> title:string -> message:string list -> action:string ->
-    [ `Yes | `Wait ] option
-  (** A modal with a message (a line each) and one button, [`Yes] when it is pressed; [None] when dismissed
-      (Escape, a press outside), which is a no. *)
-
   type macro = { name : string; holes : (bool * string) array }
   (** The macro dialog's state, kept by the host: the macro's name and, for each
       literal, whether it is a hole and its name. *)

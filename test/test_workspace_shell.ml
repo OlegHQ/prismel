@@ -595,17 +595,17 @@ let run_loop_copies () =
   drag_slider e count 195;
   check (source !e = before && E3.undo_label !e = None) "a computed field of a copy was written";
   check (has (dump_line !e "edit error") "computed by the loop") ("no reason for the refused edit: " ^ dump_line !e "edit error");
-  (* deleting one copy rewrites the collection: the others stay where they are *)
+  (* deleting one copy skips its iteration: the others stay where they are *)
   select_row e count 2;
   e := E3.update !e (frame (450., 300.) [ Event.KeyPressed Input.Delete ] (incr count; !count));
   let lamps () = List.filter (fun (i : Edit_graph.node_info) -> i.operation = "light") (objects !e) in
-  check (List.length (lamps ()) = 2 && has (source !e) "drop" && E3.undo_label !e = Some "Delete")
+  check (List.length (lamps ()) = 2 && has (source !e) ":skip [1]" && E3.undo_label !e = Some "Delete")
     ("deleting a copy did not skip it in the loop: " ^ source !e);
   check (List.map (fun i -> field_of i "translate_x") (lamps ())
          = [ Some (Parameter.Float_value 0.); Some (Parameter.Float_value 2.) ])
     "the copies after a deleted one moved";
   E3.close !e;
-  (* a loop with two clauses has no copy to delete alone: the person is asked, how many go *)
+  (* a loop with two clauses: the same, one entry, and one undo gives the copy back *)
   let text = {|(workspace grid
     (graph g :context sop (sop/box))
     (graph scene :context scene
@@ -615,24 +615,17 @@ let run_loop_copies () =
   select_row e count 2;
   let before = source !e in
   e := E3.update !e (frame (450., 300.) [ Event.KeyPressed Input.Delete ] (incr count; !count));
-  check (source !e = before && List.length (objects !e) = 7) "a copy of a two-clause loop went without a yes";
-  e := E3.update !e (frame (450., 300.) [] (incr count; !count));
-  (* a click on the prompt's button: its row is the last of the dialog, around the window's middle *)
-  let rec press y =
-    if y > 400 || not (has (source !e) "for [") then ()
-    else begin
-     List.iter (fun x ->
-      let p = float x, float y in
-      e := E3.update !e (frame p [] (incr count; !count));
-      e := E3.update !e (frame ~buttons:[ Input.LeftButton ] p [ Event.MousePressed (Input.LeftButton, p) ] (incr count; !count));
-      e := E3.update !e (frame p [ Event.MouseReleased (Input.LeftButton, p) ] (incr count; !count))) [ 262; 300; 360; 450 ];
-      press (y + 6) end in
-  check (has (dump_line !e "prompt") "all 6 objects (6 copies) made by row") ("the question did not open: " ^ dump_line !e "prompt");
-  press 320;
-  check (not (has (source !e) "for [") && List.length (objects !e) = 1 && E3.undo_label !e = Some "Delete loop")
-    ("confirming did not delete the loop: " ^ source !e);
+  check (has (source !e) ":skip [1]" && List.length (objects !e) = 6 && E3.undo_label !e = Some "Delete"
+         && dump_line !e "prompt" = "-")
+    ("a copy of a two-clause loop was not deleted exactly: " ^ source !e);
+  let saved = source !e in
+  e := E3.update !e { (frame (450., 300.) [ Event.KeyPressed (Input.KeyChar 'z') ] (incr count; !count)) with keys = [ Input.Meta ] };
+  check (source !e = before && List.length (objects !e) = 7) "one undo did not give the deleted copy back";
   E3.close !e;
-  print_endline "workspace shell: a loop's copies are one template (edit, computed refusal, delete, confirm) ok"
+  e := editor saved;
+  check (List.length (objects !e) = 6 && source !e = saved) "the saved text does not reopen without the copy";
+  E3.close !e;
+  print_endline "workspace shell: a loop's copies are one template (edit, computed refusal, exact delete, undo) ok"
 
 (* an expression typed in a row of a copy is the template's argument: every copy follows it *)
 let run_loop_expression () =

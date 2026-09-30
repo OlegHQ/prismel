@@ -1151,5 +1151,5 @@ wrapping and Command-Enter and the Graph text tab edits; a zone whose body reads
 
 A scene graph is authoritative for cameras and lights, and a world graph for the World (`(world/none)` says none): the
 host seeds only a workspace with no such graph, and deleting a host object writes the graph, so Save and reload keep
-it. The copies of a loop are one template: editing one edits the template, deleting one rewrites the loop's collection
-(or asks to delete the loop). Details, tests and native checks: `workspace/progress.md` "Gap C".
+it. The copies of a loop are one template: editing one edits the template, deleting one adds its iteration to a
+`:skip` list (register L16), exact at any nesting depth. Details, tests and native checks: `workspace/progress.md` "Gap C".

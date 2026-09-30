@@ -779,18 +779,40 @@ literal component of a vector the loop partly computes) is written to the templa
 loop template (name); N copies change."; an argument the loop computes is refused with its expression (never a silent
 drop), and `=(expression)` typed in a row of the scene-object inspector (`Object_arg`, new: the row's expression was
 dropped before) is written as the template's argument. Rename is the template's `:name` (the copies share it: there is no
-suffix rule). Delete of one copy rewrites the collection the loop runs over: `(drop 1 xs)` or `(concat (take k xs) (drop
-k+1 xs))`, exact when the loop has one clause and the copy made nothing else that stays; the other copies keep their
-place. Otherwise (several clauses, or only part of a copy's objects deleted) the edit is refused and
-`Scene_sync.confirming` gives the question; `Pxui_shell.Prompt.confirm` asks "Delete all N copies of <loop>?", and a yes
-is `reconcile ~whole:true` (history "Delete loop"). `Flow_edit.Delete_nodes` of a loop detaches it from the merge.
+suffix rule). Delete of one copy is exact at any depth (below). `Flow_edit.Delete_nodes` of a loop detaches it from the merge.
 Inline loops are unfolded into a binding first. Tests: `test_scene_sync.ml` `run_loops` (bound and inline loops: edit,
 component edit, refusal, rename, delete first/middle/two, confirm, pairs), `test_workspace_shell.ml` `run_loop_copies`,
 `run_loop_expression` (slider drag, list rename, Delete, the confirm button, typed `=(* i 3)`; Save text reopens the same).
 Native: `FLOW_CASE=lamps` (new) and `FLOW_CASE=<workspace file>` with `FLOW_SCRIPT` (`key Delete`) were read as PNGs.
 Nested loops (`(for [i ..] (scene/merge (for [j ..] light)))`, bare nested `for` is a type error) are tested in
 `test_scene_sync.ml` `run_nested_loops`: a literal edit and a rename write the inner template (all copies, saved text
-reopens the same), a computed field is refused naming `(now i)`, and deleting one inner copy, or every object of one outer
-copy, is refused and asked ("Delete all 2 copies ..."; a yes rewrites and reloads identically). No bug found. Limit: the
-outer-copy delete is not rewritten with take/drop, it asks; the question names the loop structurally (`for [j (range 2)]` (line 9, in "scene"), or its binding: `Document.describe`, read from the workspace source, never a fallback string) and says it is nested (an inner copy exists once per outer copy). No shell test
-for nesting (the shell path is the same `Sync.confirming`).
+reopens the same) and a computed field is refused naming `(now i)`.
+
+**Exact per-copy delete (register L16, closed 2026-09-30).** The take/drop rewrite and the "Delete all N copies?"
+confirmation are gone (`Scene_sync.confirming`, `reconcile ~whole`, `Pxui_shell.Prompt.confirm`, the `Confirming` and
+`Delete_loop` prompt states, `Document.nested`). The language gained `:skip`: `(for [x xs ..] :skip [[i j] ..] body)` and
+`(scene/merge a b :skip [[i p] ..])` leave out the iterations or arguments at the listed tuples (iteration.md 2.2; the
+study had no filter clause, and `filter` renumbers the survivors, which would move ids). A tuple is the enclosing loops'
+running indices, outermost first, then this form's (for a `for`, the row-major running index of its clause product);
+a one-tuple may be a bare integer. Implementation: `Flow.Workspace` (`skip_tuples`, `E_SKIP`, `Loop.skip`, `Op.skip`),
+`Flow.Eval.loop` (the loop variables are recorded, the body is not run, `k` still advances: indices and keys of the
+others do not move) and the `scene/merge` Op (arguments filtered by `c.iter @ [p]` before evaluation),
+`Flow.Lisp` (prints between clauses and body), `Flow_edit` (`Set_arg (Kw "skip")` keeps the body last; removing a
+merge argument renumbers its skip), `Flow_sop.Probe` (the sparkline places the probe among the iterations that ran).
+`Lower` needed no change: a skipped iteration makes no plan node and the others keep `(site, iter)`, so compiled ids and
+provenance hold. `Contexts.walk` carries the enclosing tuple: `Copy.index` is the running iteration index (not the
+position in the result), so every remaining copy keeps its home and therefore its object id.
+`Scene_sync.delete_loops` writes it: for each deleted object, the outermost loop iteration (its `levels`) all of whose
+objects are deleted is added to that loop's `:skip`; else the object's place is added to the `:skip` of the
+`scene/merge` holding it (an inline argument, or a name in the body's `let*`). An empty loop stays a loop. The old
+"one copy cannot go alone" cases (several clauses, nesting, a copy that makes two objects) are all exact now.
+Tests: `test_scene_sync.ml` (`run_loops`: both spellings, accumulate, edit after delete, ids unchanged, two clauses, pairs
+inline and bound, merge renumbering; `run_nested_loops`: 2 and 3 levels, several clauses innermost, a whole outer and a
+middle iteration, accumulate, all copies), `test_workspace_shell.ml` `run_loop_copies` (one "Delete" entry, undo, Save
+reload), `lib/flow/test_workspace.ml` (checker positive and negative, `E_TIME_COUNT` unchanged, liveness),
+`test_workspace_eval.ml` (values, flat index, tuples at 2 and 3 levels, no plan node, records, merge arguments),
+`test_lisp.ml` (print round trip), `test_probe.ml` `skips` (counts, footers, sparkline, plan node), `test_workspace_cook.ml`
+`skips` (compiled ids, provenance, 1 vs 3 domains). Native: `FLOW_CASE=<nested .plisp>` with `FLOW_SCRIPT="key u@22;click
+670,420@24;key Home@26;key Down@28;key Down@30;key Down@32;key Delete@36"` deleted exactly the selected bead of a 3 x 2
+nested loop (PNG read: five spheres, the others in place). Limits, each by design: a stale merge `:skip` entry is kept
+when its iteration is later skipped as a whole (harmless); a deleted object that shares its iteration with others that stay, and is bound in a `let*` deeper than the loop body's own (or is not an argument of any `scene/merge`), has no merge to skip it in: it is refused with the loop named, to be edited as text.

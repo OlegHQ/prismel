@@ -271,12 +271,6 @@ let rec describe source = function
            Printf.sprintf "`%s`%s" (truncate 40 (head_text e))
              (if where = [] then "" else " (" ^ String.concat ", " where ^ ")"))
 
-(* whether a loop sits inside another loop's body: its copies repeat once per outer copy *)
-let rec nested = function
-  | Copy _ -> true
-  | Inline_in (parent, _) -> nested parent
-  | Bound_at _ | Looped -> false
-
 (* a home with its copy indices erased: the copies of one loop share it *)
 let rec template = function
   | Copy { loop; rel; _ } -> Copy { loop = template loop; rel; index = 0 }

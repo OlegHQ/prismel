@@ -40,9 +40,10 @@ template, `Looped`); an inline call is unfolded into a binding first, and ids ar
 home before (operation, label), so a rename keeps the id.  The copies of a loop are one template
 (register V4): editing a literal field (or a literal component of a computed vector) of one writes
 the template, every copy changes; a field the loop computes is refused with its expression (type
-`=(expression)` in the row); deleting a copy rewrites the loop's collection with `take`/`drop`
-(one clause, nothing else of the copy stays), else `reconcile ~whole:true` deletes the whole loop after
-the `Confirming` prompt.  A declared object's text is the whole
+`=(expression)` in the row); deleting a copy is exact at any depth (register L16): `Scene_sync.delete_loops` adds the iteration
+tuple (the outermost whose objects all go) to the loop's `:skip`, or the object's place to the `:skip` of
+the `scene/merge` that holds it; `Copy.index` is the running iteration index, so the other copies keep their
+homes and ids.  No collection rewrite and no confirmation.  A declared object's text is the whole
 truth: a field it does not name is the schema's default.  `:parent "label"` and `:active true` are
 keywords of the kinds (not fields of the nodes).  A scene graph is authoritative for every object
 kind and a world graph for the World: what it does not say is not there (an empty `(scene/merge)`

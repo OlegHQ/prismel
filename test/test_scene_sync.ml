@@ -399,55 +399,65 @@ let run_loops () =
     check (List.for_all (fun (i : Edit_graph.node_info) -> i.label = "spot") (lamps renamed)
            && contains (source renamed) ":name \"spot\"" && not (contains (source renamed) ":name \"lamp\""))
       (what ^ ": a rename did not reach the template :name: " ^ source renamed ^ String.concat "," (List.map (fun (i : Edit_graph.node_info) -> i.label) (lamps renamed)));
-    (* delete one copy: the collection skips it, the others keep their place *)
+    (* delete one copy: the loop skips that iteration, the others keep their iteration, id and place *)
     let x doc = List.map (fun i -> field i "translate_x") (lamps doc) in
+    let xs = List.map (fun v -> Some (Parameter.Float_value v)) in
+    let ids doc = List.sort compare (List.map (fun (i : Edit_graph.node_info) -> i.id) (lamps doc)) in
     let gone = ok (reconcile doc (without_ids doc [ third ])) in
-    check (contains (source gone) "take 2" && contains (source gone) "drop 3") (what ^ ": copy 3 was not skipped: " ^ source gone);
-    check (x (open_text (source gone)) = List.map (fun v -> Some (Parameter.Float_value v)) [ 0.; 1.; 3. ])
-      (what ^ ": the copies after a deleted one moved");
+    check (contains (source gone) ":skip [2]" && not (contains (source gone) "take") && not (contains (source gone) "drop"))
+      (what ^ ": copy 3 was not skipped: " ^ source gone);
+    check (x (open_text (source gone)) = xs [ 0.; 1.; 3. ]) (what ^ ": the copies after a deleted one moved");
+    check (ids gone = List.filter (( <> ) third) (ids doc)) (what ^ ": the other copies changed id");
     same_after_reload gone (what ^ " delete a copy");
+    (* repeated deletes accumulate in one list; a literal edit still reaches every remaining copy *)
+    let again = ok (reconcile gone (without_ids gone [ (List.nth (lamps gone) 1).id ])) in
+    check (contains (source again) ":skip [1 2]" && x (open_text (source again)) = xs [ 0.; 3. ])
+      (what ^ ": a second delete did not accumulate: " ^ source again);
+    let edited_after = ok (reconcile again (set_id again (List.hd (lamps again)).id [ float "intensity" 5. ])) in
+    check (List.length (lamps edited_after) = 2 && contains (source edited_after) ":skip [1 2]"
+           && List.for_all (fun i -> field i "intensity" = Some (Parameter.Float_value 5.)) (lamps edited_after))
+      (what ^ ": an edit after a delete lost the skip or a copy");
+    same_after_reload again (what ^ " delete twice");
     let first = (List.hd (lamps doc)).id in
     let gone = ok (reconcile doc (without_ids doc [ first ])) in
-    check (contains (source gone) "drop 1" && not (contains (source gone) "concat")) (what ^ ": deleting the first copy");
+    check (contains (source gone) ":skip [0]" && not (contains (source gone) "concat")) (what ^ ": deleting the first copy");
     let gone2 = ok (reconcile doc (without_ids doc [ (List.nth (lamps doc) 1).id; (List.nth (lamps doc) 3).id ])) in
-    check (x (open_text (source gone2)) = List.map (fun v -> Some (Parameter.Float_value v)) [ 0.; 2. ])
-      (what ^ ": two copies deleted together")) [
+    check (x (open_text (source gone2)) = xs [ 0.; 2. ]) (what ^ ": two copies deleted together")) [
     "bound", body_loop;
     "inline", {|(workspace lamps
       (graph g :context sop (sop/box))
       (graph scene :context scene
         (scene/merge (scene/geometry (ref g) :name "body")
                      (for [i (range 4)] (scene/light :name "lamp" :intensity 30 :translate [i 2 0])))))|} ];
-  (* a loop with several clauses has no single copy to remove: the whole loop, after a yes *)
+  (* several clauses: one iteration of the product goes, the flat iteration index is what is listed *)
   let grid = open_text {|(workspace grid
     (graph g :context sop (sop/box))
     (graph scene :context scene
       (scene/merge (scene/geometry (ref g) :name "body")
                    (for [i (range 2) j (range 3)] (scene/light :name "lamp" :translate [i j 0])))))|} in
   check (List.length (lamps grid) = 6) "the two-clause loop did not make six lamps";
-  let one = without_ids grid [ (List.nth (lamps grid) 4).id ] in
-  check (Result.is_error (reconcile grid one)) "a copy of a two-clause loop was deleted alone";
-  (match Sync.confirming ~factories grid one with
-   | Some question -> check (contains question "all 6 objects (6 copies) made by `for [i (range 2) j (range 3)]` (line 8, in \"scene\")"                        && contains question "several clauses")
-         ("the question does not name the loop: " ^ question)
-   | None -> failwith "a refused loop deletion did not ask");
-  (* a bound loop is named by its binding *)
+  let ids doc = List.sort compare (List.map (fun (i : Edit_graph.node_info) -> i.id) (lamps doc)) in
+  let xy doc = List.map (fun i -> field i "translate_x", field i "translate_y") (lamps doc) in
+  let cell i j = Some (Parameter.Float_value i), Some (Parameter.Float_value j) in
+  let victim = (List.nth (lamps grid) 4).id in
+  let gone = ok (reconcile grid (without_ids grid [ victim ])) in
+  check (contains (source gone) ":skip [4]") ("a product iteration was not skipped: " ^ source gone);
+  check (xy (open_text (source gone)) = [ cell 0. 0.; cell 0. 1.; cell 0. 2.; cell 1. 0.; cell 1. 2. ])
+    "a two-clause delete removed the wrong copy";
+  check (ids gone = List.filter (( <> ) victim) (ids grid)) "a two-clause delete changed the other ids";
+  same_after_reload gone "two-clause delete";
+  (* a bound loop too *)
   let bound_grid = open_text {|(workspace grid
     (graph g :context sop (sop/box))
     (graph scene :context scene
       (let* [body (scene/geometry (ref g) :name "body")
              lamps (for [i (range 2) j (range 3)] (scene/light :name "lamp" :translate [i j 0]))]
         (scene/merge body lamps))))|} in
-  let one_bound = without_ids bound_grid [ (List.nth (lamps bound_grid) 4).id ] in
-  (match Sync.confirming ~factories bound_grid one_bound with
-   | Some q -> check (contains q "all 6 objects (6 copies) made by lamps?" && contains q "several clauses")
-                 ("the question does not name the bound loop: " ^ q)
-   | None -> failwith "a refused bound loop deletion did not ask");
-  let all = ok (Sync.reconcile ~factories ~whole:true grid one) in
-  check (lamps all = [] && contains (source all) "scene/geometry" && not (contains (source all) "for ["))
-    "confirming did not delete the whole loop";
-  same_after_reload all "whole loop";
-  (* a copy that made two objects: deleting only one of them is not a copy to remove *)
+  let gone = ok (reconcile bound_grid (without_ids bound_grid [ (List.nth (lamps bound_grid) 4).id ])) in
+  check (List.length (lamps gone) = 5 && contains (source gone) "lamps (for [i (range 2)"
+         && contains (source gone) ":skip [4]") ("a bound two-clause delete: " ^ source gone);
+  same_after_reload gone "bound two-clause delete";
+  (* a copy that makes two objects: deleting one keeps its sibling, at any iteration *)
   let pairs = open_text {|(workspace pairs
     (graph g :context sop (sop/box))
     (graph scene :context scene
@@ -455,14 +465,53 @@ let run_loops () =
                    (for [i (range 3)]
                      (scene/merge (scene/light :name "a" :translate [i 0 0]) (scene/light :name "b" :translate [i 1 0]))))))|} in
   check (List.length (lamps pairs) = 6) "the loop of pairs did not make six lamps";
-  let half = without_ids pairs [ (List.hd (lamps pairs)).id ] in
-  check (Sync.confirming ~factories pairs half <> None) "half a copy was deleted without asking";
-  let both = ok (reconcile pairs (without_ids pairs (List.map (fun (i : Edit_graph.node_info) -> i.id)
-    (List.filter (fun (i : Edit_graph.node_info) -> field i "translate_x" = Some (Parameter.Float_value 1.)) (lamps pairs))))) in
-  check (List.length (lamps (open_text (source both))) = 4) "deleting both objects of a copy did not remove the copy";
-  print_endline "scene sync: loop copies are one template: edit, computed refusal, rename, delete, confirm ok"
+  let at doc label i = List.find_opt (fun (l : Edit_graph.node_info) -> l.label = label
+    && field l "translate_x" = Some (Parameter.Float_value i)) (lamps doc) in
+  let id_at doc label i = (Option.get (at doc label i)).id in
+  let half = ok (reconcile pairs (without_ids pairs [ id_at pairs "a" 0. ])) in
+  check (contains (source half) ":skip [[0 0]]" && not (contains (source half) "for [i (range 3)] :skip"))
+    ("half a copy: the merge did not skip its argument: " ^ source half);
+  check (List.length (lamps half) = 5 && at half "a" 0. = None && at half "b" 0. <> None && at half "a" 1. <> None)
+    "deleting one object of a copy took its sibling or another copy";
+  check (snapshot (open_text (source half)) = snapshot half) "half a copy: the saved text is not the document";
+  let ids_before = List.filter (( <> ) (id_at pairs "a" 0.)) (ids pairs) in
+  check (ids half = ids_before) "half a copy: the other objects changed id";
+  (* then the other half: its iteration has nothing left, so the loop skips it *)
+  let other = ok (reconcile half (without_ids half [ id_at half "b" 0. ])) in
+  check (List.length (lamps other) = 4
+         && contains (source other) ":skip [0]") ("the second half of a copy: " ^ source other);
+  same_after_reload other "both halves";
+  (* both at once, in another iteration *)
+  let both = ok (reconcile pairs (without_ids pairs [ id_at pairs "a" 1.; id_at pairs "b" 1. ])) in
+  check (List.length (lamps both) = 4 && contains (source both) ":skip [1]" && not (contains (source both) "[[1 0]]"))
+    ("both objects of a copy: " ^ source both);
+  (* the siblings bound by name in a let* body *)
+  let named = open_text {|(workspace pairs
+    (graph g :context sop (sop/box))
+    (graph scene :context scene
+      (scene/merge (scene/geometry (ref g) :name "body")
+                   (for [i (range 3)]
+                     (let* [a (scene/light :name "a" :translate [i 0 0])
+                            b (scene/light :name "b" :translate [i 1 0])]
+                       (scene/merge a b))))))|} in
+  let half = ok (reconcile named (without_ids named [ id_at named "b" 2. ])) in
+  check (List.length (lamps half) = 5 && at half "b" 2. = None && at half "a" 2. <> None
+         && contains (source half) ":skip [[2 1]]") ("a bound pair, one deleted: " ^ source half);
+  same_after_reload half "bound pair half";
+  (* a merge that loses an argument renumbers its skip (here b, which it skipped, and d, which it skips, move up) *)
+  let catalog = Result.get_ok (Contexts.catalog ~version:Flow_sop.Manifest.version factories) in
+  let renum = open_text {|(workspace r (graph scene :context scene
+    (let* [a (scene/light :name "a") b (scene/light :name "b") c (scene/light :name "c") d (scene/light :name "d")]
+      (scene/merge a b c d :skip [1 3]))))|} in
+  check (List.length (lamps renum) = 2) "a merge :skip did not leave two lamps";
+  let edit_text doc op = Workspace_doc.to_text (Result.get_ok (Workspace_doc.edit catalog (fst doc.Document.workspace) op)) in
+  let after = edit_text renum (Flow_sop.Flow_edit.Delete_nodes { nodes = [ [ "scene"; "b" ] ] }) in
+  check (contains after ":skip [2]") ("deleting an argument did not renumber the skip: " ^ after);
+  let after = edit_text renum (Flow_sop.Flow_edit.Delete_nodes { nodes = [ [ "scene"; "a" ] ] }) in
+  check (contains after ":skip [0 2]") ("deleting an earlier argument did not shift the skip: " ^ after);
+  print_endline "scene sync: loop copies are one template: edit, computed refusal, rename, exact delete, pairs ok"
 
-(* a loop inside a loop: the copies nest, the rules are the same *)
+(* a loop inside a loop: the copies nest, the rules are the same, and a delete is exact at any depth *)
 let run_nested_loops () =
   let text = {|(workspace nest
     (graph g :context sop (sop/box))
@@ -487,31 +536,61 @@ let run_nested_loops () =
          && contains (source renamed) ":name \"spot\"" && not (contains (source renamed) ":name \"lamp\""))
     ("a nested rename did not reach the template: " ^ source renamed);
   same_after_reload renamed "nested rename";
-  (* a delete is exact or asks; it never drops the wrong copies *)
+  let ids doc = List.sort compare (List.map (fun (i : Edit_graph.node_info) -> i.id) (lamps doc)) in
+  let ij doc = List.map (fun i -> field i "translate_x", field i "translate_y") (lamps doc) in
+  let cell i j = Some (Parameter.Float_value i), Some (Parameter.Float_value j) in
+  let all = [ 0, 0; 0, 1; 1, 0; 1, 1; 2, 0; 2, 1 ] in
+  let cells without = List.filter_map (fun (i, j) -> if List.mem (i, j) without then None
+    else Some (cell (float_of_int i) (float_of_int j))) all in
+  (* one inner copy goes alone: only that object, every other outer copy untouched *)
   List.iter (fun n ->
-    let one = without_ids doc [ pick n ] in
-    (match reconcile doc one with
-     | Ok gone ->
-       check (List.length (lamps (open_text (source gone))) = 5) "a nested delete did not remove exactly one copy";
-       same_after_reload gone "nested delete"
-     | Error _ ->
-       (match Sync.confirming ~factories doc one with
-        | Some q -> check (contains q "copies") ("the nested question does not count copies: " ^ q)
-        | None -> failwith "a refused nested delete did not ask"))) [ 0; 3; 5 ];
-  (* one inner copy cannot go alone: the question counts the copies, a yes removes the loop *)
-  let one = without_ids doc [ pick 3 ] in
-  (match Sync.confirming ~factories doc one with
-   | Some q -> check (contains q "all 6 objects (2 copies) made by `for [j (range 2)]` (line 9, in \"scene\")"
-                    && contains q "nested in another loop" && contains q "once per outer copy")
-       ("the nested question: " ^ q)
-   | None -> failwith "deleting one inner copy did not ask");
-  same_after_reload (ok (Sync.reconcile ~factories ~whole:true doc one)) "nested whole delete";
-  (* both objects of an outer copy: the inner loop still cannot lose a whole copy's worth silently; it asks *)
-  let outer = without_ids doc [ pick 2; pick 3 ] in
-  check (Result.is_error (reconcile doc outer) && Sync.confirming ~factories doc outer <> None)
-    "deleting every object of an outer copy neither wrote nor asked";
-  let all = ok (Sync.reconcile ~factories ~whole:true doc outer) in
-  check (List.length (lamps all) = 0 || List.length (lamps (open_text (source all))) = List.length (lamps all))
-    "the confirmed nested delete is not the saved text";
-  same_after_reload all "nested confirmed delete";
-  print_endline "scene sync: nested loops: edit, computed refusal, rename, delete ok"
+    let i, j = List.nth all n in
+    let gone = ok (reconcile doc (without_ids doc [ pick n ])) in
+    check (contains (source gone) (Printf.sprintf ":skip [[%d %d]]" i j)) ("nested delete " ^ string_of_int n ^ ": " ^ source gone);
+    check (ij gone = cells [ i, j ] && ij (open_text (source gone)) = cells [ i, j ])
+      (Printf.sprintf "deleting inner copy (%d,%d) took another object" i j);
+    check (ids gone = List.filter (( <> ) (pick n)) (ids doc)) "a nested delete changed the other ids";
+    same_after_reload gone "nested delete") [ 0; 3; 5 ];
+  (* repeated deletes accumulate in the inner loop's list *)
+  let first = ok (reconcile doc (without_ids doc [ pick 3 ])) in
+  let second = ok (reconcile first (without_ids first [ (List.nth (lamps first) 0).id ])) in
+  check (contains (source second) ":skip [[0 0] [1 1]]" && List.length (lamps second) = 4)
+    ("nested deletes did not accumulate: " ^ source second);
+  same_after_reload second "nested twice";
+  (* every object of one outer copy: the outer iteration goes *)
+  let outer = ok (reconcile doc (without_ids doc [ pick 2; pick 3 ])) in
+  check (ij outer = cells [ 1, 0; 1, 1 ] && contains (source outer) ":skip [1]" && not (contains (source outer) "[[1"))
+    ("an outer copy was not skipped: " ^ source outer);
+  same_after_reload outer "outer copy";
+  (* three levels, several clauses in the innermost: the innermost loop that makes the object is the one that skips *)
+  let deep = open_text {|(workspace deep
+    (graph g :context sop (sop/box))
+    (graph scene :context scene
+      (scene/merge (scene/geometry (ref g) :name "body")
+        (for [i (range 2)]
+          (scene/merge
+            (for [j (range 2)]
+              (scene/merge
+                (for [a (range 2) b (range 2)]
+                  (scene/light :name "lamp" :translate [i j (+ (* 2 a) b)])))))))))|} in
+  check (List.length (lamps deep) = 16) "the three-level loop did not make sixteen lamps";
+  let z doc = List.map (fun i -> field i "translate_x", field i "translate_y", field i "translate_z") (lamps doc) in
+  let pick3 n = (List.nth (lamps deep) n).id in
+  (* lamp number 11 is i=1 j=0 a=1 b=1, the innermost iteration (1 0 3) *)
+  let gone = ok (reconcile deep (without_ids deep [ pick3 11 ])) in
+  check (contains (source gone) ":skip [[1 0 3]]" && List.length (lamps gone) = 15
+         && z (open_text (source gone)) = z gone
+         && not (List.mem (List.nth (z deep) 11) (z gone)))
+    ("a three-level delete: " ^ source gone);
+  check (ids gone = List.filter (( <> ) (pick3 11)) (ids deep)) "a three-level delete changed the other ids";
+  same_after_reload gone "three-level delete";
+  (* all of (1 0): the middle iteration goes, not four inner ones *)
+  let middle = ok (reconcile deep (without_ids deep (List.map pick3 [ 8; 9; 10; 11 ]))) in
+  check (List.length (lamps middle) = 12 && contains (source middle) ":skip [[1 0]]" && not (contains (source middle) "[[1 0 "))
+    ("a middle iteration was not skipped as one: " ^ source middle);
+  same_after_reload middle "three-level middle";
+  (* an empty loop stays a loop: every object deleted *)
+  let none = ok (reconcile doc (without_ids doc (List.map pick [ 0; 1; 2; 3; 4; 5 ]))) in
+  check (lamps none = [] && lamps (open_text (source none)) = []) "deleting every copy left objects";
+  same_after_reload none "all copies";
+  print_endline "scene sync: nested loops: edit, computed refusal, rename, exact delete at 2 and 3 levels, accumulate ok"

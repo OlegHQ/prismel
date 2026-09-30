@@ -221,7 +221,20 @@ let merge_fits env targs vargs =
   let extra = List.length vargs - List.length targs in
   if loops = 0 then extra = 0 else loops = 1 && extra >= -1
 
-let rec walk ~want ~below env place (t : W.term) (v : E.value) =
+(* the running index of each copy of a loop at the iteration tuple [iter] (its enclosing loops'
+   indices): the copies are the iterations not in [skip] (register L16), so a copy keeps its index
+   when others are deleted *)
+let real_indices skip iter n =
+  let k = ref 0 in
+  Array.init n (fun _ ->
+    while List.mem (iter @ [ !k ]) skip do incr k done;
+    let r = !k in incr k; r)
+
+(* the arguments of a merge that stay, with their written positions *)
+let kept ~iter skip args =
+  List.filter (fun (i, _) -> not (List.mem (iter @ [ i ]) skip)) (List.mapi (fun i a -> i, a) args)
+
+let rec walk ~want ~below ~iter env place (t : W.term) (v : E.value) =
   let home () = match t.path, place with
     | Some p, _ -> Document.Bound_at p
     | None, Some (parent, key) -> Document.Inline_in (parent, key)
@@ -229,21 +242,22 @@ let rec walk ~want ~below env place (t : W.term) (v : E.value) =
   match t.node, v with
   | W.Let (bindings, body), _ ->
       let env = List.filter_map (function W.Name n, x -> Some (n, x) | _ -> None) bindings @ env in
-      walk ~want ~below env place body v
+      walk ~want ~below ~iter env place body v
   | W.Ref_binding (n, []), _ ->
       (match List.assoc_opt n env with
-       | Some bound -> walk ~want ~below env None bound v
+       | Some bound -> walk ~want ~below ~iter env None bound v
        | None -> loose ~want ~below v)
   | W.Call { kind; args = targs }, E.Struct (k, vargs) when k = kind && want kind ->
       let here = home () in
       let under = match Option.bind (below kind) (fun slot ->
           Option.map (fun i -> i, List.assoc slot vargs) (List.find_index (fun (n, _) -> n = slot) targs)) with
         | Some (i, under_value) ->
-            walk ~want ~below env (Some (here, arg_key targs i)) (snd (List.nth targs i)) under_value
+            walk ~want ~below ~iter env (Some (here, arg_key targs i)) (snd (List.nth targs i)) under_value
         | None | exception Not_found -> [] in
       under @ [ { kind; args = vargs; home = here } ]
-  | W.Op { op = "scene/merge"; args = targs }, E.Struct ("scene/merge", vargs)
-    when merge_fits env targs vargs ->
+  | W.Op { op = "scene/merge"; args = all; skip }, E.Struct ("scene/merge", vargs)
+    when merge_fits env (List.map snd (kept ~iter skip all)) vargs ->
+      let targs = List.map snd (kept ~iter skip all) in
       let here = home () in
       (* an argument gives one value, a loop the rest: its copies *)
       let extra = List.length vargs - List.length targs in
@@ -251,15 +265,17 @@ let rec walk ~want ~below env place (t : W.term) (v : E.value) =
         let n = if is_loop env term then extra + 1 else 1 in
         let value = if is_loop env term then E.List (Array.of_list (List.map snd (List.filteri
             (fun j _ -> j >= at && j < at + n) vargs))) else snd (List.nth vargs at) in
-        at + n, found @ walk ~want ~below env (Some (here, F.Pos i)) term value)
+        at + n, found @ walk ~want ~below ~iter env (Some (here, F.Pos (fst (List.nth (kept ~iter skip all) i)))) term value)
         (0, []) (List.mapi (fun i a -> i, a) targs) in
       found
-  | W.Loop { kind = `For; body; zone; _ }, E.List xs ->
+  | W.Loop { kind = `For; body; zone; skip; _ }, E.List xs ->
       (* the body is one template, walked beside each copy's value *)
       let loop = home () in
-      List.concat (List.mapi (fun i x ->
+      let real = real_indices skip iter (Array.length xs) in
+      List.concat (List.mapi (fun pos x ->
+        let i = real.(pos) in
         List.map (fun c -> { c with home = copy ~zone ~loop i c.home })
-          (walk ~want ~below env None body x)) (Array.to_list xs))
+          (walk ~want ~below ~iter:(iter @ [ i ]) env None body x)) (Array.to_list xs))
   | _ -> loose ~want ~below v
 
 let graph_of (workspace : Workspace_doc.t) context =
@@ -276,7 +292,7 @@ let calls ~want ~below (workspace : Workspace_doc.t) (plan : E.plan) context =
        | None -> Ok []
        | Some instance ->
            let* value = E.force instance.result ~live:{ E.t = 0. } in
-           Ok (walk ~want ~below [] None graph.body value))
+           Ok (walk ~want ~below ~iter:[] [] None graph.body value))
 
 let no_below _ = None
 
@@ -495,11 +511,11 @@ let origins (graph : W.graph) value =
     | W.Ref_binding (n, []), _ ->
         add path (Document.Bound n);
         Option.iter (fun t' -> walk None path t' v) (List.assoc_opt n env)
-    | W.Op { op = "ui/workspace"; args = [ _, r ] }, E.Struct (_, [ _, rv ]) ->
+    | W.Op { op = "ui/workspace"; args = [ _, r ]; _ }, E.Struct (_, [ _, rv ]) ->
         let h = here () in
         inline h path (pos 0) r;
         walk (Some (h, pos 0)) path r rv
-    | W.Op { op = "ui/split" | "ui/split-at"; args }, E.Struct (_, vargs) ->
+    | W.Op { op = "ui/split" | "ui/split-at"; args; _ }, E.Struct (_, vargs) ->
         let h = here () in
         List.iteri (fun i key -> match List.assoc_opt key args, List.assoc_opt key vargs with
           | Some a, Some va ->
@@ -507,11 +523,11 @@ let origins (graph : W.graph) value =
               inline h (i :: path) k a;
               walk (Some (h, k)) (i :: path) a va
           | _ -> ()) [ "first"; "second" ]
-    | W.Op { op = "ui/floating"; args = [ _, a ] }, E.Struct (_, [ _, va ]) ->
+    | W.Op { op = "ui/floating"; args = [ _, a ]; _ }, E.Struct (_, [ _, va ]) ->
         let h = here () in
         inline h (0 :: path) (pos 0) a;
         walk (Some (h, pos 0)) (0 :: path) a va
-    | W.Op { op = "ui/tile"; args }, E.Struct (_, vargs) ->
+    | W.Op { op = "ui/tile"; args; _ }, E.Struct (_, vargs) ->
         let h = here () in
         if List.exists (fun (_, (a : W.term)) -> match a.node with W.Loop _ -> true | _ -> false) args
         then begin

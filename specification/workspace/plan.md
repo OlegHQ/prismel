@@ -910,8 +910,9 @@ element key, so an unchanged element is a cache hit.
      camera following the viewport stays the host's and is not written.
    - **Loops.** The copies of a loop are one template (register V4): an edit of
      a copy edits the template, a computed argument is refused, deleting a
-     copy rewrites the loop's collection or, when that is inexact, deletes the
-     loop after a confirmation (`iteration.md` 3.6).
+     copy adds its iteration (or, when its iteration makes other objects that
+     stay, its place in the holding `scene/merge`) to a `:skip` list, exact at
+     any nesting depth (register L16, `iteration.md` 3.6).
 2. **Layout tree.** Replace `Pxui_shell.Layout`'s record with:
    ```ocaml
    type panel = View of string | Graph | List | Lisp | Inspector | Outline | Timeline

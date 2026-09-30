@@ -500,12 +500,6 @@ module Prompt = struct
       Pxui.Ui.label ui title;
       Pxui.Ui.picker ui label ~query (fun _ -> [||]))
 
-  let confirm ui ~key ~title ~message ~action =
-    Pxui.Ui.modal ui ~width:420. key (fun () ->
-      Pxui.Ui.label ui title;
-      List.iteri (fun i line -> Pxui.Ui.inspector_message ui ~key:(Printf.sprintf "%s-message-%d" key i) line) message;
-      if Pxui.Ui.button ui action then `Yes else `Wait)
-
   let search ui ~key ~title ~label ~query ~rows =
     Pxui.Ui.modal ui ~width:420. key (fun () ->
       Pxui.Ui.label ui title;
