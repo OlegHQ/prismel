@@ -25,14 +25,6 @@ type 'prepared cooked =
   | Displayed of 'prepared piece list * summary list
   | Framed of bounds option
 
-type flattened = {
-  source : Flow_sop.Network.t;
-  displayed : int;
-  definitions : Document.definition Document.String_map.t;
-  compiled_ids : int Flow_sop.Instance_path.Map.t;
-  result : (Flow_sop.Network.t * int, Flow.Diagnostic.t) result;
-}
-
 type 'prepared t = {
   worker : 'prepared cooked Async_cook.t;
   seed : int64;
@@ -50,10 +42,9 @@ type 'prepared t = {
   force : bool;
   (* Each object's last compiled network, reused node-by-node on the next
      edit, and this frame's displayed graphs. *)
-  compiled : (Edit_graph.t * Edit_graph.compiled) Document.Layout.t;
-  flattened : flattened Document.Layout.t;
-  value_lanes : Flow_sop.Value_lane.t Document.Layout.t;
-  applied : Flow_sop.Value_lane.resolved Document.Layout.t;
+  compiled : (Edit_graph.t * Edit_graph.compiled) Document.Int_map.t;
+  value_lanes : Flow_sop.Value_lane.t Document.Int_map.t;
+  applied : Flow_sop.Value_lane.resolved Document.Int_map.t;
   graphs : (int * Graph.t) list;
   displayed : (int * int) list;  (* the display node each graph compiles *)
   probing : (int * int) list;  (* the (object, node) pairs the last submission asked to summarise *)
@@ -117,9 +108,8 @@ let create ~prepare ~seed ~grain ?domains ?await ~max_entries ~max_payload_bytes
   Result.map (fun worker ->
     { worker; seed; grain; domains; await; prepare; schedule = Schedule.initial;
       pieces = []; settings = None; error = None; seconds = None;
-      framing = None; force = false; compiled = Document.Layout.empty;
-      flattened = Document.Layout.empty; graphs = [];
-      value_lanes = Document.Layout.empty; applied = Document.Layout.empty;
+      framing = None; force = false; compiled = Document.Int_map.empty; graphs = [];
+      value_lanes = Document.Int_map.empty; applied = Document.Int_map.empty;
       displayed = []; probing = []; summaries = [] })
     (Async_cook.create ~max_entries ~max_payload_bytes)
 
@@ -132,7 +122,7 @@ let seconds value = value.seconds
 let pieces value = value.pieces
 (* the counts of a compiled node of an object, once a cook has reported them *)
 let geometry value ~object_id ~node_id = List.assoc_opt (object_id, node_id) value.summaries
-let applied value id = Document.Layout.find_opt id value.applied
+let applied value id = Document.Int_map.find_opt id value.applied
 
 let context value timeline = Sketch_support.Timeline.context ~seed:value.seed
     ~grain:value.grain ~domains:value.domains timeline
@@ -143,83 +133,50 @@ let force value = { value with force = true }
 
 (* [objects] are the visible geometry objects as (id, network graph,
    display node); [frame_request] is (object, node) to frame. *)
-let flatten ~definitions ~compiled_ids network displayed =
-  let geometry = Result.map_error (Flow.Diagnostic.error ~code:"E_GEOMETRY")
-    (Edit_graph.set_root displayed network.Flow_sop.Network.geometry) in
-  Result.bind geometry (fun geometry ->
-    Result.bind (Flow_sop.Network.with_geometry geometry network) (fun network ->
-      let definitions = Document.String_map.fold (fun name definition values ->
-        Flow_sop.Network.String_map.add name definition.Document.spec values)
-        definitions Flow_sop.Network.String_map.empty in
-      Result.bind (Flow_sop.Compile.flatten ~allocate:false ~definitions
-        ~compiled_ids network) (fun (network, _) ->
-          match Edit_graph.root network.geometry with
-          | Some displayed -> Ok (network, displayed)
-          | None -> Error (Flow.Diagnostic.error ~code:"E_INTERFACE"
-              "Compound display has no geometry output"))))
-
-let update ?live ?(probes = []) ?(lit = Pick.Set.empty) ~definitions ~compiled_ids value ~settings ~objects
+let update ?live ?(probes = []) ?(lit = Pick.Set.empty) value ~settings ~objects
     ~edit_error ~effects ~timeline_changes
     ~timeline ~frame ~frame_request =
-  let objects, value_lanes, applied, flattened, resolve_error =
-    List.fold_left (fun (objects, lanes, applied, flattened, error)
+  let objects, value_lanes, applied, resolve_error =
+    List.fold_left (fun (objects, lanes, applied, error)
         (id, (network : Flow_sop.Network.t), displayed) ->
-      let lane = match Document.Layout.find_opt id value.value_lanes with
+      let lane = match Document.Int_map.find_opt id value.value_lanes with
         | Some lane -> lane | None -> Flow_sop.Value_lane.create () in
-      let lanes = Document.Layout.add id lane lanes in
-      let flat, flattened =
-        if Flow_sop.Network.Int_map.is_empty network.instances then
-          Ok (network, displayed), flattened
-        else match Document.Layout.find_opt id value.flattened with
-          | Some previous when previous.source == network
-              && previous.displayed = displayed
-              && previous.definitions == definitions
-              && previous.compiled_ids == compiled_ids ->
-              previous.result, Document.Layout.add id previous flattened
-          | _ ->
-              let result = flatten ~definitions ~compiled_ids network displayed in
-              let entry = {source = network; displayed; definitions;
-                compiled_ids; result} in
-              result, Document.Layout.add id entry flattened in
-      match Result.bind flat (fun (network, displayed) ->
-        Result.map (fun resolved -> resolved, displayed)
-          (Flow_sop.Value_lane.resolve lane
-            ~time:(Sketch_support.Timeline.time timeline) network)) with
-      | Ok (resolved, displayed) -> (id, resolved.geometry, displayed) :: objects,
-          lanes, Document.Layout.add id resolved applied, flattened, error
+      let lanes = Document.Int_map.add id lane lanes in
+      match Flow_sop.Value_lane.resolve lane
+          ~time:(Sketch_support.Timeline.time timeline) network with
+      | Ok resolved -> (id, resolved.geometry, displayed) :: objects,
+          lanes, Document.Int_map.add id resolved applied, error
       | Error diagnostic ->
-          let previous = Document.Layout.find_opt id value.applied in
+          let previous = Document.Int_map.find_opt id value.applied in
           let objects = match previous with
             | Some previous -> (id, previous.geometry, displayed) :: objects
             | None -> objects in
           let applied = match previous with
-            | Some previous -> Document.Layout.add id previous applied
+            | Some previous -> Document.Int_map.add id previous applied
             | None -> applied in
-          objects, lanes, applied, flattened,
-          Some (Flow.Diagnostic.to_string diagnostic))
-      ([], Document.Layout.empty, Document.Layout.empty,
-        Document.Layout.empty, None) objects in
+          objects, lanes, applied, Some (Flow.Diagnostic.to_string diagnostic))
+      ([], Document.Int_map.empty, Document.Int_map.empty, None) objects in
   let objects = List.rev objects in
   let edit_error = match edit_error with Some _ -> edit_error
     | None -> resolve_error in
   let compiled = List.fold_left (fun compiled (id, document, _) ->
-      match Document.Layout.find_opt id value.compiled with
+      match Document.Int_map.find_opt id value.compiled with
       | Some (source, _) when source == document -> compiled
-      | previous -> Document.Layout.add id (document,
+      | previous -> Document.Int_map.add id (document,
           Edit_graph.compile_all ?previous:(Option.map (fun (_, c) -> c) previous) document)
           compiled) value.compiled objects in
-  let compiled = Document.Layout.filter (fun id _ ->
+  let compiled = Document.Int_map.filter (fun id _ ->
       List.exists (fun (object_id, _, _) -> object_id = id) objects) compiled in
   (* An unchanged network and display node keep their graph physically, so
      an idle frame never looks like an edit and never resubmits a cook. *)
   let graphs, edit_error = List.fold_left (fun (graphs, error) (id, document, displayed) ->
-      let unchanged = match Document.Layout.find_opt id value.compiled with
+      let unchanged = match Document.Int_map.find_opt id value.compiled with
         | Some (source, _) -> source == document | None -> false in
       match List.assoc_opt id value.graphs, List.assoc_opt id value.displayed with
       | Some graph, Some previous when unchanged && previous = displayed ->
           (id, graph) :: graphs, error
       | previous, _ ->
-          match Edit_graph.compiled_node (snd (Document.Layout.find id compiled))
+          match Edit_graph.compiled_node (snd (Document.Int_map.find id compiled))
               ~node_id:displayed with
           | Ok graph -> (id, graph) :: graphs, error
           | Error message ->
@@ -253,8 +210,8 @@ let update ?live ?(probes = []) ?(lit = Pick.Set.empty) ~definitions ~compiled_i
      last successful graph and preview through the compilation fallback. *)
   let pieces, prepared_changed =
     if (changed || Option.is_some completion)
-        && List.exists (fun piece -> not (Document.Layout.mem piece.id compiled)) pieces
-    then List.filter (fun piece -> Document.Layout.mem piece.id compiled) pieces, true
+        && List.exists (fun piece -> not (Document.Int_map.mem piece.id compiled)) pieces
+    then List.filter (fun piece -> Document.Int_map.mem piece.id compiled) pieces, true
     else pieces, prepared_changed in
   let schedule, submit = Schedule.step ?live value.schedule
       ~graphs:(List.map snd graphs) ~effects
@@ -310,7 +267,7 @@ let update ?live ?(probes = []) ?(lit = Pick.Set.empty) ~definitions ~compiled_i
       match awaited.result with
       | Ok (Displayed (pieces, found)) ->
           summaries := found;
-          List.filter (fun piece -> Document.Layout.mem piece.id compiled) pieces,
+          List.filter (fun piece -> Document.Int_map.mem piece.id compiled) pieces,
           None, Some awaited.seconds, true
       | Ok (Framed _) -> pieces, error, seconds, prepared_changed
       | Error failure -> pieces, Some (Async_cook.error_to_string failure),
@@ -339,7 +296,7 @@ let update ?live ?(probes = []) ?(lit = Pick.Set.empty) ~definitions ~compiled_i
         | _ ->
             (match Option.map (fun (_, compiled) ->
                 Edit_graph.compiled_node compiled ~node_id)
-                (Document.Layout.find_opt object_id compiled) with
+                (Document.Int_map.find_opt object_id compiled) with
              | None | Some (Error _) -> Some None, framing
              | Some (Ok node) ->
                  let was_busy = busy value && framing = None in
@@ -350,7 +307,7 @@ let update ?live ?(probes = []) ?(lit = Pick.Set.empty) ~definitions ~compiled_i
                  | Ok _ -> framed, Some (was_busy || Option.value ~default:false framing)
                  | Error _ -> Some None, framing) in
   { cook = { value with schedule; pieces; settings = Some settings; error; seconds;
-      framing; force = force_next; compiled; flattened;
+      framing; force = force_next; compiled;
       value_lanes; applied; graphs; displayed;
       probing = (if submit then probes else value.probing); summaries = !summaries };
     edit_error; prepared_changed; framed }

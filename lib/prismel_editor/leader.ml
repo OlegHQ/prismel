@@ -7,14 +7,13 @@ type action =
   | Toggle_timeline | Toggle_graph | Toggle_inspector | Hide_ui | Open_camera
   | Play_pause | Reset | Stop
   | Add_node
-  | Layout | Frame_tile | Frame_camera
+  | Frame_tile | Frame_camera
   | Look_through | Fly | Tool of int  (* 0 none, 1 translate, 2 rotate, 3 scale *)
   | Undo | Redo
   | Panel_split of Pxui_shell.Layout.axis | Panel_close | Panel_retype of Pxui_shell.Layout.panel
       (* Space o ...: the focused panel, as the header menu does *)
-  | Toggle_projection | Restore_layout | Enter | Up | Go_world | Group | Ungroup | Make_unique
+  | Toggle_projection | Restore_layout | Enter | Up | Go_world
   | World_emit | World_reseed | World_time of float | World_play | World_preset of int
-  | Graph_command of Pxui_graph.command
   | Scope_command of Pxui_graph.Scope.command  (* the workspace pane, see [Core.scope_name] *)
   | List_command of Pxui_shell.Tree.command
   | Guide_toggle | Guide_keys
@@ -109,31 +108,19 @@ let keymap = [
   command ~guide:Editor_core.Guide_context.[Canvas; Node; Multi; Inside_compound] ~id:"scene.up" ~label:"up a level"
     ~trigger:(Chord (Input.KeyChar 'u', [])) Up;
   (* Rare: the graph context menu and the palette, no leader key. *)
-  command ~id:"graph.layout" ~label:"layout" ~scope:graph Layout;
   command ~id:"graph.frame-tile" ~label:"frame displayed tile" ~trigger:(Leader "f")
     ~scope:graph Frame_tile;
-  command ~id:"graph.make-unique" ~label:"make compound unique"
-    ~guide:Editor_core.Guide_context.[Compound] ~scope:graph Make_unique;
   command ~guide:Editor_core.Guide_context.[List] ~id:"graph.frame-tile" ~label:"reveal list selection"
     ~trigger:(Chord (Input.KeyChar 'f', [])) ~scope:graph Frame_tile;
   command ~id:"view.frame-camera" ~label:"focus camera on displayed node"
     ~trigger:(Chord (Input.KeyChar 'f', [])) ~scope:view Frame_camera;
 ] @ List.concat_map (fun modifier -> [
-  command ~id:"graph.group" ~label:"group selection"
-    ~guide:Editor_core.Guide_context.[Node; Multi]
-    ~trigger:(Chord (Input.KeyChar 'g', [modifier])) ~scope:graph Group;
-  command ~id:"graph.ungroup" ~label:"ungroup compound"
-    ~guide:Editor_core.Guide_context.[Compound]
-    ~trigger:(Chord (Input.KeyChar 'g', [modifier; Input.Shift]))
-    ~scope:graph Ungroup;
   command ~id:"file.save" ~label:"save sketch" ~trigger:(Chord (Input.KeyChar 's', [modifier])) Save_source;
   command ~id:"edit.undo" ~label:"undo" ~trigger:(Chord (Input.KeyChar 'z', [modifier])) Undo;
   command ~id:"edit.redo" ~label:"redo"
     ~trigger:(Chord (Input.KeyChar 'z', [modifier; Input.Shift])) Redo;
   command ~id:"edit.redo" ~label:"redo" ~trigger:(Chord (Input.KeyChar 'y', [modifier])) Redo])
   [Input.Meta; Input.Ctrl]
-@ List.map (fun (c : _ Editor_core.Command.t) ->
-  { c with scope = Some graph; action = Graph_command c.action }) Pxui_graph.bindings
 @ List.map (fun (c : _ Editor_core.Command.t) ->
   { c with scope = Some graph; action = Scope_command c.action }) Pxui_graph.Scope.bindings
 @ List.map (fun (c : _ Editor_core.Command.t) ->

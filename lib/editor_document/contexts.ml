@@ -244,8 +244,7 @@ let layer_network ?previous args =
     let* values = changes kind largs in
     let* graph = apply graph (Node.id node) values in
     Ok (graph, Node.id node :: used, Some (Node.id node), ())) (Ok (Edit.empty, [], None, ())) top in
-  let layout = match previous with Some (n : Document.network) -> n.layout | None -> Document.Canvas.empty in
-  Ok { (Document.of_geometry ~context:Flow.Context.World graph below) with layout }
+  Ok (Document.of_geometry ~context:Flow.Context.World graph below)
 
 (* ---- the editor ---- *)
 
@@ -344,8 +343,10 @@ let editor (workspace : Workspace_doc.t) (plan : E.plan) =
    cameras and lights when its scene declares one, and the World when it has a
    world graph. *)
 let of_workspace ~factories ?previous (workspace : Workspace_doc.t) =
-  let compiled_ids, sites = match Option.bind previous (fun (doc : Document.t) -> doc.workspace) with
-    | Some (_, (lowered : Flow_sop.Lower.t)) -> Some lowered.compiled_ids, Some lowered.sites
+  let compiled_ids, sites = match previous with
+    | Some (doc : Document.t) ->
+        let _, (lowered : Flow_sop.Lower.t) = doc.workspace in
+        Some lowered.compiled_ids, Some lowered.sites
     | None -> None, None in
   let* lowered = Flow_sop.Lower.workspace ~factories ~extra:descriptors ?compiled_ids ?sites
       workspace.source in
@@ -415,7 +416,7 @@ let of_workspace ~factories ?previous (workspace : Workspace_doc.t) =
         let* values = changes "world/world" args in
         let* graph = apply graph id values in
         let previous_network = Option.bind previous (fun (doc : Document.t) ->
-          Document.Layout.find_opt id doc.networks) in
+          Document.Int_map.find_opt id doc.networks) in
         let* network = layer_network ?previous:previous_network args in
         Ok (graph, Some id, Some network) in
   let* scene_network = Flow_sop.Network.with_geometry graph scene.graph in
@@ -426,25 +427,20 @@ let of_workspace ~factories ?previous (workspace : Workspace_doc.t) =
   (* networks: geometry objects' lowered graphs, the World's layers, and the previous
      networks of objects that survive *)
   let carried = match previous with
-    | None -> Document.Layout.empty
-    | Some (doc : Document.t) -> Document.Layout.filter (fun id _ ->
+    | None -> Document.Int_map.empty
+    | Some (doc : Document.t) -> Document.Int_map.filter (fun id _ ->
         Edit.find graph ~node_id:id <> None && not (List.mem_assoc id objects)
         && Some id <> world_id) doc.networks in
   let networks = List.fold_left (fun networks (id, item) ->
     if Edit.factory_operation item.factory <> "geometry" then networks
     else
-      let layout = match previous with
-        | Some (doc : Document.t) ->
-            (match Document.Layout.find_opt id doc.networks with
-             | Some (n : Document.network) -> n.layout | None -> Document.Canvas.empty)
-        | None -> Document.Canvas.empty in
       let network = match item.geometry with
-        | Some g -> { Document.context = Flow.Context.Sop; graph = g.network; layout; displayed = g.root }
+        | Some g -> { Document.context = Flow.Context.Sop; graph = g.network; displayed = g.root }
         | None -> { Document.context = Flow.Context.Sop;
-                    graph = Flow_sop.Network.of_geometry Edit.empty; layout; displayed = None } in
-      Document.Layout.add id network networks) carried objects in
+                    graph = Flow_sop.Network.of_geometry Edit.empty; displayed = None } in
+      Document.Int_map.add id network networks) carried objects in
   let networks = match world_id, world_network with
-    | Some id, Some network -> Document.Layout.add id network networks
+    | Some id, Some network -> Document.Int_map.add id network networks
     | _ -> networks in
   let* settings = result workspace lowered.plan Flow.Workspace.Settings in
   let* settings = match settings with
@@ -457,11 +453,10 @@ let of_workspace ~factories ?previous (workspace : Workspace_doc.t) =
     | _ -> if declares "camera" then List.nth_opt cameras 0 else None in
   let workspace = if has_settings workspace then workspace
     else { workspace with Workspace_doc.settings } in
-  Ok { Document.scene; networks; definitions = Document.String_map.empty;
-       compiled_ids = Flow_sop.Instance_path.Map.empty; active_camera; settings;
+  Ok { Document.scene; networks; active_camera; settings;
        shell = Option.map (fun e -> { Document.tree = e.tree; origins = e.origins;
                                       named = e.named; views }) editor;
-       workspace = Some (workspace, lowered) }
+       workspace = (workspace, lowered) }
 
 let sha256 s = Digestif.SHA256.(to_hex (digest_string s))
 

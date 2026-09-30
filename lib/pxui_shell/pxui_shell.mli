@@ -160,7 +160,7 @@ module Tree : sig
     | Delete of int list  (** from the row context menu *)
   type command = Up | Down | Extend_up | Extend_down | Collapse | Expand
     | First | Last | Indent_rows | Outdent_rows | Move_up | Move_down
-    | Rename_row | Filter | Hide | Activate_row
+    | Rename_row | Delete_rows | Filter | Hide | Activate_row
   type t
 
   val create : unit -> t

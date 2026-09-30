@@ -143,7 +143,6 @@ let settle ?(from = 0) e ok =
 let part_editor () =
   let module E3 = Prismel_editor.Editor3 in
   let e = editor still in
-  check (E3.workspace e <> None) "the editor opens a workspace";
   let objects e = List.map (fun (i : Procedural.Edit_graph.node_info) -> i.label, i.operation)
     (Procedural.Edit_graph.inspect (E3.document e)) in
   check (List.mem ("g", "geometry") (objects e)) "one geometry object per sop graph";
@@ -159,7 +158,7 @@ let part_editor () =
   let e = E3.edit e (scrub "0.6") |> Result.get_ok in
   let e = E3.edit e (scrub "0.7") |> Result.get_ok in
   check (E3.undo_label e = Some "Edit value") "scrub label";
-  check (has (Doc.to_text (Option.get (E3.workspace e))) ":radius 0.7") "scrub rewrote the source";
+  check (has (Doc.to_text (E3.workspace e)) ":radius 0.7") "scrub rewrote the source";
   let e = E3.edit e (E.Rename { node = [ "g"; "b" ]; to_ = "moved" }) |> Result.get_ok in
   check (E3.undo_label e = Some "Rename") "rename label";
   let e = E3.edit e (E.Wrap { nodes = [ [ "g"; "a" ] ]; loop = For }) |> Result.get_ok in
@@ -179,7 +178,7 @@ let part_editor () =
   check (E3.undo_label e = Some "Edit value" && E3.redo_label e = Some "Rename") "undo Rename";
   let e = undo e (count + 2) in
   check (E3.undo_label e = None && E3.redo_label e = Some "Edit value") "one undo reverts the merged scrub";
-  check (Doc.to_text (Option.get (E3.workspace e)) = Doc.to_text (of_text still)) "undo restored the source";
+  check (Doc.to_text (E3.workspace e) = Doc.to_text (of_text still)) "undo restored the source";
   let e = E3.update e (frame ~keys:[ Input.Meta; Input.Shift ] [ char 'z' ] (count + 3)) in
   check (E3.undo_label e = Some "Edit value") "redo";
   E3.close e
@@ -219,15 +218,15 @@ let part_preset () =
     check (not (has text "{\"") && not (has text "\"version\"")) "no JSON";
     (* it loads: same source, same comments *)
     let loaded = Preset.load ~path ~factories ~settings:Editor_document.Settings.none |> Result.get_ok in
-    let ws = fst (Option.get loaded.doc.workspace) in
-    check (Doc.to_text ws = Doc.to_text (Option.get (E3.workspace e))) "save then load round trip";
+    let ws = fst (loaded.doc.workspace) in
+    check (Doc.to_text ws = Doc.to_text (E3.workspace e)) "save then load round trip";
     check (Preset.list ~directory |> List.map fst = [ name ]) "listed";
     (* load through Space b: one undo entry *)
     let e = E3.edit e (E.Rename { node = [ "g"; "a" ]; to_ = "ball" }) |> Result.get_ok in
     let e = E3.update e (frame [ key Input.Space; char 'b' ] (count + 3)) in
     let e = E3.update e (frame [ Event.TextInput name; key Input.Enter ] (count + 4)) in
     let e = E3.update e (frame [] (count + 5)) in
-    check (has (Doc.to_text (Option.get (E3.workspace e))) "(sop/transform a ") "Space b restored the saved source";
+    check (has (Doc.to_text (E3.workspace e)) "(sop/transform a ") "Space b restored the saved source";
     check (E3.undo_label e = Some "Load preset") "load is one undo entry";
     (* errors never touch the document *)
     let corrupt = Preset.path ~directory ~name:"corrupt" in
@@ -258,7 +257,7 @@ let part_pane_layout () =
   let module M = Layout.Path_map in
   let doc = of_text still in
   let opened = Editor_document.Contexts.of_workspace ~factories doc |> function Ok d -> d | Error m -> fail (Flow.Diagnostic.to_string m) in
-  let ws = fst (Option.get opened.workspace) in
+  let ws = fst (opened.workspace) in
   let ws = { ws with layout = { ws.layout with at = M.add [ "g"; "a" ] (40., 60.) ws.layout.at;
                                                collapsed = M.add [ "g"; "z" ] true ws.layout.collapsed } } in
   let again = of_text (Doc.to_text ws) in
@@ -300,7 +299,7 @@ let part_contexts () =
   check (doc.active_camera = Some (List.hd (ops "camera")).id) "the workspace's camera is the active one";
   (* each geometry object owns the lowered network of the sop graph it refers to *)
   let flower = (List.hd (ops "geometry")).id and accent_id = (List.nth (ops "geometry") 1).id in
-  let network id = Option.get (Document.Layout.find_opt id doc.networks) in
+  let network id = Option.get (Document.Int_map.find_opt id doc.networks) in
   check ((network flower).displayed <> None && (network accent_id).displayed <> None
          && (network flower).graph != (network accent_id).graph)
     "two refs of one graph with different inputs are two networks";
@@ -330,7 +329,7 @@ let part_contexts () =
   let shape (d : Document.t) =
     List.map (fun (i : Edit.node_info) -> i.operation, i.label, i.parameters) (Edit.inspect (Document.scene_graph d)),
     List.filter_map (fun (i : Edit.node_info) -> if i.operation <> "world" then None else
-      Option.bind (Document.Layout.find_opt i.id d.networks) (fun n -> Layers.to_world i.node n))
+      Option.bind (Document.Int_map.find_opt i.id d.networks) (fun n -> Layers.to_world i.node n))
       (Edit.inspect (Document.scene_graph d)),
     Editor_document.Settings.fields d.settings in
   check (shape (build bloom) = shape doc) "the same source builds the same document twice";
@@ -400,7 +399,7 @@ let part_editor_contexts () =
   check (List.length (List.filter (fun (_, op) -> op = "camera") (objects ())) = 1
          && List.length (List.filter (fun (_, op) -> op = "light") (objects ())) = 1)
     "a scene that declares a camera and a light gets no seeded ones";
-  check (has (dump ()) "pane graph: -\n") "the pane follows the level until an outline row or a named panel picks a graph";
+  check (has (dump ()) "pane graph: scene\n") "the pane shows the scene graph at the scene level until an outline row or a named panel picks another";
   (* an edit on the scene graph reaches the objects, in one history entry *)
   let e' = E3.edit !e (E.Set_arg { node = [ "scene"; "accent" ]; key = Kw "scale"; sub = [];
     value = S.make (S.Vec (List.map (fun n -> S.make (S.Num n)) [ "1"; "1"; "1" ])) }) |> Result.get_ok in

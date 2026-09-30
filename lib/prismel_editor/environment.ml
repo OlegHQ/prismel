@@ -281,7 +281,7 @@ module Make (V : VIEWPORT) = struct
     status : 'prepared option -> string option;  (* sketch text in the status bar *)
     rendered : V.rendered option;
     views : (string * V.rendered) list;  (* viewports over another scene instance *)
-    drawn : (Graph.t * 'prepared * V.rendered) Document.Layout.t;  (* per object *)
+    drawn : (Graph.t * 'prepared * V.rendered) Document.Int_map.t;  (* per object *)
     baked : World.baked option;
     baked_from : (World.t * World.baked) option;
     map : (World.baked * Image.t) option;  (* the lat-long view's upload *)
@@ -312,14 +312,8 @@ module Make (V : VIEWPORT) = struct
   let create ?(layout = Pxui_shell.Layout.default) ?name ?presets ?timeline_frames ?factories
       ?settings ?(commands = []) ?(lights = []) ?world
       ?(camera = V.default_camera ()) ?lens ?(background = Color.hex_exn "#f4f5f0")
-      ?seed ?grain ?domains ?max_entries ?max_payload_bytes ?graph ?workspace ?source ~prepare ~draw
+      ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~workspace ?source ~prepare ~draw
       ?(overlay = fun _ _ _ -> Scene.empty) ?(status = fun _ -> None) () =
-    let graph = match graph, workspace with
-      | Some graph, None -> Ok graph
-      | None, Some _ -> Ok (Sop.points [||])
-      | None, None -> Error "Pass a graph or a workspace"
-      | _ -> Error "Pass only one of a graph and a workspace" in
-    Result.bind graph (fun graph ->
     let open Editor_core.Command in
     let normalize_key = function Input.KeyChar c -> Input.KeyChar (Char.lowercase_ascii c)
       | key -> key in
@@ -373,7 +367,7 @@ module Make (V : VIEWPORT) = struct
     Result.bind (validate [] commands) (fun () -> Result.map (fun core ->
       let core, extra = V.init core camera in
       { core; camera; control = V.create_control (); draw; overlay; status;
-        rendered = None; views = []; drawn = Document.Layout.empty; baked = None; baked_from = None; map = None;
+        rendered = None; views = []; drawn = Document.Int_map.empty; baked = None; baked_from = None; map = None;
         render_status = None; pending_render = None;
         background; extra; hidden_scene_cache = None; commands; world_drag = None; pick_press = None; source })
       (Core.create ?settings ?world ~scene_level:V.scene_level
@@ -382,7 +376,7 @@ module Make (V : VIEWPORT) = struct
         ~seed_scene:(fun factories scene ->
           V.seed_scene ?lens camera factories (seed_lights lights scene))
         ~layout ?name ?presets ?timeline_frames ?factories ?seed ?grain ?domains
-        ?max_entries ?max_payload_bytes ?workspace ~graph ~prepare ())))
+        ?max_entries ?max_payload_bytes ~workspace ~prepare ()))
 
   let graph value = Core.graph value.core
   let document value = Core.document value.core
@@ -393,20 +387,22 @@ module Make (V : VIEWPORT) = struct
   let selected_node value = Core.selected_node value.core
   let displayed_node value = Core.displayed_node value.core
   let panes value frame = Core.panes value.core frame
-  let graph_nodes value = Pxui_graph.node_views value.core.graph_view
   let can_undo value = Editor_core.History.can_undo value.core.Core.history
   let can_redo value = Editor_core.History.can_redo value.core.Core.history
   let undo_label value = if can_undo value
     then Some (Editor_core.History.label value.core.Core.history) else None
   let redo_label value = Editor_core.History.redo_label value.core.Core.history
-  let workspace value = Option.map fst value.core.Core.doc.workspace
+  let workspace value = fst value.core.Core.doc.workspace
   let probe value zone = Layout_by_path.Path_map.find_opt zone value.core.Core.probes
   let set_probe value zone index =
     { value with core = { value.core with Core.probes = Layout_by_path.Path_map.add zone index value.core.Core.probes } }
+  let node_box value path =
+    Option.map (fun (x, y, w, h) -> int_of_float x, int_of_float y, int_of_float w, int_of_float h)
+      (Pxui_graph.Scope.Private.box_of value.core.Core.scope_view path)
   let edit value op = Result.map (fun core -> { value with core }) (Core.syntax_edit value.core op)
   let level value = match value.core.Core.level with
     | Document.Scene -> None
-    | Inside id | Compound {owner = id; _} -> Some (Option.fold ~none:"" ~some:Node.label
+    | Inside id -> Some (Option.fold ~none:"" ~some:Node.label
         (Edit_graph.find (Core.scene value.core) ~node_id:id))
   let scene_document value = Core.scene value.core
   let lights value = Objects.lights ~render:true (Core.scene value.core)
@@ -454,23 +450,22 @@ module Make (V : VIEWPORT) = struct
     else
       let placed = Core.placed_pieces ~view:`All update.core in
       let drawn = List.fold_left (fun drawn (_, (piece : _ Cook.piece)) ->
-          match Document.Layout.find_opt piece.id value.drawn with
+          match Document.Int_map.find_opt piece.id value.drawn with
           | Some (graph, prepared, rendered) when graph == piece.graph && prepared == piece.prepared ->
-              Document.Layout.add piece.id (graph, prepared, rendered) drawn
+              Document.Int_map.add piece.id (graph, prepared, rendered) drawn
           | Some _ | None ->
-              Document.Layout.add piece.id
+              Document.Int_map.add piece.id
                 (piece.graph, piece.prepared, value.draw piece.graph piece.prepared) drawn)
-          Document.Layout.empty placed in
+          Document.Int_map.empty placed in
       let waiting = placed = [] && Core.geometry_objects update.core <> []
           && Core.pieces update.core = [] in
       let ghost id = match update.core.Core.level with
         | Document.Inside open_id -> Core.kind update.core open_id = Some "geometry"
             && id <> open_id
-        | Compound {owner; _} -> id <> owner
         | Scene -> false in
       let compose_pieces pieces = V.compose ~scene:(Core.scene update.core) ~world:baked
         (List.map (fun (matrix, (piece : _ Cook.piece)) ->
-           let _, _, rendered = Document.Layout.find piece.id drawn in
+           let _, _, rendered = Document.Int_map.find piece.id drawn in
            matrix, ghost piece.id, rendered) pieces) in
       let views = match update.core.Core.doc.Document.shell with
         | Some shell when not waiting -> List.filter_map (fun (key, _) ->
@@ -502,10 +497,10 @@ module Make (V : VIEWPORT) = struct
         ~doc:core.doc ~view with
       | Ok path -> notice (why ^ "; saved as preset " ^ Filename.basename path)
       | Error message -> notice ("Not saved: " ^ message) in
-    match Preset.text core.doc, source with
-    | Error message, _ -> notice ("Not saved: " ^ message), source
-    | Ok _, None -> preset "no source file", source
-    | Ok text, Some file ->
+    let text = Preset.text core.doc in
+    match source with
+    | None -> preset "no source file", source
+    | Some file ->
         (match Source_file.save file text with
          | Ok file -> notice ("Saved " ^ Filename.basename (Source_file.file file)), Some file
          | Error `Changed -> preset "source changed since build", Some file
@@ -673,7 +668,7 @@ module Make (V : VIEWPORT) = struct
     let history = core.history in
     Out_channel.with_open_text (Filename.concat directory "editor.txt") (fun channel ->
       Printf.fprintf channel
-        "level: %s\nprojection: %s\npane graph: %s\ntext: %s\nmap view: %b\nguide: %b\nkey hud: %s\nselected: %s\nfocus: %s\n\
+        "level: %s\nprojection: %s\npane graph: %s\ntext: %s\nmap view: %b\nguide: %b\nkey hud: %s\nselected: %s\nscope selected: %s\nfocus: %s\n\
          undo: %s (%d entries)\nredo: %s\ncook: %s\nedit error: %s\n\
          load document.plisp with Space b (workspace documents only) after copying it to %s\n"
         (Core.level_name core)
@@ -685,6 +680,9 @@ module Make (V : VIEWPORT) = struct
         (Option.fold ~none:"none" ~some:(fun node ->
           Printf.sprintf "%s (#%d, %s)" (Node.label node) (Node.id node) (Node.operation node))
           (Core.selected_node core))
+        (match Pxui_graph.Scope.selected core.scope_view with
+         | [] -> "-"
+         | paths -> String.concat ", " (List.map (String.concat "/") paths))
         (Leader.pane_name core.focus)
         (Editor_core.History.label history) (Editor_core.History.depth history)
         (Option.value ~default:"-" (Editor_core.History.redo_label history))
@@ -698,14 +696,12 @@ module Make (V : VIEWPORT) = struct
 
   let run ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?lights
       ?world ?camera ?lens ?background ?seed ?grain ?domains ?max_entries ?max_payload_bytes
-      ~config ?graph ?workspace ?source ~prepare ~draw ?overlay ?status () =
-    let name = Option.value name ~default:(match workspace with
-      | Some workspace -> Workspace_doc.name workspace
-      | None -> String.lowercase_ascii config.Sketch.title) in
+      ~config ~workspace ?source ~prepare ~draw ?overlay ?status () =
+    let name = Option.value name ~default:(Workspace_doc.name workspace) in
     let init _frame = create ?layout ~name ?presets ?timeline_frames ?factories ?settings
         ?commands ?lights ?world
         ?camera ?lens ?background ?seed ?grain ?domains ?max_entries ?max_payload_bytes
-        ?graph ?workspace ?source ~prepare ~draw ?overlay ?status () |> Result.get_ok in
+        ~workspace ?source ~prepare ~draw ?overlay ?status () |> Result.get_ok in
     let update value frame =
       let value = update value frame in
       set_ui_cursor value.core.ui (V.ui_visible value.control);

@@ -60,18 +60,17 @@ let rec finite = function
 
 let flow_catalog factories = Contexts.catalog ~version:1 factories
 
+(* the text of the document: a settings graph owns the settings; else the document's are the
+   sketch's, saved beside the text *)
 let text (doc : Document.t) =
-  match doc.workspace with
-  | None -> Error "this document is not a workspace, so it has no text to save"
-  | Some (workspace, _) ->
-      (* a settings graph owns the settings; else the document's are the sketch's, saved beside the text *)
-      Ok (Workspace_doc.to_text (if Contexts.has_settings workspace then workspace
-        else { workspace with settings = doc.settings }))
+  let workspace, _ = doc.workspace in
+  Workspace_doc.to_text (if Contexts.has_settings workspace then workspace
+    else { workspace with settings = doc.settings })
 
 let save ~directory ~name ~(doc : Document.t) ~view =
   if sanitize name = "" then Error "preset name is empty" else
   let* () = if finite view then Ok () else Error "viewport contains nonfinite values" in
-  let* text = text doc in
+  let text = text doc in
   let view_text = fst (Flow.Lisp.print [ mk (S.List [ mk (S.Sym "view"); view_syntax view ]) ]) in
   let target = path ~directory ~name in
   Editor_core.Store.write_text ~filename:target (text ^ "\n" ^ view_text)

@@ -1,5 +1,5 @@
-(* Prismel Editor edit frames on a large graph: one full [Editor3.update]
-   per sample while a tile drag records into the undo document, plus the
+(* Prismel Editor edit frames on a large workspace graph: one full [Editor3.update]
+   per sample while a node drag records into the undo document, plus the
    undo frame that restores the layout. Prints CSV:
    name,nodes,median_s,p95_s,bytes_per_frame. *)
 open Procedural
@@ -22,23 +22,30 @@ let percentile values fraction =
     (max 0 (int_of_float (Float.ceil
       (fraction *. float_of_int (Array.length values))) - 1)))
 
-(* Layers of two-input merges over a row of point sources. *)
-let graph count =
+(* Layers of two-input merges over a row of point sources, as a workspace text. *)
+let workspace count =
   let width = 64 in
+  let b = Buffer.create 65_536 in
+  Buffer.add_string b "(workspace bench\n  (graph g :context sop\n    (let* [";
   let layer = ref (Array.init width (fun index ->
-    Sop.points ~label:(Printf.sprintf "source-%d" index)
-      [|float_of_int index, 0., 0.|])) and created = ref width in
-  let generation = ref 0 in
+    let name = Printf.sprintf "s%d" index in
+    Buffer.add_string b (Printf.sprintf "%s (sop/points :points 1)\n           " name); name))
+  and created = ref width and generation = ref 0 in
   while !created < count - 1 do
     let size = min width (count - 1 - !created) and previous = !layer in
     layer := Array.init size (fun index ->
-      Sop.merge ~label:(Printf.sprintf "node-%d-%d" !generation index)
-        [previous.(index mod Array.length previous);
-         previous.((index + 1) mod Array.length previous)]);
+      let name = Printf.sprintf "n%d_%d" !generation index in
+      Buffer.add_string b (Printf.sprintf "%s (sop/merge %s %s)\n           " name
+        previous.(index mod Array.length previous) previous.((index + 1) mod Array.length previous));
+      name);
     created := !created + size;
     incr generation
   done;
-  Sop.merge ~label:"output" (Array.to_list !layer)
+  Buffer.add_string b (Printf.sprintf "output (sop/merge %s)]\n      output)))\n"
+    (String.concat " " (Array.to_list !layer)));
+  match Prismel_editor.Workspace.load (Buffer.contents b) with
+  | Ok workspace -> workspace, Array.to_list !layer
+  | Error diagnostics -> failwith (String.concat "; " (List.map Flow.Diagnostic.to_string diagnostics))
 
 let report name nodes samples bytes =
   Printf.printf "%s,%d,%.9f,%.9f,%.0f\n%!" name nodes
@@ -47,7 +54,8 @@ let report name nodes samples bytes =
 
 let measure nodes =
   let module E = Prismel_editor.Editor3 in
-  let environment = E.create ~graph:(graph nodes)
+  let workspace, names = workspace nodes in
+  let environment = E.create ~workspace
       ~max_entries:4 ~max_payload_bytes:(1024 * 1024)
       ~prepare:(fun _ _ -> Ok ())
       ~scene3:(fun _ () -> Prismel.Scene3.create []) () |> Result.get_ok in
@@ -56,22 +64,22 @@ let measure nodes =
     environment := E.update !environment (frame ?mouse ?buttons ?events !count);
     incr count in
   let gx, gy, gw, gh = (E.panes !environment (frame 0)).graph in
-  (* The scene opens as a list: focus it, arrow to geo1, and enter it. *)
+  (* The scene opens as a list: focus it, arrow to the object, and enter it. *)
   let inside = gx + 20, gy + gh - 20 in
   step ~mouse:inside ();
   step ~mouse:inside ~events:[Prismel.Event.MousePressed (Prismel.Input.LeftButton, pointer inside);
     Prismel.Event.MouseReleased (Prismel.Input.LeftButton, pointer inside)] ();
   let key k = Prismel.Event.KeyPressed k in
-  while Option.map Node.label (E.selected_node !environment) <> Some "geo1" do
+  while Option.map Node.label (E.selected_node !environment) <> Some "g" do
     step ~events:[key Prismel.Input.ArrowDown] ()
   done;
   step ~events:[key (Prismel.Input.KeyChar 'i')] ();
   step ();
-  let tile = List.find (fun (node : Pxui_graph.node_view) ->
-      let x, y, width, height = node.bounds in
-      x >= gx && y >= gy && x + width < gx + gw && y + height < gy + gh)
-      (E.graph_nodes !environment) in
-  let x, y, width, height = tile.bounds in
+  let x, y, width, height = List.find_map (fun name ->
+      match E.node_box !environment [ "g"; name ] with
+      | Some (x, y, width, height) when x >= gx && y >= gy && x + width < gx + gw
+          && y + height < gy + gh -> Some (x, y, width, height)
+      | _ -> None) ("output" :: names) |> Option.get in
   let start = x + (width / 2), y + (height / 2) in
   step ~mouse:start ();  (* hover: hit testing uses the last frame *)
   step ~mouse:start ~buttons:[Prismel.Input.LeftButton]
@@ -104,7 +112,10 @@ let measure_world () =
   let open Prismel in
   let module E = Prismel_editor.Editor3 in
   Parallel.run ~domains:1 (fun () ->
-    let environment = ref (E.create ~domains:1 ~graph:(Sop.points [||])
+    let workspace = match Prismel_editor.Workspace.load
+        "(workspace w (graph g :context sop (sop/points :points 1)))" with
+      | Ok workspace -> workspace | Error _ -> failwith "the World fixture does not check" in
+    let environment = ref (E.create ~domains:1 ~workspace
       ~world:{ World.default with layers = []; background = World.Transparent }
       ~camera:(Easy_camera.create ~inertia:false ())
       ~prepare:(fun _ _ -> Ok ()) ~scene3:(fun _ () -> Scene3.empty) () |> Result.get_ok) in

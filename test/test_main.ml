@@ -3,8 +3,7 @@ let tests = [
   "test_easy_camera2", Test_easy_camera2.run;
   "test_sop_ui", Test_sop_ui.run;
   "test_custom_sop", Test_custom_sop.run;
-  "test_pxui_graph", Test_pxui_graph.run;
-  "test_pxui_graph_smoke", Test_pxui_graph.run_smoke;
+  "test_pxui_graph", Test_pxui_graph.run_menu;
   "test_pxui_graph_scope", Test_pxui_graph.run_scope;
   "bench_scope_pane", Test_pxui_graph.bench_scope_pane;
   "test_prismel_editor", Test_prismel_editor.run;

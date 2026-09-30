@@ -115,7 +115,7 @@ let editor ?presets ~source text =
     ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) ()
   |> function Ok e -> e | Error m -> fail m
 
-let source_text e = fst (Flow.Lisp.print (Option.get (E3.workspace e)).Doc.source)
+let source_text e = fst (Flow.Lisp.print (E3.workspace e).Doc.source)
 let cook_line e = Test_workspace_shell.dump_line e "cook"
 
 let run_editor () =
@@ -140,7 +140,7 @@ let run_editor () =
   settle ();
   check (has (cook_line !e) "Saved sketch.plisp") ("the status says it saved: " ^ cook_line !e);
   let written = read file in
-  check (written = printed (Option.get (E3.workspace !e))) "Save wrote the document's text";
+  check (written = printed (E3.workspace !e)) "Save wrote the document's text";
   check (has written "; the header" && has written "; the tail") "the saved file keeps its comments";
   check (not (Sys.file_exists (Filename.concat dir "presets"))) "no preset was written";
   run_for 1.5;
@@ -171,7 +171,7 @@ let run_editor () =
   write file (text1 ^ {|(layout (node ["g" "@result"] :at [10 20]) (frame ["g"] "Sphere" :at [0 0] :size [200 100]))|});
   run_for 1.;
   settle ();
-  let layout () = (Option.get (E3.workspace !e)).Doc.layout in
+  let layout () = (E3.workspace !e).Doc.layout in
   check (Editor_document.Layout_by_path.Path_map.mem [ "g"; "@result" ] (layout ()).at
          && not (Editor_document.Layout_by_path.Path_map.is_empty (layout ()).frames))
     "the layout form of the file was ignored";

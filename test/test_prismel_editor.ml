@@ -36,29 +36,48 @@ let ui_bytes scene =
           Some (Bytes.to_string (Scene_command.Ui_batch.instances batch))
       | _ -> None) staged.layers)
 
-(* The scene opens as a list; [Space l] shows the graph, where a
-   double-click on geo1 enters its SOP network. *)
-let enter_geo1 ?(toggle = true) ~update ~graph_nodes environment count =
-  let environment = if not toggle then environment else
-    update environment (frame ~events:[Event.KeyPressed Input.Space;
-      Event.KeyPressed (Input.KeyChar 'l')] count) in
-  let environment = update environment (frame (count + 2)) in
-  let tile = List.find (fun tile -> tile.Pxui_graph.label = "geo1")
-      (graph_nodes environment) in
-  let point = center tile.Pxui_graph.bounds in
-  let click = [mouse_press (Input.LeftButton, point);
-    mouse_release (Input.LeftButton, point)] in
-  let environment = update environment (frame ~mouse:point (count + 3)) in
-  let environment = update environment (frame ~mouse:point ~events:click (count + 4)) in
-  update environment (frame ~mouse:point ~events:click (count + 5))
+(* The scene opens as a list: a click on the geo1 row selects it and [i] enters its graph. *)
+let enter_geo1 ~update ~panes environment count =
+  let gx, gy, _, _ = (panes environment (frame count)).Pxui_shell.Layout.graph in
+  let point = gx + 60, gy + 24 + 12 in
+  let click = [mouse_press (Input.LeftButton, point); mouse_release (Input.LeftButton, point)] in
+  let environment = update environment (frame ~mouse:point (count + 1)) in
+  let environment = update environment (frame ~mouse:point ~events:click (count + 2)) in
+  update environment (frame ~events:[Event.KeyPressed (Input.KeyChar 'i')] (count + 3))
+
+(* A geometry graph of two nodes, the second the result. *)
+let text = {|(workspace inspectable
+  (graph geo1 :context sop
+    (let* [source (sop/box :size [2 2 2])
+           output (sop/transform source :translate [5 0 0])]
+      output)))|}
+
+let fixture () = Ws_fixture.of_text text
+let nodes environment = Edit_graph.inspect (Prismel_editor.Editor3.document environment)
+let node_of operation environment = List.find (fun (info : Edit_graph.node_info) ->
+    info.operation = operation) (nodes environment)
+
+(* The line of the crash report's [name] (level, projection, camera, scope selected ...). *)
+let report_line dump environment name =
+  let directory = Filename.temp_dir "prismel-editor-report" "" in
+  Fun.protect ~finally:(fun () ->
+    Array.iter (fun f -> Sys.remove (Filename.concat directory f)) (Sys.readdir directory);
+    Unix.rmdir directory) (fun () ->
+    dump environment directory;
+    let read file = In_channel.with_open_bin (Filename.concat directory file) In_channel.input_all in
+    let lines = String.split_on_char '\n' (read "editor.txt" ^ read "document.txt") in
+    match List.find_opt (fun l -> String.starts_with ~prefix:(name ^ ": ") l
+        || String.starts_with ~prefix:(name ^ " ") l) lines with
+    | Some l -> l
+    | None -> fail ("no " ^ name ^ " line in the report"))
 
 let run () =
   let module Leader = Prismel_editor.Private.Leader in
   List.iter (fun (graph : _ Editor_core.Command.t) ->
     check (List.exists (fun (command : Leader.command) ->
       command.id = graph.id && command.trigger = graph.trigger
-      && command.action = Leader.Graph_command graph.action) Leader.keymap)
-      "graph command missing from the host keymap") Pxui_graph.bindings;
+      && command.action = Leader.Scope_command graph.action) Leader.keymap)
+      "graph command missing from the host keymap") Pxui_graph.Scope.bindings;
   let camera_binding key action = List.exists (fun (command : Leader.command) ->
     command.trigger = Some (Editor_core.Keymap.Leader key)
     && command.action = action) Leader.keymap in
@@ -104,16 +123,8 @@ let run () =
   check (width collapsed_panes.inspector = 0)
     "inspector toggle did not collapse the third column";
 
-  let source = Sop.box ~label:"Inspectable source"
-      ~size:(Vec3.create 2. 2. 2.) () in
-  let graph = Sop.transform ~label:"Inspectable output"
-      (Mat4.translation (Vec3.create 5. 0. 0.)) source in
-  let null_factory = Edit_graph.factory ~key:"null" ~label:"Null"
-      ~category:["Utility"] ~arity:1 (function
-        | [input] -> Sop.null ~label:"Editor null" input
-        | _ -> invalid_arg "Null factory expects one input") in
-  let environment = Prismel_editor.Editor3.create ~graph
-      ~factories:[null_factory]
+  let environment = Prismel_editor.Editor3.create ~workspace:(fixture ())
+      ~factories:Sop_catalog.Editor.factories
       ~max_entries:4 ~max_payload_bytes:(16 * 1024 * 1024)
       ~prepare:(fun _ output -> Pdk_prismel.Prismel_mesh.to_mesh output.Session.geometry
         |> Result.map_error Pdk.Error.to_string)
@@ -130,12 +141,11 @@ let run () =
     | None -> fail "sketch environment did not publish its initial async cook"
   in
   let environment = wait 0 environment in
-  let enter3 ?toggle environment count = enter_geo1 ?toggle
-      ~update:Prismel_editor.Editor3.update
-      ~graph_nodes:Prismel_editor.Editor3.graph_nodes environment count in
+  let enter3 environment count = enter_geo1 ~update:Prismel_editor.Editor3.update
+      ~panes:Prismel_editor.Editor3.panes environment count in
   let environment = enter3 environment 0 in
   check (Prismel_editor.Editor3.level environment = Some "geo1")
-    "double-clicking geo1 in the scene graph did not enter its SOP network";
+    "entering geo1 from the scene list did not open its SOP network";
   (match Sys.getenv_opt "PRISMEL_UI_PREVIEW" with
    | Some directory ->
        Sketch.export ~directory ~prefix:"workspace" ~frames:1
@@ -219,15 +229,16 @@ let run () =
        ~frames:1 ~config:{ Sketch.default_config with width=900; height=640 }
        (Prismel_editor.Editor3.scene environment)
    | None -> ());
-  let graph_tile = List.hd (Prismel_editor.Editor3.graph_nodes environment) in
-  let point = center graph_tile.Pxui_graph.bounds in
-  let selection_frame = frame ~events:[
+  let box path = match Prismel_editor.Editor3.node_box environment path with
+    | Some rect -> rect | None -> fail "the node has no box in the graph pane" in
+  let point = center (box [ "geo1"; "source" ]) in
+  let selection_frame = frame ~mouse:point ~events:[
       mouse_press (Input.LeftButton, point);
       mouse_release (Input.LeftButton, point)] 20 in
   let environment = Prismel_editor.Editor3.update environment selection_frame in
-  check (Option.map Node.id (Prismel_editor.Editor3.selected_node environment)
-      = Some graph_tile.id)
-    "graph selection did not replace camera controls with node inspection";
+  let scope_line environment = report_line Prismel_editor.Editor3.crash_dump environment "scope selected" in
+  check (scope_line environment = "scope selected: geo1/source")
+    "graph selection did not select the clicked node";
   (match Sys.getenv_opt "PRISMEL_UI_PREVIEW" with
    | Some directory -> Sketch.export ~directory ~prefix:"workspace-inspector"
        ~frames:1 ~config:{ Sketch.default_config with width=900; height=640 }
@@ -239,101 +250,102 @@ let run () =
   let camera_frame = frame ~events:[Event.KeyPressed Input.Space;
       Event.KeyPressed (Input.KeyChar 'c')] 21 in
   let environment = Prismel_editor.Editor3.update environment camera_frame in
-  check (Prismel_editor.Editor3.selected_node environment = None)
+  check (scope_line environment = "scope selected: -")
     "Space c did not restore the camera/render inspector";
-  let source_tile = List.find (fun tile -> tile.Pxui_graph.id = Node.id source)
-      (Prismel_editor.Editor3.graph_nodes environment) in
-  let view_point = center source_tile.view_bounds in
-  let view_frame = frame ~events:[
-      mouse_press (Input.LeftButton, view_point);
-      mouse_release (Input.LeftButton, view_point)] 22 in
-  let environment = Prismel_editor.Editor3.update environment view_frame in
-  check (Node.id (Prismel_editor.Editor3.displayed_node environment)
-      = Node.id source)
-    "graph VIEW button did not switch the environment display node";
-  (* Shared undo stack: a duplicated node is one entry; Command-Z removes it,
+  let box environment path = match Prismel_editor.Editor3.node_box environment path with
+    | Some rect -> rect | None -> fail "the node has no box in the graph pane" in
+  let text_of environment = Editor_document.Workspace_doc.to_text
+      (Prismel_editor.Editor3.workspace environment) in
+  let has text piece =
+    let n = String.length piece in
+    let rec at i = i + n <= String.length text && (String.sub text i n = piece || at (i + 1)) in
+    at 0 in
+  (* Shared undo stack: an added node is one entry; Command-Z removes it,
      Shift-Command-Z brings it back. *)
-  let tiles environment = List.length (Prismel_editor.Editor3.graph_nodes environment) in
-  let before = tiles environment in
-  let source_point = center source_tile.Pxui_graph.bounds in
-  let environment = Prismel_editor.Editor3.update environment (frame ~events:[
+  let source_point = center (box environment [ "geo1"; "source" ]) in
+  let environment = Prismel_editor.Editor3.update environment (frame ~mouse:source_point ~events:[
       mouse_press (Input.LeftButton, source_point);
       mouse_release (Input.LeftButton, source_point)] 23) in
   let chord ?(shift = false) key count =
     { (frame ~events:[Event.KeyPressed (Input.KeyChar key)] count) with
       keys = Input.Meta :: (if shift then [Input.Shift] else []) } in
-  let environment = Prismel_editor.Editor3.update environment (chord 'd' 24) in
-  check (tiles environment = before + 1) "Command-D did not duplicate the selected node";
-  check (Prismel_editor.Editor3.can_undo environment) "duplicate did not enter the undo stack";
-  let environment = Prismel_editor.Editor3.update environment (chord 'z' 25) in
-  check (tiles environment = before) "Command-Z did not undo the duplicate";
+  let environment = Prismel_editor.Editor3.update environment
+      (frame ~mouse:source_point ~events:[Event.KeyPressed Input.Space;
+        Event.KeyPressed (Input.KeyChar 'a')] 24) in
+  let environment = Prismel_editor.Editor3.update environment
+      (frame ~mouse:source_point ~events:[Event.TextInput "null"; Event.KeyPressed Input.Enter] 25) in
+  check (has (text_of environment) "(sop/null source)")
+    "the leader add-node menu did not add a node wired to the selection";
+  check (Prismel_editor.Editor3.can_undo environment) "the added node did not enter the undo stack";
+  let environment = Prismel_editor.Editor3.update environment (chord 'z' 26) in
+  check (not (has (text_of environment) "sop/null")) "Command-Z did not undo the added node";
   check (Prismel_editor.Editor3.can_redo environment) "undo did not leave a redo entry";
-  let environment = Prismel_editor.Editor3.update environment (chord ~shift:true 'z' 26) in
-  check (tiles environment = before + 1) "Shift-Command-Z did not redo the duplicate";
-  let environment = Prismel_editor.Editor3.update environment (chord 'z' 27) in
-  check (tiles environment = before) "second undo failed after redo";
+  let environment = Prismel_editor.Editor3.update environment (chord ~shift:true 'z' 27) in
+  check (has (text_of environment) "(sop/null source)") "Shift-Command-Z did not redo the added node";
+  let environment = Prismel_editor.Editor3.update environment (chord 'z' 28) in
+  check (not (has (text_of environment) "sop/null")) "second undo failed after redo";
   (* Tile positions are document state: one drag is one undo entry. *)
-  let tile_x environment = List.find_map (fun (view : Pxui_graph.node_view) ->
-      if view.id = Node.id source then (let x, _, _, _ = view.bounds in Some x)
-      else None) (Prismel_editor.Editor3.graph_nodes environment) |> Option.get in
-  let x0 = tile_x environment and sx, sy = source_point in
+  let tile_x environment path = let x, _, _, _ = box environment path in x in
+  let x0 = tile_x environment [ "geo1"; "source" ] and sx, sy = source_point in
   let environment = List.fold_left (fun environment (count, mouse, events) ->
       Prismel_editor.Editor3.update environment { (frame ~mouse ~events count) with
-        mouse_buttons = if count > 27 then [Input.LeftButton] else [] })
+        mouse_buttons = if count > 30 then [Input.LeftButton] else [] })
     environment [
-      27, (sx, sy), [];  (* hover first: hit testing uses the last frame *)
-      28, (sx, sy), [mouse_press (Input.LeftButton, (sx, sy))];
-      29, (sx + 20, sy), [mouse_move (sx + 20, sy)];
-      30, (sx + 40, sy), [mouse_move (sx + 40, sy)]] in
+      30, (sx, sy), [];  (* hover first: hit testing uses the last frame *)
+      31, (sx, sy), [mouse_press (Input.LeftButton, (sx, sy))];
+      32, (sx + 20, sy), [mouse_move (sx + 20, sy)];
+      33, (sx + 40, sy), [mouse_move (sx + 40, sy)]] in
   let environment = Prismel_editor.Editor3.update environment
       (frame ~mouse:(sx + 40, sy)
-         ~events:[mouse_release (Input.LeftButton, (sx + 40, sy))] 31) in
-  check (tile_x environment <> x0) "dragging a tile did not move it";
-  let environment = Prismel_editor.Editor3.update environment (chord 'z' 32) in
-  check (tile_x environment = x0) "undo did not restore the dragged tile position";
-  (* A multi-tile drag records only the moved tiles, and undo and redo
-     restore every one of them. *)
-  let tile_xs environment = List.map (fun (view : Pxui_graph.node_view) ->
-      let x, _, _, _ = view.bounds in view.id, x)
-      (Prismel_editor.Editor3.graph_nodes environment) in
-  let other = List.find (fun (view : Pxui_graph.node_view) ->
-      view.id <> Node.id source) (Prismel_editor.Editor3.graph_nodes environment) in
-  let ox, oy = center other.bounds and xs0 = tile_xs environment in
+         ~events:[mouse_release (Input.LeftButton, (sx + 40, sy))] 34) in
+  check (tile_x environment [ "geo1"; "source" ] <> x0) "dragging a node did not move it";
+  let environment = Prismel_editor.Editor3.update environment (chord 'z' 35) in
+  let environment = Prismel_editor.Editor3.update environment (frame 36) in  (* the pane lays out again *)
+  check (tile_x environment [ "geo1"; "source" ] = x0)
+    "undo did not restore the dragged node position";
+  (* A multi-node drag moves every selected node, and undo and redo restore every one. *)
+  let paths = [ [ "geo1"; "source" ]; [ "geo1"; "output" ] ] in
+  let xs env = List.map (tile_x env) paths in
+  let xs0 = xs environment in
+  let ox, oy = center (box environment [ "geo1"; "output" ]) in
   let held = [Input.LeftButton] in
   let environment = List.fold_left (fun environment (count, mouse, buttons, keys, events) ->
       Prismel_editor.Editor3.update environment
         { (frame ~mouse ~events count) with mouse_buttons = buttons; keys })
     environment [
-      40, (ox, oy), [], [], [];
-      41, (ox, oy), held, [Input.Shift], [mouse_press (Input.LeftButton, (ox, oy))];
-      42, (ox, oy), [], [Input.Shift], [mouse_release (Input.LeftButton, (ox, oy))];
-      43, (sx, sy), [], [], [];
-      44, (sx, sy), held, [], [mouse_press (Input.LeftButton, (sx, sy))];
-      45, (sx + 30, sy), held, [], [mouse_move (sx + 30, sy)];
-      46, (sx + 30, sy), [], [], [mouse_release (Input.LeftButton, (sx + 30, sy))]] in
-  let xs1 = tile_xs environment in
-  check (List.for_all (fun (id, x) -> x <> List.assoc id xs0) xs1)
-    "dragging a multi-tile selection did not move every tile";
-  let environment = Prismel_editor.Editor3.update environment (chord 'z' 47) in
-  check (tile_xs environment = xs0) "undo did not restore every dragged tile";
-  let environment = Prismel_editor.Editor3.update environment (chord ~shift:true 'z' 48) in
-  check (tile_xs environment = xs1) "redo did not restore every dragged tile";
-  let environment = Prismel_editor.Editor3.update environment (chord 'z' 49) in
+      (* well past the double-click interval of the earlier presses on these nodes *)
+      140, (ox, oy), [], [], [];
+      141, (ox, oy), held, [Input.Shift], [mouse_press (Input.LeftButton, (ox, oy))];
+      142, (ox, oy), [], [Input.Shift], [mouse_release (Input.LeftButton, (ox, oy))];
+      143, (sx, sy), [], [], [];
+      144, (sx, sy), held, [], [mouse_press (Input.LeftButton, (sx, sy))];
+      145, (sx + 30, sy), held, [], [mouse_move (sx + 30, sy)];
+      146, (sx + 30, sy), [], [], [mouse_release (Input.LeftButton, (sx + 30, sy))]] in
+  let xs1 = xs environment in
+  check (List.for_all2 (fun a b -> a <> b) xs0 xs1)
+    "dragging a multi-node selection did not move every node";
+  let environment = Prismel_editor.Editor3.update environment (chord 'z' 147) in
+  let environment = Prismel_editor.Editor3.update environment (frame 148) in
+  check (xs environment = xs0) "undo did not restore every dragged node";
+  let environment = Prismel_editor.Editor3.update environment (chord ~shift:true 'z' 149) in
+  let environment = Prismel_editor.Editor3.update environment (frame 150) in
+  check (xs environment = xs1) "redo did not restore every dragged node";
+  let environment = Prismel_editor.Editor3.update environment (chord 'z' 151) in
   (* Space c clears the selection the drag made, as before this check. *)
   let environment = Prismel_editor.Editor3.update environment (frame ~events:[
-      Event.KeyPressed Input.Space; Event.KeyPressed (Input.KeyChar 'c')] 33) in
+      Event.KeyPressed Input.Space; Event.KeyPressed (Input.KeyChar 'c')] 152) in
   let deadline = Unix.gettimeofday () +. 2. in
   let rec wait_source count environment =
     let environment = Prismel_editor.Editor3.update environment (frame count) in
     match Option.bind (Prismel_editor.Editor3.prepared environment)
         Mesh.centroid with
-    | Some center when abs_float center.Vec3.x < 1. -> environment
+    | Some center when abs_float (center.Vec3.x -. 5.) < 1. -> environment
     | _ when Unix.gettimeofday () < deadline ->
         Unix.sleepf 0.001;
         wait_source (count + 1) environment
-    | _ -> fail "display-node cook did not publish the selected source preview"
+    | _ -> fail "display-node cook did not publish the graph's result"
   in
-  let environment = wait_source 23 environment in
+  let environment = wait_source 153 environment in
   check (Prismel_editor.Editor3.scene environment current_frame <> [])
     "sketch environment produced an empty composed scene";
   (* The whole workspace paints in batch groups, not one draw per label. *)
@@ -349,92 +361,65 @@ let run () =
     check (batches > 0 && batches <= 16) "workspace UI draws were not batched"
   end;
   let _, _, graph_width, graph_height =
-    (Prismel_editor.Editor3.panes environment (frame 29)).graph in
+    (Prismel_editor.Editor3.panes environment (frame 229)).graph in
   let graph_x, graph_y, _, _ =
-    (Prismel_editor.Editor3.panes environment (frame 29)).graph in
+    (Prismel_editor.Editor3.panes environment (frame 229)).graph in
   let menu_point = graph_x + (graph_width / 2), graph_y + (graph_height / 2) in
-  let environment = Prismel_editor.Editor3.update environment
-      (frame ~mouse:menu_point ~events:[Event.KeyPressed Input.Space;
-        Event.KeyPressed (Input.KeyChar 'a')] 29) in
-  let environment = Prismel_editor.Editor3.update environment
+  let add environment count =
+    let environment = Prismel_editor.Editor3.update environment
+        (frame ~mouse:menu_point ~events:[Event.KeyPressed Input.Space;
+          Event.KeyPressed (Input.KeyChar 'a')] count) in
+    Prismel_editor.Editor3.update environment
       (frame ~mouse:menu_point ~events:[Event.TextInput "null";
-        Event.KeyPressed Input.Enter] 30) in
-  let loose_nodes = Edit_graph.inspect
-      (Prismel_editor.Editor3.document environment) in
-  let loose_null = List.find (fun info -> info.Edit_graph.operation = "null"
-      && info.id <> Node.id graph) loose_nodes in
-  check (List.length loose_nodes = 3 && loose_null.inputs = [|None|]
-      && Node.id (Prismel_editor.Editor3.displayed_node environment)
-         = Node.id source)
-    "workspace could not add a disconnected SOP without stealing the display flag";
-  let source_tile = List.find (fun tile -> tile.Pxui_graph.id = Node.id source)
-      (Prismel_editor.Editor3.graph_nodes environment) in
-  let source_point = center source_tile.bounds in
+        Event.KeyPressed Input.Enter] (count + 1)) in
+  let environment = add environment 230 in
+  check (has (text_of environment) "(sop/null output)"
+      && Node.operation (Prismel_editor.Editor3.displayed_node environment) = "transform")
+    ("workspace could not add a node reading the result without moving the display: "
+     ^ Node.operation (Prismel_editor.Editor3.displayed_node environment) ^ "\n" ^ text_of environment);
+  check (scope_line environment = "scope selected: geo1/null")
+    "the added node was not selected";
   let environment = Prismel_editor.Editor3.update environment
-      (frame ~mouse:source_point ~events:[
-        mouse_press (Input.LeftButton, source_point);
-        mouse_release (Input.LeftButton, source_point)] 31) in
-  let environment = Prismel_editor.Editor3.update environment
-      (frame ~mouse:source_point ~events:[Event.KeyPressed Input.Space;
-        Event.KeyPressed (Input.KeyChar 'a')] 32) in
-  let environment = Prismel_editor.Editor3.update environment
-      (frame ~mouse:source_point ~events:[Event.TextInput "null";
-        Event.KeyPressed Input.Enter] 33) in
-  check (List.length (Edit_graph.inspect
-      (Prismel_editor.Editor3.document environment)) = 4
-      && Node.operation (Prismel_editor.Editor3.displayed_node environment) = "null")
-    "workspace did not apply and display a leader add-node graph edit";
-  let environment = Prismel_editor.Editor3.update environment
-      (frame ~events:[Event.KeyPressed (Input.KeyChar 'd')]
-        ~mouse:source_point 34 |> fun frame ->
-          { frame with Frame.keys = [Input.Meta] }) in
-  check (List.length (Edit_graph.inspect
-      (Prismel_editor.Editor3.document environment)) = 5)
-    "workspace did not apply Command-D subgraph duplication";
-  let environment = Prismel_editor.Editor3.update environment
-      (frame ~events:[Event.KeyPressed Input.Backspace] 35) in
-  check (List.length (Edit_graph.inspect
-      (Prismel_editor.Editor3.document environment)) = 4)
-    "Backspace did not delete the duplicated node";
+      (frame ~events:[Event.KeyPressed Input.Backspace] 232) in
+  check (not (has (text_of environment) "sop/null")) "Backspace did not delete the added node";
+  let environment = add environment 234 in
   let environment = Prismel_editor.Editor3.update environment
       (frame ~events:[Event.KeyPressed Input.Space;
-        Event.KeyPressed (Input.KeyChar 'g')] 35) in
+        Event.KeyPressed (Input.KeyChar 'g')] 236) in
   let environment = Prismel_editor.Editor3.update environment
-      { (frame ~events:[Event.KeyPressed (Input.KeyChar 'd')] 35)
-        with keys = [Input.Meta] } in
-  check (List.length (Edit_graph.inspect
-      (Prismel_editor.Editor3.document environment)) = 4)
-    "hidden graph still accepted a duplicate shortcut";
+      (frame ~events:[Event.KeyPressed Input.Backspace] 237) in
+  check (has (text_of environment) "sop/null")
+    "hidden graph still accepted a delete shortcut";
   let environment = Prismel_editor.Editor3.update environment
       (frame ~events:[Event.KeyPressed Input.Space;
-        Event.KeyPressed (Input.KeyChar 'g')] 35) in
+        Event.KeyPressed (Input.KeyChar 'g')] 238) in
   (* Space t shows the timeline bar; dragging its scrub slider seeks and
      pauses the shared clock. *)
   let environment = Prismel_editor.Editor3.update environment
       (frame ~events:[Event.KeyPressed Input.Space;
-        Event.KeyPressed (Input.KeyChar 't')] 36) in
-  let tx, ty, tw, th = (Prismel_editor.Editor3.panes environment (frame 37)).timeline in
+        Event.KeyPressed (Input.KeyChar 't')] 240) in
+  let tx, ty, tw, th = (Prismel_editor.Editor3.panes environment (frame 241)).timeline in
   check (th > 0 && tw = 900) "Space t did not show the full-width timeline bar";
-  let environment = Prismel_editor.Editor3.update environment (frame 37) in
+  let environment = Prismel_editor.Editor3.update environment (frame 241) in
   let scrub_y = ty + (th / 2) and scrub_x = tx + tw - 60 in
   let environment = Prismel_editor.Editor3.update environment
-      (frame ~events:[mouse_press (Input.LeftButton, (scrub_x, scrub_y))] 38) in
+      (frame ~events:[mouse_press (Input.LeftButton, (scrub_x, scrub_y))] 242) in
   let environment = Prismel_editor.Editor3.update environment
       (frame ~events:[mouse_move (tx + tw - 10, scrub_y);
-        mouse_release (Input.LeftButton, (tx + tw - 10, scrub_y))] 39) in
+        mouse_release (Input.LeftButton, (tx + tw - 10, scrub_y))] 243) in
   let clock = Prismel_editor.Editor3.timeline environment in
   check (Sketch_support.Timeline.mode clock = Sketch_support.Timeline.Paused
       && Sketch_support.Timeline.frame clock >= 200L)
     "dragging the timeline scrub did not seek and pause";
   let environment = Prismel_editor.Editor3.update environment
-      (frame ~events:[Event.KeyPressed Input.Space] 40) in
+      (frame ~events:[Event.KeyPressed Input.Space] 244) in
   (match Sys.getenv_opt "PRISMEL_UI_PREVIEW" with
    | Some directory -> Sketch.export ~directory ~prefix:"workspace-leader"
        ~frames:1 ~config:{ Sketch.default_config with width=900; height=640 }
        (Prismel_editor.Editor3.scene environment)
    | None -> ());
   let environment = Prismel_editor.Editor3.update environment
-      (frame ~events:[Event.KeyPressed Input.Escape] 41) in
+      (frame ~events:[Event.KeyPressed Input.Escape] 245) in
   Prismel_editor.Editor3.close environment;
 
   (* Camera nodes: a default camera following the viewport joins a document
@@ -442,9 +427,13 @@ let run () =
      the same undo entry, and a viewport drag is one coalesced undo entry. *)
   let cameras environment = List.filter (fun info -> info.Edit_graph.operation = "camera")
       (Edit_graph.inspect (Prismel_editor.Editor3.scene_document environment)) in
-  let active environment = List.filter (fun tile -> tile.Pxui_graph.active)
-      (Prismel_editor.Editor3.graph_nodes environment) in
-  let environment = Prismel_editor.Editor3.create ~graph
+  (* the id of the ACTIVE camera, from the crash report's "camera N" line *)
+  let active environment =
+    match String.split_on_char ' ' (report_line Prismel_editor.Editor3.crash_dump environment "camera") with
+    | [ _; "-" ] -> []
+    | [ _; id ] -> [ int_of_string id ]
+    | _ -> fail "unreadable camera line" in
+  let environment = Prismel_editor.Editor3.create ~workspace:(fixture ())
       ~camera:(Easy_camera.create ~distance:6. ~inertia:false ())
       ~lens:{ aperture = 0.3; focus_distance = None }
       ~factories:Sop_catalog.Editor.factories
@@ -459,9 +448,7 @@ let run () =
     Camera.position (Easy_camera.camera (Prismel_editor.Editor3.camera environment)) in
   check (List.length (cameras environment) = 1 && List.length (active environment) = 1)
     "Editor3 did not add one ACTIVE default camera";
-  (* Cameras are scene objects: show the scene as a graph to click them. *)
-  let environment = Prismel_editor.Editor3.update environment
-      (frame ~events:[Event.KeyPressed Input.Space; Event.KeyPressed (Input.KeyChar 'l')] 0) in
+  (* Cameras are scene objects: rows of the scene list. *)
   let environment = List.fold_left (fun environment count ->
       Prismel_editor.Editor3.update environment (frame count)) environment [0; 1; 2] in
   check (not (Prismel_editor.Editor3.can_undo environment)
@@ -504,25 +491,20 @@ let run () =
   let environment = Prismel_editor.Editor3.update environment
       (frame ~events:[Event.KeyPressed Input.Home] 10) in
   let environment = Prismel_editor.Editor3.update environment (frame 10) in
-  let camera_tile = List.hd (active environment) in
-  (* The title bar: at this zoom the ACTIVE/VIEW buttons cover the center. *)
-  let at = let x, y, w, _ = camera_tile.bounds in x + (w / 3), y + 5 in
-  let environment = Prismel_editor.Editor3.update environment (frame ~events:[
-      mouse_press (Input.LeftButton, at); mouse_release (Input.LeftButton, at)] 11) in
-  let environment = Prismel_editor.Editor3.update environment (command 'd' 12) in
-  check (List.length (cameras environment) = 2 && List.length (active environment) = 1)
-    "duplicating a camera broke the single ACTIVE flag";
-  let environment = Prismel_editor.Editor3.update environment (command 'z' 13) in
-  let environment = Prismel_editor.Editor3.update environment (frame 14) in
-  let environment = Prismel_editor.Editor3.update environment (frame ~events:[
-      mouse_press (Input.LeftButton, at); mouse_release (Input.LeftButton, at)] 15) in
+  let camera_id = List.hd (active environment) in
+  (* the camera is the second row of the scene list (geo1 is the first) *)
+  let gx, gy, _, _ = (Prismel_editor.Editor3.panes environment (frame 10)).Pxui_shell.Layout.graph in
+  let at = gx + 60, gy + 24 + 24 + 12 in
+  let environment = Prismel_editor.Editor3.update environment (frame ~mouse:at 11) in
+  let environment = Prismel_editor.Editor3.update environment (frame ~mouse:at ~events:[
+      mouse_press (Input.LeftButton, at); mouse_release (Input.LeftButton, at)] 12) in
   let environment = Prismel_editor.Editor3.update environment
       (frame ~events:[Event.KeyPressed Input.Delete] 16) in
   check (List.length (cameras environment) = 1 && List.length (active environment) = 1
-      && (List.hd (cameras environment)).id <> camera_tile.id)
+      && (List.hd (cameras environment)).id <> camera_id)
     "deleting the last camera did not re-add an ACTIVE default";
   let environment = Prismel_editor.Editor3.update environment (command 'z' 17) in
-  check (List.map (fun info -> info.Edit_graph.id) (cameras environment) = [camera_tile.id])
+  check (List.map (fun info -> info.Edit_graph.id) (cameras environment) = [camera_id])
     "undo after deleting the camera did not restore the original in one step";
   (* Fly: Space w (view focused) flies, held W moves forward, Escape exits;
      Space exits and arms the leader in the same frame. *)
@@ -555,31 +537,20 @@ let run () =
     "Space did not exit fly mode into the leader";
   let environment = Prismel_editor.Editor3.update environment
       (frame ~events:[key Input.Space; key (Input.KeyChar 'g')] 18) in
-  (* F frames the displayed tile in the graph, then the displayed geometry
-     in the viewport even when another node is selected. *)
-  let environment = enter3 ~toggle:false environment 18 in
-  let source_tile = List.find (fun tile -> tile.Pxui_graph.label = "Inspectable source")
-      (Prismel_editor.Editor3.graph_nodes environment) in
-  let at = let x, y, w, _ = source_tile.bounds in x + (w / 3), y + 5 in
-  let environment = Prismel_editor.Editor3.update environment (frame ~events:[
-      mouse_press (Input.LeftButton, at); mouse_release (Input.LeftButton, at)] 18) in
+  (* F frames the displayed geometry in the viewport even when another node is selected. *)
+  let environment = enter3 environment 400 in
+  let environment = Prismel_editor.Editor3.update environment (frame 404) in
+  let source_at = match Prismel_editor.Editor3.node_box environment [ "geo1"; "source" ] with
+    | Some rect -> center rect | None -> fail "the source node has no box" in
+  let environment = Prismel_editor.Editor3.update environment (frame ~mouse:source_at 405) in
+  let environment = Prismel_editor.Editor3.update environment (frame ~mouse:source_at ~events:[
+      mouse_press (Input.LeftButton, source_at); mouse_release (Input.LeftButton, source_at)] 406) in
   let target environment = Easy_camera.target (Prismel_editor.Editor3.camera environment) in
-  let before_target = target environment in
-  let environment = Prismel_editor.Editor3.update environment
-      (frame ~events:[key (Input.KeyChar 'f')] 19) in
-  let displayed_tile = List.find (fun tile -> tile.Pxui_graph.label = "Inspectable output")
-      (Prismel_editor.Editor3.graph_nodes environment) in
-  let graph_center = center (Prismel_editor.Editor3.panes environment (frame 19)).graph in
-  let tile_center = center displayed_tile.bounds in
-  check (abs (fst graph_center - fst tile_center) <= 2
-      && abs (snd graph_center - snd tile_center) <= 2
-      && near (target environment) before_target)
-    "graph-focused F did not frame the displayed tile without moving the camera";
   let view_at = fly_view environment in
   let environment = Prismel_editor.Editor3.update environment (frame ~events:[
-      mouse_press (Input.LeftButton, view_at); mouse_release (Input.LeftButton, view_at)] 20) in
+      mouse_press (Input.LeftButton, view_at); mouse_release (Input.LeftButton, view_at)] 407) in
   let environment = Prismel_editor.Editor3.update environment
-      (frame ~events:[key (Input.KeyChar 'f')] 21) in
+      (frame ~events:[key (Input.KeyChar 'f')] 408) in
   (* Framing waits for bounds when the display cook is still running. *)
   let deadline = Unix.gettimeofday () +. 2. in
   let rec framed count environment =
@@ -587,7 +558,7 @@ let run () =
         || Unix.gettimeofday () > deadline then environment
     else (Unix.sleepf 0.001;
       framed (count + 1) (Prismel_editor.Editor3.update environment (frame count))) in
-  let environment = framed 22 environment in
+  let environment = framed 409 environment in
   check (near (target environment) (Vec3.create 5. 0. 0.))
     "viewport-focused F did not focus on the displayed node's cached bounds";
   Prismel_editor.Editor3.close environment;
@@ -601,7 +572,7 @@ let run () =
   let bump = Editor_core.Command.make ~id:"test.bump" ~label:"bump mode"
       ~trigger:(Editor_core.Keymap.Leader "qj") (fun environment ->
         Prismel_editor.Editor3.set_settings environment (Settings.make mode_schema 3)) in
-  let environment = Prismel_editor.Editor3.create ~graph
+  let environment = Prismel_editor.Editor3.create ~workspace:(fixture ())
       ~settings:(Settings.make mode_schema 0) ~commands:[bump]
       ~max_entries:4 ~max_payload_bytes:(16 * 1024 * 1024)
       ~prepare:(fun settings _ -> Ok (Settings.get mode_schema settings))
@@ -640,7 +611,7 @@ let run () =
   Prismel_editor.Editor3.close environment;
 
   let cooks2 = Atomic.make 0 in
-  let environment2 = Prismel_editor.Editor2.create ~graph
+  let environment2 = Prismel_editor.Editor2.create ~workspace:(fixture ())
       ~max_entries:4 ~max_payload_bytes:(16 * 1024 * 1024)
       ~prepare:(fun _ output -> Atomic.incr cooks2;
         Pdk_prismel.Prismel_mesh.to_mesh output.Session.geometry
@@ -700,12 +671,12 @@ let run () =
   check (Prismel_editor.Editor2.scene environment2 (frame 12) == hidden_scene)
     "unchanged hidden 2D scene composition was rebuilt";
   Prismel_editor.Editor2.close environment2;
-  (* Presets are workspace documents: a sketch that is not a workspace says
-     so instead of saving, and the prompt owns the keyboard while it is open. *)
+  (* Every document is a workspace, so every document saves: the prompt owns the keyboard
+     while it is open, Enter writes the workspace text, and Space b loads it back. *)
   let module Preset = Prismel_editor.Private.Preset in
   let presets = Filename.temp_dir "sketch-ui-workspace-presets" "" in
   let mesh_scene mesh = Scene3.create [Scene3.mesh mesh] in
-  let environment = Prismel_editor.Editor3.create ~graph ~presets
+  let environment = Prismel_editor.Editor3.create ~workspace:(fixture ()) ~presets
       ~camera:(Easy_camera.create ~distance:6. ~inertia:false ())
       ~factories:Sop_catalog.Editor.factories
       ~max_entries:4 ~max_payload_bytes:(16 * 1024 * 1024)
@@ -723,8 +694,24 @@ let run () =
       = graph_width) "open preset prompt let a workspace shortcut toggle the graph";
   let environment = Prismel_editor.Editor3.update environment
       (frame ~events:[key Input.Enter] 51) in
-  check (Preset.list ~directory:presets = [])
-    "a document that is not a workspace saved a preset";
+  let saved = Preset.list ~directory:presets in
+  check (List.length saved = 1) "Space s did not save a preset of the document";
+  let original = Editor_document.Workspace_doc.to_text (Prismel_editor.Editor3.workspace environment) in
+  check (has (In_channel.with_open_bin (Preset.path ~directory:presets ~name:(fst (List.hd saved)))
+                In_channel.input_all) original)
+    "the preset file is not the workspace text";
+  let environment = match Prismel_editor.Editor3.edit environment
+      (Flow_sop.Flow_edit.Rename { node = [ "geo1"; "output" ]; to_ = "moved" }) with
+    | Ok environment -> environment | Error message -> fail message in
+  check (Editor_document.Workspace_doc.to_text (Prismel_editor.Editor3.workspace environment) <> original)
+    "the rename did not change the document";
+  let environment = Prismel_editor.Editor3.update environment
+      (frame ~events:[key Input.Space; key (Input.KeyChar 'b')] 52) in
+  let environment = Prismel_editor.Editor3.update environment
+      (frame ~events:[key Input.Enter] 53) in
+  check (Editor_document.Workspace_doc.to_text (Prismel_editor.Editor3.workspace environment) = original
+      && Prismel_editor.Editor3.undo_label environment = Some "Load preset")
+    "Space b did not load the saved preset as one history entry";
   (* Looking through the camera fits the film to its aspect (the render
      resolution); otherwise the whole pane. *)
   let environment = Prismel_editor.Editor3.update environment

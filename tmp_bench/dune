@@ -1,3 +1,0 @@
-(executable
- (name bench)
- (libraries prismel procedural pdk pdk_prismel sop_catalog prismel_editor prismel_pathtracer unix))

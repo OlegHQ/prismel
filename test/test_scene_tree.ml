@@ -1,9 +1,8 @@
 (* The scene tree, window-free: the scene opens as a list; arrows move the
    focus, [i] and a double-click enter a geometry object or the World, [u]
-   goes up; [Space a l] adds a light (in rename mode), Tab reparents keeping
-   its world position, [h] hides; scene edits never re-cook SOPs; [Space e]
-   creates and opens the World, which then bakes; [Space l] cycles list
-   and graph. *)
+   goes up; Tab reparents keeping its world position, [h] hides; scene edits
+   never re-cook SOPs; [Space e] opens the World, which then bakes; [Space l]
+   cycles list, text and graph (the graph is the workspace's scene graph). *)
 open Prismel
 open Procedural
 
@@ -20,10 +19,21 @@ let frame ?(mouse = 450, 320) ?(events = []) ?(keys = []) ?(buttons = []) count 
 
 module E = Prismel_editor.Editor3
 
+(* geo1 (one box), two lights, the host's camera, a World of sky, softbox and constellation *)
+let text = {|(workspace scene_tree
+  (graph geo :context sop (sop/box))
+  (graph scene :context scene
+    (let* [body (scene/geometry (ref geo) :name "geo1")
+           key (scene/light :name "key")
+           fill (scene/light :name "fill" :translate [-3 4 2])]
+      (scene/merge body key fill)))
+  (graph world :context world
+    (world/world :name "world" (world/scatter (world/shape (world/sky :name "sky") :name "softbox")
+                                :name "constellation"))))|}
+
 let run () =
   let cooks = Atomic.make 0 in
-  let graph = Sop.box ~label:"box" ~size:(Vec3.create 1. 1. 1.) () in
-  let env = E.create ~graph ~factories:Sop_catalog.Editor.factories
+  let env = E.create ~workspace:(Ws_fixture.of_text text)
       ~lens:{ aperture = 0.3; focus_distance = None }
       ~max_entries:4 ~max_payload_bytes:(16 * 1024 * 1024)
       ~prepare:(fun _ output -> Atomic.incr cooks;
@@ -52,27 +62,22 @@ let run () =
   let label env = Option.map Node.label (E.selected_node env) in
   let env = step env [key Input.Home] in
   let first = Option.map Node.id (E.selected_node env) in
-  let env = step env [char 'j'] in
+  let env = step env [key Input.ArrowDown] in
   check (Option.map Node.id (E.selected_node env) <> first)
-    "list j did not move to the next row";
-  let env = step env [char 'k'] in
+    "the list's down arrow did not move to the next row";
+  let env = step env [key Input.ArrowUp] in
   check (Option.map Node.id (E.selected_node env) = first)
-    "list k did not return to the previous row";
+    "the list's up arrow did not return to the previous row";
   let rec select name env tries =
     if label env = Some name then env
-    else if tries = 0 then fail ("no list row named " ^ name)
+    else if tries = 0 then fail ("no list row named " ^ name ^ " among "
+      ^ String.concat "," (List.map (fun (i : Edit_graph.node_info) -> i.label) (Edit_graph.inspect (E.document env)))
+      ^ " at level " ^ Option.value ~default:"scene" (E.level env))
     else select name (step env [key Input.ArrowDown]) (tries - 1) in
   let env = select "camera1" env 6 in
-  let camera = E.selected_node env |> Option.get |> Node.id in
-  let env = step env [char 'm'] in
-  check (Edit_graph.is_bypassed (E.document env) ~node_id:camera
-      && Camera.lens (E.render_camera env) = Camera.lens (Easy_camera.camera (E.camera env)))
-    "muted ACTIVE camera did not fall back to the viewport lens";
-  let env = step ~keys:[Input.Meta] env [char 'z'] in
-  check (not (Edit_graph.is_bypassed (E.document env) ~node_id:camera)
-      && (Camera.lens (E.render_camera env)).aperture = 0.3)
-    "undo did not restore the ACTIVE camera's lens and bypass flag";
-  let env = step env [key Input.ArrowUp] in
+  check ((Camera.lens (E.render_camera env)).aperture = 0.3)
+    "the ACTIVE camera did not carry the sketch's lens";
+  let env = step env [key Input.Home] in
   let env = select "geo1" env 6 in
   check (E.level env = None) "the editor did not open at the scene level";
   let env = step env [char 'i'] in
@@ -91,7 +96,6 @@ let run () =
       In_channel.with_open_text (Filename.concat directory "editor.txt")
         (fun channel -> ignore (input_line channel); input_line channel)) in
   check (projection env = "projection: list") "Space l did not reach Flow list";
-  (* a document that is not a workspace has no text pane: list -> graph *)
   let gx, gy, _, _ = (E.panes env (frame 0)).graph in
   let row = gx + 40, gy + 24 + 12 in
   let env = step ~mouse:row env [] in
@@ -108,7 +112,9 @@ let run () =
   (* A double-click on a list row enters it too. *)
   let row_y index = gy + 24 + (24 * index) + 12 in
   let rec row_of name index env =
-    if index > 5 then fail (name ^ " row not found") else
+    if index > 5 then fail (name ^ " row not found among "
+      ^ String.concat "," (List.map (fun (i : Edit_graph.node_info) -> i.label) (Edit_graph.inspect (E.document env)))
+      ^ " at level " ^ Option.value ~default:"scene" (E.level env)) else
     let point = gx + 60, row_y index in
     let click = [Event.MousePressed (Input.LeftButton, (float (fst point), float (snd point)));
       Event.MouseReleased (Input.LeftButton, (float (fst point), float (snd point)))] in
@@ -118,45 +124,13 @@ let run () =
   let env = step ~mouse:point env click in
   check (E.level env = Some "geo1") "double-clicking the geo1 row did not enter it";
   let env = step env [char 'u'] in
-  (* Space a opens the add menu; typing searches it, Enter adds a light,
-     whose row opens in rename mode. *)
-  let add env query =
-    let env = step env [key Input.Space; char 'a'] in
-    let env = step env [] in
-    let env = step env [Event.TextInput query] in
-    step env [key Input.Enter] in
   let lights_before = List.length (E.lights env) in
-  let env = add env "light" in
-  check (List.length (E.lights env) = lights_before + 1) "Space a + light did not add a light";
-  let env = step env [] in
-  let env = step env [Event.TextInput "key"; key Input.Enter] in
-
-  let env = step env [] in
-  check (label env = Some "key") "the new light row did not open in rename mode";
-  let directory = Filename.temp_dir "prismel-scene-order" "" in
-  let env = Fun.protect ~finally:(fun () ->
-      Array.iter (fun file -> Sys.remove (Filename.concat directory file)) (Sys.readdir directory);
-      Unix.rmdir directory) (fun () ->
-    let snapshot env = E.crash_dump env directory;
-      In_channel.with_open_bin (Filename.concat directory "document.txt") In_channel.input_all in
-    let positions env = E.graph_nodes env |> List.map (fun tile ->
-      tile.Pxui_graph.id, tile.bounds) in
-    let before = snapshot env and at = positions env in
-    let reordered = step ~keys:[Input.Alt] env [key Input.ArrowUp] in
-    check (snapshot reordered <> before) "scene reorder did not save its positions";
-    check (List.length (List.filter (fun (id, bounds) -> List.assoc id at <> bounds)
-      (positions reordered)) = 2) "scene reorder did not swap exactly two siblings";
-    let restored = step ~keys:[Input.Meta] reordered [char 'z'] in
-    check (snapshot restored = before && positions restored = at)
-      "scene reorder undo did not restore both saved positions";
-    restored) in
   (* Scene edits never re-cook: reparent the light under geo1 with Tab. *)
   let cooked = Atomic.get cooks in
-  let position env = match List.rev (E.lights env) with
+  let position env = match E.lights env with
     | { Light.kind = Area { position; _ }; _ } :: _ -> position
-    | _ -> fail "the added light is not an area light" in
+    | _ -> fail "the first light is not an area light" in
   let before = position env in
-  let env = step env [key Input.ArrowUp] in
   let env = select "key" env 6 in
   let env = step ~keys:[] env [key Input.Tab] in
   let parent env = Edit_graph.inspect (E.scene_document env)
@@ -168,13 +142,13 @@ let run () =
   let env = step ~keys:[Input.Shift] env [key Input.Tab] in
   check (parent env = None) "Shift-Tab did not move the light back to the scene root";
   let env = step env [char 'h'] in
-  check (List.length (E.lights env) = lights_before) "h did not hide the light";
+  check (List.length (E.lights env) = lights_before - 1) "h did not hide the light";
   let env = List.fold_left (fun env _ -> step env []) env [1; 2; 3; 4; 5] in
   check (Atomic.get cooks = cooked) "a scene-level edit re-cooked SOPs";
   (* Undo walks back through the scene edits. *)
   let undo env = step ~keys:[Input.Meta] env [char 'z'] in
   let env = undo env in
-  check (List.length (E.lights env) = lights_before + 1) "undo did not show the light again";
+  check (List.length (E.lights env) = lights_before) "undo did not show the light again";
   (* Nor does dragging an object transform slider in the inspector (undo
      itself re-cooks, so let that settle first): rows are 24 points and
      Translate X follows the node header, input source and folder. *)
@@ -213,17 +187,15 @@ let run () =
   let env = step ~mouse:in_list env
       [Event.MousePressed (Input.LeftButton, (float (fst in_list), float (snd in_list)));
        Event.MouseReleased (Input.LeftButton, (float (fst in_list), float (snd in_list)))] in
-  (* Space e creates the World and opens its layers; it bakes. *)
+  (* Space e opens the World, which bakes. *)
   let env = step env [key Input.Space; char 'e'] in
   check (E.level env = Some "world") "Space e did not open the World";
   let env = step env [] in
   check (E.world env <> None) "the World did not bake";
-  let layers env = List.length (Edit_graph.inspect (E.document env)) in
-  let before = layers env in
-  let env = add env "shape" in
-  check (layers env = before + 1) "Space a + shape did not add a shape layer";
-  let env = step env [] in
-  let env = step env [Event.TextInput "softbox"; key Input.Enter] in
+  let env = step ~mouse:in_list env
+      [Event.MousePressed (Input.LeftButton, (float (fst in_list), float (snd in_list)));
+       Event.MouseReleased (Input.LeftButton, (float (fst in_list), float (snd in_list)))] in
+  let env = select "softbox" env 16 in
   let selected = E.selected_node env |> Option.get |> Node.id in
   let parameters env id =
     Edit_graph.find (E.document env) ~node_id:id |> Option.get |> Node.parameter_fields
@@ -252,6 +224,7 @@ let run () =
   let env = step ~mouse:in_list env
       [Event.MousePressed (Input.LeftButton, (float (fst in_list), float (snd in_list)));
        Event.MouseReleased (Input.LeftButton, (float (fst in_list), float (snd in_list)))] in
+  let env = step env [key Input.Home] in
   let env = select "softbox" env 16 in
   (* World keys: t flips the selected emitter to a real light, ] moves the
      time of day, 3 loads the white room preset. *)
@@ -259,17 +232,7 @@ let run () =
   let env = step env [] in
   check (match E.world env with Some baked -> baked.World.lights <> [] | None -> false)
     "t did not promote the selected shape to a light";
-  let lit = parameters env selected in
-  let env = step env [char 'm'] |> fun env -> step env [] in
-  check (Edit_graph.is_bypassed (E.document env) ~node_id:selected
-      && parameters env selected = lit
-      && match E.world env with Some baked -> baked.World.lights = [] | None -> false)
-    "mute did not suppress a World layer without overwriting its literals";
-  let env = step env [char 'm'] |> fun env -> step env [] in
-  check (match E.world env with Some baked -> baked.World.lights <> [] | None -> false)
-    "unmuting a World layer did not restore its contribution";
-  let env = add env "scatter" |> fun env -> step env [] in
-  let env = step env [Event.TextInput "constellation"; key Input.Enter] in
+  let env = select "constellation" env 16 in
   let scatter = E.selected_node env |> Option.get |> Node.id in
   let seed env = List.assoc "seed" (parameters env scatter) in
   let before = seed env in
@@ -300,19 +263,16 @@ let run () =
   let saved = E.document env and baked = E.world env in
   let env = step env [char 't'; char 'n'; char 'd'] in
   check (E.document env == saved && E.world env = baked) "World keys edited the scene level";
-  (* The scene starts in list: one cycle reaches graph (text is a workspace pane). *)
+  (* The scene starts in list; the workspace has a scene graph, so a cycle reaches its text and
+     another its graph, which is the pane's own scene graph (the outline names it). *)
+  let projection_of env = projection env in
   let env = step env [key Input.Space; char 'l'] in
   let env = step env [] in
-  let tile = List.find (fun (tile : Pxui_graph.node_view) -> tile.label = "geo1")
-      (E.graph_nodes env) in
-  let x, y, w, h = tile.bounds in
-  let point = x + (w / 3), y + (h / 2) in
-  let click = [Event.MousePressed (Input.LeftButton, (float (fst point), float (snd point)));
-    Event.MouseReleased (Input.LeftButton, (float (fst point), float (snd point)))] in
-  let env = step ~mouse:point env [] in
-  let env = step ~mouse:point env click in
-  let env = step ~mouse:point env click in
-  check (E.level env = Some "geo1") "double-clicking the geo1 tile did not enter it";
+  check (projection_of env = "projection: text") "Space l did not reach the scene graph's text";
+  let env = step env [key Input.Space; char 'l'] in
+  let env = step env [] in
+  check (projection_of env = "projection: graph" && E.level env = None)
+    "Space l did not reach the scene graph";
   (* Deleting a network's display node never leaves a dangling display:
      delete geo1 from the scene, flip the projection, and come back. *)
   let env = step env [char 'u'] in
@@ -320,6 +280,8 @@ let run () =
   let env = step env [] in
   let env = select "geo1" env 8 in
   let env = step env [key Input.Delete] in
+  (* list -> text -> graph -> list *)
+  let env = step env [key Input.Space; char 'l'] in
   let env = step env [key Input.Space; char 'l'] in
   let env = step env [key Input.Space; char 'l'] in
   let env = step env [key Input.Space; char 'e'] in
@@ -341,11 +303,12 @@ let run () =
   E.close env;
   (* Every object cooks the same bytes with one domain and with many. *)
   let digest domains =
-    let graph = Sop_catalog.Mountain.create ~seed:3 ~height:0.4
-        ~frequency:(Vec3.create 1. 1. 1.) ~octaves:3 ~lacunarity:2. ~roughness:0.5
-        ~recompute_normals:true
-        (Sop_catalog.Grid.create ~columns:40 ~rows:40 ~size:4. ()) in
-    let env = E.create ~graph ~domains ~grain:16 ~max_entries:4
+    let workspace = Ws_fixture.of_text {|(workspace mountain
+      (graph g :context sop
+        (sop/mountain (sop/grid :columns 40 :rows 40 :size 4 :width 4 :height 4)
+                      :seed 3 :height 0.4 :frequency [1 1 1] :octaves 3 :lacunarity 2
+                      :roughness 0.5 :recompute_normals true)))|} in
+    let env = E.create ~workspace ~domains ~grain:16 ~max_entries:4
         ~max_payload_bytes:(16 * 1024 * 1024)
         ~prepare:(fun _ output ->
           let points = Pdk.Geometry.positions output.Session.geometry in

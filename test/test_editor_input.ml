@@ -13,7 +13,7 @@ let frame ?(buttons = []) ?(keys = []) ?(delta = (0., 0.)) mouse events count : 
   fps = 60.; count; mouse; mouse_delta = delta; keys; mouse_buttons = buttons; events }
 
 let run () =
-  let exercise ~name ~scene_level ~create ~update ~close ~camera ~dump ~panes ~graph_nodes =
+  let exercise ~name ~scene_level ~create ~update ~close ~camera ~dump ~panes =
     let current = ref (create ()) and count = ref 0 in
     let directory = Filename.temp_dir "prismel-input-contract" "" in
     Fun.protect ~finally:(fun () -> close !current;
@@ -173,33 +173,17 @@ let run () =
     step ~buttons:[Input.MiddleButton] [Event.MouseMoved (100., 300.)];
     step [Event.MouseReleased (Input.MiddleButton, (100., 300.))];
     check (camera !current = before) (name ^ ": graph-owned pan began viewport navigation");
+    (* a press in the graph pane that drags out over the view is the pane's, never navigation
+       (the pane's own gestures, moving a node included, are tested through [Scope]) *)
+    let gx, gy, gw, gh = (panes !current (frame (0., 0.) [] 0)).Pxui_shell.Layout.graph in
+    let point = float (gx + gw / 2), float (gy + gh / 2) in
     step ~mouse:point [key Input.Home];
     step [];
-    let tile = List.hd (graph_nodes !current) in
-    let tx, ty, tw, th = tile.Pxui_graph.bounds in
-    let point = float (tx + tw / 2), float (ty + th / 2) in
     step ~buttons:[Input.LeftButton] ~mouse:point [Event.MousePressed (Input.LeftButton, point)];
     step ~buttons:[Input.LeftButton] [Event.MouseMoved (100., 300.)];
     step [Event.MouseReleased (Input.LeftButton, (100., 300.))];
-    check (camera !current = before) (name ^ ": graph tile drag reached viewport navigation");
-    step ~mouse:point [key Input.Home]; step [];
+    check (camera !current = before) (name ^ ": a graph pane drag reached viewport navigation");
     count := !count + 30; (* past the double-click interval *)
-    let tile = List.hd (graph_nodes !current) in
-    let tx, ty, tw, th = tile.Pxui_graph.bounds in
-    let point = float (tx + tw / 2), float (ty + th / 2) in
-    let original = snapshot () in
-    step ~buttons:[Input.LeftButton] ~mouse:point [Event.MousePressed (Input.LeftButton, point)];
-    let moved_point = fst point +. 20., snd point in
-    step ~buttons:[Input.LeftButton] ~mouse:moved_point [Event.MouseMoved moved_point];
-    let moved = snapshot () in
-    check (moved <> original) (name ^ ": graph move did not change the saved document");
-    step ~buttons:[Input.LeftButton] ~keys:[Input.Meta] ~mouse:moved_point [char 'd'];
-    check (snapshot () <> moved) (name ^ ": duplicate during a drag did not edit the document");
-    step ~mouse:moved_point [Event.MouseReleased (Input.LeftButton, moved_point)];
-    step ~keys:[Input.Meta] [char 'z'];
-    still moved "an unrelated command merged with a held tile drag";
-    step ~keys:[Input.Meta] [char 'z'];
-    still original "undo/history present did not restore the preceding tile drag";
     (* Tab adds in the graph; shared chrome traversal still works from View. *)
     let view_point = 100., 300. in
     step ~mouse:view_point [Event.MousePressed (Input.LeftButton, view_point);
@@ -208,21 +192,21 @@ let run () =
     step [key Input.Tab; key Input.Space];
     let _, _, collapsed, _ = (panes !current (frame (0., 0.) [] 0)).Pxui_shell.Layout.view in
     check (collapsed < width) (name ^ ": same-frame Tab/Space did not activate the pane header")) in
-  let graph = Procedural.Sop.box ~size:(Vec3.create 1. 1. 1.) () in
+  let workspace = Ws_fixture.box () in
   let world = { World.default with layers = []; background = World.Transparent } in
   let module E3 = Prismel_editor.Editor3 in
   exercise ~name:"Editor3" ~scene_level:true
-    ~create:(fun () -> E3.create ~graph ~world ~camera:(Easy_camera.create ~inertia:false ())
+    ~create:(fun () -> E3.create ~workspace ~world ~camera:(Easy_camera.create ~inertia:false ())
       ~prepare:(fun _ _ -> Ok ()) ~scene3:(fun _ _ -> Scene3.empty) () |> Result.get_ok)
-    ~update:E3.update ~close:E3.close ~dump:E3.crash_dump ~panes:E3.panes ~graph_nodes:E3.graph_nodes
+    ~update:E3.update ~close:E3.close ~dump:E3.crash_dump ~panes:E3.panes
     ~camera:(fun env -> let camera = E3.camera env in
       Camera.position (Easy_camera.camera camera), Camera.target (Easy_camera.camera camera),
       Easy_camera.distance camera);
   let module E2 = Prismel_editor.Editor2 in
   exercise ~name:"Editor2" ~scene_level:false
-    ~create:(fun () -> E2.create ~graph ~world ~camera:(Easy_camera2.create ~inertia:false ())
+    ~create:(fun () -> E2.create ~workspace ~world ~camera:(Easy_camera2.create ~inertia:false ())
       ~prepare:(fun _ _ -> Ok ()) ~scene2:(fun _ _ -> []) () |> Result.get_ok)
-    ~update:E2.update ~close:E2.close ~dump:E2.crash_dump ~panes:E2.panes ~graph_nodes:E2.graph_nodes
+    ~update:E2.update ~close:E2.close ~dump:E2.crash_dump ~panes:E2.panes
     ~camera:(fun env -> let camera = E2.camera env in
       Easy_camera2.center camera, Easy_camera2.zoom camera, Easy_camera2.rotation camera);
   print_endline "editor input: both hosts shield popups/World edits and retain viewport/graph gesture owners"

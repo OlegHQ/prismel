@@ -124,7 +124,7 @@
 (executable
  (name bench_shattered_renderer)
  (modules bench_shattered_renderer)
- (libraries prismel pdk pdk_prismel procedural sop_catalog sketch_support prismel_editor unix))
+ (libraries prismel flow pdk pdk_prismel procedural sop_catalog sketch_support prismel_editor unix))
 
 (executable
  (name bench_pdk_iso)
@@ -135,11 +135,6 @@
  (name bench_pxui)
  (modules bench_pxui)
  (libraries prismel pxui unix))
-
-(executable
- (name bench_pxui_graph)
- (modules bench_pxui_graph)
- (libraries prismel procedural pxui pxui_graph scene_command unix))
 
 (executable
  (name bench_uniforms)
@@ -215,7 +210,7 @@
 (executable
  (name bench_prismel_editor)
  (modules bench_prismel_editor)
- (libraries prismel procedural pxui_graph prismel_editor unix))
+ (libraries prismel procedural flow prismel_editor unix))
 
 (executable
  (name bench_editor_cook)

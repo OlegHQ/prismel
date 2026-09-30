@@ -109,8 +109,7 @@ let editor text =
     ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) ()
   |> function Ok e -> e | Error m -> fail m
 
-let source e = match E3.workspace e with
-  | Some ws -> fst (Flow.Lisp.print ws.Doc.source) | None -> fail "no workspace"
+let source e = fst (Flow.Lisp.print (E3.workspace e).Doc.source)
 
 let dump_line e key =
   let directory = Filename.temp_dir "prismel-shell-dump" "" in
@@ -162,7 +161,7 @@ let run_editor () =
   check (E3.undo_label !e = Some "Split panel") ("the menu split the graph panel: " ^ Option.value ~default:"-" (E3.undo_label !e));
   check (has (source !e) "network_a" && has (source !e) "network_b") "the split bound two new panels";
   (* a panel made by a loop cannot be split: the status says where it comes from *)
-  let geometry = Layout.geometry ~hidden:[ Layout.Timeline ] (shell_of (build_ok (Option.get (E3.workspace !e |> Option.map Fun.id))))
+  let geometry = Layout.geometry ~hidden:[ Layout.Timeline ] (shell_of (build_ok (E3.workspace !e)))
       .tree (frame (0., 0.) [] 0) in
   let leaf = Option.get (Layout.find geometry (Layout.View "v1.1.2")) in
   let hx, hy, hw, _ = leaf.header in
@@ -217,7 +216,7 @@ let run_frame_key () =
   for n = 1 to 24 do
     let click p = [ Event.MouseMoved p; Event.MousePressed (Input.LeftButton, p); Event.MouseReleased (Input.LeftButton, p) ] in
     let events = match n with
-      | 4 -> click (900., 300.) | 6 -> [ key (Input.KeyChar 'j') ] | 8 -> [ key (Input.KeyChar 'i') ]
+      | 4 -> click (900., 300.) | 6 -> [ key Input.ArrowDown ] | 8 -> [ key (Input.KeyChar 'i') ]
       | 16 -> [ key Input.ArrowRight ] | 18 -> [ key Input.Shift; key (Input.KeyChar 'g') ] | _ -> [] in
     let f : Frame.t = { width = 1400; height = 800; size = 1400, 800; drawable_width = 1400;
       drawable_height = 800; drawable_size = 1400, 800; pixel_scale = 1., 1.;
@@ -227,8 +226,7 @@ let run_frame_key () =
     Unix.sleepf 0.002
   done;
   check (E3.undo_label !e = Some "Frame") ("g made a frame: " ^ Option.value ~default:"-" (E3.undo_label !e));
-  check (match E3.workspace !e with
-      | Some ws -> not (Editor_document.Layout_by_path.Path_map.is_empty ws.Doc.layout.frames) | None -> false)
+  check (not (Editor_document.Layout_by_path.Path_map.is_empty (E3.workspace !e).Doc.layout.frames))
     "the frame is in the layout"
 
 let panes_graph e = let _, _, w, _ = (E3.panes e (frame (0., 0.) [] 0)).graph in w
@@ -239,8 +237,7 @@ let run_ops () =
     match E3.edit e op with
     | Ok e' -> check (E3.undo_label e' = Some label) ("label " ^ label ^ ": " ^ Option.value ~default:"-" (E3.undo_label e')); e'
     | Error m -> fail (label ^ ": " ^ m) in
-  let tree e = match E3.workspace e with
-    | Some ws -> (shell_of (build_ok ws)).tree | None -> fail "workspace" in
+  let tree e = (shell_of (build_ok (E3.workspace e))).tree in
   let sh = tree e in
   (* resize *)
   let r = ok "Resize panel" (E.Set_layout_ratio { node = [ "editor"; "left" ]; ratio = 0.3 }) in
@@ -341,7 +338,7 @@ let run_native () =
     ~view:E3.scene
     ~after_present:(fun e (frame : Frame.t) ->
       if frame.count = frames then begin
-        let tree = (shell_of (build_ok (Option.get (E3.workspace e)))).tree in
+        let tree = (shell_of (build_ok (E3.workspace e))).tree in
         rects := List.filter_map (fun (l : Layout.leaf) -> match l.panel with
           | Layout.View _ -> let x, y, w, h = l.body in Some (x, y, w, h, frame.width)
           | _ -> None) (Layout.geometry ~hidden:[ Layout.Timeline ] tree frame).leaves;

@@ -102,10 +102,10 @@ let editor_text () =
   let gx, gy, _, gh = (E.panes !env (frame 0 [])).graph in
   (* enter the sunflower object, then Space l twice: graph -> list -> text *)
   click (float (gx + 50), float (gy + 100));
-  step [ char 'j' ]; step [ char 'i' ]; settle ();
+  step [ key Input.Home ]; step [ char 'i' ]; settle ();
   step [ key Input.Space; char 'l' ]; step [ key Input.Space; char 'l' ]; step [];
   check (contains (dump ()) "projection: text") ("Space l did not reach the text pane\n" ^ dump ());
-  let ws () = Option.get (E.workspace !env) in
+  let ws () = E.workspace !env in
   let original = ws () in
   let base = E.undo_label !env in
   let applied = Flow.Lisp.print original.source |> fst in
@@ -181,7 +181,7 @@ let editor_binding () =
   settle ();
   let gx, gy, _, gh = (E.panes !env (frame 0 [])).graph in
   click (float (gx + 50), float (gy + 100));
-  step [ char 'j' ]; step [ char 'i' ]; settle ();
+  step [ key Input.Home ]; step [ char 'i' ]; settle ();
   (* walk to a binding, then show the text pane: its Selection tab edits that binding *)
   for _ = 1 to 4 do step [ key Input.ArrowRight ] done;
   step [ key Input.Space; char 'l' ]; step [ key Input.Space; char 'l' ]; step [];
@@ -217,7 +217,7 @@ let editor_w9 () =
       let events = match List.assoc_opt n script with
         | Some events -> events click
         | None -> match n with
-          | 4 -> click (900., 300.) | 6 -> [ Event.KeyPressed (Input.KeyChar 'j') ]
+          | 4 -> click (900., 300.) | 6 -> [ Event.KeyPressed Input.ArrowDown ]
           | 8 -> [ Event.KeyPressed (Input.KeyChar 'i') ]
           | 12 -> [ Event.MouseMoved (780., 380.); Event.MouseScrolled (0., 9.) ]
           | 16 -> click (960., 466.)
@@ -230,7 +230,7 @@ let editor_w9 () =
       Unix.sleepf 0.002
     done;
     Unix.sleepf 0.05;
-    let ws = Option.get (E.workspace !env) in
+    let ws = E.workspace !env in
     Flow.Lisp.print ws.source |> fst, E.undo_label !env in
   let untouched, _ = scenario [] in
   check (contains untouched "^:bypass (sop/subdivide inner") "soft starts bypassed";

@@ -75,13 +75,12 @@ module Private : sig
       | Save_preset | Browse_presets | Save_source
       | Toggle_timeline | Toggle_graph | Toggle_inspector | Hide_ui | Open_camera
       | Play_pause | Reset | Stop
-      | Add_node | Layout | Frame_tile | Frame_camera
+      | Add_node | Frame_tile | Frame_camera
       | Look_through | Fly | Tool of int
       | Undo | Redo
       | Panel_split of Pxui_shell.Layout.axis | Panel_close | Panel_retype of Pxui_shell.Layout.panel
-      | Toggle_projection | Restore_layout | Enter | Up | Go_world | Group | Ungroup | Make_unique
+      | Toggle_projection | Restore_layout | Enter | Up | Go_world
       | World_emit | World_reseed | World_time of float | World_play | World_preset of int
-      | Graph_command of Pxui_graph.command
       | Scope_command of Pxui_graph.Scope.command
       | List_command of Pxui_shell.Tree.command
       | Guide_toggle | Guide_keys
@@ -213,9 +212,6 @@ module Private : sig
     (** The nearest displayed primitive under a ray in the piece's own space:
         its distance and provenance tag. *)
     val update : ?live:bool -> ?probes:(int * int) list -> ?lit:Pick.Set.t ->
-      definitions:Editor_document.Document.definition
-        Editor_document.Document.String_map.t ->
-      compiled_ids:int Flow_sop.Instance_path.Map.t ->
       'a t -> settings:Settings.t ->
       objects:(int * Flow_sop.Network.t * int) list -> edit_error:string option ->
       effects:Procedural.Parameter.effects -> timeline_changes:Sketch_support.Timeline.change list ->
@@ -269,8 +265,7 @@ module Editor3 : sig
     ?domains:int ->
     ?max_entries:int ->
     ?max_payload_bytes:int ->
-    ?graph:Procedural.Graph.t ->
-    ?workspace:Workspace_doc.t ->
+    workspace:Workspace_doc.t ->
     ?source:Source.t ->
     prepare:(Settings.t -> Procedural.Session.output -> ('prepared, string) result) ->
     scene3:(Procedural.Graph.t -> 'prepared -> Prismel.Scene3.t) ->
@@ -324,14 +319,18 @@ module Editor3 : sig
 
   val redo_label : 'prepared t -> string option
 
-  val workspace : 'prepared t -> Workspace_doc.t option
-  (** The v4 document when the editor was opened on one ([?workspace]). *)
+  val workspace : 'prepared t -> Workspace_doc.t
+  (** The document the editor is open on: every document is a workspace. *)
 
   val probe : 'prepared t -> Flow.Workspace.path -> int option
   (** The iteration the zone at that path shows (view state, kept by path across
       edits and reloads, never in history). *)
 
   val set_probe : 'prepared t -> Flow.Workspace.path -> int -> 'prepared t
+
+  val node_box : 'prepared t -> Flow.Workspace.path -> (int * int * int * int) option
+  (** The rectangle, in window points, of the node at a path in the graph pane as last laid out
+      (tests and tools that click on a node). *)
 
   val edit : 'prepared t -> Flow_sop.Flow_edit.op -> ('prepared t, string) result
   (** One gesture on the workspace: rewrite the source, re-check, lower into
@@ -407,7 +406,6 @@ module Editor3 : sig
 
   val timeline : 'prepared t -> Sketch_support.Timeline.t
   val panes : 'prepared t -> Prismel.Frame.t -> Pxui_shell.Layout.panes
-  val graph_nodes : 'prepared t -> Pxui_graph.node_view list
 
   (** {2 Scene}
 
@@ -459,8 +457,7 @@ module Editor3 : sig
     ?max_entries:int ->
     ?max_payload_bytes:int ->
     config:Prismel.Sketch.config ->
-    ?graph:Procedural.Graph.t ->
-    ?workspace:Workspace_doc.t ->
+    workspace:Workspace_doc.t ->
     ?source:Source.t ->
     prepare:(Settings.t -> Procedural.Session.output -> ('prepared, string) result) ->
     scene3:(Procedural.Graph.t -> 'prepared -> Prismel.Scene3.t) ->
@@ -493,8 +490,7 @@ module Editor2 : sig
     ?domains:int ->
     ?max_entries:int ->
     ?max_payload_bytes:int ->
-    ?graph:Procedural.Graph.t ->
-    ?workspace:Workspace_doc.t ->
+    workspace:Workspace_doc.t ->
     prepare:(Settings.t -> Procedural.Session.output -> ('prepared, string) result) ->
     scene2:(Procedural.Graph.t -> 'prepared -> Prismel.Scene.t) ->
     ?overlay:(Procedural.Graph.t -> 'prepared option -> Prismel.Frame.t ->
@@ -526,8 +522,12 @@ module Editor2 : sig
 
   val redo_label : 'prepared t -> string option
 
-  val workspace : 'prepared t -> Workspace_doc.t option
-  (** The v4 document when the editor was opened on one ([?workspace]). *)
+  val workspace : 'prepared t -> Workspace_doc.t
+  (** The document the editor is open on: every document is a workspace. *)
+
+  val node_box : 'prepared t -> Flow.Workspace.path -> (int * int * int * int) option
+  (** The rectangle, in window points, of the node at a path in the graph pane as last laid out
+      (tests and tools that click on a node). *)
 
   val edit : 'prepared t -> Flow_sop.Flow_edit.op -> ('prepared t, string) result
   (** One gesture on the workspace: rewrite the source, re-check, lower into
@@ -547,7 +547,6 @@ module Editor2 : sig
   val camera : 'prepared t -> Prismel.Easy_camera2.t
   val timeline : 'prepared t -> Sketch_support.Timeline.t
   val panes : 'prepared t -> Prismel.Frame.t -> Pxui_shell.Layout.panes
-  val graph_nodes : 'prepared t -> Pxui_graph.node_view list
 
   val run :
     ?layout:layout ->
@@ -567,8 +566,7 @@ module Editor2 : sig
     ?max_entries:int ->
     ?max_payload_bytes:int ->
     config:Prismel.Sketch.config ->
-    ?graph:Procedural.Graph.t ->
-    ?workspace:Workspace_doc.t ->
+    workspace:Workspace_doc.t ->
     prepare:(Settings.t -> Procedural.Session.output -> ('prepared, string) result) ->
     scene2:(Procedural.Graph.t -> 'prepared -> Prismel.Scene.t) ->
     ?overlay:(Procedural.Graph.t -> 'prepared option -> Prismel.Frame.t ->

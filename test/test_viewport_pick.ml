@@ -33,8 +33,7 @@ let cooked ?(lit = Pick.Set.empty) ?cook lowered ~prepared =
         Cook.set_volatile cook (Lower.is_volatile lowered); cook in
   let timeline = Sketch_support.Timeline.create () in
   let update = Cook.update ~live:false ~lit
-      ~definitions:Editor_document.Document.String_map.empty
-      ~compiled_ids:lowered.compiled_ids cook ~settings:Prismel_editor.Settings.none
+      cook ~settings:Prismel_editor.Settings.none
       ~objects:(Lower.objects lowered) ~edit_error:None
       ~effects:Procedural.Parameter.no_effects ~timeline_changes:[] ~timeline
       ~frame:{ (Test_editor_input.frame (0., 0.) [] 0) with dt = 0. }

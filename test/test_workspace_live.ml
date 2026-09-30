@@ -192,8 +192,7 @@ let run () =
   List.iter (fun n ->
     let next, changes = Timeline.seek !timeline ~frame:(Int64.of_int n) in
     timeline := next;
-    let update = Cook.update ~live:false ~definitions:Editor_document.Document.String_map.empty
-      ~compiled_ids:orrery.compiled_ids !cook ~settings:Prismel_editor.Settings.none ~objects
+    let update = Cook.update ~live:false !cook ~settings:Prismel_editor.Settings.none ~objects
       ~edit_error:None ~effects:Procedural.Parameter.no_effects
       ~timeline_changes:changes ~timeline:next
       ~frame:{ (Test_editor_input.frame (0., 0.) [] 0) with dt = 0. }

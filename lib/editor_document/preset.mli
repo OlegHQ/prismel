@@ -5,7 +5,7 @@
     a [(view {...})] form holding the environment's camera and render
     settings.  Comments in the source survive save and load.  There is no
     other format and no older version: a file that is not this fails with a
-    message, and a document that is not a workspace cannot be saved. *)
+    message.  Every document is a workspace, so every document saves. *)
 
 type loaded = {
   doc : Document.t;
@@ -25,12 +25,12 @@ val save :
   directory:string -> name:string -> doc:Document.t -> view:Yojson.Safe.t ->
   (string, string) result
 (** Write atomically ({!Editor_core.Store.write_text}); returns the path.
-    [Error] when [doc] has no workspace or the view has nonfinite numbers.
+    [Error] when the view has nonfinite numbers or the file cannot be written.
     The document's current settings are saved. *)
 
-val text : Document.t -> (string, string) result
+val text : Document.t -> string
 (** The canonical workspace text of [doc] (its settings beside it), as a preset
-    or a [.plisp] source is written; [Error] when [doc] is not a workspace. *)
+    or a [.plisp] source is written. *)
 
 val list : directory:string -> (string * float) list
 (** Preset names with modification times, newest first; empty when the

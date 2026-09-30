@@ -25,45 +25,13 @@ let run () =
       && Keymap.label (Chord (Input.ArrowLeft, [])) = "←"
       && Keymap.label (Chord (Input.KeyChar 'z', [Input.Shift; Input.Meta])) = "Cmd-Shift-z")
     "shared key labels lost a modifier or alias";
-  let _, group_actions, _ = Editor_core.Router.step L.keymap
-    ~focus:Pxui_shell.Layout.Graph ~text_focus:false
-    ~frame:(Test_editor_input.frame (500., 400.)
-      [key Input.Meta; char 'g'] 1) Idle in
-  check (List.map (fun (c : _ Command.t) -> c.action) group_actions = [L.Group])
-    "compound group chord was not routed through the shared command table";
-  let _, ungroup_actions, _ = Editor_core.Router.step L.keymap
-    ~focus:Pxui_shell.Layout.Graph ~text_focus:false
-    ~frame:(Test_editor_input.frame ~keys:[Input.Meta; Input.Shift]
-      (500., 400.) [char 'g'] 2) Idle in
-  check (List.map (fun (c : _ Command.t) -> c.action) ungroup_actions = [L.Ungroup])
-    "compound ungroup chord was not routed through the shared command table";
-  check (List.exists (fun (c : _ Command.t) ->
-    c.id = "graph.make-unique" && c.action = L.Make_unique) L.keymap)
-    "make unique is missing from the shared command palette";
-  let ids context = Command.for_guide Pxui_graph.bindings ~focus:() ~context
+  let module Scope = Pxui_graph.Scope in
+  let ids context = Command.for_guide Scope.bindings ~focus:() ~context
     |> List.map (fun (c : _ Command.t) -> c.id) in
-  let walks = ["graph.walk.left"; "graph.walk.down"; "graph.walk.up"; "graph.walk.right"] in
-  List.iter (fun (context, expected) -> check (ids context = expected)
-      ("guide contents/order differ for " ^ Editor_core.Guide_context.name context))
-    Editor_core.Guide_context.[
-      Canvas, ["graph.paste"; "graph.frame-all"; "graph.open-all"; "graph.point-all"]
-        @ walks @ ["graph.add"; "graph.repeat"; "graph.show-wireless";
-          "graph.find"; "graph.frame-tile"];
-      Node, ["graph.copy"; "graph.cut"; "graph.paste"; "graph.duplicate";
-        "graph.frame-all"; "graph.open"; "graph.point"; "graph.open-all"; "graph.point-all"]
-        @ walks @ ["graph.add"; "graph.repeat"; "graph.connect-hint";
-          "graph.bind"; "graph.show-wireless"; "graph.display";
-          "graph.mute"; "graph.delete"; "graph.dissolve"; "graph.find"; "graph.frame-tile"];
-      Multi, ["graph.copy"; "graph.cut"; "graph.paste"; "graph.duplicate";
-        "graph.frame-all"; "graph.open"; "graph.point"; "graph.open-all"; "graph.point-all"]
-        @ walks @ ["graph.add"; "graph.show-wireless"; "graph.mute";
-          "graph.delete"; "graph.dissolve";
-          "graph.find"; "graph.frame-tile"];
-      Wire, ["graph.add"; "graph.bind"; "graph.show-wireless";
-      "graph.delete"]; Row, ["graph.row-pin"; "graph.row-reset";
-          "graph.row-export";
-          "graph.row-expression"];
-      Search, []; Text, []];
+  check (ids Canvas <> [] && ids Canvas = ids Node && ids Node = ids Multi
+         && List.mem "scope.walk.left" (ids Canvas) && List.mem "scope.delete" (ids Canvas)
+         && ids Search = [] && ids Text = [] && ids List = [])
+    "the workspace pane's guide contents differ between its contexts";
   let host_ids focus context = Command.for_guide L.keymap ~focus ~context
     |> List.map (fun (c : _ Command.t) -> c.id) in
   check (List.mem "guide.toggle" (host_ids (Pxui_shell.Layout.View "") Canvas)
@@ -82,28 +50,22 @@ let run () =
       && host_ids (L.scope (P.View "v3")) Canvas = host_ids (P.View "") Canvas
       && host_ids (L.scope P.Outline) Canvas <> host_ids P.Graph Canvas)
     "a lisp or second viewport panel routed to the wrong scope";
-  check (List.length (Command.for_guide Pxui_graph.hint_bindings ~focus:() ~context:Hints) = 28)
-    "hint guide lost target letters, back or cancel";
   let table = List.map (fun (command : _ Command.t) ->
-    {command with scope = Some Pxui_shell.Layout.Graph}) Pxui_graph.bindings in
+    {command with scope = Some Pxui_shell.Layout.Graph}) Scope.bindings in
   List.iter (fun (pressed, modifiers, expected) ->
     let input = Test_editor_input.frame ~keys:[] (500.,400.)
       (List.map key modifiers @ [key pressed]) 1 in
     let route focus = let _, actions, _ = Editor_core.Router.step table ~focus
       ~text_focus:false ~frame:input Idle in List.map (fun (c : _ Command.t) -> c.action) actions in
-    check (route Pxui_shell.Layout.Graph = [expected]) "Flow grammar key routed the wrong action";
+    check (route Pxui_shell.Layout.Graph = [expected]) "a graph pane key routed the wrong action";
     check (route (Pxui_shell.Layout.View "") = [] && route Pxui_shell.Layout.Inspector = [])
-      "a Flow grammar key escaped graph scope")
-    Pxui_graph.[Input.KeyChar 'h', [], Walk Left; Input.ArrowLeft, [], Walk Left;
-      Input.KeyChar 'j', [], Walk Down; Input.ArrowDown, [], Walk Down;
-      Input.KeyChar 'k', [], Walk Up; Input.ArrowUp, [], Walk Up;
-      Input.KeyChar 'l', [], Walk Right; Input.ArrowRight, [], Walk Right;
-      Input.Tab, [], Add; Input.KeyChar '.', [], Repeat; Input.KeyChar 'c', [], Connect_hint;
-      Input.KeyChar 'v', [], Display; Input.KeyChar 'm', [], Mute;
-      Input.KeyChar 's', [], Row_pin;
+      "a graph pane key escaped graph scope")
+    Scope.[Input.ArrowLeft, [], Walk Left; Input.ArrowDown, [], Walk Down;
+      Input.ArrowUp, [], Walk Up; Input.ArrowRight, [], Walk Right;
       Input.KeyChar 'x', [], Delete; Input.Delete, [], Delete; Input.Backspace, [], Delete;
-      Input.KeyChar 'x', [Input.Shift], Dissolve; Input.KeyChar '/', [], Find;
-      Input.KeyChar 'f', [], Frame_selection];
+      Input.KeyChar 'b', [], Bypass; Input.KeyChar 'r', [], Wrap_repeat;
+      Input.KeyChar 'r', [Input.Shift], Wrap_iterate; Input.KeyChar 'c', [], Collapse;
+      Input.KeyChar 'm', [], Make_macro; Input.Home, [], Frame_all];
   let exercise ~name ~create ~update ~close ~settings ~set_settings =
     let set n env = set_settings env (Settings.make schema n) in
     let bump = set 3 in
@@ -164,22 +126,22 @@ let run () =
         Event.MouseReleased (Input.LeftButton, point)];
       step [char 'g'];
       check (value () = 20) (name ^ ": graph-scoped chord did not run")) in
-  let graph = Procedural.Sop.box ~size:(Vec3.create 1. 1. 1.) () in
+  let workspace = Ws_fixture.box () in
   let module E3 = Prismel_editor.Editor3 in
   exercise ~name:"Editor3"
-    ~create:(fun commands -> E3.create ~graph ~commands ~settings:(Settings.make schema 0)
+    ~create:(fun commands -> E3.create ~workspace ~commands ~settings:(Settings.make schema 0)
       ~prepare:(fun _ _ -> Ok ()) ~scene3:(fun _ _ -> Scene3.empty) ())
     ~update:E3.update ~close:E3.close ~settings:E3.settings ~set_settings:E3.set_settings;
   let module E2 = Prismel_editor.Editor2 in
   exercise ~name:"Editor2"
-    ~create:(fun commands -> E2.create ~graph ~commands ~settings:(Settings.make schema 0)
+    ~create:(fun commands -> E2.create ~workspace ~commands ~settings:(Settings.make schema 0)
       ~prepare:(fun _ _ -> Ok ()) ~scene2:(fun _ _ -> []) ())
     ~update:E2.update ~close:E2.close ~settings:E2.settings ~set_settings:E2.set_settings;
   let directory = Filename.temp_dir "prismel-guide" "" in
   let filename = Filename.concat directory "preferences.json" in
   let previous = Sys.getenv_opt "PRISMEL_EDITOR_PREFERENCES" in
   Unix.putenv "PRISMEL_EDITOR_PREFERENCES" filename;
-  let create () = E2.create ~graph ~prepare:(fun _ _ -> Ok ()) ~scene2:(fun _ _ -> []) ()
+  let create () = E2.create ~workspace ~prepare:(fun _ _ -> Ok ()) ~scene2:(fun _ _ -> []) ()
     |> Result.get_ok in
   let current = ref (create ()) in
   Fun.protect ~finally:(fun () ->
@@ -230,9 +192,9 @@ let run () =
         (List.init (max 0 (String.length text-n+1)) Fun.id) in
     check (contains (dump ()) "key hud: ? · toggle guide\n")
       "key HUD did not use the routed command label";
-    step [key Input.Ctrl; char 'c'; Event.KeyReleased Input.Ctrl] 13;
+    step [key Input.Ctrl; char 'z'; Event.KeyReleased Input.Ctrl] 13;
     E2.crash_dump !current directory;
-    check (contains (dump ()) "key hud: Ctrl-c · copy\n")
+    check (contains (dump ()) "key hud: Ctrl-z · undo\n")
       "key HUD displayed a different alias from the routed chord";
     step [] 200; E2.crash_dump !current directory;
     check (contains (dump ()) "key hud: -\n") "key HUD outlived 1.5 seconds");

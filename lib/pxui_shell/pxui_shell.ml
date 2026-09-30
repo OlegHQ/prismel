@@ -547,7 +547,7 @@ module Tree = struct
     | Delete of int list
   type command = Up | Down | Extend_up | Extend_down | Collapse | Expand
     | First | Last | Indent_rows | Outdent_rows | Move_up | Move_down
-    | Rename_row | Filter | Hide | Activate_row
+    | Rename_row | Delete_rows | Filter | Hide | Activate_row
 
   type drag =
     | Rows of { ids : int list; moved : bool }
@@ -583,6 +583,7 @@ module Tree = struct
       key "move-up" "move up" ArrowUp Move_up ~modifiers:[Alt];
       key "move-down" "move down" ArrowDown Move_down ~modifiers:[Alt];
       key "rename" "rename" F2 Rename_row;
+      key "delete" "delete" Delete Delete_rows; key "delete" "delete" Backspace Delete_rows;
       key "filter" "filter" (KeyChar '/') Filter;
       key "hide" "hide / show" (KeyChar 'h') Hide;
       key "activate" "open selected in graph" Enter Activate_row ]
@@ -671,6 +672,7 @@ module Tree = struct
         else if has_children rows index then move (k + 1) else t, []
     | Indent_rows, _ -> t, [Indent targets]
     | Outdent_rows, _ -> t, [Outdent targets]
+    | Delete_rows, _ -> t, [Delete targets]
     | Move_up, _ -> t, [Reorder { ids = targets; delta = -1 }]
     | Move_down, _ -> t, [Reorder { ids = targets; delta = 1 }]
     | Filter, _ -> { t with filter = Some (Option.value t.filter ~default:"") }, []
