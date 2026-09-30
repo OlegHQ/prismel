@@ -131,7 +131,9 @@ let run_editor () =
   step []; step [];
   let settle () =
     let deadline = Unix.gettimeofday () +. 20. in
-    while String.starts_with ~prefix:"Cooking" (dump_line !e "cook") || String.starts_with ~prefix:"Waiting" (dump_line !e "cook") do
+    let busy line = String.starts_with ~prefix:"Cooking" line || String.starts_with ~prefix:"Waiting" line
+      || has line "skipping frames" in
+    while busy (dump_line !e "cook") do
       if Unix.gettimeofday () > deadline then fail "the editor did not cook";
       Unix.sleepf 0.005; step []
     done in
