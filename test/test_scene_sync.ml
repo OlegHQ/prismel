@@ -245,4 +245,41 @@ let run () =
   (* the host's own camera and light are not in the text, only the World is *)
   let layers (doc : Document.t) = let _, layers, _, _ = snapshot doc in layers in
   check (layers (open_text (source edited)) = layers edited) "added world: the saved text is not the document";
-  print_endline "scene sync: fields, inline, rename, reparent, delete, camera, World, settings, host objects ok"
+  (* adding by key: an object joins the scene's merge, a layer goes on top of the stack; a document
+     with no scene graph (or World graph) gets one, its host objects written first *)
+  let add doc name expr = Result.get_ok (Flow_sop.Flow_edit.apply_checked
+    (Result.get_ok (Contexts.catalog ~version:Flow_sop.Manifest.version factories)) (fst (doc : Workspace_doc.t * _)).source
+    (Flow_sop.Flow_edit.Add_node { scope = [ "scene" ]; name; expr })) in
+  ignore add;
+  let call head args = Flow.Syntax.make (Flow.Syntax.List (Flow.Syntax.make (Flow.Syntax.Sym head) :: args)) in
+  let catalog = Result.get_ok (Contexts.catalog ~version:Flow_sop.Manifest.version factories) in
+  let edit (doc : Document.t) op = lower ~previous:doc
+    (Result.get_ok (Workspace_doc.edit catalog (fst doc.workspace) op)) in
+  let added = edit doc (Flow_sop.Flow_edit.Add_node { scope = [ "scene" ]; name = "lamp";
+    expr = call "scene/light" [ Flow.Syntax.make (Flow.Syntax.Kw "name"); Flow.Syntax.make (Flow.Syntax.Str "lamp") ] }) in
+  check (contains (source added) "scene/merge body arm cam side (scene/light :name \"fill\") lamp"
+         || contains (source added) "lamp)") "a new object did not join the scene's merge";
+  check (List.exists (fun (i : Edit_graph.node_info) -> i.label = "lamp") (Edit_graph.inspect (scene added)))
+    "a new object is not in the scene";
+  let layered = edit doc (Flow_sop.Flow_edit.Add_node { scope = [ "world" ]; name = "haze";
+    expr = call "world/gradient" [] }) in
+  check (List.map (fun (l, _, _) -> l) (let _, layers, _, _ = snapshot layered in layers) = [ "Gradient"; "sun"; "sky" ])
+    "a new World layer is not on top of the stack";
+  same_after_reload layered "added layer";
+  let twice = edit added (Flow_sop.Flow_edit.Delete_nodes { nodes = [ [ "scene"; "lamp" ] ] }) in
+  check (snapshot twice = snapshot doc) "deleting what was added did not give the scene back";
+  check (Result.is_ok (Workspace_doc.edit catalog (fst layered.workspace) (Flow_sop.Flow_edit.Delete_nodes { nodes = [ [ "world"; "haze" ] ] })))
+    "a World layer could not be deleted by its binding";
+  (* through the editor: a workspace with no scene graph gets one when an object is added *)
+  let env = Prismel_editor.Editor3.create ~workspace:(Ws_fixture.of_text "(workspace bare (graph g :context sop (sop/box)))")
+      ~prepare:(fun _ output -> Pdk_prismel.Prismel_mesh.to_mesh output.Session.geometry
+        |> Result.map_error Pdk.Error.to_string)
+      ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) () |> Result.get_ok in
+  let env = match Prismel_editor.Editor3.edit env (Flow_sop.Flow_edit.Add_node { scope = [ "scene" ]; name = "lamp";
+    expr = call "scene/light" [] }) with Ok env -> env | Error m -> failwith m in
+  let saved = Workspace_doc.to_text (Prismel_editor.Editor3.workspace env) in
+  check (contains saved "graph scene" && contains saved "scene/geometry (ref g)" && contains saved "scene/camera"
+         && contains saved "lamp") "adding to a missing scene graph did not write it";
+  check (Prismel_editor.Editor3.undo_label env = Some "Add node") "adding an object is not one entry";
+  Prismel_editor.Editor3.close env;
+  print_endline "scene sync: fields, inline, rename, reparent, delete, camera, World, settings, host objects, add by key ok"

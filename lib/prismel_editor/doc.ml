@@ -17,8 +17,24 @@ let relabel document ~node_id label = flow_result (Flow_sop.Network.relabel ~nod
 (* One gesture on a workspace document: rewrite and re-check the source, then
    lower it into the document's objects.  Atomic: an error changes nothing. *)
 let syntax_edit_result ~factories (doc : Editor_document.Document.t) op =
-  let workspace, _ = doc.workspace in
   let ( let* ) = Result.bind in
+  let head (expr : Flow.Syntax.t) = match expr.node with
+    | Flow.Syntax.List ({ node = Flow.Syntax.Sym h; _ } :: _) -> h | _ -> "" in
+  (* an object or a layer added to a scene or World graph the document does not have yet: the
+     host's own objects are written out first *)
+  let missing graph = not (List.exists (fun (g : Flow.Workspace.graph) -> g.name = graph)
+    (fst doc.workspace).checked.graphs) in
+  let* doc = match op with
+    | Flow_sop.Flow_edit.Add_node { scope = [ "scene" ]; expr; _ }
+      when missing "scene" && String.starts_with ~prefix:"scene/" (head expr) ->
+        Result.map_error (Flow.Diagnostic.error ~code:"E_EDIT")
+          (Editor_document.Scene_sync.adopt ~factories ~world:false doc)
+    | Add_node { scope = [ "world" ]; expr; _ }
+      when missing "world" && String.starts_with ~prefix:"world/" (head expr) ->
+        Result.map_error (Flow.Diagnostic.error ~code:"E_EDIT")
+          (Editor_document.Scene_sync.adopt ~factories ~world:true doc)
+    | _ -> Ok doc in
+  let workspace, _ = doc.workspace in
   let* catalog = Editor_document.Contexts.catalog ~version:Flow_sop.Manifest.version factories in
   let* workspace = Editor_document.Workspace_doc.edit catalog workspace op in
   Editor_document.Contexts.of_workspace ~factories ~previous:doc workspace

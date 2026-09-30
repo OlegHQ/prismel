@@ -152,7 +152,16 @@ let with_kw args k v =
   go args
 let with_pos args i v =
   let n = List.length (positional args) in
-  if i >= n then (match v with Some v -> v :: args | None -> args)
+  if i >= n then
+    (match v with
+     | None -> args
+     | Some v ->
+         (* after the last positional argument, else first *)
+         let rec go seen = function
+           | a :: b :: r when is_kw a -> a :: b :: go seen r
+           | x :: r -> if seen + 1 = n then x :: v :: r else x :: go (seen + 1) r
+           | [] -> [] in
+         if n = 0 then v :: args else go 0 args)
   else
     let rec go k = function
       | a :: b :: r when is_kw a -> a :: b :: go k r

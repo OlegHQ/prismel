@@ -16,3 +16,8 @@ val reconcile : factories:Procedural.Edit_graph.factory list -> ?adopt:bool ->
 val value_syntax : Editor_core.Param.field_view list -> Flow.Syntax.t
 (** The text of a parameter's current value: a number, flag or text, or a vector of numbers
     for the three fields of a vec3. *)
+
+val adopt : factories:Procedural.Edit_graph.factory list -> world:bool -> Document.t ->
+  (Document.t, string) result
+(** The scene graph ([~world:false]) or the World graph of a document that has none, written
+    from the objects or World the host made (an empty one when there are none). *)

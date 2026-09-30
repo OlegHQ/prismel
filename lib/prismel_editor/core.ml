@@ -488,23 +488,39 @@ let sync_scope value = match scope_name value, value.doc.Document.workspace, Laz
       end
   | _ -> value
 
+(* Where a node is added from the list or the pane: the graph the level shows, else the scene
+   or World graph that adding an object or a layer creates. *)
+let add_target value =
+  let ws, _ = value.doc.Document.workspace in
+  match graph_name value with
+  | Some name ->
+      let context = match List.find_opt (fun (g : Flow.Workspace.graph) -> g.name = name) ws.checked.graphs with
+        | Some g -> g.context | None -> Flow.Workspace.Sop in
+      Some (name, context)
+  | None ->
+      (match value.level with
+       | Document.Scene when value.scene_level -> Some ("scene", Flow.Workspace.Scene)
+       | Inside id when kind value id = Some "world" -> Some ("world", World)
+       | _ -> None)
+
 (* A kind picked in the node menu, as one [Add_node] at the selected zone (else the graph
    body), wired to the selected node when the kind takes a geometry input. *)
 let scope_add value key =
-  match scope_name value with
-  | Some graph ->
+  match add_target value with
+  | Some (graph, context) ->
       let ws, _ = value.doc.Document.workspace in
       if String.starts_with ~prefix:"value/" key then
         Notice "Value nodes are written as expressions in a workspace"
       else begin
-        let context = match List.find_opt (fun (g : Flow.Workspace.graph) -> g.name = graph)
-            ws.checked.graphs with
-          | Some g -> g.context | None -> Flow.Workspace.Sop in
         let arity = match List.find_opt (fun f -> Edit_graph.factory_key f = key)
             (catalog value context) with
           | Some factory -> Edit_graph.factory_arity factory | None -> 0 in
         let selected = Pxui_graph.Scope.selected value.scope_view in
         let scope, input = match selected with
+          | _ when context = Flow.Workspace.Scene || context = World ->
+              (* an object joins the scene's merge and a layer goes on top of the stack: the
+                 edit itself does that *)
+              [ graph ], None
           | [ path ] when List.length path >= 2 ->
               let last = List.nth path (List.length path - 1) in
               List.filteri (fun i _ -> i < List.length path - 1) path,
@@ -517,8 +533,13 @@ let scope_add value key =
                 | _ -> None in
               [ graph ], (if arity > 0 then result else None) in
         let head = Flow.Syntax.make (Flow.Syntax.Sym (Flow.Workspace.context_name context ^ "/" ^ key)) in
-        let expr = Flow.Syntax.make (Flow.Syntax.List (head ::
-          (match input with Some n -> [ Flow.Syntax.make (Flow.Syntax.Sym n) ] | None -> []))) in
+        let geometry = match context, key, List.find_opt (fun (g : Flow.Workspace.graph) ->
+            g.context = Flow.Workspace.Sop) ws.checked.graphs with
+          | Scene, "geometry", Some g -> [ Flow.Syntax.make (Flow.Syntax.List
+              [ Flow.Syntax.make (Flow.Syntax.Sym "ref"); Flow.Syntax.make (Flow.Syntax.Sym g.name) ]) ]
+          | _ -> [] in
+        let expr = Flow.Syntax.make (Flow.Syntax.List (head :: geometry
+          @ (match input with Some n -> [ Flow.Syntax.make (Flow.Syntax.Sym n) ] | None -> []))) in
         let name = Flow_sop.Flow_edit.fresh_name ws.source ~root:graph key in
         Syntax_edit (Flow_sop.Flow_edit.Add_node { scope; name; expr })
       end
@@ -1243,12 +1264,8 @@ let apply_change (document, error, effects) = function
 
 (* The kinds the node menu offers where the pane shows [graph], at a screen point. *)
 let open_menu value (x, y) =
-  match scope_name value with
-  | Some graph ->
-      let ws, _ = value.doc.Document.workspace in
-      let context = match List.find_opt (fun (g : Flow.Workspace.graph) -> g.name = graph)
-          ws.checked.graphs with
-        | Some g -> g.context | None -> Flow.Workspace.Sop in
+  match add_target value with
+  | Some (_, context) ->
       Some (Pxui_graph.Node_menu.create ~x ~y
         (Pxui_graph.Node_menu.entries_of_factories (catalog value context)))
   | None -> None

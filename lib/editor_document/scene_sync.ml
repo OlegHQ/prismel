@@ -165,6 +165,14 @@ let order (network : Document.network) =
 
 (* ---- objects the text does not have ---- *)
 
+(* the names a workspace's graphs, functions and macros already own *)
+let owned (workspace : Workspace_doc.t) =
+  let c = workspace.checked in
+  List.map (fun (g : Flow.Workspace.graph) -> g.name) (c.graphs @ c.defs)
+  @ List.filter_map (fun (m : S.t) -> match m.node with
+      | S.List [ _; { S.node = S.Sym n; _ }; _; _ ] | S.List ({ S.node = S.Sym _; _ } :: { S.node = S.Sym n; _ } :: _) -> Some n
+      | _ -> None) c.macros
+
 (* a name for a binding: the label as a lowercase symbol, unused in [used] *)
 let fresh used base =
   let clean = String.map (function 'a' .. 'z' | '0' .. '9' | '_' as c -> c
@@ -223,7 +231,7 @@ let adopt_objects st (doc : Document.t) =
   let unhomed = List.filter (fun (i : Edit.node_info) ->
     i.operation <> "world" && not (homed doc i.id)) (Edit.inspect graph) in
   if unhomed <> [] then begin
-    let used = ref [] in
+    let used = ref (owned st.workspace) in
     let bindings = List.map (fun (i : Edit.node_info) -> object_binding doc used i.id i) unhomed in
     match Contexts.graph_of st.workspace Flow.Workspace.Scene with
     | None ->
@@ -244,7 +252,7 @@ let adopt_world st (doc : Document.t) =
       let graph = Document.scene_graph doc in
       let network = Document.Int_map.find wid doc.networks in
       let g = network.graph.geometry in
-      let used = ref [] in
+      let used = ref (owned st.workspace) in
       let bindings = List.map (fun id ->
         let info = List.find (fun (i : Edit.node_info) -> i.id = id) (Edit.inspect g) in
         id, fresh used info.label, info) (List.rev (order network)) in
@@ -364,3 +372,25 @@ let reconcile ~factories ?(adopt = true) (before : Document.t) (after : Document
       else Contexts.of_workspace ~factories ~previous:after st.workspace
            |> Result.map_error Flow.Diagnostic.to_string
     with Stop message -> Error message
+
+(* The scene graph (or the World graph) of a document that has none: the objects the host
+   made (or its World, else an empty one) are written, so that an object or layer can be added
+   to it. *)
+let adopt ~factories ~world (doc : Document.t) =
+  let ( let* ) = Result.bind in
+  let* catalog = Result.map_error Flow.Diagnostic.to_string
+      (Contexts.catalog ~version:Flow_sop.Manifest.version factories) in
+  let st = { catalog; workspace = fst doc.workspace; unfolded = [] } in
+  try
+    if world then begin
+      if world_id doc <> None then adopt_world st doc
+      else apply st (F.Set_graph { name = "world";
+        form = graph_form "world" "world" (mk (S.List [ sym "world/world" ])) })
+    end else begin
+      adopt_objects st doc;
+      if Contexts.graph_of st.workspace Flow.Workspace.Scene = None then
+        apply st (F.Set_graph { name = "scene";
+          form = graph_form "scene" "scene" (mk (S.List [ sym "scene/merge" ])) })
+    end;
+    Contexts.of_workspace ~factories ~previous:doc st.workspace |> Result.map_error Flow.Diagnostic.to_string
+  with Stop message -> Error message
