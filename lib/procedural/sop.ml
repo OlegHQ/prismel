@@ -828,14 +828,16 @@ let distance_from_target ?label ?affected
           | Ok geometry -> cooked geometry
           | Error error -> structured_pdk_error error)
 
-let merge ?label inputs =
+let merge ?label ?source_attribute inputs =
   let inputs = Array.of_list inputs in
   Node.Private.make ?label ~operation:"merge" ~version:1
-    ~parameters:(Printf.sprintf "inputs=%d" (Array.length inputs))
+    ~parameters:(match source_attribute with
+      | None -> Printf.sprintf "inputs=%d" (Array.length inputs)
+      | Some name -> Printf.sprintf "inputs=%d;source=%S" (Array.length inputs) name)
     ~cook_mode:Node.Generic ~dependencies:Context.Dependencies.static ~inputs
     (fun ~node_id:_ context inputs ->
       match Pdk.Mesh_merge.run ~cancel:(Context.cancel_token context)
-          ~grain:(Context.grain context)
+          ~grain:(Context.grain context) ?source_attribute
           (Array.to_list inputs) with
       | Ok geometry -> cooked geometry
       | Error error -> structured_pdk_error error)

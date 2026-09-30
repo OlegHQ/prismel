@@ -295,7 +295,9 @@ val distance_from_target :
     groups are promoted once; planar distance may be signed, while masks use
     magnitude and fixed or maximum-distance normalization. *)
 
-val merge : ?label:string -> Node.t list -> Node.t
+val merge : ?label:string -> ?source_attribute:string -> Node.t list -> Node.t
+(* [source_attribute] names a primitive int attribute holding each
+   primitive's input index (see [Pdk.Mesh_merge.merge]). *)
 (* Deterministic packed Fuse 2.0 point snapping/consolidation. A second target
     remains immutable and supplies an independent named target group. Near
     targeting supports least-number or closest targets, radius expansion, and

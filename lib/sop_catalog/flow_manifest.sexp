@@ -1,6 +1,6 @@
 (flow_manifest
   (version 202609)
-  (digest "70e28047e372ffe5d783f3746037203d")
+  (digest "cf374a50564e4d4d9bd45efc4cd001b1")
   (kinds
     (kind "sop/box"
       (key "box")
@@ -250,7 +250,7 @@
         (field "rotation_x" "Rotate X" (folder "Transform" "Rotate") (float (soft -3.1415899999999999 3.1415899999999999) (hard nil nil)) (float 0) (primary false) (vec3 "rotation" 0))
         (field "rotation_y" "Rotate Y" (folder "Transform" "Rotate") (float (soft -3.1415899999999999 3.1415899999999999) (hard nil nil)) (float 0) (primary false) (vec3 "rotation" 1))
         (field "rotation_z" "Rotate Z" (folder "Transform" "Rotate") (float (soft -3.1415899999999999 3.1415899999999999) (hard nil nil)) (float 0) (primary false) (vec3 "rotation" 2))
-        (field "rows" "Rows" (folder "Resolution") (int (soft 1 128) (hard 1 nil)) (int 1) (primary false) (vec3))
+        (field "rows" "Rows" (folder "Resolution") (int (soft 2 128) (hard 2 nil)) (int 2) (primary false) (vec3))
         (field "columns" "Columns" (folder "Resolution") (int (soft 3 256) (hard 3 nil)) (int 32) (primary false) (vec3))
         (field "uv_attribute" "UV attribute" (folder "Attributes") (text) (text "uv") (primary false) (vec3))
         (field "cap_group" "Cap group" (folder "Attributes") (text) (text "caps") (primary false) (vec3)))

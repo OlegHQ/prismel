@@ -185,6 +185,8 @@ let () = (* 1. function values *)
             = List.map (fun k -> ([ "g"; "mk"; "@result" ], [ k ])) [ 0; 1; 2 ]));
   t "fn: defn and operator names are function values" (fun () ->
     is "(workspace w (defn twice :context value [(x : float)] (* x 2)) (graph g :context value (+ (reduce + 0 (map twice (list 1 2 3))) (first (map sin (list 0))))))" (Eval.Int 12));
+  t "reduce: an int seed keeps a float sum" (fun () ->
+    is (value "(reduce + 0 (list 0.5 0.25))") (Eval.Float 0.75));
   t "fn: user HOF with a fn-typed defn input" (fun () ->
     let ring = "(defn ring :context sop [(n : int 8) (make : fn)] (sop/merge (map make (range n))))" in
     let r = run (check ("(workspace w " ^ ring ^ " (defn dot :context sop [(i : int)] (sop/box :size (* 0.1 (+ i 1)))) (graph g :context sop (sop/merge (ring :n 3 :make dot) (let* [mk (fn [i] (sop/box))] (ring :n 2 :make mk)))))")) in

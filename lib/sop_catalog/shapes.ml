@@ -880,9 +880,9 @@ module Tube = struct
     rotation_z : float [@sop.default 0.] [@sop.label "Rotate Z"]
       [@sop.folder "Transform/Rotate"] [@sop.min (-3.14159)]
       [@sop.max 3.14159]; [@sop.vec3 "rotation"]
-    rows : int [@sop.default 1] [@sop.label "Rows"]
-      [@sop.folder "Resolution"] [@sop.min 1] [@sop.max 128]
-      [@sop.hard_min 1];
+    rows : int [@sop.default 2] [@sop.label "Rows"]
+      [@sop.folder "Resolution"] [@sop.min 2] [@sop.max 128]
+      [@sop.hard_min 2];
     columns : int [@sop.default 32] [@sop.label "Columns"]
       [@sop.folder "Resolution"] [@sop.min 3] [@sop.max 256]
       [@sop.hard_min 3];

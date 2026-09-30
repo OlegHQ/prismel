@@ -1706,7 +1706,8 @@ module Revolve = struct
       ~connectivity:parameters.connectivity
       ~start_angle:parameters.start_angle ~end_angle:parameters.end_angle
       ~reverse_cross_sections:parameters.reverse_cross_sections
-      ~caps:parameters.caps ?cap_group:(optional_text parameters.cap_group)
+      ~caps:parameters.caps
+      ?cap_group:(if parameters.caps then optional_text parameters.cap_group else None)
       ~uv_attribute:(optional_text parameters.uv_attribute)
       ~divisions:parameters.divisions
       ~origin:(Vec3.create parameters.origin_x parameters.origin_y
@@ -1775,7 +1776,8 @@ module Sweep = struct
       ~transform_attributes:parameters.transform_attributes
       ~reverse_cross_sections:parameters.reverse_cross_sections
       ~scale:parameters.scale ~roll:parameters.roll ~twist:parameters.twist
-      ~caps:parameters.caps ?cap_group:(optional_text parameters.cap_group)
+      ~caps:parameters.caps
+      ?cap_group:(if parameters.caps then optional_text parameters.cap_group else None)
       ~uv_attribute:(optional_text parameters.uv_attribute)
       ~cross_section_prefix:parameters.cross_section_prefix
       ~backbone ~cross_section ())
@@ -1883,7 +1885,8 @@ module Polywire = struct
       ~u_range:(parameters.u_min, parameters.u_max)
       ~v_range:(parameters.v_min, parameters.v_max)
       ?uv_range_attribute:(optional_text parameters.uv_range_attribute)
-      ~caps:parameters.caps ?cap_group:(optional_text parameters.cap_group)
+      ~caps:parameters.caps
+      ?cap_group:(if parameters.caps then optional_text parameters.cap_group else None)
       ~radius:parameters.radius input)
   let factory = parameters_factory build
 end

@@ -662,7 +662,11 @@ and hof c env kind f rest =
   | `Reduce, [ init; l ] ->
       let init = ev (sub c "init") env init in
       let xs = List.hd (lists_of [ l ]) in
-      Array.fold_left (fun acc x -> coerce_like init (call_fn c fv [ acc; x ])) init xs
+      (* an int seed such as [0] must not truncate a float sum *)
+      Array.fold_left (fun acc x ->
+        match acc, call_fn c fv [ acc; x ] with
+        | Int _, (Float _ as r) -> r
+        | _, r -> coerce_like acc r) init xs
   | _ -> fail "E_ARITY" "A higher-order form got the wrong number of arguments."
 
 and loop c env kind accs clauses body zone =

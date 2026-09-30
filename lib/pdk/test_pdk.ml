@@ -4035,6 +4035,26 @@ let run () =
   let merged = Mesh_merge.run [grid; grid] |> get_ok in
   if Geometry.point_count merged <> 90 || Geometry.primitive_count merged <> 128
   then fail "merge cardinality";
+  (let source = "__src" in
+   let tagged = Mesh_merge.run ~source_attribute:source [grid; box; grid] |> get_ok in
+   let ints geometry = match Geometry.find_attribute ~owner:Attribute.Primitive source geometry with
+     | Some attribute -> (match Attribute.Private.storage attribute with
+         | Attribute.Int values -> values | _ -> fail "source attribute is not int")
+     | None -> fail "merge wrote no source attribute" in
+   let expected = Array.concat [
+     Array.make (Geometry.primitive_count grid) 0;
+     Array.make (Geometry.primitive_count box) 1;
+     Array.make (Geometry.primitive_count grid) 2] in
+   if ints tagged <> expected then fail "merge source attribute values";
+   (* a merge of tagged merges keeps one outermost attribute *)
+   let nested = Mesh_merge.run ~source_attribute:source [tagged; box] |> get_ok in
+   let outer = ints nested in
+   if Array.length outer <> Geometry.primitive_count nested
+      || outer.(0) <> 0 || outer.(Array.length outer - 1) <> 1
+   then fail "nested merge source attribute";
+   let plain = Mesh_merge.run [grid; box; grid] |> get_ok in
+   if Geometry.find_attribute ~owner:Attribute.Primitive source plain <> None
+   then fail "merge without source_attribute added one");
   let grouped_inputs = List.map (fun name ->
     let group = Group.init ~owner:Group.Primitive ~name
         (Geometry.primitive_count box) (fun primitive -> primitive = 0) in
