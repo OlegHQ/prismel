@@ -788,4 +788,9 @@ Inline loops are unfolded into a binding first. Tests: `test_scene_sync.ml` `run
 component edit, refusal, rename, delete first/middle/two, confirm, pairs), `test_workspace_shell.ml` `run_loop_copies`,
 `run_loop_expression` (slider drag, list rename, Delete, the confirm button, typed `=(* i 3)`; Save text reopens the same).
 Native: `FLOW_CASE=lamps` (new) and `FLOW_CASE=<workspace file>` with `FLOW_SCRIPT` (`key Delete`) were read as PNGs.
-Open: a loop inside a loop nests `Copy` homes and works by the same rules, but has no test of its own.
+Nested loops (`(for [i ..] (scene/merge (for [j ..] light)))`, bare nested `for` is a type error) are tested in
+`test_scene_sync.ml` `run_nested_loops`: a literal edit and a rename write the inner template (all copies, saved text
+reopens the same), a computed field is refused naming `(now i)`, and deleting one inner copy, or every object of one outer
+copy, is refused and asked ("Delete all 2 copies ..."; a yes rewrites and reloads identically). No bug found. Limit: the
+outer-copy delete is not rewritten with take/drop, it asks; the question names the loop "an expression". No shell test
+for nesting (the shell path is the same `Sync.confirming`).

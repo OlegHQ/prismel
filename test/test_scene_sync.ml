@@ -448,3 +448,55 @@ let run_loops () =
     (List.filter (fun (i : Edit_graph.node_info) -> field i "translate_x" = Some (Parameter.Float_value 1.)) (lamps pairs))))) in
   check (List.length (lamps (open_text (source both))) = 4) "deleting both objects of a copy did not remove the copy";
   print_endline "scene sync: loop copies are one template: edit, computed refusal, rename, delete, confirm ok"
+
+(* a loop inside a loop: the copies nest, the rules are the same *)
+let run_nested_loops () =
+  let text = {|(workspace nest
+    (graph g :context sop (sop/box))
+    (graph scene :context scene
+      (scene/merge (scene/geometry (ref g) :name "body")
+                   (for [i (range 3)]
+                     (scene/merge (for [j (range 2)] (scene/light :name "lamp" :intensity 30 :translate [i j 0])))))))|} in
+  let doc = open_text text in
+  check (List.length (lamps doc) = 6) "the nested loop did not make six lamps";
+  let pick n = (List.nth (lamps doc) n).id in
+  let edited = ok (reconcile doc (set_id doc (pick 3) [ float "intensity" 77. ])) in
+  check (List.for_all (fun i -> field i "intensity" = Some (Parameter.Float_value 77.)) (lamps edited)
+         && contains (source edited) ":intensity 77.0" && not (contains (source edited) ":intensity 30"))
+    "a literal edit did not reach the inner template";
+  same_after_reload edited "nested edit";
+  let message = refused (reconcile doc (set_id doc (pick 3) [ float "translate_x" 9. ])) in
+  check (contains message "computed by the loop" && contains message "(now i)")
+    ("a computed field of a nested copy was not refused with its expression: " ^ message);
+  let renamed = ok (reconcile doc (with_scene doc (Result.get_ok (Edit_graph.replace_node
+    (Node.relabel "spot" (Option.get (Edit_graph.find (scene doc) ~node_id:(pick 3)))) (scene doc))))) in
+  check (List.for_all (fun (i : Edit_graph.node_info) -> i.label = "spot") (lamps renamed)
+         && contains (source renamed) ":name \"spot\"" && not (contains (source renamed) ":name \"lamp\""))
+    ("a nested rename did not reach the template: " ^ source renamed);
+  same_after_reload renamed "nested rename";
+  (* a delete is exact or asks; it never drops the wrong copies *)
+  List.iter (fun n ->
+    let one = without_ids doc [ pick n ] in
+    (match reconcile doc one with
+     | Ok gone ->
+       check (List.length (lamps (open_text (source gone))) = 5) "a nested delete did not remove exactly one copy";
+       same_after_reload gone "nested delete"
+     | Error _ ->
+       (match Sync.confirming ~factories doc one with
+        | Some q -> check (contains q "copies") ("the nested question does not count copies: " ^ q)
+        | None -> failwith "a refused nested delete did not ask"))) [ 0; 3; 5 ];
+  (* one inner copy cannot go alone: the question counts the copies, a yes removes the loop *)
+  let one = without_ids doc [ pick 3 ] in
+  (match Sync.confirming ~factories doc one with
+   | Some q -> check (contains q "all 2 copies") ("the nested question: " ^ q)
+   | None -> failwith "deleting one inner copy did not ask");
+  same_after_reload (ok (Sync.reconcile ~factories ~whole:true doc one)) "nested whole delete";
+  (* both objects of an outer copy: the inner loop still cannot lose a whole copy's worth silently; it asks *)
+  let outer = without_ids doc [ pick 2; pick 3 ] in
+  check (Result.is_error (reconcile doc outer) && Sync.confirming ~factories doc outer <> None)
+    "deleting every object of an outer copy neither wrote nor asked";
+  let all = ok (Sync.reconcile ~factories ~whole:true doc outer) in
+  check (List.length (lamps all) = 0 || List.length (lamps (open_text (source all))) = List.length (lamps all))
+    "the confirmed nested delete is not the saved text";
+  same_after_reload all "nested confirmed delete";
+  print_endline "scene sync: nested loops: edit, computed refusal, rename, delete ok"
