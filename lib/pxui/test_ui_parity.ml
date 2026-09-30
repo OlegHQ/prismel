@@ -105,8 +105,53 @@ let check_overlays () =
     failwith "PXUI modal/picker/context menu drifted from fixtures/kit_overlays_2x.png"
   else print_endline "PXUI overlay parity: exact"
 
+(* The graph pane's zone tokens (plan W4): for, fold, sum, a hollow dashed fn
+   zone and a let scope, with the socket colours of lists and functions. *)
+let zones ui =
+  let theme = Pxui.Ui.theme ui in
+  let box = Pxui.Ui.box ui ~w:(Pxui.Ui.Px 320.) ~h:(Pxui.Ui.Px 300.) ~at:(0., 0.) "zones" in
+  Pxui.Ui.draw ui box (fun paint _ ->
+    let module P = Pxui.Ui.Paint in
+    let dash (x0, y0) (x1, y1) color =
+      let length = Float.hypot (x1 -. x0) (y1 -. y0) in
+      for k = 0 to int_of_float (length /. 7.) - 1 do
+        let lo = float k *. 7. in
+        let at d = x0 +. (x1 -. x0) *. d /. length, y0 +. (y1 -. y0) *. d /. length in
+        P.line paint ~from_:(at lo) ~to_:(at (lo +. 4.)) ~width:1.2 color
+      done in
+    List.iteri (fun i (zone : Pxui.Theme.zone) ->
+      let x = 12. +. float (i mod 2) *. 154. and y = 12. +. float (i / 2) *. 92. in
+      P.rect paint ~x ~y ~w:142. ~h:80. ~radius:6. ~fill:zone.fill ();
+      if zone.dashed then begin
+        let x1 = x +. 142. and y1 = y +. 80. in
+        dash (x, y) (x1, y) zone.edge; dash (x1, y) (x1, y1) zone.edge;
+        dash (x1, y1) (x, y1) zone.edge; dash (x, y1) (x, y) zone.edge
+      end else P.stroke paint ~x:(x +. 0.5) ~y:(y +. 0.5) ~w:141. ~h:79. ~radius:6. zone.edge)
+      [ Pxui.Theme.zone_for theme; Pxui.Theme.zone_fold theme; Pxui.Theme.zone_sum theme;
+        Pxui.Theme.zone_fn theme; Pxui.Theme.zone_let theme ];
+    let ports = Pxui.Theme.ports theme in
+    List.iteri (fun i color -> P.rect paint ~x:(170. +. float i *. 20.) ~y:(200. +. 0.) ~w:10. ~h:10.
+      ~fill:color ()) [ ports.text; ports.fn; ports.record ])
+
+let check_zones () =
+  let width, height, actual, directory =
+    capture "zones" ~init:(fun _ -> Pxui.Ui.create ())
+      ~update:(fun ui frame -> Pxui.Ui.frame ui frame zones; ui)
+      ~view:(fun ui _ -> Scene.clear background :: Pxui.Ui.scene ui) in
+  (match Sys.getenv_opt "PRISMEL_UPDATE_FIXTURES" with
+   | Some target -> Sys.rename (Filename.concat directory "zones-000001.png")
+       (Filename.concat target "kit_zones_1x.png")
+   | None -> ());
+  let golden = Image.load_exn "fixtures/kit_zones_1x.png" in
+  if Image.get_size golden <> (width, height) then
+    print_endline "PXUI zone parity: skipped (golden is not 1x)"
+  else if Result.get_ok (Image.Private.pixels golden) <> actual then
+    failwith "PXUI zone tokens drifted from fixtures/kit_zones_1x.png"
+  else print_endline "PXUI zone parity: exact"
+
 let run () =
   check_overlays ();
+  check_zones ();
   let golden = Image.load_exn "fixtures/kit_panel_2x.png" in
   let old_width, old_height = Image.get_size golden in
   let expected = Result.get_ok (Image.Private.pixels golden) in

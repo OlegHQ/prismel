@@ -11,7 +11,7 @@
 
 (rule
  (aliases runtest-native test_ui_parity)
- (deps fixtures/kit_panel_2x.png fixtures/kit_overlays_2x.png)
+ (deps fixtures/kit_panel_2x.png fixtures/kit_overlays_2x.png fixtures/kit_zones_1x.png)
  (action
   (setenv PRISMEL_UI_FONT %{dep:../../assets/fonts/DepartureMono-Regular.otf}
    (run %{exe:test_main.exe} test_ui_parity))))

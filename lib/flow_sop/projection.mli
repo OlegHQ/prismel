@@ -145,3 +145,9 @@ val rail_width : float
 val yield_width : float
 val strip_height : float
 (** The constants of the study's card geometry (24-point rows). *)
+
+val counts : Flow.Eval.t -> scope -> (path * int) list
+(** Iterations (or calls) each zone ran, from a [~record:true] evaluation:
+    the records of its first loop name or parameter.  A zone with no record
+    is missing.  ponytail: a nested zone counts the whole product, as the
+    evaluator numbers it; W5 refines this per outer iteration. *)
