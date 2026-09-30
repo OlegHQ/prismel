@@ -669,7 +669,7 @@ let create ?(settings = Settings.none) ?(keymap = Leader.keymap)
     ?(name = "sketch") ?presets ?(timeline_frames = 240)
     ?(layout = Pxui_shell.Layout.default) ?(factories = [])
     ?(seed = 0L) ?(grain = 16_384)
-    ?domains ?(max_entries = 32)
+    ?domains ?(max_entries = 512)
     ?(max_payload_bytes = 256 * 1024 * 1024)
     ?program ~graph ~prepare () =
   let doc, geometry = initial_doc ~settings ?program

@@ -405,8 +405,9 @@ op('sop/group_bounds', 'sop', {pos: [['input', 'geometry']], kw: [['name', 'grou
   fn: ([g], k) => geo(g.prims.map(p => { const c = centroid(p); return c.every((v, i) => Math.abs(v - k.center[i]) <= k.size[i] / 2) ? {...p, groups: [...new Set([...p.groups, k.name])]} : p; }))});
 op('sop/group_random', 'sop', {pos: [['input', 'geometry']], kw: [['name', 'group', 'group1'], ['probability', 'float', 0.5, [0, 1]], ['seed', 'int', 0, [0, 100]]], out: 'geometry',
   fn: ([g], k) => { const byUid = new Map(); return geo(g.prims.map((p, i) => { const key = p.tags['#piece'] ?? i; if (!byUid.has(key)) byUid.set(key, hash(k.seed, key, 7) < k.probability); return byUid.get(key) ? {...p, groups: [...new Set([...p.groups, k.name])]} : p; })); }});
-op('sop/blast', 'sop', {pos: [['input', 'geometry']], kw: [['group', 'groupref', ''], ['selected', 'bool', true]], out: 'geometry',
+op('sop/blast', 'sop', {pos: [['input', 'geometry']], kw: [['group', 'groupref', ''], ['selected', 'bool', true], ['owner', 'text', 'Primitives']], out: 'geometry',
   fn: ([g], k) => geo(g.prims.filter(p => p.groups.includes(k.group) !== !!k.selected))});
+op('sop/normals', 'sop', {pos: [['input', 'geometry']], kw: [['owner', 'text', 'Vertex']], out: 'geometry', fn: ([g]) => g});
 op('sop/subdivide', 'sop', {pos: [['input', 'geometry']], kw: [['iterations', 'int', 1, [0, 4]]], out: 'geometry',
   fn: ([g], k) => { let ps = g.prims; for (let i = 0; i < Math.min(4, k.iterations); i++) ps = ps.flatMap(p => p.kind === 'face' ? subdivideFace(p) : p.kind === 'line' ? [chaikin(p)] : [p]); return countPrims(geo(ps)); }});
 op('sop/noise_displace', 'sop', {pos: [['input', 'geometry']], kw: [['amplitude', 'float', 0.1, [0, 2]], ['frequency', 'float', 2, [0, 10]], ['seed', 'int', 0, [0, 100]]], out: 'geometry',

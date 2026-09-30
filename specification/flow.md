@@ -1076,6 +1076,18 @@ an edit in history. Cooking calls `flatten ~allocate:false` and reports a
 missing-id diagnostic instead of creating an unsaved id. An unchanged source
 network, definitions, display and id map reuse the same flattened network.
 
+### 13.4 Workspace lowering
+
+`Flow_sop.Lower.workspace` (specification/workspace/plan.md W2) builds one
+network per evaluated sop graph from the `Flow.Eval` geometry plan. Its
+compiled ids use the same `Instance_path.Map` with the key
+`instance :: site_index :: (-(k+1))*`; a negative segment is an iteration
+index, so the encoding needs no new type. A collected geometry list is one
+`flow.merge_n` node that tags each primitive with its input index in the
+`__flow_src` primitive attribute; `Lower` records where each input came from.
+Parameters that depend on `t` cook with their `t = 0` value and are listed for
+W2b, so a frame never re-lowers.
+
 ## 14. Libraries and the dependency gate
 
 | Library | Status | Depends on | Owns |

@@ -12,7 +12,9 @@
            big (window :w mid :h 0.5)
            small (window :w left)
            style (fn [f] (case (mod f 3) 0 "#b0680f" 1 "#285f77" :else "#6b50ae"))
-           tower (fold [st {:shape (sop/box :size [0.01 0.01 0.01]) :y 0.0}]
+           tower (fold [st {:shape (sop/set_color (sop/box :size [0.01 0.01 0.01])
+                                                  :color "#b0680f")
+                            :y 0.0}]
                        [f (range floors)]
                    (let* [{:keys [shape y]} st
                           part (cond
@@ -25,5 +27,6 @@
                                                 :rotate [0 (* f 0.3) 0])]
                      {:shape (sop/merge shape placed) :y (+ y 0.55)}))
            label (str "floors " floors " · area " big.area)
-           panes (sop/transform big.pane :translate [0.75 0 0])]
+           panes (sop/set_color (sop/transform big.pane :translate [0.75 0 0])
+                                :color "#285f77")]
       (sop/merge tower.shape panes))))

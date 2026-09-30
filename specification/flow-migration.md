@@ -361,6 +361,28 @@ a literal `(range 9999)` in an untaken branch use a graph input, because L3
 rejects the literal at check time. Details and measurements are in
 `specification/workspace/progress.md`.
 
+### W2 lowering and cooking (2026-09-30, done)
+
+`Flow_sop.Lower.workspace` checks a workspace, evaluates it and returns one
+`Network.t` per sop-context graph instance (top-level graphs and each distinct
+`ref` override tuple, shared nodes keeping their ids), with compiled ids per
+`(instance, site, iteration tuple)` in the existing
+`compiled_ids : int Instance_path.Map.t` (an iteration segment is `-(index+1)`),
+a plan-to-compiled id map, the live parameters still to become drives (W2b) and
+a provenance table `(merge id, input index) -> (site, iteration tuple)` for W6.
+Merges write `__flow_src` through the new `?source_attribute` of
+`Pdk.Mesh_merge.merge` and `Procedural.Sop.merge`. The editor `Session` default
+is 512 entries (measured in `progress.md`). `test_workspace_cook` cooks every
+fixture at 1 and 3 domains byte for byte; `tools/bench_workspace_lower.ml`
+records the timings (Bloom lower + cook 2.2 ms).
+
+Deviations: every `sop/merge` lowers to an internal `flow.merge_n` node (no
+Rest slot, see W0); `sop/curve` is a `flow.curve` node with baked points;
+bypass is resolved by `Eval` so `Edit.set_bypass` is not used yet; four
+fixtures changed so their merges have identical attribute schemas; cooking
+exposed four bugs (Eval `reduce` with an int seed, the `cap_group` default of
+PolyWire/Revolve/Sweep, Tube's default `rows`), fixed in this milestone.
+
 ## Do not
 
 - Do not draw curved wires or keep Bézier code for the graph after M1.

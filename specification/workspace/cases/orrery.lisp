@@ -11,7 +11,7 @@
                     :amplitude 0.05
                     :frequency 3
                     :seed seed)
-           plinth (sop/set_color base :color "#6b7650")
+           plinth (sop/set_color (sop/normals base :owner "Point") :color "#6b7650")
            ; t enters here, and everything downstream of it is live
            spin (* t 0.8)
            pulse (+ 0.28 (* 0.03 (sin (* t 3))))

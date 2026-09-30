@@ -1,7 +1,7 @@
 (library
  (name flow_sop)
  (public_name prismel.flow_sop)
- (modules port drive exposure instance_path network compound_node group compile value_lane catalog print manifest program build)
+ (modules port drive exposure instance_path network compound_node group compile value_lane catalog print manifest program build lower)
  (libraries flow param procedural))
 
 (test
