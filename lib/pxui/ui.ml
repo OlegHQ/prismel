@@ -200,6 +200,7 @@ and ui = {
   (* build state *)
   mutable parents : int list;
   mutable overlays : int list;  (* popup boxes this frame, newest first *)
+  mutable foreground : (int * int) list;  (* floating panels, below modal popups *)
   mutable seeds : int list;
   mutable building : bool;
   mutable frame_number : int;
@@ -255,6 +256,7 @@ and ui = {
   (* output *)
   batch_builder : Batch.Builder.t;
   mutable regions : Scene.t;
+  mutable scene_layers : (int * Scene.t) list;
   mutable scene : Scene.t;
   atlas : atlas;
   mutable destroyed : bool;
@@ -491,7 +493,7 @@ let create ?(theme = Theme.default) ?font ?(font_size = Theme.font_size) () =
     l_content = Array.make capacity 0.; l_gutter = Array.make capacity 0.;
     l_scale = Array.make capacity 1.; l_tx = Array.make capacity 0.;
     l_ty = Array.make capacity 0.;
-    parents = []; overlays = []; seeds = []; building = false; frame_number = 0; density = 1;
+    parents = []; overlays = []; foreground = []; seeds = []; building = false; frame_number = 0; density = 1;
     kit_row_height = 24; kit_padding = 3;
     pointer = (Float.nan, Float.nan); hot = 0; hover_rest = None; active = None;
     active_button = Input.LeftButton; active_press = (0., 0.); focus = 0;
@@ -510,7 +512,7 @@ let create ?(theme = Theme.default) ?font ?(font_size = Theme.font_size) () =
     hit_count = 0; hit_keys = [||]; hit_parent = [||]; hit_flags_of = [||];
     hit_x = [||]; hit_y = [||]; hit_w = [||]; hit_h = [||];
     batch_builder = Batch.Builder.create ~capacity:1024 ();
-    regions = []; scene = []; atlas = create_atlas (); destroyed = false }
+    regions = []; scene_layers = []; scene = []; atlas = create_atlas (); destroyed = false }
 
 let destroy ui =
   if not ui.destroyed then begin
@@ -530,7 +532,10 @@ let font_size ui = ui.font_size
 let set_font_size ui size =
   if size <= 0 then invalid_arg "Ui.set_font_size: size must be positive";
   ui.font_size <- size; ui.kit_row_height <- size + 13
-let scene ui = ui.scene
+let scene ?under ui = match under with
+  | None -> ui.scene
+  | Some under -> List.concat_map (fun (key, layer) -> under key @ layer) ui.scene_layers
+      @ List.rev ui.regions
 let row_height ui = ui.kit_row_height
 let panel_padding ui = ui.kit_padding
 
@@ -1103,6 +1108,11 @@ let draw ui box painter =
 let draw_over ui box painter =
   ui.b_overlays.(box.index) <- painter :: ui.b_overlays.(box.index)
 
+let to_front ui ?(order = 0) box =
+  require_building ui;
+  if ui.b_parent.(box.index) <> 0 then invalid_arg "Ui.to_front: expected a root box";
+  ui.foreground <- (order, box.index) :: ui.foreground
+
 (* ------------------------------------------------------------- cached *)
 
 let snapshot_box ui index parent_offset =
@@ -1426,6 +1436,9 @@ let paint_all ui (frame : Frame.t) =
   ui.hit_count <- 0;
   let paint = { owner = ui; builder; scale = 1.; tx = 0.; ty = 0.;
     clip_rect = (0., 0., float frame.width, float frame.height) } in
+  let layers = ref [] and key = ref 0 in
+  let flush () = layers := (!key, Batch.Builder.publish builder) :: !layers;
+    Batch.Builder.reset builder in
   let run painters index clip_rect =
     if painters <> [] then begin
       paint.scale <- ui.l_scale.(index); paint.tx <- ui.l_tx.(index);
@@ -1438,6 +1451,9 @@ let paint_all ui (frame : Frame.t) =
       in_order painters
     end in
   let rec visit index clip_rect parent_hit =
+    if ui.b_parent.(index) = 0 && List.exists (fun (_, root) -> root = index) ui.foreground then begin
+      flush (); key := ui.b_key.(index)
+    end;
     let screen_rect = screen ui index in
     let slot = ui.b_slot.(index) in
     let x, y, w, h = screen_rect in
@@ -1484,7 +1500,7 @@ let paint_all ui (frame : Frame.t) =
         retain child) in
       retain index in
   visit 0 paint.clip_rect 0;
-  Batch.Builder.publish builder
+  flush (); List.rev !layers
 
 (* -------------------------------------------------------------- frame *)
 
@@ -1556,23 +1572,26 @@ let frame ui (frame : Frame.t) f =
       unlink (-1) ui.b_first.(0);
       ui.b_next.(ui.b_last.(0)) <- index; ui.b_next.(index) <- -1;
       ui.b_last.(0) <- index
-    end) (List.rev ui.overlays);
+    end) (List.stable_sort (fun (a, _) (b, _) -> Int.compare a b) (List.rev ui.foreground)
+      |> List.map snd |> fun foreground -> foreground @ List.rev ui.overlays);
   ui.overlays <- [];
   intrinsic ui;
   apply_scroll ui frame.time;
   arrange ui;
-  let batch = paint_all ui frame in
+  let layers = paint_all ui frame in
+  ui.foreground <- [];
   prune ui;
   if ui.focus <> 0 && Table.find ui.table ui.focus < 0 then begin
     ui.focus <- 0; ui.edit_focus <- 0
   end;
   publish_atlas ui.atlas;
-  let images = match ui.atlas.image with
-    | Some image when Batch.textures batch <> [] -> [1, image]
-    | Some _ | None -> [] in
-  let batch = if images = [] && Batch.textures batch <> [] then Batch.empty else batch in
-  ui.scene <- (if Batch.count batch = 0 then List.rev ui.regions
-    else Scene.Private.ui ~images batch :: List.rev ui.regions);
+  ui.scene_layers <- List.map (fun (key, batch) ->
+    let images = match ui.atlas.image with
+      | Some image when Batch.textures batch <> [] -> [1, image]
+      | Some _ | None -> [] in
+    let batch = if images = [] && Batch.textures batch <> [] then Batch.empty else batch in
+    key, (if Batch.count batch = 0 then [] else [Scene.Private.ui ~images batch])) layers;
+  ui.scene <- List.concat_map snd ui.scene_layers @ List.rev ui.regions;
   result
 
 (* ------------------------------------------------------ layout helpers *)
@@ -2313,7 +2332,7 @@ let rec numeric_editor ?size ?control ?(click_to_edit = false)
             clicked = false; double_clicked = false } ~keys ~current ~parse
       end else None, false
 
-let value_field ui ~at ~w ~h ?size ?display ?fraction ?slide ?scrub
+let value_field ui ~at ~w ~h ?size ?display ?fraction ?slide ?scrub ?(left = false)
     ?(edit = false) ~valid label value =
   let box = box ui ~flags:(clickable lor tab_stop lor blocking lor clip)
     ~at ~w:(Px w) ~h:(Px h) label in
@@ -2367,7 +2386,8 @@ let value_field ui ~at ~w ~h ?size ?display ?fraction ?slide ?scrub
         ~w:(float (max 0 (w - 2)) *. Float.max 0. (Float.min 1. f))
         ~h:(float (max 0 (h - 2))) (Color.with_alpha ui.theme.accent 45)) fraction;
       let width = Paint.text_width paint ?size display in
-      Paint.text paint ?size ~at:(float (x + w - 4) -. width, float text_y) display
+      Paint.text paint ?size ~at:((if left then float (x + 4)
+        else float (x + w - 4) -. width), float text_y) display
     end;
     paint.clip_rect <- previous_clip);
   value, editing
@@ -3250,10 +3270,11 @@ let picker ui ?(limit = 10) label ~query rows_of =
 (* A floating kit menu at [at], kept inside the frame. The host holds whether
    it is open; rows commit on press and release inside, disabled rows are
    inert, and Escape, focus loss, or a press outside dismiss it. *)
-let context_menu ui ~at:(x, y) label items =
+let context_menu ui ~at:(x, y) ?width ?selected label items =
   (* the width follows the longest row; an empty label is a separator line *)
   let row_height = float ui.kit_row_height and gap = 7. in
-  let width = List.fold_left (fun w (text, _) -> Float.max w (text_width ui text +. 36.)) 150. items in
+  let width = List.fold_left (fun w (text, _) -> Float.max w (text_width ui text +. 36.))
+    (Option.value ~default:150. width) items |> Float.min ui.view_w in
   let height = List.fold_left (fun h (text, _) -> h +. (if text = "" then gap else row_height)) 6. items in
   let x = Float.max 0. (Float.min x (ui.view_w -. width))
   and y = Float.max 0. (Float.min y (ui.view_h -. height)) in
@@ -3272,9 +3293,17 @@ let context_menu ui ~at:(x, y) label items =
           draw ui row (fun paint rect ->
             let (_, y, _, h) as bounds = ints rect in
             let rx, _, _, _ = bounds in
+            if selected = Some index then fill paint bounds (Color.with_alpha theme.accent 35);
             if enabled && signal.hovered then hover_row paint ui bounds;
+            if selected = Some index then begin
+              let cy = float y +. float h /. 2. in
+              Paint.line paint ~from_:(float rx +. 7., cy) ~to_:(float rx +. 10., cy +. 3.)
+                ~width:1.5 theme.accent;
+              Paint.line paint ~from_:(float rx +. 10., cy +. 3.) ~to_:(float rx +. 16., cy -. 4.)
+                ~width:1.5 theme.accent
+            end;
             kit_text paint ~color:(if enabled then theme.foreground else Theme.muted theme)
-              (rx + 12) (label_y ui y h) shown);
+              (rx + (if selected = None then 12 else 24)) (label_y ui y h) shown);
           if enabled && signal.clicked then Some index else None
         end) items
       |> List.find_map Fun.id) with

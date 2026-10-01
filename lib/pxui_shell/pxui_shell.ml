@@ -20,7 +20,7 @@ module Layout = struct
   let status_height = 28
   let timeline_height = 30
 
-  type leaf = { path : path; panel : panel; header : bounds; body : bounds }
+  type leaf = { path : path; panel : panel; header : bounds; body : bounds; floating : bool }
   type splitter = { node : path option; axis : axis; bounds : bounds; start : int; span : int }
   type geometry = { leaves : leaf list; splitters : splitter list; status_at : bounds;
                     timeline_at : bounds }
@@ -35,12 +35,15 @@ module Layout = struct
   type presence = Live | Strip | Gone
   let join x y = match x, y with
     | Live, _ | _, Live -> Live | Strip, _ | _, Strip -> Strip | Gone, Gone -> Gone
-  let rec presence hidden = function
+  let rec presence ~state hidden path = function
+    | Leaf _ when (state path).Editor_core.Panels.window <> None -> Gone
+    | Leaf _ when (state path).Editor_core.Panels.collapsed -> Strip
     | Leaf p -> if not (List.mem p hidden) then Live
         else (match p with View _ -> Strip | _ -> Gone)
     | Float _ -> Gone
-    | Split { a; b; _ } -> join (presence hidden a) (presence hidden b)
-    | Tile cells -> List.fold_left (fun r c -> join r (presence hidden c)) Gone cells
+    | Split { a; b; _ } -> join (presence ~state hidden (path @ [0]) a) (presence ~state hidden (path @ [1]) b)
+    | Tile cells -> List.mapi (fun i c -> presence ~state hidden (path @ [i]) c) cells
+        |> List.fold_left join Gone
 
   let is_float = function Float _ -> true | _ -> false
 
@@ -102,7 +105,7 @@ module Layout = struct
     | x :: under, y :: path -> x = y && prefix under path
     | _ -> false
 
-  let geometry ?(hidden = [ Timeline ]) ?(top = 0) tree (frame : Frame.t) =
+  let geometry ?(state = fun _ -> Editor_core.Panels.default_state) ?(hidden = [ Timeline ]) ?(top = 0) tree (frame : Frame.t) =
     let all = Editor_core.Panels.leaves tree in
     let header = min header_height (max 0 (frame.height - 1)) in
     let timeline = if List.mem Timeline hidden || List.exists (fun (_, p) -> p = Timeline) all
@@ -114,26 +117,26 @@ module Layout = struct
       | None, [] -> [] in
     let leaves = ref [] and splitters = ref [] and status = ref (0, bottom, 0, 0)
     and floats = ref [] in
-    let leaf path panel (x, y, w, h) =
+    let leaf ?(floating = false) path panel (x, y, w, h) =
       let hh = min header_height (max 0 (h - 1)) in
-      let body = max 1 (h - hh) in
+      let body = if (state path).Editor_core.Panels.collapsed then 0 else max 1 (h - hh) in
       let strip = if path = status_path then min status_height (max 0 (body - 1)) else 0 in
       if path = status_path then status := (x, y + hh + body - strip, w, strip);
-      leaves := { path; panel; header = (x, y, w, hh);
+      leaves := { path; panel; floating; header = (x, y, w, hh);
                   body = (x, y + hh, w, body - strip) } :: !leaves in
     let cut total n = (* n cells and n-1 gutters over [total] *)
       let cell = max 1 ((total - ((n - 1) * splitter_width)) / n) in
       Array.init n (fun i -> if i = n - 1 then max 1 (total - (i * (cell + splitter_width))) else cell) in
-    let rec place ((x, y, w, h) as rect) path = function
-      | Leaf p -> if presence hidden (Leaf p) <> Gone then leaf path p rect
+    let rec place ?(floating = false) ((x, y, w, h) as rect) path = function
+      | Leaf p -> if presence ~state hidden path (Leaf p) <> Gone then leaf ~floating path p rect
       | Float t -> floats := ((x + (w / 8), y + (h / 8), w - (w / 4), h - (h / 4)), path @ [ 0 ], t)
                              :: !floats
       | Split { a; b; _ } when is_float a || is_float b ->
-          place rect (path @ [ 0 ]) a; place rect (path @ [ 1 ]) b
+          place ~floating rect (path @ [ 0 ]) a; place ~floating rect (path @ [ 1 ]) b
       | Split { axis; _ } as tree ->
           let cols = Array.of_list (columns axis 1. [] tree) in
-          let info = Array.map (fun (weight, _, sub) ->
-            presence hidden sub, weight, minimum axis sub) cols in
+          let info = Array.map (fun (weight, col_path, sub) ->
+            presence ~state hidden (path @ col_path) sub, weight, minimum axis sub) cols in
           let horizontal = axis = `H in
           let sizes = distribute (if horizontal then w else h) info in
           let cursor = ref (if horizontal then x else y) in
@@ -146,7 +149,7 @@ module Layout = struct
                             else (x, !cursor, w, splitter_width)) :: !gutters;
                 cursor := !cursor + splitter_width) !prior;
               let rect = if horizontal then (!cursor, y, sizes.(i), h) else (x, !cursor, w, sizes.(i)) in
-              place rect (path @ col_path) sub;
+              place ~floating rect (path @ col_path) sub;
               placed := (col_path, if horizontal then !cursor, sizes.(i) else !cursor, sizes.(i)) :: !placed;
               cursor := !cursor + sizes.(i);
               prior := Some col_path
@@ -161,7 +164,10 @@ module Layout = struct
             splitters := { node = Some (path @ node); axis; bounds; start; span } :: !splitters)
             (List.rev !gutters)
       | Tile cells ->
+          let cells = List.mapi (fun i cell -> i, cell) cells
+            |> List.filter (fun (i, cell) -> is_float cell || presence ~state hidden (path @ [i]) cell <> Gone) in
           let n = List.length cells in
+          if n > 0 then begin
           let columns = int_of_float (Float.ceil (sqrt (float_of_int n))) in
           let rows = (n + columns - 1) / columns in
           let heights = cut h rows in
@@ -169,7 +175,7 @@ module Layout = struct
             for j = 0 to k - 1 do s := !s + sizes.(j) + splitter_width done; !s in
           (* a short last row stretches its cells over the whole width *)
           let widths = Array.init rows (fun r -> cut w (min columns (n - (r * columns)))) in
-          List.iteri (fun i cell ->
+          List.iteri (fun i (original, cell) ->
             let c = i mod columns and r = i / columns in
             let cx = x + offset widths.(r) c and cy = y + offset heights r in
             if c > 0 then splitters := { node = None; axis = `H;
@@ -177,18 +183,26 @@ module Layout = struct
               :: !splitters;
             if r > 0 && c = 0 then splitters := { node = None; axis = `V;
               bounds = (x, cy - splitter_width, w, splitter_width); start = 0; span = 1 } :: !splitters;
-            place (cx, cy, widths.(r).(c), heights.(r)) (path @ [ i ]) cell) cells in
+            place ~floating (cx, cy, widths.(r).(c), heights.(r)) (path @ [ original ]) cell) cells
+          end in
     place (0, top, frame.width, max 1 (bottom - top)) [] tree;
     let rec drain () = match List.rev !floats with
       | [] -> ()
       | queue -> floats := [];
-          List.iter (fun (rect, path, t) -> place rect path t) queue; drain () in
+          List.iter (fun (rect, path, t) -> place ~floating:true rect path t) queue; drain () in
     drain ();
+    List.iter (fun (path, panel) -> match (state path).Editor_core.Panels.window with
+      | None -> ()
+      | Some (x, y, w, h) ->
+          let w = min frame.width w and h = min (frame.height - top) h in
+          let x = max 0 (min x (frame.width - w)) and y = max top (min y (frame.height - header_height)) in
+          leaf ~floating:true path panel (x, y, w, if (state path).collapsed then header_height else min h (frame.height - y))) all;
     { leaves = List.rev !leaves; splitters = List.rev !splitters; status_at = !status;
       timeline_at = (0, bottom, frame.width, timeline) }
 
-  let find geometry panel = List.find_opt (fun l -> l.panel = panel) geometry.leaves
-  let first_view geometry = List.find_opt (fun l -> match l.panel with View _ -> true | _ -> false)
+  let find geometry panel = List.find_opt (fun l -> l.panel = panel && (let _, _, _, h = l.body in h > 0)) geometry.leaves
+  let first_view geometry = List.find_opt (fun l -> (let _, _, _, h = l.body in h > 0)
+      && match l.panel with View _ -> true | _ -> false)
       geometry.leaves
 
   let zero = (0, 0, 0, 0)
@@ -203,7 +217,10 @@ module Chrome = struct
   type intent =
     | Resize of { node : path; ratio : float }
     | Settled
-    | Toggle of panel
+    | Toggle of path
+    | Window of path * bounds option
+    | Dragging of path * bool
+    | Dock_panel of path * path * [ `Left | `Right | `Top | `Bottom ]
     | Split_panel of path * axis
     | Close_panel of path
     | Retype_panel of path * panel
@@ -222,19 +239,30 @@ module Chrome = struct
   let retypes = [ "Graph", Graph; "List", List; "Lisp", Lisp; "Inspector", Inspector;
                   "Outline", Outline; "Timeline", Timeline; "Viewport", View "" ]
 
+  let drag_origin ui box bounds signal =
+    if signal.Pxui.Ui.pressed then begin
+      let x, y, w, h = bounds in
+      Pxui.Ui.set_text_state ui box (Some (Printf.sprintf "%d %d %d %d" x y w h))
+    end;
+    match Option.map (String.split_on_char ' ') (Pxui.Ui.text_state ui box) with
+    | Some parts -> (match List.filter_map int_of_string_opt parts with
+        | [x; y; w; h] -> x, y, w, h | _ -> bounds)
+    | None -> bounds
+
   (* Chrome of the retained workspace, painted and hit through PXUI boxes:
      panel backgrounds, splitters, and header bars with a collapse button and a
      right-click menu (split, close, retype). *)
-  let update ?(hidden = [ Timeline ]) ?(top = 0) ?(title = fun (l : leaf) -> Editor_core.Panels.name l.panel)
+  let update ?(state = fun _ -> Editor_core.Panels.default_state) ?(hidden = [ Timeline ]) ?(top = 0) ?(title = fun (l : leaf) -> Editor_core.Panels.name l.panel)
       tree ui (frame : Frame.t) =
     let module Ui = Pxui.Ui in
-    let geometry = geometry ~hidden ~top tree frame in
+    let geometry = geometry ~state ~hidden ~top tree frame in
     let theme = Ui.theme ui in
-    List.iter (fun l -> match l.panel with
+    List.iteri (fun order l -> match l.panel with
       | View _ | Timeline -> ()
       | p ->
           let box = floating ui l.body ("workspace-" ^ String.lowercase_ascii (Editor_core.Panels.name p)
                                         ^ key l.path) in
+          if l.floating then Ui.to_front ui ~order box;
           Ui.draw ui box (fun paint (x, y, w, h) -> Ui.Paint.fill paint ~x ~y ~w ~h theme.panel))
       geometry.leaves;
     let intents = ref [] in
@@ -243,20 +271,39 @@ module Chrome = struct
       let box = floating ui s.bounds ("workspace-gutter-" ^ string_of_int n) in
       Ui.draw ui box (fun paint (x, y, w, h) ->
         Ui.Paint.fill paint ~x ~y ~w ~h (Pxui.Theme.faint_border theme))) geometry.splitters;
-    let headers = List.map (fun (l : leaf) ->
+    let headers = List.mapi (fun order (l : leaf) ->
       let x, y, w, h = l.header in
       let label = String.lowercase_ascii (Editor_core.Panels.name l.panel) ^ key l.path in
-      let box = floating ui ~flags:Ui.clickable l.header ("workspace-header-" ^ label) in
+      let box = floating ui ~flags:Ui.(clickable + clip) l.header ("workspace-header-" ^ label) in
+      if l.floating then Ui.to_front ui ~order box;
       let size = min h 26 in
       let button = floating ui ~flags:Ui.(clickable + tab_stop)
           (x + max 0 (w - size), y + ((h - size) / 2), size, size) ("workspace-collapse-" ^ label) in
-      if (Ui.signal ui button).clicked then emit (Toggle l.panel);
+      if l.floating then Ui.to_front ui ~order button;
+      if (Ui.signal ui button).clicked then emit (Toggle l.path);
+      let grip = floating ui ~flags:Ui.(clickable + blocking)
+          (x, y, min 18 (max 0 (w - size)), h) ("workspace-drag-" ^ label) in
+      if l.floating then Ui.to_front ui ~order grip;
+      let drag = Ui.signal ui grip in
+      let original = Option.value (state l.path).window
+        ~default:(x, y, max 120 w, max 80 (let _, _, _, bh = l.body in h + bh)) in
+      let ox, oy, ow, oh = drag_origin ui grip original drag in
+      if drag.held || drag.released then begin
+        let px, py = if drag.released then drag.release_point else drag.pointer in
+        let sx, sy = drag.press_point in
+        if Float.hypot (px -. sx) (py -. sy) >= 4. then begin
+          emit (Dragging (l.path, drag.released));
+          emit (Window (l.path, Some (max 0 (min (frame.width - 18) (ox + int_of_float (Float.round (px -. sx)))),
+            max top (min (frame.height - header_height) (oy + int_of_float (Float.round (py -. sy)))), ow, oh)))
+        end
+      end;
       let opened = Ui.state ui box ~default:0 = 1 in
       let header_signal = Ui.signal ui box in
       let opened = opened || Ui.context_clicked header_signal || header_signal.clicked in
       Ui.set_state ui box (if opened then 1 else 0);
       if opened then begin
         let rows = [ "Split side by side", true; "Split top and bottom", true; "Close", true;
+                     (if (state l.path).window = None then "Undock" else "Dock"), true;
                      "", false; "Show as", false ]
           @ List.map (fun (name, panel) -> name, panel <> l.panel) retypes in
         match Ui.context_menu ui ~at:(float x, float (y + h)) ("workspace-menu-" ^ label) rows with
@@ -266,12 +313,15 @@ module Chrome = struct
             emit (match i with
               | 0 -> Split_panel (l.path, `H) | 1 -> Split_panel (l.path, `V)
               | 2 -> Close_panel l.path
-              | i -> Retype_panel (l.path, snd (List.nth retypes (i - 5))))
+              | 3 -> Window (l.path, if (state l.path).window <> None then None else
+                    Some (x, y, max 120 w, max 80 (let _, _, _, bh = l.body in h + bh)))
+              | i -> Retype_panel (l.path, snd (List.nth retypes (i - 6))))
       end;
-      l, title l, box) geometry.leaves in
-    List.iter (fun ((l : leaf), text, box) ->
-      Ui.draw ui box (fun paint (x, y, w, h) ->
-        let glyph = if List.mem l.panel hidden then ">" else "<" in
+      l, title l, box, button, grip) geometry.leaves in
+    List.iter (fun ((l : leaf), text, box, button, grip) ->
+      let collapse_hovered = (Ui.signal ui button).hovered in
+      let text_box = Ui.within ui box (fun () -> Ui.box ui ~w:Ui.Grow ~h:Ui.Grow "header-text") in
+      Ui.draw ui text_box (fun paint (x, y, w, h) ->
         Ui.Paint.rect paint ~x ~y ~w ~h ~fill:theme.input
           ~stroke:(Pxui.Theme.faint_border theme) ();
         let x = int_of_float x and y = int_of_float y and w = int_of_float w in
@@ -279,13 +329,32 @@ module Chrome = struct
         let main, sub = match String.index_opt text '\t' with
           | Some i -> String.sub text 0 i, String.sub text (i + 1) (String.length text - i - 1)
           | None -> text, "" in
-        Ui.Paint.text paint ~at:(float_of_int (x + 10), float_of_int (y + 4)) ~size:11
-          ~color:theme.foreground (main ^ (if List.mem l.panel hidden then "" else " v"));
+        Ui.Paint.text paint ~at:(float_of_int (x + 22), float_of_int (y + 4)) ~size:11
+          ~color:theme.foreground main;
+        if not (List.mem l.panel hidden) then begin
+          let cx = float (x + 30) +. Ui.Paint.text_width paint ~size:11 main in
+          let cy = float y +. h /. 2. in
+          Ui.Paint.line paint ~from_:(cx -. 3., cy -. 2.) ~to_:(cx, cy +. 1.) ~width:1.5 theme.foreground;
+          Ui.Paint.line paint ~from_:(cx, cy +. 1.) ~to_:(cx +. 3., cy -. 2.) ~width:1.5 theme.foreground
+        end;
         if sub <> "" then
-          Ui.Paint.text paint ~at:(float_of_int (x + 10 + (7 * (String.length main + 4))), float_of_int (y + 4))
+          Ui.Paint.text paint ~at:(float_of_int (x + 22 + (7 * (String.length main + 4))), float_of_int (y + 4))
             ~size:11 ~color:(Pxui.Theme.muted theme) sub;
-        Ui.Paint.text paint ~at:(float_of_int (x + max 7 (w - 19)), float_of_int (y + 4))
-          ~size:11 ~color:theme.accent glyph)) headers;
+        let cx = float (x + max 7 (w - 13)) and cy = float y +. h /. 2. in
+        if collapse_hovered then Ui.Paint.fill paint ~x:(cx -. 10.) ~y:(float y +. 1.)
+          ~w:20. ~h:(h -. 2.) (Pxui.Theme.hover_fill theme);
+        let direction = if (state l.path).collapsed || List.mem l.panel hidden then -1. else 1. in
+        Ui.Paint.line paint ~from_:(cx +. 2. *. direction, cy -. 4.)
+          ~to_:(cx -. 2. *. direction, cy) ~width:1.5 theme.accent;
+        Ui.Paint.line paint ~from_:(cx -. 2. *. direction, cy)
+          ~to_:(cx +. 2. *. direction, cy +. 4.) ~width:1.5 theme.accent);
+      Ui.draw ui grip (fun paint (x, y, w, h) ->
+        let signal = Ui.signal ui grip in
+        let color = if signal.hovered || signal.held then theme.accent else Pxui.Theme.muted theme in
+        for row = 0 to 2 do for col = 0 to 1 do
+          Ui.Paint.circle paint ~at:(x +. w /. 2. -. 2. +. float col *. 4.,
+            y +. h /. 2. -. 4. +. float row *. 4.) ~radius:0.8 ~fill:color ()
+        done done)) headers;
     List.rev !intents
 
   let note ui ~bounds:(x, y, width, height) text =
@@ -294,9 +363,33 @@ module Chrome = struct
       (fun paint (x, y, _, _) -> Pxui.Ui.Paint.text paint ~at:(x +. 10., y +. 8.) ~size:11
         ~color:(Pxui.Theme.muted theme) text)
 
+  let drop_targets ui ~dragging ~(geometry : geometry) ~state =
+    match dragging with
+    | None -> []
+    | Some (source, released) ->
+        List.concat_map (fun (leaf : leaf) ->
+          if leaf.path = source || leaf.floating
+              || (state leaf.path).Editor_core.Panels.collapsed then [] else
+          let x, y, w, hh = leaf.header and _, _, _, bh = leaf.body in
+          let h = hh + bh in
+          let ex = min 36 (w / 3) and ey = min 36 (h / 3) in
+          List.filter_map (fun (side, rect) ->
+            let suffix = match side with `Left -> "left" | `Right -> "right" | `Top -> "top" | `Bottom -> "bottom" in
+            let box = floating ui ~flags:Pxui.Ui.(clickable + blocking) rect
+              ("workspace-drop-" ^ key leaf.path ^ suffix) in
+            Pxui.Ui.to_front ui ~order:max_int box;
+            let hovered = (Pxui.Ui.signal ui box).hovered in
+            if hovered then Pxui.Ui.draw ui box (fun paint (x, y, w, h) ->
+              let color = (Pxui.Ui.theme ui).accent in
+              Pxui.Ui.Paint.rect paint ~x ~y ~w ~h ~fill:(Color.with_alpha color 45) ~stroke:color ());
+            if released && hovered then Some (Dock_panel (source, leaf.path, side)) else None)
+            [ `Left, (x, y + ey, ex, max 0 (h - 2 * ey));
+              `Right, (x + w - ex, y + ey, ex, max 0 (h - 2 * ey));
+              `Top, (x, y, w, ey); `Bottom, (x, y + h - ey, w, ey)]) geometry.leaves
+
   (* The draggable gutters, wider than they are drawn.  Build them after the panes so
      they sit on top of the neighbours' hit rectangles. *)
-  let splitters ?(hidden = [ Timeline ]) ?(top = 0) tree ui (frame : Frame.t) =
+  let splitters ?(state = fun _ -> Editor_core.Panels.default_state) ?(hidden = [ Timeline ]) ?(top = 0) tree ui (frame : Frame.t) =
     let module Ui = Pxui.Ui in
     let intents = ref [] in
     List.iteri (fun n (s : splitter) -> match s.node with
@@ -320,7 +413,32 @@ module Chrome = struct
                        :: !intents
           end;
           if signal.released then intents := Settled :: !intents)
-      (geometry ~hidden ~top tree frame).splitters;
+      (geometry ~state ~hidden ~top tree frame).splitters;
+    List.iteri (fun order (leaf : leaf) -> match (state leaf.path).window with
+      | None -> ()
+      | Some _ when not (state leaf.path).collapsed ->
+          let x, y, w, hh = leaf.header in
+          let _, _, _, bh = leaf.body in
+          let bounds = x, y, w, hh + bh in
+          let x, y, w, h = bounds in
+          let box = floating ui ~flags:Ui.(clickable + blocking)
+            (x + w - 12, y + h - 12, 12, 12) ("workspace-window-size-" ^ key leaf.path) in
+          Ui.to_front ui ~order box;
+          let signal = Ui.signal ui box in
+          let x, y, w, h = drag_origin ui box bounds signal in
+          if signal.held || signal.released then begin
+            let px, py = if signal.released then signal.release_point else signal.pointer in
+            let sx, sy = signal.press_point in
+            if px <> sx || py <> sy then intents := Window (leaf.path, Some (x, y,
+              max 120 (w + int_of_float (Float.round (px -. sx))),
+              max 80 (h + int_of_float (Float.round (py -. sy))))) :: !intents
+          end;
+          Ui.draw ui box (fun paint (x, y, w, h) ->
+            for offset = 3 to 7 do
+              if offset mod 2 = 1 then Ui.Paint.line paint ~from_:(x +. w -. float offset, y +. h -. 2.)
+                ~to_:(x +. w -. 2., y +. h -. float offset) (Pxui.Theme.muted (Ui.theme ui))
+            done)
+      | Some _ -> ()) (geometry ~state ~hidden ~top tree frame).leaves;
     List.rev !intents
 
   let focus ui ~bounds:(x, y, width, height) =
@@ -1039,7 +1157,7 @@ module Inspector = struct
       let key = "flow-value-" ^ path in
       let numeric text valid ?display ?fraction ?slide convert =
         let changed, _ = Ui.value_field ui ~at:(x, y) ~w ~h:21. ~size:11
-            ?display ?fraction ?slide ~edit ~valid:(fun text -> valid text || expression text)
+            ?display ?fraction ?slide ~edit ~left:(expression text) ~valid:(fun text -> valid text || expression text)
             key text in
         if changed = text then [] else if expression changed then
           [Expression (path, changed)]
@@ -1067,23 +1185,29 @@ module Inspector = struct
               (float_of_string_opt text))
       | Param.Text_view, Param.Text_value value ->
           let text, _ = Ui.value_field ui ~at:(x, y) ~w ~h:21. ~size:11
-              ~valid:(fun _ -> true) key value in
+              ~left:true ~valid:(fun _ -> true) key value in
           if text = value then [] else [Edited (field.name, Param.Text_value text)]
       | Param.Choice_view choices, Param.Choice_value value ->
-          let box = Ui.box ui ~flags:Ui.(clickable + tab_stop)
+          let box = Ui.box ui ~flags:Ui.(clickable + tab_stop + clip)
               ~at:(x, y) ~w:(Ui.Px w) ~h:(Ui.Px 21.) key in
           let index = Option.value ~default:0 (Array.find_index (( = ) value) choices) in
           let just_opened = (Ui.signal ui box).clicked in
           let open_ = just_opened || Ui.state ui box ~default:0 = 1 in
           Ui.set_state ui box (if open_ then 1 else 0);
+          let hovered = (Ui.signal ui box).hovered in
           Ui.draw ui box (fun paint (x, y, w, h) ->
-            Ui.Paint.rect paint ~x ~y ~w ~h ~fill:theme.control
-              ~stroke:(Pxui.Theme.faint_border theme) ~radius:3. ();
+            let fill = if hovered then Pxui.Theme.hover_fill theme else theme.track in
+            Ui.Paint.rect paint ~x ~y ~w ~h ~fill
+              ~stroke:(if open_ then theme.accent else Pxui.Theme.faint_border theme) ();
             Ui.Paint.text paint ~at:(x +. 5., y +. 3.) ~size:11
-              ~color:theme.foreground choices.(index));
+              ~color:theme.foreground choices.(index);
+            let cx = x +. w -. 10. and cy = y +. h /. 2. in
+            Ui.Paint.fill paint ~x:(cx -. 6.) ~y:(y +. 1.) ~w:15. ~h:(h -. 2.) fill;
+            Ui.Paint.line paint ~from_:(cx -. 3., cy -. 2.) ~to_:(cx, cy +. 1.) ~width:1.5 theme.foreground;
+            Ui.Paint.line paint ~from_:(cx, cy +. 1.) ~to_:(cx +. 3., cy -. 2.) ~width:1.5 theme.foreground);
           if not open_ || just_opened then [] else
-            let bx, by, _, bh = Ui.rect ui box in
-            (match Ui.context_menu ui ~at:(bx, by +. bh)
+            let bx, by, bw, bh = Ui.rect ui box in
+            (match Ui.context_menu ui ~at:(bx, by +. bh) ~width:bw ~selected:index
                 (key ^ "-options")
                 (Array.to_list (Array.map (fun choice -> choice, true) choices)) with
              | `Open -> []
@@ -1107,7 +1231,7 @@ module Inspector = struct
         let edits = if String.starts_with ~prefix:"=" source then
           let text, _ = Ui.value_field ui ~at:(control_x, control_y)
               ~w:(control_w -. 24.) ~h:21. ~size:11
-              ~valid:expression ("flow-expression-" ^ path) source in
+              ~left:true ~valid:expression ("flow-expression-" ^ path) source in
           if text = source then [] else [Expression (path, text)]
         else (Ui.draw ui box (fun paint (x, y, _, _) ->
           Ui.Paint.text paint ~at:(x +. control_x, y +. control_y +. 3.) ~size:11

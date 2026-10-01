@@ -198,6 +198,7 @@ type t = {
   pan_x : float; pan_y : float; zoom : float;
   selected : Path_set.t;
   hovered_row : (path * E.arg_key) option;
+  highlighted : wire list;
   drag : drag option;
   editing : editing option;
   context : ((float * float) * path) option;
@@ -211,7 +212,7 @@ let create ?(x = 0) ?(y = 0) ?(width = 640) ?(height = 360) ?(theme = Pxui.defau
   chains = Hashtbl.create 1; counts = Hashtbl.create 1;
   frames = (fun _ -> []); display = None; framed = true;
   layout = { P.placed = []; w = 0.; h = 0. }; geo = empty_geo; pan_x = 12.; pan_y = 12.; zoom = 1.;
-  selected = Path_set.empty; hovered_row = None; drag = None; editing = None; context = None; stats = no_stats }
+  selected = Path_set.empty; hovered_row = None; highlighted = []; drag = None; editing = None; context = None; stats = no_stats }
 
 let with_bounds ~x ~y ~width ~height t =
   if t.x = x && t.y = y && t.width = width && t.height = height then t
@@ -394,7 +395,7 @@ let action_changes t command =
       else Copy_requested paths :: edit (E.Delete_nodes { nodes = paths })
   | Paste -> [ Paste_requested ]
   | Display -> one (fun n ->
-      if n.synthetic || n.ty <> Ty.Geometry then [ Notice "Only a geometry node can be viewed" ]
+      if n.ty <> Ty.Geometry then [ Notice "Only a geometry node can be viewed" ]
       else [ Display_set n.path ])
   | Item_up | Item_down ->
       (match t.hovered_row with
@@ -1065,7 +1066,7 @@ let context_command = function
   | 5 -> Wrap_repeat | 6 -> Wrap_iterate | 7 -> Make_fn | 8 -> Make_macro | 9 -> Make_defn | _ -> Delete
 
 let update t ui (frame : Frame.t) =
-  if not t.visible then { t with drag = None; context = None; editing = None }, [] else
+  if not t.visible then { t with drag = None; context = None; editing = None; highlighted = [] }, [] else
   let t = if t.framed then t else { (frame_all t) with framed = true } in
   let changes = ref [] in
   let emit c = changes := c :: !changes in
@@ -1109,6 +1110,23 @@ let update t ui (frame : Frame.t) =
     | _ -> None) visible in
   let local (x, y) = x -. float t.x, y -. float t.y in
   let mouse = frame.mouse in
+  (* Segment rectangles live in the shared hit tree, behind the cards;
+     ports built below take hover precedence. *)
+  let wire_hits = Ui.within ui canvas (fun () ->
+    Array.mapi (fun i w ->
+      Ui.scope ui ("wire:" ^ string_of_int i) (fun () ->
+        let rec segments j found = function
+          | (ax, ay) :: ((bx, by) :: _ as rest) ->
+              let ax, ay = sx t ax -. float t.x, sy t ay -. float t.y
+              and bx, by = sx t bx -. float t.x, sy t by -. float t.y in
+              let x = Float.min ax bx -. 4. and y = Float.min ay by -. 4.
+              and width = abs_float (bx -. ax) +. 8. and height = abs_float (by -. ay) +. 8. in
+              let found = if x < float t.width && x +. width > 0. && y < float t.height && y +. height > 0. then
+                Ui.box ui ~flags:Ui.clickable ~at:(x, y) ~w:(Ui.Px width)
+                  ~h:(Ui.Px height) (string_of_int j) :: found else found in
+              segments (j + 1) found rest
+          | _ -> found in
+        segments 0 [] (wire_points w.a w.b))) t.geo.wires) in
   (* footers: only for what is in view, and not when too small to read *)
   let footers = Hashtbl.create 16 in
   (match t.records with
@@ -1121,7 +1139,8 @@ let update t ui (frame : Frame.t) =
    | _ -> ());
   let finished = ref false in
   let edit_field ~at ~w ~h key current valid commit =
-    let v, open_ = Ui.value_field ui ~at ~w ~h ~size:fs ~edit:true ~valid key current in
+    let v, open_ = Ui.value_field ui ~at ~w ~h ~size:fs ~edit:true
+      ~left:(float_of_string_opt current = None) ~valid key current in
     if not open_ then finished := true;
     if (not open_) && v <> current && valid v then [ commit v ] else [] in
   (* tiles *)
@@ -1134,12 +1153,15 @@ let update t ui (frame : Frame.t) =
       let sub = Ui.within ui tile (fun () ->
         let box ?(flags = Ui.clickable) name (dx, dy) (bw, bh) =
           Ui.box ui ~flags ~w:(Ui.Px (bw *. z)) ~h:(Ui.Px (bh *. z)) ~at:(dx *. z, dy *. z) name in
-        let outs = ref [] and dels = ref [] and taps = ref [] in
+        let outs = ref [] and dels = ref [] and taps = ref [] and inputs = ref [] in
+        let input name pos =
+          let b = box name (fst pos -. 7., snd pos -. 7.) (14., 14.) in
+          inputs := b :: !inputs; b in
         let out name src ty pos = outs := (box name (fst pos -. 7., snd pos -. 7.) (14., 14.), src, ty) :: !outs in
         let tap name pos size on = taps := (box name pos size, on) :: !taps in
         (match p.item with
          | P.Input i -> out "out" i.name (Some i.ty) (p.w, 12.)
-         | Return -> ()
+         | Return -> ignore (input "in" (0., 36.))
          | Item n ->
              let node_src = if n.binds = [ n.name ] then Some n.name else None in
              Option.iter (fun s -> out "out" s (Some n.ty) (p.w, 12.)) node_src;
@@ -1153,11 +1175,14 @@ let update t ui (frame : Frame.t) =
                     out ("rail:" ^ string_of_int i) (List.hd r.names) r.ty
                       (P.rail_width, top +. (float i +. 0.5) *. P.row_height);
                     (* wired rail rows can be disconnected from their socket *)
-                    (match r.key, r.expr with
-                     | Some key, Some e when E.free_names e <> [] ->
-                         dels := (box ("rd:" ^ string_of_int i) (-7., top +. float i *. P.row_height +. 5.) (14., 14.),
+                    let sink = if r.key <> None || r.role = P.Capture then
+                      Some (input ("rd:" ^ string_of_int i) (0., top +. (float i +. 0.5) *. P.row_height)) else None in
+                    (match r.key, r.expr, sink with
+                     | Some key, Some e, Some sink when E.free_names e <> [] ->
+                         dels := (sink,
                                   E.Disconnect { node = n.path; key; fallback = None }) :: !dels
                      | _ -> ())) zn.rail;
+                  ignore (input "yield" (p.w -. P.yield_width, top +. 12.));
                   if zn.kind <> P.Let then begin
                     let sy = P.head_height in
                     tap "prev" (2., sy +. 6.) (22., 22.) (`Step (-1));
@@ -1166,6 +1191,10 @@ let update t ui (frame : Frame.t) =
                   end;
                   if zn.kind <> P.Let then tap "toggle" (2., 2.) (20., 20.) `Toggle
               | Some zn when p.collapsed ->
+                  List.iteri (fun i (r : P.rail_row) ->
+                    if r.key <> None || r.role = P.Capture then
+                      ignore (input ("rd:" ^ string_of_int i)
+                        (0., P.head_height +. (float i +. 0.5) *. P.row_height))) zn.rail;
                   if zn.kind <> P.Let then tap "toggle" (2., 2.) (20., 20.) `Toggle
               | Some _ -> ()
               | None ->
@@ -1193,11 +1222,12 @@ let update t ui (frame : Frame.t) =
                       (p.w, top +. (float (List.length n.rows + j) +. 0.5) *. P.row_height)) n.outputs;
                   List.iteri (fun i (r : P.row) ->
                     let ry = top +. float i *. P.row_height in
-                    if wired r then
-                      dels := (box ("d:" ^ string_of_int i) (-7., ry +. 5.) (14., 14.),
-                               E.Disconnect { node = n.path; key = r.key; fallback = fallback r }) :: !dels
-                    else ()) n.rows));
-        List.rev !outs, List.rev !dels, List.rev !taps) in
+                    if r.socket then begin
+                      let sink = input ("d:" ^ string_of_int i) (0., ry +. 12.) in
+                      if wired r then dels := (sink,
+                        E.Disconnect { node = n.path; key = r.key; fallback = fallback r }) :: !dels
+                    end) n.rows));
+        List.rev !outs, List.rev !dels, List.rev !taps, !inputs) in
       (* fields, inside the tile *)
       let fields = match p.item with
         | P.Item ({ zone = None; _ } as n) when z >= 0.5 ->
@@ -1367,7 +1397,22 @@ let update t ui (frame : Frame.t) =
          | _ -> None)
     | _ -> None) tiles in
   let hovered_row = Option.map (fun ((n : P.node), _, _, i) -> n.path, (List.nth n.rows i).P.key) hover in
-  let t = { t with hovered_row } in
+  let port_centre box = if Ui.hovered_within ui box then
+    let x, y, w, h = Ui.rect ui box in Some (x +. w /. 2., y +. h /. 2.) else None in
+  let hovered_port = List.find_map (fun (_, _, _, _, _, (outs, _, _, inputs), _) ->
+    match List.find_map (fun (box, _, _) -> port_centre box) outs with
+    | Some _ as port -> port
+    | None -> List.find_map port_centre inputs) tiles in
+  let same_port point = match hovered_port with
+    | None -> false
+    | Some (x, y) -> abs_float (sx t (fst point) -. x) < 0.5
+        && abs_float (sy t (snd point) -. y) < 0.5 in
+  let highlighted = ref [] in
+  Array.iteri (fun i w ->
+    if t.context = None &&
+      (List.exists (Ui.hovered_within ui) wire_hits.(i) || same_port w.a || same_port w.b)
+    then highlighted := w :: !highlighted) t.geo.wires;
+  let t = { t with hovered_row; highlighted = !highlighted } in
   (* interactions *)
   let left (s : Ui.signal) = s.button = Some Input.LeftButton in
   let panning = Array.exists (fun (s : Ui.signal) -> (s.held || s.released) && s.button <> Some Input.LeftButton && s.button <> None)
@@ -1400,7 +1445,7 @@ let update t ui (frame : Frame.t) =
   let lens_next = ref t.lens in
   (* tile presses select and start a move; sockets start a wire *)
   let t = List.fold_left (fun t ((p : P.placed), _, _, tile, (s : Ui.signal), (sub : _), fields) ->
-    let outs, dels, taps = sub in
+    let outs, dels, taps, _ = sub in
     List.iter emit fields;
     let t =
       if s.pressed && left s && t.context = None then begin
@@ -1568,6 +1613,12 @@ let update t ui (frame : Frame.t) =
   let band = match t.drag with
     | Some (Wiring w) -> Some w | _ -> None in
   Ui.draw_over ui canvas (fun paint _ ->
+    List.iter (fun w ->
+      paint_polyline paint ~width:3. snapshot.theme.accent
+        (List.map (fun (x, y) -> sx snapshot x, sy snapshot y) (wire_points w.a w.b));
+      List.iter (fun (x, y) -> Ui.Paint.stroke paint
+        ~x:(sx snapshot x -. 6.) ~y:(sy snapshot y -. 6.) ~w:12. ~h:12.
+        ~width:2. ~radius:3. snapshot.theme.accent) [w.a; w.b]) snapshot.highlighted;
     (match band with
      | Some w -> Ui.Paint.line paint ~from_:w.from ~to_:mouse ~width:1.5 (ty_color snapshot w.ty)
      | None -> ());
@@ -1601,6 +1652,8 @@ let update t ui (frame : Frame.t) =
 (* ------------------------------------------------------------- test hooks *)
 
 module Private = struct
+  let highlighted_connections t = List.map (fun w ->
+    (sx t (fst w.a), sy t (snd w.a)), (sx t (fst w.b), sy t (snd w.b))) t.highlighted
   let box_of t path = Hashtbl.find_opt t.geo.pos path
     |> Option.map (fun (x, y, w, h) -> sx t x, sy t y, w *. t.zoom, h *. t.zoom)
   let selector t path = Option.map (fun (x, y, w, _) ->

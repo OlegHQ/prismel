@@ -61,7 +61,8 @@ let load ~path ~factories ~settings =
   let* text = Editor_core.Store.read_text ~filename:path in
   let diagnostics ds = String.concat "\n" (List.map Flow.Diagnostic.to_string ds) in
   let* catalog = Result.map_error Flow.Diagnostic.to_string (flow_catalog factories) in
-  let* workspace = Result.map_error diagnostics (Workspace_doc.of_text ~settings catalog text) in
+  let* workspace = Result.map_error diagnostics
+      (Workspace_doc.of_text ~settings:(Settings.defaults settings) catalog text) in
   let* view = match S.parse text with
     | Error d -> Error (Flow.Diagnostic.to_string d)
     | Ok forms ->

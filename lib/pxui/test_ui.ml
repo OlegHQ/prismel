@@ -911,6 +911,34 @@ let run () =
   popup [press (300, 200)];
   if !shown <> None then fail "popup kept a press outside its laid-out rect";
   Ui.destroy ui;
+  let ui = Ui.create () in
+  let menu events = Ui.frame ui (frame ~scale:1. ~time:0. events) (fun ui ->
+    Ui.context_menu ui ~at:(20., 20.) ~width:240. ~selected:1 "choices"
+      ["First", true; "Second", true]) in
+  ignore (menu []);
+  ignore (menu []);
+  if menu [press (240, 58); release (240, 58)] <> `Pick 1 then
+    fail "dropdown rows did not extend to the requested control width";
+  Ui.destroy ui;
+  let ui = Ui.create () in
+  let front_key = ref 0 in
+  let raised events = Ui.frame ui (frame ~scale:1. ~time:0. events) (fun ui ->
+    let front = Ui.box ui ~flags:Ui.clickable ~at:(0., 0.) ~w:(Ui.Px 100.) ~h:(Ui.Px 60.) "front" in
+    front_key := Ui.key front;
+    Ui.to_front ui front;
+    let back = Ui.box ui ~flags:Ui.clickable ~at:(0., 0.) ~w:(Ui.Px 100.) ~h:(Ui.Px 60.) "back" in
+    List.iter (fun box -> Ui.draw ui box (fun paint (x, y, w, h) ->
+      Ui.Paint.fill paint ~x ~y ~w ~h Color.white)) [front; back];
+    (Ui.signal ui front).clicked, (Ui.signal ui back).clicked) in
+  ignore (raised []);
+  if raised [press (20, 20); release (20, 20)] <> (true, false) then
+    fail "a later body covered a raised floating control";
+  let scene = Ui.scene ui ~under:(fun key -> if key = !front_key then
+    [Scene.rect ~at:(0, 0) ~w:100 ~h:60 ~fill:Color.black ()] else []) in
+  (match Scene.Private.stage_native ~width:320 ~height:240 scene with
+   | Ok {layers = [Ui_layer _; Scene2_layer _; Ui_layer _]; _} -> ()
+   | _ -> fail "native content was not between the background and floating controls");
+  Ui.destroy ui;
   (match Sdl3.Init.quit () with
    | Ok () -> () | Error error -> fail (Format.asprintf "%a" Sdl3.pp_error error));
   print_endline "PXUI Ui interaction contract passed at 1x and 2x"

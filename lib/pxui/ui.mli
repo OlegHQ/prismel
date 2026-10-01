@@ -72,8 +72,10 @@ val input : ?owner:int -> t -> Prismel.Frame.t
     follow the same ownership; release or disappearance cancels an excluded
     gesture. Focus-loss and pointer cancellation always pass through. *)
 
-val scene : t -> Prismel.Scene.t
-(** The most recently completed frame, including text-input regions. *)
+val scene : ?under:(int -> Prismel.Scene.t) -> t -> Prismel.Scene.t
+(** The most recently completed frame, including text-input regions.
+    [under] inserts a host scene immediately before a floating root's paint,
+    addressed by its box key. This keeps native viewport content in panel order. *)
 
 val wants_pointer : t -> bool
 (** The pointer was over a UI box, or a box holds pointer capture. *)
@@ -295,6 +297,10 @@ val draw_over :
   t -> box -> (Paint.t -> float * float * float * float -> unit) -> unit
 (** Paint after the box's children, outside its content clip. *)
 
+val to_front : t -> ?order:int -> box -> unit
+(** Raise a root box and its children above ordinary boxes, below modal popups.
+    Higher [order] values paint later; equal values retain their order of calls. *)
+
 val cached : t -> key:string -> stamp:int -> (unit -> unit) -> unit
 (** Replay the boxes and painting this subtree produced for the same [stamp]
     last frame instead of rebuilding it. Only for non-interactive content:
@@ -466,11 +472,12 @@ val text_area_submit :
 val value_field : t -> at:float * float -> w:float -> h:float ->
   ?size:int -> ?display:string -> ?fraction:float ->
   ?slide:(float -> string) ->
-  ?scrub:(string -> float -> bool -> string) -> ?edit:bool ->
+  ?scrub:(string -> float -> bool -> string) -> ?left:bool -> ?edit:bool ->
   valid:(string -> bool) ->
   string -> string -> string * bool
 (** Compact field. Numeric sliders follow the pointer with [slide]; Option-click
     or [edit] opens text entry. [scrub] handles fields without a track.
+    [left] aligns text values to the left (default false for numeric fields).
     Only valid text commits; the boolean reports an open text editor. *)
 
 val choice : t -> string -> string list -> int -> int
@@ -505,10 +512,11 @@ val context_clicked : signal -> bool
     menu rather than pan. *)
 
 val context_menu :
-  t -> at:float * float -> string -> (string * bool) list ->
+  t -> at:float * float -> ?width:float -> ?selected:int -> string -> (string * bool) list ->
   [ `Open | `Pick of int | `Dismiss ]
 (** A floating menu at [at] with [(label, enabled)] rows, as wide as its longest
-    row; an empty label is a separator line (never picked). The host keeps it
+    row and at least [width] wide, capped to the frame. An empty label is a separator
+    line (never picked). [selected] marks the current choice. The host keeps it
     open while this returns [`Open]; a row commits on press and release inside
     it, and Escape, focus loss, or a press outside return [`Dismiss]. Build it
     before content it shields; it floats at the root regardless of its parent. *)

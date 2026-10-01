@@ -13,5 +13,7 @@ val get : 'record Editor_core.Param.schema -> t -> 'record
     Raises [Invalid_argument] when [schema] does not describe it. *)
 
 val fields : t -> Editor_core.Param.field_view list
+val defaults : t -> t
+(** The same schema at its defaults, for a complete saved document. *)
 val apply : t -> (string * Editor_core.Param.value) list ->
   (t * Editor_core.Param.effects, string) result

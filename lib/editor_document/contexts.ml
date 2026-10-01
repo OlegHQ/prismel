@@ -137,8 +137,8 @@ let label_arg args = match List.assoc_opt "name" args with
 (* The evaluated result of the first graph of a context, at t = 0: scene, world
    and settings arguments do not animate yet (ponytail: no live scene values). *)
 let result (workspace : Workspace_doc.t) (plan : E.plan) context =
-  match List.find_opt (fun (g : Flow.Workspace.graph) -> g.context = context)
-          workspace.checked.graphs with
+  match (if context = Flow.Workspace.Editor then Workspace_doc.editor_graph workspace
+    else List.find_opt (fun (g : Flow.Workspace.graph) -> g.context = context) workspace.checked.graphs) with
   | None -> Ok None
   | Some graph ->
       (match List.find_opt (fun (i : E.instance) -> i.default && i.graph = graph.name)
@@ -548,7 +548,7 @@ let editor (workspace : Workspace_doc.t) (plan : E.plan) =
   | None -> Ok None
   | Some (E.Struct ("ui/workspace", [ _, root ]) as whole) ->
       let* tree, graph, viewports = panel_tree root in
-      let g = List.find (fun (g : W.graph) -> g.context = W.Editor) workspace.checked.graphs in
+      let g = Option.get (Workspace_doc.editor_graph workspace) in
       Ok (Some { tree; origins = origins g whole; named = graph; viewports })
   | Some _ -> Error (diag "E_LOWER" "The editor graph returns a (ui/workspace ...).")
 
@@ -592,7 +592,7 @@ let of_workspace ~factories ?previous (workspace : Workspace_doc.t) =
     let* rest = rest in
     let* scene = E.force scene ~live:{ E.t = 0. } in
     let calls = scene_calls scene in
-    if calls = [] || (try List.map (fun c -> c.kind, c.args) calls
+    if (try List.map (fun c -> c.kind, c.args) calls
                           = List.map (fun c -> c.kind, c.args) default_calls
                       with Invalid_argument _ -> false) then Ok rest
     else
@@ -702,15 +702,17 @@ let of_workspace ~factories ?previous (workspace : Workspace_doc.t) =
       lowered.plan Flow.Workspace.Settings in
   let* settings = match settings_calls with
     | { kind; args; _ } :: _ -> settings_of (E.Struct (kind, args))
-    | [] -> Ok (match previous with Some doc -> doc.settings | None -> workspace.settings) in
-  let cameras = Objects.ids "camera" graph in
+    | [] -> Ok workspace.settings in
+  let cameras = List.filter (fun id -> not (List.exists (fun (_, ids) -> List.mem id ids) views))
+    (Objects.ids "camera" graph) in
   let active_camera =
     match List.find_opt (fun (id, item) -> item.active && item.group = None && List.mem id cameras) objects with
     | Some (id, _) -> Some id
+    | None when has_scene -> List.nth_opt cameras 0
     | None ->
         (match Option.bind previous (fun (doc : Document.t) -> doc.active_camera) with
          | Some id when List.mem id cameras -> Some id
-         | _ -> if has_scene then List.nth_opt cameras 0 else None) in
+         | _ -> None) in
   let workspace = if has_settings workspace then workspace
     else { workspace with Workspace_doc.settings } in
   let homes = { Document.objects = List.filter_map (fun (id, item) ->

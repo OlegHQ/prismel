@@ -29,6 +29,7 @@ type op =
   | Set_layout_ratio of { node : path; ratio : float }
   | Split_panel of { node : path; axis : [ `H | `V ] }
   | Close_panel of { node : path }
+  | Dock_panel of { node : path; target : path; side : [ `Left | `Right | `Top | `Bottom ] }
   | Set_panel_kind of { node : path; kind : string }
   | Set_graph of { name : string; form : S.t }
   | Duplicate of { nodes : path list }
@@ -889,6 +890,48 @@ let rewrite src op : (unit -> S.t list) list =
               if p == pp then Some (p, Option.get (sibling pe))
               else if pat_key p = leaf then None else Some (p, e)) sc.ps in
             reorder (rebuild sc ps sc.res)))
+  | Dock_panel { node; target; side } -> one (fun () ->
+      let sp, leaf = split_node node and tp, target = split_node target in
+      if sp <> tp || leaf = target then fail "Dock two different panels of the same layout.";
+      let used = root_used src (List.hd sp) in
+      edit_scope src sp (fun s ->
+        let sc = ensure s in
+        ignore (get_node s leaf);
+        let orig = get_node s target in
+        let removed = ref [leaf] in
+        (* Strip the moved panel from its split/tile; empty wrappers disappear too. *)
+        let rec strip (e : S.t) = match e.node with
+          | S.Sym name when List.mem name !removed -> None
+          | S.List (({ S.node = S.Sym ("ui/split" | "ui/split-at"); _ } as head) :: args) ->
+              let rev = List.rev args in
+              (match rev with b :: a :: rest ->
+                 (match strip a, strip b with
+                  | None, other | other, None -> other
+                  | Some a, Some b -> Some {e with node = S.List (head :: List.rev rest @ [a; b])})
+               | _ -> Some e)
+          | S.List (({ S.node = S.Sym "ui/tile"; _ } as head) :: cells) ->
+              (match List.filter_map strip cells with [] -> None
+               | cells -> Some {e with node = S.List (head :: cells)})
+          | S.List [({ S.node = S.Sym ("ui/floating" | "ui/workspace"); _ } as head); child] ->
+              Option.map (fun child -> {e with node = S.List [head; child]}) (strip child)
+          | _ -> Some e in
+        let rec clean ps =
+          let before = List.length !removed in
+          let ps = List.filter_map (fun (p, e) ->
+            if pat_key p = leaf then Some (p, e) else match strip e with
+            | Some e -> Some (p, e)
+            | None -> removed := pat_key p :: !removed; None) ps in
+          if before = List.length !removed then ps else clean ps in
+        let ps = clean sc.ps in
+        if List.mem target !removed then fail "A panel cannot dock inside its own group.";
+        let res = match strip sc.res with Some r -> r | None -> fail "Keep at least one docked panel." in
+        let content = fresh used (target ^ "_content") in
+        let first = side = `Left || side = `Top in
+        let split = call "ui/split-at" [mk (S.Str (if side = `Top || side = `Bottom then "vertical" else "horizontal"));
+          mk (S.Num "0.5"); sym (if first then leaf else content); sym (if first then content else leaf)] in
+        let ps = List.concat_map (fun (p, e) -> if pat_key p = target
+          then [sym content, orig; p, split] else [p, e]) ps in
+        reorder (rebuild sc ps res)))
   | Duplicate { nodes } -> one (fun () ->
       let sp, names = duplicate_plan src nodes in
       edit_scope src sp (fun s ->
@@ -945,6 +988,7 @@ let label = function
   | Delete_nodes _ -> "Delete"
   | Set_layout_ratio _ -> "Resize panel" | Split_panel _ -> "Split panel"
   | Close_panel _ -> "Close panel" | Set_panel_kind _ -> "Retype panel"
+  | Dock_panel _ -> "Dock panel"
   | Set_graph _ -> "Edit graph"
   | Duplicate _ -> "Duplicate"
   | Remove_graph _ -> "Remove graph"

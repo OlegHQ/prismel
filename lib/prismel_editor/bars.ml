@@ -3,15 +3,15 @@
    click: [Core] maps it to the one command or edit it means. *)
 module Ui = Pxui.Ui
 
-type top_intent = Undo | Redo | Copy_lisp | Keys | Layout of string | Dismiss
+type top_intent = Undo | Redo | Copy_lisp | Keys | Layout of string | Select_layout of string | Dismiss
 
 type tool = Add | Repeat | Iterate | Fn | Macro | Defn
 
 let height = 28
 
 (* the four shell layouts of the study's "Shell layouts" dialog *)
-let layouts = [ "default", "Default"; "code", "Graph + code"; "focus", "Focus";
-                "floating", "Floating"; "restore", "Restore layout" ]
+let layouts = [ "default", "New default layout"; "code", "New graph + code layout"; "focus", "New focus layout";
+                "floating", "New floating layout"; "restore", "Restore layout" ]
 
 (* a bordered button; [true] on the frame a press and release land inside it *)
 let button ui ~key ~at:(bx, by) ~w ?(h = 22.) ?(enabled = true) ?(active = false) ?hint label =
@@ -48,7 +48,7 @@ let top_button_rect ~width label =
         if l = label then (at, 3., w l, 22.) else from_right (at -. 6.) rest in
   from_right (width -. 10.) (List.rev top_labels)
 
-let top ui ~width ~title ~status ~can_undo ~can_redo =
+let top ?(named_layouts = []) ?selected_layout ui ~width ~title ~status ~can_undo ~can_redo =
   let theme = Ui.theme ui in
   let bar = Ui.box ui ~w:(Ui.Px width) ~h:(Ui.Px (float height)) ~at:(0., 0.) "workspace-top-bar" in
   Ui.draw ui bar (fun paint (x, y, w, h) ->
@@ -95,12 +95,18 @@ let top ui ~width ~title ~status ~can_undo ~can_redo =
         let clicked = button ui ~key ~at:(at, 3.) ~w ~active:opened label in
         let opened = if clicked then not opened else opened in
         Ui.set_state ui opener (if opened then 1 else 0);
-        if opened then
+        if opened then begin
+          let choices = List.map (fun name -> name, Select_layout name) named_layouts
+            @ (if named_layouts = [] then [] else ["", Dismiss])
+            @ List.map (fun (key, label) -> label, Layout key) layouts in
+          let selected = List.find_index (fun (_, intent) -> match intent with
+            | Select_layout name -> Some name = selected_layout | _ -> false) choices in
           (match Ui.context_menu ui ~at:(at, float height) (key ^ "-rows")
-             (List.map (fun (_, name) -> name, true) layouts) with
+             ?selected (List.map (fun (label, _) -> label, label <> "") choices) with
            | `Open -> ()
            | `Dismiss -> Ui.set_state ui opener 0
-           | `Pick i -> Ui.set_state ui opener 0; emit (Layout (fst (List.nth layouts i))))) top_labels;
+           | `Pick i -> Ui.set_state ui opener 0; emit (snd (List.nth choices i)))
+        end) top_labels;
   List.rev !intents
 
 let tools = [ Add, "Add", "A"; Repeat, "Repeat", "R"; Iterate, "Iterate", "S-R";
@@ -109,7 +115,7 @@ let tools = [ Add, "Add", "A"; Repeat, "Repeat", "R"; Iterate, "Iterate", "S-R";
 (* The toolbar sits in the graph panel's header, after its title and subtitle; a tool that would
    run into the collapse button is left out. *)
 (* where the toolbar starts: after a header title of this many characters *)
-let tools_from title = float (30 + (7 * (String.length title + 2)))
+let tools_from title = float (42 + (7 * (String.length title + 2)))
 
 let tool_rects ~header:(hx, hy, hw, hh) ~from =
   let hx = float hx and hy = float hy and hw = float hw and hh = float hh in
@@ -152,15 +158,17 @@ let tree_text ~name ~scene tree =
     Hashtbl.replace used base n;
     let name = if n = 1 then base else Printf.sprintf "%s_%d" base n in
     bindings := (name, form) :: !bindings; name in
-  let rec go path : Editor_core.Panels.t -> string = function
+  let rec go path tree =
+    let name = node path tree in
+    names := (List.rev path, name) :: !names; name
+  and node path : Editor_core.Panels.t -> string = function
     | Leaf p ->
         let base, form = match p with
           | View _ -> "preview", Printf.sprintf "(ui/viewport (ref %s))" scene
           | Graph -> "network", "(ui/graph)" | List -> "list", "(ui/list)" | Lisp -> "code", "(ui/lisp)"
           | Inspector -> "inspector", "(ui/inspector)" | Outline -> "outline", "(ui/outline)"
           | Timeline -> "timeline", "(ui/timeline)" in
-        let n = bind base form in
-        names := (List.rev path, n) :: !names; n
+        bind base form
     | Split { axis; ratio; a; b } ->
         let a = go (0 :: path) a in
         let b = go (1 :: path) b in

@@ -4,8 +4,8 @@
 
     The persisted text is the workspace form itself followed by optional
     [(layout ...)] ({!Layout_by_path}) and [(settings :name value ...)] forms
-    (only settings that differ from their default).  A [.plisp] sketch is the
-    same text without the trailing forms. *)
+    (only settings that differ from their default). A [.plisp] sketch can
+    include those trailing forms as well. *)
 
 type t = {
   source : Flow.Syntax.t list;  (** the one [(workspace ...)] form *)
@@ -16,14 +16,20 @@ type t = {
 
 val name : t -> string
 
+val editor_graph : t -> Flow.Workspace.graph option
+(** The selected named editor layout, or the first editor graph when none is selected. *)
+
 val of_text :
-  ?settings:Settings.t -> Flow.Check.catalog -> string -> (t, Flow.Diagnostic.t list) result
-(** Parse and check.  [settings] is the sketch's value the saved fields apply
-    to.  Errors are the checker's diagnostics, a parse error, or a layout or
-    settings form that does not read ([E_LAYOUT], [E_SETTINGS]). *)
+  ?settings:Settings.t -> ?layout:Layout_by_path.t -> Flow.Check.catalog -> string -> (t, Flow.Diagnostic.t list) result
+(** Parse and check. Absent settings and layout forms retain the supplied values.
+    An explicit settings form starts from its schema defaults; an explicit empty layout clears it.
+    Errors are the checker's diagnostics, a parse error, or a layout or
+    settings form that does not read ([E_LAYOUT], [E_SETTINGS]). Unknown or
+    duplicate document forms give [E_DOCUMENT_FORM]. *)
 
 val to_text : t -> string
-(** Canonical text; [of_text] of it gives an equal document. *)
+(** Canonical text; read with the same settings schema at its defaults to
+    recover the complete saved document. *)
 
 val edit : Flow.Check.catalog -> t -> Flow_sop.Flow_edit.op -> (t, Flow.Diagnostic.t) result
 (** One gesture, atomically: the source is rewritten and re-checked, layout

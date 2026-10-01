@@ -126,6 +126,8 @@ let () =
   (* floats overlay the rectangle of their parent and come last *)
   let floated = L.Split { axis = `H; ratio = 0.5; a = Leaf Graph; b = Float (Leaf Inspector) } in
   let g = L.geometry floated wide_frame in
+  if List.map (fun (l : L.leaf) -> l.floating) g.leaves <> [false; true] then
+    failwith "authored floats lost their painting precedence";
   (match List.map (fun (l : L.leaf) -> l.panel) g.leaves, List.rev g.leaves with
    | [ Graph; Inspector ], { body = bx, by, bw, bh; _ } :: _ ->
        let gx, _, gw, _ = (Option.get (L.find g Graph)).body in
@@ -141,7 +143,7 @@ let () =
   (* dragging a splitter reports a ratio, and the header menu reports its intents *)
   let drag_ui = Pxui.Ui.create () in
   let chrome tree ?(mouse = 0., 0.) events =
-    let f = { wide_frame with events; mouse } in
+    let f = { wide_frame with events; mouse; height = 600; size = 1000, 600 } in
     Pxui.Ui.frame drag_ui f (fun ui -> let a = Pxui_shell.Chrome.update tree ui f in
       a @ Pxui_shell.Chrome.splitters tree ui f) in
   ignore (chrome L.default []);
@@ -163,11 +165,11 @@ let () =
     Event.MouseReleased (Input.LeftButton, (470., 34.))] in
   (match chrome L.default ~mouse:(470., 34.) pick with
    | [ Pxui_shell.Chrome.Split_panel ([ 1; 0 ], `H) ] -> ()
-   | _ -> failwith "the header menu did not split the graph panel");
+   | intents -> failwith (Printf.sprintf "the header menu did not split the graph panel (%d intents)" (List.length intents)));
   let collapse = [Event.MousePressed (Input.LeftButton, (985., 10.));
     Event.MouseReleased (Input.LeftButton, (985., 10.))] in
   ignore (chrome L.default ~mouse:(985., 10.) [Event.MouseMoved (985., 10.)]);
-  if not (List.mem (Pxui_shell.Chrome.Toggle L.Inspector) (chrome L.default ~mouse:(985., 10.) collapse)) then
+  if not (List.mem (Pxui_shell.Chrome.Toggle [1; 1]) (chrome L.default ~mouse:(985., 10.) collapse)) then
     failwith "the collapse button did not toggle the inspector";
   Pxui.Ui.destroy drag_ui;
   if instances "view" <= instances "other" then

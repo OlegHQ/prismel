@@ -7,6 +7,8 @@
     Persisted as one [(layout ...)] s-expression after the workspace:
     {[
       (layout
+        (editor "studio")
+        (panel ["studio" "network"] :collapsed false :window [500 80 620 450])
         (node ["g" "ring"] :at [120 40] :pinned true :collapsed true :rows {:radius false})
         (bend ["g" "b"] "in0" [12 24] [30 40])
         (wireless ["g" "b"] "in0")
@@ -25,6 +27,9 @@ type frame = { title : string; at : float * float; size : float * float }
 (** A titled rectangle on the canvas of the scope the frame is keyed by. *)
 
 type t = {
+  editor : string option; (** The selected editor graph (a named shell layout); first by default. *)
+  panels : Editor_core.Panels.state Path_map.t;
+      (** Saved panel disclosure and floating window bounds, keyed by editor graph and binding. *)
   at : (float * float) Path_map.t;
   pinned : bool Path_map.t;
   rows : bool String_map.t Path_map.t;

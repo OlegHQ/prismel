@@ -10,6 +10,10 @@ type t = {
 
 let name t = t.checked.name
 
+let editor_graph t =
+  List.find_opt (fun (g : Flow.Workspace.graph) -> g.context = Flow.Workspace.Editor
+    && Option.fold ~none:true ~some:(( = ) g.name) t.layout.editor) t.checked.graphs
+
 let head (f : S.t) = match f.node with S.List ({ S.node = S.Sym h; _ } :: _) -> Some h | _ -> None
 
 (* ---- settings: (settings :name value ...), only non-default fields ---- *)
@@ -51,34 +55,51 @@ let read_settings base (form : S.t) =
          | Some _, _ -> Error (Printf.sprintf "setting %s has the wrong type" k))
     | _ -> Error "expected :name value pairs" in
   let* changes = go [] (List.tl (S.children form)) in
-  Result.map fst (Settings.apply base changes)
+  Result.map fst (Settings.apply (Settings.defaults base) changes)
 
 (* ---- text ---- *)
 
 let diag code message = Flow.Diagnostic.error ~code message
 
-let of_text ?(settings = Settings.none) catalog text =
+let check_forms forms =
+  let rec go seen = function
+    | [] -> Ok ()
+    | f :: rest ->
+        (match head f with
+         | Some name when List.mem name ["workspace"; "layout"; "settings"; "view"] ->
+             if List.mem name seen then Error [Flow.Diagnostic.error ~span:f.S.span
+               ~code:"E_DOCUMENT_FORM" ("Duplicate " ^ name ^ " form.")]
+             else go (name :: seen) rest
+         | _ -> Error [Flow.Diagnostic.error ~span:f.S.span ~code:"E_DOCUMENT_FORM"
+             "Expected workspace, layout, settings or view at the document root."]) in
+  go [] forms
+
+let of_text ?(settings = Settings.none) ?(layout = Layout_by_path.empty) catalog text =
   match S.parse text with
   | Error d -> Error [ d ]
   | Ok forms ->
       (match List.find_opt (fun f -> head f = Some "workspace") forms with
        | None -> Error [ diag "E_WORKSPACE" "Expected a (workspace ...) form." ]
        | Some ws ->
+           Result.bind (check_forms forms) (fun () ->
            (match Flow.Workspace.check catalog [ ws ] with
             | None, ds -> Error ds
             | Some checked, _ ->
                 let layout = match List.find_opt (fun f -> head f = Some "layout") forms with
-                  | None -> Ok Layout_by_path.empty
+                  | None -> Ok layout
                   | Some f -> Layout_by_path.of_syntax f in
                 (match layout with
                  | Error m -> Error [ diag "E_LAYOUT" m ]
+                 | Ok layout when layout.editor <> None
+                     && editor_graph { source = [ws]; checked; layout; settings } = None ->
+                     Error [ diag "E_LAYOUT" ("Unknown editor layout " ^ Option.get layout.editor ^ ".") ]
                  | Ok layout ->
                      let settings = match List.find_opt (fun f -> head f = Some "settings") forms with
                        | None -> Ok settings
                        | Some f -> read_settings settings f in
                      (match settings with
                       | Error m -> Error [ diag "E_SETTINGS" m ]
-                      | Ok settings -> Ok { source = [ ws ]; checked; layout; settings }))))
+                      | Ok settings -> Ok { source = [ ws ]; checked; layout; settings })))))
 
 let to_text t =
   let extra = (if Layout_by_path.is_empty t.layout then [] else [ Layout_by_path.to_syntax t.layout ])

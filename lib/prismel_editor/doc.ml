@@ -55,18 +55,23 @@ let text_edit ~factories (doc : Editor_document.Document.t) text =
   let ( let* ) = Result.bind in
   let one result = Result.map_error (fun d -> [ d ]) result in
   let* catalog = one (Editor_document.Contexts.catalog ~version:Flow_sop.Manifest.version factories) in
-  let* edited = Editor_document.Workspace_doc.of_text ~settings:workspace.settings catalog text in
-  one (Editor_document.Contexts.of_workspace ~factories ~previous:doc
-    (* a [(layout ...)] or [(settings ...)] form in the text is the new value; without one
-       the running layout (keyed by path) stays, and the settings the text does not name *)
-    { edited with layout = (if Editor_document.Layout_by_path.is_empty edited.layout
-                            then workspace.layout else edited.layout) })
+  let* edited = Editor_document.Workspace_doc.of_text ~settings:workspace.settings
+      ~layout:workspace.layout catalog text in
+  one (Editor_document.Contexts.of_workspace ~factories ~previous:doc edited)
 
 (* A change to the workspace's layout keys (a moved item, a collapsed zone):
    the source and the lowering are untouched, so nothing recooks. *)
 let layout_edit (doc : Editor_document.Document.t) f =
   let workspace, lowered = doc.workspace in
   { doc with workspace = { workspace with layout = f workspace.layout }, lowered }
+
+let select_layout ~factories (doc : Editor_document.Document.t) name =
+  let workspace = fst doc.workspace in
+  let workspace = { workspace with layout = { workspace.layout with editor = Some name } } in
+  match Editor_document.Workspace_doc.editor_graph workspace with
+  | None -> Error ("Unknown editor layout " ^ name ^ ".")
+  | Some _ -> Editor_document.Contexts.of_workspace ~factories ~previous:doc workspace
+      |> Result.map_error Flow.Diagnostic.to_string
 
 (* A derived edit (an object's field, a reparent, a World layer) written to the text. *)
 let reconcile ~factories ?adopt before after =

@@ -30,7 +30,7 @@ type state = {
   wrap : bool;  (* long lines continue on the next row *)
   parinfer : bool;  (* closing brackets follow indentation (Lisp_text.parinfer_text) *)
   menu : (float * float) option;  (* the right-click menu, while open *)
-  cache : ((S.t list * string * path option * tab) * shown) option;
+  cache : ((S.t list * Editor_document.Workspace_doc.t option * string * path option * tab) * shown) option;
 }
 
 let initial = { tab = Selection; draft = None; binding_draft = None; graph_draft = None;
@@ -151,13 +151,21 @@ let make_shown source graph selected tab =
 
 (* [shown] recomputed only when the source, the graph, the selection or the
    tab changed *)
-let shown state ~(source : S.t list) ~graph ~selected =
-  let key = (source, graph, selected, state.tab) in
+let shown ?workspace state ~(source : S.t list) ~graph ~selected =
+  let key = (source, workspace, graph, selected, state.tab) in
+  let same a b = match a, b with None, None -> true | Some a, Some b -> a == b | _ -> false in
   match state.cache with
-  | Some ((s, g, p, t), shown) when s == source && g = graph && p = selected && t = state.tab ->
+  | Some ((s, w, g, p, t), shown) when s == source && same w workspace
+      && g = graph && p = selected && t = state.tab ->
       state, shown
   | _ ->
       let shown = make_shown source graph selected state.tab in
+      let shown = match workspace with
+        | None -> shown
+        | Some workspace ->
+            let applied = lazy (Editor_document.Workspace_doc.to_text workspace) in
+            { shown with applied;
+              text = if state.tab = Document then Lazy.force applied else shown.text } in
       { state with cache = Some (key, shown) }, shown
 
 (* ---- errors ---- *)

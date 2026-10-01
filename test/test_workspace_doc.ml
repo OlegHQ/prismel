@@ -201,6 +201,11 @@ let part_preset () =
   let module E3 = Prismel_editor.Editor3 in
   let directory = Filename.temp_dir "prismel-workspace-presets" "" in
   Fun.protect ~finally:(fun () ->
+    let state = Filename.concat directory "state" in
+    if Sys.file_exists state then begin
+      Array.iter (fun name -> Sys.remove (Filename.concat state name)) (Sys.readdir state);
+      Unix.rmdir state
+    end;
     Array.iter (fun f -> Sys.remove (Filename.concat directory f)) (Sys.readdir directory);
     Unix.rmdir directory) (fun () ->
     let e = editor ~presets:directory still in

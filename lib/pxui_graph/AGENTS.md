@@ -26,6 +26,9 @@ sockets use the same hit tree and spatial wire index. A VIEW flag marks the
 display node; marquee selects, Alt/right/middle-drag pans, wheel and
 two-finger scroll zoom at the pointer, Alt-click edits bends and
 Command/Ctrl-drag cuts crossed wires.
+Hovering a connected socket highlights its incident wires and both ends; hovering
+a wire highlights that connection. Segment rectangles join the shared PXUI hit
+tree behind the cards, so socket and control ownership takes precedence.
 The categorised node menu uses `open_menu_at` and `catalog_of_factories`. Details: `specification/pxui.md` (Hosts) and
 `specification/procedural.md` (Editable graph document).
 

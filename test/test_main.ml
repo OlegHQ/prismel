@@ -26,12 +26,15 @@ let tests = [
   "test_workspace_edit", Test_workspace_edit.run;
   "test_projection", Test_projection.run;
   "test_text_pane", Test_text_pane.run;
+  "test_editor_consistency", Test_editor_consistency.run;
+  "test_editor_consistency_native", Test_editor_consistency.run_native;
   "test_probe", Test_probe.run;
   "test_viewport_pick", Test_viewport_pick.run;
   "bench_viewport_pick", Test_viewport_pick.bench;
   "test_workspace_doc", Test_workspace_doc.run;
   "test_workspace_shell", Test_workspace_shell.run;
   "test_workspace_shell_native", Test_workspace_shell.run_native;
+  "test_workspace_view_native", Test_workspace_shell.run_view_native;
   "test_workspace_source", Test_workspace_source.run;
   "test_bloom_studio", Test_bloom_studio.run;
   "dependency_gate", Dependency_gate.run;

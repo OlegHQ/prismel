@@ -121,6 +121,47 @@ let scope_click view point =
   scope_step view (frame ~mouse:point ~events:(mouse_move point :: click point) ())
 let rect_center (x, y, w, h) = int_of_float (x +. w /. 2.), int_of_float (y +. h /. 2.)
 
+let scope_connection_hover () =
+  let ws = Editor_document.Workspace_doc.of_text scope_catalog
+    "(workspace hover (graph g :context sop (let* [a (sop/box) b (sop/transform a) c (sop/transform a)] (sop/merge b c))))"
+    |> Result.get_ok in
+  let view, _ = scope_view ~at:(function
+    | ["g"; "a"] -> Some (0., 0.) | ["g"; "b"] -> Some (400., 0.)
+    | ["g"; "c"] -> Some (400., 240.)
+    | ["g"; "@result"] -> Some (800., 600.) | _ -> None) ws.checked "g" in
+  let view, _ = scope_step view (frame ()) in
+  let highlight point =
+    let point = int_of_float (fst point), int_of_float (snd point) in
+    let hovered, changes = scope_step view (frame ~mouse:point ~events:[mouse_move point] ()) in
+    check (changes = []) "hover edited the graph";
+    Scope.Private.highlighted_connections hovered in
+  let source = Option.get (Scope.Private.output_socket view ["g"; "a"]) in
+  let fanout = highlight source in
+  check (List.length fanout = 2) "an output hover did not highlight its two connections";
+  let ax, ay = source in
+  let bx, _, _, _ = Option.get (Scope.Private.box_of view ["g"; "c"]) in
+  let _, by = Option.get (Scope.Private.row_center view ["g"; "c"] 0) in
+  let wire_hover = highlight ((ax +. bx) /. 2., (ay +. by) /. 2.) in
+  check (List.length wire_hover = 1)
+    (Printf.sprintf "hover on a wire did not isolate its connection: %d at %.1f %.1f; %s"
+      (List.length wire_hover) ((ax +. bx) /. 2.) ((ay +. by) /. 2.)
+      (String.concat "; " (List.map (fun ((a,b),(c,d)) -> Printf.sprintf "%.1f,%.1f -> %.1f,%.1f" a b c d) fanout)));
+  check (List.length (highlight (bx, by)) = 1) "an input hover did not isolate its connection";
+  check (highlight (999., 699.) = []) "connections stayed highlighted after leaving them";
+  let ws = Editor_document.Workspace_doc.of_text scope_catalog
+    "(workspace capture (graph g :context sop (let* [a (sop/box) copies (for [i (range 2)] (sop/transform a :translate [i 0 0]))] (sop/merge copies))))"
+    |> Result.get_ok in
+  let view, scope = scope_view ws.checked "g" in
+  let view, _ = scope_step view (frame ()) in
+  let zone = Option.get (P.find scope ["g"; "copies"]) in
+  let rail = (Option.get zone.zone).rail in
+  let index = Option.get (List.find_index (fun (r : P.rail_row) -> r.role = P.Capture && r.name = "a") rail) in
+  let x, y, _, _ = Option.get (Scope.Private.box_of view zone.path) in
+  let point = int_of_float x, int_of_float (y +. (P.rail_top zone +. (float index +. 0.5) *. P.row_height) *. Scope.zoom view) in
+  let hovered, changes = scope_step view (frame ~mouse:point ~events:[mouse_move point] ()) in
+  check (changes = [] && List.length (Scope.Private.highlighted_connections hovered) = 1)
+    "hover on a captured value's socket missed its outer connection"
+
 (* W12b: every W3 gesture the pane can make reaches the host as its request. *)
 let scope_gestures () =
   let module E = Flow_sop.Flow_edit in
@@ -499,6 +540,7 @@ let run_scope () =
   let _, changes = Scope.run_command (Scope.select [] view) Scope.Make_macro in
   check (match changes with [ Scope.Notice _ ] -> true | _ -> false) "m with nothing selected";
   scope_gestures ();
+  scope_connection_hover ();
   print_endline "pxui graph scope pane tests passed"
 
 (* Frame cost of the graph pane on Sunflower (240 iterations), expanded and

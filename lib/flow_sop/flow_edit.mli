@@ -77,6 +77,8 @@ type op =
   | Close_panel of { node : path }
       (** the split holding panel [node] becomes the other half; a panel outside a split
           does not close *)
+  | Dock_panel of { node : path; target : path; side : [ `Left | `Right | `Top | `Bottom ] }
+      (** Move a panel beside another in the same scope; collapse the split/tile it leaves. *)
   | Set_panel_kind of { node : path; kind : string }
       (** [outline], [graph], [list], [lisp], [inspector], [timeline] or [viewport] (over the first
           scene graph) *)

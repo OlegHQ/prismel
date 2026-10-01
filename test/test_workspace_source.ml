@@ -34,9 +34,9 @@ let write file text =
   Unix.utimes file !clock !clock
 
 let directory () = Filename.temp_dir "prismel-source" ""
-let remove_tree dir =
+let rec remove_tree dir =
   Array.iter (fun f -> let p = Filename.concat dir f in
-    if Sys.is_directory p then (Array.iter (fun g -> Sys.remove (Filename.concat p g)) (Sys.readdir p); Unix.rmdir p)
+    if Sys.is_directory p then remove_tree p
     else Sys.remove p) (Sys.readdir dir);
   Unix.rmdir dir
 
@@ -197,11 +197,105 @@ let run_editor () =
   settle ();
   check (has (cook_line !e) "saved as preset") ("the status says why: " ^ cook_line !e);
   check (read file = typo) "the changed source file was not overwritten";
-  check (Array.length (Sys.readdir (Filename.concat dir "presets")) = 1) "one preset was written";
+  check (List.length (Editor_document.Preset.list ~directory:(Filename.concat dir "presets")) = 1) "one preset was written";
   E3.close !e;
-  Array.iter (fun f -> Sys.remove (Filename.concat (Filename.concat dir "presets") f))
-    (Sys.readdir (Filename.concat dir "presets"));
-  Unix.rmdir (Filename.concat dir "presets");
   remove_tree dir
 
-let run () = run_files (); run_find (); run_editor (); print_endline "workspace source tests passed"
+let run_autosave () =
+  let dir = directory () in
+  let file = Filename.concat dir "sketch.plisp" and presets = Filename.concat dir "presets" in
+  write file text0;
+  let create () = editor ~presets ~source:(Source.at ~file ~digest:(sha text0)) text0 in
+  let e = ref (create ()) and count = ref 0 in
+  let step ?(keys = []) events =
+    incr count; e := E3.update !e (Test_editor_input.frame ~keys (200., 300.) events !count) in
+  step []; step [];
+  let state = Editor_document.Preset.path ~directory:(Filename.concat presets "state")
+    ~name:(sha ("file:" ^ Unix.realpath file)) in
+  check (not (Sys.file_exists state)) "opening a sketch wrote over its recovery state";
+  e := Result.get_ok (E3.edit !e (Flow_sop.Flow_edit.Set_arg {
+    node = ["g"; "@result"]; key = Kw "radius"; sub = []; value = Flow.Syntax.make (Num "1.25") }));
+  e := E3.set_renderer !e Prismel_editor.Renderer.Wireframe;
+  step [Event.MouseMoved (200., 300.); Event.MouseScrolled (0., -2.)];
+  let saved_eye = Camera.position (Easy_camera.camera (E3.camera !e)) in
+  E3.close !e;
+  check (has (read state) ":radius 1.25" && has (read state) "; the header"
+         && has (read state) "(view") "close did not flush the edited document and viewport";
+  check (read file = text0) "autosave rewrote the source file";
+  check (Array.length (Sys.readdir (Filename.dirname state)) = 1) "autosave left multiple snapshots or temporary files";
+  let snapshot = read state and stamp = (Unix.stat state).st_mtime in
+  e := create (); count := 0;
+  for _ = 1 to 70 do step [] done;
+  check (read state = snapshot && (Unix.stat state).st_mtime = stamp)
+    "an unchanged restarted sketch overwrote the last edited state";
+  step [Event.KeyPressed Input.Space; Event.KeyPressed (Input.KeyChar 'b')];
+  step [Event.KeyPressed Input.Enter];
+  check (has (source_text !e) ":radius 1.25" && E3.undo_label !e = Some "Restore last edited state")
+    ("Space b did not restore the last edited state as one undo entry: "
+      ^ Option.value ~default:"-" (E3.undo_label !e) ^ "; " ^ cook_line !e ^ "; " ^ source_text !e);
+  check (Vec3.nearly_equal saved_eye (Camera.position (Easy_camera.camera (E3.camera !e))) ~eps:1e-9)
+    "recovery did not restore the viewport";
+  check (E3.renderer !e = Prismel_editor.Renderer.Wireframe) "recovery did not restore the shared renderer choice";
+  step ~keys:[Input.Meta] [Event.KeyPressed (Input.KeyChar 'z')];
+  check (has (source_text !e) ":radius 0.5") "undo did not revert recovery";
+  E3.close !e;
+  (* A corrupt recovery file is reported without replacing the good document or the file. *)
+  write state typo;
+  e := create (); count := 0;
+  step [];
+  step [Event.KeyPressed Input.Space; Event.KeyPressed (Input.KeyChar 'b')];
+  step [Event.KeyPressed Input.Enter];
+  check (has (source_text !e) ":radius 0.5" && has (cook_line !e) "rejected")
+    "a broken autosave replaced the live document or hid its error";
+  step [Event.KeyPressed Input.Space; Event.KeyPressed (Input.KeyChar 'b')];
+  step [Event.KeyPressed Input.Delete]; step [Event.KeyPressed Input.Delete];
+  check (not (Sys.file_exists state)) "Delete twice did not remove the recovery file";
+  E3.close !e;
+  check (not (Sys.file_exists state)) "closing an unchanged sketch recreated deleted recovery";
+  (* Failed writes keep the edit and retry after the destination becomes usable. *)
+  Unix.rmdir (Filename.dirname state);
+  write (Filename.dirname state) "blocked";
+  e := create (); count := 0;
+  step [];
+  e := Result.get_ok (E3.edit !e (Flow_sop.Flow_edit.Set_arg {
+    node = ["g"; "@result"]; key = Kw "radius"; sub = []; value = Flow.Syntax.make (Num "2") }));
+  for _ = 1 to 35 do step [] done;
+  check (has (Test_workspace_shell.dump_line !e "autosave") "Autosave failed"
+         && has (source_text !e) ":radius 2")
+    "a failed periodic save lost the edit or hid its error";
+  Sys.remove (Filename.dirname state);
+  for _ = 1 to 35 do step [] done;
+  check (has (read state) ":radius 2" && Test_workspace_shell.dump_line !e "autosave" = "-")
+    "autosave did not retry and clear its error while the editor remained open";
+  E3.close !e;
+  remove_tree dir
+
+let run_autosave2 () =
+  let module E2 = Prismel_editor.Editor2 in
+  let dir = directory () in
+  let create () = E2.create ~presets:dir ~await:true
+    ~workspace:(Result.get_ok (Doc.of_text catalog text0))
+    ~camera:(Easy_camera2.create ~inertia:false ())
+    ~prepare:(fun _ _ -> Ok ()) ~scene2:(fun _ _ -> Scene.empty) () |> Result.get_ok in
+  let e = ref (create ()) and count = ref 0 in
+  let step events = incr count;
+    e := E2.update !e (Test_editor_input.frame (200., 300.) events !count) in
+  step [];
+  step [Event.MouseMoved (200., 300.); Event.MouseScrolled (0., -2.)];
+  let saved = E2.camera !e in
+  for _ = 1 to 35 do step [] done;
+  let state = Editor_document.Preset.path ~directory:(Filename.concat dir "state")
+    ~name:(sha "workspace:w") in
+  check (has (read state) ":zoom") "2D camera navigation did not autosave while open";
+  E2.close !e;
+  e := create (); count := 0; step [];
+  step [Event.KeyPressed Input.Space; Event.KeyPressed (Input.KeyChar 'b')];
+  step [Event.KeyPressed Input.Enter];
+  check (Easy_camera2.center (E2.camera !e) = Easy_camera2.center saved
+         && Easy_camera2.zoom (E2.camera !e) = Easy_camera2.zoom saved)
+    "2D recovery did not restore the viewport";
+  E2.close !e;
+  remove_tree dir
+
+let run () = run_files (); run_find (); run_editor (); run_autosave (); run_autosave2 ();
+  print_endline "workspace source tests passed"

@@ -104,11 +104,16 @@ module Private : sig
   end
 
   (** [timeline_frames] (default 240) is the scrub range of the timeline bar,
-      extended while playback runs past it. [name] (default ["sketch"]; [run]
+      extended while playback runs past it. [name] (default the workspace name; [run]
       uses the window title) is recorded in presets, which live in [presets]
       (default [~/.prismel/<name>]): [Space s] saves the full document under a
       typed name (prefilled with the time), [Space b] searches, loads (Enter, one
-      undo entry), and deletes (Delete twice) them. See {!Preset}. *)
+      undo entry), and deletes (Delete twice) them. Edits also save one recovery
+      file under [<presets>/state], at most twice a second and on close, using
+      the source file's absolute path (or workspace name) as its identity.
+      [Space b] offers it as "Last edited state". Opening an unchanged sketch
+      preserves its recovery file; autosave keeps source files untouched.
+      See {!Preset}. *)
 
   (** Effect- and dependency-aware cook scheduler. It fires initially, after a
       committed cook parameter change, after [force], and whenever the sketch
@@ -401,6 +406,12 @@ module Editor3 : sig
   val prepared : 'prepared t -> 'prepared option
   val camera : 'prepared t -> Prismel.Easy_camera.t
   (** The interactive viewport camera. *)
+
+  val renderer : 'prepared t -> Renderer.t
+  val set_renderer : 'prepared t -> Renderer.t -> 'prepared t
+  (** Every 3D editor offers raster, wireframe and path tracing in its inspector.
+      [set_renderer] applies at the next update. The choice is saved with viewport
+      state, and uses a sketch's renderer setting when it supplies one. *)
 
   val render_camera : 'prepared t -> Prismel.Camera.t
   (** The ACTIVE camera object's view and lens (the viewport camera when the

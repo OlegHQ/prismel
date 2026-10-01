@@ -99,14 +99,16 @@ let run_lowering () =
   expect_error "an empty tile" (with_editor "    (ui/workspace (ui/tile (for [i (range 0)] (ui/graph))))") "tile";
   expect_error "a workspace of a number" (with_editor "    (ui/workspace 3)") "";
   expect_error "a panel that is not one" (with_editor "    (ui/workspace (ui/split \"vertical\" (ui/graph) 3))") ""
+  ; expect_error "an unknown named layout"
+      (with_editor "    (ui/workspace (ui/graph))" ^ "\n(layout (editor \"missing\"))") "Unknown editor layout"
 
 (* ---- through the editor ---- *)
 
 let frame ?(buttons = []) mouse events count = Test_editor_input.frame ~buttons mouse events count
 (* every editor here awaits the cook its frame submits: what a frame shows is settled, never racing
    the worker *)
-let editor ?camera text =
-  E3.create ?camera ~await:true ~workspace:(of_text text)
+let editor ?camera ?presets text =
+  E3.create ?camera ?presets ~await:true ~workspace:(of_text text)
     ~prepare:(fun _ output -> Pdk_prismel.Prismel_mesh.to_mesh output.Procedural.Session.geometry
       |> Result.map_error Pdk.Error.to_string)
     ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) ()
@@ -315,10 +317,17 @@ let run_values () =
 (* Command-D duplicates the selected nodes (fresh names, one history entry) and selects the copies; v
    views a node in the viewport (a layout entry, one history entry) and again returns to the result *)
 let run_duplicate_and_view () =
-  let e = ref (editor "(workspace w (graph g :context sop (let* [a (sop/box) b (sop/transform a :translate [1 0 0])] b)))") and count = ref 0 in
+  List.iter (fun text ->
+  let e = ref (editor text) and count = ref 0 in
   let step ?(mouse = (450., 300.)) ?(keys = []) events =
     incr count; e := E3.update !e (Test_editor_input.frame ~keys mouse events !count) in
   step []; step [];
+  let centre () = Option.bind (E3.prepared !e) Mesh.centroid
+    |> Option.map (fun p -> p.Vec3.x) in
+  check (centre () = Some 20.) "the initial viewport did not show the graph result";
+  step ~mouse:(150., 300.) [Event.MouseMoved (150., 300.)];
+  step ~mouse:(150., 300.) [Event.MouseScrolled (0., -1.)];
+  step [];
   let gx, gy, _, _ = (E3.panes !e (frame (0., 0.) [] 0)).graph in
   let p = float (gx + 40), float (gy + 40) in
   step ~mouse:p [ Event.MouseMoved p ];
@@ -337,12 +346,80 @@ let run_duplicate_and_view () =
     ("v did not view the node: " ^ Option.value ~default:"-" (E3.undo_label !e));
   check (has (fst (Flow.Lisp.print [ Editor_document.Layout_by_path.to_syntax (E3.workspace !e).Doc.layout ])) "(display")
     "the viewed node is saved in the layout";
+  step ~mouse:p [];
+  check (Node.operation (E3.displayed_node !e) = "box" && centre () = Some 0.)
+    ("v marked the node but did not show it in the viewport: " ^ node);
   step ~mouse:p [ Event.KeyPressed (Input.KeyChar 'v') ];
   check (Editor_document.Layout_by_path.Path_map.is_empty (E3.workspace !e).Doc.layout.display) "v again returns to the result";
+  step ~mouse:p [];
+  check (centre () = Some 20.) "clearing VIEW did not restore the graph result";
   step ~mouse:p ~keys:[ Input.Meta ] [ Event.KeyPressed (Input.KeyChar 'd') ];
   check (E3.undo_label !e = Some "Duplicate" && has (source !e) "_2") ("Command-D made no copy: " ^ source !e);
   check (selected () <> node && selected () <> "-") "the copy is the selection";
-  E3.close !e
+  E3.close !e) [
+    "(workspace w (graph g :context sop (let* [a (sop/box) b (sop/transform a :translate [20 0 0])] b)))";
+    "(workspace w (graph g :context sop (let* [a (sop/box) b (sop/transform a :translate [20 0 0])] b))
+       (graph scene :context scene (scene/merge (scene/geometry (ref g))
+         (scene/camera :eye [0 0 6] :follow_viewport true))))"
+  ]
+
+(* An inline result is a geometry node too: viewing and editing it must follow the current
+   lowering, including when an edit inserts a new plan node before the viewed one. *)
+let run_result_view () =
+  let e = ref (editor {|(workspace result_view
+    (graph g :context sop
+      (let* [a (sop/box) b (sop/transform a :translate [5 0 0])]
+        (sop/transform b :translate [15 0 0])))
+    (graph scene :context scene
+      (scene/merge (scene/geometry (ref g))
+        (scene/camera :eye [0 0 6] :follow_viewport true))))|}) in
+  Fun.protect ~finally:(fun () -> E3.close !e) (fun () ->
+    let count = ref 0 in
+    let step ?(mouse = (450., 300.)) events =
+      incr count; e := E3.update !e (frame mouse events !count) in
+    let centre expected =
+      let actual = Option.map (fun p -> p.Vec3.x) (Option.bind (E3.prepared !e) Mesh.centroid) in
+      check (actual = Some expected)
+        (Printf.sprintf "VIEW kept stale geometry: expected %.1f, got %s" expected
+           (Option.fold ~none:"none" ~some:string_of_float actual)) in
+    let click point =
+      step ~mouse:point [Event.MouseMoved point];
+      step ~mouse:point [Event.MousePressed (Input.LeftButton, point); Event.MouseReleased (Input.LeftButton, point)] in
+    let select name =
+      let x, y, _, _ = Option.get (E3.node_box !e ["g"; name]) in
+      click (float (x + 60), float (y + 12));
+      check (dump_line !e "scope selected" = "g/" ^ name) "the result node could not be selected" in
+    let key k = step [Event.KeyPressed k] in
+    let edit op = e := (match E3.edit !e op with Ok e -> e | Error m -> fail m); step [] in
+    let parsed text = match S.parse text with Ok [e] -> e | _ -> fail "bad result-view expression" in
+    step []; step []; centre 20.;
+    let gx, gy, _, _ = (E3.panes !e (frame (0., 0.) [] 0)).graph in
+    click (float (gx + 40), float (gy + 40));
+    key Input.Home; key (Input.KeyChar 'i'); step [];
+    select "b"; key (Input.KeyChar 'v'); step []; centre 5.;
+    select "@result"; key (Input.KeyChar 'v'); step [];
+    check (Editor_document.Layout_by_path.Path_map.find_opt ["g"] (E3.workspace !e).layout.display
+           = Some ["g"; "@result"]) "v refused the inline result node";
+    centre 20.;
+    edit (E.Set_arg {node = ["g"; "b"]; key = E.Kw "translate"; sub = []; value = parsed "[9 0 0]"});
+    centre 24.;
+    edit (E.Set_arg {node = ["g"; "@result"]; key = E.Kw "translate"; sub = []; value = parsed "[30 0 0]"});
+    centre 39.;
+    select "b"; key (Input.KeyChar 'v'); step []; centre 9.;
+    edit (E.Set_arg {node = ["g"; "b"]; key = E.Whole; sub = [];
+      value = parsed "(sop/transform (sop/transform a :translate [2 0 0]) :translate [9 0 0])"});
+    centre 11.;
+    let vx, vy, _, _ = (E3.panes !e (frame (0., 0.) [] 0)).view in
+    click (float (vx + 10), float (vy + 10)); key (Input.KeyChar 'f'); step [];
+    check (Float.abs ((Easy_camera.target (E3.camera !e)).Vec3.x -. 11.) < 1e-6)
+      "viewport F framed the graph result instead of the viewed node";
+    let gx, gy, _, _ = (E3.panes !e (frame (0., 0.) [] 0)).graph in
+    click (float (gx + 10), float (gy + 10)); key (Input.KeyChar 'u'); step [];
+    check (dump_line !e "level" = "scene") "u did not leave the geometry network";
+    centre 41.;
+    click (float (gx + 40), float (gy + 40));
+    key (Input.KeyChar 'i'); step [];
+    select "@result"; key (Input.KeyChar 'v'); step []; centre 41.)
 
 (* the inspector moves a list item up (Move_item), as the row arrow does *)
 let run_movers () =
@@ -427,6 +504,11 @@ let run_ops () =
   check (Panels.to_string (tree t) = "(h outline (h (v list lisp) (tile view view view view)))") ("retype: " ^ Panels.to_string (tree t));
   let v = ok "Retype panel" (E.Set_panel_kind { node = [ "editor"; "outline" ]; kind = "viewport" }) in
   check (has (source v) "outline (ui/viewport (ref scene))") "a viewport is over the first scene graph";
+  let docked = ok "Dock panel" (E.Dock_panel {node = ["editor"; "network"]; target = ["editor"; "outline"]; side = `Right}) in
+  check (Panels.to_string (tree docked) = "(h (h outline graph) (h lisp (tile view view view view)))")
+    ("docking duplicated a panel or left a gap: " ^ Panels.to_string (tree docked));
+  check (has (source docked) "(ui/split-at \"horizontal\" 0.5 outline_content network)")
+    "docking was not reflected in the editor Lisp";
   (* undo restores the tree with the source *)
   check (Panels.to_string (tree e) = Panels.to_string sh) "undo target";
   (* refusals leave everything alone *)
@@ -474,6 +556,25 @@ let run_restore () =
 
 (* one orbit camera per viewport: the drag of the focused viewport moves only it, and focusing
    another keeps what each one showed *)
+let run_camera_zoom () =
+  let e = ref (editor ~camera:(Easy_camera.create ~inertia:false ())
+    "(workspace zoom (graph g :context sop (sop/box)) (graph scene :context scene (scene/merge (scene/geometry (ref g)) (scene/camera :eye [0 0 12345.123456789] :follow_viewport true :active true))))") in
+  let step events count = e := E3.update !e (frame (200., 200.) events count) in
+  step [] 0; step [] 1;
+  step [Event.MouseMoved (200., 200.); Event.MousePressed (Input.LeftButton, (200., 200.));
+    Event.MouseReleased (Input.LeftButton, (200., 200.))] 2;
+  for count = 3 to 15 do
+    step [Event.MouseScrolled (0., -1.)] (2 * count);
+    let viewport = Easy_camera.camera (E3.camera !e) and saved = E3.render_camera !e in
+    check (Vec3.nearly_equal (Camera.position viewport) (Camera.position saved) ~eps:1e-6)
+      "zooming out made the following camera lag behind the viewport";
+    let eye = Camera.position viewport in
+    step [] ((2 * count) + 1);
+    check (Vec3.nearly_equal eye (Camera.position (Easy_camera.camera (E3.camera !e))) ~eps:1e-6)
+      "an idle frame snapped the viewport to rounded camera coordinates"
+  done;
+  E3.close !e
+
 let run_cameras () =
   let e = ref (editor ~camera:(Easy_camera.with_inertia false (Easy_camera.create ~target:Vec3.zero ~distance:7. ())) (case "variations")) and count = ref 0 in
   let step ?(buttons = []) ?(delta = (0., 0.)) (x, y) events =
@@ -703,10 +804,289 @@ let run_loop_expression () =
   print_endline "workspace shell: an expression typed in a copy edits the template ok"
 
 
-let run () = run_cameras (); run_lowering (); run_ops (); run_panel_keys (); run_unbound_panels (); run_values (); run_duplicate_and_view (); run_movers (); run_frame_key (); run_loop_copies (); run_loop_expression (); run_editor (); run_restore (); run_views ()
+let run_panel_states () =
+  let directory = Filename.temp_dir "prismel-panel-state" "" in
+  let e = ref (editor ~presets:directory "(workspace panels (graph g :context sop (sop/box)))")
+  and count = ref 0 in
+  let step ?(buttons = []) ?(keys = []) mouse events = incr count;
+    e := E3.update !e (Test_editor_input.frame ~buttons ~keys mouse events !count) in
+  let click point = step point [Event.MouseMoved point];
+    step point [Event.MousePressed (Input.LeftButton, point); Event.MouseReleased (Input.LeftButton, point)];
+    step point [] in
+  step (450., 300.) []; step (450., 300.) [];
+  let geometry = Layout.geometry ~hidden:[Layout.Timeline] Layout.default (frame (0., 0.) [] 0) in
+  let splitter = List.find (fun (s : Layout.splitter) -> s.node = Some []) geometry.splitters in
+  let sx, sy, sw, sh = splitter.bounds in
+  let grip = float (sx + sw / 2), float (sy + sh / 2) in
+  let moved = fst grip +. 30., snd grip in
+  step grip [Event.MouseMoved grip];
+  step ~buttons:[Input.LeftButton] grip [Event.MousePressed (Input.LeftButton, grip)];
+  step ~buttons:[Input.LeftButton] moved [Event.MouseMoved moved];
+  step moved [Event.MouseReleased (Input.LeftButton, moved)]; step moved [];
+  check ((E3.workspace !e).layout.editor = None && has (source !e) "ui/split-at"
+         && E3.undo_label !e = Some "Resize panel")
+    "resizing the default shell did not write its editor graph";
+  let saved_shell = (build_ok (E3.workspace !e)).Document.shell in
+  check ((build_ok (of_text (Doc.to_text (E3.workspace !e)))).Document.shell = saved_shell)
+    "the first splitter edit did not round-trip through Lisp";
+  step ~keys:[Input.Meta] moved [Event.KeyPressed (Input.KeyChar 'z')];
+  check ((build_ok (E3.workspace !e)).Document.shell = None)
+    "undoing the first splitter edit did not restore the default shell";
+  click (889., 11.);
+  let state key = Option.value ~default:Editor_core.Panels.default_state
+    (Editor_document.Layout_by_path.Path_map.find_opt ["editor"; key] (E3.workspace !e).layout.panels) in
+  check ((state "inspector").collapsed && E3.undo_label !e = Some "Collapse panel"
+         && (let _, _, w, _ = (E3.panes !e (frame (0., 0.) [] 0)).inspector in w = 0))
+    "collapsing a panel did not persist or remove its body";
+  let saved = Doc.to_text (E3.workspace !e) in
+  check ((of_text saved).layout.panels = (E3.workspace !e).layout.panels)
+    "panel state did not round-trip through Lisp";
+  click (889., 39.);
+  check (not (state "inspector").collapsed) "the collapsed header could not expand the panel";
+  let gx, gy, _, _ = (E3.panes !e (frame (0., 0.) [] 0)).graph in
+  let start = float (gx + 8), float (gy - 11) in
+  let moved = fst start +. 30., snd start +. 70. in
+  step start [Event.MouseMoved start];
+  step ~buttons:[Input.LeftButton] start [Event.MousePressed (Input.LeftButton, start)];
+  step ~buttons:[Input.LeftButton] moved [Event.MouseMoved moved];
+  step ~buttons:[Input.LeftButton] (fst moved +. 10., snd moved) [Event.MouseMoved (fst moved +. 10., snd moved)];
+  step moved [Event.MouseReleased (Input.LeftButton, moved)]; step moved [];
+  check ((state "network").window <> None && E3.undo_label !e = Some "Arrange panel")
+    "the panel drag handle did not undock the panel";
+  let window = Option.get (state "network").window in
+  let x, y, w, h = window in
+  let grip = float (x + 8), float (y + 11) in
+  let to_ = fst grip +. 35., snd grip +. 30. in
+  step grip [Event.MouseMoved grip];
+  step ~buttons:[Input.LeftButton] grip [Event.MousePressed (Input.LeftButton, grip)];
+  step ~buttons:[Input.LeftButton] to_ [Event.MouseMoved to_];
+  step to_ [Event.MouseReleased (Input.LeftButton, to_)]; step to_ [];
+  check ((state "network").window = Some (x + 35, y + 30, w, h))
+    "an underlying pane covered the floating drag handle";
+  step ~keys:[Input.Meta] to_ [Event.KeyPressed (Input.KeyChar 'z')];
+  check ((state "network").window = Some window) "a second window drag merged with the previous gesture";
+  let visible_h = min h (640 - y) in
+  let corner = float (x + w - 4), float (y + visible_h - 4) in
+  let to_ = fst corner -. 35., snd corner -. 40. in
+  step corner [Event.MouseMoved corner];
+  step ~buttons:[Input.LeftButton] corner [Event.MousePressed (Input.LeftButton, corner)];
+  step ~buttons:[Input.LeftButton] to_ [Event.MouseMoved to_];
+  step to_ [Event.MouseReleased (Input.LeftButton, to_)]; step to_ [];
+  check ((state "network").window = Some (x, y, w - 35, visible_h - 40))
+    "the floating window resize handle did not persist its size";
+  step ~keys:[Input.Meta] to_ [Event.KeyPressed (Input.KeyChar 'z')];
+  step ~keys:[Input.Meta] moved [Event.KeyPressed (Input.KeyChar 'z')];
+  check ((state "network").window = None && not (state "inspector").collapsed)
+    "one undo did not revert the whole window drag";
+  (* Drop onto the viewport's lower edge: a docked split, preserved panel types, one undo. *)
+  let before = Doc.to_text (E3.workspace !e) in
+  let gx, gy, _, _ = (E3.panes !e (frame (0., 0.) [] 0)).graph in
+  let start = float (gx + 8), float (gy - 11) and target = (180., 580.) in
+  step start [Event.MouseMoved start];
+  step ~buttons:[Input.LeftButton] start [Event.MousePressed (Input.LeftButton, start)];
+  step ~buttons:[Input.LeftButton] target [Event.MouseMoved target];
+  step ~buttons:[Input.LeftButton] target [];
+  step target [Event.MouseReleased (Input.LeftButton, target)]; step target [];
+  check (has (source !e) "preview_content network)" && (state "network").window = None
+         && dump_line !e "edit error" = "-")
+    ("the edge drop did not dock the panel: " ^ dump_line !e "edit error" ^ "\n" ^ source !e);
+  step ~keys:[Input.Meta] target [Event.KeyPressed (Input.KeyChar 'z')];
+  check (Doc.to_text (E3.workspace !e) = before) "one undo did not revert the docking gesture";
+  step target [Event.KeyPressed Input.Space; Event.KeyPressed (Input.KeyChar 'g')]; step target [];
+  check ((state "network").collapsed) "the leader graph toggle was not saved";
+  step target [Event.KeyPressed Input.Space; Event.KeyPressed (Input.KeyChar 'a')];
+  check (not (state "network").collapsed) "Add did not expand the saved collapsed graph";
+  step target [];
+  step target [Event.KeyPressed Input.Escape]; step target [];
+  step target [Event.KeyPressed Input.Space; Event.KeyPressed (Input.KeyChar 't')]; step target [];
+  check (Option.fold ~none:false ~some:(fun (state : Panels.state) -> not state.collapsed)
+      (Editor_document.Layout_by_path.Path_map.find_opt ["editor"; "@panel"; "-1"]
+        (E3.workspace !e).layout.panels))
+    "the leader timeline toggle was not saved";
+  let prepared = E3.prepared !e in
+  e := E3.set_renderer !e Prismel_editor.Renderer.Wireframe;
+  step target [];
+  check (E3.renderer !e = Prismel_editor.Renderer.Wireframe && Option.equal ( == ) (E3.prepared !e) prepared)
+    "the shared wireframe choice recooked the geometry";
+  e := E3.set_renderer !e Prismel_editor.Renderer.Raster;
+  step target [];
+  check (E3.renderer !e = Prismel_editor.Renderer.Raster && Option.equal ( == ) (E3.prepared !e) prepared)
+    "the shared raster choice recooked the geometry";
+  E3.close !e;
+  Array.iter (fun name -> let path = Filename.concat directory name in
+    if Sys.is_directory path then begin
+      Array.iter (fun name -> Sys.remove (Filename.concat path name)) (Sys.readdir path); Unix.rmdir path
+    end else Sys.remove path) (Sys.readdir directory);
+  Unix.rmdir directory
+
+let run () = run_result_view (); run_panel_states (); run_camera_zoom (); run_cameras (); run_lowering (); run_ops (); run_panel_keys (); run_unbound_panels (); run_values (); run_duplicate_and_view (); run_movers (); run_frame_key (); run_loop_copies (); run_loop_expression (); run_editor (); run_restore (); run_views ()
+
+(* Native VIEW regression over the reported sketch, including its piece renderer and a following
+   camera. Moving the camera rebuilds the lowering while preserving an unchanged object network. *)
+let run_view_native () =
+  let directory = Filename.temp_dir "prismel-view" "" in
+  let prefix = Option.value ~default:(Filename.concat directory "view")
+      (Sys.getenv_opt "PRISMEL_VIEW_PNG") in
+  let text = In_channel.with_open_bin "../sketches/shattered_cube/sketch.plisp" In_channel.input_all in
+  let rendered = ref "" and vertices = ref [] and original = ref [] and edited = ref []
+  and returned = ref false in
+  ignore (Sketch.run_state ~max_frames:37
+    ~config:{Sketch.default_config with width = 1200; height = 760;
+      title = "Shattered Cube · VIEW regression"; domains = Some 1}
+    ~init:(fun _ -> E3.create ~await:true ~workspace:(of_text text)
+      ~presets:(Filename.concat directory "presets") ~seed:7349L ~grain:2
+      ~camera:(Easy_camera.create ~target:Vec3.zero ~distance:6.8 ~azimuth:0.72 ~elevation:0.42 ())
+      ~prepare:(fun _ output ->
+        match Pdk.Geometry.find_attribute ~owner:Pdk.Attribute.Primitive "piece" output.Session.geometry with
+        | Some attribute when (match Pdk.Attribute.Private.storage attribute with
+            | Pdk.Attribute.Int _ | Text _ -> true | _ -> false) ->
+            Sketch_support.Packed_pieces.of_geometry ~piece_attribute:"piece" output.geometry
+            |> Result.map (fun pieces -> `Pieces pieces)
+        | _ -> Pdk_prismel.Prismel_mesh.to_mesh output.geometry
+            |> Result.map (fun mesh -> `Mesh (mesh, output.instances))
+            |> Result.map_error Pdk.Error.to_string)
+      ~scene3:(fun node preview ->
+        rendered := Node.operation node;
+        let mesh, transforms = match preview with
+          | `Pieces pieces -> Sketch_support.Packed_pieces.mesh_for_node node pieces, None
+          | `Mesh (mesh, transforms) -> mesh, transforms in
+        vertices := Mesh.vertices mesh;
+        let shading = if Node.operation node = "box" then Scene3.Flat else Smooth in
+        let material = Material.create ~diffuse:(Color.hex_exn "#f2b36d") () in
+        let drawing = match transforms with
+          | Some transforms -> Scene3.instances_array ~cull:Scene3.Cull_none ~shading ~material mesh transforms
+          | None -> Scene3.mesh ~cull:Scene3.Cull_none ~shading ~material mesh in
+        Scene3.create [drawing]) () |> Result.get_ok)
+    ~update:(fun e (frame : Frame.t) ->
+      let e = if frame.count = 28 then
+          E3.edit e (E.Set_arg {node = ["shattered"; "@result"]; key = E.Kw "amount";
+            sub = []; value = S.make (S.Num "0.8")}) |> Result.get_ok
+        else e in
+      let gx, gy, _, _ = (E3.panes e frame).graph in
+      let graph = float (gx + 40), float (gy + 40) and view = 150., 300. in
+      let mouse = if frame.count = 24 then
+          let x, y, w, _ = Option.get (E3.node_box e ["shattered"; "@result"]) in
+          float (x + w / 2), float (y + 2)
+        else if List.mem frame.count [3; 4; 18; 19; 20; 21; 22] then view else graph in
+      let key k = Event.KeyPressed k in
+      let events = match frame.count with
+        | 3 | 6 | 18 | 23 -> [Event.MouseMoved mouse]
+        | 4 | 19 -> [Event.MouseScrolled (0., -1.)]
+        | 7 -> [Event.MousePressed (Input.LeftButton, mouse)]
+        | 8 -> [Event.MouseReleased (Input.LeftButton, mouse)]
+        | 9 -> [key Input.Home] | 10 -> [key (Input.KeyChar 'i')]
+        | 12 -> [key Input.ArrowRight] | 14 | 25 -> [key (Input.KeyChar 'v')]
+        | 24 -> [Event.MouseMoved mouse; Event.MousePressed (Input.LeftButton, mouse);
+            Event.MouseReleased (Input.LeftButton, mouse)]
+        | 32 -> [key (Input.KeyChar 'u')]
+        | _ -> [] in
+      E3.update e {frame with mouse; events; keys = []; mouse_buttons = []})
+    ~view:E3.scene
+    ~after_present:(fun e (frame : Frame.t) ->
+      if List.mem frame.count [5; 16; 22; 26; 30; 36] then begin
+        let operation = if frame.count = 16 || frame.count = 22 then "box" else "exploded_view" in
+        check (Node.operation (E3.displayed_node e) = operation && !rendered = operation)
+          (Printf.sprintf "Shattered Cube frame %d rendered %s instead of %s" frame.count !rendered operation);
+        check (Canvas.save_screen_png (Printf.sprintf "%s-%d.png" prefix frame.count) = Ok ())
+          "VIEW screenshot failed";
+        if frame.count = 26 then begin
+          original := !vertices;
+          check (Editor_document.Layout_by_path.Path_map.find_opt ["shattered"] (E3.workspace e).layout.display
+                 = Some ["shattered"; "@result"]) "native v refused the result node"
+        end;
+        if frame.count = 30 then begin
+          edited := !vertices;
+          check (!edited <> !original) "editing the result left the rendered geometry cached"
+        end;
+        if frame.count = 36 then begin
+          check (dump_line e "level" = "scene" && !vertices = !edited)
+            "returning up showed the old rendered result";
+          returned := true
+        end
+      end;
+      E3.after_present e frame)
+    ~on_stop:E3.close ());
+  check !returned "native VIEW regression stopped before returning to the scene";
+  if Sys.getenv_opt "PRISMEL_VIEW_PNG" = None then
+    List.iter (fun n -> Sys.remove (Printf.sprintf "%s-%d.png" prefix n)) [5; 16; 22; 26; 30; 36];
+  let state = Filename.concat directory "presets/state" in
+  if Sys.file_exists state then begin
+    Array.iter (fun name -> Sys.remove (Filename.concat state name)) (Sys.readdir state);
+    Unix.rmdir state; Unix.rmdir (Filename.dirname state)
+  end;
+  Unix.rmdir directory;
+  print_endline "Shattered Cube: native VIEW of the result, camera movement, parameter edit and returning up passed"
 
 (* Native: a real window draws Variations' four viewports, each its own scene instance (the
    frame's 3D layers were once cached per frame, so only the first drew). *)
+let run_renderers_native ?(authored = false) () =
+  let directory = Filename.temp_dir "prismel-renderer" "" in
+  let workspace = of_text (Printf.sprintf {|
+    (workspace renderer
+      (graph g :context sop (sop/box))
+      (graph scene :context scene
+        (scene/merge (scene/geometry (ref g)) (scene/camera :eye [0 0 6])))
+      (graph layout :context editor
+        (let* [main (ui/viewport (ref scene))
+               floating (ui/viewport (ref scene))
+               network (ui/graph)
+               side (ui/split-at "vertical" 0.5 network %s)]
+          (ui/workspace (ui/split-at "horizontal" 0.5 main side)))))
+    %s
+  |} (if authored then "(ui/floating floating)" else "floating")
+    (if authored then "" else "(layout (panel [\"layout\" \"floating\"] :collapsed false :window [450 120 320 280]))")) in
+  let samples = ref [] in
+  ignore (Sketch.run_state ~max_frames:46
+    ~config:{Sketch.default_config with width = 900; height = 640; title = "shared renderer"}
+    ~init:(fun _ -> E3.create ~await:true ~workspace ~presets:(Filename.concat directory "presets")
+      ~prepare:(fun _ output -> Pdk_prismel.Prismel_mesh.to_mesh output.Session.geometry
+        |> Result.map_error Pdk.Error.to_string)
+      ~scene3:(fun _ mesh -> Scene3.create [Scene3.mesh
+        ~material:(Material.unlit (Color.rgb 190 30 20)) mesh]) () |> Result.get_ok)
+    ~update:(fun e (frame : Frame.t) ->
+      let mode = if frame.count < 10 || frame.count >= 40 then Prismel_editor.Renderer.Raster
+        else if frame.count < 25 then Wireframe else Path_traced in
+      let e = if E3.renderer e = mode then e else E3.set_renderer e mode in
+      let e = E3.update e frame in
+      check (E3.renderer e = mode) "the shared renderer did not switch";
+      e)
+    ~view:E3.scene
+    ~after_present:(fun e (frame : Frame.t) ->
+      if List.mem frame.count [5; 15; 35; 45] then begin
+        let path = Filename.concat directory (Printf.sprintf "%d.png" frame.count) in
+        check (Canvas.save_screen_png path = Ok ()) "renderer screenshot failed";
+        samples := path :: !samples
+      end;
+      E3.after_present e frame)
+    ~on_stop:E3.close ());
+  let red_pixels path =
+    let image = Image.load_exn path in
+    let pixels = Image.Private.pixels image |> Result.get_ok in
+    let w = Image.get_width image and h = Image.get_height image in
+    let scale = float w /. 900. in
+    let counts = Array.make 2 0 in
+    Array.iteri (fun i (x, y, width, height) ->
+      for py = int_of_float (float y *. scale) to min (h - 1) (int_of_float (float (y + height) *. scale) - 1) do
+        for px = int_of_float (float x *. scale) to min (w - 1) (int_of_float (float (x + width) *. scale) - 1) do
+          let offset = 4 * (py * w + px) in
+          let r = Char.code (Bytes.get pixels offset) and g = Char.code (Bytes.get pixels (offset + 1)) in
+          if r > 110 && r > g + 40 then counts.(i) <- counts.(i) + 1
+        done
+      done) [|(0, 50, 440, 450); (450, 142, 320, 258)|];
+    Image.destroy image; counts in
+  List.iter (fun frame ->
+    let counts = red_pixels (Filename.concat directory (Printf.sprintf "%d.png" frame)) in
+    check (counts.(0) > 30 && counts.(1) > 30)
+      (Printf.sprintf "renderer frame %d missed a docked or floating viewport (%d, %d)" frame counts.(0) counts.(1))) [5; 35; 45];
+  let wire = red_pixels (Filename.concat directory "15.png") in
+  check (wire.(0) < 30 && wire.(1) < 30)
+    (Printf.sprintf "wireframe still painted filled faces (%d, %d)" wire.(0) wire.(1));
+  List.iter Sys.remove !samples;
+  let state = Filename.concat directory "presets/state" in
+  if Sys.file_exists state then begin Array.iter (fun name -> Sys.remove (Filename.concat state name)) (Sys.readdir state);
+    Unix.rmdir state; Unix.rmdir (Filename.dirname state) end;
+  Unix.rmdir directory
+
 let run_native () =
   let directory = Filename.temp_dir "prismel-variations" "" in
   let path = match Sys.getenv_opt "PRISMEL_SHELL_PNG" with Some p -> p | None -> Filename.concat directory "variations.png" in
@@ -748,4 +1128,6 @@ let run_native () =
   List.iteri (fun i (count, _) -> check (count > 30) (Printf.sprintf "viewport %d drew nothing (%d dark pixels)" i count)) regions;
   check (List.length (List.sort_uniq compare (List.map snd regions)) = 4) "each viewport shows its own seed's garden";
   if Sys.getenv_opt "PRISMEL_SHELL_PNG" = None then Sys.remove path;
-  Unix.rmdir directory
+  Unix.rmdir directory;
+  run_renderers_native ();
+  run_renderers_native ~authored:true ()

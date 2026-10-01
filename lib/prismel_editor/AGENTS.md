@@ -58,6 +58,14 @@ catalog). Presets save and load only workspace documents (s-expression
 (`?graph` was deleted); sketches open text through `Workspace.load`/`Workspace.open_text`,
 so Command-S writes over their file. Old presets are not read.
 
+`Environment` autosaves changed documents and viewport state through `Preset.save`
+to one atomic `<presets>/state/<sha256>.plisp` recovery file per source path (or
+workspace name). It coalesces edits at 2 Hz and flushes on close. Opening an
+unchanged sketch preserves recovery. `Space b` offers "Last edited state" before
+manual presets; loading validates and installs one undo entry. Failed writes
+retain the pending state, report the error, and retry. Autosave does not rewrite
+the source file.
+
 ## Workspace gestures added in Gap A (details in `specification/workspace/progress.md`)
 
 - Command +/-/0 (`Leader.Ui_scale`) set the kit text size of every panel through `Ui.set_font_size`
@@ -126,6 +134,10 @@ truncate accessible SOPs. Command/Ctrl-D duplicates the selected bindings with f
 their wires between each other); copying across graphs is the text pane's copy and paste. Delete and Backspace remove
 selected nodes or wires (an object leaves its scene's merge, a layer its World stack). `v` views the selected geometry
 node in the viewport (a layout entry, separate from the graph's result) and the card carries a VIEW mark.
+`Core.graph_of_object` also matches stable compiled root IDs: a scene/camera edit rebuilds the lowering
+while `Contexts` preserves unchanged object networks, so physical network identity alone is insufficient.
+Inline `result` geometry cards accept `v` too. Viewport-focused `F` frames the node VIEW shows;
+leaving the network with `u` restores its current graph result.
 
 ## PXUI host behavior
 
@@ -239,13 +251,26 @@ list and lisp panels are the graph pane's), and never match a `column` or a fixe
 
 - The tree comes from the document: `Contexts.of_workspace` evaluates the `editor` graph
   into `Document.shell` (`tree`, `origins`, `named`, `views`), so undo restores it with the
-  source.  A document without an editor graph uses `Core.shell.tree` (the host's `?layout`,
-  resized locally, no history).  Never store layout anywhere else.
+  source. `Workspace_doc.editor_graph` chooses the graph named by `layout.editor`,
+  defaulting to the first editor graph. The Shell layouts menu switches these names
+  in one undo entry; templates add a new graph. A document without an editor graph
+  uses the host's `?layout` until its first panel edit writes the tree into an editor
+  graph. Never store layout anywhere else.
 - Gestures are `Flow_edit` ops on the editor graph, one history entry each: `Set_layout_ratio`
   (a drag; the split is view state, `Core.shell.live`, until release), `Split_panel`,
-  `Close_panel`, `Set_panel_kind` (the header menu).  They address a panel by its binding
-  (`Document.origins`).  A panel made by a `for` is `Loop` (its header says so and the status
-  names the loop); an inline one is not editable.  Add the op to `Flow_edit`, not to `Core`.
+  `Close_panel`, `Set_panel_kind`, `Dock_panel` (the header menu and drag targets).
+  They address a panel by its binding (`Document.origins`); inline calls are bound
+  first. A panel made by a `for` is `Loop`: retyping changes its template; moving
+  one copy into another split is refused. Add syntax edits to `Flow_edit`, not to `Core`.
+- Disclosure and floating window bounds live in `Layout_by_path.panels`, keyed by
+  editor graph and binding (or tree path for a loop copy). `Core.Panel_state` reduces
+  Chrome's toggle/window intents in the same document history. Leader visibility
+  keys use these intents too. The dotted header handle moves a panel; dropping at
+  another docked panel's edge writes a split. The menu's Dock returns an undocked
+  panel to its original place. Window mode floats inside the editor.
+- Floating roots use `Ui.to_front ~order` for painting and hit precedence together.
+  `Ui.scene ~under` inserts each floating viewport's native Scene at its body root;
+  every pane still uses the same UI frame, hit tree, capture and renderer.
 - Panel keys: `Space o` then `h` `v` (split), `x` (close); `Space l` then `g` `l` `t` `i` `u` `m` `w`
   (retype to graph, list, text, inspector, outline, timeline, viewport).  They act on the focused
   leaf (`Core.focus_path`, the one clicked, so the second panel of a kind closes itself, not the
@@ -267,9 +292,17 @@ list and lisp panels are the graph pane's), and never match a `column` or a fixe
 - Viewports: every `View` panel draws the scene instance its `(ref scene :k v)` names.  An
   override gets objects of its own in the scene network (`Document.shell.views`, labelled
   `garden (v1.1.1)`), drawn only by that viewport (`Core.placed_pieces ~view`); the default
-  instance is the primary scene.  The viewports share one camera, and handles, picking and
+  instance is the primary scene. Each viewport keeps its own orbit; handles, picking and
   the sketch overlay follow the focused one (`Core.active_view`).  Float is an in-window
   overlay (an inset of its parent); there are no OS windows.
+
+`Viewport3` owns the shared Renderer section (Raster, Wireframe, Path traced),
+saved with viewport preferences. A sketch's existing renderer setting feeds the
+same picker and retains its custom rendering; other 3D/SOP editors render through
+the common adapter without recooking geometry on a mode switch. The adapter keeps
+at most 64 converted meshes and 16 viewport tracers, releases them on close or mode
+change, and reports unsupported tracing operations in the status strip. Standalone
+2D art sketches keep their own drawing paths.
 - Build the gutters' drag targets last in `Core.update` (`Chrome.splitters`): a pane root's
   hit rectangle is created after the chrome and would shadow them otherwise.
 

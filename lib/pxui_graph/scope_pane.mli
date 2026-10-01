@@ -107,6 +107,7 @@ val update : t -> Pxui.Ui.t -> Prismel.Frame.t -> t * change list
     built: a zone draws its body once, whatever its iteration count. *)
 
 module Private : sig
+  val highlighted_connections : t -> ((float * float) * (float * float)) list
   val box_of : t -> path -> (float * float * float * float) option
   (* previous button, track, next button, in screen points *)
   val selector : t -> path ->

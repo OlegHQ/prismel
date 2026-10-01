@@ -26,7 +26,8 @@ type extra = { look_through : bool; fly : float option; render_camera : Camera.t
                following : bool option;  (* the ACTIVE camera follows the viewport *)
                follow_request : bool option;  (* the Viewport panel's toggle, applied on the next update *)
                written : Camera.t option;  (* the view the viewport last wrote to the camera node *)
-               show : show; tool : tool }
+               show : show; tool : tool; renderer : Renderer.state;
+               renderer_request : Renderer.t option }
 
 let keymap = Leader.keymap3
 let scene_level = true
@@ -96,7 +97,7 @@ let sync_cameras ~mode (core : _ Core.t) easy =
     else match add_default_camera ~factories:camera_factories (Core.scene core) easy with
       | Some scene -> Core.scene_edit core mode scene
       | None -> core in
-  let ids = camera_ids (Core.scene core) in
+  let ids = List.filter (Core.view_wants core `Primary) (camera_ids (Core.scene core)) in
   let active = match core.doc.active_camera with
     | Some id when List.mem id ids -> Some id
     | Some _ | None -> (match ids with id :: _ -> Some id | [] -> None) in
@@ -119,6 +120,11 @@ let free_view_of ~render_camera ~previous camera =
 let render_of core = Option.value ~default:Objects.Camera.default_render
     (Option.bind (active_node core) Objects.Camera.render_of_node)
 
+let renderer_setting core = List.find_map (fun (field : Parameter.field_view) ->
+  match field.name, field.current with
+  | "renderer", Parameter.Choice_value label -> Renderer.of_label label
+  | _ -> None) (Settings.fields (Core.settings core))
+
 let init core camera =
   let core = sync_cameras ~mode:`Reset core camera in
   let render_camera = render_camera_of core camera in
@@ -126,7 +132,10 @@ let init core camera =
           free_view = free_view_of ~render_camera ~previous:None camera; viewing = camera;
           render = render_of core; following = Option.map follows (active_node core);
           follow_request = None; written = None;
-          show = { cameras = true; axes = true; handles = true }; tool = Move }
+          show = { cameras = true; axes = true; handles = true }; tool = Move;
+          renderer = {Renderer.empty with mode = Option.value (renderer_setting core)
+            ~default:Renderer.Raster;
+            custom = renderer_setting core <> None}; renderer_request = None }
 
 let begin_frame extra frame = match extra.fly with
   | None -> extra, frame
@@ -152,13 +161,28 @@ let panel ui ~control ~camera ~extra ~inspector =
         let handles = toggle "Selected node handles" extra.show.handles in
         { extra with look_through; follow_request; show = { cameras; axes; handles } })) in
   let control, camera, requests = CC.widgets control ui ~camera in
+  let mode = Option.value ~default:extra.renderer.mode
+    (Pxui.Ui.inspector_section ui ~key:"renderer-section" ~expanded:true "Renderer" (fun () ->
+      match Pxui_shell.Inspector.record ui Renderer.schema extra.renderer.mode with
+      | Ok (mode, _) -> mode | Error _ -> extra.renderer.mode)) in
+  let extra = if mode = extra.renderer.mode then extra
+    else {extra with renderer_request = Some mode} in
   control, camera, requests, extra, inspector ui
 
 let section camera extra =
-  Editor_core.Store.Viewport.encode3 camera ~look_through:extra.look_through
+  let form = Editor_core.Store.Viewport.encode3 camera ~look_through:extra.look_through in
+  match form.Flow.Syntax.node with
+  | Map fields -> {form with node = Map (fields @
+      [{form with node = Kw "renderer"}; {form with node = Str (Renderer.label
+        (Option.value ~default:extra.renderer.mode extra.renderer_request))}])}
+  | _ -> form
 let restore camera extra json =
   let camera, look_through = Editor_core.Store.Viewport.decode3 camera json in
-  camera, { extra with look_through }
+  let rec find = function
+    | {Flow.Syntax.node = Kw "renderer"; _} :: {node = Str label; _} :: _ -> Renderer.of_label label
+    | _ :: _ :: rest -> find rest | _ -> None in
+  let mode = match json.Flow.Syntax.node with Map fields -> find fields | _ -> None in
+  camera, { extra with look_through; renderer_request = mode }
 
 let apply_action camera extra = function
   | Leader.Tool 0 -> { extra with tool = No_tool }, Some "Orbit (handles hidden)"
@@ -195,6 +219,17 @@ let frame_bounds ~viewport:_ ~min ~max camera = Easy_camera.frame_bounds ~min ~m
 (* Follow-viewport motion changes the camera node in the same undo burst;
    node edits and undo pull the viewport back to the document. *)
 let on_view core ~previous camera extra ~time =
+  let core, mode = match extra.renderer_request, renderer_setting core with
+    | Some mode, Some current when mode = current -> core, mode
+    | Some mode, Some _ ->
+        (match Settings.apply (Core.settings core) ["renderer", Parameter.Choice_value (Renderer.label mode)] with
+         | Ok (settings, _) -> Core.set_settings core settings, mode
+         | Error _ -> core, extra.renderer.mode)
+    | Some mode, None -> core, mode
+    | None, Some mode -> core, mode
+    | None, None -> core, extra.renderer.mode in
+  let extra = {extra with renderer = {extra.renderer with mode; custom = renderer_setting core <> None};
+    renderer_request = None} in
   let core = match extra.follow_request, active_node core with
     | Some value, Some node ->
         Core.edit_node core Document.Scene (Node.id node)
@@ -258,7 +293,10 @@ let film extra (x, y, width, height) =
   let w = max 1 w and h = max 1 h in
   x + ((width - w) / 2), y + ((height - h) / 2), w, h
 
-let paint viewport camera rendered = [Scene.view3d ~viewport ~camera rendered]
+let render extra views = {extra with renderer = Renderer.update extra.renderer
+    ~mode:extra.renderer.mode ~custom:extra.renderer.custom views}
+let render_status extra = extra.renderer.error
+let paint extra ~key viewport camera rendered = Renderer.paint extra.renderer ~key viewport camera rendered
 
 (* Objects under their world transforms. Light objects light the scene when
    there are any; otherwise the first object's own lights do. *)
@@ -487,4 +525,4 @@ let guides ~scene ~selected ~space view extra ~bounds =
 
 let save = CC.save
 let filename request = request.CC.filename
-let close extra = if extra.fly <> None then set_relative false
+let close extra = Renderer.close extra.renderer; if extra.fly <> None then set_relative false

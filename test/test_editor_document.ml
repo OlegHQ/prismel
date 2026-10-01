@@ -30,6 +30,11 @@ let contains text piece =
 let run () =
   let directory = Filename.temp_dir "prismel-document-contract" "" in
   Fun.protect ~finally:(fun () ->
+    let state = Filename.concat directory "state" in
+    if Sys.file_exists state then begin
+      Array.iter (fun name -> Sys.remove (Filename.concat state name)) (Sys.readdir state);
+      Unix.rmdir state
+    end;
     Array.iter (fun name -> Sys.remove (Filename.concat directory name)) (Sys.readdir directory);
     Unix.rmdir directory) (fun () ->
   let factories = Sop_catalog.Editor.factories in

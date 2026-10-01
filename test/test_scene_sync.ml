@@ -98,6 +98,15 @@ let layer_id doc label =
 
 let run () =
   let doc = open_text text in
+  (* Following the viewport writes camera coordinates every frame. Rounding them
+     makes the camera diverge far enough to flash its own frustum when zoomed out. *)
+  List.iter (fun distance ->
+    let after = set doc "cam" [float "eye_x" (distance *. 0.123456789012345);
+      float "eye_y" (distance *. 0.987654321098765); float "eye_z" distance;
+      float "target_x" 0.123456789012345] in
+    let saved = ok (reconcile ~adopt:false doc after) in
+    check (snapshot saved = snapshot after) "camera write-back rounded its coordinates";
+    same_after_reload saved "camera precision") [6.123456789012345; 10000.123456789; 1e7];
   let arm = node_id doc "arm" and fill = node_id doc "fill" in
   (* a field of a bound object *)
   let edited = ok (reconcile doc (set doc "arm" [ float "translate_x" 4.; float "translate_y" 2. ])) in

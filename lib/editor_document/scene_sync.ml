@@ -22,7 +22,7 @@ let sym name = mk (S.Sym name)
 (* ---- values as text ---- *)
 
 let number x =
-  let text = Printf.sprintf "%.6g" x in
+  let text = Printf.sprintf "%.17g" x in
   mk (S.Num (if String.exists (function '.' | 'e' | 'n' | 'i' -> true | _ -> false) text
              then text else text ^ ".0"))
 
@@ -458,6 +458,8 @@ let settings st (before : Document.t) (after : Document.t) =
         if current (Settings.fields before.settings) f.name <> Some f.current
         then Some (f.name, Some (scalar f.current)) else None) (Settings.fields after.settings) in
       set st home changed
+  | None when before.settings != after.settings ->
+      st.workspace <- { st.workspace with settings = after.settings }
   | _ -> ()
 
 let unhomed_changes (before : Document.t) (after : Document.t) =
@@ -500,6 +502,8 @@ let run ~factories ~adopt (before : Document.t) (after : Document.t) =
       if adopt && unhomed_changes before after then adopt_objects st after;
       if adopt && before.homes.world = None && world_changed before after then adopt_world st after;
       if st.workspace == fst before.workspace then Ok after
+      else if st.workspace.source == (fst before.workspace).source then
+        Ok { after with workspace = st.workspace, snd after.workspace }
       else Contexts.of_workspace ~factories ~previous:after st.workspace
            |> Result.map_error Flow.Diagnostic.to_string
     with Stop message -> Error message

@@ -877,3 +877,65 @@ A pass over the first hands-on feedback on the studio; every item is a small cha
   `Ui.context_menu` fits its rows and groups the header menu (kit fixture regenerated).  The node menu's search has a
   clear cross.  Tile text follows the zoom down to 5 points.  `int` (truncation), `round`, `ceil` and `float`
   join the value operators; `iteration.md` states the implicit Float→Int rounding.  Test: `test_workspace_eval`.
+
+## Editor usability fixes (2026-10-01)
+
+- Camera follow writes floating-point values with round-trip precision through
+  `Scene_sync`, preventing zoomed-out camera guides from appearing because the
+  text camera lags the viewport. `test_scene_sync` compares the edited and saved
+  document exactly at distances through 1e7; `test_workspace_shell.run_camera_zoom`
+  checks the render camera after each zoom and the viewport on the idle frame.
+- VIEW resolves an object's source graph by its stable compiled root as well as
+  network identity. Camera/scene edits rebuild the lowering but preserve an
+  unchanged object network, so identity alone could show the VIEW marker while
+  continuing to render the result. `run_duplicate_and_view` reproduces this with
+  an authored following camera and checks the prepared mesh centroid and displayed
+  node; clearing VIEW restores the result. `test_workspace_view_native` uses the
+  Shattered Cube document and piece renderer, checking VIEW before and after a
+  further camera move and restoring the fractured result in a real native window.
+- Socket and wire hover highlight connections and their endpoints through the
+  PXUI hit tree (`scope_connection_hover` covers output fan-out, an input, a
+  wire segment and clearing the highlight). Node cards retain hover precedence.
+- Compact text fields align left. Choice popups mark the current choice, fit at
+  least their control's width, and use the same square field treatment; panel
+  disclosures are drawn chevrons. The UI interaction tests cover the new popup
+  width. Native `flow_workspace` export inspected at frames 3 and 39.
+- Autosave and recovery: `Environment` writes changed documents and viewport state
+  through the existing atomic preset codec at 2 Hz, flushing on close. One file
+  lives in `<presets>/state`, keyed by source path or workspace name; an unchanged
+  opening preserves it. Space b offers "Last edited state", validates on load,
+  and installs one history entry. `test_workspace_source` checks source isolation,
+  comments, idle preservation, recovery/undo, deletion, periodic writes, failures
+  and retries, and the 2D viewport. Restored viewport state no longer produces an
+  extra "Move camera" history entry (also fixes manual preset loading).
+- Panel headers support drag, edge docking, undocking, resize and disclosure.
+  Window mode floats inside the editor. The selected editor graph saves split
+  syntax and keyed panel state; leader toggles use the same state. A workspace
+  without an editor graph writes its shell on the first edit. Gestures undo in
+  one step (`run_panel_states`). Loop copies can float and collapse individually;
+  structural docking of one copy remains refused as for split/close.
+- Shell layouts lists authored editor graphs, marks the selection, and switches
+  in one undo entry. Templates create another layout rather than replacing the
+  others. Selection round-trips through Lisp (`test_bloom_studio`, document tests).
+- Every 3D/SOP editor uses the shared Renderer section from `Viewport3`: Raster,
+  Wireframe and Path traced. A legacy sketch renderer setting uses the same
+  picker. Common mode switches retain cooked geometry and save in viewport state.
+  Floating native views are inserted through `Ui.scene ~under` at their UI body
+  root, preserving paint/hit precedence. Native shell tests switch all three
+  modes in docked, dragged floating and Lisp-authored floating viewports and switch back; recovery tests restore
+  the mode. Standalone 2D art sketches are outside this change.
+
+## State consistency audit (2 October 2026)
+
+[The audit and remediation plan](consistency-audit.md) maps source, metadata,
+derived networks, settings, runtime state and per-viewport rendering. The repairs
+keep settings in their owning source/metadata, apply Lisp before cooking, recompose
+actual scene changes, retain empty previews and focused fullscreen instances,
+isolate lights, resolve named-pane inspector ownership, and key renderer paint by
+viewport identity. Invalid 2D document installs now return a diagnostic; unknown
+or duplicate root forms are refused. A failed path-traced preview preserves healthy
+siblings. `test_editor_consistency` covers the public editor boundaries, with a
+native renderer isolation check in `test_editor_consistency_native`.
+
+The report distinguishes these fixes from frozen non-SOP time, startup-only
+runtime settings, Selection draft limitations and preview identity/provenance debt.

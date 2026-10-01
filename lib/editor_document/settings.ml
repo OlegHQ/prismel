@@ -5,6 +5,7 @@ type t = Settings : 'record Param.schema * 'record -> t
 let make schema value = Settings (schema, value)
 let none = make (Param.schema ~name:"none" ~default:() []) ()
 let fields (Settings (schema, value)) = Param.view schema value
+let defaults (Settings (schema, _)) = Settings (schema, Param.default schema)
 
 let get schema settings =
   let values = List.map (fun (field : Param.field_view) -> field.name, field.current)

@@ -672,9 +672,12 @@ and `Editor2.run` compose both in a splitter-resizable, independently
 collapsible workspace of panels (view, graph, list, lisp, inspector, outline, timeline) whose
 default is the view/graph/inspector columns at 45/35/20; a workspace's `(graph editor …)` replaces the
 layout (`Editor_core.Panels`, `specification/workspace/plan.md` W10).
-The workspace defaults to a light viewport background. Sketches with a
-wireframe renderer can use `Prismel_editor.Renderer.wire_color background` to
-keep lines legible on either light or dark backgrounds.
+The workspace defaults to a light viewport background. Every 3D/SOP editor
+shares a Renderer section with Raster, Wireframe and Path traced choices.
+`Editor3.renderer` reads it and `set_renderer` queues a choice for the next
+update. The choice saves with viewport preferences; switching the common
+renderer retains cooked geometry. A sketch's existing renderer setting uses
+the same control and custom renderer. Standalone 2D art drawing paths are separate.
 The inspector shows camera/render controls with no selection and generated SOP
 parameters with a selection. Display selection cooks the flagged node while
 retaining the previous successful preview. Overlay callbacks receive a
@@ -688,7 +691,7 @@ objects (as its own node network), each geometry object's SOP network and
 the World's layer stack with their tile positions and display nodes, the
 active camera object, and sketch `Settings` (a typed `Editor_core.Param`
 record passed as `?settings`). History (128 entries) snapshots that
-document, so moving a tile, an object, or switching a renderer is one undo
+document, so moving a tile, an object, or changing a sketch setting is one undo
 step. Each network saves positions, detail levels, pins, row exposure and
 wire bends in its layout record. An edit frame updates only the node ids
 and destination ports it touched; a preset load or automatic layout takes
@@ -698,6 +701,25 @@ Settings show in the unselected inspector, are saved in presets, and reach
 `prepare settings output`; `set_settings` changes them from code. The
 viewport camera enters history only while a camera object follows it. The
 scene level, list projection, and World are described in `scene.md`.
+
+Settings changes reconcile with the workspace before entering history: a
+settings graph owns its values; otherwise they live in workspace metadata.
+Opening without an explicit host settings override preserves those values.
+A full preset loads omitted fields from schema defaults. In document text,
+an absent settings form keeps the supplied fallback, while an explicit
+`(settings ...)` starts from defaults. Startup window configuration and the
+cook seed currently take effect when the host starts, rather than on an edit.
+
+Both editors autosave document edits and viewport navigation to one atomic
+`.plisp` recovery file under `~/.prismel/<name>/state` (or `<presets>/state`).
+The source file's absolute path identifies a file-backed sketch; other sketches
+use their workspace name. Writes coalesce at most twice a second, and close
+flushes pending edits. An unchanged opening preserves the previous recovery.
+`Space b` lists it as **Last edited state**; Enter validates and restores it as
+one undo step, and Delete twice removes it. This includes applied Lisp edits,
+external source reloads, settings, graph layout and camera navigation. Failed
+writes appear in the status and retry. The source file changes only on explicit
+Save.
 
 #### Sketch workspace keys
 
@@ -808,6 +830,15 @@ key sheet; key feedback lasts 1.5 seconds. Shared UI text focus owns typing
 and modal dismissal. `Tab` runs Add in the canvas; `Shift-Tab` remains UI
 traversal. World keys are `t`/`n`/`d`, described in `scene.md`.
 
+The Document tab and whole-document Copy Lisp include saved layout and settings
+metadata through the workspace codec. An absent layout form retains the current
+layout; an explicit `(layout)` clears it. Text applies before the frame's cook
+submission, so an awaited update renders the new document immediately. Empty
+comparison scenes remain empty when focused or fullscreen; lights follow the
+same instance membership as geometry. Common renderer slots use viewport keys,
+including floating panels with identical bounds. A failed slot reports its
+error while successful siblings remain visible.
+
 The Lisp pane shows and edits the workspace text (`Prismel_editor.Text_pane`: Selection, Graph and
 Document tabs; Check and apply is atomic and one "Edit text" history entry). A sketch is a `.plisp` file
 (below); an OCaml host that needs its own code passes a workspace to `Editor3.run ?workspace`, for
@@ -843,11 +874,19 @@ strip from host-provided status text, FPS, and pane bounds.
 `Pxui_shell.Layout` gives a tree of panels (`Editor_core.Panels`: a leaf, a split, a tile or a
 float) its geometry (a run of splits along one axis is one row of columns, so the default tree
 is the standard 45/35/20), and `Pxui_shell.Chrome` builds the panels' headers with their
-right-click menu (split, close, retype), the drawn gutters, and the focused pane's top rule;
+right-click menu (split, close, retype, dock/undock), disclosure and drag handles,
+the drawn gutters, and the focused pane's top rule;
 `Chrome.splitters` builds the one-point gutters' seven-point drag targets last, over the
 panes. Chrome returns intents, never edits. Editor layout queries return
 `Pxui_shell.Layout.panes` (the first view, graph and inspector); tests and other hosts
 use Layout and Chrome directly. A host passes a `Layout.t` as `?layout`. `Prismel_editor.Private` is explicitly unstable.
+`Panels.state` holds saved disclosure and optional floating bounds.
+`Layout.geometry ~state` applies them, and Chrome emits intents for the host to save. Floating
+panels remain inside the editor. Named editor graphs appear in Shell layouts;
+switching, arranging and collapsing panels enter document history and save in Lisp.
+`Layout.leaf.floating` identifies both authored Float trees and undocked windows.
+Hosts raise their pane roots with `Ui.to_front`; `Ui.scene ~under` inserts native
+viewport content at the same body root, keeping paint and hit precedence together.
 `Pxui_shell.Timeline_bar` returns playback intents from display values, and
 `Pxui_shell.Prompt` builds name and search modals; the host interprets their
 results and performs file I/O after the frame.

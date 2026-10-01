@@ -6,6 +6,8 @@ type t =
   | Tile of t list
   | Float of t
 type path = int list
+type state = { collapsed : bool; window : (int * int * int * int) option }
+let default_state = { collapsed = false; window = None }
 
 let main = View "main"
 

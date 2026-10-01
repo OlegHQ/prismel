@@ -20,6 +20,11 @@ type path = int list
 (** Child indices from the root: [a]/[b] are 0/1, a tile's cells and a float's
     content are numbered from 0. *)
 
+type state = { collapsed : bool; window : (int * int * int * int) option }
+(** A panel's saved disclosure and optional floating window bounds in logical points. *)
+
+val default_state : state
+
 val default : t
 (** The three columns: view 45%, graph 35%, inspector 20%. *)
 

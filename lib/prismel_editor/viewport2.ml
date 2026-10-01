@@ -49,7 +49,9 @@ let frame_bounds ~viewport:(_, _, width, height) ~min ~max camera =
 let on_view core ~previous:_ camera () ~time:_ = core, camera, ()
 let view_camera camera () ~pending:_ = camera
 let film () viewport = viewport
-let paint viewport camera rendered = Easy_camera2.scene ~viewport camera rendered
+let render () _ = ()
+let render_status () = None
+let paint () ~key:_ viewport camera rendered = Easy_camera2.scene ~viewport camera rendered
 let guides ~scene:_ ~selected:_ ~space:_ _ () ~bounds:_ = []
 (* A click on the drawing is a ray straight down onto the plane the geometry lies in. *)
 let pick_ray ~viewport camera (x, y) =

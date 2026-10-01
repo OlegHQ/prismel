@@ -3,6 +3,7 @@
     report a click; [Core] maps it to the one command or edit it means. *)
 
 type top_intent = Undo | Redo | Copy_lisp | Keys | Layout of string  (** a name of {!layouts} *)
+  | Select_layout of string
   | Dismiss  (** the refused-edit status was clicked away *)
 type tool = Add | Repeat | Iterate | Fn | Macro | Defn
 
@@ -12,7 +13,7 @@ val height : int
 val layouts : (string * string) list
 (** The shell layouts of the "Shell layouts" menu: key and label. *)
 
-val top : Pxui.Ui.t -> width:float -> title:string -> status:bool * string -> can_undo:bool -> can_redo:bool ->
+val top : ?named_layouts:string list -> ?selected_layout:string -> Pxui.Ui.t -> width:float -> title:string -> status:bool * string -> can_undo:bool -> can_redo:bool ->
   top_intent list
 (** Draw the bar across [width] points inside [Pxui.Ui.frame]; [status] is the checker's verdict: ok or not, and its words. *)
 

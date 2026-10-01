@@ -17,9 +17,10 @@ module Layout : sig
 
   val default : t
 
-  type leaf = { path : path; panel : panel; header : bounds; body : bounds }
+  type leaf = { path : path; panel : panel; header : bounds; body : bounds; floating : bool }
   (** One panel: its 22-point header and the body below it.  The body of the
-      first viewport stops above the status strip. *)
+      first viewport stops above the status strip. [floating] covers both authored
+      [Float] trees and panels undocked through saved window state. *)
 
   type splitter = { node : path option; axis : axis; bounds : bounds; start : int; span : int }
   (** A gutter.  [node] is the split it resizes (none for a tile's fixed gutters);
@@ -30,7 +31,7 @@ module Layout : sig
                     timeline_at : bounds }
   (** Leaves in tree order, floats last (drawn over the rest). *)
 
-  val geometry : ?hidden:panel list -> ?top:int -> t -> Prismel.Frame.t -> geometry
+  val geometry : ?state:(path -> Editor_core.Panels.state) -> ?hidden:panel list -> ?top:int -> t -> Prismel.Frame.t -> geometry
   (** [top] (default 0) points are left above the tree for a host bar.
       [hidden] (default the timeline) panels vanish; a hidden viewport keeps a
       28-point strip with its expand button.  The timeline strip sits under the
@@ -54,17 +55,20 @@ module Chrome : sig
   type intent =
     | Resize of { node : Layout.path; ratio : float }  (** a splitter is being dragged ({!splitters}) *)
     | Settled  (** the drag ended *)
-    | Toggle of Layout.panel  (** a header's collapse button *)
+    | Toggle of Layout.path  (** a header's collapse button *)
+    | Window of Layout.path * Layout.bounds option  (** undock, move/resize, or dock a panel *)
+    | Dragging of Layout.path * bool  (** a panel drag; [true] on release *)
+    | Dock_panel of Layout.path * Layout.path * [ `Left | `Right | `Top | `Bottom ]
     | Split_panel of Layout.path * Layout.axis  (** the header menu *)
     | Close_panel of Layout.path
     | Retype_panel of Layout.path * Layout.panel  (** [View ""] means a viewport *)
 
-  val update : ?hidden:Layout.panel list -> ?top:int -> ?title:(Layout.leaf -> string) -> Layout.t ->
+  val update : ?state:(Layout.path -> Editor_core.Panels.state) -> ?hidden:Layout.panel list -> ?top:int -> ?title:(Layout.leaf -> string) -> Layout.t ->
     Pxui.Ui.t -> Prismel.Frame.t -> intent list
   (** Panel backgrounds, the drawn gutters, headers with their collapse button and
       right-click menu.  Pure: the host applies the intents. *)
 
-  val splitters : ?hidden:Layout.panel list -> ?top:int -> Layout.t -> Pxui.Ui.t -> Prismel.Frame.t ->
+  val splitters : ?state:(Layout.path -> Editor_core.Panels.state) -> ?hidden:Layout.panel list -> ?top:int -> Layout.t -> Pxui.Ui.t -> Prismel.Frame.t ->
     intent list
   (** The gutters' drag targets, wider than they are drawn ([Resize], [Settled]).  Call it
       after the panes' boxes so a gutter is not shadowed by its neighbours' hit areas. *)
@@ -72,6 +76,11 @@ module Chrome : sig
   (* A pane's PXUI hit ancestor; children keep screen-space coordinates. *)
   val pane_root : Pxui.Ui.t -> Prismel.Frame.t -> bounds:Layout.bounds ->
     string -> Pxui.Ui.box
+
+  val drop_targets : Pxui.Ui.t -> dragging:(Layout.path * bool) option -> geometry:Layout.geometry ->
+    state:(Layout.path -> Editor_core.Panels.state) -> intent list
+  (** Dock targets built after pane bodies, with PXUI hover feedback during a panel drag. *)
+
   val key : Layout.path -> string  (* a panel's path as text, to key its boxes *)
   val note : Pxui.Ui.t -> bounds:Layout.bounds -> string -> unit
   (* a muted line at the top of a panel body that has nothing to show *)

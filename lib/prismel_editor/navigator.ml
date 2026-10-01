@@ -288,7 +288,7 @@ let view state ui ~bounds:(x, y, w, h) p =
   let muted = Pxui.Theme.muted theme in
   (* the search field above the list *)
   let query, _ = Ui.value_field ui ~at:(x +. 8., y +. 6.) ~w:(w -. 24.) ~h:21. ~size:11
-      ~valid:(fun _ -> true) "navigator-search" state.query in
+      ~left:true ~valid:(fun _ -> true) "navigator-search" state.query in
   let typing = Ui.text_input_focused ui in
   let state = { query; typing } in
   if query = "" && not typing then

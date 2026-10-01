@@ -22,12 +22,18 @@ tests; it is not loadable.
 and settings schemas and builds the document of a workspace (`of_workspace`); add a field to a
 schema and it is a keyword. Do not hand-write per-kind Lisp glue there.
 
-`Contexts.editor` evaluates the `editor` graph into `Document.shell` (the `Editor_core.Panels`
+`Workspace_doc.editor_graph` resolves the selected named shell layout from
+`Layout_by_path.editor` (`(layout (editor "name"))`), defaulting to the first
+editor graph. `Contexts.editor` evaluates that graph into `Document.shell` (the `Editor_core.Panels`
 tree, the origin of each named or looped panel, the graph a `ui/graph` names, and the scene
 objects of each viewport over a non-default scene instance): a `ui/*` call is a `Struct`, so a
 new panel kind is a `Flow.Workspace` op, a case in `panel_tree` and a `Panels.panel`.  Origins
 come from walking the checked terms beside the values, never from string search.  An evaluation
 or tree error refuses the whole document, like any other graph.
+
+`Layout_by_path.panels` saves panel disclosure and in-editor floating bounds beside
+the selected layout: `(panel ["studio" "network"] :collapsed false :window [500 80 620 450])`.
+These keys remap with source bindings. Unbound loop copies use their tree path.
 
 `Scene_sync` makes the text the truth of the derived scene and World.  Every edit of a derived
 object (the inspector, the handles, reparent, rename, delete, hide, the render camera, the World

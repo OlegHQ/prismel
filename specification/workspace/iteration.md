@@ -319,9 +319,38 @@ sheet (ui/tile (for [s (range 4)]
 ```
 
 A panel made by a loop has no binding. Its header says *from a loop* and
-links to the loop node. Structural panel edits (split, close, retype) happen
-on the loop, and panel focus is keyed by iteration index (register E1). The
+links to the loop node. Retyping edits its template. Splitting, closing or docking
+one copy into another split is refused; its disclosure and floating bounds can
+change independently. Panel focus is keyed by iteration index (register E1). The
 host's Restore layout stays outside the described tree.
+
+### Named layouts
+
+Each graph with `:context editor` defines one named shell layout. The first is
+selected by default; `(layout (editor "studio"))` selects a specific graph.
+The Shell layouts menu lists these names and marks the current selection.
+Switching is one undo entry, and Save and autosave retain the selection.
+Panel edits target the selected graph. Built-in menu templates add a new named
+editor graph and select it, preserving the other layouts. An unknown selected
+name is a document error.
+
+### Panel arrangement
+
+The dotted header handle undocks and moves a panel. Drop at a docked panel's
+edge to create a split; the header menu's Dock returns a floating panel to its
+original place. Window mode floats inside the editor. The lower-right handle
+resizes it, and the disclosure chevron collapses or expands its body. One drag
+is one undo entry. Splitter ratios, docking syntax, disclosure and window bounds
+save with the selected layout, including leader-key visibility changes.
+
+```lisp
+(layout
+  (editor "studio")
+  (panel ["studio" "network"] :collapsed false :window [500 80 620 450]))
+```
+
+A workspace without an editor graph writes its current shell on the first panel
+edit. Floating viewports share the shell's UI paint order and hit tree.
 
 ## 5. Sketches as `.plisp` files
 
@@ -500,7 +529,32 @@ Deferred ideas, recorded so they aren't lost:
 - *livelit rows*, macro-declared widgets for holes;
 - *bypass preview*, ghost sparklines before committing.
 
-## 8. References
+## 8. Editor consistency contract (2 October 2026)
+
+These are implementation requirements for the current editor. The detailed
+audit and remaining gaps are in [consistency-audit.md](consistency-audit.md).
+
+- Authored source, layout and sketch settings install as one checked document.
+  A derived scene/World/settings edit reconciles through its source home before
+  entering history. A refusal preserves the installed document.
+- Document Lisp and whole-document copy serialize saved metadata as well as
+  graphs. An absent metadata form keeps its supplied fallback; explicit settings
+  start from schema defaults, and an explicit empty layout clears layout. A full
+  preset starts with default settings, independently of the running session.
+- Text applies before cook submission. Asynchronous rendering may retain a
+  successful previous cook; an awaited update renders the applied document.
+- Geometry, lights and camera bookkeeping resolve the same viewport instance.
+  An empty override is distinct from a missing override. Focused previews remain
+  focused when the UI is hidden; renderer caches key by viewport identity.
+- Inspector ownership is independent of the navigation level. Composition
+  invalidation includes the actual scene, level and viewport membership.
+
+The current scene, World, settings and editor lowering evaluates expressions
+at time zero. Live SOP drives do not establish live behavior in those other
+contexts. Startup window settings and the cook seed are captured when the host
+starts. The audit records these limits and the ordered remediation work.
+
+## 9. References
 
 - Blender manual: [Repeat Zone](https://docs.blender.org/manual/en/latest/modeling/geometry_nodes/utilities/repeat_zone.html),
   [For Each Geometry Element Zone](https://docs.blender.org/manual/en/4.3/modeling/geometry_nodes/utilities/for_each_geometry_zone.html).

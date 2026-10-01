@@ -38,7 +38,7 @@ let text ui key label value =
   let row, x, y, w = Ui.inspector_row ui ~key ~label () in
   Ui.within ui row (fun () ->
     fst (Ui.value_field ui ~at:(x, y) ~w ~h:21. ~size:11
-      ~valid:(fun _ -> true) (key ^ "-value") value))
+      ~left:true ~valid:(fun _ -> true) (key ^ "-value") value))
 
 let render_section control ui =
   let filename, save = Option.value ~default:(control.filename, false)

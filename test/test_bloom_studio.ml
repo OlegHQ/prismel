@@ -154,11 +154,27 @@ let run () =
   check (source !e = before && E3.undo_label !e <> Some "Make reusable function") "Undo in the bar undoes the edit";
   click (bar_button "Redo");
   check (has (source !e) "(defn heart_2") "Redo in the bar redoes it";
-  (* Shell layouts: the menu's second row rewrites the editor graph *)
+  (* Shell layouts preserve the authored graph and add a named layout. *)
+  let authored = Option.get (Doc.editor_graph (E3.workspace !e)) in
   let x, y, w, h = Bars.top_button_rect ~width:(float width) "Shell layouts" in
   click (x +. (w /. 2.), y +. (h /. 2.));
-  click (x +. 20., y +. h +. 3. +. 24. +. 12.);
-  check (E3.undo_label !e = Some "Edit graph" && has (source !e) "right (ui/split-at")
-    ("the Graph + code layout: " ^ Option.value ~default:"-" (E3.undo_label !e));
+  click (x +. 20., y +. h +. 3. +. 2. *. 24. +. 7. +. 12.);
+  check (E3.undo_label !e = Some "Switch layout" && has (source !e) "right (ui/split-at"
+         && (E3.workspace !e).layout.editor = Some "layout_code"
+         && Flow.Lisp.flat (List.find (fun (g : Flow.Workspace.graph) -> g.name = authored.name)
+              (E3.workspace !e).checked.graphs).form = Flow.Lisp.flat authored.form)
+    ("the Graph + code layout: " ^ Option.value ~default:"-" (E3.undo_label !e)
+      ^ "; selected " ^ Option.value ~default:"-" (E3.workspace !e).layout.editor ^ "\n" ^ source !e);
+  let saved = Doc.to_text (E3.workspace !e) in
+  let reloaded = Result.get_ok (Doc.of_text catalog saved) in
+  check (reloaded.layout.editor = Some "layout_code" && Doc.to_text reloaded = saved)
+    "the selected layout did not round-trip through Lisp";
+  (* The first row switches back; the next panel edit belongs to that layout. *)
+  click (x +. (w /. 2.), y +. (h /. 2.));
+  click (x +. 20., y +. h +. 3. +. 12.);
+  check ((Option.get (Doc.editor_graph (E3.workspace !e))).name = authored.name
+         && E3.undo_label !e = Some "Switch layout") "an authored layout could not be selected";
+  click (bar_button "Undo");
+  check ((E3.workspace !e).layout.editor = Some "layout_code") "undo did not restore the selected layout";
   E3.close !e;
   print_endline "bloom studio: navigator rows and clicks, toolbar defn, top bar undo/redo and layouts ok"

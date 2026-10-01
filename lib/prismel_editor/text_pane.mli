@@ -26,7 +26,7 @@ type state = {
   parinfer : bool;  (** the closing brackets follow indentation, {!Lisp_text.parinfer_text} (the
                         right-click menu toggles it; on by default) *)
   menu : (float * float) option;  (** the right-click menu while it is open *)
-  cache : ((Flow.Syntax.t list * string * path option * tab) * shown) option;
+  cache : ((Flow.Syntax.t list * Editor_document.Workspace_doc.t option * string * path option * tab) * shown) option;
 }
 
 val initial : state
@@ -40,10 +40,10 @@ val make_shown : Flow.Syntax.t list -> string -> path option -> tab -> shown
     (a note names the count and the graph inputs used) with the binding marked;
     Graph the whole graph form; Document the workspace form. *)
 
-val shown : state -> source:Flow.Syntax.t list -> graph:string -> selected:path option ->
+val shown : ?workspace:Editor_document.Workspace_doc.t -> state -> source:Flow.Syntax.t list -> graph:string -> selected:path option ->
   state * shown
-(** {!make_shown} for the state's tab, recomputed only when the source, graph,
-    selection or tab changed. *)
+(** {!make_shown} for the state's tab, cached by source, optional workspace, graph,
+    selection and tab. A workspace includes saved layout and settings in the Document tab. *)
 
 val line_of : string -> Flow.Diagnostic.t -> int option
 (** The 1-based line of a diagnostic in the text it was checked from: its

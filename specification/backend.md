@@ -83,6 +83,11 @@ cache, requeried from SDL whenever the drawable changes; `Prismel_execution`
 is the frame coordinator above it and re-exports both records rather than
 defining its own.
 `pdk_prismel` is the separate renderer conversion leaf.
+`prismel_editor` also composes `prismel_pathtracer` for its shared 3D Renderer
+control. It owns bounded per-viewport tracing resources and inserts their images
+through the existing Scene presentation path. Raster and wireframe use Scene3;
+all three modes run on the native Metal backend. This adds no dependency from
+the renderer or foundational libraries back into the editor.
 `procedural` depends only on `pdk`, `prismel_math` (vectors, matrices,
 `Color`, `Parallel`) and `lru`; it never reaches `prismel` or the GPU
 runtime, and the dependency gate keeps it so. The Prismel-dependent glue

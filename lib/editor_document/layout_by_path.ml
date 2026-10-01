@@ -9,6 +9,8 @@ module Port_set = Set.Make (Port)
 
 type frame = { title : string; at : float * float; size : float * float }
 type t = {
+  editor : string option;
+  panels : Editor_core.Panels.state Path_map.t;
   at : (float * float) Path_map.t;
   pinned : bool Path_map.t;
   rows : bool String_map.t Path_map.t;
@@ -19,7 +21,7 @@ type t = {
   display : path Path_map.t;
 }
 
-let empty = { at = Path_map.empty; pinned = Path_map.empty; rows = Path_map.empty;
+let empty = { editor = None; panels = Path_map.empty; at = Path_map.empty; pinned = Path_map.empty; rows = Path_map.empty;
   bends = Port_map.empty; wireless = Port_set.empty; collapsed = Path_map.empty;
   frames = Path_map.empty; display = Path_map.empty }
 
@@ -29,7 +31,9 @@ let remap f t =
   let keys m = Path_map.fold (fun k v acc -> match f k with Some k -> Path_map.add k v acc | None -> acc) m Path_map.empty in
   let port_keys m = Port_map.fold (fun (k, p) v acc -> match f k with
     | Some k -> Port_map.add (k, p) v acc | None -> acc) m Port_map.empty in
-  { at = keys t.at; pinned = keys t.pinned; rows = keys t.rows; bends = port_keys t.bends;
+  { editor = Option.bind t.editor (fun name -> match f [name] with Some [name] -> Some name | _ -> None);
+    panels = keys t.panels;
+    at = keys t.at; pinned = keys t.pinned; rows = keys t.rows; bends = port_keys t.bends;
     wireless = Port_set.filter_map (fun (k, p) -> Option.map (fun k -> k, p) (f k)) t.wireless;
     collapsed = keys t.collapsed; frames = keys t.frames;
     display = Path_map.fold (fun k v acc -> match f k, f v with
@@ -70,7 +74,13 @@ let to_syntax t =
     (Path_map.bindings t.frames) in
   let display = List.map (fun (p, v) -> mk (S.List [ sym "display"; path_form p; path_form v ]))
     (Path_map.bindings t.display) in
-  mk (S.List (sym "layout" :: node_forms @ bends @ wireless @ frames @ display))
+  let editor = Option.to_list (Option.map (fun name -> mk (S.List [sym "editor"; str name])) t.editor) in
+  let panels = List.map (fun (path, (state : Editor_core.Panels.state)) ->
+    mk (S.List ([sym "panel"; path_form path; kw "collapsed"; bool state.collapsed]
+      @ match state.window with None -> [] | Some (x, y, w, h) ->
+        [kw "window"; vec (List.map (fun n -> number (float n)) [x; y; w; h])])))
+    (Path_map.bindings t.panels) in
+  mk (S.List (sym "layout" :: editor @ panels @ node_forms @ bends @ wireless @ frames @ display))
 
 let ( let* ) = Result.bind
 let fail fmt = Printf.ksprintf (fun m -> Error ("layout: " ^ m)) fmt
@@ -94,6 +104,24 @@ let of_syntax (form : S.t) = match form.node with
       List.fold_left (fun acc (item : S.t) ->
         let* t = acc in
         match item.node with
+        | S.List ({ S.node = S.Sym "panel"; _ } :: p :: fields) ->
+            let* p = read_path p in
+            let rec go (state : Editor_core.Panels.state) = function
+              | [] -> Ok { t with panels = Path_map.add p state t.panels }
+              | { S.node = S.Kw "collapsed"; _ } :: v :: rest ->
+                  let* collapsed = read_bool v in go { state with collapsed } rest
+              | { S.node = S.Kw "window"; _ } :: { S.node = S.Vec values; _ } :: rest ->
+                  let* values = all read_number values in
+                  (match values with
+                   | [x; y; w; h] when w >= 120. && h >= 80.
+                       && List.for_all (fun n -> abs_float n <= 1e6) values ->
+                       go { state with window = Some (int_of_float x, int_of_float y, int_of_float w, int_of_float h) } rest
+                   | _ -> fail "window needs [x y width height], width >= 120 and height >= 80")
+              | _ -> fail "bad panel entry" in
+            go Editor_core.Panels.default_state fields
+        | S.List [ { S.node = S.Sym "editor"; _ }; name ] ->
+            let* name = read_str name in
+            if t.editor <> None then fail "duplicate editor entry" else Ok { t with editor = Some name }
         | S.List ({ S.node = S.Sym "node"; _ } :: p :: fields) ->
             let* p = read_path p in
             let rec go t = function

@@ -5048,6 +5048,83 @@ milestone are in `specification/workspace/progress.md`.
 The BVH build is about 1.3 us per triangle, so a 1M-triangle mesh hitches about a
 second at its first click (`ponytail:` in `lib/prismel_editor/pick.ml`).
 
+Connection hover (2026-10-01): macOS 26.2, arm64, OCaml 5.3.0, default
+Dune profile, UI work on the initial domain. Build `test/test_main.exe`, then
+run `../_build/default/test/test_main.exe bench_scope_pane` from `test/`.
+Each number below is one wall-time/GC-allocation aggregate of 300 frames after
+20 warm-up frames. This measures the shared hit-tree rectangles for wire
+segments, including culling, on the same layouts and input:
+
+| Pane | Before ms/frame | After ms/frame | Before bytes/frame | After bytes/frame |
+|---|---:|---:|---:|---:|
+| Sunflower (240 iterations), no records | 0.281 | 0.318 | 697352 | 813824 |
+| Sunflower, expanded zone and records | 0.467 | 0.494 | 1016216 | 1132688 |
+| Sunflower, collapsed zone | 0.076 | 0.084 | 191504 | 227512 |
+| Orrery, no records | 0.613 | 0.700 | 1505912 | 1729152 |
+| Orrery, live records | 0.906 | 0.992 | 2049571 | 2272827 |
+
+The complete editor usability change was measured on the same macOS 26.2 arm64
+host, OCaml 5.3.0, default Dune profile, with one cook domain and UI work on the
+initial domain. Build `tools/bench_prismel_editor.exe`, then run
+`_build/default/tools/bench_prismel_editor.exe 200`. Each run measures 200 held
+pointer updates of a 200-node workspace and one undo. The corrected workload
+presses the node header, moves beyond the drag threshold, releases at the final
+position and asserts that undo actually steps history. Each run uses its own
+temporary preset directory, including the final code's periodic autosaves.
+
+Before is HEAD `a0545f73` with only this corrected benchmark copied into it;
+its build uses the pinned SDL 3.4.14 include/library directories. After is the
+final editor change. Three standalone runs per version, with no concurrent test
+or build process, gave these medians of run statistics:
+
+| Check | Before | After | Bytes/frame before → after |
+|---|---:|---:|---:|
+| Held drag median | 4.143 ms | 6.325 ms | 5383904 → 6390677 |
+| Held drag p95 | 4.589 ms | 6.777 ms | same |
+| Undo (one sample/run) | 5.377 ms | 7.715 ms | 6719960 → 7726568 |
+
+This measures the combined controls, connection hit boxes, panel handling,
+composition and recovery behavior; it does not isolate a particular feature.
+It is a measured cost increase, not a speedup or a native frame latency bound.
+The native integration fixture uses 28 UI draw batches with the added header
+controls; its fixed budget is 32. Native screenshot checks cover all three
+render modes in docked, undocked and authored floating viewports.
+
+The subsequent VIEW graph lookup fix retains the physical-identity fast path and
+adds a compiled-root comparison when the lowering was rebuilt. One standalone
+200-node benchmark run immediately before and after that fix measured drag
+medians of 17.166 → 4.187 ms, p95 of 44.194 → 4.913 ms, and undo of
+18.178 → 4.781 ms. Allocation was identical: 6390677 bytes/drag frame and
+7726568 bytes/undo. No test or build ran concurrently with either measurement;
+the timing variation in this single pair cannot establish a speedup or isolate
+the lookup's cost. Use the same benchmark command above to reproduce the check.
+
+## Editor consistency repair (2 October 2026)
+
+macOS 26.2 arm64, OCaml 5.3.0, default Dune profile, one cook domain.
+Command: `SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy _build/default/tools/bench_prismel_editor.exe 200`. The workload is the
+200-node held drag and real undo described above. Before reconstructs the
+uncommitted tree at the start of this audit on HEAD `a0545f73`; after includes
+the consistency fixes. Three alternating before/after pairs ran without
+concurrent agent tests or builds. The desktop had other applications running.
+
+| Check (median of run statistics) | Before | After | Bytes before → after |
+|---|---:|---:|---:|
+| Held drag median | 8.121 ms | 8.217 ms | 6390677 → 6402373 |
+| Held drag p95 | 8.653 ms | 9.514 ms | same |
+| Undo (one sample/run) | 9.785 ms | 9.786 ms | 7726568 → 7763968 |
+
+Per-run drag medians were 6.381 / 10.340 / 8.121 ms before and
+9.679 / 8.217 / 8.069 ms after; undo was 9.010 / 9.813 / 9.785 ms
+before and 27.370 / 9.786 / 9.782 ms after. Timing noise prevents a
+speedup or isolated regression claim. Allocation increased by 11696 bytes
+per drag frame (0.18%) and 37400 bytes per undo (0.48%). This does not measure
+path tracing throughput or scenes with many independent object owners.
+
+The disposable baseline needed core SDL binding regeneration against the
+installed SDK to pass its clean ABI build; no SDL files were changed in the
+main tree. The window-free workload does not exercise the affected pen events.
+
 ## Hot-path review checklist
 
 1. Confirm asymptotic complexity and identify the dominant allocation.

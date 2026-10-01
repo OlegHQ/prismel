@@ -56,6 +56,7 @@ let measure nodes =
   let module E = Prismel_editor.Editor3 in
   let workspace, names = workspace nodes in
   let environment = E.create ~workspace
+      ~domains:1 ~presets:(Filename.temp_dir "prismel-editor-bench" "")
       ~max_entries:4 ~max_payload_bytes:(1024 * 1024)
       ~prepare:(fun _ _ -> Ok ())
       ~scene3:(fun _ () -> Prismel.Scene3.create []) () |> Result.get_ok in
@@ -75,12 +76,12 @@ let measure nodes =
   done;
   step ~events:[key (Prismel.Input.KeyChar 'i')] ();
   step ();
-  let x, y, width, height = List.find_map (fun name ->
+  let x, y, width, _height = List.find_map (fun name ->
       match E.node_box !environment [ "g"; name ] with
       | Some (x, y, width, height) when x >= gx && y >= gy && x + width < gx + gw
           && y + height < gy + gh -> Some (x, y, width, height)
       | _ -> None) ("output" :: names) |> Option.get in
-  let start = x + (width / 2), y + (height / 2) in
+  let start = x + (width / 2), y + 12 in
   step ~mouse:start ();  (* hover: hit testing uses the last frame *)
   step ~mouse:start ~buttons:[Prismel.Input.LeftButton]
     ~events:[Prismel.Event.MousePressed (Prismel.Input.LeftButton, pointer start)] ();
@@ -88,14 +89,15 @@ let measure nodes =
   Gc.full_major ();
   let before = Gc.allocated_bytes () in
   Array.iteri (fun index _ ->
-    let point = fst start + 1 + (index mod 2), snd start in
+    let point = fst start + 10 + (index mod 2), snd start in
     let started = Unix.gettimeofday () in
     step ~mouse:point ~buttons:[Prismel.Input.LeftButton]
       ~events:[Prismel.Event.MouseMoved (pointer point)] ();
     samples.(index) <- Unix.gettimeofday () -. started) samples;
   report "prismel_editor_drag_frame" nodes samples (Gc.allocated_bytes () -. before);
-  step ~mouse:start
-    ~events:[Prismel.Event.MouseReleased (Prismel.Input.LeftButton, pointer start)] ();
+  let finish = fst start + 11, snd start in
+  step ~mouse:finish
+    ~events:[Prismel.Event.MouseReleased (Prismel.Input.LeftButton, pointer finish)] ();
   let undo = [|0.|] in
   Gc.full_major ();
   let before = Gc.allocated_bytes () in
