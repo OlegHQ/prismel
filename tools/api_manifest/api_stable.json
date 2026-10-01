@@ -1313,13 +1313,13 @@
       "source_sha256": "dfbc6bef1a2909c2866fdf5bffc864c171f5f4e4052af6f1843737945b901ece"
     },
     {
-      "api_sha256": "c086baacfffbed395776f8cd0f66f8ab2dfabfe02bbb711babd2f91bca6d3baa",
+      "api_sha256": "1e58ca6e614192bc4f227a0f9ca9bdd2f00ae36156dbe8755db8b1bec1063000",
       "excluded_legacy_symbols": [],
       "library": "pxui",
       "module": "Ui",
       "source": "lib/pxui/ui.mli",
-      "source_bytes": 24235,
-      "source_sha256": "9a3dfbdc77b303035478a264991a82296a609e498f33753a697e3c2361d7b11e"
+      "source_bytes": 24720,
+      "source_sha256": "7f0849f2deb0318b5d5b9a88512c28f31e07c1ca88341ce850dd6d435713fad4"
     },
     {
       "api_sha256": "bdb4d891cc187ac37dfcee1c30fc6d516a92966102eefc79625626c9a0b87862",

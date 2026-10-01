@@ -145,8 +145,10 @@ let update menu ui ~bounds:(bx, by, bw, bh) =
                       (if opened then theme.foreground else Pxui.Theme.hover_fill theme);
                   let color = if opened then theme.input else theme.foreground in
                   let text_y = y +. Float.max 4. ((h -. float_of_int (Ui.font_size ui)) /. 2.) in
-                  Ui.Paint.text paint ~at:(x +. 8., text_y) ~color label;
-                  Ui.Paint.text paint ~at:(x +. w -. 8. -. Ui.Paint.text_width paint detail, text_y)
+                  let detail_x = x +. w -. 8. -. Ui.Paint.text_width paint detail in
+                  Ui.Paint.text paint ~at:(x +. 8., text_y) ~color
+                    (Ui.ellipsis ~width:(Ui.Paint.text_width paint) ~limit:(detail_x -. x -. 16.) label);
+                  Ui.Paint.text paint ~at:(detail_x, text_y)
                     ~color:(if opened then theme.input else Pxui.Theme.muted theme) detail))
                 (rows_of prefix))) levels);
       query, pick, !hovered, !clicked) in

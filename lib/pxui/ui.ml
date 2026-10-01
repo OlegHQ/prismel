@@ -231,6 +231,8 @@ and ui = {
   (* a double or triple click's selection unit, extended by the drag that follows it *)
   mutable edit_unit : (int * int * int) option;
   mutable scrub_origin : (int * string) option;
+  (* the undo or redo key the focused text declined this frame because its own stack was empty *)
+  mutable passed_undo : [`Undo | `Redo] option;
   mutable requested_cursor : [`Horizontal_resize|`Vertical_resize] option;
   (* this frame's raw events and logical size, for modal dismissal *)
   mutable frame_events : Event.t list;
@@ -499,6 +501,7 @@ let create ?(theme = Theme.default) ?font ?(font_size = Theme.font_size) () =
     edit_scroll_x = 0.;
     edit_undo = []; edit_redo = []; edit_group = -1; edit_unit = None;
     scrub_origin = None;
+    passed_undo = None;
     requested_cursor = None;
     frame_events = []; input_frame = None; routed_events = []; cancelled = [];
     modal_key = None; modal_in_frame = false;
@@ -691,6 +694,7 @@ let route ui (frame : Frame.t) =
   ui.frame_events <- frame.events;
   ui.input_frame <- Some frame;
   ui.routed_events <- []; ui.cancelled <- [];
+  ui.passed_undo <- None;
   ui.modal_in_frame <- ui.modal_key <> None;
   let modifiers = ref (Event.Private.keys_before ~previous:ui.previous_keys
     ~held:frame.keys frame.events) in
@@ -840,6 +844,18 @@ let wants_pointer ui = ui.hot <> 0 || Option.fold ~none:false ~some:(( <> ) 0) u
 let cursor ui = ui.requested_cursor
 let request_cursor ui shape = ui.requested_cursor <- Some shape
 let text_input_focused ui = ui.focus <> 0
+let passed_undo ui = ui.passed_undo
+
+(* [label] cut to [limit] points wide ([width] measures text) with an ellipsis, on a character boundary *)
+let ellipsis ~width ~limit label =
+  let rec cut s =
+    if s = "" then "" else begin
+      let n = ref (String.length s - 1) in
+      while !n > 0 && Char.code s.[!n] land 0xC0 = 0x80 do decr n done;
+      let s = String.sub s 0 !n in
+      if width (s ^ "…") <= limit then s ^ "…" else cut s
+    end in
+  if width label <= limit then label else cut label
 let key_pressed ui key =
   List.exists (function Event.KeyPressed k -> k = key | _ -> false) ui.frame_events
 let unfocus ui = ui.focus <- 0; ui.composition <- ""; ui.edit_focus <- 0;
@@ -2070,6 +2086,10 @@ let undo_text ui edit ~redo =
       ui.edit_group <- -1;
       true
 
+(* an exhausted stack hands the key to the host's own undo ([passed_undo]) *)
+let pass_undo ui edit ~redo =
+  undo_text ui edit ~redo || (ui.passed_undo <- Some (if redo then `Redo else `Undo); false)
+
 (* A press places the caret (Shift extends the selection), a double click selects the word
    there, a triple click the [line_of] range; the drag that follows extends by the same unit. *)
 let press_select ui edit ~shift ~clicks ~line_of at =
@@ -2147,8 +2167,8 @@ let edit_text_event ui edit ~accept ~modifiers event =
       (match Clipboard.get_text () with
        | Ok text when accept text -> remember ui edit ~typing:false; replace_text edit text; true
        | Ok _ | Error _ -> false)
-  | event when clipboard_command ~command event = Some 'z' -> undo_text ui edit ~redo:shift
-  | event when clipboard_command ~command event = Some 'y' -> undo_text ui edit ~redo:true
+  | event when clipboard_command ~command event = Some 'z' -> pass_undo ui edit ~redo:shift
+  | event when clipboard_command ~command event = Some 'y' -> pass_undo ui edit ~redo:true
   | Event.TextInput text when accept text ->
       let typing = not (String.exists (function ' ' | '\t' | '\n' -> true | _ -> false) text) in
       remember ui edit ~typing;

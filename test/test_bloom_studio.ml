@@ -22,8 +22,8 @@ let catalog = Editor_document.Contexts.catalog ~version:1 factories |> Result.ge
 
 (* tall enough to show the whole Navigator without scrolling *)
 let width = 1400 and height = 1400
-let frame ?(buttons = []) mouse events count =
-  { (Test_editor_input.frame ~buttons mouse events count) with
+let frame ?(buttons = []) ?(keys = []) mouse events count =
+  { (Test_editor_input.frame ~buttons ~keys mouse events count) with
     width; height; size = width, height; drawable_width = width; drawable_height = height;
     drawable_size = width, height }
 
@@ -41,8 +41,8 @@ let source e = fst (Flow.Lisp.print (E3.workspace e).Doc.source)
 
 let run () =
   let e = ref (editor ()) and count = ref 0 in
-  let step ?(buttons = []) ?(mouse = (450., 300.)) events =
-    incr count; e := E3.update !e (frame ~buttons mouse events !count) in
+  let step ?(buttons = []) ?(keys = []) ?(mouse = (450., 300.)) events =
+    incr count; e := E3.update !e (frame ~buttons ~keys mouse events !count) in
   let click ?(button = Input.LeftButton) (x, y) =
     step ~mouse:(x, y) [ Event.MouseMoved (x, y) ];
     step ~buttons:[ button ] ~mouse:(x, y) [ Event.MousePressed (button, (x, y)) ];
@@ -96,6 +96,23 @@ let run () =
   click (row_centre "wobble");
   check (dump_line !e "scope selected" = "flower/ring/wobble")
     ("a node row selects it in the pane: " ^ dump_line !e "scope selected");
+  (* v on a node of the shown graph views it in the viewport without entering the object *)
+  click (row_centre "heart");
+  (* a Shift-click on empty canvas focuses the pane and keeps the selection *)
+  let gx, gy, gw, gh = (graph_leaf ()).body in
+  let p = float (gx + gw - 40), float (gy + gh - 40) in
+  step ~mouse:p [ Event.MouseMoved p ];
+  step ~keys:[ Input.Shift ] ~buttons:[ Input.LeftButton ] ~mouse:p [ Event.MousePressed (Input.LeftButton, p) ];
+  step ~keys:[ Input.Shift ] ~mouse:p [ Event.MouseReleased (Input.LeftButton, p) ];
+  step ~mouse:p [];
+  check (dump_line !e "scope selected" = "flower/heart") ("heart stays selected: " ^ dump_line !e "scope selected");
+  step ~mouse:p [ Event.KeyPressed (Input.KeyChar 'v') ];
+  step ~mouse:p []; step [];
+  check (E3.undo_label !e = Some "View node") ("v did not view heart: " ^ Option.value ~default:"-" (E3.undo_label !e));
+  check (Procedural.Node.label (E3.displayed_node !e) = "uv_sphere")
+    ("the viewport shows the viewed node at the scene level: " ^ Procedural.Node.label (E3.displayed_node !e));
+  step ~mouse:p [ Event.KeyPressed (Input.KeyChar 'v') ]; step [];
+  check (Procedural.Node.label (E3.displayed_node !e) <> "uv_sphere") "v again shows the result";
   (* an input's slider writes the graph input's default: one history entry, the text follows *)
   let slider_y, slider_x, slider_w =
     let rects = N.row_rects N.initial (params scope) ~bounds:(outline ()) in

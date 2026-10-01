@@ -869,6 +869,21 @@ let run () =
   expect "consecutive typing undoes as one step" "";
   area_step ~keys:[Input.Meta] [Event.KeyPressed (Input.KeyChar 'y')];
   expect "Command-Y redoes the typing" "abc";
+  if Ui.passed_undo ui <> None then fail "a redo the area took was passed on";
+  area_step ~keys:[Input.Meta] [Event.KeyPressed (Input.KeyChar 'y')];
+  if Ui.passed_undo ui <> Some `Redo then fail "a redo with an empty stack was not passed on";
+  area_step ~keys:[Input.Meta] [Event.KeyPressed (Input.KeyChar 'z')];
+  area_step ~keys:[Input.Meta] [Event.KeyPressed (Input.KeyChar 'z')];
+  if Ui.passed_undo ui <> Some `Undo then fail "an undo with an empty stack was not passed on";
+  expect "the passed undo leaves the text alone" "";
+  area_step [];
+  if Ui.passed_undo ui <> None then fail "the passed undo outlived its frame";
+  (* a row label cut short of its right-hand detail: whole when it fits, else an ellipsis within the
+     limit, never a split multi-byte character *)
+  let cp s = 7. *. float (String.fold_left (fun n c -> if Char.code c land 0xC0 = 0x80 then n else n + 1) 0 s) in
+  if Ui.ellipsis ~width:cp ~limit:200. "split side by side" <> "split side by side" then fail "a fitting label was cut";
+  if Ui.ellipsis ~width:cp ~limit:70. "split side by side" <> "split sid…" then fail "a long label was not cut to the limit";
+  if Ui.ellipsis ~width:cp ~limit:28. "ƒ petal" <> "ƒ p…" then fail "the cut split a multi-byte character";
   Ui.destroy ui;
   (* Modal: centered, and Escape or a press outside dismisses it. *)
   let ui = Ui.create () and shown = ref None in

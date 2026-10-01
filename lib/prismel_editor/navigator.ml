@@ -304,9 +304,11 @@ let view state ui ~bounds:(x, y, w, h) p =
   let box = Ui.box ui ~flags:Ui.(clickable + scroll + clip + blocking)
       ~w:(Ui.Px w) ~h:(Ui.Px body) ~at:(x, top) ~scroll_step:rh "navigator-list" in
   let signal = Ui.signal ui box in
-  let scroll = Float.max 0. (Float.min (Ui.scroll_offset ui box) (Float.max 0. (total -. body))) in
-  ignore (Ui.within ui box (fun () ->
-    Ui.box ui ~w:(Ui.Px w) ~h:(Ui.Px (total +. rh)) "navigator-content"));
+  (* the painted position, elastic edge movement included: a click lands on the row it sees *)
+  let scroll = Ui.scroll_position ui box in
+  (* the rows paint in the child so the list's clip holds them: a box's own painter is not clipped *)
+  let content = Ui.within ui box (fun () ->
+    Ui.box ui ~w:(Ui.Px w) ~h:(Ui.Px (total +. rh)) "navigator-content") in
   let row_at (_, py) =
     let off = py -. top +. scroll in
     if py < top || off >= total then None
@@ -330,7 +332,7 @@ let view state ui ~bounds:(x, y, w, h) p =
        | _ -> None) (Array.to_list rows) with
      | Some intent -> emit intent | None -> ());
   let hovered = if signal.hovered then row_at signal.pointer else None in
-  Ui.draw ui box (fun paint _ ->
+  Ui.draw ui content (fun paint _ ->
     let scroll = Ui.scroll_position ui box in
     Ui.Paint.fill paint ~x ~y:top ~w ~h:body theme.panel;
     Array.iteri (fun k row ->
@@ -349,7 +351,12 @@ let view state ui ~bounds:(x, y, w, h) p =
             Ui.Paint.fill paint ~x ~y:ry ~w ~h:rhh (Pxui.Theme.hover_fill theme) in
         let right_text label =
           let tw = Ui.Paint.text_width paint label in
-          Ui.Paint.text paint ~at:(x +. w -. tw -. 10., ry +. 5.) ~color:muted label in
+          Ui.Paint.text paint ~at:(x +. w -. tw -. 10., ry +. 5.) ~color:muted label;
+          x +. w -. tw -. 16. in
+        (* a label with a detail at the right stops short of it instead of running under it *)
+        let labelled ?color from label detail =
+          let edge = right_text detail in
+          text ?color (from, 0.) (Ui.ellipsis ~width:(Ui.Paint.text_width paint) ~limit:(edge -. from) label) in
         match row with
         | Head s ->
             Ui.Paint.text paint ~at:(x +. 8., ry +. rhh -. rh +. 5.) ~color:theme.accent s
@@ -366,29 +373,25 @@ let view state ui ~bounds:(x, y, w, h) p =
         | Graph_row { label; context; detail; active; _ } ->
             shade active;
             Ui.Paint.fill paint ~x:(x +. 8.) ~y:(ry +. 8.) ~w:8. ~h:8. (context_color context);
-            text (x +. 22., 0.) label;
-            right_text detail
+            labelled (x +. 22.) label detail
         | Node_row { depth; label; detail; zone; ty; result; selected; _ } ->
             shade selected;
             let nx = x +. 22. +. 14. *. float depth in
             (match zone with
-             | Some glyph -> let lx = tag ~at:nx glyph in text (lx, 0.) label
+             | Some glyph -> labelled (tag ~at:nx glyph) label detail
              | None ->
                  Ui.Paint.fill paint ~x:nx ~y:(ry +. 8.) ~w:8. ~h:8. (type_color theme ty);
-                 text (nx +. 14., 0.) ~color:(if result then muted else theme.foreground) label);
-            right_text detail
+                 labelled ~color:(if result then muted else theme.foreground) (nx +. 14.) label detail)
         | Macro_row (name, uses) ->
             shade false;
             text (x +. 8., 0.) ~color:theme.accent "λ";
-            text (x +. 22., 0.) name;
-            right_text (plural uses "use")
+            labelled (x +. 22.) name (plural uses "use")
         | Link_row { label; graph; _ } ->
             shade false;
             text (x +. 8., 0.) ~color:muted label;
             text (x +. 80., 0.) ~color:theme.accent graph
         | Shell_row { depth; label; detail } ->
-            text (x +. 8. +. 14. *. float depth, 0.) label;
-            right_text detail
+            labelled (x +. 8. +. 14. *. float depth) label detail
         | Empty s -> text (x +. 8., 0.) ~color:muted s
       end) rows);
   (* the sliders of the inputs, over their rows *)

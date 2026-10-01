@@ -495,8 +495,15 @@ let texting value = value.focus = Lisp || (value.focus <> List && projection val
    geometry object opened (the one its network was lowered from, else the
    [sop] graph its label names), of the World opened, or the scene graph at the scene level.
    A level without such a graph shows its list only. *)
+(* The lowered sop graph a geometry object instantiates, by its network. *)
+let graph_of_object value id =
+  let _, lowered = value.doc.Document.workspace in
+  Option.bind (Document.Int_map.find_opt id value.doc.Document.networks) (fun (n : Document.network) ->
+    List.find_map (fun (g : Flow_sop.Lower.graph) ->
+      if g.network == n.graph then Some g.name else None) lowered.graphs)
+
 let graph_name value = match value.doc.Document.workspace with
-  | ws, lowered ->
+  | ws, _ ->
       let exists name = List.exists (fun (g : Flow.Workspace.graph) -> g.name = name) ws.checked.graphs
         || (String.length name > 4 && String.sub name 0 4 = "def:"
             && List.exists (fun (g : Flow.Workspace.graph) -> "def:" ^ g.name = name) ws.checked.defs) in
@@ -504,11 +511,7 @@ let graph_name value = match value.doc.Document.workspace with
       (match (if value.pane_graph <> None then value.pane_graph else named), value.level with
        | Some name, _ when exists name -> Some name
        | _, Document.Inside id when kind value id = Some "geometry" ->
-           let lowered_from = Option.bind (Document.Int_map.find_opt id value.doc.Document.networks)
-             (fun (n : Document.network) ->
-               List.find_map (fun (g : Flow_sop.Lower.graph) ->
-                 if g.network == n.graph then Some g.name else None) lowered.graphs) in
-           (match lowered_from with
+           (match graph_of_object value id with
             | Some _ as name -> name
             | None -> Option.bind (Edit_graph.find (scene value) ~node_id:id) (fun node ->
                 let name = Node.label node in if exists name then Some name else None))
@@ -717,12 +720,12 @@ let open_level value level =
   { value with level; pane_graph = None; selection = Selection.empty; map_view = world;
     tree = Pxui_shell.Tree.create () }
 
-(* The node of the open object's graph the viewport shows: the one the layout names
-   ([v] in the pane) at the iterations the selectors probe, else its result. *)
+(* The node of an object's graph the viewport shows when the pane shows that graph: the one
+   the layout names ([v] in the pane) at the iterations the selectors probe, else its result. *)
 let display_node value id =
-  match value.level, value.scope_key, value.doc.Document.workspace with
-  | Document.Inside open_id, Some { scope; records = Some records; graph; _ }, (ws, lowered)
-    when open_id = id ->
+  match value.scope_key, value.doc.Document.workspace with
+  | Some { scope; records = Some records; graph; _ }, (ws, lowered)
+    when graph_of_object value id = Some graph ->
       Option.bind (Layout_by_path.Path_map.find_opt [ graph ] ws.layout.display) (fun path ->
         let chain = Option.value ~default:[] (Hashtbl.find_opt (Flow_sop.Probe.chains scope) path) in
         let probes = List.map (fun zone ->
@@ -1657,8 +1660,9 @@ let open_menu value (x, y) =
 let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
     ~render_status ~view_state (frame : Frame.t) =
   let value = sync_scope value in
-  let text_focus = text_focus || value.prompt <> None || value.menu <> None
+  let modal = value.prompt <> None || value.menu <> None
     || Pxui_graph.Scope.editing value.scope_view || Pxui_shell.Tree.editing value.tree in
+  let text_focus = text_focus || modal in
   let focus, focus_path = if all_ui_visible then
       match Pxui.Ui.last_press_within value.ui frame
           (List.map fst value.pane_keys) with
@@ -1685,7 +1689,13 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
   let hud = match hud with Some (_, until) when frame.time >= until -> None | _ -> hud in
   let guide = List.fold_left (fun guide -> function Leader.Guide_toggle -> not guide
     | _ -> guide) value.guide actions in
-  let actions = value.queued @ actions in
+  (* Command-Z in a text whose own undo stack is empty (a dragged number applies as it goes)
+     reaches the document history, unless a prompt, menu or rename owns the keys *)
+  let passed = if text_focus && not modal then
+      match Pxui.Ui.passed_undo value.ui with
+      | Some `Undo -> [ Leader.Undo ] | Some `Redo -> [ Leader.Redo ] | None -> []
+    else [] in
+  let actions = passed @ value.queued @ actions in
   (* Command +/-/0: the kit text of the panels (the graph pane zooms, viewports have no text) *)
   List.iter (function
     | Leader.Ui_scale delta ->

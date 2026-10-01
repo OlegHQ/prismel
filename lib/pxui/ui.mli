@@ -89,6 +89,14 @@ val text_input_focused : t -> bool
 (** A focused control owns keyboard input (including text and numeric entry).
     Hosts suppress their shortcuts while a control owns it. *)
 
+val passed_undo : t -> [`Undo | `Redo] option
+(** Command-Z or Shift-Command-Z (Command-Y) pressed in the focused text last frame while
+    its own stack was empty: the host runs its document undo or redo instead. *)
+
+val ellipsis : width:(string -> float) -> limit:float -> string -> string
+(** [label] cut to [limit] points (measured by [width], e.g. [Paint.text_width paint]) with an
+    ellipsis, on a character boundary: a row label that stops short of its right-hand detail. *)
+
 val unfocus : t -> unit
 
 val dismiss_popup : t -> unit
