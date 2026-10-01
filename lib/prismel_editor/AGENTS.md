@@ -60,7 +60,15 @@ so Command-S writes over their file. Old presets are not read.
 
 ## Workspace gestures added in Gap A (details in `specification/workspace/progress.md`)
 
-- Keys (graph pane): Command/Ctrl-D duplicates the selected bindings (`Flow_edit.Duplicate`, copies selected),
+- Command +/-/0 (`Leader.Ui_scale`) set the kit text size of every panel through `Ui.set_font_size`
+  (8 to 18 points, rows follow); the graph pane has its own zoom and viewports have no text.
+- Keys (graph pane): Command/Ctrl-C copies the selected bindings as `name expr` lines to the
+  clipboard (`Scope.Copy_requested`, `Core.copy_bindings`), Command/Ctrl-X copies and deletes,
+  Command/Ctrl-V parses the clipboard (pairs, or bare expressions named by their head) into
+  `Add_node`s of the selected scope with fresh names, references between them renamed
+  (`Core.paste_bindings`).  A node added from the menu is placed where the menu was opened
+  (`Scope.scope_point`, one `Moved` in the same "Add node" entry).
+  Command/Ctrl-D duplicates the selected bindings (`Flow_edit.Duplicate`, copies selected),
   `v` views the selected geometry node (`Layout_by_path.display`, honoured for the open object by
   `Core.display_node`; the pane marks it `VIEW`), `f` frames the selection, dragging a frame by its title carries the
   nodes inside it, `j`/`k` walk the list.  A row of a geometry object's list selects its node in the pane.
@@ -200,17 +208,18 @@ handed to `Cook.update ?lit`, which prepares a piece again from its kept
 
 ## Workspace text pane (W7)
 
-`Space l` from the list opens `Text_pane` for a workspace graph object (no
+`Space l t` on the graph panel (or a `Lisp` panel) shows `Text_pane` for a workspace graph object (no
 other document has a text projection). `Core.text` is its view state: tab,
-Document draft, binding draft and the errors of the last refused apply; the
-draft is never in the document. `Text_pane.view` runs inside `Ui.frame` and
+Document draft, Selection draft, the errors of the last refused apply, the wrap flag and the
+right-click menu; the draft is never in the document. `Text_pane.view` runs inside `Ui.frame` and
 only returns intents; `Core.apply_text` folds them after the frame. A Check &
-apply goes through `Doc.text_edit` (whole text, layout and settings kept) or
-`Doc.syntax_edit` with `Set_arg { key = Whole }` (one binding) and is one
-history entry "Edit text" (`Core.install`, shared with `Core.syntax_edit`). The
-text itself comes from `Flow.Lisp.print` and its span map; keep new text
-features on that map, never on string search. Text entry is `Ui.text_area`
-only.
+apply goes through `Doc.text_edit` (whole text, layout and settings kept), `Set_graph` (the Graph
+tab) or, for the Selection tab, `Set_arg { key = Whole }` on each root binding of the shown closure
+whose text changed (`Core.binding_edit`); each is one history entry "Edit text" (`Core.install`,
+shared with `Core.syntax_edit`). The text itself comes from `Flow.Lisp.print` and its span map;
+keep new text features on that map, never on string search. Text entry is `Ui.text_area` only,
+with `Lisp_text.language` (an error-tolerant lexer: colours, rainbow brackets, the lit pair at the
+caret, Enter indentation, paired brackets); the widget stays language-free.
 
 ## Workspace shell (W10)
 
@@ -229,16 +238,22 @@ list and lisp panels are the graph pane's), and never match a `column` or a fixe
   `Close_panel`, `Set_panel_kind` (the header menu).  They address a panel by its binding
   (`Document.origins`).  A panel made by a `for` is `Loop` (its header says so and the status
   names the loop); an inline one is not editable.  Add the op to `Flow_edit`, not to `Core`.
-- Panel keys: `Space o` then `h` `v` (split), `x` (close), `g` `l` `t` `i` `u` `m` `w` (retype to graph,
-  list, text, inspector, outline, timeline, viewport) act on the focused panel; `Core.update` turns them
-  into the same `Chrome` intents as the header menu (`Leader.Panel_*`), so they share its refusals.
+- Panel keys: `Space o` then `h` `v` (split), `x` (close); `Space l` then `g` `l` `t` `i` `u` `m` `w`
+  (retype to graph, list, text, inspector, outline, timeline, viewport).  They act on the focused
+  leaf (`Core.focus_path`, the one clicked, so the second panel of a kind closes itself, not the
+  first); `Core.update` turns them into the same `Chrome` intents as the header menu
+  (`Leader.Panel_*`), so they share its refusals.  Two exceptions: `Space l g` `l` `t` on the
+  graph panel only switch its projection (view state, no edit), and a document without an editor
+  graph gets one written from the layout it shows (`Bars.tree_text`, every leaf and split a
+  binding; the scene graph it views is adopted first, as `Add_node` does) before the edit, in the
+  same history entry.  There is no projection cycling key.  `Space m` flips the World's map view.
 - Recovery (register E1): "Restore layout" (`Space z`) is host state outside the tree
   (`Core.shell.restored`: the default tree until the editor graph's tree changes or the key
   is pressed again).  A refused edit keeps the previous document and layout; an editor graph
   that hides everything is valid, so keep this command working with any tree.
 - Graph, list and lisp panels are the graph pane's three projections: a `List` or `Lisp`
-  panel draws its own, otherwise `Space l` cycles them inside the `Graph` panel
-  (`projection` is normalised by which panels exist).  `(ui/graph "name")` names the pane's
+  panel draws its own, otherwise `Space l l` / `t` / `g` pick one inside the `Graph` panel
+  (`projection` is normalised by which panels exist; the scene level starts as a list).  `(ui/graph "name")` names the pane's
   graph (`Document.shell.named`); an `Outline` row picks one; there is no graph cycling key.
   A panel kind draws once (the first leaf); a second says it is shown elsewhere.
 - Viewports: every `View` panel draws the scene instance its `(ref scene :k v)` names.  An
@@ -262,3 +277,5 @@ a test computing geometry passes `~top:Bars.height`. A bar or toolbar click that
 next frame like a palette pick; one that means an edit is a `Syntax_edit` change. `Bars.layout_text` writes the editor
 graph of each shell layout (the `Set_graph` text), `Bars.top_button_rect` and `tool_rect` are the one source of a
 button's place for the draw and for tests. Make defn (`Flow_edit.Make_defn`) is typed by `Core.defn_change`.
+The bar's "Refused · ..." status is a click target (`Bars.Dismiss` clears `edit_error`); a later successful
+edit clears it too.

@@ -44,7 +44,7 @@ let run () =
     |> List.map (fun (c : _ Command.t) -> c.id) in
   check (List.mem "guide.toggle" (host_ids (Pxui_shell.Layout.View "") Canvas)
       && not (List.mem "graph.add" (host_ids (Pxui_shell.Layout.View "") Canvas))
-      && List.mem "graph.projection" (host_ids Pxui_shell.Layout.Graph List)
+      && List.mem "panel.list" (host_ids Pxui_shell.Layout.Graph Leader)
       && List.mem "preset.save" (host_ids Pxui_shell.Layout.Graph Leader))
     "host guide lost a context or ignored command scope";
   (* Enter needs a selected object, up a level does not; the list has both *)

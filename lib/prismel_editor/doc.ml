@@ -33,6 +33,12 @@ let syntax_edit_result ~factories (doc : Editor_document.Document.t) op =
       when missing "world" && String.starts_with ~prefix:"world/" (head expr) ->
         Result.map_error (Flow.Diagnostic.error ~code:"E_EDIT")
           (Editor_document.Scene_sync.adopt ~factories ~world:true doc)
+    (* an editor graph whose viewport shows the scene the host composes: written out first *)
+    | Set_graph { form; _ } when missing "scene" && (let rec refs (f : Flow.Syntax.t) = match f.node with
+        | Flow.Syntax.List [ { node = Sym "ref"; _ }; { node = Sym "scene"; _ } ] -> true
+        | _ -> List.exists refs (Flow.Syntax.children f) in refs form) ->
+        Result.map_error (Flow.Diagnostic.error ~code:"E_EDIT")
+          (Editor_document.Scene_sync.adopt ~factories ~world:false doc)
     | _ -> Ok doc in
   let workspace, _ = doc.workspace in
   let* catalog = Editor_document.Contexts.catalog ~version:Flow_sop.Manifest.version factories in

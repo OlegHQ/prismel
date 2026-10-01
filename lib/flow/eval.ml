@@ -242,7 +242,7 @@ let mk_node c kind args =
 (* ---- built-in value operators ---- *)
 
 let value_ops = [ "+"; "-"; "*"; "/"; "mod"; "pow"; "min"; "max"; "sin"; "cos"; "abs"; "floor";
-  "sqrt"; "<"; ">"; "<="; ">="; "="; "and"; "or"; "not"; "value/rand"; "value/hsv";
+  "ceil"; "round"; "int"; "float"; "sqrt"; "<"; ">"; "<="; ">="; "="; "and"; "or"; "not"; "value/rand"; "value/hsv";
   "value/lerp"; "value/polar"; "range"; "linspace"; "count"; "first"; "last"; "rest"; "nth";
   "reverse"; "take"; "drop" ]
 let value_op_name n =
@@ -297,6 +297,10 @@ let value_op name (vs : value list) : value =
   | "cos", [ x ] -> Float (fin name (cos (num x)))
   | "sqrt", [ x ] -> Float (sqrt (Float.abs (num x)))
   | "floor", [ x ] -> Int (to_int name (Float.floor (num x)))
+  | "ceil", [ x ] -> Int (to_int name (Float.ceil (num x)))
+  | "round", [ x ] -> Int (to_int name (Float.round (num x)))  (* half away from zero, as a port *)
+  | "int", [ x ] -> Int (to_int name (Float.trunc (num x)))
+  | "float", [ x ] -> Float (num x)
   | "abs", [ Int n ] -> Int (abs n)
   | "abs", [ x ] -> Float (Float.abs (num x))
   | "<", [ a; b ] -> Bool (num a < num b)

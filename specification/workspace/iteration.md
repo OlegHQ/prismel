@@ -61,7 +61,11 @@ The new list producers are `(range n)`, `(range a b)`, `(linspace a b n)`,
 `(sop/point_list g)` and `(sop/piece_list g)`. `(count xs)` reads a length.
 `value/rand` is a pure hash; `value/hsv`, `value/lerp` and `value/polar` are
 the value helpers the case studies use. The comparisons `< > <= >= =` and
-`and`, `or` and `not` produce Bool.
+`and`, `or` and `not` produce Bool. Numbers convert on their own: an Int
+reaching a Float input is widened, and a Float reaching an Int input (a
+SOP keyword, `range`, `nth`, a typed parameter) rounds half away from
+zero. `floor`, `ceil`, `round` and `int` (truncation toward zero) make the
+conversion explicit and give an Int; `float` gives a Float.
 
 ### 2.2 Semantics
 

@@ -114,6 +114,10 @@ let () = (* the 12 fixtures run, deterministically, with unique plan keys, at an
 
 let () = (* the first block *)
   t "sum" (fun () -> is (value "(sum [k (range 4)] (* k 2))") (Eval.Int 12));
+  t "int truncates, round is half away from zero, ceil and float" (fun () ->
+    is (value "(int -2.7)") (Eval.Int (-2)); is (value "(round 2.5)") (Eval.Int 3);
+    is (value "(round -2.5)") (Eval.Int (-3)); is (value "(ceil 2.1)") (Eval.Int 3);
+    is (value "(float 3)") (Eval.Float 3.); is (value "(/ (float 3) 2)") (Eval.Float 1.5));
   t "sum of nothing is 0" (fun () -> is (value "(sum [k (range 0)] 1.5)") (Eval.Int 0));
   t "fold" (fun () -> is (value "(fold [a 1] [i (range 5)] (* a 2))") (Eval.Int 32));
   t "fold of nothing is its initial value" (fun () -> is (value "(fold [a 7] [i (range 0)] (* a 2))") (Eval.Int 7));

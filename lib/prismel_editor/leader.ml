@@ -12,7 +12,9 @@ type action =
   | Undo | Redo
   | Panel_split of Pxui_shell.Layout.axis | Panel_close | Panel_retype of Pxui_shell.Layout.panel
       (* Space o ...: the focused panel, as the header menu does *)
-  | Toggle_projection | Restore_layout | Enter | Up | Go_world
+  | Toggle_map  (* Space m: in the World, the view pane flips to the lat-long map *)
+  | Ui_scale of int  (* Command +/-/0: the kit text of every panel but the graph and viewports *)
+  | Restore_layout | Enter | Up | Go_world
   | World_emit | World_reseed | World_time of float | World_play | World_preset of int
   | Scope_command of Pxui_graph.Scope.command  (* the workspace pane, see [Core.scope_name] *)
   | List_command of Pxui_shell.Tree.command
@@ -59,7 +61,7 @@ let keymap = [
   command ~id:"sketch.stop" ~label:"stop" ~trigger:(Leader "x") Stop;
   command ~id:"workspace.command-palette" ~label:"command palette" ~trigger:(Leader "/")
     Command_palette;
-  command ~guide:Editor_core.Guide_context.[Canvas; Node; Multi; List] ~id:"graph.projection" ~label:"graph / list / text" ~trigger:(Leader "l") Toggle_projection;
+  command ~id:"world.map" ~label:"3D / map (World)" ~trigger:(Leader "m") Toggle_map;
   command ~id:"workspace.restore-layout" ~label:"restore layout" ~trigger:(Leader "z")
     Restore_layout;
   command ~id:"panel.split-right" ~label:"split panel, side by side" ~trigger:(Leader "oh")
@@ -67,16 +69,18 @@ let keymap = [
   command ~id:"panel.split-below" ~label:"split panel, stacked" ~trigger:(Leader "ov")
     (Panel_split `V);
   command ~id:"panel.close" ~label:"close panel" ~trigger:(Leader "ox") Panel_close;
-  command ~id:"panel.graph" ~label:"panel becomes graph" ~trigger:(Leader "og") (Panel_retype Graph);
-  command ~id:"panel.list" ~label:"panel becomes list" ~trigger:(Leader "ol") (Panel_retype List);
-  command ~id:"panel.lisp" ~label:"panel becomes text" ~trigger:(Leader "ot") (Panel_retype Lisp);
-  command ~id:"panel.inspector" ~label:"panel becomes inspector" ~trigger:(Leader "oi")
+  (* Space l: the focused panel becomes one of the kinds (a document without an editor graph
+     gets one written from its layout first) *)
+  command ~id:"panel.graph" ~label:"panel: graph" ~trigger:(Leader "lg") (Panel_retype Graph);
+  command ~id:"panel.list" ~label:"panel: list" ~trigger:(Leader "ll") (Panel_retype List);
+  command ~id:"panel.lisp" ~label:"panel: lisp text" ~trigger:(Leader "lt") (Panel_retype Lisp);
+  command ~id:"panel.inspector" ~label:"panel: inspector" ~trigger:(Leader "li")
     (Panel_retype Inspector);
-  command ~id:"panel.outline" ~label:"panel becomes outline" ~trigger:(Leader "ou")
+  command ~id:"panel.outline" ~label:"panel: outline" ~trigger:(Leader "lu")
     (Panel_retype Outline);
-  command ~id:"panel.timeline" ~label:"panel becomes timeline" ~trigger:(Leader "om")
+  command ~id:"panel.timeline" ~label:"panel: timeline" ~trigger:(Leader "lm")
     (Panel_retype Timeline);
-  command ~id:"panel.viewport" ~label:"panel becomes viewport" ~trigger:(Leader "ow")
+  command ~id:"panel.viewport" ~label:"panel: viewport" ~trigger:(Leader "lw")
     (Panel_retype (View ""));
   command ~id:"scene.world" ~label:"World" ~trigger:(Leader "e") Go_world;
   command ~id:"graph.add-node" ~label:"add (menu)" ~trigger:(Leader "a") Add_node;
@@ -117,7 +121,11 @@ let keymap = [
   command ~id:"edit.undo" ~label:"undo" ~trigger:(Chord (Input.KeyChar 'z', [modifier])) Undo;
   command ~id:"edit.redo" ~label:"redo"
     ~trigger:(Chord (Input.KeyChar 'z', [modifier; Input.Shift])) Redo;
-  command ~id:"edit.redo" ~label:"redo" ~trigger:(Chord (Input.KeyChar 'y', [modifier])) Redo])
+  command ~id:"edit.redo" ~label:"redo" ~trigger:(Chord (Input.KeyChar 'y', [modifier])) Redo;
+  command ~id:"ui.larger" ~label:"larger panel text" ~trigger:(Chord (Input.KeyChar '=', [modifier])) (Ui_scale 1);
+  command ~id:"ui.larger" ~label:"larger panel text" ~trigger:(Chord (Input.KeyChar '+', [modifier])) (Ui_scale 1);
+  command ~id:"ui.smaller" ~label:"smaller panel text" ~trigger:(Chord (Input.KeyChar '-', [modifier])) (Ui_scale (-1));
+  command ~id:"ui.reset-size" ~label:"default panel text size" ~trigger:(Chord (Input.KeyChar '0', [modifier])) (Ui_scale 0)])
   [Input.Meta; Input.Ctrl]
 @ List.map (fun (c : _ Editor_core.Command.t) ->
   { c with scope = Some graph; action = Scope_command c.action }) Pxui_graph.Scope.bindings

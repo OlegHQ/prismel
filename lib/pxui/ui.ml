@@ -148,7 +148,7 @@ and cached_subtree = { stamp : int; boxes : snapshot array }
 and ui = {
   mutable theme : Theme.t;
   font : Font.t option;
-  font_size : int;
+  mutable font_size : int;
   (* owned kit faces by size; [None] caches a failed load *)
   faces : Font.t option Int_table.t;
   (* retained, by slot *)
@@ -510,6 +510,10 @@ let destroy ui =
 let theme ui = ui.theme
 let set_theme ui theme = ui.theme <- theme
 let font_size ui = ui.font_size
+(* the kit text size and, with it, the row height (24 at 11 points); set between frames *)
+let set_font_size ui size =
+  if size <= 0 then invalid_arg "Ui.set_font_size: size must be positive";
+  ui.font_size <- size; ui.kit_row_height <- size + 13
 let scene ui = ui.scene
 let row_height ui = ui.kit_row_height
 let panel_padding ui = ui.kit_padding
@@ -2387,8 +2391,23 @@ let row_at rows index =
       if start middle <= index then seek middle high else seek low (middle - 1) in
   seek 0 (Array.length rows - 1)
 
+let context_clicked (signal : signal) =
+  let (px, py), (rx, ry) = signal.press_point, signal.release_point in
+  signal.released && signal.button = Some Input.RightButton
+  && ((px -. rx) *. (px -. rx)) +. ((py -. ry) *. (py -. ry)) < 16.
+
+(* What a code editor knows about its text: colours by byte span, matching bracket pairs, the
+   indentation of a new line, and the brackets typed in pairs.  A host supplies it; the widget
+   stays language-free. *)
+type language = {
+  colorize : string -> (int * int * Color.t) list;  (* sorted, non-overlapping byte spans *)
+  brackets : string -> (int * int) list;  (* (open, close) byte positions of matched pairs *)
+  indent : string -> int -> string;  (* the indentation of a line broken at this byte *)
+  pairs : (char * char) list;  (* typing the first inserts both; the second skips over itself *)
+}
+
 let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors = []) ?(spans = [])
-    ?reveal label text =
+    ?reveal ?language ?on_context label text =
   let row = float ui.kit_row_height in
   let body = box ui
       ~flags:(clickable lor focusable lor blocking lor scroll lor clip
@@ -2425,6 +2444,9 @@ let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors =
   let edit = if focused then load_text_edit ui body.box_key text
     else { text; caret = String.length text; anchor = String.length text } in
   let moved = ref false and submitted = ref false in
+  (match on_context with
+   | Some f when context_clicked signal -> f signal.release_point
+   | _ -> ());
   if focused then begin
     let caret0 = edit.caret in
     if signal.pressed && signal.button = Some Input.LeftButton then begin
@@ -2450,7 +2472,31 @@ let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors =
       | Event.KeyPressed Input.Escape -> unfocus ui
       | Event.KeyPressed Input.Enter when command -> submitted := true
       | Event.KeyPressed Input.Enter ->
-          if not readonly then replace_text edit "\n"
+          if not readonly then begin
+            let indent = match language with
+              | Some l -> l.indent edit.text (fst (text_selection edit)) | None -> "" in
+            replace_text edit ("\n" ^ indent)
+          end
+      (* brackets come in pairs: an opener wraps the selection or inserts both, a closer typed
+         before itself steps over it, Backspace between an empty pair takes both *)
+      | Event.TextInput s when language <> None && String.length s = 1 && not readonly && not command ->
+          let c = s.[0] and pairs = (Option.get language).pairs in
+          let start, stop = text_selection edit in
+          let next = if edit.caret < String.length edit.text then Some edit.text.[edit.caret] else None in
+          (match List.assoc_opt c pairs with
+           | Some close when start <> stop ->
+               replace_text edit (String.make 1 c ^ String.sub edit.text start (stop - start) ^ String.make 1 close);
+               edit.anchor <- start + 1; edit.caret <- stop + 1
+           | _ when List.exists (fun (_, close) -> close = c) pairs && next = Some c ->
+               edit.caret <- edit.caret + 1; edit.anchor <- edit.caret
+           | Some close ->
+               replace_text edit (String.make 1 c ^ String.make 1 close);
+               edit.caret <- edit.caret - 1; edit.anchor <- edit.caret
+           | None -> replace_text edit s)
+      | Event.KeyPressed Input.Backspace when language <> None && not readonly && not command
+          && edit.caret = edit.anchor && edit.caret > 0 && edit.caret < String.length edit.text
+          && List.mem (edit.text.[edit.caret - 1], edit.text.[edit.caret]) (Option.get language).pairs ->
+          edit.anchor <- edit.caret - 1; edit.caret <- edit.caret + 1; replace_text edit ""
       | Event.KeyPressed Input.Tab when not command && not readonly ->
           if not shift then replace_text edit "  "
           else begin
@@ -2512,6 +2558,13 @@ let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors =
   if !vertical <> scroll_offset ui body then set_scroll_offset ui body !vertical;
   let offset = !vertical and horizontal = !horizontal in
   let theme = ui.theme and composition = ui.composition in
+  (* the language's colours and the bracket pair at the caret, once per frame *)
+  let colors = match language with Some l -> l.colorize final | None -> [] in
+  let matched = match language with
+    | Some l when focused ->
+        let c = edit.caret in
+        List.find_opt (fun (o, k) -> o = c - 1 || k = c - 1 || o = c || k = c) (l.brackets final)
+    | _ -> None in
   draw ui body (fun paint (bx, by, bw, bh) ->
     let width text = Paint.text_width paint text /. paint.scale in
     Paint.rect paint ~x:bx ~y:by ~w:bw ~h:bh ~fill:(if readonly then theme.panel else theme.input)
@@ -2555,15 +2608,29 @@ let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors =
       clip (bx +. gutter) (bw -. gutter);
       List.iter (fun span -> band line span (Color.with_alpha theme.accent 70) y) spans;
       if selected then band line (s0, s1) (Color.with_alpha theme.accent 100) y;
-      let line_str = String.sub final (start_of rows line) (stop_of rows line - start_of rows line) in
+      Option.iter (fun (o, k) ->
+        band line (o, o + 1) (Color.with_alpha theme.accent 110) y;
+        band line (k, k + 1) (Color.with_alpha theme.accent 110) y) matched;
+      let ls = start_of rows line and le = stop_of rows line in
+      let line_str = String.sub final ls (le - ls) in
       if focused && line = caret_line && composition <> "" then begin
-        let before = String.sub final (start_of rows line) (edit.caret - start_of rows line) in
+        let before = String.sub final ls (edit.caret - ls) in
         let caret_x = text_x +. width before in
         Paint.text paint ~at:(text_x, text_y) ~color:theme.foreground before;
         Paint.text paint ~at:(caret_x, text_y) ~color:theme.foreground composition;
         Paint.text paint ~at:(caret_x +. width composition, text_y) ~color:theme.foreground
           (String.sub line_str (String.length before) (String.length line_str - String.length before))
-      end else Paint.text paint ~at:(text_x, text_y) ~color:theme.foreground line_str
+      end else if colors = [] then Paint.text paint ~at:(text_x, text_y) ~color:theme.foreground line_str
+      else begin
+        (* the row in coloured runs, the gaps in the foreground colour; ponytail: every row scans
+           the whole colour list (visible rows x tokens), fine for workspace-sized text *)
+        let at a = text_x +. width (String.sub final ls (a - ls)) in
+        let run a b color = if a < b then Paint.text paint ~at:(at a, text_y) ~color (String.sub final a (b - a)) in
+        let pos = List.fold_left (fun pos (a, b, color) ->
+          let a = max a ls and b = min b le in
+          if a >= b || a < pos then pos else (run pos a theme.foreground; run a b color; b)) ls colors in
+        run pos le theme.foreground
+      end
     done;
     clip (bx +. gutter) (bw -. gutter);
     if focused then begin
@@ -2576,8 +2643,8 @@ let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors =
     paint.clip_rect <- previous);
   final, !submitted
 
-let text_area ui ~at ~w ~h ?readonly ?errors ?spans ?reveal label text =
-  fst (text_area_submit ui ~at ~w ~h ?readonly ?errors ?spans ?reveal label text)
+let text_area ui ~at ~w ~h ?readonly ?errors ?spans ?reveal ?language label text =
+  fst (text_area_submit ui ~at ~w ~h ?readonly ?errors ?spans ?reveal ?language label text)
 
 let choice ui text options selected =
   let options = Array.of_list options in
@@ -2800,32 +2867,36 @@ let picker ui ?(limit = 10) label ~query rows_of =
   set_state ui search !cursor; set_state ui list !armed;
   !query, !result
 
-let context_clicked (signal : signal) =
-  let (px, py), (rx, ry) = signal.press_point, signal.release_point in
-  signal.released && signal.button = Some Input.RightButton
-  && ((px -. rx) *. (px -. rx)) +. ((py -. ry) *. (py -. ry)) < 16.
-
 (* A floating kit menu at [at], kept inside the frame. The host holds whether
    it is open; rows commit on press and release inside, disabled rows are
    inert, and Escape, focus loss, or a press outside dismiss it. *)
 let context_menu ui ~at:(x, y) label items =
-  let width = 200. and row_height = float ui.kit_row_height in
-  let height = (float (List.length items) *. row_height) +. 6. in
+  (* the width follows the longest row; an empty label is a separator line *)
+  let row_height = float ui.kit_row_height and gap = 7. in
+  let width = List.fold_left (fun w (text, _) -> Float.max w (text_width ui text +. 36.)) 150. items in
+  let height = List.fold_left (fun h (text, _) -> h +. (if text = "" then gap else row_height)) 6. items in
   let x = Float.max 0. (Float.min x (ui.view_w -. width))
   and y = Float.max 0. (Float.min y (ui.view_h -. height)) in
-  match popup ui ~stroke:ui.theme.accent ~at:(x, y) ~width ~height label (fun () ->
+  match popup ui ~stroke:(Theme.border ui.theme) ~at:(x, y) ~width ~height label (fun () ->
       List.mapi (fun index (text, enabled) ->
-        let row = kit_row ui ~flags:(if enabled then clickable lor focusable lor blocking lor tab_only else blocking)
-            text in
-        let signal = signal ui row in
-        let theme = ui.theme and shown = display text in
-        draw ui row (fun paint rect ->
-          let (_, y, _, h) as bounds = ints rect in
-          let rx, _, _, _ = bounds in
-          if enabled && signal.hovered then hover_row paint ui bounds;
-          kit_text paint ~color:(if enabled then theme.foreground else Theme.muted theme)
-            (rx + 8) (label_y ui y h) shown);
-        if enabled && signal.clicked then Some index else None) items
+        if text = "" then begin
+          let line = box ui ~flags:blocking ~w:Grow ~h:(Px gap) (Printf.sprintf "separator-%d" index) in
+          draw ui line (fun paint (x, y, w, _) ->
+            Paint.fill paint ~x:(x +. 8.) ~y:(y +. 3.) ~w:(w -. 16.) ~h:1. (Theme.faint_border ui.theme));
+          None
+        end else begin
+          let row = kit_row ui ~flags:(if enabled then clickable lor focusable lor blocking lor tab_only else blocking)
+              text in
+          let signal = signal ui row in
+          let theme = ui.theme and shown = display text in
+          draw ui row (fun paint rect ->
+            let (_, y, _, h) as bounds = ints rect in
+            let rx, _, _, _ = bounds in
+            if enabled && signal.hovered then hover_row paint ui bounds;
+            kit_text paint ~color:(if enabled then theme.foreground else Theme.muted theme)
+              (rx + 12) (label_y ui y h) shown);
+          if enabled && signal.clicked then Some index else None
+        end) items
       |> List.find_map Fun.id) with
   | None -> dismiss_popup ui; `Dismiss
   | Some (Some index) -> dismiss_popup ui; `Pick index

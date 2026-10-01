@@ -21,6 +21,8 @@ type change =
   | Zone_collapsed of { zone : path; collapsed : bool }
   | Selected of path list
   | Moved of (path * float * float) list
+  | Copy_requested of path list  (** the host puts these bindings' text on the clipboard *)
+  | Paste_requested  (** the host adds the clipboard's bindings here *)
   | Macro_requested of path list  (** the host opens the make-macro dialog over these nodes *)
   | Defn_requested of path list  (** the host types the outside names and writes the [defn] *)
   | Frames_set of { scope : path; frames : (string * (float * float) * (float * float)) list }
@@ -35,7 +37,7 @@ type command =
   | Edit_name  (** rename the selected node, or edit the default of a selected graph input *)
   | Item_up | Item_down  (** move the hovered list item *)
   | Make_frame  (** a titled frame around the selected nodes *)
-  | Duplicate | Display
+  | Duplicate | Display | Copy | Cut | Paste
   | Frame_selection  (** [f]: pan and zoom to the selected nodes (all, with none selected) *)
 
 type stats = {
@@ -222,6 +224,14 @@ let clear_selection t = if Path_set.is_empty t.selected then t else { t with sel
 let stats t = t.stats
 let zoom t = t.zoom
 
+(* a screen point as a position inside [scope], snapped to the 12-point grid (where a node added
+   from the menu opened there goes) *)
+let scope_point t ~scope (mx, my) =
+  Option.map (fun (ox, oy) ->
+    let snap v = Float.round (v /. 12.) *. 12. in
+    snap ((mx -. float t.x -. t.pan_x) /. t.zoom -. ox), snap ((my -. float t.y -. t.pan_y) /. t.zoom -. oy))
+    (List.assoc_opt scope t.geo.origins)
+
 let count_scope (s : P.scope) =
   let rec go (s : P.scope) = List.fold_left (fun (n, z, r) (node : P.node) ->
     let n', z', r' = match node.zone with Some zn -> go zn.scope | None -> 0, 0, 0 in
@@ -378,6 +388,10 @@ let action_changes t command =
             if index = t.probe n.path then None else Some (Probe_set { zone = n.path; index })) nodes
   | Frame_all | Frame_selection | Walk _ | Edit_name | Make_frame -> []
   | Duplicate -> if paths = [] then [ Notice "Select nodes to duplicate" ] else edit (E.Duplicate { nodes = paths })
+  | Copy -> if paths = [] then [ Notice "Select nodes to copy" ] else [ Copy_requested paths ]
+  | Cut -> if paths = [] then [ Notice "Select nodes to cut" ]
+      else Copy_requested paths :: edit (E.Delete_nodes { nodes = paths })
+  | Paste -> [ Paste_requested ]
   | Display -> one (fun n ->
       if n.synthetic || n.ty <> Ty.Geometry then [ Notice "Only a geometry node can be viewed" ]
       else [ Display_set n.path ])
@@ -471,6 +485,12 @@ let bindings =
     make ~guide:some "frame" "frame the selection (titled box)" Make_frame (ch 'g') [ Input.Shift ];
     make ~guide:some "duplicate" "duplicate" Duplicate (ch 'd') [ Input.Meta ];
     make ~guide:some "duplicate" "duplicate" Duplicate (ch 'd') [ Input.Ctrl ];
+    make ~guide:some "copy" "copy as text" Copy (ch 'c') [ Input.Meta ];
+    make ~guide:some "copy" "copy as text" Copy (ch 'c') [ Input.Ctrl ];
+    make ~guide:some "cut" "cut" Cut (ch 'x') [ Input.Meta ];
+    make ~guide:some "cut" "cut" Cut (ch 'x') [ Input.Ctrl ];
+    make ~guide:any "paste" "paste bindings" Paste (ch 'v') [ Input.Meta ];
+    make ~guide:any "paste" "paste bindings" Paste (ch 'v') [ Input.Ctrl ];
     make ~guide:one "display" "view in the viewport" Display (ch 'v') [];
     make ~guide:one "item-up" "move list item up" Item_up Input.ArrowUp [ Input.Alt ];
     make ~guide:one "item-down" "move list item down" Item_down Input.ArrowDown [ Input.Alt ] ]
@@ -648,7 +668,7 @@ let paint_rail paint t ~z ~fs ~x ~y ~expanded (rail : P.rail_row list) =
       | P.Var -> theme.accent | Acc -> palette.vec3 | Param -> palette.fn | Capture -> Pxui.Theme.muted theme in
     Ui.Paint.text paint ~at:(x +. 14. *. z, ry +. 6. *. z) ~size:fs ~color (fitted paint fs (56. *. z) r.name);
     let role = match r.role with P.Var -> "in" | Acc -> "acc" | Param -> "param" | Capture -> "from" in
-    Ui.Paint.text paint ~at:(x +. 14. *. z +. 58. *. z, ry +. 7. *. z) ~size:(max 6 (fs - 1))
+    Ui.Paint.text paint ~at:(x +. 14. *. z +. 58. *. z, ry +. 7. *. z) ~size:(max 4 (fs - 1))
       ~color:(Pxui.Theme.muted theme) role;
     (match r.expr with
      | Some e ->
@@ -665,7 +685,7 @@ let paint_rail paint t ~z ~fs ~x ~y ~expanded (rail : P.rail_row list) =
 let paint_header paint t ~z ~fs ~x ~y ~w (n : P.node) ~toggle ?flag ?lens_open () =
   let viewed = t.display = Some n.path in
   let theme = t.theme in
-  let size = max 6 (fs - 1) in
+  let size = max 4 (fs - 1) in
   let head = P.head_height *. z in
   Ui.Paint.rect paint ~x:(x +. 1.) ~y:(y +. 1.) ~w:(w -. 2.) ~h:(head -. 1.) ~radius:(3. *. z)
     ~fill:theme.control ();
@@ -719,7 +739,7 @@ let paint_header paint t ~z ~fs ~x ~y ~w (n : P.node) ~toggle ?flag ?lens_open (
 let hoist_x = 116.
 let paint_footer paint t ~z ~fs (f : Flow_sop.Probe.footer) (ty : Ty.t) (x, y, w, h) =
   let theme = t.theme in
-  let size = max 6 (fs - 1) in
+  let size = max 4 (fs - 1) in
   let fy = y +. h -. P.foot_height *. z in
   let text_y = fy +. 5. *. z in
   Ui.Paint.line paint ~from_:(x +. 8. *. z, fy) ~to_:(x +. w -. 8. *. z, fy) ~width:1. (Pxui.Theme.faint_border theme);
@@ -784,8 +804,8 @@ let paint_lens paint t ~z ~fs (l : P.lens) ~step (x, y, w) ~lh =
     Ui.Paint.rect paint ~x:(x +. bx *. z) ~y:(y +. by *. z) ~w:(bw *. z) ~h:(bh *. z) ~radius:(3. *. z)
       ~fill:(if on then theme.accent else theme.input) ~stroke:(Pxui.Theme.faint_border theme) ();
     let label = if i = 0 then "call" else if i = len then "Template" else string_of_int i in
-    let tw = Ui.Paint.text_width paint ~size:(max 6 (fs - 1)) label in
-    Ui.Paint.text paint ~at:(x +. (bx +. bw /. 2.) *. z -. tw /. 2., y +. (by +. 3.) *. z) ~size:(max 6 (fs - 1))
+    let tw = Ui.Paint.text_width paint ~size:(max 4 (fs - 1)) label in
+    Ui.Paint.text paint ~at:(x +. (bx +. bw /. 2.) *. z -. tw /. 2., y +. (by +. 3.) *. z) ~size:(max 4 (fs - 1))
       ~color:(if on then theme.input else theme.foreground) label
   done;
   let text = if step >= len then (if l.template = "" then "(no definition)" else l.template)
@@ -800,13 +820,13 @@ let paint_lens paint t ~z ~fs (l : P.lens) ~step (x, y, w) ~lh =
   let (rx, ry), (rw, rh) = lens_replace_box lh in
   Ui.Paint.rect paint ~x:(x +. rx *. z) ~y:(y +. ry *. z) ~w:(rw *. z) ~h:(rh *. z) ~radius:(3. *. z)
     ~fill:theme.input ~stroke:theme.accent ();
-  Ui.Paint.text paint ~at:(x +. (rx +. 8.) *. z, y +. (ry +. 4.) *. z) ~size:(max 6 (fs - 1)) ~color:theme.accent
+  Ui.Paint.text paint ~at:(x +. (rx +. 8.) *. z, y +. (ry +. 4.) *. z) ~size:(max 4 (fs - 1)) ~color:theme.accent
     "Replace call with expansion";
   let reading = match l.error with
     | _ when step >= len -> "the macro's template"
     | Some message when step >= len - 1 && step > 0 -> message
     | _ -> if step = 0 then "as written" else Printf.sprintf "after %d expansion step%s" step (if step > 1 then "s" else "") in
-  let size = max 6 (fs - 1) in
+  let size = max 4 (fs - 1) in
   let tw = Ui.Paint.text_width paint ~size reading in
   Ui.Paint.text paint ~at:(x +. w -. 8. *. z -. tw, y +. (ry +. 4.) *. z) ~size ~color:(Pxui.Theme.muted theme)
     (fitted paint size (w -. (rx +. rw +. 24.) *. z) reading)
@@ -892,7 +912,7 @@ let paint_zone_frame paint t ~z ~fs ?footer (n : P.node) (zn : P.zone) ~selected
   end;
   if zn.kind <> P.Let then begin
     let sy = y +. P.head_height *. z in
-    let size = max 6 (fs - 1) in
+    let size = max 4 (fs - 1) in
     let read = if count > 0 then Printf.sprintf "%d/%d" (probe + 1) count else "no runs" in
     let rw = Ui.Paint.text_width paint ~size read in
     Ui.Paint.line paint ~from_:(x, sy +. P.strip_height *. z) ~to_:(x +. w, sy +. P.strip_height *. z) ~width:1.
@@ -1075,7 +1095,8 @@ let update t ui (frame : Frame.t) =
             if List.mem p c.paths then c.dx, c.dy else 0., 0.) }
     | _ -> t in
   let z = t.zoom in
-  let fs = max 7 (int_of_float (Float.round (11. *. z))) in
+  (* text follows the zoom down to 5 points (a 6-point row at zoom 0.25 holds it) *)
+  let fs = max 5 (int_of_float (Float.round (11. *. z))) in
   let viewport = (float t.x, float t.y, float t.width, float t.height) in
   let visible = Array.to_list t.geo.items |> List.filter (fun ((p : P.placed), ax, ay) ->
     let r = (sx t ax -. 20., sy t ay -. 20., p.w *. z +. 40., p.h *. z +. 40.) in
@@ -1198,7 +1219,7 @@ let update t ui (frame : Frame.t) =
                     let cw = (vw -. float (k - 1) *. 2.) /. float k in
                     List.concat (List.mapi (fun c (e : S.t) -> match e.node with
                       | S.Num text ->
-                          (match num_field ui ~at:(at +. float c *. (cw +. 2.), ay) ~w:cw ~h ~size:(max 6 (fs - 1))
+                          (match num_field ui ~at:(at +. float c *. (cw +. 2.), ay) ~w:cw ~h ~size:(max 4 (fs - 1))
                                    (Printf.sprintf "f%d.%d" i c) text with
                            | Some text' -> [ Syntax_edit (E.Set_arg { node = n.path; key = r.key; sub = [ c ];
                                value = S.make (S.Num text') }) ]

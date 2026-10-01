@@ -9,22 +9,28 @@ type shown = {
   graph : string;  (** the graph the Selection and Graph tabs read *)
   text : string;
   mark : (int * int) option;  (** byte span of the selected binding in [text] *)
-  binding : (path * string) option;  (** the selected binding and its expression's text *)
+  key : path;  (** what the Selection tab shows and its apply writes: the selected binding's
+                   path, else [[graph]] *)
   applied : string Lazy.t;  (** the whole document's text (the draft's dirty mark) *)
 }
 
 type state = {
   tab : tab;
   draft : string option;  (** the Document tab's unapplied text *)
-  binding_draft : (path * string) option;
+  binding_draft : (path * string) option;  (** the Selection tab's unapplied text, keyed by [shown.key] *)
   graph_draft : (string * string) option;  (** the Graph tab's unapplied text, and its graph *)
   doc_errors : Flow.Diagnostic.t list;  (** of the last refused apply *)
   binding_errors : Flow.Diagnostic.t list;
   graph_errors : Flow.Diagnostic.t list;
+  wrap : bool;  (** long lines continue on the next row (the right-click menu toggles it) *)
+  menu : (float * float) option;  (** the right-click menu while it is open *)
   cache : ((Flow.Syntax.t list * string * path option * tab) * shown) option;
 }
 
 val initial : state
+
+val binding : Flow.Syntax.t list -> path -> (Flow.Syntax.t option * Flow.Syntax.t) option
+(** The binding a path names in the source: its pattern (none for a [@result]) and expression. *)
 
 val make_shown : Flow.Syntax.t list -> string -> path option -> tab -> shown
 (** [make_shown source graph selected tab]: Selection prints the selected
@@ -53,9 +59,14 @@ type intent =
   | Doc_discard
   | Binding_draft of path * string
   | Binding_apply of path * string
+      (** Check & apply of the Selection tab: the shown [(let* [...] name)] closure, whose changed
+          bindings are written ([Set_arg Whole] each), or the graph form when nothing upstream is
+          shown ({!Flow_sop.Flow_edit.Set_graph}) *)
   | Binding_discard
   | Graph_draft of string * string  (** the graph's name and its draft text *)
   | Graph_apply of string * string  (** Check & apply: the graph's form is replaced ({!Flow_sop.Flow_edit.Set_graph}) *)
   | Graph_discard
+  | Menu of (float * float) option  (** the right-click menu opened here, or closed *)
+  | Toggle_wrap
 
 val view : Pxui.Ui.t -> bounds:int * int * int * int -> state -> shown -> intent list

@@ -13,6 +13,9 @@ val create : x:int -> y:int -> entry list -> t
 (** A menu open at a screen point (clamped inside the bounds it is drawn in).  Entries with an
     empty key, label or category path, or a repeated key, are dropped. *)
 
+val position : t -> int * int
+(** The screen point the menu was opened at (where the host places what it adds). *)
+
 val update : t -> Pxui.Ui.t -> bounds:int * int * int * int -> t option * string option
 (** Build the popup inside [Pxui.Ui.frame]: the menu while it stays open ([None] after Escape, a
     press outside or a pick) and the key of the entry picked this frame. *)

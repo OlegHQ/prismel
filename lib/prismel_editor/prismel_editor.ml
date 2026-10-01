@@ -69,6 +69,7 @@ module Private = struct
   module Pick = Pick
   module Cook = Cook
   module Text_pane = Text_pane
+  module Lisp_text = Lisp_text
   module Navigator = Navigator
   module Bars = Bars
 end

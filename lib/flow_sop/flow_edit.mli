@@ -142,6 +142,9 @@ val fresh_name : Flow.Syntax.t list -> root:string -> string -> string
     operator or special form; a slash prefix and other characters are
     dropped ([sop/transform] gives [transform], then [transform_2]). *)
 
+val rename_ref : string -> string -> Flow.Syntax.t -> Flow.Syntax.t
+(** [rename_ref old new form]: every symbol [old] (or [old.field]) in [form] reads [new]. *)
+
 val default_for : Flow.Ty.t -> string -> Flow.Syntax.t option
 (** The value a disconnected input of this type falls back to (the study's
     [defaultFor]); [None] for types with none.  The label ["color"] makes text

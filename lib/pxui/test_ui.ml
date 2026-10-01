@@ -633,13 +633,13 @@ let run () =
   Ui.destroy ui;
   (* Text areas: the text_field edit and IME path over lines. *)
   let area = ref "" and readonly = ref false and errors = ref [] and wrapped = ref false
-  and submitted = ref false in
+  and submitted = ref false and language = ref None and context = ref None in
   let ui = Ui.create () and time = ref 0. in
   let area_step ?(keys = []) events =
     time := !time +. 0.5;
     ignore (Ui.frame ui { (frame ~scale:1. ~time:!time events) with keys } (fun ui ->
       let text, submit = Ui.text_area_submit ui ~at:(0., 0.) ~w:300. ~h:96. ~readonly:!readonly
-        ~wrap:!wrapped ~errors:!errors "area" !area in
+        ~wrap:!wrapped ~errors:!errors ?language:!language ~on_context:(fun at -> context := Some at) "area" !area in
       area := text; submitted := submit)) in
   let region () = match Scene.Private.text_regions (Ui.scene ui) with
     | [(_, y, _, _, true, cursor)] -> y, cursor
@@ -739,6 +739,28 @@ let run () =
   if y < 0 || y > 96 then fail (Printf.sprintf "caret line left the area (y %d)" y);
   area_step [Event.KeyPressed Input.Escape];
   if Ui.text_input_focused ui then fail "Escape did not leave the text area";
+  (* a language: brackets in pairs, Enter indents, right-click reports the point *)
+  errors := [];
+  language := Some { Ui.colorize = (fun _ -> []); brackets = (fun _ -> []);
+    indent = (fun text caret -> if String.contains (String.sub text 0 caret) '(' then "  " else "");
+    pairs = [ '(', ')'; '"', '"' ] };
+  area := "";
+  area_step [press (150, 12); release (150, 12); Event.TextInput "("];
+  expect "an opener inserts its pair" "()";
+  area_step [Event.TextInput "a"; Event.TextInput ")"];
+  expect "a closer typed before itself steps over it" "(a)";
+  area_step [Event.KeyPressed Input.ArrowLeft; Event.KeyPressed Input.Enter];
+  expect "Enter indents as the language says" "(a\n  )";
+  area_step [Event.TextInput "\""; Event.TextInput "\""];
+  expect "a quote pairs, then steps over its twin" "(a\n  \"\")";
+  area_step [Event.KeyPressed Input.ArrowLeft; Event.KeyPressed Input.Backspace];
+  expect "Backspace between an empty pair takes both" "(a\n  )";
+  area_step ~keys:[Input.Shift] [Event.KeyPressed Input.Home];
+  area_step [Event.TextInput "("];
+  expect "an opener wraps the selection" "(a\n(  ))";
+  area_step [Event.MousePressed (Input.RightButton, (100., 20.)); Event.MouseReleased (Input.RightButton, (100., 20.))];
+  if !context = None then fail "a right-click did not reach on_context";
+  language := None;
   Ui.destroy ui;
   (* Modal: centered, and Escape or a press outside dismisses it. *)
   let ui = Ui.create () and shown = ref None in

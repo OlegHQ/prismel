@@ -79,7 +79,7 @@ module Private : sig
       | Look_through | Fly | Tool of int
       | Undo | Redo
       | Panel_split of Pxui_shell.Layout.axis | Panel_close | Panel_retype of Pxui_shell.Layout.panel
-      | Toggle_projection | Restore_layout | Enter | Up | Go_world
+      | Toggle_map | Ui_scale of int | Restore_layout | Enter | Up | Go_world
       | World_emit | World_reseed | World_time of float | World_play | World_preset of int
       | Scope_command of Pxui_graph.Scope.command
       | List_command of Pxui_shell.Tree.command
@@ -165,11 +165,19 @@ module Private : sig
       graph : string;
       text : string;
       mark : (int * int) option;
-      binding : (string list * string) option;
+      key : string list;
       applied : string Lazy.t;
     }
     val make_shown : Flow.Syntax.t list -> string -> string list option -> tab -> shown
     val line_of : string -> Flow.Diagnostic.t -> int option
+    val binding : Flow.Syntax.t list -> string list -> (Flow.Syntax.t option * Flow.Syntax.t) option
+  end
+
+  (** The editor's Lisp as the text area's language (tests of its indentation and lexing). *)
+  module Lisp_text : sig
+    val indent : string -> int -> string
+    val brackets : string -> (int * int) list
+    val language : Pxui.Theme.t -> Pxui.Ui.language
   end
 
   (** The host bars: where their buttons sit. *)

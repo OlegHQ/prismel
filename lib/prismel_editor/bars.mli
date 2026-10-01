@@ -3,6 +3,7 @@
     report a click; [Core] maps it to the one command or edit it means. *)
 
 type top_intent = Undo | Redo | Copy_lisp | Keys | Layout of string  (** a name of {!layouts} *)
+  | Dismiss  (** the refused-edit status was clicked away *)
 type tool = Add | Repeat | Iterate | Fn | Macro | Defn
 
 val height : int
@@ -31,3 +32,9 @@ val graph_tools : Pxui.Ui.t -> header:int * int * int * int -> from:float -> ena
 val layout_text : name:string -> graph:string option -> scene:string -> string -> string
 (** [layout_text ~name ~graph ~scene layout]: the editor graph [name] of a shell layout
     ([default], [code], [focus], [floating]), its graph panel showing [graph]. *)
+
+val tree_text : name:string -> scene:string -> Editor_core.Panels.t ->
+  string * (Editor_core.Panels.path -> string option)
+(** The editor graph [name] of a panel tree (a document without one is given its host layout
+    before its first panel edit): every leaf and split is a binding, and the function names the
+    binding of a leaf by its path. *)

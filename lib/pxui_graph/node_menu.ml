@@ -22,6 +22,7 @@ type t = {
 }
 
 let menu_width = 286
+let position menu = menu.x, menu.y
 let menu_limit = 10
 
 let create ~x ~y entries =
@@ -113,6 +114,12 @@ let update menu ui ~bounds:(bx, by, bw, bh) =
       ~width:(float_of_int width) ~height:(float_of_int height) "pxui-graph-menu" (fun () ->
       let query, pick = Ui.picker ui ~limit:menu_limit "Add · type to search" ~query:menu.query
           (fun query -> if query = "" then [||] else picker_rows menu query) in
+      (* a cross at the right of the search row clears it *)
+      let clear = Ui.box ui ~flags:Ui.(clickable + blocking) ~w:(Ui.Px 22.) ~h:(Ui.Px (float_of_int row))
+          ~at:(float_of_int (x + width - 26), float_of_int (y + 3)) "pxui-graph-menu-clear" in
+      if query <> "" then Ui.draw ui clear (fun paint (cx, cy, _, _) ->
+        Ui.Paint.text paint ~at:(cx +. 7., cy +. 5.) ~color:(Pxui.Theme.muted (Ui.theme ui)) "\xc3\x97");
+      let query = if (Ui.signal ui clear).clicked then "" else query in
       let hovered = ref None and clicked = ref None in
       if query = "" then
         Ui.row ui "pxui-graph-menu-columns" (fun () ->

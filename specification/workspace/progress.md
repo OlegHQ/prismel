@@ -851,3 +851,29 @@ what `sketches/ws_bloom` opens as.
   FLOW_SCRIPT="click 75,388@22" FLOW_EXPORT=<dir>` renders the studio.
 - Not done, by design: a case-study selector (the twelve studies are separate sketches, one per `.plisp`); dragging a
   Navigator row onto the canvas to insert a `ref` or call (Add's menu does it); a multi-line note in the Navigator.
+
+## Feedback round (1 October 2026)
+
+A pass over the first hands-on feedback on the studio; every item is a small change, listed with its test.
+
+- **Lisp editing** (`Ui.text_area ?language`, `lib/prismel_editor/lisp_text.ml`): syntax colours (comments, strings,
+  numbers, keywords, `^:meta`, form heads, brackets by depth, unmatched in red), the bracket pair at the caret lit,
+  Enter indents (body forms two in, calls under their first argument, vectors under their first element), brackets
+  and quotes typed in pairs (wrap, step over, Backspace takes both), a right-click menu (Check & apply, Discard, wrap
+  toggle).  The Selection tab is one editable area: the closure shown, whose changed root bindings are written
+  (`Set_arg Whole` each, one "Edit text" entry; the graph form when nothing upstream is shown).  Tests: `test_ui`
+  (pairs, indent, right-click), `test_text_pane` (`lisp_text`, `editor_binding`).
+- **Keys.** `Space l` is the retype submenu (`g l t i u m w`); on the graph panel `g` `l` `t` only switch its
+  projection.  The projection cycle is gone; the World's map toggle moved to `Space m`.  `Space o` keeps split and
+  close.  Panel keys act on the focused leaf by path (`Core.focus_path`): the second panel of a kind closes itself.
+  Command/Ctrl-C, X, V copy, cut and paste bindings as text (`Core.copy_bindings`, `paste_bindings`).
+  Command +/-/0 scale the kit text (`Ui.set_font_size`).  Tests: `run_panel_keys`, `scope_gestures`.
+- **Editor graph on demand.** A document without an editor graph gets one written from the layout it shows
+  (`Bars.tree_text`) before its first panel edit, adopting the scene graph its viewport shows (`Doc.syntax_edit_result`
+  on `Set_graph`), all in the edit's history entry.  Test: `run_panel_keys`.
+- **Smaller.** A node added from the menu lands where the menu opened (`Scope.scope_point`).  The Navigator's input
+  slider scrubs from the value at the press (it re-derived its range from the value it had just written, so a drag
+  grew geometrically).  The top bar's "Refused" status is clicked away and a later successful edit clears it.
+  `Ui.context_menu` fits its rows and groups the header menu (kit fixture regenerated).  The node menu's search has a
+  clear cross.  Tile text follows the zoom down to 5 points.  `int` (truncation), `round`, `ceil` and `float`
+  join the value operators; `iteration.md` states the implicit Float→Int rounding.  Test: `test_workspace_eval`.

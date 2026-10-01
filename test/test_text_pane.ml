@@ -35,7 +35,10 @@ let selection_text () =
   check (not (contains s.text "(graph")) "the closure is a let*, not the graph";
   check (contains s.text "inputs seeds, spread") "the closure names the inputs it reads";
   check (marked s = "r (* spread (sqrt i))") ("marked " ^ marked s);
-  check (s.binding = Some ([ "sunflower"; "seeds_each"; "r" ], "(* spread (sqrt i))")) "binding text";
+  check (s.key = [ "sunflower"; "seeds_each"; "r" ]) "the selection's key";
+  check ((match T.binding src [ "sunflower"; "seeds_each"; "r" ] with
+          | Some (_, v) -> String.trim (fst (Flow.Lisp.print [ v ])) | None -> "")
+         = "(* spread (sqrt i))") "binding text";
   (* a binding that reads another: the upstream closure comes with it *)
   let s = sel [ "sunflower"; "head" ] in
   check (contains s.text "with 1 upstream binding") "head has one upstream binding";
@@ -54,7 +57,7 @@ let selection_text () =
   check (marked s |> fun m -> String.length m > 0 && String.sub m 0 6 = "result") "bloom result mark";
   (* no selection: the whole graph, nothing marked; Graph marks the selection *)
   let s = T.make_shown bloom "flower" None T.Selection in
-  check (contains s.text "(graph flower" && s.mark = None && s.binding = None) "unselected shows the graph";
+  check (contains s.text "(graph flower" && s.mark = None && s.key = [ "flower" ]) "unselected shows the graph";
   let g = T.make_shown bloom "flower" (Some [ "flower"; "ring"; "leaf" ]) T.Graph in
   check (contains g.text "(graph flower" && contains g.text "heart" && g.mark <> None) "graph tab";
   check (not (contains g.text "(defn petal")) "the graph tab shows the active graph only";
@@ -100,11 +103,11 @@ let editor_text () =
   let settle () = for _ = 1 to 4 do step [] done in
   settle ();
   let gx, gy, _, gh = (E.panes !env (frame 0 [])).graph in
-  (* enter the sunflower object, then Space l twice: graph -> list -> text *)
+  (* enter the sunflower object, then Space l t: the graph panel shows its text *)
   click (float (gx + 50), float (gy + 100));
   step [ key Input.Home ]; step [ char 'i' ]; settle ();
-  step [ key Input.Space; char 'l' ]; step [ key Input.Space; char 'l' ]; step [];
-  check (contains (dump ()) "projection: text") ("Space l did not reach the text pane\n" ^ dump ());
+  step [ key Input.Space; char 'l'; char 't' ]; step [];
+  check (contains (dump ()) "projection: text") ("Space l t did not reach the text pane\n" ^ dump ());
   let ws () = E.workspace !env in
   let original = ws () in
   let base = E.undo_label !env in
@@ -206,18 +209,47 @@ let editor_binding () =
   let gx, gy, _, gh = (E.panes !env (frame 0 [])).graph in
   click (float (gx + 50), float (gy + 100));
   step [ key Input.Home ]; step [ char 'i' ]; settle ();
-  (* walk to a binding, then show the text pane: its Selection tab edits that binding *)
+  (* walk to a binding, then show the text pane: its Selection tab edits the closure shown *)
   for _ = 1 to 4 do step [ key Input.ArrowRight ] done;
-  step [ key Input.Space; char 'l' ]; step [ key Input.Space; char 'l' ]; step [];
-  check (contains (dump ()) "projection: text") "Space l did not reach the text pane";
-  click (float (gx + 100), float (gy + gh - 60));
-  step ~keys:[ Input.Meta ] [ char 'a' ];
-  step [ Event.TextInput "(sqrt nosuch)" ];
-  click (float (gx + 60), float (gy + gh - 36));
-  check (contains (dump ()) "error at line 1:") ("a binding error has no line\n" ^ dump ());
-  click (float (gx + 100), float (gy + gh - 60));
-  step [ Event.TextInput " " ];
-  check (not (contains (dump ()) ", error")) "typing in the binding left its error mark"
+  step [ key Input.Space; char 'l'; char 't' ]; step [];
+  check (contains (dump ()) "projection: text") "Space l t did not reach the text pane";
+  let area = float (gx + 200), float (gy + 24 + 60) and apply = float (gx + 60), float (gy + gh - 36) in
+  let type_closure text = click area; step ~keys:[ Input.Meta ] [ char 'a' ]; step [ Event.TextInput text ] in
+  let ws () = E.workspace !env in
+  let original = ws () in
+  (* a binding that does not check: refused, marked on line 1 *)
+  type_closure "(let* [head (sop/merge nosuch)] head)";
+  click apply;
+  check (contains (dump ()) "error at line 1:") ("a refused closure has no line\n" ^ dump ());
+  check (ws () == original) "a refused closure changed the document";
+  click area; step [ Event.TextInput " " ];
+  check (not (contains (dump ()) ", error")) "typing in the closure left its error mark";
+  (* a name that is not a root binding is refused with its name *)
+  type_closure "(let* [nosuch 1] nosuch)";
+  click apply;
+  check (contains (dump ()) "nosuch is not a binding of sunflower") ("an unknown binding\n" ^ dump ());
+  (* a changed binding is written: one history entry *)
+  type_closure "(let* [head (sop/merge seeds_each seeds_each)] head)";
+  click apply;
+  check (E.undo_label !env = Some "Edit text" && contains (fst (Flow.Lisp.print (ws ()).source)) "(sop/merge seeds_each seeds_each)")
+    ("the closure edit was not applied\n" ^ dump ())
+
+(* The editor's Lisp as the text area's language: indentation and bracket pairs. *)
+let lisp_text () =
+  let module L = Prismel_editor.Private.Lisp_text in
+  let indent text = String.length (L.indent text (String.length text)) in
+  check (indent "(let* [a 1" = 7) "a vector's elements line up under the first";
+  check (indent "(graph g :context sop" = 2) "a body form indents two in";
+  check (indent "  (let* [a 1]" = 4) "let* is a body form";
+  check (indent "(sop/box :size 1" = 9) "a call's arguments line up under the first";
+  check (indent "(sop/merge" = 1) "a call broken after its head indents one in";
+  check (indent "(let* [a 1] (+ 1 2)) " = 0) "a closed form indents nothing";
+  check (indent "(+ 1 ; comment (\n" = 3) "an open bracket in a comment does not count";
+  check (indent "(str \"(\" " = 5) "an open bracket in a string does not count";
+  check (L.brackets "(a [b] c)" = [ (0, 8); (3, 5) ] || L.brackets "(a [b] c)" = [ (3, 5); (0, 8) ]) "matched pairs";
+  check (L.brackets "(a ]" = []) "a mismatched closer pairs with nothing";
+  let colors = (L.language Pxui.Theme.default).colorize "(sop/box :size 1.5 \"s\" ; c" in
+  check (List.length colors = 6) (Printf.sprintf "head, keyword, number, string, comment and the paren: %d runs" (List.length colors))
 
 (* W9 through the editor: the 1400x800 window of sketches/flow_workspace, Rosette, the graph
    pane zoomed once (frame 12) so the cards sit where FLOW_W9 clicks them: the B flag of
@@ -294,6 +326,7 @@ let editor_w9 () =
 
 let run () =
   selection_text ();
+  lisp_text ();
   editor_text ();
   editor_binding ();
   editor_w9 ();

@@ -93,7 +93,8 @@ let ops = [
   mk ~any_num:true "pow" [ "a", fl; "b", fl ] (fun ts -> if List.mem Ty.Vec3 ts then Ty.Vec3 else Ty.Float);
   num2 "min"; num2 "max";
   unary "sin" (fun _ -> fl); unary "cos" (fun _ -> fl); unary "sqrt" (fun _ -> fl);
-  unary "floor" (fun _ -> Ty.Int);
+  unary "floor" (fun _ -> Ty.Int); unary "ceil" (fun _ -> Ty.Int); unary "round" (fun _ -> Ty.Int);
+  unary "int" (fun _ -> Ty.Int); unary "float" (fun _ -> fl);
   unary "abs" (function Ty.Int :: _ -> Ty.Int | _ -> fl);
   compare_op "<"; compare_op ">"; compare_op "<="; compare_op ">="; compare_op "=";
   bool_op "and" [ "a", Ty.Bool; "b", Ty.Bool ]; bool_op "or" [ "a", Ty.Bool; "b", Ty.Bool ];

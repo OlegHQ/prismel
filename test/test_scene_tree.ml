@@ -1,8 +1,8 @@
 (* The scene tree, window-free: the scene opens as a list; arrows move the
    focus, [i] and a double-click enter a geometry object or the World, [u]
    goes up; Tab reparents keeping its world position, [h] hides; scene edits
-   never re-cook SOPs; [Space e] opens the World, which then bakes; [Space l]
-   cycles list, text and graph (the graph is the workspace's scene graph). *)
+   never re-cook SOPs; [Space e] opens the World, which then bakes; [Space l] then
+   [l], [t] or [g] shows the graph panel's list, text or graph (the workspace's scene graph). *)
 open Prismel
 open Procedural
 
@@ -99,7 +99,7 @@ let run () =
   check (E.level env = Some "geo1") "i did not enter the focused geometry object";
   check (E.document env |> Edit_graph.inspect |> List.exists (fun (info : Edit_graph.node_info) ->
       info.operation = "box")) "geo1's network is not the sketch's SOP graph";
-  let env = step env [key Input.Space; char 'l'] in
+  let env = step env [key Input.Space; char 'l'; char 'l'] in
   let env = step env [] in
   let projection env =
     let directory = Filename.temp_dir "prismel-flow-view" "" in
@@ -110,7 +110,7 @@ let run () =
       E.crash_dump env directory;
       In_channel.with_open_text (Filename.concat directory "editor.txt")
         (fun channel -> ignore (input_line channel); input_line channel)) in
-  check (projection env = "projection: list") "Space l did not reach Flow list";
+  check (projection env = "projection: list") "Space l l did not reach Flow list";
   let gx, gy, _, _ = (E.panes env (frame 0)).graph in
   let row = gx + 40, gy + 24 + 12 in
   let env = step ~mouse:row env [] in
@@ -292,27 +292,27 @@ let run () =
   let saved = E.document env and baked = E.world env in
   let env = step env [char 't'; char 'n'; char 'd'] in
   check (E.document env == saved && E.world env = baked) "World keys edited the scene level";
-  (* The scene starts in list; the workspace has a scene graph, so a cycle reaches its text and
-     another its graph, which is the pane's own scene graph (the outline names it). *)
+  (* The scene starts in list; the workspace has a scene graph, so Space l t shows its text and
+     Space l g its graph, which is the pane's own scene graph (the outline names it). *)
   let projection_of env = projection env in
-  let env = step env [key Input.Space; char 'l'] in
+  let env = step env [key Input.Space; char 'l'; char 't'] in
   let env = step env [] in
-  check (projection_of env = "projection: text") "Space l did not reach the scene graph's text";
-  let env = step env [key Input.Space; char 'l'] in
+  check (projection_of env = "projection: text") "Space l t did not reach the scene graph's text";
+  let env = step env [key Input.Space; char 'l'; char 'g'] in
   let env = step env [] in
   check (projection_of env = "projection: graph" && E.level env = None)
-    "Space l did not reach the scene graph";
+    "Space l g did not reach the scene graph";
   (* Deleting a network's display node never leaves a dangling display:
      delete geo1 from the scene, flip the projection, and come back. *)
   let env = step env [char 'u'] in
-  let env = step env [key Input.Space; char 'l'] in
+  let env = step env [key Input.Space; char 'l'; char 'l'] in
   let env = step env [] in
   let env = select "geo1" env 8 in
   let env = step env [key Input.Delete] in
   (* list -> text -> graph -> list *)
-  let env = step env [key Input.Space; char 'l'] in
-  let env = step env [key Input.Space; char 'l'] in
-  let env = step env [key Input.Space; char 'l'] in
+  let env = step env [key Input.Space; char 'l'; char 't'] in
+  let env = step env [key Input.Space; char 'l'; char 'g'] in
+  let env = step env [key Input.Space; char 'l'; char 'l'] in
   let env = step env [key Input.Space; char 'e'] in
   let env = step env [char 'u'] in
   check (E.level env = None) "the scene broke after deleting its display object";

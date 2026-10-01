@@ -195,6 +195,18 @@ let scope_gestures () =
   check (only Scope.Wrap_iterate = [ syntax (E.Wrap { nodes = [ heart ]; loop = E.Fold }) ]) "Shift-r: Wrap Fold";
   check (only Scope.Make_fn = [ syntax (E.Make_local_fn { nodes = [ heart ] }) ]) "l: Make_local_fn";
   check (only Scope.Duplicate = [ syntax (E.Duplicate { nodes = [ heart ] }) ]) "Command-D: Duplicate";
+  check (only Scope.Copy = [ Scope.Copy_requested [ heart ] ]) "Command-C: Copy_requested";
+  check (only Scope.Cut = [ Scope.Copy_requested [ heart ]; syntax (E.Delete_nodes { nodes = [ heart ] }) ])
+    "Command-X: copy, then delete";
+  check (only Scope.Paste = [ Scope.Paste_requested ]) "Command-V: Paste_requested";
+  (* a screen point as a grid-snapped position in a scope: further right on screen is further
+     right in the scope *)
+  (let x, y, _, _ = center_of view heart in
+   match Scope.scope_point view ~scope:[ "flower" ] (x, y), Scope.scope_point view ~scope:[ "flower" ] (x +. 60., y) with
+   | Some (ax, ay), Some (bx, _) ->
+       check (Float.rem ax 12. = 0. && Float.rem ay 12. = 0. && bx > ax) "scope_point snaps to 12 and follows the pointer"
+   | _ -> fail "scope_point found no scope");
+  check (Scope.scope_point view ~scope:[ "nosuch" ] (0., 0.) = None) "an unknown scope has no point";
   (* fold and unfold: the keys, and the right-click menu's rows *)
   let result = [ "flower"; "result" ] in
   (match snd (Scope.run_command (Scope.select [ result ] view) Scope.Unfold) with

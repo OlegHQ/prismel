@@ -15,23 +15,25 @@ type shown = {
   graph : string;  (* the graph the Selection and Graph tabs read *)
   text : string;
   mark : (int * int) option;  (* byte span of the selected binding in [text] *)
-  binding : (path * string) option;  (* the selected binding and its expression's text *)
+  key : path;  (* what the Selection tab shows: the selected binding's path, else [graph] *)
   applied : string Lazy.t;  (* the whole document's text, for the draft's dirty mark *)
 }
 
 type state = {
   tab : tab;
   draft : string option;  (* the Document tab's unapplied text *)
-  binding_draft : (path * string) option;
+  binding_draft : (path * string) option;  (* the Selection tab's unapplied text, and its key *)
   graph_draft : (string * string) option;  (* the Graph tab's unapplied text, and its graph *)
   doc_errors : Flow.Diagnostic.t list;  (* of the last refused apply *)
   binding_errors : Flow.Diagnostic.t list;
   graph_errors : Flow.Diagnostic.t list;
+  wrap : bool;  (* long lines continue on the next row *)
+  menu : (float * float) option;  (* the right-click menu, while open *)
   cache : ((S.t list * string * path option * tab) * shown) option;
 }
 
 let initial = { tab = Selection; draft = None; binding_draft = None; graph_draft = None;
-  doc_errors = []; binding_errors = []; graph_errors = []; cache = None }
+  doc_errors = []; binding_errors = []; graph_errors = []; wrap = true; menu = None; cache = None }
 
 (* ---- reading the source ---- *)
 
@@ -74,6 +76,12 @@ let rec find_binding (cur : S.t) = function
       | Some (p, v) when rest = [] -> Some (p, v)
       | Some (_, v) -> find_binding (enter v) rest
       | None -> None
+
+let binding source = function
+  | graph :: names ->
+      Option.bind (root_form source graph) (fun root ->
+        Option.bind (last root) (fun body -> find_binding body names))
+  | [] -> None
 
 let rec max_id (f : S.t) = List.fold_left (fun m c -> max m (max_id c)) f.id (S.children f)
 
@@ -125,11 +133,12 @@ let closure (root : S.t) top =
 
 let make_shown source graph selected tab =
   let applied = lazy (fst (Flow.Lisp.print source)) in
+  let key = match selected with Some path -> path | None -> [ graph ] in
   match tab with
-  | Document -> { graph; text = Lazy.force applied; mark = None; binding = None; applied }
+  | Document -> { graph; text = Lazy.force applied; mark = None; key; applied }
   | Selection | Graph ->
       (match root_form source graph with
-       | None -> { graph; text = ""; mark = None; binding = None; applied }
+       | None -> { graph; text = ""; mark = None; key; applied }
        | Some root ->
            let names = match selected with Some (_ :: names) -> names | _ -> [] in
            let found = Option.bind (last root) (fun body -> find_binding body names) in
@@ -137,11 +146,7 @@ let make_shown source graph selected tab =
              | Selection, top :: _ -> Option.value ~default:root (closure root top)
              | _ -> root in
            let text, spans = Flow.Lisp.print [ form ] in
-           { graph; text; mark = mark spans found;
-             binding = (match found, selected with
-               | Some (_, v), Some path ->
-                   Some (path, String.trim (fst (Flow.Lisp.print [ v ])))
-               | _ -> None); applied })
+           { graph; text; mark = mark spans found; key; applied })
 
 (* [shown] recomputed only when the source, the graph, the selection or the
    tab changed *)
@@ -208,6 +213,8 @@ type intent =
   | Graph_draft of string * string
   | Graph_apply of string * string
   | Graph_discard
+  | Menu of (float * float) option
+  | Toggle_wrap
 
 let dirty state (shown : shown) = match state.draft with
   | Some d -> d <> Lazy.force shown.applied | None -> false
@@ -246,11 +253,15 @@ let view ui ~bounds:(x, y, width, height) state (shown : shown) =
   let footer = 2. *. row in
   let body_y = y +. row in
   let body_h = Float.max row (height -. row) in
-  (* the toolbar and the message row under an editable area *)
-  let editor key ~at:(ey, eh) ~text ~errors ~spans ~apply ~discard ~can_apply ~message ~draft =
+  let language = Lisp_text.language theme in
+  (* the toolbar and the message row under an editable area; a right-click menu offers the same
+     buttons and the wrap toggle *)
+  let editor key ~at:(ey, eh) ~text ~errors ~spans ?reveal ~apply ~discard ~can_apply ~message ~draft () =
     let text', submitted = Ui.text_area_submit ui ~at:(x, ey) ~w:width ~h:(Float.max row (eh -. footer))
-        ~wrap:true ~errors:(List.filter_map (line_of text) errors |> fun lines -> lines) ~spans key text in
+        ~wrap:state.wrap ~errors:(List.filter_map (line_of text) errors) ~spans ?reveal ~language
+        ~on_context:(fun at -> emit (Menu (Some at))) key text in
     if text' <> text then emit (draft text');
+    let can_apply = can_apply || text' <> text in
     let ty = ey +. Float.max row (eh -. footer) in
     (* Command-Enter in the area is the button *)
     if (chip (key ^ "-apply") ~at:(x, ty) ~w:118. ~active:false ~enabled:can_apply "Check & apply")
@@ -262,7 +273,17 @@ let view ui ~bounds:(x, y, width, height) state (shown : shown) =
     Ui.draw ui msg (fun paint _ ->
       Ui.Paint.text paint ~at:(x +. 8., ty +. row +. 5.)
         ~color:(match errors with _ :: _ -> Pxui.Theme.invalid | [] -> Pxui.Theme.muted theme) message);
-    () in
+    (match state.menu with
+     | None -> ()
+     | Some at ->
+         (match Ui.context_menu ui ~at (key ^ "-menu")
+                  [ "Check & apply", can_apply; "Discard", can_apply; "", false;
+                    (if state.wrap then "Unwrap long lines" else "Wrap long lines"), true ] with
+          | `Open -> ()
+          | `Dismiss -> emit (Menu None)
+          | `Pick 0 -> emit (Menu None); emit (apply text')
+          | `Pick 1 -> emit (Menu None); emit discard
+          | `Pick _ -> emit (Menu None); emit Toggle_wrap)) in
   let fit text =
     let limit = max 8 (int_of_float ((width -. 16.) /. 7.)) in
     if String.length text <= limit then text else String.sub text 0 (limit - 3) ^ "..." in
@@ -276,7 +297,7 @@ let view ui ~bounds:(x, y, width, height) state (shown : shown) =
        editor "text-document" ~at:(body_y, body_h) ~text ~errors:(real_errors state.doc_errors)
          ~spans:[] ~apply:(fun t -> Doc_apply t) ~discard:Doc_discard ~can_apply:dirty
          ~message:(message state.doc_errors ~dirty ~clean:"Source matches the applied document.")
-         ~draft:(fun t -> Doc_draft t)
+         ~draft:(fun t -> Doc_draft t) ()
    | Graph ->
        let text = match state.graph_draft with
          | Some (g, t) when g = shown.graph -> t | _ -> shown.text in
@@ -285,26 +306,17 @@ let view ui ~bounds:(x, y, width, height) state (shown : shown) =
          ~spans:[] ~apply:(fun t -> Graph_apply (shown.graph, t)) ~discard:Graph_discard ~can_apply:dirty
          ~message:(message state.graph_errors ~dirty
            ~clean:(Printf.sprintf "Edit %s as text; Check & apply checks the whole workspace." shown.graph))
-         ~draft:(fun t -> Graph_draft (shown.graph, t))
+         ~draft:(fun t -> Graph_draft (shown.graph, t)) ()
    | Selection ->
-       let spans = Option.to_list shown.mark in
-       let reveal = Option.map fst shown.mark in
-       (match state.tab, shown.binding with
-        | Selection, Some (path, expr) ->
-            let upper = Float.max (2. *. row) (Float.floor ((body_h -. row) /. row *. 0.5) *. row) in
-            ignore (Ui.text_area_submit ui ~at:(x, body_y) ~w:width ~h:upper ~readonly:true ~wrap:true
-              ~spans ?reveal "text-selection" shown.text);
-            let name = List.nth path (List.length path - 1) in
-            let text = match state.binding_draft with
-              | Some (p, t) when p = path -> t | _ -> expr in
-            let dirty = text <> expr in
-            editor "text-binding" ~at:(body_y +. upper, body_h -. upper) ~text
-              ~errors:(real_errors state.binding_errors) ~spans:[]
-              ~apply:(fun t -> Binding_apply (path, t)) ~discard:Binding_discard ~can_apply:dirty
-              ~message:(message state.binding_errors ~dirty
-                ~clean:(Printf.sprintf "Edit %s as text; Check & apply checks the whole workspace." name))
-              ~draft:(fun t -> Binding_draft (path, t))
-        | _ ->
-            ignore (Ui.text_area_submit ui ~at:(x, body_y) ~w:width ~h:body_h ~readonly:true ~wrap:true
-              ~spans ?reveal "text-readonly" shown.text)));
+       (* the closure of the selection, editable: its bindings are the graph's root bindings *)
+       let text = match state.binding_draft with
+         | Some (k, t) when k = shown.key -> t | _ -> shown.text in
+       let dirty = text <> shown.text in
+       let spans = if dirty then [] else Option.to_list shown.mark in
+       editor "text-selection" ~at:(body_y, body_h) ~text ~errors:(real_errors state.binding_errors)
+         ~spans ?reveal:(Option.map fst shown.mark)
+         ~apply:(fun t -> Binding_apply (shown.key, t)) ~discard:Binding_discard ~can_apply:dirty
+         ~message:(message state.binding_errors ~dirty
+           ~clean:"The selection with what it reads; Check & apply writes the bindings shown.")
+         ~draft:(fun t -> Binding_draft (shown.key, t)) ());
   List.rev !intents

@@ -3,7 +3,7 @@
    click: [Core] maps it to the one command or edit it means. *)
 module Ui = Pxui.Ui
 
-type top_intent = Undo | Redo | Copy_lisp | Keys | Layout of string
+type top_intent = Undo | Redo | Copy_lisp | Keys | Layout of string | Dismiss
 
 type tool = Add | Repeat | Iterate | Fn | Macro | Defn
 
@@ -68,9 +68,18 @@ let top ui ~width ~title ~status ~can_undo ~can_redo =
     Ui.Paint.circle paint ~at:(sx, y +. 14.) ~radius:3.
       ~fill:(if ok then Prismel.Color.hex_exn "#3f8a55" else Pxui.Theme.invalid) ();
     Ui.Paint.text paint ~at:(sx +. 10., y +. 9.) ~size:11
-      ~color:(if ok then Pxui.Theme.muted theme else Pxui.Theme.invalid) text);
+      ~color:(if ok then Pxui.Theme.muted theme else Pxui.Theme.invalid)
+      (if ok then text else text ^ "  ×"));
   let intents = ref [] in
   let emit i = intents := i :: !intents in
+  (* a refusal is clicked away *)
+  (match status with
+   | false, text ->
+       let sx = 12. +. 13. *. 6.8 +. 14. +. 20. +. float (String.length title + 3) *. 6.8 +. 16. in
+       let w = 10. +. float (String.length text + 3) *. 6.8 in
+       let box = Ui.box ui ~flags:Ui.clickable ~w:(Ui.Px w) ~h:(Ui.Px 22.) ~at:(sx, 3.) "workspace-bar-dismiss" in
+       if (Ui.signal ui box).clicked then emit Dismiss
+   | true, _ -> ());
   List.iter (fun label ->
     let at, _, w, _ = top_button_rect ~width label in
     let key = "workspace-bar-" ^ label in
@@ -133,3 +142,33 @@ let layout_text ~name ~graph ~scene layout =
     | _ ->
         "(let* [outline (ui/outline)\n           network " ^ network ^ "\n           preview (ui/viewport (ref " ^ scene ^ "))\n           inspector (ui/inspector)\n           code (ui/lisp)\n           lower (ui/split-at \"vertical\" 0.46 inspector code)\n           side (ui/split-at \"vertical\" 0.4 preview lower)\n           main (ui/split-at \"horizontal\" 0.66 network side)\n           panels (ui/split-at \"horizontal\" 0.13 outline main)\n           shell (ui/workspace panels)]\n      shell)" in
   Printf.sprintf "(graph %s :context editor\n  %s)" name body
+
+(* A panel tree as an editor graph: leaves and splits are bindings, so every panel edit finds
+   its binding; [ponytail:] names are kind_n, not the study's prose names. *)
+let tree_text ~name ~scene tree =
+  let used = Hashtbl.create 8 and bindings = ref [] and names = ref [] in
+  let bind base form =
+    let n = 1 + Option.value ~default:0 (Hashtbl.find_opt used base) in
+    Hashtbl.replace used base n;
+    let name = if n = 1 then base else Printf.sprintf "%s_%d" base n in
+    bindings := (name, form) :: !bindings; name in
+  let rec go path : Editor_core.Panels.t -> string = function
+    | Leaf p ->
+        let base, form = match p with
+          | View _ -> "preview", Printf.sprintf "(ui/viewport (ref %s))" scene
+          | Graph -> "network", "(ui/graph)" | List -> "list", "(ui/list)" | Lisp -> "code", "(ui/lisp)"
+          | Inspector -> "inspector", "(ui/inspector)" | Outline -> "outline", "(ui/outline)"
+          | Timeline -> "timeline", "(ui/timeline)" in
+        let n = bind base form in
+        names := (List.rev path, n) :: !names; n
+    | Split { axis; ratio; a; b } ->
+        let a = go (0 :: path) a in
+        let b = go (1 :: path) b in
+        bind "split" (Printf.sprintf "(ui/split-at %S %.2f %s %s)"
+          (if axis = `H then "horizontal" else "vertical") ratio a b)
+    | Tile cells -> bind "tile" ("(ui/tile " ^ String.concat " " (List.mapi (fun i c -> go (i :: path) c) cells) ^ ")")
+    | Float t -> bind "floating" ("(ui/floating " ^ go (0 :: path) t ^ ")") in
+  let root = go [] tree in
+  Printf.sprintf "(graph %s :context editor\n  (let* [%s]\n    (ui/workspace %s)))" name
+    (String.concat "\n         " (List.rev_map (fun (n, f) -> n ^ " " ^ f) !bindings)) root,
+  (fun path -> List.assoc_opt path !names)

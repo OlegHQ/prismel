@@ -164,7 +164,13 @@ let run () =
     let cancelled = camera !current in
     step [Event.MouseMoved (190., 350.)];
     check (camera !current = cancelled) (name ^ ": popup did not cancel an existing drag");
-    if scene_level then step [key Input.Space; char 'l'];
+    (* the scene opens as a list: Space l g in the graph pane shows the scene graph *)
+    if scene_level then begin
+      let gx, gy, _, _ = (panes !current (frame (0., 0.) [] 0)).Pxui_shell.Layout.graph in
+      let point = float (gx + 25), float (gy + 300) in
+      step ~mouse:point [Event.MousePressed (Input.LeftButton, point); Event.MouseReleased (Input.LeftButton, point)];
+      step [key Input.Space; char 'l'; char 'g']
+    end;
     step [];
     let gx, gy, _, _ = (panes !current (frame (0., 0.) [] 0)).Pxui_shell.Layout.graph in
     let point = float (gx + 25), float (gy + 300) in

@@ -396,13 +396,16 @@ let view state ui ~bounds:(x, y, w, h) p =
     | Input_row { graph; name; integer; value } ->
         let ry = top +. tops.(k) -. scroll in
         if ry >= top && ry +. rh <= top +. body then begin
-          let lo = Float.min 0. value and hi = Float.max (if integer then 24. else 2.) (value *. 2.5) in
-          let fraction = (value -. lo) /. Float.max 1e-6 (hi -. lo) in
           let show v = if integer then string_of_int (int_of_float (Float.round v)) else Printf.sprintf "%.3g" v in
-          let slide f = show (lo +. f *. (hi -. lo)) in
+          (* a scrub from the value at the press, like a card's field: 1 per 6 points for an
+             integer, a hundredth of the magnitude per point for a float, Shift is finer *)
+          let scrub origin dx shift = match float_of_string_opt origin with
+            | None -> origin
+            | Some o when integer -> show (o +. Float.round (dx /. (if shift then 24. else 6.)))
+            | Some o -> show (o +. dx *. 0.01 *. Float.max 1. (Float.abs o) *. (if shift then 0.1 else 1.)) in
           let text = show value in
           let changed, _ = Ui.value_field ui ~at:(x +. 76., ry +. 1.) ~w:(w -. 86.) ~h:21. ~size:11
-              ~fraction ~slide ~valid:(fun t -> float_of_string_opt t <> None)
+              ~scrub ~valid:(fun t -> float_of_string_opt t <> None)
               ("navigator-input-" ^ graph ^ "-" ^ name) text in
           if changed <> text then
             Option.iter (fun v -> emit (Set_default { graph; input = name; value = v; integer }))

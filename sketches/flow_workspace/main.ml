@@ -4,8 +4,8 @@
    FLOW_SCROLL=<n> is the one wheel step at frame 12 (the pane zoom; default two steps of 5).
    FLOW_ADD=1 adds a box from the Tab menu.  FLOW_EXPORT=<dir> renders the editor's UI to PNG
    frames instead of opening a window (a check of the graph pane).
-   FLOW_TEXT=selection|graph|document|edit|error|binding shows the text pane (Space l
-   twice) after the click that selects r: a tab, or an edit typed into the
+   FLOW_TEXT=selection|graph|document|edit|error|binding shows the text pane (Space l t)
+   after the click that selects r: a tab, or an edit typed into the
    Document tab (a valid one applied, or an invalid one applied and refused). *)
 open Prismel
 module E3 = Prismel_editor.Editor3
@@ -122,8 +122,8 @@ let () = match Sys.getenv_opt "FLOW_EXPORT" with
           | 22 when Sys.getenv_opt "FLOW_ADD" <> None -> [ Event.TextInput "box" ]
           | 24 when Sys.getenv_opt "FLOW_ADD" <> None -> [ Event.KeyPressed Input.Enter ]
           | 30 when Sys.getenv_opt "FLOW_ADD" <> None -> click (1240., 178.)
-          | 20 | 22 when Sys.getenv_opt "FLOW_TEXT" <> None ->
-              [ Event.KeyPressed Input.Space; Event.KeyPressed (Input.KeyChar 'l') ]
+          | 20 when Sys.getenv_opt "FLOW_TEXT" <> None ->
+              [ Event.KeyPressed Input.Space; Event.KeyPressed (Input.KeyChar 'l'); Event.KeyPressed (Input.KeyChar 't') ]
           | 26 when Sys.getenv_opt "FLOW_TEXT" = Some "graph" -> click (735., 34.)
           | 26 when List.mem (Sys.getenv_opt "FLOW_TEXT") [ Some "edit"; Some "error" ] -> click (810., 34.)
           | 28 when List.mem (Sys.getenv_opt "FLOW_TEXT") [ Some "edit"; Some "error" ] -> click (900., 300.)

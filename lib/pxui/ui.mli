@@ -49,6 +49,10 @@ val theme : t -> Theme.t
 val set_theme : t -> Theme.t -> unit
 val font_size : t -> int
 
+val set_font_size : t -> int -> unit
+(** The kit text size from the next frame on, and the row height with it ([size + 13]: 24 rows at
+    the default 11 points).  Call it between frames, never inside {!frame}. *)
+
 (** {1 Frames} *)
 
 val frame : t -> Prismel.Frame.t -> (t -> 'a) -> 'a
@@ -372,9 +376,23 @@ val slider : t -> string -> range:float * float -> float -> float
 val int_slider : t -> string -> range:int * int -> int -> int
 val text_field : t -> string -> string -> string
 
+type language = {
+  colorize : string -> (int * int * Prismel.Color.t) list;
+      (** sorted, non-overlapping byte spans and their colour; the rest is the foreground *)
+  brackets : string -> (int * int) list;
+      (** the matched bracket pairs as (open, close) byte positions: the pair at the caret is lit *)
+  indent : string -> int -> string;
+      (** [indent text caret]: the indentation Enter puts after the line break at [caret] *)
+  pairs : (char * char) list;
+      (** brackets typed in pairs: the opener wraps the selection or inserts both, the closer
+          typed before itself steps over it, Backspace between an empty pair takes both *)
+}
+(** What a code editor knows about its text.  A host supplies one (the editor's Lisp);
+    {!text_area} itself is language-free. *)
+
 val text_area :
   t -> at:float * float -> w:float -> h:float -> ?readonly:bool ->
-  ?errors:int list -> ?spans:(int * int) list -> ?reveal:int ->
+  ?errors:int list -> ?spans:(int * int) list -> ?reveal:int -> ?language:language ->
   string -> string -> string
 (** [text_area ui ~at ~w ~h label text] is a scrolling multiline editor with a
     line-number gutter, returning the edited text. It shares [text_field]'s
@@ -387,13 +405,16 @@ val text_area :
 
 val text_area_submit :
   t -> at:float * float -> w:float -> h:float -> ?readonly:bool -> ?wrap:bool ->
-  ?errors:int list -> ?spans:(int * int) list -> ?reveal:int ->
+  ?errors:int list -> ?spans:(int * int) list -> ?reveal:int -> ?language:language ->
+  ?on_context:(float * float -> unit) ->
   string -> string -> string * bool
 (** {!text_area} that also reports Command- or Ctrl-Enter pressed in it this frame (the host's
     "apply").  Tab inserts two spaces and Shift-Tab takes up to two leading spaces off the line
     (the editor keeps Tab instead of moving the focus).  With [wrap] a long line continues on
     the next row, so nothing scrolls sideways; the gutter numbers logical lines and [errors] are
-    logical lines. *)
+    logical lines.  [language] colours the text, lights the bracket pair at the caret, indents
+    after Enter and pairs brackets; [on_context] is called with the pointer when the area is
+    right-clicked (the host opens its menu). *)
 
 val value_field : t -> at:float * float -> w:float -> h:float ->
   ?size:int -> ?display:string -> ?fraction:float ->
@@ -439,7 +460,8 @@ val context_clicked : signal -> bool
 val context_menu :
   t -> at:float * float -> string -> (string * bool) list ->
   [ `Open | `Pick of int | `Dismiss ]
-(** A floating menu at [at] with [(label, enabled)] rows. The host keeps it
+(** A floating menu at [at] with [(label, enabled)] rows, as wide as its longest
+    row; an empty label is a separator line (never picked). The host keeps it
     open while this returns [`Open]; a row commits on press and release inside
     it, and Escape, focus loss, or a press outside return [`Dismiss]. Build it
     before content it shields; it floats at the root regardless of its parent. *)

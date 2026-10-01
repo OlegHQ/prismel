@@ -19,6 +19,10 @@ type change =
   | Selected of path list
   | Moved of (path * float * float) list
       (** dragged items, at their new position inside their scope *)
+  | Copy_requested of path list
+      (** Command-C / Command-X: the host puts these bindings' text on the clipboard (a cut
+          also deletes them) *)
+  | Paste_requested  (** Command-V: the host adds the clipboard's bindings to the selected scope *)
   | Macro_requested of path list
   | Defn_requested of path list
       (** [m]: the host opens its make-macro dialog over these nodes *)
@@ -43,6 +47,7 @@ type command =
   | Make_frame  (** Shift-G *)
   | Duplicate  (** Command-D: copy the selected nodes with fresh names ({!Flow_sop.Flow_edit.Duplicate}) *)
   | Display  (** [v]: {!Display_set} for the selected geometry node *)
+  | Copy | Cut | Paste  (** Command-C / X / V: {!Copy_requested} (a cut deletes too), {!Paste_requested} *)
   | Frame_selection  (** [f]: pan and zoom to the selected nodes (all of them with none selected) *)
 
 type stats = {
@@ -88,6 +93,10 @@ val select : path list -> t -> t
 val clear_selection : t -> t
 val stats : t -> stats
 val zoom : t -> float
+
+val scope_point : t -> scope:path -> float * float -> (float * float) option
+(** A screen point as a position inside [scope] (a scope path of the shown graph), snapped to the
+    12-point grid: where a node added from a menu opened there is placed ([Moved]). *)
 
 val bindings : ('scope, command) Editor_core.Command.t list
 val run_command : t -> command -> t * change list

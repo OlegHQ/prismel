@@ -204,8 +204,44 @@ let run_panel_keys () =
   check (E3.undo_label !e = Some "Split panel" && has (source !e) "\"vertical\" 0.5 network_a network_b")
     "Space o v split it stacked";
   let e, step = started () in
-  step [ key Input.Space; ch 'o'; ch 'l' ]; step [];
-  check (E3.undo_label !e = Some "Retype panel" && has (source !e) "(ui/list") "Space o l retyped it to a list"
+  step [ key Input.Space; ch 'l'; ch 'i' ]; step [];
+  check (E3.undo_label !e = Some "Retype panel" && has (source !e) "(ui/inspector") "Space l i retyped it to an inspector";
+  (* on the graph panel, Space l l / t / g only switch its own view: no edit *)
+  let e, step = started () in
+  step [ key Input.Space; ch 'l'; ch 'l' ]; step [];
+  check (E3.undo_label !e = None && dump_line !e "projection" = "list")
+    ("Space l l on the graph panel shows the list: " ^ dump_line !e "projection");
+  (* a document without an editor graph gets one written from its layout before the retype *)
+  let e = ref (editor "(workspace w (graph g :context sop (sop/box)))") and count = ref 0 in
+  let step ?(mouse = (600., 300.)) events = incr count; e := E3.update !e (frame mouse events !count) in
+  step []; step [];
+  let gx, gy, _, _ = (E3.panes !e (frame (0., 0.) [] 0)).graph in
+  let p = float (gx + 40), float (gy + 40) in
+  step ~mouse:p [ Event.MouseMoved p ];
+  step ~mouse:p [ Event.MousePressed (Input.LeftButton, p) ];
+  step ~mouse:p [ Event.MouseReleased (Input.LeftButton, p) ];
+  step ~mouse:p [];
+  check (not (has (source !e) "(graph editor")) "the plain workspace has no editor graph";
+  step ~mouse:p [ key Input.Space; ch 'l'; ch 'i' ]; step ~mouse:p [];
+  check (has (source !e) "(graph editor :context editor" && has (source !e) "network (ui/inspector)"
+         && has (source !e) "preview (ui/viewport (ref scene))" && has (source !e) "(graph scene :context scene"
+         && E3.undo_label !e = Some "Retype panel")
+    ("retyping wrote the editor graph (and the scene it views) first: " ^ source !e);
+  E3.close !e;
+  (* two panels of one kind: the keys act on the one clicked, not the first *)
+  let twice = with_editor "    (let* [a (ui/graph) b (ui/graph) both (ui/split-at \"horizontal\" 0.5 a b)] (ui/workspace both))" in
+  let e = ref (editor twice) and count = ref 0 in
+  let step ?(mouse = (700., 300.)) events = incr count; e := E3.update !e (frame mouse events !count) in
+  step []; step [];
+  let right = (700., 300.) in
+  step ~mouse:right [ Event.MouseMoved right ];
+  step ~mouse:right [ Event.MousePressed (Input.LeftButton, right) ];
+  step ~mouse:right [ Event.MouseReleased (Input.LeftButton, right) ];
+  step ~mouse:right [];
+  step ~mouse:right [ key Input.Space; ch 'o'; ch 'x' ]; step ~mouse:right [];
+  check (E3.undo_label !e = Some "Close panel" && has (source !e) "a (ui/graph)" && not (has (source !e) "b (ui/graph)"))
+    ("closing the second graph panel closed it, not the first: " ^ source !e);
+  E3.close !e
 
 (* panels written in place, and panels made by a loop, are edited through the keys too: an
    inline panel is bound to a name first (one history entry), a loop's panels are retyped
@@ -224,8 +260,8 @@ let run_unbound_panels () =
   let inline = with_editor "    (ui/workspace (ui/split-at \"vertical\" 0.5 (ui/graph) (ui/viewport (ref scene))))" in
   let e, step = started inline (300., 100.) in
   check (dump_line !e "focus" = "Graph") ("focus is the inline graph panel: " ^ dump_line !e "focus");
-  step [ key Input.Space; ch 'o'; ch 'l' ]; step [];
-  check (E3.undo_label !e = Some "Retype panel" && has (source !e) "(ui/list)" && has (source !e) "(ui/viewport (ref scene))")
+  step [ key Input.Space; ch 'l'; ch 'i' ]; step [];
+  check (E3.undo_label !e = Some "Retype panel" && has (source !e) "(ui/inspector)" && has (source !e) "(ui/viewport (ref scene))")
     ("an inline panel was retyped: " ^ Option.value ~default:"-" (E3.undo_label !e) ^ "\n" ^ source !e);
   E3.close !e;
   let e, step = started inline (300., 100.) in
@@ -239,7 +275,7 @@ let run_unbound_panels () =
   step [ key Input.Space; ch 'o'; ch 'x' ]; step [];
   check (E3.undo_label !e = None && has (dump_line !e "cook") "copies made by a loop")
     ("closing a looped panel said why not: " ^ Option.value ~default:"-" (E3.undo_label !e) ^ " / " ^ dump_line !e "cook");
-  step [ key Input.Space; ch 'o'; ch 'l' ]; step [];
+  step [ key Input.Space; ch 'l'; ch 'l' ]; step [];
   check (E3.undo_label !e = Some "Retype panel" && has (source !e) "(ui/list)")
     ("retyping a looped panel edits its template: " ^ Option.value ~default:"-" (E3.undo_label !e));
   E3.close !e
@@ -486,12 +522,16 @@ let run_cameras () =
   check (same (position "v1.1.1") first) "returning to a viewport lost its orbit";
   (* a click on the geometry of a viewport over another scene instance selects the node that made
      it: the pane shows that graph and the node is selected there *)
-  let graph_pane = 100., 300. in
+  let graph_pane =
+    let geometry = Layout.geometry ~hidden:[ Layout.Timeline ] ~top:28 (shell_of (build_ok (E3.workspace !e))).tree
+        (frame (0., 0.) [] 0) in
+    let x, y, _, _ = (Option.get (Layout.find geometry Layout.Graph)).body in
+    float (x + 20), float (y + 200) in
   step graph_pane [ Event.MouseMoved graph_pane ];
   step ~buttons:[ Input.LeftButton ] graph_pane [ Event.MousePressed (Input.LeftButton, graph_pane) ];
   step graph_pane [ Event.MouseReleased (Input.LeftButton, graph_pane) ];
   let key k = Event.KeyPressed k and ch c = Event.KeyPressed (Input.KeyChar c) in
-  step graph_pane [ key Input.Space; ch 'l' ]; step graph_pane [ key Input.Space; ch 'l' ]; step graph_pane [];
+  step graph_pane [ key Input.Space; ch 'l'; ch 'g' ]; step graph_pane [];
   check (has (dump_line !e "projection") "graph") ("the pane is not showing a graph: " ^ dump_line !e "projection");
   let scope_selected () = dump_line !e "scope selected" in
   click "v1.1.2";

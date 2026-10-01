@@ -256,8 +256,9 @@ module Chrome = struct
       let opened = opened || Ui.context_clicked header_signal || header_signal.clicked in
       Ui.set_state ui box (if opened then 1 else 0);
       if opened then begin
-        let rows = [ "Split side by side", true; "Split top and bottom", true; "Close", true ]
-          @ List.map (fun (name, _) -> "Retype: " ^ name, true) retypes in
+        let rows = [ "Split side by side", true; "Split top and bottom", true; "Close", true;
+                     "", false; "Show as", false ]
+          @ List.map (fun (name, panel) -> name, panel <> l.panel) retypes in
         match Ui.context_menu ui ~at:(float x, float (y + h)) ("workspace-menu-" ^ label) rows with
         | `Open -> ()
         | `Dismiss -> Ui.set_state ui box 0
@@ -265,7 +266,7 @@ module Chrome = struct
             emit (match i with
               | 0 -> Split_panel (l.path, `H) | 1 -> Split_panel (l.path, `V)
               | 2 -> Close_panel l.path
-              | i -> Retype_panel (l.path, snd (List.nth retypes (i - 3))))
+              | i -> Retype_panel (l.path, snd (List.nth retypes (i - 5))))
       end;
       l, title l, box) geometry.leaves in
     List.iter (fun ((l : leaf), text, box) ->
