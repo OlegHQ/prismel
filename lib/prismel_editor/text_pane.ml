@@ -28,12 +28,13 @@ type state = {
   binding_errors : Flow.Diagnostic.t list;
   graph_errors : Flow.Diagnostic.t list;
   wrap : bool;  (* long lines continue on the next row *)
+  parinfer : bool;  (* closing brackets follow indentation (Lisp_text.parinfer_text) *)
   menu : (float * float) option;  (* the right-click menu, while open *)
   cache : ((S.t list * string * path option * tab) * shown) option;
 }
 
 let initial = { tab = Selection; draft = None; binding_draft = None; graph_draft = None;
-  doc_errors = []; binding_errors = []; graph_errors = []; wrap = true; menu = None; cache = None }
+  doc_errors = []; binding_errors = []; graph_errors = []; wrap = true; parinfer = true; menu = None; cache = None }
 
 (* ---- reading the source ---- *)
 
@@ -218,6 +219,7 @@ type intent =
   | Doc_scrub of string * bool
   | Graph_scrub of string * string * bool
   | Binding_scrub of path * string * bool
+  | Toggle_parinfer
 
 let dirty state (shown : shown) = match state.draft with
   | Some d -> d <> Lazy.force shown.applied | None -> false
@@ -256,7 +258,7 @@ let view ui ~bounds:(x, y, width, height) ~vocab state (shown : shown) =
   let footer = 2. *. row in
   let body_y = y +. row in
   let body_h = Float.max row (height -. row) in
-  let language = Lisp_text.language ~vocab theme in
+  let language = Lisp_text.language ~vocab ~parinfer:state.parinfer theme in
   (* the toolbar and the message row under an editable area; a right-click menu offers the same
      buttons and the wrap toggle *)
   let editor key ~at:(ey, eh) ~text ~errors ~spans ?reveal ~apply ~discard ~can_apply ~message ~draft ~scrub () =
@@ -286,12 +288,15 @@ let view ui ~bounds:(x, y, width, height) ~vocab state (shown : shown) =
      | Some at ->
          (match Ui.context_menu ui ~at (key ^ "-menu")
                   [ "Check & apply", can_apply; "Discard", can_apply; "", false;
-                    (if state.wrap then "Unwrap long lines" else "Wrap long lines"), true ] with
+                    (if state.wrap then "Unwrap long lines" else "Wrap long lines"), true;
+                    (if state.parinfer then "Parinfer off (keep brackets as typed)"
+                     else "Parinfer on (brackets follow indentation)"), true ] with
           | `Open -> ()
           | `Dismiss -> emit (Menu None)
           | `Pick 0 -> emit (Menu None); emit (apply text')
           | `Pick 1 -> emit (Menu None); emit discard
-          | `Pick _ -> emit (Menu None); emit Toggle_wrap)) in
+          | `Pick 3 -> emit (Menu None); emit Toggle_wrap
+          | `Pick _ -> emit (Menu None); emit Toggle_parinfer)) in
   let fit text =
     let limit = max 8 (int_of_float ((width -. 16.) /. 7.)) in
     if String.length text <= limit then text else String.sub text 0 (limit - 3) ^ "..." in

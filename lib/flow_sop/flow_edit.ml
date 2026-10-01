@@ -957,6 +957,7 @@ let gesture = function
       Some (Printf.sprintf "scrub:%s:%s:%s" (String.concat "/" node) (key_text key)
         (String.concat "." (List.map string_of_int sub)))
   | Set_note { node; _ } -> Some ("note:" ^ String.concat "/" node)
+  | Set_input_default { form; input; _ } -> Some (Printf.sprintf "scrub:input:%s:%s" form input)
   | _ -> None
 
 type macro_draft = { literals : (int list * S.t) list; free : string list; name : string }

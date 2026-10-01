@@ -56,12 +56,21 @@ let set_relative enabled = Runtime_input.set_relative source enabled
 
 (* In relative mode the frame's [mouse_delta] is the summed device motion
    rather than absolute differences, which stop at the window edge. *)
+(* macOS: a Control-click is the secondary click, through its release *)
+let ctrl_click = ref false
+let secondary : Event.t -> Event.t = function
+  | MousePressed (LeftButton, p) when KeySet.mem Input.Ctrl !pressed_keys ->
+      ctrl_click := true; MousePressed (RightButton, p)
+  | MouseReleased (LeftButton, p) when !ctrl_click -> ctrl_click := false; MouseReleased (RightButton, p)
+  | PointerCancelled LeftButton when !ctrl_click -> ctrl_click := false; PointerCancelled RightButton
+  | event -> event
+
 let poll () =
   delta := (0., 0.);
   Runtime_input.begin_frame source;
   (match Runtime_input_sdl3.pump source with Ok () -> () | Error _ -> ());
-  let events = Runtime_input.drain source |> List.filter_map convert in
-  List.iter apply events;
+  let events = Runtime_input.drain source |> List.filter_map convert
+    |> List.map (fun event -> let event = secondary event in apply event; event) in
   if Runtime_input.relative source then delta := (Runtime_input.snapshot source).mouse_delta;
   events
 

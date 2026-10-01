@@ -23,6 +23,7 @@ type change =
   | Moved of (path * float * float) list
   | Copy_requested of path list  (** the host puts these bindings' text on the clipboard *)
   | Paste_requested  (** the host adds the clipboard's bindings here *)
+  | Menu_requested of float * float  (** a right-click on empty canvas: the host opens its add menu there *)
   | Macro_requested of path list  (** the host opens the make-macro dialog over these nodes *)
   | Defn_requested of path list  (** the host types the outside names and writes the [defn] *)
   | Frames_set of { scope : path; frames : (string * (float * float) * (float * float)) list }
@@ -1523,6 +1524,7 @@ let update t ui (frame : Frame.t) =
              let selected = if Path_set.mem path t.selected then t.selected else Path_set.singleton path in
              { t with context = Some ((x, y), path); selected }
          | None -> t) in
+  if t.context = None && Ui.context_clicked canvas_signal then (let x, y = canvas_signal.release_point in emit (Menu_requested (x, y)));
   let t = match t.context with
     | None -> t
     | Some (at, path) ->

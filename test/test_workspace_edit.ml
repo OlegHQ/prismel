@@ -51,6 +51,12 @@ let part1 () = (* scrub *)
   let scrub v = E.Set_arg { node = node [ "a" ]; key = Kw "radius"; sub = []; value = num v } in
   check (E.gesture (scrub "1") = E.gesture (scrub "2") && E.gesture (scrub "1") <> None) "scrub merges into one gesture";
   check (E.gesture (E.Toggle_bypass { node = node [ "a" ] }) = None) "other ops do not merge";
+  check (E.gesture (E.Set_input_default { form = "g"; input = "n"; value = num "1" })
+         = E.gesture (E.Set_input_default { form = "g"; input = "n"; value = num "2" })
+         && E.gesture (E.Set_input_default { form = "g"; input = "n"; value = num "1" }) <> None
+         && E.gesture (E.Set_input_default { form = "g"; input = "n"; value = num "1" })
+            <> E.gesture (E.Set_input_default { form = "g"; input = "m"; value = num "1" }))
+    "scrubbing an input default is one gesture per input";
   refused ~code:"E_UNKNOWN_PARAM" "unknown keyword" base
     (E.Set_arg { node = node [ "a" ]; key = Kw "nope"; sub = []; value = num "1" })
 

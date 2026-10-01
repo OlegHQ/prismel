@@ -23,6 +23,8 @@ type change =
       (** Command-C / Command-X: the host puts these bindings' text on the clipboard (a cut
           also deletes them) *)
   | Paste_requested  (** Command-V: the host adds the clipboard's bindings to the selected scope *)
+  | Menu_requested of float * float
+      (** a right-click on empty canvas: the host opens its add menu at this point *)
   | Macro_requested of path list
   | Defn_requested of path list
       (** [m]: the host opens its make-macro dialog over these nodes *)

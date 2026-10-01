@@ -300,7 +300,25 @@ let lisp_text () =
   check (contains (describe doc (index_of "int 5" + 4)) "drag") ("a number's description: " ^ describe doc (index_of "int 5" + 4));
   (* numbers *)
   check (L.number_at "(sop/box :size_x 1.25 :x 3)" 19 = Some (17, 21)) "the number at a byte";
-  check (L.number_at "(sop/box :size_x 1.25 :x 3)" 16 = None) "a space is no number"
+  check (L.number_at "(sop/box :size_x 1.25 :x 3)" 16 = None) "a space is no number";
+  (* parinfer: closers follow indentation, the printed workspaces are already in that shape *)
+  let p text = fst (L.parinfer_text text 0) in
+  List.iter (fun name ->
+    let printed = fst (Flow.Lisp.print (source name)) in
+    check (p printed = printed) (name ^ ": parinfer changed the printed workspace")) [ "bloom"; "sunflower"; "rosette" ];
+  check (p "(a\n  b" = "(a\n  b)") "an open form closes at its last line";
+  check (p "(a\nb)" = "(a)\nb") "a dedented line closes the form before it";
+  check (p "(a (b)\n  c)" = "(a (b)\n  c)") "a closer in the middle of a line stays";
+  check (p "(a \"(\" ; )\n  b" = "(a \"(\" ; )\n  b)") "strings and comments are not brackets";
+  check (p "(a]" = "(a)") "a closer matching nothing is replaced";
+  check (p "(let* [a 1\n       b 2]\n  a)" = "(let* [a 1\n       b 2]\n  a)") "a vector over two lines";
+  check (p "(a\n  )" = "(a)\n") "a line of closers alone becomes blank";
+  check (L.parinfer_text "(a \n  )" 6 = ("(a) \n  ", 7)) "Enter before a closer keeps the caret's indentation";
+  check (L.parinfer_text "(a" 2 = ("(a)", 2)) "the caret stays before an inferred closer";
+  check (L.parinfer_text "(a\nb)" 4 = ("(a)\nb", 5)) "the caret follows a moved closer";
+  check (L.parinfer_text "(a  )" 3 = ("(a )", 3)) "a blank typed before a closer survives on the caret's line";
+  check ((L.language ~parinfer:true Pxui.Theme.default).rewrite <> None
+         && (L.language Pxui.Theme.default).rewrite = None) "the language rewrites only with parinfer on"
 
 (* W9 through the editor: the 1400x800 window of sketches/flow_workspace, Rosette, the graph
    pane zoomed once (frame 12) so the cards sit where FLOW_W9 clicks them: the B flag of

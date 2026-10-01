@@ -91,6 +91,8 @@ let () = match Sys.getenv_opt "FLOW_EXPORT" with
                          let verb = String.sub what 0 i and arg = String.sub what (i + 1) (String.length what - i - 1) in
                          (match verb with
                           | "click" -> click (point arg)
+                          | "rclick" -> [ Event.MouseMoved (point arg); Event.MousePressed (Input.RightButton, point arg);
+                                          Event.MouseReleased (Input.RightButton, point arg) ]
                           | "dbl" -> click (point arg) @ click (point arg)
                           | "press" -> press (point arg) | "move" -> move (point arg)
                           | "release" -> release (point arg)

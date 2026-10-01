@@ -101,7 +101,8 @@ that act there: walking and framing on the canvas; editing needs a selection; `D
 `Delete` take several nodes, `Rename`, `Display` (`v`, `Display_set`) and `Fold_into` one.  Command/Ctrl-C, X and V
 are `Copy_requested paths` (a cut adds `Delete_nodes`) and `Paste_requested`: the host owns the clipboard and the
 text.  `scope_point` maps a screen point to a grid-snapped position inside a scope (where the host places a node
-added from its menu).  Tile text follows the zoom down to 5 points; nothing is clamped larger than its row.  A frame is dragged by its
+added from its menu); a right-click on empty canvas is `Menu_requested (x, y)`, the host's add menu there (a
+right-click on a tile is the pane's own context menu).  Tile text follows the zoom down to 5 points; nothing is clamped larger than its row.  A frame is dragged by its
 title (`Carrying`: the nodes of the scope whose centres lie inside it travel with it, one `Moved` and one
 `Frames_set`); `f` (`Frame_selection`) pans and zooms to the selection.  A zone draws its own footer under its body
 (the layout reserves `foot_height`), and a loop over `sop/point_list` or `sop/piece_list` says `by index` or `by <key>`

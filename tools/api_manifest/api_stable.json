@@ -1160,13 +1160,13 @@
       "source_sha256": "7d4d28d6f0b748a24c1fabb8e0a081a7d3a7f7d0b47591333c667b625cad58de"
     },
     {
-      "api_sha256": "3ee1ee34e666b1da2b81d5556a1774ffb167a48f1efd544d738565d1e0cc3246",
+      "api_sha256": "52eb8d6313dd0e99226221e8322c42d9f29394de1f0a9d77729c71e01fc54076",
       "excluded_legacy_symbols": [],
       "library": "prismel_editor",
       "module": "Prismel_editor",
       "source": "lib/prismel_editor/prismel_editor.mli",
-      "source_bytes": 31348,
-      "source_sha256": "11d82e2ad0d71056907b7e46177cec919dc4487c8c06b5daeaf942409b25083e"
+      "source_bytes": 31552,
+      "source_sha256": "c1f86cdc658743e26107b3f5e64e36cb1269b20cfdc57d8927151f49afd90450"
     },
     {
       "api_sha256": "89e36d6b181da97fd17d91c5b775fc086f37c4047c674d4812656408f7b95082",
@@ -1313,13 +1313,13 @@
       "source_sha256": "dfbc6bef1a2909c2866fdf5bffc864c171f5f4e4052af6f1843737945b901ece"
     },
     {
-      "api_sha256": "285e9f50bba5b1db95d3e3ca36d9b40faef904c1ef5faa056e78c1ab360aed9c",
+      "api_sha256": "c086baacfffbed395776f8cd0f66f8ab2dfabfe02bbb711babd2f91bca6d3baa",
       "excluded_legacy_symbols": [],
       "library": "pxui",
       "module": "Ui",
       "source": "lib/pxui/ui.mli",
-      "source_bytes": 22988,
-      "source_sha256": "efd764d6e1f2c32d59e32859a214c3a8dd2afb1cb3266fd19e33402f3cfbe34d"
+      "source_bytes": 24235,
+      "source_sha256": "9a3dfbdc77b303035478a264991a82296a609e498f33753a697e3c2361d7b11e"
     },
     {
       "api_sha256": "bdb4d891cc187ac37dfcee1c30fc6d516a92966102eefc79625626c9a0b87862",
@@ -1340,13 +1340,13 @@
       "source_sha256": "566ad7a2bc621cf618f4fee5aea1b7a8aa2e950c535c9c8315dbc8c73ef94b84"
     },
     {
-      "api_sha256": "02774786a6a34243c22bf4a1956b1e763251ae406bdc5083c607c3c72d091951",
+      "api_sha256": "96cc1ae7bc4f7b3c2af81a1cce334b0c9dee23413086280e71e82a4f0e8f53ce",
       "excluded_legacy_symbols": [],
       "library": "pxui_graph",
       "module": "Scope_pane",
       "source": "lib/pxui_graph/scope_pane.mli",
-      "source_bytes": 6347,
-      "source_sha256": "dac89a17be2223e26da23de6477e6f1ccf9fee9d1ae467476edc459c338e1183"
+      "source_bytes": 6469,
+      "source_sha256": "a48552781a2bb490fa90ac22e096fa560318c0ff41ad3f02e47c76e6877ef8eb"
     },
     {
       "api_sha256": "708b56987e20f7f95e1219dcdd6a5e0ba2c2d05215525d61274a8ba7e895fdf1",

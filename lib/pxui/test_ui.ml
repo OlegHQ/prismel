@@ -745,7 +745,7 @@ let run () =
   language := Some { Ui.colorize = (fun _ -> []); brackets = (fun _ -> []);
     indent = (fun text caret -> if String.contains (String.sub text 0 caret) '(' then "  " else "");
     pairs = [ '(', ')'; '"', '"' ]; complete = (fun _ _ -> []); describe = (fun _ _ -> None);
-    number_at = (fun _ _ -> None) };
+    number_at = (fun _ _ -> None); rewrite = None };
   area := "";
   area_step [press (150, 12); release (150, 12); Event.TextInput "("];
   expect "an opener inserts its pair" "()";
@@ -821,7 +821,54 @@ let run () =
   area_step [move (nx, 20)];
   area_step [release (nx, 20)];
   expect "a vertical drag is a selection, not a scrub" "0.6 y";
+  (* the language's rewrite runs after each edited frame and maps the caret *)
+  language := Some { (Option.get !language) with rewrite = Some (fun text caret -> text ^ "!", caret) };
+  area := "";
+  area_step [press (150, 12); release (150, 12); Event.TextInput "a"];
+  expect "the rewrite keeps the text as the language wants it" "a!";
+  area_step [Event.TextInput "b"];
+  expect "the caret stays where the rewrite put it" "ab!!";
   language := None;
+  (* macOS editing: a double click selects the word and a triple the line, Option and
+     Command keys move and delete by words and lines, Command-Z undoes inside the area *)
+  area := "alpha beta\ngamma delta";
+  (* a click past the end of the first row lands after "beta" *)
+  let at = 290, 12 in
+  area_step [press at; release at; press at; release at];
+  area_step [Event.TextInput "X"];
+  expect "a double click selects the word" "alpha X\ngamma delta";
+  area_step [press at; release at; press at; release at; press at; release at];
+  area_step [Event.TextInput "L"];
+  expect "a triple click selects the line with its break" "Lgamma delta";
+  area := "one two three";
+  area_step [press (150, 12); release (150, 12)];
+  area_step ~keys:[Input.Meta] [Event.KeyPressed Input.ArrowDown];
+  area_step ~keys:[Input.Alt] [Event.KeyPressed Input.ArrowLeft];
+  area_step [Event.TextInput "X"];
+  expect "Option-Left moves to the start of the word" "one two Xthree";
+  area_step ~keys:[Input.Alt] [Event.KeyPressed Input.Backspace];
+  expect "Option-Backspace takes the word before the caret" "one two three";
+  area_step ~keys:[Input.Alt; Input.Shift] [Event.KeyPressed Input.ArrowLeft];
+  area_step [Event.TextInput "2"];
+  expect "Shift-Option-Left extends the selection by a word" "one 2three";
+  area_step ~keys:[Input.Meta] [Event.KeyPressed Input.Backspace];
+  expect "Command-Backspace takes the line to the caret" "three";
+  area_step ~keys:[Input.Meta] [Event.KeyPressed (Input.KeyChar 'z')];
+  expect "Command-Z undoes the last change" "one 2three";
+  area_step ~keys:[Input.Meta] [Event.KeyPressed (Input.KeyChar 'z')];
+  area_step ~keys:[Input.Meta] [Event.KeyPressed (Input.KeyChar 'z')];
+  expect "Command-Z steps back through the changes" "one two Xthree";
+  area_step ~keys:[Input.Meta; Input.Shift] [Event.KeyPressed (Input.KeyChar 'z')];
+  expect "Shift-Command-Z redoes" "one two three";
+  area := "";
+  area_step [press (150, 12); release (150, 12)];
+  area_step [Event.TextInput "a"];
+  area_step [Event.TextInput "b"];
+  area_step [Event.TextInput "c"];
+  area_step ~keys:[Input.Meta] [Event.KeyPressed (Input.KeyChar 'z')];
+  expect "consecutive typing undoes as one step" "";
+  area_step ~keys:[Input.Meta] [Event.KeyPressed (Input.KeyChar 'y')];
+  expect "Command-Y redoes the typing" "abc";
   Ui.destroy ui;
   (* Modal: centered, and Escape or a press outside dismisses it. *)
   let ui = Ui.create () and shown = ref None in

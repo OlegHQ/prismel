@@ -1416,6 +1416,7 @@ let apply_text value intents =
     | Text_pane.Tab tab -> with_text { text with tab }
     | Menu menu -> with_text { text with menu }
     | Toggle_wrap -> with_text { text with wrap = not text.wrap }
+    | Toggle_parinfer -> with_text { text with parinfer = not text.parinfer }
     | Doc_draft draft -> with_text { text with draft = Some draft; doc_errors = [] }
     | Doc_discard -> with_text { text with draft = None; doc_errors = [] }
     | Doc_apply draft ->
@@ -1881,6 +1882,12 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
         |> Pxui_graph.Scope.with_bounds ~x:gx ~y:gy ~width:(max 1 gw) ~height:(max 1 gh)
         |> Pxui_graph.Scope.with_visible true
         |> fun view -> Pxui_graph.Scope.update view ui shortcut_frame) in
+    (* a right-click on the pane's empty canvas opens the add menu there *)
+    let menu = match menu, List.find_map (function
+        | Pxui_graph.Scope.Menu_requested (x, y) -> Some (int_of_float x, int_of_float y)
+        | _ -> None) scope_frame_changes with
+      | None, Some at -> open_menu value at
+      | menu, _ -> menu in
     let menu, menu_pick = match menu with
       | Some menu -> Pxui.Ui.within ui graph_root (fun () ->
           Pxui_graph.Node_menu.update menu ui ~bounds:(0, 0, frame.width, frame.height))
@@ -2467,7 +2474,7 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
             else M.add graph path l.display }),
           { result with label = "View node" }, probes
       | Syntax_edit _ | Selected _ | Notice _ | Macro_requested _ | Defn_requested _
-      | Copy_requested _ | Paste_requested -> next, result, probes)
+      | Copy_requested _ | Paste_requested | Menu_requested _ -> next, result, probes)
       (next, result, value.probes) scope_changes in
   let before_world = next in
   let next, world_label = if in_world value

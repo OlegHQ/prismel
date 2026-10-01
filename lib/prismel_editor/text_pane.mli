@@ -23,6 +23,8 @@ type state = {
   binding_errors : Flow.Diagnostic.t list;
   graph_errors : Flow.Diagnostic.t list;
   wrap : bool;  (** long lines continue on the next row (the right-click menu toggles it) *)
+  parinfer : bool;  (** the closing brackets follow indentation, {!Lisp_text.parinfer_text} (the
+                        right-click menu toggles it; on by default) *)
   menu : (float * float) option;  (** the right-click menu while it is open *)
   cache : ((Flow.Syntax.t list * string * path option * tab) * shown) option;
 }
@@ -73,5 +75,6 @@ type intent =
           applied live, one history entry *)
   | Graph_scrub of string * string * bool
   | Binding_scrub of path * string * bool
+  | Toggle_parinfer
 
 val view : Pxui.Ui.t -> bounds:int * int * int * int -> vocab:Lisp_text.vocab -> state -> shown -> intent list

@@ -172,6 +172,7 @@ and ui = {
   mutable text_values : string option array;
   mutable press_time : float array;
   mutable press_x : float array; mutable press_y : float array;
+  mutable press_count : int array;  (* consecutive left presses within 0.35 s and 5 points *)
   mutable caches : cached_subtree option array;
   (* per-frame boxes *)
   mutable count : int;
@@ -222,6 +223,13 @@ and ui = {
   mutable edit_caret : int;
   mutable edit_anchor : int;
   mutable edit_scroll_x : float;
+  (* the focused text's undo and redo stacks (text, caret, anchor), and the caret after the
+     last typed character so consecutive typing undoes as one step *)
+  mutable edit_undo : (string * int * int) list;
+  mutable edit_redo : (string * int * int) list;
+  mutable edit_group : int;
+  (* a double or triple click's selection unit, extended by the drag that follows it *)
+  mutable edit_unit : (int * int * int) option;
   mutable scrub_origin : (int * string) option;
   mutable requested_cursor : [`Horizontal_resize|`Vertical_resize] option;
   (* this frame's raw events and logical size, for modal dismissal *)
@@ -256,6 +264,7 @@ and accumulator = {
   mutable released : bool;
   mutable clicked : bool;
   mutable double_clicked : bool;
+  mutable clicks : int;
   mutable moved : bool;
   mutable drag_x : float;
   mutable drag_y : float;
@@ -458,6 +467,7 @@ let create ?(theme = Theme.default) ?font ?(font_size = Theme.font_size) () =
     text_values = Array.make capacity None;
     press_time = Array.make capacity Float.neg_infinity;
     press_x = Array.make capacity 0.; press_y = Array.make capacity 0.;
+    press_count = Array.make capacity 0;
     caches = Array.make capacity None;
     count = 0;
     b_key = Array.make capacity 0; b_slot = Array.make capacity 0;
@@ -487,6 +497,7 @@ let create ?(theme = Theme.default) ?font ?(font_size = Theme.font_size) () =
     previous_keys = []; active_keys = [];
     edit_focus = 0; edit_value = ""; edit_caret = 0; edit_anchor = 0;
     edit_scroll_x = 0.;
+    edit_undo = []; edit_redo = []; edit_group = -1; edit_unit = None;
     scrub_origin = None;
     requested_cursor = None;
     frame_events = []; input_frame = None; routed_events = []; cancelled = [];
@@ -540,6 +551,7 @@ let ensure_slot_capacity ui size =
     ui.press_time <- grow_float ui.press_time size Float.neg_infinity;
     ui.press_x <- grow_float ui.press_x size 0.;
     ui.press_y <- grow_float ui.press_y size 0.;
+    ui.press_count <- grow ui.press_count size 0;
     ui.caches <- grow ui.caches size None
   end
 
@@ -560,6 +572,7 @@ let slot_of ui key =
     ui.scroll_event_time.(slot) <- Float.neg_infinity;
     ui.scroll_frame_time.(slot) <- 0.;
     ui.text_values.(slot) <- None; ui.press_time.(slot) <- Float.neg_infinity;
+    ui.press_count.(slot) <- 0;
     ui.caches.(slot) <- None;
     Table.add ui.table key slot;
     slot
@@ -595,7 +608,7 @@ let accumulator ui key =
   | None ->
       let value = { pressed = false; subtree_press = None;
         released = false; clicked = false;
-        double_clicked = false; moved = false; drag_x = 0.; drag_y = 0.;
+        double_clicked = false; clicks = 0; moved = false; drag_x = 0.; drag_y = 0.;
         press_point = (0., 0.); release_point = (0., 0.); button = None;
         scroll_x = 0.; scroll_y_steps = 0.; keys = [];
         press_keys = if ui.active = Some key then ui.active_keys else [] } in
@@ -755,12 +768,16 @@ let route ui (frame : Frame.t) =
           if slot >= 0 && button = Input.LeftButton then begin
             let x, y = ui.pointer in
             let dx = x -. ui.press_x.(slot) and dy = y -. ui.press_y.(slot) in
-            if frame.time >= ui.press_time.(slot)
+            (* the second press within 0.35 s and 5 points is a double click, the third a
+               triple; the fourth starts over *)
+            let count = if frame.time >= ui.press_time.(slot)
                 && frame.time -. ui.press_time.(slot) <= 0.35
-                && (dx *. dx) +. (dy *. dy) <= 25. then begin
-              value.double_clicked <- true;
-              ui.press_time.(slot) <- Float.neg_infinity
-            end else ui.press_time.(slot) <- frame.time;
+                && (dx *. dx) +. (dy *. dy) <= 25. && ui.press_count.(slot) < 3
+              then ui.press_count.(slot) + 1 else 1 in
+            ui.press_count.(slot) <- count;
+            value.clicks <- count;
+            value.double_clicked <- count = 2;
+            ui.press_time.(slot) <- frame.time;
             ui.press_x.(slot) <- x; ui.press_y.(slot) <- y
           end
         end
@@ -990,6 +1007,7 @@ type signal = {
   released : bool;
   clicked : bool;
   double_clicked : bool;
+  clicks : int;
   dragging : bool;
   drag : float * float;
   pointer : float * float;
@@ -1007,7 +1025,7 @@ let signal ui box =
   | None ->
       { hovered = ui.hot = key; pressed = false; subtree_press = None;
         held; released = false;
-        clicked = false; double_clicked = false; dragging = false;
+        clicked = false; double_clicked = false; clicks = 0; dragging = false;
         drag = (0., 0.); pointer = ui.pointer;
         press_point = (if held then ui.active_press
           else (ui.press_x.(box.box_slot), ui.press_y.(box.box_slot)));
@@ -1018,7 +1036,7 @@ let signal ui box =
       { hovered = ui.hot = key; pressed = value.pressed;
         subtree_press = value.subtree_press; held;
         released = value.released; clicked = value.clicked;
-        double_clicked = value.double_clicked;
+        double_clicked = value.double_clicked; clicks = value.clicks;
         dragging = value.moved && (held || value.released);
         drag = (value.drag_x, value.drag_y); pointer = ui.pointer;
         press_point = (if value.pressed || value.released then value.press_point
@@ -1961,7 +1979,8 @@ let load_text_edit ui key text =
   if ui.edit_focus <> key || ui.edit_value <> text then begin
     ui.edit_focus <- key; ui.edit_value <- text;
     ui.edit_caret <- String.length text; ui.edit_anchor <- ui.edit_caret;
-    ui.edit_scroll_x <- 0.
+    ui.edit_scroll_x <- 0.;
+    ui.edit_undo <- []; ui.edit_redo <- []; ui.edit_group <- -1; ui.edit_unit <- None
   end;
   { text; caret = ui.edit_caret; anchor = ui.edit_anchor }
 
@@ -1980,30 +1999,132 @@ let replace_text edit inserted =
   edit.caret <- start + String.length inserted;
   edit.anchor <- edit.caret
 
+(* Words as macOS counts them: letters, digits, underscores and every non-ASCII byte. *)
+let word_char = function
+  | 'a' .. 'z' | 'A' .. 'Z' | '0' .. '9' | '_' -> true
+  | c -> Char.code c >= 128
+
+(* Option-Left: back over the separators, then over the word *)
+let word_left text i =
+  let i = ref i in
+  while !i > 0 && not (word_char text.[!i - 1]) do decr i done;
+  while !i > 0 && word_char text.[!i - 1] do decr i done;
+  !i
+
+(* Option-Right: over the separators, then to the end of the word *)
+let word_right text i =
+  let n = String.length text in
+  let i = ref i in
+  while !i < n && not (word_char text.[!i]) do incr i done;
+  while !i < n && word_char text.[!i] do incr i done;
+  !i
+
+let line_start text i =
+  let i = ref i in
+  while !i > 0 && text.[!i - 1] <> '\n' do decr i done;
+  !i
+
+let line_end text i =
+  let n = String.length text in
+  let i = ref i in
+  while !i < n && text.[!i] <> '\n' do incr i done;
+  !i
+
+(* what a double click selects at [i]: the word there, else the run of blanks, else the one
+   punctuation character; nothing on a line break *)
+let word_at text i =
+  let n = String.length text in
+  let class_of c = if word_char c then 1 else if c = ' ' || c = '\t' then 2
+    else if c = '\n' || c = '\r' then 0 else 3 in
+  let pick = if i < n && class_of text.[i] <> 0 then Some i
+    else if i > 0 && class_of text.[i - 1] <> 0 then Some (i - 1) else None in
+  match pick with
+  | None -> i, i
+  | Some p when class_of text.[p] = 3 -> p, p + 1
+  | Some p ->
+      let k = class_of text.[p] in
+      let a = ref p and b = ref (p + 1) in
+      while !a > 0 && class_of text.[!a - 1] = k do decr a done;
+      while !b < n && class_of text.[!b] = k do incr b done;
+      !a, !b
+
+(* ---- undo inside the focused text: snapshots before each change, consecutive typing as one *)
+
+let rec bounded n = function x :: rest when n > 0 -> x :: bounded (n - 1) rest | _ -> []
+
+let remember ui edit ~typing =
+  if not (typing && edit.caret = edit.anchor && ui.edit_group = edit.caret) then begin
+    ui.edit_undo <- bounded 200 ((edit.text, edit.caret, edit.anchor) :: ui.edit_undo);
+    ui.edit_redo <- []
+  end;
+  ui.edit_group <- -1
+
+let undo_text ui edit ~redo =
+  match if redo then ui.edit_redo else ui.edit_undo with
+  | [] -> false
+  | (text, caret, anchor) :: rest ->
+      let now = edit.text, edit.caret, edit.anchor in
+      if redo then (ui.edit_redo <- rest; ui.edit_undo <- now :: ui.edit_undo)
+      else (ui.edit_undo <- rest; ui.edit_redo <- now :: ui.edit_redo);
+      edit.text <- text; edit.caret <- caret; edit.anchor <- anchor;
+      ui.edit_group <- -1;
+      true
+
+(* A press places the caret (Shift extends the selection), a double click selects the word
+   there, a triple click the [line_of] range; the drag that follows extends by the same unit. *)
+let press_select ui edit ~shift ~clicks ~line_of at =
+  if clicks < 2 then begin
+    edit.caret <- at;
+    if not shift then edit.anchor <- at;
+    ui.edit_unit <- None
+  end else begin
+    let a, b = if clicks = 2 then word_at edit.text at else line_of at in
+    edit.anchor <- a; edit.caret <- b;
+    ui.edit_unit <- Some (a, b, clicks)
+  end
+
+let drag_select ui edit ~line_of at =
+  match ui.edit_unit with
+  | None -> edit.caret <- at
+  | Some (a, b, clicks) ->
+      let c, d = if clicks = 2 then word_at edit.text at else line_of at in
+      if c < a then (edit.anchor <- b; edit.caret <- c)
+      else (edit.anchor <- a; edit.caret <- max b d)
+
 let point_text_caret ui ?size edit signal ~shift ~x ~right =
   let at (px, _) = text_caret_at ui ?size edit.text
     (Float.max 0. (Float.min right px -. x +. ui.edit_scroll_x)) in
-  if signal.pressed then begin
-    let caret = at signal.press_point in
-    edit.caret <- caret;
-    if not shift then edit.anchor <- caret
-  end;
+  let line_of _ = 0, String.length edit.text in
+  if signal.pressed then
+    press_select ui edit ~shift ~clicks:signal.clicks ~line_of (at signal.press_point);
   if signal.dragging || (signal.held && signal.pointer <> signal.press_point) then begin
     let px = fst signal.pointer in
     if px < x then ui.edit_scroll_x <- Float.max 0.
       (ui.edit_scroll_x -. Float.max 1. (Float.min 24. ((x -. px) *. 0.25)))
     else if px > right then ui.edit_scroll_x <- ui.edit_scroll_x +.
       Float.max 1. (Float.min 24. ((px -. right) *. 0.25));
-    edit.caret <- at signal.pointer
+    drag_select ui edit ~line_of (at signal.pointer)
   end
 
-let edit_text_event edit ~accept ~modifiers event =
+(* The keys every text widget shares, as macOS binds them: Command-A/C/X/V, Command-Z and
+   Shift-Command-Z (or Command-Y) undo and redo, Option-arrows move by words, Command-arrows
+   and Home/End by lines, Option-Backspace/Delete take a word, Command-Backspace/Delete the
+   line to the caret.  Returns whether the text changed. *)
+let edit_text_event ui edit ~accept ~modifiers event =
   let command = command_modifiers modifiers
-  and shift = List.mem Input.Shift modifiers in
+  and shift = List.mem Input.Shift modifiers
+  and alt = List.mem Input.Alt modifiers in
   let selected () = edit.caret <> edit.anchor in
   let move target =
     edit.caret <- target;
     if not shift then edit.anchor <- target in
+  (* the selection, else from the caret to [target] *)
+  let delete_to target =
+    if (not (selected ())) && target = edit.caret then false else begin
+      remember ui edit ~typing:false;
+      if not (selected ()) then edit.anchor <- target;
+      replace_text edit ""; true
+    end in
   match event with
   | event when clipboard_command ~command event = Some 'a' ->
       edit.anchor <- 0; edit.caret <- String.length edit.text; false
@@ -2016,6 +2137,7 @@ let edit_text_event edit ~accept ~modifiers event =
       let copied = if selected () then
         String.sub edit.text start (stop - start) else edit.text in
       if Clipboard.set_text copied = Ok () then begin
+        remember ui edit ~typing:false;
         if selected () then replace_text edit "" else begin
           edit.text <- ""; edit.caret <- 0; edit.anchor <- 0
         end;
@@ -2023,26 +2145,38 @@ let edit_text_event edit ~accept ~modifiers event =
       end else false
   | event when clipboard_command ~command event = Some 'v' ->
       (match Clipboard.get_text () with
-       | Ok text when accept text -> replace_text edit text; true
+       | Ok text when accept text -> remember ui edit ~typing:false; replace_text edit text; true
        | Ok _ | Error _ -> false)
-  | Event.TextInput text when accept text -> replace_text edit text; true
+  | event when clipboard_command ~command event = Some 'z' -> undo_text ui edit ~redo:shift
+  | event when clipboard_command ~command event = Some 'y' -> undo_text ui edit ~redo:true
+  | Event.TextInput text when accept text ->
+      let typing = not (String.exists (function ' ' | '\t' | '\n' -> true | _ -> false) text) in
+      remember ui edit ~typing;
+      replace_text edit text;
+      if typing then ui.edit_group <- edit.caret;
+      true
   | Event.KeyPressed Input.Backspace ->
-      if not (selected ()) then edit.anchor <- previous_utf8 edit.text edit.caret;
-      replace_text edit ""; true
+      delete_to (if command then line_start edit.text edit.caret
+        else if alt then word_left edit.text edit.caret
+        else previous_utf8 edit.text edit.caret)
   | Event.KeyPressed Input.Delete ->
-      if not (selected ()) then edit.anchor <- next_utf8 edit.text edit.caret;
-      replace_text edit ""; true
+      delete_to (if command then line_end edit.text edit.caret
+        else if alt then word_right edit.text edit.caret
+        else next_utf8 edit.text edit.caret)
   | Event.KeyPressed Input.ArrowLeft ->
-      move (if command then 0 else if selected () && not shift
-        then fst (text_selection edit) else previous_utf8 edit.text edit.caret);
+      move (if command then line_start edit.text edit.caret
+        else if alt then word_left edit.text edit.caret
+        else if selected () && not shift then fst (text_selection edit)
+        else previous_utf8 edit.text edit.caret);
       false
   | Event.KeyPressed Input.ArrowRight ->
-      move (if command then String.length edit.text
+      move (if command then line_end edit.text edit.caret
+        else if alt then word_right edit.text edit.caret
         else if selected () && not shift then snd (text_selection edit)
         else next_utf8 edit.text edit.caret);
       false
-  | Event.KeyPressed Input.Home -> move 0; false
-  | Event.KeyPressed Input.End -> move (String.length edit.text); false
+  | Event.KeyPressed Input.Home -> move (line_start edit.text edit.caret); false
+  | Event.KeyPressed Input.End -> move (line_end edit.text edit.caret); false
   | _ -> false
 
 let paint_text_edit paint ?size ~control:(cx, cy, cw, ch) ~y ~composition edit =
@@ -2126,7 +2260,7 @@ let rec numeric_editor ?size ?control ?(click_to_edit = false)
              | None -> state := 0)
         | Event.KeyPressed Input.Escape -> cancelled := true
         | event ->
-            if edit_text_event edit ~modifiers
+            if edit_text_event ui edit ~modifiers
                 ~accept event then
               state := if parse edit.text <> None then 1 else 0) keys;
       if !cancelled then (finish (); unfocus ui; None, false)
@@ -2319,7 +2453,7 @@ let text_field ui text value =
     let (cx, _, cw, _) = value_control (ints (rect ui row)) in
     point_text_caret ui edit signal ~shift:(press_shift ui row)
       ~x:(float (cx + 8)) ~right:(float (cx + cw - 8));
-    List.iter (fun (event, modifiers) -> ignore (edit_text_event edit ~modifiers
+    List.iter (fun (event, modifiers) -> ignore (edit_text_event ui edit ~modifiers
       ~accept:(fun _ -> true) event)) (key_events ui row);
     save_text_edit ui edit
   end;
@@ -2418,6 +2552,9 @@ type language = {
   complete : string -> int -> completion list;  (* ranked, for the token ending at the caret *)
   describe : string -> int -> (int * int * string) option;  (* the token at a byte and its doc *)
   number_at : string -> int -> (int * int) option;  (* the numeric literal at a byte *)
+  rewrite : (string -> int -> string * int) option;
+  (* [rewrite text caret] after an edit: the text as the language keeps it (parinfer), and
+     where [caret] lands in it *)
 }
 
 (* A box at the root, laid out and painted after every pane (like a tooltip), so a popup under
@@ -2530,6 +2667,7 @@ let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors =
   let first = max 0 (!selected - shown + 1) in
   let closed = ref false in
   let accept (c : completion) =
+    remember ui edit ~typing:false;
     let a, b = c.replace in
     let a = max 0 (min a (String.length edit.text)) and b = max 0 (min b (String.length edit.text)) in
     edit.text <- String.sub edit.text 0 a ^ c.insert ^ String.sub edit.text b (String.length edit.text - b);
@@ -2550,13 +2688,18 @@ let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors =
   end in
   if focused then begin
     let caret0 = edit.caret in
-    if signal.pressed && signal.button = Some Input.LeftButton then begin
-      edit.caret <- point_at signal.press_point;
-      if not (press_shift ui body) then edit.anchor <- edit.caret
-    end else if !scrubbing = None && scrub_state = 0
+    (* a triple click takes the logical line with its break *)
+    let line_of at =
+      let s = line_start edit.text at and e = line_end edit.text at in
+      s, (if e < String.length edit.text then e + 1 else e) in
+    if signal.pressed && signal.button = Some Input.LeftButton then
+      press_select ui edit ~shift:(press_shift ui body) ~clicks:signal.clicks ~line_of
+        (point_at signal.press_point)
+    else if !scrubbing = None && scrub_state = 0
         && (signal.dragging || (signal.held && signal.pointer <> signal.press_point)) then
-      edit.caret <- point_at signal.pointer;
-    let typed = ref false in
+      drag_select ui edit ~line_of (point_at signal.pointer);
+    let typed = ref false and changed = ref false in
+    let page = max 1 (int_of_float (bh /. row) - 1) in
     List.iter (fun ((event : Event.t), modifiers) ->
       let command = command_modifiers modifiers and shift = List.mem Input.Shift modifiers in
       let rows = rows_of edit.text in
@@ -2572,6 +2715,7 @@ let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors =
         else move (start_of rows target
           + text_caret_at ui (row_text edit.text rows target) (x_of line edit.caret)) in
       let listing = shown > 0 && not !closed in
+      let change () = changed := true; remember ui edit ~typing:false in
       (match event with
       | Event.KeyPressed Input.Enter when command -> submitted := true
       (* the completion popup takes Up, Down, Tab, Enter and Escape while it is open *)
@@ -2585,7 +2729,7 @@ let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors =
           if not readonly then begin
             let indent = match language with
               | Some l -> l.indent edit.text (fst (text_selection edit)) | None -> "" in
-            replace_text edit ("\n" ^ indent)
+            change (); replace_text edit ("\n" ^ indent)
           end
       (* brackets come in pairs: an opener wraps the selection or inserts both, a closer typed
          before itself steps over it, Backspace between an empty pair takes both *)
@@ -2595,48 +2739,60 @@ let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors =
           let next = if edit.caret < String.length edit.text then Some edit.text.[edit.caret] else None in
           (match List.assoc_opt c pairs with
            | Some close when start <> stop ->
+               change ();
                replace_text edit (String.make 1 c ^ String.sub edit.text start (stop - start) ^ String.make 1 close);
                edit.anchor <- start + 1; edit.caret <- stop + 1
            | _ when List.exists (fun (_, close) -> close = c) pairs && next = Some c ->
                edit.caret <- edit.caret + 1; edit.anchor <- edit.caret
            | Some close ->
+               change ();
                replace_text edit (String.make 1 c ^ String.make 1 close);
                edit.caret <- edit.caret - 1; edit.anchor <- edit.caret
-           | None -> replace_text edit s);
+           | None -> changed := edit_text_event ui edit ~accept:(fun _ -> true) ~modifiers event || !changed);
           typed := true
       | Event.KeyPressed Input.Backspace when language <> None && not readonly && not command
           && edit.caret = edit.anchor && edit.caret > 0 && edit.caret < String.length edit.text
           && List.mem (edit.text.[edit.caret - 1], edit.text.[edit.caret]) (Option.get language).pairs ->
-          edit.anchor <- edit.caret - 1; edit.caret <- edit.caret + 1; replace_text edit ""; typed := true
+          change (); edit.anchor <- edit.caret - 1; edit.caret <- edit.caret + 1; replace_text edit ""; typed := true
       | Event.KeyPressed Input.Tab when not command && not readonly ->
-          if not shift then replace_text edit "  "
+          if not shift then (change (); replace_text edit "  ")
           else begin
             (* Shift-Tab: up to two spaces leave the start of the line *)
-            let line_start = let rec back i = if i > 0 && edit.text.[i - 1] <> '\n' then back (i - 1) else i in
-              back edit.caret in
+            let line_start = line_start edit.text edit.caret in
             let spaces = if line_start < String.length edit.text && edit.text.[line_start] = ' '
               then (if line_start + 1 < String.length edit.text && edit.text.[line_start + 1] = ' ' then 2 else 1)
               else 0 in
             if spaces > 0 then begin
+              change ();
               edit.text <- String.sub edit.text 0 line_start
                 ^ String.sub edit.text (line_start + spaces) (String.length edit.text - line_start - spaces);
               edit.caret <- max line_start (edit.caret - spaces); edit.anchor <- edit.caret
             end
           end
+      | Event.KeyPressed Input.ArrowUp when command -> move 0
+      | Event.KeyPressed Input.ArrowDown when command -> move (String.length edit.text)
       | Event.KeyPressed Input.ArrowUp -> vertical (-1)
       | Event.KeyPressed Input.ArrowDown -> vertical 1
+      | Event.KeyPressed Input.PageUp -> vertical (-page)
+      | Event.KeyPressed Input.PageDown -> vertical page
       | Event.KeyPressed (Input.Home | Input.ArrowLeft) when command || event = Event.KeyPressed Input.Home ->
           move (start_of rows line)
       | Event.KeyPressed (Input.End | Input.ArrowRight) when command || event = Event.KeyPressed Input.End ->
           move (stop_of rows line)
       | event ->
           let before = edit.text, edit.caret, edit.anchor in
-          if edit_text_event edit ~accept:(fun _ -> true) ~modifiers event && readonly
-          then (let text, caret, anchor = before in
-                edit.text <- text; edit.caret <- caret; edit.anchor <- anchor)
-          else (match event with
-            | Event.TextInput _ | Event.KeyPressed (Input.Backspace | Input.Delete) -> typed := true
-            | _ -> ())))
+          if edit_text_event ui edit ~accept:(fun _ -> true) ~modifiers event then begin
+            if readonly then begin
+              let text, caret, anchor = before in
+              edit.text <- text; edit.caret <- caret; edit.anchor <- anchor;
+              ui.edit_undo <- []; ui.edit_redo <- []
+            end else begin
+              changed := true;
+              (match event with
+               | Event.TextInput _ | Event.KeyPressed (Input.Backspace | Input.Delete) -> typed := true
+               | _ -> ())
+            end
+          end))
       (key_events ui body);
     (* a dragged number: the literal at the press follows the pointer (the caret sits after it) *)
     Option.iter (fun (start, literal, dx) ->
@@ -2661,6 +2817,13 @@ let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors =
           | c :: _ when fst c.replace = (open_ lsr 8) - 1 ->
               set_state ui suggest ((open_ lsr 8) * 256 + !selected)
           | _ -> set_state ui suggest 0)
+     | _ -> ());
+    (* the language's rewrite (parinfer) after this frame's edits; the anchor maps like the caret *)
+    (match language with
+     | Some { rewrite = Some rewrite; _ } when !changed && not readonly ->
+         let text', caret' = rewrite edit.text edit.caret in
+         let anchor' = if edit.anchor = edit.caret then caret' else snd (rewrite edit.text edit.anchor) in
+         edit.text <- text'; edit.caret <- caret'; edit.anchor <- anchor'
      | _ -> ());
     save_text_edit ui edit;
     moved := edit.caret <> caret0 || edit.text != text || signal.pressed
@@ -3021,7 +3184,7 @@ let picker ui ?(limit = 10) label ~query rows_of =
         else armed := !cursor
     | Event.KeyPressed Input.Escape -> result := `Cancel
     | event ->
-        ignore (edit_text_event edit ~modifiers ~accept:(fun _ -> true) event);
+        ignore (edit_text_event ui edit ~modifiers ~accept:(fun _ -> true) event);
         if edit.text <> !query then set_query edit.text) keys;
   save_text_edit ui edit;
   let count = count () and rows = !rows in

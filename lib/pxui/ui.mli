@@ -184,6 +184,9 @@ type signal = {
   released : bool;  (** capture ended this frame *)
   clicked : bool;  (** left press and release both inside the hit rect *)
   double_clicked : bool;
+  clicks : int;
+  (** on the frame of a left press: 1, or 2 and 3 for the second and third press within
+      0.35 s and 5 points (a double and a triple click); 0 otherwise *)
   dragging : bool;  (** captured and the pointer moved this frame *)
   drag : float * float;  (** captured pointer motion this frame *)
   pointer : float * float;  (** latest pointer, screen space *)
@@ -375,6 +378,13 @@ val slider : t -> string -> range:float * float -> float -> float
 
 val int_slider : t -> string -> range:int * int -> int -> int
 val text_field : t -> string -> string -> string
+(** A single-line field.  Every text widget edits as macOS does: a click places the caret and
+    Shift-click or a drag extends the selection, a double click selects the word (a triple the
+    line), Option-arrows move by words and Command-arrows (or Home/End) by lines, each with
+    Shift extending, Option-Backspace/Delete take a word and Command-Backspace/Delete the line
+    to the caret, Command-A/C/X/V select all, copy, cut and paste, and Command-Z and
+    Shift-Command-Z (or Command-Y) undo and redo the focused text (consecutive typing is one
+    step; the stack is dropped when the focus or the value changes from outside). *)
 
 type completion = {
   replace : int * int;  (** the byte span [insert] replaces *)
@@ -405,6 +415,10 @@ type language = {
   number_at : string -> int -> (int * int) option;
       (** [number_at text byte]: the numeric literal at [byte]; dragging it sideways changes
           the value in place (see [on_scrub] of {!text_area_submit}) *)
+  rewrite : (string -> int -> string * int) option;
+      (** [rewrite text caret], run after every frame that edited the text: the text as the
+          language keeps it (parinfer infers the closing brackets from indentation) and where
+          [caret] lands in it; the anchor of a selection maps the same way *)
 }
 (** What a code editor knows about its text.  A host supplies one (the editor's Lisp);
     {!text_area} itself is language-free. *)
@@ -415,8 +429,9 @@ val text_area :
   string -> string -> string
 (** [text_area ui ~at ~w ~h label text] is a scrolling multiline editor with a
     line-number gutter, returning the edited text. It shares [text_field]'s
-    focus, IME composition, clipboard and caret code; Enter inserts a line,
-    Up/Down keep the column, Home/End are line-scoped, Escape leaves it.
+    focus, IME composition, clipboard, caret, selection and undo code; Enter inserts a line,
+    Up/Down keep the column, Page Up/Down move by a page, Command-Up/Down go to the ends of
+    the text, Home/End and Command-Left/Right are row-scoped, Escape leaves it.
     [readonly] keeps the caret and selection (copy works) but never changes
     the text. [errors] are 1-based lines marked in the gutter, [spans] byte
     ranges tinted (a marked selection), and [reveal] a byte offset scrolled into

@@ -221,7 +221,9 @@ keep new text features on that map, never on string search. Text entry is `Ui.te
 with `Lisp_text.language` (an error-tolerant lexer: colours, rainbow brackets, the lit pair at the
 caret, Enter indentation, paired brackets, ranked completions for the token at the caret over a
 `Lisp_text.vocab` of the catalog, a description of the token under the pointer, and the number a
-drag changes); the widget stays language-free.  Typing opens the completion popup (kinds of the
+drag changes, and parinfer's indent mode as the language's `rewrite`, `Lisp_text.parinfer_text`, on by
+default and toggled by the pane's right-click menu, `Text_pane.parinfer`); the widget stays
+language-free.  Typing opens the completion popup (kinds of the
 graph's context, a kind's parameters and choices, forms, operators, bindings in scope; Up/Down,
 Tab/Enter, Escape).  A number dragged sideways applies the text on every frame of the drag
 (`Text_pane.Doc_scrub`/`Graph_scrub`/`Binding_scrub`, `Core.scrub_merge`, one "Edit text" entry

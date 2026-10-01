@@ -221,6 +221,11 @@ let scope_gestures () =
   let _, picked = scope_step menu (frame ~mouse:(item 0) ~events:[ mouse_move (item 0); mouse_press (Input.LeftButton, item 0);
     mouse_release (Input.LeftButton, item 0) ] ()) in
   check (List.mem (syntax (E.Fold_into { node = heart })) picked) "the right-click menu's first row did not become Fold_into";
+  (* a right-click on empty canvas asks the host for its add menu at that point *)
+  let empty = 2900, 1900 in
+  let _, requested = scope_step view (frame ~mouse:empty ~events:[ mouse_move empty;
+    mouse_press (Input.RightButton, empty); mouse_release (Input.RightButton, empty) ] ()) in
+  check (List.mem (Scope.Menu_requested (2900., 1900.)) requested) "a right-click on empty canvas did not ask for the add menu";
   check (only Scope.Display = [ Scope.Display_set heart ]) "v: a geometry node is shown in the viewport";
   (match snd (Scope.run_command (Scope.select [ [ "flower"; "petals" ] ] view) Scope.Display) with
    | [ Scope.Notice _ ] -> () | _ -> failwith "v on a number did not say only geometry can be viewed");
