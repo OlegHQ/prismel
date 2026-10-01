@@ -249,7 +249,58 @@ let lisp_text () =
   check (L.brackets "(a [b] c)" = [ (0, 8); (3, 5) ] || L.brackets "(a [b] c)" = [ (3, 5); (0, 8) ]) "matched pairs";
   check (L.brackets "(a ]" = []) "a mismatched closer pairs with nothing";
   let colors = (L.language Pxui.Theme.default).colorize "(sop/box :size 1.5 \"s\" ; c" in
-  check (List.length colors = 6) (Printf.sprintf "head, keyword, number, string, comment and the paren: %d runs" (List.length colors))
+  check (List.length colors = 6) (Printf.sprintf "head, keyword, number, string, comment and the paren: %d runs" (List.length colors));
+  (* completions over the catalog: ranked, for the token at the caret *)
+  let vocab = L.vocab (List.map Flow_sop.Catalog.descriptor Sop_catalog.Editor.factories
+    @ Editor_document.Contexts.descriptors) in
+  let labels text = List.map (fun (c : Pxui.Ui.completion) -> c.label) (L.complete vocab text (String.length text)) in
+  let first text = match labels text with l :: _ -> l | [] -> "" in
+  let doc = "(workspace w (graph g :context sop [(depth : int 5)] (let* [ring (sop/box :size_x 2) b (" in
+  (* a head: the context's kinds first, prefix matches before fuzzy ones *)
+  check (first (doc ^ "sop/tra") = "sop/transform") ("head completion: " ^ first (doc ^ "sop/tra"));
+  check (List.for_all (fun l -> String.length l >= 7 && String.sub l 0 7 = "sop/tra"
+      || Pxui.Ui.fuzzy_match ~query:"sop/tra" l) (labels (doc ^ "sop/tra"))) "every head completion matches";
+  check (List.mem "let*" (labels (doc ^ "le")) && List.mem "sop/merge" (labels (doc ^ "me")))
+    "forms and kinds complete at a head";
+  (* the empty head lists the kinds the text uses first *)
+  check (first doc = "sop/box") ("the used kind ranks first: " ^ first doc);
+  (* a keyword: the kind's parameters, a vec3 group before its components, present ones left out *)
+  check (first (doc ^ "sop/box :si") = ":size") ("keyword completion: " ^ first (doc ^ "sop/box :si"));
+  check (List.mem ":size_x" (labels (doc ^ "sop/box :si"))) "the group's components follow";
+  check (not (List.mem ":size" (labels (doc ^ "sop/box :size [1 1 1] :s")))) "a keyword already given is left out";
+  check (first (doc ^ "sop/transform ring :rot") = ":rotate") ("rotate group: " ^ first (doc ^ "sop/transform ring :rot"));
+  (* a choice after its keyword, with or without the opening quote *)
+  check (List.mem "Quads" (labels (doc ^ "sop/box :connectivity \"Qu")) && List.mem "Quads" (labels (doc ^ "sop/box :connectivity Qu")))
+    "choices complete after their keyword";
+  (match L.complete vocab (doc ^ "sop/box :connectivity \"Qu") (String.length doc + 24) with
+   | c :: _ -> check (c.insert = "\"Quads\"") ("a choice inserts its quotes: " ^ c.insert)
+   | [] -> fail "no choice");
+  (* an argument: the bindings and inputs in scope before constants; naming a new binding offers nothing *)
+  check (first (doc ^ "sop/transform ri") = "ring") ("binding completion: " ^ first (doc ^ "sop/transform ri"));
+  check (List.mem "depth" (labels (doc ^ "sop/transform ring :uniform_scale de"))) "graph inputs complete";
+  check (List.mem "t" (labels (doc ^ "sop/transform ring :uniform_scale t"))) "t completes";
+  check (labels "(workspace w (graph g :context sop [] (let* [ri" = []) "a new binding's name is not completed";
+  check (labels (doc ^ "sop/box :size 1") = []) "a number completes nothing";
+  (* the operator's keyword and the context keyword *)
+  check (List.mem ":closed" (labels (doc ^ "sop/curve ring :cl"))) "an operator's keyword";
+  check (first "(workspace w (graph g :context sc" = "scene") "contexts after :context";
+  (* descriptions *)
+  let describe text at = match L.describe vocab text at with Some (_, _, d) -> d | None -> "" in
+  let index_of part = let n = String.length part in
+    let rec at i = if String.sub doc i n = part then i else at (i + 1) in at 0 in
+  check (contains (describe doc (index_of "sop/box" + 2)) "Box") ("a kind's description: " ^ describe doc (index_of "sop/box" + 2));
+  let at = index_of ":size_x" + 3 in
+  check (contains (describe doc at) "Size X") ("a parameter's description: " ^ describe doc at);
+  check (contains (describe (doc ^ "sop/box :size [1 1 1])") (String.length doc + 10)) "Size")
+    ("a group's description: " ^ describe (doc ^ "sop/box :size [1 1 1])") (String.length doc + 10));
+  check (contains (describe doc 15) "network") ("graph form: " ^ describe doc 15);
+  check (describe doc (String.length doc - 1) = "") "an open paren has no description";
+  check (contains (describe (doc ^ "sop/transform ring)") (String.length doc + 15)) "let* binding")
+    ("a binding's description: " ^ describe (doc ^ "sop/transform ring)") (String.length doc + 15));
+  check (contains (describe doc (index_of "int 5" + 4)) "drag") ("a number's description: " ^ describe doc (index_of "int 5" + 4));
+  (* numbers *)
+  check (L.number_at "(sop/box :size_x 1.25 :x 3)" 19 = Some (17, 21)) "the number at a byte";
+  check (L.number_at "(sop/box :size_x 1.25 :x 3)" 16 = None) "a space is no number"
 
 (* W9 through the editor: the 1400x800 window of sketches/flow_workspace, Rosette, the graph
    pane zoomed once (frame 12) so the cards sit where FLOW_W9 clicks them: the B flag of

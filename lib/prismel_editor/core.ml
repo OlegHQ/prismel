@@ -134,6 +134,7 @@ type 'prepared t = {
   select_later : Flow.Workspace.path list;  (* nodes to select once the pane shows their graph *)
   pane_graph : string option;  (* a scene, world or settings graph the pane shows instead of the level's own *)
   flow_catalog : Flow.Check.catalog option Lazy.t;
+  lisp_vocab : Lisp_text.vocab Lazy.t;  (* what the text pane completes and describes *)
   tree : Pxui_shell.Tree.t;
   outline : Navigator.state;  (* the Navigator panel: its search (view state) *)
   ui : Pxui.Ui.t;
@@ -1104,6 +1105,8 @@ let create ?(settings = Settings.none) ?(keymap = Leader.keymap)
         scope_key = None; select_later = []; pane_graph = None;
         flow_catalog = lazy (Result.to_option (Editor_document.Contexts.catalog
           ~version:Flow_sop.Manifest.version factories));
+        lisp_vocab = lazy (Lisp_text.vocab
+          (List.map Flow_sop.Catalog.descriptor factories @ Editor_document.Contexts.descriptors));
         tree = Pxui_shell.Tree.create (); outline = Navigator.initial; held_keys = [];
         ui = Pxui.Ui.create (); workspace;
         timeline = Sketch_support.Timeline.create (); cook;
@@ -1349,14 +1352,14 @@ let install value doc ~label ~merge =
 
 (* The text pane's applies (plan W7): the whole workspace text, or one
    binding's expression; atomic, one history entry "Edit text". *)
-let text_edit ?(label = "Edit text") value text =
-  Result.map (fun doc -> install value doc ~label ~merge:Editor_core.History.Step)
+let text_edit ?(label = "Edit text") ?(merge = Editor_core.History.Step) value text =
+  Result.map (fun doc -> install value doc ~label ~merge)
     (Doc.text_edit ~factories:value.factories value.doc text)
 
 (* The Selection tab's apply: the shown closure [(let* [name expr ...] top)] over the graph's root
    bindings; every binding whose text changed is written ([Set_arg Whole]), all in one history
    entry.  With nothing upstream the tab shows the graph form itself, which is replaced whole. *)
-let binding_edit value path text =
+let binding_edit ?(merge = Editor_core.History.Step) value path text =
   let at_line_1 (d : Flow.Diagnostic.t) = { d with position = Some { line = 1; col = 0 }; span = None } in
   let error message = Error [ at_line_1 (Flow.Diagnostic.error ~code:"E_EDIT" message) ] in
   let graph = List.hd path in
@@ -1367,7 +1370,7 @@ let binding_edit value path text =
   | Ok [ ({ node = List ({ node = Sym ("graph" | "defn"); _ } :: _); _ } as form) ] ->
       (match Doc.syntax_edit_result ~factories:value.factories value.doc
           (Flow_sop.Flow_edit.Set_graph { name = graph; form }) with
-       | Ok doc -> Ok (install value doc ~label:"Edit text" ~merge:Editor_core.History.Step)
+       | Ok doc -> Ok (install value doc ~label:"Edit text" ~merge)
        | Error d -> Error [ at_line_1 d ])
   | Ok [ { node = List [ { node = Sym "let*"; _ }; { node = Vec bs; _ }; _ ]; _ } ] when List.length bs mod 2 = 0 ->
       let rec pairs = function a :: b :: rest -> (a, b) :: pairs rest | _ -> [] in
@@ -1384,25 +1387,27 @@ let binding_edit value path text =
            if ops = [] then error "Nothing changed." else
            (match List.fold_left (fun doc op -> Result.bind doc (fun doc ->
                Doc.syntax_edit_result ~factories:value.factories doc op)) (Ok value.doc) ops with
-            | Ok doc -> Ok (install value doc ~label:"Edit text" ~merge:Editor_core.History.Step)
+            | Ok doc -> Ok (install value doc ~label:"Edit text" ~merge)
             | Error d -> Error [ at_line_1 d ]))
   | Ok _ -> error "Expected the shown (let* [...] name) closure, or the graph form."
 
 (* The Graph tab's apply: the draft must be the one graph (or function) form, which replaces the
    graph's; atomic like every apply. *)
-let graph_edit value name text =
+let graph_edit ?(merge = Editor_core.History.Step) value name text =
   let error message = Error [ Flow.Diagnostic.error ~position:{ line = 1; col = 0 } ~code:"E_EDIT" message ] in
   match Flow.Syntax.parse text with
   | Error d -> Error [ d ]
   | Ok [ form ] ->
       (match Doc.syntax_edit_result ~factories:value.factories value.doc
           (Flow_sop.Flow_edit.Set_graph { name; form }) with
-       | Ok doc -> Ok (install value doc ~label:"Edit text" ~merge:Editor_core.History.Step)
+       | Ok doc -> Ok (install value doc ~label:"Edit text" ~merge)
        | Error d -> Error [ { d with position = Some { line = 1; col = 0 }; span = None } ])
   | Ok _ -> error "Expected the one graph form"
 
 (* Fold the pane's intents: drafts live in [value.text] (view state); a
    refused apply keeps the draft and its errors and changes nothing else. *)
+let scrub_merge = Editor_core.History.Gesture "text-scrub"
+
 let apply_text value intents =
   List.fold_left (fun value intent ->
     let text = value.text in
@@ -1431,7 +1436,22 @@ let apply_text value intents =
         (match binding_edit value path draft with
          | Ok value -> { value with text = { text with binding_draft = None; binding_errors = [] } }
          | Error binding_errors ->
-             with_text { text with binding_draft = Some (path, draft); binding_errors })) value intents
+             with_text { text with binding_draft = Some (path, draft); binding_errors })
+    (* a dragged number: the text applies on every frame of the drag as one "Edit text" entry
+       (the gesture seals on release); the draft stays until the drag ends so the editor keeps
+       the text it is dragging in *)
+    | Doc_scrub (draft, done_) ->
+        (match text_edit ~merge:scrub_merge value draft with
+         | Ok value -> { value with text = { text with draft = (if done_ then None else Some draft); doc_errors = [] } }
+         | Error doc_errors -> with_text { text with draft = Some draft; doc_errors })
+    | Graph_scrub (graph, draft, done_) ->
+        (match graph_edit ~merge:scrub_merge value graph draft with
+         | Ok value -> { value with text = { text with graph_draft = (if done_ then None else Some (graph, draft)); graph_errors = [] } }
+         | Error graph_errors -> with_text { text with graph_draft = Some (graph, draft); graph_errors })
+    | Binding_scrub (path, draft, done_) ->
+        (match binding_edit ~merge:scrub_merge value path draft with
+         | Ok value -> { value with text = { text with binding_draft = (if done_ then None else Some (path, draft)); binding_errors = [] } }
+         | Error binding_errors -> with_text { text with binding_draft = Some (path, draft); binding_errors })) value intents
 
 
 (* A panel header's title: its type, and where a looped panel comes from (register E1). *)
@@ -1877,7 +1897,7 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
     let text_intents = match text_shown, text_host with
       | Some shown, Some (leaf, hosted) ->
           Pxui.Ui.within ui hosted (fun () ->
-            Text_pane.view ui ~bounds:leaf.Pxui_shell.Layout.body text shown)
+            Text_pane.view ui ~bounds:leaf.Pxui_shell.Layout.body ~vocab:(Lazy.force value.lisp_vocab) text shown)
       | _ -> [] in
     let outline, outline_intents = match first Pxui_shell.Layout.Outline with
       | Some (leaf, hosted) ->

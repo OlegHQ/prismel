@@ -175,9 +175,15 @@ module Private : sig
 
   (** The editor's Lisp as the text area's language (tests of its indentation and lexing). *)
   module Lisp_text : sig
+    type vocab
+    val vocab : Flow_sop.Catalog.descriptor list -> vocab
     val indent : string -> int -> string
     val brackets : string -> (int * int) list
-    val language : Pxui.Theme.t -> Pxui.Ui.language
+    val complete : vocab -> string -> int -> Pxui.Ui.completion list
+    (** The ranked completions for the token ending at the caret. *)
+    val describe : vocab -> string -> int -> (int * int * string) option
+    val number_at : string -> int -> (int * int) option
+    val language : ?vocab:vocab -> Pxui.Theme.t -> Pxui.Ui.language
   end
 
   (** The host bars: where their buttons sit. *)

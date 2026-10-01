@@ -219,7 +219,13 @@ whose text changed (`Core.binding_edit`); each is one history entry "Edit text" 
 shared with `Core.syntax_edit`). The text itself comes from `Flow.Lisp.print` and its span map;
 keep new text features on that map, never on string search. Text entry is `Ui.text_area` only,
 with `Lisp_text.language` (an error-tolerant lexer: colours, rainbow brackets, the lit pair at the
-caret, Enter indentation, paired brackets); the widget stays language-free.
+caret, Enter indentation, paired brackets, ranked completions for the token at the caret over a
+`Lisp_text.vocab` of the catalog, a description of the token under the pointer, and the number a
+drag changes); the widget stays language-free.  Typing opens the completion popup (kinds of the
+graph's context, a kind's parameters and choices, forms, operators, bindings in scope; Up/Down,
+Tab/Enter, Escape).  A number dragged sideways applies the text on every frame of the drag
+(`Text_pane.Doc_scrub`/`Graph_scrub`/`Binding_scrub`, `Core.scrub_merge`, one "Edit text" entry
+sealed on release) so the viewport follows the drag; the draft stays until the drag ends.
 
 ## Workspace shell (W10)
 

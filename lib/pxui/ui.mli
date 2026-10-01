@@ -376,6 +376,15 @@ val slider : t -> string -> range:float * float -> float -> float
 val int_slider : t -> string -> range:int * int -> int -> int
 val text_field : t -> string -> string -> string
 
+type completion = {
+  replace : int * int;  (** the byte span [insert] replaces *)
+  insert : string;
+  label : string;  (** the row *)
+  detail : string;  (** the row's right column: a type, a category *)
+  doc : string;  (** one line under the rows while the row is selected *)
+}
+(** One ranked suggestion of {!language.complete}. *)
+
 type language = {
   colorize : string -> (int * int * Prismel.Color.t) list;
       (** sorted, non-overlapping byte spans and their colour; the rest is the foreground *)
@@ -386,6 +395,16 @@ type language = {
   pairs : (char * char) list;
       (** brackets typed in pairs: the opener wraps the selection or inserts both, the closer
           typed before itself steps over it, Backspace between an empty pair takes both *)
+  complete : string -> int -> completion list;
+      (** [complete text caret]: the ranked suggestions for the token ending at [caret], best
+          first; [[]] shows nothing.  Typing opens the popup under the caret; Up/Down choose,
+          Tab, Enter or a click accept, Escape closes it *)
+  describe : string -> int -> (int * int * string) option;
+      (** [describe text byte]: the token at [byte] and its description, shown as a tooltip
+          after the pointer rests on it *)
+  number_at : string -> int -> (int * int) option;
+      (** [number_at text byte]: the numeric literal at [byte]; dragging it sideways changes
+          the value in place (see [on_scrub] of {!text_area_submit}) *)
 }
 (** What a code editor knows about its text.  A host supplies one (the editor's Lisp);
     {!text_area} itself is language-free. *)
@@ -406,15 +425,20 @@ val text_area :
 val text_area_submit :
   t -> at:float * float -> w:float -> h:float -> ?readonly:bool -> ?wrap:bool ->
   ?errors:int list -> ?spans:(int * int) list -> ?reveal:int -> ?language:language ->
-  ?on_context:(float * float -> unit) ->
+  ?on_context:(float * float -> unit) -> ?on_scrub:([ `Live | `Done ] -> unit) ->
   string -> string -> string * bool
 (** {!text_area} that also reports Command- or Ctrl-Enter pressed in it this frame (the host's
     "apply").  Tab inserts two spaces and Shift-Tab takes up to two leading spaces off the line
     (the editor keeps Tab instead of moving the focus).  With [wrap] a long line continues on
     the next row, so nothing scrolls sideways; the gutter numbers logical lines and [errors] are
     logical lines.  [language] colours the text, lights the bracket pair at the caret, indents
-    after Enter and pairs brackets; [on_context] is called with the pointer when the area is
-    right-clicked (the host opens its menu). *)
+    after Enter, pairs brackets, completes the token at the caret and describes the token under
+    the pointer; [on_context] is called with the pointer when the area is right-clicked (the
+    host opens its menu).  A numeric literal of the language dragged sideways follows the
+    pointer (a float by a tenth of its last decimal place per point, an integer by one per five
+    points, Shift ten times faster): [on_scrub `Live] is called on each frame the returned text
+    changed that way and [on_scrub `Done] when the drag ends, so a host can apply the text live
+    and merge the drag into one history entry. *)
 
 val value_field : t -> at:float * float -> w:float -> h:float ->
   ?size:int -> ?display:string -> ?fraction:float ->

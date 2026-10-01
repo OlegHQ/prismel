@@ -68,5 +68,10 @@ type intent =
   | Graph_discard
   | Menu of (float * float) option  (** the right-click menu opened here, or closed *)
   | Toggle_wrap
+  | Doc_scrub of string * bool
+      (** the Document text while a number in it is dragged ([true] on the frame the drag ends):
+          applied live, one history entry *)
+  | Graph_scrub of string * string * bool
+  | Binding_scrub of path * string * bool
 
-val view : Pxui.Ui.t -> bounds:int * int * int * int -> state -> shown -> intent list
+val view : Pxui.Ui.t -> bounds:int * int * int * int -> vocab:Lisp_text.vocab -> state -> shown -> intent list

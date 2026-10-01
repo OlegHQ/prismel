@@ -215,11 +215,14 @@ type intent =
   | Graph_discard
   | Menu of (float * float) option
   | Toggle_wrap
+  | Doc_scrub of string * bool
+  | Graph_scrub of string * string * bool
+  | Binding_scrub of path * string * bool
 
 let dirty state (shown : shown) = match state.draft with
   | Some d -> d <> Lazy.force shown.applied | None -> false
 
-let view ui ~bounds:(x, y, width, height) state (shown : shown) =
+let view ui ~bounds:(x, y, width, height) ~vocab state (shown : shown) =
   let module Ui = Pxui.Ui in
   let row = float (Ui.row_height ui) in
   let x = float x and y = float y and width = float width and height = float height in
@@ -253,14 +256,19 @@ let view ui ~bounds:(x, y, width, height) state (shown : shown) =
   let footer = 2. *. row in
   let body_y = y +. row in
   let body_h = Float.max row (height -. row) in
-  let language = Lisp_text.language theme in
+  let language = Lisp_text.language ~vocab theme in
   (* the toolbar and the message row under an editable area; a right-click menu offers the same
      buttons and the wrap toggle *)
-  let editor key ~at:(ey, eh) ~text ~errors ~spans ?reveal ~apply ~discard ~can_apply ~message ~draft () =
+  let editor key ~at:(ey, eh) ~text ~errors ~spans ?reveal ~apply ~discard ~can_apply ~message ~draft ~scrub () =
+    (* a dragged number applies live ([scrub], merged into one history entry); typing is a draft *)
+    let phase = ref None in
     let text', submitted = Ui.text_area_submit ui ~at:(x, ey) ~w:width ~h:(Float.max row (eh -. footer))
         ~wrap:state.wrap ~errors:(List.filter_map (line_of text) errors) ~spans ?reveal ~language
-        ~on_context:(fun at -> emit (Menu (Some at))) key text in
-    if text' <> text then emit (draft text');
+        ~on_context:(fun at -> emit (Menu (Some at))) ~on_scrub:(fun p -> phase := Some p) key text in
+    (match !phase with
+     | Some `Live -> emit (scrub text' false)
+     | Some `Done -> emit (scrub text' true)
+     | None -> if text' <> text then emit (draft text'));
     let can_apply = can_apply || text' <> text in
     let ty = ey +. Float.max row (eh -. footer) in
     (* Command-Enter in the area is the button *)
@@ -297,7 +305,7 @@ let view ui ~bounds:(x, y, width, height) state (shown : shown) =
        editor "text-document" ~at:(body_y, body_h) ~text ~errors:(real_errors state.doc_errors)
          ~spans:[] ~apply:(fun t -> Doc_apply t) ~discard:Doc_discard ~can_apply:dirty
          ~message:(message state.doc_errors ~dirty ~clean:"Source matches the applied document.")
-         ~draft:(fun t -> Doc_draft t) ()
+         ~draft:(fun t -> Doc_draft t) ~scrub:(fun t done_ -> Doc_scrub (t, done_)) ()
    | Graph ->
        let text = match state.graph_draft with
          | Some (g, t) when g = shown.graph -> t | _ -> shown.text in
@@ -306,7 +314,8 @@ let view ui ~bounds:(x, y, width, height) state (shown : shown) =
          ~spans:[] ~apply:(fun t -> Graph_apply (shown.graph, t)) ~discard:Graph_discard ~can_apply:dirty
          ~message:(message state.graph_errors ~dirty
            ~clean:(Printf.sprintf "Edit %s as text; Check & apply checks the whole workspace." shown.graph))
-         ~draft:(fun t -> Graph_draft (shown.graph, t)) ()
+         ~draft:(fun t -> Graph_draft (shown.graph, t))
+         ~scrub:(fun t done_ -> Graph_scrub (shown.graph, t, done_)) ()
    | Selection ->
        (* the closure of the selection, editable: its bindings are the graph's root bindings *)
        let text = match state.binding_draft with
@@ -318,5 +327,6 @@ let view ui ~bounds:(x, y, width, height) state (shown : shown) =
          ~apply:(fun t -> Binding_apply (shown.key, t)) ~discard:Binding_discard ~can_apply:dirty
          ~message:(message state.binding_errors ~dirty
            ~clean:"The selection with what it reads; Check & apply writes the bindings shown.")
-         ~draft:(fun t -> Binding_draft (shown.key, t)) ());
+         ~draft:(fun t -> Binding_draft (shown.key, t))
+         ~scrub:(fun t done_ -> Binding_scrub (shown.key, t, done_)) ());
   List.rev !intents

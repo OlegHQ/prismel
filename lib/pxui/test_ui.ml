@@ -633,13 +633,14 @@ let run () =
   Ui.destroy ui;
   (* Text areas: the text_field edit and IME path over lines. *)
   let area = ref "" and readonly = ref false and errors = ref [] and wrapped = ref false
-  and submitted = ref false and language = ref None and context = ref None in
+  and submitted = ref false and language = ref None and context = ref None and scrubs = ref [] in
   let ui = Ui.create () and time = ref 0. in
   let area_step ?(keys = []) events =
     time := !time +. 0.5;
     ignore (Ui.frame ui { (frame ~scale:1. ~time:!time events) with keys } (fun ui ->
       let text, submit = Ui.text_area_submit ui ~at:(0., 0.) ~w:300. ~h:96. ~readonly:!readonly
-        ~wrap:!wrapped ~errors:!errors ?language:!language ~on_context:(fun at -> context := Some at) "area" !area in
+        ~wrap:!wrapped ~errors:!errors ?language:!language ~on_context:(fun at -> context := Some at)
+        ~on_scrub:(fun p -> scrubs := p :: !scrubs) "area" !area in
       area := text; submitted := submit)) in
   let region () = match Scene.Private.text_regions (Ui.scene ui) with
     | [(_, y, _, _, true, cursor)] -> y, cursor
@@ -743,7 +744,8 @@ let run () =
   errors := [];
   language := Some { Ui.colorize = (fun _ -> []); brackets = (fun _ -> []);
     indent = (fun text caret -> if String.contains (String.sub text 0 caret) '(' then "  " else "");
-    pairs = [ '(', ')'; '"', '"' ] };
+    pairs = [ '(', ')'; '"', '"' ]; complete = (fun _ _ -> []); describe = (fun _ _ -> None);
+    number_at = (fun _ _ -> None) };
   area := "";
   area_step [press (150, 12); release (150, 12); Event.TextInput "("];
   expect "an opener inserts its pair" "()";
@@ -760,6 +762,65 @@ let run () =
   expect "an opener wraps the selection" "(a\n(  ))";
   area_step [Event.MousePressed (Input.RightButton, (100., 20.)); Event.MouseReleased (Input.RightButton, (100., 20.))];
   if !context = None then fail "a right-click did not reach on_context";
+  (* completions: typing opens the popup, Down moves, Tab accepts; Escape closes it before it
+     leaves the editor *)
+  let digit c = (c >= '0' && c <= '9') || c = '.' in
+  language := Some { (Option.get !language) with
+    complete = (fun text caret ->
+      let rec back i = if i > 0 && text.[i - 1] <> ' ' && text.[i - 1] <> '(' then back (i - 1) else i in
+      let start = back caret in
+      let prefix = String.sub text start (caret - start) in
+      if prefix = "" then [] else
+        List.filter_map (fun w -> if String.starts_with ~prefix w
+          then Some { Ui.replace = (start, caret); insert = w; label = w; detail = "word"; doc = w } else None)
+          [ "zebra"; "zephyr"; "zoo" ]);
+    number_at = (fun text byte ->
+      if byte < String.length text && digit text.[byte] then
+        let rec a i = if i > 0 && digit text.[i - 1] then a (i - 1) else i
+        and b i = if i < String.length text && digit text.[i] then b (i + 1) else i in
+        Some (a byte, b byte)
+      else None) };
+  area := "";
+  area_step [press (150, 12); release (150, 12); Event.TextInput "z"; Event.TextInput "e"];
+  expect "typing opens the popup without changing the text" "ze";
+  area_step [Event.KeyPressed Input.ArrowDown];
+  expect "Down moves in the popup, not in the text" "ze";
+  area_step [Event.KeyPressed Input.Tab];
+  expect "Tab accepts the chosen completion" "zephyr";
+  area_step [Event.TextInput " "; Event.TextInput "z"];
+  area_step [Event.KeyPressed Input.Escape];
+  if not (Ui.text_input_focused ui) then fail "Escape closed the editor instead of the popup";
+  area_step [Event.KeyPressed Input.Escape];
+  if Ui.text_input_focused ui then fail "a second Escape did not leave the editor";
+  (* a number dragged sideways follows the pointer: an integer one per five points, a float a
+     tenth of its last place per point; the host hears Live frames and one Done *)
+  area := "";
+  area_step [press (150, 12); release (150, 12)];
+  let origin = snd (region ()) in
+  area := "10 x";
+  area_step [press (150, 12); release (150, 12)];
+  let char_w = (snd (region ()) - origin) / 4 in
+  if char_w <= 0 then fail "no glyph width to aim a drag with";
+  let nx = origin + (char_w / 2) in
+  scrubs := [];
+  area_step [press (nx, 12)];
+  area_step [move (nx + 10, 12)];
+  area_step [move (nx + 20, 12)];
+  expect "a dragged integer moves one per five points" "14 x";
+  if not (List.mem `Live !scrubs) then fail "a drag did not report on_scrub `Live";
+  area_step [release (nx + 20, 12)];
+  if List.hd !scrubs <> `Done then fail "a drag's end did not report on_scrub `Done";
+  expect "the release keeps the value" "14 x";
+  area := "0.5 y";
+  area_step [];
+  area_step [press (nx, 12)];
+  area_step [move (nx + 10, 12)];
+  expect "a dragged float moves a tenth of its last place per point" "0.6 y";
+  area_step [release (nx + 10, 12)];
+  area_step [press (nx, 12)];
+  area_step [move (nx, 20)];
+  area_step [release (nx, 20)];
+  expect "a vertical drag is a selection, not a scrub" "0.6 y";
   language := None;
   Ui.destroy ui;
   (* Modal: centered, and Escape or a press outside dismisses it. *)

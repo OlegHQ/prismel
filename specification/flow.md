@@ -715,7 +715,13 @@ Its tabs: Selection (the top-level ancestor of the selected binding as a `let*`
 over the root bindings it needs, the binding marked; an edit is one `Set_arg`),
 Graph (the current graph's text, read-only) and Document (the whole workspace
 text; Check and apply is atomic, one "Edit text" history entry, a refused apply
-keeps the draft and marks the error line). The qualified-names toggle and the
+keeps the draft and marks the error line).  The editor completes as you type (the
+context's kinds, a kind's parameters, slots and choices, special forms, operators,
+bindings in scope; ranked prefix, word, fuzzy, then by group and by use in the text),
+describes the token under the resting pointer, and lets a number be dragged sideways:
+the text applies live on every frame of the drag as one history entry, so the viewport
+follows the value (`Lisp_text`, `Ui.language`).  The pane paints at the shared elastic
+scroll position, so it overshoots and settles like every other scrolling view. The qualified-names toggle and the
 network printer of M6 are gone (W12); a document that is not a workspace has no
 text projection. See `workspace/plan.md` W7 and `flow-migration.md`.
 
