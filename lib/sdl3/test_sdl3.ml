@@ -41,13 +41,13 @@ let run () =
   get (Domain.spawn (fun () -> Time.delay_precise_seconds 0.0001)
     |> Domain.join);
   let compiled = compiled_version and linked = linked_version () in
-  if compiled.major <> 3 || compiled.minor <> 4 || compiled.patch <> 14 then
+  if compiled.major <> 3 || compiled.minor <> 4 || compiled.patch <> 16 then
     fail "generated header version changed without fixture review";
   if linked.major < compiled.major
       || (linked.major = compiled.major && linked.minor < compiled.minor) then
     fail "linked SDL is older than the generated headers";
   get (check_version ~release:true ());
-  (match validate_version ~release:true ~linked:{ major = 3; minor = 4; patch = 12 } () with
+  (match validate_version ~release:true ~linked:{ major = 3; minor = 4; patch = 14 } () with
    | Error { kind = Incompatible_version; _ } -> ()
    | Ok () | Error _ -> fail "older linked version was not rejected");
   (match validate_version ~library:"SDL3_ttf"

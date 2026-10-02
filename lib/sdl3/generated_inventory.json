@@ -2,7 +2,7 @@
   "classification_counts": {
     "not-applicable": 0,
     "platform-excluded": 0,
-    "raw-only": 3328,
+    "raw-only": 3329,
     "safe": 75,
     "unreviewed": 0
   },
@@ -10570,16 +10570,16 @@
     }
   ],
   "generator": "prismel-sdl3-clang-inventory-v2",
-  "header_aggregate_sha256": "ae5110d736ba19ecda1f5113a976f7a00ef264a1160b287f4ff48b3dd9cee279",
+  "header_aggregate_sha256": "79a09085bac5528f309a6e4893b32de2764fc3fb38bdec4b7e06dd3214863e62",
   "header_version": {
     "major": 3,
     "minor": 4,
-    "patch": 14
+    "patch": 16
   },
   "headers": [
     {
       "path": "SDL3/SDL.h",
-      "sha256": "d41d33f800f843362af4ec6e22b49691f30d65535ee57c5190429ea00e5136b4"
+      "sha256": "6985a5d648e45b9e71be852ab7bcece191d748c4c2fc273535f56e1c3f0bd62d"
     },
     {
       "path": "SDL3/SDL_assert.h",
@@ -10651,7 +10651,7 @@
     },
     {
       "path": "SDL3/SDL_events.h",
-      "sha256": "bb51b7035b41462b8040ce17677fddc90dd0a1ff3ecd8e97086f474f0be9baa1"
+      "sha256": "f7533694c727782eb41728e406745f5c7cf1daab7edbadbeb0b27ea7bddb844c"
     },
     {
       "path": "SDL3/SDL_filesystem.h",
@@ -10663,7 +10663,7 @@
     },
     {
       "path": "SDL3/SDL_gpu.h",
-      "sha256": "209f37565e01ec0231b4f97a4ca24d157efa33a6454753fcdc255fdb43f54553"
+      "sha256": "e6061d4e5278e6903b2cf282ac4f7ac38c543dc28d260918a480ab92f11dd66d"
     },
     {
       "path": "SDL3/SDL_guid.h",
@@ -10679,7 +10679,7 @@
     },
     {
       "path": "SDL3/SDL_hints.h",
-      "sha256": "55e08ab2d465c8741244a3ea02dca17de001360302b2876a5b295662997cb2a2"
+      "sha256": "d47a37c21db9dab22cadb985245d5f5b775930710a072954b5be930cf0b39a57"
     },
     {
       "path": "SDL3/SDL_init.h",
@@ -10815,11 +10815,11 @@
     },
     {
       "path": "SDL3/SDL_render.h",
-      "sha256": "29b5c4a477bf5d20043ed58cd3d32cc71d2ea435edde85cbfeeee94d608d626f"
+      "sha256": "110376ab20590a303ea8430d2311d0a4f9dc18f8b59f0c5e520c4dcd624901bb"
     },
     {
       "path": "SDL3/SDL_revision.h",
-      "sha256": "a136cc1673a12a97d9bc6ea14ff09c66705f00e2d99d201f36046089fc61e80e"
+      "sha256": "aa6be2b4eb01a5d2aac6546ae53d68b70509d7f27b6b95b061ce5f23d4235dbe"
     },
     {
       "path": "SDL3/SDL_scancode.h",
@@ -10911,7 +10911,7 @@
     },
     {
       "path": "SDL3/SDL_version.h",
-      "sha256": "07830cb7cb8cb86db52eb00c07b95827385c340bc0d667861cbbb89c360678c1"
+      "sha256": "eb6980d4252ca80970f47ecd56097b306e76f32765478dbbe52490fe8dddde1b"
     },
     {
       "path": "SDL3/SDL_video.h",
@@ -12807,6 +12807,11 @@
       "classification": "raw-only",
       "name": "SDL_HINT_ALLOW_TOPMOST",
       "value": "SDL_HINT_ALLOW_TOPMOST_renamed_SDL_HINT_WINDOW_ALLOW_TOPMOST"
+    },
+    {
+      "classification": "raw-only",
+      "name": "SDL_HINT_ANDROID_AAUDIO_INPUT_PRESET",
+      "value": "\"SDL_ANDROID_AAUDIO_INPUT_PRESET\""
     },
     {
       "classification": "raw-only",
@@ -15061,7 +15066,7 @@
     {
       "classification": "raw-only",
       "name": "SDL_MICRO_VERSION",
-      "value": "14"
+      "value": "16"
     },
     {
       "classification": "raw-only",
@@ -20350,7 +20355,8 @@
         "reserved",
         "timestamp",
         "windowID",
-        "which"
+        "which",
+        "pen_state"
       ],
       "header": "SDL3/<clang-elided-source>",
       "kind": "struct",

@@ -115,11 +115,11 @@
     "SDL_WINDOW_RESIZABLE": 32
   },
   "generator": "prismel-sdl3-clang-inventory-v2",
-  "header_aggregate_sha256": "ae5110d736ba19ecda1f5113a976f7a00ef264a1160b287f4ff48b3dd9cee279",
+  "header_aggregate_sha256": "79a09085bac5528f309a6e4893b32de2764fc3fb38bdec4b7e06dd3214863e62",
   "header_version": {
     "major": 3,
     "minor": 4,
-    "patch": 14
+    "patch": 16
   },
   "schema": 1,
   "target_triple": "arm64-apple-darwin25",
@@ -371,7 +371,7 @@
         "which": 20,
         "windowID": 16
       },
-      "size": 24
+      "size": 32
     },
     "SDL_PenTouchEvent": {
       "alignment": 8,
