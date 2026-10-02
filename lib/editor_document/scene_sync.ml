@@ -222,14 +222,20 @@ let unique graph id =
 
 let objects st (before : Document.t) (after : Document.t) =
   let b = Document.scene_graph before and a = Document.scene_graph after in
+  let refuse_preview id =
+    match Option.bind before.shell (fun shell -> List.find_map (fun (key, ids) ->
+      if List.mem id ids then Some key else None) shell.views) with
+    | Some key -> stop "Preview [%s] is derived; edit its viewport scene reference or source graph." key
+    | None -> () in
   let gone = ref [] in
   List.iter (fun (id, home) -> if homed before id then
     match Edit.find b ~node_id:id, Edit.find a ~node_id:id with
     | Some nb, Some na ->
         let edits = object_edits ~before:b ~after:a id nb na in
+        if edits <> [] then refuse_preview id;
         if List.mem_assoc "parent" edits then Option.iter (unique a) (Objects.parent a id);
         set ~before:(current_syntax nb) st home edits
-    | Some _, None -> gone := (id, home) :: !gone
+    | Some _, None -> refuse_preview id; gone := (id, home) :: !gone
     | None, _ -> ()) before.homes.objects;
   (* deletions: an inline call leaves its merge (the last one first, so positions hold), then a
      binding goes whole *)

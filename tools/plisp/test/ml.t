@@ -9,7 +9,7 @@
     Prismel_editor.Workspace.main
       ~path:"a.plisp"
       ~digest:"bf39269baa63b402c1947e8889fba03568ef9dcd44684eb783a5bb119075bf4d"
-      ~catalog:"1b8e343033b85ff9ef72b32b26b593246d98b60ee1b545446a2bddf9729776ac"
+      ~catalog:"db8590160073d6d04a34fc45507ce6ab5ec76588fd291028f67d76f8f2b98171"
       {plisp_bfjp|(workspace a
     ; kept verbatim
     (graph g :context sop (sop/box)))

@@ -15,6 +15,7 @@
    stack as a network, settings a [Settings.t]. *)
 open Procedural
 module E = Flow.Eval
+module W = Flow.Workspace
 module Edit = Edit_graph
 module Param = Editor_core.Param
 
@@ -70,10 +71,10 @@ type window = { title : string; width : int; height : int; fps : int; seed : int
 let window_schema =
   let integer min max hard_min = Param.integer ~hard_min ~min ~max () in
   let int_field name label kind default get set =
-    Param.field ~name ~label ~kind ~default ~get ~set () in
+    Param.field ~name ~label:(label ^ " (on restart)") ~kind ~default ~get ~set () in
   Param.schema ~name:"workspace" ~default:{ title = "Prismel"; width = 1280; height = 800;
                                             fps = 60; seed = 1 } [
-    Param.field ~name:"title" ~label:"Title" ~kind:Param.Text ~default:"Prismel"
+    Param.field ~name:"title" ~label:"Title (on restart)" ~kind:Param.Text ~default:"Prismel"
       ~get:(fun w -> w.title) ~set:(fun title w -> { w with title }) ();
     int_field "width" "Width" (integer 320 3840 64) 1280 (fun w -> w.width)
       (fun width w -> { w with width });
@@ -134,9 +135,29 @@ let changes qualified args =
 let label_arg args = match List.assoc_opt "name" args with
   | Some (E.Text s) when s <> "" -> Some s | _ -> None
 
-(* The evaluated result of the first graph of a context, at t = 0: scene, world
-   and settings arguments do not animate yet (ponytail: no live scene values). *)
-let result (workspace : Workspace_doc.t) (plan : E.plan) context =
+let live_light_field kind key = kind = "scene/light" && List.mem key ["intensity"; "color"]
+
+(* Geometry references are static [Geo] identities even when their SOP
+   parameters are live. Residuals in the surrounding structs would otherwise
+   be silently frozen when we materialize these contexts at startup. *)
+let check_context_time (workspace : Workspace_doc.t) (plan : E.plan) =
+  let rec live_field path = function
+    | E.Residual _ -> Some path
+    | E.Struct (kind, args) -> List.find_map (fun (key, value) ->
+        if live_light_field kind key then None else live_field (kind ^ "." ^ key) value) args
+    | E.Record args -> List.find_map (fun (key, value) -> live_field (path ^ "." ^ key) value) args
+    | E.List values -> Array.to_list values |> List.find_map (live_field path)
+    | _ -> None in
+  match Array.to_list plan.instances |> List.find_map (fun (instance : E.instance) ->
+    Option.bind (List.find_opt (fun (g : W.graph) -> g.name = instance.graph
+      && g.context <> W.Sop && g.context <> W.Value) workspace.checked.graphs) (fun graph ->
+      Option.map (fun field -> Flow.Diagnostic.error ~code:"E_CONTEXT_TIME" ~span:graph.body.form.span
+        (Printf.sprintf "Graph %s: %s depends on t, but %s fields are static. Use a literal or a SOP/value drive."
+          graph.name field (W.context_name graph.context))) (live_field "result" instance.result))) with
+  | None -> Ok () | Some diagnostic -> Error diagnostic
+
+(* Non-SOP fields are checked before their static context is materialized. *)
+let result ?(force = true) (workspace : Workspace_doc.t) (plan : E.plan) context =
   match (if context = Flow.Workspace.Editor then Workspace_doc.editor_graph workspace
     else List.find_opt (fun (g : Flow.Workspace.graph) -> g.context = context) workspace.checked.graphs) with
   | None -> Ok None
@@ -145,7 +166,8 @@ let result (workspace : Workspace_doc.t) (plan : E.plan) context =
                (Array.to_list plan.instances) with
        | None -> Ok None
        | Some instance ->
-           Result.map Option.some (E.force instance.result ~live:{ E.t = 0. }))
+           if force then Result.map Option.some (E.force instance.result ~live:{ E.t = 0. })
+           else Ok (Some instance.result))
 
 let has_settings (workspace : Workspace_doc.t) =
   List.exists (fun (g : Flow.Workspace.graph) -> g.context = Flow.Workspace.Settings)
@@ -162,6 +184,7 @@ let settings_of = function
 (* The window the settings graph asks for; defaults without one. *)
 let window (workspace : Workspace_doc.t) =
   let* evaluated = E.static workspace.checked in
+  let* () = check_context_time workspace evaluated.plan in
   let* value = result workspace evaluated.plan Flow.Workspace.Settings in
   match value with
   | None -> Ok (Param.default window_schema)
@@ -169,7 +192,6 @@ let window (workspace : Workspace_doc.t) =
 
 (* ---- where things are written ---- *)
 
-module W = Flow.Workspace
 module F = Flow_sop.Flow_edit
 
 (* A call of interest in an evaluated result, with where its text is. *)
@@ -281,8 +303,8 @@ let rec walk ~want ~below ~iter env place (t : W.term) (v : E.value) =
 let graph_of (workspace : Workspace_doc.t) context =
   List.find_opt (fun (g : W.graph) -> g.context = context) workspace.checked.graphs
 
-(* The calls of the first graph of [context]: its result at t = 0 (scene, world and settings
-   arguments do not animate yet; ponytail: no live scene values), with their homes. *)
+(* Scene calls retain their light residuals beside their homes; other contexts
+   are materialized at zero after unsupported live fields have been refused. *)
 let calls ~want ~below (workspace : Workspace_doc.t) (plan : E.plan) context =
   match graph_of workspace context with
   | None -> Ok []
@@ -291,7 +313,8 @@ let calls ~want ~below (workspace : Workspace_doc.t) (plan : E.plan) context =
                (Array.to_list plan.instances) with
        | None -> Ok []
        | Some instance ->
-           let* value = E.force instance.result ~live:{ E.t = 0. } in
+           let* value = if context = W.Scene then Ok instance.result
+             else E.force instance.result ~live:{ E.t = 0. } in
            Ok (walk ~want ~below ~iter:[] [] None graph.body value))
 
 let no_below _ = None
@@ -300,9 +323,18 @@ let no_below _ = None
 
 type item = { factory : Edit.factory; label : string; values : (string * Param.value) list;
               geometry : Flow_sop.Lower.graph option; home : Document.home;
-              parent : string option; active : bool; group : string option }
+              parent : string option; active : bool; group : string option;
+              drives : (string * (Flow_sop.Port.parameter * E.value) list) option }
 
 let item_of (lowered : Flow_sop.Lower.t) { kind; args; home } =
+  let dynamic = List.filter (fun (key, value) -> live_light_field kind key && E.is_live value) args in
+  let* dynamic = List.fold_right (fun (key, value) result ->
+    let* rest = result in
+    let* parameter = Flow_sop.Port.find_parameter (ports kind) key in
+    Ok ((parameter, value) :: rest)) dynamic (Ok []) in
+  let drives = if dynamic = [] then None else Some (kind, dynamic) in
+  let* forced = E.force (E.Struct (kind, args)) ~live:{E.t = 0.} in
+  let args = match forced with E.Struct (_, args) -> args | _ -> assert false in
   let factory = List.assoc kind scene_kinds in
   let* values = changes kind args in
   let* geometry = match List.assoc_opt "geometry" args with
@@ -318,7 +350,7 @@ let item_of (lowered : Flow_sop.Lower.t) { kind; args; home } =
     | None, None -> String.lowercase_ascii (Edit.factory_label factory) in
   let parent = match List.assoc_opt "parent" args with Some (E.Text s) when s <> "" -> Some s | _ -> None in
   let active = List.assoc_opt "active" args = Some (E.Bool true) in
-  Ok { factory; label; values; geometry; home; parent; active; group = None }
+  Ok { factory; label; values; geometry; home; parent; active; group = None; drives }
 
 let is_scene_kind kind = List.mem_assoc kind scene_kinds
 
@@ -334,7 +366,7 @@ let items workspace (lowered : Flow_sop.Lower.t) =
       Ok (List.filter_map (fun (g : Flow_sop.Lower.graph) ->
         if g.default then Some { factory = Objects.Geometry.factory; label = g.name; values = [];
                                  geometry = Some g; home = Document.Looped; parent = None;
-                                 active = false; group = None } else None) lowered.graphs)
+                                 active = false; group = None; drives = None } else None) lowered.graphs)
 
 (* The scene value of a graph, at t = 0, as loose calls (a viewport's own scene instance). *)
 let scene_calls value = loose ~want:is_scene_kind ~below:no_below value
@@ -442,7 +474,8 @@ let layer_network ?previous ~homes layers =
 module Panels = Editor_core.Panels
 
 type editor = { tree : Panels.t; origins : (Panels.path * Document.origin) list;
-                named : string option; viewports : (string * E.value) list }
+                named : string option; viewports : (string * E.value) list;
+                preview_sources : (string * Document.preview_source) list }
 
 let viewport_key path = "v" ^ String.concat "." (List.map string_of_int path)
 
@@ -543,13 +576,44 @@ let origins (graph : W.graph) value =
   !found
 
 let editor (workspace : Workspace_doc.t) (plan : E.plan) =
-  let* value = result workspace plan Flow.Workspace.Editor in
+  let* value = result ~force:false workspace plan Flow.Workspace.Editor in
   match value with
   | None -> Ok None
   | Some (E.Struct ("ui/workspace", [ _, root ]) as whole) ->
       let* tree, graph, viewports = panel_tree root in
       let g = Option.get (Workspace_doc.editor_graph workspace) in
-      Ok (Some { tree; origins = origins g whole; named = graph; viewports })
+      let origins = origins g whole in
+      let leaves = Panels.leaves tree |> List.filter_map (function
+        | path, Panels.View key -> Some (path, key, List.assoc_opt path origins) | _ -> None) in
+      (* ponytail: quadratic uniqueness scan over viewport leaves; use name
+         counts if large layouts beyond the 16-renderer limit need it. *)
+      let keys = List.map (fun (_, old, origin) ->
+        let key = match origin with
+          | Some (Document.Bound name) when List.length (List.filter (fun (_, _, o) -> o = origin) leaves) = 1 ->
+              Printf.sprintf "v:%S/%S" g.name name
+          | _ -> old in
+        old, key) leaves in
+      let key old = List.assoc old keys in
+      let rec remap = function
+        | Panels.Leaf (View old) -> Panels.Leaf (View (key old))
+        | Leaf p -> Leaf p
+        | Split s -> Split {s with a = remap s.a; b = remap s.b}
+        | Tile cells -> Tile (List.map remap cells)
+        | Float panel -> Float (remap panel) in
+      let rec authored = function
+        | Document.Bound_at path -> F.arg_text workspace.source path F.Whole
+        | Inline_in (home, arg) -> Option.bind (authored home) (fun form -> F.arg_of form arg)
+        | Copy _ | Looped -> None in
+      let preview_sources = List.map (fun (_, old, origin) ->
+        let panel_form = match origin with
+          | Some (Document.Bound name) -> F.arg_text workspace.source [g.name; name] F.Whole
+          | Some (Inline (home, arg)) -> Option.bind (authored home) (fun form -> F.arg_of form arg)
+          | Some (Loop _) | None -> None in
+        key old, {Document.editor_graph = g.name; panel = origin;
+          scene_ref = Option.bind panel_form (fun form -> F.arg_of form (F.Pos 0));
+          instance = List.assoc old viewports}) leaves in
+      Ok (Some { tree = remap tree; origins; named = graph;
+        viewports = List.map (fun (old, scene) -> key old, scene) viewports; preview_sources })
   | Some _ -> Error (diag "E_LOWER" "The editor graph returns a (ui/workspace ...).")
 
 (* ---- the document of a workspace ---- *)
@@ -583,16 +647,17 @@ let of_workspace ~factories ?previous (workspace : Workspace_doc.t) =
   let old_homes = match previous with Some doc -> doc.Document.homes | None -> Document.no_homes in
   let* lowered = Flow_sop.Lower.workspace ~factories ~extra:descriptors ?compiled_ids ?sites
       workspace.source in
+  let* () = check_context_time workspace lowered.plan in
   let* items = items workspace lowered in
   (* a viewport over another instance of the scene draws objects of its own *)
   let* editor = editor workspace lowered.plan in
-  let* default_scene = result workspace lowered.plan Flow.Workspace.Scene in
+  let* default_scene = result ~force:false workspace lowered.plan Flow.Workspace.Scene in
   let default_calls = Option.fold ~none:[] ~some:scene_calls default_scene in
   let* aux = List.fold_right (fun (key, scene) rest ->
     let* rest = rest in
-    let* scene = E.force scene ~live:{ E.t = 0. } in
     let calls = scene_calls scene in
-    if (try List.map (fun c -> c.kind, c.args) calls
+    if Option.fold ~none:false ~some:(( == ) scene) default_scene
+       || (try List.map (fun c -> c.kind, c.args) calls
                           = List.map (fun c -> c.kind, c.args) default_calls
                       with Invalid_argument _ -> false) then Ok rest
     else
@@ -719,10 +784,42 @@ let of_workspace ~factories ?previous (workspace : Workspace_doc.t) =
       Some (id, if item.group = None then item.home else Document.Looped)) objects;
     world = Option.map (fun (c : call) -> c.home) world; layers = layer_homes;
     settings = (match settings_calls with (c : call) :: _ -> Some c.home | [] -> None) } in
-  Ok { Document.scene; networks; active_camera; settings;
+  let scene_drives = List.fold_left (fun drives (id, item) -> match item.drives with
+    | None -> drives | Some drive -> Document.Int_map.add id drive drives)
+    Document.Int_map.empty objects in
+  Ok { Document.scene; networks; active_camera; settings; scene_drives;
        shell = Option.map (fun e -> { Document.tree = e.tree; origins = e.origins;
-                                      named = e.named; views }) editor;
+                                      named = e.named; views; preview_sources = e.preview_sources }) editor;
        homes; workspace = (workspace, lowered) }
+
+(* Only the recorded live fields run; SOP networks, source and panel identities
+   stay untouched. Errors leave the caller's last successful picture available. *)
+let resolve_scene ?previous (document : Document.t) ~time =
+  let graph, errors = Document.Int_map.fold (fun id (kind, args) (graph, errors) ->
+    let resolve () =
+      let* values = List.fold_left (fun result (parameter, value) ->
+        let* values = result in
+        let* value = E.force value ~live:{E.t = time} in
+        let* next = Flow_sop.Lower.changes parameter value in
+        Ok (values @ next)) (Ok []) args in
+      flow (Edit.apply_parameters graph ~node_id:id values) |> Result.map fst in
+    match resolve () with
+    | Ok graph -> graph, errors
+    | Error error ->
+        let graph = match Option.bind previous (fun graph -> Edit.find graph ~node_id:id) with
+          | Some node -> Result.value ~default:graph (Edit.replace_node node graph)
+          | None -> graph in
+        let views = Option.fold ~none:[] ~some:(fun shell ->
+          List.filter_map (fun (key, ids) -> if List.mem id ids then Some key else None)
+            shell.Document.views) document.shell in
+        let view = if views = [] then "primary" else String.concat ", " views in
+        let error = diag "E_CONTEXT_LIVE"
+          (Printf.sprintf "%s #%d [%s] (%s): %s (last successful light retained)" kind id view
+            (String.concat ", " (List.map (fun (parameter, _) -> parameter.Flow_sop.Port.path) args))
+            (Flow.Diagnostic.to_string error)) in
+        graph, error :: errors)
+    document.scene_drives (document.scene.graph.geometry, []) in
+  graph, List.rev errors
 
 let sha256 s = Digestif.SHA256.(to_hex (digest_string s))
 

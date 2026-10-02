@@ -304,6 +304,8 @@ module Make (V : VIEWPORT) = struct
     views : (string * V.rendered) list;  (* viewports over another scene instance *)
     drawn : (Graph.t * 'prepared * V.rendered) Document.Int_map.t;  (* per object *)
     composed : (Edit_graph.t * Document.level * (string * int list) list) option;
+    resolved : (Document.t * float * Edit_graph.t) option;
+    context_error : string option;
     (* The scene, open level (ghosts), and viewport membership used by the picture. *)
     baked : World.baked option;
     baked_from : (World.t * World.baked) option;
@@ -402,7 +404,8 @@ module Make (V : VIEWPORT) = struct
     Result.bind (validate [] commands) (fun () -> Result.map (fun core ->
       let core, extra = V.init core camera in
       { core; camera; control = V.create_control (); draw; overlay; status;
-        rendered = None; views = []; drawn = Document.Int_map.empty; composed = None; baked = None; baked_from = None; map = None;
+        rendered = None; views = []; drawn = Document.Int_map.empty; composed = None;
+        resolved = None; context_error = None; baked = None; baked_from = None; map = None;
         render_status = None; pending_render = None;
         background; extra; hidden_scene_cache = None; commands; world_drag = None; pick_press = None; source; cameras = []; viewing = None;
         state_checked = neg_infinity; saved_doc = core.doc; saved_view = V.section camera extra; state_error = None })
@@ -441,7 +444,12 @@ module Make (V : VIEWPORT) = struct
     | Inside id -> Some (Option.fold ~none:"" ~some:Node.label
         (Edit_graph.find (Core.scene value.core) ~node_id:id))
   let scene_document value = Core.scene value.core
-  let lights value = Objects.lights ~render:true (Core.scene value.core)
+  let same_context (a : Document.t) (b : Document.t) =
+    a.scene.graph.geometry == b.scene.graph.geometry && a.scene_drives == b.scene_drives
+  let resolved_scene value = match value.resolved with
+    | Some (doc, _, scene) when same_context doc value.core.Core.doc -> scene
+    | _ -> Core.scene value.core
+  let lights value = Objects.lights ~render:true (resolved_scene value)
   let world value = value.baked
   let objects value = List.map (fun (matrix, (piece : _ Cook.piece)) ->
       matrix, piece.prepared) (Core.placed_pieces ~render:true value.core)
@@ -517,11 +525,11 @@ module Make (V : VIEWPORT) = struct
   (* Recompose when a cook, the scene, or the World changed. Each object's
      drawing is reused while its graph and prepared value are physically the same, so
      moving an object only re-places it. *)
-  let composition_key core = Core.scene core, core.Core.level,
+  let composition_key core scene = scene, core.Core.level,
     (match core.Core.doc.Document.shell with Some shell -> shell.views | None -> [])
 
-  let compose value (update : (_, _) Core.update) ~baked =
-    let scene, level, views = composition_key update.core in
+  let compose value (update : (_, _) Core.update) ~baked ~scene =
+    let scene, level, views = composition_key update.core scene in
     let same = match value.composed with
       | Some (s, l, v) -> s == scene && l = level && v = views
       | None -> false in
@@ -544,7 +552,7 @@ module Make (V : VIEWPORT) = struct
         | Document.Inside open_id -> Core.kind update.core open_id = Some "geometry"
             && id <> open_id
         | Scene -> false in
-      let compose_pieces view pieces = V.compose ~scene:(Core.scene_for_view ~view update.core) ~world:baked
+      let compose_pieces view pieces = V.compose ~scene:(Core.scene_for_view ~scene ~view update.core) ~world:baked
         (List.map (fun (matrix, (piece : _ Cook.piece)) ->
            let _, _, rendered = Document.Int_map.find piece.id drawn in
            matrix, ghost piece.id, rendered) pieces) in
@@ -561,13 +569,18 @@ module Make (V : VIEWPORT) = struct
     | None -> None, update
     | Some file ->
         (match Source_file.poll ~now file with
-         | file, None -> Some file, update
+         | polled, None ->
+             let core = if polled.error = file.error then update.core else
+               { update.core with Core.notice = Some (match polled.error with
+                 | Some message -> "Source unreadable: " ^ message
+                 | None -> "Source readable again: " ^ Filename.basename (Source_file.file polled)) } in
+             Some polled, { update with core }
          | file, Some text ->
              let name = Filename.basename (Source_file.file file) in
              (match Core.reload update.core ~name text with
               | Ok core -> Some (Source_file.accepted file text), { update with core; scene_changed = true }
               | Error diagnostics ->
-                  Some (Source_file.rejected file),
+                  Some file,
                   { update with core = Core.reload_failed update.core ~name text diagnostics }))
 
   (* Command-S: over the source file while it is what the document came from, else a preset. *)
@@ -614,7 +627,12 @@ module Make (V : VIEWPORT) = struct
         ~render_status:(match value.status (Core.prepared value.core), value.render_status with
           | Some sketch, Some render -> Some (sketch ^ " · " ^ render)
           | sketch, None -> sketch | None, render -> render)
-        ~error_status:(match value.state_error with Some _ as error -> error | None -> V.render_status value.extra)
+        ~error_status:(match value.state_error with
+          | Some _ as error -> error
+          | None -> match value.context_error, V.render_status value.extra with
+            | Some live, Some renderer -> Some (live ^ "; " ^ renderer)
+            | Some _ as error, None | None, (Some _ as error) -> error
+            | None, None -> None)
         ~view_state:(function
           | Some (_, camera, _, extra, _) -> V.section camera extra
           | None -> V.section value.camera extra) frame in
@@ -710,7 +728,17 @@ module Make (V : VIEWPORT) = struct
       || Sketch_support.Timeline.mode (Core.timeline core) = Sketch_support.Timeline.Playing in
     let baked_from = bake_world ~previous:value.baked_from core ~live in
     let baked = Option.map snd baked_from in
-    let rendered, views, drawn = compose { value with core } { update with core } ~baked in
+    let time = Sketch_support.Timeline.time (Core.timeline core) in
+    let scene, context_error = match value.resolved with
+      | Some (doc, at, scene) when same_context doc core.Core.doc && at = time -> scene, value.context_error
+      | _ ->
+          let previous = match value.resolved with
+            | Some (doc, _, scene) when same_context doc core.doc -> Some scene
+            | _ -> None in
+          let scene, errors = Contexts.resolve_scene ?previous core.doc ~time in
+          scene, (if errors = [] then None else Some (String.concat "; "
+            (List.map Flow.Diagnostic.to_string errors))) in
+    let rendered, views, drawn = compose { value with core } { update with core } ~baked ~scene in
     let rendering = {focused with core; extra; camera; rendered; views} in
     let bodies = if V.ui_visible control then Core.view_bodies core raw_frame
       else ["@hidden", (0, 0, raw_frame.width, raw_frame.height)] in
@@ -733,7 +761,8 @@ module Make (V : VIEWPORT) = struct
         Some "Render unavailable until the first cook completes" else render_status in
     let value = refresh_hidden { value with core; camera; cameras = focused.cameras; viewing = focused.viewing;
       control; rendered; views; drawn;
-      composed = Some (composition_key core); baked; baked_from; map; world_drag; pick_press;
+      composed = Some (composition_key core scene); resolved = Some (core.doc, time, scene);
+      context_error; baked; baked_from; map; world_drag; pick_press;
       pending_render; render_status; extra; source } raw_frame in
     (* Sketch commands run last, on the finished frame's model. *)
     let value = List.fold_left (fun value -> function
@@ -777,7 +806,7 @@ module Make (V : VIEWPORT) = struct
     Out_channel.with_open_text (Filename.concat directory "editor.txt") (fun channel ->
       Printf.fprintf channel
         "level: %s\nprojection: %s\npane graph: %s\ntext: %s\nmap view: %b\nguide: %b\nkey hud: %s\nselected: %s\nscope selected: %s\nfocus: %s\nprompt: %s\n\
-         undo: %s (%d entries)\nredo: %s\ncook: %s\nedit error: %s\nautosave: %s\n\
+         undo: %s (%d entries)\nredo: %s\ncook: %s\nedit error: %s\nrenderer: %s\nlive scene: %s\nautosave: %s\n\
          load document.plisp with Space b (workspace documents only) after copying it to %s\n"
         (Core.level_name core)
         (match Core.projection core with Core.List_view -> "list"
@@ -796,6 +825,8 @@ module Make (V : VIEWPORT) = struct
         (Option.value ~default:"-" (Editor_core.History.redo_label history))
         (Core.status_text core)
         (Option.value ~default:"-" core.edit_error)
+        (Option.value ~default:"-" (V.render_status value.extra))
+        (Option.value ~default:"-" value.context_error)
         (Option.value ~default:"-" value.state_error) core.presets)
 
   let close value =

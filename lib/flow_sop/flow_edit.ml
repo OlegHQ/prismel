@@ -897,7 +897,7 @@ let rewrite src op : (unit -> S.t list) list =
       edit_scope src sp (fun s ->
         let sc = ensure s in
         ignore (get_node s leaf);
-        let orig = get_node s target in
+        ignore (get_node s target);
         let removed = ref [leaf] in
         (* Strip the moved panel from its split/tile; empty wrappers disappear too. *)
         let rec strip (e : S.t) = match e.node with
@@ -925,13 +925,13 @@ let rewrite src op : (unit -> S.t list) list =
         let ps = clean sc.ps in
         if List.mem target !removed then fail "A panel cannot dock inside its own group.";
         let res = match strip sc.res with Some r -> r | None -> fail "Keep at least one docked panel." in
-        let content = fresh used (target ^ "_content") in
+        let group = fresh used (target ^ "_dock") in
         let first = side = `Left || side = `Top in
         let split = call "ui/split-at" [mk (S.Str (if side = `Top || side = `Bottom then "vertical" else "horizontal"));
-          mk (S.Num "0.5"); sym (if first then leaf else content); sym (if first then content else leaf)] in
-        let ps = List.concat_map (fun (p, e) -> if pat_key p = target
-          then [sym content, orig; p, split] else [p, e]) ps in
-        reorder (rebuild sc ps res)))
+          mk (S.Num "0.5"); sym (if first then leaf else target); sym (if first then target else leaf)] in
+        let ps = List.map (fun (p, e) -> p,
+          (if pat_key p = target then e else rename_ref target group e)) ps in
+        reorder (rebuild sc (ps @ [sym group, split]) (rename_ref target group res))))
   | Duplicate { nodes } -> one (fun () ->
       let sp, names = duplicate_plan src nodes in
       edit_scope src sp (fun s ->

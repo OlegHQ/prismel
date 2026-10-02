@@ -106,18 +106,24 @@ differ from the primary scene gets auxiliary objects in the combined scene netwo
 instance has a membership entry containing no IDs; absence of an entry and an empty entry have
 different meanings.
 
-Those auxiliary objects are preview products. Their homes are currently `Looped`, so ordinary
+Those auxiliary objects are preview products. `shell.preview_sources` now retains their owning
+panel origin, authored scene ref where available, and evaluated instance by viewport key.
+Their write-back homes remain `Looped`, so ordinary
 derived edits cannot reconstruct the original overridden call. The safe route is editing the
-source graph or the viewport's ref arguments. This limitation should be made explicit in the UI.
+source graph or the viewport's ref arguments. The inspector locks their parameter rows and explains the source-edit route; shared
+reconciliation refuses derived writes with the viewport identity.
 
+Unique named viewports now use graph/binding keys; inline, looped and repeated panels use
+placement keys. Renaming changes the authored key. Docking retains both panel bindings.
 Each viewport has an orbit. Focus chooses the orbit used for navigation, overlays and picking.
 The common renderer retains at most 16 viewport slots and 64 converted meshes. It shares
 converted geometry but keeps viewport output separate. Floating panels use the same PXUI hit
 tree and Scene insertion path as docked panels; bounds are placement, not viewport identity.
 
-Lights are now isolated with geometry. World state, active render camera and look-through policy
-still have global parts. A comparison viewport's own authored camera does not currently constitute
-an independent render-camera controller.
+Lights are isolated with geometry. World state, the primary active render camera
+and look-through/export controller are explicitly shared, with per-viewport free
+orbits. An independently authored comparison camera retains its values without
+selecting or replacing that primary controller; the isolation checks are C07.
 
 Only the first Graph/List/Lisp/Inspector leaf of a kind builds that pane. A second leaf is shown
 as already displayed elsewhere. This is a deliberate current shell constraint, not independent
@@ -127,17 +133,17 @@ editors with independent selections.
 
 | Priority | Evidence and consequence | Minimum remediation and acceptance check |
 |---|---|---|
-| P1: non-SOP time is accepted but frozen | `Contexts.result`, scene call walking and preview evaluation force `t = 0`. Live SOP drives use Value_lane. A time-dependent scene transform, lamp, World keyword or panel expression can therefore look editable while remaining static. This is confirmed behavior, not fixed here. | First reject unsupported time-dependent non-SOP fields with a precise diagnostic, or label them as static. Add one scene/light test at two times. Implement live context evaluation only where the intended use requires it, retaining stable object/panel identities and unchanged SOP outputs. |
-| P1: editable startup settings are not applied to the running host | `Workspace.run` reads title/size/fps/seed once; Cook owns the seed captured at creation. A settings graph edit changes saved state and inspector values without restarting/reconfiguring these services. | Mark startup-only fields as applying on restart. For each field chosen to become live, use the existing native runtime API and explicit cook-context invalidation; compare editor value, runtime result and saved reload. Seed changes must have an exact sequential/multidomain check. |
-| P1: Selection Lisp can silently ignore parts of a draft | `Core.binding_edit` extracts closure bindings but ignores the closure's final expression. Its existing partial-patch contract also leaves omitted bindings in the graph; the closure is not a full graph replacement. It validates changed bindings one at a time, so a coherent multi-binding type change can fail at an intermediate state. | Reject changes to the closure result and explain that omitted bindings stay. For genuinely related edits, rewrite all changed bindings in a candidate source and check/lower once. Check result changes, partial binding patches, duplicate names, cross-binding type changes and one-entry undo. Graph/Document tabs already offer whole-form edits. |
-| P1 risk: drafts have no source revision | Drafts are keyed by graph/path rather than the document revision they began from. External reload now clears drafts, but another pane/undo/host edit can change the same binding while a draft remains open. | Store the base source identity with a draft; applying to a changed base should preserve it and show a conflict. Test edit-in-inspector → apply-old-draft and undo → apply-old-draft. Do not add a merge engine before a real need. |
-| P2: viewport identity and preview provenance are weak | View keys come from panel tree placement; saved panel state uses binding paths where possible. Reordering panels can transfer transient orbit/cache identity. Auxiliary preview homes lose the actual ref/override origin. | Reuse named panel origins as stable viewport keys, with a documented fallback for inline/looped panels. Preserve ref/instance provenance before enabling preview editing. Check swap/dock/rename/reload, distinct instance edits and orphan-state cleanup. |
-| P2: navigation and render ownership remain partly coupled | The named inspector now resolves ownership, but several framing/handle/display paths still use the open level or primary active camera. One global World bake and look-through state service multiple views. | Audit each caller of `Document.network`, `Core.render_camera` and `Core.world` against its intended target. Use existing viewport membership/owner helpers. Add named-pane handles and independently authored comparison-camera/World checks before expanding those features. |
-| P2: source polling can miss an unchanged-mtime write | `Source_file.poll` reads content only when mtime changes. It ignores read errors. `save` checks the digest before an atomic rename, leaving a race with an external write between those operations. These are identified risks, not newly reproduced races. | Poll content/digest at the existing 2 Hz if measured file sizes allow it; report unreadable source. Keep conflict-to-preset behavior. Test preserved mtime and a changed inode. A fully race-free competing-writer protocol requires cooperation; document that limit instead of claiming a digest makes writes atomic against other editors. |
-| P2: renderer errors lack panel identity | Successful panels remain visible now, but error aggregation reports one global message and can retain a failed slot's last good image. | Prefix errors with the viewport key/name and identify retained output as stale. Add fail → recover and fail → switch mode checks; keep resources bounded and joined on close. |
-| P3: duplicate layout representations obscure active behavior | Codec fields and historical API prose still describe layout capabilities removed with the flat pane. Some host/view state sits beside the authored layout for live drags and recovery. | Inventory readers of each layout field; update documentation before deleting fields. Keep live drag state transient and commit once on release. Avoid a second persistence format. |
-| P3: ownership fallback scans scene networks | `Core.node_owner` keeps the current-network fast path, then scans owners for a named pane. This is intentionally small code with a documented ceiling. | Measure large named-pane scenes; add a compiled-ID-to-owner map in the existing lowering only if the fallback is material. |
-| P2 build debt: checked SDL bindings differ from this installed SDK | A fresh scratch build failed the pen event ABI size assertion (checked size 24, installed size 32). Regenerating core SDL bindings in the disposable baseline checkout enabled the benchmark. Existing main-tree build artifacts compiled successfully. | In a separate SDK/bindings change, regenerate with the intended pinned headers and run binding/ABI qualification. Do not interpret an incremental green build as proof of clean-bootstrap compatibility. |
+| P1: non-SOP time was accepted but frozen — repaired | Light intensity/color now retain checked residuals and resolve at editor timeline time for primary/comparison composition. Other scene, World, settings and editor residuals give `E_CONTEXT_TIME`, naming the graph and field. A `Geo` reference stays valid when its SOP parameters animate. | `frozen_context_time` checks unsupported transform/light-width/World/settings/panel fields at two times, precise installation/startup/reload refusals, unchanged source/history and literal replacement/undo. Live-light checks cover two times, rendered output, independent overrides, reload/undo, local failures/recovery and seeded one-/three-domain output. See C13. |
+| P1: startup settings appeared to apply immediately — repaired | `Workspace.run` reads title/size/fps/seed once; Cook owns the seed captured at creation. These remain explicitly startup-only. | All five built-in field labels say “on restart”; a selected `settings/config` inspector also explains it. `test_editor_consistency.startup_settings` checks labels plus saved edits, serialized reload and one-entry undo for every field. No window or cook-seed field is made live by this repair; selected live context behavior remains tracked separately in C13. |
+| P1: Selection Lisp silently ignored draft parts — repaired | The old apply ignored the closure result and checked replacement bindings individually, refusing valid producer/consumer type changes. | `Text_pane.selection_form` now patches the complete graph; `Core.binding_edit` checks/lowers once through `Set_graph`. Changed results and duplicate names are refused. The printed closure explains that omitted bindings stay. `test_text_pane.editor_binding` verifies refusal without document changes, partial patches, coherent list-to-geometry producer/consumer changes, serialized reload and one-entry undo. |
+| P1: stale drafts could overwrite another edit — repaired | Selection, Graph and Document drafts now retain their base workspace. Apply and live scrub refuse a changed source with `E_DRAFT_CONFLICT`; Document also checks authored layout/settings. The draft and current document/history are preserved. Successful scrub advances the base; discard and successful reload clear it. | `test_text_pane` exercises Graph draft → undo → apply and Document/Selection draft → host edit → apply. `test_editor_consistency.stale_inspector_draft` types a Selection draft, drags the actual inspector, then verifies refusal, unchanged applied source/history and retained draft. |
+| P2: viewport identity and preview provenance — implemented | Unique named viewports now key by editor graph/binding. Docking preserves panel bindings and adds a split wrapper instead of renaming the target. Inline/looped/repeated panels retain a documented placement fallback; rename changes the authored key. `shell.preview_sources` records origin, authored scene ref where available, and evaluated instance. Auxiliary objects remain read-only with an explicit source-edit route in the inspector and shared reconciliation. | `preview_identity` passes reorder/dock/reload/rename/close, independent overrides, empty membership, orphan provenance cleanup, repeated/inline fallback and derived edit refusal. `preview_orbits` also drags the actual camera, checks isolated orbit preservation through reorder/dock/graph reload, and closes/re-adds a viewport to prove obsolete orbit state was removed. Native renderer validation remains in C14. |
+| P2: navigation and render ownership — audited and repaired | Named inspector/handles resolve the compiled SOP owner. Scene framing follows focused membership, including viewport-only layouts and empty scenes. World and primary render-camera controllers remain explicitly shared; each view has its own free orbit. | The C07 call-site inventory and passing named-handle/framing/orbit/comparison-camera/World regressions record each intended target. Independent controllers would be an explicit viewport API extension, not an implicit consequence of focusing a comparison. |
+| P2: source polling missed same-mtime writes and hid read failures — repaired | Polling now reads content/digest at 2 Hz and suppresses repeated reload attempts by observed digest. Source read failures/recovery are status notices; save reports read errors and retains preset fallback for a differing readable source. | `test_workspace_source` covers preserved mtime, changed inode, unchanged applied source/history on read failure/recovery, and conflict-to-preset. The digest check still precedes rename: an uncooperative writer can race it. This limit is explicit in Source documentation. Measured polling cost and file sizes are recorded in `specification/performance.md`. |
+| P2: renderer errors lacked panel identity — implemented, native check pending | Errors now include every failed viewport key and say either “stale output retained” or “no output.” A failed transition from Wireframe to Path traced no longer paints old wire output as if it were traced. Renderer errors also appear in crash reports. | The window-free `failed_renderer_modes` regression verifies both failed keys, absence of wrong-mode output, and recovery by switching modes. The extended native regression covers retained stale output, healthy-primary pixels, fail → recover and fail → mode switch; execution is pending because SDL reported no displays in the current environment. Existing 16-slot/64-mesh capacities and tracer destruction paths are retained. |
+| P3: layout readers and drag commits — repaired | `iteration.md` and `Layout_by_path` now distinguish active readers from preserved legacy canvas fields. Held floating-window drags previously wrote layout every frame. | Window movement/resizing now uses transient chrome bounds and one release commit, as splitters and Scope placements do. Held-input, save/reload and one-step undo checks pass; the existing codec is retained. |
+| P3: ownership fallback scans scene networks — measured | `Core.node_owner` keeps the current-network fast path, then scans owners for a named pane. This is intentionally small code with a documented ceiling. | Actual named selection measures 0.015720 ms/lookup at 1000 owners; retain the scan for this measured workload. Benchmark and limits are recorded under C11. |
+| P2 build debt: historical SDL bootstrap mismatch — verified resolved | The earlier baseline scratch checkout failed a pen event ABI assertion. Current installed SDL is 3.4.14, matching the checked provenance; current generated core/image/ttf/mixer inventories match their headers. | A fresh build directory passed `@all`, including native ABI compilation, then all four binding qualification aliases passed, including 100,000 surface/window lifecycle stress cycles. No regeneration was required. See C12 for commands. |
 
 ## Ordered remediation plan
 
@@ -145,26 +151,93 @@ editors with independent selections.
    document changes on reconciliation/install; apply text before cooking; compose from actual
    state; isolate preview membership; use renderer keys. Run the new regression alias plus
    existing workspace, text, source, transaction and native renderer checks.
-2. **Next: prevent silent interpretation.** Reject unsupported Selection edits, detect stale
-   drafts, expose startup-only settings, and reject or clearly label frozen non-SOP time.
+2. **Delivered: prevent silent interpretation.** Selection patches and stale-draft detection are repaired.
+   Startup-only settings are labeled; unsupported residual time fields are refused with graph/field diagnostics.
    These are small boundary changes. Each should include a concrete before/after reproduction,
    unchanged state on refusal, serialized reload and undo acceptance.
-3. **Then: stabilize preview identity and provenance.** Reuse panel origins for keys and carry
+3. **Delivered: stabilize preview identity and provenance.** Reuse panel origins for keys and carry
    the owning ref/instance into preview products. Do not make preview objects independently
    editable until write-back can round-trip overrides without modifying another viewport.
    Cover dock/swap/rename/close and empty scenes.
-4. **Then: make selected runtime behavior live.** Pick the required scene/World/window/seed
-   fields explicitly. Re-evaluate only affected contexts and preserve unchanged networks and
-   prepared pieces. Require per-view isolation, deterministic seeded results and benchmark
-   measurements before broadening this path.
-5. **Maintenance: improve source diagnostics, renderer attribution and documentation.**
+4. **Delivered: make selected runtime behavior live.** Light intensity/color resolve from
+   recorded residuals and checked ports. Scene transforms, World expressions and panel fields
+   remain explicitly static; title/size/fps/seed remain restart-only. SOP/prepared/drawing
+   caches and object/panel identities are preserved. Per-view failure isolation, seeded
+   one-/three-domain regression and before/after measurements are recorded under C13.
+5. **Delivered: improve source diagnostics, renderer attribution and documentation.**
    Preserve the single codec, shared PXUI frame, history snapshot and bounded caches.
-   Resolve the SDK bootstrap mismatch separately from editor changes.
+   The SDK bootstrap mismatch was checked separately; clean build and binding
+   qualification pass. Final native presentation remains unverified under C14.
 
 No new framework or dependency is needed for phases 1–3. A full rewrite would obscure the
 existing ownership rules and delay checks for the failures already observed.
 
+## Ownership call-site inventory (C07)
+
+| Authority/callers | Intended target and current evidence |
+|---|---|
+| `Core.network` / `document` / list rows / document-intent reduction | Open navigation level, resolved on installation. These are list/scene reducers, not named-SOP ownership lookups. Scoped syntax edits use the source. |
+| `Core.node_owner` / `compiled_node` / scope records and geometry targets | Compiled SOP owner, independent of navigation. Named inspector, probe/footer and handle paths share these helpers. |
+| `Core.selected_node`, `space`, handle intent conversion | Selected scoped SOP first, with its owning object's transform; otherwise navigation selection. `named_handles` drags a projected handle on a translated object while the scene level remains open; only the SOP argument changes. |
+| `Core.display_node` / `geometry_objects` | Explicit object network; apply the displayed path only when the shown graph owns that object. Existing display checks remain. |
+| `Core` viewport framing / `view_wants` | Focused instance membership at scene level. `focused_framing` verifies `F` works with only viewport panels and that an empty view does not borrow primary bounds. |
+| `Core.world_keys`, `edit_node` | Explicit World/level argument, reconciled through authored homes. Missing levels retain the document. |
+| `Core.world` → `Environment.bake_world` | Primary shared World and its timeline day cycle. `Environment.update_world` uses that same World for map/rotation gestures. `preview_camera_world` verifies comparison focus/edit/undo retains the baked World. This shared policy is explicit in `iteration.md`; independent Worlds are outside the current viewport API. |
+| `Viewport3.active_node` → `render_camera_of`, `render_of`, `on_view`, look-through/export | Primary authored active camera; free orbits are keyed by viewport. `preview_camera_world` retains an independently authored comparison camera while focus/edit/undo preserves the primary controller. Look-through/export use that shared primary controller, as documented in `iteration.md`. |
+
+## Completion ledger
+
+The implementation work is delivered; the full remediation objective remains open for
+required native validation. The historical validation below belongs to the
+initial repair; it is not proof that the final native gates pass. Each row requires both
+implementation and its acceptance evidence before it may be marked complete.
+
+| ID | Required work / acceptance | Current status and evidence |
+|---|---|---|
+| C01 | Initial reproduced consistency repairs; window-free and native regression checks | Implemented in the starting tree. Final-tree window-free regressions and broad `runtest` pass. Native revalidation remains unproven because Cocoa startup cannot obtain a display; historical native checks below do not close C14. |
+| C02 | Frozen non-SOP time: precise refusal or explicit static labeling; scene/light checks at two times, unchanged state on refusal, reload/undo | Complete: `E_CONTEXT_TIME` identifies unsupported graph/field time use. `frozen_context_time` covers scene transform, light width, World, settings and panels at two times, refused source/history, serialized reload, literal replacement/undo and a supported time-driven SOP reference. Selected light intensity/color are now live under C13. Focused consistency and existing workspace-live/doc/shell checks pass with dummy drivers. |
+| C03 | Startup-only title/size/fps/seed: label restart behavior; chosen live fields compare runtime, saved reload and editor; live seed must match sequential/multidomain | Complete as explicitly startup-only built-in fields, with no live seed/window change. `startup_settings` checks all five labels, saved edits, reload and undo. The settings graph inspector explains restart behavior. Selected live light behavior and unchanged seeded results are verified under C13. |
+| C04 | Selection patches: result refusal, duplicate refusal, omitted bindings, atomic related type edits, reload and one-entry undo | Complete; `test_text_pane.editor_binding` exercises the public editor. `dune build @test/test_text_pane` and final broad `runtest` passed with dummy SDL drivers. |
+| C05 | Draft base source identity; preserve conflicted draft after inspector/host edits and undo | Complete. `test_text_pane.editor_text`/`editor_binding` cover all three tabs, host edits and undo. `test_editor_consistency.stale_inspector_draft` covers an actual inspector drag; focused and final broad checks passed with dummy SDL drivers. |
+| C06 | Stable named viewport keys, inline/loop fallback, ref/instance provenance; swap/dock/rename/reload/close, independent overrides, empty scenes, orphan cleanup | Implemented named keys/provenance and corrected shared docking; derived preview edits remain refused. `preview_identity` passes source/lowering checks for reorder, dock, reload, rename, close, independent override edits, empty views, orphan provenance and inline/repeated fallback. Existing shell/edit/doc tests pass. `preview_orbits` additionally passes actual input orbit preservation and close/re-add cleanup. Native renderer validation remains in C14. |
+| C07 | Audit `Document.network`, `Core.render_camera`, `Core.world` callers; named-pane handles, comparison camera/World isolation | Complete. The call-site inventory identifies actual camera helpers in `Viewport3` (there is no `Core.render_camera` implementation). Named handles resolve the compiled owner; actual translated-object dragging and focused/empty framing checks pass. `preview_camera_world` retains an independently authored comparison camera and verifies focus, ref override edits and undo preserve the primary render camera and physically reused World bake. `iteration.md` explicitly chooses shared primary ACTIVE/look-through/export/World policy with separate free orbits, matching the existing viewport API. |
+| C08 | Digest polling at 2 Hz, unreadable-source diagnostic, preserved-mtime/inode tests, retained conflict-to-preset behavior; measure file sizes and document competing-writer limit | Complete; focused `test_workspace_source` and final broad checks passed. Largest checked-in source: 7800 bytes; five 2000-poll samples measured median 0.054431 ms and 8672 bytes per poll. Benchmark command and raw samples are in [performance.md](../performance.md#source-digest-polling--2-october-2026). Public Source docs record the competing-writer limit; its API manifest promotion changes documentation hashes only. |
+| C09 | Renderer failure attribution by viewport, explicit stale output, fail/recover/mode-switch checks, bounded resources and joined close | Implemented; window-free `failed_renderer_modes` passes. Native stale-output/healthy-primary/recovery/mode-switch/close regression is extended but unverified: startup failed with `SDL3.Init.init: The video driver did not add any displays`. Do not mark complete until that native run passes. |
+| C10 | Layout field reader inventory and corrected documentation; transient drag state with one release commit, single codec | Complete. The field inventory in `iteration.md` and `Layout_by_path` documentation distinguish active readers from preserved legacy fields. A real held-drag check exposed floating windows committing early; `Chrome.Window_drag` now carries transient bounds until release, sharing the existing codec and history reducer. `test_workspace_shell.run_panel_states` verifies held splitter/move/resize keep source unchanged, cancelled window drags discard draft bounds, release/save round-trip, and one undo restores placement. Focused shell, shell-library, typecheck and promoted API gate pass. |
+| C11 | Measure named-pane owner fallback on large scenes; add lowering owner map only if measurement warrants it | Complete. `bench_named_owner` measures actual `Editor3.selected_node` with Scene navigation and the last owner selected: 1/100/1000 distinct SOP networks, five 10,000-lookup samples. Median at 1000 owners is 0.015720 ms and 1504 bytes/lookup. The measured fixture does not warrant an index; the existing scan and its documented upgrade path remain. Raw samples, command and limits are in `performance.md`. |
+| C12 | Pinned SDK/bindings bootstrap: fresh clean build, regenerated intended headers if needed, ABI qualification | Complete. Installed/checked core SDL version is 3.4.14. `dune build --build-dir /private/tmp/prismel-consistency-clean-20261002 @all` passed from a new directory; the same build directory passed `@lib/sdl3/qualification @lib/sdl3_image/qualification @lib/sdl3_ttf/qualification @lib/sdl3_mixer/qualification`. All generated header inventories match and SDL lifecycle stress passed 100,000 cycles each. No generated binding change was needed; native window presentation remains separately pending in C14. |
+| C13 | Selected live context evaluation: stable object/panel identities, unchanged networks/prepared pieces, per-view isolation, deterministic seed and before/after benchmark | Complete. Selected fields are scene light intensity/color; scene transforms, World expressions and panels remain static, and window/seed fields restart-only. Lowering retains only affected residuals/checked ports by stable object ID. Environment retains one runtime scene, separate from authored history and keyed by authored scene/drives/time; failures retain only the failed light and identify its view/fields. `live_lights`, `live_light_failure`, `live_light_failure_isolation` and `live_light_determinism` pass actual timeline rendering, source/ID preservation, override/reload/undo, local failure/recovery, exactly one geometry prepare/draw and byte-identical seeded one-/three-domain outputs. The gallery demonstrates a pulse; API/iteration instructions describe the boundary. Five-sample before/after measurements are in `performance.md`: live update median 0.082239 ms at one view / 0.818855 ms at sixteen, with unchanged geometry counters. Native presentation remains C14. |
+| C14 | Final verification: `@check`, `@all`, dummy-driver `runtest`, focused and native editor checks, `@smoke`, `@doc`, API/manifest gates, `git diff --check`; recorded performance evidence | Blocked on native display access. Window-free gates pass on the final implementation: `@check`, `@all`, dummy-driver `dune runtest`, focused editor/live/shell checks, `@doc`, API/SOP manifest gates and `git diff --check`. Performance evidence for source polling, owner lookup and live lights is recorded. Reviewed/promoted `tools/plisp/test/ml.t` changes only the catalog digest from the restart labels. Native consistency/shell/view/editor checks and both `@smoke` examples were attempted with explicit Cocoa and fail before rendering: SDL reports no displays, with macOS display-service connection errors. These required native gates remain unverified; C09/C14 and the full objective must remain open until they pass in a display-capable session. |
+
+Continuation checks (Selection remediation): typecheck passed. The pane regression also exposed
+an older test that changed the shown closure result while editing an unrelated binding; that
+test now keeps the actual shown result and separately verifies that changing it is refused.
+No supported public API was added; the candidate builder and draft bases stay package-private.
+Stale-draft checks include actual inspector input, host edits and undo; refusals preserve both
+the applied document/history and the draft, and successful reload clears all draft bases.
+
 ## Verification and performance
+
+Final implementation verification (continuation): typecheck, `@all`, dummy-driver
+`runtest`, focused editor consistency/live/shell checks, `@doc`, the API and SOP
+manifest gates, and `git diff --check` pass. Documentation emits the existing
+reference warnings in unrelated interfaces. Legacy tests also report sandboxed
+default-preset autosave failures; the new checks use temporary preset directories.
+
+Native revalidation was attempted with
+`SDL_VIDEODRIVER=cocoa SDL_AUDIODRIVER=dummy dune build @test/test_editor_consistency_native @test/test_workspace_shell_native @test/test_workspace_view_native @test/test_prismel_editor @smoke`.
+All required windows fail at startup with
+`Runtime.create: SDL3.Init.init: The video driver did not add any displays`;
+Cocoa also reports invalid connections to macOS display services. No final-tree
+native image, stale-output recovery or smoke success is claimed.
+Retrying after the user unlocked the screen, with `caffeinate -di` assertions
+verified active, produced the same startup failure; display sleep is not the
+remaining blocker. The native checks require display-service access from the
+execution session. The measurements and native successes below are historical
+C01 evidence; they do not substitute
+for these remaining final-tree gates.
+
+### Historical initial-repair verification
 
 The regression suite reproduces the initial settings, composition, empty-preview, lighting
 and 2D refusal failures against the starting implementation. The added Lisp, fullscreen,

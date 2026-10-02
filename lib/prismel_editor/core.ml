@@ -47,6 +47,7 @@ type shell = {
   tree : Pxui_shell.Layout.t;
   hidden : Pxui_shell.Layout.panel list;
   live : (Pxui_shell.Layout.path * float) option;  (* the split being dragged, its ratio *)
+  window_live : (Pxui_shell.Layout.path * Pxui_shell.Layout.bounds) option;
   restored : bool;
 }
 
@@ -198,14 +199,17 @@ let panel_key (doc : Document.t) path =
   | _ -> graph :: "@panel" :: List.map string_of_int path
 
 let panel_state value path =
-  if value.workspace.restored then Editor_core.Panels.default_state else
+  let state = if value.workspace.restored then Editor_core.Panels.default_state else
   Option.value ~default:{ Editor_core.Panels.default_state with collapsed = path = [-1] }
-    (Layout_by_path.Path_map.find_opt (panel_key value.doc path) (fst value.doc.workspace).layout.panels)
+    (Layout_by_path.Path_map.find_opt (panel_key value.doc path) (fst value.doc.workspace).layout.panels) in
+  match value.workspace.window_live with
+  | Some (p, window) when p = path -> { state with window = Some window }
+  | _ -> state
 
 (* An edit that changes the editor graph's tree ends "Restore layout". *)
 let unrestore (before : Document.t) (after : Document.t) (shell : shell) =
   let tree (doc : Document.t) = Option.map (fun (s : Document.shell) -> s.tree) doc.shell in
-  if tree before <> tree after then { shell with restored = false } else shell
+  if tree before <> tree after then { shell with restored = false; window_live = None } else shell
 (* the host bar above the panels: a document with an editor graph has one *)
 let bar_height value = if value.doc.Document.shell <> None then Bars.height else 0
 let shell_hidden value (shell : shell) =
@@ -266,6 +270,14 @@ let object_rows ?(locked = false) fields =
 (* ---- levels ---- *)
 
 let scene value = Document.scene_graph value.doc
+
+(* Membership is shared by drawing, lighting, picking and framing. *)
+let view_wants value view id =
+  let views = match value.doc.Document.shell with Some s -> s.views | None -> [] in
+  match view with
+    | `All -> true
+    | `Primary -> not (List.exists (fun (_, ids) -> List.mem id ids) views)
+    | `Only key -> (match List.assoc_opt key views with Some ids -> List.mem id ids | None -> false)
 
 let kind value id = Option.map Node.operation (Edit_graph.find (scene value) ~node_id:id)
 
@@ -425,6 +437,8 @@ let workspace_inspector value ui ~width path =
              Option.bind (Flow_sop.Network.Int_map.find_opt id lowered.compiled) (fun node_id ->
                compiled_node value node_id)) in
            let fields = match node with Some node -> Node.parameter_fields node | None -> [] in
+           if n.head = "settings/config" then Pxui.Ui.inspector_message ui ~key:"ws-startup-settings"
+             "Title, size, frame rate and seed apply on restart.";
            let parameters = Result.value ~default:[] (Flow_sop.Port.parameters fields) in
            let literal = function
              | { S.node = S.Num _ | S.Str _ | S.Sym ("true" | "false"); _ } -> true
@@ -823,11 +837,15 @@ let graph value = match Option.bind (focus_object value) (fun id ->
 let displayed_node = graph
 let settings value = value.doc.Document.settings
 let timeline value = value.timeline
-let selected_node value = Option.bind (Selection.selected value.selection)
-    (fun node_id -> Edit_graph.find (document value) ~node_id)
-(* The transform the open network's handles live in: an object's own when
-   inside it, the selected object's parent chain at the scene level. *)
-let space value = match value.level with
+let selected_node value = match scope_node value with
+  | Some (_, node) -> Some node
+  | None -> Option.bind (Selection.selected value.selection)
+      (fun node_id -> Edit_graph.find (document value) ~node_id)
+(* Scoped SOP handles use their owning object's transform. Navigation
+   selection uses the open object or the scene object's parent chain. *)
+let space value = match Option.bind (scope_node value) (fun (_, node) -> node_owner value (Node.id node)) with
+  | Some owner -> Objects.world (scene value) owner
+  | None -> match value.level with
   | Inside id when kind value id = Some "geometry" -> Objects.world (scene value) id
   | Inside _ -> Mat4.identity
   | Scene -> (match Selection.selected value.selection with
@@ -1143,7 +1161,7 @@ let create ?settings ?(keymap = Leader.keymap)
                    then Option.map (add_world doc) world else None) with
     | Some (Ok doc) -> doc | Some (Error _) | None -> doc in
   Result.map (fun cook ->
-      let workspace = { tree = layout; hidden = [ Pxui_shell.Layout.Timeline ]; live = None;
+      let workspace = { tree = layout; hidden = [ Pxui_shell.Layout.Timeline ]; live = None; window_live = None;
                         restored = false } in
       let presets = match presets with
         | Some directory -> directory
@@ -1282,8 +1300,8 @@ let apply_action value (workspace, selection, tree, timeline, changes) action =
   match action with
   | Leader.Toggle_timeline | Toggle_graph | Toggle_inspector -> workspace, selection, tree, timeline, changes
   | Restore_layout ->
-      (if workspace.restored then { workspace with restored = false; live = None }
-       else { tree = Pxui_shell.Layout.default; hidden = [ Pxui_shell.Layout.Timeline ]; live = None;
+      (if workspace.restored then { workspace with restored = false; live = None; window_live = None }
+       else { tree = Pxui_shell.Layout.default; hidden = [ Pxui_shell.Layout.Timeline ]; live = None; window_live = None;
               restored = true }), selection, tree, timeline, changes
   | Open_camera ->
       expand Pxui_shell.Layout.Inspector workspace,
@@ -1386,7 +1404,8 @@ let routed value =
     | Scope_command _ -> scope_name value <> None && graph_shown && not texting
     | Frame_tile -> not texting && graph_shown
         && (listing || command.trigger = Some (Editor_core.Keymap.Leader "f"))
-    | Frame_camera -> graph_shown
+    | Frame_camera -> List.exists (function _, Pxui_shell.Layout.View _ -> true | _ -> false)
+        (Editor_core.Panels.leaves (shell_tree value value.workspace))
     | Add_node -> not texting && List.exists (fun (_, panel) -> panel = Pxui_shell.Layout.Graph)
         (Editor_core.Panels.leaves (shell_tree value value.workspace))
     | Enter -> value.scene_level || (match value.level with
@@ -1426,15 +1445,14 @@ let text_edit ?(label = "Edit text") ?(merge = Editor_core.History.Step) value t
     (Doc.text_edit ~factories:value.factories value.doc text)
     (fun doc -> Result.map_error (fun d -> [ d ]) (install value doc ~label ~merge))
 
-(* The Selection tab's apply: the shown closure [(let* [name expr ...] top)] over the graph's root
-   bindings; every binding whose text changed is written ([Set_arg Whole]), all in one history
-   entry.  With nothing upstream the tab shows the graph form itself, which is replaced whole. *)
+(* Selection patches root bindings into one candidate graph, checked and
+   installed once. Omitted bindings stay and the shown result cannot change.
+   Without a closure the tab shows the graph form, replaced whole. *)
 let binding_edit ?(merge = Editor_core.History.Step) value path text =
   let at_line_1 (d : Flow.Diagnostic.t) = { d with position = Some { line = 1; col = 0 }; span = None } in
   let error message = Error [ at_line_1 (Flow.Diagnostic.error ~code:"E_EDIT" message) ] in
   let graph = List.hd path in
   let ws, _ = value.doc.Document.workspace in
-  let printed f = fst (Flow.Lisp.print [ f ]) in
   match Flow.Syntax.parse text with
   | Error d -> Error [ d ]
   | Ok [ ({ node = List ({ node = Sym ("graph" | "defn"); _ } :: _); _ } as form) ] ->
@@ -1442,23 +1460,15 @@ let binding_edit ?(merge = Editor_core.History.Step) value path text =
           (Flow_sop.Flow_edit.Set_graph { name = graph; form }) with
        | Ok doc -> Result.map_error (fun d -> [at_line_1 d]) (install value doc ~label:"Edit text" ~merge)
        | Error d -> Error [ at_line_1 d ])
-  | Ok [ { node = List [ { node = Sym "let*"; _ }; { node = Vec bs; _ }; _ ]; _ } ] when List.length bs mod 2 = 0 ->
-      let rec pairs = function a :: b :: rest -> (a, b) :: pairs rest | _ -> [] in
-      let ops = List.map (fun ((p : Flow.Syntax.t), v) -> match p.node with
-        | Sym n -> (match Text_pane.binding ws.source [ graph; n ] with
-            | Some (_, old) when printed old = printed v -> Ok None
-            | Some _ -> Ok (Some (Flow_sop.Flow_edit.Set_arg { node = [ graph; n ]; key = Whole; sub = []; value = v }))
-            | None -> Error n)
-        | _ -> Error (printed p)) (pairs bs) in
-      (match List.find_map (function Error n -> Some n | Ok _ -> None) ops with
-       | Some n -> error (Printf.sprintf "%s is not a binding of %s; add or remove bindings in the Graph tab." n graph)
-       | None ->
-           let ops = List.filter_map (function Ok op -> op | Error _ -> None) ops in
-           if ops = [] then error "Nothing changed." else
-           (match List.fold_left (fun doc op -> Result.bind doc (fun doc ->
-               Doc.syntax_edit_result ~factories:value.factories doc op)) (Ok value.doc) ops with
-            | Ok doc -> Result.map_error (fun d -> [at_line_1 d]) (install value doc ~label:"Edit text" ~merge)
-            | Error d -> Error [ at_line_1 d ]))
+  | Ok [ form ] ->
+      (match Text_pane.selection_form ws.source path form with
+       | Error d -> Error [at_line_1 d]
+       | Ok form ->
+           match Doc.syntax_edit_result ~factories:value.factories value.doc
+               (Flow_sop.Flow_edit.Set_graph {name = graph; form}) with
+           | Ok doc -> Result.map_error (fun d -> [at_line_1 d])
+               (install value doc ~label:"Edit text" ~merge)
+           | Error d -> Error [at_line_1 d])
   | Ok _ -> error "Expected the shown (let* [...] name) closure, or the graph form."
 
 (* The Graph tab's apply: the draft must be the one graph (or function) form, which replaces the
@@ -1482,47 +1492,56 @@ let apply_text value intents =
   List.fold_left (fun value intent ->
     let text = value.text in
     let with_text text = { value with text } in
+    let workspace = fst value.doc.Document.workspace in
+    let base old = Some (Option.value ~default:workspace old) in
+    let checked ?(metadata = false) old apply =
+      match old with
+      | Some (previous : Editor_document.Workspace_doc.t) when previous.source != workspace.source
+          || (metadata && (previous.layout != workspace.layout || previous.settings != workspace.settings)) ->
+          Error [Flow.Diagnostic.error ~position:{line = 1; col = 0} ~code:"E_DRAFT_CONFLICT"
+            "The document changed since this draft began. Your draft is kept; discard it and reapply your edits to the current text."]
+      | _ -> apply () in
     match intent with
     | Text_pane.Tab tab -> with_text { text with tab }
     | Menu menu -> with_text { text with menu }
     | Toggle_wrap -> with_text { text with wrap = not text.wrap }
     | Toggle_parinfer -> with_text { text with parinfer = not text.parinfer }
-    | Doc_draft draft -> with_text { text with draft = Some draft; doc_errors = [] }
-    | Doc_discard -> with_text { text with draft = None; doc_errors = [] }
+    | Doc_draft draft -> with_text { text with draft = Some draft; doc_base = base text.doc_base; doc_errors = [] }
+    | Doc_discard -> with_text { text with draft = None; doc_base = None; doc_errors = [] }
     | Doc_apply draft ->
-        (match text_edit value draft with
-         | Ok value -> { value with text = { text with draft = None; doc_errors = [] } }
-         | Error doc_errors -> with_text { text with draft = Some draft; doc_errors })
+        (match checked ~metadata:true text.doc_base (fun () -> text_edit value draft) with
+         | Ok value -> { value with text = { text with draft = None; doc_base = None; doc_errors = [] } }
+         | Error doc_errors -> with_text { text with draft = Some draft; doc_base = base text.doc_base; doc_errors })
     | Binding_draft (path, draft) ->
-        with_text { text with binding_draft = Some (path, draft); binding_errors = [] }
-    | Binding_discard -> with_text { text with binding_draft = None; binding_errors = [] }
+        with_text { text with binding_draft = Some (path, draft); binding_base = base (match text.binding_draft with Some (old, _) when old = path -> text.binding_base | _ -> None); binding_errors = [] }
+    | Binding_discard -> with_text { text with binding_draft = None; binding_base = None; binding_errors = [] }
     | Graph_draft (graph, draft) ->
-        with_text { text with graph_draft = Some (graph, draft); graph_errors = [] }
-    | Graph_discard -> with_text { text with graph_draft = None; graph_errors = [] }
+        with_text { text with graph_draft = Some (graph, draft); graph_base = base (match text.graph_draft with Some (old, _) when old = graph -> text.graph_base | _ -> None); graph_errors = [] }
+    | Graph_discard -> with_text { text with graph_draft = None; graph_base = None; graph_errors = [] }
     | Graph_apply (graph, draft) ->
-        (match graph_edit value graph draft with
-         | Ok value -> { value with text = { text with graph_draft = None; graph_errors = [] } }
-         | Error graph_errors -> with_text { text with graph_draft = Some (graph, draft); graph_errors })
+        (match checked text.graph_base (fun () -> graph_edit value graph draft) with
+         | Ok value -> { value with text = { text with graph_draft = None; graph_base = None; graph_errors = [] } }
+         | Error graph_errors -> with_text { text with graph_draft = Some (graph, draft); graph_base = base text.graph_base; graph_errors })
     | Binding_apply (path, draft) ->
-        (match binding_edit value path draft with
-         | Ok value -> { value with text = { text with binding_draft = None; binding_errors = [] } }
+        (match checked text.binding_base (fun () -> binding_edit value path draft) with
+         | Ok value -> { value with text = { text with binding_draft = None; binding_base = None; binding_errors = [] } }
          | Error binding_errors ->
-             with_text { text with binding_draft = Some (path, draft); binding_errors })
+             with_text { text with binding_draft = Some (path, draft); binding_base = base text.binding_base; binding_errors })
     (* a dragged number: the text applies on every frame of the drag as one "Edit text" entry
        (the gesture seals on release); the draft stays until the drag ends so the editor keeps
        the text it is dragging in *)
     | Doc_scrub (draft, done_) ->
-        (match text_edit ~merge:scrub_merge value draft with
-         | Ok value -> { value with text = { text with draft = (if done_ then None else Some draft); doc_errors = [] } }
-         | Error doc_errors -> with_text { text with draft = Some draft; doc_errors })
+        (match checked ~metadata:true text.doc_base (fun () -> text_edit ~merge:scrub_merge value draft) with
+         | Ok value -> { value with text = { text with draft = (if done_ then None else Some draft); doc_base = (if done_ then None else Some (fst value.doc.workspace)); doc_errors = [] } }
+         | Error doc_errors -> with_text { text with draft = Some draft; doc_base = base text.doc_base; doc_errors })
     | Graph_scrub (graph, draft, done_) ->
-        (match graph_edit ~merge:scrub_merge value graph draft with
-         | Ok value -> { value with text = { text with graph_draft = (if done_ then None else Some (graph, draft)); graph_errors = [] } }
-         | Error graph_errors -> with_text { text with graph_draft = Some (graph, draft); graph_errors })
+        (match checked text.graph_base (fun () -> graph_edit ~merge:scrub_merge value graph draft) with
+         | Ok value -> { value with text = { text with graph_draft = (if done_ then None else Some (graph, draft)); graph_base = (if done_ then None else Some (fst value.doc.workspace)); graph_errors = [] } }
+         | Error graph_errors -> with_text { text with graph_draft = Some (graph, draft); graph_base = base text.graph_base; graph_errors })
     | Binding_scrub (path, draft, done_) ->
-        (match binding_edit ~merge:scrub_merge value path draft with
-         | Ok value -> { value with text = { text with binding_draft = (if done_ then None else Some (path, draft)); binding_errors = [] } }
-         | Error binding_errors -> with_text { text with binding_draft = Some (path, draft); binding_errors })) value intents
+        (match checked text.binding_base (fun () -> binding_edit ~merge:scrub_merge value path draft) with
+         | Ok value -> { value with text = { text with binding_draft = (if done_ then None else Some (path, draft)); binding_base = (if done_ then None else Some (fst value.doc.workspace)); binding_errors = [] } }
+         | Error binding_errors -> with_text { text with binding_draft = Some (path, draft); binding_base = base text.binding_base; binding_errors })) value intents
 
 
 (* A panel header's title: its type, and where a looped panel comes from (register E1). *)
@@ -1648,6 +1667,10 @@ let layout_intents value (workspace : shell) intents =
         w, changes @ save_state path { state with collapsed = not state.collapsed }
     | Window (path, window) ->
         w, changes @ save_state path { (panel_state value path) with window }
+    | Window_drag (path, window, released) ->
+        if released then { w with window_live = None },
+          changes @ save_state path { (panel_state value path) with window = Some window }
+        else { w with window_live = Some (path, window) }, changes
     | Dragging _ -> w, changes
     | Dock_panel (source, target, side) -> w, changes @ [Dock_panels (source, target, side)]
     | Resize { node; ratio } -> { w with live = Some (node, ratio) }, changes
@@ -2159,6 +2182,9 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
           let fields, label, kind = match Edit_graph.find document ~node_id with
             | Some node -> Node.parameter_fields node, Node.label node, Node.operation node
             | None -> [], "#" ^ string_of_int node_id, "unknown" in
+          let preview = value.level = Document.Scene && Option.fold ~none:false
+            ~some:(fun shell -> List.exists (fun (_, ids) -> List.mem node_id ids) shell.Document.views)
+            value.doc.shell in
           let changes = inspector_panel ui panes.inspector (fun () ->
             Pxui.Ui.scope ui (Printf.sprintf "node.%d" node_id) (fun () ->
               let _, _, inspector_width, _ = panes.inspector in
@@ -2180,7 +2206,7 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
                   ~w:(w -. 16.) ~h:29. theme.input;
                 Pxui.Ui.Paint.text paint ~at:(x +. 9., y +. 8.) ~size:16
                   ~color:theme.foreground renamed);
-              let rename = if renamed = label || derived then [] else
+              let rename = if renamed = label || derived || preview then [] else
                 [Rename {node = node_id; label = renamed}] in
               let names = Option.value ~default:[]
                 (Edit_graph.node_slot_names document ~node_id) in
@@ -2204,7 +2230,9 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
                       ~label:name ("← " ^ source)) inputs));
               if derived then Pxui.Ui.inspector_message ui ~key:"flow-derived"
                 "Made from the graph's text. Select the node in the graph pane to edit its arguments.";
-              let edits = match object_rows ~locked:derived fields with
+              if preview then Pxui.Ui.inspector_message ui ~key:"flow-preview"
+                "Preview instance. Edit its viewport scene reference or source graph.";
+              let edits = match object_rows ~locked:(derived || preview) fields with
                 | Error diagnostic ->
                     Pxui.Ui.inspector_message ui ~key:"flow-diagnostic"
                       (Flow.Diagnostic.to_string diagnostic); []
@@ -2248,7 +2276,9 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
     (* a lowered node is edited through its text: the handles of the node selected in the
        graph pane write its arguments, the list's rows of a geometry object have none *)
     let scope_target = if scope_active then scope_node value else None in
-    let handle_target = if lowered_level then Option.map snd scope_target else selected in
+    let handle_target = match scope_target with
+      | Some (_, node) -> Some node
+      | None -> if lowered_level then None else selected in
     let handle_edits, grab, picked = match active with
       | Some leaf when visible workspace leaf.Pxui_shell.Layout.panel ->
           Pxui.Ui.within ui view_root (fun () ->
@@ -2259,7 +2289,7 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
       | Some id when value.level = Document.Scene -> Selection.select id selection
       | Some _ | None -> selection in
     let handle_ops, handle_changes = match scope_target, handle_target, handle_edits with
-      | Some (path, node), _, _ :: _ when lowered_level ->
+      | Some (path, node), _, _ :: _ ->
           let parameters = Result.value ~default:[] (Flow_sop.Port.parameters (Node.parameter_fields node)) in
           List.filter_map (fun (p : Flow_sop.Port.parameter) ->
             if List.exists (fun (f : Parameter.field_view) -> List.mem_assoc f.name handle_edits) p.fields
@@ -2299,6 +2329,11 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
     let drops = Pxui_shell.Chrome.drop_targets ui ~geometry:g ~state:(panel_state value)
       ~dragging:(List.find_map (function Pxui_shell.Chrome.Dragging (path, released) -> Some (path, released) | _ -> None) intents) in
     let workspace, drag_changes = layout_intents vw workspace (grips @ drops) in
+    let workspace = match workspace.window_live with
+      | None -> workspace
+      | Some _ when List.exists (function Pxui_shell.Chrome.Window_drag _ -> true | _ -> false)
+          (intents @ grips) -> workspace
+      | Some _ -> { workspace with window_live = None } in
     let changes = changes @ drag_changes in
     (* The focused pane's accent outline. *)
     (match focused_leaf g focus focus_path with
@@ -2830,7 +2865,12 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
     | Some (Some bounds), Some (id, _) -> Some (Some (world_bounds id bounds))
     | framed, _ when List.mem Leader.Frame_camera actions && value'.level = Document.Scene ->
         ignore framed;
+        let view = match active_view value' (geometry value' result.workspace frame) with
+          | Some { panel = View key; _ } when Option.fold ~none:false
+              ~some:(fun shell -> List.mem_assoc key shell.Document.views) doc.shell -> `Only key
+          | _ -> `Primary in
         Some (List.fold_left (fun union (piece : _ Cook.piece) ->
+          if not (view_wants value' view piece.id) then union else
           match piece.bounds, union with
           | None, union -> union
           | Some bounds, None -> Some (world_bounds piece.id bounds)
@@ -2917,18 +2957,12 @@ let world value ~time = match Objects.ids "world" (scene value) with
 (* Visible objects' world transforms with their latest cook.  Objects that only a viewport
    over another scene instance draws ([Document.shell]'s views) are left out unless asked
    for: [`All], or [`Only key] for that viewport. *)
-let view_wants value view id =
-  let views = match value.doc.Document.shell with Some s -> s.views | None -> [] in
-  match view with
-    | `All -> true
-    | `Primary -> not (List.exists (fun (_, ids) -> List.mem id ids) views)
-    | `Only key -> (match List.assoc_opt key views with Some ids -> List.mem id ids | None -> false)
-
 (* Lights and cameras follow the same instance membership as the geometry. *)
-let scene_for_view ?(view = `Primary) value =
+let scene_for_view ?scene:override ?(view = `Primary) value =
+  let scene = Option.value override ~default:(scene value) in
   let unwanted = List.filter_map (fun (i : Edit_graph.node_info) ->
-    if view_wants value view i.id then None else Some i.id) (Edit_graph.inspect (scene value)) in
-  if unwanted = [] then scene value else Edit_graph.remove_nodes unwanted (scene value)
+    if view_wants value view i.id then None else Some i.id) (Edit_graph.inspect scene) in
+  if unwanted = [] then scene else Edit_graph.remove_nodes unwanted scene
 
 let placed_pieces ?(render = false) ?(view = `Primary) value =
   List.filter_map (fun (piece : _ Cook.piece) ->
@@ -3022,7 +3056,7 @@ let pick ?view value ~origin ~direction =
 let reload value ~name text =
   Result.map (fun value ->
     { value with notice = Some ("Reloaded " ^ name);
-      text = { value.text with draft = None; doc_errors = []; binding_draft = None; binding_errors = [];
+      text = { value.text with draft = None; doc_base = None; binding_base = None; graph_base = None; doc_errors = []; binding_draft = None; binding_errors = [];
         graph_draft = None; graph_errors = [] } })
     (text_edit ~label:("Reload " ^ name) value text)
 
@@ -3033,4 +3067,4 @@ let reload_failed value ~name text diagnostics =
         | Some line -> Printf.sprintf ": line %d, %s" line d.Flow.Diagnostic.message
         | None -> ": " ^ d.Flow.Diagnostic.message) in
   { value with notice = Some (Printf.sprintf "%s not reloaded%s" name first);
-    text = { value.text with tab = Text_pane.Document; draft = Some text; doc_errors = diagnostics } }
+    text = { value.text with tab = Text_pane.Document; draft = Some text; doc_base = Some (fst value.doc.workspace); doc_errors = diagnostics } }

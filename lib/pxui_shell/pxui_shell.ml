@@ -219,6 +219,7 @@ module Chrome = struct
     | Settled
     | Toggle of path
     | Window of path * bounds option
+    | Window_drag of path * bounds * bool
     | Dragging of path * bool
     | Dock_panel of path * path * [ `Left | `Right | `Top | `Bottom ]
     | Split_panel of path * axis
@@ -293,8 +294,8 @@ module Chrome = struct
         let sx, sy = drag.press_point in
         if Float.hypot (px -. sx) (py -. sy) >= 4. then begin
           emit (Dragging (l.path, drag.released));
-          emit (Window (l.path, Some (max 0 (min (frame.width - 18) (ox + int_of_float (Float.round (px -. sx)))),
-            max top (min (frame.height - header_height) (oy + int_of_float (Float.round (py -. sy)))), ow, oh)))
+          emit (Window_drag (l.path, (max 0 (min (frame.width - 18) (ox + int_of_float (Float.round (px -. sx)))),
+            max top (min (frame.height - header_height) (oy + int_of_float (Float.round (py -. sy)))), ow, oh), drag.released))
         end
       end;
       let opened = Ui.state ui box ~default:0 = 1 in
@@ -429,9 +430,9 @@ module Chrome = struct
           if signal.held || signal.released then begin
             let px, py = if signal.released then signal.release_point else signal.pointer in
             let sx, sy = signal.press_point in
-            if px <> sx || py <> sy then intents := Window (leaf.path, Some (x, y,
+            if px <> sx || py <> sy then intents := Window_drag (leaf.path, (x, y,
               max 120 (w + int_of_float (Float.round (px -. sx))),
-              max 80 (h + int_of_float (Float.round (py -. sy))))) :: !intents
+              max 80 (h + int_of_float (Float.round (py -. sy)))), signal.released) :: !intents
           end;
           Ui.draw ui box (fun paint (x, y, w, h) ->
             for offset = 3 to 7 do

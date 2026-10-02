@@ -3,8 +3,9 @@
     presentation-free, so the document library can lower into it. *)
 
 type panel = View of string | Graph | List | Lisp | Inspector | Outline | Timeline
-(** [View key] is one viewport; the key names it (a tree path for panels of an
-    editor graph, [main] in the default layout).  [Graph] shows the
+(** [View key] identifies a viewport by its unique named binding; inline,
+    looped and repeated panels use a tree path. The default layout uses [main].
+    [Graph] shows the
     graph/list/text views of the open network, [List] and [Lisp] force one of
     them, [Outline] lists the workspace's graphs. *)
 

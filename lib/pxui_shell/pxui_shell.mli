@@ -57,6 +57,8 @@ module Chrome : sig
     | Settled  (** the drag ended *)
     | Toggle of Layout.path  (** a header's collapse button *)
     | Window of Layout.path * Layout.bounds option  (** undock, move/resize, or dock a panel *)
+    | Window_drag of Layout.path * Layout.bounds * bool
+        (** Transient bounds; [true] commits the released gesture. *)
     | Dragging of Layout.path * bool  (** a panel drag; [true] on release *)
     | Dock_panel of Layout.path * Layout.path * [ `Left | `Right | `Top | `Bottom ]
     | Split_panel of Layout.path * Layout.axis  (** the header menu *)

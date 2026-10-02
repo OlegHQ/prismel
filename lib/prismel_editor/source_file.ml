@@ -3,7 +3,8 @@
    SHA-256 of the text the running document last came from (built from, reloaded
    or saved), so an edit from any other writer differs from it. *)
 
-type t = { file : string; digest : string; mtime : float; polled : float; broken : bool }
+type t = { file : string; digest : string; observed : string option; polled : float;
+           error : string option }
 
 let sha = Editor_document.Contexts.sha256
 let stat file = try Some (Unix.stat file) with Unix.Unix_error _ -> None
@@ -13,12 +14,11 @@ let interval = 0.5
 
 (* the file as it is now, whose text has [digest] *)
 let synced ~file ~digest =
-  { file; digest; mtime = Option.fold ~none:0. ~some:(fun s -> s.Unix.st_mtime) (stat file);
-    polled = neg_infinity; broken = false }
+  { file; digest; observed = Some digest; polled = neg_infinity; error = None }
 
-(* No mtime is remembered: the first poll reads the file, so a file that already differs from
+(* The first poll reads the file, so a file that already differs from
    the text the sketch was built from (edited since the build) reloads at once. *)
-let at ~file ~digest = { (synced ~file ~digest) with mtime = neg_infinity }
+let at ~file ~digest = { (synced ~file ~digest) with observed = None }
 
 (* the first [dune-project] at or above [dir] that is not inside a [_build] *)
 let rec root dir =
@@ -37,24 +37,25 @@ let find ~path ~digest =
 
 let file t = t.file
 
-(* One [stat] per interval; the text when the file changed and is not what the document has. *)
+(* One content read per interval, independent of mtime/inode. [observed]
+   suppresses repeated attempts to reload the same refused text. *)
 let poll ~now t =
   if now -. t.polled < interval then t, None
   else
     let t = { t with polled = now } in
-    match stat t.file with
-    | Some { Unix.st_mtime; _ } when st_mtime <> t.mtime ->
-        let t = { t with mtime = st_mtime } in
-        (match read t.file with
-         | Ok text when t.broken || sha text <> t.digest -> t, Some text
-         | Ok _ | Error _ -> t, None)
-    | Some _ | None -> t, None
+    match read t.file with
+    | Error message -> { t with error = Some message }, None
+    | Ok text ->
+        let digest = sha text in
+        let changed = t.observed <> Some digest && (t.observed <> None || digest <> t.digest) in
+        { t with observed = Some digest; error = None }, (if changed then Some text else None)
 
-let accepted t text = { t with digest = sha text; broken = false }
-let rejected t = { t with broken = true }
+let accepted t text = { t with digest = sha text }
 
 (* Only over the text the document came from; the file keeps its permissions
-   (a temporary file is created 0600). *)
+   (a temporary file is created 0600). The digest check and rename cannot
+   exclude another editor writing between them; that requires a cooperative
+   writer protocol, not an atomic rename alone. *)
 let save t text =
   let text = if String.ends_with ~suffix:"\n" text then text else text ^ "\n" in
   match read t.file with
@@ -65,4 +66,5 @@ let save t text =
         { (synced ~file:t.file ~digest:(sha text)) with polled = t.polled })
         (Editor_core.Store.write_text ~filename:t.file text)
       |> Result.map_error (fun m -> `Failed m)
-  | Ok _ | Error _ -> Error `Changed
+  | Ok _ -> Error `Changed
+  | Error message -> Error (`Failed message)

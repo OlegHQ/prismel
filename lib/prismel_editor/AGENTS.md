@@ -66,6 +66,26 @@ manual presets; loading validates and installs one undo entry. Failed writes
 retain the pending state, report the error, and retry. Autosave does not rewrite
 the source file.
 
+Source polling reads content and SHA-256 at 2 Hz, regardless of mtime or inode.
+The last observed digest suppresses repeated reloads of refused text. Read
+failures and recovery use the status notice without changing the document.
+Save reports read failures; a differing readable source still saves to a preset.
+The digest check precedes atomic rename, so cooperating writers are needed to
+exclude an external write in between.
+Built-in workspace title, width, height, fps and seed fields apply on restart;
+their schema labels and the `settings/config` inspector say so. Source/history
+edits still save the requested configuration; the running host is not reconfigured.
+Light intensity/color keep residuals and evaluate at timeline time during
+composition; only their checked ports/values are retained by object ID. The
+Environment keeps one resolved scene, keyed by authored geometry/drives/time,
+without altering the history document or SOP/prepared caches. Failed evaluation
+keeps that light's last successful values while healthy siblings advance, and
+reports `E_CONTEXT_LIVE` with view/field attribution; recovery clears it.
+Document installation and startup-window reading refuse other residual time values
+in scene, World, settings and editor structs with `E_CONTEXT_TIME`. The diagnostic
+names the graph/field. SOP/value drives and their static geometry references remain
+supported; source/history are unchanged when an edit is refused.
+
 ## Workspace gestures added in Gap A (details in `specification/workspace/progress.md`)
 
 - Command +/-/0 (`Leader.Ui_scale`) set the kit text size of every panel through `Ui.set_font_size`
@@ -138,6 +158,9 @@ node in the viewport (a layout entry, separate from the graph's result) and the 
 while `Contexts` preserves unchanged object networks, so physical network identity alone is insufficient.
 Inline `result` geometry cards accept `v` too. Viewport-focused `F` frames the node VIEW shows;
 leaving the network with `u` restores its current graph result.
+Named SOP handles use the compiled owner's transform and write its source argument,
+even with scene navigation open. Scene-level viewport framing uses only focused
+instance bounds and works in viewport-only layouts; an empty instance has no target.
 
 ## PXUI host behavior
 
@@ -223,11 +246,16 @@ handed to `Cook.update ?lit`, which prepares a piece again from its kept
 `Space l t` on the graph panel (or a `Lisp` panel) shows `Text_pane` for a workspace graph object (no
 other document has a text projection). `Core.text` is its view state: tab,
 Document draft, Selection draft, the errors of the last refused apply, the wrap flag and the
-right-click menu; the draft is never in the document. `Text_pane.view` runs inside `Ui.frame` and
-only returns intents; `Core.apply_text` folds them after the frame. A Check &
+right-click menu; the draft is never in the document.
+Each draft retains its base workspace. Apply and scrub refuse a changed source with
+`E_DRAFT_CONFLICT`, keeping the draft; Document also checks saved layout/settings. A
+successful live scrub advances its base, and discard or successful reload clears it.
+`Text_pane.view` runs inside `Ui.frame` and only returns intents;
+`Core.apply_text` folds them after the frame. A Check &
 apply goes through `Doc.text_edit` (whole text, layout and settings kept), `Set_graph` (the Graph
-tab) or, for the Selection tab, `Set_arg { key = Whole }` on each root binding of the shown closure
-whose text changed (`Core.binding_edit`); each is one history entry "Edit text" (`Core.install`,
+tab) or, for Selection, patch named root bindings of the shown closure into one candidate graph
+(`Text_pane.selection_form`, `Core.binding_edit`), checked/lowered once by `Set_graph`; omitted
+bindings stay and changed closure results or duplicate names are refused. Each is one history entry "Edit text" (`Core.install`,
 shared with `Core.syntax_edit`). The text itself comes from `Flow.Lisp.print` and its span map;
 keep new text features on that map, never on string search. Text entry is `Ui.text_area` only,
 with `Lisp_text.language` (an error-tolerant lexer: colours, rainbow brackets, the lit pair at the
@@ -295,14 +323,23 @@ list and lisp panels are the graph pane's), and never match a `column` or a fixe
   instance is the primary scene. Each viewport keeps its own orbit; handles, picking and
   the sketch overlay follow the focused one (`Core.active_view`).  Float is an in-window
   overlay (an inset of its parent); there are no OS windows.
+  Unique named viewport bindings key transient state by editor graph/name;
+  docking preserves both panel bindings and introduces a split wrapper. Inline,
+  looped and repeated bindings fall back to placement keys; renaming changes the
+  authored key. `Document.shell.preview_sources` retains panel origin, authored
+  ref (when available), and evaluated instance. Auxiliary preview objects are
+  read-only; their inspector and shared reconciliation explain the source-edit route.
 
 `Viewport3` owns the shared Renderer section (Raster, Wireframe, Path traced),
 saved with viewport preferences. A sketch's existing renderer setting feeds the
 same picker and retains its custom rendering; other 3D/SOP editors render through
 the common adapter without recooking geometry on a mode switch. The adapter keeps
 at most 64 converted meshes and 16 viewport tracers, releases them on close or mode
-change, and reports unsupported tracing operations in the status strip. Standalone
-2D art sketches keep their own drawing paths.
+change, and reports unsupported tracing operations in the status strip.
+Errors name each failed viewport and identify retained traced output as stale.
+Failed mode changes do not retain output from a different renderer mode; recovery
+clears the errors. Crash reports include renderer errors.
+Standalone 2D art sketches keep their own drawing paths.
 - Build the gutters' drag targets last in `Core.update` (`Chrome.splitters`): a pane root's
   hit rectangle is created after the chrome and would shadow them otherwise.
 

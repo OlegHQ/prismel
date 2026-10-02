@@ -18,8 +18,8 @@
       "library": "editor_core",
       "module": "Panels",
       "source": "lib/editor_core/panels.mli",
-      "source_bytes": 1848,
-      "source_sha256": "6958d0707a96496f1947b05ef087f262199cd79bb0f9dbdf2ef52b8f8556c72f"
+      "source_bytes": 1877,
+      "source_sha256": "df36f296c6465d6ccb491dbf4aa1bdead26afa2a07e2ac458d1c7afbd59c3c76"
     },
     {
       "api_sha256": "1e88e44f36a430126e791eef57fa3e82fdf0e447bdd39a9383867dfb1ffd6422",
@@ -1160,13 +1160,13 @@
       "source_sha256": "7d4d28d6f0b748a24c1fabb8e0a081a7d3a7f7d0b47591333c667b625cad58de"
     },
     {
-      "api_sha256": "89735caa19fab04f0a04a82cbc987cf11e673cb100782b7e9aed472d419c3a78",
+      "api_sha256": "511312e80e79a6a4aa0a8fd7f26375164ac45009f403e9fad0c546e752822904",
       "excluded_legacy_symbols": [],
       "library": "prismel_editor",
       "module": "Prismel_editor",
       "source": "lib/prismel_editor/prismel_editor.mli",
-      "source_bytes": 32247,
-      "source_sha256": "3a8d6f3b8be4b8b8c479fc910aa1397eb09a2b8eb890d46150f559d8597ac356"
+      "source_bytes": 32546,
+      "source_sha256": "e8c410cf79f86b6737ad3c63a7c1a64ef46bec6df03f00af48886673bd50c5ad"
     },
     {
       "api_sha256": "89e36d6b181da97fd17d91c5b775fc086f37c4047c674d4812656408f7b95082",
@@ -1349,13 +1349,13 @@
       "source_sha256": "4b9d9bc185070b51c356924ec6a19f22852506b9c792c6e4379ed40718f26f7e"
     },
     {
-      "api_sha256": "50dff68cf7b9107f1e70610289289c00c1f61eeab19aa5477aea512d0c6181a0",
+      "api_sha256": "35473e92a16505d4e6dccefe70654b45a6def42b2690f356aa66512540affc30",
       "excluded_legacy_symbols": [],
       "library": "pxui_shell",
       "module": "Pxui_shell",
       "source": "lib/pxui_shell/pxui_shell.mli",
-      "source_bytes": 11324,
-      "source_sha256": "7924eef57e42365e85ec60ac832714c9d9b3ea33fb43957e77d59f9a08d07fa4"
+      "source_bytes": 11450,
+      "source_sha256": "20234ab4fe72c911208413e6f94418be72bbc19d418a6d6fab2e1c915a147b47"
     },
     {
       "api_sha256": "3b75473d5d524a02e7590c03eb6f50245673f6d397ca9be097d6c1ab32b6855a",

@@ -82,7 +82,8 @@ let editor_text () =
   let catalog = Editor_document.Contexts.catalog ~version:Flow_sop.Manifest.version
       Sop_catalog.Editor.factories |> Result.get_ok in
   let workspace = Prismel_editor.Workspace_doc.of_text catalog (case "sunflower") |> Result.get_ok in
-  let env = ref (E.create ~await:true ~workspace
+  let presets = Filename.temp_dir "prismel-text-presets" "" in
+  let env = ref (E.create ~presets ~await:true ~workspace
       ~prepare:(fun _ output -> Pdk_prismel.Prismel_mesh.to_mesh output.Procedural.Session.geometry
         |> Result.map_error Pdk.Error.to_string)
       ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) () |> Result.get_ok) in
@@ -178,7 +179,30 @@ let editor_text () =
   step [ Event.TextInput (replace graph_text ~from:"(sqrt i)" ~by:"(sqrt nosuch)") ];
   step ~keys:[ Input.Meta ] [ key Input.Enter ];
   check (contains (dump ()) "graph tab, draft yes, error") ("a refused graph left the pane\n" ^ dump ());
-  check (ws () == applied_graph) "a refused Graph apply changed the document"
+  check (ws () == applied_graph) "a refused Graph apply changed the document";
+  click discard;
+  let current_graph = (T.make_shown (ws ()).source "sunflower" None Graph).text in
+  type_text (replace current_graph ~from:"(seeds : int 77)" ~by:"(seeds : int 88)");
+  step [key Input.Escape]; step ~keys:[Input.Meta] [char 'z'];
+  let undone = ws () and undo_label = E.undo_label !env in
+  click apply;
+  check (ws () == undone && E.undo_label !env = undo_label)
+    "an old Graph draft overwrote undo";
+  check (contains (dump ()) "draft yes" && contains (dump ()) "E_DRAFT_CONFLICT")
+    ("an old Graph draft was not retained as a conflict: " ^ dump ());
+  click discard;
+  click tab_document;
+  type_text (replace (Prismel_editor.Workspace_doc.to_text (ws ()))
+    ~from:"(seeds : int 240)" ~by:"(seeds : int 99)");
+  env := E.edit !env (Flow_sop.Flow_edit.Set_input_default {form = "sunflower";
+    input = "seeds"; value = Flow.Syntax.make (Flow.Syntax.Num "125")}) |> Result.get_ok;
+  let host_edited = ws () and host_label = E.undo_label !env in
+  click apply;
+  check (ws () == host_edited && E.undo_label !env = host_label)
+    "an old Document draft overwrote a host edit";
+  check (contains (dump ()) "draft yes" && contains (dump ()) "E_DRAFT_CONFLICT")
+    ("an old Document draft was not kept as a conflict: " ^ dump ());
+  E.close !env; Test_workspace_source.remove_tree presets
 
 (* A checker error from a binding apply is marked on the binding text's line, and typing clears it. *)
 let editor_binding () =
@@ -186,7 +210,8 @@ let editor_binding () =
   let catalog = Editor_document.Contexts.catalog ~version:Flow_sop.Manifest.version
       Sop_catalog.Editor.factories |> Result.get_ok in
   let workspace = Prismel_editor.Workspace_doc.of_text catalog (case "sunflower") |> Result.get_ok in
-  let env = ref (E.create ~await:true ~workspace
+  let presets = Filename.temp_dir "prismel-text-presets" "" in
+  let env = ref (E.create ~presets ~await:true ~workspace
       ~prepare:(fun _ output -> Pdk_prismel.Prismel_mesh.to_mesh output.Procedural.Session.geometry
         |> Result.map_error Pdk.Error.to_string)
       ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) () |> Result.get_ok) in
@@ -229,10 +254,48 @@ let editor_binding () =
   click apply;
   check (contains (dump ()) "nosuch is not a binding of sunflower") ("an unknown binding\n" ^ dump ());
   (* a changed binding is written: one history entry *)
-  type_closure "(let* [head (sop/merge seeds_each seeds_each)] head)";
+  type_closure "(let* [head (sop/merge seeds_each seeds_each)] seeds_each)";
   click apply;
   check (E.undo_label !env = Some "Edit text" && contains (fst (Flow.Lisp.print (ws ()).source)) "(sop/merge seeds_each seeds_each)")
-    ("the closure edit was not applied\n" ^ dump ())
+    ("the closure edit was not applied\n" ^ dump ());
+  let before = ws () in
+  let printed_binding source path = Option.map (fun (_, v) -> fst (Flow.Lisp.print [v])) (T.binding source path) in
+  let omitted = printed_binding original.source ["sunflower"; "seeds_each"] in
+  check (omitted <> None && printed_binding before.source ["sunflower"; "seeds_each"] = omitted)
+    "Selection removed or changed an omitted binding";
+  let refuse text message =
+    type_closure text; click apply;
+    check (ws () == before) "refused Selection edit changed the document";
+    check (contains (dump ()) message) ("missing Selection refusal: " ^ dump ()) in
+  refuse "(let* [head (sop/box)] head)" "result must stay unchanged";
+  refuse "(let* [head (sop/box) head (sop/box)] seeds_each)" "Duplicate binding";
+  (* seeds_each changes from a list to geometry, together with its consumer.
+     Neither replacement checks against the old sibling binding. *)
+  type_closure "(let* [seeds_each (sop/box) head (sop/transform seeds_each)] seeds_each)";
+  click apply;
+  let after = ws () in
+  check (after != before && contains (dump ()) "draft no")
+    ("coherent cross-binding type change was refused: " ^ dump ());
+  check (T.binding after.source ["sunflower"; "seeds_each"] <> T.binding before.source ["sunflower"; "seeds_each"])
+    "producer was not patched";
+  let reloaded = Prismel_editor.Workspace_doc.of_text catalog
+    (Prismel_editor.Workspace_doc.to_text after) |> Result.get_ok in
+  check (printed_binding reloaded.source ["sunflower"; "head"] = printed_binding after.source ["sunflower"; "head"])
+    "Selection patch did not survive serialized reload";
+  click (float (gx + 30), float (gy + gh - 70));
+  step [key Input.Escape]; step ~keys:[Input.Meta] [char 'z'];
+  check (ws () == before) "Selection's related edits were not one undo entry";
+  type_closure "(let* [head (sop/merge seeds_each)] seeds_each)";
+  env := E.edit !env (Flow_sop.Flow_edit.Set_arg {node = ["sunflower"; "head"];
+    key = Whole; sub = []; value = (match Flow.Syntax.parse "(sop/merge seeds_each seeds_each seeds_each)" with
+      | Ok [form] -> form | _ -> fail "test expression")}) |> Result.get_ok;
+  let host_edited = ws () and host_label = E.undo_label !env in
+  click apply;
+  check (ws () == host_edited && E.undo_label !env = host_label)
+    "an old Selection draft overwrote a host edit";
+  check (contains (dump ()) "draft yes" && contains (dump ()) "E_DRAFT_CONFLICT")
+    ("an old Selection draft was not kept as a conflict: " ^ dump ());
+  E.close !env; Test_workspace_source.remove_tree presets
 
 (* The editor's Lisp as the text area's language: indentation and bracket pairs. *)
 let lisp_text () =
@@ -330,7 +393,8 @@ let editor_w9 () =
       Sop_catalog.Editor.factories |> Result.get_ok in
   let scenario script =
     let workspace = Prismel_editor.Workspace_doc.of_text catalog (case "rosette") |> Result.get_ok in
-    let env = ref (E.create ~await:true ~workspace
+    let presets = Filename.temp_dir "prismel-text-presets" "" in
+  let env = ref (E.create ~presets ~await:true ~workspace
         ~prepare:(fun _ output -> Pdk_prismel.Prismel_mesh.to_mesh output.Procedural.Session.geometry
           |> Result.map_error Pdk.Error.to_string)
         ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) () |> Result.get_ok) in

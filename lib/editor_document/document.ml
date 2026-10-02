@@ -45,6 +45,13 @@ type origin =
       (* the tile call a loop makes panels for, and the loop's argument in it *)
   | Inline of home * Flow_sop.Flow_edit.arg_key  (* written in place: an argument of this call *)
 
+type preview_source = {
+  editor_graph : string;
+  panel : origin option;
+  scene_ref : Flow.Syntax.t option;
+  instance : Flow.Eval.value;
+}
+
 (* The lowered editor graph (plan W10): the shell tree, the origin of each named or
    looped panel (any other panel is inline), the graph a [(ui/graph "name")] shows
    and, for each viewport over a scene other than the default one, the scene objects
@@ -54,6 +61,7 @@ type shell = {
   origins : (Editor_core.Panels.path * origin) list;
   named : string option;
   views : (string * int list) list;
+  preview_sources : (string * preview_source) list;
 }
 
 type t = {
@@ -63,6 +71,8 @@ type t = {
   settings : Settings.t;
   shell : shell option;  (* the [editor] graph of the workspace, if it has one *)
   homes : homes;  (* where each derived object is written in the text *)
+  scene_drives : (string * (Flow_sop.Port.parameter * Flow.Eval.value) list) Int_map.t;
+  (* Residual light fields, resolved for composition; never written into history. *)
   workspace : Workspace_doc.t * Flow_sop.Lower.t;
   (* the authored document and its lowering: [scene] and [networks] are that lowering, one
      geometry object per [sop] graph; the lowering (compiled ids, volatile set) is history

@@ -131,5 +131,5 @@
            camera (scene/camera :eye [3.182458 2.057387 4.651787] :target [0 0 0]
                                 :follow_viewport true)
            light (scene/light :name "key" :shape "Directional" :translate [8 9.6 16]
-                              :intensity 1)]
+                              :intensity (+ 1 (* 0.15 (sin t))))]
       (scene/merge shown camera light))))

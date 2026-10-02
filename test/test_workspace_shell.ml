@@ -507,7 +507,7 @@ let run_ops () =
   let docked = ok "Dock panel" (E.Dock_panel {node = ["editor"; "network"]; target = ["editor"; "outline"]; side = `Right}) in
   check (Panels.to_string (tree docked) = "(h (h outline graph) (h lisp (tile view view view view)))")
     ("docking duplicated a panel or left a gap: " ^ Panels.to_string (tree docked));
-  check (has (source docked) "(ui/split-at \"horizontal\" 0.5 outline_content network)")
+  check (has (source docked) "(ui/split-at \"horizontal\" 0.5 outline network)")
     "docking was not reflected in the editor Lisp";
   (* undo restores the tree with the source *)
   check (Panels.to_string (tree e) = Panels.to_string sh) "undo target";
@@ -819,9 +819,12 @@ let run_panel_states () =
   let sx, sy, sw, sh = splitter.bounds in
   let grip = float (sx + sw / 2), float (sy + sh / 2) in
   let moved = fst grip +. 30., snd grip in
+  let before_split = Doc.to_text (E3.workspace !e) in
   step grip [Event.MouseMoved grip];
   step ~buttons:[Input.LeftButton] grip [Event.MousePressed (Input.LeftButton, grip)];
   step ~buttons:[Input.LeftButton] moved [Event.MouseMoved moved];
+  check (Doc.to_text (E3.workspace !e) = before_split && E3.undo_label !e = None)
+    "a held splitter drag committed authored state before release";
   step moved [Event.MouseReleased (Input.LeftButton, moved)]; step moved [];
   check ((E3.workspace !e).layout.editor = None && has (source !e) "ui/split-at"
          && E3.undo_label !e = Some "Resize panel")
@@ -857,6 +860,17 @@ let run_panel_states () =
   let x, y, w, h = window in
   let grip = float (x + 8), float (y + 11) in
   let to_ = fst grip +. 35., snd grip +. 30. in
+  let before_move = Doc.to_text (E3.workspace !e) in
+  let before_bounds = (E3.panes !e (frame (0., 0.) [] 0)).graph in
+  step grip [Event.MouseMoved grip];
+  step ~buttons:[Input.LeftButton] grip [Event.MousePressed (Input.LeftButton, grip)];
+  step ~buttons:[Input.LeftButton] to_ [Event.MouseMoved to_];
+  check (Doc.to_text (E3.workspace !e) = before_move)
+    "a held floating-window drag committed authored state before release";
+  step to_ [Event.PointerCancelled Input.LeftButton];
+  check (Doc.to_text (E3.workspace !e) = before_move
+    && (E3.panes !e (frame (0., 0.) [] 0)).graph = before_bounds)
+    "cancelling a floating-window drag retained draft bounds or changed authored state";
   step grip [Event.MouseMoved grip];
   step ~buttons:[Input.LeftButton] grip [Event.MousePressed (Input.LeftButton, grip)];
   step ~buttons:[Input.LeftButton] to_ [Event.MouseMoved to_];
@@ -868,9 +882,12 @@ let run_panel_states () =
   let visible_h = min h (640 - y) in
   let corner = float (x + w - 4), float (y + visible_h - 4) in
   let to_ = fst corner -. 35., snd corner -. 40. in
+  let before_resize = Doc.to_text (E3.workspace !e) in
   step corner [Event.MouseMoved corner];
   step ~buttons:[Input.LeftButton] corner [Event.MousePressed (Input.LeftButton, corner)];
   step ~buttons:[Input.LeftButton] to_ [Event.MouseMoved to_];
+  check (Doc.to_text (E3.workspace !e) = before_resize)
+    "a held floating-window resize committed authored state before release";
   step to_ [Event.MouseReleased (Input.LeftButton, to_)]; step to_ [];
   check ((state "network").window = Some (x, y, w - 35, visible_h - 40))
     "the floating window resize handle did not persist its size";
@@ -887,7 +904,7 @@ let run_panel_states () =
   step ~buttons:[Input.LeftButton] target [Event.MouseMoved target];
   step ~buttons:[Input.LeftButton] target [];
   step target [Event.MouseReleased (Input.LeftButton, target)]; step target [];
-  check (has (source !e) "preview_content network)" && (state "network").window = None
+  check (has (source !e) "preview network)" && (state "network").window = None
          && dump_line !e "edit error" = "-")
     ("the edge drop did not dock the panel: " ^ dump_line !e "edit error" ^ "\n" ^ source !e);
   step ~keys:[Input.Meta] target [Event.KeyPressed (Input.KeyChar 'z')];

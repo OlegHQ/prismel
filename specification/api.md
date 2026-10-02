@@ -964,13 +964,22 @@ sketch; `dune exec tools/new_example.exe -- --plisp <name>` scaffolds one). The 
 check) and `Workspace.run ?source doc` (the window from the `settings` graph, the viewport starting at the
 scene's first camera, a scene graph is authoritative: it replaces the host's camera and lights, and an empty one means none).
 
+Scene light intensity and color accept expressions of timeline `t`; they are
+resolved during composition without recooking static SOPs or rewriting saved
+source/history. The gallery's key light demonstrates a sine pulse. Each preview
+retains its own overridden light values. A failed live expression keeps that
+light's last successful value while healthy siblings advance, and reports
+`E_CONTEXT_LIVE` with view/field attribution; successful evaluation clears it.
+Other scene/World/panel fields remain static and refuse time expressions with
+`E_CONTEXT_TIME`. Window title, size, fps and seed apply on restart.
+
 The running window follows the file. `Prismel_editor.Source` finds it (the first `dune-project` not under
 `_build`, walking up from the executable and then the working directory, joined with `path`). Command-S
 (also Ctrl-S) rewrites it with the canonical text (`Workspace_doc.to_text`; comments kept, `;;` printed as
 `;`) through a temporary file and a rename, but only while the file is still the text the document last
 came from (its SHA-256 is the remembered digest); any other state falls back to a preset (`Preset.save`,
 status "source changed since build; saved as preset ...") and never overwrites. Once a half second the frame
-loop `stat`s the file; a changed mtime and digest re-check the text and replace the document as one history
+loop reads the source content/digest; a changed digest re-checks the text and replaces the document as one history
 entry "Reload sketch.plisp", keeping layout, settings, probes and selection by path; text that fails keeps
 the last good document, shows the diagnostics in the Lisp panel's Document tab and the status bar, and a
 later good text (also the last good one) reloads. The editor's own write updates the digest first, so it

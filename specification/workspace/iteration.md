@@ -352,6 +352,32 @@ save with the selected layout, including leader-key visibility changes.
 A workspace without an editor graph writes its current shell on the first panel
 edit. Floating viewports share the shell's UI paint order and hit tree.
 
+Layout has one codec, `Layout_by_path`. Its active readers are:
+
+| Saved field | Reader / behavior |
+|---|---|
+| `editor` | `Workspace_doc.editor_graph` selects the authored shell. |
+| `panels` | `Core.panel_state` supplies disclosure and floating bounds to shell geometry. |
+| `at`, `collapsed`, `frames` | `Core.sync_scope` supplies Scope positions, zone disclosure and canvas frames. |
+| `display` | `Core.sync_scope` marks the displayed binding; `Core.display_node` selects its geometry. |
+| `pinned`, `rows`, `bends`, `wireless` | Preserved and remapped by the codec; the current Scope pane has no reader for these legacy fields. |
+
+Scope movement/frame sizing, shell splitters and floating-window movement keep
+their held-drag offsets in pane/chrome state. Release emits one document edit;
+one undo restores the previous placement. Parameter scrubs instead apply while
+held and coalesce into one history gesture.
+
+Each viewport has its own free orbit and scene membership, including lights
+and camera objects drawn as guides. The render controller remains shared:
+ACTIVE resolves only among primary scene cameras, so look-through and PNG
+export use that camera and its lens/settings even while a comparison panel is
+focused. Comparison camera declarations retain their authored values and do
+not select or replace the primary render camera. The primary World, its day
+cycle and map gestures are also shared across views; `ui/viewport` does not
+declare an independent World. Editing a comparison ref leaves that World's
+baked output and the primary render camera unchanged. Independent authored
+per-view render-camera/World controllers would require an explicit API extension.
+
 ## 5. Sketches as `.plisp` files
 
 ```lisp
@@ -548,11 +574,39 @@ audit and remaining gaps are in [consistency-audit.md](consistency-audit.md).
   focused when the UI is hidden; renderer caches key by viewport identity.
 - Inspector ownership is independent of the navigation level. Composition
   invalidation includes the actual scene, level and viewport membership.
+  Named SOP handle selection, transforms and argument edits also resolve the
+  compiled node's owner. Viewport framing works without a graph pane and uses
+  only the focused scene instance's bounds; an empty instance has no frame target.
+- Unique named viewport bindings key their orbit/render slots by editor graph
+  and binding name. Reordering and docking keep those keys; docking introduces
+  a split wrapper without renaming either panel. Renaming changes the authored
+  key. Inline, looped, or repeated uses of the same binding use placement keys;
+  their transient state may reset when rearranged. No additional persistence
+  format is introduced.
+- Each lowered viewport retains its panel origin, authored scene ref where
+  available, and evaluated instance in `Document.shell.preview_sources`.
+  Derived auxiliary objects remain read-only: their inspector explains the
+  source-edit route, and shared reconciliation refuses write-back with the
+  viewport identity. Editing ref overrides remains the authored route.
 
-The current scene, World, settings and editor lowering evaluates expressions
-at time zero. Live SOP drives do not establish live behavior in those other
-contexts. Startup window settings and the cook seed are captured when the host
-starts. The audit records these limits and the ordered remediation work.
+Light `:intensity` and `:color` retain residual expressions and resolve at the
+editor timeline's `t` during composition, including independent preview
+overrides. The saved document stays at its checked source-derived state;
+object/panel identities, SOP networks and prepared geometry stay unchanged.
+Only recorded live fields are evaluated, using their checked port descriptors;
+one resolved scene is cached by authored scene/drives/time. Non-finite or other
+evaluation failures retain that light's last successful values while healthy
+siblings advance, and report `E_CONTEXT_LIVE` with object/view/field attribution;
+recovery clears the error.
+Intensity/color keep the schema's ordinary hard-bound normalization.
+
+Other time-dependent fields in scene, World, settings and editor structs are refused
+when installing the document or reading startup configuration, with
+`E_CONTEXT_TIME` naming the graph and field. They are not silently evaluated at
+zero. Live SOP/value drives remain supported, including a scene's reference to
+time-driven geometry. Startup window settings and the cook seed are captured
+when the host starts; their built-in inspector labels say “on restart.” The
+selected live fields do not change the window or its captured cook seed.
 
 ## 9. References
 

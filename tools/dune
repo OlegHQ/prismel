@@ -4,6 +4,21 @@
  (libraries unix str))
 
 (executable
+ (name bench_source_poll)
+ (modules bench_source_poll)
+ (libraries prismel_editor editor_document unix))
+
+(executable
+ (name bench_named_owner)
+ (modules bench_named_owner)
+ (libraries prismel_editor prismel procedural unix))
+
+(executable
+ (name bench_live_lights)
+ (modules bench_live_lights)
+ (libraries prismel_editor prismel unix))
+
+(executable
  (name flow_manifest)
  (modules flow_manifest)
  (libraries flow_sop sop_catalog flow editor_document))

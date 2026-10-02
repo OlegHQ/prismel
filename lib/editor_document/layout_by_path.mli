@@ -1,6 +1,8 @@
 (** Canvas layout keyed by {!type:Flow.Workspace.path}: the fields of
-    the old canvas layout for the workspace language, plus collapsed
-    zones and frames.  A path is the lexical identity of a binding, so a key
+    the workspace's active layout and preserved legacy canvas metadata.
+    Scope consumes positions, collapsed zones, frames and displayed paths;
+    pinned nodes, row disclosure, bends and wireless flags round-trip but
+    have no current presentation reader. A path is the lexical identity of a binding, so a key
     survives every text edit that keeps the path; {!Flow_sop.Flow_edit.remap}
     rewrites keys in the same transaction as a rename or a hoist.
 

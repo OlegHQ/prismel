@@ -36,12 +36,15 @@ module Source : sig
 
   val file : t -> string
   val poll : now:float -> t -> t * string option
-  (** At most one [stat] per half second of [now]; the text when the file changed and
-      differs from what the document has. *)
+  (** Read content/digest at most once per half second of [now], including
+      preserved-mtime and inode replacements. Return changed text once;
+      the editor reports read errors without replacing its document. *)
 
   val save : t -> string -> (t, [ `Changed | `Failed of string ]) result
   (** Atomically replace the file with the text, only while its digest is still the
       remembered one ([`Changed] otherwise); the write does not reload. *)
+  (** The digest check precedes the rename; a competing writer between these
+      operations requires a cooperative protocol to prevent overwrite. *)
 end
 
 module Settings : sig
@@ -458,8 +461,9 @@ module Editor3 : sig
       orbiting. *)
 
   val viewport_camera : 'prepared t -> string -> Prismel.Camera.t
-  (** What the viewport with this key (the tile index in a [ui/tile], [""] for the default
-      shell's only one) shows: each viewport keeps its own orbit, a copy of the focused one's at
+  (** What the viewport with this key (editor graph/binding for unique named
+      panels, placement for inline/looped/repeated panels, ["main"] for the
+      default layout) shows: each viewport keeps its own orbit, a copy of the focused one's at
       the first focus, and the wheel, drag and fly of the focused viewport move only it. *)
 
   val flying : 'prepared t -> bool

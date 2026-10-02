@@ -19,6 +19,9 @@ type state = {
   draft : string option;  (** the Document tab's unapplied text *)
   binding_draft : (path * string) option;  (** the Selection tab's unapplied text, keyed by [shown.key] *)
   graph_draft : (string * string) option;  (** the Graph tab's unapplied text, and its graph *)
+  doc_base : Editor_document.Workspace_doc.t option; (** base document of the draft *)
+  binding_base : Editor_document.Workspace_doc.t option;
+  graph_base : Editor_document.Workspace_doc.t option;
   doc_errors : Flow.Diagnostic.t list;  (** of the last refused apply *)
   binding_errors : Flow.Diagnostic.t list;
   graph_errors : Flow.Diagnostic.t list;
@@ -33,6 +36,12 @@ val initial : state
 
 val binding : Flow.Syntax.t list -> path -> (Flow.Syntax.t option * Flow.Syntax.t) option
 (** The binding a path names in the source: its pattern (none for a [@result]) and expression. *)
+
+val selection_form : Flow.Syntax.t list -> path -> Flow.Syntax.t ->
+  (Flow.Syntax.t, Flow.Diagnostic.t) result
+(** Patch named root bindings into one candidate graph. Omitted bindings stay;
+    duplicate names and changes to the shown result are refused. Check the
+    complete returned graph once before installing it. *)
 
 val make_shown : Flow.Syntax.t list -> string -> path option -> tab -> shown
 (** [make_shown source graph selected tab]: Selection prints the selected
@@ -61,9 +70,10 @@ type intent =
   | Doc_discard
   | Binding_draft of path * string
   | Binding_apply of path * string
-      (** Check & apply of the Selection tab: the shown [(let* [...] name)] closure, whose changed
-          bindings are written ([Set_arg Whole] each), or the graph form when nothing upstream is
-          shown ({!Flow_sop.Flow_edit.Set_graph}) *)
+      (** Check & apply of Selection: patch the shown closure's named bindings
+          into one candidate graph, preserving omitted bindings and refusing
+          changed results or duplicate names. Check and lower once via
+          {!Flow_sop.Flow_edit.Set_graph}. *)
   | Binding_discard
   | Graph_draft of string * string  (** the graph's name and its draft text *)
   | Graph_apply of string * string  (** Check & apply: the graph's form is replaced ({!Flow_sop.Flow_edit.Set_graph}) *)

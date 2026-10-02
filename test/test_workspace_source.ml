@@ -64,7 +64,7 @@ let run_files () =
   write file text1;
   check (Source.save source "x" = Error `Changed) "saved over another writer's text";
   check (read file = text1) "the refused save left the file alone";
-  (* the poll: one stat per half second *)
+  (* the poll: one content read per half second *)
   let source = Source.at ~file ~digest:(sha text0) in
   let source, changed = Source.poll ~now:0. source in
   check (changed = Some text1) "a file that already differed at startup did not reload on the first poll";
@@ -78,8 +78,21 @@ let run_files () =
   check (early = None) "polled again within half a second";
   let source, late = Source.poll ~now:0.6 source in
   check (late = Some text0) "the change was not seen after half a second";
-  let _, again = Source.poll ~now:1.2 source in
+  let source, again = Source.poll ~now:1.2 source in
   check (again = None) "the same change reported twice";
+  let stamp = (Unix.stat file).st_mtime in
+  Out_channel.with_open_bin file (fun channel -> output_string channel text1);
+  Unix.utimes file stamp stamp;
+  let source, changed = Source.poll ~now:1.8 source in
+  check (changed = Some text1) "a preserved-mtime content edit was missed";
+  let replacement = Filename.concat dir "replacement.plisp" in
+  write replacement text0;
+  Unix.utimes replacement stamp stamp;
+  let inode = (Unix.stat file).st_ino in
+  Unix.rename replacement file;
+  check ((Unix.stat file).st_ino <> inode) "replacement did not change the inode";
+  let _, changed = Source.poll ~now:2.4 source in
+  check (changed = Some text0) "a same-mtime inode replacement was missed";
   remove_tree dir
 
 let run_find () =
@@ -176,6 +189,20 @@ let run_editor () =
   settle ();
   check (Editor_document.Layout_by_path.Path_map.mem [ "g"; "@result" ] (layout ()).at)
     "a reload without a layout form dropped the layout";
+  let before = E3.workspace !e and label = E3.undo_label !e in
+  Sys.remove file;
+  run_for 1.;
+  check (E3.workspace !e == before && E3.undo_label !e = label)
+    "unreadable source changed the document/history";
+  check (has (cook_line !e) "Source unreadable") ("source read failure was silent: " ^ cook_line !e);
+  step ~keys:[Input.Meta] [Event.KeyPressed (Input.KeyChar 's')];
+  check (has (cook_line !e) "Not saved:") "unreadable source was reported as an external edit";
+  check (not (Sys.file_exists file)) "Save recreated an unreadable source";
+  write file text1;
+  run_for 1.;
+  check (has (cook_line !e) "Source readable again") ("source recovery was not reported: " ^ cook_line !e);
+  check (E3.workspace !e == before && E3.undo_label !e = label)
+    "same-content source recovery made a document change";
   E3.close !e;
   (* a file edited since the build reloads on the first poll, as one history entry *)
   write file text1;

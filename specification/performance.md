@@ -5125,6 +5125,31 @@ The disposable baseline needed core SDL binding regeneration against the
 installed SDK to pass its clean ABI build; no SDL files were changed in the
 main tree. The window-free workload does not exercise the affected pen events.
 
+## Source digest polling — 2 October 2026
+
+Command: `dune exec tools/bench_source_poll.exe -- examples/sop_gallery/gallery.plisp`.
+Darwin arm64, OCaml 5.3.0, default Dune profile, initial domain, warm filesystem
+cache. The largest checked-in `.plisp` is 7800 bytes (all checked-in `.plisp`
+files total 32891 bytes). Five alternating samples of 2000 polls ran without
+concurrent agent builds/tests. The reference measures the old unchanged-file
+`Unix.stat` operation alone, omitting its small polling-record overhead; the
+new measurement calls the actual `Source.poll` and asserts no reload.
+
+| Sample | Stat reference (ms/poll) | Content/digest (ms/poll) |
+|---|---:|---:|
+| 1 | 0.001863 | 0.056281 |
+| 2 | 0.001866 | 0.054431 |
+| 3 | 0.001858 | 0.054413 |
+| 4 | 0.001887 | 0.054577 |
+| 5 | 0.001841 | 0.054358 |
+| Median | 0.001863 | 0.054431 |
+
+`Gc.allocated_bytes` measured 152 bytes/poll for the reference and 8672 for
+content/digest in every sample. At 2 Hz the new measured work is approximately
+0.109 ms and 17344 allocated bytes per second for this file. This supports
+reading current small workspaces instead of relying on mtime; it does not
+bound latency for large files, cold storage or network filesystems.
+
 ## Hot-path review checklist
 
 1. Confirm asymptotic complexity and identify the dominant allocation.
@@ -5135,3 +5160,57 @@ main tree. The window-free workload does not exercise the affected pen events.
 6. Verify sequential/parallel byte-identical ordering.
 7. Measure elapsed time, minor/major allocation, and live memory.
 8. Run correctness, finite-native, documentation, and diff checks.
+
+## Named-pane ownership lookup — 2 October 2026
+
+Command: `SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy dune exec tools/bench_named_owner.exe`.
+Darwin arm64, OCaml 5.3.0, default Dune profile, one cook domain; no concurrent
+builds or tests. Each object owns a distinct one-node SOP graph. Navigation
+stays at Scene while a named pane selects the last object's compiled box,
+requiring the owner fallback. Five samples each measure 10,000 calls to the
+actual public `Editor3.selected_node`, asserting the selected compiled ID.
+Parsing, cooking and UI setup are outside the timed interval.
+
+| Objects | Samples (ms/lookup) | Median | Bytes/lookup |
+|---|---|---:|---:|
+| 1 | 0.000271, 0.000281, 0.000281, 0.000275, 0.000268 | 0.000275 | 1504 |
+| 100 | 0.001629, 0.001628, 0.001633, 0.001611, 0.001616 | 0.001628 | 1504 |
+| 1000 | 0.015483, 0.015703, 0.015772, 0.015720, 0.015831 | 0.015720 | 1504 |
+
+The current scan remains: three such lookups at 1,000 owners cost about
+0.047 ms in this fixture. No index or hot-path behavior changed, so the
+before and after algorithm are identical. This measures many small networks,
+not arbitrary scene sizes or large individual networks; the existing
+`ponytail:` comment retains the upgrade path to a compiled-ID owner index
+if a real workload makes the fallback material.
+
+## Live light contexts — 2 October 2026
+
+Command: `SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy dune exec tools/bench_live_lights.exe`.
+Before is a disposable archive of HEAD `b39ebd5be2230397ba1caa54b6d0faac8d984ec5`
+with the same benchmark added; after is the consistency remediation tree.
+macOS arm64, OCaml 5.3.0, default Dune profile, one cook domain, seed 42.
+No builds/tests ran during measurement; other desktop applications remained active.
+Each run warms ten frames then records five 200-frame sample means at fixed
+1/60 s. One or sixteen scene refs share a box SOP but have independent lights.
+The static control uses constant intensity/color; live expressions add a sine
+pulse. Before accepted those expressions but froze them at zero. After
+resolves only recorded light fields. Both versions assert that warm frames
+do not call geometry preparation or drawing again.
+
+| Views / fixture | Before sample means (ms/frame) | After sample means (ms/frame) | Before median | After median |
+|---|---|---|---:|---:|
+| 1 / static | 0.047725, 0.045760, 0.047030, 0.046301, 0.047020 | 0.047306, 0.045905, 0.046335, 0.046285, 0.046071 | 0.047020 | 0.046285 |
+| 1 / live | 0.046220, 0.047134, 0.046284, 0.046716, 0.045764 | 0.082275, 0.084610, 0.080769, 0.081500, 0.082239 | 0.046284 | 0.082239 |
+| 16 / static | 0.373405, 0.375075, 0.368875, 0.367219, 0.365450 | 0.374185, 0.368274, 0.366640, 0.365781, 0.368046 | 0.368875 | 0.368046 |
+| 16 / live | 0.371876, 0.365975, 0.366530, 0.366311, 0.365285 | 0.818855, 0.816405, 0.818086, 0.820365, 0.820615 | 0.366311 | 0.818855 |
+
+`Gc.allocated_bytes` median bytes/frame: before 215898 (1 view) / 1411538
+(16 views), for both fixtures; after static 216547 / 1415067 and live
+380076 / 2981903. Sample allocation drift comes from periodic editor bookkeeping.
+The extra live cost includes light-node parameter application and per-view
+scene recomposition; the checked port descriptors are retained at lowering,
+and unchanged SOP/prepared/drawing caches remain reused. The fixture uses
+`Scene3.empty` geometry drawings: it measures editor CPU composition with
+lights, not GPU presentation, path tracing or a general latency bound.
+Native rendering validation remains a separate gate.

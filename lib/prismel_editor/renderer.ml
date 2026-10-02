@@ -103,7 +103,7 @@ let update state ~mode ~custom views =
   end else if List.length views > 16 then begin
     close state; { empty with mode; error = Some "At most 16 viewports can render together." }
   end else
-    let meshes = ref state.meshes and error = ref None in
+    let meshes = ref state.meshes and errors = ref [] in
     let slots = List.map (fun (key, bounds, camera, scene) ->
       let previous = List.find_opt (fun slot -> slot.key = key) state.slots in
       let previous = Option.value ~default:{key; bounds; scene = Scene3.empty; wire = None; tracer = None} previous in
@@ -143,11 +143,16 @@ let update state ~mode ~custom views =
         match render () with
         | Ok slot -> slot
         | Error message -> Option.iter P.destroy !created;
-            error := Some ("Renderer: " ^ message); previous) views in
+            let stale = previous.tracer <> None in
+            errors := Printf.sprintf "Renderer [%s]: %s (%s)" key message
+              (if stale then "stale output retained" else "no output") :: !errors;
+            if stale then {previous with bounds}
+            else {key; bounds; scene; wire = None; tracer = None}) views in
     List.iter (fun previous -> Option.iter (fun tracer ->
       if not (List.exists (fun slot -> Option.fold ~none:false ~some:(fun t -> t == tracer) slot.tracer) slots) then P.destroy tracer)
       previous.tracer) state.slots;
-    {mode; custom; slots; meshes = !meshes; error = !error}
+    {mode; custom; slots; meshes = !meshes;
+     error = if !errors = [] then None else Some (String.concat "; " (List.rev !errors))}
 
 let paint state ~key bounds camera scene =
   if state.custom || state.mode = Raster then [Scene.view3d ~viewport:bounds ~camera scene]

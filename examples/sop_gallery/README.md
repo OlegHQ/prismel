@@ -14,3 +14,8 @@ Command/Ctrl-Z undoes the load. A malformed preset is rejected before it replace
 
 The gallery's `prepare` callback only converts CPU geometry to mesh data on
 the cook worker. `scene3` builds the scene on the initial domain.
+
+The key light uses `:intensity (+ 1 (* 0.15 (sin t)))`: timeline playback
+pulses its lighting while the prepared meshes stay cached. Light `:color`
+also accepts time expressions. Other scene/World/panel fields remain static;
+window title/size/fps and cook seed apply on restart.

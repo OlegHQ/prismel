@@ -20,7 +20,9 @@ val catalog : version:int -> Procedural.Edit_graph.factory list ->
     is checked against. *)
 
 type window = { title : string; width : int; height : int; fps : int; seed : int }
-(** What [(settings/config :title :width :height :fps :seed)] asks of the host. *)
+(** What [(settings/config :title :width :height :fps :seed)] asks of the host
+    when it starts. These fields apply on restart; editing saved settings does
+    not reconfigure the running window, frame scheduler or cook seed. *)
 
 val window : Workspace_doc.t -> (window, Flow.Diagnostic.t) result
 (** The window of a checked workspace: its settings graph evaluated, defaults
@@ -39,10 +41,20 @@ val of_workspace : factories:Procedural.Edit_graph.factory list -> ?previous:Doc
     camera, lights and World), and the lowering's compiled ids.  The workspace owns
     geometry always, every object when it has a scene graph (an empty one means
     none: the host seeds nothing) and the World when it has a world graph
-    ([world/none] means none). *)
+    ([world/none] means none). Light intensity/color retain their residuals for
+    timeline composition. Other time-dependent fields in scene, World, settings
+    and editor structs are refused with [E_CONTEXT_TIME], naming the graph and
+    field. Geometry references with live SOP parameters are supported. *)
 
 val group_triples : Editor_core.Param.field_view list -> Editor_core.Param.field_view list
 (** Three consecutive [_x _y _z] (or [_r _g _b]) floats of one folder as one vec3 field. *)
+
+val resolve_scene : ?previous:Procedural.Edit_graph.t -> Document.t -> time:float ->
+  Procedural.Edit_graph.t * Flow.Diagnostic.t list
+(** Resolve recorded live light intensity/color fields for composition, without
+    changing source, networks, identities or history. A failed light retains
+    its previous value (or the authored zero-time value without [previous]);
+    successful siblings still advance. Diagnostics name its fields and view. *)
 
 val graph_of : Workspace_doc.t -> Flow.Workspace.context -> Flow.Workspace.graph option
 (** The first graph of a context. *)

@@ -24,6 +24,9 @@ type state = {
   draft : string option;  (* the Document tab's unapplied text *)
   binding_draft : (path * string) option;  (* the Selection tab's unapplied text, and its key *)
   graph_draft : (string * string) option;  (* the Graph tab's unapplied text, and its graph *)
+  doc_base : Editor_document.Workspace_doc.t option;
+  binding_base : Editor_document.Workspace_doc.t option;
+  graph_base : Editor_document.Workspace_doc.t option;
   doc_errors : Flow.Diagnostic.t list;  (* of the last refused apply *)
   binding_errors : Flow.Diagnostic.t list;
   graph_errors : Flow.Diagnostic.t list;
@@ -34,6 +37,7 @@ type state = {
 }
 
 let initial = { tab = Selection; draft = None; binding_draft = None; graph_draft = None;
+  doc_base = None; binding_base = None; graph_base = None;
   doc_errors = []; binding_errors = []; graph_errors = []; wrap = true; parinfer = true; menu = None; cache = None }
 
 (* ---- reading the source ---- *)
@@ -129,8 +133,49 @@ let closure (root : S.t) top =
           (if inputs = [] then "" else " and inputs " ^ String.concat ", " inputs) in
         Some { (form base (S.List [ form (base + 1) (S.Sym "let*");
           form (base + 2) (S.Vec (List.concat_map (fun (p, v) -> [ p; v ]) sub));
-          form (base + 3) (S.Sym top) ])) with notes = [ note ] }
+          form (base + 3) (S.Sym top) ])) with notes = [ note;
+            "Selection patches named bindings; omitted bindings stay. Change the result in Graph or Document." ] }
       end
+
+(* Build the complete candidate graph before checking: dependent bindings may
+   change type together, so checking individual replacements is incorrect. *)
+let selection_form source path form =
+  let error message = Error (Flow.Diagnostic.error ~code:"E_EDIT" message) in
+  match path, scope form with
+  | graph :: top :: _, Some (patches, result) ->
+      let printed f = fst (Flow.Lisp.print [f]) in
+      let names = List.filter_map (fun ((p : S.t), _) -> match p.node with
+        | S.Sym n -> Some n | _ -> None) patches in
+      let invalid = List.find_opt (fun ((p : S.t), _) -> match p.node with
+        | S.Sym n -> binding source [graph; n] = None | _ -> true) patches in
+      (match invalid with
+       | Some (p, _) -> error (Printf.sprintf "%s is not a binding of %s; add or remove bindings in the Graph tab."
+           (String.trim (printed p)) graph)
+       | None when List.length names <> List.length (List.sort_uniq String.compare names) ->
+           error "Duplicate binding names in Selection."
+       | None when printed result <> printed (S.make (S.Sym top)) ->
+           error "Selection's result must stay unchanged; edit the result in Graph or Document."
+       | None ->
+           match Option.bind (root_form source graph) (fun root ->
+             Option.map (fun body -> root, body) (last root)) with
+           | Some (root, body) ->
+               (match scope body with
+                | Some (bindings, res) ->
+                    let changed = ref false in
+                    let bindings = List.map (fun (p, old) ->
+                      match List.find_opt (fun (q, _) -> q.S.node = p.S.node) patches with
+                      | Some (_, v) when printed old <> printed v ->
+                          changed := true;
+                          p, (if v.notes = [] then { v with notes = old.notes } else v)
+                      | _ -> p, old) bindings in
+                    if not !changed then error "Nothing changed." else
+                    let body = { body with node = S.List [List.hd (S.children body);
+                      { (List.nth (S.children body) 1) with node = S.Vec
+                          (List.concat_map (fun (p, v) -> [p; v]) bindings) }; res] } in
+                    Ok { root with node = S.List (List.rev (body :: List.tl (List.rev (S.children root)))) }
+                | None -> error "Expected the shown Selection closure.")
+           | None -> error "Selection graph no longer exists.")
+  | _, _ -> error "Expected the shown (let* [...] name) closure, or the graph form."
 
 let make_shown source graph selected tab =
   let applied = lazy (fst (Flow.Lisp.print source)) in
