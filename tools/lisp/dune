@@ -1,6 +1,6 @@
 (executable
- (name plisp)
- (modules plisp delimiter)
- (public_name rays-plisp)
+ (name lisp)
+ (modules lisp delimiter)
+ (public_name rays-lisp)
  (package rays)
  (libraries flow flow_sop editor_document sop_catalog))

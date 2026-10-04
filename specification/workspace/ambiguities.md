@@ -331,7 +331,7 @@ table (`flow.md` §11.10) and does not replace it. Generated from
 
 *Why it is ambiguous.* dune build runs the checker on the file, which sees literals but not driven counts or geometry sizes.
 
-*Proposed rule.* Build time (rays-plisp check, run by the generated dune rule): syntax, names, arity, keywords, types (both if branches, loop bodies typed once), shadowing, recursion, literal loop bounds, E_TIME_COUNT, E_TIME_BRANCH and unknown literal groups (warnings are errors). Run time: driven counts over the bound, the step budget, nonfinite math and missing assets. Every diagnostic is printed as File "…sketch.rays", line L, characters A-B, so dune and editors jump to it.
+*Proposed rule.* Build time (rays-lisp check, run by the generated dune rule): syntax, names, arity, keywords, types (both if branches, loop bodies typed once), shadowing, recursion, literal loop bounds, E_TIME_COUNT, E_TIME_BRANCH and unknown literal groups (warnings are errors). Run time: driven counts over the bound, the step budget, nonfinite math and missing assets. Every diagnostic is printed as File "…sketch.rays", line L, characters A-B, so dune and editors jump to it.
 
 ## O4
 

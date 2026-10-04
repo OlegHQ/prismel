@@ -96,10 +96,10 @@ document.addEventListener('keydown',e=>{
 });
 
 /* ---------- page: case gallery and ambiguity register ---------- */
-function plispOf(c){
+function lispOf(c){
   const a=M.read(c.lisp),name=c.key;
   const kept=M.print(['workspace',a[1],...a.slice(2).filter(f=>!(f[0]==='graph'&&f[3]==='editor'&&c.key!=='variations'))]);
-  return `; sketches/${name}/sketch.rays: the only authored file. dune build checks it and links sketches/${name}/main.exe.\n${kept}\n\n; generated into sketches/dune.rays.inc by rays-plisp dune sketches\n(subdir ${name}\n (rule (target main.ml) (deps sketch.rays)\n  (action (with-stdout-to %{target} (run %{bin:rays-plisp} ml sketch.rays))))\n (executable (name main) (modules main) (libraries rays_editor)))`;
+  return `; sketches/${name}/sketch.rays: the only authored file. dune build checks it and links sketches/${name}/main.exe.\n${kept}\n\n; generated into sketches/dune.rays.inc by rays-lisp dune sketches\n(subdir ${name}\n (rule (target main.ml) (deps sketch.rays)\n  (action (with-stdout-to %{target} (run %{bin:rays-lisp} ml sketch.rays))))\n (executable (name main) (modules main) (libraries rays_editor)))`;
 }
 function renderGallery(){
   const host=$('#gallery');if(!host)return;
@@ -108,7 +108,7 @@ function renderGallery(){
     return `<article class="case"><div class="cthumb"><canvas data-thumb="${c.key}" width="120" height="120" aria-hidden="true"></canvas></div><div class="cbody"><span class="eyebrow">${esc(c.tag)}</span><h3>${esc(c.title)}</h3><p>${esc(c.teaches)}</p><div class="cbtns"><button class="primary" data-open-case="${c.key}">Open in the studio</button><button data-ocaml="${c.key}">.rays file</button></div></div></article>`;}).join('');
   requestAnimationFrame(()=>host.querySelectorAll('canvas[data-thumb]').forEach(cv=>drawScene(cv,scenes[cv.dataset.thumb],{fitKey:'thumb'})));
   host.querySelectorAll('[data-open-case]').forEach(b=>b.onclick=()=>{loadCase(b.dataset.openCase);$('.app').scrollIntoView({behavior:'smooth',block:'start'});});
-  host.querySelectorAll('[data-ocaml]').forEach(b=>b.onclick=()=>{const c=Cases.CASES.find(c=>c.key===b.dataset.ocaml);dialog(c.title+' · as a .rays sketch',`<p>A sketch is one <code>.rays</code> file with no OCaml wrapper. <code>dune build</code> checks it against the catalog, reports errors at lines in the file, and links a native program. Save in the running sketch writes the file back, and editing the file reloads the window. <b>Proposed</b> (plan W11): today’s <code>[%flow]</code> takes one graph inside OCaml.</p><pre class="lisp">${hl(plispOf(c))}</pre>`);});
+  host.querySelectorAll('[data-ocaml]').forEach(b=>b.onclick=()=>{const c=Cases.CASES.find(c=>c.key===b.dataset.ocaml);dialog(c.title+' · as a .rays sketch',`<p>A sketch is one <code>.rays</code> file with no OCaml wrapper. <code>dune build</code> checks it against the catalog, reports errors at lines in the file, and links a native program. Save in the running sketch writes the file back, and editing the file reloads the window. <b>Proposed</b> (plan W11): today’s <code>[%flow]</code> takes one graph inside OCaml.</p><pre class="lisp">${hl(lispOf(c))}</pre>`);});
 }
 function renderRegister(){
   const host=$('#register');if(!host)return;

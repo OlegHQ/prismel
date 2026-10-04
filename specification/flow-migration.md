@@ -1073,9 +1073,9 @@ has the rules (its "keep the three-column workspace" rule is replaced by "Worksp
 
 ### W11 `.rays` sketches (2026-09-30, done)
 
-Part A: `tools/plisp` (`rays-plisp check | ml | dune | fmt`), `sketches/dune` with the checked-in
+Part A: `tools/lisp` (`rays-lisp check | ml | dune | fmt`), `sketches/dune` with the checked-in
 `dune.rays.inc` (promote after adding a sketch), `Rays_editor.Workspace.load | run | main`,
-`new_example --plisp`, and the twelve `sketches/ws_*` cases running under `smoke-all`.
+`new_example --lisp`, and the twelve `sketches/ws_*` cases running under `smoke-all`.
 
 Part B: Save and live reload. Command-S rewrites the sketch's `.rays` (comments kept, atomic) while the
 file is still the text the document came from, else saves a preset; the frame loop polls the file twice a

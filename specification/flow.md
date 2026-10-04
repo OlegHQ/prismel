@@ -1105,7 +1105,7 @@ factory its key, aliases, label, category path, slots (name, required),
 fields (name, label, folder, kind, default, soft and hard range, primary,
 vec3 group), outputs; plus the value kinds. The file is checked in; a runtest
 rule regenerates it and diffs, and an intended change is accepted with
-`dune promote` (the same flow as `tools/api_manifest`). `tools/plisp` and the
+`dune promote` (the same flow as `tools/api_manifest`). `tools/lisp` and the
 workspace checker read it (`Flow.Check.catalog_of_manifest`).
 
 ## 13. Evaluation

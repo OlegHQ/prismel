@@ -206,8 +206,8 @@
  (action (run %{exe:test_main.exe} test_viewport_pick)))
 
 (cram
- (applies_to plisp_build)
- (deps %{bin:rays-plisp}))
+ (applies_to lisp_build)
+ (deps %{bin:rays-lisp}))
 
 (rule
  (aliases runtest test_workspace_source)

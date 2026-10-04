@@ -2,7 +2,7 @@
  (target gallery_source.ml)
  (deps gallery.rays)
  (action (chdir %{workspace_root}
-  (with-stdout-to %{target} (run %{bin:rays-plisp} source %{dep:gallery.rays})))))
+  (with-stdout-to %{target} (run %{bin:rays-lisp} source %{dep:gallery.rays})))))
 
 (executable
  (name main)

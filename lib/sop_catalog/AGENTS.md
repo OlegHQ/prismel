@@ -60,5 +60,5 @@ Value nodes (Time, Value, Math, Combine/Separate XYZ, Remap) live in `lib/flow`,
 `lib/sop_catalog/flow_manifest.sexp` is generated from the registered factories
 and those value kinds. Its runtest rule diffs the live catalog; accept an
 intended metadata change with `dune promote`, as for the API manifest.
-`tools/plisp` and the workspace checker read this snapshot
+`tools/lisp` and the workspace checker read this snapshot
 (`Flow.Check.catalog_of_manifest`); a `.rays` sketch is checked against it at build time.

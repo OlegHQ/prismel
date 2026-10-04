@@ -2,7 +2,7 @@
  (target sketch_source.ml)
  (deps sketch.rays)
  (action (chdir %{workspace_root}
-  (with-stdout-to %{target} (run %{bin:rays-plisp} source %{dep:sketch.rays})))))
+  (with-stdout-to %{target} (run %{bin:rays-lisp} source %{dep:sketch.rays})))))
 
 (executable
  (name main)

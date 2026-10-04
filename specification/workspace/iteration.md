@@ -151,7 +151,7 @@ The checker has two passes, both implemented in the study's `model.js`:
    whatever the iteration count, and types both branches of every `if`.
    Arity, keywords, contexts, shadowing, recursion, fold accumulator
    agreement (`E_ACC_TYPE`), group names (`W_UNKNOWN_GROUP`, §3.7) and
-   literal loop bounds are all reported here. This is what `rays-plisp check` runs at build time.
+   literal loop bounds are all reported here. This is what `rays-lisp check` runs at build time.
 2. **Run pass.** `Flow.Eval` evaluates everything that is not geometry, in
    order, on IEEE doubles. Geometry calls become a plan (see `eval.mli`), so
    nothing here cooks. These are reported here, each with its code and the
@@ -437,14 +437,14 @@ per-view render-camera/World controllers would require an explicit API extension
 
 - **The build.**
   - `sketches/dune` includes a generated `dune.rays.inc`, which
-    `rays-plisp dune sketches` writes.
+    `rays-lisp dune sketches` writes.
   - `runtest` diffs the include, and `dune promote` accepts a new sketch.
   - For each sketch the include has a `subdir` stanza: a rule running
-    `rays-plisp ml sketch.rays` to produce `main.ml`, an executable, and
+    `rays-lisp ml sketch.rays` to produce `main.ml`, an executable, and
     a `smoke-all` run.
   - There is no custom dune stanza and no per-sketch `dune` file. Plan W11
     has the full text.
-- **Errors at their line.** `rays-plisp check` prints `File "…/sketch.rays",
+- **Errors at their line.** `rays-lisp check` prints `File "…/sketch.rays",
   line L, characters A-B:` diagnostics, the OCaml compiler's format, so dune
   and editors jump to them (register O3). Warnings are errors.
 - **One plan.** The generated `main.ml` embeds the verbatim source and its
@@ -511,7 +511,7 @@ This is a plan for review, not a milestone commitment.
    over `Ui.box`, with no second hit-test or capture path. It emits typed
    requests (`Wrap_in_loop`, `Hoist`, `Set_probe`), and the reducer applies
    them outside `Ui.frame`.
-5. **Build.** `.rays` files compile through a small `rays-plisp` tool
+5. **Build.** `.rays` files compile through a small `rays-lisp` tool
    and generated dune rules (§5). `[%flow]` remains for OCaml sketches.
 
 ## 7. Functions, data, branches and macros

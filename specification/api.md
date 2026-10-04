@@ -968,10 +968,10 @@ represent empty networks.
 #### `.rays` sketches
 
 `sketches/<name>/sketch.rays` is a whole sketch: one `(workspace ...)` form, no `main.ml`, no `dune`.
-`rays-plisp check|ml|dune|fmt FILE` (`tools/plisp`) checks it with the editor's catalog (a typo fails
+`rays-lisp check|ml|dune|fmt FILE` (`tools/lisp`) checks it with the editor's catalog (a typo fails
 `dune build` at the `.rays` line), generates `main.ml` (the text embedded, its SHA-256 as `digest`) and
 the stanzas of `sketches/dune.rays.inc` (checked in: `dune build @runtest; dune promote` after adding a
-sketch; `dune exec tools/new_example.exe -- --plisp <name>` scaffolds one). The generated program is
+sketch; `dune exec tools/new_example.exe -- --lisp <name>` scaffolds one). The generated program is
 `Rays_editor.Workspace.main ~path ~digest ~catalog text`; OCaml hosts call `Workspace.load` (parse and
 check) and `Workspace.run ?source doc` (the window from the `settings` graph, the viewport starting at the
 scene's first camera, a scene graph is authoritative: it replaces the host's camera and lights, and an empty one means none).

@@ -499,14 +499,14 @@ Status: `todo` · `wip` · `done` (gate met) · `partial` (what is missing is na
   (`Native_scene_lowering` cached per frame; regression: `test_workspace_shell_native`), and the workspace graph
   pane painted its grid, zones and wires outside its clip.  `FLOW_CASE=variations` and `FLOW_SHELL=drag|split|close|retype|restore`
   drive the native check in `sketches/flow_workspace`.
-- W11 part A notes. `tools/plisp` (`rays-plisp`, links `flow`, `editor_document`,
+- W11 part A notes. `tools/lisp` (`rays-lisp`, links `flow`, `editor_document`,
   `sop_catalog`; Stdlib only plus `Digestif.SHA256` through `Contexts.sha256`) with
   `check`, `ml`, `dune`, `fmt`; the wiring is `sketches/dune` (`include`,
   the `dune.rays.inc.gen` rule with `glob_files_rec sketch.rays` and `glob_files_rec dune`,
   the runtest `diff`) and the checked-in `sketches/dune.rays.inc`. Proven first on `ws_bloom`:
   `subdir` on a source directory with no `dune` file and `glob_files_rec` both work (dune 3.24,
   lang 3.17), no fallback needed. Adding a sketch: create `sketches/<n>/sketch.rays` (or
-  `dune exec tools/new_example.exe -- --plisp <n>`), `dune build @runtest; dune promote`.
+  `dune exec tools/new_example.exe -- --lisp <n>`), `dune build @runtest; dune promote`.
   All twelve cases are `sketches/ws_<case>/sketch.rays` and each runs 120 frames
   (`dune build @sketches/ws_<case>/smoke-all`, 3-4 s each; the whole-repo `@smoke-all` also
   includes them). A typo fails `dune build ./sketches/ws_bloom/main.exe` with
@@ -523,9 +523,9 @@ Status: `todo` · `wip` · `done` (gate met) · `partial` (what is missing is na
   accepts is what the editor opens. (6) Assets globs are `*.png` and `*.ttf` only
   (`ponytail:`). `Flow.Diagnostic.report` is the OCaml-format printer, used by the tool and by
   `Workspace.main`; `Contexts.catalog_digest` is the SHA-256 of the generated manifest text.
-  Tests: `tools/plisp/test` (cram `check.t` one fixture per class with exact `File` lines,
+  Tests: `tools/lisp/test` (cram `check.t` one fixture per class with exact `File` lines,
   `ml.t`, `dune.t` two sketches / both files error / empty dir; `test_delimiter`) and
-  `test/plisp_build.t` (nested dune on a temp project: a valid sketch yields `main.ml`, a typo
+  `test/lisp_build.t` (nested dune on a temp project: a valid sketch yields `main.ml`, a typo
   fails at its `.rays` line; only `main.ml` is built there because the executables need the
   repo's libraries). The `Workspace` module lives in `rays_editor.ml` (it needs `Editor3`).
   Part B must: read the source file from the walk up to `dune-project` and enable Save (Cmd-S)
@@ -682,7 +682,7 @@ Closed after the W12 audit, in this order (tests are named where they live):
 ### Gap A (2026-09-30, closed)
 
 Cube_cage, shattered_cube, voxel_wall and `examples/sop_gallery` are workspace text (`sketch.rays`, `gallery.rays`,
-embedded by `rays-plisp source`; `Workspace.open_text`, `Workspace.load ?factories`, `Workspace.sop_graphs`).
+embedded by `rays-lisp source`; `Workspace.open_text`, `Workspace.load ?factories`, `Workspace.sop_graphs`).
 Renders were compared to the pre-port screenshots. The flat document path, flat pane, `Flow.Expr`, `Flow.Sexp`,
 value nodes, compounds and expression drives are deleted; the editor tests are written against workspace text
 (`ws_fixture.ml`). Behaviour dropped with the flat pane and what took its place: see "Gap B" (every gesture that has a workspace meaning was restored;

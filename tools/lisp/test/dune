@@ -1,5 +1,5 @@
 (cram
- (deps %{bin:rays-plisp}))
+ (deps %{bin:rays-lisp}))
 
 (copy_files ../delimiter.ml)
 

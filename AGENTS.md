@@ -53,8 +53,8 @@ in a browser, never product code and never a web fallback.
 experiments. Each has its own `dune`, depends only on what it shows, keeps
 framework code out, and runs finitely under `RAYS_MAX_FRAMES`. Scaffold an
 example with `dune exec tools/new_example.exe -- <name>`. A sketch that is only a Flow workspace is
-`sketches/<name>/sketch.rays` with no `dune` or `main.ml` (`--plisp <name>` scaffolds it): `sketches/dune`
-generates its executable with `rays-plisp`, and after adding or removing one you run
+`sketches/<name>/sketch.rays` with no `dune` or `main.ml` (`--lisp <name>` scaffolds it): `sketches/dune`
+generates its executable with `rays-lisp`, and after adding or removing one you run
 `dune build @runtest; dune promote` to update the checked-in `sketches/dune.rays.inc`. Command-S in
 its window rewrites the file (comments kept) and an edit of the file reloads the window. Prefer
 `Rays_editor.Editor3`/`2` for SOP sketches, SOP graphs for geometry, and

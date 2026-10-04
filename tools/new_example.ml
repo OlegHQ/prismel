@@ -34,10 +34,10 @@ let () =
 
 let () =
   let root = ref None in
-  let plisp = ref false in
+  let lisp = ref false in
   let name = ref None in
   let specs = [
-    "--plisp", Arg.Set plisp, " Create sketches/NAME/sketch.rays from the Bloom fixture";
+    "--lisp", Arg.Set lisp, " Create sketches/NAME/sketch.rays from the Bloom fixture";
     "--root", Arg.String (fun r -> root := Some r), "DIR Parent directory (default: examples)";
   ] in
   Arg.parse specs (fun value ->
@@ -45,7 +45,7 @@ let () =
     | None -> name := Some value
     | Some _ -> fail "expected one example name")
     "Create a Rays sketch: dune exec tools/new_example.exe -- NAME";
-  let root = ref (match !root with Some r -> r | None -> if !plisp then "sketches" else "examples") in
+  let root = ref (match !root with Some r -> r | None -> if !lisp then "sketches" else "examples") in
   let name = match !name with Some name -> name | None -> fail "missing NAME" in
   if not (valid_name name) then
     fail "NAME must contain only lowercase letters, digits, _ or -";
@@ -54,7 +54,7 @@ let () =
   if not (Sys.file_exists !root && Sys.is_directory !root) then
     fail "root directory %s does not exist" !root;
   Unix.mkdir directory 0o755;
-  if !plisp then begin
+  if !lisp then begin
     (* ponytail: the fixture is read from the working directory, the repo root *)
     let bloom = In_channel.with_open_bin "specification/workspace/cases/bloom.lisp" In_channel.input_all in
     let bloom = Str.global_replace (Str.regexp_string "bloom_studio") (String.map (function '-' -> '_' | c -> c) name) bloom in
