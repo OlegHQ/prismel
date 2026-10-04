@@ -333,10 +333,16 @@ let film extra (x, y, width, height) =
 
 (* Looking through the camera the tracer renders at the camera's own resolution whatever the
    pane's size; the image is scaled to the film when painted. *)
-let render extra views =
+let render extra ~roots views =
   let views = if not extra.look_through then views else
     List.map (fun (key, (x, y, _, _), camera, scene) ->
       key, (x, y, extra.render.width, extra.render.height), camera, scene) views in
+  (* a viewport over another scene instance renders as that instance's root says *)
+  let views = List.map (fun (key, film, camera, scene) ->
+    key, film, camera, scene,
+    Option.map (fun (root : Objects.Root.parameters) ->
+      { Renderer.mode = of_root root.renderer; bounces = root.bounces; round_samples = root.round_samples })
+      (roots key)) views in
   {extra with renderer = Renderer.update extra.renderer
     ~mode:extra.renderer.mode ~custom:extra.renderer.custom ~bounces:extra.root.bounces
     ~round_samples:extra.root.round_samples views}

@@ -41,7 +41,7 @@ let run () =
   get (Domain.spawn (fun () -> Time.delay_precise_seconds 0.0001)
     |> Domain.join);
   let compiled = compiled_version and linked = linked_version () in
-  if compiled.major <> 3 || compiled.minor <> 4 || compiled.patch <> 16 then
+  if compiled.major <> 3 || compiled.minor <> 4 || compiled.patch <> 18 then
     fail "generated header version changed without fixture review";
   if linked.major < compiled.major
       || (linked.major = compiled.major && linked.minor < compiled.minor) then
@@ -109,15 +109,20 @@ let run () =
    | Error { kind = Invalid_argument; _ } -> ()
    | Ok () | Error _ -> fail "invalid window resize was not rejected");
   let has_flag flag bits = Int64.logand bits flag <> 0L in
-  get (Window.set_bordered window false);
-  get (Window.set_bordered window true);
-  get (Window.set_resizable window false);
+  (* the dummy driver of SDL 3.4.18 reports border, resize and keep-on-top toggles as unsupported *)
+  let unsupported_ok = function
+    | Ok () -> ()
+    | Error { kind = Sdl_error; message; _ } when message <> "" -> ()
+    | Error _ -> fail "window border toggle returned an untyped error" in
+  unsupported_ok (Window.set_bordered window false);
+  unsupported_ok (Window.set_bordered window true);
+  unsupported_ok (Window.set_resizable window false);
   get (Window.sync window);
-  get (Window.set_resizable window true);
+  unsupported_ok (Window.set_resizable window true);
   get (Window.sync window);
-  get (Window.set_always_on_top window true);
+  unsupported_ok (Window.set_always_on_top window true);
   get (Window.sync window);
-  get (Window.set_always_on_top window false);
+  unsupported_ok (Window.set_always_on_top window false);
   (match Window.set_relative_mouse window true with
    | Ok () ->
        if not (get (Window.relative_mouse window)) then

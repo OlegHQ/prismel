@@ -115,11 +115,11 @@
     "SDL_WINDOW_RESIZABLE": 32
   },
   "generator": "prismel-sdl3-clang-inventory-v2",
-  "header_aggregate_sha256": "79a09085bac5528f309a6e4893b32de2764fc3fb38bdec4b7e06dd3214863e62",
+  "header_aggregate_sha256": "58412c6698f7c391403c167d0dcb83f73951b80332ce662a3de4c23f07c79a79",
   "header_version": {
     "major": 3,
     "minor": 4,
-    "patch": 16
+    "patch": 18
   },
   "schema": 1,
   "target_triple": "arm64-apple-darwin25",
@@ -348,7 +348,7 @@
         "x": 28,
         "y": 32
       },
-      "size": 40
+      "size": 48
     },
     "SDL_PenMotionEvent": {
       "alignment": 8,
@@ -386,7 +386,7 @@
         "x": 28,
         "y": 32
       },
-      "size": 40
+      "size": 48
     },
     "SDL_PinchFingerEvent": {
       "alignment": 8,

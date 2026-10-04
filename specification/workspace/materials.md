@@ -68,8 +68,13 @@ Following (one key for every reference, one key back):
 
 Every follow pushes the level and shown graph onto a back stack (32 deep); `u` pops it, and with
 an empty stack goes up to the scene as before. The graph header shows the last three steps of
-the route, `scene > shards > cobalt`. Not done: Command-click on a `(ref ...)` in the text pane,
-dropping an outline row onto a node or a surface, and colour chips inside the inspector choice.
+the route, `scene > shards > cobalt`. `i` in a viewport panel with nothing selected follows to the
+scene it shows (the graph its `(ref scene)` names, else the first scene graph). Command-click on a
+`(ref ...)` in the text pane follows onto the same back stack. The `:material` choice of the
+inspector draws each material's colour as a small square on the closed control and in its menu.
+Not done: dropping an outline row onto a node or a surface. PXUI has no drag-and-drop between
+widgets (payload, drop target, hit rule), and a second one would break the single input path; the
+equivalent gestures are the inspector choice, `Space a` Material of... and the text.
 
 `sketches/shattered_studio/sketch.plisp` uses 12 noisy sheet cutters for a
 Boolean fracture, with piece-seeded groups and four referenced surfaces.

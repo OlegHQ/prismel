@@ -12,6 +12,8 @@ type shown = {
   key : path;  (** what the Selection tab shows and its apply writes: the selected binding's
                    path, else [[graph]] *)
   applied : string Lazy.t;  (** the whole document's text (the draft's dirty mark) *)
+  body : (Flow.Syntax.t * (int * Flow.Diagnostic.span) list) option;
+      (** the Graph tab's graph body and the spans of [text]: what the caret is looked up in *)
 }
 
 type state = {
@@ -29,6 +31,7 @@ type state = {
   parinfer : bool;  (** the closing brackets follow indentation, {!Lisp_text.parinfer_text} (the
                         right-click menu toggles it; on by default) *)
   menu : (float * float) option;  (** the right-click menu while it is open *)
+  picker : (int * int * bool) option;  (** the colour literal being edited: byte range, edited yet *)
   cache : ((Flow.Syntax.t list * Editor_document.Workspace_doc.t option * string * path option * tab) * shown) option;
 }
 
@@ -58,6 +61,12 @@ val line_of : string -> Flow.Diagnostic.t -> int option
 (** The 1-based line of a diagnostic in the text it was checked from: its
     position, else its span. *)
 
+val binding_at : shown -> int -> path option
+(** The path of the innermost binding of the Graph tab whose text holds the byte. *)
+
+val cameras : Flow.Syntax.t list -> string -> string list
+(** The bindings of a scene graph that are [scene/camera] calls. *)
+
 val first_error : state -> Flow.Diagnostic.t option
 
 val summary : state -> string
@@ -86,5 +95,9 @@ type intent =
   | Graph_scrub of string * string * bool
   | Binding_scrub of path * string * bool
   | Toggle_parinfer
+  | Picker of (int * int * bool) option
+      (** the colour literal (byte range with its quotes) whose control is open, and whether an edit was made *)
+  | Open_graph of string  (** Command-click on a [(ref name)]: show that graph (the back stack remembers this one) *)
+  | Select_binding of path  (** the caret moved into this binding of the Graph tab: select its node *)
 
-val view : Pxui.Ui.t -> bounds:int * int * int * int -> vocab:Lisp_text.vocab -> state -> shown -> intent list
+val view : Pxui.Ui.t -> bounds:int * int * int * int -> vocab:Lisp_text.vocab -> names:Lisp_text.names -> state -> shown -> intent list

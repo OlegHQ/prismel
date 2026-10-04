@@ -455,6 +455,8 @@ val text_area_submit :
   t -> at:float * float -> w:float -> h:float -> ?readonly:bool -> ?wrap:bool ->
   ?errors:int list -> ?spans:(int * int) list -> ?reveal:int -> ?language:language ->
   ?on_context:(float * float -> unit) -> ?on_scrub:([ `Live | `Done ] -> unit) ->
+  ?on_click:(int -> bool -> unit) -> ?on_caret:(int -> unit) ->
+  ?chips:(int * int * Prismel.Color.t) list ->
   string -> string -> string * bool
 (** {!text_area} that also reports Command- or Ctrl-Enter pressed in it this frame (the host's
     "apply").  Tab inserts two spaces and Shift-Tab takes up to two leading spaces off the line
@@ -467,7 +469,10 @@ val text_area_submit :
     pointer (a float by a tenth of its last decimal place per point, an integer by one per five
     points, Shift ten times faster): [on_scrub `Live] is called on each frame the returned text
     changed that way and [on_scrub `Done] when the drag ends, so a host can apply the text live
-    and merge the drag into one history entry. *)
+    and merge the drag into one history entry.  [on_click byte command] is called when the area is
+    left-clicked at byte offset [byte] without a drag, [command] being true when Command or Ctrl is
+    held; [on_caret] receives the caret offset each frame the area has focus; [chips] are byte
+    ranges underlined with a colour bar (a colour literal shows its colour). *)
 
 val value_field : t -> at:float * float -> w:float -> h:float ->
   ?size:int -> ?display:string -> ?fraction:float ->
@@ -512,11 +517,12 @@ val context_clicked : signal -> bool
     menu rather than pan. *)
 
 val context_menu :
-  t -> at:float * float -> ?width:float -> ?selected:int -> string -> (string * bool) list ->
-  [ `Open | `Pick of int | `Dismiss ]
+  t -> at:float * float -> ?width:float -> ?selected:int -> ?swatches:Prismel.Color.t option list ->
+  string -> (string * bool) list -> [ `Open | `Pick of int | `Dismiss ]
 (** A floating menu at [at] with [(label, enabled)] rows, as wide as its longest
     row and at least [width] wide, capped to the frame. An empty label is a separator
-    line (never picked). [selected] marks the current choice. The host keeps it
+    line (never picked). [selected] marks the current choice; [swatches] gives a row a small colour square
+    before its label. The host keeps it
     open while this returns [`Open]; a row commits on press and release inside
     it, and Escape, focus loss, or a press outside return [`Dismiss]. Build it
     before content it shields; it floats at the root regardless of its parent. *)

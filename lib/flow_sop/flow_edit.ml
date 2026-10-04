@@ -38,6 +38,7 @@ type op =
   | Group_merge of { nodes : path list; name : string }
   | Set_layout of { graph : string; index : int }
   | Layout_new of { graph : string }
+  | Merge_layouts of { graph : string }
   | Layout_remove of { graph : string }
   | Layout_window of { graph : string; kind : string }
   | Layout_float of { graph : string; at : int list }
@@ -669,14 +670,32 @@ let editor_scope s =
 let workspace_arg sc = match arg_get sc.res (Pos 0) with Some r -> r | None -> fail "The workspace holds no panels."
 
 let is_switch (e : S.t) = head_sym e = Some "ui/switch"
-(* the switch at the root: the binding holding it, or none when it is written in place *)
+(* the first switch of the layout: the root itself, or one nested in its splits, tiles and floats
+   (bound to a name, or written in place); the binding holding it, or none when it is written in place *)
 let switch_place sc =
-  let r = workspace_arg sc in
-  match r.node with
-  | S.Sym n -> (match binding_of sc.ps n with Some e when is_switch e -> Some (Some n, e) | _ -> None)
-  | _ -> if is_switch r then Some (None, r) else None
+  let rec find ~top (e : S.t) = match e.node with
+    | S.Sym n -> (match binding_of sc.ps n with
+        | Some b when is_switch b -> Some (Some n, b)
+        | Some b when layout_binding b -> find ~top:false b
+        | _ -> None)
+    | _ when is_switch e -> if top then Some (None, e) else None
+    | _ -> (match head_sym e with
+        | Some h when List.mem h containers -> List.find_map (find ~top) (layout_kids e)
+        | _ -> None) in
+  find ~top:true (workspace_arg sc)
+
+(* the first switch written in place below the root's splits, tiles and floats *)
+let replace_inline_switch sw (root : S.t) =
+  let found = ref false in
+  let rec go (e : S.t) =
+    if !found then e
+    else if is_switch e then (found := true; keep_notes e sw)
+    else match head_sym e with
+      | Some h when List.mem h containers -> map_children go e
+      | _ -> e in
+  go root
 let set_switch sc ps place sw = match place with
-  | None -> rebuild sc ps (arg_set sc.res (Pos 0) (Some sw))
+  | None -> rebuild sc ps (arg_set sc.res (Pos 0) (Some (replace_inline_switch sw (workspace_arg sc))))
   | Some n -> rebuild sc (List.map (fun (p, e) -> if pat_key p = n then p, keep_notes e sw else p, e) ps) sc.res
 
 let active_of args = match kw_get args "active" with
@@ -1238,6 +1257,48 @@ let rewrite src op : (unit -> S.t list) list =
         let name = fresh used "layout" in
         let sw = arg_set (arg_set sw (Pos n) (Some (sym name))) (Kw "active") (Some (num n)) in
         reorder (set_switch sc (sc.ps @ [ sym name, copy ]) place sw)))
+  | Merge_layouts { graph } -> one (fun () ->
+      (* an older file: the other [:context editor] graphs become layouts of a switch in [graph]; each
+         brings its bindings, renamed [graph_name] so they cannot clash, and then goes *)
+      let editor_graph (i : S.t) = match i.node with
+        | S.List ({ S.node = S.Sym "graph"; _ } :: { S.node = S.Sym _; _ } :: rest) ->
+            let rec has = function
+              | { S.node = S.Kw "context"; _ } :: { S.node = S.Sym "editor"; _ } :: _ -> true
+              | _ :: rest -> has rest
+              | [] -> false in
+            has rest
+        | _ -> false in
+      let others = List.filter_map (fun i -> match root_name i with
+        | Some n when n <> graph && editor_graph i -> Some (n, i) | _ -> None) (snd (workspace_parts src)) in
+      if others = [] then fail "There is one editor graph and nothing to merge.";
+      let used = root_used src graph in
+      let merged = edit_scope src [ graph ] (fun s ->
+        let sc = editor_scope s in
+        let sc, place, sw = match switch_place sc with
+          | Some (place, sw) -> sc, place, sw
+          | None ->
+              let tree = workspace_arg sc in
+              let ps, kid = match tree.node with
+                | S.Sym _ -> sc.ps, tree
+                | _ -> let n = fresh used "layout" in sc.ps @ [ sym n, tree ], sym n in
+              let name = fresh used "switch" and sw = call "ui/switch" [ kid ] in
+              { sc with ps = ps @ [ sym name, sw ]; res = arg_set sc.res (Pos 0) (Some (sym name)) },
+              Some name, sw in
+        let ps, sw = List.fold_left (fun (ps, sw) (name, item) ->
+          let theirs = editor_scope (last_child item) in
+          let names = List.map (fun (p, _) -> pat_key p, fresh used (name ^ "_" ^ pat_key p)) theirs.ps in
+          let rename e = List.fold_left (fun e (old, nw) -> rename_ref old nw e) e names in
+          let own = List.map (fun (p, e) -> sym (List.assoc (pat_key p) names), rename e) theirs.ps in
+          let tree = rename (workspace_arg theirs) in
+          let ps, kid = match tree.node with
+            | S.Sym _ -> ps @ own, tree
+            | _ -> let n = fresh used name in ps @ own @ [ sym n, tree ], sym n in
+          if List.length (positional (List.tl (S.children sw))) >= 10 then
+            fail "Ten layouts is the limit of the digit keys.";
+          ps, arg_set sw (Pos (List.length (positional (List.tl (S.children sw))))) (Some kid)) (sc.ps, sw) others in
+        reorder (set_switch sc ps place sw)) in
+      map_items merged (List.filter (fun i -> match root_name i with
+        | Some n -> not (List.mem_assoc n others) | None -> true)))
   | Layout_remove { graph } -> one (fun () ->
       edit_scope src [ graph ] (fun s ->
         let sc = editor_scope s in
@@ -1289,7 +1350,7 @@ let label = function
   | Remove_graph _ -> "Remove graph"
   | Rename_graph _ -> "Rename graph"
   | Group_merge _ -> "Group"
-  | Set_layout _ -> "Layout" | Layout_new _ -> "New layout" | Layout_remove _ -> "Remove layout"
+  | Set_layout _ -> "Layout" | Merge_layouts _ -> "Merge layouts" | Layout_new _ -> "New layout" | Layout_remove _ -> "Remove layout"
   | Layout_window _ -> "New window" | Layout_float _ -> "Float panel"
 
 let key_text = function

@@ -2,12 +2,12 @@
 type version = { major : int; minor : int; patch : int }
 
 let generator_version = "prismel-sdl3-clang-inventory-v2"
-let header_version = { major = 3; minor = 4; patch = 16 }
-let header_version_number = 3004016
+let header_version = { major = 3; minor = 4; patch = 18 }
+let header_version_number = 3004018
 let stable_headers = true
-let header_aggregate_sha256 = "79a09085bac5528f309a6e4893b32de2764fc3fb38bdec4b7e06dd3214863e62"
+let header_aggregate_sha256 = "58412c6698f7c391403c167d0dcb83f73951b80332ce662a3de4c23f07c79a79"
 let clang_version = "Apple clang version 21.0.0 (clang-2100.1.1.101)"
 let target_triple = "arm64-apple-darwin25"
 let function_count = 1246
 let safe_function_count = 75
-let layout_sha256 = "cd054ab46d68341b3afbf17719108653c1f480e6c397a53c834c0bcf5ebe8e70"
+let layout_sha256 = "2011e9974498dfcccd4ca15eaf0e0c8d58c75f1305bc3a4143bf01c3c13905a7"

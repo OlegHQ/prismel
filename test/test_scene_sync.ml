@@ -11,6 +11,7 @@ module Objects = Editor_document.Objects
 module Layers = Editor_document.Layers
 module Workspace_doc = Editor_document.Workspace_doc
 module Sync = Editor_document.Scene_sync
+module E = Flow.Eval
 
 let check condition message = if not condition then failwith message
 let factories = Sop_catalog.Editor.factories
@@ -837,3 +838,45 @@ let run_compose () =
     ("group: " ^ source grouped);
   same_after_reload grouped "group";
   print_endline "scene compose: add geometry (new and existing), add World, one World, take out and wire back, delete refcount, group ok"
+
+(* Several scene graphs, each with a root of its own: a viewport renders as the root of the scene it
+   shows, with that scene's World *)
+let instances_text = {|(workspace days
+  (graph g :context sop (sop/box))
+  (graph noon :context world (world/sun (world/sky :name "noon") :name "sun"))
+  (graph dusk :context world (world/sun (world/sky :name "dusk") :name "sun"))
+  (graph set :context scene
+    (scene/merge (scene/geometry (ref g) :name "body") (scene/camera :name "hero")))
+  (graph day :context scene
+    (scene/root (scene/merge (ref set) (scene/world (ref noon) :name "Noon")) :renderer "Raster"))
+  (graph night :context scene
+    (scene/root (scene/merge (ref set) (scene/world (ref dusk) :name "Dusk" :exposure -2))
+                :renderer "Path traced" :max_spp 1024 :bounces 12))
+  (graph editor :context editor
+    (ui/workspace (ui/split-at "horizontal" 0.5 (ui/viewport (ref day)) (ui/viewport (ref night))))))|}
+
+let run_instances () =
+  let module R = Objects.Root in
+  let doc = open_text instances_text in
+  let shell = Option.get doc.shell in
+  check (List.length shell.preview_sources = 2) "two viewports, two scene instances";
+  let root_of (_, (source : Document.preview_source)) = Contexts.instance_root source.instance in
+  (match List.map root_of shell.preview_sources with
+   | [ Some day; Some night ] ->
+       check (day.renderer = R.Raster) "day renders raster";
+       check (night.renderer = R.Path_traced && night.max_spp = 1024 && night.bounces = 12)
+         (Printf.sprintf "night's root was not read: %d spp, %d bounces" night.max_spp night.bounces)
+   | _ -> failwith "each viewport's scene instance names its root");
+  check (Contexts.instance_root (E.Struct ("scene/merge", [])) = None) "a part has no root of its own";
+  (* each viewport draws its own World: the document's scene (a part) has none, the two roots do *)
+  check (Objects.ids "world" (scene doc) = []) "the part holds no World";
+  (match doc.view_worlds with
+   | [ (_, Some day); (_, Some night) ] ->
+       check (Procedural.Node.label day.node = "Noon" && Procedural.Node.label night.node = "Dusk")
+         "each viewport's World node is its own";
+       check (Layers.to_world day.node day.layers <> None && Layers.to_world night.node night.layers <> None)
+         "both Worlds bake";
+       check (Layers.to_world day.node day.layers <> Layers.to_world night.node night.layers)
+         "and they differ (exposure, layers)"
+   | _ -> failwith "each viewport over a root names its World");
+  print_endline "scene instances: each viewport has its root and its World ok"

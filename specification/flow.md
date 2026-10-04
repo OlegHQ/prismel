@@ -713,14 +713,21 @@ frame). Existing WAI-ARIA tree keys stay.
 Since W7 the Lisp pane is editable (`Prismel_editor.Text_pane`, `Ui.text_area`).
 Its tabs: Selection (the top-level ancestor of the selected binding as a `let*`
 over the root bindings it needs, the binding marked; an edit is one `Set_arg`),
-Graph (the current graph's text, read-only) and Document (the whole workspace
+Graph (the current graph's text) and Document (the whole workspace
 text; Check and apply is atomic, one "Edit text" history entry, a refused apply
 keeps the draft and marks the error line).  The editor completes as you type (the
 context's kinds, a kind's parameters, slots and choices, special forms, operators,
 bindings in scope; ranked prefix, word, fuzzy, then by group and by use in the text),
 describes the token under the resting pointer, and lets a number be dragged sideways:
 the text applies live on every frame of the drag as one history entry, so the viewport
-follows the value (`Lisp_text`, `Ui.language`).  The pane paints at the shared elastic
+follows the value (`Lisp_text`, `Ui.language`).  The text is one of the pane's two surfaces of the
+same edit: Command-click on a `(ref name)` shows that graph (onto the back stack of `i`); in the Graph
+tab the caret inside a binding selects its node, and selecting a node scrolls the text to its binding;
+a `"#rrggbb"` literal wears its colour as a bar and a click opens the kit's colour control (swatch,
+hex, r g b), each edit applied live as one history entry; and completion after `:material`
+(the material graphs, inserted as `(ref name)`), `:camera` (the scene's cameras), `:active` (the
+layouts, inserted as their index) and inside `(ref ` reads the document, not only the text shown
+(`Lisp_text.names`).  The pane paints at the shared elastic
 scroll position, so it overshoots and settles like every other scrolling view. The qualified-names toggle and the
 network printer of M6 are gone (W12); a document that is not a workspace has no
 text projection. See `workspace/plan.md` W7 and `flow-migration.md`.
@@ -822,13 +829,24 @@ body      = "(" "let*" "[" { name expr } "]" result ")" | result ;
 result    = expr | "(" "values" result_entry { result_entry } ")" ;
 result_entry = expr | ":" name expr ;                       (* values: defgraph only *)
 expr      = literal | "t" | "pi" | name | name "." name | vector
-          | [ "^:bypass" ] "(" head { arg } ")" ;
+          | [ "^:bypass" ] "(" head { arg } ")" | thread ;
+thread    = "(" "->" expr { "(" head { arg } ")" } ")" ;          (* sugar, read as nested calls *)
 vector    = "[" expr expr expr "]" ;
 head      = op | name | namespace "/" name ;
 op        = "+" | "-" | "*" | "/" | "pow" | "min" | "max"
           | "sin" | "cos" | "abs" | "floor" | "sqrt" ;
 arg       = expr | ":" name expr ;       (* positional geometry slots first *)
 ```
+
+`(-> x (f a) (g b))` is read as `(g (f x a) b)`: each step is a call that takes the value before it
+as its first operand, so the text reads in wire order, left to right like the canvas. It is sugar of
+the reader (`Syntax.parse`): nothing after the reader sees a `->`. The outermost call keeps the
+form's id and the span of the whole `(-> ...)`, each step keeps the span of its own clause, and the
+value `x` keeps its own. A step that is not a call, or a `->` with no value, is `E_THREAD`.
+The printer threads a chain of three or more calls of node kinds (a head with a `/`) whose first
+operand is the next call down, and leaves shorter chains, chains with a note or a `^:` flag on a
+link, and every `let*`-named value nested, so print and re-read keep the same forms
+(`test/test_threading.ml` prints and re-reads every checked-in workspace).
 
 A file has exactly one `graph` and any number of `defgraph`s; a definition is
 defined before its first use (single pass, so definitions are acyclic by

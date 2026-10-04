@@ -1152,7 +1152,7 @@ module Inspector = struct
         in
         loop [] items
 
-  let flow_fields ui ?(expanded = []) ?(width = 280.) ?(actions = true) rows =
+  let flow_fields ui ?(expanded = []) ?(width = 280.) ?(actions = true) ?(chips = []) rows =
     let theme = Ui.theme ui in
     let expression text = String.starts_with ~prefix:"=" text
       && String.length (String.trim text) > 1 in
@@ -1222,7 +1222,12 @@ module Inspector = struct
             let fill = if hovered then Pxui.Theme.hover_fill theme else theme.track in
             Ui.Paint.rect paint ~x ~y ~w ~h ~fill
               ~stroke:(if open_ then theme.accent else Pxui.Theme.faint_border theme) ();
-            Ui.Paint.text paint ~at:(x +. 5., y +. 3.) ~size:11
+            let pad = match List.assoc_opt choices.(index) chips with
+              | Some color ->
+                  Ui.Paint.rect paint ~x:(x +. 5.) ~y:(y +. 6.) ~w:9. ~h:9. ~fill:color
+                    ~stroke:(Pxui.Theme.faint_border theme) (); 13.
+              | None -> 0. in
+            Ui.Paint.text paint ~at:(x +. 5. +. pad, y +. 3.) ~size:11
               ~color:theme.foreground choices.(index);
             let cx = x +. w -. 10. and cy = y +. h /. 2. in
             Ui.Paint.fill paint ~x:(cx -. 6.) ~y:(y +. 1.) ~w:15. ~h:(h -. 2.) fill;
@@ -1231,6 +1236,7 @@ module Inspector = struct
           if not open_ || just_opened then [] else
             let bx, by, bw, bh = Ui.rect ui box in
             (match Ui.context_menu ui ~at:(bx, by +. bh) ~width:bw ~selected:index
+                ~swatches:(Array.to_list (Array.map (fun choice -> List.assoc_opt choice chips) choices))
                 (key ^ "-options")
                 (Array.to_list (Array.map (fun choice -> choice, true) choices)) with
              | `Open -> []

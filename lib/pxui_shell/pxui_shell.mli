@@ -217,9 +217,10 @@ module Inspector : sig
     | Pinned of string * bool | Split of string * bool | Reset of string
     | Expression of string * string
   val flow_fields : Pxui.Ui.t -> ?expanded:string list -> ?width:float ->
-    ?actions:bool -> flow_row list -> flow_change list
+    ?actions:bool -> ?chips:(string * Prismel.Color.t) list -> flow_row list -> flow_change list
   (** Responsive rows shared by Flow, scene, World, and compound interface
-      inspectors. [actions=false] hides card pin and split controls. *)
+      inspectors. [actions=false] hides card pin and split controls. A choice named in [chips]
+      wears its colour as a small square, on the closed control and in its menu. *)
 
   val fields : Pxui.Ui.t -> ?expanded:string list -> ?width:float ->
     Editor_core.Param.field_view list -> (string * Editor_core.Param.value) list

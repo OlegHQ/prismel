@@ -17,6 +17,7 @@ type shown = {
   mark : (int * int) option;  (* byte span of the selected binding in [text] *)
   key : path;  (* what the Selection tab shows: the selected binding's path, else [graph] *)
   applied : string Lazy.t;  (* the whole document's text, for the draft's dirty mark *)
+  body : (S.t * (int * Flow.Diagnostic.span) list) option;  (* the graph's body and the spans of [text], for the caret *)
 }
 
 type state = {
@@ -33,12 +34,13 @@ type state = {
   wrap : bool;  (* long lines continue on the next row *)
   parinfer : bool;  (* closing brackets follow indentation (Lisp_text.parinfer_text) *)
   menu : (float * float) option;  (* the right-click menu, while open *)
+  picker : (int * int * bool) option;  (* the colour literal (byte range with its quotes) being edited, and whether it changed *)
   cache : ((S.t list * Editor_document.Workspace_doc.t option * string * path option * tab) * shown) option;
 }
 
 let initial = { tab = Selection; draft = None; binding_draft = None; graph_draft = None;
   doc_base = None; binding_base = None; graph_base = None;
-  doc_errors = []; binding_errors = []; graph_errors = []; wrap = false; parinfer = true; menu = None; cache = None }
+  doc_errors = []; binding_errors = []; graph_errors = []; wrap = false; parinfer = true; menu = None; picker = None; cache = None }
 
 (* ---- reading the source ---- *)
 
@@ -100,6 +102,30 @@ let mark spans (found : (S.t option * S.t) option) = match found with
        | Some a, Some b -> Some (a.Flow.Diagnostic.start, b.finish)
        | None, Some b -> Some (b.start, b.finish)
        | _ -> None)
+
+(* the path of the innermost binding whose text holds [byte] (name through expression) *)
+let binding_at (shown : shown) byte = match shown.body with
+  | None -> None
+  | Some (body, spans) ->
+      let rec within prefix cur = match scope cur with
+        | None -> None
+        | Some (bindings, _) ->
+            List.find_map (fun ((p : S.t), v) ->
+              match span_of spans p, span_of spans v with
+              | Some a, Some b when a.Flow.Diagnostic.start <= byte && byte <= b.Flow.Diagnostic.finish ->
+                  let here = prefix @ [ Flow_sop.Flow_edit.pat_key p ] in
+                  (match within here (enter v) with Some _ as deeper -> deeper | None -> Some here)
+              | _ -> None) bindings in
+      Option.map (fun names -> shown.graph :: names) (within [] body)
+
+(* the bindings of a scene graph that are cameras (the values of [scene/root :camera]) *)
+let cameras source graph =
+  match Option.bind (Option.bind (root_form source graph) last) scope with
+  | None -> []
+  | Some (bindings, _) ->
+      List.filter_map (fun ((p : S.t), v) -> match head_sym v, p.node with
+        | Some "scene/camera", S.Sym n -> Some n
+        | _ -> None) bindings
 
 let plural n what = Printf.sprintf "%d %s%s" n what (if n = 1 then "" else "s")
 
@@ -181,10 +207,10 @@ let make_shown source graph selected tab =
   let applied = lazy (fst (Flow.Lisp.print source)) in
   let key = match selected with Some path -> path | None -> [ graph ] in
   match tab with
-  | Document -> { graph; text = Lazy.force applied; mark = None; key; applied }
+  | Document -> { graph; text = Lazy.force applied; mark = None; key; applied; body = None }
   | Selection | Graph ->
       (match root_form source graph with
-       | None -> { graph; text = ""; mark = None; key; applied }
+       | None -> { graph; text = ""; mark = None; key; applied; body = None }
        | Some root ->
            let names = match selected with Some (_ :: names) -> names | _ -> [] in
            let found = Option.bind (last root) (fun body -> find_binding body names) in
@@ -192,7 +218,8 @@ let make_shown source graph selected tab =
              | Selection, top :: _ -> Option.value ~default:root (closure root top)
              | _ -> root in
            let text, spans = Flow.Lisp.print [ form ] in
-           { graph; text; mark = mark spans found; key; applied })
+           { graph; text; mark = mark spans found; key; applied;
+             body = (if tab = Graph then Option.map (fun body -> body, spans) (last root) else None) })
 
 (* [shown] recomputed only when the source, the graph, the selection or the
    tab changed *)
@@ -273,11 +300,57 @@ type intent =
   | Graph_scrub of string * string * bool
   | Binding_scrub of path * string * bool
   | Toggle_parinfer
+  | Picker of (int * int * bool) option
+  | Open_graph of string
+  | Select_binding of path
 
 let dirty state (shown : shown) = match state.draft with
   | Some d -> d <> Lazy.force shown.applied | None -> false
 
-let view ui ~bounds:(x, y, width, height) ~vocab state (shown : shown) =
+(* The kit's colour control (swatch, hex, r g b) in a popup over the literal [text.[a..b)]:
+   the new literal while it is edited. *)
+let colour_popup ui ~at text (a, b) =
+  let module Ui = Pxui.Ui in
+  let module Color = Prismel.Color in
+  let theme = Ui.theme ui in
+  let literal = String.sub text (a + 1) (b - a - 2) in
+  let colour = Result.value (Color.hex literal) ~default:Color.white in
+  let r, g, bl, _ = Color.to_floats colour in
+  let clamp x = max 0 (min 255 (int_of_float (Float.round (x *. 255.)))) in
+  let alpha = if String.length literal = 9 then String.sub literal 7 2 else "" in
+  let hex r g b = Printf.sprintf "#%02x%02x%02x%s" (clamp r) (clamp g) (clamp b) alpha in
+  let shown = hex r g bl in
+  Ui.popup ui ~stroke:(Pxui.Theme.edge theme) ~at ~width:300. ~height:30. "text-colour" (fun () ->
+    let box, cx, cy, cw = Ui.inspector_row ui ~width:300. ~key:"text-colour-row" ~label:"colour" () in
+    Ui.within ui box (fun () ->
+      let swatch = Ui.box ui ~at:(cx, cy) ~w:(Ui.Px 20.) ~h:(Ui.Px 21.) "text-colour-swatch" in
+      Ui.draw ui swatch (fun paint (sx, sy, sw, sh) ->
+        Ui.Paint.rect paint ~x:sx ~y:sy ~w:sw ~h:sh ~fill:colour ~stroke:(Pxui.Theme.faint_border theme) ());
+      let hex_x = cx +. 24. in
+      let typed, _ = Ui.value_field ui ~at:(hex_x, cy) ~w:58. ~h:21. ~size:11 ~left:true
+          ~valid:(fun t -> Result.is_ok (Color.hex t)) "text-colour-hex" shown in
+      let from_hex = if typed = shown then None else
+          Option.map (fun c -> let r, g, b, _ = Color.to_floats c in hex r g b) (Result.to_option (Color.hex typed)) in
+      let sliders_x = hex_x +. 62. in
+      let field_w = (Float.max 60. (cw -. 90.) -. 8.) /. 3. in
+      let from_slider = List.find_map Fun.id (List.mapi (fun index (axis, cur) ->
+        let ax_x = sliders_x +. float index *. (field_w +. 4.) in
+        Ui.draw ui box (fun paint (x, y, _, _) ->
+          Ui.Paint.text paint ~at:(x +. ax_x, y +. cy +. 3.) ~size:10 ~color:(Pxui.Theme.muted theme) axis);
+        let display = Printf.sprintf "%.2f" cur in
+        let changed, _ = Ui.value_field ui ~at:(ax_x +. 10., cy) ~w:(field_w -. 10.) ~h:21. ~size:11
+            ~display ~fraction:cur ~slide:(fun f -> Printf.sprintf "%.2f" f) ~edit:false ~left:false
+            ~valid:(fun t -> float_of_string_opt t <> None) ("text-colour-" ^ axis) display in
+        if changed = display then None else
+          Option.map (fun v ->
+            let v = Float.max 0. (Float.min 1. v) in
+            hex (if index = 0 then v else r) (if index = 1 then v else g) (if index = 2 then v else bl))
+            (float_of_string_opt changed)) [ "r", r; "g", g; "b", bl ]) in
+      match from_slider with Some _ -> from_slider | None -> from_hex))
+  |> Option.map (fun edit -> String.sub text 0 (a + 1) ^ Option.value ~default:literal edit
+                             ^ String.sub text (b - 1) (String.length text - b + 1))
+
+let view ui ~bounds:(x, y, width, height) ~vocab ~names state (shown : shown) =
   let module Ui = Pxui.Ui in
   let row = float (Ui.row_height ui) in
   let x = float x and y = float y and width = float width and height = float height in
@@ -311,19 +384,47 @@ let view ui ~bounds:(x, y, width, height) ~vocab state (shown : shown) =
   let footer = 2. *. row in
   let body_y = y +. row in
   let body_h = Float.max row (height -. row) in
-  let language = Lisp_text.language ~vocab ~parinfer:state.parinfer theme in
+  let language = Lisp_text.language ~vocab ~names ~parinfer:state.parinfer theme in
   (* the toolbar and the message row under an editable area; a right-click menu offers the same
      buttons and the wrap toggle *)
-  let editor key ~at:(ey, eh) ~text ~errors ~spans ?reveal ~apply ~discard ~can_apply ~message ~draft ~scrub () =
+  let editor key ~at:(ey, eh) ~text ~errors ~spans ?reveal ?(caret_select = fun _ -> None)
+      ~apply ~discard ~can_apply ~message ~draft ~scrub () =
+    let chips = Lisp_text.color_chips text in
     (* a dragged number applies live ([scrub], merged into one history entry); typing is a draft *)
     let phase = ref None in
     let text', submitted = Ui.text_area_submit ui ~at:(x, ey) ~w:width ~h:(Float.max row (eh -. footer))
         ~wrap:state.wrap ~errors:(List.filter_map (line_of text) errors) ~spans ?reveal ~language
-        ~on_context:(fun at -> emit (Menu (Some at))) ~on_scrub:(fun p -> phase := Some p) key text in
+        ~on_context:(fun at -> emit (Menu (Some at))) ~on_scrub:(fun p -> phase := Some p)
+        ~chips
+        (* Command-click follows a (ref name); a click on a colour literal opens the colour control *)
+        ~on_click:(fun byte command ->
+          if command then
+            (match Lisp_text.ref_at text byte with
+             | Some name when List.mem name names.Lisp_text.graphs -> emit (Open_graph name)
+             | _ -> ())
+          else match List.find_opt (fun (a, b, _) -> a <= byte && byte < b) chips with
+            | Some (a, b, _) -> emit (Picker (Some (a, b, false)))
+            | None -> ())
+        (* the caret in a binding selects its node *)
+        ~on_caret:(fun byte -> match caret_select byte with
+          | Some path when path <> shown.key -> emit (Select_binding path)
+          | _ -> ())
+        key text in
     (match !phase with
      | Some `Live -> emit (scrub text' false)
      | Some `Done -> emit (scrub text' true)
      | None -> if text' <> text then emit (draft text'));
+    (* the colour control: each edit applies live as one merged history entry, sealed on close *)
+    let text' = match state.picker with
+      | Some (a, b, changed) when b <= String.length text' && List.exists (fun (a', b', _) -> a = a' && b = b') chips ->
+          (match colour_popup ui ~at:(Float.max x (x +. width -. 310.), ey +. row) text' (a, b) with
+           | Some edited when edited <> text' ->
+               emit (Picker (Some (a, b, true))); emit (scrub edited false); edited
+           | Some _ -> text'
+           | None ->
+               emit (Picker None); if changed then emit (scrub text' true); text')
+      | Some _ -> emit (Picker None); text'
+      | None -> text' in
     let can_apply = can_apply || text' <> text in
     let ty = ey +. Float.max row (eh -. footer) in
     (* Command-Enter in the area is the button *)
@@ -368,8 +469,10 @@ let view ui ~bounds:(x, y, width, height) ~vocab state (shown : shown) =
        let text = match state.graph_draft with
          | Some (g, t) when g = shown.graph -> t | _ -> shown.text in
        let dirty = text <> shown.text in
+       let spans = if dirty then [] else Option.to_list shown.mark in
        editor "text-graph" ~at:(body_y, body_h) ~text ~errors:(real_errors state.graph_errors)
-         ~spans:[] ~apply:(fun t -> Graph_apply (shown.graph, t)) ~discard:Graph_discard ~can_apply:dirty
+         ~spans ?reveal:(if dirty then None else Option.map fst shown.mark)
+         ~caret_select:(fun byte -> if dirty then None else binding_at shown byte) ~apply:(fun t -> Graph_apply (shown.graph, t)) ~discard:Graph_discard ~can_apply:dirty
          ~message:(message state.graph_errors ~dirty
            ~clean:(Printf.sprintf "Edit %s as text; Check & apply checks the whole workspace." shown.graph))
          ~draft:(fun t -> Graph_draft (shown.graph, t))

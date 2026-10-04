@@ -423,6 +423,18 @@ let root_of calls (objects : item list) =
       Ok { params; root_home = Some call.home;
            camera = Option.bind (List.assoc_opt "camera" call.args) (find_call others) }
 
+(* How a viewport's own scene instance renders: its [scene/root]'s settings, none for a part *)
+let instance_root = function
+  | E.Struct ("scene/root", args) ->
+      let own = List.filter (fun (key, _) -> not (List.mem key slot_names)) args in
+      (match E.force (E.Struct ("scene/root", own)) ~live:{ E.t = 0. } with
+       | Ok (E.Struct (_, forced)) ->
+           (match changes "scene/root" forced with
+            | Ok values -> Result.to_option (root_params values)
+            | Error _ -> None)
+       | Ok _ | Error _ -> None)
+  | _ -> None
+
 (* The objects of a workspace: its scene graph's calls, else one geometry object
    per sop graph; and its root. *)
 let items workspace (lowered : Flow_sop.Lower.t) =
@@ -828,6 +840,31 @@ let of_workspace ~factories ?previous (workspace : Workspace_doc.t) =
         calls (Ok []) in
       Ok ((key, extra) :: rest))
     (Option.fold ~none:[] ~some:(fun e -> e.viewports) editor) (Ok []) in
+  (* a viewport over an instance that names another World shows that one (or none) *)
+  let world_calls scene = List.filter (fun (c : call) -> c.kind = "scene/world") (scene_calls scene) in
+  let same_calls a b = try List.map (fun (c : call) -> c.kind, c.args) a = List.map (fun (c : call) -> c.kind, c.args) b
+    with Invalid_argument _ -> false in
+  let default_worlds = Option.fold ~none:[] ~some:world_calls default_scene in
+  let* view_worlds = List.fold_right (fun (key, scene) rest ->
+    let* rest = rest in
+    let own = world_calls scene in
+    if default_scene = None || Option.fold ~none:false ~some:(( == ) scene) default_scene
+       || same_calls own default_worlds then Ok rest
+    else match own with
+      | [] -> Ok ((key, None) :: rest)
+      | call :: _ ->
+          let* item = item_of lowered call in
+          (* the instance is a value: the world graph it references is the call's [world] argument *)
+          let stack = match List.assoc_opt "world" call.args with
+            | Some layers -> loose ~want:is_world_kind ~below:world_below layers
+            | None -> [] in
+          let* graph, id = add_node Edit.empty item.factory item.label in
+          let* graph = apply item.factory graph id item.values in
+          let* layers, _ = layer_network ~homes:[] stack in
+          (match Edit.find graph ~node_id:id with
+           | Some node -> Ok ((key, Some { Document.node; layers }) :: rest)
+           | None -> Error (diag "E_LOWER" "The World of a viewport could not be built.")))
+    (Option.fold ~none:[] ~some:(fun e -> e.viewports) editor) (Ok []) in
   let primary = List.length items in
   let items = items @ List.concat_map snd aux in
   let scene = match previous with
@@ -974,7 +1011,7 @@ let of_workspace ~factories ?previous (workspace : Workspace_doc.t) =
        shell = Option.map (fun e -> { Document.tree = e.tree; origins = e.origins;
                                       named = e.named; wires = e.wires; views; preview_sources = e.preview_sources;
                                       switch = e.switch }) editor;
-       homes; workspace = (workspace, lowered) }
+       view_worlds; homes; workspace = (workspace, lowered) }
 
 (* Only the recorded live fields run; SOP networks, source and panel identities
    stay untouched. Errors leave the caller's last successful picture available. *)

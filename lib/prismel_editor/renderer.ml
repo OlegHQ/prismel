@@ -45,12 +45,16 @@ let schema = Editor_core.Param.schema ~name:"renderer" ~default:Raster
 module P = Prismel_pathtracer
 type cached_mesh = { source : Mesh.t; material : Material.t; geometry : Pdk.Geometry.t;
                      traced : P.mesh }
+(* how one viewport renders: the root of its scene instance, else the document's *)
+type setting = { mode : t; bounces : int; round_samples : int }
 type slot = { key : string; bounds : Pxui_shell.Layout.bounds; scene : Scene3.t;
-              wire : Scene3.t option; tracer : P.t option }
-(* [tracing]: the bounces and round-corner samples the tracers were made with (the root's) *)
+              wire : Scene3.t option; tracer : P.t option; setting : setting }
+(* [mode] and [tracing] are the default setting (the document's root); [raster_only]: every viewport
+   draws as raster, so there are no slots *)
 type state = { mode : t; custom : bool; slots : slot list; meshes : cached_mesh list;
-               error : string option; tracing : int * int }
-let empty = { mode = Raster; custom = false; slots = []; meshes = []; error = None; tracing = 4, 4 }
+               error : string option; tracing : int * int; raster_only : bool }
+let empty = { mode = Raster; custom = false; slots = []; meshes = []; error = None; tracing = 4, 4;
+              raster_only = true }
 let close state = List.iter (fun slot -> Option.iter P.destroy slot.tracer) state.slots
 
 let linear (color : Color.t) = P.Linear_color.rgb
@@ -99,24 +103,30 @@ let traced_scene meshes scene =
   Ok (!cache, mesh)
 
 let update state ~mode ~custom ~bounces ~round_samples views =
-  let state = if state.tracing = (bounces, round_samples) then state
-    else begin close state; { state with slots = []; tracing = bounces, round_samples } end in
-  if custom || mode = Raster then begin
+  (* [views]: key, film, camera, scene and the setting of the viewport's own root, if it has one *)
+  let default : setting = { mode; bounces; round_samples } in
+  let views = List.map (fun (key, bounds, camera, scene, setting) ->
+    key, bounds, camera, scene, Option.value ~default setting) views in
+  if custom || List.for_all (fun (_, _, _, _, (setting : setting)) -> setting.mode = Raster) views then begin
     close state; { empty with mode; custom; tracing = bounces, round_samples }
   end else if List.length views > 16 then begin
-    close state; { empty with mode; error = Some "At most 16 viewports can render together." }
+    close state; { empty with mode; raster_only = false;
+                   error = Some "At most 16 viewports can render together." }
   end else
     let meshes = ref state.meshes and errors = ref [] in
-    let slots = List.map (fun (key, bounds, camera, scene) ->
-      let previous = List.find_opt (fun slot -> slot.key = key) state.slots in
-      let previous = Option.value ~default:{key; bounds; scene = Scene3.empty; wire = None; tracer = None} previous in
-      if mode = Wireframe then
-        {key; bounds; scene; tracer = None; wire = Some (match previous.wire with
+    let slots = List.map (fun (key, bounds, camera, scene, setting) ->
+      let ({ mode; bounces; round_samples } : setting) = setting in
+      let previous = List.find_opt (fun slot -> slot.key = key && slot.setting = setting) state.slots in
+      let previous = Option.value ~default:{key; bounds; scene = Scene3.empty; wire = None; tracer = None; setting}
+          previous in
+      if mode = Raster then {key; bounds; scene; wire = None; tracer = None; setting}
+      else if mode = Wireframe then
+        {key; bounds; scene; tracer = None; setting; wire = Some (match previous.wire with
           | Some wire when previous.scene == scene -> wire | _ -> wire_scene scene)}
       else if (previous.scene != scene || previous.tracer = None)
           && (let found = ref false in
               Scene3.Private.iter_batches (fun _ _ -> found := true) scene; not !found)
-      then {key; bounds; scene; wire = None; tracer = None}
+      then {key; bounds; scene; wire = None; tracer = None; setting}
       else
         let ( let* ) = Result.bind in
         let _, _, width, height = bounds in
@@ -142,7 +152,7 @@ let update state ~mode ~custom ~bounces ~round_samples views =
             then P.set_lights tracer (List.map P.light_of (Scene3.Private.lights scene)) else Ok () in
           let* () = P.set_world tracer (Scene3.Private.world scene) in
           let* () = P.render tracer camera in
-          Ok {key; bounds; scene; wire = None; tracer = Some tracer} in
+          Ok {key; bounds; scene; wire = None; tracer = Some tracer; setting} in
         match render () with
         | Ok slot -> slot
         | Error message -> Option.iter P.destroy !created;
@@ -150,16 +160,17 @@ let update state ~mode ~custom ~bounces ~round_samples views =
             errors := Printf.sprintf "Renderer [%s]: %s (%s)" key message
               (if stale then "stale output retained" else "no output") :: !errors;
             if stale then {previous with bounds}
-            else {key; bounds; scene; wire = None; tracer = None}) views in
+            else {key; bounds; scene; wire = None; tracer = None; setting}) views in
     List.iter (fun previous -> Option.iter (fun tracer ->
       if not (List.exists (fun slot -> Option.fold ~none:false ~some:(fun t -> t == tracer) slot.tracer) slots) then P.destroy tracer)
       previous.tracer) state.slots;
-    {mode; custom; slots; meshes = !meshes; tracing = bounces, round_samples;
+    {mode; custom; slots; meshes = !meshes; tracing = bounces, round_samples; raster_only = false;
      error = if !errors = [] then None else Some (String.concat "; " (List.rev !errors))}
 
 let paint state ~key bounds camera scene =
-  if state.custom || state.mode = Raster then [Scene.view3d ~viewport:bounds ~camera scene]
+  if state.custom || state.raster_only then [Scene.view3d ~viewport:bounds ~camera scene]
   else match List.find_opt (fun slot -> slot.key = key) state.slots with
+    | Some {setting = {mode = Raster; _}; _} -> [Scene.view3d ~viewport:bounds ~camera scene]
     | Some {wire = Some wire; _} -> [Scene.view3d ~viewport:bounds ~camera wire]
     | Some {tracer = Some tracer; bounds = _, _, sw, _; _} -> let x, y, w, _ = bounds in
         (* a fixed render resolution is scaled to the film, so resizing a pane never re-renders *)

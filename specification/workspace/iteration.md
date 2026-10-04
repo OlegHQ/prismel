@@ -362,7 +362,9 @@ come last after `+`. Layouts that read the same add their largest panel and its 
   switches, `Space [ n` adds a copy of the current layout and activates it (a document without a
   switch gets one around its tree; ten layouts at most), `Space [ x` removes the current one (the
   last stays). A switch is `Flow_edit.Set_layout`, history label "Layout"; repeats within 1.5
-  seconds merge into one entry. These edits address a switch at the root of the workspace.
+  seconds merge into one entry. These edits address the first switch of the layout: one at the root
+of the workspace, or nested in its splits, tiles and floats (bound to a name or written in place),
+so a switch that swaps one column is edited where it is.
 - Windows: `Space n` plus a kind letter of `Space l` (`g l t i u m w`) wraps the active layout in a
   split whose second side is `(ui/floating ...)` (`Layout_window`); `Space o f` floats the focused
   docked panel or docks the focused window beside the rest (`Layout_float`). Both rewrite only the
@@ -371,9 +373,13 @@ come last after `+`. Layouts that read the same add their largest panel and its 
 
 An older file with several `:context editor` graphs and `(layout (editor "studio"))` still
 loads: the selected graph is the shell and `Space [` lists the graphs by name (`Select_layout`,
-one undo entry). It is not rewritten on load. `Space [ n` there wraps the selected graph's tree in a switch; the
-other editor graphs stay as written, and are listed again only once they are moved into the switch
-by hand.
+one undo entry). It is not rewritten on load (that would mark an untouched file changed). The first
+`Space [ n` there migrates it in one undo entry, "Merge layouts" (`Flow_edit.Merge_layouts`): the
+other editor graphs join the selected graph's switch (made around its tree when it has none) as
+layouts, in file order, each graph's bindings renamed `graph_name` so they cannot clash, the graphs
+are removed and the selected-layout key of `(layout ...)` is cleared; then the new copy is made as
+usual. Ten layouts at most. There is no top bar any more, so the layouts menu is `Space [`, the
+palette and the switch node itself, which all read the same switch.
 
 ### Panel arrangement
 

@@ -180,7 +180,7 @@ let run_editor () =
     click (x, y); step []; dump_line !e "focus" in
   check (focus_after (30., 300.) = "Outline") "a press in the outline focuses it";
   check (focus_after (float (hx + 30), float (hy + 100)) = "View") "a press in a viewport focuses a viewport";
-  ()
+  E3.close !e
 
 (* Space o ...: the focused panel is split, closed or retyped by keys, the header menu's edits *)
 let run_panel_keys () =
@@ -473,7 +473,8 @@ let run_frame_key () =
   done;
   check (E3.undo_label !e = Some "Frame") ("g made a frame: " ^ Option.value ~default:"-" (E3.undo_label !e));
   check (not (Editor_document.Layout_by_path.Path_map.is_empty (E3.workspace !e).Doc.layout.frames))
-    "the frame is in the layout"
+    "the frame is in the layout";
+  E3.close !e
 
 let panes_graph e = let _, _, w, _ = (E3.panes e (frame (0., 0.) [] 0)).graph in w
 
@@ -519,7 +520,8 @@ let run_ops () =
   refuse "close outside a split" (E.Close_panel { node = [ "editor"; "shell" ] }) "inside a split";
   refuse "an unknown panel type" (E.Set_panel_kind { node = [ "editor"; "network" ]; kind = "dashboard" }) "Unknown panel type";
   refuse "resize a panel" (E.Set_layout_ratio { node = [ "editor"; "network" ]; ratio = 0.4 }) "not a split";
-  refuse "no such binding" (E.Split_panel { node = [ "editor"; "nothing" ]; axis = `H }) "no longer exists"
+  refuse "no such binding" (E.Split_panel { node = [ "editor"; "nothing" ]; axis = `H }) "no longer exists";
+  E3.close plain; E3.close e
 
 (* an editor graph that hides everything is valid; Restore layout brings the default back *)
 let run_restore () =
@@ -553,7 +555,8 @@ let run_restore () =
   e := bricked; step [];
   step [ key Input.Space; key (Input.KeyChar 'z') ]; step [];
   step [ key Input.Space; key (Input.KeyChar 'z') ]; step [];
-  check (panes_graph !e = 0) "the second Space z returns to the editor graph"
+  check (panes_graph !e = 0) "the second Space z returns to the editor graph";
+  E3.close !e
 
 (* one orbit camera per viewport: the drag of the focused viewport moves only it, and focusing
    another keeps what each one showed *)
@@ -642,13 +645,38 @@ let run_cameras () =
        (dump_line !e "pane graph") (scope_selected ()));
   E3.close !e
 
+(* two roots, two Worlds, two viewports: the editor composes and draws a view for each *)
+let run_instances () =
+  let text = {|(workspace days
+  (graph g :context sop (sop/box))
+  (graph noon :context world (world/sun (world/sky :name "noon") :name "sun"))
+  (graph dusk :context world (world/sun (world/sky :name "dusk") :name "sun"))
+  (graph set :context scene
+    (scene/merge (scene/geometry (ref g) :name "body") (scene/camera :name "hero")))
+  (graph day :context scene
+    (scene/root (scene/merge (ref set) (scene/world (ref noon) :name "Noon")) :renderer "Raster"))
+  (graph night :context scene
+    (scene/root (scene/merge (ref set) (scene/world (ref dusk) :name "Dusk" :exposure -2))
+                :renderer "Path traced" :max_spp 1024 :bounces 12))
+  (graph editor :context editor
+    (ui/workspace (ui/split-at "horizontal" 0.5 (ui/viewport (ref day)) (ui/viewport (ref night))))))|} in
+  let e = ref (editor text) in
+  for c = 1 to 12 do e := E3.update !e (frame (450., 300.) [] c) done;
+  check (List.length (E3.objects !e) >= 1 && Option.is_some (E3.prepared !e))
+    (Printf.sprintf "the editor did not cook (cook %s)" (dump_line !e "cook"));
+  check (not (has (dump_line !e "edit error") "Failure")) ("an error composing the views: " ^ dump_line !e "edit error");
+  E3.close !e
+
 (* the frame draws one 3D layer per viewport, each over its own scene instance *)
 let run_views () =
   let e = ref (editor (case "variations")) in
   for c = 1 to 12 do e := E3.update !e (frame (450., 300.) [] c) done;
-  check (List.length (E3.objects !e) >= 1 && Option.is_some (E3.prepared !e)) "the editor did not cook";
+  check (List.length (E3.objects !e) >= 1 && Option.is_some (E3.prepared !e))
+    (Printf.sprintf "the editor did not cook (%d objects, prepared %b, cook %s)" (List.length (E3.objects !e))
+       (Option.is_some (E3.prepared !e)) (dump_line !e "cook"));
   for c = 200 to 230 do e := E3.update !e (frame (450., 300.) [] c) done;
   let scene = E3.scene !e (frame (450., 300.) [] 231) in
+  E3.close !e;
   match Scene.Private.stage_native ~width:900 ~height:640 scene with
   | Error m -> fail m
   | Ok staged ->
@@ -1090,6 +1118,31 @@ let run_layouts () =
   check (Panels.label (shell_of (build_ok floated)).tree = "View | Inspector + Graph") ("a panel floats: " ^ text floated);
   let docked = edit floated (E.Layout_float { graph = "editor"; at = [ 1; 0 ] }) in
   check (Panels.label (shell_of (build_ok docked)).tree = "View | Inspector | Graph") ("a window docks: " ^ text docked);
+  (* a switch inside a split edits in place *)
+  let nested = of_text (with_editor "    (ui/workspace (ui/split-at \"horizontal\" 0.5 (ui/graph) (ui/switch (ui/lisp) (ui/inspector) :active 1)))") in
+  let n_set = edit nested (E.Set_layout { graph = "editor"; index = 0 }) in
+  check (has (text n_set) "(ui/switch (ui/lisp) (ui/inspector) :active 0)" || has (text n_set) ":active 0")
+    ("Set_layout reaches a switch inside a split: " ^ text n_set);
+  check (Panels.to_string (shell_of (build_ok n_set)).tree = "(h graph lisp)") "and the column swaps";
+  let n_new = edit nested (E.Layout_new { graph = "editor" }) in
+  check (Panels.to_string (shell_of (build_ok n_new)).tree = "(h graph inspector)"
+         && (match (shell_of (build_ok n_new)).switch with Some sw -> List.length sw.layouts = 3 | None -> false))
+    ("a new layout joins the nested switch: " ^ text n_new);
+  (* an older file: several editor graphs become the layouts of one switch *)
+  let old_text =
+    let t = with_editor "    (let* [a (ui/graph) b (ui/lisp) s (ui/split \"horizontal\" a b)] (ui/workspace s))" in
+    String.sub t 0 (String.length t - 2)
+    ^ "\n  (graph second :context editor\n    (let* [a (ui/lisp) b (ui/inspector) s (ui/split \"vertical\" a b)] (ui/workspace s))))\n" in
+  let old = of_text old_text in
+  let merged = edit old (E.Merge_layouts { graph = "editor" }) in
+  check (not (has (text merged) "(graph second") && has (text merged) "second_a" && has (text merged) "(ui/switch")
+    ("the other editor graph joins the switch: " ^ text merged);
+  (match (shell_of (build_ok merged)).switch with
+   | Some sw -> check (List.length sw.layouts = 2 && List.map Panels.label sw.layouts = [ "Graph | Lisp"; "Lisp / Inspector" ])
+       ("the merged layouts: " ^ String.concat " / " (List.map Panels.label sw.layouts))
+   | None -> fail "no switch after merging");
+  (match Doc.edit catalog merged (E.Merge_layouts { graph = "editor" }) with
+   | Error _ -> () | Ok _ -> fail "merged with nothing to merge");
   (* a workspace without a switch gets one on the first new layout *)
   let plain = of_text (replace (replace switch_text "(ui/switch build write look :active 0)" "build") "write (" "write (") in
   let wrapped = edit plain (E.Layout_new { graph = "editor" }) in
@@ -1117,7 +1170,7 @@ let run_layouts () =
   check (E3.undo_label !e = Some "Float panel" || E3.undo_label !e = Some "New window")
     "Space o f is one edit or refused with a notice"
 
-let run () = run_layouts (); run_compose (); run_ref_picker (); run_result_view (); run_panel_states (); run_camera_zoom (); run_cameras (); run_lowering (); run_ops (); run_panel_keys (); run_unbound_panels (); run_values (); run_duplicate_and_view (); run_movers (); run_frame_key (); run_loop_copies (); run_loop_expression (); run_editor (); run_restore (); run_views ()
+let run () = run_layouts (); run_compose (); run_ref_picker (); run_result_view (); run_panel_states (); run_camera_zoom (); run_cameras (); run_lowering (); run_ops (); run_panel_keys (); run_unbound_panels (); run_values (); run_duplicate_and_view (); run_movers (); run_frame_key (); run_loop_copies (); run_loop_expression (); run_editor (); run_restore (); run_views (); run_instances ()
 
 (* Native VIEW regression over the reported sketch, including its piece renderer and a following
    camera. Moving the camera rebuilds the lowering while preserving an unchanged object network. *)

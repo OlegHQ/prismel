@@ -54,6 +54,10 @@ type preview_source = {
   instance : Flow.Eval.value;
 }
 
+(* The World a viewport over another scene instance shows: the node holding its fields and the
+   network of its layers (they are not in the scene) *)
+type view_world = { node : Node.t; layers : network }
+
 type switch = { layouts : Editor_core.Panels.t list; active : int }
 
 (* The lowered editor graph (plan W10): the shell tree, the origin of each named or
@@ -77,6 +81,9 @@ type t = {
   root : Objects.Root.parameters;  (* how the scene renders: the root's settings, else the defaults *)
   settings : Settings.t;
   shell : shell option;  (* the [editor] graph of the workspace, if it has one *)
+  view_worlds : (string * view_world option) list;
+  (* a viewport over a scene instance that names another World than the document's: its World
+     (none: that instance has none); a viewport not listed shows the document's *)
   homes : homes;  (* where each derived object is written in the text *)
   scene_drives : (string * (Flow_sop.Port.parameter * Flow.Eval.value) list) Int_map.t;
   (* Residual light fields, resolved for composition; never written into history. *)
@@ -213,6 +220,8 @@ let dump value =
     graph n.graph in
   net "scene" value.scene;
   Int_map.iter (fun id n -> net (Printf.sprintf "object %d" id) n) value.networks;
+  List.iter (fun (key, world) -> line "view %s world %s" key (match world with
+    | Some (w : view_world) -> Printf.sprintf "%S" (Node.label w.node) | None -> "-")) value.view_worlds;
   line "camera %s" (match value.active_camera with Some c -> string_of_int c | None -> "-");
   line "root %s" (fields (Objects.Root.fields value.root));
   line "settings %s" (fields (Settings.fields value.settings));

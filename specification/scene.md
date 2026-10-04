@@ -219,6 +219,12 @@ so playback and `Sketch.export` with `Fixed dt` are deterministic. See
 - Two levels only; cameras cannot be parented.
 - Ghosting is a blend, not a material override.
 - Reparenting drops shear (a non-uniformly scaled parent).
-- A scene has one World (`E_SCENE_WORLD`); a viewport over another scene instance has the document's
-  root and World, not its own.
+- A scene has one World (`E_SCENE_WORLD`). A viewport over another scene instance renders as that
+  instance's own root (`Contexts.instance_root`: renderer, `max_spp`, bounces, round samples; `Core.view_root_opt`,
+  `Renderer.setting` per viewport slot, so a raster and a path-traced viewport can sit side by side)
+  and shows that instance's own World (`Document.view_worlds`: the node and the layers of the
+  `scene/world` its merge holds, none when it holds none). Only the document's own scene (the first
+  scene graph) has scene objects in the list; the instance of a viewport is shown, not edited, so
+  its root and World are edited in their graph. The instance's resolution and camera are still the
+  document's.
 - A legacy `world/world` file keeps its spelling until the World is deleted and added again.

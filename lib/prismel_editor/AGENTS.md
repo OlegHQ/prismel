@@ -108,10 +108,20 @@ supported; source/history are unchanged when an edit is refused.
   items.  The editor graph's panels are editable by `Space o` keys and the header menu even when written in place (the
   call holding them is unfolded) or made by a loop (a retype edits the loop's template).  Scene objects made by a loop are copies of one template: an edit, a rename or `=(expression)` writes the template, a delete rewrites the collection or asks to delete the whole loop.
 - Text pane: `Ui.text_area` keeps Tab (two spaces), wraps long lines and reports Command/Ctrl-Enter; the Graph tab is
-  editable (`Set_graph`, one "Edit text" entry); Command-Enter applies in every editable tab.
+  editable (`Set_graph`, one "Edit text" entry); Command-Enter applies in every editable tab.  The text and the
+  graph are two views of one edit: `Ui.text_area_submit ~on_click ~on_caret ~chips` report a click (with Command),
+  the caret and colour bars; `Text_pane` turns them into `Open_graph` (Command-click a `(ref name)`: `Core.go`, the back
+  stack), `Select_binding` (the caret in a Graph-tab binding selects its node, through the span map of the printed
+  text; never while a draft is unapplied) and `Picker` (the colour control, a popup whose edits are `*_scrub`
+  entries sealed on close).  Completion beyond the text shown comes from `Core.completion_names` (`Lisp_text.names`).
+  Never match strings in the text for these: the lexer and the span map are the only readers.
 - Each viewport keeps its own orbit (`Environment.follow_focus`, `viewport_camera`); a camera following the viewport
   is written by the focused one only.  A click picks in the focused viewport's scene instance, selects a collapsed
   loop instead of a node inside it, and 2D editors pick the same way (a ray down onto the plane).
+- A viewport over another scene instance renders as its instance (`Core.view_root_opt` for the root, `Core.world ~view`
+  and `Document.view_worlds` for the World); `Renderer` keeps one setting per viewport slot. Every editor a test
+  creates is closed (`E3.close`): each one holds worker domains and the runtime allows 128, so a leak shows as
+  "failed to allocate domain" in whichever test runs last.
 - Tests never wait on the clock for a cook: `Editor3/2.create ~await:true` blocks each frame on the cook it
   submits; bounded frame counts replace deadlines; deadlines left are failure bounds only.
 

@@ -981,6 +981,7 @@
         "SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_RIGHT",
         "SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_PAIR",
         "SDL_GAMEPAD_TYPE_GAMECUBE",
+        "SDL_GAMEPAD_TYPE_STEAM",
         "SDL_GAMEPAD_TYPE_COUNT"
       ],
       "header": "SDL3/<clang-elided-source>",
@@ -1579,6 +1580,7 @@
         "SDL_SCANCODE_CLEARAGAIN",
         "SDL_SCANCODE_CRSEL",
         "SDL_SCANCODE_EXSEL",
+        "SDL_SCANCODE_FRONT",
         "SDL_SCANCODE_KP_00",
         "SDL_SCANCODE_KP_000",
         "SDL_SCANCODE_THOUSANDSSEPARATOR",
@@ -10570,20 +10572,20 @@
     }
   ],
   "generator": "prismel-sdl3-clang-inventory-v2",
-  "header_aggregate_sha256": "79a09085bac5528f309a6e4893b32de2764fc3fb38bdec4b7e06dd3214863e62",
+  "header_aggregate_sha256": "58412c6698f7c391403c167d0dcb83f73951b80332ce662a3de4c23f07c79a79",
   "header_version": {
     "major": 3,
     "minor": 4,
-    "patch": 16
+    "patch": 18
   },
   "headers": [
     {
       "path": "SDL3/SDL.h",
-      "sha256": "6985a5d648e45b9e71be852ab7bcece191d748c4c2fc273535f56e1c3f0bd62d"
+      "sha256": "3b02825b3ae3f1482661ed76a7a28486fa1b8ec9e32d23e9c7ded0c79780448b"
     },
     {
       "path": "SDL3/SDL_assert.h",
-      "sha256": "0832e7ba5084c0aaaee64bfaed031b05be07bcdd399e28f69c04c9bbd2dbf19a"
+      "sha256": "605c6954fb99534ede6201e586c8df95cddc074d1767feb9546fbc9c520569a3"
     },
     {
       "path": "SDL3/SDL_asyncio.h",
@@ -10651,7 +10653,7 @@
     },
     {
       "path": "SDL3/SDL_events.h",
-      "sha256": "f7533694c727782eb41728e406745f5c7cf1daab7edbadbeb0b27ea7bddb844c"
+      "sha256": "df509bcdb9fb84ad82ebfbd3d77eb8176e0c34ed5dc54044f8e20e97e72214f7"
     },
     {
       "path": "SDL3/SDL_filesystem.h",
@@ -10659,11 +10661,11 @@
     },
     {
       "path": "SDL3/SDL_gamepad.h",
-      "sha256": "55350e07e9569d70a25643e578edb53bce60867aebb2a3550b00250033f60a8b"
+      "sha256": "93beab034992a9ff3392dfbfb461862fca22301ea5eb9f7d96c2dc37457fb487"
     },
     {
       "path": "SDL3/SDL_gpu.h",
-      "sha256": "e6061d4e5278e6903b2cf282ac4f7ac38c543dc28d260918a480ab92f11dd66d"
+      "sha256": "126b7407f5a81448a8888e435dee49a1c1c9808e6c3f4eb93a91778066b8c3e5"
     },
     {
       "path": "SDL3/SDL_guid.h",
@@ -10683,7 +10685,7 @@
     },
     {
       "path": "SDL3/SDL_init.h",
-      "sha256": "54f65b10221de0e1ee59b99d01661a56472bc9abb05690c0d5bd787670965a8d"
+      "sha256": "4b13bf96c7f2c2efd1bdf9d935ab0d436cd238d626f5f09bd7f27adeff27b0c7"
     },
     {
       "path": "SDL3/SDL_intrin.h",
@@ -10703,7 +10705,7 @@
     },
     {
       "path": "SDL3/SDL_keycode.h",
-      "sha256": "82c54f5b995c952d6bda3dae6a409d0115b604ee17da3c77de8fe62dbb9c8e60"
+      "sha256": "398e8d68d97b1e197678401fbf900eb41860cc5bf2637fc5319779f4dee1e3a3"
     },
     {
       "path": "SDL3/SDL_loadso.h",
@@ -10723,7 +10725,7 @@
     },
     {
       "path": "SDL3/SDL_main_impl.h",
-      "sha256": "e2084e6e8ca5ef1c6948ae2de406e82c0df45bf910c90260433abaa24f232970"
+      "sha256": "ef2417b2cd9af57ab31a960e89b71af777a3813f1ce633570269ba4c3cdd4831"
     },
     {
       "path": "SDL3/SDL_messagebox.h",
@@ -10819,11 +10821,11 @@
     },
     {
       "path": "SDL3/SDL_revision.h",
-      "sha256": "aa6be2b4eb01a5d2aac6546ae53d68b70509d7f27b6b95b061ce5f23d4235dbe"
+      "sha256": "22729d37b87545769c9677a955b9f69c2c5dae7bc0d04650d979f478382586fa"
     },
     {
       "path": "SDL3/SDL_scancode.h",
-      "sha256": "d5e3bb25b523b61ed354189919f2bcb058f0f2fa08e0529ce8e21480937c8ca5"
+      "sha256": "c55b3c2411c35da009ab3d60b6e9d33207360d00bbfc3d438cb83cc08c61d2da"
     },
     {
       "path": "SDL3/SDL_sensor.h",
@@ -10911,7 +10913,7 @@
     },
     {
       "path": "SDL3/SDL_version.h",
-      "sha256": "eb6980d4252ca80970f47ecd56097b306e76f32765478dbbe52490fe8dddde1b"
+      "sha256": "fe0a9e9611e8bbac47e3d781a7d832b17a0f29ff2f1941862793fb87cb205e32"
     },
     {
       "path": "SDL3/SDL_video.h",
@@ -15066,7 +15068,7 @@
     {
       "classification": "raw-only",
       "name": "SDL_MICRO_VERSION",
-      "value": "16"
+      "value": "18"
     },
     {
       "classification": "raw-only",
@@ -20308,7 +20310,8 @@
         "x",
         "y",
         "axis",
-        "value"
+        "value",
+        "device_type"
       ],
       "header": "SDL3/<clang-elided-source>",
       "kind": "struct",
@@ -20326,7 +20329,8 @@
         "x",
         "y",
         "button",
-        "down"
+        "down",
+        "device_type"
       ],
       "header": "SDL3/<clang-elided-source>",
       "kind": "struct",
@@ -20342,7 +20346,8 @@
         "which",
         "pen_state",
         "x",
-        "y"
+        "y",
+        "device_type"
       ],
       "header": "SDL3/<clang-elided-source>",
       "kind": "struct",
@@ -20356,7 +20361,8 @@
         "timestamp",
         "windowID",
         "which",
-        "pen_state"
+        "pen_state",
+        "device_type"
       ],
       "header": "SDL3/<clang-elided-source>",
       "kind": "struct",
@@ -20374,7 +20380,8 @@
         "x",
         "y",
         "eraser",
-        "down"
+        "down",
+        "device_type"
       ],
       "header": "SDL3/<clang-elided-source>",
       "kind": "struct",

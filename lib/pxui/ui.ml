@@ -3302,10 +3302,11 @@ let picker ui ?(limit = 10) label ~query rows_of =
 (* A floating kit menu at [at], kept inside the frame. The host holds whether
    it is open; rows commit on press and release inside, disabled rows are
    inert, and Escape, focus loss, or a press outside dismiss it. *)
-let context_menu ui ~at:(x, y) ?width ?selected label items =
+let context_menu ui ~at:(x, y) ?width ?selected ?(swatches = []) label items =
   (* the width follows the longest row; an empty label is a separator line *)
   let row_height = float ui.kit_row_height and gap = 7. in
-  let width = List.fold_left (fun w (text, _) -> Float.max w (text_width ui text +. 36.))
+  let swatch_pad = if List.exists Option.is_some swatches then 14. else 0. in
+  let width = List.fold_left (fun w (text, _) -> Float.max w (text_width ui text +. 36. +. swatch_pad))
     (Option.value ~default:150. width) items |> Float.min ui.view_w in
   let height = List.fold_left (fun h (text, _) -> h +. (if text = "" then gap else row_height)) 6. items in
   let x = Float.max 0. (Float.min x (ui.view_w -. width))
@@ -3334,8 +3335,12 @@ let context_menu ui ~at:(x, y) ?width ?selected label items =
               Paint.line paint ~from_:(float rx +. 10., cy +. 3.) ~to_:(float rx +. 16., cy -. 4.)
                 ~width:1.5 theme.accent
             end;
+            Option.iter (fun color ->
+              Paint.rect paint ~x:(float rx +. (if selected = None then 8. else 20.)) ~y:(float y +. float h /. 2. -. 4.)
+                ~w:8. ~h:8. ~fill:color ~stroke:(Theme.faint_border theme) ())
+              (Option.join (List.nth_opt swatches index));
             kit_text paint ~color:(if enabled then theme.foreground else Theme.muted theme)
-              (rx + (if selected = None then 12 else 24)) (label_y ui y h) shown);
+              (rx + (if selected = None then 12 else 24) + int_of_float swatch_pad) (label_y ui y h) shown);
           if enabled && signal.clicked then Some index else None
         end) items
       |> List.find_map Fun.id) with

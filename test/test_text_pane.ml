@@ -63,6 +63,29 @@ let selection_text () =
   check (not (contains g.text "(defn petal")) "the graph tab shows the active graph only";
   let d = T.make_shown bloom "flower" None T.Document in
   check (contains d.text "(defn petal" && contains d.text "(graph world") "document tab is the whole workspace";
+  (* the caret in a binding is that binding's path; outside every binding it is none *)
+  let offset part = let rec at i = if String.sub g.text i (String.length part) = part then i else at (i + 1) in at 0 in
+  check (T.binding_at g (offset "leaf (" + 6) = Some [ "flower"; "ring"; "leaf" ]) "binding_at: a nested binding";
+  check (T.binding_at g 0 = None) "binding_at: the header is no binding";
+  check (T.binding_at d 5 = None) "binding_at: the Document tab has none";
+  (* Command-click, colour chips and the document-aware completions *)
+  let module L = Prismel_editor.Private.Lisp_text in
+  let sample = "(sop/material geo :material (ref cobalt) :tint \"#ff8000\" :note \"#zzzzzz\")" in
+  check (L.ref_at sample 30 = Some "cobalt" && L.ref_at sample 40 = Some "cobalt") "ref_at: inside the form";
+  check (L.ref_at sample 5 = None) "ref_at: elsewhere";
+  (match L.color_chips sample with
+   | [ (a, b, c) ] -> check (String.sub sample a (b - a) = "\"#ff8000\"" && Prismel.Color.to_tuple c = (255, 128, 0, 255)) "color_chips: the literal"
+   | _ -> fail "color_chips: only the valid literal");
+  let names = { L.materials = [ "cobalt"; "brass" ]; cameras = [ "cam" ]; layouts = [ "View | Graph"; "Lisp" ];
+    graphs = [ "cobalt"; "brass"; "shards" ] } in
+  let labels text = List.map (fun (c : Pxui.Ui.completion) -> c.label, c.insert)
+    (L.complete ~names (L.vocab []) text (String.length text)) in
+  check (labels "(sop/material geo :material " = [ "brass", "(ref brass)"; "cobalt", "(ref cobalt)" ]
+         || labels "(sop/material geo :material " = [ "cobalt", "(ref cobalt)"; "brass", "(ref brass)" ])
+    "completion: :material lists the material graphs";
+  check (labels "(scene/root m :camera " = [ "cam", "cam" ]) "completion: :camera lists the cameras";
+  check (labels "(ui/switch a b :active " = [ "0 View | Graph", "0"; "1 Lisp", "1" ]) "completion: :active lists the layouts";
+  check (List.mem ("shards", "shards") (labels "(sop/material geo :material (ref sh")) "completion: ref offers every graph";
   (* an error's line: a position, else the span *)
   let d = Flow.Diagnostic.error ~position:{ line = 4; col = 2 } ~code:"E_X" "x" in
   check (T.line_of "a\nb\nc\nd" d = Some 4) "line from position";

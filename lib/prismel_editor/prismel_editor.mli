@@ -176,7 +176,10 @@ module Private : sig
       mark : (int * int) option;
       key : string list;
       applied : string Lazy.t;
+      body : (Flow.Syntax.t * (int * Flow.Diagnostic.span) list) option;
     }
+    val binding_at : shown -> int -> string list option
+    (** The path of the innermost binding of the Graph tab whose text holds a byte. *)
     val make_shown : Flow.Syntax.t list -> string -> string list option -> tab -> shown
     val line_of : string -> Flow.Diagnostic.t -> int option
     val binding : Flow.Syntax.t list -> string list -> (Flow.Syntax.t option * Flow.Syntax.t) option
@@ -188,14 +191,22 @@ module Private : sig
     val vocab : Flow_sop.Catalog.descriptor list -> vocab
     val indent : string -> int -> string
     val brackets : string -> (int * int) list
-    val complete : vocab -> string -> int -> Pxui.Ui.completion list
+    type names = { graphs : string list; materials : string list; cameras : string list; layouts : string list }
+    (** What the document knows beyond the text shown: every graph, the material graphs, the
+        cameras of the scene, the layout names (the values of [:material], [:camera], [:active]). *)
+    val no_names : names
+    val complete : ?names:names -> vocab -> string -> int -> Pxui.Ui.completion list
     (** The ranked completions for the token ending at the caret. *)
+    val ref_at : string -> int -> string option
+    (** The graph named by the [(ref name)] form at a byte. *)
+    val color_chips : string -> (int * int * Prismel.Color.t) list
+    (** The ["#rrggbb"] literals of a text, as byte ranges with their colour. *)
     val describe : vocab -> string -> int -> (int * int * string) option
     val number_at : string -> int -> (int * int) option
     val parinfer_text : string -> int -> string * int
     (** Parinfer's indent mode: the text with its closing brackets inferred from indentation,
         and where the caret lands. *)
-    val language : ?vocab:vocab -> ?parinfer:bool -> Pxui.Theme.t -> Pxui.Ui.language
+    val language : ?vocab:vocab -> ?names:names -> ?parinfer:bool -> Pxui.Theme.t -> Pxui.Ui.language
   end
 
   (** The host bars: where their buttons sit. *)

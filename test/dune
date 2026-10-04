@@ -19,6 +19,13 @@
  (deps ../sketches/shattered_studio/sketch.plisp)
  (action (run %{test} %{dep:../sketches/shattered_studio/sketch.plisp})))
 
+(test
+ (name test_threading)
+ (modules test_threading)
+ (libraries flow)
+ (deps (source_tree ../sketches) (source_tree ../examples) (source_tree ../specification/workspace/cases))
+ (action (run %{test} ../sketches ../examples ../specification/workspace/cases)))
+
 (rule
  (aliases runtest test_prismel)
  (action (run %{exe:test_main.exe} test_prismel)))
@@ -159,7 +166,7 @@
   ../packaging/conf-sdl3-mixer/conf-sdl3-mixer.opam)
  (action
   (progn
-   (run %{exe:../tools/packaging/check_sdl3_conf.exe} sdl3 3.4.16)
+   (run %{exe:../tools/packaging/check_sdl3_conf.exe} sdl3 3.4.18)
    (run %{exe:../tools/packaging/check_sdl3_conf.exe}
     sdl3-image 3.4.4)
    (run %{exe:../tools/packaging/check_sdl3_conf.exe}

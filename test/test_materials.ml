@@ -169,6 +169,12 @@ let follow_tests () =
   check (pane () = "cobalt") ("Alt-click opens the material of the surface: " ^ pane () ^ " / " ^ route ());
   jump "scene";
 
+  (* i in a viewport with nothing selected follows to the scene it shows *)
+  jump "shards";
+  click (float vx +. 4., float vy +. 4.);
+  step [ ch 'i' ]; step [];
+  check (pane () = "scene") ("i in a viewport follows to its scene: " ^ pane () ^ " / " ^ route ());
+
   (* rename: the graph and every (ref) to it, one undo entry *)
   let renamed = match E3.edit !e (Edit.Rename_graph { name = "cobalt"; to_ = "navy" }) with
     | Ok e -> e | Error m -> fail m in

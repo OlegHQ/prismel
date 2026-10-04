@@ -939,3 +939,26 @@ native renderer isolation check in `test_editor_consistency_native`.
 
 The report distinguishes these fixes from frozen non-SOP time, startup-only
 runtime settings, Selection draft limitations and preview identity/provenance debt.
+
+## Scene root, reachable materials, layout switch, lighter kit (4 October 2026, step 7 and leftovers)
+
+- Text pane: Command-click on `(ref name)` follows onto the back stack; the caret in a Graph-tab
+  binding selects its node and a selected node scrolls the text; `"#rrggbb"` literals wear their colour
+  and open a colour control; `:material`, `:camera`, `:active` and `(ref` complete from the document.
+  `test_text_pane` covers `binding_at`, `ref_at`, `color_chips` and the completions.
+- `->` is in the reader and the printer (`lib/flow`, `test_threading` prints and re-reads every checked-in
+  workspace; none of them has a three-call unnamed chain, so no golden changed).
+- Leftovers: `i` in a viewport follows to its scene; colour chips on the inspector `:material` choice
+  (`Ui.context_menu ~swatches`); `Merge_layouts` migrates an older multi-editor-graph file on the first
+  `Space [ n`; layout edits reach a switch nested in a split. Not done: dropping an outline row on a
+  node (PXUI has no drag-and-drop); the top-bar layouts menu no longer exists, `Space [` and the palette
+  read the switch.
+- Known gaps closed: a viewport over another scene instance renders as that instance's root (per-viewport
+  renderer, spp, bounces) and shows its own World (`Document.view_worlds`, `test_scene_sync` run_instances);
+  `test_workspace_shell` run_views failed because tests leaked editors (128 domains), not because of the
+  dummy driver.
+- Still open: `lib/pxui/fixtures/kit_overlays_2x.png` and `kit_zones_1x.png` are not regenerated (they
+  need a screen); an instance's own resolution and camera are the document's; the viewport shows an
+  instance's World per frame bake, not yet verified on Metal.
+- Host: the SDL3 pin moved to 3.4.18 (`tools/sdl3/generate.exe --write`, installed with `brew upgrade sdl3`),
+  SDL3_image to 3.4.6 in its linked-version fixture.

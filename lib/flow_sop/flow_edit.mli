@@ -103,6 +103,10 @@ type op =
       (** a copy of the active layout (its splits, tiles and floats copied, its panels shared) joins
           the switch and becomes active; a workspace without a switch gets one around its tree first.
           Ten layouts at most. *)
+  | Merge_layouts of { graph : string }
+      (** an older file with several [:context editor] graphs: the others join [graph]'s switch (made
+          around its tree when it has none) as layouts, their bindings renamed [other_name], and are
+          removed. Ten layouts at most. *)
   | Layout_remove of { graph : string }
       (** the active layout leaves the switch (and the bindings only it read); the last stays *)
   | Layout_window of { graph : string; kind : string }

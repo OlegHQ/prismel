@@ -112,6 +112,7 @@ let edit catalog t op =
     let layout = match op with
       | Flow_sop.Flow_edit.Connect { node = [ graph; "@result" ]; key = Whole; _ } ->
           { layout with display = Layout_by_path.Path_map.remove [ graph ] layout.display }
+      | Flow_sop.Flow_edit.Merge_layouts _ -> { layout with editor = None }  (* the other editor graphs are gone *)
       | _ -> layout in
     { t with source; checked; layout })
     (Flow_sop.Flow_edit.apply_checked catalog t.source op)

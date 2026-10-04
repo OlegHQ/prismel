@@ -401,7 +401,15 @@ let rank prefix candidates =
   |> List.filteri (fun i _ -> i < 48)
   |> List.map snd
 
-let complete vocab text caret =
+(* what the document knows beyond the text shown: every graph, the material graphs, the cameras
+   of the scene and the names of the layouts (the values of [:material], [:camera], [:active]) *)
+type names = { graphs : string list; materials : string list; cameras : string list; layouts : string list }
+
+let no_names = { graphs = []; materials = []; cameras = []; layouts = [] }
+
+let value_keywords = [ ":material"; ":camera"; ":active" ]
+
+let complete ?(names = no_names) vocab text caret =
   let caret = max 0 (min caret (String.length text)) in
   (* the token being typed ends at the caret: the text before it says what it is *)
   let before, _, open_stack = lex (String.sub text 0 caret) in
@@ -415,7 +423,10 @@ let complete vocab text caret =
     | Some { kind = Head; _ }, _ -> true
     | None, Some { kind = Unmatched | Open _; stop; _ } when stop = caret && text.[stop - 1] = '(' -> true
     | _ -> false in
-  if current = None && not head_position then [] else begin
+  let after_value_keyword = match last with
+    | Some ({ kind = Kw; _ } as t) -> t.stop < caret && List.mem (word text t) value_keywords
+    | _ -> false in
+  if current = None && not head_position && not after_value_keyword then [] else begin
     (* the whole text, so the brackets around the caret are matched *)
     let tokens, _, _ = lex text in
     let prefix = match current with
@@ -462,8 +473,19 @@ let complete vocab text caret =
            | Some h when List.mem h binders -> h = "fn" || List.length prior mod 2 = 0
            | _ -> false)
       | _ -> false in
+    (* the value of :material, :camera or :active, from the document *)
+    let valued = match after_kw, current with
+      | _, Some { kind = Kw | Head | Meta | Str; _ } -> []
+      | Some ":material", _ ->
+          List.map (fun m -> mk ~group:0 ~insert:("(ref " ^ m ^ ")") m "material" ("(ref " ^ m ^ ")")) names.materials
+      | Some ":camera", _ -> List.map (fun c -> mk ~group:0 c "camera" "a camera of the scene") names.cameras
+      | Some ":active", _ ->
+          List.mapi (fun i l -> mk ~group:0 ~insert:(string_of_int i) (Printf.sprintf "%d %s" i l) "layout"
+            ("layout " ^ l)) names.layouts
+      | _ -> [] in
     let candidates = match current with
       | _ when naming -> []
+      | _ when valued <> [] -> valued
       | Some { kind = Meta; _ } -> [ mk "^:bypass" "meta" (List.assoc ":bypass" special_keywords) ]
       (* a keyword: the kind's parameters and slots, an operator's keywords, a form's keywords *)
       | Some { kind = Kw; _ } ->
@@ -506,7 +528,8 @@ let complete vocab text caret =
            | Some ":context", _ -> List.map (fun c -> mk ~group:0 c "context" (c ^ " graph")) contexts
            | _, Some "ref" when List.length prior <= 1 ->
                let _, _, graphs = bound text tokens caret in
-               List.map (fun g -> mk ~group:0 g "graph" ("(ref " ^ g ^ ")")) graphs
+               List.map (fun g -> mk ~group:0 g "graph" ("(ref " ^ g ^ ")"))
+                 (graphs @ List.filter (fun g -> not (List.mem g graphs)) names.graphs)
            | _ when choices <> [] -> choices
            | _ ->
                let bindings, defns, _ = bound text tokens caret in
@@ -684,9 +707,28 @@ let parinfer_text text caret =
     done) lines;
   Buffer.contents out, caret + !shift
 
-let language ?(vocab = empty_vocab) ?(parinfer = false) theme : Pxui.Ui.language =
+(* the graph named by the [(ref name)] form under [byte] *)
+let ref_at text byte =
+  let tokens, _, _ = lex text in
+  let found = ref None in
+  Array.iteri (fun i t ->
+    if i > 0 && i + 1 < Array.length tokens && t.kind = Head && word text t = "ref"
+       && tokens.(i + 1).kind = Sym && tokens.(i - 1).start <= byte && byte <= tokens.(i + 1).stop + 1
+    then found := Some (word text tokens.(i + 1))) tokens;
+  !found
+
+(* the "#rrggbb" literals of the text with their colour *)
+let color_chips text =
+  let tokens, _, _ = lex text in
+  Array.fold_right (fun t acc ->
+    if t.kind <> Str || t.stop - t.start < 9 || text.[t.stop - 1] <> '"' then acc
+    else match Prismel.Color.hex (String.sub text (t.start + 1) (t.stop - t.start - 2)) with
+      | Ok color -> (t.start, t.stop, color) :: acc
+      | Error _ -> acc) tokens []
+
+let language ?(vocab = empty_vocab) ?(names = no_names) ?(parinfer = false) theme : Pxui.Ui.language =
   let infer = parinfer in
   { colorize = colorize theme; brackets; indent;
     pairs = [ '(', ')'; '[', ']'; '{', '}'; '"', '"' ];
-    complete = complete vocab; describe = describe vocab; number_at;
+    complete = complete ~names vocab; describe = describe vocab; number_at;
     rewrite = (if infer then Some parinfer_text else None) }

@@ -70,3 +70,8 @@ the others (its id and home are in `homes.objects`), its layers the world graph 
 lowering, so a gesture that would cause one is refused whole.  Deleting an object removes its SOP or
 world graph in the same reconciliation when no `(ref g)` or `(ui/graph "g")` reads it.
 `Scene_sync.add_geometry` and `add_world` give the ops of one composition gesture.
+
+`Document.view_worlds` lists the viewports over a scene instance whose World differs from the document's:
+the node of its `scene/world` and the network of its layers (read from the instance's value, since a
+viewport's scene has no term), or none when its merge holds none. They are not in the scene graph and
+have no ids; `Contexts.instance_root` reads the `scene/root` of an instance the same way.

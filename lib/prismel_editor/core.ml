@@ -199,6 +199,19 @@ let layouts value =
        | [] | [ _ ] -> []
        | gs -> List.map (fun (g : Flow.Workspace.graph) -> g.name, Some g.name = current) gs)
 
+(* What the text pane completes beyond its own text: the graphs, the materials, the cameras of the
+   first scene graph and the layouts. *)
+let completion_names value : Lisp_text.names =
+  let ws = fst value.doc.Document.workspace in
+  let graphs = ws.checked.graphs in
+  let named context = List.filter_map (fun (g : Flow.Workspace.graph) ->
+    if g.context = context then Some g.name else None) graphs in
+  { graphs = List.map (fun (g : Flow.Workspace.graph) -> g.name) graphs;
+    materials = named Flow.Workspace.Material;
+    cameras = (match named Flow.Workspace.Scene with
+      | scene :: _ -> Text_pane.cameras ws.source scene | [] -> []);
+    layouts = List.map fst (layouts value) }
+
 (* The tree drawn now: the editor graph's (the host's when the document has none, or
    after "Restore layout"), with the split being dragged at its live ratio. *)
 let shell_tree value (shell : shell) =
@@ -543,7 +556,10 @@ let workspace_inspector value ui ~width path =
              let t = Printf.sprintf "%.6g" f in
              S.make (S.Num (if String.exists (fun c -> c = '.' || c = 'e' || c = 'n' || c = 'i') t then t else t ^ ".0")) in
            let edits = if rows = [] then [] else
-             Pxui_shell.Inspector.flow_fields ui ~expanded ~width ~actions:false rows
+             Pxui_shell.Inspector.flow_fields ui ~expanded ~width ~actions:false
+               ~chips:(match value.scope_key with
+                 | Some { evaluated = Some ev; _ } -> Navigator.chips ev
+                 | _ -> []) rows
              |> List.filter_map (function
                | Pxui_shell.Inspector.Edited ("@layout", Param.Choice_value chosen) ->
                    Option.bind layout_names (fun (names, _) ->
@@ -731,6 +747,23 @@ let peek_target value =
       match kind value id with
       | Some "geometry" -> graph_of_object value id
       | _ -> None)
+
+(* [i] in a viewport with nothing selected follows to the scene it shows: the graph its
+   [(ref scene)] names, else the first scene graph. *)
+let viewport_target value =
+  let ws, _ = value.doc.Document.workspace in
+  match value.focus with
+  | Pxui_shell.Layout.View key when Selection.selected value.selection = None ->
+      let named = Option.bind value.doc.Document.shell (fun shell ->
+        match List.assoc_opt key shell.preview_sources with
+        | Some { scene_ref = Some { node = Flow.Syntax.List [ { node = Sym "ref"; _ }; { node = Sym name; _ } ]; _ }; _ } ->
+            Some name
+        | _ -> None) in
+      (match named with
+       | Some _ -> named
+       | None -> List.find_map (fun (g : Flow.Workspace.graph) ->
+           if g.context = Flow.Workspace.Scene then Some g.name else None) ws.checked.graphs)
+  | _ -> None
 
 (* The route taken, as the graph header shows it: scene > shards > cobalt (the last three) *)
 let route value =
@@ -1707,6 +1740,10 @@ let apply_text value intents =
     | Menu menu -> with_text { text with menu }
     | Toggle_wrap -> with_text { text with wrap = not text.wrap }
     | Toggle_parinfer -> with_text { text with parinfer = not text.parinfer }
+    | Picker picker -> with_text { text with picker }
+    | Open_graph graph -> go value graph
+    | Select_binding path ->
+        { value with scope_view = Pxui_graph.Scope.select [ path ] value.scope_view }
     | Doc_draft draft -> with_text { text with draft = Some draft; doc_base = base text.doc_base; doc_errors = [] }
     | Doc_discard -> with_text { text with draft = None; doc_base = None; doc_errors = [] }
     | Doc_apply draft ->
@@ -1847,6 +1884,13 @@ let layout_actions value (workspace : shell) ~(leaf : Pxui_shell.Layout.leaf opt
         edit (fun graph -> Flow_sop.Flow_edit.Set_layout { graph; index })
     | Layout_switch index -> (* an older file: several editor graphs *)
         (match List.nth_opt (layouts value) index with Some (name, _) -> [ Select_layout name ] | None -> [])
+    | Layout_new when Option.is_none (Option.bind value.doc.Document.shell (fun s -> s.switch))
+                      && layouts value <> [] ->
+        (* an older file with several editor graphs: they become the layouts of one switch first *)
+        (match graph with
+         | Some graph -> [ Syntax_batch ("Merge layouts", [ Flow_sop.Flow_edit.Merge_layouts { graph };
+                                                            Flow_sop.Flow_edit.Layout_new { graph } ]) ]
+         | None -> [])
     | Layout_new -> edit (fun graph -> Flow_sop.Flow_edit.Layout_new { graph })
     | Layout_remove -> edit (fun graph -> Flow_sop.Flow_edit.Layout_remove { graph })
     | Window_new panel -> edit (fun graph -> Flow_sop.Flow_edit.Layout_window { graph; kind = panel_kind panel })
@@ -2296,7 +2340,7 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
     let text_intents = match text_shown, text_host with
       | Some shown, Some (leaf, hosted) ->
           Pxui.Ui.within ui hosted (fun () ->
-            Text_pane.view ui ~bounds:leaf.Pxui_shell.Layout.body ~vocab:(Lazy.force value.lisp_vocab) text shown)
+            Text_pane.view ui ~bounds:leaf.Pxui_shell.Layout.body ~vocab:(Lazy.force value.lisp_vocab) ~names:(completion_names value) text shown)
       | _ -> [] in
     let outline, outline_intents = match first Pxui_shell.Layout.Outline with
       | Some (leaf, hosted) ->
@@ -3031,7 +3075,9 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
   let followed = match List.find_map (function
       | Pxui_graph.Scope.Activated path -> Some path | _ -> None) result.scope_changes with
     | Some path -> follow_target ~path value
-    | None -> if List.mem Leader.Enter actions then follow_target value else None in
+    | None when List.mem Leader.Enter actions ->
+        (match follow_target value with Some _ as found -> found | None -> viewport_target value)
+    | None -> None in
   let target = match List.find_opt (function
       | Leader.Enter | Up | Go_world -> true | _ -> false) actions, result.opened with
     | _ when followed <> None -> None
@@ -3256,7 +3302,15 @@ let syntax_edit value op =
   |> Result.map_error Flow.Diagnostic.to_string
 
 (* The scene's World at timeline [time] (the day cycle advances with it). *)
-let world value ~time = match Objects.ids "world" (scene value) with
+let world ?(view = `Primary) value ~time =
+  let own = match view with
+    | `Only key -> List.assoc_opt key value.doc.Document.view_worlds
+    | _ -> None in
+  match own with
+  | Some None -> None
+  | Some (Some (w : Document.view_world)) -> Layers.to_world ~time w.node w.layers
+  | None ->
+  match List.filter (view_wants value `Primary) (Objects.ids "world" (scene value)) with
   | id :: _ when Edit_graph.is_bypassed (scene value) ~node_id:id -> None
   | id :: _ ->
       Option.bind (Edit_graph.find (scene value) ~node_id:id) (fun node ->
@@ -3282,6 +3336,15 @@ let placed_pieces ?(render = false) ?(view = `Primary) value =
         && (not render || Objects.flag "render" node) ->
         Some (Objects.world (scene value) piece.id, piece)
     | Some _ | None -> None) (pieces value)
+
+(* How a viewport over another scene instance renders: that instance's [scene/root], else the
+   document's *)
+let view_root_opt value key =
+  Option.bind value.doc.Document.shell (fun shell ->
+    Option.bind (List.assoc_opt key shell.preview_sources) (fun (source : Document.preview_source) ->
+      Contexts.instance_root source.instance))
+
+let view_root value key = Option.value ~default:value.doc.Document.root (view_root_opt value key)
 
 let world_id value = match Objects.ids "world" (scene value) with
   | id :: _ -> Some id | [] -> None

@@ -5,7 +5,7 @@
 #include <stddef.h>
 _Static_assert(SDL_MAJOR_VERSION == 3, "SDL major header changed");
 _Static_assert(SDL_MINOR_VERSION == 4, "SDL minor header changed");
-_Static_assert(SDL_MICRO_VERSION >= 16, "SDL patch header older than pinned");
+_Static_assert(SDL_MICRO_VERSION >= 18, "SDL patch header older than pinned");
 _Static_assert(sizeof(SDL_Event) == 128, "SDL_Event size changed");
 _Static_assert(_Alignof(SDL_Event) == 8, "SDL_Event alignment changed");
 _Static_assert(sizeof(SDL_CommonEvent) == 16, "SDL_CommonEvent size changed");
@@ -139,7 +139,7 @@ _Static_assert(offsetof(SDL_PenMotionEvent, which) == 20, "SDL_PenMotionEvent.wh
 _Static_assert(offsetof(SDL_PenMotionEvent, pen_state) == 24, "SDL_PenMotionEvent.pen_state offset changed");
 _Static_assert(offsetof(SDL_PenMotionEvent, x) == 28, "SDL_PenMotionEvent.x offset changed");
 _Static_assert(offsetof(SDL_PenMotionEvent, y) == 32, "SDL_PenMotionEvent.y offset changed");
-_Static_assert(sizeof(SDL_PenTouchEvent) == 40, "SDL_PenTouchEvent size changed");
+_Static_assert(sizeof(SDL_PenTouchEvent) == 48, "SDL_PenTouchEvent size changed");
 _Static_assert(_Alignof(SDL_PenTouchEvent) == 8, "SDL_PenTouchEvent alignment changed");
 _Static_assert(offsetof(SDL_PenTouchEvent, type) == 0, "SDL_PenTouchEvent.type offset changed");
 _Static_assert(offsetof(SDL_PenTouchEvent, timestamp) == 8, "SDL_PenTouchEvent.timestamp offset changed");
@@ -150,7 +150,7 @@ _Static_assert(offsetof(SDL_PenTouchEvent, x) == 28, "SDL_PenTouchEvent.x offset
 _Static_assert(offsetof(SDL_PenTouchEvent, y) == 32, "SDL_PenTouchEvent.y offset changed");
 _Static_assert(offsetof(SDL_PenTouchEvent, eraser) == 36, "SDL_PenTouchEvent.eraser offset changed");
 _Static_assert(offsetof(SDL_PenTouchEvent, down) == 37, "SDL_PenTouchEvent.down offset changed");
-_Static_assert(sizeof(SDL_PenButtonEvent) == 40, "SDL_PenButtonEvent size changed");
+_Static_assert(sizeof(SDL_PenButtonEvent) == 48, "SDL_PenButtonEvent size changed");
 _Static_assert(_Alignof(SDL_PenButtonEvent) == 8, "SDL_PenButtonEvent alignment changed");
 _Static_assert(offsetof(SDL_PenButtonEvent, type) == 0, "SDL_PenButtonEvent.type offset changed");
 _Static_assert(offsetof(SDL_PenButtonEvent, timestamp) == 8, "SDL_PenButtonEvent.timestamp offset changed");
