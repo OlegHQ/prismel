@@ -13,6 +13,12 @@ dependencies; the dependency gate rejects those transitive edges. `flow_sop` dep
 only on `flow`, `param` and `procedural`; its typed overlay, exposure rule and
 value lane cannot reach presentation, the catalog, editor or GPU libraries.
 
+Material graph values lower into primitive surface attributes through
+`procedural` and `pdk_attrib`. `sketch_support` converts these into shared
+render mesh batches; neither the material context nor the assignment kernel
+imports rendering code. `pdk_prismel` expands primitive colors through the
+existing attribute promotion kernel, preserving face boundaries.
+
 ```text
 examples / sketches / pxui / editor / sketch_support / pdk_prismel
                          |                  |                |
@@ -515,6 +521,16 @@ stable retained plan.  A staging boundary emits no rendering command, does not
 alter transform, clip, blend, or clear semantics, and is not part of the public
 scene-construction API.  Each layer is lowered through the same checked OGPU
 path and submitted in original scene order.
+
+Retained 3D views: a window execution keeps up to four prepared 3D layers (`adopt_retained_view`,
+keyed by the identity of the immutable prepared layer).  A layer seen on two consecutive frames is
+rendered once into an offscreen execution the size of the window and later frames composite that
+texture as a Canvas image, so a frame that only changes the UI does not shade the 3D view again.
+The window's drawable size is checked on every use; a different layer, a resize or any failure
+falls back to drawing the layer directly, and `destroy` releases the views before the device-lease
+check.  Scenes the engine does not cache (textured, `Scene3.Private.cacheable` false) never repeat
+an identity, so they are never retained.  `Scene` stays pure data; this is invisible to it.
+`test_retained_view_native` checks that direct, retained and camera-change frames agree.
 
 PXUI paints through a native-only instance layer. `Scene.Private.ui` wraps a
 renderer-neutral `Scene_command.Ui_batch` (64-byte rect, textured, Bézier

@@ -1,7 +1,7 @@
 {
   "generator": "tools/api_manifest/api_manifest.exe",
   "kind": "stable_high_level",
-  "module_count": 154,
+  "module_count": 156,
   "modules": [
     {
       "api_sha256": "6b26c85b99067886e7cc79bebbd323a307cf8ebea680c67bcdc3a0d894288bed",
@@ -40,13 +40,13 @@
       "source_sha256": "016cb0e1aaed05ff7bbea704b3f0b73a5c07b5034d9d24f4089629c9c7257801"
     },
     {
-      "api_sha256": "d76047eeb0250aee97c183d2c76812505b25872604478c8c46c9603ec311a916",
+      "api_sha256": "4760e5c5db0922c5a47c1703a3704f911818150a5cd7316b61dd978ae4dd0670",
       "excluded_legacy_symbols": [],
       "library": "flow",
       "module": "Context",
       "source": "lib/flow/context.mli",
-      "source_bytes": 155,
-      "source_sha256": "14372b5bdefd8ae16d78a2bfaf8565a4d62492f5ee6e15ec929a412eb6f20174"
+      "source_bytes": 166,
+      "source_sha256": "2617eceb655117044704409ea13d5fe800ec48eb4c8ba2e214eb69cafc6e38ce"
     },
     {
       "api_sha256": "8ee1e141a8b8c75298ca83d7b96598fe79ccf9efd9f208835c03707da761690c",
@@ -112,22 +112,22 @@
       "source_sha256": "9c93382e58d6fb6c9db8859a3ad3809549fab1178a1019a8c867fc5097da7716"
     },
     {
-      "api_sha256": "05168fbabcb6055ebc5ff8955f560971117a829617ba9d9feac4187099c98a6d",
+      "api_sha256": "00693e8fc58f595486ca5f85c9a47d18ccb3dade0f4ac05e6d754b83a187a63e",
       "excluded_legacy_symbols": [],
       "library": "flow",
       "module": "Ty",
       "source": "lib/flow/ty.mli",
-      "source_bytes": 1595,
-      "source_sha256": "0d6babe585dbce92211db498e121eb3cb28bc4d262a538da0302c3388536ffe1"
+      "source_bytes": 1606,
+      "source_sha256": "2acb75a57fa2b705f517c9dab76f5d3191b3ce2b9978bf53134e294b966f4d62"
     },
     {
-      "api_sha256": "4a81d660baa320fcdd4253dc781305baf229461fc123b94bb8b156b571201510",
+      "api_sha256": "87c1e868396043a021d1756a8060aff20c5410a1ff326ad3b81d8a0fbbb29b3c",
       "excluded_legacy_symbols": [],
       "library": "flow",
       "module": "Workspace",
       "source": "lib/flow/workspace.mli",
-      "source_bytes": 6382,
-      "source_sha256": "778dedfbe7afdc2c73fcd589f86cffca17b22ec3c43ede30191534926334e399"
+      "source_bytes": 6393,
+      "source_sha256": "c1cf0c445054f5aebb752e943cfa3b711f73b191048fc173c42f082d978460ad"
     },
     {
       "api_sha256": "78bbe72f043e4e97bc9049af934b19cf8b4efc20c466cf70f701db591cebac1e",
@@ -596,6 +596,15 @@
       "source": "lib/pdk/mesh/match_size.mli",
       "source_bytes": 1065,
       "source_sha256": "aded40bd902519c4e92ffd53feb4211d8983c7edb8615e8b74f63caa8dc97e8b"
+    },
+    {
+      "api_sha256": "e4f248aef9e4dcb0f92b39d6d2760cd0b112f0524a02685de1c98b221a1346e5",
+      "excluded_legacy_symbols": [],
+      "library": "pdk",
+      "module": "Material_assign",
+      "source": "lib/pdk/attrib/material_assign.mli",
+      "source_bytes": 466,
+      "source_sha256": "353302d1d066c63b92ea16d4f1108405d34d295bcf1ba49d4ed718a1449cdd35"
     },
     {
       "api_sha256": "31a2a2325c3e3ad81d76ad15db54fa2216280dfdfdef7f876d01cd5e32c2ceb4",
@@ -1160,13 +1169,13 @@
       "source_sha256": "7d4d28d6f0b748a24c1fabb8e0a081a7d3a7f7d0b47591333c667b625cad58de"
     },
     {
-      "api_sha256": "511312e80e79a6a4aa0a8fd7f26375164ac45009f403e9fad0c546e752822904",
+      "api_sha256": "ce995d388bb90e805bb7bbb0274df761b053326bf69655d247e11db6a59dc6da",
       "excluded_legacy_symbols": [],
       "library": "prismel_editor",
       "module": "Prismel_editor",
       "source": "lib/prismel_editor/prismel_editor.mli",
-      "source_bytes": 32546,
-      "source_sha256": "e8c410cf79f86b6737ad3c63a7c1a64ef46bec6df03f00af48886673bd50c5ad"
+      "source_bytes": 33180,
+      "source_sha256": "f5c0db26d74027b0094987091b09883a7c3b8c810a4835579c3a7e7be504270f"
     },
     {
       "api_sha256": "89e36d6b181da97fd17d91c5b775fc086f37c4047c674d4812656408f7b95082",
@@ -1268,13 +1277,13 @@
       "source_sha256": "1d21ca65cb87c00c00fbd048eb88b0453a95096e6ec37254d12f093610d3c233"
     },
     {
-      "api_sha256": "0801e899c83f70846c425a28aad7319ea8b5a367f7f961e9d9cef43936a7db5a",
+      "api_sha256": "cb1ae3859ca5d97f51ffaffd822473745658f96ed48189fb63b93f084740b42a",
       "excluded_legacy_symbols": [],
       "library": "procedural",
       "module": "Sop",
       "source": "lib/procedural/sop.mli",
-      "source_bytes": 95004,
-      "source_sha256": "291a0ab4f3b3aa132e387c5a61a3b4891521e1c59a0da0404ebff08e63365a78"
+      "source_bytes": 95230,
+      "source_sha256": "465891427b87bc1350f6867e9eff69dc80185895a0815f67270cfc1bff21f7ef"
     },
     {
       "api_sha256": "dd75075b4a2ea4519d54391e0f6b1f6d285528ebed5d45ce89ef164a064e9202",
@@ -1304,13 +1313,13 @@
       "source_sha256": "a3bafbfa290d573092b5c0ec10d80484193e4be0a5c7a92ac4f82e5463c61e47"
     },
     {
-      "api_sha256": "35188e2053b91a995ea8325c7373e4a8352128b6b6a9e802b17f9a6148f5ace3",
+      "api_sha256": "01c8d99c3b7e6581a3985e5c0c5a7dd9809ee9e71dae49344e95a7f8425fbeb3",
       "excluded_legacy_symbols": [],
       "library": "pxui",
       "module": "Theme",
       "source": "lib/pxui/theme.mli",
-      "source_bytes": 1509,
-      "source_sha256": "dfbc6bef1a2909c2866fdf5bffc864c171f5f4e4052af6f1843737945b901ece"
+      "source_bytes": 1697,
+      "source_sha256": "640c443703763b47069a5ec60a1101e3c899dff649afdfa933327c20b4ecb1bf"
     },
     {
       "api_sha256": "824b82668ebaef30ae7e71a4735a0ff6826792cf6cb07eca84d3b445343edd12",
@@ -1340,13 +1349,13 @@
       "source_sha256": "566ad7a2bc621cf618f4fee5aea1b7a8aa2e950c535c9c8315dbc8c73ef94b84"
     },
     {
-      "api_sha256": "9f903ea9914672a10f15a18fa3bdf40596cf6fa04e8533c7e093382582ea85bb",
+      "api_sha256": "354d5a64167d8192fabbdab61a31938ce82b9bf6bc110a77737f2be794efcbfe",
       "excluded_legacy_symbols": [],
       "library": "pxui_graph",
       "module": "Scope_pane",
       "source": "lib/pxui_graph/scope_pane.mli",
-      "source_bytes": 6547,
-      "source_sha256": "4b9d9bc185070b51c356924ec6a19f22852506b9c792c6e4379ed40718f26f7e"
+      "source_bytes": 6897,
+      "source_sha256": "3efa695c508571402f8e2e2730638b70b4837a66a115fbfe2dd0ac14ec18ef98"
     },
     {
       "api_sha256": "35473e92a16505d4e6dccefe70654b45a6def42b2690f356aa66512540affc30",
@@ -1374,6 +1383,15 @@
       "source": "lib/sketch_support/packed_pieces.mli",
       "source_bytes": 1220,
       "source_sha256": "bf79b84d81264a518b553508aaef6f67ddf43c4aabe6673edc2ba665c5fa2b16"
+    },
+    {
+      "api_sha256": "97684005da567c8701910555ba711b65c971e512f0d30186b56d3e54619d968a",
+      "excluded_legacy_symbols": [],
+      "library": "sketch_support",
+      "module": "Surface",
+      "source": "lib/sketch_support/surface.mli",
+      "source_bytes": 267,
+      "source_sha256": "2ab781e27a7ea86c9375e0882288f8d44399488cb8779c18a88058ac8f83c9fb"
     },
     {
       "api_sha256": "26b08b2a9a1ddde3cdb8051acafa0b4b45f8a79310bd32d0b383e2b177afd16d",

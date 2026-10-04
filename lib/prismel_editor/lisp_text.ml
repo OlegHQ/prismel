@@ -196,11 +196,12 @@ let special_keywords = [
   ":bypass", "^:bypass (call ...) · the call passes its first input through";
 ]
 
-let contexts = [ "sop"; "value"; "scene"; "world"; "settings"; "editor" ]
+let contexts = [ "sop"; "value"; "scene"; "world"; "settings"; "editor"; "material" ]
 
 let ws_context = function
   | "scene" -> Flow.Workspace.Scene | "world" -> Flow.Workspace.World
   | "settings" -> Flow.Workspace.Settings | "editor" -> Flow.Workspace.Editor
+  | "material" -> Flow.Workspace.Material
   | "value" -> Flow.Workspace.Value | _ -> Flow.Workspace.Sop
 
 (* the built-in operators a graph of each context may call: the value ones everywhere, the
@@ -211,6 +212,7 @@ let ops_of context =
     | "sop" -> [ "sop/curve"; "sop/point_list"; "sop/piece_list" ]
     | "scene" -> [ "scene/merge" ]
     | "world" -> [ "world/none" ]
+    | "material" -> [ "material/standard" ]
     | "editor" -> [ "ui/workspace"; "ui/viewport"; "ui/graph"; "ui/inspector"; "ui/outline"; "ui/list";
                     "ui/lisp"; "ui/timeline"; "ui/split"; "ui/split-at"; "ui/tile"; "ui/floating" ]
     | _ -> [] in

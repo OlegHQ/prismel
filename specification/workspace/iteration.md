@@ -39,7 +39,10 @@ otherwise make two ways.
 
 These rules are added to the workspace grammar of the report. They use the
 Flow §11 conventions: keywords for parameters, positional geometry slots,
-and `let*` for sharing.
+and `let*` for sharing. The `material` context returns a typed material value
+from `material/standard`; a SOP assigns it through `sop/material` and a
+material graph reference. Group assignment and renderer behavior are specified
+in [materials.md](materials.md).
 
 ```text
 graph    = "(" "graph" name ":context" context [ inputs ] body ")" ;
@@ -600,7 +603,7 @@ siblings advance, and report `E_CONTEXT_LIVE` with object/view/field attribution
 recovery clears the error.
 Intensity/color keep the schema's ordinary hard-bound normalization.
 
-Other time-dependent fields in scene, World, settings and editor structs are refused
+Other time-dependent fields in scene, World, settings, editor and material structs are refused
 when installing the document or reading startup configuration, with
 `E_CONTEXT_TIME` naming the graph and field. They are not silently evaluated at
 zero. Live SOP/value drives remain supported, including a scene's reference to

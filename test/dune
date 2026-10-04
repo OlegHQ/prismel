@@ -6,6 +6,18 @@
  (preprocess (pps prismel.ppx))
  (link_flags -linkall))
 
+(test
+ (name test_materials)
+ (modules test_materials)
+ (libraries prismel procedural pdk sketch_support prismel_editor sop_catalog flow))
+
+(test
+ (name test_shattered_studio)
+ (modules test_shattered_studio)
+ (libraries prismel procedural pdk sketch_support prismel_editor flow)
+ (deps ../sketches/shattered_studio/sketch.plisp)
+ (action (run %{test} %{dep:../sketches/shattered_studio/sketch.plisp})))
+
 (rule
  (aliases runtest test_prismel)
  (action (run %{exe:test_main.exe} test_prismel)))

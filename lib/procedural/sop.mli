@@ -1679,6 +1679,13 @@ val connectivity :
 val set_float :
   ?label:string -> owner:Pdk.Attribute.owner -> name:string -> float ->
   Node.t -> Node.t
+
+(** Assign a material to an optional primitive group. *)
+val material :
+  ?label:string -> ?group:string -> name:string ->
+  color:Prismel_math.Vec3.t -> roughness:float -> emission:Prismel_math.Vec3.t ->
+  Node.t -> Node.t
+
 val set_int :
   ?label:string -> owner:Pdk.Attribute.owner -> name:string -> int ->
   Node.t -> Node.t

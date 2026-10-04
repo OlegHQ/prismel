@@ -174,11 +174,11 @@ let macro_rows c (m : S.t) pos =
       req_rows @ rest_rows
 
 let catalog_context : W.context -> Flow.Context.t = function
-  | Sop -> Sop | Scene -> Scene | World -> World | Settings -> Settings | Value | Editor -> Value
+  | Sop -> Sop | Scene -> Scene | World -> World | Settings -> Settings | Material -> Material | Value | Editor -> Value
 
 let kind_rows c (k : Flow.Check.kind) pos kws =
   let npos = List.length pos in
-  let slot_ty = if k.context = Flow.Context.World then Ty.World else Ty.Geometry in
+  let slot_ty = W.slot_ty k in
   let slot_rows = List.concat (List.mapi (fun i (s : Flow.Check.slot) ->
     if s.rest then
       List.filteri (fun j _ -> j >= i) pos |> List.mapi (fun j a ->
@@ -193,8 +193,9 @@ let kind_rows c (k : Flow.Check.kind) pos kws =
     k.slots) in
   let param_rows = List.map (fun (p : Flow.Check.parameter) ->
     let kind = if W.group_reader p then Group_reader else if W.group_writer k p then Group_writer else Arg in
-    row c ~ty:(match p.ty with Some t -> ty_of_port t | None -> Ty.Text) ?default:(default_text p)
-      ~socket:(p.ty <> None) ~kind p.name (E.Kw p.name) (List.assoc_opt p.name kws)) k.parameters in
+    let material = k.qualified = "sop/material" && p.name = "material" in
+    row c ~ty:(if material then Ty.Material else match p.ty with Some t -> ty_of_port t | None -> Ty.Text) ?default:(default_text p)
+      ~socket:(material || p.ty <> None) ~kind p.name (E.Kw p.name) (List.assoc_opt p.name kws)) k.parameters in
   slot_rows @ param_rows
 
 let input_rows c (inputs : (string * Ty.t * W.term option) list) pos kws =

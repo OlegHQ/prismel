@@ -38,7 +38,7 @@ type state = {
 
 let initial = { tab = Selection; draft = None; binding_draft = None; graph_draft = None;
   doc_base = None; binding_base = None; graph_base = None;
-  doc_errors = []; binding_errors = []; graph_errors = []; wrap = true; parinfer = true; menu = None; cache = None }
+  doc_errors = []; binding_errors = []; graph_errors = []; wrap = false; parinfer = true; menu = None; cache = None }
 
 (* ---- reading the source ---- *)
 

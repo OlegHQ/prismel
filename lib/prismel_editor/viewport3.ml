@@ -20,9 +20,9 @@ type show = { cameras : bool; axes : bool; handles : bool }
    active camera node's view and the free viewport's view with its lens
    (both refreshed each update, the latter physically stable while
    unchanged so hidden-scene caching holds), and the guides. *)
-type extra = { look_through : bool; fly : float option; render_camera : Camera.t;
+type extra = { look_through : bool; fly : float option; relative_grab : bool; render_camera : Camera.t;
                free_view : Camera.t; viewing : Easy_camera.t;  (* the orbit camera [free_view] shows *)
-               render : Objects.Camera.render;
+               render : Objects.Root.render;
                following : bool option;  (* the ACTIVE camera follows the viewport *)
                follow_request : bool option;  (* the Viewport panel's toggle, applied on the next update *)
                written : Camera.t option;  (* the view the viewport last wrote to the camera node *)
@@ -117,8 +117,7 @@ let free_view_of ~render_camera ~previous camera =
                                else { lens with focus_distance = None }) view in
   match previous with Some previous when previous = view -> previous | _ -> view
 
-let render_of core = Option.value ~default:Objects.Camera.default_render
-    (Option.bind (active_node core) Objects.Camera.render_of_node)
+let render_of core = Objects.Root.render core.Core.doc.root
 
 let renderer_setting core = List.find_map (fun (field : Parameter.field_view) ->
   match field.name, field.current with
@@ -128,7 +127,7 @@ let renderer_setting core = List.find_map (fun (field : Parameter.field_view) ->
 let init core camera =
   let core = sync_cameras ~mode:`Reset core camera in
   let render_camera = render_camera_of core camera in
-  core, { look_through = false; fly = None; render_camera;
+  core, { look_through = false; fly = None; relative_grab = false; render_camera;
           free_view = free_view_of ~render_camera ~previous:None camera; viewing = camera;
           render = render_of core; following = Option.map follows (active_node core);
           follow_request = None; written = None;
@@ -138,7 +137,10 @@ let init core camera =
             custom = renderer_setting core <> None}; renderer_request = None }
 
 let begin_frame extra frame = match extra.fly with
-  | None -> extra, frame
+  | None ->
+      let lost = List.exists (function Prismel.Event.WindowFocusLost -> true | _ -> false) frame.Frame.events in
+      if lost && extra.relative_grab then (set_relative false; { extra with relative_grab = false }, frame)
+      else extra, frame
   | Some _ ->
       let ended, frame = Editor_core.Router.fly frame in
       if not ended then extra, frame
@@ -190,6 +192,7 @@ let apply_action camera extra = function
   | Tool 2 -> { extra with tool = Turn }, Some "Rotate (E)"
   | Tool 3 -> { extra with tool = Grow }, Some "Scale (R)"
   | Leader.Look_through -> { extra with look_through = not extra.look_through }, None
+  | Leader.Look_through_camera -> { extra with look_through = true }, None
   | Fly when extra.fly = None ->
       set_relative true;
       { extra with fly = Some (Float.max 0.5 (Easy_camera.distance camera *. 0.5)) },
@@ -212,7 +215,19 @@ let navigate ~area control camera extra core ~(raw_frame : Frame.t) ~(input : Fr
           { raw_frame with events = input.events; keys = input.keys;
             mouse_buttons = input.mouse_buttons; mouse_delta = input.mouse_delta } in
         camera, { extra with fly = Some speed }
-    | None -> CC.navigate ~control_area:area control camera input, extra
+    | None ->
+        let (vx, vy, vw, vh) = area in
+        let inside (x, y) = x >= float vx && x < float (vx + vw) && y >= float vy && y < float (vy + vh) in
+        let pressed = List.exists (function
+          | Prismel.Event.MousePressed (_, pt) -> inside pt
+          | _ -> false) input.events in
+        let released = List.exists (function
+          | Prismel.Event.MouseReleased _ | Prismel.Event.WindowFocusLost -> true
+          | _ -> false) input.events in
+        let grabbing = if pressed then true else if released || input.mouse_buttons = [] then false else extra.relative_grab in
+        if grabbing <> extra.relative_grab then set_relative grabbing;
+        let camera = CC.navigate ~control_area:area control camera input in
+        camera, { extra with relative_grab = grabbing }
 
 let frame_bounds ~viewport:_ ~min ~max camera = Easy_camera.frame_bounds ~min ~max camera
 
@@ -293,7 +308,13 @@ let film extra (x, y, width, height) =
   let w = max 1 w and h = max 1 h in
   x + ((width - w) / 2), y + ((height - h) / 2), w, h
 
-let render extra views = {extra with renderer = Renderer.update extra.renderer
+(* Looking through the camera the tracer renders at the camera's own resolution whatever the
+   pane's size; the image is scaled to the film when painted. *)
+let render extra views =
+  let views = if not extra.look_through then views else
+    List.map (fun (key, (x, y, _, _), camera, scene) ->
+      key, (x, y, extra.render.width, extra.render.height), camera, scene) views in
+  {extra with renderer = Renderer.update extra.renderer
     ~mode:extra.renderer.mode ~custom:extra.renderer.custom views}
 let render_status extra = extra.renderer.error
 let paint extra ~key viewport camera rendered = Renderer.paint extra.renderer ~key viewport camera rendered
@@ -525,4 +546,4 @@ let guides ~scene ~selected ~space view extra ~bounds =
 
 let save = CC.save
 let filename request = request.CC.filename
-let close extra = Renderer.close extra.renderer; if extra.fly <> None then set_relative false
+let close extra = Renderer.close extra.renderer; if extra.fly <> None || extra.relative_grab then set_relative false

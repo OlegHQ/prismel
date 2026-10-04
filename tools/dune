@@ -142,6 +142,17 @@
  (libraries prismel flow pdk pdk_prismel procedural sop_catalog sketch_support prismel_editor unix))
 
 (executable
+ (name render_workspace)
+ (modules render_workspace)
+ (libraries prismel prismel_pathtracer procedural pdk pdk_prismel flow flow_sop
+  editor_document sop_catalog sketch_support prismel_editor))
+
+(executable
+ (name bench_material_assign)
+ (modules bench_material_assign)
+ (libraries pdk prismel_math unix))
+
+(executable
  (name bench_pdk_iso)
  (modules bench_pdk_iso)
  (libraries pdk prismel_math unix))

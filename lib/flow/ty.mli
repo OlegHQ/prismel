@@ -8,7 +8,7 @@ type t =
   | Record of (string * t) list  (** fields in written order *)
   | Fn
   | Any  (** unknown or unconstrained: unannotated fn parameters, empty lists *)
-  | Scene | World | Settings | Panel | Editor  (** context types *)
+  | Scene | World | Settings | Panel | Editor | Material  (** context types *)
 
 val of_syntax : Syntax.t -> t option
 (** A type annotation as written in a parameter: a type name, [fn],

@@ -61,7 +61,11 @@ let group_triples (fields : Param.field_view list) =
     | [] -> [] in
   go fields
 
-let scene_kinds = List.map (fun f -> "scene/" ^ Edit.factory_key f, f) Objects.catalog
+(* The World and the root are scene kinds too: [scene/world] is a merge member that references a
+   world graph, [scene/root] ends the scene graph.  The old [world/world] stays a (legacy) kind of
+   the world context, so old files still check and load. *)
+let scene_kinds = List.map (fun f -> "scene/" ^ Edit.factory_key f, f)
+    (Objects.catalog @ [ Layers.Settings.factory; Objects.Root.factory ])
 let world_kinds = List.map (fun f -> "world/" ^ Edit.factory_key f, f)
     (Layers.Settings.factory :: Layers.catalog)
 
@@ -90,12 +94,23 @@ let window_fields = Param.view window_schema (Param.default window_schema)
 (* slot of each kind: a geometry object takes its geometry, a World layer the layer below *)
 let kind_slots qualified = match qualified with
   | "scene/geometry" -> [ "geometry", Edit.Required ]
+  | "scene/world" -> [ "world", Edit.Required ]
+  | "scene/root" -> [ "scene", Edit.Required; "camera", Edit.Optional ]
   | "world/world" -> [ "layers", Edit.Optional ]
   | q when String.starts_with ~prefix:"world/" q -> [ "below", Edit.Optional ]
   | _ -> []
 
+(* the render settings an old camera carried: read as the root's until the first save *)
+let legacy_render = [ "width"; "height"; "max_spp" ]
+let legacy_field name label default =
+  { name_field with name; label; kind = Param.Integer_view
+      { Param.soft_min = 1; soft_max = 16384; hard_min = Some 1; hard_max = Some 16384 };
+    default = Param.Int_value default; current = Param.Int_value default }
+
 let extra_fields = function
-  | "scene/camera" -> [ active_field ]
+  | "scene/camera" -> [ active_field; legacy_field "width" "Width (old files)" 1920;
+                        legacy_field "height" "Height (old files)" 1080;
+                        legacy_field "max_spp" "Max samples (old files)" 256 ]
   | "scene/geometry" | "scene/light" -> [ parent_field ]
   | _ -> []
 
@@ -119,14 +134,14 @@ let ports qualified =
 
 (* ---- lowering a struct ---- *)
 
-let slot_names = [ "geometry"; "layers"; "below"; "name"; "parent"; "active" ]
+let slot_names = [ "geometry"; "layers"; "below"; "name"; "parent"; "active"; "world"; "scene"; "camera" ]
 
 (* The field changes a struct's keywords make, checked against the schema's bounds. *)
 let changes qualified args =
   let ports = ports qualified in
   List.fold_left (fun acc (key, value) ->
     let* acc = acc in
-    if List.mem key slot_names then Ok acc
+    if List.mem key slot_names || (qualified = "scene/camera" && List.mem key legacy_render) then Ok acc
     else
       let* port = Flow_sop.Port.find_parameter ports key in
       let* changes = Flow_sop.Lower.changes port value in
@@ -195,9 +210,10 @@ let window (workspace : Workspace_doc.t) =
 module F = Flow_sop.Flow_edit
 
 (* A call of interest in an evaluated result, with where its text is. *)
-type call = { kind : string; args : (string * E.value) list; home : Document.home }
+type call = { kind : string; args : (string * E.value) list; home : Document.home;
+              via : string option  (* the graph a [(ref g)] argument names, for [scene/world] *) }
 
-let slot_args = [ "geometry"; "layers"; "below"; "scene" ]
+let slot_args = [ "geometry"; "layers"; "below"; "scene"; "world" ]
 
 (* Argument [i] of a call as an edit addresses it: positional for a slot, else its keyword. *)
 let arg_key args i =
@@ -213,7 +229,7 @@ let rec loose ~want ~below = function
   | E.Struct (kind, args) when want kind ->
       (match Option.bind (below kind) (fun slot -> List.assoc_opt slot args) with
        | Some under -> loose ~want ~below under | None -> [])
-      @ [ { kind; args; home = Document.Looped } ]
+      @ [ { kind; args; home = Document.Looped; via = None } ]
   | E.List xs -> List.concat_map (loose ~want ~below) (Array.to_list xs)
   | _ -> []
 
@@ -256,6 +272,12 @@ let real_indices skip iter n =
 let kept ~iter skip args =
   List.filter (fun (i, _) -> not (List.mem (iter @ [ i ]) skip)) (List.mapi (fun i a -> i, a) args)
 
+(* the graph a [scene/world]'s World argument references: written in place or by a binding *)
+let rec referenced env (t : W.term) = match t.node with
+  | W.Graph_ref { graph; _ } -> Some graph
+  | W.Ref_binding (n, []) -> Option.bind (List.assoc_opt n env) (referenced env)
+  | _ -> None
+
 let rec walk ~want ~below ~iter env place (t : W.term) (v : E.value) =
   let home () = match t.path, place with
     | Some p, _ -> Document.Bound_at p
@@ -276,7 +298,9 @@ let rec walk ~want ~below ~iter env place (t : W.term) (v : E.value) =
         | Some (i, under_value) ->
             walk ~want ~below ~iter env (Some (here, arg_key targs i)) (snd (List.nth targs i)) under_value
         | None | exception Not_found -> [] in
-      under @ [ { kind; args = vargs; home = here } ]
+      let via = if kind <> "scene/world" then None
+        else Option.bind (List.assoc_opt "world" targs) (referenced env) in
+      under @ [ { kind; args = vargs; home = here; via } ]
   | W.Op { op = "scene/merge"; args = all; skip }, E.Struct ("scene/merge", vargs)
     when merge_fits env (List.map snd (kept ~iter skip all)) vargs ->
       let targs = List.map snd (kept ~iter skip all) in
@@ -303,30 +327,40 @@ let rec walk ~want ~below ~iter env place (t : W.term) (v : E.value) =
 let graph_of (workspace : Workspace_doc.t) context =
   List.find_opt (fun (g : W.graph) -> g.context = context) workspace.checked.graphs
 
+let graph_of_name (workspace : Workspace_doc.t) name =
+  List.find_opt (fun (g : W.graph) -> g.name = name && g.context = W.World) workspace.checked.graphs
+
 (* Scene calls retain their light residuals beside their homes; other contexts
    are materialized at zero after unsupported live fields have been refused. *)
+let graph_calls ~want ~below (plan : E.plan) context (graph : W.graph) =
+  match List.find_opt (fun (i : E.instance) -> i.default && i.graph = graph.name)
+          (Array.to_list plan.instances) with
+  | None -> Ok []
+  | Some instance ->
+      let* value = if context = W.Scene then Ok instance.result
+        else E.force instance.result ~live:{ E.t = 0. } in
+      Ok (walk ~want ~below ~iter:[] [] None graph.body value)
+
 let calls ~want ~below (workspace : Workspace_doc.t) (plan : E.plan) context =
   match graph_of workspace context with
   | None -> Ok []
-  | Some graph ->
-      (match List.find_opt (fun (i : E.instance) -> i.default && i.graph = graph.name)
-               (Array.to_list plan.instances) with
-       | None -> Ok []
-       | Some instance ->
-           let* value = if context = W.Scene then Ok instance.result
-             else E.force instance.result ~live:{ E.t = 0. } in
-           Ok (walk ~want ~below ~iter:[] [] None graph.body value))
+  | Some graph -> graph_calls ~want ~below plan context graph
 
 let no_below _ = None
+
+(* a [scene/root] holds the rest of the scene in its [scene] slot *)
+let scene_below = function "scene/root" -> Some "scene" | _ -> None
 
 (* ---- the scene ---- *)
 
 type item = { factory : Edit.factory; label : string; values : (string * Param.value) list;
               geometry : Flow_sop.Lower.graph option; home : Document.home;
               parent : string option; active : bool; group : string option;
-              drives : (string * (Flow_sop.Port.parameter * E.value) list) option }
+              drives : (string * (Flow_sop.Port.parameter * E.value) list) option;
+              via : string option;  (* the world graph a [scene/world] references *)
+              legacy : (string * Param.value) list  (* render settings an old camera carries *) }
 
-let item_of (lowered : Flow_sop.Lower.t) { kind; args; home } =
+let item_of (lowered : Flow_sop.Lower.t) { kind; args; home; via } =
   let dynamic = List.filter (fun (key, value) -> live_light_field kind key && E.is_live value) args in
   let* dynamic = List.fold_right (fun (key, value) result ->
     let* rest = result in
@@ -347,29 +381,124 @@ let item_of (lowered : Flow_sop.Lower.t) { kind; args; home } =
   let label = match label_arg args, geometry with
     | Some label, _ -> label
     | None, Some g -> g.name
-    | None, None -> String.lowercase_ascii (Edit.factory_label factory) in
+    | None, None -> if kind = "scene/world" then "World" else String.lowercase_ascii (Edit.factory_label factory) in
+  let legacy = if kind <> "scene/camera" then [] else List.filter_map (function
+    | key, E.Int n when List.mem key legacy_render -> Some (key, Param.Int_value n)
+    | _ -> None) args in
   let parent = match List.assoc_opt "parent" args with Some (E.Text s) when s <> "" -> Some s | _ -> None in
   let active = List.assoc_opt "active" args = Some (E.Bool true) in
-  Ok { factory; label; values; geometry; home; parent; active; group = None; drives }
+  Ok { factory; label; values; geometry; home; parent; active; group = None; drives; via; legacy }
 
 let is_scene_kind kind = List.mem_assoc kind scene_kinds
 
+(* How a scene renders: the settings of the scene graph's [scene/root] over the old camera's, where
+   the root's text is, and the object its [:camera] slot names (an index among the objects). *)
+type root = { params : Objects.Root.parameters; root_home : Document.home option;
+              camera : int option }
+
+let root_params values =
+  Result.map fst (Result.map_error (diag "E_RANGE")
+    (Param.apply_all Objects.Root.parameters_schema Objects.Root.default values))
+
+(* the item a camera value is: the call whose arguments it carries *)
+let find_call calls = function
+  | E.Struct (_, cargs) ->
+      List.find_index (fun (c : call) ->
+        c.args == cargs || (try c.args = cargs with Invalid_argument _ -> false)) calls
+  | _ -> None
+
+let root_of calls (objects : item list) =
+  let legacy = let cameras = List.filter (fun (i : item) -> Edit.factory_operation i.factory = "camera") objects in
+    match List.find_opt (fun (i : item) -> i.active) cameras, cameras with
+    | Some c, _ | None, c :: _ -> c.legacy
+    | None, [] -> [] in
+  match List.find_opt (fun (c : call) -> c.kind = "scene/root") calls with
+  | None -> let* params = root_params legacy in Ok { params; root_home = None; camera = None }
+  | Some call ->
+      let own = List.filter (fun (key, _) -> not (List.mem key slot_names)) call.args in
+      let* forced = E.force (E.Struct ("scene/root", own)) ~live:{ E.t = 0. } in
+      let* values = changes "scene/root" (match forced with E.Struct (_, args) -> args | _ -> []) in
+      let* params = root_params (legacy @ values) in
+      let others = List.filter (fun (c : call) -> c.kind <> "scene/root") calls in
+      Ok { params; root_home = Some call.home;
+           camera = Option.bind (List.assoc_opt "camera" call.args) (find_call others) }
+
 (* The objects of a workspace: its scene graph's calls, else one geometry object
-   per sop graph. *)
+   per sop graph; and its root. *)
 let items workspace (lowered : Flow_sop.Lower.t) =
   match graph_of workspace Flow.Workspace.Scene with
   | Some _ ->
-      let* scene = calls ~want:is_scene_kind ~below:no_below workspace lowered.plan Flow.Workspace.Scene in
-      List.fold_right (fun call rest ->
-        let* rest = rest in let* item = item_of lowered call in Ok (item :: rest)) scene (Ok [])
+      let* scene = calls ~want:is_scene_kind ~below:scene_below workspace lowered.plan Flow.Workspace.Scene in
+      let* objects = List.fold_right (fun call rest ->
+        let* rest = rest in
+        if call.kind = "scene/root" then Ok rest
+        else let* item = item_of lowered call in Ok (item :: rest)) scene (Ok []) in
+      let* root = root_of scene objects in
+      let objects = List.mapi (fun i (item : item) ->
+        if Some i = root.camera then { item with active = true } else item) objects in
+      Ok (objects, root)
   | None ->
+      let* params = root_params [] in
       Ok (List.filter_map (fun (g : Flow_sop.Lower.graph) ->
         if g.default then Some { factory = Objects.Geometry.factory; label = g.name; values = [];
                                  geometry = Some g; home = Document.Looped; parent = None;
-                                 active = false; group = None; drives = None } else None) lowered.graphs)
+                                 active = false; group = None; drives = None; via = None; legacy = [] }
+        else None) lowered.graphs, { params; root_home = None; camera = None })
 
 (* The scene value of a graph, at t = 0, as loose calls (a viewport's own scene instance). *)
-let scene_calls value = loose ~want:is_scene_kind ~below:no_below value
+let scene_calls value = loose ~want:is_scene_kind ~below:scene_below value
+
+(* ---- what a scene graph refuses ---- *)
+
+(* everything a scene value holds, through merges, roots and parts *)
+let rec members = function
+  | E.Struct ("scene/merge", args) -> List.concat_map (fun (_, v) -> members v) args
+  | E.Struct ("scene/root", args) ->
+      (match List.assoc_opt "scene" args with Some v -> members v | None -> [])
+  | E.List xs -> List.concat_map members (Array.to_list xs)
+  | E.Struct _ as v -> [ v ]
+  | _ -> []
+
+(* a root wired into a merge or another root: it renders, so it is always last *)
+let rec nested_root ~under = function
+  | E.Struct ("scene/root", args) ->
+      under || (match List.assoc_opt "scene" args with Some v -> nested_root ~under:true v | None -> false)
+  | E.Struct ("scene/merge", args) -> List.exists (fun (_, v) -> nested_root ~under:true v) args
+  | E.List xs -> Array.exists (nested_root ~under) xs
+  | _ -> false
+
+(* E_SCENE_ROOT, E_SCENE_WORLD, E_SCENE_CAMERA over every scene graph of the workspace *)
+let check_scene (workspace : Workspace_doc.t) (plan : E.plan) =
+  List.fold_left (fun checked (g : W.graph) ->
+    let* () = checked in
+    match List.find_opt (fun (i : E.instance) -> i.default && i.graph = g.name) (Array.to_list plan.instances) with
+    | Some instance when g.context = W.Scene ->
+        let refuse code message = Error (Flow.Diagnostic.error ~code ~span:g.body.form.span message) in
+        let value = instance.result in
+        if nested_root ~under:false value then
+          refuse "E_SCENE_ROOT" (Printf.sprintf
+            "Graph %s: a scene/root is wired into a merge or another root. A root renders the scene, so it is always last." g.name)
+        else
+          let* worlds = graph_calls ~want:(fun k -> k = "scene/world") ~below:scene_below plan W.Scene g in
+          let worlds = List.filter (fun (c : call) -> c.kind = "scene/world") worlds in
+          let name (c : call) = Document.describe workspace.source c.home in
+          (match worlds with
+           | first :: second :: _ ->
+               refuse "E_SCENE_WORLD" (Printf.sprintf
+                 "Graph %s: two Worlds reach one root, %s and %s. A scene has one World; take one out of the merge." g.name
+                 (name first) (name second))
+           | _ ->
+               (match value with
+                | E.Struct ("scene/root", args) ->
+                    (match List.assoc_opt "camera" args with
+                     | Some (E.Struct ("scene/camera", _) as camera)
+                       when List.exists (fun m -> m == camera || (try m = camera with Invalid_argument _ -> false))
+                              (members value) -> Ok ()
+                     | Some _ -> refuse "E_SCENE_CAMERA" (Printf.sprintf
+                         "Graph %s: the root's :camera is not a camera in its scene." g.name)
+                     | None -> Ok ())
+                | _ -> Ok ()))
+    | _ -> Ok ()) (Ok ()) workspace.checked.graphs
 
 let find_node graph used operation label =
   List.find_opt (fun (info : Edit.node_info) ->
@@ -474,7 +603,7 @@ let layer_network ?previous ~homes layers =
 module Panels = Editor_core.Panels
 
 type editor = { tree : Panels.t; origins : (Panels.path * Document.origin) list;
-                named : string option; viewports : (string * E.value) list;
+                named : string option; wires : string option; viewports : (string * E.value) list;
                 preview_sources : (string * Document.preview_source) list }
 
 let viewport_key path = "v" ^ String.concat "." (List.map string_of_int path)
@@ -482,7 +611,7 @@ let viewport_key path = "v" ^ String.concat "." (List.map string_of_int path)
 (* The tree of a [ui/workspace] value, with the graph a [ui/graph] names and the scene
    of each viewport; the origins come from walking the terms beside the values. *)
 let panel_tree root =
-  let graph = ref None and viewports = ref [] in
+  let graph = ref None and wires = ref None and viewports = ref [] in
   let arg name args = match List.assoc_opt name args with
     | Some v -> Ok v | None -> Error (diag "E_LOWER" ("A panel is missing its " ^ name ^ ".")) in
   let axis = function E.Text "vertical" -> `V | _ -> `H in
@@ -494,6 +623,8 @@ let panel_tree root =
     | E.Struct ("ui/graph", args) ->
         (match List.assoc_opt "graph" args with
          | Some (E.Text name) when !graph = None -> graph := Some name | _ -> ());
+        (match List.assoc_opt "wires" args with
+         | Some (E.Text w) when !wires = None -> wires := Some w | _ -> ());
         Ok (Leaf Graph)
     | E.Struct ("ui/inspector", _) -> Ok (Leaf Inspector)
     | E.Struct ("ui/outline", _) -> Ok (Leaf Outline)
@@ -521,7 +652,7 @@ let panel_tree root =
     | _ -> Error (diag "E_LOWER" "The editor graph returns a (ui/workspace ...) of panels.") in
   let* tree = go [] root in
   let* () = Result.map_error (diag "E_RANGE") (Panels.valid tree) in
-  Ok (tree, !graph, List.rev !viewports)
+  Ok (tree, !graph, !wires, List.rev !viewports)
 
 (* Which panels are named: the terms of the graph beside its value. *)
 let origins (graph : W.graph) value =
@@ -580,7 +711,7 @@ let editor (workspace : Workspace_doc.t) (plan : E.plan) =
   match value with
   | None -> Ok None
   | Some (E.Struct ("ui/workspace", [ _, root ]) as whole) ->
-      let* tree, graph, viewports = panel_tree root in
+      let* tree, graph, wires, viewports = panel_tree root in
       let g = Option.get (Workspace_doc.editor_graph workspace) in
       let origins = origins g whole in
       let leaves = Panels.leaves tree |> List.filter_map (function
@@ -612,7 +743,7 @@ let editor (workspace : Workspace_doc.t) (plan : E.plan) =
         key old, {Document.editor_graph = g.name; panel = origin;
           scene_ref = Option.bind panel_form (fun form -> F.arg_of form (F.Pos 0));
           instance = List.assoc old viewports}) leaves in
-      Ok (Some { tree = remap tree; origins; named = graph;
+      Ok (Some { tree = remap tree; origins; named = graph; wires;
         viewports = List.map (fun (old, scene) -> key old, scene) viewports; preview_sources })
   | Some _ -> Error (diag "E_LOWER" "The editor graph returns a (ui/workspace ...).")
 
@@ -648,14 +779,17 @@ let of_workspace ~factories ?previous (workspace : Workspace_doc.t) =
   let* lowered = Flow_sop.Lower.workspace ~factories ~extra:descriptors ?compiled_ids ?sites
       workspace.source in
   let* () = check_context_time workspace lowered.plan in
-  let* items = items workspace lowered in
+  let* () = check_scene workspace lowered.plan in
+  let* items, root = items workspace lowered in
   (* a viewport over another instance of the scene draws objects of its own *)
   let* editor = editor workspace lowered.plan in
   let* default_scene = result ~force:false workspace lowered.plan Flow.Workspace.Scene in
-  let default_calls = Option.fold ~none:[] ~some:scene_calls default_scene in
+  (* a viewport's own scene draws its objects; its root and World are not the document's *)
+  let objects_only calls = List.filter (fun (c : call) -> c.kind <> "scene/root" && c.kind <> "scene/world") calls in
+  let default_calls = objects_only (Option.fold ~none:[] ~some:scene_calls default_scene) in
   let* aux = List.fold_right (fun (key, scene) rest ->
     let* rest = rest in
-    let calls = scene_calls scene in
+    let calls = objects_only (scene_calls scene) in
     if Option.fold ~none:false ~some:(( == ) scene) default_scene
        || (try List.map (fun c -> c.kind, c.args) calls
                           = List.map (fun c -> c.kind, c.args) default_calls
@@ -676,12 +810,17 @@ let of_workspace ~factories ?previous (workspace : Workspace_doc.t) =
      (no camera, no lights), and the host seeds nothing *)
   let has_scene = graph_of workspace Flow.Workspace.Scene <> None in
   let has_world = graph_of workspace Flow.Workspace.World <> None in
-  let owned operation = operation = "geometry" || (has_scene && operation <> "world") in
-  let* stack = calls ~want:is_world_kind ~below:world_below workspace lowered.plan Flow.Workspace.World in
-  let* world, layers = match List.rev stack with
+  (* the World is a merge member ([scene/world]); an old file's world graph returning a
+     [world/world] call is read as the scene's World, written where it is *)
+  let scene_world = List.find_opt (fun item -> item.group = None && Edit.factory_operation item.factory = "world") items in
+  let owned operation = operation = "geometry"
+    || (has_scene && (operation <> "world" || scene_world <> None)) in
+  let* world, layers = if scene_world <> None then Ok (None, []) else
+    let* stack = calls ~want:is_world_kind ~below:world_below workspace lowered.plan Flow.Workspace.World in
+    match List.rev stack with
     | [] -> Ok (None, [])
     | { kind = "world/world"; _ } as world :: layers -> Ok (Some world, List.rev layers)
-    | _ -> Error (diag "E_LOWER" "A world graph returns a (world/world ...) call.") in
+    | _ -> Error (diag "E_LOWER" "A world graph is referenced by a (scene/world (ref name)), or returns a (world/world ...) call.") in
   (* claim or create a node per item, then drop the owned nodes nothing claimed *)
   let* graph, used, objects = List.fold_left (fun state item ->
     let* graph, used, objects = state in
@@ -709,6 +848,20 @@ let of_workspace ~factories ?previous (workspace : Workspace_doc.t) =
   let* graph = link_parents graph objects in
   (* the World node *)
   let* graph, world_id, world_network, layer_homes = match world with
+    | None when scene_world <> None ->
+        (* the node the objects made; its layers are the referenced world graph's *)
+        let id, item = List.find (fun (_, (item : item)) ->
+          item.group = None && Edit.factory_operation item.factory = "world") objects in
+        let* named = match item.via with
+          | Some name -> Ok name
+          | None -> Error (diag "E_LOWER" "A scene/world references a world graph: (scene/world (ref sky)).") in
+        let* stack = match graph_of_name workspace named with
+          | Some g -> graph_calls ~want:is_world_kind ~below:world_below lowered.plan W.World g
+          | None -> Error (diag "E_LOWER" (Printf.sprintf "scene/world references %s, which is not a world graph." named)) in
+        let previous_network = Option.bind previous (fun (doc : Document.t) ->
+          Document.Int_map.find_opt id doc.networks) in
+        let* network, made = layer_network ?previous:previous_network ~homes:old_homes.layers stack in
+        Ok (graph, Some id, Some network, made)
     | None ->
         (* a world graph that returns no World removes the host's *)
         let gone = if has_world then Objects.ids "world" graph else [] in
@@ -782,14 +935,17 @@ let of_workspace ~factories ?previous (workspace : Workspace_doc.t) =
     else { workspace with Workspace_doc.settings } in
   let homes = { Document.objects = List.filter_map (fun (id, item) ->
       Some (id, if item.group = None then item.home else Document.Looped)) objects;
-    world = Option.map (fun (c : call) -> c.home) world; layers = layer_homes;
+    world = (match scene_world with
+      | Some item -> Some item.home | None -> Option.map (fun (c : call) -> c.home) world);
+    layers = layer_homes; root = root.root_home;
+    world_graph = Option.bind scene_world (fun item -> item.via);
     settings = (match settings_calls with (c : call) :: _ -> Some c.home | [] -> None) } in
   let scene_drives = List.fold_left (fun drives (id, item) -> match item.drives with
     | None -> drives | Some drive -> Document.Int_map.add id drive drives)
     Document.Int_map.empty objects in
-  Ok { Document.scene; networks; active_camera; settings; scene_drives;
+  Ok { Document.scene; networks; active_camera; root = root.params; settings; scene_drives;
        shell = Option.map (fun e -> { Document.tree = e.tree; origins = e.origins;
-                                      named = e.named; views; preview_sources = e.preview_sources }) editor;
+                                      named = e.named; wires = e.wires; views; preview_sources = e.preview_sources }) editor;
        homes; workspace = (workspace, lowered) }
 
 (* Only the recorded live fields run; SOP networks, source and panel identities

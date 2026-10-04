@@ -2095,6 +2095,28 @@ let run () =
   then fail "attribute rename storage sharing";
   let colored_mesh = Pdk_prismel.Prismel_mesh.to_mesh colored |> get_ok in
   if not (Mesh.has_colors colored_mesh) then fail "mesh bridge dropped point Cd";
+  let primitive_colors = Packed.Float4.of_owned
+      ~x:[|1.; 0.|] ~y:[|0.; 0.|] ~z:[|0.; 1.|] ~w:[|1.; 1.|]
+      |> get_ok in
+  let primitive_colored = Attribute.create_key_owned
+      (Attribute.color ~owner:Attribute.Primitive) primitive_colors |> get_ok
+      |> Fun.flip Geometry.with_attribute triangle_geometry |> get_ok in
+  let primitive_mesh = Pdk_prismel.Prismel_mesh.to_mesh primitive_colored |> get_ok in
+  let primitive_view = Mesh.Private.packed_view primitive_mesh in
+  (match primitive_view.colors with
+   | Some colors when Array.length colors = 6
+       && colors.(0) = Color.red && colors.(3) = Color.blue -> ()
+   | _ -> fail "mesh bridge dropped primitive Cd or blended a face boundary");
+  let primitive_rgb = Packed.Float3.Private.of_owned_exn
+      ~x:[|1.;0.|] ~y:[|0.;0.|] ~z:[|0.;1.|] in
+  let primitive_rgb = Attribute.create_owned ~name:"Cd" ~owner:Attribute.Primitive
+      (Attribute.Float3 primitive_rgb) |> get_ok
+      |> Fun.flip Geometry.with_attribute triangle_geometry |> get_ok in
+  let rgb_view = Pdk_prismel.Prismel_mesh.to_mesh primitive_rgb |> get_ok
+      |> Mesh.Private.packed_view in
+  (match rgb_view.colors with
+   | Some colors when colors.(0) = Color.red && colors.(3) = Color.blue -> ()
+   | _ -> fail "mesh bridge dropped RGB primitive colors or their opaque alpha");
   let vertex_colors =
     let values = Packed.Float4.of_owned
         ~x:[|1.; 0.; 0.; 0.; 1.; 1.|]

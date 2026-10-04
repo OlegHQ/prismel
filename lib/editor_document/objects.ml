@@ -74,12 +74,6 @@ module Camera = struct
       [@sop.folder "Depth of field"] [@sop.min 0.] [@sop.max 2.] [@sop.hard_min 0.];
     focus_distance : float [@sop.default 0.] [@sop.label "Focus distance (0: target)"]
       [@sop.folder "Depth of field"] [@sop.min 0.] [@sop.max 100.] [@sop.hard_min 0.];
-    width : int [@sop.default 1920] [@sop.label "Width (pixels)"] [@sop.folder "Render"]
-      [@sop.min 64] [@sop.max 7680] [@sop.hard_min 1] [@sop.hard_max 16384];
-    height : int [@sop.default 1080] [@sop.label "Height (pixels)"] [@sop.folder "Render"]
-      [@sop.min 64] [@sop.max 4320] [@sop.hard_min 1] [@sop.hard_max 16384];
-    max_spp : int [@sop.default 256] [@sop.label "Max samples per pixel"] [@sop.folder "Render"]
-      [@sop.min 1] [@sop.max 4096] [@sop.hard_min 1];
   } [@@sop.node_key "camera"] [@@sop.node_label "Camera"]
     [@@sop.node_category "Object"] [@@sop.node_inputs 0]
     [@@deriving sop_params, sop_node]
@@ -107,20 +101,6 @@ module Camera = struct
          | camera -> Some (camera, p.follow_viewport)
          | exception Invalid_argument _ -> None)
 
-  (* The render settings a camera object carries. *)
-  type render = { width : int; height : int; max_spp : int }
-
-  let default_render = { width = parameters_default.width; height = parameters_default.height;
-                         max_spp = parameters_default.max_spp }
-
-  let render_of_node node =
-    if Node.operation node <> "camera" then None else
-    let values = List.map (fun (field : Parameter.field_view) ->
-      field.name, field.current) (Node.parameter_fields node) in
-    match Parameter.apply_all parameters_schema parameters_default values with
-    | Error _ -> None
-    | Ok (p, _) -> Some { width = max 1 p.width; height = max 1 p.height; max_spp = max 1 p.max_spp }
-
   let lens_values (lens : Prismel.Camera.lens) =
     ["aperture", Parameter.Float_value lens.aperture;
      "focus_distance", Parameter.Float_value (Option.value ~default:0. lens.focus_distance)]
@@ -130,6 +110,50 @@ module Camera = struct
     [float "eye_x" eye.x; float "eye_y" eye.y; float "eye_z" eye.z;
      float "target_x" target.x; float "target_y" target.y;
      float "target_z" target.z; float "fov" (fov_y *. 180. /. Float.pi)]
+end
+
+(* How the scene is rendered: the one [scene/root] of a scene graph (a scene graph without one is a
+   part and gets the defaults).  Not a node of the scene network; the document keeps its values
+   ([Document.root]).  The active camera is the root's [:camera] slot, not a field. *)
+module Root = struct
+  type renderer = Raster | Wireframe | Path_traced
+
+  let renderer_parameter = Parameter.choice ~equal:( = )
+      ["Raster", Raster; "Wireframe", Wireframe; "Path traced", Path_traced]
+
+  type parameters = {
+    renderer : renderer [@sop.default Raster] [@sop.label "Renderer"] [@sop.kind renderer_parameter];
+    width : int [@sop.default 1920] [@sop.label "Width (pixels)"] [@sop.folder "Size"]
+      [@sop.min 64] [@sop.max 7680] [@sop.hard_min 1] [@sop.hard_max 16384];
+    height : int [@sop.default 1080] [@sop.label "Height (pixels)"] [@sop.folder "Size"]
+      [@sop.min 64] [@sop.max 4320] [@sop.hard_min 1] [@sop.hard_max 16384];
+    max_spp : int [@sop.default 256] [@sop.label "Max samples per pixel"] [@sop.folder "Samples"]
+      [@sop.min 1] [@sop.max 4096] [@sop.hard_min 1];
+    bounces : int [@sop.default 4] [@sop.label "Bounces"] [@sop.folder "Samples"]
+      [@sop.min 1] [@sop.max 32] [@sop.hard_min 1] [@sop.hard_max 64];
+    round_samples : int [@sop.default 4] [@sop.label "Round-corner samples"] [@sop.folder "Samples"]
+      [@sop.min 0] [@sop.max 16] [@sop.hard_min 0] [@sop.hard_max 64];
+  } [@@sop.node_key "root"] [@@sop.node_label "Root"]
+    [@@sop.node_category "Render"] [@@sop.node_inputs 0]
+    [@@deriving sop_params, sop_node]
+
+  let build = parameters_build (fun ~label _parameters ->
+    Sop.custom ~label ~operation:"root" [] (fun ~context:_ _ -> Ok empty))
+  let factory = parameters_factory build
+
+  let default = parameters_default
+
+  (* The render resolution and samples a sketch exports at. *)
+  type render = { width : int; height : int; max_spp : int }
+
+  let render (p : parameters) =
+    { width = max 1 p.width; height = max 1 p.height; max_spp = max 1 p.max_spp }
+
+  (* The labels of [renderer], as the viewport and the text spell them. *)
+  let renderer_label = function
+    | Raster -> "Raster" | Wireframe -> "Wireframe" | Path_traced -> "Path traced"
+
+  let fields (p : parameters) = Parameter.view parameters_schema p
 end
 
 module Light = struct

@@ -1731,9 +1731,9 @@ let panel_with ?stroke ui ?(x = 12.) ?(y = 12.) ?(width = 280.) ?height ?max_hei
       let scroll_y = int_of_float ui.scroll_y.(panel.box_slot) in
       let thumb_y = track_y + (scroll_y * travel / maximum) in
       Paint.fill paint ~x:(float track_x) ~y:(float track_y) ~w:4.
-        ~h:(float track_height) ~radius:2. (Color.with_alpha theme.track 180);
+        ~h:(float track_height) (Color.with_alpha theme.track 180);
       Paint.fill paint ~x:(float track_x) ~y:(float thumb_y) ~w:4.
-        ~h:(float thumb_height) ~radius:2. (Color.with_alpha theme.accent 210)
+        ~h:(float thumb_height) (Color.with_alpha theme.accent 210)
     end);
   let previous_row = ui.kit_row_height and previous_padding = ui.kit_padding in
   ui.kit_row_height <- row_height; ui.kit_padding <- padding;
@@ -1811,12 +1811,12 @@ let inspector_toggle_value ui ~key ~at:(x, y) value =
       ~w:(Px 40.) ~h:(Px 18.) key in
   let value = if (signal ui control).clicked then not value else value in
   draw ui control (fun paint (x, y, w, h) ->
-    Paint.rect paint ~x ~y ~w ~h ~radius:2.
+    Paint.rect paint ~x ~y ~w ~h
       ~fill:(if value then Color.blend ui.theme.accent ui.theme.input ~pct:0.28
         else ui.theme.control)
       ~stroke:(Theme.faint_border ui.theme) ();
     Paint.rect paint ~x:(x +. (if value then w -. 15. else 3.))
-      ~y:(y +. 3.) ~w:12. ~h:12. ~radius:1.
+      ~y:(y +. 3.) ~w:12. ~h:12.
       ~fill:(if value then ui.theme.accent else Theme.muted ui.theme) ());
   value
 
@@ -2733,8 +2733,19 @@ let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors =
       let s = line_start edit.text at and e = line_end edit.text at in
       s, (if e < String.length edit.text then e + 1 else e) in
     if signal.pressed && signal.button = Some Input.LeftButton then
-      press_select ui edit ~shift:(press_shift ui body) ~clicks:signal.clicks ~line_of
-        (point_at signal.press_point)
+      begin
+        press_select ui edit ~shift:(press_shift ui body) ~clicks:signal.clicks ~line_of
+          (point_at signal.press_point);
+        (* a double click on true / false flips it, as dragging flips a number *)
+        if signal.clicks = 2 && language <> None && not readonly then begin
+          let a, b = text_selection edit in
+          let flipped = match String.sub edit.text a (b - a) with
+            | "true" -> Some "false" | "false" -> Some "true" | _ -> None in
+          Option.iter (fun word ->
+            remember ui edit ~typing:false;
+            replace_text edit word; edit.anchor <- a; edit.caret <- a + String.length word) flipped
+        end
+      end
     else if !scrubbing = None && scrub_state = 0
         && (signal.dragging || (signal.held && signal.pointer <> signal.press_point)) then
       drag_select ui edit ~line_of (point_at signal.pointer);
@@ -2794,6 +2805,16 @@ let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors =
           && edit.caret = edit.anchor && edit.caret > 0 && edit.caret < String.length edit.text
           && List.mem (edit.text.[edit.caret - 1], edit.text.[edit.caret]) (Option.get language).pairs ->
           change (); edit.anchor <- edit.caret - 1; edit.caret <- edit.caret + 1; replace_text edit ""; typed := true
+      (* Command-X / C with no selection take the caret's whole logical line, newline included *)
+      | Event.KeyPressed (Input.KeyChar ('x' | 'X' | 'c' | 'C' as key)) when command && edit.caret = edit.anchor ->
+          let s = match String.rindex_from_opt edit.text (max 0 (edit.caret - 1)) '\n' with
+            | Some i when edit.caret > 0 -> i + 1 | _ -> 0 in
+          let e = match String.index_from_opt edit.text edit.caret '\n' with
+            | Some i -> i + 1 | None -> String.length edit.text in
+          if Clipboard.set_text (String.sub edit.text s (e - s)) = Ok ()
+             && (key = 'x' || key = 'X') && not readonly then begin
+            change (); edit.anchor <- s; edit.caret <- e; replace_text edit ""; typed := true
+          end
       | Event.KeyPressed Input.Tab when not command && not readonly ->
           if not shift then (change (); replace_text edit "  ")
           else begin
@@ -3278,7 +3299,7 @@ let context_menu ui ~at:(x, y) ?width ?selected label items =
   let height = List.fold_left (fun h (text, _) -> h +. (if text = "" then gap else row_height)) 6. items in
   let x = Float.max 0. (Float.min x (ui.view_w -. width))
   and y = Float.max 0. (Float.min y (ui.view_h -. height)) in
-  match popup ui ~stroke:(Theme.border ui.theme) ~at:(x, y) ~width ~height label (fun () ->
+  match popup ui ~stroke:(Theme.edge ui.theme) ~at:(x, y) ~width ~height label (fun () ->
       List.mapi (fun index (text, enabled) ->
         if text = "" then begin
           let line = box ui ~flags:blocking ~w:Grow ~h:(Px gap) (Printf.sprintf "separator-%d" index) in

@@ -49,7 +49,7 @@ type stats = {
 (* ------------------------------------------------------------ geometry *)
 
 type src = { pos : float * float; ty : Ty.t option }
-type wire = { a : float * float; b : float * float; ty : Ty.t option }
+type wire = { a : float * float; b : float * float; ty : Ty.t option; target : (path * E.arg_key * S.t option) option }
 
 type geo = {
   items : (P.placed * float * float) array;  (* absolute top-left, graph units *)
@@ -62,6 +62,7 @@ type geo = {
 let empty_geo = { items = [||]; wires = [||]; rel = Hashtbl.create 1; pos = Hashtbl.create 1; origins = [] }
 let pad = 14.
 let root_name s = match String.index_opt s '.' with Some i -> String.sub s 0 i | None -> s
+let fallback (r : P.row) = Option.bind r.ty (fun ty -> E.default_for ty r.label)
 
 let rail_y (n : P.node) ~collapsed ay =
   if collapsed then ay +. P.head_height else ay +. P.rail_top n
@@ -87,8 +88,8 @@ let compute (scope : P.scope) (layout : P.layout) ~shift =
       | _ -> ()) l.placed in
   walk 0. 0. layout;
   let wires = ref [] in
-  let wire (s : src option) b = match s with
-    | Some s -> wires := { a = s.pos; b; ty = s.ty } :: !wires
+  let wire ?target (s : src option) b = match s with
+    | Some s -> wires := { a = s.pos; b; ty = s.ty; target } :: !wires
     | None -> () in
   let resolve chain name =
     List.find_map (fun tbl -> match Hashtbl.find_opt tbl name with
@@ -121,14 +122,16 @@ let compute (scope : P.scope) (layout : P.layout) ~shift =
           (match n.zone with
            | None ->
                List.iteri (fun i (r : P.row) ->
-                 let target = (ax, rows_top n ay +. (float i +. 0.5) *. P.row_height) in
-                 List.iter (fun name -> wire (resolve chain name) target) (names_of r.expr)) n.rows
+                 let target_pos = (ax, rows_top n ay +. (float i +. 0.5) *. P.row_height) in
+                 let target = Some (n.path, r.key, fallback r) in
+                 List.iter (fun name -> wire ?target (resolve chain name) target_pos) (names_of r.expr)) n.rows
            | Some z ->
                let collapsed = p.collapsed in
                List.iteri (fun i (r : P.rail_row) ->
-                 let target = (ax, rail_y n ~collapsed ay +. (float i +. 0.5) *. P.row_height) in
+                 let target_pos = (ax, rail_y n ~collapsed ay +. (float i +. 0.5) *. P.row_height) in
                  let names = if r.role = P.Capture then [ r.name ] else names_of r.expr in
-                 List.iter (fun name -> wire (resolve chain name) target) names) z.rail;
+                 let target = match r.key with Some key -> Some (n.path, key, None) | None -> None in
+                 List.iter (fun name -> wire ?target (resolve chain name) target_pos) names) z.rail;
                if not collapsed then begin
                  let rail = Hashtbl.create 8 in
                  List.iteri (fun i (r : P.rail_row) ->
@@ -196,7 +199,10 @@ type t = {
   layout : P.layout;
   geo : geo;
   pan_x : float; pan_y : float; zoom : float;
+  wires : [ `Rect | `Straight ];
   selected : Path_set.t;
+  selected_wire : (path * E.arg_key * S.t option) option;
+  panning_grab : bool;
   hovered_row : (path * E.arg_key) option;
   highlighted : wire list;
   drag : drag option;
@@ -212,7 +218,8 @@ let create ?(x = 0) ?(y = 0) ?(width = 640) ?(height = 360) ?(theme = Pxui.defau
   chains = Hashtbl.create 1; counts = Hashtbl.create 1;
   frames = (fun _ -> []); display = None; framed = true;
   layout = { P.placed = []; w = 0.; h = 0. }; geo = empty_geo; pan_x = 12.; pan_y = 12.; zoom = 1.;
-  selected = Path_set.empty; hovered_row = None; highlighted = []; drag = None; editing = None; context = None; stats = no_stats }
+  wires = `Rect; selected = Path_set.empty; selected_wire = None; panning_grab = false;
+  hovered_row = None; highlighted = []; drag = None; editing = None; context = None; stats = no_stats }
 
 let with_bounds ~x ~y ~width ~height t =
   if t.x = x && t.y = y && t.width = width && t.height = height then t
@@ -220,11 +227,16 @@ let with_bounds ~x ~y ~width ~height t =
 let with_visible visible t = if t.visible = visible then t else { t with visible }
 let with_guide guide t = if t.guide = guide then t else { t with guide }
 let selected t = Path_set.elements t.selected
+let selected_wire t = Option.map (fun (path, key, _) -> path, key) t.selected_wire
 let editing t = t.editing <> None
-let select paths t = { t with selected = Path_set.of_list paths }
-let clear_selection t = if Path_set.is_empty t.selected then t else { t with selected = Path_set.empty }
+let select paths t = { t with selected = Path_set.of_list paths; selected_wire = None }
+let clear_selection t =
+  if Path_set.is_empty t.selected && t.selected_wire = None then t
+  else { t with selected = Path_set.empty; selected_wire = None }
 let stats t = t.stats
 let zoom t = t.zoom
+let wires t = t.wires
+let with_wires wires t = if t.wires = wires then t else { t with wires }
 
 (* a screen point as a position inside [scope], snapped to the 12-point grid (where a node added
    from the menu opened there goes) *)
@@ -262,19 +274,28 @@ let lens_of t path = List.assoc_opt path t.lens
 let macro_step = lens_of
 
 let with_scope ?(at = fun _ -> None) ?(collapsed = fun _ -> false) ?(probe = fun _ -> 0)
-    ?(frames = fun _ -> []) ?display ~key scope t =
+    ?(frames = fun _ -> []) ?display ?wires ~key scope t =
+  let wires = Option.value wires ~default:t.wires in
   let layout = P.layout ~at ~collapsed ~lens:(lens_of t) scope in
   let n, z, r = count_scope scope in
   let t = { t with scope = Some scope; at; collapsed; probe; frames; display; layout;
-    chains = Flow_sop.Probe.chains scope;
+    chains = Flow_sop.Probe.chains scope; wires;
     geo = compute scope layout ~shift:no_shift;
     stats = { t.stats with nodes = n; zones = z; rows = r } } in
   (* an edit that removed or moved a node drops it from the selection *)
   let t = { (refresh t) with selected = Path_set.filter (Hashtbl.mem t.geo.pos) t.selected } in
+  let selected_wire = match t.selected_wire with
+    | Some (sp, sk, _) when Array.exists (fun w -> match w.target with Some (tp, tk, _) -> sp = tp && sk = tk | None -> false) t.geo.wires ->
+        t.selected_wire
+    | _ -> None in
+  let t = { t with selected_wire } in
   let t = match t.editing with
     | Some (Name p | Default p) when not (Hashtbl.mem t.geo.pos p) -> { t with editing = None }
     | _ -> t in
-  if key <> t.key then { t with key; framed = false; selected = Path_set.empty; drag = None; editing = None } else t
+  if key <> t.key then begin
+    if t.panning_grab then ignore (Prismel.Sketch.set_relative_mouse false);
+    { t with key; framed = false; selected = Path_set.empty; selected_wire = None; panning_grab = false; drag = None; editing = None }
+  end else t
 
 (* the panel of a macro call opened or stepped: its card changes size *)
 let relayout t = match t.scope with
@@ -360,7 +381,9 @@ let action_changes t command =
            let n = Option.get (node_of t path) in
            let r = List.find (fun (r : P.row) -> r.key = key) n.rows in
            edit (E.Disconnect { node = path; key; fallback = fallback r })
-       | _ -> if paths = [] then [] else edit (E.Delete_nodes { nodes = paths }))
+       | _ -> (match t.selected_wire with
+           | Some (path, key, fb) -> edit (E.Disconnect { node = path; key; fallback = fb })
+           | None -> if paths = [] then [] else edit (E.Delete_nodes { nodes = paths })))
   | Fold_into -> one (fun n -> edit (E.Fold_into { node = n.path }))
   | Unfold -> one (fun n ->
       match t.hovered_row, first_inline n with
@@ -396,6 +419,7 @@ let action_changes t command =
   | Paste -> [ Paste_requested ]
   | Display -> one (fun n ->
       if n.ty <> Ty.Geometry then [ Notice "Only a geometry node can be viewed" ]
+      else if List.length n.path <> 2 then [ Notice "A node inside a loop cannot be the result" ]
       else [ Display_set n.path ])
   | Item_up | Item_down ->
       (match t.hovered_row with
@@ -509,7 +533,7 @@ let ty_color t (ty : Ty.t option) =
   let rec go = function
     | Ty.Geometry -> p.geometry | Float -> p.float | Int -> p.int | Bool -> p.bool | Vec3 -> p.vec3
     | Text | Color -> p.text | List e -> go e | Record _ -> p.record | Fn -> p.fn
-    | Any | Scene | World | Settings | Panel | Editor -> p.output in
+    | Any | Scene | World | Settings | Panel | Editor | Material -> p.output in
   match ty with Some ty -> go ty | None -> p.output
 
 let fitted paint size width text =
@@ -538,14 +562,14 @@ let zone_style theme = function
 
 let paint_zone paint theme kind ~selected (x, y, w, h) =
   let s = zone_style theme kind in
-  Ui.Paint.rect paint ~x ~y ~w ~h ~radius:6. ~fill:s.fill ();
+  Ui.Paint.rect paint ~x ~y ~w ~h ~fill:s.fill ();
   if s.dashed then begin
     List.iter (fun (a, b) -> dashed_line paint ~width:1.2 s.edge a b)
       [ (x, y), (x +. w, y); (x +. w, y), (x +. w, y +. h);
         (x +. w, y +. h), (x, y +. h); (x, y +. h), (x, y) ]
-  end else Ui.Paint.stroke paint ~x:(x +. 0.5) ~y:(y +. 0.5) ~w:(w -. 1.) ~h:(h -. 1.) ~radius:6. s.edge;
+  end else Ui.Paint.stroke paint ~x:(x +. 0.5) ~y:(y +. 0.5) ~w:(w -. 1.) ~h:(h -. 1.) s.edge;
   if selected then
-    Ui.Paint.stroke paint ~x:(x -. 1.) ~y:(y -. 1.) ~w:(w +. 2.) ~h:(h +. 2.) ~width:1.5 ~radius:6. theme.Pxui.accent
+    Ui.Paint.stroke paint ~x:(x -. 1.) ~y:(y -. 1.) ~w:(w +. 2.) ~h:(h +. 2.) ~width:1.5 theme.Pxui.accent
 
 let sx t gx = float t.x +. t.pan_x +. gx *. t.zoom
 let sy t gy = float t.y +. t.pan_y +. gy *. t.zoom
@@ -559,7 +583,7 @@ let paint_socket paint theme (ty : Ty.t option) ~connected ~z (cx, cy) =
         let rec go = function
           | Ty.Geometry -> p.geometry | Float -> p.float | Int -> p.int | Bool -> p.bool | Vec3 -> p.vec3
           | Text | Color -> p.text | List e -> go e | Record _ -> p.record | Fn -> p.fn
-          | Any | Scene | World | Settings | Panel | Editor -> p.output in
+          | Any | Scene | World | Settings | Panel | Editor | Material -> p.output in
         go ty
     | None -> p.output in
   let r = 5. *. z in
@@ -580,7 +604,7 @@ let paint_socket paint theme (ty : Ty.t option) ~connected ~z (cx, cy) =
       done
   | Some (Ty.Record _) ->
       Ui.Paint.rect paint ~x:(cx -. r -. 2. *. z) ~y:(cy -. r) ~w:(2. *. r +. 4. *. z) ~h:(2. *. r)
-        ~radius:(4. *. z) ~fill ~stroke:color ()
+ ~fill ~stroke:color ()
   | _ -> Ui.Paint.rect paint ~x:(cx -. r) ~y:(cy -. r) ~w:(2. *. r) ~h:(2. *. r) ~fill ~stroke:color ()
 
 let glyph_of = function
@@ -625,7 +649,7 @@ let paint_chip paint t ~size ~z ~x ~y ~w (r : P.row) =
   | Inline { glyph; text } ->
       let glyph = shown_glyph glyph in
       let gw = Ui.Paint.text_width paint ~size glyph +. 8. *. z in
-      Ui.Paint.rect paint ~x ~y:(y +. 4. *. z) ~w:gw ~h:(16. *. z) ~radius:3. ~fill:theme.control
+      Ui.Paint.rect paint ~x ~y:(y +. 4. *. z) ~w:gw ~h:(16. *. z) ~fill:theme.control
         ~stroke:(Pxui.Theme.faint_border theme) ();
       Ui.Paint.text paint ~at:(x +. 4. *. z, text_y) ~size ~color:theme.accent glyph;
       Ui.Paint.text paint ~at:(x +. gw +. 4. *. z, text_y) ~size ~color:(Pxui.Theme.muted theme)
@@ -689,14 +713,14 @@ let paint_header paint t ~z ~fs ~x ~y ~w (n : P.node) ~toggle ?flag ?lens_open (
   let theme = t.theme in
   let size = max 4 (fs - 1) in
   let head = P.head_height *. z in
-  Ui.Paint.rect paint ~x:(x +. 1.) ~y:(y +. 1.) ~w:(w -. 2.) ~h:(head -. 1.) ~radius:(3. *. z)
+  Ui.Paint.rect paint ~x:(x +. 1.) ~y:(y +. 1.) ~w:(w -. 2.) ~h:(head -. 1.)
     ~fill:theme.control ();
   let name_x = match n.zone with
     | Some z_ ->
         let g = glyph_of z_.kind in
         let gx = x +. (if toggle <> None then 22. else 8.) *. z in
         Ui.Paint.rect paint ~x:gx ~y:(y +. 4. *. z) ~w:(Ui.Paint.text_width paint ~size g +. 8. *. z) ~h:(16. *. z)
-          ~radius:(3. *. z) ~fill:(zone_style theme z_.kind).edge ();
+ ~fill:(zone_style theme z_.kind).edge ();
         Ui.Paint.text paint ~at:(gx +. 4. *. z, y +. 6. *. z) ~size ~color:theme.input g;
         gx +. Ui.Paint.text_width paint ~size g +. 14. *. z
     | None ->
@@ -705,7 +729,7 @@ let paint_header paint t ~z ~fs ~x ~y ~w (n : P.node) ~toggle ?flag ?lens_open (
          | Some on ->
              (* the bypass flag: filled while the node is bypassed *)
              let fx = x +. 22. *. z in
-             Ui.Paint.rect paint ~x:fx ~y:(y +. 4. *. z) ~w:(16. *. z) ~h:(16. *. z) ~radius:(3. *. z)
+             Ui.Paint.rect paint ~x:fx ~y:(y +. 4. *. z) ~w:(16. *. z) ~h:(16. *. z)
                ~fill:(if on then theme.accent else theme.input) ~stroke:(Pxui.Theme.faint_border theme) ();
              Ui.Paint.text paint ~at:(fx +. 4. *. z, y +. 6. *. z) ~size
                ~color:(if on then theme.input else Pxui.Theme.muted theme) "B";
@@ -803,7 +827,7 @@ let paint_lens paint t ~z ~fs (l : P.lens) ~step (x, y, w) ~lh =
   for i = 0 to len do
     let (bx, by), (bw, bh) = lens_button_box ~len i in
     let on = i = step in
-    Ui.Paint.rect paint ~x:(x +. bx *. z) ~y:(y +. by *. z) ~w:(bw *. z) ~h:(bh *. z) ~radius:(3. *. z)
+    Ui.Paint.rect paint ~x:(x +. bx *. z) ~y:(y +. by *. z) ~w:(bw *. z) ~h:(bh *. z)
       ~fill:(if on then theme.accent else theme.input) ~stroke:(Pxui.Theme.faint_border theme) ();
     let label = if i = 0 then "call" else if i = len then "Template" else string_of_int i in
     let tw = Ui.Paint.text_width paint ~size:(max 4 (fs - 1)) label in
@@ -820,7 +844,7 @@ let paint_lens paint t ~z ~fs (l : P.lens) ~step (x, y, w) ~lh =
       Ui.Paint.text paint ~at:(x +. 10. *. z, y +. (P.row_height +. 6. +. float k *. 15.) *. z) ~size:fs
         ~color:theme.foreground (fitted paint fs (w -. 20. *. z) (if k = 15 && List.length lines > 16 then line ^ " …" else line))) lines;
   let (rx, ry), (rw, rh) = lens_replace_box lh in
-  Ui.Paint.rect paint ~x:(x +. rx *. z) ~y:(y +. ry *. z) ~w:(rw *. z) ~h:(rh *. z) ~radius:(3. *. z)
+  Ui.Paint.rect paint ~x:(x +. rx *. z) ~y:(y +. ry *. z) ~w:(rw *. z) ~h:(rh *. z)
     ~fill:theme.input ~stroke:theme.accent ();
   Ui.Paint.text paint ~at:(x +. (rx +. 8.) *. z, y +. (ry +. 4.) *. z) ~size:(max 4 (fs - 1)) ~color:theme.accent
     "Replace call with expansion";
@@ -839,9 +863,9 @@ let paint_node paint t ~z ~fs ?footer ?lens_step (p : P.placed) (n : P.node) ~se
   let stacked = match z_ with Some _ -> p.collapsed | None -> false in
   if stacked then
     List.iter (fun d ->
-      Ui.Paint.rect paint ~x:(x +. d *. z) ~y:(y +. d *. z) ~w ~h ~radius:(3. *. z) ~fill:theme.input
+      Ui.Paint.rect paint ~x:(x +. d *. z) ~y:(y +. d *. z) ~w ~h ~fill:theme.input
         ~stroke:(Pxui.Theme.border theme) ()) [ 6.; 3. ];
-  Ui.Paint.rect paint ~x ~y ~w ~h ~radius:(3. *. z) ~fill:theme.input ~stroke:(Pxui.Theme.border theme) ();
+  Ui.Paint.rect paint ~x ~y ~w ~h ~fill:theme.input ~stroke:(Pxui.Theme.border theme) ();
   (match z_ with
    | Some zn when not p.collapsed ->
        (* an expanded zone: the tint is painted under the tiles; the tile draws the frame *)
@@ -878,7 +902,7 @@ let paint_node paint t ~z ~fs ?footer ?lens_step (p : P.placed) (n : P.node) ~se
   Option.iter (fun f -> paint_footer paint t ~z ~fs f n.ty (x, y, w, h -. lh *. z)) footer;
   Option.iter (fun (l, step) -> paint_lens paint t ~z ~fs l ~step (x, y +. h -. lh *. z, w) ~lh) lens;
   if selected then
-    Ui.Paint.stroke paint ~x:(x +. 0.5) ~y:(y +. 0.5) ~w:(w -. 1.) ~h:(h -. 1.) ~width:2. ~radius:(3. *. z) theme.accent
+    Ui.Paint.stroke paint ~x:(x +. 0.5) ~y:(y +. 0.5) ~w:(w -. 1.) ~h:(h -. 1.) ~width:2. theme.accent
 
 (* the expanded zone's frame, rail, yield and selector, over its tint *)
 let paint_zone_frame paint t ~z ~fs ?footer (n : P.node) (zn : P.zone) ~selected (x, y, w, h) ~probe ~count =
@@ -920,7 +944,7 @@ let paint_zone_frame paint t ~z ~fs ?footer (n : P.node) (zn : P.zone) ~selected
     Ui.Paint.line paint ~from_:(x, sy +. P.strip_height *. z) ~to_:(x +. w, sy +. P.strip_height *. z) ~width:1.
       (Color.with_alpha edge 60);
     let tx = x +. 30. *. z and tw = w -. 60. *. z -. rw -. 14. *. z in
-    Ui.Paint.rect paint ~x:tx ~y:(sy +. 12. *. z) ~w:tw ~h:(10. *. z) ~radius:(2. *. z)
+    Ui.Paint.rect paint ~x:tx ~y:(sy +. 12. *. z) ~w:tw ~h:(10. *. z)
       ~fill:theme.track ~stroke:(Pxui.Theme.faint_border theme) ();
     if count > 0 then begin
       let cell = tw /. float count in
@@ -937,24 +961,24 @@ let paint_zone_frame paint t ~z ~fs ?footer (n : P.node) (zn : P.zone) ~selected
     Ui.Paint.text paint ~at:(x +. w -. 8. *. z -. rw, sy +. 11. *. z) ~size ~color:(Pxui.Theme.muted theme) read
   end;
   if selected then
-    Ui.Paint.stroke paint ~x:(x -. 1.) ~y:(y -. 1.) ~w:(w +. 2.) ~h:(h +. 2.) ~width:1.5 ~radius:6. theme.accent
+    Ui.Paint.stroke paint ~x:(x -. 1.) ~y:(y -. 1.) ~w:(w +. 2.) ~h:(h +. 2.) ~width:1.5 theme.accent
 
 let paint_input paint t ~z ~fs (i : P.input) ~selected (x, y, w, h) =
   let theme = t.theme in
-  Ui.Paint.rect paint ~x ~y ~w ~h ~radius:(3. *. z) ~fill:theme.input ~stroke:(Pxui.Theme.border theme) ();
-  Ui.Paint.rect paint ~x:(x +. 1.) ~y:(y +. 1.) ~w:(w -. 2.) ~h:(P.head_height *. z -. 1.) ~radius:(3. *. z) ~fill:theme.control ();
+  Ui.Paint.rect paint ~x ~y ~w ~h ~fill:theme.input ~stroke:(Pxui.Theme.border theme) ();
+  Ui.Paint.rect paint ~x:(x +. 1.) ~y:(y +. 1.) ~w:(w -. 2.) ~h:(P.head_height *. z -. 1.) ~fill:theme.control ();
   Ui.Paint.fill paint ~x:(x +. 7. *. z) ~y:(y +. 7. *. z) ~w:(10. *. z) ~h:(10. *. z) (ty_color t (Some i.ty));
   Ui.Paint.text paint ~at:(x +. 24. *. z, y +. 6. *. z) ~size:fs ~color:theme.foreground (fitted paint fs (w -. 40. *. z) i.name);
   Ui.Paint.text paint ~at:(x +. 14. *. z, y +. (P.head_height +. 6.) *. z) ~size:fs ~color:(Pxui.Theme.muted theme)
     (Ty.to_string i.ty ^ (match i.default with Some d -> " = " ^ Flow.Lisp.flat d | None -> ""));
   paint_socket paint theme (Some i.ty) ~connected:true ~z (x +. w, y +. 12. *. z);
   if selected then
-    Ui.Paint.stroke paint ~x:(x +. 0.5) ~y:(y +. 0.5) ~w:(w -. 1.) ~h:(h -. 1.) ~width:2. ~radius:(3. *. z) theme.accent
+    Ui.Paint.stroke paint ~x:(x +. 0.5) ~y:(y +. 0.5) ~w:(w -. 1.) ~h:(h -. 1.) ~width:2. theme.accent
 
 let paint_return paint t ~z ~fs (s : P.scope) ~selected (x, y, w, h) =
   let theme = t.theme in
-  Ui.Paint.rect paint ~x ~y ~w ~h ~radius:(3. *. z) ~fill:theme.input ~stroke:(Pxui.Theme.border theme) ();
-  Ui.Paint.rect paint ~x:(x +. 1.) ~y:(y +. 1.) ~w:(w -. 2.) ~h:(P.head_height *. z -. 1.) ~radius:(3. *. z) ~fill:theme.control ();
+  Ui.Paint.rect paint ~x ~y ~w ~h ~fill:theme.input ~stroke:(Pxui.Theme.border theme) ();
+  Ui.Paint.rect paint ~x:(x +. 1.) ~y:(y +. 1.) ~w:(w -. 2.) ~h:(P.head_height *. z -. 1.) ~fill:theme.control ();
   Ui.Paint.text paint ~at:(x +. 10. *. z, y +. 6. *. z) ~size:fs ~color:theme.foreground "return";
   let shown = match s.result with
     | P.Link l -> l | Node _ -> "result" | Literal e -> Flow.Lisp.flat e in
@@ -962,13 +986,16 @@ let paint_return paint t ~z ~fs (s : P.scope) ~selected (x, y, w, h) =
     (fitted paint fs (w -. 24. *. z) shown);
   paint_socket paint theme None ~connected:(s.result <> P.Literal (S.make (S.Sym "nil"))) ~z (x, y +. 36. *. z);
   if selected then
-    Ui.Paint.stroke paint ~x:(x +. 0.5) ~y:(y +. 0.5) ~w:(w -. 1.) ~h:(h -. 1.) ~width:2. ~radius:(3. *. z) theme.accent
+    Ui.Paint.stroke paint ~x:(x +. 0.5) ~y:(y +. 0.5) ~w:(w -. 1.) ~h:(h -. 1.) ~width:2. theme.accent
 
-(* a wire as an orthogonal polyline with a vertical run at the midpoint *)
-let wire_points (ax, ay) (bx, by) =
-  let mx = if bx >= ax +. 24. then (ax +. bx) /. 2. else ax +. 12. in
-  if bx >= ax +. 24. then [ (ax, ay); (mx, ay); (mx, by); (bx, by) ]
-  else [ (ax, ay); (mx, ay); (mx, (ay +. by) /. 2.); (bx -. 12., (ay +. by) /. 2.); (bx -. 12., by); (bx, by) ]
+(* a wire as an orthogonal polyline with a vertical run at the midpoint, or a straight segment *)
+let wire_points ?(style = `Rect) (ax, ay) (bx, by) =
+  match style with
+  | `Straight -> [ (ax, ay); (bx, by) ]
+  | `Rect ->
+      let mx = if bx >= ax +. 24. then (ax +. bx) /. 2. else ax +. 12. in
+      if bx >= ax +. 24. then [ (ax, ay); (mx, ay); (mx, by); (bx, by) ]
+      else [ (ax, ay); (mx, ay); (mx, (ay +. by) /. 2.); (bx -. 12., (ay +. by) /. 2.); (bx -. 12., by); (bx, by) ]
 
 let paint_polyline paint ~width color pts =
   let rec go = function
@@ -993,7 +1020,7 @@ let paint_background paint t ~viewport (zones : (P.node * P.zone * P.placed * fl
   List.iter (fun (scope_path, (ox, oy)) ->
     List.iter (fun (title, (fx, fy), (fw, fh)) ->
       let x = sx t (ox +. fx) and y = sy t (oy +. fy) in
-      Ui.Paint.rect paint ~x ~y ~w:(fw *. z) ~h:(fh *. z) ~radius:4. ~fill:(Color.with_alpha theme.foreground 10)
+      Ui.Paint.rect paint ~x ~y ~w:(fw *. z) ~h:(fh *. z) ~fill:(Color.with_alpha theme.foreground 10)
         ~stroke:(Pxui.Theme.faint_border theme) ();
       Ui.Paint.text paint ~at:(x +. 6., y +. 4.) ~size:(max 7 (int_of_float (10. *. z)))
         ~color:(Pxui.Theme.muted theme) title;
@@ -1003,9 +1030,16 @@ let paint_background paint t ~viewport (zones : (P.node * P.zone * P.placed * fl
       Ui.Paint.fill paint ~x:(x +. fw *. z -. 8.) ~y:(y +. fh *. z -. 8.) ~w:6. ~h:6.
         (Color.with_alpha theme.accent 160)) (frame_list t scope_path)) t.geo.origins;
   Array.iter (fun w ->
-    let pts = List.map (fun (x, y) -> sx t x, sy t y) (wire_points w.a w.b) in
-    let width = Float.max 1. (1.6 *. z) in
-    paint_polyline paint ~width (ty_color t w.ty) pts) t.geo.wires
+    let pts = List.map (fun (x, y) -> sx t x, sy t y) (wire_points ~style:t.wires w.a w.b) in
+    let is_selected = match t.selected_wire, w.target with
+      | Some (sp, sk, _), Some (tp, tk, _) -> sp = tp && sk = tk
+      | _ -> false in
+    let is_highlighted = List.mem w t.highlighted in
+    let width = if is_selected then Float.max 2.5 (3. *. z)
+      else if is_highlighted then Float.max 2. (2.4 *. z)
+      else Float.max 1. (1.6 *. z) in
+    let color = if is_selected then theme.accent else ty_color t w.ty in
+    paint_polyline paint ~width color pts) t.geo.wires
 
 (* ---------------------------------------------------------------- update *)
 
@@ -1114,19 +1148,35 @@ let update t ui (frame : Frame.t) =
      ports built below take hover precedence. *)
   let wire_hits = Ui.within ui canvas (fun () ->
     Array.mapi (fun i w ->
-      Ui.scope ui ("wire:" ^ string_of_int i) (fun () ->
-        let rec segments j found = function
-          | (ax, ay) :: ((bx, by) :: _ as rest) ->
-              let ax, ay = sx t ax -. float t.x, sy t ay -. float t.y
-              and bx, by = sx t bx -. float t.x, sy t by -. float t.y in
-              let x = Float.min ax bx -. 4. and y = Float.min ay by -. 4.
-              and width = abs_float (bx -. ax) +. 8. and height = abs_float (by -. ay) +. 8. in
-              let found = if x < float t.width && x +. width > 0. && y < float t.height && y +. height > 0. then
-                Ui.box ui ~flags:Ui.clickable ~at:(x, y) ~w:(Ui.Px width)
-                  ~h:(Ui.Px height) (string_of_int j) :: found else found in
-              segments (j + 1) found rest
-          | _ -> found in
-        segments 0 [] (wire_points w.a w.b))) t.geo.wires) in
+      match w.target with
+      | None -> []
+      | Some _ ->
+          Ui.scope ui ("wire:" ^ string_of_int i) (fun () ->
+            let rec segments j found = function
+              | (ax, ay) :: ((bx, by) :: _ as rest) ->
+                  let ax, ay = sx t ax -. float t.x, sy t ay -. float t.y
+                  and bx, by = sx t bx -. float t.x, sy t by -. float t.y in
+                  let segs =
+                    if ax = bx || ay = by then [ (ax, ay, bx, by) ]
+                    else
+                      let len = Float.hypot (bx -. ax) (by -. ay) in
+                      let steps = max 1 (int_of_float (len /. 16.)) in
+                      List.init steps (fun s ->
+                        let u0 = float s /. float steps in
+                        let u1 = float (s + 1) /. float steps in
+                        (ax +. (bx -. ax) *. u0, ay +. (by -. ay) *. u0,
+                         ax +. (bx -. ax) *. u1, ay +. (by -. ay) *. u1))
+                  in
+                  let found = List.fold_left (fun found (x0, y0, x1, y1) ->
+                    let x = Float.min x0 x1 -. 4. and y = Float.min y0 y1 -. 4.
+                    and width = abs_float (x1 -. x0) +. 8. and height = abs_float (y1 -. y0) +. 8. in
+                    if x < float t.width && x +. width > 0. && y < float t.height && y +. height > 0. then
+                      Ui.box ui ~flags:Ui.clickable ~at:(x, y) ~w:(Ui.Px width)
+                        ~h:(Ui.Px height) (string_of_int j ^ "-" ^ string_of_int (List.length found)) :: found
+                    else found) found segs in
+                  segments (j + 1) found rest
+              | _ -> found in
+            segments 0 [] (wire_points ~style:t.wires w.a w.b))) t.geo.wires) in
   (* footers: only for what is in view, and not when too small to read *)
   let footers = Hashtbl.create 16 in
   (match t.records with
@@ -1415,21 +1465,44 @@ let update t ui (frame : Frame.t) =
   let t = { t with hovered_row; highlighted = !highlighted } in
   (* interactions *)
   let left (s : Ui.signal) = s.button = Some Input.LeftButton in
-  let panning = Array.exists (fun (s : Ui.signal) -> (s.held || s.released) && s.button <> Some Input.LeftButton && s.button <> None)
-      (Array.of_list (canvas_signal :: List.map (fun (_, _, _, _, s, _, _) -> s) tiles)) in
+  let non_left_pressed (s : Ui.signal) = s.pressed && s.button <> Some Input.LeftButton && s.button <> None in
+  let non_left_held (s : Ui.signal) = s.held && s.button <> Some Input.LeftButton && s.button <> None in
+  let non_left_released (s : Ui.signal) = s.released && s.button <> Some Input.LeftButton && s.button <> None in
+  let all_signals = canvas_signal :: List.map (fun (_, _, _, _, (s : Ui.signal), _, _) -> s) tiles in
+  let panning = List.exists (fun (s : Ui.signal) -> non_left_held s || non_left_released s) all_signals in
+  let pan_pressed = List.exists non_left_pressed all_signals in
+  let pan_released = List.exists non_left_released all_signals in
+  let lost = List.exists (function Prismel.Event.WindowFocusLost -> true | _ -> false) frame.events in
+  let panning_grab =
+    if pan_pressed || panning then true
+    else if pan_released || lost || frame.mouse_buttons = [] then false
+    else t.panning_grab in
+  if panning_grab <> t.panning_grab then ignore (Prismel.Sketch.set_relative_mouse panning_grab);
+  let t = { t with panning_grab } in
   let t = if not panning then t else begin
       let dx, dy = if canvas_signal.held || canvas_signal.released then canvas_signal.drag
         else List.fold_left (fun (dx, dy) (_, _, _, _, (s : Ui.signal), _, _) -> let a, b = s.drag in dx +. a, dy +. b)
             (0., 0.) tiles in
       { t with pan_x = t.pan_x +. dx; pan_y = t.pan_y +. dy }
     end in
+  let tile_pressed = List.exists (fun (_, _, _, _, (s : Ui.signal), _, _) -> s.pressed) tiles in
+  let wire_pressed =
+    if t.context <> None || tile_pressed then None
+    else Array.find_mapi (fun i boxes ->
+      if List.exists (fun b -> let s = Ui.signal ui b in s.pressed && left s) boxes
+      then Some i else None) wire_hits in
+  let t = match wire_pressed with
+    | Some i ->
+        if not (Path_set.is_empty t.selected) then emit (Selected []);
+        { t with selected = Path_set.empty; selected_wire = t.geo.wires.(i).target }
+    | None -> t in
   let t = if canvas_signal.pressed && left canvas_signal && t.context = None
-    && not (List.exists (fun (_, _, _, _, (s : Ui.signal), _, _) -> s.pressed) tiles)
+    && not tile_pressed && Option.is_none wire_pressed
     then begin
       let additive = List.mem Input.Shift (Ui.press_keys ui canvas) in
       if (not additive) && not (Path_set.is_empty t.selected) then emit (Selected []);
       let base = if additive then t.selected else Path_set.empty in
-      { t with selected = base; drag = Some (Marquee { base }) }
+      { t with selected = base; selected_wire = None; drag = Some (Marquee { base }) }
     end else t in
   (* the rubber band selects the nodes of one scope it touches *)
   let t = match t.drag with
@@ -1454,7 +1527,7 @@ let update t ui (frame : Frame.t) =
             (if Path_set.mem p.path t.selected then Path_set.remove p.path t.selected else Path_set.add p.path t.selected)
           else if Path_set.mem p.path t.selected then t.selected else Path_set.singleton p.path in
         emit (Selected (Path_set.elements selected));
-        { t with selected; drag = Some (Moving { paths = parents_removed (Path_set.elements selected);
+        { t with selected; selected_wire = None; drag = Some (Moving { paths = parents_removed (Path_set.elements selected);
                                                  dx = 0.; dy = 0.; moved = false }) }
       end else t in
     let t =
@@ -1615,10 +1688,10 @@ let update t ui (frame : Frame.t) =
   Ui.draw_over ui canvas (fun paint _ ->
     List.iter (fun w ->
       paint_polyline paint ~width:3. snapshot.theme.accent
-        (List.map (fun (x, y) -> sx snapshot x, sy snapshot y) (wire_points w.a w.b));
+        (List.map (fun (x, y) -> sx snapshot x, sy snapshot y) (wire_points ~style:snapshot.wires w.a w.b));
       List.iter (fun (x, y) -> Ui.Paint.stroke paint
         ~x:(sx snapshot x -. 6.) ~y:(sy snapshot y -. 6.) ~w:12. ~h:12.
-        ~width:2. ~radius:3. snapshot.theme.accent) [w.a; w.b]) snapshot.highlighted;
+        ~width:2. snapshot.theme.accent) [w.a; w.b]) snapshot.highlighted;
     (match band with
      | Some w -> Ui.Paint.line paint ~from_:w.from ~to_:mouse ~width:1.5 (ty_color snapshot w.ty)
      | None -> ());
@@ -1638,7 +1711,7 @@ let update t ui (frame : Frame.t) =
               let w = Ui.Paint.text_width paint ~size full +. 12. *. z in
               let x = sx snapshot (ax +. cell_x) and y = sy snapshot (rows_top n ay +. float i *. P.row_height) in
               if w > (P.node_width -. cell_x -. 8.) *. z then begin
-                Ui.Paint.rect paint ~x ~y:(y +. 2. *. z) ~w ~h:(20. *. z) ~radius:3. ~fill:snapshot.theme.input
+                Ui.Paint.rect paint ~x ~y:(y +. 2. *. z) ~w ~h:(20. *. z) ~fill:snapshot.theme.input
                   ~stroke:snapshot.theme.accent ();
                 Ui.Paint.text paint ~at:(x +. 6. *. z, y +. 6. *. z) ~size ~color:snapshot.theme.foreground full
               end
@@ -1685,6 +1758,16 @@ module Private = struct
     | _ -> None
   let bypass_flag t path = match node_of t path with
     | Some n when bypassable n -> tile_point t path (22., 4.) (18., 16.)
+    | _ -> None
+  let wire_count t = Array.length t.geo.wires
+  let wire_target t i =
+    if i < 0 || i >= Array.length t.geo.wires then None
+    else Option.map (fun (p, k, _) -> p, k) t.geo.wires.(i).target
+  let wire_midpoint t i =
+    if i < 0 || i >= Array.length t.geo.wires then None else
+    let w = t.geo.wires.(i) in
+    match wire_points ~style:t.wires w.a w.b with
+    | (x0, y0) :: (x1, y1) :: _ -> Some (sx t ((x0 +. x1) /. 2.), sy t ((y0 +. y1) /. 2.))
     | _ -> None
   let _ = contains
 end

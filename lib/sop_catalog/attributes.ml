@@ -2,6 +2,35 @@ open Prismel
 open Procedural
 open Shared
 
+module Material = struct
+  type parameters = {
+    group : string [@sop.default ""] [@sop.label "Primitive group"];
+    material : string [@sop.default ""] [@sop.label "Material"];
+    color_r : float [@sop.default 1.] [@sop.label "Red"] [@sop.vec3 "color"]
+      [@sop.min 0.] [@sop.max 1.] [@sop.hard_min 0.] [@sop.hard_max 1.];
+    color_g : float [@sop.default 1.] [@sop.label "Green"] [@sop.vec3 "color"]
+      [@sop.min 0.] [@sop.max 1.] [@sop.hard_min 0.] [@sop.hard_max 1.];
+    color_b : float [@sop.default 1.] [@sop.label "Blue"] [@sop.vec3 "color"]
+      [@sop.min 0.] [@sop.max 1.] [@sop.hard_min 0.] [@sop.hard_max 1.];
+    roughness : float [@sop.default 0.4] [@sop.label "Roughness"]
+      [@sop.min 0.] [@sop.max 1.] [@sop.hard_min 0.] [@sop.hard_max 1.];
+    emission_r : float [@sop.default 0.] [@sop.label "Emission red"] [@sop.vec3 "emission"]
+      [@sop.min 0.] [@sop.max 1.] [@sop.hard_min 0.] [@sop.hard_max 1.];
+    emission_g : float [@sop.default 0.] [@sop.label "Emission green"] [@sop.vec3 "emission"]
+      [@sop.min 0.] [@sop.max 1.] [@sop.hard_min 0.] [@sop.hard_max 1.];
+    emission_b : float [@sop.default 0.] [@sop.label "Emission blue"] [@sop.vec3 "emission"]
+      [@sop.min 0.] [@sop.max 1.] [@sop.hard_min 0.] [@sop.hard_max 1.];
+  } [@@sop.node_key "material"] [@@sop.node_label "Material"]
+    [@@sop.node_category "Attribute/Material"] [@@sop.node_inputs 1]
+    [@@deriving sop_params, sop_node]
+
+  let build = parameters_build (fun ~label p input ->
+    Sop.material ~label ?group:(optional_text p.group) ~name:p.material
+      ~color:(Vec3.create p.color_r p.color_g p.color_b) ~roughness:p.roughness
+      ~emission:(Vec3.create p.emission_r p.emission_g p.emission_b) input)
+  let factory = parameters_factory build
+end
+
 
 module Attribute_noise_quaternion = struct
   let encode_location = function

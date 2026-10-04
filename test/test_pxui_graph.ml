@@ -479,6 +479,21 @@ let run_scope () =
   let _, changes = Scope.run_command view Scope.Delete in
   check (changes = [ Scope.Syntax_edit (Flow_sop.Flow_edit.Delete_nodes { nodes = [ heart ] }) ])
     "Delete did not become Delete_nodes";
+  (* wire selection and deletion *)
+  check (Scope.Private.wire_count view > 0) "there are wires in the graph";
+  let wire_idx = Option.get (List.find_index (fun i -> Scope.Private.wire_target view i <> None)
+    (List.init (Scope.Private.wire_count view) (fun i -> i))) in
+  let wpt = Option.get (Scope.Private.wire_midpoint view wire_idx) in
+  let view = Scope.select [ heart ] view in
+  check (Scope.selected view = [ heart ]) "heart is selected";
+  let view, _ = scope_click view (int_of_float (fst wpt), int_of_float (snd wpt)) in
+  check (Scope.selected_wire view <> None) "clicking wire selected it";
+  check (Scope.selected view = []) "clicking wire cleared node selection";
+  let _, changes = Scope.run_command view Scope.Delete in
+  check (match changes with [ Scope.Syntax_edit (Flow_sop.Flow_edit.Disconnect _) ] -> true | _ -> false)
+    "Delete on selected wire emitted Disconnect";
+  let straight_view = Scope.with_wires `Straight view in
+  check (Scope.wires straight_view = `Straight) "wires style is straight";
   (* keys and menu: every key command maps to a request *)
   let some name = check (List.exists (fun (c : (_, Scope.command) Editor_core.Command.t) -> c.id = "scope." ^ name)
     Scope.bindings) ("no key for " ^ name) in

@@ -49,16 +49,15 @@ let run () =
     step ~mouse:(x, y) [ Event.MouseReleased (button, (x, y)) ];
     step [] in
   for _ = 1 to 12 do step [] done;
-  (* the sketch opens on flower's network, with the host bar above the panels *)
+  (* the sketch opens on flower's network,  *)
   check (dump_line !e "projection" = "graph" && dump_line !e "pane graph" = "flower")
     ("the sketch opens on the network of flower: " ^ dump_line !e "projection" ^ " / " ^ dump_line !e "pane graph");
   let shell () = match (E3.workspace !e |> fun w -> Editor_document.Contexts.of_workspace ~factories w) with
     | Ok d -> Option.get d.Document.shell | Error d -> fail (Flow.Diagnostic.to_string d) in
-  let geometry () = Layout.geometry ~hidden:[ Layout.Timeline ] ~top:Bars.height (shell ()).tree (frame (0., 0.) [] 0) in
+  let geometry () = Layout.geometry ~hidden:[ Layout.Timeline ] (shell ()).tree (frame (0., 0.) [] 0) in
   let outline () = (Option.get (Layout.find (geometry ()) Layout.Outline)).body in
   let graph_leaf () = Option.get (Layout.find (geometry ()) Layout.Graph) in
-  check (let _, y, _, _ = (graph_leaf ()).header in y = Bars.height) "the panels start under the host bar";
-  (* the Navigator lists the document *)
+    (* the Navigator lists the document *)
   let ws = E3.workspace !e in
   let params ?(active = "flower") scope : N.params = { workspace = ws.Doc.checked; title = ws.checked.name;
     active = Some active; scope; records = None; probes = (fun _ -> 0); selected = [];
@@ -111,8 +110,8 @@ let run () =
   check (E3.undo_label !e = Some "View node") ("v did not view heart: " ^ Option.value ~default:"-" (E3.undo_label !e));
   check (Procedural.Node.label (E3.displayed_node !e) = "uv_sphere")
     ("the viewport shows the viewed node at the scene level: " ^ Procedural.Node.label (E3.displayed_node !e));
-  step ~mouse:p [ Event.KeyPressed (Input.KeyChar 'v') ]; step [];
-  check (Procedural.Node.label (E3.displayed_node !e) <> "uv_sphere") "v again shows the result";
+  step ~mouse:p ~keys:[ Input.Meta ] [ Event.KeyPressed (Input.KeyChar 'z') ]; step [];
+  check (Procedural.Node.label (E3.displayed_node !e) <> "uv_sphere") "undo restores the result";
   (* an input's slider writes the graph input's default: one history entry, the text follows *)
   let slider_y, slider_x, slider_w =
     let rects = N.row_rects N.initial (params scope) ~bounds:(outline ()) in
@@ -147,34 +146,5 @@ let run () =
     ^ Option.value ~default:"-" (E3.undo_label !e) ^ " / " ^ dump_line !e "edit error");
   check (has (source !e) "(defn heart_2 :context sop []") ("a defn with its own name: " ^ source !e);
   check (source !e <> before) "the text changed";
-  (* the top bar: Undo takes it back, Redo brings it again *)
-  let bar_button label =
-    let x, y, w, h = Bars.top_button_rect ~width:(float width) label in x +. (w /. 2.), y +. (h /. 2.) in
-  click (bar_button "Undo");
-  check (source !e = before && E3.undo_label !e <> Some "Make reusable function") "Undo in the bar undoes the edit";
-  click (bar_button "Redo");
-  check (has (source !e) "(defn heart_2") "Redo in the bar redoes it";
-  (* Shell layouts preserve the authored graph and add a named layout. *)
-  let authored = Option.get (Doc.editor_graph (E3.workspace !e)) in
-  let x, y, w, h = Bars.top_button_rect ~width:(float width) "Shell layouts" in
-  click (x +. (w /. 2.), y +. (h /. 2.));
-  click (x +. 20., y +. h +. 3. +. 2. *. 24. +. 7. +. 12.);
-  check (E3.undo_label !e = Some "Switch layout" && has (source !e) "right (ui/split-at"
-         && (E3.workspace !e).layout.editor = Some "layout_code"
-         && Flow.Lisp.flat (List.find (fun (g : Flow.Workspace.graph) -> g.name = authored.name)
-              (E3.workspace !e).checked.graphs).form = Flow.Lisp.flat authored.form)
-    ("the Graph + code layout: " ^ Option.value ~default:"-" (E3.undo_label !e)
-      ^ "; selected " ^ Option.value ~default:"-" (E3.workspace !e).layout.editor ^ "\n" ^ source !e);
-  let saved = Doc.to_text (E3.workspace !e) in
-  let reloaded = Result.get_ok (Doc.of_text catalog saved) in
-  check (reloaded.layout.editor = Some "layout_code" && Doc.to_text reloaded = saved)
-    "the selected layout did not round-trip through Lisp";
-  (* The first row switches back; the next panel edit belongs to that layout. *)
-  click (x +. (w /. 2.), y +. (h /. 2.));
-  click (x +. 20., y +. h +. 3. +. 12.);
-  check ((Option.get (Doc.editor_graph (E3.workspace !e))).name = authored.name
-         && E3.undo_label !e = Some "Switch layout") "an authored layout could not be selected";
-  click (bar_button "Undo");
-  check ((E3.workspace !e).layout.editor = Some "layout_code") "undo did not restore the selected layout";
   E3.close !e;
-  print_endline "bloom studio: navigator rows and clicks, toolbar defn, top bar undo/redo and layouts ok"
+  print_endline "bloom studio: navigator rows and clicks, toolbar defn ok"

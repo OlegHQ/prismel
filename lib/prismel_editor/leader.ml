@@ -8,7 +8,7 @@ type action =
   | Play_pause | Reset | Stop
   | Add_node
   | Frame_tile | Frame_camera
-  | Look_through | Fly | Tool of int  (* 0 none, 1 translate, 2 rotate, 3 scale *)
+  | Look_through | Look_through_camera | Fly | Tool of int  (* 0 none, 1 translate, 2 rotate, 3 scale *)
   | Undo | Redo
   | Panel_split of Pxui_shell.Layout.axis | Panel_close | Panel_retype of Pxui_shell.Layout.panel
       (* Space o ...: the focused panel, as the header menu does *)

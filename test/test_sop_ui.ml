@@ -141,10 +141,40 @@ let run () =
     path = vector.path;
     fields = List.map (fun field -> {field with Parameter.folder = []}) vector.fields;
     shown = true; locked = false; drive = None; live = None;
-    components = []; split = Some false } in
+    components = []; split = None;
+  } in
   if flow_step vector_row (click 235 12)
       <> [Pxui_shell.Inspector.Split ("size", true)] then
     fail "Flow inspector xyz control did not request a vector split";
+  let color_f name current = {
+    Parameter.name; label = String.capitalize_ascii name; description = None;
+    folder = []; impact = Parameter.Cook; primary = false; vec3 = Some ("color", 0);
+    kind = Parameter.Floating_view { soft_min = 0.; soft_max = 1.; hard_min = Some 0.; hard_max = Some 1. };
+    default = Parameter.Float_value 1.; current = Parameter.Float_value current;
+  } in
+  let color_row : Pxui_shell.Inspector.flow_row = {
+    path = "color"; fields = [ color_f "color_r" 1.; color_f "color_g" 0.5; color_f "color_b" 0. ];
+    shown = true; locked = false; drive = None; live = None; components = []; split = None;
+  } in
+  if flow_step color_row (click 235 12)
+      <> [ Pxui_shell.Inspector.Split ("color", true) ] then
+    fail "Flow inspector color row rgb control did not request a split";
+  ignore (flow_step color_row (click 140 12));
+  let hex_edits = Pxui.Ui.frame flow_ui (frame 2. [
+      Prismel.Event.KeyPressed Prismel.Input.End;
+      Prismel.Event.KeyPressed Prismel.Input.Backspace;
+      Prismel.Event.KeyPressed Prismel.Input.Backspace;
+      Prismel.Event.KeyPressed Prismel.Input.Backspace;
+      Prismel.Event.KeyPressed Prismel.Input.Backspace;
+      Prismel.Event.KeyPressed Prismel.Input.Backspace;
+      Prismel.Event.KeyPressed Prismel.Input.Backspace;
+      Prismel.Event.KeyPressed Prismel.Input.Backspace;
+      Prismel.Event.KeyPressed Prismel.Input.Backspace;
+      Prismel.Event.TextInput "#00ff00";
+      Prismel.Event.KeyPressed Prismel.Input.Enter ]) (fun ui ->
+        Pxui_shell.Inspector.flow_fields ui [ color_row ]) in
+  if not (List.mem (Pxui_shell.Inspector.Edited ("color_g", Param.Float_value 1.)) hex_edits) then
+    fail "Flow inspector color row hex edit did not update color channels";
   let folder_row = { (flow_row ()) with
     fields = [{count with Parameter.folder = ["Geometry"]}] } in
   if flow_step ~expanded:["Geometry"] folder_row (click 261 45)

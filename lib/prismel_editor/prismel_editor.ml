@@ -20,7 +20,7 @@ module Renderer = Renderer
 module Editor3 = struct
   include Environment.Make (Viewport3)
 
-  type render_settings = Objects.Camera.render = { width : int; height : int; max_spp : int }
+  type render_settings = Objects.Root.render = { width : int; height : int; max_spp : int }
   let render_camera value = (extra value).Viewport3.render_camera
   let view_camera value = view_camera value
   let render_settings value = (extra value).Viewport3.render
@@ -95,7 +95,7 @@ module Workspace = struct
 
   (* The viewport starts where the scene's first camera is (else the default orbit); the host's
      light below is a default of a workspace with no scene graph (Contexts.of_workspace).
-     ponytail: the geometry is drawn as one mesh. *)
+     Piece preparation is shared with the hand-written shattered-cube host. *)
   (* Every [sop] graph of the document, lowered and compiled, for headless cooking. *)
   let sop_graphs ?(factories = Sop_catalog.Editor.factories) (doc : Workspace_doc.t) =
     let ( let* ) = Result.bind in
@@ -109,8 +109,8 @@ module Workspace = struct
           let* graph = Procedural.Edit_graph.compile_node g.network.geometry ~node_id in
           Ok ((g.name, graph) :: rest)) lowered.graphs (Ok [])
 
-  let declared_camera doc base =
-    match Contexts.of_workspace ~factories:Sop_catalog.Editor.factories doc with
+  let declared_camera ?(factories = Sop_catalog.Editor.factories) doc base =
+    match Contexts.of_workspace ~factories doc with
     | Error _ -> base
     | Ok document ->
         let scene = document.Document.scene.graph.Flow_sop.Network.geometry in
@@ -120,27 +120,27 @@ module Workspace = struct
              ~target:(Prismel.Camera.target view) base
          | None -> base)
 
-  let run ?source doc =
+  let run ?factories ?source doc =
     let source = Option.bind source (fun { path; digest } -> Source.find ~path ~digest) in
     let window = match workspace_window doc with
       | Ok w -> w | Error d -> failwith (Flow.Diagnostic.to_string d) in
     let config = { Prismel.Sketch.default_config with width = window.width; height = window.height;
                    title = window.title; fps = Some window.fps } in
-    let prepare _ output = Pdk_prismel.Prismel_mesh.to_mesh output.Procedural.Session.geometry
-      |> Result.map_error Pdk.Error.to_string in
-    let scene3 _ mesh = Prismel.Scene3.create [ Prismel.Scene3.mesh ~cull:Prismel.Scene3.Cull_none mesh ] in
+    let prepare _ = Sketch_support.Surface.of_output in
+    let scene3 = Sketch_support.Surface.scene3 in
     let lights = [ Prismel.Light.directional ~direction:(Prismel.Vec3.create (-1.) (-1.4) (-0.8))
                      ~diffuse:Prismel.Color.white () ] in
-    let camera = declared_camera doc (Prismel.Easy_camera.create ~target:Prismel.Vec3.zero ~distance:3.6
+    let camera = declared_camera ?factories doc (Prismel.Easy_camera.create ~target:Prismel.Vec3.zero ~distance:3.6
         ~azimuth:0.4 ~elevation:0.6 ()) in
-    Editor3.run ~config ~lights ~camera ~seed:(Int64.of_int window.seed) ~workspace:doc ?source ~prepare ~scene3 ()
+    Editor3.run ~config ~lights ~camera ?factories ~seed:(Int64.of_int window.seed) ~workspace:doc ?source ~prepare ~scene3 ()
 
-  let main ~path ~digest ~catalog text =
-    if catalog <> Contexts.catalog_digest Sop_catalog.Editor.factories then
+  let main ?factories ~path ~digest ~catalog text =
+    let expected = Contexts.catalog_digest (Option.value ~default:Sop_catalog.Editor.factories factories) in
+    if catalog <> expected then
       prerr_endline (path ^ ": built against another catalog; checking the source again");
-    match load text with
+    match load ?factories text with
     | Error ds ->
         List.iter (fun d -> prerr_endline (Flow.Diagnostic.report ~file:path ~source:text d)) ds;
         exit 1
-    | Ok doc -> run ~source:{ path; digest } doc
+    | Ok doc -> run ?factories ~source:{ path; digest } doc
 end

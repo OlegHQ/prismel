@@ -158,6 +158,7 @@ let paint state ~key bounds camera scene =
   if state.custom || state.mode = Raster then [Scene.view3d ~viewport:bounds ~camera scene]
   else match List.find_opt (fun slot -> slot.key = key) state.slots with
     | Some {wire = Some wire; _} -> [Scene.view3d ~viewport:bounds ~camera wire]
-    | Some {tracer = Some tracer; _} -> let x, y, _, _ = bounds in
-        [Scene.image (P.image tracer) ~at:(x, y) ()]
+    | Some {tracer = Some tracer; bounds = _, _, sw, _; _} -> let x, y, w, _ = bounds in
+        (* a fixed render resolution is scaled to the film, so resizing a pane never re-renders *)
+        [Scene.image (P.image tracer) ~at:(x, y) ~scale:(float w /. float (max 1 sw)) ()]
     | _ -> []

@@ -108,5 +108,10 @@ let to_text t =
 
 let edit catalog t op =
   Result.map (fun (source, checked) ->
-    { t with source; checked; layout = Layout_by_path.remap (Flow_sop.Flow_edit.remap op) t.layout })
+    let layout = Layout_by_path.remap (Flow_sop.Flow_edit.remap op) t.layout in
+    let layout = match op with
+      | Flow_sop.Flow_edit.Connect { node = [ graph; "@result" ]; key = Whole; _ } ->
+          { layout with display = Layout_by_path.Path_map.remove [ graph ] layout.display }
+      | _ -> layout in
+    { t with source; checked; layout })
     (Flow_sop.Flow_edit.apply_checked catalog t.source op)

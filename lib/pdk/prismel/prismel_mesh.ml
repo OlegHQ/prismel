@@ -27,7 +27,13 @@ let standard geometry ~name ~point_kind ~vertex_kind =
 
 let float2 = function Attribute.Float2 value -> Some value | _ -> None
 let float3 = function Attribute.Float3 value -> Some value | _ -> None
-let float4 = function Attribute.Float4 value -> Some value | _ -> None
+let float4 = function
+  | Attribute.Float4 value -> Some value
+  | Attribute.Float3 value ->
+      let v = Packed.Float3.Private.view value in
+      Some (Packed.Float4.of_owned ~x:(Array.copy v.x) ~y:(Array.copy v.y)
+        ~z:(Array.copy v.z) ~w:(Array.make (Packed.Float3.length value) 1.) |> Result.get_ok)
+  | _ -> None
 
 let source_has_vertex = function Some (Vertex _) -> true | _ -> false
 
@@ -258,8 +264,18 @@ let protected operation work =
       "mesh conversion was cancelled")
 
 let to_mesh ?cancel geometry =
-  protected "to_mesh" (fun () -> to_mesh_raw_impl ?cancel geometry)
+  protected "to_mesh" (fun () ->
+    (* A primitive color belongs to all of its corners, never to a shared
+       point: expanding it preserves material boundaries between faces. *)
+    let geometry =
+      if Geometry.find_attribute ~owner:Attribute.Vertex "Cd" geometry <> None
+         || Geometry.find_attribute ~owner:Attribute.Point "Cd" geometry <> None
+         || Geometry.find_attribute ~owner:Attribute.Primitive "Cd" geometry = None
+      then Ok geometry
+      else Pdk_attrib.Attribute_ops.promote ?cancel ~source:Attribute.Primitive
+          ~destination:Attribute.Vertex ~name:"Cd" ~delete_source:false geometry
+          |> Result.map_error Error.to_string in
+    Result.bind geometry (to_mesh_raw_impl ?cancel))
 
 let of_mesh ?cancel mesh =
   protected "of_mesh" (fun () -> of_mesh_raw_impl ?cancel mesh)
-

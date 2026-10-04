@@ -252,7 +252,7 @@ let preview_orbits () =
       incr count; e := E.update !e (Test_editor_input.frame ~buttons ~delta point events !count) in
     let center key =
       let doc = build (E.workspace !e) in
-      let g = Pxui_shell.Layout.geometry ~hidden:[Timeline] ~top:28 (Option.get doc.shell).tree (frame 1) in
+      let g = Pxui_shell.Layout.geometry ~hidden:[Timeline] (Option.get doc.shell).tree (frame 1) in
       let x, y, w, h = (Pxui_shell.Layout.find g (View key) |> Option.get).body in
       float (x + w / 2), float (y + h / 2) in
     let focus key = let point = center key in
@@ -317,7 +317,7 @@ let preview_camera_world () =
         (fun node -> Option.map fst (D.Objects.Camera.of_node node))) ids |> Option.get in
     check (Vec3.nearly_equal (Camera.position comparison) (Vec3.create 6. 0. 0.) ~eps:1e-6)
       "the comparison instance lost its independently authored camera";
-    let geometry = Pxui_shell.Layout.geometry ~hidden:[Timeline] ~top:28
+    let geometry = Pxui_shell.Layout.geometry ~hidden:[Timeline]
       (Option.get doc.shell).tree (frame 2) in
     let x, y, w, h = (Pxui_shell.Layout.find geometry (View key) |> Option.get).body in
     let point = float (x + w / 2), float (y + h / 2) in
@@ -490,7 +490,7 @@ let lisp_apply () =
   let ws = workspace ~settings:(settings (3., "kept"))
     (text ^ "\n(layout (node [\"g\"] :at [24 48]))") in
   with_editor ws (fun e ->
-    let geometry = Pxui_shell.Layout.geometry ~hidden:[Timeline] ~top:28
+    let geometry = Pxui_shell.Layout.geometry ~hidden:[Timeline]
       (Option.get (build ws).shell).tree (frame 1) in
     let leaf = Pxui_shell.Layout.find geometry Lisp |> Option.get in
     let x, y, _, h = leaf.body and count = ref 1 in
@@ -516,7 +516,7 @@ let lisp_apply () =
 let hidden_preview () = with_editor (workspace preview_text) (fun e ->
   (* Focus the authored empty preview, then hide the UI. The fullscreen image remains empty. *)
   let doc = build (workspace preview_text) in
-  let geometry = Pxui_shell.Layout.geometry ~hidden:[Timeline] ~top:28
+  let geometry = Pxui_shell.Layout.geometry ~hidden:[Timeline]
     (Option.get doc.shell).tree (frame 1) in
   let leaf = Pxui_shell.Layout.find geometry (View "v:\"editor\"/\"blank\"") |> Option.get in
   let x, y, w, h = leaf.body in
@@ -532,7 +532,7 @@ let focused_framing () = with_editor (workspace preview_text) (fun e ->
   let count = ref 1 in
   let frame_view key =
     let doc = build (E.workspace !e) in
-    let g = Pxui_shell.Layout.geometry ~hidden:[Timeline] ~top:28 (Option.get doc.shell).tree (frame 1) in
+    let g = Pxui_shell.Layout.geometry ~hidden:[Timeline] (Option.get doc.shell).tree (frame 1) in
     let x, y, w, h = (Pxui_shell.Layout.find g (View key) |> Option.get).body in
     let p = float (x + w / 2), float (y + h / 2) in
     incr count; e := E.update !e (Test_editor_input.frame p
@@ -566,7 +566,7 @@ let named_inspector () = with_dir (fun presets ->
     let doc = D.Contexts.of_workspace ~factories (E.workspace !e) |> Result.get_ok in
     let tree = (Option.get doc.shell).tree in
     let leaf = Pxui_shell.Layout.find
-      (Pxui_shell.Layout.geometry ~hidden:[Timeline] ~top:28 tree (frame 1)) Inspector |> Option.get in
+      (Pxui_shell.Layout.geometry ~hidden:[Timeline] tree (frame 1)) Inspector |> Option.get in
     let ix, iy, iw, _ = leaf.body in
     let from = float ix +. max 96. (min 150. (float iw *. 0.34)) +. 10., float (iy + 190) in
     let to_ = fst from +. 50., snd from in
@@ -654,7 +654,7 @@ let stale_inspector_draft () = with_dir (fun presets ->
     click (float (x + w / 2), float (y + 10));
     let tree = (Option.get (D.Contexts.of_workspace ~factories (E.workspace !e)
       |> Result.get_ok).shell).tree in
-    let panes = Pxui_shell.Layout.geometry ~hidden:[Timeline] ~top:28 tree (frame 1) in
+    let panes = Pxui_shell.Layout.geometry ~hidden:[Timeline] tree (frame 1) in
     let lx, ly, _, lh = (Pxui_shell.Layout.find panes Lisp |> Option.get).body in
     let area = float (lx + 150), float (ly + 70) in
     click area;
@@ -769,6 +769,63 @@ let run_native () = with_dir (fun directory ->
     done done;
     check (!red > 30) "a failed comparison renderer blanked the healthy viewport"))
 
+let enter_camera () =
+  let ws = workspace {|(workspace cameras
+    (graph g :context sop (sop/box))
+    (graph scene :context scene
+      (scene/merge (scene/geometry (ref g))
+        (scene/camera :name "near" :eye [2 3 6])
+        (scene/camera :name "telephoto" :eye [13 8.8 14.8] :fov 20))))|} in
+  with_editor ws (fun e ->
+    let count = ref 1 in
+    let step ?(mouse = (450., 300.)) events =
+      incr count; e := E.update !e (Test_editor_input.frame mouse events !count) in
+    let click button (x, y) = [Event.MousePressed (button, (x, y));
+      Event.MouseReleased (button, (x, y))] in
+    let gx, gy, _, _ = (E.panes !e (frame 0)).graph in
+    let in_list = float (gx + 60), float (gy + 350) in
+    step ~mouse:in_list (click Input.LeftButton in_list);
+    let key k = Event.KeyPressed k in
+    step [key Input.Home];
+    let rec select name index =
+      if Option.map Procedural.Node.label (E.selected_node !e) = Some name then index
+      else (check (index < 4) ("no camera row " ^ name);
+        step [key Input.ArrowDown]; select name (index + 1)) in
+    let row = select "telephoto" 0 in
+    step [key (Input.KeyChar 'i')];
+    check (E.look_through !e && E.view_camera !e = E.render_camera !e
+      && Camera.position (E.render_camera !e) = Vec3.create 13. 8.8 14.8)
+      "camera Enter did not choose and look through the selected camera";
+    step [key (Input.KeyChar 'i')];
+    check (E.look_through !e) "repeated camera Enter disabled look-through";
+    let in_view = 100., 300. in
+    step ~mouse:in_view (click Input.LeftButton in_view);
+    step ~mouse:in_view [key Input.Space; key (Input.KeyChar 'v')];
+    check (not (E.look_through !e)) "camera fixture did not leave look-through";
+    let at = float (gx + 60), float (gy + 24 + row * 24 + 12) in
+    step ~mouse:at (click Input.RightButton at);
+    step ~mouse:at [];
+    let item = fst at +. 20., snd at +. 12. in
+    step ~mouse:item (click Input.LeftButton item);
+    check (E.look_through !e && E.view_camera !e = E.render_camera !e)
+      "right-click Enter on the camera did not enable look-through")
+
+let no_viewport_click () =
+  let ws = workspace {|
+(workspace no_vp
+  (graph g :context sop (sop/box))
+  (graph editor :context editor
+    (let* [o (ui/outline)
+           g (ui/graph)
+           i (ui/inspector)]
+      (ui/workspace (ui/tile o g i)))))
+|} in
+  with_editor ws (fun e ->
+    let click = [Event.MousePressed (Input.LeftButton, (15., 15.));
+                 Event.MouseReleased (Input.LeftButton, (15., 15.))] in
+    let f = { (frame 2) with events = click; mouse = (15., 15.) } in
+    e := E.update !e f)
+
 let run () =
   let failures = List.filter_map (fun (name, run) ->
     try run (); None with exn -> Some (name ^ ": " ^ Printexc.to_string exn))
@@ -789,6 +846,8 @@ let run () =
      "named graph handles", named_handles;
      "stale inspector draft", stale_inspector_draft;
      "renderer failure modes", failed_renderer_modes;
-     "overlapping renderers", overlapping_renderers] in
+     "overlapping renderers", overlapping_renderers;
+     "camera Enter and row menu", enter_camera;
+     "no viewport click", no_viewport_click] in
   if failures <> [] then failwith (String.concat "\n" failures);
   print_endline "editor consistency: settings, saved defaults, scene pictures, isolated previews and atomic 2D refusals passed"

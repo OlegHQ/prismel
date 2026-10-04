@@ -57,7 +57,9 @@ level remembers its projection. The text projection prints SOP networks and
 compound definitions read-only; scene and World levels show a reserved-context
 message until their Flow syntax is specified. Inside the World the view pane
 opens on the lat-long map and `Space l` flips it back to 3D. `i`, a double-click on a tile or row, or the row
-menu's Enter open a geometry object or the World; `u` goes back up (both
+menu's Enter open a geometry object or the World. On a camera, Enter selects it
+as the active render camera and enables look-through; entering it again keeps
+look-through enabled. `u` goes back up (both
 from any pane). `Space e` opens the World, creating it on first use as a
 daylight sky with a sun. `Space a` opens the add menu of the open level
 (objects, SOPs, or World layers) in list and graph alike: hovering a

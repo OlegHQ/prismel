@@ -31,12 +31,14 @@ type home =
 
 type homes = {
   objects : (int * home) list;  (* scene object id *)
-  world : home option;  (* the [world/world] call *)
+  world : home option;  (* the [scene/world] call (the legacy [world/world] call of an old file) *)
   layers : (int * home) list;  (* World layer id *)
   settings : home option;  (* the [settings/config] call *)
+  root : home option;  (* the [scene/root] call; none: the scene is a part with a default root *)
+  world_graph : string option;  (* the world graph the [scene/world] call references *)
 }
 
-let no_homes = { objects = []; world = None; layers = []; settings = None }
+let no_homes = { objects = []; world = None; layers = []; settings = None; root = None; world_graph = None }
 
 (* Where a panel of the shell tree came from in the editor graph. *)
 type origin =
@@ -60,6 +62,7 @@ type shell = {
   tree : Editor_core.Panels.t;
   origins : (Editor_core.Panels.path * origin) list;
   named : string option;
+  wires : string option;
   views : (string * int list) list;
   preview_sources : (string * preview_source) list;
 }
@@ -68,6 +71,7 @@ type t = {
   scene : network;  (* objects: input 0 is the parent *)
   networks : network Int_map.t;  (* by object id: SOP networks, the World's layers *)
   active_camera : int option;  (* a camera object *)
+  root : Objects.Root.parameters;  (* how the scene renders: the root's settings, else the defaults *)
   settings : Settings.t;
   shell : shell option;  (* the [editor] graph of the workspace, if it has one *)
   homes : homes;  (* where each derived object is written in the text *)
@@ -207,6 +211,7 @@ let dump value =
   net "scene" value.scene;
   Int_map.iter (fun id n -> net (Printf.sprintf "object %d" id) n) value.networks;
   line "camera %s" (match value.active_camera with Some c -> string_of_int c | None -> "-");
+  line "root %s" (fields (Objects.Root.fields value.root));
   line "settings %s" (fields (Settings.fields value.settings));
   Buffer.contents b
 

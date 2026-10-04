@@ -58,4 +58,22 @@ let run () =
   if translated.current <> Parameter.Float_value 4. then
     fail "custom SOP inspector metadata did not retain edited values";
   Session.close session;
+  let custom_factories =
+    Edit_graph.factory ~key:"my_custom_sop" ~label:"My Custom SOP" ~category:[ "Custom" ]
+      ~arity:0 (function [] -> Sop.points [| 0., 0., 0. |] | _ -> invalid_arg "none")
+    :: Sop_catalog.Editor.factories in
+  let text = {|(workspace test_custom
+    (graph scene :context scene
+      (let* [cam (scene/camera :eye [1 2 3] :target [0 0 0])
+             geom (scene/geometry (ref g))]
+        (scene/merge cam geom)))
+    (graph g :context sop
+      (sop/my_custom_sop)))|} in
+  let doc = match Prismel_editor.Workspace.load ~factories:custom_factories text with
+    | Ok d -> d | Error ds -> fail (String.concat "; " (List.map (fun (d : Flow.Diagnostic.t) -> d.message) ds)) in
+  let base_cam = Prismel.Easy_camera.create ~target:Prismel.Vec3.zero ~distance:5. () in
+  let dec_cam = Prismel_editor.Workspace.declared_camera ~factories:custom_factories doc base_cam in
+  let eye = Prismel.Camera.position (Prismel.Easy_camera.camera dec_cam) in
+  if not (Prismel.Vec3.nearly_equal eye (Prismel.Vec3.create 1. 2. 3.) ~eps:0.001) then
+    fail "declared_camera with custom factories did not read camera";
   print_endline "custom SOP tests passed"

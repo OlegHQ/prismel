@@ -156,14 +156,14 @@ let run_editor () =
   check (E3.undo_label !e = Some "Resize panel") "one history entry named Resize panel";
   (* the header menu of the graph panel: split side by side *)
   let hx = 400. in
-  click ~button:Input.RightButton (hx, 10. +. 28.);  (* under the 28-point host bar *)
+  click ~button:Input.RightButton (hx, 10.);
   step [];
-  click (340., 37. +. 28.);
+  click (340., 37.);
   step [];
   check (E3.undo_label !e = Some "Split panel") ("the menu split the graph panel: " ^ Option.value ~default:"-" (E3.undo_label !e));
   check (has (source !e) "network_a" && has (source !e) "network_b") "the split bound two new panels";
   (* a panel made by a loop cannot be split: the status says where it comes from *)
-  let geometry = Layout.geometry ~hidden:[ Layout.Timeline ] ~top:28 (shell_of (build_ok (E3.workspace !e)))
+  let geometry = Layout.geometry ~hidden:[ Layout.Timeline ] (shell_of (build_ok (E3.workspace !e)))
       .tree (frame (0., 0.) [] 0) in
   let leaf = Option.get (Layout.find geometry (Layout.View "v1.1.2")) in
   let hx, hy, hw, _ = leaf.header in
@@ -312,6 +312,9 @@ let run_values () =
   E3.close e;
   let e = add "sin" in
   check (has (source e) "(sin 0.5)") ("an operator binding with typed defaults: " ^ source e);
+  E3.close e;
+  let e = add "str" in
+  check (has (source e) "(str \"text\")") ("a str binding: " ^ source e);
   E3.close e
 
 (* Command-D duplicates the selected nodes (fresh names, one history entry) and selects the copies; v
@@ -341,18 +344,16 @@ let run_duplicate_and_view () =
   check (selected () <> "-") "a walk key selected a node";
   let node = selected () in
   step ~mouse:p [ Event.KeyPressed (Input.KeyChar 'v') ];
-  check (E3.undo_label !e = Some "View node"
-         && Editor_document.Layout_by_path.Path_map.mem [ "g" ] (E3.workspace !e).Doc.layout.display)
+  check (E3.undo_label !e = Some "View node")
     ("v did not view the node: " ^ Option.value ~default:"-" (E3.undo_label !e));
-  check (has (fst (Flow.Lisp.print [ Editor_document.Layout_by_path.to_syntax (E3.workspace !e).Doc.layout ])) "(display")
-    "the viewed node is saved in the layout";
+  check (not (has (fst (Flow.Lisp.print [ Editor_document.Layout_by_path.to_syntax (E3.workspace !e).Doc.layout ])) "(display"))
+    "the viewed node is not saved in the layout";
   step ~mouse:p [];
   check (Node.operation (E3.displayed_node !e) = "box" && centre () = Some 0.)
     ("v marked the node but did not show it in the viewport: " ^ node);
-  step ~mouse:p [ Event.KeyPressed (Input.KeyChar 'v') ];
-  check (Editor_document.Layout_by_path.Path_map.is_empty (E3.workspace !e).Doc.layout.display) "v again returns to the result";
+  step ~mouse:p ~keys:[ Input.Meta ] [ Event.KeyPressed (Input.KeyChar 'z') ];
   step ~mouse:p [];
-  check (centre () = Some 20.) "clearing VIEW did not restore the graph result";
+  check (centre () = Some 20.) "undo did not restore the graph result";
   step ~mouse:p ~keys:[ Input.Meta ] [ Event.KeyPressed (Input.KeyChar 'd') ];
   check (E3.undo_label !e = Some "Duplicate" && has (source !e) "_2") ("Command-D made no copy: " ^ source !e);
   check (selected () <> node && selected () <> "-") "the copy is the selection";
@@ -368,8 +369,9 @@ let run_duplicate_and_view () =
 let run_result_view () =
   let e = ref (editor {|(workspace result_view
     (graph g :context sop
-      (let* [a (sop/box) b (sop/transform a :translate [5 0 0])]
-        (sop/transform b :translate [15 0 0])))
+      (let* [a (sop/box) b (sop/transform a :translate [5 0 0])
+             result (sop/transform b :translate [15 0 0])]
+        result))
     (graph scene :context scene
       (scene/merge (scene/geometry (ref g))
         (scene/camera :eye [0 0 6] :follow_viewport true))))|}) in
@@ -397,13 +399,12 @@ let run_result_view () =
     click (float (gx + 40), float (gy + 40));
     key Input.Home; key (Input.KeyChar 'i'); step [];
     select "b"; key (Input.KeyChar 'v'); step []; centre 5.;
-    select "@result"; key (Input.KeyChar 'v'); step [];
-    check (Editor_document.Layout_by_path.Path_map.find_opt ["g"] (E3.workspace !e).layout.display
-           = Some ["g"; "@result"]) "v refused the inline result node";
+    select "result"; key (Input.KeyChar 'v'); step [];
+    check (Editor_document.Layout_by_path.Path_map.is_empty (E3.workspace !e).layout.display) "layout.display is cleared";
     centre 20.;
     edit (E.Set_arg {node = ["g"; "b"]; key = E.Kw "translate"; sub = []; value = parsed "[9 0 0]"});
     centre 24.;
-    edit (E.Set_arg {node = ["g"; "@result"]; key = E.Kw "translate"; sub = []; value = parsed "[30 0 0]"});
+    edit (E.Set_arg {node = ["g"; "result"]; key = E.Kw "translate"; sub = []; value = parsed "[30 0 0]"});
     centre 39.;
     select "b"; key (Input.KeyChar 'v'); step []; centre 9.;
     edit (E.Set_arg {node = ["g"; "b"]; key = E.Whole; sub = [];
@@ -416,10 +417,10 @@ let run_result_view () =
     let gx, gy, _, _ = (E3.panes !e (frame (0., 0.) [] 0)).graph in
     click (float (gx + 10), float (gy + 10)); key (Input.KeyChar 'u'); step [];
     check (dump_line !e "level" = "scene") "u did not leave the geometry network";
-    centre 41.;
+    centre 11.;
     click (float (gx + 40), float (gy + 40));
     key (Input.KeyChar 'i'); step [];
-    select "@result"; key (Input.KeyChar 'v'); step []; centre 41.)
+    select "result"; key (Input.KeyChar 'v'); step []; centre 41.)
 
 (* the inspector moves a list item up (Move_item), as the row arrow does *)
 let run_movers () =
@@ -580,7 +581,7 @@ let run_cameras () =
   let step ?(buttons = []) ?(delta = (0., 0.)) (x, y) events =
     incr count; e := E3.update !e (Test_editor_input.frame ~buttons ~delta (x, y) events !count) in
   for _ = 1 to 8 do step (450., 300.) [] done;
-  let geometry () = Layout.geometry ~hidden:[ Layout.Timeline ] ~top:28 (shell_of (build_ok (E3.workspace !e))).tree
+  let geometry () = Layout.geometry ~hidden:[ Layout.Timeline ] (shell_of (build_ok (E3.workspace !e))).tree
       (frame (0., 0.) [] 0) in
   let center key =
     let leaf = Option.get (Layout.find (geometry ()) (Layout.View key)) in
@@ -624,7 +625,7 @@ let run_cameras () =
   (* a click on the geometry of a viewport over another scene instance selects the node that made
      it: the pane shows that graph and the node is selected there *)
   let graph_pane =
-    let geometry = Layout.geometry ~hidden:[ Layout.Timeline ] ~top:28 (shell_of (build_ok (E3.workspace !e))).tree
+    let geometry = Layout.geometry ~hidden:[ Layout.Timeline ] (shell_of (build_ok (E3.workspace !e))).tree
         (frame (0., 0.) [] 0) in
     let x, y, _, _ = (Option.get (Layout.find geometry Layout.Graph)).body in
     float (x + 20), float (y + 200) in
@@ -844,7 +845,7 @@ let run_panel_states () =
   let saved = Doc.to_text (E3.workspace !e) in
   check ((of_text saved).layout.panels = (E3.workspace !e).layout.panels)
     "panel state did not round-trip through Lisp";
-  click (889., 39.);
+  click (889., 11.);
   check (not (state "inspector").collapsed) "the collapsed header could not expand the panel";
   let gx, gy, _, _ = (E3.panes !e (frame (0., 0.) [] 0)).graph in
   let start = float (gx + 8), float (gy - 11) in
@@ -936,7 +937,40 @@ let run_panel_states () =
     end else Sys.remove path) (Sys.readdir directory);
   Unix.rmdir directory
 
-let run () = run_result_view (); run_panel_states (); run_camera_zoom (); run_cameras (); run_lowering (); run_ops (); run_panel_keys (); run_unbound_panels (); run_values (); run_duplicate_and_view (); run_movers (); run_frame_key (); run_loop_copies (); run_loop_expression (); run_editor (); run_restore (); run_views ()
+let run_ref_picker () =
+  let text = {|(workspace ref_pick
+    (graph scene :context scene
+      (let* [geom (scene/geometry (ref g1))]
+        (scene/merge geom)))
+    (graph g1 :context sop (sop/box))
+    (graph g2 :context sop (sop/grid))
+    (graph editor :context editor
+      (ui/workspace (ui/split "horizontal" (ui/graph "scene") (ui/inspector)))))|} in
+  let e = ref (editor text) and count = ref 0 in
+  let step ?(mouse = (450., 300.)) events = incr count; e := E3.update !e (frame mouse events !count) in
+  step []; step [];
+  let ix, iy, _, _ = (E3.panes !e (frame (0., 0.) [] 0)).inspector in
+  let click point =
+    step ~mouse:point [ Event.MouseMoved point ];
+    step ~mouse:point [ Event.MousePressed (Input.LeftButton, point); Event.MouseReleased (Input.LeftButton, point) ] in
+  let bx, by, _, _ = Option.get (E3.node_box !e [ "scene"; "geom" ]) in
+  let node_pt = float (bx + 60), float (by + 12) in
+  click node_pt;
+  step [];
+  check (dump_line !e "scope selected" = "scene/geom") ("the scene geometry node was not selected, got: " ^ dump_line !e "scope selected");
+  let btn = float (ix + 180), float (iy + 190) in
+  click btn;
+  step [];
+  let opt = float (ix + 180), float (iy + 245) in
+  click opt;
+  step [];
+  check (has (source !e) "(ref g2)") ("inspector ref picker did not change ref to g2: " ^ source !e);
+  e := E3.update !e { (frame (450., 300.) [ Event.KeyPressed (Input.KeyChar 'z') ] (incr count; !count)) with keys = [ Input.Meta ] };
+  step [];
+  check (has (source !e) "(ref g1)") ("undo did not restore ref to g1: " ^ source !e);
+  E3.close !e
+
+let run () = run_ref_picker (); run_result_view (); run_panel_states (); run_camera_zoom (); run_cameras (); run_lowering (); run_ops (); run_panel_keys (); run_unbound_panels (); run_values (); run_duplicate_and_view (); run_movers (); run_frame_key (); run_loop_copies (); run_loop_expression (); run_editor (); run_restore (); run_views ()
 
 (* Native VIEW regression over the reported sketch, including its piece renderer and a following
    camera. Moving the camera rebuilds the lowering while preserving an unchanged object network. *)
@@ -1008,8 +1042,9 @@ let run_view_native () =
           "VIEW screenshot failed";
         if frame.count = 26 then begin
           original := !vertices;
-          check (Editor_document.Layout_by_path.Path_map.find_opt ["shattered"] (E3.workspace e).layout.display
-                 = Some ["shattered"; "@result"]) "native v refused the result node"
+          check (Node.operation (E3.displayed_node e) = "exploded_view"
+                 && Editor_document.Layout_by_path.Path_map.find_opt ["shattered"] (E3.workspace e).layout.display = None)
+            "native v did not set the result node"
         end;
         if frame.count = 30 then begin
           edited := !vertices;

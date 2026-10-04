@@ -79,7 +79,7 @@ module Private : sig
       | Toggle_timeline | Toggle_graph | Toggle_inspector | Hide_ui | Open_camera
       | Play_pause | Reset | Stop
       | Add_node | Frame_tile | Frame_camera
-      | Look_through | Fly | Tool of int
+      | Look_through | Look_through_camera | Fly | Tool of int
       | Undo | Redo
       | Panel_split of Pxui_shell.Layout.axis | Panel_close | Panel_retype of Pxui_shell.Layout.panel
       | Toggle_map | Ui_scale of int | Restore_layout | Enter | Up | Go_world
@@ -200,8 +200,6 @@ module Private : sig
   (** The host bars: where their buttons sit. *)
   module Bars : sig
     type tool = Add | Repeat | Iterate | Fn | Macro | Defn
-    val height : int
-    val top_button_rect : width:float -> string -> float * float * float * float
     val tools_from : string -> float
     val tool_rect : header:int * int * int * int -> from:float -> tool -> (float * float * float * float) option
   end
@@ -332,7 +330,10 @@ module Editor3 : sig
     ?status:('prepared option -> string option) ->
     unit ->
     ('prepared t, string) result
-  (** [lens] is the default camera object's depth of field (pinhole
+  (** [factories] is the SOP catalog (default [Sop_catalog.Editor.factories]);
+      passing a non-empty list replaces it (prepend custom SOPs to
+      [Sop_catalog.Editor.factories] to extend).
+      [lens] is the default camera object's depth of field (pinhole
       otherwise). [await] (default: [PRISMEL_MAX_FRAMES] is set) makes each
       [update] block on the cook it submits, so a fixed-step run or a test sees the
       settled result of every frame instead of racing the worker. [prepare] runs on the cook worker domain with submission settings.
@@ -571,7 +572,10 @@ module Editor2 : sig
     ?status:('prepared option -> string option) ->
     unit ->
     ('prepared t, string) result
-  (** [prepare] runs on the cook worker domain with submission settings.
+  (** [factories] is the SOP catalog (default [Sop_catalog.Editor.factories]);
+      passing a non-empty list replaces it (prepend custom SOPs to
+      [Sop_catalog.Editor.factories] to extend).
+      [prepare] runs on the cook worker domain with submission settings.
       It must only do pure CPU work on immutable/disjointly owned data;
       SDL, Metal, textures, fonts, audio, UI and runtime caches stay on the
       initial domain. [scene2] and [overlay] run on the initial domain. *)
@@ -675,13 +679,17 @@ module Workspace : sig
   (** Every [sop] graph of the document with its result compiled, by name, for cooking without
       an editor (a check, a batch). A graph without a result node is left out. *)
 
-  val run : ?source:source -> Workspace_doc.t -> unit
+  val declared_camera : ?factories:Procedural.Edit_graph.factory list -> Workspace_doc.t ->
+    Prismel.Easy_camera.t -> Prismel.Easy_camera.t
+  (** The camera of the scene's first camera node, or the default base camera. *)
+
+  val run : ?factories:Procedural.Edit_graph.factory list -> ?source:source -> Workspace_doc.t -> unit
   (** Open {!Editor3} on the document, with the window title, size, frame rate
       and seed of its settings graph, saving and reloading through [source] (found
       from the executable, then the working directory; without the file the sketch
       runs unwired). *)
 
-  val main : path:string -> digest:string -> catalog:string -> string -> unit
+  val main : ?factories:Procedural.Edit_graph.factory list -> path:string -> digest:string -> catalog:string -> string -> unit
   (** Entry point of a generated [main.ml]: [load] then [run]; on failure prints
       the diagnostics in the OCaml format and exits 1. [catalog] is
       {!Editor_document.Contexts.catalog_digest} at build time; a different

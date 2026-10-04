@@ -106,8 +106,8 @@ let render ~execution ~density ~width ~height scene =
                           | Ok batch -> lower (batch :: reversed) rest)
                       | Scene.Private.Scene3_layer prepared :: rest ->
                           let draws = draws_of_prepared staged prepared in
-                          (match Prismel_execution.Private.adopt_draws
-                            submission draws with
+                          (match Prismel_execution.Private.adopt_retained_view
+                            submission ~density ~layer:prepared draws with
                           |Error error->Error(Lower error)
                           |Ok batch->lower(batch::reversed)rest)
                     in

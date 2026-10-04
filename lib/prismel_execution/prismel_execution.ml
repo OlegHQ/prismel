@@ -183,7 +183,17 @@ type t = { runtime:runtime;
   mutable scene2_out_slots:draw array;
   mutable scene2_out_list:draw list;
   ui_slots:ui_slot Int_table.t;
+  mutable retained_views:retained_view list;
 }
+(* A 3D layer that kept the same prepared identity on consecutive frames: its draws render once
+   into an offscreen target the size of the window and later frames composite that texture, so
+   a frame that only changes the UI never shades the view again.  The identity is the key
+   (prepared layers are immutable), the window's drawable size is checked on every use, and the
+   list is capped, so nothing here can outlive or disagree with the scene it stands for. *)
+and retained_view={view_layer:Scene_execution.prepared_scene3;view_drawable:int*int;
+  mutable view_target:retained_target option;mutable view_failed:bool}
+and retained_target={target_exec:t;target_canvas:Runtime_resources.Canvas.t;
+  target_ir:Scene_command.Render_ir.t}
 and submission={owner:t;mutable submission_state:submission_state;
   mutable image_leases:Runtime_resources.Image.Private.lease list;
   mutable ui_layers:int}
@@ -240,7 +250,8 @@ let finish_create runtime=
         ~byte_capacity:retained_scene2_segment_byte_capacity;
       retained_scene2_segment_hits=0L;retained_scene2_segment_misses=0L;
       submissions=[];last_step_draws=[];last_step_prepared=[];
-      scene2_out_slots=[||];scene2_out_list=[];ui_slots=Int_table.create ui_slot_capacity}
+      scene2_out_slots=[||];scene2_out_list=[];ui_slots=Int_table.create ui_slot_capacity;
+      retained_views=[]}
 let create (configuration:configuration) =
   let operation="Prismel_execution.create" in
   match valid_configuration operation configuration with Error _ as error->error|Ok()->
@@ -927,7 +938,8 @@ let capture_into value~destination=
   match Runtime.read_pixels_into(target value.runtime)
       ~bytes_per_row:(facts.drawable_width*4)~destination with
   |Ok()->Ok()|Error e->backend"Prismel_execution.capture_into"e
-let destroy value=if value.dead then Ok()else
+let rec destroy value=if value.dead then Ok()else
+  let () = release_views value in
   match value.runtime with
   |Window _ when !shared_leases>0->
       fail"Prismel_execution.destroy"Invalid_argument
@@ -949,6 +961,75 @@ let destroy value=if value.dead then Ok()else
     (match value.runtime with
      |Offscreen(_,lease_shared)->release_device lease_shared|Window _->());
     match destroyed with Ok()->Ok()|Error e->backend"Prismel_execution.destroy"e)
+and release_view view=match view.view_target with
+  |Some target->
+      view.view_target<-None;
+      ignore(Runtime_resources.Canvas.destroy target.target_canvas);
+      ignore(destroy target.target_exec)
+  |None->()
+and release_views value=
+  let views=value.retained_views in
+  value.retained_views<-[];
+  List.iter release_view views
+let retained_view_capacity=4
+(* The first sight of a layer draws it directly; the second renders it offscreen. [None] when the
+   target cannot be made: the view then stays direct for as long as the layer does. *)
+let make_retained_target (f:presentation_facts) draws=
+  let dw=f.drawable_width and dh=f.drawable_height in
+  match create_offscreen{logical_width=f.logical_width;logical_height=f.logical_height;
+      drawable_width=dw;drawable_height=dh;title="Prismel retained view";vsync=false}with
+  |Error _->None
+  |Ok exec->
+      let fail_with canvas=
+        Option.iter(fun c->ignore(Runtime_resources.Canvas.destroy c))canvas;
+        ignore(destroy exec);None in
+      match step~clear:(0.,0.,0.,0.)exec draws,offscreen_target exec,
+          Runtime_resources.Canvas.create~width:dw~height:dh with
+      |Ok(),Ok texture,Ok canvas->
+          (match Runtime_resources.Canvas.Private.publish_gpu canvas texture,
+              Scene_command.Render_ir.create[|Scene_command.Render_ir.Image{resource_id=1;
+                source={x=0.;y=0.;width=float dw;height=float dh};
+                destination={x=0.;y=0.;width=float f.logical_width;height=float f.logical_height}}|]with
+          |Ok(),Ok ir->Some{target_exec=exec;target_canvas=canvas;target_ir=ir}
+          |_->fail_with(Some canvas))
+      |_,_,Ok canvas->fail_with(Some canvas)
+      |_->fail_with None
+let adopt_retained_view submission ~density ~layer draws=
+  let value=submission.owner in
+  let direct()=adopt_draws submission draws in
+  match value.runtime with
+  |Offscreen _->direct()
+  |Window _->
+  match presentation_facts value with
+  |Error _->direct()
+  |Ok f->
+  let drawable=f.drawable_width,f.drawable_height in
+  let current=match List.find_opt(fun view->view.view_layer==layer)value.retained_views with
+    |Some view when view.view_drawable=drawable->Some view
+    |Some view->
+        release_view view;
+        value.retained_views<-List.filter((!=)view)value.retained_views;None
+    |None->None in
+  match current with
+  |None->
+      let kept=List.filteri(fun index _->index<retained_view_capacity-1)value.retained_views in
+      List.iter(fun view->if not(List.memq view kept)then release_view view)value.retained_views;
+      value.retained_views<-{view_layer=layer;view_drawable=drawable;view_target=None;
+        view_failed=false}::kept;
+      direct()
+  |Some view->
+      (match view.view_target with
+       |None when not view.view_failed->
+           (match make_retained_target f draws with
+            |Some target->view.view_target<-Some target
+            |None->view.view_failed<-true)
+       |_->());
+      match view.view_target with
+      |None->direct()
+      |Some target->
+          lower_scene2_submission submission ~density
+            ~resource:(function 1->Some(Canvas target.target_canvas)|_->None)
+            target.target_ir
 (* GPU film leases own their own queue, so their frame pacing never couples
    with presentation. *)
 type gpu={gpu_device:Ogpu.Backend.device;gpu_queue:Ogpu.Backend.queue;
@@ -978,6 +1059,7 @@ module Private=struct
   let lower_scene2_segment=lower_scene2_segment
   let lower_ui=lower_ui
   let adopt_draws=adopt_draws
+  let adopt_retained_view=adopt_retained_view
   let step=step_submission
   let replay=replay_step
   let cancel=close_submission

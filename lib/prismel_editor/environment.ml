@@ -704,15 +704,21 @@ module Make (V : VIEWPORT) = struct
       | _ -> press, clicks) (value.pick_press, []) input.events in
     let core = if core.Core.map_view then core else
       List.fold_left (fun core at ->
+        let film = V.film extra area in
+        let _, _, w, h = film in
+        if w <= 0 || h <= 0 then core else
         let picking = { focused with core; camera; extra } in
-        match V.pick_ray ~viewport:(V.film extra area) (view_camera picking) at with
+        match V.pick_ray ~viewport:film (view_camera picking) at with
         | Some (origin, direction) -> Core.pick ?view:focused.viewing core ~origin ~direction
         | None -> core) core (List.rev clicks) in
     let camera, extra = if core.Core.map_view then camera, extra
       else V.navigate ~area control camera extra core ~raw_frame ~input in
     let camera, render_status = match update.framed with
       | Some (Some (min, max)) ->
-          V.frame_bounds ~viewport:panes.view ~min ~max camera, render_status
+          let _, _, w, h = panes.view in
+          if w > 0 && h > 0 then
+            V.frame_bounds ~viewport:panes.view ~min ~max camera, render_status
+          else camera, render_status
       | Some None -> camera, Some "Nothing to frame: no cooked points"
       | None -> camera, render_status in
     let core, camera, extra = V.on_view core ~previous:previous_camera camera extra

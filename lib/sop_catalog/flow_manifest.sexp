@@ -1,6 +1,6 @@
 (flow_manifest
   (version 202609)
-  (digest "ab7185a362266e4e476ea12002db104b")
+  (digest "1891faf08f35233ac4ca88751679edcb")
   (kinds
     (kind "sop/box"
       (key "box")
@@ -3024,7 +3024,7 @@
       (category "Visualize")
       (slots (slot "in0" required))
       (fields
-        (field "amount" "Uniform scale" (folder "Explosion") (float (soft -0.94999999999999996 1.2) (hard nil nil)) (float 0.32000000000000001) (primary false) (vec3))
+        (field "amount" "Uniform scale" (folder "Explosion") (float (soft -0.94999999999999996 8) (hard nil nil)) (float 0.32000000000000001) (primary false) (vec3))
         (field "scale_x" "Scale X" (folder "Explosion" "Scale") (float (soft -2 2) (hard nil nil)) (float 1) (primary false) (vec3 "scale" 0))
         (field "scale_y" "Scale Y" (folder "Explosion" "Scale") (float (soft -2 2) (hard nil nil)) (float 1) (primary false) (vec3 "scale" 1))
         (field "scale_z" "Scale Z" (folder "Explosion" "Scale") (float (soft -2 2) (hard nil nil)) (float 1) (primary false) (vec3 "scale" 2))
@@ -3032,6 +3032,24 @@
         (field "noise_amount" "Noise amount" (folder "Noise") (float (soft 0 1) (hard nil nil)) (float 0) (primary false) (vec3))
         (field "noise_frequency" "Noise frequency" (folder "Noise") (float (soft 0.02 4) (hard 0 nil)) (float 0.80000000000000004) (primary false) (vec3))
         (field "noise_seed" "Noise seed" (folder "Noise") (int (soft 0 9999) (hard nil nil)) (int 0) (primary false) (vec3)))
+      (outputs (output "geo" geometry)))
+    (kind "sop/material"
+      (key "material")
+      (aliases)
+      (operation "material")
+      (label "Material")
+      (category "Attribute" "Material")
+      (slots (slot "in0" required))
+      (fields
+        (field "group" "Primitive group" (folder) (text) (text "") (primary false) (vec3))
+        (field "material" "Material" (folder) (text) (text "") (primary false) (vec3))
+        (field "color_r" "Red" (folder) (float (soft 0 1) (hard 0 1)) (float 1) (primary false) (vec3 "color" 0))
+        (field "color_g" "Green" (folder) (float (soft 0 1) (hard 0 1)) (float 1) (primary false) (vec3 "color" 1))
+        (field "color_b" "Blue" (folder) (float (soft 0 1) (hard 0 1)) (float 1) (primary false) (vec3 "color" 2))
+        (field "roughness" "Roughness" (folder) (float (soft 0 1) (hard 0 1)) (float 0.40000000000000002) (primary false) (vec3))
+        (field "emission_r" "Emission red" (folder) (float (soft 0 1) (hard 0 1)) (float 0) (primary false) (vec3 "emission" 0))
+        (field "emission_g" "Emission green" (folder) (float (soft 0 1) (hard 0 1)) (float 0) (primary false) (vec3 "emission" 1))
+        (field "emission_b" "Emission blue" (folder) (float (soft 0 1) (hard 0 1)) (float 0) (primary false) (vec3 "emission" 2)))
       (outputs (output "geo" geometry)))
     (kind "scene/geometry"
       (key "geometry")

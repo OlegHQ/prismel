@@ -165,6 +165,7 @@ let run_state_internal ?(config=default_config)?max_frames ?(after_present=fun m
       relative_current:=None;cursor_current:=None;
       Canvas_runtime.clear();ignore(Prismel_execution.destroy coordinator))(fun()->on_stop!model)in
   Fun.protect~finally:cleanup(fun()->
+    let profile=Sys.getenv_opt"PRISMEL_PROFILE"<>None in
     let limit=max_frames in let count=ref 0 in while not !stopped&&Option.fold~none:true~some:(fun limit-> !count<limit)limit do
       Time.update();let events=Input_state.poll()in
       if List.exists(function Event.WindowClosed->true|_->false)events then quit();
@@ -186,7 +187,12 @@ let run_state_internal ?(config=default_config)?max_frames ?(after_present=fun m
       recent.(!cursor)<-facts;cursor:=(!cursor+1)mod Array.length recent;
       (try
         model:=update !model facts;Scene.render(view !model facts);
-        model:=after_present !model facts
+        model:=after_present !model facts;
+        if profile&& !count mod 30=0 then(match Prismel_execution.stats coordinator with
+          |Ok s->Printf.eprintf"profile frame %d: gpu %.2f ms, draws %Ld, passes %Ld, uploaded %Ld B, sun passes %Ld, plan hits %Ld misses %Ld\n%!"
+            !count(s.gpu_duration_seconds*.1000.)s.logical_draws s.logical_passes s.uploaded_bytes s.sun_shadow_passes
+            s.retained_plan_hits s.retained_plan_misses
+          |Error _->())
       with exn->
         let exn,backtrace,frames=crashed exn in
         write_crash~title:config.title~dump:(crash_dump !model)~recent:frames exn backtrace;

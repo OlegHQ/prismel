@@ -12,6 +12,7 @@ module Curve_sampling = Pdk_curve.Curve_sampling
 module Planar_constraints = Pdk_exact.Planar_constraints
 module Planar_cdt = Pdk_exact.Planar_cdt
 module Error = Pdk_core.Error
+module Material_assign = Pdk_attrib.Material_assign
 module Cancel = Pdk_core.Cancel
 module Packed = Pdk_core.Packed
 module Topology = Pdk_core.Topology

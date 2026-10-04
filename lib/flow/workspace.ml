@@ -3,21 +3,22 @@ module Smap = Map.Make (String)
 module Paths = Set.Make (struct type t = string list let compare = compare end)
 
 type path = string list
-type context = Sop | Value | Scene | World | Settings | Editor
+type context = Sop | Value | Scene | World | Settings | Editor | Material
 let context_name = function
   | Sop -> "sop" | Value -> "value" | Scene -> "scene" | World -> "world"
-  | Settings -> "settings" | Editor -> "editor"
+  | Settings -> "settings" | Editor -> "editor" | Material -> "material"
 let context_of_name = function
   | "sop" -> Some Sop | "value" -> Some Value | "scene" -> Some Scene
   | "world" -> Some World | "settings" -> Some Settings | "editor" -> Some Editor
+  | "material" -> Some Material
   | _ -> None
 let context_ty = function
   | Sop -> Ty.Geometry | Value -> Ty.Float | Scene -> Ty.Scene | World -> Ty.World
-  | Settings -> Ty.Settings | Editor -> Ty.Editor
+  | Settings -> Ty.Settings | Editor -> Ty.Editor | Material -> Ty.Material
 (* Catalog kinds know every context but the editor, which only sees value kinds. *)
 let catalog_context = function
   | Sop -> Context.Sop | Scene -> Context.Scene | World -> Context.World
-  | Settings -> Context.Settings | Value | Editor -> Context.Value
+  | Settings -> Context.Settings | Material -> Context.Material | Value | Editor -> Context.Value
 
 type pattern = Name of string | Seq of pattern list | Keys of string list
 type term = { path : path option; ty : Ty.t; node : node; form : S.t }
@@ -68,7 +69,7 @@ let special = [ "workspace"; "graph"; "defn"; "defmacro"; "let*"; "ref"; "for"; 
   "unquote-splicing" ]
 let reserved s = List.mem s special || List.mem s [ "t"; "pi"; "true"; "false"; "nil" ]
 let type_names = [ "float"; "int"; "bool"; "text"; "vec3"; "geometry"; "scene"; "world";
-  "settings"; "panel"; "editor" ]
+  "settings"; "panel"; "editor"; "material" ]
 
 (* ---- built-in operators (the study's value, scene, world, settings and ui ops) ---- *)
 
@@ -121,11 +122,13 @@ let ops = [
   mk ~octx:Sop ~kw:[ "key", Ty.Text ] "sop/point_list" [ "geometry", Ty.Geometry ] (fun _ -> Ty.List Ty.Vec3);
   mk ~octx:Sop ~kw:[ "key", Ty.Text ] "sop/piece_list" [ "geometry", Ty.Geometry ] (fun _ -> Ty.List Ty.Geometry);
   mk ~octx:Scene ~rest:("scene", Ty.Scene) "scene/merge" [] (fun _ -> Ty.Scene);
+  mk ~octx:Material ~kw:["name", Ty.Text; "color", Ty.Color;
+    "roughness", Ty.Float; "emission", Ty.Color] "material/standard" [] (fun _ -> Ty.Material);
   (* a world graph is authoritative (plan W10): this is how its text says there is no World *)
   mk ~octx:World "world/none" [] (fun _ -> Ty.World);
   mk ~octx:Editor "ui/workspace" [ "root", Ty.Panel ] (fun _ -> Ty.Editor);
   panel "ui/viewport" [ "scene", Ty.Scene ];
-  { (panel "ui/graph" []) with opt = [ "graph", Ty.Text ] }; panel "ui/inspector" [];
+  { (panel "ui/graph" []) with opt = [ "graph", Ty.Text ]; kw = [ "wires", Ty.Text ] }; panel "ui/inspector" [];
   panel "ui/outline" []; panel "ui/list" []; panel "ui/lisp" []; panel "ui/timeline" [];
   panel "ui/split" [ "axis", Ty.Text; "first", Ty.Panel; "second", Ty.Panel ];
   panel "ui/split-at" [ "axis", Ty.Text; "ratio", fl; "first", Ty.Panel; "second", Ty.Panel ];
@@ -208,10 +211,14 @@ let param_ty (p : Check.parameter) = match p.ty with
   | Some t -> ty_of_port t
   | None -> Ty.Text
 let kind_out (k : Check.kind) = match k.context, k.outputs with
-  | Context.Scene, _ -> Ty.Scene | World, _ -> Ty.World | Settings, _ -> Ty.Settings
+  | Context.Scene, _ -> Ty.Scene | World, _ -> Ty.World | Settings, _ -> Ty.Settings | Material, _ -> Ty.Material
   | _, [ (_, t) ] -> ty_of_port t
   | _, [] -> Ty.Any
   | _, outs -> Ty.Record (List.map (fun (n, t) -> (n, ty_of_port t)) outs)
+(* the type of a kind's slots: geometry, a World layer's layer below, a scene/world's World, a root's scene *)
+let slot_ty (k : Check.kind) = match k.qualified with
+  | "scene/world" -> Ty.World | "scene/root" -> Ty.Scene
+  | _ -> if k.context = Context.World then Ty.World else Ty.Geometry
 (* ponytail: the catalog has no group markers yet; a `group` parameter reads a group and
    `name` on a `sop/group_*` kind writes one. *)
 let group_reader (p : Check.parameter) = p.name = "group"
@@ -1064,6 +1071,14 @@ let check catalog forms =
     let num_of a = match a.aterm.node with
       | Lit (Param.Int_value n) -> Some (float_of_int n) | Lit (Param.Float_value f) -> Some f | _ -> None in
     match o.oname with
+    | "material/standard" ->
+        List.iter (fun a -> match a.key, a.aterm.node with
+          | Some ("color" | "emission"), Text s when not (hex_colour s) ->
+              err a.aform "E_TYPE" "A material colour is #rrggbb or a vec3."
+          | Some "roughness", _ ->
+              (match num_of a with Some f when f < 0. || f > 1. ->
+                err a.aform "E_RANGE" "Material roughness must be in [0,1]." | _ -> ())
+          | _ -> ()) args
     | "range" ->
         (match List.map int_of pos with
          | [ Some n ] when n > max_iterations -> err x "E_ITER_BOUND" (Printf.sprintf "range 0‥%d exceeds 4,096 iterations." n)
@@ -1082,6 +1097,11 @@ let check catalog forms =
         (match o.oname, pos with
          | "ui/split-at", _ :: r :: _ ->
              (match num_of r with Some n when n < 0.1 || n > 0.9 -> err x "E_RANGE" "Split ratio is 0.1–0.9." | _ -> ())
+         | _ -> ())
+    | "ui/graph" ->
+        (match List.find_opt (fun (a : arg) -> a.key = Some "wires") args with
+         | Some { aterm = { node = Text w; _ }; _ } when w <> "rect" && w <> "straight" ->
+             err x "E_RANGE" "Graph wires style is rect or straight."
          | _ -> ())
     | _ -> ()
 
@@ -1111,7 +1131,7 @@ let check catalog forms =
     let seen = Hashtbl.create 8 in
     let out = ref [] and npos = ref 0 and writes = ref [] in
     let groups_in = List.fold_left (fun g a -> union g a.av.groups) [] args in
-    let slot_ty = if k.context = Context.World then Ty.World else Ty.Geometry in
+    let slot_ty = slot_ty k in
     let slot_arg a sname =
       if Ty.fits a.av.ty slot_ty then ()
       else if rest_kind && (match a.av.ty with Ty.List e -> Ty.fits e Ty.Geometry | _ -> false) then begin
@@ -1140,7 +1160,8 @@ let check catalog forms =
                   List.find_opt (fun (p : Check.parameter) -> p.name = n) k.parameters with
             | Some _, _ -> slot_arg a n; out := (n, a.aterm) :: !out
             | None, Some p ->
-                validate p a;
+                if k.qualified = "sop/material" && n = "material" && a.av.ty = Ty.Material
+                then () else validate p a;
                 (match a.aterm.node with
                  | Text s when group_reader p && s <> "" && not (List.mem s groups_in) ->
                      add Diagnostic.Warning a.aform "W_UNKNOWN_GROUP"
@@ -1156,7 +1177,10 @@ let check catalog forms =
     if not rest_kind then
       List.iter (fun (s : Check.slot) ->
         if s.required && not (Hashtbl.mem seen s.name) then
-          err x "E_MISSING_INPUT" (Printf.sprintf "%s needs its %s input" short s.name)) k.slots;
+          if slot_ty = Ty.Geometry then
+            out := (s.name, tm x Ty.Geometry Nil) :: !out
+          else
+            err x "E_MISSING_INPUT" (Printf.sprintf "%s needs its %s input" short s.name)) k.slots;
     let ty = kind_out k in
     let v = { (derive ty (List.map (fun a -> a.av) args)) with groups = union groups_in !writes } in
     (tm x ty (Call { kind = k.qualified; args = List.rev !out }), v)

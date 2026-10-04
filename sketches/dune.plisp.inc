@@ -7,6 +7,14 @@
  (executable (name main) (modules main) (libraries prismel_editor))
  (rule (alias smoke-all)
   (action (setenv PRISMEL_MAX_FRAMES 120 (run ./main.exe)))))
+(subdir shattered_studio
+ (rule
+  (target main.ml)
+  (deps sketch.plisp (glob_files *.png) (glob_files *.ttf))
+  (action (chdir %{workspace_root} (with-stdout-to %{target} (run %{bin:prismel-plisp} ml %{dep:sketch.plisp})))))
+ (executable (name main) (modules main) (libraries prismel_editor))
+ (rule (alias smoke-all)
+  (action (setenv PRISMEL_MAX_FRAMES 120 (run ./main.exe)))))
 (subdir ws_bloom
  (rule
   (target main.ml)

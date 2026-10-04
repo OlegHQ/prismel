@@ -1,12 +1,12 @@
 type t =
   | Geometry | Float | Int | Bool | Vec3 | Text | Color
   | List of t | Record of (string * t) list | Fn | Any
-  | Scene | World | Settings | Panel | Editor
+  | Scene | World | Settings | Panel | Editor | Material
 
 let names = [ "geometry", Geometry; "float", Float; "int", Int; "bool", Bool;
   "vec3", Vec3; "text", Text; "color", Color; "fn", Fn; "any", Any;
   "scene", Scene; "world", World; "settings", Settings; "panel", Panel;
-  "editor", Editor ]
+  "editor", Editor; "material", Material ]
 
 let rec to_string = function
   | List e -> "list:" ^ to_string e

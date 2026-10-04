@@ -249,6 +249,7 @@ let context_color = function
   | Some Scene -> Prismel.Color.hex_exn "#6a5cb0"
   | Some World -> Prismel.Color.hex_exn "#3f8a55"
   | Some Settings -> Prismel.Color.hex_exn "#b0485a"
+  | Some Material -> Prismel.Color.hex_exn "#12a89d"
   | Some Editor -> Prismel.Color.hex_exn "#b5651d"
   | Some Value -> Prismel.Color.hex_exn "#b5651d"
   | None -> Prismel.Color.hex_exn "#2f6ea5"
@@ -258,7 +259,7 @@ let type_color theme (ty : Flow.Ty.t) =
   match ty with
   | Geometry -> ports.geometry | Float -> ports.float | Int -> ports.int | Bool -> ports.bool
   | Vec3 -> ports.vec3 | Text -> ports.text | Fn -> ports.fn | Record _ -> ports.record
-  | List _ | Color | Any | Scene | World | Settings | Panel | Editor -> ports.compound
+  | List _ | Color | Any | Scene | World | Settings | Panel | Editor | Material -> ports.compound
 
 let height_of ~rh ~width_chars = function
   | Head _ -> rh +. 8.
@@ -287,9 +288,9 @@ let view state ui ~bounds:(x, y, w, h) p =
   let x = float x and y = float y and w = float w and h = float h in
   let muted = Pxui.Theme.muted theme in
   (* the search field above the list *)
-  let query, _ = Ui.value_field ui ~at:(x +. 8., y +. 6.) ~w:(w -. 24.) ~h:21. ~size:11
+  let query, typing = Ui.value_field ui ~at:(x +. 8., y +. 6.) ~w:(w -. 24.) ~h:21. ~size:11
       ~left:true ~valid:(fun _ -> true) "navigator-search" state.query in
-  let typing = Ui.text_input_focused ui in
+  let was_typing = state.typing in
   let state = { query; typing } in
   if query = "" && not typing then
     Ui.draw ui (Ui.box ui ~w:(Ui.Px 170.) ~h:(Ui.Px 14.) ~at:(x +. 16., y +. 10.) "navigator-placeholder")
@@ -325,7 +326,7 @@ let view state ui ~bounds:(x, y, w, h) p =
    | Some (Link_row { graph; _ }) -> emit (Open { graph; node = None })
    | Some (Macro_row (name, _)) -> emit (Macro name)
    | _ -> ());
-  if typing && Ui.key_pressed ui Prismel.Input.Enter then
+  if (typing || was_typing) && Ui.key_pressed ui Prismel.Input.Enter then
     (match List.find_map (function
        | Graph_row { graph; _ } -> Some (Open { graph; node = None })
        | Node_row { graph; path; _ } -> Some (Open { graph; node = Some path })
@@ -342,7 +343,7 @@ let view state ui ~bounds:(x, y, w, h) p =
           Ui.Paint.text paint ~at:(fst at, ry +. dy) ~color label in
         let tag ~at:tx glyph =
           let tw = Ui.Paint.text_width paint ~size:10 glyph +. 10. in
-          Ui.Paint.rect paint ~x:tx ~y:(ry +. 4.) ~w:tw ~h:(rh -. 8.) ~fill:theme.accent ~radius:2. ();
+          Ui.Paint.rect paint ~x:tx ~y:(ry +. 4.) ~w:tw ~h:(rh -. 8.) ~fill:theme.accent ();
           Ui.Paint.text paint ~at:(tx +. 5., ry +. 7.) ~size:10 ~color:theme.input glyph;
           tx +. tw +. 6. in
         let shade selected =

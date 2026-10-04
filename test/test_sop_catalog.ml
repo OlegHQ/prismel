@@ -245,9 +245,10 @@ let run () =
   Session.close session;
   let factory_keys = List.map Edit_graph.factory_key
       Sop_catalog.Editor.factories in
-  check (List.length factory_keys = 154
-      && List.length (List.sort_uniq String.compare factory_keys) = 154)
+  check (List.length factory_keys = 155
+      && List.length (List.sort_uniq String.compare factory_keys) = 155)
     "PPX SOP manifest has a missing or duplicate factory key";
+  check (List.mem "material" factory_keys) "SOP editor catalog is missing material";
   check (not (List.mem "delete_attribute" factory_keys))
     "duplicate Delete Attribute factory remains registered";
   check (not (List.mem "bounding_box" factory_keys))

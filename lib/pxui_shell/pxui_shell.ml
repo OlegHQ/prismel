@@ -196,6 +196,9 @@ module Layout = struct
       | Some (x, y, w, h) ->
           let w = min frame.width w and h = min (frame.height - top) h in
           let x = max 0 (min x (frame.width - w)) and y = max top (min y (frame.height - header_height)) in
+          (* a collapsed window is a short tab: its title and the expand button *)
+          let w = if (state path).collapsed
+            then min w (max 90 (60 + (7 * String.length (Editor_core.Panels.name panel)))) else w in
           leaf ~floating:true path panel (x, y, w, if (state path).collapsed then header_height else min h (frame.height - y))) all;
     { leaves = List.rev !leaves; splitters = List.rev !splitters; status_at = !status;
       timeline_at = (0, bottom, frame.width, timeline) }
@@ -264,14 +267,26 @@ module Chrome = struct
           let box = floating ui l.body ("workspace-" ^ String.lowercase_ascii (Editor_core.Panels.name p)
                                         ^ key l.path) in
           if l.floating then Ui.to_front ui ~order box;
-          Ui.draw ui box (fun paint (x, y, w, h) -> Ui.Paint.fill paint ~x ~y ~w ~h theme.panel))
+          Ui.draw ui box (fun paint (x, y, w, h) ->
+            if l.floating then begin
+              (* lift, not outline: soft shadow under the window, lighter fill, hairline *)
+              let hx, hy, hw, hh = l.header in
+              for i = 1 to 4 do
+                let g = float (i * 3) in
+                Ui.Paint.rect paint ~x:(float hx -. g) ~y:(float hy -. g +. 4.) ~w:(float hw +. 2. *. g)
+                  ~h:(float hh +. h +. 2. *. g) ~fill:(Prismel.Color.rgba 34 43 43 7) ()
+              done;
+              Ui.Paint.rect paint ~x ~y ~w ~h ~fill:(Prismel.Color.blend theme.input theme.panel ~pct:0.5)
+                ~stroke:(Pxui.Theme.edge theme) ()
+            end else Ui.Paint.fill paint ~x ~y ~w ~h theme.panel;
+            Ui.Paint.fill paint ~x:(x +. 1.) ~y:(y +. 1.) ~w:(w -. 2.) ~h:1. (Pxui.Theme.sheen theme)))
       geometry.leaves;
     let intents = ref [] in
     let emit i = intents := i :: !intents in
     List.iteri (fun n (s : splitter) ->
       let box = floating ui s.bounds ("workspace-gutter-" ^ string_of_int n) in
       Ui.draw ui box (fun paint (x, y, w, h) ->
-        Ui.Paint.fill paint ~x ~y ~w ~h (Pxui.Theme.faint_border theme))) geometry.splitters;
+        Ui.Paint.fill paint ~x ~y ~w ~h (Pxui.Theme.edge theme))) geometry.splitters;
     let headers = List.mapi (fun order (l : leaf) ->
       let x, y, w, h = l.header in
       let label = String.lowercase_ascii (Editor_core.Panels.name l.panel) ^ key l.path in
@@ -283,7 +298,7 @@ module Chrome = struct
       if l.floating then Ui.to_front ui ~order button;
       if (Ui.signal ui button).clicked then emit (Toggle l.path);
       let grip = floating ui ~flags:Ui.(clickable + blocking)
-          (x, y, min 18 (max 0 (w - size)), h) ("workspace-drag-" ^ label) in
+          (x, y, max 0 (w - size), h) ("workspace-drag-" ^ label) in
       if l.floating then Ui.to_front ui ~order grip;
       let drag = Ui.signal ui grip in
       let original = Option.value (state l.path).window
@@ -299,8 +314,10 @@ module Chrome = struct
         end
       end;
       let opened = Ui.state ui box ~default:0 = 1 in
-      let header_signal = Ui.signal ui box in
-      let opened = opened || Ui.context_clicked header_signal || header_signal.clicked in
+      (* the whole empty header drags; a click that did not move opens the menu *)
+      let still = Float.hypot (fst drag.release_point -. fst drag.press_point)
+          (snd drag.release_point -. snd drag.press_point) < 4. in
+      let opened = opened || Ui.context_clicked drag || (drag.clicked && still) in
       Ui.set_state ui box (if opened then 1 else 0);
       if opened then begin
         let rows = [ "Split side by side", true; "Split top and bottom", true; "Close", true;
@@ -324,7 +341,7 @@ module Chrome = struct
       let text_box = Ui.within ui box (fun () -> Ui.box ui ~w:Ui.Grow ~h:Ui.Grow "header-text") in
       Ui.draw ui text_box (fun paint (x, y, w, h) ->
         Ui.Paint.rect paint ~x ~y ~w ~h ~fill:theme.input
-          ~stroke:(Pxui.Theme.faint_border theme) ();
+          ~stroke:(Pxui.Theme.edge theme) ();
         let x = int_of_float x and y = int_of_float y and w = int_of_float w in
         (* "Title<TAB>subtitle": the subtitle follows in the muted colour *)
         let main, sub = match String.index_opt text '\t' with
@@ -349,11 +366,11 @@ module Chrome = struct
           ~to_:(cx -. 2. *. direction, cy) ~width:1.5 theme.accent;
         Ui.Paint.line paint ~from_:(cx -. 2. *. direction, cy)
           ~to_:(cx +. 2. *. direction, cy +. 4.) ~width:1.5 theme.accent);
-      Ui.draw ui grip (fun paint (x, y, w, h) ->
+      Ui.draw ui grip (fun paint (x, y, _, h) ->
         let signal = Ui.signal ui grip in
         let color = if signal.hovered || signal.held then theme.accent else Pxui.Theme.muted theme in
         for row = 0 to 2 do for col = 0 to 1 do
-          Ui.Paint.circle paint ~at:(x +. w /. 2. -. 2. +. float col *. 4.,
+          Ui.Paint.circle paint ~at:(x +. 9. -. 2. +. float col *. 4.,
             y +. h /. 2. -. 4. +. float row *. 4.) ~radius:0.8 ~fill:color ()
         done done)) headers;
     List.rev !intents
@@ -475,18 +492,23 @@ module Which_key = struct
   let panel ui keymap ~prefix ~focus ~focus_name =
     let module Ui = Pxui.Ui in
     let theme = Ui.theme ui in
+    (* the key column is as wide as the longest key (a chord such as Shift-Command-Z), so a
+       label never starts under its key *)
+    let widest = List.fold_left (fun m (key, _) -> max m (String.length key)) 0
+        (page keymap ~prefix None @ page keymap ~prefix (Some focus)) in
+    let label_x = 8. +. Float.max 60. (float (widest * 7) +. 12.) in
     let row (key, label) =
       let box = Ui.box ui ~w:Ui.Grow ~h:(Ui.Px (float_of_int (Ui.row_height ui)))
           ("leader-" ^ key ^ "-" ^ label) in
       Ui.draw ui box (fun paint (x, y, _, h) ->
         let y = y +. Float.max 5. ((h -. float_of_int (Ui.font_size ui) -. 3.) /. 2.) in
         Ui.Paint.text paint ~at:(x +. 8., y) ~color:theme.accent key;
-        Ui.Paint.text paint ~at:(x +. 68., y) ~color:theme.foreground label) in
+        Ui.Paint.text paint ~at:(x +. label_x, y) ~color:theme.foreground label) in
     let section title scope = match page keymap ~prefix scope with
       | [] -> ()
       | rows -> Ui.label ui title; List.iter row rows in
     let leader = if prefix = "" then "Leader" else "Leader " ^ prefix in
-    ignore (Ui.modal ui ~width:300. "leader" (fun () ->
+    ignore (Ui.modal ui ~width:(Float.max 300. (label_x +. 260.)) "leader" (fun () ->
       section (leader ^ " · global") None;
       section focus_name (Some focus)))
 
@@ -1140,7 +1162,7 @@ module Inspector = struct
       let clicked = enabled && (Ui.signal ui box).clicked in
       Ui.draw ui box (fun paint (x, y, w, h) ->
         Ui.Paint.rect paint ~x ~y ~w ~h ~fill:theme.input
-          ~stroke:(Pxui.Theme.faint_border theme) ~radius:3. ();
+          ~stroke:(Pxui.Theme.faint_border theme) ();
         let color = if enabled then theme.accent else Pxui.Theme.muted theme in
         if label = "●" || label = "○" then
           Ui.Paint.circle paint ~at:(x +. w /. 2., y +. h /. 2.) ~radius:4.
@@ -1256,12 +1278,155 @@ module Inspector = struct
             (if shown then "●" else "○") ~x:(width -. 28.)
             ~y:(control_y +. 1.) ~enabled:true in
         if pinned then Pinned (path, not shown) :: edits else edits) in
+    let has_substr sub s =
+      let len_s = String.length s and len_sub = String.length sub in
+      let rec check i =
+        if i + len_sub > len_s then false
+        else if String.sub s i len_sub = sub then true
+        else check (i + 1) in
+      check 0 in
+    let is_color_3 (row : flow_row) =
+      List.length row.fields = 3 && (
+        has_substr "color" row.path
+        || List.for_all (fun (f : Param.field_view) -> has_substr "color" f.name) row.fields
+      ) in
+    let is_color_1 (field : Param.field_view) =
+      match field.kind, field.current with
+      | Param.Text_view, Param.Text_value text ->
+          (String.starts_with ~prefix:"#" text || has_substr "color" field.name)
+          && Result.is_ok (Color.hex text)
+      | _ -> false in
+    let color_row_3 (row : flow_row) title fields shown =
+      let path = row.path in
+      let to_f = function
+        | Param.Float_value x -> x
+        | Int_value x -> float x
+        | _ -> 0. in
+      let r, g, b = match fields with
+        | [ f0; f1; f2 ] -> to_f f0.Param.current, to_f f1.current, to_f f2.current
+        | _ -> 0., 0., 0. in
+      let clamp x = max 0 (min 255 (int_of_float (Float.round (x *. 255.)))) in
+      let hex_str = Printf.sprintf "#%02x%02x%02x" (clamp r) (clamp g) (clamp b) in
+      let swatch_color = Color.rgb (clamp r) (clamp g) (clamp b) in
+      let box, control_x, control_y, control_w = Ui.inspector_row ui
+          ~width ~key:("flow-row-" ^ path) ~label:title () in
+      let whole = Ui.within ui box (fun () ->
+        let split = Option.value ~default:false row.split in
+        let swatch_w = 20. and swatch_h = 21. in
+        let swatch = Ui.box ui ~at:(control_x, control_y) ~w:(Ui.Px swatch_w) ~h:(Ui.Px swatch_h) ("swatch-" ^ path) in
+        Ui.draw ui swatch (fun paint (sx, sy, sw, sh) ->
+          Ui.Paint.rect paint ~x:sx ~y:sy ~w:sw ~h:sh ~fill:swatch_color
+            ~stroke:(Pxui.Theme.faint_border theme) ());
+        let hex_x = control_x +. swatch_w +. 4. in
+        let hex_w = 58. in
+        let text, _ = Ui.value_field ui ~at:(hex_x, control_y) ~w:hex_w ~h:21. ~size:11
+            ~left:true ~valid:(fun t -> Result.is_ok (Color.hex t)) ("hex-" ^ path) hex_str in
+        let hex_edits =
+          if text = hex_str then [] else
+          match Color.hex text with
+          | Ok c ->
+              let nr, ng, nb, _ = Color.to_floats c in
+              (match fields with
+               | [ f0; f1; f2 ] ->
+                   [ Edited (f0.Param.name, Param.Float_value nr);
+                     Edited (f1.name, Param.Float_value ng);
+                     Edited (f2.name, Param.Float_value nb) ]
+               | _ -> [])
+          | Error _ -> [] in
+        let sliders_x = hex_x +. hex_w +. 4. in
+        let sliders_w = Float.max 60. (control_w -. (swatch_w +. 4. +. hex_w +. 4.)) in
+        let field_w = (sliders_w -. 8.) /. 3. in
+        let slider_edits = if split || row.components <> [] || control_w < 140. then [] else
+          List.concat (List.mapi (fun index field ->
+            let axis = List.nth [ "r"; "g"; "b" ] index in
+            let ax_x = sliders_x +. float index *. (field_w +. 4.) in
+            Ui.draw ui box (fun paint (x, y, _, _) ->
+              Ui.Paint.text paint ~at:(x +. ax_x, y +. control_y +. 3.)
+                ~size:10 ~color:(Pxui.Theme.muted theme) axis);
+            input field (path ^ "." ^ axis)
+              ~edit:false
+              ~x:(ax_x +. 10.)
+              ~y:control_y
+              ~w:(field_w -. 10.)) fields) in
+        let toggle = actions && action ui ("split-" ^ path) "rgb"
+            ~x:(width -. 55.) ~y:(control_y +. 1.)
+            ~enabled:(not row.locked) in
+        let pin = actions && action ui ("pin-" ^ path)
+            (if shown then "●" else "○")
+            ~x:(width -. 28.) ~y:(control_y +. 1.)
+            ~enabled:(not row.locked) in
+        slider_edits @ hex_edits
+        @ (if toggle then [ Split (path, not split) ] else [])
+        @ (if pin then [ Pinned (path, not shown) ] else [])) in
+      if row.split = Some true || row.components <> [] || control_w < 140. then
+        whole @ List.concat (List.mapi (fun index field ->
+          let axis = List.nth [ "r"; "g"; "b" ] index in
+          let path = path ^ "." ^ axis in
+          match List.find_opt (fun (name, _, _) -> name = path) row.components with
+          | Some (_, source, live) -> driven path field.Param.label source live shown
+          | None -> scalar path field.label field shown) fields)
+      else whole in
+    let color_row_1 path title field shown =
+      let text_val = match field.Param.current with Param.Text_value t -> t | _ -> "#ffffff" in
+      let c = Result.value (Color.hex text_val) ~default:Color.white in
+      let r, g, b, _ = Color.to_floats c in
+      let clamp x = max 0 (min 255 (int_of_float (Float.round (x *. 255.)))) in
+      let hex_str = Printf.sprintf "#%02x%02x%02x" (clamp r) (clamp g) (clamp b) in
+      let swatch_color = Color.rgb (clamp r) (clamp g) (clamp b) in
+      let box, control_x, control_y, control_w = Ui.inspector_row ui
+          ~width ~key:("flow-row-" ^ path) ~label:title () in
+      Ui.within ui box (fun () ->
+        let swatch_w = 20. and swatch_h = 21. in
+        let swatch = Ui.box ui ~at:(control_x, control_y) ~w:(Ui.Px swatch_w) ~h:(Ui.Px swatch_h) ("swatch-" ^ path) in
+        Ui.draw ui swatch (fun paint (sx, sy, sw, sh) ->
+          Ui.Paint.rect paint ~x:sx ~y:sy ~w:sw ~h:sh ~fill:swatch_color
+            ~stroke:(Pxui.Theme.faint_border theme) ());
+        let hex_x = control_x +. swatch_w +. 4. in
+        let hex_w = 58. in
+        let text, _ = Ui.value_field ui ~at:(hex_x, control_y) ~w:hex_w ~h:21. ~size:11
+            ~left:true ~valid:(fun t -> Result.is_ok (Color.hex t)) ("hex-" ^ path) hex_str in
+        let hex_edits =
+          if text = hex_str then [] else
+          match Color.hex text with
+          | Ok _ -> [ Edited (field.Param.name, Param.Text_value text) ]
+          | Error _ -> [] in
+        let sliders_x = hex_x +. hex_w +. 4. in
+        let sliders_w = Float.max 60. (control_w -. (swatch_w +. 4. +. hex_w +. 4.)) in
+        let field_w = (sliders_w -. 8.) /. 3. in
+        let slider_edits = if control_w < 140. then [] else
+          List.concat (List.mapi (fun index (axis, cur) ->
+            let ax_x = sliders_x +. float index *. (field_w +. 4.) in
+            Ui.draw ui box (fun paint (x, y, _, _) ->
+              Ui.Paint.text paint ~at:(x +. ax_x, y +. control_y +. 3.)
+                ~size:10 ~color:(Pxui.Theme.muted theme) axis);
+            let key = "flow-value-" ^ path ^ "." ^ axis in
+            let changed, _ = Ui.value_field ui ~at:(ax_x +. 10., control_y) ~w:(field_w -. 10.) ~h:21. ~size:11
+                ~display:(Printf.sprintf "%.2f" cur) ~fraction:cur
+                ~slide:(fun f -> Printf.sprintf "%.2f" f)
+                ~edit:false ~left:false ~valid:(fun t -> float_of_string_opt t <> None)
+                key (Printf.sprintf "%.2f" cur) in
+            if changed = Printf.sprintf "%.2f" cur then [] else
+            match float_of_string_opt changed with
+            | Some v ->
+                let v = Float.max 0. (Float.min 1. v) in
+                let nr = if index = 0 then v else r in
+                let ng = if index = 1 then v else g in
+                let nb = if index = 2 then v else b in
+                let new_hex = Printf.sprintf "#%02x%02x%02x" (clamp nr) (clamp ng) (clamp nb) in
+                [ Edited (field.Param.name, Param.Text_value new_hex) ]
+            | None -> []) [ "r", r; "g", g; "b", b ]) in
+        let pin = actions && action ui ("pin-" ^ path)
+            (if shown then "●" else "○")
+            ~x:(width -. 28.) ~y:(control_y +. 1.) ~enabled:true in
+        slider_edits @ hex_edits @ (if pin then [ Pinned (path, not shown) ] else [])) in
     let row_widget (row : flow_row) =
       let title = match row.fields with
         | [field] -> field.Param.label | _ -> row.path in
       match row.drive, row.fields with
       | Some source, _ -> driven row.path title source row.live row.shown
+      | None, [field] when is_color_1 field -> color_row_1 row.path title field row.shown
       | None, [field] -> scalar row.path title field row.shown
+      | None, fields when is_color_3 row -> color_row_3 row title fields row.shown
       | None, fields ->
           let box, control_x, control_y, control_w = Ui.inspector_row ui
               ~width ~key:("flow-row-" ^ row.path) ~label:title () in

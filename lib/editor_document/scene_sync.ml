@@ -220,6 +220,21 @@ let unique graph id =
   | Some _ -> stop "Two objects are named %S. Rename one of them first." (Option.value ~default:"" (label graph id))
   | None -> ()
 
+(* the graphs a deleted object leaves behind, when no other [(ref g)] reads them *)
+let rec refs name (e : S.t) = match e.node with
+  | S.List ({ node = S.Sym "ref"; _ } :: { node = S.Sym n; _ } :: _) when n = name -> 1
+  | _ -> List.fold_left (fun n c -> n + refs name c) 0 (S.children e)
+
+(* the graph that makes a scene object: a geometry's SOP graph, a World's layer graph *)
+let source_graph_of (doc : Document.t) id =
+  let _, (lowered : Flow_sop.Lower.t) = doc.workspace in
+  match Option.bind (Document.Int_map.find_opt id doc.networks) (fun (n : Document.network) ->
+      List.find_map (fun (g : Flow_sop.Lower.graph) -> if g.network == n.graph then Some g.name else None)
+        lowered.graphs) with
+  | Some g -> Some g
+  | None -> if List.mem_assoc id doc.homes.objects && Some id = List.nth_opt (Objects.ids "world" (Document.scene_graph doc)) 0
+    then doc.homes.world_graph else None
+
 let objects st (before : Document.t) (after : Document.t) =
   let b = Document.scene_graph before and a = Document.scene_graph after in
   let refuse_preview id =
@@ -251,7 +266,25 @@ let objects st (before : Document.t) (after : Document.t) =
   List.iter (function
     | Document.Bound_at path -> apply st (F.Delete_nodes { nodes = [ path ] })
     | _ -> ()) bound;
-  if before.active_camera <> after.active_camera then begin
+  (* an object's graph goes with it unless another object or panel still references it *)
+  let orphans = List.sort_uniq compare (List.filter_map (fun (id, _) -> source_graph_of before id) !gone) in
+  List.iter (fun name ->
+    if List.for_all (fun e -> refs name e = 0) st.workspace.source
+    && List.exists (fun (g : Flow.Workspace.graph) -> g.name = name) st.workspace.checked.graphs
+    then apply st (F.Remove_graph { name })) orphans;
+  let camera_of_root = before.homes.root in
+  if camera_of_root <> None && before.active_camera <> after.active_camera then begin
+    (* the root names the active camera; an old [:active] on the camera it replaces goes *)
+    let path id = Option.map (bind st) (List.assoc_opt id before.homes.objects) in
+    (match Option.bind before.active_camera path with
+     | Some p when F.arg_text st.workspace.source p (F.Kw "active") <> None ->
+         apply st (F.Disconnect { node = p; key = F.Kw "active"; fallback = None })
+     | _ -> ());
+    (match Option.bind after.active_camera path with
+     | Some p -> set st (Option.get camera_of_root) [ "camera", Some (sym (List.nth p (List.length p - 1))) ]
+     | None -> set st (Option.get camera_of_root) [ "camera", None ])
+  end
+  else if before.active_camera <> after.active_camera then begin
     (match Option.bind before.active_camera (fun id -> List.assoc_opt id before.homes.objects) with
      | Some home when Option.fold ~none:false ~some:(fun id -> Edit.find a ~node_id:id <> None) before.active_camera ->
          set st home [ "active", None ]

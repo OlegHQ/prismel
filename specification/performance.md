@@ -5214,3 +5214,22 @@ and unchanged SOP/prepared/drawing caches remain reused. The fixture uses
 `Scene3.empty` geometry drawings: it measures editor CPU composition with
 lights, not GPU presentation, path tracing or a general latency bound.
 Native rendering validation remains a separate gate.
+## Material assignment (2026-10-02)
+
+The new primitive material assignment kernel has no previous implementation
+to compare. On the local macOS arm64 host, seven-trial medians in the default
+Dune build were 10.348 ms / 12,004,552 allocated bytes for 100,000 primitives
+and 19.028 ms / 24,004,552 bytes for 200,000. With a four-domain pool the
+100,000-primitive median was 10.497 ms and the same allocations; the assignment
+kernel is deliberately sequential. Model information was unavailable under
+the session's filesystem/process restrictions.
+
+```sh
+dune exec tools/bench_material_assign.exe -- 100000 1
+dune exec tools/bench_material_assign.exe -- 200000 1
+dune exec tools/bench_material_assign.exe -- 100000 4
+```
+
+The benchmark assigns one surface over repeated valid triangle primitives;
+it measures only the assignment, including its packed output allocation and
+metadata validation. It does not measure Boolean cooking or rendering.

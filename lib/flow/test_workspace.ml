@@ -165,7 +165,9 @@ let () = (* other static diagnostics of the study *)
   bad (sop "(sop/box :x_divisions \"a\")") "E_TYPE";
   bad (sop "(sop/box :x_divisions 0)") "E_HARD_RANGE";
   warns (sop "(sop/box :x_divisions 99)") "W_SOFT_RANGE";
-  bad (sop "(sop/transform)") "E_MISSING_INPUT";
+  ignore (good (sop "(sop/transform)"));
+  ignore (good (sop "(sop/exploded_view)"));
+  ignore (good (sop "(sop/exploded_view nil)"));
   bad (sop "(sop/box (sop/box))") "E_EXTRA_POSITIONAL";
   bad (sop "(sop/nothing)") "E_UNKNOWN_KIND" ~text:"Unknown operator";
   bad (value "(sop/box)") "E_WRONG_CONTEXT";
@@ -316,7 +318,8 @@ let () = (* the other contexts: scene, world, settings, editor *)
   let world b = "(workspace w (graph x :context world " ^ b ^ "))" in
   let settings b = "(workspace w (graph c :context settings " ^ b ^ "))" in
   bad (scene "(scene/nothing)") "E_UNKNOWN_KIND";
-  bad (scene "(scene/geometry)") "E_MISSING_INPUT";
+  ignore (good (scene "(scene/geometry)"));
+  ignore (good (scene "(scene/geometry nil)"));
   bad (scene "(scene/geometry 3)") "E_TYPE" ~text:"takes geometry";
   bad (scene "(scene/geometry (ref a) :nothing 1)") "E_UNKNOWN_PARAM";
   bad (scene "(scene/geometry (ref a) :translate \"a\")") "E_TYPE";
@@ -339,7 +342,10 @@ let () = (* the other contexts: scene, world, settings, editor *)
   bad "(workspace w (graph a :context sop (sop/box)) (graph s :context scene (ref a)))" "E_TYPE";
   bad (world "(scene/merge)") "E_WRONG_CONTEXT";
   bad "(workspace w (graph e :context editor (ui/workspace (ui/split \"diagonal\" (ui/graph) (ui/lisp)))))" "E_RANGE" ~text:"axis";
-  bad "(workspace w (graph e :context editor (ui/workspace (ui/split-at \"vertical\" 0.95 (ui/graph) (ui/lisp)))))" "E_RANGE" ~text:"ratio"
+  bad "(workspace w (graph e :context editor (ui/workspace (ui/split-at \"vertical\" 0.95 (ui/graph) (ui/lisp)))))" "E_RANGE" ~text:"ratio";
+  ignore (good "(workspace w (graph e :context editor (ui/workspace (ui/graph :wires \"rect\"))))");
+  ignore (good "(workspace w (graph e :context editor (ui/workspace (ui/graph :wires \"straight\"))))");
+  bad "(workspace w (graph e :context editor (ui/workspace (ui/graph :wires \"curved\"))))" "E_RANGE" ~text:"wires"
 
 let () = (* IR shapes, notes and reporting *)
   let ws = good "(workspace w\n  ; a helper\n  (defn f :context value [(x : float 2.0) (y : float 1.0)] (+ x y))\n  (graph g :context value [(n : int 3)]\n    (let* [; loop\n           s (sum [i (range n)] (f :y i))\n           l (map (fn [k] (* k 2)) (range 3))\n           c (cond (< s 1) 1 :else 2)\n           k (case n 1 \"a\" :else \"b\")]\n      (+ s (+ (count l) c)))))" in

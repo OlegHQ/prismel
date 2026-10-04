@@ -17,6 +17,10 @@ val font_size : int
 (** Derived kit colors. *)
 val muted : t -> Prismel.Color.t
 val border : t -> Prismel.Color.t
+val edge : t -> Prismel.Color.t
+(* hairline for structure: separators, pane headers, window frames *)
+val sheen : t -> Prismel.Color.t
+(* near-white line inside the top edge of a sheet *)
 val faint_border : t -> Prismel.Color.t
 val hover_fill : t -> Prismel.Color.t
 val pressed_fill : t -> Prismel.Color.t

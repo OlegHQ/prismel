@@ -1,4 +1,4 @@
-type t = Sop | Value | Scene | World | Settings
+type t = Sop | Value | Scene | World | Settings | Material
 
 val name : t -> string
 val of_string : string -> (t, Diagnostic.t) result

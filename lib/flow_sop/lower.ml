@@ -186,6 +186,15 @@ let workspace ~factories ?extra ?(compiled_ids = Instance_path.Map.empty)
           (* a template node keeps its live arguments: each element forces them *)
           let args = if template then node.args
             else List.map (fun (n, v) -> n, at_zero v) node.args in
+          let args = if node.kind <> "sop/material" then args else
+            List.concat_map (function
+              | "material", E.Struct ("material/standard", fields) ->
+                  let get name default = Option.value ~default (List.assoc_opt name fields) in
+                  ["material", get "name" (E.Text "");
+                   "color", get "color" (E.Vec3 (1.,1.,1.));
+                   "roughness", get "roughness" (E.Float 0.4);
+                   "emission", get "emission" (E.Vec3 (0.,0.,0.))]
+              | arg -> [arg]) args in
           let dynamic = ref [] in
           let p = match node.kind with
             | "sop/merge" ->

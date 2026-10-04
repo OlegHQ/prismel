@@ -107,6 +107,11 @@ module Private : sig
     (batch,error) result
   (* Adopts already prepared non-Scene2 draws into this submission. *)
   val adopt_draws : submission -> draw list -> (batch,error) result
+  (* Adopts a 3D layer's draws, retaining the layer's render once it keeps the same [layer]
+     identity on consecutive frames (see the retained views in the implementation).  A
+     window execution only; offscreen ones adopt the draws directly. *)
+  val adopt_retained_view : submission -> density:int -> layer:Scene_execution.prepared_scene3 ->
+    draw list -> (batch,error) result
   (* Consumes the submission on either success or failure. *)
   val step : ?clear:(float * float * float * float) -> ?identity:string ->
     ?version:int64 -> submission ->

@@ -701,6 +701,8 @@ Settings show in the unselected inspector, are saved in presets, and reach
 `prepare settings output`; `set_settings` changes them from code. The
 viewport camera enters history only while a camera object follows it. The
 scene level, list projection, and World are described in `scene.md`.
+Entering a scene camera by `i`, double-click or the row menu selects the
+render camera and enables look-through; repeated Enter keeps that view.
 
 Settings changes reconcile with the workspace before entering history: a
 settings graph owns its values; otherwise they live in workspace metadata.
@@ -1131,6 +1133,11 @@ A proposed high-level feature should demonstrate:
 6. no SDL3 or Metal types in the new public signature;
 7. a focused test for pure scene/model behavior.
 # Post-present work
+
+Workspace surface assignment is described in [workspace/materials.md](workspace/materials.md).
+`Flow.Context.Material` and `Flow.Ty.Material` type reusable material graphs;
+`Procedural.Sop.material` assigns them to primitive groups, and the generic
+`.plisp` host uses `Sketch_support.Surface` for material batches and explosion.
 
 `Sketch.run_state` accepts `?after_present`, called with the current model and
 frame after `Scene.render`. It returns the model used on the next frame and

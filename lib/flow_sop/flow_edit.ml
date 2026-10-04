@@ -205,6 +205,17 @@ let set_pair ps k v =
      | None -> List.filter (fun (a, _) -> kw_name a <> k) ps)
   else match v with Some v -> ps @ [ kwf k, v ] | None -> ps
 
+(* a [scene/root] prints its keywords in a fixed order: the camera, the renderer, the size, the samples *)
+let root_order args =
+  let rank k = match List.find_index (( = ) k) [ "camera"; "renderer"; "width"; "height"; "max_spp";
+                                                 "bounces"; "round_samples" ] with Some i -> i | None -> 99 in
+  let rec split = function
+    | k :: v :: r when is_kw k -> let kws, pos = split r in (k, v) :: kws, pos
+    | x :: r -> let kws, pos = split r in kws, x :: pos
+    | [] -> [], [] in
+  let kws, pos = split args in
+  pos @ flat_pairs (List.stable_sort (fun (a, _) (b, _) -> compare (rank (kw_name a)) (rank (kw_name b))) kws)
+
 let arg_set (e : S.t) key (v : S.t option) : S.t = match key, e.node, v with
   | Whole, _, Some v -> keep_notes e v
   | Whole, _, None -> fail "A whole binding cannot be removed."
@@ -219,6 +230,8 @@ let arg_set (e : S.t) key (v : S.t option) : S.t = match key, e.node, v with
       let n = List.length args in
       { e with node = S.List (h :: List.filteri (fun i _ -> i < n - 1) args @ [ kwf "skip"; v; List.nth args (n - 1) ]) }
   | Pos i, S.List (h :: args), _ -> { e with node = S.List (h :: with_pos args i v) }
+  | Kw k, S.List (({ S.node = S.Sym "scene/root"; _ } as h) :: args), _ ->
+      { e with node = S.List (h :: root_order (with_kw args k v)) }
   | Kw k, S.List (h :: args), _ -> { e with node = S.List (h :: with_kw args k v) }
   | _ -> fail "This form has no such input."
 
@@ -470,22 +483,49 @@ let put_target sc ps = function
   | `At j, e -> rebuild sc (List.mapi (fun k (p, v) -> if k = j then p, keep_notes v e else p, v) ps) sc.res
   | `Result, e -> rebuild sc ps (keep_notes sc.res e)
 
+(* the merge a new scene object joins: the result's, looking through the root; [ps] holds the new
+   binding last *)
+let join_merge sc ps name =
+  let target, e = result_target sc in
+  let add_into (m : S.t) =
+    arg_set m (Pos (List.length (positional (List.tl (S.children m))))) (Some (sym name)) in
+  match head_sym e with
+  | Some "scene/merge" -> put_target sc ps (target, add_into e)
+  | Some "scene/root" ->
+      let wrap inner = put_target sc ps (target, arg_set e (Pos 0) (Some inner)) in
+      (match arg_get e (Pos 0) with
+       | Some { S.node = S.Sym m; _ } ->
+           (match find_pair { sc with ps } m with
+            | Some j when head_sym (snd (List.nth ps j)) = Some "scene/merge" ->
+                rebuild sc (List.mapi (fun k (p, v) -> if k = j then p, keep_notes v (add_into v) else p, v) ps) sc.res
+            | _ -> wrap (call "scene/merge" [ sym m; sym name ]))
+       | Some inner when head_sym inner = Some "scene/merge" -> wrap (add_into inner)
+       | Some inner -> wrap (call "scene/merge" [ inner; sym name ])
+       | None -> wrap (sym name))
+  | _ -> rebuild sc ps (call "scene/merge" [ sc.res; sym name ])
+
 (* a new scene object is one more argument of the scene's [scene/merge] (made when the result
-   is something else); a new World layer goes on top of the stack: the [world/world] call
-   takes it and it takes the layer that was on top.  [ps] holds the new binding last. *)
+   is something else, and looking through the root); a new root takes the result; a new World
+   layer goes on top of the stack: an old [world/world] call takes it and it takes the layer that
+   was on top, else it becomes the graph's result over the old one.  [ps] holds the new binding
+   last. *)
 let attach sc ps name (expr : S.t) =
   let head = head_sym expr in
   let target, e = result_target sc in
-  if starts_with "scene/" head && head <> Some "scene/merge" then
+  if head = Some "scene/root" then
+    (if head_sym e = Some "scene/root" then fail "The scene already has a root.";
+     collapse sc sc.ps (arg_set expr (Pos 0) (Some sc.res)), expr)
+  else if starts_with "scene/" head && head <> Some "scene/merge" then
+    join_merge sc ps name, expr
+  else if starts_with "world/" head && head <> Some "world/world" then
     (match head_sym e with
-     | Some "scene/merge" ->
-         let n = List.length (positional (List.tl (S.children e))) in
-         put_target sc ps (target, arg_set e (Pos n) (Some (sym name))), expr
-     | _ -> rebuild sc ps (call "scene/merge" [ sc.res; sym name ]), expr)
-  else if starts_with "world/" head && head <> Some "world/world" && head_sym e = Some "world/world" then
-    let top = arg_get e (Pos 0) in
-    let layer = arg_set expr (Pos 0) top in
-    put_target sc ps (target, arg_set e (Pos 0) (Some (sym name))), layer
+     | Some "world/world" ->
+         let top = arg_get e (Pos 0) in
+         let layer = arg_set expr (Pos 0) top in
+         put_target sc ps (target, arg_set e (Pos 0) (Some (sym name))), layer
+     | Some "world/none" -> rebuild sc ps (sym name), expr
+     | Some _ -> rebuild sc ps (sym name), arg_set expr (Pos 0) (Some sc.res)
+     | None -> rebuild sc ps sc.res, expr)
   else rebuild sc ps sc.res, expr
 
 (* a deleted object leaves the merge that held it; a deleted layer leaves the stack, the layer
@@ -503,6 +543,19 @@ let rec detach name below (e : S.t) : S.t =
        | Some { S.node = S.Sym n; _ } when n = name -> arg_set e (Pos 0) below
        | _ -> e)
   | _ -> e
+
+(* a deleted World layer that was a world graph's result hands the result to the layer below
+   it, or to [(world/none)] *)
+let detach_result name below (root : S.t) =
+  let top = match below with Some b -> b | None -> call "world/none" [] in
+  match root.node with
+  | S.List ({ S.node = S.Sym "graph"; _ } :: _) ->
+      let body = last_child root in
+      (match scope_of body with
+       | Some sc when sc.res.node = S.Sym name -> set_last root (rebuild sc sc.ps top)
+       | Some _ -> root
+       | None -> if body.node = S.Sym name then set_last root top else root)
+  | _ -> root
 
 (* the copies a duplicate makes: each selected binding with a fresh name; the copies read each
    other where the originals did *)
@@ -529,7 +582,16 @@ let rewrite src op : (unit -> S.t list) list =
       let sp, leaf = split_node node in
       edit_scope src sp (fun s ->
         if leaf = "@result" && key = Whole then
-          (let sc = ensure s in reorder (rebuild sc sc.ps (sym name)))
+          let sc = ensure s in
+          let ps = match sc.res.node with
+            | S.Sym _ -> sc.ps
+            | _ ->
+                let base = match head_sym sc.res with
+                  | Some h -> (match String.split_on_char '/' h with [ _; k ] -> k | _ -> h)
+                  | None -> "result" in
+                let fresh = fresh_name src ~root:(List.hd sp) base in
+                sc.ps @ [ sym fresh, sc.res ] in
+          reorder (rebuild sc ps (sym name))
         else
           let e = get_node s leaf in
           let step = match iter, arg_get e key with
@@ -608,7 +670,10 @@ let rewrite src op : (unit -> S.t list) list =
         (* a scene object, World layer or loop of scene objects also leaves the result that held it *)
         match !gone with
         | Some e when starts_with "scene/" (head_sym e) || starts_with "world/" (head_sym e) || is_zone e ->
-            with_root src (List.hd sp) (detach leaf (if is_zone e then None else arg_get e (Pos 0)))
+            let below = if is_zone e then None else arg_get e (Pos 0) in
+            with_root src (List.hd sp) (fun root ->
+              let root = detach leaf below root in
+              if starts_with "world/" (head_sym e) then detach_result leaf below root else root)
         | _ -> src) src by_depth in
       List.iter (fun node ->
         let name = snd (split_node node) in

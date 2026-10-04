@@ -2521,7 +2521,7 @@ end
 module Exploded_view = struct
   type parameters = {
     amount : float [@sop.default 0.32] [@sop.label "Uniform scale"]
-      [@sop.folder "Explosion"] [@sop.min (-0.95)] [@sop.max 1.2]
+      [@sop.folder "Explosion"] [@sop.min (-0.95)] [@sop.max 8.]
       [@sop.impact "view"];
     scale_x : float [@sop.default 1.] [@sop.label "Scale X"]
       [@sop.folder "Explosion/Scale"] [@sop.min (-2.)] [@sop.max 2.]

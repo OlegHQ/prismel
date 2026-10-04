@@ -5416,6 +5416,17 @@ let set_float ?label ~owner ~name value input =
       if finite value then Ok (Pdk.Attribute.Float (Array.make count value))
       else Error "set_float requires a finite value") input
 
+let material ?label ?group ~name ~color ~roughness ~emission input =
+  Node.Private.make ?label ~operation:"material" ~version:1
+    ~parameters:(Printf.sprintf "group=%s;name=%S;color=%s;roughness=%s;emission=%s"
+      (option_string_key group) name (vec3_key color) (float_key roughness) (vec3_key emission))
+    ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
+    ~inputs:[|input|] (fun ~node_id:_ context inputs ->
+      Pdk.Material_assign.run ~cancel:(Context.cancel_token context) ?group ~name
+        ~color:(color.Vec3.x, color.y, color.z) ~roughness
+        ~emission:(emission.Vec3.x, emission.y, emission.z) inputs.(0)
+      |> function Ok geometry -> cooked geometry | Error error -> structured_pdk_error error)
+
 let set_int ?label ~owner ~name value input =
   set_attribute_node ?label ~operation:"set_int"
     ~parameters:(Printf.sprintf "owner=%s;name=%S;value=%d"

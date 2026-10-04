@@ -92,6 +92,11 @@ let run () =
   let env = select "camera1" env 6 in
   check ((Camera.lens (E.render_camera env)).aperture = 0.3)
     "the ACTIVE camera did not carry its text lens";
+  let env = step env [char 'i'] in
+  check (E.look_through env && E.view_camera env = E.render_camera env && E.level env = None)
+    "entering the camera did not look through it at the scene level";
+  let env = step env [char 'i'] in
+  check (E.look_through env) "entering the camera again toggled look-through off";
   let env = step env [key Input.Home] in
   let env = select "geo1" env 6 in
   check (E.level env = None) "the editor did not open at the scene level";

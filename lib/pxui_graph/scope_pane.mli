@@ -67,6 +67,7 @@ val with_scope :
   ?at:(path -> (float * float) option) -> ?collapsed:(path -> bool) ->
   ?probe:(path -> int) ->
   ?frames:(path -> (string * (float * float) * (float * float)) list) -> ?display:path ->
+  ?wires:[ `Rect | `Straight ] ->
   key:string ->
   Flow_sop.Projection.scope -> t -> t
 (** Lay a scope out.  A new [key] (the graph's name) frames it and clears the
@@ -91,10 +92,13 @@ val editing : t -> bool
 (** A text field (a name, an input default, a frame title) is open: the host keeps its keys out. *)
 
 val selected : t -> path list
+val selected_wire : t -> (path * Flow_sop.Flow_edit.arg_key) option
 val select : path list -> t -> t
 val clear_selection : t -> t
 val stats : t -> stats
 val zoom : t -> float
+val wires : t -> [ `Rect | `Straight ]
+val with_wires : [ `Rect | `Straight ] -> t -> t
 
 val scope_point : t -> scope:path -> float * float -> (float * float) option
 (** A screen point as a position inside [scope] (a scope path of the shown graph), snapped to the
@@ -119,4 +123,7 @@ module Private : sig
   val lens_step_button : t -> path -> int -> (float * float) option
   val lens_replace : t -> path -> (float * float) option
   val bypass_flag : t -> path -> (float * float) option
+  val wire_count : t -> int
+  val wire_target : t -> int -> (path * Flow_sop.Flow_edit.arg_key) option
+  val wire_midpoint : t -> int -> (float * float) option
 end

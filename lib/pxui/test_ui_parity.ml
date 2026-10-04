@@ -155,10 +155,14 @@ let run () =
   let golden = Image.load_exn "fixtures/kit_panel_2x.png" in
   let old_width, old_height = Image.get_size golden in
   let expected = Result.get_ok (Image.Private.pixels golden) in
-  let width, height, actual, _ =
+  let width, height, actual, directory =
     capture "new" ~init:(fun _ -> Pxui.Ui.create ())
       ~update:(fun ui frame -> Pxui.Ui.frame ui frame new_panel; ui)
       ~view:(fun ui _ -> Scene.clear background :: Pxui.Ui.scene ui) in
+  (match Sys.getenv_opt "PRISMEL_UPDATE_FIXTURES" with
+   | Some target -> Sys.rename (Filename.concat directory "new-000001.png")
+       (Filename.concat target "kit_panel_2x.png")
+   | None -> ());
   let density = width / config.width in
   if (old_width, old_height) <> (width, height) then
     Printf.printf "PXUI Ui parity: skipped at %dx (golden is 2x)\n" density

@@ -133,7 +133,8 @@ let element_key zone = "$elem:" ^ String.concat "/" zone
 let struct_ty n =
   let p x = String.starts_with ~prefix:x n in
   if p "scene/" then Ty.Scene else if p "world/" then Ty.World
-  else if p "settings/" then Ty.Settings else if n = "ui/workspace" then Ty.Editor
+  else if p "settings/" then Ty.Settings else if p "material/" then Ty.Material
+  else if n = "ui/workspace" then Ty.Editor
   else if is_element_list n then Ty.List Ty.Any else Ty.Panel
 
 let rec ty_of = function
@@ -716,7 +717,8 @@ and ev_raw c env (x : W.term) : value =
   | W.Expanded { body; _ } -> ev c env body
 
 and apply_op c name (vals : (string * value) list) : value =
-  if name = "sop/curve" then mk_node c name vals
+  if name = "material/standard" then Struct (name, vals)
+  else if name = "sop/curve" then mk_node c name vals
   else if is_element_list name then Struct (name, vals)
   else if is_struct_op name then begin
     let splice = name = "scene/merge" || name = "ui/tile" in
