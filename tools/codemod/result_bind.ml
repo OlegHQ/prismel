@@ -196,7 +196,7 @@ let format_changed path before after =
       let name = key item in
       Hashtbl.replace originals name (Option.value (Hashtbl.find_opt originals name) ~default:[] @ [item]))
     (values before);
-  let temporary = Filename.temp_file "prismel-result-bind-format-" ".ml" in
+  let temporary = Filename.temp_file "rays-result-bind-format-" ".ml" in
   Fun.protect ~finally:(fun () -> Sys.remove temporary) (fun () ->
     Out_channel.with_open_bin temporary (fun channel -> output_string channel after);
     if Sys.command ("ocamlformat --enable-outside-detected-project --inplace --margin 100 "
@@ -304,16 +304,16 @@ let canonical tree =
 
 let verify before after ppx =
   let read path = In_channel.with_open_bin path In_channel.input_all in
-  let temporary = Filename.temp_file "prismel-result-bind-verify-" ".ml" in
+  let temporary = Filename.temp_file "rays-result-bind-verify-" ".ml" in
   Fun.protect ~finally:(fun () -> Sys.remove temporary) (fun () ->
     if Sys.command (Filename.quote ppx ^ " --text " ^ Filename.quote after ^ " > " ^ Filename.quote temporary) <> 0
     then failwith "result-bind preprocessing failed";
     let original = canonical (parse before (read before))
     and migrated = canonical (parse after (read temporary)) in
     if original <> migrated then begin
-      Out_channel.with_open_bin "/tmp/prismel-result-bind-original.ast" (fun channel -> output_string channel original);
-      Out_channel.with_open_bin "/tmp/prismel-result-bind-migrated.ast" (fun channel -> output_string channel migrated);
-      failwith "result-bind changed the compiler tree beyond result syntax (see /tmp/prismel-result-bind-*.ast)"
+      Out_channel.with_open_bin "/tmp/rays-result-bind-original.ast" (fun channel -> output_string channel original);
+      Out_channel.with_open_bin "/tmp/rays-result-bind-migrated.ast" (fun channel -> output_string channel migrated);
+      failwith "result-bind changed the compiler tree beyond result syntax (see /tmp/rays-result-bind-*.ast)"
     end;
     print_endline "result-bind: entire compiler tree matches after result-syntax normalization")
 
@@ -392,7 +392,7 @@ let () =
   assert (count = 1 && snd (rewrite "fixture.ml" incremental) = 0);
   assert (try ignore (Str.search_forward (Str.regexp_string "(* propagate *)") output 0); true with Not_found -> false);
   let execute ~preprocess source =
-    let path = Filename.temp_file "prismel-result-bind-" ".ml" in
+    let path = Filename.temp_file "rays-result-bind-" ".ml" in
     let binary = path ^ ".exe" and log = path ^ ".log" in
     Fun.protect ~finally:(fun () -> List.iter (fun file -> if Sys.file_exists file then Sys.remove file)
         [path; binary; log; Filename.chop_extension path ^ ".cmo"; Filename.chop_extension path ^ ".cmi"])
@@ -404,8 +404,8 @@ let () =
          In_channel.with_open_bin log In_channel.input_all) in
   assert (execute ~preprocess:false fixture = execute ~preprocess:true output);
   assert (execute ~preprocess:true output = execute ~preprocess:true incremental);
-  let before = Filename.temp_file "prismel-result-bind-before-" ".ml"
-  and after = Filename.temp_file "prismel-result-bind-after-" ".ml" in
+  let before = Filename.temp_file "rays-result-bind-before-" ".ml"
+  and after = Filename.temp_file "rays-result-bind-after-" ".ml" in
   Fun.protect ~finally:(fun () -> Sys.remove before; Sys.remove after) (fun () ->
     Out_channel.with_open_bin before (fun channel -> output_string channel fixture);
     Out_channel.with_open_bin after (fun channel -> output_string channel output);

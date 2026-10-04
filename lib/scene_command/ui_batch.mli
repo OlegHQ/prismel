@@ -18,7 +18,7 @@
 
     Textured instances carry texel coordinates, normalized by the bound
     texture's size when sampled, so a texture may grow without invalidating
-    earlier instances. Colors use Prismel's packed [0xRRGGBBAA]. Coordinates are logical points
+    earlier instances. Colors use Rays's packed [0xRRGGBBAA]. Coordinates are logical points
     in the batch's canvas space; a batch maps them to logical screen space with
     [xform] and clips the result to [clip]. A radius-0, non-anti-aliased rect
     covers exactly the pixels a filled or 1-point-stroked triangle rectangle

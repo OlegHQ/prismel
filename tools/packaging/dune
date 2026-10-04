@@ -17,7 +17,7 @@
 (executable
  (name installed_consumer)
  (modules installed_consumer)
- (libraries prismel.sdl3 prismel.sdl3_image prismel.sdl3_ttf prismel.sdl3_mixer))
+ (libraries rays.sdl3 rays.sdl3_image rays.sdl3_ttf rays.sdl3_mixer))
 
 (executable
  (name check_installed_consumer)

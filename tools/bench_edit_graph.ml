@@ -1,16 +1,16 @@
 (* Cost of recompiling an editable SOP document on every slider-drag frame:
    one parameter change on a node of a long chain, then the compile work
-   Prismel_editor's Cook.update performs for the root and displayed node. Reports
+   Rays_editor's Cook.update performs for the root and displayed node. Reports
    dragging the first node (every downstream node changes) and the last one
-   (everything upstream is unchanged). PRISMEL_EDIT_GRAPH_NODES sets the chain
+   (everything upstream is unchanged). RAYS_EDIT_GRAPH_NODES sets the chain
    length, _FRAMES the drag frames per repeat; the best of 5 repeats prints. *)
 open Procedural
 
 let integer_env name default = match Sys.getenv_opt name with
   | None -> default | Some value -> max 1 (int_of_string value)
 
-let nodes = integer_env "PRISMEL_EDIT_GRAPH_NODES" 400
-let frames = integer_env "PRISMEL_EDIT_GRAPH_FRAMES" 100
+let nodes = integer_env "RAYS_EDIT_GRAPH_NODES" 400
+let frames = integer_env "RAYS_EDIT_GRAPH_FRAMES" 100
 let get = function Ok value -> value | Error message -> failwith message
 
 let find key = List.find (fun factory -> Edit_graph.factory_key factory = key)

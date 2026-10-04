@@ -1,23 +1,23 @@
 (executable
  (name test_main)
- (modules test_main sop_params_fixture test_prismel test_easy_camera2 test_sop_ui test_custom_sop test_pxui_graph test_prismel_editor test_editor_document test_editor_input test_editor_commands ws_fixture test_editor_cook test_editor_transactions test_editor_consistency test_scene_tree test_scene_sync test_sop_catalog test_sketch_support test_terminal_boolean_normals test_workspace_cook test_workspace_zone test_workspace_live test_workspace_edit test_workspace_doc test_projection test_probe test_viewport_pick test_text_pane test_workspace_shell test_workspace_source test_bloom_studio dependency_gate sop_render_parity)
- (libraries prismel pxui pxui_shell runtime_input procedural pdk pdk_prismel pxui_graph
-  sop_catalog scene_command sketch_support prismel_editor editor_document unix prismel.sdl3)
- (preprocess (pps prismel.ppx))
+ (modules test_main sop_params_fixture test_rays test_easy_camera2 test_sop_ui test_custom_sop test_pxui_graph test_rays_editor test_editor_document test_editor_input test_editor_commands ws_fixture test_editor_cook test_editor_transactions test_editor_consistency test_scene_tree test_scene_sync test_sop_catalog test_sketch_support test_terminal_boolean_normals test_workspace_cook test_workspace_zone test_workspace_live test_workspace_edit test_workspace_doc test_projection test_probe test_viewport_pick test_text_pane test_workspace_shell test_workspace_source test_bloom_studio dependency_gate sop_render_parity)
+ (libraries rays pxui pxui_shell runtime_input procedural rdk rdk_rays pxui_graph
+  sop_catalog scene_command sketch_support rays_editor editor_document unix rays.sdl3)
+ (preprocess (pps rays.ppx))
  (link_flags -linkall))
 
 (test
  (name test_materials)
  (modules test_materials)
- (libraries prismel procedural pdk pdk_prismel sketch_support prismel_editor sop_catalog flow
+ (libraries rays procedural rdk rdk_rays sketch_support rays_editor sop_catalog flow
   flow_sop editor_document pxui_shell editor_core unix))
 
 (test
  (name test_shattered_studio)
  (modules test_shattered_studio)
- (libraries prismel procedural pdk sketch_support prismel_editor flow)
- (deps ../sketches/shattered_studio/sketch.plisp)
- (action (run %{test} %{dep:../sketches/shattered_studio/sketch.plisp})))
+ (libraries rays procedural rdk sketch_support rays_editor flow)
+ (deps ../sketches/shattered_studio/sketch.rays)
+ (action (run %{test} %{dep:../sketches/shattered_studio/sketch.rays})))
 
 (test
  (name test_threading)
@@ -27,8 +27,8 @@
  (action (run %{test} ../sketches ../examples ../specification/workspace/cases)))
 
 (rule
- (aliases runtest test_prismel)
- (action (run %{exe:test_main.exe} test_prismel)))
+ (aliases runtest test_rays)
+ (action (run %{exe:test_main.exe} test_rays)))
 
 (rule
  (aliases runtest test_text_pane)
@@ -65,13 +65,13 @@
  (action (run %{exe:test_main.exe} test_pxui_graph)))
 
 (rule
- (aliases runtest-native test_prismel_editor)
+ (aliases runtest-native test_rays_editor)
  (locks smoke_window)
- (action (run %{exe:test_main.exe} test_prismel_editor)))
+ (action (run %{exe:test_main.exe} test_rays_editor)))
 
 (rule
- (aliases runtest test_prismel_editor_logic)
- (action (run %{exe:test_main.exe} test_prismel_editor_logic)))
+ (aliases runtest test_rays_editor_logic)
+ (action (run %{exe:test_main.exe} test_rays_editor_logic)))
 
 (rule
  (aliases runtest test_editor_document)
@@ -99,7 +99,7 @@
 
 (rule
  (aliases runtest test_scene_sync)
- (deps (glob_files_rec ../sketches/*.plisp))
+ (deps (glob_files_rec ../sketches/*.rays))
  (action (run %{exe:test_main.exe} test_scene_sync)))
 
 (rule
@@ -152,7 +152,7 @@
 (rule
  (aliases runtest-native test_workspace_view_native)
  (locks smoke_window)
- (deps ../sketches/shattered_cube/sketch.plisp)
+ (deps ../sketches/shattered_cube/sketch.rays)
  (action (run %{exe:test_main.exe} test_workspace_view_native)))
 
 (rule
@@ -207,7 +207,7 @@
 
 (cram
  (applies_to plisp_build)
- (deps %{bin:prismel-plisp}))
+ (deps %{bin:rays-plisp}))
 
 (rule
  (aliases runtest test_workspace_source)
@@ -215,5 +215,5 @@
 
 (rule
  (aliases runtest test_bloom_studio)
- (deps ../sketches/ws_bloom/sketch.plisp (glob_files ../specification/workspace/cases/*.lisp))
+ (deps ../sketches/ws_bloom/sketch.rays (glob_files ../specification/workspace/cases/*.lisp))
  (action (run %{exe:test_main.exe} test_bloom_studio)))

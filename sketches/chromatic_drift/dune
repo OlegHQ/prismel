@@ -1,14 +1,14 @@
 (library
  (name chromatic_art)
  (modules drift)
- (libraries prismel))
+ (libraries rays))
 
 (executable
  (name main)
  (modules main)
- (libraries chromatic_art prismel pxui editor_core unix))
+ (libraries chromatic_art rays pxui editor_core unix))
 
 (test
  (name check)
  (modules check)
- (libraries chromatic_art prismel))
+ (libraries chromatic_art rays))

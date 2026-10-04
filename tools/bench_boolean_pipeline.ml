@@ -1,7 +1,7 @@
 let integer_env name default = match Sys.getenv_opt name with
   | None -> default | Some value -> max 1 (int_of_string value)
 let get_string = function Ok value -> value | Error message -> failwith message
-let get = function Ok value -> value | Error error -> failwith (Pdk.Error.to_string error)
+let get = function Ok value -> value | Error error -> failwith (Rdk.Error.to_string error)
 let median values =
   let values = Array.copy values in
   Array.sort Float.compare values;
@@ -9,7 +9,7 @@ let median values =
 let mix hash value = ((hash * 65_599) lxor value) land max_int
 
 let triangle_geometry points triangles =
-  let open Pdk in
+  let open Rdk in
   let point_count = Array.length points in
   let x = Array.init point_count (fun point -> let x,_,_ = points.(point) in x)
   and y = Array.init point_count (fun point -> let _,y,_ = points.(point) in y)
@@ -21,7 +21,7 @@ let triangle_geometry points triangles =
     ~topology () |> get_string
 
 let transverse_geometry pair_count ~right =
-  let open Pdk in
+  let open Rdk in
   let count = pair_count * 3 in
   let x = Array.make count 0. and y = Array.make count 0. and z = Array.make count 0. in
   for pair = 0 to pair_count - 1 do
@@ -48,7 +48,7 @@ let cube_triangles =
     3;7;6; 3;6;2; 0;4;7; 0;7;3; 1;2;6; 1;6;5|]
 
 let cubes_geometry pair_count ~right =
-  let open Pdk in
+  let open Rdk in
   let points = pair_count * 8 and triangles = pair_count * 12 in
   let x = Array.make points 0. and y = Array.make points 0.
   and z = Array.make points 0. and vertices = Array.make (triangles * 3) 0 in
@@ -78,7 +78,7 @@ let cubes_geometry pair_count ~right =
     ~topology () |> get_string
 
 let hash_xyz geometry =
-  let open Pdk in
+  let open Rdk in
   let positions = Packed.Float3.Private.view (Geometry.positions geometry)
   and topology = Topology.Private.view (Geometry.topology geometry)
   and value = ref 17 in
@@ -91,42 +91,42 @@ let hash_xyz geometry =
 
 let run_pipeline () =
   let module Bench = struct
-open Prismel
-open Pdk
+open Rays
+open Rdk
 
-module Constraints = Pdk_boolean.Boolean_constraints
-module Coplanar = Pdk_boolean.Boolean_coplanar
-module Arrangement = Pdk_boolean.Boolean_face_arrangement
-module Triangulation = Pdk_boolean.Boolean_face_cdt
-module Refinement = Pdk_boolean.Boolean_refinement
-module Complex = Pdk_boolean.Boolean_complex
-module Radial = Pdk_boolean.Boolean_radial
-module Weiler = Pdk_boolean.Boolean_weiler
-module Cells = Pdk_boolean.Boolean_cells
-module Extract = Pdk_boolean.Boolean_extract
-module Solid = Pdk_boolean.Boolean_solid
-module Payload = Pdk_boolean.Boolean_payload
-module Materialization = Pdk_boolean.Boolean_materialization
+module Constraints = Rdk_boolean.Boolean_constraints
+module Coplanar = Rdk_boolean.Boolean_coplanar
+module Arrangement = Rdk_boolean.Boolean_face_arrangement
+module Triangulation = Rdk_boolean.Boolean_face_cdt
+module Refinement = Rdk_boolean.Boolean_refinement
+module Complex = Rdk_boolean.Boolean_complex
+module Radial = Rdk_boolean.Boolean_radial
+module Weiler = Rdk_boolean.Boolean_weiler
+module Cells = Rdk_boolean.Boolean_cells
+module Extract = Rdk_boolean.Boolean_extract
+module Solid = Rdk_boolean.Boolean_solid
+module Payload = Rdk_boolean.Boolean_payload
+module Materialization = Rdk_boolean.Boolean_materialization
 
 
-let pair_count = integer_env "PRISMEL_BOOLEAN_PAIR_COUNT" 10_000
-let repeats = integer_env "PRISMEL_BOOLEAN_REPEATS" 3
-let domains = integer_env "PRISMEL_BENCH_DOMAINS" (Parallel.recommended_domains ())
-let grain = integer_env "PRISMEL_BOOLEAN_GRAIN" 256
-let resolve_self = match Sys.getenv_opt "PRISMEL_BOOLEAN_SELF" with
+let pair_count = integer_env "RAYS_BOOLEAN_PAIR_COUNT" 10_000
+let repeats = integer_env "RAYS_BOOLEAN_REPEATS" 3
+let domains = integer_env "RAYS_BENCH_DOMAINS" (Parallel.recommended_domains ())
+let grain = integer_env "RAYS_BOOLEAN_GRAIN" 256
+let resolve_self = match Sys.getenv_opt "RAYS_BOOLEAN_SELF" with
   | Some ("1" | "true" | "yes") -> true
   | None | Some _ -> false
 let boolean_env name default = match Sys.getenv_opt name with
   | Some ("1" | "true" | "yes") -> true
   | Some ("0" | "false" | "no") -> false
   | None | Some _ -> default
-let resolve_left = boolean_env "PRISMEL_BOOLEAN_LEFT_SELF" resolve_self
-let resolve_right = boolean_env "PRISMEL_BOOLEAN_RIGHT_SELF" resolve_self
-let left_surface = boolean_env "PRISMEL_BOOLEAN_LEFT_SURFACE" false
-let right_surface = boolean_env "PRISMEL_BOOLEAN_RIGHT_SURFACE" false
-let refinement_detail = boolean_env "PRISMEL_BOOLEAN_REFINEMENT_DETAIL" false
-let product_detail = boolean_env "PRISMEL_BOOLEAN_PRODUCT_DETAIL" false
-let candidate_detail = boolean_env "PRISMEL_BOOLEAN_CANDIDATE_DETAIL" false
+let resolve_left = boolean_env "RAYS_BOOLEAN_LEFT_SELF" resolve_self
+let resolve_right = boolean_env "RAYS_BOOLEAN_RIGHT_SELF" resolve_self
+let left_surface = boolean_env "RAYS_BOOLEAN_LEFT_SURFACE" false
+let right_surface = boolean_env "RAYS_BOOLEAN_RIGHT_SURFACE" false
+let refinement_detail = boolean_env "RAYS_BOOLEAN_REFINEMENT_DETAIL" false
+let product_detail = boolean_env "RAYS_BOOLEAN_PRODUCT_DETAIL" false
+let candidate_detail = boolean_env "RAYS_BOOLEAN_CANDIDATE_DETAIL" false
 
 let geometry ~right =
   let points = pair_count * 4 in
@@ -226,12 +226,12 @@ let hash geometry =
   !hash
 
 let run () =
-  let left, right = match Sys.getenv_opt "PRISMEL_BOOLEAN_LEFT_OBJ",
-      Sys.getenv_opt "PRISMEL_BOOLEAN_RIGHT_OBJ" with
+  let left, right = match Sys.getenv_opt "RAYS_BOOLEAN_LEFT_OBJ",
+      Sys.getenv_opt "RAYS_BOOLEAN_RIGHT_OBJ" with
     | None, None -> geometry ~right:false, geometry ~right:true
     | Some left, Some right -> load_obj left, load_obj right
     | _ -> failwith
-        "PRISMEL_BOOLEAN_LEFT_OBJ and PRISMEL_BOOLEAN_RIGHT_OBJ must be paired" in
+        "RAYS_BOOLEAN_LEFT_OBJ and RAYS_BOOLEAN_RIGHT_OBJ must be paired" in
   if refinement_detail then begin
     Parallel.run ~domains (fun () ->
       let started = Unix.gettimeofday () in
@@ -446,19 +446,19 @@ let run () =
 
 let run_constraints () =
   let module Bench = struct
-open Prismel
-open Pdk
+open Rays
+open Rdk
 
-module Constraints = Pdk_boolean.Boolean_constraints
+module Constraints = Rdk_boolean.Boolean_constraints
 let approximate_point plan point =
-  Pdk_exact.Implicit_point.approximate (Constraints.Private.point plan point)
+  Rdk_exact.Implicit_point.approximate (Constraints.Private.point plan point)
 
 
-let pair_count = integer_env "PRISMEL_BOOLEAN_PAIR_COUNT" 20_000
-let repeats = integer_env "PRISMEL_BOOLEAN_REPEATS" 3
-let domains = integer_env "PRISMEL_BENCH_DOMAINS" (Parallel.recommended_domains ())
-let grain = integer_env "PRISMEL_BOOLEAN_GRAIN" 1_024
-let self_mode = match Sys.getenv_opt "PRISMEL_BOOLEAN_SELF" with
+let pair_count = integer_env "RAYS_BOOLEAN_PAIR_COUNT" 20_000
+let repeats = integer_env "RAYS_BOOLEAN_REPEATS" 3
+let domains = integer_env "RAYS_BENCH_DOMAINS" (Parallel.recommended_domains ())
+let grain = integer_env "RAYS_BOOLEAN_GRAIN" 1_024
+let self_mode = match Sys.getenv_opt "RAYS_BOOLEAN_SELF" with
   | Some ("1" | "true" | "yes") -> true
   | None | Some _ -> false
 
@@ -569,19 +569,19 @@ let run () =
 
 let run_coplanar () =
   let module Bench = struct
-open Prismel
-open Pdk
+open Rays
+open Rdk
 
-module Constraints = Pdk_boolean.Boolean_constraints
-module Coplanar = Pdk_boolean.Boolean_coplanar
+module Constraints = Rdk_boolean.Boolean_constraints
+module Coplanar = Rdk_boolean.Boolean_coplanar
 let approximate_point value pair point =
-  Pdk_exact.Implicit_point.approximate (Coplanar.Private.point value pair point)
+  Rdk_exact.Implicit_point.approximate (Coplanar.Private.point value pair point)
 
 
-let pair_count = integer_env "PRISMEL_BOOLEAN_PAIR_COUNT" 10_000
-let repeats = integer_env "PRISMEL_BOOLEAN_REPEATS" 3
-let domains = integer_env "PRISMEL_BENCH_DOMAINS" (Parallel.recommended_domains ())
-let grain = integer_env "PRISMEL_BOOLEAN_GRAIN" 64
+let pair_count = integer_env "RAYS_BOOLEAN_PAIR_COUNT" 10_000
+let repeats = integer_env "RAYS_BOOLEAN_REPEATS" 3
+let domains = integer_env "RAYS_BENCH_DOMAINS" (Parallel.recommended_domains ())
+let grain = integer_env "RAYS_BOOLEAN_GRAIN" 64
 
 let geometry ~right =
   let count = pair_count * 3 in
@@ -656,18 +656,18 @@ let run () =
 
 let run_arrangement () =
   let module Bench = struct
-open Prismel
+open Rays
 
-module Constraints = Pdk_boolean.Boolean_constraints
-module Arrangement = Pdk_boolean.Boolean_face_arrangement
+module Constraints = Rdk_boolean.Boolean_constraints
+module Arrangement = Rdk_boolean.Boolean_face_arrangement
 let approximate_point value point =
-  Pdk_exact.Implicit_point.approximate (Arrangement.Private.point value point)
+  Rdk_exact.Implicit_point.approximate (Arrangement.Private.point value point)
 
 
-let segment_count = integer_env "PRISMEL_BOOLEAN_SEGMENTS" 2_000
-let repeats = integer_env "PRISMEL_BOOLEAN_REPEATS" 3
-let domains = integer_env "PRISMEL_BENCH_DOMAINS" (Parallel.recommended_domains ())
-let fixture = match Sys.getenv_opt "PRISMEL_BOOLEAN_FIXTURE" with
+let segment_count = integer_env "RAYS_BOOLEAN_SEGMENTS" 2_000
+let repeats = integer_env "RAYS_BOOLEAN_REPEATS" 3
+let domains = integer_env "RAYS_BENCH_DOMAINS" (Parallel.recommended_domains ())
+let fixture = match Sys.getenv_opt "RAYS_BOOLEAN_FIXTURE" with
   | None | Some "sparse" -> "sparse"
   | Some "multiway" -> "multiway"
   | Some value -> invalid_arg ("unknown Boolean arrangement fixture: " ^ value)
@@ -759,16 +759,16 @@ let run () =
 
 let run_cdt () =
   let module Bench = struct
-open Prismel
+open Rays
 
-module Constraints = Pdk_boolean.Boolean_constraints
-module Arrangement = Pdk_boolean.Boolean_face_arrangement
-module Triangulation = Pdk_boolean.Boolean_face_cdt
+module Constraints = Rdk_boolean.Boolean_constraints
+module Arrangement = Rdk_boolean.Boolean_face_arrangement
+module Triangulation = Rdk_boolean.Boolean_face_cdt
 
 
-let segment_count = integer_env "PRISMEL_BOOLEAN_SEGMENTS" 500
-let repeats = integer_env "PRISMEL_BOOLEAN_REPEATS" 3
-let domains = integer_env "PRISMEL_BENCH_DOMAINS" (Parallel.recommended_domains ())
+let segment_count = integer_env "RAYS_BOOLEAN_SEGMENTS" 500
+let repeats = integer_env "RAYS_BOOLEAN_REPEATS" 3
+let domains = integer_env "RAYS_BENCH_DOMAINS" (Parallel.recommended_domains ())
 
 let geometry points triangles = triangle_geometry points triangles
 
@@ -840,17 +840,17 @@ let run () =
 
 let run_refinement () =
   let module Bench = struct
-open Prismel
+open Rays
 
-module Constraints = Pdk_boolean.Boolean_constraints
-module Triangulation = Pdk_boolean.Boolean_face_cdt
-module Refinement = Pdk_boolean.Boolean_refinement
+module Constraints = Rdk_boolean.Boolean_constraints
+module Triangulation = Rdk_boolean.Boolean_face_cdt
+module Refinement = Rdk_boolean.Boolean_refinement
 
 
-let pair_count = integer_env "PRISMEL_BOOLEAN_PAIR_COUNT" 10_000
-let repeats = integer_env "PRISMEL_BOOLEAN_REPEATS" 3
-let domains = integer_env "PRISMEL_BENCH_DOMAINS" (Parallel.recommended_domains ())
-let grain = integer_env "PRISMEL_BOOLEAN_GRAIN" 64
+let pair_count = integer_env "RAYS_BOOLEAN_PAIR_COUNT" 10_000
+let repeats = integer_env "RAYS_BOOLEAN_REPEATS" 3
+let domains = integer_env "RAYS_BENCH_DOMAINS" (Parallel.recommended_domains ())
+let grain = integer_env "RAYS_BOOLEAN_GRAIN" 64
 
 let geometry ~right = transverse_geometry pair_count ~right
 
@@ -909,18 +909,18 @@ let run () =
 
 let run_complex () =
   let module Bench = struct
-open Prismel
+open Rays
 
-module Constraints = Pdk_boolean.Boolean_constraints
-module Refinement = Pdk_boolean.Boolean_refinement
-module Complex = Pdk_boolean.Boolean_complex
-module Radial = Pdk_boolean.Boolean_radial
+module Constraints = Rdk_boolean.Boolean_constraints
+module Refinement = Rdk_boolean.Boolean_refinement
+module Complex = Rdk_boolean.Boolean_complex
+module Radial = Rdk_boolean.Boolean_radial
 
 
-let pair_count = integer_env "PRISMEL_BOOLEAN_PAIR_COUNT" 10_000
-let repeats = integer_env "PRISMEL_BOOLEAN_REPEATS" 3
-let domains = integer_env "PRISMEL_BENCH_DOMAINS" (Parallel.recommended_domains ())
-let grain = integer_env "PRISMEL_BOOLEAN_GRAIN" 64
+let pair_count = integer_env "RAYS_BOOLEAN_PAIR_COUNT" 10_000
+let repeats = integer_env "RAYS_BOOLEAN_REPEATS" 3
+let domains = integer_env "RAYS_BENCH_DOMAINS" (Parallel.recommended_domains ())
+let grain = integer_env "RAYS_BOOLEAN_GRAIN" 64
 
 let geometry ~right = transverse_geometry pair_count ~right
 
@@ -976,21 +976,21 @@ let run () =
 
 let run_seam () =
   let module Bench = struct
-open Prismel
-open Pdk
+open Rays
+open Rdk
 
-module Constraints = Pdk_boolean.Boolean_constraints
-module Coplanar = Pdk_boolean.Boolean_coplanar
-module Refinement = Pdk_boolean.Boolean_refinement
-module Complex = Pdk_boolean.Boolean_complex
-module Seam = Pdk_boolean.Boolean_seam
+module Constraints = Rdk_boolean.Boolean_constraints
+module Coplanar = Rdk_boolean.Boolean_coplanar
+module Refinement = Rdk_boolean.Boolean_refinement
+module Complex = Rdk_boolean.Boolean_complex
+module Seam = Rdk_boolean.Boolean_seam
 
 
-let pair_count = integer_env "PRISMEL_BOOLEAN_PAIR_COUNT" 2_000
-let repeats = integer_env "PRISMEL_BOOLEAN_REPEATS" 5
-let domains = integer_env "PRISMEL_BENCH_DOMAINS" (Parallel.recommended_domains ())
-let grain = integer_env "PRISMEL_BOOLEAN_GRAIN" 256
-let resolve_self = match Sys.getenv_opt "PRISMEL_BOOLEAN_SELF" with
+let pair_count = integer_env "RAYS_BOOLEAN_PAIR_COUNT" 2_000
+let repeats = integer_env "RAYS_BOOLEAN_REPEATS" 5
+let domains = integer_env "RAYS_BENCH_DOMAINS" (Parallel.recommended_domains ())
+let grain = integer_env "RAYS_BOOLEAN_GRAIN" 256
+let resolve_self = match Sys.getenv_opt "RAYS_BOOLEAN_SELF" with
   | Some ("1" | "true" | "yes") -> true
   | None | Some _ -> false
 
@@ -1099,19 +1099,19 @@ let run () =
 
 let run_materialization () =
   let module Bench = struct
-open Prismel
-open Pdk
+open Rays
+open Rdk
 
-module Solid = Pdk_boolean.Boolean_solid
-module Extract = Pdk_boolean.Boolean_extract
-module Materialization = Pdk_boolean.Boolean_materialization
+module Solid = Rdk_boolean.Boolean_solid
+module Extract = Rdk_boolean.Boolean_extract
+module Materialization = Rdk_boolean.Boolean_materialization
 
 
-let pair_count = integer_env "PRISMEL_BOOLEAN_PAIR_COUNT" 100
-let repeats = integer_env "PRISMEL_BOOLEAN_REPEATS" 5
-let domains = integer_env "PRISMEL_BENCH_DOMAINS" (Parallel.recommended_domains ())
-let grain = integer_env "PRISMEL_BOOLEAN_GRAIN" 256
-let collapse = match Sys.getenv_opt "PRISMEL_BOOLEAN_COLLAPSE" with
+let pair_count = integer_env "RAYS_BOOLEAN_PAIR_COUNT" 100
+let repeats = integer_env "RAYS_BOOLEAN_REPEATS" 5
+let domains = integer_env "RAYS_BENCH_DOMAINS" (Parallel.recommended_domains ())
+let grain = integer_env "RAYS_BOOLEAN_GRAIN" 256
+let collapse = match Sys.getenv_opt "RAYS_BOOLEAN_COLLAPSE" with
   | Some ("1" | "true" | "yes") -> true
   | None | Some _ -> false
 
@@ -1194,22 +1194,22 @@ let run () =
 
 let run_payload () =
   let module Bench = struct
-open Pdk
-open Prismel
+open Rdk
+open Rays
 
-module Solid = Pdk_boolean.Boolean_solid
-module Extract = Pdk_boolean.Boolean_extract
-module Payload = Pdk_boolean.Boolean_payload
+module Solid = Rdk_boolean.Boolean_solid
+module Extract = Rdk_boolean.Boolean_extract
+module Payload = Rdk_boolean.Boolean_payload
 
 
-let pair_count = integer_env "PRISMEL_BOOLEAN_PAIR_COUNT" 10_000
-let repeats = integer_env "PRISMEL_BOOLEAN_REPEATS" 3
-let domains = integer_env "PRISMEL_BENCH_DOMAINS" (Parallel.recommended_domains ())
-let grain = integer_env "PRISMEL_BOOLEAN_GRAIN" 256
-let include_edge_groups = match Sys.getenv_opt "PRISMEL_BOOLEAN_EDGE_GROUPS" with
+let pair_count = integer_env "RAYS_BOOLEAN_PAIR_COUNT" 10_000
+let repeats = integer_env "RAYS_BOOLEAN_REPEATS" 3
+let domains = integer_env "RAYS_BENCH_DOMAINS" (Parallel.recommended_domains ())
+let grain = integer_env "RAYS_BOOLEAN_GRAIN" 256
+let include_edge_groups = match Sys.getenv_opt "RAYS_BOOLEAN_EDGE_GROUPS" with
   | Some ("0" | "false" | "no") -> false
   | None | Some _ -> true
-let ordered_groups = Sys.getenv_opt "PRISMEL_BOOLEAN_ORDERED" = Some "1"
+let ordered_groups = Sys.getenv_opt "RAYS_BOOLEAN_ORDERED" = Some "1"
 
 let geometry ~right =
   let group ~owner ~name length contains =
@@ -1414,14 +1414,14 @@ let run () =
 
 let run_product () =
   let module Bench = struct
-open Prismel
-open Pdk
+open Rays
+open Rdk
 
-let pair_count = integer_env "PRISMEL_BOOLEAN_PAIR_COUNT" 20
-let repeats = integer_env "PRISMEL_BOOLEAN_REPEATS" 5
-let domains = integer_env "PRISMEL_BENCH_DOMAINS"
+let pair_count = integer_env "RAYS_BOOLEAN_PAIR_COUNT" 20
+let repeats = integer_env "RAYS_BOOLEAN_REPEATS" 5
+let domains = integer_env "RAYS_BENCH_DOMAINS"
     (Parallel.recommended_domains ())
-let grain = integer_env "PRISMEL_BOOLEAN_GRAIN" 256
+let grain = integer_env "RAYS_BOOLEAN_GRAIN" 256
 
 let cubes ~right = cubes_geometry pair_count ~right
 

@@ -1,6 +1,6 @@
 # Event stream
 
-`Event.t` is Prismel's owned, typed representation of native application
+`Event.t` is Rays's owned, typed representation of native application
 events. Runtime polls SDL3 on the initial OCaml domain, translates every
 supported event in queue order, folds held keys, buttons, and pointer motion
 into the frame facts (`Frame.keys`, `mouse_buttons`, `mouse`, `mouse_delta`), and
@@ -45,7 +45,7 @@ event payload.
   pointer as `signal.pinch`, and the graph pane zooms by it where the wheel
   zooms. Files dragged over the window are `FileDragMoved` with the position and
   `FileDragEnded`; a Control-click arrives as the right button because SDL
-  converts it (a hint, not Prismel code).
+  converts it (a hint, not Rays code).
 - Pointer motion, button, and wheel events preserve poll order. Positions are
   fractional logical points and motion contributes to the current frame's
   float aggregate delta. Wheel deltas retain sub-unit values and SDL's

@@ -6,98 +6,98 @@
  (alias smoke-all)
  (locks smoke_window)
  (action
-  (setenv PRISMEL_MAX_FRAMES 30
+  (setenv RAYS_MAX_FRAMES 30
    (run %{exe:examples/audio/main.exe}))))
 
 (rule
  (aliases smoke smoke-all)
  (locks smoke_window)
  (action
-  (setenv PRISMEL_MAX_FRAMES 30
+  (setenv RAYS_MAX_FRAMES 30
    (run %{exe:examples/basic/main.exe}))))
 
 (rule
  (aliases smoke smoke-all)
  (locks smoke_window)
  (action
-  (setenv PRISMEL_MAX_FRAMES 30
+  (setenv RAYS_MAX_FRAMES 30
    (run %{exe:examples/sop_gallery/main.exe}))))
 
 (rule
  (alias smoke-all)
  (locks smoke_window)
  (action
-  (setenv PRISMEL_MAX_FRAMES 30
+  (setenv RAYS_MAX_FRAMES 30
    (run %{exe:examples/drawing/main.exe}))))
 
 (rule
  (alias smoke-all)
  (locks smoke_window)
  (action
-  (setenv PRISMEL_MAX_FRAMES 30
+  (setenv RAYS_MAX_FRAMES 30
    (run %{exe:examples/generative/main.exe}))))
 
 (rule
  (alias smoke-all)
  (locks smoke_window)
  (action
-  (setenv PRISMEL_MAX_FRAMES 30
+  (setenv RAYS_MAX_FRAMES 30
    (run %{exe:examples/noise/main.exe}))))
 
 (rule
  (alias smoke-all)
  (locks smoke_window)
  (action
-  (setenv PRISMEL_MAX_FRAMES 30
+  (setenv RAYS_MAX_FRAMES 30
    (run %{exe:examples/particles/main.exe}))))
 
 (rule
  (alias smoke-all)
  (locks smoke_window)
  (action
-  (setenv PRISMEL_MAX_FRAMES 30
+  (setenv RAYS_MAX_FRAMES 30
    (run %{exe:examples/pathtracer/main.exe}))))
 
 (rule
  (alias smoke-all)
  (locks smoke_window)
  (action
-  (setenv PRISMEL_MAX_FRAMES 30
+  (setenv RAYS_MAX_FRAMES 30
    (run %{exe:examples/procedural_modeling/main.exe}))))
 
 (rule
  (alias smoke-all)
  (locks smoke_window)
  (action
-  (setenv PRISMEL_MAX_FRAMES 30
+  (setenv RAYS_MAX_FRAMES 30
    (run %{exe:examples/pxui/main.exe}))))
 
 (rule
  (alias smoke-all)
  (locks smoke_window)
  (action
-  (setenv PRISMEL_MAX_FRAMES 30
+  (setenv RAYS_MAX_FRAMES 30
    (run %{exe:examples/recursive_rectangles/main.exe}))))
 
 (rule
  (alias smoke-all)
  (locks smoke_window)
  (action
-  (setenv PRISMEL_MAX_FRAMES 30
+  (setenv RAYS_MAX_FRAMES 30
    (run %{exe:sketches/voxel_wall/main.exe}))))
 
 (rule
  (alias smoke-all)
  (locks smoke_window)
  (action
-  (setenv PRISMEL_MAX_FRAMES 30
+  (setenv RAYS_MAX_FRAMES 30
    (run %{exe:sketches/cube_cage/main.exe}))))
 
 (rule
  (alias smoke-all)
  (locks smoke_window)
  (action
-  (setenv PRISMEL_MAX_FRAMES 30
+  (setenv RAYS_MAX_FRAMES 30
    (run %{exe:sketches/chromatic_drift/main.exe}))))
 
 (rule
@@ -105,7 +105,7 @@
  (locks smoke_window)
  (deps (source_tree sketches/code_quadtree))
  (action
-  (setenv PRISMEL_MAX_FRAMES 30
+  (setenv RAYS_MAX_FRAMES 30
    ; a small root: indexing the whole build tree takes minutes
    (run %{exe:sketches/code_quadtree/main.exe} --root sketches/code_quadtree))))
 
@@ -113,21 +113,21 @@
  (alias smoke-all)
  (locks smoke_window)
  (action
-  (setenv PRISMEL_MAX_FRAMES 30
+  (setenv RAYS_MAX_FRAMES 30
    (run %{exe:sketches/pastel_flow/main.exe}))))
 
 (rule
  (alias smoke-all)
  (locks smoke_window)
  (action
-  (setenv PRISMEL_MAX_FRAMES 30
+  (setenv RAYS_MAX_FRAMES 30
    (run %{exe:sketches/shattered_cube/main.exe}))))
 
 (rule
  (alias smoke-all)
  (locks smoke_window)
  (action
-  (setenv PRISMEL_MAX_FRAMES 30
+  (setenv RAYS_MAX_FRAMES 30
    (run %{exe:examples/file_dialog/main.exe}))))
 
 ; tools/codemod builds with --profile codemod: the dev warnings plus unused

@@ -1,4 +1,4 @@
-open Prismel
+open Rays
 
 type model = {
   noise : Noise.t;
@@ -42,6 +42,6 @@ let () =
       ~config:{ Sketch.default_config with
         width = 800;
         height = 450;
-        title = "Prismel seeded noise";
+        title = "Rays seeded noise";
       }
       ~init ~update ~view ())

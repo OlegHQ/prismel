@@ -42,7 +42,7 @@ PXUI.
 
 Workflow for a new node: the `add-sop` skill.
 
-## Prismel Flow (`specification/flow.md`)
+## Rays Flow (`specification/flow.md`)
 
 Stable node keys become Lisp symbols verbatim (`sop/uv_sphere`) and field
 names become keywords (`:size_x`), so keys match `[a-z][a-z0-9_]*` and are
@@ -61,4 +61,4 @@ Value nodes (Time, Value, Math, Combine/Separate XYZ, Remap) live in `lib/flow`,
 and those value kinds. Its runtest rule diffs the live catalog; accept an
 intended metadata change with `dune promote`, as for the API manifest.
 `tools/plisp` and the workspace checker read this snapshot
-(`Flow.Check.catalog_of_manifest`); a `.plisp` sketch is checked against it at build time.
+(`Flow.Check.catalog_of_manifest`); a `.rays` sketch is checked against it at build time.

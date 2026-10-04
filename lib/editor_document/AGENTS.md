@@ -2,8 +2,8 @@
 
 This library owns the immutable editable/saved document, sketch settings,
 scene object and World layer schemas, validation and presets. It is private
-to the Prismel package. Keep it independent of PXUI, shell, graph presentation,
-sketch_support and prismel_editor; test/dependency_gate.ml enforces the
+to the Rays package. Keep it independent of PXUI, shell, graph presentation,
+sketch_support and rays_editor; test/dependency_gate.ml enforces the
 transitive presentation ban. Selection, navigation, cooking and history
 commit policy remain in the host. Root repository rules apply.
 

@@ -58,9 +58,9 @@ Primary implementation references:
 [Workspace_doc](../../lib/editor_document/workspace_doc.ml),
 [Contexts](../../lib/editor_document/contexts.ml),
 [Scene_sync](../../lib/editor_document/scene_sync.ml),
-[Core](../../lib/prismel_editor/core.ml),
-[Environment](../../lib/prismel_editor/environment.ml),
-[Renderer](../../lib/prismel_editor/renderer.ml).
+[Core](../../lib/rays_editor/core.ml),
+[Environment](../../lib/rays_editor/environment.ml),
+[Renderer](../../lib/rays_editor/renderer.ml).
 
 ## Reproduced bugs repaired in this change
 
@@ -204,7 +204,7 @@ initial-repair results are retained separately; completion rests on the current 
 | C09 | Renderer failure attribution by viewport, explicit stale output, fail/recover/mode-switch checks, bounded resources and joined close | Complete. Window-free `failed_renderer_modes` and native stale-output/healthy-primary/recovery/mode-switch/close checks pass. Renderer slots and converted meshes remain bounded at 16/64; removed slots destroy their tracers, tracer destruction flushes pending work, and editor close joins its cook worker. Broad GPU/path-tracer lifetime checks report zero handle delta. |
 | C10 | Layout field reader inventory and corrected documentation; transient drag state with one release commit, single codec | Complete. The field inventory in `iteration.md` and `Layout_by_path` documentation distinguish active readers from preserved legacy fields. A real held-drag check exposed floating windows committing early; `Chrome.Window_drag` now carries transient bounds until release, sharing the existing codec and history reducer. `test_workspace_shell.run_panel_states` verifies held splitter/move/resize keep source unchanged, cancelled window drags discard draft bounds, release/save round-trip, and one undo restores placement. Focused shell, shell-library, typecheck and promoted API gate pass. |
 | C11 | Measure named-pane owner fallback on large scenes; add lowering owner map only if measurement warrants it | Complete. `bench_named_owner` measures actual `Editor3.selected_node` with Scene navigation and the last owner selected: 1/100/1000 distinct SOP networks, five 10,000-lookup samples. Median at 1000 owners is 0.015720 ms and 1504 bytes/lookup. The measured fixture does not warrant an index; the existing scan and its documented upgrade path remain. Raw samples, command and limits are in `performance.md`. |
-| C12 | Pinned SDK/bindings bootstrap: fresh clean build, regenerated intended headers if needed, ABI qualification | Complete. Installed/checked core SDL version is now 3.4.16. The first fresh build exposed stale generated ABI checks. Regenerated the four core artifacts with `dune exec tools/sdl3/generate.exe -- --root . --extension core --write`, reviewed the added `pen_state` field/32-byte event, and updated the dependency minimum and version fixture. A new `/private/tmp/prismel-consistency-sdl3416-clean-20261002` build passed `@all` and all four binding qualification aliases. Inventories match, lifecycle stress passes 100,000 cycles each, and copied typed events pass all 33 cases. |
+| C12 | Pinned SDK/bindings bootstrap: fresh clean build, regenerated intended headers if needed, ABI qualification | Complete. Installed/checked core SDL version is now 3.4.16. The first fresh build exposed stale generated ABI checks. Regenerated the four core artifacts with `dune exec tools/sdl3/generate.exe -- --root . --extension core --write`, reviewed the added `pen_state` field/32-byte event, and updated the dependency minimum and version fixture. A new `/private/tmp/rays-consistency-sdl3416-clean-20261002` build passed `@all` and all four binding qualification aliases. Inventories match, lifecycle stress passes 100,000 cycles each, and copied typed events pass all 33 cases. |
 | C13 | Selected live context evaluation: stable object/panel identities, unchanged networks/prepared pieces, per-view isolation, deterministic seed and before/after benchmark | Complete. Selected fields are scene light intensity/color; scene transforms, World expressions and panels remain static, and window/seed fields restart-only. Lowering retains only affected residuals/checked ports by stable object ID. Environment retains one runtime scene, separate from authored history and keyed by authored scene/drives/time; failures retain only the failed light and identify its view/fields. `live_lights`, `live_light_failure`, `live_light_failure_isolation` and `live_light_determinism` pass actual timeline rendering, source/ID preservation, override/reload/undo, local failure/recovery, exactly one geometry prepare/draw and byte-identical seeded one-/three-domain outputs. The gallery demonstrates a pulse; API/iteration instructions describe the boundary. Five-sample before/after measurements are in `performance.md`: live update median 0.082239 ms at one view / 0.818855 ms at sixteen, with unchanged geometry counters. Native presentation also passes under C14. |
 | C14 | Final verification: `@check`, `@all`, dummy-driver `runtest`, focused and native editor checks, `@smoke`, `@doc`, API/manifest gates, `git diff --check`; recorded performance evidence | Complete. Final clean-build `@check`, `@all`, forced dummy-driver `runtest`, focused editor/live/shell checks, `@doc`, API/SOP manifest gates, all four forced Cocoa native editor aliases and both `@smoke` examples pass. The retained four-preview capture was visually inspected; native renderer tests also verify healthy pixels, stale output and recovery. Performance evidence for source polling, owner lookup and live lights is recorded. `tools/plisp/test/ml.t` retains the reviewed catalog digest from the restart labels. Commands and environment are below; `git diff --check` passes. |
 
@@ -223,18 +223,18 @@ all returned exit status 0 after core binding regeneration, using a new build
 directory rather than the cached objects that masked the ABI mismatch:
 
 ```sh
-dune build --build-dir /private/tmp/prismel-consistency-sdl3416-clean-20261002 \
+dune build --build-dir /private/tmp/rays-consistency-sdl3416-clean-20261002 \
   @all @lib/sdl3/qualification @lib/sdl3_image/qualification \
   @lib/sdl3_ttf/qualification @lib/sdl3_mixer/qualification
-dune build --build-dir /private/tmp/prismel-consistency-sdl3416-clean-20261002 \
+dune build --build-dir /private/tmp/rays-consistency-sdl3416-clean-20261002 \
   @check @doc @tools/api_manifest/runtest @lib/sop_catalog/runtest
 SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy dune runtest \
-  --build-dir /private/tmp/prismel-consistency-sdl3416-clean-20261002 --force
-PRISMEL_SHELL_PNG=/private/tmp/prismel-consistency-final-20261002/variations.png \
+  --build-dir /private/tmp/rays-consistency-sdl3416-clean-20261002 --force
+RAYS_SHELL_PNG=/private/tmp/rays-consistency-final-20261002/variations.png \
   SDL_VIDEODRIVER=cocoa SDL_AUDIODRIVER=dummy dune build \
-  --build-dir /private/tmp/prismel-consistency-sdl3416-clean-20261002 --force \
+  --build-dir /private/tmp/rays-consistency-sdl3416-clean-20261002 --force \
   @test/test_editor_consistency_native @test/test_workspace_shell_native \
-  @test/test_workspace_view_native @test/test_prismel_editor @smoke
+  @test/test_workspace_view_native @test/test_rays_editor @smoke
 git diff --check
 ```
 
@@ -276,14 +276,14 @@ Validation completed successfully:
 - `SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy dune runtest`, including the
   dependency gate (47 libraries, 45 rules, no listed exceptions).
 - Native `test_editor_consistency_native`, `test_workspace_shell_native`,
-  `test_workspace_view_native` and `test_prismel_editor`. Real frame captures
+  `test_workspace_view_native` and `test_rays_editor`. Real frame captures
   were inspected; renderer switching and docked/floating preview checks passed.
 - `dune build @smoke @doc @tools/api_manifest/runtest` and `git diff --check`.
   Documentation completed with pre-existing reference warnings in other interfaces.
   The API manifest matched; no promotion was needed for these package-private changes.
 
 macOS 26.2 arm64, OCaml 5.3.0, default Dune profile, one cook domain. The command
-is `SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy _build/default/tools/bench_prismel_editor.exe 200`. Before reconstructs the starting
+is `SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy _build/default/tools/bench_rays_editor.exe 200`. Before reconstructs the starting
 uncommitted tree on HEAD `a0545f73`; after is this repair. Three alternating pairs
 ran without concurrent agent tests/builds; other desktop applications remained active.
 

@@ -1,4 +1,4 @@
-open Prismel_math
+open Rays_math
 
 let finite value = Float.is_finite value
 let float_key value = Int64.to_string (Int64.bits_of_float value)
@@ -18,23 +18,23 @@ let element_group_key = function
 let resolve_element_group ~operation selection geometry = match selection with
   | None -> Ok None
   | Some (Point_group name) ->
-      (match Pdk.Geometry.find_group ~owner:Pdk.Group.Point name geometry with
-       | Some group -> Ok (Some (Pdk.Transform_ops.Selected_points group))
+      (match Rdk.Geometry.find_group ~owner:Rdk.Group.Point name geometry with
+       | Some group -> Ok (Some (Rdk.Transform_ops.Selected_points group))
        | None -> Error (Diagnostic.error ~code:"missing_group"
            (Printf.sprintf "%s could not find point group %S" operation name)))
   | Some (Vertex_group name) ->
-      (match Pdk.Geometry.find_group ~owner:Pdk.Group.Vertex name geometry with
-       | Some group -> Ok (Some (Pdk.Transform_ops.Selected_vertices group))
+      (match Rdk.Geometry.find_group ~owner:Rdk.Group.Vertex name geometry with
+       | Some group -> Ok (Some (Rdk.Transform_ops.Selected_vertices group))
        | None -> Error (Diagnostic.error ~code:"missing_group"
            (Printf.sprintf "%s could not find vertex group %S" operation name)))
   | Some (Primitive_group name) ->
-      (match Pdk.Geometry.find_group ~owner:Pdk.Group.Primitive name geometry with
-       | Some group -> Ok (Some (Pdk.Transform_ops.Selected_primitives group))
+      (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive name geometry with
+       | Some group -> Ok (Some (Rdk.Transform_ops.Selected_primitives group))
        | None -> Error (Diagnostic.error ~code:"missing_group"
            (Printf.sprintf "%s could not find primitive group %S" operation name)))
   | Some (Edge_group name) ->
-      (match Pdk.Geometry.find_edge_group name geometry with
-       | Some group -> Ok (Some (Pdk.Transform_ops.Selected_edges group))
+      (match Rdk.Geometry.find_edge_group name geometry with
+       | Some group -> Ok (Some (Rdk.Transform_ops.Selected_edges group))
        | None -> Error (Diagnostic.error ~code:"missing_group"
            (Printf.sprintf "%s could not find edge group %S" operation name)))
 
@@ -64,18 +64,18 @@ let color_key color =
   Printf.sprintf "%d,%d,%d,%d" r g b a
 
 let cooked geometry = Ok Node.Private.{ geometry; diagnostics = []; instances = None }
-let pdk_error ?(hints = []) operation message =
+let rdk_error ?(hints = []) operation message =
   Error (Diagnostic.error ~code:(operation ^ "_failed") ~cause:message ~hints
     (operation ^ " could not produce valid geometry"))
 
-let structured_pdk_error error =
-  Error (Diagnostic.error ~code:(Pdk.Error.code error)
-    ~cause:(Pdk.Error.to_string error) ~hints:(Pdk.Error.hints error)
-    (Pdk.Error.operation error ^ " could not produce valid geometry"))
+let structured_rdk_error error =
+  Error (Diagnostic.error ~code:(Rdk.Error.code error)
+    ~cause:(Rdk.Error.to_string error) ~hints:(Rdk.Error.hints error)
+    (Rdk.Error.operation error ^ " could not produce valid geometry"))
 
 let snapshot ?label geometry =
   let parameters = Printf.sprintf "data_id=%d;bytes=%d"
-      (Pdk.Geometry.data_id geometry) (Pdk.Geometry.payload_bytes geometry) in
+      (Rdk.Geometry.data_id geometry) (Rdk.Geometry.payload_bytes geometry) in
   Node.Private.make ?label ~operation:"snapshot" ~version:1 ~parameters
     ~cook_mode:Node.Generator ~dependencies:Context.Dependencies.static
     ~inputs:[||] (fun ~node_id:_ _context _inputs -> cooked geometry)
@@ -89,20 +89,20 @@ let points ?label values =
       if Array.exists (fun (x, y, z) -> not (finite x && finite y && finite z)) values
       then Error (Diagnostic.error ~code:"non_finite_position"
         "points requires finite x, y, and z coordinates")
-      else cooked (Pdk.Line_geometry.points values))
+      else cooked (Rdk.Line_geometry.points values))
 
 let point_generate_mode_key = function
-  | Pdk.Point_generate.Generate_total points -> Printf.sprintf "total:%d" points
-  | Pdk.Point_generate.Generate_per_point { points_per_point; scale_attribute } ->
+  | Rdk.Point_generate.Generate_total points -> Printf.sprintf "total:%d" points
+  | Rdk.Point_generate.Generate_per_point { points_per_point; scale_attribute } ->
       Printf.sprintf "per_point:%s:%s" (float_key points_per_point)
         (option_string_key scale_attribute)
-  | Pdk.Point_generate.Generate_probability { attribute } ->
+  | Rdk.Point_generate.Generate_probability { attribute } ->
       "probability:" ^ String.escaped attribute
 
 let point_generate_origin ?label ?generated_group
     ?(source_point_attribute = "sourcepoint")
     ?(source_index_attribute = "sourceindex") ~points () =
-  let mode = Pdk.Point_generate.Generate_total points in
+  let mode = Rdk.Point_generate.Generate_total points in
   Node.Private.make ?label ~operation:"point_generate" ~version:1
     ~parameters:(String.concat ";" [
       "mode=" ^ point_generate_mode_key mode;
@@ -111,18 +111,18 @@ let point_generate_origin ?label ?generated_group
       "source_index=" ^ String.escaped source_index_attribute])
     ~cook_mode:Node.Generator ~dependencies:Context.Dependencies.static
     ~inputs:[||] (fun ~node_id:_ context _inputs ->
-      match Pdk.Point_generate.run ~cancel:(Context.cancel_token context)
+      match Rdk.Point_generate.run ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ?generated_group
           ~source_point_attribute ~source_index_attribute ~mode
-          (Pdk.Line_geometry.points [||]) with
+          (Rdk.Line_geometry.points [||]) with
       | Ok geometry -> cooked geometry
-      | Error error -> structured_pdk_error error)
+      | Error error -> structured_rdk_error error)
 
 let line_kind_key = function
-  | Pdk.Line_geometry.Line_curve -> "curve"
-  | Pdk.Line_geometry.Line_points -> "points"
+  | Rdk.Line_geometry.Line_curve -> "curve"
+  | Rdk.Line_geometry.Line_points -> "points"
 
-let line ?label ?(kind = Pdk.Line_geometry.Line_curve) ?(points = 2)
+let line ?label ?(kind = Rdk.Line_geometry.Line_curve) ?(points = 2)
     ~origin ~direction ~length () =
   let origin = vec3_copy origin and direction = vec3_copy direction in
   Node.Private.make ?label ~operation:"line" ~version:1
@@ -132,11 +132,11 @@ let line ?label ?(kind = Pdk.Line_geometry.Line_curve) ?(points = 2)
       (float_key length))
     ~cook_mode:Node.Generator ~dependencies:Context.Dependencies.static
     ~inputs:[||] (fun ~node_id:_ context _inputs ->
-      match Pdk.Line_geometry.line ~cancel:(Context.cancel_token context)
+      match Rdk.Line_geometry.line ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ~kind ~points ~origin ~direction
           ~length () with
       | Ok geometry -> cooked geometry
-      | Error error -> structured_pdk_error error)
+      | Error error -> structured_rdk_error error)
 
 let polyline ?label ?(closed = false) values =
   let values = Array.copy values in
@@ -144,36 +144,36 @@ let polyline ?label ?(closed = false) values =
   Node.Private.make ?label ~operation:"polyline" ~version:1 ~parameters
     ~cook_mode:Node.Generator ~dependencies:Context.Dependencies.static
     ~inputs:[||] (fun ~node_id:_ _context _inputs ->
-      match Pdk.Line_geometry.polyline ~closed values with
+      match Rdk.Line_geometry.polyline ~closed values with
       | Ok geometry -> cooked geometry
-      | Error error -> structured_pdk_error error)
+      | Error error -> structured_rdk_error error)
 
 let circle_arc_key = function
-  | Pdk.Plane_generators.Circle_closed -> "closed"
-  | Pdk.Plane_generators.Circle_open_arc { start_angle; end_angle } ->
+  | Rdk.Plane_generators.Circle_closed -> "closed"
+  | Rdk.Plane_generators.Circle_open_arc { start_angle; end_angle } ->
       "open:" ^ float_key start_angle ^ ":" ^ float_key end_angle
-  | Pdk.Plane_generators.Circle_closed_arc { start_angle; end_angle } ->
+  | Rdk.Plane_generators.Circle_closed_arc { start_angle; end_angle } ->
       "closed_arc:" ^ float_key start_angle ^ ":" ^ float_key end_angle
-  | Pdk.Plane_generators.Circle_sliced_arc { start_angle; end_angle } ->
+  | Rdk.Plane_generators.Circle_sliced_arc { start_angle; end_angle } ->
       "sliced:" ^ float_key start_angle ^ ":" ^ float_key end_angle
 
 let circle_orientation_copy = function
-  | Pdk.Plane_generators.Circle_xy -> Pdk.Plane_generators.Circle_xy
-  | Pdk.Plane_generators.Circle_xz -> Pdk.Plane_generators.Circle_xz
-  | Pdk.Plane_generators.Circle_yz -> Pdk.Plane_generators.Circle_yz
-  | Pdk.Plane_generators.Circle_axes { horizontal; vertical } ->
-      Pdk.Plane_generators.Circle_axes {
+  | Rdk.Plane_generators.Circle_xy -> Rdk.Plane_generators.Circle_xy
+  | Rdk.Plane_generators.Circle_xz -> Rdk.Plane_generators.Circle_xz
+  | Rdk.Plane_generators.Circle_yz -> Rdk.Plane_generators.Circle_yz
+  | Rdk.Plane_generators.Circle_axes { horizontal; vertical } ->
+      Rdk.Plane_generators.Circle_axes {
         horizontal = vec3_copy horizontal; vertical = vec3_copy vertical }
 
 let circle_orientation_key = function
-  | Pdk.Plane_generators.Circle_xy -> "xy"
-  | Pdk.Plane_generators.Circle_xz -> "xz"
-  | Pdk.Plane_generators.Circle_yz -> "yz"
-  | Pdk.Plane_generators.Circle_axes { horizontal; vertical } ->
+  | Rdk.Plane_generators.Circle_xy -> "xy"
+  | Rdk.Plane_generators.Circle_xz -> "xz"
+  | Rdk.Plane_generators.Circle_yz -> "yz"
+  | Rdk.Plane_generators.Circle_axes { horizontal; vertical } ->
       "axes:" ^ vec3_key horizontal ^ ":" ^ vec3_key vertical
 
-let circle ?label ?(arc = Pdk.Plane_generators.Circle_closed)
-    ?(orientation = Pdk.Plane_generators.Circle_xz) ?(reverse = false)
+let circle ?label ?(arc = Rdk.Plane_generators.Circle_closed)
+    ?(orientation = Rdk.Plane_generators.Circle_xz) ?(reverse = false)
     ?(center = Vec3.zero) ?radius_x ?radius_y ?(rotation = 0.)
     ?(uniform_scale = 1.) ?(segments = 64) ~radius () =
   let orientation = circle_orientation_copy orientation
@@ -193,43 +193,43 @@ let circle ?label ?(arc = Pdk.Plane_generators.Circle_closed)
   Node.Private.make ?label ~operation:"circle" ~version:2 ~parameters
     ~cook_mode:Node.Generator ~dependencies:Context.Dependencies.static
     ~inputs:[||] (fun ~node_id:_ context _inputs ->
-      match Pdk.Plane_generators.circle ~cancel:(Context.cancel_token context)
+      match Rdk.Plane_generators.circle ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ~arc ~orientation ~reverse ~center
           ?radius_x ?radius_y ~rotation ~uniform_scale ~segments ~radius () with
       | Ok geometry -> cooked geometry
-      | Error error -> structured_pdk_error error)
+      | Error error -> structured_rdk_error error)
 
 let grid_counts_key = function
-  | Pdk.Plane_generators.Grid_divisions -> "divisions"
-  | Pdk.Plane_generators.Grid_point_counts -> "point_counts"
+  | Rdk.Plane_generators.Grid_divisions -> "divisions"
+  | Rdk.Plane_generators.Grid_point_counts -> "point_counts"
 
 let grid_connectivity_key = function
-  | Pdk.Plane_generators.Grid_points -> "points"
-  | Pdk.Plane_generators.Grid_rows -> "rows"
-  | Pdk.Plane_generators.Grid_columns -> "columns"
-  | Pdk.Plane_generators.Grid_rows_and_columns -> "rows_columns"
-  | Pdk.Plane_generators.Grid_quads -> "quads"
-  | Pdk.Plane_generators.Grid_triangles -> "triangles"
-  | Pdk.Plane_generators.Grid_alternating_triangles -> "alternating_triangles"
-  | Pdk.Plane_generators.Grid_reverse_triangles -> "reverse_triangles"
+  | Rdk.Plane_generators.Grid_points -> "points"
+  | Rdk.Plane_generators.Grid_rows -> "rows"
+  | Rdk.Plane_generators.Grid_columns -> "columns"
+  | Rdk.Plane_generators.Grid_rows_and_columns -> "rows_columns"
+  | Rdk.Plane_generators.Grid_quads -> "quads"
+  | Rdk.Plane_generators.Grid_triangles -> "triangles"
+  | Rdk.Plane_generators.Grid_alternating_triangles -> "alternating_triangles"
+  | Rdk.Plane_generators.Grid_reverse_triangles -> "reverse_triangles"
 
 let grid_orientation_copy = function
-  | Pdk.Plane_generators.Grid_xy -> Pdk.Plane_generators.Grid_xy
-  | Pdk.Plane_generators.Grid_xz -> Pdk.Plane_generators.Grid_xz
-  | Pdk.Plane_generators.Grid_yz -> Pdk.Plane_generators.Grid_yz
-  | Pdk.Plane_generators.Grid_axes { horizontal; vertical } -> Pdk.Plane_generators.Grid_axes {
+  | Rdk.Plane_generators.Grid_xy -> Rdk.Plane_generators.Grid_xy
+  | Rdk.Plane_generators.Grid_xz -> Rdk.Plane_generators.Grid_xz
+  | Rdk.Plane_generators.Grid_yz -> Rdk.Plane_generators.Grid_yz
+  | Rdk.Plane_generators.Grid_axes { horizontal; vertical } -> Rdk.Plane_generators.Grid_axes {
       horizontal = vec3_copy horizontal; vertical = vec3_copy vertical }
 
 let grid_orientation_key = function
-  | Pdk.Plane_generators.Grid_xy -> "xy"
-  | Pdk.Plane_generators.Grid_xz -> "xz"
-  | Pdk.Plane_generators.Grid_yz -> "yz"
-  | Pdk.Plane_generators.Grid_axes { horizontal; vertical } ->
+  | Rdk.Plane_generators.Grid_xy -> "xy"
+  | Rdk.Plane_generators.Grid_xz -> "xz"
+  | Rdk.Plane_generators.Grid_yz -> "yz"
+  | Rdk.Plane_generators.Grid_axes { horizontal; vertical } ->
       "axes:" ^ vec3_key horizontal ^ ":" ^ vec3_key vertical
 
-let grid ?label ?(counts = Pdk.Plane_generators.Grid_divisions)
-    ?(connectivity = Pdk.Plane_generators.Grid_triangles)
-    ?(orientation = Pdk.Plane_generators.Grid_xz) ?(center = Vec3.zero) ?width ?height
+let grid ?label ?(counts = Rdk.Plane_generators.Grid_divisions)
+    ?(connectivity = Rdk.Plane_generators.Grid_triangles)
+    ?(orientation = Rdk.Plane_generators.Grid_xz) ?(center = Vec3.zero) ?width ?height
     ?(rotation = 0.) ?uv_attribute ~columns ~rows ~size () =
   let orientation = grid_orientation_copy orientation
   and center = vec3_copy center in
@@ -249,32 +249,32 @@ let grid ?label ?(counts = Pdk.Plane_generators.Grid_divisions)
   Node.Private.make ?label ~operation:"grid" ~version:2 ~parameters
     ~cook_mode:Node.Generator ~dependencies:Context.Dependencies.static
     ~inputs:[||] (fun ~node_id:_ _context _inputs ->
-      match Pdk.Plane_generators.grid ~cancel:(Context.cancel_token _context)
+      match Rdk.Plane_generators.grid ~cancel:(Context.cancel_token _context)
           ~grain:(Context.grain _context) ~counts ~connectivity ~orientation
           ~center ?width ?height ~rotation ?uv_attribute ~columns ~rows ~size () with
       | Ok geometry -> cooked geometry
-      | Error error -> structured_pdk_error error)
+      | Error error -> structured_rdk_error error)
 
 let box_connectivity_key = function
-  | Pdk.Box_generator.Box_triangles -> "triangles"
-  | Pdk.Box_generator.Box_quads -> "quads"
-  | Pdk.Box_generator.Box_surface_points -> "surface_points"
-  | Pdk.Box_generator.Box_lattice_points -> "lattice_points"
+  | Rdk.Box_generator.Box_triangles -> "triangles"
+  | Rdk.Box_generator.Box_quads -> "quads"
+  | Rdk.Box_generator.Box_surface_points -> "surface_points"
+  | Rdk.Box_generator.Box_lattice_points -> "lattice_points"
 
 let box_normals_key = function
-  | Pdk.Box_generator.Box_no_normals -> "none"
-  | Pdk.Box_generator.Box_point_normals -> "point"
-  | Pdk.Box_generator.Box_vertex_normals -> "vertex"
+  | Rdk.Box_generator.Box_no_normals -> "none"
+  | Rdk.Box_generator.Box_point_normals -> "point"
+  | Rdk.Box_generator.Box_vertex_normals -> "vertex"
 
 let box_rotation_order_key = function
-  | Pdk.Box_generator.Box_xyz -> "xyz" | Pdk.Box_generator.Box_xzy -> "xzy"
-  | Pdk.Box_generator.Box_yxz -> "yxz" | Pdk.Box_generator.Box_yzx -> "yzx"
-  | Pdk.Box_generator.Box_zxy -> "zxy" | Pdk.Box_generator.Box_zyx -> "zyx"
+  | Rdk.Box_generator.Box_xyz -> "xyz" | Rdk.Box_generator.Box_xzy -> "xzy"
+  | Rdk.Box_generator.Box_yxz -> "yxz" | Rdk.Box_generator.Box_yzx -> "yzx"
+  | Rdk.Box_generator.Box_zxy -> "zxy" | Rdk.Box_generator.Box_zyx -> "zyx"
 
 let box ?label ?(size = Vec3.create 1. 1. 1.)
-    ?(connectivity = Pdk.Box_generator.Box_triangles) ?(consolidate_points = false)
+    ?(connectivity = Rdk.Box_generator.Box_triangles) ?(consolidate_points = false)
     ?normals ?(center = Vec3.zero) ?(rotation = Vec3.zero)
-    ?(rotation_order = Pdk.Box_generator.Box_xyz) ?(uniform_scale = 1.)
+    ?(rotation_order = Rdk.Box_generator.Box_xyz) ?(uniform_scale = 1.)
     ?(x_divisions = 1) ?(y_divisions = 1) ?(z_divisions = 1)
     ?uv_attribute ?face_groups () =
   let size = vec3_copy size and center = vec3_copy center
@@ -296,46 +296,46 @@ let box ?label ?(size = Vec3.create 1. 1. 1.)
   Node.Private.make ?label ~operation:"box" ~version:2 ~parameters
     ~cook_mode:Node.Generator ~dependencies:Context.Dependencies.static
     ~inputs:[||] (fun ~node_id:_ context _inputs ->
-      match Pdk.Box_generator.box ~cancel:(Context.cancel_token context)
+      match Rdk.Box_generator.box ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ~connectivity ~consolidate_points
           ?normals ~center ~rotation ~rotation_order ~uniform_scale
           ~x_divisions ~y_divisions ~z_divisions ?uv_attribute ?face_groups
           ~size () with
       | Ok geometry -> cooked geometry
-      | Error error -> structured_pdk_error error)
+      | Error error -> structured_rdk_error error)
 
 let sphere_connectivity_key = function
-  | Pdk.Uv_sphere.Sphere_triangles -> "triangles"
-  | Pdk.Uv_sphere.Sphere_alternating_triangles -> "alternating_triangles"
-  | Pdk.Uv_sphere.Sphere_quads -> "quads"
-  | Pdk.Uv_sphere.Sphere_rows -> "rows"
-  | Pdk.Uv_sphere.Sphere_columns -> "columns"
-  | Pdk.Uv_sphere.Sphere_rows_and_columns -> "rows_and_columns"
-  | Pdk.Uv_sphere.Sphere_points -> "points"
+  | Rdk.Uv_sphere.Sphere_triangles -> "triangles"
+  | Rdk.Uv_sphere.Sphere_alternating_triangles -> "alternating_triangles"
+  | Rdk.Uv_sphere.Sphere_quads -> "quads"
+  | Rdk.Uv_sphere.Sphere_rows -> "rows"
+  | Rdk.Uv_sphere.Sphere_columns -> "columns"
+  | Rdk.Uv_sphere.Sphere_rows_and_columns -> "rows_and_columns"
+  | Rdk.Uv_sphere.Sphere_points -> "points"
 
 let sphere_normals_key = function
-  | Pdk.Uv_sphere.Sphere_no_normals -> "none"
-  | Pdk.Uv_sphere.Sphere_point_normals -> "point"
-  | Pdk.Uv_sphere.Sphere_vertex_normals -> "vertex"
+  | Rdk.Uv_sphere.Sphere_no_normals -> "none"
+  | Rdk.Uv_sphere.Sphere_point_normals -> "point"
+  | Rdk.Uv_sphere.Sphere_vertex_normals -> "vertex"
 
 let sphere_orientation_key = function
-  | Pdk.Uv_sphere.Sphere_x -> "x" | Pdk.Uv_sphere.Sphere_y -> "y"
-  | Pdk.Uv_sphere.Sphere_z -> "z"
-  | Pdk.Uv_sphere.Sphere_axis axis -> "axis:" ^ vec3_key axis
+  | Rdk.Uv_sphere.Sphere_x -> "x" | Rdk.Uv_sphere.Sphere_y -> "y"
+  | Rdk.Uv_sphere.Sphere_z -> "z"
+  | Rdk.Uv_sphere.Sphere_axis axis -> "axis:" ^ vec3_key axis
 
 let sphere_rotation_order_key = function
-  | Pdk.Uv_sphere.Sphere_xyz -> "xyz" | Pdk.Uv_sphere.Sphere_xzy -> "xzy"
-  | Pdk.Uv_sphere.Sphere_yxz -> "yxz" | Pdk.Uv_sphere.Sphere_yzx -> "yzx"
-  | Pdk.Uv_sphere.Sphere_zxy -> "zxy" | Pdk.Uv_sphere.Sphere_zyx -> "zyx"
+  | Rdk.Uv_sphere.Sphere_xyz -> "xyz" | Rdk.Uv_sphere.Sphere_xzy -> "xzy"
+  | Rdk.Uv_sphere.Sphere_yxz -> "yxz" | Rdk.Uv_sphere.Sphere_yzx -> "yzx"
+  | Rdk.Uv_sphere.Sphere_zxy -> "zxy" | Rdk.Uv_sphere.Sphere_zyx -> "zyx"
 
-let uv_sphere ?label ?(connectivity = Pdk.Uv_sphere.Sphere_triangles)
+let uv_sphere ?label ?(connectivity = Rdk.Uv_sphere.Sphere_triangles)
     ?(unique_points_per_pole = false) ?(triangular_poles = true) ?normals
-    ?(orientation = Pdk.Uv_sphere.Sphere_y) ?(center = Vec3.zero)
-    ?(rotation = Vec3.zero) ?(rotation_order = Pdk.Uv_sphere.Sphere_xyz)
+    ?(orientation = Rdk.Uv_sphere.Sphere_y) ?(center = Vec3.zero)
+    ?(rotation = Vec3.zero) ?(rotation_order = Rdk.Uv_sphere.Sphere_xyz)
     ?(uniform_scale = 1.) ?radius_x ?radius_y ?radius_z ?uv_attribute
     ?(segments = 48) ?(rings = 24) ~radius () =
   let orientation = match orientation with
-    | Pdk.Uv_sphere.Sphere_axis axis -> Pdk.Uv_sphere.Sphere_axis (vec3_copy axis)
+    | Rdk.Uv_sphere.Sphere_axis axis -> Rdk.Uv_sphere.Sphere_axis (vec3_copy axis)
     | value -> value in
   let center = vec3_copy center and rotation = vec3_copy rotation in
   let parameters = String.concat ";" [
@@ -355,47 +355,47 @@ let uv_sphere ?label ?(connectivity = Pdk.Uv_sphere.Sphere_triangles)
   Node.Private.make ?label ~operation:"uv_sphere" ~version:2 ~parameters
     ~cook_mode:Node.Generator ~dependencies:Context.Dependencies.static
     ~inputs:[||] (fun ~node_id:_ context _inputs ->
-      match Pdk.Uv_sphere.run ~cancel:(Context.cancel_token context)
+      match Rdk.Uv_sphere.run ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ~connectivity ~unique_points_per_pole
           ~triangular_poles ?normals ~orientation ~center ~rotation
           ~rotation_order ~uniform_scale ?radius_x ?radius_y ?radius_z
           ?uv_attribute ~segments ~rings ~radius () with
       | Ok geometry -> cooked geometry
-      | Error error -> structured_pdk_error error)
+      | Error error -> structured_rdk_error error)
 
 let torus_connectivity_key = function
-  | Pdk.Parametric_generators.Torus_triangles -> "triangles"
-  | Pdk.Parametric_generators.Torus_alternating_triangles -> "alternating_triangles"
-  | Pdk.Parametric_generators.Torus_quads -> "quads"
-  | Pdk.Parametric_generators.Torus_rows -> "rows"
-  | Pdk.Parametric_generators.Torus_columns -> "columns"
-  | Pdk.Parametric_generators.Torus_rows_and_columns -> "rows_and_columns"
-  | Pdk.Parametric_generators.Torus_points -> "points"
+  | Rdk.Parametric_generators.Torus_triangles -> "triangles"
+  | Rdk.Parametric_generators.Torus_alternating_triangles -> "alternating_triangles"
+  | Rdk.Parametric_generators.Torus_quads -> "quads"
+  | Rdk.Parametric_generators.Torus_rows -> "rows"
+  | Rdk.Parametric_generators.Torus_columns -> "columns"
+  | Rdk.Parametric_generators.Torus_rows_and_columns -> "rows_and_columns"
+  | Rdk.Parametric_generators.Torus_points -> "points"
 
 let torus_normals_key = function
-  | Pdk.Parametric_generators.Torus_no_normals -> "none"
-  | Pdk.Parametric_generators.Torus_point_normals -> "point"
-  | Pdk.Parametric_generators.Torus_vertex_normals -> "vertex"
+  | Rdk.Parametric_generators.Torus_no_normals -> "none"
+  | Rdk.Parametric_generators.Torus_point_normals -> "point"
+  | Rdk.Parametric_generators.Torus_vertex_normals -> "vertex"
 
 let torus_orientation_key = function
-  | Pdk.Parametric_generators.Torus_x -> "x" | Pdk.Parametric_generators.Torus_y -> "y"
-  | Pdk.Parametric_generators.Torus_z -> "z"
-  | Pdk.Parametric_generators.Torus_axis axis -> "axis:" ^ vec3_key axis
+  | Rdk.Parametric_generators.Torus_x -> "x" | Rdk.Parametric_generators.Torus_y -> "y"
+  | Rdk.Parametric_generators.Torus_z -> "z"
+  | Rdk.Parametric_generators.Torus_axis axis -> "axis:" ^ vec3_key axis
 
 let torus_rotation_order_key = function
-  | Pdk.Parametric_generators.Torus_xyz -> "xyz" | Pdk.Parametric_generators.Torus_xzy -> "xzy"
-  | Pdk.Parametric_generators.Torus_yxz -> "yxz" | Pdk.Parametric_generators.Torus_yzx -> "yzx"
-  | Pdk.Parametric_generators.Torus_zxy -> "zxy" | Pdk.Parametric_generators.Torus_zyx -> "zyx"
+  | Rdk.Parametric_generators.Torus_xyz -> "xyz" | Rdk.Parametric_generators.Torus_xzy -> "xzy"
+  | Rdk.Parametric_generators.Torus_yxz -> "yxz" | Rdk.Parametric_generators.Torus_yzx -> "yzx"
+  | Rdk.Parametric_generators.Torus_zxy -> "zxy" | Rdk.Parametric_generators.Torus_zyx -> "zyx"
 
-let torus ?label ?(connectivity = Pdk.Parametric_generators.Torus_triangles) ?normals
-    ?(orientation = Pdk.Parametric_generators.Torus_y) ?(center = Vec3.zero)
-    ?(rotation = Vec3.zero) ?(rotation_order = Pdk.Parametric_generators.Torus_xyz)
+let torus ?label ?(connectivity = Rdk.Parametric_generators.Torus_triangles) ?normals
+    ?(orientation = Rdk.Parametric_generators.Torus_y) ?(center = Vec3.zero)
+    ?(rotation = Vec3.zero) ?(rotation_order = Rdk.Parametric_generators.Torus_xyz)
     ?(uniform_scale = 1.) ?(u_start = 0.) ?(u_end = 2. *. Float.pi)
     ?(v_start = 0.) ?(v_end = 2. *. Float.pi) ?(u_wrap = true)
     ?(v_wrap = true) ?(u_end_caps = false) ?(v_end_cap = false)
     ?uv_attribute ?(rows = 48) ?(columns = 24) ~major_radius ~minor_radius () =
   let orientation = match orientation with
-    | Pdk.Parametric_generators.Torus_axis axis -> Pdk.Parametric_generators.Torus_axis (vec3_copy axis)
+    | Rdk.Parametric_generators.Torus_axis axis -> Rdk.Parametric_generators.Torus_axis (vec3_copy axis)
     | value -> value in
   let center = vec3_copy center and rotation = vec3_copy rotation in
   let parameters = String.concat ";" [
@@ -417,46 +417,46 @@ let torus ?label ?(connectivity = Pdk.Parametric_generators.Torus_triangles) ?no
   Node.Private.make ?label ~operation:"torus" ~version:1 ~parameters
     ~cook_mode:Node.Generator ~dependencies:Context.Dependencies.static
     ~inputs:[||] (fun ~node_id:_ context _inputs ->
-      match Pdk.Parametric_generators.torus ~cancel:(Context.cancel_token context)
+      match Rdk.Parametric_generators.torus ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ~connectivity ?normals ~orientation
           ~center ~rotation ~rotation_order ~uniform_scale ~u_start ~u_end
           ~v_start ~v_end ~u_wrap ~v_wrap ~u_end_caps ~v_end_cap ?uv_attribute
           ~rows ~columns ~major_radius ~minor_radius () with
       | Ok geometry -> cooked geometry
-      | Error error -> structured_pdk_error error)
+      | Error error -> structured_rdk_error error)
 
 let tube_connectivity_key = function
-  | Pdk.Parametric_generators.Tube_triangles -> "triangles"
-  | Pdk.Parametric_generators.Tube_alternating_triangles -> "alternating_triangles"
-  | Pdk.Parametric_generators.Tube_quads -> "quads"
-  | Pdk.Parametric_generators.Tube_rows -> "rows"
-  | Pdk.Parametric_generators.Tube_columns -> "columns"
-  | Pdk.Parametric_generators.Tube_rows_and_columns -> "rows_and_columns"
-  | Pdk.Parametric_generators.Tube_points -> "points"
+  | Rdk.Parametric_generators.Tube_triangles -> "triangles"
+  | Rdk.Parametric_generators.Tube_alternating_triangles -> "alternating_triangles"
+  | Rdk.Parametric_generators.Tube_quads -> "quads"
+  | Rdk.Parametric_generators.Tube_rows -> "rows"
+  | Rdk.Parametric_generators.Tube_columns -> "columns"
+  | Rdk.Parametric_generators.Tube_rows_and_columns -> "rows_and_columns"
+  | Rdk.Parametric_generators.Tube_points -> "points"
 
 let tube_normals_key = function
-  | Pdk.Parametric_generators.Tube_no_normals -> "none"
-  | Pdk.Parametric_generators.Tube_point_normals -> "point"
-  | Pdk.Parametric_generators.Tube_vertex_normals -> "vertex"
+  | Rdk.Parametric_generators.Tube_no_normals -> "none"
+  | Rdk.Parametric_generators.Tube_point_normals -> "point"
+  | Rdk.Parametric_generators.Tube_vertex_normals -> "vertex"
 
 let tube_orientation_key = function
-  | Pdk.Parametric_generators.Tube_x -> "x" | Pdk.Parametric_generators.Tube_y -> "y"
-  | Pdk.Parametric_generators.Tube_z -> "z"
-  | Pdk.Parametric_generators.Tube_axis axis -> "axis:" ^ vec3_key axis
+  | Rdk.Parametric_generators.Tube_x -> "x" | Rdk.Parametric_generators.Tube_y -> "y"
+  | Rdk.Parametric_generators.Tube_z -> "z"
+  | Rdk.Parametric_generators.Tube_axis axis -> "axis:" ^ vec3_key axis
 
 let tube_rotation_order_key = function
-  | Pdk.Parametric_generators.Tube_xyz -> "xyz" | Pdk.Parametric_generators.Tube_xzy -> "xzy"
-  | Pdk.Parametric_generators.Tube_yxz -> "yxz" | Pdk.Parametric_generators.Tube_yzx -> "yzx"
-  | Pdk.Parametric_generators.Tube_zxy -> "zxy" | Pdk.Parametric_generators.Tube_zyx -> "zyx"
+  | Rdk.Parametric_generators.Tube_xyz -> "xyz" | Rdk.Parametric_generators.Tube_xzy -> "xzy"
+  | Rdk.Parametric_generators.Tube_yxz -> "yxz" | Rdk.Parametric_generators.Tube_yzx -> "yzx"
+  | Rdk.Parametric_generators.Tube_zxy -> "zxy" | Rdk.Parametric_generators.Tube_zyx -> "zyx"
 
-let tube ?label ?(connectivity = Pdk.Parametric_generators.Tube_quads) ?(end_caps = false)
+let tube ?label ?(connectivity = Rdk.Parametric_generators.Tube_quads) ?(end_caps = false)
     ?(consolidate_cap_points = true) ?normals
-    ?(orientation = Pdk.Parametric_generators.Tube_y) ?(center = Vec3.zero)
-    ?(rotation = Vec3.zero) ?(rotation_order = Pdk.Parametric_generators.Tube_xyz)
+    ?(orientation = Rdk.Parametric_generators.Tube_y) ?(center = Vec3.zero)
+    ?(rotation = Vec3.zero) ?(rotation_order = Rdk.Parametric_generators.Tube_xyz)
     ?(radius_scale = 1.) ?uv_attribute ?cap_group ?(rows = 2) ?(columns = 32)
     ~top_radius ~bottom_radius ~height () =
   let orientation = match orientation with
-    | Pdk.Parametric_generators.Tube_axis axis -> Pdk.Parametric_generators.Tube_axis (vec3_copy axis)
+    | Rdk.Parametric_generators.Tube_axis axis -> Rdk.Parametric_generators.Tube_axis (vec3_copy axis)
     | value -> value in
   let center = vec3_copy center and rotation = vec3_copy rotation in
   let parameters = String.concat ";" [
@@ -477,44 +477,44 @@ let tube ?label ?(connectivity = Pdk.Parametric_generators.Tube_quads) ?(end_cap
   Node.Private.make ?label ~operation:"tube" ~version:1 ~parameters
     ~cook_mode:Node.Generator ~dependencies:Context.Dependencies.static
     ~inputs:[||] (fun ~node_id:_ context _inputs ->
-      match Pdk.Parametric_generators.tube ~cancel:(Context.cancel_token context)
+      match Rdk.Parametric_generators.tube ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ~connectivity ~end_caps
           ~consolidate_cap_points ?normals ~orientation ~center ~rotation
           ~rotation_order ~radius_scale ?uv_attribute ?cap_group ~rows ~columns
           ~top_radius ~bottom_radius ~height () with
       | Ok geometry -> cooked geometry
-      | Error error -> structured_pdk_error error)
+      | Error error -> structured_rdk_error error)
 
 let platonic_kind_key = function
-  | Pdk.Parametric_generators.Platonic_tetrahedron -> "tetrahedron"
-  | Pdk.Parametric_generators.Platonic_cube -> "cube"
-  | Pdk.Parametric_generators.Platonic_octahedron -> "octahedron"
-  | Pdk.Parametric_generators.Platonic_icosahedron -> "icosahedron"
-  | Pdk.Parametric_generators.Platonic_dodecahedron -> "dodecahedron"
-  | Pdk.Parametric_generators.Platonic_soccer_ball -> "soccer_ball"
+  | Rdk.Parametric_generators.Platonic_tetrahedron -> "tetrahedron"
+  | Rdk.Parametric_generators.Platonic_cube -> "cube"
+  | Rdk.Parametric_generators.Platonic_octahedron -> "octahedron"
+  | Rdk.Parametric_generators.Platonic_icosahedron -> "icosahedron"
+  | Rdk.Parametric_generators.Platonic_dodecahedron -> "dodecahedron"
+  | Rdk.Parametric_generators.Platonic_soccer_ball -> "soccer_ball"
 
 let platonic_normals_key = function
-  | Pdk.Parametric_generators.Platonic_no_normals -> "none"
-  | Pdk.Parametric_generators.Platonic_point_normals -> "point"
-  | Pdk.Parametric_generators.Platonic_vertex_normals -> "vertex"
+  | Rdk.Parametric_generators.Platonic_no_normals -> "none"
+  | Rdk.Parametric_generators.Platonic_point_normals -> "point"
+  | Rdk.Parametric_generators.Platonic_vertex_normals -> "vertex"
 
 let platonic_orientation_key = function
-  | Pdk.Parametric_generators.Platonic_x -> "x" | Pdk.Parametric_generators.Platonic_y -> "y"
-  | Pdk.Parametric_generators.Platonic_z -> "z"
-  | Pdk.Parametric_generators.Platonic_axis axis -> "axis:" ^ vec3_key axis
+  | Rdk.Parametric_generators.Platonic_x -> "x" | Rdk.Parametric_generators.Platonic_y -> "y"
+  | Rdk.Parametric_generators.Platonic_z -> "z"
+  | Rdk.Parametric_generators.Platonic_axis axis -> "axis:" ^ vec3_key axis
 
 let platonic_rotation_order_key = function
-  | Pdk.Parametric_generators.Platonic_xyz -> "xyz" | Pdk.Parametric_generators.Platonic_xzy -> "xzy"
-  | Pdk.Parametric_generators.Platonic_yxz -> "yxz" | Pdk.Parametric_generators.Platonic_yzx -> "yzx"
-  | Pdk.Parametric_generators.Platonic_zxy -> "zxy" | Pdk.Parametric_generators.Platonic_zyx -> "zyx"
+  | Rdk.Parametric_generators.Platonic_xyz -> "xyz" | Rdk.Parametric_generators.Platonic_xzy -> "xzy"
+  | Rdk.Parametric_generators.Platonic_yxz -> "yxz" | Rdk.Parametric_generators.Platonic_yzx -> "yzx"
+  | Rdk.Parametric_generators.Platonic_zxy -> "zxy" | Rdk.Parametric_generators.Platonic_zyx -> "zyx"
 
-let platonic ?label ?(kind = Pdk.Parametric_generators.Platonic_tetrahedron)
-    ?(normals = Pdk.Parametric_generators.Platonic_point_normals)
-    ?(orientation = Pdk.Parametric_generators.Platonic_y) ?(center = Vec3.zero)
-    ?(rotation = Vec3.zero) ?(rotation_order = Pdk.Parametric_generators.Platonic_xyz)
+let platonic ?label ?(kind = Rdk.Parametric_generators.Platonic_tetrahedron)
+    ?(normals = Rdk.Parametric_generators.Platonic_point_normals)
+    ?(orientation = Rdk.Parametric_generators.Platonic_y) ?(center = Vec3.zero)
+    ?(rotation = Vec3.zero) ?(rotation_order = Rdk.Parametric_generators.Platonic_xyz)
     ?face_groups ~radius () =
   let orientation = match orientation with
-    | Pdk.Parametric_generators.Platonic_axis axis -> Pdk.Parametric_generators.Platonic_axis (vec3_copy axis)
+    | Rdk.Parametric_generators.Platonic_axis axis -> Rdk.Parametric_generators.Platonic_axis (vec3_copy axis)
     | value -> value in
   let center = vec3_copy center and rotation = vec3_copy rotation in
   let parameters = String.concat ";" [
@@ -528,66 +528,66 @@ let platonic ?label ?(kind = Pdk.Parametric_generators.Platonic_tetrahedron)
   Node.Private.make ?label ~operation:"platonic" ~version:1 ~parameters
     ~cook_mode:Node.Generator ~dependencies:Context.Dependencies.static
     ~inputs:[||] (fun ~node_id:_ context _inputs ->
-      match Pdk.Parametric_generators.platonic ~cancel:(Context.cancel_token context) ~kind
+      match Rdk.Parametric_generators.platonic ~cancel:(Context.cancel_token context) ~kind
           ~normals ~orientation ~center ~rotation ~rotation_order ?face_groups
           ~radius () with
       | Ok geometry -> cooked geometry
-      | Error error -> structured_pdk_error error)
+      | Error error -> structured_rdk_error error)
 
 let spiral_extent_key = function
-  | Pdk.Spiral.Spiral_turns { turns; height } ->
+  | Rdk.Spiral.Spiral_turns { turns; height } ->
       "turns:" ^ float_key turns ^ ":" ^ float_key height
-  | Pdk.Spiral.Spiral_height_pitch { height; pitch } ->
+  | Rdk.Spiral.Spiral_height_pitch { height; pitch } ->
       "height_pitch:" ^ float_key height ^ ":" ^ float_key pitch
 
 let spiral_radius_key = function
-  | Pdk.Spiral.Spiral_archimedean_change { start_radius; increase_per_turn } ->
+  | Rdk.Spiral.Spiral_archimedean_change { start_radius; increase_per_turn } ->
       "archimedean_change:" ^ float_key start_radius ^ ":"
       ^ float_key increase_per_turn
-  | Pdk.Spiral.Spiral_archimedean_end { start_radius; end_radius } ->
+  | Rdk.Spiral.Spiral_archimedean_end { start_radius; end_radius } ->
       "archimedean_end:" ^ float_key start_radius ^ ":" ^ float_key end_radius
-  | Pdk.Spiral.Spiral_logarithmic_change { start_radius; scale_per_turn } ->
+  | Rdk.Spiral.Spiral_logarithmic_change { start_radius; scale_per_turn } ->
       "logarithmic_change:" ^ float_key start_radius ^ ":"
       ^ float_key scale_per_turn
-  | Pdk.Spiral.Spiral_logarithmic_end { start_radius; end_radius } ->
+  | Rdk.Spiral.Spiral_logarithmic_end { start_radius; end_radius } ->
       "logarithmic_end:" ^ float_key start_radius ^ ":" ^ float_key end_radius
 
 let spiral_direction_key = function
-  | Pdk.Spiral.Spiral_counterclockwise -> "counterclockwise"
-  | Pdk.Spiral.Spiral_clockwise -> "clockwise"
+  | Rdk.Spiral.Spiral_counterclockwise -> "counterclockwise"
+  | Rdk.Spiral.Spiral_clockwise -> "clockwise"
 
 let spiral_divisions_key = function
-  | Pdk.Spiral.Spiral_divisions_per_curve count ->
+  | Rdk.Spiral.Spiral_divisions_per_curve count ->
       "per_curve:" ^ string_of_int count
-  | Pdk.Spiral.Spiral_divisions_per_turn count ->
+  | Rdk.Spiral.Spiral_divisions_per_turn count ->
       "per_turn:" ^ string_of_int count
 
 let spiral_orientation_key = function
-  | Pdk.Spiral.Spiral_x -> "x" | Pdk.Spiral.Spiral_y -> "y"
-  | Pdk.Spiral.Spiral_z -> "z"
-  | Pdk.Spiral.Spiral_axis axis -> "axis:" ^ vec3_key axis
+  | Rdk.Spiral.Spiral_x -> "x" | Rdk.Spiral.Spiral_y -> "y"
+  | Rdk.Spiral.Spiral_z -> "z"
+  | Rdk.Spiral.Spiral_axis axis -> "axis:" ^ vec3_key axis
 
 let spiral_rotation_order_key = function
-  | Pdk.Spiral.Spiral_xyz -> "xyz" | Pdk.Spiral.Spiral_xzy -> "xzy"
-  | Pdk.Spiral.Spiral_yxz -> "yxz" | Pdk.Spiral.Spiral_yzx -> "yzx"
-  | Pdk.Spiral.Spiral_zxy -> "zxy" | Pdk.Spiral.Spiral_zyx -> "zyx"
+  | Rdk.Spiral.Spiral_xyz -> "xyz" | Rdk.Spiral.Spiral_xzy -> "xzy"
+  | Rdk.Spiral.Spiral_yxz -> "yxz" | Rdk.Spiral.Spiral_yzx -> "yzx"
+  | Rdk.Spiral.Spiral_zxy -> "zxy" | Rdk.Spiral.Spiral_zyx -> "zyx"
 
 let spiral_ramp_key ramp = ramp |> List.map (fun (position, value) ->
     float_key position ^ ":" ^ float_key value) |> String.concat ","
 
-let spiral ?label ?(extent = Pdk.Spiral.Spiral_turns { turns = 3.; height = 2. })
-    ?(radius = Pdk.Spiral.Spiral_archimedean_change {
+let spiral ?label ?(extent = Rdk.Spiral.Spiral_turns { turns = 3.; height = 2. })
+    ?(radius = Rdk.Spiral.Spiral_archimedean_change {
       start_radius = 1.; increase_per_turn = 0. })
     ?(height_ramp = []) ?(radius_scale = 1.) ?(radius_ramp = [])
-    ?(direction = Pdk.Spiral.Spiral_counterclockwise) ?(start_angle = 0.)
-    ?(divisions = Pdk.Spiral.Spiral_divisions_per_turn 32)
+    ?(direction = Rdk.Spiral.Spiral_counterclockwise) ?(start_angle = 0.)
+    ?(divisions = Rdk.Spiral.Spiral_divisions_per_turn 32)
     ?(uniform_angle = true) ?(spiral_count = 1)
-    ?(orientation = Pdk.Spiral.Spiral_y) ?(center = Vec3.zero)
-    ?(rotation = Vec3.zero) ?(rotation_order = Pdk.Spiral.Spiral_xyz)
+    ?(orientation = Rdk.Spiral.Spiral_y) ?(center = Vec3.zero)
+    ?(rotation = Vec3.zero) ?(rotation_order = Rdk.Spiral.Spiral_xyz)
     ?(uniform_scale = 1.) ?angle_attribute ?x_axis_attribute ?y_axis_attribute
     ?tangent_attribute ?orient_attribute ?distance_attribute () =
   let orientation = match orientation with
-    | Pdk.Spiral.Spiral_axis axis -> Pdk.Spiral.Spiral_axis (vec3_copy axis)
+    | Rdk.Spiral.Spiral_axis axis -> Rdk.Spiral.Spiral_axis (vec3_copy axis)
     | value -> value in
   let center = vec3_copy center and rotation = vec3_copy rotation
   and height_ramp = List.map (fun (position, value) -> position, value) height_ramp
@@ -616,7 +616,7 @@ let spiral ?label ?(extent = Pdk.Spiral.Spiral_turns { turns = 3.; height = 2. }
   Node.Private.make ?label ~operation:"spiral" ~version:1 ~parameters
     ~cook_mode:Node.Generator ~dependencies:Context.Dependencies.static
     ~inputs:[||] (fun ~node_id:_ context _inputs ->
-      match Pdk.Spiral.run ~cancel:(Context.cancel_token context)
+      match Rdk.Spiral.run ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ~extent ~radius ~height_ramp
           ~radius_scale ~radius_ramp ~direction ~start_angle ~divisions
           ~uniform_angle ~spiral_count ~orientation ~center ~rotation
@@ -624,7 +624,7 @@ let spiral ?label ?(extent = Pdk.Spiral.Spiral_turns { turns = 3.; height = 2. }
           ?y_axis_attribute ?tangent_attribute ?orient_attribute
           ?distance_attribute () with
       | Ok geometry -> cooked geometry
-      | Error error -> structured_pdk_error error)
+      | Error error -> structured_rdk_error error)
 
 let transform ?label ?selection ?(preserve_normal_length = false)
     ?(recompute_normals = false) matrix input =
@@ -640,25 +640,25 @@ let transform ?label ?selection ?(preserve_normal_length = false)
     (fun ~node_id:_ context inputs ->
       match resolve_element_group ~operation:"transform" selection inputs.(0) with
       | Error error -> Error error
-      | Ok selection -> match Pdk.Transform_ops.transform_selected
+      | Ok selection -> match Rdk.Transform_ops.transform_selected
           ~cancel:(Context.cancel_token context) ~grain:(Context.grain context)
           ?selection ~preserve_normal_length ~recompute_normals matrix inputs.(0) with
         | Ok geometry -> cooked geometry
-        | Error error -> structured_pdk_error error)
+        | Error error -> structured_rdk_error error)
 
-(* An invalid composed transform becomes a node whose cook reports the PDK
+(* An invalid composed transform becomes a node whose cook reports the RDK
    error, so graph construction never raises. *)
 let invalid_transform ?label ~operation ~version error input =
   Node.Private.make ?label ~operation ~version
-    ~parameters:("invalid=" ^ Pdk.Error.to_string error)
+    ~parameters:("invalid=" ^ Rdk.Error.to_string error)
     ~cook_mode:(Node.Duplicate_input 0)
     ~dependencies:Context.Dependencies.static ~inputs:[|input|]
-    (fun ~node_id:_ _context _inputs -> structured_pdk_error error)
+    (fun ~node_id:_ _context _inputs -> structured_rdk_error error)
 
 let transform_trs ?label ?order ?rotation_order ?translate ?rotate ?scale
     ?shear ?uniform_scale ?pivot ?pivot_rotation ?invert ?selection
     ?preserve_normal_length ?recompute_normals input =
-  match Pdk.Transform_ops.compose_transform ?order ?rotation_order ?translate ?rotate
+  match Rdk.Transform_ops.compose_transform ?order ?rotation_order ?translate ?rotate
       ?scale ?shear ?uniform_scale ?pivot ?pivot_rotation ?invert () with
   | Error error ->
       invalid_transform ?label ~operation:"transform" ~version:2 error input
@@ -666,18 +666,18 @@ let transform_trs ?label ?order ?rotation_order ?translate ?rotate ?scale
       ?recompute_normals matrix input
 
 let soft_transform_metric_key = function
-  | Pdk.Transform_ops.Soft_radius -> "radius"
-  | Pdk.Transform_ops.Soft_edge -> "edge"
-  | Pdk.Transform_ops.Soft_attribute { attribute; apply_rolloff } ->
+  | Rdk.Transform_ops.Soft_radius -> "radius"
+  | Rdk.Transform_ops.Soft_edge -> "edge"
+  | Rdk.Transform_ops.Soft_attribute { attribute; apply_rolloff } ->
       Printf.sprintf "attribute:%S:%b" attribute apply_rolloff
 
 let soft_transform_falloff_key = function
-  | Pdk.Transform_ops.Soft_linear -> "linear"
-  | Pdk.Transform_ops.Soft_quadratic -> "quadratic"
-  | Pdk.Transform_ops.Soft_cubic -> "cubic"
+  | Rdk.Transform_ops.Soft_linear -> "linear"
+  | Rdk.Transform_ops.Soft_quadratic -> "quadratic"
+  | Rdk.Transform_ops.Soft_cubic -> "cubic"
 
-let soft_transform ?label ?selection ?(metric = Pdk.Transform_ops.Soft_radius)
-    ?(falloff = Pdk.Transform_ops.Soft_cubic) ?(radius = 1.) ?falloff_attribute
+let soft_transform ?label ?selection ?(metric = Rdk.Transform_ops.Soft_radius)
+    ?(falloff = Rdk.Transform_ops.Soft_cubic) ?(radius = 1.) ?falloff_attribute
     ?(recompute_normals = true) matrix input =
   let matrix = matrix_copy matrix in
   Node.Private.make ?label ~operation:"soft_transform" ~version:1
@@ -694,17 +694,17 @@ let soft_transform ?label ?selection ?(metric = Pdk.Transform_ops.Soft_radius)
     (fun ~node_id:_ context inputs ->
       match resolve_element_group ~operation:"soft_transform" selection inputs.(0) with
       | Error error -> Error error
-      | Ok selection -> match Pdk.Transform_ops.soft_transform
+      | Ok selection -> match Rdk.Transform_ops.soft_transform
           ~cancel:(Context.cancel_token context) ~grain:(Context.grain context)
           ?selection ~metric ~falloff ~radius ?falloff_attribute
           ~recompute_normals matrix inputs.(0) with
         | Ok geometry -> cooked geometry
-        | Error error -> structured_pdk_error error)
+        | Error error -> structured_rdk_error error)
 
 let soft_transform_trs ?label ?order ?rotation_order ?translate ?rotate ?scale
     ?shear ?uniform_scale ?pivot ?pivot_rotation ?invert ?selection ?metric
     ?falloff ?radius ?falloff_attribute ?recompute_normals input =
-  match Pdk.Transform_ops.compose_transform ?order ?rotation_order ?translate ?rotate
+  match Rdk.Transform_ops.compose_transform ?order ?rotation_order ?translate ?rotate
       ?scale ?shear ?uniform_scale ?pivot ?pivot_rotation ?invert () with
   | Error error ->
       invalid_transform ?label ~operation:"soft_transform" ~version:1 error input
@@ -712,11 +712,11 @@ let soft_transform_trs ?label ?order ?rotation_order ?translate ?rotate ?scale
       ?falloff_attribute ?recompute_normals matrix input
 
 let distance_along_radius_key = function
-  | Pdk.Transform_ops.Distance_fixed value -> "fixed:" ^ float_key value
-  | Pdk.Transform_ops.Distance_maximum -> "maximum"
+  | Rdk.Transform_ops.Distance_fixed value -> "fixed:" ^ float_key value
+  | Rdk.Transform_ops.Distance_maximum -> "maximum"
 
 let distance_along_geometry ?label ?affected
-    ?(falloff = Pdk.Transform_ops.Soft_linear) ?(radius = Pdk.Transform_ops.Distance_maximum)
+    ?(falloff = Rdk.Transform_ops.Soft_linear) ?(radius = Rdk.Transform_ops.Distance_maximum)
     ?(distance_attribute = Some "distance") ?mask_attribute ~start input =
   Node.Private.make ?label ~operation:"distance_along_geometry" ~version:1
     ~parameters:(String.concat ";" [
@@ -740,20 +740,20 @@ let distance_along_geometry ?label ?affected
               ~operation:"distance_along_geometry affected" affected geometry with
            | Error error -> Error error
            | Ok affected ->
-               match Pdk.Transform_ops.distance_along_geometry
+               match Rdk.Transform_ops.distance_along_geometry
                    ~cancel:(Context.cancel_token context)
                    ~grain:(Context.grain context) ?affected ~falloff ~radius
                    ~distance_attribute ?mask_attribute ~start geometry with
                | Ok geometry -> cooked geometry
-               | Error error -> structured_pdk_error error))
+               | Error error -> structured_rdk_error error))
 
 let distance_from_geometry_reference_key = function
-  | Pdk.Transform_ops.Distance_reference_points -> "points"
-  | Pdk.Transform_ops.Distance_reference_primitives -> "primitives"
+  | Rdk.Transform_ops.Distance_reference_points -> "points"
+  | Rdk.Transform_ops.Distance_reference_primitives -> "primitives"
 
 let distance_from_geometry ?label ?affected ?reference_selection
-    ?(reference_kind = Pdk.Transform_ops.Distance_reference_primitives)
-    ?(falloff = Pdk.Transform_ops.Soft_linear) ?(radius = Pdk.Transform_ops.Distance_maximum)
+    ?(reference_kind = Rdk.Transform_ops.Distance_reference_primitives)
+    ?(falloff = Rdk.Transform_ops.Soft_linear) ?(radius = Rdk.Transform_ops.Distance_maximum)
     ?(distance_attribute = Some "distance") ?mask_attribute ~reference source =
   Node.Private.make ?label ~operation:"distance_from_geometry" ~version:1
     ~parameters:(String.concat ";" [
@@ -778,27 +778,27 @@ let distance_from_geometry ?label ?affected ?reference_selection
               reference_selection inputs.(1) with
            | Error error -> Error error
            | Ok reference_selection ->
-               match Pdk.Transform_ops.distance_from_geometry
+               match Rdk.Transform_ops.distance_from_geometry
                    ~cancel:(Context.cancel_token context)
                    ~grain:(Context.grain context) ?affected ?reference_selection
                    ~reference_kind ~falloff ~radius ~distance_attribute
                    ?mask_attribute ~reference:inputs.(1) inputs.(0) with
                | Ok geometry -> cooked geometry
-               | Error error -> structured_pdk_error error))
+               | Error error -> structured_rdk_error error))
 
 let distance_from_target_projection_key = function
-  | Pdk.Transform_ops.Distance_target_spherical -> "spherical"
-  | Pdk.Transform_ops.Distance_target_cylindrical -> "cylindrical"
-  | Pdk.Transform_ops.Distance_target_planar -> "planar"
+  | Rdk.Transform_ops.Distance_target_spherical -> "spherical"
+  | Rdk.Transform_ops.Distance_target_cylindrical -> "cylindrical"
+  | Rdk.Transform_ops.Distance_target_planar -> "planar"
 
 let distance_from_target_metric_key = function
-  | Pdk.Transform_ops.Distance_target_absolute -> "absolute"
-  | Pdk.Transform_ops.Distance_target_signed -> "signed"
+  | Rdk.Transform_ops.Distance_target_absolute -> "absolute"
+  | Rdk.Transform_ops.Distance_target_signed -> "signed"
 
 let distance_from_target ?label ?affected
-    ?(projection = Pdk.Transform_ops.Distance_target_spherical) ?(origin = Vec3.zero)
-    ?(direction = Vec3.unit_y) ?(metric = Pdk.Transform_ops.Distance_target_absolute)
-    ?(falloff = Pdk.Transform_ops.Soft_linear) ?(radius = Pdk.Transform_ops.Distance_maximum)
+    ?(projection = Rdk.Transform_ops.Distance_target_spherical) ?(origin = Vec3.zero)
+    ?(direction = Vec3.unit_y) ?(metric = Rdk.Transform_ops.Distance_target_absolute)
+    ?(falloff = Rdk.Transform_ops.Soft_linear) ?(radius = Rdk.Transform_ops.Distance_maximum)
     ?(distance_attribute = Some "distance") ?mask_attribute input =
   let origin = vec3_copy origin and direction = vec3_copy direction in
   Node.Private.make ?label ~operation:"distance_from_target" ~version:1
@@ -820,13 +820,13 @@ let distance_from_target ?label ?affected
           affected inputs.(0) with
       | Error error -> Error error
       | Ok affected ->
-          match Pdk.Transform_ops.distance_from_target
+          match Rdk.Transform_ops.distance_from_target
               ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?affected ~projection ~origin
               ~direction ~metric ~falloff ~radius ~distance_attribute
               ?mask_attribute inputs.(0) with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let merge ?label ?source_attribute ?(source_base = 0) inputs =
   let inputs = Array.of_list inputs in
@@ -836,16 +836,16 @@ let merge ?label ?source_attribute ?(source_base = 0) inputs =
       | Some name -> Printf.sprintf "inputs=%d;source=%S;base=%d" (Array.length inputs) name source_base)
     ~cook_mode:Node.Generic ~dependencies:Context.Dependencies.static ~inputs
     (fun ~node_id:_ context inputs ->
-      match Pdk.Mesh_merge.run ~cancel:(Context.cancel_token context)
+      match Rdk.Mesh_merge.run ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ?source_attribute ~source_base
           (Array.to_list inputs) with
       | Ok geometry -> cooked geometry
-      | Error error -> structured_pdk_error error)
+      | Error error -> structured_rdk_error error)
 
 let resolve_optional_point_group operation name geometry = match name with
   | None -> Ok None
   | Some name ->
-      (match Pdk.Geometry.find_group ~owner:Pdk.Group.Point name geometry with
+      (match Rdk.Geometry.find_group ~owner:Rdk.Group.Point name geometry with
        | Some group -> Ok (Some group)
        | None -> Error (Diagnostic.error ~code:"missing_group"
            (Printf.sprintf "%s could not find point group %S" operation name)))
@@ -853,7 +853,7 @@ let resolve_optional_point_group operation name geometry = match name with
 let resolve_optional_primitive_group operation name geometry = match name with
   | None -> Ok None
   | Some name ->
-      (match Pdk.Geometry.find_group ~owner:Pdk.Group.Primitive name geometry with
+      (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive name geometry with
        | Some group -> Ok (Some group)
        | None -> Error (Diagnostic.error ~code:"missing_group"
            (Printf.sprintf "%s could not find primitive group %S" operation name)))
@@ -861,71 +861,71 @@ let resolve_optional_primitive_group operation name geometry = match name with
 let resolve_optional_edge_group operation name geometry = match name with
   | None -> Ok None
   | Some name ->
-      (match Pdk.Geometry.find_edge_group name geometry with
+      (match Rdk.Geometry.find_edge_group name geometry with
        | Some group -> Ok (Some group)
        | None -> Error (Diagnostic.error ~code:"missing_group"
            (Printf.sprintf "%s could not find edge group %S" operation name)))
 
 let fuse_position_key = function
-  | Pdk.Fuse_reduce.First_position -> "first"
-  | Pdk.Fuse_reduce.Least_point_position -> "least"
-  | Pdk.Fuse_reduce.Greatest_point_position -> "greatest"
-  | Pdk.Fuse_reduce.Average_position -> "average"
-  | Pdk.Fuse_reduce.Minimum_position -> "minimum"
-  | Pdk.Fuse_reduce.Maximum_position -> "maximum"
-  | Pdk.Fuse_reduce.Mode_position -> "mode"
-  | Pdk.Fuse_reduce.Median_position -> "median"
-  | Pdk.Fuse_reduce.Sum_position -> "sum"
-  | Pdk.Fuse_reduce.Sum_squares_position -> "sum_squares"
-  | Pdk.Fuse_reduce.Root_mean_square_position -> "root_mean_square"
-  | Pdk.Fuse_reduce.Weighted_average_position -> "weighted_average"
-  | Pdk.Fuse_reduce.Weighted_sum_position -> "weighted_sum"
-  | Pdk.Fuse_reduce.Minimum_weight_position -> "minimum_weight"
-  | Pdk.Fuse_reduce.Maximum_weight_position -> "maximum_weight"
+  | Rdk.Fuse_reduce.First_position -> "first"
+  | Rdk.Fuse_reduce.Least_point_position -> "least"
+  | Rdk.Fuse_reduce.Greatest_point_position -> "greatest"
+  | Rdk.Fuse_reduce.Average_position -> "average"
+  | Rdk.Fuse_reduce.Minimum_position -> "minimum"
+  | Rdk.Fuse_reduce.Maximum_position -> "maximum"
+  | Rdk.Fuse_reduce.Mode_position -> "mode"
+  | Rdk.Fuse_reduce.Median_position -> "median"
+  | Rdk.Fuse_reduce.Sum_position -> "sum"
+  | Rdk.Fuse_reduce.Sum_squares_position -> "sum_squares"
+  | Rdk.Fuse_reduce.Root_mean_square_position -> "root_mean_square"
+  | Rdk.Fuse_reduce.Weighted_average_position -> "weighted_average"
+  | Rdk.Fuse_reduce.Weighted_sum_position -> "weighted_sum"
+  | Rdk.Fuse_reduce.Minimum_weight_position -> "minimum_weight"
+  | Rdk.Fuse_reduce.Maximum_weight_position -> "maximum_weight"
 
 let fuse_attribute_method_key = function
-  | Pdk.Fuse_reduce.Attribute_average -> "average"
-  | Pdk.Fuse_reduce.Attribute_least_point -> "least"
-  | Pdk.Fuse_reduce.Attribute_greatest_point -> "greatest"
-  | Pdk.Fuse_reduce.Attribute_maximum -> "maximum"
-  | Pdk.Fuse_reduce.Attribute_minimum -> "minimum"
-  | Pdk.Fuse_reduce.Attribute_mode -> "mode"
-  | Pdk.Fuse_reduce.Attribute_median -> "median"
-  | Pdk.Fuse_reduce.Attribute_sum -> "sum"
-  | Pdk.Fuse_reduce.Attribute_sum_squares -> "sum_squares"
-  | Pdk.Fuse_reduce.Attribute_root_mean_square -> "root_mean_square"
-  | Pdk.Fuse_reduce.Attribute_concatenate -> "concatenate"
-  | Pdk.Fuse_reduce.Attribute_weighted_average -> "weighted_average"
-  | Pdk.Fuse_reduce.Attribute_weighted_sum -> "weighted_sum"
-  | Pdk.Fuse_reduce.Attribute_minimum_weight -> "minimum_weight"
-  | Pdk.Fuse_reduce.Attribute_maximum_weight -> "maximum_weight"
-  | Pdk.Fuse_reduce.Attribute_concatenate_weight_order -> "concatenate_weight_order"
+  | Rdk.Fuse_reduce.Attribute_average -> "average"
+  | Rdk.Fuse_reduce.Attribute_least_point -> "least"
+  | Rdk.Fuse_reduce.Attribute_greatest_point -> "greatest"
+  | Rdk.Fuse_reduce.Attribute_maximum -> "maximum"
+  | Rdk.Fuse_reduce.Attribute_minimum -> "minimum"
+  | Rdk.Fuse_reduce.Attribute_mode -> "mode"
+  | Rdk.Fuse_reduce.Attribute_median -> "median"
+  | Rdk.Fuse_reduce.Attribute_sum -> "sum"
+  | Rdk.Fuse_reduce.Attribute_sum_squares -> "sum_squares"
+  | Rdk.Fuse_reduce.Attribute_root_mean_square -> "root_mean_square"
+  | Rdk.Fuse_reduce.Attribute_concatenate -> "concatenate"
+  | Rdk.Fuse_reduce.Attribute_weighted_average -> "weighted_average"
+  | Rdk.Fuse_reduce.Attribute_weighted_sum -> "weighted_sum"
+  | Rdk.Fuse_reduce.Attribute_minimum_weight -> "minimum_weight"
+  | Rdk.Fuse_reduce.Attribute_maximum_weight -> "maximum_weight"
+  | Rdk.Fuse_reduce.Attribute_concatenate_weight_order -> "concatenate_weight_order"
 
 let fuse_attribute_rules_key rules = rules |> List.map
-    (fun (rule : Pdk.Fuse_reduce.attribute_rule) ->
-    String.concat "," [String.escaped rule.Pdk.Fuse_reduce.pattern;
+    (fun (rule : Rdk.Fuse_reduce.attribute_rule) ->
+    String.concat "," [String.escaped rule.Rdk.Fuse_reduce.pattern;
       fuse_attribute_method_key rule.method_;
       option_string_key rule.weight_attribute]) |> String.concat "|"
 
 let fuse_group_method_key = function
-  | Pdk.Fuse_reduce.Group_least_point -> "least"
-  | Pdk.Fuse_reduce.Group_greatest_point -> "greatest"
-  | Pdk.Fuse_reduce.Group_union -> "union"
-  | Pdk.Fuse_reduce.Group_intersection -> "intersection"
-  | Pdk.Fuse_reduce.Group_most_common -> "most_common"
+  | Rdk.Fuse_reduce.Group_least_point -> "least"
+  | Rdk.Fuse_reduce.Group_greatest_point -> "greatest"
+  | Rdk.Fuse_reduce.Group_union -> "union"
+  | Rdk.Fuse_reduce.Group_intersection -> "intersection"
+  | Rdk.Fuse_reduce.Group_most_common -> "most_common"
 
 let fuse_group_rules_key rules = rules |> List.map
-    (fun (rule : Pdk.Fuse_reduce.group_rule) ->
-    String.escaped rule.Pdk.Fuse_reduce.group_pattern ^ ","
+    (fun (rule : Rdk.Fuse_reduce.group_rule) ->
+    String.escaped rule.Rdk.Fuse_reduce.group_pattern ^ ","
       ^ fuse_group_method_key rule.group_method) |> String.concat "|"
 
-let fuse ?label ?group ?target_group ?(targeting = Pdk.Fuse_grid.Near_points)
-    ?(using = Pdk.Fuse_grid.Least_target_point) ?(tolerance = 1e-6)
-    ?(position = Pdk.Fuse_reduce.Average_position)
-    ?weight_attribute ?(attributes = Pdk.Fuse_reduce.Keep_first)
-    ?(attribute_rules = []) ?(group_rules = []) ?(metric = Pdk.Fuse_grid.Euclidean)
+let fuse ?label ?group ?target_group ?(targeting = Rdk.Fuse_grid.Near_points)
+    ?(using = Rdk.Fuse_grid.Least_target_point) ?(tolerance = 1e-6)
+    ?(position = Rdk.Fuse_reduce.Average_position)
+    ?weight_attribute ?(attributes = Rdk.Fuse_reduce.Keep_first)
+    ?(attribute_rules = []) ?(group_rules = []) ?(metric = Rdk.Fuse_grid.Euclidean)
     ?(inclusive = true) ?(match_attributes = false) ?radius_attribute
-    ?match_attribute ?(match_condition = Pdk.Fuse_grid.Equal_attribute_values)
+    ?match_attribute ?(match_condition = Rdk.Fuse_grid.Equal_attribute_values)
     ?(match_tolerance = 0.) ?(modify_target = false)
     ?(fuse_points = true) ?(keep_fused_points = false) ?snapped_group
     ?snapped_destination_attribute ?(remove_degenerate_primitives = false)
@@ -942,20 +942,20 @@ let fuse ?label ?group ?target_group ?(targeting = Pdk.Fuse_grid.Near_points)
      "snapped destination attribute name", snapped_destination_attribute];
   let position_key = fuse_position_key position in
   let attributes_key = match attributes with
-    | Pdk.Fuse_reduce.Keep_first -> "first"
-    | Pdk.Fuse_reduce.Average_numeric -> "average_numeric" in
+    | Rdk.Fuse_reduce.Keep_first -> "first"
+    | Rdk.Fuse_reduce.Average_numeric -> "average_numeric" in
   let metric_key = match metric with
-    | Pdk.Fuse_grid.Euclidean -> "euclidean"
-    | Pdk.Fuse_grid.Componentwise -> "componentwise" in
+    | Rdk.Fuse_grid.Euclidean -> "euclidean"
+    | Rdk.Fuse_grid.Componentwise -> "componentwise" in
   let targeting_key = match targeting with
-    | Pdk.Fuse_grid.Near_points -> "near"
-    | Pdk.Fuse_grid.Specified_points name -> "specified:" ^ name in
+    | Rdk.Fuse_grid.Near_points -> "near"
+    | Rdk.Fuse_grid.Specified_points name -> "specified:" ^ name in
   let using_key = match using with
-    | Pdk.Fuse_grid.Least_target_point -> "least"
-    | Pdk.Fuse_grid.Closest_target_point -> "closest" in
+    | Rdk.Fuse_grid.Least_target_point -> "least"
+    | Rdk.Fuse_grid.Closest_target_point -> "closest" in
   let match_condition_key = match match_condition with
-    | Pdk.Fuse_grid.Equal_attribute_values -> "equal"
-    | Pdk.Fuse_grid.Unequal_attribute_values -> "unequal" in
+    | Rdk.Fuse_grid.Equal_attribute_values -> "equal"
+    | Rdk.Fuse_grid.Unequal_attribute_values -> "unequal" in
   let inputs = match target with None -> [|input|] | Some node -> [|input;node|] in
   Node.Private.make ?label ~operation:"fuse" ~version:6
     ~parameters:(Printf.sprintf
@@ -987,7 +987,7 @@ let fuse ?label ?group ?target_group ?(targeting = Pdk.Fuse_grid.Near_points)
            | Ok target_selection ->
               let target = if Array.length inputs = 2
                   then Some target_geometry else None in
-              (match Pdk.Fuse_grid.fuse ~cancel:(Context.cancel_token context)
+              (match Rdk.Fuse_grid.fuse ~cancel:(Context.cancel_token context)
                   ~grain:(Context.grain context) ?selection ?target_selection
                   ~targeting ~using ~tolerance ~position ?weight_attribute
                   ~attributes ~attribute_rules ~group_rules ~metric
@@ -1000,12 +1000,12 @@ let fuse ?label ?group ?target_group ?(targeting = Pdk.Fuse_grid.Near_points)
                   ~remove_all_unused_points
                   ?target inputs.(0) with
                | Ok geometry -> cooked geometry
-               | Error error -> structured_pdk_error error)))
+               | Error error -> structured_rdk_error error)))
 
 let snap_to_grid ?label ?group ?(spacing = Vec3.create 1. 1. 1.)
-    ?(offset = Vec3.zero) ?(rounding = Pdk.Fuse_grid.Grid_nearest) ?max_distance
-    ?(fuse_points = false) ?(position = Pdk.Fuse_reduce.Average_position)
-    ?weight_attribute ?(attributes = Pdk.Fuse_reduce.Keep_first)
+    ?(offset = Vec3.zero) ?(rounding = Rdk.Fuse_grid.Grid_nearest) ?max_distance
+    ?(fuse_points = false) ?(position = Rdk.Fuse_reduce.Average_position)
+    ?weight_attribute ?(attributes = Rdk.Fuse_reduce.Keep_first)
     ?(attribute_rules = []) ?(group_rules = []) ?snapped_group input =
   Option.iter (fun name -> if String.trim name = "" then
     invalid_arg "Sop.snap_to_grid: empty point group name") group;
@@ -1016,13 +1016,13 @@ let snap_to_grid ?label ?group ?(spacing = Vec3.create 1. 1. 1.)
     weight_attribute;
   let spacing = vec3_copy spacing and offset = vec3_copy offset in
   let rounding_key = match rounding with
-    | Pdk.Fuse_grid.Grid_nearest -> "nearest"
-    | Pdk.Fuse_grid.Grid_down -> "down"
-    | Pdk.Fuse_grid.Grid_up -> "up" in
+    | Rdk.Fuse_grid.Grid_nearest -> "nearest"
+    | Rdk.Fuse_grid.Grid_down -> "down"
+    | Rdk.Fuse_grid.Grid_up -> "up" in
   let position_key = fuse_position_key position in
   let attributes_key = match attributes with
-    | Pdk.Fuse_reduce.Keep_first -> "first"
-    | Pdk.Fuse_reduce.Average_numeric -> "average_numeric" in
+    | Rdk.Fuse_reduce.Keep_first -> "first"
+    | Rdk.Fuse_reduce.Average_numeric -> "average_numeric" in
   let max_distance_key = match max_distance with
     | None -> "none"
     | Some value -> float_key value in
@@ -1044,13 +1044,13 @@ let snap_to_grid ?label ?group ?(spacing = Vec3.create 1. 1. 1.)
       match resolve_optional_point_group "snap_to_grid" group inputs.(0) with
       | Error error -> Error error
       | Ok selection ->
-          (match Pdk.Fuse_grid.snap_to_grid ~cancel:(Context.cancel_token context)
+          (match Rdk.Fuse_grid.snap_to_grid ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?selection ~spacing ~offset ~rounding
               ?max_distance ~fuse_points ~position ?weight_attribute ~attributes
               ~attribute_rules ~group_rules ?snapped_group
               inputs.(0) with
            | Ok geometry -> cooked geometry
-           | Error error -> structured_pdk_error error))
+           | Error error -> structured_rdk_error error))
 
 let mirror ?label ?(keep_original = true) ~origin ~normal input =
   let origin = vec3_copy origin and normal = vec3_copy normal in
@@ -1060,17 +1060,17 @@ let mirror ?label ?(keep_original = true) ~origin ~normal input =
     ~cook_mode:(Node.Duplicate_input 0)
     ~dependencies:Context.Dependencies.static ~inputs:[|input|]
     (fun ~node_id:_ context inputs ->
-      match Pdk.Mirror_geometry.run ~cancel:(Context.cancel_token context)
+      match Rdk.Mirror_geometry.run ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ~keep_original ~origin ~normal inputs.(0) with
       | Ok geometry -> cooked geometry
-      | Error error -> structured_pdk_error error)
+      | Error error -> structured_rdk_error error)
 
 let clip_keep_key = function
-  | Pdk.Plane_clip.Above -> "above"
-  | Pdk.Plane_clip.Below -> "below"
-  | Pdk.Plane_clip.All -> "all"
+  | Rdk.Plane_clip.Above -> "above"
+  | Rdk.Plane_clip.Below -> "below"
+  | Rdk.Plane_clip.All -> "all"
 
-let clip ?label ?(keep = Pdk.Plane_clip.Above) ?(snapping_tolerance = 1e-9)
+let clip ?label ?(keep = Rdk.Plane_clip.Above) ?(snapping_tolerance = 1e-9)
     ?(fill = false) ?(split_connectivity = false) ?(clip_attribute = "P")
     ?(distance = 0.) ?selection ?(replace_existing_groups = true)
     ?clipped_edge_group ?cap_group ?clipped_group ?above_group ?below_group
@@ -1098,7 +1098,7 @@ let clip ?label ?(keep = Pdk.Plane_clip.Above) ?(snapping_tolerance = 1e-9)
     (fun ~node_id:_ context inputs ->
       match resolve_element_group ~operation:"clip" selection inputs.(0) with
       | Error error -> Error error
-      | Ok selection -> match Pdk.Plane_clip.clip ~cancel:(Context.cancel_token context)
+      | Ok selection -> match Rdk.Plane_clip.clip ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ~keep ~snapping_tolerance ~fill
           ~split_connectivity ~clip_attribute ~distance ?selection
           ~replace_existing_groups
@@ -1106,20 +1106,20 @@ let clip ?label ?(keep = Pdk.Plane_clip.Above) ?(snapping_tolerance = 1e-9)
           ?cap_group ?clipped_group ?above_group ?below_group ~origin ~normal
           inputs.(0) with
       | Ok geometry -> cooked geometry
-      | Error error -> structured_pdk_error error)
+      | Error error -> structured_rdk_error error)
 
 let crease_operation_key = function
-  | Pdk.Crease.Crease_add -> "add"
-  | Pdk.Crease.Crease_set -> "set"
-  | Pdk.Crease.Crease_delete -> "delete"
+  | Rdk.Crease.Crease_add -> "add"
+  | Rdk.Crease.Crease_set -> "set"
+  | Rdk.Crease.Crease_delete -> "delete"
 
-let crease ?label ?group ?(operation = Pdk.Crease.Crease_add) ?(weight = 1.)
+let crease ?label ?group ?(operation = Rdk.Crease.Crease_add) ?(weight = 1.)
     ?(add_vertex_color = false) input =
   Option.iter (fun name -> if String.trim name = "" then
     invalid_arg "Sop.crease: empty edge group name") group;
   let weight_key = match operation with
-    | Pdk.Crease.Crease_delete -> "ignored"
-    | Pdk.Crease.Crease_add | Pdk.Crease.Crease_set -> float_key weight in
+    | Rdk.Crease.Crease_delete -> "ignored"
+    | Rdk.Crease.Crease_add | Rdk.Crease.Crease_set -> float_key weight in
   Node.Private.make ?label ~operation:"crease" ~version:1
     ~parameters:(Printf.sprintf
       "group=%s;operation=%s;weight=%s;add_vertex_color=%b"
@@ -1131,17 +1131,17 @@ let crease ?label ?group ?(operation = Pdk.Crease.Crease_add) ?(weight = 1.)
       let edges = match group with
         | None -> Ok None
         | Some name ->
-            (match Pdk.Geometry.find_edge_group name geometry with
+            (match Rdk.Geometry.find_edge_group name geometry with
              | Some group -> Ok (Some group)
              | None -> Error (Diagnostic.error ~code:"missing_group"
                  (Printf.sprintf
                    "crease could not find native edge group %S" name))) in
       Result.bind edges (fun edges ->
-        match Pdk.Crease.crease ~cancel:(Context.cancel_token context)
+        match Rdk.Crease.crease ~cancel:(Context.cancel_token context)
             ~grain:(Context.grain context) ?edges ~operation ~weight
             ~add_vertex_color geometry with
         | Ok geometry -> cooked geometry
-        | Error error -> structured_pdk_error error))
+        | Error error -> structured_rdk_error error))
 
 let attribute_fade_ramp_key ramp = ramp |> List.map (fun (position, value) ->
     float_key position ^ ":" ^ float_key value) |> String.concat ","
@@ -1191,33 +1191,33 @@ let attribute_fade ?label ?group ?start_source ?hold_source
       | Ok points ->
           let start_source = Option.map (Array.unsafe_get inputs) start_index
           and hold_source = Option.map (Array.unsafe_get inputs) hold_index in
-          match Pdk.Attribute_fade.fade ~cancel:(Context.cancel_token context)
+          match Rdk.Attribute_fade.fade ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?points ?start_source ?hold_source
               ~fade_attribute ?start_attribute ~start_retime
               ?hold_scale_attribute ~frame:(Int64.to_float (Context.frame context))
               ~frame_offset ~fade_in ~fade_hold ~fade_out ~fade_in_ramp
               ~fade_out_ramp ~visualize geometry with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let poly_cut_element_key = function
-  | Pdk.Poly_cut.Poly_cut_points -> "points"
-  | Pdk.Poly_cut.Poly_cut_edges -> "edges"
+  | Rdk.Poly_cut.Poly_cut_points -> "points"
+  | Rdk.Poly_cut.Poly_cut_edges -> "edges"
 
 let poly_cut_strategy_key = function
-  | Pdk.Poly_cut.Poly_cut_remove -> "remove"
-  | Pdk.Poly_cut.Poly_cut_cut -> "cut"
+  | Rdk.Poly_cut.Poly_cut_remove -> "remove"
+  | Rdk.Poly_cut.Poly_cut_cut -> "cut"
 
 let poly_cut_detection_key = function
-  | Pdk.Poly_cut.Poly_cut_all -> "all"
-  | Pdk.Poly_cut.Poly_cut_crossing {attribute; value} ->
+  | Rdk.Poly_cut.Poly_cut_all -> "all"
+  | Rdk.Poly_cut.Poly_cut_crossing {attribute; value} ->
       "crossing:" ^ String.escaped attribute ^ ":" ^ float_key value
-  | Pdk.Poly_cut.Poly_cut_change {attribute; threshold} ->
+  | Rdk.Poly_cut.Poly_cut_change {attribute; threshold} ->
       "change:" ^ String.escaped attribute ^ ":" ^ float_key threshold
 
-let poly_cut ?label ?group ?cut_group ?(element = Pdk.Poly_cut.Poly_cut_points)
-    ?(strategy = Pdk.Poly_cut.Poly_cut_remove)
-    ?(detection = Pdk.Poly_cut.Poly_cut_all) ?(keep_closed = true) input =
+let poly_cut ?label ?group ?cut_group ?(element = Rdk.Poly_cut.Poly_cut_points)
+    ?(strategy = Rdk.Poly_cut.Poly_cut_remove)
+    ?(detection = Rdk.Poly_cut.Poly_cut_all) ?(keep_closed = true) input =
   List.iter (fun (label, name) -> Option.iter (fun name ->
     if String.trim name = "" then
       invalid_arg ("Sop.poly_cut: empty " ^ label ^ " group name")) name)
@@ -1238,40 +1238,40 @@ let poly_cut ?label ?group ?cut_group ?(element = Pdk.Poly_cut.Poly_cut_points)
       | Error error -> Error error
       | Ok primitives ->
           let cut_selection = match element with
-            | Pdk.Poly_cut.Poly_cut_points ->
+            | Rdk.Poly_cut.Poly_cut_points ->
                 Result.map (fun value -> `Points value)
                   (resolve_optional_point_group "poly_cut" cut_group geometry)
-            | Pdk.Poly_cut.Poly_cut_edges ->
+            | Rdk.Poly_cut.Poly_cut_edges ->
                 Result.map (fun value -> `Edges value)
                   (resolve_optional_edge_group "poly_cut" cut_group geometry) in
           match cut_selection with
           | Error error -> Error error
           | Ok (`Points cut_points) ->
-              (match Pdk.Poly_cut.cut ~cancel:(Context.cancel_token context)
+              (match Rdk.Poly_cut.cut ~cancel:(Context.cancel_token context)
                   ~grain:(Context.grain context) ?primitives ?cut_points
                   ~element ~strategy ~detection ~keep_closed geometry with
                | Ok geometry -> cooked geometry
-               | Error error -> structured_pdk_error error)
+               | Error error -> structured_rdk_error error)
           | Ok (`Edges cut_edges) ->
-              (match Pdk.Poly_cut.cut ~cancel:(Context.cancel_token context)
+              (match Rdk.Poly_cut.cut ~cancel:(Context.cancel_token context)
                   ~grain:(Context.grain context) ?primitives ?cut_edges
                   ~element ~strategy ~detection ~keep_closed geometry with
                | Ok geometry -> cooked geometry
-               | Error error -> structured_pdk_error error))
+               | Error error -> structured_rdk_error error))
 
 let separate_pieces_mode_key = function
-  | Pdk.Separate_pieces.Separate_pieces_separate -> "separate"
-  | Pdk.Separate_pieces.Separate_pieces_move_back -> "move_back"
+  | Rdk.Separate_pieces.Separate_pieces_separate -> "separate"
+  | Rdk.Separate_pieces.Separate_pieces_move_back -> "move_back"
 
 let separate_pieces_owner_key = function
-  | Pdk.Attribute.Point -> "point"
-  | Pdk.Attribute.Primitive -> "primitive"
-  | Pdk.Attribute.Vertex -> "vertex"
-  | Pdk.Attribute.Detail -> "detail"
+  | Rdk.Attribute.Point -> "point"
+  | Rdk.Attribute.Primitive -> "primitive"
+  | Rdk.Attribute.Vertex -> "vertex"
+  | Rdk.Attribute.Detail -> "detail"
 
-let separate_pieces ?label ?(owner = Pdk.Attribute.Primitive)
+let separate_pieces ?label ?(owner = Rdk.Attribute.Primitive)
     ?(translation_attribute = "piece_translation") ?(axis = Vec3.unit_x)
-    ?(gap = 0.001) ?(mode = Pdk.Separate_pieces.Separate_pieces_separate)
+    ?(gap = 0.001) ?(mode = Rdk.Separate_pieces.Separate_pieces_separate)
     ~piece_attribute input =
   if String.trim piece_attribute = "" then
     invalid_arg "Sop.separate_pieces: empty piece attribute name";
@@ -1289,58 +1289,58 @@ let separate_pieces ?label ?(owner = Pdk.Attribute.Primitive)
     ~cook_mode:(Node.Duplicate_input 0)
     ~dependencies:Context.Dependencies.static ~inputs:[|input|]
     (fun ~node_id:_ context inputs ->
-      match Pdk.Separate_pieces.run ~cancel:(Context.cancel_token context)
+      match Rdk.Separate_pieces.run ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ~owner ~translation_attribute ~axis
           ~gap ~mode ~piece_attribute inputs.(0) with
       | Ok geometry -> cooked geometry
-      | Error error -> structured_pdk_error error)
+      | Error error -> structured_rdk_error error)
 
 let subdivision_scheme_key = function
-  | Pdk.Subdivide.Catmull_clark -> "catmull_clark"
-  | Pdk.Subdivide.Loop -> "loop"
-  | Pdk.Subdivide.Bilinear -> "bilinear"
+  | Rdk.Subdivide.Catmull_clark -> "catmull_clark"
+  | Rdk.Subdivide.Loop -> "loop"
+  | Rdk.Subdivide.Bilinear -> "bilinear"
 
 let subdivision_boundary_key = function
-  | Pdk.Subdivide.Subdivide_boundary_none -> "none"
-  | Pdk.Subdivide.Subdivide_boundary_edge_only -> "edge_only"
-  | Pdk.Subdivide.Subdivide_boundary_edge_and_corner -> "edge_and_corner"
+  | Rdk.Subdivide.Subdivide_boundary_none -> "none"
+  | Rdk.Subdivide.Subdivide_boundary_edge_only -> "edge_only"
+  | Rdk.Subdivide.Subdivide_boundary_edge_and_corner -> "edge_and_corner"
 
 let subdivision_fvar_key = function
-  | Pdk.Subdivide.Subdivide_fvar_none -> "none"
-  | Pdk.Subdivide.Subdivide_fvar_corners_only -> "corners_only"
-  | Pdk.Subdivide.Subdivide_fvar_corners_plus1 -> "corners_plus1"
-  | Pdk.Subdivide.Subdivide_fvar_corners_plus2 -> "corners_plus2"
-  | Pdk.Subdivide.Subdivide_fvar_boundaries -> "boundaries"
-  | Pdk.Subdivide.Subdivide_fvar_all -> "all"
+  | Rdk.Subdivide.Subdivide_fvar_none -> "none"
+  | Rdk.Subdivide.Subdivide_fvar_corners_only -> "corners_only"
+  | Rdk.Subdivide.Subdivide_fvar_corners_plus1 -> "corners_plus1"
+  | Rdk.Subdivide.Subdivide_fvar_corners_plus2 -> "corners_plus2"
+  | Rdk.Subdivide.Subdivide_fvar_boundaries -> "boundaries"
+  | Rdk.Subdivide.Subdivide_fvar_all -> "all"
 
 let subdivision_triangle_key = function
-  | Pdk.Subdivide.Subdivide_triangles_catmull_clark -> "catmull_clark"
-  | Pdk.Subdivide.Subdivide_triangles_smooth -> "smooth"
+  | Rdk.Subdivide.Subdivide_triangles_catmull_clark -> "catmull_clark"
+  | Rdk.Subdivide.Subdivide_triangles_smooth -> "smooth"
 
 let subdivision_creasing_key = function
-  | Pdk.Subdivide.Subdivide_creasing_uniform -> "uniform"
-  | Pdk.Subdivide.Subdivide_creasing_chaikin -> "chaikin"
+  | Rdk.Subdivide.Subdivide_creasing_uniform -> "uniform"
+  | Rdk.Subdivide.Subdivide_creasing_chaikin -> "chaikin"
 
 let subdivision_cracks_key = function
-  | Pdk.Subdivide.Subdivide_do_not_close -> "do_not_close"
-  | Pdk.Subdivide.Subdivide_pull_no_edge_division -> "pull_no_edge_division"
-  | Pdk.Subdivide.Subdivide_pull_divide_edges bias ->
+  | Rdk.Subdivide.Subdivide_do_not_close -> "do_not_close"
+  | Rdk.Subdivide.Subdivide_pull_no_edge_division -> "pull_no_edge_division"
+  | Rdk.Subdivide.Subdivide_pull_divide_edges bias ->
       "pull_divide_edges:" ^ float_key bias
-  | Pdk.Subdivide.Subdivide_pull_triangulate bias ->
+  | Rdk.Subdivide.Subdivide_pull_triangulate bias ->
       "pull_triangulate:" ^ float_key bias
-  | Pdk.Subdivide.Subdivide_stitch_no_edge_division -> "stitch_no_edge_division"
-  | Pdk.Subdivide.Subdivide_stitch_divide_edges -> "stitch_divide_edges"
-  | Pdk.Subdivide.Subdivide_stitch_triangulate -> "stitch_triangulate"
+  | Rdk.Subdivide.Subdivide_stitch_no_edge_division -> "stitch_no_edge_division"
+  | Rdk.Subdivide.Subdivide_stitch_divide_edges -> "stitch_divide_edges"
+  | Rdk.Subdivide.Subdivide_stitch_triangulate -> "stitch_triangulate"
 
-let subdivide ?label ?group ?(scheme = Pdk.Subdivide.Catmull_clark)
-    ?(iterations = 1) ?(cracks = Pdk.Subdivide.Subdivide_do_not_close)
+let subdivide ?label ?group ?(scheme = Rdk.Subdivide.Catmull_clark)
+    ?(iterations = 1) ?(cracks = Rdk.Subdivide.Subdivide_do_not_close)
     ?(consistent_topology = false) ?creases ?crease_group ?crease_weight
     ?(generate_resulting_creases = true) ?resulting_crease_group
     ?hole_group ?(remove_holes = true)
-    ?(boundary_interpolation = Pdk.Subdivide.Subdivide_boundary_edge_only)
-    ?(face_varying_interpolation = Pdk.Subdivide.Subdivide_fvar_all)
-    ?(triangle_policy = Pdk.Subdivide.Subdivide_triangles_catmull_clark)
-    ?(creasing_method = Pdk.Subdivide.Subdivide_creasing_uniform)
+    ?(boundary_interpolation = Rdk.Subdivide.Subdivide_boundary_edge_only)
+    ?(face_varying_interpolation = Rdk.Subdivide.Subdivide_fvar_all)
+    ?(triangle_policy = Rdk.Subdivide.Subdivide_triangles_catmull_clark)
+    ?(creasing_method = Rdk.Subdivide.Subdivide_creasing_uniform)
     ?(treat_curves_as_independent = false)
     ?(recompute_point_normals = false) input =
   Option.iter (fun name -> if String.trim name = "" then
@@ -1378,7 +1378,7 @@ let subdivide ?label ?group ?(scheme = Pdk.Subdivide.Catmull_clark)
       let selection = match group with
         | None -> Ok None
         | Some name ->
-            (match Pdk.Geometry.find_group ~owner:Pdk.Group.Primitive name geometry with
+            (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive name geometry with
              | Some group -> Ok (Some group)
              | None -> Error (Diagnostic.error ~code:"missing_group"
                  (Printf.sprintf "subdivide could not find primitive group %S" name))) in
@@ -1386,7 +1386,7 @@ let subdivide ?label ?group ?(scheme = Pdk.Subdivide.Catmull_clark)
         | None, _ | Some _, None -> Ok None
         | Some _, Some name ->
             let creases = inputs.(1) in
-            (match Pdk.Geometry.find_group ~owner:Pdk.Group.Primitive name creases with
+            (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive name creases with
              | Some group -> Ok (Some group)
              | None -> Error (Diagnostic.error ~code:"missing_group"
                  (Printf.sprintf
@@ -1394,7 +1394,7 @@ let subdivide ?label ?group ?(scheme = Pdk.Subdivide.Catmull_clark)
       let hole_selection = match hole_group with
         | None -> Ok None
         | Some name ->
-            (match Pdk.Geometry.find_group ~owner:Pdk.Group.Primitive name geometry with
+            (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive name geometry with
              | Some group -> Ok (Some group)
              | None -> Error (Diagnostic.error ~code:"missing_group"
                  (Printf.sprintf "subdivide could not find hole primitive group %S"
@@ -1404,7 +1404,7 @@ let subdivide ?label ?group ?(scheme = Pdk.Subdivide.Catmull_clark)
       | _, Error error, _ -> Error error
       | _, _, Error error -> Error error
       | Ok primitives, Ok crease_primitives, Ok hole_primitives ->
-          match Pdk.Subdivide.subdivide ~cancel:(Context.cancel_token context)
+          match Rdk.Subdivide.subdivide ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ~scheme ~iterations ?primitives
               ~cracks ~consistent_topology
               ?creases:(Option.map (fun _ -> inputs.(1)) creases)
@@ -1415,7 +1415,7 @@ let subdivide ?label ?group ?(scheme = Pdk.Subdivide.Catmull_clark)
               ~recompute_point_normals
               geometry with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let edge_divide ?label ?group ?(divisions = 2) ?(share_points = true) input =
   Option.iter (fun name -> if String.trim name = "" then
@@ -1430,7 +1430,7 @@ let edge_divide ?label ?group ?(divisions = 2) ?(share_points = true) input =
       let edges = match group with
         | None -> Ok None
         | Some name ->
-            (match Pdk.Geometry.find_edge_group name inputs.(0) with
+            (match Rdk.Geometry.find_edge_group name inputs.(0) with
              | Some group -> Ok (Some group)
              | None -> Error (Diagnostic.error ~code:"missing_group"
                  (Printf.sprintf
@@ -1438,14 +1438,14 @@ let edge_divide ?label ?group ?(divisions = 2) ?(share_points = true) input =
       match edges with
       | Error error -> Error error
       | Ok edges ->
-          match Pdk.Subdivide.edge_divide ~cancel:(Context.cancel_token context)
+          match Rdk.Subdivide.edge_divide ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?edges ~divisions ~share_points
               inputs.(0) with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let edge_collapse ?label ?group ?connectivity_attribute
-    ?(position = Pdk.Fuse_reduce.Average_position)
+    ?(position = Rdk.Fuse_reduce.Average_position)
     ?(remove_degenerate_primitives = true)
     ?(recompute_point_normals = true) input =
   Option.iter (fun name -> if String.trim name = "" then
@@ -1465,7 +1465,7 @@ let edge_collapse ?label ?group ?connectivity_attribute
       let edges = match group with
         | None -> Ok None
         | Some name ->
-            (match Pdk.Geometry.find_edge_group name geometry with
+            (match Rdk.Geometry.find_edge_group name geometry with
              | Some edges -> Ok (Some edges)
              | None -> Error (Diagnostic.error ~code:"missing_group"
                  (Printf.sprintf
@@ -1473,24 +1473,24 @@ let edge_collapse ?label ?group ?connectivity_attribute
       match edges with
       | Error error -> Error error
       | Ok edges ->
-          match Pdk.Edge_collapse.run ~cancel:(Context.cancel_token context)
+          match Rdk.Edge_collapse.run ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?edges ?connectivity_attribute
               ~position
               ~remove_degenerate_primitives ~recompute_point_normals geometry with
       | Ok geometry -> cooked geometry
-      | Error error -> structured_pdk_error error)
+      | Error error -> structured_rdk_error error)
 
 let dissolve_operation_key = function
-  | Pdk.Dissolve.Dissolve_selected -> "selected"
-  | Pdk.Dissolve.Dissolve_non_selected -> "non_selected"
+  | Rdk.Dissolve.Dissolve_selected -> "selected"
+  | Rdk.Dissolve.Dissolve_non_selected -> "non_selected"
 
 let dissolve_bridge_policy_key = function
-  | Pdk.Dissolve.Create_bridged_polygons -> "bridged"
-  | Pdk.Dissolve.Create_disjoint_polygons -> "disjoint"
-  | Pdk.Dissolve.Delete_bridge_polygons -> "delete"
+  | Rdk.Dissolve.Create_bridged_polygons -> "bridged"
+  | Rdk.Dissolve.Create_disjoint_polygons -> "disjoint"
+  | Rdk.Dissolve.Delete_bridge_polygons -> "delete"
 
-let dissolve ?label ?group ?(operation = Pdk.Dissolve.Dissolve_selected)
-    ?(bridge_policy = Pdk.Dissolve.Create_bridged_polygons)
+let dissolve ?label ?group ?(operation = Rdk.Dissolve.Dissolve_selected)
+    ?(bridge_policy = Rdk.Dissolve.Create_bridged_polygons)
     ?(remove_inline_points = false) ?(collinearity_tolerance = 0.)
     ?(remove_unused_points = true) ?(create_boundary_curves = false)
     ?(recompute_normals = true) input =
@@ -1510,26 +1510,26 @@ let dissolve ?label ?group ?(operation = Pdk.Dissolve.Dissolve_selected)
       let edges = match group with
         | None -> Ok None
         | Some name ->
-            (match Pdk.Geometry.find_edge_group name inputs.(0) with
+            (match Rdk.Geometry.find_edge_group name inputs.(0) with
              | Some value -> Ok (Some value)
              | None -> Error (Diagnostic.error ~code:"missing_edge_group"
                  (Printf.sprintf "dissolve could not find edge group %S" name))) in
       match edges with
       | Error error -> Error error
       | Ok edges ->
-          match Pdk.Dissolve.run ~cancel:(Context.cancel_token context)
+          match Rdk.Dissolve.run ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?edges ~operation ~bridge_policy
               ~remove_inline_points ~collinearity_tolerance
               ~remove_unused_points ~create_boundary_curves ~recompute_normals
               inputs.(0) with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let poly_bevel_shape_key = function
-  | Pdk.Poly_bevel.Bevel_chamfer -> "chamfer"
-  | Pdk.Poly_bevel.Bevel_round { convexity } -> "round:" ^ float_key convexity
+  | Rdk.Poly_bevel.Bevel_chamfer -> "chamfer"
+  | Rdk.Poly_bevel.Bevel_round { convexity } -> "round:" ^ float_key convexity
 
-let poly_bevel ?label ?group ?(shape = Pdk.Poly_bevel.Bevel_chamfer)
+let poly_bevel ?label ?group ?(shape = Rdk.Poly_bevel.Bevel_chamfer)
     ?(divisions = 1) ?point_scale_attribute ?ignore_flat_angle
     ?(clamp_overlap = true) ?edge_group ?corner_group ?offset_group
     ?(recompute_point_normals = true) ~distance input =
@@ -1563,20 +1563,20 @@ let poly_bevel ?label ?group ?(shape = Pdk.Poly_bevel.Bevel_chamfer)
       let edges = match group with
         | None -> Ok None
         | Some name ->
-            (match Pdk.Geometry.find_edge_group name geometry with
+            (match Rdk.Geometry.find_edge_group name geometry with
              | Some value -> Ok (Some value)
              | None -> Error (Diagnostic.error ~code:"missing_edge_group"
                  (Printf.sprintf "poly_bevel could not find edge group %S" name))) in
       match edges with
       | Error error -> Error error
       | Ok edges ->
-          match Pdk.Poly_bevel.run ~cancel:(Context.cancel_token context)
+          match Rdk.Poly_bevel.run ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?edges ~shape ~divisions
               ?point_scale_attribute ?ignore_flat_angle ~clamp_overlap
               ?edge_group ?corner_group ?offset_group ~recompute_point_normals
               ~distance geometry with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let point_split ?label ?selection ?(attributes = "") ?(tolerance = 1e-5)
     ?(promote_attributes = false) input =
@@ -1595,18 +1595,18 @@ let point_split ?label ?selection ?(attributes = "") ?(tolerance = 1e-5)
     (fun ~node_id:_ context inputs ->
       match resolve_element_group ~operation:"point_split" selection inputs.(0) with
       | Error error -> Error error
-      | Ok selection -> match Pdk.Point_split.run
+      | Ok selection -> match Rdk.Point_split.run
           ~cancel:(Context.cancel_token context) ~grain:(Context.grain context)
           ?selection ~attributes ~tolerance ~promote_attributes inputs.(0) with
         | Ok geometry -> cooked geometry
-        | Error error -> structured_pdk_error error)
+        | Error error -> structured_rdk_error error)
 
 let poly_loft_minimize_key = function
-  | Pdk.Poly_loft.Two_point_distance -> "two_point"
-  | Pdk.Poly_loft.Three_point_distance -> "three_point"
+  | Rdk.Poly_loft.Two_point_distance -> "two_point"
+  | Rdk.Poly_loft.Three_point_distance -> "three_point"
 
 let poly_loft ?label ?group ?rest ?(connect_closest_ends = true)
-    ?(minimize = Pdk.Poly_loft.Two_point_distance) ?(u_wrap = false)
+    ?(minimize = Rdk.Poly_loft.Two_point_distance) ?(u_wrap = false)
     ?(v_wrap = false) ?(keep_primitives = false) ?output_group
     ?(collinearity_tolerance = 0.) ?(recompute_normals = true) input =
   let inputs = match rest with None -> [|input|] | Some rest -> [|input; rest|] in
@@ -1629,7 +1629,7 @@ let poly_loft ?label ?group ?rest ?(connect_closest_ends = true)
       let primitives = match group with
         | None -> Ok None
         | Some name ->
-            (match Pdk.Geometry.find_group ~owner:Pdk.Group.Primitive name geometry with
+            (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive name geometry with
              | Some value -> Ok (Some value)
              | None -> Error (Diagnostic.error ~code:"missing_group"
                  (Printf.sprintf
@@ -1638,15 +1638,15 @@ let poly_loft ?label ?group ?rest ?(connect_closest_ends = true)
       | Error error -> Error error
       | Ok primitives ->
           let rest = if Array.length inputs = 2 then Some inputs.(1) else None in
-          match Pdk.Poly_loft.run ~cancel:(Context.cancel_token context)
+          match Rdk.Poly_loft.run ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?primitives ?rest
               ~connect_closest_ends ~minimize ~u_wrap ~v_wrap ~keep_primitives
               ?output_group ~collinearity_tolerance ~recompute_normals geometry with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let skin ?label ?group ?rest ?(connect_closest_ends = true)
-    ?(minimize = Pdk.Poly_loft.Two_point_distance) ?(u_wrap = false)
+    ?(minimize = Rdk.Poly_loft.Two_point_distance) ?(u_wrap = false)
     ?(v_wrap = false) ?(keep_primitives = false) ?output_group
     ?(collinearity_tolerance = 0.) ?(recompute_normals = true) input =
   let inputs = match rest with None -> [|input|] | Some rest -> [|input; rest|] in
@@ -1669,7 +1669,7 @@ let skin ?label ?group ?rest ?(connect_closest_ends = true)
       let primitives = match group with
         | None -> Ok None
         | Some name ->
-            (match Pdk.Geometry.find_group ~owner:Pdk.Group.Primitive name geometry with
+            (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive name geometry with
              | Some value -> Ok (Some value)
              | None -> Error (Diagnostic.error ~code:"missing_group"
                  (Printf.sprintf "skin could not find primitive group %S" name))) in
@@ -1677,20 +1677,20 @@ let skin ?label ?group ?rest ?(connect_closest_ends = true)
       | Error error -> Error error
       | Ok primitives ->
           let rest = if Array.length inputs = 2 then Some inputs.(1) else None in
-          match Pdk.Poly_loft.run ~output:Pdk.Poly_loft.Polygons ~operation:"skin" ~cancel:(Context.cancel_token context)
+          match Rdk.Poly_loft.run ~output:Rdk.Poly_loft.Polygons ~operation:"skin" ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?primitives ?rest
               ~connect_closest_ends ~minimize ~u_wrap ~v_wrap ~keep_primitives
               ?output_group ~collinearity_tolerance ~recompute_normals geometry with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let poly_bridge_pairing_key = function
-  | Pdk.Poly_bridge.Bridge_by_order -> "order"
-  | Pdk.Poly_bridge.Bridge_by_centroid -> "centroid"
+  | Rdk.Poly_bridge.Bridge_by_order -> "order"
+  | Rdk.Poly_bridge.Bridge_by_centroid -> "centroid"
 
 let poly_bridge ?label ~source_group ~destination_group
-    ?(pairing = Pdk.Poly_bridge.Bridge_by_order) ?(connect_closest_ends = true)
-    ?(minimize = Pdk.Poly_loft.Two_point_distance) ?(reverse_source = false)
+    ?(pairing = Rdk.Poly_bridge.Bridge_by_order) ?(connect_closest_ends = true)
+    ?(minimize = Rdk.Poly_loft.Two_point_distance) ?(reverse_source = false)
     ?(reverse_destination = false) ?(pairing_shift = 0)
     ?(divisions = 1) ?(keep_input = true) ?output_group
     ?(collinearity_tolerance = 0.)
@@ -1718,8 +1718,8 @@ let poly_bridge ?label ~source_group ~destination_group
     ~dependencies:Context.Dependencies.static ~inputs:[|input|]
     (fun ~node_id:_ context inputs ->
       let geometry = inputs.(0) in
-      match Pdk.Geometry.find_edge_group source_group geometry,
-          Pdk.Geometry.find_edge_group destination_group geometry with
+      match Rdk.Geometry.find_edge_group source_group geometry,
+          Rdk.Geometry.find_edge_group destination_group geometry with
       | None, _ -> Error (Diagnostic.error ~code:"missing_edge_group"
           (Printf.sprintf "poly_bridge could not find source edge group %S"
              source_group))
@@ -1727,13 +1727,13 @@ let poly_bridge ?label ~source_group ~destination_group
           (Printf.sprintf "poly_bridge could not find destination edge group %S"
              destination_group))
       | Some source, Some destination ->
-          match Pdk.Poly_bridge.run ~cancel:(Context.cancel_token context)
+          match Rdk.Poly_bridge.run ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ~source ~destination ~pairing
               ~connect_closest_ends ~minimize ~reverse_source
               ~reverse_destination ~pairing_shift ~divisions ~keep_input ?output_group
               ~collinearity_tolerance ~recompute_normals geometry with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let edge_flip ?label ?group ?(cycles = 1)
     ?(cycle_vertex_attributes = true) ?(recompute_point_normals = false) input =
@@ -1751,7 +1751,7 @@ let edge_flip ?label ?group ?(cycles = 1)
       let edges = match group with
         | None -> Ok None
         | Some name ->
-            (match Pdk.Geometry.find_edge_group name geometry with
+            (match Rdk.Geometry.find_edge_group name geometry with
              | Some edges -> Ok (Some edges)
              | None -> Error (Diagnostic.error ~code:"missing_group"
                  (Printf.sprintf
@@ -1759,11 +1759,11 @@ let edge_flip ?label ?group ?(cycles = 1)
       match edges with
       | Error error -> Error error
       | Ok edges ->
-          match Pdk.Edge_flip.run ~cancel:(Context.cancel_token context)
+          match Rdk.Edge_flip.run ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?edges ~cycles
               ~cycle_vertex_attributes ~recompute_point_normals geometry with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let edge_cusp ?label ?group ?(update_point_normals = true) input =
   Option.iter (fun name -> if String.trim name = "" then
@@ -1777,7 +1777,7 @@ let edge_cusp ?label ?group ?(update_point_normals = true) input =
       let edges = match group with
         | None -> Ok None
         | Some name ->
-            (match Pdk.Geometry.find_edge_group name geometry with
+            (match Rdk.Geometry.find_edge_group name geometry with
              | Some edges -> Ok (Some edges)
              | None -> Error (Diagnostic.error ~code:"missing_group"
                  (Printf.sprintf
@@ -1785,11 +1785,11 @@ let edge_cusp ?label ?group ?(update_point_normals = true) input =
       match edges with
       | Error error -> Error error
       | Ok edges ->
-          match Pdk.Facet.edge_cusp ~cancel:(Context.cancel_token context)
+          match Rdk.Facet.edge_cusp ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?edges ~update_point_normals
               geometry with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let edge_straighten ?label ?group ?output_group input =
   Option.iter (fun name -> if String.trim name = "" then
@@ -1806,7 +1806,7 @@ let edge_straighten ?label ?group ?output_group input =
       let edges = match group with
         | None -> Ok None
         | Some name ->
-            (match Pdk.Geometry.find_edge_group name geometry with
+            (match Rdk.Geometry.find_edge_group name geometry with
              | Some edges -> Ok (Some edges)
              | None -> Error (Diagnostic.error ~code:"missing_group"
                  (Printf.sprintf
@@ -1814,10 +1814,10 @@ let edge_straighten ?label ?group ?output_group input =
       match edges with
       | Error error -> Error error
       | Ok edges ->
-          match Pdk.Edge_ops.straighten ~cancel:(Context.cancel_token context)
+          match Rdk.Edge_ops.straighten ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?edges ?output_group geometry with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let circle_from_edges ?label ?group ?radius
     ?(scale = Vec3.create 1. 1. 1.) ?output_group input =
@@ -1843,7 +1843,7 @@ let circle_from_edges ?label ?group ?radius
       let edges = match group with
         | None -> Ok None
         | Some name ->
-            (match Pdk.Geometry.find_edge_group name geometry with
+            (match Rdk.Geometry.find_edge_group name geometry with
              | Some edges -> Ok (Some edges)
              | None -> Error (Diagnostic.error ~code:"missing_group"
                  (Printf.sprintf
@@ -1852,22 +1852,22 @@ let circle_from_edges ?label ?group ?radius
       match edges with
       | Error error -> Error error
       | Ok edges ->
-          match Pdk.Circle_from_edges.run ~cancel:(Context.cancel_token context)
+          match Rdk.Circle_from_edges.run ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?edges ?radius ~scale ?output_group
               geometry with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let graph_color_connectivity_key = function
-  | Pdk.Graph_color.Graph_primitives_by_point -> "primitives_by_point"
-  | Pdk.Graph_color.Graph_points_by_primitive -> "points_by_primitive"
-  | Pdk.Graph_color.Graph_primitives_by_edge -> "primitives_by_edge"
+  | Rdk.Graph_color.Graph_primitives_by_point -> "primitives_by_point"
+  | Rdk.Graph_color.Graph_points_by_primitive -> "points_by_primitive"
+  | Rdk.Graph_color.Graph_primitives_by_edge -> "primitives_by_edge"
 
-let graph_color_worksets_key (value : Pdk.Graph_color.worksets) =
+let graph_color_worksets_key (value : Rdk.Graph_color.worksets) =
   String.escaped value.begin_attribute ^ "," ^ String.escaped value.length_attribute
 
 let graph_color ?label ?selection
-    ?(connectivity = Pdk.Graph_color.Graph_primitives_by_point)
+    ?(connectivity = Rdk.Graph_color.Graph_primitives_by_point)
     ?(color_attribute = "color") ?(sort_output = false) ?worksets input =
   let validate_name label name =
     if String.trim name = "" || String.equal name "P" then
@@ -1879,7 +1879,7 @@ let graph_color ?label ?selection
       | Edge_group name -> name in
     if String.trim name = "" then
       invalid_arg "Sop.graph_color: empty selection group name") selection;
-  Option.iter (fun (value : Pdk.Graph_color.worksets) ->
+  Option.iter (fun (value : Rdk.Graph_color.worksets) ->
     validate_name "workset begin attribute" value.begin_attribute;
     validate_name "workset length attribute" value.length_attribute;
     if String.equal value.begin_attribute value.length_attribute then
@@ -1898,18 +1898,18 @@ let graph_color ?label ?selection
       match resolve_element_group ~operation:"graph_color" selection inputs.(0) with
       | Error error -> Error error
       | Ok selection ->
-          match Pdk.Graph_color.run ~cancel:(Context.cancel_token context)
+          match Rdk.Graph_color.run ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?selection ~connectivity
               ~color_attribute ~sort_output ?worksets inputs.(0) with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let edge_equalize_method_key = function
-  | Pdk.Edge_ops.Equalize_average -> "average"
-  | Pdk.Edge_ops.Equalize_longest -> "longest"
-  | Pdk.Edge_ops.Equalize_shortest -> "shortest"
+  | Rdk.Edge_ops.Equalize_average -> "average"
+  | Rdk.Edge_ops.Equalize_longest -> "longest"
+  | Rdk.Edge_ops.Equalize_shortest -> "shortest"
 
-let edge_equalize ?label ?group ?(method_ = Pdk.Edge_ops.Equalize_average)
+let edge_equalize ?label ?group ?(method_ = Rdk.Edge_ops.Equalize_average)
     ?(iterations = 64) ?(tolerance = 1e-6) ?output_group input =
   Option.iter (fun name -> if String.trim name = "" then
     invalid_arg "Sop.edge_equalize: empty edge group name") group;
@@ -1930,7 +1930,7 @@ let edge_equalize ?label ?group ?(method_ = Pdk.Edge_ops.Equalize_average)
       let edges = match group with
         | None -> Ok None
         | Some name ->
-            (match Pdk.Geometry.find_edge_group name geometry with
+            (match Rdk.Geometry.find_edge_group name geometry with
              | Some edges -> Ok (Some edges)
              | None -> Error (Diagnostic.error ~code:"missing_group"
                  (Printf.sprintf
@@ -1938,18 +1938,18 @@ let edge_equalize ?label ?group ?(method_ = Pdk.Edge_ops.Equalize_average)
       match edges with
       | Error error -> Error error
       | Ok edges ->
-          match Pdk.Edge_ops.equalize ~cancel:(Context.cancel_token context)
+          match Rdk.Edge_ops.equalize ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?edges ~method_ ~iterations
               ~tolerance ?output_group geometry with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let edge_relax_target_key = function
-  | Pdk.Edge_relax.Individual_lengths -> "individual"
-  | Pdk.Edge_relax.Scale_independent_distribution -> "scale_independent"
+  | Rdk.Edge_relax.Individual_lengths -> "individual"
+  | Rdk.Edge_relax.Scale_independent_distribution -> "scale_independent"
 
 let edge_relax ?label ?group ?pin_group ?(iterations = 20)
-    ?(step_size = 0.5) ?(target_mode = Pdk.Edge_relax.Individual_lengths)
+    ?(step_size = 0.5) ?(target_mode = Rdk.Edge_relax.Individual_lengths)
     ?(only_shorten = false) ?(tolerance = 1e-6) ~reference input =
   (match group with
    | Some (Vertex_group _ | Edge_group _) ->
@@ -1975,20 +1975,20 @@ let edge_relax ?label ?group ?pin_group ?(iterations = 20)
       let selection = match group with
         | None -> Ok None
         | Some (Point_group name) ->
-            (match Pdk.Geometry.find_group ~owner:Pdk.Group.Point name geometry with
-             | Some group -> Ok (Some (Pdk.Edge_relax.Relax_points group))
+            (match Rdk.Geometry.find_group ~owner:Rdk.Group.Point name geometry with
+             | Some group -> Ok (Some (Rdk.Edge_relax.Relax_points group))
              | None -> Error (Diagnostic.error ~code:"missing_group"
                  (Printf.sprintf "edge_relax could not find point group %S" name)))
         | Some (Primitive_group name) ->
-            (match Pdk.Geometry.find_group ~owner:Pdk.Group.Primitive name geometry with
-             | Some group -> Ok (Some (Pdk.Edge_relax.Relax_primitives group))
+            (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive name geometry with
+             | Some group -> Ok (Some (Rdk.Edge_relax.Relax_primitives group))
              | None -> Error (Diagnostic.error ~code:"missing_group"
                  (Printf.sprintf "edge_relax could not find primitive group %S" name)))
         | Some (Vertex_group _ | Edge_group _) -> assert false in
       let pins = match pin_group with
         | None -> Ok None
         | Some name ->
-            (match Pdk.Geometry.find_group ~owner:Pdk.Group.Point name geometry with
+            (match Rdk.Geometry.find_group ~owner:Rdk.Group.Point name geometry with
              | Some group -> Ok (Some group)
              | None -> Error (Diagnostic.error ~code:"missing_group"
                  (Printf.sprintf "edge_relax could not find pin point group %S"
@@ -1996,52 +1996,52 @@ let edge_relax ?label ?group ?pin_group ?(iterations = 20)
       match selection, pins with
       | Error error, _ | _, Error error -> Error error
       | Ok selection, Ok pin_points ->
-          match Pdk.Edge_relax.relax ~cancel:(Context.cancel_token context)
+          match Rdk.Edge_relax.relax ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?selection ?pin_points ~iterations
               ~step_size ~target_mode ~only_shorten ~tolerance ~reference
               geometry with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let edge_transport_roots_key = function
-  | Pdk.Edge_transport.Transport_first_point -> "first"
-  | Pdk.Edge_transport.Transport_last_point -> "last"
-  | Pdk.Edge_transport.Transport_root_group _ -> "group"
+  | Rdk.Edge_transport.Transport_first_point -> "first"
+  | Rdk.Edge_transport.Transport_last_point -> "last"
+  | Rdk.Edge_transport.Transport_root_group _ -> "group"
 
 let edge_transport_operation_key = function
-  | Pdk.Edge_transport.Transport -> "transport"
-  | Pdk.Edge_transport.Transport_from_root -> "from_root"
-  | Pdk.Edge_transport.Transport_total -> "total"
-  | Pdk.Edge_transport.Transport_maximum -> "maximum"
-  | Pdk.Edge_transport.Transport_minimum -> "minimum"
+  | Rdk.Edge_transport.Transport -> "transport"
+  | Rdk.Edge_transport.Transport_from_root -> "from_root"
+  | Rdk.Edge_transport.Transport_total -> "total"
+  | Rdk.Edge_transport.Transport_maximum -> "maximum"
+  | Rdk.Edge_transport.Transport_minimum -> "minimum"
 
 let edge_transport_split_key = function
-  | Pdk.Edge_transport.Transport_copy -> "copy"
-  | Pdk.Edge_transport.Transport_split -> "split"
+  | Rdk.Edge_transport.Transport_copy -> "copy"
+  | Rdk.Edge_transport.Transport_split -> "split"
 
 let edge_transport_normalization_key = function
-  | Pdk.Edge_transport.Transport_no_normalization -> "none"
-  | Pdk.Edge_transport.Transport_normalize_components -> "components"
-  | Pdk.Edge_transport.Transport_normalize_global -> "global"
+  | Rdk.Edge_transport.Transport_no_normalization -> "none"
+  | Rdk.Edge_transport.Transport_normalize_components -> "components"
+  | Rdk.Edge_transport.Transport_normalize_global -> "global"
 
 let edge_transport_direction_key = function
-  | Pdk.Edge_transport.Transport_forward -> "forward"
-  | Pdk.Edge_transport.Transport_backward -> "backward"
+  | Rdk.Edge_transport.Transport_forward -> "forward"
+  | Rdk.Edge_transport.Transport_backward -> "backward"
 
 let edge_transport_merge_key = function
-  | Pdk.Edge_transport.Transport_merge_add -> "add"
-  | Pdk.Edge_transport.Transport_merge_maximum -> "maximum"
-  | Pdk.Edge_transport.Transport_merge_minimum -> "minimum"
+  | Rdk.Edge_transport.Transport_merge_add -> "add"
+  | Rdk.Edge_transport.Transport_merge_maximum -> "maximum"
+  | Rdk.Edge_transport.Transport_merge_minimum -> "minimum"
 
 type blend_shape = {
   blend_node : Node.t;
   blend_weight : float;
   blend_mask_attribute : string option;
-  blend_mask_source : Pdk.Blend_shapes.mask_source;
+  blend_mask_source : Rdk.Blend_shapes.mask_source;
 }
 
 let blend_shape ?mask_attribute
-    ?(mask_source = Pdk.Blend_shapes.Blend_mask_shape) ~weight blend_node =
+    ?(mask_source = Rdk.Blend_shapes.Blend_mask_shape) ~weight blend_node =
   if not (Float.is_finite weight) then
     invalid_arg "Sop.blend_shape: weight must be finite";
   Option.iter (fun name -> if String.trim name = "" then
@@ -2050,20 +2050,20 @@ let blend_shape ?mask_attribute
     blend_mask_source = mask_source }
 
 let blend_shapes_mode_key = function
-  | Pdk.Blend_shapes.Blend_normalized -> "normalized"
-  | Pdk.Blend_shapes.Blend_differencing -> "differencing"
+  | Rdk.Blend_shapes.Blend_normalized -> "normalized"
+  | Rdk.Blend_shapes.Blend_differencing -> "differencing"
 
 let blend_shapes_masking_key = function
-  | Pdk.Blend_shapes.Blend_no_mask -> "none"
-  | Pdk.Blend_shapes.Blend_set_from_attribute -> "set"
-  | Pdk.Blend_shapes.Blend_scale_from_attribute -> "scale"
+  | Rdk.Blend_shapes.Blend_no_mask -> "none"
+  | Rdk.Blend_shapes.Blend_set_from_attribute -> "set"
+  | Rdk.Blend_shapes.Blend_scale_from_attribute -> "scale"
 
 let blend_mask_source_key = function
-  | Pdk.Blend_shapes.Blend_mask_first_input -> "first"
-  | Pdk.Blend_shapes.Blend_mask_shape -> "shape"
+  | Rdk.Blend_shapes.Blend_mask_first_input -> "first"
+  | Rdk.Blend_shapes.Blend_mask_shape -> "shape"
 
-let blend_shapes ?label ?point_group ?(mode = Pdk.Blend_shapes.Blend_normalized)
-    ?(masking = Pdk.Blend_shapes.Blend_no_mask) ?mask_attribute ?point_id_attribute
+let blend_shapes ?label ?point_group ?(mode = Rdk.Blend_shapes.Blend_normalized)
+    ?(masking = Rdk.Blend_shapes.Blend_no_mask) ?mask_attribute ?point_id_attribute
     ?(attributes = "*") ~shapes input =
   List.iter (fun (kind, name) -> Option.iter (fun name ->
       if String.trim name = "" then invalid_arg
@@ -2098,14 +2098,14 @@ let blend_shapes ?label ?point_group ?(mode = Pdk.Blend_shapes.Blend_normalized)
         | Error error -> Error error
         | Ok points ->
             let shapes = Array.to_list (Array.mapi (fun index shape ->
-              Pdk.Blend_shapes.shape ?mask_attribute:shape.blend_mask_attribute
+              Rdk.Blend_shapes.shape ?mask_attribute:shape.blend_mask_attribute
                 ~mask_source:shape.blend_mask_source ~weight:shape.blend_weight
                 inputs.(index + 1)) shape_array) in
-            match Pdk.Blend_shapes.run ~cancel:(Context.cancel_token context)
+            match Rdk.Blend_shapes.run ~cancel:(Context.cancel_token context)
                 ~grain:(Context.grain context) ?points ~mode ~masking
                 ?mask_attribute ?point_id_attribute ~attributes ~shapes geometry with
             | Ok geometry -> cooked geometry
-            | Error error -> structured_pdk_error error)
+            | Error error -> structured_rdk_error error)
 
 type attribute_composite_input = {
   composite_node : Node.t;
@@ -2118,13 +2118,13 @@ let attribute_composite_input ~weight composite_node =
   { composite_node; composite_weight = weight }
 
 let attribute_composite_operation_key = function
-  | Pdk.Attribute_composite.Composite_mean -> "mean"
-  | Pdk.Attribute_composite.Composite_maximum -> "maximum"
-  | Pdk.Attribute_composite.Composite_minimum -> "minimum"
-  | Pdk.Attribute_composite.Composite_over -> "over"
-  | Pdk.Attribute_composite.Composite_under -> "under"
+  | Rdk.Attribute_composite.Composite_mean -> "mean"
+  | Rdk.Attribute_composite.Composite_maximum -> "maximum"
+  | Rdk.Attribute_composite.Composite_minimum -> "minimum"
+  | Rdk.Attribute_composite.Composite_over -> "over"
+  | Rdk.Attribute_composite.Composite_under -> "under"
 
-let attribute_composite ?label ?(operation = Pdk.Attribute_composite.Composite_mean)
+let attribute_composite ?label ?(operation = Rdk.Attribute_composite.Composite_mean)
     ?(weight = 1.) ?(detail_attributes = "*")
     ?(primitive_attributes = "*") ?(point_attributes = "*")
     ?(vertex_attributes = "*") ?(allow_position = false) ?alpha_attribute
@@ -2155,14 +2155,14 @@ let attribute_composite ?label ?(operation = Pdk.Attribute_composite.Composite_m
     ~dependencies:Context.Dependencies.static ~inputs:nodes
     (fun ~node_id:_ context geometries ->
       let inputs = Array.to_list (Array.mapi (fun index input ->
-        Pdk.Attribute_composite.input ~weight:input.composite_weight
+        Rdk.Attribute_composite.input ~weight:input.composite_weight
           geometries.(index + 1)) composite_inputs) in
-      match Pdk.Attribute_composite.run ~cancel:(Context.cancel_token context)
+      match Rdk.Attribute_composite.run ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ~operation ~weight ~detail_attributes
           ~primitive_attributes ~point_attributes ~vertex_attributes
           ~allow_position ?alpha_attribute ~inputs geometries.(0) with
       | Ok geometry -> cooked geometry
-      | Error error -> structured_pdk_error error)
+      | Error error -> structured_rdk_error error)
 
 type attribute_mirror_method =
   | Attribute_mirror_plane of {
@@ -2177,26 +2177,26 @@ type attribute_mirror_method =
     }
 
 let attribute_mirror_owner_key = function
-  | Pdk.Attribute_mirror.Mirror_point_attributes -> "point"
-  | Pdk.Attribute_mirror.Mirror_vertex_attributes -> "vertex"
-  | Pdk.Attribute_mirror.Mirror_primitive_attributes -> "primitive"
+  | Rdk.Attribute_mirror.Mirror_point_attributes -> "point"
+  | Rdk.Attribute_mirror.Mirror_vertex_attributes -> "vertex"
+  | Rdk.Attribute_mirror.Mirror_primitive_attributes -> "primitive"
 
 let attribute_mirror_group_owner = function
-  | Pdk.Attribute_mirror.Mirror_point_attributes -> Pdk.Group.Point
-  | Pdk.Attribute_mirror.Mirror_vertex_attributes -> Pdk.Group.Vertex
-  | Pdk.Attribute_mirror.Mirror_primitive_attributes -> Pdk.Group.Primitive
+  | Rdk.Attribute_mirror.Mirror_point_attributes -> Rdk.Group.Point
+  | Rdk.Attribute_mirror.Mirror_vertex_attributes -> Rdk.Group.Vertex
+  | Rdk.Attribute_mirror.Mirror_primitive_attributes -> Rdk.Group.Primitive
 
 let attribute_mirror_group_use_key = function
-  | Pdk.Attribute_mirror.Mirror_group_as_source -> "source"
-  | Pdk.Attribute_mirror.Mirror_group_as_destination -> "destination"
+  | Rdk.Attribute_mirror.Mirror_group_as_source -> "source"
+  | Rdk.Attribute_mirror.Mirror_group_as_destination -> "destination"
 
 let attribute_mirror_transform_key = function
-  | Pdk.Attribute_mirror.Mirror_copy -> "copy"
-  | Pdk.Attribute_mirror.Mirror_uv { origin_u; origin_v; direction_u; direction_v } ->
+  | Rdk.Attribute_mirror.Mirror_copy -> "copy"
+  | Rdk.Attribute_mirror.Mirror_uv { origin_u; origin_v; direction_u; direction_v } ->
       String.concat ":" ["uv"; float_key origin_u; float_key origin_v;
         float_key direction_u; float_key direction_v]
-  | Pdk.Attribute_mirror.Mirror_vector -> "vector"
-  | Pdk.Attribute_mirror.Mirror_point -> "point"
+  | Rdk.Attribute_mirror.Mirror_vector -> "vector"
+  | Rdk.Attribute_mirror.Mirror_point -> "point"
 
 let attribute_mirror_method_copy = function
   | Attribute_mirror_plane { origin; normal; distance; tolerance } ->
@@ -2214,8 +2214,8 @@ let attribute_mirror_method_key = function
       ^ String.escaped destination_group
 
 let attribute_mirror ?label ?group
-    ?(group_use = Pdk.Attribute_mirror.Mirror_group_as_source) ?(attributes = "Cd")
-    ?(transform = Pdk.Attribute_mirror.Mirror_copy) ?string_replace ?output_mapping
+    ?(group_use = Rdk.Attribute_mirror.Mirror_group_as_source) ?(attributes = "Cd")
+    ?(transform = Rdk.Attribute_mirror.Mirror_copy) ?string_replace ?output_mapping
     ?source_group ?destination_group ~owner ~method_ input =
   let method_ = attribute_mirror_method_copy method_ in
   List.iter (fun (kind, name) -> Option.iter (fun name ->
@@ -2255,7 +2255,7 @@ let attribute_mirror ?label ?group
       let resolve label name = match name with
         | None -> Ok None
         | Some name ->
-            (match Pdk.Geometry.find_group ~owner:group_owner name geometry with
+            (match Rdk.Geometry.find_group ~owner:group_owner name geometry with
              | Some group -> Ok (Some group)
              | None -> Error (Diagnostic.error ~code:"missing_group"
                  (Printf.sprintf "attribute_mirror could not find %s %S"
@@ -2265,12 +2265,12 @@ let attribute_mirror ?label ?group
       | Ok resolved_group ->
           let resolved_method = match method_ with
             | Attribute_mirror_plane { origin; normal; distance; tolerance } ->
-                Ok (Pdk.Attribute_mirror.Mirror_by_plane {
+                Ok (Rdk.Attribute_mirror.Mirror_by_plane {
                   origin; normal; distance; tolerance })
             | Attribute_mirror_mapping { mapping_attribute;
                 destination_group = name } ->
-                (match Pdk.Geometry.find_group ~owner:group_owner name geometry with
-                 | Some destination_group -> Ok (Pdk.Attribute_mirror.Mirror_by_mapping {
+                (match Rdk.Geometry.find_group ~owner:group_owner name geometry with
+                 | Some destination_group -> Ok (Rdk.Attribute_mirror.Mirror_by_mapping {
                      mapping_attribute; destination_group })
                  | None -> Error (Diagnostic.error ~code:"missing_group"
                      (Printf.sprintf
@@ -2279,19 +2279,19 @@ let attribute_mirror ?label ?group
           match resolved_method with
           | Error error -> Error error
           | Ok method_ ->
-              match Pdk.Attribute_mirror.run
+              match Rdk.Attribute_mirror.run
                   ~cancel:(Context.cancel_token context)
                   ~grain:(Context.grain context) ?group:resolved_group ~group_use
                   ~attributes ~transform ?string_replace ?output_mapping
                   ?source_group ?destination_group ~owner ~method_ geometry with
               | Ok geometry -> cooked geometry
-              | Error error -> structured_pdk_error error)
+              | Error error -> structured_rdk_error error)
 
 let rewire_owner_key = function
-  | Pdk.Attribute.Point -> "point"
-  | Pdk.Attribute.Vertex -> "vertex"
-  | Pdk.Attribute.Primitive -> "primitive"
-  | Pdk.Attribute.Detail -> "detail"
+  | Rdk.Attribute.Point -> "point"
+  | Rdk.Attribute.Vertex -> "vertex"
+  | Rdk.Attribute.Primitive -> "primitive"
+  | Rdk.Attribute.Detail -> "detail"
 
 let rewire_vertices ?label ?selection ?(recursive = false)
     ?(delete_target_attribute = false) ?(keep_unused_points = false)
@@ -2317,22 +2317,22 @@ let rewire_vertices ?label ?selection ?(recursive = false)
       match resolve_element_group ~operation:"rewire_vertices" selection inputs.(0) with
       | Error error -> Error error
       | Ok selection ->
-          match Pdk.Rewire_vertices.run ~cancel:(Context.cancel_token context)
+          match Rdk.Rewire_vertices.run ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?selection ~recursive
               ~delete_target_attribute ~keep_unused_points
               ?original_point_attribute ~owner ~target_attribute inputs.(0) with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let edge_transport ?label ?point_group ?root_group
-    ?(roots = Pdk.Edge_transport.Transport_first_point)
-    ?(direction = Pdk.Edge_transport.Transport_forward)
-    ?(operation = Pdk.Edge_transport.Transport)
-    ?(root_value = Pdk.Edge_transport.Transport_root_hold)
+    ?(roots = Rdk.Edge_transport.Transport_first_point)
+    ?(direction = Rdk.Edge_transport.Transport_forward)
+    ?(operation = Rdk.Edge_transport.Transport)
+    ?(root_value = Rdk.Edge_transport.Transport_root_hold)
     ?(integrate_constant = false) ?(scale_by_edge_length = false)
-    ?(split = Pdk.Edge_transport.Transport_copy)
-    ?(merge = Pdk.Edge_transport.Transport_merge_add)
-    ?(normalization = Pdk.Edge_transport.Transport_no_normalization) ~attribute input =
+    ?(split = Rdk.Edge_transport.Transport_copy)
+    ?(merge = Rdk.Edge_transport.Transport_merge_add)
+    ?(normalization = Rdk.Edge_transport.Transport_no_normalization) ~attribute input =
   List.iter (fun (kind, name) -> Option.iter (fun name ->
       if String.trim name = "" then
         invalid_arg ("Sop.edge_transport: empty " ^ kind ^ " group name")) name)
@@ -2340,9 +2340,9 @@ let edge_transport ?label ?point_group ?root_group
   if String.trim attribute = "" || attribute = "P" then
     invalid_arg "Sop.edge_transport: attribute must be non-empty and not P";
   (match roots, root_group with
-   | Pdk.Edge_transport.Transport_root_group _, _ ->
+   | Rdk.Edge_transport.Transport_root_group _, _ ->
        invalid_arg "Sop.edge_transport: construct grouped roots with ~root_group"
-   | (Pdk.Edge_transport.Transport_first_point | Pdk.Edge_transport.Transport_last_point), Some _ -> ()
+   | (Rdk.Edge_transport.Transport_first_point | Rdk.Edge_transport.Transport_last_point), Some _ -> ()
    | _, None -> ());
   let roots_key = if Option.is_some root_group then "group"
     else edge_transport_roots_key roots in
@@ -2352,8 +2352,8 @@ let edge_transport ?label ?point_group ?root_group
       (option_string_key point_group) roots_key (option_string_key root_group)
       (edge_transport_direction_key direction)
       (edge_transport_operation_key operation)
-      (match root_value with Pdk.Edge_transport.Transport_root_zero -> "zero"
-        | Pdk.Edge_transport.Transport_root_hold -> "hold")
+      (match root_value with Rdk.Edge_transport.Transport_root_zero -> "zero"
+        | Rdk.Edge_transport.Transport_root_hold -> "hold")
       integrate_constant scale_by_edge_length (edge_transport_split_key split)
       (edge_transport_merge_key merge)
       (edge_transport_normalization_key normalization) attribute)
@@ -2365,48 +2365,48 @@ let edge_transport ?label ?point_group ?root_group
       let roots = match root_group with
         | None -> Ok roots
         | Some name ->
-            (match Pdk.Geometry.find_group ~owner:Pdk.Group.Point name geometry with
-             | Some group -> Ok (Pdk.Edge_transport.Transport_root_group group)
+            (match Rdk.Geometry.find_group ~owner:Rdk.Group.Point name geometry with
+             | Some group -> Ok (Rdk.Edge_transport.Transport_root_group group)
              | None -> Error (Diagnostic.error ~code:"missing_group"
                  (Printf.sprintf "edge_transport could not find root point group %S"
                     name))) in
       match points, roots with
       | Error error, _ | _, Error error -> Error error
       | Ok points, Ok roots ->
-          match Pdk.Edge_transport.run ~cancel:(Context.cancel_token context)
+          match Rdk.Edge_transport.run ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?points ~roots ~operation ~root_value
               ~integrate_constant ~scale_by_edge_length ~split ~direction ~merge
               ~normalization ~attribute geometry with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let edge_transport_curves ?label ?primitive_group
-    ?(owner = Pdk.Attribute.Point)
-    ?(direction = Pdk.Edge_transport.Transport_forward)
-    ?(operation = Pdk.Edge_transport.Transport)
-    ?(root_value = Pdk.Edge_transport.Transport_root_hold)
+    ?(owner = Rdk.Attribute.Point)
+    ?(direction = Rdk.Edge_transport.Transport_forward)
+    ?(operation = Rdk.Edge_transport.Transport)
+    ?(root_value = Rdk.Edge_transport.Transport_root_hold)
     ?(integrate_constant = false) ?(scale_by_edge_length = false)
-    ?(normalization = Pdk.Edge_transport.Transport_no_normalization) ~attribute input =
+    ?(normalization = Rdk.Edge_transport.Transport_no_normalization) ~attribute input =
   Option.iter (fun name -> if String.trim name = "" then
     invalid_arg "Sop.edge_transport_curves: empty primitive group name")
     primitive_group;
   if String.trim attribute = "" || attribute = "P" then
     invalid_arg
       "Sop.edge_transport_curves: attribute must be non-empty and not P";
-  if owner <> Pdk.Attribute.Point && owner <> Pdk.Attribute.Vertex then
+  if owner <> Rdk.Attribute.Point && owner <> Rdk.Attribute.Vertex then
     invalid_arg "Sop.edge_transport_curves: owner must be point or vertex";
   let owner_key = match owner with
-    | Pdk.Attribute.Point -> "point"
-    | Pdk.Attribute.Vertex -> "vertex"
-    | Pdk.Attribute.Primitive | Pdk.Attribute.Detail -> assert false in
+    | Rdk.Attribute.Point -> "point"
+    | Rdk.Attribute.Vertex -> "vertex"
+    | Rdk.Attribute.Primitive | Rdk.Attribute.Detail -> assert false in
   Node.Private.make ?label ~operation:"edge_transport_curves" ~version:1
     ~parameters:(Printf.sprintf
       "primitive_group=%s;owner=%s;direction=%s;operation=%s;root_value=%s;integrate_constant=%b;scale_by_edge_length=%b;normalization=%s;attribute=%S"
       (option_string_key primitive_group) owner_key
       (edge_transport_direction_key direction)
       (edge_transport_operation_key operation)
-      (match root_value with Pdk.Edge_transport.Transport_root_zero -> "zero"
-        | Pdk.Edge_transport.Transport_root_hold -> "hold")
+      (match root_value with Rdk.Edge_transport.Transport_root_zero -> "zero"
+        | Rdk.Edge_transport.Transport_root_hold -> "hold")
       integrate_constant scale_by_edge_length
       (edge_transport_normalization_key normalization) attribute)
     ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
@@ -2416,22 +2416,22 @@ let edge_transport_curves ?label ?primitive_group
           primitive_group geometry with
       | Error error -> Error error
       | Ok primitives ->
-          match Pdk.Edge_transport.run_curves
+          match Rdk.Edge_transport.run_curves
               ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?primitives ~owner ~direction
               ~operation ~root_value ~integrate_constant ~scale_by_edge_length
               ~normalization ~attribute geometry with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let edge_transport_parent ?label ?point_group ?(parent_attribute = "parent")
-    ?(direction = Pdk.Edge_transport.Transport_forward)
-    ?(operation = Pdk.Edge_transport.Transport)
-    ?(root_value = Pdk.Edge_transport.Transport_root_hold)
+    ?(direction = Rdk.Edge_transport.Transport_forward)
+    ?(operation = Rdk.Edge_transport.Transport)
+    ?(root_value = Rdk.Edge_transport.Transport_root_hold)
     ?(integrate_constant = false) ?(scale_by_edge_length = false)
-    ?(split = Pdk.Edge_transport.Transport_copy)
-    ?(merge = Pdk.Edge_transport.Transport_merge_add)
-    ?(normalization = Pdk.Edge_transport.Transport_no_normalization) ~attribute input =
+    ?(split = Rdk.Edge_transport.Transport_copy)
+    ?(merge = Rdk.Edge_transport.Transport_merge_add)
+    ?(normalization = Rdk.Edge_transport.Transport_no_normalization) ~attribute input =
   Option.iter (fun name -> if String.trim name = "" then
     invalid_arg "Sop.edge_transport_parent: empty point group name") point_group;
   if String.trim parent_attribute = "" then
@@ -2445,8 +2445,8 @@ let edge_transport_parent ?label ?point_group ?(parent_attribute = "parent")
       (option_string_key point_group) parent_attribute
       (edge_transport_direction_key direction)
       (edge_transport_operation_key operation)
-      (match root_value with Pdk.Edge_transport.Transport_root_zero -> "zero"
-        | Pdk.Edge_transport.Transport_root_hold -> "hold")
+      (match root_value with Rdk.Edge_transport.Transport_root_zero -> "zero"
+        | Rdk.Edge_transport.Transport_root_hold -> "hold")
       integrate_constant scale_by_edge_length (edge_transport_split_key split)
       (edge_transport_merge_key merge)
       (edge_transport_normalization_key normalization) attribute)
@@ -2457,28 +2457,28 @@ let edge_transport_parent ?label ?point_group ?(parent_attribute = "parent")
           geometry with
       | Error error -> Error error
       | Ok points ->
-          match Pdk.Edge_transport.run_parent
+          match Rdk.Edge_transport.run_parent
               ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?points ~parent_attribute ~direction
               ~operation ~root_value ~integrate_constant ~scale_by_edge_length
               ~split ~merge ~normalization ~attribute geometry with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let copy_target_owner_key = function
-  | Pdk.Instance_copy.Copy_target_points -> "points"
-  | Pdk.Instance_copy.Copy_target_vertices -> "vertices"
-  | Pdk.Instance_copy.Copy_target_primitives -> "primitives"
+  | Rdk.Instance_copy.Copy_target_points -> "points"
+  | Rdk.Instance_copy.Copy_target_vertices -> "vertices"
+  | Rdk.Instance_copy.Copy_target_primitives -> "primitives"
 
 let copy_target_operation_key = function
-  | Pdk.Instance_copy.Copy_target_nothing -> "nothing"
-  | Pdk.Instance_copy.Copy_target_copy -> "copy"
-  | Pdk.Instance_copy.Copy_target_add -> "add"
-  | Pdk.Instance_copy.Copy_target_subtract -> "subtract"
-  | Pdk.Instance_copy.Copy_target_multiply -> "multiply"
+  | Rdk.Instance_copy.Copy_target_nothing -> "nothing"
+  | Rdk.Instance_copy.Copy_target_copy -> "copy"
+  | Rdk.Instance_copy.Copy_target_add -> "add"
+  | Rdk.Instance_copy.Copy_target_subtract -> "subtract"
+  | Rdk.Instance_copy.Copy_target_multiply -> "multiply"
 
 let copy_target_rule_key rule = Printf.sprintf "%S:%s:%s"
-    rule.Pdk.Instance_copy.copy_target_pattern
+    rule.Rdk.Instance_copy.copy_target_pattern
     (copy_target_owner_key rule.copy_target_owner)
     (copy_target_operation_key rule.copy_target_operation)
 
@@ -2503,7 +2503,7 @@ let copy_to_points ?label ?source_group ?target_group ?piece_attribute
       let source_primitives = match source_group with
         | None -> Ok None
         | Some name ->
-            (match Pdk.Geometry.find_group ~owner:Pdk.Group.Primitive name
+            (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive name
                 inputs.(0) with
              | Some group -> Ok (Some group)
              | None -> Error (Diagnostic.error ~code:"missing_group"
@@ -2512,7 +2512,7 @@ let copy_to_points ?label ?source_group ?target_group ?piece_attribute
       let target_points = match target_group with
         | None -> Ok None
         | Some name ->
-            (match Pdk.Geometry.find_group ~owner:Pdk.Group.Point name inputs.(1) with
+            (match Rdk.Geometry.find_group ~owner:Rdk.Group.Point name inputs.(1) with
              | Some group -> Ok (Some group)
              | None -> Error (Diagnostic.error ~code:"missing_group"
                  (Printf.sprintf
@@ -2524,18 +2524,18 @@ let copy_to_points ?label ?source_group ?target_group ?piece_attribute
           if source_group <> None || piece_attribute <> None then
             Error (Diagnostic.error ~code:"invalid_parameter"
               "copy_to_points: pack copies the whole source; clear the source group and piece attribute")
-          else (match Pdk.Instance_copy.copy_transforms ~grain:(Context.grain context)
+          else (match Rdk.Instance_copy.copy_transforms ~grain:(Context.grain context)
               ~cancel:(Context.cancel_token context) ?target_points inputs.(1) with
             | Ok transforms -> Ok Node.Private.{ geometry = inputs.(0); diagnostics = [];
                 instances = Some transforms }
-            | Error error -> structured_pdk_error error)
+            | Error error -> structured_rdk_error error)
       | Ok source_primitives, Ok target_points ->
-          match Pdk.Instance_copy.copy_to_points ~grain:(Context.grain context)
+          match Rdk.Instance_copy.copy_to_points ~grain:(Context.grain context)
               ~cancel:(Context.cancel_token context) ?source_primitives
               ?target_points ?piece_attribute ~target_attributes ~source:inputs.(0)
               ~targets:inputs.(1) () with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let duplicate ?label ?(copies = 1) ?(cumulative = true)
     ?(transform = Mat4.identity) ?group ?copy_group_prefix
@@ -2551,18 +2551,18 @@ let duplicate ?label ?(copies = 1) ?(cumulative = true)
       let primitives = match group with
         | None -> Ok None
         | Some name ->
-            (match Pdk.Geometry.find_group ~owner:Pdk.Group.Primitive name inputs.(0) with
+            (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive name inputs.(0) with
              | Some group -> Ok (Some group)
              | None -> Error (Diagnostic.error ~code:"missing_group"
                  (Printf.sprintf "duplicate could not find primitive group %S" name))) in
       match primitives with
       | Error error -> Error error
       | Ok primitives ->
-          match Pdk.Instance_copy.duplicate ~cancel:(Context.cancel_token context)
+          match Rdk.Instance_copy.duplicate ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ~copies ~cumulative ~transform
               ?primitives ?copy_group_prefix ~preserve_groups inputs.(0) with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let switch ?label ~index inputs =
   let inputs = Array.of_list inputs in
@@ -2585,7 +2585,7 @@ let unary_result ?label ~operation cook input =
     ~inputs:[|input|] (fun ~node_id:_ context inputs ->
       match cook context inputs.(0) with
       | Ok geometry -> cooked geometry
-      | Error error -> structured_pdk_error error)
+      | Error error -> structured_rdk_error error)
 
 let triangulate ?label ?group input =
   Option.iter (fun name -> if String.trim name = "" then
@@ -2598,7 +2598,7 @@ let triangulate ?label ?group input =
       let primitives = match group with
         | None -> Ok None
         | Some name ->
-            (match Pdk.Geometry.find_group ~owner:Pdk.Group.Primitive name geometry with
+            (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive name geometry with
              | Some group -> Ok (Some group)
              | None -> Error (Diagnostic.error ~code:"missing_group"
                  (Printf.sprintf
@@ -2606,23 +2606,23 @@ let triangulate ?label ?group input =
       match primitives with
       | Error error -> Error error
       | Ok primitives ->
-          match Pdk.Triangulate.run ~cancel:(Context.cancel_token context)
+          match Rdk.Triangulate.run ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?primitives geometry with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let triangulate_2d_projection_key = function
-  | Pdk.Triangulate2d.Best_fit -> "best_fit"
-  | Pdk.Triangulate2d.Plane_xy -> "xy"
-  | Pdk.Triangulate2d.Plane_yz -> "yz"
-  | Pdk.Triangulate2d.Plane_zx -> "zx"
-  | Pdk.Triangulate2d.Plane { origin; normal } ->
+  | Rdk.Triangulate2d.Best_fit -> "best_fit"
+  | Rdk.Triangulate2d.Plane_xy -> "xy"
+  | Rdk.Triangulate2d.Plane_yz -> "yz"
+  | Rdk.Triangulate2d.Plane_zx -> "zx"
+  | Rdk.Triangulate2d.Plane { origin; normal } ->
       "plane:" ^ vec3_key origin ^ ":" ^ vec3_key normal
-  | Pdk.Triangulate2d.Point_attribute name -> "attribute:" ^ name
+  | Rdk.Triangulate2d.Point_attribute name -> "attribute:" ^ name
 
 let triangulate_2d ?label ?point_group ?constraint_edge_group
     ?constraint_primitive_group
-    ?(projection = Pdk.Triangulate2d.Best_fit) ?(seed = 0L)
+    ?(projection = Rdk.Triangulate2d.Best_fit) ?(seed = 0L)
     ?(split_crossing_constraints = false) ?(flood_from_hull_boundary = false)
     ?(remove_outside_constraint_polygons = false)
     ?(silhouette_constraints = false) ?(remove_outside_silhouette = false)
@@ -2647,7 +2647,7 @@ let triangulate_2d ?label ?point_group ?constraint_edge_group
      "refinement point group",refinement_point_group;
      "triangle group",triangle_group; "constraint output group",constraint_group];
   (match projection with
-   | Pdk.Triangulate2d.Point_attribute name when String.trim name = "" ->
+   | Rdk.Triangulate2d.Point_attribute name when String.trim name = "" ->
        invalid_arg "Sop.triangulate_2d: empty point attribute name"
    | _ -> ());
   Node.Private.make ?label ~operation:"triangulate_2d" ~version:12
@@ -2691,15 +2691,15 @@ let triangulate_2d ?label ?point_group ?constraint_edge_group
       let selection = match point_group with
         | None -> Ok None
         | Some name ->
-            (match Pdk.Geometry.find_group ~owner:Pdk.Group.Point name geometry with
-             | Some group -> Ok (Some (Pdk.Transform_ops.Selected_points group))
+            (match Rdk.Geometry.find_group ~owner:Rdk.Group.Point name geometry with
+             | Some group -> Ok (Some (Rdk.Transform_ops.Selected_points group))
              | None -> Error (Diagnostic.error ~code:"missing_group"
                  (Printf.sprintf
                     "triangulate_2d could not find point group %S" name))) in
       let constraint_edges = match constraint_edge_group with
         | None -> Ok None
         | Some name ->
-            (match Pdk.Geometry.find_edge_group name geometry with
+            (match Rdk.Geometry.find_edge_group name geometry with
              | Some group -> Ok (Some group)
              | None -> Error (Diagnostic.error ~code:"missing_group"
                  (Printf.sprintf
@@ -2707,7 +2707,7 @@ let triangulate_2d ?label ?point_group ?constraint_edge_group
       let constraint_primitives = match constraint_primitive_group with
         | None -> Ok None
         | Some name ->
-            (match Pdk.Geometry.find_group ~owner:Pdk.Group.Primitive name geometry with
+            (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive name geometry with
              | Some group -> Ok (Some group)
              | None -> Error (Diagnostic.error ~code:"missing_group"
                  (Printf.sprintf
@@ -2716,7 +2716,7 @@ let triangulate_2d ?label ?point_group ?constraint_edge_group
       | Error error,_,_ -> Error error
       | _,Error error,_ | _,_,Error error -> Error error
       | Ok selection,Ok constraint_edges,Ok constraint_primitives ->
-          match Pdk.Triangulate2d.run
+          match Rdk.Triangulate2d.run
               ~cancel:(Context.cancel_token context) ~grain:(Context.grain context)
               ?selection ?constraint_edges ?constraint_primitives ~projection
               ~seed ~split_crossing_constraints ~flood_from_hull_boundary
@@ -2733,7 +2733,7 @@ let triangulate_2d ?label ?point_group ?constraint_edge_group
               ?split_point_group ?refinement_point_group ?triangle_group
               ?constraint_group geometry with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let remesh ?label ?(iterations = 3) ?(smoothing = 0.5) ?(project = true)
     ?(use_input_points_only = false) ?hard_point_group ?hard_edge_group
@@ -2775,26 +2775,26 @@ let remesh ?label ?(iterations = 3) ?(smoothing = 0.5) ?(project = true)
           (match resolve_optional_edge_group "remesh" hard_edge_group geometry with
            | Error error -> Error error
            | Ok hard_edges ->
-               match Pdk.Remesh.run ~cancel:(Context.cancel_token context)
+               match Rdk.Remesh.run ~cancel:(Context.cancel_token context)
                    ~grain:(Context.grain context) ~iterations ~smoothing ~project
                    ~use_input_points_only ?hard_points ?hard_edges
                    ?target_size_attribute ~preserve_uv_seams ~uv_attribute
                    ?output_hard_edges ?output_mesh_size ?output_quality
                    ~recompute_point_normals ~target_length geometry with
                | Ok geometry -> cooked geometry
-               | Error error -> structured_pdk_error error))
+               | Error error -> structured_rdk_error error))
 
-let boolean ?label ?(operation = Pdk.Boolean.Union)
-    ?(left_treatment = Pdk.Boolean.Solid)
-    ?(right_treatment = Pdk.Boolean.Solid)
+let boolean ?label ?(operation = Rdk.Boolean.Union)
+    ?(left_treatment = Rdk.Boolean.Solid)
+    ?(right_treatment = Rdk.Boolean.Solid)
     ?(resolve_left_self_intersections = false)
     ?(resolve_right_self_intersections = false)
-    ?(point_conflict = Pdk.Boolean.Promote_to_vertex)
+    ?(point_conflict = Rdk.Boolean.Promote_to_vertex)
     ?(point_tolerance = 0.)
     ?(tiny_seam_threshold = 0.) ?(cleanup_max_batches = 8)
     ?(strict_cleanup = true)
-    ?(seam_points = Pdk.Boolean.Shared_seam_points)
-    ?(detriangulation = Pdk.Boolean.Triangles) ?(assume_flat = false)
+    ?(seam_points = Rdk.Boolean.Shared_seam_points)
+    ?(detriangulation = Rdk.Boolean.Triangles) ?(assume_flat = false)
     ?require_closed ?piece_attribute
     ?(left_piece_group = Some "boolean_left")
     ?(overlap_piece_group = Some "boolean_overlap")
@@ -2812,7 +2812,7 @@ let boolean ?label ?(operation = Pdk.Boolean.Union)
     invalid_arg "Sop.boolean: empty piece attribute name";
   let piece_names = List.filter_map Fun.id
       [left_piece_group; overlap_piece_group; right_piece_group] in
-  if operation = Pdk.Boolean.Shatter
+  if operation = Rdk.Boolean.Shatter
       && List.exists (fun name -> String.trim name = "") piece_names then
     invalid_arg "Sop.boolean: empty shatter piece group name";
   let piece_names = List.sort String.compare piece_names in
@@ -2820,33 +2820,33 @@ let boolean ?label ?(operation = Pdk.Boolean.Union)
     | first :: (second :: _ as rest) ->
         String.equal first second || duplicate rest
     | [] | [_] -> false in
-  if operation = Pdk.Boolean.Shatter && duplicate piece_names then
+  if operation = Rdk.Boolean.Shatter && duplicate piece_names then
     invalid_arg "Sop.boolean: shatter piece group names must be distinct";
   let operation_key = function
-    | Pdk.Boolean.Union -> "union"
-    | Pdk.Boolean.Intersection -> "intersection"
-    | Pdk.Boolean.Difference -> "difference"
-    | Pdk.Boolean.Reverse_difference -> "reverse_difference"
-    | Pdk.Boolean.Xor -> "xor"
-    | Pdk.Boolean.Shatter -> "shatter" in
+    | Rdk.Boolean.Union -> "union"
+    | Rdk.Boolean.Intersection -> "intersection"
+    | Rdk.Boolean.Difference -> "difference"
+    | Rdk.Boolean.Reverse_difference -> "reverse_difference"
+    | Rdk.Boolean.Xor -> "xor"
+    | Rdk.Boolean.Shatter -> "shatter" in
   let treatment_key = function
-    | Pdk.Boolean.Solid -> "solid"
-    | Pdk.Boolean.Surface -> "surface" in
+    | Rdk.Boolean.Solid -> "solid"
+    | Rdk.Boolean.Surface -> "surface" in
   let conflict_key = function
-    | Pdk.Boolean.Reject -> "reject"
-    | Pdk.Boolean.Promote_to_vertex -> "promote_to_vertex" in
+    | Rdk.Boolean.Reject -> "reject"
+    | Rdk.Boolean.Promote_to_vertex -> "promote_to_vertex" in
   let seam_key = function
-    | Pdk.Boolean.Shared_seam_points -> "shared"
-    | Pdk.Boolean.Split_seam_points -> "split" in
+    | Rdk.Boolean.Shared_seam_points -> "shared"
+    | Rdk.Boolean.Split_seam_points -> "split" in
   let detriangulation_key = function
-    | Pdk.Boolean.Triangles -> "triangles"
-    | Pdk.Boolean.Unchanged_polygons -> "unchanged_polygons"
-    | Pdk.Boolean.All_polygons -> "all_polygons" in
+    | Rdk.Boolean.Triangles -> "triangles"
+    | Rdk.Boolean.Unchanged_polygons -> "unchanged_polygons"
+    | Rdk.Boolean.All_polygons -> "all_polygons" in
   let optional_bool_key = function
     | None -> "default"
     | Some value -> string_of_bool value in
   let piece_key value = option_string_key
-      (if operation = Pdk.Boolean.Shatter then value else None) in
+      (if operation = Rdk.Boolean.Shatter then value else None) in
   Node.Private.make ?label ~operation:"boolean" ~version:1
     ~parameters:(String.concat ";" [
       "operation=" ^ operation_key operation;
@@ -2871,7 +2871,7 @@ let boolean ?label ?(operation = Pdk.Boolean.Union)
       "right_piece_group=" ^ piece_key right_piece_group])
     ~cook_mode:Node.Generic ~dependencies:Context.Dependencies.static
     ~inputs:[|left; right|] (fun ~node_id:_ context inputs ->
-      match Pdk.Boolean.run ~cancel:(Context.cancel_token context)
+      match Rdk.Boolean.run ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ~operation ~left_treatment
           ~right_treatment ~resolve_left_self_intersections
           ~resolve_right_self_intersections ~point_conflict ~point_tolerance
@@ -2881,24 +2881,24 @@ let boolean ?label ?(operation = Pdk.Boolean.Union)
           ~left_piece_group ~overlap_piece_group ~right_piece_group
           ~right:inputs.(1) inputs.(0) with
       | Ok geometry -> cooked geometry
-      | Error error -> structured_pdk_error error)
+      | Error error -> structured_rdk_error error)
 
 let boolean_fracture ?label ?(resolve_cutter_self_intersections = false)
     ?point_conflict ?point_tolerance ?tiny_seam_threshold
     ?cleanup_max_batches ?strict_cleanup ?detriangulation ?assume_flat
     ?(require_closed = true) ?(piece_attribute = "piece") ~cutters source =
-  boolean ?label ~operation:Pdk.Boolean.Difference
-    ~left_treatment:Pdk.Boolean.Solid ~right_treatment:Pdk.Boolean.Surface
+  boolean ?label ~operation:Rdk.Boolean.Difference
+    ~left_treatment:Rdk.Boolean.Solid ~right_treatment:Rdk.Boolean.Surface
     ~resolve_right_self_intersections:resolve_cutter_self_intersections
     ?point_conflict ?point_tolerance ?tiny_seam_threshold
     ?cleanup_max_batches ?strict_cleanup
-    ~seam_points:Pdk.Boolean.Shared_seam_points
+    ~seam_points:Rdk.Boolean.Shared_seam_points
     ?detriangulation ?assume_flat ~require_closed
     ~piece_attribute ~right:cutters source
 
-let boolean_seam ?label ?(output = Pdk.Boolean.Seam_curves)
-    ?(left_treatment = Pdk.Boolean.Solid)
-    ?(right_treatment = Pdk.Boolean.Solid)
+let boolean_seam ?label ?(output = Rdk.Boolean.Seam_curves)
+    ?(left_treatment = Rdk.Boolean.Solid)
+    ?(right_treatment = Rdk.Boolean.Solid)
     ?(resolve_left_self_intersections = false)
     ?(resolve_right_self_intersections = false)
     ?(left_self_group = Some "boolean_left_self_seam")
@@ -2906,9 +2906,9 @@ let boolean_seam ?label ?(output = Pdk.Boolean.Seam_curves)
     ?(right_self_group = Some "boolean_right_self_seam")
     ?(coincident_group = Some "boolean_coincident") ~right left =
   let names = match output with
-    | Pdk.Boolean.Seam_curves ->
+    | Rdk.Boolean.Seam_curves ->
         [left_self_group; between_group; right_self_group]
-    | Pdk.Boolean.Coincident_patches -> [coincident_group] in
+    | Rdk.Boolean.Coincident_patches -> [coincident_group] in
   let names = List.filter_map Fun.id names in
   if List.exists (fun name -> String.trim name = "") names then
     invalid_arg "Sop.boolean_seam: empty output group name";
@@ -2920,15 +2920,15 @@ let boolean_seam ?label ?(output = Pdk.Boolean.Seam_curves)
   if duplicate names then
     invalid_arg "Sop.boolean_seam: output group names must be distinct";
   let output_key = function
-    | Pdk.Boolean.Seam_curves -> "curves"
-    | Pdk.Boolean.Coincident_patches -> "coincident" in
+    | Rdk.Boolean.Seam_curves -> "curves"
+    | Rdk.Boolean.Coincident_patches -> "coincident" in
   let treatment_key = function
-    | Pdk.Boolean.Solid -> "solid"
-    | Pdk.Boolean.Surface -> "surface" in
+    | Rdk.Boolean.Solid -> "solid"
+    | Rdk.Boolean.Surface -> "surface" in
   let curve_key value = option_string_key
-      (if output = Pdk.Boolean.Seam_curves then value else None)
+      (if output = Rdk.Boolean.Seam_curves then value else None)
   and coincident_key value = option_string_key
-      (if output = Pdk.Boolean.Coincident_patches then value else None) in
+      (if output = Rdk.Boolean.Coincident_patches then value else None) in
   Node.Private.make ?label ~operation:"boolean_seam" ~version:1
     ~parameters:(String.concat ";" [
       "output=" ^ output_key output;
@@ -2944,13 +2944,13 @@ let boolean_seam ?label ?(output = Pdk.Boolean.Seam_curves)
       "coincident_group=" ^ coincident_key coincident_group])
     ~cook_mode:Node.Generic ~dependencies:Context.Dependencies.static
     ~inputs:[|left;right|] (fun ~node_id:_ context inputs ->
-      match Pdk.Boolean.seam ~cancel:(Context.cancel_token context)
+      match Rdk.Boolean.seam ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ~output ~left_treatment
           ~right_treatment ~resolve_left_self_intersections
           ~resolve_right_self_intersections ~left_self_group ~between_group
           ~right_self_group ~coincident_group ~right:inputs.(1) inputs.(0) with
       | Ok geometry -> cooked geometry
-      | Error error -> structured_pdk_error error)
+      | Error error -> structured_rdk_error error)
 
 let boolean_detect ?label ?source_group ?collision_group ?(tolerance = 0.)
     ?(include_coplanar = true) ?intersecting_group
@@ -3026,7 +3026,7 @@ let boolean_detect ?label ?source_group ?collision_group ?(tolerance = 0.)
               collision_group collision_geometry with
            | Error error -> Error error
            | Ok collision_primitives ->
-               match Pdk.Boolean_detect.run_checked
+               match Rdk.Boolean_detect.run_checked
                    ~cancel:(Context.cancel_token context)
                    ~grain:(Context.grain context) ?source_primitives
                    ?collision_primitives ~tolerance ~include_coplanar
@@ -3035,7 +3035,7 @@ let boolean_detect ?label ?source_group ?collision_group ?(tolerance = 0.)
                    ?self_intersections_attribute ?self_count_attribute
                    ~collision:collision_geometry inputs.(0) with
                | Ok geometry -> cooked geometry
-               | Error error -> structured_pdk_error error))
+               | Error error -> structured_rdk_error error))
 
 let intersection_analysis ?label ?source_group ?collision_group
     ?(tolerance = 0.) ?(include_coplanar = true)
@@ -3089,7 +3089,7 @@ let intersection_analysis ?label ?source_group ?collision_group
               collision_group group_geometry with
            | Error error -> Error error
            | Ok collision_primitives ->
-               match Pdk.Intersection_analysis.run
+               match Rdk.Intersection_analysis.run
                    ~cancel:(Context.cancel_token context)
                    ~grain:(Context.grain context) ?source_primitives
                    ?collision_primitives ~tolerance ~include_coplanar
@@ -3097,14 +3097,14 @@ let intersection_analysis ?label ?source_group ?collision_group
                    ~primitive_uvw_attribute ~point_attribute
                    ?collision:collision_geometry inputs.(0) with
                | Ok geometry -> cooked geometry
-               | Error error -> structured_pdk_error error))
+               | Error error -> structured_rdk_error error))
 
 let poly_reduce_target_key = function
-  | Pdk.Poly_reduce.Reduce_ratio ratio -> "ratio:" ^ float_key ratio
-  | Pdk.Poly_reduce.Reduce_primitive_count count -> "primitives:" ^ string_of_int count
+  | Rdk.Poly_reduce.Reduce_ratio ratio -> "ratio:" ^ float_key ratio
+  | Rdk.Poly_reduce.Reduce_primitive_count count -> "primitives:" ^ string_of_int count
 
 let poly_reduce ?label ?group ?hard_point_group ?hard_edge_group
-    ?(target = Pdk.Poly_reduce.Reduce_ratio 0.5) ?(preserve_boundary = true)
+    ?(target = Rdk.Poly_reduce.Reduce_ratio 0.5) ?(preserve_boundary = true)
     ?(only_original_positions = false) ?(equalize_lengths = 1e-10)
     ?max_normal_deviation ?output_group ?(recompute_point_normals = true) input =
   List.iter (fun (label, value) -> Option.iter (fun name ->
@@ -3130,7 +3130,7 @@ let poly_reduce ?label ?group ?hard_point_group ?hard_edge_group
       let primitives = match group with
         | None -> Ok None
         | Some name ->
-            (match Pdk.Geometry.find_group ~owner:Pdk.Group.Primitive name geometry with
+            (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive name geometry with
              | Some group -> Ok (Some group)
              | None -> Error (Diagnostic.error ~code:"missing_group"
                  (Printf.sprintf
@@ -3138,7 +3138,7 @@ let poly_reduce ?label ?group ?hard_point_group ?hard_edge_group
       let hard_points = match hard_point_group with
         | None -> Ok None
         | Some name ->
-            (match Pdk.Geometry.find_group ~owner:Pdk.Group.Point name geometry with
+            (match Rdk.Geometry.find_group ~owner:Rdk.Group.Point name geometry with
              | Some group -> Ok (Some group)
              | None -> Error (Diagnostic.error ~code:"missing_group"
                  (Printf.sprintf
@@ -3146,7 +3146,7 @@ let poly_reduce ?label ?group ?hard_point_group ?hard_edge_group
       let hard_edges = match hard_edge_group with
         | None -> Ok None
         | Some name ->
-            (match Pdk.Geometry.find_edge_group name geometry with
+            (match Rdk.Geometry.find_edge_group name geometry with
              | Some group -> Ok (Some group)
              | None -> Error (Diagnostic.error ~code:"missing_group"
                  (Printf.sprintf
@@ -3154,19 +3154,19 @@ let poly_reduce ?label ?group ?hard_point_group ?hard_edge_group
       match primitives, hard_points, hard_edges with
       | Error error, _, _ | _, Error error, _ | _, _, Error error -> Error error
       | Ok primitives, Ok hard_points, Ok hard_edges ->
-          match Pdk.Poly_reduce.run ~cancel:(Context.cancel_token context)
+          match Rdk.Poly_reduce.run ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ~target ?primitives ?hard_points
               ?hard_edges ~preserve_boundary ~only_original_positions
               ~equalize_lengths ?max_normal_deviation ?output_group
               ~recompute_point_normals geometry with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let reverse_operation_key = function
-  | Pdk.Reverse_faces.Reverse_vertices -> "reverse"
-  | Pdk.Reverse_faces.Shift_vertices offset -> "shift:" ^ string_of_int offset
+  | Rdk.Reverse_faces.Reverse_vertices -> "reverse"
+  | Rdk.Reverse_faces.Shift_vertices offset -> "shift:" ^ string_of_int offset
 
-let reverse ?label ?group ?(operation = Pdk.Reverse_faces.Reverse_vertices) input =
+let reverse ?label ?group ?(operation = Rdk.Reverse_faces.Reverse_vertices) input =
   Option.iter (fun name -> if String.trim name = "" then
     invalid_arg "Sop.reverse: empty primitive group name") group;
   Node.Private.make ?label ~operation:"reverse" ~version:2
@@ -3178,31 +3178,31 @@ let reverse ?label ?group ?(operation = Pdk.Reverse_faces.Reverse_vertices) inpu
       let primitives = match group with
         | None -> Ok None
         | Some name ->
-            (match Pdk.Geometry.find_group ~owner:Pdk.Group.Primitive name geometry with
+            (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive name geometry with
              | Some group -> Ok (Some group)
              | None -> Error (Diagnostic.error ~code:"missing_group"
                  (Printf.sprintf "reverse could not find primitive group %S" name))) in
       match primitives with
       | Error error -> Error error
       | Ok primitives ->
-          match Pdk.Reverse_faces.run ~cancel:(Context.cancel_token context)
+          match Rdk.Reverse_faces.run ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?primitives ~operation geometry with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let normal_owner_key = function
-  | Pdk.Attribute.Point -> "point"
+  | Rdk.Attribute.Point -> "point"
   | Vertex -> "vertex"
   | Primitive -> "primitive"
   | Detail -> "detail"
 
 let normal_weighting_key = function
-  | Pdk.Normal_ops.Vertex_angle -> "vertex_angle"
+  | Rdk.Normal_ops.Vertex_angle -> "vertex_angle"
   | Each_vertex -> "each_vertex"
   | Face_area -> "face_area"
 
-let normals ?label ?selection ?(owner = Pdk.Attribute.Point)
-    ?(weighting = Pdk.Normal_ops.Face_area) ?(cusp_angle = Float.pi)
+let normals ?label ?selection ?(owner = Rdk.Attribute.Point)
+    ?(weighting = Rdk.Normal_ops.Face_area) ?(cusp_angle = Float.pi)
     ?(keep_original_zero = false) ?(reverse = false) ?(attribute = "N") input =
   if String.trim attribute = "" then
     invalid_arg "Sop.normals: empty attribute name";
@@ -3217,18 +3217,18 @@ let normals ?label ?selection ?(owner = Pdk.Attribute.Point)
       match resolve_element_group ~operation:"normals" selection inputs.(0) with
       | Error error -> Error error
       | Ok selection ->
-          match Pdk.Normal_ops.run ~cancel:(Context.cancel_token context)
+          match Rdk.Normal_ops.run ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?selection ~owner ~weighting
               ~cusp_angle ~keep_original_zero ~reverse ~attribute inputs.(0) with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let curvature_boundary_key = function
-  | Pdk.Curvature.Curvature_boundary_zero -> "zero"
-  | Pdk.Curvature.Curvature_boundary_one_sided -> "one_sided"
+  | Rdk.Curvature.Curvature_boundary_zero -> "zero"
+  | Rdk.Curvature.Curvature_boundary_one_sided -> "one_sided"
 
 let curvature_outputs_key outputs = String.concat "," [
-  "mean=" ^ option_string_key outputs.Pdk.Curvature.mean;
+  "mean=" ^ option_string_key outputs.Rdk.Curvature.mean;
   "gaussian=" ^ option_string_key outputs.gaussian;
   "minimum=" ^ option_string_key outputs.minimum;
   "maximum=" ^ option_string_key outputs.maximum;
@@ -3237,9 +3237,9 @@ let curvature_outputs_key outputs = String.concat "," [
 ]
 
 let measure_curvature ?label ?point_group
-    ?(boundary = Pdk.Curvature.Curvature_boundary_zero)
+    ?(boundary = Rdk.Curvature.Curvature_boundary_zero)
     ?(smoothing_iterations = 0) ?(smoothing_strength = 0.5)
-    ?(outputs = Pdk.Curvature.default_outputs) input =
+    ?(outputs = Rdk.Curvature.default_outputs) input =
   Option.iter (fun name -> if String.trim name = "" then
     invalid_arg "Sop.measure_curvature: empty point group name") point_group;
   if smoothing_iterations < 0 then
@@ -3276,7 +3276,7 @@ let measure_curvature ?label ?point_group
       let points = match point_group with
         | None -> Ok None
         | Some name ->
-            (match Pdk.Geometry.find_group ~owner:Pdk.Group.Point name geometry with
+            (match Rdk.Geometry.find_group ~owner:Rdk.Group.Point name geometry with
              | Some group -> Ok (Some group)
              | None -> Error (Diagnostic.error ~code:"missing_group"
                  (Printf.sprintf
@@ -3284,20 +3284,20 @@ let measure_curvature ?label ?point_group
       match points with
       | Error error -> Error error
       | Ok points ->
-          match Pdk.Curvature.run
+          match Rdk.Curvature.run
               ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?points ~boundary
               ~smoothing_iterations ~smoothing_strength ~outputs geometry with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let laplacian_weighting_key = function
-  | Pdk.Laplacian.Laplacian_cotan -> "cotan"
-  | Pdk.Laplacian.Laplacian_positive_cotan -> "positive_cotan"
-  | Pdk.Laplacian.Laplacian_uniform -> "uniform"
+  | Rdk.Laplacian.Laplacian_cotan -> "cotan"
+  | Rdk.Laplacian.Laplacian_positive_cotan -> "positive_cotan"
+  | Rdk.Laplacian.Laplacian_uniform -> "uniform"
 
 let attribute_laplacian ?label ?point_group
-    ?(weighting = Pdk.Laplacian.Laplacian_cotan) ?(normalize = true) ~source
+    ?(weighting = Rdk.Laplacian.Laplacian_cotan) ?(normalize = true) ~source
     ?output input =
   Option.iter (fun name -> if String.trim name = "" then
     invalid_arg "Sop.attribute_laplacian: empty point group name") point_group;
@@ -3321,7 +3321,7 @@ let attribute_laplacian ?label ?point_group
       let points = match point_group with
         | None -> Ok None
         | Some name ->
-            (match Pdk.Geometry.find_group ~owner:Pdk.Group.Point name geometry with
+            (match Rdk.Geometry.find_group ~owner:Rdk.Group.Point name geometry with
              | Some group -> Ok (Some group)
              | None -> Error (Diagnostic.error ~code:"missing_group"
                  (Printf.sprintf
@@ -3329,23 +3329,23 @@ let attribute_laplacian ?label ?point_group
       match points with
       | Error error -> Error error
       | Ok points ->
-          match Pdk.Laplacian.run
+          match Rdk.Laplacian.run
               ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?points ~weighting ~normalize
               ~source ?output geometry with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let polyframe_style_key = function
-  | Pdk.Polyframe.First_edge -> "first_edge"
-  | Pdk.Polyframe.Two_edges -> "two_edges"
-  | Pdk.Polyframe.Primitive_centroid -> "primitive_centroid"
-  | Pdk.Polyframe.Texture_uv name -> "texture_uv:" ^ String.escaped
+  | Rdk.Polyframe.First_edge -> "first_edge"
+  | Rdk.Polyframe.Two_edges -> "two_edges"
+  | Rdk.Polyframe.Primitive_centroid -> "primitive_centroid"
+  | Rdk.Polyframe.Texture_uv name -> "texture_uv:" ^ String.escaped
       (if String.trim name = "" then "uv" else name)
-  | Pdk.Polyframe.Texture_uv_gradient name ->
+  | Rdk.Polyframe.Texture_uv_gradient name ->
       "texture_uv_gradient:" ^ String.escaped
         (if String.trim name = "" then "uv" else name)
-  | Pdk.Polyframe.Attribute_gradient name ->
+  | Rdk.Polyframe.Attribute_gradient name ->
       "attribute_gradient:" ^ String.escaped name
 
 let polyframe ?label ?selection ?(orthogonal = false)
@@ -3368,34 +3368,34 @@ let polyframe ?label ?selection ?(orthogonal = false)
       match resolve_element_group ~operation:"polyframe" selection inputs.(0) with
       | Error _ as error -> error
       | Ok selection ->
-          match Pdk.Polyframe.run ~cancel:(Context.cancel_token context)
+          match Rdk.Polyframe.run ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?selection ~orthogonal
               ~left_handed ~normal_attribute ~tangent_attribute
               ~bitangent_attribute style inputs.(0) with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let smooth_boundary_key = function
-  | Pdk.Smooth.Smooth_free -> "free"
-  | Pdk.Smooth.Smooth_unshared -> "unshared"
-  | Pdk.Smooth.Smooth_group_boundary -> "group_boundary"
+  | Rdk.Smooth.Smooth_free -> "free"
+  | Rdk.Smooth.Smooth_unshared -> "unshared"
+  | Rdk.Smooth.Smooth_group_boundary -> "group_boundary"
 
 let smooth_method_key = function
-  | Pdk.Attribute_ops.Uniform -> "uniform"
-  | Pdk.Attribute_ops.Edge_length -> "edge_length"
+  | Rdk.Attribute_ops.Uniform -> "uniform"
+  | Rdk.Attribute_ops.Edge_length -> "edge_length"
 
 let smooth_mode_key = function
-  | Pdk.Attribute_ops.Laplacian step -> "laplacian:" ^ float_key step
-  | Pdk.Attribute_ops.Custom_steps { odd; even } ->
+  | Rdk.Attribute_ops.Laplacian step -> "laplacian:" ^ float_key step
+  | Rdk.Attribute_ops.Custom_steps { odd; even } ->
       String.concat ":" ["custom"; float_key odd; float_key even]
 
 let smooth ?label ?group ?constrained_points
-    ?(boundary = Pdk.Smooth.Smooth_free) ?(iterations = 1)
-    ?(method_ = Pdk.Attribute_ops.Uniform)
-    ?(mode = Pdk.Attribute_ops.Laplacian 0.5) ?weight_attribute
+    ?(boundary = Rdk.Smooth.Smooth_free) ?(iterations = 1)
+    ?(method_ = Rdk.Attribute_ops.Uniform)
+    ?(mode = Rdk.Attribute_ops.Laplacian 0.5) ?weight_attribute
     ?alpha_attribute ?(recompute_normals = true) ?(original_blend = 0.)
     ?(smoothed_blend = 1.) ~attributes input =
-  (match Pdk.Attribute_pattern.compile attributes with
+  (match Rdk.Attribute_pattern.compile attributes with
    | Ok _ -> ()
    | Error message -> invalid_arg ("Sop.smooth: " ^ message));
   List.iter (fun (name, value) -> match value with
@@ -3424,28 +3424,28 @@ let smooth ?label ?group ?constrained_points
       let resolve owner code kind = function
         | None -> Ok None
         | Some name ->
-            (match Pdk.Geometry.find_group ~owner name geometry with
+            (match Rdk.Geometry.find_group ~owner name geometry with
              | Some group -> Ok (Some group)
              | None -> Error (Diagnostic.error ~code
                  (Printf.sprintf "smooth could not find %s %S" kind name))) in
-      match resolve Pdk.Group.Primitive "missing_group" "primitive group" group with
+      match resolve Rdk.Group.Primitive "missing_group" "primitive group" group with
       | Error error -> Error error
       | Ok primitives ->
-          (match resolve Pdk.Group.Point "missing_constrained_points"
+          (match resolve Rdk.Group.Point "missing_constrained_points"
               "constrained point group" constrained_points with
            | Error error -> Error error
            | Ok constrained_points ->
-               match Pdk.Smooth.run ~cancel:(Context.cancel_token context)
+               match Rdk.Smooth.run ~cancel:(Context.cancel_token context)
                    ~grain:(Context.grain context) ?primitives
                    ?constrained_points ~boundary ~iterations ~method_ ~mode
                    ?weight_attribute ?alpha_attribute ~recompute_normals
                    ~original_blend ~smoothed_blend ~attributes geometry with
                | Ok geometry -> cooked geometry
-               | Error error -> structured_pdk_error error))
+               | Error error -> structured_rdk_error error))
 
 let clean_overlap_key = function
-  | Pdk.Clean.Keep_first_overlap -> "keep_first"
-  | Pdk.Clean.Delete_overlap_pairs -> "delete_pairs"
+  | Rdk.Clean.Keep_first_overlap -> "keep_first"
+  | Rdk.Clean.Delete_overlap_pairs -> "delete_pairs"
 
 let clean ?label ?epsilon ?(remove_degenerate = true) ?consolidate_distance
     ?overlaps ?(reverse_winding = false) ?(remove_nan_points = false)
@@ -3479,14 +3479,14 @@ let clean ?label ?epsilon ?(remove_degenerate = true) ?consolidate_distance
     ~cook_mode:(Node.Duplicate_input 0)
     ~dependencies:Context.Dependencies.static ~inputs:[|input|]
     (fun ~node_id:_ context inputs ->
-      match Pdk.Clean.run ~cancel:(Context.cancel_token context)
+      match Rdk.Clean.run ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ?epsilon ~remove_degenerate
           ?consolidate_distance ?overlaps ~reverse_winding ~remove_nan_points
           ~remove_unused_points ~delete_unused_groups ?point_attributes
           ?vertex_attributes ?primitive_attributes ?detail_attributes
           ?point_groups ?vertex_groups ?primitive_groups ?edge_groups inputs.(0) with
       | Ok geometry -> cooked geometry
-      | Error error -> structured_pdk_error error)
+      | Error error -> structured_rdk_error error)
 
 let facet ?label ?group ?selection ?(pre_compute_normals = false)
     ?(make_normals_unit_length = false) ?(unique_points = false)
@@ -3536,21 +3536,21 @@ let facet ?label ?group ?selection ?(pre_compute_normals = false)
       match resolve_element_group ~operation:"facet" selection geometry with
       | Error error -> Error error
       | Ok selection ->
-          match Pdk.Facet.run ~cancel:(Context.cancel_token context)
+          match Rdk.Facet.run ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?selection ~pre_compute_normals
               ~make_normals_unit_length ~unique_points ?consolidate_distance
               ?consolidate_normals_distance ~remove_inline_points
               ~inline_distance ~orient_polygons ?cusp_angle ~remove_degenerate
               ~make_planar ~post_compute_normals ~reverse_normals geometry with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let poly_extrude_divide_key = function
-  | Pdk.Poly_extrude.Extrude_individual -> "individual"
-  | Pdk.Poly_extrude.Extrude_connected_components -> "connected_components"
+  | Rdk.Poly_extrude.Extrude_individual -> "individual"
+  | Rdk.Poly_extrude.Extrude_connected_components -> "connected_components"
 
 let poly_extrude ?label ?group ?split_edges
-    ?(divide = Pdk.Poly_extrude.Extrude_individual) ?(divisions = 1)
+    ?(divide = Rdk.Poly_extrude.Extrude_individual) ?(divisions = 1)
     ?(output_front = true) ?(output_back = true) ?(output_side = true)
     ?front_group ?back_group ?side_group ?front_boundary_group
     ?back_boundary_group ~distance input =
@@ -3585,7 +3585,7 @@ let poly_extrude ?label ?group ?split_edges
       let primitives = match group with
         | None -> Ok None
         | Some name ->
-            (match Pdk.Geometry.find_group ~owner:Pdk.Group.Primitive name geometry with
+            (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive name geometry with
              | Some group -> Ok (Some group)
              | None -> Error (Diagnostic.error ~code:"missing_group"
                  (Printf.sprintf
@@ -3593,7 +3593,7 @@ let poly_extrude ?label ?group ?split_edges
       let split = match split_edges with
         | None -> Ok None
         | Some name ->
-            (match Pdk.Geometry.find_edge_group name geometry with
+            (match Rdk.Geometry.find_edge_group name geometry with
              | Some group -> Ok (Some group)
              | None -> Error (Diagnostic.error ~code:"missing_group"
                  (Printf.sprintf
@@ -3601,20 +3601,20 @@ let poly_extrude ?label ?group ?split_edges
       match primitives, split with
       | Error error, _ | _, Error error -> Error error
       | Ok primitives, Ok split_edges ->
-          match Pdk.Poly_extrude.run ~cancel:(Context.cancel_token context)
+          match Rdk.Poly_extrude.run ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?primitives ?split_edges ~divide
               ~divisions ~output_front ~output_back ~output_side ?front_group
               ?back_group ?side_group ?front_boundary_group
               ?back_boundary_group ~distance geometry with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let poly_fill_mode_key = function
-  | Pdk.Poly_fill.Fill_single_polygon -> "single_polygon"
-  | Pdk.Poly_fill.Fill_triangles -> "triangles"
-  | Pdk.Poly_fill.Fill_triangle_fan -> "triangle_fan"
+  | Rdk.Poly_fill.Fill_single_polygon -> "single_polygon"
+  | Rdk.Poly_fill.Fill_triangles -> "triangles"
+  | Rdk.Poly_fill.Fill_triangle_fan -> "triangle_fan"
 
-let poly_fill ?label ?boundary_group ?(mode = Pdk.Poly_fill.Fill_triangles)
+let poly_fill ?label ?boundary_group ?(mode = Rdk.Poly_fill.Fill_triangles)
     ?(reverse_patches = false) ?(unique_points = false)
     ?(update_point_normals = false) ?patch_group input =
   List.iter (fun (label, name) -> match name with
@@ -3637,7 +3637,7 @@ let poly_fill ?label ?boundary_group ?(mode = Pdk.Poly_fill.Fill_triangles)
       let boundary = match boundary_group with
         | None -> Ok None
         | Some name ->
-            (match Pdk.Geometry.find_edge_group name geometry with
+            (match Rdk.Geometry.find_edge_group name geometry with
              | Some group -> Ok (Some group)
              | None -> Error (Diagnostic.error ~code:"missing_group"
                  (Printf.sprintf
@@ -3645,11 +3645,11 @@ let poly_fill ?label ?boundary_group ?(mode = Pdk.Poly_fill.Fill_triangles)
       match boundary with
       | Error error -> Error error
       | Ok boundary ->
-          match Pdk.Poly_fill.run ~cancel:(Context.cancel_token context)
+          match Rdk.Poly_fill.run ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?boundary ~mode ~reverse_patches
               ~unique_points ~update_point_normals ?patch_group geometry with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let resample ?label ?group ?segments ?maximum_segment_length
     ?segment_length_attribute ?segments_attribute ?(even_last_segment = true)
@@ -3683,7 +3683,7 @@ let resample ?label ?group ?segments ?maximum_segment_length
       let primitives = match group with
         | None -> Ok None
         | Some name ->
-            (match Pdk.Geometry.find_group ~owner:Pdk.Group.Primitive name
+            (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive name
                 inputs.(0) with
              | Some group -> Ok (Some group)
              | None -> Error (Diagnostic.error ~code:"missing_group"
@@ -3692,14 +3692,14 @@ let resample ?label ?group ?segments ?maximum_segment_length
       match primitives with
       | Error _ as error -> error
       | Ok primitives ->
-          match Pdk.Resample_curves.run ~cancel:(Context.cancel_token context)
+          match Rdk.Resample_curves.run ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?primitives ?segments
               ?maximum_segment_length ?segment_length_attribute
               ?segments_attribute ~even_last_segment ?curve_u_attribute
               ?curve_number_attribute ?distance_attribute ?tangent_attribute
               inputs.(0) with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 type extract_point_cut =
   | Extract_point_constant of float
@@ -3764,19 +3764,19 @@ let extract_point_from_curve ?label ?group
       | Ok primitives ->
           let cut = match cut with
             | Extract_point_constant value ->
-                Pdk.Curve_topology.Extract_cut_constant value
+                Rdk.Curve_topology.Extract_cut_constant value
             | Extract_point_primitive_attribute name ->
-                Pdk.Curve_topology.Extract_cut_primitive_attribute name
+                Rdk.Curve_topology.Extract_cut_primitive_attribute name
             | Extract_point_current_time ->
-                Pdk.Curve_topology.Extract_cut_constant (Context.time context) in
-          match Pdk.Curve_topology.extract_point_from_curve
+                Rdk.Curve_topology.Extract_cut_constant (Context.time context) in
+          match Rdk.Curve_topology.extract_point_from_curve
               ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?primitives ~cut ~point_attributes
               ~copy_primitive_attributes ~primitive_attributes
               ?curve_u_attribute ?number_cuts_attribute ?curve_number_attribute
               ~distance_attribute geometry with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let convert_line ?label ?group ?(connect_path = false)
     ?(maximum_distance = 0.001)
@@ -3799,7 +3799,7 @@ let convert_line ?label ?group ?(connect_path = false)
       let edges = match group with
         | None -> Ok None
         | Some name ->
-            (match Pdk.Geometry.find_edge_group name inputs.(0) with
+            (match Rdk.Geometry.find_edge_group name inputs.(0) with
              | Some group -> Ok (Some group)
              | None -> Error (Diagnostic.error ~code:"missing_group"
                  ~hints:["Create the native edge group before Convert Line"]
@@ -3808,28 +3808,28 @@ let convert_line ?label ?group ?(connect_path = false)
       match edges with
       | Error _ as error -> error
       | Ok edges ->
-          match Pdk.Curve_topology.convert_line ~cancel:(Context.cancel_token context)
+          match Rdk.Curve_topology.convert_line ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?edges ~connect_path
               ~maximum_distance ~connect_only_to_other_end_points
               ~make_isolated_loops_closed ~remove_unused_points
               ?length_attribute inputs.(0) with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let carve_keep_key = function
-  | Pdk.Curve_ops.Inside -> "inside"
-  | Pdk.Curve_ops.Outside -> "outside"
-  | Pdk.Curve_ops.Inside_and_outside -> "inside_and_outside"
+  | Rdk.Curve_ops.Inside -> "inside"
+  | Rdk.Curve_ops.Outside -> "outside"
+  | Rdk.Curve_ops.Inside_and_outside -> "inside_and_outside"
 
 let carve_attribute_mode_key = function
-  | Pdk.Curve_ops.Replace -> "replace"
-  | Pdk.Curve_ops.Scale -> "scale"
+  | Rdk.Curve_ops.Replace -> "replace"
+  | Rdk.Curve_ops.Scale -> "scale"
 
 let carve ?label ?group ?(relative_arc_length = true) ?(first = 0.) ?(last = 1.)
     ?first_attribute ?last_attribute
-    ?(attribute_mode = Pdk.Curve_ops.Replace)
+    ?(attribute_mode = Rdk.Curve_ops.Replace)
     ?(only_at_breakpoints = false) ?(cut_at_all_internal_breakpoints = false)
-    ?(keep = Pdk.Curve_ops.Inside) ?(extract_points = false)
+    ?(keep = Rdk.Curve_ops.Inside) ?(extract_points = false)
     ?(divisions = 1) ?(keep_original = false) input =
   if divisions <= 0 then invalid_arg "Sop.carve: divisions must be positive";
   Option.iter (fun name -> if String.trim name = "" then
@@ -3851,7 +3851,7 @@ let carve ?label ?group ?(relative_arc_length = true) ?(first = 0.) ?(last = 1.)
       let primitives = match group with
         | None -> Ok None
         | Some name ->
-            (match Pdk.Geometry.find_group ~owner:Pdk.Group.Primitive name
+            (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive name
                 inputs.(0) with
              | Some group -> Ok (Some group)
              | None -> Error (Diagnostic.error ~code:"missing_group"
@@ -3859,20 +3859,20 @@ let carve ?label ?group ?(relative_arc_length = true) ?(first = 0.) ?(last = 1.)
       match primitives with
       | Error _ as error -> error
       | Ok primitives ->
-          match Pdk.Curve_ops.carve_curves ~cancel:(Context.cancel_token context)
+          match Rdk.Curve_ops.carve_curves ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?primitives ~relative_arc_length
               ~first ~last ?first_attribute ?last_attribute ~attribute_mode
               ~only_at_breakpoints ~cut_at_all_internal_breakpoints
               ~keep ~extract_points ~divisions ~keep_original
               inputs.(0) with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let ends_mode_key = function
-  | Pdk.Curve_topology.Ends_open -> "open"
-  | Pdk.Curve_topology.Ends_close_straight -> "close_straight"
-  | Pdk.Curve_topology.Ends_unroll_shared -> "unroll_shared"
-  | Pdk.Curve_topology.Ends_unroll_new -> "unroll_new"
+  | Rdk.Curve_topology.Ends_open -> "open"
+  | Rdk.Curve_topology.Ends_close_straight -> "close_straight"
+  | Rdk.Curve_topology.Ends_unroll_shared -> "unroll_shared"
+  | Rdk.Curve_topology.Ends_unroll_new -> "unroll_new"
 
 let ends ?label ?group mode input =
   Option.iter (fun name -> if String.trim name = "" then
@@ -3885,7 +3885,7 @@ let ends ?label ?group mode input =
       let primitives = match group with
         | None -> Ok None
         | Some name ->
-            (match Pdk.Geometry.find_group ~owner:Pdk.Group.Primitive
+            (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive
                 name inputs.(0) with
              | Some group -> Ok (Some group)
              | None -> Error (Diagnostic.error ~code:"missing_group"
@@ -3894,18 +3894,18 @@ let ends ?label ?group mode input =
       match primitives with
       | Error _ as error -> error
       | Ok primitives ->
-          match Pdk.Curve_topology.ends ~cancel:(Context.cancel_token context)
+          match Rdk.Curve_topology.ends ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?primitives mode inputs.(0) with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let curve_join_end_key = function
-  | Pdk.Curve_topology.Join_curve_start -> "start"
-  | Pdk.Curve_topology.Join_curve_end -> "end"
+  | Rdk.Curve_topology.Join_curve_start -> "start"
+  | Rdk.Curve_topology.Join_curve_end -> "end"
 
 let curve_join_picks_key picks =
   String.concat "," (Array.to_list (Array.map (fun pick ->
-    Printf.sprintf "%d:%s" pick.Pdk.Curve_topology.primitive
+    Printf.sprintf "%d:%s" pick.Rdk.Curve_topology.primitive
       (curve_join_end_key pick.end_)) picks))
 
 let join_curves ?label ?group ?picked_ends ?(orient_closest = true)
@@ -3938,7 +3938,7 @@ let join_curves ?label ?group ?picked_ends ?(orient_closest = true)
       let primitives = match group with
         | None -> Ok None
         | Some name ->
-            (match Pdk.Geometry.find_group ~owner:Pdk.Group.Primitive
+            (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive
                 name inputs.(0) with
              | Some group -> Ok (Some group)
              | None -> Error (Diagnostic.error ~code:"missing_group"
@@ -3948,12 +3948,12 @@ let join_curves ?label ?group ?picked_ends ?(orient_closest = true)
       match primitives with
       | Error _ as error -> error
       | Ok primitives ->
-          match Pdk.Curve_topology.join_curves ~cancel:(Context.cancel_token context)
+          match Rdk.Curve_topology.join_curves ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?primitives ?picked_ends ~orient_closest
               ~connect_closest_ends ~only_connected ?group_size ~keep_originals
               ~tolerance ~wrap inputs.(0) with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let poly_path ?label ?(connect_end_points = false)
     ?(maximum_distance = 0.001)
@@ -3966,19 +3966,19 @@ let poly_path ?label ?(connect_end_points = false)
       connect_only_to_other_end_points make_isolated_loops_closed)
     ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
     ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      match Pdk.Curve_topology.poly_path ~cancel:(Context.cancel_token context)
+      match Rdk.Curve_topology.poly_path ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ~connect_end_points ~maximum_distance
           ~connect_only_to_other_end_points ~make_isolated_loops_closed
           inputs.(0) with
       | Ok geometry -> cooked geometry
-      | Error error -> structured_pdk_error error)
+      | Error error -> structured_rdk_error error)
 
 let revolve_type_key = function
-  | Pdk.Sweep_modeling.Revolve_closed -> "closed"
-  | Pdk.Sweep_modeling.Revolve_open_arc -> "open_arc"
+  | Rdk.Sweep_modeling.Revolve_closed -> "closed"
+  | Rdk.Sweep_modeling.Revolve_open_arc -> "open_arc"
 
-let revolve ?label ?group ?(revolve_type = Pdk.Sweep_modeling.Revolve_closed)
-    ?(connectivity = Pdk.Plane_generators.Grid_quads) ?(start_angle = 0.)
+let revolve ?label ?group ?(revolve_type = Rdk.Sweep_modeling.Revolve_closed)
+    ?(connectivity = Rdk.Plane_generators.Grid_quads) ?(start_angle = 0.)
     ?(end_angle = 2. *. Float.pi) ?(reverse_cross_sections = false)
     ?(caps = false) ?cap_group ?(uv_attribute = Some "uv") ~divisions
     ~origin ~axis input =
@@ -4009,30 +4009,30 @@ let revolve ?label ?group ?(revolve_type = Pdk.Sweep_modeling.Revolve_closed)
       let primitives = match group with
         | None -> Ok None
         | Some name ->
-            (match Pdk.Geometry.find_group ~owner:Pdk.Group.Primitive name geometry with
+            (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive name geometry with
              | Some group -> Ok (Some group)
              | None -> Error (Diagnostic.error ~code:"missing_group"
                  (Printf.sprintf "revolve could not find primitive group %S" name))) in
       match primitives with
       | Error error -> Error error
       | Ok primitives ->
-          match Pdk.Sweep_modeling.revolve ~cancel:(Context.cancel_token context)
+          match Rdk.Sweep_modeling.revolve ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?primitives ~revolve_type
               ~connectivity ~start_angle ~end_angle ~reverse_cross_sections
               ~caps ?cap_group ~uv_attribute ~divisions ~origin ~axis geometry with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let sweep_tangent_key = function
-  | Pdk.Sweep_modeling.Sweep_average_edges -> "average_edges"
-  | Pdk.Sweep_modeling.Sweep_central_difference -> "central_difference"
-  | Pdk.Sweep_modeling.Sweep_previous_edge -> "previous_edge"
-  | Pdk.Sweep_modeling.Sweep_next_edge -> "next_edge"
-  | Pdk.Sweep_modeling.Sweep_z_axis -> "z_axis"
+  | Rdk.Sweep_modeling.Sweep_average_edges -> "average_edges"
+  | Rdk.Sweep_modeling.Sweep_central_difference -> "central_difference"
+  | Rdk.Sweep_modeling.Sweep_previous_edge -> "previous_edge"
+  | Rdk.Sweep_modeling.Sweep_next_edge -> "next_edge"
+  | Rdk.Sweep_modeling.Sweep_z_axis -> "z_axis"
 
 let sweep ?label ?backbone_group ?cross_section_group
-    ?(connectivity = Pdk.Plane_generators.Grid_quads)
-    ?(tangent = Pdk.Sweep_modeling.Sweep_average_edges) ?(continuous_closed = true)
+    ?(connectivity = Rdk.Plane_generators.Grid_quads)
+    ?(tangent = Rdk.Sweep_modeling.Sweep_average_edges) ?(continuous_closed = true)
     ?(transform_attributes = true) ?(reverse_cross_sections = false)
     ?(scale = 1.) ?(roll = 0.) ?(twist = 0.) ?(caps = false) ?cap_group
     ?(uv_attribute = Some "uv") ?(cross_section_prefix = "cross_section_")
@@ -4066,7 +4066,7 @@ let sweep ?label ?backbone_group ?cross_section_group
       let resolve input_index description name = match name with
         | None -> Ok None
         | Some name ->
-            (match Pdk.Geometry.find_group ~owner:Pdk.Group.Primitive name
+            (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive name
                 inputs.(input_index) with
              | Some group -> Ok (Some group)
              | None -> Error (Diagnostic.error ~code:"missing_group"
@@ -4078,14 +4078,14 @@ let sweep ?label ?backbone_group ?cross_section_group
           (match resolve 1 "cross-section" cross_section_group with
            | Error error -> Error error
            | Ok cross_sections ->
-               match Pdk.Sweep_modeling.sweep ~cancel:(Context.cancel_token context)
+               match Rdk.Sweep_modeling.sweep ~cancel:(Context.cancel_token context)
                    ~grain:(Context.grain context) ?backbones ?cross_sections
                    ~connectivity ~tangent ~continuous_closed
                    ~transform_attributes ~reverse_cross_sections ~scale ~roll
                    ~twist ~caps ?cap_group ~uv_attribute ~cross_section_prefix
                    ~backbone:inputs.(0) ~cross_section:inputs.(1) () with
                | Ok geometry -> cooked geometry
-               | Error error -> structured_pdk_error error))
+               | Error error -> structured_rdk_error error))
 
 let circular_wire ?label ~operation ?group ?sides ?divisions_attribute
     ?(segments = 1) ?segments_attribute ?segment_scales
@@ -4155,7 +4155,7 @@ let circular_wire ?label ~operation ?group ?sides ?divisions_attribute
       let primitives = match group with
         | None -> Ok None
         | Some name ->
-            (match Pdk.Geometry.find_group ~owner:Pdk.Group.Primitive name geometry with
+            (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive name geometry with
              | Some group -> Ok (Some group)
              | None -> Error (Diagnostic.error ~code:"missing_group"
                  ~hints:["Create the primitive group before PolyWire"]
@@ -4164,7 +4164,7 @@ let circular_wire ?label ~operation ?group ?sides ?divisions_attribute
       match primitives with
       | Error _ as error -> error
       | Ok primitives ->
-          match Pdk.Sweep_circle.run ~cancel:(Context.cancel_token context)
+          match Rdk.Sweep_circle.run ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?primitives ?sides
               ?divisions_attribute ~segments ?segments_attribute ?segment_scales
               ?segment_scales_attribute ~prevent_joint_buckling
@@ -4175,7 +4175,7 @@ let circular_wire ?label ~operation ?group ?sides ?divisions_attribute
               ~generate_uv ?u_range
               ?v_range ?uv_range_attribute ~caps ?cap_group ~radius geometry with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let sweep_circle ?label ?group ?sides ?divisions_attribute ?segments
     ?segments_attribute ?segment_scales ?segment_scales_attribute
@@ -4211,15 +4211,15 @@ let polywire ?label ?group ?sides ?divisions_attribute ?segments
     ~radius input
 
 let measure_key = function
-  | Pdk.Analysis.Perimeter -> "perimeter"
-  | Pdk.Analysis.Area -> "area"
-  | Pdk.Analysis.Signed_volume -> "signed_volume"
+  | Rdk.Analysis.Perimeter -> "perimeter"
+  | Rdk.Analysis.Area -> "area"
+  | Rdk.Analysis.Signed_volume -> "signed_volume"
 
 let accumulation_key = function
-  | Pdk.Analysis.Per_element -> "per_element"
-  | Pdk.Analysis.Throughout -> "throughout"
+  | Rdk.Analysis.Per_element -> "per_element"
+  | Rdk.Analysis.Throughout -> "throughout"
 
-let measure ?label ?group ?(accumulation = Pdk.Analysis.Per_element)
+let measure ?label ?group ?(accumulation = Rdk.Analysis.Per_element)
     ?name ?total_name kind input =
   List.iter (fun (label, value) -> match value with
     | Some value when String.trim value = "" ->
@@ -4240,30 +4240,30 @@ let measure ?label ?group ?(accumulation = Pdk.Analysis.Per_element)
       let primitives = match group with
         | None -> Ok None
         | Some name ->
-            (match Pdk.Geometry.find_group ~owner:Pdk.Group.Primitive name geometry with
+            (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive name geometry with
              | Some group -> Ok (Some group)
              | None -> Error (Diagnostic.error ~code:"missing_group"
                  (Printf.sprintf "measure could not find primitive group %S" name))) in
       match primitives with
       | Error error -> Error error
       | Ok primitives ->
-          (match Pdk.Analysis.with_measure ~cancel:(Context.cancel_token context)
+          (match Rdk.Analysis.with_measure ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?primitives ~accumulation ?name
               ?total_name kind geometry with
            | Ok geometry -> cooked geometry
-           | Error error -> structured_pdk_error error))
+           | Error error -> structured_rdk_error error))
 
 let connectivity_owner_key = function
-  | Pdk.Analysis.Connectivity_points -> "points"
-  | Pdk.Analysis.Connectivity_primitives -> "primitives"
+  | Rdk.Analysis.Connectivity_points -> "points"
+  | Rdk.Analysis.Connectivity_primitives -> "primitives"
 
 let connectivity_attribute_key = function
-  | Pdk.Analysis.Connectivity_integer -> "integer"
-  | Pdk.Analysis.Connectivity_text prefix -> "text:" ^ String.escaped prefix
+  | Rdk.Analysis.Connectivity_integer -> "integer"
+  | Rdk.Analysis.Connectivity_text prefix -> "text:" ^ String.escaped prefix
 
 let connectivity ?label ?primitive_group ?point_group ?seam_group ?uv_attribute
-    ?(owner = Pdk.Analysis.Connectivity_primitives) ?name
-    ?(attribute = Pdk.Analysis.Connectivity_integer) input =
+    ?(owner = Rdk.Analysis.Connectivity_primitives) ?name
+    ?(attribute = Rdk.Analysis.Connectivity_integer) input =
   List.iter (fun (field, value) -> match value with
     | Some value when String.trim value = "" ->
         invalid_arg ("Sop.connectivity: empty " ^ field)
@@ -4286,7 +4286,7 @@ let connectivity ?label ?primitive_group ?point_group ?seam_group ?uv_attribute
       let ordinary owner label = function
         | None -> Ok None
         | Some name ->
-            (match Pdk.Geometry.find_group ~owner name geometry with
+            (match Rdk.Geometry.find_group ~owner name geometry with
              | Some group -> Ok (Some group)
              | None -> Error (Diagnostic.error ~code:"missing_group"
                  (Printf.sprintf "connectivity could not find %s %S" label name)))
@@ -4294,57 +4294,57 @@ let connectivity ?label ?primitive_group ?point_group ?seam_group ?uv_attribute
       let seam = match seam_group with
         | None -> Ok None
         | Some name ->
-            (match Pdk.Geometry.find_edge_group name geometry with
+            (match Rdk.Geometry.find_edge_group name geometry with
              | Some group -> Ok (Some group)
              | None -> Error (Diagnostic.error ~code:"missing_group"
                  (Printf.sprintf "connectivity could not find edge group %S" name)))
       in
-      match ordinary Pdk.Group.Primitive "primitive group" primitive_group,
-          ordinary Pdk.Group.Point "point group" point_group, seam with
+      match ordinary Rdk.Group.Primitive "primitive group" primitive_group,
+          ordinary Rdk.Group.Point "point group" point_group, seam with
       | Error error, _, _ | _, Error error, _ | _, _, Error error -> Error error
       | Ok primitives, Ok points, Ok seams ->
-          (match Pdk.Analysis.with_connectivity
+          (match Rdk.Analysis.with_connectivity
               ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?primitives ?points ?seams
               ?uv_attribute ~owner ?name ~attribute geometry with
            | Ok geometry -> cooked geometry
-           | Error error -> structured_pdk_error error))
+           | Error error -> structured_rdk_error error))
 
 let attribute_owner_key = function
-  | Pdk.Attribute.Point -> "point"
-  | Pdk.Attribute.Vertex -> "vertex"
-  | Pdk.Attribute.Primitive -> "primitive"
-  | Pdk.Attribute.Detail -> "detail"
+  | Rdk.Attribute.Point -> "point"
+  | Rdk.Attribute.Vertex -> "vertex"
+  | Rdk.Attribute.Primitive -> "primitive"
+  | Rdk.Attribute.Detail -> "detail"
 
 let uv_projection_copy = function
-  | Pdk.Uv_ops.Planar { origin; u_axis; v_axis } ->
-      Pdk.Uv_ops.Planar {
+  | Rdk.Uv_ops.Planar { origin; u_axis; v_axis } ->
+      Rdk.Uv_ops.Planar {
         origin = vec3_copy origin;
         u_axis = vec3_copy u_axis;
         v_axis = vec3_copy v_axis;
       }
-  | Pdk.Uv_ops.Cylindrical { origin; axis; seam; height } ->
-      Pdk.Uv_ops.Cylindrical {
+  | Rdk.Uv_ops.Cylindrical { origin; axis; seam; height } ->
+      Rdk.Uv_ops.Cylindrical {
         origin = vec3_copy origin;
         axis = vec3_copy axis;
         seam = vec3_copy seam;
         height;
       }
-  | Pdk.Uv_ops.Spherical { origin; axis; seam } ->
-      Pdk.Uv_ops.Spherical {
+  | Rdk.Uv_ops.Spherical { origin; axis; seam } ->
+      Rdk.Uv_ops.Spherical {
         origin = vec3_copy origin;
         axis = vec3_copy axis;
         seam = vec3_copy seam;
       }
 
 let uv_projection_key = function
-  | Pdk.Uv_ops.Planar { origin; u_axis; v_axis } ->
+  | Rdk.Uv_ops.Planar { origin; u_axis; v_axis } ->
       Printf.sprintf "planar(origin=%s,u_axis=%s,v_axis=%s)"
         (vec3_key origin) (vec3_key u_axis) (vec3_key v_axis)
-  | Pdk.Uv_ops.Cylindrical { origin; axis; seam; height } ->
+  | Rdk.Uv_ops.Cylindrical { origin; axis; seam; height } ->
       Printf.sprintf "cylindrical(origin=%s,axis=%s,seam=%s,height=%s)"
         (vec3_key origin) (vec3_key axis) (vec3_key seam) (float_key height)
-  | Pdk.Uv_ops.Spherical { origin; axis; seam } ->
+  | Rdk.Uv_ops.Spherical { origin; axis; seam } ->
       Printf.sprintf "spherical(origin=%s,axis=%s,seam=%s)"
         (vec3_key origin) (vec3_key axis) (vec3_key seam)
 
@@ -4367,7 +4367,7 @@ let uv_project ?label ?(name = "uv") ?group ?(u_range = (0., 1.))
       let primitives = match group with
         | None -> Ok None
         | Some name ->
-            (match Pdk.Geometry.find_group ~owner:Pdk.Group.Primitive
+            (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive
                 name inputs.(0) with
              | Some group -> Ok (Some group)
              | None -> Error (Diagnostic.error ~code:"missing_group"
@@ -4377,22 +4377,22 @@ let uv_project ?label ?(name = "uv") ?group ?(u_range = (0., 1.))
       match primitives with
       | Error _ as error -> error
       | Ok primitives ->
-          match Pdk.Uv_ops.project ~cancel:(Context.cancel_token context)
+          match Rdk.Uv_ops.project ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ~name ?primitives ~u_range ~v_range
               ~fix_seams ~fix_poles projection inputs.(0) with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
-let uv_transform ?label ?(name = "uv") ?(owner = Pdk.Attribute.Vertex)
+let uv_transform ?label ?(name = "uv") ?(owner = Rdk.Attribute.Vertex)
     ?group ?(translate = Vec2.zero) ?(scale = Vec2.create 1. 1.)
     ?(angle = 0.) ?(pivot = Vec2.create 0.5 0.5) input =
   if String.trim name = "" then invalid_arg "Sop.uv_transform: empty attribute name";
   Option.iter (fun name -> if String.trim name = "" then
     invalid_arg "Sop.uv_transform: empty group name") group;
   let group_owner = match owner with
-    | Pdk.Attribute.Point -> Pdk.Group.Point
-    | Pdk.Attribute.Vertex -> Pdk.Group.Vertex
-    | Pdk.Attribute.Primitive | Pdk.Attribute.Detail ->
+    | Rdk.Attribute.Point -> Rdk.Group.Point
+    | Rdk.Attribute.Vertex -> Rdk.Group.Vertex
+    | Rdk.Attribute.Primitive | Rdk.Attribute.Detail ->
         invalid_arg "Sop.uv_transform: owner must be Point or Vertex" in
   let translate = vec2_copy translate and scale = vec2_copy scale
   and pivot = vec2_copy pivot in
@@ -4406,7 +4406,7 @@ let uv_transform ?label ?(name = "uv") ?(owner = Pdk.Attribute.Vertex)
       let selection = match group with
         | None -> Ok None
         | Some name ->
-            (match Pdk.Geometry.find_group ~owner:group_owner name inputs.(0) with
+            (match Rdk.Geometry.find_group ~owner:group_owner name inputs.(0) with
              | Some group -> Ok (Some group)
              | None -> Error (Diagnostic.error ~code:"missing_group"
                  ~hints:["Create a group with the same owner as the UV attribute"]
@@ -4415,11 +4415,11 @@ let uv_transform ?label ?(name = "uv") ?(owner = Pdk.Attribute.Vertex)
       match selection with
       | Error _ as error -> error
       | Ok selection ->
-          match Pdk.Uv_ops.transform ~cancel:(Context.cancel_token context)
+          match Rdk.Uv_ops.transform ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ~name ?selection ~owner
               ~translate ~scale ~angle ~pivot inputs.(0) with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let uv_auto_seam ?label ?(name = "uv_seams") ?group
     ?(angle = Float.pi /. 3.) ?(include_boundaries = true)
@@ -4445,7 +4445,7 @@ let uv_auto_seam ?label ?(name = "uv_seams") ?group
       let primitives = match group with
         | None -> Ok None
         | Some group_name ->
-            (match Pdk.Geometry.find_group ~owner:Pdk.Group.Primitive
+            (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive
                 group_name inputs.(0) with
              | Some value -> Ok (Some value)
              | None -> Error (Diagnostic.error ~code:"missing_group"
@@ -4455,26 +4455,26 @@ let uv_auto_seam ?label ?(name = "uv_seams") ?group
       match primitives with
       | Error _ as error -> error
       | Ok primitives ->
-          match Pdk.Uv_ops.auto_seam ~cancel:(Context.cancel_token context)
+          match Rdk.Uv_ops.auto_seam ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ~name ?primitives ~angle
               ~include_boundaries ~include_non_manifold ?partition_attribute
               ?existing_uv ~uv_tolerance ?island_attribute inputs.(0) with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let edge_incidence_key = function
-  | Pdk.Group_mesh.Any_edge -> "any"
-  | Pdk.Group_mesh.Boundary_edge -> "boundary"
-  | Pdk.Group_mesh.Manifold_edge -> "manifold"
-  | Pdk.Group_mesh.Non_manifold_edge -> "non_manifold"
+  | Rdk.Group_mesh.Any_edge -> "any"
+  | Rdk.Group_mesh.Boundary_edge -> "boundary"
+  | Rdk.Group_mesh.Manifold_edge -> "manifold"
+  | Rdk.Group_mesh.Non_manifold_edge -> "non_manifold"
 
 let edge_angle_basis_key = function
-  | Pdk.Group_mesh.Primitive_dihedral -> "primitive_dihedral"
-  | Pdk.Group_mesh.Incident_edges -> "incident_edges"
+  | Rdk.Group_mesh.Primitive_dihedral -> "primitive_dihedral"
+  | Rdk.Group_mesh.Incident_edges -> "incident_edges"
 
 let group_edges ?label ?(name = "edges") ?group
-    ?(incidence = Pdk.Group_mesh.Any_edge) ?min_length ?max_length
-    ?(angle_basis = Pdk.Group_mesh.Primitive_dihedral) ?min_angle ?max_angle input =
+    ?(incidence = Rdk.Group_mesh.Any_edge) ?min_length ?max_length
+    ?(angle_basis = Rdk.Group_mesh.Primitive_dihedral) ?min_angle ?max_angle input =
   if String.trim name = "" then invalid_arg "Sop.group_edges: empty group name";
   Option.iter (fun value -> if String.trim value = "" then
     invalid_arg "Sop.group_edges: empty primitive group name") group;
@@ -4491,7 +4491,7 @@ let group_edges ?label ?(name = "edges") ?group
       let primitives = match group with
         | None -> Ok None
         | Some group_name ->
-            (match Pdk.Geometry.find_group ~owner:Pdk.Group.Primitive
+            (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive
                 group_name inputs.(0) with
              | Some value -> Ok (Some value)
              | None -> Error (Diagnostic.error ~code:"missing_group"
@@ -4501,20 +4501,20 @@ let group_edges ?label ?(name = "edges") ?group
       match primitives with
       | Error _ as error -> error
       | Ok primitives ->
-          match Pdk.Group_mesh.group_edges ~cancel:(Context.cancel_token context)
+          match Rdk.Group_mesh.group_edges ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ~name ?primitives ~incidence
               ?min_length ?max_length ~angle_basis ?min_angle ?max_angle
               inputs.(0) with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let boundary_group_owner_key = function
-  | Pdk.Group_ops.Group_points -> "points"
-  | Pdk.Group_ops.Group_vertices -> "vertices"
-  | Pdk.Group_ops.Group_primitives -> "primitives"
-  | Pdk.Group_ops.Group_edges -> "edges"
+  | Rdk.Group_ops.Group_points -> "points"
+  | Rdk.Group_ops.Group_vertices -> "vertices"
+  | Rdk.Group_ops.Group_primitives -> "primitives"
+  | Rdk.Group_ops.Group_edges -> "edges"
 
-let group_boundary_attribute_key (rule : Pdk.Group_ops.boundary_attribute) =
+let group_boundary_attribute_key (rule : Rdk.Group_ops.boundary_attribute) =
   attribute_owner_key rule.boundary_attribute_owner ^ ":"
   ^ Printf.sprintf "%S" rule.boundary_attribute_pattern
 
@@ -4525,8 +4525,8 @@ let group_from_attribute_boundary ?label ?(attributes = [])
     ~owner ~name input =
   if String.trim name = "" then
     invalid_arg "Sop.group_from_attribute_boundary: empty group name";
-  let attributes = List.map (fun (rule : Pdk.Group_ops.boundary_attribute) ->
-    { Pdk.Group_ops.boundary_attribute_owner = rule.boundary_attribute_owner;
+  let attributes = List.map (fun (rule : Rdk.Group_ops.boundary_attribute) ->
+    { Rdk.Group_ops.boundary_attribute_owner = rule.boundary_attribute_owner;
       boundary_attribute_pattern = rule.boundary_attribute_pattern }) attributes in
   Node.Private.make ?label ~operation:"group_from_attribute_boundary" ~version:1
     ~parameters:(String.concat ";" [
@@ -4542,25 +4542,25 @@ let group_from_attribute_boundary ?label ?(attributes = [])
         ^ string_of_bool include_all_primitives_sharing_boundary_points])
     ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
     ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      match Pdk.Group_ops.group_from_attribute_boundary
+      match Rdk.Group_ops.group_from_attribute_boundary
           ~cancel:(Context.cancel_token context) ~grain:(Context.grain context)
           ~attributes ~tolerance ~include_unshared_edges
           ~include_all_unshared_curve_edges
           ~include_all_primitives_sharing_boundary_points ~owner ~name inputs.(0) with
       | Ok geometry -> cooked geometry
-      | Error error -> structured_pdk_error error)
+      | Error error -> structured_rdk_error error)
 
 let group_name_conflict_key = function
-  | Pdk.Group_ops.Name_replace -> "replace"
-  | Pdk.Group_ops.Name_union -> "union"
+  | Rdk.Group_ops.Name_replace -> "replace"
+  | Rdk.Group_ops.Name_union -> "union"
 
 let invalid_group_name_policy_key = function
-  | Pdk.Group_ops.Ignore_invalid -> "ignore"
-  | Pdk.Group_ops.Force_valid -> "force_valid"
+  | Rdk.Group_ops.Ignore_invalid -> "ignore"
+  | Rdk.Group_ops.Force_valid -> "force_valid"
 
 let groups_from_name ?label ?(prefix = "")
-    ?(conflict = Pdk.Group_ops.Name_replace)
-    ?(invalid_names = Pdk.Group_ops.Ignore_invalid) ?(max_groups = 4_096)
+    ?(conflict = Rdk.Group_ops.Name_replace)
+    ?(invalid_names = Rdk.Group_ops.Ignore_invalid) ?(max_groups = 4_096)
     ?(max_payload_bytes = 268_435_456) ~owner ~attribute input =
   if String.trim attribute = "" then
     invalid_arg "Sop.groups_from_name: empty attribute name";
@@ -4575,19 +4575,19 @@ let groups_from_name ?label ?(prefix = "")
       "max_payload_bytes=" ^ string_of_int max_payload_bytes])
     ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
     ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      match Pdk.Group_ops.groups_from_name ~cancel:(Context.cancel_token context)
+      match Rdk.Group_ops.groups_from_name ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ~prefix ~conflict ~invalid_names
           ~max_groups ~max_payload_bytes ~owner ~attribute inputs.(0) with
       | Ok geometry -> cooked geometry
-      | Error error -> structured_pdk_error error)
+      | Error error -> structured_rdk_error error)
 
 let group_name_overlap_key = function
-  | Pdk.Group_ops.First_group -> "first"
-  | Pdk.Group_ops.Last_group -> "last"
-  | Pdk.Group_ops.Error_on_overlap -> "error"
+  | Rdk.Group_ops.First_group -> "first"
+  | Rdk.Group_ops.Last_group -> "last"
+  | Rdk.Group_ops.Error_on_overlap -> "error"
 
 let name_from_groups ?label ?(attribute = "name") ?(pattern = "*")
-    ?(default = "") ?(overlap = Pdk.Group_ops.Last_group)
+    ?(default = "") ?(overlap = Rdk.Group_ops.Last_group)
     ?(delete_groups = false) ~owner input =
   if String.trim attribute = "" then
     invalid_arg "Sop.name_from_groups: empty attribute name";
@@ -4601,15 +4601,15 @@ let name_from_groups ?label ?(attribute = "name") ?(pattern = "*")
       "delete_groups=" ^ string_of_bool delete_groups])
     ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
     ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      match Pdk.Group_ops.name_from_groups ~cancel:(Context.cancel_token context)
+      match Rdk.Group_ops.name_from_groups ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ~attribute ~pattern ~default ~overlap
           ~delete_groups ~owner inputs.(0) with
       | Ok geometry -> cooked geometry
-      | Error error -> structured_pdk_error error)
+      | Error error -> structured_rdk_error error)
 
 let uv_unitize_mode_key = function
-  | Pdk.Uv_ops.Per_face -> "per_face"
-  | Pdk.Uv_ops.Islands -> "islands"
+  | Rdk.Uv_ops.Per_face -> "per_face"
+  | Rdk.Uv_ops.Islands -> "islands"
 
 let uv_unitize ?label ?(name = "uv") ?group ?seams ?(tolerance = 1e-9)
     ?(uniform = true) mode input =
@@ -4628,7 +4628,7 @@ let uv_unitize ?label ?(name = "uv") ?group ?seams ?(tolerance = 1e-9)
       let find_group owner kind = function
         | None -> Ok None
         | Some group_name ->
-            (match Pdk.Geometry.find_group ~owner group_name inputs.(0) with
+            (match Rdk.Geometry.find_group ~owner group_name inputs.(0) with
              | Some value -> Ok (Some value)
              | None -> Error (Diagnostic.error ~code:"missing_group"
                  ~hints:["Create the named group before UV Unitize"]
@@ -4637,10 +4637,10 @@ let uv_unitize ?label ?(name = "uv") ?group ?seams ?(tolerance = 1e-9)
       let find_seams = function
         | None -> Ok (None, None)
         | Some group_name ->
-            (match Pdk.Geometry.find_edge_group group_name inputs.(0) with
+            (match Rdk.Geometry.find_edge_group group_name inputs.(0) with
              | Some value -> Ok (Some value, None)
              | None ->
-                 match Pdk.Geometry.find_group ~owner:Pdk.Group.Vertex
+                 match Rdk.Geometry.find_group ~owner:Rdk.Group.Vertex
                      group_name inputs.(0) with
                  | Some value -> Ok (None, Some value)
                  | None -> Error (Diagnostic.error ~code:"missing_group"
@@ -4648,23 +4648,23 @@ let uv_unitize ?label ?(name = "uv") ?group ?seams ?(tolerance = 1e-9)
                      (Printf.sprintf
                        "uv_unitize could not find edge or vertex seam group %S"
                        group_name))) in
-      match find_group Pdk.Group.Primitive "primitive" group, find_seams seams with
+      match find_group Rdk.Group.Primitive "primitive" group, find_seams seams with
       | Error _ as error, _ | _, (Error _ as error) -> error
       | Ok primitives, Ok (edge_seams, seams) ->
-          match Pdk.Uv_ops.unitize ~cancel:(Context.cancel_token context)
+          match Rdk.Uv_ops.unitize ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ~name ?primitives ?seams
               ?edge_seams
               ~tolerance ~uniform mode inputs.(0) with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let uv_parameterize_seams operation input = function
   | None -> Ok (None, None)
   | Some group_name ->
-      (match Pdk.Geometry.find_edge_group group_name input with
+      (match Rdk.Geometry.find_edge_group group_name input with
        | Some value -> Ok (Some value, None)
        | None ->
-           match Pdk.Geometry.find_group ~owner:Pdk.Group.Vertex group_name input with
+           match Rdk.Geometry.find_group ~owner:Rdk.Group.Vertex group_name input with
            | Some value -> Ok (None, Some value)
            | None -> Error (Diagnostic.error ~code:"missing_group"
                ~hints:["Create a native edge group or compatibility vertex-edge group before " ^ operation]
@@ -4684,11 +4684,11 @@ let uv_flatten ?label ?(name = "uv") ?seams ?(iterations = 500)
       match uv_parameterize_seams "uv_flatten" inputs.(0) seams with
       | Error _ as error -> error
       | Ok (edge_seams, seams) ->
-          match Pdk.Uv_ops.flatten ~cancel:(Context.cancel_token context)
+          match Rdk.Uv_ops.flatten ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ~name ?seams ?edge_seams
               ~iterations ~tolerance inputs.(0) with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let uv_relax ?label ?(name = "uv") ?seams ?(uv_tolerance = 1e-9)
     ?(iterations = 500) ?(tolerance = 1e-7) input =
@@ -4705,50 +4705,50 @@ let uv_relax ?label ?(name = "uv") ?seams ?(uv_tolerance = 1e-9)
       match uv_parameterize_seams "uv_relax" inputs.(0) seams with
       | Error _ as error -> error
       | Ok (edge_seams, seams) ->
-          match Pdk.Uv_ops.relax ~cancel:(Context.cancel_token context)
+          match Rdk.Uv_ops.relax ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ~name ?seams ?edge_seams
               ~uv_tolerance ~iterations ~tolerance inputs.(0) with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let promote_method_key = function
-  | Pdk.Attribute_ops.First -> "first"
-  | Pdk.Attribute_ops.Last -> "last"
-  | Pdk.Attribute_ops.Average -> "average"
-  | Pdk.Attribute_ops.Minimum -> "minimum"
-  | Pdk.Attribute_ops.Maximum -> "maximum"
-  | Pdk.Attribute_ops.Mode -> "mode"
-  | Pdk.Attribute_ops.Median -> "median"
-  | Pdk.Attribute_ops.Sum -> "sum"
-  | Pdk.Attribute_ops.Sum_squares -> "sum_squares"
-  | Pdk.Attribute_ops.Root_mean_square -> "root_mean_square"
-  | Pdk.Attribute_ops.Array_all -> "array_all"
-  | Pdk.Attribute_ops.Unique_values -> "unique_values"
+  | Rdk.Attribute_ops.First -> "first"
+  | Rdk.Attribute_ops.Last -> "last"
+  | Rdk.Attribute_ops.Average -> "average"
+  | Rdk.Attribute_ops.Minimum -> "minimum"
+  | Rdk.Attribute_ops.Maximum -> "maximum"
+  | Rdk.Attribute_ops.Mode -> "mode"
+  | Rdk.Attribute_ops.Median -> "median"
+  | Rdk.Attribute_ops.Sum -> "sum"
+  | Rdk.Attribute_ops.Sum_squares -> "sum_squares"
+  | Rdk.Attribute_ops.Root_mean_square -> "root_mean_square"
+  | Rdk.Attribute_ops.Array_all -> "array_all"
+  | Rdk.Attribute_ops.Unique_values -> "unique_values"
 
 let promote_method_has_source_index = function
-  | Pdk.Attribute_ops.First | Last | Minimum | Maximum | Mode -> true
+  | Rdk.Attribute_ops.First | Last | Minimum | Maximum | Mode -> true
   | Average | Median | Sum | Sum_squares | Root_mean_square
   | Array_all | Unique_values -> false
 
-let promote_attributes ?label ?(method_ = Pdk.Attribute_ops.Average)
+let promote_attributes ?label ?(method_ = Rdk.Attribute_ops.Average)
     ?(delete_source = true) ?piece_attribute ?into_pattern ?index_pattern
     ~source ~destination ~pattern input =
   if Option.is_some index_pattern && not (promote_method_has_source_index method_)
   then invalid_arg
       "Sop.promote_attributes: source index requires first, last, minimum, maximum, or mode";
-  (match Pdk.Attribute_pattern.compile pattern with
+  (match Rdk.Attribute_pattern.compile pattern with
    | Ok _ -> ()
    | Error message -> invalid_arg ("Sop.promote_attributes: " ^ message));
   (match into_pattern with
    | None -> ()
    | Some replacement ->
-       (match Pdk.Attribute_pattern.compile_rewrite_set ~pattern ~replacement with
+       (match Rdk.Attribute_pattern.compile_rewrite_set ~pattern ~replacement with
         | Ok _ -> ()
         | Error message -> invalid_arg ("Sop.promote_attributes: " ^ message)));
   (match index_pattern with
    | None -> ()
    | Some replacement ->
-       (match Pdk.Attribute_pattern.compile_rewrite_set ~pattern ~replacement with
+       (match Rdk.Attribute_pattern.compile_rewrite_set ~pattern ~replacement with
         | Ok _ -> ()
         | Error message -> invalid_arg ("Sop.promote_attributes: " ^ message)));
   Node.Private.make ?label ~operation:"attribute_promote_pattern" ~version:5
@@ -4764,47 +4764,47 @@ let promote_attributes ?label ?(method_ = Pdk.Attribute_ops.Average)
     ]) ~cook_mode:(Node.Duplicate_input 0)
     ~dependencies:Context.Dependencies.static ~inputs:[|input|]
     (fun ~node_id:_ context inputs ->
-      match Pdk.Attribute_ops.promote_pattern
+      match Rdk.Attribute_ops.promote_pattern
           ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ~method_ ~delete_source ~source
           ~destination ~pattern ?piece_attribute ?into_pattern ?index_pattern
           inputs.(0) with
       | Ok geometry -> cooked geometry
-      | Error error -> structured_pdk_error error)
+      | Error error -> structured_rdk_error error)
 
 let transfer_mode_key = function
-  | Pdk.Attribute_ops.Nearest -> "nearest"
-  | Pdk.Attribute_ops.Inverse_distance { neighbors; power } ->
+  | Rdk.Attribute_ops.Nearest -> "nearest"
+  | Rdk.Attribute_ops.Inverse_distance { neighbors; power } ->
       Printf.sprintf "inverse_distance:%d:%s" neighbors (float_key power)
-  | Pdk.Attribute_ops.Kernel { neighbors; radius; kernel } ->
+  | Rdk.Attribute_ops.Kernel { neighbors; radius; kernel } ->
       let kernel = match kernel with
-        | Pdk.Attribute_ops.Links -> "links"
-        | Pdk.Attribute_ops.RenderMan -> "renderman"
-        | Pdk.Attribute_ops.Hart -> "hart" in
+        | Rdk.Attribute_ops.Links -> "links"
+        | Rdk.Attribute_ops.RenderMan -> "renderman"
+        | Rdk.Attribute_ops.Hart -> "hart" in
       String.concat ":" ["kernel"; string_of_int neighbors;
         float_key radius; kernel]
 
 let unmatched_key = function
-  | Pdk.Attribute_ops.Keep_target -> "keep_target"
-  | Pdk.Attribute_ops.Default_value -> "default_value"
+  | Rdk.Attribute_ops.Keep_target -> "keep_target"
+  | Rdk.Attribute_ops.Default_value -> "default_value"
 
 let transfer_falloff_key = function
-  | Pdk.Attribute_ops.Linear -> "linear"
-  | Pdk.Attribute_ops.Smoothstep -> "smoothstep"
-  | Pdk.Attribute_ops.Uniform bias -> "uniform:" ^ float_key bias
+  | Rdk.Attribute_ops.Linear -> "linear"
+  | Rdk.Attribute_ops.Smoothstep -> "smoothstep"
+  | Rdk.Attribute_ops.Uniform bias -> "uniform:" ^ float_key bias
 
 let surface_vertex_selection_key = function
-  | Pdk.Attribute_ops.All_triangle_vertices -> "all_triangle_vertices"
-  | Pdk.Attribute_ops.Any_triangle_vertex -> "any_triangle_vertex"
+  | Rdk.Attribute_ops.All_triangle_vertices -> "all_triangle_vertices"
+  | Rdk.Attribute_ops.Any_triangle_vertex -> "any_triangle_vertex"
 
 let enumerate_mode_key = function
-  | Pdk.Attribute_ops.Enumerate_piece_elements -> "piece_elements"
-  | Pdk.Attribute_ops.Enumerate_pieces -> "pieces"
+  | Rdk.Attribute_ops.Enumerate_piece_elements -> "piece_elements"
+  | Rdk.Attribute_ops.Enumerate_pieces -> "pieces"
 
 let enumerate ?label ?group ?(start = 0) ?(step = 1)
-    ?(storage = Pdk.Attribute_ops.Integer) ?piece_attribute
-    ?(mode = Pdk.Attribute_ops.Enumerate_piece_elements) ~owner ~name input =
-  if owner = Pdk.Attribute.Detail then
+    ?(storage = Rdk.Attribute_ops.Integer) ?piece_attribute
+    ?(mode = Rdk.Attribute_ops.Enumerate_piece_elements) ~owner ~name input =
+  if owner = Rdk.Attribute.Detail then
     invalid_arg "Sop.enumerate: detail ownership is not enumerable";
   if String.trim name = "" then invalid_arg "Sop.enumerate: empty attribute name";
   (match group with Some value when String.trim value = "" ->
@@ -4813,8 +4813,8 @@ let enumerate ?label ?group ?(start = 0) ?(step = 1)
      invalid_arg "Sop.enumerate: empty piece attribute name"
    | None | Some _ -> ());
   let storage_key = match storage with
-    | Pdk.Attribute_ops.Integer -> "integer"
-    | Pdk.Attribute_ops.Text { prefix } -> "text:" ^ String.escaped prefix in
+    | Rdk.Attribute_ops.Integer -> "integer"
+    | Rdk.Attribute_ops.Text { prefix } -> "text:" ^ String.escaped prefix in
   Node.Private.make ?label ~operation:"enumerate" ~version:2
     ~parameters:(String.concat ";" ["owner=" ^ attribute_owner_key owner;
       "name=" ^ String.escaped name; "group=" ^ option_string_key group;
@@ -4825,14 +4825,14 @@ let enumerate ?label ?group ?(start = 0) ?(step = 1)
     ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
     ~inputs:[|input|] (fun ~node_id:_ context inputs ->
       let group_owner = match owner with
-        | Pdk.Attribute.Point -> Pdk.Group.Point
-        | Pdk.Attribute.Vertex -> Pdk.Group.Vertex
-        | Pdk.Attribute.Primitive -> Pdk.Group.Primitive
-        | Pdk.Attribute.Detail -> assert false in
+        | Rdk.Attribute.Point -> Rdk.Group.Point
+        | Rdk.Attribute.Vertex -> Rdk.Group.Vertex
+        | Rdk.Attribute.Primitive -> Rdk.Group.Primitive
+        | Rdk.Attribute.Detail -> assert false in
       let selection = match group with
         | None -> Ok None
         | Some name ->
-            (match Pdk.Geometry.find_group ~owner:group_owner name inputs.(0) with
+            (match Rdk.Geometry.find_group ~owner:group_owner name inputs.(0) with
              | Some group -> Ok (Some group)
              | None -> Error (Diagnostic.error ~code:"missing_group"
                  (Printf.sprintf "enumerate could not find %s group %S"
@@ -4840,28 +4840,28 @@ let enumerate ?label ?group ?(start = 0) ?(step = 1)
       match selection with
       | Error error -> Error error
       | Ok selection ->
-          match Pdk.Attribute_ops.enumerate
+          match Rdk.Attribute_ops.enumerate
               ~cancel:(Context.cancel_token context) ~grain:(Context.grain context)
               ?selection ~start ~step ~storage ?piece_attribute ~mode
               ~owner ~name inputs.(0) with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let blur_method_key = function
-  | Pdk.Attribute_ops.Uniform -> "uniform"
-  | Pdk.Attribute_ops.Edge_length -> "edge_length"
+  | Rdk.Attribute_ops.Uniform -> "uniform"
+  | Rdk.Attribute_ops.Edge_length -> "edge_length"
 
 let blur_mode_key = function
-  | Pdk.Attribute_ops.Laplacian step -> "laplacian:" ^ float_key step
-  | Pdk.Attribute_ops.Custom_steps { odd; even } ->
+  | Rdk.Attribute_ops.Laplacian step -> "laplacian:" ^ float_key step
+  | Rdk.Attribute_ops.Custom_steps { odd; even } ->
       String.concat ":" ["custom"; float_key odd; float_key even]
 
 let attribute_blur ?label ?group ?(iterations = 1)
-    ?(method_ = Pdk.Attribute_ops.Uniform)
-    ?(mode = Pdk.Attribute_ops.Laplacian 0.5) ?weight_attribute
+    ?(method_ = Rdk.Attribute_ops.Uniform)
+    ?(mode = Rdk.Attribute_ops.Laplacian 0.5) ?weight_attribute
     ?alpha_attribute ?(pin_borders = false) ?(original_blend = 0.)
     ?(blurred_blend = 1.) ~attributes input =
-  (match Pdk.Attribute_pattern.compile attributes with
+  (match Rdk.Attribute_pattern.compile attributes with
    | Ok _ -> ()
    | Error message -> invalid_arg ("Sop.attribute_blur: " ^ message));
   List.iter (fun (label, value) -> match value with
@@ -4887,30 +4887,30 @@ let attribute_blur ?label ?group ?(iterations = 1)
       let selection = match group with
         | None -> Ok None
         | Some name ->
-            (match Pdk.Geometry.find_group ~owner:Pdk.Group.Point name inputs.(0) with
+            (match Rdk.Geometry.find_group ~owner:Rdk.Group.Point name inputs.(0) with
              | Some group -> Ok (Some group)
              | None -> Error (Diagnostic.error ~code:"missing_group"
                  (Printf.sprintf "attribute_blur could not find point group %S" name))) in
       match selection with
       | Error error -> Error error
       | Ok selection ->
-          (match Pdk.Attribute_ops.blur_points
+          (match Rdk.Attribute_ops.blur_points
               ~cancel:(Context.cancel_token context) ~grain:(Context.grain context)
               ?selection ~iterations ~method_ ~mode ?weight_attribute
               ?alpha_attribute ~pin_borders ~original_blend ~blurred_blend
               ~pattern:attributes inputs.(0) with
            | Ok geometry -> cooked geometry
-           | Error error -> structured_pdk_error error))
+           | Error error -> structured_rdk_error error))
 
 let group_length owner geometry = match owner with
-  | Pdk.Group.Point -> Pdk.Geometry.point_count geometry
-  | Pdk.Group.Vertex -> Pdk.Geometry.vertex_count geometry
-  | Pdk.Group.Primitive -> Pdk.Geometry.primitive_count geometry
+  | Rdk.Group.Point -> Rdk.Geometry.point_count geometry
+  | Rdk.Group.Vertex -> Rdk.Geometry.vertex_count geometry
+  | Rdk.Group.Primitive -> Rdk.Geometry.primitive_count geometry
 
 let compile_transfer_group_pattern operation label = function
   | None -> None
   | Some pattern ->
-      match Pdk.Attribute_pattern.compile pattern with
+      match Rdk.Attribute_pattern.compile pattern with
       | Ok compiled -> Some compiled
       | Error message -> invalid_arg
           (Printf.sprintf "Sop.%s: invalid %s group pattern: %s"
@@ -4923,29 +4923,29 @@ let resolve_transfer_group ~operation ~owner ~owner_name ~exact ~pattern
       (Printf.sprintf "Sop.%s: exact and patterned %s groups are mutually exclusive"
          operation owner_name)
   | Some name, None ->
-      (match Pdk.Geometry.find_group ~owner name geometry with
+      (match Rdk.Geometry.find_group ~owner name geometry with
        | Some group -> Ok (Some group)
        | None -> Error (Diagnostic.error ~code:"missing_group"
            (Printf.sprintf "%s could not find %s group %S"
               operation owner_name name)))
   | None, None -> Ok None
   | None, Some pattern ->
-      Pdk.Cancel.check cancel;
-      let matches = Pdk.Geometry.groups geometry
-          |> List.filter (fun group -> Pdk.Group.owner group = owner
-            && Pdk.Attribute_pattern.matches pattern (Pdk.Group.name group)) in
+      Rdk.Cancel.check cancel;
+      let matches = Rdk.Geometry.groups geometry
+          |> List.filter (fun group -> Rdk.Group.owner group = owner
+            && Rdk.Attribute_pattern.matches pattern (Rdk.Group.name group)) in
       let selection = match matches with
-        | [] -> Ok (Pdk.Group.init ~grain ~owner
+        | [] -> Ok (Rdk.Group.init ~grain ~owner
             ~name:"__attribute_transfer_empty" (group_length owner geometry)
             (fun _ -> false))
         | [group] -> Ok group
-        | groups -> Pdk.Group.union_many ~cancel ~grain
+        | groups -> Rdk.Group.union_many ~cancel ~grain
             ~name:"__attribute_transfer_union" groups in
       Result.map_error (fun message -> Diagnostic.error ~code:"invalid_group"
         (operation ^ ": " ^ message)) selection
       |> Result.map Option.some
 
-let attribute_copy ?label ?(match_ = Pdk.Attribute_ops.Cyclic)
+let attribute_copy ?label ?(match_ = Rdk.Attribute_ops.Cyclic)
     ?(allow_position = false) ?source_group ?source_group_pattern
     ?target_group ?target_group_pattern ~group_owner ~rules ~source ~target () =
   if rules = [] then
@@ -4954,14 +4954,14 @@ let attribute_copy ?label ?(match_ = Pdk.Attribute_ops.Cyclic)
       "Sop.attribute_copy: source_group and source_group_pattern are mutually exclusive";
   if target_group <> None && target_group_pattern <> None then invalid_arg
       "Sop.attribute_copy: target_group and target_group_pattern are mutually exclusive";
-  List.iter (fun (rule : Pdk.Attribute_ops.copy_rule) ->
+  List.iter (fun (rule : Rdk.Attribute_ops.copy_rule) ->
     match rule.copy_into with
     | None ->
-        (match Pdk.Attribute_pattern.compile rule.copy_pattern with
+        (match Rdk.Attribute_pattern.compile rule.copy_pattern with
          | Ok _ -> ()
          | Error message -> invalid_arg ("Sop.attribute_copy: " ^ message))
     | Some into ->
-        (match Pdk.Attribute_pattern.compile_rewrite
+        (match Rdk.Attribute_pattern.compile_rewrite
             ~pattern:rule.copy_pattern ~replacement:into with
          | Ok _ -> ()
          | Error message -> invalid_arg ("Sop.attribute_copy: " ^ message))) rules;
@@ -4970,19 +4970,19 @@ let attribute_copy ?label ?(match_ = Pdk.Attribute_ops.Cyclic)
   and target_group_pattern_compiled = compile_transfer_group_pattern
       "attribute_copy" "target" target_group_pattern in
   let group_owner_name = match group_owner with
-    | Pdk.Group.Point -> "point"
-    | Pdk.Group.Vertex -> "vertex"
-    | Pdk.Group.Primitive -> "primitive" in
-  let rule_key (rule : Pdk.Attribute_ops.copy_rule) = String.concat ":" [
+    | Rdk.Group.Point -> "point"
+    | Rdk.Group.Vertex -> "vertex"
+    | Rdk.Group.Primitive -> "primitive" in
+  let rule_key (rule : Rdk.Attribute_ops.copy_rule) = String.concat ":" [
     attribute_owner_key rule.copy_owner;
     String.escaped rule.copy_pattern;
     option_string_key rule.copy_into] in
   let match_key = match match_ with
-    | Pdk.Attribute_ops.Cyclic -> "cyclic"
-    | Pdk.Attribute_ops.By_values { source_attribute; target_attribute } ->
+    | Rdk.Attribute_ops.Cyclic -> "cyclic"
+    | Rdk.Attribute_ops.By_values { source_attribute; target_attribute } ->
         "by_values:" ^ String.escaped source_attribute ^ ":"
         ^ String.escaped target_attribute
-    | Pdk.Attribute_ops.To_element { target_attribute } ->
+    | Rdk.Attribute_ops.To_element { target_attribute } ->
         "to_element:" ^ String.escaped target_attribute in
   Node.Private.make ?label ~operation:"attribute_copy" ~version:1
     ~parameters:(String.concat ";" [
@@ -5008,18 +5008,18 @@ let attribute_copy ?label ?(match_ = Pdk.Attribute_ops.Cyclic)
               ~pattern:target_group_pattern_compiled ~cancel ~grain inputs.(1) with
            | Error error -> Error error
            | Ok target_group ->
-               match Pdk.Attribute_ops.copy ~cancel ~grain ?source_group
+               match Rdk.Attribute_ops.copy ~cancel ~grain ?source_group
                    ?target_group ~match_ ~allow_position ~group_owner ~rules
                    ~source:inputs.(0) ~target:inputs.(1) () with
                | Ok geometry -> cooked geometry
-               | Error error -> structured_pdk_error error))
+               | Error error -> structured_rdk_error error))
 
 let attribute_interpolate ?label ?group ?group_pattern ?driver ?compute_weights
     ?point_pattern ?vertex_pattern ?primitive_pattern ?detail_pattern
     ?(match_groups = false)
     ?primitive_attribute ?uvw_attribute ?(pre_scale = 1.)
     ?(normalize_weights = false) ?(threshold = 1e-6) ?(blend = 1.)
-    ?(unmatched = Pdk.Attribute_ops.Keep_target) ~target_owner ~attributes
+    ?(unmatched = Rdk.Attribute_ops.Keep_target) ~target_owner ~attributes
     ~source ~target () =
   if Option.is_some driver
       && (Option.is_some primitive_attribute || Option.is_some uvw_attribute) then
@@ -5027,48 +5027,48 @@ let attribute_interpolate ?label ?group ?group_pattern ?driver ?compute_weights
       "Sop.attribute_interpolate: driver is mutually exclusive with primitive_attribute and uvw_attribute";
   if group <> None && group_pattern <> None then invalid_arg
       "Sop.attribute_interpolate: group and group_pattern are mutually exclusive";
-  if target_owner = Pdk.Attribute.Detail
+  if target_owner = Rdk.Attribute.Detail
       && (group <> None || group_pattern <> None) then invalid_arg
       "Sop.attribute_interpolate: detail attributes do not accept a group";
   let group_owner, group_owner_name = match target_owner with
-    | Pdk.Attribute.Point -> Pdk.Group.Point, "point"
-    | Pdk.Attribute.Vertex -> Pdk.Group.Vertex, "vertex"
-    | Pdk.Attribute.Primitive -> Pdk.Group.Primitive, "primitive"
-    | Pdk.Attribute.Detail -> Pdk.Group.Point, "detail" in
+    | Rdk.Attribute.Point -> Rdk.Group.Point, "point"
+    | Rdk.Attribute.Vertex -> Rdk.Group.Vertex, "vertex"
+    | Rdk.Attribute.Primitive -> Rdk.Group.Primitive, "primitive"
+    | Rdk.Attribute.Detail -> Rdk.Group.Point, "detail" in
   let group_pattern_compiled = compile_transfer_group_pattern
       "attribute_interpolate" "target" group_pattern in
-  let attribute_key (attribute : Pdk.Attribute_ops.interpolate_attribute) =
+  let attribute_key (attribute : Rdk.Attribute_ops.interpolate_attribute) =
     String.concat ":" [
       attribute_owner_key attribute.interpolate_owner;
       String.escaped attribute.interpolate_source;
       String.escaped attribute.interpolate_target] in
   let unmatched_key = match unmatched with
-    | Pdk.Attribute_ops.Keep_target -> "keep"
-    | Pdk.Attribute_ops.Default_value -> "default" in
+    | Rdk.Attribute_ops.Keep_target -> "keep"
+    | Rdk.Attribute_ops.Default_value -> "default" in
   let driver_key = match driver with
     | None -> String.concat ":" ["primitive_uvw";
         String.escaped (Option.value ~default:"source_primitive"
           primitive_attribute);
         String.escaped (Option.value ~default:"source_uvw" uvw_attribute)]
-    | Some (Pdk.Attribute_ops.Primitive_uvw {
+    | Some (Rdk.Attribute_ops.Primitive_uvw {
         primitive_attribute; uvw_attribute }) ->
         String.concat ":" ["primitive_uvw"; String.escaped primitive_attribute;
           String.escaped uvw_attribute]
-    | Some (Pdk.Attribute_ops.Point_weights {
+    | Some (Rdk.Attribute_ops.Point_weights {
         numbers_attribute; weights_attribute }) ->
         String.concat ":" ["point_weights"; String.escaped numbers_attribute;
           String.escaped weights_attribute]
-    | Some (Pdk.Attribute_ops.Vertex_weights {
+    | Some (Rdk.Attribute_ops.Vertex_weights {
         numbers_attribute; weights_attribute }) ->
         String.concat ":" ["vertex_weights"; String.escaped numbers_attribute;
           String.escaped weights_attribute]
-    | Some (Pdk.Attribute_ops.Primitive_weights {
+    | Some (Rdk.Attribute_ops.Primitive_weights {
         numbers_attribute; weights_attribute }) ->
         String.concat ":" ["primitive_weights"; String.escaped numbers_attribute;
           String.escaped weights_attribute] in
   let compute_key = match compute_weights with
     | None -> "none"
-    | Some (computed : Pdk.Attribute_ops.interpolate_computed) ->
+    | Some (computed : Rdk.Attribute_ops.interpolate_computed) ->
         String.concat ":" [attribute_owner_key computed.computed_owner;
           String.escaped computed.computed_numbers_attribute;
           String.escaped computed.computed_weights_attribute] in
@@ -5094,51 +5094,51 @@ let attribute_interpolate ?label ?group ?group_pattern ?driver ?compute_weights
     ~inputs:[|source; target|]
     (fun ~node_id:_ context inputs ->
       let cancel = Context.cancel_token context and grain = Context.grain context in
-      let selection = if target_owner = Pdk.Attribute.Detail then Ok None
+      let selection = if target_owner = Rdk.Attribute.Detail then Ok None
         else resolve_transfer_group ~operation:"attribute_interpolate"
           ~owner:group_owner ~owner_name:group_owner_name ~exact:group
           ~pattern:group_pattern_compiled ~cancel ~grain inputs.(1) in
       match selection with
       | Error error -> Error error
       | Ok selection ->
-          match Pdk.Attribute_ops.interpolate ~cancel ~grain ?selection
+          match Rdk.Attribute_ops.interpolate ~cancel ~grain ?selection
               ?driver ?compute_weights ?primitive_attribute ?uvw_attribute ~pre_scale
               ?point_pattern ?vertex_pattern ?primitive_pattern ?detail_pattern
               ~match_groups ~normalize_weights ~threshold ~blend ~unmatched
               ~target_owner ~attributes ~source:inputs.(0) ~target:inputs.(1) () with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
-let attribute_transfer ?label ?(owner = Pdk.Attribute.Point) ?names ?pattern
-    ?(mode = Pdk.Attribute_ops.Nearest) ?max_distance ?(blend_width = 0.)
-    ?(falloff = Pdk.Attribute_ops.Smoothstep)
-    ?(unmatched = Pdk.Attribute_ops.Keep_target)
+let attribute_transfer ?label ?(owner = Rdk.Attribute.Point) ?names ?pattern
+    ?(mode = Rdk.Attribute_ops.Nearest) ?max_distance ?(blend_width = 0.)
+    ?(falloff = Rdk.Attribute_ops.Smoothstep)
+    ?(unmatched = Rdk.Attribute_ops.Keep_target)
     ?source_group ?source_group_pattern ?source_vertex_group
     ?source_vertex_group_pattern
-    ?(source_vertex_selection = Pdk.Attribute_ops.All_triangle_vertices)
+    ?(source_vertex_selection = Rdk.Attribute_ops.All_triangle_vertices)
     ?target_group ?target_group_pattern
     ~source ~target () =
-  if owner <> Pdk.Attribute.Vertex
+  if owner <> Rdk.Attribute.Vertex
       && (source_vertex_group <> None || source_vertex_group_pattern <> None) then
     invalid_arg
       "Sop.attribute_transfer: source vertex groups require vertex ownership";
-  if owner = Pdk.Attribute.Detail
+  if owner = Rdk.Attribute.Detail
      && (source_group <> None || source_group_pattern <> None
          || target_group <> None || target_group_pattern <> None
          || max_distance <> None || blend_width <> 0.) then
     invalid_arg
       "Sop.attribute_transfer: detail transfer does not accept spatial options";
-  if owner = Pdk.Attribute.Detail && mode <> Pdk.Attribute_ops.Nearest then
+  if owner = Rdk.Attribute.Detail && mode <> Rdk.Attribute_ops.Nearest then
     invalid_arg
       "Sop.attribute_transfer: detail transfer does not accept a spatial mode";
-  if owner = Pdk.Attribute.Vertex && mode <> Pdk.Attribute_ops.Nearest then
+  if owner = Rdk.Attribute.Vertex && mode <> Rdk.Attribute_ops.Nearest then
     invalid_arg
       "Sop.attribute_transfer: vertex transfer supports closest-surface mode only";
   (match names, pattern with
    | Some _, Some _ -> invalid_arg
        "Sop.attribute_transfer: names and pattern are mutually exclusive"
    | None, Some value ->
-       (match Pdk.Attribute_pattern.compile value with
+       (match Rdk.Attribute_pattern.compile value with
         | Ok _ -> ()
         | Error message -> invalid_arg ("Sop.attribute_transfer: " ^ message))
    | None, None | Some _, None -> ());
@@ -5190,14 +5190,14 @@ let attribute_transfer ?label ?(owner = Pdk.Attribute.Point) ?names ?pattern
     (fun ~node_id:_ context inputs ->
       let source_group_owner, target_group_owner, source_owner_name,
           target_owner_name = match owner with
-        | Pdk.Attribute.Point ->
-            Pdk.Group.Point, Pdk.Group.Point, "point", "point"
-        | Pdk.Attribute.Vertex ->
-            Pdk.Group.Primitive, Pdk.Group.Vertex, "primitive", "vertex"
-        | Pdk.Attribute.Primitive ->
-            Pdk.Group.Primitive, Pdk.Group.Primitive, "primitive", "primitive"
-        | Pdk.Attribute.Detail ->
-            Pdk.Group.Point, Pdk.Group.Point, "detail", "detail" in
+        | Rdk.Attribute.Point ->
+            Rdk.Group.Point, Rdk.Group.Point, "point", "point"
+        | Rdk.Attribute.Vertex ->
+            Rdk.Group.Primitive, Rdk.Group.Vertex, "primitive", "vertex"
+        | Rdk.Attribute.Primitive ->
+            Rdk.Group.Primitive, Rdk.Group.Primitive, "primitive", "primitive"
+        | Rdk.Attribute.Detail ->
+            Rdk.Group.Point, Rdk.Group.Point, "detail", "detail" in
       let cancel = Context.cancel_token context and grain = Context.grain context in
       match resolve_transfer_group ~operation:"attribute_transfer"
           ~owner:source_group_owner ~owner_name:source_owner_name
@@ -5206,7 +5206,7 @@ let attribute_transfer ?label ?(owner = Pdk.Attribute.Point) ?names ?pattern
       | Error error -> Error error
       | Ok source_elements ->
           (match resolve_transfer_group ~operation:"attribute_transfer"
-              ~owner:Pdk.Group.Vertex ~owner_name:"vertex"
+              ~owner:Rdk.Group.Vertex ~owner_name:"vertex"
               ~exact:source_vertex_group
               ~pattern:source_vertex_group_pattern_compiled
               ~cancel ~grain inputs.(0) with
@@ -5219,44 +5219,44 @@ let attribute_transfer ?label ?(owner = Pdk.Attribute.Point) ?names ?pattern
            | Error error -> Error error
            | Ok target_elements ->
                let result = match owner with
-                 | Pdk.Attribute.Point ->
-                     Pdk.Attribute_ops.transfer_points
+                 | Rdk.Attribute.Point ->
+                     Rdk.Attribute_ops.transfer_points
                        ~cancel ~grain ?names ?pattern ~mode ?max_distance
                        ~blend_width ~falloff
                        ~unmatched ?source_points:source_elements
                        ?target_points:target_elements ~source:inputs.(0)
                        ~target:inputs.(1) ()
-                 | Pdk.Attribute.Vertex ->
-                     Pdk.Attribute_ops.transfer_vertices
+                 | Rdk.Attribute.Vertex ->
+                     Rdk.Attribute_ops.transfer_vertices
                        ~cancel ~grain ?names ?pattern ?max_distance
                        ~blend_width ~falloff
                        ~unmatched ?source_primitives:source_elements
                        ?source_vertices ~source_vertex_selection
                        ?target_vertices:target_elements ~source:inputs.(0)
                        ~target:inputs.(1) ()
-                 | Pdk.Attribute.Primitive ->
-                     Pdk.Attribute_ops.transfer_primitives
+                 | Rdk.Attribute.Primitive ->
+                     Rdk.Attribute_ops.transfer_primitives
                        ~cancel ~grain ?names ?pattern ~mode ?max_distance
                        ~blend_width ~falloff
                        ~unmatched ?source_primitives:source_elements
                        ?target_primitives:target_elements ~source:inputs.(0)
                        ~target:inputs.(1) ()
-                 | Pdk.Attribute.Detail ->
-                     Pdk.Attribute_ops.transfer_detail ?names ?pattern
+                 | Rdk.Attribute.Detail ->
+                     Rdk.Attribute_ops.transfer_detail ?names ?pattern
                        ~source:inputs.(0) ~target:inputs.(1) () in
                match result with
                | Ok geometry -> cooked geometry
-               | Error error -> structured_pdk_error error)))
+               | Error error -> structured_rdk_error error)))
 
 let attribute_transfer_surface ?label ?max_distance ?(blend_width = 0.)
-    ?(falloff = Pdk.Attribute_ops.Smoothstep)
-    ?(unmatched = Pdk.Attribute_ops.Keep_target)
-    ?(target_owner = Pdk.Attribute.Point) ?distance_attribute ?source_group
+    ?(falloff = Rdk.Attribute_ops.Smoothstep)
+    ?(unmatched = Rdk.Attribute_ops.Keep_target)
+    ?(target_owner = Rdk.Attribute.Point) ?distance_attribute ?source_group
     ?source_group_pattern ?source_vertex_group ?source_vertex_group_pattern
-    ?(source_vertex_selection = Pdk.Attribute_ops.All_triangle_vertices)
+    ?(source_vertex_selection = Rdk.Attribute_ops.All_triangle_vertices)
     ?target_group ?target_group_pattern
     ~attributes ~source ~target () =
-  if target_owner = Pdk.Attribute.Detail then
+  if target_owner = Rdk.Attribute.Detail then
     invalid_arg "Sop.attribute_transfer_surface: detail target is not spatial";
   List.iter (fun (label, value) -> match value with
     | Some name when String.trim name = "" ->
@@ -5279,7 +5279,7 @@ let attribute_transfer_surface ?label ?max_distance ?(blend_width = 0.)
       "attribute_transfer_surface" "target" target_group_pattern
   and source_vertex_group_pattern_compiled = compile_transfer_group_pattern
       "attribute_transfer_surface" "source vertex" source_vertex_group_pattern in
-  let attribute_key (value : Pdk.Attribute_ops.surface_attribute) =
+  let attribute_key (value : Rdk.Attribute_ops.surface_attribute) =
     String.concat ":" [attribute_owner_key value.source_owner;
       String.escaped value.source_name; String.escaped value.target_name] in
   let maximum_key = match max_distance with
@@ -5304,19 +5304,19 @@ let attribute_transfer_surface ?label ?max_distance ?(blend_width = 0.)
     ~inputs:[|source; target|]
     (fun ~node_id:_ context inputs ->
       let target_group_owner = match target_owner with
-        | Pdk.Attribute.Point -> Pdk.Group.Point
-        | Pdk.Attribute.Vertex -> Pdk.Group.Vertex
-        | Pdk.Attribute.Primitive -> Pdk.Group.Primitive
-        | Pdk.Attribute.Detail -> assert false in
+        | Rdk.Attribute.Point -> Rdk.Group.Point
+        | Rdk.Attribute.Vertex -> Rdk.Group.Vertex
+        | Rdk.Attribute.Primitive -> Rdk.Group.Primitive
+        | Rdk.Attribute.Detail -> assert false in
       let cancel = Context.cancel_token context and grain = Context.grain context in
       match resolve_transfer_group ~operation:"attribute_transfer_surface"
-          ~owner:Pdk.Group.Primitive ~owner_name:"primitive"
+          ~owner:Rdk.Group.Primitive ~owner_name:"primitive"
           ~exact:source_group ~pattern:source_group_pattern_compiled
           ~cancel ~grain inputs.(0) with
       | Error error -> Error error
       | Ok source_primitives ->
           (match resolve_transfer_group ~operation:"attribute_transfer_surface"
-              ~owner:Pdk.Group.Vertex ~owner_name:"vertex"
+              ~owner:Rdk.Group.Vertex ~owner_name:"vertex"
               ~exact:source_vertex_group
               ~pattern:source_vertex_group_pattern_compiled
               ~cancel ~grain inputs.(0) with
@@ -5324,13 +5324,13 @@ let attribute_transfer_surface ?label ?max_distance ?(blend_width = 0.)
            | Ok source_vertices ->
           (match resolve_transfer_group ~operation:"attribute_transfer_surface"
               ~owner:target_group_owner
-              ~owner_name:(if target_group_owner = Pdk.Group.Primitive then "primitive"
-                else if target_group_owner = Pdk.Group.Vertex then "vertex" else "point")
+              ~owner_name:(if target_group_owner = Rdk.Group.Primitive then "primitive"
+                else if target_group_owner = Rdk.Group.Vertex then "vertex" else "point")
               ~exact:target_group ~pattern:target_group_pattern_compiled
               ~cancel ~grain inputs.(1) with
            | Error error -> Error error
            | Ok target_points ->
-               match Pdk.Attribute_ops.transfer_surface
+               match Rdk.Attribute_ops.transfer_surface
                    ~cancel ~grain ?max_distance ~blend_width
                    ~falloff ~unmatched ~target_owner ?distance_attribute
                    ?source_primitives ?source_vertices ~source_vertex_selection
@@ -5338,20 +5338,20 @@ let attribute_transfer_surface ?label ?max_distance ?(blend_width = 0.)
                    ~attributes ~source:inputs.(0)
                    ~target:inputs.(1) () with
                | Ok geometry -> cooked geometry
-               | Error error -> structured_pdk_error error)))
+               | Error error -> structured_rdk_error error)))
 
 let attribute_transfer_all ?label ?point_pattern ?vertex_pattern
-    ?primitive_pattern ?detail_pattern ?(mode = Pdk.Attribute_ops.Nearest)
+    ?primitive_pattern ?detail_pattern ?(mode = Rdk.Attribute_ops.Nearest)
     ?max_distance ?(blend_width = 0.)
-    ?(falloff = Pdk.Attribute_ops.Smoothstep)
-    ?(unmatched = Pdk.Attribute_ops.Keep_target) ~source ~target () =
+    ?(falloff = Rdk.Attribute_ops.Smoothstep)
+    ?(unmatched = Rdk.Attribute_ops.Keep_target) ~source ~target () =
   if point_pattern = None && vertex_pattern = None
       && primitive_pattern = None && detail_pattern = None then
     invalid_arg "Sop.attribute_transfer_all: at least one owner pattern is required";
   List.iter (fun (owner, pattern) -> match pattern with
     | None -> ()
     | Some pattern ->
-        (match Pdk.Attribute_pattern.compile pattern with
+        (match Rdk.Attribute_pattern.compile pattern with
          | Ok _ -> ()
          | Error message -> invalid_arg (Printf.sprintf
              "Sop.attribute_transfer_all: invalid %s pattern: %s" owner message)))
@@ -5373,24 +5373,24 @@ let attribute_transfer_all ?label ?point_pattern ?vertex_pattern
     ~cook_mode:Node.Generic ~dependencies:Context.Dependencies.static
     ~inputs:[|source; target|]
     (fun ~node_id:_ context inputs ->
-      match Pdk.Attribute_ops.transfer_all
+      match Rdk.Attribute_ops.transfer_all
           ~cancel:(Context.cancel_token context) ~grain:(Context.grain context)
           ?point_pattern ?vertex_pattern ?primitive_pattern ?detail_pattern
           ~mode ?max_distance ~blend_width ~falloff ~unmatched
           ~source:inputs.(0) ~target:inputs.(1) () with
       | Ok geometry -> cooked geometry
-      | Error error -> structured_pdk_error error)
+      | Error error -> structured_rdk_error error)
 
 let group_owner_key = function
-  | Pdk.Group.Point -> "point"
-  | Pdk.Group.Vertex -> "vertex"
-  | Pdk.Group.Primitive -> "primitive"
+  | Rdk.Group.Point -> "point"
+  | Rdk.Group.Vertex -> "vertex"
+  | Rdk.Group.Primitive -> "primitive"
 
 let attribute_count geometry = function
-  | Pdk.Attribute.Point -> Pdk.Geometry.point_count geometry
-  | Pdk.Attribute.Vertex -> Pdk.Geometry.vertex_count geometry
-  | Pdk.Attribute.Primitive -> Pdk.Geometry.primitive_count geometry
-  | Pdk.Attribute.Detail -> 1
+  | Rdk.Attribute.Point -> Rdk.Geometry.point_count geometry
+  | Rdk.Attribute.Vertex -> Rdk.Geometry.vertex_count geometry
+  | Rdk.Attribute.Primitive -> Rdk.Geometry.primitive_count geometry
+  | Rdk.Attribute.Detail -> 1
 
 let set_attribute_node ?label ~operation ~parameters ~owner ~name make input =
   if String.trim name = "" then invalid_arg ("Sop." ^ operation ^ ": empty name");
@@ -5399,21 +5399,21 @@ let set_attribute_node ?label ~operation ~parameters ~owner ~name make input =
     ~inputs:[|input|] (fun ~node_id:_ _context inputs ->
       let geometry = inputs.(0) in
       match make (attribute_count geometry owner) with
-      | Error message -> pdk_error operation message
+      | Error message -> rdk_error operation message
       | Ok storage ->
-          match Pdk.Attribute.create_owned ~name ~owner storage with
-          | Error message -> pdk_error operation message
+          match Rdk.Attribute.create_owned ~name ~owner storage with
+          | Error message -> rdk_error operation message
           | Ok attribute ->
-              match Pdk.Geometry.with_attribute attribute geometry with
+              match Rdk.Geometry.with_attribute attribute geometry with
               | Ok geometry -> cooked geometry
-              | Error message -> pdk_error operation message)
+              | Error message -> rdk_error operation message)
 
 let set_float ?label ~owner ~name value input =
   set_attribute_node ?label ~operation:"set_float"
     ~parameters:(Printf.sprintf "owner=%s;name=%S;value=%s"
       (attribute_owner_key owner) name (float_key value)) ~owner ~name
     (fun count ->
-      if finite value then Ok (Pdk.Attribute.Float (Array.make count value))
+      if finite value then Ok (Rdk.Attribute.Float (Array.make count value))
       else Error "set_float requires a finite value") input
 
 let material ?label ?group ~name ~color ~roughness ~emission input =
@@ -5422,16 +5422,16 @@ let material ?label ?group ~name ~color ~roughness ~emission input =
       (option_string_key group) name (vec3_key color) (float_key roughness) (vec3_key emission))
     ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
     ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      Pdk.Material_assign.run ~cancel:(Context.cancel_token context) ?group ~name
+      Rdk.Material_assign.run ~cancel:(Context.cancel_token context) ?group ~name
         ~color:(color.Vec3.x, color.y, color.z) ~roughness
         ~emission:(emission.Vec3.x, emission.y, emission.z) inputs.(0)
-      |> function Ok geometry -> cooked geometry | Error error -> structured_pdk_error error)
+      |> function Ok geometry -> cooked geometry | Error error -> structured_rdk_error error)
 
 let set_int ?label ~owner ~name value input =
   set_attribute_node ?label ~operation:"set_int"
     ~parameters:(Printf.sprintf "owner=%s;name=%S;value=%d"
       (attribute_owner_key owner) name value) ~owner ~name
-    (fun count -> Ok (Pdk.Attribute.Int (Array.make count value))) input
+    (fun count -> Ok (Rdk.Attribute.Int (Array.make count value))) input
 
 let set_vector ?label ~owner ~name value input =
   let value = vec3_copy value in
@@ -5440,7 +5440,7 @@ let set_vector ?label ~owner ~name value input =
       (attribute_owner_key owner) name (vec3_key value)) ~owner ~name
     (fun count ->
       if finite value.Vec3.x && finite value.y && finite value.z then
-        Ok (Pdk.Attribute.Float3 (Pdk.Packed.Float3.Private.of_owned_exn
+        Ok (Rdk.Attribute.Float3 (Rdk.Packed.Float3.Private.of_owned_exn
           ~x:(Array.make count value.x) ~y:(Array.make count value.y)
           ~z:(Array.make count value.z)))
       else Error "set_vector requires finite components") input
@@ -5450,11 +5450,11 @@ let set_orient ?label value input =
   set_attribute_node ?label ~operation:"set_orient"
     ~parameters:(Printf.sprintf "x=%s;y=%s;z=%s;w=%s"
       (float_key value.Quat.x) (float_key value.y) (float_key value.z)
-      (float_key value.w)) ~owner:Pdk.Attribute.Point ~name:"orient"
+      (float_key value.w)) ~owner:Rdk.Attribute.Point ~name:"orient"
     (fun count ->
       if finite value.Quat.x && finite value.y && finite value.z && finite value.w then
-        Result.map (fun values -> Pdk.Attribute.Float4 values)
-          (Pdk.Packed.Float4.of_owned ~x:(Array.make count value.x)
+        Result.map (fun values -> Rdk.Attribute.Float4 values)
+          (Rdk.Packed.Float4.of_owned ~x:(Array.make count value.x)
              ~y:(Array.make count value.y) ~z:(Array.make count value.z)
              ~w:(Array.make count value.w))
       else Error "set_orient requires finite components") input
@@ -5462,7 +5462,7 @@ let set_orient ?label value input =
 let set_transform ?label value input =
   let value = matrix_copy value in
   set_attribute_node ?label ~operation:"set_transform"
-    ~parameters:("value=" ^ matrix_key value) ~owner:Pdk.Attribute.Point
+    ~parameters:("value=" ^ matrix_key value) ~owner:Rdk.Attribute.Point
     ~name:"transform"
     (fun count ->
       let finite_matrix = ref true in
@@ -5485,8 +5485,8 @@ let set_transform ?label value input =
         let values = Array.make (count * 16) 0. in
         for index = 0 to count - 1 do Array.blit row 0 values (index * 16) 16 done;
         let offsets = Array.init (count + 1) (fun index -> index * 16) in
-        Result.map (fun values -> Pdk.Attribute.Float_array values)
-          (Pdk.Packed.Float_array.create_owned ~offsets ~values)
+        Result.map (fun values -> Rdk.Attribute.Float_array values)
+          (Rdk.Packed.Float_array.create_owned ~offsets ~values)
       end) input
 
 let set_color_values ?label ?group ~owner ~r ~g ~b ~a input =
@@ -5501,29 +5501,29 @@ let set_color_values ?label ?group ~owner ~r ~g ~b ~a input =
       let geometry = inputs.(0) in
       let count = attribute_count geometry owner in
       let group_owner = match owner with
-        | Pdk.Attribute.Point -> Some Pdk.Group.Point
-        | Vertex -> Some Pdk.Group.Vertex
-        | Primitive -> Some Pdk.Group.Primitive
+        | Rdk.Attribute.Point -> Some Rdk.Group.Point
+        | Vertex -> Some Rdk.Group.Vertex
+        | Primitive -> Some Rdk.Group.Primitive
         | Detail -> None in
       let selected = match group, group_owner with
         | None, _ -> Ok None
         | Some _, None -> Error "a detail color cannot be restricted to a group"
         | Some name, Some group_owner ->
-            (match Pdk.Geometry.find_group ~owner:group_owner name geometry with
+            (match Rdk.Geometry.find_group ~owner:group_owner name geometry with
              | Some found -> Ok (Some found)
              | None -> Error (Printf.sprintf "could not find group %S" name)) in
       let existing = match selected with
         | Ok (Some _) ->
-            Pdk.Geometry.find_attribute ~owner "Cd" geometry
-            |> Fun.flip Option.bind (Pdk.Attribute.get (Pdk.Attribute.color ~owner))
+            Rdk.Geometry.find_attribute ~owner "Cd" geometry
+            |> Fun.flip Option.bind (Rdk.Attribute.get (Rdk.Attribute.color ~owner))
         | _ -> None in
       match selected with
-      | Error message -> pdk_error "set_color" message
+      | Error message -> rdk_error "set_color" message
       | Ok selected ->
           let channel index fill = match existing with
-            | Some packed -> Array.copy (index (Pdk.Packed.Float4.Private.view packed))
+            | Some packed -> Array.copy (index (Rdk.Packed.Float4.Private.view packed))
             | None -> Array.make count fill in
-          let red = channel (fun v -> v.Pdk.Packed.Float4.Private.x) 1.
+          let red = channel (fun v -> v.Rdk.Packed.Float4.Private.x) 1.
           and green = channel (fun v -> v.y) 1.
           and blue = channel (fun v -> v.z) 1.
           and alpha = channel (fun v -> v.w) 1. in
@@ -5532,19 +5532,19 @@ let set_color_values ?label ?group ~owner ~r ~g ~b ~a input =
                Array.fill red 0 count r; Array.fill green 0 count g;
                Array.fill blue 0 count b; Array.fill alpha 0 count a
            | Some found ->
-               Pdk.Group.iter (fun index ->
+               Rdk.Group.iter (fun index ->
                  red.(index) <- r; green.(index) <- g;
                  blue.(index) <- b; alpha.(index) <- a) found);
-          match Pdk.Packed.Float4.of_owned ~x:red ~y:green ~z:blue ~w:alpha with
-          | Error message -> pdk_error "set_color" message
+          match Rdk.Packed.Float4.of_owned ~x:red ~y:green ~z:blue ~w:alpha with
+          | Error message -> rdk_error "set_color" message
           | Ok color ->
-              match Pdk.Attribute.create_owned ~name:"Cd" ~owner
-                  (Pdk.Attribute.Float4 color) with
-              | Error message -> pdk_error "set_color" message
+              match Rdk.Attribute.create_owned ~name:"Cd" ~owner
+                  (Rdk.Attribute.Float4 color) with
+              | Error message -> rdk_error "set_color" message
               | Ok attribute ->
-                  match Pdk.Geometry.with_attribute attribute geometry with
+                  match Rdk.Geometry.with_attribute attribute geometry with
                   | Ok geometry -> cooked geometry
-                  | Error message -> pdk_error "set_color" message)
+                  | Error message -> rdk_error "set_color" message)
 
 let set_color ?label ?group ~owner value input =
   let r, g, b, a = Color.to_floats value in
@@ -5558,7 +5558,7 @@ let validate_attribute_pattern operation = function
   | None -> ()
   | Some value when String.trim value = "" -> ()
   | Some value ->
-      (match Pdk.Attribute_pattern.compile value with
+      (match Rdk.Attribute_pattern.compile value with
        | Ok _ -> ()
        | Error message -> invalid_arg (operation ^ ": " ^ message))
 
@@ -5580,18 +5580,18 @@ let delete_attributes ?label ?reference ?(delete_non_selected = false)
     ~cook_mode ~dependencies:Context.Dependencies.static ~inputs
     (fun ~node_id:_ context inputs ->
       let reference = if Array.length inputs = 2 then Some inputs.(1) else None in
-      match Pdk.Attribute_ops.delete ~cancel:(Context.cancel_token context)
+      match Rdk.Attribute_ops.delete ~cancel:(Context.cancel_token context)
           ?reference ~delete_non_selected ?point_pattern ?vertex_pattern
           ?primitive_pattern ?detail_pattern inputs.(0) with
       | Ok geometry -> cooked geometry
-      | Error error -> structured_pdk_error error)
+      | Error error -> structured_rdk_error error)
 
 let attribute_rename_conflict_key = function
-  | Pdk.Attribute_ops.Attribute_rename_skip -> "skip"
-  | Pdk.Attribute_ops.Attribute_rename_error -> "error"
-  | Pdk.Attribute_ops.Attribute_rename_overwrite -> "overwrite"
+  | Rdk.Attribute_ops.Attribute_rename_skip -> "skip"
+  | Rdk.Attribute_ops.Attribute_rename_error -> "error"
+  | Rdk.Attribute_ops.Attribute_rename_overwrite -> "overwrite"
 
-let attribute_rename_rule_key (rule : Pdk.Attribute_ops.rename_rule) =
+let attribute_rename_rule_key (rule : Rdk.Attribute_ops.rename_rule) =
   String.concat ":" [
     (match rule.rename_attribute_owner with
      | None -> "any"
@@ -5601,8 +5601,8 @@ let attribute_rename_rule_key (rule : Pdk.Attribute_ops.rename_rule) =
     attribute_rename_conflict_key rule.rename_attribute_conflict]
 
 let rename_attributes ?label ~rules input =
-  let rules = List.map (fun (rule : Pdk.Attribute_ops.rename_rule) ->
-      match Pdk.Attribute_pattern.compile_rewrite
+  let rules = List.map (fun (rule : Rdk.Attribute_ops.rename_rule) ->
+      match Rdk.Attribute_pattern.compile_rewrite
           ~pattern:rule.rename_attribute_pattern
           ~replacement:rule.rename_attribute_replacement with
       | Ok _ -> rule
@@ -5614,17 +5614,17 @@ let rename_attributes ?label ~rules input =
     ~cook_mode:(Node.Duplicate_input 0)
     ~dependencies:Context.Dependencies.static ~inputs:[|input|]
     (fun ~node_id:_ context inputs ->
-      match Pdk.Attribute_ops.rename ~cancel:(Context.cancel_token context)
+      match Rdk.Attribute_ops.rename ~cancel:(Context.cancel_token context)
           ~rules inputs.(0) with
       | Ok geometry -> cooked geometry
-      | Error error -> structured_pdk_error error)
+      | Error error -> structured_rdk_error error)
 
 let attribute_swap_method_key = function
-  | Pdk.Attribute_ops.Attribute_swap -> "swap"
-  | Pdk.Attribute_ops.Attribute_move -> "move"
-  | Pdk.Attribute_ops.Attribute_copy -> "copy"
+  | Rdk.Attribute_ops.Attribute_swap -> "swap"
+  | Rdk.Attribute_ops.Attribute_move -> "move"
+  | Rdk.Attribute_ops.Attribute_copy -> "copy"
 
-let attribute_swap_rule_key (rule : Pdk.Attribute_ops.swap_rule) =
+let attribute_swap_rule_key (rule : Rdk.Attribute_ops.swap_rule) =
   String.concat ":" [
     attribute_owner_key rule.swap_attribute_owner;
     String.escaped rule.swap_attribute_source;
@@ -5632,9 +5632,9 @@ let attribute_swap_rule_key (rule : Pdk.Attribute_ops.swap_rule) =
     attribute_swap_method_key rule.swap_attribute_method]
 
 let swap_attributes ?label ~rules input =
-  let rules = List.map (fun (rule : Pdk.Attribute_ops.swap_rule) ->
+  let rules = List.map (fun (rule : Rdk.Attribute_ops.swap_rule) ->
       let validate pattern replacement =
-        match Pdk.Attribute_pattern.compile_rewrite ~pattern ~replacement with
+        match Rdk.Attribute_pattern.compile_rewrite ~pattern ~replacement with
         | Ok _ -> ()
         | Error message -> invalid_arg ("Sop.swap_attributes: " ^ message) in
       validate rule.swap_attribute_source rule.swap_attribute_destination;
@@ -5646,10 +5646,10 @@ let swap_attributes ?label ~rules input =
     ~cook_mode:(Node.Duplicate_input 0)
     ~dependencies:Context.Dependencies.static ~inputs:[|input|]
     (fun ~node_id:_ context inputs ->
-      match Pdk.Attribute_ops.swap ~cancel:(Context.cancel_token context)
+      match Rdk.Attribute_ops.swap ~cancel:(Context.cancel_token context)
           ~rules inputs.(0) with
       | Ok geometry -> cooked geometry
-      | Error error -> structured_pdk_error error)
+      | Error error -> structured_rdk_error error)
 
 let delete_edge_group ?label ~name input =
   if String.trim name = "" then invalid_arg "Sop.delete_edge_group: empty name";
@@ -5657,7 +5657,7 @@ let delete_edge_group ?label ~name input =
     ~parameters:(Printf.sprintf "name=%S" name)
     ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
     ~inputs:[|input|] (fun ~node_id:_ _context inputs ->
-      cooked (Pdk.Geometry.without_edge_group name inputs.(0)))
+      cooked (Rdk.Geometry.without_edge_group name inputs.(0)))
 
 let rename_edge_group ?label ~from ~into input =
   if String.trim from = "" || String.trim into = "" then
@@ -5666,9 +5666,9 @@ let rename_edge_group ?label ~from ~into input =
     ~parameters:(Printf.sprintf "from=%S;into=%S" from into)
     ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
     ~inputs:[|input|] (fun ~node_id:_ _context inputs ->
-      match Pdk.Geometry.rename_edge_group ~from ~into inputs.(0) with
+      match Rdk.Geometry.rename_edge_group ~from ~into inputs.(0) with
       | Ok geometry -> cooked geometry
-      | Error message -> pdk_error "rename_edge_group" message)
+      | Error message -> rdk_error "rename_edge_group" message)
 
 let group ?label ~name selection input =
   if String.trim name = "" then invalid_arg "Sop.group: empty name";
@@ -5678,11 +5678,11 @@ let group ?label ~name selection input =
     ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
     ~inputs:[|input|] (fun ~node_id:_ _context inputs ->
       match Select.evaluate ~name selection inputs.(0) with
-      | Error message -> pdk_error "group" message
+      | Error message -> rdk_error "group" message
       | Ok group ->
-          match Pdk.Geometry.with_group group inputs.(0) with
+          match Rdk.Geometry.with_group group inputs.(0) with
           | Ok geometry -> cooked geometry
-          | Error message -> pdk_error "group" message)
+          | Error message -> rdk_error "group" message)
 
 let ordered_group ?label ~owner ~name supplied input =
   if String.trim name = "" then invalid_arg "Sop.ordered_group: empty name";
@@ -5690,9 +5690,9 @@ let ordered_group ?label ~owner ~name supplied input =
   if Array.exists (fun element -> element < 0) elements then
     invalid_arg "Sop.ordered_group: negative element index";
   let owner_key = match owner with
-    | Pdk.Group.Point -> "point"
-    | Pdk.Group.Vertex -> "vertex"
-    | Pdk.Group.Primitive -> "primitive" in
+    | Rdk.Group.Point -> "point"
+    | Rdk.Group.Vertex -> "vertex"
+    | Rdk.Group.Primitive -> "primitive" in
   Node.Private.make ?label ~operation:"ordered_group" ~version:1
     ~parameters:(Printf.sprintf "owner=%s;name=%S;elements=%s" owner_key name
       (String.concat "," (Array.to_list (Array.map string_of_int elements))))
@@ -5700,31 +5700,31 @@ let ordered_group ?label ~owner ~name supplied input =
     ~inputs:[|input|] (fun ~node_id:_ _context inputs ->
       let geometry = inputs.(0) in
       let length = match owner with
-        | Pdk.Group.Point -> Pdk.Geometry.point_count geometry
-        | Pdk.Group.Vertex -> Pdk.Geometry.vertex_count geometry
-        | Pdk.Group.Primitive -> Pdk.Geometry.primitive_count geometry in
-      match Pdk.Group.ordered ~owner ~name ~length elements with
-      | Error message -> pdk_error "ordered_group" message
+        | Rdk.Group.Point -> Rdk.Geometry.point_count geometry
+        | Rdk.Group.Vertex -> Rdk.Geometry.vertex_count geometry
+        | Rdk.Group.Primitive -> Rdk.Geometry.primitive_count geometry in
+      match Rdk.Group.ordered ~owner ~name ~length elements with
+      | Error message -> rdk_error "ordered_group" message
       | Ok group ->
-          match Pdk.Geometry.with_group group geometry with
+          match Rdk.Geometry.with_group group geometry with
           | Ok geometry -> cooked geometry
-          | Error message -> pdk_error "ordered_group" message)
+          | Error message -> rdk_error "ordered_group" message)
 
 let topology_group_owner_key = function
-  | Pdk.Group_ops.Group_points -> "point"
-  | Pdk.Group_ops.Group_vertices -> "vertex"
-  | Pdk.Group_ops.Group_primitives -> "primitive"
-  | Pdk.Group_ops.Group_edges -> "edge"
+  | Rdk.Group_ops.Group_points -> "point"
+  | Rdk.Group_ops.Group_vertices -> "vertex"
+  | Rdk.Group_ops.Group_primitives -> "primitive"
+  | Rdk.Group_ops.Group_edges -> "edge"
 
 let group_promote_mode_key = function
-  | Pdk.Group_ops.Include_any -> "include_any"
-  | Pdk.Group_ops.Include_all -> "include_all"
-  | Pdk.Group_ops.Include_shared_edge -> "include_shared_edge"
+  | Rdk.Group_ops.Include_any -> "include_any"
+  | Rdk.Group_ops.Include_all -> "include_all"
+  | Rdk.Group_ops.Include_shared_edge -> "include_shared_edge"
 
 let group_promote_operation_key destination = function
-  | Pdk.Group_ops.Promote_elements mode ->
+  | Rdk.Group_ops.Promote_elements mode ->
       "elements:" ^ group_promote_mode_key mode
-  | Pdk.Group_ops.Promote_boundary options ->
+  | Rdk.Group_ops.Promote_boundary options ->
       let attributes = List.map group_boundary_attribute_key
           options.promote_boundary_attributes in
       String.concat ":" [
@@ -5735,10 +5735,10 @@ let group_promote_operation_key destination = function
         string_of_bool options.promote_include_unshared_edges;
         string_of_bool (options.promote_include_unshared_edges
           && options.promote_include_all_unshared_curve_edges);
-        string_of_bool (destination = Pdk.Group_ops.Group_primitives
+        string_of_bool (destination = Rdk.Group_ops.Group_primitives
           && options.promote_include_all_primitives_sharing_boundary_points)]
 
-let group_promotion_rule_key index (rule : Pdk.Group_ops.promotion_rule) =
+let group_promotion_rule_key index (rule : Rdk.Group_ops.promotion_rule) =
   let new_name = Option.bind rule.promotion_new_name (fun name ->
     let name = String.trim name in if String.equal name "" then None else Some name) in
   Printf.sprintf "%d:{source=%s;destination=%s;pattern=%S;new_name=%s;keep_original=%b;output_as_attribute=%b;operation=%s}"
@@ -5754,7 +5754,7 @@ let group_promotions ?label ?(max_outputs = 4_096)
   if max_outputs < 0 then invalid_arg "Sop.group_promotions: negative max_outputs";
   if max_payload_bytes < 0 then
     invalid_arg "Sop.group_promotions: negative max_payload_bytes";
-  let rules = List.filter (fun (rule : Pdk.Group_ops.promotion_rule) ->
+  let rules = List.filter (fun (rule : Rdk.Group_ops.promotion_rule) ->
       String.trim rule.promotion_pattern <> "") rules in
   match rules with
   | [] -> input
@@ -5769,11 +5769,11 @@ let group_promotions ?label ?(max_outputs = 4_096)
         ~cook_mode:(Node.Duplicate_input 0)
         ~dependencies:Context.Dependencies.static ~inputs:[|input|]
         (fun ~node_id:_ context inputs ->
-          match Pdk.Group_ops.promotions ~cancel:(Context.cancel_token context)
+          match Rdk.Group_ops.promotions ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ~max_outputs ~max_payload_bytes
               ~rules inputs.(0) with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let group_promote_boundary ?label ?name ?(keep_original = false)
     ?output_attribute ?(attributes = []) ?(tolerance = 1e-6)
@@ -5788,8 +5788,8 @@ let group_promote_boundary ?label ?name ?(keep_original = false)
   Option.iter (fun name -> if String.trim name = "" then
     invalid_arg "Sop.group_promote_boundary: empty output attribute name")
     output_attribute;
-  let attributes = List.map (fun (rule : Pdk.Group_ops.boundary_attribute) ->
-    { Pdk.Group_ops.boundary_attribute_owner = rule.boundary_attribute_owner;
+  let attributes = List.map (fun (rule : Rdk.Group_ops.boundary_attribute) ->
+    { Rdk.Group_ops.boundary_attribute_owner = rule.boundary_attribute_owner;
       boundary_attribute_pattern = rule.boundary_attribute_pattern }) attributes in
   Node.Private.make ?label ~operation:"group_promote_boundary" ~version:1
     ~parameters:(String.concat ";" [
@@ -5809,41 +5809,41 @@ let group_promote_boundary ?label ?name ?(keep_original = false)
         string_of_bool include_all_primitives_sharing_boundary_points])
     ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
     ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      match Pdk.Group_ops.group_promote_boundary
+      match Rdk.Group_ops.group_promote_boundary
           ~cancel:(Context.cancel_token context) ~grain:(Context.grain context)
           ?name ~keep_original ?output_attribute ~attributes ~tolerance
           ~include_unshared_edges ~include_all_unshared_curve_edges
           ~include_all_primitives_sharing_boundary_points
           ~source ~destination ~group inputs.(0) with
       | Ok geometry -> cooked geometry
-      | Error error -> structured_pdk_error error)
+      | Error error -> structured_rdk_error error)
 
 let primitive_group_connectivity_key = function
-  | Pdk.Group_ops.Primitive_share_points -> "share_points"
-  | Pdk.Group_ops.Primitive_share_edges -> "share_edges"
+  | Rdk.Group_ops.Primitive_share_points -> "share_points"
+  | Rdk.Group_ops.Primitive_share_edges -> "share_edges"
 
 let group_expand_normal_key = function
   | None -> "none"
   | Some value -> Printf.sprintf "%s:%S"
-      (attribute_owner_key value.Pdk.Group_ops.expand_normal_owner)
+      (attribute_owner_key value.Rdk.Group_ops.expand_normal_owner)
       value.expand_normal_name
 
 let group_expand_collision_key = function
   | None -> "none"
   | Some value -> String.concat ":" [
-      topology_group_owner_key value.Pdk.Group_ops.expand_collision_owner;
+      topology_group_owner_key value.Rdk.Group_ops.expand_collision_owner;
       Printf.sprintf "%S" value.expand_collision_group;
       string_of_bool value.expand_collision_contain;
       string_of_bool value.expand_collision_allow_boundary]
 
 let group_expand ?label ?name ?(steps = 1) ?(flood = false) ?step_attribute
-    ?(primitive_connectivity = Pdk.Group_ops.Primitive_share_points)
+    ?(primitive_connectivity = Rdk.Group_ops.Primitive_share_points)
     ?normal_spread ?normal_attribute ?(connectivity_attributes = [])
     ?(connectivity_tolerance = 1e-6) ?collision
     ~owner ~group input =
   let connectivity_attributes = List.map
-      (fun (value : Pdk.Group_ops.boundary_attribute) -> {
-        Pdk.Group_ops.boundary_attribute_owner = value.boundary_attribute_owner;
+      (fun (value : Rdk.Group_ops.boundary_attribute) -> {
+        Rdk.Group_ops.boundary_attribute_owner = value.boundary_attribute_owner;
         boundary_attribute_pattern = value.boundary_attribute_pattern })
       connectivity_attributes in
   if String.trim group = "" then invalid_arg "Sop.group_expand: empty group name";
@@ -5851,27 +5851,27 @@ let group_expand ?label ?name ?(steps = 1) ?(flood = false) ?step_attribute
     invalid_arg "Sop.group_expand: empty output name") name;
   Option.iter (fun name -> if String.trim name = "" then
     invalid_arg "Sop.group_expand: empty step attribute name") step_attribute;
-  Option.iter (fun value -> if String.trim value.Pdk.Group_ops.expand_normal_name = "" then
+  Option.iter (fun value -> if String.trim value.Rdk.Group_ops.expand_normal_name = "" then
     invalid_arg "Sop.group_expand: empty normal attribute name") normal_attribute;
   Option.iter (fun value ->
-    if value.Pdk.Group_ops.expand_normal_owner = Pdk.Attribute.Detail then
+    if value.Rdk.Group_ops.expand_normal_owner = Rdk.Attribute.Detail then
       invalid_arg "Sop.group_expand: detail normal attributes are unsupported")
     normal_attribute;
-  Option.iter (fun value -> if String.trim value.Pdk.Group_ops.expand_collision_group = ""
+  Option.iter (fun value -> if String.trim value.Rdk.Group_ops.expand_collision_group = ""
     then invalid_arg "Sop.group_expand: empty collision group name") collision;
   Option.iter (fun value ->
-    if value.Pdk.Group_ops.expand_collision_contain
-        && value.expand_collision_owner = Pdk.Group_ops.Group_edges then
+    if value.Rdk.Group_ops.expand_collision_contain
+        && value.expand_collision_owner = Rdk.Group_ops.Group_edges then
       invalid_arg "Sop.group_expand: edge collision groups cannot contain growth")
     collision;
   if normal_attribute <> None && normal_spread = None then
     invalid_arg "Sop.group_expand: normal_attribute requires normal_spread";
   if (normal_spread <> None || connectivity_attributes <> [] || collision <> None)
-      && owner <> Pdk.Group_ops.Group_points && owner <> Pdk.Group_ops.Group_primitives then
+      && owner <> Rdk.Group_ops.Group_points && owner <> Rdk.Group_ops.Group_primitives then
     invalid_arg "Sop.group_expand: constraints require point or primitive groups";
   if (connectivity_attributes <> [] || collision <> None)
-      && owner = Pdk.Group_ops.Group_primitives
-      && primitive_connectivity <> Pdk.Group_ops.Primitive_share_edges then
+      && owner = Rdk.Group_ops.Group_primitives
+      && primitive_connectivity <> Rdk.Group_ops.Primitive_share_edges then
     invalid_arg "Sop.group_expand: constrained primitives must share edges";
   Node.Private.make ?label ~operation:"group_expand" ~version:2
     ~parameters:(String.concat ";" [
@@ -5891,36 +5891,36 @@ let group_expand ?label ?name ?(steps = 1) ?(flood = false) ?step_attribute
       "collision=" ^ group_expand_collision_key collision])
     ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
     ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      match Pdk.Group_ops.expand ~cancel:(Context.cancel_token context)
+      match Rdk.Group_ops.expand ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ?name ~steps ~flood ?step_attribute
           ~primitive_connectivity ?normal_spread ?normal_attribute
           ~connectivity_attributes ~connectivity_tolerance ?collision
           ~owner ~group inputs.(0) with
       | Ok geometry -> cooked geometry
-      | Error error -> structured_pdk_error error)
+      | Error error -> structured_rdk_error error)
 
 let group_boolean_operation_key = function
-  | Pdk.Group_ops.Group_replace -> "replace"
-  | Pdk.Group_ops.Group_union -> "union"
-  | Pdk.Group_ops.Group_intersection -> "intersection"
-  | Pdk.Group_ops.Group_subtract -> "subtract"
-  | Pdk.Group_ops.Group_xor -> "xor"
+  | Rdk.Group_ops.Group_replace -> "replace"
+  | Rdk.Group_ops.Group_union -> "union"
+  | Rdk.Group_ops.Group_intersection -> "intersection"
+  | Rdk.Group_ops.Group_subtract -> "subtract"
+  | Rdk.Group_ops.Group_xor -> "xor"
 
-let group_operand_key (operand : Pdk.Group_ops.operand) =
+let group_operand_key (operand : Rdk.Group_ops.operand) =
   Printf.sprintf "%S:%b" operand.pattern operand.inverted
 
-let group_combine_step_key (step : Pdk.Group_ops.combine_step) =
+let group_combine_step_key (step : Rdk.Group_ops.combine_step) =
   group_boolean_operation_key step.operation ^ ":" ^ group_operand_key step.operand
 
 let group_combine ?label ~owner ~name ~base ~steps input =
   if String.trim name = "" then invalid_arg "Sop.group_combine: empty output name";
-  if String.trim base.Pdk.Group_ops.pattern = "" then
+  if String.trim base.Rdk.Group_ops.pattern = "" then
     invalid_arg "Sop.group_combine: empty base pattern";
-  let steps = List.map (fun (step : Pdk.Group_ops.combine_step) ->
-    { Pdk.Group_ops.operation = step.operation;
-      operand = { Pdk.Group_ops.pattern = step.operand.pattern;
+  let steps = List.map (fun (step : Rdk.Group_ops.combine_step) ->
+    { Rdk.Group_ops.operation = step.operation;
+      operand = { Rdk.Group_ops.pattern = step.operand.pattern;
         inverted = step.operand.inverted } }) steps in
-  let base = { Pdk.Group_ops.pattern = base.pattern; inverted = base.inverted } in
+  let base = { Rdk.Group_ops.pattern = base.pattern; inverted = base.inverted } in
   Node.Private.make ?label ~operation:"group_combine" ~version:1
     ~parameters:(String.concat ";" [
       "owner=" ^ topology_group_owner_key owner;
@@ -5929,33 +5929,33 @@ let group_combine ?label ~owner ~name ~base ~steps input =
       "steps=" ^ String.concat "," (List.map group_combine_step_key steps)])
     ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
     ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      match Pdk.Group_ops.combine ~cancel:(Context.cancel_token context)
+      match Rdk.Group_ops.combine ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ~owner ~name ~base ~steps inputs.(0) with
       | Ok geometry -> cooked geometry
-      | Error error -> structured_pdk_error error)
+      | Error error -> structured_rdk_error error)
 
 let group_range_key = function
-  | Pdk.Group_ops.Range_start_end { start; end_ } ->
+  | Rdk.Group_ops.Range_start_end { start; end_ } ->
       Printf.sprintf "start_end:%d:%d" start end_
-  | Pdk.Group_ops.Range_from_ends { start; end_offset } ->
+  | Rdk.Group_ops.Range_from_ends { start; end_offset } ->
       Printf.sprintf "from_ends:%d:%d" start end_offset
-  | Pdk.Group_ops.Range_start_length { start; length } ->
+  | Rdk.Group_ops.Range_start_length { start; length } ->
       Printf.sprintf "start_length:%d:%d" start length
-  | Pdk.Group_ops.Range_partition { partition; partitions } ->
+  | Rdk.Group_ops.Range_partition { partition; partitions } ->
       Printf.sprintf "partition:%d:%d" partition partitions
 
 let group_range_filter_key = function
   | None -> "none"
-  | Some (filter : Pdk.Group_ops.range_filter) ->
+  | Some (filter : Rdk.Group_ops.range_filter) ->
       Printf.sprintf "%d:%d:%d" filter.select filter.of_ filter.offset
 
 let group_range_connectivity_key = function
   | None -> "global"
-  | Some (Pdk.Group_ops.Range_disconnected { region }) ->
+  | Some (Rdk.Group_ops.Range_disconnected { region }) ->
       "disconnected:" ^ (match region with
         | None -> "all"
         | Some region -> string_of_int region)
-  | Some (Pdk.Group_ops.Range_connected { connectivity_attributes;
+  | Some (Rdk.Group_ops.Range_connected { connectivity_attributes;
       connectivity_tolerance; collision; region; remove_other_regions }) ->
       let attributes = match connectivity_attributes with
         | None -> "none"
@@ -5975,7 +5975,7 @@ let group_range_connectivity_key = function
         (if region = None then true else remove_other_regions)
 
 let group_range ?label ?base ?(invert = false) ?filter ?connectivity
-    ?(merge = Pdk.Group_ops.Group_replace) ~owner ~name range input =
+    ?(merge = Rdk.Group_ops.Group_replace) ~owner ~name range input =
   if String.trim name = "" then invalid_arg "Sop.group_range: empty output name";
   Option.iter (fun pattern -> if String.trim pattern = "" then
     invalid_arg "Sop.group_range: empty base pattern") base;
@@ -5991,13 +5991,13 @@ let group_range ?label ?base ?(invert = false) ?filter ?connectivity
       "range=" ^ group_range_key range])
     ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
     ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      match Pdk.Group_ops.range ~cancel:(Context.cancel_token context)
+      match Rdk.Group_ops.range ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ?base ~invert ?filter ?connectivity
           ~merge ~owner ~name range inputs.(0) with
       | Ok geometry -> cooked geometry
-      | Error error -> structured_pdk_error error)
+      | Error error -> structured_rdk_error error)
 
-let group_range_rule_key index (rule : Pdk.Group_ops.range_rule) =
+let group_range_rule_key index (rule : Rdk.Group_ops.range_rule) =
   Printf.sprintf "%d:{owner=%s;name=%S;base=%s;invert=%b;filter=%s;connectivity=%s;merge=%s;range=%s}"
     index (topology_group_owner_key rule.range_owner) rule.range_name
     (option_string_key rule.range_base) rule.range_invert
@@ -6007,9 +6007,9 @@ let group_range_rule_key index (rule : Pdk.Group_ops.range_rule) =
     (group_range_key rule.range_specification)
 
 let group_ranges ?label rules input =
-  let rules = List.filter (fun (rule : Pdk.Group_ops.range_rule) ->
+  let rules = List.filter (fun (rule : Rdk.Group_ops.range_rule) ->
       String.trim rule.range_name <> "") rules in
-  List.iter (fun (rule : Pdk.Group_ops.range_rule) ->
+  List.iter (fun (rule : Rdk.Group_ops.range_rule) ->
     Option.iter (fun pattern -> if String.trim pattern = "" then
       invalid_arg "Sop.group_ranges: empty base pattern") rule.range_base) rules;
   match rules with
@@ -6021,21 +6021,21 @@ let group_ranges ?label rules input =
         ~cook_mode:(Node.Duplicate_input 0)
         ~dependencies:Context.Dependencies.static ~inputs:[|input|]
         (fun ~node_id:_ context inputs ->
-          match Pdk.Group_ops.ranges ~cancel:(Context.cancel_token context)
+          match Rdk.Group_ops.ranges ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ~rules inputs.(0) with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let group_rename_conflict_key = function
-  | Pdk.Group_ops.Rename_skip -> "skip"
-  | Pdk.Group_ops.Rename_error -> "error"
-  | Pdk.Group_ops.Rename_overwrite -> "overwrite"
-  | Pdk.Group_ops.Rename_union -> "union"
+  | Rdk.Group_ops.Rename_skip -> "skip"
+  | Rdk.Group_ops.Rename_error -> "error"
+  | Rdk.Group_ops.Rename_overwrite -> "overwrite"
+  | Rdk.Group_ops.Rename_union -> "union"
 
 let optional_topology_group_owner_key = function
   | None -> "any" | Some owner -> topology_group_owner_key owner
 
-let group_invert ?label ?(conflict = Pdk.Group_ops.Rename_overwrite) ?owner
+let group_invert ?label ?(conflict = Rdk.Group_ops.Rename_overwrite) ?owner
     ~pattern ?new_name input =
   if String.trim pattern = "" then invalid_arg "Sop.group_invert: empty pattern";
   Option.iter (fun pattern -> if String.trim pattern = "" then
@@ -6048,28 +6048,28 @@ let group_invert ?label ?(conflict = Pdk.Group_ops.Rename_overwrite) ?owner
       "conflict=" ^ group_rename_conflict_key conflict])
     ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
     ~inputs:[|input|] (fun ~node_id:_ _context inputs ->
-      match Pdk.Group_ops.invert ~conflict ?owner ~pattern ?new_name inputs.(0) with
+      match Rdk.Group_ops.invert ~conflict ?owner ~pattern ?new_name inputs.(0) with
       | Ok geometry -> cooked geometry
-      | Error error -> structured_pdk_error error)
+      | Error error -> structured_rdk_error error)
 
-let group_delete_rule_key (rule : Pdk.Group_ops.delete_rule) =
+let group_delete_rule_key (rule : Rdk.Group_ops.delete_rule) =
   optional_topology_group_owner_key rule.delete_owner ^ ":"
   ^ Printf.sprintf "%S" rule.delete_pattern
 
 let group_delete ?label ?(delete_unused = false) ~rules input =
-  let rules = List.map (fun (rule : Pdk.Group_ops.delete_rule) ->
-    { Pdk.Group_ops.delete_owner = rule.delete_owner;
+  let rules = List.map (fun (rule : Rdk.Group_ops.delete_rule) ->
+    { Rdk.Group_ops.delete_owner = rule.delete_owner;
       delete_pattern = rule.delete_pattern }) rules in
   Node.Private.make ?label ~operation:"group_delete" ~version:1
     ~parameters:(Printf.sprintf "delete_unused=%b;rules=%s" delete_unused
       (String.concat "," (List.map group_delete_rule_key rules)))
     ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
     ~inputs:[|input|] (fun ~node_id:_ _context inputs ->
-      match Pdk.Group_ops.delete ~rules ~delete_unused inputs.(0) with
+      match Rdk.Group_ops.delete ~rules ~delete_unused inputs.(0) with
       | Ok geometry -> cooked geometry
-      | Error error -> structured_pdk_error error)
+      | Error error -> structured_rdk_error error)
 
-let group_rename_rule_key (rule : Pdk.Group_ops.rename_rule) =
+let group_rename_rule_key (rule : Rdk.Group_ops.rename_rule) =
   String.concat ":" [
     optional_topology_group_owner_key rule.rename_owner;
     Printf.sprintf "%S" rule.rename_pattern;
@@ -6077,8 +6077,8 @@ let group_rename_rule_key (rule : Pdk.Group_ops.rename_rule) =
     group_rename_conflict_key rule.rename_conflict]
 
 let group_rename ?label ~rules input =
-  let rules = List.map (fun (rule : Pdk.Group_ops.rename_rule) ->
-    { Pdk.Group_ops.rename_owner = rule.rename_owner;
+  let rules = List.map (fun (rule : Rdk.Group_ops.rename_rule) ->
+    { Rdk.Group_ops.rename_owner = rule.rename_owner;
       rename_pattern = rule.rename_pattern;
       rename_replacement = rule.rename_replacement;
       rename_conflict = rule.rename_conflict }) rules in
@@ -6087,25 +6087,25 @@ let group_rename ?label ~rules input =
       (List.map group_rename_rule_key rules))
     ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
     ~inputs:[|input|] (fun ~node_id:_ _context inputs ->
-      match Pdk.Group_ops.rename ~rules inputs.(0) with
+      match Rdk.Group_ops.rename ~rules inputs.(0) with
       | Ok geometry -> cooked geometry
-      | Error error -> structured_pdk_error error)
+      | Error error -> structured_rdk_error error)
 
 let group_copy_conflict_key = function
-  | Pdk.Group_ops.Copy_skip -> "skip"
-  | Pdk.Group_ops.Copy_overwrite -> "overwrite"
-  | Pdk.Group_ops.Copy_add_suffix -> "add_suffix"
+  | Rdk.Group_ops.Copy_skip -> "skip"
+  | Rdk.Group_ops.Copy_overwrite -> "overwrite"
+  | Rdk.Group_ops.Copy_add_suffix -> "add_suffix"
 
-let group_copy_rule_key (rule : Pdk.Group_ops.copy_rule) =
+let group_copy_rule_key (rule : Rdk.Group_ops.copy_rule) =
   String.concat ":" [topology_group_owner_key rule.copy_owner;
     Printf.sprintf "%S" rule.copy_pattern;
     Printf.sprintf "%S" rule.copy_prefix;
     option_string_key rule.match_attribute]
 
-let group_copy ?label ?rules ?(conflict = Pdk.Group_ops.Copy_skip)
+let group_copy ?label ?rules ?(conflict = Rdk.Group_ops.Copy_skip)
     ?(copy_empty = false) ~source ~target () =
-  let rules = Option.map (List.map (fun (rule : Pdk.Group_ops.copy_rule) ->
-    { Pdk.Group_ops.copy_owner = rule.copy_owner;
+  let rules = Option.map (List.map (fun (rule : Rdk.Group_ops.copy_rule) ->
+    { Rdk.Group_ops.copy_owner = rule.copy_owner;
       copy_pattern = rule.copy_pattern;
       copy_prefix = rule.copy_prefix;
       match_attribute = rule.match_attribute })) rules in
@@ -6117,21 +6117,21 @@ let group_copy ?label ?rules ?(conflict = Pdk.Group_ops.Copy_skip)
       "copy_empty=" ^ string_of_bool copy_empty])
     ~cook_mode:Node.Generic ~dependencies:Context.Dependencies.static
     ~inputs:[|source; target|] (fun ~node_id:_ context inputs ->
-      match Pdk.Group_ops.copy ~cancel:(Context.cancel_token context)
+      match Rdk.Group_ops.copy ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ?rules ~conflict ~copy_empty
           ~source:inputs.(0) ~target:inputs.(1) () with
       | Ok geometry -> cooked geometry
-      | Error error -> structured_pdk_error error)
+      | Error error -> structured_rdk_error error)
 
-let group_transfer_rule_key (rule : Pdk.Group_ops.transfer_rule) =
+let group_transfer_rule_key (rule : Rdk.Group_ops.transfer_rule) =
   String.concat ":" [topology_group_owner_key rule.transfer_owner;
     Printf.sprintf "%S" rule.transfer_pattern;
     Printf.sprintf "%S" rule.transfer_prefix]
 
-let group_transfer ?label ?rules ?(conflict = Pdk.Group_ops.Copy_skip)
+let group_transfer ?label ?rules ?(conflict = Rdk.Group_ops.Copy_skip)
     ?(create_empty = false) ?(distance = 0.001) ~source ~target () =
-  let rules = Option.map (List.map (fun (rule : Pdk.Group_ops.transfer_rule) ->
-    { Pdk.Group_ops.transfer_owner = rule.transfer_owner;
+  let rules = Option.map (List.map (fun (rule : Rdk.Group_ops.transfer_rule) ->
+    { Rdk.Group_ops.transfer_owner = rule.transfer_owner;
       transfer_pattern = rule.transfer_pattern;
       transfer_prefix = rule.transfer_prefix })) rules in
   Node.Private.make ?label ~operation:"group_transfer" ~version:1
@@ -6143,23 +6143,23 @@ let group_transfer ?label ?rules ?(conflict = Pdk.Group_ops.Copy_skip)
       "distance=" ^ float_key distance])
     ~cook_mode:Node.Generic ~dependencies:Context.Dependencies.static
     ~inputs:[|source; target|] (fun ~node_id:_ context inputs ->
-      match Pdk.Group_ops.transfer ~cancel:(Context.cancel_token context)
+      match Rdk.Group_ops.transfer ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ?rules ~conflict ~create_empty ~distance
           ~source:inputs.(0) ~target:inputs.(1) () with
       | Ok geometry -> cooked geometry
-      | Error error -> structured_pdk_error error)
+      | Error error -> structured_rdk_error error)
 
 let group_path_mode_key = function
-  | Pdk.Group_mesh.Through_each -> "through_each"
-  | Pdk.Group_mesh.Start_end_pairs -> "start_end_pairs"
+  | Rdk.Group_mesh.Through_each -> "through_each"
+  | Rdk.Group_mesh.Start_end_pairs -> "start_end_pairs"
 
 let group_path_ending_key = function
-  | Pdk.Group_mesh.Stop_at_end -> "stop_at_end"
-  | Pdk.Group_mesh.Close_path -> "close_path"
+  | Rdk.Group_mesh.Stop_at_end -> "stop_at_end"
+  | Rdk.Group_mesh.Close_path -> "close_path"
 
-let group_find_path ?label ?(mode = Pdk.Group_mesh.Through_each)
-    ?(ending = Pdk.Group_mesh.Stop_at_end) ?(avoid_self_intersection = true)
-    ?(owner = Pdk.Group.Point) ?collision_group ?(contain = false)
+let group_find_path ?label ?(mode = Rdk.Group_mesh.Through_each)
+    ?(ending = Rdk.Group_mesh.Stop_at_end) ?(avoid_self_intersection = true)
+    ?(owner = Rdk.Group.Point) ?collision_group ?(contain = false)
     ~base_group ~name input =
   Node.Private.make ?label ~operation:"group_find_path" ~version:2
     ~parameters:(String.concat ";" [
@@ -6174,7 +6174,7 @@ let group_find_path ?label ?(mode = Pdk.Group_mesh.Through_each)
     ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
     ~inputs:[|input|] (fun ~node_id:_ context inputs ->
       let geometry = inputs.(0) in
-      match Pdk.Geometry.find_group ~owner base_group geometry with
+      match Rdk.Geometry.find_group ~owner base_group geometry with
       | None -> Error (Diagnostic.error ~code:"missing_group"
           (Printf.sprintf "group_find_path could not find %s group %S"
             (group_owner_key owner) base_group))
@@ -6182,38 +6182,38 @@ let group_find_path ?label ?(mode = Pdk.Group_mesh.Through_each)
           let collision = match collision_group with
             | None -> Ok None
             | Some group ->
-                (match Pdk.Geometry.find_group ~owner group geometry with
+                (match Rdk.Geometry.find_group ~owner group geometry with
                  | Some group -> Ok (Some group)
                  | None -> Error (Diagnostic.error ~code:"missing_group"
                      (Printf.sprintf
                        "group_find_path could not find collision %s group %S"
                        (group_owner_key owner) group))) in
           Result.bind collision (fun collision ->
-            match Pdk.Group_mesh.group_find_path
+            match Rdk.Group_mesh.group_find_path
                 ~cancel:(Context.cancel_token context)
                 ~grain:(Context.grain context) ~mode ~ending
                 ~avoid_self_intersection ?collision ~contain ~base ~name geometry with
             | Ok geometry -> cooked geometry
-            | Error error -> structured_pdk_error error))
+            | Error error -> structured_rdk_error error))
 
 let delete_policy_key = function
-  | Pdk.Deletion.Destroy_touched_primitives -> "destroy_touched_primitives"
-  | Pdk.Deletion.Heal_primitives -> "heal_primitives"
+  | Rdk.Deletion.Destroy_touched_primitives -> "destroy_touched_primitives"
+  | Rdk.Deletion.Heal_primitives -> "heal_primitives"
 
 let blast_attribute_owner_key = function
-  | Pdk.Blast_by_attribute.Blast_points -> "points"
-  | Pdk.Blast_by_attribute.Blast_primitives -> "primitives"
+  | Rdk.Blast_by_attribute.Blast_points -> "points"
+  | Rdk.Blast_by_attribute.Blast_primitives -> "primitives"
 
 let blast_attribute_mode_key = function
-  | Pdk.Blast_by_attribute.Blast_below threshold -> "below:" ^ float_key threshold
-  | Pdk.Blast_by_attribute.Blast_range { minimum; maximum } ->
+  | Rdk.Blast_by_attribute.Blast_below threshold -> "below:" ^ float_key threshold
+  | Rdk.Blast_by_attribute.Blast_range { minimum; maximum } ->
       String.concat ":" ["range"; float_key minimum; float_key maximum]
-  | Pdk.Blast_by_attribute.Blast_width { center; width } ->
+  | Rdk.Blast_by_attribute.Blast_width { center; width } ->
       String.concat ":" ["width"; float_key center; float_key width]
 
 let blast_attribute_output_key = function
-  | Pdk.Blast_by_attribute.Blast_delete -> "delete"
-  | Pdk.Blast_by_attribute.Blast_group name -> "group:" ^ String.escaped name
+  | Rdk.Blast_by_attribute.Blast_delete -> "delete"
+  | Rdk.Blast_by_attribute.Blast_group name -> "group:" ^ String.escaped name
 
 let blast_by_attribute ?label ?group ?(invert = false)
     ?(remove_unused_points = false) ~owner ~attribute ~mode ~output input =
@@ -6221,9 +6221,9 @@ let blast_by_attribute ?label ?group ?(invert = false)
     invalid_arg "Sop.blast_by_attribute: empty attribute name";
   Option.iter (fun name -> if String.trim name = "" then
     invalid_arg "Sop.blast_by_attribute: empty base group name") group;
-  (match output with Pdk.Blast_by_attribute.Blast_group name when String.trim name = "" ->
+  (match output with Rdk.Blast_by_attribute.Blast_group name when String.trim name = "" ->
      invalid_arg "Sop.blast_by_attribute: empty output group name"
-   | Pdk.Blast_by_attribute.Blast_delete | Pdk.Blast_by_attribute.Blast_group _ -> ());
+   | Rdk.Blast_by_attribute.Blast_delete | Rdk.Blast_by_attribute.Blast_group _ -> ());
   Node.Private.make ?label ~operation:"blast_by_attribute" ~version:1
     ~parameters:(String.concat ";" [
       "owner=" ^ blast_attribute_owner_key owner;
@@ -6237,32 +6237,32 @@ let blast_by_attribute ?label ?group ?(invert = false)
     ~inputs:[|input|] (fun ~node_id:_ context inputs ->
       let geometry = inputs.(0) in
       let group_owner = match owner with
-        | Pdk.Blast_by_attribute.Blast_points -> Pdk.Group.Point
-        | Pdk.Blast_by_attribute.Blast_primitives -> Pdk.Group.Primitive in
+        | Rdk.Blast_by_attribute.Blast_points -> Rdk.Group.Point
+        | Rdk.Blast_by_attribute.Blast_primitives -> Rdk.Group.Primitive in
       let base = match group with
         | None -> Ok None
         | Some name ->
-            (match Pdk.Geometry.find_group ~owner:group_owner name geometry with
+            (match Rdk.Geometry.find_group ~owner:group_owner name geometry with
              | Some group -> Ok (Some group)
              | None -> Error (Diagnostic.error ~code:"missing_group"
                  (Printf.sprintf
                    "blast_by_attribute could not find %s group %S"
                    (blast_attribute_owner_key owner) name))) in
       Result.bind base (fun base ->
-        match Pdk.Blast_by_attribute.blast
+        match Rdk.Blast_by_attribute.blast
             ~cancel:(Context.cancel_token context)
             ~grain:(Context.grain context) ?base ~invert ~remove_unused_points
             ~owner ~attribute ~mode ~output geometry with
         | Ok geometry -> cooked geometry
-        | Error error -> structured_pdk_error error))
+        | Error error -> structured_rdk_error error))
 
 let group_owner_key = function
-  | Pdk.Group.Point -> "point"
-  | Pdk.Group.Vertex -> "vertex"
-  | Pdk.Group.Primitive -> "primitive"
+  | Rdk.Group.Point -> "point"
+  | Rdk.Group.Vertex -> "vertex"
+  | Rdk.Group.Primitive -> "primitive"
 
 let blast ?label ?(selected = true) ?(compact_points = false)
-    ?(policy = Pdk.Deletion.Destroy_touched_primitives) ~owner ~group input =
+    ?(policy = Rdk.Deletion.Destroy_touched_primitives) ~owner ~group input =
   if String.trim group = "" then invalid_arg "Sop.blast: empty group name";
   Node.Private.make ?label ~operation:"blast" ~version:1
     ~parameters:(Printf.sprintf
@@ -6271,35 +6271,35 @@ let blast ?label ?(selected = true) ?(compact_points = false)
       (delete_policy_key policy))
     ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
     ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      match Pdk.Geometry.find_group ~owner group inputs.(0) with
+      match Rdk.Geometry.find_group ~owner group inputs.(0) with
       | None -> Error (Diagnostic.error ~code:"missing_group"
           ~hints:["Create the typed group before Blast or correct its owner/name"]
           (Printf.sprintf "blast could not find %s group %S"
             (group_owner_key owner) group))
       | Some selection ->
-          match Pdk.Deletion.delete ~cancel:(Context.cancel_token context)
+          match Rdk.Deletion.delete ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ~selected ~compact_points ~policy
               selection inputs.(0) with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let compact_points ?label input =
   unary_result ?label ~operation:"compact_points"
-    (fun context geometry -> Pdk.Compact_points.run
+    (fun context geometry -> Rdk.Compact_points.run
       ~cancel:(Context.cancel_token context) ~grain:(Context.grain context)
       geometry) input
 
 let match_size_fit_key = function
-  | Pdk.Match_size.Translate_only -> "translate_only"
-  | Pdk.Match_size.Stretch -> "stretch"
-  | Pdk.Match_size.Contain -> "contain"
-  | Pdk.Match_size.Cover -> "cover"
-  | Pdk.Match_size.Match_x -> "match_x"
-  | Pdk.Match_size.Match_y -> "match_y"
-  | Pdk.Match_size.Match_z -> "match_z"
-  | Pdk.Match_size.Match_perimeter -> "match_perimeter"
-  | Pdk.Match_size.Match_area -> "match_area"
-  | Pdk.Match_size.Match_volume -> "match_volume"
+  | Rdk.Match_size.Translate_only -> "translate_only"
+  | Rdk.Match_size.Stretch -> "stretch"
+  | Rdk.Match_size.Contain -> "contain"
+  | Rdk.Match_size.Cover -> "cover"
+  | Rdk.Match_size.Match_x -> "match_x"
+  | Rdk.Match_size.Match_y -> "match_y"
+  | Rdk.Match_size.Match_z -> "match_z"
+  | Rdk.Match_size.Match_perimeter -> "match_perimeter"
+  | Rdk.Match_size.Match_area -> "match_area"
+  | Rdk.Match_size.Match_volume -> "match_volume"
 
 let match_axis ?label ~from ~into input =
   let from = vec3_copy from and into = vec3_copy into in
@@ -6307,28 +6307,28 @@ let match_axis ?label ~from ~into input =
     ~parameters:(Printf.sprintf "from=%s;into=%s" (vec3_key from) (vec3_key into))
     ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
     ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      match Pdk.Match_size.match_axis ~grain:(Context.grain context) ~from ~into inputs.(0) with
+      match Rdk.Match_size.match_axis ~grain:(Context.grain context) ~from ~into inputs.(0) with
       | Ok geometry -> cooked geometry
-      | Error error -> structured_pdk_error error)
+      | Error error -> structured_rdk_error error)
 
 let sort ?label ?group ?(descending = false) ?output_indices
     ?(combine_indices = false) ~owner ~key input =
-  let owner_key = match owner with Pdk.Ordering.Points -> "points"
-    | Pdk.Ordering.Primitives -> "primitives" in
+  let owner_key = match owner with Rdk.Ordering.Points -> "points"
+    | Rdk.Ordering.Primitives -> "primitives" in
   let key_key = match key with
-    | Pdk.Ordering.X -> "x" | Pdk.Ordering.Y -> "y" | Pdk.Ordering.Z -> "z"
-    | Pdk.Ordering.Distance_to point -> "distance:" ^ vec3_key point
-    | Pdk.Ordering.Along_vector vector -> "vector:" ^ vec3_key vector
-    | Pdk.Ordering.Attribute_component { name; component } ->
+    | Rdk.Ordering.X -> "x" | Rdk.Ordering.Y -> "y" | Rdk.Ordering.Z -> "z"
+    | Rdk.Ordering.Distance_to point -> "distance:" ^ vec3_key point
+    | Rdk.Ordering.Along_vector vector -> "vector:" ^ vec3_key vector
+    | Rdk.Ordering.Attribute_component { name; component } ->
         Printf.sprintf "attribute:%s:%d" (String.escaped name) component
-    | Pdk.Ordering.By_vertex_order -> "vertex_order"
-    | Pdk.Ordering.By_primitive_index -> "primitive_index"
-    | Pdk.Ordering.Spatial_locality -> "spatial_locality"
-    | Pdk.Ordering.Random seed -> "random:" ^ Int64.to_string seed
-    | Pdk.Ordering.Index_attribute name ->
+    | Rdk.Ordering.By_vertex_order -> "vertex_order"
+    | Rdk.Ordering.By_primitive_index -> "primitive_index"
+    | Rdk.Ordering.Spatial_locality -> "spatial_locality"
+    | Rdk.Ordering.Random seed -> "random:" ^ Int64.to_string seed
+    | Rdk.Ordering.Index_attribute name ->
         "index_attribute:" ^ String.escaped name
-    | Pdk.Ordering.Reverse -> "reverse"
-    | Pdk.Ordering.Shift offset -> "shift:" ^ string_of_int offset in
+    | Rdk.Ordering.Reverse -> "reverse"
+    | Rdk.Ordering.Shift offset -> "shift:" ^ string_of_int offset in
   Node.Private.make ?label ~operation:"sort" ~version:2
     ~parameters:(String.concat ";" ["owner=" ^ owner_key; "key=" ^ key_key;
       "group=" ^ option_string_key group; "descending=" ^ string_of_bool descending;
@@ -6336,26 +6336,26 @@ let sort ?label ?group ?(descending = false) ?output_indices
       "combine_indices=" ^ string_of_bool combine_indices])
     ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
     ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      let group_owner = match owner with Pdk.Ordering.Points -> Pdk.Group.Point
-        | Pdk.Ordering.Primitives -> Pdk.Group.Primitive in
+      let group_owner = match owner with Rdk.Ordering.Points -> Rdk.Group.Point
+        | Rdk.Ordering.Primitives -> Rdk.Group.Primitive in
       let selection = match group with
         | None -> Ok None
         | Some name ->
-            (match Pdk.Geometry.find_group ~owner:group_owner name inputs.(0) with
+            (match Rdk.Geometry.find_group ~owner:group_owner name inputs.(0) with
              | Some group -> Ok (Some group)
              | None -> Error (Diagnostic.error ~code:"missing_group"
                  (Printf.sprintf "sort could not find %s group %S" owner_key name))) in
       match selection with
       | Error error -> Error error
       | Ok selection ->
-          match Pdk.Ordering.sort ~cancel:(Context.cancel_token context)
+          match Rdk.Ordering.sort ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?selection ~descending
               ?output_indices ~combine_indices ~owner ~key inputs.(0) with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let match_size ?label ?selection ?source_selection ?target_selection
-    ?(fit = Pdk.Match_size.Contain) ?(translate_axes = true, true, true)
+    ?(fit = Rdk.Match_size.Contain) ?(translate_axes = true, true, true)
     ?(scale_axes = true, true, true) ?(justify = Vec3.zero) ?target_justify
     ?(offset = Vec3.zero) ?(scale = 1.) ?target_center ?target_size ?target
     input =
@@ -6421,14 +6421,14 @@ let match_size ?label ?selection ?source_selection ?target_selection
                (match target_selection_result with
                 | Error error -> Error error
                 | Ok target_selection ->
-                    match Pdk.Match_size.run
+                    match Rdk.Match_size.run
                         ~cancel:(Context.cancel_token context)
                         ~grain:(Context.grain context) ?selection
                         ?source_selection ?target_selection ~fit ~translate_axes
                         ~scale_axes ~justify ?target_justify ~offset ~scale
                         ?target_center ?target_size ?target source with
                     | Ok geometry -> cooked geometry
-                    | Error error -> structured_pdk_error error)))
+                    | Error error -> structured_rdk_error error)))
 
 let custom ?label ?(version = 1) ?(parameters = "")
     ?(cook_mode = Node.Generic) ?(dependencies = Context.Dependencies.static)
@@ -6441,7 +6441,7 @@ let custom ?label ?(version = 1) ?(parameters = "")
           "custom procedural node was cancelled before cooking")
       else match cook ~context (Array.copy geometries) with
         | Ok geometry -> cooked geometry
-        | Error message -> pdk_error operation message)
+        | Error message -> rdk_error operation message)
 
 let stable_string_hash value =
   let hash = ref 0xcbf29ce484222325L in
@@ -6456,7 +6456,7 @@ let mixed_seed context identity =
   Int64.to_int (Int64.logxor mixed (Int64.shift_right_logical mixed 32))
 
 let group_random ?label ?seed ?seed_attribute ?base
-    ?(merge = Pdk.Group_ops.Group_replace) ~probability ~owner ~name input =
+    ?(merge = Rdk.Group_ops.Group_replace) ~probability ~owner ~name input =
   if String.trim name = "" then invalid_arg "Sop.group_random: empty group name";
   if not (Float.is_finite probability) || probability < 0. || probability > 1.
   then invalid_arg "Sop.group_random: probability must be in [0,1]";
@@ -6486,33 +6486,33 @@ let group_random ?label ?seed ?seed_attribute ?base
           stable_identity in
       let seed = Rand.seed (Option.value ~default:(mixed_seed context identity)
           seed) in
-      match Pdk.Group_ops.group_random ~cancel:(Context.cancel_token context)
+      match Rdk.Group_ops.group_random ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ~seed ?seed_attribute ?base ~merge
           ~probability ~owner ~name inputs.(0) with
       | Ok geometry -> cooked geometry
-      | Error error -> structured_pdk_error error)
+      | Error error -> structured_rdk_error error)
 
 let group_bounds_key = function
-  | Pdk.Group_ops.Bounds_box { minimum; maximum } ->
+  | Rdk.Group_ops.Bounds_box { minimum; maximum } ->
       "box:" ^ vec3_key minimum ^ ":" ^ vec3_key maximum
-  | Pdk.Group_ops.Bounds_sphere { center; radius } ->
+  | Rdk.Group_ops.Bounds_sphere { center; radius } ->
       "sphere:" ^ vec3_key center ^ ":" ^ float_key radius
 
 let copy_group_bounds = function
-  | Pdk.Group_ops.Bounds_box { minimum; maximum } ->
-      Pdk.Group_ops.Bounds_box {
+  | Rdk.Group_ops.Bounds_box { minimum; maximum } ->
+      Rdk.Group_ops.Bounds_box {
         minimum = vec3_copy minimum;
         maximum = vec3_copy maximum;
       }
-  | Pdk.Group_ops.Bounds_sphere { center; radius } ->
-      Pdk.Group_ops.Bounds_sphere { center = vec3_copy center; radius }
+  | Rdk.Group_ops.Bounds_sphere { center; radius } ->
+      Rdk.Group_ops.Bounds_sphere { center = vec3_copy center; radius }
 
 let group_containment_key = function
-  | Pdk.Group_ops.Fully_contained -> "full"
-  | Pdk.Group_ops.Partially_contained -> "partial"
+  | Rdk.Group_ops.Fully_contained -> "full"
+  | Rdk.Group_ops.Partially_contained -> "partial"
 
-let group_bounds ?label ?base ?(containment = Pdk.Group_ops.Fully_contained)
-    ?(merge = Pdk.Group_ops.Group_replace) bounds ~owner ~name input =
+let group_bounds ?label ?base ?(containment = Rdk.Group_ops.Fully_contained)
+    ?(merge = Rdk.Group_ops.Group_replace) bounds ~owner ~name input =
   if String.trim name = "" then invalid_arg "Sop.group_bounds: empty group name";
   (match base with Some value when String.trim value = "" ->
      invalid_arg "Sop.group_bounds: empty base group name"
@@ -6528,14 +6528,14 @@ let group_bounds ?label ?base ?(containment = Pdk.Group_ops.Fully_contained)
       "bounds=" ^ group_bounds_key bounds])
     ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
     ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      match Pdk.Group_ops.group_bounds ~cancel:(Context.cancel_token context)
+      match Rdk.Group_ops.group_bounds ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ?base ~containment ~merge bounds
           ~owner ~name inputs.(0) with
       | Ok geometry -> cooked geometry
-      | Error error -> structured_pdk_error error)
+      | Error error -> structured_rdk_error error)
 
 let group_normal ?label ?normal_attribute ?(use_existing_normal = true) ?base
-    ?(include_opposite = false) ?(merge = Pdk.Group_ops.Group_replace)
+    ?(include_opposite = false) ?(merge = Rdk.Group_ops.Group_replace)
     ~direction ~spread_angle ~owner ~name input =
   if String.trim name = "" then invalid_arg "Sop.group_normal: empty group name";
   if not (Float.is_finite direction.Vec3.x && Float.is_finite direction.y
@@ -6543,7 +6543,7 @@ let group_normal ?label ?normal_attribute ?(use_existing_normal = true) ?base
     invalid_arg "Sop.group_normal: direction must be finite";
   if direction.x = 0. && direction.y = 0. && direction.z = 0. then
     invalid_arg "Sop.group_normal: direction must be non-zero";
-  if owner = Pdk.Group_ops.Group_vertices then
+  if owner = Rdk.Group_ops.Group_vertices then
     invalid_arg "Sop.group_normal: vertex groups are not supported";
   if not (Float.is_finite spread_angle) || spread_angle < 0.
       || spread_angle > Float.pi then
@@ -6567,14 +6567,14 @@ let group_normal ?label ?normal_attribute ?(use_existing_normal = true) ?base
       "spread_angle=" ^ float_key spread_angle])
     ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
     ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      match Pdk.Group_ops.group_normal ~cancel:(Context.cancel_token context)
+      match Rdk.Group_ops.group_normal ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ?normal_attribute ~use_existing_normal ?base
           ~include_opposite ~merge ~direction ~spread_angle ~owner ~name
           inputs.(0) with
       | Ok geometry -> cooked geometry
-      | Error error -> structured_pdk_error error)
+      | Error error -> structured_rdk_error error)
 
-let group_non_planar ?label ?base ?(merge = Pdk.Group_ops.Group_replace)
+let group_non_planar ?label ?base ?(merge = Rdk.Group_ops.Group_replace)
     ~tolerance ~name input =
   if String.trim name = "" then
     invalid_arg "Sop.group_non_planar: empty group name";
@@ -6591,13 +6591,13 @@ let group_non_planar ?label ?base ?(merge = Pdk.Group_ops.Group_replace)
       "tolerance=" ^ float_key tolerance])
     ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
     ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      match Pdk.Group_ops.group_non_planar ~cancel:(Context.cancel_token context)
+      match Rdk.Group_ops.group_non_planar ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ?base ~merge ~tolerance ~name inputs.(0)
       with
       | Ok geometry -> cooked geometry
-      | Error error -> structured_pdk_error error)
+      | Error error -> structured_rdk_error error)
 
-let group_backface ?label ?base ?(merge = Pdk.Group_ops.Group_replace)
+let group_backface ?label ?base ?(merge = Rdk.Group_ops.Group_replace)
     ~viewpoint ~name input =
   if String.trim name = "" then
     invalid_arg "Sop.group_backface: empty group name";
@@ -6616,13 +6616,13 @@ let group_backface ?label ?base ?(merge = Pdk.Group_ops.Group_replace)
       "viewpoint=" ^ vec3_key viewpoint])
     ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
     ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      match Pdk.Group_ops.group_backface ~cancel:(Context.cancel_token context)
+      match Rdk.Group_ops.group_backface ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ?base ~merge ~viewpoint ~name inputs.(0)
       with
       | Ok geometry -> cooked geometry
-      | Error error -> structured_pdk_error error)
+      | Error error -> structured_rdk_error error)
 
-let group_edge_depth ?label ?(merge = Pdk.Group_ops.Group_replace) ~depth
+let group_edge_depth ?label ?(merge = Rdk.Group_ops.Group_replace) ~depth
     ~point_group ~name input =
   if String.trim point_group = "" then
     invalid_arg "Sop.group_edge_depth: empty seed point group name";
@@ -6633,13 +6633,13 @@ let group_edge_depth ?label ?(merge = Pdk.Group_ops.Group_replace) ~depth
       depth point_group name (group_boolean_operation_key merge))
     ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
     ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      match Pdk.Group_ops.group_edge_depth ~cancel:(Context.cancel_token context)
+      match Rdk.Group_ops.group_edge_depth ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ~merge ~depth ~point_group ~name
           inputs.(0) with
       | Ok geometry -> cooked geometry
-      | Error error -> structured_pdk_error error)
+      | Error error -> structured_rdk_error error)
 
-let group_unshared ?label ?(merge = Pdk.Group_ops.Group_replace) ~owner ~name input =
+let group_unshared ?label ?(merge = Rdk.Group_ops.Group_replace) ~owner ~name input =
   if String.trim name = "" then
     invalid_arg "Sop.group_unshared: empty output group name";
   Node.Private.make ?label ~operation:"group_unshared" ~version:1
@@ -6647,13 +6647,13 @@ let group_unshared ?label ?(merge = Pdk.Group_ops.Group_replace) ~owner ~name in
       (boundary_group_owner_key owner) name (group_boolean_operation_key merge))
     ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
     ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      match Pdk.Group_ops.group_unshared ~cancel:(Context.cancel_token context)
+      match Rdk.Group_ops.group_unshared ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ~merge ~owner ~name inputs.(0) with
       | Ok geometry -> cooked geometry
-      | Error error -> structured_pdk_error error)
+      | Error error -> structured_rdk_error error)
 
 let group_boundary_components ?label ?(prefix = "boundary")
-    ?(conflict = Pdk.Group_ops.Name_replace) ?(max_groups = 4_096)
+    ?(conflict = Rdk.Group_ops.Name_replace) ?(max_groups = 4_096)
     ?(max_payload_bytes = 268_435_456) input =
   if String.trim prefix = "" then
     invalid_arg "Sop.group_boundary_components: empty output prefix";
@@ -6663,130 +6663,130 @@ let group_boundary_components ?label ?(prefix = "boundary")
       prefix (group_name_conflict_key conflict) max_groups max_payload_bytes)
     ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
     ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      match Pdk.Group_ops.group_boundary_components
+      match Rdk.Group_ops.group_boundary_components
           ~cancel:(Context.cancel_token context) ~grain:(Context.grain context)
           ~prefix ~conflict ~max_groups ~max_payload_bytes inputs.(0) with
       | Ok geometry -> cooked geometry
-      | Error error -> structured_pdk_error error)
+      | Error error -> structured_rdk_error error)
 
 let numeric_value_key = function
-  | Pdk.Attribute_ops.Scalar value -> "scalar:" ^ float_key value
-  | Pdk.Attribute_ops.Vec2 value -> "vec2:" ^ vec2_key value
-  | Pdk.Attribute_ops.Vec3 value -> "vec3:" ^ vec3_key value
-  | Pdk.Attribute_ops.Vec4 (x, y, z, w) ->
+  | Rdk.Attribute_ops.Scalar value -> "scalar:" ^ float_key value
+  | Rdk.Attribute_ops.Vec2 value -> "vec2:" ^ vec2_key value
+  | Rdk.Attribute_ops.Vec3 value -> "vec3:" ^ vec3_key value
+  | Rdk.Attribute_ops.Vec4 (x, y, z, w) ->
       String.concat ":" ["vec4"; float_key x; float_key y; float_key z;
         float_key w]
 
 let random_operation_key = function
-  | Pdk.Attribute_ops.Random_set -> "set"
-  | Pdk.Attribute_ops.Random_add -> "add"
-  | Pdk.Attribute_ops.Random_minimum -> "minimum"
-  | Pdk.Attribute_ops.Random_maximum -> "maximum"
-  | Pdk.Attribute_ops.Random_multiply -> "multiply"
+  | Rdk.Attribute_ops.Random_set -> "set"
+  | Rdk.Attribute_ops.Random_add -> "add"
+  | Rdk.Attribute_ops.Random_minimum -> "minimum"
+  | Rdk.Attribute_ops.Random_maximum -> "maximum"
+  | Rdk.Attribute_ops.Random_multiply -> "multiply"
 
 let noise_kind_key = function
-  | Pdk.Attribute_ops.Noise_float -> "float"
-  | Pdk.Attribute_ops.Noise_vector -> "vector"
-  | Pdk.Attribute_ops.Noise_quaternion -> "quaternion"
+  | Rdk.Attribute_ops.Noise_float -> "float"
+  | Rdk.Attribute_ops.Noise_vector -> "vector"
+  | Rdk.Attribute_ops.Noise_quaternion -> "quaternion"
 
 let noise_location_key = function
-  | Pdk.Attribute_ops.Noise_position -> "position"
-  | Pdk.Attribute_ops.Noise_element_number -> "element_number"
-  | Pdk.Attribute_ops.Noise_attribute name -> "attribute:" ^ String.escaped name
+  | Rdk.Attribute_ops.Noise_position -> "position"
+  | Rdk.Attribute_ops.Noise_element_number -> "element_number"
+  | Rdk.Attribute_ops.Noise_attribute name -> "attribute:" ^ String.escaped name
 
 let noise_range_key = function
-  | Pdk.Attribute_ops.Noise_positive -> "positive"
-  | Pdk.Attribute_ops.Noise_zero_centered -> "zero_centered"
-  | Pdk.Attribute_ops.Noise_min_max (minimum, maximum) ->
+  | Rdk.Attribute_ops.Noise_positive -> "positive"
+  | Rdk.Attribute_ops.Noise_zero_centered -> "zero_centered"
+  | Rdk.Attribute_ops.Noise_min_max (minimum, maximum) ->
       "min_max:" ^ numeric_value_key minimum ^ ":" ^ numeric_value_key maximum
 
 let noise_operation_key = function
-  | Pdk.Attribute_ops.Noise_set_initial -> "set_initial"
-  | Pdk.Attribute_ops.Noise_set -> "set"
-  | Pdk.Attribute_ops.Noise_add -> "add"
-  | Pdk.Attribute_ops.Noise_subtract -> "subtract"
-  | Pdk.Attribute_ops.Noise_multiply -> "multiply"
-  | Pdk.Attribute_ops.Noise_minimum -> "minimum"
-  | Pdk.Attribute_ops.Noise_maximum -> "maximum"
+  | Rdk.Attribute_ops.Noise_set_initial -> "set_initial"
+  | Rdk.Attribute_ops.Noise_set -> "set"
+  | Rdk.Attribute_ops.Noise_add -> "add"
+  | Rdk.Attribute_ops.Noise_subtract -> "subtract"
+  | Rdk.Attribute_ops.Noise_multiply -> "multiply"
+  | Rdk.Attribute_ops.Noise_minimum -> "minimum"
+  | Rdk.Attribute_ops.Noise_maximum -> "maximum"
 
 let random_distribution_key = function
-  | Pdk.Attribute_ops.Random_constant value ->
+  | Rdk.Attribute_ops.Random_constant value ->
       "constant:" ^ numeric_value_key value
-  | Pdk.Attribute_ops.Random_two_values { a; b; probability_b } ->
+  | Rdk.Attribute_ops.Random_two_values { a; b; probability_b } ->
       String.concat ":" ["two_values"; numeric_value_key a;
         numeric_value_key b; float_key probability_b]
-  | Pdk.Attribute_ops.Random_uniform { min; max } ->
+  | Rdk.Attribute_ops.Random_uniform { min; max } ->
       String.concat ":" ["uniform"; numeric_value_key min;
         numeric_value_key max]
-  | Pdk.Attribute_ops.Random_uniform_discrete { min; max; step } ->
+  | Rdk.Attribute_ops.Random_uniform_discrete { min; max; step } ->
       String.concat ":" ["uniform_discrete"; numeric_value_key min;
         numeric_value_key max; numeric_value_key step]
-  | Pdk.Attribute_ops.Random_normal { middle; scale } ->
+  | Rdk.Attribute_ops.Random_normal { middle; scale } ->
       String.concat ":" ["normal"; numeric_value_key middle;
         numeric_value_key scale]
-  | Pdk.Attribute_ops.Random_exponential { median } ->
+  | Rdk.Attribute_ops.Random_exponential { median } ->
       "exponential:" ^ numeric_value_key median
-  | Pdk.Attribute_ops.Random_log_normal { median; stddev } ->
+  | Rdk.Attribute_ops.Random_log_normal { median; stddev } ->
       String.concat ":" ["log_normal"; numeric_value_key median;
         numeric_value_key stddev]
-  | Pdk.Attribute_ops.Random_cauchy { median; scale } ->
+  | Rdk.Attribute_ops.Random_cauchy { median; scale } ->
       String.concat ":" ["cauchy"; numeric_value_key median;
         numeric_value_key scale]
-  | Pdk.Attribute_ops.Random_direction { direction; cone_angle } ->
+  | Rdk.Attribute_ops.Random_direction { direction; cone_angle } ->
       String.concat ":" ["direction"; numeric_value_key direction;
         float_key cone_angle]
-  | Pdk.Attribute_ops.Random_inside_sphere { dimensions } ->
+  | Rdk.Attribute_ops.Random_inside_sphere { dimensions } ->
       "inside_sphere:" ^ string_of_int dimensions
-  | Pdk.Attribute_ops.Random_inside_sphere_cone { direction; cone_angle } ->
+  | Rdk.Attribute_ops.Random_inside_sphere_cone { direction; cone_angle } ->
       String.concat ":" ["inside_sphere_cone"; numeric_value_key direction;
         float_key cone_angle]
-  | Pdk.Attribute_ops.Random_custom_ramp { ramp; fit_min; fit_max } ->
+  | Rdk.Attribute_ops.Random_custom_ramp { ramp; fit_min; fit_max } ->
       let ramp = ramp |> List.map (fun (position, value) ->
         float_key position ^ "," ^ float_key value) |> String.concat ";" in
       String.concat ":" ["custom_ramp"; ramp; numeric_value_key fit_min;
         numeric_value_key fit_max]
-  | Pdk.Attribute_ops.Random_custom_discrete entries ->
+  | Rdk.Attribute_ops.Random_custom_discrete entries ->
       "custom_discrete:" ^ (entries |> List.map (fun (value, weight) ->
         numeric_value_key value ^ "," ^ float_key weight) |> String.concat ";")
-  | Pdk.Attribute_ops.Random_custom_discrete_text entries ->
+  | Rdk.Attribute_ops.Random_custom_discrete_text entries ->
       "custom_discrete_text:" ^ (entries |> List.map (fun (value, weight) ->
         string_of_int (String.length value) ^ ":" ^ value ^ ","
         ^ float_key weight) |> String.concat ";")
 
 let remap_input_key = function
-  | Pdk.Attribute_ops.Remap_auto -> "auto"
-  | Pdk.Attribute_ops.Remap_explicit { min; max } ->
+  | Rdk.Attribute_ops.Remap_auto -> "auto"
+  | Rdk.Attribute_ops.Remap_explicit { min; max } ->
       String.concat ":" ["explicit"; numeric_value_key min;
         numeric_value_key max]
 
 let remap_policy_key = function
-  | Pdk.Attribute_ops.Remap_clamp -> "clamp"
-  | Pdk.Attribute_ops.Remap_cycle -> "cycle"
-  | Pdk.Attribute_ops.Remap_extrapolate -> "extrapolate"
+  | Rdk.Attribute_ops.Remap_clamp -> "clamp"
+  | Rdk.Attribute_ops.Remap_cycle -> "cycle"
+  | Rdk.Attribute_ops.Remap_extrapolate -> "extrapolate"
 
 let attribute_group_owner = function
-  | Pdk.Attribute.Point -> Some Pdk.Group.Point
-  | Pdk.Attribute.Vertex -> Some Pdk.Group.Vertex
-  | Pdk.Attribute.Primitive -> Some Pdk.Group.Primitive
-  | Pdk.Attribute.Detail -> None
+  | Rdk.Attribute.Point -> Some Rdk.Group.Point
+  | Rdk.Attribute.Vertex -> Some Rdk.Group.Vertex
+  | Rdk.Attribute.Primitive -> Some Rdk.Group.Primitive
+  | Rdk.Attribute.Detail -> None
 
 let resolve_attribute_group ~operation ~owner name geometry = match name with
   | None -> Ok None
-  | Some _ when owner = Pdk.Attribute.Detail ->
+  | Some _ when owner = Rdk.Attribute.Detail ->
       Error (Diagnostic.error ~code:"invalid_group"
         (operation ^ " does not accept a group for detail attributes"))
   | Some name ->
       let group_owner = Option.get (attribute_group_owner owner) in
-      (match Pdk.Geometry.find_group ~owner:group_owner name geometry with
+      (match Rdk.Geometry.find_group ~owner:group_owner name geometry with
        | Some group -> Ok (Some group)
        | None -> Error (Diagnostic.error ~code:"missing_group"
            (Printf.sprintf "%s could not find %s group %S" operation
               (attribute_owner_key owner) name)))
 
 let bound_shape_key = function
-  | Pdk.Bound.Bound_box { divisions = x, y, z } ->
+  | Rdk.Bound.Bound_box { divisions = x, y, z } ->
       Printf.sprintf "box:%d,%d,%d" x y z
-  | Pdk.Bound.Bound_sphere { segments; rings; minimum_radius } ->
+  | Rdk.Bound.Bound_sphere { segments; rings; minimum_radius } ->
       String.concat ":" ["sphere"; string_of_int segments; string_of_int rings;
         float_key minimum_radius]
 
@@ -6816,33 +6816,33 @@ let convex_hull ?label ?selection ?(preserve_point_payload = true)
       match resolve_element_group ~operation:"convex_hull" selection inputs.(0) with
       | Error error -> Error error
       | Ok selection ->
-          match Pdk.Convex_hull.run ~cancel:(Context.cancel_token context)
+          match Rdk.Convex_hull.run ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?selection ~preserve_point_payload
               ?source_point_attribute ?hull_group inputs.(0) with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let centroid_piece_owner_key = function
-  | Pdk.Curve_topology.Centroid_piece_points -> "points"
-  | Pdk.Curve_topology.Centroid_piece_primitives -> "primitives"
+  | Rdk.Curve_topology.Centroid_piece_points -> "points"
+  | Rdk.Curve_topology.Centroid_piece_primitives -> "primitives"
 
 let centroid_run_over_key = function
-  | Pdk.Curve_topology.Centroid_detail -> "detail"
-  | Pdk.Curve_topology.Centroid_primitives -> "primitives"
-  | Pdk.Curve_topology.Centroid_pieces {owner; attribute} ->
+  | Rdk.Curve_topology.Centroid_detail -> "detail"
+  | Rdk.Curve_topology.Centroid_primitives -> "primitives"
+  | Rdk.Curve_topology.Centroid_pieces {owner; attribute} ->
       String.concat ":" ["pieces"; centroid_piece_owner_key owner;
         String.escaped attribute]
 
 let centroid_method_key = function
-  | Pdk.Curve_topology.Centroid_point_mass -> "point_mass"
-  | Pdk.Curve_topology.Centroid_bounding_box -> "bounding_box"
-  | Pdk.Curve_topology.Centroid_convex_hull -> "convex_hull"
+  | Rdk.Curve_topology.Centroid_point_mass -> "point_mass"
+  | Rdk.Curve_topology.Centroid_bounding_box -> "bounding_box"
+  | Rdk.Curve_topology.Centroid_convex_hull -> "convex_hull"
 
-let extract_centroid ?label ?(run_over = Pdk.Curve_topology.Centroid_detail)
-    ?(method_ = Pdk.Curve_topology.Centroid_point_mass) ?source_primitive_attribute
+let extract_centroid ?label ?(run_over = Rdk.Curve_topology.Centroid_detail)
+    ?(method_ = Rdk.Curve_topology.Centroid_point_mass) ?source_primitive_attribute
     ?piece_output_attribute input =
   (match run_over with
-   | Pdk.Curve_topology.Centroid_pieces {attribute; _}
+   | Rdk.Curve_topology.Centroid_pieces {attribute; _}
        when String.trim attribute = "" || attribute = "P" ->
        invalid_arg "Sop.extract_centroid: piece attribute must be non-empty and not P"
    | _ -> ());
@@ -6862,14 +6862,14 @@ let extract_centroid ?label ?(run_over = Pdk.Curve_topology.Centroid_detail)
   Node.Private.make ?label ~operation:"extract_centroid" ~version:1 ~parameters
     ~cook_mode:Node.Generic ~dependencies:Context.Dependencies.static
     ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      match Pdk.Curve_topology.extract_centroid ~cancel:(Context.cancel_token context)
+      match Rdk.Curve_topology.extract_centroid ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ~run_over ~method_
           ?source_primitive_attribute ?piece_output_attribute inputs.(0) with
       | Ok geometry -> cooked geometry
-      | Error error -> structured_pdk_error error)
+      | Error error -> structured_rdk_error error)
 
 let bound ?label ?selection
-    ?(shape = Pdk.Bound.Bound_box { divisions = 1, 1, 1 })
+    ?(shape = Rdk.Bound.Bound_box { divisions = 1, 1, 1 })
     ?(lower_padding = Vec3.zero) ?(upper_padding = Vec3.zero) ?bounds_group
     ?center_attribute ?radii_attribute input =
   Option.iter (fun selection ->
@@ -6899,42 +6899,42 @@ let bound ?label ?selection
       match resolve_element_group ~operation:"bound" selection inputs.(0) with
       | Error error -> Error error
       | Ok selection ->
-          (match Pdk.Bound.run ~cancel:(Context.cancel_token context)
+          (match Rdk.Bound.run ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?selection ~shape ~lower_padding
               ~upper_padding ?bounds_group ?center_attribute ?radii_attribute
               inputs.(0) with
            | Ok geometry -> cooked geometry
-           | Error error -> structured_pdk_error error))
+           | Error error -> structured_rdk_error error))
 
 let ray_method_key = function
-  | Pdk.Ray.Ray_minimum_distance -> "minimum_distance"
-  | Pdk.Ray.Ray_project -> "project"
+  | Rdk.Ray.Ray_minimum_distance -> "minimum_distance"
+  | Rdk.Ray.Ray_project -> "project"
 
 let ray_direction_key = function
-  | Pdk.Ray.Ray_vector value -> "vector:" ^ vec3_key value
-  | Pdk.Ray.Ray_normal -> "normal"
-  | Pdk.Ray.Ray_attribute name -> "attribute:" ^ String.escaped name
+  | Rdk.Ray.Ray_vector value -> "vector:" ^ vec3_key value
+  | Rdk.Ray.Ray_normal -> "normal"
+  | Rdk.Ray.Ray_attribute name -> "attribute:" ^ String.escaped name
 
 let ray_direction_mode_key = function
-  | Pdk.Ray.Ray_forward -> "forward"
-  | Pdk.Ray.Ray_reverse -> "reverse"
-  | Pdk.Ray.Ray_bidirectional_closest -> "bidirectional_closest"
-  | Pdk.Ray.Ray_bidirectional_farthest -> "bidirectional_farthest"
+  | Rdk.Ray.Ray_forward -> "forward"
+  | Rdk.Ray.Ray_reverse -> "reverse"
+  | Rdk.Ray.Ray_bidirectional_closest -> "bidirectional_closest"
+  | Rdk.Ray.Ray_bidirectional_farthest -> "bidirectional_farthest"
 
 let ray_surface_hit_key = function
-  | Pdk.Ray.Ray_first_surface -> "first"
-  | Pdk.Ray.Ray_last_surface -> "last"
+  | Rdk.Ray.Ray_first_surface -> "first"
+  | Rdk.Ray.Ray_last_surface -> "last"
 
 let ray_combine_key = function
-  | Pdk.Ray.Ray_average -> "average"
-  | Pdk.Ray.Ray_median -> "median"
-  | Pdk.Ray.Ray_shortest -> "shortest"
-  | Pdk.Ray.Ray_longest -> "longest"
+  | Rdk.Ray.Ray_average -> "average"
+  | Rdk.Ray.Ray_median -> "median"
+  | Rdk.Ray.Ray_shortest -> "shortest"
+  | Rdk.Ray.Ray_longest -> "longest"
 
-let ray ?label ?selection ?collision_group ?(method_ = Pdk.Ray.Ray_project)
-    ?(direction = Pdk.Ray.Ray_normal) ?(direction_mode = Pdk.Ray.Ray_forward)
-    ?(surface_hit = Pdk.Ray.Ray_first_surface) ?(samples = 1)
-    ?(jitter_scale = 1.) ?(seed = 0) ?(combine = Pdk.Ray.Ray_average)
+let ray ?label ?selection ?collision_group ?(method_ = Rdk.Ray.Ray_project)
+    ?(direction = Rdk.Ray.Ray_normal) ?(direction_mode = Rdk.Ray.Ray_forward)
+    ?(surface_hit = Rdk.Ray.Ray_first_surface) ?(samples = 1)
+    ?(jitter_scale = 1.) ?(seed = 0) ?(combine = Rdk.Ray.Ray_average)
     ?(min_distance = 0.)
     ?max_distance ?(tolerance = 0.) ?(scale = 1.) ?(lift = 0.)
     ?distance_attribute ?primitive_attribute ?source_vertex_numbers_attribute
@@ -6942,9 +6942,9 @@ let ray ?label ?selection ?collision_group ?(method_ = Pdk.Ray.Ray_project)
     ?point_pattern ?vertex_pattern ?primitive_pattern ?detail_pattern
     ?(match_groups = false) ~collision source =
   let direction = match direction with
-    | Pdk.Ray.Ray_vector value -> Pdk.Ray.Ray_vector (vec3_copy value)
-    | Pdk.Ray.Ray_normal -> Pdk.Ray.Ray_normal
-    | Pdk.Ray.Ray_attribute name -> Pdk.Ray.Ray_attribute name in
+    | Rdk.Ray.Ray_vector value -> Rdk.Ray.Ray_vector (vec3_copy value)
+    | Rdk.Ray.Ray_normal -> Rdk.Ray.Ray_normal
+    | Rdk.Ray.Ray_attribute name -> Rdk.Ray.Ray_attribute name in
   Option.iter (fun selection ->
     let name = match selection with Point_group name | Vertex_group name
       | Primitive_group name | Edge_group name -> name in
@@ -6961,11 +6961,11 @@ let ray ?label ?selection ?collision_group ?(method_ = Pdk.Ray.Ray_project)
       "source vertex weights attribute", source_vertex_weights_attribute;
       "hit group", hit_group; "normal attribute", normal_attribute ];
   (match direction with
-   | Pdk.Ray.Ray_attribute name when String.trim name = "" ->
+   | Rdk.Ray.Ray_attribute name when String.trim name = "" ->
        invalid_arg "Sop.ray: empty direction attribute"
-   | Pdk.Ray.Ray_vector _ | Pdk.Ray.Ray_normal | Pdk.Ray.Ray_attribute _ -> ());
+   | Rdk.Ray.Ray_vector _ | Rdk.Ray.Ray_normal | Rdk.Ray.Ray_attribute _ -> ());
   List.iter (fun (label, pattern) -> Option.iter (fun pattern ->
-    match Pdk.Attribute_pattern.compile pattern with
+    match Rdk.Attribute_pattern.compile pattern with
     | Ok _ -> ()
     | Error message -> invalid_arg ("Sop.ray: invalid " ^ label ^ ": " ^ message))
     pattern) ["point pattern", point_pattern; "vertex pattern", vertex_pattern;
@@ -7007,7 +7007,7 @@ let ray ?label ?selection ?collision_group ?(method_ = Pdk.Ray.Ray_project)
           let collision_primitives = match collision_group with
             | None -> Ok None
             | Some name ->
-                (match Pdk.Geometry.find_group ~owner:Pdk.Group.Primitive name
+                (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive name
                     inputs.(1) with
                  | Some group -> Ok (Some group)
                  | None -> Error (Diagnostic.error ~code:"missing_collision_group"
@@ -7016,7 +7016,7 @@ let ray ?label ?selection ?collision_group ?(method_ = Pdk.Ray.Ray_project)
           (match collision_primitives with
            | Error error -> Error error
            | Ok collision_primitives ->
-               match Pdk.Ray.run ~cancel:(Context.cancel_token context)
+               match Rdk.Ray.run ~cancel:(Context.cancel_token context)
                    ~grain:(Context.grain context) ?selection ?collision_primitives
                    ~method_ ~direction ~direction_mode ~surface_hit ~samples
                    ~jitter_scale ~seed ~combine ~min_distance
@@ -7027,7 +7027,7 @@ let ray ?label ?selection ?collision_group ?(method_ = Pdk.Ray.Ray_project)
                    ?detail_pattern ~match_groups ~source:inputs.(0)
                    ~collision:inputs.(1) () with
                | Ok geometry -> cooked geometry
-               | Error error -> structured_pdk_error error))
+               | Error error -> structured_rdk_error error))
 
 let peak ?label ?selection ?direction_attribute ?(normalize_direction = true)
     ?mask_attribute ~distance ?(recompute_normals = false) input =
@@ -7055,12 +7055,12 @@ let peak ?label ?selection ?direction_attribute ?(normalize_direction = true)
       match resolve_element_group ~operation:"peak" selection inputs.(0) with
       | Error error -> Error error
       | Ok selection ->
-          match Pdk.Deform.peak ~cancel:(Context.cancel_token context)
+          match Rdk.Deform.peak ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?selection ?direction_attribute
               ~normalize_direction ?mask_attribute ~distance ~recompute_normals
               inputs.(0) with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let bend ?label ?selection ?mask_attribute ?(origin = Vec3.zero)
     ?(direction = Vec3.unit_z) ?(up = Vec3.unit_y) ~length
@@ -7100,13 +7100,13 @@ let bend ?label ?selection ?mask_attribute ?(origin = Vec3.zero)
       match resolve_element_group ~operation:"bend" selection inputs.(0) with
       | Error error -> Error error
       | Ok selection ->
-          match Pdk.Deform.bend ~cancel:(Context.cancel_token context)
+          match Rdk.Deform.bend ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?selection ?mask_attribute ~origin
               ~direction ~up ~length ~bend_angle ~twist_angle ~limit
               ~both_directions ~continuous_twist ?capture_attribute
               ~recompute_normals inputs.(0) with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let mountain ?label ?group ?seed ?direction_attribute
     ?(normalize_direction = true) ?mask_attribute ~height
@@ -7146,8 +7146,8 @@ let mountain ?label ?group ?seed ?direction_attribute
       let selection = match group with
         | None -> Ok None
         | Some name ->
-            (match Pdk.Geometry.find_group ~owner:Pdk.Group.Point name inputs.(0) with
-             | Some group -> Ok (Some (Pdk.Transform_ops.Selected_points group))
+            (match Rdk.Geometry.find_group ~owner:Rdk.Group.Point name inputs.(0) with
+             | Some group -> Ok (Some (Rdk.Transform_ops.Selected_points group))
              | None -> Error (Diagnostic.error ~code:"missing_group"
                  (Printf.sprintf "mountain could not find point group %S" name))) in
       match selection with
@@ -7156,13 +7156,13 @@ let mountain ?label ?group ?seed ?direction_attribute
           let identity = Option.value ~default:(Int64.of_int node_id)
               stable_identity in
           let seed = Option.value ~default:(mixed_seed context identity) seed in
-          match Pdk.Deform.mountain ~cancel:(Context.cancel_token context)
+          match Rdk.Deform.mountain ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?selection ?direction_attribute
               ~normalize_direction ?mask_attribute ~seed ~height ~frequency
               ~offset ~octaves ~lacunarity ~roughness ?height_attribute
               ~recompute_normals inputs.(0) with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let point_generate ?label ?group ?(keep_input = false) ?seed ?generated_group
     ?(source_point_attribute = "sourcepoint")
@@ -7191,7 +7191,7 @@ let point_generate ?label ?group ?(keep_input = false) ?seed ?generated_group
       let points = match group with
         | None -> Ok None
         | Some name ->
-            (match Pdk.Geometry.find_group ~owner:Pdk.Group.Point name geometry with
+            (match Rdk.Geometry.find_group ~owner:Rdk.Group.Point name geometry with
              | Some value -> Ok (Some value)
              | None -> Error (Diagnostic.error ~code:"missing_group"
                  (Printf.sprintf
@@ -7202,35 +7202,35 @@ let point_generate ?label ?group ?(keep_input = false) ?seed ?generated_group
           let identity = Option.value ~default:(Int64.of_int node_id)
               stable_identity in
           let seed = Option.value ~default:(mixed_seed context identity) seed in
-          match Pdk.Point_generate.run ~cancel:(Context.cancel_token context)
+          match Rdk.Point_generate.run ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?points ~keep_input ~seed:(Rand.seed seed)
               ?generated_group ~source_point_attribute ~source_index_attribute
               ~copy_point_attributes ~copy_detail_attributes ~mode geometry with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let point_replicate_shape_key = function
-  | Pdk.Point_replication.Replicate_point -> "point"
-  | Pdk.Point_replication.Replicate_box -> "box"
-  | Pdk.Point_replication.Replicate_sphere -> "sphere"
-  | Pdk.Point_replication.Replicate_disk -> "disk"
-  | Pdk.Point_replication.Replicate_line -> "line"
-  | Pdk.Point_replication.Replicate_custom -> "custom"
+  | Rdk.Point_replication.Replicate_point -> "point"
+  | Rdk.Point_replication.Replicate_box -> "box"
+  | Rdk.Point_replication.Replicate_sphere -> "sphere"
+  | Rdk.Point_replication.Replicate_disk -> "disk"
+  | Rdk.Point_replication.Replicate_line -> "line"
+  | Rdk.Point_replication.Replicate_custom -> "custom"
 
 let point_replicate_velocity_key = function
-  | Pdk.Point_replication.Replicate_no_velocity_stretch -> "none"
-  | Pdk.Point_replication.Replicate_scaled_velocity -> "scaled"
-  | Pdk.Point_replication.Replicate_velocity_only -> "velocity_only"
+  | Rdk.Point_replication.Replicate_no_velocity_stretch -> "none"
+  | Rdk.Point_replication.Replicate_scaled_velocity -> "scaled"
+  | Rdk.Point_replication.Replicate_velocity_only -> "velocity_only"
 
 let point_replicate ?label ?group ?(keep_input = false) ?seed
     ?(id_attribute = "id") ?generated_group ?(copy_point_attributes = "*")
     ?(keep_source_attributes = false) ?(transform_attributes = "P")
     ?(source_point_attribute = "sourcepoint")
     ?(source_index_attribute = "sourceindex")
-    ?(shape = Pdk.Point_replication.Replicate_sphere) ?custom_shape ?(center = Vec3.zero)
+    ?(shape = Rdk.Point_replication.Replicate_sphere) ?custom_shape ?(center = Vec3.zero)
     ?(size = Vec3.create 1. 1. 1.) ?(orientation = Vec3.zero)
     ?(uniform_scale = 1.) ?(quasi_stratified = false)
-    ?(velocity_stretch = Pdk.Point_replication.Replicate_no_velocity_stretch)
+    ?(velocity_stretch = Rdk.Point_replication.Replicate_no_velocity_stretch)
     ?(velocity_scale = 1.) ?(inherit_velocity = 1.) ?(radial_velocity = 0.)
     ?noise_amplitude ?(noise_frequency = Vec3.create 1. 1. 1.)
     ?(noise_offset = Vec3.zero) ?(noise_roughness = 0.5)
@@ -7290,7 +7290,7 @@ let point_replicate ?label ?group ?(keep_input = false) ?seed
       let geometry = inputs.(0) in
       let selection = match group with
         | None -> Ok None
-        | Some name -> (match Pdk.Geometry.find_group ~owner:Pdk.Group.Point
+        | Some name -> (match Rdk.Geometry.find_group ~owner:Rdk.Group.Point
             name geometry with
           | Some value -> Ok (Some value)
           | None -> Error (Diagnostic.error ~code:"missing_group"
@@ -7304,7 +7304,7 @@ let point_replicate ?label ?group ?(keep_input = false) ?seed
           let noise_seed = Option.value ~default:(mixed_seed context
               (Int64.logxor identity 0x6a09e667f3bcc909L)) noise_seed in
           let custom_shape = if Array.length inputs = 2 then Some inputs.(1) else None in
-          match Pdk.Point_replication.run ~cancel:(Context.cancel_token context)
+          match Rdk.Point_replication.run ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?points:selection ~keep_input
               ~seed:(Rand.seed seed) ~id_attribute ?generated_group
               ~copy_point_attributes ~keep_source_attributes
@@ -7316,7 +7316,7 @@ let point_replicate ?label ?group ?(keep_input = false) ?seed
               ~noise_attenuation ~noise_turbulence ~noise_seed
               ~points_per_point ?scale_attribute geometry with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let point_jitter ?label ?group ?mask_attribute ?id_attribute ?seed
     ?(scale = 1.) ?(axis_scales = Vec3.create 1. 1. 1.)
@@ -7348,7 +7348,7 @@ let point_jitter ?label ?group ?mask_attribute ?id_attribute ?seed
       let points = match group with
         | None -> Ok None
         | Some name ->
-            (match Pdk.Geometry.find_group ~owner:Pdk.Group.Point name inputs.(0) with
+            (match Rdk.Geometry.find_group ~owner:Rdk.Group.Point name inputs.(0) with
              | Some group -> Ok (Some group)
              | None -> Error (Diagnostic.error ~code:"missing_group"
                  (Printf.sprintf
@@ -7359,16 +7359,16 @@ let point_jitter ?label ?group ?mask_attribute ?id_attribute ?seed
           let identity = Option.value ~default:(Int64.of_int node_id)
               stable_identity in
           let seed = Option.value ~default:(mixed_seed context identity) seed in
-          match Pdk.Point_jitter.run ~cancel:(Context.cancel_token context)
+          match Rdk.Point_jitter.run ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?points ?mask_attribute
               ?id_attribute ~use_point_scale ~seed:(Rand.seed seed) ~scale
               ~axis_scales inputs.(0) with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let attribute_randomize ?label ?group ?selection ?seed ?seed_attribute
     ?fraction_attribute ?minimum ?maximum ?(direction_bias = 0.)
-    ?(operation = Pdk.Attribute_ops.Random_set) ?(scale = 1.) ~owner ~name
+    ?(operation = Rdk.Attribute_ops.Random_set) ?(scale = 1.) ~owner ~name
     distribution input =
   if String.trim name = "" then
     invalid_arg "Sop.attribute_randomize: empty attribute name";
@@ -7387,9 +7387,9 @@ let attribute_randomize ?label ?group ?selection ?seed ?seed_attribute
   if group <> None && selection <> None then
     invalid_arg
       "Sop.attribute_randomize: group and typed selection are mutually exclusive";
-  if owner = Pdk.Attribute.Detail && group <> None then
+  if owner = Rdk.Attribute.Detail && group <> None then
     invalid_arg "Sop.attribute_randomize: detail attributes do not accept a group";
-  if owner = Pdk.Attribute.Detail && selection <> None then
+  if owner = Rdk.Attribute.Detail && selection <> None then
     invalid_arg
       "Sop.attribute_randomize: detail attributes do not accept a typed selection";
   if fraction_attribute <> None && (seed <> None || seed_attribute <> None) then
@@ -7433,31 +7433,31 @@ let attribute_randomize ?label ?group ?selection ?seed ?seed_attribute
       | Error error -> Error error
       | Ok (selection, element_selection) ->
           let element_selection = Option.map (function
-            | Pdk.Transform_ops.Selected_points group ->
-                Pdk.Attribute_ops.Random_points group
-            | Pdk.Transform_ops.Selected_vertices group ->
-                Pdk.Attribute_ops.Random_vertices group
-            | Pdk.Transform_ops.Selected_primitives group ->
-                Pdk.Attribute_ops.Random_primitives group
-            | Pdk.Transform_ops.Selected_edges group ->
-                Pdk.Attribute_ops.Random_edges group) element_selection in
+            | Rdk.Transform_ops.Selected_points group ->
+                Rdk.Attribute_ops.Random_points group
+            | Rdk.Transform_ops.Selected_vertices group ->
+                Rdk.Attribute_ops.Random_vertices group
+            | Rdk.Transform_ops.Selected_primitives group ->
+                Rdk.Attribute_ops.Random_primitives group
+            | Rdk.Transform_ops.Selected_edges group ->
+                Rdk.Attribute_ops.Random_edges group) element_selection in
           let identity = Option.value ~default:(Int64.of_int node_id)
               stable_identity in
           let seed = Rand.seed (match fraction_attribute with
             | Some _ -> 0
             | None -> Option.value ~default:(mixed_seed context identity) seed) in
-          match Pdk.Attribute_ops.randomize
+          match Rdk.Attribute_ops.randomize
               ~cancel:(Context.cancel_token context) ~grain:(Context.grain context)
               ?selection ?element_selection ?seed_attribute ?fraction_attribute
               ?minimum ?maximum ~seed ~owner ~name ~direction_bias ~operation ~scale
               distribution inputs.(0) with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let attribute_noise ?label ?group ?seed
-    ?(location = Pdk.Attribute_ops.Noise_position)
-    ?(range = Pdk.Attribute_ops.Noise_positive)
-    ?(operation = Pdk.Attribute_ops.Noise_set) ?(blend = 1.)
+    ?(location = Rdk.Attribute_ops.Noise_position)
+    ?(range = Rdk.Attribute_ops.Noise_positive)
+    ?(operation = Rdk.Attribute_ops.Noise_set) ?(blend = 1.)
     ?(frequency = Vec3.create 1. 1. 1.) ?(offset = Vec3.zero) ?(octaves = 1)
     ?(lacunarity = 2.) ?(roughness = 0.5) ~owner ~name kind input =
   if String.trim name = "" then
@@ -7492,16 +7492,16 @@ let attribute_noise ?label ?group ?seed
           let identity = Option.value ~default:(Int64.of_int node_id)
               stable_identity in
           let seed = Option.value ~default:(mixed_seed context identity) seed in
-          match Pdk.Attribute_ops.noise
+          match Rdk.Attribute_ops.noise
               ~cancel:(Context.cancel_token context) ~grain:(Context.grain context)
               ?selection ~seed ~owner ~name ~kind ~location ~range ~operation
               ~blend ~frequency ~offset ~octaves ~lacunarity ~roughness inputs.(0)
           with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let attribute_remap ?label ?group ?into
-    ?(policy = Pdk.Attribute_ops.Remap_clamp) ?(ramp = []) ~owner ~name ~input
+    ?(policy = Rdk.Attribute_ops.Remap_clamp) ?(ramp = []) ~owner ~name ~input
     ~output_min ~output_max input_node =
   if String.trim name = "" then
     invalid_arg "Sop.attribute_remap: empty source attribute name";
@@ -7511,7 +7511,7 @@ let attribute_remap ?label ?group ?into
   (match group with Some name when String.trim name = "" ->
      invalid_arg "Sop.attribute_remap: empty group name"
    | None | Some _ -> ());
-  if owner = Pdk.Attribute.Detail && group <> None then
+  if owner = Rdk.Attribute.Detail && group <> None then
     invalid_arg "Sop.attribute_remap: detail attributes do not accept a group";
   let ramp_key = ramp |> List.map (fun (position, value) ->
       float_key position ^ ":" ^ float_key value) |> String.concat "," in
@@ -7532,11 +7532,11 @@ let attribute_remap ?label ?group ?into
           inputs.(0) with
       | Error error -> Error error
       | Ok selection ->
-          match Pdk.Attribute_ops.remap ~cancel:(Context.cancel_token context)
+          match Rdk.Attribute_ops.remap ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?selection ~owner ~name ?into ~input
               ~output_min ~output_max ~policy ~ramp inputs.(0) with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)
 
 let noise_displace ?label ?seed ~amplitude ~frequency input =
   let dependencies = match seed with
@@ -7553,11 +7553,11 @@ let noise_displace ?label ?seed ~amplitude ~frequency input =
     (fun ~node_id context inputs ->
       let identity = Option.value ~default:(Int64.of_int node_id) stable_identity in
       let seed = Option.value ~default:(mixed_seed context identity) seed in
-      match Pdk.Deform.noise_displace ~grain:(Context.grain context)
+      match Rdk.Deform.noise_displace ~grain:(Context.grain context)
           ~cancel:(Context.cancel_token context)
           ~amplitude ~frequency ~seed inputs.(0) with
       | Ok geometry -> cooked geometry
-      | Error error -> structured_pdk_error error)
+      | Error error -> structured_rdk_error error)
 
 let color_by_height ?label ~low ~high input =
   let parameters = Printf.sprintf "low=%s;high=%s"
@@ -7566,11 +7566,11 @@ let color_by_height ?label ~low ~high input =
     ~cook_mode:(Node.Duplicate_input 0)
     ~dependencies:Context.Dependencies.static ~inputs:[|input|]
     (fun ~node_id:_ context inputs ->
-      match Pdk.Color_by_height.run ~grain:(Context.grain context)
+      match Rdk.Color_by_height.run ~grain:(Context.grain context)
           ~cancel:(Context.cancel_token context)
           ~low:(Color.to_floats low) ~high:(Color.to_floats high) inputs.(0) with
       | Ok geometry -> cooked geometry
-      | Error error -> structured_pdk_error error)
+      | Error error -> structured_rdk_error error)
 
 let scatter ?label ?seed ?group ?density ?point_pattern ?vertex_pattern
     ?primitive_pattern ?detail_pattern ?(match_groups = false)
@@ -7589,8 +7589,8 @@ let scatter ?label ?seed ?group ?density ?point_pattern ?vertex_pattern
   let dependencies = match seed with
     | Some _ -> Context.Dependencies.static
     | None -> Context.Dependencies.one Context.Dependencies.Seed in
-  let density = Option.map (fun (value : Pdk.Scatter.density) ->
-    { Pdk.Scatter.density_owner = value.density_owner;
+  let density = Option.map (fun (value : Rdk.Scatter.density) ->
+    { Rdk.Scatter.density_owner = value.density_owner;
       density_attribute = String.sub value.density_attribute 0
           (String.length value.density_attribute) }) density in
   let density_key = match density with
@@ -7625,18 +7625,18 @@ let scatter ?label ?seed ?group ?density ?point_pattern ?vertex_pattern
       let primitives = match group with
         | None -> Ok None
         | Some name ->
-            (match Pdk.Geometry.find_group ~owner:Pdk.Group.Primitive name geometry with
+            (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive name geometry with
              | Some group -> Ok (Some group)
              | None -> Error (Diagnostic.error ~code:"missing_group"
                  (Printf.sprintf "scatter could not find primitive group %S" name))) in
       match primitives with
       | Error _ as error -> error
       | Ok primitives ->
-          match Pdk.Scatter.run ~grain:(Context.grain context) ~count ~seed
+          match Rdk.Scatter.run ~grain:(Context.grain context) ~count ~seed
               ~cancel:(Context.cancel_token context) ?primitives ?density
               ?point_pattern ?vertex_pattern ?primitive_pattern ?detail_pattern
               ~match_groups ?source_primitive_attribute
               ?source_vertex_numbers_attribute ?source_vertex_weights_attribute
               geometry with
           | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
+          | Error error -> structured_rdk_error error)

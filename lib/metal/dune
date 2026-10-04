@@ -21,7 +21,7 @@
 (rule
  (targets c_library_flags.sexp)
  (action
-  (run ./discover.exe --sanitizers %{env:PRISMEL_METAL_SANITIZERS=}
+  (run ./discover.exe --sanitizers %{env:RAYS_METAL_SANITIZERS=}
    --output %{targets})))
 
 (rule
@@ -44,7 +44,7 @@
   c_library_flags.sexp)
  (action
   (run ./build_bridge.exe
-   --sanitizers %{env:PRISMEL_METAL_SANITIZERS=}
+   --sanitizers %{env:RAYS_METAL_SANITIZERS=}
    --profile %{profile}
    --ocaml-include %{ocaml-config:standard_library}
    --source %{dep:metal_bridge.mm}
@@ -54,7 +54,7 @@
 
 (library
  (name metal)
- (public_name prismel.metal)
+ (public_name rays.metal)
  (preprocess
   (per_module
    ((action (run %{exe:../../tools/codemod/result_bind_ppx.exe} --source-dir lib/metal %{input-file})) Metal)))
@@ -125,7 +125,7 @@
    --client test_metal_xpc_client.exe
    --service test_metal_xpc_service.exe
    --output metal_xpc_conformance.app
-   --service-name org.prismel.metal.xpc-conformance)))
+   --service-name org.rays.metal.xpc-conformance)))
 
 (rule
  (targets (dir metal_io_surface_xpc_conformance.app))
@@ -137,7 +137,7 @@
    --client test_metal_io_surface_xpc_client.exe
    --service test_metal_io_surface_xpc_service.exe
    --output metal_io_surface_xpc_conformance.app
-   --service-name org.prismel.metal.io-surface-xpc-conformance)))
+   --service-name org.rays.metal.io-surface-xpc-conformance)))
 
 (rule
  (alias runtest)
@@ -175,7 +175,7 @@
 
 (rule (alias runtest)
  (action
-  (setenv PRISMEL_METAL_PRESENTATION_CYCLES 200
+  (setenv RAYS_METAL_PRESENTATION_CYCLES 200
    (run %{exe:test_main.exe} test_metal_presentation_10k))))
 
 (rule (alias runtest)

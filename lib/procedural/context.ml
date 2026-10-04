@@ -1,4 +1,4 @@
-module Cancel = Pdk.Cancel
+module Cancel = Rdk.Cancel
 
 module Dependencies = struct
   type fact = Frame | Time | Seed | Domains | Grain
@@ -40,7 +40,7 @@ type t = {
 
 let create ?(frame = 0L) ?(time = 0.) ?(seed = 0L) ?domains
     ?(grain = 16_384) ?cancel () =
-  let domains = Option.value ~default:(Prismel_math.Parallel.recommended_domains ()) domains in
+  let domains = Option.value ~default:(Rays_math.Parallel.recommended_domains ()) domains in
   if not (Float.is_finite time) then Error "Context.create: time must be finite"
   else if frame < 0L then Error "Context.create: frame must be non-negative"
   else if domains <= 0 then Error "Context.create: domains must be positive"

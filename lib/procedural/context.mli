@@ -1,6 +1,6 @@
 (** Target-neutral facts available while cooking a procedural graph. *)
 
-module Cancel = Pdk.Cancel
+module Cancel = Rdk.Cancel
 
 module Dependencies : sig
   type fact = Frame | Time | Seed | Domains | Grain

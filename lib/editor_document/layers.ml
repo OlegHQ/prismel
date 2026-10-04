@@ -1,4 +1,4 @@
-open Prismel
+open Rays
 open Procedural
 
 (* The World: a scene-level node holding its global settings, entered like a

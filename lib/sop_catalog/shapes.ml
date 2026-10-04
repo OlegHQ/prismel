@@ -1,33 +1,33 @@
-open Prismel
+open Rays
 open Procedural
 open Shared
 
 
 module Box = struct
   let connectivity_parameter = Parameter.choice ~equal:( = ) [
-      "Triangles", Pdk.Box_generator.Box_triangles;
-      "Quads", Pdk.Box_generator.Box_quads;
-      "Surface points", Pdk.Box_generator.Box_surface_points;
-      "Lattice points", Pdk.Box_generator.Box_lattice_points;
+      "Triangles", Rdk.Box_generator.Box_triangles;
+      "Quads", Rdk.Box_generator.Box_quads;
+      "Surface points", Rdk.Box_generator.Box_surface_points;
+      "Lattice points", Rdk.Box_generator.Box_lattice_points;
     ]
 
   let normals_parameter = Parameter.choice ~equal:( = ) [
-      "None", Pdk.Box_generator.Box_no_normals;
-      "Point", Pdk.Box_generator.Box_point_normals;
-      "Vertex", Pdk.Box_generator.Box_vertex_normals;
+      "None", Rdk.Box_generator.Box_no_normals;
+      "Point", Rdk.Box_generator.Box_point_normals;
+      "Vertex", Rdk.Box_generator.Box_vertex_normals;
     ]
 
   let rotation_order_parameter = Parameter.choice ~equal:( = ) [
-      "XYZ", Pdk.Box_generator.Box_xyz; "XZY", Pdk.Box_generator.Box_xzy;
-      "YXZ", Pdk.Box_generator.Box_yxz; "YZX", Pdk.Box_generator.Box_yzx;
-      "ZXY", Pdk.Box_generator.Box_zxy; "ZYX", Pdk.Box_generator.Box_zyx;
+      "XYZ", Rdk.Box_generator.Box_xyz; "XZY", Rdk.Box_generator.Box_xzy;
+      "YXZ", Rdk.Box_generator.Box_yxz; "YZX", Rdk.Box_generator.Box_yzx;
+      "ZXY", Rdk.Box_generator.Box_zxy; "ZYX", Rdk.Box_generator.Box_zyx;
     ]
 
   type parameters = {
-    connectivity : Pdk.Box_generator.box_connectivity
-      [@sop.default Pdk.Box_generator.Box_quads]
+    connectivity : Rdk.Box_generator.box_connectivity
+      [@sop.default Rdk.Box_generator.Box_quads]
       [@sop.label "Connectivity"] [@sop.kind connectivity_parameter];
-    normals : Pdk.Box_generator.box_normals [@sop.default Pdk.Box_generator.Box_vertex_normals]
+    normals : Rdk.Box_generator.box_normals [@sop.default Rdk.Box_generator.Box_vertex_normals]
       [@sop.label "Normals"] [@sop.kind normals_parameter];
     size_x : float [@sop.default 1.] [@sop.label "Size X"]
       [@sop.folder "Size"] [@sop.min 0.01] [@sop.max 10.] [@sop.hard_min 0.]; [@sop.vec3 "size"] [@sop.primary]
@@ -58,8 +58,8 @@ module Box = struct
     rotation_z : float [@sop.default 0.] [@sop.label "Rotate Z"]
       [@sop.folder "Transform/Rotate"] [@sop.min (-3.14159)]
       [@sop.max 3.14159]; [@sop.vec3 "rotation"]
-    rotation_order : Pdk.Box_generator.box_rotation_order
-      [@sop.default Pdk.Box_generator.Box_xyz]
+    rotation_order : Rdk.Box_generator.box_rotation_order
+      [@sop.default Rdk.Box_generator.Box_xyz]
       [@sop.label "Rotation order"] [@sop.folder "Transform/Rotate"]
       [@sop.kind rotation_order_parameter];
     uniform_scale : float [@sop.default 1.] [@sop.label "Uniform scale"]
@@ -110,7 +110,7 @@ module Box = struct
     (* Point output cannot carry the surface default's normals. *)
     let normals = match normals, connectivity with
       | Some normals, _ -> normals
-      | None, (Pdk.Box_generator.Box_triangles | Box_quads) -> parameters_default.normals
+      | None, (Rdk.Box_generator.Box_triangles | Box_quads) -> parameters_default.normals
       | None, (Box_surface_points | Box_lattice_points) -> Box_no_normals in
     build ~label:(label "box" node_label) ~inputs:[] {
       connectivity; normals;
@@ -126,18 +126,18 @@ module Platonic = struct
   type orientation_mode = Axis_x | Axis_y | Axis_z | Axis_custom
 
   let kind_parameter = Parameter.choice ~equal:( = ) [
-      "Tetrahedron", Pdk.Parametric_generators.Platonic_tetrahedron;
-      "Cube", Pdk.Parametric_generators.Platonic_cube;
-      "Octahedron", Pdk.Parametric_generators.Platonic_octahedron;
-      "Icosahedron", Pdk.Parametric_generators.Platonic_icosahedron;
-      "Dodecahedron", Pdk.Parametric_generators.Platonic_dodecahedron;
-      "Soccer ball", Pdk.Parametric_generators.Platonic_soccer_ball;
+      "Tetrahedron", Rdk.Parametric_generators.Platonic_tetrahedron;
+      "Cube", Rdk.Parametric_generators.Platonic_cube;
+      "Octahedron", Rdk.Parametric_generators.Platonic_octahedron;
+      "Icosahedron", Rdk.Parametric_generators.Platonic_icosahedron;
+      "Dodecahedron", Rdk.Parametric_generators.Platonic_dodecahedron;
+      "Soccer ball", Rdk.Parametric_generators.Platonic_soccer_ball;
     ]
 
   let normals_parameter = Parameter.choice ~equal:( = ) [
-      "None", Pdk.Parametric_generators.Platonic_no_normals;
-      "Point", Pdk.Parametric_generators.Platonic_point_normals;
-      "Vertex", Pdk.Parametric_generators.Platonic_vertex_normals;
+      "None", Rdk.Parametric_generators.Platonic_no_normals;
+      "Point", Rdk.Parametric_generators.Platonic_point_normals;
+      "Vertex", Rdk.Parametric_generators.Platonic_vertex_normals;
     ]
 
   let orientation_parameter = Parameter.choice ~equal:( = ) [
@@ -146,17 +146,17 @@ module Platonic = struct
     ]
 
   let rotation_order_parameter = Parameter.choice ~equal:( = ) [
-      "XYZ", Pdk.Parametric_generators.Platonic_xyz; "XZY", Pdk.Parametric_generators.Platonic_xzy;
-      "YXZ", Pdk.Parametric_generators.Platonic_yxz; "YZX", Pdk.Parametric_generators.Platonic_yzx;
-      "ZXY", Pdk.Parametric_generators.Platonic_zxy; "ZYX", Pdk.Parametric_generators.Platonic_zyx;
+      "XYZ", Rdk.Parametric_generators.Platonic_xyz; "XZY", Rdk.Parametric_generators.Platonic_xzy;
+      "YXZ", Rdk.Parametric_generators.Platonic_yxz; "YZX", Rdk.Parametric_generators.Platonic_yzx;
+      "ZXY", Rdk.Parametric_generators.Platonic_zxy; "ZYX", Rdk.Parametric_generators.Platonic_zyx;
     ]
 
   type parameters = {
-    kind : Pdk.Parametric_generators.platonic_kind
-      [@sop.default Pdk.Parametric_generators.Platonic_dodecahedron]
+    kind : Rdk.Parametric_generators.platonic_kind
+      [@sop.default Rdk.Parametric_generators.Platonic_dodecahedron]
       [@sop.label "Type"] [@sop.kind kind_parameter]; [@sop.primary]
-    normals : Pdk.Parametric_generators.platonic_normals
-      [@sop.default Pdk.Parametric_generators.Platonic_vertex_normals]
+    normals : Rdk.Parametric_generators.platonic_normals
+      [@sop.default Rdk.Parametric_generators.Platonic_vertex_normals]
       [@sop.label "Normals"] [@sop.kind normals_parameter];
     radius : float [@sop.default 1.] [@sop.label "Radius"]
       [@sop.min 0.01] [@sop.max 10.] [@sop.hard_min 0.]; [@sop.primary]
@@ -184,8 +184,8 @@ module Platonic = struct
     rotation_z : float [@sop.default 0.] [@sop.label "Rotate Z"]
       [@sop.folder "Transform/Rotate"] [@sop.min (-3.14159)]
       [@sop.max 3.14159]; [@sop.vec3 "rotation"]
-    rotation_order : Pdk.Parametric_generators.platonic_rotation_order
-      [@sop.default Pdk.Parametric_generators.Platonic_xyz]
+    rotation_order : Rdk.Parametric_generators.platonic_rotation_order
+      [@sop.default Rdk.Parametric_generators.Platonic_xyz]
       [@sop.label "Rotation order"] [@sop.folder "Transform/Rotate"]
       [@sop.kind rotation_order_parameter];
     face_groups : string [@sop.default ""] [@sop.label "Face group prefix"]
@@ -194,16 +194,16 @@ module Platonic = struct
     [@@sop.node_category "Create/Primitive"] [@@sop.node_inputs 0]
     [@@deriving sop_params, sop_node]
 
-  let pdk_orientation parameters = match parameters.orientation with
-    | Axis_x -> Pdk.Parametric_generators.Platonic_x
-    | Axis_y -> Pdk.Parametric_generators.Platonic_y
-    | Axis_z -> Pdk.Parametric_generators.Platonic_z
-    | Axis_custom -> Pdk.Parametric_generators.Platonic_axis (Vec3.create parameters.axis_x
+  let rdk_orientation parameters = match parameters.orientation with
+    | Axis_x -> Rdk.Parametric_generators.Platonic_x
+    | Axis_y -> Rdk.Parametric_generators.Platonic_y
+    | Axis_z -> Rdk.Parametric_generators.Platonic_z
+    | Axis_custom -> Rdk.Parametric_generators.Platonic_axis (Vec3.create parameters.axis_x
         parameters.axis_y parameters.axis_z)
 
   let build = parameters_build (fun ~label parameters ->
     Sop.platonic ~label ~kind:parameters.kind ~normals:parameters.normals
-      ~orientation:(pdk_orientation parameters)
+      ~orientation:(rdk_orientation parameters)
       ~center:(Vec3.create parameters.center_x parameters.center_y
         parameters.center_z)
       ~rotation:(Vec3.create parameters.rotation_x parameters.rotation_y
@@ -213,16 +213,16 @@ module Platonic = struct
 
   let factory = parameters_factory build
 
-  let create ?label:node_label ?(kind = Pdk.Parametric_generators.Platonic_tetrahedron)
-      ?(normals = Pdk.Parametric_generators.Platonic_no_normals)
-      ?(orientation = Pdk.Parametric_generators.Platonic_y) ?(center = Vec3.zero)
-      ?(rotation = Vec3.zero) ?(rotation_order = Pdk.Parametric_generators.Platonic_xyz)
+  let create ?label:node_label ?(kind = Rdk.Parametric_generators.Platonic_tetrahedron)
+      ?(normals = Rdk.Parametric_generators.Platonic_no_normals)
+      ?(orientation = Rdk.Parametric_generators.Platonic_y) ?(center = Vec3.zero)
+      ?(rotation = Vec3.zero) ?(rotation_order = Rdk.Parametric_generators.Platonic_xyz)
       ?(face_groups = "") ~radius () =
     let orientation, axis = match orientation with
-      | Pdk.Parametric_generators.Platonic_x -> Axis_x, Vec3.create 1. 0. 0.
-      | Pdk.Parametric_generators.Platonic_y -> Axis_y, Vec3.create 0. 1. 0.
-      | Pdk.Parametric_generators.Platonic_z -> Axis_z, Vec3.create 0. 0. 1.
-      | Pdk.Parametric_generators.Platonic_axis axis -> Axis_custom, axis in
+      | Rdk.Parametric_generators.Platonic_x -> Axis_x, Vec3.create 1. 0. 0.
+      | Rdk.Parametric_generators.Platonic_y -> Axis_y, Vec3.create 0. 1. 0.
+      | Rdk.Parametric_generators.Platonic_z -> Axis_z, Vec3.create 0. 0. 1.
+      | Rdk.Parametric_generators.Platonic_axis axis -> Axis_custom, axis in
     build ~label:(label "platonic" node_label) ~inputs:[] {
       kind; normals; radius; orientation;
       axis_x = axis.x; axis_y = axis.y; axis_z = axis.z;
@@ -248,8 +248,8 @@ module Spiral = struct
       "Logarithmic end", Logarithmic_end;
     ]
   let direction_parameter = Parameter.choice ~equal:( = ) [
-      "Counterclockwise", Pdk.Spiral.Spiral_counterclockwise;
-      "Clockwise", Pdk.Spiral.Spiral_clockwise;
+      "Counterclockwise", Rdk.Spiral.Spiral_counterclockwise;
+      "Clockwise", Rdk.Spiral.Spiral_clockwise;
     ]
   let divisions_parameter = Parameter.choice ~equal:( = ) [
       "Per curve", Per_curve; "Per turn", Per_turn;
@@ -259,9 +259,9 @@ module Spiral = struct
       "Custom axis", Axis_custom;
     ]
   let rotation_order_parameter = Parameter.choice ~equal:( = ) [
-      "XYZ", Pdk.Spiral.Spiral_xyz; "XZY", Pdk.Spiral.Spiral_xzy;
-      "YXZ", Pdk.Spiral.Spiral_yxz; "YZX", Pdk.Spiral.Spiral_yzx;
-      "ZXY", Pdk.Spiral.Spiral_zxy; "ZYX", Pdk.Spiral.Spiral_zyx;
+      "XYZ", Rdk.Spiral.Spiral_xyz; "XZY", Rdk.Spiral.Spiral_xzy;
+      "YXZ", Rdk.Spiral.Spiral_yxz; "YZX", Rdk.Spiral.Spiral_yzx;
+      "ZXY", Rdk.Spiral.Spiral_zxy; "ZYX", Rdk.Spiral.Spiral_zyx;
     ]
 
   type parameters = {
@@ -290,8 +290,8 @@ module Spiral = struct
     radius_scale : float [@sop.default 1.] [@sop.label "Radius scale"]
       [@sop.folder "Radius"] [@sop.min 0.01] [@sop.max 10.]
       [@sop.hard_min 0.];
-    direction : Pdk.Spiral.direction
-      [@sop.default Pdk.Spiral.Spiral_counterclockwise]
+    direction : Rdk.Spiral.direction
+      [@sop.default Rdk.Spiral.Spiral_counterclockwise]
       [@sop.label "Direction"] [@sop.kind direction_parameter];
     start_angle : float [@sop.default 0.] [@sop.label "Start angle"]
       [@sop.min (-6.283185307179586)] [@sop.max 6.283185307179586];
@@ -326,8 +326,8 @@ module Spiral = struct
     rotation_z : float [@sop.default 0.] [@sop.label "Rotate Z"]
       [@sop.folder "Transform/Rotate"] [@sop.min (-3.14159)]
       [@sop.max 3.14159]; [@sop.vec3 "rotation"]
-    rotation_order : Pdk.Spiral.rotation_order
-      [@sop.default Pdk.Spiral.Spiral_xyz]
+    rotation_order : Rdk.Spiral.rotation_order
+      [@sop.default Rdk.Spiral.Spiral_xyz]
       [@sop.label "Rotation order"] [@sop.folder "Transform/Rotate"]
       [@sop.kind rotation_order_parameter];
     uniform_scale : float [@sop.default 1.] [@sop.label "Uniform scale"]
@@ -350,32 +350,32 @@ module Spiral = struct
     [@@deriving sop_params, sop_node]
 
   let extent parameters = match parameters.extent_mode with
-    | Turns_height -> Pdk.Spiral.Spiral_turns {
+    | Turns_height -> Rdk.Spiral.Spiral_turns {
         turns = parameters.turns; height = parameters.height }
-    | Height_pitch -> Pdk.Spiral.Spiral_height_pitch {
+    | Height_pitch -> Rdk.Spiral.Spiral_height_pitch {
         height = parameters.height; pitch = parameters.pitch }
 
   let radius parameters = match parameters.radius_mode with
-    | Archimedean_change -> Pdk.Spiral.Spiral_archimedean_change {
+    | Archimedean_change -> Rdk.Spiral.Spiral_archimedean_change {
         start_radius = parameters.start_radius;
         increase_per_turn = parameters.radius_change }
-    | Archimedean_end -> Pdk.Spiral.Spiral_archimedean_end {
+    | Archimedean_end -> Rdk.Spiral.Spiral_archimedean_end {
         start_radius = parameters.start_radius; end_radius = parameters.end_radius }
-    | Logarithmic_change -> Pdk.Spiral.Spiral_logarithmic_change {
+    | Logarithmic_change -> Rdk.Spiral.Spiral_logarithmic_change {
         start_radius = parameters.start_radius;
         scale_per_turn = parameters.logarithmic_scale }
-    | Logarithmic_end -> Pdk.Spiral.Spiral_logarithmic_end {
+    | Logarithmic_end -> Rdk.Spiral.Spiral_logarithmic_end {
         start_radius = parameters.start_radius; end_radius = parameters.end_radius }
 
   let divisions parameters = match parameters.divisions_mode with
-    | Per_curve -> Pdk.Spiral.Spiral_divisions_per_curve parameters.divisions
-    | Per_turn -> Pdk.Spiral.Spiral_divisions_per_turn parameters.divisions
+    | Per_curve -> Rdk.Spiral.Spiral_divisions_per_curve parameters.divisions
+    | Per_turn -> Rdk.Spiral.Spiral_divisions_per_turn parameters.divisions
 
   let orientation parameters = match parameters.orientation with
-    | Axis_x -> Pdk.Spiral.Spiral_x
-    | Axis_y -> Pdk.Spiral.Spiral_y
-    | Axis_z -> Pdk.Spiral.Spiral_z
-    | Axis_custom -> Pdk.Spiral.Spiral_axis (Vec3.create parameters.axis_x
+    | Axis_x -> Rdk.Spiral.Spiral_x
+    | Axis_y -> Rdk.Spiral.Spiral_y
+    | Axis_z -> Rdk.Spiral.Spiral_z
+    | Axis_custom -> Rdk.Spiral.Spiral_axis (Vec3.create parameters.axis_x
         parameters.axis_y parameters.axis_z)
 
   let build = parameters_build (fun ~label parameters ->
@@ -431,12 +431,12 @@ end
 
 module Line = struct
   let kind_parameter = Parameter.choice ~equal:( = ) [
-      "Polygon curve", Pdk.Line_geometry.Line_curve;
-      "Points", Pdk.Line_geometry.Line_points;
+      "Polygon curve", Rdk.Line_geometry.Line_curve;
+      "Points", Rdk.Line_geometry.Line_points;
     ]
 
   type parameters = {
-    kind : Pdk.Line_geometry.kind [@sop.default Pdk.Line_geometry.Line_curve]
+    kind : Rdk.Line_geometry.kind [@sop.default Rdk.Line_geometry.Line_curve]
       [@sop.label "Primitive type"] [@sop.kind kind_parameter];
     points : int [@sop.default 2] [@sop.label "Points"]
       [@sop.min 2] [@sop.max 128] [@sop.hard_min 1];
@@ -477,8 +477,8 @@ module Circle = struct
     ]
 
   let orientation_parameter = Parameter.choice ~equal:( = ) [
-      "XZ", Pdk.Plane_generators.Circle_xz; "XY", Pdk.Plane_generators.Circle_xy;
-      "YZ", Pdk.Plane_generators.Circle_yz;
+      "XZ", Rdk.Plane_generators.Circle_xz; "XY", Rdk.Plane_generators.Circle_xy;
+      "YZ", Rdk.Plane_generators.Circle_yz;
     ]
 
   type parameters = {
@@ -489,8 +489,8 @@ module Circle = struct
     end_angle : float [@sop.default 6.283185307179586]
       [@sop.label "End angle"] [@sop.folder "Arc"]
       [@sop.min (-6.283185)] [@sop.max 6.283185];
-    orientation : Pdk.Plane_generators.circle_orientation
-      [@sop.default Pdk.Plane_generators.Circle_xz] [@sop.label "Orientation"]
+    orientation : Rdk.Plane_generators.circle_orientation
+      [@sop.default Rdk.Plane_generators.Circle_xz] [@sop.label "Orientation"]
       [@sop.kind orientation_parameter];
     reverse : bool [@sop.default false] [@sop.label "Reverse"];
     center_x : float [@sop.default 0.] [@sop.label "Center X"]
@@ -517,12 +517,12 @@ module Circle = struct
     [@@deriving sop_params, sop_node]
 
   let arc parameters = match parameters.arc with
-    | Closed -> Pdk.Plane_generators.Circle_closed
-    | Open -> Pdk.Plane_generators.Circle_open_arc {
+    | Closed -> Rdk.Plane_generators.Circle_closed
+    | Open -> Rdk.Plane_generators.Circle_open_arc {
         start_angle = parameters.start_angle; end_angle = parameters.end_angle }
-    | Chord -> Pdk.Plane_generators.Circle_closed_arc {
+    | Chord -> Rdk.Plane_generators.Circle_closed_arc {
         start_angle = parameters.start_angle; end_angle = parameters.end_angle }
-    | Sliced -> Pdk.Plane_generators.Circle_sliced_arc {
+    | Sliced -> Rdk.Plane_generators.Circle_sliced_arc {
         start_angle = parameters.start_angle; end_angle = parameters.end_angle }
 
   let build = parameters_build (fun ~label parameters ->
@@ -539,34 +539,34 @@ end
 
 module Grid = struct
   let counts_parameter = Parameter.choice ~equal:( = ) [
-      "Divisions", Pdk.Plane_generators.Grid_divisions;
-      "Point counts", Pdk.Plane_generators.Grid_point_counts;
+      "Divisions", Rdk.Plane_generators.Grid_divisions;
+      "Point counts", Rdk.Plane_generators.Grid_point_counts;
     ]
 
   let connectivity_parameter = Parameter.choice ~equal:( = ) [
-      "Points", Pdk.Plane_generators.Grid_points;
-      "Rows", Pdk.Plane_generators.Grid_rows;
-      "Columns", Pdk.Plane_generators.Grid_columns;
-      "Rows and columns", Pdk.Plane_generators.Grid_rows_and_columns;
-      "Quads", Pdk.Plane_generators.Grid_quads;
-      "Triangles", Pdk.Plane_generators.Grid_triangles;
-      "Alternating triangles", Pdk.Plane_generators.Grid_alternating_triangles;
-      "Reverse triangles", Pdk.Plane_generators.Grid_reverse_triangles;
+      "Points", Rdk.Plane_generators.Grid_points;
+      "Rows", Rdk.Plane_generators.Grid_rows;
+      "Columns", Rdk.Plane_generators.Grid_columns;
+      "Rows and columns", Rdk.Plane_generators.Grid_rows_and_columns;
+      "Quads", Rdk.Plane_generators.Grid_quads;
+      "Triangles", Rdk.Plane_generators.Grid_triangles;
+      "Alternating triangles", Rdk.Plane_generators.Grid_alternating_triangles;
+      "Reverse triangles", Rdk.Plane_generators.Grid_reverse_triangles;
     ]
 
   let orientation_parameter = Parameter.choice ~equal:( = ) [
-      "XY", Pdk.Plane_generators.Grid_xy;
-      "XZ", Pdk.Plane_generators.Grid_xz;
-      "YZ", Pdk.Plane_generators.Grid_yz;
+      "XY", Rdk.Plane_generators.Grid_xy;
+      "XZ", Rdk.Plane_generators.Grid_xz;
+      "YZ", Rdk.Plane_generators.Grid_yz;
     ]
 
   type parameters = {
-    counts : Pdk.Plane_generators.grid_counts [@sop.default Pdk.Plane_generators.Grid_divisions]
+    counts : Rdk.Plane_generators.grid_counts [@sop.default Rdk.Plane_generators.Grid_divisions]
       [@sop.label "Counts"] [@sop.kind counts_parameter];
-    connectivity : Pdk.Plane_generators.grid_connectivity
-      [@sop.default Pdk.Plane_generators.Grid_triangles]
+    connectivity : Rdk.Plane_generators.grid_connectivity
+      [@sop.default Rdk.Plane_generators.Grid_triangles]
       [@sop.label "Connectivity"] [@sop.kind connectivity_parameter];
-    orientation : Pdk.Plane_generators.grid_orientation [@sop.default Pdk.Plane_generators.Grid_xz]
+    orientation : Rdk.Plane_generators.grid_orientation [@sop.default Rdk.Plane_generators.Grid_xz]
       [@sop.label "Orientation"] [@sop.kind orientation_parameter];
     columns : int [@sop.default 10] [@sop.label "Columns"]
       [@sop.folder "Resolution"] [@sop.min 1] [@sop.max 64]
@@ -607,9 +607,9 @@ module Grid = struct
 
   let factory = parameters_factory build
 
-  let create ?label:node_label ?(counts = Pdk.Plane_generators.Grid_divisions)
-      ?(connectivity = Pdk.Plane_generators.Grid_triangles)
-      ?(orientation = Pdk.Plane_generators.Grid_xz) ?(center = Vec3.zero) ?width ?height
+  let create ?label:node_label ?(counts = Rdk.Plane_generators.Grid_divisions)
+      ?(connectivity = Rdk.Plane_generators.Grid_triangles)
+      ?(orientation = Rdk.Plane_generators.Grid_xz) ?(center = Vec3.zero) ?width ?height
       ?(rotation = 0.) ?(uv_attribute = "") ~columns ~rows ~size () =
     build ~label:(label "grid" node_label) ~inputs:[] {
       counts; connectivity; orientation; columns; rows; size;
@@ -621,36 +621,36 @@ end
 
 module Uv_sphere = struct
   let connectivity_parameter = Parameter.choice ~equal:( = ) [
-      "Triangles", Pdk.Uv_sphere.Sphere_triangles;
-      "Alternating triangles", Pdk.Uv_sphere.Sphere_alternating_triangles;
-      "Quads", Pdk.Uv_sphere.Sphere_quads;
-      "Rows", Pdk.Uv_sphere.Sphere_rows;
-      "Columns", Pdk.Uv_sphere.Sphere_columns;
-      "Rows and columns", Pdk.Uv_sphere.Sphere_rows_and_columns;
-      "Points", Pdk.Uv_sphere.Sphere_points;
+      "Triangles", Rdk.Uv_sphere.Sphere_triangles;
+      "Alternating triangles", Rdk.Uv_sphere.Sphere_alternating_triangles;
+      "Quads", Rdk.Uv_sphere.Sphere_quads;
+      "Rows", Rdk.Uv_sphere.Sphere_rows;
+      "Columns", Rdk.Uv_sphere.Sphere_columns;
+      "Rows and columns", Rdk.Uv_sphere.Sphere_rows_and_columns;
+      "Points", Rdk.Uv_sphere.Sphere_points;
     ]
 
   let normals_parameter = Parameter.choice ~equal:( = ) [
-      "None", Pdk.Uv_sphere.Sphere_no_normals;
-      "Point", Pdk.Uv_sphere.Sphere_point_normals;
-      "Vertex", Pdk.Uv_sphere.Sphere_vertex_normals;
+      "None", Rdk.Uv_sphere.Sphere_no_normals;
+      "Point", Rdk.Uv_sphere.Sphere_point_normals;
+      "Vertex", Rdk.Uv_sphere.Sphere_vertex_normals;
     ]
 
   let orientation_parameter = Parameter.choice ~equal:( = ) [
-      "X axis", Pdk.Uv_sphere.Sphere_x;
-      "Y axis", Pdk.Uv_sphere.Sphere_y;
-      "Z axis", Pdk.Uv_sphere.Sphere_z;
+      "X axis", Rdk.Uv_sphere.Sphere_x;
+      "Y axis", Rdk.Uv_sphere.Sphere_y;
+      "Z axis", Rdk.Uv_sphere.Sphere_z;
     ]
 
   type parameters = {
-    connectivity : Pdk.Uv_sphere.sphere_connectivity
-      [@sop.default Pdk.Uv_sphere.Sphere_triangles]
+    connectivity : Rdk.Uv_sphere.sphere_connectivity
+      [@sop.default Rdk.Uv_sphere.Sphere_triangles]
       [@sop.label "Connectivity"] [@sop.kind connectivity_parameter];
-    normals : Pdk.Uv_sphere.sphere_normals
-      [@sop.default Pdk.Uv_sphere.Sphere_point_normals]
+    normals : Rdk.Uv_sphere.sphere_normals
+      [@sop.default Rdk.Uv_sphere.Sphere_point_normals]
       [@sop.label "Normals"] [@sop.kind normals_parameter];
-    orientation : Pdk.Uv_sphere.sphere_orientation
-      [@sop.default Pdk.Uv_sphere.Sphere_y]
+    orientation : Rdk.Uv_sphere.sphere_orientation
+      [@sop.default Rdk.Uv_sphere.Sphere_y]
       [@sop.label "Pole axis"] [@sop.kind orientation_parameter];
     unique_points_per_pole : bool [@sop.default false]
       [@sop.label "Unique pole points"] [@sop.folder "Topology"];
@@ -714,36 +714,36 @@ end
 
 module Torus = struct
   let connectivity_parameter = Parameter.choice ~equal:( = ) [
-      "Triangles", Pdk.Parametric_generators.Torus_triangles;
-      "Alternating triangles", Pdk.Parametric_generators.Torus_alternating_triangles;
-      "Quads", Pdk.Parametric_generators.Torus_quads;
-      "Rows", Pdk.Parametric_generators.Torus_rows;
-      "Columns", Pdk.Parametric_generators.Torus_columns;
-      "Rows and columns", Pdk.Parametric_generators.Torus_rows_and_columns;
-      "Points", Pdk.Parametric_generators.Torus_points;
+      "Triangles", Rdk.Parametric_generators.Torus_triangles;
+      "Alternating triangles", Rdk.Parametric_generators.Torus_alternating_triangles;
+      "Quads", Rdk.Parametric_generators.Torus_quads;
+      "Rows", Rdk.Parametric_generators.Torus_rows;
+      "Columns", Rdk.Parametric_generators.Torus_columns;
+      "Rows and columns", Rdk.Parametric_generators.Torus_rows_and_columns;
+      "Points", Rdk.Parametric_generators.Torus_points;
     ]
 
   let normals_parameter = Parameter.choice ~equal:( = ) [
-      "None", Pdk.Parametric_generators.Torus_no_normals;
-      "Point", Pdk.Parametric_generators.Torus_point_normals;
-      "Vertex", Pdk.Parametric_generators.Torus_vertex_normals;
+      "None", Rdk.Parametric_generators.Torus_no_normals;
+      "Point", Rdk.Parametric_generators.Torus_point_normals;
+      "Vertex", Rdk.Parametric_generators.Torus_vertex_normals;
     ]
 
   let orientation_parameter = Parameter.choice ~equal:( = ) [
-      "X axis", Pdk.Parametric_generators.Torus_x;
-      "Y axis", Pdk.Parametric_generators.Torus_y;
-      "Z axis", Pdk.Parametric_generators.Torus_z;
+      "X axis", Rdk.Parametric_generators.Torus_x;
+      "Y axis", Rdk.Parametric_generators.Torus_y;
+      "Z axis", Rdk.Parametric_generators.Torus_z;
     ]
 
   type parameters = {
-    connectivity : Pdk.Parametric_generators.torus_connectivity
-      [@sop.default Pdk.Parametric_generators.Torus_triangles]
+    connectivity : Rdk.Parametric_generators.torus_connectivity
+      [@sop.default Rdk.Parametric_generators.Torus_triangles]
       [@sop.label "Connectivity"] [@sop.kind connectivity_parameter];
-    normals : Pdk.Parametric_generators.torus_normals
-      [@sop.default Pdk.Parametric_generators.Torus_point_normals]
+    normals : Rdk.Parametric_generators.torus_normals
+      [@sop.default Rdk.Parametric_generators.Torus_point_normals]
       [@sop.label "Normals"] [@sop.kind normals_parameter];
-    orientation : Pdk.Parametric_generators.torus_orientation
-      [@sop.default Pdk.Parametric_generators.Torus_y]
+    orientation : Rdk.Parametric_generators.torus_orientation
+      [@sop.default Rdk.Parametric_generators.Torus_y]
       [@sop.label "Hole axis"] [@sop.kind orientation_parameter];
     major_radius : float [@sop.default 1.] [@sop.label "Major radius"]
       [@sop.folder "Size"] [@sop.min 0.01] [@sop.max 10.]
@@ -818,36 +818,36 @@ end
 
 module Tube = struct
   let connectivity_parameter = Parameter.choice ~equal:( = ) [
-      "Triangles", Pdk.Parametric_generators.Tube_triangles;
-      "Alternating triangles", Pdk.Parametric_generators.Tube_alternating_triangles;
-      "Quads", Pdk.Parametric_generators.Tube_quads;
-      "Rows", Pdk.Parametric_generators.Tube_rows;
-      "Columns", Pdk.Parametric_generators.Tube_columns;
-      "Rows and columns", Pdk.Parametric_generators.Tube_rows_and_columns;
-      "Points", Pdk.Parametric_generators.Tube_points;
+      "Triangles", Rdk.Parametric_generators.Tube_triangles;
+      "Alternating triangles", Rdk.Parametric_generators.Tube_alternating_triangles;
+      "Quads", Rdk.Parametric_generators.Tube_quads;
+      "Rows", Rdk.Parametric_generators.Tube_rows;
+      "Columns", Rdk.Parametric_generators.Tube_columns;
+      "Rows and columns", Rdk.Parametric_generators.Tube_rows_and_columns;
+      "Points", Rdk.Parametric_generators.Tube_points;
     ]
 
   let normals_parameter = Parameter.choice ~equal:( = ) [
-      "None", Pdk.Parametric_generators.Tube_no_normals;
-      "Point", Pdk.Parametric_generators.Tube_point_normals;
-      "Vertex", Pdk.Parametric_generators.Tube_vertex_normals;
+      "None", Rdk.Parametric_generators.Tube_no_normals;
+      "Point", Rdk.Parametric_generators.Tube_point_normals;
+      "Vertex", Rdk.Parametric_generators.Tube_vertex_normals;
     ]
 
   let orientation_parameter = Parameter.choice ~equal:( = ) [
-      "X axis", Pdk.Parametric_generators.Tube_x;
-      "Y axis", Pdk.Parametric_generators.Tube_y;
-      "Z axis", Pdk.Parametric_generators.Tube_z;
+      "X axis", Rdk.Parametric_generators.Tube_x;
+      "Y axis", Rdk.Parametric_generators.Tube_y;
+      "Z axis", Rdk.Parametric_generators.Tube_z;
     ]
 
   type parameters = {
-    connectivity : Pdk.Parametric_generators.tube_connectivity
-      [@sop.default Pdk.Parametric_generators.Tube_triangles]
+    connectivity : Rdk.Parametric_generators.tube_connectivity
+      [@sop.default Rdk.Parametric_generators.Tube_triangles]
       [@sop.label "Connectivity"] [@sop.kind connectivity_parameter];
-    normals : Pdk.Parametric_generators.tube_normals
-      [@sop.default Pdk.Parametric_generators.Tube_point_normals]
+    normals : Rdk.Parametric_generators.tube_normals
+      [@sop.default Rdk.Parametric_generators.Tube_point_normals]
       [@sop.label "Normals"] [@sop.kind normals_parameter];
-    orientation : Pdk.Parametric_generators.tube_orientation
-      [@sop.default Pdk.Parametric_generators.Tube_y]
+    orientation : Rdk.Parametric_generators.tube_orientation
+      [@sop.default Rdk.Parametric_generators.Tube_y]
       [@sop.label "Primary axis"] [@sop.kind orientation_parameter];
     top_radius : float [@sop.default 1.] [@sop.label "Top radius"]
       [@sop.folder "Size"] [@sop.min 0.] [@sop.max 10.]
@@ -968,20 +968,20 @@ end
 
 module Match_size = struct
   let fit_parameter = Parameter.choice ~equal:( = ) [
-      "Translate only", Pdk.Match_size.Translate_only;
-      "Stretch", Pdk.Match_size.Stretch;
-      "Contain", Pdk.Match_size.Contain;
-      "Cover", Pdk.Match_size.Cover;
-      "Match X", Pdk.Match_size.Match_x;
-      "Match Y", Pdk.Match_size.Match_y;
-      "Match Z", Pdk.Match_size.Match_z;
-      "Match perimeter", Pdk.Match_size.Match_perimeter;
-      "Match area", Pdk.Match_size.Match_area;
-      "Match volume", Pdk.Match_size.Match_volume;
+      "Translate only", Rdk.Match_size.Translate_only;
+      "Stretch", Rdk.Match_size.Stretch;
+      "Contain", Rdk.Match_size.Contain;
+      "Cover", Rdk.Match_size.Cover;
+      "Match X", Rdk.Match_size.Match_x;
+      "Match Y", Rdk.Match_size.Match_y;
+      "Match Z", Rdk.Match_size.Match_z;
+      "Match perimeter", Rdk.Match_size.Match_perimeter;
+      "Match area", Rdk.Match_size.Match_area;
+      "Match volume", Rdk.Match_size.Match_volume;
     ]
 
   type parameters = {
-    fit : Pdk.Match_size.match_size_fit [@sop.default Pdk.Match_size.Contain]
+    fit : Rdk.Match_size.match_size_fit [@sop.default Rdk.Match_size.Contain]
       [@sop.label "Fit"] [@sop.kind fit_parameter];
     translate_x : bool [@sop.default true] [@sop.label "Translate X"]
       [@sop.folder "Axes/Translate"];
@@ -1100,13 +1100,13 @@ end
 
 module Clip = struct
   let keep_parameter = Parameter.choice ~equal:( = ) [
-      "Above", Pdk.Plane_clip.Above;
-      "Below", Pdk.Plane_clip.Below;
-      "All", Pdk.Plane_clip.All;
+      "Above", Rdk.Plane_clip.Above;
+      "Below", Rdk.Plane_clip.Below;
+      "All", Rdk.Plane_clip.All;
     ]
 
   type parameters = {
-    keep : Pdk.Plane_clip.keep [@sop.default Pdk.Plane_clip.Above]
+    keep : Rdk.Plane_clip.keep [@sop.default Rdk.Plane_clip.Above]
       [@sop.label "Keep"] [@sop.kind keep_parameter];
     snapping_tolerance : float [@sop.default 1e-9]
       [@sop.label "Snapping tolerance"] [@sop.folder "Robustness"]
@@ -1350,14 +1350,14 @@ module Smooth = struct
   type mode = Laplacian | Custom
 
   let boundary_parameter = Parameter.choice ~equal:( = ) [
-      "Free", Pdk.Smooth.Smooth_free;
-      "Pin unshared", Pdk.Smooth.Smooth_unshared;
-      "Pin group boundary", Pdk.Smooth.Smooth_group_boundary;
+      "Free", Rdk.Smooth.Smooth_free;
+      "Pin unshared", Rdk.Smooth.Smooth_unshared;
+      "Pin group boundary", Rdk.Smooth.Smooth_group_boundary;
     ]
 
   let method_parameter = Parameter.choice ~equal:( = ) [
-      "Uniform", Pdk.Attribute_ops.Uniform;
-      "Edge length", Pdk.Attribute_ops.Edge_length;
+      "Uniform", Rdk.Attribute_ops.Uniform;
+      "Edge length", Rdk.Attribute_ops.Edge_length;
     ]
 
   let mode_parameter = Parameter.choice ~equal:( = ) [
@@ -1368,12 +1368,12 @@ module Smooth = struct
     group : string [@sop.default ""] [@sop.label "Point group"];
     constrained_points : string [@sop.default ""]
       [@sop.label "Constrained points"];
-    boundary : Pdk.Smooth.boundary [@sop.default Pdk.Smooth.Smooth_free]
+    boundary : Rdk.Smooth.boundary [@sop.default Rdk.Smooth.Smooth_free]
       [@sop.label "Boundary"] [@sop.kind boundary_parameter];
     iterations : int [@sop.default 10] [@sop.label "Iterations"]
       [@sop.min 1] [@sop.max 200] [@sop.hard_min 1];
-    method_ : Pdk.Attribute_ops.blur_method
-      [@sop.default Pdk.Attribute_ops.Uniform]
+    method_ : Rdk.Attribute_ops.blur_method
+      [@sop.default Rdk.Attribute_ops.Uniform]
       [@sop.label "Method"] [@sop.kind method_parameter];
     mode : mode [@sop.default Laplacian] [@sop.label "Mode"]
       [@sop.kind mode_parameter];
@@ -1401,8 +1401,8 @@ module Smooth = struct
 
   let build = parameters_build (fun ~label parameters input ->
     let mode = match parameters.mode with
-      | Laplacian -> Pdk.Attribute_ops.Laplacian parameters.step
-      | Custom -> Pdk.Attribute_ops.Custom_steps {
+      | Laplacian -> Rdk.Attribute_ops.Laplacian parameters.step
+      | Custom -> Rdk.Attribute_ops.Custom_steps {
           odd = parameters.odd_step; even = parameters.even_step } in
     Sop.smooth ~label ?group:(optional_text parameters.group)
       ?constrained_points:(optional_text parameters.constrained_points)
@@ -1420,17 +1420,17 @@ end
 
 module Separate_pieces = struct
   let owner_parameter = Parameter.choice ~equal:( = ) [
-      "Point", Pdk.Attribute.Point;
-      "Primitive", Pdk.Attribute.Primitive;
+      "Point", Rdk.Attribute.Point;
+      "Primitive", Rdk.Attribute.Primitive;
     ]
 
   let mode_parameter = Parameter.choice ~equal:( = ) [
-      "Separate", Pdk.Separate_pieces.Separate_pieces_separate;
-      "Move back", Pdk.Separate_pieces.Separate_pieces_move_back;
+      "Separate", Rdk.Separate_pieces.Separate_pieces_separate;
+      "Move back", Rdk.Separate_pieces.Separate_pieces_move_back;
     ]
 
   type parameters = {
-    owner : Pdk.Attribute.owner [@sop.default Pdk.Attribute.Primitive]
+    owner : Rdk.Attribute.owner [@sop.default Rdk.Attribute.Primitive]
       [@sop.label "Piece owner"] [@sop.kind owner_parameter];
     piece_attribute : string [@sop.default "piece"]
       [@sop.label "Piece attribute"];
@@ -1444,8 +1444,8 @@ module Separate_pieces = struct
       [@sop.folder "Axis"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "axis"]
     gap : float [@sop.default 0.001] [@sop.label "Gap"]
       [@sop.min 0.] [@sop.max 1.] [@sop.hard_min 0.];
-    mode : Pdk.Separate_pieces.mode
-      [@sop.default Pdk.Separate_pieces.Separate_pieces_separate]
+    mode : Rdk.Separate_pieces.mode
+      [@sop.default Rdk.Separate_pieces.Separate_pieces_separate]
       [@sop.label "Mode"] [@sop.kind mode_parameter];
   } [@@sop.node_key "separate_pieces"] [@@sop.node_label "Separate Pieces"]
     [@@sop.node_category "Modify/Pieces"] [@@sop.node_inputs 1]
@@ -1463,32 +1463,32 @@ end
 
 module Snap_to_grid = struct
   let rounding_parameter = Parameter.choice ~equal:( = ) [
-      "Nearest", Pdk.Fuse_grid.Grid_nearest;
-      "Down", Pdk.Fuse_grid.Grid_down;
-      "Up", Pdk.Fuse_grid.Grid_up;
+      "Nearest", Rdk.Fuse_grid.Grid_nearest;
+      "Down", Rdk.Fuse_grid.Grid_down;
+      "Up", Rdk.Fuse_grid.Grid_up;
     ]
 
   let position_parameter = Parameter.choice ~equal:( = ) [
-      "First", Pdk.Fuse_reduce.First_position;
-      "Least point", Pdk.Fuse_reduce.Least_point_position;
-      "Greatest point", Pdk.Fuse_reduce.Greatest_point_position;
-      "Average", Pdk.Fuse_reduce.Average_position;
-      "Minimum", Pdk.Fuse_reduce.Minimum_position;
-      "Maximum", Pdk.Fuse_reduce.Maximum_position;
-      "Mode", Pdk.Fuse_reduce.Mode_position;
-      "Median", Pdk.Fuse_reduce.Median_position;
-      "Sum", Pdk.Fuse_reduce.Sum_position;
-      "Sum squares", Pdk.Fuse_reduce.Sum_squares_position;
-      "Root mean square", Pdk.Fuse_reduce.Root_mean_square_position;
-      "Weighted average", Pdk.Fuse_reduce.Weighted_average_position;
-      "Weighted sum", Pdk.Fuse_reduce.Weighted_sum_position;
-      "Minimum weight", Pdk.Fuse_reduce.Minimum_weight_position;
-      "Maximum weight", Pdk.Fuse_reduce.Maximum_weight_position;
+      "First", Rdk.Fuse_reduce.First_position;
+      "Least point", Rdk.Fuse_reduce.Least_point_position;
+      "Greatest point", Rdk.Fuse_reduce.Greatest_point_position;
+      "Average", Rdk.Fuse_reduce.Average_position;
+      "Minimum", Rdk.Fuse_reduce.Minimum_position;
+      "Maximum", Rdk.Fuse_reduce.Maximum_position;
+      "Mode", Rdk.Fuse_reduce.Mode_position;
+      "Median", Rdk.Fuse_reduce.Median_position;
+      "Sum", Rdk.Fuse_reduce.Sum_position;
+      "Sum squares", Rdk.Fuse_reduce.Sum_squares_position;
+      "Root mean square", Rdk.Fuse_reduce.Root_mean_square_position;
+      "Weighted average", Rdk.Fuse_reduce.Weighted_average_position;
+      "Weighted sum", Rdk.Fuse_reduce.Weighted_sum_position;
+      "Minimum weight", Rdk.Fuse_reduce.Minimum_weight_position;
+      "Maximum weight", Rdk.Fuse_reduce.Maximum_weight_position;
     ]
 
   let attributes_parameter = Parameter.choice ~equal:( = ) [
-      "Keep first", Pdk.Fuse_reduce.Keep_first;
-      "Average numeric", Pdk.Fuse_reduce.Average_numeric;
+      "Keep first", Rdk.Fuse_reduce.Keep_first;
+      "Average numeric", Rdk.Fuse_reduce.Average_numeric;
     ]
 
   type parameters = {
@@ -1508,7 +1508,7 @@ module Snap_to_grid = struct
       [@sop.folder "Grid/Offset"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "offset"]
     offset_z : float [@sop.default 0.] [@sop.label "Offset Z"]
       [@sop.folder "Grid/Offset"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "offset"]
-    rounding : Pdk.Fuse_grid.grid_rounding [@sop.default Pdk.Fuse_grid.Grid_nearest]
+    rounding : Rdk.Fuse_grid.grid_rounding [@sop.default Rdk.Fuse_grid.Grid_nearest]
       [@sop.label "Rounding"] [@sop.kind rounding_parameter];
     limit_distance : bool [@sop.default false]
       [@sop.label "Limit snapping distance"];
@@ -1516,14 +1516,14 @@ module Snap_to_grid = struct
       [@sop.min 0.] [@sop.max 10.] [@sop.hard_min 0.];
     fuse_points : bool [@sop.default false] [@sop.label "Fuse points"]
       [@sop.folder "Fuse"];
-    position : Pdk.Fuse_reduce.position
-      [@sop.default Pdk.Fuse_reduce.Average_position]
+    position : Rdk.Fuse_reduce.position
+      [@sop.default Rdk.Fuse_reduce.Average_position]
       [@sop.label "Position"] [@sop.folder "Fuse"]
       [@sop.kind position_parameter];
     weight_attribute : string [@sop.default ""]
       [@sop.label "Weight attribute"] [@sop.folder "Fuse"];
-    attributes : Pdk.Fuse_reduce.attributes
-      [@sop.default Pdk.Fuse_reduce.Keep_first]
+    attributes : Rdk.Fuse_reduce.attributes
+      [@sop.default Rdk.Fuse_reduce.Keep_first]
       [@sop.label "Attributes"] [@sop.folder "Fuse"]
       [@sop.kind attributes_parameter];
     snapped_group : string [@sop.default ""] [@sop.label "Snapped group"]
@@ -1718,9 +1718,9 @@ module Extract_centroid = struct
       "Point pieces", Point_pieces; "Primitive pieces", Primitive_pieces;
     ]
   let method_parameter = Parameter.choice ~equal:( = ) [
-      "Point mass", Pdk.Curve_topology.Centroid_point_mass;
-      "Bounding box", Pdk.Curve_topology.Centroid_bounding_box;
-      "Convex hull", Pdk.Curve_topology.Centroid_convex_hull;
+      "Point mass", Rdk.Curve_topology.Centroid_point_mass;
+      "Bounding box", Rdk.Curve_topology.Centroid_bounding_box;
+      "Convex hull", Rdk.Curve_topology.Centroid_convex_hull;
     ]
 
   type parameters = {
@@ -1728,8 +1728,8 @@ module Extract_centroid = struct
       [@sop.label "Run over"] [@sop.kind run_parameter];
     piece_attribute : string [@sop.default "piece"]
       [@sop.label "Piece attribute"];
-    method_ : Pdk.Curve_topology.centroid_method
-      [@sop.default Pdk.Curve_topology.Centroid_point_mass]
+    method_ : Rdk.Curve_topology.centroid_method
+      [@sop.default Rdk.Curve_topology.Centroid_point_mass]
       [@sop.label "Method"] [@sop.kind method_parameter];
     source_primitive_attribute : string [@sop.default ""]
       [@sop.label "Source primitive attribute"] [@sop.folder "Output"];
@@ -1741,13 +1741,13 @@ module Extract_centroid = struct
     [@@deriving sop_params, sop_node]
 
   let run_over parameters = match parameters.run_over with
-    | Detail -> Pdk.Curve_topology.Centroid_detail
-    | Primitives -> Pdk.Curve_topology.Centroid_primitives
-    | Point_pieces -> Pdk.Curve_topology.Centroid_pieces {
-        owner = Pdk.Curve_topology.Centroid_piece_points;
+    | Detail -> Rdk.Curve_topology.Centroid_detail
+    | Primitives -> Rdk.Curve_topology.Centroid_primitives
+    | Point_pieces -> Rdk.Curve_topology.Centroid_pieces {
+        owner = Rdk.Curve_topology.Centroid_piece_points;
         attribute = parameters.piece_attribute }
-    | Primitive_pieces -> Pdk.Curve_topology.Centroid_pieces {
-        owner = Pdk.Curve_topology.Centroid_piece_primitives;
+    | Primitive_pieces -> Rdk.Curve_topology.Centroid_pieces {
+        owner = Rdk.Curve_topology.Centroid_piece_primitives;
         attribute = parameters.piece_attribute }
 
   let build = parameters_build (fun ~label parameters input ->
@@ -1810,9 +1810,9 @@ module Bound = struct
     [@@deriving sop_params, sop_node]
 
   let shape parameters = match parameters.shape with
-    | Box -> Pdk.Bound.Bound_box { divisions =
+    | Box -> Rdk.Bound.Bound_box { divisions =
         parameters.divisions_x, parameters.divisions_y, parameters.divisions_z }
-    | Sphere -> Pdk.Bound.Bound_sphere { segments = parameters.segments;
+    | Sphere -> Rdk.Bound.Bound_sphere { segments = parameters.segments;
         rings = parameters.rings; minimum_radius = parameters.minimum_radius }
 
   let build = parameters_build (fun ~label parameters input ->
@@ -1832,25 +1832,25 @@ end
 module Ray = struct
   type direction = Direction_vector | Direction_normal | Direction_attribute
   let method_parameter = Parameter.choice ~equal:( = ) [
-      "Minimum distance", Pdk.Ray.Ray_minimum_distance;
-      "Project rays", Pdk.Ray.Ray_project;
+      "Minimum distance", Rdk.Ray.Ray_minimum_distance;
+      "Project rays", Rdk.Ray.Ray_project;
     ]
   let direction_parameter = Parameter.choice ~equal:( = ) [
       "Vector", Direction_vector; "Normal", Direction_normal;
       "Attribute", Direction_attribute;
     ]
   let direction_mode_parameter = Parameter.choice ~equal:( = ) [
-      "Forward", Pdk.Ray.Ray_forward; "Reverse", Pdk.Ray.Ray_reverse;
-      "Bidirectional closest", Pdk.Ray.Ray_bidirectional_closest;
-      "Bidirectional farthest", Pdk.Ray.Ray_bidirectional_farthest;
+      "Forward", Rdk.Ray.Ray_forward; "Reverse", Rdk.Ray.Ray_reverse;
+      "Bidirectional closest", Rdk.Ray.Ray_bidirectional_closest;
+      "Bidirectional farthest", Rdk.Ray.Ray_bidirectional_farthest;
     ]
   let surface_parameter = Parameter.choice ~equal:( = ) [
-      "First surface", Pdk.Ray.Ray_first_surface;
-      "Last surface", Pdk.Ray.Ray_last_surface;
+      "First surface", Rdk.Ray.Ray_first_surface;
+      "Last surface", Rdk.Ray.Ray_last_surface;
     ]
   let combine_parameter = Parameter.choice ~equal:( = ) [
-      "Average", Pdk.Ray.Ray_average; "Median", Pdk.Ray.Ray_median;
-      "Shortest", Pdk.Ray.Ray_shortest; "Longest", Pdk.Ray.Ray_longest;
+      "Average", Rdk.Ray.Ray_average; "Median", Rdk.Ray.Ray_median;
+      "Shortest", Rdk.Ray.Ray_shortest; "Longest", Rdk.Ray.Ray_longest;
     ]
 
   type parameters = {
@@ -1859,7 +1859,7 @@ module Ray = struct
     group : string [@sop.default ""] [@sop.label "Group"];
     collision_group : string [@sop.default ""]
       [@sop.label "Collision primitive group"];
-    method_ : Pdk.Ray.method_ [@sop.default Pdk.Ray.Ray_project]
+    method_ : Rdk.Ray.method_ [@sop.default Rdk.Ray.Ray_project]
       [@sop.label "Method"] [@sop.kind method_parameter];
     direction : direction [@sop.default Direction_normal]
       [@sop.label "Direction"] [@sop.folder "Ray"]
@@ -1872,12 +1872,12 @@ module Ray = struct
       [@sop.folder "Ray/Vector"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "direction_vector"]
     direction_attribute : string [@sop.default "N"]
       [@sop.label "Direction attribute"] [@sop.folder "Ray"];
-    direction_mode : Pdk.Ray.direction_mode
-      [@sop.default Pdk.Ray.Ray_forward]
+    direction_mode : Rdk.Ray.direction_mode
+      [@sop.default Rdk.Ray.Ray_forward]
       [@sop.label "Direction mode"] [@sop.folder "Ray"]
       [@sop.kind direction_mode_parameter];
-    surface_hit : Pdk.Ray.surface_hit
-      [@sop.default Pdk.Ray.Ray_first_surface]
+    surface_hit : Rdk.Ray.surface_hit
+      [@sop.default Rdk.Ray.Ray_first_surface]
       [@sop.label "Surface hit"] [@sop.folder "Ray"]
       [@sop.kind surface_parameter];
     samples : int [@sop.default 1] [@sop.label "Samples"]
@@ -1888,7 +1888,7 @@ module Ray = struct
       [@sop.hard_min 0.];
     seed : int [@sop.default 0] [@sop.label "Seed"] [@sop.folder "Jitter"]
       [@sop.min 0] [@sop.max 999999];
-    combine : Pdk.Ray.combine [@sop.default Pdk.Ray.Ray_average]
+    combine : Rdk.Ray.combine [@sop.default Rdk.Ray.Ray_average]
       [@sop.label "Combine"] [@sop.folder "Jitter"]
       [@sop.kind combine_parameter];
     min_distance : float [@sop.default 0.] [@sop.label "Minimum distance"]
@@ -1933,11 +1933,11 @@ module Ray = struct
     [@@deriving sop_params, sop_node]
 
   let direction parameters = match parameters.direction with
-    | Direction_vector -> Pdk.Ray.Ray_vector (Vec3.create
+    | Direction_vector -> Rdk.Ray.Ray_vector (Vec3.create
         parameters.direction_x parameters.direction_y parameters.direction_z)
-    | Direction_normal -> Pdk.Ray.Ray_normal
+    | Direction_normal -> Rdk.Ray.Ray_normal
     | Direction_attribute ->
-        Pdk.Ray.Ray_attribute parameters.direction_attribute
+        Rdk.Ray.Ray_attribute parameters.direction_attribute
 
   let build = parameters_build (fun ~label parameters source collision ->
     let max_distance = if parameters.limit_max_distance
@@ -1973,7 +1973,7 @@ module Sort = struct
   type key = X | Y | Z | Distance | Vector | Attribute | Vertex_order
     | Primitive_index | Spatial | Random | Index_attribute | Reverse | Shift
   let owner_parameter = Parameter.choice ~equal:( = ) [
-      "Points", Pdk.Ordering.Points; "Primitives", Pdk.Ordering.Primitives;
+      "Points", Rdk.Ordering.Points; "Primitives", Rdk.Ordering.Primitives;
     ]
   let key_parameter = Parameter.choice ~equal:( = ) [
       "X", X; "Y", Y; "Z", Z; "Distance to point", Distance;
@@ -1984,7 +1984,7 @@ module Sort = struct
       "Shift", Shift;
     ]
   type parameters = {
-    owner : Pdk.Ordering.owner [@sop.default Pdk.Ordering.Points]
+    owner : Rdk.Ordering.owner [@sop.default Rdk.Ordering.Points]
       [@sop.label "Entity"] [@sop.kind owner_parameter];
     key : key [@sop.default X] [@sop.label "Sort by"]
       [@sop.kind key_parameter];
@@ -2013,20 +2013,20 @@ module Sort = struct
     [@@sop.node_category "Utility"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
   let key parameters = match parameters.key with
-    | X -> Pdk.Ordering.X | Y -> Pdk.Ordering.Y | Z -> Pdk.Ordering.Z
-    | Distance -> Pdk.Ordering.Distance_to
+    | X -> Rdk.Ordering.X | Y -> Rdk.Ordering.Y | Z -> Rdk.Ordering.Z
+    | Distance -> Rdk.Ordering.Distance_to
         (Vec3.create parameters.x parameters.y parameters.z)
-    | Vector -> Pdk.Ordering.Along_vector
+    | Vector -> Rdk.Ordering.Along_vector
         (Vec3.create parameters.x parameters.y parameters.z)
-    | Attribute -> Pdk.Ordering.Attribute_component {
+    | Attribute -> Rdk.Ordering.Attribute_component {
         name = parameters.attribute; component = parameters.component }
-    | Vertex_order -> Pdk.Ordering.By_vertex_order
-    | Primitive_index -> Pdk.Ordering.By_primitive_index
-    | Spatial -> Pdk.Ordering.Spatial_locality
-    | Random -> Pdk.Ordering.Random (Int64.of_int parameters.seed)
-    | Index_attribute -> Pdk.Ordering.Index_attribute parameters.attribute
-    | Reverse -> Pdk.Ordering.Reverse
-    | Shift -> Pdk.Ordering.Shift parameters.shift
+    | Vertex_order -> Rdk.Ordering.By_vertex_order
+    | Primitive_index -> Rdk.Ordering.By_primitive_index
+    | Spatial -> Rdk.Ordering.Spatial_locality
+    | Random -> Rdk.Ordering.Random (Int64.of_int parameters.seed)
+    | Index_attribute -> Rdk.Ordering.Index_attribute parameters.attribute
+    | Reverse -> Rdk.Ordering.Reverse
+    | Shift -> Rdk.Ordering.Shift parameters.shift
   let build = parameters_build (fun ~label parameters input ->
     Sop.sort ~label ?group:(optional_text parameters.group)
         ~descending:parameters.descending
@@ -2066,7 +2066,7 @@ module Scatter = struct
     group : string [@sop.default ""] [@sop.label "Primitive group"];
     use_density : bool [@sop.default false] [@sop.label "Use density"]
       [@sop.folder "Density"];
-    density_owner : Pdk.Attribute.owner [@sop.default Pdk.Attribute.Primitive]
+    density_owner : Rdk.Attribute.owner [@sop.default Rdk.Attribute.Primitive]
       [@sop.label "Owner"] [@sop.folder "Density"]
       [@sop.kind attribute_owner_parameter];
     density_attribute : string [@sop.default "density"]
@@ -2092,7 +2092,7 @@ module Scatter = struct
     [@@deriving sop_params, sop_node]
   let build = parameters_build (fun ~label parameters input ->
     let density = if not parameters.use_density then None else
-      Some (Pdk.Scatter.density ~owner:parameters.density_owner
+      Some (Rdk.Scatter.density ~owner:parameters.density_owner
         parameters.density_attribute) in
     Sop.scatter ~label
       ?seed:(if parameters.context_seed then None else Some parameters.seed)
@@ -2176,14 +2176,14 @@ end
 module Soft_transform = struct
   type metric = Radius | Edge | Attribute
   let order_parameter = Parameter.choice ~equal:( = ) [
-      "SRT", Pdk.Transform_ops.Transform_srt; "STR", Pdk.Transform_ops.Transform_str;
-      "RST", Pdk.Transform_ops.Transform_rst; "RTS", Pdk.Transform_ops.Transform_rts;
-      "TSR", Pdk.Transform_ops.Transform_tsr; "TRS", Pdk.Transform_ops.Transform_trs;
+      "SRT", Rdk.Transform_ops.Transform_srt; "STR", Rdk.Transform_ops.Transform_str;
+      "RST", Rdk.Transform_ops.Transform_rst; "RTS", Rdk.Transform_ops.Transform_rts;
+      "TSR", Rdk.Transform_ops.Transform_tsr; "TRS", Rdk.Transform_ops.Transform_trs;
     ]
   let rotation_order_parameter = Parameter.choice ~equal:( = ) [
-      "XYZ", Pdk.Transform_ops.Transform_xyz; "XZY", Pdk.Transform_ops.Transform_xzy;
-      "YXZ", Pdk.Transform_ops.Transform_yxz; "YZX", Pdk.Transform_ops.Transform_yzx;
-      "ZXY", Pdk.Transform_ops.Transform_zxy; "ZYX", Pdk.Transform_ops.Transform_zyx;
+      "XYZ", Rdk.Transform_ops.Transform_xyz; "XZY", Rdk.Transform_ops.Transform_xzy;
+      "YXZ", Rdk.Transform_ops.Transform_yxz; "YZX", Rdk.Transform_ops.Transform_yzx;
+      "ZXY", Rdk.Transform_ops.Transform_zxy; "ZYX", Rdk.Transform_ops.Transform_zyx;
     ]
   let metric_parameter = Parameter.choice ~equal:( = ) [
       "Radius", Radius; "Edge distance", Edge; "Attribute", Attribute;
@@ -2194,11 +2194,11 @@ module Soft_transform = struct
       [@sop.kind element_owner_parameter];
     group : string [@sop.default ""] [@sop.label "Group"]
       [@sop.folder "Selection"];
-    order : Pdk.Transform_ops.transform_order [@sop.default Pdk.Transform_ops.Transform_srt]
+    order : Rdk.Transform_ops.transform_order [@sop.default Rdk.Transform_ops.Transform_srt]
       [@sop.label "Transform order"] [@sop.folder "Transform"]
       [@sop.kind order_parameter];
-    rotation_order : Pdk.Transform_ops.transform_rotation_order
-      [@sop.default Pdk.Transform_ops.Transform_xyz] [@sop.label "Rotation order"]
+    rotation_order : Rdk.Transform_ops.transform_rotation_order
+      [@sop.default Rdk.Transform_ops.Transform_xyz] [@sop.label "Rotation order"]
       [@sop.folder "Transform/Rotate"] [@sop.kind rotation_order_parameter];
     translate_x : float [@sop.default 0.] [@sop.label "Translate X"]
       [@sop.folder "Transform/Translate"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "translate"]
@@ -2252,8 +2252,8 @@ module Soft_transform = struct
       [@sop.label "Metric attribute"] [@sop.folder "Soft selection"];
     apply_rolloff : bool [@sop.default true] [@sop.label "Apply rolloff"]
       [@sop.folder "Soft selection"];
-    falloff : Pdk.Transform_ops.soft_transform_falloff
-      [@sop.default Pdk.Transform_ops.Soft_cubic] [@sop.label "Falloff"]
+    falloff : Rdk.Transform_ops.soft_transform_falloff
+      [@sop.default Rdk.Transform_ops.Soft_cubic] [@sop.label "Falloff"]
       [@sop.folder "Soft selection"] [@sop.kind soft_falloff_parameter];
     radius : float [@sop.default 1.] [@sop.label "Radius"]
       [@sop.folder "Soft selection"] [@sop.min 0.] [@sop.max 100.]
@@ -2266,9 +2266,9 @@ module Soft_transform = struct
     [@@sop.node_category "Deform"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
   let metric parameters = match parameters.metric with
-    | Radius -> Pdk.Transform_ops.Soft_radius
-    | Edge -> Pdk.Transform_ops.Soft_edge
-    | Attribute -> Pdk.Transform_ops.Soft_attribute {
+    | Radius -> Rdk.Transform_ops.Soft_radius
+    | Edge -> Rdk.Transform_ops.Soft_edge
+    | Attribute -> Rdk.Transform_ops.Soft_attribute {
         attribute = parameters.metric_attribute;
         apply_rolloff = parameters.apply_rolloff }
   let build = parameters_build (fun ~label parameters input ->
@@ -2335,11 +2335,11 @@ module Point_generate_from_input = struct
     [@@sop.node_category "Create/Points"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
   let mode parameters = match parameters.mode with
-    | Total -> Pdk.Point_generate.Generate_total parameters.total
-    | Per_point -> Pdk.Point_generate.Generate_per_point {
+    | Total -> Rdk.Point_generate.Generate_total parameters.total
+    | Per_point -> Rdk.Point_generate.Generate_per_point {
         points_per_point = parameters.points_per_point;
         scale_attribute = optional_text parameters.scale_attribute }
-    | Probability -> Pdk.Point_generate.Generate_probability {
+    | Probability -> Rdk.Point_generate.Generate_probability {
         attribute = parameters.probability_attribute }
   let build = parameters_build (fun ~label parameters input ->
     Sop.point_generate ~label
@@ -2356,14 +2356,14 @@ end
 
 module Point_replicate = struct
   let shape_parameter = Parameter.choice ~equal:( = ) [
-      "Point", Pdk.Point_replication.Replicate_point; "Box", Pdk.Point_replication.Replicate_box;
-      "Sphere", Pdk.Point_replication.Replicate_sphere; "Disk", Pdk.Point_replication.Replicate_disk;
-      "Line", Pdk.Point_replication.Replicate_line; "Custom", Pdk.Point_replication.Replicate_custom;
+      "Point", Rdk.Point_replication.Replicate_point; "Box", Rdk.Point_replication.Replicate_box;
+      "Sphere", Rdk.Point_replication.Replicate_sphere; "Disk", Rdk.Point_replication.Replicate_disk;
+      "Line", Rdk.Point_replication.Replicate_line; "Custom", Rdk.Point_replication.Replicate_custom;
     ]
   let velocity_parameter = Parameter.choice ~equal:( = ) [
-      "None", Pdk.Point_replication.Replicate_no_velocity_stretch;
-      "Scaled velocity", Pdk.Point_replication.Replicate_scaled_velocity;
-      "Velocity only", Pdk.Point_replication.Replicate_velocity_only;
+      "None", Rdk.Point_replication.Replicate_no_velocity_stretch;
+      "Scaled velocity", Rdk.Point_replication.Replicate_scaled_velocity;
+      "Velocity only", Rdk.Point_replication.Replicate_velocity_only;
     ]
   type parameters = {
     group : string [@sop.default ""] [@sop.label "Point group"];
@@ -2377,7 +2377,7 @@ module Point_replicate = struct
       [@sop.folder "Random"] [@sop.min 0] [@sop.max 9999];
     id_attribute : string [@sop.default "id"] [@sop.label "ID attribute"]
       [@sop.folder "Random"];
-    shape : Pdk.Point_replication.shape [@sop.default Pdk.Point_replication.Replicate_sphere]
+    shape : Rdk.Point_replication.shape [@sop.default Rdk.Point_replication.Replicate_sphere]
       [@sop.label "Shape"] [@sop.folder "Shape"] [@sop.kind shape_parameter];
     center_x : float [@sop.default 0.] [@sop.label "Center X"]
       [@sop.folder "Shape/Center"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "center"]
@@ -2408,8 +2408,8 @@ module Point_replicate = struct
       [@sop.hard_min 0.];
     quasi_stratified : bool [@sop.default false]
       [@sop.label "Quasi-stratified"] [@sop.folder "Random"];
-    velocity_stretch : Pdk.Point_replication.velocity_stretch
-      [@sop.default Pdk.Point_replication.Replicate_no_velocity_stretch]
+    velocity_stretch : Rdk.Point_replication.velocity_stretch
+      [@sop.default Rdk.Point_replication.Replicate_no_velocity_stretch]
       [@sop.label "Velocity stretch"] [@sop.folder "Velocity"]
       [@sop.kind velocity_parameter];
     velocity_scale : float [@sop.default 1.] [@sop.label "Velocity scale"]
@@ -2465,7 +2465,7 @@ module Point_replicate = struct
     [@@sop.node_category "Create/Points"] [@@sop.node_inputs 2] [@@sop.node_slots "input, custom_shape"]
     [@@sop.node_optional "1"] [@@deriving sop_params, sop_node]
   let build = parameters_build (fun ~label parameters input custom_shape ->
-    let custom_shape = if parameters.shape = Pdk.Point_replication.Replicate_custom
+    let custom_shape = if parameters.shape = Rdk.Point_replication.Replicate_custom
       then custom_shape else None in
     Sop.point_replicate ~label ?group:(optional_text parameters.group)
       ~keep_input:parameters.keep_input

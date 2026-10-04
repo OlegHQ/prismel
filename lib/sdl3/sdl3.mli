@@ -1,5 +1,5 @@
 (** Ownership-aware compiled bindings to SDL3: the window, input and
-    presentation surface Prismel's runtime uses. Every call runs on the
+    presentation surface Rays's runtime uses. Every call runs on the
     initial domain and returns a typed error otherwise; no callback into
     OCaml is ever installed (see specification/sdl3.md). *)
 
@@ -172,7 +172,7 @@ module Event : sig
     | Cancelled
     | Failed of string
 
-  (** The events Prismel reads; every other kind SDL queues is skipped in the
+  (** The events Rays reads; every other kind SDL queues is skipped in the
       stubs and never copied. *)
   type t =
     | Quit

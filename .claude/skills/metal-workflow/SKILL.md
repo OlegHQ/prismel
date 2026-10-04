@@ -1,6 +1,6 @@
 ---
 name: metal-workflow
-description: Take a GPU capability prismel does not have yet from Metal to its first caller - declare the Metal call in the binding registry (generated, not handwritten), wrap it safely, expose it through OGPU, and use it from the runtime or path tracer. Use for any new Metal API, new OGPU feature backed by Metal, or when removing one.
+description: Take a GPU capability rays does not have yet from Metal to its first caller - declare the Metal call in the binding registry (generated, not handwritten), wrap it safely, expose it through OGPU, and use it from the runtime or path tracer. Use for any new Metal API, new OGPU feature backed by Metal, or when removing one.
 ---
 
 # Metal workflow: need → generated binding → OGPU → caller
@@ -11,7 +11,7 @@ description: Take a GPU capability prismel does not have yet from Metal to its f
 
 ## 0. Is it already there?
 
-- Callers (`runtime`, `scene_execution`, `prismel_pathtracer`) talk to the
+- Callers (`runtime`, `scene_execution`, `rays_pathtracer`) talk to the
   virtual `Ogpu` API only; grep `lib/ogpu_core/*.mli` for the operation.
 - The Metal backend calls the safe `Metal` API: grep `lib/metal/metal.mli`.
 - Both exist → just call it. Only the Metal side exists → skip to step 3.
@@ -85,7 +85,7 @@ calling the step-2 function, the mock in `lib/ogpu_mock`, conformance cases in
 
 ## 4. Use it
 
-Call `Ogpu.*` from `runtime`/`scene_execution`/`prismel_pathtracer` — never
+Call `Ogpu.*` from `runtime`/`scene_execution`/`rays_pathtracer` — never
 `Metal.` (the dependency gate rejects it). Then `dune build @all`, window-free
 `SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy dune runtest`, `dune build
 @smoke`, and `git diff --check`. A public `.mli` change needs the

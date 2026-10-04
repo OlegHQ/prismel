@@ -19,11 +19,11 @@ current-domain allocation, and volume.
 
 ```sh
 opam exec --switch=. -- dune exec tools/boolean_stress.exe -- \
-  --level quick --domains 4 --repeats 2 --grain 128 > prismel-quick.csv
+  --level quick --domains 4 --repeats 2 --grain 128 > rays-quick.csv
 
 /usr/bin/time -v timeout 30m \
   opam exec --switch=. -- dune exec tools/boolean_stress.exe -- \
-  --level full --domains 4 --repeats 5 --grain 256 > prismel-full.csv
+  --level full --domains 4 --repeats 5 --grain 256 > rays-full.csv
 ```
 
 Use one process per third-party asset so an external timeout or crash identifies

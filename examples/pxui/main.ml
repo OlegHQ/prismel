@@ -1,4 +1,4 @@
-open Prismel
+open Rays
 
 let dot_field = Scene.group
   (List.init (54 * 30) (fun index ->

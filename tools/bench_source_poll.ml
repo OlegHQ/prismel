@@ -2,7 +2,7 @@
 let () =
   let file = Sys.argv.(1) in
   let text = In_channel.with_open_bin file In_channel.input_all in
-  let source = ref (Prismel_editor.Source.at ~file
+  let source = ref (Rays_editor.Source.at ~file
     ~digest:(Editor_document.Contexts.sha256 text)) in
   let iterations = 2000 in
   let allocated = Gc.allocated_bytes in
@@ -18,9 +18,9 @@ let () =
   for _ = 1 to 5 do
     measure "before (unchanged mtime)" (fun _ -> ignore (Unix.stat file));
     measure "after (content/digest)" (fun i ->
-      let next, changed = Prismel_editor.Source.poll ~now:(float i) !source in
+      let next, changed = Rays_editor.Source.poll ~now:(float i) !source in
       source := next;
       assert (changed = None));
     (* Start a fresh poll clock for the next sample. *)
-    source := Prismel_editor.Source.at ~file ~digest:(Editor_document.Contexts.sha256 text)
+    source := Rays_editor.Source.at ~file ~digest:(Editor_document.Contexts.sha256 text)
   done

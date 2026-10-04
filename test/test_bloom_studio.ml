@@ -1,10 +1,10 @@
 (* Bloom studio: the ws_bloom sketch through the editor, the way the study's proposal shows it.
    The Navigator lists the document and opens a graph or a node from a click, the host bars
    run the commands the graph pane has keys for, and Make defn writes a reusable function. *)
-open Prismel
-module E3 = Prismel_editor.Editor3
-module N = Prismel_editor.Private.Navigator
-module Bars = Prismel_editor.Private.Bars
+open Rays
+module E3 = Rays_editor.Editor3
+module N = Rays_editor.Private.Navigator
+module Bars = Rays_editor.Private.Bars
 module Layout = Pxui_shell.Layout
 module Doc = Editor_document.Workspace_doc
 module Document = Editor_document.Document
@@ -16,7 +16,7 @@ let has text sub =
   let rec at i = i + n <= String.length text && (String.sub text i n = sub || at (i + 1)) in
   at 0
 
-let bloom () = In_channel.with_open_bin "../sketches/ws_bloom/sketch.plisp" In_channel.input_all
+let bloom () = In_channel.with_open_bin "../sketches/ws_bloom/sketch.rays" In_channel.input_all
 let factories = Sop_catalog.Editor.factories
 let catalog = Editor_document.Contexts.catalog ~version:1 factories |> Result.get_ok
 
@@ -31,8 +31,8 @@ let editor () =
   let workspace = match Doc.of_text catalog (bloom ()) with
     | Ok d -> d | Error ds -> fail (String.concat "; " (List.map Flow.Diagnostic.to_string ds)) in
   E3.create ~await:true ~workspace
-    ~prepare:(fun _ output -> Pdk_prismel.Prismel_mesh.to_mesh output.Procedural.Session.geometry
-      |> Result.map_error Pdk.Error.to_string)
+    ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh output.Procedural.Session.geometry
+      |> Result.map_error Rdk.Error.to_string)
     ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) ()
   |> function Ok e -> e | Error m -> fail m
 

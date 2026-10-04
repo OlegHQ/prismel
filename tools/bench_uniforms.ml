@@ -22,7 +22,7 @@ let uniform value =
   Bytes.set_int32_le bytes 8 (Int32.bits_of_float value);
   bytes
 
-let count = match Sys.getenv_opt "PRISMEL_UNIFORM_BENCH_DRAWS" with
+let count = match Sys.getenv_opt "RAYS_UNIFORM_BENCH_DRAWS" with
   | None -> 128 | Some value -> max 1 (int_of_string value)
 
 let draws frame = List.init count (fun index ->

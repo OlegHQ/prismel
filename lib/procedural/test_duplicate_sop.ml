@@ -1,4 +1,4 @@
-open Prismel
+open Rays
 open Procedural
 
 let fail message = prerr_endline ("test_duplicate_sop: " ^ message); exit 1
@@ -11,18 +11,18 @@ let contains value needle =
   needle = "" || loop 0
 
 let source () =
-  let positions = Pdk.Packed.Float3.Private.of_owned_exn
+  let positions = Rdk.Packed.Float3.Private.of_owned_exn
       ~x:[|0.;1.;2.;0.;1.;2.;9.|] ~y:[|0.;0.;0.;1.;1.;1.;9.|]
       ~z:(Array.make 7 0.) in
-  let topology = Pdk.Topology.polygons_owned ~point_count:7
+  let topology = Rdk.Topology.polygons_owned ~point_count:7
       ~vertex_points:[|0;1;4;3; 1;2;5;4|]
       ~primitive_offsets:[|0;4;8|] |> Result.get_ok in
-  let selected = Pdk.Group.ordered ~owner:Pdk.Group.Primitive ~name:"right"
+  let selected = Rdk.Group.ordered ~owner:Rdk.Group.Primitive ~name:"right"
       ~length:2 [|1|] |> Result.get_ok
-  and id = Pdk.Attribute.create_owned ~owner:Pdk.Attribute.Point ~name:"id"
-      (Pdk.Attribute.Int (Array.init 7 (fun point -> 10 + point)))
+  and id = Rdk.Attribute.create_owned ~owner:Rdk.Attribute.Point ~name:"id"
+      (Rdk.Attribute.Int (Array.init 7 (fun point -> 10 + point)))
       |> Result.get_ok in
-  Pdk.Geometry.create ~positions ~topology ~attributes:[id] ~groups:[selected] ()
+  Rdk.Geometry.create ~positions ~topology ~attributes:[id] ~groups:[selected] ()
     |> Result.get_ok
 
 let cook evaluator domains graph =
@@ -31,16 +31,16 @@ let cook evaluator domains graph =
   | Error error -> fail (Diagnostic.error_to_string error)
 
 let point_ids geometry =
-  match Pdk.Geometry.find_attribute ~owner:Pdk.Attribute.Point "id" geometry with
-  | Some attribute -> (match Pdk.Attribute.Private.storage attribute with
-      | Pdk.Attribute.Int values -> values | _ -> fail "id storage")
+  match Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point "id" geometry with
+  | Some attribute -> (match Rdk.Attribute.Private.storage attribute with
+      | Rdk.Attribute.Int values -> values | _ -> fail "id storage")
   | None -> fail "missing id"
 
 let equal left right =
-  let lt = Pdk.Topology.Private.view (Pdk.Geometry.topology left)
-  and rt = Pdk.Topology.Private.view (Pdk.Geometry.topology right)
-  and lp = Pdk.Packed.Float3.Private.view (Pdk.Geometry.positions left)
-  and rp = Pdk.Packed.Float3.Private.view (Pdk.Geometry.positions right) in
+  let lt = Rdk.Topology.Private.view (Rdk.Geometry.topology left)
+  and rt = Rdk.Topology.Private.view (Rdk.Geometry.topology right)
+  and lp = Rdk.Packed.Float3.Private.view (Rdk.Geometry.positions left)
+  and rp = Rdk.Packed.Float3.Private.view (Rdk.Geometry.positions right) in
   lt.vertex_points = rt.vertex_points
   && lt.primitive_offsets = rt.primitive_offsets
   && Bytes.equal lt.primitive_kinds rt.primitive_kinds
@@ -60,21 +60,21 @@ let run () =
   let evaluator = session () in
   let one = cook evaluator 1 graph and four = cook evaluator 4 graph in
   if not (equal one four) then fail "one/four-domain output differs";
-  let topology = Pdk.Topology.Private.view (Pdk.Geometry.topology one) in
-  if Pdk.Geometry.point_count one <> 15
-      || Pdk.Geometry.vertex_count one <> 16
-      || Pdk.Geometry.primitive_count one <> 4
+  let topology = Rdk.Topology.Private.view (Rdk.Geometry.topology one) in
+  if Rdk.Geometry.point_count one <> 15
+      || Rdk.Geometry.vertex_count one <> 16
+      || Rdk.Geometry.primitive_count one <> 4
       || topology.vertex_points
            <> [|0;1;4;3;1;2;5;4; 7;8;10;9;11;12;14;13|]
       || point_ids one
            <> [|10;11;12;13;14;15;16;11;12;14;15;11;12;14;15|] then
     fail "selected duplicate result";
-  let first = Pdk.Geometry.find_group ~owner:Pdk.Group.Primitive "copy_1" one
+  let first = Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive "copy_1" one
       |> Option.get
-  and second = Pdk.Geometry.find_group ~owner:Pdk.Group.Primitive "copy_2" one
+  and second = Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive "copy_2" one
       |> Option.get in
-  if Pdk.Group.cardinality first <> 1 || not (Pdk.Group.mem 2 first)
-      || Pdk.Group.cardinality second <> 1 || not (Pdk.Group.mem 3 second) then
+  if Rdk.Group.cardinality first <> 1 || not (Rdk.Group.mem 2 first)
+      || Rdk.Group.cardinality second <> 1 || not (Rdk.Group.mem 3 second) then
     fail "copy output groups";
   let misses = (Session.stats evaluator).misses in
   ignore (cook evaluator 4 graph);

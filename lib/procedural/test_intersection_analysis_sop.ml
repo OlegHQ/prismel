@@ -1,4 +1,4 @@
-open Prismel
+open Rays
 open Procedural
 
 let fail message = raise (Failure message)
@@ -19,16 +19,16 @@ let cook session domains graph =
   | Error error -> fail (Diagnostic.error_to_string error)
 
 let graph () =
-  let source = Sop.grid ~counts:Pdk.Plane_generators.Grid_point_counts
-      ~connectivity:Pdk.Plane_generators.Grid_alternating_triangles
+  let source = Sop.grid ~counts:Rdk.Plane_generators.Grid_point_counts
+      ~connectivity:Rdk.Plane_generators.Grid_alternating_triangles
       ~columns:64 ~rows:48 ~size:12. () in
   let collision = Sop.transform (Mat4.rotation_x (Float.pi /. 2.)) source in
   Sop.intersection_analysis ~label:"intersection-points" ~collision
     ~tolerance:1e-9 ~include_coplanar:false source
 
 let self_graph () =
-  let source = Sop.grid ~counts:Pdk.Plane_generators.Grid_point_counts
-      ~connectivity:Pdk.Plane_generators.Grid_alternating_triangles
+  let source = Sop.grid ~counts:Rdk.Plane_generators.Grid_point_counts
+      ~connectivity:Rdk.Plane_generators.Grid_alternating_triangles
       ~columns:48 ~rows:36 ~size:10. () in
   let collision = Sop.transform (Mat4.rotation_x (Float.pi /. 2.)) source in
   Sop.merge [source; collision]
@@ -41,23 +41,23 @@ let curve_graph () =
   Sop.intersection_analysis ~label:"curve-intersection-points" ~collision source
 
 let int_rows name geometry =
-  match Pdk.Geometry.find_attribute ~owner:Pdk.Attribute.Point name geometry with
+  match Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point name geometry with
   | Some attribute ->
-      (match Pdk.Attribute.Private.storage attribute with
-       | Pdk.Attribute.Int_array rows -> Pdk.Packed.Int_array.Private.view rows
+      (match Rdk.Attribute.Private.storage attribute with
+       | Rdk.Attribute.Int_array rows -> Rdk.Packed.Int_array.Private.view rows
        | _ -> fail (name ^ " has wrong storage"))
   | None -> fail ("missing " ^ name)
 
 let float_rows name geometry =
-  match Pdk.Geometry.find_attribute ~owner:Pdk.Attribute.Point name geometry with
+  match Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point name geometry with
   | Some attribute ->
-      (match Pdk.Attribute.Private.storage attribute with
-       | Pdk.Attribute.Float_array rows -> Pdk.Packed.Float_array.Private.view rows
+      (match Rdk.Attribute.Private.storage attribute with
+       | Rdk.Attribute.Float_array rows -> Rdk.Packed.Float_array.Private.view rows
        | _ -> fail (name ^ " has wrong storage"))
   | None -> fail ("missing " ^ name)
 
 let signature geometry =
-  let positions = Pdk.Packed.Float3.Private.view (Pdk.Geometry.positions geometry)
+  let positions = Rdk.Packed.Float3.Private.view (Rdk.Geometry.positions geometry)
   and inputs = int_rows "sourceinput" geometry
   and primitives = int_rows "sourceprim" geometry
   and uvw = float_rows "sourceprimuv" geometry
@@ -91,26 +91,26 @@ let test_identity_cache_and_parallel () =
     "Intersection Analysis SOP missed its static cook cache";
   Session.close session;
   let one = fresh graph 1 and four = fresh graph 4 in
-  check (Pdk.Geometry.point_count one > 0 && signature one = signature four)
+  check (Rdk.Geometry.point_count one > 0 && signature one = signature four)
     "Intersection Analysis SOP AxB one/four-domain drift";
   let self = self_graph () in
   check (List.length (Node.inputs self) = 1
       && contains (Node.parameters self) "collision_input=false")
     "Intersection Analysis SOP AxA graph role";
   let one = fresh self 1 and four = fresh self 4 in
-  check (Pdk.Geometry.point_count one > 0 && signature one = signature four)
+  check (Rdk.Geometry.point_count one > 0 && signature one = signature four)
     "Intersection Analysis SOP AxA one/four-domain drift";
   let curves = curve_graph () in
   let one = fresh curves 1 and four = fresh curves 4 in
-  check (Pdk.Geometry.point_count one = 1 && signature one = signature four
+  check (Rdk.Geometry.point_count one = 1 && signature one = signature four
       && (float_rows "sourceprimuv" one).values
         = [|0.5;0.;0.; 0.5;0.;0.|])
     "Intersection Analysis SOP curve one/four-domain drift"
 
 let test_diagnostics_and_constructor_validation () =
-  let source = Sop.grid ~connectivity:Pdk.Plane_generators.Grid_alternating_triangles
+  let source = Sop.grid ~connectivity:Rdk.Plane_generators.Grid_alternating_triangles
       ~columns:4 ~rows:4 ~size:2. ()
-  and collision = Sop.grid ~connectivity:Pdk.Plane_generators.Grid_alternating_triangles
+  and collision = Sop.grid ~connectivity:Rdk.Plane_generators.Grid_alternating_triangles
       ~columns:4 ~rows:4 ~size:2. () in
   let missing = Sop.intersection_analysis ~source_group:"missing" ~collision source in
   let session = Session.create ~max_entries:4 ~max_payload_bytes:8_000_000

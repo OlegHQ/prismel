@@ -1,5 +1,5 @@
 (* Cube cage: a lattice of hollow cube frames, path traced with round corners
-   and thin-lens depth of field, in the Prismel Editor workspace. The SOP
+   and thin-lens depth of field, in the Rays Editor workspace. The SOP
    network is catalog-only: a unit Box minus three merged bars (one Boolean
    difference resolving the cutter's self-intersections, polygon output) is
    the cage, Poly Bevel chamfers its edges, and a Merge adds a small
@@ -22,20 +22,20 @@
    The empty-selection inspector holds the sketch settings: the renderer
    (path traced, raster, wireframe), the bounding frame, dark-cell fraction
    and seed. Space opens the leader keys.
-   PRISMEL_CAGE_RENDERER=path|raster|wireframe picks the startup renderer;
-   PRISMEL_PATHTRACER_FRAMES=N runs a finite smoke; PRISMEL_PATHTRACER_PNG=path
-   saves the final window; PRISMEL_CAGE_EXPORT=path renders the camera
+   RAYS_CAGE_RENDERER=path|raster|wireframe picks the startup renderer;
+   RAYS_PATHTRACER_FRAMES=N runs a finite smoke; RAYS_PATHTRACER_PNG=path
+   saves the final window; RAYS_CAGE_EXPORT=path renders the camera
    halfway through a finite smoke. *)
-open Prismel
+open Rays
 open Procedural
-module P = Prismel_pathtracer
-module Editor = Prismel_editor.Editor3
-module Renderer = Prismel_editor.Renderer
-module Settings = Prismel_editor.Settings
+module P = Rays_pathtracer
+module Editor = Rays_editor.Editor3
+module Renderer = Rays_editor.Renderer
+module Settings = Rays_editor.Settings
 let rgb = P.Linear_color.rgb
 let v = Vec3.create
 
-(* The document (network, studio lights, camera, World) is sketch.plisp. *)
+(* The document (network, studio lights, camera, World) is sketch.rays. *)
 let cells = 6
 let pitch = 1.16
 let extent = pitch *. float (cells - 1)
@@ -46,7 +46,7 @@ type settings = { renderer : Renderer.t; frame : bool; dark : float; seed : int 
 
 let settings_schema =
   let open Parameter in
-  let default = { renderer = Option.value ~default:Renderer.Path_traced (Renderer.of_env "PRISMEL_CAGE_RENDERER")
+  let default = { renderer = Option.value ~default:Renderer.Path_traced (Renderer.of_env "RAYS_CAGE_RENDERER")
                 ; frame = false; dark = 0.3; seed = 7 } in
   schema ~name:"cube_cage" ~default
     [ Renderer.field ~default:default.renderer ~get:(fun s -> s.renderer)
@@ -83,7 +83,7 @@ let dark_cell seed matrix =
   let h = ((h lxor (h lsr 16)) * 0x45d9f3b) land 0x3fffffff in
   float ((h lxor (h lsr 15)) land 0xffff) /. 65536.
 
-let pdk_error result = Result.map_error Pdk.Error.to_string result
+let rdk_error result = Result.map_error Rdk.Error.to_string result
 
 (* A point cloud (any node before Copy to Points) draws as unlit markers in
    both preview renderers; a surface draws lit, or as its unlit edges. *)
@@ -95,17 +95,17 @@ let prepare settings (output : Session.output) =
   let s = Settings.get settings_schema settings in
   let geometry = output.geometry in
   let transforms = Option.value ~default:[| Mat4.identity |] output.instances in
-  let topology = Pdk.Geometry.topology geometry in
+  let topology = Rdk.Geometry.topology geometry in
   let triangles = ref 0 in
-  for primitive = 0 to Pdk.Topology.primitive_count topology - 1 do
-    triangles := !triangles + max 0 (Pdk.Topology.primitive_size topology primitive - 2)
+  for primitive = 0 to Rdk.Topology.primitive_count topology - 1 do
+    triangles := !triangles + max 0 (Rdk.Topology.primitive_size topology primitive - 2)
   done;
   let instances = Array.length transforms in
   let finish ?traced ?raster ?wire () =
     Ok { mode = s.renderer; traced; raster; wire; triangles = !triangles * instances; instances } in
-  let smooth () = pdk_error (Pdk.Normal_ops.run ~owner:Pdk.Attribute.Vertex
+  let smooth () = rdk_error (Rdk.Normal_ops.run ~owner:Rdk.Attribute.Vertex
       ~cusp_angle:(Float.pi /. 4.5) geometry) in
-  let points_only = Pdk.Topology.primitive_count topology = 0 in
+  let points_only = Rdk.Topology.primitive_count topology = 0 in
   match s.renderer with
   | Path_traced ->
       let materials = Array.map (fun m -> if dark_cell s.seed m < s.dark then black else white) transforms in
@@ -113,14 +113,14 @@ let prepare settings (output : Session.output) =
         Result.bind (P.mesh_instanced ~prototype:(geometry, white) ~materials transforms)
           (fun traced -> finish ~traced ()))
   | Raster when points_only ->
-      Result.bind (pdk_error (Pdk_prismel.Prismel_mesh.to_mesh geometry)) (fun mesh ->
+      Result.bind (rdk_error (Rdk_rays.Rays_mesh.to_mesh geometry)) (fun mesh ->
         finish ~raster:(points_node mesh transforms) ())
   | Raster ->
       Result.bind (smooth ()) (fun geometry ->
-        Result.bind (pdk_error (Pdk_prismel.Prismel_mesh.to_mesh geometry)) (fun mesh ->
+        Result.bind (rdk_error (Rdk_rays.Rays_mesh.to_mesh geometry)) (fun mesh ->
           finish ~raster:(Scene3.instances_array ~material:raster_white mesh transforms) ()))
   | Wireframe when points_only ->
-      Result.bind (pdk_error (Pdk_prismel.Prismel_mesh.to_mesh geometry)) (fun mesh ->
+      Result.bind (rdk_error (Rdk_rays.Rays_mesh.to_mesh geometry)) (fun mesh ->
         finish ~wire:(points_node mesh transforms) ())
   | Wireframe ->
       Result.bind (Renderer.wire_mesh geometry) (fun mesh ->
@@ -130,8 +130,8 @@ let prepare settings (output : Session.output) =
 (* ---- sketch ---- *)
 
 let env name default of_string = Option.value ~default (Option.bind (Sys.getenv_opt name) of_string)
-let frames = env "PRISMEL_PATHTRACER_FRAMES" 0 int_of_string_opt
-let smoke_export = Sys.getenv_opt "PRISMEL_CAGE_EXPORT"
+let frames = env "RAYS_PATHTRACER_FRAMES" 0 int_of_string_opt
+let smoke_export = Sys.getenv_opt "RAYS_CAGE_EXPORT"
 let started = Unix.gettimeofday ()
 
 (* A progressive export: its own tracer at the camera's resolution, a few
@@ -162,7 +162,7 @@ let overlay tracer _graph prepared (frame : Frame.t) = match prepared with
   | _ -> []
 
 let empty_scene =
-  let placeholder = Result.get_ok (Pdk.Box_generator.box ~size:(v 0.01 0.01 0.01) ()) in
+  let placeholder = Result.get_ok (Rdk.Box_generator.box ~size:(v 0.01 0.01 0.01) ()) in
   { P.objects = [ (placeholder, white) ]; spheres = []; strands = []
   ; environment = { sky = rgb 0.003 0.003 0.004; ground = rgb 0.003 0.003 0.004; panels = [] }
   ; lights = [] }
@@ -172,7 +172,7 @@ let init _frame =
     match P.create ~bounces:4 ~exposure:1. ~width:64 ~height:64 empty_scene
     with Ok tracer -> tracer | Error message -> failwith message in
   let env =
-    let workspace, source = Prismel_editor.Workspace.open_text ~path:Sketch_source.path
+    let workspace, source = Rays_editor.Workspace.open_text ~path:Sketch_source.path
         ~digest:Sketch_source.digest Sketch_source.text in
     match Editor.create ~name:"cube_cage"
       ~camera:(Easy_camera.create ~target:Vec3.zero ~distance:30. ~azimuth:0.7
@@ -263,7 +263,7 @@ let update m (frame : Frame.t) =
   if frames > 0 && frame.count + 1 >= frames then begin
     Option.iter (fun path -> match Canvas.save_screen_png path with
       | Ok () -> Printf.printf "saved %s\n%!" path | Error e -> prerr_endline e)
-      (Sys.getenv_opt "PRISMEL_PATHTRACER_PNG");
+      (Sys.getenv_opt "RAYS_PATHTRACER_PNG");
     Printf.printf "%d frames  %d spp  %.1f ms/frame\n%!" frames (P.samples m.tracer)
       ((Unix.gettimeofday () -. started) *. 1000. /. float frames);
     Sketch.quit ()
@@ -294,7 +294,7 @@ let view m (frame : Frame.t) = Editor.scene m.env frame @ frame_lines m.env fram
 
 let () =
   ignore (Sketch.run_state
-    ~config:{ Sketch.default_config with width = 1280; height = 860; title = "Prismel cube cage"
+    ~config:{ Sketch.default_config with width = 1280; height = 860; title = "Rays cube cage"
             ; domains = Some 1 }
     ~init ~update ~view
     ~after_present:(fun m frame -> { m with env = Editor.after_present m.env frame })

@@ -1,6 +1,6 @@
 ---
 name: promote-manifests
-description: Accept an intended public API change in prismel. Use when runtest shows a diff of tools/api_manifest/api_stable.json after editing a public .mli.
+description: Accept an intended public API change in rays. Use when runtest shows a diff of tools/api_manifest/api_stable.json after editing a public .mli.
 ---
 
 1. `dune build @tools/api_manifest/runtest 2>&1 | grep '"source"'` lists the

@@ -1,4 +1,4 @@
-(** PXUI: Prismel's creative-coding UI kit.
+(** PXUI: Rays's creative-coding UI kit.
 
     {!Ui} is the immediate-mode core: build the interface every frame inside
     [Ui.frame], read widget values straight back into the sketch model, and
@@ -7,12 +7,12 @@
     reusable panels. *)
 
 type theme = Theme.t = {
-  panel : Prismel.Color.t;
-  foreground : Prismel.Color.t;
-  control : Prismel.Color.t;
-  input : Prismel.Color.t;
-  track : Prismel.Color.t;
-  accent : Prismel.Color.t;
+  panel : Rays.Color.t;
+  foreground : Rays.Color.t;
+  control : Rays.Color.t;
+  input : Rays.Color.t;
+  track : Rays.Color.t;
+  accent : Rays.Color.t;
 }
 
 val default_theme : theme

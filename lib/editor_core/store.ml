@@ -10,7 +10,7 @@ let write_text ~filename text =
     let directory = Filename.dirname filename in
     ensure_directory directory;
     let temporary, channel = Filename.open_temp_file ~temp_dir:directory
-      ".prismel-" ".tmp" in
+      ".rays-" ".tmp" in
     Fun.protect ~finally:(fun () ->
       close_out_noerr channel;
       if Sys.file_exists temporary then Sys.remove temporary) (fun () ->
@@ -53,7 +53,7 @@ let field (f : S.t) name = match f.node with
 
 (* The environment's view state in a preset: the viewport camera. *)
 module Viewport = struct
-  open Prismel
+  open Rays
 
   let encode3 easy ~look_through =
     let camera = Easy_camera.camera easy in

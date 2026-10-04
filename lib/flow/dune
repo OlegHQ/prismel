@@ -1,6 +1,6 @@
 (library
  (name flow)
- (public_name prismel.flow)
+ (public_name rays.flow)
  (modules diagnostic context symbol port_type check syntax ty lisp macro workspace eval)
  (libraries param))
 

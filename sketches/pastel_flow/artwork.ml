@@ -1,4 +1,4 @@
-open Prismel
+open Rays
 
 (* Normalized art coordinates, independent of the window and backing density.
    These are colored surface meshes; all rasterization is performed by Metal. *)

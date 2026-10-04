@@ -3320,7 +3320,7 @@
       (category "Workspace")
       (slots)
       (fields
-        (field "title" "Title (on restart)" (folder) (text) (text "Prismel") (primary false) (vec3))
+        (field "title" "Title (on restart)" (folder) (text) (text "Rays") (primary false) (vec3))
         (field "width" "Width (on restart)" (folder) (int (soft 320 3840) (hard 64 nil)) (int 1280) (primary false) (vec3))
         (field "height" "Height (on restart)" (folder) (int (soft 240 2160) (hard 64 nil)) (int 800) (primary false) (vec3))
         (field "fps" "Frames per second (on restart)" (folder) (int (soft 1 120) (hard 1 240)) (int 60) (primary false) (vec3))

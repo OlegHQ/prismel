@@ -85,7 +85,7 @@ let run () =
   let composition = match List.find_map (function
       | Event.Text_editing { text; _ } -> Some text | _ -> None) events with
     | Some text -> text | None -> fail "the composition did not arrive" in
-  (* The kinds Prismel never reads (pen, touch, gamepad, audio, display,
+  (* The kinds Rays never reads (pen, touch, gamepad, audio, display,
      clipboard, user, a sixth button, a text drop, window moves) are absent;
      the rest keep their order, SDL's macros chose every constructor, and the
      motion pair became one event with summed relative motion. *)

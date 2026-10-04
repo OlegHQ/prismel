@@ -8,10 +8,10 @@ val write_text : filename:string -> string -> (unit, string) result
 val read_text : filename:string -> (string, string) result
 
 module Viewport : sig
-  val encode3 : Prismel.Easy_camera.t -> look_through:bool -> Flow.Syntax.t
-  val decode3 : Prismel.Easy_camera.t -> Flow.Syntax.t -> Prismel.Easy_camera.t * bool
-  val encode2 : Prismel.Easy_camera2.t -> Flow.Syntax.t
-  val decode2 : Prismel.Easy_camera2.t -> Flow.Syntax.t -> Prismel.Easy_camera2.t
+  val encode3 : Rays.Easy_camera.t -> look_through:bool -> Flow.Syntax.t
+  val decode3 : Rays.Easy_camera.t -> Flow.Syntax.t -> Rays.Easy_camera.t * bool
+  val encode2 : Rays.Easy_camera2.t -> Flow.Syntax.t
+  val decode2 : Rays.Easy_camera2.t -> Flow.Syntax.t -> Rays.Easy_camera2.t
 end
 
 module Settings : sig

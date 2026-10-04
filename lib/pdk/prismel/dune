@@ -1,4 +1,0 @@
-(library
- (name pdk_prismel)
- (public_name prismel.pdk.prismel)
- (libraries pdk_core pdk_attrib pdk_mesh prismel))

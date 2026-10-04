@@ -18,8 +18,8 @@ let cook session domains graph =
   | Error error -> fail (Diagnostic.error_to_string error)
 
 let graph () =
-  Sop.grid ~counts:Pdk.Plane_generators.Grid_point_counts
-    ~connectivity:Pdk.Plane_generators.Grid_alternating_triangles
+  Sop.grid ~counts:Rdk.Plane_generators.Grid_point_counts
+    ~connectivity:Rdk.Plane_generators.Grid_alternating_triangles
     ~columns:28 ~rows:22 ~size:8. ()
   |> Sop.remesh ~label:"isotropic-remesh" ~target_length:0.28 ~iterations:1
        ~smoothing:0.35 ~project:true ~preserve_uv_seams:true
@@ -27,13 +27,13 @@ let graph () =
        ~output_quality:"quality"
 
 let signature geometry =
-  let positions = Pdk.Packed.Float3.Private.view (Pdk.Geometry.positions geometry)
-  and topology = Pdk.Topology.Private.view (Pdk.Geometry.topology geometry) in
-  let quality = match Pdk.Geometry.find_attribute ~owner:Pdk.Attribute.Primitive
+  let positions = Rdk.Packed.Float3.Private.view (Rdk.Geometry.positions geometry)
+  and topology = Rdk.Topology.Private.view (Rdk.Geometry.topology geometry) in
+  let quality = match Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Primitive
       "quality" geometry with
     | Some attribute ->
-        (match Pdk.Attribute.Private.storage attribute with
-         | Pdk.Attribute.Float values -> values
+        (match Rdk.Attribute.Private.storage attribute with
+         | Rdk.Attribute.Float values -> values
          | _ -> fail "Remesh SOP quality has wrong storage")
     | None -> fail "Remesh SOP quality is missing" in
   positions.x, positions.y, positions.z, topology.vertex_points,
@@ -65,12 +65,12 @@ let run () =
   let one = fresh 1 and four = fresh 4 in
   check (signature one = signature four)
     "Remesh SOP differs across one and four domains";
-  let hard = Pdk.Geometry.find_edge_group "hard" one |> Option.get
-  and index = Pdk.Topology_index.create (Pdk.Geometry.topology one) in
-  check (Pdk.Edge_group.cardinality hard
-      = Pdk.Topology_index.boundary_edge_count index)
+  let hard = Rdk.Geometry.find_edge_group "hard" one |> Option.get
+  and index = Rdk.Topology_index.create (Rdk.Geometry.topology one) in
+  check (Rdk.Edge_group.cardinality hard
+      = Rdk.Topology_index.boundary_edge_count index)
     "Remesh SOP hard-edge diagnostic is incomplete";
-  let missing = Sop.grid ~connectivity:Pdk.Plane_generators.Grid_triangles
+  let missing = Sop.grid ~connectivity:Rdk.Plane_generators.Grid_triangles
       ~columns:4 ~rows:4 ~size:1. ()
       |> Sop.remesh ~target_length:0.2 ~hard_edge_group:"missing" in
   let session = Session.create ~max_entries:4 ~max_payload_bytes:8_000_000

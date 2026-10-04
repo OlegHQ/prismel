@@ -193,7 +193,7 @@ let geometry_zone () =
 (* a footer counts a node that is not upstream of the display too: the cook is asked for it, and a
    failure there never fails the display (Async_cook.submit_some) *)
 let off_display () =
-  let module Cook = Prismel_editor.Private.Cook in
+  let module Cook = Rays_editor.Private.Cook in
   let text = "(workspace w (graph g :context sop (let* [a (sop/box) orphan (sop/uv_sphere) r (sop/transform a)] r)))" in
   let forms = match Flow.Syntax.parse text with Ok f -> f | Error d -> fail (Flow.Diagnostic.to_string d) in
   let lowered = match Lower.workspace ~extra:Editor_document.Contexts.descriptors
@@ -204,7 +204,7 @@ let off_display () =
   let orphan = Option.get (compiled [ "g"; "orphan" ]) and shown = Option.get (compiled [ "g"; "r" ]) in
   let cook = Result.get_ok (Cook.create ~await:true ~prepare:(fun _ output -> Ok output.Procedural.Session.geometry)
     ~seed:1L ~grain:97 ~domains:1 ~max_entries:512 ~max_payload_bytes:(256 * 1024 * 1024) ()) in
-  let update probes = Cook.update ~live:false ~probes cook ~settings:Prismel_editor.Settings.none
+  let update probes = Cook.update ~live:false ~probes cook ~settings:Rays_editor.Settings.none
     ~objects:(Lower.objects lowered) ~edit_error:None ~effects:Procedural.Parameter.no_effects
     ~timeline_changes:[] ~timeline:(Sketch_support.Timeline.create ())
     ~frame:{ (Test_editor_input.frame (0., 0.) [] 0) with dt = 0. } ~frame_request:None in

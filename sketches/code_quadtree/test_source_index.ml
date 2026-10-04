@@ -16,7 +16,7 @@ let () =
   require (Source_index.uri "/a b/#é.ml"="file:///a%20b/%23%C3%A9.ml") "URI escaping";
   require (Source_index.params_field `Null=[]) "shutdown must omit absent params";
   if Array.mem "--live" Sys.argv then begin
-    let root=Filename.temp_file "prismel lsp " ".fixture" in
+    let root=Filename.temp_file "rays lsp " ".fixture" in
     Sys.remove root;Unix.mkdir root 0o700;
     let file=Filename.concat root "nested source.ml" in
     let cache_directory=Filename.concat root "cache" in

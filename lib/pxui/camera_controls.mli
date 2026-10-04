@@ -15,14 +15,14 @@ module Camera_control : sig
   val open_camera : t -> t
 
   val widgets :
-    t -> Ui.t -> camera:Prismel.Easy_camera.t ->
-    t * Prismel.Easy_camera.t * render_request list
+    t -> Ui.t -> camera:Rays.Easy_camera.t ->
+    t * Rays.Easy_camera.t * render_request list
   (** Camera (FOV, distance, clipping, inertia, reset) and Render (output
       name, save) sections, inside the current panel. *)
 
   val navigate :
-    ?control_area:int * int * int * int -> t -> Prismel.Easy_camera.t ->
-    Prismel.Frame.t -> Prismel.Easy_camera.t
+    ?control_area:int * int * int * int -> t -> Rays.Easy_camera.t ->
+    Rays.Frame.t -> Rays.Easy_camera.t
   (** Orbit, pan (middle/right drag), and zoom inside [control_area]. *)
 
   val ui_visible : t -> bool
@@ -39,13 +39,13 @@ module Camera2_control : sig
   val toggle_ui : t -> t
   val open_camera : t -> t
   val widgets :
-    t -> Ui.t -> camera:Prismel.Easy_camera2.t ->
-    t * Prismel.Easy_camera2.t * render_request list
+    t -> Ui.t -> camera:Rays.Easy_camera2.t ->
+    t * Rays.Easy_camera2.t * render_request list
   (** Center, zoom, rotation, inertia, and reset, plus the Render section. *)
 
   val navigate :
     ?control_area:int * int * int * int -> ?viewport:int * int * int * int ->
-    t -> Prismel.Easy_camera2.t -> Prismel.Frame.t -> Prismel.Easy_camera2.t
+    t -> Rays.Easy_camera2.t -> Rays.Frame.t -> Rays.Easy_camera2.t
 
   val ui_visible : t -> bool
   val save : render_request -> (unit, string) result

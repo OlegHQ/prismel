@@ -1,18 +1,18 @@
-open Prismel
+open Rays
 open Procedural
 open Shared
 
 
 module Crease = struct
   let operation_parameter = Parameter.choice ~equal:( = ) [
-      "Add", Pdk.Crease.Crease_add;
-      "Set", Pdk.Crease.Crease_set;
-      "Delete", Pdk.Crease.Crease_delete;
+      "Add", Rdk.Crease.Crease_add;
+      "Set", Rdk.Crease.Crease_set;
+      "Delete", Rdk.Crease.Crease_delete;
     ]
 
   type parameters = {
     group : string [@sop.default ""] [@sop.label "Edge group"];
-    operation : Pdk.Crease.operation [@sop.default Pdk.Crease.Crease_add]
+    operation : Rdk.Crease.operation [@sop.default Rdk.Crease.Crease_add]
       [@sop.label "Operation"] [@sop.kind operation_parameter];
     weight : float [@sop.default 1.] [@sop.label "Weight"]
       [@sop.min 0.] [@sop.max 10.] [@sop.hard_min 0.];
@@ -41,9 +41,9 @@ module Subdivide = struct
     | Stitch_triangulate
 
   let scheme_parameter = Parameter.choice ~equal:( = ) [
-      "Catmull-Clark", Pdk.Subdivide.Catmull_clark;
-      "Loop", Pdk.Subdivide.Loop;
-      "Bilinear", Pdk.Subdivide.Bilinear;
+      "Catmull-Clark", Rdk.Subdivide.Catmull_clark;
+      "Loop", Rdk.Subdivide.Loop;
+      "Bilinear", Rdk.Subdivide.Bilinear;
     ]
 
   let cracks_parameter = Parameter.choice ~equal:( = ) [
@@ -57,34 +57,34 @@ module Subdivide = struct
     ]
 
   let boundary_parameter = Parameter.choice ~equal:( = ) [
-      "None", Pdk.Subdivide.Subdivide_boundary_none;
-      "Edge only", Pdk.Subdivide.Subdivide_boundary_edge_only;
-      "Edge and corner", Pdk.Subdivide.Subdivide_boundary_edge_and_corner;
+      "None", Rdk.Subdivide.Subdivide_boundary_none;
+      "Edge only", Rdk.Subdivide.Subdivide_boundary_edge_only;
+      "Edge and corner", Rdk.Subdivide.Subdivide_boundary_edge_and_corner;
     ]
 
   let fvar_parameter = Parameter.choice ~equal:( = ) [
-      "None", Pdk.Subdivide.Subdivide_fvar_none;
-      "Corners only", Pdk.Subdivide.Subdivide_fvar_corners_only;
-      "Corners plus 1", Pdk.Subdivide.Subdivide_fvar_corners_plus1;
-      "Corners plus 2", Pdk.Subdivide.Subdivide_fvar_corners_plus2;
-      "Boundaries", Pdk.Subdivide.Subdivide_fvar_boundaries;
-      "All", Pdk.Subdivide.Subdivide_fvar_all;
+      "None", Rdk.Subdivide.Subdivide_fvar_none;
+      "Corners only", Rdk.Subdivide.Subdivide_fvar_corners_only;
+      "Corners plus 1", Rdk.Subdivide.Subdivide_fvar_corners_plus1;
+      "Corners plus 2", Rdk.Subdivide.Subdivide_fvar_corners_plus2;
+      "Boundaries", Rdk.Subdivide.Subdivide_fvar_boundaries;
+      "All", Rdk.Subdivide.Subdivide_fvar_all;
     ]
 
   let triangle_parameter = Parameter.choice ~equal:( = ) [
-      "Catmull-Clark", Pdk.Subdivide.Subdivide_triangles_catmull_clark;
-      "Smooth", Pdk.Subdivide.Subdivide_triangles_smooth;
+      "Catmull-Clark", Rdk.Subdivide.Subdivide_triangles_catmull_clark;
+      "Smooth", Rdk.Subdivide.Subdivide_triangles_smooth;
     ]
 
   let creasing_parameter = Parameter.choice ~equal:( = ) [
-      "Uniform", Pdk.Subdivide.Subdivide_creasing_uniform;
-      "Chaikin", Pdk.Subdivide.Subdivide_creasing_chaikin;
+      "Uniform", Rdk.Subdivide.Subdivide_creasing_uniform;
+      "Chaikin", Rdk.Subdivide.Subdivide_creasing_chaikin;
     ]
 
   type parameters = {
     group : string [@sop.default ""] [@sop.label "Primitive group"];
-    scheme : Pdk.Subdivide.scheme
-      [@sop.default Pdk.Subdivide.Catmull_clark]
+    scheme : Rdk.Subdivide.scheme
+      [@sop.default Rdk.Subdivide.Catmull_clark]
       [@sop.label "Scheme"] [@sop.kind scheme_parameter];
     iterations : int [@sop.default 1] [@sop.label "Depth"]
       [@sop.min 1] [@sop.max 6] [@sop.hard_min 1];
@@ -107,21 +107,21 @@ module Subdivide = struct
       [@sop.label "Hole group"] [@sop.folder "Holes"];
     remove_holes : bool [@sop.default false] [@sop.label "Remove holes"]
       [@sop.folder "Holes"];
-    boundary_interpolation : Pdk.Subdivide.boundary_interpolation
-      [@sop.default Pdk.Subdivide.Subdivide_boundary_edge_and_corner]
+    boundary_interpolation : Rdk.Subdivide.boundary_interpolation
+      [@sop.default Rdk.Subdivide.Subdivide_boundary_edge_and_corner]
       [@sop.label "Point boundaries"] [@sop.folder "Interpolation"]
       [@sop.kind boundary_parameter];
     face_varying_interpolation :
-      Pdk.Subdivide.face_varying_interpolation
-      [@sop.default Pdk.Subdivide.Subdivide_fvar_boundaries]
+      Rdk.Subdivide.face_varying_interpolation
+      [@sop.default Rdk.Subdivide.Subdivide_fvar_boundaries]
       [@sop.label "Vertex boundaries"] [@sop.folder "Interpolation"]
       [@sop.kind fvar_parameter];
-    triangle_policy : Pdk.Subdivide.triangle_policy
-      [@sop.default Pdk.Subdivide.Subdivide_triangles_catmull_clark]
+    triangle_policy : Rdk.Subdivide.triangle_policy
+      [@sop.default Rdk.Subdivide.Subdivide_triangles_catmull_clark]
       [@sop.label "Triangles"] [@sop.folder "Interpolation"]
       [@sop.kind triangle_parameter];
-    creasing_method : Pdk.Subdivide.creasing_method
-      [@sop.default Pdk.Subdivide.Subdivide_creasing_uniform]
+    creasing_method : Rdk.Subdivide.creasing_method
+      [@sop.default Rdk.Subdivide.Subdivide_creasing_uniform]
       [@sop.label "Creasing method"] [@sop.folder "Creases"]
       [@sop.kind creasing_parameter];
     treat_curves_as_independent : bool [@sop.default false]
@@ -133,14 +133,14 @@ module Subdivide = struct
     [@@sop.node_optional "1"] [@@deriving sop_params, sop_node]
 
   let cracks parameters = match parameters.cracks with
-    | Do_not_close -> Pdk.Subdivide.Subdivide_do_not_close
-    | Pull_no_division -> Pdk.Subdivide.Subdivide_pull_no_edge_division
-    | Pull_divide -> Pdk.Subdivide.Subdivide_pull_divide_edges parameters.crack_bias
+    | Do_not_close -> Rdk.Subdivide.Subdivide_do_not_close
+    | Pull_no_division -> Rdk.Subdivide.Subdivide_pull_no_edge_division
+    | Pull_divide -> Rdk.Subdivide.Subdivide_pull_divide_edges parameters.crack_bias
     | Pull_triangulate ->
-        Pdk.Subdivide.Subdivide_pull_triangulate parameters.crack_bias
-    | Stitch_no_division -> Pdk.Subdivide.Subdivide_stitch_no_edge_division
-    | Stitch_divide -> Pdk.Subdivide.Subdivide_stitch_divide_edges
-    | Stitch_triangulate -> Pdk.Subdivide.Subdivide_stitch_triangulate
+        Rdk.Subdivide.Subdivide_pull_triangulate parameters.crack_bias
+    | Stitch_no_division -> Rdk.Subdivide.Subdivide_stitch_no_edge_division
+    | Stitch_divide -> Rdk.Subdivide.Subdivide_stitch_divide_edges
+    | Stitch_triangulate -> Rdk.Subdivide.Subdivide_stitch_triangulate
 
   let build = parameters_build (fun ~label parameters input creases ->
     Sop.subdivide ~label ?group:(optional_text parameters.group)
@@ -184,29 +184,29 @@ end
 
 module Edge_collapse = struct
   let position_parameter = Parameter.choice ~equal:( = ) [
-      "First", Pdk.Fuse_reduce.First_position;
-      "Least point", Pdk.Fuse_reduce.Least_point_position;
-      "Greatest point", Pdk.Fuse_reduce.Greatest_point_position;
-      "Average", Pdk.Fuse_reduce.Average_position;
-      "Minimum", Pdk.Fuse_reduce.Minimum_position;
-      "Maximum", Pdk.Fuse_reduce.Maximum_position;
-      "Mode", Pdk.Fuse_reduce.Mode_position;
-      "Median", Pdk.Fuse_reduce.Median_position;
-      "Sum", Pdk.Fuse_reduce.Sum_position;
-      "Sum squares", Pdk.Fuse_reduce.Sum_squares_position;
-      "Root mean square", Pdk.Fuse_reduce.Root_mean_square_position;
-      "Weighted average", Pdk.Fuse_reduce.Weighted_average_position;
-      "Weighted sum", Pdk.Fuse_reduce.Weighted_sum_position;
-      "Minimum weight", Pdk.Fuse_reduce.Minimum_weight_position;
-      "Maximum weight", Pdk.Fuse_reduce.Maximum_weight_position;
+      "First", Rdk.Fuse_reduce.First_position;
+      "Least point", Rdk.Fuse_reduce.Least_point_position;
+      "Greatest point", Rdk.Fuse_reduce.Greatest_point_position;
+      "Average", Rdk.Fuse_reduce.Average_position;
+      "Minimum", Rdk.Fuse_reduce.Minimum_position;
+      "Maximum", Rdk.Fuse_reduce.Maximum_position;
+      "Mode", Rdk.Fuse_reduce.Mode_position;
+      "Median", Rdk.Fuse_reduce.Median_position;
+      "Sum", Rdk.Fuse_reduce.Sum_position;
+      "Sum squares", Rdk.Fuse_reduce.Sum_squares_position;
+      "Root mean square", Rdk.Fuse_reduce.Root_mean_square_position;
+      "Weighted average", Rdk.Fuse_reduce.Weighted_average_position;
+      "Weighted sum", Rdk.Fuse_reduce.Weighted_sum_position;
+      "Minimum weight", Rdk.Fuse_reduce.Minimum_weight_position;
+      "Maximum weight", Rdk.Fuse_reduce.Maximum_weight_position;
     ]
 
   type parameters = {
     group : string [@sop.default ""] [@sop.label "Edge group"];
     connectivity_attribute : string [@sop.default ""]
       [@sop.label "Connectivity attribute"];
-    position : Pdk.Fuse_reduce.position
-      [@sop.default Pdk.Fuse_reduce.Average_position]
+    position : Rdk.Fuse_reduce.position
+      [@sop.default Rdk.Fuse_reduce.Average_position]
       [@sop.label "Position"] [@sop.kind position_parameter];
     remove_degenerate_primitives : bool [@sop.default true]
       [@sop.label "Remove degenerate primitives"] [@sop.folder "Cleanup"];
@@ -229,23 +229,23 @@ end
 
 module Dissolve = struct
   let operation_parameter = Parameter.choice ~equal:( = ) [
-      "Selected", Pdk.Dissolve.Dissolve_selected;
-      "Non-selected", Pdk.Dissolve.Dissolve_non_selected;
+      "Selected", Rdk.Dissolve.Dissolve_selected;
+      "Non-selected", Rdk.Dissolve.Dissolve_non_selected;
     ]
 
   let bridge_parameter = Parameter.choice ~equal:( = ) [
-      "Create bridged polygons", Pdk.Dissolve.Create_bridged_polygons;
-      "Create disjoint polygons", Pdk.Dissolve.Create_disjoint_polygons;
-      "Delete bridge polygons", Pdk.Dissolve.Delete_bridge_polygons;
+      "Create bridged polygons", Rdk.Dissolve.Create_bridged_polygons;
+      "Create disjoint polygons", Rdk.Dissolve.Create_disjoint_polygons;
+      "Delete bridge polygons", Rdk.Dissolve.Delete_bridge_polygons;
     ]
 
   type parameters = {
     group : string [@sop.default ""] [@sop.label "Edge group"];
-    operation : Pdk.Dissolve.operation
-      [@sop.default Pdk.Dissolve.Dissolve_selected]
+    operation : Rdk.Dissolve.operation
+      [@sop.default Rdk.Dissolve.Dissolve_selected]
       [@sop.label "Operation"] [@sop.kind operation_parameter];
-    bridge_policy : Pdk.Dissolve.bridge_policy
-      [@sop.default Pdk.Dissolve.Create_bridged_polygons]
+    bridge_policy : Rdk.Dissolve.bridge_policy
+      [@sop.default Rdk.Dissolve.Create_bridged_polygons]
       [@sop.label "Bridge loops"] [@sop.kind bridge_parameter];
     remove_inline_points : bool [@sop.default true]
       [@sop.label "Remove inline points"] [@sop.folder "Cleanup"];
@@ -312,8 +312,8 @@ module Poly_bevel = struct
 
   let build = parameters_build (fun ~label parameters input ->
     let shape = match parameters.shape with
-      | Chamfer -> Pdk.Poly_bevel.Bevel_chamfer
-      | Round -> Pdk.Poly_bevel.Bevel_round { convexity = parameters.convexity } in
+      | Chamfer -> Rdk.Poly_bevel.Bevel_chamfer
+      | Round -> Rdk.Poly_bevel.Bevel_round { convexity = parameters.convexity } in
     Sop.poly_bevel ~label ?group:(optional_text parameters.group) ~shape
       ~divisions:parameters.divisions
       ?point_scale_attribute:(optional_text parameters.point_scale_attribute)
@@ -366,8 +366,8 @@ module Reverse = struct
 
   let build = parameters_build (fun ~label parameters input ->
     let operation = match parameters.operation with
-      | Reverse -> Pdk.Reverse_faces.Reverse_vertices
-      | Shift -> Pdk.Reverse_faces.Shift_vertices parameters.shift in
+      | Reverse -> Rdk.Reverse_faces.Reverse_vertices
+      | Shift -> Rdk.Reverse_faces.Shift_vertices parameters.shift in
     Sop.reverse ~label ?group:(optional_text parameters.group) ~operation input)
 
   let factory = parameters_factory build
@@ -375,8 +375,8 @@ end
 
 module Clean = struct
   let overlaps_parameter = Parameter.choice ~equal:( = ) [
-      "Keep first", Pdk.Clean.Keep_first_overlap;
-      "Delete pairs", Pdk.Clean.Delete_overlap_pairs;
+      "Keep first", Rdk.Clean.Keep_first_overlap;
+      "Delete pairs", Rdk.Clean.Delete_overlap_pairs;
     ]
 
   type parameters = {
@@ -388,8 +388,8 @@ module Clean = struct
     consolidate_distance : float [@sop.default 0.]
       [@sop.label "Consolidate distance"] [@sop.min 0.] [@sop.max 0.1]
       [@sop.hard_min 0.];
-    overlaps : Pdk.Clean.overlap_policy
-      [@sop.default Pdk.Clean.Keep_first_overlap]
+    overlaps : Rdk.Clean.overlap_policy
+      [@sop.default Rdk.Clean.Keep_first_overlap]
       [@sop.label "Overlaps"] [@sop.kind overlaps_parameter];
     reverse_winding : bool [@sop.default false]
       [@sop.label "Reverse winding"];
@@ -578,15 +578,15 @@ end
 
 module Edge_equalize = struct
   let method_parameter = Parameter.choice ~equal:( = ) [
-      "Average", Pdk.Edge_ops.Equalize_average;
-      "Longest", Pdk.Edge_ops.Equalize_longest;
-      "Shortest", Pdk.Edge_ops.Equalize_shortest;
+      "Average", Rdk.Edge_ops.Equalize_average;
+      "Longest", Rdk.Edge_ops.Equalize_longest;
+      "Shortest", Rdk.Edge_ops.Equalize_shortest;
     ]
 
   type parameters = {
     group : string [@sop.default ""] [@sop.label "Edge group"];
-    method_ : Pdk.Edge_ops.equalize_method
-      [@sop.default Pdk.Edge_ops.Equalize_average]
+    method_ : Rdk.Edge_ops.equalize_method
+      [@sop.default Rdk.Edge_ops.Equalize_average]
       [@sop.label "Method"] [@sop.kind method_parameter];
     iterations : int [@sop.default 64] [@sop.label "Iterations"]
       [@sop.min 1] [@sop.max 256] [@sop.hard_min 1];
@@ -659,8 +659,8 @@ end
 
 module Poly_extrude = struct
   let divide_parameter = Parameter.choice ~equal:( = ) [
-      "Individual elements", Pdk.Poly_extrude.Extrude_individual;
-      "Connected components", Pdk.Poly_extrude.Extrude_connected_components;
+      "Individual elements", Rdk.Poly_extrude.Extrude_individual;
+      "Connected components", Rdk.Poly_extrude.Extrude_connected_components;
     ]
 
   type parameters = {
@@ -668,8 +668,8 @@ module Poly_extrude = struct
     split_edges : string [@sop.default ""] [@sop.label "Split edge group"];
     distance : float [@sop.default 0.1] [@sop.label "Distance"]
       [@sop.min (-10.)] [@sop.max 10.];
-    divide : Pdk.Poly_extrude.divide
-      [@sop.default Pdk.Poly_extrude.Extrude_individual]
+    divide : Rdk.Poly_extrude.divide
+      [@sop.default Rdk.Poly_extrude.Extrude_individual]
       [@sop.label "Divide into"] [@sop.kind divide_parameter];
     divisions : int [@sop.default 1] [@sop.label "Divisions"]
       [@sop.min 1] [@sop.max 64] [@sop.hard_min 1];
@@ -711,14 +711,14 @@ end
 
 module Poly_fill = struct
   let mode_parameter = Parameter.choice ~equal:( = ) [
-      "Single polygon", Pdk.Poly_fill.Fill_single_polygon;
-      "Triangles", Pdk.Poly_fill.Fill_triangles;
-      "Triangle fan", Pdk.Poly_fill.Fill_triangle_fan;
+      "Single polygon", Rdk.Poly_fill.Fill_single_polygon;
+      "Triangles", Rdk.Poly_fill.Fill_triangles;
+      "Triangle fan", Rdk.Poly_fill.Fill_triangle_fan;
     ]
 
   type parameters = {
     boundary_group : string [@sop.default ""] [@sop.label "Boundary group"];
-    mode : Pdk.Poly_fill.mode [@sop.default Pdk.Poly_fill.Fill_triangles]
+    mode : Rdk.Poly_fill.mode [@sop.default Rdk.Poly_fill.Fill_triangles]
       [@sop.label "Fill mode"] [@sop.kind mode_parameter];
     reverse_patches : bool [@sop.default false]
       [@sop.label "Reverse patches"];
@@ -824,13 +824,13 @@ end
 
 module Carve = struct
   let attribute_mode_parameter = Parameter.choice ~equal:( = ) [
-      "Replace", Pdk.Curve_ops.Replace;
-      "Scale", Pdk.Curve_ops.Scale;
+      "Replace", Rdk.Curve_ops.Replace;
+      "Scale", Rdk.Curve_ops.Scale;
     ]
   let keep_parameter = Parameter.choice ~equal:( = ) [
-      "Inside", Pdk.Curve_ops.Inside;
-      "Outside", Pdk.Curve_ops.Outside;
-      "Inside and outside", Pdk.Curve_ops.Inside_and_outside;
+      "Inside", Rdk.Curve_ops.Inside;
+      "Outside", Rdk.Curve_ops.Outside;
+      "Inside and outside", Rdk.Curve_ops.Inside_and_outside;
     ]
 
   type parameters = {
@@ -845,15 +845,15 @@ module Carve = struct
       [@sop.label "First attribute"] [@sop.folder "Attributes"];
     last_attribute : string [@sop.default ""]
       [@sop.label "Second attribute"] [@sop.folder "Attributes"];
-    attribute_mode : Pdk.Curve_ops.parameter_attribute_mode
-      [@sop.default Pdk.Curve_ops.Replace]
+    attribute_mode : Rdk.Curve_ops.parameter_attribute_mode
+      [@sop.default Rdk.Curve_ops.Replace]
       [@sop.label "Attribute mode"] [@sop.folder "Attributes"]
       [@sop.kind attribute_mode_parameter];
     only_at_breakpoints : bool [@sop.default false]
       [@sop.label "Only at breakpoints"];
     cut_at_all_internal_breakpoints : bool [@sop.default false]
       [@sop.label "Cut at internal breakpoints"];
-    keep : Pdk.Curve_ops.cut_mode [@sop.default Pdk.Curve_ops.Inside]
+    keep : Rdk.Curve_ops.cut_mode [@sop.default Rdk.Curve_ops.Inside]
       [@sop.label "Keep"] [@sop.kind keep_parameter];
     extract_points : bool [@sop.default false] [@sop.label "Extract points"];
     divisions : int [@sop.default 1] [@sop.label "Divisions"]
@@ -882,15 +882,15 @@ end
 
 module Ends = struct
   let mode_parameter = Parameter.choice ~equal:( = ) [
-      "Open", Pdk.Curve_topology.Ends_open;
-      "Close straight", Pdk.Curve_topology.Ends_close_straight;
-      "Unroll shared point", Pdk.Curve_topology.Ends_unroll_shared;
-      "Unroll new point", Pdk.Curve_topology.Ends_unroll_new;
+      "Open", Rdk.Curve_topology.Ends_open;
+      "Close straight", Rdk.Curve_topology.Ends_close_straight;
+      "Unroll shared point", Rdk.Curve_topology.Ends_unroll_shared;
+      "Unroll new point", Rdk.Curve_topology.Ends_unroll_new;
     ]
 
   type parameters = {
     group : string [@sop.default ""] [@sop.label "Primitive group"];
-    mode : Pdk.Curve_topology.ends_mode [@sop.default Pdk.Curve_topology.Ends_open]
+    mode : Rdk.Curve_topology.ends_mode [@sop.default Rdk.Curve_topology.Ends_open]
       [@sop.label "U end"] [@sop.kind mode_parameter];
   } [@@sop.node_key "ends"] [@@sop.node_label "Ends"]
     [@@sop.node_category "Topology/Curve"] [@@sop.node_inputs 1]
@@ -964,16 +964,16 @@ end
 
 module Boolean_fracture = struct
   let detriangulation_parameter = Parameter.choice ~equal:( = ) [
-      "Triangles", Pdk.Boolean.Triangles;
-      "Unchanged polygons", Pdk.Boolean.Unchanged_polygons;
-      "All polygons", Pdk.Boolean.All_polygons;
+      "Triangles", Rdk.Boolean.Triangles;
+      "Unchanged polygons", Rdk.Boolean.Unchanged_polygons;
+      "All polygons", Rdk.Boolean.All_polygons;
     ]
 
   type parameters = {
     resolve_cutter_self_intersections : bool [@sop.default false]
       [@sop.label "Resolve cutter self-intersections"];
-    detriangulation : Pdk.Boolean.detriangulation
-      [@sop.default Pdk.Boolean.Triangles]
+    detriangulation : Rdk.Boolean.detriangulation
+      [@sop.default Rdk.Boolean.Triangles]
       [@sop.label "Polygons"] [@sop.kind detriangulation_parameter];
     require_closed : bool [@sop.default true] [@sop.label "Require closed"];
     piece_attribute : string [@sop.default "piece"]
@@ -1024,28 +1024,28 @@ module Boolean = struct
   type closed_policy = Closed_default | Closed_required | Closed_not_required
 
   let operation_parameter = Parameter.choice ~equal:( = ) [
-      "Union", Pdk.Boolean.Union;
-      "Intersection", Pdk.Boolean.Intersection;
-      "Subtract B from A", Pdk.Boolean.Difference;
-      "Subtract A from B", Pdk.Boolean.Reverse_difference;
-      "Exclusive or", Pdk.Boolean.Xor;
-      "Shatter", Pdk.Boolean.Shatter;
+      "Union", Rdk.Boolean.Union;
+      "Intersection", Rdk.Boolean.Intersection;
+      "Subtract B from A", Rdk.Boolean.Difference;
+      "Subtract A from B", Rdk.Boolean.Reverse_difference;
+      "Exclusive or", Rdk.Boolean.Xor;
+      "Shatter", Rdk.Boolean.Shatter;
     ]
   let treatment_parameter = Parameter.choice ~equal:( = ) [
-      "Solid", Pdk.Boolean.Solid; "Surface", Pdk.Boolean.Surface;
+      "Solid", Rdk.Boolean.Solid; "Surface", Rdk.Boolean.Surface;
     ]
   let conflict_parameter = Parameter.choice ~equal:( = ) [
-      "Reject conflict", Pdk.Boolean.Reject;
-      "Promote to vertex", Pdk.Boolean.Promote_to_vertex;
+      "Reject conflict", Rdk.Boolean.Reject;
+      "Promote to vertex", Rdk.Boolean.Promote_to_vertex;
     ]
   let seam_points_parameter = Parameter.choice ~equal:( = ) [
-      "Shared", Pdk.Boolean.Shared_seam_points;
-      "Split", Pdk.Boolean.Split_seam_points;
+      "Shared", Rdk.Boolean.Shared_seam_points;
+      "Split", Rdk.Boolean.Split_seam_points;
     ]
   let detriangulation_parameter = Parameter.choice ~equal:( = ) [
-      "Triangles", Pdk.Boolean.Triangles;
-      "Unchanged polygons", Pdk.Boolean.Unchanged_polygons;
-      "All polygons", Pdk.Boolean.All_polygons;
+      "Triangles", Rdk.Boolean.Triangles;
+      "Unchanged polygons", Rdk.Boolean.Unchanged_polygons;
+      "All polygons", Rdk.Boolean.All_polygons;
     ]
   let closed_parameter = Parameter.choice ~equal:( = ) [
       "Operation default", Closed_default;
@@ -1054,20 +1054,20 @@ module Boolean = struct
     ]
 
   type parameters = {
-    operation : Pdk.Boolean.operation [@sop.default Pdk.Boolean.Union]
+    operation : Rdk.Boolean.operation [@sop.default Rdk.Boolean.Union]
       [@sop.label "Operation"] [@sop.kind operation_parameter];
-    left_treatment : Pdk.Boolean.treatment [@sop.default Pdk.Boolean.Solid]
+    left_treatment : Rdk.Boolean.treatment [@sop.default Rdk.Boolean.Solid]
       [@sop.label "A treatment"] [@sop.folder "Operands"]
       [@sop.kind treatment_parameter];
-    right_treatment : Pdk.Boolean.treatment [@sop.default Pdk.Boolean.Solid]
+    right_treatment : Rdk.Boolean.treatment [@sop.default Rdk.Boolean.Solid]
       [@sop.label "B treatment"] [@sop.folder "Operands"]
       [@sop.kind treatment_parameter];
     resolve_left_self_intersections : bool [@sop.default false]
       [@sop.label "Resolve A self-intersections"] [@sop.folder "Operands"];
     resolve_right_self_intersections : bool [@sop.default false]
       [@sop.label "Resolve B self-intersections"] [@sop.folder "Operands"];
-    point_conflict : Pdk.Boolean.point_conflict
-      [@sop.default Pdk.Boolean.Promote_to_vertex]
+    point_conflict : Rdk.Boolean.point_conflict
+      [@sop.default Rdk.Boolean.Promote_to_vertex]
       [@sop.label "Point attribute conflicts"] [@sop.folder "Attributes"]
       [@sop.kind conflict_parameter];
     point_tolerance : float [@sop.default 0.] [@sop.label "Point tolerance"]
@@ -1081,12 +1081,12 @@ module Boolean = struct
       [@sop.min 1] [@sop.max 32] [@sop.hard_min 1];
     strict_cleanup : bool [@sop.default true] [@sop.label "Strict cleanup"]
       [@sop.folder "Robustness"];
-    seam_points : Pdk.Boolean.seam_points
-      [@sop.default Pdk.Boolean.Shared_seam_points]
+    seam_points : Rdk.Boolean.seam_points
+      [@sop.default Rdk.Boolean.Shared_seam_points]
       [@sop.label "Seam points"] [@sop.folder "Output"]
       [@sop.kind seam_points_parameter];
-    detriangulation : Pdk.Boolean.detriangulation
-      [@sop.default Pdk.Boolean.Triangles]
+    detriangulation : Rdk.Boolean.detriangulation
+      [@sop.default Rdk.Boolean.Triangles]
       [@sop.label "Polygons"] [@sop.folder "Output"]
       [@sop.kind detriangulation_parameter];
     assume_flat : bool [@sop.default false] [@sop.label "Assume flat"]
@@ -1146,20 +1146,20 @@ end
 
 module Boolean_seam = struct
   let output_parameter = Parameter.choice ~equal:( = ) [
-      "Seam curves", Pdk.Boolean.Seam_curves;
-      "Coincident patches", Pdk.Boolean.Coincident_patches;
+      "Seam curves", Rdk.Boolean.Seam_curves;
+      "Coincident patches", Rdk.Boolean.Coincident_patches;
     ]
   let treatment_parameter = Parameter.choice ~equal:( = ) [
-      "Solid", Pdk.Boolean.Solid; "Surface", Pdk.Boolean.Surface;
+      "Solid", Rdk.Boolean.Solid; "Surface", Rdk.Boolean.Surface;
     ]
 
   type parameters = {
-    output : Pdk.Boolean.seam_output [@sop.default Pdk.Boolean.Seam_curves]
+    output : Rdk.Boolean.seam_output [@sop.default Rdk.Boolean.Seam_curves]
       [@sop.label "Output"] [@sop.kind output_parameter];
-    left_treatment : Pdk.Boolean.treatment [@sop.default Pdk.Boolean.Solid]
+    left_treatment : Rdk.Boolean.treatment [@sop.default Rdk.Boolean.Solid]
       [@sop.label "A treatment"] [@sop.folder "Operands"]
       [@sop.kind treatment_parameter];
-    right_treatment : Pdk.Boolean.treatment [@sop.default Pdk.Boolean.Solid]
+    right_treatment : Rdk.Boolean.treatment [@sop.default Rdk.Boolean.Solid]
       [@sop.label "B treatment"] [@sop.folder "Operands"]
       [@sop.kind treatment_parameter];
     resolve_left_self_intersections : bool [@sop.default false]
@@ -1326,9 +1326,9 @@ module Poly_reduce = struct
 
   let build = parameters_build (fun ~label parameters input ->
     let target = match parameters.target_mode with
-      | Ratio -> Pdk.Poly_reduce.Reduce_ratio parameters.ratio
+      | Ratio -> Rdk.Poly_reduce.Reduce_ratio parameters.ratio
       | Primitive_count ->
-          Pdk.Poly_reduce.Reduce_primitive_count parameters.primitive_count in
+          Rdk.Poly_reduce.Reduce_primitive_count parameters.primitive_count in
     let max_normal_deviation = if parameters.limit_normal_deviation
       then Some parameters.max_normal_deviation else None in
     Sop.poly_reduce ~label ?group:(optional_text parameters.group)
@@ -1375,37 +1375,37 @@ module Fuse = struct
       "Near points", Near_points; "Specified points", Specified_points;
     ]
   let using_parameter = Parameter.choice ~equal:( = ) [
-      "Least target point", Pdk.Fuse_grid.Least_target_point;
-      "Closest target point", Pdk.Fuse_grid.Closest_target_point;
+      "Least target point", Rdk.Fuse_grid.Least_target_point;
+      "Closest target point", Rdk.Fuse_grid.Closest_target_point;
     ]
   let position_parameter = Parameter.choice ~equal:( = ) [
-      "First", Pdk.Fuse_reduce.First_position;
-      "Least point", Pdk.Fuse_reduce.Least_point_position;
-      "Greatest point", Pdk.Fuse_reduce.Greatest_point_position;
-      "Average", Pdk.Fuse_reduce.Average_position;
-      "Minimum", Pdk.Fuse_reduce.Minimum_position;
-      "Maximum", Pdk.Fuse_reduce.Maximum_position;
-      "Mode", Pdk.Fuse_reduce.Mode_position;
-      "Median", Pdk.Fuse_reduce.Median_position;
-      "Sum", Pdk.Fuse_reduce.Sum_position;
-      "Sum squares", Pdk.Fuse_reduce.Sum_squares_position;
-      "Root mean square", Pdk.Fuse_reduce.Root_mean_square_position;
-      "Weighted average", Pdk.Fuse_reduce.Weighted_average_position;
-      "Weighted sum", Pdk.Fuse_reduce.Weighted_sum_position;
-      "Minimum weight", Pdk.Fuse_reduce.Minimum_weight_position;
-      "Maximum weight", Pdk.Fuse_reduce.Maximum_weight_position;
+      "First", Rdk.Fuse_reduce.First_position;
+      "Least point", Rdk.Fuse_reduce.Least_point_position;
+      "Greatest point", Rdk.Fuse_reduce.Greatest_point_position;
+      "Average", Rdk.Fuse_reduce.Average_position;
+      "Minimum", Rdk.Fuse_reduce.Minimum_position;
+      "Maximum", Rdk.Fuse_reduce.Maximum_position;
+      "Mode", Rdk.Fuse_reduce.Mode_position;
+      "Median", Rdk.Fuse_reduce.Median_position;
+      "Sum", Rdk.Fuse_reduce.Sum_position;
+      "Sum squares", Rdk.Fuse_reduce.Sum_squares_position;
+      "Root mean square", Rdk.Fuse_reduce.Root_mean_square_position;
+      "Weighted average", Rdk.Fuse_reduce.Weighted_average_position;
+      "Weighted sum", Rdk.Fuse_reduce.Weighted_sum_position;
+      "Minimum weight", Rdk.Fuse_reduce.Minimum_weight_position;
+      "Maximum weight", Rdk.Fuse_reduce.Maximum_weight_position;
     ]
   let attributes_parameter = Parameter.choice ~equal:( = ) [
-      "Keep first", Pdk.Fuse_reduce.Keep_first;
-      "Average numeric", Pdk.Fuse_reduce.Average_numeric;
+      "Keep first", Rdk.Fuse_reduce.Keep_first;
+      "Average numeric", Rdk.Fuse_reduce.Average_numeric;
     ]
   let metric_parameter = Parameter.choice ~equal:( = ) [
-      "Euclidean", Pdk.Fuse_grid.Euclidean;
-      "Componentwise", Pdk.Fuse_grid.Componentwise;
+      "Euclidean", Rdk.Fuse_grid.Euclidean;
+      "Componentwise", Rdk.Fuse_grid.Componentwise;
     ]
   let condition_parameter = Parameter.choice ~equal:( = ) [
-      "Equal", Pdk.Fuse_grid.Equal_attribute_values;
-      "Unequal", Pdk.Fuse_grid.Unequal_attribute_values;
+      "Equal", Rdk.Fuse_grid.Equal_attribute_values;
+      "Unequal", Rdk.Fuse_grid.Unequal_attribute_values;
     ]
 
   type parameters = {
@@ -1415,19 +1415,19 @@ module Fuse = struct
       [@sop.label "Targeting"] [@sop.kind targeting_parameter];
     target_attribute : string [@sop.default "targetpoint"]
       [@sop.label "Target point attribute"];
-    using : Pdk.Fuse_grid.fuse_using [@sop.default Pdk.Fuse_grid.Least_target_point]
+    using : Rdk.Fuse_grid.fuse_using [@sop.default Rdk.Fuse_grid.Least_target_point]
       [@sop.label "Use target"] [@sop.kind using_parameter];
     tolerance : float [@sop.default 0.001] [@sop.label "Snap distance"]
       [@sop.min 0.] [@sop.max 10.] [@sop.hard_min 0.];
-    position : Pdk.Fuse_reduce.position [@sop.default Pdk.Fuse_reduce.Average_position]
+    position : Rdk.Fuse_reduce.position [@sop.default Rdk.Fuse_reduce.Average_position]
       [@sop.label "Position"] [@sop.folder "Fuse"]
       [@sop.kind position_parameter];
     weight_attribute : string [@sop.default ""]
       [@sop.label "Weight attribute"] [@sop.folder "Fuse"];
-    attributes : Pdk.Fuse_reduce.attributes [@sop.default Pdk.Fuse_reduce.Keep_first]
+    attributes : Rdk.Fuse_reduce.attributes [@sop.default Rdk.Fuse_reduce.Keep_first]
       [@sop.label "Attributes"] [@sop.folder "Fuse"]
       [@sop.kind attributes_parameter];
-    metric : Pdk.Fuse_grid.fuse_metric [@sop.default Pdk.Fuse_grid.Euclidean]
+    metric : Rdk.Fuse_grid.fuse_metric [@sop.default Rdk.Fuse_grid.Euclidean]
       [@sop.label "Metric"] [@sop.folder "Matching"]
       [@sop.kind metric_parameter];
     inclusive : bool [@sop.default true] [@sop.label "Inclusive distance"]
@@ -1438,8 +1438,8 @@ module Fuse = struct
       [@sop.label "Radius attribute"] [@sop.folder "Matching"];
     match_attribute : string [@sop.default ""]
       [@sop.label "Match attribute"] [@sop.folder "Matching"];
-    match_condition : Pdk.Fuse_grid.fuse_match_condition
-      [@sop.default Pdk.Fuse_grid.Equal_attribute_values]
+    match_condition : Rdk.Fuse_grid.fuse_match_condition
+      [@sop.default Rdk.Fuse_grid.Equal_attribute_values]
       [@sop.label "Match condition"] [@sop.folder "Matching"]
       [@sop.kind condition_parameter];
     match_tolerance : float [@sop.default 0.] [@sop.label "Match tolerance"]
@@ -1464,8 +1464,8 @@ module Fuse = struct
     [@@sop.node_optional "1"] [@@deriving sop_params, sop_node]
 
   let targeting parameters = match parameters.targeting with
-    | Near_points -> Pdk.Fuse_grid.Near_points
-    | Specified_points -> Pdk.Fuse_grid.Specified_points parameters.target_attribute
+    | Near_points -> Rdk.Fuse_grid.Near_points
+    | Specified_points -> Rdk.Fuse_grid.Specified_points parameters.target_attribute
 
   let build = parameters_build (fun ~label parameters input target ->
     Sop.fuse ~label ?group:(optional_text parameters.group)
@@ -1520,12 +1520,12 @@ end
 
 module Poly_bridge = struct
   let pairing_parameter = Parameter.choice ~equal:( = ) [
-      "By order", Pdk.Poly_bridge.Bridge_by_order;
-      "By centroid", Pdk.Poly_bridge.Bridge_by_centroid;
+      "By order", Rdk.Poly_bridge.Bridge_by_order;
+      "By centroid", Rdk.Poly_bridge.Bridge_by_centroid;
     ]
   let minimize_parameter = Parameter.choice ~equal:( = ) [
-      "Two point distance", Pdk.Poly_loft.Two_point_distance;
-      "Three point distance", Pdk.Poly_loft.Three_point_distance;
+      "Two point distance", Rdk.Poly_loft.Two_point_distance;
+      "Three point distance", Rdk.Poly_loft.Three_point_distance;
     ]
 
   type parameters = {
@@ -1533,13 +1533,13 @@ module Poly_bridge = struct
       [@sop.label "Source edge group"];
     destination_group : string [@sop.default "destination"]
       [@sop.label "Destination edge group"];
-    pairing : Pdk.Poly_bridge.pairing
-      [@sop.default Pdk.Poly_bridge.Bridge_by_order]
+    pairing : Rdk.Poly_bridge.pairing
+      [@sop.default Rdk.Poly_bridge.Bridge_by_order]
       [@sop.label "Pairing"] [@sop.kind pairing_parameter];
     connect_closest_ends : bool [@sop.default true]
       [@sop.label "Connect closest ends"];
-    minimize : Pdk.Poly_loft.minimize
-      [@sop.default Pdk.Poly_loft.Two_point_distance]
+    minimize : Rdk.Poly_loft.minimize
+      [@sop.default Rdk.Poly_loft.Two_point_distance]
       [@sop.label "Minimize"] [@sop.kind minimize_parameter];
     reverse_source : bool [@sop.default false] [@sop.label "Reverse source"];
     reverse_destination : bool [@sop.default false]
@@ -1577,8 +1577,8 @@ end
 
 module Edge_relax = struct
   let target_parameter = Parameter.choice ~equal:( = ) [
-      "Individual lengths", Pdk.Edge_relax.Individual_lengths;
-      "Scale-independent distribution", Pdk.Edge_relax.Scale_independent_distribution;
+      "Individual lengths", Rdk.Edge_relax.Individual_lengths;
+      "Scale-independent distribution", Rdk.Edge_relax.Scale_independent_distribution;
     ]
 
   type parameters = {
@@ -1590,8 +1590,8 @@ module Edge_relax = struct
       [@sop.min 1] [@sop.max 1024] [@sop.hard_min 1];
     step_size : float [@sop.default 0.5] [@sop.label "Step size"]
       [@sop.min 0.] [@sop.max 1.] [@sop.hard_min 0.];
-    target_mode : Pdk.Edge_relax.target_mode
-      [@sop.default Pdk.Edge_relax.Individual_lengths]
+    target_mode : Rdk.Edge_relax.target_mode
+      [@sop.default Rdk.Edge_relax.Individual_lengths]
       [@sop.label "Target mode"] [@sop.kind target_parameter];
     only_shorten : bool [@sop.default false] [@sop.label "Only shorten"];
     tolerance : float [@sop.default 0.000001] [@sop.label "Tolerance"]
@@ -1613,16 +1613,16 @@ end
 
 module Poly_loft = struct
   let minimize_parameter = Parameter.choice ~equal:( = ) [
-      "Two point distance", Pdk.Poly_loft.Two_point_distance;
-      "Three point distance", Pdk.Poly_loft.Three_point_distance;
+      "Two point distance", Rdk.Poly_loft.Two_point_distance;
+      "Three point distance", Rdk.Poly_loft.Three_point_distance;
     ]
 
   type parameters = {
     group : string [@sop.default ""] [@sop.label "Primitive group"];
     connect_closest_ends : bool [@sop.default true]
       [@sop.label "Connect closest ends"];
-    minimize : Pdk.Poly_loft.minimize
-      [@sop.default Pdk.Poly_loft.Two_point_distance]
+    minimize : Rdk.Poly_loft.minimize
+      [@sop.default Rdk.Poly_loft.Two_point_distance]
       [@sop.label "Minimize"] [@sop.kind minimize_parameter];
     u_wrap : bool [@sop.default false] [@sop.label "Wrap U"];
     v_wrap : bool [@sop.default false] [@sop.label "Wrap V"];
@@ -1652,25 +1652,25 @@ end
 
 module Revolve = struct
   let type_parameter = Parameter.choice ~equal:( = ) [
-      "Closed", Pdk.Sweep_modeling.Revolve_closed;
-      "Open arc", Pdk.Sweep_modeling.Revolve_open_arc;
+      "Closed", Rdk.Sweep_modeling.Revolve_closed;
+      "Open arc", Rdk.Sweep_modeling.Revolve_open_arc;
     ]
   let connectivity_parameter = Parameter.choice ~equal:( = ) [
-      "Points", Pdk.Plane_generators.Grid_points;
-      "Rows", Pdk.Plane_generators.Grid_rows;
-      "Columns", Pdk.Plane_generators.Grid_columns;
-      "Rows and columns", Pdk.Plane_generators.Grid_rows_and_columns;
-      "Quads", Pdk.Plane_generators.Grid_quads;
-      "Triangles", Pdk.Plane_generators.Grid_triangles;
-      "Alternating triangles", Pdk.Plane_generators.Grid_alternating_triangles;
-      "Reverse triangles", Pdk.Plane_generators.Grid_reverse_triangles;
+      "Points", Rdk.Plane_generators.Grid_points;
+      "Rows", Rdk.Plane_generators.Grid_rows;
+      "Columns", Rdk.Plane_generators.Grid_columns;
+      "Rows and columns", Rdk.Plane_generators.Grid_rows_and_columns;
+      "Quads", Rdk.Plane_generators.Grid_quads;
+      "Triangles", Rdk.Plane_generators.Grid_triangles;
+      "Alternating triangles", Rdk.Plane_generators.Grid_alternating_triangles;
+      "Reverse triangles", Rdk.Plane_generators.Grid_reverse_triangles;
     ]
 
   type parameters = {
     group : string [@sop.default ""] [@sop.label "Primitive group"];
-    revolve_type : Pdk.Sweep_modeling.revolve_type [@sop.default Pdk.Sweep_modeling.Revolve_closed]
+    revolve_type : Rdk.Sweep_modeling.revolve_type [@sop.default Rdk.Sweep_modeling.Revolve_closed]
       [@sop.label "Revolve type"] [@sop.kind type_parameter];
-    connectivity : Pdk.Plane_generators.grid_connectivity [@sop.default Pdk.Plane_generators.Grid_quads]
+    connectivity : Rdk.Plane_generators.grid_connectivity [@sop.default Rdk.Plane_generators.Grid_quads]
       [@sop.label "Connectivity"] [@sop.kind connectivity_parameter];
     start_angle : float [@sop.default 0.] [@sop.label "Start angle"]
       [@sop.min (-6.283185307179586)] [@sop.max 6.283185307179586];
@@ -1719,19 +1719,19 @@ end
 
 module Sweep = struct
   let connectivity_parameter = Parameter.choice ~equal:( = ) [
-      "Points", Pdk.Plane_generators.Grid_points; "Rows", Pdk.Plane_generators.Grid_rows;
-      "Columns", Pdk.Plane_generators.Grid_columns;
-      "Rows and columns", Pdk.Plane_generators.Grid_rows_and_columns;
-      "Quads", Pdk.Plane_generators.Grid_quads; "Triangles", Pdk.Plane_generators.Grid_triangles;
-      "Alternating triangles", Pdk.Plane_generators.Grid_alternating_triangles;
-      "Reverse triangles", Pdk.Plane_generators.Grid_reverse_triangles;
+      "Points", Rdk.Plane_generators.Grid_points; "Rows", Rdk.Plane_generators.Grid_rows;
+      "Columns", Rdk.Plane_generators.Grid_columns;
+      "Rows and columns", Rdk.Plane_generators.Grid_rows_and_columns;
+      "Quads", Rdk.Plane_generators.Grid_quads; "Triangles", Rdk.Plane_generators.Grid_triangles;
+      "Alternating triangles", Rdk.Plane_generators.Grid_alternating_triangles;
+      "Reverse triangles", Rdk.Plane_generators.Grid_reverse_triangles;
     ]
   let tangent_parameter = Parameter.choice ~equal:( = ) [
-      "Average edges", Pdk.Sweep_modeling.Sweep_average_edges;
-      "Central difference", Pdk.Sweep_modeling.Sweep_central_difference;
-      "Previous edge", Pdk.Sweep_modeling.Sweep_previous_edge;
-      "Next edge", Pdk.Sweep_modeling.Sweep_next_edge;
-      "Z axis", Pdk.Sweep_modeling.Sweep_z_axis;
+      "Average edges", Rdk.Sweep_modeling.Sweep_average_edges;
+      "Central difference", Rdk.Sweep_modeling.Sweep_central_difference;
+      "Previous edge", Rdk.Sweep_modeling.Sweep_previous_edge;
+      "Next edge", Rdk.Sweep_modeling.Sweep_next_edge;
+      "Z axis", Rdk.Sweep_modeling.Sweep_z_axis;
     ]
 
   type parameters = {
@@ -1739,10 +1739,10 @@ module Sweep = struct
       [@sop.label "Backbone primitive group"];
     cross_section_group : string [@sop.default ""]
       [@sop.label "Cross-section primitive group"];
-    connectivity : Pdk.Plane_generators.grid_connectivity [@sop.default Pdk.Plane_generators.Grid_quads]
+    connectivity : Rdk.Plane_generators.grid_connectivity [@sop.default Rdk.Plane_generators.Grid_quads]
       [@sop.label "Connectivity"] [@sop.kind connectivity_parameter];
-    tangent : Pdk.Sweep_modeling.sweep_tangent
-      [@sop.default Pdk.Sweep_modeling.Sweep_average_edges]
+    tangent : Rdk.Sweep_modeling.sweep_tangent
+      [@sop.default Rdk.Sweep_modeling.Sweep_average_edges]
       [@sop.label "Tangent"] [@sop.kind tangent_parameter];
     continuous_closed : bool [@sop.default true]
       [@sop.label "Continuous closed backbone"];
@@ -1894,10 +1894,10 @@ end
 module Poly_cut = struct
   type detection = All | Crossing | Change
   let element_parameter = Parameter.choice ~equal:( = ) [
-      "Points", Pdk.Poly_cut.Poly_cut_points; "Edges", Pdk.Poly_cut.Poly_cut_edges;
+      "Points", Rdk.Poly_cut.Poly_cut_points; "Edges", Rdk.Poly_cut.Poly_cut_edges;
     ]
   let strategy_parameter = Parameter.choice ~equal:( = ) [
-      "Remove", Pdk.Poly_cut.Poly_cut_remove; "Cut", Pdk.Poly_cut.Poly_cut_cut;
+      "Remove", Rdk.Poly_cut.Poly_cut_remove; "Cut", Rdk.Poly_cut.Poly_cut_cut;
     ]
   let detection_parameter = Parameter.choice ~equal:( = ) [
       "All selected", All; "Attribute crossing", Crossing;
@@ -1906,10 +1906,10 @@ module Poly_cut = struct
   type parameters = {
     group : string [@sop.default ""] [@sop.label "Primitive group"];
     cut_group : string [@sop.default ""] [@sop.label "Cut group"];
-    element : Pdk.Poly_cut.element [@sop.default Pdk.Poly_cut.Poly_cut_points]
+    element : Rdk.Poly_cut.element [@sop.default Rdk.Poly_cut.Poly_cut_points]
       [@sop.label "Cut elements"] [@sop.kind element_parameter];
-    strategy : Pdk.Poly_cut.strategy
-      [@sop.default Pdk.Poly_cut.Poly_cut_remove]
+    strategy : Rdk.Poly_cut.strategy
+      [@sop.default Rdk.Poly_cut.Poly_cut_remove]
       [@sop.label "Strategy"] [@sop.kind strategy_parameter];
     detection : detection [@sop.default All] [@sop.label "Detection"]
       [@sop.folder "Detection"] [@sop.kind detection_parameter];
@@ -1925,10 +1925,10 @@ module Poly_cut = struct
     [@@sop.node_category "Topology/Curve"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
   let detection parameters = match parameters.detection with
-    | All -> Pdk.Poly_cut.Poly_cut_all
-    | Crossing -> Pdk.Poly_cut.Poly_cut_crossing {
+    | All -> Rdk.Poly_cut.Poly_cut_all
+    | Crossing -> Rdk.Poly_cut.Poly_cut_crossing {
         attribute = parameters.attribute; value = parameters.value }
-    | Change -> Pdk.Poly_cut.Poly_cut_change {
+    | Change -> Rdk.Poly_cut.Poly_cut_change {
         attribute = parameters.attribute; threshold = parameters.threshold }
   let build = parameters_build (fun ~label parameters input ->
     Sop.poly_cut ~label ?group:(optional_text parameters.group)
@@ -1944,7 +1944,7 @@ module Rewire_vertices = struct
     selection_owner : element_owner [@sop.default Element_vertex]
       [@sop.label "Selection owner"] [@sop.kind element_owner_parameter];
     selection : string [@sop.default ""] [@sop.label "Selection group"];
-    owner : Pdk.Attribute.owner [@sop.default Pdk.Attribute.Vertex]
+    owner : Rdk.Attribute.owner [@sop.default Rdk.Attribute.Vertex]
       [@sop.label "Target attribute owner"]
       [@sop.kind element_attribute_owner_parameter];
     target_attribute : string [@sop.default "target"]
@@ -1977,8 +1977,8 @@ module Blast_by_attribute = struct
   type mode = Below | Range | Width
   type output = Delete | Group
   let owner_parameter = Parameter.choice ~equal:( = ) [
-      "Points", Pdk.Blast_by_attribute.Blast_points;
-      "Primitives", Pdk.Blast_by_attribute.Blast_primitives;
+      "Points", Rdk.Blast_by_attribute.Blast_points;
+      "Primitives", Rdk.Blast_by_attribute.Blast_primitives;
     ]
   let mode_parameter = Parameter.choice ~equal:( = ) [
       "Below threshold", Below; "Range", Range; "Center and width", Width;
@@ -1987,7 +1987,7 @@ module Blast_by_attribute = struct
       "Delete elements", Delete; "Create group", Group;
     ]
   type parameters = {
-    owner : Pdk.Blast_by_attribute.owner [@sop.default Pdk.Blast_by_attribute.Blast_points]
+    owner : Rdk.Blast_by_attribute.owner [@sop.default Rdk.Blast_by_attribute.Blast_points]
       [@sop.label "Owner"] [@sop.kind owner_parameter];
     attribute : string [@sop.default "mask"] [@sop.label "Attribute"];
     mode : mode [@sop.default Below] [@sop.label "Comparison"]
@@ -2016,15 +2016,15 @@ module Blast_by_attribute = struct
     [@@sop.node_category "Topology/Delete"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
   let blast_mode parameters = match parameters.mode with
-    | Below -> Pdk.Blast_by_attribute.Blast_below parameters.threshold
-    | Range -> Pdk.Blast_by_attribute.Blast_range {
+    | Below -> Rdk.Blast_by_attribute.Blast_below parameters.threshold
+    | Range -> Rdk.Blast_by_attribute.Blast_range {
         minimum = parameters.minimum; maximum = parameters.maximum }
-    | Width -> Pdk.Blast_by_attribute.Blast_width {
+    | Width -> Rdk.Blast_by_attribute.Blast_width {
         center = parameters.center; width = parameters.width }
   let build = parameters_build (fun ~label parameters input ->
     let output = match parameters.output with
-      | Delete -> Pdk.Blast_by_attribute.Blast_delete
-      | Group -> Pdk.Blast_by_attribute.Blast_group parameters.output_group in
+      | Delete -> Rdk.Blast_by_attribute.Blast_delete
+      | Group -> Rdk.Blast_by_attribute.Blast_group parameters.output_group in
     Sop.blast_by_attribute ~label
       ?group:(optional_text parameters.group) ~invert:parameters.invert
       ~remove_unused_points:parameters.remove_unused_points
@@ -2035,14 +2035,14 @@ end
 
 module Blast = struct
   type parameters = {
-    owner : Pdk.Group.owner [@sop.default Pdk.Group.Primitive]
+    owner : Rdk.Group.owner [@sop.default Rdk.Group.Primitive]
       [@sop.label "Group type"] [@sop.kind ordinary_group_owner_parameter];
     group : string [@sop.default "group"] [@sop.label "Group"];
     selected : bool [@sop.default true] [@sop.label "Delete selected"];
     compact_points : bool [@sop.default false]
       [@sop.label "Remove unused points"];
-    policy : Pdk.Deletion.topology_policy
-      [@sop.default Pdk.Deletion.Destroy_touched_primitives]
+    policy : Rdk.Deletion.topology_policy
+      [@sop.default Rdk.Deletion.Destroy_touched_primitives]
       [@sop.label "Point deletion policy"]
       [@sop.kind delete_topology_policy_parameter];
   } [@@sop.node_key "blast"] [@@sop.node_label "Blast"]
@@ -2164,17 +2164,17 @@ module Triangulate_2d = struct
     [@@sop.node_category "Topology/Triangulate"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
   let projection parameters = match parameters.projection with
-    | Best_fit -> Pdk.Triangulate2d.Best_fit
-    | XY -> Pdk.Triangulate2d.Plane_xy
-    | YZ -> Pdk.Triangulate2d.Plane_yz
-    | ZX -> Pdk.Triangulate2d.Plane_zx
-    | Plane -> Pdk.Triangulate2d.Plane {
+    | Best_fit -> Rdk.Triangulate2d.Best_fit
+    | XY -> Rdk.Triangulate2d.Plane_xy
+    | YZ -> Rdk.Triangulate2d.Plane_yz
+    | ZX -> Rdk.Triangulate2d.Plane_zx
+    | Plane -> Rdk.Triangulate2d.Plane {
         origin = Vec3.create parameters.plane_origin_x parameters.plane_origin_y
           parameters.plane_origin_z;
         normal = Vec3.create parameters.plane_normal_x parameters.plane_normal_y
           parameters.plane_normal_z }
     | Point_attribute ->
-        Pdk.Triangulate2d.Point_attribute parameters.point_attribute
+        Rdk.Triangulate2d.Point_attribute parameters.point_attribute
   let build = parameters_build (fun ~label parameters input ->
     Sop.triangulate_2d ~label
         ?point_group:(optional_text parameters.point_group)

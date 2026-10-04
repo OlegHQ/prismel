@@ -76,9 +76,9 @@ let window_schema =
   let integer min max hard_min = Param.integer ~hard_min ~min ~max () in
   let int_field name label kind default get set =
     Param.field ~name ~label:(label ^ " (on restart)") ~kind ~default ~get ~set () in
-  Param.schema ~name:"workspace" ~default:{ title = "Prismel"; width = 1280; height = 800;
+  Param.schema ~name:"workspace" ~default:{ title = "Rays"; width = 1280; height = 800;
                                             fps = 60; seed = 1 } [
-    Param.field ~name:"title" ~label:"Title (on restart)" ~kind:Param.Text ~default:"Prismel"
+    Param.field ~name:"title" ~label:"Title (on restart)" ~kind:Param.Text ~default:"Rays"
       ~get:(fun w -> w.title) ~set:(fun title w -> { w with title }) ();
     int_field "width" "Width" (integer 320 3840 64) 1280 (fun w -> w.width)
       (fun width w -> { w with width });

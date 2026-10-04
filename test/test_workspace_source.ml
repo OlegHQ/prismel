@@ -1,11 +1,11 @@
-(* W11 part B: the source file of a .plisp sketch: found from the executable or the working
+(* W11 part B: the source file of a .rays sketch: found from the executable or the working
    directory, saved over only while it is what the document came from (atomic, comments intact,
    no self reload), polled twice a second, reloaded as one history entry that keeps view state
    by path, and refused text leaving the last good document. *)
-open Prismel
+open Rays
 module Doc = Editor_document.Workspace_doc
-module E3 = Prismel_editor.Editor3
-module Source = Prismel_editor.Source
+module E3 = Rays_editor.Editor3
+module Source = Rays_editor.Source
 
 let fail message = failwith ("test_workspace_source: " ^ message)
 let check condition message = if not condition then fail message
@@ -33,7 +33,7 @@ let write file text =
   clock := !clock +. 10.;
   Unix.utimes file !clock !clock
 
-let directory () = Filename.temp_dir "prismel-source" ""
+let directory () = Filename.temp_dir "rays-source" ""
 let rec remove_tree dir =
   Array.iter (fun f -> let p = Filename.concat dir f in
     if Sys.is_directory p then remove_tree p
@@ -44,7 +44,7 @@ let printed doc = let t = Doc.to_text doc in if String.ends_with ~suffix:"\n" t 
 
 let run_files () =
   let dir = directory () in
-  let file = Filename.concat dir "sketch.plisp" in
+  let file = Filename.concat dir "sketch.rays" in
   write file text0;
   (* Save: digest match writes the canonical text, comments intact, and re-reading it is the text *)
   let source = Source.at ~file ~digest:(sha text0) in
@@ -55,7 +55,7 @@ let run_files () =
   check (has (read file) "; the header" && has (read file) "; one sphere" && has (read file) "; the tail")
     ("comments survive: " ^ read file);
   check (printed (Result.get_ok (Doc.of_text catalog (read file))) = saved) "the re-read prints the same";
-  check (Sys.readdir dir = [| "sketch.plisp" |]) "no temporary file is left";
+  check (Sys.readdir dir = [| "sketch.rays" |]) "no temporary file is left";
   check ((Unix.stat file).st_perm land 0o044 <> 0) "the file stays readable";
   (* Save does not reload: the write moved the mtime, the digest is the remembered one *)
   write file (read file);
@@ -85,7 +85,7 @@ let run_files () =
   Unix.utimes file stamp stamp;
   let source, changed = Source.poll ~now:1.8 source in
   check (changed = Some text1) "a preserved-mtime content edit was missed";
-  let replacement = Filename.concat dir "replacement.plisp" in
+  let replacement = Filename.concat dir "replacement.rays" in
   write replacement text0;
   Unix.utimes replacement stamp stamp;
   let inode = (Unix.stat file).st_ino in
@@ -103,28 +103,28 @@ let run_find () =
     Unix.mkdir (Filename.concat dir "sk") 0o755;
     Unix.mkdir (Filename.concat dir "_build") 0o755;
     Out_channel.with_open_bin (Filename.concat dir "_build/dune-project") ignore;
-    write (Filename.concat dir "sk/x.plisp") text0;
+    write (Filename.concat dir "sk/x.rays") text0;
     let expect from =
       Sys.chdir from;
-      match Source.find ~path:"sk/x.plisp" ~digest:"" with
-      | Some s -> check (Unix.realpath (Source.file s) = Unix.realpath (Filename.concat dir "sk/x.plisp"))
+      match Source.find ~path:"sk/x.rays" ~digest:"" with
+      | Some s -> check (Unix.realpath (Source.file s) = Unix.realpath (Filename.concat dir "sk/x.rays"))
                     "the source file is joined to the project root"
       | None -> fail ("no source from " ^ from) in
     expect (Filename.concat dir "sk");
     expect (Filename.concat dir "_build");  (* a dune-project under _build is not the root *)
     Sys.chdir start;
-    check (Source.find ~path:"sk/nowhere.plisp" ~digest:"" = None) "a missing file is no source";
+    check (Source.find ~path:"sk/nowhere.rays" ~digest:"" = None) "a missing file is no source";
     (* an internal directory is what the temp project's cleanup needs empty *)
     Sys.remove (Filename.concat dir "_build/dune-project"); Unix.rmdir (Filename.concat dir "_build");
-    Sys.remove (Filename.concat dir "sk/x.plisp"); Unix.rmdir (Filename.concat dir "sk");
+    Sys.remove (Filename.concat dir "sk/x.rays"); Unix.rmdir (Filename.concat dir "sk");
     Sys.remove (Filename.concat dir "dune-project"))
 
 (* ---- through the editor ---- *)
 
 let editor ?presets ~source text =
   E3.create ~await:true ~workspace:(Result.get_ok (Doc.of_text catalog text)) ?presets ~source
-    ~prepare:(fun _ output -> Pdk_prismel.Prismel_mesh.to_mesh output.Procedural.Session.geometry
-      |> Result.map_error Pdk.Error.to_string)
+    ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh output.Procedural.Session.geometry
+      |> Result.map_error Rdk.Error.to_string)
     ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) ()
   |> function Ok e -> e | Error m -> fail m
 
@@ -133,7 +133,7 @@ let cook_line e = Test_workspace_shell.dump_line e "cook"
 
 let run_editor () =
   let dir = directory () in
-  let file = Filename.concat dir "sketch.plisp" in
+  let file = Filename.concat dir "sketch.rays" in
   write file text0;
   let e = ref (editor ~presets:(Filename.concat dir "presets")
       ~source:(Source.at ~file ~digest:(sha text0)) text0) and count = ref 0 in
@@ -147,7 +147,7 @@ let run_editor () =
   (* Command-S over the matching source *)
   step ~keys:[ Input.Meta ] [ Event.KeyPressed (Input.KeyChar 's') ];
   settle ();
-  check (has (cook_line !e) "Saved sketch.plisp") ("the status says it saved: " ^ cook_line !e);
+  check (has (cook_line !e) "Saved sketch.rays") ("the status says it saved: " ^ cook_line !e);
   let written = read file in
   check (written = printed (E3.workspace !e)) "Save wrote the document's text";
   check (has written "; the header" && has written "; the tail") "the saved file keeps its comments";
@@ -161,15 +161,15 @@ let run_editor () =
   run_for 1.;
   settle ();
   check (has (source_text !e) "0.7") ("the file's text is the document: " ^ source_text !e);
-  check (E3.undo_label !e = Some "Reload sketch.plisp") "one history entry named Reload sketch.plisp";
+  check (E3.undo_label !e = Some "Reload sketch.rays") "one history entry named Reload sketch.rays";
   check (E3.probe !e zone = Some 3) "the probe survived by path";
-  check (has (cook_line !e) "Reloaded sketch.plisp" || has (cook_line !e) "Cook complete") (cook_line !e);
+  check (has (cook_line !e) "Reloaded sketch.rays" || has (cook_line !e) "Cook complete") (cook_line !e);
   (* text that does not check keeps the last good document and says why *)
   write file typo;
   run_for 1.;
   settle ();
   check (has (source_text !e) "0.7") "the refused text replaced the document";
-  check (E3.undo_label !e = Some "Reload sketch.plisp") "the refused text made a history entry";
+  check (E3.undo_label !e = Some "Reload sketch.rays") "the refused text made a history entry";
   check (has (cook_line !e) "not reloaded" && has (cook_line !e) "line 1") ("the status names the failure: " ^ cook_line !e);
   (* undoing the typo in the other editor (the text the document has) clears it *)
   write file text1;
@@ -211,7 +211,7 @@ let run_editor () =
   count := 0;
   step []; step []; run_for 1.; settle ();
   check (has (source_text !e) "0.7") ("the edited file was not loaded at startup: " ^ source_text !e);
-  check (E3.undo_label !e = Some "Reload sketch.plisp") "the startup reload is one history entry";
+  check (E3.undo_label !e = Some "Reload sketch.rays") "the startup reload is one history entry";
   E3.close !e;
   (* a file that differs and does not check keeps the built text; Save then falls back to a preset *)
   write file typo;
@@ -230,7 +230,7 @@ let run_editor () =
 
 let run_autosave () =
   let dir = directory () in
-  let file = Filename.concat dir "sketch.plisp" and presets = Filename.concat dir "presets" in
+  let file = Filename.concat dir "sketch.rays" and presets = Filename.concat dir "presets" in
   write file text0;
   let create () = editor ~presets ~source:(Source.at ~file ~digest:(sha text0)) text0 in
   let e = ref (create ()) and count = ref 0 in
@@ -242,7 +242,7 @@ let run_autosave () =
   check (not (Sys.file_exists state)) "opening a sketch wrote over its recovery state";
   e := Result.get_ok (E3.edit !e (Flow_sop.Flow_edit.Set_arg {
     node = ["g"; "@result"]; key = Kw "radius"; sub = []; value = Flow.Syntax.make (Num "1.25") }));
-  e := E3.set_renderer !e Prismel_editor.Renderer.Wireframe;
+  e := E3.set_renderer !e Rays_editor.Renderer.Wireframe;
   step [Event.MouseMoved (200., 300.); Event.MouseScrolled (0., -2.)];
   let saved_eye = Camera.position (Easy_camera.camera (E3.camera !e)) in
   E3.close !e;
@@ -262,7 +262,7 @@ let run_autosave () =
       ^ Option.value ~default:"-" (E3.undo_label !e) ^ "; " ^ cook_line !e ^ "; " ^ source_text !e);
   check (Vec3.nearly_equal saved_eye (Camera.position (Easy_camera.camera (E3.camera !e))) ~eps:1e-9)
     "recovery did not restore the viewport";
-  check (E3.renderer !e = Prismel_editor.Renderer.Wireframe) "recovery did not restore the shared renderer choice";
+  check (E3.renderer !e = Rays_editor.Renderer.Wireframe) "recovery did not restore the shared renderer choice";
   step ~keys:[Input.Meta] [Event.KeyPressed (Input.KeyChar 'z')];
   check (has (source_text !e) ":radius 0.5") "undo did not revert recovery";
   E3.close !e;
@@ -298,7 +298,7 @@ let run_autosave () =
   remove_tree dir
 
 let run_autosave2 () =
-  let module E2 = Prismel_editor.Editor2 in
+  let module E2 = Rays_editor.Editor2 in
   let dir = directory () in
   let create () = E2.create ~presets:dir ~await:true
     ~workspace:(Result.get_ok (Doc.of_text catalog text0))

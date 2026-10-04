@@ -25,7 +25,7 @@
 
 (library
  (name sdl3_ttf)
- (public_name prismel.sdl3_ttf)
+ (public_name rays.sdl3_ttf)
  (modules Sdl3_ttf)
  (foreign_stubs
   (language c)
@@ -50,7 +50,7 @@
 (rule
  (aliases runtest test_sdl3_ttf_discovery_failure)
  (action
-  (setenv PRISMEL_UI_FONT /definitely/missing/prismel-font.ttf
+  (setenv RAYS_UI_FONT /definitely/missing/rays-font.ttf
    (run %{exe:test_main.exe} test_sdl3_ttf_discovery_failure))))
 
 

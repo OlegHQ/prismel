@@ -1,7 +1,7 @@
 (executable
  (name main)
  (modules main)
- (libraries prismel unix code_quadtree_index code_quadtree_marks))
+ (libraries rays unix code_quadtree_index code_quadtree_marks))
 
 (library
  (name code_quadtree_index)

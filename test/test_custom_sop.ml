@@ -1,4 +1,4 @@
-open Prismel
+open Rays
 open Procedural
 
 let fail message = raise (Failure message)
@@ -19,8 +19,8 @@ let cook session context node = match Session.cook session ~context node with
   | Error error -> fail (Diagnostic.error_to_string error)
 
 let x geometry =
-  let positions = Pdk.Packed.Float3.Private.view
-      (Pdk.Geometry.positions geometry) in
+  let positions = Rdk.Packed.Float3.Private.view
+      (Rdk.Geometry.positions geometry) in
   positions.x.(0)
 
 let run () =
@@ -32,7 +32,7 @@ let run () =
       (fun ~parameters ~context geometry ->
         let offset = parameters.translate_x
             +. (parameters.time_scale *. Context.time context) in
-        Ok (Pdk.Transform_ops.transform
+        Ok (Rdk.Transform_ops.transform
           (Mat4.translation (Vec3.create offset 0. 0.)) geometry)) in
   if List.length (Node.parameter_fields node) <> 2
      || not (Node.has_parameters node)
@@ -69,11 +69,11 @@ let run () =
         (scene/merge cam geom)))
     (graph g :context sop
       (sop/my_custom_sop)))|} in
-  let doc = match Prismel_editor.Workspace.load ~factories:custom_factories text with
+  let doc = match Rays_editor.Workspace.load ~factories:custom_factories text with
     | Ok d -> d | Error ds -> fail (String.concat "; " (List.map (fun (d : Flow.Diagnostic.t) -> d.message) ds)) in
-  let base_cam = Prismel.Easy_camera.create ~target:Prismel.Vec3.zero ~distance:5. () in
-  let dec_cam = Prismel_editor.Workspace.declared_camera ~factories:custom_factories doc base_cam in
-  let eye = Prismel.Camera.position (Prismel.Easy_camera.camera dec_cam) in
-  if not (Prismel.Vec3.nearly_equal eye (Prismel.Vec3.create 1. 2. 3.) ~eps:0.001) then
+  let base_cam = Rays.Easy_camera.create ~target:Rays.Vec3.zero ~distance:5. () in
+  let dec_cam = Rays_editor.Workspace.declared_camera ~factories:custom_factories doc base_cam in
+  let eye = Rays.Camera.position (Rays.Easy_camera.camera dec_cam) in
+  if not (Rays.Vec3.nearly_equal eye (Rays.Vec3.create 1. 2. 3.) ~eps:0.001) then
     fail "declared_camera with custom factories did not read camera";
   print_endline "custom SOP tests passed"

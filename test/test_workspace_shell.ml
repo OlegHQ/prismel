@@ -2,7 +2,7 @@
    instances of the scene get objects of their own; layout gestures are edits of
    the editor graph with history entries; "Restore layout" survives a layout that
    hides everything. *)
-open Prismel
+open Rays
 open Procedural
 module Doc = Editor_document.Workspace_doc
 module Document = Editor_document.Document
@@ -11,7 +11,7 @@ module Panels = Editor_core.Panels
 module Layout = Pxui_shell.Layout
 module E = Flow_sop.Flow_edit
 module S = Flow.Syntax
-module E3 = Prismel_editor.Editor3
+module E3 = Rays_editor.Editor3
 
 let fail message = failwith ("test_workspace_shell: " ^ message)
 let check condition message = if not condition then fail message
@@ -109,15 +109,15 @@ let frame ?(buttons = []) mouse events count = Test_editor_input.frame ~buttons 
    the worker *)
 let editor ?camera ?presets text =
   E3.create ?camera ?presets ~await:true ~workspace:(of_text text)
-    ~prepare:(fun _ output -> Pdk_prismel.Prismel_mesh.to_mesh output.Procedural.Session.geometry
-      |> Result.map_error Pdk.Error.to_string)
+    ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh output.Procedural.Session.geometry
+      |> Result.map_error Rdk.Error.to_string)
     ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) ()
   |> function Ok e -> e | Error m -> fail m
 
 let source e = fst (Flow.Lisp.print (E3.workspace e).Doc.source)
 
 let dump_line e key =
-  let directory = Filename.temp_dir "prismel-shell-dump" "" in
+  let directory = Filename.temp_dir "rays-shell-dump" "" in
   Fun.protect ~finally:(fun () ->
     Array.iter (fun f -> Sys.remove (Filename.concat directory f)) (Sys.readdir directory);
     Unix.rmdir directory) (fun () ->
@@ -834,7 +834,7 @@ let run_loop_expression () =
 
 
 let run_panel_states () =
-  let directory = Filename.temp_dir "prismel-panel-state" "" in
+  let directory = Filename.temp_dir "rays-panel-state" "" in
   let e = ref (editor ~presets:directory "(workspace panels (graph g :context sop (sop/box)))")
   and count = ref 0 in
   let step ?(buttons = []) ?(keys = []) mouse events = incr count;
@@ -950,13 +950,13 @@ let run_panel_states () =
         (E3.workspace !e).layout.panels))
     "the leader timeline toggle was not saved";
   let prepared = E3.prepared !e in
-  e := E3.set_renderer !e Prismel_editor.Renderer.Wireframe;
+  e := E3.set_renderer !e Rays_editor.Renderer.Wireframe;
   step target [];
-  check (E3.renderer !e = Prismel_editor.Renderer.Wireframe && Option.equal ( == ) (E3.prepared !e) prepared)
+  check (E3.renderer !e = Rays_editor.Renderer.Wireframe && Option.equal ( == ) (E3.prepared !e) prepared)
     "the shared wireframe choice recooked the geometry";
-  e := E3.set_renderer !e Prismel_editor.Renderer.Raster;
+  e := E3.set_renderer !e Rays_editor.Renderer.Raster;
   step target [];
-  check (E3.renderer !e = Prismel_editor.Renderer.Raster && Option.equal ( == ) (E3.prepared !e) prepared)
+  check (E3.renderer !e = Rays_editor.Renderer.Raster && Option.equal ( == ) (E3.prepared !e) prepared)
     "the shared raster choice recooked the geometry";
   E3.close !e;
   Array.iter (fun name -> let path = Filename.concat directory name in
@@ -1275,7 +1275,7 @@ let run_copy_lisp () =
   step [ key Input.Space; Event.KeyPressed (Input.KeyChar '/') ]; step [];
   step [ Event.TextInput "copy workspace" ]; step [ key Input.Enter ]; step [];
   let note = dump_line !e "cook" in
-  (match Prismel.Clipboard.get_text () with
+  (match Rays.Clipboard.get_text () with
    | Ok clip when has note "Copied the workspace as Lisp" ->
        check (has clip "(workspace copied" && has clip "(scene/geometry (ref g))")
          ("the clipboard holds the workspace text: " ^ clip)
@@ -1288,10 +1288,10 @@ let run () = run_copy_lisp (); run_hide_and_order (); run_root_section (); run_l
 (* Native VIEW regression over the reported sketch, including its piece renderer and a following
    camera. Moving the camera rebuilds the lowering while preserving an unchanged object network. *)
 let run_view_native () =
-  let directory = Filename.temp_dir "prismel-view" "" in
+  let directory = Filename.temp_dir "rays-view" "" in
   let prefix = Option.value ~default:(Filename.concat directory "view")
-      (Sys.getenv_opt "PRISMEL_VIEW_PNG") in
-  let text = In_channel.with_open_bin "../sketches/shattered_cube/sketch.plisp" In_channel.input_all in
+      (Sys.getenv_opt "RAYS_VIEW_PNG") in
+  let text = In_channel.with_open_bin "../sketches/shattered_cube/sketch.rays" In_channel.input_all in
   let rendered = ref "" and vertices = ref [] and original = ref [] and edited = ref []
   and returned = ref false in
   ignore (Sketch.run_state ~max_frames:37
@@ -1301,14 +1301,14 @@ let run_view_native () =
       ~presets:(Filename.concat directory "presets") ~seed:7349L ~grain:2
       ~camera:(Easy_camera.create ~target:Vec3.zero ~distance:6.8 ~azimuth:0.72 ~elevation:0.42 ())
       ~prepare:(fun _ output ->
-        match Pdk.Geometry.find_attribute ~owner:Pdk.Attribute.Primitive "piece" output.Session.geometry with
-        | Some attribute when (match Pdk.Attribute.Private.storage attribute with
-            | Pdk.Attribute.Int _ | Text _ -> true | _ -> false) ->
+        match Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Primitive "piece" output.Session.geometry with
+        | Some attribute when (match Rdk.Attribute.Private.storage attribute with
+            | Rdk.Attribute.Int _ | Text _ -> true | _ -> false) ->
             Sketch_support.Packed_pieces.of_geometry ~piece_attribute:"piece" output.geometry
             |> Result.map (fun pieces -> `Pieces pieces)
-        | _ -> Pdk_prismel.Prismel_mesh.to_mesh output.geometry
+        | _ -> Rdk_rays.Rays_mesh.to_mesh output.geometry
             |> Result.map (fun mesh -> `Mesh (mesh, output.instances))
-            |> Result.map_error Pdk.Error.to_string)
+            |> Result.map_error Rdk.Error.to_string)
       ~scene3:(fun node preview ->
         rendered := Node.operation node;
         let mesh, transforms = match preview with
@@ -1374,7 +1374,7 @@ let run_view_native () =
       E3.after_present e frame)
     ~on_stop:E3.close ());
   check !returned "native VIEW regression stopped before returning to the scene";
-  if Sys.getenv_opt "PRISMEL_VIEW_PNG" = None then
+  if Sys.getenv_opt "RAYS_VIEW_PNG" = None then
     List.iter (fun n -> Sys.remove (Printf.sprintf "%s-%d.png" prefix n)) [5; 16; 22; 26; 30; 36];
   let state = Filename.concat directory "presets/state" in
   if Sys.file_exists state then begin
@@ -1387,7 +1387,7 @@ let run_view_native () =
 (* Native: a real window draws Variations' four viewports, each its own scene instance (the
    frame's 3D layers were once cached per frame, so only the first drew). *)
 let run_renderers_native ?(authored = false) () =
-  let directory = Filename.temp_dir "prismel-renderer" "" in
+  let directory = Filename.temp_dir "rays-renderer" "" in
   let workspace = of_text (Printf.sprintf {|
     (workspace renderer
       (graph g :context sop (sop/box))
@@ -1406,12 +1406,12 @@ let run_renderers_native ?(authored = false) () =
   ignore (Sketch.run_state ~max_frames:46
     ~config:{Sketch.default_config with width = 900; height = 640; title = "shared renderer"}
     ~init:(fun _ -> E3.create ~await:true ~workspace ~presets:(Filename.concat directory "presets")
-      ~prepare:(fun _ output -> Pdk_prismel.Prismel_mesh.to_mesh output.Session.geometry
-        |> Result.map_error Pdk.Error.to_string)
+      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh output.Session.geometry
+        |> Result.map_error Rdk.Error.to_string)
       ~scene3:(fun _ mesh -> Scene3.create [Scene3.mesh
         ~material:(Material.unlit (Color.rgb 190 30 20)) mesh]) () |> Result.get_ok)
     ~update:(fun e (frame : Frame.t) ->
-      let mode = if frame.count < 10 || frame.count >= 40 then Prismel_editor.Renderer.Raster
+      let mode = if frame.count < 10 || frame.count >= 40 then Rays_editor.Renderer.Raster
         else if frame.count < 25 then Wireframe else Path_traced in
       let e = if E3.renderer e = mode then e else E3.set_renderer e mode in
       let e = E3.update e frame in
@@ -1455,8 +1455,8 @@ let run_renderers_native ?(authored = false) () =
   Unix.rmdir directory
 
 let run_native () =
-  let directory = Filename.temp_dir "prismel-variations" "" in
-  let path = match Sys.getenv_opt "PRISMEL_SHELL_PNG" with Some p -> p | None -> Filename.concat directory "variations.png" in
+  let directory = Filename.temp_dir "rays-variations" "" in
+  let path = match Sys.getenv_opt "RAYS_SHELL_PNG" with Some p -> p | None -> Filename.concat directory "variations.png" in
   let frames = 80 in
   let rects = ref [] in
   ignore (Sketch.run_state ~max_frames:frames
@@ -1494,7 +1494,7 @@ let run_native () =
   let regions = List.map drawn !rects in
   List.iteri (fun i (count, _) -> check (count > 30) (Printf.sprintf "viewport %d drew nothing (%d dark pixels)" i count)) regions;
   check (List.length (List.sort_uniq compare (List.map snd regions)) = 4) "each viewport shows its own seed's garden";
-  if Sys.getenv_opt "PRISMEL_SHELL_PNG" = None then Sys.remove path;
+  if Sys.getenv_opt "RAYS_SHELL_PNG" = None then Sys.remove path;
   Unix.rmdir directory;
   run_renderers_native ();
   run_renderers_native ~authored:true ()
@@ -1527,7 +1527,7 @@ let eye_of = function
 (* Without a GPU: looking through the camera, each viewport sees through the camera its own root
    names, at its own gate; the renderer's film steps and turns are pure. *)
 let run_roots () =
-  let module B = Prismel_editor.Private.Render_budget in
+  let module B = Rays_editor.Private.Render_budget in
   check (B.film ~resolution:(1600, 900) ~gate:(1700, 1000) = ((1600, 900), 1)) "a gate over the resolution is step 1";
   check (B.film ~resolution:(1600, 900) ~gate:(1600, 900) = ((1600, 900), 1)) "a gate at the resolution is step 1";
   check (B.film ~resolution:(1600, 900) ~gate:(1599, 899) = ((800, 450), 2)) "one pixel under is a half";
@@ -1567,7 +1567,7 @@ let run_roots () =
    keeps the samples (and one that crosses a step restarts them), and an edit of the second root
    restarts only its slot. *)
 let run_roots_native () =
-  let directory = Filename.temp_dir "prismel-roots" "" in
+  let directory = Filename.temp_dir "rays-roots" "" in
   let png = Filename.concat directory "roots.png" in
   let doc = build_ok (of_text (roots_text ())) in
   let shell = shell_of doc in
@@ -1596,8 +1596,8 @@ let run_roots_native () =
     ~config:{ Sketch.default_config with width = 900; height = 640; title = "two roots" }
     ~init:(fun _ -> E3.create ~await:true ~workspace:(of_text (roots_text ()))
       ~presets:(Filename.concat directory "presets")
-      ~prepare:(fun _ output -> Pdk_prismel.Prismel_mesh.to_mesh output.Session.geometry
-        |> Result.map_error Pdk.Error.to_string)
+      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh output.Session.geometry
+        |> Result.map_error Rdk.Error.to_string)
       ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) () |> Result.get_ok)
     ~update:(fun e (frame : Frame.t) ->
       let c = frame.count in
@@ -1712,7 +1712,7 @@ let run_budget_native () =
     (ui/workspace (ui/split-at "horizontal" 0.5
       (ui/split-at "vertical" 0.5 (ui/viewport (ref a)) (ui/viewport (ref b)))
       (ui/split-at "vertical" 0.5 (ui/viewport (ref c)) (ui/viewport (ref a)))))))|} in
-  let directory = Filename.temp_dir "prismel-budget" "" in
+  let directory = Filename.temp_dir "rays-budget" "" in
   let keys = List.map fst (shell_of (build_ok (of_text text))).preview_sources in
   let a, b, c, a_again = match keys with [ a; b; c; d ] -> a, b, c, d | _ -> fail "four viewports" in
   let final = ref None in
@@ -1720,8 +1720,8 @@ let run_budget_native () =
     ~config:{ Sketch.default_config with width = 900; height = 640; title = "budget" }
     ~init:(fun _ -> E3.create ~await:true ~workspace:(of_text text)
       ~presets:(Filename.concat directory "presets")
-      ~prepare:(fun _ output -> Pdk_prismel.Prismel_mesh.to_mesh output.Session.geometry
-        |> Result.map_error Pdk.Error.to_string)
+      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh output.Session.geometry
+        |> Result.map_error Rdk.Error.to_string)
       ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) () |> Result.get_ok)
     ~update:(fun e (frame : Frame.t) ->
       E3.update e { frame with mouse = (450., 20.); mouse_buttons = []; mouse_delta = 0., 0.; keys = []; events = [] })

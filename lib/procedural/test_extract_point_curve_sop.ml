@@ -5,26 +5,26 @@ let check condition message = if not condition then fail message
 let get = function Ok value -> value | Error message -> fail message
 
 let attribute owner name storage =
-  Pdk.Attribute.create_owned ~owner ~name storage |> Result.get_ok
+  Rdk.Attribute.create_owned ~owner ~name storage |> Result.get_ok
 
 let source_geometry () =
-  let positions = Pdk.Packed.Float3.Private.of_owned_exn
+  let positions = Rdk.Packed.Float3.Private.of_owned_exn
       ~x:[|0.;2.;10.;14.|] ~y:(Array.make 4 0.) ~z:(Array.make 4 0.) in
-  let topology = Pdk.Topology.create_owned ~point_count:4
+  let topology = Rdk.Topology.create_owned ~point_count:4
       ~vertex_points:[|0;1;2;3|] ~primitive_offsets:[|0;2;4|]
-      ~primitive_kinds:[|Pdk.Topology.Open_polyline;
-        Pdk.Topology.Open_polyline|] |> Result.get_ok in
-  let first = Pdk.Group.init ~owner:Pdk.Group.Primitive ~name:"first" 2
+      ~primitive_kinds:[|Rdk.Topology.Open_polyline;
+        Rdk.Topology.Open_polyline|] |> Result.get_ok in
+  let first = Rdk.Group.init ~owner:Rdk.Group.Primitive ~name:"first" 2
       (fun primitive -> primitive = 0) in
-  Pdk.Geometry.create ~positions ~topology ~groups:[first] ~attributes:[
-    attribute Pdk.Attribute.Point "distance"
-      (Pdk.Attribute.Float [|-1.;1.;-1.;1.|]);
-    attribute Pdk.Attribute.Point "weight"
-      (Pdk.Attribute.Float [|0.;20.;100.;140.|]);
-    attribute Pdk.Attribute.Primitive "cut"
-      (Pdk.Attribute.Float [|0.;0.5|]);
-    attribute Pdk.Attribute.Primitive "material"
-      (Pdk.Attribute.Int [|7;9|])
+  Rdk.Geometry.create ~positions ~topology ~groups:[first] ~attributes:[
+    attribute Rdk.Attribute.Point "distance"
+      (Rdk.Attribute.Float [|-1.;1.;-1.;1.|]);
+    attribute Rdk.Attribute.Point "weight"
+      (Rdk.Attribute.Float [|0.;20.;100.;140.|]);
+    attribute Rdk.Attribute.Primitive "cut"
+      (Rdk.Attribute.Float [|0.;0.5|]);
+    attribute Rdk.Attribute.Primitive "material"
+      (Rdk.Attribute.Int [|7;9|])
   ] () |> Result.get_ok
 
 let context ?(time = 0.) domains =
@@ -41,19 +41,19 @@ let fresh context node =
     (fun () -> cook session context node)
 
 let positions geometry =
-  Pdk.Packed.Float3.Private.view (Pdk.Geometry.positions geometry)
+  Rdk.Packed.Float3.Private.view (Rdk.Geometry.positions geometry)
 
 let float_values name geometry =
-  match Pdk.Geometry.find_attribute ~owner:Pdk.Attribute.Point name geometry with
-  | Some attribute -> (match Pdk.Attribute.Private.storage attribute with
-      | Pdk.Attribute.Float values -> values
+  match Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point name geometry with
+  | Some attribute -> (match Rdk.Attribute.Private.storage attribute with
+      | Rdk.Attribute.Float values -> values
       | _ -> fail (name ^ " storage"))
   | None -> fail (name ^ " missing")
 
 let int_values name geometry =
-  match Pdk.Geometry.find_attribute ~owner:Pdk.Attribute.Point name geometry with
-  | Some attribute -> (match Pdk.Attribute.Private.storage attribute with
-      | Pdk.Attribute.Int values -> values
+  match Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point name geometry with
+  | Some attribute -> (match Rdk.Attribute.Private.storage attribute with
+      | Rdk.Attribute.Int values -> values
       | _ -> fail (name ^ " storage"))
   | None -> fail (name ^ " missing")
 
@@ -92,7 +92,7 @@ let test_static_identity_cache_and_parallel () =
   let one = fresh (context 1) node and four = fresh (context 4) node in
   check (signature one = signature four)
     "Extract Point from Curve one/four-domain output differs";
-  check (Pdk.Geometry.point_count one = 2) "static output cardinality";
+  check (Rdk.Geometry.point_count one = 2) "static output cardinality";
   let p = positions one in
   check (p.x = [|1.;13.|] && float_values "weight" one = [|10.;130.|]
       && int_values "material" one = [|7;9|]
@@ -106,7 +106,7 @@ let test_selection_and_current_time () =
       |> Sop.extract_point_from_curve ~group:"first"
         ~distance_attribute:"distance" in
   let output = fresh (context 1) selected in
-  check (Pdk.Geometry.point_count output = 1 && (positions output).x = [|1.|])
+  check (Rdk.Geometry.point_count output = 1 && (positions output).x = [|1.|])
     "primitive group restriction";
   let timed = Sop.snapshot (source_geometry ())
       |> Sop.extract_point_from_curve ~cut:Sop.Extract_point_current_time

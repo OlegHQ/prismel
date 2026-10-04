@@ -31,12 +31,12 @@ let image =
   ; major_macro = "SDL_IMAGE_MAJOR_VERSION"
   ; include_file = "SDL3_image/SDL_image.h"
   ; signatures =
-      [ "IMG_Version", "prismel_img_version_fn", "int (SDLCALL *)(void)"
+      [ "IMG_Version", "rays_img_version_fn", "int (SDLCALL *)(void)"
       ; ( "IMG_Load_IO"
-        , "prismel_img_load_io_fn"
+        , "rays_img_load_io_fn"
         , "SDL_Surface * (SDLCALL *)(SDL_IOStream *, bool)" )
       ; ( "IMG_LoadTyped_IO"
-        , "prismel_img_load_typed_io_fn"
+        , "rays_img_load_typed_io_fn"
         , "SDL_Surface * (SDLCALL *)(SDL_IOStream *, bool, const char *)" )
       ]
   }
@@ -49,20 +49,20 @@ let ttf =
   ; major_macro = "SDL_TTF_MAJOR_VERSION"
   ; include_file = "SDL3_ttf/SDL_ttf.h"
   ; signatures =
-      [ "TTF_Version", "prismel_ttf_version_fn", "int (SDLCALL *)(void)"
-      ; "TTF_Init", "prismel_ttf_init_fn", "bool (SDLCALL *)(void)"
-      ; "TTF_Quit", "prismel_ttf_quit_fn", "void (SDLCALL *)(void)"
+      [ "TTF_Version", "rays_ttf_version_fn", "int (SDLCALL *)(void)"
+      ; "TTF_Init", "rays_ttf_init_fn", "bool (SDLCALL *)(void)"
+      ; "TTF_Quit", "rays_ttf_quit_fn", "void (SDLCALL *)(void)"
       ; ( "TTF_OpenFont"
-        , "prismel_ttf_open_font_fn"
+        , "rays_ttf_open_font_fn"
         , "TTF_Font * (SDLCALL *)(const char *, float)" )
       ; ( "TTF_CloseFont"
-        , "prismel_ttf_close_font_fn"
+        , "rays_ttf_close_font_fn"
         , "void (SDLCALL *)(TTF_Font *)" )
       ; ( "TTF_GetStringSize"
-        , "prismel_ttf_size_fn"
+        , "rays_ttf_size_fn"
         , "bool (SDLCALL *)(TTF_Font *, const char *, size_t, int *, int *)" )
       ; ( "TTF_RenderText_Blended"
-        , "prismel_ttf_render_fn"
+        , "rays_ttf_render_fn"
         , "SDL_Surface * (SDLCALL *)(TTF_Font *, const char *, size_t, \
            SDL_Color)" )
       ]
@@ -76,26 +76,26 @@ let mixer =
   ; major_macro = "SDL_MIXER_MAJOR_VERSION"
   ; include_file = "SDL3_mixer/SDL_mixer.h"
   ; signatures =
-      [ "MIX_Version", "prismel_mix_version_fn", "int (SDLCALL *)(void)"
-      ; "MIX_Init", "prismel_mix_init_fn", "bool (SDLCALL *)(void)"
-      ; "MIX_Quit", "prismel_mix_quit_fn", "void (SDLCALL *)(void)"
+      [ "MIX_Version", "rays_mix_version_fn", "int (SDLCALL *)(void)"
+      ; "MIX_Init", "rays_mix_init_fn", "bool (SDLCALL *)(void)"
+      ; "MIX_Quit", "rays_mix_quit_fn", "void (SDLCALL *)(void)"
       ; ( "MIX_CreateMixerDevice"
-        , "prismel_mix_create_device_fn"
+        , "rays_mix_create_device_fn"
         , "MIX_Mixer * (SDLCALL *)(SDL_AudioDeviceID, const SDL_AudioSpec *)" )
       ; ( "MIX_CreateMixer"
-        , "prismel_mix_create_fn"
+        , "rays_mix_create_fn"
         , "MIX_Mixer * (SDLCALL *)(const SDL_AudioSpec *)" )
       ; ( "MIX_LoadAudio"
-        , "prismel_mix_load_fn"
+        , "rays_mix_load_fn"
         , "MIX_Audio * (SDLCALL *)(MIX_Mixer *, const char *, bool)" )
       ; ( "MIX_CreateTrack"
-        , "prismel_mix_create_track_fn"
+        , "rays_mix_create_track_fn"
         , "MIX_Track * (SDLCALL *)(MIX_Mixer *)" )
       ; ( "MIX_PlayTrack"
-        , "prismel_mix_play_track_fn"
+        , "rays_mix_play_track_fn"
         , "bool (SDLCALL *)(MIX_Track *, SDL_PropertiesID)" )
       ; ( "MIX_Generate"
-        , "prismel_mix_generate_fn"
+        , "rays_mix_generate_fn"
         , "int (SDLCALL *)(MIX_Mixer *, void *, int)" )
       ]
   }

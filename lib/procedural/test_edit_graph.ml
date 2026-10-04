@@ -1,4 +1,4 @@
-open Prismel
+open Rays
 open Procedural
 
 let fail message = raise (Failure message)
@@ -252,7 +252,7 @@ let run () =
       "bypass materialized packed instances";
     let empty = Edit_graph.of_graph source
       |> fun doc -> Edit_graph.set_bypass doc ~node_id:(Node.id source) true |> get in
-    check (Pdk.Geometry.point_count (cook empty).geometry = 0)
+    check (Rdk.Geometry.point_count (cook empty).geometry = 0)
       "bypassed source did not produce empty geometry");
   let branch = Sop.merge [middle; output] in
   let dissolved = Edit_graph.dissolve_nodes [Node.id middle; Node.id output]

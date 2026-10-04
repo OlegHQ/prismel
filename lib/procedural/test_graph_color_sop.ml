@@ -16,17 +16,17 @@ let colored_source triangles =
   and y = Array.init point_count (fun point ->
       match point mod 3 with 0 -> 0. | 1 -> 1. | _ -> 0.)
   and z = Array.make point_count 0. in
-  let topology = Pdk.Topology.create_owned ~point_count
+  let topology = Rdk.Topology.create_owned ~point_count
       ~vertex_points:(Array.init point_count Fun.id)
       ~primitive_offsets:(Array.init (triangles + 1) (fun primitive -> primitive * 3))
-      ~primitive_kinds:(Array.make triangles Pdk.Topology.Polygon)
+      ~primitive_kinds:(Array.make triangles Rdk.Topology.Polygon)
       |> Result.get_ok in
-  let geometry = Pdk.Geometry.create
-      ~positions:(Pdk.Packed.Float3.Private.of_owned_exn ~x ~y ~z)
+  let geometry = Rdk.Geometry.create
+      ~positions:(Rdk.Packed.Float3.Private.of_owned_exn ~x ~y ~z)
       ~topology () |> Result.get_ok in
-  let selected = Pdk.Group.init ~grain:127 ~owner:Pdk.Group.Primitive
+  let selected = Rdk.Group.init ~grain:127 ~owner:Rdk.Group.Primitive
       ~name:"selected" triangles (fun primitive -> primitive land 1 = 0) in
-  Pdk.Geometry.with_group selected geometry |> Result.get_ok
+  Rdk.Geometry.with_group selected geometry |> Result.get_ok
 
 let cook session domains node =
   let context = Context.create ~domains ~grain:257 ~seed:19L () |> get in
@@ -41,14 +41,14 @@ let fresh domains node =
     (fun () -> cook session domains node)
 
 let signature geometry =
-  let colors = match Pdk.Geometry.find_attribute ~owner:Pdk.Attribute.Point
+  let colors = match Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point
       "schedule" geometry with
     | Some attribute ->
-        (match Pdk.Attribute.Private.storage attribute with
-         | Pdk.Attribute.Int values -> Array.copy values
+        (match Rdk.Attribute.Private.storage attribute with
+         | Rdk.Attribute.Int values -> Array.copy values
          | _ -> fail "Graph Color SOP output storage")
     | None -> fail "Graph Color SOP missing output" in
-  let topology = Pdk.Topology.Private.view (Pdk.Geometry.topology geometry) in
+  let topology = Rdk.Topology.Private.view (Rdk.Geometry.topology geometry) in
   colors, Array.copy topology.vertex_points,
   Array.copy topology.primitive_offsets, Bytes.copy topology.primitive_kinds
 
@@ -56,7 +56,7 @@ let run () =
   let source = Sop.snapshot (colored_source 20_000) in
   let graph = source |> Sop.graph_color ~label:"schedule-points"
       ~selection:(Sop.Primitive_group "selected")
-      ~connectivity:Pdk.Graph_color.Graph_points_by_primitive
+      ~connectivity:Rdk.Graph_color.Graph_points_by_primitive
       ~color_attribute:"schedule" in
   check (Node.operation graph = "graph_color" && Node.version graph = 1
       && Node.cook_mode graph = Node.Duplicate_input 0
@@ -75,7 +75,7 @@ let run () =
   let one = fresh 1 graph and four = fresh 4 graph in
   check (signature one = signature four)
     "Graph Color SOP differs across domain counts";
-  check (Pdk.Geometry.point_count one = 60_000)
+  check (Rdk.Geometry.point_count one = 60_000)
     "Graph Color SOP scale cardinality";
 
   let missing = Sop.snapshot (colored_source 1)
@@ -96,7 +96,7 @@ let run () =
     with Invalid_argument _ -> true)
     "Graph Color SOP accepted an empty selection group";
   check (try ignore (Sop.graph_color
-      ~worksets:{Pdk.Graph_color.begin_attribute="begin";length_attribute="length"}
+      ~worksets:{Rdk.Graph_color.begin_attribute="begin";length_attribute="length"}
       source); false with Invalid_argument _ -> true)
     "Graph Color SOP accepted unsorted worksets";
   print_endline "graph color SOP tests passed"

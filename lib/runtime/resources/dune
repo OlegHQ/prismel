@@ -1,6 +1,6 @@
 (library
  (name runtime_resources)
- (public_name prismel.runtime_resources)
+ (public_name rays.runtime_resources)
  (modules runtime_resources)
  (libraries sdl3 sdl3_image sdl3_ttf sdl3_mixer ogpu unix))
 

@@ -2,12 +2,12 @@
 
 (using directory-targets 0.1)
 
-(name prismel)
+(name rays)
 
 (generate_opam_files true)
 
 (source
- (github nexo-tech/prismel))
+ (github OlegHQ/rays))
 
 (authors "Oleg Pustovit <oleg@nexo.sh>")
 
@@ -15,10 +15,8 @@
 
 (license MIT)
 
-(documentation https://nexo.sh/prismel)
-
 (package
- (name prismel)
+ (name rays)
  (synopsis "A modern, functional graphics framework for OCaml")
  (description "A clean, type-safe API for creating interactive graphics applications, games, and generative art in OCaml")
  (depends

@@ -53,7 +53,7 @@ let environment_with replacements removals =
      @ inherited)
 
 let run ~environment program arguments =
-  with_temp_directory "prismel-memory-command-" (fun directory ->
+  with_temp_directory "rays-memory-command-" (fun directory ->
     let stdout_path = Filename.concat directory "stdout" in
     let stderr_path = Filename.concat directory "stderr" in
     let flags = [ Unix.O_WRONLY; Unix.O_CREAT; Unix.O_TRUNC ] in
@@ -141,7 +141,7 @@ let test_matrix ~artifacts ~fixtures =
   ; test "typed events" "lib/sdl3/test_sdl3_events.exe"
       ~environment:[ "SDL_VIDEODRIVER", "dummy" ]
   ; test "core constructor failures" "lib/sdl3/test_sdl3_failure.exe"
-      ~environment:[ "SDL_VIDEODRIVER", "prismel_missing_video_driver" ]
+      ~environment:[ "SDL_VIDEODRIVER", "rays_missing_video_driver" ]
   ; test "100000-cycle lifecycle stress" "lib/sdl3/test_sdl3_stress.exe"
       ~environment:[ "SDL_VIDEODRIVER", "dummy" ]
   ; test "native CAMetalLayer lifecycle" "lib/sdl3/test_sdl3_metal.exe"
@@ -153,12 +153,12 @@ let test_matrix ~artifacts ~fixtures =
   ; test "font constructor failure"
       "lib/sdl3_ttf/test_sdl3_ttf_discovery_failure.exe"
       ~environment:
-        [ "PRISMEL_UI_FONT", "/definitely/missing/prismel-font.ttf" ]
+        [ "RAYS_UI_FONT", "/definitely/missing/rays-font.ttf" ]
   ; test "mixer parity" "lib/sdl3_mixer/test_sdl3_mixer.exe"
       ~environment:[ "SDL_AUDIODRIVER", "dummy" ]
   ; test "mixer constructor failure"
       "lib/sdl3_mixer/test_sdl3_mixer_device_failure.exe"
-      ~environment:[ "SDL_AUDIODRIVER", "prismel_missing_audio_driver" ]
+      ~environment:[ "SDL_AUDIODRIVER", "rays_missing_audio_driver" ]
   ]
 
 let base_removals =
@@ -166,7 +166,7 @@ let base_removals =
   ; "UBSAN_OPTIONS"
   ; "SDL_VIDEODRIVER"
   ; "SDL_AUDIODRIVER"
-  ; "PRISMEL_UI_FONT"
+  ; "RAYS_UI_FONT"
   ]
 
 let run_test mode ~asan_suppressions test =

@@ -1,4 +1,4 @@
-open Prismel
+open Rays
 
 type point = int * int
 
@@ -27,7 +27,7 @@ let palette = [|
 let toolbar_height = 92
 let maximum_strokes = 128
 let maximum_points = 4_096
-let output_png = "_out/prismel-drawing.png"
+let output_png = "_out/rays-drawing.png"
 let pixel (x, y) = int_of_float x, int_of_float y
 
 let rec take count values =
@@ -228,6 +228,6 @@ let () =
          Sketch.default_config with
          width = 800;
          height = 500;
-         title = "Prismel freehand drawing";
+         title = "Rays freehand drawing";
        }
        ~init ~update ~view ())

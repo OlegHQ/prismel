@@ -1,4 +1,4 @@
-# Prismel Flow: the SOP network editor
+# Rays Flow: the SOP network editor
 
 ## 1. Status and authority
 
@@ -10,7 +10,7 @@ progress and the W12 removals live in `flow-migration.md`. What W12 deleted
 PPX and the `?program` editor argument) is marked where it is described below;
 those paragraphs are the origin of the value semantics, not a guide to code
 that still exists. The language, the projection pane, probes, the editable text
-pane, contexts, the composable shell and `.plisp` sketches are specified in
+pane, contexts, the composable shell and `.rays` sketches are specified in
 `workspace/` (`iteration.md` §2 and §7 are normative). The behavioral reference is the prototype at
 `specification/flow/prototype/index.html` (open it in a browser; no build).
 
@@ -36,7 +36,7 @@ Rules for implementers:
   decision in §18.
 
 > Status (Gap A, 2026-09-30): value nodes, compounds and expression drives described below were deleted with the
-> flat pane; read them as historical design. The live model is `.plisp` workspace text.
+> flat pane; read them as historical design. The live model is `.rays` workspace text.
 
 ## 2. Scope, non-goals and vocabulary
 
@@ -323,7 +323,7 @@ Undo restores selection only where the selected ids still exist.
 
 ### 4.4 Presets
 
-A preset is one s-expression file (`.plisp`), the same text a workspace
+A preset is one s-expression file (`.rays`), the same text a workspace
 sketch is written in: the `(workspace ...)` form with its comments, then
 optional `(layout ...)` (tile positions, pins, row exposure, bends, wireless
 flags, collapsed zones and frames, keyed by lexical path, so they survive text
@@ -698,7 +698,7 @@ stay. `scene.md` and `api.md` update with that milestone.
 A payload in flight, by pointer or by keys. The payload is a Flow value held as text (`kind`
 `material` or `sop`, value `(ref cobalt)`), so carrying the material graph `cobalt` is carrying
 `(ref cobalt)`. A place is a target when the edit that writes the value there passes the checker:
-`Prismel_editor.Carry.put` runs the edit (the one the inspector or the graph already writes) and
+`Rays_editor.Carry.put` runs the edit (the one the inspector or the graph already writes) and
 the document's own check, and its answer is the preview, the refusal's reason and the write.
 No widget lists what it accepts; the table is the set of edits the code knows to write.
 
@@ -760,7 +760,7 @@ While carrying:
 
 Gesture echo: every other gesture that writes the text also prints what it wrote in the same strip
 slot, in the words of the text (`Wrote :visible false on scene/body`, `Wrote :translate [3 0 0] on scene/b`;
-`Prismel_editor.Echo`), until the next one; an op with no short words (a layout change, a rewrite of
+`Rays_editor.Echo`), until the next one; an op with no short words (a layout change, a rewrite of
 a whole graph) prints nothing and the history label stands. The palette's "Copy workspace as Lisp"
 (`Leader.Copy_lisp`, no key) puts the text Command-S writes on the clipboard.
 
@@ -786,7 +786,7 @@ frame). Existing WAI-ARIA tree keys stay.
 
 ### 8.3 Text
 
-Since W7 the Lisp pane is editable (`Prismel_editor.Text_pane`, `Ui.text_area`).
+Since W7 the Lisp pane is editable (`Rays_editor.Text_pane`, `Ui.text_area`).
 Its tabs: Selection (the top-level ancestor of the selected binding as a `let*`
 over the root bindings it needs, the binding marked; an edit is one `Set_arg`),
 Graph (the current graph's text) and Document (the whole workspace
@@ -1092,10 +1092,10 @@ parameters also match labels written with `_` for spaces.
 
 The `[%flow]` PPX, `Flow_sop.Build.program`, `Flow_sop.Program.t`, `Flow.Check.check`
 and the editors' `?program` argument were deleted in W12: no sketch needed them once
-single-graph sketches became `sketches/<name>/sketch.plisp` (`workspace/plan.md` W11-W12),
+single-graph sketches became `sketches/<name>/sketch.rays` (`workspace/plan.md` W11-W12),
 and a workspace is the one document. An OCaml sketch that mixes host code passes a
-workspace text through `Prismel_editor.Workspace_doc.of_text`, or writes the `.plisp`
-beside it (`Prismel_editor.Workspace.load`).
+workspace text through `Rays_editor.Workspace_doc.of_text`, or writes the `.rays`
+beside it (`Rays_editor.Workspace.load`).
 
 ### 12.2 Catalog manifest (still current)
 
@@ -1183,16 +1183,16 @@ W2b, so a frame never re-lowers.
 | `editor_document` | changed | + `flow_sop` | overlay and layout record in `Document.network`; `Workspace_doc`, `Layout_by_path`, s-expression presets |
 | `pxui_graph` | changed | + `flow`, `flow_sop` | the canvas of §6–§7 |
 | `pxui_shell` | changed | + `flow` (types only) | inspector rows (§9), guide strip in `Status_bar` |
-| `prismel_editor` | changed | + `flow`, `flow_sop` | keys, guide contexts, views, value lane scheduling |
-| `ppx_prismel` | changed | `ppxlib`, + `flow` | `[@sop.primary]`, `[@sop.vec3]`, `[@@sop.node_slots]` (`[%flow]` was deleted in W12) |
+| `rays_editor` | changed | + `flow`, `flow_sop` | keys, guide contexts, views, value lane scheduling |
+| `ppx_rays` | changed | `ppxlib`, + `flow` | `[@sop.primary]`, `[@sop.vec3]`, `[@@sop.node_slots]` (`[%flow]` was deleted in W12) |
 | `sop_catalog` | changed (M3) | unchanged | annotations, private operation groups and one PPX registry facade |
 
 Gate changes in `test/dependency_gate.ml` (M3): add `flow` and `flow_sop` to
-`upper`; rules `"flow", "prismel" :: "prismel_math" :: "pdk" :: "procedural" ::
+`upper`; rules `"flow", "rays" :: "rays_math" :: "rdk" :: "procedural" ::
 "editor_core" :: "pxui" :: "pxui_shell" :: "pxui_graph" :: "sop_catalog" ::
-"editor_document" :: "prismel_editor" :: gpu` and `"flow_sop", ["prismel";
+"editor_document" :: "rays_editor" :: gpu` and `"flow_sop", ["rays";
 "pxui"; "pxui_shell"; "pxui_graph"; "sop_catalog"; "sketch_support";
-"editor_document"; "prismel_editor"] @ gpu`; `ppx_prismel` never reaches
+"editor_document"; "rays_editor"] @ gpu`; `ppx_rays` never reaches
 anything but `ppxlib`, `flow` and `param`. `specification/backend.md` records
 the new edges in the same change.
 
@@ -1208,7 +1208,7 @@ Rules from the root `AGENTS.md` apply. Targets to measure, not claims:
   the document or selection changed.
 
 Benchmarks, reported before and after in each milestone's hand-off:
-`tools/bench_prismel_editor.exe 200 1000 2000` (existing), `test/test_pxui_graph`'s
+`tools/bench_rays_editor.exe 200 1000 2000` (existing), `test/test_pxui_graph`'s
 2,001-node smoke (existing), plus new cases: all nodes as points, 200 driven
 rows with a time source, printing a 2,000-node network.
 
@@ -1221,7 +1221,7 @@ walk and hint labelling (deterministic labels for fixed layouts), Tab
 placement and ripple, fold/unfold identity, group/ungroup/export invariants,
 preset round trip, printer laws of §11.8 over every
 catalog factory with non-default literals and drives, every diagnostic code,
-key routing for every new command (`test_prismel_editor_logic`), the carry (the payload's life in `lib/pxui/test_ui.ml`, a drop over a node in `test_pxui_graph`, a put as one entry by pointer and by keys, a cancel that leaves the document physically equal and the preview timings in `test_materials`), and gate
+key routing for every new command (`test_rays_editor_logic`), the carry (the payload's life in `lib/pxui/test_ui.ml`, a drop over a node in `test_pxui_graph`, a put as one entry by pointer and by keys, a cancel that leaves the document physically equal and the preview timings in `test_materials`), and gate
 rules. Visual checks go in `@runtest-native` once per milestone
 (`test_ui_parity` fixtures updated intentionally in M1).
 

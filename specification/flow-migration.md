@@ -1,6 +1,6 @@
-# Prismel Flow migration
+# Rays Flow migration
 
-How to take Prismel Editor from today's SOP graph to the design in
+How to take Rays Editor from today's SOP graph to the design in
 `flow.md`. This file is the work queue for agents: milestones, the files each
 one touches, the tests that prove it, and the docs that change when it lands.
 
@@ -92,7 +92,7 @@ Tasks:
 4. [x] Change list additions in `pxui_graph.mli`: `Set_parameter_requested`,
    `Bend_changed of { node : int; slot : int }` (layout only),
    `Level_changed of int list`.
-   `Doc.apply` in `lib/prismel_editor/doc.ml` handles them and reports the
+   `Doc.apply` in `lib/rays_editor/doc.ml` handles them and reports the
    touched ids and ports so `Network_view.edit` updates only those.
 5. [x] `lib/editor_document/document.ml`: `network.layout` becomes the layout
    record of §4.1 (row exposure metadata is preserved; split and wireless stay
@@ -126,10 +126,10 @@ Docs when it lands: `pxui.md` (Hosts: `Pxui_graph.update` paragraph; wire
 rendering line), `procedural.md` (Editable graph paragraph), `api.md`
 (pxui_graph paragraph and tile wording), `performance.md` (SOP graph
 baseline), `scene.md` (tile wording), `lib/pxui_graph/AGENTS.md`,
-`lib/prismel_editor/AGENTS.md`: replace the "M1" target notes with the new
+`lib/rays_editor/AGENTS.md`: replace the "M1" target notes with the new
 current text.
 
-Measure: `tools/bench_pxui_graph.ml`, `tools/bench_prismel_editor.exe 200 1000 2000`,
+Measure: `tools/bench_pxui_graph.ml`, `tools/bench_rays_editor.exe 200 1000 2000`,
 `test_pxui_graph` 2,001-node smoke, plus an all-points case, before and after.
 
 ## M2 Keys and guide
@@ -141,7 +141,7 @@ Tasks:
 1. [x] Command entries for every M2 row of `flow.md` §7.2 with the listed ids:
    `Pxui_graph.command` gains the canvas cases (walk, add, repeat,
    connect-hint, display, mute, delete, dissolve, find, frame); host-level
-   ones go in `lib/prismel_editor/leader.ml`. Validation of overlaps stays as
+   ones go in `lib/rays_editor/leader.ml`. Validation of overlaps stays as
    today.
 2. [x] Tab contexts and ripple (§7.3), repeat (§7.4), letter hints (§7.5, the
    `c` half), walk (§7.6), dissolve (`⇧X`: reconnect the primary input's source
@@ -163,8 +163,8 @@ downstream nodes; guide strip contents per context; World keys at the World
 level only.
 
 Docs when it lands: `api.md` "Sketch workspace keys" table and plain-key
-paragraph; `scene.md` World keys; `lib/prismel_editor/AGENTS.md` key rules;
-the `extend-prismel-editor` skill (commands now carry `guide` contexts).
+paragraph; `scene.md` World keys; `lib/rays_editor/AGENTS.md` key rules;
+the `extend-rays-editor` skill (commands now carry `guide` contexts).
 
 ## M3 Value ports
 
@@ -175,7 +175,7 @@ Tasks:
 1. [x] `lib/param`: `primary : bool` (default false) and
    `vec3 : (string * int) option` on `field` and `field_view`; `field` gets
    `?primary` and `?vec3` arguments. Dependency-free still.
-2. [x] `ppx/ppx_prismel`: `[@sop.primary]`, `[@sop.vec3 "name"]` (checks of
+2. [x] `ppx/ppx_rays`: `[@sop.primary]`, `[@sop.vec3 "name"]` (checks of
    `flow.md` §5.3), `[@@sop.node_slots "a, b"]`, key alphabet check
    `[a-z][a-z0-9_]*`, slot/field name clash check. PPX expect tests for each
    error.
@@ -205,7 +205,7 @@ Tasks:
 8. [x] `pxui_shell/Inspector`: §9 rows, pins, vec3 editors and split, drive
    display and reset (reset removes a drive; literal defaults come in M4 with
    `r`).
-9. [x] `prismel_editor/cook.ml`: run `Value_lane.resolve` before every submission;
+9. [x] `rays_editor/cook.ml`: run `Value_lane.resolve` before every submission;
    keep the applied-value table in the environment; time-dependent networks
    resolve every frame while playing.
 10. [x] `test/dependency_gate.ml`: rules of `flow.md` §14.
@@ -237,7 +237,7 @@ Tests: fold ∘ unfold identity property over random expressions (fixed seed);
 fold refusal cases (shared node, non-math node); wireless visibility rule;
 expression parse errors as values; `r` on driven vs undriven rows.
 
-Docs when it lands: `api.md`, `procedural.md`, `lib/prismel_editor/AGENTS.md`.
+Docs when it lands: `api.md`, `procedural.md`, `lib/rays_editor/AGENTS.md`.
 
 ## M5 Compounds and contexts
 
@@ -257,7 +257,7 @@ instance's definition changes all instances; make unique detaches; compiled
 ids stable across unrelated edits; presets with definitions round trip.
 
 Docs when it lands: `scene.md` levels and "no subnetworks" limit, `api.md`
-levels, `lib/prismel_editor/AGENTS.md` levels.
+levels, `lib/rays_editor/AGENTS.md` levels.
 
 ## M6 Views and text
 
@@ -267,7 +267,7 @@ Tasks: `Flow.Sexp` reader with positions and `Flow.Check` (resolution,
 typing, diagnostics of §11.9, poison bindings), both context-generic over a
 catalog descriptor; `Flow_sop.Print.network` (§11.7); list rows include value
 nodes and badges (§8.2); text projection (read-only, click to select,
-qualified toggle, `j`/`k`) in `pxui_shell` or `prismel_editor`;
+qualified toggle, `j`/`k`) in `pxui_shell` or `rays_editor`;
 `Space l` cycles three views, remembered per level.
 
 Tests: print/read/check over every catalog factory (non-default literals,
@@ -284,11 +284,11 @@ Preconditions: M6 done.
 
 Tasks: `tools/flow_manifest.ml` writing `lib/sop_catalog/flow_manifest.sexp`
 with a diff-and-promote runtest rule (§12.2); the `[%flow]` rewriter in
-`ppx/ppx_prismel` with located diagnostics and file-local nodes (§12.3–12.4);
+`ppx/ppx_rays` with located diagnostics and file-local nodes (§12.3–12.4);
 `Flow_sop.Build.program` and `Program.t`; editor entry point accepting a
 program; one example sketch (`sketches/flow_terrain/`, via
 `dune exec tools/new_example.exe -- flow_terrain` conventions) that runs
-finitely under `PRISMEL_MAX_FRAMES`.
+finitely under `RAYS_MAX_FRAMES`.
 
 Tests: expect tests for each diagnostic and ambiguity rule; manifest stays
 current; §11.8's reconstruction and canonical reprinting laws hold over the
@@ -324,7 +324,7 @@ milestone is recorded here with its date, what landed and its deviations.
 | W8 loops over geometry | done | 2026-09-30 |
 | W9 macros UI, notes, bypass | done | 2026-09-30 |
 | W10 contexts and shell | done | 2026-09-30 |
-| W11 `.plisp` sketches | done | 2026-09-30 |
+| W11 `.rays` sketches | done | 2026-09-30 |
 | W12 migration and removal | done | 2026-09-30 |
 
 ### W0 fixes and catalog prerequisites (2026-09-30, done with W4 part A)
@@ -377,7 +377,7 @@ rejects the literal at check time. Details and measurements are in
 a plan-to-compiled id map, the live parameters (drives since W2b) and
 a provenance table (W6: tag -> merge, input, site, iteration tuple).
 Merges write `__flow_src` through the new `?source_attribute` of
-`Pdk.Mesh_merge.merge` and `Procedural.Sop.merge`. The editor `Session` default
+`Rdk.Mesh_merge.merge` and `Procedural.Sop.merge`. The editor `Session` default
 is 512 entries (measured in `progress.md`). `test_workspace_cook` cooks every
 fixture at 1 and 3 domains byte for byte; `tools/bench_workspace_lower.ml`
 records the timings (Bloom lower + cook 2.2 ms).
@@ -404,7 +404,7 @@ is part of the cook key), so Wave animates with one drive per strand.
 `Procedural.Session.set_volatile` gives a volatile node one replaced-in-place
 slot outside the LRU (`volatile_hits`, `volatile_misses`, `volatile_entries`
 in `stats`); `Async_cook.await`, `set_volatile` and `stats`; `Cook.create
-?await` (default: `PRISMEL_MAX_FRAMES` set) makes `Cook.update` wait for the
+?await` (default: `RAYS_MAX_FRAMES` set) makes `Cook.update` wait for the
 cook it submits, so a fixed-step run shows exactly frame n; the status reads
 `cook N ms · skipping frames` while playing with a newer frame queued. Tests:
 `test/test_workspace_live.ml` (live equals the static evaluation at that time
@@ -442,7 +442,7 @@ undo. Tests: `test_workspace_edit` (every study gesture as a text test),
 
 Decisions: no older presets are read or converted. The v3 JSON reader and
 writer, W0's set_color migration and the `Preset` kind of `Editor_core.Store`
-are deleted. A preset is one `.plisp` file: the workspace form with its
+are deleted. A preset is one `.rays` file: the workspace form with its
 comments, then optional `(layout ...)`, `(settings ...)` and `(view ...)`
 forms, the same text a W11 sketch is. JSON remains only where it is not a
 document: user preferences and viewport encoders (`Store.Settings`,
@@ -453,7 +453,7 @@ Deviations and gaps: only workspace documents save; a sketch opened with
 `?graph` or `?program` has the legacy scene network (camera and light
 objects, compounds, value nodes) that has no workspace text yet (W10, W12),
 so `Space s` reports why and the crash report writes `document.txt` (a
-deterministic text of any document) but no `.plisp`. Loading a preset gives
+deterministic text of any document) but no `.rays`. Loading a preset gives
 geometry objects only; the editor adds its default camera. `Layout_by_path` is
 stored, remapped and saved, and the workspace pane reads it since W4 (`frames` are titled rectangles under the tiles). `Doc.apply`'s `Syntax_edit` case
 is a no-op inside the network fold; `Doc.syntax_edit` is the reduction (the
@@ -464,7 +464,7 @@ reading types from the IR; the study's `exceptIteration` and
 `fresh_name`, so a caller can select it. `Flow.Workspace.name_taken` says which
 names a binding may not take. `test_editor_document` builds its fixtures in
 code (the JSON fixtures and rejection matrix are gone) and
-`test_prismel_editor` no longer restores a fixed camera from a preset (the native look-through framebuffer comparison went with it: a following camera does not reproduce it).
+`test_rays_editor` no longer restores a fixed camera from a preset (the native look-through framebuffer comparison went with it: a following camera does not reproduce it).
 
 ### W4 graph pane, part A (projection) and part B (drawing) (2026-09-30, done)
 
@@ -793,7 +793,7 @@ check: `sketches/flow_workspace` (`FLOW_CASE`, `FLOW_ADD=1`, `FLOW_EXPORT`).
   were verified in focused and full default tests. `@all`, window-free
   `runtest`, and `@smoke` pass; native Flow/UI checks pass while the wider
   native target still reaches the GPU-film assertion at
-  `lib/prismel_pathtracer/test_gpu_film.ml:64`.
+  `lib/rays_pathtracer/test_gpu_film.ml:64`.
 
 - 2026-09-28 M4 expression/reset checkpoint: `=` opens the shared PXUI text
   editor for a hovered numeric row, and a leading `=` in a canvas field or
@@ -943,14 +943,14 @@ under the pointer, and the selection highlights it. `Mesh_merge` and
 `__flow_src` is a workspace-wide tag (a running count over merge inputs) that
 survives merges of merges; `Lower.provenance` maps tag to `{merge; input;
 source; site; iter}`. (A triangle-to-primitive map,
-`Prismel_mesh.to_mesh_with_primitives`, was added here and deleted in W12: the pick's hit already
-names its primitive, so only an ID-buffer upgrade would need it.) `Prismel_editor.Pick` casts a CPU ray
-over `Pdk.Surface_index` (built at the first click, kept per piece) and tints
+`Rays_mesh.to_mesh_with_primitives`, was added here and deleted in W12: the pick's hit already
+names its primitive, so only an ID-buffer upgrade would need it.) `Rays_editor.Pick` casts a CPU ray
+over `Rdk.Surface_index` (built at the first click, kept per piece) and tints
 by a per-corner `Cd`; `Viewport3.pick_ray`, the click recogniser in
 `Environment`, `Core.pick` (select the site, probe every enclosing zone) and
 `Core.lit_tags` / `Cook.update ?lit` (the highlight, prepared again from the
 kept output, never recooked or lowered). Tests: `test_viewport_pick`,
-`test_pdk`, `test_workspace_cook`. Native check: `sketches/flow_workspace`
+`test_rdk`, `test_workspace_cook`. Native check: `sketches/flow_workspace`
 with `FLOW_PICK`. Deviations, the bench numbers and the ceilings (BVH build at
 the first click, instances, collapsed zones) are in
 `specification/workspace/progress.md`.
@@ -983,7 +983,7 @@ other list use of the result `E_TYPE` (only `sop/merge` takes it), a body that
 reads `t` is `E_ZONE_LIVE` at lowering. `Procedural.Zone` is the cook step: a
 node with an optional `expand` (`Node.Private.make ?expand`) that
 `Session` calls after cooking the inputs: it derives the elements (points, or
-pieces from `Pdk.Deletion.primitive_partitions`, ordered by the int/float
+pieces from `Rdk.Deletion.primitive_partitions`, ordered by the int/float
 `key` attribute when present, else by index, at most 4,096), asks the
 zone for each element's sub-graph, cooks them through the same session and
 hands their outputs to the node's merge (`__flow_src` = `base + element
@@ -1068,27 +1068,27 @@ scopes are keyed by panel; viewports over `(ref scene :seed n)` draw one scene i
 renders four); split, close, retype and resize are `Flow_edit` ops emitted by the header menu and the
 splitters (one history entry each); "Restore layout" (`Space z`) is host state outside the tree; a
 `(ui/graph "name")` names the pane's graph and `Space o` is removed. Deviations, the geometry API and
-the gaps are in `specification/workspace/progress.md` (W10 part B notes); `lib/prismel_editor/AGENTS.md`
+the gaps are in `specification/workspace/progress.md` (W10 part B notes); `lib/rays_editor/AGENTS.md`
 has the rules (its "keep the three-column workspace" rule is replaced by "Workspace shell (W10)").
 
-### W11 `.plisp` sketches (2026-09-30, done)
+### W11 `.rays` sketches (2026-09-30, done)
 
-Part A: `tools/plisp` (`prismel-plisp check | ml | dune | fmt`), `sketches/dune` with the checked-in
-`dune.plisp.inc` (promote after adding a sketch), `Prismel_editor.Workspace.load | run | main`,
+Part A: `tools/plisp` (`rays-plisp check | ml | dune | fmt`), `sketches/dune` with the checked-in
+`dune.rays.inc` (promote after adding a sketch), `Rays_editor.Workspace.load | run | main`,
 `new_example --plisp`, and the twelve `sketches/ws_*` cases running under `smoke-all`.
 
-Part B: Save and live reload. Command-S rewrites the sketch's `.plisp` (comments kept, atomic) while the
+Part B: Save and live reload. Command-S rewrites the sketch's `.rays` (comments kept, atomic) while the
 file is still the text the document came from, else saves a preset; the frame loop polls the file twice a
-second and reloads a changed file as one history entry "Reload sketch.plisp" (layout, settings, probes and
+second and reloads a changed file as one history entry "Reload sketch.rays" (layout, settings, probes and
 selection kept by path), or keeps the last good document and shows the diagnostics. The viewport starts at
 the scene's camera. Deviations, notes and the gaps are in `specification/workspace/progress.md` (W11 part A
 and part B notes).
 
 ### W12 migration and removal (2026-09-30, done)
 
-Migrated: `sketches/flow_terrain` is `sketch.plisp` (the only sketch or example that was a `[%flow]`
+Migrated: `sketches/flow_terrain` is `sketch.rays` (the only sketch or example that was a `[%flow]`
 graph plus an `Editor3.run` call; `value/time :speed 0.4` became the live `t`), its `main.ml`, `dune`
-and smoke rule are gone and `sketches/dune.plisp.inc` was promoted. Decision on `[%flow]`: after that
+and smoke rule are gone and `sketches/dune.rays.inc` was promoted. Decision on `[%flow]`: after that
 port nothing used it but its own two tests, and making a single `graph` payload sugar for
 `(workspace name graph)` would have kept the PPX, `Flow.Check.check`, `Build`, `Program`, `Print` and
 `?program` alive for no caller (the sugar would also have had to re-emit checked terms for the workspace
@@ -1098,13 +1098,13 @@ OCaml host with its own code passes a workspace text through `Workspace_doc.of_t
 uses them) and the `-flow-manifest` PPX flag.
 
 Deleted (net of the commit range, about 2,400 lines): the `[%flow]` rewriter (about 300 lines of
-`ppx_prismel.ml`) and its two tests; `Flow.Check.check` and its term/graph/binding/definition/program
+`ppx_rays.ml`) and its two tests; `Flow.Check.check` and its term/graph/binding/definition/program
 types (about 530 lines; `Check` keeps the catalog types, `catalog_of_manifest`, `resolve_kind`,
 `validate_parameter`, `suggestion`, `short` for the workspace checker); `Flow_sop.Build`, `Program`,
 `Print` (about 650 lines); `?program` of `Editor3/2` and the program branch of `Core.initial_doc`; the
 v3 round-trip tests (`test_network` print/check blocks, `test_sop_catalog` build/print samples, the
 three `?program` editor fixtures and the Time-source value-node UI test of `test_editor_document`, which
-needed a `Program` to start from); `Prismel_mesh.to_mesh_with_primitives` and its test (unused by the
+needed a `Program` to start from); `Rays_mesh.to_mesh_with_primitives` and its test (unused by the
 pick); ten dead exports found by `prune-dead-code` (`Network_layout.slot_index`, `Store.load/save`,
 `Document.positions`, `Curve.decode/key`, `Probe.describe/series`, `Eval.max_*`, several `pxui_graph`
 ones). Unknown-operator errors now suggest (`sop/bx`: "Did you mean box?").
@@ -1123,7 +1123,7 @@ The W12 audit's gaps that the plan's text required were closed (details, tests a
 list item move, frames as `Frames_set` layout edits, marquee selection); `Space o h/v/x/g/l/t/i/u/m/w` split,
 close and retype the focused panel; a binding apply's checker error carries a line and error marks clear on
 typing; instanced pieces are picked per instance; residuals compile to closures (Wave 7.0 to 1.8 ms p50,
-bit-identical); a `.plisp` that differs from the built text reloads on the first poll and `(layout ...)` /
+bit-identical); a `.rays` that differs from the built text reloads on the first poll and `(layout ...)` /
 `(settings ...)` forms in it are honoured. `Space o` had been the removed graph-cycling key.
 
 ### Gap A (2026-09-30, done)

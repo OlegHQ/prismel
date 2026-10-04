@@ -149,9 +149,9 @@ let subgraph ids value =
     | _ -> List.nth_opt order_rev 0 in
   {entries; order_rev; root}
 
-let empty_geometry = lazy (Sop.snapshot (Result.get_ok (Pdk.Geometry.create
-  ~positions:(Pdk.Packed.Float3.Builder.freeze (Pdk.Packed.Float3.Builder.create 0))
-  ~topology:(Pdk.Topology.empty ~point_count:0) ())))
+let empty_geometry = lazy (Sop.snapshot (Result.get_ok (Rdk.Geometry.create
+  ~positions:(Rdk.Packed.Float3.Builder.freeze (Rdk.Packed.Float3.Builder.create 0))
+  ~topology:(Rdk.Topology.empty ~point_count:0) ())))
 
 (* One compiled node per document entry. [inputs] are the compiled input
    nodes it was built from, so a later compile can reuse [built] when both the

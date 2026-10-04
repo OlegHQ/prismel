@@ -1,9 +1,9 @@
-open Prismel
+open Rays
 open Procedural
 
 let label fallback = function Some label -> label | None -> fallback
 
-(* A catalog-owned operator over PDK. The generated build attaches the schema,
+(* A catalog-owned operator over RDK. The generated build attaches the schema,
    whose cook key is the node's only parameter identity, so there is no
    hand-written parameter string to keep in sync. *)
 let operator ~label ~operation ?(cook_mode = Node.Duplicate_input 0) inputs cook =
@@ -12,11 +12,11 @@ let operator ~label ~operation ?(cook_mode = Node.Duplicate_input 0) inputs cook
 
 let cooked geometry = Ok Node.Private.{ geometry; diagnostics = []; instances = None }
 
-let pdk_cooked = function
+let rdk_cooked = function
   | Ok geometry -> cooked geometry
-  | Error error -> Error (Diagnostic.error ~code:(Pdk.Error.code error)
-      ~cause:(Pdk.Error.to_string error) ~hints:(Pdk.Error.hints error)
-      (Pdk.Error.operation error ^ " could not produce valid geometry"))
+  | Error error -> Error (Diagnostic.error ~code:(Rdk.Error.code error)
+      ~cause:(Rdk.Error.to_string error) ~hints:(Rdk.Error.hints error)
+      (Rdk.Error.operation error ^ " could not produce valid geometry"))
 
 let optional_text value =
   let value = String.trim value in
@@ -90,25 +90,25 @@ let optional_element_group owner name = match optional_text name with
       | Element_edge -> Sop.Edge_group name)
 
 let attribute_owner_parameter = Parameter.choice ~equal:( = ) [
-    "Point", Pdk.Attribute.Point; "Vertex", Pdk.Attribute.Vertex;
-    "Primitive", Pdk.Attribute.Primitive; "Detail", Pdk.Attribute.Detail;
+    "Point", Rdk.Attribute.Point; "Vertex", Rdk.Attribute.Vertex;
+    "Primitive", Rdk.Attribute.Primitive; "Detail", Rdk.Attribute.Detail;
   ]
 
 let attribute_owner_token = function
-  | Pdk.Attribute.Point -> "point"
-  | Pdk.Attribute.Vertex -> "vertex"
-  | Pdk.Attribute.Primitive -> "primitive"
-  | Pdk.Attribute.Detail -> "detail"
+  | Rdk.Attribute.Point -> "point"
+  | Rdk.Attribute.Vertex -> "vertex"
+  | Rdk.Attribute.Primitive -> "primitive"
+  | Rdk.Attribute.Detail -> "detail"
 
 let attribute_owner_of_token = function
-  | "point" | "points" -> Ok Pdk.Attribute.Point
-  | "vertex" | "vertices" -> Ok Pdk.Attribute.Vertex
-  | "primitive" | "primitives" -> Ok Pdk.Attribute.Primitive
-  | "detail" -> Ok Pdk.Attribute.Detail
+  | "point" | "points" -> Ok Rdk.Attribute.Point
+  | "vertex" | "vertices" -> Ok Rdk.Attribute.Vertex
+  | "primitive" | "primitives" -> Ok Rdk.Attribute.Primitive
+  | "detail" -> Ok Rdk.Attribute.Detail
   | token -> Error (Printf.sprintf "unknown attribute owner %S" token)
 
 let encode_boundary_attributes attributes = encode_table (List.map
-    (fun (attribute : Pdk.Group_ops.boundary_attribute) ->
+    (fun (attribute : Rdk.Group_ops.boundary_attribute) ->
       [attribute_owner_token attribute.boundary_attribute_owner;
        attribute.boundary_attribute_pattern]) attributes)
 
@@ -116,7 +116,7 @@ let decode_boundary_attributes text = Result.bind (decode_table text) (fun rows 
     List.fold_left (fun result row -> Result.bind result (fun attributes ->
       match row with
       | [owner; pattern] -> Result.map (fun boundary_attribute_owner ->
-          { Pdk.Group_ops.boundary_attribute_owner;
+          { Rdk.Group_ops.boundary_attribute_owner;
             boundary_attribute_pattern = pattern } :: attributes)
           (attribute_owner_of_token
             (String.lowercase_ascii (String.trim owner)))
@@ -128,125 +128,125 @@ let boundary_attributes_parameter = Parameter.encoded ~equal:( = )
     ~encode:encode_boundary_attributes ~decode:decode_boundary_attributes
 
 let element_attribute_owner_parameter = Parameter.choice ~equal:( = ) [
-    "Point", Pdk.Attribute.Point; "Vertex", Pdk.Attribute.Vertex;
-    "Primitive", Pdk.Attribute.Primitive;
+    "Point", Rdk.Attribute.Point; "Vertex", Rdk.Attribute.Vertex;
+    "Primitive", Rdk.Attribute.Primitive;
   ]
 
 let uv_owner_parameter = Parameter.choice ~equal:( = ) [
-    "Point", Pdk.Attribute.Point; "Vertex", Pdk.Attribute.Vertex;
+    "Point", Rdk.Attribute.Point; "Vertex", Rdk.Attribute.Vertex;
   ]
 
 let group_owner_parameter = Parameter.choice ~equal:( = ) [
-    "Points", Pdk.Group_ops.Group_points; "Vertices", Pdk.Group_ops.Group_vertices;
-    "Primitives", Pdk.Group_ops.Group_primitives; "Edges", Pdk.Group_ops.Group_edges;
+    "Points", Rdk.Group_ops.Group_points; "Vertices", Rdk.Group_ops.Group_vertices;
+    "Primitives", Rdk.Group_ops.Group_primitives; "Edges", Rdk.Group_ops.Group_edges;
   ]
 
 let group_owner_token = function
-  | Pdk.Group_ops.Group_points -> "point"
-  | Pdk.Group_ops.Group_vertices -> "vertex"
-  | Pdk.Group_ops.Group_primitives -> "primitive"
-  | Pdk.Group_ops.Group_edges -> "edge"
+  | Rdk.Group_ops.Group_points -> "point"
+  | Rdk.Group_ops.Group_vertices -> "vertex"
+  | Rdk.Group_ops.Group_primitives -> "primitive"
+  | Rdk.Group_ops.Group_edges -> "edge"
 
 let group_owner_of_token = function
-  | "point" | "points" -> Ok Pdk.Group_ops.Group_points
-  | "vertex" | "vertices" -> Ok Pdk.Group_ops.Group_vertices
-  | "primitive" | "primitives" -> Ok Pdk.Group_ops.Group_primitives
-  | "edge" | "edges" -> Ok Pdk.Group_ops.Group_edges
+  | "point" | "points" -> Ok Rdk.Group_ops.Group_points
+  | "vertex" | "vertices" -> Ok Rdk.Group_ops.Group_vertices
+  | "primitive" | "primitives" -> Ok Rdk.Group_ops.Group_primitives
+  | "edge" | "edges" -> Ok Rdk.Group_ops.Group_edges
   | token -> Error (Printf.sprintf "unknown group owner %S" token)
 
 let ordinary_group_owner_parameter = Parameter.choice ~equal:( = ) [
-    "Points", Pdk.Group.Point; "Vertices", Pdk.Group.Vertex;
-    "Primitives", Pdk.Group.Primitive;
+    "Points", Rdk.Group.Point; "Vertices", Rdk.Group.Vertex;
+    "Primitives", Rdk.Group.Primitive;
   ]
 
 let group_normal_owner_parameter = Parameter.choice ~equal:( = ) [
-    "Points", Pdk.Group_ops.Group_points; "Primitives", Pdk.Group_ops.Group_primitives;
-    "Edges", Pdk.Group_ops.Group_edges;
+    "Points", Rdk.Group_ops.Group_points; "Primitives", Rdk.Group_ops.Group_primitives;
+    "Edges", Rdk.Group_ops.Group_edges;
   ]
 
 let group_merge_parameter = Parameter.choice ~equal:( = ) [
-    "Replace", Pdk.Group_ops.Group_replace; "Union", Pdk.Group_ops.Group_union;
-    "Intersection", Pdk.Group_ops.Group_intersection;
-    "Subtract", Pdk.Group_ops.Group_subtract; "Exclusive or", Pdk.Group_ops.Group_xor;
+    "Replace", Rdk.Group_ops.Group_replace; "Union", Rdk.Group_ops.Group_union;
+    "Intersection", Rdk.Group_ops.Group_intersection;
+    "Subtract", Rdk.Group_ops.Group_subtract; "Exclusive or", Rdk.Group_ops.Group_xor;
   ]
 
 let group_boolean_token = function
-  | Pdk.Group_ops.Group_replace -> "replace"
-  | Pdk.Group_ops.Group_union -> "union"
-  | Pdk.Group_ops.Group_intersection -> "intersection"
-  | Pdk.Group_ops.Group_subtract -> "subtract"
-  | Pdk.Group_ops.Group_xor -> "xor"
+  | Rdk.Group_ops.Group_replace -> "replace"
+  | Rdk.Group_ops.Group_union -> "union"
+  | Rdk.Group_ops.Group_intersection -> "intersection"
+  | Rdk.Group_ops.Group_subtract -> "subtract"
+  | Rdk.Group_ops.Group_xor -> "xor"
 
 let group_boolean_of_token = function
-  | "replace" -> Ok Pdk.Group_ops.Group_replace
-  | "union" -> Ok Pdk.Group_ops.Group_union
-  | "intersection" -> Ok Pdk.Group_ops.Group_intersection
-  | "subtract" -> Ok Pdk.Group_ops.Group_subtract
-  | "xor" -> Ok Pdk.Group_ops.Group_xor
+  | "replace" -> Ok Rdk.Group_ops.Group_replace
+  | "union" -> Ok Rdk.Group_ops.Group_union
+  | "intersection" -> Ok Rdk.Group_ops.Group_intersection
+  | "subtract" -> Ok Rdk.Group_ops.Group_subtract
+  | "xor" -> Ok Rdk.Group_ops.Group_xor
   | token -> Error (Printf.sprintf "unknown group operation %S" token)
 
 let attribute_promotion_method_parameter = Parameter.choice ~equal:( = ) [
-    "First", Pdk.Attribute_ops.First;
-    "Last", Pdk.Attribute_ops.Last;
-    "Average", Pdk.Attribute_ops.Average;
-    "Minimum", Pdk.Attribute_ops.Minimum;
-    "Maximum", Pdk.Attribute_ops.Maximum;
-    "Mode", Pdk.Attribute_ops.Mode;
-    "Median", Pdk.Attribute_ops.Median;
-    "Sum", Pdk.Attribute_ops.Sum;
-    "Sum of squares", Pdk.Attribute_ops.Sum_squares;
-    "Root mean square", Pdk.Attribute_ops.Root_mean_square;
-    "Array of all", Pdk.Attribute_ops.Array_all;
-    "Unique values", Pdk.Attribute_ops.Unique_values;
+    "First", Rdk.Attribute_ops.First;
+    "Last", Rdk.Attribute_ops.Last;
+    "Average", Rdk.Attribute_ops.Average;
+    "Minimum", Rdk.Attribute_ops.Minimum;
+    "Maximum", Rdk.Attribute_ops.Maximum;
+    "Mode", Rdk.Attribute_ops.Mode;
+    "Median", Rdk.Attribute_ops.Median;
+    "Sum", Rdk.Attribute_ops.Sum;
+    "Sum of squares", Rdk.Attribute_ops.Sum_squares;
+    "Root mean square", Rdk.Attribute_ops.Root_mean_square;
+    "Array of all", Rdk.Attribute_ops.Array_all;
+    "Unique values", Rdk.Attribute_ops.Unique_values;
   ]
 
 let group_rename_conflict_parameter = Parameter.choice ~equal:( = ) [
-    "Skip", Pdk.Group_ops.Rename_skip; "Error", Pdk.Group_ops.Rename_error;
-    "Overwrite", Pdk.Group_ops.Rename_overwrite; "Union", Pdk.Group_ops.Rename_union;
+    "Skip", Rdk.Group_ops.Rename_skip; "Error", Rdk.Group_ops.Rename_error;
+    "Overwrite", Rdk.Group_ops.Rename_overwrite; "Union", Rdk.Group_ops.Rename_union;
   ]
 
 let delete_topology_policy_parameter = Parameter.choice ~equal:( = ) [
-    "Destroy touched primitives", Pdk.Deletion.Destroy_touched_primitives;
-    "Heal primitives", Pdk.Deletion.Heal_primitives;
+    "Destroy touched primitives", Rdk.Deletion.Destroy_touched_primitives;
+    "Heal primitives", Rdk.Deletion.Heal_primitives;
   ]
 
 let group_copy_conflict_parameter = Parameter.choice ~equal:( = ) [
-    "Skip", Pdk.Group_ops.Copy_skip; "Overwrite", Pdk.Group_ops.Copy_overwrite;
-    "Add suffix", Pdk.Group_ops.Copy_add_suffix;
+    "Skip", Rdk.Group_ops.Copy_skip; "Overwrite", Rdk.Group_ops.Copy_overwrite;
+    "Add suffix", Rdk.Group_ops.Copy_add_suffix;
   ]
 
 let edge_transport_direction_parameter = Parameter.choice ~equal:( = ) [
-    "Forward", Pdk.Edge_transport.Transport_forward;
-    "Backward", Pdk.Edge_transport.Transport_backward;
+    "Forward", Rdk.Edge_transport.Transport_forward;
+    "Backward", Rdk.Edge_transport.Transport_backward;
   ]
 
 let edge_transport_operation_parameter = Parameter.choice ~equal:( = ) [
-    "Transport", Pdk.Edge_transport.Transport;
-    "From root", Pdk.Edge_transport.Transport_from_root;
-    "Total", Pdk.Edge_transport.Transport_total;
-    "Maximum", Pdk.Edge_transport.Transport_maximum;
-    "Minimum", Pdk.Edge_transport.Transport_minimum;
+    "Transport", Rdk.Edge_transport.Transport;
+    "From root", Rdk.Edge_transport.Transport_from_root;
+    "Total", Rdk.Edge_transport.Transport_total;
+    "Maximum", Rdk.Edge_transport.Transport_maximum;
+    "Minimum", Rdk.Edge_transport.Transport_minimum;
   ]
 
 let edge_transport_root_value_parameter = Parameter.choice ~equal:( = ) [
-    "Zero", Pdk.Edge_transport.Transport_root_zero;
-    "Hold", Pdk.Edge_transport.Transport_root_hold;
+    "Zero", Rdk.Edge_transport.Transport_root_zero;
+    "Hold", Rdk.Edge_transport.Transport_root_hold;
   ]
 
 let edge_transport_normalization_parameter = Parameter.choice ~equal:( = ) [
-    "None", Pdk.Edge_transport.Transport_no_normalization;
-    "Per component", Pdk.Edge_transport.Transport_normalize_components;
-    "Global", Pdk.Edge_transport.Transport_normalize_global;
+    "None", Rdk.Edge_transport.Transport_no_normalization;
+    "Per component", Rdk.Edge_transport.Transport_normalize_components;
+    "Global", Rdk.Edge_transport.Transport_normalize_global;
   ]
 
 let edge_transport_split_parameter = Parameter.choice ~equal:( = ) [
-    "Copy", Pdk.Edge_transport.Transport_copy; "Split", Pdk.Edge_transport.Transport_split;
+    "Copy", Rdk.Edge_transport.Transport_copy; "Split", Rdk.Edge_transport.Transport_split;
   ]
 
 let edge_transport_merge_parameter = Parameter.choice ~equal:( = ) [
-    "Add", Pdk.Edge_transport.Transport_merge_add;
-    "Maximum", Pdk.Edge_transport.Transport_merge_maximum;
-    "Minimum", Pdk.Edge_transport.Transport_merge_minimum;
+    "Add", Rdk.Edge_transport.Transport_merge_add;
+    "Maximum", Rdk.Edge_transport.Transport_merge_maximum;
+    "Minimum", Rdk.Edge_transport.Transport_merge_minimum;
   ]
 
 type numeric_kind = Numeric_scalar | Numeric_vec2 | Numeric_vec3 | Numeric_vec4
@@ -255,14 +255,14 @@ let numeric_kind_parameter = Parameter.choice ~equal:( = ) [
     "Vector 3", Numeric_vec3; "Vector 4", Numeric_vec4;
   ]
 let numeric_value kind x y z w = match kind with
-  | Numeric_scalar -> Pdk.Attribute_ops.Scalar x
-  | Numeric_vec2 -> Pdk.Attribute_ops.Vec2 (Vec2.create x y)
-  | Numeric_vec3 -> Pdk.Attribute_ops.Vec3 (Vec3.create x y z)
-  | Numeric_vec4 -> Pdk.Attribute_ops.Vec4 (x, y, z, w)
+  | Numeric_scalar -> Rdk.Attribute_ops.Scalar x
+  | Numeric_vec2 -> Rdk.Attribute_ops.Vec2 (Vec2.create x y)
+  | Numeric_vec3 -> Rdk.Attribute_ops.Vec3 (Vec3.create x y z)
+  | Numeric_vec4 -> Rdk.Attribute_ops.Vec4 (x, y, z, w)
 
 let soft_falloff_parameter = Parameter.choice ~equal:( = ) [
-    "Linear", Pdk.Transform_ops.Soft_linear; "Quadratic", Pdk.Transform_ops.Soft_quadratic;
-    "Cubic", Pdk.Transform_ops.Soft_cubic;
+    "Linear", Rdk.Transform_ops.Soft_linear; "Quadratic", Rdk.Transform_ops.Soft_quadratic;
+    "Cubic", Rdk.Transform_ops.Soft_cubic;
   ]
 
 type distance_radius_mode = Radius_fixed | Radius_maximum
@@ -270,8 +270,8 @@ let distance_radius_parameter = Parameter.choice ~equal:( = ) [
     "Fixed", Radius_fixed; "Maximum distance", Radius_maximum;
   ]
 let distance_radius mode value = match mode with
-  | Radius_fixed -> Pdk.Transform_ops.Distance_fixed value
-  | Radius_maximum -> Pdk.Transform_ops.Distance_maximum
+  | Radius_fixed -> Rdk.Transform_ops.Distance_fixed value
+  | Radius_maximum -> Rdk.Transform_ops.Distance_maximum
 
 type transport_roots = Transport_first | Transport_last | Transport_group
 let transport_roots_parameter = Parameter.choice ~equal:( = ) [
@@ -279,9 +279,9 @@ let transport_roots_parameter = Parameter.choice ~equal:( = ) [
     "Root group", Transport_group;
   ]
 let transport_roots mode group = match mode with
-  | Transport_first -> None, Pdk.Edge_transport.Transport_first_point
-  | Transport_last -> None, Pdk.Edge_transport.Transport_last_point
-  | Transport_group -> optional_text group, Pdk.Edge_transport.Transport_first_point
+  | Transport_first -> None, Rdk.Edge_transport.Transport_first_point
+  | Transport_last -> None, Rdk.Edge_transport.Transport_last_point
+  | Transport_group -> optional_text group, Rdk.Edge_transport.Transport_first_point
 
 type transfer_mode = Transfer_nearest | Transfer_inverse | Transfer_links
   | Transfer_renderman | Transfer_hart
@@ -296,22 +296,22 @@ let transfer_falloff_parameter = Parameter.choice ~equal:( = ) [
     "Uniform", Transfer_uniform;
   ]
 let transfer_unmatched_parameter = Parameter.choice ~equal:( = ) [
-    "Keep target", Pdk.Attribute_ops.Keep_target;
-    "Default value", Pdk.Attribute_ops.Default_value;
+    "Keep target", Rdk.Attribute_ops.Keep_target;
+    "Default value", Rdk.Attribute_ops.Default_value;
   ]
 let transfer_mode mode neighbors power radius = match mode with
-  | Transfer_nearest -> Pdk.Attribute_ops.Nearest
-  | Transfer_inverse -> Pdk.Attribute_ops.Inverse_distance { neighbors; power }
-  | Transfer_links -> Pdk.Attribute_ops.Kernel {
-      neighbors; radius; kernel = Pdk.Attribute_ops.Links }
-  | Transfer_renderman -> Pdk.Attribute_ops.Kernel {
-      neighbors; radius; kernel = Pdk.Attribute_ops.RenderMan }
-  | Transfer_hart -> Pdk.Attribute_ops.Kernel {
-      neighbors; radius; kernel = Pdk.Attribute_ops.Hart }
+  | Transfer_nearest -> Rdk.Attribute_ops.Nearest
+  | Transfer_inverse -> Rdk.Attribute_ops.Inverse_distance { neighbors; power }
+  | Transfer_links -> Rdk.Attribute_ops.Kernel {
+      neighbors; radius; kernel = Rdk.Attribute_ops.Links }
+  | Transfer_renderman -> Rdk.Attribute_ops.Kernel {
+      neighbors; radius; kernel = Rdk.Attribute_ops.RenderMan }
+  | Transfer_hart -> Rdk.Attribute_ops.Kernel {
+      neighbors; radius; kernel = Rdk.Attribute_ops.Hart }
 let transfer_falloff falloff bias = match falloff with
-  | Transfer_linear -> Pdk.Attribute_ops.Linear
-  | Transfer_smoothstep -> Pdk.Attribute_ops.Smoothstep
-  | Transfer_uniform -> Pdk.Attribute_ops.Uniform bias
+  | Transfer_linear -> Rdk.Attribute_ops.Linear
+  | Transfer_smoothstep -> Rdk.Attribute_ops.Smoothstep
+  | Transfer_uniform -> Rdk.Attribute_ops.Uniform bias
 let exact_or_pattern exact pattern = match optional_text pattern with
   | Some pattern -> None, Some pattern
   | None -> optional_text exact, None

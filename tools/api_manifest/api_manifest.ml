@@ -3,16 +3,16 @@ open Support
 module String_set = Set.Make (String)
 
 let stable_library_directories =
-  [ "prismel"; "param"; "flow"; "flow_sop"; "procedural"; "editor_core"; "pxui"; "pxui_shell"; "pxui_graph"
-  ; "sop_catalog"; "sketch_support"; "prismel_editor"
+  [ "rays"; "param"; "flow"; "flow_sop"; "procedural"; "editor_core"; "pxui"; "pxui_shell"; "pxui_graph"
+  ; "sop_catalog"; "sketch_support"; "rays_editor"
   ]
 
-let pdk_sublibrary_directories =
-  [ "pdk/core"; "pdk/exact"; "pdk/spatial"; "pdk/attrib"; "pdk/gen"; "pdk/curve"
-  ; "pdk/mesh"; "pdk/boolean" ]
+let rdk_sublibrary_directories =
+  [ "rdk/core"; "rdk/exact"; "rdk/spatial"; "rdk/attrib"; "rdk/gen"; "rdk/curve"
+  ; "rdk/mesh"; "rdk/boolean" ]
 
-let pdk_facade_modules root =
-  read_file (Filename.concat root "lib/pdk/pdk.ml")
+let rdk_facade_modules root =
+  read_file (Filename.concat root "lib/rdk/rdk.ml")
   |> String.split_on_char '\n'
   |> List.fold_left (fun modules line ->
     match String.split_on_char ' ' (String.trim line) with
@@ -24,8 +24,8 @@ let pdk_facade_modules root =
 
 let mixed_legacy library module_name =
   match library, module_name with
-  | "prismel", "Font" -> [ "module:Private" ]
-  | "prismel", "Image" -> [ "module:Private" ]
+  | "rays", "Font" -> [ "module:Private" ]
+  | "rays", "Image" -> [ "module:Private" ]
   | _ -> []
 
 (* Additive staging boundaries are reviewed separately from the frozen API.
@@ -386,17 +386,17 @@ let json_sort_field field left right =
   | _ -> fail "manifest entry lacks sorting field %s" field
 
 let generate root =
-  let pdk_facade_modules = pdk_facade_modules root in
+  let rdk_facade_modules = rdk_facade_modules root in
   let stable_entries =
     (stable_library_directories
      |> List.map (fun directory -> directory, directory))
-    @ List.map (fun directory -> "pdk", directory) pdk_sublibrary_directories
+    @ List.map (fun directory -> "rdk", directory) rdk_sublibrary_directories
     |> List.concat_map (fun (library_name, directory_name) ->
       public_interfaces root directory_name
       |> List.filter_map (fun (module_name, path) ->
-        if library_name = "prismel" && module_name = "Low" then None
-        else if library_name = "pdk"
-                && not (String_set.mem module_name pdk_facade_modules) then None
+        if library_name = "rays" && module_name = "Low" then None
+        else if library_name = "rdk"
+                && not (String_set.mem module_name rdk_facade_modules) then None
         else
           Some
             (source_entry root library_name module_name path
@@ -438,7 +438,7 @@ let manifests_equivalent actual expected =
 
 let self_test_manifest_comparison () =
   let entry ?(api="api") ?(source="source") module_name = `Assoc [
-    "library", `String "prismel"; "module", `String module_name;
+    "library", `String "rays"; "module", `String module_name;
     "api_sha256", `String api; "source_sha256", `String source;
     "excluded_legacy_symbols", `List [] ] in
   let manifest entries = `Assoc [ "kind", `String "stable_high_level";

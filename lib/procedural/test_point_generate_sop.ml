@@ -11,16 +11,16 @@ let contains value needle =
   needle = "" || loop 0
 
 let source () =
-  let geometry = Pdk.Line_geometry.points [|0., 0., 0.; 1., 0., 0.; 2., 0., 0.|] in
-  let density = Pdk.Attribute.create_owned ~owner:Pdk.Attribute.Point
-      ~name:"density" (Pdk.Attribute.Float [|1.; 2.; 3.|]) |> Result.get_ok
-  and id = Pdk.Attribute.create_owned ~owner:Pdk.Attribute.Point ~name:"id"
-      (Pdk.Attribute.Int [|10; 20; 30|]) |> Result.get_ok
-  and selected = Pdk.Group.init ~grain:1 ~owner:Pdk.Group.Point
+  let geometry = Rdk.Line_geometry.points [|0., 0., 0.; 1., 0., 0.; 2., 0., 0.|] in
+  let density = Rdk.Attribute.create_owned ~owner:Rdk.Attribute.Point
+      ~name:"density" (Rdk.Attribute.Float [|1.; 2.; 3.|]) |> Result.get_ok
+  and id = Rdk.Attribute.create_owned ~owner:Rdk.Attribute.Point ~name:"id"
+      (Rdk.Attribute.Int [|10; 20; 30|]) |> Result.get_ok
+  and selected = Rdk.Group.init ~grain:1 ~owner:Rdk.Group.Point
       ~name:"emit" 3 (fun point -> point <> 1) in
-  geometry |> Pdk.Geometry.with_attribute density |> Result.get_ok
-  |> Pdk.Geometry.with_attribute id |> Result.get_ok
-  |> Pdk.Geometry.with_group selected |> Result.get_ok
+  geometry |> Rdk.Geometry.with_attribute density |> Result.get_ok
+  |> Rdk.Geometry.with_attribute id |> Result.get_ok
+  |> Rdk.Geometry.with_group selected |> Result.get_ok
 
 let cook evaluator ~domains graph =
   match Session.cook evaluator ~context:(context domains) graph with
@@ -28,9 +28,9 @@ let cook evaluator ~domains graph =
   | Error error -> fail (Diagnostic.error_to_string error)
 
 let int_values name geometry =
-  match Pdk.Geometry.find_attribute ~owner:Pdk.Attribute.Point name geometry with
-  | Some attribute -> (match Pdk.Attribute.storage attribute with
-      | Pdk.Attribute.Int values -> values
+  match Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point name geometry with
+  | Some attribute -> (match Rdk.Attribute.storage attribute with
+      | Rdk.Attribute.Int values -> values
       | _ -> fail (name ^ " has wrong storage"))
   | None -> fail ("missing " ^ name)
 
@@ -38,11 +38,11 @@ let run () =
   let graph = Sop.snapshot (source ())
       |> Sop.point_generate ~label:"emit-test" ~group:"emit" ~keep_input:true
            ~seed:7 ~generated_group:"made" ~copy_point_attributes:"id"
-           ~mode:(Pdk.Point_generate.Generate_per_point {
+           ~mode:(Rdk.Point_generate.Generate_per_point {
              points_per_point = 2.; scale_attribute = Some "density" }) in
   let evaluator = session () in
   let output = cook evaluator ~domains:4 graph in
-  if Pdk.Geometry.point_count output <> 11 then fail "SOP cardinality";
+  if Rdk.Geometry.point_count output <> 11 then fail "SOP cardinality";
   let sourcepoint = int_values "sourcepoint" output
   and sourceindex = int_values "sourceindex" output in
   if sourcepoint <> [|-1;-1;-1;0;0;2;2;2;2;2;2|] then
@@ -53,9 +53,9 @@ let run () =
       String.concat "," (Array.to_list (Array.map string_of_int sourceindex)));
   if int_values "id" output <> [|10;20;30;10;10;30;30;30;30;30;30|] then
     fail "SOP point attribute copy";
-  let made = Pdk.Geometry.find_group ~owner:Pdk.Group.Point "made" output
+  let made = Rdk.Geometry.find_group ~owner:Rdk.Group.Point "made" output
       |> Option.get in
-  if Pdk.Group.cardinality made <> 8 then fail "SOP generated group";
+  if Rdk.Group.cardinality made <> 8 then fail "SOP generated group";
   if Node.operation graph <> "point_generate"
       || not (contains (Node.parameters graph) "group=emit")
       || not (contains (Node.parameters graph) "per_point:")
@@ -69,7 +69,7 @@ let run () =
   let origin = Sop.point_generate_origin ~generated_group:"origin" ~points:5 () in
   let evaluator = session () in
   let output = cook evaluator ~domains:1 origin in
-  if Pdk.Geometry.point_count output <> 5
+  if Rdk.Geometry.point_count output <> 5
       || int_values "sourcepoint" output <> Array.make 5 (-1)
       || int_values "sourceindex" output <> [|0;1;2;3;4|] then
     fail "origin generator";
@@ -77,7 +77,7 @@ let run () =
 
   let missing = Sop.snapshot (source ())
       |> Sop.point_generate ~group:"absent"
-           ~mode:(Pdk.Point_generate.Generate_per_point {
+           ~mode:(Rdk.Point_generate.Generate_per_point {
              points_per_point = 1.; scale_attribute = None }) in
   let evaluator = session () in
   (match Session.cook evaluator ~context:(context 1) missing with

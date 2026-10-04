@@ -1,4 +1,4 @@
-/* Prismel Flow prototype engine: the behavioral reference for specification/flow.md.
+/* Rays Flow prototype engine: the behavioral reference for specification/flow.md.
    Pure model (kinds, evaluation, exposure rule, printer, reader/checker) plus the
    SVG editor used by index.html. Reference only: the OCaml implementation follows
    the spec, not this file's internals (for example its edge ids and JS rounding). */

@@ -1,4 +1,4 @@
-open Prismel
+open Rays
 open Procedural
 
 type ui_mode = Visible | Hidden
@@ -35,7 +35,7 @@ type result = {
 }
 
 module Allocation_profile = struct
-  let enabled = Sys.getenv_opt "PRISMEL_RENDERER_MEMPROF" = Some "1"
+  let enabled = Sys.getenv_opt "RAYS_RENDERER_MEMPROF" = Some "1"
   let sampling_rate = 1e-4
   let samples : (string, int) Hashtbl.t = Hashtbl.create 128
   let lock = Mutex.create ()
@@ -81,7 +81,7 @@ module Allocation_profile = struct
 end
 
 type model = {
-  environment : preview Prismel_editor.Editor3.t;
+  environment : preview Rays_editor.Editor3.t;
   launched_at : float;
   hidden_toggled : bool;
   ready_at : float option;
@@ -128,11 +128,11 @@ let ui_mode =
   | value -> invalid_arg ("bench_shattered_renderer: unknown mode " ^ value)
 
 let ui_mode_name = function Visible -> "visible" | Hidden -> "hidden"
-let domains = integer_environment "PRISMEL_SHATTER_DOMAINS" 1
-let grain = integer_environment "PRISMEL_SHATTER_GRAIN" 2
-let warmup_seconds = float_environment "PRISMEL_RENDERER_BENCH_WARMUP" 3.
-let measure_seconds = float_environment "PRISMEL_RENDERER_BENCH_SECONDS" 30.
-let cook_timeout_seconds = float_environment "PRISMEL_SHATTER_COOK_TIMEOUT" 180.
+let domains = integer_environment "RAYS_SHATTER_DOMAINS" 1
+let grain = integer_environment "RAYS_SHATTER_GRAIN" 2
+let warmup_seconds = float_environment "RAYS_RENDERER_BENCH_WARMUP" 3.
+let measure_seconds = float_environment "RAYS_RENDERER_BENCH_SECONDS" 30.
+let cook_timeout_seconds = float_environment "RAYS_SHATTER_COOK_TIMEOUT" 180.
 
 let result_exn = function
   | Ok value -> value
@@ -180,8 +180,8 @@ let percentile values length fraction =
 
 (* The shattered-cube sketch's document, run from the repository root. *)
 let workspace () =
-  let path = "sketches/shattered_cube/sketch.plisp" in
-  match Prismel_editor.Workspace.load (In_channel.with_open_bin path In_channel.input_all) with
+  let path = "sketches/shattered_cube/sketch.rays" in
+  match Rays_editor.Workspace.load (In_channel.with_open_bin path In_channel.input_all) with
   | Ok workspace -> workspace
   | Error diagnostics -> failwith (String.concat "; " (List.map Flow.Diagnostic.to_string diagnostics))
 
@@ -196,20 +196,20 @@ let lights = [
 ]
 
 let prepare output =
-  match Pdk.Geometry.find_attribute ~owner:Pdk.Attribute.Primitive "piece"
+  match Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Primitive "piece"
       output.Session.geometry with
   | Some attribute ->
-      (match Pdk.Attribute.Private.storage attribute with
-       | Pdk.Attribute.Int _ | Text _ ->
+      (match Rdk.Attribute.Private.storage attribute with
+       | Rdk.Attribute.Int _ | Text _ ->
            Sketch_support.Packed_pieces.of_geometry ~piece_attribute:"piece"
              output.geometry
            |> Result.map (fun pieces -> Pieces pieces)
-       | _ -> Pdk_prismel.Prismel_mesh.to_mesh output.geometry
+       | _ -> Rdk_rays.Rays_mesh.to_mesh output.geometry
            |> Result.map (fun mesh -> Mesh mesh)
-           |> Result.map_error Pdk.Error.to_string)
-  | None -> Pdk_prismel.Prismel_mesh.to_mesh output.geometry
+           |> Result.map_error Rdk.Error.to_string)
+  | None -> Rdk_rays.Rays_mesh.to_mesh output.geometry
       |> Result.map (fun mesh -> Mesh mesh)
-      |> Result.map_error Pdk.Error.to_string
+      |> Result.map_error Rdk.Error.to_string
 
 let scene3 node preview =
   let mesh = match preview with
@@ -253,12 +253,12 @@ let overlay graph preview frame =
   ]
 
 let cardinality environment =
-  match Prismel_editor.Editor3.prepared environment with
+  match Rays_editor.Editor3.prepared environment with
   | None -> None
   | Some (Mesh _) -> failwith "shattered-cube fixture lost its piece attribute"
   | Some (Pieces pieces) ->
       let mesh = Sketch_support.Packed_pieces.mesh_for_node
-          (Prismel_editor.Editor3.displayed_node environment) pieces in
+          (Rays_editor.Editor3.displayed_node environment) pieces in
       let piece_count = Sketch_support.Packed_pieces.piece_count pieces
       and triangles = Mesh.Private.triangle_count mesh
       and render_vertices = Mesh.vertex_count mesh in
@@ -270,7 +270,7 @@ let cardinality environment =
       Some (piece_count, triangles, render_vertices)
 
 let init frame =
-  let environment = Prismel_editor.Editor3.create
+  let environment = Rays_editor.Editor3.create
       ~camera:(Easy_camera.create ~target:Vec3.zero ~distance:6.8
         ~azimuth:0.72 ~elevation:0.42 ())
       ~seed:7349L ~grain ~domains ~max_entries:24
@@ -343,7 +343,7 @@ let update model frame =
         { frame with Frame.events = Event.KeyPressed (Input.KeyChar 'h')
             :: frame.Frame.events }, true
     | (Visible, _ | Hidden, true) -> frame, model.hidden_toggled in
-  let environment = Prismel_editor.Editor3.update model.environment frame in
+  let environment = Rays_editor.Editor3.update model.environment frame in
   let model = { model with environment; hidden_toggled;
       drawable_width = frame.Frame.drawable_width;
       drawable_height = frame.drawable_height;
@@ -388,7 +388,7 @@ let option_int_json = Option.fold ~none:"null" ~some:string_of_int
 
 let print_result model result =
   let profile = Option.value ~default:"unknown"
-      (Sys.getenv_opt "PRISMEL_BENCH_PROFILE") in
+      (Sys.getenv_opt "RAYS_BENCH_PROFILE") in
   Printf.printf
     "{\"schema\":1,\"benchmark\":\"shattered_renderer\",\"scenario\":\"shattered-%s\",\"target\":\"%s\",\"profile\":\"%s\",\"width\":1200,\"height\":760,\"drawable_width\":%d,\"drawable_height\":%d,\"pixel_scale\":[%.6f,%.6f],\"domains\":%d,\"grain\":%d,\"warmup_seconds\":%.6f,\"requested_measure_seconds\":%.6f,\"pieces\":%s,\"triangles\":%s,\"render_vertices\":%s,\"frames\":%d,\"wall_seconds\":%.9f,\"frames_per_second\":%.6f,\"median_frame_seconds\":%.9f,\"p95_frame_seconds\":%.9f,\"p99_frame_seconds\":%.9f,\"user_seconds\":%.9f,\"system_seconds\":%.9f,\"cpu_percent\":%.6f,\"allocated_bytes\":%.0f,\"minor_bytes\":%.0f,\"promoted_bytes\":%.0f,\"major_bytes\":%.0f,\"major_collections\":%d,\"ending_heap_bytes\":%d,\"peak_heap_bytes\":%d,\"starting_rss_kib\":%s,\"ending_rss_kib\":%s,\"peak_sampled_rss_kib\":%s,\"legacy_gpu_duration_seconds\":null,\"legacy_gpu_utilization_percent\":null,\"legacy_draw_count\":null,\"legacy_upload_bytes\":null}\n%!"
     (ui_mode_name ui_mode) (target_name ()) profile model.drawable_width
@@ -409,12 +409,12 @@ let print_result model result =
 let () =
   let final = Sketch.run_state
       ~config:{ Sketch.default_config with width = 1200; height = 760;
-        title = "Prismel shattered-cube renderer benchmark"; domains = Some domains;
+        title = "Rays shattered-cube renderer benchmark"; domains = Some domains;
         resizable = false }
       ~init ~update
       ~view:(fun model frame ->
-        Prismel_editor.Editor3.scene model.environment frame)
-      ~on_stop:(fun model -> Prismel_editor.Editor3.close model.environment) () in
+        Rays_editor.Editor3.scene model.environment frame)
+      ~on_stop:(fun model -> Rays_editor.Editor3.close model.environment) () in
   match final.result with
   | None -> failwith "shattered renderer stopped before producing a result"
   | Some result -> print_result final result

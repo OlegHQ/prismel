@@ -227,11 +227,11 @@ module Font = struct
         :: fixed
 
   let system_path () =
-    match Sys.getenv_opt "PRISMEL_UI_FONT" with
+    match Sys.getenv_opt "RAYS_UI_FONT" with
     | Some path when path <> "" ->
         if Sys.file_exists path then Ok path
         else error "SDL3_ttf.Font.system_path" Font_not_found
-          ("PRISMEL_UI_FONT does not name a readable font: " ^ path)
+          ("RAYS_UI_FONT does not name a readable font: " ^ path)
     | _ ->
         (match List.find_opt Sys.file_exists (system_font_candidates ()) with
          | Some path -> Ok path

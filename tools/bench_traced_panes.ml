@@ -3,11 +3,11 @@
    frame; the budget lets the others take turns.
    The wall time is vsync-bound while the GPU keeps up; the cost shows in the GPU time the tracer
    reports per published frame, so run one pane count per process with the profile on and sum it:
-     PRISMEL_PATHTRACER_PROFILE=1 dune exec tools/bench_traced_panes.exe -- 300 4 2>&1 \
+     RAYS_PATHTRACER_PROFILE=1 dune exec tools/bench_traced_panes.exe -- 300 4 2>&1 \
        | awk '/gpu_ms/ { sum += $3 } /traced panes/ { print } END { print sum / 300, "gpu ms/frame" }'
    Without a pane count it runs 1, 2 and 4.  [frames] defaults to 300. *)
-open Prismel
-module E = Prismel_editor.Editor3
+open Rays
+module E = Rays_editor.Editor3
 
 let scene_graph name eye = Printf.sprintf {|  (graph %s :context scene
     (let* [cam (scene/camera :name "cam" :eye %s)
@@ -31,7 +31,7 @@ let workspace panes =
     | _ -> Printf.sprintf "(ui/split-at \"horizontal\" 0.5 (ui/split-at \"vertical\" 0.5 %s %s) (ui/split-at \"vertical\" 0.5 %s %s))"
         (view 0) (view 1) (view 2) (view 3) in
   Printf.bprintf source "  (graph editor :context editor (ui/workspace %s)))" layout;
-  Prismel_editor.Workspace.load (Buffer.contents source) |> Result.get_ok
+  Rays_editor.Workspace.load (Buffer.contents source) |> Result.get_ok
 
 let run panes frames =
   let spent = ref 0. and started = ref 0. and finished = ref 0. in
@@ -39,9 +39,9 @@ let run panes frames =
   ignore (Sketch.run_state ~max_frames:(frames + warm)
     ~config:{ Sketch.default_config with width = 1280; height = 800; title = "traced panes" }
     ~init:(fun _ -> E.create ~workspace:(workspace panes) ~domains:1 ~await:true ~seed:42L
-      ~presets:(Filename.temp_dir "prismel-traced-panes" "")
-      ~prepare:(fun _ output -> Pdk_prismel.Prismel_mesh.to_mesh output.Procedural.Session.geometry
-        |> Result.map_error Pdk.Error.to_string)
+      ~presets:(Filename.temp_dir "rays-traced-panes" "")
+      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh output.Procedural.Session.geometry
+        |> Result.map_error Rdk.Error.to_string)
       ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) () |> Result.get_ok)
     ~update:(fun e (frame : Frame.t) ->
       let t = Unix.gettimeofday () in

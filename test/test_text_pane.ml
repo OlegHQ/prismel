@@ -2,7 +2,7 @@
    span), then the pane driven through the editor: draft, Check & apply,
    Discard, an invalid draft (document unchanged, error at its line) and undo
    labels. *)
-module T = Prismel_editor.Private.Text_pane
+module T = Rays_editor.Private.Text_pane
 
 let fail message = failwith ("test_text_pane: " ^ message)
 let check condition message = if not condition then fail message
@@ -69,12 +69,12 @@ let selection_text () =
   check (T.binding_at g 0 = None) "binding_at: the header is no binding";
   check (T.binding_at d 5 = None) "binding_at: the Document tab has none";
   (* Command-click, colour chips and the document-aware completions *)
-  let module L = Prismel_editor.Private.Lisp_text in
+  let module L = Rays_editor.Private.Lisp_text in
   let sample = "(sop/material geo :material (ref cobalt) :tint \"#ff8000\" :note \"#zzzzzz\")" in
   check (L.ref_at sample 30 = Some "cobalt" && L.ref_at sample 40 = Some "cobalt") "ref_at: inside the form";
   check (L.ref_at sample 5 = None) "ref_at: elsewhere";
   (match L.color_chips sample with
-   | [ (a, b, c) ] -> check (String.sub sample a (b - a) = "\"#ff8000\"" && Prismel.Color.to_tuple c = (255, 128, 0, 255)) "color_chips: the literal"
+   | [ (a, b, c) ] -> check (String.sub sample a (b - a) = "\"#ff8000\"" && Rays.Color.to_tuple c = (255, 128, 0, 255)) "color_chips: the literal"
    | _ -> fail "color_chips: only the valid literal");
   let names = { L.materials = [ "cobalt"; "brass" ]; cameras = [ "cam" ]; layouts = [ "View | Graph"; "Lisp" ];
     graphs = [ "cobalt"; "brass"; "shards" ] } in
@@ -92,23 +92,23 @@ let selection_text () =
   let d = Flow.Diagnostic.error ~span:{ start = 4; finish = 5 } ~code:"E_X" "x" in
   check (T.line_of "a\nb\nc\nd" d = Some 3) "line from span"
 
-let frame ?(mouse = (450., 320.)) ?(keys = []) count events : Prismel.Frame.t = {
+let frame ?(mouse = (450., 320.)) ?(keys = []) count events : Rays.Frame.t = {
   width = 900; height = 640; size = 900, 640;
   drawable_width = 900; drawable_height = 640; drawable_size = 900, 640;
   pixel_scale = 1., 1.; time = float count /. 60.; dt = 1. /. 60.;
   fps = 60.; count; mouse; mouse_delta = 0., 0.; keys; mouse_buttons = []; events }
 
-module E = Prismel_editor.Editor3
+module E = Rays_editor.Editor3
 
 let editor_text () =
-  let open Prismel in
+  let open Rays in
   let catalog = Editor_document.Contexts.catalog ~version:Flow_sop.Manifest.version
       Sop_catalog.Editor.factories |> Result.get_ok in
-  let workspace = Prismel_editor.Workspace_doc.of_text catalog (case "sunflower") |> Result.get_ok in
-  let presets = Filename.temp_dir "prismel-text-presets" "" in
+  let workspace = Rays_editor.Workspace_doc.of_text catalog (case "sunflower") |> Result.get_ok in
+  let presets = Filename.temp_dir "rays-text-presets" "" in
   let env = ref (E.create ~presets ~await:true ~workspace
-      ~prepare:(fun _ output -> Pdk_prismel.Prismel_mesh.to_mesh output.Procedural.Session.geometry
-        |> Result.map_error Pdk.Error.to_string)
+      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh output.Procedural.Session.geometry
+        |> Result.map_error Rdk.Error.to_string)
       ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) () |> Result.get_ok) in
   let count = ref 0 in
   let step ?keys ?(at = (450., 320.)) events =
@@ -118,7 +118,7 @@ let editor_text () =
       Event.MouseReleased (Input.LeftButton, (x, y)) ] in
   let key k = Event.KeyPressed k and char c = Event.KeyPressed (Input.KeyChar c) in
   let dump () =
-    let directory = Filename.temp_dir "prismel-text-pane" "" in
+    let directory = Filename.temp_dir "rays-text-pane" "" in
     Fun.protect ~finally:(fun () ->
       Array.iter (fun f -> Sys.remove (Filename.concat directory f)) (Sys.readdir directory);
       Unix.rmdir directory) (fun () ->
@@ -184,7 +184,7 @@ let editor_text () =
   let tab_graph = float (gx + 8 + 81 + 20), float (gy + 12) in
   click tab_graph;
   check (contains (dump ()) "graph tab, draft no") ("Graph tab\n" ^ dump ());
-  let graph_text = (Prismel_editor.Private.Text_pane.make_shown original.source "sunflower" None Graph).text in
+  let graph_text = (Rays_editor.Private.Text_pane.make_shown original.source "sunflower" None Graph).text in
   check (contains graph_text "(graph sunflower") "the Graph tab does not show the graph";
   click area;
   step ~keys:[ Input.Meta ] [ char 'a' ];
@@ -215,7 +215,7 @@ let editor_text () =
     ("an old Graph draft was not retained as a conflict: " ^ dump ());
   click discard;
   click tab_document;
-  type_text (replace (Prismel_editor.Workspace_doc.to_text (ws ()))
+  type_text (replace (Rays_editor.Workspace_doc.to_text (ws ()))
     ~from:"(seeds : int 240)" ~by:"(seeds : int 99)");
   env := E.edit !env (Flow_sop.Flow_edit.Set_input_default {form = "sunflower";
     input = "seeds"; value = Flow.Syntax.make (Flow.Syntax.Num "125")}) |> Result.get_ok;
@@ -229,14 +229,14 @@ let editor_text () =
 
 (* A checker error from a binding apply is marked on the binding text's line, and typing clears it. *)
 let editor_binding () =
-  let open Prismel in
+  let open Rays in
   let catalog = Editor_document.Contexts.catalog ~version:Flow_sop.Manifest.version
       Sop_catalog.Editor.factories |> Result.get_ok in
-  let workspace = Prismel_editor.Workspace_doc.of_text catalog (case "sunflower") |> Result.get_ok in
-  let presets = Filename.temp_dir "prismel-text-presets" "" in
+  let workspace = Rays_editor.Workspace_doc.of_text catalog (case "sunflower") |> Result.get_ok in
+  let presets = Filename.temp_dir "rays-text-presets" "" in
   let env = ref (E.create ~presets ~await:true ~workspace
-      ~prepare:(fun _ output -> Pdk_prismel.Prismel_mesh.to_mesh output.Procedural.Session.geometry
-        |> Result.map_error Pdk.Error.to_string)
+      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh output.Procedural.Session.geometry
+        |> Result.map_error Rdk.Error.to_string)
       ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) () |> Result.get_ok) in
   let count = ref 0 in
   let step ?keys ?(at = (450., 320.)) events =
@@ -246,7 +246,7 @@ let editor_binding () =
       Event.MouseReleased (Input.LeftButton, (x, y)) ] in
   let key k = Event.KeyPressed k and char c = Event.KeyPressed (Input.KeyChar c) in
   let dump () =
-    let directory = Filename.temp_dir "prismel-text-pane" "" in
+    let directory = Filename.temp_dir "rays-text-pane" "" in
     Fun.protect ~finally:(fun () ->
       Array.iter (fun f -> Sys.remove (Filename.concat directory f)) (Sys.readdir directory);
       Unix.rmdir directory) (fun () ->
@@ -301,8 +301,8 @@ let editor_binding () =
     ("coherent cross-binding type change was refused: " ^ dump ());
   check (T.binding after.source ["sunflower"; "seeds_each"] <> T.binding before.source ["sunflower"; "seeds_each"])
     "producer was not patched";
-  let reloaded = Prismel_editor.Workspace_doc.of_text catalog
-    (Prismel_editor.Workspace_doc.to_text after) |> Result.get_ok in
+  let reloaded = Rays_editor.Workspace_doc.of_text catalog
+    (Rays_editor.Workspace_doc.to_text after) |> Result.get_ok in
   check (printed_binding reloaded.source ["sunflower"; "head"] = printed_binding after.source ["sunflower"; "head"])
     "Selection patch did not survive serialized reload";
   click (float (gx + 30), float (gy + gh - 70));
@@ -322,7 +322,7 @@ let editor_binding () =
 
 (* The editor's Lisp as the text area's language: indentation and bracket pairs. *)
 let lisp_text () =
-  let module L = Prismel_editor.Private.Lisp_text in
+  let module L = Rays_editor.Private.Lisp_text in
   let indent text = String.length (L.indent text (String.length text)) in
   check (indent "(let* [a 1" = 7) "a vector's elements line up under the first";
   check (indent "(graph g :context sop" = 2) "a body form indents two in";
@@ -411,15 +411,15 @@ let lisp_text () =
    `soft`, its note in the inspector, and the make-macro dialog (m, Create macro).  The frame's
    mouse stays at the window centre (the pointer is the events'), as the export driver's does. *)
 let editor_w9 () =
-  let open Prismel in
+  let open Rays in
   let catalog = Editor_document.Contexts.catalog ~version:Flow_sop.Manifest.version
       Sop_catalog.Editor.factories |> Result.get_ok in
   let scenario script =
-    let workspace = Prismel_editor.Workspace_doc.of_text catalog (case "rosette") |> Result.get_ok in
-    let presets = Filename.temp_dir "prismel-text-presets" "" in
+    let workspace = Rays_editor.Workspace_doc.of_text catalog (case "rosette") |> Result.get_ok in
+    let presets = Filename.temp_dir "rays-text-presets" "" in
   let env = ref (E.create ~presets ~await:true ~workspace
-        ~prepare:(fun _ output -> Pdk_prismel.Prismel_mesh.to_mesh output.Procedural.Session.geometry
-          |> Result.map_error Pdk.Error.to_string)
+        ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh output.Procedural.Session.geometry
+          |> Result.map_error Rdk.Error.to_string)
         ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) () |> Result.get_ok) in
     let mouse = ref (640., 360.) in
     for n = 1 to 40 do
@@ -483,7 +483,7 @@ let editor_w9 () =
 (* Scrubbing :active in the Document text: dragging the number after [:active] sideways switches
    the layout on every frame of the drag and the whole drag is one "Edit text" entry. *)
 let editor_active_scrub () =
-  let open Prismel in
+  let open Rays in
   let catalog = Editor_document.Contexts.catalog ~version:Flow_sop.Manifest.version
       Sop_catalog.Editor.factories |> Result.get_ok in
   let text = {|(workspace sw
@@ -494,11 +494,11 @@ let editor_active_scrub () =
            split (ui/split-at "horizontal" 0.5 (ui/graph) (ui/inspector))
            three (ui/split-at "horizontal" 0.3 (ui/inspector) (ui/graph))]
       (ui/workspace (ui/switch wide split three :active 0)))))|} in
-  let workspace = Prismel_editor.Workspace_doc.of_text catalog text |> Result.get_ok in
-  let presets = Filename.temp_dir "prismel-text-presets" "" in
+  let workspace = Rays_editor.Workspace_doc.of_text catalog text |> Result.get_ok in
+  let presets = Filename.temp_dir "rays-text-presets" "" in
   let env = ref (E.create ~presets ~await:true ~workspace
-      ~prepare:(fun _ output -> Pdk_prismel.Prismel_mesh.to_mesh output.Procedural.Session.geometry
-        |> Result.map_error Pdk.Error.to_string)
+      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh output.Procedural.Session.geometry
+        |> Result.map_error Rdk.Error.to_string)
       ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) () |> Result.get_ok) in
   let count = ref 0 and mouse = ref (450., 320.) in
   let step ?(buttons = []) ?(keys = []) events =
@@ -541,7 +541,7 @@ let editor_active_scrub () =
    and the text must check (Graph tab: one Set_graph; Document tab: the whole text), else refused
    with the checker's words; an unapplied draft refuses it too. *)
 let editor_text_drop () =
-  let open Prismel in
+  let open Rays in
   let catalog = Editor_document.Contexts.catalog ~version:Flow_sop.Manifest.version
       Sop_catalog.Editor.factories |> Result.get_ok in
   let text = {|(workspace drop
@@ -550,11 +550,11 @@ let editor_text_drop () =
   (graph scene :context scene (scene/merge (scene/geometry (ref b))))
   (graph editor :context editor
     (ui/workspace (ui/split-at "vertical" 0.12 (ui/graph) (ui/lisp)))))|} in
-  let workspace = Prismel_editor.Workspace_doc.of_text catalog text |> Result.get_ok in
-  let presets = Filename.temp_dir "prismel-text-presets" "" in
+  let workspace = Rays_editor.Workspace_doc.of_text catalog text |> Result.get_ok in
+  let presets = Filename.temp_dir "rays-text-presets" "" in
   let env = ref (E.create ~presets ~await:true ~workspace
-      ~prepare:(fun _ output -> Pdk_prismel.Prismel_mesh.to_mesh output.Procedural.Session.geometry
-        |> Result.map_error Pdk.Error.to_string)
+      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh output.Procedural.Session.geometry
+        |> Result.map_error Rdk.Error.to_string)
       ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) () |> Result.get_ok) in
   let count = ref 0 and mouse = ref (450., 320.) in
   let step ?(buttons = []) ?(keys = []) events =
@@ -582,7 +582,7 @@ let editor_text_drop () =
   check (E.carrying !env <> None) "the carry survives the jump";
   let original = E.workspace !env and history = E.undo_label !env in
   let shown tab =
-    (Prismel_editor.Private.Text_pane.make_shown (E.workspace !env).source "b" None tab).text in
+    (Rays_editor.Private.Text_pane.make_shown (E.workspace !env).source "b" None tab).text in
   let where tab needle =
     let lines = String.split_on_char '\n' (shown tab) in
     let line = Option.get (List.find_index (fun l -> contains l needle) lines) in
@@ -594,7 +594,7 @@ let editor_text_drop () =
     let line, col = where tab needle in
     float gx +. 12. +. 3. *. char_w +. 8. +. float (col + after) *. char_w, float top +. 24. +. float line *. 24. in
   (* hover between the call and its first argument: the text is the edit, the strip says where *)
-  let over = point Prismel_editor.Private.Text_pane.Graph "(sop/merge" ~after:10 in
+  let over = point Rays_editor.Private.Text_pane.Graph "(sop/merge" ~after:10 in
   at over [ Event.MouseMoved over ]; at over [];
   check (contains (line ()) "(ref a) at line") ("the strip says where it goes: " ^ line ());
   check (contains (source ()) "(sop/merge (ref a) (sop/box)") ("the preview is the edit: " ^ source ());
@@ -607,7 +607,7 @@ let editor_text_drop () =
   check (E.workspace !env == original) "one undo gives it back";
   (* inside a keyword the text does not check: refused, nothing written *)
   jump "a"; step [ char 'y' ]; step []; jump "b";
-  let inside = point Prismel_editor.Private.Text_pane.Graph "(sop/merge" ~after:5 in
+  let inside = point Rays_editor.Private.Text_pane.Graph "(sop/merge" ~after:5 in
   at inside [ Event.MouseMoved inside ]; at inside [];
   check (contains (line ()) "Refused") ("a put that does not check is refused: " ^ line ());
   check (E.workspace !env == original) "and the picture is the original";
@@ -618,7 +618,7 @@ let editor_text_drop () =
   click (float (gx + 200), float (top + 24 + 60));
   step [ Event.TextInput "x" ]; step [ key Input.Escape ]; step [];
   jump "a"; step [ char 'y' ]; step []; jump "b";
-  let over = point Prismel_editor.Private.Text_pane.Graph "(sop/merge" ~after:10 in
+  let over = point Rays_editor.Private.Text_pane.Graph "(sop/merge" ~after:10 in
   at over [ Event.MouseMoved over ]; at over [];
   check (contains (line ()) "unapplied draft") ("a draft refuses: " ^ line ());
   step [ key Input.Escape ]; step [];
@@ -626,7 +626,7 @@ let editor_text_drop () =
   click (float (gx + 8 + 81 + 53 + 20), float (top + 12));
   let original = E.workspace !env in
   jump "a"; step [ char 'y' ]; step [];
-  let over = point Prismel_editor.Private.Text_pane.Document "(sop/merge" ~after:10 in
+  let over = point Rays_editor.Private.Text_pane.Document "(sop/merge" ~after:10 in
   at over [ Event.MouseMoved over ]; at over [];
   check (contains (line ()) "(ref a) at line") ("the Document text takes it too: " ^ line ());
   at over [ Event.MousePressed (Input.LeftButton, over); Event.MouseReleased (Input.LeftButton, over) ]; step []; step [];

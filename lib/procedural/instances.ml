@@ -1,4 +1,4 @@
-open Prismel_math
+open Rays_math
 
 type t = { source : Node.t; transforms : Mat4.t array }
 

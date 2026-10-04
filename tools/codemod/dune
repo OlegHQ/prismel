@@ -15,3 +15,7 @@
 (rule
  (alias runtest)
  (action (run %{exe:codemod.exe} result-bind --self-test %{exe:result_bind_ppx.exe})))
+
+(rule
+ (alias runtest)
+ (action (run %{exe:codemod.exe} rename --self-test)))

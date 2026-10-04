@@ -25,14 +25,14 @@ let sections () = Sop.merge [
 
 let run () =
   let graph = sections () |> Sop.poly_loft
-      ~minimize:Pdk.Poly_loft.Three_point_distance ~output_group:"loft" in
+      ~minimize:Rdk.Poly_loft.Three_point_distance ~output_group:"loft" in
   let output = cook graph in
-  if Pdk.Geometry.point_count output <> 7
-     || Pdk.Geometry.vertex_count output <> 15
-     || Pdk.Geometry.primitive_count output <> 5 then
+  if Rdk.Geometry.point_count output <> 7
+     || Rdk.Geometry.vertex_count output <> 15
+     || Rdk.Geometry.primitive_count output <> 5 then
     fail "PolyLoft SOP cardinality";
-  (match Pdk.Geometry.find_group ~owner:Pdk.Group.Primitive "loft" output with
-   | Some group when Pdk.Group.cardinality group = 5 -> ()
+  (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive "loft" output with
+   | Some group when Rdk.Group.cardinality group = 5 -> ()
    | _ -> fail "PolyLoft SOP output group");
   if not (contains (Node.parameters graph) "minimize=three_point") then
     fail "PolyLoft cache identity omits minimize policy";

@@ -4,7 +4,7 @@ The `sample.*`, `palette.gif`, `rgbrgb.png`, and `svg.svg` files are unmodified
 SDL3_image 3.4.4 test assets from commit
 `bec9134a26c7d0f31b36d6083c25296e04cabff5` (`release-3.4.4`).  They cover
 every still-image format for which that stable upstream release ships a test
-fixture.  Prismel uses them under SDL_image's zlib license:
+fixture.  Rays uses them under SDL_image's zlib license:
 
 > Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>
 >
@@ -19,8 +19,8 @@ fixture.  Prismel uses them under SDL_image's zlib license:
 > notice must not be removed or altered from a source distribution.
 
 `orientation-6.jpg` is the unmodified upstream `sample.jpg` byte stream with a
-minimal EXIF orientation-6 APP1 segment inserted by Prismel's OCaml fixture
-tool. `alpha.svg` is a Prismel-authored two-pixel half-transparent/opaque
+minimal EXIF orientation-6 APP1 segment inserted by Rays's OCaml fixture
+tool. `alpha.svg` is a Rays-authored two-pixel half-transparent/opaque
 fixture. Regenerate the oriented JPEG with:
 
 ```sh
@@ -29,7 +29,7 @@ dune exec tools/sdl3/generate_image_fixtures.exe -- \
   test/sdl3_image_fixtures
 ```
 
-The same OCaml tool writes the Prismel-authored minimal ILBM and XV fixtures
+The same OCaml tool writes the Rays-authored minimal ILBM and XV fixtures
 for the two legacy still-image decoders that upstream tests but does not ship
 as files in its source tree.
 

@@ -27,28 +27,28 @@ let details = function
       { configurator_name = "sdl3"
       ; package = "sdl3"
       ; library = "SDL3"
-      ; environment_prefix = "PRISMEL_SDL3"
+      ; environment_prefix = "RAYS_SDL3"
       ; inherits_core = false
       }
   | Image ->
       { configurator_name = "sdl3_image"
       ; package = "sdl3-image"
       ; library = "SDL3_image"
-      ; environment_prefix = "PRISMEL_SDL3_IMAGE"
+      ; environment_prefix = "RAYS_SDL3_IMAGE"
       ; inherits_core = true
       }
   | Ttf ->
       { configurator_name = "sdl3_ttf"
       ; package = "sdl3-ttf"
       ; library = "SDL3_ttf"
-      ; environment_prefix = "PRISMEL_SDL3_TTF"
+      ; environment_prefix = "RAYS_SDL3_TTF"
       ; inherits_core = true
       }
   | Mixer ->
       { configurator_name = "sdl3_mixer"
       ; package = "sdl3-mixer"
       ; library = "SDL3_mixer"
-      ; environment_prefix = "PRISMEL_SDL3_MIXER"
+      ; environment_prefix = "RAYS_SDL3_MIXER"
       ; inherits_core = true
       }
 
@@ -58,16 +58,16 @@ let environment name =
   | Some _ | None -> None
 
 let link_mode () =
-  match environment "PRISMEL_SDL3_LINK_MODE" with
+  match environment "RAYS_SDL3_LINK_MODE" with
   | None | Some "dynamic" -> Dynamic
   | Some "static" -> Static
   | Some value ->
       C.die
-        "PRISMEL_SDL3_LINK_MODE must be dynamic or static, not %S" value
+        "RAYS_SDL3_LINK_MODE must be dynamic or static, not %S" value
 
 let sanitizer_configuration () =
   let sanitizers =
-    match environment "PRISMEL_SDL3_SANITIZERS" with
+    match environment "RAYS_SDL3_SANITIZERS" with
     | None | Some "none" -> []
     | Some value ->
         String.split_on_char ',' value
@@ -77,7 +77,7 @@ let sanitizer_configuration () =
           | "undefined" -> Undefined
           | sanitizer ->
               C.die
-                "PRISMEL_SDL3_SANITIZERS accepts address and undefined, not %S"
+                "RAYS_SDL3_SANITIZERS accepts address and undefined, not %S"
                 sanitizer)
         |> List.sort_uniq compare
   in
@@ -293,7 +293,7 @@ let configure config component =
   C.Flags.write_sexp "c_library_flags.sexp"
     (platform_libraries config libraries);
   C.Flags.write_lines "sdl3_probed.h"
-    [ "#define PRISMEL_SDL3_PROBED_VERSION "
+    [ "#define RAYS_SDL3_PROBED_VERSION "
       ^ string_of_int (probed_version config details) ]
 
 let main component =

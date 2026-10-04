@@ -1,5 +1,5 @@
-open Prismel
-open Pdk
+open Rays
+open Rdk
 open Procedural
 
 let fail message = raise (Failure message)
@@ -13,7 +13,7 @@ let contains text pattern =
   pattern = "" || search 0
 
 let source () =
-  let geometry = Pdk.Plane_generators.grid ~connectivity:Pdk.Plane_generators.Grid_quads ~columns:260 ~rows:160
+  let geometry = Rdk.Plane_generators.grid ~connectivity:Rdk.Plane_generators.Grid_quads ~columns:260 ~rows:160
       ~size:12. () |> function
     | Ok value -> value
     | Error error -> fail (Error.to_string error) in
@@ -123,9 +123,9 @@ let run () =
       ~max_payload_bytes:220_000_000 |> get in
   ignore (cook hold_only_session (context 4) hold_only);
   Session.close hold_only_session;
-  let one_mesh = Pdk_prismel.Prismel_mesh.to_mesh one |> function
+  let one_mesh = Rdk_rays.Rays_mesh.to_mesh one |> function
     | Ok value -> value | Error error -> fail (Error.to_string error)
-  and four_mesh = Pdk_prismel.Prismel_mesh.to_mesh four |> function
+  and four_mesh = Rdk_rays.Rays_mesh.to_mesh four |> function
     | Ok value -> value | Error error -> fail (Error.to_string error) in
   check (Mesh.Private.packed_view one_mesh = Mesh.Private.packed_view four_mesh)
     "Attribute Fade SOP one/four-domain render mesh differs";
@@ -144,7 +144,7 @@ let run () =
    | Ok _ -> fail "Attribute Fade SOP accepted a missing group");
   List.iter (fun graph -> match Session.cook session ~context:(context 1) graph with
     | Error error -> check (error.code = "invalid_attribute_fade")
-        "Attribute Fade SOP structured PDK diagnostic"
+        "Attribute Fade SOP structured RDK diagnostic"
     | Ok _ -> fail "Attribute Fade SOP accepted invalid controls")
     [invalid; bad_reference];
   Session.close session;

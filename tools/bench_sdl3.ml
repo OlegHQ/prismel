@@ -129,7 +129,7 @@ let () =
         let window =
           sdl
             (Sdl3.Window.create
-               ~title:(Printf.sprintf "Prismel SDL3 bench %d" index)
+               ~title:(Printf.sprintf "Rays SDL3 bench %d" index)
                ~width:16 ~height:16 ~flags:[ Sdl3.Window.Hidden ] ())
         in
         ignore (sdl (Sdl3.Window.size_in_pixels window));
@@ -187,7 +187,7 @@ let () =
   let text =
     measure ~name:"text_render_rgba" ~iterations:arguments.decode_iterations
       ~calls_per_iteration:1 (fun _ ->
-        match ttf (Sdl3_ttf.Font.render_blended font ~color:(255, 255, 255, 255) "Prismel flow 123") with
+        match ttf (Sdl3_ttf.Font.render_blended font ~color:(255, 255, 255, 255) "Rays flow 123") with
         | None -> fail "empty render"
         | Some _ -> ())
   in

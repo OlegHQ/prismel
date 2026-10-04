@@ -11,18 +11,18 @@ let contains text pattern =
   pattern = "" || loop 0
 
 let source () =
-  let geometry = Pdk.Uv_sphere.run
-      ~connectivity:Pdk.Uv_sphere.Sphere_alternating_triangles
+  let geometry = Rdk.Uv_sphere.run
+      ~connectivity:Rdk.Uv_sphere.Sphere_alternating_triangles
       ~segments:160 ~rings:80 ~radius:2. () |> Result.get_ok in
-  let selected = Pdk.Group.init ~grain:257 ~owner:Pdk.Group.Point
-      ~name:"upper" (Pdk.Geometry.point_count geometry) (fun point ->
-        let positions = Pdk.Packed.Float3.Private.view
-            (Pdk.Geometry.positions geometry) in
+  let selected = Rdk.Group.init ~grain:257 ~owner:Rdk.Group.Point
+      ~name:"upper" (Rdk.Geometry.point_count geometry) (fun point ->
+        let positions = Rdk.Packed.Float3.Private.view
+            (Rdk.Geometry.positions geometry) in
         positions.y.(point) >= 0.) in
-  Pdk.Geometry.with_group selected geometry |> Result.get_ok
+  Rdk.Geometry.with_group selected geometry |> Result.get_ok
 
 let outputs = {
-  Pdk.Curvature.mean = Some "mean";
+  Rdk.Curvature.mean = Some "mean";
   gaussian = Some "gaussian";
   minimum = Some "minimum";
   maximum = Some "maximum";
@@ -43,10 +43,10 @@ let fresh domains node =
     (fun () -> cook session domains node)
 
 let values name geometry =
-  match Pdk.Geometry.find_attribute ~owner:Pdk.Attribute.Point name geometry with
+  match Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point name geometry with
   | Some attribute ->
-      (match Pdk.Attribute.Private.storage attribute with
-       | Pdk.Attribute.Float values -> values
+      (match Rdk.Attribute.Private.storage attribute with
+       | Rdk.Attribute.Float values -> values
        | _ -> fail (name ^ " output storage"))
   | None -> fail (name ^ " output missing")
 
@@ -54,7 +54,7 @@ let run () =
   let geometry = source () in
   let node = Sop.snapshot geometry
       |> Sop.measure_curvature ~label:"surface-curvature" ~point_group:"upper"
-          ~boundary:Pdk.Curvature.Curvature_boundary_one_sided
+          ~boundary:Rdk.Curvature.Curvature_boundary_one_sided
           ~smoothing_iterations:2 ~smoothing_strength:0.25 ~outputs in
   check (Node.operation node = "measure_curvature" && Node.version node = 1
       && Node.cook_mode node = Node.Duplicate_input 0
@@ -76,8 +76,8 @@ let run () =
     check (values name one = values name four)
       (name ^ " SOP output differs across domain counts"))
     ["mean";"gaussian";"minimum";"maximum";"curvedness";"shape"];
-  check (Pdk.Geometry.topology one == Pdk.Geometry.topology geometry
-      && Pdk.Geometry.positions one == Pdk.Geometry.positions geometry)
+  check (Rdk.Geometry.topology one == Rdk.Geometry.topology geometry
+      && Rdk.Geometry.positions one == Rdk.Geometry.positions geometry)
     "Measure Curvature SOP did not share source geometry";
   let missing = Sop.snapshot geometry
       |> Sop.measure_curvature ~point_group:"missing" in
@@ -88,7 +88,7 @@ let run () =
    | Error error -> check (error.code = "missing_group")
        "Measure Curvature missing-group diagnostic"
    | Ok _ -> fail "Measure Curvature accepted a missing point group");
-  let curve = Pdk.Line_geometry.polyline ~closed:true
+  let curve = Rdk.Line_geometry.polyline ~closed:true
       [|0.,0.,0.;1.,0.,0.;0.,1.,0.|] |> Result.get_ok |> Sop.snapshot
       |> Sop.measure_curvature in
   (match Session.cook session ~context curve with

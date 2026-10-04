@@ -37,7 +37,7 @@ let get = function | Ok value -> value | Error message -> failwith message
 [@@@ocaml.text
   " Resource100 generated raw integration. Internal handles only. "]
 [@@@ocaml.text
-  " Mesh/tile105 owned descriptor inputs. Field order is the native positional\n    ABI consumed by [prismel_mesh_tile_objects_from_value]. "]
+  " Mesh/tile105 owned descriptor inputs. Field order is the native positional\n    ABI consumed by [rays_mesh_tile_objects_from_value]. "]
 [@@@ocaml.text " Counter and blit-pass bindings. "]
 [@@@ocaml.text
   " Authoritative Metal4 lifecycle190 prepared CAML subset. The resource and\n    compute-owner shards currently contain typed native helpers only, not OCaml\n    primitives, so they are intentionally absent here. "]

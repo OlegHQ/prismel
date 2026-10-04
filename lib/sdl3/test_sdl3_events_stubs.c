@@ -71,7 +71,7 @@ static bool push_pinch(Uint32 type, float scale)
   return push(&event);
 }
 
-/* Every kind Prismel reads, in order, among kinds it must skip. The OCaml
+/* Every kind Rays reads, in order, among kinds it must skip. The OCaml
    test names the exact list that comes back. */
 CAMLprim value caml_sdl3_test_push_event_trace(value unit)
 {
@@ -109,7 +109,7 @@ CAMLprim value caml_sdl3_test_push_event_trace(value unit)
   event.edit.length = 2;
   ok = push(&event) && ok;
 
-  /* kinds Prismel never reads: none of these may come back */
+  /* kinds Rays never reads: none of these may come back */
   SDL_zero(event);
   event.pproximity.type = SDL_EVENT_PEN_PROXIMITY_IN;
   ok = push(&event) && ok;
@@ -229,7 +229,7 @@ CAMLprim value caml_sdl3_test_dialog_reserve(value unit)
   int id = 0, index;
   void *slot;
   (void)unit;
-  slot = prismel_dialog_reserve(names, patterns, 2, "/tmp/\xC5\xBE", &id);
+  slot = rays_dialog_reserve(names, patterns, 2, "/tmp/\xC5\xBE", &id);
   if (slot == NULL) return Val_int(0);
   for (index = 0; index < TEST_SLOTS; index++) {
     if (test_slots[index] == NULL) {
@@ -238,7 +238,7 @@ CAMLprim value caml_sdl3_test_dialog_reserve(value unit)
       return Val_int(id);
     }
   }
-  prismel_dialog_abandon(slot);
+  rays_dialog_abandon(slot);
   return Val_int(0);
 }
 
@@ -258,7 +258,7 @@ static void *take_test_slot(int id)
 CAMLprim value caml_sdl3_test_dialog_abandon(value id)
 {
   void *slot = take_test_slot(Int_val(id));
-  if (slot != NULL) prismel_dialog_abandon(slot);
+  if (slot != NULL) rays_dialog_abandon(slot);
   return Val_unit;
 }
 
@@ -273,7 +273,7 @@ static int SDLCALL finish_on_thread(void *data)
   finish_request *request = (finish_request *)data;
   /* the error text is per thread: set it where the callback runs */
   if (request->error != NULL) SDL_SetError("%s", request->error);
-  prismel_dialog_callback(request->slot, (const char *const *)request->list, -1);
+  rays_dialog_callback(request->slot, (const char *const *)request->list, -1);
   return 0;
 }
 

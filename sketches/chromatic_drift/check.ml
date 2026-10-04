@@ -1,4 +1,4 @@
-open Prismel
+open Rays
 open Chromatic_art
 let digest scene = Scene3.Private.drawings scene
   |> List.map(fun (d:Scene3.Private.drawing)->Mesh.Private.packed_view d.mesh)

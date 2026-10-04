@@ -25,7 +25,7 @@ otherwise make two ways.
 3. **Bounded, pure and deterministic.** There is no `while`, no recursion and
    no stateful randomness. Parallel and sequential evaluation give identical
    bytes, as `AGENTS.md` requires.
-4. **A sketch is a `.plisp` file.** `sketches/<name>/sketch.plisp` holds one
+4. **A sketch is a `.rays` file.** `sketches/<name>/sketch.rays` holds one
    workspace with no OCaml wrapper. `dune build` checks it, reports errors at
    lines in the file, and links a native program. The running editor saves
    back to the file and reloads it when it changes on disk.
@@ -151,7 +151,7 @@ The checker has two passes, both implemented in the study's `model.js`:
    whatever the iteration count, and types both branches of every `if`.
    Arity, keywords, contexts, shadowing, recursion, fold accumulator
    agreement (`E_ACC_TYPE`), group names (`W_UNKNOWN_GROUP`, §3.7) and
-   literal loop bounds are all reported here. This is what `prismel-plisp check` runs at build time.
+   literal loop bounds are all reported here. This is what `rays-plisp check` runs at build time.
 2. **Run pass.** `Flow.Eval` evaluates everything that is not geometry, in
    order, on IEEE doubles. Geometry calls become a plan (see `eval.mli`), so
    nothing here cooks. These are reported here, each with its code and the
@@ -425,10 +425,10 @@ declare an independent World. Editing a comparison ref leaves that World's
 baked output and the primary render camera unchanged. Independent authored
 per-view render-camera/World controllers would require an explicit API extension.
 
-## 5. Sketches as `.plisp` files
+## 5. Sketches as `.rays` files
 
 ```lisp
-; sketches/bloom/sketch.plisp: the only authored file
+; sketches/bloom/sketch.rays: the only authored file
 (workspace bloom
   (graph flower :context sop [(petals : int 12) (seed : int 7)]
     (let* [ring (for [i (range petals)] …)]
@@ -436,23 +436,23 @@ per-view render-camera/World controllers would require an explicit API extension
 ```
 
 - **The build.**
-  - `sketches/dune` includes a generated `dune.plisp.inc`, which
-    `prismel-plisp dune sketches` writes.
+  - `sketches/dune` includes a generated `dune.rays.inc`, which
+    `rays-plisp dune sketches` writes.
   - `runtest` diffs the include, and `dune promote` accepts a new sketch.
   - For each sketch the include has a `subdir` stanza: a rule running
-    `prismel-plisp ml sketch.plisp` to produce `main.ml`, an executable, and
+    `rays-plisp ml sketch.rays` to produce `main.ml`, an executable, and
     a `smoke-all` run.
   - There is no custom dune stanza and no per-sketch `dune` file. Plan W11
     has the full text.
-- **Errors at their line.** `prismel-plisp check` prints `File "…/sketch.plisp",
+- **Errors at their line.** `rays-plisp check` prints `File "…/sketch.rays",
   line L, characters A-B:` diagnostics, the OCaml compiler's format, so dune
   and editors jump to them (register O3). Warnings are errors.
 - **One plan.** The generated `main.ml` embeds the verbatim source and its
-  digest, and calls `Prismel_editor.Workspace.main`. That re-parses the
+  digest, and calls `Rays_editor.Workspace.main`. That re-parses the
   source at startup and runs the same plan the live editor edits (register
   O4).
 - **The file is the source** (register O1).
-  - Save rewrites `sketch.plisp` atomically with the comment-preserving
+  - Save rewrites `sketch.rays` atomically with the comment-preserving
     printer, if its digest still matches the build.
   - Otherwise edits are saved as a document preset (an s-expression: the
     same text plus layout and settings).
@@ -460,7 +460,7 @@ per-view render-camera/World controllers would require an explicit API extension
     entry. Probes and layout are kept by path id.
 - **OCaml hosts.**
   - There is no antiquotation (register O2).
-  - A host program calls `Workspace.load` on a `.plisp` and overrides graph
+  - A host program calls `Workspace.load` on a `.rays` and overrides graph
     inputs with `Workspace_program.with_inputs`.
   - The editor shows an overridden input as driven from OCaml.
   - A `[%workspace]` PPX with generated input records is deferred until a
@@ -511,7 +511,7 @@ This is a plan for review, not a milestone commitment.
    over `Ui.box`, with no second hit-test or capture path. It emits typed
    requests (`Wrap_in_loop`, `Hoist`, `Set_probe`), and the reducer applies
    them outside `Ui.frame`.
-5. **Build.** `.plisp` files compile through a small `prismel-plisp` tool
+5. **Build.** `.rays` files compile through a small `rays-plisp` tool
    and generated dune rules (§5). `[%flow]` remains for OCaml sketches.
 
 ## 7. Functions, data, branches and macros

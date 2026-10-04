@@ -1,15 +1,15 @@
-# Prismel
+# Rays
 
-> Prismel is under active development. APIs and qualification tooling may
+> Rays is under active development. APIs and qualification tooling may
 > change while the native GPU migration is completed.
 
-Prismel is a functional creative-coding framework for OCaml. It combines pure
+Rays is a functional creative-coding framework for OCaml. It combines pure
 scene construction, immutable sketch state, native Metal rendering, typed
 input and media resources, a UI toolkit, and production-oriented procedural
 geometry.
 
-Prismel currently supports one platform stack: macOS on Apple Silicon, SDL3
-for the window/event/media lifecycle, and Prismel's custom OGPU/Metal renderer.
+Rays currently supports one platform stack: macOS on Apple Silicon, SDL3
+for the window/event/media lifecycle, and Rays's custom OGPU/Metal renderer.
 Metal unavailability is a typed startup error. Applications do not select a
 different renderer.
 
@@ -22,7 +22,7 @@ different renderer.
 - PXUI, an immediate-mode UI kit with an instanced Metal renderer, plus
   graph/inspector adapters for procedural tools.
 - Deterministic random, noise, fixed-clock, and multicore preparation APIs.
-- PDK packed geometry and immutable Procedural SOPs.
+- RDK packed geometry and immutable Procedural SOPs.
 - Bounded GPU resource, retained-plan, mesh, and text caches.
 
 ## Platform requirements
@@ -35,7 +35,7 @@ different renderer.
   developer tools.
 
 The runtime compiles its small built-in MSL sources at run time. Building
-Prismel does not require Xcode, the offline Metal compiler, `.air` files, or a
+Rays does not require Xcode, the offline Metal compiler, `.air` files, or a
 prebuilt `.metallib` pipeline.
 
 With Homebrew:
@@ -47,8 +47,8 @@ brew install opam direnv sdl3 sdl3_image sdl3_ttf sdl3_mixer pkg-config
 ## Build from source
 
 ```sh
-git clone https://github.com/nexo-tech/prismel.git
-cd prismel
+git clone https://github.com/OlegHQ/rays.git
+cd rays
 
 opam init
 opam switch create . 5.3.0 --no-install
@@ -74,7 +74,7 @@ renderer.
 ## Five-minute sketch
 
 ```ocaml
-open Prismel
+open Rays
 
 type model = { phase : float }
 
@@ -101,7 +101,7 @@ let () =
        ~config:{ Sketch.default_config with
          width = 640;
          height = 360;
-         title = "My Prismel sketch";
+         title = "My Rays sketch";
        }
        ~init ~update ~view ())
 ```
@@ -111,7 +111,7 @@ Give each executable its own Dune stanza:
 ```lisp
 (executable
  (name main)
- (libraries prismel))
+ (libraries rays))
 ```
 
 Then run it natively:
@@ -150,13 +150,13 @@ native smoke path; the runtime does not impose an implicit frame limit.
 
 ### Sketch workspace keys
 
-`Prismel_editor` environments (for example `sketches/voxel_wall`) use a leader key:
+`Rays_editor` environments (for example `sketches/voxel_wall`) use a leader key:
 press `Space`, read the which-key panel, then press one key. Pane-scoped keys
 apply to the pane you clicked last.
 
 | Keys | Action |
 |---|---|
-| `Space s` / `Space b` | save / browse presets (`~/.prismel/<sketch>/`) |
+| `Space s` / `Space b` | save / browse presets (`~/.rays/<sketch>/`) |
 | `Space t` / `g` / `i` | toggle timeline / graph / inspector |
 | `Space h` / `Space c` | hide all UI / camera section |
 | `Space p` / `r` / `x` | play-pause / reset / stop |
@@ -169,10 +169,10 @@ apply to the pane you clicked last.
 ## Architecture
 
 ```text
-examples / sketches / pxui / procedural / pdk
+examples / sketches / pxui / procedural / rdk
                          |
                          v
-                      prismel ----------------> ogpu
+                      rays ----------------> ogpu
                          |                        ^
                          |                        |
                          v                        |
@@ -181,7 +181,7 @@ examples / sketches / pxui / procedural / pdk
                          +----> sdl3 / sdl3_image / sdl3_ttf / sdl3_mixer
 ```
 
-- `prismel` owns public application semantics, pure scenes, resources, and
+- `rays` owns public application semantics, pure scenes, resources, and
   renderer behavior.
 - `runtime` owns the initial-domain SDL3 lifecycle, Metal view, drawable
   presentation, and event translation.
@@ -189,10 +189,10 @@ examples / sketches / pxui / procedural / pdk
 - `ogpu_metal` translates OGPU commands to the safe Metal library.
 - `metal` owns typed Objective-C++ calls, native validation, ownership, and
   command-completion retention.
-- `pdk` is the sole packed topology/geometry kernel; `procedural` wraps it in
+- `rdk` is the sole packed topology/geometry kernel; `procedural` wraps it in
   immutable graphs.
 
-No public Prismel type exposes an SDL3 or Metal handle. All window, input,
+No public Rays type exposes an SDL3 or Metal handle. All window, input,
 resource, and presentation operations remain on the initial OCaml domain.
 Pure CPU work may use the shared Domainslib pool and joins before native
 command submission.
@@ -200,25 +200,25 @@ command submission.
 ## Repository layout
 
 ```text
-lib/prismel/          public creative-coding API
+lib/rays/          public creative-coding API
 lib/runtime/          SDL3 + Metal native lifecycle
 lib/sdl3*/            SDL3 and media bindings
 lib/metal/            safe/raw Metal API and OCaml/Dune generation
 lib/ogpu/             renderer command interface
 lib/ogpu_metal/       Metal implementation of OGPU
-lib/pdk/              packed geometry/topology core
+lib/rdk/              packed geometry/topology core
 lib/procedural/       immutable SOP graphs
 lib/pxui*/            UI and graph presentation
 lib/sketch_support/   target-neutral sketch helpers
-lib/prismel_editor/        interactive sketch environments
-lib/prismel_pathtracer/ Metal ray-tracing path tracer
+lib/rays_editor/        interactive sketch environments
+lib/rays_pathtracer/ Metal ray-tracing path tracer
 examples/             self-contained examples
 sketches/             experimental native applications
 test/                 automated tests
 specification/        architecture and behavioral specifications
 ```
 
-The root `prismel.opam` file is generated from `dune-project`. SDL dependency
+The root `rays.opam` file is generated from `dune-project`. SDL dependency
 probes live as the small local opam packages under `packaging/`; application
 libraries remain under `lib/` and build through Dune.
 
@@ -244,16 +244,16 @@ rendering path.
 The geometry stack has one authoritative core:
 
 ```text
-procedural ──> pdk ──> prismel_math
-     └────────> pdk_prismel ──> prismel
+procedural ──> rdk ──> rays_math
+     └────────> rdk_rays ──> rays
 ```
 
-PDK owns packed topology, reverse incidence, spatial acceleration, attributes,
+RDK owns packed topology, reverse incidence, spatial acceleration, attributes,
 groups, and high-density modeling algorithms. Procedural wraps the same
 operations in immutable cookable graphs with bounded caches and explicit
-cancellation. `pdk_prismel` converts cooked geometry for rendering.
+cancellation. `rdk_rays` converts cooked geometry for rendering.
 
-See [the PDK specification](specification/pdk.md), [procedural
+See [the RDK specification](specification/rdk.md), [procedural
 specification](specification/procedural.md), and [modeling-kernel
 requirements](specification/modeling-kernels.md) for production guarantees.
 
@@ -294,6 +294,6 @@ generation does not use Python glue.
 - [Metal bindings](specification/metal.md)
 - [Packaging](specification/packaging.md)
 
-Prismel is licensed under the MIT License. External SDL3 libraries and Apple
+Rays is licensed under the MIT License. External SDL3 libraries and Apple
 platform frameworks retain their own licenses and terms; see
 [licenses](specification/licenses.md).

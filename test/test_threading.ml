@@ -7,7 +7,7 @@ let rec files dir =
   Array.fold_left (fun acc name ->
     let path = Filename.concat dir name in
     if Sys.is_directory path then acc @ files path
-    else if Filename.check_suffix name ".plisp" || Filename.check_suffix name ".lisp" then acc @ [ path ] else acc)
+    else if Filename.check_suffix name ".rays" || Filename.check_suffix name ".lisp" then acc @ [ path ] else acc)
     [] (Sys.readdir dir)
 
 let () =

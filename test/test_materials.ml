@@ -1,4 +1,4 @@
-open Prismel
+open Rays
 open Procedural
 
 let get = Result.get_ok
@@ -13,7 +13,7 @@ let source = {|(workspace materials
                    :start 0 :end_ 0)]
       (sop/material group :group "accent" :material (ref white)))))|}
 
-let workspace text = match Prismel_editor.Workspace.load text with
+let workspace text = match Rays_editor.Workspace.load text with
   | Ok w -> w | Error ds -> failwith (String.concat "\n" (List.map Flow.Diagnostic.to_string ds))
 
 let cook domains node =
@@ -23,25 +23,25 @@ let cook domains node =
     |> Result.map_error Diagnostic.error_to_string |> get)
 
 let attr name geometry =
-  Pdk.Geometry.find_attribute ~owner:Pdk.Attribute.Primitive name geometry
-  |> Option.get |> Pdk.Attribute.storage
+  Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Primitive name geometry
+  |> Option.get |> Rdk.Attribute.storage
 
 let signature geometry =
   ["shop_materialpath"; "material_roughness"; "material_color"; "material_emission"]
   |> List.map (fun name -> match attr name geometry with
-    | Pdk.Attribute.Text a -> `Text (Array.to_list a)
+    | Rdk.Attribute.Text a -> `Text (Array.to_list a)
     | Float a -> `Float (Array.to_list a)
-    | Float4 a -> `Tuple (List.init (Pdk.Packed.Float4.length a) (Pdk.Packed.Float4.get a))
+    | Float4 a -> `Tuple (List.init (Rdk.Packed.Float4.length a) (Rdk.Packed.Float4.get a))
     | _ -> failwith "unexpected material attribute")
 
 let face_materials_preserve_explosion () =
   let piece x id = Sop.box ~size:(Vec3.create 1. 1. 1.) ()
       |> Sop.transform (Mat4.translation (Vec3.create x 0. 0.))
-      |> Sop.set_int ~owner:Pdk.Attribute.Primitive ~name:"piece" id in
+      |> Sop.set_int ~owner:Rdk.Attribute.Primitive ~name:"piece" id in
   let geometry = (cook 1 (Sop.merge [piece (-2.) 0; piece 2. 1])).geometry in
-  let group = Pdk.Group.init ~owner:Pdk.Group.Primitive ~name:"one_face"
-      (Pdk.Geometry.primitive_count geometry) (( = ) 0) in
-  let node = Pdk.Geometry.with_group group geometry |> get |> Sop.snapshot
+  let group = Rdk.Group.init ~owner:Rdk.Group.Primitive ~name:"one_face"
+      (Rdk.Geometry.primitive_count geometry) (( = ) 0) in
+  let node = Rdk.Geometry.with_group group geometry |> get |> Sop.snapshot
       |> Sop.material ~name:"blue" ~color:(Vec3.create 0.15 0.43 0.96)
           ~roughness:0.3 ~emission:Vec3.zero
       |> Sop.material ~group:"one_face" ~name:"white" ~color:(Vec3.create 1. 1. 1.)
@@ -61,8 +61,8 @@ let face_materials_preserve_explosion () =
       assert (abs_float v.vertices.z.(index) <= 0.5)) v.indices) drawings
 
 (* ---- the editor around materials: outline, follow and back, rename, assign, pick ---- *)
-module E3 = Prismel_editor.Editor3
-module N = Prismel_editor.Private.Navigator
+module E3 = Rays_editor.Editor3
+module N = Rays_editor.Private.Navigator
 module Edit = Flow_sop.Flow_edit
 
 let fail message = failwith ("test_materials: " ^ message)
@@ -88,13 +88,13 @@ let frame ?(buttons = []) ?(keys = []) mouse events count : Frame.t = {
 
 let editor () =
   E3.create ~await:true ~workspace:(workspace follow_source)
-    ~prepare:(fun _ output -> Pdk_prismel.Prismel_mesh.to_mesh output.Session.geometry
-      |> Result.map_error Pdk.Error.to_string)
+    ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh output.Session.geometry
+      |> Result.map_error Rdk.Error.to_string)
     ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) ()
   |> function Ok e -> e | Error m -> fail m
 
 let dump_line e key =
-  let directory = Filename.temp_dir "prismel-materials-dump" "" in
+  let directory = Filename.temp_dir "rays-materials-dump" "" in
   Fun.protect ~finally:(fun () ->
     Array.iter (fun f -> Sys.remove (Filename.concat directory f)) (Sys.readdir directory);
     Sys.rmdir directory) (fun () ->
@@ -234,8 +234,8 @@ let carry_tests () =
       b = L.Split { axis = `H; ratio = 0.62; a = L.Leaf L.Graph; b = L.Leaf L.Inspector } } } in
   let make ?(source = carry_source) ?carry_budget () =
     E3.create ~await:true ?carry_budget ~layout ~workspace:(workspace source)
-      ~prepare:(fun _ output -> Pdk_prismel.Prismel_mesh.to_mesh output.Session.geometry
-        |> Result.map_error Pdk.Error.to_string)
+      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh output.Session.geometry
+        |> Result.map_error Rdk.Error.to_string)
       ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) ()
     |> function Ok e -> e | Error m -> fail m in
   let e = ref (make ()) and count = ref 0 in
@@ -252,11 +252,11 @@ let carry_tests () =
   let ws = ref (E3.workspace !e) in
   for _ = 1 to 12 do step [] done;
   (* y is a plain key nothing else uses *)
-  check (List.length (List.filter (fun (c : Prismel_editor.Private.Leader.command) -> match c.trigger with
+  check (List.length (List.filter (fun (c : Rays_editor.Private.Leader.command) -> match c.trigger with
     | Some (Editor_core.Keymap.Chord (Input.KeyChar 'y', [])) -> true | _ -> false)
-    Prismel_editor.Private.Leader.keymap3) = 1) "y picks up and no other command takes it";
+    Rays_editor.Private.Leader.keymap3) = 1) "y picks up and no other command takes it";
   (* the outline row of a graph, in screen points, as the Navigator draws it now *)
-  let catalog = get (Prismel_editor.workspace_catalog ()) in
+  let catalog = get (Rays_editor.workspace_catalog ()) in
   let row_of graph =
     let doc = (E3.workspace !e).Editor_document.Workspace_doc.checked in
     let chips = match Flow.Eval.static doc with Ok ev -> N.chips ev | Error d -> fail (Flow.Diagnostic.to_string d) in
@@ -520,8 +520,8 @@ let viewport_source = {|(workspace views
 
 let viewport_carry_tests () =
   let e = ref (E3.create ~await:true ~workspace:(workspace viewport_source)
-    ~prepare:(fun _ output -> Pdk_prismel.Prismel_mesh.to_mesh output.Session.geometry
-      |> Result.map_error Pdk.Error.to_string)
+    ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh output.Session.geometry
+      |> Result.map_error Rdk.Error.to_string)
     ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) ()
     |> function Ok e -> e | Error m -> fail m) and count = ref 0 in
   let step ?(keys = []) ?(mouse = (450., 300.)) events =
@@ -592,14 +592,14 @@ let viewport_carry_tests () =
 
 let () =
   face_materials_preserve_explosion ();
-  let graph = Prismel_editor.Workspace.sop_graphs (workspace source) |> get
+  let graph = Rays_editor.Workspace.sop_graphs (workspace source) |> get
       |> List.assoc "geo" in
   let node = graph in
   let one = cook 1 node and four = cook 4 node in
   assert (signature one.geometry = signature four.geometry);
-  assert (Pdk.Geometry.primitive_count one.geometry = 6);
+  assert (Rdk.Geometry.primitive_count one.geometry = 6);
   (match attr "shop_materialpath" one.geometry, attr "material_roughness" one.geometry with
-   | Pdk.Attribute.Text names, Float rough ->
+   | Rdk.Attribute.Text names, Float rough ->
        assert (names.(0) = "white" && rough.(0) = 0.8);
        assert (Array.sub names 1 5 = Array.make 5 "blue");
        assert (Array.sub rough 1 5 = Array.make 5 0.3)
@@ -610,15 +610,15 @@ let () =
   assert (List.fold_left (fun n (d : Scene3.Private.drawing) -> n + Mesh.index_count d.mesh) 0 drawings = 36);
   assert (List.exists (fun (d : Scene3.Private.drawing) -> d.material.diffuse = Color.hex_exn "#2670f5") drawings);
   let assign ?cancel ?group ?(roughness = 0.2) geometry =
-    Pdk.Material_assign.run ?cancel ?group ~name:"red" ~color:(1.,0.,0.)
+    Rdk.Material_assign.run ?cancel ?group ~name:"red" ~color:(1.,0.,0.)
       ~roughness ~emission:(0.,0.,0.) geometry in
   assert (Result.is_error (assign ~group:"missing" one.geometry));
   assert (Result.is_error (assign ~roughness:Float.nan one.geometry));
-  let cancelled = Pdk.Cancel.create () in Pdk.Cancel.cancel cancelled;
+  let cancelled = Rdk.Cancel.create () in Rdk.Cancel.cancel cancelled;
   (match assign ~cancel:cancelled one.geometry with
-   | Error e -> assert (Pdk.Error.code e = "cancelled") | _ -> assert false);
+   | Error e -> assert (Rdk.Error.code e = "cancelled") | _ -> assert false);
   assert (signature one.geometry = signature (cook 1 node).geometry);
-  List.iter (fun text -> assert (Result.is_error (Prismel_editor.Workspace.load text)))
+  List.iter (fun text -> assert (Result.is_error (Rays_editor.Workspace.load text)))
     ["(workspace x (graph m :context material (material/standard :roughness 2)))";
      "(workspace x (graph m :context material (material/standard :color \"invalid\")))";
      "(workspace x (graph m :context sop (material/standard)))"];

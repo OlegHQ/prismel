@@ -7,8 +7,8 @@
    FLOW_TEXT=selection|graph|document|edit|error|binding shows the text pane (Space l t)
    after the click that selects r: a tab, or an edit typed into the
    Document tab (a valid one applied, or an invalid one applied and refused). *)
-open Prismel
-module E3 = Prismel_editor.Editor3
+open Rays
+module E3 = Rays_editor.Editor3
 
 let workspace =
   let text = match Sys.getenv_opt "FLOW_CASE" with
@@ -17,14 +17,14 @@ let workspace =
     | Some "variations" -> Cases.variations
     | Some path when Sys.file_exists path -> In_channel.with_open_bin path In_channel.input_all
     | _ -> Cases.bloom in
-  let catalog = Prismel_editor.workspace_catalog () |> Result.get_ok in
-  match Prismel_editor.Workspace_doc.of_text catalog text with
+  let catalog = Rays_editor.workspace_catalog () |> Result.get_ok in
+  match Rays_editor.Workspace_doc.of_text catalog text with
   | Ok workspace -> workspace
   | Error ds -> failwith (String.concat "; " (List.map Flow.Diagnostic.to_string ds))
 
-let config = { Sketch.default_config with width = 1400; height = 800; title = "Prismel workspace" }
-let prepare _ output = Pdk_prismel.Prismel_mesh.to_mesh output.Procedural.Session.geometry
-  |> Result.map_error Pdk.Error.to_string
+let config = { Sketch.default_config with width = 1400; height = 800; title = "Rays workspace" }
+let prepare _ output = Rdk_rays.Rays_mesh.to_mesh output.Procedural.Session.geometry
+  |> Result.map_error Rdk.Error.to_string
 let scene3 _ mesh = Scene3.create [ Scene3.mesh ~cull:Scene3.Cull_none mesh ]
 let lights = [ Light.directional ~direction:(Vec3.create (-1.) (-1.4) (-0.8)) ~diffuse:Color.white () ]
 let camera = Easy_camera.create ~target:Vec3.zero ~distance:(if Sys.getenv_opt "FLOW_CASE" = Some "sunflower" then 2.2 else 3.6) ~azimuth:0.4 ~elevation:0.6 ()
@@ -134,7 +134,7 @@ let () = match Sys.getenv_opt "FLOW_EXPORT" with
               [ Event.KeyPressed (Input.KeyChar 'a') ]
           | 32 when Sys.getenv_opt "FLOW_TEXT" = Some "binding" -> [ Event.TextInput "(* spread (sqrt (+ i 1)))" ]
           | 32 when List.mem (Sys.getenv_opt "FLOW_TEXT") [ Some "edit"; Some "error" ] ->
-              let text = fst (Flow.Lisp.print workspace.Prismel_editor.Workspace_doc.source) in
+              let text = fst (Flow.Lisp.print workspace.Rays_editor.Workspace_doc.source) in
               let replace from by =
                 let n = String.length from in
                 let rec at i = if i + n > String.length text then None

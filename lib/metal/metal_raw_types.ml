@@ -429,7 +429,7 @@ type mesh_pipeline_descriptor_inputs =
   object_linked_functions: handle option ;
   mesh_linked_functions: handle option ;
   fragment_linked_functions: handle option }[@@ocaml.doc
-                                              " Mesh/tile105 owned descriptor inputs. Field order is the native positional\n    ABI consumed by [prismel_mesh_tile_objects_from_value]. "]
+                                              " Mesh/tile105 owned descriptor inputs. Field order is the native positional\n    ABI consumed by [rays_mesh_tile_objects_from_value]. "]
 type tile_pipeline_descriptor_inputs =
   {
   tile_function: handle ;

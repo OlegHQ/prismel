@@ -1,4 +1,4 @@
-open Prismel
+open Rays
 
 type preview = Pieces of Packed_pieces.t | Mesh of Mesh.t
 type t = { preview : preview; transforms : Mat4.t array option;
@@ -8,47 +8,47 @@ let of_output (output : Procedural.Session.output) =
   let ( let* ) = Result.bind in
   let geometry = output.geometry in
   let needs_triangles = List.exists (fun name ->
-    Pdk.Geometry.find_attribute ~owner:Pdk.Attribute.Primitive name geometry <> None)
+    Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Primitive name geometry <> None)
     ["piece"; "material_color"; "material_roughness"; "material_emission"] in
-  let* geometry = if not needs_triangles || Pdk.Topology.all_triangles (Pdk.Geometry.topology geometry)
-      || Pdk.Geometry.primitive_count geometry = 0 then Ok geometry
-    else Pdk.Triangulate.run geometry |> Result.map_error Pdk.Error.to_string in
-  let* preview = match Pdk.Geometry.find_attribute ~owner:Pdk.Attribute.Primitive "piece" geometry with
-    | Some _ when Pdk.Geometry.primitive_count geometry > 0 -> Packed_pieces.of_geometry ~piece_attribute:"piece" geometry
+  let* geometry = if not needs_triangles || Rdk.Topology.all_triangles (Rdk.Geometry.topology geometry)
+      || Rdk.Geometry.primitive_count geometry = 0 then Ok geometry
+    else Rdk.Triangulate.run geometry |> Result.map_error Rdk.Error.to_string in
+  let* preview = match Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Primitive "piece" geometry with
+    | Some _ when Rdk.Geometry.primitive_count geometry > 0 -> Packed_pieces.of_geometry ~piece_attribute:"piece" geometry
         |> Result.map (fun p -> Pieces p)
-    | Some _ | None -> Pdk_prismel.Prismel_mesh.to_mesh geometry
-        |> Result.map (fun m -> Mesh m) |> Result.map_error Pdk.Error.to_string in
-  let count = Pdk.Geometry.primitive_count geometry in
-  let* roughness = match Pdk.Geometry.find_attribute ~owner:Pdk.Attribute.Primitive "material_roughness" geometry with
+    | Some _ | None -> Rdk_rays.Rays_mesh.to_mesh geometry
+        |> Result.map (fun m -> Mesh m) |> Result.map_error Rdk.Error.to_string in
+  let count = Rdk.Geometry.primitive_count geometry in
+  let* roughness = match Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Primitive "material_roughness" geometry with
     | None -> Ok None
-    | Some a -> (match Pdk.Attribute.Private.storage a with
-        | Pdk.Attribute.Float a -> Ok (Some a) | _ -> Error "material_roughness must be primitive float") in
-  let* emission = match Pdk.Geometry.find_attribute ~owner:Pdk.Attribute.Primitive "material_emission" geometry with
+    | Some a -> (match Rdk.Attribute.Private.storage a with
+        | Rdk.Attribute.Float a -> Ok (Some a) | _ -> Error "material_roughness must be primitive float") in
+  let* emission = match Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Primitive "material_emission" geometry with
     | None -> Ok None
-    | Some a -> (match Pdk.Attribute.Private.storage a with
-        | Pdk.Attribute.Float4 a -> Ok (Some a) | _ -> Error "material_emission must be primitive float4") in
-  let* color = match Pdk.Geometry.find_attribute ~owner:Pdk.Attribute.Primitive "material_color" geometry with
+    | Some a -> (match Rdk.Attribute.Private.storage a with
+        | Rdk.Attribute.Float4 a -> Ok (Some a) | _ -> Error "material_emission must be primitive float4") in
+  let* color = match Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Primitive "material_color" geometry with
     | None -> Ok None
-    | Some a -> (match Pdk.Attribute.Private.storage a with
-        | Pdk.Attribute.Float4 a -> Ok (Some a) | _ -> Error "material_color must be primitive float4") in
+    | Some a -> (match Rdk.Attribute.Private.storage a with
+        | Rdk.Attribute.Float4 a -> Ok (Some a) | _ -> Error "material_color must be primitive float4") in
   let valid x = Float.is_finite x && x >= 0. && x <= 1. in
   let valid_tuple = Option.fold ~none:true ~some:(fun a ->
-    let v = Pdk.Packed.Float4.Private.view a in
+    let v = Rdk.Packed.Float4.Private.view a in
     Array.for_all valid v.x && Array.for_all valid v.y && Array.for_all valid v.z) in
   let has_material = roughness <> None || emission <> None || color <> None in
   let* () = if Option.fold ~none:true ~some:(Array.for_all valid) roughness
       && valid_tuple color && valid_tuple emission then Ok ()
     else Error "material channels must be finite and in [0,1]" in
-  let* () = if not has_material || Pdk.Topology.all_triangles (Pdk.Geometry.topology geometry)
+  let* () = if not has_material || Rdk.Topology.all_triangles (Rdk.Geometry.topology geometry)
       || count = 0 then Ok () else Error "material surfaces require polygon geometry" in
   let batches = if roughness = None && emission = None && color = None then [] else
     let table = Hashtbl.create 8 and order = ref [] in
     for primitive = 0 to count - 1 do
       let rough = match roughness with None -> sqrt (2. /. 34.) | Some a -> a.(primitive) in
       let er,eg,eb = match emission with None -> 0.,0.,0.
-        | Some a -> let r,g,b,_ = Pdk.Packed.Float4.get a primitive in r,g,b in
+        | Some a -> let r,g,b,_ = Rdk.Packed.Float4.get a primitive in r,g,b in
       let r,g,b = match color with None -> 1.,1.,1.
-        | Some a -> let r,g,b,_ = Pdk.Packed.Float4.get a primitive in r,g,b in
+        | Some a -> let r,g,b,_ = Rdk.Packed.Float4.get a primitive in r,g,b in
       let key = rough,r,g,b,er,eg,eb in
       let indices = match Hashtbl.find_opt table key with
         | Some indices -> indices

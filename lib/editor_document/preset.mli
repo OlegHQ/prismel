@@ -19,7 +19,7 @@ val default_name : unit -> string
 (** Local time as [YYYY-MM-DD_HH-MM-SS]. *)
 
 val path : directory:string -> name:string -> string
-(** [<directory>/<name>.plisp]. *)
+(** [<directory>/<name>.rays]. *)
 
 val save :
   directory:string -> name:string -> doc:Document.t -> view:Flow.Syntax.t ->
@@ -30,7 +30,7 @@ val save :
 
 val text : Document.t -> string
 (** The canonical workspace text of [doc] (its settings beside it), as a preset
-    or a [.plisp] source is written. *)
+    or a [.rays] source is written. *)
 
 val list : directory:string -> (string * float) list
 (** Preset names with modification times, newest first; empty when the

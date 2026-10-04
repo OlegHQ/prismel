@@ -1,8 +1,8 @@
-# Prismel repository guide
+# Rays repository guide
 
 ## Purpose
 
-Prismel is an OCaml creative-coding framework for interactive native desktop
+Rays is an OCaml creative-coding framework for interactive native desktop
 programs. It ships native Apple-Silicon Metal only, through OGPU, whose API is
 backend-agnostic by design. Keep the public API small and functional where
 practical. Never add a CPU raster, browser/web, SDL2/Tsdl, or OpenGL fallback;
@@ -10,11 +10,11 @@ Metal unavailability is a typed startup error.
 
 Nested `AGENTS.md` files hold subsystem rules: `lib/metal`, `lib/ogpu`
 (also for `lib/ogpu_core`),
-`lib/runtime`, `lib/pdk`, `lib/prismel_editor`, `lib/pxui_graph`, `lib/sop_catalog`.
+`lib/runtime`, `lib/rdk`, `lib/rays_editor`, `lib/pxui_graph`, `lib/sop_catalog`.
 Read the one for the directory you change. Design notes live in `specification/`;
 update them when behavior or architecture changes materially.
 
-The SOP network editor is Prismel Flow: a left-to-right
+The SOP network editor is Rays Flow: a left-to-right
 typed canvas with value ports, drives, compounds, graph/list/text views and a
 checked Lisp text form. `specification/flow.md` is the normative design and
 `specification/flow-migration.md` the completed M1–M7 implementation log.
@@ -31,12 +31,12 @@ in a browser, never product code and never a web fallback.
 | `ogpu_core`, `ogpu` | Portable GPU core and virtual public API |
 | `ogpu_metal_native`, `ogpu_metal`, `ogpu_mock` | Native Metal detail and the two OGPU implementations |
 | `runtime`, `runtime_input`, `runtime_resources` | SDL3 lifecycle, Metal presentation, frame stats, typed event translation, SDL image/ttf/mixer services |
-| `prismel_execution` | Private frame coordinator: Scene lowering caches over one window or offscreen `Runtime` |
+| `rays_execution` | Private frame coordinator: Scene lowering caches over one window or offscreen `Runtime` |
 | `scene_command`, `scene_execution` | Renderer-neutral commands and their GPU execution |
-| `prismel` | `Sketch`, `Frame`, pure `Scene`, `Event`/`Input`, resources, renderer behavior |
-| `prismel_pathtracer` | Hardware ray-traced path tracer |
-| `pdk` | The single packed geometry/topology compute core |
-| `procedural` | Immutable SOP graphs over `pdk` operations |
+| `rays` | `Sketch`, `Frame`, pure `Scene`, `Event`/`Input`, resources, renderer behavior |
+| `rays_pathtracer` | Hardware ray-traced path tracer |
+| `rdk` | The single packed geometry/topology compute core |
+| `procedural` | Immutable SOP graphs over `rdk` operations |
 | `sop_catalog` | Inspectable SOP constructors registered by PPX |
 | `param` | Typed parameter schemas; no dependencies (`Procedural.Parameter`, `Editor_core.Param`) |
 | `flow` | UI-free value nodes, graphs, expressions, contexts and coercions over `param` |
@@ -47,17 +47,17 @@ in a browser, never product code and never a web fallback.
 | `pxui_shell` | Editor chrome over PXUI: layout, headers, keys, status, timeline, prompts, frame, `Inspector` |
 | `pxui_graph` | SOP-network presentation; emits typed requests, never edits |
 | `sketch_support` | Procedural-to-Scene glue (`Bridge`: cooked meshes, instances, frame context) and packed pieces |
-| `prismel_editor` | Prismel Editor: the Houdini-like SOP shell (`Editor3`/`2`), composed only from public blocks |
+| `rays_editor` | Rays Editor: the Houdini-like SOP shell (`Editor3`/`2`), composed only from public blocks |
 
 `examples/<name>/` are short teaching programs; `sketches/<name>/` are
 experiments. Each has its own `dune`, depends only on what it shows, keeps
-framework code out, and runs finitely under `PRISMEL_MAX_FRAMES`. Scaffold an
+framework code out, and runs finitely under `RAYS_MAX_FRAMES`. Scaffold an
 example with `dune exec tools/new_example.exe -- <name>`. A sketch that is only a Flow workspace is
-`sketches/<name>/sketch.plisp` with no `dune` or `main.ml` (`--plisp <name>` scaffolds it): `sketches/dune`
-generates its executable with `prismel-plisp`, and after adding or removing one you run
-`dune build @runtest; dune promote` to update the checked-in `sketches/dune.plisp.inc`. Command-S in
+`sketches/<name>/sketch.rays` with no `dune` or `main.ml` (`--plisp <name>` scaffolds it): `sketches/dune`
+generates its executable with `rays-plisp`, and after adding or removing one you run
+`dune build @runtest; dune promote` to update the checked-in `sketches/dune.rays.inc`. Command-S in
 its window rewrites the file (comments kept) and an edit of the file reloads the window. Prefer
-`Prismel_editor.Editor3`/`2` for SOP sketches, SOP graphs for geometry, and
+`Rays_editor.Editor3`/`2` for SOP sketches, SOP graphs for geometry, and
 deterministic seeds.
 
 ## Dependency rules
@@ -67,7 +67,7 @@ graph, and enforces "may never reach" rules plus a token scan. Known
 violations are listed there with the plan item that removes them.
 
 - Foundational libraries (`sdl3*`, `metal`, `ogpu_core`, `ogpu`, `native_layer_token`,
-  `scene_command`) never reach `runtime`, `prismel`, or anything above.
+  `scene_command`) never reach `runtime`, `rays`, or anything above.
   `ogpu_core` depends only on `native_layer_token` (the opaque presentation
   layer handle); virtual `ogpu` depends only on `ogpu_core`. `ogpu_mock`
   stays portable; native Metal detail depends only on `ogpu_core`, `metal`
@@ -75,12 +75,12 @@ violations are listed there with the plan item that removes them.
 - `Metal.`/`Ogpu_metal_native.` stay within the Metal backend; the runtime,
   path tracer, and their tests use the virtual `ogpu` only, and the gate lists
   no Metal exception.
-- `prismel` never depends on `pxui`, geometry, sketch libraries, or examples.
-- `pxui_shell` depends only on `prismel`, `editor_core`, and `pxui`; it never imports
+- `rays` never depends on `pxui`, geometry, sketch libraries, or examples.
+- `pxui_shell` depends only on `rays`, `editor_core`, and `pxui`; it never imports
   SOP, graph, geometry, or sketch libraries.
-- `pdk` never reaches `procedural`; `procedural` never reaches UI
+- `rdk` never reaches `procedural`; `procedural` never reaches UI
   libraries; `pxui` never reaches `procedural`; `param` depends on nothing;
-  `pxui_graph` never imports `sketch_*`; nothing below imports `prismel_editor`.
+  `pxui_graph` never imports `sketch_*`; nothing below imports `rays_editor`.
 - A boundary change updates the gate, adds focused tests at each affected
   boundary, and updates `specification/backend.md`. Do not expose raw SDL,
   Metal, or runtime values in `Scene` or public sketch code.
@@ -99,8 +99,8 @@ example/sketch sweep. Both open windows sequentially. For a window-free broad
 test run, set `SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy` on `dune runtest`.
 
 A fatal exception in a running sketch writes a report folder under
-`/tmp/prismel-crash` (exception, backtrace, recent input, and the editor's
-document as text, plus a loadable `.plisp` for a workspace); read it first when asked to investigate a crash.
+`/tmp/rays-crash` (exception, backtrace, recent input, and the editor's
+document as text, plus a loadable `.rays` for a workspace); read it first when asked to investigate a crash.
 
 Default `runtest` is green on a clean checkout. Display-dependent tests live in
 `@runtest-native`; long, SDK-, driver-, or machine-specific checks in
@@ -108,7 +108,7 @@ Default `runtest` is green on a clean checkout. Display-dependent tests live in
 `tools/api_manifest/api_stable.json`; accept an intended change with
 `dune promote`. Warnings are errors. Automated application loops arrange
 their own termination. Build, generation, and validation glue is OCaml under
-Dune, never Python; external-tool comparisons belong in `../prismel-support`.
+Dune, never Python; external-tool comparisons belong in `../rays-support`.
 The generated `lib/sop_catalog/flow_manifest.sexp` is also checked by
 `dune build @lib/sop_catalog/runtest`; when SOP metadata changes, review and
 accept its diff with `dune promote`.
@@ -170,7 +170,7 @@ data; no `List.nth`, `@`, or repeated `List.length` in hot loops; pre-size or
 grow geometrically; int keys over polymorphic hash. Every cache has an explicit
 capacity. Frame work must not scale with unchanged scene size. Never claim
 "linear", "zero allocation", or "production-ready" without evidence. Full
-contract: `lib/pdk/AGENTS.md`.
+contract: `lib/rdk/AGENTS.md`.
 
 ## UI
 
@@ -182,4 +182,4 @@ functions over `Ui.box`/`Ui.signal`/`Ui.draw`. UI code returns intents and does
 not mutate the model during `Ui.frame`. A drag that carries a value between panes is `Ui.carry` / `Ui.drop_target` (one payload on the handle,
 no second hit-test or capture); `specification/flow.md` §7.12. Preserve the design kit (`Pxui.Theme`,
 DepartureMono, 24-point rows) pixel for pixel; `lib/pxui/test_ui_parity`
-guards it. Host and editor rules: `lib/prismel_editor/AGENTS.md`.
+guards it. Host and editor rules: `lib/rays_editor/AGENTS.md`.

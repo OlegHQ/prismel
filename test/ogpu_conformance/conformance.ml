@@ -1442,7 +1442,7 @@ let run ?metallib driver =
     get (Backend.destroy_library library)
   end;
   let fill_kernel name body=Bytes.of_string (String.concat "\n" ["#include <metal_stdlib>";"using namespace metal;";body;
-    "kernel void "^name^"(device uint *values [[buffer(0)]], uint i [[thread_position_in_grid]]) { values[i] = prismel_dynamic_scale(i); }"]) in
+    "kernel void "^name^"(device uint *values [[buffer(0)]], uint i [[thread_position_in_grid]]) { values[i] = rays_dynamic_scale(i); }"]) in
   let uint_interface : Shader.binding list=[{group=0;binding=0;kind=Shader.Storage_buffer;visibility=[Shader.Compute]}] in
   let g7_words=get (Backend.create_buffer device {label=Some"g7-words";size=16L;usage=[Storage;Copy_src;Copy_dst]}) in
   let run_uint pipeline=
@@ -1456,15 +1456,15 @@ let run ?metallib driver =
     let bytes=get (Backend.read_buffer g7_words ~offset:0L ~length:16) in
     Array.init 4 (fun i -> Int32.to_int (Bytes.get_int32_le bytes (i*4))) in
   if Caps.has profile Caps.Dynamic_libraries && Caps.has profile Caps.Compute_pipeline then begin
-    let dynamic_source=Bytes.of_string "#include <metal_stdlib>\nusing namespace metal;\nextern \"C\" uint prismel_dynamic_scale(uint value) { return value * 7u; }\n" in
+    let dynamic_source=Bytes.of_string "#include <metal_stdlib>\nusing namespace metal;\nextern \"C\" uint rays_dynamic_scale(uint value) { return value * 7u; }\n" in
     let dynamic_shader=get (Shader.create {backend="metal";label=Some"conformance-dynamic";bytes=dynamic_source;entry_points=[];bindings=[]}) in
     (match Backend.create_dynamic_library device ~install_name:"" dynamic_shader with
      | Error { Error.kind = Invalid_argument; _ } -> ()
      | _ -> failwith "empty install name was accepted");
-    let install_name=Filename.concat (Filename.get_temp_dir_name ()) (Printf.sprintf "prismel-conformance-%d.dynamic" (Unix.getpid ())) in
+    let install_name=Filename.concat (Filename.get_temp_dir_name ()) (Printf.sprintf "rays-conformance-%d.dynamic" (Unix.getpid ())) in
     let dynamic=get (Backend.create_dynamic_library device ~install_name dynamic_shader) in
     let client=get (Shader.create {backend="metal";label=Some"conformance-dynamic-client";
-      bytes=fill_kernel "scaled" "extern \"C\" uint prismel_dynamic_scale(uint value);";entry_points=[{name="scaled";stage=Shader.Compute}];bindings=[]}) in
+      bytes=fill_kernel "scaled" "extern \"C\" uint rays_dynamic_scale(uint value);";entry_points=[{name="scaled";stage=Shader.Compute}];bindings=[]}) in
     let library=get (Backend.create_library ~dynamic:[dynamic] device client) in
     (match Backend.destroy_dynamic_library dynamic with
      | Error { Error.kind = Invalid_state; _ } -> ()
@@ -1480,9 +1480,9 @@ let run ?metallib driver =
   end;
   if Caps.has profile Caps.Binary_archives && Caps.has profile Caps.Compute_pipeline then begin
     let shader=get (Shader.create {backend="metal";label=Some"conformance-archive";
-      bytes=fill_kernel "archived" "static uint prismel_dynamic_scale(uint value) { return value * 5u; }";entry_points=[{name="archived";stage=Shader.Compute}];bindings=[]}) in
+      bytes=fill_kernel "archived" "static uint rays_dynamic_scale(uint value) { return value * 5u; }";entry_points=[{name="archived";stage=Shader.Compute}];bindings=[]}) in
     let library=get (Backend.create_library device shader) in
-    let path=Filename.concat (Filename.get_temp_dir_name ()) (Printf.sprintf "prismel-conformance-%d.metallib" (Unix.getpid ())) in
+    let path=Filename.concat (Filename.get_temp_dir_name ()) (Printf.sprintf "rays-conformance-%d.metallib" (Unix.getpid ())) in
     (match Backend.create_archive ~path:"relative.metallib" device () with
      | Error { Error.kind = Invalid_argument; _ } -> ()
      | _ -> failwith "relative archive path was accepted");

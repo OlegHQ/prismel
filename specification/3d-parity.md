@@ -3,14 +3,14 @@
 Reference baseline: openFrameworks 0.12.1 core documentation, audited
 2026-07-31.
 
-“Complete” means the public Prismel API, current native Scene3 lowering, Metal
+“Complete” means the public Rays API, current native Scene3 lowering, Metal
 execution, ownership behavior, and focused framebuffer qualification all
 exist. A pure constructor, retained compatibility implementation, or isolated
 low-level Metal test is not enough.
 
 Primary public references include the openFrameworks documentation for 3D,
 mesh, node, camera, easy camera, primitives, light, material, shader, texture,
-and VBO mesh. Prismel follows equivalent visible behavior where appropriate;
+and VBO mesh. Rays follows equivalent visible behavior where appropriate;
 it does not copy mutable C++ APIs or expose native resource identifiers.
 
 Status meanings:
@@ -27,7 +27,7 @@ Status meanings:
 | Indexed mesh storage, attributes, editing and queries | complete | Immutable `Mesh`; native lowering validates index topology and requires per-vertex normals |
 | Plane, box, sphere, icosphere, cylinder, cone mesh generators | complete | Produce ordinary immutable meshes; supported triangle faces enter the native path |
 | Perspective/orthographic cameras and world/screen conversion | complete | Logical viewports, native drawable conversion, picking and camera fixtures |
-| Easy-camera interaction | complete | Ordered Prismel input, capture/focus/resize behavior; camera output feeds the same native path |
+| Easy-camera interaction | complete | Ordered Rays input, capture/focus/resize behavior; camera output feeds the same native path |
 | Hierarchical transforms | complete | Scoped scene transforms packed into native matrices |
 | Filled triangle drawing | complete | Triangle, strip, and fan input become checked indexed Metal draws |
 | Depth compare/write and face culling | complete | Lowered to native render-pass/pipeline state and covered by overlap fixtures |
@@ -44,11 +44,11 @@ Status meanings:
 | Instanced Scene3 submission | partial | Public immutable batches exist; end-to-end native instancing must be distinguished from repeated retained draws |
 | General offscreen color/depth/stencil framebuffer API | missing | The installed public library has Canvas/capture resources, not a public `Framebuffer3` module |
 | General post-processing graph | missing | Requires typed native shader/attachment integration |
-| Mesh import/export | partial | `Pdk.Io` OBJ/OFF/STL over packed geometry; `Mesh` has no file IO of its own |
+| Mesh import/export | partial | `Rdk.Io` OBJ/OFF/STL over packed geometry; `Mesh` has no file IO of its own |
 
 ## Deliberate API boundary
 
-Prismel favors immutable values, typed errors, and owned resources. Raw Metal
+Rays favors immutable values, typed errors, and owned resources. Raw Metal
 handles and stringly runtime shader dispatch are outside the public API. A
 future programmable path must use typed MSL/IR, validate bindings and device
 capabilities, retain completion-owned resources, and preserve the same public

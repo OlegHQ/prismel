@@ -1,4 +1,4 @@
-open Prismel
+open Rays
 
 let frame events : Frame.t =
   let mouse = List.fold_left (fun point -> function

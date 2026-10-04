@@ -2,7 +2,7 @@ open Registry
 
 let fail format = Printf.ksprintf failwith format
 
-let c_name name = "caml_prismel_metal_gen_" ^ name
+let c_name name = "caml_rays_metal_gen_" ^ name
 
 (* Every generated native call: its OCaml/C name, receiver, arguments,
    result, and how the stub reaches the SDK. *)
@@ -581,7 +581,7 @@ let self_test () =
       ; ret = None; error = false; pool = false; ocaml = "test_high_arity"; since = None
       ; feature = Ogpu_core.Caps.Render_pipeline } in
   validate [high_arity];
-  if not (contains_token (emit_ml [high_arity]) "caml_prismel_metal_gen_test_high_arity_bytecode")
+  if not (contains_token (emit_ml [high_arity]) "caml_rays_metal_gen_test_high_arity_bytecode")
      || not (contains_token (emit_c [high_arity]) "CAMLxparam1(arg4)") then
     fail "high arity native/bytecode ABI regressed";
   validate entries;

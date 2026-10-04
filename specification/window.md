@@ -1,6 +1,6 @@
 # Native window and application loop
 
-Prismel ships one application runtime: SDL3 window/input/audio lifecycle with an
+Rays ships one application runtime: SDL3 window/input/audio lifecycle with an
 SDL Metal view, checked OGPU command recording, and Metal presentation on Apple
 Silicon. `Sketch` is the public entry point.
 

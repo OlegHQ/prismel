@@ -37,7 +37,7 @@ module History : sig
 end
 
 module Keymap : sig
-  type trigger = Leader of string | Chord of Prismel.Input.key * Prismel.Input.key list
+  type trigger = Leader of string | Chord of Rays.Input.key * Rays.Input.key list
   val label : trigger -> string
   (** Shared key spelling for guides, which-key and command feedback. *)
 end
@@ -75,12 +75,12 @@ module Router : sig
 
   (** In fly mode, keep pointer/window events and pass Space to the leader
       router after ending the mode. Escape ends fly without opening a shortcut. *)
-  val fly : Prismel.Frame.t -> bool * Prismel.Frame.t
+  val fly : Rays.Frame.t -> bool * Rays.Frame.t
 
-  val step : ?previous_keys:Prismel.Input.key list ->
+  val step : ?previous_keys:Rays.Input.key list ->
     ('scope, 'action) Command.t list -> focus:'scope ->
-    text_focus:bool -> frame:Prismel.Frame.t -> state ->
-    state * ('scope, 'action) Command.t list * Prismel.Frame.t
+    text_focus:bool -> frame:Rays.Frame.t -> state ->
+    state * ('scope, 'action) Command.t list * Rays.Frame.t
   (** Returns the exact matched entries in event order, retaining each alias's
       trigger, scope and label for feedback. Commands without a trigger never match a key. Modifiers follow event
       order. Supply the previous frame's keys for changed modifiers and focus

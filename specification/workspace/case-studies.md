@@ -8,7 +8,7 @@ menu or from its gallery card. The design they exercise is in
 [ambiguities.md](ambiguities.md).
 
 This file is generated from `prototype/cases.js`, so the Lisp here is
-exactly what the study checks. Each is shown as the `sketch.plisp` file
+exactly what the study checks. Each is shown as the `sketch.rays` file
 that dune would compile (plan W11). Today’s `[%flow]` accepts one `graph`
 inside OCaml and does not yet have loops or graph inputs. Studies without an
 editor graph get the study’s default shell and scene when opened.
@@ -46,7 +46,7 @@ A for zone repeats one shared petal function. Per-petal variation comes from the
 - Editing `petal` changes both flowers; Make unique affects one.
 
 ```lisp
-; sketches/bloom/sketch.plisp
+; sketches/bloom/sketch.rays
 (workspace bloom_studio
 
   (defn half :context value [(x : float)]
@@ -116,7 +116,7 @@ Phyllotaxis: each seed sits at a golden-angle turn and a square-root radius. The
 - The selector covers all 240 iterations without drawing 240 cells.
 
 ```lisp
-; sketches/sunflower/sketch.plisp
+; sketches/sunflower/sketch.rays
 (workspace sunflower
 
   (graph sunflower :context sop [(seeds : int 240) (spread : float 0.062)]
@@ -149,7 +149,7 @@ fold carries a value from one iteration to the next. Each step shrinks and turns
 - The accumulator type is checked: a body returning a number is `E_ACC_TYPE`.
 
 ```lisp
-; sketches/tunnel/sketch.plisp
+; sketches/tunnel/sketch.rays
 (workspace rings
 
   (graph rings :context sop [(steps : int 18) (turn : float 0.18)]
@@ -178,7 +178,7 @@ An iterated function system in 3D. Every step puts three scaled, tilted copies o
 - Recursion `(defn tree … (tree …))` is rejected, and the message suggests fold.
 
 ```lisp
-; sketches/tree/sketch.plisp
+; sketches/tree/sketch.rays
 (workspace tree
 
   (graph tree :context sop [(depth : int 5) (spread : float 0.6) (shrink : float 0.62)]
@@ -211,7 +211,7 @@ Loops three deep. y is a Fourier sum folded into a Σ chip inside a for over sam
 - Fold (ƒ) on the sum zone restores the original chip text exactly.
 
 ```lisp
-; sketches/wave/sketch.plisp
+; sketches/wave/sketch.rays
 (workspace wave
 
   (graph wave :context sop [(harmonics : int 5) (samples : int 90) (rows : int 6)]
@@ -245,7 +245,7 @@ Time t is a live input. A node that depends on it carries a ◷ t mark and recoo
 - The number of primitives is the same at every t; a fixed-step export is byte-identical at 1 and 3 domains.
 
 ```lisp
-; sketches/orrery/sketch.plisp
+; sketches/orrery/sketch.rays
 (workspace orrery
 
   (graph orrery :context sop [(rings : int 3) (moons : int 8) (seed : int 5)]
@@ -301,7 +301,7 @@ Two clauses in one for make a grid: x and z form a product, 64 iterations. A pur
 - `(value/rand seed x z)` is identical across runs and domain counts.
 
 ```lisp
-; sketches/tiles/sketch.plisp
+; sketches/tiles/sketch.rays
 (workspace tiles
 
   (graph tiles :context sop [(cells : int 8) (seed : int 3)]
@@ -336,7 +336,7 @@ Geometry groups are names that flow with geometry. group_bounds and group_random
 - Renaming `marked` keeps its inner names private.
 
 ```lisp
-; sketches/facade/sketch.plisp
+; sketches/facade/sketch.rays
 (workspace facade
 
   (graph facade :context sop [(floors : int 6) (bays : int 5) (hide : int 2)]
@@ -381,7 +381,7 @@ Graphs take typed inputs, and (ref garden :seed s) calls one like a function. Th
 - Panel focus survives a count change from 4 to 6 (keyed by index).
 
 ```lisp
-; sketches/variations/sketch.plisp
+; sketches/variations/sketch.rays
 (workspace variations
 
   (graph garden :context sop [(seed : int 1) (count : int 40)]
@@ -425,7 +425,7 @@ Functions are values. bead and leaf are local λ zones whose strips show every c
 - Calls are recorded per function with a call index, and viewport provenance lands on (function, call).
 
 ```lisp
-; sketches/garland/sketch.plisp
+; sketches/garland/sketch.rays
 (workspace garland
 
   (defn ring :context sop [(n : int 8) (radius : float 1.0) (make : fn)]
@@ -476,7 +476,7 @@ window returns several named values; its node spills one output per field. [left
 - A record fits where a subset of its fields is expected.
 
 ```lisp
-; sketches/kit/sketch.plisp
+; sketches/kit/sketch.rays
 (workspace kit
 
   (defn window :context sop [(w : float 0.3) (h : float 0.4)]
@@ -527,7 +527,7 @@ radial is a macro: a template with holes. Its first hole is a name the caller ch
 - A template that names a caller’s variable directly is rejected as capture.
 
 ```lisp
-; sketches/rosette/sketch.plisp
+; sketches/rosette/sketch.rays
 (workspace rosette
 
   (defmacro radial [i n body]

@@ -16,7 +16,7 @@ let lower ?inputs name =
       | Error d -> fail (name ^ ": " ^ Flow.Diagnostic.to_string d))
 
 let geometry_bytes geometry =
-  let open Pdk in
+  let open Rdk in
   let encode value = Marshal.to_string value [Marshal.No_sharing] in
   let attribute (attribute : Attribute.t) =
     let payload = match Attribute.storage attribute with
@@ -145,12 +145,12 @@ let run () =
   let graph = List.hd sunflower.graphs in
   check (nodes graph = 241) "sunflower node count";
   let geometry = Option.get (cook ~domains:1 graph) in
-  (match Pdk.Geometry.find_attribute ~owner:Pdk.Attribute.Primitive
+  (match Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Primitive
       Lower.source_attribute geometry with
    | Some attribute ->
-       (match Pdk.Attribute.Private.storage attribute with
-        | Pdk.Attribute.Int values ->
-            check (Array.length values = Pdk.Geometry.primitive_count geometry
+       (match Rdk.Attribute.Private.storage attribute with
+        | Rdk.Attribute.Int values ->
+            check (Array.length values = Rdk.Geometry.primitive_count geometry
               && values.(0) = 0 && values.(Array.length values - 1) = 239)
               "sunflower source attribute"
         | _ -> fail "source attribute is not int")

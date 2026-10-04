@@ -1,12 +1,12 @@
 ---
 name: add-sop
-description: Register a new editor SOP node in prismel's sop_catalog through the PPX. Use when a pdk or procedural operation needs a node in the sketch environment's node menu and inspector.
+description: Register a new editor SOP node in rays's sop_catalog through the PPX. Use when a rdk or procedural operation needs a node in the sketch environment's node menu and inspector.
 ---
 
 # Add a SOP node
 
-1. Read `lib/sop_catalog/AGENTS.md`. The op must already exist in `pdk`
-   (`add-pdk-op`) with a `Procedural.Sop` wrapper; the catalog only binds
+1. Read `lib/sop_catalog/AGENTS.md`. The op must already exist in `rdk`
+   (`add-rdk-op`) with a `Procedural.Sop` wrapper; the catalog only binds
    parameters to it.
 2. In `lib/sop_catalog/sop_catalog.ml`, add one module ending in
    `end [@@sop.register]`. Its `parameters` record carries
@@ -32,11 +32,11 @@ description: Register a new editor SOP node in prismel's sop_catalog through the
    from the node menu. Add a case there only if the node needs behaviour
    beyond registration; the PPX fixture lives in `test/sop_params_fixture.ml`.
    Review the generated `flow_manifest.sexp` diff and accept intended metadata
-   changes with `dune promote`; `.plisp` sketches are checked against this snapshot at build time.
+   changes with `dune promote`; `.rays` sketches are checked against this snapshot at build time.
 5. If the node should appear in the gallery or an example, add it there;
    then `@all` and `git diff --check`.
 
-Naming for Prismel Flow (`specification/flow.md` §3.3, §11.4): the key is
+Naming for Rays Flow (`specification/flow.md` §3.3, §11.4): the key is
 the node's Lisp symbol verbatim (`sop/<key>`) and field names are its
 keywords, so use `[a-z][a-z0-9_]*` and never rename a shipped key. Once
 milestone M3 has landed (check `specification/flow-migration.md`), also mark

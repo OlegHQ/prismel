@@ -1,6 +1,6 @@
 # Path tracer
 
-`lib/prismel_pathtracer/` is a progressive Monte Carlo path tracer that runs on
+`lib/rays_pathtracer/` is a progressive Monte Carlo path tracer that runs on
 OGPU's ray-tracing surface (Metal backend: a primitive, instance, or motion
 instance acceleration structure plus an `intersector` whose tags follow the
 mesh shape inside one compute kernel). It is the foundation for real-time path-traced
@@ -8,7 +8,7 @@ demos; the scene composition lives in `examples/pathtracer/`.
 
 ## Scope
 
-- Input: a list of `Pdk.Geometry.t` objects, each with one metallic-roughness
+- Input: a list of `Rdk.Geometry.t` objects, each with one metallic-roughness
   material (`albedo`, `roughness`, `metallic`, `emission`), plus analytic
   `sphere`s (bounding-box primitives resolved by an intersection function, so
   they are exact and never tessellated) and `strand`s (round polylines of
@@ -40,7 +40,7 @@ demos; the scene composition lives in `examples/pathtracer/`.
   for `scene_mesh` + `queue_mesh` + `flush` (`test_scene`).
 - Lighting: rectangle area lights (`rect_light`: centre, target, size, colour,
   intensity; two-sided, analytic, never visible) sampled with next-event
-  estimation; `light_of` converts a raster `Prismel.Light.t` (1/d²
+  estimation; `light_of` converts a raster `Rays.Light.t` (1/d²
   attenuation) to the rect of the same irradiance `pi I / d²`: radiance
   `pi I / A`, the inverse of the raster World conversion `L A / pi`; point
   and spot lights become 0.1 x 0.1 rects, a directional light a 20 x 20 rect
@@ -59,7 +59,7 @@ demos; the scene composition lives in `examples/pathtracer/`.
   normal. The estimate is stochastic per sample and converges under
   progressive accumulation, so four probes are enough. Flat interiors are
   unchanged; hard mesh edges shade as rounded fillets without extra geometry.
-- Output: a borrowed `Prismel.Image.t` whose completed film is an OGPU sampled
+- Output: a borrowed `Rays.Image.t` whose completed film is an OGPU sampled
   texture in a native Sketch. `pixels` requests an explicit RGBA8 readback for
   tests and export. Standalone tracer use without a Sketch still publishes a
   CPU image after command completion.
@@ -92,7 +92,7 @@ demos; the scene composition lives in `examples/pathtracer/`.
   cost; `flush` is the explicit synchronous wait for tests and export. This
   keeps the CPU loop decoupled from GPU frame time. Preview cost still needs
   a measured budget on the M1.
-- Geometry swap: `mesh` flattens `(Pdk.Geometry.t * material)` pairs into a
+- Geometry swap: `mesh` flattens `(Rdk.Geometry.t * material)` pairs into a
   pure triangle soup that a SOP cook worker may build off the initial domain.
   `queue_mesh` uploads it and submits a replacement acceleration build without
   waiting. The previous scene remains visible until the build completes and
@@ -107,11 +107,11 @@ demos; the scene composition lives in `examples/pathtracer/`.
   `replace_mesh` remains a synchronous version for tests and export.
 
 Not in scope yet: thin-lens depth of field, textures, learned denoising,
-file-backed HDRIs (a baked `Prismel.World` is the environment; see World path).
+file-backed HDRIs (a baked `Rays.World` is the environment; see World path).
 
 ## Pipeline
 
-1. The flat `create` path triangulates every object with `Pdk.Triangulate.run`, computes
+1. The flat `create` path triangulates every object with `Rdk.Triangulate.run`, computes
    vertex normals with a 40° cusp so subdivided/rounded surfaces stay smooth
    while boxes stay hard, and flattens everything into one unindexed
    `packed_float3` position buffer, a matching normal buffer, and one material
@@ -188,7 +188,7 @@ file-backed HDRIs (a baked `Prismel.World` is the environment; see World path).
 ## World path
 
 `set_world t (Some baked)` replaces the procedural dome with a baked
-`Prismel.World` (`specification/environment.md`); `None` restores the dome,
+`Rays.World` (`specification/environment.md`); `None` restores the dome,
 and a sketch that never sets a World renders bit-exactly as before (the M1
 qualification digests are unchanged). The upload happens only when the baked
 value changes (physical equality) and restarts accumulation.
@@ -229,7 +229,7 @@ value changes (physical equality) and restarts accumulation.
   is clamped at luminance 8; direct light is MIS-sampled and unclamped.
 - Exposure: the effective exposure is `2 ** baked.exposure` times `create`'s
   `exposure`.
-- `PRISMEL_PATHTRACER_BSDF_ONLY=1` at `create` disables all light sampling
+- `RAYS_PATHTRACER_BSDF_ONLY=1` at `create` disables all light sampling
   on the World path (debugging and the unbiasedness test).
 
 Tests (`test_world.ml`, headless, default `runtest`): a uniform-radiance
@@ -245,7 +245,7 @@ BSDF-only sampling (so only by being hit) and MIS agrees.
 
 The RNG is a PCG hash seeded from pixel index and frame index, so a fixed
 camera and frame sequence reproduces byte-identical output. The library test
-(`lib/prismel_pathtracer/test_pathtracer.ml`) renders a lit sphere over a
+(`lib/rays_pathtracer/test_pathtracer.ml`) renders a lit sphere over a
 floor twice from reset and asserts identical bytes, a non-flat image, and
 opaque alpha; it then checks a white analytic sphere in the furnace (energy
 conservation through the intersection table), red/green per-instance
@@ -259,7 +259,7 @@ meshes composed by hand, that translating an object moves it in the image,
 that a mesh of triangles plus an analytic sphere builds and shows both, and
 that `light_of` area, point, spot, and directional lights light a white matte
 plane to the analytic `albedo I / d²` within 6%, with no handle leak. It skips when no ray-tracing device is present unless
-`PRISMEL_REQUIRE_RAYTRACING` is set. `test_gpu_film.ml` creates a native
+`RAYS_REQUIRE_RAYTRACING` is set. `test_gpu_film.ml` creates a native
 renderer, verifies direct texture publication and explicit pixel readback,
 compares its frame byte-for-byte with the standalone path, then checks teardown
 has no live Metal handle delta after 30 further frames. It also renders the
@@ -270,8 +270,8 @@ malformed, foreign, and destroyed GPU textures.
 ## Performance
 
 Run the finite native throughput probe with `dune build --force @tools/bench-pathtracer`.
-Set `PRISMEL_PATHTRACER_FRAMES`, `PRISMEL_PATHTRACER_SCALE`, or
-`PRISMEL_PATHTRACER_SPP` to override its defaults (240, 1, and 1). This alias
+Set `RAYS_PATHTRACER_FRAMES`, `RAYS_PATHTRACER_SCALE`, or
+`RAYS_PATHTRACER_SPP` to override its defaults (240, 1, and 1). This alias
 opens a native window.
 
 An earlier path-tracer benchmark run (default Dune profile) measured
@@ -279,7 +279,7 @@ roughly 35 ms/frame on an Apple M1 (no hardware ray tracing) for the example
 scene (seven round-cornered cubes, two rectangle lights, one dome panel) at
 480×840, one sample per pixel per frame, five bounces, four round-corner probes
 (eight probes: 39 ms). That run preceded GPU film publication; its CPU
-readback no longer occurs in a native Sketch. `PRISMEL_PATHTRACER_SCALE=2` renders at
+readback no longer occurs in a native Sketch. `RAYS_PATHTRACER_SCALE=2` renders at
 the Retina drawable size at proportionally lower throughput. Further speed
 needs fewer GPU rays per pixel: adaptive probe counts, or an M3-class GPU with
 hardware ray tracing.
@@ -290,7 +290,7 @@ on an Apple M1 (arm64, one domain, default Dune profile) measured 9.6 ms and
 was hoisted out of the instance loop; the same single-run probe measured
 5.5–6.1 ms and about 0.79 million minor words afterward. The flattened
 24,780-triangle upload and synchronous Metal acceleration build still took
-6.2 ms in that probe. `PRISMEL_PATHTRACER_FRAMES=90 PRISMEL_PATHTRACER_ORBIT=1
+6.2 ms in that probe. `RAYS_PATHTRACER_FRAMES=90 RAYS_PATHTRACER_ORBIT=1
 dune exec sketches/voxel_wall/main.exe` measured 19.9–29.4 ms per application
 frame on warm/cold runs with full-resolution moving visibility; these totals
 include startup, cook, presentation, and GPU work, so they do not isolate ray
@@ -345,8 +345,8 @@ same 2,160 cubes. The images have a 1.229 mean absolute channel difference
 on RGBA8 (signed mean 0.004). The mean difference fell from 2.195 at twelve
 samples, consistent with stochastic variance. This is a visual and throughput
 comparison, not byte-identical output parity.
-`PRISMEL_PATHTRACER_PROFILE=1 PRISMEL_PATHTRACER_FRAMES=90
-PRISMEL_PATHTRACER_ORBIT=1 dune exec sketches/voxel_wall/main.exe` logs the
+`RAYS_PATHTRACER_PROFILE=1 RAYS_PATHTRACER_FRAMES=90
+RAYS_PATHTRACER_ORBIT=1 dune exec sketches/voxel_wall/main.exe` logs the
 completed path-tracer command buffer's Metal GPU time per frame. On this M1,
 89 completed frames had median 11.43 ms, p95 12.31 ms, mean 11.44 ms, and
 maximum 19.42 ms; the 90-frame application mean was 20.4 ms. GPU timestamps
@@ -356,7 +356,7 @@ excluded. This identifies the ray workload as a substantial cost without
 attributing the remaining time to a single phase.
 
 World convergence probe (headless, 2026-09-26, Apple M1, default profile):
-`dune exec lib/prismel_pathtracer/test_main.exe -- bench_world` renders a
+`dune exec lib/rays_pathtracer/test_main.exe -- bench_world` renders a
 floor and a 48x24 UV sphere at 256x256, 1 spp per frame, 6 bounces, in three
 interleaved rounds. Wall time per `render`+`flush` frame (Metal GPU
 timestamps read 0 on this machine), and RGBA8 RMSE against each
@@ -376,7 +376,7 @@ frame.
 ## SOP workflow example
 
 `sketches/voxel_wall/` is the Houdini-style network Grid → Wall Depth → Copy
-Cubes (cube prototype), hosted in the `Prismel_editor.Editor3` workspace with
+Cubes (cube prototype), hosted in the `Rays_editor.Editor3` workspace with
 the tracer painted into the view pane by the overlay hook. `wall_depth` is a
 `Procedural.Custom.map` node whose typed `Parameter.schema` (frequency,
 amplitude, base depth, octaves, seed) drives the inspector; it writes the
@@ -385,14 +385,14 @@ per-point `scale` attribute, the OCaml equivalent of an Attribute Wrangle.
 "Pack and instance" choice, Houdini's Copy to Points pack toggle. Packed, its
 cook is O(prototype + targets): the prototype polygons followed by one loose
 point per copy carrying `scale`; there are no fake packed primitives inside
-`Pdk.Geometry.t`, and `prepare` splits referenced points (prototype) from
+`Rdk.Geometry.t`, and `prepare` splits referenced points (prototype) from
 loose points (instance transforms) on the cook worker. The rasterizer draws
 that with one indexed Metal instance batch through `Scene3.instances_array`;
 the tracer uses `mesh_instanced` to keep a single prototype BLAS and build a
 top-level instance structure. Materialized, the node calls
-`Pdk.Instance_copy.copy_to_points`. A "Renderer" choice in the inspector's camera panel
+`Rdk.Instance_copy.copy_to_points`. A "Renderer" choice in the inspector's camera panel
 (the `~inspector` hook) switches between the path tracer, filled Scene3 raster,
-and a Scene3 wireframe made from indexed Metal lines along unique PDK topology
+and a Scene3 wireframe made from indexed Metal lines along unique RDK topology
 edges. The Box catalog defaults to six quads, so the wireframe follows the
 modeled faces without triangulation diagonals. The wireframe uses the Metal
 scene path and preserves packed instancing. Native `Scene3.Wireframe` also
@@ -404,7 +404,7 @@ Each background preparation now builds only the selected renderer's derived
 mesh: the traced prototype, filled mesh, or unique-edge wire mesh. Switching
 modes requests a fresh preparation; the prior displayed scene remains valid
 until that work completes.
-`PRISMEL_VOXEL_RENDERER=wireframe|raster` selects a mode for finite native
+`RAYS_VOXEL_RENDERER=wireframe|raster` selects a mode for finite native
 smoke runs; the default remains path traced.
 After this selection change, a 90-frame finite orbit on the same M1 reported
 19.6 ms/application frame. The earlier 24.3 ms run was a separate measurement;
@@ -412,10 +412,10 @@ the difference is not an isolated preparation-speed measurement.
 
 ## Dependency direction
 
-`prismel_pathtracer` depends on `prismel`, `ogpu`, `pdk`,
-`runtime_resources`, and `prismel_execution`. Every GPU object is an
+`rays_pathtracer` depends on `rays`, `ogpu`, `rdk`,
+`runtime_resources`, and `rays_execution`. Every GPU object is an
 `Ogpu.Backend` handle on a device leased through
-`Prismel_execution.acquire_gpu`: the presenting window's device when a
+`Rays_execution.acquire_gpu`: the presenting window's device when a
 window exists (so Scene samples the film directly), otherwise a shared
 headless device released with the last lease. The tracer owns its own queue on
 that device so its frames never serialize behind presentation. It imports no

@@ -1,4 +1,4 @@
-open Prismel
+open Rays
 open Procedural
 
 let fail message = raise (Failure message)
@@ -20,16 +20,16 @@ let cook session domains graph =
 
 let graph () =
   let left = Sop.box ~size:(Vec3.create 2. 2. 2.)
-      ~connectivity:Pdk.Box_generator.Box_quads ~consolidate_points:true ()
+      ~connectivity:Rdk.Box_generator.Box_quads ~consolidate_points:true ()
   and right = Sop.box ~size:(Vec3.create 2. 2. 2.)
       ~center:(Vec3.create 0.5 0.5 0.5)
-      ~connectivity:Pdk.Box_generator.Box_quads ~consolidate_points:true () in
-  Sop.boolean ~label:"exact-union" ~operation:Pdk.Boolean.Union
-    ~detriangulation:Pdk.Boolean.Unchanged_polygons ~right left
+      ~connectivity:Rdk.Box_generator.Box_quads ~consolidate_points:true () in
+  Sop.boolean ~label:"exact-union" ~operation:Rdk.Boolean.Union
+    ~detriangulation:Rdk.Boolean.Unchanged_polygons ~right left
 
 let signature geometry =
-  let positions = Pdk.Packed.Float3.Private.view (Pdk.Geometry.positions geometry)
-  and topology = Pdk.Topology.Private.view (Pdk.Geometry.topology geometry) in
+  let positions = Rdk.Packed.Float3.Private.view (Rdk.Geometry.positions geometry)
+  and topology = Rdk.Topology.Private.view (Rdk.Geometry.topology geometry) in
   Array.copy positions.x, Array.copy positions.y, Array.copy positions.z,
   Array.copy topology.vertex_points, Array.copy topology.primitive_offsets,
   Bytes.copy topology.primitive_kinds
@@ -63,21 +63,21 @@ let test_identity_cache_and_parallel () =
   let one = fresh graph 1 and four = fresh graph 4 in
   check (signature one = signature four)
     "Boolean SOP differs between one and four domains";
-  check (Pdk.Geometry.primitive_count one > 0)
+  check (Rdk.Geometry.primitive_count one > 0)
     "Boolean SOP produced an empty overlapping-box union"
 
 let test_surface_policy_and_diagnostic () =
   let left = Sop.box ~size:(Vec3.create 2. 2. 2.)
-      ~connectivity:Pdk.Box_generator.Box_triangles ~consolidate_points:true () in
-  let positions = Pdk.Packed.Float3.Private.of_owned_exn
+      ~connectivity:Rdk.Box_generator.Box_triangles ~consolidate_points:true () in
+  let positions = Rdk.Packed.Float3.Private.of_owned_exn
       ~x:[|-2.;2.;-2.;2.|] ~y:[|0.;0.;0.;0.|] ~z:[|-0.5;-0.5;0.5;0.5|] in
-  let topology = Pdk.Topology.polygons_owned ~point_count:4
+  let topology = Rdk.Topology.polygons_owned ~point_count:4
       ~vertex_points:[|0;1;2;1;3;2|] ~primitive_offsets:[|0;3;6|] |> get in
-  let sheet = Pdk.Geometry.create ~positions ~topology () |> get |> Sop.snapshot in
-  let graph = Sop.boolean ~operation:Pdk.Boolean.Difference
-      ~right_treatment:Pdk.Boolean.Surface ~right:sheet left in
+  let sheet = Rdk.Geometry.create ~positions ~topology () |> get |> Sop.snapshot in
+  let graph = Sop.boolean ~operation:Rdk.Boolean.Difference
+      ~right_treatment:Rdk.Boolean.Surface ~right:sheet left in
   let output = fresh graph 1 in
-  check (Pdk.Geometry.primitive_count output > 12)
+  check (Rdk.Geometry.primitive_count output > 12)
     "Boolean SOP lost solid-minus-surface cut walls";
   let invalid = try
       ignore (Sop.boolean ~point_tolerance:(0. /. 0.) ~right:sheet left);
@@ -87,11 +87,11 @@ let test_surface_policy_and_diagnostic () =
 
 let test_shatter_identity () =
   let left = Sop.box ~size:(Vec3.create 2. 2. 2.)
-      ~connectivity:Pdk.Box_generator.Box_triangles ~consolidate_points:true ()
+      ~connectivity:Rdk.Box_generator.Box_triangles ~consolidate_points:true ()
   and right = Sop.box ~size:(Vec3.create 2. 2. 2.)
       ~center:(Vec3.create 0.5 0.5 0.5)
-      ~connectivity:Pdk.Box_generator.Box_triangles ~consolidate_points:true () in
-  let graph = Sop.boolean ~operation:Pdk.Boolean.Shatter
+      ~connectivity:Rdk.Box_generator.Box_triangles ~consolidate_points:true () in
+  let graph = Sop.boolean ~operation:Rdk.Boolean.Shatter
       ~tiny_seam_threshold:1e-9 ~cleanup_max_batches:6
       ~strict_cleanup:false
       ~left_piece_group:(Some "left_piece")
@@ -106,11 +106,11 @@ let test_shatter_identity () =
     "Boolean SOP shatter naming is absent from cache identity";
   let output = fresh graph 1 in
   List.iter (fun name -> check
-      (Pdk.Geometry.find_group ~owner:Pdk.Group.Primitive name output <> None)
+      (Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive name output <> None)
       "Boolean SOP shatter lost a named piece group")
     ["left_piece"; "overlap_piece"; "right_piece"];
   let invalid = try
-      ignore (Sop.boolean ~operation:Pdk.Boolean.Shatter
+      ignore (Sop.boolean ~operation:Rdk.Boolean.Shatter
         ~left_piece_group:(Some "same") ~right_piece_group:(Some "same")
         ~right left);
       false
@@ -119,10 +119,10 @@ let test_shatter_identity () =
 
 let test_seam_node () =
   let left = Sop.box ~size:(Vec3.create 2. 2. 2.)
-      ~connectivity:Pdk.Box_generator.Box_triangles ~consolidate_points:true ()
+      ~connectivity:Rdk.Box_generator.Box_triangles ~consolidate_points:true ()
   and right = Sop.box ~size:(Vec3.create 2. 2. 2.)
       ~center:(Vec3.create 0.5 0.5 0.5)
-      ~connectivity:Pdk.Box_generator.Box_triangles ~consolidate_points:true () in
+      ~connectivity:Rdk.Box_generator.Box_triangles ~consolidate_points:true () in
   let graph = Sop.boolean_seam ~between_group:(Some "cut_curves")
       ~left_self_group:None ~right_self_group:None ~right left in
   check (Node.operation graph = "boolean_seam"
@@ -134,9 +134,9 @@ let test_seam_node () =
   let one = fresh graph 1 and four = fresh graph 4 in
   check (signature one = signature four)
     "Boolean Seam SOP differs between one and four domains";
-  let group = Pdk.Geometry.find_group ~owner:Pdk.Group.Primitive
+  let group = Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive
       "cut_curves" one |> Option.get in
-  check (Pdk.Group.cardinality group > 0)
+  check (Rdk.Group.cardinality group > 0)
     "Boolean Seam SOP lost between-input curves"
 
 let run () =

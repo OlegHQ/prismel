@@ -18,17 +18,17 @@ SOP graph remains acyclic and its cache remains bounded.
 ## One authoritative core
 
 ```text
-Procedural ──> PDK ──> Prismel.Mesh
+Procedural ──> RDK ──> Rays.Mesh
 ```
 
-PDK owns packed geometry, reverse topology, attribute interpolation/reduction,
-spatial acceleration, and high-density modeling algorithms. `prismel_math`
-owns mathematical values; `pdk_prismel` converts cooked geometry to render
+RDK owns packed geometry, reverse topology, attribute interpolation/reduction,
+spatial acceleration, and high-density modeling algorithms. `rays_math`
+owns mathematical values; `rdk_rays` converts cooked geometry to render
 meshes. Procedural owns graph composition, context dependencies, diagnostics,
-and bounded evaluation. PDK never imports upward.
+and bounded evaluation. RDK never imports upward.
 
-`Pdk.Topology` remains the compact forward point/corner/primitive structure.
-`Pdk.Topology_index` is a derived, immutable reverse view with packed
+`Rdk.Topology` remains the compact forward point/corner/primitive structure.
+`Rdk.Topology_index` is a derived, immutable reverse view with packed
 next/previous corners, manifold opposites, integer-key undirected edges,
 edge-incidence CSR, and point-corner CSR. This follows the established
 separation between combinatorial half-edge storage and geometric
@@ -38,40 +38,40 @@ while using index planes rather than per-element objects.
 
 ## Kernel ownership
 
-| Existing area | Current value | PDK migration decision |
+| Existing area | Current value | RDK migration decision |
 |---|---|---|
-| Weld | Attribute-compatible spatial weld | `Pdk.Fuse_grid.fuse` owns the packed implementation |
-| Topology | Triangle adjacency and immutable editing | `Pdk.Topology_index` owns the reverse index |
-| Extrusion/revolve/sweep | Cardinality-first generators | `Pdk.Poly_extrude.run`, `Pdk.Sweep_modeling.revolve`, and `sweep` own topology and payload output |
-| Loop/Catmull-Clark | Surface subdivision | `Pdk.Subdivide.subdivide` owns the packed kernel |
-| Edge subdivision | One packed owner | `Pdk.Subdivide.edge_divide` owns the kernel; Procedural wraps it |
-| Edge collapse | No former single owner | `Pdk.Edge_collapse` owns selected-edge component planning and delegates packed reduction, rewiring, and cleanup to the single Fuse core; it is the contraction primitive for future reduce/remesh work |
-| Blend Shapes | No former single owner | `Pdk.Blend_shapes` owns target ordering, masks, point-ID matching, and packed fixed-width point-field interpolation; Procedural stores only immutable target descriptors and never caches mutable deltas inside a node |
-| Attribute Composite | No former single owner | `Pdk.Attribute_composite` owns independent owner-pattern discovery, ordered weighted/alpha composition, direct-index cardinality and finite-value validation, exact packed output planes, and stale-normal policy; Procedural stores only immutable ordered input descriptors and complete cache identity |
-| Attribute Mirror | No former single owner | `Pdk.Attribute_mirror` owns reflected point/primitive correspondence, explicit point/vertex/primitive mapping, packed payload remap and transformations, pair/side metadata, validation, and stale-normal policy; Procedural stores only names and immutable parameters, resolves groups at cook time, and never retains a competing correspondence or topology kernel |
-| Rewire Vertices | No former single owner | `Pdk.Rewire_vertices.run` owns owner-dependent selection promotion, recursive point-map resolution, corner-to-point mutation, newly-unused point compaction, and union corner-edge ancestry; Procedural stores only typed names/policies and never edits topology or retains mutable connectivity |
-| Polygon reduction | No former single owner | `Pdk.Poly_reduce` owns adaptive QEM scoring, deterministic independent contraction batches, hard-feature/boundary policy, manifold link and foldover checks, and delegates every committed packed contraction/remap to the shared Edge Collapse/Fuse core; Procedural only resolves named groups and cache identity |
-| Boolean intersection detection | Formerly only boxed `Csg3` BSP classification | `Pdk.Boolean_detect` owns deterministic surface triangulation, two-pass packed AxB and unordered AxA BVH triangle-pair discovery, locally normalized narrow-phase classification, topology-contact suppression, symmetric self-pair aggregation, cancellation, and exact-size group/CSR outputs; Procedural resolves optional one/two-input roles, two named primitive restrictions, and immutable cache identity. This reusable detection stage does not replace the future robust corefinement kernel |
-| Intersection event analysis | No former packed owner | `Pdk.Intersection_analysis` owns one packed mixed triangle/curve-piece BVH, reuses the shared `Triangle_intersection` decision/event kernel for triangle pairs, supplies fixed-scratch segment/segment and segment/triangle events, preflights exact raw cardinality, welds stable point identities, and emits aligned input/primitive/parameter/incident-point CSR provenance; Procedural owns only graph roles and named-group resolution |
-| Polygon bevel | No former single owner | `Pdk.Poly_bevel.run` owns selected-edge eligibility, face-ring slide/collision planning, cross-face ring splits, connected continuation/corner topology, profile sampling, cardinality-first packed output, payload ancestry, and generated groups; Procedural only resolves a named native edge group and immutable parameters |
-| Point splitting | One packed owner | `Pdk.Point_split` owns selected-incidence classification, mixed vertex/primitive attribute and named-group seam tuple clustering, stable point allocation, promotion, and one-to-many point/group/native-edge ancestry; Procedural only resolves typed groups and immutable seam policy |
-| Point generation | No former single owner | `Pdk.Point_generate` owns exact cardinality planning, deterministic per-source emission, every point-storage copy path, provenance, generated grouping, and retained-topology extension; Procedural supplies generator/modifier graph identity and resolves an optional named point group |
-| Point replication | No former single owner | `Pdk.Point_replicate` reuses Point Generate cardinality/payload planning and the canonical Copy-to-Points basis transform, then exclusively owns source-keyed local shape sampling, copied-vector/normal transformation, quasi coordinates, rest-space noise, velocity synthesis, and custom-shape ancestry; Procedural only resolves graph inputs/groups and immutable identity |
-| Geometry distance fields | No former single owner | `Pdk.Transform_ops.distance_along_geometry` owns exact edge-path propagation, `Pdk.Transform_ops.distance_from_geometry` owns point/surface reference queries, and `Pdk.Transform_ops.distance_from_target` owns analytic point/axis/plane projection; all reuse the shared falloff/output policy and packed storage rather than placing distance kernels in Procedural graph cooks |
+| Weld | Attribute-compatible spatial weld | `Rdk.Fuse_grid.fuse` owns the packed implementation |
+| Topology | Triangle adjacency and immutable editing | `Rdk.Topology_index` owns the reverse index |
+| Extrusion/revolve/sweep | Cardinality-first generators | `Rdk.Poly_extrude.run`, `Rdk.Sweep_modeling.revolve`, and `sweep` own topology and payload output |
+| Loop/Catmull-Clark | Surface subdivision | `Rdk.Subdivide.subdivide` owns the packed kernel |
+| Edge subdivision | One packed owner | `Rdk.Subdivide.edge_divide` owns the kernel; Procedural wraps it |
+| Edge collapse | No former single owner | `Rdk.Edge_collapse` owns selected-edge component planning and delegates packed reduction, rewiring, and cleanup to the single Fuse core; it is the contraction primitive for future reduce/remesh work |
+| Blend Shapes | No former single owner | `Rdk.Blend_shapes` owns target ordering, masks, point-ID matching, and packed fixed-width point-field interpolation; Procedural stores only immutable target descriptors and never caches mutable deltas inside a node |
+| Attribute Composite | No former single owner | `Rdk.Attribute_composite` owns independent owner-pattern discovery, ordered weighted/alpha composition, direct-index cardinality and finite-value validation, exact packed output planes, and stale-normal policy; Procedural stores only immutable ordered input descriptors and complete cache identity |
+| Attribute Mirror | No former single owner | `Rdk.Attribute_mirror` owns reflected point/primitive correspondence, explicit point/vertex/primitive mapping, packed payload remap and transformations, pair/side metadata, validation, and stale-normal policy; Procedural stores only names and immutable parameters, resolves groups at cook time, and never retains a competing correspondence or topology kernel |
+| Rewire Vertices | No former single owner | `Rdk.Rewire_vertices.run` owns owner-dependent selection promotion, recursive point-map resolution, corner-to-point mutation, newly-unused point compaction, and union corner-edge ancestry; Procedural stores only typed names/policies and never edits topology or retains mutable connectivity |
+| Polygon reduction | No former single owner | `Rdk.Poly_reduce` owns adaptive QEM scoring, deterministic independent contraction batches, hard-feature/boundary policy, manifold link and foldover checks, and delegates every committed packed contraction/remap to the shared Edge Collapse/Fuse core; Procedural only resolves named groups and cache identity |
+| Boolean intersection detection | Formerly only boxed `Csg3` BSP classification | `Rdk.Boolean_detect` owns deterministic surface triangulation, two-pass packed AxB and unordered AxA BVH triangle-pair discovery, locally normalized narrow-phase classification, topology-contact suppression, symmetric self-pair aggregation, cancellation, and exact-size group/CSR outputs; Procedural resolves optional one/two-input roles, two named primitive restrictions, and immutable cache identity. This reusable detection stage does not replace the future robust corefinement kernel |
+| Intersection event analysis | No former packed owner | `Rdk.Intersection_analysis` owns one packed mixed triangle/curve-piece BVH, reuses the shared `Triangle_intersection` decision/event kernel for triangle pairs, supplies fixed-scratch segment/segment and segment/triangle events, preflights exact raw cardinality, welds stable point identities, and emits aligned input/primitive/parameter/incident-point CSR provenance; Procedural owns only graph roles and named-group resolution |
+| Polygon bevel | No former single owner | `Rdk.Poly_bevel.run` owns selected-edge eligibility, face-ring slide/collision planning, cross-face ring splits, connected continuation/corner topology, profile sampling, cardinality-first packed output, payload ancestry, and generated groups; Procedural only resolves a named native edge group and immutable parameters |
+| Point splitting | One packed owner | `Rdk.Point_split` owns selected-incidence classification, mixed vertex/primitive attribute and named-group seam tuple clustering, stable point allocation, promotion, and one-to-many point/group/native-edge ancestry; Procedural only resolves typed groups and immutable seam policy |
+| Point generation | No former single owner | `Rdk.Point_generate` owns exact cardinality planning, deterministic per-source emission, every point-storage copy path, provenance, generated grouping, and retained-topology extension; Procedural supplies generator/modifier graph identity and resolves an optional named point group |
+| Point replication | No former single owner | `Rdk.Point_replicate` reuses Point Generate cardinality/payload planning and the canonical Copy-to-Points basis transform, then exclusively owns source-keyed local shape sampling, copied-vector/normal transformation, quasi coordinates, rest-space noise, velocity synthesis, and custom-shape ancestry; Procedural only resolves graph inputs/groups and immutable identity |
+| Geometry distance fields | No former single owner | `Rdk.Transform_ops.distance_along_geometry` owns exact edge-path propagation, `Rdk.Transform_ops.distance_from_geometry` owns point/surface reference queries, and `Rdk.Transform_ops.distance_from_target` owns analytic point/axis/plane projection; all reuse the shared falloff/output policy and packed storage rather than placing distance kernels in Procedural graph cooks |
 | Packed element ordering | No former single owner | `Ordering.sort` owns stable point/primitive permutation, deterministic random shuffle, strict index-permutation validation, indirect destination ranks, and complete payload/topology remapping; Procedural contributes only immutable cache identity and named-group resolution |
-| Attribute-driven deletion | No former single owner | `Pdk.Blast_by_attribute` owns packed scalar point/primitive classification and delegates every topology/payload/group/native-edge mutation to the single `Deletion.delete` planner; Procedural resolves only the optional named base group and immutable node identity |
-| Edge crease authoring | No former single owner | `Pdk.Crease.crease` owns unique-edge reduction, coherent incident-corner `creaseweight` updates, and optional vertex-color endpoint visualization for the existing Subdivide kernel; Procedural resolves only a named topology-affine edge group and cache identity |
-| Frame-domain attribute fading | No former single owner | `Pdk.Attribute_fade` owns scalar point-driver validation, affine frame retiming, in/hold/out ramp evaluation, independent reference-cardinality policy, packed output, and grayscale visualization; Procedural declares the exact Frame dependency, resolves only a named point group/input roles, and never embeds mutable solver state in the cook |
-| Polygon-curve cutting | No former single owner | `Pdk.Poly_cut.cut` owns point/edge event classification, threshold interpolation, change subdivision, fragment planning, point compaction, every-owner payload/group/native-edge ancestry, and closed-fragment policy; Procedural resolves only named primitive/point/edge groups and immutable parameters |
-| Reversible piece separation | No former single owner | `Pdk.Separate_pieces` owns integer/text identity compilation, point/primitive rigidity validation, stable projected bounds and layout, same-owner translation metadata, Move Back arithmetic, overflow checks, and packed position fills; Procedural contributes immutable parameter identity only |
-| Edge flip | No former single owner | `Pdk.Edge_flip` exclusively owns manifold polygon-boundary rotation, corner-payload cycling, validity checks, and native-edge ancestry; Procedural contributes immutable selection/parameter identity only |
-| Edge cusp / Facet cusp | Formerly Facet-local fan splitting | One `Facet.split_points_on_edge_ends` packed kernel owns point-fan partitioning and one-to-many payload/group/native-edge ancestry; `Pdk.Facet.edge_cusp` supplies explicit path-end masks while Facet supplies dihedral masks |
+| Attribute-driven deletion | No former single owner | `Rdk.Blast_by_attribute` owns packed scalar point/primitive classification and delegates every topology/payload/group/native-edge mutation to the single `Deletion.delete` planner; Procedural resolves only the optional named base group and immutable node identity |
+| Edge crease authoring | No former single owner | `Rdk.Crease.crease` owns unique-edge reduction, coherent incident-corner `creaseweight` updates, and optional vertex-color endpoint visualization for the existing Subdivide kernel; Procedural resolves only a named topology-affine edge group and cache identity |
+| Frame-domain attribute fading | No former single owner | `Rdk.Attribute_fade` owns scalar point-driver validation, affine frame retiming, in/hold/out ramp evaluation, independent reference-cardinality policy, packed output, and grayscale visualization; Procedural declares the exact Frame dependency, resolves only a named point group/input roles, and never embeds mutable solver state in the cook |
+| Polygon-curve cutting | No former single owner | `Rdk.Poly_cut.cut` owns point/edge event classification, threshold interpolation, change subdivision, fragment planning, point compaction, every-owner payload/group/native-edge ancestry, and closed-fragment policy; Procedural resolves only named primitive/point/edge groups and immutable parameters |
+| Reversible piece separation | No former single owner | `Rdk.Separate_pieces` owns integer/text identity compilation, point/primitive rigidity validation, stable projected bounds and layout, same-owner translation metadata, Move Back arithmetic, overflow checks, and packed position fills; Procedural contributes immutable parameter identity only |
+| Edge flip | No former single owner | `Rdk.Edge_flip` exclusively owns manifold polygon-boundary rotation, corner-payload cycling, validity checks, and native-edge ancestry; Procedural contributes immutable selection/parameter identity only |
+| Edge cusp / Facet cusp | Formerly Facet-local fan splitting | One `Facet.split_points_on_edge_ends` packed kernel owns point-fan partitioning and one-to-many payload/group/native-edge ancestry; `Rdk.Facet.edge_cusp` supplies explicit path-end masks while Facet supplies dihedral masks |
 | Edge straightening | No former single owner | `Edge_ops.straighten` owns selected-edge components, scale-normalized covariance fitting, deterministic principal-axis selection, and packed point projection; Procedural only resolves named groups and node identity |
 | Edge length equalization | No former single owner | `Edge_ops.equalize` owns target reduction, selected incidence planning, the independent-edge exact path, deterministic connected projection, convergence and finite-result policy, stale-normal invalidation, and packed coordinate output; Procedural only resolves named groups and immutable solver parameters |
 | Reference edge relaxation | No former single owner | `Edge_relax.relax` owns matching-topology validation, individual/scale-independent reference targets, movable/pinned incidence planning, shorten-only policy, a closed-form independent-edge path, and delegates connected iterations to the shared `Edge_constraints` projector; Procedural owns only two-input roles, named-group resolution, and immutable parameters |
-| Boolean | Exact corefinement | `Pdk.Boolean` owns the arrangement and extraction pipeline |
-| Delaunay/Voronoi | Planar modeling | `Pdk.Delaunay2` and `Pdk.Voronoi2` own exact-predicate results |
-| Isosurface | Scalar-field extraction | `Pdk.Iso_surface` owns packed output |
+| Boolean | Exact corefinement | `Rdk.Boolean` owns the arrangement and extraction pipeline |
+| Delaunay/Voronoi | Planar modeling | `Rdk.Delaunay2` and `Rdk.Voronoi2` own exact-predicate results |
+| Isosurface | Scalar-field extraction | `Rdk.Iso_surface` owns packed output |
 
 Public algorithm replacements keep captured compatibility and scale fixtures
 before an old implementation is removed.
@@ -89,7 +89,7 @@ channels and options in its
 [topology representation](https://graphics.pixar.com/opensubdiv/docs/doxy_html/a01121.html),
 and [primvar refiner](https://graphics.pixar.com/opensubdiv/docs/doxy_html/a01029.html).
 
-PDK precomputes a stable refinement plan from `Topology_index`: exact
+RDK precomputes a stable refinement plan from `Topology_index`: exact
 output cardinalities, parent-child topology, and packed weighted stencils.
 Position and each compatible attribute plane then evaluate those immutable
 stencils into disjoint output slices. Vertex, varying, face-uniform, and
@@ -138,7 +138,7 @@ branching uses a consistent exact predicate policy. Degenerate and coplanar
 cases receive explicit classifications and deterministic tie breaks; they
 must never depend on hash iteration or work-stealing order.
 
-`Pdk.Predicates` now provides the first production predicate layer: filtered
+`Rdk.Predicates` now provides the first production predicate layer: filtered
 exact `orient2d` and `orient3d` signs over every finite binary64 input. The
 fallback converts the original IEEE mantissa/exponent pairs into bounded
 base-2 dyadic integers, so cancellation, overflow, and underflow cannot change
@@ -172,7 +172,7 @@ an almost-parallel subnormal case. Exact three-point centroids support cell
 queries without manufacturing a floating offset, and an exact/filterable
 perpendicular radial dot predicate resolves coplanar angular ties.
 
-`Pdk_boolean.Boolean_constraints` now implements phases 2 and 3 for two
+`Rdk_boolean.Boolean_constraints` now implements phases 2 and 3 for two
 surfaces and the packed input to phase 4. It concatenates source coordinate
 planes once, gets stable BVH candidates, classifies candidates exactly in
 parallel ranges, constructs LPI endpoints, sorts/deduplicates them by exact
@@ -195,7 +195,7 @@ suppression, the clean-input policy, cancellation, and exact one/four-domain
 output. Coplanar arrangement and face CDT remain deliberately downstream of
 this candidate and constraint plan.
 
-`Pdk_boolean.Boolean_coplanar` now consumes every exact-coplanar candidate pair
+`Rdk_boolean.Boolean_coplanar` now consumes every exact-coplanar candidate pair
 as a separate planar arrangement. It classifies both triangles' vertices with
 exact projected orientations, constructs every proper edge crossing as an
 exact projected line-line point, deduplicates by homogeneous identity, and
@@ -255,7 +255,7 @@ face-touching tetrahedra; union, intersection, both differences, XOR, and a
 custom expression; one/four-domain exactness; outward volume; and region
 volume partition identities.
 
-`Pdk_boolean.Boolean_seam` derives a second product from that same prepared complex
+`Rdk_boolean.Boolean_seam` derives a second product from that same prepared complex
 without repeating intersection or face refinement. It classifies exact complex
 edges as left-self, between-operands, or right-self; source-native edge ancestry
 prevents an ordinary non-manifold input edge from becoming a false
@@ -288,7 +288,7 @@ seam-adjacent edges” applies to the extracted surface around seams, not to the
 polyline seam product; that separate topology-changing cleanup remains gated
 on explicit threshold, payload, ancestry, and re-verification policy.
 
-`Pdk_boolean.Boolean_payload.copy_primitives` consumes that ancestry without
+`Rdk_boolean.Boolean_payload.copy_primitives` consumes that ancestry without
 re-running extraction. It transfers the union of both operands' primitive
 attribute schemas across Float, Int, Text, Float2/3/4, Int-array, and
 Float-array storage; a field absent on the selected source operand receives
@@ -302,8 +302,8 @@ operand's source traversal, merge the left operand before the right, and keep
 stable output-facet order among the one-to-many descendants of one source
 primitive.
 
-`Pdk_boolean.Boolean_payload.copy_points_and_vertices` completes the private
-corner-payload boundary over the same ancestry. It supports every PDK storage
+`Rdk_boolean.Boolean_payload.copy_points_and_vertices` completes the private
+corner-payload boundary over the same ancestry. It supports every RDK storage
 kind independently on Point and Vertex owners. Float and Float2/3/4 values use
 the stored exact-construction barycentrics; `N` Float3 values are normalized
 with a scale-safe norm. Int, Text, and Int-array values use the stable dominant
@@ -350,7 +350,7 @@ predicate. Failures report `rounding_collision` or `rounding_degenerate`
 instead of returning a silently invalid solid. Tiny-edge consolidation and a
 post-cleanup seam-intersection verification remain separate release gates.
 
-`Pdk_boolean.Boolean_solid` is the private transactional boundary over those
+`Rdk_boolean.Boolean_solid` is the private transactional boundary over those
 stages. `prepare` owns one exact arrangement, radial graph, and classified cell
 complex; repeated `extract` calls evaluate different typed expressions without
 repeating intersection or classification work. It validates stage identity,
@@ -421,7 +421,7 @@ those contracts remain incomplete.
 ### Boolean operations and repair
 
 A production Boolean is an exact mesh-arrangement problem, not merely BSP
-polygon classification. Prismel targets the capabilities of Houdini Boolean
+polygon classification. Rays targets the capabilities of Houdini Boolean
 2.0 while using the more recent exact Weiler-arrangement model as its internal
 correctness contract. The required result is a conforming simplicial complex
 whose intersection curves are topology edges, with enough radial/cell
@@ -441,11 +441,11 @@ The design is based on complementary primary references:
   supplies indirect-offset predicates plus face localization and dimension
   reduction for sorting, deduplicating, and locating intersection points. Its
   claimed order-of-magnitude gain is a benchmark target, not evidence that an
-  unmeasured PDK port has the same performance.
+  unmeasured RDK port has the same performance.
 - [A Robust Approach to Detect Intersections between Triangles with Different Numerical Representations](https://arxiv.org/abs/2507.08478)
   supplies the reference matrix for exhaustive triangle contacts when
   endpoints are explicit binary64, exact rational, or implicit constructions.
-  PDK keeps its own compact event representation, but every representation
+  RDK keeps its own compact event representation, but every representation
   pairing must reach the same canonical contact classification.
 - [Exact Predicates, Exact Constructions and Combinatorics for Mesh CSG](https://arxiv.org/abs/2405.12949)
   supplies exact constructed points, symbolic-perturbation constrained
@@ -453,7 +453,7 @@ The design is based on complementary primary references:
   and the Weiler volumetric model.
 - [Deterministic Linear Time Constrained Triangulation using Simplified Earcut](https://arxiv.org/abs/2009.04294)
   supplies a proven linear pocket retriangulation step for segment insertion.
-  PDK may use this behind the current traced CDT recovery only after its
+  RDK may use this behind the current traced CDT recovery only after its
   restricted simple-pocket preconditions are checked exactly; it is not a
   general polygon triangulator.
 - [trueform: Fast And Robust Mesh CSG Via Topological Aggregation](https://arxiv.org/abs/2607.15905)
@@ -461,9 +461,9 @@ The design is based on complementary primary references:
   vertex/edge/face event types, face-local graphs with two-level identity,
   exact radial decisions over original planes, topological aggregation across
   otherwise disagreeing local observations, build-once/query-many domain
-  partitions, and first-class self-overlap/open-sheet semantics. Prismel uses
+  partitions, and first-class self-overlap/open-sheet semantics. Rays uses
   these as specification and benchmark targets; adopting its exact-without-
-  construction representation would require proving compatibility with PDK's
+  construction representation would require proving compatibility with RDK's
   existing exact implicit-point ancestry rather than introducing a second
   Boolean kernel.
 - The [Houdini Boolean 2.0 contract](https://www.sidefx.com/docs/houdini/nodes/sop/boolean.html)
@@ -476,14 +476,14 @@ CGAL corefinement remains a useful reference but is not the target ceiling.
 Its public model is documented in the
 [Boolean/corefinement reference](https://doc.cgal.org/latest/PMP_Boolean_operations/group__PMP__corefinement__grp.html).
 The libigl Boolean path pulls GPL-licensed CGAL code, so it is not an acceptable
-Prismel dependency. Three permissively licensed implementations were audited
+Rays dependency. Three permissively licensed implementations were audited
 as executable specifications: Cherchi et al.'s MIT reference implementation,
 Geogram's BSD-3-Clause exact CSG/Weiler implementation, and Manifold's
 Apache-2.0 packed parallel Boolean. The newer trueform implementation is
 PolyForm Noncommercial/commercial and therefore is not copied, linked,
-translated, or used as a Prismel dependency. Its published paper and public
-behavior are research references only. Prismel independently implements the
-hybrid contract in PDK: exact dyadic constructions/CDT/Weiler remain
+translated, or used as a Rays dependency. Its published paper and public
+behavior are research references only. Rays independently implements the
+hybrid contract in RDK: exact dyadic constructions/CDT/Weiler remain
 authoritative, while canonical simplex identity, carrier-plane radial fast
 paths, and relation-level aggregation are separately specified and tested.
 The paper's majority vote is statistical rather than worst-case and is not, by
@@ -497,7 +497,7 @@ matrix, licensing decisions, and promotion gates are recorded in
 [`boolean.md`](boolean.md). That document is normative for the private kernel;
 this section remains the architecture summary.
 
-The packed PDK pipeline is split into explicit phases:
+The packed RDK pipeline is split into explicit phases:
 
 1. Normalize only for filter conditioning; merge exactly duplicate input
    vertices; reject non-finite data; retain stable operand, primitive, corner,
@@ -550,7 +550,7 @@ correctly separates duplicate/degenerate cleanup, self-intersection refinement,
 hole filling, refinement, and fairing rather than presenting “repair” as one
 opaque operation.
 
-`Pdk.Boolean_detect` now supplies the first reusable stage: it builds both
+`Rdk.Boolean_detect` now supplies the first reusable stage: it builds both
 surface indexes, emits deterministic candidate pairs without per-candidate
 lists, classifies crossing/touching and optionally coplanar pairs in a local
 scale-normalized frame, and aggregates sorted unique B primitive IDs per A
@@ -561,7 +561,7 @@ orientation/intersection signs, constructed seam vertices, both-surface edge
 splitting, patch classification, and stitching rather than promoting the
 detector into a solid Boolean by name alone.
 
-`Pdk.Intersection_analysis` exposes the next reusable stage without
+`Rdk.Intersection_analysis` exposes the next reusable stage without
 changing either input. It materializes pair-local crossing/coplanar event
 positions and triangle barycentric or complete-curve parameters, welds
 coincident events deterministically, and retains aligned source-input and primitive identities.
@@ -578,9 +578,9 @@ then writes both directions of each retained primitive pair before stable row
 deduplication. One-input Procedural cooks therefore build one surface index and
 never manufacture a second geometry snapshot.
 
-PDK therefore needs the exact/implicit stages above before `Csg3` can be
+RDK therefore needs the exact/implicit stages above before `Csg3` can be
 replaced. `Csg3` remains an explicitly labeled creative-coding compatibility
-utility and is never a fallback for `Pdk.Boolean`. No public production
+utility and is never a fallback for `Rdk.Boolean`. No public production
 Boolean node is added until the complete union/intersection/subtraction path is
 topology-safe on its declared input model. Each intermediate stage remains
 private or carries a name that describes its actual diagnostic output.
@@ -655,7 +655,7 @@ element lists remain blocked on packed ragged-array attribute storage rather
 than being emulated with boxed lists.
 
 Point and primitive Attribute Transfer use the shared balanced
-`Pdk.Spatial_index`, not an all-pairs scan per attribute. Points index canonical
+`Rdk.Spatial_index`, not an all-pairs scan per attribute. Points index canonical
 positions; primitives first fill arithmetic corner barycenters. A bulk query
 produces fixed-width stable source IDs and squared distances once, then every
 selected typed payload plane applies that plan in parallel. Max distance,
@@ -666,7 +666,7 @@ linear, smoothstep, or fixed uniform-bias blend bands; zero-width transfer has
 no influence-plane allocation. Globally flat axes are omitted from the KD split
 cycle, and large disjoint subtrees build through the reusable domain pool.
 
-Polygon-surface transfer uses the separate shared `Pdk.Surface_index`.
+Polygon-surface transfer uses the separate shared `Rdk.Surface_index`.
 Deterministic ear clipping emits internal triangles while preserving original
 primitive and corner IDs; a packed AABB hierarchy produces closest IDs,
 squared distances, and barycentric weights once. Point/vertex payloads
@@ -689,13 +689,13 @@ than alternate geometry cores.
 ### Packed instance materialization
 
 Render instances retain one immutable prototype and an ordered matrix array;
-they do not masquerade as editable PDK primitives. The explicit Unpack boundary
+they do not masquerade as editable RDK primitives. The explicit Unpack boundary
 preflights `instances × source cardinality`, allocates each output plane once,
 and fills transform-major ranges independently. Attribute and ordinary/native
 group repetition uses the same ancestry order as topology, and normal planes
 use one inverse-transpose matrix per instance. Unrestricted Duplicate only
 prepares identity/transform powers and delegates to this kernel. Restricted
-Duplicate uses one cardinality-first PDK ancestry map because the retained
+Duplicate uses one cardinality-first RDK ancestry map because the retained
 original and selected copies have different shapes; it does not build a
 compact geometry or merge intermediate. Both paths share the same packed
 attribute/group semantics, so arbitrary Unpack and regular duplication cannot
@@ -706,7 +706,7 @@ only after a complete successful cook.
 
 ### Measurement
 
-PDK owns one packed measurement kernel for polygon area, polygon/curve
+RDK owns one packed measurement kernel for polygon area, polygon/curve
 perimeter, and oriented signed volume. Triangle meshes use a direct numeric
 path; simple N-gons reuse deterministic ear clipping so concavity cannot make
 fan magnitudes overcount. Primitive-group selection compiles once, workers
@@ -803,7 +803,7 @@ after each edge operation.
 
 ## Reuse policy
 
-The preferred implementation is a small audited native OCaml kernel over PDK
+The preferred implementation is a small audited native OCaml kernel over RDK
 planes. Reusing an external library remains possible when it materially
 improves correctness, but it requires a written review of:
 
@@ -816,10 +816,10 @@ improves correctness, but it requires a written review of:
 - native build behavior and isolation from renderer/GPU implementation details.
 
 OpenSubdiv is the semantic reference and a possible optional accelerator for
-subdivision, but a binding would not replace PDK ownership or its fallback
+subdivision, but a binding would not replace RDK ownership or its fallback
 contract. CGAL is the robustness reference for corefinement/repair; adopting a
 native dependency would need a separate license/build/ABI decision. Until such
-a review is accepted, Prismel implements against the published algorithms and
+a review is accepted, Rays implements against the published algorithms and
 tests rather than exposing an optional backend with different results.
 
 ## Acceptance gates

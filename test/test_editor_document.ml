@@ -1,7 +1,7 @@
 (* The document boundary: a lowered workspace validates and a broken one is refused, the dump
    is deterministic, and both public hosts save every document (there is no other kind) after
    the scene's objects are deleted through real UI events. *)
-open Prismel
+open Rays
 open Procedural
 
 module Preset = Editor_document.Preset
@@ -28,7 +28,7 @@ let contains text piece =
   at 0
 
 let run () =
-  let directory = Filename.temp_dir "prismel-document-contract" "" in
+  let directory = Filename.temp_dir "rays-document-contract" "" in
   Fun.protect ~finally:(fun () ->
     let state = Filename.concat directory "state" in
     if Sys.file_exists state then begin
@@ -104,12 +104,12 @@ let run () =
     List.iter (fun (name, _) -> Sys.remove (Preset.path ~directory ~name)) (Preset.list ~directory)) in
   let prepares = Atomic.make 0 in
   let prepare _ _ = Atomic.incr prepares; Ok (Atomic.get prepares) in
-  let module E3 = Prismel_editor.Editor3 in
+  let module E3 = Rays_editor.Editor3 in
   exercise ~scene_level:true
     ~create:(fun () -> E3.create ~await:true ~workspace ~presets:directory ~factories ~prepare
       ~scene3:(fun _ _ -> Scene3.create []) () |> Result.get_ok)
     ~update:E3.update ~close:E3.close ~document:E3.document ~prepared:E3.prepared ~panes:E3.panes;
-  let module E2 = Prismel_editor.Editor2 in
+  let module E2 = Rays_editor.Editor2 in
   exercise ~scene_level:false
     ~create:(fun () -> E2.create ~await:true ~workspace ~presets:directory ~factories ~prepare
       ~scene2:(fun _ _ -> []) () |> Result.get_ok)

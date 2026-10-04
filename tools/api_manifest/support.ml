@@ -45,7 +45,7 @@ type command_result =
   }
 
 let command ?cwd ?(environment = Unix.environment ()) program arguments =
-  with_temp_directory "prismel-command-" (fun directory ->
+  with_temp_directory "rays-command-" (fun directory ->
     let stdout_path = Filename.concat directory "stdout" in
     let stderr_path = Filename.concat directory "stderr" in
     let output_flags = [ Unix.O_WRONLY; Unix.O_CREAT; Unix.O_TRUNC ] in

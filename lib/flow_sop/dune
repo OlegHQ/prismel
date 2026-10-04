@@ -1,5 +1,5 @@
 (library
  (name flow_sop)
- (public_name prismel.flow_sop)
+ (public_name rays.flow_sop)
  (modules port instance_path curve network value_lane catalog manifest lower flow_edit projection probe)
  (libraries flow param procedural))

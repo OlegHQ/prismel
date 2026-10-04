@@ -91,8 +91,8 @@ let run () =
    | Error { kind = Invalid_argument; _ } -> ()
    | Ok () | Error _ -> fail "a negative text-input cursor was accepted");
   get (Text_input.stop window);
-  get (Clipboard.set_text "Prismel ž clipboard");
-  if get (Clipboard.get_text ()) <> "Prismel ž clipboard" then
+  get (Clipboard.set_text "Rays ž clipboard");
+  if get (Clipboard.get_text ()) <> "Rays ž clipboard" then
     fail "clipboard UTF-8 text did not round-trip";
   (match Clipboard.set_text "bad\x00text" with
    | Error { kind = Invalid_argument; _ } -> ()

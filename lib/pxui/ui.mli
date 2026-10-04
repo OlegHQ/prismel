@@ -32,12 +32,12 @@
     list that the native UI pipeline draws with a handful of draw calls.
 
     All coordinates are logical points. [t] is a mutable handle, like
-    [Prismel.Assets]: thread it through the model and call {!destroy} from
+    [Rays.Assets]: thread it through the model and call {!destroy} from
     [Sketch.run_state ~on_stop]. *)
 
 type t
 
-val create : ?theme:Theme.t -> ?font:Prismel.Font.t -> ?font_size:int -> unit -> t
+val create : ?theme:Theme.t -> ?font:Rays.Font.t -> ?font_size:int -> unit -> t
 (** [font] (borrowed) overrides the kit face; [font_size] is the logical size
     of kit text. *)
 
@@ -55,7 +55,7 @@ val set_font_size : t -> int -> unit
 
 (** {1 Frames} *)
 
-val frame : t -> Prismel.Frame.t -> (t -> 'a) -> 'a
+val frame : t -> Rays.Frame.t -> (t -> 'a) -> 'a
 (** Route the frame's ordered events, run the builder, lay out, and paint.
     Tab/Shift-Tab traverse visible focusable boxes in presentation order,
     restricted to an open popup. Enter/Space activate controls; arrows adjust
@@ -65,14 +65,14 @@ val frame : t -> Prismel.Frame.t -> (t -> 'a) -> 'a
     Kit controls take keyboard focus through Tab; text-entry controls also
     focus on a pointer press. *)
 
-val input : ?owner:int -> t -> Prismel.Frame.t
+val input : ?owner:int -> t -> Rays.Frame.t
 (** After {!frame}, the ordered events not consumed by UI controls, plus
     events captured by the exact [owner] box key (e.g. a viewport root).
     Children of [owner] retain their events. Held keys, buttons and motion
     follow the same ownership; release or disappearance cancels an excluded
     gesture. Focus-loss and pointer cancellation always pass through. *)
 
-val scene : ?under:(int -> Prismel.Scene.t) -> t -> Prismel.Scene.t
+val scene : ?under:(int -> Rays.Scene.t) -> t -> Rays.Scene.t
 (** The most recently completed frame, including text-input regions.
     [under] inserts a host scene immediately before a floating root's paint,
     addressed by its box key. This keeps native viewport content in panel order. *)
@@ -86,7 +86,7 @@ val request_cursor : t -> [`Horizontal_resize|`Vertical_resize|`Text] -> unit
     the I-beam over a text field or text area. The last request of a frame
     wins. *)
 
-val key_pressed : t -> Prismel.Input.key -> bool
+val key_pressed : t -> Rays.Input.key -> bool
 (** The key was pressed in this frame's events (a dialog's Enter). *)
 
 val text_input_focused : t -> bool
@@ -216,7 +216,7 @@ val tooltip : t -> key:string -> text:string -> unit
 (** Delayed, noninteractive overlay using {!hover_delay}. Call only for the
     current hovered target. It does not change focus or pointer ownership. *)
 
-val last_press_within : t -> Prismel.Frame.t -> int list -> int option
+val last_press_within : t -> Rays.Frame.t -> int list -> int option
 (** Last root key pressed in [frame], using PXUI's previous hit tree.
     The keys come from [key] on pane roots; a press on any child counts. *)
 
@@ -237,21 +237,21 @@ type signal = {
   pointer : float * float;  (** latest pointer, screen space *)
   press_point : float * float;  (** where the current or last press began *)
   release_point : float * float;
-  button : Prismel.Input.mouse_button option;
+  button : Rays.Input.mouse_button option;
   scroll : float * float;  (** wheel steps routed to this box *)
   pinch : float;
   (** product of the trackpad pinch factors routed to this box this frame
       (the box under the pointer, like the wheel): above 1 zooms in, 1 when
       there was none *)
-  keys : Prismel.Event.t list;  (** ordered key/text events while focused *)
+  keys : Rays.Event.t list;  (** ordered key/text events while focused *)
 }
 
 val signal : t -> box -> signal
-val key_events : t -> box -> (Prismel.Event.t * Prismel.Input.key list) list
+val key_events : t -> box -> (Rays.Event.t * Rays.Input.key list) list
 (** The focused key/text events paired with their event-time held keys.
     Use this for custom controls that interpret Shift, Command or Control. *)
 
-val press_keys : t -> box -> Prismel.Input.key list
+val press_keys : t -> box -> Rays.Input.key list
 (** Held keys at this box's captured press, retained through release. *)
 
 val focused : t -> box -> bool
@@ -276,44 +276,44 @@ module Paint : sig
 
   val fill :
     t -> x:float -> y:float -> w:float -> h:float -> ?radius:float ->
-    Prismel.Color.t -> unit
+    Rays.Color.t -> unit
   (** Square fills cover exactly the pixels of the equivalent triangle
       rectangle; [radius > 0] is anti-aliased. *)
 
   val stroke :
     t -> x:float -> y:float -> w:float -> h:float -> ?width:float ->
-    ?radius:float -> Prismel.Color.t -> unit
+    ?radius:float -> Rays.Color.t -> unit
   (** A band of [width] centred on the rectangle's edges. *)
 
   val rect :
-    t -> x:float -> y:float -> w:float -> h:float -> ?fill:Prismel.Color.t ->
-    ?stroke:Prismel.Color.t -> ?radius:float -> unit -> unit
+    t -> x:float -> y:float -> w:float -> h:float -> ?fill:Rays.Color.t ->
+    ?stroke:Rays.Color.t -> ?radius:float -> unit -> unit
 
   val line :
     t -> from_:float * float -> to_:float * float -> ?width:float ->
-    Prismel.Color.t -> unit
+    Rays.Color.t -> unit
   (** Butt-capped; axis-aligned lines are exact rectangles. *)
 
   val circle :
-    t -> at:float * float -> radius:float -> ?fill:Prismel.Color.t ->
-    ?stroke:Prismel.Color.t -> unit -> unit
+    t -> at:float * float -> radius:float -> ?fill:Rays.Color.t ->
+    ?stroke:Rays.Color.t -> unit -> unit
 
   val wire :
     t -> float * float -> float * float -> float * float -> float * float ->
-    ?width:float -> Prismel.Color.t -> unit
+    ?width:float -> Rays.Color.t -> unit
   (** Cubic Bézier stroked on the GPU. *)
 
   val arc :
     t -> at:float * float -> radius:float -> from_:float -> to_:float ->
-    ?width:float -> Prismel.Color.t -> unit
+    ?width:float -> Rays.Color.t -> unit
 
   val grid :
     t -> x:float -> y:float -> w:float -> h:float -> origin:float * float ->
-    spacing:float -> ?dot:float -> Prismel.Color.t -> unit
+    spacing:float -> ?dot:float -> Rays.Color.t -> unit
   (** Dots every [spacing] points from [origin], drawn by one quad. *)
 
   val text :
-    t -> at:float * float -> ?size:int -> ?color:Prismel.Color.t -> string ->
+    t -> at:float * float -> ?size:int -> ?color:Rays.Color.t -> string ->
     unit
   (** Kit text with its top-left corner at [at]. Without [size] it uses the
       UI's own font; with [size] the kit face at that size. Inside a canvas
@@ -402,7 +402,7 @@ val inspector_message : t -> key:string -> string -> unit
 (** A short muted inspector note, clipped to the available width. *)
 
 val popup :
-  t -> ?stroke:Prismel.Color.t -> ?max_height:float -> ?dismiss_initial:bool ->
+  t -> ?stroke:Rays.Color.t -> ?max_height:float -> ?dismiss_initial:bool ->
   at:float * float -> width:float -> height:float -> string ->
   (unit -> 'a) -> 'a option
 (** A floating panel dismissed by Escape, focus loss, or a press outside its
@@ -449,7 +449,7 @@ type completion = {
 (** One ranked suggestion of {!language.complete}. *)
 
 type language = {
-  colorize : string -> (int * int * Prismel.Color.t) list;
+  colorize : string -> (int * int * Rays.Color.t) list;
       (** sorted, non-overlapping byte spans and their colour; the rest is the foreground *)
   brackets : string -> (int * int) list;
       (** the matched bracket pairs as (open, close) byte positions: the pair at the caret is lit *)
@@ -495,7 +495,7 @@ val text_area_submit :
   ?errors:int list -> ?spans:(int * int) list -> ?reveal:int -> ?language:language ->
   ?on_context:(float * float -> unit) -> ?on_scrub:([ `Live | `Done ] -> unit) ->
   ?on_click:(int -> bool -> unit) -> ?on_caret:(int -> unit) -> ?on_drop:(int -> drop -> unit) ->
-  ?chips:(int * int * Prismel.Color.t) list ->
+  ?chips:(int * int * Rays.Color.t) list ->
   string -> string -> string * bool
 (** {!text_area} that also reports Command- or Ctrl-Enter pressed in it this frame (the host's
     "apply").  Tab inserts two spaces and Shift-Tab takes up to two leading spaces off the line
@@ -558,7 +558,7 @@ val context_clicked : signal -> bool
     menu rather than pan. *)
 
 val context_menu :
-  t -> at:float * float -> ?width:float -> ?selected:int -> ?swatches:Prismel.Color.t option list ->
+  t -> at:float * float -> ?width:float -> ?selected:int -> ?swatches:Rays.Color.t option list ->
   string -> (string * bool) list -> [ `Open | `Pick of int | `Dismiss ]
 (** A floating menu at [at] with [(label, enabled)] rows, as wide as its longest
     row and at least [width] wide, capped to the frame. An empty label is a separator

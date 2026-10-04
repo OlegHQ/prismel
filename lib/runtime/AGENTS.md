@@ -2,14 +2,14 @@
 
 ## Library ownership boundaries
 
-- `prismel` owns target-independent application semantics: `Sketch`, immutable
+- `rays` owns target-independent application semantics: `Sketch`, immutable
   `Frame` facts, pure `Scene` data, public `Event`/`Input`, resource APIs, and
   renderer behavior. It may call the narrow `runtime` lifecycle/presentation
   boundary, but it must not implement HTTP, WebSocket, DOM, or browser policy.
 - `runtime` owns SDL3 subsystem lifetime, native environment setup/restoration,
   Metal surface presentation scheduling, and typed event translation. It must
   not own widgets, scene constructors, or application models.
-- Sibling libraries such as `pxui` depend only on public `prismel` semantics.
+- Sibling libraries such as `pxui` depend only on public `rays` semantics.
   PXUI represents text-entry intent as pure `Scene` metadata; it must never
   call native runtime modules or inspect platform internals.
 - Cross-library communication uses narrow typed functions. Do not expose raw
@@ -27,7 +27,7 @@
   transforms, depth/stencil, lighting, culling, blending, and window MSAA.
   Functional shaders require typed MSL/IR support or return a typed
   unsupported-feature error.
-- Native GPU access and packed mesh caches belong to `prismel`, stay on the
+- Native GPU access and packed mesh caches belong to `rays`, stay on the
   initial domain, submit through `ogpu_metal_native`, and remain strictly bounded
   under changing procedural meshes. Verify more than the first presented frame.
 - A compatible native Metal device and surface are required. Their absence must
@@ -61,7 +61,7 @@ returns the first rejected event as an error and still delivers the rest;
   life. A covered window gets no end event: `Runtime.visible` reads the named
   window state and the sketch loop asks once a frame while hidden. SDL itself
   turns a Control-click into a right click (a hint set in `Runtime.create`);
-  there is no Prismel-side emulation.
+  there is no Rays-side emulation.
 - Native callbacks only queue (`specification/sdl3.md`, "Callback policy"): the
   file-dialog callback copies into a bounded native slot and the event poll on
   the initial domain turns it into `Dialog_closed`. No OCaml runs in a native
@@ -79,7 +79,7 @@ returns the first rejected event as an error and still delivers the rest;
   framebuffer. Never allocate their readback from logical window dimensions.
 - Keep `Scene.text` on an installed platform UI font and interpret `?size` in
   logical points. Font texture caches must include renderer density and
-  rerasterize at native resolution. `PRISMEL_UI_FONT` remains the portable
+  rerasterize at native resolution. `RAYS_UI_FONT` remains the portable
   override; do not bundle Apple system fonts.
 - Keep automatic scene text memory-bounded with the per-renderer 256-entry LRU
   without shortening the documented lifetime of explicit

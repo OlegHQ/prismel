@@ -73,12 +73,12 @@ module History = struct
 end
 
 module Keymap = struct
-  type trigger = Leader of string | Chord of Prismel.Input.key * Prismel.Input.key list
+  type trigger = Leader of string | Chord of Rays.Input.key * Rays.Input.key list
 
   let label = function
     | Leader sequence -> "Space " ^ sequence
     | Chord (key, modifiers) ->
-        let open Prismel.Input in
+        let open Rays.Input in
         let key, modifiers = if key = KeyChar '/' && List.mem Shift modifiers then
           KeyChar '?', List.filter (( <> ) Shift) modifiers else key, modifiers in
         let key = match key with
@@ -132,7 +132,7 @@ module Router = struct
     command.scope = None || command.scope = Some focus) commands
 
   let same_key a b = match a, b with
-    | Prismel.Input.KeyChar a, Prismel.Input.KeyChar b ->
+    | Rays.Input.KeyChar a, Rays.Input.KeyChar b ->
         Char.lowercase_ascii a = Char.lowercase_ascii b
     | _ -> a = b
 
@@ -141,12 +141,12 @@ module Router = struct
       match command.trigger with
       | Some (Chord (bound, modifiers)) when same_key bound key
           && List.for_all (fun modifier -> List.mem modifier keys) modifiers
-          && (bound <> Prismel.Input.Tab || List.for_all (fun modifier ->
+          && (bound <> Rays.Input.Tab || List.for_all (fun modifier ->
                List.mem modifier keys = List.mem modifier modifiers)
-               [Prismel.Input.Shift; Prismel.Input.Alt])
+               [Rays.Input.Shift; Rays.Input.Alt])
           && List.for_all (fun modifier ->
                not (List.mem modifier keys) || List.mem modifier modifiers)
-               [Prismel.Input.Meta; Prismel.Input.Ctrl] ->
+               [Rays.Input.Meta; Rays.Input.Ctrl] ->
           Some (List.length modifiers, command)
       | _ -> None)
     |> List.fold_left (fun best candidate -> match best with
@@ -154,8 +154,8 @@ module Router = struct
       | _ -> Some candidate) None
     |> Option.map snd
 
-  let fly (frame : Prismel.Frame.t) =
-    let open Prismel in
+  let fly (frame : Rays.Frame.t) =
+    let open Rays in
     let exits = List.exists (function
       | Event.KeyPressed (Input.Escape | Input.Space) | Event.WindowFocusLost -> true
       | _ -> false) frame.events in
@@ -166,12 +166,12 @@ module Router = struct
       | _ -> true) frame.events }
 
   let modifier = function
-    | Prismel.Input.Shift | Prismel.Input.Ctrl | Prismel.Input.Alt
-    | Prismel.Input.Meta -> true
+    | Rays.Input.Shift | Rays.Input.Ctrl | Rays.Input.Alt
+    | Rays.Input.Meta -> true
     | _ -> false
 
-  let step ?(previous_keys = []) keymap ~focus ~text_focus ~(frame : Prismel.Frame.t) state =
-    let open Prismel in
+  let step ?(previous_keys = []) keymap ~focus ~text_focus ~(frame : Rays.Frame.t) state =
+    let open Rays in
     if text_focus then Idle, [], frame else
     let modifiers = ref (Event.Private.keys_before ~previous:previous_keys
       ~held:frame.keys frame.events) in

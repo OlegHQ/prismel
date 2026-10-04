@@ -1,9 +1,9 @@
 (library
  (name sop_catalog)
- (public_name prismel.sop_catalog)
- (libraries prismel pdk procedural)
+ (public_name rays.sop_catalog)
+ (libraries rays rdk procedural)
  (private_modules shared shapes topology attributes groups)
- (preprocess (pps prismel.ppx)))
+ (preprocess (pps rays.ppx)))
 
 (rule
  (targets flow_manifest.gen.sexp)

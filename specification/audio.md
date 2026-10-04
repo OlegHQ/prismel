@@ -2,7 +2,7 @@
 
 ## Lifecycle
 
-Prismel initializes SDL3_mixer inside the native application lifecycle and
+Rays initializes SDL3_mixer inside the native application lifecycle and
 closes it before SDL3 shutdown. Loading, decoding, channel allocation, and
 playback use the selected macOS audio device; device or format failures are
 returned explicitly.

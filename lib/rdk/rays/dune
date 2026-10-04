@@ -1,0 +1,4 @@
+(library
+ (name rdk_rays)
+ (public_name rays.rdk.rays)
+ (libraries rdk_core rdk_attrib rdk_mesh rays))

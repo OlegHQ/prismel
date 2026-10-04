@@ -1,7 +1,7 @@
 (* Cross-representation checks: authored text, derived state, saved state and the picture. *)
-open Prismel
+open Rays
 module D = Editor_document
-module E = Prismel_editor.Editor3
+module E = Rays_editor.Editor3
 module F = Flow_sop.Flow_edit
 module S = Flow.Syntax
 
@@ -14,12 +14,12 @@ let build ?previous ws = D.Contexts.of_workspace ~factories ?previous ws |> Resu
 let frame n = Test_editor_input.frame (450., 300.) [] n
 let step e n = E.update e (frame n)
 let create ?camera ?settings ?presets ?source ws = E.create ?camera ?settings ?presets ?source ~await:true ~workspace:ws
-  ~prepare:(fun _ output -> Pdk_prismel.Prismel_mesh.to_mesh output.Procedural.Session.geometry
-    |> Result.map_error Pdk.Error.to_string)
+  ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh output.Procedural.Session.geometry
+    |> Result.map_error Rdk.Error.to_string)
   ~scene3:(fun _ mesh -> Scene3.create [Scene3.mesh mesh]) () |> Result.get_ok
 
 let with_dir f =
-  let dir = Filename.temp_dir "prismel-consistency" "" in
+  let dir = Filename.temp_dir "rays-consistency" "" in
   Fun.protect ~finally:(fun () -> Test_workspace_source.remove_tree dir) (fun () -> f dir)
 let with_editor ?camera ws f = with_dir (fun presets ->
   let e = ref (create ?camera ~presets ws) in
@@ -36,9 +36,9 @@ let plain = "(workspace consistency (graph g :context sop (sop/box)))"
 let settings_authority () =
   let ws = workspace ~settings:(settings (0., "default")) (plain ^ "\n(settings :amount 3.0)") in
   with_editor ws (fun e ->
-    check (Prismel_editor.Settings.get settings_schema (E.settings !e) = (3., "default"))
+    check (Rays_editor.Settings.get settings_schema (E.settings !e) = (3., "default"))
       "opening a checked workspace discarded its saved settings";
-    e := E.set_settings !e (Prismel_editor.Settings.make settings_schema (7., "changed"));
+    e := E.set_settings !e (Rays_editor.Settings.make settings_schema (7., "changed"));
     check (D.Settings.get settings_schema (E.workspace !e).settings = (7., "changed"))
       "set_settings left Workspace_doc.settings behind";
     e := E.edit !e (F.Set_graph {name = "g"; form = parse "(graph g :context sop (sop/box :size [2 2 2]))"}) |> Result.get_ok;
@@ -68,7 +68,7 @@ let settings_graph_writeback () =
     let schema = Editor_core.Param.(schema ~name:"fps" ~default:60
       [field ~name:"fps" ~label:"FPS" ~kind:(integer ~min:1 ~max:120 ()) ~default:60
         ~get:Fun.id ~set:(fun x _ -> x) ()]) in
-    e := E.set_settings !e (Prismel_editor.Settings.make schema 90);
+    e := E.set_settings !e (Rays_editor.Settings.make schema 90);
     let loaded = build (workspace (D.Workspace_doc.to_text (E.workspace !e))) in
     check (List.exists (fun (f : Editor_core.Param.field_view) ->
       f.name = "fps" && f.current = Int_value 90) (D.Settings.fields loaded.settings))
@@ -283,12 +283,12 @@ let preview_orbits () =
     preserved ();
     edit (F.Dock_panel {node = ["editor"; "comparison"]; target = ["editor"; "main"]; side = `Right});
     preserved ();
-    let editor_form = Prismel_editor.Private.Text_pane.make_shown (E.workspace !e).source "editor" None Graph in
+    let editor_form = Rays_editor.Private.Text_pane.make_shown (E.workspace !e).source "editor" None Graph in
     edit (F.Set_graph {name = "editor"; form = parse editor_form.text});
     preserved ();
     focus main;
     edit (F.Close_panel {node = ["editor"; "comparison"]});
-    let original_form = Prismel_editor.Private.Text_pane.make_shown ws.source "editor" None Graph in
+    let original_form = Rays_editor.Private.Text_pane.make_shown ws.source "editor" None Graph in
     edit (F.Set_graph {name = "editor"; form = parse original_form.text});
     focus comparison;
     check (same (position comparison) initial && not (same (position comparison) orbited))
@@ -466,7 +466,7 @@ let live_light_failure_isolation () = with_editor
       "a recovered preview light retained stale output")
 
 let refuse_empty_2d () = with_dir (fun presets ->
-  let module E2 = Prismel_editor.Editor2 in
+  let module E2 = Rays_editor.Editor2 in
   let e = E2.create ~presets ~workspace:(workspace plain) ~prepare:(fun _ _ -> Ok ())
     ~scene2:(fun _ _ -> []) () |> Result.get_ok in
   Fun.protect ~finally:(fun () -> E2.close e) (fun () ->
@@ -609,7 +609,7 @@ let named_handles () =
     update target [Event.MouseReleased (Input.LeftButton, target)];
     let after = E.workspace !e in
     let binding ws = Option.map (fun (_, v) -> Flow.Lisp.flat v)
-      (Prismel_editor.Private.Text_pane.binding ws.D.Workspace_doc.source ["g"; "a"]) in
+      (Rays_editor.Private.Text_pane.binding ws.D.Workspace_doc.source ["g"; "a"]) in
     check (after != before && binding after <> binding before)
       "named SOP handle did not write its owning graph argument";
     let scene_value = List.assoc "scene" (Flow.Eval.run ~time:0. after.checked |> Result.get_ok).results in
@@ -629,7 +629,7 @@ let overlapping_renderers () =
     (layout (panel ["editor" "one"] :window [150 120 320 280])
             (panel ["editor" "two"] :window [150 120 320 280]))|} in
   with_editor ws (fun e ->
-    e := step (E.set_renderer !e Prismel_editor.Renderer.Wireframe) 2;
+    e := step (E.set_renderer !e Rays_editor.Renderer.Wireframe) 2;
     let pictures = layers !e in
     check (List.length pictures = 3) "an overlapping viewport did not render";
     check (List.nth pictures 1 <> List.nth pictures 2)
@@ -645,15 +645,15 @@ let root_viewport () =
         :renderer "Wireframe" :width 800 :height 600 :max_spp 32)))|} in
   with_editor ws (fun e ->
     e := step !e 2;
-    check (E.renderer !e = Prismel_editor.Renderer.Wireframe) "the viewport did not take the root's renderer";
+    check (E.renderer !e = Rays_editor.Renderer.Wireframe) "the viewport did not take the root's renderer";
     let settings = E.render_settings !e in
     check (settings.width = 800 && settings.height = 600 && settings.max_spp = 32)
       "the render settings are not the root's";
-    e := step (E.set_renderer !e Prismel_editor.Renderer.Raster) 3;
-    check (E.renderer !e = Prismel_editor.Renderer.Wireframe) "a viewport request overrode the root's renderer");
+    e := step (E.set_renderer !e Rays_editor.Renderer.Raster) 3;
+    check (E.renderer !e = Rays_editor.Renderer.Wireframe) "a viewport request overrode the root's renderer");
   with_editor (workspace plain) (fun e ->
-    e := step (E.set_renderer !e Prismel_editor.Renderer.Wireframe) 2;
-    check (E.renderer !e = Prismel_editor.Renderer.Wireframe) "without a root the viewport request stands")
+    e := step (E.set_renderer !e Rays_editor.Renderer.Wireframe) 2;
+    check (E.renderer !e = Rays_editor.Renderer.Wireframe) "without a root the viewport request stands")
 
 let stale_inspector_draft () = with_dir (fun presets ->
   let factories = Test_editor_transactions.factory :: factories in
@@ -704,15 +704,15 @@ let failed_renderer_modes () = with_dir (fun presets ->
     (graph editor :context editor (ui/workspace
       (ui/tile (ui/viewport (ref scene)) (ui/viewport (ref scene :size 2))))))|} in
   let e = ref (E.create ~await:true ~presets ~workspace:ws
-    ~prepare:(fun _ output -> Pdk_prismel.Prismel_mesh.to_mesh output.Procedural.Session.geometry
-      |> Result.map_error Pdk.Error.to_string)
+    ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh output.Procedural.Session.geometry
+      |> Result.map_error Rdk.Error.to_string)
     ~scene3:(fun _ mesh -> Scene3.create [Scene3.mesh (Mesh.with_mode Mesh.Lines mesh)]) () |> Result.get_ok) in
   let report () = E.crash_dump !e presets;
     In_channel.with_open_bin (Filename.concat presets "editor.txt") In_channel.input_all in
   Fun.protect ~finally:(fun () -> E.close !e) (fun () ->
-    e := step (E.set_renderer !e Prismel_editor.Renderer.Wireframe) 1;
+    e := step (E.set_renderer !e Rays_editor.Renderer.Wireframe) 1;
     check (List.length (layers !e) = 2) "fixture wireframes did not render";
-    e := step (E.set_renderer !e Prismel_editor.Renderer.Path_traced) 2;
+    e := step (E.set_renderer !e Rays_editor.Renderer.Path_traced) 2;
     let doc = build (E.workspace !e) in
     let keys = Editor_core.Panels.leaves (Option.get doc.shell).tree
       |> List.filter_map (function _, Editor_core.Panels.View key -> Some key | _ -> None) in
@@ -722,7 +722,7 @@ let failed_renderer_modes () = with_dir (fun presets ->
       "renderer errors were not attributed to every failed viewport";
     check (Test_text_pane.contains text "no output" && layers !e = [])
       "failed path-tracing mode silently retained wireframe output";
-    e := step (E.set_renderer !e Prismel_editor.Renderer.Wireframe) 3;
+    e := step (E.set_renderer !e Rays_editor.Renderer.Wireframe) 3;
     check (List.length (layers !e) = 2 && Test_text_pane.contains (report ()) "renderer: -")
       "switching mode did not recover the outputs and clear renderer errors"))
 
@@ -745,8 +745,8 @@ let run_native () = with_dir (fun directory ->
       title = "Preview failure isolation"}
     ~init:(fun _ -> E.create ~await:true ~workspace:ws
       ~presets:(Filename.concat directory "presets")
-      ~prepare:(fun _ output -> Pdk_prismel.Prismel_mesh.to_mesh output.Procedural.Session.geometry
-        |> Result.map_error Pdk.Error.to_string)
+      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh output.Procedural.Session.geometry
+        |> Result.map_error Rdk.Error.to_string)
       ~scene3:(fun _ mesh ->
         let size = abs_float (Option.get (Mesh.vertex 0 mesh)).Vec3.x *. 2. in
         if size > 2.5 then Scene3.create [Scene3.group []]
@@ -757,7 +757,7 @@ let run_native () = with_dir (fun directory ->
         E.edit e (F.Set_arg {node = ["editor"; "comparison"]; key = Pos 0; sub = [];
           value = parse (if frame.count = 10 then "(ref scene :size 1.5)" else "(ref scene :size 2)")})
         |> Result.get_ok else e in
-      let mode = if frame.count >= 15 then Prismel_editor.Renderer.Wireframe else Path_traced in
+      let mode = if frame.count >= 15 then Rays_editor.Renderer.Wireframe else Path_traced in
       E.update (E.set_renderer e mode) frame)
     ~view:E.scene
     ~after_present:(fun e frame ->

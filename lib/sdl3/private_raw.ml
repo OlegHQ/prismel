@@ -62,7 +62,7 @@ external invalidate_metal_layer_token : Native_layer_token.t -> unit
   = "caml_sdl3_invalidate_metal_layer_token"
 
 (* The SDL_Event union never crosses this boundary: the stub builds the typed
-   event itself (see the enums in sdl3_stubs.c), or skips what Prismel does
+   event itself (see the enums in sdl3_stubs.c), or skips what Rays does
    not read. *)
 type 'event poll = 'event option
 

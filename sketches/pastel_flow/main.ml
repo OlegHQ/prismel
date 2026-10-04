@@ -1,8 +1,8 @@
-open Prismel
+open Rays
 
 let preset = ref "waves"
 let export_dir = ref ""
-let settings = ref "_out/pastel-flow.plisp"
+let settings = ref "_out/pastel-flow.rays"
 let size = ref 1000
 let domains = ref 1
 let benchmark = ref false

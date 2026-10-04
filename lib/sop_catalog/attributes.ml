@@ -1,4 +1,4 @@
-open Prismel
+open Rays
 open Procedural
 open Shared
 
@@ -34,12 +34,12 @@ end
 
 module Attribute_noise_quaternion = struct
   let encode_location = function
-    | Pdk.Attribute_ops.Noise_position -> "position"
+    | Rdk.Attribute_ops.Noise_position -> "position"
     | Noise_element_number -> "element-number"
     | Noise_attribute name -> "attribute:" ^ name
 
   let decode_location = function
-    | "position" -> Ok Pdk.Attribute_ops.Noise_position
+    | "position" -> Ok Rdk.Attribute_ops.Noise_position
     | "element-number" -> Ok Noise_element_number
     | value when String.starts_with ~prefix:"attribute:" value ->
         Ok (Noise_attribute (String.sub value 10 (String.length value - 10)))
@@ -49,7 +49,7 @@ module Attribute_noise_quaternion = struct
       ~encode:encode_location ~decode:decode_location
 
   let encode_numeric value = String.concat "," (match value with
-    | Pdk.Attribute_ops.Scalar x -> ["scalar"; string_of_float x]
+    | Rdk.Attribute_ops.Scalar x -> ["scalar"; string_of_float x]
     | Vec2 value -> ["vec2"; string_of_float value.Vec2.x;
         string_of_float value.y]
     | Vec3 value -> ["vec3"; string_of_float value.Vec3.x;
@@ -58,7 +58,7 @@ module Attribute_noise_quaternion = struct
         string_of_float y; string_of_float z; string_of_float w])
 
   let decode_numeric value = match String.split_on_char ',' value with
-    | ["scalar"; x] -> Option.map (fun x -> Pdk.Attribute_ops.Scalar x)
+    | ["scalar"; x] -> Option.map (fun x -> Rdk.Attribute_ops.Scalar x)
         (float_of_string_opt x)
     | ["vec2"; x; y] ->
         (match float_of_string_opt x, float_of_string_opt y with
@@ -76,14 +76,14 @@ module Attribute_noise_quaternion = struct
     | _ -> None
 
   let encode_range = function
-    | Pdk.Attribute_ops.Noise_positive -> "positive"
+    | Rdk.Attribute_ops.Noise_positive -> "positive"
     | Noise_zero_centered -> "zero-centered"
     | Noise_min_max (minimum, maximum) ->
         String.concat ";" ["min-max"; encode_numeric minimum;
           encode_numeric maximum]
 
   let decode_range value = match String.split_on_char ';' value with
-    | ["positive"] -> Ok Pdk.Attribute_ops.Noise_positive
+    | ["positive"] -> Ok Rdk.Attribute_ops.Noise_positive
     | ["zero-centered"] -> Ok Noise_zero_centered
     | ["min-max"; minimum; maximum] ->
         (match decode_numeric minimum, decode_numeric maximum with
@@ -96,14 +96,14 @@ module Attribute_noise_quaternion = struct
 
   type parameters = {
     group : string [@sop.default ""] [@sop.label "Group"];
-    owner : Pdk.Attribute.owner [@sop.default Pdk.Attribute.Point]
+    owner : Rdk.Attribute.owner [@sop.default Rdk.Attribute.Point]
       [@sop.label "Owner"] [@sop.kind attribute_owner_parameter];
     name : string [@sop.default "orient"] [@sop.label "Attribute"];
-    location : Pdk.Attribute_ops.noise_location
-      [@sop.default Pdk.Attribute_ops.Noise_element_number]
+    location : Rdk.Attribute_ops.noise_location
+      [@sop.default Rdk.Attribute_ops.Noise_element_number]
       [@sop.label "Location"] [@sop.kind location_parameter];
-    range : Pdk.Attribute_ops.noise_range
-      [@sop.default Pdk.Attribute_ops.Noise_zero_centered]
+    range : Rdk.Attribute_ops.noise_range
+      [@sop.default Rdk.Attribute_ops.Noise_zero_centered]
       [@sop.label "Range"] [@sop.kind range_parameter];
     seed : int [@sop.default 0] [@sop.label "Seed"] [@sop.min 0]
       [@sop.max 9999];
@@ -131,7 +131,7 @@ module Attribute_noise_quaternion = struct
       ~frequency:(Vec3.create parameters.frequency_x parameters.frequency_y
         parameters.frequency_z) ~octaves:parameters.octaves
       ~owner:parameters.owner ~name:parameters.name
-      Pdk.Attribute_ops.Noise_quaternion input)
+      Rdk.Attribute_ops.Noise_quaternion input)
 
   let factory = parameters_factory build
 
@@ -149,14 +149,14 @@ end
 
 module Measure_curvature = struct
   let boundary_parameter = Parameter.choice ~equal:( = ) [
-      "Zero", Pdk.Curvature.Curvature_boundary_zero;
-      "One-sided", Pdk.Curvature.Curvature_boundary_one_sided;
+      "Zero", Rdk.Curvature.Curvature_boundary_zero;
+      "One-sided", Rdk.Curvature.Curvature_boundary_one_sided;
     ]
 
   type parameters = {
     point_group : string [@sop.default ""] [@sop.label "Point group"];
-    boundary : Pdk.Curvature.boundary
-      [@sop.default Pdk.Curvature.Curvature_boundary_zero]
+    boundary : Rdk.Curvature.boundary
+      [@sop.default Rdk.Curvature.Curvature_boundary_zero]
       [@sop.label "Boundary"] [@sop.kind boundary_parameter];
     smoothing_iterations : int [@sop.default 0]
       [@sop.label "Smoothing iterations"] [@sop.min 0] [@sop.max 64]
@@ -182,7 +182,7 @@ module Measure_curvature = struct
     [@@deriving sop_params, sop_node]
 
   let build = parameters_build (fun ~label parameters input ->
-    let outputs : Pdk.Curvature.outputs = {
+    let outputs : Rdk.Curvature.outputs = {
       mean = optional_text parameters.mean;
       gaussian = optional_text parameters.gaussian;
       minimum = optional_text parameters.minimum;
@@ -200,15 +200,15 @@ end
 
 module Attribute_laplacian = struct
   let weighting_parameter = Parameter.choice ~equal:( = ) [
-      "Cotangent", Pdk.Laplacian.Laplacian_cotan;
-      "Positive cotangent", Pdk.Laplacian.Laplacian_positive_cotan;
-      "Uniform", Pdk.Laplacian.Laplacian_uniform;
+      "Cotangent", Rdk.Laplacian.Laplacian_cotan;
+      "Positive cotangent", Rdk.Laplacian.Laplacian_positive_cotan;
+      "Uniform", Rdk.Laplacian.Laplacian_uniform;
     ]
 
   type parameters = {
     point_group : string [@sop.default ""] [@sop.label "Point group"];
-    weighting : Pdk.Laplacian.weighting
-      [@sop.default Pdk.Laplacian.Laplacian_cotan]
+    weighting : Rdk.Laplacian.weighting
+      [@sop.default Rdk.Laplacian.Laplacian_cotan]
       [@sop.label "Weighting"] [@sop.kind weighting_parameter];
     normalize : bool [@sop.default true] [@sop.label "Normalize"];
     source : string [@sop.default "P"] [@sop.label "Source attribute"];
@@ -259,14 +259,14 @@ module Polyframe = struct
     [@@deriving sop_params, sop_node]
 
   let style parameters = match parameters.style with
-    | Style_first_edge -> Pdk.Polyframe.First_edge
-    | Style_two_edges -> Pdk.Polyframe.Two_edges
-    | Style_centroid -> Pdk.Polyframe.Primitive_centroid
-    | Style_texture_uv -> Pdk.Polyframe.Texture_uv parameters.style_attribute
+    | Style_first_edge -> Rdk.Polyframe.First_edge
+    | Style_two_edges -> Rdk.Polyframe.Two_edges
+    | Style_centroid -> Rdk.Polyframe.Primitive_centroid
+    | Style_texture_uv -> Rdk.Polyframe.Texture_uv parameters.style_attribute
     | Style_texture_uv_gradient ->
-        Pdk.Polyframe.Texture_uv_gradient parameters.style_attribute
+        Rdk.Polyframe.Texture_uv_gradient parameters.style_attribute
     | Style_attribute_gradient ->
-        Pdk.Polyframe.Attribute_gradient parameters.style_attribute
+        Rdk.Polyframe.Attribute_gradient parameters.style_attribute
 
   let build = parameters_build (fun ~label parameters input ->
     Sop.polyframe ~label
@@ -291,8 +291,8 @@ module Distance_along_geometry = struct
       [@sop.kind element_owner_parameter];
     affected_group : string [@sop.default ""] [@sop.label "Affected group"]
       [@sop.folder "Affected"];
-    falloff : Pdk.Transform_ops.soft_transform_falloff
-      [@sop.default Pdk.Transform_ops.Soft_linear]
+    falloff : Rdk.Transform_ops.soft_transform_falloff
+      [@sop.default Rdk.Transform_ops.Soft_linear]
       [@sop.label "Falloff"] [@sop.kind soft_falloff_parameter];
     radius_mode : distance_radius_mode [@sop.default Radius_maximum]
       [@sop.label "Radius"] [@sop.kind distance_radius_parameter];
@@ -323,8 +323,8 @@ end
 
 module Distance_from_geometry = struct
   let reference_parameter = Parameter.choice ~equal:( = ) [
-      "Points", Pdk.Transform_ops.Distance_reference_points;
-      "Primitives", Pdk.Transform_ops.Distance_reference_primitives;
+      "Points", Rdk.Transform_ops.Distance_reference_points;
+      "Primitives", Rdk.Transform_ops.Distance_reference_primitives;
     ]
 
   type parameters = {
@@ -338,12 +338,12 @@ module Distance_from_geometry = struct
       [@sop.kind element_owner_parameter];
     reference_group : string [@sop.default ""] [@sop.label "Reference group"]
       [@sop.folder "Reference"];
-    reference_kind : Pdk.Transform_ops.distance_from_geometry_reference
-      [@sop.default Pdk.Transform_ops.Distance_reference_primitives]
+    reference_kind : Rdk.Transform_ops.distance_from_geometry_reference
+      [@sop.default Rdk.Transform_ops.Distance_reference_primitives]
       [@sop.label "Reference type"] [@sop.folder "Reference"]
       [@sop.kind reference_parameter];
-    falloff : Pdk.Transform_ops.soft_transform_falloff
-      [@sop.default Pdk.Transform_ops.Soft_linear]
+    falloff : Rdk.Transform_ops.soft_transform_falloff
+      [@sop.default Rdk.Transform_ops.Soft_linear]
       [@sop.label "Falloff"] [@sop.kind soft_falloff_parameter];
     radius_mode : distance_radius_mode [@sop.default Radius_maximum]
       [@sop.label "Radius"] [@sop.kind distance_radius_parameter];
@@ -375,21 +375,21 @@ end
 
 module Distance_from_target = struct
   let projection_parameter = Parameter.choice ~equal:( = ) [
-      "Spherical", Pdk.Transform_ops.Distance_target_spherical;
-      "Cylindrical", Pdk.Transform_ops.Distance_target_cylindrical;
-      "Planar", Pdk.Transform_ops.Distance_target_planar;
+      "Spherical", Rdk.Transform_ops.Distance_target_spherical;
+      "Cylindrical", Rdk.Transform_ops.Distance_target_cylindrical;
+      "Planar", Rdk.Transform_ops.Distance_target_planar;
     ]
   let metric_parameter = Parameter.choice ~equal:( = ) [
-      "Absolute", Pdk.Transform_ops.Distance_target_absolute;
-      "Signed", Pdk.Transform_ops.Distance_target_signed;
+      "Absolute", Rdk.Transform_ops.Distance_target_absolute;
+      "Signed", Rdk.Transform_ops.Distance_target_signed;
     ]
 
   type parameters = {
     affected_owner : element_owner [@sop.default Element_point]
       [@sop.label "Affected group type"] [@sop.kind element_owner_parameter];
     affected_group : string [@sop.default ""] [@sop.label "Affected group"];
-    projection : Pdk.Transform_ops.distance_from_target_projection
-      [@sop.default Pdk.Transform_ops.Distance_target_spherical]
+    projection : Rdk.Transform_ops.distance_from_target_projection
+      [@sop.default Rdk.Transform_ops.Distance_target_spherical]
       [@sop.label "Projection"] [@sop.kind projection_parameter];
     origin_x : float [@sop.default 0.] [@sop.label "Origin X"]
       [@sop.folder "Target/Origin"] [@sop.min (-100.)] [@sop.max 100.]; [@sop.vec3 "origin"]
@@ -403,11 +403,11 @@ module Distance_from_target = struct
       [@sop.folder "Target/Direction"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "direction"]
     direction_z : float [@sop.default 0.] [@sop.label "Direction Z"]
       [@sop.folder "Target/Direction"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "direction"]
-    metric : Pdk.Transform_ops.distance_from_target_metric
-      [@sop.default Pdk.Transform_ops.Distance_target_absolute]
+    metric : Rdk.Transform_ops.distance_from_target_metric
+      [@sop.default Rdk.Transform_ops.Distance_target_absolute]
       [@sop.label "Metric"] [@sop.kind metric_parameter];
-    falloff : Pdk.Transform_ops.soft_transform_falloff
-      [@sop.default Pdk.Transform_ops.Soft_linear]
+    falloff : Rdk.Transform_ops.soft_transform_falloff
+      [@sop.default Rdk.Transform_ops.Soft_linear]
       [@sop.label "Falloff"] [@sop.kind soft_falloff_parameter];
     radius_mode : distance_radius_mode [@sop.default Radius_maximum]
       [@sop.label "Radius"] [@sop.kind distance_radius_parameter];
@@ -439,17 +439,17 @@ end
 
 module Graph_color = struct
   let connectivity_parameter = Parameter.choice ~equal:( = ) [
-      "Primitives by point", Pdk.Graph_color.Graph_primitives_by_point;
-      "Points by primitive", Pdk.Graph_color.Graph_points_by_primitive;
-      "Primitives by edge", Pdk.Graph_color.Graph_primitives_by_edge;
+      "Primitives by point", Rdk.Graph_color.Graph_primitives_by_point;
+      "Points by primitive", Rdk.Graph_color.Graph_points_by_primitive;
+      "Primitives by edge", Rdk.Graph_color.Graph_primitives_by_edge;
     ]
 
   type parameters = {
     group_owner : element_owner [@sop.default Element_primitive]
       [@sop.label "Group type"] [@sop.kind element_owner_parameter];
     group : string [@sop.default ""] [@sop.label "Group"];
-    connectivity : Pdk.Graph_color.connectivity
-      [@sop.default Pdk.Graph_color.Graph_primitives_by_point]
+    connectivity : Rdk.Graph_color.connectivity
+      [@sop.default Rdk.Graph_color.Graph_primitives_by_point]
       [@sop.label "Connectivity"] [@sop.kind connectivity_parameter];
     color_attribute : string [@sop.default "color"]
       [@sop.label "Color attribute"];
@@ -466,7 +466,7 @@ module Graph_color = struct
 
   let build = parameters_build (fun ~label parameters input ->
     let worksets = if parameters.output_worksets then Some {
-        Pdk.Graph_color.begin_attribute = parameters.workset_begin_attribute;
+        Rdk.Graph_color.begin_attribute = parameters.workset_begin_attribute;
         length_attribute = parameters.workset_length_attribute }
       else None in
     Sop.graph_color ~label
@@ -537,16 +537,16 @@ module Uv_project = struct
     let origin = Vec3.create parameters.origin_x parameters.origin_y
         parameters.origin_z in
     match parameters.projection with
-    | Planar -> Pdk.Uv_ops.Planar { origin;
+    | Planar -> Rdk.Uv_ops.Planar { origin;
         u_axis = Vec3.create parameters.planar_u_x parameters.planar_u_y
           parameters.planar_u_z;
         v_axis = Vec3.create parameters.planar_v_x parameters.planar_v_y
           parameters.planar_v_z }
-    | Cylindrical -> Pdk.Uv_ops.Cylindrical { origin;
+    | Cylindrical -> Rdk.Uv_ops.Cylindrical { origin;
         axis = Vec3.create parameters.axis_x parameters.axis_y parameters.axis_z;
         seam = Vec3.create parameters.seam_x parameters.seam_y parameters.seam_z;
         height = parameters.height }
-    | Spherical -> Pdk.Uv_ops.Spherical { origin;
+    | Spherical -> Rdk.Uv_ops.Spherical { origin;
         axis = Vec3.create parameters.axis_x parameters.axis_y parameters.axis_z;
         seam = Vec3.create parameters.seam_x parameters.seam_y parameters.seam_z }
   let build = parameters_build (fun ~label parameters input ->
@@ -562,7 +562,7 @@ end
 module Uv_transform = struct
   type parameters = {
     name : string [@sop.default "uv"] [@sop.label "UV attribute"];
-    owner : Pdk.Attribute.owner [@sop.default Pdk.Attribute.Vertex]
+    owner : Rdk.Attribute.owner [@sop.default Rdk.Attribute.Vertex]
       [@sop.label "Owner"] [@sop.kind uv_owner_parameter];
     group : string [@sop.default ""] [@sop.label "Group"];
     translate_u : float [@sop.default 0.] [@sop.label "Translate U"]
@@ -631,10 +631,10 @@ end
 
 module Uv_unitize = struct
   let mode_parameter = Parameter.choice ~equal:( = ) [
-      "Per face", Pdk.Uv_ops.Per_face; "Islands", Pdk.Uv_ops.Islands;
+      "Per face", Rdk.Uv_ops.Per_face; "Islands", Rdk.Uv_ops.Islands;
     ]
   type parameters = {
-    mode : Pdk.Uv_ops.unitize_mode [@sop.default Pdk.Uv_ops.Per_face]
+    mode : Rdk.Uv_ops.unitize_mode [@sop.default Rdk.Uv_ops.Per_face]
       [@sop.label "Mode"] [@sop.kind mode_parameter];
     name : string [@sop.default "uv"] [@sop.label "UV attribute"];
     group : string [@sop.default ""] [@sop.label "Primitive group"];
@@ -729,9 +729,9 @@ module Attribute_noise = struct
   type location = Position | Element_number | Attribute
   type range = Positive | Zero_centered | Min_max
   let kind_parameter = Parameter.choice ~equal:( = ) [
-      "Float", Pdk.Attribute_ops.Noise_float;
-      "Vector", Pdk.Attribute_ops.Noise_vector;
-      "Quaternion", Pdk.Attribute_ops.Noise_quaternion;
+      "Float", Rdk.Attribute_ops.Noise_float;
+      "Vector", Rdk.Attribute_ops.Noise_vector;
+      "Quaternion", Rdk.Attribute_ops.Noise_quaternion;
     ]
   let location_parameter = Parameter.choice ~equal:( = ) [
       "Position", Position; "Element number", Element_number;
@@ -742,21 +742,21 @@ module Attribute_noise = struct
       "Minimum / maximum", Min_max;
     ]
   let operation_parameter = Parameter.choice ~equal:( = ) [
-      "Set initial", Pdk.Attribute_ops.Noise_set_initial;
-      "Set", Pdk.Attribute_ops.Noise_set;
-      "Add", Pdk.Attribute_ops.Noise_add;
-      "Subtract", Pdk.Attribute_ops.Noise_subtract;
-      "Multiply", Pdk.Attribute_ops.Noise_multiply;
-      "Minimum", Pdk.Attribute_ops.Noise_minimum;
-      "Maximum", Pdk.Attribute_ops.Noise_maximum;
+      "Set initial", Rdk.Attribute_ops.Noise_set_initial;
+      "Set", Rdk.Attribute_ops.Noise_set;
+      "Add", Rdk.Attribute_ops.Noise_add;
+      "Subtract", Rdk.Attribute_ops.Noise_subtract;
+      "Multiply", Rdk.Attribute_ops.Noise_multiply;
+      "Minimum", Rdk.Attribute_ops.Noise_minimum;
+      "Maximum", Rdk.Attribute_ops.Noise_maximum;
     ]
   type parameters = {
-    owner : Pdk.Attribute.owner [@sop.default Pdk.Attribute.Point]
+    owner : Rdk.Attribute.owner [@sop.default Rdk.Attribute.Point]
       [@sop.label "Owner"] [@sop.kind attribute_owner_parameter];
     name : string [@sop.default "noise"] [@sop.label "Attribute"];
     group : string [@sop.default ""] [@sop.label "Group"];
-    kind : Pdk.Attribute_ops.noise_kind
-      [@sop.default Pdk.Attribute_ops.Noise_float] [@sop.label "Type"]
+    kind : Rdk.Attribute_ops.noise_kind
+      [@sop.default Rdk.Attribute_ops.Noise_float] [@sop.label "Type"]
       [@sop.kind kind_parameter];
     context_seed : bool [@sop.default false] [@sop.label "Use context seed"]
       [@sop.folder "Noise"];
@@ -784,8 +784,8 @@ module Attribute_noise = struct
       [@sop.folder "Output/Maximum"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "max"]
     max_w : float [@sop.default 1.] [@sop.label "Maximum W"]
       [@sop.folder "Output/Maximum"] [@sop.min (-10.)] [@sop.max 10.];
-    operation : Pdk.Attribute_ops.noise_operation
-      [@sop.default Pdk.Attribute_ops.Noise_set] [@sop.label "Operation"]
+    operation : Rdk.Attribute_ops.noise_operation
+      [@sop.default Rdk.Attribute_ops.Noise_set] [@sop.label "Operation"]
       [@sop.folder "Output"] [@sop.kind operation_parameter];
     blend : float [@sop.default 1.] [@sop.label "Blend"]
       [@sop.folder "Output"] [@sop.min 0.] [@sop.max 1.];
@@ -812,20 +812,20 @@ module Attribute_noise = struct
     [@@sop.node_category "Attribute/Noise"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
   let numeric_kind = function
-    | Pdk.Attribute_ops.Noise_float -> Numeric_scalar
-    | Pdk.Attribute_ops.Noise_vector -> Numeric_vec3
-    | Pdk.Attribute_ops.Noise_quaternion -> Numeric_vec4
+    | Rdk.Attribute_ops.Noise_float -> Numeric_scalar
+    | Rdk.Attribute_ops.Noise_vector -> Numeric_vec3
+    | Rdk.Attribute_ops.Noise_quaternion -> Numeric_vec4
   let build = parameters_build (fun ~label parameters input ->
     let location = match parameters.location with
-      | Position -> Pdk.Attribute_ops.Noise_position
-      | Element_number -> Pdk.Attribute_ops.Noise_element_number
-      | Attribute -> Pdk.Attribute_ops.Noise_attribute
+      | Position -> Rdk.Attribute_ops.Noise_position
+      | Element_number -> Rdk.Attribute_ops.Noise_element_number
+      | Attribute -> Rdk.Attribute_ops.Noise_attribute
           parameters.location_attribute in
     let range = match parameters.range with
-      | Positive -> Pdk.Attribute_ops.Noise_positive
-      | Zero_centered -> Pdk.Attribute_ops.Noise_zero_centered
+      | Positive -> Rdk.Attribute_ops.Noise_positive
+      | Zero_centered -> Rdk.Attribute_ops.Noise_zero_centered
       | Min_max -> let kind = numeric_kind parameters.kind in
-          Pdk.Attribute_ops.Noise_min_max
+          Rdk.Attribute_ops.Noise_min_max
             (numeric_value kind parameters.min_x parameters.min_y
                parameters.min_z parameters.min_w,
              numeric_value kind parameters.max_x parameters.max_y
@@ -849,12 +849,12 @@ module Attribute_remap = struct
       "Automatic", Automatic; "Explicit", Explicit;
     ]
   let policy_parameter = Parameter.choice ~equal:( = ) [
-      "Clamp", Pdk.Attribute_ops.Remap_clamp;
-      "Cycle", Pdk.Attribute_ops.Remap_cycle;
-      "Extrapolate", Pdk.Attribute_ops.Remap_extrapolate;
+      "Clamp", Rdk.Attribute_ops.Remap_clamp;
+      "Cycle", Rdk.Attribute_ops.Remap_cycle;
+      "Extrapolate", Rdk.Attribute_ops.Remap_extrapolate;
     ]
   type parameters = {
-    owner : Pdk.Attribute.owner [@sop.default Pdk.Attribute.Point]
+    owner : Rdk.Attribute.owner [@sop.default Rdk.Attribute.Point]
       [@sop.label "Owner"] [@sop.kind attribute_owner_parameter];
     name : string [@sop.default "value"] [@sop.label "Source attribute"];
     into : string [@sop.default ""] [@sop.label "Destination attribute"];
@@ -895,8 +895,8 @@ module Attribute_remap = struct
       [@sop.folder "Output/Maximum"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "output_max"]
     output_max_w : float [@sop.default 1.] [@sop.label "Maximum W"]
       [@sop.folder "Output/Maximum"] [@sop.min (-10.)] [@sop.max 10.];
-    policy : Pdk.Attribute_ops.remap_policy
-      [@sop.default Pdk.Attribute_ops.Remap_clamp] [@sop.label "Outside range"]
+    policy : Rdk.Attribute_ops.remap_policy
+      [@sop.default Rdk.Attribute_ops.Remap_clamp] [@sop.label "Outside range"]
       [@sop.kind policy_parameter];
   } [@@sop.node_key "attribute_remap"] [@@sop.node_label "Attribute Remap"]
     [@@sop.node_category "Attribute/Modify"] [@@sop.node_inputs 1]
@@ -904,8 +904,8 @@ module Attribute_remap = struct
   let build = parameters_build (fun ~label parameters input_node ->
     let value x y z w = numeric_value parameters.kind x y z w in
     let input = match parameters.input_range with
-      | Automatic -> Pdk.Attribute_ops.Remap_auto
-      | Explicit -> Pdk.Attribute_ops.Remap_explicit {
+      | Automatic -> Rdk.Attribute_ops.Remap_auto
+      | Explicit -> Rdk.Attribute_ops.Remap_explicit {
           min = value parameters.input_min_x parameters.input_min_y
             parameters.input_min_z parameters.input_min_w;
           max = value parameters.input_max_x parameters.input_max_y
@@ -933,14 +933,14 @@ module Attribute_randomize = struct
       "Inside sphere cone", Inside_sphere_cone;
     ]
   let operation_parameter = Parameter.choice ~equal:( = ) [
-      "Set", Pdk.Attribute_ops.Random_set;
-      "Add", Pdk.Attribute_ops.Random_add;
-      "Minimum", Pdk.Attribute_ops.Random_minimum;
-      "Maximum", Pdk.Attribute_ops.Random_maximum;
-      "Multiply", Pdk.Attribute_ops.Random_multiply;
+      "Set", Rdk.Attribute_ops.Random_set;
+      "Add", Rdk.Attribute_ops.Random_add;
+      "Minimum", Rdk.Attribute_ops.Random_minimum;
+      "Maximum", Rdk.Attribute_ops.Random_maximum;
+      "Multiply", Rdk.Attribute_ops.Random_multiply;
     ]
   type parameters = {
-    owner : Pdk.Attribute.owner [@sop.default Pdk.Attribute.Point]
+    owner : Rdk.Attribute.owner [@sop.default Rdk.Attribute.Point]
       [@sop.label "Owner"] [@sop.kind attribute_owner_parameter];
     name : string [@sop.default "random"] [@sop.label "Attribute"];
     group : string [@sop.default ""] [@sop.label "Group"];
@@ -999,8 +999,8 @@ module Attribute_randomize = struct
       [@sop.folder "Clamp"] [@sop.min (-10.)] [@sop.max 10.];
     direction_bias : float [@sop.default 0.] [@sop.label "Direction bias"]
       [@sop.folder "Output"] [@sop.min (-1.)] [@sop.max 1.];
-    operation : Pdk.Attribute_ops.random_operation
-      [@sop.default Pdk.Attribute_ops.Random_set] [@sop.label "Operation"]
+    operation : Rdk.Attribute_ops.random_operation
+      [@sop.default Rdk.Attribute_ops.Random_set] [@sop.label "Operation"]
       [@sop.folder "Output"] [@sop.kind operation_parameter];
     scale : float [@sop.default 1.] [@sop.label "Global scale"]
       [@sop.folder "Output"] [@sop.min (-10.)] [@sop.max 10.];
@@ -1016,22 +1016,22 @@ module Attribute_randomize = struct
     and step = numeric_value parameters.kind parameters.step_x parameters.step_y
         parameters.step_z parameters.step_w in
     match parameters.distribution with
-    | Constant -> Pdk.Attribute_ops.Random_constant a
-    | Two_values -> Pdk.Attribute_ops.Random_two_values {
+    | Constant -> Rdk.Attribute_ops.Random_constant a
+    | Two_values -> Rdk.Attribute_ops.Random_two_values {
         a; b; probability_b = parameters.probability_b }
-    | Uniform -> Pdk.Attribute_ops.Random_uniform { min = a; max = b }
-    | Uniform_discrete -> Pdk.Attribute_ops.Random_uniform_discrete {
+    | Uniform -> Rdk.Attribute_ops.Random_uniform { min = a; max = b }
+    | Uniform_discrete -> Rdk.Attribute_ops.Random_uniform_discrete {
         min = a; max = b; step }
-    | Normal -> Pdk.Attribute_ops.Random_normal { middle = a; scale = b }
-    | Exponential -> Pdk.Attribute_ops.Random_exponential { median = a }
-    | Log_normal -> Pdk.Attribute_ops.Random_log_normal {
+    | Normal -> Rdk.Attribute_ops.Random_normal { middle = a; scale = b }
+    | Exponential -> Rdk.Attribute_ops.Random_exponential { median = a }
+    | Log_normal -> Rdk.Attribute_ops.Random_log_normal {
         median = a; stddev = b }
-    | Cauchy -> Pdk.Attribute_ops.Random_cauchy { median = a; scale = b }
-    | Direction -> Pdk.Attribute_ops.Random_direction {
+    | Cauchy -> Rdk.Attribute_ops.Random_cauchy { median = a; scale = b }
+    | Direction -> Rdk.Attribute_ops.Random_direction {
         direction = a; cone_angle = parameters.cone_angle }
-    | Inside_sphere -> Pdk.Attribute_ops.Random_inside_sphere {
+    | Inside_sphere -> Rdk.Attribute_ops.Random_inside_sphere {
         dimensions = parameters.dimensions }
-    | Inside_sphere_cone -> Pdk.Attribute_ops.Random_inside_sphere_cone {
+    | Inside_sphere_cone -> Rdk.Attribute_ops.Random_inside_sphere_cone {
         direction = a; cone_angle = parameters.cone_angle }
   let build = parameters_build (fun ~label parameters input ->
     let fraction = optional_text parameters.fraction_attribute in
@@ -1066,13 +1066,13 @@ module Attribute_mirror = struct
   type method_ = Plane | Mapping
   type transform = Copy | Uv | Vector | Point
   let owner_parameter = Parameter.choice ~equal:( = ) [
-      "Point", Pdk.Attribute_mirror.Mirror_point_attributes;
-      "Vertex", Pdk.Attribute_mirror.Mirror_vertex_attributes;
-      "Primitive", Pdk.Attribute_mirror.Mirror_primitive_attributes;
+      "Point", Rdk.Attribute_mirror.Mirror_point_attributes;
+      "Vertex", Rdk.Attribute_mirror.Mirror_vertex_attributes;
+      "Primitive", Rdk.Attribute_mirror.Mirror_primitive_attributes;
     ]
   let group_use_parameter = Parameter.choice ~equal:( = ) [
-      "Group is source", Pdk.Attribute_mirror.Mirror_group_as_source;
-      "Group is destination", Pdk.Attribute_mirror.Mirror_group_as_destination;
+      "Group is source", Rdk.Attribute_mirror.Mirror_group_as_source;
+      "Group is destination", Rdk.Attribute_mirror.Mirror_group_as_destination;
     ]
   let method_parameter = Parameter.choice ~equal:( = ) [
       "Plane", Plane; "Mapping attribute", Mapping;
@@ -1081,13 +1081,13 @@ module Attribute_mirror = struct
       "Copy", Copy; "UV", Uv; "Vector", Vector; "Point", Point;
     ]
   type parameters = {
-    owner : Pdk.Attribute_mirror.owner
-      [@sop.default Pdk.Attribute_mirror.Mirror_point_attributes]
+    owner : Rdk.Attribute_mirror.owner
+      [@sop.default Rdk.Attribute_mirror.Mirror_point_attributes]
       [@sop.label "Attribute owner"] [@sop.kind owner_parameter];
     attributes : string [@sop.default "Cd"] [@sop.label "Attributes"];
     group : string [@sop.default ""] [@sop.label "Selection group"];
-    group_use : Pdk.Attribute_mirror.group_use
-      [@sop.default Pdk.Attribute_mirror.Mirror_group_as_source]
+    group_use : Rdk.Attribute_mirror.group_use
+      [@sop.default Rdk.Attribute_mirror.Mirror_group_as_source]
       [@sop.label "Group use"] [@sop.kind group_use_parameter];
     method_ : method_ [@sop.default Plane] [@sop.label "Mirror method"]
       [@sop.kind method_parameter];
@@ -1149,13 +1149,13 @@ module Attribute_mirror = struct
         mapping_attribute = parameters.mapping_attribute;
         destination_group = parameters.mapping_destination_group }
   let transform parameters = match parameters.transform with
-    | Copy -> Pdk.Attribute_mirror.Mirror_copy
-    | Uv -> Pdk.Attribute_mirror.Mirror_uv { origin_u = parameters.uv_origin_u;
+    | Copy -> Rdk.Attribute_mirror.Mirror_copy
+    | Uv -> Rdk.Attribute_mirror.Mirror_uv { origin_u = parameters.uv_origin_u;
         origin_v = parameters.uv_origin_v;
         direction_u = parameters.uv_direction_u;
         direction_v = parameters.uv_direction_v }
-    | Vector -> Pdk.Attribute_mirror.Mirror_vector
-    | Point -> Pdk.Attribute_mirror.Mirror_point
+    | Vector -> Rdk.Attribute_mirror.Mirror_vector
+    | Point -> Rdk.Attribute_mirror.Mirror_point
   let build = parameters_build (fun ~label parameters input ->
     Sop.attribute_mirror ~label
         ?group:(optional_text parameters.group) ~group_use:parameters.group_use
@@ -1177,26 +1177,26 @@ module Edge_transport = struct
     roots : transport_roots [@sop.default Transport_first]
       [@sop.label "Roots"] [@sop.kind transport_roots_parameter];
     root_group : string [@sop.default ""] [@sop.label "Root group"];
-    direction : Pdk.Edge_transport.direction
-      [@sop.default Pdk.Edge_transport.Transport_forward] [@sop.label "Direction"]
+    direction : Rdk.Edge_transport.direction
+      [@sop.default Rdk.Edge_transport.Transport_forward] [@sop.label "Direction"]
       [@sop.kind edge_transport_direction_parameter];
-    operation : Pdk.Edge_transport.operation
-      [@sop.default Pdk.Edge_transport.Transport] [@sop.label "Operation"]
+    operation : Rdk.Edge_transport.operation
+      [@sop.default Rdk.Edge_transport.Transport] [@sop.label "Operation"]
       [@sop.kind edge_transport_operation_parameter];
-    root_value : Pdk.Edge_transport.root_value
-      [@sop.default Pdk.Edge_transport.Transport_root_zero] [@sop.label "Root value"]
+    root_value : Rdk.Edge_transport.root_value
+      [@sop.default Rdk.Edge_transport.Transport_root_zero] [@sop.label "Root value"]
       [@sop.kind edge_transport_root_value_parameter];
     integrate_constant : bool [@sop.default false]
       [@sop.label "Integrate constant"];
     scale_by_edge_length : bool [@sop.default false]
       [@sop.label "Scale by edge length"];
-    split : Pdk.Edge_transport.split [@sop.default Pdk.Edge_transport.Transport_copy]
+    split : Rdk.Edge_transport.split [@sop.default Rdk.Edge_transport.Transport_copy]
       [@sop.label "Branch split"] [@sop.kind edge_transport_split_parameter];
-    merge : Pdk.Edge_transport.merge
-      [@sop.default Pdk.Edge_transport.Transport_merge_add]
+    merge : Rdk.Edge_transport.merge
+      [@sop.default Rdk.Edge_transport.Transport_merge_add]
       [@sop.label "Branch merge"] [@sop.kind edge_transport_merge_parameter];
-    normalization : Pdk.Edge_transport.normalization
-      [@sop.default Pdk.Edge_transport.Transport_no_normalization]
+    normalization : Rdk.Edge_transport.normalization
+      [@sop.default Rdk.Edge_transport.Transport_no_normalization]
       [@sop.label "Normalization"]
       [@sop.kind edge_transport_normalization_parameter];
   } [@@sop.node_key "edge_transport"] [@@sop.node_label "Edge Transport"]
@@ -1222,23 +1222,23 @@ module Edge_transport_curves = struct
     attribute : string [@sop.default "value"] [@sop.label "Attribute"];
     primitive_group : string [@sop.default ""]
       [@sop.label "Primitive group"];
-    owner : Pdk.Attribute.owner [@sop.default Pdk.Attribute.Point]
+    owner : Rdk.Attribute.owner [@sop.default Rdk.Attribute.Point]
       [@sop.label "Attribute owner"] [@sop.kind uv_owner_parameter];
-    direction : Pdk.Edge_transport.direction
-      [@sop.default Pdk.Edge_transport.Transport_forward] [@sop.label "Direction"]
+    direction : Rdk.Edge_transport.direction
+      [@sop.default Rdk.Edge_transport.Transport_forward] [@sop.label "Direction"]
       [@sop.kind edge_transport_direction_parameter];
-    operation : Pdk.Edge_transport.operation
-      [@sop.default Pdk.Edge_transport.Transport] [@sop.label "Operation"]
+    operation : Rdk.Edge_transport.operation
+      [@sop.default Rdk.Edge_transport.Transport] [@sop.label "Operation"]
       [@sop.kind edge_transport_operation_parameter];
-    root_value : Pdk.Edge_transport.root_value
-      [@sop.default Pdk.Edge_transport.Transport_root_zero] [@sop.label "Root value"]
+    root_value : Rdk.Edge_transport.root_value
+      [@sop.default Rdk.Edge_transport.Transport_root_zero] [@sop.label "Root value"]
       [@sop.kind edge_transport_root_value_parameter];
     integrate_constant : bool [@sop.default false]
       [@sop.label "Integrate constant"];
     scale_by_edge_length : bool [@sop.default false]
       [@sop.label "Scale by edge length"];
-    normalization : Pdk.Edge_transport.normalization
-      [@sop.default Pdk.Edge_transport.Transport_no_normalization]
+    normalization : Rdk.Edge_transport.normalization
+      [@sop.default Rdk.Edge_transport.Transport_no_normalization]
       [@sop.label "Normalization"]
       [@sop.kind edge_transport_normalization_parameter];
   } [@@sop.node_key "edge_transport_curves"]
@@ -1263,26 +1263,26 @@ module Edge_transport_parent = struct
     point_group : string [@sop.default ""] [@sop.label "Point group"];
     parent_attribute : string [@sop.default "parent"]
       [@sop.label "Parent attribute"];
-    direction : Pdk.Edge_transport.direction
-      [@sop.default Pdk.Edge_transport.Transport_forward] [@sop.label "Direction"]
+    direction : Rdk.Edge_transport.direction
+      [@sop.default Rdk.Edge_transport.Transport_forward] [@sop.label "Direction"]
       [@sop.kind edge_transport_direction_parameter];
-    operation : Pdk.Edge_transport.operation
-      [@sop.default Pdk.Edge_transport.Transport] [@sop.label "Operation"]
+    operation : Rdk.Edge_transport.operation
+      [@sop.default Rdk.Edge_transport.Transport] [@sop.label "Operation"]
       [@sop.kind edge_transport_operation_parameter];
-    root_value : Pdk.Edge_transport.root_value
-      [@sop.default Pdk.Edge_transport.Transport_root_zero] [@sop.label "Root value"]
+    root_value : Rdk.Edge_transport.root_value
+      [@sop.default Rdk.Edge_transport.Transport_root_zero] [@sop.label "Root value"]
       [@sop.kind edge_transport_root_value_parameter];
     integrate_constant : bool [@sop.default false]
       [@sop.label "Integrate constant"];
     scale_by_edge_length : bool [@sop.default false]
       [@sop.label "Scale by edge length"];
-    split : Pdk.Edge_transport.split [@sop.default Pdk.Edge_transport.Transport_copy]
+    split : Rdk.Edge_transport.split [@sop.default Rdk.Edge_transport.Transport_copy]
       [@sop.label "Branch split"] [@sop.kind edge_transport_split_parameter];
-    merge : Pdk.Edge_transport.merge
-      [@sop.default Pdk.Edge_transport.Transport_merge_add]
+    merge : Rdk.Edge_transport.merge
+      [@sop.default Rdk.Edge_transport.Transport_merge_add]
       [@sop.label "Branch merge"] [@sop.kind edge_transport_merge_parameter];
-    normalization : Pdk.Edge_transport.normalization
-      [@sop.default Pdk.Edge_transport.Transport_no_normalization]
+    normalization : Rdk.Edge_transport.normalization
+      [@sop.default Rdk.Edge_transport.Transport_no_normalization]
       [@sop.label "Normalization"]
       [@sop.kind edge_transport_normalization_parameter];
   } [@@sop.node_key "edge_transport_parent"]
@@ -1332,16 +1332,16 @@ end
 
 module Rename_attributes = struct
   let conflict_token = function
-    | Pdk.Attribute_ops.Attribute_rename_skip -> "skip"
-    | Pdk.Attribute_ops.Attribute_rename_error -> "error"
-    | Pdk.Attribute_ops.Attribute_rename_overwrite -> "overwrite"
+    | Rdk.Attribute_ops.Attribute_rename_skip -> "skip"
+    | Rdk.Attribute_ops.Attribute_rename_error -> "error"
+    | Rdk.Attribute_ops.Attribute_rename_overwrite -> "overwrite"
   let conflict_of_token = function
-    | "skip" -> Ok Pdk.Attribute_ops.Attribute_rename_skip
-    | "error" -> Ok Pdk.Attribute_ops.Attribute_rename_error
-    | "overwrite" -> Ok Pdk.Attribute_ops.Attribute_rename_overwrite
+    | "skip" -> Ok Rdk.Attribute_ops.Attribute_rename_skip
+    | "error" -> Ok Rdk.Attribute_ops.Attribute_rename_error
+    | "overwrite" -> Ok Rdk.Attribute_ops.Attribute_rename_overwrite
     | token -> Error (Printf.sprintf
         "unknown attribute rename conflict %S" token)
-  let encode_rule (rule : Pdk.Attribute_ops.rename_rule) = [
+  let encode_rule (rule : Rdk.Attribute_ops.rename_rule) = [
       (match rule.rename_attribute_owner with None -> "any"
        | Some owner -> attribute_owner_token owner);
       rule.rename_attribute_pattern; rule.rename_attribute_replacement;
@@ -1355,7 +1355,7 @@ module Rename_attributes = struct
           else Result.map Option.some (attribute_owner_of_token owner) in
         Result.bind owner (fun rename_attribute_owner ->
           Result.map (fun rename_attribute_conflict -> {
-            Pdk.Attribute_ops.rename_attribute_owner;
+            Rdk.Attribute_ops.rename_attribute_owner;
             rename_attribute_pattern = pattern;
             rename_attribute_replacement = replacement;
             rename_attribute_conflict }) (conflict_of_token conflict))
@@ -1369,7 +1369,7 @@ module Rename_attributes = struct
   let rules_parameter = Parameter.encoded ~equal:( = )
       ~encode:(fun rules -> encode_table (List.map encode_rule rules)) ~decode
   type parameters = {
-    rules : Pdk.Attribute_ops.rename_rule list [@sop.default []]
+    rules : Rdk.Attribute_ops.rename_rule list [@sop.default []]
       [@sop.label "Rules (owner, pattern, replacement, conflict)"]
       [@sop.kind rules_parameter];
   } [@@sop.node_key "rename_attributes"]
@@ -1384,15 +1384,15 @@ end
 
 module Swap_attributes = struct
   let method_token = function
-    | Pdk.Attribute_ops.Attribute_swap -> "swap"
-    | Pdk.Attribute_ops.Attribute_move -> "move"
-    | Pdk.Attribute_ops.Attribute_copy -> "copy"
+    | Rdk.Attribute_ops.Attribute_swap -> "swap"
+    | Rdk.Attribute_ops.Attribute_move -> "move"
+    | Rdk.Attribute_ops.Attribute_copy -> "copy"
   let method_of_token = function
-    | "swap" -> Ok Pdk.Attribute_ops.Attribute_swap
-    | "move" -> Ok Pdk.Attribute_ops.Attribute_move
-    | "copy" -> Ok Pdk.Attribute_ops.Attribute_copy
+    | "swap" -> Ok Rdk.Attribute_ops.Attribute_swap
+    | "move" -> Ok Rdk.Attribute_ops.Attribute_move
+    | "copy" -> Ok Rdk.Attribute_ops.Attribute_copy
     | token -> Error (Printf.sprintf "unknown attribute swap method %S" token)
-  let encode_rule (rule : Pdk.Attribute_ops.swap_rule) = [
+  let encode_rule (rule : Rdk.Attribute_ops.swap_rule) = [
       attribute_owner_token rule.swap_attribute_owner;
       rule.swap_attribute_source; rule.swap_attribute_destination;
       method_token rule.swap_attribute_method;
@@ -1403,7 +1403,7 @@ module Swap_attributes = struct
           (String.lowercase_ascii (String.trim owner)))
           (fun swap_attribute_owner ->
             Result.map (fun swap_attribute_method -> {
-              Pdk.Attribute_ops.swap_attribute_owner;
+              Rdk.Attribute_ops.swap_attribute_owner;
               swap_attribute_source = source;
               swap_attribute_destination = destination;
               swap_attribute_method })
@@ -1419,7 +1419,7 @@ module Swap_attributes = struct
   let rules_parameter = Parameter.encoded ~equal:( = )
       ~encode:(fun rules -> encode_table (List.map encode_rule rules)) ~decode
   type parameters = {
-    rules : Pdk.Attribute_ops.swap_rule list [@sop.default []]
+    rules : Rdk.Attribute_ops.swap_rule list [@sop.default []]
       [@sop.label "Rules (owner, source, destination, method)"]
       [@sop.kind rules_parameter];
   } [@@sop.node_key "swap_attributes"]
@@ -1480,22 +1480,22 @@ end
 module Point_velocity = struct
   type initialization = Compute | Keep | Set | From_attribute
   let approximation_parameter = Parameter.choice ~equal:( = ) [
-      "Backward difference", Pdk.Motion.Backward_difference;
-      "Central difference", Pdk.Motion.Central_difference;
-      "Forward difference", Pdk.Motion.Forward_difference;
+      "Backward difference", Rdk.Motion.Backward_difference;
+      "Central difference", Rdk.Motion.Central_difference;
+      "Forward difference", Rdk.Motion.Forward_difference;
     ]
   let initialization_parameter = Parameter.choice ~equal:( = ) [
       "Compute from deformation", Compute; "Keep incoming", Keep;
       "Set value", Set; "From attribute", From_attribute;
     ]
   let unmatched_parameter = Parameter.choice ~equal:( = ) [
-      "Error", Pdk.Motion.Velocity_unmatched_error;
-      "Zero", Pdk.Motion.Velocity_unmatched_zero;
+      "Error", Rdk.Motion.Velocity_unmatched_error;
+      "Zero", Rdk.Motion.Velocity_unmatched_zero;
     ]
   type parameters = {
     group : string [@sop.default ""] [@sop.label "Point group"];
-    approximation : Pdk.Motion.velocity_approximation
-      [@sop.default Pdk.Motion.Backward_difference]
+    approximation : Rdk.Motion.velocity_approximation
+      [@sop.default Rdk.Motion.Backward_difference]
       [@sop.label "Approximation"] [@sop.kind approximation_parameter];
     dt : float [@sop.default 0.016666666666666666] [@sop.label "Time step"]
       [@sop.min 0.000001] [@sop.max 10.] [@sop.hard_min 0.];
@@ -1517,8 +1517,8 @@ module Point_velocity = struct
       [@sop.max 10.];
     match_attribute : string [@sop.default ""] [@sop.label "Match attribute"]
       [@sop.folder "Matching"];
-    unmatched : Pdk.Motion.velocity_unmatched
-      [@sop.default Pdk.Motion.Velocity_unmatched_error]
+    unmatched : Rdk.Motion.velocity_unmatched
+      [@sop.default Rdk.Motion.Velocity_unmatched_error]
       [@sop.label "Unmatched"] [@sop.folder "Matching"]
       [@sop.kind unmatched_parameter];
     velocity_attribute : string [@sop.default "v"]
@@ -1540,11 +1540,11 @@ module Point_velocity = struct
     [@@sop.node_category "Attribute/Motion"] [@@sop.node_inputs 3] [@@sop.node_slots "input, previous, next"]
     [@@sop.node_optional "1,2"] [@@deriving sop_params, sop_node]
   let initialization parameters = match parameters.initialization with
-    | Compute -> Pdk.Motion.Compute_from_deformation
-    | Keep -> Pdk.Motion.Keep_incoming
-    | Set -> Pdk.Motion.Set_value
+    | Compute -> Rdk.Motion.Compute_from_deformation
+    | Keep -> Rdk.Motion.Keep_incoming
+    | Set -> Rdk.Motion.Set_value
         (Vec3.create parameters.set_x parameters.set_y parameters.set_z)
-    | From_attribute -> Pdk.Motion.From_attribute {
+    | From_attribute -> Rdk.Motion.From_attribute {
         name = parameters.source_attribute; scale = parameters.source_scale }
   let build = parameters_build (fun ~label parameters input previous next ->
     let inputs = Array.of_list (input :: List.filter_map Fun.id [previous; next]) in
@@ -1560,12 +1560,12 @@ module Point_velocity = struct
         let points = match optional_text parameters.group with
           | None -> Ok None
           | Some name ->
-              (match Pdk.Geometry.find_group ~owner:Pdk.Group.Point name inputs.(0) with
+              (match Rdk.Geometry.find_group ~owner:Rdk.Group.Point name inputs.(0) with
                | Some group -> Ok (Some group)
                | None -> Error (Diagnostic.error ~code:"missing_group"
                    (Printf.sprintf "point_velocity could not find point group %S" name))) in
         Result.bind points (fun points ->
-          pdk_cooked (Pdk.Motion.point_velocity
+          rdk_cooked (Rdk.Motion.point_velocity
             ~cancel:(Context.cancel_token context) ~grain:(Context.grain context)
             ?points ?previous ?next ~approximation:parameters.approximation
             ~dt:parameters.dt ~initialization:(initialization parameters)
@@ -1586,13 +1586,13 @@ module Attribute_copy = struct
       "Cyclic", Cyclic; "By attribute values", By_values;
       "To source element", To_element;
     ]
-  let encode_rule (rule : Pdk.Attribute_ops.copy_rule) = [
+  let encode_rule (rule : Rdk.Attribute_ops.copy_rule) = [
       attribute_owner_token rule.copy_owner; rule.copy_pattern;
       Option.value ~default:"" rule.copy_into;
     ]
   let decode_rule = function
     | [owner; pattern; into] ->
-        Result.map (fun copy_owner -> { Pdk.Attribute_ops.copy_owner;
+        Result.map (fun copy_owner -> { Rdk.Attribute_ops.copy_owner;
           copy_pattern = pattern; copy_into = optional_text into })
           (attribute_owner_of_token
             (String.lowercase_ascii (String.trim owner)))
@@ -1605,10 +1605,10 @@ module Attribute_copy = struct
       |> Result.map List.rev)
   let rules_parameter = Parameter.encoded ~equal:( = )
       ~encode:(fun rules -> encode_table (List.map encode_rule rules)) ~decode
-  let default_rules = [{ Pdk.Attribute_ops.copy_owner = Pdk.Attribute.Point;
+  let default_rules = [{ Rdk.Attribute_ops.copy_owner = Rdk.Attribute.Point;
       copy_pattern = "*"; copy_into = None }]
   type parameters = {
-    group_owner : Pdk.Group.owner [@sop.default Pdk.Group.Point]
+    group_owner : Rdk.Group.owner [@sop.default Rdk.Group.Point]
       [@sop.label "Selection owner"] [@sop.kind ordinary_group_owner_parameter];
     match_ : match_ [@sop.default Cyclic] [@sop.label "Element matching"]
       [@sop.kind match_parameter];
@@ -1627,18 +1627,18 @@ module Attribute_copy = struct
       [@sop.folder "Groups/Target"];
     target_group_pattern : string [@sop.default ""]
       [@sop.label "Target group pattern"] [@sop.folder "Groups/Target"];
-    rules : Pdk.Attribute_ops.copy_rule list [@sop.default default_rules]
+    rules : Rdk.Attribute_ops.copy_rule list [@sop.default default_rules]
       [@sop.label "Rules (owner, pattern, destination)"]
       [@sop.folder "Attributes"] [@sop.kind rules_parameter];
   } [@@sop.node_key "attribute_copy"] [@@sop.node_label "Attribute Copy"]
     [@@sop.node_category "Attribute/Transfer"] [@@sop.node_inputs 2] [@@sop.node_slots "source, target"]
     [@@deriving sop_params, sop_node]
   let match_ parameters = match parameters.match_ with
-    | Cyclic -> Pdk.Attribute_ops.Cyclic
-    | By_values -> Pdk.Attribute_ops.By_values {
+    | Cyclic -> Rdk.Attribute_ops.Cyclic
+    | By_values -> Rdk.Attribute_ops.By_values {
         source_attribute = parameters.source_match_attribute;
         target_attribute = parameters.target_match_attribute }
-    | To_element -> Pdk.Attribute_ops.To_element {
+    | To_element -> Rdk.Attribute_ops.To_element {
         target_attribute = parameters.target_element_attribute }
   let build = parameters_build (fun ~label parameters source target ->
     let source_group, source_group_pattern = exact_or_pattern
@@ -1661,13 +1661,13 @@ module Attribute_interpolate = struct
       "Vertex weights", Vertex_weights;
       "Primitive weights", Primitive_weights;
     ]
-  let encode_attribute (attribute : Pdk.Attribute_ops.interpolate_attribute) = [
+  let encode_attribute (attribute : Rdk.Attribute_ops.interpolate_attribute) = [
       attribute_owner_token attribute.interpolate_owner;
       attribute.interpolate_source; attribute.interpolate_target;
     ]
   let decode_attribute = function
     | [owner; source; target] -> Result.map (fun interpolate_owner -> {
-        Pdk.Attribute_ops.interpolate_owner; interpolate_source = source;
+        Rdk.Attribute_ops.interpolate_owner; interpolate_source = source;
         interpolate_target = target })
         (attribute_owner_of_token
           (String.lowercase_ascii (String.trim owner)))
@@ -1682,12 +1682,12 @@ module Attribute_interpolate = struct
       ~encode:(fun attributes -> encode_table
         (List.map encode_attribute attributes)) ~decode
   let default_attributes = [{
-      Pdk.Attribute_ops.interpolate_owner = Pdk.Attribute.Point;
+      Rdk.Attribute_ops.interpolate_owner = Rdk.Attribute.Point;
       interpolate_source = "Cd"; interpolate_target = "Cd" }]
   type parameters = {
-    target_owner : Pdk.Attribute.owner [@sop.default Pdk.Attribute.Point]
+    target_owner : Rdk.Attribute.owner [@sop.default Rdk.Attribute.Point]
       [@sop.label "Target owner"] [@sop.kind attribute_owner_parameter];
-    attributes : Pdk.Attribute_ops.interpolate_attribute list
+    attributes : Rdk.Attribute_ops.interpolate_attribute list
       [@sop.default default_attributes]
       [@sop.label "Attributes (owner, source, target)"]
       [@sop.kind attributes_parameter];
@@ -1706,7 +1706,7 @@ module Attribute_interpolate = struct
       [@sop.label "Weights attribute"] [@sop.folder "Driver"];
     compute_weights : bool [@sop.default false]
       [@sop.label "Compute weight arrays"] [@sop.folder "Output weights"];
-    computed_owner : Pdk.Attribute.owner [@sop.default Pdk.Attribute.Point]
+    computed_owner : Rdk.Attribute.owner [@sop.default Rdk.Attribute.Point]
       [@sop.label "Computed owner"] [@sop.folder "Output weights"]
       [@sop.kind uv_owner_parameter];
     computed_numbers_attribute : string [@sop.default "computednums"]
@@ -1733,31 +1733,31 @@ module Attribute_interpolate = struct
     blend : float [@sop.default 1.] [@sop.label "Blend"]
       [@sop.folder "Weights"] [@sop.min 0.] [@sop.max 1.]
       [@sop.hard_min 0.] [@sop.hard_max 1.];
-    unmatched : Pdk.Attribute_ops.unmatched
-      [@sop.default Pdk.Attribute_ops.Keep_target] [@sop.label "Unmatched"]
+    unmatched : Rdk.Attribute_ops.unmatched
+      [@sop.default Rdk.Attribute_ops.Keep_target] [@sop.label "Unmatched"]
       [@sop.kind transfer_unmatched_parameter];
   } [@@sop.node_key "attribute_interpolate"]
     [@@sop.node_label "Attribute Interpolate"]
     [@@sop.node_category "Attribute/Transfer"] [@@sop.node_inputs 2] [@@sop.node_slots "source, target"]
     [@@deriving sop_params, sop_node]
   let driver parameters = match parameters.driver with
-    | Primitive_uvw -> Pdk.Attribute_ops.Primitive_uvw {
+    | Primitive_uvw -> Rdk.Attribute_ops.Primitive_uvw {
         primitive_attribute = parameters.primitive_attribute;
         uvw_attribute = parameters.uvw_attribute }
-    | Point_weights -> Pdk.Attribute_ops.Point_weights {
+    | Point_weights -> Rdk.Attribute_ops.Point_weights {
         numbers_attribute = parameters.numbers_attribute;
         weights_attribute = parameters.weights_attribute }
-    | Vertex_weights -> Pdk.Attribute_ops.Vertex_weights {
+    | Vertex_weights -> Rdk.Attribute_ops.Vertex_weights {
         numbers_attribute = parameters.numbers_attribute;
         weights_attribute = parameters.weights_attribute }
-    | Primitive_weights -> Pdk.Attribute_ops.Primitive_weights {
+    | Primitive_weights -> Rdk.Attribute_ops.Primitive_weights {
         numbers_attribute = parameters.numbers_attribute;
         weights_attribute = parameters.weights_attribute }
   let build = parameters_build (fun ~label parameters source target ->
     let group, group_pattern = exact_or_pattern parameters.group
         parameters.group_pattern
     and compute_weights = if parameters.compute_weights then Some {
-        Pdk.Attribute_ops.computed_owner = parameters.computed_owner;
+        Rdk.Attribute_ops.computed_owner = parameters.computed_owner;
         computed_numbers_attribute = parameters.computed_numbers_attribute;
         computed_weights_attribute = parameters.computed_weights_attribute }
       else None in
@@ -1778,11 +1778,11 @@ end
 
 module Attribute_transfer = struct
   let vertex_selection_parameter = Parameter.choice ~equal:( = ) [
-      "All triangle vertices", Pdk.Attribute_ops.All_triangle_vertices;
-      "Any triangle vertex", Pdk.Attribute_ops.Any_triangle_vertex;
+      "All triangle vertices", Rdk.Attribute_ops.All_triangle_vertices;
+      "Any triangle vertex", Rdk.Attribute_ops.Any_triangle_vertex;
     ]
   type parameters = {
-    owner : Pdk.Attribute.owner [@sop.default Pdk.Attribute.Point]
+    owner : Rdk.Attribute.owner [@sop.default Rdk.Attribute.Point]
       [@sop.label "Owner"] [@sop.kind attribute_owner_parameter];
     pattern : string [@sop.default "*"] [@sop.label "Attributes"];
     mode : transfer_mode [@sop.default Transfer_nearest]
@@ -1808,8 +1808,8 @@ module Attribute_transfer = struct
     uniform_bias : float [@sop.default 0.5] [@sop.label "Uniform bias"]
       [@sop.folder "Distance"] [@sop.min 0.] [@sop.max 1.]
       [@sop.hard_min 0.] [@sop.hard_max 1.];
-    unmatched : Pdk.Attribute_ops.unmatched
-      [@sop.default Pdk.Attribute_ops.Keep_target] [@sop.label "Unmatched"]
+    unmatched : Rdk.Attribute_ops.unmatched
+      [@sop.default Rdk.Attribute_ops.Keep_target] [@sop.label "Unmatched"]
       [@sop.kind transfer_unmatched_parameter];
     source_group : string [@sop.default ""] [@sop.label "Source group"]
       [@sop.folder "Groups/Source"];
@@ -1819,8 +1819,8 @@ module Attribute_transfer = struct
       [@sop.label "Source vertex group"] [@sop.folder "Groups/Source"];
     source_vertex_group_pattern : string [@sop.default ""]
       [@sop.label "Source vertex pattern"] [@sop.folder "Groups/Source"];
-    source_vertex_selection : Pdk.Attribute_ops.surface_vertex_selection
-      [@sop.default Pdk.Attribute_ops.All_triangle_vertices]
+    source_vertex_selection : Rdk.Attribute_ops.surface_vertex_selection
+      [@sop.default Rdk.Attribute_ops.All_triangle_vertices]
       [@sop.label "Vertex selection"] [@sop.folder "Groups/Source"]
       [@sop.kind vertex_selection_parameter];
     target_group : string [@sop.default ""] [@sop.label "Target group"]
@@ -1855,17 +1855,17 @@ end
 
 module Attribute_transfer_surface = struct
   let vertex_selection_parameter = Parameter.choice ~equal:( = ) [
-      "All triangle vertices", Pdk.Attribute_ops.All_triangle_vertices;
-      "Any triangle vertex", Pdk.Attribute_ops.Any_triangle_vertex;
+      "All triangle vertices", Rdk.Attribute_ops.All_triangle_vertices;
+      "Any triangle vertex", Rdk.Attribute_ops.Any_triangle_vertex;
     ]
-  let encode_attribute (attribute : Pdk.Attribute_ops.surface_attribute) = [
+  let encode_attribute (attribute : Rdk.Attribute_ops.surface_attribute) = [
       attribute_owner_token attribute.source_owner; attribute.source_name;
       attribute.target_name;
     ]
   let decode_attribute = function
     | [owner; source_name; target_name] ->
         Result.map (fun source_owner -> {
-          Pdk.Attribute_ops.source_owner; source_name; target_name })
+          Rdk.Attribute_ops.source_owner; source_name; target_name })
           (attribute_owner_of_token
             (String.lowercase_ascii (String.trim owner)))
     | row -> Error (Printf.sprintf
@@ -1878,13 +1878,13 @@ module Attribute_transfer_surface = struct
   let attributes_parameter = Parameter.encoded ~equal:( = )
       ~encode:(fun attributes -> encode_table
         (List.map encode_attribute attributes)) ~decode
-  let default_attributes = [Pdk.Attribute_ops.surface_attribute
-      ~owner:Pdk.Attribute.Point "Cd"]
+  let default_attributes = [Rdk.Attribute_ops.surface_attribute
+      ~owner:Rdk.Attribute.Point "Cd"]
   type parameters = {
-    target_owner : Pdk.Attribute.owner [@sop.default Pdk.Attribute.Point]
+    target_owner : Rdk.Attribute.owner [@sop.default Rdk.Attribute.Point]
       [@sop.label "Target owner"]
       [@sop.kind element_attribute_owner_parameter];
-    attributes : Pdk.Attribute_ops.surface_attribute list
+    attributes : Rdk.Attribute_ops.surface_attribute list
       [@sop.default default_attributes]
       [@sop.label "Attributes (owner, source, target)"]
       [@sop.kind attributes_parameter];
@@ -1900,8 +1900,8 @@ module Attribute_transfer_surface = struct
     uniform_bias : float [@sop.default 0.5] [@sop.label "Uniform bias"]
       [@sop.folder "Distance"] [@sop.min 0.] [@sop.max 1.]
       [@sop.hard_min 0.] [@sop.hard_max 1.];
-    unmatched : Pdk.Attribute_ops.unmatched
-      [@sop.default Pdk.Attribute_ops.Keep_target] [@sop.label "Unmatched"]
+    unmatched : Rdk.Attribute_ops.unmatched
+      [@sop.default Rdk.Attribute_ops.Keep_target] [@sop.label "Unmatched"]
       [@sop.kind transfer_unmatched_parameter];
     distance_attribute : string [@sop.default ""]
       [@sop.label "Distance attribute"] [@sop.folder "Output"];
@@ -1914,8 +1914,8 @@ module Attribute_transfer_surface = struct
     source_vertex_group_pattern : string [@sop.default ""]
       [@sop.label "Source vertex group pattern"]
       [@sop.folder "Groups/Source"];
-    source_vertex_selection : Pdk.Attribute_ops.surface_vertex_selection
-      [@sop.default Pdk.Attribute_ops.All_triangle_vertices]
+    source_vertex_selection : Rdk.Attribute_ops.surface_vertex_selection
+      [@sop.default Rdk.Attribute_ops.All_triangle_vertices]
       [@sop.label "Vertex selection"] [@sop.folder "Groups/Source"]
       [@sop.kind vertex_selection_parameter];
     target_group : string [@sop.default ""] [@sop.label "Target group"]
@@ -1978,8 +1978,8 @@ module Attribute_transfer_all = struct
     uniform_bias : float [@sop.default 0.5] [@sop.label "Uniform bias"]
       [@sop.folder "Distance"] [@sop.min 0.] [@sop.max 1.]
       [@sop.hard_min 0.] [@sop.hard_max 1.];
-    unmatched : Pdk.Attribute_ops.unmatched
-      [@sop.default Pdk.Attribute_ops.Keep_target] [@sop.label "Unmatched"]
+    unmatched : Rdk.Attribute_ops.unmatched
+      [@sop.default Rdk.Attribute_ops.Keep_target] [@sop.label "Unmatched"]
       [@sop.kind transfer_unmatched_parameter];
   } [@@sop.node_key "attribute_transfer_all"]
     [@@sop.node_label "Attribute Transfer All"]
@@ -2002,12 +2002,12 @@ end
 
 module Promote_attributes = struct
   type parameters = {
-    source : Pdk.Attribute.owner [@sop.default Pdk.Attribute.Point]
+    source : Rdk.Attribute.owner [@sop.default Rdk.Attribute.Point]
       [@sop.label "Source owner"] [@sop.kind attribute_owner_parameter];
-    destination : Pdk.Attribute.owner [@sop.default Pdk.Attribute.Primitive]
+    destination : Rdk.Attribute.owner [@sop.default Rdk.Attribute.Primitive]
       [@sop.label "Destination owner"] [@sop.kind attribute_owner_parameter];
     pattern : string [@sop.default "*"] [@sop.label "Attribute pattern"];
-    method_ : Pdk.Attribute_ops.method_ [@sop.default Pdk.Attribute_ops.Average]
+    method_ : Rdk.Attribute_ops.method_ [@sop.default Rdk.Attribute_ops.Average]
       [@sop.label "Promotion method"]
       [@sop.kind attribute_promotion_method_parameter];
     delete_source : bool [@sop.default false] [@sop.label "Delete source"];
@@ -2035,20 +2035,20 @@ end
 
 module Measure = struct
   let kind_parameter = Parameter.choice ~equal:( = ) [
-      "Perimeter", Pdk.Analysis.Perimeter;
-      "Area", Pdk.Analysis.Area;
-      "Signed volume", Pdk.Analysis.Signed_volume;
+      "Perimeter", Rdk.Analysis.Perimeter;
+      "Area", Rdk.Analysis.Area;
+      "Signed volume", Rdk.Analysis.Signed_volume;
     ]
   let accumulation_parameter = Parameter.choice ~equal:( = ) [
-      "Per element", Pdk.Analysis.Per_element;
-      "Throughout", Pdk.Analysis.Throughout;
+      "Per element", Rdk.Analysis.Per_element;
+      "Throughout", Rdk.Analysis.Throughout;
     ]
   type parameters = {
-    kind : Pdk.Analysis.measure [@sop.default Pdk.Analysis.Area]
+    kind : Rdk.Analysis.measure [@sop.default Rdk.Analysis.Area]
       [@sop.label "Measure"] [@sop.kind kind_parameter];
     group : string [@sop.default ""] [@sop.label "Primitive group"];
-    accumulation : Pdk.Analysis.accumulation
-      [@sop.default Pdk.Analysis.Per_element]
+    accumulation : Rdk.Analysis.accumulation
+      [@sop.default Rdk.Analysis.Per_element]
       [@sop.label "Accumulation"] [@sop.kind accumulation_parameter];
     attribute : string [@sop.default ""] [@sop.label "Attribute"]
       [@sop.folder "Output"];
@@ -2069,15 +2069,15 @@ end
 module Connectivity = struct
   type output = Integer | Text
   let owner_parameter = Parameter.choice ~equal:( = ) [
-      "Points", Pdk.Analysis.Connectivity_points;
-      "Primitives", Pdk.Analysis.Connectivity_primitives;
+      "Points", Rdk.Analysis.Connectivity_points;
+      "Primitives", Rdk.Analysis.Connectivity_primitives;
     ]
   let output_parameter = Parameter.choice ~equal:( = ) [
       "Integer", Integer; "Text", Text;
     ]
   type parameters = {
-    owner : Pdk.Analysis.connectivity_owner
-      [@sop.default Pdk.Analysis.Connectivity_primitives]
+    owner : Rdk.Analysis.connectivity_owner
+      [@sop.default Rdk.Analysis.Connectivity_primitives]
       [@sop.label "Connectivity type"] [@sop.kind owner_parameter];
     primitive_group : string [@sop.default ""] [@sop.label "Primitive group"]
       [@sop.folder "Selection"];
@@ -2098,8 +2098,8 @@ module Connectivity = struct
     [@@deriving sop_params, sop_node]
   let build = parameters_build (fun ~label parameters input ->
     let attribute = match parameters.output with
-      | Integer -> Pdk.Analysis.Connectivity_integer
-      | Text -> Pdk.Analysis.Connectivity_text parameters.text_prefix in
+      | Integer -> Rdk.Analysis.Connectivity_integer
+      | Text -> Rdk.Analysis.Connectivity_text parameters.text_prefix in
     Sop.connectivity ~label
       ?primitive_group:(optional_text parameters.primitive_group)
       ?point_group:(optional_text parameters.point_group)
@@ -2112,7 +2112,7 @@ end
 
 module Set_float = struct
   type parameters = {
-    owner : Pdk.Attribute.owner [@sop.default Pdk.Attribute.Point]
+    owner : Rdk.Attribute.owner [@sop.default Rdk.Attribute.Point]
       [@sop.label "Owner"] [@sop.kind attribute_owner_parameter];
     name : string [@sop.default "value"] [@sop.label "Attribute"];
     value : float [@sop.default 0.] [@sop.label "Value"]
@@ -2128,7 +2128,7 @@ end
 
 module Set_int = struct
   type parameters = {
-    owner : Pdk.Attribute.owner [@sop.default Pdk.Attribute.Point]
+    owner : Rdk.Attribute.owner [@sop.default Rdk.Attribute.Point]
       [@sop.label "Owner"] [@sop.kind attribute_owner_parameter];
     name : string [@sop.default "value"] [@sop.label "Attribute"];
     value : int [@sop.default 0] [@sop.label "Value"]
@@ -2144,7 +2144,7 @@ end
 
 module Set_vector = struct
   type parameters = {
-    owner : Pdk.Attribute.owner [@sop.default Pdk.Attribute.Point]
+    owner : Rdk.Attribute.owner [@sop.default Rdk.Attribute.Point]
       [@sop.label "Owner"] [@sop.kind attribute_owner_parameter];
     name : string [@sop.default "v"] [@sop.label "Attribute"];
     x : float [@sop.default 0.] [@sop.label "X"] [@sop.folder "Value"]
@@ -2233,7 +2233,7 @@ end
 module Set_color = struct
   type parameters = {
     group : string [@sop.default ""] [@sop.label "Group"];
-    owner : Pdk.Attribute.owner [@sop.default Pdk.Attribute.Point]
+    owner : Rdk.Attribute.owner [@sop.default Rdk.Attribute.Point]
       [@sop.label "Owner"] [@sop.kind attribute_owner_parameter];
     color_r : float [@sop.default 1.] [@sop.label "Red"]
       [@sop.min 0.] [@sop.max 1.] [@sop.hard_min 0.] [@sop.hard_max 1.]
@@ -2259,20 +2259,20 @@ end
 
 module Rest_position = struct
   let mode_parameter = Parameter.choice ~equal:( = ) [
-      "Store", Pdk.Motion.Store_rest; "Extract", Pdk.Motion.Extract_rest;
-      "Swap", Pdk.Motion.Swap_rest;
+      "Store", Rdk.Motion.Store_rest; "Extract", Rdk.Motion.Extract_rest;
+      "Swap", Rdk.Motion.Swap_rest;
     ]
   let normals_parameter = Parameter.choice ~equal:( = ) [
-      "None", Pdk.Motion.No_rest_normals;
-      "If present", Pdk.Motion.Rest_normals_if_present;
-      "Always", Pdk.Motion.Rest_normals_always;
+      "None", Rdk.Motion.No_rest_normals;
+      "If present", Rdk.Motion.Rest_normals_if_present;
+      "Always", Rdk.Motion.Rest_normals_always;
     ]
   type parameters = {
-    mode : Pdk.Motion.rest_mode [@sop.default Pdk.Motion.Store_rest]
+    mode : Rdk.Motion.rest_mode [@sop.default Rdk.Motion.Store_rest]
       [@sop.label "Mode"] [@sop.kind mode_parameter];
     rest_attribute : string [@sop.default "rest"] [@sop.label "Rest position"]
       [@sop.folder "Attributes"];
-    normals : Pdk.Motion.rest_normals [@sop.default Pdk.Motion.No_rest_normals]
+    normals : Rdk.Motion.rest_normals [@sop.default Rdk.Motion.No_rest_normals]
       [@sop.label "Rest normals"] [@sop.kind normals_parameter];
     normal_attribute : string [@sop.default "N"] [@sop.label "Normal"]
       [@sop.folder "Attributes"];
@@ -2288,7 +2288,7 @@ module Rest_position = struct
     operator ~label ~operation:"rest_position" ~cook_mode inputs
       (fun ~node_id:_ context inputs ->
         let reference = if Array.length inputs = 2 then Some inputs.(1) else None in
-        pdk_cooked (Pdk.Motion.rest_position ~cancel:(Context.cancel_token context)
+        rdk_cooked (Rdk.Motion.rest_position ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ?reference
           ~rest_attribute:parameters.rest_attribute ~normals:parameters.normals
           ~normal_attribute:parameters.normal_attribute
@@ -2304,11 +2304,11 @@ module Enumerate = struct
       "Integer", Integer; "Text", Text;
     ]
   let mode_parameter = Parameter.choice ~equal:( = ) [
-      "Elements within pieces", Pdk.Attribute_ops.Enumerate_piece_elements;
-      "Pieces", Pdk.Attribute_ops.Enumerate_pieces;
+      "Elements within pieces", Rdk.Attribute_ops.Enumerate_piece_elements;
+      "Pieces", Rdk.Attribute_ops.Enumerate_pieces;
     ]
   type parameters = {
-    owner : Pdk.Attribute.owner [@sop.default Pdk.Attribute.Point]
+    owner : Rdk.Attribute.owner [@sop.default Rdk.Attribute.Point]
       [@sop.label "Owner"] [@sop.kind element_attribute_owner_parameter];
     name : string [@sop.default "id"] [@sop.label "Attribute"];
     group : string [@sop.default ""] [@sop.label "Group"];
@@ -2322,8 +2322,8 @@ module Enumerate = struct
       [@sop.folder "Output"];
     piece_attribute : string [@sop.default ""] [@sop.label "Piece attribute"]
       [@sop.folder "Pieces"];
-    mode : Pdk.Attribute_ops.enumeration_mode
-      [@sop.default Pdk.Attribute_ops.Enumerate_piece_elements]
+    mode : Rdk.Attribute_ops.enumeration_mode
+      [@sop.default Rdk.Attribute_ops.Enumerate_piece_elements]
       [@sop.label "Piece mode"] [@sop.folder "Pieces"]
       [@sop.kind mode_parameter];
   } [@@sop.node_key "enumerate"] [@@sop.node_label "Enumerate"]
@@ -2331,8 +2331,8 @@ module Enumerate = struct
     [@@deriving sop_params, sop_node]
   let build = parameters_build (fun ~label parameters input ->
     let storage = match parameters.storage with
-      | Integer -> Pdk.Attribute_ops.Integer
-      | Text -> Pdk.Attribute_ops.Text { prefix = parameters.prefix } in
+      | Integer -> Rdk.Attribute_ops.Integer
+      | Text -> Rdk.Attribute_ops.Text { prefix = parameters.prefix } in
     Sop.enumerate ~label ?group:(optional_text parameters.group)
       ~start:parameters.start ~step:parameters.step ~storage
       ?piece_attribute:(optional_text parameters.piece_attribute)
@@ -2344,8 +2344,8 @@ end
 module Attribute_blur = struct
   type mode = Laplacian | Custom
   let method_parameter = Parameter.choice ~equal:( = ) [
-      "Uniform", Pdk.Attribute_ops.Uniform;
-      "Edge length", Pdk.Attribute_ops.Edge_length;
+      "Uniform", Rdk.Attribute_ops.Uniform;
+      "Edge length", Rdk.Attribute_ops.Edge_length;
     ]
   let mode_parameter = Parameter.choice ~equal:( = ) [
       "Laplacian", Laplacian; "Custom steps", Custom;
@@ -2355,8 +2355,8 @@ module Attribute_blur = struct
     group : string [@sop.default ""] [@sop.label "Point group"];
     iterations : int [@sop.default 1] [@sop.label "Iterations"]
       [@sop.min 1] [@sop.max 100] [@sop.hard_min 0];
-    method_ : Pdk.Attribute_ops.blur_method
-      [@sop.default Pdk.Attribute_ops.Uniform]
+    method_ : Rdk.Attribute_ops.blur_method
+      [@sop.default Rdk.Attribute_ops.Uniform]
       [@sop.label "Method"] [@sop.kind method_parameter];
     mode : mode [@sop.default Laplacian] [@sop.label "Mode"]
       [@sop.folder "Step"] [@sop.kind mode_parameter];
@@ -2380,8 +2380,8 @@ module Attribute_blur = struct
     [@@deriving sop_params, sop_node]
   let build = parameters_build (fun ~label parameters input ->
     let mode = match parameters.mode with
-      | Laplacian -> Pdk.Attribute_ops.Laplacian parameters.laplacian_step
-      | Custom -> Pdk.Attribute_ops.Custom_steps {
+      | Laplacian -> Rdk.Attribute_ops.Laplacian parameters.laplacian_step
+      | Custom -> Rdk.Attribute_ops.Custom_steps {
           odd = parameters.odd_step; even = parameters.even_step } in
     Sop.attribute_blur ~label ?group:(optional_text parameters.group)
       ~iterations:parameters.iterations ~method_:parameters.method_ ~mode
@@ -2398,21 +2398,21 @@ end
    ponytail: no frustum gizmo in the viewport; add a wireframe overlay if asked. *)
 module Normal = struct
   let owner_parameter = Parameter.choice ~equal:( = ) [
-      "Point", Pdk.Attribute.Point;
-      "Vertex", Pdk.Attribute.Vertex;
+      "Point", Rdk.Attribute.Point;
+      "Vertex", Rdk.Attribute.Vertex;
     ]
 
   let weighting_parameter = Parameter.choice ~equal:( = ) [
-      "Vertex angle", Pdk.Normal_ops.Vertex_angle;
-      "Each vertex", Pdk.Normal_ops.Each_vertex;
-      "Face area", Pdk.Normal_ops.Face_area;
+      "Vertex angle", Rdk.Normal_ops.Vertex_angle;
+      "Each vertex", Rdk.Normal_ops.Each_vertex;
+      "Face area", Rdk.Normal_ops.Face_area;
     ]
 
   type parameters = {
-    owner : Pdk.Attribute.owner [@sop.default Pdk.Attribute.Vertex]
+    owner : Rdk.Attribute.owner [@sop.default Rdk.Attribute.Vertex]
       [@sop.label "Add normals to"] [@sop.kind owner_parameter];
-    weighting : Pdk.Normal_ops.weighting
-      [@sop.default Pdk.Normal_ops.Vertex_angle]
+    weighting : Rdk.Normal_ops.weighting
+      [@sop.default Rdk.Normal_ops.Vertex_angle]
       [@sop.label "Weighting"] [@sop.kind weighting_parameter];
     cusp_angle : float [@sop.default 3.141592653589793]
       [@sop.label "Cusp angle"] [@sop.min 0.] [@sop.max 3.141592653589793]
@@ -2434,8 +2434,8 @@ module Normal = struct
 
   let factory = parameters_factory build
 
-  let create ?label:node_label ?(owner = Pdk.Attribute.Vertex)
-      ?(weighting = Pdk.Normal_ops.Vertex_angle) ?(cusp_angle = Float.pi)
+  let create ?label:node_label ?(owner = Rdk.Attribute.Vertex)
+      ?(weighting = Rdk.Normal_ops.Vertex_angle) ?(cusp_angle = Float.pi)
       ?(keep_original_zero = false) ?(reverse = false) ?(attribute = "N")
       input =
     build ~label:(label "normal" node_label) ~inputs:[input] {

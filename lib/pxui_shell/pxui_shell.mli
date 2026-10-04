@@ -31,7 +31,7 @@ module Layout : sig
                     timeline_at : bounds }
   (** Leaves in tree order, floats last (drawn over the rest). *)
 
-  val geometry : ?state:(path -> Editor_core.Panels.state) -> ?hidden:panel list -> t -> Prismel.Frame.t -> geometry
+  val geometry : ?state:(path -> Editor_core.Panels.state) -> ?hidden:panel list -> t -> Rays.Frame.t -> geometry
   (** [top] (default 0) points are left above the tree for a host bar.
       [hidden] (default the timeline) panels vanish; a hidden viewport keeps a
       28-point strip with its expand button.  The timeline strip sits under the
@@ -66,17 +66,17 @@ module Chrome : sig
     | Retype_panel of Layout.path * Layout.panel  (** [View ""] means a viewport *)
 
   val update : ?state:(Layout.path -> Editor_core.Panels.state) -> ?hidden:Layout.panel list -> ?title:(Layout.leaf -> string) -> Layout.t ->
-    Pxui.Ui.t -> Prismel.Frame.t -> intent list
+    Pxui.Ui.t -> Rays.Frame.t -> intent list
   (** Panel backgrounds, the drawn gutters, headers with their collapse button and
       right-click menu.  Pure: the host applies the intents. *)
 
-  val splitters : ?state:(Layout.path -> Editor_core.Panels.state) -> ?hidden:Layout.panel list -> Layout.t -> Pxui.Ui.t -> Prismel.Frame.t ->
+  val splitters : ?state:(Layout.path -> Editor_core.Panels.state) -> ?hidden:Layout.panel list -> Layout.t -> Pxui.Ui.t -> Rays.Frame.t ->
     intent list
   (** The gutters' drag targets, wider than they are drawn ([Resize], [Settled]).  Call it
       after the panes' boxes so a gutter is not shadowed by its neighbours' hit areas. *)
 
   (* A pane's PXUI hit ancestor; children keep screen-space coordinates. *)
-  val pane_root : Pxui.Ui.t -> Prismel.Frame.t -> bounds:Layout.bounds ->
+  val pane_root : Pxui.Ui.t -> Rays.Frame.t -> bounds:Layout.bounds ->
     string -> Pxui.Ui.box
 
   val drop_targets : Pxui.Ui.t -> dragging:(Layout.path * bool) option -> geometry:Layout.geometry ->
@@ -154,7 +154,7 @@ module Tree : sig
     depth : int;  (** depth-first order; a child is one deeper than its parent *)
     label : string;
     detail : string;  (** muted text after the label, e.g. the kind *)
-    badge : string * Prismel.Color.t;  (** a kind letter on its colour *)
+    badge : string * Rays.Color.t;  (** a kind letter on its colour *)
     link : bool;  (** a muted [↳] row repeating [id] shown elsewhere *)
     ghost : bool;  (** dimmed and locked: no rename, drag, or toggles *)
     flags : bool list;  (** one per column *)
@@ -181,7 +181,7 @@ module Tree : sig
       scopes them to its list pane. *)
 
   val run_command : t -> row array -> selected:int list -> command -> t * intent list
-  val update : t -> Pxui.Ui.t -> Prismel.Frame.t -> bounds:(int * int * int * int) ->
+  val update : t -> Pxui.Ui.t -> Rays.Frame.t -> bounds:(int * int * int * int) ->
     ?title:string -> columns:string list -> row array -> selected:int list -> t * intent list
   (** Build the list inside [Ui.frame] and return this frame's intents;
       [title] leads the header, e.g. the level's breadcrumb. *)
@@ -195,7 +195,7 @@ module Tree : sig
 end
 
 module Shell : sig
-  val frame : Pxui.Ui.t -> Prismel.Frame.t -> visible:bool ->
+  val frame : Pxui.Ui.t -> Rays.Frame.t -> visible:bool ->
     body:(Pxui.Ui.t -> 'a) -> overlay:(Pxui.Ui.t -> unit) option -> 'a option
   (** Build editor content when visible, and a pending overlay when hidden. *)
 end
@@ -217,7 +217,7 @@ module Inspector : sig
     | Pinned of string * bool | Split of string * bool | Reset of string
     | Expression of string * string
   val flow_fields : Pxui.Ui.t -> ?expanded:string list -> ?width:float ->
-    ?actions:bool -> ?chips:(string * Prismel.Color.t) list ->
+    ?actions:bool -> ?chips:(string * Rays.Color.t) list ->
     ?on_choice:(string -> Pxui.Ui.box -> unit) -> flow_row list -> flow_change list
   (** Responsive rows shared by Flow, scene, World, and compound interface
       inspectors. [actions=false] hides card pin and split controls. A choice named in [chips]

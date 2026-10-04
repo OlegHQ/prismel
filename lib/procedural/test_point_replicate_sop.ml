@@ -10,23 +10,23 @@ let contains value needle =
   needle = "" || loop 0
 
 let source () =
-  let geometry = Pdk.Line_geometry.points [|0.,0.,0.; 2.,0.,0.|] in
-  let density = Pdk.Attribute.create_owned ~owner:Pdk.Attribute.Point
-      ~name:"density" (Pdk.Attribute.Float [|2.;1.|]) |> Result.get_ok
-  and id = Pdk.Attribute.create_owned ~owner:Pdk.Attribute.Point ~name:"id"
-      (Pdk.Attribute.Int [|11;22|]) |> Result.get_ok
-  and pscale = Pdk.Attribute.create_owned ~owner:Pdk.Attribute.Point
-      ~name:"pscale" (Pdk.Attribute.Float [|2.;2.|]) |> Result.get_ok
-  and flow = Pdk.Attribute.create_owned ~owner:Pdk.Attribute.Point ~name:"flow"
-      (Pdk.Attribute.Float3 (Pdk.Packed.Float3.Private.of_owned_exn
+  let geometry = Rdk.Line_geometry.points [|0.,0.,0.; 2.,0.,0.|] in
+  let density = Rdk.Attribute.create_owned ~owner:Rdk.Attribute.Point
+      ~name:"density" (Rdk.Attribute.Float [|2.;1.|]) |> Result.get_ok
+  and id = Rdk.Attribute.create_owned ~owner:Rdk.Attribute.Point ~name:"id"
+      (Rdk.Attribute.Int [|11;22|]) |> Result.get_ok
+  and pscale = Rdk.Attribute.create_owned ~owner:Rdk.Attribute.Point
+      ~name:"pscale" (Rdk.Attribute.Float [|2.;2.|]) |> Result.get_ok
+  and flow = Rdk.Attribute.create_owned ~owner:Rdk.Attribute.Point ~name:"flow"
+      (Rdk.Attribute.Float3 (Rdk.Packed.Float3.Private.of_owned_exn
         ~x:[|1.;1.|] ~y:[|2.;2.|] ~z:[|3.;3.|])) |> Result.get_ok
-  and selected = Pdk.Group.init ~grain:1 ~owner:Pdk.Group.Point ~name:"emit"
+  and selected = Rdk.Group.init ~grain:1 ~owner:Rdk.Group.Point ~name:"emit"
       2 (fun point -> point = 0) in
-  geometry |> Pdk.Geometry.with_attribute density |> Result.get_ok
-  |> Pdk.Geometry.with_attribute id |> Result.get_ok
-  |> Pdk.Geometry.with_attribute pscale |> Result.get_ok
-  |> Pdk.Geometry.with_attribute flow |> Result.get_ok
-  |> Pdk.Geometry.with_group selected |> Result.get_ok
+  geometry |> Rdk.Geometry.with_attribute density |> Result.get_ok
+  |> Rdk.Geometry.with_attribute id |> Result.get_ok
+  |> Rdk.Geometry.with_attribute pscale |> Result.get_ok
+  |> Rdk.Geometry.with_attribute flow |> Result.get_ok
+  |> Rdk.Geometry.with_group selected |> Result.get_ok
 
 let cook evaluator domains graph =
   match Session.cook evaluator ~context:(context domains) graph with
@@ -37,24 +37,24 @@ let run () =
   let custom = Sop.points [|(0.,0.,0.); (0.,0.,1.)|] in
   let graph = Sop.snapshot (source ())
       |> Sop.point_replicate ~label:"replicate-test" ~group:"emit" ~seed:71
-           ~shape:Pdk.Point_replication.Replicate_custom ~custom_shape:custom
+           ~shape:Rdk.Point_replication.Replicate_custom ~custom_shape:custom
            ~generated_group:"cloud" ~keep_source_attributes:true
            ~transform_attributes:"flow"
            ~quasi_stratified:true ~noise_seed:72
-           ~noise_amplitude:(Prismel.Vec3.create 0.1 0.15 0.2)
+           ~noise_amplitude:(Rays.Vec3.create 0.1 0.15 0.2)
            ~noise_turbulence:2 ~points_per_point:2.
            ~scale_attribute:"density" in
   let evaluator = session () in
   let output = cook evaluator 4 graph in
-  if Pdk.Geometry.point_count output <> 4
-      || Pdk.Geometry.find_attribute ~owner:Pdk.Attribute.Point "shapeptnum"
+  if Rdk.Geometry.point_count output <> 4
+      || Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point "shapeptnum"
            output = None
-      || Pdk.Geometry.find_group ~owner:Pdk.Group.Point "cloud" output = None then
+      || Rdk.Geometry.find_group ~owner:Rdk.Group.Point "cloud" output = None then
     fail "custom SOP output";
-  let flow = match Pdk.Geometry.find_attribute ~owner:Pdk.Attribute.Point "flow"
+  let flow = match Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point "flow"
       output with
-    | Some attribute -> (match Pdk.Attribute.Private.storage attribute with
-        | Pdk.Attribute.Float3 values -> Pdk.Packed.Float3.Private.view values
+    | Some attribute -> (match Rdk.Attribute.Private.storage attribute with
+        | Rdk.Attribute.Float3 values -> Rdk.Packed.Float3.Private.view values
         | _ -> fail "transformed flow storage")
     | None -> fail "missing transformed flow" in
   if flow.x <> [|2.;2.;2.;2.|] || flow.y <> [|4.;4.;4.;4.|]

@@ -2,11 +2,11 @@ opam-version: "2.0"
 synopsis: "Virtual package relying on a stable SDL3_mixer release"
 description: "Checks that SDL3_mixer is at least the floor in packaging/sdl3.lock; tools/packaging/test_sdl3_lock keeps this probe in step with it."
 maintainer: ["Oleg Pustovit <oleg@nexo.sh>"]
-authors: ["Prismel contributors"]
+authors: ["Rays contributors"]
 license: "MIT"
-homepage: "https://github.com/nexo-tech/prismel"
-bug-reports: "https://github.com/nexo-tech/prismel/issues"
-dev-repo: "git+https://github.com/nexo-tech/prismel.git"
+homepage: "https://github.com/OlegHQ/rays"
+bug-reports: "https://github.com/OlegHQ/rays/issues"
+dev-repo: "git+https://github.com/OlegHQ/rays.git"
 flags: conf
 depends: [
   "conf-pkg-config" {build}

@@ -176,7 +176,7 @@ let package_file ~root ~lock component =
        includedir=%s\n\
        libdir=%s\n\n\
        Name: %s\n\
-       Description: Prismel hermetic discovery fixture\n\
+       Description: Rays hermetic discovery fixture\n\
        Version: %s\n\
        %s\
        Libs: -L${libdir} -l%s\n\
@@ -190,15 +190,15 @@ let package_file ~root ~lock component =
   include_directory, library_directory
 
 let run_case_full ~root ~mode ?sanitizers ?include_override ?library_override component =
-  with_temp_directory ("prismel-discover-" ^ component.package ^ "-")
+  with_temp_directory ("rays-discover-" ^ component.package ^ "-")
     (fun directory ->
       let replacements =
         [ "PKG_CONFIG_PATH", root
         ; "PKG_CONFIG_LIBDIR", root
-        ; "PRISMEL_SDL3_LINK_MODE", mode
+        ; "RAYS_SDL3_LINK_MODE", mode
         ]
         @ (match sanitizers with
-           | Some value -> [ "PRISMEL_SDL3_SANITIZERS", value ]
+           | Some value -> [ "RAYS_SDL3_SANITIZERS", value ]
            | None -> [])
         @ (match include_override with
            | Some value ->
@@ -212,15 +212,15 @@ let run_case_full ~root ~mode ?sanitizers ?include_override ?library_override co
       let removals =
         [ "PKG_CONFIG"
         ; "PKG_CONFIG_ARGN"
-        ; "PRISMEL_SDL3_SANITIZERS"
-        ; "PRISMEL_SDL3_INCLUDE_DIR"
-        ; "PRISMEL_SDL3_LIB_DIR"
-        ; "PRISMEL_SDL3_IMAGE_INCLUDE_DIR"
-        ; "PRISMEL_SDL3_IMAGE_LIB_DIR"
-        ; "PRISMEL_SDL3_TTF_INCLUDE_DIR"
-        ; "PRISMEL_SDL3_TTF_LIB_DIR"
-        ; "PRISMEL_SDL3_MIXER_INCLUDE_DIR"
-        ; "PRISMEL_SDL3_MIXER_LIB_DIR"
+        ; "RAYS_SDL3_SANITIZERS"
+        ; "RAYS_SDL3_INCLUDE_DIR"
+        ; "RAYS_SDL3_LIB_DIR"
+        ; "RAYS_SDL3_IMAGE_INCLUDE_DIR"
+        ; "RAYS_SDL3_IMAGE_LIB_DIR"
+        ; "RAYS_SDL3_TTF_INCLUDE_DIR"
+        ; "RAYS_SDL3_TTF_LIB_DIR"
+        ; "RAYS_SDL3_MIXER_INCLUDE_DIR"
+        ; "RAYS_SDL3_MIXER_LIB_DIR"
         ]
       in
       let result =
@@ -246,7 +246,7 @@ let test_dynamic ~lock root fixtures components =
         run_case_full ~root ~mode:"dynamic" component
       in
       let expected =
-        Printf.sprintf "#define PRISMEL_SDL3_PROBED_VERSION %d\n"
+        Printf.sprintf "#define RAYS_SDL3_PROBED_VERSION %d\n"
           (Sdl3_lock.version_number (fake_version lock component))
       in
       if probed <> expected then
@@ -293,7 +293,7 @@ let test_overrides root components =
         run_case_full ~root ~mode:"dynamic" ~include_override:include_directory
           component
       in
-      if probed <> "#define PRISMEL_SDL3_PROBED_VERSION 0\n" then
+      if probed <> "#define RAYS_SDL3_PROBED_VERSION 0\n" then
         fail "%s explicit headers still claimed a probed version: %S"
           component.package probed;
       let include_directory = Filename.concat root (component.package ^ "-override-i") in
@@ -341,12 +341,12 @@ let test_sanitizers root component =
     "-fno-sanitize-recover=undefined" libraries
 
 let test_invalid_mode root component =
-  with_temp_directory "prismel-discover-invalid-" (fun directory ->
+  with_temp_directory "rays-discover-invalid-" (fun directory ->
     let environment =
       environment_with
         [ "PKG_CONFIG_PATH", root
         ; "PKG_CONFIG_LIBDIR", root
-        ; "PRISMEL_SDL3_LINK_MODE", "hybrid"
+        ; "RAYS_SDL3_LINK_MODE", "hybrid"
         ]
         [ "PKG_CONFIG"; "PKG_CONFIG_ARGN" ]
     in
@@ -369,33 +369,33 @@ let () =
         ; key = "sdl3"
         ; package = "sdl3"
         ; library = "SDL3"
-        ; environment_prefix = "PRISMEL_SDL3"
+        ; environment_prefix = "RAYS_SDL3"
         ; private_library = "core_fixture"
         }
       ; { executable = executable 2
         ; key = "sdl3_image"
         ; package = "sdl3-image"
         ; library = "SDL3_image"
-        ; environment_prefix = "PRISMEL_SDL3_IMAGE"
+        ; environment_prefix = "RAYS_SDL3_IMAGE"
         ; private_library = "image_fixture"
         }
       ; { executable = executable 3
         ; key = "sdl3_ttf"
         ; package = "sdl3-ttf"
         ; library = "SDL3_ttf"
-        ; environment_prefix = "PRISMEL_SDL3_TTF"
+        ; environment_prefix = "RAYS_SDL3_TTF"
         ; private_library = "ttf_fixture"
         }
       ; { executable = executable 4
         ; key = "sdl3_mixer"
         ; package = "sdl3-mixer"
         ; library = "SDL3_mixer"
-        ; environment_prefix = "PRISMEL_SDL3_MIXER"
+        ; environment_prefix = "RAYS_SDL3_MIXER"
         ; private_library = "mixer_fixture"
         }
       ]
     in
-    with_temp_directory "prismel-pkg-config-" (fun root ->
+    with_temp_directory "rays-pkg-config-" (fun root ->
       let root = Unix.realpath root in
       let fixtures = List.map (package_file ~root ~lock) components in
       test_dynamic ~lock root fixtures components;

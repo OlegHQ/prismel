@@ -6,17 +6,17 @@
 (executable
  (name bench_source_poll)
  (modules bench_source_poll)
- (libraries prismel_editor editor_document unix))
+ (libraries rays_editor editor_document unix))
 
 (executable
  (name bench_named_owner)
  (modules bench_named_owner)
- (libraries prismel_editor prismel procedural unix))
+ (libraries rays_editor rays procedural unix))
 
 (executable
  (name bench_live_lights)
  (modules bench_live_lights)
- (libraries prismel_editor prismel unix))
+ (libraries rays_editor rays unix))
 
 (executable
  (name flow_manifest)
@@ -26,7 +26,7 @@
 (executable
  (name bench_sdl3)
  (modules bench_sdl3)
- (libraries prismel.sdl3 prismel.sdl3_image prismel.sdl3_ttf prismel.sdl3_mixer unix yojson))
+ (libraries rays.sdl3 rays.sdl3_image rays.sdl3_ttf rays.sdl3_mixer unix yojson))
 
 (rule
  (targets bench_metal_ffi_bridge.o libbench_metal_ffi_stubs.a
@@ -45,13 +45,13 @@
 (executable
  (name bench_metal_ffi)
  (modules bench_metal_ffi)
- (libraries prismel.metal unix yojson)
+ (libraries rays.metal unix yojson)
  (foreign_archives bench_metal_ffi_stubs))
 
 (executable
  (name bench_metal_registry)
  (modules bench_metal_registry)
- (libraries prismel.metal unix))
+ (libraries rays.metal unix))
 
 (rule
  (alias metal-bench)
@@ -59,7 +59,7 @@
   (run %{exe:bench_metal_ffi.exe} --iterations 1000000 --samples 5
    --profile test --check)))
 
-; Opt-in native benchmarks. PRISMEL_BENCH_FRAMES defaults to 120.
+; Opt-in native benchmarks. RAYS_BENCH_FRAMES defaults to 120.
 (rule
  (alias bench-code-quadtree-tour)
  (action
@@ -67,9 +67,9 @@
    (progn
     (run %{exe:../sketches/code_quadtree/main.exe} --index-only)
     (run /usr/bin/time -l %{exe:../sketches/code_quadtree/main.exe}
-     --smoke --bench --frames %{env:PRISMEL_BENCH_FRAMES=120} --reference-draws)
+     --smoke --bench --frames %{env:RAYS_BENCH_FRAMES=120} --reference-draws)
     (run /usr/bin/time -l %{exe:../sketches/code_quadtree/main.exe}
-     --smoke --bench --frames %{env:PRISMEL_BENCH_FRAMES=120})))))
+     --smoke --bench --frames %{env:RAYS_BENCH_FRAMES=120})))))
 
 (rule
  (alias bench-code-quadtree-hover)
@@ -78,10 +78,10 @@
    (progn
     (run %{exe:../sketches/code_quadtree/main.exe} --index-only)
     (run /usr/bin/time -l %{exe:../sketches/code_quadtree/main.exe}
-     --hover-bench --zoom 1.45 --bench --frames %{env:PRISMEL_BENCH_FRAMES=120}
+     --hover-bench --zoom 1.45 --bench --frames %{env:RAYS_BENCH_FRAMES=120}
      --rebuild-art)
     (run /usr/bin/time -l %{exe:../sketches/code_quadtree/main.exe}
-     --hover-bench --zoom 1.45 --bench --frames %{env:PRISMEL_BENCH_FRAMES=120})))))
+     --hover-bench --zoom 1.45 --bench --frames %{env:RAYS_BENCH_FRAMES=120})))))
 
 (rule
  (alias bench-code-quadtree-renderer)
@@ -90,7 +90,7 @@
    (progn
     (run %{exe:../sketches/code_quadtree/main.exe} --index-only)
     (run /usr/bin/time -l %{exe:../sketches/code_quadtree/main.exe}
-     --smoke --bench --frames %{env:PRISMEL_BENCH_FRAMES=120})))))
+     --smoke --bench --frames %{env:RAYS_BENCH_FRAMES=120})))))
 
 ; Geometry-only benchmark: no native window.
 (rule
@@ -111,9 +111,9 @@
  (alias bench-pathtracer)
  (action
   (chdir %{workspace_root}
-   (setenv PRISMEL_PATHTRACER_FRAMES %{env:PRISMEL_PATHTRACER_FRAMES=240}
-    (setenv PRISMEL_PATHTRACER_SCALE %{env:PRISMEL_PATHTRACER_SCALE=1}
-     (setenv PRISMEL_PATHTRACER_SPP %{env:PRISMEL_PATHTRACER_SPP=1}
+   (setenv RAYS_PATHTRACER_FRAMES %{env:RAYS_PATHTRACER_FRAMES=240}
+    (setenv RAYS_PATHTRACER_SCALE %{env:RAYS_PATHTRACER_SCALE=1}
+     (setenv RAYS_PATHTRACER_SPP %{env:RAYS_PATHTRACER_SPP=1}
       (run %{exe:../examples/pathtracer/main.exe})))))))
 
 (executable
@@ -124,43 +124,43 @@
 (executable
  (name bench_instances)
  (modules bench_instances)
- (libraries prismel unix))
+ (libraries rays unix))
 
 (executable
  (name bench_world)
  (modules bench_world)
- (libraries prismel unix))
+ (libraries rays unix))
 
 (executable
  (name bench_pathtracer_mesh)
  (modules bench_pathtracer_mesh)
- (libraries prismel prismel_pathtracer pdk unix))
+ (libraries rays rays_pathtracer rdk unix))
 
 (executable
  (name bench_shattered_renderer)
  (modules bench_shattered_renderer)
- (libraries prismel flow pdk pdk_prismel procedural sop_catalog sketch_support prismel_editor unix))
+ (libraries rays flow rdk rdk_rays procedural sop_catalog sketch_support rays_editor unix))
 
 (executable
  (name render_workspace)
  (modules render_workspace)
- (libraries prismel prismel_pathtracer procedural pdk pdk_prismel flow flow_sop
-  editor_document sop_catalog sketch_support prismel_editor))
+ (libraries rays rays_pathtracer procedural rdk rdk_rays flow flow_sop
+  editor_document sop_catalog sketch_support rays_editor))
 
 (executable
  (name bench_material_assign)
  (modules bench_material_assign)
- (libraries pdk prismel_math unix))
+ (libraries rdk rays_math unix))
 
 (executable
- (name bench_pdk_iso)
- (modules bench_pdk_iso)
- (libraries pdk prismel_math unix))
+ (name bench_rdk_iso)
+ (modules bench_rdk_iso)
+ (libraries rdk rays_math unix))
 
 (executable
  (name bench_pxui)
  (modules bench_pxui)
- (libraries prismel pxui unix))
+ (libraries rays pxui unix))
 
 (executable
  (name bench_uniforms)
@@ -170,83 +170,83 @@
 (executable
  (name bench_scene2_ir)
  (modules bench_scene2_ir)
- (libraries prismel_execution runtime_resources scene_command unix))
+ (libraries rays_execution runtime_resources scene_command unix))
 
 (executable
- (name bench_pdk_ops)
- (modules bench_pdk_ops)
- (libraries prismel pdk pdk_prismel procedural unix))
+ (name bench_rdk_ops)
+ (modules bench_rdk_ops)
+ (libraries rays rdk rdk_rays procedural unix))
 
 (executable
  (name bench_predicates)
  (modules bench_predicates)
- (libraries pdk pdk_boolean unix))
+ (libraries rdk rdk_boolean unix))
 
 (executable
  (name bench_boolean_pipeline)
  (modules bench_boolean_pipeline)
- (libraries prismel pdk pdk_boolean unix))
+ (libraries rays rdk rdk_boolean unix))
 
 (executable
  (name bench_convex_hull)
  (modules bench_convex_hull)
- (libraries prismel pdk unix))
+ (libraries rays rdk unix))
 
 (executable
  (name bench_extract_centroid)
  (modules bench_extract_centroid)
- (libraries prismel pdk unix))
+ (libraries rays rdk unix))
 
 (executable
  (name bench_extract_point_curve)
  (modules bench_extract_point_curve)
- (libraries prismel pdk unix))
+ (libraries rays rdk unix))
 
 (executable
  (name bench_circle_from_edges)
  (modules bench_circle_from_edges)
- (libraries prismel pdk unix))
+ (libraries rays rdk unix))
 
 (executable
  (name bench_graph_color)
  (modules bench_graph_color)
- (libraries prismel pdk unix))
+ (libraries rays rdk unix))
 
 (executable
  (name bench_curvature)
  (modules bench_curvature)
- (libraries prismel pdk unix))
+ (libraries rays rdk unix))
 
 (executable
  (name bench_laplacian)
  (modules bench_laplacian)
- (libraries prismel pdk unix))
+ (libraries rays rdk unix))
 
 (executable
  (name bench_delaunay2)
  (modules bench_delaunay2)
- (libraries prismel pdk unix))
+ (libraries rays rdk unix))
 
 (executable
  (name boolean_stress)
  (modules boolean_stress)
- (libraries prismel pdk unix))
+ (libraries rays rdk unix))
 
 
 (executable
- (name bench_prismel_editor)
- (modules bench_prismel_editor)
- (libraries prismel procedural flow prismel_editor unix))
+ (name bench_rays_editor)
+ (modules bench_rays_editor)
+ (libraries rays procedural flow rays_editor unix))
 
 (executable
  (name bench_editor_cook)
  (modules bench_editor_cook)
- (libraries prismel procedural pdk prismel_editor editor_document sketch_support unix))
+ (libraries rays procedural rdk rays_editor editor_document sketch_support unix))
 
 (executable
  (name bench_camera_input)
  (modules bench_camera_input)
- (libraries prismel unix))
+ (libraries rays unix))
 
 (executable
  (name bench_workspace_live)
@@ -256,9 +256,9 @@
 (executable
  (name bench_workspace_lower)
  (modules bench_workspace_lower)
- (libraries flow_sop sop_catalog flow procedural pdk param unix editor_document))
+ (libraries flow_sop sop_catalog flow procedural rdk param unix editor_document))
 
 (executable
  (name bench_traced_panes)
  (modules bench_traced_panes)
- (libraries prismel procedural pdk pdk_prismel prismel_editor unix))
+ (libraries rays procedural rdk rdk_rays rays_editor unix))

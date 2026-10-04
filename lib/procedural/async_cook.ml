@@ -27,7 +27,7 @@ type 'a request = {
 
 type active = {
   started : float;
-  cancel : Pdk.Cancel.t;
+  cancel : Rdk.Cancel.t;
 }
 
 type 'a t = {
@@ -54,7 +54,7 @@ let with_lock value operation =
   Fun.protect ~finally:(fun () -> Mutex.unlock value.mutex) operation
 
 let cancel_request request =
-  Pdk.Cancel.cancel (Context.cancel_token request.context)
+  Rdk.Cancel.cancel (Context.cancel_token request.context)
 
 let execute session request =
   try
@@ -123,7 +123,7 @@ let create ~max_entries ~max_payload_bytes =
     } in
     let worker = Domain.spawn (fun () ->
       Fun.protect
-        ~finally:Prismel_math.Parallel.release_current_domain_pools
+        ~finally:Rays_math.Parallel.release_current_domain_pools
         (fun () -> worker_loop value)) in
     value.worker <- Some worker;
     value)
@@ -135,7 +135,7 @@ let submit_some value ~context ~nodes ~optional ~prepare =
       Error "Async_cook.submit: worker is closed"
     else begin
       Option.iter cancel_request value.pending;
-      Option.iter (fun active -> Pdk.Cancel.cancel active.cancel) value.active;
+      Option.iter (fun active -> Rdk.Cancel.cancel active.cancel) value.active;
       value.latest_id <- value.latest_id + 1;
       let id = value.latest_id in
       value.pending <- Some { id; context; nodes; optional; prepare };
@@ -193,7 +193,7 @@ let close value =
       value.closed <- true;
       value.stopping <- true;
       Option.iter cancel_request value.pending;
-      Option.iter (fun active -> Pdk.Cancel.cancel active.cancel) value.active;
+      Option.iter (fun active -> Rdk.Cancel.cancel active.cancel) value.active;
       value.pending <- None;
       value.completion <- None;
       Condition.broadcast value.ready;

@@ -139,7 +139,7 @@ let () =
         [ Basic; Pxui_like; Canvas_offscreen; Scene3_builtin ] in
       (* CAMetalLayer, Objective-C and the OCaml allocator may reserve their
          one-time teardown pools on the first few lifecycles.  Those reservations
-         are not retained Prismel resources: verify the release queue first,
+         are not retained Rays resources: verify the release queue first,
          then measure a settled sequence rather than treating allocator warm-up
          as a leak. *)
       for _ = 1 to 4 do

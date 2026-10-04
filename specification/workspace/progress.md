@@ -11,23 +11,23 @@ Status: `todo` · `wip` · `done` (gate met) · `partial` (what is missing is na
 |---|---|---|---|
 | W0 fixes & catalog prerequisites | done | | Merge group padding, set_color group/vec3 colour (its v3 preset migration was deleted with v3 in W3), `Manifest.version` in text view and the `:rotate` note landed; the `Rest` slot landed with W4 part A (notes below). |
 | W1 language core (`flow`) | done | | `Flow.Syntax`, `Lisp`, `Ty`, `Macro`, `Workspace` (checker, typed IR, liveness, invariance) and `Eval` (values, loops, functions, records, HOFs, `ref`, the geometry plan, `static` / residual split, `?record`); the 12 fixtures check, print, round-trip and run; the check.cjs suite is ported (119 of 120, see the W1 part C notes). |
-| W2 lowering & cooking | done | | `Flow_sop.Lower.workspace`, `Pdk.Mesh_merge ?source_attribute`, session default 512, `test_workspace_cook`, `bench_workspace_lower`. Live parameters are only recorded (`Lower.pending`); drives are W2b. |
+| W2 lowering & cooking | done | | `Flow_sop.Lower.workspace`, `Rdk.Mesh_merge ?source_attribute`, session default 512, `test_workspace_cook`, `bench_workspace_lower`. Live parameters are only recorded (`Lower.pending`); drives are W2b. |
 | W2b live `t` | partial | | `Drive.Live`, `Lower` live drives, `flow.curve` text-encoded points, volatile session slots, `Async_cook.await`, `Cook ?await`, status text, tests and bench (notes below). A zone whose body reads `t` is live too (Gap B: the zone declares the time, its elements' copies share their template's volatile slot). The editor is fed by a workspace since W3; `Editor3/2.create ?await` is the explicit knob for a fixed clock (`Frame` still does not say so). Wave's per-frame cost is fixed (W13: compiled residuals, 7.0 -> 1.8 ms p50). |
 | W3 document v4 + history | done | | `Flow_edit`, `Workspace_doc`, `Layout_by_path`, s-expression presets, the editor opens a workspace and recooks live `t` (notes below). No older presets. Every document is a workspace and saves (Gap A). |
 | W4 graph pane zones | done | | Part A (`Flow_sop.Projection`, `Rest`) and part B (`Pxui_graph.Scope`, zone tokens, selectors, `Core` wiring, layout by path, probes); see the W4 part B notes and `flow-migration.md`. W13 closed the gesture gaps: rename, input default, list item move, frames and marquee selection are pane gestures with request-mapping tests. The flat pane is gone (Gap A); the scene, World and settings graphs open in it too. |
 | W5 probes & footers | done | | `Flow_sop.Probe` (records, footers, counts, inspector rows), `Pxui_graph.Scope.with_records`, cook geometry counts piggybacked on the display cook, the workspace inspector, the `t N live · M cached` status, auto-select of an added node (notes below). Gap B: an expanded zone has its own footer, and a node that is not upstream of the display is counted too (the cook asks for it as an optional node that may fail). |
-| W6 viewport provenance | done | | global `__flow_src` tags that survive nested merges, `Pick` (CPU ray over `Pdk.Surface_index`, per-corner tint), `Core.pick`, the highlight follows the selection and probes; click in Viewport3 selects the node and probes its iteration (notes below). W13: geometry drawn as instances is picked per instance. Gap B: `Viewport2` picks (a ray straight down onto the drawing), a pick inside a collapsed loop selects the loop, and a viewport over another scene instance picks in its own objects. |
-| W7 editable text | done | | `Ui.text_area`, the text pane's Selection, Graph and Document tabs (`Prismel_editor.Text_pane`), atomic Check & apply (`Doc.text_edit`, `Core.text_edit`/`binding_edit`, one "Edit text" entry), per-binding apply, error marks at their line; the old read-only text pane and the flat network text view are deleted (notes below). W13: a binding apply's checker error is marked on the binding text's line and typing clears error marks. Gap B: `Ui.text_area` keeps Tab (two spaces, Shift-Tab takes them off), wraps long lines and reports Command/Ctrl-Enter (the pane's apply); the Graph tab is editable through `Set_graph`. |
+| W6 viewport provenance | done | | global `__flow_src` tags that survive nested merges, `Pick` (CPU ray over `Rdk.Surface_index`, per-corner tint), `Core.pick`, the highlight follows the selection and probes; click in Viewport3 selects the node and probes its iteration (notes below). W13: geometry drawn as instances is picked per instance. Gap B: `Viewport2` picks (a ray straight down onto the drawing), a pick inside a collapsed loop selects the loop, and a viewport over another scene instance picks in its own objects. |
+| W7 editable text | done | | `Ui.text_area`, the text pane's Selection, Graph and Document tabs (`Rays_editor.Text_pane`), atomic Check & apply (`Doc.text_edit`, `Core.text_edit`/`binding_edit`, one "Edit text" entry), per-binding apply, error marks at their line; the old read-only text pane and the flat network text view are deleted (notes below). W13: a binding apply's checker error is marked on the binding text's line and typing clears error marks. Gap B: `Ui.text_area` keeps Tab (two spaces, Shift-Tab takes them off), wraps long lines and reports Command/Ctrl-Enter (the pane's apply); the Graph tab is editable through `Set_graph`. |
 | W8 loops over geometry | done | | `point_list` / `piece_list`, the zone node (`Eval` template, `Procedural.Zone` + `Node.Private.expand` + `Session`), lowering by `Lower.instantiate`, zone provenance and count, `FLOW_CASE=garden`, `test_workspace_zone`, bench (notes below). Gap B: a body may read `t` (a live zone), a value that reads the element is forced for the probed element (footer, sparkline and the inspector's list), the zone title says `by index` or `by <key>`. Elements are cooked sequentially (plan `ponytail:`). |
 | W9 macros UI, notes, bypass | done | | `Projection` lens and `layout ?lens`, the panel and `B` flag in `Scope`, `Macro_requested` + `Flow_edit.macro_draft` / `macro_op` + `Pxui_shell.Prompt.macro`, the inspector note field, tests through the pane and the editor, `FLOW_CASE=rosette` (notes below). Gap B: the lens has a Template button, Enter in the make-macro dialog creates, the inspector has a Bypass toggle. |
 | W10 contexts & composable shell | done | | Part A (contexts): `scene`, `world`, `settings` graphs check, lower into the document and open in the pane. Part B (shell): `Editor_core.Panels` and `Pxui_shell.Layout` (the tree and its geometry), the editor graph lowered into `Document.shell`, focus and commands keyed by panel, split/close/retype/resize as `Flow_edit` ops, Restore layout, one scene instance per viewport override, `ui/graph` names its graph (notes below). W13 added `Space o` keys for split, close and retype. Gap B: each viewport has its own orbit and the editor graph's panels are editable by keys whether bound, written in place or made by a loop. |
-| W11 `.plisp` sketches | done | | Part A (tool, dune wiring, scaffolding, the twelve `sketches/ws_*`) and part B: Command-S rewrites the source file (comments kept) only while its SHA-256 is the remembered digest, else a preset; the running window reloads a changed file as one history entry "Reload sketch.plisp", a failing file keeps the last good document and shows diagnostics (notes below). W13: a file that differs from the built text reloads on the first poll, and a `(layout ...)` or `(settings ...)` form in the file is honoured on reload. Gaps: polling, not file events; no three-way merge. |
-| W12 migration & removal | done | | `flow_terrain` is a `.plisp` sketch; `[%flow]`, the v3 checker/printer/builder, `?program` and `to_mesh_with_primitives` deleted (about 2,400 lines); docs and benches recorded; the completeness audit is the table below (notes at the end). |
-| W14 Bloom studio shell | done | | The study's studio chrome in the native editor (notes at the end): the Navigator panel (`Prismel_editor.Navigator`), the host bars (`Bars`: top bar and graph toolbar), Make defn (`Flow_edit.Make_defn`, key `d`), functions open in the pane (`def:name`), panel titles with subtitles, the viewport's iteration caption, the loop description in the inspector, and `ws_bloom` opening on `flower`. |
+| W11 `.rays` sketches | done | | Part A (tool, dune wiring, scaffolding, the twelve `sketches/ws_*`) and part B: Command-S rewrites the source file (comments kept) only while its SHA-256 is the remembered digest, else a preset; the running window reloads a changed file as one history entry "Reload sketch.rays", a failing file keeps the last good document and shows diagnostics (notes below). W13: a file that differs from the built text reloads on the first poll, and a `(layout ...)` or `(settings ...)` form in the file is honoured on reload. Gaps: polling, not file events; no three-way merge. |
+| W12 migration & removal | done | | `flow_terrain` is a `.rays` sketch; `[%flow]`, the v3 checker/printer/builder, `?program` and `to_mesh_with_primitives` deleted (about 2,400 lines); docs and benches recorded; the completeness audit is the table below (notes at the end). |
+| W14 Bloom studio shell | done | | The study's studio chrome in the native editor (notes at the end): the Navigator panel (`Rays_editor.Navigator`), the host bars (`Bars`: top bar and graph toolbar), Make defn (`Flow_edit.Make_defn`, key `d`), functions open in the pane (`def:name`), panel titles with subtitles, the viewport's iteration caption, the loop description in the inspector, and `ws_bloom` opening on `flower`. |
 
 ## Notes
 
-- The build needs dune >= 3.21 (`Pdk` re-exports private `Pdk_mesh` modules);
+- The build needs dune >= 3.21 (`Rdk` re-exports private `Rdk_mesh` modules);
   the repo-local switch has 3.24.2.
 - W0 `Rest` slot (landed in W4 part A). The old obstacles were fixed arity
   persisted in documents; presets are workspace text now, so `Rest` is a
@@ -48,8 +48,8 @@ Status: `todo` · `wip` · `done` (gate met) · `partial` (what is missing is na
   `Sop.merge ~source_attribute`, which the editor's merge must not. Not done:
   the legacy flat pane draws a merge with its current inputs only (no
   `+ input` socket); the projection pane edits the text (`Pos n`).
-- W0 merge bench (`PRISMEL_PDK_OPS_FILTER=merge_pair PRISMEL_PDK_OPS_REPEATS=7
-  dune exec tools/bench_pdk_ops.exe`, 1002001-point grid pair, 8 domains,
+- W0 merge bench (`RAYS_RDK_OPS_FILTER=merge_pair RAYS_RDK_OPS_REPEATS=7
+  dune exec tools/bench_rdk_ops.exe`, 1002001-point grid pair, 8 domains,
   Apple Silicon, median s): `merge_pair` before 0.0211 / 0.0205, after 0.0197 /
   0.0202 (identical output hash and 228.3 MB allocated, so unchanged). New
   `merge_pair_padded` (one input carries a group the other lacks): 0.0281 /
@@ -198,13 +198,13 @@ Status: `todo` · `wip` · `done` (gate met) · `partial` (what is missing is na
   workspace in the running editor (W3 makes documents v4; `Lower.objects`,
   `Cook.set_volatile` and `~await:true` are the connection); `Frame.t` does
   not say the clock is fixed, so `Cook.create ?await` defaults to
-  `PRISMEL_MAX_FRAMES` being set and `Sketch.export` hosts must pass it;
+  `RAYS_MAX_FRAMES` being set and `Sketch.export` hosts must pass it;
   `Drive.Live` is not covered by a `test_network.ml` unit test (the lane tests
   run through `Lower`, which needs the catalog, in `test/test_workspace_live.ml`);
   the one-slot volatile cache recooks when scrubbing back (a per-node ring is
   the `ponytail:` fix); live text drives support colour text and choice
   parameters only.
-- W3 notes. Documents and presets are s-expressions: one `.plisp` file holds
+- W3 notes. Documents and presets are s-expressions: one `.rays` file holds
   the workspace form (comments kept), optional `(layout ...)` keyed by path,
   `(settings ...)` for non-default settings and `(view ...)`; no JSON and no
   older format (the v3 reader and writer, the set_color preset migration and
@@ -217,7 +217,7 @@ Status: `todo` · `wip` · `done` (gate met) · `partial` (what is missing is na
   undo restores both; the derived scene and networks feed the old graph pane
   and the cook. The tests that built documents from JSON (`test_editor_document`)
   build them in code now; the preset-format, migration and rejection-matrix
-  cases and the fixed-camera preset checks of `test_prismel_editor` (including the
+  cases and the fixed-camera preset checks of `test_rays_editor` (including the
   native look-through framebuffer comparison) are gone with the format. Not ported from the study: `exceptIteration`, `set_layout_ratio`
   (W10). Details: `flow-migration.md` "W3".
 - W4 part A notes. `Flow_sop.Projection.of_graph catalog workspace name` (a
@@ -321,8 +321,8 @@ Status: `todo` · `wip` · `done` (gate met) · `partial` (what is missing is na
   through two merges. `Lower.provenance` is `origin Int_map.t` keyed by tag
   (`origin = {merge; input; source; site; iter}`), replacing `Origins`. Cost:
   a merge's `base` is in its cook key, so adding inputs to an early merge
-  shifts the later merges' bases and recooks them. Pick. (`Prismel_mesh.to_mesh_with_primitives`, a triangle to primitive map, was added
-  and then deleted in W12 as unused.) `Pick` (`lib/prismel_editor/pick.ml`) builds a `Pdk.Surface_index` on the
+  shifts the later merges' bases and recooks them. Pick. (`Rays_mesh.to_mesh_with_primitives`, a triangle to primitive map, was added
+  and then deleted in W12 as unused.) `Pick` (`lib/rays_editor/pick.ml`) builds a `Rdk.Surface_index` on the
   displayed geometry at the first click (kept per piece, lazy) and its hit
   already names the source primitive; an ID-buffer upgrade would need such a map
   again (`ponytail:` in `pick.ml`). Flow. Viewport3 `pick_ray` (screen ray
@@ -344,7 +344,7 @@ Status: `todo` · `wip` · `done` (gate met) · `partial` (what is missing is na
   Sunflower seed 83 and Bloom petal 4 through two merges picked by a ray and
   resolved to `(site, iteration)`; the tint values; one prepare per changed
   highlight, none unchanged, no recook misses; deselect restores physically),
-  `test_pdk` (merge tag semantics), `test_workspace_cook` (provenance). Native:
+  `test_rdk` (merge tag semantics), `test_workspace_cook` (provenance). Native:
   `sketches/flow_workspace` with `FLOW_PICK="x,y[;x,y]"` clicks the view at
   frames 26 and 32 (`FLOW_CASE=bloom FLOW_PICK="330,300;100,600"`): petal 4 is
   tinted, the rest dim, the selector track sits at 4, the inspector shows its
@@ -449,7 +449,7 @@ Status: `todo` · `wip` · `done` (gate met) · `partial` (what is missing is na
   ids are matched by (operation, label) across rebuilds, params it does not mention keep their
   document value. A settings graph becomes `doc.settings` (workspace schema) and is not written
   as a trailing `(settings ...)` form; inspector edits of it are overwritten on the next edit.
-  `Prismel_editor.workspace_catalog` / `workspace_window` are the host's entry points. The
+  `Rays_editor.workspace_catalog` / `workspace_window` are the host's entry points. The
   manifest digest covers only sop and value kinds (the PPX links those). Fixtures: Bloom and
   Variations use the new spellings (`:color` on objects is gone: colour lives in the geometry;
   the prototype HTML no longer runs them). Pane: `Space o` (`Cycle_graph`) cycles scene, world
@@ -460,7 +460,7 @@ Status: `todo` · `wip` · `done` (gate met) · `partial` (what is missing is na
   `(ref scene :seed n)` need one scene instance per override: `Contexts.result` only reads the
   default instance), key focus by panel, make the panels of a `for` addressable (E1), keep
   "Restore layout" outside the tree, let `ui/graph` name its graph (then drop `Cycle_graph`),
-  feed `Contexts.window` into `Workspace.main` (W11), update `prismel_editor/AGENTS.md`.
+  feed `Contexts.window` into `Workspace.main` (W11), update `rays_editor/AGENTS.md`.
 
 - W10 part B notes (shell). The tree type is `Editor_core.Panels` (`panel`, `t`, `path`,
   `default`, `set_ratio`, `valid`, `leaves`; the document library cannot import `pxui_shell`, which
@@ -499,22 +499,22 @@ Status: `todo` · `wip` · `done` (gate met) · `partial` (what is missing is na
   (`Native_scene_lowering` cached per frame; regression: `test_workspace_shell_native`), and the workspace graph
   pane painted its grid, zones and wires outside its clip.  `FLOW_CASE=variations` and `FLOW_SHELL=drag|split|close|retype|restore`
   drive the native check in `sketches/flow_workspace`.
-- W11 part A notes. `tools/plisp` (`prismel-plisp`, links `flow`, `editor_document`,
+- W11 part A notes. `tools/plisp` (`rays-plisp`, links `flow`, `editor_document`,
   `sop_catalog`; Stdlib only plus `Digestif.SHA256` through `Contexts.sha256`) with
   `check`, `ml`, `dune`, `fmt`; the wiring is `sketches/dune` (`include`,
-  the `dune.plisp.inc.gen` rule with `glob_files_rec sketch.plisp` and `glob_files_rec dune`,
-  the runtest `diff`) and the checked-in `sketches/dune.plisp.inc`. Proven first on `ws_bloom`:
+  the `dune.rays.inc.gen` rule with `glob_files_rec sketch.rays` and `glob_files_rec dune`,
+  the runtest `diff`) and the checked-in `sketches/dune.rays.inc`. Proven first on `ws_bloom`:
   `subdir` on a source directory with no `dune` file and `glob_files_rec` both work (dune 3.24,
-  lang 3.17), no fallback needed. Adding a sketch: create `sketches/<n>/sketch.plisp` (or
+  lang 3.17), no fallback needed. Adding a sketch: create `sketches/<n>/sketch.rays` (or
   `dune exec tools/new_example.exe -- --plisp <n>`), `dune build @runtest; dune promote`.
-  All twelve cases are `sketches/ws_<case>/sketch.plisp` and each runs 120 frames
+  All twelve cases are `sketches/ws_<case>/sketch.rays` and each runs 120 frames
   (`dune build @sketches/ws_<case>/smoke-all`, 3-4 s each; the whole-repo `@smoke-all` also
   includes them). A typo fails `dune build ./sketches/ws_bloom/main.exe` with
-  `File "sketches/ws_bloom/sketch.plisp", line 11, characters 19-67:`.
+  `File "sketches/ws_bloom/sketch.rays", line 11, characters 19-67:`.
   Deviations. (1) The quoted-string delimiter cannot contain digits in OCaml, so the four hex digits
   0-9 become g-p and a collision appends letters (`Delimiter`, unit-tested). (2) The rule runs
-  `(chdir %{workspace_root} ... ml %{dep:sketch.plisp})`, so `~path` and every diagnostic are
-  project-relative (`sketches/ws_bloom/sketch.plisp`), as the plan's example shows; the
+  `(chdir %{workspace_root} ... ml %{dep:sketch.rays})`, so `~path` and every diagnostic are
+  project-relative (`sketches/ws_bloom/sketch.rays`), as the plan's example shows; the
   `dune` scan sees dune files through `(glob_files_rec dune)`. (3) There is no
   `Flow_sop.Workspace_program`: `Workspace.load` returns a `Workspace_doc.t` and `run` takes one
   (`with_inputs`, O2, is not built); `run` has no `?config`. (4) `^:allow-warnings` goes before the
@@ -526,18 +526,18 @@ Status: `todo` · `wip` · `done` (gate met) · `partial` (what is missing is na
   Tests: `tools/plisp/test` (cram `check.t` one fixture per class with exact `File` lines,
   `ml.t`, `dune.t` two sketches / both files error / empty dir; `test_delimiter`) and
   `test/plisp_build.t` (nested dune on a temp project: a valid sketch yields `main.ml`, a typo
-  fails at its `.plisp` line; only `main.ml` is built there because the executables need the
-  repo's libraries). The `Workspace` module lives in `prismel_editor.ml` (it needs `Editor3`).
+  fails at its `.rays` line; only `main.ml` is built there because the executables need the
+  repo's libraries). The `Workspace` module lives in `rays_editor.ml` (it needs `Editor3`).
   Part B must: read the source file from the walk up to `dune-project` and enable Save (Cmd-S)
   only when its SHA-256 equals `digest` (atomic temp file plus rename, `Workspace_doc.to_text`,
   else preset fallback with the status text); poll the mtime twice a second and reload as one
-  history entry "Reload sketch.plisp" keeping probes and layout by path id, keeping the last good
+  history entry "Reload sketch.rays" keeping probes and layout by path id, keeping the last good
   document and showing diagnostics on failure; make `run` use `?source`
   (ignored now: the argument is accepted and dropped); add the `Workspace.main` tests (digest
   match, mismatch, atomic write re-read, reload keeps probes, failed reload keeps the document).
   The window is fed from `Contexts.window` already (title, size, fps, seed); the fixed light and
   camera in `run` should give way to the scene graph's.
-- W11 part B notes. `Source_file` (public `Prismel_editor.Source`: `at`, `find`, `file`, `poll`, `save`) is the
+- W11 part B notes. `Source_file` (public `Rays_editor.Source`: `at`, `find`, `file`, `poll`, `save`) is the
   immutable state in `Environment.t` (`?source` on `Editor3.create/run`, `Workspace.run ?source` finds the
   file with `find`). `find` walks up from the executable then the working directory to the first
   `dune-project` not under `_build` and joins `path`; the file need not match the digest to be watched.
@@ -562,8 +562,8 @@ Status: `todo` · `wip` · `done` (gate met) · `partial` (what is missing is na
   (find under `_build`, save/re-read with comments, mismatch refusal, poll rate limit, no self-reload, the
   editor end to end: Command-S, reload as one entry with a probe kept, a typo keeping the document and
   naming line 1, recovery, preset fallback). Native (a scripted `Editor3` window over `ws_bloom` in a
-  temporary project, PNGs read): edit at frame 60 to 4 petals reloaded ("Reloaded sketch.plisp", one
-  "Reload sketch.plisp" entry), Command-S rewrote the file byte-identically, and a typo at line 25 kept the
+  temporary project, PNGs read): edit at frame 60 to 4 petals reloaded ("Reloaded sketch.rays", one
+  "Reload sketch.rays" entry), Command-S rewrote the file byte-identically, and a typo at line 25 kept the
   4 petals, opened the Document tab with the file text and `E_UNKNOWN_KIND` under it. `dune build
   @sketches/ws_<case>/smoke-all` passes for all twelve.
 - W2 session default, measured (`dune exec tools/bench_workspace_lower.exe`, Apple M1, 8 cores, medians; the
@@ -587,7 +587,7 @@ here with its reason. Gap A and Gap B (below) closed every row that was open; wh
 | W1 | `Lisp.print ?mark` | Replaced by the span map (deviation, W1 notes). |
 | W2 | per-fixture lowered node counts | Asserted for Bloom and Sunflower only (`test_workspace_cook.ml`); the other fixtures are cooked, byte-compared at 1 and 3 domains and unique-keyed, not counted. |
 | W2b | E_TIME_COUNT / E_TIME_BRANCH "name the binding" | The `for` and `if`/`cond` messages name the loop or target; list-splice messages name the operator or kind only. |
-| W2b | `Frame` cannot tell a fixed clock | `Cook.create ?await` and `Editor3/2.create ?await` are the knob (default: `PRISMEL_MAX_FRAMES` is set); a `Sketch.export` host passes `~await:true`. |
+| W2b | `Frame` cannot tell a fixed clock | `Cook.create ?await` and `Editor3/2.create ?await` are the knob (default: `RAYS_MAX_FRAMES` is set); a `Sketch.export` host passes `~await:true`. |
 | W2b | `Drive.Live` unit test in `test_network.ml` | Covered through `Lower` in `test_workspace_live.ml` and `test_workspace_zone.ml` (a live loop body). |
 | W2b/W5 | viewport header shows the live/cached/cook text | It is the status strip (`t N live · M cached · cook X ms`), a deviation. |
 | W2b | per-node cache ring for scrubbing back | Not built: plan section 4 lists it as "not building" until scrub-back latency is measured. |
@@ -624,7 +624,7 @@ here with its reason. Gap A and Gap B (below) closed every row that was open; wh
 
 W12 verification (clean `dune clean` state, Apple M1): `dune build @all`, window-free `dune runtest`,
 `@runtest-native`, `@smoke`, the full `@smoke-all` sweep (all examples and sketches, including the thirteen
-`.plisp` sketches), `git diff --check`, `dune build @doc` (warnings only, none new) and
+`.rays` sketches), `git diff --check`, `dune build @doc` (warnings only, none new) and
 `node specification/workspace/prototype/check.cjs` pass; the dependency gate reports 47 libraries, 45 rules, 0
 listed exceptions. `code_quadtree` needs `ocamllsp` on PATH (a shell without it fails that one rule).
 
@@ -672,7 +672,7 @@ Closed after the W12 audit, in this order (tests are named where they live):
   static 0.26 / 0.24. A compiled residual is capped at 2,048 nodes (larger ones interpret). The rest of
   Wave's frame is `Value_lane` applying six curves (about 1 ms) and the cook (0.6 ms).
 - **Startup and reload (W11).** `Source.at` remembers no mtime, so the first poll reads the file: one that
-  differs from the built text reloads at once ("Reload sketch.plisp"), one that does not check keeps the built text
+  differs from the built text reloads at once ("Reload sketch.rays"), one that does not check keeps the built text
   and says so (Save then falls back to a preset). A `(layout ...)` or `(settings ...)` form in the file is the
   new layout / settings on reload; a file without one keeps the running layout. Tests: `test_workspace_source.ml`.
 - **Native check.** `sketches/flow_workspace` has `FLOW_SCRIPT=action@frame;...` (click, dbl, press, move,
@@ -681,12 +681,12 @@ Closed after the W12 audit, in this order (tests are named where they live):
 
 ### Gap A (2026-09-30, closed)
 
-Cube_cage, shattered_cube, voxel_wall and `examples/sop_gallery` are workspace text (`sketch.plisp`, `gallery.plisp`,
-embedded by `prismel-plisp source`; `Workspace.open_text`, `Workspace.load ?factories`, `Workspace.sop_graphs`).
+Cube_cage, shattered_cube, voxel_wall and `examples/sop_gallery` are workspace text (`sketch.rays`, `gallery.rays`,
+embedded by `rays-plisp source`; `Workspace.open_text`, `Workspace.load ?factories`, `Workspace.sop_graphs`).
 Renders were compared to the pre-port screenshots. The flat document path, flat pane, `Flow.Expr`, `Flow.Sexp`,
 value nodes, compounds and expression drives are deleted; the editor tests are written against workspace text
 (`ws_fixture.ml`). Behaviour dropped with the flat pane and what took its place: see "Gap B" (every gesture that has a workspace meaning was restored;
-the rest is listed as superseded in the audit's "Remaining"). The native `test_prismel_editor` batch bound moved from 16 to 24
+the rest is listed as superseded in the audit's "Remaining"). The native `test_rays_editor` batch bound moved from 16 to 24
 (22 measured with the Scope pane).
 
 ### Gap B (2026-09-30, closed)
@@ -745,7 +745,7 @@ submits, so after a frame nothing is cooking and the status text is settled (the
 worker still cooking and the status reading `Cooking...` or `skipping frames`); wait loops became bounded frame counts or
 checks, and the deadlines that remain are failure bounds (30 to 60 s), never paces. Environments that a test opened and did not
 close leaked a worker domain each: the process ran out of domains (`failed to allocate domain`), so the new tests close theirs.
-Two timing checks were fixed: the path tracer's "a move is cheaper than a rebuild" ratio depends on the machine and the GPU's state (measured 1.4 to 2.2 here, so neither a median nor a best-of-eight threshold held) and now prints in the default run and is asserted under `PRISMEL_QUALIFY=1`; the async-cook test lengthens its slow node so polling cannot miss it.
+Two timing checks were fixed: the path tracer's "a move is cheaper than a rebuild" ratio depends on the machine and the GPU's state (measured 1.4 to 2.2 here, so neither a median nor a best-of-eight threshold held) and now prints in the default run and is asserted under `RAYS_QUALIFY=1`; the async-cook test lengthens its slow node so polling cannot miss it.
 `dune build @runtest --force` under eight busy loops: three runs, no failure (before the fix: one failure in the first run,
 the path tracer's timing ratio).
 
@@ -770,7 +770,7 @@ longer re-adds a default camera to a workspace with a scene graph; the camera fo
 and is not written (`~adopt:false`). `sketches/ws_variations` declared a scene with no light and lived on the host's:
 it now declares a directional light (PNG checked). Every other sketch and example scene graph already declares its camera
 and light. Tests: `test_scene_sync.ml` (ownership both ways, delete camera/light/last objects/World, same text after
-reload), `test_scene_tree.ml` `run_host` (list Delete, Save text, reload, undo: "Delete"), `test_prismel_editor.ml`
+reload), `test_scene_tree.ml` `run_host` (list Delete, Save text, reload, undo: "Delete"), `test_rays_editor.ml`
 (deleting the last camera is written, not re-seeded).
 
 **Loop copies (register V4, iteration.md 3.6).** The copies of a loop are instances of one template. `Document.Copy
@@ -813,7 +813,7 @@ middle iteration, accumulate, all copies), `test_workspace_shell.ml` `run_loop_c
 reload), `lib/flow/test_workspace.ml` (checker positive and negative, `E_TIME_COUNT` unchanged, liveness),
 `test_workspace_eval.ml` (values, flat index, tuples at 2 and 3 levels, no plan node, records, merge arguments),
 `test_lisp.ml` (print round trip), `test_probe.ml` `skips` (counts, footers, sparkline, plan node), `test_workspace_cook.ml`
-`skips` (compiled ids, provenance, 1 vs 3 domains). Native: `FLOW_CASE=<nested .plisp>` with `FLOW_SCRIPT="key u@22;click
+`skips` (compiled ids, provenance, 1 vs 3 domains). Native: `FLOW_CASE=<nested .rays>` with `FLOW_SCRIPT="key u@22;click
 670,420@24;key Home@26;key Down@28;key Down@30;key Down@32;key Delete@36"` deleted exactly the selected bead of a 3 x 2
 nested loop (PNG read: five spheres, the others in place). Limits, each by design: a stale merge `:skip` entry is kept
 when its iteration is later skipped as a whole (harmless); a deleted object that shares its iteration with others that stay, and is bound in a `let*` deeper than the loop body's own (or is not an argument of any `scene/merge`), has no merge to skip it in: it is refused with the loop named, to be edited as text.
@@ -823,7 +823,7 @@ when its iteration is later skipped as a whole (harmless); a deleted object that
 The proposal's studio (navigator, graph with a toolbar, Lisp with tabs, inspector, viewport caption, the bar above) is
 what `sketches/ws_bloom` opens as.
 
-- **Navigator** (`lib/prismel_editor/navigator.ml`, the `Outline` panel, titled Navigator): a case-study header (graph,
+- **Navigator** (`lib/rays_editor/navigator.ml`, the `Outline` panel, titled Navigator): a case-study header (graph,
   loop, function and macro counts), the open graph's inputs as sliders (`Set_input_default`, one "Input default" entry
   per change), the COMPOSITION (every graph with its context colour and loop count; the open one unfolds into its
   bindings and loops with their value at the probe and `12×` counts), REUSABLE (`defn`s with call counts, macros with
@@ -831,8 +831,8 @@ what `sketches/ws_bloom` opens as.
   tree). A row opens its graph in the pane (`Core.pane_graph`, which now wins over the name a `(ui/graph "g")` panel
   gives), selects and frames a node; the search field lists matching graphs, functions and bindings. A `defn` opens as
   `def:name` (`graph_name` accepts it; `Projection.of_graph` already did).
-- **Host bars** (`lib/prismel_editor/bars.ml`). The top bar (28 points, only for a document with an editor graph;
-  `Pxui_shell.Layout.geometry ?top` leaves it): "Prismel Flow", the workspace title, the checker's verdict, Keys,
+- **Host bars** (`lib/rays_editor/bars.ml`). The top bar (28 points, only for a document with an editor graph;
+  `Pxui_shell.Layout.geometry ?top` leaves it): "Rays Flow", the workspace title, the checker's verdict, Keys,
   Shell layouts (Default, Graph + code, Focus, Floating, Restore layout; each is one `Set_graph` of the editor graph,
   one "Edit graph" entry, `Bars.layout_text`), Undo, Redo, Copy Lisp (the whole document to the clipboard). The graph
   panel's header carries Add, Repeat, Iterate, λ, macro and defn; a click runs the command the key would
@@ -847,16 +847,16 @@ what `sketches/ws_bloom` opens as.
   `same for all`).
 - Tests: `test/test_bloom_studio.ml` (the sketch opens on flower; Navigator rows, clicks on a function, a graph and a
   node; the slider's default; search; toolbar defn; Undo, Redo and a layout from the bar), `test_workspace_shell.ml`
-  (coordinates under the bar). Native: `FLOW_CASE=sketches/ws_bloom/sketch.plisp FLOW_SHELL=none
+  (coordinates under the bar). Native: `FLOW_CASE=sketches/ws_bloom/sketch.rays FLOW_SHELL=none
   FLOW_SCRIPT="click 75,388@22" FLOW_EXPORT=<dir>` renders the studio.
-- Not done, by design: a case-study selector (the twelve studies are separate sketches, one per `.plisp`); dragging a
+- Not done, by design: a case-study selector (the twelve studies are separate sketches, one per `.rays`); dragging a
   Navigator row onto the canvas to insert a `ref` or call (Add's menu does it); a multi-line note in the Navigator.
 
 ## Feedback round (1 October 2026)
 
 A pass over the first hands-on feedback on the studio; every item is a small change, listed with its test.
 
-- **Lisp editing** (`Ui.text_area ?language`, `lib/prismel_editor/lisp_text.ml`): syntax colours (comments, strings,
+- **Lisp editing** (`Ui.text_area ?language`, `lib/rays_editor/lisp_text.ml`): syntax colours (comments, strings,
   numbers, keywords, `^:meta`, form heads, brackets by depth, unmatched in red), the bracket pair at the caret lit,
   Enter indents (body forms two in, calls under their first argument, vectors under their first element), brackets
   and quotes typed in pairs (wrap, step over, Backspace takes both), a right-click menu (Check & apply, Discard, wrap

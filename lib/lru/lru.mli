@@ -1,5 +1,5 @@
 (** The one bounded least-recently-used table for every capacity-limited cache
-    in prismel: a count capacity, an optional byte capacity, and a release
+    in rays: a count capacity, an optional byte capacity, and a release
     callback for owned values such as images and GPU buffers. A hit or an add
     allocates nothing beyond the entry itself. Not domain-safe: keep one table
     per domain ([Domain.DLS]) when several domains cache. *)

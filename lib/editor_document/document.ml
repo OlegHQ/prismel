@@ -60,7 +60,7 @@ type view_world = { node : Node.t; layers : network }
 
 (* How a viewport over another scene instance renders: the settings of its [scene/root] and the
    view of the camera object that root's [:camera] slot names (none: the root names no camera) *)
-type view_root = { params : Objects.Root.parameters; camera : Prismel.Camera.t option }
+type view_root = { params : Objects.Root.parameters; camera : Rays.Camera.t option }
 
 type switch = { layouts : Editor_core.Panels.t list; active : int }
 
@@ -232,7 +232,7 @@ let dump value =
     | Some (w : view_world) -> Printf.sprintf "%S" (Node.label w.node) | None -> "-")) value.view_worlds;
   List.iter (fun (key, (r : view_root)) -> line "view %s root %s%s" key (fields (Objects.Root.fields r.params))
     (match r.camera with
-      | Some c -> let p = Prismel.Camera.position c in Printf.sprintf " camera %g %g %g" p.x p.y p.z
+      | Some c -> let p = Rays.Camera.position c in Printf.sprintf " camera %g %g %g" p.x p.y p.z
       | None -> "")) value.view_roots;
   line "camera %s" (match value.active_camera with Some c -> string_of_int c | None -> "-");
   line "root %s" (fields (Objects.Root.fields value.root));

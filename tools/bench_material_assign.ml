@@ -1,5 +1,5 @@
-open Pdk
-open Prismel_math
+open Rdk
+open Rays_math
 
 let get = Result.get_ok
 let median values = Array.sort Float.compare values; values.(Array.length values / 2)

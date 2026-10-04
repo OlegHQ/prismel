@@ -32,7 +32,7 @@ tree behind the cards, so socket and control ownership takes precedence.
 The categorised node menu uses `open_menu_at` and `catalog_of_factories`. Details: `specification/pxui.md` (Hosts) and
 `specification/procedural.md` (Editable graph document).
 
-## Prismel Flow rework
+## Rays Flow rework
 
 This library is where most of `specification/flow.md` lands (§6 canvas, §7
 interaction). M1 implements the canvas contract above. M2 implements walk, contextual
@@ -50,7 +50,7 @@ the enclosing SOP network. Double-click entry follows current instance data.
 Rules that hold throughout:
 
 - Wires are polylines drawn with `Ui.line`; no curves after M1.
-- New interactions return new `change` cases; `Prismel_editor.Doc.apply` is
+- New interactions return new `change` cases; `Rays_editor.Doc.apply` is
   the only reducer, and each gesture is one history entry (`flow.md` §4.3).
 - Layout (positions, levels, pins, splits, bends, wireless) is document data
   the host stores; selection, hover, pan and zoom stay in this library's

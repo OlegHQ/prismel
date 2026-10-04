@@ -49,7 +49,7 @@ module Font : sig
 
   val open_file : path:string -> size:float -> (t, error) result
 
-  (** Locate an installed UI font. [PRISMEL_UI_FONT] is authoritative when
+  (** Locate an installed UI font. [RAYS_UI_FONT] is authoritative when
       non-empty; otherwise platform candidates are tried in stable order. *)
   val system_path : unit -> (string, error) result
   val metrics : t -> (metrics, error) result

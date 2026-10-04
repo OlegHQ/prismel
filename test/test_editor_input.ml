@@ -1,4 +1,4 @@
-open Prismel
+open Rays
 
 let check condition message = if not condition then failwith message
 let key k = Event.KeyPressed k
@@ -15,7 +15,7 @@ let frame ?(buttons = []) ?(keys = []) ?(delta = (0., 0.)) mouse events count : 
 let run () =
   let exercise ~name ~scene_level ~create ~update ~close ~camera ~dump ~panes =
     let current = ref (create ()) and count = ref 0 in
-    let directory = Filename.temp_dir "prismel-input-contract" "" in
+    let directory = Filename.temp_dir "rays-input-contract" "" in
     Fun.protect ~finally:(fun () -> close !current;
       Array.iter (fun file -> Sys.remove (Filename.concat directory file)) (Sys.readdir directory);
       Unix.rmdir directory) (fun () ->
@@ -200,7 +200,7 @@ let run () =
     check (collapsed < width) (name ^ ": same-frame Tab/Space did not activate the pane header")) in
   let workspace = Ws_fixture.box () in
   let world = { World.default with layers = []; background = World.Transparent } in
-  let module E3 = Prismel_editor.Editor3 in
+  let module E3 = Rays_editor.Editor3 in
   exercise ~name:"Editor3" ~scene_level:true
     ~create:(fun () -> E3.create ~workspace ~world ~camera:(Easy_camera.create ~inertia:false ())
       ~prepare:(fun _ _ -> Ok ()) ~scene3:(fun _ _ -> Scene3.empty) () |> Result.get_ok)
@@ -208,7 +208,7 @@ let run () =
     ~camera:(fun env -> let camera = E3.camera env in
       Camera.position (Easy_camera.camera camera), Camera.target (Easy_camera.camera camera),
       Easy_camera.distance camera);
-  let module E2 = Prismel_editor.Editor2 in
+  let module E2 = Rays_editor.Editor2 in
   exercise ~name:"Editor2" ~scene_level:false
     ~create:(fun () -> E2.create ~workspace ~world ~camera:(Easy_camera2.create ~inertia:false ())
       ~prepare:(fun _ _ -> Ok ()) ~scene2:(fun _ _ -> []) () |> Result.get_ok)

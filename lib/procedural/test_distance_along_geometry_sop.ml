@@ -1,4 +1,4 @@
-open Pdk
+open Rdk
 open Procedural
 
 let fail message = raise (Failure message)
@@ -13,7 +13,7 @@ let contains text pattern =
   pattern = "" || search 0
 
 let source () =
-  let geometry = Pdk.Plane_generators.grid ~columns:240 ~rows:160 ~size:12. ()
+  let geometry = Rdk.Plane_generators.grid ~columns:240 ~rows:160 ~size:12. ()
       |> function Ok value -> value | Error error -> fail (Error.to_string error) in
   let width = 241 and count = Geometry.point_count geometry in
   let start = Group.init ~grain:97 ~owner:Group.Point ~name:"distance_start" count
@@ -53,8 +53,8 @@ let run () =
       |> Sop.distance_along_geometry
            ~start:(Sop.Point_group "distance_start")
            ~affected:(Sop.Point_group "distance_affected")
-           ~falloff:Pdk.Transform_ops.Soft_cubic
-           ~radius:(Pdk.Transform_ops.Distance_fixed 3.5)
+           ~falloff:Rdk.Transform_ops.Soft_cubic
+           ~radius:(Rdk.Transform_ops.Distance_fixed 3.5)
            ~distance_attribute:(Some "edge_distance") ~mask_attribute:"mask" in
   let parameters = Node.parameters graph in
   check (contains parameters "start=point:distance_start"

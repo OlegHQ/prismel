@@ -1,6 +1,6 @@
 (library
  (name native_layer_token)
- (public_name prismel.native_layer_token)
+ (public_name rays.native_layer_token)
  (foreign_stubs
   (language c)
   (names native_layer_token_stubs)

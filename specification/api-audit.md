@@ -1,6 +1,6 @@
 # High-level API acceptance audit
 
-This audit tracks the evidence required before calling Prismel's 2D sketch API
+This audit tracks the evidence required before calling Rays's 2D sketch API
 feature-complete. “Implemented” means a public signature, real implementation,
 representative example or integration test, and native Metal verification exist.
 

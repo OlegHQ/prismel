@@ -1,12 +1,12 @@
 (rule
  (target gallery_source.ml)
- (deps gallery.plisp)
+ (deps gallery.rays)
  (action (chdir %{workspace_root}
-  (with-stdout-to %{target} (run %{bin:prismel-plisp} source %{dep:gallery.plisp})))))
+  (with-stdout-to %{target} (run %{bin:rays-plisp} source %{dep:gallery.rays})))))
 
 (executable
  (name main)
- (libraries prismel pdk_prismel procedural flow sop_catalog prismel_editor))
+ (libraries rays rdk_rays procedural flow sop_catalog rays_editor))
 
 (rule
  (alias runtest)

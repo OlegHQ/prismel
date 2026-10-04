@@ -13,7 +13,7 @@ let default_name () =
   Printf.sprintf "%04d-%02d-%02d_%02d-%02d-%02d" (time.tm_year + 1900)
     (time.tm_mon + 1) time.tm_mday time.tm_hour time.tm_min time.tm_sec
 
-let suffix = ".plisp"
+let suffix = ".rays"
 let path ~directory ~name = Filename.concat directory (sanitize name ^ suffix)
 
 let rec finite (f : S.t) = match f.node with

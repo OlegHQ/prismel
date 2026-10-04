@@ -4,13 +4,13 @@
 
 type t
 
-val create : ?transforms:Prismel_math.Mat4.t array -> Node.t -> t
+val create : ?transforms:Rays_math.Mat4.t array -> Node.t -> t
 val source : t -> Node.t
 val count : t -> int
-val transforms : t -> Prismel_math.Mat4.t array
+val transforms : t -> Rays_math.Mat4.t array
 val payload_bytes : t -> int
 
 val duplicate :
-  ?copies:int -> ?cumulative:bool -> ?transform:Prismel_math.Mat4.t -> t -> t
+  ?copies:int -> ?cumulative:bool -> ?transform:Rays_math.Mat4.t -> t -> t
 (** Append transformed instance copies in source-instance-major order. Copy
     [i] is transformed by [transform] to power [i] in world space. *)

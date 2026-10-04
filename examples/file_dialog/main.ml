@@ -3,7 +3,7 @@
    drag a file from Finder over the window and drop it. A dialog returns at
    once; its outcome arrives later as an [Event.FileDialog] with the same id.
    A trackpad pinch scales the box. *)
-open Prismel
+open Rays
 
 type model = {
   lines : string list;       (* newest first *)

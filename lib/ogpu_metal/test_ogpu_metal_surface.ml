@@ -52,7 +52,7 @@ let run () =
       (match get (Surface.acquire surface) with Device_lost -> () | _ -> failwith "device-loss mapping");
       Surface.set_availability surface Available;
       let frames = Option.value ~default:10
-          (Option.bind (Sys.getenv_opt "PRISMEL_SURFACE_FRAMES") int_of_string_opt) in
+          (Option.bind (Sys.getenv_opt "RAYS_SURFACE_FRAMES") int_of_string_opt) in
       for _ = 1 to frames do
         match get (Surface.acquire surface) with
         | Acquired frame ->

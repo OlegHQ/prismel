@@ -8,6 +8,8 @@
    drop-vals FILE.mli NAME...     Remove [val]/[external] items (with docs).
    drop-unused < build-log        Remove the let bindings named by warning 32
                                   (unused value) in a dune build log.
+   rename [--dry-run] OLD NEW     Rename the project: old/Old/OLD become
+                                  new/New/NEW in file contents and paths.
 
    The compiler is the oracle: prune with drop-vals, rebuild, feed the log to
    drop-unused, repeat until the build is clean. *)
@@ -846,6 +848,46 @@ let prune ?(cut = false) ~modules ~excludes ~target dirs =
     end in
   loop 0
 
+(* ---------- rename: a project-wide textual rename ---------- *)
+
+(* old, Old and OLD become fresh, Fresh and FRESH *)
+let rename_text old fresh =
+  let cases s = let s = String.lowercase_ascii s in
+    [ s; String.capitalize_ascii s; String.uppercase_ascii s ] in
+  let pairs = List.map2 (fun o n -> Str.regexp_string o, n) (cases old) (cases fresh) in
+  fun s -> List.fold_left (fun s (o, n) -> Str.global_substitute o (fun _ -> n) s) s pairs
+
+let rename_self_test () =
+  assert (rename_text "foo" "bar" "Foo_x FOO_Y lib/foo/foo.ml food" = "Bar_x BAR_Y lib/bar/bar.ml bard");
+  print_endline "rename: ok"
+
+(* Rewrites the contents and the path of every text file git tracks or would
+   track; binary files only move. Nothing is staged, so [git status] reviews
+   it and [git add -A] accepts it. *)
+let rename ~dry old fresh =
+  let sub = rename_text old fresh in
+  let listing = Filename.temp_file "codemod" ".files" in
+  if Sys.command ("git ls-files -z --cached --others --exclude-standard > " ^ Filename.quote listing) <> 0 then exit 1;
+  let files = String.split_on_char '\000' (read_file listing)
+    |> List.filter (fun f -> f <> "" && Sys.file_exists f && not (Sys.is_directory f)) in
+  Sys.remove listing;
+  let moves = List.filter_map (fun f -> let g = sub f in if g = f then None else Some (f, g)) files in
+  List.iter (fun (f, g) -> if Sys.file_exists g then (Printf.eprintf "%s: %s already exists\n" f g; exit 1)) moves;
+  let edited = ref 0 in
+  List.iter (fun f ->
+    let s = read_file f in
+    if not (String.contains s '\000') then begin
+      let t = sub s in
+      if t <> s then (incr edited; if dry then Printf.printf "edit %s\n" f else write_file f t)
+    end) files;
+  let rec mkdir_p d = if not (Sys.file_exists d) then (mkdir_p (Filename.dirname d); Sys.mkdir d 0o755) in
+  let rec rmdir_up d =
+    if d <> "." && (try Sys.rmdir d; true with Sys_error _ -> false) then rmdir_up (Filename.dirname d) in
+  List.iter (fun (f, g) ->
+    if dry then Printf.printf "move %s -> %s\n" f g
+    else (mkdir_p (Filename.dirname g); Sys.rename f g; rmdir_up (Filename.dirname f))) moves;
+  Printf.printf "%d files edited, %d moved\n" !edited (List.length moves)
+
 let () =
   let modules = ref false and cut = ref false in
   let rec split ex target dirs = function
@@ -886,11 +928,15 @@ let () =
         else if code <> 0 then (prerr_string log; exit 1) in go ()
   | [ "drop-unused" ] ->
       Printf.printf "%d removed\n" (drop_unused (In_channel.input_all stdin))
+  | [ "rename"; "--self-test" ] -> rename_self_test ()
+  | [ "rename"; "--dry-run"; old; fresh ] -> rename ~dry:true old fresh
+  | [ "rename"; old; fresh ] -> rename ~dry:false old fresh
   | _ ->
       prerr_endline "usage: codemod (dead-exports | prune [--users-exclude S] [--target ALIAS]) DIR...\n\
                     \       codemod drop-vals FILE.mli NAME... | drop-unused < log\n\
                     \       codemod result-bind FILE.ml | result-bind --self-test\n\
                     \       codemod result-bind --verify BEFORE.ml AFTER.ml PPX.exe\n\
                     \       codemod metal-registry [--audit | --apply | --self-test | --drop-unused-macros]\n\
-                    \       codemod metal-registry --preserve-pools ORIGINAL_BRIDGE.mm";
+                    \       codemod metal-registry --preserve-pools ORIGINAL_BRIDGE.mm\n\
+                    \       codemod rename [--dry-run] OLD NEW | rename --self-test";
       exit 2

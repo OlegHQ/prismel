@@ -1,5 +1,5 @@
-open Prismel
-open Pdk
+open Rays
+open Rdk
 open Procedural
 
 let fail message = raise (Failure message)
@@ -101,9 +101,9 @@ let run () =
   let one = fresh 1 and four = fresh 4 in
   check (equal_geometry one four)
     "PolyCut SOP one/four-domain geometry differs";
-  let one_mesh = Pdk_prismel.Prismel_mesh.to_mesh one |> function
+  let one_mesh = Rdk_rays.Rays_mesh.to_mesh one |> function
     | Ok value -> value | Error error -> fail (Error.to_string error)
-  and four_mesh = Pdk_prismel.Prismel_mesh.to_mesh four |> function
+  and four_mesh = Rdk_rays.Rays_mesh.to_mesh four |> function
     | Ok value -> value | Error error -> fail (Error.to_string error) in
   check (Mesh.Private.packed_view one_mesh = Mesh.Private.packed_view four_mesh)
     "PolyCut SOP one/four-domain render mesh differs";
@@ -123,7 +123,7 @@ let run () =
     [missing_primitive; missing_edge];
   (match Session.cook session ~context:(context 1) invalid with
    | Error error -> check (error.code = "invalid_poly_cut")
-       "PolyCut SOP structured PDK diagnostic"
+       "PolyCut SOP structured RDK diagnostic"
    | Ok _ -> fail "PolyCut SOP accepted invalid crossing storage");
   Session.close session;
   print_endline "PolyCut SOP tests passed"

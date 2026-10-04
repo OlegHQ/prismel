@@ -1,10 +1,10 @@
 (rule
  (target sketch_source.ml)
- (deps sketch.plisp)
+ (deps sketch.rays)
  (action (chdir %{workspace_root}
-  (with-stdout-to %{target} (run %{bin:prismel-plisp} source %{dep:sketch.plisp})))))
+  (with-stdout-to %{target} (run %{bin:rays-plisp} source %{dep:sketch.rays})))))
 
 (executable
  (name main)
  (modules main sketch_source)
- (libraries prismel procedural pdk pdk_prismel sop_catalog sketch_support prismel_editor))
+ (libraries rays procedural rdk rdk_rays sop_catalog sketch_support rays_editor))

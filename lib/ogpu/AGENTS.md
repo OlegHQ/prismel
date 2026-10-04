@@ -1,6 +1,6 @@
 # lib/ogpu rules
 
-OGPU is Prismel's GPU API: modelled on Metal's object model with immediate-mode
+OGPU is Rays's GPU API: modelled on Metal's object model with immediate-mode
 encoders, full capability, and backend-agnostic (plan decision 2). Metal
 (`ogpu_metal`) is the only backend today; a Vulkan backend must be addable
 without changing callers.

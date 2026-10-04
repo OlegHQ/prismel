@@ -1,6 +1,6 @@
 (library
  (name scene_command)
- (public_name prismel.scene_command)
+ (public_name rays.scene_command)
  (modules path render_ir shape2 display_list ui_batch))
 
 (test

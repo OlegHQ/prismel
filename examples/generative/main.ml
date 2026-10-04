@@ -1,4 +1,4 @@
-open Prismel
+open Rays
 
 let update time (frame : Frame.t) =
   if Frame.has_event
@@ -49,7 +49,7 @@ let () =
        ~config:{ Sketch.default_config with
          width = 500;
          height = 500;
-         title = "Prismel generative sketch";
+         title = "Rays generative sketch";
        }
        ~init:(fun _ -> 0.)
        ~update ~view ())

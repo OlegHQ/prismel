@@ -3,7 +3,7 @@
    goes up; Tab reparents keeping its world position, [h] hides; scene edits
    never re-cook SOPs; [Space e] opens the World, which then bakes; [Space l] then
    [l], [t] or [g] shows the graph panel's list, text or graph (the workspace's scene graph). *)
-open Prismel
+open Rays
 open Procedural
 
 let fail message = raise (Failure message)
@@ -17,7 +17,7 @@ let frame ?(mouse = 450, 320) ?(events = []) ?(keys = []) ?(buttons = []) count 
   mouse_delta = 0., 0.; keys; mouse_buttons = buttons; events;
 }
 
-module E = Prismel_editor.Editor3
+module E = Rays_editor.Editor3
 
 (* geo1 (one box), two lights, a camera, a World of sky, softbox and constellation *)
 let text = {|(workspace scene_tree
@@ -39,7 +39,7 @@ let contains text piece =
 
 (* the workspace text is the truth of every scene edit: what the list, the inspector, the
    handles and the World keys did is in it, and it opens as the same scene *)
-let source env = Prismel_editor.Workspace_doc.to_text (E.workspace env)
+let source env = Rays_editor.Workspace_doc.to_text (E.workspace env)
 let labelled env =
   let graph = E.scene_document env in
   List.sort compare (List.map (fun (info : Edit_graph.node_info) ->
@@ -54,8 +54,8 @@ let run () =
       ~lens:{ aperture = 0.3; focus_distance = None }
       ~max_entries:4 ~max_payload_bytes:(16 * 1024 * 1024)
       ~prepare:(fun _ output -> Atomic.incr cooks;
-        Pdk_prismel.Prismel_mesh.to_mesh output.Session.geometry
-        |> Result.map_error Pdk.Error.to_string)
+        Rdk_rays.Rays_mesh.to_mesh output.Session.geometry
+        |> Result.map_error Rdk.Error.to_string)
       ~scene3:(fun _ mesh -> Scene3.create [Scene3.mesh mesh]) () |> Result.get_ok in
   let count = ref 0 in
   let step ?mouse ?keys ?buttons env events =
@@ -107,7 +107,7 @@ let run () =
   let env = step env [key Input.Space; char 'l'; char 'l'] in
   let env = step env [] in
   let projection env =
-    let directory = Filename.temp_dir "prismel-flow-view" "" in
+    let directory = Filename.temp_dir "rays-flow-view" "" in
     Fun.protect ~finally:(fun () ->
       Array.iter (fun file -> Sys.remove (Filename.concat directory file))
         (Sys.readdir directory);
@@ -186,7 +186,7 @@ let run () =
     else select_up name (step env [key Input.ArrowUp]) (tries - 1) in
   let env = select_up "geo1" env 8 in
   let env = step env [] in
-  (match Sys.getenv_opt "PRISMEL_UI_PREVIEW" with
+  (match Sys.getenv_opt "RAYS_UI_PREVIEW" with
    | None -> ()
    | Some directory ->
        Sketch.export ~directory ~prefix:"scene-inspector" ~frames:1
@@ -325,8 +325,8 @@ let run () =
   (* what was written opens as the same scene *)
   let reopened = E.create ~await:true ~workspace:(Ws_fixture.of_text (source env))
     ~lens:{ aperture = 0.3; focus_distance = None }
-    ~prepare:(fun _ output -> Pdk_prismel.Prismel_mesh.to_mesh output.Session.geometry
-      |> Result.map_error Pdk.Error.to_string)
+    ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh output.Session.geometry
+      |> Result.map_error Rdk.Error.to_string)
     ~scene3:(fun _ mesh -> Scene3.create [Scene3.mesh mesh]) () |> Result.get_ok in
   check (labelled reopened = labelled env) "the saved text does not open as the edited scene";
   E.close reopened;
@@ -354,9 +354,9 @@ let run () =
     let env = E.create ~await:true ~workspace ~domains ~grain:16 ~max_entries:4
         ~max_payload_bytes:(16 * 1024 * 1024)
         ~prepare:(fun _ output ->
-          let points = Pdk.Geometry.positions output.Session.geometry in
-          Ok (Digest.string (String.concat "," (List.init (Pdk.Packed.Float3.length points)
-            (fun index -> let x, y, z = Pdk.Packed.Float3.get points index in
+          let points = Rdk.Geometry.positions output.Session.geometry in
+          Ok (Digest.string (String.concat "," (List.init (Rdk.Packed.Float3.length points)
+            (fun index -> let x, y, z = Rdk.Packed.Float3.get points index in
               Printf.sprintf "%h %h %h" x y z)))))
         ~scene3:(fun _ _ -> Scene3.create []) () |> Result.get_ok in
     let env = E.update env (frame 0) in
@@ -373,8 +373,8 @@ let run_host () =
   let lights = [ Light.directional ~direction:(Vec3.create (-1.) (-1.) (-1.)) ~diffuse:Color.white () ] in
   let open_text text =
     E.create ~await:true ~lights ~world:World.default ~workspace:(Ws_fixture.of_text text)
-      ~prepare:(fun _ output -> Pdk_prismel.Prismel_mesh.to_mesh output.Session.geometry
-        |> Result.map_error Pdk.Error.to_string)
+      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh output.Session.geometry
+        |> Result.map_error Rdk.Error.to_string)
       ~scene3:(fun _ mesh -> Scene3.create [Scene3.mesh mesh]) () |> Result.get_ok in
   let count = ref 0 in
   let step ?keys env events = incr count; E.update env (frame ?keys ~events !count) in
@@ -390,7 +390,7 @@ let run_host () =
       else if tries = 0 then fail ("no list row named " ^ name ^ " among " ^ String.concat "," (names env))
       else select (step env [ key Input.ArrowDown ]) (tries - 1) in
     step (select (step env [ key Input.Home ]) 8) [ key Input.Delete ] in
-  let source env = Prismel_editor.Workspace_doc.to_text (E.workspace env) in
+  let source env = Rays_editor.Workspace_doc.to_text (E.workspace env) in
   let env = step (open_text "(workspace host (graph g :context sop (sop/box)))") [] in
   check (names env = List.sort compare [ "camera1"; "g"; "light1"; "world" ])
     ("the host did not seed its camera, light and World: " ^ String.concat "," (names env));

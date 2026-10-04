@@ -1,7 +1,7 @@
 open Metal
 let fail error=failwith(Format.asprintf"%a"pp_error error)
 let get=function Ok x->x|Error e->fail e
-let cycles=match Sys.getenv_opt"PRISMEL_METAL_PRESENTATION_CYCLES"with
+let cycles=match Sys.getenv_opt"RAYS_METAL_PRESENTATION_CYCLES"with
 |None->10_000|Some value->let n=int_of_string value in if n<=0 then invalid_arg"presentation cycles"else n
 let run () =match Device.system_default()with
 |Error _->print_endline"metal presentation lifecycle: skipped (no device)"

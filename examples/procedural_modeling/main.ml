@@ -1,7 +1,7 @@
 (* Procedural modeling: three small SOP chains (sweep a curve, group and
    extrude tiles, copy a prototype onto randomized points) cooked once into
    meshes. examples/sop_gallery shows the wider node catalog. *)
-open Prismel
+open Rays
 open Procedural
 
 type model = {
@@ -24,65 +24,65 @@ let graphs () =
     |> Sop.resample ~maximum_segment_length:0.08
          ~curve_u_attribute:"curveu" ~tangent_attribute:"curve_tangent"
     |> Sop.sweep_circle ~sides:12 ~radius:0.16
-    |> Sop.polyframe ~orthogonal:true (Pdk.Polyframe.Attribute_gradient "uv")
-    |> Sop.set_color ~owner:Pdk.Attribute.Point (Color.hex_exn "#22d3ee")
+    |> Sop.polyframe ~orthogonal:true (Rdk.Polyframe.Attribute_gradient "uv")
+    |> Sop.set_color ~owner:Rdk.Attribute.Point (Color.hex_exn "#22d3ee")
   and tiles =
     Sop.grid ~columns:4 ~rows:3 ~size:2.8 ()
     |> Sop.mountain ~seed:222 ~height:0.16
          ~frequency:(Vec3.create 1.2 0.8 1.2) ~octaves:4
     |> Sop.group_random ~seed:221 ~probability:0.1
-         ~owner:Pdk.Group_ops.Group_points ~name:"growth_seeds"
+         ~owner:Rdk.Group_ops.Group_points ~name:"growth_seeds"
     |> Sop.group_edge_depth ~depth:1 ~point_group:"growth_seeds"
          ~name:"growth_points"
     |> Sop.peak ~selection:(Sop.Point_group "growth_points") ~distance:0.015
          ~recompute_normals:true
     |> Sop.group_random ~seed:223 ~probability:0.42
-         ~owner:Pdk.Group_ops.Group_primitives ~name:"raised_tiles"
+         ~owner:Rdk.Group_ops.Group_primitives ~name:"raised_tiles"
     |> Sop.group_bounds ~base:"raised_tiles"
-         ~containment:Pdk.Group_ops.Partially_contained
-         (Pdk.Group_ops.Bounds_sphere { center = Vec3.zero; radius = 1.35 })
-         ~owner:Pdk.Group_ops.Group_primitives ~name:"raised_tiles"
+         ~containment:Rdk.Group_ops.Partially_contained
+         (Rdk.Group_ops.Bounds_sphere { center = Vec3.zero; radius = 1.35 })
+         ~owner:Rdk.Group_ops.Group_primitives ~name:"raised_tiles"
     |> Sop.group_normal ~use_existing_normal:false ~base:"raised_tiles"
          ~direction:Vec3.unit_y
-         ~spread_angle:(Float.pi /. 3.) ~owner:Pdk.Group_ops.Group_primitives
+         ~spread_angle:(Float.pi /. 3.) ~owner:Rdk.Group_ops.Group_primitives
          ~name:"raised_tiles"
-    |> Sop.group_backface ~merge:Pdk.Group_ops.Group_subtract
+    |> Sop.group_backface ~merge:Rdk.Group_ops.Group_subtract
          ~viewpoint:(Vec3.create 0. 4. 5.) ~name:"raised_tiles"
     |> Sop.peak ~selection:(Sop.Primitive_group "raised_tiles") ~distance:0.04
     |> Sop.poly_extrude ~group:"raised_tiles"
-         ~divide:Pdk.Poly_extrude.Extrude_connected_components ~divisions:3
+         ~divide:Rdk.Poly_extrude.Extrude_connected_components ~divisions:3
          ~front_group:"tile_fronts" ~side_group:"tile_sides"
          ~front_boundary_group:"tile_rims" ~distance:0.28
     |> Sop.facet ~unique_points:true ~post_compute_normals:true
-    |> Sop.measure ~total_name:"tile_surface_area" Pdk.Analysis.Area
-    |> Sop.set_color ~owner:Pdk.Attribute.Point (Color.hex_exn "#fb7185")
+    |> Sop.measure ~total_name:"tile_surface_area" Rdk.Analysis.Area
+    |> Sop.set_color ~owner:Rdk.Attribute.Point (Color.hex_exn "#fb7185")
     |> Sop.transform (Mat4.translation (Vec3.create 1.5 0. 0.))
   and copies =
-    let prototype = Sop.box ~connectivity:Pdk.Box_generator.Box_quads
+    let prototype = Sop.box ~connectivity:Rdk.Box_generator.Box_quads
         ~consolidate_points:true ~size:(Vec3.create 0.28 0.62 0.2) ()
         |> Sop.facet ~cusp_angle:0.6 ~post_compute_normals:true
-        |> Sop.set_color ~owner:Pdk.Attribute.Point (Color.hex_exn "#facc15") in
+        |> Sop.set_color ~owner:Rdk.Attribute.Point (Color.hex_exn "#facc15") in
     let targets = Array.init 18 (fun index ->
       let angle = float_of_int index *. 0.72 in
       (2.4 *. cos angle, 0.35 +. (float_of_int index *. 0.12),
        2.4 *. sin angle)) in
     Sop.copy_to_points ~source:prototype
       ~targets:(Sop.points targets
-        |> Sop.attribute_randomize ~seed:301 ~owner:Pdk.Attribute.Point
-             ~name:"pscale" (Pdk.Attribute_ops.Random_custom_discrete [
-               Pdk.Attribute_ops.Scalar 0.45, 1.;
-               Pdk.Attribute_ops.Scalar 0.65, 3.;
-               Pdk.Attribute_ops.Scalar 0.9, 1.;
+        |> Sop.attribute_randomize ~seed:301 ~owner:Rdk.Attribute.Point
+             ~name:"pscale" (Rdk.Attribute_ops.Random_custom_discrete [
+               Rdk.Attribute_ops.Scalar 0.45, 1.;
+               Rdk.Attribute_ops.Scalar 0.65, 3.;
+               Rdk.Attribute_ops.Scalar 0.9, 1.;
              ])
-        |> Sop.attribute_randomize ~seed:302 ~owner:Pdk.Attribute.Point
+        |> Sop.attribute_randomize ~seed:302 ~owner:Rdk.Attribute.Point
              ~direction_bias:0.8 ~name:"orient"
-             (Pdk.Attribute_ops.Random_direction {
-               direction = Pdk.Attribute_ops.Vec4 (0., 0., 0., 1.);
+             (Rdk.Attribute_ops.Random_direction {
+               direction = Rdk.Attribute_ops.Vec4 (0., 0., 0., 1.);
                cone_angle = Float.pi *. 0.8;
              })) ()
     |> Sop.connectivity ~name:"copy_piece"
-         ~attribute:(Pdk.Analysis.Connectivity_text "copy_")
-    |> Sop.groups_from_name ~owner:Pdk.Attribute.Primitive
+         ~attribute:(Rdk.Analysis.Connectivity_text "copy_")
+    |> Sop.groups_from_name ~owner:Rdk.Attribute.Primitive
          ~attribute:"copy_piece"
   in
   [tube; tiles; copies]
@@ -117,5 +117,5 @@ let on_stop model = Session.close model.session
 let () =
   ignore (Sketch.run_state
     ~config:{ Sketch.default_config with width = 960; height = 640;
-      title = "Prismel Procedural Modeling" }
+      title = "Rays Procedural Modeling" }
     ~init ~update ~view ~on_stop ())

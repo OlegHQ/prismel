@@ -313,17 +313,17 @@ table (`flow.md` §11.10) and does not replace it. Generated from
 
 *Why it is ambiguous.* A sketch is compiled at build time, and the running editor then changes the program. Saving into source, keeping a separate document, and refusing edits are all defensible. When the Lisp lived inside main.ml, saving meant splicing a string literal.
 
-*Proposed rule.* The file is the source. A sketch is sketches/<name>/sketch.plisp, with no OCaml wrapper. Save (⌘S) rewrites that file atomically with the comment-preserving printer, but only when its digest equals the digest the binary was built from. Otherwise edits are saved as a document preset (an s-expression: the same text plus layout and settings) and the status bar says why. The editor also reloads the file when it changes on disk.
+*Proposed rule.* The file is the source. A sketch is sketches/<name>/sketch.rays, with no OCaml wrapper. Save (⌘S) rewrites that file atomically with the comment-preserving printer, but only when its digest equals the digest the binary was built from. Otherwise edits are saved as a document preset (an s-expression: the same text plus layout and settings) and the status bar says why. The editor also reloads the file when it changes on disk.
 
-*In the study.* Every case shows its .plisp file and the generated dune stanza (the button on each case study).
+*In the study.* Every case shows its .rays file and the generated dune stanza (the button on each case study).
 
 ## O2
 
 **How do OCaml values enter a sketch?**
 
-*Why it is ambiguous.* Antiquotation, such as $(petals), makes the text uncheckable on its own and cannot be edited back from the graph. A pure .plisp sketch has no OCaml at all.
+*Why it is ambiguous.* Antiquotation, such as $(petals), makes the text uncheckable on its own and cannot be edited back from the graph. A pure .rays sketch has no OCaml at all.
 
-*Proposed rule.* No antiquotation. Graph inputs are the interface. A .plisp sketch runs its inputs at their defaults. An OCaml host loads a .plisp with Workspace.load and overrides inputs through Workspace_program.with_inputs, which checks names and types at run time. The editor shows an overridden input as driven from OCaml. Generated typed input records (a [%workspace] PPX) are deferred until OCaml hosts need them.
+*Proposed rule.* No antiquotation. Graph inputs are the interface. A .rays sketch runs its inputs at their defaults. An OCaml host loads a .rays with Workspace.load and overrides inputs through Workspace_program.with_inputs, which checks names and types at run time. The editor shows an overridden input as driven from OCaml. Generated typed input records (a [%workspace] PPX) are deferred until OCaml hosts need them.
 
 ## O3
 
@@ -331,7 +331,7 @@ table (`flow.md` §11.10) and does not replace it. Generated from
 
 *Why it is ambiguous.* dune build runs the checker on the file, which sees literals but not driven counts or geometry sizes.
 
-*Proposed rule.* Build time (prismel-plisp check, run by the generated dune rule): syntax, names, arity, keywords, types (both if branches, loop bodies typed once), shadowing, recursion, literal loop bounds, E_TIME_COUNT, E_TIME_BRANCH and unknown literal groups (warnings are errors). Run time: driven counts over the bound, the step budget, nonfinite math and missing assets. Every diagnostic is printed as File "…sketch.plisp", line L, characters A-B, so dune and editors jump to it.
+*Proposed rule.* Build time (rays-plisp check, run by the generated dune rule): syntax, names, arity, keywords, types (both if branches, loop bodies typed once), shadowing, recursion, literal loop bounds, E_TIME_COUNT, E_TIME_BRANCH and unknown literal groups (warnings are errors). Run time: driven counts over the bound, the step budget, nonfinite math and missing assets. Every diagnostic is printed as File "…sketch.rays", line L, characters A-B, so dune and editors jump to it.
 
 ## O4
 

@@ -148,14 +148,14 @@ let source_scene3_header =
   {|#include <metal_stdlib>
 using namespace metal;
 struct Out { float4 position [[position]];
-#ifdef PRISMEL_POINTS
+#ifdef RAYS_POINTS
 float point_size [[point_size]];
 #endif
 float4 color; float2 uv; float3 world; float3 normal; };
 inline float scene_double(const device uchar *p){uint lo=*reinterpret_cast<const device uint*>(p);uint hi=*reinterpret_cast<const device uint*>(p+4);ulong bits=(ulong(hi)<<32)|ulong(lo);float sign=(hi>>31)==0?1.:-1.;int exponent=int((bits>>52)&0x7fful);ulong fraction=bits&0xffffffffffffful;if(exponent==0)return sign*ldexp(float(fraction)/4503599627370496.,-1022);return sign*ldexp(1.+float(fraction)/4503599627370496.,exponent-1023);}
 inline float4 scene_mul(const device float *m,float4 v){return float4(dot(v,float4(m[0],m[1],m[2],m[3])),dot(v,float4(m[4],m[5],m[6],m[7])),dot(v,float4(m[8],m[9],m[10],m[11])),dot(v,float4(m[12],m[13],m[14],m[15])));}
 vertex Out scene_vertex(uint i [[vertex_id]],uint instance_id [[instance_id]],const device uchar *input [[buffer(0)]],const device float *surface [[buffer(6)]],const device float *instances [[buffer(7)]]){const device uchar*p=input+i*68;const device float*transform=surface[83]>.5?instances+instance_id*48:surface;Out v;float4 local=float4(scene_double(p),scene_double(p+8),scene_double(p+16),1.);float4 normal=float4(scene_double(p+24),scene_double(p+32),scene_double(p+40),0.);v.world=scene_mul(transform+16,local).xyz;v.normal=normalize(scene_mul(transform+32,normal).xyz);v.position=scene_mul(transform,local);
-#ifdef PRISMEL_POINTS
+#ifdef RAYS_POINTS
 v.point_size=1.;
 #endif
 v.color=unpack_unorm4x8_to_float(*reinterpret_cast<const device uint*>(p+48)).abgr;v.uv=float2(scene_double(p+52),scene_double(p+60));return v;}
@@ -339,7 +339,7 @@ let create_renderer ?device ~offscreen ~driver ~configuration () =
               };
             ] )
       | Scene3 | Scene3_stencil -> (source_scene3, [])
-      | Scene3_points -> ("#define PRISMEL_POINTS\n" ^ source_scene3, [])
+      | Scene3_points -> ("#define RAYS_POINTS\n" ^ source_scene3, [])
       | Scene3_textured | Scene3_textured_stencil ->
           ( source_scene3_textured,
             [
@@ -545,7 +545,7 @@ let reveal window =
   let* () = Sdl3.Window.center window in
   Sdl3.Window.sync window
 
-let create ?(vsync = true) ?(hidden = true) ?(title = "Prismel") ~width ~height () =
+let create ?(vsync = true) ?(hidden = true) ?(title = "Rays") ~width ~height () =
   let op = "Runtime.create" in
   if width <= 0 || height <= 0 then
     Error (Ogpu.Error.make op Invalid_argument "dimensions must be positive")
@@ -619,7 +619,7 @@ let offscreen_facts ~logical_width ~logical_height ~width ~height =
     pixel_scale_y = float height /. float logical_height;
   }
 
-let create_offscreen ?device ?(title = "Prismel") ~logical_width ~logical_height ~width ~height
+let create_offscreen ?device ?(title = "Rays") ~logical_width ~logical_height ~width ~height
     () =
   let op = "Runtime.create_offscreen" in
   if width <= 0 || height <= 0 || logical_width <= 0 || logical_height <= 0 then

@@ -73,5 +73,5 @@ val sha256 : string -> string
 
 val catalog_digest : Procedural.Edit_graph.factory list -> string
 (** {!sha256} of the manifest text the catalog generates (with {!descriptors}),
-    or of its error: what a [.plisp] binary compares against the catalog it
+    or of its error: what a [.rays] binary compares against the catalog it
     runs with. *)

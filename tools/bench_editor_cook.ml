@@ -1,8 +1,8 @@
 (* Run unchanged for the before/after comparison; prepare copies 10k points
    for each of two objects while only object 1's transform changes. *)
-open Prismel
+open Rays
 open Procedural
-module Cook = Prismel_editor.Private.Cook
+module Cook = Rays_editor.Private.Cook
 
 let frame : Frame.t = {
   width = 100; height = 100; size = 100, 100;
@@ -14,9 +14,9 @@ let measure () =
   let prepares = Atomic.make 0 and prepare_bytes = Atomic.make 0. in
   let prepare _ (output : Session.output) =
     let before = Gc.allocated_bytes () in
-    let positions = Pdk.Geometry.positions output.geometry in
-    let packed = Array.init (Pdk.Packed.Float3.length positions * 3) (fun component ->
-      let x, y, z = Pdk.Packed.Float3.get positions (component / 3) in
+    let positions = Rdk.Geometry.positions output.geometry in
+    let packed = Array.init (Rdk.Packed.Float3.length positions * 3) (fun component ->
+      let x, y, z = Rdk.Packed.Float3.get positions (component / 3) in
       match component mod 3 with 0 -> x | 1 -> y | _ -> z) in
     Atomic.set prepare_bytes (Atomic.get prepare_bytes +. Gc.allocated_bytes () -. before);
     Atomic.incr prepares;
@@ -31,7 +31,7 @@ let measure () =
     let still = network 2 source in
     let step objects =
       let update = Cook.update
-        !cook ~settings:Prismel_editor.Settings.none ~objects
+        !cook ~settings:Rays_editor.Settings.none ~objects
         ~edit_error:None ~effects:Parameter.no_effects ~timeline_changes:[]
         ~timeline ~frame ~frame_request:None in
       cook := update.cook; update.prepared_changed in

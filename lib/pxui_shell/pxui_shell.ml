@@ -1,4 +1,4 @@
-open Prismel
+open Rays
 
 module Layout = struct
   type panel = Editor_core.Panels.panel =
@@ -274,9 +274,9 @@ module Chrome = struct
               for i = 1 to 4 do
                 let g = float (i * 3) in
                 Ui.Paint.rect paint ~x:(float hx -. g) ~y:(float hy -. g +. 4.) ~w:(float hw +. 2. *. g)
-                  ~h:(float hh +. h +. 2. *. g) ~fill:(Prismel.Color.rgba 34 43 43 7) ()
+                  ~h:(float hh +. h +. 2. *. g) ~fill:(Rays.Color.rgba 34 43 43 7) ()
               done;
-              Ui.Paint.rect paint ~x ~y ~w ~h ~fill:(Prismel.Color.blend theme.input theme.panel ~pct:0.5)
+              Ui.Paint.rect paint ~x ~y ~w ~h ~fill:(Rays.Color.blend theme.input theme.panel ~pct:0.5)
                 ~stroke:(Pxui.Theme.edge theme) ()
             end else Ui.Paint.fill paint ~x ~y ~w ~h theme.panel;
             Ui.Paint.fill paint ~x:(x +. 1.) ~y:(y +. 1.) ~w:(w -. 2.) ~h:1. (Pxui.Theme.sheen theme)))
@@ -662,7 +662,7 @@ module Prompt = struct
   let macro ui ~key ~title ~literals ~free (m : macro) =
     Pxui.Ui.modal ui ~width:480. key (fun () ->
       (* Enter in one of its fields creates the macro, like the button *)
-      let enter = Pxui.Ui.text_input_focused ui && Pxui.Ui.key_pressed ui Prismel.Input.Enter in
+      let enter = Pxui.Ui.text_input_focused ui && Pxui.Ui.key_pressed ui Rays.Input.Enter in
       Pxui.Ui.label ui title;
       Pxui.Ui.inspector_message ui ~key:(key ^ "-hint")
         (match free with
@@ -684,7 +684,7 @@ module Tree = struct
   module Ids = Set.Make (Int)
 
   type row = { id : int; depth : int; label : string; detail : string;
-               badge : string * Prismel.Color.t;
+               badge : string * Rays.Color.t;
                link : bool; ghost : bool; flags : bool list }
   type drop = Before | Inside | After
   type intent =
@@ -722,7 +722,7 @@ module Tree = struct
     let open Editor_core.Keymap in
     let key ?(modifiers = []) id label key action = Editor_core.Command.make
         ~id:("list." ^ id) ~label ~trigger:(Chord (key, modifiers)) action in
-    let open Prismel.Input in
+    let open Rays.Input in
     [ key "up" "previous row" ArrowUp Up; key "down" "next row" ArrowDown Down;
       key "up" "previous row" (KeyChar 'k') Up; key "down" "next row" (KeyChar 'j') Down;
       key "extend-up" "extend selection up" ArrowUp Extend_up ~modifiers:[Shift];
@@ -841,7 +841,7 @@ module Tree = struct
   (* The row list, its toggle columns, and the filter and rename prompts,
      built inside [Ui.frame]. One box takes every pointer gesture; rows are
      found from the pointer, so only the visible slice is painted. *)
-  let update t ui (_frame : Prismel.Frame.t) ~bounds:(x, y, w, h) ?(title = "") ~columns rows
+  let update t ui (_frame : Rays.Frame.t) ~bounds:(x, y, w, h) ?(title = "") ~columns rows
       ~selected =
     let theme = Ui.theme ui in
     let height = float_of_int (Ui.row_height ui) in
@@ -880,7 +880,7 @@ module Tree = struct
     let flag k column = match List.nth_opt (at k).flags column with
       | Some value -> value | None -> false in
     let is_selected id = List.mem id selected in
-    let left = signal.button = Some Prismel.Input.LeftButton in
+    let left = signal.button = Some Rays.Input.LeftButton in
     let modifier key = List.mem key (Ui.press_keys ui box) in
     (* Presses: select, start a row drag or a toggle paint. *)
     let t, intents = if not (signal.pressed && left) then t, [] else
@@ -903,18 +903,18 @@ module Tree = struct
                [Flag { ids; column; value }]
            | _ ->
                let selection =
-                 if modifier Prismel.Input.Shift then
+                 if modifier Rays.Input.Shift then
                    let anchor = Option.value ~default:k
                        (Option.bind t.anchor (position rows shown)) in
                    row.id :: List.filter (( <> ) row.id) (span rows shown anchor k)
-                 else if modifier Prismel.Input.Meta || modifier Prismel.Input.Ctrl then
+                 else if modifier Rays.Input.Meta || modifier Rays.Input.Ctrl then
                    if is_selected row.id then List.filter (( <> ) row.id) selected
                    else row.id :: selected
                  else if is_selected row.id then
                    row.id :: List.filter (( <> ) row.id) selected
                  else [row.id] in
                { t with focus = Some row.id;
-                 anchor = (if modifier Prismel.Input.Shift then t.anchor else Some row.id);
+                 anchor = (if modifier Rays.Input.Shift then t.anchor else Some row.id);
                  drag = if row.ghost then None
                    else Some (Rows { ids = selection; moved = false }) },
                [Select selection]) in
@@ -1039,7 +1039,7 @@ module Tree = struct
         let badge_x = indent row.depth +. 14. in
         let letter, tint = if row.link then "↳", Pxui.Theme.muted theme else row.badge in
         Ui.Paint.fill paint ~x:badge_x ~y:(row_y +. 4.) ~w:18. ~h:(height -. 8.) tint;
-        Ui.Paint.text paint ~color:Prismel.Color.white
+        Ui.Paint.text paint ~color:Rays.Color.white
           ~at:(badge_x +. 9. -. (Ui.Paint.text_width paint letter /. 2.), text_y) letter;
         let label_x = badge_x +. 24. in
         let hidden = match row.flags with shown :: _ -> not shown | [] -> false in

@@ -1,4 +1,4 @@
-open Prismel
+open Rays
 
 type settings = { seed:int; palette:int; bend:float; scale:float;
   slope:float; spread:float; glow:float; softness:float;

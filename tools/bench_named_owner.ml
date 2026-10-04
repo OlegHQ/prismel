@@ -1,6 +1,6 @@
 (* Actual named-pane selection lookup, while navigation stays at Scene. *)
-open Prismel
-module E = Prismel_editor.Editor3
+open Rays
+module E = Rays_editor.Editor3
 
 let frame mouse events count : Frame.t = {
   width = 900; height = 640; size = 900, 640;
@@ -15,8 +15,8 @@ let run objects =
     Printf.bprintf source "(graph g%d :context sop (let* [box (sop/box)] box))\n" i
   done;
   Printf.bprintf source "(graph editor :context editor (ui/workspace (ui/graph \"g%d\"))))" (objects - 1);
-  let workspace = Prismel_editor.Workspace.load (Buffer.contents source) |> Result.get_ok in
-  let presets = Filename.temp_dir "prismel-owner-bench" "" in
+  let workspace = Rays_editor.Workspace.load (Buffer.contents source) |> Result.get_ok in
+  let presets = Filename.temp_dir "rays-owner-bench" "" in
   let e = ref (E.create ~workspace ~presets ~domains:1 ~await:true
     ~prepare:(fun _ _ -> Ok ()) ~scene3:(fun _ () -> Scene3.empty) () |> Result.get_ok) in
   Fun.protect ~finally:(fun () -> E.close !e) (fun () ->

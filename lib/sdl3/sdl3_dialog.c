@@ -17,12 +17,12 @@ typedef struct {
   char *strings;
   char *default_location;
   /* written by the callback, read after the acquire load of DONE */
-  prismel_dialog_outcome_kind outcome;
+  rays_dialog_outcome_kind outcome;
   char *payload;
   size_t payload_length;
 } dialog_slot;
 
-static dialog_slot dialog_slots[PRISMEL_DIALOG_SLOTS];
+static dialog_slot dialog_slots[RAYS_DIALOG_SLOTS];
 static int next_dialog_id = 1;
 
 static void release_buffers(dialog_slot *slot)
@@ -42,7 +42,7 @@ static void release_buffers(dialog_slot *slot)
 static void fail(dialog_slot *slot, const char *message)
 {
   size_t length = strlen(message);
-  slot->outcome = PRISMEL_OUTCOME_FAILED;
+  slot->outcome = RAYS_OUTCOME_FAILED;
   slot->payload = (char *)malloc(length + 1);
   if (slot->payload != NULL) {
     memcpy(slot->payload, message, length + 1);
@@ -50,14 +50,14 @@ static void fail(dialog_slot *slot, const char *message)
   }
 }
 
-void *prismel_dialog_reserve(const char *const *names,
+void *rays_dialog_reserve(const char *const *names,
     const char *const *patterns, int count, const char *default_location,
     int *id)
 {
   dialog_slot *slot = NULL;
   size_t strings_length = 0;
   int index;
-  for (index = 0; index < PRISMEL_DIALOG_SLOTS && slot == NULL; index++) {
+  for (index = 0; index < RAYS_DIALOG_SLOTS && slot == NULL; index++) {
     int expected = DIALOG_FREE;
     if (atomic_compare_exchange_strong(
             &dialog_slots[index].state, &expected, DIALOG_OPEN)) {
@@ -74,7 +74,7 @@ void *prismel_dialog_reserve(const char *const *names,
   slot->default_location = NULL;
   slot->payload = NULL;
   slot->payload_length = 0;
-  slot->outcome = PRISMEL_OUTCOME_CANCELLED;
+  slot->outcome = RAYS_OUTCOME_CANCELLED;
   for (index = 0; index < count; index++) {
     strings_length += strlen(names[index]) + 1 + strlen(patterns[index]) + 1;
   }
@@ -115,14 +115,14 @@ out_of_memory:
   return NULL;
 }
 
-void prismel_dialog_abandon(void *raw)
+void rays_dialog_abandon(void *raw)
 {
   dialog_slot *slot = (dialog_slot *)raw;
   release_buffers(slot);
   atomic_store_explicit(&slot->state, DIALOG_FREE, memory_order_release);
 }
 
-void SDLCALL prismel_dialog_callback(
+void SDLCALL rays_dialog_callback(
     void *raw, const char *const *filelist, int filter)
 {
   dialog_slot *slot = (dialog_slot *)raw;
@@ -134,7 +134,7 @@ void SDLCALL prismel_dialog_callback(
     fail(slot, message != NULL && message[0] != '\0'
         ? message : "the file dialog failed");
   } else if (filelist[0] == NULL) {
-    slot->outcome = PRISMEL_OUTCOME_CANCELLED;
+    slot->outcome = RAYS_OUTCOME_CANCELLED;
   } else {
     for (; filelist[count] != NULL; count++) {
       total += strlen(filelist[count]) + 1;
@@ -154,7 +154,7 @@ void SDLCALL prismel_dialog_callback(
           memcpy(cursor, filelist[index], length);
           cursor += length;
         }
-        slot->outcome = PRISMEL_OUTCOME_CHOSEN;
+        slot->outcome = RAYS_OUTCOME_CHOSEN;
         slot->payload_length = total;
       }
     }
@@ -162,38 +162,38 @@ void SDLCALL prismel_dialog_callback(
   atomic_store_explicit(&slot->state, DIALOG_DONE, memory_order_release);
 }
 
-int prismel_dialog_show(prismel_dialog_kind kind, SDL_Window *window,
+int rays_dialog_show(rays_dialog_kind kind, SDL_Window *window,
     const char *const *names, const char *const *patterns, int count,
     const char *default_location)
 {
   int id = 0;
-  dialog_slot *slot = (dialog_slot *)prismel_dialog_reserve(
+  dialog_slot *slot = (dialog_slot *)rays_dialog_reserve(
       names, patterns, count, default_location, &id);
   if (slot == NULL) return 0;
   switch (kind) {
-  case PRISMEL_DIALOG_OPEN_FILE:
-  case PRISMEL_DIALOG_OPEN_FILES:
-    SDL_ShowOpenFileDialog(prismel_dialog_callback, slot, window,
+  case RAYS_DIALOG_OPEN_FILE:
+  case RAYS_DIALOG_OPEN_FILES:
+    SDL_ShowOpenFileDialog(rays_dialog_callback, slot, window,
         slot->filters, slot->filter_count, slot->default_location,
-        kind == PRISMEL_DIALOG_OPEN_FILES);
+        kind == RAYS_DIALOG_OPEN_FILES);
     break;
-  case PRISMEL_DIALOG_SAVE_FILE:
-    SDL_ShowSaveFileDialog(prismel_dialog_callback, slot, window,
+  case RAYS_DIALOG_SAVE_FILE:
+    SDL_ShowSaveFileDialog(rays_dialog_callback, slot, window,
         slot->filters, slot->filter_count, slot->default_location);
     break;
-  case PRISMEL_DIALOG_OPEN_FOLDER:
-    SDL_ShowOpenFolderDialog(prismel_dialog_callback, slot, window,
+  case RAYS_DIALOG_OPEN_FOLDER:
+    SDL_ShowOpenFolderDialog(rays_dialog_callback, slot, window,
         slot->default_location, false);
     break;
   }
   return id;
 }
 
-bool prismel_dialog_take(prismel_dialog_result *result)
+bool rays_dialog_take(rays_dialog_result *result)
 {
   dialog_slot *found = NULL;
   int index;
-  for (index = 0; index < PRISMEL_DIALOG_SLOTS; index++) {
+  for (index = 0; index < RAYS_DIALOG_SLOTS; index++) {
     dialog_slot *slot = &dialog_slots[index];
     if (atomic_load_explicit(&slot->state, memory_order_acquire) == DIALOG_DONE
         && (found == NULL || slot->id < found->id)) {

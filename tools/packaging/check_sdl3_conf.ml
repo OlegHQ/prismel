@@ -52,7 +52,7 @@ let with_temp_directory prefix f =
   Fun.protect ~finally:(fun () -> remove_directory path) (fun () -> f path)
 
 let command_text program arguments =
-  with_temp_directory "prismel-command-" (fun directory ->
+  with_temp_directory "rays-command-" (fun directory ->
     let stdout_path = Filename.concat directory "stdout" in
     let stderr_path = Filename.concat directory "stderr" in
     let output_flags = [ Unix.O_WRONLY; Unix.O_CREAT; Unix.O_TRUNC ] in
@@ -144,7 +144,7 @@ let validate package minimum =
     fail "%s %s is a development release" package.name
       (version_string pkg_version);
   let versions =
-    with_temp_directory ("prismel-conf-" ^ package.name ^ "-")
+    with_temp_directory ("rays-conf-" ^ package.name ^ "-")
       (fun directory ->
         let source_path = Filename.concat directory "probe.c" in
         let executable = Filename.concat directory "probe" in

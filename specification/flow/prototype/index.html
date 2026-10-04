@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- Prismel Flow prototype: behavioral reference for specification/flow.md.
+<!-- Rays Flow prototype: behavioral reference for specification/flow.md.
      Design artifact only: not product code, not built by Dune, never a web fallback.
      Open this file directly in a browser. Sources: engine.js (model, editor, printer,
      checker) and this page. Keep in sync with the spec; the spec wins on conflict. -->
@@ -8,7 +8,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <link rel="stylesheet" href="font.css">
-<title>Prismel Flow Editor</title>
+<title>Rays Flow Editor</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
@@ -424,8 +424,8 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 1px solid var(--line);
 <div class="wrap">
 <header class="mast">
   <div>
-    <div class="eyebrow">Proposal · Prismel Editor · SOP network · revision 2</div>
-    <h1 style="margin-top:14px">Prismel Flow</h1>
+    <div class="eyebrow">Proposal · Rays Editor · SOP network · revision 2</div>
+    <h1 style="margin-top:14px">Rays Flow</h1>
     <p class="lede">A left-to-right, typed node editor for SOP networks. Geometry runs along a straight trunk, math drives any parameter, every node folds to a point, the same document reads as a graph, a list or Lisp, and sketches can be written as that Lisp and checked at compile time.</p>
   </div>
   <div class="meta">
@@ -447,7 +447,7 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 1px solid var(--line);
     <p>Click the graph. The strip along its bottom is guide mode: it lists the keys that work right now and changes with what you select or point at. Hover anything for a tooltip. <kbd>?</kbd> hides the guide, <kbd>Space</kbd> opens the leader, <kbd>Space</kbd> <kbd>l</kbd> switches between graph, list and text.</p>
   </div>
   <div class="app">
-    <div class="app-top"><span class="lights" aria-hidden="true"><i></i><i></i><i></i></span><b>Prismel Editor</b><span>sketches/terrain/main.ml</span><span class="grow"></span><span id="hero-status"></span></div>
+    <div class="app-top"><span class="lights" aria-hidden="true"><i></i><i></i><i></i></span><b>Rays Editor</b><span>sketches/terrain/main.ml</span><span class="grow"></span><span id="hero-status"></span></div>
     <div class="app-body">
       <section class="pane gpane" aria-label="Graph pane">
         <header class="pane-head"><b>Network</b><div class="projsw" id="projsw" role="group" aria-label="View"><button data-proj="graph" aria-pressed="true">Graph</button><button data-proj="list" aria-pressed="false">List</button><button data-proj="text" aria-pressed="false">Text</button></div><span><kbd>Space</kbd> <kbd>l</kbd></span><span class="grow"></span><span>read-only text</span></header>
@@ -460,7 +460,7 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 1px solid var(--line);
     </div>
     <div class="app-foot"><span>Undo <kbd>⌘Z</kbd></span><span>Box select: drag on empty canvas</span><span>Pan: right-drag or Alt-drag</span><span>Zoom: pinch, trackpad scroll or wheel</span></div>
   </div>
-  <p class="app-note">In Prismel Editor these are the three columns (view, graph, inspector). Here the view sits above the inspector so the graph gets room. Nothing on this page is saved.</p>
+  <p class="app-note">In Rays Editor these are the three columns (view, graph, inspector). Here the view sits above the inspector so the graph gets room. Nothing on this page is saved.</p>
   <div class="drills" aria-live="polite">
     <div class="drills-head"><b>Drills: do each once and the keys start to stick</b><span id="drill-count"></span></div>
     <ol id="drills"></ol>
@@ -613,7 +613,7 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 1px solid var(--line);
   <span class="num">Three views</span>
   <h2>Graph, list and text of one document</h2>
   <div class="prose">
-    <p>Prismel Editor already has a list projection behind <kbd>Space</kbd> <kbd>l</kbd>. The proposal makes it a cycle of three. All three share the selection, the inspector, undo and the display flag, so you can find a node in the list, edit it in the inspector and see the text change without the graph ever moving. Try it with the switch in the prototype's pane header.</p>
+    <p>Rays Editor already has a list projection behind <kbd>Space</kbd> <kbd>l</kbd>. The proposal makes it a cycle of three. All three share the selection, the inspector, undo and the display flag, so you can find a node in the list, edit it in the inspector and see the text change without the graph ever moving. Try it with the switch in the prototype's pane header.</p>
   </div>
   <div class="views">
     <div><h3>Graph</h3><p>For wiring, reading flow and shaping density. Everything on this page. Default view.</p></div>
@@ -629,7 +629,7 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 1px solid var(--line);
     <p>Node verbs act on the <b>selection</b>; row verbs (<kbd>=</kbd> <kbd>e</kbd> <kbd>r</kbd> <kbd>s</kbd>) act on the row under the <b>pointer</b>, so you point and press without clicking into anything. <kbd>Tab</kbd> reads the context: with a node selected it appends after it and ripples the trunk right, with a wire selected it inserts on the wire, with nothing selected it adds at the pointer. <kbd>.</kbd> repeats the last add. Letter hints (<kbd>c</kbd>, <kbd>b</kbd>) label every compatible target with one or two letters, nearest first, so you never aim at a 9-point socket.</p>
     <p><b>Guide mode</b> is how the grammar becomes muscle memory. It has four parts, all driven by the same Command table so they never drift from the real bindings:</p>
     <ul>
-      <li><b>Context strip</b> along the bottom of the pane, listing only the keys that apply to what is selected or under the pointer (canvas, node, value node, compound, wire, row, list, text, leader, hints). In Prismel Editor this is the status bar.</li>
+      <li><b>Context strip</b> along the bottom of the pane, listing only the keys that apply to what is selected or under the pointer (canvas, node, value node, compound, wire, row, list, text, leader, hints). In Rays Editor this is the status bar.</li>
       <li><b>Tooltips</b> after a short dwell on any socket, row, field, wire, bend point or node header, saying what it is and what you can do to it.</li>
       <li><b>Which-key</b> after <kbd>Space</kbd>, as today, listing the leader's next keys.</li>
       <li><b>Key sheet</b> with <kbd>Space</kbd> <kbd>k</kbd>, plus a HUD that echoes each key you press with its command label. <kbd>?</kbd> turns the strip and tooltips off once you know them.</li>
@@ -749,13 +749,13 @@ Error: rings has no parameter :cuont. Did you mean :count?</span></pre>
     <p>The SOP network, the scene graph, compounds and every later level want the same thing: typed ports, stable ids, drives, a context and a text form. The context-free part is a new library, <code>flow</code>. The SOP context adds it as an overlay on top of the unchanged <code>Edit_graph</code>, so cooking and caching keep working at every milestone. Presentation stays intent-only, as <code>pxui_graph</code> is today.</p>
   </div>
   <div class="stack">
-    <div class="lay"><code>prismel_editor</code><span class="pill chg">changed</span><span>Keys, guide strip in the status bar, graph/list/text cycle, the value lane before each cook submission, World key remap.</span></div>
+    <div class="lay"><code>rays_editor</code><span class="pill chg">changed</span><span>Keys, guide strip in the status bar, graph/list/text cycle, the value lane before each cook submission, World key remap.</span></div>
     <div class="lay"><code>pxui_graph</code><span class="pill chg">changed</span><span>Left-to-right canvas over the unified network (SOP nodes plus value nodes), levels, polyline wires, rows with sockets. Still emits typed requests only.</span></div>
     <div class="lay"><code>pxui_shell</code><span class="pill chg">changed</span><span><code>Inspector</code> gains card pins, vec3 rows and drive display; <code>Status_bar</code> hosts the guide strip.</span></div>
     <div class="lay"><code>editor_document</code><span class="pill chg">changed</span><span>Each network carries a Flow overlay (value nodes, drives, definitions) and a layout record. Presets move to version 3.</span></div>
     <div class="lay"><code>flow_sop</code><span class="pill new">new</span><span>The <code>sop</code> context: network overlay over an unchanged <code>Edit_graph</code>, value lane, compound inlining, canonical printer, program builder used by <code>[%flow]</code>.</span></div>
     <div class="lay"><code>flow</code><span class="pill new">new</span><span>Context-free core: symbols, port types, <code>Expr</code>, value kinds (Time, Value, Math, Combine/Separate XYZ, Remap), value graphs, drives, the s-expression reader, checker and diagnostics. Depends on <code>param</code> only.</span></div>
-    <div class="lay"><code>ppx_prismel</code><span class="pill chg">changed</span><span><code>[@sop.primary]</code>, <code>[@sop.vec3]</code>, <code>[@@sop.node_slots]</code>, and the <code>[%flow]</code> rewriter, which links <code>flow</code> and reads a promoted catalog manifest.</span></div>
+    <div class="lay"><code>ppx_rays</code><span class="pill chg">changed</span><span><code>[@sop.primary]</code>, <code>[@sop.vec3]</code>, <code>[@@sop.node_slots]</code>, and the <code>[%flow]</code> rewriter, which links <code>flow</code> and reads a promoted catalog manifest.</span></div>
     <div class="lay"><code>param</code><span class="pill chg">changed</span><span><code>primary</code> and <code>vec3</code> field metadata. Still dependency-free.</span></div>
     <div class="lay"><code>procedural</code><span class="pill same">unchanged</span><span><code>Edit_graph</code>, cooking and cache keys stay as they are; drives reach nodes through <code>Edit_graph.apply_parameters</code>.</span></div>
   </div>
@@ -779,7 +779,7 @@ Error: rings has no parameter :cuont. Did you mean :count?</span></pre>
 }</pre>
   <h3>Two evaluation lanes</h3>
   <div class="prose">
-    <p>Geometry keeps its path: compile the document, submit to <code>Async_cook</code>, cache by cook key. Values get a small pure lane in front of it. Each frame it evaluates only nodes downstream of a time source or of this frame's edits, compares each resolved row with last frame's, and applies the changed ones. An unchanged value leaves the cook key alone, so nothing re-cooks. A drive that reads <code>t</code> marks its consumer time-dependent through <code>Context.Dependencies</code>, which is how time-driven recooks are scheduled today. Each milestone reports <code>tools/bench_prismel_editor.exe 200 1000 2000</code> before and after; no numbers are claimed here.</p>
+    <p>Geometry keeps its path: compile the document, submit to <code>Async_cook</code>, cache by cook key. Values get a small pure lane in front of it. Each frame it evaluates only nodes downstream of a time source or of this frame's edits, compares each resolved row with last frame's, and applies the changed ones. An unchanged value leaves the cook key alone, so nothing re-cooks. A drive that reads <code>t</code> marks its consumer time-dependent through <code>Context.Dependencies</code>, which is how time-driven recooks are scheduled today. Each milestone reports <code>tools/bench_rays_editor.exe 200 1000 2000</code> before and after; no numbers are claimed here.</p>
   </div>
 </section>
 
@@ -788,12 +788,12 @@ Error: rings has no parameter :cuont. Did you mean :count?</span></pre>
   <h2>Seven milestones, each shippable</h2>
   <div class="plan">
     <div class="m"><b>M1</b><div><h3>Canvas</h3><p>Left to right with the header trunk. Straight wires, bend points, snap. Point, chip, card and full with zoom caps. Box select, drag-over opening.</p></div><div class="done-when"><h4>Done when</h4><ul><li>Existing documents open unchanged and auto-layout left to right</li><li>Levels and bends live in Document layout and undo as one entry per gesture</li><li><code>test_ui_parity</code> fixtures updated on purpose; bench reported</li></ul></div></div>
-    <div class="m"><b>M2</b><div><h3>Grammar and guide</h3><p>Walk, context <kbd>Tab</kbd>, <kbd>.</kbd>, hints, <kbd>o</kbd>/<kbd>p</kbd>/<kbd>⇧P</kbd>, knife, find. Guide strip, tooltips, key sheet. World keys move to free letters.</p></div><div class="done-when"><h4>Done when</h4><ul><li>Every key is a Command entry and shows in which-key, the palette and the guide</li><li><code>test_prismel_editor_logic</code> routes each key window-free</li></ul></div></div>
+    <div class="m"><b>M2</b><div><h3>Grammar and guide</h3><p>Walk, context <kbd>Tab</kbd>, <kbd>.</kbd>, hints, <kbd>o</kbd>/<kbd>p</kbd>/<kbd>⇧P</kbd>, knife, find. Guide strip, tooltips, key sheet. World keys move to free letters.</p></div><div class="done-when"><h4>Done when</h4><ul><li>Every key is a Command entry and shows in which-key, the palette and the guide</li><li><code>test_rays_editor_logic</code> routes each key window-free</li></ul></div></div>
     <div class="m"><b>M3</b><div><h3>Value ports and exposure</h3><p>The <code>flow</code> library. Rows get sockets. Value nodes. The value lane. <code>[@sop.primary]</code>, vec3 ports, the inspector's folders and card pins.</p></div><div class="done-when"><h4>Done when</h4><ul><li>The dependency gate lists <code>flow</code> as foundational with no exceptions</li><li>A wired parameter re-cooks only when its value changes</li><li>One-domain and multi-domain results are byte-identical</li></ul></div></div>
     <div class="m"><b>M4</b><div><h3>Bind and expressions</h3><p><kbd>b</kbd>, <kbd>w</kbd>, <kbd>=</kbd>, fold and unfold, <kbd>r</kbd>.</p></div><div class="done-when"><h4>Done when</h4><ul><li>Fold then unfold is the identity on math-only subtrees (property test)</li><li>Parse errors are typed results shown in the field</li></ul></div></div>
     <div class="m"><b>M5</b><div><h3>Compounds and contexts</h3><p><kbd>⌘G</kbd>, <kbd>i</kbd>/<kbd>u</kbd>, <kbd>e</kbd>, shared definitions with “make unique”. Every level declares its context.</p></div><div class="done-when"><h4>Done when</h4><ul><li>Group, enter and up keep every id, value and cook result</li><li>Each instance cooks under stable compiled ids; no cache sharing between instances is promised</li></ul></div></div>
     <div class="m"><b>M6</b><div><h3>Views and text</h3><p>Graph, list, text cycle. <code>Flow.Sexp</code> printer and reader with the namespace rules. Text view read-only.</p></div><div class="done-when"><h4>Done when</h4><ul><li>Print, read, print is the identity for every catalog node and sketch preset</li><li>Moving, bending or folding a node never changes the text</li></ul></div></div>
-    <div class="m"><b>M7</b><div><h3><code>[%flow]</code></h3><p>The <code>[%flow]</code> rewriter over a promoted catalog manifest, located diagnostics, <code>user/</code> custom nodes. One example sketch written this way.</p></div><div class="done-when"><h4>Done when</h4><ul><li>Each ambiguity rule in the table has an expect-test with its error text</li><li>The example sketch builds, runs finitely under <code>PRISMEL_MAX_FRAMES</code>, and opens in the editor</li></ul></div></div>
+    <div class="m"><b>M7</b><div><h3><code>[%flow]</code></h3><p>The <code>[%flow]</code> rewriter over a promoted catalog manifest, located diagnostics, <code>user/</code> custom nodes. One example sketch written this way.</p></div><div class="done-when"><h4>Done when</h4><ul><li>Each ambiguity rule in the table has an expect-test with its error text</li><li>The example sketch builds, runs finitely under <code>RAYS_MAX_FRAMES</code>, and opens in the editor</li></ul></div></div>
   </div>
   <p class="note">Then the scene graph: objects are already nodes of a scene <code>Edit_graph</code> (input 0 is the parent), so it becomes the <code>scene</code> context with points, keys, compounds, views and text, and no second model.</p>
 </section>
@@ -811,7 +811,7 @@ Error: rings has no parameter :cuont. Did you mean :count?</span></pre>
   </div>
 </section>
 
-<footer>Prismel Flow · proposal, revision 2 · 27 Sep 2026 · the prototype runs the model it describes: typed ports, drives, exposure, vectors, compounds, three views, the printer and the compile-time checker are live code on this page.</footer>
+<footer>Rays Flow · proposal, revision 2 · 27 Sep 2026 · the prototype runs the model it describes: typed ports, drives, exposure, vectors, compounds, three views, the printer and the compile-time checker are live code on this page.</footer>
 </div>
 
 <script>

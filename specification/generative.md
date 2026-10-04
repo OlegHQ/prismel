@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Randomness and coherent noise are basic sketch materials. Prismel keeps them
+Randomness and coherent noise are basic sketch materials. Rays keeps them
 deterministic and explicit so a promising result can be reproduced, tested,
 exported again, and safely calculated across OCaml domains.
 
@@ -58,7 +58,7 @@ silently changing existing results.
 
 ## Determinism contract
 
-For the same Prismel version, seed, inputs, and parameters:
+For the same Rays version, seed, inputs, and parameters:
 
 - `Rand` produces the same sample sequence;
 - `Noise` produces the same field;

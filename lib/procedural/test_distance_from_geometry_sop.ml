@@ -1,5 +1,5 @@
-open Prismel
-open Pdk
+open Rays
+open Rdk
 open Procedural
 
 let fail message = raise (Failure message)
@@ -14,7 +14,7 @@ let contains text pattern =
   pattern = "" || search 0
 
 let source () =
-  let geometry = Pdk.Plane_generators.grid ~columns:220 ~rows:140 ~size:12. () |> function
+  let geometry = Rdk.Plane_generators.grid ~columns:220 ~rows:140 ~size:12. () |> function
     | Ok value -> Transform_ops.transform (Mat4.translation (Vec3.create 0. 1. 0.)) value
     | Error error -> fail (Error.to_string error) in
   let affected = Group.init ~grain:97 ~owner:Group.Point
@@ -23,7 +23,7 @@ let source () =
   Geometry.with_group affected geometry |> Result.get_ok
 
 let reference () =
-  let geometry = Pdk.Uv_sphere.run ~rings:48 ~segments:72 ~radius:4. () |> function
+  let geometry = Rdk.Uv_sphere.run ~rings:48 ~segments:72 ~radius:4. () |> function
     | Ok value -> value | Error error -> fail (Error.to_string error) in
   let primitives = Group.init ~grain:97 ~owner:Group.Primitive
       ~name:"reference_surface" (Geometry.primitive_count geometry) (fun _ -> true) in
@@ -59,9 +59,9 @@ let run () =
       |> Sop.distance_from_geometry ~reference:(Sop.snapshot (reference ()))
            ~affected:(Sop.Point_group "distance_affected")
            ~reference_selection:(Sop.Primitive_group "reference_surface")
-           ~reference_kind:Pdk.Transform_ops.Distance_reference_primitives
-           ~falloff:Pdk.Transform_ops.Soft_cubic
-           ~radius:(Pdk.Transform_ops.Distance_fixed 3.5)
+           ~reference_kind:Rdk.Transform_ops.Distance_reference_primitives
+           ~falloff:Rdk.Transform_ops.Soft_cubic
+           ~radius:(Rdk.Transform_ops.Distance_fixed 3.5)
            ~distance_attribute:(Some "surface_distance") ~mask_attribute:"mask" in
   let parameters = Node.parameters graph in
   check (contains parameters "affected=point:distance_affected"

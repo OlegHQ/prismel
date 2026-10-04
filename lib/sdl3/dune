@@ -25,7 +25,7 @@
 
 (library
  (name sdl3)
- (public_name prismel.sdl3)
+ (public_name rays.sdl3)
  (modules Sdl3 Private_raw)
  (private_modules Private_raw)
  (foreign_stubs
@@ -63,7 +63,7 @@
 
 (rule
  (aliases runtest test_sdl3_failure)
- (action (setenv SDL_VIDEODRIVER prismel_missing_video_driver
+ (action (setenv SDL_VIDEODRIVER rays_missing_video_driver
   (run %{exe:test_main.exe} test_sdl3_failure))))
 
 (rule
@@ -76,5 +76,5 @@
  (locks smoke_window)
  (action
   (setenv SDL_VIDEODRIVER dummy
-   (setenv PRISMEL_SDL3_STRESS_CYCLES 100000
+   (setenv RAYS_SDL3_STRESS_CYCLES 100000
     (run %{exe:test_main.exe} test_sdl3_stress)))))

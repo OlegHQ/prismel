@@ -19,7 +19,7 @@ function initOutline(body){
     liveEdit(f=>{const g=s.dataset.graph===scope?f:null;const form=g||ast.slice(2).find(x=>x[1]===s.dataset.graph);const p=M.paramsOf(form).find(p=>p[0]===s.dataset.param);p[3]=s.dataset.t==='float'?M.mkNum(v,true):Math.round(v);});});
   tree.addEventListener('pointerdown',e=>{const s=e.target.closest('.pslider');if(s)s._pre=snapshot();});
   tree.addEventListener('change',e=>{const s=e.target.closest('.pslider');if(s&&s._pre){past.push(s._pre);future=[];s._pre=null;renderAll();status(`Input ${s.dataset.param} = ${s.value}. This is the default an OCaml caller can override.`);}});
-  tree.addEventListener('dragstart',e=>{const d=e.target.closest('[data-drag]');if(!d)return;e.dataTransfer.setData('text/x-prismel',d.dataset.drag);e.dataTransfer.setData('text/plain',d.dataset.drag);e.dataTransfer.effectAllowed='copy';});
+  tree.addEventListener('dragstart',e=>{const d=e.target.closest('[data-drag]');if(!d)return;e.dataTransfer.setData('text/x-rays',d.dataset.drag);e.dataTransfer.setData('text/plain',d.dataset.drag);e.dataTransfer.effectAllowed='copy';});
 }
 function treeRows(S,sc,depth,out){
   S.nodes.forEach(n=>{

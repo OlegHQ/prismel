@@ -28,7 +28,7 @@ let run () =
   let width=257 and height=129 in
   let pixels=Bytes.init (257*129*4) (fun i->Char.chr((i*37+19) land 255)) in
   let canvas=get(Canvas.create ~width ~height) in
-  let path=Filename.temp_file "prismel-png-rows" ".png" in
+  let path=Filename.temp_file "rays-png-rows" ".png" in
   Fun.protect ~finally:(fun()->Sys.remove path;ignore(Canvas.destroy canvas)) (fun()->
     get(Canvas.replace_pixels canvas pixels);
     let previous=ref None in

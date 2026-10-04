@@ -28,12 +28,12 @@ let sections () = Sop.merge [ring 0. 1.; ring 0.5 0.8; ring 1. 1.1]
 let run () =
   let graph = sections () |> Sop.skin ~output_group:"skin" ~v_wrap:true in
   let output = cook graph in
-  if Pdk.Geometry.point_count output <> 24
-     || Pdk.Geometry.vertex_count output <> 96
-     || Pdk.Geometry.primitive_count output <> 24 then
+  if Rdk.Geometry.point_count output <> 24
+     || Rdk.Geometry.vertex_count output <> 96
+     || Rdk.Geometry.primitive_count output <> 24 then
     fail "Skin SOP cardinality";
-  (match Pdk.Geometry.find_group ~owner:Pdk.Group.Primitive "skin" output with
-   | Some group when Pdk.Group.cardinality group = 24 -> ()
+  (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive "skin" output with
+   | Some group when Rdk.Group.cardinality group = 24 -> ()
    | _ -> fail "Skin SOP output group");
   if Node.operation graph <> "skin" || not (contains (Node.parameters graph)
       "minimize=two_point") then fail "Skin cache identity";

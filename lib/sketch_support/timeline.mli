@@ -10,7 +10,7 @@ type t
 type change = Advanced | Paused_now | Resumed | Stopped_now | Reset_now | Seeked
 
 val create : unit -> t
-val update : t -> Prismel.Frame.t -> t * change list
+val update : t -> Rays.Frame.t -> t * change list
 val toggle_pause : t -> t * change list
 val stop : t -> t * change list
 val reset : t -> t * change list

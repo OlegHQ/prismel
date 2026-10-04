@@ -64,7 +64,7 @@ let run () =
   (match get_ttf (Font.family_name font), get_ttf (Font.style_name font) with
    | Some family, Some style when family <> "" && style <> "" -> ()
    | _ -> fail "borrowed font names were not copied");
-  let width, height = get_ttf (Font.size_text font "Prismel ž") in
+  let width, height = get_ttf (Font.size_text font "Rays ž") in
   if width <= 0 || height <= 0 then fail "UTF-8 text metrics are empty";
   if get_ttf (Font.size_text font "") <> (0, 0) then
     fail "empty text metrics are not a safe no-op";
@@ -84,7 +84,7 @@ let run () =
    | None -> ()
    | Some _ -> fail "empty text allocated a raster");
   let rgba = match get_ttf
-      (Font.render_blended font ~color:(12, 34, 56, 200) "Prismel ž") with
+      (Font.render_blended font ~color:(12, 34, 56, 200) "Rays ž") with
     | Some rgba -> rgba
     | None -> fail "non-empty text did not rasterize"
   in
@@ -94,7 +94,7 @@ let run () =
     fail "CPU glyph rasterization disagrees with text metrics or alpha";
   (* every render owns its buffer *)
   let again = match get_ttf
-      (Font.render_blended font ~color:(12, 34, 56, 200) "Prismel ž") with
+      (Font.render_blended font ~color:(12, 34, 56, 200) "Rays ž") with
     | Some rgba -> rgba | None -> fail "second raster of the same text failed" in
   if again.pixels == rgba.pixels || again.pixels <> rgba.pixels then
     fail "two renders of one text share a buffer or differ";

@@ -1,7 +1,7 @@
 (library
  (name param)
  (modules param)
- (public_name prismel.param))
+ (public_name rays.param))
 
 (test
  (name test_param)

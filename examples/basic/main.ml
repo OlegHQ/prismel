@@ -1,4 +1,4 @@
-open Prismel
+open Rays
 
 type model = {
   phase : float;
@@ -29,6 +29,6 @@ let () =
       ~config:{ Sketch.default_config with
         width = 640;
         height = 360;
-        title = "Prismel basic sketch";
+        title = "Rays basic sketch";
       }
       ~init ~update ~view ())

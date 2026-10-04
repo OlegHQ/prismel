@@ -5,7 +5,7 @@
 not fully done.** Original text: plan of record for review, 30 September 2026. This turns the workspace
 proposal ([iteration.md](iteration.md), [ambiguities.md](ambiguities.md),
 [case-studies.md](case-studies.md), the [study](prototype/index.html)) into
-native Prismel code. It is written for an implementer, human or Codex, to
+native Rays code. It is written for an implementer, human or Codex, to
 execute milestone by milestone. Every milestone lists what to **reuse**,
 the **minimum to build**, what is **skipped** and when to add it, the
 **files and signatures**, the **tests**, and a **done when** gate.
@@ -47,13 +47,13 @@ contract, the milestone names the spec section to update.
 | Bypass | `^:bypass` → `Check.call.bypass` → `Edit.set_bypass` → print, plus `Edit_graph.set_bypass` | as is |
 | Value lane | `Flow_sop.Value_lane.resolve ~time` (scalar drives, per-frame) | `t`-driven parameters |
 | Cooking | `Procedural.Session`, `Async_cook` (latest-request rule, bounded cache, `Parallel.run`) | unchanged, except the cache capacity (W2) |
-| Editor loop | `Core.update` → `Shell.frame` → `Doc.apply` reducer → `History.record ~label`, intents only (`lib/prismel_editor`) | every new gesture is an intent reduced once per frame |
+| Editor loop | `Core.update` → `Shell.frame` → `Doc.apply` reducer → `History.record ~label`, intents only (`lib/rays_editor`) | every new gesture is an intent reduced once per frame |
 | Graph pane | `Pxui_graph` tiles, rows, wires, BVH hit tests, `automatic_layout`, the ƒ fold/unfold rows, `with_applied` | nodes and rows; zones are added on top |
 | Shell | `Pxui_shell.Layout` (fixed three columns), `Tree`, `Inspector.flow_fields`, `Prompt` | W10 replaces only the layout |
-| Presets | `Editor_document.Preset` (JSON), `Editor_core.Store` | s-expression `.plisp` files (W3); no JSON, no older format |
-| PPX | `ppx_prismel` `[%flow]`: reads the manifest, maps spans to OCaml locations, emits `Build.program` | kept for OCaml sketches; `.plisp` files replace it for pure sketches (W11) |
-| Generated-file flow | `flow_manifest.sexp` and `api_stable.json`: a rule regenerates, `runtest` diffs, `dune promote` accepts | `sketches/dune.plisp.inc` (W11) |
-| Groups | `Pdk.Group`, `Group_ops.valid_group_name`, `find_group` | computed group names are plain text |
+| Presets | `Editor_document.Preset` (JSON), `Editor_core.Store` | s-expression `.rays` files (W3); no JSON, no older format |
+| PPX | `ppx_rays` `[%flow]`: reads the manifest, maps spans to OCaml locations, emits `Build.program` | kept for OCaml sketches; `.rays` files replace it for pure sketches (W11) |
+| Generated-file flow | `flow_manifest.sexp` and `api_stable.json`: a rule regenerates, `runtest` diffs, `dune promote` accepts | `sketches/dune.rays.inc` (W11) |
+| Groups | `Rdk.Group`, `Group_ops.valid_group_name`, `find_group` | computed group names are plain text |
 | Provenance ids | scatter/point_generate write point `id` | stable point iteration (W8) |
 
 ### 0.2 Gaps the surveys found (must be fixed or designed around)
@@ -67,13 +67,13 @@ contract, the milestone names the spec section to update.
    - There are no `{}` maps and no quote, backquote or unquote.
    - Vectors must have 3 elements.
 4. **Rendering and cooking.**
-   - `Pdk.Mesh_merge.merge` fails unless all inputs have identical attributes
+   - `Rdk.Mesh_merge.merge` fails unless all inputs have identical attributes
      and groups (`mesh_merge.ml` l.81–120). Loops that group per iteration,
      like the Facade case, cannot merge today.
    - The catalog's `sop/merge` has fixed slots `a b c`, although
      `Sop.merge : Node.t list -> Node.t` is variadic.
    - There is no per-primitive provenance, no triangle-to-primitive map in
-     `Pdk_prismel.to_mesh`, and no ids on `Scene3` nodes. Viewport picking
+     `Rdk_rays.to_mesh`, and no ids on `Scene3` nodes. Viewport picking
      only handles camera markers.
 5. **Catalog mismatches with the proposal.**
    - `sop/set_color` has integer `red green blue alpha` fields and no `group`
@@ -125,25 +125,25 @@ W0  fixes & catalog prerequisites ─┐
 W1  language core (flow)           ├─► W2 lowering & cooking ─► W2b live t ─┬─► W3 document v4 + history ─┬─► W4 graph pane zones ─┬─► W5 probes & footers ─► W6 viewport provenance
                                    │                                        │                             ├─► W7 text editing       └─► W8 geometry-driven loops
                                    │                                        │                             └─► W9 macros UI, notes
-                                   └────────────────────────────────────────┴─► W11 .plisp sketches + dune (needs W1, W2, W2b)
+                                   └────────────────────────────────────────┴─► W11 .rays sketches + dune (needs W1, W2, W2b)
 W10 contexts & composable shell (needs W3, W4)                    W12 migration & removal (last)
 ```
 
 | Milestone | Size | Libraries touched | User-visible result |
 |---|---|---|---|
-| W0 | S | pdk, sop_catalog, prismel_editor | loops can merge grouped pieces; set_color takes a colour and a group |
+| W0 | S | rdk, sop_catalog, rays_editor | loops can merge grouped pieces; set_color takes a colour and a group |
 | W1 | L | flow | the full language checks and prints, tested on the 12 case studies |
 | W2 | L | flow, flow_sop, procedural | workspaces cook; loops are unrolled deterministically |
-| W2b | M | flow, flow_sop, procedural, prismel_editor | `t` animates in real time: live nodes recook each frame, static nodes stay cached; `E_TIME_COUNT`, `E_TIME_BRANCH` |
-| W3 | M | editor_document, prismel_editor, editor_core | the editor opens and saves workspaces (s-expression preset) |
-| W4 | L | pxui_graph, prismel_editor | zones, rails, iteration selectors, λ zones, chips and output rows in the graph |
-| W5 | M | flow, prismel_editor, pxui_graph | values per iteration, sparklines, branch counts, invariant badges |
-| W6 | M | pdk, pdk_prismel, prismel_editor | clicking a shape selects the node and iteration that made it |
-| W7 | M | pxui, pxui_shell, prismel_editor | editable, selection-scoped Lisp with atomic apply |
+| W2b | M | flow, flow_sop, procedural, rays_editor | `t` animates in real time: live nodes recook each frame, static nodes stay cached; `E_TIME_COUNT`, `E_TIME_BRANCH` |
+| W3 | M | editor_document, rays_editor, editor_core | the editor opens and saves workspaces (s-expression preset) |
+| W4 | L | pxui_graph, rays_editor | zones, rails, iteration selectors, λ zones, chips and output rows in the graph |
+| W5 | M | flow, rays_editor, pxui_graph | values per iteration, sparklines, branch counts, invariant badges |
+| W6 | M | rdk, rdk_rays, rays_editor | clicking a shape selects the node and iteration that made it |
+| W7 | M | pxui, pxui_shell, rays_editor | editable, selection-scoped Lisp with atomic apply |
 | W8 | M | procedural, flow_sop | `for` over points and pieces, cached per (path, index) |
-| W9 | S | prismel_editor, pxui_graph | macro lens and make-macro, notes, bypass flag |
-| W10 | L | flow, editor_document, pxui_shell, prismel_editor | scene/world/settings graphs; the editor shell is an editor graph |
-| W11 | M | tools/plisp, flow_sop, prismel_editor | `sketches/<name>/sketch.plisp` compiled by dune, errors at `.plisp` lines, Save and live reload on the file |
+| W9 | S | rays_editor, pxui_graph | macro lens and make-macro, notes, bypass flag |
+| W10 | L | flow, editor_document, pxui_shell, rays_editor | scene/world/settings graphs; the editor shell is an editor graph |
+| W11 | M | tools/plisp, flow_sop, rays_editor | `sketches/<name>/sketch.rays` compiled by dune, errors at `.rays` lines, Save and live reload on the file |
 | W12 | S | sketches, examples, specs | everything migrated; the old single-graph path removed |
 
 One milestone is one PR, or several if it has sub-steps. Merge only on the
@@ -159,21 +159,21 @@ dune build @all && dune runtest && dune build @smoke && git diff --check
 
 ### W0 — Prerequisite fixes (small, independent)
 
-**Reuse.** The existing pdk merge, the catalog PPX attributes and
+**Reuse.** The existing rdk merge, the catalog PPX attributes and
 `Manifest` promotion.
 
 **Build.**
-1. **`Pdk.Mesh_merge.merge` accepts inputs whose group sets differ.**
+1. **`Rdk.Mesh_merge.merge` accepts inputs whose group sets differ.**
    - A group missing from one input becomes an empty group of that owner in
      its section. The rule is a union of group names, with order as first
      seen.
    - Attributes still must match, except a new `~pad_groups:true` default.
    - Detail attributes keep their explicit policy.
-   - File: `lib/pdk/mesh/mesh_merge.ml` (+ `.mli` doc).
+   - File: `lib/rdk/mesh/mesh_merge.ml` (+ `.mli` doc).
    - Test: merge three boxes carrying groups `floor_0`, `floor_1`,
      `floor_2`. Every result group has the right membership bitset.
    - Bench: `tools/bench_*` merge, before and after, recorded in the PR
-     (`lib/pdk/AGENTS.md` requires numbers).
+     (`lib/rdk/AGENTS.md` requires numbers).
 2. **`sop/merge` accepts any number of inputs.** W2 lowers every merge to
    one internal `flow.merge_n` node (`Sop.merge` already takes a list). The
    rest slot (`Rest of string` in `Edit_graph.input_requirement`, manifest
@@ -192,7 +192,7 @@ dune build @all && dune runtest && dune build @smoke && git diff --check
    `case-studies.md` and add aliases only if users complain.
 
 **Tests.**
-- `lib/pdk/mesh/test_mesh_merge*`
+- `lib/rdk/mesh/test_mesh_merge*`
 - `test/test_sop_catalog.ml`: manifest round trip and set_color defaults
 - the 1-domain vs N-domain merge byte test
 
@@ -370,7 +370,7 @@ unroll geometry.**
      performance is correctness).
 6. **Provenance ids for W6.**
    - Every collecting merge passes `~source_attribute:"__flow_src"`. This is
-     a new optional pdk argument that writes the input index per primitive
+     a new optional rdk argument that writes the input index per primitive
      as a prim int attribute; the Mesh_merge change is ~20 lines.
      (W6 refined this: the value is a workspace-wide tag and an input that
      already has it keeps it, so nested merges resolve exactly; see
@@ -389,7 +389,7 @@ unroll geometry.**
 - Evaluation is sequential.
 - Cooking uses `Parallel` as today.
 - New test `test/test_workspace_cook.ml` cooks every sop fixture at 1 and 3
-  domains and compares geometry bytes (`Pdk.Geometry.data_id` equality is
+  domains and compares geometry bytes (`Rdk.Geometry.data_id` equality is
   not enough; compare packed arrays).
 - `value/rand` is `Flow.Eval`'s pure hash. Specify its bit-exact algorithm
   in `iteration.md` §2.2, porting `hash` from `model.js`.
@@ -416,7 +416,7 @@ their benches are recorded.
 
 ---
 
-### W2b — Live evaluation: `t`, per-frame recooks and realtime edits (`flow`, `flow_sop`, `procedural`, `prismel_editor`)
+### W2b — Live evaluation: `t`, per-frame recooks and realtime edits (`flow`, `flow_sop`, `procedural`, `rays_editor`)
 
 The goal is that time-driven workspaces animate in real time: only what
 depends on `t` recooks, and everything else stays cached. The
@@ -425,7 +425,7 @@ implements the rules: it has the ◷ t marks, the live and cached readout,
 and the two errors (`prototype/check.cjs`, "t …" tests).
 
 **What exists and is reused.** The editor already has the whole per-frame
-path for scalar drives (`lib/prismel_editor/cook.ml`):
+path for scalar drives (`lib/rays_editor/cook.ml`):
 
 1. `Sketch_support.Timeline` (play, pause, seek; `Play_pause` in the
    keymap) supplies `time`.
@@ -534,7 +534,7 @@ W2b changes what drives look like. It adds no new per-frame machinery.
    - The status bar shows `cook 23 ms · skipping frames` while that
      happens (the `Status` text already exists).
    - `Sketch.Fixed dt`, `Sketch.export`, and runs under
-     `PRISMEL_MAX_FRAMES` must produce the geometry for exactly frame *n*'s
+     `RAYS_MAX_FRAMES` must produce the geometry for exactly frame *n*'s
      time.
    - Before building, read how `Editor3` export cooks today (`cook.ml`,
      `take_export`). If it goes through `Async_cook`, add
@@ -549,7 +549,7 @@ W2b changes what drives look like. It adds no new per-frame machinery.
      node's downstream cone recooks.
    - A scrub that changes a loop count re-lowers; W2's gate "Bloom lower +
      cook < one frame" covers that.
-   - Live reload of a `.plisp` file (W11) is the same path, triggered by
+   - Live reload of a `.rays` file (W11) is the same path, triggered by
      the file instead of the pointer.
 
 **UI (built in W4/W5, specified here).**
@@ -595,7 +595,7 @@ W2b changes what drives look like. It adds no new per-frame machinery.
 
 ---
 
-### W3 — Document v4 and history (`editor_document`, `prismel_editor`)
+### W3 — Document v4 and history (`editor_document`, `rays_editor`)
 
 **Reuse.**
 - `Editor_core.History.record ~label ~merge`, which already holds whole
@@ -626,9 +626,9 @@ W2b changes what drives look like. It adds no new per-frame machinery.
      `Workspace.path` (at, pinned, rows, bends, wireless) plus `collapsed` and
      `frames`. Keys survive text edits by construction; `Flow_edit.remap`
      rewrites them in the same transaction as a rename or a hoist.
-3. **Presets are s-expressions.** One `.plisp` file: the `(workspace ...)`
+3. **Presets are s-expressions.** One `.rays` file: the `(workspace ...)`
    form with its comments, then optional `(layout ...)`, `(settings ...)` and
-   `(view ...)` forms. `.plisp` sketches (W11) are the same text without the
+   `(view ...)` forms. `.rays` sketches (W11) are the same text without the
    trailing forms.
    - No JSON, no version number, no older format: the v3 reader and writer
      and W0's set_color migration are deleted. Only a workspace document
@@ -659,7 +659,7 @@ W2b changes what drives look like. It adds no new per-frame machinery.
 
 ---
 
-### W4 — Graph pane projection (`pxui_graph`, `prismel_editor`)
+### W4 — Graph pane projection (`pxui_graph`, `rays_editor`)
 
 The graph pane draws the syntax projection: nodes, zones, rails,
 iteration selectors, chips, output rows and λ zones.
@@ -718,7 +718,7 @@ iteration selectors, chips, output rows and λ zones.
      - `Zone_collapsed of {zone : path; collapsed : bool}`
 
      `ponytail:` one edit request, not twenty.
-3. **Prismel_editor.** `Doc.syntax_edit` already handles the pane's `Syntax_edit` (W3).
+3. **Rays_editor.** `Doc.syntax_edit` already handles the pane's `Syntax_edit` (W3).
    The probe is view state (`Core.probes : int Path_map.t`), not document
    data, and not recorded in history.
 
@@ -772,19 +772,19 @@ selectors, and all gestures from W3 are reachable by mouse and keys.
 
 ---
 
-### W6 — Viewport provenance (`pdk_prismel`, `prismel_editor`)
+### W6 — Viewport provenance (`rdk_rays`, `rays_editor`)
 
 **Reuse.**
 - `__flow_src` from W2.
 - The lowering table.
-- `Pdk.Ray` (the kernel exists).
+- `Rdk.Ray` (the kernel exists).
 - Viewport3's pick hook (`handles`).
 
 **Build.**
-1. `Pdk_prismel.to_mesh ?prim_of_triangle:bool` optionally returns `int
+1. `Rdk_rays.to_mesh ?prim_of_triangle:bool` optionally returns `int
    array` mapping each triangle to its primitive.
 2. Click in Viewport3 without a drag:
-   - cast a ray against the displayed mesh (`Pdk.Ray` on the prepared
+   - cast a ray against the displayed mesh (`Rdk.Ray` on the prepared
      geometry) to get the primitive;
    - read `__flow_src` from that primitive;
    - look it up in the table to get `(zone path, iteration tuple)`;
@@ -802,7 +802,7 @@ selectors, and all gestures from W3 are reachable by mouse and keys.
 
 ---
 
-### W7 — Editable text (`pxui`, `pxui_shell`, `prismel_editor`)
+### W7 — Editable text (`pxui`, `pxui_shell`, `rays_editor`)
 
 **Reuse.**
 - `Ui.text_field`'s focus, IME and caret code.
@@ -925,7 +925,7 @@ element key, so an unchanged element is a cache hit.
    - **Recovery.** The host keeps "Restore layout" outside the tree, and a
      failed layout keeps the previous one (register E1).
    - `ponytail:` no OS windows. `Float` is an in-window overlay.
-   - Update `prismel_editor/AGENTS.md`'s "keep the three-column workspace"
+   - Update `rays_editor/AGENTS.md`'s "keep the three-column workspace"
      rule in the same PR: the default editor graph *is* the three-column
      layout.
 
@@ -936,17 +936,17 @@ element key, so an unchanged element is a cache hit.
 
 ---
 
-### W11 — `.plisp` sketches compiled by dune (`tools/plisp`, `flow_sop`, `prismel_editor`)
+### W11 — `.rays` sketches compiled by dune (`tools/plisp`, `flow_sop`, `rays_editor`)
 
-A sketch is one file, `sketches/<name>/sketch.plisp`, holding one
+A sketch is one file, `sketches/<name>/sketch.rays`, holding one
 `(workspace …)` form. It has no `main.ml` and no per-sketch `dune`.
 `dune build` checks it against the catalog, reports errors at lines inside
-the `.plisp` file, and links a native executable. The running editor writes
+the `.rays` file, and links a native executable. The running editor writes
 edits back to the same file.
 
 ```text
-sketches/bloom/sketch.plisp        ← the only file an author writes
-sketches/dune.plisp.inc            ← generated, checked in, kept current by `dune promote`
+sketches/bloom/sketch.rays        ← the only file an author writes
+sketches/dune.rays.inc            ← generated, checked in, kept current by `dune promote`
 _build/default/sketches/bloom/main.ml   ← generated per build, never checked in
 ```
 
@@ -966,26 +966,26 @@ _build/default/sketches/bloom/main.ml   ← generated per build, never checked i
 
 **Build.**
 
-1. **`tools/plisp/plisp.ml`**, an executable with `(public_name prismel-plisp)`
-   in package `prismel`. It links `flow`, `flow_sop` and `sop_catalog`, so it
+1. **`tools/plisp/plisp.ml`**, an executable with `(public_name rays-plisp)`
+   in package `rays`. It links `flow`, `flow_sop` and `sop_catalog`, so it
    uses the in-process catalog and never reads the manifest file. Three
    subcommands, with no dependency beyond `Stdlib` and `Arg`:
-   - **`prismel-plisp check FILE…`** parses, expands macros and checks each
+   - **`rays-plisp check FILE…`** parses, expands macros and checks each
      file. It prints diagnostics in the OCaml compiler's format, so dune,
      editors and compilation modes jump to the line:
      ```text
-     File "sketches/bloom/sketch.plisp", line 6, characters 17-24:
+     File "sketches/bloom/sketch.rays", line 6, characters 17-24:
      Error [E_UNKNOWN_NODE]: sop/circel is not in the catalog; did you mean sop/circle?
      ```
      It exits 1 on any error. Warnings are errors, as for OCaml (`AGENTS.md`),
      unless the file has `^:allow-warnings` on its `workspace` form.
-   - **`prismel-plisp ml FILE`** runs `check`, then prints `main.ml` to
+   - **`rays-plisp ml FILE`** runs `check`, then prints `main.ml` to
      stdout:
      ```ocaml
-     (* generated by prismel-plisp from sketches/bloom/sketch.plisp; do not edit *)
+     (* generated by rays-plisp from sketches/bloom/sketch.rays; do not edit *)
      let () =
-       Prismel_editor.Workspace.main
-         ~path:"sketches/bloom/sketch.plisp"
+       Rays_editor.Workspace.main
+         ~path:"sketches/bloom/sketch.rays"
          ~digest:"<sha256 of the source text>"
          ~catalog:"<Sop_catalog manifest digest>"
          {plisp_7f3a|…source text, verbatim…|plisp_7f3a}
@@ -996,18 +996,18 @@ _build/default/sketches/bloom/main.ml   ← generated per build, never checked i
      - The text is embedded verbatim, not re-printed, so comments and
        layout survive. `Workspace.main` re-parses it at startup in low
        milliseconds (register O4, and see the risk row in §5).
-   - **`prismel-plisp dune DIR`** scans `DIR/*/sketch.plisp` in sorted order
+   - **`rays-plisp dune DIR`** scans `DIR/*/sketch.rays` in sorted order
      and prints the include file:
      ```dune
-     ; generated by prismel-plisp dune sketches; accept changes with dune promote
+     ; generated by rays-plisp dune sketches; accept changes with dune promote
      (subdir bloom
       (rule
        (target main.ml)
-       (deps sketch.plisp (glob_files *.png) (glob_files *.ttf))
-       (action (with-stdout-to %{target} (run %{bin:prismel-plisp} ml sketch.plisp))))
-      (executable (name main) (modules main) (libraries prismel_editor))
+       (deps sketch.rays (glob_files *.png) (glob_files *.ttf))
+       (action (with-stdout-to %{target} (run %{bin:rays-plisp} ml sketch.rays))))
+      (executable (name main) (modules main) (libraries rays_editor))
       (rule (alias smoke-all)
-       (action (setenv PRISMEL_MAX_FRAMES 120 (run ./main.exe)))))
+       (action (setenv RAYS_MAX_FRAMES 120 (run ./main.exe)))))
      ```
      - The `glob_files` deps cover assets next to the sketch, so assets
        rebuild with it. The asset extensions are whatever
@@ -1019,27 +1019,27 @@ _build/default/sketches/bloom/main.ml   ← generated per build, never checked i
    and `examples/` if examples adopt it):
    ```dune
    ; sketches/dune
-   (include dune.plisp.inc)
+   (include dune.rays.inc)
    (rule
-    (target dune.plisp.inc.gen)
-    (deps (glob_files_rec sketch.plisp))
-    (action (with-stdout-to %{target} (run %{bin:prismel-plisp} dune .))))
-   (rule (alias runtest) (action (diff dune.plisp.inc dune.plisp.inc.gen)))
+    (target dune.rays.inc.gen)
+    (deps (glob_files_rec sketch.rays))
+    (action (with-stdout-to %{target} (run %{bin:rays-plisp} dune .))))
+   (rule (alias runtest) (action (diff dune.rays.inc dune.rays.inc.gen)))
    ```
-   - Adding a sketch means creating `sketches/foo/sketch.plisp` and then
+   - Adding a sketch means creating `sketches/foo/sketch.rays` and then
      running `dune build @runtest; dune promote`. The same flow is already
      documented for `flow_manifest.sexp`.
-   - A bootstrap `dune.plisp.inc` is checked in empty. Dune requires an
+   - A bootstrap `dune.rays.inc` is checked in empty. Dune requires an
      included file to exist.
    - Check early: `subdir` targets a source directory that has no `dune`
      file of its own, and `glob_files_rec` needs lang 3.0 or later (the
      repo is on 3.17). Both are supported, but W11's first commit must
      prove them on one sketch before generating the rest.
    - Existing OCaml sketches keep their own `dune` files. The generator only
-     lists directories that contain `sketch.plisp` and no `dune`. A
+     lists directories that contain `sketch.rays` and no `dune`. A
      directory with both is an error that names the file to delete.
 
-3. **`Prismel_editor.Workspace`**, a new module with an `.mli`:
+3. **`Rays_editor.Workspace`**, a new module with an `.mli`:
    ```ocaml
    val main :
      path:string -> digest:string -> catalog:string -> string -> unit
@@ -1067,7 +1067,7 @@ _build/default/sketches/bloom/main.ml   ← generated per build, never checked i
      stale plan data. That cannot happen in one dune build, but it can for a
      copied binary.
 
-4. **Save writes the `.plisp` file** (register O1). No OCaml literal splicing
+4. **Save writes the `.rays` file** (register O1). No OCaml literal splicing
    is needed.
    - At startup, `main` looks for the source file: it walks up from the
      executable's directory, and then the working directory, to the first
@@ -1088,25 +1088,25 @@ _build/default/sketches/bloom/main.ml   ← generated per build, never checked i
    the frame loop.
    - When the mtime and digest change, it re-parses and re-checks.
    - On success it replaces the document as one history entry,
-     "Reload sketch.plisp", keeping probes and layout by path id.
+     "Reload sketch.rays", keeping probes and layout by path id.
    - On failure it keeps the last good document and shows the diagnostics
      in the text tab and the status bar.
    - Save from the editor updates the remembered digest first, so its own
      writes do not reload.
-   - This is the loop the format exists for: edit the `.plisp` in any text
+   - This is the loop the format exists for: edit the `.rays` in any text
      editor, and the graph and viewport follow without rebuilding.
    - `ponytail:` it polls rather than using `inotify` or `FSEvents` (no new
      dependency). The ceiling is one `stat` per 500 ms. Add native file
      events when watching many files.
 
-6. **`prismel-plisp fmt FILE`** prints the canonical text with the W1
+6. **`rays-plisp fmt FILE`** prints the canonical text with the W1
    printer. That is the same text Save writes, so a hand-formatted file and
    an editor-saved file converge. `ponytail:` it is not wired into
-   `dune fmt`. Add that when `.plisp` files are reviewed in PRs often
+   `dune fmt`. Add that when `.rays` files are reviewed in PRs often
    enough that format diffs hurt.
 
 7. **Scaffolding.** `tools/new_example.exe -- --plisp <name>` writes
-   `sketches/<name>/sketch.plisp` from the Bloom fixture, then prints the
+   `sketches/<name>/sketch.rays` from the Bloom fixture, then prints the
    `dune build @runtest; dune promote` step.
 
 **Skipped, and when to add it.**
@@ -1114,9 +1114,9 @@ _build/default/sketches/bloom/main.ml   ← generated per build, never checked i
 | Skipped | Add when |
 |---|---|
 | `[%workspace]` PPX and generated typed input records | an OCaml host needs Lisp and OCaml in one file, or overrides inputs often enough that run-time name errors hurt. `Workspace.run` with `with_inputs` covers the rest. |
-| Several sketches or OCaml callbacks per `.plisp` | a case needs host code. It then becomes an OCaml sketch that calls `Workspace.load` on its `.plisp` (with a `(rule (alias runtest) (action (run %{bin:prismel-plisp} check x.plisp)))`). |
+| Several sketches or OCaml callbacks per `.rays` | a case needs host code. It then becomes an OCaml sketch that calls `Workspace.load` on its `.rays` (with a `(rule (alias runtest) (action (run %{bin:rays-plisp} check x.rays)))`). |
 | Compiling Lisp to OCaml | measurement shows the plan interpreter too slow (O4, §4). |
-| An LSP or syntax highlighting | `.plisp` is s-expressions, so any Lisp mode highlights it. `check` output already drives compilation-mode jumps. |
+| An LSP or syntax highlighting | `.rays` is s-expressions, so any Lisp mode highlights it. `check` output already drives compilation-mode jumps. |
 | Hot reload of changed catalog code | never at run time. Rebuilding is the answer. |
 
 **Tests.**
@@ -1129,7 +1129,7 @@ _build/default/sketches/bloom/main.ml   ← generated per build, never checked i
 - A dune test (`test/plisp_build/`, a `cram` test with `(using directory-targets)`
   already enabled) builds a temp project containing:
   - one valid sketch, which must build;
-  - one with a typo, which must fail with the `.plisp` line.
+  - one with a typo, which must fail with the `.rays` line.
 - `Workspace.main` tests:
   - digest match enables Save;
   - digest mismatch falls back to a preset;
@@ -1137,10 +1137,10 @@ _build/default/sketches/bloom/main.ml   ← generated per build, never checked i
   - reload keeps probes by path id;
   - a failed reload keeps the last good document.
 - All twelve `specification/workspace/cases/*.lisp` fixtures (W1) are copied
-  to `sketches/ws_<case>/sketch.plisp` and run under `@smoke-all`.
+  to `sketches/ws_<case>/sketch.rays` and run under `@smoke-all`.
 
 **Done when.**
-- `sketches/ws_bloom/sketch.plisp` is the only authored file for that
+- `sketches/ws_bloom/sketch.rays` is the only authored file for that
   sketch.
 - A typo in it fails `dune build` at the right line.
 - `dune build @smoke-all` runs it.
@@ -1152,7 +1152,7 @@ _build/default/sketches/bloom/main.ml   ← generated per build, never checked i
 ### W12 — Migration and removal
 
 1. Port sketches that are only a `[%flow]` graph plus an `Editor3.run` call
-   (for example `sketches/flow_terrain`) to `sketches/<name>/sketch.plisp`,
+   (for example `sketches/flow_terrain`) to `sketches/<name>/sketch.rays`,
    deleting their `main.ml` and `dune`. Keep `[%flow]` for OCaml sketches
    that mix host code, as sugar: a single `graph` payload becomes
    `(workspace <name> <graph>)`.
@@ -1161,8 +1161,8 @@ _build/default/sketches/bloom/main.ml   ← generated per build, never checked i
    - `Check.program`'s single-graph path, once `[%flow]` is sugar.
 3. Update the docs:
    - `flow.md`: status, §8.3, §11 pointer, §17.
-   - `api.md`: `.plisp` sketches, `prismel-plisp`, `Workspace.main`, `Workspace.load`, `Workspace.run`.
-   - `AGENTS.md`: the sketch layout (`sketches/<name>/sketch.plisp`), and the `dune promote` step for `dune.plisp.inc`.
+   - `api.md`: `.rays` sketches, `rays-plisp`, `Workspace.main`, `Workspace.load`, `Workspace.run`.
+   - `AGENTS.md`: the sketch layout (`sketches/<name>/sketch.rays`), and the `dune promote` step for `dune.rays.inc`.
    - `tools/new_example`: document `--plisp`.
    - `backend.md`: the gate, if boundaries changed.
    - `pxui.md`: `text_area` and the layout tree.
@@ -1181,13 +1181,13 @@ _build/default/sketches/bloom/main.ml   ← generated per build, never checked i
 | static pass of `compile` | `Flow.Workspace.check` | error texts copied from the study |
 | run pass (`ev`, `evZone`, `evCall`, HOFs) | `Flow.Eval` | value-only in W2; geometry calls become the plan |
 | `checkMacro`, `expand*` | `Flow.Macro` | |
-| 3D kernel and `sop/*` ops | **not ported** | Prismel has pdk; the study kernel is an illustration only |
+| 3D kernel and `sop/*` ops | **not ported** | Rays has rdk; the study kernel is an illustration only |
 | `e1.js` edit primitives | `Flow_sop.Flow_edit` | pure; port the tests |
 | `e1.js` `buildView` / `argRows` | `Flow_sop.Projection` | |
 | `e2.js` layout and paint | `Pxui_graph` | Pxui boxes and lines; no DOM |
 | `e3.js` shell | `Pxui_shell.Layout` tree (W10) | |
 | `e3.js` renderer | **not ported** | Metal renders; only picking ideas carry over (W6) |
-| `e4.js` inspector, Lisp panel, navigator | `prismel_editor` panes | |
+| `e4.js` inspector, Lisp panel, navigator | `rays_editor` panes | |
 | `register.js` | tests | each rule is one test |
 
 ---
@@ -1222,7 +1222,7 @@ _build/default/sketches/bloom/main.ml   ← generated per build, never checked i
 | Pixel parity breaks with new theme tokens | Add tokens only; the parity fixtures gain a zone panel; review PNG diffs |
 | The dependency gate: `Flow_edit` / `Projection` needing UI | Both live in `flow_sop` and are UI-free by construction; the gate test enforces it |
 | Merge padding changes existing geometry | Padding only adds empty groups when inputs differ; existing merges with identical schemas produce identical bytes (tested) |
-| Startup cost of re-parsing the embedded `.plisp` text | Measure; parse + check of the Bloom fixture is expected in the low milliseconds. Switch to data emission only if measured |
+| Startup cost of re-parsing the embedded `.rays` text | Measure; parse + check of the Bloom fixture is expected in the low milliseconds. Switch to data emission only if measured |
 | dune `subdir` or `glob_files_rec` behaving differently than expected for generated sketch stanzas | W11's first commit proves the wiring on one sketch before generating the rest; fallback is a two-line checked-in `dune` per sketch, still with no OCaml |
 | Live nodes churn the Session cache during playback | W2b's volatile single-slot policy, asserted by Session `stats` in the Orrery playback test |
 | Playback slower than the frame | Latest-request cooking already skips frames without blocking; W2b's bench records p50/p99 per phase so the slow phase is known, not guessed |
@@ -1242,8 +1242,8 @@ _build/default/sketches/bloom/main.ml   ← generated per build, never checked i
 2. One milestone per PR. Keep each commit green.
 3. Use the repo skills:
    - `implement-flow-milestone` for flow and pxui_graph work;
-   - `add-pdk-op` and `add-sop` for W0;
-   - `extend-prismel-editor` for editor changes;
+   - `add-rdk-op` and `add-sop` for W0;
+   - `extend-rays-editor` for editor changes;
    - `focused-test` while iterating;
    - `promote-manifests` after `.mli` changes;
    - `smoke` for native checks;

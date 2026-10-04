@@ -1,18 +1,18 @@
 (* Studio table rendered by the Metal ray-tracing path tracer.
    Drag with the left mouse button to orbit, scroll to dolly.
-   PRISMEL_PATHTRACER_FRAMES=N runs a finite smoke; PRISMEL_PATHTRACER_PNG=path
+   RAYS_PATHTRACER_FRAMES=N runs a finite smoke; RAYS_PATHTRACER_PNG=path
    saves the final frame. *)
-open Prismel
-module P = Prismel_pathtracer
+open Rays
+module P = Rays_pathtracer
 let rgb = P.Linear_color.rgb
 
 let v = Vec3.create
-let pdk = function Ok g -> g | Error e -> failwith (Pdk.Error.to_string e)
+let rdk = function Ok g -> g | Error e -> failwith (Rdk.Error.to_string e)
 
 (* Seven tumbling matte cubes over a dark cyclorama. Edges are rounded by the
    render-time round-corners shader, not by geometry. *)
 let cube ~at ~rotation ~size =
-  pdk (Pdk.Box_generator.box ~center:at ~rotation ~size:(v size size size) ())
+  rdk (Rdk.Box_generator.box ~center:at ~rotation ~size:(v size size size) ())
 
 let concrete shade =
   P.material ~roughness:0.62 ~round:0.045 (rgb shade (shade *. 1.03) (shade *. 1.1))
@@ -29,7 +29,7 @@ let cubes =
 let scene =
   { P.objects =
       List.map (fun (at, rotation, shade) -> (cube ~at ~rotation ~size:1.05, concrete shade)) cubes
-      @ [ (pdk (Pdk.Box_generator.box ~center:(v 0. (-0.1) 0.) ~size:(v 400. 0.2 400.) ()),
+      @ [ (rdk (Rdk.Box_generator.box ~center:(v 0. (-0.1) 0.) ~size:(v 400. 0.2 400.) ()),
            P.material ~roughness:0.8 (rgb 0.16 0.165 0.18)) ]
   ; spheres = []; strands = []; environment =
       { sky = rgb 0.008 0.010 0.014; ground = rgb 0.002 0.002 0.003
@@ -48,10 +48,10 @@ let camera m =
 
 let width, height = 480, 840
 let env name default of_string = Option.value ~default (Option.bind (Sys.getenv_opt name) of_string)
-let frames = env "PRISMEL_PATHTRACER_FRAMES" 0 int_of_string_opt
-let spp = env "PRISMEL_PATHTRACER_SPP" 1 int_of_string_opt
+let frames = env "RAYS_PATHTRACER_FRAMES" 0 int_of_string_opt
+let spp = env "RAYS_PATHTRACER_SPP" 1 int_of_string_opt
 (* Render-resolution multiplier over the logical window: 2 fills a Retina drawable. *)
-let render_scale = env "PRISMEL_PATHTRACER_SCALE" 1. float_of_string_opt
+let render_scale = env "RAYS_PATHTRACER_SCALE" 1. float_of_string_opt
 let started = Unix.gettimeofday ()
 
 let init _ =
@@ -77,7 +77,7 @@ let update m (frame : Frame.t) =
     Option.iter (fun path ->
       match Canvas.save_screen_png path with
       | Ok () -> Printf.printf "saved %s\n%!" path
-      | Error e -> prerr_endline e) (Sys.getenv_opt "PRISMEL_PATHTRACER_PNG");
+      | Error e -> prerr_endline e) (Sys.getenv_opt "RAYS_PATHTRACER_PNG");
     let w, h = P.size m.tracer in
     Printf.printf "%dx%d  %d frames  %d spp  %.1f ms/frame\n%!" w h frames (P.samples m.tracer)
       ((Unix.gettimeofday () -. started) *. 1000. /. float frames);
@@ -93,5 +93,5 @@ let view m (frame : Frame.t) =
 
 let () =
   ignore (Sketch.run_state
-    ~config:{ Sketch.default_config with width; height; title = "Prismel path tracer"; resizable = false }
+    ~config:{ Sketch.default_config with width; height; title = "Rays path tracer"; resizable = false }
     ~init ~update ~view ~on_stop:(fun m -> P.destroy m.tracer) ())

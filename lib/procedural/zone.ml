@@ -2,7 +2,7 @@ type kind = Points | Pieces
 
 type element = {
   index : int; key : int; position : float * float * float;
-  piece : Pdk.Geometry.t option; digest : string;
+  piece : Rdk.Geometry.t option; digest : string;
 }
 
 let max_elements = 4096
@@ -15,10 +15,10 @@ let keys owner count name geometry =
   match name with
   | None -> by_index
   | Some name ->
-      match Option.map Pdk.Attribute.storage
-          (Pdk.Geometry.find_attribute ~owner name geometry) with
-      | Some (Pdk.Attribute.Int values) when Array.length values = count -> values
-      | Some (Pdk.Attribute.Float values) when Array.length values = count ->
+      match Option.map Rdk.Attribute.storage
+          (Rdk.Geometry.find_attribute ~owner name geometry) with
+      | Some (Rdk.Attribute.Int values) when Array.length values = count -> values
+      | Some (Rdk.Attribute.Float values) when Array.length values = count ->
           Array.map (fun v -> int_of_float (Float.floor v)) values
       | _ -> by_index
 
@@ -28,12 +28,12 @@ let order keys =
   order
 
 let digest geometry =
-  let view = Pdk.Topology.Private.view (Pdk.Geometry.topology geometry) in
-  let positions = Pdk.Packed.Float3.Private.view (Pdk.Geometry.positions geometry) in
+  let view = Rdk.Topology.Private.view (Rdk.Geometry.topology geometry) in
+  let positions = Rdk.Packed.Float3.Private.view (Rdk.Geometry.positions geometry) in
   let attributes = List.map (fun attribute ->
-    Pdk.Attribute.name attribute, Pdk.Attribute.owner attribute,
-    Pdk.Attribute.kind_name attribute, Pdk.Attribute.length attribute)
-    (Pdk.Geometry.attributes geometry) in
+    Rdk.Attribute.name attribute, Rdk.Attribute.owner attribute,
+    Rdk.Attribute.kind_name attribute, Rdk.Attribute.length attribute)
+    (Rdk.Geometry.attributes geometry) in
   Digest.string (Marshal.to_string
     (view.vertex_points, view.primitive_offsets, view.primitive_kinds,
      positions.x, positions.y, positions.z, attributes) [])
@@ -41,28 +41,28 @@ let digest geometry =
 let elements kind ?key geometry =
   match kind with
   | Points ->
-      let count = Pdk.Geometry.point_count geometry in
+      let count = Rdk.Geometry.point_count geometry in
       if count > max_elements then too_many "points" count else
-      let positions = Pdk.Geometry.positions geometry in
-      let keys = keys Pdk.Attribute.Point count key geometry in
+      let positions = Rdk.Geometry.positions geometry in
+      let keys = keys Rdk.Attribute.Point count key geometry in
       Ok (Array.mapi (fun index source ->
-        { index; key = keys.(source); position = Pdk.Packed.Float3.get positions source;
+        { index; key = keys.(source); position = Rdk.Packed.Float3.get positions source;
           piece = None; digest = "" }) (order keys))
   | Pieces ->
-      let count = Pdk.Geometry.primitive_count geometry in
-      let keys = keys Pdk.Attribute.Primitive count key geometry in
+      let count = Rdk.Geometry.primitive_count geometry in
+      let keys = keys Rdk.Attribute.Primitive count key geometry in
       let distinct = List.sort_uniq compare (Array.to_list keys) in
       let pieces = List.length distinct in
       if pieces > max_elements then too_many "pieces" pieces else
       let rank = Hashtbl.create (max 1 pieces) in
       List.iteri (fun i k -> Hashtbl.replace rank k i) distinct;
       let assignment = Array.map (Hashtbl.find rank) keys in
-      let parts = Pdk.Deletion.primitive_partitions ~piece_count:pieces
+      let parts = Rdk.Deletion.primitive_partitions ~piece_count:pieces
           ~primitive_pieces:assignment geometry in
       let keys_by_piece = Array.of_list distinct in
       Ok (Array.mapi (fun index part ->
-        let position = if Pdk.Geometry.point_count part = 0 then (0., 0., 0.)
-          else Pdk.Packed.Float3.get (Pdk.Geometry.positions part) 0 in
+        let position = if Rdk.Geometry.point_count part = 0 then (0., 0., 0.)
+          else Rdk.Packed.Float3.get (Rdk.Geometry.positions part) 0 in
         { index; key = keys_by_piece.(index); position; piece = Some part;
           digest = digest part }) parts)
 
@@ -92,9 +92,9 @@ let node ?label ?(report : element array -> unit = ignore) ?(live = false) ~kind
           let element = body ~inputs:nodes ~time:(Context.time context) in
           Ok (Array.map element elements))
     (fun ~node_id:_ context parts ->
-      match Pdk.Mesh_merge.run ~cancel:(Context.cancel_token context)
+      match Rdk.Mesh_merge.run ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ~source_attribute ~source_base
           (Array.to_list parts) with
       | Ok geometry -> Ok Node.Private.{ geometry; diagnostics = []; instances = None }
-      | Error e -> Error (Diagnostic.error ~code:(Pdk.Error.code e)
-          ~cause:(Pdk.Error.to_string e) "zone could not merge its elements"))
+      | Error e -> Error (Diagnostic.error ~code:(Rdk.Error.code e)
+          ~cause:(Rdk.Error.to_string e) "zone could not merge its elements"))

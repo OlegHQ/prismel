@@ -44,7 +44,7 @@ std::uint64_t nanoseconds(std::uint64_t ticks) {
 
 } // namespace
 
-extern "C" CAMLprim value caml_prismel_bench_metal_initialize(value unit) {
+extern "C" CAMLprim value caml_rays_bench_metal_initialize(value unit) {
   CAMLparam1(unit);
   @autoreleasepool {
     benchmark_device = MTLCreateSystemDefaultDevice();
@@ -52,19 +52,19 @@ extern "C" CAMLprim value caml_prismel_bench_metal_initialize(value unit) {
   CAMLreturn(Val_bool(benchmark_device != nil));
 }
 
-extern "C" CAMLprim value caml_prismel_bench_metal_shutdown(value unit) {
+extern "C" CAMLprim value caml_rays_bench_metal_shutdown(value unit) {
   CAMLparam1(unit);
   benchmark_device = nil;
   CAMLreturn(Val_unit);
 }
 
-extern "C" CAMLprim value caml_prismel_bench_metal_direct_query(value unit) {
+extern "C" CAMLprim value caml_rays_bench_metal_direct_query(value unit) {
   CAMLparam1(unit);
   id<MTLDevice> device = require_device();
   CAMLreturn(caml_copy_int64(static_cast<std::int64_t>(device.registryID)));
 }
 
-extern "C" CAMLprim value caml_prismel_bench_metal_batched_query(
+extern "C" CAMLprim value caml_rays_bench_metal_batched_query(
     value raw_iterations) {
   CAMLparam1(raw_iterations);
   const intnat iterations = Long_val(raw_iterations);
@@ -75,7 +75,7 @@ extern "C" CAMLprim value caml_prismel_bench_metal_batched_query(
       query_checksum(require_device(), iterations))));
 }
 
-extern "C" CAMLprim value caml_prismel_bench_metal_native_timed_query(
+extern "C" CAMLprim value caml_rays_bench_metal_native_timed_query(
     value raw_iterations) {
   CAMLparam1(raw_iterations);
   CAMLlocal3(result, checksum_value, nanoseconds_value);

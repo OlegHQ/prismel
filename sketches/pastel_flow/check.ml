@@ -1,4 +1,4 @@
-open Prismel
+open Rays
 let ui () = Artwork.preset false
 let validate ui =
   let art,vertices=Artwork.build ui 0. in
@@ -30,7 +30,7 @@ let () =
   List.iter(fun high->ignore(validate(List.fold_left(fun ui (c:Artwork.control)->
     Artwork.set ui c.key (if high then c.hi else c.lo)) ui Artwork.controls))) [false;true];
   let root=Filename.temp_dir "pastel-flow" "" in
-  let path=Filename.concat root "nested/settings.plisp" in
+  let path=Filename.concat root "nested/settings.rays" in
   Fun.protect ~finally:(fun()->
     Sys.remove path; Unix.rmdir (Filename.dirname path); Unix.rmdir root) (fun()->
     let settings = List.map (fun (key, value) -> key, Editor_core.Store.Settings.Float value) ui in

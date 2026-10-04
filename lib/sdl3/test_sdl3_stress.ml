@@ -6,9 +6,9 @@ let get = function
   | Ok value -> value
   | Error error -> fail (Format.asprintf "%a" pp_error error)
 
-(* PRISMEL_SDL3_STRESS_CYCLES=100000 under @qualification. *)
+(* RAYS_SDL3_STRESS_CYCLES=100000 under @qualification. *)
 let iterations = Option.value ~default:5_000
-    (Option.bind (Sys.getenv_opt "PRISMEL_SDL3_STRESS_CYCLES") int_of_string_opt)
+    (Option.bind (Sys.getenv_opt "RAYS_SDL3_STRESS_CYCLES") int_of_string_opt)
 
 let run () =
   get (Init.init [ Init.Video; Init.Events ]);

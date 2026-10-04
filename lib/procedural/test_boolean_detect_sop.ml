@@ -1,4 +1,4 @@
-open Prismel
+open Rays
 open Procedural
 
 let fail message = raise (Failure message)
@@ -19,8 +19,8 @@ let cook session domains graph =
   | Error error -> fail (Diagnostic.error_to_string error)
 
 let graph () =
-  let source = Sop.grid ~counts:Pdk.Plane_generators.Grid_point_counts
-      ~connectivity:Pdk.Plane_generators.Grid_alternating_triangles
+  let source = Sop.grid ~counts:Rdk.Plane_generators.Grid_point_counts
+      ~connectivity:Rdk.Plane_generators.Grid_alternating_triangles
       ~columns:64 ~rows:48 ~size:12. () in
   let collision = Sop.transform (Mat4.rotation_x (Float.pi /. 2.)) source in
   Sop.boolean_detect ~label:"surface-crossings" ~collision
@@ -30,8 +30,8 @@ let graph () =
     ~count_attribute:"intersection_count" source
 
 let self_graph () =
-  let source = Sop.grid ~counts:Pdk.Plane_generators.Grid_point_counts
-      ~connectivity:Pdk.Plane_generators.Grid_alternating_triangles
+  let source = Sop.grid ~counts:Rdk.Plane_generators.Grid_point_counts
+      ~connectivity:Rdk.Plane_generators.Grid_alternating_triangles
       ~columns:48 ~rows:36 ~size:10. () in
   let crossing = Sop.transform (Mat4.rotation_x (Float.pi /. 2.)) source in
   Sop.merge [source; crossing]
@@ -40,24 +40,24 @@ let self_graph () =
        ~self_count_attribute:"self_count"
 
 let signature geometry =
-  let rows = match Pdk.Geometry.find_attribute ~owner:Pdk.Attribute.Primitive
+  let rows = match Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Primitive
       "collision_primitives" geometry with
     | Some attribute ->
-        (match Pdk.Attribute.Private.storage attribute with
-         | Pdk.Attribute.Int_array values -> Pdk.Packed.Int_array.Private.view values
+        (match Rdk.Attribute.Private.storage attribute with
+         | Rdk.Attribute.Int_array values -> Rdk.Packed.Int_array.Private.view values
          | _ -> fail "Boolean Detect SOP list has wrong storage")
     | None -> fail "Boolean Detect SOP list is missing" in
-  let counts = match Pdk.Geometry.find_attribute ~owner:Pdk.Attribute.Primitive
+  let counts = match Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Primitive
       "intersection_count" geometry with
     | Some attribute ->
-        (match Pdk.Attribute.Private.storage attribute with
-         | Pdk.Attribute.Int values -> values
+        (match Rdk.Attribute.Private.storage attribute with
+         | Rdk.Attribute.Int values -> values
          | _ -> fail "Boolean Detect SOP count has wrong storage")
     | None -> fail "Boolean Detect SOP count is missing" in
-  let group = Pdk.Geometry.find_group ~owner:Pdk.Group.Primitive "intersections"
+  let group = Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive "intersections"
       geometry |> Option.get in
-  let membership = Array.init (Pdk.Geometry.primitive_count geometry)
-      (fun primitive -> Pdk.Group.mem primitive group) in
+  let membership = Array.init (Rdk.Geometry.primitive_count geometry)
+      (fun primitive -> Rdk.Group.mem primitive group) in
   rows.offsets, rows.values, counts, membership
 
 let fresh graph domains =
@@ -68,25 +68,25 @@ let fresh graph domains =
   geometry
 
 let self_signature geometry =
-  let rows = match Pdk.Geometry.find_attribute ~owner:Pdk.Attribute.Primitive
+  let rows = match Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Primitive
       "self_primitives" geometry with
     | Some attribute ->
-        (match Pdk.Attribute.Private.storage attribute with
-         | Pdk.Attribute.Int_array values -> Pdk.Packed.Int_array.Private.view values
+        (match Rdk.Attribute.Private.storage attribute with
+         | Rdk.Attribute.Int_array values -> Rdk.Packed.Int_array.Private.view values
          | _ -> fail "Boolean Detect SOP AxA list has wrong storage")
     | None -> fail "Boolean Detect SOP AxA list is missing" in
-  let counts = match Pdk.Geometry.find_attribute ~owner:Pdk.Attribute.Primitive
+  let counts = match Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Primitive
       "self_count" geometry with
     | Some attribute ->
-        (match Pdk.Attribute.Private.storage attribute with
-         | Pdk.Attribute.Int values -> values
+        (match Rdk.Attribute.Private.storage attribute with
+         | Rdk.Attribute.Int values -> values
          | _ -> fail "Boolean Detect SOP AxA count has wrong storage")
     | None -> fail "Boolean Detect SOP AxA count is missing" in
-  let group = Pdk.Geometry.find_group ~owner:Pdk.Group.Primitive
+  let group = Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive
       "boolean_self_intersections" geometry |> Option.get in
   rows.offsets, rows.values, counts,
-  Array.init (Pdk.Geometry.primitive_count geometry)
-    (fun primitive -> Pdk.Group.mem primitive group)
+  Array.init (Rdk.Geometry.primitive_count geometry)
+    (fun primitive -> Rdk.Group.mem primitive group)
 
 let test_identity_cache_and_parallel () =
   let graph = graph () in

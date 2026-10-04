@@ -1,4 +1,4 @@
-open Prismel_math
+open Rays_math
 
 type point
 type vertex
@@ -58,19 +58,19 @@ let primitive_indices indices = make_indices Primitive "primitive" indices
 let fingerprint value = value.key
 
 let owner_length owner geometry = match owner with
-  | Point -> Pdk.Geometry.point_count geometry
-  | Vertex -> Pdk.Geometry.vertex_count geometry
-  | Primitive -> Pdk.Geometry.primitive_count geometry
-let pdk_owner = function Point -> Pdk.Group.Point | Vertex -> Pdk.Group.Vertex
-  | Primitive -> Pdk.Group.Primitive
+  | Point -> Rdk.Geometry.point_count geometry
+  | Vertex -> Rdk.Geometry.vertex_count geometry
+  | Primitive -> Rdk.Geometry.primitive_count geometry
+let rdk_owner = function Point -> Rdk.Group.Point | Vertex -> Rdk.Group.Vertex
+  | Primitive -> Rdk.Group.Primitive
 
 let evaluate ~name selection geometry =
-  let owner = pdk_owner selection.owner and length = owner_length selection.owner geometry in
+  let owner = rdk_owner selection.owner and length = owner_length selection.owner geometry in
   let run = function
-    | All -> Ok (Pdk.Group.init ~owner ~name:"__all" length (fun _ -> true))
+    | All -> Ok (Rdk.Group.init ~owner ~name:"__all" length (fun _ -> true))
     | Point_bounds (minimum, maximum) ->
-        let positions = Pdk.Packed.Float3.Private.view (Pdk.Geometry.positions geometry) in
-        Ok (Pdk.Group.init ~owner:Pdk.Group.Point ~name:"__bounds" length (fun index ->
+        let positions = Rdk.Packed.Float3.Private.view (Rdk.Geometry.positions geometry) in
+        Ok (Rdk.Group.init ~owner:Rdk.Group.Point ~name:"__bounds" length (fun index ->
           let x = positions.x.(index) and y = positions.y.(index)
           and z = positions.z.(index) in
           x >= minimum.x && x <= maximum.x && y >= minimum.y && y <= maximum.y
@@ -80,8 +80,8 @@ let evaluate ~name selection geometry =
          | Some index -> Error (Printf.sprintf
              "Select.indices: index %d is outside owner length %d" index length)
          | None ->
-             let builder = Pdk.Group.Builder.create ~owner
+             let builder = Rdk.Group.Builder.create ~owner
                  ~name:"__indices" length in
-             Array.iter (fun index -> Pdk.Group.Builder.set builder index true) indices;
-             Ok (Pdk.Group.Builder.freeze builder)) in
-  Result.map (Pdk.Group.with_name name) (run selection.expression)
+             Array.iter (fun index -> Rdk.Group.Builder.set builder index true) indices;
+             Ok (Rdk.Group.Builder.freeze builder)) in
+  Result.map (Rdk.Group.with_name name) (run selection.expression)

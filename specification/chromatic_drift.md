@@ -17,7 +17,7 @@ palettes are Afterglow, Lagoon, Ember and Orchid.
 “Surprise me” deterministically remixes shape, palette and motion from the next
 seed. “New composition” changes only the seed. Reset restores launch defaults
 and time. Tab hides controls/status; Escape quits. Save/load buttons use
-`_out/chromatic-drift.plisp` (override with `--settings FILE`). Loading resets time;
+`_out/chromatic-drift.rays` (override with `--settings FILE`). Loading resets time;
 saving stores controls, not phase. Bounded displacements keep bands ordered.
 
 The default composition uses unequal sheet widths and a large sweeping curve,
@@ -64,7 +64,7 @@ film noise; the finite tile can repeat visibly at extreme settings.
 opam exec -- dune exec sketches/chromatic_drift/main.exe -- \
   --export /tmp/drift --frames 120 --seed 42 --palette 0 --quality 2
 opam exec -- dune runtest sketches/chromatic_drift
-PRISMEL_MAX_FRAMES=12 opam exec -- dune exec sketches/chromatic_drift/main.exe
+RAYS_MAX_FRAMES=12 opam exec -- dune exec sketches/chromatic_drift/main.exe
 opam exec -- dune exec sketches/chromatic_drift/main.exe -- --bench --quality 2
 ```
 

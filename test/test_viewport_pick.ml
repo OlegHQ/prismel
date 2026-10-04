@@ -4,10 +4,10 @@
    (`dune exec test/test_main.exe -- bench_viewport_pick`). *)
 open Flow_sop
 module Session = Procedural.Session
-module Cook = Prismel_editor.Private.Cook
-module Pick = Prismel_editor.Private.Pick
+module Cook = Rays_editor.Private.Cook
+module Pick = Rays_editor.Private.Pick
 module Int_map = Network.Int_map
-module Geometry = Pdk.Geometry
+module Geometry = Rdk.Geometry
 
 let fail message = failwith ("test_viewport_pick: " ^ message)
 let check condition message = if not condition then fail message
@@ -33,7 +33,7 @@ let cooked ?(lit = Pick.Set.empty) ?cook lowered ~prepared =
         Cook.set_volatile cook (Lower.is_volatile lowered); cook in
   let timeline = Sketch_support.Timeline.create () in
   let update = Cook.update ~live:false ~lit
-      cook ~settings:Prismel_editor.Settings.none
+      cook ~settings:Rays_editor.Settings.none
       ~objects:(Lower.objects lowered) ~edit_error:None
       ~effects:Procedural.Parameter.no_effects ~timeline_changes:[] ~timeline
       ~frame:{ (Test_editor_input.frame (0., 0.) [] 0) with dt = 0. }
@@ -49,10 +49,10 @@ let above geometry tag =
   let tags = Option.get (Pick.tags geometry) in
   let topology = Geometry.topology geometry and points = Geometry.positions geometry in
   let centre primitive =
-    let first, last = Pdk.Topology.primitive_vertex_range topology primitive in
+    let first, last = Rdk.Topology.primitive_vertex_range topology primitive in
     let sum = ref (0., 0., 0.) in
     for v = first to last - 1 do
-      let x, y, z = Pdk.Packed.Float3.get points (Pdk.Topology.point_of_vertex topology v) in
+      let x, y, z = Rdk.Packed.Float3.get points (Rdk.Topology.point_of_vertex topology v) in
       let a, b, c = !sum in sum := (a +. x, b +. y, c +. z)
     done;
     let n = float (last - first) and a, b, c = !sum in a /. n, b /. n, c /. n in
@@ -61,11 +61,11 @@ let above geometry tag =
     match best with Some (_, (_, by, _)) when by >= y -> best | _ -> Some (p, c))
     None (primitives_of tags tag) in
   let x, y, z = snd (Option.get best) in
-  Prismel.Vec3.create x (y +. 1e-3) z
+  Rays.Vec3.create x (y +. 1e-3) z
 
 let present geometry tag = Array.exists (( = ) tag) (Option.get (Pick.tags geometry))
 
-let down = Prismel.Vec3.create 0. (-1.) 0.
+let down = Rays.Vec3.create 0. (-1.) 0.
 
 let pick_run () =
   (* --- sunflower: one merge, tag = the seed --- *)
@@ -84,10 +84,10 @@ let pick_run () =
   (match Cook.pick piece ~origin:(above piece.output.geometry tag83) ~direction:down with
    | Some (_, tag) -> check (tag = tag83) "the ray finds seed 83"
    | None -> fail "the ray missed seed 83");
-  check (Cook.pick piece ~origin:(Prismel.Vec3.create 0. 9. 9.) ~direction:down = None) "a miss";
+  check (Cook.pick piece ~origin:(Rays.Vec3.create 0. 9. 9.) ~direction:down = None) "a miss";
   (* instanced pieces: the prototype is picked at every instance, hits compare in world units *)
-  let module M = Prismel.Mat4 in
-  let module V = Prismel.Vec3 in
+  let module M = Rays.Mat4 in
+  let module V = Rays.Vec3 in
   let over = above piece.output.geometry tag83 in
   let instanced transforms = { piece with output = { piece.output with instances = Some transforms } } in
   let hit p origin = Cook.pick p ~origin ~direction:down in
@@ -111,11 +111,11 @@ let pick_run () =
   check (!prepared = before + 1) "a new highlight prepares the piece once";
   check ((Cook.stats cook).misses = misses) "the highlight does not recook";
   let lit_piece = List.hd (Cook.pieces cook) in
-  let colours = Geometry.find_attribute ~owner:Pdk.Attribute.Vertex "Cd" lit_piece.prepared in
-  (match Option.map Pdk.Attribute.Private.storage colours with
-   | Some (Pdk.Attribute.Float4 c) ->
-       let c = Pdk.Packed.Float4.Private.view c and topology = Geometry.topology lit_piece.prepared in
-       let corner primitive = fst (Pdk.Topology.primitive_vertex_range topology primitive) in
+  let colours = Geometry.find_attribute ~owner:Rdk.Attribute.Vertex "Cd" lit_piece.prepared in
+  (match Option.map Rdk.Attribute.Private.storage colours with
+   | Some (Rdk.Attribute.Float4 c) ->
+       let c = Rdk.Packed.Float4.Private.view c and topology = Geometry.topology lit_piece.prepared in
+       let corner primitive = fst (Rdk.Topology.primitive_vertex_range topology primitive) in
        let seed = List.hd (primitives_of tags tag83)
        and other = List.hd (primitives_of tags (List.hd (of_iteration sunflower 0))) in
        check (Float.abs (c.x.(corner other) -. 0.3) < 1e-9) "the rest is dimmed";
@@ -149,19 +149,19 @@ let pick_run () =
 (* The 2D editor picks the same way: a click is a ray down onto the drawing, and the node that
    made the clicked box is selected in the graph pane. *)
 let flat text clicks =
-  let open Prismel in
-  let module E2 = Prismel_editor.Editor2 in
+  let open Rays in
+  let module E2 = Rays_editor.Editor2 in
   let workspace = Ws_fixture.of_text text in
   (* the cook is awaited, not waited for: the editor blocks on the job each frame submits *)
   let env = ref (E2.create ~await:true ~workspace
-      ~prepare:(fun _ output -> Pdk_prismel.Prismel_mesh.to_mesh output.Procedural.Session.geometry
-        |> Result.map_error Pdk.Error.to_string)
+      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh output.Procedural.Session.geometry
+        |> Result.map_error Rdk.Error.to_string)
       ~scene2:(fun _ _ -> Scene.empty) () |> Result.get_ok) in
   let count = ref 0 in
   let step ?(buttons = []) mouse events =
     incr count; env := E2.update !env (Test_editor_input.frame ~buttons mouse events !count) in
   let selected () =
-    let directory = Filename.temp_dir "prismel-pick2" "" in
+    let directory = Filename.temp_dir "rays-pick2" "" in
     Fun.protect ~finally:(fun () ->
       Array.iter (fun f -> Sys.remove (Filename.concat directory f)) (Sys.readdir directory);
       Unix.rmdir directory) (fun () ->
@@ -224,9 +224,9 @@ let bench () =
     let pick = time 1000 (fun () -> Cook.pick piece ~origin ~direction:down) in
     let lit = Pick.Set.singleton tag in
     let tint = time 200 (fun () -> Pick.tint piece.output lit) in
-    let mesh = time 200 (fun () -> Pdk_prismel.Prismel_mesh.to_mesh geometry) in
+    let mesh = time 200 (fun () -> Rdk_rays.Rays_mesh.to_mesh geometry) in
     let lit_mesh = time 200 (fun () ->
-      Pdk_prismel.Prismel_mesh.to_mesh (Pick.tint piece.output lit).geometry) in
+      Rdk_rays.Rays_mesh.to_mesh (Pick.tint piece.output lit).geometry) in
     let quiet = time 200 (fun () -> cooked ~cook lowered ~prepared) in
     let cook = cooked ~lit ~cook lowered ~prepared in
     let held = time 200 (fun () -> cooked ~lit ~cook lowered ~prepared) in

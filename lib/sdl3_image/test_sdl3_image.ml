@@ -83,7 +83,7 @@ let pixel pixels width x y =
 (* A reload that fails leaves the caller's previous pixels alone; one that
    succeeds replaces them whole. *)
 let check_reload root =
-  let path = Filename.temp_file "prismel-sdl3-image-watch-" ".png" in
+  let path = Filename.temp_file "rays-sdl3-image-watch-" ".png" in
   Fun.protect ~finally:(fun () ->
     if Sys.file_exists path then Sys.remove path) (fun () ->
       write_file path (read_file (fixture root "sample.png"));
@@ -140,7 +140,7 @@ let () =
 
   (* malformed input is a typed error for every decoder the extension picks *)
   List.iter (fun value ->
-    let path = Filename.temp_file "prismel-sdl3-image-bad-" (Filename.extension value.file) in
+    let path = Filename.temp_file "rays-sdl3-image-bad-" (Filename.extension value.file) in
     Fun.protect ~finally:(fun () -> Sys.remove path) (fun () ->
       write_file path (Bytes.of_string "not an image");
       match load_file path with
@@ -148,7 +148,7 @@ let () =
       | Ok _ -> fail (value.file ^ " malformed bytes decoded")
       | Error _ -> fail (value.file ^ " malformed bytes returned wrong error")))
     fixtures;
-  (match load_file "/definitely/missing/prismel-image.png" with
+  (match load_file "/definitely/missing/rays-image.png" with
    | Error { kind = Decoder_error; message; _ } when message <> "" -> ()
    | Ok _ -> fail "missing image loaded"
    | Error _ -> fail "missing image returned the wrong error");

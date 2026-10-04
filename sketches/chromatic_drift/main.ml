@@ -1,9 +1,9 @@
-open Prismel
+open Rays
 open Chromatic_art
 let bench=ref false and export=ref "" and frames=ref 120
 let domains=ref 1 and seed=ref 42 and preset=ref 0
 let quality=ref 2 and grain_amount=ref 0.35
-let settings_file=ref "_out/chromatic-drift.plisp"
+let settings_file=ref "_out/chromatic-drift.rays"
 let () = Arg.parse [
   "--bench",Arg.Set bench,"Measure warmed geometry construction";
   "--export",Arg.Set_string export,"DIR export artwork-only PNG sequence";

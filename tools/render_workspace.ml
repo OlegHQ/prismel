@@ -1,16 +1,16 @@
 (* A finite native beauty render of a workspace's authored scene and camera. *)
-open Prismel
+open Rays
 open Procedural
 open Editor_document
-module P = Prismel_pathtracer
+module P = Rays_pathtracer
 
 let get = function Ok value -> value | Error message -> failwith message
 let () = if Array.length Sys.argv < 3 || Array.length Sys.argv > 5 then
-  failwith "usage: render_workspace FILE.plisp OUTPUT.png [SPP [SIZE]]"
+  failwith "usage: render_workspace FILE.rays OUTPUT.png [SPP [SIZE]]"
 let path = Sys.argv.(1)
 let output = Sys.argv.(2)
 let text = In_channel.with_open_bin path In_channel.input_all
-let workspace = match Prismel_editor.Workspace.load text with
+let workspace = match Rays_editor.Workspace.load text with
   | Ok w -> w | Error ds -> failwith (String.concat "\n" (List.map Flow.Diagnostic.to_string ds))
 let document = Contexts.of_workspace ~factories:Sop_catalog.Editor.factories workspace
   |> Result.map_error Flow.Diagnostic.to_string |> get
@@ -44,12 +44,12 @@ let init _ =
         let cooked = Session.cook session ~context:(Context.create ~domains:1 ~grain:2 () |> get) node
             |> Result.map_error Diagnostic.error_to_string |> get in
         Printf.printf "%s: %d primitives, %d points\n%!" (Node.label object_node)
-          (Pdk.Geometry.primitive_count cooked.geometry) (Pdk.Geometry.point_count cooked.geometry);
+          (Rdk.Geometry.primitive_count cooked.geometry) (Rdk.Geometry.point_count cooked.geometry);
         let surface = Sketch_support.Surface.of_output cooked |> get in
         let drawing = Sketch_support.Surface.scene3 node surface in
         Scene3.Private.iter_batches (fun (d : Scene3.Private.drawing) transforms ->
-          let geometry = Pdk_prismel.Prismel_mesh.of_mesh d.mesh
-              |> Result.map_error Pdk.Error.to_string |> get in
+          let geometry = Rdk_rays.Rays_mesh.of_mesh d.mesh
+              |> Result.map_error Rdk.Error.to_string |> get in
           let material = material d.material in
           if !first = None then first := Some (geometry, material);
           let mesh = match transforms with

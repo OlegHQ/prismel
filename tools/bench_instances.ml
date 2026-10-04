@@ -1,7 +1,7 @@
-open Prismel
+open Rays
 
 let instance_count =
-  match Sys.getenv_opt "PRISMEL_INSTANCE_BENCH_COUNT" with
+  match Sys.getenv_opt "RAYS_INSTANCE_BENCH_COUNT" with
   | None -> 100_000
   | Some value -> max 1 (int_of_string value)
 

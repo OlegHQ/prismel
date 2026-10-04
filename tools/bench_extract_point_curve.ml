@@ -1,16 +1,16 @@
-open Prismel
-open Pdk
+open Rays
+open Rdk
 
 let integer_env name default = match Sys.getenv_opt name with
   | None -> default | Some value -> max 1 (int_of_string value)
 
-let curves = integer_env "PRISMEL_EXTRACT_CURVES" 1_000
+let curves = integer_env "RAYS_EXTRACT_CURVES" 1_000
 let points_per_curve = max 2
-    (integer_env "PRISMEL_EXTRACT_POINTS_PER_CURVE" 1_001)
-let repeats = integer_env "PRISMEL_EXTRACT_REPEATS" 5
-let domains = integer_env "PRISMEL_BENCH_DOMAINS"
+    (integer_env "RAYS_EXTRACT_POINTS_PER_CURVE" 1_001)
+let repeats = integer_env "RAYS_EXTRACT_REPEATS" 5
+let domains = integer_env "RAYS_BENCH_DOMAINS"
     (Parallel.recommended_domains ())
-let grain = integer_env "PRISMEL_EXTRACT_GRAIN" 16_384
+let grain = integer_env "RAYS_EXTRACT_GRAIN" 16_384
 
 let get = function Ok value -> value | Error error ->
   failwith (Error.to_string error)

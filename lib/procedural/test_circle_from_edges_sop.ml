@@ -1,4 +1,4 @@
-open Prismel
+open Rays
 open Procedural
 
 let fail message = raise (Failure message)
@@ -28,19 +28,19 @@ let loop_geometry count vertices_per_loop =
       z.(point) <- 0.04 *. sin (2. *. angle)
     done
   done;
-  let topology = Pdk.Topology.create_owned ~point_count
+  let topology = Rdk.Topology.create_owned ~point_count
       ~vertex_points:(Array.init point_count Fun.id)
       ~primitive_offsets:(Array.init (count + 1)
         (fun primitive -> primitive * vertices_per_loop))
-      ~primitive_kinds:(Array.make count Pdk.Topology.Closed_polyline)
+      ~primitive_kinds:(Array.make count Rdk.Topology.Closed_polyline)
       |> Result.get_ok in
-  let geometry = Pdk.Geometry.create
-      ~positions:(Pdk.Packed.Float3.Private.of_owned_exn ~x ~y ~z)
+  let geometry = Rdk.Geometry.create
+      ~positions:(Rdk.Packed.Float3.Private.of_owned_exn ~x ~y ~z)
       ~topology () |> Result.get_ok in
-  let index = Pdk.Topology_index.create topology in
-  let edges = Pdk.Edge_group.init ~grain:127 ~topology ~index
+  let index = Rdk.Topology_index.create topology in
+  let edges = Rdk.Edge_group.init ~grain:127 ~topology ~index
       ~name:"loops" (Fun.const true) in
-  Pdk.Geometry.with_edge_group edges geometry |> Result.get_ok
+  Rdk.Geometry.with_edge_group edges geometry |> Result.get_ok
 
 let cook session domains node =
   let context = Context.create ~domains ~grain:257 ~seed:17L () |> get in
@@ -55,11 +55,11 @@ let fresh domains node =
     (fun () -> cook session domains node)
 
 let signature geometry =
-  let p = Pdk.Packed.Float3.Private.view (Pdk.Geometry.positions geometry) in
-  let group = Pdk.Geometry.find_edge_group "fitted" geometry |> Option.get in
+  let p = Rdk.Packed.Float3.Private.view (Rdk.Geometry.positions geometry) in
+  let group = Rdk.Geometry.find_edge_group "fitted" geometry |> Option.get in
   Array.copy p.x, Array.copy p.y, Array.copy p.z,
-  Array.init (Pdk.Edge_group.length group) (fun edge ->
-    Pdk.Edge_group.mem edge group)
+  Array.init (Rdk.Edge_group.length group) (fun edge ->
+    Rdk.Edge_group.mem edge group)
 
 let run () =
   let source = Sop.snapshot (loop_geometry 2_000 16) in
@@ -83,9 +83,9 @@ let run () =
   let one = fresh 1 graph and four = fresh 4 graph in
   check (signature one = signature four)
     "Circle from Edges SOP differs across domain counts";
-  check (Pdk.Geometry.point_count one = 32_000
-      && (Pdk.Geometry.find_edge_group "fitted" one |> Option.get
-          |> Pdk.Edge_group.cardinality) = 32_000)
+  check (Rdk.Geometry.point_count one = 32_000
+      && (Rdk.Geometry.find_edge_group "fitted" one |> Option.get
+          |> Rdk.Edge_group.cardinality) = 32_000)
     "Circle from Edges SOP output cardinality";
 
   let missing = Sop.snapshot (loop_geometry 1 8)

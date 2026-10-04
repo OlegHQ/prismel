@@ -1,7 +1,7 @@
-open Prismel
+open Rays
 open Procedural
-module Cook = Prismel_editor.Private.Cook
-module Settings = Prismel_editor.Settings
+module Cook = Rays_editor.Private.Cook
+module Settings = Rays_editor.Settings
 module Timeline = Sketch_support.Timeline
 module Document = Editor_document.Document
 
@@ -79,10 +79,10 @@ let run () =
   let dependencies = Context.Dependencies.(union (one Time) (one Frame)) in
   let dynamic = Sop.custom ~operation:"editor_cook_clock" ~dependencies [source]
     (fun ~context inputs ->
-      Pdk.Geometry.with_positions (Pdk.Packed.Float3.Private.of_owned_exn
+      Rdk.Geometry.with_positions (Rdk.Packed.Float3.Private.of_owned_exn
         ~x:[|Context.time context|] ~y:[|Int64.to_float (Context.frame context)|] ~z:[|0.|]) inputs.(0)) in
-  with_cook (fun _ output -> Ok (Pdk.Packed.Float3.get
-      (Pdk.Geometry.positions output.Session.geometry) 0)) (fun current _ finish ->
+  with_cook (fun _ output -> Ok (Rdk.Packed.Float3.get
+      (Rdk.Geometry.positions output.Session.geometry) 0)) (fun current _ finish ->
     let objects = [network 1 dynamic; network 2 source] in
     ignore (finish objects);
     let static = List.find (fun (piece : _ Cook.piece) -> piece.id = 2) (Cook.pieces !current) in
@@ -106,9 +106,9 @@ let run () =
   let network = graph.network and root = Option.get graph.root in
   let target = {Flow_sop.Port.node = root; path = "uniform_scale"} in
   let positions _ output =
-      let points = Pdk.Geometry.positions output.Session.geometry in
-      Ok (Array.init (Pdk.Packed.Float3.length points)
-        (Pdk.Packed.Float3.get points)) in
+      let points = Rdk.Geometry.positions output.Session.geometry in
+      Ok (Array.init (Rdk.Packed.Float3.length points)
+        (Rdk.Packed.Float3.get points)) in
   let exact first second =
     Array.length first = Array.length second &&
     Array.for_all2 (fun (ax, ay, az) (bx, by, bz) ->

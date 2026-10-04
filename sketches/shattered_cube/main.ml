@@ -1,7 +1,7 @@
-open Prismel
+open Rays
 open Procedural
 
-(* The document (network, lights, camera) is sketch.plisp. *)
+(* The document (network, lights, camera) is sketch.rays. *)
 
 let material = Material.create ~diffuse:(Color.hex_exn "#f2b36d")
     ~ambient:(Color.hex_exn "#422006") ~specular:Color.white ~shininess:48. ()
@@ -11,20 +11,20 @@ type preview = Pieces of Sketch_support.Packed_pieces.t
   | Mesh of Mesh.t * Mat4.t array option
 
 let prepare output =
-  match Pdk.Geometry.find_attribute ~owner:Pdk.Attribute.Primitive "piece"
+  match Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Primitive "piece"
       output.Session.geometry with
   | Some attribute ->
-      (match Pdk.Attribute.Private.storage attribute with
-       | Pdk.Attribute.Int _ | Text _ ->
+      (match Rdk.Attribute.Private.storage attribute with
+       | Rdk.Attribute.Int _ | Text _ ->
            Sketch_support.Packed_pieces.of_geometry ~piece_attribute:"piece"
              output.geometry
            |> Result.map (fun pieces -> Pieces pieces)
-       | _ -> Pdk_prismel.Prismel_mesh.to_mesh output.geometry
+       | _ -> Rdk_rays.Rays_mesh.to_mesh output.geometry
            |> Result.map (fun mesh -> Mesh (mesh, output.instances))
-           |> Result.map_error Pdk.Error.to_string)
-  | None -> Pdk_prismel.Prismel_mesh.to_mesh output.geometry
+           |> Result.map_error Rdk.Error.to_string)
+  | None -> Rdk_rays.Rays_mesh.to_mesh output.geometry
       |> Result.map (fun mesh -> Mesh (mesh, output.instances))
-      |> Result.map_error Pdk.Error.to_string
+      |> Result.map_error Rdk.Error.to_string
 
 let scene3 node preview =
   let mesh = match preview with
@@ -78,11 +78,11 @@ let overlay graph preview frame =
   ]
 
 let () =
-  let workspace, source = Prismel_editor.Workspace.open_text ~path:Sketch_source.path
+  let workspace, source = Rays_editor.Workspace.open_text ~path:Sketch_source.path
       ~digest:Sketch_source.digest Sketch_source.text in
-  Prismel_editor.Editor3.run
+  Rays_editor.Editor3.run
     ~config:{ Sketch.default_config with width = 1200; height = 760;
-      title = "Prismel sketch · shattered cube"; domains = Some 1 }
+      title = "Rays sketch · shattered cube"; domains = Some 1 }
     ~camera:(Easy_camera.create ~target:Vec3.zero ~distance:6.8
       ~azimuth:0.72 ~elevation:0.42 ())
     ~seed:7349L ~grain:2 ~max_entries:24

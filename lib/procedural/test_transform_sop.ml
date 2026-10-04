@@ -1,5 +1,5 @@
-open Prismel
-open Pdk
+open Rays
+open Rdk
 open Procedural
 
 let fail message = raise (Failure message)
@@ -15,7 +15,7 @@ let contains text pattern =
 let context domains = Context.create ~domains ~grain:37 ~seed:73L () |> get
 
 let source () =
-  let geometry = Pdk.Plane_generators.grid ~columns:200 ~rows:120 ~size:10. ()
+  let geometry = Rdk.Plane_generators.grid ~columns:200 ~rows:120 ~size:10. ()
       |> function Ok value -> value | Error error -> fail (Error.to_string error) in
   let points = Geometry.point_count geometry in
   let selected = Group.init ~grain:37 ~owner:Group.Point ~name:"checker" points

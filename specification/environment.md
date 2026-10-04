@@ -1,9 +1,9 @@
-# Environment (`Prismel.World`)
+# Environment (`Rays.World`)
 
 A World is pure data: an ordered stack of procedural layers plus sun and
 framing settings. `World.bake` turns it into CPU products that both the
 raster renderer and the Metal path tracer consume. The interface
-(`lib/prismel/world.mli`) is the contract; this note summarises it.
+(`lib/rays/world.mli`) is the contract; this note summarises it.
 
 ## Mapping
 
@@ -160,5 +160,5 @@ The drag-preview budget is 8 ms at 512x256 on the recommended domains. The
 first cut took 25-47 ms there: boxed float arguments in the per-texel layer
 call (minor GCs stop every domain) and SH/specular work at full resolution.
 Keep the texel loop allocation-free.
-`PRISMEL_WORLD_DUMP=dir` makes the bench write each preset's camera map as a
+`RAYS_WORLD_DUMP=dir` makes the bench write each preset's camera map as a
 PPM.

@@ -1,13 +1,13 @@
 let tests = [
-  "test_prismel", Test_prismel.run;
+  "test_rays", Test_rays.run;
   "test_easy_camera2", Test_easy_camera2.run;
   "test_sop_ui", Test_sop_ui.run;
   "test_custom_sop", Test_custom_sop.run;
   "test_pxui_graph", Test_pxui_graph.run_menu;
   "test_pxui_graph_scope", Test_pxui_graph.run_scope;
   "bench_scope_pane", Test_pxui_graph.bench_scope_pane;
-  "test_prismel_editor", Test_prismel_editor.run;
-  "test_prismel_editor_logic", Test_prismel_editor.run_logic;
+  "test_rays_editor", Test_rays_editor.run;
+  "test_rays_editor_logic", Test_rays_editor.run_logic;
   "test_editor_document", Test_editor_document.run;
   "test_editor_input", Test_editor_input.run;
   "test_editor_commands", Test_editor_commands.run;

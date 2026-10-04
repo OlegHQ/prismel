@@ -3,7 +3,7 @@
 open Flow_sop
 module Edit = Procedural.Edit_graph
 module Session = Procedural.Session
-module Cook = Prismel_editor.Private.Cook
+module Cook = Rays_editor.Private.Cook
 module Timeline = Sketch_support.Timeline
 
 let fail message = failwith ("test_workspace_live: " ^ message)
@@ -192,7 +192,7 @@ let run () =
   List.iter (fun n ->
     let next, changes = Timeline.seek !timeline ~frame:(Int64.of_int n) in
     timeline := next;
-    let update = Cook.update ~live:false !cook ~settings:Prismel_editor.Settings.none ~objects
+    let update = Cook.update ~live:false !cook ~settings:Rays_editor.Settings.none ~objects
       ~edit_error:None ~effects:Procedural.Parameter.no_effects
       ~timeline_changes:changes ~timeline:next
       ~frame:{ (Test_editor_input.frame (0., 0.) [] 0) with dt = 0. }

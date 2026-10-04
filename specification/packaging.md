@@ -1,6 +1,6 @@
 # Packaging the native Metal stack
 
-Prismel is one opam package and one Dune project. `prismel.opam` is generated
+Rays is one opam package and one Dune project. `rays.opam` is generated
 from `dune-project`; it must not be edited independently. The supported package
 target is macOS on Apple Silicon with SDL3 and Metal available.
 
@@ -8,16 +8,16 @@ target is macOS on Apple Silicon with SDL3 and Metal available.
 
 The root package installs:
 
-- the public creative-coding API as `prismel`;
-- foundational native libraries `prismel.sdl3`, `prismel.sdl3_image`,
-  `prismel.sdl3_ttf`, `prismel.sdl3_mixer`, `prismel.metal`, `prismel.ogpu`,
-  and `prismel.ogpu_metal`;
-- native runtime/command libraries including `prismel.runtime`,
-  `prismel.runtime_input`, `prismel.runtime_resources`,
-  `prismel.scene_command`, and
-  `prismel.scene_execution`;
-- ordinary feature libraries such as `prismel.pdk`,
-  `prismel.procedural`, and the UI/sketch adapters.
+- the public creative-coding API as `rays`;
+- foundational native libraries `rays.sdl3`, `rays.sdl3_image`,
+  `rays.sdl3_ttf`, `rays.sdl3_mixer`, `rays.metal`, `rays.ogpu`,
+  and `rays.ogpu_metal`;
+- native runtime/command libraries including `rays.runtime`,
+  `rays.runtime_input`, `rays.runtime_resources`,
+  `rays.scene_command`, and
+  `rays.scene_execution`;
+- ordinary feature libraries such as `rays.rdk`,
+  `rays.procedural`, and the UI/sketch adapters.
 
 Runtime sublibraries are native-only internal
 qualification boundaries. Their target types contain only `Native`; they do not
@@ -53,7 +53,7 @@ dependencies, builds documentation and tests, and inspects the produced package
 and linked artifacts. Success in the developer switch or an isolated prefix is
 useful local evidence but does not replace that final clean-switch run.
 
-Generated and copied material must retain deterministic provenance. Prismel's
+Generated and copied material must retain deterministic provenance. Rays's
 source is MIT; SDL3 family libraries use their external zlib licenses; Apple SDK
 headers and frameworks remain system inputs governed by Apple platform terms and
 are not redistributed by this package.

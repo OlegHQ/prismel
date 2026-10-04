@@ -1,4 +1,4 @@
-open Prismel
+open Rays
 open Procedural
 
 type t = {
@@ -41,14 +41,14 @@ let dense_text values =
   dense, !count
 
 let primitive_pieces ~piece_attribute geometry =
-  match Pdk.Geometry.find_attribute ~owner:Pdk.Attribute.Primitive
+  match Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Primitive
       piece_attribute geometry with
   | None -> Error (Printf.sprintf
       "Packed_pieces: missing primitive piece attribute %S" piece_attribute)
   | Some attribute ->
-      (match Pdk.Attribute.Private.storage attribute with
-       | Pdk.Attribute.Int values -> Ok (dense_int values)
-       | Pdk.Attribute.Text values -> Ok (dense_text values)
+      (match Rdk.Attribute.Private.storage attribute with
+       | Rdk.Attribute.Int values -> Ok (dense_int values)
+       | Rdk.Attribute.Text values -> Ok (dense_text values)
        | _ -> Error (Printf.sprintf
            "Packed_pieces: primitive piece attribute %S must be int or text"
            piece_attribute))
@@ -80,10 +80,10 @@ let of_geometry ?cancel ?center ~piece_attribute geometry =
   Option.iter (fun center -> if not (finite3 center) then
     invalid_arg "Packed_pieces.of_geometry: center must be finite") center;
   let triangulated =
-    if Pdk.Topology.all_triangles (Pdk.Geometry.topology geometry) then
+    if Rdk.Topology.all_triangles (Rdk.Geometry.topology geometry) then
       Ok geometry
-    else Result.map_error Pdk.Error.to_string
-        (Pdk.Triangulate.run ?cancel geometry)
+    else Result.map_error Rdk.Error.to_string
+        (Rdk.Triangulate.run ?cancel geometry)
   in
   Result.bind triangulated (fun geometry ->
     Result.bind (primitive_pieces ~piece_attribute geometry)
@@ -91,13 +91,13 @@ let of_geometry ?cancel ?center ~piece_attribute geometry =
         if piece_count = 0 then Error "Packed_pieces: geometry has no pieces"
         else
           Result.bind
-            (Result.map_error Pdk.Error.to_string
-               (Pdk_prismel.Prismel_mesh.to_mesh ?cancel geometry))
+            (Result.map_error Rdk.Error.to_string
+               (Rdk_rays.Rays_mesh.to_mesh ?cancel geometry))
             (fun mesh ->
-              Pdk.Cancel.check_opt cancel;
+              Rdk.Cancel.check_opt cancel;
               let expanded = expand_triangles_preserving_attributes mesh in
               let base = Mesh.Private.packed_view expanded in
-              let expected = Pdk.Geometry.primitive_count geometry * 3 in
+              let expected = Rdk.Geometry.primitive_count geometry * 3 in
               if base.mode <> Mesh.Triangles
                   || Array.length base.vertices.x <> expected then
                 Error "Packed_pieces: triangle render ancestry is inconsistent"
@@ -111,7 +111,7 @@ let of_geometry ?cancel ?center ~piece_attribute geometry =
                 and max_y = Array.make piece_count neg_infinity
                 and max_z = Array.make piece_count neg_infinity in
                 for vertex = 0 to expected - 1 do
-                  if vertex land 4095 = 0 then Pdk.Cancel.check_opt cancel;
+                  if vertex land 4095 = 0 then Rdk.Cancel.check_opt cancel;
                   let piece = piece_of_vertex.(vertex) in
                   let x = base.vertices.x.(vertex)
                   and y = base.vertices.y.(vertex)

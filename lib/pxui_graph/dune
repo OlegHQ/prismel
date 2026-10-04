@@ -1,4 +1,4 @@
 (library
  (name pxui_graph)
- (public_name prismel.pxui_graph)
- (libraries prismel procedural flow flow_sop pxui editor_core))
+ (public_name rays.pxui_graph)
+ (libraries rays procedural flow flow_sop pxui editor_core))

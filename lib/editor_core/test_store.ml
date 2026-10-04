@@ -1,9 +1,9 @@
 let get = function Ok value -> value | Error message -> failwith message
 
 let () =
-  let root = Filename.temp_dir "prismel-store" "" in
+  let root = Filename.temp_dir "rays-store" "" in
   let directory = Filename.concat root "nested" in
-  let path = Filename.concat directory "settings.plisp" in
+  let path = Filename.concat directory "settings.rays" in
   Fun.protect ~finally:(fun () ->
     Sys.remove path;
     Unix.rmdir directory;
@@ -19,7 +19,7 @@ let () =
     assert (Result.is_error (Editor_core.Store.Settings.save ~sketch:"test" path
       ["bad", Float infinity]));
     assert (get (Editor_core.Store.Settings.load ~sketch:"test" path) = values));
-  let open Prismel in
+  let open Rays in
   let view2 = Easy_camera2.create ~center:(Vec2.create 2. 3.)
     ~zoom:1.5 ~rotation:0.25 () in
   let loaded2 = Editor_core.Store.Viewport.decode2 (Easy_camera2.create ())

@@ -1,6 +1,6 @@
 # Native backend
 
-Prismel ships one backend: the native Metal runtime on Apple Silicon. The supported host is
+Rays ships one backend: the native Metal runtime on Apple Silicon. The supported host is
 macOS on Apple Silicon with Metal available. Backend initialization either
 creates that native stack or returns a typed startup error; applications do
 not select an alternate renderer through environment variables or public API.
@@ -14,89 +14,89 @@ only on `flow`, `param` and `procedural`; its typed overlay, exposure rule and
 value lane cannot reach presentation, the catalog, editor or GPU libraries.
 
 Material graph values lower into primitive surface attributes through
-`procedural` and `pdk_attrib`. `sketch_support` converts these into shared
+`procedural` and `rdk_attrib`. `sketch_support` converts these into shared
 render mesh batches; neither the material context nor the assignment kernel
-imports rendering code. `pdk_prismel` expands primitive colors through the
+imports rendering code. `rdk_rays` expands primitive colors through the
 existing attribute promotion kernel, preserving face boundaries.
 
 ```text
-examples / sketches / pxui / editor / sketch_support / pdk_prismel
+examples / sketches / pxui / editor / sketch_support / rdk_rays
                          |                  |                |
                          |                  v                v
-                         |              procedural         prismel
+                         |              procedural         rays
                          |                  |
                          |                  v
-                         |                 pdk
+                         |                 rdk
                          |                  |
                          |                  v
-                         |               pdk_boolean
+                         |               rdk_boolean
                          |                  |
                          |                  v
-                         |               pdk_mesh
+                         |               rdk_mesh
                          |                  |
                          |                  v
-                         |              pdk_attrib
+                         |              rdk_attrib
                          |                  |
                          |                  v
-                         |              pdk_spatial
+                         |              rdk_spatial
                          |                  |
                          |                  v
-                         |               pdk_exact
+                         |               rdk_exact
                          |                  |
                          |                  v
-                         |               pdk_core
+                         |               rdk_core
                          |                  |
                          |                  v
-                         |             prismel_math
+                         |             rays_math
                          |
                          v
-                      prismel ----------------------> runtime_input ---> sdl3
+                      rays ----------------------> runtime_input ---> sdl3
                          |
                          v
-                  prismel_execution
+                  rays_execution
                          |
                          v
                       runtime ------> sdl3     runtime_resources ---> sdl3,
-                         |                     (used by prismel and      sdl3_image,
-                         v                      prismel_execution)       sdl3_ttf, sdl3_mixer
+                         |                     (used by rays and      sdl3_image,
+                         v                      rays_execution)       sdl3_ttf, sdl3_mixer
                      ogpu (virtual) ---> ogpu_core ---> native_layer_token
 
                     ogpu_metal (implementation) ---> ogpu_metal_native ---> metal
                     ogpu_mock  (implementation) ---> ogpu_core
 ```
 
-The PDK split currently puts packed identity, storage, topology, groups, and
-geometry in `pdk_core`; exact predicates, planar constraints, Delaunay, and
-Voronoi live in `pdk_exact`. Spatial and surface indices, proximity queries,
-and point clustering live in `pdk_spatial`. Attribute and group operations
-live in `pdk_attrib`; packed generators and isosurface extraction live in
-`pdk_gen`, while curve sampling and topology live in `pdk_curve`. These are
+The RDK split currently puts packed identity, storage, topology, groups, and
+geometry in `rdk_core`; exact predicates, planar constraints, Delaunay, and
+Voronoi live in `rdk_exact`. Spatial and surface indices, proximity queries,
+and point clustering live in `rdk_spatial`. Attribute and group operations
+live in `rdk_attrib`; packed generators and isosurface extraction live in
+`rdk_gen`, while curve sampling and topology live in `rdk_curve`. These are
 branches above the core/exact/spatial layers. Modeling operations are in
-`pdk_mesh`; Boolean stages are in `pdk_boolean`.
-`Pdk` keeps the public module paths stable, and
-the dependency gate rejects upward edges from lower to higher PDK libraries.
+`rdk_mesh`; Boolean stages are in `rdk_boolean`.
+`Rdk` keeps the public module paths stable, and
+the dependency gate rejects upward edges from lower to higher RDK libraries.
 
-`prismel` never depends directly on an SDL library: window, event, clipboard,
+`rays` never depends directly on an SDL library: window, event, clipboard,
 cursor, image, font and audio services sit behind `runtime`,
 `runtime_input` and `runtime_resources`, and the dependency gate rejects a
-direct `prismel` → `sdl3*` edge. One `Runtime.t` is either a window or an
+direct `rays` → `sdl3*` edge. One `Runtime.t` is either a window or an
 offscreen target: the same render, replay, readback, resize, stats and
 presentation-facts calls serve both, and window-only calls return
 `Unsupported` offscreen. It owns the target's lifecycle, its single `stats`
 record (frame, presentation, draw, pass and submission counts beside cache,
 upload, GPU-timing and retained-plan counters) and the one presentation-facts
-cache, requeried from SDL whenever the drawable changes; `Prismel_execution`
+cache, requeried from SDL whenever the drawable changes; `Rays_execution`
 is the frame coordinator above it and re-exports both records rather than
 defining its own.
-`pdk_prismel` is the separate renderer conversion leaf.
-`prismel_editor` also composes `prismel_pathtracer` for its shared 3D Renderer
+`rdk_rays` is the separate renderer conversion leaf.
+`rays_editor` also composes `rays_pathtracer` for its shared 3D Renderer
 control. It owns bounded per-viewport tracing resources and inserts their images
 through the existing Scene presentation path. Raster and wireframe use Scene3;
 all three modes run on the native Metal backend. This adds no dependency from
 the renderer or foundational libraries back into the editor.
-`procedural` depends only on `pdk`, `prismel_math` (vectors, matrices,
-`Color`, `Parallel`) and `lru`; it never reaches `prismel` or the GPU
-runtime, and the dependency gate keeps it so. The Prismel-dependent glue
+`procedural` depends only on `rdk`, `rays_math` (vectors, matrices,
+`Color`, `Parallel`) and `lru`; it never reaches `rays` or the GPU
+runtime, and the dependency gate keeps it so. The Rays-dependent glue
 (`Sketch_support.Bridge`: frame-to-context, bounded mesh cache,
 `cook_to_mesh`/`cook_to_scene3`) lives in `sketch_support`.
 
@@ -109,7 +109,7 @@ the Metal adapter adopts as its `CAMetalLayer` and releases with the surface.
 runtime reads no Metal counter. `ogpu_metal_native` owns the translation from
 the checked high-level GPU interface to typed Metal bindings; `ogpu_metal`
 selects it as the default virtual OGPU implementation. `metal` owns the safe
-Metal resource and command API. Prismel owns pure scene
+Metal resource and command API. Rays owns pure scene
 values and records rendering through the narrow GPU boundary; it never exposes
 native handles in its public API.
 All raw Metal binding declarations come from `lib/metal/gen/registry.ml`;
@@ -127,7 +127,7 @@ s-expressions). Sketch hosts use
 the router filters fly-mode keyboard events before leader and chord routing,
 while passing Space through to arm the leader after fly exits.
 `flow` supplies the expression/value model, diagnostics and the workspace language
-(reader, checker, evaluator) over `param`. `ppx_prismel` depends on `flow` for
+(reader, checker, evaluator) over `param`. `ppx_rays` depends on `flow` for
 declaration checks only (its `[%flow]` rewriter was deleted in W12; no gate edge changed).
 `flow_sop` depends on `flow`, `param` and `procedural` for the SOP overlay, value
 lane, lowering, edits, projection and probes. The editor runs
@@ -136,21 +136,21 @@ applied values for the graph and inspector. The gate forbids
 `flow` from reaching anything but `param`, and `flow_sop` from reaching UI,
 the SOP catalog, editor or GPU libraries.
 `editor_document` owns the UI-free saved overlay, while `pxui_graph` and
-`pxui_shell` are presentation adapters over it. `prismel_editor` applies their
+`pxui_shell` are presentation adapters over it. `rays_editor` applies their
 typed requests and schedules cooks; none of these edges points back into
 `flow` or `flow_sop`.
 `pxui_graph` exports its graph commands as `Editor_core.Command.t` entries without handling key
-events. `editor_core` depends on `prismel` for frame and event values, never on UI
+events. `editor_core` depends on `rays` for frame and event values, never on UI
 or geometry libraries. `pxui_shell` owns editor chrome over the shared PXUI
 handle; `Layout` computes pane geometry and `Chrome` handles standard splitters,
 headers, and focus outline. Layout geometry is pure and has no mutable cache
 inside the PXUI frame. Its which-key panel reads generic editor commands, while its
 timeline and prompt widgets return requests without knowing about SOPs or
-presets. `Shell.frame` owns the workspace's PXUI frame calls. `prismel_editor`
+presets. `Shell.frame` owns the workspace's PXUI frame calls. `rays_editor`
 supplies commands, playback state, and preset data. The one private
 `editor_document` library contains Document, Settings, Objects, Layers and
 Preset. Its package-private status and dependency gate enforce a transitive
-ban on PXUI, shell, graph presentation, sketch_support and prismel_editor.
+ban on PXUI, shell, graph presentation, sketch_support and rays_editor.
 `Network_view` remains the host's graph-presentation adapter.
 Loaded documents validate before installation and current levels resolve
 after load, undo, and removal. The host reduces stable-ID pane edits after UI
@@ -158,7 +158,7 @@ construction and records every edit path through its commit helper.
 PXUI hit ancestry reports
 presses on child controls to their pane roots; the sketch host reads those
 signals for pane focus. When a click and scoped key share a frame, the router
-reads the same PXUI hit tree before building the frame. `prismel_editor`'s shared
+reads the same PXUI hit tree before building the frame. `rays_editor`'s shared
 `Environment.scene` path composes both 2D and 3D views: viewport adapters
 supply camera and world painting, while visible/hidden composition, the
 leader overlay, and the unchanged hidden-scene cache follow one path.
@@ -323,22 +323,22 @@ constants. The Metal adapter loads compiled bytes and specializes the selected
 function before reflection validation. The shared conformance runner has a
 second exact-output path for both Boolean constant values, compiled from
 `exact_compute.metal` by Dune. It lives under `@qualification` with
-`PRISMEL_METAL_DEV=1`, because the Command Line Tools installation lacks
+`RAYS_METAL_DEV=1`, because the Command Line Tools installation lacks
 `xcrun metal` and `xcrun metallib`. The default headless suite still checks
 source MSL and mock compiled-pipeline `Unsupported`; compiled-output validation needs a full
 Xcode toolchain. Acceleration/refit and the remaining encoder contract remain
 in G2.
-The path tracer's MSL now lives in `lib/prismel_pathtracer/pathtrace.metal` and
+The path tracer's MSL now lives in `lib/rays_pathtracer/pathtrace.metal` and
 is embedded by an OCaml/Dune rule and compiled once into one OGPU library;
 the `INSTANCED` function constant selects the flat or instanced pipeline. The
 M1 fixed-image qualification covers flat and instanced renders after this
 source move and after the OGPU migration.
-The path-tracer camera input is now `Prismel.Camera.t`; the current ray kernel
+The path-tracer camera input is now `Rays.Camera.t`; the current ray kernel
 accepts only an unshifted perspective view. The M1 fixed-image qualification
 also covers this API migration.
 Path-tracer materials and environment light use
-`Prismel_pathtracer.Linear_color.t`, a floating-point RGB record. It preserves
-low-intensity and HDR inputs that byte-channel `Prismel.Color.t` cannot express;
+`Rays_pathtracer.Linear_color.t`, a floating-point RGB record. It preserves
+low-intensity and HDR inputs that byte-channel `Rays.Color.t` cannot express;
 the GPU upload keeps the same float channel order and the fixed M1 image digest.
 `Ogpu.Caps` now owns the portable feature matrix and typed `Unsupported`
 check. Metal probes populate that profile in `ogpu_metal_native.Device`, which also
@@ -391,7 +391,7 @@ The pump never reads file bytes; the sketch receives the same path through
 its event-count bound, with no separate file-size limit or byte payload.
 
 Scene visibility, culling, batch selection, and Scene2/Scene3 lowering remain
-Prismel responsibilities. The Metal binding does not contain Prismel vertex
+Rays responsibilities. The Metal binding does not contain Rays vertex
 layouts, fixed Scene binding slots, or scene-cache keys. Its private prepared
 submission surface snapshots only generic Metal pass state, typed resource
 sets, indexed draws or indirect-command ranges, and completion-owned resource
@@ -399,12 +399,12 @@ roots. OGPU-Metal is the only layer that maps checked OGPU render values onto
 that generic surface.
 
 `Scene3.instances_array` lowers each instance batch to one indexed Metal draw.
-Prismel keeps one mesh and one material/light uniform block, then appends 48
+Rays keeps one mesh and one material/light uniform block, then appends 48
 float32 values per instance (model-view-projection, world, and normal matrices).
 The vertex shader indexes that table with Metal's instance ID. OGPU carries a
 checked positive instance count; OGPU-Metal uses an indexed instanced draw and
 keeps the transform buffer alive through completion. Scene3 uses
-counterclockwise front faces, matching PDK mesh winding. Other scene paths
+counterclockwise front faces, matching RDK mesh winding. Other scene paths
 retain their existing winding.
 
 Scene execution uploads transform blocks into three bounded shared-buffer
@@ -420,7 +420,7 @@ Scene3 raster accepts indexed triangles, lines, and points. Lines use native
 Metal line draws; points use a point-topology pipeline with an explicit
 one-pixel point size. Line strips and loops become indexed line pairs once
 per immutable mesh. `Scene3.Wireframe` extracts unique edges from triangle
-meshes, while callers with polygon topology can pass PDK's unique topology
+meshes, while callers with polygon topology can pass RDK's unique topology
 edges as `Mesh.Lines` to avoid triangulation diagonals. Mesh packing is cached
 by mesh identity and render mode with a bounded cache. The catalog Box SOP
 defaults to quad faces, matching its inspector parameter default.
@@ -429,14 +429,14 @@ The initial domain owns every window, event, layer, drawable, and resource
 operation. Pure geometry and scene preparation may use the shared parallel
 pool, but all results join before crossing the native boundary.
 
-`prismel_pathtracer` is an ordinary sibling library on the virtual `ogpu`
+`rays_pathtracer` is an ordinary sibling library on the virtual `ogpu`
 API: it leases the presenting window's OGPU device through
-`Prismel_execution.acquire_gpu` (or a lazily created headless device when
+`Rays_execution.acquire_gpu` (or a lazily created headless device when
 no window exists), owns one queue on it, and builds its acceleration
 structures, library, pipelines, and frames through OGPU encoders. Its
 packed-mesh path builds one bottom-level structure and a top-level instance
 structure; unchanged prototypes retain their GPU buffers and bottom-level
-structure across transform edits. It hands results back to Prismel only as
+structure across transform edits. It hands results back to Rays only as
 an ordinary `Image.t` with a stable identity. It imports neither `metal` nor
 the runtime, and nothing below it imports it. See `specification/pathtracer.md`.
 
@@ -445,7 +445,7 @@ the runtime, and nothing below it imports it. See `specification/pathtracer.md`.
 1. Runtime creates an SDL3 Metal view and obtains its `CAMetalLayer`.
 2. The layer supplies a drawable for each presented frame; resize updates the
    drawable extent before recording work.
-3. Prismel lowers immutable `Scene` data into checked OGPU commands. Native
+3. Rays lowers immutable `Scene` data into checked OGPU commands. Native
    implementation code validates device identity, resource lifetime, numeric
    ranges, and command ordering before encoding Metal commands.
 4. Scene passes render into one owned RGBA8 texture, which remains the exact
@@ -537,9 +537,9 @@ renderer-neutral `Scene_command.Ui_batch` (64-byte rect, textured, Bézier
 wire-segment, and dot-grid instances grouped by clip, canvas transform, and
 texture) and its bound textures. Staging keeps it as its own
 `Ui_layer`. PXUI reaches the batch builder through `Scene.Private.Ui_batch`,
-so its library depends on `prismel` without a direct `scene_command` edge.
+so its library depends on `rays` without a direct `scene_command` edge.
 Like `view3d`, the Render_ir materializer skips it, and enclosing
-Scene transforms and clips do not apply. `Prismel_execution.Private
+Scene transforms and clips do not apply. `Rays_execution.Private
 .lower_ui` turns each batch into one indexed draw of the `Ui` pipeline family:
 vertex pulling reads the instances, a 24-byte affine uniform maps logical
 canvas units to clip space, and the logical scissor is scaled to physical
@@ -589,13 +589,13 @@ submitted work completes.
 SDL3, TTF, and mixer finalizer tokens queue until the initial domain drains
 them; no token is discarded when the queue grows.
 Resource-level font rendering returns an owned text snapshot. Automatic scene
-text and explicit high-level font caches are bounded by their Prismel owners;
+text and explicit high-level font caches are bounded by their Rays owners;
 the resource font has no second renderer-keyed cache.
 High-level `Font.render_text` consumes that snapshot into an `Image`, transferring
 the copied SDL surface pixels without further RGBA copies. Public `Text.pixels`
 and `Image.pixels` remain copy-returning; a consumed text snapshot is destroyed.
 
-`Scene`, `Canvas`, `Image`, `Font`, and `Audio` remain high-level Prismel
+`Scene`, `Canvas`, `Image`, `Font`, and `Audio` remain high-level Rays
 interfaces. Their implementation lowers to the native GPU stack without
 changing public scene semantics. Native framebuffer capture and export use
 the same checked readback path as presentation diagnostics.
@@ -642,7 +642,7 @@ and its leader key (Space) only
 arms while no editor is focused. Camera PNG requests capture the
 just-presented native framebuffer through `Sketch.run_state`'s `after_present`
 hook. The UI offers the supported native 1× export factor. PXUI copy, cut, and
-paste go through the public `Prismel.Clipboard` result boundary; failed writes
+paste go through the public `Rays.Clipboard` result boundary; failed writes
 never clear a text value.
 
 PXUI splitters request horizontal or vertical resize cursors while hovered or
@@ -654,7 +654,7 @@ shape, and destroys them with the window. PXUI never imports SDL3.
 # Relative pointer mode
 
 `Sketch.set_relative_mouse` is the only public entry to SDL relative mouse
-mode: it runs `Prismel_execution.set_relative_mouse` →
+mode: it runs `Rays_execution.set_relative_mouse` →
 `Runtime.set_relative_mouse`
 (`Sdl3.Window.set_relative_mouse`) and switches the shared
 `Runtime_input` source to relative accounting, so `Frame.mouse_delta`
@@ -663,7 +663,7 @@ sums SDL `xrel`/`yrel` (the event pump reports them through
 motion of the samples it drops) instead of absolute differences that stop at
 the window edge. Frame aggregation lives in this shared input source; the SDL3
 binding exposes no second mouse-delta reduction helper. No SDL value crosses
-into Prismel's public API, the sketch
+into Rays's public API, the sketch
 loop turns it off when it stops, and the library dependency graph is
 unchanged (`test/dependency_gate.ml`). Sketch UI fly mode is its only
 in-tree user.

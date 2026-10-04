@@ -1,10 +1,10 @@
-# Prismel sketch API
+# Rays sketch API
 
 Status: accepted direction for the public high-level API.
 
 ## Goal
 
-Prismel should make the first visual result take minutes and keep larger
+Rays should make the first visual result take minutes and keep larger
 sketches understandable. A sketch author should spend their attention on the
 idea, not lifecycle plumbing, SDL resources, or synchronizing input state.
 
@@ -31,7 +31,7 @@ Productive creative-coding systems converge on a few ideas:
 - Lisp-family workflows favor small expressions, composable data, and fast
   evaluation over object construction and callback ceremony.
 
-Prismel retains those advantages without importing global mutable user state.
+Rays retains those advantages without importing global mutable user state.
 The frame environment is an explicit value and the picture is a pure value.
 
 Primary references used in this design:
@@ -49,7 +49,7 @@ Primary references used in this design:
 ## Five-minute sketch
 
 ```ocaml
-open Prismel
+open Rays
 
 let view frame =
   Scene.[
@@ -67,7 +67,7 @@ configuration is required.
 ## Stateful sketch
 
 ```ocaml
-open Prismel
+open Rays
 
 type model = { x : float }
 
@@ -156,8 +156,8 @@ Scene vocabulary. Their lowering, resource snapshots, and orchestration remain
 private implementation machinery behind the same immutable `Scene`/`Scene3`
 values. Native Metal is the only renderer and is not selected through public
 scene data or an environment flag.
-The transitional `Prismel_api` re-export is gone; native callers use
-`Prismel` directly.
+The transitional `Rays_api` re-export is gone; native callers use
+`Rays` directly.
 
 `Scene.text_input_region` is pure scene data. At the render boundary its
 logical bounds describe the native IME candidate area for a focused editor;
@@ -180,7 +180,7 @@ at the caret. Cut clears text only after the clipboard write succeeds. The
 picker reserves Delete for its selected row when no text is selected.
 
 `Scene.text ?size` resolves an installed platform UI font and treats `size` as
-a logical point size. `PRISMEL_UI_FONT` overrides the platform font search.
+a logical point size. `RAYS_UI_FONT` overrides the platform font search.
 System and loaded fonts rasterize and cache at the active renderer density while
 keeping their layout dimensions logical.
 
@@ -220,7 +220,7 @@ should use floats and convert at the scene boundary.
 plus plane, box, UV sphere, icosphere, cylinder, and cone generators.
 Its immutable editing/query API includes per-element replacement, safe
 removal, centroid, recalculated and flat normals, and attributed faces and face
-normals. File import/export (OBJ, OFF, STL) belongs to `Pdk.Io` over packed
+normals. File import/export (OBJ, OFF, STL) belongs to `Rdk.Io` over packed
 geometry.
 `Material` and `Light` provide the fixed native lighting inputs, while `Mat4`
 and scoped `Scene3` nodes compose hierarchical transforms. Scene3 renders
@@ -245,40 +245,40 @@ there is no separate public `Framebuffer3` module in the installed library.
 See [`3d.md`](./3d.md) for the rendering contract and
 [`3d-parity.md`](./3d-parity.md) for the audited openFrameworks parity matrix.
 
-### Packed geometry in `Pdk`
+### Packed geometry in `Rdk`
 
-The public `Pdk` facade keeps its packed geometry, topology, attribute, mesh,
-and Boolean paths while implementations live in one-way `pdk_core`, `pdk_exact`,
-`pdk_spatial`, `pdk_attrib`, `pdk_gen`, `pdk_curve`, `pdk_mesh`, and `pdk_boolean`
-libraries. `Pdk.Curve_sampling` provides deterministic Bézier and
-Catmull–Rom samples, `Pdk.Iso_surface` extracts packed isosurfaces,
-`Pdk.Uv_sphere` generates packed latitude/longitude spheres.
-`Pdk.Group_ops`, `Pdk.Group_mesh`, `Pdk.Graph_color`,
-`Pdk.Blast_by_attribute`, `Pdk.Separate_pieces`, `Pdk.Deletion`,
-`Pdk.Blend_shapes`, `Pdk.Attribute_composite`,
-`Pdk.Attribute_mirror`, `Pdk.Attribute_fade`, `Pdk.Fuse_reduce`, `Pdk.Fuse_grid`,
-`Pdk.Normal_ops`, `Pdk.Curvature`, `Pdk.Laplacian`, `Pdk.Polyframe`, `Pdk.Scatter`, `Pdk.Boolean_detect`, `Pdk.Plane_generators`,
-`Pdk.Box_generator`, `Pdk.Parametric_generators`, `Pdk.Spiral`, `Pdk.Point_generate`,
-`Pdk.Color_by_height`, `Pdk.Line_geometry`, `Pdk.Mesh_merge`,
-`Pdk.Edge_collapse`, `Pdk.Dissolve`, `Pdk.Ordering`, `Pdk.Instance_copy`,
-`Pdk.Transform_ops`, `Pdk.Deform`, `Pdk.Subdivide`,
-`Pdk.Poly_extrude`, `Pdk.Poly_bevel`, `Pdk.Poly_loft`, `Pdk.Poly_bridge`,
-`Pdk.Poly_cut`, `Pdk.Point_replication`, `Pdk.Clean`,
-`Pdk.Smooth`, `Pdk.Reverse_faces`, `Pdk.Edge_transport`,
-`Pdk.Edge_ops`, `Pdk.Edge_relax`, `Pdk.Facet`, `Pdk.Circle_from_edges`,
-`Pdk.Crease`, `Pdk.Rewire_vertices`,
-`Pdk.Mirror_geometry`, `Pdk.Convex_hull`, `Pdk.Bound`, `Pdk.Match_size`,
-`Pdk.Plane_clip`, `Pdk.Edge_flip`, `Pdk.Compact_points`,
-`Pdk.Poly_fill`, and `Pdk.Poly_reduce` expose option and rule types or checked operations used
+The public `Rdk` facade keeps its packed geometry, topology, attribute, mesh,
+and Boolean paths while implementations live in one-way `rdk_core`, `rdk_exact`,
+`rdk_spatial`, `rdk_attrib`, `rdk_gen`, `rdk_curve`, `rdk_mesh`, and `rdk_boolean`
+libraries. `Rdk.Curve_sampling` provides deterministic Bézier and
+Catmull–Rom samples, `Rdk.Iso_surface` extracts packed isosurfaces,
+`Rdk.Uv_sphere` generates packed latitude/longitude spheres.
+`Rdk.Group_ops`, `Rdk.Group_mesh`, `Rdk.Graph_color`,
+`Rdk.Blast_by_attribute`, `Rdk.Separate_pieces`, `Rdk.Deletion`,
+`Rdk.Blend_shapes`, `Rdk.Attribute_composite`,
+`Rdk.Attribute_mirror`, `Rdk.Attribute_fade`, `Rdk.Fuse_reduce`, `Rdk.Fuse_grid`,
+`Rdk.Normal_ops`, `Rdk.Curvature`, `Rdk.Laplacian`, `Rdk.Polyframe`, `Rdk.Scatter`, `Rdk.Boolean_detect`, `Rdk.Plane_generators`,
+`Rdk.Box_generator`, `Rdk.Parametric_generators`, `Rdk.Spiral`, `Rdk.Point_generate`,
+`Rdk.Color_by_height`, `Rdk.Line_geometry`, `Rdk.Mesh_merge`,
+`Rdk.Edge_collapse`, `Rdk.Dissolve`, `Rdk.Ordering`, `Rdk.Instance_copy`,
+`Rdk.Transform_ops`, `Rdk.Deform`, `Rdk.Subdivide`,
+`Rdk.Poly_extrude`, `Rdk.Poly_bevel`, `Rdk.Poly_loft`, `Rdk.Poly_bridge`,
+`Rdk.Poly_cut`, `Rdk.Point_replication`, `Rdk.Clean`,
+`Rdk.Smooth`, `Rdk.Reverse_faces`, `Rdk.Edge_transport`,
+`Rdk.Edge_ops`, `Rdk.Edge_relax`, `Rdk.Facet`, `Rdk.Circle_from_edges`,
+`Rdk.Crease`, `Rdk.Rewire_vertices`,
+`Rdk.Mirror_geometry`, `Rdk.Convex_hull`, `Rdk.Bound`, `Rdk.Match_size`,
+`Rdk.Plane_clip`, `Rdk.Edge_flip`, `Rdk.Compact_points`,
+`Rdk.Poly_fill`, and `Rdk.Poly_reduce` expose option and rule types or checked operations used
 by procedural SOPs.
-`Pdk.Group_ops.groups_from_name_checked` and
-`Pdk.Group_ops.name_from_groups_checked` return the same typed validation and
+`Rdk.Group_ops.groups_from_name_checked` and
+`Rdk.Group_ops.name_from_groups_checked` return the same typed validation and
 cancellation errors as their compatibility entry points.
-The remaining checked `Pdk.Group_ops` selections and `Pdk.Group_mesh` edge/path
+The remaining checked `Rdk.Group_ops` selections and `Rdk.Group_mesh` edge/path
 selections preserve the same typed errors while keeping group storage in the
 attribute core and topology paths in the mesh core.
 
-Loop and Catmull-Clark mesh subdivision use the same packed PDK core
+Loop and Catmull-Clark mesh subdivision use the same packed RDK core
 as `Procedural.Sop.subdivide`. The SOP additionally exposes bilinear
 refinement, recursive depth, all six OpenSubdiv face-varying interpolation
 policies, standard or Smooth Triangles Catmull-Clark masks, groups, and
@@ -288,7 +288,7 @@ every edge in the subdivided surface through the first packed plan, matching
 Houdini without materializing an input-sized control field. Houdini-compatible `osd_scheme`,
 `osd_vtxboundaryinterpolation`, `osd_fvarlinearinterpolation`,
 `osd_creasingmethod`, and `osd_trianglesubdiv` detail fields override the
-corresponding node options at the PDK cook boundary without adding a second
+corresponding node options at the RDK cook boundary without adding a second
 geometry model.
 `Procedural.Sop.crease` is the authoring companion: it adds, sets, or deletes
 edge-consistent vertex `creaseweight` values over all edges or a named native
@@ -309,7 +309,7 @@ distinct topology policies; scalar crossings interpolate exact cut endpoints,
 while scalar or tuple change detection emits enough disconnected subsegments
 to respect the requested maximum change. The static graph node delegates all
 cardinality planning, point/vertex payload interpolation, group ancestry, and
-parallel fills to `Pdk.Poly_cut.cut`.
+parallel fills to `Rdk.Poly_cut.cut`.
 `Procedural.Sop.separate_pieces` packs integer- or text-identified point or
 primitive pieces into stable, non-overlapping projection intervals along an
 arbitrary axis. A float3 translation field is written on the identity owner's
@@ -317,11 +317,11 @@ domain and the Move Back mode subtracts it later. Point identities must remain
 uniform within every primitive, while primitive identities must agree at
 shared points; ambiguous topology is rejected rather than deformed. The node
 is static and delegates all bounds, ownership, overflow, and parallel position
-work to `Pdk.Separate_pieces.run_checked`.
+work to `Rdk.Separate_pieces.run_checked`.
 `Procedural.Sop.edge_equalize` targets the initial average, longest, or
 shortest length of a named native edge group, or all topology edges when the
 group is omitted. Independent edges are solved directly; connected selections
-use a bounded deterministic PDK projection controlled by `~iterations` and a
+use a bounded deterministic RDK projection controlled by `~iterations` and a
 relative `~tolerance`. The node may publish the processed topology-affine
 selection with `~output_group`, and never owns mutable solver state.
 `Procedural.Sop.edge_relax` is the two-input reference-length companion. The
@@ -341,7 +341,7 @@ value, so partial targets remain deterministic rather than shifting indices.
 `Procedural.Sop.attribute_composite` folds ordered immutable inputs across
 independent detail, primitive, point, and vertex attribute patterns. Mean,
 component-wise Max/Min, and standard ordered Over/Under operations share one
-packed PDK kernel. Every input has a finite global weight; an optional
+packed RDK kernel. Every input has a finite global weight; an optional
 same-owner scalar alpha distributes it per element, with missing alpha equal to
 one. Canonical `P` requires explicit `~allow_position:true`, and patterns,
 weights, alpha name, input order, and operation all participate in cache
@@ -362,7 +362,7 @@ Recursive point chains, target deletion, newly-unused-point cleanup, and a
 vertex original-point provenance field are immutable node identity. Invalid
 targets leave their corners unchanged; cycle members retain their own points.
 All topology mutation, payload compaction, and topology-affine edge-group
-ancestry remain inside the shared PDK core.
+ancestry remain inside the shared RDK core.
 `Procedural.Sop.edge_transport` transports scalar point fields over a stable
 shortest-path forest. First/last root selection seeds every selected component;
 an explicit named root group performs deterministic multi-source traversal and
@@ -376,7 +376,7 @@ allowing scheduling-dependent writes. `Procedural.Sop.edge_transport_parent`
 uses an integer point-parent forest when topology edges are absent; invalid or
 self parents form roots, cycles remain unchanged, and independent trees cook
 in parallel with stable numeric child order.
-Open and closed polygon curves also adapt through that single PDK Subdivide
+Open and closed polygon curves also adapt through that single RDK Subdivide
 core. Catmull-Clark inserts segment midpoints and applies the cubic
 `1/8 previous + 3/4 current + 1/8 next` rule at shared-graph degree-two
 points, pinning endpoints and branches; bilinear pins every old point. The
@@ -390,7 +390,7 @@ Point `N` is an ordinary point-stencil payload by default. The typed
 after the complete surface/curve cook with final area-weighted normalized
 normals; it never creates a normal field for an input that lacked point `N`.
 `Procedural.Sop.poly_loft` triangulates an authored sequence of selected open
-or closed polygon curves or polygon faces through the shared packed PDK core.
+or closed polygon curves or polygon faces through the shared packed RDK core.
 It accepts unequal section cardinalities, closest or rest-guided alignment,
 two- and three-distance pairing objectives, U/V wrap, source retention,
 generated-face grouping, explicit collinearity policy, and existing-normal
@@ -409,7 +409,7 @@ zipper triangles without duplicating boundary points. Positive `divisions`
 adds uniform straight rows to equal-cardinality bridges with linear numeric and
 nearest discrete point/vertex interpolation.
 `Procedural.Sop.poly_reduce` exposes deterministic adaptive QEM reduction over
-the same packed PDK geometry. A ratio or absolute polygon target, primitive
+the same packed RDK geometry. A ratio or absolute polygon target, primitive
 restriction, hard point/native-edge constraints, strict boundary locking,
 original-position mode, equal-length weighting, optional normal-deviation
 limit, and surviving-face group are immutable cache parameters. Polygon
@@ -439,22 +439,22 @@ side, optional primitive patterns copy curve payload to point ownership, and
 generated point fields expose uniform-edge curve U, per-curve cut count, and
 original primitive number. Plateau vertices and closed seams have explicit
 once-per-curve behavior, and all topology-changing work stays in the shared
-PDK kernel.
+RDK kernel.
 `Procedural.Sop.circle_from_edges` transforms each simple path or loop in a
 named topology-affine edge group, or every topology boundary component when no
 group is named. Best-fit radius is the default; a positive constant radius,
 finite component-wise scale, and output native edge group are immutable cache
 identity. The static node resolves only the group name and delegates component
 planning, normalized covariance/eigensystem fitting, algebraic circle fitting,
-projection, cancellation, validation, and stale-normal handling to PDK.
+projection, cancellation, validation, and stale-normal handling to RDK.
 `Procedural.Sop.graph_color` resolves an optional typed group, promotes it to
 the point or primitive graph owner, and delegates stable component planning and
-greedy coloring to PDK. Point graphs connect all points in each primitive;
+greedy coloring to RDK. Point graphs connect all points in each primitive;
 primitive graphs connect through any shared point or only a shared closed-
 polygon edge. Unselected elements receive `-1`. Optional stable sorting and
 detail integer-array workset begin/length fields are part of immutable node
 identity and remain byte-identical across domain counts.
-`Procedural.Sop.poly_bevel` wraps the single packed PDK bevel kernel. A named
+`Procedural.Sop.poly_bevel` wraps the single packed RDK bevel kernel. A named
 native edge group or all eligible edges produces chamfered or divided rounded
 fillets; point-float distance scale, flat-edge exclusion, first-ring collision
 limiting, edge/corner primitive groups, and offset native-edge groups are stable
@@ -525,28 +525,28 @@ including a single exact name, with an explicit destination conflict policy.
 `Procedural.Sop.bound` creates a bounding box with its default shape; use
 equal lower and upper padding for symmetric expansion. The editor exposes the
 same operation as `Bound`.
-The checked packed operations are `Pdk.Bound.run_checked`,
-`Pdk.Bound.bounding_box_checked`, `Pdk.Match_size.run_checked`, and
-`Pdk.Match_size.match_axis_checked`; their shape and fit constructors live in
+The checked packed operations are `Rdk.Bound.run_checked`,
+`Rdk.Bound.bounding_box_checked`, `Rdk.Match_size.run_checked`, and
+`Rdk.Match_size.match_axis_checked`; their shape and fit constructors live in
 those family modules.
-Packed curve modeling uses `Pdk.Resample_curves.run`,
-`Pdk.Curve_ops.carve_curves` (with its `cut_mode` and
-`parameter_attribute_mode`), and `Pdk.Sweep_circle.run`.
-Packed queries use `Pdk.Ray.run`, `Pdk.Point_split.run_checked`, and
-`Pdk.Intersection_analysis.run_checked`; ray options and constructors live in
-`Pdk.Ray`. These entries preserve the typed validation and cancellation
+Packed curve modeling uses `Rdk.Resample_curves.run`,
+`Rdk.Curve_ops.carve_curves` (with its `cut_mode` and
+`parameter_attribute_mode`), and `Rdk.Sweep_circle.run`.
+Packed queries use `Rdk.Ray.run`, `Rdk.Point_split.run_checked`, and
+`Rdk.Intersection_analysis.run_checked`; ray options and constructors live in
+`Rdk.Ray`. These entries preserve the typed validation and cancellation
 errors of the former compatibility wrappers.
 Packed UV projection, transform, seam marking, unitizing, flattening, and
-relaxation use the corresponding `Pdk.Uv_ops` entries and option types.
-Packed triangulation and remeshing use `Pdk.Triangulate`, `Pdk.Triangulate2d`,
-and `Pdk.Remesh`; revolve and
-general sweep use `Pdk.Sweep_modeling`. Both modules preserve the checked
+relaxation use the corresponding `Rdk.Uv_ops` entries and option types.
+Packed triangulation and remeshing use `Rdk.Triangulate`, `Rdk.Triangulate2d`,
+and `Rdk.Remesh`; revolve and
+general sweep use `Rdk.Sweep_modeling`. Both modules preserve the checked
 validation and cancellation results of the former compatibility entry points.
-Curve topology and extraction use `Pdk.Curve_topology` for line conversion,
+Curve topology and extraction use `Rdk.Curve_topology` for line conversion,
 curve ends, joins, path tracing, centroid extraction, and curve-point cuts.
-`Pdk.Fuse_grid.fuse_checked` and `snap_to_grid_checked` preserve the typed
+`Rdk.Fuse_grid.fuse_checked` and `snap_to_grid_checked` preserve the typed
 validation and cancellation boundary around the packed Fuse and grid kernels.
-`Pdk.Plane_clip.clip_checked` and `clip_transform_checked` preserve the same
+`Rdk.Plane_clip.clip_checked` and `clip_transform_checked` preserve the same
 typed clipping boundary while exposing only the plane policy and operations.
 `Procedural.Sop.group_rename` applies ordered owner-scoped rename rules with
 an explicit conflict policy, including the single-group case.
@@ -562,7 +562,7 @@ destroy/heal/compaction contract.
 
 ### `PXUI`
 
-PXUI is a sibling library that depends on Prismel and consumes ordinary
+PXUI is a sibling library that depends on Rays and consumes ordinary
 logical `Event.t` positions. `Pxui.Ui` is an immediate-mode kit: build the
 interface inside `Ui.frame`, keep values in the model, and compose
 `Ui.scene` into the view. See [`pxui.md`](./pxui.md) for the architecture and
@@ -599,7 +599,7 @@ returns an error outside an active sketch. A trackpad pinch reaches a box as
 `signal.pinch`, the product of the frame's pinch factors for the scrollable box
 under the pointer.
 
-`Editor_core.Store.Settings` saves model values in Prismel's versioned JSON
+`Editor_core.Store.Settings` saves model values in Rays's versioned JSON
 envelope and reads existing `PXUI1` files.
 `Pxui.Camera_control` builds Camera (FOV, distance, clipping, inertia, reset)
 and Render (output name, save) sections through `widgets`. Hosts decide when
@@ -629,7 +629,7 @@ layout to those fields and to Camera, Render, Viewport, settings, and compound
 interface controls. `inspector_header`, `inspector_toggle`,
 `inspector_button`, `inspector_readout`, and `inspector_message` cover their
 other content.
-The Prismel Editor inspector panel has no outer padding; long labels move
+The Rays Editor inspector panel has no outer padding; long labels move
 above their controls within the row.
 
 Both kinds of caller use the same field adapter:
@@ -649,7 +649,7 @@ let node, effects =
 | changes -> Result.get_ok (Procedural.Node.apply_parameters node changes)
 ```
 
-In Prismel Editor, `Inspector.flow_fields` renders the selected SOP or value
+In Rays Editor, `Inspector.flow_fields` renders the selected SOP or value
 node from its saved Flow network. It shows the node label, qualified kind,
 flags, geometry inputs, all parameter folders, card pin toggles, grouped vec3
 controls and split state. A driven row shows its source and applied value;
@@ -672,12 +672,12 @@ only in their viewport.
 The graph pane is `Pxui_graph.Scope`: a left-to-right canvas over workspace text (polyline wires, zones, editable
 literal rows, typed sockets, live drives written as `t` expressions). `Pxui_graph.Node_menu` is its categorised add
 menu. `Editor_document.Layout_by_path` is the UI-free saved layout shared by the host and canvas. Graph/list/text
-views (the Lisp pane is editable) and `.plisp` sketches follow `flow-migration.md`. Value nodes, compounds and
+views (the Lisp pane is editable) and `.rays` sketches follow `flow-migration.md`. Value nodes, compounds and
 expression drives were deleted in Gap A.
-`prismel.pxui_graph` supplies deterministic initial layout,
+`rays.pxui_graph` supplies deterministic initial layout,
 persistent graph-space tile positions, ordered ports/wires, topology-safe node
 dragging, independent inspector/display selection through each tile's VIEW
-button, selection clearing, captured pan, zoom, and framing. `Prismel_editor.Editor3.run`
+button, selection clearing, captured pan, zoom, and framing. `Rays_editor.Editor3.run`
 and `Editor2.run` compose both in a splitter-resizable, independently
 collapsible workspace of panels (view, graph, list, lisp, inspector, outline, timeline) whose
 default is the view/graph/inspector columns at 45/35/20; a workspace's `(graph editor …)` replaces the
@@ -723,7 +723,7 @@ an absent settings form keeps the supplied fallback, while an explicit
 cook seed currently take effect when the host starts, rather than on an edit.
 
 Both editors autosave document edits and viewport navigation to one atomic
-`.plisp` recovery file under `~/.prismel/<name>/state` (or `<presets>/state`).
+`.rays` recovery file under `~/.rays/<name>/state` (or `<presets>/state`).
 The source file's absolute path identifies a file-backed sketch; other sketches
 use their workspace name. Writes coalesce at most twice a second, and close
 flushes pending edits. An unchanged opening preserves the previous recovery.
@@ -835,8 +835,8 @@ clicking a binding selects its node, and its header toggles qualified names.
 | `=` / `r` | edit the hovered row's expression / clear its drive or restore its default |
 
 `?` toggles the contextual guide and delayed tooltips globally. The guide
-starts on and saves its setting in `~/.prismel/preferences.plisp` through
-`Editor_core.Store` (override with `PRISMEL_EDITOR_PREFERENCES`). Its strip
+starts on and saves its setting in `~/.rays/preferences.rays` through
+`Editor_core.Store` (override with `RAYS_EDITOR_PREFERENCES`). Its strip
 uses Command guide membership in table order. `Space k` shows the grouped
 key sheet; key feedback lasts 1.5 seconds. Shared UI text focus owns typing
 and modal dismissal. `Tab` runs Add in the canvas; `Shift-Tab` remains UI
@@ -851,10 +851,10 @@ same instance membership as geometry. Common renderer slots use viewport keys,
 including floating panels with identical bounds. A failed slot reports its
 error while successful siblings remain visible.
 
-The Lisp pane shows and edits the workspace text (`Prismel_editor.Text_pane`: Selection, Graph and
-Document tabs; Check and apply is atomic and one "Edit text" history entry). A sketch is a `.plisp` file
+The Lisp pane shows and edits the workspace text (`Rays_editor.Text_pane`: Selection, Graph and
+Document tabs; Check and apply is atomic and one "Edit text" history entry). A sketch is a `.rays` file
 (below); an OCaml host that needs its own code passes a workspace to `Editor3.run ?workspace`, for
-example `Prismel_editor.Workspace.load text` (see `sketches/flow_workspace/` for a finite
+example `Rays_editor.Workspace.load text` (see `sketches/flow_workspace/` for a finite
 sketch driving every fixture). The catalog manifest `lib/sop_catalog/flow_manifest.sexp` is generated by
 `dune exec tools/flow_manifest.exe` and checked for drift by the `sop_catalog` runtest rule; `dune promote`
 accepts an intended catalog change. The `[%flow]` PPX, `Flow_sop.Build`, `Flow_sop.Program` and the
@@ -891,7 +891,7 @@ the drawn gutters, and the focused pane's top rule;
 `Chrome.splitters` builds the one-point gutters' seven-point drag targets last, over the
 panes. Chrome returns intents, never edits. Editor layout queries return
 `Pxui_shell.Layout.panes` (the first view, graph and inspector); tests and other hosts
-use Layout and Chrome directly. A host passes a `Layout.t` as `?layout`. `Prismel_editor.Private` is explicitly unstable.
+use Layout and Chrome directly. A host passes a `Layout.t` as `?layout`. `Rays_editor.Private` is explicitly unstable.
 `Panels.state` holds saved disclosure and optional floating bounds.
 `Layout.geometry ~state` applies them, and Chrome emits intents for the host to save. Floating
 panels remain inside the editor. Named editor graphs appear in Shell layouts;
@@ -945,11 +945,11 @@ host has no camera field names or copied defaults. Fly mode captures the pointer
 `Sketch.set_relative_mouse`; Escape exits and Space exits into the leader.
 `Editor_core.Router` owns the fly-mode key filter; pointer and focus-loss events
 still reach the workspace.
-`Prismel_pathtracer.render` accepts `Camera.t` directly, including its
+`Rays_pathtracer.render` accepts `Camera.t` directly, including its
 `Camera.lens` (thin-lens aperture and focus distance). It currently supports
 unshifted perspective cameras and returns an error for other projections,
 forced aspect, or vertical flip.
-Presets save a workspace document to `~/.prismel/<sketch>/<name>.plisp`, one
+Presets save a workspace document to `~/.rays/<sketch>/<name>.rays`, one
 s-expression file: the `(workspace ...)` source with its comments, then
 optional `(layout ...)` by path, `(settings ...)` and `(view ...)` forms
 (`specification/flow.md` §4.4). Loading checks and lowers the source into one
@@ -959,20 +959,20 @@ format. Only a workspace document saves (open one with `?workspace` on
 history entry named by the op). Scene and World edits made through the list, the inspector, the handles or the
 World keys are written back to the text in the same frame (`Editor_document.Scene_sync`), so Save round-trips them;
 `create ?await` makes each frame block on the cook it submits (a fixed-step run, a test); the crash report writes `document.txt` (a text
-of any document) and `document.plisp` for a workspace. Empty networks have no
+of any document) and `document.rays` for a workspace. Empty networks have no
 display node and clear their preview. A preset that fails to parse, check or
 lower leaves the installed state unchanged. The unstable
 `Private.Document.object_network` test hook returns an optional display ID to
 represent empty networks.
 
-#### `.plisp` sketches
+#### `.rays` sketches
 
-`sketches/<name>/sketch.plisp` is a whole sketch: one `(workspace ...)` form, no `main.ml`, no `dune`.
-`prismel-plisp check|ml|dune|fmt FILE` (`tools/plisp`) checks it with the editor's catalog (a typo fails
-`dune build` at the `.plisp` line), generates `main.ml` (the text embedded, its SHA-256 as `digest`) and
-the stanzas of `sketches/dune.plisp.inc` (checked in: `dune build @runtest; dune promote` after adding a
+`sketches/<name>/sketch.rays` is a whole sketch: one `(workspace ...)` form, no `main.ml`, no `dune`.
+`rays-plisp check|ml|dune|fmt FILE` (`tools/plisp`) checks it with the editor's catalog (a typo fails
+`dune build` at the `.rays` line), generates `main.ml` (the text embedded, its SHA-256 as `digest`) and
+the stanzas of `sketches/dune.rays.inc` (checked in: `dune build @runtest; dune promote` after adding a
 sketch; `dune exec tools/new_example.exe -- --plisp <name>` scaffolds one). The generated program is
-`Prismel_editor.Workspace.main ~path ~digest ~catalog text`; OCaml hosts call `Workspace.load` (parse and
+`Rays_editor.Workspace.main ~path ~digest ~catalog text`; OCaml hosts call `Workspace.load` (parse and
 check) and `Workspace.run ?source doc` (the window from the `settings` graph, the viewport starting at the
 scene's first camera, a scene graph is authoritative: it replaces the host's camera and lights, and an empty one means none).
 
@@ -985,14 +985,14 @@ light's last successful value while healthy siblings advance, and reports
 Other scene/World/panel fields remain static and refuse time expressions with
 `E_CONTEXT_TIME`. Window title, size, fps and seed apply on restart.
 
-The running window follows the file. `Prismel_editor.Source` finds it (the first `dune-project` not under
+The running window follows the file. `Rays_editor.Source` finds it (the first `dune-project` not under
 `_build`, walking up from the executable and then the working directory, joined with `path`). Command-S
 (also Ctrl-S) rewrites it with the canonical text (`Workspace_doc.to_text`; comments kept, `;;` printed as
 `;`) through a temporary file and a rename, but only while the file is still the text the document last
 came from (its SHA-256 is the remembered digest); any other state falls back to a preset (`Preset.save`,
 status "source changed since build; saved as preset ...") and never overwrites. Once a half second the frame
 loop reads the source content/digest; a changed digest re-checks the text and replaces the document as one history
-entry "Reload sketch.plisp", keeping layout, settings, probes and selection by path; text that fails keeps
+entry "Reload sketch.rays", keeping layout, settings, probes and selection by path; text that fails keeps
 the last good document, shows the diagnostics in the Lisp panel's Document tab and the status bar, and a
 later good text (also the last good one) reloads. The editor's own write updates the digest first, so it
 does not reload. There is no three-way merge and no file-system events (`ponytail:` polling).
@@ -1014,7 +1014,7 @@ global point disconnection or ordinary polygon connectivity, is the fragment
 boundary. This keeps the exterior polygons and paired cut walls of each closed
 cell under one stable identity for terminal packing and rigid explosion.
 
-`Pdk.Boolean.run ~piece_attribute:name` exposes the same optional cell
+`Rdk.Boolean.run ~piece_attribute:name` exposes the same optional cell
 identity for lower-level Boolean products. IDs are dense in first-output-face
 order and deterministic across domain counts; cleanup and detriangulation map
 the final primitives back through extraction ancestry before the attribute is
@@ -1055,7 +1055,7 @@ See [the runtime/backend specification](./backend.md).
 
 ### `Parallel`
 
-Prismel targets OCaml 5 and may create a reusable Domainslib work-stealing pool
+Rays targets OCaml 5 and may create a reusable Domainslib work-stealing pool
 for CPU-heavy pure work. This is parallelism, not a second render loop.
 
 Good parallel work:
@@ -1093,7 +1093,7 @@ domain exits; ordinary sketch code must not manage pool lifetime directly.
 - Use radius for circles, never sometimes diameter and sometimes radius.
 - Angles are radians throughout.
 - Scene/UI colors are byte-channel `Color.t`. The path tracer uses
-  `Prismel_pathtracer.Linear_color.t` for floating-point linear/HDR light and
+  `Rays_pathtracer.Linear_color.t` for floating-point linear/HDR light and
   material values; conversion to byte colors happens only at image output.
 - Constructors return a value and therefore do not require a trailing `()`,
   except when optional arguments would otherwise be unerasable.
@@ -1147,7 +1147,7 @@ A proposed high-level feature should demonstrate:
 Workspace surface assignment is described in [workspace/materials.md](workspace/materials.md).
 `Flow.Context.Material` and `Flow.Ty.Material` type reusable material graphs;
 `Procedural.Sop.material` assigns them to primitive groups, and the generic
-`.plisp` host uses `Sketch_support.Surface` for material batches and explosion.
+`.rays` host uses `Sketch_support.Surface` for material batches and explosion.
 
 `Sketch.run_state` accepts `?after_present`, called with the current model and
 frame after `Scene.render`. It returns the model used on the next frame and

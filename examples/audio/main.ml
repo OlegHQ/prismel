@@ -1,4 +1,4 @@
-open Prismel
+open Rays
 
 type model = {
   notes : Audio.Sample.t array;
@@ -65,6 +65,6 @@ let () =
       ~config:{ Sketch.default_config with
         width = 640;
         height = 360;
-        title = "Prismel audio";
+        title = "Rays audio";
       }
       ~init ~update ~view ~on_stop:stop ())

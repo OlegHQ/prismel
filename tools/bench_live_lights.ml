@@ -1,6 +1,6 @@
 (* Full window-free editor updates: constant baseline vs residual lighting. *)
-open Prismel
-module E = Prismel_editor.Editor3
+open Rays
+module E = Rays_editor.Editor3
 
 let frame count : Frame.t = {
   width = 900; height = 640; size = 900, 640;
@@ -24,10 +24,10 @@ let run views live =
   Buffer.add_string source "] (ui/workspace (ui/tile";
   for i = 0 to views - 1 do Printf.bprintf source " v%d" i done;
   Buffer.add_string source ")))))";
-  let workspace = Prismel_editor.Workspace.load (Buffer.contents source) |> Result.get_ok in
+  let workspace = Rays_editor.Workspace.load (Buffer.contents source) |> Result.get_ok in
   let prepares = ref 0 and drawings = ref 0 in
   let e = ref (E.create ~workspace ~domains:1 ~await:true ~seed:42L
-    ~presets:(Filename.temp_dir "prismel-live-light-bench" "")
+    ~presets:(Filename.temp_dir "rays-live-light-bench" "")
     ~prepare:(fun _ _ -> incr prepares; Ok ())
     ~scene3:(fun _ () -> incr drawings; Scene3.empty) () |> Result.get_ok) in
   Fun.protect ~finally:(fun () -> E.close !e) (fun () ->

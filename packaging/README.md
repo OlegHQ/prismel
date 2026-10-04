@@ -7,7 +7,7 @@ libraries that those OCaml libraries link.  Keeping the probes separate lets
 opam install the system dependency before Dune compiles the bindings and lets
 applications depend only on the extensions they use.
 
-Prismel owns four standalone opam conf packages that probe for a stable SDL3
+Rays owns four standalone opam conf packages that probe for a stable SDL3
 release at least the floor in `packaging/sdl3.lock`, the only place an SDL
 version is written (see `specification/sdl3.md`). They live outside the Dune
 package root so opam treats them as probe packages, not as Dune-built
@@ -15,7 +15,7 @@ libraries.
 
 For a checkout whose opam repository does not yet contain these packages,
 create the local switch without auto-installing the project, then register all
-probe packages recursively before installing Prismel dependencies:
+probe packages recursively before installing Rays dependencies:
 
 ```sh
 opam switch create . 5.3.0 --no-install
@@ -23,7 +23,7 @@ opam pin add --no-action --yes --recursive ./packaging
 opam install . --deps-only --with-test --with-doc
 ```
 
-Without `--no-install`, `opam switch create` tries to resolve `prismel` before
+Without `--no-install`, `opam switch create` tries to resolve `rays` before
 the checkout-local probe packages are known and correctly reports them as
 unknown. The ordering above is therefore part of the supported bootstrap, not
 an optional workaround.
@@ -39,7 +39,7 @@ qualification aliases and records the release in the lock's `tested` field.
 
 ## Dune discovery
 
-Dynamic linking is the default.  Set `PRISMEL_SDL3_LINK_MODE=static` to ask
+Dynamic linking is the default.  Set `RAYS_SDL3_LINK_MODE=static` to ask
 pkg-config for its static/private dependency set and select the component's
 `libSDL3*.a` archive.  Static mode fails early when the package metadata or own
 archive is absent; it never silently falls back to a dynamic SDL library.
@@ -48,10 +48,10 @@ Platform frameworks can remain dynamic even when the SDL archives are static.
 Each component also accepts explicit include and library directory overrides:
 
 ```text
-PRISMEL_SDL3_INCLUDE_DIR       PRISMEL_SDL3_LIB_DIR
-PRISMEL_SDL3_IMAGE_INCLUDE_DIR PRISMEL_SDL3_IMAGE_LIB_DIR
-PRISMEL_SDL3_TTF_INCLUDE_DIR   PRISMEL_SDL3_TTF_LIB_DIR
-PRISMEL_SDL3_MIXER_INCLUDE_DIR PRISMEL_SDL3_MIXER_LIB_DIR
+RAYS_SDL3_INCLUDE_DIR       RAYS_SDL3_LIB_DIR
+RAYS_SDL3_IMAGE_INCLUDE_DIR RAYS_SDL3_IMAGE_LIB_DIR
+RAYS_SDL3_TTF_INCLUDE_DIR   RAYS_SDL3_TTF_LIB_DIR
+RAYS_SDL3_MIXER_INCLUDE_DIR RAYS_SDL3_MIXER_LIB_DIR
 ```
 
 Override directories must exist.  In static mode the library directory must
@@ -71,13 +71,13 @@ opam exec -- dune exec --profile release \
   tools/packaging/check_installed_consumer.exe -- --root . --profile release
 ```
 
-The consumer checker installs `prismel` into a temporary relocatable prefix,
+The consumer checker installs `rays` into a temporary relocatable prefix,
 resolves all four packages from that prefix, then builds and executes a separate
 Dune project outside the source checkout.
 
 ## Native memory qualification
 
-Set `PRISMEL_SDL3_SANITIZERS` to `address`, `undefined`, or
+Set `RAYS_SDL3_SANITIZERS` to `address`, `undefined`, or
 `address,undefined` in a dedicated Dune build directory.  The shared
 configurator adds the sanitizer to both C compilation and the final native
 link; unknown values fail discovery.
@@ -101,6 +101,6 @@ driver disables ASan's alternate signal stack because Apple ASan otherwise
 mis-handles OCaml Domain teardown on this arm64 16 KiB-page platform.  The
 native window test also loads `tools/packaging/sdl3_asan.supp`, which suppresses
 only a reproducible `pdf_lexer_scan` over-read in macOS 26 CoreUI's system-owned
-theme asset.  Prismel does not call that function; all Prismel and SDL3 stub
+theme asset.  Rays does not call that function; all Rays and SDL3 stub
 interceptors remain enabled.  The complete native window path is independently
 run without suppression under UBSan and Instruments Leaks.

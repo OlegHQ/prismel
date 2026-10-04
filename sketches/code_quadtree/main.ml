@@ -1,4 +1,4 @@
-open Prismel
+open Rays
 
 (* A deterministic, asymmetric spatial index. File tiles contain a second
    recursive field derived from their source-line profile. *)
@@ -474,7 +474,7 @@ let view m (f:Frame.t) =
          ~w:side ~h:side ~stroke:orange ()))
    |_->());
   if m.show_ui then begin
-    text 32 24 13 paper "PRISMEL     /     COMPUTATIONAL CARTOGRAPHY";
+    text 32 24 13 paper "RAYS     /     COMPUTATIONAL CARTOGRAPHY";
     text (f.width-205) 26 10 muted "PLATE 001     /     SOURCE";
     line 32 56 (f.width-32) 56 grid;
     let ox,oy=center f and extent=world_size f*.m.zoom in
@@ -509,7 +509,7 @@ let view m (f:Frame.t) =
           text (x+18) y 10 muted label
         end)
         ["CORE / BINDINGS",palette "lib/metal";
-         "LIBRARIES",palette "lib/prismel";
+         "LIBRARIES",palette "lib/rays";
          "TESTS",palette "test/";
          "SKETCHES",palette "sketches/";
          "EXAMPLES",palette "examples/"];
@@ -644,7 +644,7 @@ let () =
   let prepared_view m f = match m.scene_cache with
     |Some (_,scene) -> scene |None -> snd (view m f) in
   let config={Sketch.default_config with width=1440;height=1000;
-    title="Prismel / Source Strata";domains=Some !domains;
+    title="Rays / Source Strata";domains=Some !domains;
     clock=(if !smoke || !tour || !benchmark || !frames>0 || !export<>""
       then Sketch.Fixed (1./.60.) else Sketch.Realtime)} in
   let native_frames=if !frames>0 then Some !frames

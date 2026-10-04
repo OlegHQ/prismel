@@ -1,7 +1,7 @@
-open Prismel
+open Rays
 module Command = Editor_core.Command
 module Keymap = Editor_core.Keymap
-module Settings = Prismel_editor.Settings
+module Settings = Rays_editor.Settings
 
 let check condition message = if not condition then failwith message
 let key k = Event.KeyPressed k
@@ -12,7 +12,7 @@ let schema = Editor_core.Param.(schema ~name:"command-value" ~default:0
 
 let run () =
   let open Editor_core.Guide_context in
-  let module L = Prismel_editor.Private.Leader in
+  let module L = Rays_editor.Private.Leader in
   List.iter (fun focus ->
     List.iter (fun (events, expected) ->
       let _, actions, _ = Editor_core.Router.step L.keymap ~focus ~text_focus:false
@@ -150,31 +150,31 @@ let run () =
       step [char 'g'];
       check (value () = 20) (name ^ ": graph-scoped chord did not run")) in
   let workspace = Ws_fixture.box () in
-  let module E3 = Prismel_editor.Editor3 in
+  let module E3 = Rays_editor.Editor3 in
   exercise ~name:"Editor3"
     ~create:(fun commands -> E3.create ~workspace ~commands ~settings:(Settings.make schema 0)
       ~prepare:(fun _ _ -> Ok ()) ~scene3:(fun _ _ -> Scene3.empty) ())
     ~update:E3.update ~close:E3.close ~settings:E3.settings ~set_settings:E3.set_settings;
-  let module E2 = Prismel_editor.Editor2 in
+  let module E2 = Rays_editor.Editor2 in
   exercise ~name:"Editor2"
     ~create:(fun commands -> E2.create ~workspace ~commands ~settings:(Settings.make schema 0)
       ~prepare:(fun _ _ -> Ok ()) ~scene2:(fun _ _ -> []) ())
     ~update:E2.update ~close:E2.close ~settings:E2.settings ~set_settings:E2.set_settings;
-  let directory = Filename.temp_dir "prismel-guide" "" in
-  let filename = Filename.concat directory "preferences.plisp" in
-  let previous = Sys.getenv_opt "PRISMEL_EDITOR_PREFERENCES" in
-  Unix.putenv "PRISMEL_EDITOR_PREFERENCES" filename;
+  let directory = Filename.temp_dir "rays-guide" "" in
+  let filename = Filename.concat directory "preferences.rays" in
+  let previous = Sys.getenv_opt "RAYS_EDITOR_PREFERENCES" in
+  Unix.putenv "RAYS_EDITOR_PREFERENCES" filename;
   let create () = E2.create ~workspace ~prepare:(fun _ _ -> Ok ()) ~scene2:(fun _ _ -> []) ()
     |> Result.get_ok in
   let current = ref (create ()) in
   Fun.protect ~finally:(fun () ->
     E2.close !current;
-    Unix.putenv "PRISMEL_EDITOR_PREFERENCES" (Option.value ~default:"" previous);
+    Unix.putenv "RAYS_EDITOR_PREFERENCES" (Option.value ~default:"" previous);
     Array.iter (fun file -> Sys.remove (Filename.concat directory file)) (Sys.readdir directory);
     Unix.rmdir directory) (fun () ->
     let step events count = current := E2.update !current
       (Test_editor_input.frame (100.,300.) events count) in
-    let enabled () = Editor_core.Store.Settings.load ~sketch:"prismel-editor" filename
+    let enabled () = Editor_core.Store.Settings.load ~sketch:"rays-editor" filename
       |> Result.get_ok |> fun values -> Editor_core.Store.Settings.bool values "guide" in
     step [] 0; step [char '?'] 1;
     check (enabled () = Some false) "guide did not default on and persist off";
@@ -187,7 +187,7 @@ let run () =
     step [key Input.Escape] 6; step [char '?'] 7;
     check (enabled () = Some false) "key-sheet dismissal kept keyboard focus";
     (* Toggle preserves unrelated preferences, and Hide follows the same save path. *)
-    Editor_core.Store.Settings.save ~sketch:"prismel-editor" filename
+    Editor_core.Store.Settings.save ~sketch:"rays-editor" filename
       ["guide", Bool false; "other", Int 7] |> Result.get_ok;
     step [key Input.Shift; char '/'; Event.KeyReleased Input.Shift] 8;
     let point = (500.,500.) in
@@ -198,7 +198,7 @@ let run () =
     current := E2.update !current (Test_editor_input.frame hide [Event.MouseMoved hide] 10);
     current := E2.update !current (Test_editor_input.frame hide
       [Event.MousePressed (Input.LeftButton, hide); Event.MouseReleased (Input.LeftButton, hide)] 11);
-    let values = Editor_core.Store.Settings.load ~sketch:"prismel-editor" filename |> Result.get_ok in
+    let values = Editor_core.Store.Settings.load ~sketch:"rays-editor" filename |> Result.get_ok in
     check (Editor_core.Store.Settings.bool values "guide" = Some false
       && Editor_core.Store.Settings.int values "other" = Some 7)
       "Hide did not save off or discarded another preference";

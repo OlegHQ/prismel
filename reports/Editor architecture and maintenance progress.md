@@ -75,9 +75,9 @@ remains the original scope; this ledger records implementation and validation.
   focus, pointer capture and hover. Regression checks include focus loss,
   hiding without focus loss, and release after reappearance.
 - Validation passed:
-  - `dune build @check @lib/editor_core/runtest @lib/pxui/runtest @lib/pxui_shell/runtest @test/test_editor_document @test/test_pxui_graph @test/test_prismel_editor_logic @test/test_scene_tree @test/test_sop_catalog @test/test_sop_ui @test/test_sketch_support @test/dependency_gate @tools/api_manifest/runtest`
+  - `dune build @check @lib/editor_core/runtest @lib/pxui/runtest @lib/pxui_shell/runtest @test/test_editor_document @test/test_pxui_graph @test/test_rays_editor_logic @test/test_scene_tree @test/test_sop_catalog @test/test_sop_ui @test/test_sketch_support @test/dependency_gate @tools/api_manifest/runtest`
   - Serial `dune build --force @lib/pxui/test_ui_parity` (overlay exact; 640×600
-    at 2×, 272 permitted changes), then `dune build @test/test_prismel_editor`
+    at 2×, 272 permitted changes), then `dune build @test/test_rays_editor`
     (editor native pass; 23 SOP graphs have exact one/four-domain PNGs).
   - `dune build @all @doc @tools/api_manifest/runtest`.
   - `dune build @all && SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy dune runtest && dune build @smoke && git diff --check`.
@@ -181,7 +181,7 @@ remains the original scope; this ledger records implementation and validation.
   - `dune build @all @doc @tools/api_manifest/runtest`.
   - `SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy dune runtest`.
   - Serial `dune build --force @lib/pxui/test_ui_parity`, then
-    `dune build --force @test/test_prismel_editor`: exact overlay, 272 permitted
+    `dune build --force @test/test_rays_editor`: exact overlay, 272 permitted
     panel pixels, five workspace UI batches, and 23 SOP graphs with exact
     one/four-domain PNGs. Existing fixtures retained.
   - `dune build @smoke` and `git diff --check`.
@@ -191,7 +191,7 @@ remains the original scope; this ledger records implementation and validation.
 
 ## World input measurement
 
-Command: `dune exec tools/bench_prismel_editor.exe -- --world`. Same Apple M1
+Command: `dune exec tools/bench_rays_editor.exe -- --world`. Same Apple M1
 machine as above; one geometry object with an empty SOP, a transparent World
 with no layers, 16 owned Shift-drag movement frames per run, three runs.
 Main and cook-worker domains; one kernel domain. Includes UI construction,

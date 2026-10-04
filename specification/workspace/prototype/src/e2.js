@@ -350,8 +350,8 @@ function initGraph(g){
     if(e.key==='Enter'){const nn=e.target.closest?.('.node');const n=nn&&view.all.get(nn.dataset.id);if(n&&isL(n.expr)&&program.defs.has(n.expr[0])){e.preventDefault();enterFunction(n.id);}}
   });
   g.addEventListener('focusout',e=>{const inp=e.target.closest?.('.aedit');if(inp&&editing&&!drag){const ed=editing;editing=null;const n=view.all.get(ed.id);const row=n?.rows?.find(r=>JSON.stringify(r.key)===JSON.stringify(ed.key));const cur=ed.key.bv?getArg(n.expr,ed.key):ed.key.param?n.rows[0].expr:row?.expr;if(cur===undefined?inp.value.trim()!==M.print(row?.def??''):inp.value!==M.print(cur))setRowText(ed.id,ed.key,inp.value);else renderAll();}});
-  g.addEventListener('dragover',e=>{if(e.dataTransfer.types.includes('text/x-prismel'))e.preventDefault();});
-  g.addEventListener('drop',e=>{const key=e.dataTransfer.getData('text/x-prismel');if(!key)return;e.preventDefault();const entry=catalog().find(c=>c.key===key);if(!entry){status('That item cannot be placed in this context.',true);return;}const {S,origin}=scopeAt(g,e),p=canvasPoint(g,e);addNode(entry,{x:p.x-origin.x,y:p.y-origin.y},null,S);});
+  g.addEventListener('dragover',e=>{if(e.dataTransfer.types.includes('text/x-rays'))e.preventDefault();});
+  g.addEventListener('drop',e=>{const key=e.dataTransfer.getData('text/x-rays');if(!key)return;e.preventDefault();const entry=catalog().find(c=>c.key===key);if(!entry){status('That item cannot be placed in this context.',true);return;}const {S,origin}=scopeAt(g,e),p=canvasPoint(g,e);addNode(entry,{x:p.x-origin.x,y:p.y-origin.y},null,S);});
 }
 function layoutRel(id){ // position relative to the node's scope origin
   const a=view.abs.get(id),n=view.all.get(id)||{scope:view.root};const o=n.scope?.owner?view.abs.get(n.scope.owner.id):null;

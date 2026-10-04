@@ -2,7 +2,7 @@
 
    On macOS, dragging a window edge runs AppKit's resize tracking loop inside
    the call that pumps events, so a program that renders from its own loop
-   (Prismel's) gets no iteration until the drag ends: the frames freeze while
+   (Rays's) gets no iteration until the drag ends: the frames freeze while
    the window is being resized. SDL can call a function from inside that loop
    (an event watch), but running OCaml there is a callback into OCaml, which
    specification/sdl3.md forbids; that exception is an open decision.

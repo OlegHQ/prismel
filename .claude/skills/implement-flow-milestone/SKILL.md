@@ -1,9 +1,9 @@
 ---
 name: implement-flow-milestone
-description: Implement the next milestone of the Prismel Flow node-editor rework (left-to-right canvas, polyline wires, levels, keys and guide mode, value ports and drives, expressions, compounds, graph/list/text views, [%flow] PPX). Use for any change to the SOP graph pane, pxui_graph, lib/flow or lib/flow_sop, or when asked to continue the Flow plan.
+description: Implement the next milestone of the Rays Flow node-editor rework (left-to-right canvas, polyline wires, levels, keys and guide mode, value ports and drives, expressions, compounds, graph/list/text views, [%flow] PPX). Use for any change to the SOP graph pane, pxui_graph, lib/flow or lib/flow_sop, or when asked to continue the Flow plan.
 ---
 
-# Implement a Prismel Flow milestone
+# Implement a Rays Flow milestone
 
 1. Read `specification/flow.md` §1 (authority rules), then the milestone's
    section in `specification/flow-migration.md` and every `flow.md` section it
@@ -13,7 +13,7 @@ description: Implement the next milestone of the Prismel Flow node-editor rework
 2. Pick the first milestone in the status table that is not `done`. Check its
    preconditions. Do not implement anything from a later milestone.
 3. Read the nested `AGENTS.md` for each directory you touch
-   (`lib/pxui_graph`, `lib/prismel_editor`, `lib/sop_catalog`, and so on).
+   (`lib/pxui_graph`, `lib/rays_editor`, `lib/sop_catalog`, and so on).
 4. Work in small commits that each keep `dune build @check` and default
    `dune runtest` green. Iterate with focused tests (`focused-test` skill);
    keep tests window-free and run `@runtest-native` once at the end.

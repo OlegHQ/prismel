@@ -1,6 +1,6 @@
 (library
  (name lru)
- (public_name prismel.lru)
+ (public_name rays.lru)
  (modules lru))
 
 (test

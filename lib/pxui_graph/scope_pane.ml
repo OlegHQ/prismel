@@ -5,7 +5,7 @@
    Every interactive element is a [Ui.box]; a tile's row under the pointer is
    found from the pointer and the tile's rectangle, not from a second hit
    tree. *)
-open Prismel
+open Rays
 module P = Flow_sop.Projection
 module E = Flow_sop.Flow_edit
 module S = Flow.Syntax
@@ -315,7 +315,7 @@ let with_scope ?(at = fun _ -> None) ?(collapsed = fun _ -> false) ?(probe = fun
     | Some (Name p | Default p) when not (Hashtbl.mem t.geo.pos p) -> { t with editing = None }
     | _ -> t in
   if key <> t.key then begin
-    if t.panning_grab then ignore (Prismel.Sketch.set_relative_mouse false);
+    if t.panning_grab then ignore (Rays.Sketch.set_relative_mouse false);
     { t with key; framed = false; selected = Path_set.empty; selected_wire = None; panning_grab = false; drag = None; editing = None }
   end else t
 
@@ -1549,12 +1549,12 @@ let update t ui (frame : Frame.t) =
   let panning = List.exists (fun (s : Ui.signal) -> non_left_held s || non_left_released s) all_signals in
   let pan_pressed = List.exists non_left_pressed all_signals in
   let pan_released = List.exists non_left_released all_signals in
-  let lost = List.exists (function Prismel.Event.WindowFocusLost -> true | _ -> false) frame.events in
+  let lost = List.exists (function Rays.Event.WindowFocusLost -> true | _ -> false) frame.events in
   let panning_grab =
     if pan_pressed || panning then true
     else if pan_released || lost || frame.mouse_buttons = [] then false
     else t.panning_grab in
-  if panning_grab <> t.panning_grab then ignore (Prismel.Sketch.set_relative_mouse panning_grab);
+  if panning_grab <> t.panning_grab then ignore (Rays.Sketch.set_relative_mouse panning_grab);
   let t = { t with panning_grab } in
   let t = if not panning then t else begin
       let dx, dy = if canvas_signal.held || canvas_signal.released then canvas_signal.drag

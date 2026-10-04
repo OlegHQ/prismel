@@ -1,10 +1,10 @@
-open Prismel
+open Rays
 open Procedural
 
 let grid () = Sop.grid ~columns:8 ~rows:6 ~size:2. ()
-let box () = Sop.box ~connectivity:Pdk.Box_generator.Box_quads
+let box () = Sop.box ~connectivity:Rdk.Box_generator.Box_quads
     ~consolidate_points:true ~size:(Vec3.create 1.8 1.8 1.8) ()
-let torus () = Pdk.Parametric_generators.torus ~connectivity:Pdk.Parametric_generators.Torus_alternating_triangles
+let torus () = Rdk.Parametric_generators.torus ~connectivity:Rdk.Parametric_generators.Torus_alternating_triangles
     ~rows:16 ~columns:12 ~major_radius:1. ~minor_radius:0.3 ()
     |> Result.get_ok |> Sop.snapshot
 let curve () = Sop.polyline
@@ -14,55 +14,55 @@ let marker = Sop.uv_sphere ~segments:8 ~rings:5 ~radius:0.08 ()
 
 let signal_curve () =
   let count = 97 in
-  let positions = Pdk.Packed.Float3.Private.of_owned_exn
+  let positions = Rdk.Packed.Float3.Private.of_owned_exn
       ~x:(Array.init count (fun point ->
         -2.2 +. (4.4 *. float_of_int point /. float_of_int (count - 1))))
       ~y:(Array.init count (fun point -> 0.16 *. sin (float_of_int point *. 0.19)))
       ~z:(Array.make count 0.) in
-  let topology = Pdk.Topology.create_owned ~point_count:count
+  let topology = Rdk.Topology.create_owned ~point_count:count
       ~vertex_points:(Array.init count Fun.id) ~primitive_offsets:[|0;count|]
-      ~primitive_kinds:[|Pdk.Topology.Open_polyline|] |> Result.get_ok in
-  let signal = Pdk.Attribute.create_owned ~owner:Pdk.Attribute.Point
-      ~name:"signal" (Pdk.Attribute.Float (Array.init count (fun point ->
+      ~primitive_kinds:[|Rdk.Topology.Open_polyline|] |> Result.get_ok in
+  let signal = Rdk.Attribute.create_owned ~owner:Rdk.Attribute.Point
+      ~name:"signal" (Rdk.Attribute.Float (Array.init count (fun point ->
         sin (float_of_int point *. 0.31))))
       |> Result.get_ok in
-  Pdk.Geometry.create ~positions ~topology ~attributes:[signal] ()
+  Rdk.Geometry.create ~positions ~topology ~attributes:[signal] ()
   |> Result.get_ok |> Sop.snapshot
 
 let rewire_source () =
-  let geometry = Pdk.Plane_generators.grid ~connectivity:Pdk.Plane_generators.Grid_quads
+  let geometry = Rdk.Plane_generators.grid ~connectivity:Rdk.Plane_generators.Grid_quads
       ~columns:3 ~rows:3 ~size:2. () |> Result.get_ok in
-  let targets = Array.init (Pdk.Geometry.point_count geometry)
+  let targets = Array.init (Rdk.Geometry.point_count geometry)
       (fun point -> if point = 0 then 1 else -1) in
-  let target = Pdk.Attribute.create_owned ~owner:Pdk.Attribute.Point
-      ~name:"targetpt" (Pdk.Attribute.Int targets) |> Result.get_ok in
-  Pdk.Geometry.with_attribute target geometry |> Result.get_ok |> Sop.snapshot
+  let target = Rdk.Attribute.create_owned ~owner:Rdk.Attribute.Point
+      ~name:"targetpt" (Rdk.Attribute.Int targets) |> Result.get_ok in
+  Rdk.Geometry.with_attribute target geometry |> Result.get_ok |> Sop.snapshot
 
 let nonempty geometry =
-  if Pdk.Geometry.point_count geometry = 0
-     || Pdk.Geometry.primitive_count geometry = 0 then
+  if Rdk.Geometry.point_count geometry = 0
+     || Rdk.Geometry.primitive_count geometry = 0 then
     failwith "cooked geometry is empty"
 
 let point_attribute name geometry =
   nonempty geometry;
-  if Pdk.Geometry.find_attribute ~owner:Pdk.Attribute.Point name geometry = None
+  if Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point name geometry = None
   then failwith ("missing point attribute " ^ name)
 
 let primitive_attribute name geometry =
   nonempty geometry;
-  if Pdk.Geometry.find_attribute ~owner:Pdk.Attribute.Primitive name geometry = None
+  if Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Primitive name geometry = None
   then failwith ("missing primitive attribute " ^ name)
 
 let primitive_group name geometry =
   nonempty geometry;
-  if Pdk.Geometry.find_group ~owner:Pdk.Group.Primitive name geometry = None
+  if Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive name geometry = None
   then failwith ("missing primitive group " ^ name)
 
 let rows = [
   "attribute_composite", (fun () ->
     let target = grid () |> Sop.bend ~length:2. ~bend_angle:0.5
-        |> Sop.set_color ~owner:Pdk.Attribute.Point Color.red in
-    grid () |> Sop.set_color ~owner:Pdk.Attribute.Point Color.blue
+        |> Sop.set_color ~owner:Rdk.Attribute.Point Color.red in
+    grid () |> Sop.set_color ~owner:Rdk.Attribute.Point Color.blue
     |> Sop.attribute_composite ~point_attributes:"P Cd" ~allow_position:true
          ~inputs:[Sop.attribute_composite_input ~weight:0.5 target]),
     point_attribute "Cd";
@@ -73,8 +73,8 @@ let rows = [
     torus () |> Sop.attribute_laplacian ~source:"P"),
     point_attribute "laplacian";
   "attribute_mirror", (fun () ->
-    grid () |> Sop.set_color ~owner:Pdk.Attribute.Point Color.red
-    |> Sop.attribute_mirror ~owner:Pdk.Attribute_mirror.Mirror_point_attributes
+    grid () |> Sop.set_color ~owner:Rdk.Attribute.Point Color.red
+    |> Sop.attribute_mirror ~owner:Rdk.Attribute_mirror.Mirror_point_attributes
          ~attributes:"Cd"
          ~method_:(Sop.Attribute_mirror_plane {
            origin=Vec3.zero; normal=Vec3.unit_x; distance=0.; tolerance=1e-10 })),
@@ -89,7 +89,7 @@ let rows = [
     source |> Sop.boolean_detect ~collision
       ~intersecting_group:(Some "crossing")), primitive_group "crossing";
   "boolean", (fun () ->
-    box () |> Sop.boolean ~operation:Pdk.Boolean.Difference
+    box () |> Sop.boolean ~operation:Rdk.Boolean.Difference
       ~right:(Sop.box ~size:(Vec3.create 1.2 1.2 1.2)
         ~center:(Vec3.create 0.5 0. 0.) ())), nonempty;
   "circle_from_edges", (fun () ->
@@ -108,21 +108,21 @@ let rows = [
       [|(-1.5,-0.4,0.);(-0.7,0.,0.);(0.,0.1,0.);
         (0.6,0.2,0.);(1.5,-0.2,0.)|]) ~iterations:12 |> wire), nonempty;
   "edge_transport", (fun () ->
-    grid () |> Sop.set_float ~owner:Pdk.Attribute.Point ~name:"distance" 0.
+    grid () |> Sop.set_float ~owner:Rdk.Attribute.Point ~name:"distance" 0.
     |> Sop.edge_transport ~attribute:"distance"
-      ~operation:Pdk.Edge_transport.Transport_total
+      ~operation:Rdk.Edge_transport.Transport_total
     |> Sop.peak ~mask_attribute:"distance" ~distance:0.25),
     point_attribute "distance";
   "extract_centroid", (fun () ->
-    box () |> Sop.extract_centroid ~run_over:Pdk.Curve_topology.Centroid_primitives
-      ~method_:Pdk.Curve_topology.Centroid_bounding_box
+    box () |> Sop.extract_centroid ~run_over:Rdk.Curve_topology.Centroid_primitives
+      ~method_:Rdk.Curve_topology.Centroid_bounding_box
     |> fun targets -> Sop.copy_to_points ~source:marker ~targets ()), nonempty;
   "extract_point_curve", (fun () ->
     signal_curve () |> Sop.extract_point_from_curve ~distance_attribute:"signal"
     |> fun targets -> Sop.copy_to_points ~source:marker ~targets ()), nonempty;
   "graph_color", (fun () ->
     grid () |> Sop.graph_color
-      ~connectivity:Pdk.Graph_color.Graph_primitives_by_point),
+      ~connectivity:Rdk.Graph_color.Graph_primitives_by_point),
     primitive_attribute "color";
   "intersection_analysis", (fun () ->
     let source = grid () in
@@ -132,37 +132,37 @@ let rows = [
   "measure_curvature", (fun () ->
     torus () |> Sop.measure_curvature), point_attribute "curvature";
   "poly_cut", (fun () ->
-    signal_curve () |> Sop.poly_cut ~element:Pdk.Poly_cut.Poly_cut_points
-      ~strategy:Pdk.Poly_cut.Poly_cut_remove
-      ~detection:(Pdk.Poly_cut.Poly_cut_crossing {attribute="signal"; value=0.})
+    signal_curve () |> Sop.poly_cut ~element:Rdk.Poly_cut.Poly_cut_points
+      ~strategy:Rdk.Poly_cut.Poly_cut_remove
+      ~detection:(Rdk.Poly_cut.Poly_cut_crossing {attribute="signal"; value=0.})
     |> wire), nonempty;
   "procedural", (fun () ->
     box () |> Sop.bend ~length:2. ~bend_angle:0.5
-    |> Sop.set_color ~owner:Pdk.Attribute.Point Color.blue), nonempty;
+    |> Sop.set_color ~owner:Rdk.Attribute.Point Color.blue), nonempty;
   "remesh", (fun () ->
-    Sop.box ~connectivity:Pdk.Box_generator.Box_triangles
+    Sop.box ~connectivity:Rdk.Box_generator.Box_triangles
       ~consolidate_points:true ()
     |> Sop.remesh ~target_length:0.5 ~iterations:1 ~project:true
       ~output_quality:"quality"), primitive_attribute "quality";
   "rewire_vertices", (fun () ->
     rewire_source () |> Sop.rewire_vertices
-      ~owner:Pdk.Attribute.Point ~target_attribute:"targetpt"
+      ~owner:Rdk.Attribute.Point ~target_attribute:"targetpt"
       ~original_point_attribute:"origpt"), (fun geometry ->
         nonempty geometry;
-        if Pdk.Geometry.find_attribute ~owner:Pdk.Attribute.Vertex
+        if Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Vertex
             "origpt" geometry = None then failwith "missing vertex attribute origpt");
   "separate_pieces", (fun () ->
-    let piece id x = box () |> Sop.set_int ~owner:Pdk.Attribute.Primitive
+    let piece id x = box () |> Sop.set_int ~owner:Rdk.Attribute.Primitive
         ~name:"piece" id
         |> Sop.transform (Mat4.translation (Vec3.create x 0. 0.)) in
     Sop.merge [piece 1 (-0.4); piece 2 0.4]
-    |> Sop.separate_pieces ~owner:Pdk.Attribute.Primitive
+    |> Sop.separate_pieces ~owner:Rdk.Attribute.Primitive
       ~piece_attribute:"piece" ~translation_attribute:"separation"
       ~gap:0.2), primitive_attribute "separation";
   "triangulate2d", (fun () ->
     Sop.points [|(-1.,-1.,0.);(1.,-1.,0.);(1.,1.,0.);(-1.,1.,0.);
       (0.,0.,0.);(0.4,0.2,0.);(-0.5,0.3,0.)|]
-    |> Sop.triangulate_2d ~projection:Pdk.Triangulate2d.Plane_xy
+    |> Sop.triangulate_2d ~projection:Rdk.Triangulate2d.Plane_xy
       ~triangle_group:"triangles"), primitive_group "triangles";
 ]
 
@@ -177,7 +177,7 @@ let cook domains graph =
     | Error error -> failwith (Diagnostic.error_to_string error))
 
 let scene geometry =
-  let mesh = Pdk_prismel.Prismel_mesh.to_mesh geometry |> Result.get_ok in
+  let mesh = Rdk_rays.Rays_mesh.to_mesh geometry |> Result.get_ok in
   let camera = Camera.perspective ~at:(Vec3.create 3.5 3. 5.)
       ~target:Vec3.zero () in
   Scene.[clear (Color.hex_exn "#020617");
@@ -201,7 +201,7 @@ let read path =
     really_input_string channel (in_channel_length channel))
 
 let run () =
-  let root = Filename.temp_file "prismel-sop-parity-" "" in
+  let root = Filename.temp_file "rays-sop-parity-" "" in
   Sys.remove root;
   Unix.mkdir root 0o700;
   let one = Filename.concat root "one" and four = Filename.concat root "four" in
@@ -220,10 +220,10 @@ let run () =
         let one_geometry = cook 1 and four_geometry = cook 4 in
         (try check one_geometry; check four_geometry with
          | Failure message -> failwith (name ^ ": " ^ message));
-        if Pdk.Geometry.point_count one_geometry
-           <> Pdk.Geometry.point_count four_geometry
-           || Pdk.Geometry.primitive_count one_geometry
-              <> Pdk.Geometry.primitive_count four_geometry then
+        if Rdk.Geometry.point_count one_geometry
+           <> Rdk.Geometry.point_count four_geometry
+           || Rdk.Geometry.primitive_count one_geometry
+              <> Rdk.Geometry.primitive_count four_geometry then
           failwith (name ^ ": cook cardinality differs by domain count");
         name, one_geometry, four_geometry) rows in
       export one 1 (List.map (fun (_, geometry, _) -> geometry) cooked);

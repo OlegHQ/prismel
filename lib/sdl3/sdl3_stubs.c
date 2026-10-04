@@ -348,9 +348,9 @@ CAMLprim value caml_sdl3_destroy_metal_view(value raw_view)
 }
 
 CAMLprim value caml_sdl3_metal_layer_token(value raw_view,value owner,value generation)
-{ CAMLparam3(raw_view,owner,generation);void*layer=SDL_Metal_GetLayer((SDL_MetalView)(intnat)Nativeint_val(raw_view));CAMLreturn(prismel_native_layer_token_create(layer,Int64_val(owner),Int64_val(generation))); }
+{ CAMLparam3(raw_view,owner,generation);void*layer=SDL_Metal_GetLayer((SDL_MetalView)(intnat)Nativeint_val(raw_view));CAMLreturn(rays_native_layer_token_create(layer,Int64_val(owner),Int64_val(generation))); }
 CAMLprim value caml_sdl3_invalidate_metal_layer_token(value token)
-{ prismel_native_layer_token_invalidate(token);return Val_unit; }
+{ rays_native_layer_token_invalidate(token);return Val_unit; }
 
 /* Sdl3.Dialog.show: the slots and the callback are in sdl3_dialog.c, which
    knows nothing of OCaml. [filters] is an OCaml list of (name, pattern),
@@ -373,8 +373,8 @@ CAMLprim value caml_sdl3_show_dialog(
     patterns[count] = String_val(Field(Field(cursor, 0), 1));
     count++;
   }
-  CAMLreturn(Val_int(prismel_dialog_show(
-      (prismel_dialog_kind)Int_val(kind), window_of_value(raw_window),
+  CAMLreturn(Val_int(rays_dialog_show(
+      (rays_dialog_kind)Int_val(kind), window_of_value(raw_window),
       names, patterns, count,
       Is_block(default_location) ? String_val(Field(default_location, 0))
                                  : NULL)));
@@ -385,12 +385,12 @@ CAMLprim value caml_sdl3_show_dialog(
 enum { OUTCOME_BLOCK_CHOSEN = 0, OUTCOME_BLOCK_FAILED = 1 };
 enum { OUTCOME_CONSTANT_CANCELLED = 0 };
 
-static value dialog_outcome_value(const prismel_dialog_result *finished)
+static value dialog_outcome_value(const rays_dialog_result *finished)
 {
   CAMLparam0();
   CAMLlocal4(list, cell, text, outcome);
   switch (finished->outcome) {
-  case PRISMEL_OUTCOME_CHOSEN: {
+  case RAYS_OUTCOME_CHOSEN: {
     /* the payload is NUL-terminated paths back to back: build the list from
        the last path to the first */
     size_t position = finished->payload_length;
@@ -409,7 +409,7 @@ static value dialog_outcome_value(const prismel_dialog_result *finished)
     Store_field(outcome, 0, list);
     break;
   }
-  case PRISMEL_OUTCOME_CANCELLED:
+  case RAYS_OUTCOME_CANCELLED:
     outcome = Val_int(OUTCOME_CONSTANT_CANCELLED);
     break;
   default:
@@ -597,7 +597,7 @@ static value window_change_of_event(const SDL_Event *event)
   CAMLreturn(Val_unit); /* unreachable: the caller filters the type first */
 }
 
-/* The OCaml value for an event Prismel reads, or false for any other kind
+/* The OCaml value for an event Rays reads, or false for any other kind
    (touch, pen, gamepad, display, audio and the rest are never copied). */
 static bool translate_event(const SDL_Event *event, value *out)
 {
@@ -737,17 +737,17 @@ static bool translate_event(const SDL_Event *event, value *out)
 
 /* Event operations are safe-module main-domain-only, so one reusable native
    union is sufficient. SDL-owned pointer fields are copied before reuse. */
-static SDL_Event prismel_sdl3_event;
+static SDL_Event rays_sdl3_event;
 
 CAMLprim value caml_sdl3_poll_event(value unit)
 {
   CAMLparam1(unit);
   CAMLlocal3(translated, some, outcome);
-  prismel_dialog_result finished;
+  rays_dialog_result finished;
   (void)unit;
   /* a finished file dialog comes first: its slot is the only thing a callback
      wrote */
-  if (prismel_dialog_take(&finished)) {
+  if (rays_dialog_take(&finished)) {
     outcome = dialog_outcome_value(&finished);
     translated = caml_alloc(2, EVENT_DIALOG);
     Store_field(translated, 0, Val_int(finished.id));
@@ -757,8 +757,8 @@ CAMLprim value caml_sdl3_poll_event(value unit)
     Store_field(some, 0, translated);
     CAMLreturn(some);
   }
-  while (SDL_PollEvent(&prismel_sdl3_event)) {
-    if (translate_event(&prismel_sdl3_event, &translated)) {
+  while (SDL_PollEvent(&rays_sdl3_event)) {
+    if (translate_event(&rays_sdl3_event, &translated)) {
       some = caml_alloc(1, 0);
       Store_field(some, 0, translated);
       CAMLreturn(some);

@@ -1,13 +1,13 @@
-module P = Prismel_pathtracer
+module P = Rays_pathtracer
 let rgb = P.Linear_color.rgb
-let get = function Ok value -> value | Error error -> failwith (Pdk.Error.to_string error)
-let v = Prismel.Vec3.create
+let get = function Ok value -> value | Error error -> failwith (Rdk.Error.to_string error)
+let v = Rays.Vec3.create
 let () =
-  let cube = get (Pdk.Box_generator.box ~size:(v 0.86 0.86 1.) ()) in
+  let cube = get (Rdk.Box_generator.box ~size:(v 0.86 0.86 1.) ()) in
   let transforms = Array.init (36 * 60) (fun i ->
-    Prismel.Mat4.mul
-      (Prismel.Mat4.translation (v (float (i mod 36)) (float (i / 36)) 0.))
-      (Prismel.Mat4.scaling (v 1. 1. (0.5 +. float (i mod 7))))) in
+    Rays.Mat4.mul
+      (Rays.Mat4.translation (v (float (i mod 36)) (float (i / 36)) 0.))
+      (Rays.Mat4.scaling (v 1. 1. (0.5 +. float (i mod 7))))) in
   let before = Gc.quick_stat () and start = Unix.gettimeofday () in
   let mesh = match P.mesh_instanced ~prototype:(cube, P.material (rgb 0.4 0.4 0.4)) transforms with
     | Ok value -> value | Error error -> failwith error in
@@ -18,7 +18,7 @@ let () =
     (after.minor_words -. before.minor_words) (after.major_words -. before.major_words);
   if Array.length Sys.argv > 1 && Sys.argv.(1) = "--flat" then begin
     let objects = Array.to_list (Array.map (fun matrix ->
-      Pdk.Transform_ops.transform matrix cube, P.material (rgb 0.4 0.4 0.4)) transforms) in
+      Rdk.Transform_ops.transform matrix cube, P.material (rgb 0.4 0.4 0.4)) transforms) in
     let before = Gc.quick_stat () and start = Unix.gettimeofday () in
     let flat = match P.mesh objects with Ok value -> value | Error error -> failwith error in
     let elapsed = (Unix.gettimeofday () -. start) *. 1000. in
@@ -54,7 +54,7 @@ let () =
                     ~target:(v 17. 29. 0.) (v (-17.) 69. 30.)] } in
     let tracer = match P.create ~bounces:4 ~width:560 ~height:800 scene with
       | Ok value -> value | Error error -> failwith error in
-    let camera = Prismel.Camera.perspective
+    let camera = Rays.Camera.perspective
       ~at:(v 17. (-50.) 30.) ~target:(v 17. 29. 1.) ~fov_y:0.7 () in
     let run name mesh =
       (match P.replace_mesh tracer mesh with Ok () -> () | Error error -> failwith error);
@@ -68,7 +68,7 @@ let () =
       Bytes.copy (Result.get_ok (P.pixels tracer)) in
     let instanced = run "instance structure" mesh in
     let flat_objects = Array.to_list (Array.map (fun matrix ->
-      Pdk.Transform_ops.transform matrix cube, material) transforms) in
+      Rdk.Transform_ops.transform matrix cube, material) transforms) in
     let flat = match P.mesh flat_objects with Ok value -> value | Error error -> failwith error in
     let flattened = run "flat triangles" flat in
     let max_delta = ref 0 in

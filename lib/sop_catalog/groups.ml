@@ -1,22 +1,22 @@
-open Prismel
+open Rays
 open Procedural
 open Shared
 
 
 module Group_edges = struct
   let incidence_parameter = Parameter.choice ~equal:( = ) [
-      "Any", Pdk.Group_mesh.Any_edge; "Boundary", Pdk.Group_mesh.Boundary_edge;
-      "Manifold", Pdk.Group_mesh.Manifold_edge;
-      "Non-manifold", Pdk.Group_mesh.Non_manifold_edge;
+      "Any", Rdk.Group_mesh.Any_edge; "Boundary", Rdk.Group_mesh.Boundary_edge;
+      "Manifold", Rdk.Group_mesh.Manifold_edge;
+      "Non-manifold", Rdk.Group_mesh.Non_manifold_edge;
     ]
   let angle_basis_parameter = Parameter.choice ~equal:( = ) [
-      "Primitive dihedral", Pdk.Group_mesh.Primitive_dihedral;
-      "Incident edges", Pdk.Group_mesh.Incident_edges;
+      "Primitive dihedral", Rdk.Group_mesh.Primitive_dihedral;
+      "Incident edges", Rdk.Group_mesh.Incident_edges;
     ]
   type parameters = {
     name : string [@sop.default "edges"] [@sop.label "Group name"];
     group : string [@sop.default ""] [@sop.label "Primitive group"];
-    incidence : Pdk.Group_mesh.incidence [@sop.default Pdk.Group_mesh.Any_edge]
+    incidence : Rdk.Group_mesh.incidence [@sop.default Rdk.Group_mesh.Any_edge]
       [@sop.label "Incidence"] [@sop.kind incidence_parameter];
     use_min_length : bool [@sop.default false] [@sop.label "Minimum length"]
       [@sop.folder "Length"];
@@ -28,8 +28,8 @@ module Group_edges = struct
     max_length : float [@sop.default 1.] [@sop.label "Maximum"]
       [@sop.folder "Length"] [@sop.min 0.] [@sop.max 10.]
       [@sop.hard_min 0.];
-    angle_basis : Pdk.Group_mesh.angle_basis
-      [@sop.default Pdk.Group_mesh.Primitive_dihedral]
+    angle_basis : Rdk.Group_mesh.angle_basis
+      [@sop.default Rdk.Group_mesh.Primitive_dihedral]
       [@sop.label "Angle basis"] [@sop.folder "Angle"]
       [@sop.kind angle_basis_parameter];
     use_min_angle : bool [@sop.default false] [@sop.label "Minimum angle"]
@@ -61,7 +61,7 @@ end
 
 module Group_random = struct
   type parameters = {
-    owner : Pdk.Group_ops.owner [@sop.default Pdk.Group_ops.Group_points]
+    owner : Rdk.Group_ops.owner [@sop.default Rdk.Group_ops.Group_points]
       [@sop.label "Group type"] [@sop.kind group_owner_parameter];
     name : string [@sop.default "random"] [@sop.label "Group name"];
     probability : float [@sop.default 0.5] [@sop.label "Probability"]
@@ -74,8 +74,8 @@ module Group_random = struct
       [@sop.folder "Random"];
     base : string [@sop.default ""] [@sop.label "Base group"]
       [@sop.folder "Combine"];
-    merge : Pdk.Group_ops.boolean_operation
-      [@sop.default Pdk.Group_ops.Group_replace] [@sop.label "Operation"]
+    merge : Rdk.Group_ops.boolean_operation
+      [@sop.default Rdk.Group_ops.Group_replace] [@sop.label "Operation"]
       [@sop.folder "Combine"] [@sop.kind group_merge_parameter];
   } [@@sop.node_key "group_random"] [@@sop.node_label "Group Random"]
     [@@sop.node_category "Group/Create"] [@@sop.node_inputs 1]
@@ -101,11 +101,11 @@ module Group_bounds = struct
       "Box", Box; "Sphere", Sphere;
     ]
   let containment_parameter = Parameter.choice ~equal:( = ) [
-      "Fully contained", Pdk.Group_ops.Fully_contained;
-      "Partially contained", Pdk.Group_ops.Partially_contained;
+      "Fully contained", Rdk.Group_ops.Fully_contained;
+      "Partially contained", Rdk.Group_ops.Partially_contained;
     ]
   type parameters = {
-    owner : Pdk.Group_ops.owner [@sop.default Pdk.Group_ops.Group_points]
+    owner : Rdk.Group_ops.owner [@sop.default Rdk.Group_ops.Group_points]
       [@sop.label "Group type"] [@sop.kind group_owner_parameter];
     name : string [@sop.default "bounds"] [@sop.label "Group name"];
     shape : shape [@sop.default Box] [@sop.label "Bounding shape"]
@@ -130,11 +130,11 @@ module Group_bounds = struct
       [@sop.hard_min 0.];
     base : string [@sop.default ""] [@sop.label "Base group"]
       [@sop.folder "Combine"];
-    containment : Pdk.Group_ops.containment
-      [@sop.default Pdk.Group_ops.Fully_contained] [@sop.label "Containment"]
+    containment : Rdk.Group_ops.containment
+      [@sop.default Rdk.Group_ops.Fully_contained] [@sop.label "Containment"]
       [@sop.folder "Combine"] [@sop.kind containment_parameter];
-    merge : Pdk.Group_ops.boolean_operation
-      [@sop.default Pdk.Group_ops.Group_replace] [@sop.label "Operation"]
+    merge : Rdk.Group_ops.boolean_operation
+      [@sop.default Rdk.Group_ops.Group_replace] [@sop.label "Operation"]
       [@sop.folder "Combine"] [@sop.kind group_merge_parameter];
   } [@@sop.node_key "group_bounds"] [@@sop.node_label "Group by Bounds"]
     [@@sop.node_category "Group/Create"] [@@sop.node_inputs 1]
@@ -143,10 +143,10 @@ module Group_bounds = struct
     let center = Vec3.create parameters.center_x parameters.center_y
         parameters.center_z in
     match parameters.shape with
-    | Sphere -> Pdk.Group_ops.Bounds_sphere { center; radius = parameters.radius }
+    | Sphere -> Rdk.Group_ops.Bounds_sphere { center; radius = parameters.radius }
     | Box -> let half = Vec3.create (parameters.size_x *. 0.5)
           (parameters.size_y *. 0.5) (parameters.size_z *. 0.5) in
-        Pdk.Group_ops.Bounds_box { minimum = Vec3.sub center half;
+        Rdk.Group_ops.Bounds_box { minimum = Vec3.sub center half;
           maximum = Vec3.add center half }
   let build = parameters_build (fun ~label parameters input ->
     Sop.group_bounds ~label ?base:(optional_text parameters.base)
@@ -157,7 +157,7 @@ end
 
 module Group_normal = struct
   type parameters = {
-    owner : Pdk.Group_ops.owner [@sop.default Pdk.Group_ops.Group_primitives]
+    owner : Rdk.Group_ops.owner [@sop.default Rdk.Group_ops.Group_primitives]
       [@sop.label "Group type"] [@sop.kind group_normal_owner_parameter];
     name : string [@sop.default "normal"] [@sop.label "Group name"];
     direction_x : float [@sop.default 0.] [@sop.label "Direction X"]
@@ -178,8 +178,8 @@ module Group_normal = struct
       [@sop.label "Include opposite"] [@sop.folder "Normals"];
     base : string [@sop.default ""] [@sop.label "Base group"]
       [@sop.folder "Combine"];
-    merge : Pdk.Group_ops.boolean_operation
-      [@sop.default Pdk.Group_ops.Group_replace] [@sop.label "Operation"]
+    merge : Rdk.Group_ops.boolean_operation
+      [@sop.default Rdk.Group_ops.Group_replace] [@sop.label "Operation"]
       [@sop.folder "Combine"] [@sop.kind group_merge_parameter];
   } [@@sop.node_key "group_normal"] [@@sop.node_label "Group by Normal"]
     [@@sop.node_category "Group/Create"] [@@sop.node_inputs 1]
@@ -203,8 +203,8 @@ module Group_non_planar = struct
       [@sop.min 0.] [@sop.max 0.1] [@sop.hard_min 0.];
     base : string [@sop.default ""] [@sop.label "Base group"]
       [@sop.folder "Combine"];
-    merge : Pdk.Group_ops.boolean_operation
-      [@sop.default Pdk.Group_ops.Group_replace] [@sop.label "Operation"]
+    merge : Rdk.Group_ops.boolean_operation
+      [@sop.default Rdk.Group_ops.Group_replace] [@sop.label "Operation"]
       [@sop.folder "Combine"] [@sop.kind group_merge_parameter];
   } [@@sop.node_key "group_non_planar"] [@@sop.node_label "Group Non-Planar"]
     [@@sop.node_category "Group/Create"] [@@sop.node_inputs 1]
@@ -227,8 +227,8 @@ module Group_backface = struct
       [@sop.folder "Viewpoint"] [@sop.min (-100.)] [@sop.max 100.]; [@sop.vec3 "viewpoint"]
     base : string [@sop.default ""] [@sop.label "Base group"]
       [@sop.folder "Combine"];
-    merge : Pdk.Group_ops.boolean_operation
-      [@sop.default Pdk.Group_ops.Group_replace] [@sop.label "Operation"]
+    merge : Rdk.Group_ops.boolean_operation
+      [@sop.default Rdk.Group_ops.Group_replace] [@sop.label "Operation"]
       [@sop.folder "Combine"] [@sop.kind group_merge_parameter];
   } [@@sop.node_key "group_backface"] [@@sop.node_label "Group Backfaces"]
     [@@sop.node_category "Group/Create"] [@@sop.node_inputs 1]
@@ -247,8 +247,8 @@ module Group_edge_depth = struct
     name : string [@sop.default "depth"] [@sop.label "Output group"];
     depth : int [@sop.default 1] [@sop.label "Depth"] [@sop.min 0]
       [@sop.max 100] [@sop.hard_min 0];
-    merge : Pdk.Group_ops.boolean_operation
-      [@sop.default Pdk.Group_ops.Group_replace] [@sop.label "Operation"]
+    merge : Rdk.Group_ops.boolean_operation
+      [@sop.default Rdk.Group_ops.Group_replace] [@sop.label "Operation"]
       [@sop.kind group_merge_parameter];
   } [@@sop.node_key "group_edge_depth"] [@@sop.node_label "Group Edge Depth"]
     [@@sop.node_category "Group/Expand"] [@@sop.node_inputs 1]
@@ -262,11 +262,11 @@ end
 
 module Group_unshared = struct
   type parameters = {
-    owner : Pdk.Group_ops.owner [@sop.default Pdk.Group_ops.Group_edges]
+    owner : Rdk.Group_ops.owner [@sop.default Rdk.Group_ops.Group_edges]
       [@sop.label "Group type"] [@sop.kind group_owner_parameter];
     name : string [@sop.default "unshared"] [@sop.label "Group name"];
-    merge : Pdk.Group_ops.boolean_operation
-      [@sop.default Pdk.Group_ops.Group_replace] [@sop.label "Operation"]
+    merge : Rdk.Group_ops.boolean_operation
+      [@sop.default Rdk.Group_ops.Group_replace] [@sop.label "Operation"]
       [@sop.kind group_merge_parameter];
   } [@@sop.node_key "group_unshared"] [@@sop.node_label "Group Unshared"]
     [@@sop.node_category "Group/Create"] [@@sop.node_inputs 1]
@@ -279,12 +279,12 @@ end
 
 module Group_boundary_components = struct
   let conflict_parameter = Parameter.choice ~equal:( = ) [
-      "Replace", Pdk.Group_ops.Name_replace; "Union", Pdk.Group_ops.Name_union;
+      "Replace", Rdk.Group_ops.Name_replace; "Union", Rdk.Group_ops.Name_union;
     ]
   type parameters = {
     prefix : string [@sop.default "boundary"] [@sop.label "Group prefix"];
-    conflict : Pdk.Group_ops.name_conflict
-      [@sop.default Pdk.Group_ops.Name_replace] [@sop.label "Conflict"]
+    conflict : Rdk.Group_ops.name_conflict
+      [@sop.default Rdk.Group_ops.Name_replace] [@sop.label "Conflict"]
       [@sop.kind conflict_parameter];
     max_groups : int [@sop.default 4096] [@sop.label "Maximum groups"]
       [@sop.folder "Limits"] [@sop.min 1] [@sop.max 16384]
@@ -305,11 +305,11 @@ end
 
 module Group_from_attribute_boundary = struct
   type parameters = {
-    owner : Pdk.Group_ops.owner [@sop.default Pdk.Group_ops.Group_edges]
+    owner : Rdk.Group_ops.owner [@sop.default Rdk.Group_ops.Group_edges]
       [@sop.label "Group type"] [@sop.kind group_owner_parameter];
     name : string [@sop.default "attribute_boundary"]
       [@sop.label "Group name"];
-    attributes : Pdk.Group_ops.boundary_attribute list [@sop.default []]
+    attributes : Rdk.Group_ops.boundary_attribute list [@sop.default []]
       [@sop.label "Attributes (owner, pattern)"]
       [@sop.kind boundary_attributes_parameter];
     tolerance : float [@sop.default 0.00001] [@sop.label "Tolerance"]
@@ -338,23 +338,23 @@ end
 
 module Groups_from_name = struct
   let conflict_parameter = Parameter.choice ~equal:( = ) [
-      "Replace", Pdk.Group_ops.Name_replace; "Union", Pdk.Group_ops.Name_union;
+      "Replace", Rdk.Group_ops.Name_replace; "Union", Rdk.Group_ops.Name_union;
     ]
   let invalid_parameter = Parameter.choice ~equal:( = ) [
-      "Ignore invalid", Pdk.Group_ops.Ignore_invalid;
-      "Force valid", Pdk.Group_ops.Force_valid;
+      "Ignore invalid", Rdk.Group_ops.Ignore_invalid;
+      "Force valid", Rdk.Group_ops.Force_valid;
     ]
   type parameters = {
-    owner : Pdk.Attribute.owner [@sop.default Pdk.Attribute.Primitive]
+    owner : Rdk.Attribute.owner [@sop.default Rdk.Attribute.Primitive]
       [@sop.label "Attribute owner"]
       [@sop.kind element_attribute_owner_parameter];
     attribute : string [@sop.default "name"] [@sop.label "Name attribute"];
     prefix : string [@sop.default ""] [@sop.label "Group prefix"];
-    conflict : Pdk.Group_ops.name_conflict
-      [@sop.default Pdk.Group_ops.Name_replace] [@sop.label "Conflict"]
+    conflict : Rdk.Group_ops.name_conflict
+      [@sop.default Rdk.Group_ops.Name_replace] [@sop.label "Conflict"]
       [@sop.kind conflict_parameter];
-    invalid_names : Pdk.Group_ops.invalid_name_policy
-      [@sop.default Pdk.Group_ops.Ignore_invalid] [@sop.label "Invalid names"]
+    invalid_names : Rdk.Group_ops.invalid_name_policy
+      [@sop.default Rdk.Group_ops.Ignore_invalid] [@sop.label "Invalid names"]
       [@sop.kind invalid_parameter];
     max_groups : int [@sop.default 4096] [@sop.label "Maximum groups"]
       [@sop.folder "Limits"] [@sop.min 1] [@sop.max 16384]
@@ -376,16 +376,16 @@ end
 
 module Name_from_groups = struct
   let overlap_parameter = Parameter.choice ~equal:( = ) [
-      "First group", Pdk.Group_ops.First_group; "Last group", Pdk.Group_ops.Last_group;
-      "Error on overlap", Pdk.Group_ops.Error_on_overlap;
+      "First group", Rdk.Group_ops.First_group; "Last group", Rdk.Group_ops.Last_group;
+      "Error on overlap", Rdk.Group_ops.Error_on_overlap;
     ]
   type parameters = {
-    owner : Pdk.Attribute.owner [@sop.default Pdk.Attribute.Primitive]
+    owner : Rdk.Attribute.owner [@sop.default Rdk.Attribute.Primitive]
       [@sop.label "Group type"] [@sop.kind element_attribute_owner_parameter];
     attribute : string [@sop.default "name"] [@sop.label "Name attribute"];
     pattern : string [@sop.default "*"] [@sop.label "Group pattern"];
     default : string [@sop.default ""] [@sop.label "Default value"];
-    overlap : Pdk.Group_ops.name_overlap [@sop.default Pdk.Group_ops.First_group]
+    overlap : Rdk.Group_ops.name_overlap [@sop.default Rdk.Group_ops.First_group]
       [@sop.label "Overlapping groups"] [@sop.kind overlap_parameter];
     delete_groups : bool [@sop.default false]
       [@sop.label "Delete source groups"];
@@ -402,9 +402,9 @@ end
 
 module Group_promote_boundary = struct
   type parameters = {
-    source : Pdk.Group_ops.owner [@sop.default Pdk.Group_ops.Group_primitives]
+    source : Rdk.Group_ops.owner [@sop.default Rdk.Group_ops.Group_primitives]
       [@sop.label "Source owner"] [@sop.kind group_owner_parameter];
-    destination : Pdk.Group_ops.owner [@sop.default Pdk.Group_ops.Group_edges]
+    destination : Rdk.Group_ops.owner [@sop.default Rdk.Group_ops.Group_edges]
       [@sop.label "Destination owner"] [@sop.kind group_owner_parameter];
     group : string [@sop.default "group"] [@sop.label "Source group"];
     name : string [@sop.default ""] [@sop.label "New group name"];
@@ -412,7 +412,7 @@ module Group_promote_boundary = struct
       [@sop.label "Keep original group"];
     output_attribute : string [@sop.default ""]
       [@sop.label "Output mask attribute"] [@sop.folder "Output"];
-    attributes : Pdk.Group_ops.boundary_attribute list [@sop.default []]
+    attributes : Rdk.Group_ops.boundary_attribute list [@sop.default []]
       [@sop.label "Boundary attributes (owner, pattern)"]
       [@sop.kind boundary_attributes_parameter];
     tolerance : float [@sop.default 0.00001] [@sop.label "Tolerance"]
@@ -450,14 +450,14 @@ module Group_promotions = struct
     | "false" | "0" | "no" -> Ok false
     | token -> Error (Printf.sprintf "expected boolean, got %S" token)
   let encode_attributes attributes = encode_table (List.map
-      (fun (attribute : Pdk.Group_ops.boundary_attribute) ->
+      (fun (attribute : Rdk.Group_ops.boundary_attribute) ->
         [attribute_owner_token attribute.boundary_attribute_owner;
          attribute.boundary_attribute_pattern]) attributes)
   let decode_attributes text = Result.bind (decode_table text) (fun rows ->
       List.fold_left (fun result row -> Result.bind result (fun attributes ->
         match row with
         | [owner; pattern] -> Result.map (fun boundary_attribute_owner ->
-            { Pdk.Group_ops.boundary_attribute_owner;
+            { Rdk.Group_ops.boundary_attribute_owner;
               boundary_attribute_pattern = pattern } :: attributes)
             (attribute_owner_of_token
               (String.lowercase_ascii (String.trim owner)))
@@ -465,13 +465,13 @@ module Group_promotions = struct
             "boundary attribute needs owner and pattern, got %d columns"
             (List.length row)))) (Ok []) rows |> Result.map List.rev)
   let encode_operation = function
-    | Pdk.Group_ops.Promote_elements mode ->
+    | Rdk.Group_ops.Promote_elements mode ->
         let token = match mode with
-          | Pdk.Group_ops.Include_any -> "any"
-          | Pdk.Group_ops.Include_all -> "all"
-          | Pdk.Group_ops.Include_shared_edge -> "shared_edge" in
+          | Rdk.Group_ops.Include_any -> "any"
+          | Rdk.Group_ops.Include_all -> "all"
+          | Rdk.Group_ops.Include_shared_edge -> "shared_edge" in
         [token; "0"; "false"; "false"; "false"; ""]
-    | Pdk.Group_ops.Promote_boundary options -> [
+    | Rdk.Group_ops.Promote_boundary options -> [
         "boundary"; Printf.sprintf "%.17g" options.promote_boundary_tolerance;
         bool_token options.promote_include_unshared_edges;
         bool_token options.promote_include_all_unshared_curve_edges;
@@ -481,10 +481,10 @@ module Group_promotions = struct
   let decode_operation = function
     | [kind; tolerance; unshared; all_curve; all_primitives; attributes] ->
         (match String.lowercase_ascii (String.trim kind) with
-         | "any" -> Ok (Pdk.Group_ops.Promote_elements Pdk.Group_ops.Include_any)
-         | "all" -> Ok (Pdk.Group_ops.Promote_elements Pdk.Group_ops.Include_all)
+         | "any" -> Ok (Rdk.Group_ops.Promote_elements Rdk.Group_ops.Include_any)
+         | "all" -> Ok (Rdk.Group_ops.Promote_elements Rdk.Group_ops.Include_all)
          | "shared_edge" | "shared edge" ->
-             Ok (Pdk.Group_ops.Promote_elements Pdk.Group_ops.Include_shared_edge)
+             Ok (Rdk.Group_ops.Promote_elements Rdk.Group_ops.Include_shared_edge)
          | "boundary" ->
              (match float_of_string_opt (String.trim tolerance) with
               | None -> Error (Printf.sprintf "invalid boundary tolerance %S"
@@ -501,8 +501,8 @@ module Group_promotions = struct
                               (String.trim all_primitives)))
                             (fun promote_include_all_primitives_sharing_boundary_points ->
                               Result.map (fun promote_boundary_attributes ->
-                                Pdk.Group_ops.Promote_boundary {
-                                  Pdk.Group_ops.promote_boundary_attributes;
+                                Rdk.Group_ops.Promote_boundary {
+                                  Rdk.Group_ops.promote_boundary_attributes;
                                   promote_boundary_tolerance;
                                   promote_include_unshared_edges;
                                   promote_include_all_unshared_curve_edges;
@@ -513,7 +513,7 @@ module Group_promotions = struct
     | columns -> Error (Printf.sprintf
         "group promotion operation needs 6 columns, got %d"
         (List.length columns))
-  let encode_rule (rule : Pdk.Group_ops.promotion_rule) = [
+  let encode_rule (rule : Rdk.Group_ops.promotion_rule) = [
       group_owner_token rule.promotion_source;
       group_owner_token rule.promotion_destination;
       rule.promotion_pattern;
@@ -534,7 +534,7 @@ module Group_promotions = struct
                 (String.lowercase_ascii (String.trim output_as_attribute)))
                 (fun promotion_output_as_attribute ->
                   Result.map (fun promotion_operation -> {
-                    Pdk.Group_ops.promotion_source; promotion_destination;
+                    Rdk.Group_ops.promotion_source; promotion_destination;
                     promotion_pattern = pattern;
                     promotion_new_name = optional_text new_name;
                     promotion_keep_original; promotion_output_as_attribute;
@@ -549,15 +549,15 @@ module Group_promotions = struct
   let rules_parameter = Parameter.encoded ~equal:( = )
       ~encode:(fun rules -> encode_table (List.map encode_rule rules)) ~decode
   let default_rules = [{
-      Pdk.Group_ops.promotion_source = Pdk.Group_ops.Group_points;
-      promotion_destination = Pdk.Group_ops.Group_primitives;
+      Rdk.Group_ops.promotion_source = Rdk.Group_ops.Group_points;
+      promotion_destination = Rdk.Group_ops.Group_primitives;
       promotion_pattern = "*"; promotion_new_name = None;
       promotion_keep_original = false;
       promotion_output_as_attribute = false;
-      promotion_operation = Pdk.Group_ops.Promote_elements Pdk.Group_ops.Include_any;
+      promotion_operation = Rdk.Group_ops.Promote_elements Rdk.Group_ops.Include_any;
     }]
   type parameters = {
-    rules : Pdk.Group_ops.promotion_rule list [@sop.default default_rules]
+    rules : Rdk.Group_ops.promotion_rule list [@sop.default default_rules]
       [@sop.label "Rules (source, destination, pattern, new name, keep, attribute, operation...)"]
       [@sop.kind rules_parameter];
     max_outputs : int [@sop.default 4096] [@sop.label "Maximum outputs"]
@@ -578,20 +578,20 @@ module Group_promotions = struct
 end
 
 module Group_invert = struct
-  type owner = Any | Owner of Pdk.Group_ops.owner
+  type owner = Any | Owner of Rdk.Group_ops.owner
   let owner_parameter = Parameter.choice ~equal:( = ) [
-      "Any", Any; "Points", Owner Pdk.Group_ops.Group_points;
-      "Vertices", Owner Pdk.Group_ops.Group_vertices;
-      "Primitives", Owner Pdk.Group_ops.Group_primitives;
-      "Edges", Owner Pdk.Group_ops.Group_edges;
+      "Any", Any; "Points", Owner Rdk.Group_ops.Group_points;
+      "Vertices", Owner Rdk.Group_ops.Group_vertices;
+      "Primitives", Owner Rdk.Group_ops.Group_primitives;
+      "Edges", Owner Rdk.Group_ops.Group_edges;
     ]
   type parameters = {
     owner : owner [@sop.default Any] [@sop.label "Group type"]
       [@sop.kind owner_parameter];
     pattern : string [@sop.default "*"] [@sop.label "Group pattern"];
     new_name : string [@sop.default ""] [@sop.label "New name pattern"];
-    conflict : Pdk.Group_ops.rename_conflict
-      [@sop.default Pdk.Group_ops.Rename_overwrite] [@sop.label "Conflict"]
+    conflict : Rdk.Group_ops.rename_conflict
+      [@sop.default Rdk.Group_ops.Rename_overwrite] [@sop.label "Conflict"]
       [@sop.kind group_rename_conflict_parameter];
   } [@@sop.node_key "group_invert"] [@@sop.node_label "Group Invert"]
     [@@sop.node_category "Group/Edit"] [@@sop.node_inputs 1]
@@ -605,7 +605,7 @@ module Group_invert = struct
 end
 
 module Group_delete = struct
-  let encode_rule (rule : Pdk.Group_ops.delete_rule) = [
+  let encode_rule (rule : Rdk.Group_ops.delete_rule) = [
       (match rule.delete_owner with None -> "any"
        | Some owner -> group_owner_token owner);
       rule.delete_pattern;
@@ -616,7 +616,7 @@ module Group_delete = struct
         let owner = if owner = "any" || owner = "*" then Ok None
           else Result.map Option.some (group_owner_of_token owner) in
         Result.map (fun delete_owner -> {
-          Pdk.Group_ops.delete_owner; delete_pattern = pattern }) owner
+          Rdk.Group_ops.delete_owner; delete_pattern = pattern }) owner
     | row -> Error (Printf.sprintf
         "Group Delete rule needs owner and pattern, got %d columns"
         (List.length row))
@@ -627,7 +627,7 @@ module Group_delete = struct
   let rules_parameter = Parameter.encoded ~equal:( = )
       ~encode:(fun rules -> encode_table (List.map encode_rule rules)) ~decode
   type parameters = {
-    rules : Pdk.Group_ops.delete_rule list [@sop.default []]
+    rules : Rdk.Group_ops.delete_rule list [@sop.default []]
       [@sop.label "Rules (owner, pattern)"] [@sop.kind rules_parameter];
     delete_unused : bool [@sop.default false]
       [@sop.label "Delete unused groups"];
@@ -642,17 +642,17 @@ end
 
 module Group_rename = struct
   let conflict_token = function
-    | Pdk.Group_ops.Rename_skip -> "skip"
-    | Pdk.Group_ops.Rename_error -> "error"
-    | Pdk.Group_ops.Rename_overwrite -> "overwrite"
-    | Pdk.Group_ops.Rename_union -> "union"
+    | Rdk.Group_ops.Rename_skip -> "skip"
+    | Rdk.Group_ops.Rename_error -> "error"
+    | Rdk.Group_ops.Rename_overwrite -> "overwrite"
+    | Rdk.Group_ops.Rename_union -> "union"
   let conflict_of_token = function
-    | "skip" -> Ok Pdk.Group_ops.Rename_skip
-    | "error" -> Ok Pdk.Group_ops.Rename_error
-    | "overwrite" -> Ok Pdk.Group_ops.Rename_overwrite
-    | "union" -> Ok Pdk.Group_ops.Rename_union
+    | "skip" -> Ok Rdk.Group_ops.Rename_skip
+    | "error" -> Ok Rdk.Group_ops.Rename_error
+    | "overwrite" -> Ok Rdk.Group_ops.Rename_overwrite
+    | "union" -> Ok Rdk.Group_ops.Rename_union
     | token -> Error (Printf.sprintf "unknown group rename conflict %S" token)
-  let encode_rule (rule : Pdk.Group_ops.rename_rule) = [
+  let encode_rule (rule : Rdk.Group_ops.rename_rule) = [
       (match rule.rename_owner with None -> "any"
        | Some owner -> group_owner_token owner);
       rule.rename_pattern; rule.rename_replacement;
@@ -666,7 +666,7 @@ module Group_rename = struct
           else Result.map Option.some (group_owner_of_token owner) in
         Result.bind owner (fun rename_owner ->
           Result.map (fun rename_conflict -> {
-            Pdk.Group_ops.rename_owner; rename_pattern = pattern;
+            Rdk.Group_ops.rename_owner; rename_pattern = pattern;
             rename_replacement = replacement; rename_conflict })
             (conflict_of_token conflict))
     | row -> Error (Printf.sprintf
@@ -679,7 +679,7 @@ module Group_rename = struct
   let rules_parameter = Parameter.encoded ~equal:( = )
       ~encode:(fun rules -> encode_table (List.map encode_rule rules)) ~decode
   type parameters = {
-    rules : Pdk.Group_ops.rename_rule list [@sop.default []]
+    rules : Rdk.Group_ops.rename_rule list [@sop.default []]
       [@sop.label "Rules (owner, pattern, replacement, conflict)"]
       [@sop.kind rules_parameter];
   } [@@sop.node_key "group_rename"] [@@sop.node_label "Group Rename"]
@@ -691,13 +691,13 @@ module Group_rename = struct
 end
 
 module Group_copy = struct
-  let encode_rule (rule : Pdk.Group_ops.copy_rule) = [
+  let encode_rule (rule : Rdk.Group_ops.copy_rule) = [
       group_owner_token rule.copy_owner; rule.copy_pattern; rule.copy_prefix;
       Option.value ~default:"" rule.match_attribute;
     ]
   let decode_rule = function
     | [owner; pattern; prefix; match_attribute] ->
-        Result.map (fun copy_owner -> { Pdk.Group_ops.copy_owner;
+        Result.map (fun copy_owner -> { Rdk.Group_ops.copy_owner;
           copy_pattern = pattern; copy_prefix = prefix;
           match_attribute = optional_text match_attribute })
           (group_owner_of_token
@@ -713,11 +713,11 @@ module Group_copy = struct
       ~encode:(fun rules -> encode_table (List.map encode_rule rules)) ~decode
   type parameters = {
     use_rules : bool [@sop.default false] [@sop.label "Use rules"];
-    rules : Pdk.Group_ops.copy_rule list [@sop.default []]
+    rules : Rdk.Group_ops.copy_rule list [@sop.default []]
       [@sop.label "Rules (owner, pattern, prefix, match attribute)"]
       [@sop.kind rules_parameter];
-    conflict : Pdk.Group_ops.copy_conflict
-      [@sop.default Pdk.Group_ops.Copy_overwrite] [@sop.label "Conflict"]
+    conflict : Rdk.Group_ops.copy_conflict
+      [@sop.default Rdk.Group_ops.Copy_overwrite] [@sop.label "Conflict"]
       [@sop.kind group_copy_conflict_parameter];
     copy_empty : bool [@sop.default false] [@sop.label "Copy empty groups"];
   } [@@sop.node_key "group_copy"] [@@sop.node_label "Group Copy"]
@@ -732,13 +732,13 @@ module Group_copy = struct
 end
 
 module Group_transfer = struct
-  let encode_rule (rule : Pdk.Group_ops.transfer_rule) = [
+  let encode_rule (rule : Rdk.Group_ops.transfer_rule) = [
       group_owner_token rule.transfer_owner; rule.transfer_pattern;
       rule.transfer_prefix;
     ]
   let decode_rule = function
     | [owner; pattern; prefix] ->
-        Result.map (fun transfer_owner -> { Pdk.Group_ops.transfer_owner;
+        Result.map (fun transfer_owner -> { Rdk.Group_ops.transfer_owner;
           transfer_pattern = pattern; transfer_prefix = prefix })
           (group_owner_of_token
             (String.lowercase_ascii (String.trim owner)))
@@ -753,11 +753,11 @@ module Group_transfer = struct
       ~encode:(fun rules -> encode_table (List.map encode_rule rules)) ~decode
   type parameters = {
     use_rules : bool [@sop.default false] [@sop.label "Use rules"];
-    rules : Pdk.Group_ops.transfer_rule list [@sop.default []]
+    rules : Rdk.Group_ops.transfer_rule list [@sop.default []]
       [@sop.label "Rules (owner, pattern, prefix)"]
       [@sop.kind rules_parameter];
-    conflict : Pdk.Group_ops.copy_conflict
-      [@sop.default Pdk.Group_ops.Copy_overwrite] [@sop.label "Conflict"]
+    conflict : Rdk.Group_ops.copy_conflict
+      [@sop.default Rdk.Group_ops.Copy_overwrite] [@sop.label "Conflict"]
       [@sop.kind group_copy_conflict_parameter];
     create_empty : bool [@sop.default false]
       [@sop.label "Create empty groups"];
@@ -780,7 +780,7 @@ module Group_combine = struct
     | "true" | "1" | "yes" -> Ok true
     | "false" | "0" | "no" -> Ok false
     | token -> Error (Printf.sprintf "expected boolean, got %S" token)
-  let encode_step (step : Pdk.Group_ops.combine_step) = [
+  let encode_step (step : Rdk.Group_ops.combine_step) = [
       group_boolean_token step.operation; step.operand.pattern;
       bool_token step.operand.inverted;
     ]
@@ -789,7 +789,7 @@ module Group_combine = struct
         Result.bind (group_boolean_of_token
           (String.lowercase_ascii (String.trim operation)))
           (fun operation -> Result.map (fun inverted -> {
-            Pdk.Group_ops.operation; operand = { pattern; inverted } })
+            Rdk.Group_ops.operation; operand = { pattern; inverted } })
             (bool_of_token
               (String.lowercase_ascii (String.trim inverted))))
     | row -> Error (Printf.sprintf
@@ -802,12 +802,12 @@ module Group_combine = struct
   let steps_parameter = Parameter.encoded ~equal:( = )
       ~encode:(fun steps -> encode_table (List.map encode_step steps)) ~decode
   type parameters = {
-    owner : Pdk.Group_ops.owner [@sop.default Pdk.Group_ops.Group_points]
+    owner : Rdk.Group_ops.owner [@sop.default Rdk.Group_ops.Group_points]
       [@sop.label "Group type"] [@sop.kind group_owner_parameter];
     name : string [@sop.default "combined"] [@sop.label "Output group"];
     base_pattern : string [@sop.default "*"] [@sop.label "Base pattern"];
     base_inverted : bool [@sop.default false] [@sop.label "Invert base"];
-    steps : Pdk.Group_ops.combine_step list [@sop.default []]
+    steps : Rdk.Group_ops.combine_step list [@sop.default []]
       [@sop.label "Steps (operation, pattern, invert)"]
       [@sop.kind steps_parameter];
   } [@@sop.node_key "group_combine"] [@@sop.node_label "Group Combine"]
@@ -815,7 +815,7 @@ module Group_combine = struct
     [@@deriving sop_params, sop_node]
   let build = parameters_build (fun ~label parameters input ->
     Sop.group_combine ~label ~owner:parameters.owner
-        ~name:parameters.name ~base:{ Pdk.Group_ops.pattern = parameters.base_pattern;
+        ~name:parameters.name ~base:{ Rdk.Group_ops.pattern = parameters.base_pattern;
           inverted = parameters.base_inverted }
         ~steps:parameters.steps input)
   let factory = parameters_factory build
@@ -823,11 +823,11 @@ end
 
 module Group_expand = struct
   let connectivity_parameter = Parameter.choice ~equal:( = ) [
-      "Share points", Pdk.Group_ops.Primitive_share_points;
-      "Share edges", Pdk.Group_ops.Primitive_share_edges;
+      "Share points", Rdk.Group_ops.Primitive_share_points;
+      "Share edges", Rdk.Group_ops.Primitive_share_edges;
     ]
   type parameters = {
-    owner : Pdk.Group_ops.owner [@sop.default Pdk.Group_ops.Group_points]
+    owner : Rdk.Group_ops.owner [@sop.default Rdk.Group_ops.Group_points]
       [@sop.label "Group type"] [@sop.kind group_owner_parameter];
     group : string [@sop.default "group"] [@sop.label "Source group"];
     name : string [@sop.default ""] [@sop.label "Output group"];
@@ -836,8 +836,8 @@ module Group_expand = struct
     flood : bool [@sop.default false] [@sop.label "Flood fill"];
     step_attribute : string [@sop.default ""]
       [@sop.label "Step attribute"] [@sop.folder "Output"];
-    primitive_connectivity : Pdk.Group_ops.primitive_connectivity
-      [@sop.default Pdk.Group_ops.Primitive_share_points]
+    primitive_connectivity : Rdk.Group_ops.primitive_connectivity
+      [@sop.default Rdk.Group_ops.Primitive_share_points]
       [@sop.label "Primitive connectivity"]
       [@sop.folder "Connectivity"] [@sop.kind connectivity_parameter];
     normal_spread : float [@sop.default 3.141592653589793]
@@ -846,12 +846,12 @@ module Group_expand = struct
       [@sop.hard_min 0.] [@sop.hard_max 3.141592653589793];
     use_normal_attribute : bool [@sop.default false]
       [@sop.label "Use normal attribute"] [@sop.folder "Connectivity/Normals"];
-    normal_owner : Pdk.Attribute.owner [@sop.default Pdk.Attribute.Primitive]
+    normal_owner : Rdk.Attribute.owner [@sop.default Rdk.Attribute.Primitive]
       [@sop.label "Normal owner"] [@sop.folder "Connectivity/Normals"]
       [@sop.kind element_attribute_owner_parameter];
     normal_name : string [@sop.default "N"] [@sop.label "Normal attribute"]
       [@sop.folder "Connectivity/Normals"];
-    connectivity_attributes : Pdk.Group_ops.boundary_attribute list
+    connectivity_attributes : Rdk.Group_ops.boundary_attribute list
       [@sop.default []] [@sop.label "Boundary attributes (owner, pattern)"]
       [@sop.folder "Connectivity"] [@sop.kind boundary_attributes_parameter];
     connectivity_tolerance : float [@sop.default 0.00001]
@@ -859,7 +859,7 @@ module Group_expand = struct
       [@sop.min 0.] [@sop.max 1.] [@sop.hard_min 0.];
     use_collision : bool [@sop.default false]
       [@sop.label "Use collision group"] [@sop.folder "Collision"];
-    collision_owner : Pdk.Group_ops.owner [@sop.default Pdk.Group_ops.Group_edges]
+    collision_owner : Rdk.Group_ops.owner [@sop.default Rdk.Group_ops.Group_edges]
       [@sop.label "Collision owner"] [@sop.folder "Collision"]
       [@sop.kind group_owner_parameter];
     collision_group : string [@sop.default "collision"]
@@ -873,10 +873,10 @@ module Group_expand = struct
     [@@deriving sop_params, sop_node]
   let build = parameters_build (fun ~label parameters input ->
     let normal_attribute = if parameters.use_normal_attribute then Some {
-        Pdk.Group_ops.expand_normal_owner = parameters.normal_owner;
+        Rdk.Group_ops.expand_normal_owner = parameters.normal_owner;
         expand_normal_name = parameters.normal_name } else None
     and collision = if parameters.use_collision then Some {
-        Pdk.Group_ops.expand_collision_owner = parameters.collision_owner;
+        Rdk.Group_ops.expand_collision_owner = parameters.collision_owner;
         expand_collision_group = parameters.collision_group;
         expand_collision_contain = parameters.collision_contain;
         expand_collision_allow_boundary =
@@ -904,13 +904,13 @@ module Group_range = struct
       "Connected with seams", Connected;
     ]
   type parameters = {
-    owner : Pdk.Group_ops.owner [@sop.default Pdk.Group_ops.Group_points]
+    owner : Rdk.Group_ops.owner [@sop.default Rdk.Group_ops.Group_points]
       [@sop.label "Group type"] [@sop.kind group_owner_parameter];
     name : string [@sop.default "range"] [@sop.label "Output group"];
     base : string [@sop.default ""] [@sop.label "Base group"];
     invert : bool [@sop.default false] [@sop.label "Invert range"];
-    merge : Pdk.Group_ops.boolean_operation
-      [@sop.default Pdk.Group_ops.Group_replace] [@sop.label "Merge"]
+    merge : Rdk.Group_ops.boolean_operation
+      [@sop.default Rdk.Group_ops.Group_replace] [@sop.label "Merge"]
       [@sop.kind group_merge_parameter];
     range_mode : range_mode [@sop.default Start_end] [@sop.label "Range"]
       [@sop.kind range_parameter];
@@ -954,7 +954,7 @@ module Group_range = struct
       [@sop.min 0.] [@sop.max 1.] [@sop.hard_min 0.];
     use_collision : bool [@sop.default false]
       [@sop.label "Use collision group"] [@sop.folder "Connectivity/Collision"];
-    collision_owner : Pdk.Group_ops.owner [@sop.default Pdk.Group_ops.Group_edges]
+    collision_owner : Rdk.Group_ops.owner [@sop.default Rdk.Group_ops.Group_edges]
       [@sop.label "Collision owner"] [@sop.folder "Connectivity/Collision"]
       [@sop.kind group_owner_parameter];
     collision_pattern : string [@sop.default "collision"]
@@ -967,28 +967,28 @@ module Group_range = struct
     [@@sop.node_category "Group/Create"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
   let range parameters = match parameters.range_mode with
-    | Start_end -> Pdk.Group_ops.Range_start_end {
+    | Start_end -> Rdk.Group_ops.Range_start_end {
         start = parameters.start; end_ = parameters.end_ }
-    | From_ends -> Pdk.Group_ops.Range_from_ends {
+    | From_ends -> Rdk.Group_ops.Range_from_ends {
         start = parameters.start; end_offset = parameters.end_offset }
-    | Start_length -> Pdk.Group_ops.Range_start_length {
+    | Start_length -> Rdk.Group_ops.Range_start_length {
         start = parameters.start; length = parameters.length }
-    | Partition -> Pdk.Group_ops.Range_partition {
+    | Partition -> Rdk.Group_ops.Range_partition {
         partition = parameters.partition; partitions = parameters.partitions }
   let filter parameters = if parameters.use_filter then Some {
-      Pdk.Group_ops.select = parameters.filter_select; of_ = parameters.filter_of;
+      Rdk.Group_ops.select = parameters.filter_select; of_ = parameters.filter_of;
       offset = parameters.filter_offset } else None
   let connectivity parameters =
     let region = if parameters.use_region then Some parameters.region else None in
     match parameters.connectivity_mode with
     | No_connectivity -> None
-    | Disconnected -> Some (Pdk.Group_ops.Range_disconnected { region })
+    | Disconnected -> Some (Rdk.Group_ops.Range_disconnected { region })
     | Connected ->
         let collision = if parameters.use_collision then Some {
-            Pdk.Group_ops.collision_owner = parameters.collision_owner;
+            Rdk.Group_ops.collision_owner = parameters.collision_owner;
             collision_pattern = parameters.collision_pattern;
             keep_boundary = parameters.keep_boundary } else None in
-        Some (Pdk.Group_ops.Range_connected {
+        Some (Rdk.Group_ops.Range_connected {
           connectivity_attributes =
             optional_text parameters.connectivity_attributes;
           connectivity_tolerance = parameters.connectivity_tolerance;
@@ -1004,13 +1004,13 @@ end
 
 module Group_ranges = struct
   let encode_specification = function
-    | Pdk.Group_ops.Range_start_end { start; end_ } ->
+    | Rdk.Group_ops.Range_start_end { start; end_ } ->
         ["start_end"; string_of_int start; string_of_int end_]
-    | Pdk.Group_ops.Range_from_ends { start; end_offset } ->
+    | Rdk.Group_ops.Range_from_ends { start; end_offset } ->
         ["from_ends"; string_of_int start; string_of_int end_offset]
-    | Pdk.Group_ops.Range_start_length { start; length } ->
+    | Rdk.Group_ops.Range_start_length { start; length } ->
         ["start_length"; string_of_int start; string_of_int length]
-    | Pdk.Group_ops.Range_partition { partition; partitions } ->
+    | Rdk.Group_ops.Range_partition { partition; partitions } ->
         ["partition"; string_of_int partition; string_of_int partitions]
   let decode_specification = function
     | [kind; a; b] ->
@@ -1018,19 +1018,19 @@ module Group_ranges = struct
         let* a = int_of_token a in
         let* b = int_of_token b in
         (match String.lowercase_ascii (String.trim kind) with
-         | "start_end" -> Ok (Pdk.Group_ops.Range_start_end { start = a; end_ = b })
-         | "from_ends" -> Ok (Pdk.Group_ops.Range_from_ends {
+         | "start_end" -> Ok (Rdk.Group_ops.Range_start_end { start = a; end_ = b })
+         | "from_ends" -> Ok (Rdk.Group_ops.Range_from_ends {
              start = a; end_offset = b })
-         | "start_length" -> Ok (Pdk.Group_ops.Range_start_length {
+         | "start_length" -> Ok (Rdk.Group_ops.Range_start_length {
              start = a; length = b })
-         | "partition" -> Ok (Pdk.Group_ops.Range_partition {
+         | "partition" -> Ok (Rdk.Group_ops.Range_partition {
              partition = a; partitions = b })
          | token -> Error (Printf.sprintf "unknown range kind %S" token))
     | columns -> Error (Printf.sprintf
         "range specification needs 3 columns, got %d" (List.length columns))
   let encode_filter = function
     | None -> ["none"; "0"; "1"; "0"]
-    | Some filter -> ["filter"; string_of_int filter.Pdk.Group_ops.select;
+    | Some filter -> ["filter"; string_of_int filter.Rdk.Group_ops.select;
         string_of_int filter.of_; string_of_int filter.offset]
   let decode_filter = function
     | [kind; select; of_; offset] ->
@@ -1040,16 +1040,16 @@ module Group_ranges = struct
           let* select = int_of_token select in
           let* of_ = int_of_token of_ in
           let* offset = int_of_token offset in
-          Ok (Some { Pdk.Group_ops.select; of_; offset })
+          Ok (Some { Rdk.Group_ops.select; of_; offset })
     | columns -> Error (Printf.sprintf
         "range filter needs 4 columns, got %d" (List.length columns))
   let encode_connectivity = function
     | None -> ["none"; ""; ""; "0"; "false"; "edge"; "";
         "false"; "false"]
-    | Some (Pdk.Group_ops.Range_disconnected { region }) -> [
+    | Some (Rdk.Group_ops.Range_disconnected { region }) -> [
         "disconnected"; Option.fold ~none:"" ~some:string_of_int region;
         ""; "0"; "false"; "edge"; ""; "false"; "false"]
-    | Some (Pdk.Group_ops.Range_connected connectivity) ->
+    | Some (Rdk.Group_ops.Range_connected connectivity) ->
         let collision_enabled, collision_owner, collision_pattern, keep_boundary =
           match connectivity.collision with
           | None -> "false", "edge", "", "false"
@@ -1072,7 +1072,7 @@ module Group_ranges = struct
         let* region = region in
         (match String.lowercase_ascii (String.trim kind) with
          | "none" -> Ok None
-         | "disconnected" -> Ok (Some (Pdk.Group_ops.Range_disconnected { region }))
+         | "disconnected" -> Ok (Some (Rdk.Group_ops.Range_disconnected { region }))
          | "connected" ->
              let* connectivity_tolerance = float_of_token tolerance in
              let* collision_enabled = bool_of_token collision_enabled in
@@ -1080,10 +1080,10 @@ module Group_ranges = struct
                let* collision_owner = group_owner_of_token
                    (String.lowercase_ascii (String.trim collision_owner)) in
                let* keep_boundary = bool_of_token keep_boundary in
-               Ok (Some { Pdk.Group_ops.collision_owner; collision_pattern;
+               Ok (Some { Rdk.Group_ops.collision_owner; collision_pattern;
                  keep_boundary }) in
              let* remove_other_regions = bool_of_token remove_other_regions in
-             Ok (Some (Pdk.Group_ops.Range_connected {
+             Ok (Some (Rdk.Group_ops.Range_connected {
                connectivity_attributes = optional_text attributes;
                connectivity_tolerance; collision; region;
                remove_other_regions }))
@@ -1091,7 +1091,7 @@ module Group_ranges = struct
              "unknown range connectivity %S" token))
     | columns -> Error (Printf.sprintf
         "range connectivity needs 9 columns, got %d" (List.length columns))
-  let encode_rule (rule : Pdk.Group_ops.range_rule) =
+  let encode_rule (rule : Rdk.Group_ops.range_rule) =
     [group_owner_token rule.range_owner; rule.range_name;
      Option.value ~default:"" rule.range_base; bool_token rule.range_invert;
      group_boolean_token rule.range_merge]
@@ -1111,7 +1111,7 @@ module Group_ranges = struct
         let* range_filter = decode_filter [f0; f1; f2; f3] in
         let* range_connectivity = decode_connectivity
             [c0; c1; c2; c3; c4; c5; c6; c7; c8] in
-        Ok { Pdk.Group_ops.range_owner; range_name = name;
+        Ok { Rdk.Group_ops.range_owner; range_name = name;
           range_base = optional_text base; range_invert; range_filter;
           range_connectivity; range_merge; range_specification }
     | row -> Error (Printf.sprintf
@@ -1122,11 +1122,11 @@ module Group_ranges = struct
       |> Result.map List.rev)
   let rules_parameter = Parameter.encoded ~equal:( = )
       ~encode:(fun rules -> encode_table (List.map encode_rule rules)) ~decode
-  let default_rules = [Pdk.Group_ops.range_rule
-      ~owner:Pdk.Group_ops.Group_points ~name:"range"
-      (Pdk.Group_ops.Range_start_end { start = 0; end_ = -1 })]
+  let default_rules = [Rdk.Group_ops.range_rule
+      ~owner:Rdk.Group_ops.Group_points ~name:"range"
+      (Rdk.Group_ops.Range_start_end { start = 0; end_ = -1 })]
   type parameters = {
-    rules : Pdk.Group_ops.range_rule list [@sop.default default_rules]
+    rules : Rdk.Group_ops.range_rule list [@sop.default default_rules]
       [@sop.label "Range rules"] [@sop.kind rules_parameter];
   } [@@sop.node_key "group_ranges"] [@@sop.node_label "Group Ranges"]
     [@@sop.node_category "Group/Create"] [@@sop.node_inputs 1]
@@ -1138,20 +1138,20 @@ end
 
 module Group_find_path = struct
   let mode_parameter = Parameter.choice ~equal:( = ) [
-      "Through each", Pdk.Group_mesh.Through_each;
-      "Start/end pairs", Pdk.Group_mesh.Start_end_pairs;
+      "Through each", Rdk.Group_mesh.Through_each;
+      "Start/end pairs", Rdk.Group_mesh.Start_end_pairs;
     ]
   let ending_parameter = Parameter.choice ~equal:( = ) [
-      "Stop at end", Pdk.Group_mesh.Stop_at_end; "Close path", Pdk.Group_mesh.Close_path;
+      "Stop at end", Rdk.Group_mesh.Stop_at_end; "Close path", Rdk.Group_mesh.Close_path;
     ]
   type parameters = {
-    owner : Pdk.Group.owner [@sop.default Pdk.Group.Point]
+    owner : Rdk.Group.owner [@sop.default Rdk.Group.Point]
       [@sop.label "Group type"] [@sop.kind ordinary_group_owner_parameter];
     base_group : string [@sop.default "ordered"] [@sop.label "Base group"];
     name : string [@sop.default "path"] [@sop.label "Output group"];
-    mode : Pdk.Group_mesh.path_mode [@sop.default Pdk.Group_mesh.Through_each]
+    mode : Rdk.Group_mesh.path_mode [@sop.default Rdk.Group_mesh.Through_each]
       [@sop.label "Path mode"] [@sop.kind mode_parameter];
-    ending : Pdk.Group_mesh.path_ending [@sop.default Pdk.Group_mesh.Stop_at_end]
+    ending : Rdk.Group_mesh.path_ending [@sop.default Rdk.Group_mesh.Stop_at_end]
       [@sop.label "Ending"] [@sop.kind ending_parameter];
     avoid_self_intersection : bool [@sop.default true]
       [@sop.label "Avoid self-intersection"];

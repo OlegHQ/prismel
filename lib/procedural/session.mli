@@ -1,5 +1,5 @@
 (** Explicit, bounded graph-evaluation state. A session is single-caller: it
-    may run parallel PDK kernels internally, but concurrent calls to [cook] on
+    may run parallel RDK kernels internally, but concurrent calls to [cook] on
     the same session are not supported. *)
 
 type t
@@ -26,9 +26,9 @@ type stats = {
 }
 
 type output = {
-  geometry : Pdk.Geometry.t;
+  geometry : Rdk.Geometry.t;
   diagnostics : Diagnostic.t list;
-  instances : Prismel_math.Mat4.t array option;
+  instances : Rays_math.Mat4.t array option;
   (** A packed result (e.g. Copy to Points with Pack and instance): draw
       [geometry] once per transform. A node that consumes it receives it
       materialized. *)

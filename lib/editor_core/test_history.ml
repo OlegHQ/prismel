@@ -40,14 +40,14 @@ let bindings : (scope, [ `Toggle | `Layout | `Undo | `Redo | `Delete | `Frame | 
     action = `Toggle };
   { id = "layout"; trigger = Some (Leader "l"); label = "layout"; guide = []; scope = Some Graph;
     action = `Layout };
-  { id = "undo"; trigger = Some (Chord (Prismel.Input.KeyChar 'z', [Prismel.Input.Meta]));
+  { id = "undo"; trigger = Some (Chord (Rays.Input.KeyChar 'z', [Rays.Input.Meta]));
     label = "undo"; guide = []; scope = None; action = `Undo };
-  { id = "redo"; trigger = Some (Chord (Prismel.Input.KeyChar 'z',
-      [Prismel.Input.Meta; Prismel.Input.Shift]));
+  { id = "redo"; trigger = Some (Chord (Rays.Input.KeyChar 'z',
+      [Rays.Input.Meta; Rays.Input.Shift]));
     label = "redo"; guide = []; scope = None; action = `Redo };
-  { id = "delete"; trigger = Some (Chord (Prismel.Input.Delete, []));
+  { id = "delete"; trigger = Some (Chord (Rays.Input.Delete, []));
     label = "delete"; guide = []; scope = Some Graph; action = `Delete };
-  { id = "frame"; trigger = Some (Chord (Prismel.Input.KeyChar 'f', []));
+  { id = "frame"; trigger = Some (Chord (Rays.Input.KeyChar 'f', []));
     label = "frame"; guide = []; scope = Some Graph; action = `Frame };
   { id = "add-light"; trigger = Some (Leader "al"); label = "add light"; guide = []; scope = None;
     action = `Add_light };
@@ -55,7 +55,7 @@ let bindings : (scope, [ `Toggle | `Layout | `Undo | `Redo | `Delete | `Frame | 
   Editor_core.Command.make ~id:"palette" ~label:"palette only" `Palette;
 ]
 
-let frame events : Prismel.Frame.t = {
+let frame events : Rays.Frame.t = {
   width = 10; height = 10; size = 10, 10;
   drawable_width = 10; drawable_height = 10; drawable_size = 10, 10;
   pixel_scale = 1., 1.; time = 0.; dt = 0.; fps = 0.; count = 0;
@@ -64,7 +64,7 @@ let frame events : Prismel.Frame.t = {
 }
 
 let () =
-  let open Prismel in
+  let open Rays in
   let open Editor_core.Router in
   let alias ?scope trigger label = Editor_core.Command.make ~id:"alias" ~label ~trigger
       ?scope () in

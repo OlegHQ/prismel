@@ -1,9 +1,9 @@
 (* Editor transactions on a workspace: the node a click selects is the node an edit in the
    same frame changes, undo agrees with the document, a changed graph with the same prepared
    value is drawn again, and one pointer drag is one undo entry. *)
-open Prismel
+open Rays
 open Procedural
-module E = Prismel_editor.Editor2
+module E = Rays_editor.Editor2
 module S = Flow.Syntax
 
 let check condition message = if not condition then failwith message

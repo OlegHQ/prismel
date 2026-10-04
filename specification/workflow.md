@@ -1,6 +1,6 @@
 # Live sketch workflow
 
-Prismel supports compiled sketch restart. For finite visual
+Rays supports compiled sketch restart. For finite visual
 experiments, `Sketch.export` writes deterministic frames from a pure scene.
 
 ## Compiled sketch restart

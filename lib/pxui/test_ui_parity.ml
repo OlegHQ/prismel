@@ -5,7 +5,7 @@
    squares of 1-point strokes (the old tessellated stroke notched outer
    corners and double-blended inner ones) and the XY knob, now an
    anti-aliased circle instead of a 32-gon. *)
-open Prismel
+open Rays
 
 let rows = [
   `Label "PXUI"; `Accordion "Motion"; `Toggle ("Animate", true);
@@ -79,7 +79,7 @@ let permitted density (x, y) =
     (stroked_controls ())
 
 (* Overlay widgets have no retired counterpart; their golden is this kit's own
-   2x rendering, refreshed deliberately with PRISMEL_UPDATE_FIXTURES=<dir>. *)
+   2x rendering, refreshed deliberately with RAYS_UPDATE_FIXTURES=<dir>. *)
 let overlays ui =
   ignore (Pxui.Ui.modal ui ~width:220. "modal" (fun () ->
     Pxui.Ui.label ui "Presets";
@@ -94,7 +94,7 @@ let check_overlays () =
     capture "overlays" ~init:(fun _ -> Pxui.Ui.create ())
       ~update:(fun ui frame -> Pxui.Ui.frame ui frame overlays; ui)
       ~view:(fun ui _ -> Scene.clear background :: Pxui.Ui.scene ui) in
-  (match Sys.getenv_opt "PRISMEL_UPDATE_FIXTURES" with
+  (match Sys.getenv_opt "RAYS_UPDATE_FIXTURES" with
    | Some target -> Sys.rename (Filename.concat directory "overlays-000001.png")
        (Filename.concat target "kit_overlays_2x.png")
    | None -> ());
@@ -138,7 +138,7 @@ let check_zones () =
     capture "zones" ~init:(fun _ -> Pxui.Ui.create ())
       ~update:(fun ui frame -> Pxui.Ui.frame ui frame zones; ui)
       ~view:(fun ui _ -> Scene.clear background :: Pxui.Ui.scene ui) in
-  (match Sys.getenv_opt "PRISMEL_UPDATE_FIXTURES" with
+  (match Sys.getenv_opt "RAYS_UPDATE_FIXTURES" with
    | Some target -> Sys.rename (Filename.concat directory "zones-000001.png")
        (Filename.concat target "kit_zones_1x.png")
    | None -> ());
@@ -159,7 +159,7 @@ let run () =
     capture "new" ~init:(fun _ -> Pxui.Ui.create ())
       ~update:(fun ui frame -> Pxui.Ui.frame ui frame new_panel; ui)
       ~view:(fun ui _ -> Scene.clear background :: Pxui.Ui.scene ui) in
-  (match Sys.getenv_opt "PRISMEL_UPDATE_FIXTURES" with
+  (match Sys.getenv_opt "RAYS_UPDATE_FIXTURES" with
    | Some target -> Sys.rename (Filename.concat directory "new-000001.png")
        (Filename.concat target "kit_panel_2x.png")
    | None -> ());

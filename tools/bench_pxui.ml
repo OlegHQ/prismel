@@ -1,12 +1,12 @@
-open Prismel
+open Rays
 
 let integer_env name default =
   match Sys.getenv_opt name with
   | None -> default
   | Some value -> max 1 (int_of_string value)
 
-let widget_count = integer_env "PRISMEL_PXUI_BENCH_WIDGETS" 1_000
-let repeats = integer_env "PRISMEL_PXUI_BENCH_REPEATS" 7
+let widget_count = integer_env "RAYS_PXUI_BENCH_WIDGETS" 1_000
+let repeats = integer_env "RAYS_PXUI_BENCH_REPEATS" 7
 let sink = ref 0
 
 let median values =

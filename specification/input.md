@@ -1,6 +1,6 @@
 # Input and events
 
-Runtime translates SDL3 input into Prismel's typed, ordered `Event.t` stream
+Runtime translates SDL3 input into Rays's typed, ordered `Event.t` stream
 and folds held input into each `Frame.t`. Native event values never expose an
 SDL3 pointer or structure.
 

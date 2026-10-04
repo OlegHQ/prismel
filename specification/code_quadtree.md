@@ -76,7 +76,7 @@ scope depth, O(S) retained nodes. Each file also stores a fixed 32-entry profile
 Only one document is open in the server at a time.
 
 Rendering culls whole offscreen subtrees, collapses subpixel nodes, and caps
-terminal stipple grids at 16 by 16. Marks go through `Prismel.Ink`: adjacent same-color marks merge in owned,
+terminal stipple grids at 16 by 16. Marks go through `Rays.Ink`: adjacent same-color marks merge in owned,
 geometrically growing vertex/index buffers, preserving painter order, and
 lines and strokes use the shared Scene tessellators. `Ink.take` publishes
 Scene nodes with internal clipping and stable segment identities; text remains the native font path. This is packed
@@ -96,20 +96,20 @@ There are no frame threads or new rasterizers.
 ## Verification and measurement
 
 ```sh
-dune runtest lib/prismel_execution lib/scene_execution sketches/code_quadtree
+dune runtest lib/rays_execution lib/scene_execution sketches/code_quadtree
 dune exec sketches/code_quadtree/test_source_index.exe -- --live
 dune exec sketches/code_quadtree/main.exe -- --verify
 dune exec sketches/code_quadtree/main.exe -- --index-only
 dune exec sketches/code_quadtree/main.exe -- --smoke --frames 600
 dune build --force @tools/bench-code-quadtree-tour
-PRISMEL_BENCH_FRAMES=60 dune build --force @tools/bench-code-quadtree-hover
+RAYS_BENCH_FRAMES=60 dune build --force @tools/bench-code-quadtree-hover
 dune build --force @tools/bench-code-quadtree-renderer
 dune exec sketches/code_quadtree/main.exe -- --tour --frames 12 --domains 1 --export /tmp/strata-one
 dune exec sketches/code_quadtree/main.exe -- --tour --frames 12 --domains 4 --export /tmp/strata-four
 ```
 
 The three benchmark aliases open a native window; run them only on a desktop
-where that is wanted. `PRISMEL_BENCH_FRAMES` overrides their 120-frame default.
+where that is wanted. `RAYS_BENCH_FRAMES` overrides their 120-frame default.
 Use `--force` for every measurement so Dune reruns the alias action.
 
 The pure fixture checks 1–9-file boundaries, exact coverage/picking, determinism,

@@ -1,4 +1,4 @@
-open Prismel
+open Rays
 open Procedural
 
 let fail message = raise (Failure message)
@@ -55,10 +55,10 @@ let catalog_node key inputs changes =
   | Error message -> fail message
 
 let float3 name geometry =
-  match Pdk.Geometry.find_attribute ~owner:Pdk.Attribute.Point name geometry with
+  match Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point name geometry with
   | Some attribute ->
-      (match Pdk.Attribute.Private.storage attribute with
-       | Pdk.Attribute.Float3 values -> Pdk.Packed.Float3.Private.view values
+      (match Rdk.Attribute.Private.storage attribute with
+       | Rdk.Attribute.Float3 values -> Rdk.Packed.Float3.Private.view values
        | _ -> fail (name ^ " has wrong storage"))
   | None -> fail ("missing " ^ name)
 
@@ -92,10 +92,10 @@ let set_color_test () =
     |> Result.get_ok in
   let box = catalog_node "box" [] [] in
   let colors node =
-    match Pdk.Geometry.find_attribute ~owner:Pdk.Attribute.Point "Cd"
+    match Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point "Cd"
         (cook session node) with
-    | Some attribute -> (match Pdk.Attribute.Private.storage attribute with
-        | Pdk.Attribute.Float4 values -> Pdk.Packed.Float4.Private.view values
+    | Some attribute -> (match Rdk.Attribute.Private.storage attribute with
+        | Rdk.Attribute.Float4 values -> Rdk.Packed.Float4.Private.view values
         | _ -> fail "set_color did not write a float4 Cd")
     | None -> fail "set_color wrote no Cd" in
   let plain = colors (catalog_node "set_color" [Some box] []) in
@@ -112,7 +112,7 @@ let set_color_test () =
 let run () =
   test_motion ();
   let source = Sop_catalog.Box.create ~label:"box"
-      ~size:(Vec3.create 2. 2. 2.) ~connectivity:Pdk.Box_generator.Box_quads
+      ~size:(Vec3.create 2. 2. 2.) ~connectivity:Rdk.Box_generator.Box_quads
       ~consolidate_points:true () in
   let ordinary_chain = source
     |> Sop_catalog.Normal.create ~label:"normal" in
@@ -126,8 +126,8 @@ let run () =
          ~roughness:0.5 in
   let targets = Sop_catalog.Point_generate.origin ~label:"points" ~points:4 ()
     |> Sop_catalog.Attribute_noise_quaternion.create ~label:"orient" ~seed:4
-         ~owner:Pdk.Attribute.Point ~name:"orient"
-         ~location:Pdk.Attribute_ops.Noise_element_number
+         ~owner:Rdk.Attribute.Point ~name:"orient"
+         ~location:Rdk.Attribute_ops.Noise_element_number
          ~frequency:(Vec3.create 0.2 0.2 0.2) ~octaves:2
     |> Sop_catalog.Point_jitter.create ~label:"jitter" ~seed:5 ~scale:0.1 in
   let cutters = Sop_catalog.Copy_to_points.create ~label:"copy" ~source:plane
@@ -138,12 +138,12 @@ let run () =
   let fracture = List.hd (Node.inputs graph) in
   let orient = List.hd (Node.inputs targets) in
   let custom_noise = Sop_catalog.Attribute_noise_quaternion.create
-      ~owner:Pdk.Attribute.Point ~name:"orient" ~seed:4
+      ~owner:Rdk.Attribute.Point ~name:"orient" ~seed:4
       ~frequency:(Vec3.create 0.2 0.2 0.2) ~octaves:2
-      ~location:(Pdk.Attribute_ops.Noise_attribute "rest position")
-      ~range:(Pdk.Attribute_ops.Noise_min_max
-        (Pdk.Attribute_ops.Vec4 (0., 0.1, 0.2, 0.3),
-         Pdk.Attribute_ops.Vec4 (0.7, 0.8, 0.9, 1.)))
+      ~location:(Rdk.Attribute_ops.Noise_attribute "rest position")
+      ~range:(Rdk.Attribute_ops.Noise_min_max
+        (Rdk.Attribute_ops.Vec4 (0., 0.1, 0.2, 0.3),
+         Rdk.Attribute_ops.Vec4 (0.7, 0.8, 0.9, 1.)))
       (List.hd (Node.inputs orient)) in
   let field node name = List.find (fun value -> value.Parameter.name = name)
       (Node.parameter_fields node) in
@@ -204,7 +204,7 @@ let run () =
     "catalog point count did not enforce its PPX hard maximum";
   let cube = Sop_catalog.Box.create ~label:"cube" ()
   and dodecahedron = Sop_catalog.Platonic.create ~label:"dodecahedron"
-      ~kind:Pdk.Parametric_generators.Platonic_dodecahedron ~radius:1. () in
+      ~kind:Rdk.Parametric_generators.Platonic_dodecahedron ~radius:1. () in
   let switched = Sop_catalog.Switch.create ~label:"source-switch"
       [cube; dodecahedron] in
   check (Node.operation switched = "switch" && Node.has_parameters switched)
@@ -221,12 +221,12 @@ let run () =
     "catalog Switch did not retain its selected labeled input";
   let session = Session.create ~max_entries:8 ~max_payload_bytes:1_000_000
       |> Result.get_ok in
-  let cube_topology = Pdk.Geometry.topology (cook session cube) in
-  check (Pdk.Topology.primitive_count cube_topology = 6
-      && Pdk.Topology.primitive_size cube_topology 0 = 4)
+  let cube_topology = Rdk.Geometry.topology (cook session cube) in
+  check (Rdk.Topology.primitive_count cube_topology = 6
+      && Rdk.Topology.primitive_size cube_topology 0 = 4)
     "catalog Box default must retain six quad faces";
-  check (Pdk.Geometry.primitive_count (cook session switched)
-      = Pdk.Geometry.primitive_count (cook session dodecahedron))
+  check (Rdk.Geometry.primitive_count (cook session switched)
+      = Rdk.Geometry.primitive_count (cook session dodecahedron))
     "catalog Switch did not cook the selected dodecahedron branch";
   let replacement = Sop_catalog.Grid.create ~label:"replacement-grid"
       ~columns:2 ~rows:2 ~size:1. () in
@@ -560,8 +560,8 @@ let run () =
     "point-generation editor factory has the wrong node or arity";
   let point_session = Session.create ~max_entries:2
       ~max_payload_bytes:1_000_000 |> Result.get_ok in
-  let point_mesh = cook point_session points |> Pdk_prismel.Prismel_mesh.to_mesh
-      |> Result.map_error Pdk.Error.to_string |> Result.get_ok in
+  let point_mesh = cook point_session points |> Rdk_rays.Rays_mesh.to_mesh
+      |> Result.map_error Rdk.Error.to_string |> Result.get_ok in
   check (Mesh.mode point_mesh = Mesh.Points && Mesh.vertex_count point_mesh = 50)
     "point-only SOP output did not retain point rendering mode";
   Session.close point_session;

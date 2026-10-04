@@ -1,4 +1,4 @@
-(** The authored tree of the workspace language (`.plisp` text): what
+(** The authored tree of the workspace language (`.rays` text): what
     [Lisp.print] prints and what [Macro] and [Workspace] read.  It keeps
     everything a person wrote: comments (notes), [^:flags] (meta), the
     spelling of numbers, and stable form ids.  It also reads the generated

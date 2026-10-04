@@ -1,11 +1,11 @@
-open Prismel
-open Pdk
+open Rays
+open Rdk
 open Procedural
 
 let fail message = raise (Failure message)
 let check condition message = if not condition then fail message
 let get_ok = function Ok value -> value | Error message -> fail message
-let get_pdk = function
+let get_rdk = function
   | Ok value -> value
   | Error error -> fail (Error.to_string error)
 
@@ -268,9 +268,9 @@ let run () =
   check (Geometry.point_count one = 160_000
       && Geometry.vertex_count one = 160_000)
     "Facet inline exactness fixture cardinality";
-  let generated_grid = Sop.grid ~counts:Pdk.Plane_generators.Grid_point_counts
-      ~connectivity:Pdk.Plane_generators.Grid_alternating_triangles
-      ~orientation:(Pdk.Plane_generators.Grid_axes {
+  let generated_grid = Sop.grid ~counts:Rdk.Plane_generators.Grid_point_counts
+      ~connectivity:Rdk.Plane_generators.Grid_alternating_triangles
+      ~orientation:(Rdk.Plane_generators.Grid_axes {
         horizontal = Vec3.create 1. 2. 0.5;
         vertical = Vec3.create (-0.25) 0.75 2. })
       ~center:(Vec3.create 3. (-2.) 5.) ~width:40. ~height:25.
@@ -282,9 +282,9 @@ let run () =
       && Geometry.primitive_count one = 700_000)
     "advanced Grid exactness fixture cardinality";
   let generated_circle = Sop.circle
-      ~arc:(Pdk.Plane_generators.Circle_sliced_arc {
+      ~arc:(Rdk.Plane_generators.Circle_sliced_arc {
         start_angle = -0.7; end_angle = 5.2 })
-      ~orientation:(Pdk.Plane_generators.Circle_axes {
+      ~orientation:(Rdk.Plane_generators.Circle_axes {
         horizontal = Vec3.create 1. 2. 0.5;
         vertical = Vec3.create (-0.25) 0.75 2. })
       ~reverse:true ~center:(Vec3.create 3. (-2.) 5.)
@@ -297,10 +297,10 @@ let run () =
       && Topology.primitive_kind (Geometry.topology one) 0
          = Topology.Closed_polyline)
     "advanced Circle exactness fixture cardinality";
-  let generated_box = Sop.box ~connectivity:Pdk.Box_generator.Box_quads
-      ~consolidate_points:true ~normals:Pdk.Box_generator.Box_vertex_normals
+  let generated_box = Sop.box ~connectivity:Rdk.Box_generator.Box_quads
+      ~consolidate_points:true ~normals:Rdk.Box_generator.Box_vertex_normals
       ~center:(Vec3.create 3. (-2.) 5.)
-      ~rotation:(Vec3.create 0.3 0.5 0.7) ~rotation_order:Pdk.Box_generator.Box_zxy
+      ~rotation:(Vec3.create 0.3 0.5 0.7) ~rotation_order:Rdk.Box_generator.Box_zxy
       ~uniform_scale:1.2 ~x_divisions:256 ~y_divisions:192 ~z_divisions:128
       ~uv_attribute:"uv" ~face_groups:"face"
       ~size:(Vec3.create 40. 25. 18.) () in
@@ -312,11 +312,11 @@ let run () =
       && List.length (Geometry.groups one) = 6)
     "advanced Box exactness fixture cardinality";
   let generated_sphere = Sop.uv_sphere
-      ~connectivity:Pdk.Uv_sphere.Sphere_alternating_triangles
-      ~unique_points_per_pole:true ~normals:Pdk.Uv_sphere.Sphere_vertex_normals
-      ~orientation:(Pdk.Uv_sphere.Sphere_axis (Vec3.create 1. 2. 3.))
+      ~connectivity:Rdk.Uv_sphere.Sphere_alternating_triangles
+      ~unique_points_per_pole:true ~normals:Rdk.Uv_sphere.Sphere_vertex_normals
+      ~orientation:(Rdk.Uv_sphere.Sphere_axis (Vec3.create 1. 2. 3.))
       ~center:(Vec3.create 3. (-2.) 5.)
-      ~rotation:(Vec3.create 0.3 0.5 0.7) ~rotation_order:Pdk.Uv_sphere.Sphere_yzx
+      ~rotation:(Vec3.create 0.3 0.5 0.7) ~rotation_order:Rdk.Uv_sphere.Sphere_yzx
       ~radius_x:3. ~radius_y:2. ~radius_z:1. ~uv_attribute:"uv"
       ~segments:256 ~rings:128 ~radius:1. () in
   let one = cook 1 generated_sphere and many = cook 4 generated_sphere in
@@ -588,8 +588,8 @@ let run () =
   check (Geometry.find_group ~owner:Group.Primitive "grown_faces" one <> None
       && Geometry.find_edge_group "grown_edges" one <> None)
     "Group Expand/Promote exactness fixture dropped outputs";
-  let constrained_source = Pdk.Plane_generators.grid ~columns:400 ~rows:300 ~size:20. ()
-      |> get_pdk in
+  let constrained_source = Rdk.Plane_generators.grid ~columns:400 ~rows:300 ~size:20. ()
+      |> get_rdk in
   let constrained_primitive_count = Geometry.primitive_count constrained_source in
   let region_attribute = Attribute.create_owned ~owner:Attribute.Primitive
       ~name:"region" (Attribute.Int (Array.init constrained_primitive_count
@@ -646,7 +646,7 @@ let run () =
     "copy-to-points exactness fixture cardinality";
   let mirrored = Sop.box ()
       |> Sop.group_edges ~name:"box_edges"
-      |> Sop.fuse ~tolerance:1e-9 ~attributes:Pdk.Fuse_reduce.Average_numeric
+      |> Sop.fuse ~tolerance:1e-9 ~attributes:Rdk.Fuse_reduce.Average_numeric
       |> Sop.mirror ~origin:Vec3.zero ~normal:(Vec3.create 1. 1. 0.) in
   let one = cook 1 mirrored and many = cook 4 mirrored in
   check (equal_geometry one many)
@@ -706,8 +706,8 @@ let run () =
   check (match Geometry.find_edge_group "chaikin_creases" one with
     | Some group -> Edge_group.cardinality group > 0 | None -> false)
     "parallel Chaikin subdivision omitted its resulting crease group";
-  let all_edge_source = Pdk.Plane_generators.grid ~connectivity:Pdk.Plane_generators.Grid_quads
-      ~columns:120 ~rows:80 ~size:8. () |> get_pdk in
+  let all_edge_source = Rdk.Plane_generators.grid ~connectivity:Rdk.Plane_generators.Grid_quads
+      ~columns:120 ~rows:80 ~size:8. () |> get_rdk in
   let all_edge_source_count = Array.length
       ((Topology_index.create (Geometry.topology all_edge_source)
         |> Topology_index.Private.view).edge_a) in
@@ -755,7 +755,7 @@ let run () =
       |> Array.to_list
       |> List.filter (fun primitive -> primitive < 120 * 80)
       |> Array.of_list in
-  let holed_subdivision = Sop.grid ~connectivity:Pdk.Plane_generators.Grid_quads
+  let holed_subdivision = Sop.grid ~connectivity:Rdk.Plane_generators.Grid_quads
       ~columns:120 ~rows:80 ~size:8. ()
       |> Sop.group ~name:"subdivision_hole"
            (Select.primitive_indices hole_indices)
@@ -765,7 +765,7 @@ let run () =
     "one-domain and four-domain recursive hole subdivision differ";
   check (Geometry.primitive_count one = (120 * 80 - Array.length hole_indices) * 16)
     "parallel recursive hole subdivision cardinality";
-  let boundary_fixture policy = Sop.grid ~connectivity:Pdk.Plane_generators.Grid_quads
+  let boundary_fixture policy = Sop.grid ~connectivity:Rdk.Plane_generators.Grid_quads
       ~columns:120 ~rows:80 ~size:8. ()
       |> Sop.set_float ~owner:Attribute.Point ~name:"boundary_sample" 2.5
       |> Sop.subdivide ~scheme:Subdivide.Catmull_clark
@@ -782,8 +782,8 @@ let run () =
       (boundary_fixture Subdivide.Subdivide_boundary_none) in
   check (Geometry.primitive_count no_boundary_surface = (120 - 2) * (80 - 2) * 4)
     "parallel None point-boundary subdivision cardinality";
-  let fvar_source = Pdk.Plane_generators.grid ~connectivity:Pdk.Plane_generators.Grid_quads
-      ~columns:120 ~rows:80 ~size:8. () |> get_pdk in
+  let fvar_source = Rdk.Plane_generators.grid ~connectivity:Rdk.Plane_generators.Grid_quads
+      ~columns:120 ~rows:80 ~size:8. () |> get_rdk in
   let fvar_topology = Topology.Private.view (Geometry.topology fvar_source) in
   let fvar_index = Topology_index.create (Geometry.topology fvar_source)
       |> Topology_index.Private.view in
@@ -807,7 +807,7 @@ let run () =
     [Subdivide.Subdivide_fvar_none; Subdivide.Subdivide_fvar_corners_only;
      Subdivide.Subdivide_fvar_corners_plus1; Subdivide.Subdivide_fvar_corners_plus2;
      Subdivide.Subdivide_fvar_boundaries; Subdivide.Subdivide_fvar_all];
-  let smooth_triangles = Sop.grid ~connectivity:Pdk.Plane_generators.Grid_triangles
+  let smooth_triangles = Sop.grid ~connectivity:Rdk.Plane_generators.Grid_triangles
       ~columns:120 ~rows:80 ~size:8. ()
       |> Sop.set_float ~owner:Attribute.Vertex ~name:"fvar_sample" 2.5
       |> Sop.subdivide ~scheme:Subdivide.Catmull_clark
@@ -818,8 +818,8 @@ let run () =
     "one-domain and four-domain Smooth Triangles subdivision differ";
   check (Geometry.primitive_count one = 120 * 80 * 2 * 3)
     "parallel Smooth Triangles subdivision cardinality";
-  let detail_source = Pdk.Plane_generators.grid ~connectivity:Pdk.Plane_generators.Grid_triangles
-      ~columns:120 ~rows:80 ~size:8. () |> get_pdk in
+  let detail_source = Rdk.Plane_generators.grid ~connectivity:Rdk.Plane_generators.Grid_triangles
+      ~columns:120 ~rows:80 ~size:8. () |> get_rdk in
   let detail_vertex_count = Geometry.vertex_count detail_source in
   let detail_source = Geometry.with_attribute
       (Attribute.create_owned ~owner:Attribute.Vertex ~name:"fvar_sample"
@@ -914,7 +914,7 @@ let run () =
          <> None
       && Geometry.find_attribute ~owner:Attribute.Point "sample_a" one = None)
     "one-domain and four-domain renamed pattern promotion differ";
-  let piece_geometry = Pdk.Plane_generators.grid ~columns:200 ~rows:120 ~size:12. () |> get_pdk in
+  let piece_geometry = Rdk.Plane_generators.grid ~columns:200 ~rows:120 ~size:12. () |> get_rdk in
   let point_count = Geometry.point_count piece_geometry in
   let piece_values = Attribute.create_owned ~name:"piece_value"
       ~owner:Attribute.Point (Attribute.Int (Array.init point_count
@@ -1035,7 +1035,7 @@ let run () =
       |> Sop.noise_displace ~seed:29 ~amplitude:0.4 ~frequency:0.5
       |> Sop.normals
       |> Sop.color_by_height ~low:Color.blue ~high:Color.red
-      |> Sop.measure Pdk.Analysis.Area
+      |> Sop.measure Rdk.Analysis.Area
       |> Sop.group ~name:"surface_source" Select.all_primitives
       |> Sop.group ~name:"surface_vertex_patch"
            (Select.vertex_indices (Array.init 1_000 Fun.id)) in
@@ -1079,8 +1079,8 @@ let run () =
     "one-domain and four-domain vertex surface transfer differ";
   check (Geometry.find_attribute ~owner:Attribute.Vertex "surface_distance" one
     <> None) "vertex surface transfer distance attribute missing";
-  let enumerate_source = Pdk.Plane_generators.grid ~columns:500 ~rows:300 ~size:20. ()
-      |> get_pdk in
+  let enumerate_source = Rdk.Plane_generators.grid ~columns:500 ~rows:300 ~size:20. ()
+      |> get_rdk in
   let enumerate_count = Geometry.point_count enumerate_source in
   let enumerate_piece = Attribute.create_owned ~owner:Attribute.Point
       ~name:"piece" (Attribute.Int (Array.init enumerate_count (fun point ->
@@ -1114,7 +1114,7 @@ let run () =
   let one = cook 1 generated_attributes and many = cook 4 generated_attributes in
   check (equal_geometry one many)
     "one-domain and four-domain Attribute Randomize/Remap differ";
-  let extended_random = Sop.grid ~connectivity:Pdk.Plane_generators.Grid_triangles
+  let extended_random = Sop.grid ~connectivity:Rdk.Plane_generators.Grid_triangles
       ~columns:500 ~rows:300 ~size:20. ()
       |> Sop.group ~name:"randomize_vertices"
            (Select.vertex_indices [|0; 5; 11; 17; 23; 29|])
@@ -1243,7 +1243,7 @@ let run () =
     "carve exactness fixture unexpectedly small";
   let grouped_carve = Sop.merge [
       Sop.polyline curve_samples |> Sop.normals;
-      Sop.grid ~connectivity:Pdk.Plane_generators.Grid_quads ~columns:128 ~rows:96 ~size:8. ();
+      Sop.grid ~connectivity:Rdk.Plane_generators.Grid_quads ~columns:128 ~rows:96 ~size:8. ();
     ] |> Sop.group ~name:"carve_curve" (Select.primitive_indices [|0|])
       |> Sop.carve ~group:"carve_curve" ~first:0.137 ~last:0.863 in
   let one = cook 1 grouped_carve and many = cook 4 grouped_carve in
@@ -1361,7 +1361,7 @@ let run () =
       |> Sop.set_int ~owner:Attribute.Point ~name:"profile_id" 17
       |> Sop.group_edges ~name:"profile_edges" in
   let general_sweep = Sop.sweep
-      ~connectivity:Pdk.Plane_generators.Grid_alternating_triangles ~twist:2.3 ~caps:true
+      ~connectivity:Rdk.Plane_generators.Grid_alternating_triangles ~twist:2.3 ~caps:true
       ~cap_group:"sweep_caps" ~backbone:general_backbone
       ~cross_section:general_profile () in
   let one = cook 1 general_sweep and many = cook 4 general_sweep in
@@ -1402,13 +1402,13 @@ let run () =
   let transfer_target = transfer_source
       |> Sop.transform (Mat4.translation (Vec3.create 0.001 0. 0.001)) in
   let transferred = Sop.group_transfer ~distance:0.01
-      ~conflict:Pdk.Group_ops.Copy_overwrite
+      ~conflict:Rdk.Group_ops.Copy_overwrite
       ~rules:[
-        { Pdk.Group_ops.transfer_owner = Pdk.Group_ops.Group_points;
+        { Rdk.Group_ops.transfer_owner = Rdk.Group_ops.Group_points;
           transfer_pattern = "transfer_points"; transfer_prefix = "mapped_" };
-        { Pdk.Group_ops.transfer_owner = Pdk.Group_ops.Group_primitives;
+        { Rdk.Group_ops.transfer_owner = Rdk.Group_ops.Group_primitives;
           transfer_pattern = "transfer_faces"; transfer_prefix = "mapped_" };
-        { Pdk.Group_ops.transfer_owner = Pdk.Group_ops.Group_edges;
+        { Rdk.Group_ops.transfer_owner = Rdk.Group_ops.Group_edges;
           transfer_pattern = "transfer_edges"; transfer_prefix = "mapped_" }]
       ~source:transfer_source ~target:transfer_target () in
   let one = cook 1 transferred and many = cook 4 transferred in
@@ -1420,8 +1420,8 @@ let run () =
     if index land 1 = 0 then (pair * 5) * columns
     else ((pair * 5) * columns) + 120) in
   let paths = Sop.grid ~columns:120 ~rows:90 ~size:20. ()
-      |> Sop.ordered_group ~owner:Pdk.Group.Point ~name:"waypoints" base_elements
-      |> Sop.group_find_path ~mode:Pdk.Group_mesh.Start_end_pairs
+      |> Sop.ordered_group ~owner:Rdk.Group.Point ~name:"waypoints" base_elements
+      |> Sop.group_find_path ~mode:Rdk.Group_mesh.Start_end_pairs
            ~avoid_self_intersection:false ~base_group:"waypoints" ~name:"paths" in
   let one = cook 1 paths and many = cook 4 paths in
   check (equal_geometry one many)
@@ -1431,25 +1431,25 @@ let run () =
     if index land 1 = 0 then (row * 120) * 2
     else (((row * 120) + 119) * 2) + 1) in
   let primitive_paths = Sop.grid ~columns:120 ~rows:90 ~size:20. ()
-      |> Sop.ordered_group ~owner:Pdk.Group.Primitive
+      |> Sop.ordered_group ~owner:Rdk.Group.Primitive
            ~name:"face_waypoints" primitive_elements
-      |> Sop.group_find_path ~owner:Pdk.Group.Primitive
-           ~mode:Pdk.Group_mesh.Start_end_pairs ~avoid_self_intersection:false
+      |> Sop.group_find_path ~owner:Rdk.Group.Primitive
+           ~mode:Rdk.Group_mesh.Start_end_pairs ~avoid_self_intersection:false
            ~base_group:"face_waypoints" ~name:"face_paths" in
   let one = cook 1 primitive_paths and many = cook 4 primitive_paths in
   check (equal_geometry one many)
     "one-domain and four-domain primitive Group Find Path geometry differ";
   let attribute_boundaries = Sop.grid ~columns:120 ~rows:90 ~size:20. ()
-      |> Sop.enumerate ~owner:Pdk.Attribute.Primitive ~name:"face_id"
-      |> Sop.group_from_attribute_boundary ~owner:Pdk.Group_ops.Group_edges
+      |> Sop.enumerate ~owner:Rdk.Attribute.Primitive ~name:"face_id"
+      |> Sop.group_from_attribute_boundary ~owner:Rdk.Group_ops.Group_edges
            ~name:"attribute_seams" ~attributes:[{
-             Pdk.Group_ops.boundary_attribute_owner = Pdk.Attribute.Primitive;
+             Rdk.Group_ops.boundary_attribute_owner = Rdk.Attribute.Primitive;
              boundary_attribute_pattern = "face_id" }] in
   let one = cook 1 attribute_boundaries and many = cook 4 attribute_boundaries in
   check (equal_geometry one many)
     "one-domain and four-domain Group from Attribute Boundary geometry differ";
   let named_count = 200_003 in
-  let named_source = Pdk.Line_geometry.points (Array.init named_count (fun point ->
+  let named_source = Rdk.Line_geometry.points (Array.init named_count (fun point ->
       float_of_int point, 0., 0.)) in
   let piece_names = Attribute.create_owned ~owner:Attribute.Point
       ~name:"piece_name" (Attribute.Text (Array.init named_count (fun point ->
@@ -1574,8 +1574,8 @@ let run () =
   check (Geometry.point_count one < 241 * 181
       && Geometry.primitive_count one > 0)
     "parallel Edge Collapse fixture did not retain useful output";
-  let reduced = Sop.grid ~counts:Pdk.Plane_generators.Grid_point_counts
-      ~connectivity:Pdk.Plane_generators.Grid_alternating_triangles
+  let reduced = Sop.grid ~counts:Rdk.Plane_generators.Grid_point_counts
+      ~connectivity:Rdk.Plane_generators.Grid_alternating_triangles
       ~columns:120 ~rows:90 ~size:12. ()
       |> Sop.set_int ~owner:Attribute.Point ~name:"source_id" 17
       |> Sop.group_edges ~name:"boundary" ~incidence:Group_mesh.Boundary_edge
@@ -1590,8 +1590,8 @@ let run () =
       && Geometry.find_group ~owner:Group.Primitive "reduced" one <> None
       && Geometry.find_edge_group "boundary" one <> None)
     "parallel PolyReduce fixture lost cardinality or ancestry";
-  let beveled = Sop.box ~connectivity:Pdk.Box_generator.Box_quads ~consolidate_points:true
-      ~normals:Pdk.Box_generator.Box_no_normals ~size:(Vec3.create 1. 1. 1.) ()
+  let beveled = Sop.box ~connectivity:Rdk.Box_generator.Box_quads ~consolidate_points:true
+      ~normals:Rdk.Box_generator.Box_no_normals ~size:(Vec3.create 1. 1. 1.) ()
       |> Sop.duplicate ~copies:2_000
            ~transform:(Mat4.translation (Vec3.create 1.5 0. 0.))
       |> Sop.set_float ~owner:Attribute.Point ~name:"pscale" 1.
@@ -1609,7 +1609,7 @@ let run () =
       && Geometry.find_group ~owner:Group.Primitive "edge_fillets" one <> None
       && Geometry.find_edge_group "offset_edges" one <> None)
     "parallel PolyBevel fixture lost cardinality or ancestry";
-  let point_split = Sop.grid ~connectivity:Pdk.Plane_generators.Grid_quads
+  let point_split = Sop.grid ~connectivity:Rdk.Plane_generators.Grid_quads
       ~columns:400 ~rows:300 ~size:12. ()
       |> Sop.point_split in
   let one = cook 1 point_split and many = cook 4 point_split in
@@ -1663,7 +1663,7 @@ let run () =
       && Geometry.vertex_count one = 120_000
       && Geometry.primitive_count one = 40_000)
     "parallel Edge Flip fixture cardinality";
-  let cusped = Sop.grid ~connectivity:Pdk.Plane_generators.Grid_triangles
+  let cusped = Sop.grid ~connectivity:Rdk.Plane_generators.Grid_triangles
       ~columns:320 ~rows:240 ~size:12. ()
       |> Sop.set_int ~owner:Attribute.Point ~name:"source_id" 17
       |> Sop.group_edges ~name:"cusp_edges"
@@ -1674,7 +1674,7 @@ let run () =
   check (Geometry.point_count one > 321 * 241
       && Geometry.vertex_count one = 320 * 240 * 6)
     "parallel Edge Cusp fixture cardinality";
-  let straightened = Sop.grid ~connectivity:Pdk.Plane_generators.Grid_triangles
+  let straightened = Sop.grid ~connectivity:Rdk.Plane_generators.Grid_triangles
       ~columns:400 ~rows:300 ~width:14. ~height:9. ~size:1. ()
       |> Sop.mountain ~seed:919 ~height:0.8
            ~frequency:(Vec3.create 0.7 1.1 0.9) ~octaves:4

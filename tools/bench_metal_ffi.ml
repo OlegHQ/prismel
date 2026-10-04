@@ -1,19 +1,19 @@
 open Metal
 
 external benchmark_initialize : unit -> bool =
-  "caml_prismel_bench_metal_initialize"
+  "caml_rays_bench_metal_initialize"
 
 external benchmark_shutdown : unit -> unit =
-  "caml_prismel_bench_metal_shutdown"
+  "caml_rays_bench_metal_shutdown"
 
 external direct_query : unit -> int64 =
-  "caml_prismel_bench_metal_direct_query"
+  "caml_rays_bench_metal_direct_query"
 
 external batched_query : int -> int64 =
-  "caml_prismel_bench_metal_batched_query"
+  "caml_rays_bench_metal_batched_query"
 
 external native_timed_query : int -> int64 * int64 =
-  "caml_prismel_bench_metal_native_timed_query"
+  "caml_rays_bench_metal_native_timed_query"
 
 let fail format = Printf.ksprintf failwith format
 

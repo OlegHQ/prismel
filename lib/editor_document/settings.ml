@@ -12,7 +12,7 @@ let get schema settings =
       (fields settings) in
   match Param.apply_all schema (Param.default schema) values with
   | Ok (value, _) -> value
-  | Error message -> invalid_arg ("Prismel_editor.Settings.get: " ^ message)
+  | Error message -> invalid_arg ("Rays_editor.Settings.get: " ^ message)
 
 let apply (Settings (schema, value)) changes =
   Result.map (fun (value, effects) -> Settings (schema, value), effects)

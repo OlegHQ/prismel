@@ -12,21 +12,21 @@ let context () = Context.create ~domains:4 ~grain:17 () |> get
 let session () = Session.create ~max_entries:16 ~max_payload_bytes:8_000_000 |> get
 
 let bridge_source () =
-  let positions = Pdk.Packed.Float3.Private.of_owned_exn
+  let positions = Rdk.Packed.Float3.Private.of_owned_exn
       ~x:[|-1.;1.;1.;-1.; -1.;1.;1.;-1.|]
       ~y:[|0.;0.;0.;0.; 1.;1.;1.;1.|]
       ~z:[|-1.;-1.;1.;1.; -1.;-1.;1.;1.|] in
-  let topology = Pdk.Topology.create_owned ~point_count:8
+  let topology = Rdk.Topology.create_owned ~point_count:8
       ~vertex_points:[|0;1;2;3; 4;5;6;7|]
       ~primitive_offsets:[|0;4;8|]
-      ~primitive_kinds:[|Pdk.Topology.Polygon;Pdk.Topology.Polygon|] |> get in
-  let index = Pdk.Topology_index.create topology in
-  let source = Pdk.Edge_group.init ~grain:1 ~topology ~index ~name:"source"
-      (fun edge -> let a, _ = Pdk.Topology_index.edge_points index edge in a < 4)
-  and destination = Pdk.Edge_group.init ~grain:1 ~topology ~index
+      ~primitive_kinds:[|Rdk.Topology.Polygon;Rdk.Topology.Polygon|] |> get in
+  let index = Rdk.Topology_index.create topology in
+  let source = Rdk.Edge_group.init ~grain:1 ~topology ~index ~name:"source"
+      (fun edge -> let a, _ = Rdk.Topology_index.edge_points index edge in a < 4)
+  and destination = Rdk.Edge_group.init ~grain:1 ~topology ~index
       ~name:"destination" (fun edge ->
-        let a, _ = Pdk.Topology_index.edge_points index edge in a >= 4) in
-  Pdk.Geometry.create ~positions ~topology ~edge_groups:[source;destination] ()
+        let a, _ = Rdk.Topology_index.edge_points index edge in a >= 4) in
+  Rdk.Geometry.create ~positions ~topology ~edge_groups:[source;destination] ()
   |> get
 
 let cook graph =
@@ -39,15 +39,15 @@ let cook graph =
 let run () =
   let graph = Sop.snapshot (bridge_source ())
       |> Sop.poly_bridge ~source_group:"source" ~destination_group:"destination"
-           ~pairing:Pdk.Poly_bridge.Bridge_by_centroid ~reverse_destination:true
+           ~pairing:Rdk.Poly_bridge.Bridge_by_centroid ~reverse_destination:true
            ~divisions:3 ~output_group:"bridge" in
   let output = cook graph in
-  if Pdk.Geometry.point_count output <> 16
-     || Pdk.Geometry.vertex_count output <> 56
-     || Pdk.Geometry.primitive_count output <> 14 then
+  if Rdk.Geometry.point_count output <> 16
+     || Rdk.Geometry.vertex_count output <> 56
+     || Rdk.Geometry.primitive_count output <> 14 then
     fail "PolyBridge SOP cardinality";
-  (match Pdk.Geometry.find_group ~owner:Pdk.Group.Primitive "bridge" output with
-   | Some group when Pdk.Group.cardinality group = 12 -> ()
+  (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive "bridge" output with
+   | Some group when Rdk.Group.cardinality group = 12 -> ()
    | _ -> fail "PolyBridge SOP output group");
   if Node.operation graph <> "poly_bridge"
      || not (contains (Node.parameters graph) "pairing=centroid")

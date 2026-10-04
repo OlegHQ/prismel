@@ -40,7 +40,7 @@ let cook ?(domains = 1) session graph =
   | Ok output -> output.geometry
   | Error error -> fail (Procedural.Diagnostic.error_to_string error)
 
-let prims = Pdk.Geometry.primitive_count
+let prims = Rdk.Geometry.primitive_count
 
 (* the graph with its zero-input node [operation] replaced by a snapshot of its cook whose
    point [index] is lifted by [by] *)
@@ -49,9 +49,9 @@ let move_point session (graph : Lower.graph) operation ~index ~by =
       (Edit.inspect graph.network.geometry) in
   let base = (Result.get_ok (Session.cook session ~context:(context ~domains:1)
     (Result.get_ok (Edit.compile_node graph.network.geometry ~node_id:field.id)))).geometry in
-  let view = Pdk.Packed.Float3.Private.view (Pdk.Geometry.positions base) in
-  let moved = Result.get_ok (Pdk.Geometry.with_positions
-    (Pdk.Packed.Float3.of_owned ~x:(Array.copy view.x)
+  let view = Rdk.Packed.Float3.Private.view (Rdk.Geometry.positions base) in
+  let moved = Result.get_ok (Rdk.Geometry.with_positions
+    (Rdk.Packed.Float3.of_owned ~x:(Array.copy view.x)
        ~y:(Array.mapi (fun i v -> if i = index then v +. by else v) view.y)
        ~z:(Array.copy view.z) |> Result.get_ok) base) in
   let replaced = Result.get_ok (Procedural.Node.Private.restore_id field.id
@@ -76,10 +76,10 @@ let run () =
   check (List.length (List.filter (( = ) "zone") ops) = 1 && not (List.mem "uv_sphere" ops))
     "the template body stays out of the network";
   (* provenance: every tag names an element of the zone, at its index *)
-  let attribute = Option.get (Pdk.Geometry.find_attribute ~owner:Pdk.Attribute.Primitive
+  let attribute = Option.get (Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Primitive
     Lower.source_attribute one) in
-  let tags = match Pdk.Attribute.storage attribute with
-    | Pdk.Attribute.Int values -> values | _ -> fail "tag storage" in
+  let tags = match Rdk.Attribute.storage attribute with
+    | Rdk.Attribute.Int values -> values | _ -> fail "tag storage" in
   let elements = Array.to_list tags |> List.sort_uniq compare
     |> List.filter_map (fun tag -> match Lower.origin lowered tag with
         | Some (o : Lower.origin) when o.site = ["garden"; "dots"; "moved"] -> Some o.iter | _ -> None) in
@@ -107,7 +107,7 @@ let run () =
   let second = match Session.cook s ~context:(context ~domains:1) compiled with
     | Ok output -> output.geometry | Error e -> fail (Procedural.Diagnostic.error_to_string e) in
   let after = Session.stats s in
-  let n = Pdk.Geometry.point_count base in
+  let n = Rdk.Geometry.point_count base in
   check (a.cooks > 0 && n > 4) "the collection has points";
   check (geometry_bytes first <> geometry_bytes second) "moving a point changes the result";
   let misses = after.misses - before.misses and hits = after.hits - before.hits in
@@ -158,14 +158,14 @@ let run () =
   check (geometry_bytes g = geometry_bytes (cook ~domains:3 (session ()) (List.hd pieces.graphs)))
     "pieces differ at 1 and 3 domains";
   (* keys order the elements *)
-  let ids = Pdk.Attribute.create_owned ~name:"id" ~owner:Pdk.Attribute.Point
-    (Pdk.Attribute.Int (Array.init n (fun i -> n - 1 - i))) |> Result.get_ok in
-  let keyed = Result.get_ok (Pdk.Geometry.with_attribute ids base) in
+  let ids = Rdk.Attribute.create_owned ~name:"id" ~owner:Rdk.Attribute.Point
+    (Rdk.Attribute.Int (Array.init n (fun i -> n - 1 - i))) |> Result.get_ok in
+  let keyed = Result.get_ok (Rdk.Geometry.with_attribute ids base) in
   let ordered = Result.get_ok (Procedural.Zone.elements Points ~key:"id" keyed) in
-  check (ordered.(0).key = 0 && ordered.(0).position = Pdk.Packed.Float3.get
-    (Pdk.Geometry.positions base) (n - 1)) "elements follow the key attribute";
+  check (ordered.(0).key = 0 && ordered.(0).position = Rdk.Packed.Float3.get
+    (Rdk.Geometry.positions base) (n - 1)) "elements follow the key attribute";
   let plain = Result.get_ok (Procedural.Zone.elements Points keyed) in
-  check (plain.(0).position = Pdk.Packed.Float3.get (Pdk.Geometry.positions base) 0) "index order without a key";
+  check (plain.(0).position = Rdk.Packed.Float3.get (Rdk.Geometry.positions base) 0) "index order without a key";
   (* a body that reads t only is live; one that reads only its element is not *)
   let counts text = Lower.counts (lower text) in
   check (fst (counts {|

@@ -1,4 +1,4 @@
-open Prismel
+open Rays
 open Procedural
 
 (* Scene objects are nodes of the scene network: input 0 is the parent and
@@ -7,7 +7,7 @@ open Procedural
    A geometry object owns a SOP network and the World a layer stack (both in
    [Document.networks]); the scene network itself is never cooked. *)
 
-let empty = Pdk.Line_geometry.points [||]
+let empty = Rdk.Line_geometry.points [||]
 
 let marker operation ~label _ parent =
   Sop.custom ~label ~operation (Option.to_list parent) (fun ~context:_ _ -> Ok empty)
@@ -90,22 +90,22 @@ module Camera = struct
     match Parameter.apply_all parameters_schema parameters_default values with
     | Error _ -> None
     | Ok (p, _) ->
-        let at = Prismel.Vec3.create p.eye_x p.eye_y p.eye_z
-        and target = Prismel.Vec3.create p.target_x p.target_y p.target_z
-        and up = Prismel.Vec3.create p.up_x p.up_y p.up_z in
-        let lens = { Prismel.Camera.aperture = p.aperture;
+        let at = Rays.Vec3.create p.eye_x p.eye_y p.eye_z
+        and target = Rays.Vec3.create p.target_x p.target_y p.target_z
+        and up = Rays.Vec3.create p.up_x p.up_y p.up_z in
+        let lens = { Rays.Camera.aperture = p.aperture;
                      focus_distance = if p.focus_distance > 0. then Some p.focus_distance else None } in
-        (match Prismel.Camera.perspective ~fov_y:(p.fov *. Float.pi /. 180.)
+        (match Rays.Camera.perspective ~fov_y:(p.fov *. Float.pi /. 180.)
             ~near:p.near ~far:p.far ~at ~target ()
-              |> Prismel.Camera.with_up up |> Prismel.Camera.with_lens lens with
+              |> Rays.Camera.with_up up |> Rays.Camera.with_lens lens with
          | camera -> Some (camera, p.follow_viewport)
          | exception Invalid_argument _ -> None)
 
-  let lens_values (lens : Prismel.Camera.lens) =
+  let lens_values (lens : Rays.Camera.lens) =
     ["aperture", Parameter.Float_value lens.aperture;
      "focus_distance", Parameter.Float_value (Option.value ~default:0. lens.focus_distance)]
 
-  let to_values ~(eye : Prismel.Vec3.t) ~(target : Prismel.Vec3.t) ~fov_y =
+  let to_values ~(eye : Rays.Vec3.t) ~(target : Rays.Vec3.t) ~fov_y =
     let float name value = name, Parameter.Float_value value in
     [float "eye_x" eye.x; float "eye_y" eye.y; float "eye_z" eye.z;
      float "target_x" target.x; float "target_y" target.y;
@@ -269,17 +269,17 @@ let to_light scene id =
       let diffuse = Color.rgb (channel p.color_r) (channel p.color_g) (channel p.color_b) in
       let intensity = p.intensity in
       (* Physical 1/d^2 falloff, so raster and the path tracer agree. *)
-      let attenuation = Prismel.Light.attenuation ~constant:0. ~quadratic:1. () in
+      let attenuation = Rays.Light.attenuation ~constant:0. ~quadratic:1. () in
       match p.shape with
-      | Light.Point -> Prismel.Light.point ~diffuse ~intensity ~attenuation ~at ()
-      | Spot -> Prismel.Light.spot ~diffuse ~intensity ~attenuation ~at ~direction
+      | Light.Point -> Rays.Light.point ~diffuse ~intensity ~attenuation ~at ()
+      | Spot -> Rays.Light.spot ~diffuse ~intensity ~attenuation ~at ~direction
           ~cutoff:(radians p.cone) ~concentration:8. ()
-      | Area -> Prismel.Light.area ~diffuse ~intensity ~attenuation ~at ~direction
+      | Area -> Rays.Light.area ~diffuse ~intensity ~attenuation ~at ~direction
           ~width:p.width ~height:p.height ~samples:1 ()
           (* ponytail: one raster sample per area light keeps the viewport
              fast (2x2 cost ~3 ms at Retina); the path tracer integrates
              the true rectangle. *)
-      | Directional -> Prismel.Light.directional ~diffuse ~intensity ~direction ())
+      | Directional -> Rays.Light.directional ~diffuse ~intensity ~direction ())
       (light node))
 
 let ids operation scene = List.filter_map (fun (info : Edit_graph.node_info) ->
@@ -292,7 +292,7 @@ let lights ?(render = false) scene = List.filter_map (fun id ->
     | Some _ | None -> None) (ids "light" scene)
 
 (* Parameters a light object gets from a renderer light. *)
-let light_values (light : Prismel.Light.t) =
+let light_values (light : Rays.Light.t) =
   let float name value = name, Parameter.Float_value value in
   let r, g, b, _ = Color.to_tuple light.diffuse in
   let at, target, shape, extra = match light.kind with

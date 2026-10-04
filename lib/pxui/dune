@@ -1,20 +1,20 @@
 (library
  (name pxui)
- (public_name prismel.pxui)
+ (public_name rays.pxui)
  (modules pxui theme ui camera_controls)
- (libraries prismel))
+ (libraries rays))
 
 (executable
  (name test_main)
  (modules test_main test_ui_parity test_ui test_input test_keyboard)
- (libraries prismel pxui scene_command sdl3))
+ (libraries rays pxui scene_command sdl3))
 
 (rule
  (aliases runtest-native test_ui_parity)
  (locks smoke_window)
  (deps fixtures/kit_panel_2x.png fixtures/kit_overlays_2x.png fixtures/kit_zones_1x.png)
  (action
-  (setenv PRISMEL_UI_FONT %{dep:../../assets/fonts/DepartureMono-Regular.otf}
+  (setenv RAYS_UI_FONT %{dep:../../assets/fonts/DepartureMono-Regular.otf}
    (run %{exe:test_main.exe} test_ui_parity))))
 
 (rule

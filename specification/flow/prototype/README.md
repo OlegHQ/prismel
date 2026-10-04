@@ -1,4 +1,4 @@
-# Prismel Flow prototype
+# Rays Flow prototype
 
 A browser page that behaves like the target SOP network editor. It is the
 behavioral reference for `specification/flow.md`; the implementation plan is
@@ -7,7 +7,7 @@ behavioral reference for `specification/flow.md`; the implementation plan is
 This is a design artifact, not product code:
 
 - Dune does not build it, nothing links it, and it is never a browser or web
-  fallback for Prismel (the root `AGENTS.md` rule stands).
+  fallback for Rays (the root `AGENTS.md` rule stands).
 - Open `index.html` directly in a browser (`open specification/flow/prototype/index.html`).
   No server, no build step, no network access needed; without network the
   prose falls back from IBM Plex to system fonts. The kit face (Departure

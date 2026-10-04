@@ -1,22 +1,22 @@
-open Pdk
+open Rdk
 
 let integer_env name fallback = match Sys.getenv_opt name with
   | None -> fallback
   | Some value -> max 1 (int_of_string value)
 
-let points = integer_env "PRISMEL_DELAUNAY_POINTS" 100_000
-let repeats = integer_env "PRISMEL_DELAUNAY_REPEATS" 3
-let constraint_segments = integer_env "PRISMEL_CONSTRAINT_SEGMENTS" 100_000
-let crossing_axis_segments = integer_env "PRISMEL_CROSSING_AXIS_SEGMENTS" 256
-let refinement_points = integer_env "PRISMEL_REFINEMENT_POINTS" 100_000
-let refinement_constraints = integer_env "PRISMEL_REFINEMENT_CONSTRAINTS" 10_000
-let regularization_points = integer_env "PRISMEL_REGULARIZATION_POINTS" 10_000
-let domains = integer_env "PRISMEL_DELAUNAY_DOMAINS"
-    (Prismel.Parallel.recommended_domains ())
+let points = integer_env "RAYS_DELAUNAY_POINTS" 100_000
+let repeats = integer_env "RAYS_DELAUNAY_REPEATS" 3
+let constraint_segments = integer_env "RAYS_CONSTRAINT_SEGMENTS" 100_000
+let crossing_axis_segments = integer_env "RAYS_CROSSING_AXIS_SEGMENTS" 256
+let refinement_points = integer_env "RAYS_REFINEMENT_POINTS" 100_000
+let refinement_constraints = integer_env "RAYS_REFINEMENT_CONSTRAINTS" 10_000
+let regularization_points = integer_env "RAYS_REGULARIZATION_POINTS" 10_000
+let domains = integer_env "RAYS_DELAUNAY_DOMAINS"
+    (Rays.Parallel.recommended_domains ())
 
 let coordinate point salt =
-  let state = Prismel.Rand.seed ((point * 2) + salt) in
-  let value,_ = Prismel.Rand.float state in
+  let state = Rays.Rand.seed ((point * 2) + salt) in
+  let value,_ = Rays.Rand.float state in
   value
 
 let x = Array.init points (fun point -> coordinate point 17)
@@ -352,4 +352,4 @@ let run_benchmarks () =
 
 let () =
   Printf.eprintf "bench_delaunay2: domains=%d ocaml=%s\n%!" domains Sys.ocaml_version;
-  Prismel.Parallel.run ~domains run_benchmarks
+  Rays.Parallel.run ~domains run_benchmarks

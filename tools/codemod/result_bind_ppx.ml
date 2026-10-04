@@ -72,7 +72,7 @@ let () =
     | _ -> failwith "usage: result_bind_ppx [--text | --source-dir DIR] FILE.ml" in
   let emit kind printer tree =
     if text then Format.printf "%a@." printer tree else begin
-      let temporary = Filename.temp_file "prismel-result-bind-ast-" ".ast" in
+      let temporary = Filename.temp_file "rays-result-bind-ast-" ".ast" in
       Fun.protect ~finally:(fun () -> Sys.remove temporary) (fun () ->
         Location.input_name := source;
         Pparse.write_ast kind temporary tree;

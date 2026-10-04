@@ -4,7 +4,7 @@
 
     The persisted text is the workspace form itself followed by optional
     [(layout ...)] ({!Layout_by_path}) and [(settings :name value ...)] forms
-    (only settings that differ from their default). A [.plisp] sketch can
+    (only settings that differ from their default). A [.rays] sketch can
     include those trailing forms as well. *)
 
 type t = {

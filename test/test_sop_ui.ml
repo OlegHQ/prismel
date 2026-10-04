@@ -32,9 +32,9 @@ let inspectable_node values =
 let fail message = raise (Failure message)
 
 let run () =
-  let wire = Prismel_editor.Renderer.wire_color in
-  assert (wire (Prismel.Color.rgb 250 250 250) = Prismel.Color.hex_exn "#285f77");
-  assert (wire (Prismel.Color.rgb 8 8 10) = Prismel.Color.hex_exn "#bed7e1");
+  let wire = Rays_editor.Renderer.wire_color in
+  assert (wire (Rays.Color.rgb 250 250 250) = Rays.Color.hex_exn "#285f77");
+  assert (wire (Rays.Color.rgb 8 8 10) = Rays.Color.hex_exn "#bed7e1");
   (match Sop_params_fixture.Editor.factories with
    | [factory] ->
        assert (Edit_graph.factory_key factory = "vector_fixture");
@@ -56,7 +56,7 @@ let run () =
   then fail "sop_params defaults or ignored-field policy is incorrect";
   let graph = inspectable_node parameters_default in
   let ui = Pxui.Ui.create () in
-  let frame time events : Prismel.Frame.t = { width = 320; height = 240;
+  let frame time events : Rays.Frame.t = { width = 320; height = 240;
     size = 320, 240; drawable_width = 320; drawable_height = 240;
     drawable_size = 320, 240; pixel_scale = 1., 1.; time; dt = 0.; fps = 0.;
     count = 0; mouse = 0., 0.; mouse_delta = 0., 0.; keys = []; mouse_buttons = [];
@@ -76,8 +76,8 @@ let run () =
     fail "an idle inspector frame changed the graph";
   (* The shared inspector rows are 29 points below the 33-point folder header. *)
   let row index = 3 + 24 + 33 + (index - 2) * 29 + 14 in
-  let click x y = [Prismel.Event.MousePressed (Prismel.Input.LeftButton, (float x, float y));
-    Prismel.Event.MouseReleased (Prismel.Input.LeftButton, (float x, float y))] in
+  let click x y = [Rays.Event.MousePressed (Rays.Input.LeftButton, (float x, float y));
+    Rays.Event.MouseReleased (Rays.Input.LeftButton, (float x, float y))] in
   let graph, effects = step graph 0.5 (click 110 (row 3)) in
   let field graph name = Node.parameter_fields graph
     |> List.find (fun field -> field.Parameter.name = name) in
@@ -89,9 +89,9 @@ let run () =
   if (field graph "mode").current <> Parameter.Choice_value "Sphere"
   then fail "inspector choice did not apply";
   let graph, _ = step graph 1.5
-      [Prismel.Event.MousePressed (Prismel.Input.LeftButton, (140., float (row 2)));
-       Prismel.Event.MouseMoved (400., float (row 2));
-       Prismel.Event.MouseReleased (Prismel.Input.LeftButton, (400., float (row 2)))] in
+      [Rays.Event.MousePressed (Rays.Input.LeftButton, (140., float (row 2)));
+       Rays.Event.MouseMoved (400., float (row 2));
+       Rays.Event.MouseReleased (Rays.Input.LeftButton, (400., float (row 2)))] in
   if (field graph "count").current <> Parameter.Int_value 5
   then fail "inspector integer drag did not clamp to the soft range";
   let changes = Node.parameter_fields graph
@@ -127,9 +127,9 @@ let run () =
     fail "Flow inspector reset did not clear the drive";
   let expression_row = flow_row ~drive:"=t" ~locked:true () in
   ignore (flow_step expression_row (click 170 12));
-  let edits = Pxui.Ui.frame flow_ui (frame 2. [Prismel.Event.KeyPressed Prismel.Input.End;
-      Prismel.Event.TextInput "*2";
-      Prismel.Event.KeyPressed Prismel.Input.Enter]) (fun ui ->
+  let edits = Pxui.Ui.frame flow_ui (frame 2. [Rays.Event.KeyPressed Rays.Input.End;
+      Rays.Event.TextInput "*2";
+      Rays.Event.KeyPressed Rays.Input.Enter]) (fun ui ->
         Pxui_shell.Inspector.flow_fields ui [expression_row]) in
   if edits <> [Pxui_shell.Inspector.Expression ("count", "=t*2")] then
     fail "Flow inspector expression field did not commit an edit";
@@ -161,17 +161,17 @@ let run () =
     fail "Flow inspector color row rgb control did not request a split";
   ignore (flow_step color_row (click 140 12));
   let hex_edits = Pxui.Ui.frame flow_ui (frame 2. [
-      Prismel.Event.KeyPressed Prismel.Input.End;
-      Prismel.Event.KeyPressed Prismel.Input.Backspace;
-      Prismel.Event.KeyPressed Prismel.Input.Backspace;
-      Prismel.Event.KeyPressed Prismel.Input.Backspace;
-      Prismel.Event.KeyPressed Prismel.Input.Backspace;
-      Prismel.Event.KeyPressed Prismel.Input.Backspace;
-      Prismel.Event.KeyPressed Prismel.Input.Backspace;
-      Prismel.Event.KeyPressed Prismel.Input.Backspace;
-      Prismel.Event.KeyPressed Prismel.Input.Backspace;
-      Prismel.Event.TextInput "#00ff00";
-      Prismel.Event.KeyPressed Prismel.Input.Enter ]) (fun ui ->
+      Rays.Event.KeyPressed Rays.Input.End;
+      Rays.Event.KeyPressed Rays.Input.Backspace;
+      Rays.Event.KeyPressed Rays.Input.Backspace;
+      Rays.Event.KeyPressed Rays.Input.Backspace;
+      Rays.Event.KeyPressed Rays.Input.Backspace;
+      Rays.Event.KeyPressed Rays.Input.Backspace;
+      Rays.Event.KeyPressed Rays.Input.Backspace;
+      Rays.Event.KeyPressed Rays.Input.Backspace;
+      Rays.Event.KeyPressed Rays.Input.Backspace;
+      Rays.Event.TextInput "#00ff00";
+      Rays.Event.KeyPressed Rays.Input.Enter ]) (fun ui ->
         Pxui_shell.Inspector.flow_fields ui [ color_row ]) in
   if not (List.mem (Pxui_shell.Inspector.Edited ("color_g", Param.Float_value 1.)) hex_edits) then
     fail "Flow inspector color row hex edit did not update color channels";
@@ -187,12 +187,12 @@ let run () =
   if flow_step ~expanded:["Geometry"] folder_row (click 261 45)
       <> [Pxui_shell.Inspector.Pinned ("count", false)] then
     fail "Flow inspector folder did not reopen";
-  (match Sys.getenv_opt "PRISMEL_UI_PREVIEW" with
+  (match Sys.getenv_opt "RAYS_UI_PREVIEW" with
    | None -> ()
    | Some directory ->
-       Prismel.Sketch.export ~directory ~prefix:"flow-inspector" ~frames:1
-         ~config:{Prismel.Sketch.default_config with width=320; height=240}
-         (fun _ -> Prismel.Scene.clear (Prismel.Color.hex_exn "#eef2ee")
+       Rays.Sketch.export ~directory ~prefix:"flow-inspector" ~frames:1
+         ~config:{Rays.Sketch.default_config with width=320; height=240}
+         (fun _ -> Rays.Scene.clear (Rays.Color.hex_exn "#eef2ee")
            :: Pxui.Ui.scene flow_ui));
   Pxui.Ui.destroy flow_ui;
   Pxui.Ui.destroy ui;

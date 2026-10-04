@@ -1,6 +1,6 @@
 (* World.bake wall time per preset: 512x256 preview (budget 8 ms) and
    2048x1024 final, at 1 domain and the recommended count. Median of runs. *)
-open Prismel
+open Rays
 
 let median_ms runs f =
   f () |> ignore;
@@ -11,7 +11,7 @@ let median_ms runs f =
   Array.sort compare times;
   times.(runs / 2)
 
-(* PRISMEL_WORLD_DUMP=dir writes each preset's camera map as a Reinhard
+(* RAYS_WORLD_DUMP=dir writes each preset's camera map as a Reinhard
    tone-mapped PPM, for eyeballing. *)
 let dump dir name (m : World.map) =
   let file = Filename.concat dir (String.map (fun c -> if c = ' ' then '_' else c) name ^ ".ppm") in
@@ -26,7 +26,7 @@ let () =
   Option.iter (fun dir ->
     List.iter (fun (name, world) ->
       dump dir name (World.bake ~width:512 ~height:256 world).camera) World.presets)
-    (Sys.getenv_opt "PRISMEL_WORLD_DUMP");
+    (Sys.getenv_opt "RAYS_WORLD_DUMP");
   let recommended = Parallel.recommended_domains () in
   Printf.printf "World.bake median ms (recommended domains = %d)\n" recommended;
   List.iter (fun (name, world) ->

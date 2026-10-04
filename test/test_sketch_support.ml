@@ -1,4 +1,4 @@
-open Prismel
+open Rays
 open Procedural
 
 let fail message = raise (Failure message)
@@ -6,23 +6,23 @@ let fail message = raise (Failure message)
 let string_ok = function Ok value -> value | Error message -> fail message
 
 let geometry () =
-  let positions = Pdk.Packed.Float3.Private.of_owned_exn
+  let positions = Rdk.Packed.Float3.Private.of_owned_exn
       ~x:[|-2.5; -1.5; -2.; 1.5; 2.5; 2.|]
       ~y:[|-0.5; -0.5; 0.5; -0.5; -0.5; 0.5|]
       ~z:(Array.make 6 0.) in
-  let topology = Pdk.Topology.polygons_owned ~point_count:6
+  let topology = Rdk.Topology.polygons_owned ~point_count:6
       ~vertex_points:[|0; 1; 2; 3; 4; 5|]
       ~primitive_offsets:[|0; 3; 6|] |> string_ok in
-  let geometry = Pdk.Geometry.create ~positions ~topology () |> string_ok in
-  let normals = Pdk.Attribute.create_owned ~name:"N"
-      ~owner:Pdk.Attribute.Vertex
-      (Pdk.Attribute.Float3 (Pdk.Packed.Float3.Private.of_owned_exn
+  let geometry = Rdk.Geometry.create ~positions ~topology () |> string_ok in
+  let normals = Rdk.Attribute.create_owned ~name:"N"
+      ~owner:Rdk.Attribute.Vertex
+      (Rdk.Attribute.Float3 (Rdk.Packed.Float3.Private.of_owned_exn
         ~x:(Array.make 6 0.) ~y:(Array.make 6 1.) ~z:(Array.make 6 0.)))
       |> string_ok in
-  let geometry = Pdk.Geometry.with_attribute normals geometry |> string_ok in
-  let pieces = Pdk.Attribute.create_owned ~name:"class"
-      ~owner:Pdk.Attribute.Primitive (Pdk.Attribute.Int [|0; 1|]) |> string_ok in
-  Pdk.Geometry.with_attribute pieces geometry |> string_ok
+  let geometry = Rdk.Geometry.with_attribute normals geometry |> string_ok in
+  let pieces = Rdk.Attribute.create_owned ~name:"class"
+      ~owner:Rdk.Attribute.Primitive (Rdk.Attribute.Int [|0; 1|]) |> string_ok in
+  Rdk.Geometry.with_attribute pieces geometry |> string_ok
 
 let positions mesh = (Mesh.Private.packed_view mesh).vertices
 
@@ -79,32 +79,32 @@ let test_timeline_and_schedule () =
   let dynamic_graph = Sop.custom ~operation:"timeline_test"
       ~dependencies:(Context.Dependencies.one Context.Dependencies.Time)
       [static_graph] (fun ~context:_ inputs -> Ok inputs.(0)) in
-  let schedule, fire = Prismel_editor.Private.Schedule.step
-      Prismel_editor.Private.Schedule.initial ~graphs:[static_graph]
+  let schedule, fire = Rays_editor.Private.Schedule.step
+      Rays_editor.Private.Schedule.initial ~graphs:[static_graph]
       ~effects:Parameter.no_effects ~context_changed:false ~force:false
       ~busy:false
       ~frame:(timeline_frame ()) in
   if not fire then fail "cook scheduler skipped the initial graph";
-  let schedule, fire = Prismel_editor.Private.Schedule.step schedule
+  let schedule, fire = Rays_editor.Private.Schedule.step schedule
       ~graphs:[static_graph] ~effects:Parameter.no_effects ~context_changed:true
       ~force:false ~busy:false ~frame:(timeline_frame ()) in
   if fire then fail "static graph recooked for an unrelated clock change";
-  let schedule, fire = Prismel_editor.Private.Schedule.step schedule
+  let schedule, fire = Rays_editor.Private.Schedule.step schedule
       ~graphs:[dynamic_graph] ~effects:Parameter.no_effects ~context_changed:true
       ~force:false ~busy:false
       ~frame:(timeline_frame ~buttons:[Input.LeftButton] ()) in
   if fire then fail "dynamic graph cooked while a parameter drag was held";
-  let _, fire = Prismel_editor.Private.Schedule.step ~live:true schedule
+  let _, fire = Rays_editor.Private.Schedule.step ~live:true schedule
       ~graphs:[dynamic_graph] ~effects:Parameter.no_effects ~context_changed:true
       ~force:false ~busy:false
       ~frame:(timeline_frame ~buttons:[Input.LeftButton] ()) in
   if not fire then fail "live cooking did not cook during a held drag";
-  let _, fire = Prismel_editor.Private.Schedule.step ~live:true schedule
+  let _, fire = Rays_editor.Private.Schedule.step ~live:true schedule
       ~graphs:[dynamic_graph] ~effects:Parameter.no_effects ~context_changed:true
       ~force:false ~busy:true
       ~frame:(timeline_frame ~buttons:[Input.LeftButton] ()) in
   if fire then fail "live cooking cancelled a running cook during a drag";
-  let _, fire = Prismel_editor.Private.Schedule.step schedule
+  let _, fire = Rays_editor.Private.Schedule.step schedule
       ~graphs:[dynamic_graph] ~effects:Parameter.no_effects ~context_changed:false
       ~force:false ~busy:false ~frame:(timeline_frame ()) in
   if not fire then fail "cook scheduler lost the latest held dynamic request"
@@ -181,10 +181,10 @@ let run () =
   if noisy_a.x <> noisy_b.x || noisy_a.y <> noisy_b.y || noisy_a.z <> noisy_b.z
   then fail "Packed_pieces noise is not deterministic";
   let source = Sop.box ~size:(Vec3.create 2. 2. 2.)
-      ~connectivity:Pdk.Box_generator.Box_quads ~consolidate_points:true
-      ~normals:Pdk.Box_generator.Box_no_normals () in
-  let cutter = Sop.grid ~counts:Pdk.Plane_generators.Grid_divisions
-      ~connectivity:Pdk.Plane_generators.Grid_triangles ~columns:1 ~rows:1 ~size:3. () in
+      ~connectivity:Rdk.Box_generator.Box_quads ~consolidate_points:true
+      ~normals:Rdk.Box_generator.Box_no_normals () in
+  let cutter = Sop.grid ~counts:Rdk.Plane_generators.Grid_divisions
+      ~connectivity:Rdk.Plane_generators.Grid_triangles ~columns:1 ~rows:1 ~size:3. () in
   let fractured = Sop.boolean_fracture ~require_closed:true
       ~piece_attribute:"piece" ~cutters:cutter source in
   let session = Session.create ~max_entries:16
@@ -194,10 +194,10 @@ let run () =
     | Ok output -> output
     | Error error -> fail (Diagnostic.error_to_string error) in
   Session.close session;
-  let pieces = Pdk.Geometry.find_attribute ~owner:Pdk.Attribute.Primitive
-      "piece" output.geometry |> Option.get |> Pdk.Attribute.storage in
+  let pieces = Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Primitive
+      "piece" output.geometry |> Option.get |> Rdk.Attribute.storage in
   (match pieces with
-   | Pdk.Attribute.Int values ->
+   | Rdk.Attribute.Int values ->
        let maximum = Array.fold_left Int.max (-1) values in
        if maximum <> 1 then
          fail "one cutting plane did not produce exactly two Boolean cells";

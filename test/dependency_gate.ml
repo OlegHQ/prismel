@@ -66,56 +66,56 @@ let reach graph =
 
 let gpu = ["sdl3"; "sdl3_image"; "sdl3_ttf"; "sdl3_mixer"; "metal"; "ogpu_core"; "ogpu"; "ogpu_mock"; "ogpu_metal"; "ogpu_metal_native";
            "runtime"; "runtime_input"; "runtime_resources"; "scene_execution"]
-let upper = ["param"; "flow"; "flow_sop"; "prismel"; "editor_core"; "pxui"; "pxui_shell"; "pxui_graph"; "procedural"; "pdk";
-             "sop_catalog"; "sketch_support"; "prismel_editor"]
+let upper = ["param"; "flow"; "flow_sop"; "rays"; "editor_core"; "pxui"; "pxui_shell"; "pxui_graph"; "procedural"; "rdk";
+             "sop_catalog"; "sketch_support"; "rays_editor"]
 let foundational = ["sdl3"; "sdl3_image"; "sdl3_ttf"; "sdl3_mixer"; "metal"; "ogpu_core"; "ogpu";
                     "native_layer_token"; "scene_command"; "lru"]
 
 (* (library, libraries it may never reach) *)
 let rules =
   List.map (fun lib -> lib, "runtime" :: "runtime_resources"
-                            :: "prismel_execution" :: upper) foundational
-  @ [ "param", "flow" :: "prismel" :: "prismel_math" :: "pdk" :: "procedural" :: "editor_core" :: "pxui" :: gpu ]
-  @ List.map (fun library -> library, "prismel" :: "prismel_math" :: "pdk" :: "procedural" :: "editor_core"
+                            :: "rays_execution" :: upper) foundational
+  @ [ "param", "flow" :: "rays" :: "rays_math" :: "rdk" :: "procedural" :: "editor_core" :: "pxui" :: gpu ]
+  @ List.map (fun library -> library, "rays" :: "rays_math" :: "rdk" :: "procedural" :: "editor_core"
        :: "pxui" :: "pxui_shell" :: "pxui_graph" :: "sop_catalog" :: "editor_document"
-       :: "prismel_editor" :: gpu) ["flow"; "ppx_prismel"]
-  @ ["flow_sop", ["prismel"; "pxui"; "pxui_shell"; "pxui_graph"; "sop_catalog";
-       "sketch_support"; "editor_document"; "prismel_editor"] @ gpu]
+       :: "rays_editor" :: gpu) ["flow"; "ppx_rays"]
+  @ ["flow_sop", ["rays"; "pxui"; "pxui_shell"; "pxui_graph"; "sop_catalog";
+       "sketch_support"; "editor_document"; "rays_editor"] @ gpu]
   @ [ "ogpu_core", ["sdl3"; "metal"; "ogpu_metal_native"; "ogpu_metal"];
       "ogpu", ["sdl3"; "metal"; "ogpu_metal_native"; "ogpu_metal"];
       "ogpu_mock", ["sdl3"; "metal"; "ogpu_metal_native"; "ogpu_metal"];
       "runtime", ["metal"; "ogpu_metal_native"; "ogpu_metal"];
       "scene_execution", ["metal"; "ogpu_metal_native"; "ogpu_metal"];
-      "prismel_execution", ["metal"; "ogpu_metal_native"; "ogpu_metal"];
-      "prismel", ["metal"; "ogpu_metal_native"; "ogpu_metal"];
-      "ogpu_metal_native", ["sdl3"; "runtime"; "prismel"; "scene_execution"];
-      "ogpu_metal", ["sdl3"; "runtime"; "prismel"; "scene_execution"];
+      "rays_execution", ["metal"; "ogpu_metal_native"; "ogpu_metal"];
+      "rays", ["metal"; "ogpu_metal_native"; "ogpu_metal"];
+      "ogpu_metal_native", ["sdl3"; "runtime"; "rays"; "scene_execution"];
+      "ogpu_metal", ["sdl3"; "runtime"; "rays"; "scene_execution"];
       "runtime", upper; "runtime_input", upper;
-      "prismel_execution", ["runtime_input"];
-      "prismel", ["pxui"; "pxui_shell"; "pxui_graph"; "procedural"; "pdk";
-                  "sop_catalog"; "sketch_support"; "prismel_editor"];
-      "prismel_math", ["prismel"; "pdk_core"; "pdk_exact"; "pdk_spatial"; "pdk_attrib"; "pdk_gen"; "pdk_curve"; "pdk_mesh"; "pdk_boolean"; "pdk"; "pdk_prismel"; "procedural"] @ gpu;
-      "pdk_core", "pdk_exact" :: "pdk_spatial" :: "pdk_attrib" :: "pdk_gen" :: "pdk_curve" :: "pdk_mesh" :: "pdk_boolean" :: "prismel" :: "pdk" :: "pdk_prismel" :: "procedural" :: gpu;
-      "pdk_exact", "pdk_spatial" :: "pdk_attrib" :: "pdk_gen" :: "pdk_curve" :: "pdk_mesh" :: "pdk_boolean" :: "prismel" :: "pdk" :: "pdk_prismel" :: "procedural" :: gpu;
-      "pdk_spatial", "pdk_attrib" :: "pdk_gen" :: "pdk_curve" :: "pdk_mesh" :: "pdk_boolean" :: "prismel" :: "pdk" :: "pdk_prismel" :: "procedural" :: gpu;
-      "pdk_attrib", "pdk_gen" :: "pdk_curve" :: "pdk_mesh" :: "pdk_boolean" :: "prismel" :: "pdk" :: "pdk_prismel" :: "procedural" :: gpu;
-      "pdk_gen", "pdk_curve" :: "pdk_mesh" :: "pdk_boolean" :: "prismel" :: "pdk" :: "pdk_prismel" :: "procedural" :: gpu;
-      "pdk_curve", "pdk_gen" :: "pdk_mesh" :: "pdk_boolean" :: "prismel" :: "pdk" :: "pdk_prismel" :: "procedural" :: gpu;
-      "pdk_mesh", "pdk_boolean" :: "prismel" :: "pdk" :: "pdk_prismel" :: "procedural" :: gpu;
-      "pdk_boolean", "prismel" :: "pdk" :: "pdk_prismel" :: "procedural" :: gpu;
-      "pdk", "prismel" :: "pdk_prismel" :: "procedural" :: "pxui" :: "pxui_shell" :: "sop_catalog" :: gpu;
-      "procedural", "prismel" :: "pdk_prismel" :: "pxui" :: "pxui_shell" :: "pxui_graph" :: "sop_catalog"
-                    :: "sketch_support" :: "prismel_editor" :: gpu;
-      "editor_core", ["pxui"; "pxui_shell"; "pxui_graph"; "prismel_editor"; "procedural";
-                 "pdk"; "sop_catalog"];
-      "editor_document", ["pxui"; "pxui_shell"; "pxui_graph"; "sketch_support"; "prismel_editor"];
-      "pxui", ["editor_core"; "pxui_shell"; "procedural"; "pdk"; "pxui_graph";
-               "sketch_support"; "prismel_editor"];
-      "pxui_shell", ["procedural"; "pdk"; "sop_catalog";
-                     "pxui_graph"; "sketch_support"; "prismel_editor"];
-      "pxui_graph", ["pxui_shell"; "sketch_support"; "prismel_editor"; "sop_catalog"];
-      "sop_catalog", ["pxui"; "pxui_shell"; "pxui_graph"; "sketch_support"; "prismel_editor"];
-      "sketch_support", ["pxui"; "pxui_shell"; "pxui_graph"; "prismel_editor"] ]
+      "rays_execution", ["runtime_input"];
+      "rays", ["pxui"; "pxui_shell"; "pxui_graph"; "procedural"; "rdk";
+                  "sop_catalog"; "sketch_support"; "rays_editor"];
+      "rays_math", ["rays"; "rdk_core"; "rdk_exact"; "rdk_spatial"; "rdk_attrib"; "rdk_gen"; "rdk_curve"; "rdk_mesh"; "rdk_boolean"; "rdk"; "rdk_rays"; "procedural"] @ gpu;
+      "rdk_core", "rdk_exact" :: "rdk_spatial" :: "rdk_attrib" :: "rdk_gen" :: "rdk_curve" :: "rdk_mesh" :: "rdk_boolean" :: "rays" :: "rdk" :: "rdk_rays" :: "procedural" :: gpu;
+      "rdk_exact", "rdk_spatial" :: "rdk_attrib" :: "rdk_gen" :: "rdk_curve" :: "rdk_mesh" :: "rdk_boolean" :: "rays" :: "rdk" :: "rdk_rays" :: "procedural" :: gpu;
+      "rdk_spatial", "rdk_attrib" :: "rdk_gen" :: "rdk_curve" :: "rdk_mesh" :: "rdk_boolean" :: "rays" :: "rdk" :: "rdk_rays" :: "procedural" :: gpu;
+      "rdk_attrib", "rdk_gen" :: "rdk_curve" :: "rdk_mesh" :: "rdk_boolean" :: "rays" :: "rdk" :: "rdk_rays" :: "procedural" :: gpu;
+      "rdk_gen", "rdk_curve" :: "rdk_mesh" :: "rdk_boolean" :: "rays" :: "rdk" :: "rdk_rays" :: "procedural" :: gpu;
+      "rdk_curve", "rdk_gen" :: "rdk_mesh" :: "rdk_boolean" :: "rays" :: "rdk" :: "rdk_rays" :: "procedural" :: gpu;
+      "rdk_mesh", "rdk_boolean" :: "rays" :: "rdk" :: "rdk_rays" :: "procedural" :: gpu;
+      "rdk_boolean", "rays" :: "rdk" :: "rdk_rays" :: "procedural" :: gpu;
+      "rdk", "rays" :: "rdk_rays" :: "procedural" :: "pxui" :: "pxui_shell" :: "sop_catalog" :: gpu;
+      "procedural", "rays" :: "rdk_rays" :: "pxui" :: "pxui_shell" :: "pxui_graph" :: "sop_catalog"
+                    :: "sketch_support" :: "rays_editor" :: gpu;
+      "editor_core", ["pxui"; "pxui_shell"; "pxui_graph"; "rays_editor"; "procedural";
+                 "rdk"; "sop_catalog"];
+      "editor_document", ["pxui"; "pxui_shell"; "pxui_graph"; "sketch_support"; "rays_editor"];
+      "pxui", ["editor_core"; "pxui_shell"; "procedural"; "rdk"; "pxui_graph";
+               "sketch_support"; "rays_editor"];
+      "pxui_shell", ["procedural"; "rdk"; "sop_catalog";
+                     "pxui_graph"; "sketch_support"; "rays_editor"];
+      "pxui_graph", ["pxui_shell"; "sketch_support"; "rays_editor"; "sop_catalog"];
+      "sop_catalog", ["pxui"; "pxui_shell"; "pxui_graph"; "sketch_support"; "rays_editor"];
+      "sketch_support", ["pxui"; "pxui_shell"; "pxui_graph"; "rays_editor"] ]
 
 (* Known violations: (library, reached, plan item that removes it). *)
 let reach_exceptions : (string * string * string) list = []
@@ -166,8 +166,8 @@ let forbidden_native =
     "SDL_CreateWindowAndRenderer"; "SDL_RenderPresent";
     "SDL_RenderTexture"; "SDL_RenderGeometry"; "SDL_GL_";
     "SDL_WINDOW_OPENGL"; "SDL_WINDOW_VULKAN";
-    "PRISMEL_RENDER_TARGET"; "PRISMEL_HEADLESS"; "PRISMEL_WEB";
-    "PRISMEL_RENDERER"; "PRISMEL_BACKEND"; "PRISMEL_OPENGL";
+    "RAYS_RENDER_TARGET"; "RAYS_HEADLESS"; "RAYS_WEB";
+    "RAYS_RENDERER"; "RAYS_BACKEND"; "RAYS_OPENGL";
     "--renderer"; "--backend"; ("--head" ^ "less"); ("--open" ^ "gl"); "Dynlink" ]
 
 let contains text needle =
@@ -182,9 +182,9 @@ let violations graph ~scan =
     if List.mem dep (Option.value ~default:[] (List.assoc_opt lib graph))
     then Some message else None)
     (["pxui", "sdl3", "pxui depends directly on sdl3 (text input belongs to Scene/runtime)";
-      "pxui", "scene_command", "pxui depends directly on scene_command (UI batches belong to Prismel.Scene)"]
-     @ List.map (fun sdl -> "prismel", sdl,
-         "prismel depends directly on " ^ sdl ^ " (SDL services belong to runtime)")
+      "pxui", "scene_command", "pxui depends directly on scene_command (UI batches belong to Rays.Scene)"]
+     @ List.map (fun sdl -> "rays", sdl,
+         "rays depends directly on " ^ sdl ^ " (SDL services belong to runtime)")
          ["sdl3"; "sdl3_image"; "sdl3_ttf"; "sdl3_mixer"]) in
   let edge_errors = List.concat_map (fun (lib, forbidden) ->
     List.filter_map (fun target ->
@@ -211,11 +211,11 @@ let violations graph ~scan =
 let run () =
   (* Exercise the actual dune reader, including public-name resolution and
      a forbidden edge hidden behind an otherwise innocuous private bridge. *)
-  let fixture = Filename.temp_dir "prismel-dependency-gate" "" in
+  let fixture = Filename.temp_dir "rays-dependency-gate" "" in
   Fun.protect ~finally:(fun () -> Sys.remove (Filename.concat fixture "dune");
     Unix.rmdir fixture) (fun () ->
     Out_channel.with_open_text (Filename.concat fixture "dune") (fun out ->
-      output_string out "; ignored comment\n(library (name editor_document) (package prismel)\n\
+      output_string out "; ignored comment\n(library (name editor_document) (package rays)\n\
         (libraries \"fixture.bridge\"))\n\
         (library (name bridge) (public_name \"fixture.bridge\") (libraries pxui))\n\
         (library (name pxui))\n(executable (name ignored) (libraries editor_document))\n");
@@ -248,35 +248,35 @@ let run () =
   List.iter (fun (lib, dep) ->
     if violations (inject lib dep) ~scan:[] = [] then
       failwith (Printf.sprintf "gate accepted injected edge %s -> %s" lib dep))
-    ["ogpu_core", "metal"; "ogpu", "ogpu_metal_native"; "ogpu_mock", "metal"; "prismel", "pxui"; "pxui", "procedural"; "pxui", "sdl3"; "pxui", "scene_command"; "sdl3", "prismel";
-     "pdk", "prismel"; "pdk_core", "pdk_exact";
-     "pdk_exact", "pdk_boolean"; "pdk_spatial", "pdk_attrib";
-     "pdk_attrib", "pdk_boolean"; "pdk_gen", "pdk_curve";
-     "pdk_curve", "pdk_gen"; "pdk_mesh", "pdk_boolean"; "pdk_boolean", "pdk";
-     "pdk_core", "prismel";
-     "prismel_math", "prismel"; "prismel_execution", "runtime_input";
-     "prismel", "sdl3_ttf";
+    ["ogpu_core", "metal"; "ogpu", "ogpu_metal_native"; "ogpu_mock", "metal"; "rays", "pxui"; "pxui", "procedural"; "pxui", "sdl3"; "pxui", "scene_command"; "sdl3", "rays";
+     "rdk", "rays"; "rdk_core", "rdk_exact";
+     "rdk_exact", "rdk_boolean"; "rdk_spatial", "rdk_attrib";
+     "rdk_attrib", "rdk_boolean"; "rdk_gen", "rdk_curve";
+     "rdk_curve", "rdk_gen"; "rdk_mesh", "rdk_boolean"; "rdk_boolean", "rdk";
+     "rdk_core", "rays";
+     "rays_math", "rays"; "rays_execution", "runtime_input";
+     "rays", "sdl3_ttf";
      "editor_document", "pxui"; "editor_document", "pxui_shell";
      "editor_document", "pxui_graph"; "editor_document", "sketch_support";
-     "editor_document", "prismel_editor";
-     "flow", "pxui"; "flow", "procedural"; "flow", "prismel_math";
-     "flow", "prismel"; "param", "flow"; "sdl3", "flow";
-     "ppx_prismel", "procedural"; "ppx_prismel", "pxui";
-     "flow_sop", "pxui"; "flow_sop", "sop_catalog"; "flow_sop", "prismel";
+     "editor_document", "rays_editor";
+     "flow", "pxui"; "flow", "procedural"; "flow", "rays_math";
+     "flow", "rays"; "param", "flow"; "sdl3", "flow";
+     "ppx_rays", "procedural"; "ppx_rays", "pxui";
+     "flow_sop", "pxui"; "flow_sop", "sop_catalog"; "flow_sop", "rays";
      "flow_sop", "editor_document"; "flow_sop", "ogpu"; "sdl3", "flow_sop";
-     "flow", "flow_sop"; "ppx_prismel", "flow_sop"];
-  if violations graph ~scan:["lib/prismel/injected.ml", "let x = Metal.Device.system_default"] = []
-     || violations graph ~scan:["lib/prismel/injected.ml", "open Ogpu_metal_native"] = []
-     || violations graph ~scan:["lib/prismel/injected.ml", "open Ogpu_metal"] = [] then
+     "flow", "flow_sop"; "ppx_rays", "flow_sop"];
+  if violations graph ~scan:["lib/rays/injected.ml", "let x = Metal.Device.system_default"] = []
+     || violations graph ~scan:["lib/rays/injected.ml", "open Ogpu_metal_native"] = []
+     || violations graph ~scan:["lib/rays/injected.ml", "open Ogpu_metal"] = [] then
     failwith "gate accepted injected Metal reference";
-  if violations graph ~scan:["lib/prismel/ok.ml", "(* Metal.foo *) let s = \"Metal.framework\""] <> [] then
+  if violations graph ~scan:["lib/rays/ok.ml", "(* Metal.foo *) let s = \"Metal.framework\""] <> [] then
     failwith "gate flagged Metal inside a comment or string";
   if violations graph ~scan:["lib/pxui_graph/injected.ml", "Event.KeyPressed key"] = [] then
     failwith "gate accepted adapter key handling";
   if violations graph ~scan:["lib/pxui_graph/ok.ml", "(* KeyPressed *) let s = \"KeyPressed\""] <> [] then
     failwith "gate flagged KeyPressed inside a comment or string";
   if violations graph ~scan:["lib/sdl3/injected.c", "SDL_CreateRenderer(window, 0)"] = []
-     || violations graph ~scan:["lib/prismel/injected.ml", "Sys.getenv \"PRISMEL_BACKEND\""] = [] then
+     || violations graph ~scan:["lib/rays/injected.ml", "Sys.getenv \"RAYS_BACKEND\""] = [] then
     failwith "gate accepted an injected alternate renderer or backend selector";
   let scan = List.concat_map files ["lib"; "examples"; "sketches"]
     |> List.filter (fun p -> List.exists (Filename.check_suffix p)
@@ -287,7 +287,7 @@ let run () =
     failwith (path ^ " lost native anchor " ^ anchor))
     [ "lib/sdl3/sdl3_stubs.c", "SDL_Metal_CreateView";
       "lib/runtime/runtime.ml", "Ogpu.Impl.create_driver";
-      "lib/prismel_execution/prismel_execution.ml", "Runtime.create" ];
+      "lib/rays_execution/rays_execution.ml", "Runtime.create" ];
   match violations graph ~scan with
   | [] -> Printf.printf "dependency gate: %d libraries, %d rules, %d listed exceptions\n"
             (List.length graph) (List.length rules)

@@ -25,7 +25,7 @@
 
 (library
  (name sdl3_image)
- (public_name prismel.sdl3_image)
+ (public_name rays.sdl3_image)
  (modules Sdl3_image)
  (foreign_stubs
   (language c)

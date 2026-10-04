@@ -40,7 +40,7 @@ Use a canonical authored document with stable identity and derive all views from
 - Proposed diagnostic UX: clicking one error reveals the same form in whichever view is active, with its expected type, actual type, and a concrete repair. Context switches should retain the corresponding selection.
 
 ### Gaps
-- Hazel's typed-hole results do not establish that all Prismel resource operations can safely execute around holes. A conservative first implementation may apply only complete validated documents while still supporting holes during editing.
+- Hazel's typed-hole results do not establish that all Rays resource operations can safely execute around holes. A conservative first implementation may apply only complete validated documents while still supporting holes during editing.
 - Stable identity reconciliation, comment preservation, and transactional layout replacement require specific regression tests. These are design proposals, not guarantees supplied by the cited systems.
 
 ## What must compilation and runtime enforce?
@@ -65,6 +65,6 @@ Share the language frontend between an OCaml PPX and the interactive editor, the
 - Implementation acceptance checks: capture-avoidance macro example; invalid cross-context call; same shared function used in at least two result contexts; invalid text retaining current preview; stale compile result ignored; graph/list/text edit retaining form identity; function extraction preserving references; expansion/evaluation limit diagnostic; failing workspace apply retaining working controls.
 
 ### Gaps
-- These sources provide patterns, not a proof of Prismel language soundness. Soundness requires defined syntax, static judgments, evaluation behavior, and a testable semantics for each registered primitive.
-- No source establishes suitable limits or performance for Prismel. Compile latency, graph scale, memory, and resource cancellation must be measured in its implementation.
+- These sources provide patterns, not a proof of Rays language soundness. Soundness requires defined syntax, static judgments, evaluation behavior, and a testable semantics for each registered primitive.
+- No source establishes suitable limits or performance for Rays. Compile latency, graph scale, memory, and resource cancellation must be measured in its implementation.
 - Native code generation for every live edit versus compilation to a checked plan remains a product/engineering decision. The proposal should recommend the shared frontend and bounded plan first while keeping ahead-of-time OCaml compilation available.

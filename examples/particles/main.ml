@@ -1,4 +1,4 @@
-open Prismel
+open Rays
 
 type particle = {
   x : float;
@@ -50,7 +50,7 @@ let () =
   ignore
     (Sketch.run_state
       ~config:{ Sketch.default_config with
-        title = "Prismel multicore particles";
+        title = "Rays multicore particles";
         width = 800;
         height = 600;
       }

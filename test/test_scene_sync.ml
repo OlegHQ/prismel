@@ -2,7 +2,7 @@
    (an object's field, an inline object, a rename, a reparent, a delete, the render camera, the
    World node, its layers, a preset, settings, and objects only the host made) goes through
    [Scene_sync.reconcile], and the text it leaves lowers to the same document (by labels). *)
-open Prismel
+open Rays
 open Procedural
 
 module Document = Editor_document.Document
@@ -317,17 +317,17 @@ let run () =
   check (Result.is_ok (Workspace_doc.edit catalog (fst layered.workspace) (Flow_sop.Flow_edit.Delete_nodes { nodes = [ [ "world"; "haze" ] ] })))
     "a World layer could not be deleted by its binding";
   (* through the editor: a workspace with no scene graph gets one when an object is added *)
-  let env = Prismel_editor.Editor3.create ~workspace:(Ws_fixture.of_text "(workspace bare (graph g :context sop (sop/box)))")
-      ~prepare:(fun _ output -> Pdk_prismel.Prismel_mesh.to_mesh output.Session.geometry
-        |> Result.map_error Pdk.Error.to_string)
+  let env = Rays_editor.Editor3.create ~workspace:(Ws_fixture.of_text "(workspace bare (graph g :context sop (sop/box)))")
+      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh output.Session.geometry
+        |> Result.map_error Rdk.Error.to_string)
       ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) () |> Result.get_ok in
-  let env = match Prismel_editor.Editor3.edit env (Flow_sop.Flow_edit.Add_node { scope = [ "scene" ]; name = "lamp";
+  let env = match Rays_editor.Editor3.edit env (Flow_sop.Flow_edit.Add_node { scope = [ "scene" ]; name = "lamp";
     expr = call "scene/light" [] }) with Ok env -> env | Error m -> failwith m in
-  let saved = Workspace_doc.to_text (Prismel_editor.Editor3.workspace env) in
+  let saved = Workspace_doc.to_text (Rays_editor.Editor3.workspace env) in
   check (contains saved "graph scene" && contains saved "scene/geometry (ref g)" && contains saved "scene/camera"
          && contains saved "lamp") "adding to a missing scene graph did not write it";
-  check (Prismel_editor.Editor3.undo_label env = Some "Add node") "adding an object is not one entry";
-  Prismel_editor.Editor3.close env;
+  check (Rays_editor.Editor3.undo_label env = Some "Add node") "adding an object is not one entry";
+  Rays_editor.Editor3.close env;
   print_endline "scene sync: fields, inline, rename, reparent, delete, camera, World, settings, host objects, add by key ok"
 
 (* Command: dune exec test/test_main.exe -- bench_scene_sync (from _build/default/test).  One handle-drag frame on an
@@ -645,11 +645,11 @@ let run_root () =
   (* every sketch of the repository still loads; shattered_studio carries a root, written by the editor *)
   let sketches = "../sketches" in
   let loaded = Array.fold_left (fun n name ->
-    let file = Filename.concat (Filename.concat sketches name) "sketch.plisp" in
+    let file = Filename.concat (Filename.concat sketches name) "sketch.rays" in
     if not (Sys.file_exists file) then n else begin
       let text = In_channel.with_open_bin file In_channel.input_all in
       (* a sketch that brings its own SOPs is not loaded here *)
-      match Prismel_editor.Workspace.load text with
+      match Rays_editor.Workspace.load text with
       | Error ds when List.exists (fun (d : Flow.Diagnostic.t) -> d.code = "E_UNKNOWN_KIND") ds -> n
       | Error ds -> failwith (file ^ ": " ^ String.concat "; " (List.map Flow.Diagnostic.to_string ds))
       | Ok workspace ->
@@ -657,8 +657,8 @@ let run_root () =
            | Ok _ -> n + 1 | Error d -> failwith (file ^ ": " ^ Flow.Diagnostic.to_string d))
     end) 0 (Sys.readdir sketches) in
   check (loaded >= 12) (Printf.sprintf "only %d sketches were found to load" loaded);
-  let studio = lower (Result.get_ok (Prismel_editor.Workspace.load
-    (In_channel.with_open_bin "../sketches/shattered_studio/sketch.plisp" In_channel.input_all))) in
+  let studio = lower (Result.get_ok (Rays_editor.Workspace.load
+    (In_channel.with_open_bin "../sketches/shattered_studio/sketch.rays" In_channel.input_all))) in
   check (studio.root.width = 1600 && studio.root.height = 1600 && studio.root.max_spp = 512 && studio.homes.root <> None)
     "shattered_studio (saved once by the editor) does not carry its render size on a scene/root";
   (* a root and a World member *)
@@ -875,9 +875,9 @@ let run_instances () =
               && (night.params.width, night.params.height) = (1600, 900)) "each root's own resolution";
        (match day.camera, night.camera with
         | Some d, Some n ->
-            check (Prismel.Camera.position d = Prismel.Vec3.create 0. 1. 8.) "day looks from its own camera";
-            check (Prismel.Camera.position n = Prismel.Vec3.create 4. 2. 6.) "night looks from its own camera";
-            check (Prismel.Camera.projection n <> Prismel.Camera.projection d) "and with its own lens"
+            check (Rays.Camera.position d = Rays.Vec3.create 0. 1. 8.) "day looks from its own camera";
+            check (Rays.Camera.position n = Rays.Vec3.create 4. 2. 6.) "night looks from its own camera";
+            check (Rays.Camera.projection n <> Rays.Camera.projection d) "and with its own lens"
         | _ -> failwith "each root names its camera")
    | _ -> failwith "each viewport's scene instance names its root");
   (* the document stores them per viewport, beside the Worlds *)

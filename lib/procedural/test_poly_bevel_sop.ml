@@ -1,4 +1,4 @@
-open Prismel
+open Rays
 open Procedural
 
 let fail message = prerr_endline ("test_poly_bevel_sop: " ^ message); exit 1
@@ -13,39 +13,39 @@ let context () = Context.create ~domains:4 ~grain:3 () |> get
 let session () = Session.create ~max_entries:16 ~max_payload_bytes:8_000_000 |> get
 
 let source () =
-  Pdk.Box_generator.box ~connectivity:Pdk.Box_generator.Box_quads ~consolidate_points:true
-    ~normals:Pdk.Box_generator.Box_no_normals ~size:(Vec3.create 2. 2. 2.) ()
-  |> function Ok value -> value | Error error -> fail (Pdk.Error.to_string error)
+  Rdk.Box_generator.box ~connectivity:Rdk.Box_generator.Box_quads ~consolidate_points:true
+    ~normals:Rdk.Box_generator.Box_no_normals ~size:(Vec3.create 2. 2. 2.) ()
+  |> function Ok value -> value | Error error -> fail (Rdk.Error.to_string error)
 
 let with_edges geometry =
-  let topology = Pdk.Geometry.topology geometry in
-  let index = Pdk.Topology_index.create topology in
-  let group = Pdk.Edge_group.init ~topology ~index ~name:"bevel_edges"
+  let topology = Rdk.Geometry.topology geometry in
+  let index = Rdk.Topology_index.create topology in
+  let group = Rdk.Edge_group.init ~topology ~index ~name:"bevel_edges"
       (Fun.const true) in
-  Pdk.Geometry.with_edge_group group geometry |> get
+  Rdk.Geometry.with_edge_group group geometry |> get
 
 let run () =
   let graph = Sop.snapshot (with_edges (source ()))
       |> Sop.poly_bevel ~group:"bevel_edges"
-           ~shape:(Pdk.Poly_bevel.Bevel_round { convexity = 0.75 }) ~divisions:3
+           ~shape:(Rdk.Poly_bevel.Bevel_round { convexity = 0.75 }) ~divisions:3
            ~distance:0.2 ~edge_group:"edge_fillets"
            ~corner_group:"corner_fillets" ~offset_group:"offset_edges" in
   let evaluator = session () in
   let output = match Session.cook evaluator ~context:(context ()) graph with
     | Ok output -> output.geometry
     | Error error -> fail (Diagnostic.error_to_string error) in
-  if Pdk.Geometry.point_count output <> 72
-      || Pdk.Geometry.primitive_count output <> 50
-      || Pdk.Geometry.vertex_count output <> 240 then
+  if Rdk.Geometry.point_count output <> 72
+      || Rdk.Geometry.primitive_count output <> 50
+      || Rdk.Geometry.vertex_count output <> 240 then
     fail "PolyBevel SOP cardinality";
   let group_cardinality owner name =
-    match Pdk.Geometry.find_group ~owner name output with
-    | Some group -> Pdk.Group.cardinality group
+    match Rdk.Geometry.find_group ~owner name output with
+    | Some group -> Rdk.Group.cardinality group
     | None -> fail ("missing output group " ^ name) in
-  if group_cardinality Pdk.Group.Primitive "edge_fillets" <> 36
-      || group_cardinality Pdk.Group.Primitive "corner_fillets" <> 8
-      || (match Pdk.Geometry.find_edge_group "offset_edges" output with
-          | Some group -> Pdk.Edge_group.cardinality group <> 24
+  if group_cardinality Rdk.Group.Primitive "edge_fillets" <> 36
+      || group_cardinality Rdk.Group.Primitive "corner_fillets" <> 8
+      || (match Rdk.Geometry.find_edge_group "offset_edges" output with
+          | Some group -> Rdk.Edge_group.cardinality group <> 24
           | None -> true) then
     fail "PolyBevel SOP output groups";
   if Node.operation graph <> "poly_bevel"

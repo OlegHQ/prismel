@@ -274,7 +274,7 @@ function show(t, d) {
 }
 
 /* ---------------- 3D illustration kernel ----------------
-   Polygons (faces), polylines and points in 3D. Enough to show the language; not pdk. */
+   Polygons (faces), polylines and points in 3D. Enough to show the language; not rdk. */
 let uidN = 0;
 const prim = (pts, closed, extra) => ({pts, closed, kind: closed ? 'face' : pts.length === 1 ? 'point' : 'line', color: null, groups: [], tags: {}, uid: ++uidN, ...extra});
 const geo = prims => ({prims});

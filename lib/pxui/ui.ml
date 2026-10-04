@@ -1,4 +1,4 @@
-open Prismel
+open Rays
 
 module Int_table = Hashtbl.Make (Int)
 module Batch = Scene.Private.Ui_batch
@@ -413,10 +413,10 @@ let publish_atlas atlas =
     | Error _ -> ()
   end
 
-(* The kit face: [PRISMEL_UI_FONT], else DepartureMono found from the working
+(* The kit face: [RAYS_UI_FONT], else DepartureMono found from the working
    directory or the executable upward. *)
 let kit_font_path = lazy (
-  match Sys.getenv_opt "PRISMEL_UI_FONT" with
+  match Sys.getenv_opt "RAYS_UI_FONT" with
   | Some path -> Some path
   | None ->
       let relative = Filename.concat "assets"

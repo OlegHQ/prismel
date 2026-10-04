@@ -1,6 +1,6 @@
 let fail format =
   Printf.ksprintf (fun message ->
-    prerr_endline ("prismel-new: " ^ message);
+    prerr_endline ("rays-new: " ^ message);
     exit 2) format
 
 let valid_name name =
@@ -17,7 +17,7 @@ let write path contents =
     (fun () -> output_string channel contents)
 
 let template name =
-  Printf.sprintf {|open Prismel
+  Printf.sprintf {|open Rays
 
 let view (frame : Frame.t) =
   Scene.[
@@ -37,14 +37,14 @@ let () =
   let plisp = ref false in
   let name = ref None in
   let specs = [
-    "--plisp", Arg.Set plisp, " Create sketches/NAME/sketch.plisp from the Bloom fixture";
+    "--plisp", Arg.Set plisp, " Create sketches/NAME/sketch.rays from the Bloom fixture";
     "--root", Arg.String (fun r -> root := Some r), "DIR Parent directory (default: examples)";
   ] in
   Arg.parse specs (fun value ->
     match !name with
     | None -> name := Some value
     | Some _ -> fail "expected one example name")
-    "Create a Prismel sketch: dune exec tools/new_example.exe -- NAME";
+    "Create a Rays sketch: dune exec tools/new_example.exe -- NAME";
   let root = ref (match !root with Some r -> r | None -> if !plisp then "sketches" else "examples") in
   let name = match !name with Some name -> name | None -> fail "missing NAME" in
   if not (valid_name name) then
@@ -58,11 +58,11 @@ let () =
     (* ponytail: the fixture is read from the working directory, the repo root *)
     let bloom = In_channel.with_open_bin "specification/workspace/cases/bloom.lisp" In_channel.input_all in
     let bloom = Str.global_replace (Str.regexp_string "bloom_studio") (String.map (function '-' -> '_' | c -> c) name) bloom in
-    write (Filename.concat directory "sketch.plisp") bloom;
-    Printf.printf "Created %s/sketch.plisp\nRun: dune build @runtest; dune promote\n%!" directory;
+    write (Filename.concat directory "sketch.rays") bloom;
+    Printf.printf "Created %s/sketch.rays\nRun: dune build @runtest; dune promote\n%!" directory;
     exit 0
   end;
   write (Filename.concat directory "dune")
-    "(executable\n (name main)\n (libraries prismel))\n";
+    "(executable\n (name main)\n (libraries rays))\n";
   write (Filename.concat directory "main.ml") (template name);
   Printf.printf "Created %s\nRun: dune exec %s/main.exe\n%!" directory directory

@@ -21,8 +21,8 @@ let graph () = source ()
       ~hull_group:"hull"
 
 let signature geometry =
-  let positions = Pdk.Packed.Float3.Private.view (Pdk.Geometry.positions geometry)
-  and topology = Pdk.Topology.Private.view (Pdk.Geometry.topology geometry) in
+  let positions = Rdk.Packed.Float3.Private.view (Rdk.Geometry.positions geometry)
+  and topology = Rdk.Topology.Private.view (Rdk.Geometry.topology geometry) in
   Array.copy positions.x, Array.copy positions.y, Array.copy positions.z,
   Array.copy topology.vertex_points, Array.copy topology.primitive_offsets,
   Bytes.copy topology.primitive_kinds
@@ -56,15 +56,15 @@ let run () =
   let one = fresh 1 node and four = fresh 4 node in
   check (signature one = signature four)
     "Convex Hull SOP differs between one and four domains";
-  check (Pdk.Geometry.point_count one = 8
-      && Pdk.Geometry.primitive_count one = 12)
+  check (Rdk.Geometry.point_count one = 8
+      && Rdk.Geometry.primitive_count one = 12)
     "Convex Hull SOP cardinality";
   let selected = source ()
       |> Sop.group ~name:"bottom" (Select.point_indices [|0;1;2;3|])
       |> Sop.convex_hull ~selection:(Sop.Point_group "bottom") in
   let plane = fresh 1 selected in
-  check (Pdk.Geometry.point_count plane = 4
-      && Pdk.Geometry.primitive_count plane = 1)
+  check (Rdk.Geometry.point_count plane = 4
+      && Rdk.Geometry.primitive_count plane = 1)
     "Convex Hull SOP typed selection";
   let invalid = try
       ignore (Sop.convex_hull ~source_point_attribute:"P" (source ()));

@@ -1,13 +1,13 @@
-open Prismel
-open Pdk
+open Rays
+open Rdk
 
 let integer_env name default = match Sys.getenv_opt name with
   | None -> default | Some value -> max 1 (int_of_string value)
 
-let size = integer_env "PRISMEL_CENTROID_SIZE" 1_000_000
-let repeats = integer_env "PRISMEL_CENTROID_REPEATS" 5
-let domains = integer_env "PRISMEL_BENCH_DOMAINS" (Parallel.recommended_domains ())
-let grain = integer_env "PRISMEL_CENTROID_GRAIN" 16_384
+let size = integer_env "RAYS_CENTROID_SIZE" 1_000_000
+let repeats = integer_env "RAYS_CENTROID_REPEATS" 5
+let domains = integer_env "RAYS_BENCH_DOMAINS" (Parallel.recommended_domains ())
+let grain = integer_env "RAYS_CENTROID_GRAIN" 16_384
 
 let get = function Ok value -> value | Error error -> failwith (Error.to_string error)
 

@@ -1,6 +1,6 @@
 ---
 name: prune-dead-code
-description: Delete unreferenced code in prismel with the compiler-driven codemod (tools/codemod) - exports nothing uses, test-only features, dead Metal bindings and stubs - to a fixpoint, instead of hand-editing. Use after removing a feature or caller, or when auditing a library for dead code.
+description: Delete unreferenced code in rays with the compiler-driven codemod (tools/codemod) - exports nothing uses, test-only features, dead Metal bindings and stubs - to a fixpoint, instead of hand-editing. Use after removing a feature or caller, or when auditing a library for dead code.
 ---
 
 # Prune dead code with tools/codemod
@@ -33,8 +33,8 @@ dune exec tools/codemod/codemod.exe -- prune lib/<name> [lib/<other> ...]
 ## Rules
 
 - Only prune libraries whose exports are internal. For user-facing APIs
-  (`prismel`, `pxui`, `procedural`, `prismel_pathtracer`, `prismel_editor`,
-  `prismel_math`) list with `dead-exports` and decide by hand: unused is not
+  (`rays`, `pxui`, `procedural`, `rays_pathtracer`, `rays_editor`,
+  `rays_math`) list with `dead-exports` and decide by hand: unused is not
   unwanted there.
 - Unused `let x = e in` locals are deleted; check the printed `26 ...` lines
   when `e` could have a side effect. Unused parameters become `_x` / `~x:_`

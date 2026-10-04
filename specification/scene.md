@@ -1,6 +1,6 @@
 # Scene tree
 
-Prismel Editor navigates between the scene and each geometry object’s SOP
+Rays Editor navigates between the scene and each geometry object’s SOP
 network (the World has its layer stack instead). SOP networks hold shared
 compound definitions created by grouping SOP and value nodes. Entering an
 instance with `i` or double-click follows its instance path into the shared

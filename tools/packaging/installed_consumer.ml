@@ -1,4 +1,4 @@
-(* The program an installed Prismel prefix must build and run: it is the
+(* The program an installed Rays prefix must build and run: it is the
    source check_installed_consumer.exe copies into a project outside the
    checkout. It is also built in the tree, so the compiler and the dead-code
    tools see the version facts it reads. *)

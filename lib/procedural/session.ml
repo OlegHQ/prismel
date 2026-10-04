@@ -20,9 +20,9 @@ type stats = {
 }
 
 type output = {
-  geometry : Pdk.Geometry.t;
+  geometry : Rdk.Geometry.t;
   diagnostics : Diagnostic.t list;
-  instances : Prismel_math.Mat4.t array option;
+  instances : Rays_math.Mat4.t array option;
 }
 
 type entry = {
@@ -64,7 +64,7 @@ type t = {
   mutable evictions : int;
   mutable last_node : node_timing option;
   mutable closed : bool;
-  mutable materialized : (output * Pdk.Geometry.t) list;  (* see [input_geometry] *)
+  mutable materialized : (output * Rdk.Geometry.t) list;  (* see [input_geometry] *)
 }
 
 let release_components payload components =
@@ -119,7 +119,7 @@ let inspect session root =
       infos
 
 let insert session key output =
-  let components = Pdk.Geometry.payload_components output.geometry in
+  let components = Rdk.Geometry.payload_components output.geometry in
   if session.max_entries > 0 then begin
     let payload = session.payload in
     List.iter (fun (id, bytes) ->
@@ -178,7 +178,7 @@ let cache_key node context inputs =
   add_sized parameters;
   add_sized parameter_key;
   add_int (Array.length inputs);
-  Array.iter (fun geometry -> add_int (Pdk.Geometry.data_id geometry)) inputs;
+  Array.iter (fun geometry -> add_int (Rdk.Geometry.data_id geometry)) inputs;
   Buffer.add_string buffer
     (Context.cache_projection (Node.dependencies node) context);
   Buffer.contents buffer
@@ -207,9 +207,9 @@ let input_geometry session output = match output.instances with
       match List.assq_opt output session.materialized with
       | Some geometry -> Ok geometry
       | None ->
-          match Pdk.Instance_copy.materialize_instances ~transforms output.geometry with
-          | Error error -> Error (Diagnostic.error ~code:(Pdk.Error.code error)
-              ~cause:(Pdk.Error.to_string error) "packed instances could not be materialized")
+          match Rdk.Instance_copy.materialize_instances ~transforms output.geometry with
+          | Error error -> Error (Diagnostic.error ~code:(Rdk.Error.code error)
+              ~cause:(Rdk.Error.to_string error) "packed instances could not be materialized")
           | Ok geometry ->
               session.materialized <- (output, geometry)
                 :: List.filteri (fun index _ -> index < 7) session.materialized;
@@ -329,7 +329,7 @@ let cook session ~context node =
       "cannot cook with a closed procedural session"
       |> Diagnostic.prepend_trace (Node.trace node))
   else
-    Prismel_math.Parallel.run ~domains:(Context.domains context) (fun () ->
+    Rays_math.Parallel.run ~domains:(Context.domains context) (fun () ->
       match evaluate (Hashtbl.create 64) session context node with
       | Error _ as error -> error
       | Ok output -> Ok { output with diagnostics = deduplicate output.diagnostics })

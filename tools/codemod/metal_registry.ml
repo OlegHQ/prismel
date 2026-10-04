@@ -303,7 +303,7 @@ let preserve_pools legacy =
   let path = "lib/metal/gen/registry.ml" in
   let source = read path and edits = ref [] in
   let original_pool name =
-    let symbol = "caml_prismel_metal_" ^ name in
+    let symbol = "caml_rays_metal_" ^ name in
     if not (contains legacy symbol) then true else
       let start = Str.search_forward (Str.regexp_string symbol) legacy 0 in
       match String.index_from_opt legacy start '{' with
@@ -494,7 +494,7 @@ let rec drop_unused_macros path =
   let edits = ref [] in
   Hashtbl.iter (fun name locations ->
       let rest = replace source (List.map (fun (s,e) -> s,e,"") locations) in
-      if List.exists (fun prefix -> String.starts_with ~prefix name) ["PRISMEL_"; "COMPUTE_"; "C35_"]
+      if List.exists (fun prefix -> String.starts_with ~prefix name) ["RAYS_"; "COMPUTE_"; "C35_"]
          && not (try ignore (Str.search_forward (Str.regexp ("\\b" ^ name ^ "\\b")) rest 0); true with Not_found -> false) then
         edits := List.map (fun (s,e) -> s,e,"") locations @ !edits) ranges;
   if !edits <> [] then (Printf.printf "removed %d unused macro directives\n%!" (List.length !edits);
@@ -508,10 +508,10 @@ let self_test () =
   assert (reason "texture_read" "handle -> bytes" = "byte buffers/native memory and checked ranges");
   let path = Filename.temp_file "metal-macros" ".mm" in
   Fun.protect ~finally:(fun () -> Sys.remove path) (fun () ->
-      write path "#define CAML_NAME_SPACE\n#define PRISMEL_INNER(x) x\n#define PRISMEL_OUTER(x) PRISMEL_INNER(x)\n#define PRISMEL_LIVE(x) x\n#define PRISMEL_DEAD(x) \\\n+  { x; }\n#undef PRISMEL_DEAD\nPRISMEL_LIVE(1)\n";
+      write path "#define CAML_NAME_SPACE\n#define RAYS_INNER(x) x\n#define RAYS_OUTER(x) RAYS_INNER(x)\n#define RAYS_LIVE(x) x\n#define RAYS_DEAD(x) \\\n+  { x; }\n#undef RAYS_DEAD\nRAYS_LIVE(1)\n";
       drop_unused_macros path;
       let result = read path in
       assert (contains result "CAML_NAME_SPACE");
-      assert (contains result "#define PRISMEL_LIVE");
-      assert (not (contains result "PRISMEL_INNER"));
-      assert (not (contains result "PRISMEL_DEAD")))
+      assert (contains result "#define RAYS_LIVE");
+      assert (not (contains result "RAYS_INNER"));
+      assert (not (contains result "RAYS_DEAD")))

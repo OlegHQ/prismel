@@ -687,7 +687,7 @@ let create () =
                      serialized there (or to a temporary file for an
                      @rpath-style name) and loaded back. *)
                   let path =
-                    if Filename.is_relative install_name then Filename.temp_file "prismel-dynamic" ".metallib"
+                    if Filename.is_relative install_name then Filename.temp_file "rays-dynamic" ".metallib"
                     else install_name
                   in
                   let loaded =

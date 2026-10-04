@@ -21,21 +21,21 @@ let source = {|
 #include <metal_stdlib>
 using namespace metal;
 
-struct PrismelPresentVertex {
+struct RaysPresentVertex {
   float4 position [[position]];
 };
 
-vertex PrismelPresentVertex prismel_present_vertex(uint vertex_id [[vertex_id]]) {
+vertex RaysPresentVertex rays_present_vertex(uint vertex_id [[vertex_id]]) {
   const float2 positions[3] = {
     float2(-1.0, -1.0), float2(3.0, -1.0), float2(-1.0, 3.0)
   };
-  PrismelPresentVertex output;
+  RaysPresentVertex output;
   output.position = float4(positions[vertex_id], 0.0, 1.0);
   return output;
 }
 
-fragment float4 prismel_present_fragment(
-    PrismelPresentVertex input [[stage_in]],
+fragment float4 rays_present_fragment(
+    RaysPresentVertex input [[stage_in]],
     texture2d<float, access::read> source_texture [[texture(0)]]) {
   return source_texture.read(uint2(input.position.xy));
 }
@@ -46,7 +46,7 @@ let create device =
   if Device.destroyed device then
     error Ogpu_core.Error.Stale_handle "device is destroyed"
   else
-    match Metal.Library.compile_source ~label:"Prismel presentation" ~device:native source with
+    match Metal.Library.compile_source ~label:"Rays presentation" ~device:native source with
     | Error value -> metal value
     | Ok library ->
         (match Metal.Compiler.create native with
@@ -56,11 +56,11 @@ let create device =
          | Ok compiler ->
              let compiled =
                Metal.Compiler.create_render_pipeline
-                 ~label:"Prismel presentation"
-                 ~fragment:"prismel_present_fragment"
+                 ~label:"Rays presentation"
+                 ~fragment:"rays_present_fragment"
                  ~color_formats:[Metal.Texture.Bgra8_unorm]
                  ~primitive_topology:Metal.Render_pipeline.Triangle
-                 compiler ~library ~vertex:"prismel_present_vertex"
+                 compiler ~library ~vertex:"rays_present_vertex"
              in
              ignore (Metal.Compiler.destroy compiler);
              match compiled with

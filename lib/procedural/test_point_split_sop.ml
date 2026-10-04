@@ -11,21 +11,21 @@ let contains value needle =
   needle = "" || loop 0
 
 let source () =
-  let positions = Pdk.Packed.Float3.Private.of_owned_exn
+  let positions = Rdk.Packed.Float3.Private.of_owned_exn
       ~x:[|0.;1.;1.;0.|] ~y:[|0.;0.;1.;1.|] ~z:(Array.make 4 0.) in
-  let topology = Pdk.Topology.polygons_owned ~point_count:4
+  let topology = Rdk.Topology.polygons_owned ~point_count:4
       ~vertex_points:[|0;1;2;0;2;3|] ~primitive_offsets:[|0;3;6|]
       |> Result.get_ok in
-  let uv = Pdk.Packed.Float2.of_owned
+  let uv = Rdk.Packed.Float2.of_owned
       ~x:[|0.;1.;1.;2.;3.;0.|] ~y:[|0.;0.;1.;2.;3.;1.|]
       |> Result.get_ok in
-  let uv = Pdk.Attribute.create_owned ~owner:Pdk.Attribute.Vertex ~name:"uv"
-      (Pdk.Attribute.Float2 uv) |> Result.get_ok
-  and selected = Pdk.Group.init ~grain:1 ~owner:Pdk.Group.Point
+  let uv = Rdk.Attribute.create_owned ~owner:Rdk.Attribute.Vertex ~name:"uv"
+      (Rdk.Attribute.Float2 uv) |> Result.get_ok
+  and selected = Rdk.Group.init ~grain:1 ~owner:Rdk.Group.Point
       ~name:"split_points" 4 (fun point -> point = 0 || point = 2)
-  and seam_face = Pdk.Group.init ~grain:1 ~owner:Pdk.Group.Primitive
+  and seam_face = Rdk.Group.init ~grain:1 ~owner:Rdk.Group.Primitive
       ~name:"seam_face" 2 (fun primitive -> primitive = 0) in
-  Pdk.Geometry.create ~positions ~topology ~attributes:[uv]
+  Rdk.Geometry.create ~positions ~topology ~attributes:[uv]
     ~groups:[selected;seam_face] ()
   |> Result.get_ok
 
@@ -40,9 +40,9 @@ let run () =
            ~attributes:"uv" ~tolerance:1e-6 ~promote_attributes:true in
   let evaluator = session () in
   let output = cook evaluator graph in
-  if Pdk.Geometry.point_count output <> 6 then fail "SOP cardinality";
-  if Pdk.Geometry.find_attribute ~owner:Pdk.Attribute.Point "uv" output = None
-      || Pdk.Geometry.find_attribute ~owner:Pdk.Attribute.Vertex "uv" output <> None
+  if Rdk.Geometry.point_count output <> 6 then fail "SOP cardinality";
+  if Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point "uv" output = None
+      || Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Vertex "uv" output <> None
   then fail "SOP promotion";
   if Node.operation graph <> "point_split"
       || not (contains (Node.parameters graph) "selection=point:split_points")
@@ -58,7 +58,7 @@ let run () =
       |> Sop.point_split ~attributes:"seam_*" in
   let evaluator = session () in
   let group_output = cook evaluator group_graph in
-  if Pdk.Geometry.point_count group_output <> 6 then
+  if Rdk.Geometry.point_count group_output <> 6 then
     fail "SOP primitive-group seam cardinality";
   if not (contains (Node.parameters group_graph) "attributes=seam_*") then
     fail "SOP group-seam cache identity";

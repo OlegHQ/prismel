@@ -9,9 +9,9 @@ type cook_mode =
 module Private_types = struct
   type input_policy = All | Only of int
   type cooked = {
-    geometry : Pdk.Geometry.t;
+    geometry : Rdk.Geometry.t;
     diagnostics : Diagnostic.t list;
-    instances : Prismel_math.Mat4.t array option;
+    instances : Rays_math.Mat4.t array option;
     (** Packed: [geometry] is a prototype drawn at these transforms. *)
   }
 end
@@ -27,9 +27,9 @@ type t = {
   dependencies : Context.Dependencies.t;
   input_policy : Private_types.input_policy;
   inputs : t array;
-  cook : node_id:int -> Context.t -> Pdk.Geometry.t array ->
+  cook : node_id:int -> Context.t -> Rdk.Geometry.t array ->
     (Private_types.cooked, Diagnostic.error) result;
-  expand : (Context.t -> t array -> Pdk.Geometry.t array -> (t array, Diagnostic.error) result) option;
+  expand : (Context.t -> t array -> Rdk.Geometry.t array -> (t array, Diagnostic.error) result) option;
   parameterization : parameterization option;
 }
 and parameterization = Parameters : {

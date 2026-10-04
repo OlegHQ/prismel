@@ -35,7 +35,7 @@ changed content, validates resource lifetime/device identity, and retains the
 sampled texture until command completion.
 
 `Scene.text ?size` resolves an installed platform UI font, with
-`PRISMEL_UI_FONT` as a portable override. The size is expressed in logical
+`RAYS_UI_FONT` as a portable override. The size is expressed in logical
 points; glyphs rasterize at native density and draw at logical dimensions.
 Renderer-local text textures use a bounded 256-entry LRU. Empty strings are
 safe no-ops.

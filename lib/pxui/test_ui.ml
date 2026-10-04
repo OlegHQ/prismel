@@ -1,7 +1,7 @@
 (* Interaction contract of the immediate-mode kit: press/drag/release,
    capture, focus loss, text entry, numeric editing, scrolling, accordions,
    and identical behaviour at 1x and 2x backing scales. *)
-open Prismel
+open Rays
 module Ui = Pxui.Ui
 
 let fail message = raise (Failure message)

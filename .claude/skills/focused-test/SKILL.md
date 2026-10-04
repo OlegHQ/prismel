@@ -1,6 +1,6 @@
 ---
 name: focused-test
-description: Run only the tests for the code you touched in prismel. Use after editing a file under lib/, tools/ or test/ when you want a fast pass/fail instead of the full runtest.
+description: Run only the tests for the code you touched in rays. Use after editing a file under lib/, tools/ or test/ when you want a fast pass/fail instead of the full runtest.
 ---
 
 1. `eval "$(opam env --switch=. --set-switch)"`.

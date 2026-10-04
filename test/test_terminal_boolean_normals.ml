@@ -1,22 +1,22 @@
-open Prismel
+open Rays
 open Procedural
 module Bridge = Sketch_support.Bridge
 
 let get=function Ok value->value|Error _->failwith"terminal normal fixture"
 
 let geometry () =
-  let positions=Pdk.Packed.Float3.Private.of_owned_exn
+  let positions=Rdk.Packed.Float3.Private.of_owned_exn
     ~x:[|-0.5;0.5;0.|]~y:[|-0.5;-0.5;0.5|]~z:[|0.;0.;0.|]in
-  let builder=Pdk.Topology.Builder.create~point_count:3()in
-  Pdk.Topology.Builder.add_triangle builder 0 2 1;
-  let topology=Pdk.Topology.Builder.freeze builder in
-  let values=Pdk.Packed.Float3.Private.of_owned_exn
+  let builder=Rdk.Topology.Builder.create~point_count:3()in
+  Rdk.Topology.Builder.add_triangle builder 0 2 1;
+  let topology=Rdk.Topology.Builder.freeze builder in
+  let values=Rdk.Packed.Float3.Private.of_owned_exn
     ~x:[|0.;0.;0.|]~y:[|0.;0.;0.|]~z:[|-1.;-1.;-1.|]in
-  let normal=get(Pdk.Attribute.create_owned~name:"N"~owner:Pdk.Attribute.Vertex
-    (Pdk.Attribute.Float3 values))in
-  get(Pdk.Geometry.create~positions~topology~attributes:[normal]())
+  let normal=get(Rdk.Attribute.create_owned~name:"N"~owner:Rdk.Attribute.Vertex
+    (Rdk.Attribute.Float3 values))in
+  get(Rdk.Geometry.create~positions~topology~attributes:[normal]())
 
-let snapshot domains = Prismel.Parallel.run~domains(fun()->
+let snapshot domains = Rays.Parallel.run~domains(fun()->
   let source=geometry()in let node=Sop.snapshot source in
   let instances=Instances.create~transforms:[|Mat4.identity|]node in
   let session=get(Session.create~max_entries:8~max_payload_bytes:1_048_576)in
@@ -37,11 +37,11 @@ let snapshot domains = Prismel.Parallel.run~domains(fun()->
 
 let malformed () =
   let source=geometry()in
-  let bad=get(Pdk.Attribute.create_owned~name:"N"~owner:Pdk.Attribute.Vertex
-    (Pdk.Attribute.Float2(get(Pdk.Packed.Float2.of_owned~x:[|0.;0.;0.|]
+  let bad=get(Rdk.Attribute.create_owned~name:"N"~owner:Rdk.Attribute.Vertex
+    (Rdk.Attribute.Float2(get(Rdk.Packed.Float2.of_owned~x:[|0.;0.;0.|]
       ~y:[|0.;0.;0.|]))))in
-  let source=Pdk.Geometry.without_attribute~owner:Pdk.Attribute.Vertex"N"source in
-  let source=get(Pdk.Geometry.with_attribute bad source)in
+  let source=Rdk.Geometry.without_attribute~owner:Rdk.Attribute.Vertex"N"source in
+  let source=get(Rdk.Geometry.with_attribute bad source)in
   let session=get(Session.create~max_entries:8~max_payload_bytes:1_048_576)in
   let bridge=get(Bridge.create~max_entries:8~max_payload_bytes:1_048_576 session)in
   let context=get(Context.create())in

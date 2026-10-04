@@ -1,4 +1,4 @@
-(** Typed, immutable selection expressions. They compile to PDK bitsets once
+(** Typed, immutable selection expressions. They compile to RDK bitsets once
     per SOP cook; no group-string parsing occurs in element hot loops. *)
 
 type point
@@ -8,11 +8,11 @@ type 'owner t
 
 val all_points : point t
 val point_indices : int array -> point t
-val points_in_bounds : min:Prismel_math.Vec3.t -> max:Prismel_math.Vec3.t -> point t
+val points_in_bounds : min:Rays_math.Vec3.t -> max:Rays_math.Vec3.t -> point t
 val all_vertices : vertex t
 val vertex_indices : int array -> vertex t
 val all_primitives : primitive t
 val primitive_indices : int array -> primitive t
 
 val fingerprint : 'owner t -> string
-val evaluate : name:string -> 'owner t -> Pdk.Geometry.t -> (Pdk.Group.t, string) result
+val evaluate : name:string -> 'owner t -> Rdk.Geometry.t -> (Rdk.Group.t, string) result

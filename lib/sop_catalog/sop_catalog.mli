@@ -5,12 +5,12 @@
 module Box : sig
   val create :
     ?label:string ->
-    ?size:Prismel.Vec3.t ->
-    ?connectivity:Pdk.Box_generator.box_connectivity ->
+    ?size:Rays.Vec3.t ->
+    ?connectivity:Rdk.Box_generator.box_connectivity ->
     ?consolidate_points:bool ->
-    ?normals:Pdk.Box_generator.box_normals ->
-    ?center:Prismel.Vec3.t -> ?rotation:Prismel.Vec3.t ->
-    ?rotation_order:Pdk.Box_generator.box_rotation_order -> ?uniform_scale:float ->
+    ?normals:Rdk.Box_generator.box_normals ->
+    ?center:Rays.Vec3.t -> ?rotation:Rays.Vec3.t ->
+    ?rotation_order:Rdk.Box_generator.box_rotation_order -> ?uniform_scale:float ->
     ?x_divisions:int -> ?y_divisions:int -> ?z_divisions:int ->
     ?uv_attribute:string -> ?face_groups:string ->
     unit -> Procedural.Node.t
@@ -19,11 +19,11 @@ end
 module Platonic : sig
   val create :
     ?label:string ->
-    ?kind:Pdk.Parametric_generators.platonic_kind ->
-    ?normals:Pdk.Parametric_generators.platonic_normals ->
-    ?orientation:Pdk.Parametric_generators.platonic_orientation ->
-    ?center:Prismel.Vec3.t -> ?rotation:Prismel.Vec3.t ->
-    ?rotation_order:Pdk.Parametric_generators.platonic_rotation_order ->
+    ?kind:Rdk.Parametric_generators.platonic_kind ->
+    ?normals:Rdk.Parametric_generators.platonic_normals ->
+    ?orientation:Rdk.Parametric_generators.platonic_orientation ->
+    ?center:Rays.Vec3.t -> ?rotation:Rays.Vec3.t ->
+    ?rotation_order:Rdk.Parametric_generators.platonic_rotation_order ->
     ?face_groups:string ->
     radius:float -> unit -> Procedural.Node.t
 end
@@ -38,10 +38,10 @@ end
 module Grid : sig
   val create :
     ?label:string ->
-    ?counts:Pdk.Plane_generators.grid_counts ->
-    ?connectivity:Pdk.Plane_generators.grid_connectivity ->
-    ?orientation:Pdk.Plane_generators.grid_orientation ->
-    ?center:Prismel.Vec3.t -> ?width:float -> ?height:float ->
+    ?counts:Rdk.Plane_generators.grid_counts ->
+    ?connectivity:Rdk.Plane_generators.grid_connectivity ->
+    ?orientation:Rdk.Plane_generators.grid_orientation ->
+    ?center:Rays.Vec3.t -> ?width:float -> ?height:float ->
     ?rotation:float -> ?uv_attribute:string ->
     columns:int -> rows:int -> size:float -> unit -> Procedural.Node.t
 end
@@ -67,7 +67,7 @@ module Mountain : sig
     ?mask_attribute:string ->
     ?height_attribute:string ->
     ?recompute_normals:bool ->
-    seed:int -> height:float -> frequency:Prismel.Vec3.t ->
+    seed:int -> height:float -> frequency:Rays.Vec3.t ->
     octaves:int -> lacunarity:float -> roughness:float ->
     Procedural.Node.t -> Procedural.Node.t
 end
@@ -80,11 +80,11 @@ module Attribute_noise_quaternion : sig
   val create :
     ?label:string ->
     ?group:string ->
-    ?location:Pdk.Attribute_ops.noise_location ->
-    ?range:Pdk.Attribute_ops.noise_range ->
-    owner:Pdk.Attribute.owner ->
+    ?location:Rdk.Attribute_ops.noise_location ->
+    ?range:Rdk.Attribute_ops.noise_range ->
+    owner:Rdk.Attribute.owner ->
     name:string ->
-    seed:int -> frequency:Prismel.Vec3.t -> octaves:int ->
+    seed:int -> frequency:Rays.Vec3.t -> octaves:int ->
     Procedural.Node.t -> Procedural.Node.t
 end
 
@@ -95,16 +95,16 @@ module Point_jitter : sig
     ?mask_attribute:string ->
     ?id_attribute:string ->
     seed:int -> scale:float ->
-    ?axis_scales:Prismel.Vec3.t ->
+    ?axis_scales:Rays.Vec3.t ->
     Procedural.Node.t -> Procedural.Node.t
 end
 
 module Boolean : sig
   val create :
     ?label:string ->
-    ?operation:Pdk.Boolean.operation ->
+    ?operation:Rdk.Boolean.operation ->
     ?resolve_right_self_intersections:bool ->
-    ?detriangulation:Pdk.Boolean.detriangulation ->
+    ?detriangulation:Rdk.Boolean.detriangulation ->
     right:Procedural.Node.t -> Procedural.Node.t -> Procedural.Node.t
   (** [create ~right left]: exact Boolean of [left] (input 0) with [right]
       (input 1); the operation defaults to union. *)
@@ -113,7 +113,7 @@ end
 module Duplicate : sig
   val create :
     ?label:string -> ?copies:int -> ?cumulative:bool ->
-    ?transform:Prismel.Mat4.t -> Procedural.Node.t -> Procedural.Node.t
+    ?transform:Rays.Mat4.t -> Procedural.Node.t -> Procedural.Node.t
   (** Append [copies] transformed copies (points included), each by
       [transform] to the power of its index when [cumulative]. *)
 end
@@ -127,15 +127,15 @@ end
 
 module Transform : sig
   val create :
-    ?label:string -> ?translate:Prismel.Vec3.t -> ?rotate:Prismel.Vec3.t ->
-    ?scale:Prismel.Vec3.t -> ?uniform_scale:float ->
+    ?label:string -> ?translate:Rays.Vec3.t -> ?rotate:Rays.Vec3.t ->
+    ?scale:Rays.Vec3.t -> ?uniform_scale:float ->
     Procedural.Node.t -> Procedural.Node.t
   (** Translate, rotate (radians), scale, then uniform scale. *)
 end
 
 module Attribute_randomize : sig
   val create :
-    ?label:string -> ?owner:Pdk.Attribute.owner -> ?seed:int -> name:string ->
+    ?label:string -> ?owner:Rdk.Attribute.owner -> ?seed:int -> name:string ->
     minimum:float -> maximum:float -> Procedural.Node.t -> Procedural.Node.t
   (** A uniform random scalar attribute in [[minimum, maximum]] per element
       (point by default). *)
@@ -150,14 +150,14 @@ end
 module Group_random : sig
   val create :
     ?label:string -> ?seed:int -> probability:float ->
-    owner:Pdk.Group_ops.owner -> name:string ->
+    owner:Rdk.Group_ops.owner -> name:string ->
     Procedural.Node.t -> Procedural.Node.t
 end
 
 module Blast : sig
   val create :
     ?label:string -> ?selected:bool -> ?compact_points:bool ->
-    owner:Pdk.Group.owner -> group:string ->
+    owner:Rdk.Group.owner -> group:string ->
     Procedural.Node.t -> Procedural.Node.t
 end
 
@@ -165,7 +165,7 @@ module Boolean_fracture : sig
   val create :
     ?label:string ->
     ?resolve_cutter_self_intersections:bool ->
-    ?detriangulation:Pdk.Boolean.detriangulation ->
+    ?detriangulation:Rdk.Boolean.detriangulation ->
     ?require_closed:bool ->
     ?piece_attribute:string ->
     cutters:Procedural.Node.t ->
@@ -175,15 +175,15 @@ end
 
 module Normal : sig
   val create :
-    ?label:string -> ?owner:Pdk.Attribute.owner ->
-    ?weighting:Pdk.Normal_ops.weighting -> ?cusp_angle:float ->
+    ?label:string -> ?owner:Rdk.Attribute.owner ->
+    ?weighting:Rdk.Normal_ops.weighting -> ?cusp_angle:float ->
     ?keep_original_zero:bool -> ?reverse:bool -> ?attribute:string ->
     Procedural.Node.t -> Procedural.Node.t
 end
 
 module Exploded_view : sig
   val create :
-    ?label:string -> ?amount:float -> ?scale:Prismel.Vec3.t ->
+    ?label:string -> ?amount:float -> ?scale:Rays.Vec3.t ->
     ?piece_attribute:string -> ?noise_amount:float ->
     ?noise_frequency:float -> ?noise_seed:int ->
     Procedural.Node.t -> Procedural.Node.t

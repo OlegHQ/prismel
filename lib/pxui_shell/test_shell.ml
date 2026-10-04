@@ -1,4 +1,4 @@
-open Prismel
+open Rays
 
 let frame : Frame.t = {
   width = 400; height = 300; size = 400, 300;
@@ -69,7 +69,7 @@ let () =
     (fun ui -> ignore (Pxui_shell.Chrome.update layout ui wide_frame);
       Pxui_shell.Chrome.splitters layout ui wide_frame)) in
   chrome [];
-  chrome [Prismel.Event.MouseMoved (float (divider_x - 2), 100.)];
+  chrome [Rays.Event.MouseMoved (float (divider_x - 2), 100.)];
   if Pxui.Ui.cursor hit_ui <> Some `Horizontal_resize then
     failwith "thin splitter lost its wider resize hit area";
   Pxui.Ui.destroy hit_ui;
@@ -229,7 +229,7 @@ let () =
       ~bounds:(0, 272, 400, 28) ~text:"Overlay" ~fps:None)));
   if Pxui.Ui.scene hidden = [] then
     failwith "hidden shell did not draw its pending overlay";
-  if Sys.getenv_opt "PRISMEL_BENCH_LAYOUT" = Some "1" then begin
+  if Sys.getenv_opt "RAYS_BENCH_LAYOUT" = Some "1" then begin
     let benchmark_frame = { frame with width = 1000; size = 1000, 300 } in
     let start_alloc = Gc.allocated_bytes () and start = Sys.time () in
     let width_sum = ref 0 in

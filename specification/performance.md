@@ -1,6 +1,6 @@
 # Performance and memory architecture
 
-Prismel is designed for live creative coding and high-density deterministic
+Rays is designed for live creative coding and high-density deterministic
 offline generation. Public APIs remain immutable; implementation hot paths may
 use locally owned mutation and packed storage without exposing mutable aliases.
 
@@ -30,7 +30,7 @@ zoom producing the same positions as card zoom. To inspect a finite native
 render of that fixture:
 
 ```sh
-PRISMEL_LAYOUT_PNG=/tmp/cube-cage-layout.png dune exec test/test_main.exe -- test_pxui_graph
+RAYS_LAYOUT_PNG=/tmp/cube-cage-layout.png dune exec test/test_main.exe -- test_pxui_graph
 ```
 
 The focused graph test includes a 2,001-node/2,000-wire fan-in graph, validates
@@ -92,7 +92,7 @@ establish an undo latency guarantee.
 
 M2's ACTIVE-camera bypass guard was measured immediately before and after
 the guard on the same machine/profile, with
-`dune exec tools/bench_prismel_editor.exe -- 2000` (200 held-pointer updates,
+`dune exec tools/bench_rays_editor.exe -- 2000` (200 held-pointer updates,
 UI on the initial domain; seven cook domains, the default on this machine).
 Median drag time was 0.164 → 0.162 ms and p95
 1.565 → 1.554 ms; allocation was 602,507 → 602,603 bytes/frame. This sample
@@ -114,7 +114,7 @@ The 2,001-node fan-in smoke allocated
 ```sh
 dune exec tools/bench_pxui_graph.exe
 dune exec tools/bench_pxui_graph.exe -- --points
-dune exec tools/bench_prismel_editor.exe -- 200 1000 2000
+dune exec tools/bench_rays_editor.exe -- 200 1000 2000
 ```
 
 M3's standalone value-lane benchmark now measures 200 scalar SOP rows on the
@@ -139,7 +139,7 @@ latency guarantee. After M3 host integration, the same command measured
 within run-to-run noise; the value lane itself did not change.
 
 The M3 editor frame comparison uses
-`dune exec tools/bench_prismel_editor.exe -- 2000` on the same machine,
+`dune exec tools/bench_rays_editor.exe -- 2000` on the same machine,
 profile and seven cook domains. The M2 guide checkpoint was 0.175 ms median,
 2.054 ms p95 and 635,543 B per held-pointer frame. Three M3 runs gave median
 times 0.314951, 0.214100 and 0.200033 ms, p95 times 2.651930, 2.565861
@@ -156,7 +156,7 @@ same machine/profile/domain, after 100 warm-up writes. Allocation fell from
 graph, versus none before. Single-run timings were 96.151 and 84.649 ns/write;
 they do not establish a timing improvement. The check is in
 `lib/procedural/test_edit_graph.ml`; the temporary measurement source is
-`/tmp/prismel-flow-unchanged-write-bench.ml`, with its temporary Dune stanza
+`/tmp/rays-flow-unchanged-write-bench.ml`, with its temporary Dune stanza
 removed after measurement.
 
 M3's named geometry slots were checked with the same 2,001-node/2,000-wire
@@ -235,11 +235,11 @@ is restricted to visible tiles.
   finite vertices, performs bounded edge queries, and splits faces iteratively
   in stable source order instead of rescanning every vertex and restarting the
   complete face list per split.
-- PDK reverse topology uses packed integer CSR/half-edge planes and a
+- RDK reverse topology uses packed integer CSR/half-edge planes and a
   specialized open-addressed integer edge table. The former weld path moved
-  into PDK Fuse, cutting the 200,000-point one-domain fixture from 64.5 ms and
+  into RDK Fuse, cutting the 200,000-point one-domain fixture from 64.5 ms and
   78.9 MB allocated to 50.2 ms and 48.2 MB with identical cardinality.
-- Filtered exact PDK orientation predicates expose packed SoA/index calls so
+- Filtered exact RDK orientation predicates expose packed SoA/index calls so
   the certified fast path does not box coordinates. Five million release-build
   `orient2d` and `orient3d` calls take 32.814 ms and 61.093 ms respectively,
   with 0 bytes allocated or promoted. Five million exact-feature
@@ -279,8 +279,8 @@ is restricted to visible tiles.
   Historical fast-path medians above used three repeats; the arena/reference
   comparison uses five repeats on OCaml 5.3.0, Dune 3.24.0 release profile,
   Linux 6.8 aarch64, four logical cores. Reproduce the current suite with
-  `PRISMEL_PREDICATE_BENCH_COUNT=1000000
-  PRISMEL_PREDICATE_BENCH_REPEATS=5 dune exec --profile release
+  `RAYS_PREDICATE_BENCH_COUNT=1000000
+  RAYS_PREDICATE_BENCH_REPEATS=5 dune exec --profile release
   tools/bench_predicates.exe`.
 - `tools/bench_boolean_pipeline.exe` measures the full pipeline by default.
   Pass `-- <stage>` to select a stage fixture; each stage keeps its own CSV
@@ -312,13 +312,13 @@ is restricted to visible tiles.
   bytes on one domain, and produces 40,000 points, 20,000 constraints, and
   exact hash `1728718391664390161`. No multicore speedup is claimed: stable
   serial implicit-point construction dominates after parallel exact
-  classification. Set `PRISMEL_BOOLEAN_SELF=1` to reproduce this mode.
+  classification. Set `RAYS_BOOLEAN_SELF=1` to reproduce this mode.
 
   ```sh
-  PRISMEL_BOOLEAN_PAIR_COUNT=50000 PRISMEL_BOOLEAN_REPEATS=3 \
-  PRISMEL_BOOLEAN_GRAIN=1024 PRISMEL_BENCH_DOMAINS=1 \
+  RAYS_BOOLEAN_PAIR_COUNT=50000 RAYS_BOOLEAN_REPEATS=3 \
+  RAYS_BOOLEAN_GRAIN=1024 RAYS_BENCH_DOMAINS=1 \
     dune exec --profile release tools/bench_boolean_pipeline.exe -- constraints
-  # Repeat with PRISMEL_BENCH_DOMAINS=4 for exact scheduling regression.
+  # Repeat with RAYS_BENCH_DOMAINS=4 for exact scheduling regression.
   ```
 - `tools/bench_boolean_pipeline.exe -- seam` isolates packed
   curve/coincident-facet materialization from an already prepared exact
@@ -355,10 +355,10 @@ is restricted to visible tiles.
   aarch64, and five repeats (the recorded 50,000-pair median uses five).
 
   ```sh
-  PRISMEL_BOOLEAN_PAIR_COUNT=50000 PRISMEL_BOOLEAN_REPEATS=5 \
-  PRISMEL_BOOLEAN_GRAIN=16384 PRISMEL_BENCH_DOMAINS=1 \
+  RAYS_BOOLEAN_PAIR_COUNT=50000 RAYS_BOOLEAN_REPEATS=5 \
+  RAYS_BOOLEAN_GRAIN=16384 RAYS_BENCH_DOMAINS=1 \
     dune exec --profile release tools/bench_boolean_pipeline.exe -- seam
-  # Repeat with PRISMEL_BENCH_DOMAINS=4 for exact scheduling regression.
+  # Repeat with RAYS_BENCH_DOMAINS=4 for exact scheduling regression.
   ```
 - `tools/bench_boolean_pipeline.exe -- arrangement` isolates the formerly
   quadratic work hidden by the ordinary one-cut-per-face refinement fixture.
@@ -373,7 +373,7 @@ is restricted to visible tiles.
   3,404,656/7,110,056 bytes. The exact hashes remain
   `3894907407311697473` and `2548620122607153265`.
 
-  `PRISMEL_BOOLEAN_ORACLE=1` runs the retained unculled traversal through the
+  `RAYS_BOOLEAN_ORACLE=1` runs the retained unculled traversal through the
   new exact canonicalizer. It takes 89.092/355.096 ms on the same fixtures, so
   the sweep itself is a measured 23.3x/44.2x faster than the in-tree oracle.
   Tests compare sweep and oracle point coordinates, IDs, segment arrays, and
@@ -407,12 +407,12 @@ is restricted to visible tiles.
   mutation inside one face stays local and serial. Reproduce with:
 
   ```sh
-  PRISMEL_BOOLEAN_SEGMENTS=10000 PRISMEL_BOOLEAN_REPEATS=3 \
-  PRISMEL_BENCH_DOMAINS=1 \
+  RAYS_BOOLEAN_SEGMENTS=10000 RAYS_BOOLEAN_REPEATS=3 \
+  RAYS_BENCH_DOMAINS=1 \
     dune exec --profile release tools/bench_boolean_pipeline.exe -- arrangement
-  # Add PRISMEL_BOOLEAN_ORACLE=1 for the exact compatibility oracle.
-  # Add PRISMEL_BOOLEAN_STABLE_BVH=1 to force the packed indexed path.
-  # Add PRISMEL_BOOLEAN_FIXTURE=multiway for coincident-event stress.
+  # Add RAYS_BOOLEAN_ORACLE=1 for the exact compatibility oracle.
+  # Add RAYS_BOOLEAN_STABLE_BVH=1 to force the packed indexed path.
+  # Add RAYS_BOOLEAN_FIXTURE=multiway for coincident-event stress.
   ```
 - `tools/bench_boolean_pipeline.exe -- cdt` isolates point insertion,
   constraint recovery, and exact Delaunay repair on one face with many
@@ -447,8 +447,8 @@ is restricted to visible tiles.
   oracle rather than silently losing a constraint.
 
   ```sh
-  PRISMEL_BOOLEAN_SEGMENTS=500 PRISMEL_BOOLEAN_REPEATS=5 \
-  PRISMEL_BENCH_DOMAINS=1 \
+  RAYS_BOOLEAN_SEGMENTS=500 RAYS_BOOLEAN_REPEATS=5 \
+  RAYS_BENCH_DOMAINS=1 \
     dune exec --profile release tools/bench_boolean_pipeline.exe -- cdt
   ```
 - Batch exact face arrangement/CDT is measured separately after the global
@@ -462,10 +462,10 @@ is restricted to visible tiles.
   not a production-readiness claim.
 
   ```sh
-  PRISMEL_BOOLEAN_PAIR_COUNT=10000 PRISMEL_BOOLEAN_REPEATS=3 \
-  PRISMEL_BOOLEAN_GRAIN=64 PRISMEL_BENCH_DOMAINS=1 \
+  RAYS_BOOLEAN_PAIR_COUNT=10000 RAYS_BOOLEAN_REPEATS=3 \
+  RAYS_BOOLEAN_GRAIN=64 RAYS_BENCH_DOMAINS=1 \
     dune exec --profile release tools/bench_boolean_pipeline.exe -- refinement
-  # Repeat with PRISMEL_BENCH_DOMAINS=4.
+  # Repeat with RAYS_BENCH_DOMAINS=4.
   ```
 - Exact coplanar overlap is measured on 50,000 spatially independent triangle
   pairs whose intersection is a six-edge polygon (300,000 constructed output
@@ -481,10 +481,10 @@ is restricted to visible tiles.
   `current_domain_allocated_bytes` excludes worker-domain minor allocation.
 
   ```sh
-  PRISMEL_BOOLEAN_PAIR_COUNT=50000 PRISMEL_BOOLEAN_REPEATS=3 \
-  PRISMEL_BOOLEAN_GRAIN=256 PRISMEL_BENCH_DOMAINS=1 \
+  RAYS_BOOLEAN_PAIR_COUNT=50000 RAYS_BOOLEAN_REPEATS=3 \
+  RAYS_BOOLEAN_GRAIN=256 RAYS_BENCH_DOMAINS=1 \
     dune exec --profile release tools/bench_boolean_pipeline.exe -- coplanar
-  # Repeat with PRISMEL_BENCH_DOMAINS=4; do not run the timings concurrently.
+  # Repeat with RAYS_BENCH_DOMAINS=4; do not run the timings concurrently.
   ```
 - Complex/radial assembly is measured on 10,000 independent transverse
   triangle pairs (80,000 exact vertices, 70,000 merged facets, 140,000 edges).
@@ -495,8 +495,8 @@ is restricted to visible tiles.
   predicates are now paid only by genuine three-or-more-chart bundles.
 
   ```sh
-  PRISMEL_BOOLEAN_PAIR_COUNT=10000 PRISMEL_BOOLEAN_REPEATS=3 \
-  PRISMEL_BOOLEAN_GRAIN=64 PRISMEL_BENCH_DOMAINS=1 \
+  RAYS_BOOLEAN_PAIR_COUNT=10000 RAYS_BOOLEAN_REPEATS=3 \
+  RAYS_BOOLEAN_GRAIN=64 RAYS_BENCH_DOMAINS=1 \
     dune exec --profile release tools/bench_boolean_pipeline.exe -- complex
   ```
 - The complete private Boolean pipeline is measured on 10,000 pairs of
@@ -524,11 +524,11 @@ is restricted to visible tiles.
   case remains linear in all overlapping component boxes plus their triangles.
 
   ```sh
-  PRISMEL_BOOLEAN_PAIR_COUNT=10000 PRISMEL_BOOLEAN_REPEATS=3 \
-  PRISMEL_BOOLEAN_GRAIN=256 PRISMEL_BENCH_DOMAINS=1 \
+  RAYS_BOOLEAN_PAIR_COUNT=10000 RAYS_BOOLEAN_REPEATS=3 \
+  RAYS_BOOLEAN_GRAIN=256 RAYS_BENCH_DOMAINS=1 \
     dune exec --profile release tools/bench_boolean_pipeline.exe
-  # Repeat with PRISMEL_BENCH_DOMAINS=4; the exact hash must match.
-  # Set PRISMEL_BOOLEAN_COMPONENT_INDEX=0 for the private exhaustive oracle.
+  # Repeat with RAYS_BENCH_DOMAINS=4; the exact hash must match.
+  # Set RAYS_BOOLEAN_COMPONENT_INDEX=0 for the private exhaustive oracle.
   ```
 - The mandatory post-rounding point-collision and triangle-degeneracy gate was
   measured again on the 1,000-pair disjoint fixture. Its packed hash/dominant-
@@ -543,7 +543,7 @@ is restricted to visible tiles.
   on. The constraint phase is 4.593 versus 11.390 ms and allocates 2,817,416
   versus 4,808,552 current-domain bytes; every downstream cardinality and final
   hash remains exactly `3722707883293083377`. Use
-  `PRISMEL_BOOLEAN_SELF=1` with `tools/bench_boolean_pipeline.exe` to measure
+  `RAYS_BOOLEAN_SELF=1` with `tools/bench_boolean_pipeline.exe` to measure
   the resolved policy.
 - `tools/bench_boolean_pipeline.exe -- materialization` isolates exact
   seam-facet candidate marking, strict independent contraction planning, and
@@ -569,13 +569,13 @@ is restricted to visible tiles.
   every triangle AABB overlaps.
 
   ```sh
-  PRISMEL_BOOLEAN_PAIR_COUNT=20 PRISMEL_BOOLEAN_REPEATS=3 \
-  PRISMEL_BENCH_DOMAINS=1 \
+  RAYS_BOOLEAN_PAIR_COUNT=20 RAYS_BOOLEAN_REPEATS=3 \
+  RAYS_BENCH_DOMAINS=1 \
     dune exec --profile release tools/bench_boolean_pipeline.exe -- materialization
-  PRISMEL_BOOLEAN_PAIR_COUNT=1 PRISMEL_BOOLEAN_REPEATS=5 \
-  PRISMEL_BOOLEAN_COLLAPSE=1 PRISMEL_BENCH_DOMAINS=1 \
+  RAYS_BOOLEAN_PAIR_COUNT=1 RAYS_BOOLEAN_REPEATS=5 \
+  RAYS_BOOLEAN_COLLAPSE=1 RAYS_BENCH_DOMAINS=1 \
     dune exec --profile release tools/bench_boolean_pipeline.exe -- materialization
-  # Repeat both with PRISMEL_BENCH_DOMAINS=4; hashes must match.
+  # Repeat both with RAYS_BENCH_DOMAINS=4; hashes must match.
   ```
 - Full Boolean payload transfer is isolated by
   `tools/bench_boolean_pipeline.exe -- payload`. The 10,000-disjoint-pair
@@ -620,13 +620,13 @@ is restricted to visible tiles.
   count/prefix/fill parallel refactor remains a measured optimization target.
 
   ```sh
-  PRISMEL_BOOLEAN_PAIR_COUNT=10000 PRISMEL_BOOLEAN_REPEATS=3 \
-  PRISMEL_BOOLEAN_GRAIN=256 PRISMEL_BENCH_DOMAINS=1 \
+  RAYS_BOOLEAN_PAIR_COUNT=10000 RAYS_BOOLEAN_REPEATS=3 \
+  RAYS_BOOLEAN_GRAIN=256 RAYS_BENCH_DOMAINS=1 \
     dune exec --profile release tools/bench_boolean_pipeline.exe -- payload
-  # Repeat with PRISMEL_BENCH_DOMAINS=4; the exact hash must match. Set
-  # PRISMEL_BOOLEAN_EDGE_GROUPS=0 to isolate the no-native-edge schema.
+  # Repeat with RAYS_BENCH_DOMAINS=4; the exact hash must match. Set
+  # RAYS_BOOLEAN_EDGE_GROUPS=0 to isolate the no-native-edge schema.
   ```
-- The promoted `Pdk.Boolean.run` product boundary is measured end to end by
+- The promoted `Rdk.Boolean.run` product boundary is measured end to end by
   `tools/bench_boolean_pipeline.exe -- product`: exact arrangement,
   difference extraction, complete payload/schema transfer, seam construction,
   zero-threshold rounded
@@ -642,11 +642,11 @@ is restricted to visible tiles.
   this deliberately small publication-path fixture.
 
   ```sh
-  PRISMEL_BOOLEAN_PAIR_COUNT=10 PRISMEL_BOOLEAN_REPEATS=9 \
-  PRISMEL_BOOLEAN_GRAIN=32 PRISMEL_BENCH_DOMAINS=1 \
+  RAYS_BOOLEAN_PAIR_COUNT=10 RAYS_BOOLEAN_REPEATS=9 \
+  RAYS_BOOLEAN_GRAIN=32 RAYS_BENCH_DOMAINS=1 \
     opam exec --switch=. -- dune exec --profile release \
       tools/bench_boolean_pipeline.exe -- product
-  # Repeat with PRISMEL_BENCH_DOMAINS=4; hashes must match.
+  # Repeat with RAYS_BENCH_DOMAINS=4; hashes must match.
   ```
 - The Boolean stability runner's standard-density campaign additionally covers
   mandatory binary64 representability repair on an explicitly self-resolved
@@ -680,9 +680,9 @@ is restricted to visible tiles.
   is 45.029/40.902 ms and 65.532/65.618 MB with the same exact hash
   `1998394940270991636`. Measurements use OCaml 5.3.0, Dune 3.24.0, grain
   16,384, Linux 6.8 aarch64, and four physical cores. Reproduce with
-  `PRISMEL_PDK_OPS_FILTER=fuse_target_closest_snap
-  PRISMEL_PDK_OPS_REPEATS=3 PRISMEL_BENCH_DOMAINS=1 dune exec
-  tools/bench_pdk_ops.exe`, then repeat with four domains.
+  `RAYS_RDK_OPS_FILTER=fuse_target_closest_snap
+  RAYS_RDK_OPS_REPEATS=3 RAYS_BENCH_DOMAINS=1 dune exec
+  tools/bench_rdk_ops.exe`, then repeat with four domains.
 - Same-input Modify Target converts its packed target links into stable
   minimum-root components, then fills exact position, payload, and topology
   ranges. On 401,802 total points, closest-link fusion with a weighted-average
@@ -696,9 +696,9 @@ is restricted to visible tiles.
   construction, Dune, hashing, and the OCaml heap. Measurements use OCaml
   5.3.0, Dune 3.24.0's dev profile, grain 16,384, Linux 6.8 aarch64, and four
   physical cores.
-  Reproduce using `PRISMEL_PDK_OPS_FILTER=fuse_modify_target_weighted_pair` or
-  `PRISMEL_PDK_OPS_FILTER=fuse_cleanup_grid_pairs`, three repeats, and one then
-  four `PRISMEL_BENCH_DOMAINS`.
+  Reproduce using `RAYS_RDK_OPS_FILTER=fuse_modify_target_weighted_pair` or
+  `RAYS_RDK_OPS_FILTER=fuse_cleanup_grid_pairs`, three repeats, and one then
+  four `RAYS_BENCH_DOMAINS`.
 - Fuse point-attribute and group rules retain stable cluster membership and
   ordered output while reducing independent packed planes in parallel. On a
   401,802-point fixed-target fixture that copies float payload, converts scalar
@@ -714,9 +714,9 @@ is restricted to visible tiles.
   retained concatenated text output, rather than per-candidate list or option
   garbage. Measurements use the Dune dev profile, OCaml 5.3.0, Dune 3.24.0,
   grain 16,384, Linux 6.8 aarch64, and four physical cores. Reproduce with
-  `PRISMEL_PDK_OPS_FILTER=fuse_target_attribute_rules` or
-  `PRISMEL_PDK_OPS_FILTER=fuse_modify_target_attribute_rules`, three repeats,
-  and one then four `PRISMEL_BENCH_DOMAINS`.
+  `RAYS_RDK_OPS_FILTER=fuse_target_attribute_rules` or
+  `RAYS_RDK_OPS_FILTER=fuse_modify_target_attribute_rules`, three repeats,
+  and one then four `RAYS_BENCH_DOMAINS`.
 - Ray multi-sampling traverses the shared packed collision BVH with one
   O(samples) result/order scratch set per worker range. It never retains a
   points-by-samples hit matrix: average attribute import performs a second
@@ -737,9 +737,9 @@ is restricted to visible tiles.
   its exact hash remains `2862479342738221337`. Measurements use OCaml 5.3.0,
   Dune 3.24.0's release profile, grain 16,384, Linux 6.8 aarch64, and four
   physical cores. Reproduce with
-  `PRISMEL_PDK_OPS_FILTER=ray_multisample_position` or
-  `PRISMEL_PDK_OPS_FILTER=ray_multisample_provenance`, three repeats, and one
-  then four `PRISMEL_BENCH_DOMAINS`.
+  `RAYS_RDK_OPS_FILTER=ray_multisample_position` or
+  `RAYS_RDK_OPS_FILTER=ray_multisample_provenance`, three repeats, and one
+  then four `RAYS_BENCH_DOMAINS`.
 - Point/primitive Attribute Transfer builds one deterministic
   median-partitioned packed spatial index, performs allocation-free bulk
   k-nearest queries, and reuses the source IDs/distances for every payload
@@ -777,9 +777,9 @@ is restricted to visible tiles.
   614,936/614,844 KiB RSS; this includes the common million-destination source,
   targets, computed-weight fixture, correctness prechecks, Dune, and OCaml
   heap, not only the measured array output. Reproduce with
-  `PRISMEL_PDK_OPS_FILTER=attribute_interpolate
-  PRISMEL_PDK_OPS_REPEATS=5 PRISMEL_BENCH_DOMAINS=1 dune exec --profile
-  release tools/bench_pdk_ops.exe`, then repeat with four domains.
+  `RAYS_RDK_OPS_FILTER=attribute_interpolate
+  RAYS_RDK_OPS_REPEATS=5 RAYS_BENCH_DOMAINS=1 dune exec --profile
+  release tools/bench_rdk_ops.exe`, then repeat with four domains.
 - Closest-surface Attribute Transfer builds one deterministic packed polygon
   AABB hierarchy and reuses primitive/triangle IDs, barycentric coordinates,
   and squared distances for every typed payload plane. Deterministic ear
@@ -798,8 +798,8 @@ is restricted to visible tiles.
   attribute order. The 1,024-name fixture performs 1,024,000 full-name matches
   in 80.922 ms, allocates 200 bytes in total, promotes no words, and produces
   cardinality 896,000 with hash `1915910070998661393`. Reproduce with
-  `PRISMEL_PDK_OPS_FILTER=attribute_pattern PRISMEL_PDK_OPS_REPEATS=5
-  PRISMEL_BENCH_DOMAINS=1 dune exec tools/bench_pdk_ops.exe`.
+  `RAYS_RDK_OPS_FILTER=attribute_pattern RAYS_RDK_OPS_REPEATS=5
+  RAYS_BENCH_DOMAINS=1 dune exec tools/bench_rdk_ops.exe`.
 - Batch Attribute Delete/Rename compiles patterns before mutation, scans stable
   metadata through owner-local name tables, and commits one attribute array
   while sharing packed payloads. On 4,096 attributes with 2,048 matches, seven
@@ -815,9 +815,9 @@ is restricted to visible tiles.
   would regress latency. The isolated seven-repeat four-domain process peaked
   at 51,772 KiB RSS including Dune, the runtime, fixtures, and output hashing.
   Reproduce with
-  `PRISMEL_PDK_OPS_FILTER=attribute_lifecycle PRISMEL_PDK_ATTRIBUTES=4096
-  PRISMEL_PDK_OPS_REPEATS=7 PRISMEL_BENCH_DOMAINS=1 dune exec --profile release
-  tools/bench_pdk_ops.exe`, then use the `attribute_lifecycle_batch` filter and
+  `RAYS_RDK_OPS_FILTER=attribute_lifecycle RAYS_RDK_ATTRIBUTES=4096
+  RAYS_RDK_OPS_REPEATS=7 RAYS_BENCH_DOMAINS=1 dune exec --profile release
+  tools/bench_rdk_ops.exe`, then use the `attribute_lifecycle_batch` filter and
   four domains.
 - Attribute Swap extends the same atomic metadata store with geometric-growth
   entries and one final commit. On 10,000 attributes, 5,000 wildcard Copy
@@ -829,10 +829,10 @@ is restricted to visible tiles.
   allocation is 2.374 MB and major allocation 2.120 MB on the one-domain batch
   run. Metadata work remains sequential because four-domain dispatch cannot
   expose independent payload ranges and measured slightly slower. Reproduce
-  with `PRISMEL_PDK_OPS_FILTER=attribute_lifecycle
-  PRISMEL_PDK_ATTRIBUTES=10000 PRISMEL_PDK_OPS_REPEATS=5
-  PRISMEL_BENCH_DOMAINS=1 dune exec --profile release
-  tools/bench_pdk_ops.exe`, then repeat with four domains.
+  with `RAYS_RDK_OPS_FILTER=attribute_lifecycle
+  RAYS_RDK_ATTRIBUTES=10000 RAYS_RDK_OPS_REPEATS=5
+  RAYS_BENCH_DOMAINS=1 dune exec --profile release
+  tools/bench_rdk_ops.exe`, then repeat with four domains.
 - Connected Poly Extrude precomputes stable region/point associations and exact
   output cardinalities, then fills packed layer, topology, attribute, and group
   ranges directly. A first correct general path unconditionally built the full
@@ -849,9 +849,9 @@ is restricted to visible tiles.
   `4170512633490323959`. The isolated three-repeat four-domain boundary process
   peaks at 87,464 KiB RSS. The serial stable component/association phase limits
   domain scaling on this small fixture; parallel output remains byte-identical.
-  Reproduce with `PRISMEL_PDK_OPS_FILTER=poly_extrude
-  PRISMEL_PDK_OPS_REPEATS=7 PRISMEL_BENCH_DOMAINS=1 dune exec --profile release
-  tools/bench_pdk_ops.exe`, then repeat with four domains.
+  Reproduce with `RAYS_RDK_OPS_FILTER=poly_extrude
+  RAYS_RDK_OPS_REPEATS=7 RAYS_BENCH_DOMAINS=1 dune exec --profile release
+  tools/bench_rdk_ops.exe`, then repeat with four domains.
 - Poly Fill plans complete one-sided polygon boundary components once, derives
   every point/corner/primitive cardinality before allocation, and fills stable
   loop ranges directly. The measured fixture contains 100,000 disconnected
@@ -882,10 +882,10 @@ is restricted to visible tiles.
   stable component union and numbering limit scaling, while loop analysis,
   triangulation, topology/payload fills, and interpolation use disjoint domain
   ranges. The isolated five-repeat four-domain process peaked at 585,196 KiB
-  RSS. Reproduce with `PRISMEL_PDK_OPS_FILTER=poly_fill
-  PRISMEL_PDK_POLY_FILL_BOXES=100000 PRISMEL_PDK_OPS_REPEATS=5
-  PRISMEL_BENCH_DOMAINS=1 dune exec --profile release
-  tools/bench_pdk_ops.exe`, then repeat with four domains.
+  RSS. Reproduce with `RAYS_RDK_OPS_FILTER=poly_fill
+  RAYS_RDK_POLY_FILL_BOXES=100000 RAYS_RDK_OPS_REPEATS=5
+  RAYS_BENCH_DOMAINS=1 dune exec --profile release
+  tools/bench_rdk_ops.exe`, then repeat with four domains.
 - Clean's degeneracy classifier uses a packed triangle fast path and a robust
   normalized fallback only when finite cross arithmetic overflows. On the
   610,000-point/200,000-triangle fixture with 25,000 zero-area faces, seven
@@ -905,8 +905,8 @@ is restricted to visible tiles.
   deletion plan limit scaling; signature preparation and payload fills remain
   parallel. The isolated three-repeat four-domain process peaks at 108,672 KiB
   RSS including source and result. Reproduce both paths with
-  `PRISMEL_PDK_OPS_FILTER=clean PRISMEL_PDK_OPS_REPEATS=7
-  PRISMEL_BENCH_DOMAINS=1 dune exec --profile release tools/bench_pdk_ops.exe`,
+  `RAYS_RDK_OPS_FILTER=clean RAYS_RDK_OPS_REPEATS=7
+  RAYS_BENCH_DOMAINS=1 dune exec --profile release tools/bench_rdk_ops.exe`,
   then repeat with four domains or filter `clean_overlaps`.
 - Enumerate computes selected counts independently per stable chunk, scans the
   small chunk-count plane in order, then fills disjoint attribute ranges. The
@@ -927,9 +927,9 @@ is restricted to visible tiles.
   Removing the redundant global-selection count pass improved the correct
   integer path from 20.790/17.535 ms. An isolated four-domain integer run peaks
   at 69,760 KiB RSS, including Dune, source, output, and hashing. Reproduce with
-  `PRISMEL_PDK_OPS_FILTER=enumerate_piece PRISMEL_PDK_OPS_REPEATS=5
-  PRISMEL_BENCH_DOMAINS=1 dune exec --profile release
-  tools/bench_pdk_ops.exe`, then repeat with four domains.
+  `RAYS_RDK_OPS_FILTER=enumerate_piece RAYS_RDK_OPS_REPEATS=5
+  RAYS_BENCH_DOMAINS=1 dune exec --profile release
+  tools/bench_rdk_ops.exe`, then repeat with four domains.
 - Point Velocity was measured on 1,002,001 points under OCaml 5.3.0 release on
   a four-core aarch64 Linux host. Removing tuple-return sampling and boxed
   vector helpers from the measured loop reduced the packed deformation path
@@ -947,9 +947,9 @@ is restricted to visible tiles.
   0.011/0.013 ms with about 3 KB metadata allocation. One isolated full
   four-domain repeat peaked at 135,552 KiB RSS, including both source snapshots,
   reference/ID cases, result hashing, Dune, and the OCaml heap. Reproduce with
-  `PRISMEL_PDK_OPS_FILTER=motion PRISMEL_PDK_OPS_REPEATS=5
-  PRISMEL_BENCH_DOMAINS=1 dune exec --profile release
-  tools/bench_pdk_ops.exe`, repeat with four domains, and use `/usr/bin/time -v`
+  `RAYS_RDK_OPS_FILTER=motion RAYS_RDK_OPS_REPEATS=5
+  RAYS_BENCH_DOMAINS=1 dune exec --profile release
+  tools/bench_rdk_ops.exe`, repeat with four domains, and use `/usr/bin/time -v`
   with one repeat for peak RSS.
 - Dissolve was measured on a 1,000 by 1,000 quad grid (1,002,001 points,
   4,000,000 corners, and 1,000,000 primitives) under OCaml 5.3.0 release on the
@@ -968,9 +968,9 @@ is restricted to visible tiles.
   118.855 to 97.706 ms and 118.334 to 95.655 ms. The optimized isolated run
   peaked at 597,276 KiB RSS including Dune, the million-quad source, reverse
   topology, both output cases, and hashing. Reproduce with
-  `PRISMEL_PDK_OPS_FILTER=dissolve PRISMEL_PDK_OPS_REPEATS=5
-  PRISMEL_BENCH_DOMAINS=1 dune exec --profile release
-  tools/bench_pdk_ops.exe`, repeat with four domains, and use `/usr/bin/time -v`
+  `RAYS_RDK_OPS_FILTER=dissolve RAYS_RDK_OPS_REPEATS=5
+  RAYS_BENCH_DOMAINS=1 dune exec --profile release
+  tools/bench_rdk_ops.exe`, repeat with four domains, and use `/usr/bin/time -v`
   with one repeat for peak RSS.
 - Sort builds one stable new-to-old permutation and materializes remapped
   packed output once. Point order applies an inverse map to every corner while
@@ -996,9 +996,9 @@ is restricted to visible tiles.
   correct version. The selected path
   stores three target-to-source ancestry planes and avoids a second compact or
   merged output geometry. Both hashes are exact across domain counts.
-  Reproduce with `PRISMEL_PDK_OPS_FILTER=duplicate_grid_8` or
-  `PRISMEL_PDK_OPS_FILTER=duplicate_selected_grid_8`,
-  `PRISMEL_PDK_OPS_REPEATS=9`, and `PRISMEL_BENCH_DOMAINS={1,4}` under the
+  Reproduce with `RAYS_RDK_OPS_FILTER=duplicate_grid_8` or
+  `RAYS_RDK_OPS_FILTER=duplicate_selected_grid_8`,
+  `RAYS_RDK_OPS_REPEATS=9`, and `RAYS_BENCH_DOMAINS={1,4}` under the
   release profile.
 - UV Project partitions primitives into stable ranges so every corner is owned
   by exactly one worker; UV Transform partitions its point/vertex owner plane.
@@ -1035,12 +1035,12 @@ is restricted to visible tiles.
   native edge group takes 65.4 ms/18.40 MB and 20.7 ms/18.40 MB respectively,
   with exact hashes. The previous generic target-index remap took 164.1 ms and
   allocated 183.61 MB on one domain. Reproduce with
-  `PRISMEL_PDK_OPS_FILTER=edge_group_ PRISMEL_PDK_OPS_REPEATS=5
-  PRISMEL_BENCH_DOMAINS=1 dune exec tools/bench_pdk_ops.exe` for cold/warm edge
+  `RAYS_RDK_OPS_FILTER=edge_group_ RAYS_RDK_OPS_REPEATS=5
+  RAYS_BENCH_DOMAINS=1 dune exec tools/bench_rdk_ops.exe` for cold/warm edge
   paths, and with
-  `PRISMEL_PDK_OPS_FILTER=uv_ PRISMEL_PDK_OPS_COLUMNS=200
-  PRISMEL_PDK_OPS_ROWS=200 PRISMEL_PDK_OPS_REPEATS=5
-  PRISMEL_BENCH_DOMAINS=1 dune exec tools/bench_pdk_ops.exe` and repeat with
+  `RAYS_RDK_OPS_FILTER=uv_ RAYS_RDK_OPS_COLUMNS=200
+  RAYS_RDK_OPS_ROWS=200 RAYS_RDK_OPS_REPEATS=5
+  RAYS_BENCH_DOMAINS=1 dune exec tools/bench_rdk_ops.exe` and repeat with
   four domains. Measurements used the Dune dev profile, OCaml 5.3.0,
   Linux/aarch64, and four single-thread cores.
 
@@ -1059,9 +1059,9 @@ is restricted to visible tiles.
   25.4/24.6 ms and 65.62/65.65 MB; its reverse-topology/chart assembly
   dominates because no solver iteration is needed. The three-repeat
   four-domain benchmark process peaks at 236.8 MiB RSS. Reproduce with
-  `PRISMEL_PDK_OPS_FILTER=uv_flatten PRISMEL_PDK_UV_ITERATIONS=400
-  PRISMEL_PDK_OPS_REPEATS=3 PRISMEL_BENCH_DOMAINS=4
-  dune exec tools/bench_pdk_ops.exe`, and replace the filter with `uv_relax`
+  `RAYS_RDK_OPS_FILTER=uv_flatten RAYS_RDK_UV_ITERATIONS=400
+  RAYS_RDK_OPS_REPEATS=3 RAYS_BENCH_DOMAINS=4
+  dune exec tools/bench_rdk_ops.exe`, and replace the filter with `uv_relax`
   for the boundary-preserving path.
 - Group Promote and fixed-step Group Expand classify disjoint output-byte
   ranges against the same cached reverse topology. The measured 500x500
@@ -1100,10 +1100,10 @@ is restricted to visible tiles.
   geometry and group membership and are exact. The isolated processes peaked
   at about 230,400 KiB RSS including source geometry, shared reverse topology,
   benchmark hashing, Dune, and the OCaml heap. Reproduce with
-  `PRISMEL_PDK_OPS_COLUMNS=500 PRISMEL_PDK_OPS_ROWS=500
-  PRISMEL_PDK_OPS_FILTER=group_promote PRISMEL_PDK_OPS_REPEATS=5
-  PRISMEL_BENCH_DOMAINS=1 dune exec --profile release
-  tools/bench_pdk_ops.exe`, then repeat with four domains and the
+  `RAYS_RDK_OPS_COLUMNS=500 RAYS_RDK_OPS_ROWS=500
+  RAYS_RDK_OPS_FILTER=group_promote RAYS_RDK_OPS_REPEATS=5
+  RAYS_BENCH_DOMAINS=1 dune exec --profile release
+  tools/bench_rdk_ops.exe`, then repeat with four domains and the
   `group_expand` filter.
 
   Constrained Group Expand has a separate dense regression because it includes
@@ -1128,10 +1128,10 @@ is restricted to visible tiles.
   selected attribute payload) for constraint compilation and flood traversal;
   scratch is three owner-sized float planes, packed seam/selection bits, and a
   stable owner-sized queue. Reproduce with
-  `PRISMEL_PDK_OPS_COLUMNS=500 PRISMEL_PDK_OPS_ROWS=300
-  PRISMEL_PDK_OPS_REPEATS=7 PRISMEL_BENCH_DOMAINS=1
-  PRISMEL_PDK_OPS_FILTER=group_expand opam exec --switch=. -- dune exec
-  --profile release tools/bench_pdk_ops.exe`, then repeat with four domains.
+  `RAYS_RDK_OPS_COLUMNS=500 RAYS_RDK_OPS_ROWS=300
+  RAYS_RDK_OPS_REPEATS=7 RAYS_BENCH_DOMAINS=1
+  RAYS_RDK_OPS_FILTER=group_expand opam exec --switch=. -- dune exec
+  --profile release tools/bench_rdk_ops.exe`, then repeat with four domains.
 - Ordered wildcard Group Promotions preserve rule dependencies serially while
   running each matched conversion over disjoint packed ranges. On a
   1,002,001-point/two-million-triangle grid, one rule promoting eight named
@@ -1142,9 +1142,9 @@ is restricted to visible tiles.
   bitsets; neither run promoted OCaml heap data. Isolated processes peaked at
   938,344/938,244 KiB RSS, dominated by the common million-point catalog
   fixture and cached topology. Reproduce with
-  `PRISMEL_PDK_OPS_FILTER=group_promotions_points_to_primitives_wildcard_8
-  PRISMEL_PDK_OPS_REPEATS=5 PRISMEL_BENCH_DOMAINS=1 dune exec --profile release
-  tools/bench_pdk_ops.exe`, then repeat with four domains.
+  `RAYS_RDK_OPS_FILTER=group_promotions_points_to_primitives_wildcard_8
+  RAYS_RDK_OPS_REPEATS=5 RAYS_BENCH_DOMAINS=1 dune exec --profile release
+  tools/bench_rdk_ops.exe`, then repeat with four domains.
 - Group Promote Boundary composes ordinary conversion with the same packed
   attribute-boundary classifier. Its first correct implementation materialized
   a temporary integer membership attribute, allocating 16.76--17.30 MB on the
@@ -1163,9 +1163,9 @@ is restricted to visible tiles.
   conversion, and packed intersection are disjoint parallel ranges. The
   isolated four-domain edge process peaked at 941,256 KiB, dominated by the
   common catalog fixture and cached topology. Reproduce with
-  `PRISMEL_PDK_OPS_FILTER=group_promote_boundary
-  PRISMEL_PDK_OPS_REPEATS=5 PRISMEL_BENCH_DOMAINS=1 dune exec --profile release
-  tools/bench_pdk_ops.exe`, then repeat with four domains.
+  `RAYS_RDK_OPS_FILTER=group_promote_boundary
+  RAYS_RDK_OPS_REPEATS=5 RAYS_BENCH_DOMAINS=1 dune exec --profile release
+  tools/bench_rdk_ops.exe`, then repeat with four domains.
 - Group from Attribute Boundary uses the shared reverse-topology index and one
   packed output edge plane. Selected numeric attribute planes are validated in
   parallel before classification; edge bytes, point bytes, and primitive bytes
@@ -1183,11 +1183,11 @@ is restricted to visible tiles.
   source geometry, cached reverse topology, Dune, and the OCaml heap.
 
   ```sh
-  PRISMEL_PDK_OPS_COLUMNS=500 PRISMEL_PDK_OPS_ROWS=500 \
-  PRISMEL_PDK_OPS_FILTER=group_attribute_boundary \
-  PRISMEL_PDK_OPS_REPEATS=5 PRISMEL_BENCH_DOMAINS=1 \
-  dune exec --profile release tools/bench_pdk_ops.exe
-  # Repeat with PRISMEL_BENCH_DOMAINS=4.
+  RAYS_RDK_OPS_COLUMNS=500 RAYS_RDK_OPS_ROWS=500 \
+  RAYS_RDK_OPS_FILTER=group_attribute_boundary \
+  RAYS_RDK_OPS_REPEATS=5 RAYS_BENCH_DOMAINS=1 \
+  dune exec --profile release tools/bench_rdk_ops.exe
+  # Repeat with RAYS_BENCH_DOMAINS=4.
   ```
 - Named Group Range/Combine/Invert/Copy use the same 500x500 release fixture
   and warmed topology conditions. Range and Copy fills use stable disjoint
@@ -1217,10 +1217,10 @@ is restricted to visible tiles.
   234,624 KiB RSS, including the 2.25-million-component source/target grids,
   benchmark hashing, Dune, and the OCaml heap.
 
-  Reproduce the tranche with `PRISMEL_PDK_OPS_COLUMNS=500
-  PRISMEL_PDK_OPS_ROWS=500 PRISMEL_PDK_OPS_FILTER=group_
-  PRISMEL_PDK_OPS_REPEATS=5 PRISMEL_BENCH_DOMAINS=1 dune exec --profile release
-  tools/bench_pdk_ops.exe`, then repeat with four domains. Use the exact
+  Reproduce the tranche with `RAYS_RDK_OPS_COLUMNS=500
+  RAYS_RDK_OPS_ROWS=500 RAYS_RDK_OPS_FILTER=group_
+  RAYS_RDK_OPS_REPEATS=5 RAYS_BENCH_DOMAINS=1 dune exec --profile release
+  tools/bench_rdk_ops.exe`, then repeat with four domains. Use the exact
   `group_copy_points_attribute` filter with `/usr/bin/time -v` for isolated
   resident-memory measurement.
 - Packed procedural instances retain one SOP prototype plus exactly 16 floats
@@ -1230,7 +1230,7 @@ is restricted to visible tiles.
   materialization took 54.8–56.1 ms, allocated 61.6 MB, and retained 26.4 MB;
   batched traversal took 15.9–16.3 ms, allocated 46.4 MB, and retained no
   traversal payload, with the identical ordered checksum. Reproduce with
-  `PRISMEL_INSTANCE_BENCH_COUNT=100000 dune exec tools/bench_instances.exe`.
+  `RAYS_INSTANCE_BENCH_COUNT=100000 dune exec tools/bench_instances.exe`.
   Measurements used the Dune dev profile, OCaml 5.3.0, Linux/aarch64, four
   single-thread cores; this traversal is sequential and does not invoke SDL.
 - Orphan-point compaction scans topology once, builds stable old/new point
@@ -1261,9 +1261,9 @@ is restricted to visible tiles.
   hash `2971098336695328274`; the initial correct sequential preparation was
   85.28/55.18 ms, so pooled preparation improves the multi-domain path without
   changing output. Reproduce the standard path with
-  `PRISMEL_PDK_OPS_FILTER=copy_to_points PRISMEL_PDK_OPS_REPEATS=5
-  PRISMEL_BENCH_DOMAINS={1,4} dune exec --profile release
-  tools/bench_pdk_ops.exe`, replacing the filter with
+  `RAYS_RDK_OPS_FILTER=copy_to_points RAYS_RDK_OPS_REPEATS=5
+  RAYS_BENCH_DOMAINS={1,4} dune exec --profile release
+  tools/bench_rdk_ops.exe`, replacing the filter with
   `copy_to_points_transform` for the matrix fixture. Source primitive
   restriction reuses the audited stable deletion/compaction planner once per
   cook; target point restriction remaps selected point facts once, then the
@@ -1304,10 +1304,10 @@ is restricted to visible tiles.
   four-piece case and about 7.1/7.0 MB for the many-piece case. These are Dune
   release-profile OCaml 5.3.0 measurements on Linux/aarch64 with four logical
   CPUs, grain 16,384, and five repetitions. Reproduce with
-  `PRISMEL_PDK_OPS_COLUMNS=64 PRISMEL_PDK_OPS_ROWS=64
-  PRISMEL_PDK_OPS_REPEATS=5 PRISMEL_PDK_OPS_FILTER=copy_to_points_piece
-  PRISMEL_BENCH_DOMAINS={1,4} dune exec --profile release
-  tools/bench_pdk_ops.exe`.
+  `RAYS_RDK_OPS_COLUMNS=64 RAYS_RDK_OPS_ROWS=64
+  RAYS_RDK_OPS_REPEATS=5 RAYS_RDK_OPS_FILTER=copy_to_points_piece
+  RAYS_BENCH_DOMAINS={1,4} dune exec --profile release
+  tools/bench_rdk_ops.exe`.
 - Curve Carve scans source segments once, computes exact output cardinality,
   maps retained source breakpoints directly, and performs only two O(log n)
   arc-location searches per primitive. Packed position and numeric payload
@@ -1345,12 +1345,12 @@ is restricted to visible tiles.
   `175348517625681373`. The unchanged one-division all-piece hash remains
   `3264112192064555593` and now measures 11.03/10.46 ms with 38.46/38.48 MB
   allocated. Whole-harness peak RSS was 3,619,444/3,619,628 KiB because
-  `bench_pdk_ops` eagerly constructs every fixture; it is not per-operation
+  `bench_rdk_ops` eagerly constructs every fixture; it is not per-operation
   live memory. Measurements used the release profile, OCaml 5.3.0, Linux
   6.8.0/aarch64, and four single-thread cores. Reproduce with
-  `PRISMEL_PDK_OPS_FILTER=curve_carve_divided PRISMEL_PDK_OPS_REPEATS=5
-  PRISMEL_BENCH_DOMAINS={1,4} dune exec --profile release
-  tools/bench_pdk_ops.exe`. Primitive First/Second U attributes are borrowed
+  `RAYS_RDK_OPS_FILTER=curve_carve_divided RAYS_RDK_OPS_REPEATS=5
+  RAYS_BENCH_DOMAINS={1,4} dune exec --profile release
+  tools/bench_rdk_ops.exe`. Primitive First/Second U attributes are borrowed
   directly rather than expanded into two per-cook arrays. A 1,000-curve,
   201,000-point varying-parameter fixture measures 6.79/6.66 ms and
   14.19 MB at one/four domains with hash `1882572990968176907`; the ordinary
@@ -1423,12 +1423,12 @@ is restricted to visible tiles.
   the topology-indexed native-edge union needed for overlapping originals and
   joined curves.
   Reproduce the curve-family fixtures with
-  `PRISMEL_PDK_OPS_FILTER=curve_ PRISMEL_PDK_CURVE_POINTS=200001
-  PRISMEL_PDK_OPS_REPEATS=5 PRISMEL_BENCH_DOMAINS=1
-  dune exec tools/bench_pdk_ops.exe`, and the Join-only fixtures with
-  `PRISMEL_PDK_OPS_FILTER=curve_join PRISMEL_PDK_OPS_REPEATS=11
-  PRISMEL_BENCH_DOMAINS=1 dune exec --profile release
-  tools/bench_pdk_ops.exe`; repeat with four domains.
+  `RAYS_RDK_OPS_FILTER=curve_ RAYS_RDK_CURVE_POINTS=200001
+  RAYS_RDK_OPS_REPEATS=5 RAYS_BENCH_DOMAINS=1
+  dune exec tools/bench_rdk_ops.exe`, and the Join-only fixtures with
+  `RAYS_RDK_OPS_FILTER=curve_join RAYS_RDK_OPS_REPEATS=11
+  RAYS_BENCH_DOMAINS=1 dune exec --profile release
+  tools/bench_rdk_ops.exe`; repeat with four domains.
 - PolyLoft was measured on 1,001 closed 1,000-point sections: 1,001,000
   shared input points become 2,000,000 triangles and 6,000,000 corners without
   a copied position plane. Authored-order two-point pairing takes
@@ -1453,9 +1453,9 @@ is restricted to visible tiles.
   three-point perimeter edge, and a zero-tolerance topology-stable fast path
   reduced a comparable final one-repeat run to 269.054 ms and 194.461 MB—12.6%
   faster and 49.7% less allocation. Reproduce the stable medians with
-  `PRISMEL_PDK_OPS_FILTER=poly_loft PRISMEL_PDK_OPS_REPEATS=5
-  PRISMEL_BENCH_DOMAINS=1 dune exec --profile release
-  tools/bench_pdk_ops.exe`, then repeat with four domains and use
+  `RAYS_RDK_OPS_FILTER=poly_loft RAYS_RDK_OPS_REPEATS=5
+  RAYS_BENCH_DOMAINS=1 dune exec --profile release
+  tools/bench_rdk_ops.exe`, then repeat with four domains and use
   `/usr/bin/time -v` with one repeat for peak RSS.
 - Skin uses the same 1,001 by 1,000 closed-section fixture but retains one quad
   per segment: 1,001,000 shared points become 1,000,000 polygons and 4,000,000
@@ -1470,10 +1470,10 @@ is restricted to visible tiles.
   and 6,000,000 corners, so preserving quads removes one million primitives,
   two million corners, 38.5% of reported allocation, and 47.2% of wall time.
   Reproduce with
-  `PRISMEL_PDK_OPS_FILTER=skin PRISMEL_PDK_OPS_COLUMNS=1000
-  PRISMEL_PDK_OPS_ROWS=1000 PRISMEL_PDK_OPS_REPEATS=5
-  PRISMEL_BENCH_DOMAINS=1 dune exec --profile release
-  tools/bench_pdk_ops.exe`, then repeat with four domains. Use
+  `RAYS_RDK_OPS_FILTER=skin RAYS_RDK_OPS_COLUMNS=1000
+  RAYS_RDK_OPS_ROWS=1000 RAYS_RDK_OPS_REPEATS=5
+  RAYS_BENCH_DOMAINS=1 dune exec --profile release
+  tools/bench_rdk_ops.exe`, then repeat with four domains. Use
   `/usr/bin/time -v` and one repeat for peak RSS.
 - PolyBridge was measured with 1,000,000 input points and 500,000 generated
   quads while retaining the two selected boundary faces/curves and their
@@ -1496,10 +1496,10 @@ is restricted to visible tiles.
   134.154 MB: 10.8% less wall time and 24.8% less allocation. Component pairing
   itself sorts centroid ranks in O(k log k); it does not use a quadratic greedy
   nearest-component scan. Reproduce with
-  `PRISMEL_PDK_OPS_FILTER=poly_bridge PRISMEL_PDK_OPS_COLUMNS=1000
-  PRISMEL_PDK_OPS_ROWS=1000 PRISMEL_PDK_OPS_REPEATS=5
-  PRISMEL_BENCH_DOMAINS=1 dune exec --profile release
-  tools/bench_pdk_ops.exe`, then repeat with four domains and use
+  `RAYS_RDK_OPS_FILTER=poly_bridge RAYS_RDK_OPS_COLUMNS=1000
+  RAYS_RDK_OPS_ROWS=1000 RAYS_RDK_OPS_REPEATS=5
+  RAYS_BENCH_DOMAINS=1 dune exec --profile release
+  tools/bench_rdk_ops.exe`, then repeat with four domains and use
   `/usr/bin/time -v` with one repeat for peak RSS.
 - Three-repeat release medians for the divided PolyBridge fixture retain the
   same 1,000,000 boundary points,
@@ -1578,16 +1578,16 @@ their tooling lives in git history before that date.
 Reproduce the finite shattered-cube native workflow without a backend selector:
 
 ```sh
-PRISMEL_SHATTER_FRAMES=1 \
+RAYS_SHATTER_FRAMES=1 \
   /usr/bin/time -p dune exec sketches/shattered_cube/main.exe
-PRISMEL_SHATTER_FRAMES=1001 \
+RAYS_SHATTER_FRAMES=1001 \
   /usr/bin/time -p dune exec sketches/shattered_cube/main.exe
 ```
 
 ## Measurement contract
 
-The focused PDK benchmarks, including `tools/bench_pdk_ops.exe`,
-and `tools/bench_pdk_iso.exe`, report elapsed
+The focused RDK benchmarks, including `tools/bench_rdk_ops.exe`,
+and `tools/bench_rdk_iso.exe`, report elapsed
 time and GC allocation for their declared geometry fixtures. Run them with the
 release profile and record input cardinalities and domain count.
 
@@ -1605,7 +1605,7 @@ allocation, RSS and the live drawable size and scale.
 pointer drag on a configurable large control panel. PXUI keeps O(1) reverse-list
 builders but memoizes one ordered widget array; vertical hit testing resolves a
 single row arithmetically, so pointer lookup is independent of panel length.
-`PRISMEL_PXUI_BENCH_WIDGETS` and `PRISMEL_PXUI_BENCH_REPEATS` control the run.
+`RAYS_PXUI_BENCH_WIDGETS` and `RAYS_PXUI_BENCH_REPEATS` control the run.
 
 Every parallelized operation is also exercised inside `Parallel.run ~domains:1`
 and with multiple domains. Geometry output must be exactly equal, including
@@ -1614,7 +1614,7 @@ framebuffer capture or exported-PNG comparison of representative scenes. The exi
 deterministic export test compares PNG digests across repeated runs; visual
 coverage must grow alongside new renderer features and optimized drawing paths.
 
-PDK plane clipping classifies canonical or numeric point-coordinate planes in
+RDK plane clipping classifies canonical or numeric point-coordinate planes in
 parallel. Polygon-only unfilled clipping counts source/side outputs in stable
 parallel slots, performs one deterministic prefix, allocates exact corner and
 primitive planes, and fills disjoint slices. Curves, caps, and repeated-corner
@@ -1684,16 +1684,16 @@ group takes 867.203/732.392 ms and 1,594.573/1,559.907 MB because it also builds
 the complete output topology index. The respective deterministic hashes are
 4451540838762259033 and 2517369864773722023 for both domain counts. These are
 medians of three fresh processes, each reporting the median of three cooks;
-the machine/compiler context is the same as the other PDK rows in this file.
+the machine/compiler context is the same as the other RDK rows in this file.
 
 ```sh
-PRISMEL_PDK_OPS_FILTER=clip_ PRISMEL_PDK_OPS_REPEATS=3 \
-PRISMEL_PDK_OPS_COLUMNS=1000 PRISMEL_PDK_OPS_ROWS=1000 \
-PRISMEL_BENCH_DOMAINS=1 dune exec --profile release tools/bench_pdk_ops.exe
-# Repeat with PRISMEL_BENCH_DOMAINS=4.
+RAYS_RDK_OPS_FILTER=clip_ RAYS_RDK_OPS_REPEATS=3 \
+RAYS_RDK_OPS_COLUMNS=1000 RAYS_RDK_OPS_ROWS=1000 \
+RAYS_BENCH_DOMAINS=1 dune exec --profile release tools/bench_rdk_ops.exe
+# Repeat with RAYS_BENCH_DOMAINS=4.
 ```
 
-The shared PDK subdivision kernel computes exact child cardinalities and one
+The shared RDK subdivision kernel computes exact child cardinalities and one
 stable CSR stencil plan per level. Catmull-Clark/bilinear emit four-corner
 polygons directly instead of triangulating and rebuilding them; Loop emits four
 triangles per source triangle. Face-varying data writes from face-local source
@@ -1773,7 +1773,7 @@ case by 32% in time and 35% in allocation, and benefits ordinary propagated
 native edge groups as well. The direct ordinal plan uses O(output edges)
 integer scratch and one final packed bitset; it does not retain the scratch.
 The filtered five-repeat four-domain benchmark process peaked at 1,132,032
-KiB RSS, but this harness eagerly constructs the complete `bench_pdk_ops`
+KiB RSS, but this harness eagerly constructs the complete `bench_rdk_ops`
 fixture catalog before applying its output filter, so the number is a process
 upper bound rather than isolated Subdivide live memory.
 
@@ -1998,85 +1998,85 @@ geometry, and byte-identical framebuffer output.
 Reproduce with:
 
 ```sh
-PRISMEL_PDK_OPS_FILTER=subdivide_bilinear_local \
-PRISMEL_BENCH_DOMAINS=1 PRISMEL_PDK_OPS_REPEATS=5 \
-dune exec --profile release tools/bench_pdk_ops.exe
-# Repeat with PRISMEL_BENCH_DOMAINS=4.
+RAYS_RDK_OPS_FILTER=subdivide_bilinear_local \
+RAYS_BENCH_DOMAINS=1 RAYS_RDK_OPS_REPEATS=5 \
+dune exec --profile release tools/bench_rdk_ops.exe
+# Repeat with RAYS_BENCH_DOMAINS=4.
 
-PRISMEL_PDK_OPS_FILTER=subdivide_catmull_second_input \
-PRISMEL_BENCH_DOMAINS=1 PRISMEL_PDK_OPS_REPEATS=5 \
-dune exec --profile release tools/bench_pdk_ops.exe
-# Repeat with PRISMEL_BENCH_DOMAINS=4.
+RAYS_RDK_OPS_FILTER=subdivide_catmull_second_input \
+RAYS_BENCH_DOMAINS=1 RAYS_RDK_OPS_REPEATS=5 \
+dune exec --profile release tools/bench_rdk_ops.exe
+# Repeat with RAYS_BENCH_DOMAINS=4.
 
-PRISMEL_PDK_OPS_FILTER=subdivide_catmull_sparse_holes \
-PRISMEL_BENCH_DOMAINS=1 PRISMEL_PDK_OPS_REPEATS=5 \
-dune exec --profile release tools/bench_pdk_ops.exe
-PRISMEL_PDK_OPS_FILTER=subdivide_catmull_dense_holes \
-PRISMEL_BENCH_DOMAINS=1 PRISMEL_PDK_OPS_REPEATS=5 \
-dune exec --profile release tools/bench_pdk_ops.exe
-# Repeat both with PRISMEL_BENCH_DOMAINS=4.
+RAYS_RDK_OPS_FILTER=subdivide_catmull_sparse_holes \
+RAYS_BENCH_DOMAINS=1 RAYS_RDK_OPS_REPEATS=5 \
+dune exec --profile release tools/bench_rdk_ops.exe
+RAYS_RDK_OPS_FILTER=subdivide_catmull_dense_holes \
+RAYS_BENCH_DOMAINS=1 RAYS_RDK_OPS_REPEATS=5 \
+dune exec --profile release tools/bench_rdk_ops.exe
+# Repeat both with RAYS_BENCH_DOMAINS=4.
 
-PRISMEL_PDK_OPS_FILTER=subdivide_catmull_grid_boundary \
-PRISMEL_BENCH_DOMAINS=1 PRISMEL_PDK_OPS_REPEATS=5 \
-dune exec --profile release tools/bench_pdk_ops.exe
-# Repeat with PRISMEL_BENCH_DOMAINS=4; wrap in /usr/bin/time -v for RSS.
+RAYS_RDK_OPS_FILTER=subdivide_catmull_grid_boundary \
+RAYS_BENCH_DOMAINS=1 RAYS_RDK_OPS_REPEATS=5 \
+dune exec --profile release tools/bench_rdk_ops.exe
+# Repeat with RAYS_BENCH_DOMAINS=4; wrap in /usr/bin/time -v for RSS.
 
-PRISMEL_PDK_OPS_FILTER=subdivide_catmull_fvar \
-PRISMEL_PDK_OPS_COLUMNS=1 PRISMEL_PDK_OPS_ROWS=1 \
-PRISMEL_BENCH_DOMAINS=1 PRISMEL_PDK_OPS_REPEATS=5 \
-dune exec --profile release tools/bench_pdk_ops.exe
-# Repeat with PRISMEL_BENCH_DOMAINS=4; wrap in /usr/bin/time -v for RSS.
+RAYS_RDK_OPS_FILTER=subdivide_catmull_fvar \
+RAYS_RDK_OPS_COLUMNS=1 RAYS_RDK_OPS_ROWS=1 \
+RAYS_BENCH_DOMAINS=1 RAYS_RDK_OPS_REPEATS=5 \
+dune exec --profile release tools/bench_rdk_ops.exe
+# Repeat with RAYS_BENCH_DOMAINS=4; wrap in /usr/bin/time -v for RSS.
 
-PRISMEL_PDK_OPS_FILTER=subdivide_catmull_triangles \
-PRISMEL_PDK_OPS_COLUMNS=1 PRISMEL_PDK_OPS_ROWS=1 \
-PRISMEL_BENCH_DOMAINS=1 PRISMEL_PDK_OPS_REPEATS=5 \
-dune exec --profile release tools/bench_pdk_ops.exe
-# Repeat with PRISMEL_BENCH_DOMAINS=4; wrap in /usr/bin/time -v for RSS.
+RAYS_RDK_OPS_FILTER=subdivide_catmull_triangles \
+RAYS_RDK_OPS_COLUMNS=1 RAYS_RDK_OPS_ROWS=1 \
+RAYS_BENCH_DOMAINS=1 RAYS_RDK_OPS_REPEATS=5 \
+dune exec --profile release tools/bench_rdk_ops.exe
+# Repeat with RAYS_BENCH_DOMAINS=4; wrap in /usr/bin/time -v for RSS.
 
-PRISMEL_PDK_OPS_FILTER=subdivide_catmull_creasing \
-PRISMEL_PDK_OPS_COLUMNS=1 PRISMEL_PDK_OPS_ROWS=1 \
-PRISMEL_BENCH_DOMAINS=1 PRISMEL_PDK_OPS_REPEATS=5 \
-dune exec --profile release tools/bench_pdk_ops.exe
-# Repeat with PRISMEL_BENCH_DOMAINS=4; wrap in /usr/bin/time -v for RSS.
+RAYS_RDK_OPS_FILTER=subdivide_catmull_creasing \
+RAYS_RDK_OPS_COLUMNS=1 RAYS_RDK_OPS_ROWS=1 \
+RAYS_BENCH_DOMAINS=1 RAYS_RDK_OPS_REPEATS=5 \
+dune exec --profile release tools/bench_rdk_ops.exe
+# Repeat with RAYS_BENCH_DOMAINS=4; wrap in /usr/bin/time -v for RSS.
 
-PRISMEL_PDK_OPS_FILTER=subdivide_catmull_explicit_controls_detail_payload \
-PRISMEL_BENCH_DOMAINS=1 PRISMEL_PDK_OPS_REPEATS=5 \
-dune exec --profile release tools/bench_pdk_ops.exe
-PRISMEL_PDK_OPS_FILTER=subdivide_catmull_detail_overrides \
-PRISMEL_BENCH_DOMAINS=1 PRISMEL_PDK_OPS_REPEATS=5 \
-dune exec --profile release tools/bench_pdk_ops.exe
-# Repeat both with PRISMEL_BENCH_DOMAINS=4; wrap the second in
+RAYS_RDK_OPS_FILTER=subdivide_catmull_explicit_controls_detail_payload \
+RAYS_BENCH_DOMAINS=1 RAYS_RDK_OPS_REPEATS=5 \
+dune exec --profile release tools/bench_rdk_ops.exe
+RAYS_RDK_OPS_FILTER=subdivide_catmull_detail_overrides \
+RAYS_BENCH_DOMAINS=1 RAYS_RDK_OPS_REPEATS=5 \
+dune exec --profile release tools/bench_rdk_ops.exe
+# Repeat both with RAYS_BENCH_DOMAINS=4; wrap the second in
 # /usr/bin/time -v for RSS.
 
-PRISMEL_PDK_OPS_FILTER=subdivide_catmull_all_edges_ \
-PRISMEL_BENCH_DOMAINS=1 PRISMEL_PDK_OPS_REPEATS=5 \
-dune exec --profile release tools/bench_pdk_ops.exe
-# Repeat with PRISMEL_BENCH_DOMAINS=4; wrap in /usr/bin/time -v for RSS.
+RAYS_RDK_OPS_FILTER=subdivide_catmull_all_edges_ \
+RAYS_BENCH_DOMAINS=1 RAYS_RDK_OPS_REPEATS=5 \
+dune exec --profile release tools/bench_rdk_ops.exe
+# Repeat with RAYS_BENCH_DOMAINS=4; wrap in /usr/bin/time -v for RSS.
 
-PRISMEL_PDK_OPS_FILTER=subdivide_catmull_normals \
-PRISMEL_PDK_OPS_REPEATS=9 PRISMEL_PDK_OPS_COLUMNS=200 \
-PRISMEL_PDK_OPS_ROWS=200 PRISMEL_BENCH_DOMAINS=1 \
-dune exec --profile release tools/bench_pdk_ops.exe
-# Repeat with PRISMEL_BENCH_DOMAINS=4; use repeats=1 under /usr/bin/time -v
+RAYS_RDK_OPS_FILTER=subdivide_catmull_normals \
+RAYS_RDK_OPS_REPEATS=9 RAYS_RDK_OPS_COLUMNS=200 \
+RAYS_RDK_OPS_ROWS=200 RAYS_BENCH_DOMAINS=1 \
+dune exec --profile release tools/bench_rdk_ops.exe
+# Repeat with RAYS_BENCH_DOMAINS=4; use repeats=1 under /usr/bin/time -v
 # for the conservative process RSS figure.
 
-PRISMEL_PDK_OPS_FILTER=subdivide_catmull_curves \
-PRISMEL_PDK_CURVE_POINTS=200001 \
-PRISMEL_PDK_OPS_COLUMNS=200 PRISMEL_PDK_OPS_ROWS=200 \
-PRISMEL_BENCH_DOMAINS=1 PRISMEL_PDK_OPS_REPEATS=9 \
-dune exec --profile release tools/bench_pdk_ops.exe
-# Repeat with PRISMEL_BENCH_DOMAINS=4 and use repeats=1 under /usr/bin/time -v
+RAYS_RDK_OPS_FILTER=subdivide_catmull_curves \
+RAYS_RDK_CURVE_POINTS=200001 \
+RAYS_RDK_OPS_COLUMNS=200 RAYS_RDK_OPS_ROWS=200 \
+RAYS_BENCH_DOMAINS=1 RAYS_RDK_OPS_REPEATS=9 \
+dune exec --profile release tools/bench_rdk_ops.exe
+# Repeat with RAYS_BENCH_DOMAINS=4 and use repeats=1 under /usr/bin/time -v
 # for the conservative process RSS figure.
 
-PRISMEL_PDK_OPS_FILTER=subdivide_bilinear_curves_shared \
-PRISMEL_PDK_CURVE_POINTS=200001 \
-PRISMEL_PDK_OPS_COLUMNS=200 PRISMEL_PDK_OPS_ROWS=200 \
-PRISMEL_BENCH_DOMAINS=1 PRISMEL_PDK_OPS_REPEATS=5 \
-dune exec --profile release tools/bench_pdk_ops.exe
-# Repeat with PRISMEL_BENCH_DOMAINS=4.
+RAYS_RDK_OPS_FILTER=subdivide_bilinear_curves_shared \
+RAYS_RDK_CURVE_POINTS=200001 \
+RAYS_RDK_OPS_COLUMNS=200 RAYS_RDK_OPS_ROWS=200 \
+RAYS_BENCH_DOMAINS=1 RAYS_RDK_OPS_REPEATS=5 \
+dune exec --profile release tools/bench_rdk_ops.exe
+# Repeat with RAYS_BENCH_DOMAINS=4.
 ```
 
-Point, vertex, primitive, Blast, and Split filtering share one PDK deletion
+Point, vertex, primitive, Blast, and Split filtering share one RDK deletion
 planner. It counts retained primitives/corners/points before allocation,
 materializes each map once, preserves ascending source order, and shares point
 positions/attributes/groups when the point map is identity. Healing performs
@@ -2085,7 +2085,7 @@ fixture, removing a temporary result tuple reduced one-domain time/allocation
 from 45.0 ms/119.4 MB to 35.7 ms/73.2 MB; four domains improved from
 32.8 ms/79.1 MB to 27.8 ms/49.7 MB. Output hashes are exact across domains.
 
-PDK Convert Line builds the shared reverse-topology index once, filters each
+RDK Convert Line builds the shared reverse-topology index once, filters each
 unique edge once, and uses stable 16-bit radix passes to produce canonical
 point-number ordering without comparison-sort tuple allocation. It allocates
 exact two-corner CSR output, shares point/detail payloads, and fills topology,
@@ -2100,7 +2100,7 @@ validation helper returned `float option` in the edge loop and raised measured
 one-domain allocation to 412.2 MB; scalar inlining restored 316.1 MB while
 retaining the non-finite-result diagnostic.
 
-PDK PolyPath consumes the same cached unique-edge index but avoids Convert
+RDK PolyPath consumes the same cached unique-edge index but avoids Convert
 Line's two-corner primitive for every intermediate edge. With endpoint
 connection disabled, the common self-edge-free path borrows the index endpoint
 planes directly; only endpoint rewiring allocates an open-addressed deduplication
@@ -2148,27 +2148,27 @@ path lengths are computed only after final topology and use scale-safe segment
 norms plus compensated per-path accumulation.
 
 ```sh
-PRISMEL_PDK_OPS_FILTER=poly_path PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=1 opam exec --switch=. -- \
-  dune exec --profile release tools/bench_pdk_ops.exe
-PRISMEL_PDK_OPS_FILTER=poly_path PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=4 opam exec --switch=. -- \
-  dune exec --profile release tools/bench_pdk_ops.exe
+RAYS_RDK_OPS_FILTER=poly_path RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=1 opam exec --switch=. -- \
+  dune exec --profile release tools/bench_rdk_ops.exe
+RAYS_RDK_OPS_FILTER=poly_path RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=4 opam exec --switch=. -- \
+  dune exec --profile release tools/bench_rdk_ops.exe
 ```
 
 ```sh
-PRISMEL_PDK_OPS_FILTER=convert_line PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=1 opam exec --switch=. -- \
-  dune exec --profile release tools/bench_pdk_ops.exe
-PRISMEL_PDK_OPS_FILTER=convert_line PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=4 opam exec --switch=. -- \
-  dune exec --profile release tools/bench_pdk_ops.exe
-PRISMEL_PDK_OPS_FILTER=convert_line_path_fused PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=1 opam exec --switch=. -- \
-  dune exec --profile release tools/bench_pdk_ops.exe
-PRISMEL_PDK_OPS_FILTER=convert_line_path_fused PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=4 opam exec --switch=. -- \
-  dune exec --profile release tools/bench_pdk_ops.exe
+RAYS_RDK_OPS_FILTER=convert_line RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=1 opam exec --switch=. -- \
+  dune exec --profile release tools/bench_rdk_ops.exe
+RAYS_RDK_OPS_FILTER=convert_line RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=4 opam exec --switch=. -- \
+  dune exec --profile release tools/bench_rdk_ops.exe
+RAYS_RDK_OPS_FILTER=convert_line_path_fused RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=1 opam exec --switch=. -- \
+  dune exec --profile release tools/bench_rdk_ops.exe
+RAYS_RDK_OPS_FILTER=convert_line_path_fused RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=4 opam exec --switch=. -- \
+  dune exec --profile release tools/bench_rdk_ops.exe
 ```
 
 The directed Line source normalizes extreme finite directions with scaled
@@ -2296,55 +2296,55 @@ like the bare surface fill. Measurements used Linux 6.8 aarch64, four physical
 cores, Dune's release profile, grain 16,384, and five repeats.
 
 ```sh
-PRISMEL_PDK_OPS_FILTER=sweep_general_profile_triangles PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=1 opam exec --switch=. -- \
-  /usr/bin/time -v dune exec --profile release tools/bench_pdk_ops.exe
-PRISMEL_PDK_OPS_FILTER=sweep_general_profile_triangles PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=4 opam exec --switch=. -- \
-  /usr/bin/time -v dune exec --profile release tools/bench_pdk_ops.exe
-PRISMEL_PDK_OPS_FILTER=sweep_general_profile_payload PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=1 opam exec --switch=. -- \
-  /usr/bin/time -v dune exec --profile release tools/bench_pdk_ops.exe
-PRISMEL_PDK_OPS_FILTER=sweep_general_profile_payload PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=4 opam exec --switch=. -- \
-  /usr/bin/time -v dune exec --profile release tools/bench_pdk_ops.exe
-PRISMEL_PDK_OPS_FILTER=polywire_smooth_runs PRISMEL_PDK_OPS_REPEATS=11 \
-PRISMEL_BENCH_DOMAINS=1 opam exec --switch=. -- \
-  dune exec --profile release tools/bench_pdk_ops.exe
-PRISMEL_PDK_OPS_FILTER=polywire_smooth_runs PRISMEL_PDK_OPS_REPEATS=11 \
-PRISMEL_BENCH_DOMAINS=4 opam exec --switch=. -- \
-  /usr/bin/time -v dune exec --profile release tools/bench_pdk_ops.exe
-PRISMEL_PDK_OPS_FILTER=polywire_variable_segment_seam \
-PRISMEL_PDK_OPS_REPEATS=11 PRISMEL_BENCH_DOMAINS=1 \
-opam exec --switch=. -- dune exec --profile release tools/bench_pdk_ops.exe
-PRISMEL_PDK_OPS_FILTER=polywire_variable_segment_seam \
-PRISMEL_PDK_OPS_REPEATS=11 PRISMEL_BENCH_DOMAINS=4 \
+RAYS_RDK_OPS_FILTER=sweep_general_profile_triangles RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=1 opam exec --switch=. -- \
+  /usr/bin/time -v dune exec --profile release tools/bench_rdk_ops.exe
+RAYS_RDK_OPS_FILTER=sweep_general_profile_triangles RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=4 opam exec --switch=. -- \
+  /usr/bin/time -v dune exec --profile release tools/bench_rdk_ops.exe
+RAYS_RDK_OPS_FILTER=sweep_general_profile_payload RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=1 opam exec --switch=. -- \
+  /usr/bin/time -v dune exec --profile release tools/bench_rdk_ops.exe
+RAYS_RDK_OPS_FILTER=sweep_general_profile_payload RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=4 opam exec --switch=. -- \
+  /usr/bin/time -v dune exec --profile release tools/bench_rdk_ops.exe
+RAYS_RDK_OPS_FILTER=polywire_smooth_runs RAYS_RDK_OPS_REPEATS=11 \
+RAYS_BENCH_DOMAINS=1 opam exec --switch=. -- \
+  dune exec --profile release tools/bench_rdk_ops.exe
+RAYS_RDK_OPS_FILTER=polywire_smooth_runs RAYS_RDK_OPS_REPEATS=11 \
+RAYS_BENCH_DOMAINS=4 opam exec --switch=. -- \
+  /usr/bin/time -v dune exec --profile release tools/bench_rdk_ops.exe
+RAYS_RDK_OPS_FILTER=polywire_variable_segment_seam \
+RAYS_RDK_OPS_REPEATS=11 RAYS_BENCH_DOMAINS=1 \
+opam exec --switch=. -- dune exec --profile release tools/bench_rdk_ops.exe
+RAYS_RDK_OPS_FILTER=polywire_variable_segment_seam \
+RAYS_RDK_OPS_REPEATS=11 RAYS_BENCH_DOMAINS=4 \
 opam exec --switch=. -- /usr/bin/time -v \
-  dune exec --profile release tools/bench_pdk_ops.exe
+  dune exec --profile release tools/bench_rdk_ops.exe
 ```
 
 ```sh
-PRISMEL_PDK_OPS_FILTER=line_generator PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=4 opam exec --switch=. -- \
-  dune exec --profile release tools/bench_pdk_ops.exe
-PRISMEL_PDK_OPS_FILTER=sweep_caps PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=4 opam exec --switch=. -- \
-  dune exec --profile release tools/bench_pdk_ops.exe
-PRISMEL_PDK_OPS_FILTER=polywire PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=4 opam exec --switch=. -- \
-  dune exec --profile release tools/bench_pdk_ops.exe
-PRISMEL_PDK_OPS_FILTER=polywire_variable PRISMEL_PDK_OPS_REPEATS=11 \
-PRISMEL_BENCH_DOMAINS=1 opam exec --switch=. -- \
-  dune exec --profile release tools/bench_pdk_ops.exe
-PRISMEL_PDK_OPS_FILTER=polywire_variable PRISMEL_PDK_OPS_REPEATS=11 \
-PRISMEL_BENCH_DOMAINS=4 opam exec --switch=. -- \
-  dune exec --profile release tools/bench_pdk_ops.exe
-PRISMEL_PDK_OPS_FILTER=polywire_sharp_joints PRISMEL_PDK_OPS_REPEATS=11 \
-PRISMEL_BENCH_DOMAINS=1 opam exec --switch=. -- \
-  dune exec --profile release tools/bench_pdk_ops.exe
-PRISMEL_PDK_OPS_FILTER=polywire_sharp_joints PRISMEL_PDK_OPS_REPEATS=11 \
-PRISMEL_BENCH_DOMAINS=4 opam exec --switch=. -- \
-  /usr/bin/time -v dune exec --profile release tools/bench_pdk_ops.exe
+RAYS_RDK_OPS_FILTER=line_generator RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=4 opam exec --switch=. -- \
+  dune exec --profile release tools/bench_rdk_ops.exe
+RAYS_RDK_OPS_FILTER=sweep_caps RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=4 opam exec --switch=. -- \
+  dune exec --profile release tools/bench_rdk_ops.exe
+RAYS_RDK_OPS_FILTER=polywire RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=4 opam exec --switch=. -- \
+  dune exec --profile release tools/bench_rdk_ops.exe
+RAYS_RDK_OPS_FILTER=polywire_variable RAYS_RDK_OPS_REPEATS=11 \
+RAYS_BENCH_DOMAINS=1 opam exec --switch=. -- \
+  dune exec --profile release tools/bench_rdk_ops.exe
+RAYS_RDK_OPS_FILTER=polywire_variable RAYS_RDK_OPS_REPEATS=11 \
+RAYS_BENCH_DOMAINS=4 opam exec --switch=. -- \
+  dune exec --profile release tools/bench_rdk_ops.exe
+RAYS_RDK_OPS_FILTER=polywire_sharp_joints RAYS_RDK_OPS_REPEATS=11 \
+RAYS_BENCH_DOMAINS=1 opam exec --switch=. -- \
+  dune exec --profile release tools/bench_rdk_ops.exe
+RAYS_RDK_OPS_FILTER=polywire_sharp_joints RAYS_RDK_OPS_REPEATS=11 \
+RAYS_BENCH_DOMAINS=4 opam exec --switch=. -- \
+  /usr/bin/time -v dune exec --profile release tools/bench_rdk_ops.exe
 ```
 
 Resample's compatibility baseline processed a 200,001-point spine into
@@ -2362,12 +2362,12 @@ distance, and tangent fields measures 63.972/46.253 ms, allocates
 three-repeat four-domain run peaked at 169,212 KiB RSS.
 
 ```sh
-PRISMEL_PDK_OPS_FILTER=resample PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=1 opam exec --switch=. -- \
-  dune exec --profile release tools/bench_pdk_ops.exe
-PRISMEL_PDK_OPS_FILTER=resample PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=4 opam exec --switch=. -- \
-  dune exec --profile release tools/bench_pdk_ops.exe
+RAYS_RDK_OPS_FILTER=resample RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=1 opam exec --switch=. -- \
+  dune exec --profile release tools/bench_rdk_ops.exe
+RAYS_RDK_OPS_FILTER=resample RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=4 opam exec --switch=. -- \
+  dune exec --profile release tools/bench_rdk_ops.exe
 ```
 
 PolyFrame is topology-linear: every style takes O(points + vertices +
@@ -2400,9 +2400,9 @@ regression also matches one versus four domains. Measurements used OCaml
 four cores.
 
 ```sh
-PRISMEL_PDK_OPS_FILTER=polyframe PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=1 dune exec --profile release tools/bench_pdk_ops.exe
-# Repeat with PRISMEL_BENCH_DOMAINS=4; use /usr/bin/time -v for process RSS.
+RAYS_RDK_OPS_FILTER=polyframe RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=1 dune exec --profile release tools/bench_rdk_ops.exe
+# Repeat with RAYS_BENCH_DOMAINS=4; use /usr/bin/time -v for process RSS.
 ```
 
 Facet Unique Points is O(points + vertices + primitives + attribute/group
@@ -2510,9 +2510,9 @@ process peaked at 472,664 KiB RSS. Measurements used OCaml 5.3.0, Dune 3.24.0,
 release profile, grain 16,384, and Linux 6.8/aarch64 on four cores.
 
 ```sh
-PRISMEL_PDK_OPS_FILTER=facet PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=1 dune exec --profile release tools/bench_pdk_ops.exe
-# Repeat with PRISMEL_BENCH_DOMAINS=4; use /usr/bin/time -v for process RSS.
+RAYS_RDK_OPS_FILTER=facet RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=1 dune exec --profile release tools/bench_rdk_ops.exe
+# Repeat with RAYS_BENCH_DOMAINS=4; use /usr/bin/time -v for process RSS.
 ```
 
 The million-point polygon Circle source replaces its former boxed-tuple plus
@@ -2592,9 +2592,9 @@ ordinary point group, all native profile edges, and a cap group. Its
 classification dominate that row, so it is intentionally not presented as a
 strongly scaling kernel. Measured allocation is 674.877/592.850 MB. Isolated
 one/four-domain processes containing both rows peaked at 493,500/504,776 KiB.
-Reproduce with `PRISMEL_PDK_OPS_FILTER=revolve
-PRISMEL_PDK_OPS_REPEATS=5 PRISMEL_BENCH_DOMAINS=1 dune exec --profile release
-tools/bench_pdk_ops.exe`, then repeat with four domains.
+Reproduce with `RAYS_RDK_OPS_FILTER=revolve
+RAYS_RDK_OPS_REPEATS=5 RAYS_BENCH_DOMAINS=1 dune exec --profile release
+tools/bench_rdk_ops.exe`, then repeat with four domains.
 
 Tube precomputes O(rows+columns) radius, height, trigonometric, and normalized-
 parameter tables, shares a single point at a zero-radius end, and emits no
@@ -2722,24 +2722,24 @@ strings and O(destinations) length/offset scratch. Both write only disjoint
 destination ranges in parallel.
 
 ```sh
-PRISMEL_PDK_OPS_FILTER=attribute_promote PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=1 opam exec --switch=. -- \
-  dune exec --profile release tools/bench_pdk_ops.exe
-PRISMEL_PDK_OPS_FILTER=attribute_promote PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=4 opam exec --switch=. -- \
-  dune exec --profile release tools/bench_pdk_ops.exe
-PRISMEL_PDK_OPS_FILTER=attribute_promote_pattern \
-PRISMEL_PDK_OPS_REPEATS=5 PRISMEL_PDK_BENCH_GRAIN=2048 \
-PRISMEL_BENCH_DOMAINS=1 dune exec tools/bench_pdk_ops.exe
-PRISMEL_PDK_OPS_FILTER=attribute_promote_pattern \
-PRISMEL_PDK_OPS_REPEATS=5 PRISMEL_PDK_BENCH_GRAIN=2048 \
-PRISMEL_BENCH_DOMAINS=4 dune exec tools/bench_pdk_ops.exe
-PRISMEL_PDK_OPS_FILTER=attribute_promote_pattern_tuple4_indexed_shared \
-PRISMEL_PDK_OPS_REPEATS=5 PRISMEL_PDK_BENCH_GRAIN=2048 \
-PRISMEL_BENCH_DOMAINS=4 dune exec --profile release tools/bench_pdk_ops.exe
-PRISMEL_PDK_OPS_FILTER=attribute_promote_pattern_text_sum \
-PRISMEL_PDK_OPS_REPEATS=5 PRISMEL_PDK_BENCH_GRAIN=2048 \
-PRISMEL_BENCH_DOMAINS=4 dune exec --profile release tools/bench_pdk_ops.exe
+RAYS_RDK_OPS_FILTER=attribute_promote RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=1 opam exec --switch=. -- \
+  dune exec --profile release tools/bench_rdk_ops.exe
+RAYS_RDK_OPS_FILTER=attribute_promote RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=4 opam exec --switch=. -- \
+  dune exec --profile release tools/bench_rdk_ops.exe
+RAYS_RDK_OPS_FILTER=attribute_promote_pattern \
+RAYS_RDK_OPS_REPEATS=5 RAYS_RDK_BENCH_GRAIN=2048 \
+RAYS_BENCH_DOMAINS=1 dune exec tools/bench_rdk_ops.exe
+RAYS_RDK_OPS_FILTER=attribute_promote_pattern \
+RAYS_RDK_OPS_REPEATS=5 RAYS_RDK_BENCH_GRAIN=2048 \
+RAYS_BENCH_DOMAINS=4 dune exec tools/bench_rdk_ops.exe
+RAYS_RDK_OPS_FILTER=attribute_promote_pattern_tuple4_indexed_shared \
+RAYS_RDK_OPS_REPEATS=5 RAYS_RDK_BENCH_GRAIN=2048 \
+RAYS_BENCH_DOMAINS=4 dune exec --profile release tools/bench_rdk_ops.exe
+RAYS_RDK_OPS_FILTER=attribute_promote_pattern_text_sum \
+RAYS_RDK_OPS_REPEATS=5 RAYS_RDK_BENCH_GRAIN=2048 \
+RAYS_BENCH_DOMAINS=4 dune exec --profile release tools/bench_rdk_ops.exe
 ```
 
 Attribute Blur reuses the topology cache, precomputes optional original-edge
@@ -2768,12 +2768,12 @@ including source and output geometry, topology cache, benchmark hashing, Dune,
 and OCaml heap.
 
 ```sh
-PRISMEL_PDK_OPS_FILTER=attribute_blur PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=1 opam exec --switch=. -- \
-  dune exec --profile release tools/bench_pdk_ops.exe
-PRISMEL_PDK_OPS_FILTER=attribute_blur PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=4 opam exec --switch=. -- \
-  dune exec --profile release tools/bench_pdk_ops.exe
+RAYS_RDK_OPS_FILTER=attribute_blur RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=1 opam exec --switch=. -- \
+  dune exec --profile release tools/bench_rdk_ops.exe
+RAYS_RDK_OPS_FILTER=attribute_blur RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=4 opam exec --switch=. -- \
+  dune exec --profile release tools/bench_rdk_ops.exe
 ```
 
 Attribute Randomize validates/unpacks tuple parameters once, allocates exact
@@ -2846,15 +2846,15 @@ Single-repeat four-domain Cauchy, text, and bounded-normal processes peaked at
 fixtures, hashing, runtime, and harness state.
 
 ```sh
-PRISMEL_PDK_OPS_FILTER=attribute_randomize_cauchy2_bounded \
-PRISMEL_PDK_OPS_REPEATS=5 PRISMEL_PDK_BENCH_GRAIN=2048 \
-PRISMEL_BENCH_DOMAINS=4 dune exec --profile release tools/bench_pdk_ops.exe
-PRISMEL_PDK_OPS_FILTER=attribute_randomize_text_discrete \
-PRISMEL_PDK_OPS_REPEATS=5 PRISMEL_PDK_BENCH_GRAIN=2048 \
-PRISMEL_BENCH_DOMAINS=4 dune exec --profile release tools/bench_pdk_ops.exe
-PRISMEL_PDK_OPS_FILTER=attribute_randomize_point_to_vertex_group \
-PRISMEL_PDK_OPS_REPEATS=5 PRISMEL_PDK_BENCH_GRAIN=2048 \
-PRISMEL_BENCH_DOMAINS=4 dune exec --profile release tools/bench_pdk_ops.exe
+RAYS_RDK_OPS_FILTER=attribute_randomize_cauchy2_bounded \
+RAYS_RDK_OPS_REPEATS=5 RAYS_RDK_BENCH_GRAIN=2048 \
+RAYS_BENCH_DOMAINS=4 dune exec --profile release tools/bench_rdk_ops.exe
+RAYS_RDK_OPS_FILTER=attribute_randomize_text_discrete \
+RAYS_RDK_OPS_REPEATS=5 RAYS_RDK_BENCH_GRAIN=2048 \
+RAYS_BENCH_DOMAINS=4 dune exec --profile release tools/bench_rdk_ops.exe
+RAYS_RDK_OPS_FILTER=attribute_randomize_point_to_vertex_group \
+RAYS_RDK_OPS_REPEATS=5 RAYS_RDK_BENCH_GRAIN=2048 \
+RAYS_BENCH_DOMAINS=4 dune exec --profile release tools/bench_rdk_ops.exe
 ```
 
 Attribute Remap explicit Float4 takes 30.621/13.720 ms and allocates
@@ -2871,18 +2871,18 @@ million-point topology, all source/fraction fixtures, benchmark hashing, Dune,
 and the OCaml heap. The earlier isolated Remap process peaked at 191,508 KiB.
 
 ```sh
-PRISMEL_PDK_OPS_FILTER=attribute_randomize PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=1 opam exec --switch=. -- \
-  dune exec --profile release tools/bench_pdk_ops.exe
-PRISMEL_PDK_OPS_FILTER=attribute_randomize PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=4 opam exec --switch=. -- \
-  dune exec --profile release tools/bench_pdk_ops.exe
-PRISMEL_PDK_OPS_FILTER=attribute_remap PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=1 opam exec --switch=. -- \
-  dune exec --profile release tools/bench_pdk_ops.exe
-PRISMEL_PDK_OPS_FILTER=attribute_remap PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=4 opam exec --switch=. -- \
-  dune exec --profile release tools/bench_pdk_ops.exe
+RAYS_RDK_OPS_FILTER=attribute_randomize RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=1 opam exec --switch=. -- \
+  dune exec --profile release tools/bench_rdk_ops.exe
+RAYS_RDK_OPS_FILTER=attribute_randomize RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=4 opam exec --switch=. -- \
+  dune exec --profile release tools/bench_rdk_ops.exe
+RAYS_RDK_OPS_FILTER=attribute_remap RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=1 opam exec --switch=. -- \
+  dune exec --profile release tools/bench_rdk_ops.exe
+RAYS_RDK_OPS_FILTER=attribute_remap RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=4 opam exec --switch=. -- \
+  dune exec --profile release tools/bench_rdk_ops.exe
 ```
 
 Peak, Mountain, and topology-preserving normal generation share packed
@@ -2917,12 +2917,12 @@ release medians on the same 1,002,001-point fixture; the matching hashes across
 domain counts are regression requirements, not timing assumptions.
 
 ```sh
-PRISMEL_PDK_OPS_FILTER=point_jitter PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=1 opam exec --switch=. -- \
-  dune exec --profile=release tools/bench_pdk_ops.exe
-PRISMEL_PDK_OPS_FILTER=point_jitter PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=4 opam exec --switch=. -- \
-  dune exec --profile=release tools/bench_pdk_ops.exe
+RAYS_RDK_OPS_FILTER=point_jitter RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=1 opam exec --switch=. -- \
+  dune exec --profile=release tools/bench_rdk_ops.exe
+RAYS_RDK_OPS_FILTER=point_jitter RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=4 opam exec --switch=. -- \
+  dune exec --profile=release tools/bench_rdk_ops.exe
 ```
 
 Edge Divide is measured on a 300x250 quad grid with 75,551 points, point and
@@ -2944,12 +2944,12 @@ index plus unavoidable output construction; disjoint planning and fill ranges
 provide 1.22x and 1.31x four-domain speedups without changing ordering.
 
 ```sh
-PRISMEL_PDK_OPS_FILTER=edge_divide PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=1 opam exec --switch=. -- \
-  dune exec --profile=release tools/bench_pdk_ops.exe
-PRISMEL_PDK_OPS_FILTER=edge_divide PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=4 opam exec --switch=. -- \
-  dune exec --profile=release tools/bench_pdk_ops.exe
+RAYS_RDK_OPS_FILTER=edge_divide RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=1 opam exec --switch=. -- \
+  dune exec --profile=release tools/bench_rdk_ops.exe
+RAYS_RDK_OPS_FILTER=edge_divide RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=4 opam exec --switch=. -- \
+  dune exec --profile=release tools/bench_rdk_ops.exe
 ```
 
 Edge Collapse uses a 500x400 quad grid with 200,901 points, point/vertex UV and
@@ -2970,12 +2970,12 @@ shared-corner normal accumulation; disjoint packed payload and normal ranges
 remain parallel.
 
 ```sh
-PRISMEL_PDK_OPS_FILTER=edge_collapse PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=1 opam exec --switch=. -- \
-  dune exec --profile=release tools/bench_pdk_ops.exe
-PRISMEL_PDK_OPS_FILTER=edge_collapse PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=4 opam exec --switch=. -- \
-  dune exec --profile=release tools/bench_pdk_ops.exe
+RAYS_RDK_OPS_FILTER=edge_collapse RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=1 opam exec --switch=. -- \
+  dune exec --profile=release tools/bench_rdk_ops.exe
+RAYS_RDK_OPS_FILTER=edge_collapse RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=4 opam exec --switch=. -- \
+  dune exec --profile=release tools/bench_rdk_ops.exe
 ```
 
 PolyReduce uses a 420x320 alternating-triangle grid (134,400 points and
@@ -3012,12 +3012,12 @@ both wall time and peak memory while preserving the exact ancestry and
 topology-validity matrix.
 
 ```sh
-PRISMEL_PDK_OPS_FILTER=poly_reduce PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=1 opam exec --switch=. -- \
-  dune exec --profile=release tools/bench_pdk_ops.exe
-PRISMEL_PDK_OPS_FILTER=poly_reduce PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=4 opam exec --switch=. -- \
-  dune exec --profile=release tools/bench_pdk_ops.exe
+RAYS_RDK_OPS_FILTER=poly_reduce RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=1 opam exec --switch=. -- \
+  dune exec --profile=release tools/bench_rdk_ops.exe
+RAYS_RDK_OPS_FILTER=poly_reduce RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=4 opam exec --switch=. -- \
+  dune exec --profile=release tools/bench_rdk_ops.exe
 ```
 
 Remesh uses the same 420x320 alternating-triangle grid as PolyReduce: 134,400
@@ -3063,12 +3063,12 @@ Measurements use OCaml 5.3.0, Dune 3.24.0, release profile, grain 16,384,
 Linux 6.8/aarch64, and four available single-threaded cores. Reproduce with:
 
 ```sh
-PRISMEL_PDK_OPS_FILTER=remesh PRISMEL_PDK_OPS_REPEATS=3 \
-PRISMEL_BENCH_DOMAINS=1 opam exec --switch=. -- \
-  dune exec --profile=release tools/bench_pdk_ops.exe
-PRISMEL_PDK_OPS_FILTER=remesh PRISMEL_PDK_OPS_REPEATS=3 \
-PRISMEL_BENCH_DOMAINS=4 opam exec --switch=. -- \
-  dune exec --profile=release tools/bench_pdk_ops.exe
+RAYS_RDK_OPS_FILTER=remesh RAYS_RDK_OPS_REPEATS=3 \
+RAYS_BENCH_DOMAINS=1 opam exec --switch=. -- \
+  dune exec --profile=release tools/bench_rdk_ops.exe
+RAYS_RDK_OPS_FILTER=remesh RAYS_RDK_OPS_REPEATS=3 \
+RAYS_BENCH_DOMAINS=4 opam exec --switch=. -- \
+  dune exec --profile=release tools/bench_rdk_ops.exe
 ```
 
 Boolean Detect is measured on two 240x180 alternating-triangle grids with
@@ -3114,14 +3114,14 @@ Measurements use OCaml 5.3.0, Dune 3.24.0, release profile, grain 16,384,
 Linux 6.8/aarch64, and four physical cores. Reproduce with:
 
 ```sh
-PRISMEL_PDK_OPS_FILTER=boolean_detect PRISMEL_PDK_OPS_COLUMNS=240 \
-PRISMEL_PDK_OPS_ROWS=180 PRISMEL_PDK_OPS_REPEATS=3 \
-PRISMEL_BENCH_DOMAINS=1 opam exec --switch=. -- \
-  dune exec --profile=release tools/bench_pdk_ops.exe
-PRISMEL_PDK_OPS_FILTER=boolean_detect PRISMEL_PDK_OPS_COLUMNS=240 \
-PRISMEL_PDK_OPS_ROWS=180 PRISMEL_PDK_OPS_REPEATS=3 \
-PRISMEL_BENCH_DOMAINS=4 opam exec --switch=. -- \
-  dune exec --profile=release tools/bench_pdk_ops.exe
+RAYS_RDK_OPS_FILTER=boolean_detect RAYS_RDK_OPS_COLUMNS=240 \
+RAYS_RDK_OPS_ROWS=180 RAYS_RDK_OPS_REPEATS=3 \
+RAYS_BENCH_DOMAINS=1 opam exec --switch=. -- \
+  dune exec --profile=release tools/bench_rdk_ops.exe
+RAYS_RDK_OPS_FILTER=boolean_detect RAYS_RDK_OPS_COLUMNS=240 \
+RAYS_RDK_OPS_ROWS=180 RAYS_RDK_OPS_REPEATS=3 \
+RAYS_BENCH_DOMAINS=4 opam exec --switch=. -- \
+  dune exec --profile=release tools/bench_rdk_ops.exe
 ```
 
 Intersection Analysis measures point/provenance materialization in addition
@@ -3154,10 +3154,10 @@ parallelization target, not linear multicore scaling. Reproduce a row by
 selecting its prefix, for example:
 
 ```sh
-PRISMEL_PDK_OPS_FILTER=intersection_analysis_crossing \
-PRISMEL_PDK_OPS_COLUMNS=420 PRISMEL_PDK_OPS_ROWS=320 \
-PRISMEL_PDK_OPS_REPEATS=5 PRISMEL_BENCH_DOMAINS=4 \
-  dune exec --profile=release tools/bench_pdk_ops.exe
+RAYS_RDK_OPS_FILTER=intersection_analysis_crossing \
+RAYS_RDK_OPS_COLUMNS=420 RAYS_RDK_OPS_ROWS=320 \
+RAYS_RDK_OPS_REPEATS=5 RAYS_BENCH_DOMAINS=4 \
+  dune exec --profile=release tools/bench_rdk_ops.exe
 ```
 
 The mixed index replaces the former triangle-only traversal without building
@@ -3203,12 +3203,12 @@ normal, and edge-bit fills use disjoint reusable-pool ranges. Measurements use
 OCaml 5.3.0, Dune 3.24.0, Linux 6.8/aarch64, four cores, and grain 16,384.
 
 ```sh
-PRISMEL_PDK_OPS_FILTER=poly_bevel PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=1 opam exec --switch=. -- \
-  dune exec --profile=release tools/bench_pdk_ops.exe
-PRISMEL_PDK_OPS_FILTER=poly_bevel PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=4 opam exec --switch=. -- \
-  dune exec --profile=release tools/bench_pdk_ops.exe
+RAYS_RDK_OPS_FILTER=poly_bevel RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=1 opam exec --switch=. -- \
+  dune exec --profile=release tools/bench_rdk_ops.exe
+RAYS_RDK_OPS_FILTER=poly_bevel RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=4 opam exec --switch=. -- \
+  dune exec --profile=release tools/bench_rdk_ops.exe
 ```
 
 Point Split uses a 500x400 quad grid with 200,901 points, 200,000 primitives,
@@ -3248,12 +3248,12 @@ disjoint ranges. Measurements use OCaml 5.3.0, Dune 3.24.0, Linux 6.8/aarch64,
 four cores, and grain 16,384.
 
 ```sh
-PRISMEL_PDK_OPS_FILTER=point_split PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=1 opam exec --switch=. -- \
-  dune exec --profile release tools/bench_pdk_ops.exe
-PRISMEL_PDK_OPS_FILTER=point_split PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=4 opam exec --switch=. -- \
-  dune exec --profile release tools/bench_pdk_ops.exe
+RAYS_RDK_OPS_FILTER=point_split RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=1 opam exec --switch=. -- \
+  dune exec --profile release tools/bench_rdk_ops.exe
+RAYS_RDK_OPS_FILTER=point_split RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=4 opam exec --switch=. -- \
+  dune exec --profile release tools/bench_rdk_ops.exe
 ```
 
 Point Generate is measured in three cardinality-first cases: a no-input
@@ -3288,12 +3288,12 @@ copied values. Measurements use OCaml 5.3.0, Dune 3.24.0, Linux 6.8/aarch64,
 four single-threaded cores, and grain 16,384.
 
 ```sh
-PRISMEL_PDK_OPS_FILTER=point_generate PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=1 opam exec --switch=. -- \
-  dune exec --profile release tools/bench_pdk_ops.exe
-PRISMEL_PDK_OPS_FILTER=point_generate PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=4 opam exec --switch=. -- \
-  dune exec --profile release tools/bench_pdk_ops.exe
+RAYS_RDK_OPS_FILTER=point_generate RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=1 opam exec --switch=. -- \
+  dune exec --profile release tools/bench_rdk_ops.exe
+RAYS_RDK_OPS_FILTER=point_generate RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=4 opam exec --switch=. -- \
+  dune exec --profile release tools/bench_rdk_ops.exe
 ```
 
 Point Replicate uses 100,000 source points and emits 600,000 points. Sources
@@ -3337,12 +3337,12 @@ ranges without per-output tuple allocation. Measurements use OCaml 5.3.0, Dune
 3.24.0, Linux 6.8/aarch64, four single-threaded cores, and grain 16,384.
 
 ```sh
-PRISMEL_PDK_OPS_FILTER=point_replicate PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=1 opam exec --switch=. -- \
-  dune exec --profile release tools/bench_pdk_ops.exe
-PRISMEL_PDK_OPS_FILTER=point_replicate PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=4 opam exec --switch=. -- \
-  dune exec --profile release tools/bench_pdk_ops.exe
+RAYS_RDK_OPS_FILTER=point_replicate RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=1 opam exec --switch=. -- \
+  dune exec --profile release tools/bench_rdk_ops.exe
+RAYS_RDK_OPS_FILTER=point_replicate RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=4 opam exec --switch=. -- \
+  dune exec --profile release tools/bench_rdk_ops.exe
 ```
 
 Edge Flip is measured on 50,000 disconnected two-triangle patches (200,000
@@ -3360,12 +3360,12 @@ workload; parallel validation and remapping primarily preserve scalability for
 larger N-gons without changing connectivity or payload order.
 
 ```sh
-PRISMEL_PDK_OPS_FILTER=edge_flip PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=1 opam exec --switch=. -- \
-  dune exec --profile=release tools/bench_pdk_ops.exe
-PRISMEL_PDK_OPS_FILTER=edge_flip PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=4 opam exec --switch=. -- \
-  dune exec --profile=release tools/bench_pdk_ops.exe
+RAYS_RDK_OPS_FILTER=edge_flip RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=1 opam exec --switch=. -- \
+  dune exec --profile=release tools/bench_rdk_ops.exe
+RAYS_RDK_OPS_FILTER=edge_flip RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=4 opam exec --switch=. -- \
+  dune exec --profile=release tools/bench_rdk_ops.exe
 ```
 
 Edge Cusp selects every edge of a 300x250 triangle grid carrying point normals,
@@ -3383,12 +3383,12 @@ position, topology, point payload/group duplication, edge ancestry, face
 normal construction, and normalization use deterministic disjoint ranges.
 
 ```sh
-PRISMEL_PDK_OPS_FILTER=edge_cusp PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=1 opam exec --switch=. -- \
-  dune exec --profile=release tools/bench_pdk_ops.exe
-PRISMEL_PDK_OPS_FILTER=edge_cusp PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=4 opam exec --switch=. -- \
-  dune exec --profile=release tools/bench_pdk_ops.exe
+RAYS_RDK_OPS_FILTER=edge_cusp RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=1 opam exec --switch=. -- \
+  dune exec --profile=release tools/bench_rdk_ops.exe
+RAYS_RDK_OPS_FILTER=edge_cusp RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=4 opam exec --switch=. -- \
+  dune exec --profile=release tools/bench_rdk_ops.exe
 ```
 
 Edge Straighten measures 100,000 independent three-point bends (300,000
@@ -3407,12 +3407,12 @@ numbering remains sequential while component fitting and point projection are
 parallel.
 
 ```sh
-PRISMEL_PDK_OPS_FILTER=edge_straighten PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=1 opam exec --switch=. -- \
-  dune exec --profile=release tools/bench_pdk_ops.exe
-PRISMEL_PDK_OPS_FILTER=edge_straighten PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=4 opam exec --switch=. -- \
-  dune exec --profile=release tools/bench_pdk_ops.exe
+RAYS_RDK_OPS_FILTER=edge_straighten RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=1 opam exec --switch=. -- \
+  dune exec --profile=release tools/bench_rdk_ops.exe
+RAYS_RDK_OPS_FILTER=edge_straighten RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=4 opam exec --switch=. -- \
+  dune exec --profile=release tools/bench_rdk_ops.exe
 ```
 
 ## Circle from Edges SOP baseline
@@ -3451,11 +3451,11 @@ RSS on one domain and 299,436 KiB on four, including both retained million-point
 fixtures, output hashing, Dune, and the OCaml runtime.
 
 ```sh
-PRISMEL_CIRCLE_EDGE_POINTS=1000000 PRISMEL_CIRCLE_EDGE_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=1 /usr/bin/time -v \
+RAYS_CIRCLE_EDGE_POINTS=1000000 RAYS_CIRCLE_EDGE_REPEATS=5 \
+RAYS_BENCH_DOMAINS=1 /usr/bin/time -v \
   opam exec --switch=. -- dune exec --profile release \
     tools/bench_circle_from_edges.exe
-# Repeat with PRISMEL_BENCH_DOMAINS=4.
+# Repeat with RAYS_BENCH_DOMAINS=4.
 ```
 
 ## Graph Color SOP baseline
@@ -3496,11 +3496,11 @@ entries and component members every 4,096 colors, bounding cancellation latency
 for single high-valence or long connected components without changing results.
 
 ```sh
-PRISMEL_GRAPH_COLOR_ELEMENTS=1000000 PRISMEL_GRAPH_COLOR_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=1 /usr/bin/time -v \
+RAYS_GRAPH_COLOR_ELEMENTS=1000000 RAYS_GRAPH_COLOR_REPEATS=5 \
+RAYS_BENCH_DOMAINS=1 /usr/bin/time -v \
   opam exec --switch=. -- dune exec --profile release \
     tools/bench_graph_color.exe
-# Repeat with PRISMEL_BENCH_DOMAINS=4.
+# Repeat with RAYS_BENCH_DOMAINS=4.
 ```
 
 The deliberately heavier fallback/recompute fixtures generate geometric
@@ -3523,18 +3523,18 @@ The former procedural render smoke produced byte-identical one/four-domain
 named SOP graphs under `@runtest-native`.
 
 ```sh
-PRISMEL_PDK_OPS_FILTER=peak PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=1 opam exec --switch=. -- \
-  dune exec --profile release tools/bench_pdk_ops.exe
-PRISMEL_PDK_OPS_FILTER=peak PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=4 opam exec --switch=. -- \
-  dune exec --profile release tools/bench_pdk_ops.exe
-PRISMEL_PDK_OPS_FILTER=mountain PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=1 opam exec --switch=. -- \
-  dune exec --profile release tools/bench_pdk_ops.exe
-PRISMEL_PDK_OPS_FILTER=mountain PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=4 opam exec --switch=. -- \
-  dune exec --profile release tools/bench_pdk_ops.exe
+RAYS_RDK_OPS_FILTER=peak RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=1 opam exec --switch=. -- \
+  dune exec --profile release tools/bench_rdk_ops.exe
+RAYS_RDK_OPS_FILTER=peak RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=4 opam exec --switch=. -- \
+  dune exec --profile release tools/bench_rdk_ops.exe
+RAYS_RDK_OPS_FILTER=mountain RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=1 opam exec --switch=. -- \
+  dune exec --profile release tools/bench_rdk_ops.exe
+RAYS_RDK_OPS_FILTER=mountain RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=4 opam exec --switch=. -- \
+  dune exec --profile release tools/bench_rdk_ops.exe
 ```
 
 Generalized Measure compiles primitive selection once, allocates the exact
@@ -3557,12 +3557,12 @@ hash was exact. The isolated four-domain five-repeat process peaked at 79,720
 KiB RSS, including the fixtures, benchmark hashing, Dune, and OCaml heap.
 
 ```sh
-PRISMEL_PDK_OPS_FILTER=measure PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=1 opam exec --switch=. -- \
-  dune exec --profile release tools/bench_pdk_ops.exe
-PRISMEL_PDK_OPS_FILTER=measure PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=4 opam exec --switch=. -- \
-  dune exec --profile release tools/bench_pdk_ops.exe
+RAYS_RDK_OPS_FILTER=measure RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=1 opam exec --switch=. -- \
+  dune exec --profile release tools/bench_rdk_ops.exe
+RAYS_RDK_OPS_FILTER=measure RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=4 opam exec --switch=. -- \
+  dune exec --profile release tools/bench_rdk_ops.exe
 ```
 
 Connectivity uses compact integer parent/rank planes and an integer
@@ -3587,10 +3587,10 @@ all five fixtures, cached topology, benchmark hashing, Dune, and the OCaml
 heap.
 
 ```sh
-PRISMEL_PDK_OPS_FILTER=connectivity PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=1 dune exec --profile release tools/bench_pdk_ops.exe
-PRISMEL_PDK_OPS_FILTER=connectivity PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=4 dune exec --profile release tools/bench_pdk_ops.exe
+RAYS_RDK_OPS_FILTER=connectivity RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=1 dune exec --profile release tools/bench_rdk_ops.exe
+RAYS_RDK_OPS_FILTER=connectivity RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=4 dune exec --profile release tools/bench_rdk_ops.exe
 ```
 
 Group Find Path prepares one robust relation-weight plane, then runs linear
@@ -3635,10 +3635,10 @@ SHA-256
 `9b4d168b71d85c7b9d07eebe9ad88dfd7ef43d3c3345d6e51856a76ff35e2b6b`.
 
 ```sh
-PRISMEL_PDK_OPS_FILTER=group_find_path PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=1 dune exec --profile release tools/bench_pdk_ops.exe
-PRISMEL_PDK_OPS_FILTER=group_find_path PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=4 dune exec --profile release tools/bench_pdk_ops.exe
+RAYS_RDK_OPS_FILTER=group_find_path RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=1 dune exec --profile release tools/bench_rdk_ops.exe
+RAYS_RDK_OPS_FILTER=group_find_path RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=4 dune exec --profile release tools/bench_rdk_ops.exe
 ```
 
 Group Transfer builds one same-owner map per requested owner and reuses it for
@@ -3668,10 +3668,10 @@ leaving exact feature, hierarchy, mapping, and group planes. No topology or
 distance semantics changed.
 
 ```sh
-PRISMEL_PDK_OPS_FILTER=group_transfer PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=1 dune exec --profile release tools/bench_pdk_ops.exe
-PRISMEL_PDK_OPS_FILTER=group_transfer PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=4 dune exec --profile release tools/bench_pdk_ops.exe
+RAYS_RDK_OPS_FILTER=group_transfer RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=1 dune exec --profile release tools/bench_rdk_ops.exe
+RAYS_RDK_OPS_FILTER=group_transfer RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=4 dune exec --profile release tools/bench_rdk_ops.exe
 ```
 
 Groups from Name classifies names once in stable element order, allocates one
@@ -3694,9 +3694,9 @@ operator's strict retained group plane is covered separately by its payload
 ceiling regression.
 
 ```sh
-PRISMEL_PDK_OPS_FILTER=groups_from_name PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=1 dune exec --profile release tools/bench_pdk_ops.exe
-# Repeat with PRISMEL_BENCH_DOMAINS=4; use /usr/bin/time -v for process RSS.
+RAYS_RDK_OPS_FILTER=groups_from_name RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=1 dune exec --profile release tools/bench_rdk_ops.exe
+# Repeat with RAYS_BENCH_DOMAINS=4; use /usr/bin/time -v for process RSS.
 ```
 
 Name from Groups uses the inverse compact representation path. Its first
@@ -3712,9 +3712,9 @@ Stable overlap resolution remains serial and output text ranges parallelize;
 the node is not mislabeled as fully parallel.
 
 ```sh
-PRISMEL_PDK_OPS_FILTER=name_from_groups PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=1 dune exec --profile release tools/bench_pdk_ops.exe
-# Repeat with PRISMEL_BENCH_DOMAINS=4.
+RAYS_RDK_OPS_FILTER=name_from_groups RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=1 dune exec --profile release tools/bench_rdk_ops.exe
+# Repeat with RAYS_BENCH_DOMAINS=4.
 ```
 
 Group Random writes one exact packed output plane by byte and evaluates the
@@ -3735,9 +3735,9 @@ benchmark processes peaked at 941,096/940,912 KiB RSS, dominated by the shared
 million-point catalog fixture rather than the 0.125--0.750 MB result planes.
 
 ```sh
-PRISMEL_PDK_OPS_FILTER=group_random PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=1 dune exec --profile release tools/bench_pdk_ops.exe
-# Repeat with PRISMEL_BENCH_DOMAINS=4.
+RAYS_RDK_OPS_FILTER=group_random RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=1 dune exec --profile release tools/bench_rdk_ops.exe
+# Repeat with RAYS_BENCH_DOMAINS=4.
 ```
 
 Group Bounds specializes inclusive box/sphere classification by owner and
@@ -3767,9 +3767,9 @@ processes peaked at 940,988/933,048 KiB RSS, dominated by the common catalog
 fixture; the operator retains only its listed packed group plane.
 
 ```sh
-PRISMEL_PDK_OPS_FILTER=group_bounds PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=1 dune exec --profile release tools/bench_pdk_ops.exe
-# Repeat with PRISMEL_BENCH_DOMAINS=4.
+RAYS_RDK_OPS_FILTER=group_bounds RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=1 dune exec --profile release tools/bench_rdk_ops.exe
+# Repeat with RAYS_BENCH_DOMAINS=4.
 ```
 
 Group Normal uses normalized SoA geometry directions and exact packed output.
@@ -3925,36 +3925,36 @@ time is the sum of their individual range/connectivity work and persistent
 output is O(r * owner-elements / 8) in the worst case.
 
 ```sh
-PRISMEL_PDK_OPS_FILTER=group_normal PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=1 dune exec --profile release tools/bench_pdk_ops.exe
-# Repeat with PRISMEL_BENCH_DOMAINS=4.
-PRISMEL_PDK_OPS_FILTER=group_non_planar PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=1 dune exec --profile release tools/bench_pdk_ops.exe
-# Repeat with PRISMEL_BENCH_DOMAINS=4.
-PRISMEL_PDK_OPS_FILTER=group_backface PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=1 dune exec --profile release tools/bench_pdk_ops.exe
-# Repeat with PRISMEL_BENCH_DOMAINS=4.
-PRISMEL_PDK_OPS_FILTER=group_edges_incident_angle PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=1 dune exec --profile release tools/bench_pdk_ops.exe
-# Repeat with PRISMEL_BENCH_DOMAINS=4.
-PRISMEL_PDK_OPS_FILTER=group_edges_dihedral_angle PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=1 dune exec --profile release tools/bench_pdk_ops.exe
-# Repeat with PRISMEL_BENCH_DOMAINS=4.
-PRISMEL_PDK_OPS_FILTER=group_edge_depth_points PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=1 dune exec --profile release tools/bench_pdk_ops.exe
-# Repeat with PRISMEL_BENCH_DOMAINS=4.
-PRISMEL_PDK_OPS_FILTER=group_unshared PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=1 dune exec --profile release tools/bench_pdk_ops.exe
-# Repeat with PRISMEL_BENCH_DOMAINS=4.
-PRISMEL_PDK_OPS_FILTER=group_boundary_components PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=1 dune exec --profile release tools/bench_pdk_ops.exe
-# Repeat with PRISMEL_BENCH_DOMAINS=4.
-PRISMEL_PDK_OPS_FILTER=group_range PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=1 dune exec --profile release tools/bench_pdk_ops.exe
-# Repeat with PRISMEL_BENCH_DOMAINS=4.
+RAYS_RDK_OPS_FILTER=group_normal RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=1 dune exec --profile release tools/bench_rdk_ops.exe
+# Repeat with RAYS_BENCH_DOMAINS=4.
+RAYS_RDK_OPS_FILTER=group_non_planar RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=1 dune exec --profile release tools/bench_rdk_ops.exe
+# Repeat with RAYS_BENCH_DOMAINS=4.
+RAYS_RDK_OPS_FILTER=group_backface RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=1 dune exec --profile release tools/bench_rdk_ops.exe
+# Repeat with RAYS_BENCH_DOMAINS=4.
+RAYS_RDK_OPS_FILTER=group_edges_incident_angle RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=1 dune exec --profile release tools/bench_rdk_ops.exe
+# Repeat with RAYS_BENCH_DOMAINS=4.
+RAYS_RDK_OPS_FILTER=group_edges_dihedral_angle RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=1 dune exec --profile release tools/bench_rdk_ops.exe
+# Repeat with RAYS_BENCH_DOMAINS=4.
+RAYS_RDK_OPS_FILTER=group_edge_depth_points RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=1 dune exec --profile release tools/bench_rdk_ops.exe
+# Repeat with RAYS_BENCH_DOMAINS=4.
+RAYS_RDK_OPS_FILTER=group_unshared RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=1 dune exec --profile release tools/bench_rdk_ops.exe
+# Repeat with RAYS_BENCH_DOMAINS=4.
+RAYS_RDK_OPS_FILTER=group_boundary_components RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=1 dune exec --profile release tools/bench_rdk_ops.exe
+# Repeat with RAYS_BENCH_DOMAINS=4.
+RAYS_RDK_OPS_FILTER=group_range RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=1 dune exec --profile release tools/bench_rdk_ops.exe
+# Repeat with RAYS_BENCH_DOMAINS=4.
 ```
 
-PDK Reverse was measured on the 1,002,001-point/two-million-triangle grid
+RDK Reverse was measured on the 1,002,001-point/two-million-triangle grid
 (6,000,000 corners), with five release-profile medians. The former sequential
 whole-geometry implementation took 61.311/58.188 ms on one/four domains and
 allocated 186.018/186.018 MB. Exact-sized owned topology planes and stable
@@ -3976,16 +3976,16 @@ time and O(vertices + remapped vertex payload) owned output; local selection
 adds only the primitive membership already supplied by the caller.
 
 ```sh
-PRISMEL_PDK_OPS_FILTER=reverse_ PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=1 dune exec --profile release tools/bench_pdk_ops.exe
-# Repeat with PRISMEL_BENCH_DOMAINS=4.
-/usr/bin/time -v env PRISMEL_PDK_OPS_FILTER=reverse_ \
-  PRISMEL_PDK_OPS_REPEATS=1 PRISMEL_BENCH_DOMAINS=1 \
-  dune exec --profile release tools/bench_pdk_ops.exe
-# Repeat with PRISMEL_BENCH_DOMAINS=4.
+RAYS_RDK_OPS_FILTER=reverse_ RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=1 dune exec --profile release tools/bench_rdk_ops.exe
+# Repeat with RAYS_BENCH_DOMAINS=4.
+/usr/bin/time -v env RAYS_RDK_OPS_FILTER=reverse_ \
+  RAYS_RDK_OPS_REPEATS=1 RAYS_BENCH_DOMAINS=1 \
+  dune exec --profile release tools/bench_rdk_ops.exe
+# Repeat with RAYS_BENCH_DOMAINS=4.
 ```
 
-PDK Triangulate was measured on a 1,002,001-point/one-million-quad grid
+RDK Triangulate was measured on a 1,002,001-point/one-million-quad grid
 (4,000,000 input corners), with five release-profile medians. The former
 sequential implementation took 193.076/189.481 ms on one/four domains,
 allocated 458.019 MB, and produced exact hash `1520822849354697608`.
@@ -4012,16 +4012,16 @@ quadratic term is local to each ear-clipped polygon; independent primitive
 blocks fill stable disjoint output ranges and cannot alter primitive order.
 
 ```sh
-PRISMEL_PDK_OPS_FILTER=triangulate_quads PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=1 dune exec --profile release tools/bench_pdk_ops.exe
-# Repeat with PRISMEL_BENCH_DOMAINS=4.
-/usr/bin/time -v env PRISMEL_PDK_OPS_FILTER=triangulate_quads \
-  PRISMEL_PDK_OPS_REPEATS=1 PRISMEL_BENCH_DOMAINS=1 \
-  dune exec --profile release tools/bench_pdk_ops.exe
-# Repeat with PRISMEL_BENCH_DOMAINS=4.
+RAYS_RDK_OPS_FILTER=triangulate_quads RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=1 dune exec --profile release tools/bench_rdk_ops.exe
+# Repeat with RAYS_BENCH_DOMAINS=4.
+/usr/bin/time -v env RAYS_RDK_OPS_FILTER=triangulate_quads \
+  RAYS_RDK_OPS_REPEATS=1 RAYS_BENCH_DOMAINS=1 \
+  dune exec --profile release tools/bench_rdk_ops.exe
+# Repeat with RAYS_BENCH_DOMAINS=4.
 ```
 
-PDK Normals was measured on a 1,002,001-point/two-million-triangle grid
+RDK Normals was measured on a 1,002,001-point/two-million-triangle grid
 (6,000,000 corners), with five release-profile medians. Before the production
 owner/weighting/selection audit, the compatible point/face-area path took
 71.229/51.341 ms on one/four domains, allocated 72.051/72.093 MB, and produced
@@ -4058,17 +4058,17 @@ split. Warm results above exclude one-time index construction but include all
 normal output and hashing work.
 
 ```sh
-PRISMEL_PDK_OPS_FILTER=normals_ PRISMEL_PDK_OPS_REPEATS=5 \
-PRISMEL_BENCH_DOMAINS=1 dune exec --profile release tools/bench_pdk_ops.exe
-# Repeat with PRISMEL_BENCH_DOMAINS=4.
+RAYS_RDK_OPS_FILTER=normals_ RAYS_RDK_OPS_REPEATS=5 \
+RAYS_BENCH_DOMAINS=1 dune exec --profile release tools/bench_rdk_ops.exe
+# Repeat with RAYS_BENCH_DOMAINS=4.
 /usr/bin/time -v env \
-  PRISMEL_PDK_OPS_FILTER=normals_vertex_angle_vertices_cusp60 \
-  PRISMEL_PDK_OPS_REPEATS=1 PRISMEL_BENCH_DOMAINS=1 \
-  dune exec --profile release tools/bench_pdk_ops.exe
-# Repeat with PRISMEL_BENCH_DOMAINS=4.
-PRISMEL_PDK_OPS_FILTER=edge_group_topology_index_cold \
-PRISMEL_PDK_OPS_REPEATS=1 PRISMEL_BENCH_DOMAINS=1 \
-  dune exec --profile release tools/bench_pdk_ops.exe
+  RAYS_RDK_OPS_FILTER=normals_vertex_angle_vertices_cusp60 \
+  RAYS_RDK_OPS_REPEATS=1 RAYS_BENCH_DOMAINS=1 \
+  dune exec --profile release tools/bench_rdk_ops.exe
+# Repeat with RAYS_BENCH_DOMAINS=4.
+RAYS_RDK_OPS_FILTER=edge_group_topology_index_cold \
+RAYS_RDK_OPS_REPEATS=1 RAYS_BENCH_DOMAINS=1 \
+  dune exec --profile release tools/bench_rdk_ops.exe
 ```
 
 ## Selected Transform SOP baseline
@@ -4095,11 +4095,11 @@ selected incidence); transformation is O(points + affected normal elements),
 uses disjoint stable ranges, and performs no per-element heap allocation.
 
 ```sh
-PRISMEL_PDK_OPS_COLUMNS=500 PRISMEL_PDK_OPS_ROWS=300 \
-PRISMEL_PDK_OPS_REPEATS=7 PRISMEL_BENCH_DOMAINS=1 \
-PRISMEL_PDK_OPS_FILTER=transform_selected \
-  opam exec --switch=. -- dune exec --profile release tools/bench_pdk_ops.exe
-# Repeat with PRISMEL_BENCH_DOMAINS=4.
+RAYS_RDK_OPS_COLUMNS=500 RAYS_RDK_OPS_ROWS=300 \
+RAYS_RDK_OPS_REPEATS=7 RAYS_BENCH_DOMAINS=1 \
+RAYS_RDK_OPS_FILTER=transform_selected \
+  opam exec --switch=. -- dune exec --profile release tools/bench_rdk_ops.exe
+# Repeat with RAYS_BENCH_DOMAINS=4.
 ```
 
 ## Soft Transform SOP baseline
@@ -4133,11 +4133,11 @@ output deformation are O(points). No inner path allocates per point, neighbor,
 or heap relaxation.
 
 ```sh
-PRISMEL_PDK_OPS_COLUMNS=500 PRISMEL_PDK_OPS_ROWS=300 \
-PRISMEL_PDK_OPS_REPEATS=7 PRISMEL_BENCH_DOMAINS=1 \
-PRISMEL_PDK_OPS_FILTER=soft_transform \
-  opam exec --switch=. -- dune exec --profile release tools/bench_pdk_ops.exe
-# Repeat with PRISMEL_BENCH_DOMAINS=4.
+RAYS_RDK_OPS_COLUMNS=500 RAYS_RDK_OPS_ROWS=300 \
+RAYS_RDK_OPS_REPEATS=7 RAYS_BENCH_DOMAINS=1 \
+RAYS_RDK_OPS_FILTER=soft_transform \
+  opam exec --switch=. -- dune exec --profile release tools/bench_rdk_ops.exe
+# Repeat with RAYS_BENCH_DOMAINS=4.
 ```
 
 ## Distance Along Geometry SOP baseline
@@ -4169,16 +4169,16 @@ indexed heap never allocates per relaxation and each point occupies at most one
 queue slot.
 
 ```sh
-PRISMEL_PDK_OPS_COLUMNS=500 PRISMEL_PDK_OPS_ROWS=300 \
-PRISMEL_PDK_OPS_REPEATS=7 PRISMEL_BENCH_DOMAINS=1 \
-PRISMEL_PDK_OPS_FILTER=distance_along \
-  opam exec --switch=. -- dune exec --profile release tools/bench_pdk_ops.exe
-# Repeat with PRISMEL_BENCH_DOMAINS=4.
+RAYS_RDK_OPS_COLUMNS=500 RAYS_RDK_OPS_ROWS=300 \
+RAYS_RDK_OPS_REPEATS=7 RAYS_BENCH_DOMAINS=1 \
+RAYS_RDK_OPS_FILTER=distance_along \
+  opam exec --switch=. -- dune exec --profile release tools/bench_rdk_ops.exe
+# Repeat with RAYS_BENCH_DOMAINS=4.
 /usr/bin/time -v env \
-  PRISMEL_PDK_OPS_FILTER=distance_along_edge_full_fixed_mask \
-  PRISMEL_PDK_OPS_COLUMNS=500 PRISMEL_PDK_OPS_ROWS=300 \
-  PRISMEL_PDK_OPS_REPEATS=1 PRISMEL_BENCH_DOMAINS=4 \
-  opam exec --switch=. -- dune exec --profile release tools/bench_pdk_ops.exe
+  RAYS_RDK_OPS_FILTER=distance_along_edge_full_fixed_mask \
+  RAYS_RDK_OPS_COLUMNS=500 RAYS_RDK_OPS_ROWS=300 \
+  RAYS_RDK_OPS_REPEATS=1 RAYS_BENCH_DOMAINS=4 \
+  opam exec --switch=. -- dune exec --profile release tools/bench_rdk_ops.exe
 ```
 
 ## Distance From Geometry SOP baseline
@@ -4218,16 +4218,16 @@ faster and 98.5% less allocation with the identical end-to-end hash. Neither
 final traversal allocates per visited point, triangle, or candidate.
 
 ```sh
-PRISMEL_PDK_OPS_COLUMNS=500 PRISMEL_PDK_OPS_ROWS=300 \
-PRISMEL_PDK_OPS_REPEATS=7 PRISMEL_BENCH_DOMAINS=1 \
-PRISMEL_PDK_OPS_FILTER=distance_from \
-  opam exec --switch=. -- dune exec --profile release tools/bench_pdk_ops.exe
-# Repeat with PRISMEL_BENCH_DOMAINS=4.
+RAYS_RDK_OPS_COLUMNS=500 RAYS_RDK_OPS_ROWS=300 \
+RAYS_RDK_OPS_REPEATS=7 RAYS_BENCH_DOMAINS=1 \
+RAYS_RDK_OPS_FILTER=distance_from \
+  opam exec --switch=. -- dune exec --profile release tools/bench_rdk_ops.exe
+# Repeat with RAYS_BENCH_DOMAINS=4.
 /usr/bin/time -v env \
-  PRISMEL_PDK_OPS_FILTER=distance_from_surface_full_fixed_mask \
-  PRISMEL_PDK_OPS_COLUMNS=500 PRISMEL_PDK_OPS_ROWS=300 \
-  PRISMEL_PDK_OPS_REPEATS=1 PRISMEL_BENCH_DOMAINS=4 \
-  opam exec --switch=. -- dune exec --profile release tools/bench_pdk_ops.exe
+  RAYS_RDK_OPS_FILTER=distance_from_surface_full_fixed_mask \
+  RAYS_RDK_OPS_COLUMNS=500 RAYS_RDK_OPS_ROWS=300 \
+  RAYS_RDK_OPS_REPEATS=1 RAYS_BENCH_DOMAINS=4 \
+  opam exec --switch=. -- dune exec --profile release tools/bench_rdk_ops.exe
 ```
 
 ## Distance From Target SOP baseline
@@ -4252,16 +4252,16 @@ planar maximum run completed in 3.428 ms and the full benchmark process peaked
 at 63,644 KiB RSS.
 
 ```sh
-PRISMEL_PDK_OPS_COLUMNS=500 PRISMEL_PDK_OPS_ROWS=300 \
-PRISMEL_PDK_OPS_REPEATS=7 PRISMEL_BENCH_DOMAINS=1 \
-PRISMEL_PDK_OPS_FILTER=distance_from_target \
-  opam exec --switch=. -- dune exec --profile release tools/bench_pdk_ops.exe
-# Repeat with PRISMEL_BENCH_DOMAINS=4.
+RAYS_RDK_OPS_COLUMNS=500 RAYS_RDK_OPS_ROWS=300 \
+RAYS_RDK_OPS_REPEATS=7 RAYS_BENCH_DOMAINS=1 \
+RAYS_RDK_OPS_FILTER=distance_from_target \
+  opam exec --switch=. -- dune exec --profile release tools/bench_rdk_ops.exe
+# Repeat with RAYS_BENCH_DOMAINS=4.
 /usr/bin/time -v env \
-  PRISMEL_PDK_OPS_FILTER=distance_from_target_planar_signed_maximum \
-  PRISMEL_PDK_OPS_COLUMNS=500 PRISMEL_PDK_OPS_ROWS=300 \
-  PRISMEL_PDK_OPS_REPEATS=1 PRISMEL_BENCH_DOMAINS=4 \
-  opam exec --switch=. -- dune exec --profile release tools/bench_pdk_ops.exe
+  RAYS_RDK_OPS_FILTER=distance_from_target_planar_signed_maximum \
+  RAYS_RDK_OPS_COLUMNS=500 RAYS_RDK_OPS_ROWS=300 \
+  RAYS_RDK_OPS_REPEATS=1 RAYS_BENCH_DOMAINS=4 \
+  opam exec --switch=. -- dune exec --profile release tools/bench_rdk_ops.exe
 ```
 
 ## Extended Sort SOP baseline
@@ -4293,16 +4293,16 @@ isolated four-domain random reorder completed in 13.798 ms and the benchmark
 process peaked at 63,784 KiB RSS in the isolated Morton run.
 
 ```sh
-PRISMEL_PDK_OPS_COLUMNS=500 PRISMEL_PDK_OPS_ROWS=300 \
-PRISMEL_PDK_OPS_REPEATS=7 PRISMEL_BENCH_DOMAINS=1 \
-PRISMEL_PDK_OPS_FILTER=sort_extended \
-  opam exec --switch=. -- dune exec --profile release tools/bench_pdk_ops.exe
-# Repeat with PRISMEL_BENCH_DOMAINS=4.
+RAYS_RDK_OPS_COLUMNS=500 RAYS_RDK_OPS_ROWS=300 \
+RAYS_RDK_OPS_REPEATS=7 RAYS_BENCH_DOMAINS=1 \
+RAYS_RDK_OPS_FILTER=sort_extended \
+  opam exec --switch=. -- dune exec --profile release tools/bench_rdk_ops.exe
+# Repeat with RAYS_BENCH_DOMAINS=4.
 /usr/bin/time -v env \
-  PRISMEL_PDK_OPS_FILTER=sort_extended_spatial_locality \
-  PRISMEL_PDK_OPS_COLUMNS=500 PRISMEL_PDK_OPS_ROWS=300 \
-  PRISMEL_PDK_OPS_REPEATS=1 PRISMEL_BENCH_DOMAINS=4 \
-  opam exec --switch=. -- dune exec --profile release tools/bench_pdk_ops.exe
+  RAYS_RDK_OPS_FILTER=sort_extended_spatial_locality \
+  RAYS_RDK_OPS_COLUMNS=500 RAYS_RDK_OPS_ROWS=300 \
+  RAYS_RDK_OPS_REPEATS=1 RAYS_BENCH_DOMAINS=4 \
+  opam exec --switch=. -- dune exec --profile release tools/bench_rdk_ops.exe
 ```
 
 ## Blast by Attribute SOP baseline
@@ -4339,17 +4339,17 @@ primitive-delete run completed in 19.568 ms including a cold measurement and
 the process peaked at 65,664 KiB RSS.
 
 ```sh
-PRISMEL_PDK_OPS_COLUMNS=500 PRISMEL_PDK_OPS_ROWS=300 \
-PRISMEL_PDK_OPS_REPEATS=7 PRISMEL_BENCH_DOMAINS=1 \
-PRISMEL_PDK_BENCH_GRAIN=16384 \
-PRISMEL_PDK_OPS_FILTER=blast_by_attribute \
-  opam exec --switch=. -- dune exec --profile release tools/bench_pdk_ops.exe
-# Repeat with PRISMEL_BENCH_DOMAINS=4.
+RAYS_RDK_OPS_COLUMNS=500 RAYS_RDK_OPS_ROWS=300 \
+RAYS_RDK_OPS_REPEATS=7 RAYS_BENCH_DOMAINS=1 \
+RAYS_RDK_BENCH_GRAIN=16384 \
+RAYS_RDK_OPS_FILTER=blast_by_attribute \
+  opam exec --switch=. -- dune exec --profile release tools/bench_rdk_ops.exe
+# Repeat with RAYS_BENCH_DOMAINS=4.
 /usr/bin/time -v env \
-  PRISMEL_PDK_OPS_FILTER=blast_by_attribute_primitive_delete_compact \
-  PRISMEL_PDK_OPS_COLUMNS=500 PRISMEL_PDK_OPS_ROWS=300 \
-  PRISMEL_PDK_OPS_REPEATS=1 PRISMEL_BENCH_DOMAINS=4 \
-  opam exec --switch=. -- dune exec --profile release tools/bench_pdk_ops.exe
+  RAYS_RDK_OPS_FILTER=blast_by_attribute_primitive_delete_compact \
+  RAYS_RDK_OPS_COLUMNS=500 RAYS_RDK_OPS_ROWS=300 \
+  RAYS_RDK_OPS_REPEATS=1 RAYS_BENCH_DOMAINS=4 \
+  opam exec --switch=. -- dune exec --profile release tools/bench_rdk_ops.exe
 ```
 
 ## Crease SOP baseline
@@ -4382,11 +4382,11 @@ All one/four-domain geometry and framebuffer results are exact. The complete
 four-domain benchmark process peaked at 123,160 KiB RSS.
 
 ```sh
-PRISMEL_PDK_OPS_COLUMNS=500 PRISMEL_PDK_OPS_ROWS=300 \
-PRISMEL_PDK_OPS_REPEATS=7 PRISMEL_PDK_BENCH_GRAIN=16384 \
-PRISMEL_PDK_OPS_FILTER=crease PRISMEL_BENCH_DOMAINS=1 \
-  opam exec --switch=. -- dune exec --profile release tools/bench_pdk_ops.exe
-# Repeat with PRISMEL_BENCH_DOMAINS=4.
+RAYS_RDK_OPS_COLUMNS=500 RAYS_RDK_OPS_ROWS=300 \
+RAYS_RDK_OPS_REPEATS=7 RAYS_RDK_BENCH_GRAIN=16384 \
+RAYS_RDK_OPS_FILTER=crease RAYS_BENCH_DOMAINS=1 \
+  opam exec --switch=. -- dune exec --profile release tools/bench_rdk_ops.exe
+# Repeat with RAYS_BENCH_DOMAINS=4.
 ```
 
 ## Attribute Fade SOP baseline
@@ -4417,16 +4417,16 @@ cancellation while allocating 66.5% less; the four-domain cook is 1.75x faster
 than the reference. Persistent storage is one output float plane, plus four
 only for visualization; block diagnostics are `O(ceil(points/grain))` and all
 other payload is shared. The four-domain benchmark process peaked at 64,568
-KiB RSS. Direct PDK, frame/cache-aware SOP, exact one/four-domain mesh, combined
+KiB RSS. Direct RDK, frame/cache-aware SOP, exact one/four-domain mesh, combined
 procedural framebuffer, and dedicated visible 320x240 framebuffer tests cover
 the path.
 
 ```sh
-PRISMEL_PDK_OPS_COLUMNS=500 PRISMEL_PDK_OPS_ROWS=300 \
-PRISMEL_PDK_OPS_REPEATS=7 PRISMEL_PDK_BENCH_GRAIN=16384 \
-PRISMEL_PDK_OPS_FILTER=attribute_fade PRISMEL_BENCH_DOMAINS=1 \
-  opam exec --switch=. -- dune exec --profile release tools/bench_pdk_ops.exe
-# Repeat with PRISMEL_BENCH_DOMAINS=4 and use attribute_fade_reference for the
+RAYS_RDK_OPS_COLUMNS=500 RAYS_RDK_OPS_ROWS=300 \
+RAYS_RDK_OPS_REPEATS=7 RAYS_RDK_BENCH_GRAIN=16384 \
+RAYS_RDK_OPS_FILTER=attribute_fade RAYS_BENCH_DOMAINS=1 \
+  opam exec --switch=. -- dune exec --profile release tools/bench_rdk_ops.exe
+# Repeat with RAYS_BENCH_DOMAINS=4 and use attribute_fade_reference for the
 # retained unchecked scalar reference.
 ```
 
@@ -4467,11 +4467,11 @@ malformed and cancellation paths, exact one/four-domain geometry and render
 mesh, immutable SOP/cache behavior, and a visible 360x240 pixel regression.
 
 ```sh
-PRISMEL_PDK_OPS_COLUMNS=500 PRISMEL_PDK_OPS_ROWS=300 \
-PRISMEL_PDK_OPS_REPEATS=7 PRISMEL_PDK_BENCH_GRAIN=16384 \
-PRISMEL_PDK_OPS_FILTER=poly_cut PRISMEL_BENCH_DOMAINS=1 \
-  opam exec --switch=. -- dune exec --profile release tools/bench_pdk_ops.exe
-# Repeat with PRISMEL_BENCH_DOMAINS=4 and use poly_cut_reference for the
+RAYS_RDK_OPS_COLUMNS=500 RAYS_RDK_OPS_ROWS=300 \
+RAYS_RDK_OPS_REPEATS=7 RAYS_RDK_BENCH_GRAIN=16384 \
+RAYS_RDK_OPS_FILTER=poly_cut RAYS_BENCH_DOMAINS=1 \
+  opam exec --switch=. -- dune exec --profile release tools/bench_rdk_ops.exe
+# Repeat with RAYS_BENCH_DOMAINS=4 and use poly_cut_reference for the
 # retained serial/list baseline.
 ```
 
@@ -4505,11 +4505,11 @@ topology-index construction, peaked at 50,204 KiB RSS. Exact geometry, render
 mesh, and framebuffer equality are tested between one and four domains.
 
 ```sh
-PRISMEL_PDK_OPS_COLUMNS=500 PRISMEL_PDK_OPS_ROWS=300 \
-PRISMEL_PDK_OPS_REPEATS=7 PRISMEL_PDK_BENCH_GRAIN=16384 \
-PRISMEL_PDK_OPS_FILTER=separate_pieces PRISMEL_BENCH_DOMAINS=1 \
-  opam exec --switch=. -- dune exec --profile release tools/bench_pdk_ops.exe
-# Repeat with PRISMEL_BENCH_DOMAINS=4 and use separate_pieces_reference for
+RAYS_RDK_OPS_COLUMNS=500 RAYS_RDK_OPS_ROWS=300 \
+RAYS_RDK_OPS_REPEATS=7 RAYS_RDK_BENCH_GRAIN=16384 \
+RAYS_RDK_OPS_FILTER=separate_pieces RAYS_BENCH_DOMAINS=1 \
+  opam exec --switch=. -- dune exec --profile release tools/bench_rdk_ops.exe
+# Repeat with RAYS_BENCH_DOMAINS=4 and use separate_pieces_reference for
 # the serial baseline.
 ```
 
@@ -4527,7 +4527,7 @@ the exact fixture topology, reads X only, uses a naive unscaled average, skips
 topology affinity, finite/overflow/zero-direction/convergence/cancellation
 checks, and copies only X. It establishes the irreducible fixture loop rather
 than a production-equivalent implementation. Its different hash reflects the
-published PDK scale-safe average, not lost geometry fidelity.
+published RDK scale-safe average, not lost geometry fidelity.
 
 | Path | Time | Allocated | Promoted | Major | Cardinality | Exact hash |
 |---|---:|---:|---:|---:|---:|---:|
@@ -4542,15 +4542,15 @@ allocation by 67.1%; packed length reuse plus parallel validation made the
 final four-domain path 22.6% faster. The final path scales 1.37x from one to
 four domains. A cold direct executable run, including fixture and topology
 index construction, peaked at 71,504 KiB RSS on the four-core Linux aarch64,
-OCaml 5.3.0 runner. Exact one/four-domain PDK geometry, SOP render meshes, and
+OCaml 5.3.0 runner. Exact one/four-domain RDK geometry, SOP render meshes, and
 360x240 framebuffer PNGs are regression-tested.
 
 ```sh
-PRISMEL_PDK_OPS_COLUMNS=500 PRISMEL_PDK_OPS_ROWS=300 \
-PRISMEL_PDK_OPS_REPEATS=7 PRISMEL_PDK_BENCH_GRAIN=16384 \
-PRISMEL_PDK_OPS_FILTER=edge_equalize PRISMEL_BENCH_DOMAINS=1 \
-  opam exec --switch=. -- dune exec --profile release tools/bench_pdk_ops.exe
-# Repeat with PRISMEL_BENCH_DOMAINS=4; use edge_equalize_reference for the
+RAYS_RDK_OPS_COLUMNS=500 RAYS_RDK_OPS_ROWS=300 \
+RAYS_RDK_OPS_REPEATS=7 RAYS_RDK_BENCH_GRAIN=16384 \
+RAYS_RDK_OPS_FILTER=edge_equalize RAYS_BENCH_DOMAINS=1 \
+  opam exec --switch=. -- dune exec --profile release tools/bench_rdk_ops.exe
+# Repeat with RAYS_BENCH_DOMAINS=4; use edge_equalize_reference for the
 # deliberately unchecked serial lower bound.
 ```
 
@@ -4588,15 +4588,15 @@ constant-or-packed target source makes the connected solver's allocation
 independent of iterations; the 20-step connected fixture scales 2.00x with
 byte-identical output. A cold direct run including fixture/reference creation and
 topology-index construction peaked at 75,032 KiB RSS on the four-core Linux
-aarch64 / OCaml 5.3.0 runner. Exact connected and disjoint PDK/SOP geometry,
+aarch64 / OCaml 5.3.0 runner. Exact connected and disjoint RDK/SOP geometry,
 render meshes, and dedicated framebuffer PNGs cover domain-count regression.
 
 ```sh
-PRISMEL_PDK_OPS_COLUMNS=500 PRISMEL_PDK_OPS_ROWS=300 \
-PRISMEL_PDK_OPS_REPEATS=7 PRISMEL_PDK_BENCH_GRAIN=16384 \
-PRISMEL_PDK_OPS_FILTER=edge_relax PRISMEL_BENCH_DOMAINS=1 \
-  opam exec --switch=. -- dune exec --profile release tools/bench_pdk_ops.exe
-# Repeat with PRISMEL_BENCH_DOMAINS=4; use edge_relax_reference for the
+RAYS_RDK_OPS_COLUMNS=500 RAYS_RDK_OPS_ROWS=300 \
+RAYS_RDK_OPS_REPEATS=7 RAYS_RDK_BENCH_GRAIN=16384 \
+RAYS_RDK_OPS_FILTER=edge_relax RAYS_BENCH_DOMAINS=1 \
+  opam exec --switch=. -- dune exec --profile release tools/bench_rdk_ops.exe
+# Repeat with RAYS_BENCH_DOMAINS=4; use edge_relax_reference for the
 # deliberately unchecked serial lower bound.
 ```
 
@@ -4637,11 +4637,11 @@ malformed inputs, cancellation, exact one/four-domain output, cache identity,
 topology sharing, and endpoint-distinct framebuffer output.
 
 ```sh
-PRISMEL_PDK_OPS_COLUMNS=1000 PRISMEL_PDK_OPS_ROWS=1000 \
-PRISMEL_PDK_OPS_REPEATS=7 PRISMEL_PDK_BENCH_GRAIN=16384 \
-PRISMEL_PDK_OPS_FILTER=blend_shapes PRISMEL_BENCH_DOMAINS=1 \
-  opam exec --switch=. -- dune exec --profile release tools/bench_pdk_ops.exe
-# Repeat with PRISMEL_BENCH_DOMAINS=4; use blend_shapes_reference for the
+RAYS_RDK_OPS_COLUMNS=1000 RAYS_RDK_OPS_ROWS=1000 \
+RAYS_RDK_OPS_REPEATS=7 RAYS_RDK_BENCH_GRAIN=16384 \
+RAYS_RDK_OPS_FILTER=blend_shapes RAYS_BENCH_DOMAINS=1 \
+  opam exec --switch=. -- dune exec --profile release tools/bench_rdk_ops.exe
+# Repeat with RAYS_BENCH_DOMAINS=4; use blend_shapes_reference for the
 # deliberately unchecked serial lower bound.
 ```
 
@@ -4681,11 +4681,11 @@ one/four-domain output, topology sharing, and endpoint-distinct framebuffer
 output.
 
 ```sh
-PRISMEL_PDK_OPS_COLUMNS=1000 PRISMEL_PDK_OPS_ROWS=1000 \
-PRISMEL_PDK_OPS_REPEATS=7 PRISMEL_PDK_BENCH_GRAIN=16384 \
-PRISMEL_PDK_OPS_FILTER=attribute_composite PRISMEL_BENCH_DOMAINS=1 \
-  opam exec --switch=. -- dune exec --profile release tools/bench_pdk_ops.exe
-# Repeat with PRISMEL_BENCH_DOMAINS=4; use attribute_composite_reference for
+RAYS_RDK_OPS_COLUMNS=1000 RAYS_RDK_OPS_ROWS=1000 \
+RAYS_RDK_OPS_REPEATS=7 RAYS_RDK_BENCH_GRAIN=16384 \
+RAYS_RDK_OPS_FILTER=attribute_composite RAYS_BENCH_DOMAINS=1 \
+  opam exec --switch=. -- dune exec --profile release tools/bench_rdk_ops.exe
+# Repeat with RAYS_BENCH_DOMAINS=4; use attribute_composite_reference for
 # the deliberately unchecked scalar lower bound.
 ```
 
@@ -4737,11 +4737,11 @@ surface export compares byte-identical one-/four-domain PNGs and verifies that
 the mirrored framebuffer differs from the source.
 
 ```sh
-PRISMEL_PDK_OPS_COLUMNS=1000 PRISMEL_PDK_OPS_ROWS=1000 \
-PRISMEL_PDK_OPS_REPEATS=7 PRISMEL_PDK_BENCH_GRAIN=16384 \
-PRISMEL_PDK_OPS_FILTER=attribute_mirror PRISMEL_BENCH_DOMAINS=1 \
-  opam exec --switch=. -- dune exec --profile release tools/bench_pdk_ops.exe
-# Repeat with PRISMEL_BENCH_DOMAINS=4; use attribute_mirror_reference for the
+RAYS_RDK_OPS_COLUMNS=1000 RAYS_RDK_OPS_ROWS=1000 \
+RAYS_RDK_OPS_REPEATS=7 RAYS_RDK_BENCH_GRAIN=16384 \
+RAYS_RDK_OPS_FILTER=attribute_mirror RAYS_BENCH_DOMAINS=1 \
+  opam exec --switch=. -- dune exec --profile release tools/bench_rdk_ops.exe
+# Repeat with RAYS_BENCH_DOMAINS=4; use attribute_mirror_reference for the
 # deliberately unchecked copy-only lower bound.
 ```
 
@@ -4795,11 +4795,11 @@ reuse, and cook-time diagnostics; a sculpted-grid export compares byte-identical
 one-/four-domain PNGs and requires a visible difference from the source.
 
 ```sh
-PRISMEL_PDK_OPS_COLUMNS=1000 PRISMEL_PDK_OPS_ROWS=1000 \
-PRISMEL_PDK_OPS_REPEATS=7 PRISMEL_PDK_BENCH_GRAIN=16384 \
-PRISMEL_PDK_OPS_FILTER=rewire_vertices PRISMEL_BENCH_DOMAINS=1 \
-  opam exec --switch=. -- dune exec --profile release tools/bench_pdk_ops.exe
-# Repeat with PRISMEL_BENCH_DOMAINS=4; use rewire_vertices_reference for the
+RAYS_RDK_OPS_COLUMNS=1000 RAYS_RDK_OPS_ROWS=1000 \
+RAYS_RDK_OPS_REPEATS=7 RAYS_RDK_BENCH_GRAIN=16384 \
+RAYS_RDK_OPS_FILTER=rewire_vertices RAYS_BENCH_DOMAINS=1 \
+  opam exec --switch=. -- dune exec --profile release tools/bench_rdk_ops.exe
+# Repeat with RAYS_BENCH_DOMAINS=4; use rewire_vertices_reference for the
 # deliberately unchecked direct lower bound.
 ```
 
@@ -4874,11 +4874,11 @@ framebuffer export compares forward and backward reliefs in one and four
 domains against a flat control.
 
 ```sh
-PRISMEL_PDK_OPS_COLUMNS=500 PRISMEL_PDK_OPS_ROWS=300 \
-PRISMEL_PDK_OPS_REPEATS=7 PRISMEL_PDK_BENCH_GRAIN=16384 \
-PRISMEL_PDK_OPS_FILTER=edge_transport PRISMEL_BENCH_DOMAINS=1 \
-  opam exec --switch=. -- dune exec --profile release tools/bench_pdk_ops.exe
-# Repeat with PRISMEL_BENCH_DOMAINS=4; use edge_transport_reference or
+RAYS_RDK_OPS_COLUMNS=500 RAYS_RDK_OPS_ROWS=300 \
+RAYS_RDK_OPS_REPEATS=7 RAYS_RDK_BENCH_GRAIN=16384 \
+RAYS_RDK_OPS_FILTER=edge_transport RAYS_BENCH_DOMAINS=1 \
+  opam exec --switch=. -- dune exec --profile release tools/bench_rdk_ops.exe
+# Repeat with RAYS_BENCH_DOMAINS=4; use edge_transport_reference or
 # edge_transport_parent_reference for deliberately unchecked serial bounds.
 ```
 
@@ -4927,9 +4927,9 @@ the SOP suite verifies cache identity and exact one/four-domain topology, and
 the native framebuffer equals an explicit cube reference byte-for-byte.
 
 ```sh
-PRISMEL_HULL_REPEATS=3 PRISMEL_BENCH_DOMAINS=1 \
+RAYS_HULL_REPEATS=3 RAYS_BENCH_DOMAINS=1 \
   opam exec --switch=. -- dune exec --profile release tools/bench_convex_hull.exe
-# Repeat with PRISMEL_BENCH_DOMAINS=4 and wrap either command in
+# Repeat with RAYS_BENCH_DOMAINS=4 and wrap either command in
 # /usr/bin/time -v for peak RSS.
 ```
 
@@ -4961,16 +4961,16 @@ center fills are parallel. This is reported as a bottleneck rather than a
 parallel speedup claim.
 
 The complete one-domain campaign peaked at 271,020 KiB RSS and four domains at
-277,012 KiB. PDK tests cover lower-dimensional and solid hull centers, stable
+277,012 KiB. RDK tests cover lower-dimensional and solid hull centers, stable
 integer/text identity, detail sharing, malformed input and cancellation; SOP
 tests cover cache identity and exact domain output; the native framebuffer is
 byte-identical to explicit reference centers.
 
 ```sh
-PRISMEL_CENTROID_SIZE=1000000 PRISMEL_CENTROID_REPEATS=3 \
-PRISMEL_BENCH_DOMAINS=1 /usr/bin/time -v \
+RAYS_CENTROID_SIZE=1000000 RAYS_CENTROID_REPEATS=3 \
+RAYS_BENCH_DOMAINS=1 /usr/bin/time -v \
   opam exec --switch=. -- dune exec --profile release tools/bench_extract_centroid.exe
-# Repeat with PRISMEL_BENCH_DOMAINS=4.
+# Repeat with RAYS_BENCH_DOMAINS=4.
 ```
 
 ## Extract Point from Curve SOP baseline
@@ -5015,7 +5015,7 @@ the shared pool.
 
 The 1,000-curve final campaigns peaked at 164,668 KiB RSS on one domain and
 165,236 KiB on four; the single-curve campaigns peaked at 164,396/165,236 KiB.
-PDK tests cover exact vertices, plateaus, crossings, open endpoints, closed
+RDK tests cover exact vertices, plateaus, crossings, open endpoints, closed
 seams, primitive targets/selections, numeric/discrete/ragged payload, empty and malformed
 input, non-finite values, `max_float` interpolation, cancellation, 100,000
 small curves, and a 200,001-point blocked curve. SOP tests cover immutable
@@ -5024,11 +5024,11 @@ output. The native framebuffer is byte-identical across one/four domains and
 to explicit reference cut points.
 
 ```sh
-PRISMEL_EXTRACT_REPEATS=5 PRISMEL_BENCH_DOMAINS=1 /usr/bin/time -v \
+RAYS_EXTRACT_REPEATS=5 RAYS_BENCH_DOMAINS=1 /usr/bin/time -v \
   opam exec --switch=. -- dune exec --profile release \
   tools/bench_extract_point_curve.exe
-# Repeat with PRISMEL_BENCH_DOMAINS=4. For the long-curve campaign add:
-# PRISMEL_EXTRACT_CURVES=1 PRISMEL_EXTRACT_POINTS_PER_CURVE=1000001
+# Repeat with RAYS_BENCH_DOMAINS=4. For the long-curve campaign add:
+# RAYS_EXTRACT_CURVES=1 RAYS_EXTRACT_POINTS_PER_CURVE=1000001
 ```
 
 ## Workspace benches (W2-W11)
@@ -5046,7 +5046,7 @@ milestone are in `specification/workspace/progress.md`.
 | `bench_viewport_pick` | same, `./test_main.exe bench_viewport_pick` | Sunflower (8,640 triangles): first pick with the BVH build 11 ms, later picks 0.002 ms, tint 0.7 ms, tint + `to_mesh` 3.9 ms (only when the highlight changes); Bloom (3,888 triangles) 3.7 ms first pick; `Cook.update` idle 0.0002-0.0004 ms |
 
 The BVH build is about 1.3 us per triangle, so a 1M-triangle mesh hitches about a
-second at its first click (`ponytail:` in `lib/prismel_editor/pick.ml`).
+second at its first click (`ponytail:` in `lib/rays_editor/pick.ml`).
 
 Connection hover (2026-10-01): macOS 26.2, arm64, OCaml 5.3.0, default
 Dune profile, UI work on the initial domain. Build `test/test_main.exe`, then
@@ -5065,8 +5065,8 @@ segments, including culling, on the same layouts and input:
 
 The complete editor usability change was measured on the same macOS 26.2 arm64
 host, OCaml 5.3.0, default Dune profile, with one cook domain and UI work on the
-initial domain. Build `tools/bench_prismel_editor.exe`, then run
-`_build/default/tools/bench_prismel_editor.exe 200`. Each run measures 200 held
+initial domain. Build `tools/bench_rays_editor.exe`, then run
+`_build/default/tools/bench_rays_editor.exe 200`. Each run measures 200 held
 pointer updates of a 200-node workspace and one undo. The corrected workload
 presses the node header, moves beyond the drag threshold, releases at the final
 position and asserts that undo actually steps history. Each run uses its own
@@ -5102,7 +5102,7 @@ the lookup's cost. Use the same benchmark command above to reproduce the check.
 ## Editor consistency repair (2 October 2026)
 
 macOS 26.2 arm64, OCaml 5.3.0, default Dune profile, one cook domain.
-Command: `SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy _build/default/tools/bench_prismel_editor.exe 200`. The workload is the
+Command: `SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy _build/default/tools/bench_rays_editor.exe 200`. The workload is the
 200-node held drag and real undo described above. Before reconstructs the
 uncommitted tree at the start of this audit on HEAD `a0545f73`; after includes
 the consistency fixes. Three alternating before/after pairs ran without
@@ -5127,9 +5127,9 @@ main tree. The window-free workload does not exercise the affected pen events.
 
 ## Source digest polling — 2 October 2026
 
-Command: `dune exec tools/bench_source_poll.exe -- examples/sop_gallery/gallery.plisp`.
+Command: `dune exec tools/bench_source_poll.exe -- examples/sop_gallery/gallery.rays`.
 Darwin arm64, OCaml 5.3.0, default Dune profile, initial domain, warm filesystem
-cache. The largest checked-in `.plisp` is 7800 bytes (all checked-in `.plisp`
+cache. The largest checked-in `.rays` is 7800 bytes (all checked-in `.rays`
 files total 32891 bytes). Five alternating samples of 2000 polls ran without
 concurrent agent builds/tests. The reference measures the old unchanged-file
 `Unix.stat` operation alone, omitting its small polling-record overhead; the

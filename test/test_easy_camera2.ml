@@ -1,4 +1,4 @@
-open Prismel
+open Rays
 
 let fail message = raise (Failure message)
 let pointer (x, y) = float x, float y

@@ -25,7 +25,7 @@
 
 (library
  (name sdl3_mixer)
- (public_name prismel.sdl3_mixer)
+ (public_name rays.sdl3_mixer)
  (modules Sdl3_mixer)
  (foreign_stubs
   (language c)
@@ -50,7 +50,7 @@
 (rule
  (aliases runtest test_sdl3_mixer_device_failure)
  (action
-  (setenv SDL_AUDIODRIVER prismel_missing_audio_driver
+  (setenv SDL_AUDIODRIVER rays_missing_audio_driver
    (run %{exe:test_main.exe} test_sdl3_mixer_device_failure))))
 
 

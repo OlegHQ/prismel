@@ -1,17 +1,17 @@
-; .plisp sketches: `dune build @runtest; dune promote` after adding one (plan W11)
-(include dune.plisp.inc)
+; .rays sketches: `dune build @runtest; dune promote` after adding one (plan W11)
+(include dune.rays.inc)
 
 (rule
- (target dune.plisp.inc.gen)
+ (target dune.rays.inc.gen)
  (deps
-  (glob_files_rec sketch.plisp)
+  (glob_files_rec sketch.rays)
   (glob_files_rec dune))
  (action
   (with-stdout-to
    %{target}
-   (run %{bin:prismel-plisp} dune .))))
+   (run %{bin:rays-plisp} dune .))))
 
 (rule
  (alias runtest)
  (action
-  (diff dune.plisp.inc dune.plisp.inc.gen)))
+  (diff dune.rays.inc dune.rays.inc.gen)))

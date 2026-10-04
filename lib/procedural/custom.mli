@@ -1,10 +1,10 @@
 (** Parameterized custom SOP authoring.
 
     This is the OCaml wrangle-like extension boundary: user code receives
-    immutable exposed parameters, a declared cook context, and immutable PDK
+    immutable exposed parameters, a declared cook context, and immutable RDK
     inputs. The builder automatically creates stable cache identity, attaches
     node-owned inspector metadata, and rebuilds the cook closure after edits.
-    It is deliberately typed OCaml/PDK code rather than a VEX interpreter. *)
+    It is deliberately typed OCaml/RDK code rather than a VEX interpreter. *)
 
 val node :
   ?label:string ->
@@ -28,8 +28,8 @@ val create :
   schema:'parameters Parameter.schema ->
   values:'parameters ->
   Node.t list ->
-  (parameters:'parameters -> context:Context.t -> Pdk.Geometry.t array ->
-   (Pdk.Geometry.t, string) result) ->
+  (parameters:'parameters -> context:Context.t -> Rdk.Geometry.t array ->
+   (Rdk.Geometry.t, string) result) ->
   Node.t
 (** Define a generator or multi-input custom SOP. Long-running callbacks must
     poll [Context.cancel_token]; callbacks must not mutate or retain the input
@@ -44,7 +44,7 @@ val map :
   schema:'parameters Parameter.schema ->
   values:'parameters ->
   Node.t ->
-  (parameters:'parameters -> context:Context.t -> Pdk.Geometry.t ->
-   (Pdk.Geometry.t, string) result) ->
+  (parameters:'parameters -> context:Context.t -> Rdk.Geometry.t ->
+   (Rdk.Geometry.t, string) result) ->
   Node.t
 (** Unary convenience for attribute/topology wrangle-like transforms. *)

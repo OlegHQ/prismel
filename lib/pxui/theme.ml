@@ -1,58 +1,58 @@
 type t = {
-  panel : Prismel.Color.t;
-  foreground : Prismel.Color.t;
-  control : Prismel.Color.t;
-  input : Prismel.Color.t;
-  track : Prismel.Color.t;
-  accent : Prismel.Color.t;
+  panel : Rays.Color.t;
+  foreground : Rays.Color.t;
+  control : Rays.Color.t;
+  input : Rays.Color.t;
+  track : Rays.Color.t;
+  accent : Rays.Color.t;
 }
 
 let default = {
-  panel = Prismel.Color.hex_exn "#f4f5f0";
-  foreground = Prismel.Color.hex_exn "#222b2b";
-  control = Prismel.Color.hex_exn "#dce3de";
-  input = Prismel.Color.hex_exn "#ffffff";
-  track = Prismel.Color.hex_exn "#e3e8e4";
-  accent = Prismel.Color.hex_exn "#f0481f";
+  panel = Rays.Color.hex_exn "#f4f5f0";
+  foreground = Rays.Color.hex_exn "#222b2b";
+  control = Rays.Color.hex_exn "#dce3de";
+  input = Rays.Color.hex_exn "#ffffff";
+  track = Rays.Color.hex_exn "#e3e8e4";
+  accent = Rays.Color.hex_exn "#f0481f";
 }
 
 let font_size = 11
 
-let muted theme = Prismel.Color.blend theme.foreground theme.panel ~pct:0.48
-let border theme = Prismel.Color.with_alpha theme.foreground 76 (* controls *)
-let edge theme = Prismel.Color.with_alpha theme.foreground 38 (* panels, cards, windows *)
-let faint_border theme = Prismel.Color.with_alpha theme.foreground 20
-let sheen theme = Prismel.Color.with_alpha theme.input 216 (* inner top line of a sheet *)
-let hover_fill theme = Prismel.Color.blend theme.input theme.accent ~pct:0.11
-let pressed_fill theme = Prismel.Color.blend theme.control theme.accent ~pct:0.18
-let invalid = Prismel.Color.hex_exn "#c2255c"
+let muted theme = Rays.Color.blend theme.foreground theme.panel ~pct:0.48
+let border theme = Rays.Color.with_alpha theme.foreground 76 (* controls *)
+let edge theme = Rays.Color.with_alpha theme.foreground 38 (* panels, cards, windows *)
+let faint_border theme = Rays.Color.with_alpha theme.foreground 20
+let sheen theme = Rays.Color.with_alpha theme.input 216 (* inner top line of a sheet *)
+let hover_fill theme = Rays.Color.blend theme.input theme.accent ~pct:0.11
+let pressed_fill theme = Rays.Color.blend theme.control theme.accent ~pct:0.18
+let invalid = Rays.Color.hex_exn "#c2255c"
 
 type ports = {
-  geometry : Prismel.Color.t; float : Prismel.Color.t; int : Prismel.Color.t;
-  vec3 : Prismel.Color.t; bool : Prismel.Color.t; compound : Prismel.Color.t;
-  output : Prismel.Color.t; hint : Prismel.Color.t;
-  text : Prismel.Color.t; fn : Prismel.Color.t; record : Prismel.Color.t;
+  geometry : Rays.Color.t; float : Rays.Color.t; int : Rays.Color.t;
+  vec3 : Rays.Color.t; bool : Rays.Color.t; compound : Rays.Color.t;
+  output : Rays.Color.t; hint : Rays.Color.t;
+  text : Rays.Color.t; fn : Rays.Color.t; record : Rays.Color.t;
 }
 let ports theme =
-  let dark = theme.panel.Prismel.Color.r + theme.panel.g + theme.panel.b < 384 in
-  let color light night = Prismel.Color.hex_exn (if dark then night else light) in
+  let dark = theme.panel.Rays.Color.r + theme.panel.g + theme.panel.b < 384 in
+  let color light night = Rays.Color.hex_exn (if dark then night else light) in
   let vec3 = color "#6b50ae" "#a98cf5" in
   { geometry = theme.accent; float = color "#285f77" "#72b3cf";
     int = color "#3b7d4e" "#74c28e"; vec3;
     bool = color "#b0435f" "#f08aa3"; compound = vec3;
-    output = theme.foreground; hint = Prismel.Color.hex_exn "#f5cf4f";
+    output = theme.foreground; hint = Rays.Color.hex_exn "#f5cf4f";
     text = muted theme; fn = color "#a3407a" "#e88ac0";
     record = color "#4f6a5f" "#9cc2b2" }
 
 (* Graph zones (plan W4): a tinted rectangle with a border; [dashed] draws the
    border as dashes, and a hollow zone has no fill worth the name.  The
    colours are the study's [--z-*] tokens. *)
-type zone = { fill : Prismel.Color.t; edge : Prismel.Color.t; dashed : bool }
+type zone = { fill : Rays.Color.t; edge : Rays.Color.t; dashed : bool }
 
-let dark theme = theme.panel.Prismel.Color.r + theme.panel.g + theme.panel.b < 384
+let dark theme = theme.panel.Rays.Color.r + theme.panel.g + theme.panel.b < 384
 let zone theme ~light ~dark:night ~dashed =
   let r, g, b, fill, edge = if dark theme then night else light in
-  { fill = Prismel.Color.rgba r g b fill; edge = Prismel.Color.rgba r g b edge; dashed }
+  { fill = Rays.Color.rgba r g b fill; edge = Rays.Color.rgba r g b edge; dashed }
 let zone_for theme = zone theme ~dashed:false
   ~light:(240, 72, 31, 14, 90) ~dark:(255, 107, 69, 16, 100)
 let zone_fold theme = zone theme ~dashed:false

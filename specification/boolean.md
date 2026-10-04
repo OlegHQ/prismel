@@ -1,26 +1,26 @@
 # Exact Boolean kernel specification
 
-This document is the normative research and conformance contract for PDK's
+This document is the normative research and conformance contract for RDK's
 mesh Boolean. The implementation remains private until every public-product
-gate below is closed. `Csg3` and `Pdk.Boolean_detect` are useful narrower
+gate below is closed. `Csg3` and `Rdk.Boolean_detect` are useful narrower
 tools, but neither is a fallback for this kernel.
 
 ## Evidence hierarchy
 
 The target is not a literal clone of one package. It combines the strongest
-published guarantees under PDK's single-core, deterministic, native OCaml
+published guarantees under RDK's single-core, deterministic, native OCaml
 constraints.
 
-| Evidence | What PDK adopts | What PDK does not infer |
+| Evidence | What RDK adopts | What RDK does not infer |
 | --- | --- | --- |
 | [Houdini Boolean 2.0](https://www.sidefx.com/docs/houdini/nodes/sop/boolean.html) | Artist-facing solid/surface combinations, both subtraction directions, custom winding-depth extraction, shatter, seam, detect, per-input self-intersection policy, detriangulation, seam-point splitting, payload transfer, and tiny-seam diagnostics | SideFX does not publish the kernel. Product behavior is a black-box contract, not source code or proof |
 | [Mesh Arrangements for Solid Geometry](https://www.cs.columbia.edu/cg/mesh-arrangements/) | Variadic labeled arrangements, generalized winding vectors, self-intersecting/non-manifold polygon-soup semantics, build once and evaluate many expressions | Its CGAL-backed implementation is not a suitable native dependency |
-| [Fast and Robust Mesh Arrangements](https://doi.org/10.1145/3414685.3417818) and [Interactive and Robust Mesh Booleans](https://arxiv.org/abs/2205.14151) | Implicit intersections, indirect filtered predicates, parallel face work, connected patch classification, and deterministic constrained insertion | The 2022 reference requires manifold, watertight, oriented, self-intersection-free inputs and exits on a fully implicit classification patch; those restrictions are below PDK's target |
-| [Exact and Efficient Intersection Resolution](https://doi.org/10.1145/3687925) | Indirect-offset predicate formulations, face localization, dimension-reduced ordering/deduplication, and parallel local work | Reported speedups are targets until reproduced by PDK benchmarks |
-| [Exact Predicates, Exact Constructions and Combinatorics for Mesh CSG](https://arxiv.org/abs/2405.12949) | Exact co-refinement, unique symbolic-perturbed CDT, coincident-facet elimination, exact radial order, Weiler regions, and arbitrary Boolean expressions | No claim is made until every degeneracy needed by the proof is represented in PDK |
+| [Fast and Robust Mesh Arrangements](https://doi.org/10.1145/3414685.3417818) and [Interactive and Robust Mesh Booleans](https://arxiv.org/abs/2205.14151) | Implicit intersections, indirect filtered predicates, parallel face work, connected patch classification, and deterministic constrained insertion | The 2022 reference requires manifold, watertight, oriented, self-intersection-free inputs and exits on a fully implicit classification patch; those restrictions are below RDK's target |
+| [Exact and Efficient Intersection Resolution](https://doi.org/10.1145/3687925) | Indirect-offset predicate formulations, face localization, dimension-reduced ordering/deduplication, and parallel local work | Reported speedups are targets until reproduced by RDK benchmarks |
+| [Exact Predicates, Exact Constructions and Combinatorics for Mesh CSG](https://arxiv.org/abs/2405.12949) | Exact co-refinement, unique symbolic-perturbed CDT, coincident-facet elimination, exact radial order, Weiler regions, and arbitrary Boolean expressions | No claim is made until every degeneracy needed by the proof is represented in RDK |
 | [Deterministic Linear Time Constrained Triangulation](https://arxiv.org/abs/2009.04294) | Linear ear removal for the restricted simple pockets produced by inserting one constraint into an existing triangulation | It is not valid for arbitrary polygons, holes, or unchecked self-intersecting pockets |
 | [Fast Exact Booleans for Iterated CSG](https://arxiv.org/abs/2103.02486) | Plane ancestry, homogeneous exact points, fixed-width fast paths, locality, and persistent build/query separation | Octree-embedded BSP is useful for repeated asymmetric machining-style CSG, but it does not replace the surface arrangement core or its payload ancestry |
-| [Robust mixed-representation triangle intersections](https://arxiv.org/abs/2507.08478) | Exhaustive contact-type oracle across explicit, rational, and implicit endpoints | PDK retains its own compact event encoding and must prove canonical equivalence |
+| [Robust mixed-representation triangle intersections](https://arxiv.org/abs/2507.08478) | Exhaustive contact-type oracle across explicit, rational, and implicit endpoints | RDK retains its own compact event encoding and must prove canonical equivalence |
 
 The newest research can change optimization choices, but cannot weaken exact
 topology, deterministic ordering, cancellation, or bounded-memory contracts.
@@ -31,47 +31,47 @@ The source audit is deliberately broader than the papers. Revisions below are
 the reproducible research snapshot inspected on 2026-08-05; moving repository
 heads are not a specification:
 
-| Implementation | Audited revision | License/dependency result | Use in Prismel |
+| Implementation | Audited revision | License/dependency result | Use in Rays |
 | --- | --- | --- | --- |
-| Cherchi et al. reference arrangement/Boolean | [`bf7eb71`](https://github.com/gcherchi/FastAndRobustMeshArrangements/tree/bf7eb71da991a61ff5414946a4b2754bbd327e41) | MIT | Executable specification for phase order, implicit predicates, constraint insertion, patch classification, and benchmarks. Independently expressed in OCaml/PDK storage |
+| Cherchi et al. reference arrangement/Boolean | [`bf7eb71`](https://github.com/gcherchi/FastAndRobustMeshArrangements/tree/bf7eb71da991a61ff5414946a4b2754bbd327e41) | MIT | Executable specification for phase order, implicit predicates, constraint insertion, patch classification, and benchmarks. Independently expressed in OCaml/RDK storage |
 | Geogram exact CSG | [`b6f545a`](https://github.com/BrunoLevy/geogram/tree/b6f545a179ab963879482010eb4ec423b4d352d8) | BSD-3-Clause | Executable specification for exact points, constrained face refinement, radial bundles/polylines, Weiler construction, and expression classification |
 | Manifold | [`ff42ddc`](https://github.com/elalish/manifold/tree/ff42ddc885e2287faa176873e38e795572e95992) | Apache-2.0 | Packed/parallel engineering and payload-provenance reference. Its manifold-input and epsilon-valid contract is a deliberately narrower fast-path model |
 | kigumi | [`374327c`](https://github.com/unageek/kigumi/tree/374327c6d5732c91949e70a9fc0d3bf40182c9b2) | MIT code over CGAL | Useful local radial-classification comparison for open/non-manifold boundaries, but its documented input excludes degenerate faces and self-intersections. CGAL's GPL triangulation remains transitive and is not introduced |
-| libigl Boolean | External release oracle | MPL-2.0 library with a CGAL/copyleft Boolean path | Differential oracle only; not linked or copied into Prismel |
+| libigl Boolean | External release oracle | MPL-2.0 library with a CGAL/copyleft Boolean path | Differential oracle only; not linked or copied into Rays |
 | CGAL Polygon Mesh Processing | 6.2 documentation | GPL/commercial for the relevant package | External oracle only unless a future explicit license/portability review approves a dependency. Its iterative snap-rounding result is valid only when its explicit success result is true |
 | trueform | [`2c2c6b0`](https://github.com/polydera/trueform/tree/2c2c6b09b4f1ccf6c39d8ae70e454540db6ee143) | PolyForm Noncommercial/commercial | Paper, public API behavior, adversarial cases, and benchmark protocol only; no code copying, linking, translation, or vendoring |
 
 Permissive licensing does not by itself justify importing a second geometry
-kernel. PDK owns topology, exact identity, packed storage, deterministic
+kernel. RDK owns topology, exact identity, packed storage, deterministic
 ordering, attributes, groups, cancellation, and Apple-Silicon portability. Source
 is inspected to extract invariants and adversarial cases; implementation uses
-PDK types and tests. Any substantially copied permissive code would need its
+RDK types and tests. Any substantially copied permissive code would need its
 notice preserved explicitly, but the current kernel is an independent OCaml
 implementation.
 
 ## Clean-room algorithm decision
 
-PDK uses a hybrid whose parts have different proof status. This distinction is
+RDK uses a hybrid whose parts have different proof status. This distinction is
 normative; a faster research result does not silently replace a stronger exact
 contract.
 
-| Mechanism | PDK decision | Reason |
+| Mechanism | RDK decision | Reason |
 | --- | --- | --- |
 | Exact binary64 input domain | Keep | Every finite input float is an exact dyadic. Snapping all inputs to a fixed integer grid would change the declared geometry before the operation starts |
 | Exact implicit LPI/line-line/TPI constructions | Keep and pack | They preserve source ancestry and permit exact predicates after construction. Dense retained objects are an engineering problem, not permission to discard exact identity |
 | Unique symbolic-perturbed constrained Delaunay refinement | Keep | Equivalent coplanar face arrangements must triangulate identically so duplicate facets can be eliminated combinatorially |
-| Five canonical contact families, `VV`/`VE`/`VF`/`EE`/`EF` | Adopt as the public research taxonomy | They are a useful minimum partition and stable identity vocabulary. PDK may retain finer proper/coplanar/coincident subtypes internally |
+| Five canonical contact families, `VV`/`VE`/`VF`/`EE`/`EF` | Adopt as the public research taxonomy | They are a useful minimum partition and stable identity vocabulary. RDK may retain finer proper/coplanar/coincident subtypes internally |
 | Two-level point identity | Adopt | A topological key says two observations are the same construction; a separate exact geometric merge unifies distinct constructions at the same location. Approximate coordinate hashing is never authoritative |
 | Radial comparison from original carrier planes | Add as a certified fast path | It avoids repeatedly expanding constructed edge coordinates. It must be differentially identical to the existing exact implicit-point radial predicate for every supported contact type |
 | Relation grouping by radial polyline and incident-component set | Adopt | One polyline can carry several relations when a non-manifold flap begins or ends. Treating the whole polyline as one relation loses topology |
-| Weighted-majority topological aggregation | Diagnostic/recovery path only | The trueform paper explicitly gives a statistical, not worst-case, guarantee. A majority can be adversarially wrong, so it cannot by itself close PDK's exact production gate |
+| Weighted-majority topological aggregation | Diagnostic/recovery path only | The trueform paper explicitly gives a statistical, not worst-case, guarantee. A majority can be adversarially wrong, so it cannot by itself close RDK's exact production gate |
 | Build once, evaluate many expressions | Keep | Domain winding vectors and source ancestry are immutable products of the arrangement; union/intersection/differences/XOR/custom extraction must not repeat intersection work |
 | Post-materialization verification and repair | Strengthen | Exact internal topology does not prevent new binary64 crossings after rounding. A result is published only after bounded cleanup and exact verification succeed |
 
 This is a clean-room reimplementation boundary. The papers define algorithms
 and proof obligations; permissive implementations provide differential outputs,
-phase timings, and failure corpora. PDK code is written from this specification
-against PDK representations. Noncommercial trueform source is excluded even
+phase timings, and failure corpora. RDK code is written from this specification
+against RDK representations. Noncommercial trueform source is excluded even
 from line-by-line translation.
 
 ### Canonical identity contract
@@ -82,7 +82,7 @@ construction:
 - operand, primitive, and open-simplex IDs for both participants;
 - one canonical ordering of the participant pair, independent of traversal
   direction or worker scheduling;
-- a contact family (`VV`, `VE`, `VF`, `EE`, or `EF`) plus the finer exact PDK
+- a contact family (`VV`, `VE`, `VF`, `EE`, or `EF`) plus the finer exact RDK
   contact subtype;
 - for a crossing created while arranging a face, the sorted carrier-face set
   and, when coplanar contact makes that set ambiguous, the canonical pair of
@@ -110,7 +110,7 @@ just a polyline. For each edge in a relation:
 5. reject an incident chart with no exact carrier plane from the proof path,
    reporting its source IDs rather than assigning an arbitrary angle.
 
-Inside an exact PDK build, all observations of one relation must induce the
+Inside an exact RDK build, all observations of one relation must induce the
 same wedge adjacency. Disagreement is an invariant diagnostic and triggers a
 certified alternate exact formulation; it is not settled by a vote. A future
 materialized-arrangement import tool may expose weighted majority as an
@@ -169,7 +169,7 @@ The exact arrangement is rounded to binary64 once. Then:
 
 CGAL 6.2's bounded iterative snap-rounding API is an external behavioral
 oracle for this phase: it exposes grid size and iteration count and explicitly
-reports failure. PDK does not inherit its grid or algorithm, but does inherit
+reports failure. RDK does not inherit its grid or algorithm, but does inherit
 the rule that a partial unsuccessful cleanup is not a valid result.
 
 ## Declared input model
@@ -356,14 +356,14 @@ component scan, and in one-/multi-domain cell results. An unrelated boundary
 hit is reported as the exact arrangement-membership invariant failure described
 above; it is not hidden by perturbing the origin.
 
-`Pdk.Boolean.run` and the immutable two-input `Sop.boolean` now promote the
+`Rdk.Boolean.run` and the immutable two-input `Sop.boolean` now promote the
 five named treatment-aware products plus solid/solid Shatter. Their typed policy includes per-input
 solid/surface and self-intersection treatment, exact point-payload reject or
 vertex-promotion behavior, shared/split seam points, triangle/unchanged/all
 source-polygon detriangulation, flatness assumption, and closed-output
-validation. The SOP delegates to the single PDK core, forwards cancellation
+validation. The SOP delegates to the single RDK core, forwards cancellation
 and session grain, and includes every policy in static cache identity. Public
-PDK/SOP regressions cover payload conflicts, malformed parameters,
+RDK/SOP regressions cover payload conflicts, malformed parameters,
 cancellation, bounded cache reuse, and exact one-/four-domain topology. A
 native framebuffer export is byte-identical across domain counts and differs
 visibly from the unsubtracted source.
@@ -378,7 +378,7 @@ now dissolves a cut triangle component only when its retained boundary is one
 degree-two cycle. Components with holes or internal retained seams stay
 triangulated instead of publishing a repeated-bridge, non-simple polygon.
 
-`Pdk.Boolean.seam` and `Sop.boolean_seam` reuse the same exact arrangement for
+`Rdk.Boolean.seam` and `Sop.boolean_seam` reuse the same exact arrangement for
 diagnostic and downstream modeling output. Curve mode emits independently
 named left-self, between-input, and right-self seam groups. Coincident mode
 emits the exact coincident triangle patches with its own optional primitive

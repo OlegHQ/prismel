@@ -120,7 +120,7 @@ val scope_point : t -> scope:path -> float * float -> (float * float) option
 
 val bindings : ('scope, command) Editor_core.Command.t list
 val run_command : t -> command -> t * change list
-val update : t -> Pxui.Ui.t -> Prismel.Frame.t -> t * change list
+val update : t -> Pxui.Ui.t -> Rays.Frame.t -> t * change list
 (** Build the pane inside [Pxui.Ui.frame].  Hidden iterations are never
     built: a zone draws its body once, whatever its iteration count. *)
 

@@ -1,12 +1,12 @@
-open Pdk
+open Rdk
 
 let integer_env name default =
   match Sys.getenv_opt name with
   | None -> default
   | Some value -> max 1 (int_of_string value)
 
-let count = integer_env "PRISMEL_PREDICATE_BENCH_COUNT" 5_000_000
-let repeats = integer_env "PRISMEL_PREDICATE_BENCH_REPEATS" 5
+let count = integer_env "RAYS_PREDICATE_BENCH_COUNT" 5_000_000
+let repeats = integer_env "RAYS_PREDICATE_BENCH_REPEATS" 5
 let sink = ref 0
 
 let median values =
@@ -111,7 +111,7 @@ let () =
     Predicates.orient3d_packed ~x:underflow_x ~y:underflow_y
       ~z:underflow_z 0 1 2 3 |> sign_code);
   let module Point = struct
-    include Pdk_exact.Implicit_point
+    include Rdk_exact.Implicit_point
     let sign value = match reference value with
       | -1 -> Predicates.Negative | 0 -> Predicates.Zero
       | 1 -> Predicates.Positive | _ -> assert false

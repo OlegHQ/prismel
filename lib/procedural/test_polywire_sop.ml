@@ -8,19 +8,19 @@ let contains value needle =
   needle = "" || loop 0
 
 let source () =
-  let positions = Pdk.Packed.Float3.Private.of_owned_exn
+  let positions = Rdk.Packed.Float3.Private.of_owned_exn
       ~x:[|0.;2.;0.;2.|] ~y:[|0.;0.;3.;3.|] ~z:(Array.make 4 0.) in
-  let topology = Pdk.Topology.create_owned ~point_count:4
+  let topology = Rdk.Topology.create_owned ~point_count:4
       ~vertex_points:[|0;1;2;3|] ~primitive_offsets:[|0;2;4|]
-      ~primitive_kinds:[|Pdk.Topology.Open_polyline; Pdk.Topology.Open_polyline|]
+      ~primitive_kinds:[|Rdk.Topology.Open_polyline; Rdk.Topology.Open_polyline|]
     |> get in
-  let selection = Pdk.Group.ordered ~owner:Pdk.Group.Primitive ~name:"first"
+  let selection = Rdk.Group.ordered ~owner:Rdk.Group.Primitive ~name:"first"
       ~length:2 [|0|] |> get
-  and divisions = Pdk.Attribute.create_owned ~owner:Pdk.Attribute.Point ~name:"div"
-      (Pdk.Attribute.Int [|4;6;5;5|]) |> get
-  and segments = Pdk.Attribute.create_owned ~owner:Pdk.Attribute.Point ~name:"seg"
-      (Pdk.Attribute.Int [|1;3;1;1|]) |> get in
-  Pdk.Geometry.create ~positions ~topology ~attributes:[divisions;segments]
+  and divisions = Rdk.Attribute.create_owned ~owner:Rdk.Attribute.Point ~name:"div"
+      (Rdk.Attribute.Int [|4;6;5;5|]) |> get
+  and segments = Rdk.Attribute.create_owned ~owner:Rdk.Attribute.Point ~name:"seg"
+      (Rdk.Attribute.Int [|1;3;1;1|]) |> get in
+  Rdk.Geometry.create ~positions ~topology ~attributes:[divisions;segments]
     ~groups:[selection] () |> get
 
 let context domains = Context.create ~domains ~grain:2 ~seed:91L () |> get
@@ -32,20 +32,20 @@ let cook evaluator domains graph =
   | Error error -> fail (Diagnostic.error_to_string error)
 
 let equal left right =
-  let lt = Pdk.Topology.Private.view (Pdk.Geometry.topology left)
-  and rt = Pdk.Topology.Private.view (Pdk.Geometry.topology right)
-  and lp = Pdk.Packed.Float3.Private.view (Pdk.Geometry.positions left)
-  and rp = Pdk.Packed.Float3.Private.view (Pdk.Geometry.positions right) in
+  let lt = Rdk.Topology.Private.view (Rdk.Geometry.topology left)
+  and rt = Rdk.Topology.Private.view (Rdk.Geometry.topology right)
+  and lp = Rdk.Packed.Float3.Private.view (Rdk.Geometry.positions left)
+  and rp = Rdk.Packed.Float3.Private.view (Rdk.Geometry.positions right) in
   lt.point_count = rt.point_count
   && lt.vertex_points = rt.vertex_points
   && lt.primitive_offsets = rt.primitive_offsets
   && Bytes.equal lt.primitive_kinds rt.primitive_kinds
   && lp.x = rp.x && lp.y = rp.y && lp.z = rp.z
   && List.for_all2 (fun left right ->
-       Pdk.Attribute.owner left = Pdk.Attribute.owner right
-       && String.equal (Pdk.Attribute.name left) (Pdk.Attribute.name right)
-       && Pdk.Attribute.storage left = Pdk.Attribute.storage right)
-       (Pdk.Geometry.attributes left) (Pdk.Geometry.attributes right)
+       Rdk.Attribute.owner left = Rdk.Attribute.owner right
+       && String.equal (Rdk.Attribute.name left) (Rdk.Attribute.name right)
+       && Rdk.Attribute.storage left = Rdk.Attribute.storage right)
+       (Rdk.Geometry.attributes left) (Rdk.Geometry.attributes right)
 
 let run () =
   let graph = Sop.snapshot (source ())
@@ -72,18 +72,18 @@ let run () =
   let evaluator = session () in
   let one = cook evaluator 1 graph and four = cook evaluator 4 graph in
   if not (equal one four) then fail "one/four-domain output differs";
-  if Pdk.Geometry.point_count one <> 18
-      || Pdk.Geometry.vertex_count one <> 62
-      || Pdk.Geometry.primitive_count one <> 17 then
+  if Rdk.Geometry.point_count one <> 18
+      || Rdk.Geometry.vertex_count one <> 62
+      || Rdk.Geometry.primitive_count one <> 17 then
     fail "scoped variable PolyWire cardinality";
-  (match Pdk.Geometry.find_group ~owner:Pdk.Group.Primitive "caps" one with
-   | Some group when Pdk.Group.cardinality group = 2 -> ()
+  (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive "caps" one with
+   | Some group when Rdk.Group.cardinality group = 2 -> ()
    | _ -> fail "cap output group");
-  (match Pdk.Geometry.find_attribute ~owner:Pdk.Attribute.Vertex "uv" one with
+  (match Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Vertex "uv" one with
    | Some attribute ->
-       (match Pdk.Attribute.Private.storage attribute with
-        | Pdk.Attribute.Float2 values ->
-            let values = Pdk.Packed.Float2.Private.view values in
+       (match Rdk.Attribute.Private.storage attribute with
+        | Rdk.Attribute.Float2 values ->
+            let values = Rdk.Packed.Float2.Private.view values in
             if not (Array.exists (( = ) (-1.)) values.x
                 && Array.exists (( = ) 1.) values.x) then
               fail "typed U range did not reach its endpoints"
@@ -97,7 +97,7 @@ let run () =
       |> Sop.polywire ~segments:2 ~generate_uv:false ~radius:0.1 in
   let evaluator = session () in
   let without_uv = cook evaluator 1 without_uv in
-  if Pdk.Geometry.find_attribute ~owner:Pdk.Attribute.Vertex "uv" without_uv
+  if Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Vertex "uv" without_uv
       <> None then fail "SOP generate_uv=false still emitted uv";
   Session.close evaluator;
   let rejected = try

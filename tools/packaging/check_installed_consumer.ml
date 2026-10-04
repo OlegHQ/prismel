@@ -55,7 +55,7 @@ let environment_with replacements =
      @ inherited)
 
 let run ?environment ~directory program arguments =
-  with_temp_directory "prismel-packaging-command-" (fun output_directory ->
+  with_temp_directory "rays-packaging-command-" (fun output_directory ->
     let stdout_path = Filename.concat output_directory "stdout" in
     let stderr_path = Filename.concat output_directory "stderr" in
     let flags = [ Unix.O_WRONLY; Unix.O_CREAT; Unix.O_TRUNC ] in
@@ -105,7 +105,7 @@ let starts_with ~prefix value =
   && String.sub value 0 prefix_length = prefix
 
 let install_and_check ~root ~profile =
-  with_temp_directory "prismel-installed-consumer-" (fun temporary ->
+  with_temp_directory "rays-installed-consumer-" (fun temporary ->
     with_source_build_directory root (fun ~path:_ ~relative:source_build ->
     let prefix = Filename.concat temporary "prefix" in
     let consumer = Filename.concat temporary "consumer" in
@@ -127,13 +127,13 @@ let install_and_check ~root ~profile =
          ; "--prefix"; prefix
          ; "--relocatable"
          ; "--profile"; profile
-         ; "prismel"
+         ; "rays"
          ]);
     write_file (Filename.concat consumer "dune-project")
-      "(lang dune 3.17)\n(name prismel_sdl3_installed_consumer)\n";
+      "(lang dune 3.17)\n(name rays_sdl3_installed_consumer)\n";
     write_file (Filename.concat consumer "dune")
-      "(executable\n (name main)\n (libraries prismel.sdl3 prismel.sdl3_image \
-       prismel.sdl3_ttf prismel.sdl3_mixer))\n";
+      "(executable\n (name main)\n (libraries rays.sdl3 rays.sdl3_image \
+       rays.sdl3_ttf rays.sdl3_mixer))\n";
     write_file (Filename.concat consumer "main.ml")
       (read_file (Filename.concat root "tools/packaging/installed_consumer.ml"));
     let library_path = Filename.concat prefix "lib" in
@@ -150,10 +150,10 @@ let install_and_check ~root ~profile =
         ]
     in
     let packages =
-      [ "prismel.sdl3"
-      ; "prismel.sdl3_image"
-      ; "prismel.sdl3_ttf"
-      ; "prismel.sdl3_mixer"
+      [ "rays.sdl3"
+      ; "rays.sdl3_image"
+      ; "rays.sdl3_ttf"
+      ; "rays.sdl3_mixer"
       ]
     in
     List.iter
@@ -184,7 +184,7 @@ let profile = ref "dev"
 
 let arguments =
   [ "--root", Arg.String (fun value -> root := Some value),
-    "PATH Prismel checkout root"
+    "PATH Rays checkout root"
   ; "--profile", Arg.Set_string profile, "PROFILE Dune profile (default: dev)"
   ]
 

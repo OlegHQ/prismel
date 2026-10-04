@@ -1,7 +1,7 @@
 (* W3: the v4 document (text, layout by path, settings), presets as
    s-expressions, and the editor opened on a workspace: history labels, one
    entry per gesture, live `t` recooked and static nodes cached. *)
-open Prismel
+open Rays
 open Flow_sop
 module E = Flow_edit
 module S = Flow.Syntax
@@ -121,27 +121,27 @@ let char c = key (Input.KeyChar c)
 
 let editor ?presets text =
   let workspace = of_text text in
-  Prismel_editor.Editor3.create ~await:true ~workspace ?presets
+  Rays_editor.Editor3.create ~await:true ~workspace ?presets
     ~prepare:(fun _ output -> Ok output.Procedural.Session.geometry)
     ~scene3:(fun _ _ -> Scene3.create []) () |> function
   | Ok e -> e | Error m -> fail m
 
 let first_x geometry =
-  let view = Pdk.Packed.Float3.Private.view (Pdk.Geometry.positions geometry) in
+  let view = Rdk.Packed.Float3.Private.view (Rdk.Geometry.positions geometry) in
   view.x.(0)
 
 (* update frames until [ok] holds: the editor awaits each frame's cook, so a bounded number of
    frames, not a wait on the clock *)
 let settle ?(from = 0) e ok =
   let rec go count e =
-    let e = Prismel_editor.Editor3.update e (frame [] count) in
+    let e = Rays_editor.Editor3.update e (frame [] count) in
     if ok e then e, count
     else if count > from + 200 then fail "the editor did not settle"
     else go (count + 1) e in
   go from e
 
 let part_editor () =
-  let module E3 = Prismel_editor.Editor3 in
+  let module E3 = Rays_editor.Editor3 in
   let e = editor still in
   let objects e = List.map (fun (i : Procedural.Edit_graph.node_info) -> i.label, i.operation)
     (Procedural.Edit_graph.inspect (E3.document e)) in
@@ -167,7 +167,7 @@ let part_editor () =
     "a refused edit is an error";
   check (E3.undo_label e = Some "Repeat") "a refused edit records nothing";
   let e, count = settle ~from:(count + 1) e (fun e ->
-    match E3.prepared e with Some g -> Pdk.Geometry.point_count g > Pdk.Geometry.point_count before | None -> false) in
+    match E3.prepared e with Some g -> Rdk.Geometry.point_count g > Rdk.Geometry.point_count before | None -> false) in
   (* undo steps back through the labelled entries *)
   let undo e c = E3.update e (frame ~keys:[ Input.Meta ] [ char 'z' ] c) in
   let e = undo e count in
@@ -184,7 +184,7 @@ let part_editor () =
   E3.close e
 
 let part_live () =
-  let module E3 = Prismel_editor.Editor3 in
+  let module E3 = Rays_editor.Editor3 in
   let e = editor moving in
   let e, count = settle e (fun e -> E3.prepared e <> None) in
   let xs = ref [] in
@@ -198,8 +198,8 @@ let part_live () =
   E3.close !e
 
 let part_preset () =
-  let module E3 = Prismel_editor.Editor3 in
-  let directory = Filename.temp_dir "prismel-workspace-presets" "" in
+  let module E3 = Rays_editor.Editor3 in
+  let directory = Filename.temp_dir "rays-workspace-presets" "" in
   Fun.protect ~finally:(fun () ->
     let state = Filename.concat directory "state" in
     if Sys.file_exists state then begin
@@ -215,7 +215,7 @@ let part_preset () =
     let e = E3.update e (frame [ key Input.Enter ] (count + 2)) in
     let name = match Preset.list ~directory with [ (name, _) ] -> name | _ -> fail "Space s did not save one preset" in
     let path = Preset.path ~directory ~name in
-    check (Filename.check_suffix path ".plisp" && Sys.file_exists path) "Space s saved a .plisp";
+    check (Filename.check_suffix path ".rays" && Sys.file_exists path) "Space s saved a .rays";
     let text = In_channel.with_open_bin path In_channel.input_all in
     check (has text "(workspace study" && has text "; kept" && has text "(view") "the preset is s-expressions with its comments";
     check (not (has text "{\"") && not (has text "\"version\"")) "no JSON";
@@ -242,7 +242,7 @@ let part_preset () =
 
 (* the view round trips through s-expressions *)
 let part_view () =
-  let directory = Filename.temp_dir "prismel-workspace-view" "" in
+  let directory = Filename.temp_dir "rays-workspace-view" "" in
   Fun.protect ~finally:(fun () ->
     Array.iter (fun f -> Sys.remove (Filename.concat directory f)) (Sys.readdir directory);
     Unix.rmdir directory) (fun () ->
@@ -295,7 +295,7 @@ let part_contexts () =
                       && p.rotate_y = 0.) "a vec3 keyword sets its three fields"
    | None -> fail "accent is not a geometry object");
   (match Objects.Camera.of_node (List.hd (ops "camera")).node with
-   | Some (camera, _) -> check (Prismel.Camera.position camera = Prismel.Vec3.create 0.5 1.8 6.) "camera eye"
+   | Some (camera, _) -> check (Rays.Camera.position camera = Rays.Vec3.create 0.5 1.8 6.) "camera eye"
    | None -> fail "no camera");
   (match Objects.light (List.hd (ops "light")).node with
    | Some p -> check (p.intensity = 60. && p.translate_x = 4.) "light fields"
@@ -315,7 +315,7 @@ let part_contexts () =
    | Some w ->
        check (w.exposure = -0.5) "World exposure";
        check (match w.layers with
-         | [ { layer = Prismel.World.Sky s; _ }; { layer = Prismel.World.Sun u; _ } ] ->
+         | [ { layer = Rays.World.Sky s; _ }; { layer = Rays.World.Sun u; _ } ] ->
              s.turbidity = 3. && u.intensity = 1500.
          | _ -> false) "World layers, bottom first"
    | None -> fail "the World does not read");
@@ -324,7 +324,7 @@ let part_contexts () =
   check (window = { Contexts.title = "Bloom study"; width = 1400; height = 800; fps = 60; seed = 42 })
     "settings graph: window title, size, fps (a macro call) and seed";
   (match Contexts.window (of_text (case "tree")) with
-   | Ok w -> check (w.title = "Prismel" && w.fps = 60) "no settings graph: defaults"
+   | Ok w -> check (w.title = "Rays" && w.fps = 60) "no settings graph: defaults"
    | Error d -> fail (Flow.Diagnostic.to_string d));
   check (List.exists (fun (f : Editor_core.Param.field_view) -> f.name = "title" && f.current = Text_value "Bloom study")
     (Editor_document.Settings.fields doc.settings)) "the settings graph is the document's settings";
@@ -341,7 +341,7 @@ let part_contexts () =
   let again = of_text (Doc.to_text bloom) in
   check (Doc.to_text again = Doc.to_text bloom) "print and parse are a fixed point";
   check (shape (build again) = shape doc) "the printed text builds the same document";
-  let directory = Filename.temp_dir "prismel-contexts" "" in
+  let directory = Filename.temp_dir "rays-contexts" "" in
   Fun.protect ~finally:(fun () ->
     Array.iter (fun f -> Sys.remove (Filename.concat directory f)) (Sys.readdir directory);
     Unix.rmdir directory) (fun () ->
@@ -385,13 +385,13 @@ let part_contexts () =
 
 (* W10: the scene's objects and the World come from the workspace *)
 let part_editor_contexts () =
-  let module E3 = Prismel_editor.Editor3 in
+  let module E3 = Rays_editor.Editor3 in
   let e = ref (editor (case "bloom")) in
   let count = ref 0 in
   let step events = incr count; e := E3.update !e (frame events !count) in
   for _ = 1 to 10 do step [] done;
   let dump () =
-    let directory = Filename.temp_dir "prismel-contexts-dump" "" in
+    let directory = Filename.temp_dir "rays-contexts-dump" "" in
     Fun.protect ~finally:(fun () ->
       Array.iter (fun f -> Sys.remove (Filename.concat directory f)) (Sys.readdir directory);
       Unix.rmdir directory) (fun () ->

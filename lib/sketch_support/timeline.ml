@@ -1,4 +1,4 @@
-open Prismel
+open Rays
 
 type mode = Playing | Paused | Stopped
 

@@ -1,6 +1,6 @@
 (library
  (name ogpu)
- (public_name prismel.ogpu)
+ (public_name rays.ogpu)
  (modules Ogpu Impl)
  (libraries ogpu_core)
  (virtual_modules Impl)

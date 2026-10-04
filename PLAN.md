@@ -32,7 +32,7 @@ keys pretending to be graph results.
 
 ## 1. Crash: click with no viewport
 
-Report: `/tmp/prismel-crash/Prismel_sketch____shattered_cube-20261002-143401-84883`
+Report: `/tmp/rays-crash/Rays_sketch____shattered_cube-20261002-143401-84883`
 
 `Invalid_argument("Camera: viewport dimensions must be positive")` from
 `Camera.screen_ray`, called by `Environment.update_with` on a click. The
@@ -151,13 +151,13 @@ The menu is `entries_of_factories` of one list:
 - World graph → `Layers.catalog`.
 
 `[@@sop.register]` collects only inside `sop_catalog`. A module registered
-from a sketch does not join the menu. `Workspace.main` (every `.plisp`
+from a sketch does not join the menu. `Workspace.main` (every `.rays`
 sketch) calls `load` with no factories, and `declared_camera` hardcodes
 `Sop_catalog.Editor.factories`. There is no registry you can push to after
 `create`.
 
 So a custom node is missing when any of these is true: it was registered
-outside `sop_catalog`, the sketch is a bare `.plisp`, `~factories` replaced
+outside `sop_catalog`, the sketch is a bare `.rays`, `~factories` replaced
 the catalog instead of prepending, or the menu is open on the scene graph.
 
 Fix: the list given to `create` is the only catalog, and the three readers

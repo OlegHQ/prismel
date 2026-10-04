@@ -1,6 +1,6 @@
 # Project architecture
 
-Prismel is a functional creative-coding framework for interactive native
+Rays is a functional creative-coding framework for interactive native
 applications on Apple Silicon. The ordinary user path is `Sketch`, immutable
 model updates, `Frame` facts, and pure `Scene` construction.
 
@@ -14,14 +14,14 @@ model updates, `Frame` facts, and pure `Scene` construction.
 - `Image`, `Font`, `Canvas`, `Texture`, and `Audio` expose owned or explicitly
   borrowed resources with deterministic teardown.
 - `Pxui` and the graph/inspector adapters remain sibling libraries above the
-  public Prismel API.
-- `Pdk` owns packed geometry/topology; `Geom` and `Procedural` adapt it.
+  public Rays API.
+- `Rdk` owns packed geometry/topology; `Geom` and `Procedural` adapt it.
 
 ## Native foundation
 
 ```text
-prismel -> runtime -> SDL3 lifecycle and Metal view
-prismel -> ogpu -> ogpu_metal -> metal
+rays -> runtime -> SDL3 lifecycle and Metal view
+rays -> ogpu -> ogpu_metal -> metal
 ```
 
 Runtime owns window creation, event translation, drawable acquisition,
@@ -49,12 +49,12 @@ performs the native scale conversion once.
 
 Foundational libraries do not depend upward:
 
-- `sdl3` imports no Metal, OGPU, Runtime, Prismel, or PXUI module;
-- `metal` imports no SDL3, OGPU, Runtime, Prismel, or PXUI module;
-- `ogpu` imports no SDL3, Metal, Runtime, Prismel, or PXUI module;
+- `sdl3` imports no Metal, OGPU, Runtime, Rays, or PXUI module;
+- `metal` imports no SDL3, OGPU, Runtime, Rays, or PXUI module;
+- `ogpu` imports no SDL3, Metal, Runtime, Rays, or PXUI module;
 - `ogpu_metal` imports only `ogpu` and `metal`;
 - Runtime alone combines SDL3 with `ogpu_metal`;
-- Prismel records through `ogpu` without exposing native values.
+- Rays records through `ogpu` without exposing native values.
 
 The release link audit verifies these edges and rejects undeclared native
 renderer dependencies.

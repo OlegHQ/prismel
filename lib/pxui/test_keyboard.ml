@@ -1,4 +1,4 @@
-open Prismel
+open Rays
 module Ui = Pxui.Ui
 
 let check condition message = if not condition then failwith message
