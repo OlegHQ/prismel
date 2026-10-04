@@ -688,10 +688,86 @@ level by label and qualified kind; picking selects and frames.
 ### 7.11 Context keys and the World
 
 The grammar's letters are reserved in every context. Context-specific plain
-keys use only free letters (`a d g n q t y z`, digits, brackets). In M2 the
+keys use only free letters (`a d g n q t z`, digits, brackets; `y` picks up a carry, §7.12). In M2 the
 World's graph-scope keys change: `e` (dome ⇄ light) becomes `t`, `r`
 (reseed) becomes `n`, `p` (play day cycle) becomes `d`; `[`, `]` and `1`–`4`
 stay. `scene.md` and `api.md` update with that milestone.
+
+### 7.12 Carry
+
+A payload in flight, by pointer or by keys. The payload is a Flow value held as text (`kind`
+`material` or `sop`, value `(ref cobalt)`), so carrying the material graph `cobalt` is carrying
+`(ref cobalt)`. A place is a target when the edit that writes the value there passes the checker:
+`Prismel_editor.Carry.put` runs the edit (the one the inspector or the graph already writes) and
+the document's own check, and its answer is the preview, the refusal's reason and the write.
+No widget lists what it accepts; the table is the set of edits the code knows to write.
+
+| Payload | Put on | Writes, as one undo entry |
+|---|---|---|
+| material graph | a node of a SOP graph, or the inspector's `:material` row of the selected node | `Set_arg :material (ref name)` (the checker refuses a node that has no such argument) |
+| material graph | a surface in a viewport | the pick reads the primitive's `shop_materialpath`; the same `Set_arg` on the node that reads it. A graph with no node for it gets `Add_node (sop/material result :material (ref name))` and `Connect` of the result, in one `Syntax_batch` |
+| material graph | a `scene/geometry` node, or a geometry object | the same, on the object's SOP graph |
+| SOP graph | the scene graph's canvas or its `scene/merge`, or empty viewport space | `Scene_sync.add_geometry` over the existing graph: one `scene/geometry` binding and one merge input |
+| SOP graph | a `scene/geometry` node, a geometry object or the surface of one | its `(ref ...)` re-pointed (`Set_arg` on the first argument) |
+| SOP graph | any other call | the reference as its first input, when the checker takes it |
+| scene graph (kind `scene`) | a viewport panel | the panel's `(ui/viewport (ref name))` re-pointed (`Set_arg` on its first argument; a panel written in place is bound first, as a dock does) |
+| camera object (kind `camera`, the value is its binding name) | a viewport panel | the `:camera` of the `scene/root` of the scene the panel shows; a scene with no root (a part) gets `scene/root <result> :camera name` and a `Connect` of `@result`, in the same entry |
+| a graph (`(ref a)`) | a byte of the text pane (Graph, Selection or Document tab) | the reference inserted there, spaced from what it touches; the whole text is then checked (one `Set_graph`, or the Document text as a whole) and a text that does not check is refused with the checker's words |
+
+A scene graph is carried from its Navigator row or by `y` with it open; a camera by `y` with the
+object selected (the list's selection, else the pane's selected scene node). The key route's letters
+for either are the viewport panels of the editor graph's layout (`viewport 1`, `viewport 2`, ...),
+those whose put passes the checker. A document without an editor graph has no viewport panel to
+write, so no letter. The text pane is a pointer target only: while a payload is held the pane reads the
+document the carry began with, so the byte under the pointer does not move when the put is previewed
+(the preview shows in the other panes and in the strip); a tab holding an unapplied draft refuses,
+because its bytes are not the document's. Not built: a file from Finder (no place takes a path).
+
+Pick up: press a Navigator row of a material, SOP or scene graph and move 4 points, or press `y`, which
+carries the open material or SOP graph, else the graph of the selected geometry object, else the
+selected camera object, else the graph the pane's selected node references, else the open scene graph. Every gesture of §7.1 stays as it was; a press
+that has not left the 4-point dead zone is the click it always was.
+
+While carrying:
+
+- **Hover is the edit.** While a place is under the pointer the real edit is applied to a
+  scratch copy of the document and every panel reads it: the viewport, the graph, the text. The
+  history is not touched. The status strip prints what a release writes, in the words of the text
+  (`Preview · release writes :material (ref cobalt) on shards/m`).
+- **Release is one entry.** Releasing there (or `Enter` on the key route) installs that document
+  as one history entry named `Put`, whatever the number of rewrites.
+- **Cancel is a restore.** `Esc`, a release over nothing, a refused place, a pointer
+  cancellation or a window focus loss puts back the document that was the history's present when
+  the carry began, physically (the same value, so nothing was written and there is nothing to undo).
+- **Refusal gives its reason.** A place that does not take the payload shows the checker's
+  message in the strip (`Refused · A material graph takes no material`) and its picture stays the
+  original.
+- **Keys are the same carry.** `y` holds the payload with no capture; the places that take it get
+  the letters `a s d f g h j k l` (this graph or the scene first, then each geometry object), shown
+  in the strip and outlined in the graph pane. A letter previews, `Enter` writes, `Esc` drops, and
+  a left press on a place is the put. Letters never reach the commands while the carry lasts.
+  The pointer previews too once it moves.
+- **It survives navigation.** `i`, `u` and `Space j` (and the walking keys) work while carrying;
+  holding the pointer over a node for 0.6 s follows its reference. Nothing else edits the
+  document until the put, and the autosave never writes a preview.
+- **Budget.** A put whose apply (edit and check) or whose target cook takes 500 ms or more
+  (`?carry_budget` of `Editor3/2.create`, seconds, default 0.5) is not shown: the target is lit and
+  the strip says what it would write and why there is no picture (`Would write :material (ref cobalt)
+  on shards/m · no preview, applying takes 612 ms · release writes it`); the release still writes it.
+  `test_materials` runs it with a zero budget.
+  `test_materials` times a preview's apply and restore frames (about 1 ms each on the fixture,
+  cooks awaited).
+
+Gesture echo: every other gesture that writes the text also prints what it wrote in the same strip
+slot, in the words of the text (`Wrote :visible false on scene/body`, `Wrote :translate [3 0 0] on scene/b`;
+`Prismel_editor.Echo`), until the next one; an op with no short words (a layout change, a rewrite of
+a whole graph) prints nothing and the history label stands. The palette's "Copy workspace as Lisp"
+(`Leader.Copy_lisp`, no key) puts the text Command-S writes on the clipboard.
+
+The key `y` is unbound as a plain key; only Command-Y (redo) uses the letter. `Pxui.Ui` holds the
+payload on the handle (`Ui.carry`, `Ui.carrying`, `Ui.drop_target`, `Ui.cancel_carry`; see
+`pxui.md`), `Scope` reports the node or canvas under it (`Drop_over`, `Dropped`) and never edits,
+and `Core` turns a drop into the put.
 
 ## 8. Views (M6; the list exists today)
 
@@ -1145,7 +1221,7 @@ walk and hint labelling (deterministic labels for fixed layouts), Tab
 placement and ripple, fold/unfold identity, group/ungroup/export invariants,
 preset round trip, printer laws of §11.8 over every
 catalog factory with non-default literals and drives, every diagnostic code,
-key routing for every new command (`test_prismel_editor_logic`), and gate
+key routing for every new command (`test_prismel_editor_logic`), the carry (the payload's life in `lib/pxui/test_ui.ml`, a drop over a node in `test_pxui_graph`, a put as one entry by pointer and by keys, a cancel that leaves the document physically equal and the preview timings in `test_materials`), and gate
 rules. Visual checks go in `@runtest-native` once per milestone
 (`test_ui_parity` fixtures updated intentionally in M1).
 

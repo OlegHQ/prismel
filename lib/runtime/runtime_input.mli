@@ -1,6 +1,21 @@
 type mouse_button = Left | Middle | Right | X1 | X2
-type modifier = Shift | Control | Alt | Meta | Num_lock | Caps_lock | Scroll_lock
-type key_event = { key:string; modifiers:modifier list; repeat:bool }
+
+(** The binding's own variants: SDL's keycode is mapped once, in its stubs. A
+    letter or digit is [Char] in lower case on any layout. *)
+type key = Sdl3.Key.t =
+  | Char of char
+  | Arrow_up | Arrow_down | Arrow_left | Arrow_right
+  | Space | Enter | Escape | Backspace | Tab
+  | Shift | Control | Alt | Meta
+  | F1 | F2 | F3 | F4 | F5 | F6 | F7 | F8 | F9 | F10 | F11 | F12
+  | Home | End | Page_up | Page_down | Insert | Delete
+  | Unknown of int
+
+type modifier = Sdl3.Key.modifier =
+  | Shift_held | Control_held | Alt_held | Meta_held
+  | Num_lock | Caps_lock | Scroll_lock
+
+type key_event = { key : key; modifiers : modifier list; repeat : bool }
 
 type event =
   | Pointer_moved of float * float
@@ -15,17 +30,30 @@ type event =
   | Focus_lost
   | Focus_gained
   | Visibility_changed of bool
+      (** Shown, restored, hidden, minimized or covered. SDL never announces
+          the end of occlusion: the caller reads the window. *)
   | Quit
-  | Resized of int * int
+  | Resized of int * int  (** logical points *)
+  | Pixel_size_changed of int * int  (** drawable pixels *)
+  | Pinch of float
+      (** Trackpad pinch: the zoom factor since the last update, above 1 to
+          zoom in. *)
   | File_dropped of string
+  | File_dragged of float * float
+      (** Files from the OS are over the window at this point. *)
+  | File_drag_ended
+  | Dialog_closed of { id : int; result : (string list, string) result }
+      (** A native file dialog finished: the chosen paths ([] when the user
+          cancelled) or the failure. *)
 
 type snapshot = {
   pointer : float * float;
   mouse_delta : float * float;
   wheel_delta : float * float;
   buttons : mouse_button list;
-  keys : string list;
+  keys : key list;
   pointer_captured : bool;
+  visible : bool;
   logical_width : int;
   logical_height : int;
   dropped_events : int;

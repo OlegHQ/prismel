@@ -36,9 +36,11 @@
 (rule
  (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (alias qualification)
+ (locks smoke_window)
  (action (run %{exe:test_mock.exe} %{dep:exact_compute.metallib})))
 
 (rule
  (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (alias qualification)
+ (locks smoke_window)
  (action (run %{exe:test_metal.exe} %{dep:exact_compute.metallib})))

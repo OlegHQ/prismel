@@ -25,4 +25,5 @@ let () =
       let rec count at acc = if at + 3 > n then acc else count (at + 1) (if String.sub printed at 3 = "(->" then acc + 1 else acc) in
       threaded := !threaded + count 0 0
     end) paths;
+  if !threaded = 0 then fail "no checked-in file threads a chain (shattered_studio shows it)";
   Printf.printf "threading: %d files print and re-read unchanged, %d chains threaded\n" (List.length paths) !threaded

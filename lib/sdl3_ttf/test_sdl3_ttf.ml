@@ -18,60 +18,16 @@ let has_visible_alpha pixels =
   in
   Bytes.length pixels >= 4 && loop 3
 
-type cached =
-  { key : int * string * (int * int * int * int)
-  ; surface : Surface.t
-  }
-
-type cache =
-  { capacity : int
-  ; mutable entries : cached list
-  }
-
-let create_cache capacity =
-  if capacity <= 0 then invalid_arg "create_cache";
-  { capacity; entries = [] }
-
-let clear_cache cache =
-  List.iter (fun entry -> get_sdl (Surface.destroy entry.surface)) cache.entries;
-  cache.entries <- []
-
-let cached_text cache font ~color text =
-  let key = Font.generation font, text, color in
-  let rec extract reversed = function
-    | [] -> None, List.rev reversed
-    | entry :: rest when entry.key = key ->
-        Some entry, List.rev_append reversed rest
-    | entry :: rest -> extract (entry :: reversed) rest
-  in
-  match extract [] cache.entries with
-  | Some entry, remaining ->
-      cache.entries <- entry :: remaining;
-      Some entry.surface
-  | None, _ ->
-      match get_ttf (Font.render_blended font ~color text) with
-      | None -> None
-      | Some surface ->
-          let inserted = { key; surface } in
-          let rec trim count kept = function
-            | [] -> List.rev kept
-            | entry :: rest when count < cache.capacity ->
-                trim (count + 1) (entry :: kept) rest
-            | entry :: rest ->
-                get_sdl (Surface.destroy entry.surface);
-                trim count kept rest
-          in
-          cache.entries <- trim 0 [] (inserted :: cache.entries);
-          Some surface
-
 let run () =
   if Array.length Sys.argv <> 2 then fail "unexpected command-line arguments";
   let font_path = get_ttf (Font.system_path ()) in
   if not (Sys.file_exists font_path) then
     fail "installed system font discovery returned a missing path";
-  let linked = linked_version () in
-  if linked <> { Sdl3.major = 3; minor = 2; patch = 2 } then
-    fail "linked SDL3_ttf version changed";
+  let triple (v : Sdl3.version) = v.major, v.minor, v.patch in
+  (match Sdl3_lock.check_installed ~lock:(Sdl3_lock.read "../../packaging/sdl3.lock")
+      ~key:"sdl3_ttf" ~compiled:(triple compiled_version)
+      ~linked:(triple (linked_version ())) with
+   | Ok () -> () | Error message -> fail message);
   (match check_version ~release:true () with
    | Ok () -> () | Error error -> fail (Format.asprintf "%a" pp_error error));
   (match Font.open_file ~path:font_path ~size:18. with
@@ -102,7 +58,6 @@ let run () =
    | Error _ -> fail "missing font returned the wrong error");
 
   let font = get_ttf (Font.open_file ~path:font_path ~size:18.) in
-  let generation = Font.generation font in
   let metrics = get_ttf (Font.metrics font) in
   if metrics.height <= 0 || metrics.ascent <= 0 || metrics.line_skip <= 0 then
     fail "font metrics are not positive";
@@ -127,57 +82,40 @@ let run () =
    | Ok _ | Error _ -> fail "NUL raster text was accepted");
   (match get_ttf (Font.render_blended font ~color:(12, 34, 56, 200) "") with
    | None -> ()
-   | Some surface -> ignore (Surface.destroy surface);
-       fail "empty text allocated a surface");
-  let rendered = match get_ttf
+   | Some _ -> fail "empty text allocated a raster");
+  let rgba = match get_ttf
       (Font.render_blended font ~color:(12, 34, 56, 200) "Prismel ž") with
-    | Some surface -> surface
+    | Some rgba -> rgba
     | None -> fail "non-empty text did not rasterize"
   in
-  let rgba = get_sdl (Surface.copy_rgba rendered) in
   if rgba.width <> width || rgba.height <> height
+      || Bytes.length rgba.pixels <> width * height * 4
       || not (has_visible_alpha rgba.pixels) then
     fail "CPU glyph rasterization disagrees with text metrics or alpha";
+  (* every render owns its buffer *)
+  let again = match get_ttf
+      (Font.render_blended font ~color:(12, 34, 56, 200) "Prismel ž") with
+    | Some rgba -> rgba | None -> fail "second raster of the same text failed" in
+  if again.pixels == rgba.pixels || again.pixels <> rgba.pixels then
+    fail "two renders of one text share a buffer or differ";
 
-  let cache = create_cache 256 in
-  let cached_first = match cached_text cache font ~color:(255, 255, 255, 255)
-      "cached text" with
-    | Some surface -> surface
-    | None -> fail "non-empty cache entry did not rasterize"
-  in
-  let cached_again = match cached_text cache font ~color:(255, 255, 255, 255)
-      "cached text" with
-    | Some surface -> surface
-    | None -> fail "cached text disappeared"
-  in
-  if cached_first != cached_again || List.length cache.entries <> 1 then
-    fail "font cache duplicated a borrowed CPU raster";
-
+  (* setters: accepted values and the rejected one *)
   get_ttf (Font.set_style font [Font.Bold; Font.Italic; Font.Underline]);
-  if get_ttf (Font.style font) <> [Font.Bold; Font.Italic; Font.Underline] then
-    fail "font style flags did not round-trip";
   get_ttf (Font.set_style font [Font.Normal]);
-  if get_ttf (Font.style font) <> [Font.Normal] then
-    fail "normal font style did not reset flags";
   get_ttf (Font.set_outline font 2);
-  if get_ttf (Font.outline font) <> 2 then fail "font outline did not round-trip";
   (match Font.set_outline font (-1) with
    | Error { kind = Invalid_argument; _ } -> ()
    | Ok () | Error _ -> fail "negative font outline was accepted");
+  get_ttf (Font.set_outline font 0);
   get_ttf (Font.set_hinting font Font.Mono_hinting);
-  if get_ttf (Font.hinting font) <> Font.Mono_hinting then
-    fail "font hinting did not round-trip";
+  get_ttf (Font.set_hinting font Font.Normal_hinting);
   get_ttf (Font.set_kerning font false);
-  if get_ttf (Font.kerning font) then fail "font kerning disable did not stick";
   get_ttf (Font.set_kerning font true);
-  if not (get_ttf (Font.kerning font)) then fail "font kerning enable did not stick";
-  if not (get_ttf (Font.has_glyph font (Char.code 'A'))) then
-    fail "system font does not report its ASCII glyph";
   let glyph = get_ttf (Font.glyph_metrics font (Char.code 'A')) in
   if glyph.advance <= 0 || glyph.max_x < glyph.min_x || glyph.max_y < glyph.min_y then
     fail "ASCII glyph metrics are invalid";
   List.iter (fun codepoint ->
-    match Font.has_glyph font codepoint with
+    match Font.glyph_metrics font codepoint with
     | Error { kind = Invalid_argument; _ } -> ()
     | Ok _ | Error _ -> fail "invalid Unicode scalar was accepted")
     [-1; 0xd800; 0x110000];
@@ -187,40 +125,25 @@ let run () =
   in
   if wrapped_width > 80 || wrapped_height <= metrics.line_skip then
     fail "wrapped text metrics did not produce multiple bounded lines";
+  get_ttf (Font.set_wrap_alignment font Font.Center);
   let wrapped = match get_ttf (Font.render_blended_wrapped font
       ~color:(200, 180, 160, 255) ~wrap_width:80
       "a deterministic wrapped line with several words") with
-    | Some surface -> surface
+    | Some rgba -> rgba
     | None -> fail "wrapped non-empty text did not rasterize"
   in
-  let wrapped_rgba = get_sdl (Surface.copy_rgba wrapped) in
-  if wrapped_rgba.width <> wrapped_width || wrapped_rgba.height <> wrapped_height
-      || not (has_visible_alpha wrapped_rgba.pixels) then
+  if wrapped.width <> wrapped_width || wrapped.height <> wrapped_height
+      || not (has_visible_alpha wrapped.pixels) then
     fail "wrapped raster disagrees with wrapped metrics";
-  get_sdl (Surface.destroy wrapped);
   (match Font.render_blended_wrapped font ~color:(0, 0, 0, 255)
       ~wrap_width:80 "bad\xed\xa0\x80" with
    | Error { kind = Invalid_argument; _ } -> ()
    | Ok _ | Error _ -> fail "malformed wrapped UTF-8 was accepted");
 
-  clear_cache cache;
-  get_ttf (Font.set_size font 36.);
-  if not (Surface.destroyed cached_first) || cache.entries <> [] then
-    fail "font mutation did not invalidate cached raster ownership";
-  if Font.generation font = generation then
-    fail "font mutation did not invalidate its generation";
-  let larger_width, larger_height = get_ttf (Font.size_text font "Prismel ž") in
-  if larger_width <= width || larger_height <= height then
-    fail "font size mutation did not change metrics";
-
-  let density_generation = Font.generation font in
+  (* density: the same text at 144 DPI is about twice the size of 72 DPI *)
   get_ttf (Font.set_size_dpi font ~size:18. ~horizontal:72 ~vertical:72);
-  if get_ttf (Font.dpi font) <> (72, 72) then fail "72-DPI state changed";
   let one_x_width, one_x_height = get_ttf (Font.size_text font "Density") in
   get_ttf (Font.set_size_dpi font ~size:18. ~horizontal:144 ~vertical:144);
-  if get_ttf (Font.dpi font) <> (144, 144)
-      || Font.generation font = density_generation then
-    fail "density mutation did not update DPI and generation";
   let two_x_width, two_x_height = get_ttf (Font.size_text font "Density") in
   let width_scale = float_of_int two_x_width /. float_of_int one_x_width
   and height_scale = float_of_int two_x_height /. float_of_int one_x_height in
@@ -234,27 +157,6 @@ let run () =
    | Error { kind = Invalid_argument; _ } -> ()
    | Ok () | Error _ -> fail "non-positive font DPI was accepted");
 
-  let oldest = ref None and newest = ref None in
-  for index = 0 to 269 do
-    match cached_text cache font ~color:(255, 255, 255, 255)
-        (string_of_int index) with
-    | None -> fail "dynamic cache label did not rasterize"
-    | Some surface ->
-        if index = 0 then oldest := Some surface;
-        if index = 269 then newest := Some surface
-  done;
-  if List.length cache.entries <> 256 then
-    fail "dynamic labels escaped the 256-entry font cache bound";
-  (match !oldest with
-   | Some surface when Surface.destroyed surface -> ()
-   | Some _ | None -> fail "font LRU did not destroy its oldest raster");
-  (match !newest with
-   | None -> fail "font LRU did not retain its newest raster"
-   | Some expected ->
-       match cached_text cache font ~color:(255, 255, 255, 255) "269" with
-       | Some actual when actual == expected -> ()
-       | Some _ | None -> fail "font LRU hit changed borrowed identity");
-  clear_cache cache;
   let wrong_domain = Domain.spawn (fun () -> Font.size_text font "domain")
     |> Domain.join in
   (match wrong_domain with
@@ -264,7 +166,6 @@ let run () =
    | Error { kind = Fonts_still_open; _ } -> ()
    | Ok () | Error _ -> fail "TTF quit ignored a live font");
 
-  get_sdl (Surface.destroy rendered);
   get_ttf (Font.destroy font);
   get_ttf (Font.destroy font);
   (match Font.metrics font with
@@ -277,4 +178,4 @@ let run () =
   get_ttf (Init.quit ());
   get_ttf (Init.quit ());
   Printf.printf "SDL3_ttf %d.%d.%d CPU font conformance passed\n%!"
-    linked.major linked.minor linked.patch
+    (linked_version ()).major (linked_version ()).minor (linked_version ()).patch

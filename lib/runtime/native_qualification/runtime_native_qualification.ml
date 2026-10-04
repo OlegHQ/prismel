@@ -12,6 +12,26 @@ let rss_kib () =
   Fun.protect ~finally:(fun () -> ignore (Unix.close_process_in input))
     (fun () -> int_of_string (String.trim (input_line input)))
 
+(* ps's RSS also counts clean file-backed pages (Metal's mapped shader and
+   driver caches fault in and out of residence), which grew about 0.5 MiB per
+   lifecycle while the process's physical footprint, the dirty and swapped
+   memory a leak would add to, stayed flat. The plateau check reads the
+   footprint; RSS stays in the report. *)
+let footprint_kib () =
+  let argv = [| "/usr/bin/footprint"; "-p"; string_of_int (Unix.getpid ()); "-f"; "bytes" |] in
+  let input = Unix.open_process_args_in argv.(0) argv in
+  Fun.protect ~finally:(fun () -> ignore (Unix.close_process_in input))
+    (fun () ->
+      let rec find () =
+        let rec after = function
+          | "Footprint:" :: bytes :: _ -> Some (int_of_string bytes / 1024)
+          | _ :: rest -> after rest
+          | [] -> None in
+        match after (String.split_on_char ' ' (input_line input)) with
+        | Some kib -> kib
+        | None -> find () in
+      find ())
+
 let name = function
   | Basic -> "basic"
   | Pxui_like -> "pxui-like"
@@ -107,7 +127,7 @@ let () =
   let synthetic:Runtime.frame_facts={logical_width=10;logical_height=10;drawable_width=15;drawable_height=15;pixel_scale_x=1.5;pixel_scale_y=1.5}in
   if Runtime.map_logical_rect synthetic(1,1,3,3)<>(1,1,5,5)then failwith"synthetic logical/drawable edge mapping drift";
   let input=match Runtime_input.create~max_events:8~logical_width:10~logical_height:10 with Ok value->value|Error message->failwith message in
-  ignore(Runtime_input_sdl3.push input(Sdl3.Event.Mouse_motion{timestamp_ns=0L;window_id=1L;which=1L;buttons=0L;x=3.25;y=4.5;dx=0.;dy=0.}));
+  ignore(Runtime_input_sdl3.push input(Sdl3.Event.Mouse_motion{x=3.25;y=4.5;dx=0.;dy=0.}));
   if (Runtime_input.snapshot input).pointer<>(3.25,4.5)then failwith"SDL3 logical pointer was double-scaled";
   let before = live_handles () and rss_before = rss_kib () in
   match Runtime.create ~width:1 ~height:1 () with
@@ -128,9 +148,17 @@ let () =
         ignore (live_handles ());
         Gc.full_major ()
       done;
-      let teardown_rss=Array.init 12(fun _->let runtime=get(Runtime.create~width:2~height:2())in get(Runtime.destroy runtime);ignore(live_handles());Gc.full_major();rss_kib())in
-      let teardown_min=Array.fold_left min max_int teardown_rss and teardown_max=Array.fold_left max 0 teardown_rss in
-      if teardown_max-teardown_min>4096 then failwith"native repeated teardown RSS did not plateau";
+      let teardown_rss=Array.init 72(fun _->let runtime=get(Runtime.create~width:2~height:2())in get(Runtime.destroy runtime);ignore(live_handles());Gc.full_major();(rss_kib(),footprint_kib()))in
+      let teardown_footprint=Array.map snd teardown_rss and teardown_rss=Array.map fst teardown_rss in
+            let teardown_min=Array.fold_left min max_int teardown_rss and teardown_max=Array.fold_left max 0 teardown_rss in
+      (* Freed GPU memory is returned lazily, in steps (the footprint falls by
+         several MiB once, around the twentieth lifecycle), so a short window
+         reads the sawtooth as growth. A leak raises the floor: compare the
+         lowest footprint of two later windows, after the settling steps. A
+         leak of even 100 KiB per lifecycle shows as more than 4 MiB over 24. *)
+      let floor_of first = Array.fold_left min max_int (Array.sub teardown_footprint first 24) in
+      let footprint_growth = floor_of 48 - floor_of 24 in
+      if footprint_growth > 4096 then failwith"native repeated teardown physical footprint did not plateau";
       let after = live_handles () and rss_after = rss_kib () in
       if after <> before then failwith "native qualification live-handle delta";
       let report = `Assoc [ "schema", `Int 1; "host", `String "Apple M1";
@@ -140,7 +168,7 @@ let () =
         "live_handles_after", `Int after;
         "rss_after_each_scenario_kib", `List (List.rev_map (fun value -> `Int value) !rss_checkpoints);
         "rss_after_twelve_teardown_cycles_kib", `List(Array.to_list(Array.map(fun value->`Int value)teardown_rss));
-        "teardown_rss_range_kib", `Int(teardown_max-teardown_min);
+        "teardown_rss_range_kib", `Int(teardown_max-teardown_min);"teardown_footprint_floor_growth_kib",`Int footprint_growth;
         "msaa", `String "unsupported-by-runtime-next-sample-count-1";
         "shader3", `String "software-only-not-qualified-by-this-test";
         "retina", `String "resize-qualified-drawable-scale-not-exposed" ] in

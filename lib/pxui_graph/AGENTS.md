@@ -23,8 +23,8 @@ have zoom caps, explicit pins and temporary full expansion during a wire
 drag. Cards set numeric literals from pointer position through `Ui.value_field`;
 Option-click or label double-click opens text entry. Value tiles and typed row
 sockets use the same hit tree and spatial wire index. A VIEW flag marks the
-display node; marquee selects, Alt/right/middle-drag pans, wheel and
-two-finger scroll zoom at the pointer, Alt-click edits bends and
+display node; marquee selects, Alt/right/middle-drag pans, wheel,
+two-finger scroll and trackpad pinch (`signal.pinch`) zoom at the pointer, Alt-click edits bends and
 Command/Ctrl-drag cuts crossed wires.
 Hovering a connected socket highlights its incident wires and both ends; hovering
 a wire highlights that connection. Segment rectangles join the shared PXUI hit
@@ -87,7 +87,10 @@ through `Projection.layout ~lens`, so opening it re-lays the graph out for the n
 in the tile: step buttons choose the printed step, "Replace call with expansion" is
 `Syntax_edit (Inline_macro ...)`. A call whose first input fits its result
 (`Projection.bypassable`) has a `B` flag on its title, `Syntax_edit (Toggle_bypass ...)`
-like the `b` key. `m` is `Macro_requested paths`: the host owns the dialog
+like the `b` key. On a node that cannot be bypassed but has a boolean `:visible` argument (a scene
+object) `b` is `Set_arg :visible` instead (`Scope_pane.hide_row`: false, then true): one key means
+"out of the render, not removed" in every graph. `Alt` `Up`/`Down` on a hovered input of a node for
+which `Projection.reorderable` holds (a `list`, a `str` or a `scene/merge`) is `Move_item`. `m` is `Macro_requested paths`: the host owns the dialog
 (`Pxui_shell.Prompt.macro`) and answers with one `Make_macro`.
 
 W13: every W3 gesture the pane can make is a request. Text entry over a tile or frame is `Ui.value_field ~edit:true`
@@ -111,3 +114,14 @@ title (`Carrying`: the nodes of the scope whose centres lie inside it travel wit
 (the layout reserves `foot_height`), and a loop over `sop/point_list` or `sop/piece_list` says `by index` or `by <key>`
 in its header.  The macro lens has a Template button (one step past the expansions) and every footer of a node
 inside a geometry loop is forced for the probed element once the zone cooked.
+
+## Carry (flow.md §7.12)
+
+`Scope` is a drop target and never a drop handler. While `Pxui.Ui.carrying` holds a payload, `update` asks
+`Ui.drop_target` of the canvas (one call per frame, nothing when idle) and then of each visible tile, and
+reports the innermost node under the pointer, else the empty canvas, as `Drop_over {path; kind; value}`;
+the frame the pointer releases there it is `Dropped {path; kind; value}`. The canvas is the one-segment
+path `[graph]`. The host decides whether the place takes the payload (it runs the edit and the checker)
+and hands the answer back with `with_carry ~lit ~hot`: `lit` are the letters of the key route's places
+(nodes, or the canvas), `hot` the place under the pointer and whether it takes the payload; the pane only
+outlines them. Never match a node's operation here, and never emit a `Syntax_edit` for a drop.

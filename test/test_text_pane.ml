@@ -480,10 +480,168 @@ let editor_w9 () =
   check (contains text "(defmacro soft_tpl [p1 inner]" && label = Some "Make macro")
     ("Enter in the make-macro dialog: " ^ Option.value label ~default:"-")
 
+(* Scrubbing :active in the Document text: dragging the number after [:active] sideways switches
+   the layout on every frame of the drag and the whole drag is one "Edit text" entry. *)
+let editor_active_scrub () =
+  let open Prismel in
+  let catalog = Editor_document.Contexts.catalog ~version:Flow_sop.Manifest.version
+      Sop_catalog.Editor.factories |> Result.get_ok in
+  let text = {|(workspace sw
+  (graph g :context sop (sop/box))
+  (graph scene :context scene (scene/merge (scene/geometry (ref g))))
+  (graph editor :context editor
+    (let* [wide (ui/split-at "vertical" 0.12 (ui/graph) (ui/lisp))
+           split (ui/split-at "horizontal" 0.5 (ui/graph) (ui/inspector))
+           three (ui/split-at "horizontal" 0.3 (ui/inspector) (ui/graph))]
+      (ui/workspace (ui/switch wide split three :active 0)))))|} in
+  let workspace = Prismel_editor.Workspace_doc.of_text catalog text |> Result.get_ok in
+  let presets = Filename.temp_dir "prismel-text-presets" "" in
+  let env = ref (E.create ~presets ~await:true ~workspace
+      ~prepare:(fun _ output -> Pdk_prismel.Prismel_mesh.to_mesh output.Procedural.Session.geometry
+        |> Result.map_error Pdk.Error.to_string)
+      ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) () |> Result.get_ok) in
+  let count = ref 0 and mouse = ref (450., 320.) in
+  let step ?(buttons = []) ?(keys = []) events =
+    incr count;
+    env := E.update !env { (frame ~mouse:!mouse ~keys !count events) with mouse_buttons = buttons } in
+  let at ?buttons point events = mouse := point; step ?buttons events in
+  let char c = Event.KeyPressed (Input.KeyChar c) in
+  for _ = 1 to 4 do step [] done;
+  let gx, gy, _, gh = (E.panes !env (frame 0 [])).graph in
+  (* the Lisp panel sits under the graph: the status strip (28 points), a splitter of one point and
+     the 22-point header *)
+  let gy = gy + gh + 28 + 1 + 22 in
+  (* the Document tab *)
+  let tab = float (gx + 8 + 81 + 53 + 20), float (gy + 12) in
+  at tab [ Event.MouseMoved tab ];
+  at tab [ Event.MousePressed (Input.LeftButton, tab); Event.MouseReleased (Input.LeftButton, tab) ]; step [];
+  let printed = Flow.Lisp.print (E.workspace !env).source |> fst in
+  let lines = String.split_on_char '\n' printed in
+  let line = Option.get (List.find_index (fun l -> contains l ":active 0") lines) in
+  let col = let l = List.nth lines line in
+    let rec find i = if String.sub l i 9 = ":active 0" then i + 8 else find (i + 1) in find 0 in
+  (* the digit sits [col] glyphs into its line: the gutter (12 and three glyphs), 8 points of padding,
+     the line's indentation; a press within half a glyph of its left edge is on it *)
+  let char_w = 6.95 in
+  let number = float gx +. 12. +. 3. *. char_w +. 8. +. float col *. char_w, float gy +. 24. +. float line *. 24. in
+  let before = E.workspace !env and history = E.undo_label !env in
+  let nx, ny = number in
+  at number [ Event.MouseMoved number ];
+  at number ~buttons:[ Input.LeftButton ] [ Event.MousePressed (Input.LeftButton, number) ];
+  at (nx +. 10., ny) ~buttons:[ Input.LeftButton ] [ Event.MouseMoved (nx +. 10., ny) ];
+  check (contains (Flow.Lisp.print (E.workspace !env).source |> fst) ":active 2")
+    ("a drag of ten points did not set :active 2 live: " ^ (Flow.Lisp.print (E.workspace !env).source |> fst));
+  at (nx +. 10., ny) [ Event.MouseReleased (Input.LeftButton, (nx +. 10., ny)) ]; step [];
+  check (E.undo_label !env = Some "Edit text") ("the drag is one Edit text entry: " ^ Option.value ~default:"-" (E.undo_label !env));
+  step ~keys:[ Input.Meta ] [ char 'z' ];
+  check (E.workspace !env == before && E.undo_label !env = history) "one undo returns the whole drag";
+  E.close !env
+
+(* A graph held by [y] and put on the text pane: [(ref a)] is inserted at the byte under the pointer
+   and the text must check (Graph tab: one Set_graph; Document tab: the whole text), else refused
+   with the checker's words; an unapplied draft refuses it too. *)
+let editor_text_drop () =
+  let open Prismel in
+  let catalog = Editor_document.Contexts.catalog ~version:Flow_sop.Manifest.version
+      Sop_catalog.Editor.factories |> Result.get_ok in
+  let text = {|(workspace drop
+  (graph a :context sop (sop/box))
+  (graph b :context sop (sop/merge (sop/box)))
+  (graph scene :context scene (scene/merge (scene/geometry (ref b))))
+  (graph editor :context editor
+    (ui/workspace (ui/split-at "vertical" 0.12 (ui/graph) (ui/lisp)))))|} in
+  let workspace = Prismel_editor.Workspace_doc.of_text catalog text |> Result.get_ok in
+  let presets = Filename.temp_dir "prismel-text-presets" "" in
+  let env = ref (E.create ~presets ~await:true ~workspace
+      ~prepare:(fun _ output -> Pdk_prismel.Prismel_mesh.to_mesh output.Procedural.Session.geometry
+        |> Result.map_error Pdk.Error.to_string)
+      ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) () |> Result.get_ok) in
+  let count = ref 0 and mouse = ref (450., 320.) in
+  let step ?(buttons = []) ?(keys = []) events =
+    incr count;
+    env := E.update !env { (frame ~mouse:!mouse ~keys !count events) with mouse_buttons = buttons } in
+  let at ?buttons point events = mouse := point; step ?buttons events in
+  let key k = Event.KeyPressed k and char c = Event.KeyPressed (Input.KeyChar c) in
+  let jump name =
+    step [ key Input.Space; char 'j' ]; step [ Event.TextInput name ]; step [ key Input.Enter ]; step [] in
+  let line () = Option.value ~default:"-" (E.carry_line !env) in
+  let source () = Flow.Lisp.print (E.workspace !env).source |> fst in
+  for _ = 1 to 4 do step [] done;
+  let gx, gy, _, gh = (E.panes !env (frame 0 [])).graph in
+  let top = gy + gh + 28 + 1 + 22 in
+  let click point = at point [ Event.MouseMoved point ];
+    at point [ Event.MousePressed (Input.LeftButton, point); Event.MouseReleased (Input.LeftButton, point) ];
+    step [] in
+  (* the Graph tab, graph b open, graph a held *)
+  jump "b";
+  click (float (gx + 8 + 81 + 20), float (top + 12));
+  jump "a";
+  step [ char 'y' ]; step [];
+  check (E.carrying !env = Some ("sop", "(ref a)")) "y holds graph a";
+  jump "b";
+  check (E.carrying !env <> None) "the carry survives the jump";
+  let original = E.workspace !env and history = E.undo_label !env in
+  let shown tab =
+    (Prismel_editor.Private.Text_pane.make_shown (E.workspace !env).source "b" None tab).text in
+  let where tab needle =
+    let lines = String.split_on_char '\n' (shown tab) in
+    let line = Option.get (List.find_index (fun l -> contains l needle) lines) in
+    let l = List.nth lines line in
+    let rec find i = if String.sub l i (String.length needle) = needle then i else find (i + 1) in
+    line, find 0 in
+  let char_w = 6.95 in
+  let point tab needle ~after =
+    let line, col = where tab needle in
+    float gx +. 12. +. 3. *. char_w +. 8. +. float (col + after) *. char_w, float top +. 24. +. float line *. 24. in
+  (* hover between the call and its first argument: the text is the edit, the strip says where *)
+  let over = point Prismel_editor.Private.Text_pane.Graph "(sop/merge" ~after:10 in
+  at over [ Event.MouseMoved over ]; at over [];
+  check (contains (line ()) "(ref a) at line") ("the strip says where it goes: " ^ line ());
+  check (contains (source ()) "(sop/merge (ref a) (sop/box)") ("the preview is the edit: " ^ source ());
+  check (E.undo_label !env = history) "a preview writes nothing to the history";
+  (* a release is the put: one entry named Put *)
+  at over [ Event.MousePressed (Input.LeftButton, over); Event.MouseReleased (Input.LeftButton, over) ]; step []; step [];
+  check (E.carrying !env = None && E.undo_label !env = Some "Put" && contains (source ()) "(sop/merge (ref a) (sop/box)")
+    ("a release writes it as one Put entry: " ^ source ());
+  step ~keys:[ Input.Meta ] [ char 'z' ];
+  check (E.workspace !env == original) "one undo gives it back";
+  (* inside a keyword the text does not check: refused, nothing written *)
+  jump "a"; step [ char 'y' ]; step []; jump "b";
+  let inside = point Prismel_editor.Private.Text_pane.Graph "(sop/merge" ~after:5 in
+  at inside [ Event.MouseMoved inside ]; at inside [];
+  check (contains (line ()) "Refused") ("a put that does not check is refused: " ^ line ());
+  check (E.workspace !env == original) "and the picture is the original";
+  step [ key Input.Escape ]; step [];
+  check (E.carrying !env = None && E.workspace !env == original) "Escape drops it";
+  (* an unapplied draft: its bytes are not the document's *)
+  at (float (gx + 200), float (top + 24 + 60)) [];
+  click (float (gx + 200), float (top + 24 + 60));
+  step [ Event.TextInput "x" ]; step [ key Input.Escape ]; step [];
+  jump "a"; step [ char 'y' ]; step []; jump "b";
+  let over = point Prismel_editor.Private.Text_pane.Graph "(sop/merge" ~after:10 in
+  at over [ Event.MouseMoved over ]; at over [];
+  check (contains (line ()) "unapplied draft") ("a draft refuses: " ^ line ());
+  step [ key Input.Escape ]; step [];
+  (* the Document tab: the whole text is checked and installed *)
+  click (float (gx + 8 + 81 + 53 + 20), float (top + 12));
+  let original = E.workspace !env in
+  jump "a"; step [ char 'y' ]; step [];
+  let over = point Prismel_editor.Private.Text_pane.Document "(sop/merge" ~after:10 in
+  at over [ Event.MouseMoved over ]; at over [];
+  check (contains (line ()) "(ref a) at line") ("the Document text takes it too: " ^ line ());
+  at over [ Event.MousePressed (Input.LeftButton, over); Event.MouseReleased (Input.LeftButton, over) ]; step []; step [];
+  check (E.undo_label !env = Some "Put" && contains (source ()) "(sop/merge (ref a) (sop/box)")
+    ("a put at a caret of the Document text is one Put entry: " ^ source ());
+  step ~keys:[ Input.Meta ] [ char 'z' ];
+  check (E.workspace !env == original) "and one undo gives it back";
+  E.close !env
+
 let run () =
   selection_text ();
   lisp_text ();
   editor_text ();
   editor_binding ();
   editor_w9 ();
+  editor_active_scrub ();
+  editor_text_drop ();
   print_endline "text pane tests passed"

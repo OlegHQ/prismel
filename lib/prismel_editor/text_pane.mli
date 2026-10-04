@@ -44,7 +44,17 @@ val selection_form : Flow.Syntax.t list -> path -> Flow.Syntax.t ->
   (Flow.Syntax.t, Flow.Diagnostic.t) result
 (** Patch named root bindings into one candidate graph. Omitted bindings stay;
     duplicate names and changes to the shown result are refused. Check the
+
+val graph_op : Flow.Syntax.t list -> graph:string -> ?selection:path -> string ->
+  (Flow_sop.Flow_edit.op, Flow.Diagnostic.t) result
+(** The [Set_graph] of the graph form a Graph tab holds, or (with [selection], the shown binding's
+    path) of the Selection closure patched into the graph; the error of text that is neither. *)
     complete returned graph once before installing it. *)
+
+val graph_op : Flow.Syntax.t list -> graph:string -> ?selection:path -> string ->
+  (Flow_sop.Flow_edit.op, Flow.Diagnostic.t) result
+(** The [Set_graph] of the graph form a Graph tab holds, or (with [selection], the shown binding's
+    path) of the Selection closure patched into the graph; the error of text that is neither. *)
 
 val make_shown : Flow.Syntax.t list -> string -> path option -> tab -> shown
 (** [make_shown source graph selected tab]: Selection prints the selected
@@ -99,5 +109,7 @@ type intent =
       (** the colour literal (byte range with its quotes) whose control is open, and whether an edit was made *)
   | Open_graph of string  (** Command-click on a [(ref name)]: show that graph (the back stack remembers this one) *)
   | Select_binding of path  (** the caret moved into this binding of the Graph tab: select its node *)
+  | Carry_over of int * bool
+      (** a payload is held over the text at this byte of the shown text; [true] on the frame it is released *)
 
 val view : Pxui.Ui.t -> bounds:int * int * int * int -> vocab:Lisp_text.vocab -> names:Lisp_text.names -> state -> shown -> intent list

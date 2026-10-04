@@ -21,10 +21,17 @@ module Editor3 = struct
   include Environment.Make (Viewport3)
 
   type render_settings = Objects.Root.render = { width : int; height : int; max_spp : int }
-  let render_camera value = (extra value).Viewport3.render_camera
+  let render_camera value = (extra value).Viewport3.document_camera
   let view_camera value = view_camera value
-  let render_settings value = (extra value).Viewport3.render
+  let render_settings value = Objects.Root.render (extra value).Viewport3.root
   let film value frame = film value frame
+
+  type slot = { film : int * int; step : int; samples : int; max_spp : int; viewports : int }
+  let slot value key =
+    Option.map (fun (info : Renderer.info) ->
+      { film = info.size; step = info.step; samples = info.samples; max_spp = info.cap;
+        viewports = info.viewports })
+      (Renderer.info (extra value).Viewport3.renderer ~key)
   let take_export value = take_export value
   let set_render_status value status = set_render_status value status
   let flying value = (extra value).Viewport3.fly <> None
@@ -34,10 +41,10 @@ module Editor3 = struct
     {value with extra = {value.extra with Viewport3.renderer_request = Some mode}}
 
   let create ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?lights ?world ?camera ?lens
-      ?background ?seed ?grain ?domains ?max_entries ?max_payload_bytes ?await ~workspace ?source ~prepare ~scene3
+      ?background ?seed ?grain ?domains ?max_entries ?max_payload_bytes ?await ?carry_budget ~workspace ?source ~prepare ~scene3
       ?overlay ?status () =
     create ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?lights ?world ?camera ?lens
-      ?background ?seed ?grain ?domains ?max_entries ?max_payload_bytes ?await ~workspace ?source ~prepare
+      ?background ?seed ?grain ?domains ?max_entries ?max_payload_bytes ?await ?carry_budget ~workspace ?source ~prepare
       ~draw:scene3 ?overlay ?status ()
 
   let run ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?lights ?world ?camera ?lens
@@ -52,10 +59,10 @@ module Editor2 = struct
   include Environment.Make (Viewport2)
 
   let create ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?lights ?world ?camera ?background
-      ?seed ?grain ?domains ?max_entries ?max_payload_bytes ?await ~workspace ~prepare ~scene2
+      ?seed ?grain ?domains ?max_entries ?max_payload_bytes ?await ?carry_budget ~workspace ~prepare ~scene2
       ?overlay ?status () =
     create ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?lights ?world ?camera ?background
-      ?seed ?grain ?domains ?max_entries ?max_payload_bytes ?await ~workspace ~prepare
+      ?seed ?grain ?domains ?max_entries ?max_payload_bytes ?await ?carry_budget ~workspace ~prepare
       ~draw:scene2 ?overlay ?status ()
 
   let run ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?lights ?world ?camera ?background
@@ -67,6 +74,7 @@ module Editor2 = struct
 end
 
 module Private = struct
+  module Render_budget = struct let film = Renderer.film let next_turn = Renderer.next_turn end
   module Leader = Leader module Schedule = Schedule
   module Document = Document module Preset = Preset
   module Pick = Pick

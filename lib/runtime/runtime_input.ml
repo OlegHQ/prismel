@@ -1,6 +1,19 @@
 type mouse_button = Left | Middle | Right | X1 | X2
-type modifier = Shift | Control | Alt | Meta | Num_lock | Caps_lock | Scroll_lock
-type key_event = { key : string; modifiers : modifier list; repeat : bool }
+
+type key = Sdl3.Key.t =
+  | Char of char
+  | Arrow_up | Arrow_down | Arrow_left | Arrow_right
+  | Space | Enter | Escape | Backspace | Tab
+  | Shift | Control | Alt | Meta
+  | F1 | F2 | F3 | F4 | F5 | F6 | F7 | F8 | F9 | F10 | F11 | F12
+  | Home | End | Page_up | Page_down | Insert | Delete
+  | Unknown of int
+
+type modifier = Sdl3.Key.modifier =
+  | Shift_held | Control_held | Alt_held | Meta_held
+  | Num_lock | Caps_lock | Scroll_lock
+
+type key_event = { key : key; modifiers : modifier list; repeat : bool }
 
 type event =
   | Pointer_moved of float * float
@@ -17,15 +30,21 @@ type event =
   | Visibility_changed of bool
   | Quit
   | Resized of int * int
+  | Pixel_size_changed of int * int
+  | Pinch of float
   | File_dropped of string
+  | File_dragged of float * float
+  | File_drag_ended
+  | Dialog_closed of { id : int; result : (string list, string) result }
 
 type snapshot = {
   pointer : float * float;
   mouse_delta : float * float;
   wheel_delta : float * float;
   buttons : mouse_button list;
-  keys : string list;
+  keys : key list;
   pointer_captured : bool;
+  visible : bool;
   logical_width : int;
   logical_height : int;
   dropped_events : int;
@@ -42,8 +61,9 @@ type t = {
   mouse_delta : pair;
   wheel_delta : pair;
   mutable buttons : mouse_button list;
-  mutable keys : string list;
+  mutable keys : key list;
   mutable pointer_captured : bool;
+  mutable visible : bool;
   mutable logical_width : int;
   mutable logical_height : int;
   mutable dropped_events : int;
@@ -66,6 +86,7 @@ let create ~max_events ~logical_width ~logical_height =
         buttons = [];
         keys = [];
         pointer_captured = false;
+        visible = true;
         logical_width;
         logical_height;
         dropped_events = 0;
@@ -111,15 +132,19 @@ let apply value = function
   | Resized (width, height) ->
       value.logical_width <- width;
       value.logical_height <- height
-  | Text_input _ | Text_editing _ | File_dropped _ | Focus_gained | Visibility_changed _ | Quit ->
-      ()
+  | Visibility_changed visible -> value.visible <- visible
+  | Text_input _ | Text_editing _ | File_dropped _ | File_dragged _ | File_drag_ended
+  | Pixel_size_changed _ | Pinch _ | Focus_gained | Quit | Dialog_closed _ -> ()
 
 let push value event =
   match event with
   | File_dropped path when path = "" || String.contains path '\000' ->
       Error "file-drop path is malformed"
-  | Resized (width, height) when width <= 0 || height <= 0 ->
+  | (Resized (width, height) | Pixel_size_changed (width, height))
+    when width <= 0 || height <= 0 ->
       Error "resize dimensions must be positive"
+  | Pinch scale when not (Float.is_finite scale) || scale <= 0. ->
+      Error "pinch scale must be finite and positive"
   | _ ->
       apply value event;
       if Queue.length value.events = value.max_events then begin
@@ -165,6 +190,7 @@ let snapshot value =
     buttons = value.buttons;
     keys = value.keys;
     pointer_captured = value.pointer_captured;
+    visible = value.visible;
     logical_width = value.logical_width;
     logical_height = value.logical_height;
     dropped_events = value.dropped_events;

@@ -70,6 +70,12 @@ CAMLprim value caml_sdl3_mixer_version(value unit)
   return Val_int(MIX_Version());
 }
 
+CAMLprim value caml_sdl3_mixer_compiled_version(value unit)
+{
+  (void)unit;
+  return Val_int(SDL_MIXER_VERSION);
+}
+
 CAMLprim value caml_sdl3_mixer_init(value unit)
 {
   (void)unit;
@@ -143,21 +149,6 @@ CAMLprim value caml_sdl3_mixer_set_gain(value raw, value gain)
   CAMLreturn(unit_success());
 }
 
-CAMLprim value caml_sdl3_mixer_gain(value raw)
-{
-  CAMLparam1(raw);
-  CAMLreturn(caml_copy_double(MIX_GetMixerGain(mixer_of_value(raw))));
-}
-
-CAMLprim value caml_sdl3_mixer_stop_all(value raw, value fade_ms)
-{
-  CAMLparam2(raw, fade_ms);
-  if (!MIX_StopAllTracks(mixer_of_value(raw), Int_val(fade_ms))) {
-    CAMLreturn(string_error());
-  }
-  CAMLreturn(unit_success());
-}
-
 CAMLprim value caml_sdl3_mixer_generate(value raw, value bytes)
 {
   mlsize_t length;
@@ -175,19 +166,6 @@ CAMLprim value caml_sdl3_mixer_generate(value raw, value bytes)
   CAMLreturn(int_success(mixed));
 }
 
-CAMLprim value caml_sdl3_mixer_load_file(
-    value raw_mixer, value path, value predecode)
-{
-  MIX_Audio *audio;
-  CAMLparam3(raw_mixer, path, predecode);
-  audio = MIX_LoadAudio(mixer_of_value(raw_mixer), String_val(path),
-      Bool_val(predecode));
-  if (audio == NULL) {
-    CAMLreturn(string_error());
-  }
-  CAMLreturn(native_success(audio));
-}
-
 CAMLprim value caml_sdl3_mixer_load_bytes(value raw_mixer, value bytes)
 {
   SDL_IOStream *stream;
@@ -202,25 +180,6 @@ CAMLprim value caml_sdl3_mixer_load_bytes(value raw_mixer, value bytes)
     CAMLreturn(string_error());
   }
   CAMLreturn(native_success(audio));
-}
-
-CAMLprim value caml_sdl3_mixer_create_sine(
-    value raw_mixer, value frequency, value amplitude, value duration_ms)
-{
-  MIX_Audio *audio;
-  CAMLparam4(raw_mixer, frequency, amplitude, duration_ms);
-  audio = MIX_CreateSineWaveAudio(mixer_of_value(raw_mixer), Int_val(frequency),
-      Double_val(amplitude), Int_val(duration_ms));
-  if (audio == NULL) {
-    CAMLreturn(string_error());
-  }
-  CAMLreturn(native_success(audio));
-}
-
-CAMLprim value caml_sdl3_mixer_audio_duration(value raw)
-{
-  CAMLparam1(raw);
-  CAMLreturn(caml_copy_int64(MIX_GetAudioDuration(audio_of_value(raw))));
 }
 
 CAMLprim value caml_sdl3_mixer_destroy_audio(value raw)
@@ -262,12 +221,6 @@ CAMLprim value caml_sdl3_mixer_set_track_gain(value raw, value gain)
     CAMLreturn(string_error());
   }
   CAMLreturn(unit_success());
-}
-
-CAMLprim value caml_sdl3_mixer_track_gain(value raw)
-{
-  CAMLparam1(raw);
-  CAMLreturn(caml_copy_double(MIX_GetTrackGain(track_of_value(raw))));
 }
 
 CAMLprim value caml_sdl3_mixer_play_track(
@@ -334,9 +287,4 @@ CAMLprim value caml_sdl3_mixer_resume_track(value raw)
 CAMLprim value caml_sdl3_mixer_track_playing(value raw)
 {
   return Val_bool(MIX_TrackPlaying(track_of_value(raw)));
-}
-
-CAMLprim value caml_sdl3_mixer_track_paused(value raw)
-{
-  return Val_bool(MIX_TrackPaused(track_of_value(raw)));
 }

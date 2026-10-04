@@ -7,7 +7,6 @@ type error_kind =
   | Not_initialized
   | Font_not_found
   | Fonts_still_open
-  | Surface_error of Sdl3.error
 
 type error = {
   operation : string;
@@ -20,13 +19,10 @@ let pp_error formatter error =
 
 let error operation kind message = Error { operation; kind; message }
 
-type decoded = {
-  width : int;
-  height : int;
-  pixels : bytes;
-}
+type decoded = Sdl3.rgba = { width : int; height : int; pixels : bytes }
 
 external raw_version : unit -> int = "caml_sdl3_ttf_version"
+external compiled_version_number : unit -> int = "caml_sdl3_ttf_compiled_version"
 external raw_init : unit -> (unit, string) result = "caml_sdl3_ttf_init"
 external raw_quit : unit -> unit = "caml_sdl3_ttf_quit"
 external raw_was_init : unit -> int = "caml_sdl3_ttf_was_init"
@@ -39,31 +35,19 @@ external raw_font_family_name : nativeint -> string option
   = "caml_sdl3_ttf_font_family_name"
 external raw_font_style_name : nativeint -> string option
   = "caml_sdl3_ttf_font_style_name"
-external raw_set_font_size : nativeint -> float -> (unit, string) result
-  = "caml_sdl3_ttf_set_font_size"
 external raw_set_font_size_dpi :
   nativeint -> float -> int -> int -> (unit, string) result
   = "caml_sdl3_ttf_set_font_size_dpi"
-external raw_font_dpi : nativeint -> ((int * int), string) result
-  = "caml_sdl3_ttf_font_dpi"
 external raw_set_font_style : nativeint -> int -> unit
   = "caml_sdl3_ttf_set_font_style"
-external raw_get_font_style : nativeint -> int = "caml_sdl3_ttf_get_font_style"
 external raw_set_font_outline : nativeint -> int -> (unit, string) result
   = "caml_sdl3_ttf_set_font_outline"
-external raw_get_font_outline : nativeint -> int = "caml_sdl3_ttf_get_font_outline"
 external raw_set_font_hinting : nativeint -> int -> unit
   = "caml_sdl3_ttf_set_font_hinting"
-external raw_get_font_hinting : nativeint -> int
-  = "caml_sdl3_ttf_get_font_hinting"
 external raw_set_font_kerning : nativeint -> bool -> unit
   = "caml_sdl3_ttf_set_font_kerning"
 external raw_set_font_wrap_alignment : nativeint -> int -> unit
   = "caml_sdl3_ttf_set_font_wrap_alignment"
-external raw_get_font_kerning : nativeint -> bool
-  = "caml_sdl3_ttf_get_font_kerning"
-external raw_font_has_glyph : nativeint -> int -> bool
-  = "caml_sdl3_ttf_font_has_glyph"
 external raw_glyph_metrics : nativeint -> int ->
   ((int * int * int * int * int), string) result
   = "caml_sdl3_ttf_glyph_metrics"
@@ -85,12 +69,14 @@ let linked_version () : Sdl3.version =
   { major = number / 1_000_000;
     minor = (number / 1_000) mod 1_000; patch = number mod 1_000 }
 
+(* The headers' own version macro, not a checked-in constant. *)
+let compiled_version : Sdl3.version =
+  let number = compiled_version_number () in
+  { major = number / 1_000_000;
+    minor = (number / 1_000) mod 1_000; patch = number mod 1_000 }
+
 let check_version ?(release=true) () =
-  let value = Generated_provenance.header_version in
-  let compiled : Sdl3.version =
-    { major=value.major; minor=value.minor; patch=value.patch } in
-  match Sdl3.validate_version ~library:"SDL3_ttf" ~compiled
-      ~stable_headers:Generated_provenance.stable_headers ~release
+  match Sdl3.validate_version ~library:"SDL3_ttf" ~compiled:compiled_version ~release
       ~linked:(linked_version ()) () with
   | Ok () -> Ok ()
   | Error source -> error "SDL3_ttf.check_version" Incompatible_version
@@ -160,7 +146,7 @@ end
 module Font = struct
   type t = {
     raw : nativeint;
-    mutable generation : int;
+
     mutable destroyed : bool;
   }
 
@@ -178,9 +164,6 @@ module Font = struct
   type glyph_metrics = {
     min_x : int; max_x : int; min_y : int; max_y : int; advance : int;
   }
-
-  let next_generation = Atomic.make 1
-  let generation value = value.generation
 
   let contains_nul value =
     try ignore (String.index value '\x00'); true with Not_found -> false
@@ -259,7 +242,7 @@ module Font = struct
     Atomic.incr live_fonts;
     let value = {
       raw;
-      generation = Atomic.fetch_and_add next_generation 1;
+
       destroyed = false;
     } in
     Gc.finalise (fun value ->
@@ -282,7 +265,7 @@ module Font = struct
     match callback raw with
     | Error _ as failure -> failure
     | Ok () ->
-        value.generation <- Atomic.fetch_and_add next_generation 1;
+        ();
         Ok ())
 
   let open_file ~path ~size =
@@ -310,17 +293,6 @@ module Font = struct
   let style_name value = live "SDL3_ttf.Font.style_name" value (fun raw ->
     Ok (raw_font_style_name raw))
 
-  let set_size value size =
-    let operation = "SDL3_ttf.Font.set_size" in
-    if not (valid_size size) then
-      error operation Invalid_argument "font size must be finite and positive"
-    else live operation value (fun raw ->
-      match ttf_result operation (raw_set_font_size raw size) with
-      | Error _ as failure -> failure
-      | Ok () ->
-          value.generation <- Atomic.fetch_and_add next_generation 1;
-          Ok ())
-
   let set_size_dpi value ~size ~horizontal ~vertical =
     let operation = "SDL3_ttf.Font.set_size_dpi" in
     if not (valid_size size) then
@@ -332,11 +304,8 @@ module Font = struct
           (raw_set_font_size_dpi raw size horizontal vertical) with
       | Error _ as failure -> failure
       | Ok () ->
-          value.generation <- Atomic.fetch_and_add next_generation 1;
+          ();
           Ok ())
-
-  let dpi value = live "SDL3_ttf.Font.dpi" value (fun raw ->
-    ttf_result "SDL3_ttf.Font.dpi" (raw_font_dpi raw))
 
   let style_bit = function
     | Normal -> 0 | Bold -> 1 | Italic -> 2 | Underline -> 4
@@ -347,47 +316,24 @@ module Font = struct
     let bits = List.fold_left (fun bits style -> bits lor style_bit style) 0 styles in
     mutate value operation (fun raw -> raw_set_font_style raw bits; Ok ())
 
-  let style value = live "SDL3_ttf.Font.style" value (fun raw ->
-    let bits = raw_get_font_style raw in
-    let styles =
-      [ 1, Bold; 2, Italic; 4, Underline; 8, Strikethrough ]
-      |> List.filter_map (fun (bit, style) ->
-        if bits land bit <> 0 then Some style else None)
-    in
-    Ok (if styles = [] then [Normal] else styles))
-
   let set_outline value outline =
     let operation = "SDL3_ttf.Font.set_outline" in
     if outline < 0 then error operation Invalid_argument "outline must be non-negative"
     else mutate value operation (fun raw ->
       ttf_result operation (raw_set_font_outline raw outline))
 
-  let outline value = live "SDL3_ttf.Font.outline" value (fun raw ->
-    Ok (raw_get_font_outline raw))
-
   let hinting_code = function
     | Normal_hinting -> 0 | Light_hinting -> 1 | Mono_hinting -> 2
     | None_hinting -> 3 | Light_subpixel_hinting -> 4
-
-  let hinting_of_code = function
-    | 0 -> Ok Normal_hinting | 1 -> Ok Light_hinting | 2 -> Ok Mono_hinting
-    | 3 -> Ok None_hinting | 4 -> Ok Light_subpixel_hinting
-    | _ -> error "SDL3_ttf.Font.hinting" Ttf_error "SDL3_ttf returned invalid hinting"
 
   let set_hinting value hinting =
     let operation = "SDL3_ttf.Font.set_hinting" in
     mutate value operation (fun raw ->
       raw_set_font_hinting raw (hinting_code hinting); Ok ())
 
-  let hinting value = live "SDL3_ttf.Font.hinting" value (fun raw ->
-    hinting_of_code (raw_get_font_hinting raw))
-
   let set_kerning value enabled =
     let operation = "SDL3_ttf.Font.set_kerning" in
     mutate value operation (fun raw -> raw_set_font_kerning raw enabled; Ok ())
-
-  let kerning value = live "SDL3_ttf.Font.kerning" value (fun raw ->
-    Ok (raw_get_font_kerning raw))
 
   let set_wrap_alignment value alignment =
     let code = match alignment with Left -> 0 | Center -> 1 | Right -> 2 in
@@ -396,12 +342,6 @@ module Font = struct
 
   let valid_codepoint value = value >= 0 && value <= 0x10ffff
     && not (value >= 0xd800 && value <= 0xdfff)
-
-  let has_glyph value codepoint =
-    let operation = "SDL3_ttf.Font.has_glyph" in
-    if not (valid_codepoint codepoint) then
-      error operation Invalid_argument "codepoint is not a Unicode scalar value"
-    else live operation value (fun raw -> Ok (raw_font_has_glyph raw codepoint))
 
   let glyph_metrics value codepoint =
     let operation = "SDL3_ttf.Font.glyph_metrics" in
@@ -443,13 +383,7 @@ module Font = struct
       match ttf_result operation
           (raw_render_blended raw text red green blue alpha) with
       | Error _ as failure -> failure
-      | Ok decoded ->
-          (match Sdl3.Surface.of_rgba ~width:decoded.width
-              ~height:decoded.height decoded.pixels with
-           | Ok surface -> Ok (Some surface)
-           | Error surface_error ->
-               error operation (Surface_error surface_error)
-                 (Format.asprintf "%a" Sdl3.pp_error surface_error)))
+      | Ok decoded -> Ok (Some decoded))
 
   let render_blended_wrapped value ~color:(red, green, blue, alpha)
       ~wrap_width text =
@@ -465,13 +399,7 @@ module Font = struct
       match ttf_result operation
           (raw_render_blended_wrapped raw text red green blue alpha wrap_width) with
       | Error _ as failure -> failure
-      | Ok decoded ->
-          (match Sdl3.Surface.of_rgba ~width:decoded.width
-              ~height:decoded.height decoded.pixels with
-           | Ok surface -> Ok (Some surface)
-           | Error surface_error ->
-               error operation (Surface_error surface_error)
-                 (Format.asprintf "%a" Sdl3.pp_error surface_error)))
+      | Ok decoded -> Ok (Some decoded))
 
   let destroy value = on_main "SDL3_ttf.Font.destroy" (fun () ->
     if value.destroyed then Ok ()

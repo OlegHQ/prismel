@@ -5,7 +5,6 @@ type error_kind =
   | Wrong_domain
   | Invalid_argument
   | Incompatible_version
-  | Surface_error of Sdl3.error
 
 type error = private {
   operation : string;
@@ -15,11 +14,12 @@ type error = private {
 
 val pp_error : Format.formatter -> error -> unit
 
+(** The version macro of the headers compiled against, and the library
+    linked; both are checked against packaging/sdl3.lock by the tests. *)
+val compiled_version : Sdl3.version
 val linked_version : unit -> Sdl3.version
 val check_version : ?release:bool -> unit -> (unit, error) result
 
-val load_file : string -> (Sdl3.Surface.t, error) result
-
-(** Decode an owned byte buffer. [kind] is an optional decoder hint such as
-    ["PNG"] or ["JPG"]; the buffer remains owned by the caller. *)
-val load_bytes : ?kind:string -> bytes -> (Sdl3.Surface.t, error) result
+(** Decode an image file to tightly packed RGBA8, upright (EXIF orientation
+    applied). The buffer is the caller's. *)
+val load_file : string -> (Sdl3.rgba, error) result

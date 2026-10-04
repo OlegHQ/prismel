@@ -3,7 +3,7 @@ type config={width:int;height:int;title:string;fps:int option;domains:int option
 let default_config={width=800;height=600;title="Prismel sketch";fps=Some 60;domains=None;clock=Realtime;resizable=true;fullscreen=false}
 let stopped=ref false let quit()=stopped:=true
 let relative_current : (bool -> (unit, string) result) option ref = ref None
-let cursor_current : ([`Default|`Horizontal_resize|`Vertical_resize] ->
+let cursor_current : ([`Default|`Horizontal_resize|`Vertical_resize|`Text] ->
   (unit,string) result) option ref = ref None
 let set_relative_mouse enabled = match !relative_current with
   |None->Error"Sketch.set_relative_mouse: no sketch is running"
@@ -11,6 +11,12 @@ let set_relative_mouse enabled = match !relative_current with
 let set_cursor shape = match !cursor_current with
   |None->Error"Sketch.set_cursor: no sketch is running"
   |Some set->set shape
+type dialog=Open_file|Open_files|Save_file|Open_folder
+let dialog_current : (?filters:(string*string list)list-> ?default_location:string->dialog->
+  (int,string)result)option ref=ref None
+let show_file_dialog ?filters ?default_location kind=match !dialog_current with
+  |None->Error"Sketch.show_file_dialog: no sketch is running"
+  |Some show->show ?filters ?default_location kind
 let frame config count time dt events={Frame.width=config.width;height=config.height;size=(config.width,config.height);drawable_width=config.width;drawable_height=config.height;drawable_size=(config.width,config.height);pixel_scale=(1.,1.);time;dt;fps=(if dt > 0. then 1. /. dt else 0.);count;mouse=Input_state.mouse();mouse_delta=Input_state.mouse_delta();keys=Input_state.keys();mouse_buttons=Input_state.buttons();events}
 
 (* ---- crash reports: every fatal error in a sketch leaves a folder under
@@ -34,7 +40,11 @@ let event_text=function
   |PointerCancelled b->"cancel "^button_name b
   |MouseScrolled(x,y)->Printf.sprintf"scroll %.2f,%.2f"x y
   |TextInput t->Printf.sprintf"text %S"t|TextEditing{text;_}->Printf.sprintf"ime %S"text
+  |FileDialog{id;result=Ok paths}->Printf.sprintf"dialog %d %d"id(List.length paths)
+  |FileDialog{id;result=Error message}->Printf.sprintf"dialog %d failed %S"id message
   |FileDropped f->"drop "^f|WindowResized(w,h)->Printf.sprintf"resize %dx%d"w h
+  |FileDragMoved(x,y)->Printf.sprintf"drag %.0f,%.0f"x y|FileDragEnded->"drag-end"
+  |MousePinched scale->Printf.sprintf"pinch %.3f"scale
   |WindowFocusLost->"focus-lost"|WindowClosed->"close"
 let write_crash ~title ~dump ~recent exn backtrace=
   let tm=Unix.localtime(Unix.gettimeofday())in
@@ -131,13 +141,22 @@ let run_state_internal ?(config=default_config)?max_frames ?(after_present=fun m
     match Prismel_execution.set_cursor coordinator shape with
     |Ok()->Ok()
     |Error error->Error(Format.asprintf"%a"Prismel_execution.pp_error error));
+  dialog_current:=Some(fun ?(filters=[]) ?default_location kind->
+    let filters=List.map(fun(name,extensions)->
+      {Prismel_execution.name;pattern=(match extensions with []->"*"|_->String.concat";"extensions)})filters in
+    let kind=match kind with
+      |Open_file->Prismel_execution.Open_file|Open_files->Open_files
+      |Save_file->Save_file|Open_folder->Open_folder in
+    match Prismel_execution.show_dialog coordinator~filters?default_location kind with
+    |Ok id->Ok id
+    |Error error->Error(Format.asprintf"%a"Prismel_execution.pp_error error));
   Scene.Private.install_renderer(fun scene->
     (* ponytail: scan scene metadata each frame; move the focused region into
        staged scene facts if large retained scenes make this measurable. *)
     let area=Scene.Private.text_regions scene
       |>List.find_opt(fun(_,_,_,_,focused,_)->focused)
       |>Option.map(fun(x,y,w,h,_,cursor)->(x,y,w,h),cursor)in
-    get(Prismel_execution.set_text_input_area coordinator area);
+    get(Prismel_execution.set_text_input coordinator area);
     let facts=get(Prismel_execution.presentation_facts coordinator)in
     let density=
       let from_drawable=float facts.drawable_width/.float(max 1 facts.logical_width)in
@@ -162,12 +181,23 @@ let run_state_internal ?(config=default_config)?max_frames ?(after_present=fun m
   let cleanup()=Fun.protect~finally:(fun()->
       (* Never leave the pointer captured after the sketch stops. *)
       Option.iter(fun set->ignore(set false))!relative_current;
-      relative_current:=None;cursor_current:=None;
+      relative_current:=None;cursor_current:=None;dialog_current:=None;
       Canvas_runtime.clear();ignore(Prismel_execution.destroy coordinator))(fun()->on_stop!model)in
   Fun.protect~finally:cleanup(fun()->
     let profile=Sys.getenv_opt"PRISMEL_PROFILE"<>None in
     let limit=max_frames in let count=ref 0 in while not !stopped&&Option.fold~none:true~some:(fun limit-> !count<limit)limit do
-      Time.update();let events=Input_state.poll()in
+      Time.update();
+      let polled=match Input_state.poll()with
+        |Ok polled->polled
+        |Error message->failwith("Sketch: input: "^message)in
+      let events=polled.events in
+      (* SDL announces a size or density change; the window is not polled. *)
+      if polled.window_changed then Prismel_execution.window_changed coordinator;
+      (* A covered window has no end event: while it is hidden, ask once a
+         frame whether it is back. *)
+      let visible=polled.visible||(match Prismel_execution.visible coordinator with
+        |Ok true->Input_state.set_visible true;true
+        |Ok false|Error _->false)in
       if List.exists(function Event.WindowClosed->true|_->false)events then quit();
       incr count;let dt=match config.clock with Realtime->Time.delta()|Fixed value->value in
       let base=frame config !count(match config.clock with Realtime->Time.now()|Fixed _->float !count*.dt)dt events in
@@ -186,7 +216,12 @@ let run_state_internal ?(config=default_config)?max_frames ?(after_present=fun m
         pixel_scale=(scale_x,scale_y)}in
       recent.(!cursor)<-facts;cursor:=(!cursor+1)mod Array.length recent;
       (try
-        model:=update !model facts;Scene.render(view !model facts);
+        model:=update !model facts;
+        let scene=view !model facts in
+        (* An interactive window that is minimized or covered is not drawn and
+           the loop idles. A finite run (max_frames, PRISMEL_MAX_FRAMES, export)
+           is a test or a capture: it always renders. *)
+        if visible||limit<>None then Scene.render scene else Unix.sleepf 0.033;
         model:=after_present !model facts;
         if profile&& !count mod 30=0 then(match Prismel_execution.stats coordinator with
           |Ok s->Printf.eprintf"profile frame %d: gpu %.2f ms, draws %Ld, passes %Ld, uploaded %Ld B, sun passes %Ld, plan hits %Ld misses %Ld\n%!"

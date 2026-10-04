@@ -330,8 +330,18 @@ let set_relative_mouse value enabled=window"Prismel_execution.set_relative_mouse
   (fun runtime->Runtime.set_relative_mouse runtime enabled) value
 let set_cursor value shape=window"Prismel_execution.set_cursor"
   (fun runtime->Runtime.set_cursor runtime shape)value
-let set_text_input_area value area=window"Prismel_execution.set_text_input_area"
-  (fun runtime->Runtime.set_text_input_area runtime area)value
+let set_text_input value area=window"Prismel_execution.set_text_input"
+  (fun runtime->Runtime.set_text_input runtime area)value
+let visible value=window"Prismel_execution.visible"Runtime.visible value
+type dialog_kind=Runtime.dialog_kind=Open_file|Open_files|Save_file|Open_folder
+type dialog_filter=Runtime.dialog_filter={name:string;pattern:string}
+let show_dialog value ?filters ?default_location kind=window"Prismel_execution.show_dialog"
+  (fun runtime->Runtime.show_dialog runtime?filters?default_location kind)value
+(* A size event reached the input source: the next frame re-reads the window.
+   An offscreen target has no window to announce anything. *)
+let window_changed value=match value.runtime with
+  |Window runtime->Runtime.window_changed runtime
+  |Offscreen _->()
 let snapshot value ~lease_policy ~density source =
   let operation="Prismel_execution.lower_scene2"in
   if density<=0 then fail operation Invalid_argument"density must be positive"else

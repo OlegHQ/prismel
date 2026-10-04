@@ -164,6 +164,13 @@ logical bounds describe the native IME candidate area for a focused editor;
 its non-negative `cursor` offset locates the caret from the region's left edge.
 Ordinary canvas and control presses do not implicitly start text input.
 
+`Sketch.show_file_dialog` opens the system's file dialog (open one or several
+files, save, or choose a folder; optional filters and starting location) and
+returns an id at once; the outcome is one `Event.FileDialog` with that id in a
+later frame, carrying the chosen absolute paths (empty for a cancel) or an
+error. At most eight dialogs can be open. See `specification/sdl3.md` for the
+native queue behind it.
+
 `Clipboard.set_text` and `Clipboard.get_text` expose native system clipboard
 text as explicit results on the initial domain. PXUI text fields, numeric
 editors, and picker search support Command/Ctrl-C, X, and V while focused;
@@ -585,9 +592,12 @@ Escape cancels). `WindowFocusLost` cancels capture, focus, and composition.
 Custom widgets are functions over `Ui.box`, `Ui.signal`, and `Ui.draw`;
 layout uses `Px`, `Pct`, `Rel`, `Grow`, `Fit`, and `Text` sizes, `row`/`col`
 nesting, `splitter`, floating `~at` boxes, and canvas `~xform` transforms.
-Splitters request resize pointers on hover or drag; `Sketch.set_cursor`
-accepts default, horizontal-resize, and vertical-resize shapes for native
-sketches and returns an error outside an active sketch.
+Splitters request resize pointers on hover or drag, and text fields, text areas
+and picker search request the I-beam; `Sketch.set_cursor` accepts default,
+horizontal-resize, vertical-resize, and text shapes for native sketches and
+returns an error outside an active sketch. A trackpad pinch reaches a box as
+`signal.pinch`, the product of the frame's pinch factors for the scrollable box
+under the pointer.
 
 `Editor_core.Store.Settings` saves model values in Prismel's versioned JSON
 envelope and reads existing `PXUI1` files.

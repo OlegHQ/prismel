@@ -123,6 +123,13 @@
   (setenv PRISMEL_MAX_FRAMES 30
    (run %{exe:sketches/shattered_cube/main.exe}))))
 
+(rule
+ (alias smoke-all)
+ (locks smoke_window)
+ (action
+  (setenv PRISMEL_MAX_FRAMES 30
+   (run %{exe:examples/file_dialog/main.exe}))))
+
 ; tools/codemod builds with --profile codemod: the dev warnings plus unused
 ; modules (60). Warnings stay fatal: dune never replays a cached success.
 (env

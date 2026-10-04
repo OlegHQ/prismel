@@ -10,7 +10,7 @@
  (name test_materials)
  (modules test_materials)
  (libraries prismel procedural pdk pdk_prismel sketch_support prismel_editor sop_catalog flow
-  flow_sop editor_document pxui_shell))
+  flow_sop editor_document pxui_shell editor_core unix))
 
 (test
  (name test_shattered_studio)
@@ -40,10 +40,12 @@
 
 (rule
  (aliases runtest-native test_editor_consistency_native)
+ (locks smoke_window)
  (action (run %{exe:test_main.exe} test_editor_consistency_native)))
 
 (rule
  (aliases runtest-native sop_render_parity)
+ (locks smoke_window)
  (action (run %{exe:test_main.exe} sop_render_parity)))
 
 (rule
@@ -64,6 +66,7 @@
 
 (rule
  (aliases runtest-native test_prismel_editor)
+ (locks smoke_window)
  (action (run %{exe:test_main.exe} test_prismel_editor)))
 
 (rule
@@ -137,11 +140,18 @@
 
 (rule
  (aliases runtest-native test_workspace_shell_native)
+ (locks smoke_window)
  (deps (glob_files ../specification/workspace/cases/*.lisp))
  (action (run %{exe:test_main.exe} test_workspace_shell_native)))
 
 (rule
+ (aliases runtest-native test_workspace_roots_native)
+ (locks smoke_window)
+ (action (run %{exe:test_main.exe} test_workspace_roots_native)))
+
+(rule
  (aliases runtest-native test_workspace_view_native)
+ (locks smoke_window)
  (deps ../sketches/shattered_cube/sketch.plisp)
  (action (run %{exe:test_main.exe} test_workspace_view_native)))
 
@@ -166,13 +176,14 @@
   ../packaging/conf-sdl3-mixer/conf-sdl3-mixer.opam)
  (action
   (progn
-   (run %{exe:../tools/packaging/check_sdl3_conf.exe} sdl3 3.4.18)
    (run %{exe:../tools/packaging/check_sdl3_conf.exe}
-    sdl3-image 3.4.4)
+    --lock %{dep:../packaging/sdl3.lock} sdl3)
    (run %{exe:../tools/packaging/check_sdl3_conf.exe}
-    sdl3-ttf 3.2.2)
+    --lock %{dep:../packaging/sdl3.lock} sdl3-image)
    (run %{exe:../tools/packaging/check_sdl3_conf.exe}
-    sdl3-mixer 3.2.4))))
+    --lock %{dep:../packaging/sdl3.lock} sdl3-ttf)
+   (run %{exe:../tools/packaging/check_sdl3_conf.exe}
+    --lock %{dep:../packaging/sdl3.lock} sdl3-mixer))))
 
 (rule
  (aliases runtest test_projection)

@@ -58,6 +58,10 @@ type preview_source = {
    network of its layers (they are not in the scene) *)
 type view_world = { node : Node.t; layers : network }
 
+(* How a viewport over another scene instance renders: the settings of its [scene/root] and the
+   view of the camera object that root's [:camera] slot names (none: the root names no camera) *)
+type view_root = { params : Objects.Root.parameters; camera : Prismel.Camera.t option }
+
 type switch = { layouts : Editor_core.Panels.t list; active : int }
 
 (* The lowered editor graph (plan W10): the shell tree, the origin of each named or
@@ -84,6 +88,10 @@ type t = {
   view_worlds : (string * view_world option) list;
   (* a viewport over a scene instance that names another World than the document's: its World
      (none: that instance has none); a viewport not listed shows the document's *)
+  view_roots : (string * view_root) list;
+  (* a viewport over a scene instance with a [scene/root] of its own: how it renders (the render
+     size, samples and renderer) and through which camera; a viewport not listed (one over a part,
+     or over the document's own scene) renders as [root] and [active_camera] say *)
   homes : homes;  (* where each derived object is written in the text *)
   scene_drives : (string * (Flow_sop.Port.parameter * Flow.Eval.value) list) Int_map.t;
   (* Residual light fields, resolved for composition; never written into history. *)
@@ -222,6 +230,10 @@ let dump value =
   Int_map.iter (fun id n -> net (Printf.sprintf "object %d" id) n) value.networks;
   List.iter (fun (key, world) -> line "view %s world %s" key (match world with
     | Some (w : view_world) -> Printf.sprintf "%S" (Node.label w.node) | None -> "-")) value.view_worlds;
+  List.iter (fun (key, (r : view_root)) -> line "view %s root %s%s" key (fields (Objects.Root.fields r.params))
+    (match r.camera with
+      | Some c -> let p = Prismel.Camera.position c in Printf.sprintf " camera %g %g %g" p.x p.y p.z
+      | None -> "")) value.view_roots;
   line "camera %s" (match value.active_camera with Some c -> string_of_int c | None -> "-");
   line "root %s" (fields (Objects.Root.fields value.root));
   line "settings %s" (fields (Settings.fields value.settings));

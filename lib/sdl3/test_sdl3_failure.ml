@@ -19,13 +19,13 @@ let run () =
   ignore (linked_version ());
   if window_error.message <> captured || captured = "" then
     fail "SDL error text was not captured before a subsequent SDL call";
-  (match Init.quit () with
+  (match Init.quit_subsystems [Init.Events] with
    | Ok () -> ()
    | Error error -> fail (Format.asprintf "event quit failed: %a" pp_error error));
   (match Init.init [Init.Video] with
    | Error { kind = Sdl_error; message; _ } when message <> "" -> ()
    | Ok () ->
-       ignore (Init.quit ());
+       ignore (Init.quit_subsystems [Init.Video]);
        fail "invalid SDL video driver unexpectedly initialized"
    | Error _ -> fail "video init returned the wrong injected failure");
   print_endline "SDL3 init/window failure injection passed"

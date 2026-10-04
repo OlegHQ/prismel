@@ -70,6 +70,20 @@ val set_relative_mouse : bool -> (unit, string) result
     motion even at the window edge (fly cameras). Released when the sketch
     stops; an error when no sketch is running. *)
 
-val set_cursor : [`Default|`Horizontal_resize|`Vertical_resize] ->
+val set_cursor : [`Default|`Horizontal_resize|`Vertical_resize|`Text] ->
   (unit, string) result
 (** Set the active native pointer cursor; an error when no sketch is running. *)
+
+type dialog = Open_file | Open_files | Save_file | Open_folder
+
+val show_file_dialog :
+  ?filters:(string * string list) list -> ?default_location:string -> dialog ->
+  (int, string) result
+(** Open the system's file dialog and return at once with its id. When the
+    user chooses or cancels, [Event.FileDialog] arrives in a later frame with
+    the same id: the chosen absolute paths ([Open_files] may choose several),
+    or an empty list for a cancel. [filters] are a label with the extensions it
+    lists, without dots ([("Images", ["png"; "jpg"])]); an empty list means
+    every file. No more than 8 dialogs can be open; an error when no sketch is
+    running. The dialog is native and modal to the window; Prismel never reads
+    the files. *)

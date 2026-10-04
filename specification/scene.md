@@ -52,9 +52,11 @@ layers); the World's other keywords (background, time of day, sun, ...) are the 
 member and a `world` graph) when the scene has none. `i` enters a geometry object or the World, `u`
 leaves.
 
-`world/world` is the old spelling, kept so old files load: a world graph returning
+`world/world` is the old spelling, kept as a read-only legacy so old files load: a world graph returning
 `(world/world <stack> :name ...)` that no `scene/world` references is read as the scene's World and
-edited where it is written. It is not offered by any menu.
+edited where it is written. No menu offers it and no checked-in sketch uses it: `voxel_wall`, `ws_bloom`
+and `cube_cage` were migrated to `scene/world (ref world)` (the name, exposure and rotation on the
+call, the layers alone in the world graph).
 
 ### What is refused
 
@@ -77,7 +79,9 @@ One gesture is one undo entry (`Core.Syntax_batch`: all the rewrites or none).
 | `Space a` Geometry of... graph | the object and its merge input only; two objects share the graph and it cooks once (the second takes a distinct `:name`) |
 | `Space a` World | a world graph (a sky and a sun), a `scene/world` binding and its merge input; refused when the scene has one |
 | `Space a` Merge | with two or more objects selected, `Flow_edit.Group_merge`: a new merge between the selection and the old one; with none, an empty merge to wire |
-| select wire, delete | the merge loses the input (`Disconnect`); the binding stays as an unwired node and wires back |
+| select wire, delete | the merge loses the input (`Disconnect`); the binding stays as an unwired node and wires back with an ordinary wire (the design drops a "+" stub for it: the prototype draws one, the editor does without) |
+| `b` on a scene object | `:visible false` on its call (again, `:visible true`): one key takes an object out of the render without removing it, as `b` bypasses a SOP node. A node that can be bypassed keeps `b` as the bypass (`Scope_pane.hide_row`) |
+| `Alt` `Up` / `Down` on a hovered merge input | `Move_item`: the input swaps with its neighbour, so the merge order (the list order) changes. Lists and strings move the same way (`Projection.reorderable`) |
 | delete an object | the object and its merge input; its SOP or world graph goes in the same undo entry when nothing else reads it (`(ref g)` or a `(ui/graph "g")` panel) |
 
 ## Objects are nodes
@@ -149,8 +153,9 @@ look-through, else the free viewport carrying the ACTIVE camera's lens. The
 Viewport section pairs the look-through toggle with "Camera follows
 viewport" (the ACTIVE camera's parameter, one undo entry) so a fixed camera
 is set up by looking through it and orbiting. Looking through, the render
-fills `Editor3.film`: the camera's aspect (its render resolution) fitted
-into the pane; otherwise the whole pane. The editor paints its 3D view and
+fills `Editor3.film`: the root's aspect (its render resolution, the gate) fitted
+into the pane, and so does a path-traced viewport (the film covers the gate and nothing outside
+it); otherwise the whole pane. The editor paints its 3D view and
 the sketch overlay inside that rect. "Render / save PNG" captures the screen
 unless the sketch takes the request (`Editor3.take_export`) to render at
 `Editor3.render_settings` (resolution, max samples) with progress in the
@@ -220,11 +225,39 @@ so playback and `Sketch.export` with `Fixed dt` are deterministic. See
 - Ghosting is a blend, not a material override.
 - Reparenting drops shear (a non-uniformly scaled parent).
 - A scene has one World (`E_SCENE_WORLD`). A viewport over another scene instance renders as that
-  instance's own root (`Contexts.instance_root`: renderer, `max_spp`, bounces, round samples; `Core.view_root_opt`,
+  instance's own root (`Contexts.instance_root`: renderer, resolution, `max_spp`, bounces, round
+  samples, and the camera object its `:camera` names; `Document.view_roots`, `Core.view_root_opt`,
   `Renderer.setting` per viewport slot, so a raster and a path-traced viewport can sit side by side)
   and shows that instance's own World (`Document.view_worlds`: the node and the layers of the
   `scene/world` its merge holds, none when it holds none). Only the document's own scene (the first
   scene graph) has scene objects in the list; the instance of a viewport is shown, not edited, so
-  its root and World are edited in their graph. The instance's resolution and camera are still the
-  document's.
+  its root and World are edited in their graph. `Viewport3` reads everything per key: `film`,
+  `view_camera` and `render` take the viewport's key and read that key's root (a viewport over a
+  part, or over the document's own scene, reads `Document.root` and the ACTIVE camera, and a root
+  that names no camera falls back to the document's). Looking through, each viewport sees through
+  its own root's camera (`Editor3.viewport_camera`). `Environment` threads the key through
+  `camera_of`, `paint_view` and the render call.
+
+### The path tracer's film, budget and sample cap
+
+- The film of a traced viewport is the root's resolution divided by 1, 2, 4 or 8 (`Renderer.film`):
+  the largest that does not exceed the viewport's gate in drawable pixels (the gate is the root's
+  aspect fitted into the pane, in points, times the pixel scale; the eighth when even that is too
+  big). A pane resize changes the film, and restarts the accumulation, only when it crosses a
+  step; inside a step the same film is scaled to the gate. The header of the viewport shows
+  `1600×900 ½  64/256 spp`: the root's resolution, the step and the samples against the cap.
+  Before, the film was sized from the logical bounds, so a traced pane on a Retina screen rendered
+  at half resolution and was scaled up.
+- `max_spp` is read each frame by `Renderer.update` (the view's `cap`) and is not part of
+  `Renderer.setting` (renderer, bounces, round samples): raising a cap continues the accumulation
+  of the same tracer, while any change of the setting discards the slot's tracer.
+- One tracer (slot) serves every viewport that asks for the same picture: the same scene, camera,
+  film size and setting. Viewports over the very same instance with the same World compose one
+  scene, so they can share. The sample budget: the focused viewport's slot renders every frame; of
+  the other slots that want the GPU (their picture differs from what the tracer last had, or they
+  are short of their cap) one takes a turn per frame, in rotation (`Renderer.next_turn`); a slot at
+  its cap with an unchanged picture costs nothing. `Editor3.slot` reports a slot's film, step,
+  samples, cap and the viewports it serves.
+- Not built: comparing two roots in one pane (a wipe between two slots, `:against`).
+  `E_SCENE_ROOT` stays strict: a root is never merged or wired into another.
 - A legacy `world/world` file keeps its spelling until the World is deleted and added again.

@@ -25,7 +25,9 @@ actions.
 - key press and release;
 - pointer motion, press, release, cancellation, and wheel motion;
 - committed UTF-8 and IME composition;
-- file drops;
+- file drops, and files dragged over the window;
+- trackpad pinch;
+- a finished file dialog;
 - logical window resize and focus loss;
 - a requested window close.
 
@@ -42,8 +44,9 @@ SDL3 logical coordinates directly; application code must not multiply them by
 boundary.
 
 `SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED` is authoritative for backing-size
-changes. Runtime updates logical and drawable facts coherently before the next
-frame is presented.
+changes. The pump reports it, Runtime marks the window and re-reads it once
+before the next frame is presented, and updates logical and drawable facts
+coherently; the window is not polled every frame.
 
 ## Focus and cancellation
 
@@ -60,7 +63,9 @@ distinction consistently.
 `TextInput` carries committed UTF-8. `TextEditing` carries composition text and
 its range. Pure `Scene.text_input_region` metadata tells Runtime where native
 text entry is intended; Runtime owns SDL3 text-input activation and event
-translation.
+translation. Text input is active only while a focused region exists (a focused
+region starts it, none stops it), so the system input method is not engaged
+while no text field has focus.
 
 `FileDropped` owns a copied OCaml path. The native event payload is released at
 the runtime boundary and cannot escape into user code.

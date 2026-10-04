@@ -31,7 +31,7 @@ module Layout : sig
                     timeline_at : bounds }
   (** Leaves in tree order, floats last (drawn over the rest). *)
 
-  val geometry : ?state:(path -> Editor_core.Panels.state) -> ?hidden:panel list -> ?top:int -> t -> Prismel.Frame.t -> geometry
+  val geometry : ?state:(path -> Editor_core.Panels.state) -> ?hidden:panel list -> t -> Prismel.Frame.t -> geometry
   (** [top] (default 0) points are left above the tree for a host bar.
       [hidden] (default the timeline) panels vanish; a hidden viewport keeps a
       28-point strip with its expand button.  The timeline strip sits under the
@@ -65,12 +65,12 @@ module Chrome : sig
     | Close_panel of Layout.path
     | Retype_panel of Layout.path * Layout.panel  (** [View ""] means a viewport *)
 
-  val update : ?state:(Layout.path -> Editor_core.Panels.state) -> ?hidden:Layout.panel list -> ?top:int -> ?title:(Layout.leaf -> string) -> Layout.t ->
+  val update : ?state:(Layout.path -> Editor_core.Panels.state) -> ?hidden:Layout.panel list -> ?title:(Layout.leaf -> string) -> Layout.t ->
     Pxui.Ui.t -> Prismel.Frame.t -> intent list
   (** Panel backgrounds, the drawn gutters, headers with their collapse button and
       right-click menu.  Pure: the host applies the intents. *)
 
-  val splitters : ?state:(Layout.path -> Editor_core.Panels.state) -> ?hidden:Layout.panel list -> ?top:int -> Layout.t -> Pxui.Ui.t -> Prismel.Frame.t ->
+  val splitters : ?state:(Layout.path -> Editor_core.Panels.state) -> ?hidden:Layout.panel list -> Layout.t -> Pxui.Ui.t -> Prismel.Frame.t ->
     intent list
   (** The gutters' drag targets, wider than they are drawn ([Resize], [Settled]).  Call it
       after the panes' boxes so a gutter is not shadowed by its neighbours' hit areas. *)
@@ -217,10 +217,13 @@ module Inspector : sig
     | Pinned of string * bool | Split of string * bool | Reset of string
     | Expression of string * string
   val flow_fields : Pxui.Ui.t -> ?expanded:string list -> ?width:float ->
-    ?actions:bool -> ?chips:(string * Prismel.Color.t) list -> flow_row list -> flow_change list
+    ?actions:bool -> ?chips:(string * Prismel.Color.t) list ->
+    ?on_choice:(string -> Pxui.Ui.box -> unit) -> flow_row list -> flow_change list
   (** Responsive rows shared by Flow, scene, World, and compound interface
       inspectors. [actions=false] hides card pin and split controls. A choice named in [chips]
-      wears its colour as a small square, on the closed control and in its menu. *)
+      wears its colour as a small square, on the closed control and in its menu. [on_choice]
+      is called with the field's name and the box of each choice control, built or not
+      open: a host makes it a {!Pxui.Ui.drop_target}. *)
 
   val fields : Pxui.Ui.t -> ?expanded:string list -> ?width:float ->
     Editor_core.Param.field_view list -> (string * Editor_core.Param.value) list

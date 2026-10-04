@@ -1,69 +1,33 @@
-module System_thread = Thread
-
 open Sdl3
 
 let fail message = failwith ("SDL3 test: " ^ message)
 let get = function Ok value -> value | Error error -> fail (Format.asprintf "%a" pp_error error)
-let rec drain_events () = match get (Event.poll ()) with
-  | None -> () | Some _ -> drain_events ()
 
 let run () =
-  let frequency=Time.performance_frequency()and before=Time.performance_counter()in
-  System_thread.delay 0.001;
-  let after=Time.performance_counter()in
-  if frequency<=0L||before<0L||after<before||not(Float.is_finite(Time.monotonic_seconds()))then
-    fail"SDL3 monotonic performance counter invalid";
-  List.iter (function
-    | Error { kind = Invalid_argument; _ } -> ()
-    | Ok () | Error _ -> fail "invalid ordinary delay was not rejected")
-    [Time.delay_ms (-1); Time.delay_ms 4_294_967_296;
-     Time.delay_seconds (-0.001); Time.delay_seconds nan;
-     Time.delay_seconds infinity; Time.delay_seconds 0x1p63];
-  get (Time.delay_ms 0);
-  let ordinary_before = Time.monotonic_seconds () in
-  get (Time.delay_seconds 0.002);
-  let ordinary_elapsed = Time.monotonic_seconds () -. ordinary_before in
-  if ordinary_elapsed < 0.0019 then fail "ordinary delay returned too early";
-  if ordinary_elapsed > 0.5 then fail "ordinary delay overslept absurdly";
-  get (Domain.spawn (fun () -> Time.delay_ms 1) |> Domain.join);
-  List.iter (function
-    | Error { kind = Invalid_argument; _ } -> ()
-    | Ok () | Error _ -> fail "invalid precise delay was not rejected")
-    [Time.delay_precise_ns (-1L); Time.delay_precise_seconds (-0.001);
-     Time.delay_precise_seconds nan; Time.delay_precise_seconds infinity;
-     Time.delay_precise_seconds 0x1p63];
-  get (Time.delay_precise_seconds 0.);
-  let delay_before = Time.monotonic_seconds () in
-  get (Time.delay_precise_seconds 0.002);
-  let delay_elapsed = Time.monotonic_seconds () -. delay_before in
-  if delay_elapsed < 0.0019 then fail "precise delay returned too early";
-  if delay_elapsed > 0.5 then fail "precise delay overslept absurdly";
-  get (Domain.spawn (fun () -> Time.delay_precise_seconds 0.0001)
-    |> Domain.join);
+  let triple (v : version) = v.major, v.minor, v.patch in
   let compiled = compiled_version and linked = linked_version () in
-  if compiled.major <> 3 || compiled.minor <> 4 || compiled.patch <> 18 then
-    fail "generated header version changed without fixture review";
-  if linked.major < compiled.major
-      || (linked.major = compiled.major && linked.minor < compiled.minor) then
-    fail "linked SDL is older than the generated headers";
+  (match Sdl3_lock.check_installed ~lock:(Sdl3_lock.read "../../packaging/sdl3.lock")
+      ~key:"sdl3" ~compiled:(triple compiled) ~linked:(triple linked) with
+   | Ok () -> () | Error message -> fail message);
   get (check_version ~release:true ());
-  (match validate_version ~release:true ~linked:{ major = 3; minor = 4; patch = 14 } () with
+  (match validate_version ~release:true ~linked:{ compiled with major = compiled.major - 1 } () with
    | Error { kind = Incompatible_version; _ } -> ()
    | Ok () | Error _ -> fail "older linked version was not rejected");
   (match validate_version ~library:"SDL3_ttf"
-      ~compiled:{ major = 3; minor = 2; patch = 2 } ~stable_headers:false
-      ~release:true ~linked:{ major = 3; minor = 2; patch = 2 } () with
+      ~compiled:{ major = 3; minor = 3; patch = 1 } ~release:true ~linked:{ major = 3; minor = 3; patch = 1 } () with
    | Error { kind = Incompatible_version; _ } -> ()
    | Ok () | Error _ -> fail "prerelease extension headers were not rejected");
   get (Init.init [Init.Video; Init.Events]);
-  if not (get (Init.initialized [Init.Video; Init.Events])) then
-    fail "initialized subsystem mask was not retained";
   (match Window.create ~title:"bad\x00title" ~width:8 ~height:8 () with
    | Error { kind = Invalid_argument; _ } -> ()
    | Ok window -> ignore (Window.destroy window); fail "NUL window title succeeded"
    | Error _ -> fail "NUL window title returned the wrong error");
+  (match Window.create ~title:"empty" ~width:0 ~height:8 () with
+   | Error { kind = Invalid_argument; _ } -> ()
+   | Ok window -> ignore (Window.destroy window); fail "zero-width window succeeded"
+   | Error _ -> fail "zero-width window returned the wrong error");
   let window = get (Window.create ~title:"SDL3 ownership test" ~width:96 ~height:64
-      ~flags:[Window.Hidden; Window.Resizable] ()) in
+      ~flags:[Window.Hidden] ()) in
   (match Metal_view.create window with
    | Error { kind = Sdl_error; message; _ } when message <> "" -> ()
    | Ok view ->
@@ -71,28 +35,12 @@ let run () =
        fail "dummy-video window unexpectedly created a Metal view"
    | Error error -> fail (Format.asprintf
        "dummy Metal-view constructor returned the wrong error: %a" pp_error error));
-  if Window.destroyed window then fail "new window starts destroyed";
   if get (Window.title window) <> "SDL3 ownership test" then
     fail "window title snapshot changed";
-  get (Window.set_title window "SDL3 renamed ž");
-  if get (Window.title window) <> "SDL3 renamed ž" then
-    fail "window title did not round-trip";
-  (match Window.set_title window "bad\x00title" with
-   | Error { kind = Invalid_argument; _ } -> ()
-   | Ok () | Error _ -> fail "NUL title mutation was accepted");
-  let window_id = get (Window.id window) in
-  if window_id = 0L then fail "window ID is zero";
   if get (Window.size window) <> (96, 64) then fail "logical window size changed";
   let pixel_width, pixel_height = get (Window.size_in_pixels window) in
-  if pixel_width < 96 || pixel_height < 64 then fail "drawable size is too small";
-  let pixel_density = get (Window.pixel_density window) in
-  let display_scale = get (Window.display_scale window) in
-  if pixel_density < 1. || display_scale <= 0. then
-    fail "window DPI facts are invalid";
-  if abs_float (pixel_density -. 1.) > 0.000_001
-      || pixel_width <> 96 || pixel_height <> 64 then
+  if pixel_width <> 96 || pixel_height <> 64 then
     fail "dummy-video window is not a 1x logical/drawable fixture";
-  get (Window.set_position window ~x:11 ~y:13);
   ignore (get (Window.position window));
   get (Window.center window);
   get (Window.set_size window ~width:112 ~height:72);
@@ -108,147 +56,112 @@ let run () =
   (match Window.set_size window ~width:0 ~height:72 with
    | Error { kind = Invalid_argument; _ } -> ()
    | Ok () | Error _ -> fail "invalid window resize was not rejected");
-  let has_flag flag bits = Int64.logand bits flag <> 0L in
-  (* the dummy driver of SDL 3.4.18 reports border, resize and keep-on-top toggles as unsupported *)
+  (* the dummy driver reports some toggles as unsupported, with a typed error *)
   let unsupported_ok = function
     | Ok () -> ()
     | Error { kind = Sdl_error; message; _ } when message <> "" -> ()
-    | Error _ -> fail "window border toggle returned an untyped error" in
-  unsupported_ok (Window.set_bordered window false);
-  unsupported_ok (Window.set_bordered window true);
+    | Error _ -> fail "window toggle returned an untyped error" in
   unsupported_ok (Window.set_resizable window false);
   get (Window.sync window);
   unsupported_ok (Window.set_resizable window true);
   get (Window.sync window);
-  unsupported_ok (Window.set_always_on_top window true);
-  get (Window.sync window);
-  unsupported_ok (Window.set_always_on_top window false);
   (match Window.set_relative_mouse window true with
-   | Ok () ->
-       if not (get (Window.relative_mouse window)) then
-         fail "relative mouse mode did not round-trip";
-       get (Window.set_relative_mouse window false)
-   | Error { kind = Sdl_error; message; _ } when message <> "" -> ()
+   | Ok () -> get (Window.set_relative_mouse window false)
+   | Error { kind = Sdl_error | Unsupported; message; _ } when message <> "" -> ()
    | Error _ -> fail "relative mouse capability returned an untyped error");
+  (* the named visibility facts come from SDL's own flags *)
+  if not (get (Window.state window)).hidden then
+    fail "a window created hidden did not report hidden";
   get (Window.show window);
   get (Window.sync window);
-  if has_flag 0x8L (get (Window.flags window)) then
-    fail "shown window retained the hidden flag";
-  get (Window.set_fullscreen window true);
-  get (Window.sync window);
-  if not (has_flag 0x1L (get (Window.flags window))) then
-    fail "fullscreen transition did not update flags";
-  get (Window.set_fullscreen window false);
-  get (Window.sync window);
-  if has_flag 0x1L (get (Window.flags window)) then
-    fail "window did not leave fullscreen";
-  (match Window.minimize window with
-   | Error { kind = Sdl_error; message; _ } when message <> "" -> ()
-   | Ok () | Error _ -> fail "dummy driver did not report unsupported minimize");
+  let shown = get (Window.state window) in
+  if shown.hidden || shown.minimized || shown.occluded then
+    fail "a shown window still reports hidden, minimized or occluded";
   get (Window.hide window);
   get (Window.sync window);
-  if not (has_flag 0x8L (get (Window.flags window))) then
-    fail "hidden transition did not update flags";
-  get (Text_input.set_area window
-    (Some { x = 3; y = 4; width = 40; height = 16 }) ~cursor:7);
-  (match get (Text_input.area window) with
-   | { x = 3; y = 4; width = 40; height = 16 }, 7 -> ()
-   | _ -> fail "text-input logical area changed");
-  get (Text_input.set_area window None ~cursor:0);
+  if not (get (Window.state window)).hidden then
+    fail "hidden transition did not update the state";
+  (* text input: a region with a cursor, then a stop *)
   get (Text_input.start window);
-  if not (get (Text_input.active window)) then fail "text input did not start";
+  get (Text_input.set_area window { x = 3; y = 4; width = 40; height = 16 } ~cursor:7);
+  (match Text_input.set_area window { x = 0; y = 0; width = 0; height = 4 } ~cursor:0 with
+   | Error { kind = Invalid_argument; _ } -> ()
+   | Ok () | Error _ -> fail "an empty text-input area was accepted");
+  (match Text_input.set_area window { x = 0; y = 0; width = 4; height = 4 } ~cursor:(-1) with
+   | Error { kind = Invalid_argument; _ } -> ()
+   | Ok () | Error _ -> fail "a negative text-input cursor was accepted");
   get (Text_input.stop window);
-  if get (Text_input.active window) then fail "text input did not stop";
   get (Clipboard.set_text "Prismel ž clipboard");
-  if not (get (Clipboard.has_text ()))
-      || get (Clipboard.get_text ()) <> "Prismel ž clipboard" then
+  if get (Clipboard.get_text ()) <> "Prismel ž clipboard" then
     fail "clipboard UTF-8 text did not round-trip";
-  (match Cursor.create Cursor.Crosshair with
-   | Error { kind = Unsupported; message; _ } when message <> "" -> ()
-   | Error _ -> fail "cursor capability returned an untyped error"
-   | Ok cursor ->
-       get (Cursor.set cursor);
-       get (Cursor.hide ());
-       if get (Cursor.visible ()) then fail "cursor remained visible after hide";
-       get (Cursor.show ());
-       if not (get (Cursor.visible ())) then fail "cursor remained hidden after show";
-       get (Cursor.destroy cursor);
-       get (Cursor.destroy cursor);
-       (match Cursor.set cursor with
-        | Error { kind = Destroyed; _ } -> ()
-        | Ok () | Error _ -> fail "destroyed cursor was accepted"));
-  (match Mouse.capture true with
-   | Ok () -> get (Mouse.capture false)
-   | Error { kind = Unsupported; message; _ } when message <> "" -> ()
-   | Error _ -> fail "mouse capture capability returned an untyped error");
-  drain_events ();
+  (match Clipboard.set_text "bad\x00text" with
+   | Error { kind = Invalid_argument; _ } -> ()
+   | Ok () | Error _ -> fail "NUL clipboard text was accepted");
+  List.iter (fun shape ->
+    match Cursor.create shape with
+    | Error { kind = Unsupported; message; _ } when message <> "" -> ()
+    | Error _ -> fail "cursor capability returned an untyped error"
+    | Ok cursor ->
+        get (Cursor.set cursor);
+        get (Cursor.destroy cursor);
+        get (Cursor.destroy cursor);
+        (match Cursor.set cursor with
+         | Error { kind = Destroyed; _ } -> ()
+         | Ok () | Error _ -> fail "destroyed cursor was accepted"))
+    Cursor.[Default; Text; Ew_resize; Ns_resize];
+  get (Hint.control_click_is_right_click true);
+  get (Hint.control_click_is_right_click false);
+  ignore (get (Event.poll_coalesced ()));
+  (* a file dialog refuses bad arguments before SDL is asked for anything *)
+  let refused label = function
+    | Error { kind = Invalid_argument; _ } -> ()
+    | Ok _ | Error _ -> fail (label ^ " was not refused as an invalid argument") in
+  refused "a filter name with a NUL"
+    (Dialog.show window ~filters:[{ Dialog.name = "a\x00b"; pattern = "*" }] Dialog.Open_file);
+  refused "an empty filter pattern"
+    (Dialog.show window ~filters:[{ Dialog.name = "all"; pattern = "" }] Dialog.Open_file);
+  refused "a default location with a NUL"
+    (Dialog.show window ~default_location:"/tmp\x00" Dialog.Save_file);
+  refused "33 filters"
+    (Dialog.show window
+       ~filters:(List.init 33 (fun _ -> { Dialog.name = "x"; pattern = "*" })) Dialog.Open_files);
+  (match Domain.spawn (fun () -> Dialog.show window Dialog.Open_folder) |> Domain.join with
+   | Error { kind = Wrong_domain; _ } -> ()
+   | Ok _ | Error _ -> fail "a dialog was not refused on a worker domain");
   let expect_wrong_domain label = function
     | Error { kind = Wrong_domain; _ } -> ()
     | Ok _ | Error _ -> fail (label ^ " was not rejected on a worker domain")
   in
   expect_wrong_domain "init"
     (Domain.spawn (fun () -> Init.init [Init.Events]) |> Domain.join);
-  expect_wrong_domain "init query"
-    (Domain.spawn (fun () -> Init.initialized [Init.Events]) |> Domain.join);
   expect_wrong_domain "presentation facts"
     (Domain.spawn (fun () -> Window.presentation_facts window ~vsync:true)
      |> Domain.join);
-  expect_wrong_domain "clipboard query"
-    (Domain.spawn Clipboard.has_text |> Domain.join);
-  expect_wrong_domain "text-input query"
-    (Domain.spawn (fun () -> Text_input.active window) |> Domain.join);
+  expect_wrong_domain "window state"
+    (Domain.spawn (fun () -> Window.state window) |> Domain.join);
+  expect_wrong_domain "clipboard"
+    (Domain.spawn (fun () -> Clipboard.get_text ()) |> Domain.join);
+  expect_wrong_domain "text-input start"
+    (Domain.spawn (fun () -> Text_input.start window) |> Domain.join);
   expect_wrong_domain "window synchronization"
     (Domain.spawn (fun () -> Window.sync window) |> Domain.join);
-  expect_wrong_domain "cursor visibility"
-    (Domain.spawn Cursor.visible |> Domain.join);
-  let wrong_domain = Domain.spawn (fun () ->
-    Window.create ~title:"wrong domain" ~width:8 ~height:8 ()) |> Domain.join in
-  (match wrong_domain with
+  expect_wrong_domain "hint"
+    (Domain.spawn (fun () -> Hint.control_click_is_right_click true) |> Domain.join);
+  expect_wrong_domain "event poll"
+    (Domain.spawn Event.poll_coalesced |> Domain.join);
+  (match Domain.spawn (fun () ->
+      Window.create ~title:"wrong domain" ~width:8 ~height:8 ()) |> Domain.join with
    | Error { kind = Wrong_domain; _ } -> ()
    | Ok window -> ignore (Window.destroy window); fail "wrong-domain create succeeded"
    | Error _ -> fail "wrong-domain create returned the wrong error");
-  expect_wrong_domain "event poll" (Domain.spawn Event.poll |> Domain.join);
-  let padded = Bytes.make 24 '\x7f' in
-  for index = 0 to 7 do
-    Bytes.set padded index (Char.chr index);
-    Bytes.set padded (12 + index) (Char.chr (8 + index))
-  done;
-  let surface = get (Surface.of_rgba ~width:2 ~height:2 ~stride:12 padded) in
-  if Surface.destroyed surface || get (Surface.size surface) <> (2, 2)
-      || get (Surface.pitch surface) < 8 then
-    fail "owned CPU surface metadata changed";
-  Bytes.fill padded 0 (Bytes.length padded) '\x00';
-  let snapshot = get (Surface.copy_rgba surface) in
-  let expected = Bytes.init 16 Char.chr in
-  if snapshot.width <> 2 || snapshot.height <> 2 || snapshot.stride <> 8
-      || snapshot.pixels <> expected then
-    fail "RGBA rows were not copied without source padding";
-  (match Surface.of_rgba ~width:2 ~height:2 ~stride:7 (Bytes.make 16 '\x00') with
-   | Error { kind = Invalid_argument; _ } -> ()
-   | Ok surface -> ignore (Surface.destroy surface); fail "short stride was accepted"
-   | Error _ -> fail "short stride returned the wrong error");
-  (match Surface.create_rgba ~width:max_int ~height:max_int with
-   | Error { kind = Invalid_argument; _ } -> ()
-   | Ok surface -> ignore (Surface.destroy surface); fail "overflow surface succeeded"
-   | Error _ -> fail "overflow surface returned the wrong error");
-  let wrong_domain_surface = Domain.spawn (fun () ->
-    Surface.create_rgba ~width:2 ~height:2) |> Domain.join in
-  (match wrong_domain_surface with
-   | Error { kind = Wrong_domain; _ } -> ()
-   | Ok surface -> ignore (Surface.destroy surface); fail "wrong-domain surface succeeded"
-   | Error _ -> fail "wrong-domain surface returned the wrong error");
-  get (Surface.destroy surface);
-  get (Surface.destroy surface);
-  (match Surface.copy_rgba surface with
-   | Error { kind = Destroyed; _ } -> ()
-   | Ok _ | Error _ -> fail "stale surface access was not rejected");
   get (Window.destroy window);
   get (Window.destroy window);
-  if not (Window.destroyed window) then fail "destroy did not mark the handle stale";
   (match Window.size window with
    | Error { kind = Destroyed; _ } -> ()
    | Ok _ | Error _ -> fail "stale window access was not rejected");
-  get (Init.quit ());
-  get (drain_release_queue ());
+  (match Dialog.show window Dialog.Open_file with
+   | Error { kind = Destroyed; _ } -> ()
+   | Ok _ | Error _ -> fail "a dialog was opened over a destroyed window");
+  get (Init.quit_subsystems [Init.Video; Init.Events]);
   Printf.printf "SDL3 %d.%d.%d ownership test passed\n%!"
     linked.major linked.minor linked.patch

@@ -30,6 +30,8 @@ type change =
       (** the frames of one scope after a gesture (create, resize, retitle, delete) *)
   | Display_set of path  (** show this geometry node in the viewport (the shown one: its result) *)
   | Activated of path
+  | Drop_over of { path : path; kind : string; value : string }
+  | Dropped of { path : path; kind : string; value : string }
   | Notice of string
 
 type direction = Left | Down | Up | Right
@@ -211,6 +213,8 @@ type t = {
   context : ((float * float) * path) option;
   stats : stats;
   switches : (path * int) list;  (* the [ui/switch] nodes and their active layout *)
+  carry_lit : (path * string) list;  (* the places a carried payload can be put, with their letters *)
+  carry_hot : (path * bool) option;  (* the place under the pointer, and whether it takes the payload *)
 }
 
 let no_stats = { nodes = 0; zones = 0; rows = 0; drawn_items = 0; drawn_zones = 0; drawn_rows = 0 }
@@ -221,13 +225,16 @@ let create ?(x = 0) ?(y = 0) ?(width = 640) ?(height = 360) ?(theme = Pxui.defau
   frames = (fun _ -> []); display = None; framed = true;
   layout = { P.placed = []; w = 0.; h = 0. }; geo = empty_geo; pan_x = 12.; pan_y = 12.; zoom = 1.;
   wires = `Rect; selected = Path_set.empty; selected_wire = None; panning_grab = false;
-  hovered_row = None; highlighted = []; drag = None; editing = None; context = None; stats = no_stats; switches = [] }
+  hovered_row = None; highlighted = []; drag = None; editing = None; context = None; stats = no_stats; switches = [];
+  carry_lit = []; carry_hot = None }
 
 let with_bounds ~x ~y ~width ~height t =
   if t.x = x && t.y = y && t.width = width && t.height = height then t
   else { t with x; y; width; height }
 let with_visible visible t = if t.visible = visible then t else { t with visible }
 let with_guide guide t = if t.guide = guide then t else { t with guide }
+let with_carry ~lit ~hot t =
+  if t.carry_lit = lit && t.carry_hot = hot then t else { t with carry_lit = lit; carry_hot = hot }
 let selected t = Path_set.elements t.selected
 let selected_wire t = Option.map (fun (path, key, _) -> path, key) t.selected_wire
 let editing t = t.editing <> None
@@ -383,6 +390,14 @@ let input_of t path = match t.scope with
 
 (* ------------------------------------------------------------- commands *)
 
+(* [Some hidden] when pressing b hides or shows the node: it has a :visible argument and no bypass *)
+let hide_row (n : P.node) =
+  if P.bypassable n then None else
+  List.find_map (fun (r : P.row) -> match r.key, r.kind, r.ty with
+    | E.Kw "visible", P.Arg, Some Ty.Bool ->
+        Some (match r.expr with Some { S.node = S.Sym "false"; _ } -> true | _ -> false)
+    | _ -> None) n.rows
+
 let action_changes t command =
   let nodes = selected_nodes t in
   let paths = List.map (fun (n : P.node) -> n.path) (List.filter (fun (n : P.node) -> not n.synthetic) nodes) in
@@ -408,7 +423,14 @@ let action_changes t command =
           | Some { key = Some key; _ } -> edit (E.Unfold { node = n.path; key; sub = [] })
           | _ -> [ Notice "Nothing to unfold here" ]))
   | Hoist -> one (fun n -> edit (E.Hoist { node = n.path }))
-  | Bypass -> one (fun n -> edit (E.Toggle_bypass { node = n.path }))
+  | Bypass -> one (fun n ->
+      (* a node that cannot pass an input through but has a boolean :visible (a scene object)
+         takes itself out of the render without leaving the graph *)
+      match hide_row n with
+      | Some hidden ->
+          edit (E.Set_arg { node = n.path; key = E.Kw "visible"; sub = []
+                          ; value = S.make (S.Sym (if hidden then "true" else "false")) })
+      | None -> edit (E.Toggle_bypass { node = n.path }))
   | Wrap_repeat -> if paths = [] then [ Notice "Select nodes to repeat" ] else edit (E.Wrap { nodes = paths; loop = E.For })
   | Wrap_iterate -> if paths = [] then [ Notice "Select nodes to iterate" ] else edit (E.Wrap { nodes = paths; loop = E.Fold })
   | Make_fn -> if paths = [] then [ Notice "Select nodes to make a function" ] else edit (E.Make_local_fn { nodes = paths })
@@ -439,7 +461,7 @@ let action_changes t command =
   | Item_up | Item_down ->
       (match t.hovered_row with
        | Some (path, E.Pos i) when (match node_of t path with
-           | Some n -> List.mem n.head [ "list"; "str" ] | None -> false) ->
+           | Some n -> P.reorderable n | None -> false) ->
            edit (E.Move_item { node = path; pos = if command = Item_up then i else i + 1 })
        | _ -> [ Notice "Hover a list item to move it" ])
 
@@ -1136,9 +1158,11 @@ let update t ui (frame : Frame.t) =
     Ui.box ui ~w:(Ui.Px (float t.width)) ~h:(Ui.Px (float t.height)) ~at:(0., 0.) "pxui-scope-layer") in
   let t =
     let _, wheel = canvas_signal.scroll in
-    if wheel = 0. || t.context <> None then t else begin
+    let pinch = canvas_signal.pinch in
+    if (wheel = 0. && pinch = 1.) || t.context <> None then t else begin
       let mx, my = frame.mouse in
-      let zoom = Float.max 0.25 (Float.min 2.5 (t.zoom *. (1. +. wheel *. 0.1))) in
+      (* the wheel steps by a tenth; a pinch carries its own factor *)
+      let zoom = Float.max 0.25 (Float.min 2.5 (t.zoom *. (1. +. wheel *. 0.1) *. pinch)) in
       let k = zoom /. t.zoom in
       { t with zoom; pan_x = (mx -. float t.x) -. ((mx -. float t.x) -. t.pan_x) *. k;
         pan_y = (my -. float t.y) -. ((my -. float t.y) -. t.pan_y) *. k }
@@ -1379,7 +1403,7 @@ let update t ui (frame : Frame.t) =
                   value = Option.get (single_form v) })))
         | _ -> [] in
       let movers = match p.item with
-        | P.Item ({ zone = None; head = ("list" | "str"); _ } as n) when z >= 0.5 ->
+        | P.Item n when P.reorderable n && z >= 0.5 ->
             Ui.within ui tile (fun () ->
               let top = rows_top n 0. in
               List.concat (List.mapi (fun i (r : P.row) -> match r.kind, r.key with
@@ -1403,6 +1427,24 @@ let update t ui (frame : Frame.t) =
         | _ -> [] in
       p, ax, ay, tile, Ui.signal ui tile, sub, fields @ add_clicks @ editors @ movers @ switchers) visible) in
   let t = if !finished then { t with editing = None } else t in
+  (* a payload in flight: the innermost node under the pointer (a zone's tile covers its body),
+     else the canvas, is where it would be put; the host decides whether it takes it *)
+  (match Ui.drop_target ui canvas with
+   | None -> ()
+   | Some _ ->
+       let area (p : P.placed) = p.w *. p.h in
+       let found = List.fold_left (fun best ((p : P.placed), _, _, tile, _, _, _) ->
+         match Ui.drop_target ui tile, best with
+         | Some _, Some (q, _) when area q <= area p -> best
+         | Some d, _ -> Some (p, d)
+         | None, _ -> best) None tiles in
+       let path, drop = match found, Ui.drop_target ui canvas with
+         | Some ((p : P.placed), d), _ -> p.path, d
+         | None, Some d -> [ t.key ], d
+         | None, None -> [ t.key ], Ui.Hover { Ui.kind = ""; value = "" } in
+       emit (match drop with
+         | Ui.Hover { kind; value } -> Drop_over { path; kind; value }
+         | Dropped { kind; value } -> Dropped { path; kind; value }));
   (* frames: a title strip, a delete cross and a resize corner, over the tiles (a zone's tile
      covers its whole body) and clear of the nodes, which keep 12 points inside the frame *)
   let frame_boxes = Ui.within ui canvas (fun () ->
@@ -1730,7 +1772,24 @@ let update t ui (frame : Frame.t) =
   (* the rubber band and the expanded chip, over the tiles *)
   let band = match t.drag with
     | Some (Wiring w) -> Some w | _ -> None in
-  Ui.draw_over ui canvas (fun paint _ ->
+  let marks = if t.carry_lit = [] && t.carry_hot = None then [] else
+    List.filter_map (fun ((p : P.placed), ax, ay, _, _, _, _) ->
+      let rect = (sx t ax, sy t ay, p.w *. z, p.h *. z) in
+      match List.assoc_opt p.path t.carry_lit, t.carry_hot with
+      | letter, Some (hot, ok) when hot = p.path -> Some (rect, letter, Some ok)
+      | Some letter, _ -> Some (rect, Some letter, None)
+      | None, _ -> None) tiles in
+  let canvas_hot = match t.carry_hot with Some ([ g ], ok) when g = t.key -> Some ok | _ -> None in
+  Ui.draw_over ui canvas (fun paint (cx, cy, cw, ch) ->
+    let refused = Color.hex_exn "#b0485a" in
+    Option.iter (fun ok -> Ui.Paint.stroke paint ~x:cx ~y:cy ~w:cw ~h:ch ~width:3.
+      (if ok then snapshot.theme.accent else refused)) canvas_hot;
+    List.iter (fun ((x, y, w, h), letter, hot) ->
+      let color = match hot with Some false -> refused | _ -> snapshot.theme.accent in
+      Ui.Paint.stroke paint ~x ~y ~w ~h ~width:(if hot <> None then 3. else 2.) color;
+      Option.iter (fun letter ->
+        Ui.Paint.rect paint ~x:(x -. 4.) ~y:(y -. 9.) ~w:16. ~h:16. ~fill:color ();
+        Ui.Paint.text paint ~at:(x -. 1., y -. 6.) ~size:10 ~color:snapshot.theme.input letter) letter) marks;
     List.iter (fun w ->
       paint_polyline paint ~width:3. snapshot.theme.accent
         (List.map (fun (x, y) -> sx snapshot x, sy snapshot y) (wire_points ~style:snapshot.wires w.a w.b));

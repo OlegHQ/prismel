@@ -1166,11 +1166,124 @@ let run_layouts () =
   check (E3.undo_label !e = Some "Remove layout" && not (has (source !e) "layout preview")) "Space [ x removes it";
   step [ key Input.Space; ch 'n'; ch 'i' ]; step [];
   check (has (source !e) "(ui/floating (ui/inspector))" && E3.undo_label !e = Some "New window") "Space n i opens an inspector window";
+  (* the layout's one docked panel cannot float: refused, nothing written, the entry stays *)
+  let before = source !e in
   step [ key Input.Space; ch 'o'; ch 'f' ]; step [];
-  check (E3.undo_label !e = Some "Float panel" || E3.undo_label !e = Some "New window")
-    "Space o f is one edit or refused with a notice"
+  check (E3.undo_label !e = Some "New window" && source !e = before)
+    ("Space o f on a layout's only docked panel is refused: " ^ Option.value ~default:"-" (E3.undo_label !e));
+  (* in a layout of several panels the focused one floats, as one entry named Float panel *)
+  step [ key Input.Space; ch '['; ch '0' ]; step [];
+  let gx, gy, gw, gh = (E3.panes !e (Test_editor_input.frame (0., 0.) [] !count)).graph in
+  let at = (float gx +. float gw /. 2., float gy +. float gh /. 2.) in
+  let press events = incr count; e := E3.update !e (Test_editor_input.frame at events !count) in
+  press [ Event.MouseMoved at ]; press [ Event.MousePressed (Input.LeftButton, at) ];
+  press [ Event.MouseReleased (Input.LeftButton, at) ]; press [];
+  press [ key Input.Space; ch 'o'; ch 'f' ]; press [];
+  check (E3.undo_label !e = Some "Float panel" && has (source !e) "(ui/floating")
+    ("Space o f floats the focused panel: " ^ Option.value ~default:"-" (E3.undo_label !e) ^ "\n" ^ source !e)
 
-let run () = run_layouts (); run_compose (); run_ref_picker (); run_result_view (); run_panel_states (); run_camera_zoom (); run_cameras (); run_lowering (); run_ops (); run_panel_keys (); run_unbound_panels (); run_values (); run_duplicate_and_view (); run_movers (); run_frame_key (); run_loop_copies (); run_loop_expression (); run_editor (); run_restore (); run_views (); run_instances ()
+(* The inspector with nothing selected has a Scene root section over the root's settings: a press
+   on one of its controls writes the root in the text as one "Render settings" entry. *)
+let run_root_section () =
+  let e = ref (editor {|(workspace studio
+  (graph g :context sop (sop/box))
+  (graph scene :context scene
+    (let* [body (scene/geometry (ref g) :name "body")
+           all (scene/merge body)]
+      (scene/root all :renderer "Raster" :width 800 :height 600 :max_spp 64))))|}) and count = ref 0 in
+  let step ?(mouse = (450., 300.)) events = incr count; e := E3.update !e (frame mouse events !count) in
+  for _ = 1 to 6 do step [] done;
+  let before = E3.workspace !e in
+  check (E3.undo_label !e = None && has (source !e) ":width 800") "the root is in the text, nothing to undo";
+  let ix, iy, iw, ih = (E3.panes !e (frame (0., 0.) [] !count)).inspector in
+  check (iw > 0 && ih > 0) "the inspector panel is showing";
+  (* press down the inspector's right half until a control of the Scene root section answers *)
+  let hit = ref None in
+  let y = ref (iy + 4) in
+  while !hit = None && !y < iy + ih do
+    let at = float (ix + (iw * 3 / 4)), float !y in
+    step ~mouse:at [ Event.MouseMoved at ];
+    step ~mouse:at [ Event.MousePressed (Input.LeftButton, at); Event.MouseReleased (Input.LeftButton, at) ];
+    step ~mouse:at [];
+    if E3.undo_label !e = Some "Render settings" then hit := Some !y;
+    y := !y + 5
+  done;
+  check (!hit <> None) "no control of the inspector wrote the root";
+  check (E3.workspace !e != before && has (source !e) "(scene/root all") "the root stayed in the text, edited";
+  incr count;
+  e := E3.update !e (Test_editor_input.frame ~keys:[ Input.Meta ] (450., 300.) [ Event.KeyPressed (Input.KeyChar 'z') ] !count);
+  check (E3.workspace !e == before) "one undo returns the root";
+  E3.close !e
+
+(* b on a scene object takes it out of the render without removing it (:visible), Alt-Down moves a
+   merge's input, and each gesture prints what it wrote in the status strip. *)
+let run_hide_and_order () =
+  let text = {|(workspace hide
+    (graph g1 :context sop (sop/box))
+    (graph scene :context scene
+      (let* [a (scene/geometry (ref g1) :name "a")
+             b (scene/geometry (ref g1) :translate [3 0 0] :name "b")
+             all (scene/merge a b)]
+        (scene/root all)))
+    (graph editor :context editor (ui/workspace (ui/split "horizontal" (ui/graph "scene") (ui/inspector)))))|} in
+  let e = ref (editor text) and count = ref 0 in
+  let step ?(keys = []) ?(mouse = (450., 300.)) events =
+    incr count; e := E3.update !e (Test_editor_input.frame ~keys mouse events !count) in
+  let key k = Event.KeyPressed k and ch c = Event.KeyPressed (Input.KeyChar c) in
+  step []; step [];
+  let click path =
+    let bx, by, bw, bh = Option.get (E3.node_box !e path) in
+    let at = float bx +. float bw /. 2., float by +. float bh -. 6. in
+    step ~mouse:at [ Event.MouseMoved at ];
+    step ~mouse:at [ Event.MousePressed (Input.LeftButton, at) ];
+    step ~mouse:at [ Event.MouseReleased (Input.LeftButton, at) ]; step ~mouse:at [] in
+  click [ "scene"; "a" ];
+  step [ ch 'b' ]; step [];
+  check (has (source !e) "(scene/geometry (ref g1) :name \"a\" :visible false)" && E3.undo_label !e = Some "Edit value")
+    ("b wrote :visible false on the object: " ^ source !e);
+  check (has (dump_line !e "cook") "Wrote :visible false on scene/a")
+    ("the strip says what was written: " ^ dump_line !e "cook");
+  step [ ch 'b' ]; step [];
+  check (has (source !e) ":visible true") ("b again shows it: " ^ source !e);
+  step ~keys:[ Input.Meta ] [ ch 'z' ]; step ~keys:[ Input.Meta ] [ ch 'z' ]; step [];
+  check (not (has (source !e) ":visible")) "two undos give the text back";
+  (* Alt-Down on a hovered merge input swaps it with the next *)
+  let bx, by, bw, bh = Option.get (E3.node_box !e [ "scene"; "all" ]) in
+  click [ "scene"; "all" ];
+  let moved = ref false in
+  let y = ref (by + 4) in
+  while not !moved && !y < by + bh do
+    let at = float (bx + bw / 2), float !y in
+    step ~mouse:at [ Event.MouseMoved at ];
+    step ~keys:[ Input.Alt ] ~mouse:at [ key Input.ArrowDown ]; step ~mouse:at [];
+    if has (source !e) "(scene/merge b a)" then moved := true;
+    y := !y + 3
+  done;
+  check !moved ("Alt-Down moved a merge input: " ^ source !e);
+  check (E3.undo_label !e = Some "Move item") "one entry named Move item";
+  E3.close !e
+
+(* The palette's "Copy workspace as Lisp" puts the text Command-S writes on the clipboard.  A
+   window-free run has no SDL clipboard: then the row still runs and says why it could not. *)
+let run_copy_lisp () =
+  let e = ref (editor {|(workspace copied
+  (graph g :context sop (sop/box))
+  (graph scene :context scene (scene/merge (scene/geometry (ref g)))))|}) and count = ref 0 in
+  let step events = incr count; e := E3.update !e (frame (450., 300.) events !count) in
+  let key k = Event.KeyPressed k in
+  step []; step [];
+  step [ key Input.Space; Event.KeyPressed (Input.KeyChar '/') ]; step [];
+  step [ Event.TextInput "copy workspace" ]; step [ key Input.Enter ]; step [];
+  let note = dump_line !e "cook" in
+  (match Prismel.Clipboard.get_text () with
+   | Ok clip when has note "Copied the workspace as Lisp" ->
+       check (has clip "(workspace copied" && has clip "(scene/geometry (ref g))")
+         ("the clipboard holds the workspace text: " ^ clip)
+   | _ -> check (has note "Clipboard: ") ("the palette row ran and said why it could not copy: " ^ note));
+  check (E3.undo_label !e = None) "copying changes nothing";
+  E3.close !e
+
+let run () = run_copy_lisp (); run_hide_and_order (); run_root_section (); run_layouts (); run_compose (); run_ref_picker (); run_result_view (); run_panel_states (); run_camera_zoom (); run_cameras (); run_lowering (); run_ops (); run_panel_keys (); run_unbound_panels (); run_values (); run_duplicate_and_view (); run_movers (); run_frame_key (); run_loop_copies (); run_loop_expression (); run_editor (); run_restore (); run_views (); run_instances ()
 
 (* Native VIEW regression over the reported sketch, including its piece renderer and a following
    camera. Moving the camera rebuilds the lowering while preserving an unchanged object network. *)
@@ -1210,13 +1323,15 @@ let run_view_native () =
         Scene3.create [drawing]) () |> Result.get_ok)
     ~update:(fun e (frame : Frame.t) ->
       let e = if frame.count = 28 then
-          E3.edit e (E.Set_arg {node = ["shattered"; "@result"]; key = E.Kw "amount";
+          E3.edit e (E.Set_arg {node = ["shattered"; "exploded_view"]; key = E.Kw "amount";
             sub = []; value = S.make (S.Num "0.8")}) |> Result.get_ok
         else e in
       let gx, gy, _, _ = (E3.panes e frame).graph in
       let graph = float (gx + 40), float (gy + 40) and view = 150., 300. in
       let mouse = if frame.count = 24 then
-          let x, y, w, _ = Option.get (E3.node_box e ["shattered"; "@result"]) in
+          (* the first v (frame 14) made the box the result, binding the old
+             anonymous result under the name its head gives it *)
+          let x, y, w, _ = Option.get (E3.node_box e ["shattered"; "exploded_view"]) in
           float (x + w / 2), float (y + 2)
         else if List.mem frame.count [3; 4; 18; 19; 20; 21; 22] then view else graph in
       let key k = Event.KeyPressed k in
@@ -1383,3 +1498,253 @@ let run_native () =
   Unix.rmdir directory;
   run_renderers_native ();
   run_renderers_native ~authored:true ()
+
+(* ---- two roots in one frame: each viewport renders as its own root says ---- *)
+
+(* Two scene graphs with a root, a camera, a size and a World each, in one window. *)
+let roots_text ?(renderer = "Path traced") () = Printf.sprintf {|(workspace roots
+  (graph g :context sop (sop/box))
+  (graph noon :context world (world/sun (world/sky :name "noon") :name "sun"))
+  (graph dusk :context world (world/sun (world/sky :name "dusk") :name "sun"))
+  (graph set :context scene (scene/merge (scene/geometry (ref g) :name "body")))
+  (graph day :context scene
+    (let* [cam (scene/camera :name "noon-cam" :eye [0 1 8])
+           all (scene/merge (ref set) cam (scene/world (ref noon) :name "Noon"))
+           root (scene/root all :camera cam :renderer "%s" :width 800 :height 450 :max_spp 4096)]
+      root))
+  (graph night :context scene
+    (let* [cam (scene/camera :name "dusk-cam" :eye [5 2 6])
+           all (scene/merge (ref set) cam (scene/world (ref dusk) :name "Dusk" :exposure -2))
+           root (scene/root all :camera cam :renderer "%s" :width 640 :height 640 :max_spp 16 :bounces 12)]
+      root))
+  (graph editor :context editor
+    (ui/workspace (ui/split-at "horizontal" 0.5 (ui/viewport (ref day)) (ui/viewport (ref night))))))|}
+  renderer renderer
+
+let eye_of = function
+  | "day" -> Vec3.create 0. 1. 8. | _ -> Vec3.create 5. 2. 6.
+
+(* Without a GPU: looking through the camera, each viewport sees through the camera its own root
+   names, at its own gate; the renderer's film steps and turns are pure. *)
+let run_roots () =
+  let module B = Prismel_editor.Private.Render_budget in
+  check (B.film ~resolution:(1600, 900) ~gate:(1700, 1000) = ((1600, 900), 1)) "a gate over the resolution is step 1";
+  check (B.film ~resolution:(1600, 900) ~gate:(1600, 900) = ((1600, 900), 1)) "a gate at the resolution is step 1";
+  check (B.film ~resolution:(1600, 900) ~gate:(1599, 899) = ((800, 450), 2)) "one pixel under is a half";
+  check (B.film ~resolution:(1600, 900) ~gate:(800, 450) = ((800, 450), 2)) "the half fits its gate exactly";
+  check (B.film ~resolution:(1600, 900) ~gate:(799, 449) = ((400, 225), 4)) "then a quarter";
+  check (B.film ~resolution:(1600, 900) ~gate:(300, 169) = ((200, 112), 8)) "then an eighth";
+  check (B.film ~resolution:(1600, 900) ~gate:(10, 10) = ((200, 112), 8)) "never smaller than an eighth";
+  (* a resize inside a step leaves the film alone *)
+  let step gate = B.film ~resolution:(1600, 900) ~gate in
+  check (List.for_all (fun w -> step (w, w * 9 / 16) = ((400, 225), 4)) (List.init 200 (fun i -> 400 + i)))
+    "every gate from 400 to 599 points wide gets the same film";
+  let order = [ "a"; "b"; "c"; "d" ] in
+  check (B.next_turn ~order ~last:None [ "b"; "c"; "d" ] = Some "b") "the first wanting viewport takes the first turn";
+  check (B.next_turn ~order ~last:(Some "b") [ "b"; "c"; "d" ] = Some "c") "the next takes the next";
+  check (B.next_turn ~order ~last:(Some "d") [ "b"; "c" ] = Some "b") "the rotation wraps";
+  check (B.next_turn ~order ~last:(Some "c") [ "b" ] = Some "b") "a lone one repeats";
+  check (B.next_turn ~order ~last:(Some "a") [] = None) "no one wants, no turn";
+  let e = ref (editor (roots_text ~renderer:"Raster" ())) in
+  let keys = List.map fst (shell_of (build_ok (E3.workspace !e))).preview_sources in
+  let day, night = match keys with [ d; n ] -> d, n | _ -> fail "two viewports, two roots" in
+  let count = ref 0 in
+  let step ?(events = []) () = incr count; e := E3.update !e (frame (100., 100.) events !count) in
+  step (); step ();
+  step ~events:[ Event.KeyPressed Input.Space; Event.KeyPressed (Input.KeyChar 'v') ] (); step (); step ();
+  check (E3.look_through !e) "Space v did not look through the cameras";
+  let near a b = Vec3.nearly_equal a b ~eps:1e-4 in
+  check (near (Camera.position (E3.viewport_camera !e day)) (eye_of "day"))
+    "the first viewport does not look through its own root's camera";
+  check (near (Camera.position (E3.viewport_camera !e night)) (eye_of "night"))
+    "the second viewport does not look through its own root's camera";
+  check (E3.slot !e day = None && E3.slot !e night = None) "a raster viewport has no tracer slot";
+  E3.close !e;
+  print_endline "workspace shell: film steps and turns, each viewport looks through its own root's camera ok"
+
+(* Native: both roots path trace in one window.  Each slot has its root's film and camera, the dusk
+   is darker than noon, a cap raised continues the accumulation, a splitter drag inside a film step
+   keeps the samples (and one that crosses a step restarts them), and an edit of the second root
+   restarts only its slot. *)
+let run_roots_native () =
+  let directory = Filename.temp_dir "prismel-roots" "" in
+  let png = Filename.concat directory "roots.png" in
+  let doc = build_ok (of_text (roots_text ())) in
+  let shell = shell_of doc in
+  let day, night = match List.map fst shell.preview_sources with [ d; n ] -> d, n | _ -> fail "two viewports" in
+  let geometry = Layout.geometry ~hidden:[ Layout.Timeline ] shell.tree (frame (0., 0.) [] 0) in
+  let pane key = List.find_map (fun (l : Layout.leaf) -> if l.panel = Layout.View key then Some l.body else None)
+      geometry.leaves |> Option.get in
+  let splitter = List.find (fun (s : Layout.splitter) -> s.node = Some []) geometry.splitters in
+  let sx, sy, sw, sh = splitter.bounds in
+  let grip = float (sx + sw / 2), float (sy + sh / 2) in
+  let drag_at start ~from ~by c = (* the frames of one splitter drag, from [from] points right of the grip *)
+    let grip = fst grip +. from, snd grip in
+    let target = fst grip +. by, snd grip in
+    match c - start with
+    | 0 -> Some (grip, [], [ Event.MouseMoved grip ])
+    | 1 -> Some (grip, [ Input.LeftButton ], [ Event.MousePressed (Input.LeftButton, grip) ])
+    | 2 -> Some (target, [ Input.LeftButton ], [ Event.MouseMoved target ])
+    | 3 -> Some (target, [], [ Event.MouseReleased (Input.LeftButton, target) ])
+    | _ -> None in
+  let slots = Hashtbl.create 8 and cameras = ref [] in
+  let need e key = match E3.slot e key with Some slot -> slot | None -> fail ("no tracer slot for " ^ key) in
+  let edit e arg value =
+    match E3.edit e (E.Set_arg { node = [ "night"; "root" ]; key = E.Kw arg; sub = []; value = S.make (S.Num value) }) with
+    | Ok e -> e | Error message -> fail message in
+  ignore (Sketch.run_state ~max_frames:200
+    ~config:{ Sketch.default_config with width = 900; height = 640; title = "two roots" }
+    ~init:(fun _ -> E3.create ~await:true ~workspace:(of_text (roots_text ()))
+      ~presets:(Filename.concat directory "presets")
+      ~prepare:(fun _ output -> Pdk_prismel.Prismel_mesh.to_mesh output.Session.geometry
+        |> Result.map_error Pdk.Error.to_string)
+      ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) () |> Result.get_ok)
+    ~update:(fun e (frame : Frame.t) ->
+      let c = frame.count in
+      let e = if c = 61 then edit e "max_spp" "4096"      (* the cap rises: the film goes on *)
+        else if c = 131 then edit e "bounces" "6"          (* the setting changes: the slot restarts *)
+        else e in
+      let mouse, buttons, events =
+        match drag_at 101 ~from:0. ~by:10. c, drag_at 161 ~from:10. ~by:200. c with
+        | Some move, _ | None, Some move -> move
+        | None, None -> (100., 100.), [], (if c = 2 then [ Event.KeyPressed Input.Space; Event.KeyPressed (Input.KeyChar 'v') ] else []) in
+      E3.update e { frame with mouse; mouse_buttons = buttons; mouse_delta = 0., 0.; keys = []; events })
+    ~view:E3.scene
+    ~after_present:(fun e (frame : Frame.t) ->
+      if List.mem frame.count [ 60; 100; 130; 160; 195 ] then
+        Hashtbl.replace slots frame.count (need e day, need e night);
+      if frame.count = 60 then begin
+        cameras := [ day, Camera.position (E3.viewport_camera e day); night, Camera.position (E3.viewport_camera e night) ];
+        check (Canvas.save_screen_png png = Ok ()) "the window did not save its screen"
+      end;
+      E3.after_present e frame)
+    ~on_stop:E3.close ());
+  let at c = Hashtbl.find slots c in
+  let day60, night60 = at 60 and day100, night100 = at 100 and day130, night130 = at 130
+  and day160, night160 = at 160 and day195, night195 = at 195 in
+  let describe (s : E3.slot) = Printf.sprintf "%dx%d 1/%d %d/%d" (fst s.film) (snd s.film) s.step s.samples s.max_spp in
+  (* each slot's film is its own root's resolution in a step; its camera is its root's *)
+  let steps = [ 1; 2; 4; 8 ] in
+  check (List.mem day60.step steps && day60.film = (800 / day60.step, 450 / day60.step))
+    ("the first slot's film is not its root's 800x450 in a step: " ^ describe day60);
+  check (List.mem night60.step steps && night60.film = (640 / night60.step, 640 / night60.step))
+    ("the second slot's film is not its root's 640x640 in a step: " ^ describe night60);
+  check (day60.max_spp = 4096 && night60.max_spp = 16) "each slot carries its own root's cap";
+  List.iter (fun (key, eye) -> check (Vec3.nearly_equal eye (eye_of (if key = day then "day" else "night")) ~eps:1e-4)
+      "a pane's camera is not its root's authored camera") !cameras;
+  check (night60.samples >= 16 && day60.samples >= 16)
+    (Printf.sprintf "the slots did not accumulate: %s, %s" (describe day60) (describe night60));
+  (* the cap read each frame: raised, the second slot goes on from where it stopped *)
+  check (night100.max_spp = 4096 && night100.samples > night60.samples && night100.film = night60.film)
+    (Printf.sprintf "raising a cap did not continue the accumulation: %s then %s" (describe night60) (describe night100));
+  check (day100.samples > day60.samples) "the first slot stopped accumulating";
+  (* a splitter drag inside a step keeps the samples *)
+  check (day130.film = day100.film && night130.film = night100.film)
+    "a splitter drag inside a step changed a film";
+  check (day130.samples > day100.samples && night130.samples > night100.samples)
+    (Printf.sprintf "a splitter drag inside a step restarted the accumulation: %s, %s then %s, %s"
+       (describe day100) (describe night100) (describe day130) (describe night130));
+  (* editing the second root restarts its slot and leaves the first alone *)
+  check (night160.samples < night130.samples)
+    (Printf.sprintf "editing a root's setting did not restart its slot: %s then %s"
+       (describe night130) (describe night160));
+  check (day160.samples > day130.samples)
+    (Printf.sprintf "editing the second root disturbed the first slot: %s then %s" (describe day130) (describe day160));
+  (* a drag across a step restarts: the second viewport's film is smaller, the first one's is not *)
+  check (night195.step > night160.step && night195.film <> night160.film && night195.samples <= 40)
+    (Printf.sprintf "a drag across a step kept the second film: %s then %s" (describe night160) (describe night195));
+  check (day195.film = day160.film && day195.samples > day160.samples)
+    (Printf.sprintf "a drag across the second film's step disturbed the first: %s then %s"
+       (describe day160) (describe day195));
+  (* what the window shows: both panes drawn, the pictures differ, dusk is darker than noon *)
+  let image = Image.load_exn png in
+  let pixels = Result.get_ok (Image.Private.pixels image) in
+  let scale = float (Image.get_width image) /. 900. in
+  let region (x, y, w, h) (resolution_w, resolution_h) =
+    (* the inner part of the gate, which is centred in the pane *)
+    let aspect = float resolution_w /. float resolution_h in
+    let gw = min (float w) (float h *. aspect) and gh = min (float h) (float w /. aspect) in
+    let cx = float x +. float w /. 2. and cy = float y +. float h /. 2. in
+    let x0 = int_of_float ((cx -. gw *. 0.3) *. scale) and x1 = int_of_float ((cx +. gw *. 0.3) *. scale)
+    and y0 = int_of_float ((cy -. gh *. 0.3) *. scale) and y1 = int_of_float ((cy +. gh *. 0.3) *. scale) in
+    let sum = ref 0. and count = ref 0 and differing = ref 0 and bits = Buffer.create 256 in
+    for py = y0 to y1 - 1 do
+      for px = x0 to x1 - 1 do
+        let o = 4 * (py * Image.get_width image + px) in
+        let r = Char.code (Bytes.get pixels o) and g = Char.code (Bytes.get pixels (o + 1))
+        and b = Char.code (Bytes.get pixels (o + 2)) in
+        sum := !sum +. (0.2126 *. float r +. 0.7152 *. float g +. 0.0722 *. float b);
+        incr count;
+        if abs (r - 244) + abs (g - 245) + abs (b - 240) > 30 then incr differing;
+        Buffer.add_char bits (Char.chr (r lsr 3 lsl 3))
+      done
+    done;
+    !sum /. float (max 1 !count), !differing * 100 / max 1 !count, Digest.string (Buffer.contents bits) in
+  let day_mean, day_cover, day_digest = region (pane day) (800, 450)
+  and night_mean, night_cover, night_digest = region (pane night) (640, 640) in
+  check (day_cover > 20 && night_cover > 20)
+    (Printf.sprintf "a pane is blank (%d%% and %d%% drawn)" day_cover night_cover);
+  check (day_digest <> night_digest) "both panes show the same picture";
+  check (night_mean < day_mean)
+    (Printf.sprintf "dusk is not darker than noon (mean %.1f and %.1f)" night_mean day_mean);
+  Sys.remove png;
+  let state = Filename.concat directory "presets/state" in
+  if Sys.file_exists state then begin
+    Array.iter (fun name -> Sys.remove (Filename.concat state name)) (Sys.readdir state);
+    Unix.rmdir state; Unix.rmdir (Filename.dirname state) end;
+  Unix.rmdir directory;
+  print_endline "workspace shell: two roots in one frame, each with its own film, camera and cap ok"
+
+(* Native: four traced viewports over three roots (two of them over one).  The two share a slot;
+   the focused one renders every frame and the others take turns, so over a run it gets about
+   twice the samples of each of the two that alternate. *)
+let run_budget_native () =
+  let root name eye = Printf.sprintf {|  (graph %s :context scene
+    (let* [cam (scene/camera :name "cam" :eye %s)
+           all (scene/merge (ref set) cam)
+           root (scene/root all :camera cam :renderer "Path traced" :width 800 :height 450 :max_spp 4096)]
+      root))
+|} name eye in
+  let text = {|(workspace budget
+  (graph g :context sop (sop/box))
+  (graph set :context scene (scene/merge (scene/geometry (ref g) :name "body")))
+|} ^ root "a" "[0 1 8]" ^ root "b" "[5 2 6]" ^ root "c" "[-5 2 6]" ^ {|  (graph editor :context editor
+    (ui/workspace (ui/split-at "horizontal" 0.5
+      (ui/split-at "vertical" 0.5 (ui/viewport (ref a)) (ui/viewport (ref b)))
+      (ui/split-at "vertical" 0.5 (ui/viewport (ref c)) (ui/viewport (ref a)))))))|} in
+  let directory = Filename.temp_dir "prismel-budget" "" in
+  let keys = List.map fst (shell_of (build_ok (of_text text))).preview_sources in
+  let a, b, c, a_again = match keys with [ a; b; c; d ] -> a, b, c, d | _ -> fail "four viewports" in
+  let final = ref None in
+  ignore (Sketch.run_state ~max_frames:120
+    ~config:{ Sketch.default_config with width = 900; height = 640; title = "budget" }
+    ~init:(fun _ -> E3.create ~await:true ~workspace:(of_text text)
+      ~presets:(Filename.concat directory "presets")
+      ~prepare:(fun _ output -> Pdk_prismel.Prismel_mesh.to_mesh output.Session.geometry
+        |> Result.map_error Pdk.Error.to_string)
+      ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) () |> Result.get_ok)
+    ~update:(fun e (frame : Frame.t) ->
+      E3.update e { frame with mouse = (450., 20.); mouse_buttons = []; mouse_delta = 0., 0.; keys = []; events = [] })
+    ~view:E3.scene
+    ~after_present:(fun e (frame : Frame.t) ->
+      if frame.count = 120 then final := Some (List.map (fun key -> key, E3.slot e key) [ a; b; c; a_again ]);
+      E3.after_present e frame)
+    ~on_stop:E3.close ());
+  let slot key = match Option.bind !final (List.assoc_opt key) with
+    | Some (Some slot) -> slot | Some None | None -> fail ("no slot for " ^ key) in
+  let sa = slot a and sb = slot b and sc = slot c and sd = slot a_again in
+  let describe (s : E3.slot) = Printf.sprintf "%d spp (%d viewports)" s.samples s.viewports in
+  check (sa.viewports = 2 && sd.viewports = 2 && sa.samples = sd.samples)
+    ("two viewports over one root did not share a slot: " ^ describe sa ^ ", " ^ describe sd);
+  check (sb.viewports = 1 && sc.viewports = 1) "a viewport over another root shared a slot";
+  check (sa.samples > 80) ("the focused slot did not render every frame: " ^ describe sa);
+  check (float sa.samples >= 1.5 *. float sb.samples && float sa.samples >= 1.5 *. float sc.samples)
+    (Printf.sprintf "the focused slot did not get more of the budget: %s, %s, %s" (describe sa) (describe sb) (describe sc));
+  check (sb.samples > 20 && sc.samples > 20 && abs (sb.samples - sc.samples) * 4 <= max sb.samples sc.samples)
+    (Printf.sprintf "the others did not take turns: %s and %s" (describe sb) (describe sc));
+  let state = Filename.concat directory "presets/state" in
+  if Sys.file_exists state then begin
+    Array.iter (fun name -> Sys.remove (Filename.concat state name)) (Sys.readdir state);
+    Unix.rmdir state; Unix.rmdir (Filename.dirname state) end;
+  Unix.rmdir directory;
+  print_endline "workspace shell: a shared slot, the focused slot every frame, the others in turns ok"

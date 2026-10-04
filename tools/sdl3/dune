@@ -1,7 +1,12 @@
 (executable
  (name generate)
- (modules generate generator_spec generator_support)
- (libraries digestif dune-configurator unix yojson))
+ (modules generate generator_spec)
+ (libraries sdl3_lock unix))
+
+(executable
+ (name bump)
+ (modules bump)
+ (libraries sdl3_lock unix))
 
 (executable
  (name generate_image_fixtures)

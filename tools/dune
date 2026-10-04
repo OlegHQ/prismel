@@ -26,7 +26,7 @@
 (executable
  (name bench_sdl3)
  (modules bench_sdl3)
- (libraries prismel.sdl3 prismel.sdl3_mixer unix yojson))
+ (libraries prismel.sdl3 prismel.sdl3_image prismel.sdl3_ttf prismel.sdl3_mixer unix yojson))
 
 (rule
  (targets bench_metal_ffi_bridge.o libbench_metal_ffi_stubs.a
@@ -257,3 +257,8 @@
  (name bench_workspace_lower)
  (modules bench_workspace_lower)
  (libraries flow_sop sop_catalog flow procedural pdk param unix editor_document))
+
+(executable
+ (name bench_traced_panes)
+ (modules bench_traced_panes)
+ (libraries prismel procedural pdk pdk_prismel prismel_editor unix))

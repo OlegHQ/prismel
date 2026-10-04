@@ -435,7 +435,7 @@ let drop_unused log =
                   let e = vb.pvb_expr.pexp_loc.loc_end.pos_cnum in
                   if i = 0 then ranges := (List.nth starts 0, List.nth starts 1) :: !ranges
                   else ranges := (and_before (List.nth starts i), e) :: !ranges) vbs
-        | Pstr_primitive vd when at vd.pval_name.loc -> add item.pstr_loc vd.pval_attributes
+        | Pstr_primitive vd when at vd.pval_name.loc || at item.pstr_loc -> add item.pstr_loc vd.pval_attributes
         | Pstr_open _ when at item.pstr_loc -> add item.pstr_loc []
         | Pstr_type (_, tds) when List.exists (fun (td : Parsetree.type_declaration) -> at td.ptype_loc || at td.ptype_name.loc) tds ->
             let dead (td : Parsetree.type_declaration) = at td.ptype_loc || at td.ptype_name.loc in

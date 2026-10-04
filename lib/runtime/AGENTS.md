@@ -36,13 +36,37 @@
 - Keep SDL3, Metal, texture, font, audio, event, and cache operations on the
   initial domain. Never create a domain or thread per frame.
 
+## Input translation
+
+`Runtime_input` events come from `Sdl3.Event.t` in `Runtime_input_sdl3.translate`:
+keys are the binding's `Sdl3.Key.t` (the keycode is mapped once, in the stubs),
+zero or negative sizes a minimizing window reports are dropped, `Occluded`,
+`Hidden` and `Minimized` are `Visibility_changed false`, only a pinch update
+carries a zoom factor, and a drag over the window, a dropped file and a finished
+file dialog are `File_dragged`, `File_dropped` and `Dialog_closed`. The pump
+returns the first rejected event as an error and still delivers the rest;
+`Sketch` fails loudly on it.
+
 ## High-DPI and coordinate contract
 
 - Treat `Sketch` configuration sizes, `Frame.width`/`height`, `Scene`
   coordinates, `Frame.mouse`, mouse event positions, and PXUI layout as
   logical points in one shared coordinate system.
 - Keep SDL3 logical size synchronized with the actual window size.
-  `SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED` is authoritative.
+  `SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED` is authoritative: the input pump reports
+  it, `Runtime.window_changed` marks the window, and the next frame re-reads it
+  once. Never poll the window size every frame.
+- Text input runs only while a text field has focus (`Runtime.set_text_input`:
+  a region starts it, `None` stops it); never leave it on for the window's
+  life. A covered window gets no end event: `Runtime.visible` reads the named
+  window state and the sketch loop asks once a frame while hidden. SDL itself
+  turns a Control-click into a right click (a hint set in `Runtime.create`);
+  there is no Prismel-side emulation.
+- Native callbacks only queue (`specification/sdl3.md`, "Callback policy"): the
+  file-dialog callback copies into a bounded native slot and the event poll on
+  the initial domain turns it into `Dialog_closed`. No OCaml runs in a native
+  callback; live resize redraw would need an exception and is an open decision
+  there.
 - Do not manually scale mouse events for Retina displays. SDL3 logical event
   coordinates keep drawing and hit testing aligned.
 - Query Metal drawable size for physical backing pixels. Preserve

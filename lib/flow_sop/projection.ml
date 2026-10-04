@@ -421,6 +421,9 @@ let bypassable (n : node) =
           | Some { ty = Some ty; _ } -> Ty.fits ty n.ty
           | _ -> false))
 
+let reorderable (n : node) =
+  n.zone = None && List.mem n.head [ "list"; "str"; "scene/merge" ]
+
 let of_graph catalog (w : W.t) name =
   let def = String.starts_with ~prefix:"def:" name in
   let bare = if def then String.sub name 4 (String.length name - 4) else name in

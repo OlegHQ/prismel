@@ -3,7 +3,6 @@ type error_kind =
   | Wrong_domain
   | Invalid_argument
   | Incompatible_version
-  | Surface_error of Sdl3.error
 
 type error = {
   operation : string;
@@ -16,13 +15,10 @@ let pp_error formatter error =
 
 let error operation kind message = Error { operation; kind; message }
 
-type decoded = {
-  width : int;
-  height : int;
-  pixels : bytes;
-}
+type decoded = Sdl3.rgba = { width : int; height : int; pixels : bytes }
 
 external linked_version_number : unit -> int = "caml_sdl3_image_version"
+external compiled_version_number : unit -> int = "caml_sdl3_image_compiled_version"
 external decode_bytes_raw : bytes -> string option -> (decoded, string) result
   = "caml_sdl3_image_decode_bytes"
 
@@ -31,12 +27,14 @@ let linked_version () : Sdl3.version =
   { major = number / 1_000_000;
     minor = (number / 1_000) mod 1_000; patch = number mod 1_000 }
 
+(* The headers' own version macro, not a checked-in constant. *)
+let compiled_version : Sdl3.version =
+  let number = compiled_version_number () in
+  { major = number / 1_000_000;
+    minor = (number / 1_000) mod 1_000; patch = number mod 1_000 }
+
 let check_version ?(release=true) () =
-  let value = Generated_provenance.header_version in
-  let compiled : Sdl3.version =
-    { major=value.major; minor=value.minor; patch=value.patch } in
-  match Sdl3.validate_version ~library:"SDL3_image" ~compiled
-      ~stable_headers:Generated_provenance.stable_headers ~release
+  match Sdl3.validate_version ~library:"SDL3_image" ~compiled:compiled_version ~release
       ~linked:(linked_version ()) () with
   | Ok () -> Ok ()
   | Error source -> error "SDL3_image.check_version" Incompatible_version
@@ -185,21 +183,12 @@ let orient (decoded : decoded) orientation =
     done;
     { width; height; pixels }
 
-let surface operation (decoded : decoded) =
-  match Sdl3.Surface.of_rgba ~width:decoded.width ~height:decoded.height
-      decoded.pixels with
-  | Ok surface -> Ok surface
-  | Error surface_error ->
-      error operation (Surface_error surface_error)
-        (Format.asprintf "%a" Sdl3.pp_error surface_error)
-
 let decode operation ?kind bytes =
   match decode_bytes_raw bytes kind with
   | Error message -> error operation Decoder_error message
   | Ok decoded ->
       let source_orientation_number = jpeg_orientation bytes in
-      let decoded = orient decoded source_orientation_number in
-      surface operation decoded
+      Ok (orient decoded source_orientation_number)
 
 let read_file operation path =
   try
@@ -254,10 +243,3 @@ let load_file path =
     match read_file operation path with
     | Error _ as failure -> failure
     | Ok bytes -> decode operation ?kind:(kind_of_path path) bytes)
-
-let load_bytes ?kind bytes =
-  let operation = "SDL3_image.load_bytes" in
-  match kind with
-  | Some kind when kind = "" || contains_nul kind ->
-      error operation Invalid_argument "decoder kind must be non-empty and NUL-free"
-  | _ -> on_main operation (fun () -> decode operation ?kind bytes)

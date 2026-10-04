@@ -36,34 +36,29 @@
            fracture (sop/boolean_fracture source
                         (sop/copy_to_points sheet points)
                         :resolve_cutter_self_intersections true
-                        :piece_attribute "piece")
-           blue (sop/material fracture :material (ref cobalt))
-           navy-group (sop/group_random blue
-                                        :owner "Primitives"
-                                        :name "navy"
-                                        :probability 0.32
-                                        :seed 81
-                                        :seed_attribute "piece")
-           navy (sop/material navy-group :group "navy" :material (ref midnight))
-           white-group (sop/group_random navy
-                                         :owner "Primitives"
-                                         :name "porcelain"
-                                         :probability 0.24
-                                         :seed 82
-                                         :seed_attribute "piece")
-           white (sop/material white-group
-                               :group "porcelain"
-                               :material (ref porcelain))
-           teal-group (sop/group_random white
-                                        :owner "Primitives"
-                                        :name "turquoise"
-                                        :probability 0.16
-                                        :seed 83
-                                        :seed_attribute "piece")
-           colored (sop/material teal-group
-                                 :group "turquoise"
-                                 :material (ref turquoise))]
-      (sop/exploded_view (sop/normals colored :cusp_angle 0.65) :amount 1.42047)))
+                        :piece_attribute "piece")]
+      (-> fracture
+          (sop/material :material (ref cobalt))
+          (sop/group_random :owner "Primitives"
+                            :name "navy"
+                            :probability 0.32
+                            :seed 81
+                            :seed_attribute "piece")
+          (sop/material :group "navy" :material (ref midnight))
+          (sop/group_random :owner "Primitives"
+                            :name "porcelain"
+                            :probability 0.24
+                            :seed 82
+                            :seed_attribute "piece")
+          (sop/material :group "porcelain" :material (ref porcelain))
+          (sop/group_random :owner "Primitives"
+                            :name "turquoise"
+                            :probability 0.16
+                            :seed 83
+                            :seed_attribute "piece")
+          (sop/material :group "turquoise" :material (ref turquoise))
+          (sop/normals :cusp_angle 0.65)
+          (sop/exploded_view :amount 1.42047))))
 
   (graph studio_floor :context sop
     (sop/material (sop/grid :width 10 :height 10)
@@ -107,7 +102,10 @@
                             :intensity 80
                             :width 3
                             :height 4)]
-      (scene/merge sculpture ground camera key fill rim)))
+      (scene/root (scene/merge sculpture ground camera key fill rim)
+                  :width 1600
+                  :height 1600
+                  :max_spp 512)))
 
   (graph settings :context settings
     (settings/config :title "Shattered studio · Boolean materials"

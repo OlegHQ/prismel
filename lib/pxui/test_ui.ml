@@ -272,6 +272,26 @@ let with_scale scale =
   if Ui.scroll_offset ui parent <> 80. then
     fail (label "negative wheel scroll did not move the view down");
 
+  (* A pinch goes where the wheel goes: to the scrollable box under the pointer,
+     its factors multiplied within a frame, and nowhere else. *)
+  let ui = Ui.create () in
+  let pinched events =
+    time := !time +. 0.5;
+    let seen = ref 1. in
+    ignore (Ui.frame ui (frame ~scale ~time:!time events) (fun ui ->
+      let canvas = Ui.box ui ~flags:Ui.(scroll + clip) ~at:(0., 0.)
+          ~w:(Ui.Px 100.) ~h:(Ui.Px 80.) "pinch" in
+      seen := (Ui.signal ui canvas).pinch));
+    !seen in
+  ignore (pinched []);
+  if pinched [move (50, 40)] <> 1. then fail (label "a frame without a pinch reported one");
+  if pinched [move (50, 40); Event.MousePinched 1.25] <> 1.25 then
+    fail (label "a pinch over the canvas did not reach its signal");
+  if Float.abs (pinched [move (50, 40); Event.MousePinched 1.1; Event.MousePinched 0.5] -. 0.55) > 1e-9 then
+    fail (label "two pinches in a frame were not multiplied");
+  if pinched [move (300, 200); Event.MousePinched 1.25] <> 1. then
+    fail (label "a pinch away from the canvas reached it");
+
   (* Text fields: UTF-8 entry, Backspace/Delete, focus kept on cancel. *)
   let title = ref "" in
   let build ui = title := Ui.text_field ui "Title" !title in
@@ -473,6 +493,21 @@ let run () =
     fail "splitter did not request a resize cursor on hover";
   Ui.frame ui (frame ~scale:1. ~time:0.5 [move (300, 200)]) divider;
   if Ui.cursor ui <> None then fail "splitter cursor outlived hover";
+  (* text fields show the I-beam under the pointer, and only there *)
+  let field_ui = Ui.create () in
+  let title = ref "" in
+  let field ui = title := Ui.text_field ui "Title" !title in
+  Ui.frame field_ui (frame ~scale:1. ~time:0.6 []) field;
+  Ui.frame field_ui (frame ~scale:1. ~time:0.7 [move (150, row 0)]) field;
+  if Ui.cursor field_ui <> Some `Text then fail "a text field did not request the I-beam";
+  Ui.frame field_ui (frame ~scale:1. ~time:0.8 [move (300, 200)]) field;
+  if Ui.cursor field_ui <> None then fail "the I-beam outlived hover";
+  let area_ui = Ui.create () in
+  let area ui = ignore (Ui.text_area ui ~at:(0., 0.) ~w:200. ~h:100. "area" "hello") in
+  Ui.frame area_ui (frame ~scale:1. ~time:0.9 []) area;
+  Ui.frame area_ui (frame ~scale:1. ~time:1.0 [move (50, 30)]) area;
+  if Ui.cursor area_ui <> Some `Text then fail "a text area did not request the I-beam";
+  Ui.destroy field_ui; Ui.destroy area_ui;
   Ui.destroy ui;
   (* A canvas maps child coordinates by scale and offset, for layout,
      painting, and hit testing alike. *)
@@ -939,6 +974,74 @@ let run () =
    | Ok {layers = [Ui_layer _; Scene2_layer _; Ui_layer _]; _} -> ()
    | _ -> fail "native content was not between the background and floating controls");
   Ui.destroy ui;
-  (match Sdl3.Init.quit () with
+  (* A carry: held once the pointer has left the 4-point dead zone of the press, seen as hover
+     by a box that does not own the press, put once on release, and gone after a pointer
+     cancellation or a focus loss.  A key starts one with no capture: a press is the put. *)
+  let ui = Ui.create () in
+  let clicked = ref false in
+  let carried events = Ui.frame ui (frame ~scale:1. ~time:0. events) (fun ui ->
+    let source = Ui.box ui ~flags:Ui.clickable ~at:(0., 0.) ~w:(Ui.Px 100.) ~h:(Ui.Px 40.) "source" in
+    let target = Ui.box ui ~flags:Ui.clickable ~at:(0., 100.) ~w:(Ui.Px 100.) ~h:(Ui.Px 40.) "target" in
+    if (Ui.signal ui source).held then
+      Ui.carry ui ~from:source ~kind:"material" ~value:"(ref cobalt)" ();
+    clicked := !clicked || (Ui.signal ui target).clicked;
+    (Ui.carrying ui, Ui.drop_target ui target, (Ui.signal ui target).hovered)) in
+  let payload = { Ui.kind = "material"; value = "(ref cobalt)" } in
+  ignore (carried []); ignore (carried []);
+  (match carried [ press (10, 10) ] with
+   | None, None, false -> () | _ -> fail "a press alone started a carry");
+  (match carried [ move (12, 12) ] with
+   | None, None, false -> () | _ -> fail "a carry started inside the dead zone");
+  (match carried [ move (10, 120) ] with
+   | Some held, Some (Ui.Hover over), true when held = payload && over = payload -> ()
+   | _ -> fail "a box that does not own the press did not see the carry hover");
+  (match carried [ move (10, 110) ] with
+   | Some _, Some (Ui.Hover _), _ -> () | _ -> fail "the carry did not follow the pointer");
+  (match carried [ release (10, 110) ] with
+   | None, Some (Ui.Dropped dropped), _ when dropped = payload -> ()
+   | _ -> fail "a release over a target did not deliver the payload");
+  (match carried [] with
+   | None, None, _ -> () | _ -> fail "the put was delivered twice");
+  if !clicked then fail "the release of a carry clicked the target";
+  (* a release over nothing delivers nothing, and the payload is gone *)
+  ignore (carried [ press (10, 10) ]); ignore (carried [ move (10, 120) ]);
+  (match carried [ move (200, 200); release (200, 200) ] with
+   | None, None, _ -> () | _ -> fail "a release over nothing delivered a payload");
+  (* cancellation and focus loss clear it, delivering nothing *)
+  ignore (carried [ press (10, 10) ]); ignore (carried [ move (10, 120) ]);
+  (match carried [ Event.PointerCancelled Input.LeftButton ] with
+   | None, None, _ -> () | _ -> fail "a pointer cancellation left the payload held");
+  (match carried [ release (10, 120) ] with
+   | None, None, _ -> () | _ -> fail "a cancelled carry was put on release");
+  ignore (carried [ press (10, 10) ]); ignore (carried [ move (10, 120) ]);
+  (match carried [ Event.WindowFocusLost ] with
+   | None, None, _ -> () | _ -> fail "a focus loss left the payload held");
+  ignore (carried [ release (10, 120) ]);
+  (* from a key: no capture, hover from the pointer, the next left press is the put *)
+  Ui.carry ui ~kind:"sop" ~value:"(ref shards)" ();
+  if Ui.carrying ui = None then fail "a key did not start a carry";
+  (match carried [ move (10, 120) ] with
+   | Some _, Some (Ui.Hover { kind = "sop"; _ }), true -> ()
+   | _ -> fail "a key carry was not seen hovering");
+  (match carried [ press (10, 120) ] with
+   | None, Some (Ui.Dropped { value = "(ref shards)"; _ }), _ -> ()
+   | _ -> fail "a press did not put a key carry");
+  ignore (carried [ release (10, 120) ]);
+  if !clicked then fail "the press that put a key carry also clicked";
+  (* the host cancels (Escape) *)
+  Ui.carry ui ~kind:"sop" ~value:"(ref shards)" ();
+  Ui.cancel_carry ui;
+  if Ui.carrying ui <> None then fail "cancel_carry kept the payload";
+  (* an idle frame after a carry builds nothing new *)
+  let scene_size () = List.length (Ui.scene ui) in
+  ignore (carried []);
+  let idle = scene_size () in
+  Ui.carry ui ~kind:"sop" ~value:"(ref shards)" ();
+  ignore (carried [ move (50, 50) ]);
+  Ui.cancel_carry ui;
+  ignore (carried []);
+  if scene_size () <> idle then fail "an idle frame painted a ghost";
+  Ui.destroy ui;
+  (match Sdl3.Init.quit_subsystems [Sdl3.Init.Video] with
    | Ok () -> () | Error error -> fail (Format.asprintf "%a" Sdl3.pp_error error));
   print_endline "PXUI Ui interaction contract passed at 1x and 2x"

@@ -9,7 +9,6 @@ type error_kind =
   | Not_initialized
   | Font_not_found
   | Fonts_still_open
-  | Surface_error of Sdl3.error
 
 type error = private {
   operation : string;
@@ -19,6 +18,9 @@ type error = private {
 
 val pp_error : Format.formatter -> error -> unit
 
+(** The version macro of the headers compiled against, and the library
+    linked; both are checked against packaging/sdl3.lock by the tests. *)
+val compiled_version : Sdl3.version
 val linked_version : unit -> Sdl3.version
 val check_version : ?release:bool -> unit -> (unit, error) result
 
@@ -50,40 +52,32 @@ module Font : sig
   (** Locate an installed UI font. [PRISMEL_UI_FONT] is authoritative when
       non-empty; otherwise platform candidates are tried in stable order. *)
   val system_path : unit -> (string, error) result
-  val generation : t -> int
   val metrics : t -> (metrics, error) result
   val family_name : t -> (string option, error) result
   val style_name : t -> (string option, error) result
-  val set_size : t -> float -> (unit, error) result
   val set_size_dpi :
     t -> size:float -> horizontal:int -> vertical:int -> (unit, error) result
-  val dpi : t -> ((int * int), error) result
   val set_style : t -> style list -> (unit, error) result
-  val style : t -> (style list, error) result
   val set_outline : t -> int -> (unit, error) result
-  val outline : t -> (int, error) result
   val set_hinting : t -> hinting -> (unit, error) result
-  val hinting : t -> (hinting, error) result
   val set_kerning : t -> bool -> (unit, error) result
-  val kerning : t -> (bool, error) result
   val set_wrap_alignment : t -> alignment -> (unit, error) result
   (** Line alignment inside [render_blended_wrapped] output. *)
 
-  val has_glyph : t -> int -> (bool, error) result
   val glyph_metrics : t -> int -> (glyph_metrics, error) result
   val size_text : t -> string -> (int * int, error) result
   val size_text_wrapped : t -> wrap_width:int -> string ->
     (int * int, error) result
 
-  (** Render UTF-8 to a CPU RGBA8 surface. Empty text is [Ok None], preserving
+  (** Render UTF-8 to tightly packed RGBA8 rows. Empty text is [Ok None], preserving
       the high-level no-op contract instead of asking SDL_ttf for a 0-width
-      surface. Color channels are straight RGBA values in [0,255]. *)
+      bitmap. Color channels are straight RGBA values in [0,255]. *)
   val render_blended :
     t -> color:int * int * int * int -> string ->
-    (Sdl3.Surface.t option, error) result
+    (Sdl3.rgba option, error) result
   val render_blended_wrapped :
     t -> color:int * int * int * int -> wrap_width:int -> string ->
-    (Sdl3.Surface.t option, error) result
+    (Sdl3.rgba option, error) result
 
   val destroy : t -> (unit, error) result
 end

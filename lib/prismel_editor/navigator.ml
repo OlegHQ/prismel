@@ -378,7 +378,16 @@ let view state ui ~bounds:(x, y, w, h) p =
   let intents = ref (List.rev renamed) in
   let emit i = intents := i :: !intents in
   let begin_rename = ref None in
-  (if signal.clicked then match Option.map (fun k -> rows.(k)) (row_at signal.release_point) with
+  (* a material or a SOP graph is a source: pressed and moved 4 points it is carried, as the
+     Flow value that reads it *)
+  if signal.held then
+    (match Option.map (fun k -> rows.(k)) (row_at signal.press_point) with
+     | Some (Graph_row { graph; context = Some ((W.Material | W.Sop | W.Scene) as context); _ }) ->
+         Ui.carry ui ~from:box ~kind:(match context with W.Material -> "material" | W.Scene -> "scene" | _ -> "sop")
+           ~value:("(ref " ^ graph ^ ")") ()
+     | _ -> ());
+  let put = match Ui.drop_target ui box with Some (Ui.Dropped _) -> true | _ -> false in
+  (if signal.clicked && not put then match Option.map (fun k -> rows.(k)) (row_at signal.release_point) with
    | Some (Graph_row { graph; _ }) -> emit (Open { graph; node = None })
    | Some (Node_row { graph; path; _ }) -> emit (Open { graph; node = Some path })
    | Some (Link_row { graph; _ }) -> emit (Open { graph; node = None })

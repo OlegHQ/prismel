@@ -119,7 +119,17 @@ supported; source/history are unchanged when an edit is refused.
   is written by the focused one only.  A click picks in the focused viewport's scene instance, selects a collapsed
   loop instead of a node inside it, and 2D editors pick the same way (a ray down onto the plane).
 - A viewport over another scene instance renders as its instance (`Core.view_root_opt` for the root, `Core.world ~view`
-  and `Document.view_worlds` for the World); `Renderer` keeps one setting per viewport slot. Every editor a test
+  and `Document.view_worlds` for the World; `Document.view_roots` for its render settings and its
+  `:camera`); `Viewport3.film`, `view_camera` and `render` take the viewport's key and read that
+  key's root (`Viewport3.look`), and `Environment` threads the key (`look_key` maps the hidden
+  scene to the focused viewport).  `Renderer` keeps one slot per traced picture: viewports with the same
+  scene, camera, film and setting share a tracer; the film is the root's resolution divided by 1, 2, 4 or 8
+  that fits the gate in drawable pixels (`Renderer.film`), so a resize restarts accumulation only
+  across a step; the focused slot renders every frame and the others take turns, one per frame
+  (`Renderer.update ~focus`, `next_turn`); the sample cap (`max_spp`) is read per frame, never part of
+  `Renderer.setting`.  A text edit that leaves the objects alone keeps `Document.scene` physically
+  (`Contexts.of_workspace`) and a cook that returns every piece it had reports no change
+  (`Cook.same_pieces`), so nothing recomposes and no tracer restarts. Every editor a test
   creates is closed (`E3.close`): each one holds worker domains and the runtime allows 128, so a leak shows as
   "failed to allocate domain" in whichever test runs last.
 - Tests never wait on the clock for a cook: `Editor3/2.create ~await:true` blocks each frame on the cook it
@@ -171,7 +181,7 @@ look-through, camera frustums, the axis gizmo, and translate handles on the
 selected node's position-like xyz parameters (drawn only while the UI shows);
 a collapsed graph or inspector column takes no width. Graph tile dragging is presentation-only and
 must preserve connectivity, stable IDs, caches, and cook state. Right/middle
-drag pans, wheel/trackpad motion zooms at the pointer, [Home] frames all, and
+drag pans, wheel, trackpad scroll and pinch zoom at the pointer, [Home] frames all, and
 leader `f` frames the displayed tile and graph-focused [F] frames the selection
 or the display node; viewport-focused [F]
 focuses the camera on the displayed node.
@@ -378,17 +388,55 @@ Standalone 2D art sketches keep their own drawing paths.
 model: both are built inside `Ui.frame`, return intents and never mutate it. `Core.navigator_params` is everything the
 Navigator reads (the checked workspace, the open graph's projection, the probe records, the applied panel tree);
 `Navigator.Open` sets `pane_graph` (which outranks a `(ui/graph "name")` panel) and selects and frames a node;
-`Navigator.Set_default` is `Flow_edit.Set_input_default`. A document with an editor graph has a 28-point host bar:
-`Core.bar_height` is the `?top` every `Pxui_shell.Layout.geometry`, `Chrome.update` and `Chrome.splitters` call passes, so
-a test computing geometry passes `~top:Bars.height`. A bar or toolbar click that means a command sets `bar_action`, run
-next frame like a palette pick; one that means an edit is a `Syntax_edit` change. `Bars.layout_text` writes the editor
-graph of each shell layout (the `Set_graph` text), `Bars.top_button_rect` and `tool_rect` are the one source of a
-button's place for the draw and for tests. Make defn (`Flow_edit.Make_defn`) is typed by `Core.defn_change`.
-The bar's "Refused · ..." status is a click target (`Bars.Dismiss` clears `edit_error`); a later successful
-edit clears it too.
+`Navigator.Set_default` is `Flow_edit.Set_input_default`. There is no host bar: panels fill the window above the
+status strip, and every global action is a leader key and a palette row (`Space [` for layouts, `Space k` for the key
+sheet). A graph-header toolbar click that means a command runs next frame like a palette pick; one that means an
+edit is a `Syntax_edit` change. `Bars.tool_rect` is the one source of a toolbar button's place for the draw and for
+tests. Make defn (`Flow_edit.Make_defn`) is typed by `Core.defn_change`. A "Refused · ..." status clears with the
+next successful edit.
 
 The viewport reads the renderer, resolution and samples from the scene root (`Document.root`):
 `Viewport3` takes the root's renderer when its text has a root (`homes.root`), else the sketch's
 `renderer` setting or the viewport preference; the Render section of the empty-selection inspector
 edits the root through `Core.set_root` (the first edit writes it).  A composition gesture that
 writes several things (a SOP graph and its object) is one `Syntax_batch` and one undo entry.
+
+## Carry (flow.md §7.12)
+
+A payload in flight (`Core.carry`, `carry.ml`). `y` (`Leader.Pick_up`) or a press on a Navigator row
+(`Ui.carry ~from`) holds a Flow value (`(ref cobalt)`, kind `material` or `sop`). `Carry.put` is the
+only place that knows what a payload does at a place (`Carry.place`: a node, a graph's canvas, an object,
+a surface, a viewport): it builds the ops (`Set_arg`, `Add_node` + `Connect`, `Scene_sync.add_geometry`)
+and runs them through `Doc.syntax_batch`, so the checker is the target test; do not list what a widget
+accepts. `Core.update` is `carry_step` (the carry's turn: its keys, the ends of the gesture, the preview) then
+`update_frame`. While a target is hot `value.doc` is the edit applied to a scratch copy and the history
+is not touched (`Core.doc` is the history's present again only after the carry); the original is held
+in the carry, and cancelling puts it back physically (nothing to undo). The put is
+`install ~label:"Put" ~merge:Step`. While carrying `update_frame` keeps only navigation (`carry_allowed`
+actions, `Selected`/`Activated` scope changes, outline `Open`, `Go`): every other change is dropped,
+and `scene_edit`, `set_settings` and `set_root` ignore the host, and `Environment.autosave` never saves
+a preview. Panes report what is under the pointer (the graph pane's `Drop_over`/`Dropped`, the inspector's
+`@ref:material` choice through `Inspector.flow_fields ~on_choice`, a viewport root); the report is read
+the next frame. A viewport is resolved by the host: `Environment` casts the pointer ray and calls
+`Core.carry_over_surface`, which picks on the pieces cooked for the original document (never on the
+preview) so the surface's material does not flip with the preview. Preview budget `carry_budget`
+(a field of `Core.t`, `?carry_budget` of `create`, default 0.5 s; tests pass 0.): a put whose apply or
+whose last cook takes that long is `Held_back` (said, not shown; `test_materials` exercises it). The key
+route's letters are `carry_letters`; they and Enter/Escape are removed from the frame the rest of the
+editor sees. The strip's line is `carry_line`. Tests: `test/test_materials.ml` (carry_tests).
+Kinds are `material`, `sop`, `scene` (a scene graph, from a Navigator row or `y`) and `camera` (a bare
+binding name, from `y` with the object selected). `Carry.viewports` lists the panels of the editor
+graph's layout (`Doc.panel_node` binds a panel written in place); a scene re-points the panel, a camera
+is the `:camera` of the root of the scene the panel shows. `Carry.Text` is a byte of the text pane's
+shown text (`Text_pane.Carry_over` from `Ui.text_area_submit ~on_drop`): the pane reads the carry's
+original document while carrying so the byte does not move, `Text_pane.graph_op` is the one reading of a
+Graph or Selection text (shared with `binding_edit`/`graph_edit`), and a tab with a draft is `Drafted`
+(refused). The key route has no text target. The strip's reminder (`hint`) is the carry's own, so it
+shows with the prompt. Not built: a Finder file drop (no place takes a path).
+
+## Gesture echo and Copy
+
+`Echo.words` is a gesture's op in the words of the text; `Core.update_frame` sets the notice to
+`Wrote <words>` for a `Syntax_edit`/`Syntax_batch` (the same strip slot the carry's preview uses; an
+authored note from `Scene_sync` wins). `Leader.Copy_lisp` (palette only) puts `Preset.text` on the
+clipboard, the text Command-S writes.

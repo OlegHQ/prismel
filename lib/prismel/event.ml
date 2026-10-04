@@ -2,20 +2,24 @@ type t = KeyPressed of Input.key | KeyReleased of Input.key | MouseMoved of (flo
   | MousePressed of Input.mouse_button*(float*float) | MouseReleased of Input.mouse_button*(float*float)
   | PointerCancelled of Input.mouse_button | MouseScrolled of (float*float) | TextInput of string
   | TextEditing of {text:string;start:int;length:int} | FileDropped of string
+  | FileDragMoved of (float*float) | FileDragEnded | MousePinched of float
+  | FileDialog of {id:int;result:(string list,string) result}
   | WindowResized of (int*int) | WindowFocusLost | WindowClosed
-let key text=match String.lowercase_ascii text with
-  |"arrowup"->Input.ArrowUp|"arrowdown"->ArrowDown|"arrowleft"->ArrowLeft|"arrowright"->ArrowRight
-  |"space"->Space|"enter"->Enter|"escape"->Escape|"backspace"->Backspace|"tab"->Tab
-  |"shift"|"left shift"|"right shift"->Shift|"ctrl"|"control"|"left ctrl"|"right ctrl"->Ctrl
-  |"alt"|"left alt"|"right alt"->Alt|"meta"|"gui"|"left gui"|"right gui"->Meta
-  |"f1"->F1|"f2"->F2|"f3"->F3|"f4"->F4|"f5"->F5|"f6"->F6
-  |"f7"->F7|"f8"->F8|"f9"->F9|"f10"->F10|"f11"->F11|"f12"->F12
-  |"home"->Home|"end"->End|"pageup"|"page up"->PageUp|"pagedown"|"page down"->PageDown
-  |"insert"->Insert|"delete"->Delete
-  |value when String.length value=1->KeyChar value.[0]
-  |_->Unknown(Hashtbl.hash text)
 module Private = struct
-  let key_of_name = key
+  (* The binding names a key once, from SDL's keycode; this is only the move
+     to Prismel's own variant. *)
+  let key_of_runtime : Runtime_input.key -> Input.key = function
+    | Char character -> KeyChar character
+    | Arrow_up -> ArrowUp | Arrow_down -> ArrowDown
+    | Arrow_left -> ArrowLeft | Arrow_right -> ArrowRight
+    | Space -> Space | Enter -> Enter | Escape -> Escape
+    | Backspace -> Backspace | Tab -> Tab
+    | Shift -> Shift | Control -> Ctrl | Alt -> Alt | Meta -> Meta
+    | F1 -> F1 | F2 -> F2 | F3 -> F3 | F4 -> F4 | F5 -> F5 | F6 -> F6
+    | F7 -> F7 | F8 -> F8 | F9 -> F9 | F10 -> F10 | F11 -> F11 | F12 -> F12
+    | Home -> Home | End -> End | Page_up -> PageUp | Page_down -> PageDown
+    | Insert -> Insert | Delete -> Delete
+    | Unknown code -> Unknown code
   let add key keys = if List.mem key keys then keys else key :: keys
   let keys_after keys = function
     | KeyPressed key -> add key keys

@@ -31,6 +31,7 @@
 (rule
  (enabled_if (= %{env:PRISMEL_PATH_TRACER_EXACT_M1=0} 1))
  (alias qualification)
+ (locks smoke_window)
  (deps pathtrace.metal)
  (action
   (setenv PRISMEL_PATH_TRACER_EXACT_M1 1
@@ -38,10 +39,12 @@
 
 (rule
  (aliases runtest-native test_gpu_film)
+ (locks smoke_window)
  (action (run %{exe:test_main.exe} test_gpu_film)))
 
 (rule
  (alias qualification)
+ (locks smoke_window)
  (deps pathtrace.metal)
  (action (run %{exe:test_main.exe} test_parity)))
 

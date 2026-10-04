@@ -83,8 +83,10 @@
 
 (rule
  (aliases runtest-native test_canvas_native)
+ (locks smoke_window)
  (action (run %{exe:test_main.exe} test_canvas_native)))
 
 (rule
  (aliases runtest-native test_retained_view_native)
+ (locks smoke_window)
  (action (run %{exe:test_main.exe} test_retained_view_native)))

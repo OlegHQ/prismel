@@ -11,13 +11,20 @@ type t =
   | TextInput of string
   | TextEditing of { text : string; start : int; length : int }
   | FileDropped of string                                   (* absolute path; not read *)
+  | FileDragMoved of (float * float)                         (* files from the OS are over the window at this point *)
+  | FileDragEnded                                            (* the drag left the window or finished *)
+  | MousePinched of float                                    (* trackpad pinch: zoom factor since the last event; above 1 zooms in *)
+  | FileDialog of { id : int; result : (string list, string) result }
+      (** a native file dialog from {!Sketch.show_file_dialog} finished: the
+          chosen paths (empty when the user cancelled) or what went wrong *)
   | WindowResized of (int * int)                             (* new width and height *)
   | WindowFocusLost
   | WindowClosed                                             (* user attempted to close *)
 
 module Private : sig
-  val key_of_name : string -> Input.key
-  (* The runtime key-name contract; exposed for tests. *)
+  val key_of_runtime : Runtime_input.key -> Input.key
+  (** The one move from the binding's key to Prismel's; exposed for tests. *)
+
   val keys_before : previous:Input.key list -> held:Input.key list ->
     t list -> Input.key list
   (** Initial held keys: changed keys and focus cancellation take [previous];

@@ -1,4 +1,7 @@
-(** Ownership-aware compiled bindings to the pinned stable SDL3 headers. *)
+(** Ownership-aware compiled bindings to SDL3: the window, input and
+    presentation surface Prismel's runtime uses. Every call runs on the
+    initial domain and returns a typed error otherwise; no callback into
+    OCaml is ever installed (see specification/sdl3.md). *)
 
 type error_kind =
   | Sdl_error
@@ -20,35 +23,18 @@ type rect = { x : int; y : int; width : int; height : int }
 val pp_error : Format.formatter -> error -> unit
 
 type version = { major : int; minor : int; patch : int }
+
+(** The version macro of the headers this binding was compiled against. *)
 val compiled_version : version
 val linked_version : unit -> version
+
 val validate_version : ?library:string -> ?compiled:version ->
-  ?stable_headers:bool -> release:bool -> linked:version ->
+  release:bool -> linked:version ->
   unit -> (unit, error) result
 val check_version : ?release:bool -> unit -> (unit, error) result
 
-module Time : sig
-  val performance_counter : unit -> int64
-  val performance_frequency : unit -> int64
-  val monotonic_seconds : unit -> float
-
-  (** Wait at least the requested whole number of milliseconds using SDL's
-      ordinary millisecond timer. The value must fit in an unsigned 32-bit
-      integer. The calling OCaml domain does not retain the runtime lock. *)
-  val delay_ms : int -> (unit, error) result
-
-  (** [delay_seconds seconds] rounds a finite, non-negative duration up to
-      milliseconds and waits using SDL's ordinary millisecond timer. *)
-  val delay_seconds : float -> (unit, error) result
-
-  (** Wait as close as possible to the requested non-negative duration.
-      The calling OCaml domain does not retain the runtime lock while waiting. *)
-  val delay_precise_ns : int64 -> (unit, error) result
-
-  (** [delay_precise_seconds seconds] converts a finite, non-negative duration
-      to nanoseconds and waits using {!delay_precise_ns}. *)
-  val delay_precise_seconds : float -> (unit, error) result
-end
+(** Decoded pixels: tightly packed RGBA8 rows owned by the caller. *)
+type rgba = { width : int; height : int; pixels : bytes }
 
 module Thread : sig
   val is_initial_domain : unit -> bool
@@ -56,35 +42,22 @@ module Thread : sig
 end
 
 module Init : sig
-  type subsystem =
-    | Audio
-    | Video
-    | Joystick
-    | Haptic
-    | Gamepad
-    | Events
-    | Sensor
-    | Camera
+  type subsystem = Video | Events
 
   val init : ?release:bool -> subsystem list -> (unit, error) result
-  val initialized : subsystem list -> (bool, error) result
   val quit_subsystems : subsystem list -> (unit, error) result
-  val quit : unit -> (unit, error) result
+end
+
+(** SDL's own hints, set by name in the stubs. *)
+module Hint : sig
+  (** macOS: let SDL turn a Control-click into a right click. *)
+  val control_click_is_right_click : bool -> (unit, error) result
 end
 
 module Window : sig
   type t
 
-  type flag =
-    | Fullscreen
-    | Hidden
-    | Borderless
-    | Resizable
-    | High_pixel_density
-    | Always_on_top
-    | Utility
-    | Metal
-    | Transparent
+  type flag = Hidden | High_pixel_density | Metal
   type presentation_facts = {
     logical_width : int; logical_height : int;
     drawable_width : int; drawable_height : int;
@@ -92,228 +65,134 @@ module Window : sig
     refresh_rate : float option; vsync : bool;
   }
 
+  (** What SDL's window flags say about showing. SDL sends an event when a
+      window becomes occluded and none when it stops, so a caller that saw
+      [Event.Occluded] reads [state] to learn it is uncovered again. *)
+  type state = { hidden : bool; minimized : bool; occluded : bool }
+
   val create :
     title:string -> width:int -> height:int -> ?flags:flag list -> unit ->
     (t, error) result
-  val destroyed : t -> bool
-  val id : t -> (int64, error) result
   val size : t -> (int * int, error) result
   val size_in_pixels : t -> (int * int, error) result
-  val pixel_density : t -> (float, error) result
-  val display_scale : t -> (float, error) result
   val position : t -> (int * int, error) result
   val title : t -> (string, error) result
-  val set_title : t -> string -> (unit, error) result
-  val set_position : t -> x:int -> y:int -> (unit, error) result
   val center : t -> (unit, error) result
   val set_size : t -> width:int -> height:int -> (unit, error) result
-  val set_bordered : t -> bool -> (unit, error) result
   val set_resizable : t -> bool -> (unit, error) result
-  val set_always_on_top : t -> bool -> (unit, error) result
   val set_relative_mouse : t -> bool -> (unit, error) result
-  val relative_mouse : t -> (bool, error) result
   val presentation_facts : t -> vsync:bool -> (presentation_facts, error) result
-  val flags : t -> (int64, error) result
   val show : t -> (unit, error) result
   val raise_window : t -> (unit, error) result
   val hide : t -> (unit, error) result
-  val maximize : t -> (unit, error) result
-  val minimize : t -> (unit, error) result
   val restore : t -> (unit, error) result
-  val set_fullscreen : t -> bool -> (unit, error) result
+  val state : t -> (state, error) result
   val sync : t -> (unit, error) result
   val destroy : t -> (unit, error) result
 end
 
-module Mouse : sig
-  val capture : bool -> (unit, error) result
-end
-
 module Cursor : sig
-  type shape = Default | Text | Wait | Crosshair | Progress | Nwse_resize
-    | Nesw_resize | Ew_resize | Ns_resize | Move | Not_allowed | Pointer
+  type shape = Default | Text | Ew_resize | Ns_resize
   type t
   val create : shape -> (t, error) result
   val set : t -> (unit, error) result
-  val show : unit -> (unit, error) result
-  val hide : unit -> (unit, error) result
-  val visible : unit -> (bool, error) result
   val destroy : t -> (unit, error) result
 end
 
 module Clipboard : sig
   val set_text : string -> (unit, error) result
   val get_text : unit -> (string, error) result
-  val has_text : unit -> (bool, error) result
 end
 
 module Text_input : sig
   val start : Window.t -> (unit, error) result
   val stop : Window.t -> (unit, error) result
-  val active : Window.t -> (bool, error) result
-  val set_area : Window.t -> rect option -> cursor:int -> (unit, error) result
-  val area : Window.t -> ((rect * int), error) result
+  val set_area : Window.t -> rect -> cursor:int -> (unit, error) result
+end
+
+module Key : sig
+  (** A key as the stubs name it with SDL's key macros. A letter or digit is
+      [Char] in lower case on any layout (by the key's position when the
+      layout's own character is not ASCII); [Unknown] carries SDL's keycode. *)
+  type t =
+    | Char of char
+    | Arrow_up | Arrow_down | Arrow_left | Arrow_right
+    | Space | Enter | Escape | Backspace | Tab
+    | Shift | Control | Alt | Meta
+    | F1 | F2 | F3 | F4 | F5 | F6 | F7 | F8 | F9 | F10 | F11 | F12
+    | Home | End | Page_up | Page_down | Insert | Delete
+    | Unknown of int
+
+  type modifier =
+    | Shift_held | Control_held | Alt_held | Meta_held
+    | Num_lock | Caps_lock | Scroll_lock
+end
+
+(** Native file dialogs. A dialog opens and returns at once with its id; the
+    outcome arrives later as an [Event.Dialog] with the same id, through the
+    event poll on the initial domain. SDL may run its callback on another
+    thread; the stubs only copy the outcome into a fixed number of native
+    slots there (no OCaml runs), so at most 8 dialogs can be open at once. *)
+module Dialog : sig
+  type kind = Open_file | Open_files | Save_file | Open_folder
+
+  (** [pattern] lists extensions separated by semicolons ("png;jpg"), or "*". *)
+  type filter = { name : string; pattern : string }
+
+  val show :
+    Window.t -> ?filters:filter list -> ?default_location:string -> kind ->
+    (int, error) result
 end
 
 module Event : sig
-  type id = int64
-
-  type application_change =
-    | Terminating
-    | Low_memory
-    | Will_enter_background
-    | Did_enter_background
-    | Will_enter_foreground
-    | Did_enter_foreground
-    | Locale_changed
-    | System_theme_changed
-
-  type display_change =
-    | Orientation of int
-    | Added
-    | Removed
-    | Moved
-    | Desktop_mode_changed
-    | Current_mode_changed
-    | Content_scale_changed
-    | Usable_bounds_changed
-    | Other_display_change of int * int * int
+  type mouse_button = Left | Middle | Right | X1 | X2
+  type wheel_direction = Normal | Flipped
+  type pinch_phase = Began | Updated | Ended
 
   type window_change =
     | Shown
     | Hidden
-    | Exposed
-    | Window_moved of int * int
-    | Resized of int * int
-    | Pixel_size_changed of int * int
-    | Metal_view_resized
     | Minimized
-    | Maximized
     | Restored
-    | Mouse_entered
-    | Mouse_left
+    | Occluded
     | Focus_gained
     | Focus_lost
     | Close_requested
-    | Hit_test
-    | Icc_profile_changed
-    | Display_changed of id
-    | Display_scale_changed
-    | Safe_area_changed
-    | Occluded
-    | Entered_fullscreen
-    | Left_fullscreen
-    | Destroyed
-    | Hdr_state_changed
-    | Other_window_change of int * int * int
-
-  type device_change = Added | Removed
-  type wheel_direction = Normal | Flipped | Other_wheel_direction of int
-  type touch_phase = Down | Up | Motion | Cancelled
-  type pinch_phase = Began | Updated | Ended
-  type pen_proximity_change = Entered | Left
-
-  type gamepad_change =
-    | Gamepad_added
-    | Gamepad_removed
-    | Remapped
-    | Update_complete
-    | Steam_handle_updated
-    | Other_gamepad_change of int
+    | Resized of int * int  (** logical points *)
+    | Pixel_size_changed of int * int  (** drawable pixels *)
 
   type drop_change =
-    | File of string
-    | Text of string
-    | Drop_began
+    | Drop_begin
+    | Drop_position  (** a drag is over the window at [x], [y] *)
     | Drop_complete
-    | Drop_position
-    | Other_drop_change of int
+    | File of string
 
-  type audio_device_change =
-    | Audio_added
-    | Audio_removed
-    | Format_changed
-    | Other_audio_device_change of int
+  type dialog_outcome =
+    | Chosen of string list  (** the chosen paths, UTF-8 *)
+    | Cancelled
+    | Failed of string
 
+  (** The events Prismel reads; every other kind SDL queues is skipped in the
+      stubs and never copied. *)
   type t =
-    | Quit of { timestamp_ns : int64 }
-    | Application of { timestamp_ns : int64; change : application_change }
-    | Display of {
-        timestamp_ns : int64;
-        display_id : id;
-        change : display_change;
-      }
-    | Window of {
-        timestamp_ns : int64;
-        window_id : id;
-        change : window_change;
-      }
-    | Keyboard_device of {
-        timestamp_ns : int64;
-        which : id;
-        change : device_change;
-      }
+    | Quit
+    | Window of window_change
     | Key of {
-        timestamp_ns : int64;
-        window_id : id;
-        which : id;
-        scancode : int;
-        keycode : int;
-        modifiers : int;
-        raw_scancode : int;
+        key : Key.t;
+        modifiers : Key.modifier list;
         down : bool;
         repeat : bool;
       }
-    | Keymap_changed of { timestamp_ns : int64 }
-    | Text_editing of {
-        timestamp_ns : int64;
-        window_id : id;
-        text : string;
-        start : int;
-        length : int;
-      }
-    | Text_editing_candidates of {
-        timestamp_ns : int64;
-        window_id : id;
-        candidates : string list;
-        selected : int option;
-        horizontal : bool;
-      }
-    | Text_input of {
-        timestamp_ns : int64;
-        window_id : id;
-        text : string;
-      }
-    | Screen_keyboard of { timestamp_ns : int64; shown : bool }
-    | Mouse_device of {
-        timestamp_ns : int64;
-        which : id;
-        change : device_change;
-      }
-    | Mouse_motion of {
-        timestamp_ns : int64;
-        window_id : id;
-        which : id;
-        buttons : int64;
-        x : float;
-        y : float;
-        dx : float;
-        dy : float;
-      }
+    | Text_input of string
+    | Text_editing of { text : string; start : int; length : int }
+    | Mouse_motion of { x : float; y : float; dx : float; dy : float }
     | Mouse_button of {
-        timestamp_ns : int64;
-        window_id : id;
-        which : id;
-        button : int;
+        button : mouse_button;
         down : bool;
-        clicks : int;
         x : float;
         y : float;
       }
     | Mouse_wheel of {
-        timestamp_ns : int64;
-        window_id : id;
-        which : id;
         x : float;
         y : float;
         direction : wheel_direction;
@@ -322,164 +201,16 @@ module Event : sig
         integer_x : int;
         integer_y : int;
       }
-    | Touch of {
-        timestamp_ns : int64;
-        window_id : id;
-        touch_id : id;
-        finger_id : id;
-        phase : touch_phase;
-        x : float;
-        y : float;
-        dx : float;
-        dy : float;
-        pressure : float;
-      }
-    | Pinch of {
-        timestamp_ns : int64;
-        window_id : id;
-        phase : pinch_phase;
-        scale : float;
-      }
-    | Pen_proximity of {
-        timestamp_ns : int64;
-        window_id : id;
-        which : id;
-        change : pen_proximity_change;
-      }
-    | Pen_motion of {
-        timestamp_ns : int64;
-        window_id : id;
-        which : id;
-        state : int64;
-        x : float;
-        y : float;
-      }
-    | Pen_touch of {
-        timestamp_ns : int64;
-        window_id : id;
-        which : id;
-        state : int64;
-        x : float;
-        y : float;
-        eraser : bool;
-        down : bool;
-      }
-    | Pen_button of {
-        timestamp_ns : int64;
-        window_id : id;
-        which : id;
-        state : int64;
-        x : float;
-        y : float;
-        button : int;
-        down : bool;
-      }
-    | Pen_axis of {
-        timestamp_ns : int64;
-        window_id : id;
-        which : id;
-        state : int64;
-        x : float;
-        y : float;
-        axis : int;
-        value : float;
-      }
-    | Gamepad_axis of {
-        timestamp_ns : int64;
-        which : id;
-        axis : int;
-        value : int;
-      }
-    | Gamepad_button of {
-        timestamp_ns : int64;
-        which : id;
-        button : int;
-        down : bool;
-      }
-    | Gamepad_device of {
-        timestamp_ns : int64;
-        which : id;
-        change : gamepad_change;
-      }
-    | Gamepad_touchpad of {
-        timestamp_ns : int64;
-        which : id;
-        touchpad : int;
-        finger : int;
-        phase : touch_phase;
-        x : float;
-        y : float;
-        pressure : float;
-      }
-    | Gamepad_sensor of {
-        timestamp_ns : int64;
-        sensor_timestamp_ns : int64;
-        which : id;
-        sensor : int;
-        data : float * float * float;
-      }
-    | Drop of {
-        timestamp_ns : int64;
-        window_id : id;
-        x : float;
-        y : float;
-        source : string option;
-        change : drop_change;
-      }
-    | Clipboard of {
-        timestamp_ns : int64;
-        owner : bool;
-        mime_types : string list;
-      }
-    | Audio_device of {
-        timestamp_ns : int64;
-        which : id;
-        recording : bool;
-        change : audio_device_change;
-      }
-    | Sensor of {
-        timestamp_ns : int64;
-        sensor_timestamp_ns : int64;
-        which : id;
-        data : float * float * float * float * float * float;
-      }
-    | Unknown of { timestamp_ns : int64; event_type : int }
-
-  val poll : unit -> (t option, error) result
+    | Pinch of { phase : pinch_phase; scale : float }
+    | Drop of { change : drop_change; x : float; y : float }
+    | Dialog of { id : int; outcome : dialog_outcome }
+        (** a file dialog [Dialog.show] opened has finished *)
 
   (** Drain the native queue without building a motion/resize flood. Pointer
-      motion and window-size events keep only the latest sample (motion sums
-      the dropped samples' relative [dx]/[dy]); clicks, keys,
+      motion and each kind of window size event keep only the latest sample
+      (motion sums the dropped samples' relative [dx]/[dy]); clicks, keys,
       text, focus, and quit stay ordered. *)
   val poll_coalesced : unit -> (t list, error) result
-
-end
-
-module Surface : sig
-  type t
-
-  type rgba = private {
-    width : int;
-    height : int;
-    stride : int;
-    pixels : bytes;
-  }
-
-  val create_rgba : width:int -> height:int -> (t, error) result
-
-  (** Copy tightly packed or explicitly strided RGBA8 rows into an owned SDL
-      CPU surface. The source bytes remain owned by the caller. *)
-  val of_rgba :
-    width:int -> height:int -> ?stride:int -> bytes -> (t, error) result
-
-  val destroyed : t -> bool
-  val size : t -> (int * int, error) result
-  val pitch : t -> (int, error) result
-
-  (** Return a tightly packed RGBA8 snapshot. No SDL pointer escapes. *)
-  val copy_rgba : t -> (rgba, error) result
-
-  val destroy : t -> (unit, error) result
 end
 
 module Metal_view : sig
@@ -490,7 +221,3 @@ module Metal_view : sig
   val layer : t -> (layer, error) result
   val destroy : t -> (unit, error) result
 end
-
-(** Drain finalizer release tokens on the initial domain. Explicit destruction
-    remains the primary ownership mechanism. *)
-val drain_release_queue : unit -> (unit, error) result

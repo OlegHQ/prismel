@@ -5,36 +5,21 @@
 #include <caml/threads.h>
 
 #include <limits.h>
-#include <stdint.h>
-#include <string.h>
 #include <math.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_metal.h>
 
 #include "generated_abi.h"
+#include "sdl3_dialog.h"
 #include "../native_layer_token/native_layer_token.h"
 
 static SDL_Window *window_of_value(value raw)
 {
   return (SDL_Window *)(intnat)Nativeint_val(raw);
-}
-
-static SDL_Surface *surface_of_value(value raw)
-{
-  return (SDL_Surface *)(intnat)Nativeint_val(raw);
-}
-
-CAMLprim value caml_sdl3_current_video_driver(value unit)
-{
-  CAMLparam1(unit);
-  CAMLlocal2(result, some);
-  const char *name = SDL_GetCurrentVideoDriver();
-  if (name == NULL) CAMLreturn(Val_none);
-  result = caml_copy_string(name);
-  some = caml_alloc(1, 0);
-  Store_field(some, 0, result);
-  CAMLreturn(some);
 }
 
 CAMLprim value caml_sdl3_linked_version(value unit)
@@ -43,40 +28,10 @@ CAMLprim value caml_sdl3_linked_version(value unit)
   return Val_int(SDL_GetVersion());
 }
 
-CAMLprim value caml_sdl3_performance_counter(value unit)
+CAMLprim value caml_sdl3_compiled_version(value unit)
 {
-  CAMLparam1(unit);
-  CAMLreturn(caml_copy_int64((int64_t)SDL_GetPerformanceCounter()));
-}
-
-CAMLprim value caml_sdl3_performance_frequency(value unit)
-{
-  CAMLparam1(unit);
-  CAMLreturn(caml_copy_int64((int64_t)SDL_GetPerformanceFrequency()));
-}
-
-CAMLprim value caml_sdl3_delay_ms(value milliseconds)
-{
-  CAMLparam1(milliseconds);
-  const Uint32 ms = (Uint32)Int64_val(milliseconds);
-  if (ms > 0) {
-    caml_release_runtime_system();
-    SDL_Delay(ms);
-    caml_acquire_runtime_system();
-  }
-  CAMLreturn(Val_unit);
-}
-
-CAMLprim value caml_sdl3_delay_precise_ns(value nanoseconds)
-{
-  CAMLparam1(nanoseconds);
-  const Uint64 ns = (Uint64)Int64_val(nanoseconds);
-  if (ns > 0) {
-    caml_release_runtime_system();
-    SDL_DelayPrecise(ns);
-    caml_acquire_runtime_system();
-  }
-  CAMLreturn(Val_unit);
+  (void)unit;
+  return Val_int(SDL_VERSION);
 }
 
 CAMLprim value caml_sdl3_get_error(value unit)
@@ -100,37 +55,42 @@ CAMLprim value caml_sdl3_is_main_thread(value unit)
   return Val_bool(SDL_IsMainThread());
 }
 
-CAMLprim value caml_sdl3_init_subsystem(value flags)
+/* Sdl3.Init.subsystem: OCaml names a set by bits, here are SDL's flags. */
+enum { INIT_VIDEO = 1, INIT_EVENTS = 2 };
+
+static SDL_InitFlags init_flags_of_value(value bits)
 {
-  return Val_bool(SDL_InitSubSystem((SDL_InitFlags)Int_val(flags)));
+  SDL_InitFlags flags = 0;
+  if ((Int_val(bits) & INIT_VIDEO) != 0) flags |= SDL_INIT_VIDEO;
+  if ((Int_val(bits) & INIT_EVENTS) != 0) flags |= SDL_INIT_EVENTS;
+  return flags;
 }
 
-CAMLprim value caml_sdl3_quit_subsystem(value flags)
+CAMLprim value caml_sdl3_init_subsystem(value bits)
 {
-  SDL_QuitSubSystem((SDL_InitFlags)Int_val(flags));
+  return Val_bool(SDL_InitSubSystem(init_flags_of_value(bits)));
+}
+
+CAMLprim value caml_sdl3_quit_subsystem(value bits)
+{
+  SDL_QuitSubSystem(init_flags_of_value(bits));
   return Val_unit;
 }
 
-CAMLprim value caml_sdl3_quit(value unit)
-{
-  (void)unit;
-  SDL_Quit();
-  return Val_unit;
-}
-
-CAMLprim value caml_sdl3_was_init(value flags)
-{
-  return Val_int(SDL_WasInit((SDL_InitFlags)Int_val(flags)));
-}
+/* Sdl3.Window.flag bits. */
+enum { WINDOW_FLAG_HIDDEN = 1, WINDOW_FLAG_HIGH_PIXEL_DENSITY = 2, WINDOW_FLAG_METAL = 4 };
 
 CAMLprim value caml_sdl3_create_window(
     value title, value width, value height, value flags)
 {
   SDL_Window *window;
+  SDL_WindowFlags native = 0;
   CAMLparam4(title, width, height, flags);
+  if ((Int_val(flags) & WINDOW_FLAG_HIDDEN) != 0) native |= SDL_WINDOW_HIDDEN;
+  if ((Int_val(flags) & WINDOW_FLAG_HIGH_PIXEL_DENSITY) != 0) native |= SDL_WINDOW_HIGH_PIXEL_DENSITY;
+  if ((Int_val(flags) & WINDOW_FLAG_METAL) != 0) native |= SDL_WINDOW_METAL;
   window = SDL_CreateWindow(
-      String_val(title), Int_val(width), Int_val(height),
-      (SDL_WindowFlags)Int64_val(flags));
+      String_val(title), Int_val(width), Int_val(height), native);
   CAMLreturn(caml_copy_nativeint((intnat)window));
 }
 
@@ -172,10 +132,13 @@ CAMLprim value caml_sdl3_window_size_in_pixels(value raw)
   return copy_size_result(success, width, height);
 }
 
-CAMLprim value caml_sdl3_window_flags(value raw)
+/* Sdl3.Window.state, as bits: hidden, minimized, occluded. */
+CAMLprim value caml_sdl3_window_state(value raw)
 {
-  CAMLparam1(raw);
-  CAMLreturn(caml_copy_int64((int64_t)SDL_GetWindowFlags(window_of_value(raw))));
+  SDL_WindowFlags flags = SDL_GetWindowFlags(window_of_value(raw));
+  return Val_int(((flags & SDL_WINDOW_HIDDEN) != 0 ? 1 : 0)
+      | ((flags & SDL_WINDOW_MINIMIZED) != 0 ? 2 : 0)
+      | ((flags & SDL_WINDOW_OCCLUDED) != 0 ? 4 : 0));
 }
 
 CAMLprim value caml_sdl3_show_window(value raw)
@@ -191,11 +154,6 @@ CAMLprim value caml_sdl3_raise_window(value raw)
 CAMLprim value caml_sdl3_hide_window(value raw)
 {
   return Val_bool(SDL_HideWindow(window_of_value(raw)));
-}
-
-CAMLprim value caml_sdl3_set_window_fullscreen(value raw, value enabled)
-{
-  return Val_bool(SDL_SetWindowFullscreen(window_of_value(raw), Bool_val(enabled)));
 }
 
 CAMLprim value caml_sdl3_window_id(value raw)
@@ -238,20 +196,10 @@ CAMLprim value caml_sdl3_window_title(value raw)
   CAMLreturn(caml_copy_string(title != NULL ? title : ""));
 }
 
-CAMLprim value caml_sdl3_set_window_title(value raw, value title)
-{
-  return Val_bool(SDL_SetWindowTitle(window_of_value(raw), String_val(title)));
-}
-
 CAMLprim value caml_sdl3_center_window(value raw)
 {
   return Val_bool(SDL_SetWindowPosition(window_of_value(raw),
       SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED));
-}
-
-CAMLprim value caml_sdl3_set_window_bordered(value raw, value enabled)
-{
-  return Val_bool(SDL_SetWindowBordered(window_of_value(raw), Bool_val(enabled)));
 }
 
 CAMLprim value caml_sdl3_set_window_resizable(value raw, value enabled)
@@ -259,25 +207,10 @@ CAMLprim value caml_sdl3_set_window_resizable(value raw, value enabled)
   return Val_bool(SDL_SetWindowResizable(window_of_value(raw), Bool_val(enabled)));
 }
 
-CAMLprim value caml_sdl3_set_window_always_on_top(value raw, value enabled)
-{
-  return Val_bool(SDL_SetWindowAlwaysOnTop(window_of_value(raw), Bool_val(enabled)));
-}
-
 CAMLprim value caml_sdl3_set_window_relative_mouse(value raw, value enabled)
 {
   return Val_bool(SDL_SetWindowRelativeMouseMode(
       window_of_value(raw), Bool_val(enabled)));
-}
-
-CAMLprim value caml_sdl3_window_relative_mouse(value raw)
-{
-  return Val_bool(SDL_GetWindowRelativeMouseMode(window_of_value(raw)));
-}
-
-CAMLprim value caml_sdl3_capture_mouse(value enabled)
-{
-  return Val_bool(SDL_CaptureMouse(Bool_val(enabled)));
 }
 
 CAMLprim value caml_sdl3_display_refresh_rate(value raw_id)
@@ -296,11 +229,16 @@ CAMLprim value caml_sdl3_display_refresh_rate(value raw_id)
   CAMLreturn(some);
 }
 
+/* Sdl3.Cursor.shape, in declaration order. */
 CAMLprim value caml_sdl3_create_system_cursor(value shape)
 {
+  static const SDL_SystemCursor shapes[] = {
+    SDL_SYSTEM_CURSOR_DEFAULT, SDL_SYSTEM_CURSOR_TEXT,
+    SDL_SYSTEM_CURSOR_EW_RESIZE, SDL_SYSTEM_CURSOR_NS_RESIZE
+  };
   CAMLparam1(shape);
   CAMLreturn(caml_copy_nativeint((intnat)SDL_CreateSystemCursor(
-      (SDL_SystemCursor)Int_val(shape))));
+      shapes[Int_val(shape)])));
 }
 
 CAMLprim value caml_sdl3_set_cursor(value raw)
@@ -314,44 +252,10 @@ CAMLprim value caml_sdl3_destroy_cursor(value raw)
   return Val_unit;
 }
 
-CAMLprim value caml_sdl3_show_cursor(value unit)
-{
-  (void)unit;
-  return Val_bool(SDL_ShowCursor());
-}
-
-CAMLprim value caml_sdl3_hide_cursor(value unit)
-{
-  (void)unit;
-  return Val_bool(SDL_HideCursor());
-}
-
-CAMLprim value caml_sdl3_cursor_visible(value unit)
-{
-  (void)unit;
-  return Val_bool(SDL_CursorVisible());
-}
-
-CAMLprim value caml_sdl3_set_window_position(value raw, value x, value y)
-{
-  return Val_bool(SDL_SetWindowPosition(
-      window_of_value(raw), Int_val(x), Int_val(y)));
-}
-
 CAMLprim value caml_sdl3_set_window_size(value raw, value width, value height)
 {
   return Val_bool(SDL_SetWindowSize(
       window_of_value(raw), Int_val(width), Int_val(height)));
-}
-
-CAMLprim value caml_sdl3_maximize_window(value raw)
-{
-  return Val_bool(SDL_MaximizeWindow(window_of_value(raw)));
-}
-
-CAMLprim value caml_sdl3_minimize_window(value raw)
-{
-  return Val_bool(SDL_MinimizeWindow(window_of_value(raw)));
 }
 
 CAMLprim value caml_sdl3_restore_window(value raw)
@@ -369,6 +273,13 @@ CAMLprim value caml_sdl3_sync_window(value raw)
   success = SDL_SyncWindow(window);
   caml_acquire_runtime_system();
   CAMLreturn(Val_bool(success));
+}
+
+/* macOS: SDL turns a Control-click into a right click itself. */
+CAMLprim value caml_sdl3_set_control_click_right_click(value enabled)
+{
+  return Val_bool(SDL_SetHint(SDL_HINT_MAC_CTRL_CLICK_EMULATE_RIGHT_CLICK,
+      Bool_val(enabled) ? "1" : "0"));
 }
 
 CAMLprim value caml_sdl3_clipboard_set_text(value text)
@@ -392,12 +303,6 @@ CAMLprim value caml_sdl3_clipboard_get_text(value unit)
   CAMLreturn(some);
 }
 
-CAMLprim value caml_sdl3_clipboard_has_text(value unit)
-{
-  (void)unit;
-  return Val_bool(SDL_HasClipboardText());
-}
-
 CAMLprim value caml_sdl3_start_text_input(value raw)
 {
   return Val_bool(SDL_StartTextInput(window_of_value(raw)));
@@ -408,175 +313,24 @@ CAMLprim value caml_sdl3_stop_text_input(value raw)
   return Val_bool(SDL_StopTextInput(window_of_value(raw)));
 }
 
-CAMLprim value caml_sdl3_text_input_active(value raw)
-{
-  return Val_bool(SDL_TextInputActive(window_of_value(raw)));
-}
-
 CAMLprim value caml_sdl3_set_text_input_area(
-    value raw, value rectangle, value cursor)
+    value raw, value x, value y, value width, value height, value cursor)
 {
-  SDL_Rect native_rectangle;
-  SDL_Rect *pointer = NULL;
-  if (Is_block(rectangle)) {
-    value fields = Field(rectangle, 0);
-    native_rectangle.x = Int_val(Field(fields, 0));
-    native_rectangle.y = Int_val(Field(fields, 1));
-    native_rectangle.w = Int_val(Field(fields, 2));
-    native_rectangle.h = Int_val(Field(fields, 3));
-    pointer = &native_rectangle;
-  }
+  SDL_Rect area;
+  area.x = Int_val(x);
+  area.y = Int_val(y);
+  area.w = Int_val(width);
+  area.h = Int_val(height);
   return Val_bool(SDL_SetTextInputArea(
-      window_of_value(raw), pointer, Int_val(cursor)));
+      window_of_value(raw), &area, Int_val(cursor)));
 }
 
-CAMLprim value caml_sdl3_text_input_area(value raw)
+/* Six arguments: bytecode passes them in an array. */
+CAMLprim value caml_sdl3_set_text_input_area_bytecode(value *argv, int argc)
 {
-  SDL_Rect rectangle;
-  int cursor = 0;
-  CAMLparam1(raw);
-  CAMLlocal3(fields, pair, some);
-  if (!SDL_GetTextInputArea(window_of_value(raw), &rectangle, &cursor)) {
-    CAMLreturn(Val_none);
-  }
-  fields = caml_alloc_tuple(4);
-  Store_field(fields, 0, Val_int(rectangle.x));
-  Store_field(fields, 1, Val_int(rectangle.y));
-  Store_field(fields, 2, Val_int(rectangle.w));
-  Store_field(fields, 3, Val_int(rectangle.h));
-  pair = caml_alloc_tuple(2);
-  Store_field(pair, 0, fields);
-  Store_field(pair, 1, Val_int(cursor));
-  some = caml_alloc(1, 0);
-  Store_field(some, 0, pair);
-  CAMLreturn(some);
-}
-
-CAMLprim value caml_sdl3_create_surface_rgba(value width, value height)
-{
-  SDL_Surface *surface;
-  CAMLparam2(width, height);
-  surface = SDL_CreateSurface(Int_val(width), Int_val(height),
-      SDL_PIXELFORMAT_RGBA32);
-  CAMLreturn(caml_copy_nativeint((intnat)surface));
-}
-
-CAMLprim value caml_sdl3_destroy_surface(value raw)
-{
-  SDL_DestroySurface(surface_of_value(raw));
-  return Val_unit;
-}
-
-CAMLprim value caml_sdl3_surface_info(value raw)
-{
-  SDL_Surface *surface = surface_of_value(raw);
-  CAMLparam1(raw);
-  CAMLlocal2(info, some);
-  if (surface == NULL) {
-    SDL_SetError("surface pointer is NULL");
-    CAMLreturn(Val_none);
-  }
-  info = caml_alloc_tuple(3);
-  Store_field(info, 0, Val_int(surface->w));
-  Store_field(info, 1, Val_int(surface->h));
-  Store_field(info, 2, Val_int(surface->pitch));
-  some = caml_alloc(1, 0);
-  Store_field(some, 0, info);
-  CAMLreturn(some);
-}
-
-static bool valid_rgba_surface(SDL_Surface *surface, size_t *row_bytes,
-    size_t *total_bytes)
-{
-  size_t row;
-  if (surface == NULL || surface->format != SDL_PIXELFORMAT_RGBA32 ||
-      surface->w <= 0 || surface->h <= 0 || surface->pixels == NULL) {
-    SDL_SetError("surface is not a non-empty RGBA32 CPU surface");
-    return false;
-  }
-  if ((size_t)surface->w > SIZE_MAX / 4) {
-    SDL_SetError("surface row byte count overflows");
-    return false;
-  }
-  row = (size_t)surface->w * 4;
-  if ((size_t)surface->h > SIZE_MAX / row) {
-    SDL_SetError("surface byte count overflows");
-    return false;
-  }
-  *row_bytes = row;
-  *total_bytes = row * (size_t)surface->h;
-  return true;
-}
-
-CAMLprim value caml_sdl3_surface_write_rgba(
-    value raw, value pixels, value source_pitch_value)
-{
-  SDL_Surface *surface = surface_of_value(raw);
-  size_t row_bytes = 0;
-  size_t total_bytes = 0;
-  size_t source_pitch;
-  size_t required;
-  int row;
-  CAMLparam3(raw, pixels, source_pitch_value);
-  if (!valid_rgba_surface(surface, &row_bytes, &total_bytes)) {
-    CAMLreturn(Val_false);
-  }
-  (void)total_bytes;
-  if (Int_val(source_pitch_value) < 0) {
-    SDL_SetError("negative RGBA source pitch");
-    CAMLreturn(Val_false);
-  }
-  source_pitch = (size_t)Int_val(source_pitch_value);
-  if (source_pitch < row_bytes ||
-      (size_t)surface->h > SIZE_MAX / source_pitch) {
-    SDL_SetError("invalid or overflowing RGBA source pitch");
-    CAMLreturn(Val_false);
-  }
-  required = source_pitch * (size_t)surface->h;
-  if (required > caml_string_length(pixels)) {
-    SDL_SetError("RGBA source buffer is too short");
-    CAMLreturn(Val_false);
-  }
-  if (!SDL_LockSurface(surface)) {
-    CAMLreturn(Val_false);
-  }
-  for (row = 0; row < surface->h; row++) {
-    memcpy((uint8_t *)surface->pixels + ((size_t)row * (size_t)surface->pitch),
-        (const uint8_t *)Bytes_val(pixels) + ((size_t)row * source_pitch),
-        row_bytes);
-  }
-  SDL_UnlockSurface(surface);
-  CAMLreturn(Val_true);
-}
-
-CAMLprim value caml_sdl3_surface_copy_rgba(value raw)
-{
-  SDL_Surface *surface = surface_of_value(raw);
-  size_t row_bytes = 0;
-  size_t total_bytes = 0;
-  int row;
-  CAMLparam1(raw);
-  CAMLlocal2(pixels, some);
-  if (!valid_rgba_surface(surface, &row_bytes, &total_bytes)) {
-    CAMLreturn(Val_none);
-  }
-  if (total_bytes > Max_long) {
-    SDL_SetError("surface is too large for an OCaml byte string");
-    CAMLreturn(Val_none);
-  }
-  pixels = caml_alloc_string(total_bytes);
-  if (!SDL_LockSurface(surface)) {
-    CAMLreturn(Val_none);
-  }
-  for (row = 0; row < surface->h; row++) {
-    memcpy((uint8_t *)Bytes_val(pixels) + ((size_t)row * row_bytes),
-        (const uint8_t *)surface->pixels + ((size_t)row * (size_t)surface->pitch),
-        row_bytes);
-  }
-  SDL_UnlockSurface(surface);
-  some = caml_alloc(1, 0);
-  Store_field(some, 0, pixels);
-  CAMLreturn(some);
+  (void)argc;
+  return caml_sdl3_set_text_input_area(argv[0], argv[1], argv[2], argv[3],
+      argv[4], argv[5]);
 }
 
 CAMLprim value caml_sdl3_create_metal_view(value raw_window)
@@ -598,85 +352,254 @@ CAMLprim value caml_sdl3_metal_layer_token(value raw_view,value owner,value gene
 CAMLprim value caml_sdl3_invalidate_metal_layer_token(value token)
 { prismel_native_layer_token_invalidate(token);return Val_unit; }
 
-/* Keep this order synchronized with Private_raw.raw_event.  The union remains
-   private and is immediately converted while pointer payloads are valid. */
-enum prismel_raw_event_tag {
-  RAW_APPLICATION = 0,
-  RAW_DISPLAY,
-  RAW_WINDOW,
-  RAW_KEYBOARD_DEVICE,
-  RAW_KEY,
-  RAW_TEXT_EDITING,
-  RAW_TEXT_EDITING_CANDIDATES,
-  RAW_TEXT_INPUT,
-  RAW_MOUSE_DEVICE,
-  RAW_MOUSE_MOTION,
-  RAW_MOUSE_BUTTON,
-  RAW_MOUSE_WHEEL,
-  RAW_GAMEPAD_AXIS,
-  RAW_GAMEPAD_BUTTON,
-  RAW_GAMEPAD_DEVICE,
-  RAW_GAMEPAD_TOUCHPAD,
-  RAW_GAMEPAD_SENSOR,
-  RAW_TOUCH,
-  RAW_PINCH,
-  RAW_PEN_PROXIMITY,
-  RAW_PEN_MOTION,
-  RAW_PEN_TOUCH,
-  RAW_PEN_BUTTON,
-  RAW_PEN_AXIS,
-  RAW_DROP,
-  RAW_CLIPBOARD,
-  RAW_AUDIO_DEVICE,
-  RAW_SENSOR,
-  RAW_UNKNOWN
+/* Sdl3.Dialog.show: the slots and the callback are in sdl3_dialog.c, which
+   knows nothing of OCaml. [filters] is an OCaml list of (name, pattern),
+   at most 32 (the OCaml side checks); the strings are copied before this
+   returns. Returns the dialog's id, or 0 with the SDL error set. */
+#define DIALOG_MAX_FILTERS 32
+
+CAMLprim value caml_sdl3_show_dialog(
+    value raw_window, value kind, value filters, value default_location)
+{
+  CAMLparam4(raw_window, kind, filters, default_location);
+  const char *names[DIALOG_MAX_FILTERS];
+  const char *patterns[DIALOG_MAX_FILTERS];
+  value cursor;
+  int count = 0;
+  for (cursor = filters;
+       cursor != Val_emptylist && count < DIALOG_MAX_FILTERS;
+       cursor = Field(cursor, 1)) {
+    names[count] = String_val(Field(Field(cursor, 0), 0));
+    patterns[count] = String_val(Field(Field(cursor, 0), 1));
+    count++;
+  }
+  CAMLreturn(Val_int(prismel_dialog_show(
+      (prismel_dialog_kind)Int_val(kind), window_of_value(raw_window),
+      names, patterns, count,
+      Is_block(default_location) ? String_val(Field(default_location, 0))
+                                 : NULL)));
+}
+
+/* Sdl3.Event.dialog_outcome: Cancelled is the constant; Chosen and Failed
+   are blocks 0 and 1. */
+enum { OUTCOME_BLOCK_CHOSEN = 0, OUTCOME_BLOCK_FAILED = 1 };
+enum { OUTCOME_CONSTANT_CANCELLED = 0 };
+
+static value dialog_outcome_value(const prismel_dialog_result *finished)
+{
+  CAMLparam0();
+  CAMLlocal4(list, cell, text, outcome);
+  switch (finished->outcome) {
+  case PRISMEL_OUTCOME_CHOSEN: {
+    /* the payload is NUL-terminated paths back to back: build the list from
+       the last path to the first */
+    size_t position = finished->payload_length;
+    list = Val_emptylist;
+    while (position > 0) {
+      size_t start = position - 1;
+      while (start > 0 && finished->payload[start - 1] != '\0') start--;
+      text = caml_copy_string(finished->payload + start);
+      cell = caml_alloc(2, 0);
+      Store_field(cell, 0, text);
+      Store_field(cell, 1, list);
+      list = cell;
+      position = start;
+    }
+    outcome = caml_alloc(1, OUTCOME_BLOCK_CHOSEN);
+    Store_field(outcome, 0, list);
+    break;
+  }
+  case PRISMEL_OUTCOME_CANCELLED:
+    outcome = Val_int(OUTCOME_CONSTANT_CANCELLED);
+    break;
+  default:
+    text = caml_copy_string(finished->payload != NULL ? finished->payload
+        : "the file dialog failed");
+    outcome = caml_alloc(1, OUTCOME_BLOCK_FAILED);
+    Store_field(outcome, 0, text);
+    break;
+  }
+  CAMLreturn(outcome);
+}
+
+/* Events. The stub turns the one SDL_Event union into the OCaml value
+   Sdl3.Event.t while SDL still owns any pointer payloads, so no union and no
+   raw SDL number crosses into OCaml: every constructor below is chosen with
+   SDL's own macros.
+
+   The OCaml and C sides share an order. A constant constructor is the index
+   of its place among the constant constructors of its type, a constructor
+   with arguments is a block tagged by its place among those. The enums below
+   restate that order; test_sdl3_events pushes every kind through a real SDL
+   queue and compares what comes back. */
+
+/* Sdl3.Key.t: Char and Unknown carry a value; the rest are constants. */
+enum { KEY_CHAR = 0, KEY_UNKNOWN = 1 };
+enum {
+  KEY_ARROW_UP, KEY_ARROW_DOWN, KEY_ARROW_LEFT, KEY_ARROW_RIGHT,
+  KEY_SPACE, KEY_ENTER, KEY_ESCAPE, KEY_BACKSPACE, KEY_TAB,
+  KEY_SHIFT, KEY_CONTROL, KEY_ALT, KEY_META,
+  KEY_F1, KEY_F2, KEY_F3, KEY_F4, KEY_F5, KEY_F6,
+  KEY_F7, KEY_F8, KEY_F9, KEY_F10, KEY_F11, KEY_F12,
+  KEY_HOME, KEY_END, KEY_PAGE_UP, KEY_PAGE_DOWN, KEY_INSERT, KEY_DELETE
 };
 
-static value copy_nullable_string(const char *text)
-{
-  CAMLparam0();
-  CAMLlocal2(copy, some);
-  if (text == NULL) {
-    CAMLreturn(Val_none);
-  }
-  copy = caml_copy_string(text);
-  some = caml_alloc(1, 0);
-  Store_field(some, 0, copy);
-  CAMLreturn(some);
-}
+/* Sdl3.Key.modifier: all constants. */
+enum {
+  MODIFIER_SHIFT, MODIFIER_CONTROL, MODIFIER_ALT, MODIFIER_META,
+  MODIFIER_NUM_LOCK, MODIFIER_CAPS_LOCK, MODIFIER_SCROLL_LOCK
+};
 
-static value copy_string_array(const char * const *strings, int count)
-{
-  int index;
-  CAMLparam0();
-  CAMLlocal2(result, item);
-  if (strings == NULL || count <= 0) {
-    CAMLreturn(Atom(0));
-  }
-  if (count > 1048576) {
-    caml_invalid_argument("SDL3 event string array is unreasonably large");
-  }
-  result = caml_alloc(count, 0);
-  for (index = 0; index < count; index++) {
-    item = caml_copy_string(strings[index] != NULL ? strings[index] : "");
-    Store_field(result, index, item);
-  }
-  CAMLreturn(result);
-}
+/* Sdl3.Event.mouse_button, wheel_direction, pinch_phase: all constants. */
+enum { BUTTON_LEFT, BUTTON_MIDDLE, BUTTON_RIGHT, BUTTON_X1, BUTTON_X2 };
+enum { WHEEL_NORMAL, WHEEL_FLIPPED };
+enum { PINCH_BEGAN, PINCH_UPDATED, PINCH_ENDED };
 
-static value copy_float_array(const float *values, int count)
+/* Sdl3.Event.window_change: constants first, then Resized and
+   Pixel_size_changed as blocks 0 and 1. */
+enum {
+  WINDOW_SHOWN, WINDOW_HIDDEN, WINDOW_MINIMIZED, WINDOW_RESTORED,
+  WINDOW_OCCLUDED, WINDOW_FOCUS_GAINED, WINDOW_FOCUS_LOST,
+  WINDOW_CLOSE_REQUESTED
+};
+enum { WINDOW_RESIZED, WINDOW_PIXEL_SIZE_CHANGED };
+
+/* Sdl3.Event.drop_change: Drop_begin, Drop_position, Drop_complete are
+   constants; File is block 0. */
+enum { DROP_BEGIN, DROP_POSITION, DROP_COMPLETE };
+
+/* Sdl3.Event.t: Quit is a constant; the rest are blocks in this order. */
+enum {
+  EVENT_WINDOW, EVENT_KEY, EVENT_TEXT_INPUT, EVENT_TEXT_EDITING,
+  EVENT_MOUSE_MOTION, EVENT_MOUSE_BUTTON, EVENT_MOUSE_WHEEL, EVENT_PINCH,
+  EVENT_DROP, EVENT_DIALOG
+};
+
+static value key_of_event(SDL_Keycode keycode, SDL_Scancode scancode)
 {
-  int index;
   CAMLparam0();
   CAMLlocal1(result);
-  result = caml_alloc(count * Double_wosize, Double_array_tag);
-  for (index = 0; index < count; index++) {
-    Store_double_field(result, index, (double)values[index]);
+  if (keycode >= 33 && keycode <= 126) {
+    /* Printable ASCII, lower case. */
+    result = caml_alloc(1, KEY_CHAR);
+    Store_field(result, 0,
+        Val_int(keycode >= 'A' && keycode <= 'Z' ? keycode + ('a' - 'A') : keycode));
+    CAMLreturn(result);
   }
+  switch (keycode) {
+  case SDLK_UP: CAMLreturn(Val_int(KEY_ARROW_UP));
+  case SDLK_DOWN: CAMLreturn(Val_int(KEY_ARROW_DOWN));
+  case SDLK_LEFT: CAMLreturn(Val_int(KEY_ARROW_LEFT));
+  case SDLK_RIGHT: CAMLreturn(Val_int(KEY_ARROW_RIGHT));
+  case SDLK_SPACE: CAMLreturn(Val_int(KEY_SPACE));
+  case SDLK_RETURN:
+  case SDLK_KP_ENTER: CAMLreturn(Val_int(KEY_ENTER));
+  case SDLK_ESCAPE: CAMLreturn(Val_int(KEY_ESCAPE));
+  case SDLK_BACKSPACE: CAMLreturn(Val_int(KEY_BACKSPACE));
+  case SDLK_TAB: CAMLreturn(Val_int(KEY_TAB));
+  case SDLK_LSHIFT:
+  case SDLK_RSHIFT: CAMLreturn(Val_int(KEY_SHIFT));
+  case SDLK_LCTRL:
+  case SDLK_RCTRL: CAMLreturn(Val_int(KEY_CONTROL));
+  case SDLK_LALT:
+  case SDLK_RALT: CAMLreturn(Val_int(KEY_ALT));
+  case SDLK_LGUI:
+  case SDLK_RGUI: CAMLreturn(Val_int(KEY_META));
+  case SDLK_F1: CAMLreturn(Val_int(KEY_F1));
+  case SDLK_F2: CAMLreturn(Val_int(KEY_F2));
+  case SDLK_F3: CAMLreturn(Val_int(KEY_F3));
+  case SDLK_F4: CAMLreturn(Val_int(KEY_F4));
+  case SDLK_F5: CAMLreturn(Val_int(KEY_F5));
+  case SDLK_F6: CAMLreturn(Val_int(KEY_F6));
+  case SDLK_F7: CAMLreturn(Val_int(KEY_F7));
+  case SDLK_F8: CAMLreturn(Val_int(KEY_F8));
+  case SDLK_F9: CAMLreturn(Val_int(KEY_F9));
+  case SDLK_F10: CAMLreturn(Val_int(KEY_F10));
+  case SDLK_F11: CAMLreturn(Val_int(KEY_F11));
+  case SDLK_F12: CAMLreturn(Val_int(KEY_F12));
+  case SDLK_HOME: CAMLreturn(Val_int(KEY_HOME));
+  case SDLK_END: CAMLreturn(Val_int(KEY_END));
+  case SDLK_PAGEUP: CAMLreturn(Val_int(KEY_PAGE_UP));
+  case SDLK_PAGEDOWN: CAMLreturn(Val_int(KEY_PAGE_DOWN));
+  case SDLK_INSERT: CAMLreturn(Val_int(KEY_INSERT));
+  case SDLK_DELETE: CAMLreturn(Val_int(KEY_DELETE));
+  default: break;
+  }
+  /* A non-Latin layout reports its own letters (a Cyrillic key is no ASCII
+     character), so a shortcut is matched by where the key sits: the
+     scancode names the US-layout letter or digit of that position. */
+  if (scancode >= SDL_SCANCODE_A && scancode <= SDL_SCANCODE_Z) {
+    result = caml_alloc(1, KEY_CHAR);
+    Store_field(result, 0, Val_int('a' + (scancode - SDL_SCANCODE_A)));
+    CAMLreturn(result);
+  }
+  if (scancode >= SDL_SCANCODE_1 && scancode <= SDL_SCANCODE_9) {
+    result = caml_alloc(1, KEY_CHAR);
+    Store_field(result, 0, Val_int('1' + (scancode - SDL_SCANCODE_1)));
+    CAMLreturn(result);
+  }
+  if (scancode == SDL_SCANCODE_0) {
+    result = caml_alloc(1, KEY_CHAR);
+    Store_field(result, 0, Val_int('0'));
+    CAMLreturn(result);
+  }
+  result = caml_alloc(1, KEY_UNKNOWN);
+  Store_field(result, 0, Val_int(keycode));
   CAMLreturn(result);
 }
 
-static value copy_sdl_event(const SDL_Event *event)
+static value modifiers_of_event(SDL_Keymod mod)
+{
+  CAMLparam0();
+  CAMLlocal2(list, cell);
+  static const struct { SDL_Keymod mask; int tag; } table[] = {
+    { SDL_KMOD_SCROLL, MODIFIER_SCROLL_LOCK }, { SDL_KMOD_CAPS, MODIFIER_CAPS_LOCK },
+    { SDL_KMOD_NUM, MODIFIER_NUM_LOCK }, { SDL_KMOD_GUI, MODIFIER_META },
+    { SDL_KMOD_ALT, MODIFIER_ALT }, { SDL_KMOD_CTRL, MODIFIER_CONTROL },
+    { SDL_KMOD_SHIFT, MODIFIER_SHIFT }
+  };
+  size_t index;
+  list = Val_emptylist;
+  for (index = 0; index < sizeof(table) / sizeof(table[0]); index++) {
+    if ((mod & table[index].mask) != 0) {
+      cell = caml_alloc(2, 0);
+      Store_field(cell, 0, Val_int(table[index].tag));
+      Store_field(cell, 1, list);
+      list = cell;
+    }
+  }
+  CAMLreturn(list);
+}
+
+static value window_change_of_event(const SDL_Event *event)
+{
+  CAMLparam0();
+  CAMLlocal1(change);
+  switch (event->type) {
+  case SDL_EVENT_WINDOW_SHOWN: CAMLreturn(Val_int(WINDOW_SHOWN));
+  case SDL_EVENT_WINDOW_HIDDEN: CAMLreturn(Val_int(WINDOW_HIDDEN));
+  case SDL_EVENT_WINDOW_MINIMIZED: CAMLreturn(Val_int(WINDOW_MINIMIZED));
+  case SDL_EVENT_WINDOW_RESTORED: CAMLreturn(Val_int(WINDOW_RESTORED));
+  case SDL_EVENT_WINDOW_OCCLUDED: CAMLreturn(Val_int(WINDOW_OCCLUDED));
+  case SDL_EVENT_WINDOW_FOCUS_GAINED: CAMLreturn(Val_int(WINDOW_FOCUS_GAINED));
+  case SDL_EVENT_WINDOW_FOCUS_LOST: CAMLreturn(Val_int(WINDOW_FOCUS_LOST));
+  case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
+    CAMLreturn(Val_int(WINDOW_CLOSE_REQUESTED));
+  case SDL_EVENT_WINDOW_RESIZED:
+  case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
+    change = caml_alloc(2, event->type == SDL_EVENT_WINDOW_RESIZED
+        ? WINDOW_RESIZED : WINDOW_PIXEL_SIZE_CHANGED);
+    Store_field(change, 0, Val_int(event->window.data1));
+    Store_field(change, 1, Val_int(event->window.data2));
+    CAMLreturn(change);
+  default: break;
+  }
+  CAMLreturn(Val_unit); /* unreachable: the caller filters the type first */
+}
+
+/* The OCaml value for an event Prismel reads, or false for any other kind
+   (touch, pen, gamepad, display, audio and the rest are never copied). */
+static bool translate_event(const SDL_Event *event, value *out)
 {
   CAMLparam0();
   CAMLlocal3(result, item, payload);
@@ -684,10 +607,6 @@ static value copy_sdl_event(const SDL_Event *event)
 #define ALLOC_EVENT(tag, size) result = caml_alloc((size), (tag))
 #define STORE_INT(index, number) Store_field(result, (index), Val_int((number)))
 #define STORE_BOOL(index, boolean) Store_field(result, (index), Val_bool((boolean)))
-#define STORE_I64(index, number) do { \
-    item = caml_copy_int64((int64_t)(number)); \
-    Store_field(result, (index), item); \
-  } while (0)
 #define STORE_FLOAT(index, number) do { \
     item = caml_copy_double((double)(number)); \
     Store_field(result, (index), item); \
@@ -699,363 +618,121 @@ static value copy_sdl_event(const SDL_Event *event)
 
   switch (event->type) {
   case SDL_EVENT_QUIT:
-  case SDL_EVENT_TERMINATING:
-  case SDL_EVENT_LOW_MEMORY:
-  case SDL_EVENT_WILL_ENTER_BACKGROUND:
-  case SDL_EVENT_DID_ENTER_BACKGROUND:
-  case SDL_EVENT_WILL_ENTER_FOREGROUND:
-  case SDL_EVENT_DID_ENTER_FOREGROUND:
-  case SDL_EVENT_LOCALE_CHANGED:
-  case SDL_EVENT_SYSTEM_THEME_CHANGED:
-  case SDL_EVENT_KEYMAP_CHANGED:
-  case SDL_EVENT_SCREEN_KEYBOARD_SHOWN:
-  case SDL_EVENT_SCREEN_KEYBOARD_HIDDEN:
-    ALLOC_EVENT(RAW_APPLICATION, 2);
-    STORE_INT(0, event->type);
-    STORE_I64(1, event->common.timestamp);
+    result = Val_unit;
     break;
 
-  case SDL_EVENT_DISPLAY_ORIENTATION:
-  case SDL_EVENT_DISPLAY_ADDED:
-  case SDL_EVENT_DISPLAY_REMOVED:
-  case SDL_EVENT_DISPLAY_MOVED:
-  case SDL_EVENT_DISPLAY_DESKTOP_MODE_CHANGED:
-  case SDL_EVENT_DISPLAY_CURRENT_MODE_CHANGED:
-  case SDL_EVENT_DISPLAY_CONTENT_SCALE_CHANGED:
-  case SDL_EVENT_DISPLAY_USABLE_BOUNDS_CHANGED:
-    ALLOC_EVENT(RAW_DISPLAY, 5);
-    STORE_INT(0, event->type);
-    STORE_I64(1, event->display.timestamp);
-    STORE_I64(2, event->display.displayID);
-    STORE_INT(3, event->display.data1);
-    STORE_INT(4, event->display.data2);
-    break;
-
-  case SDL_EVENT_WINDOW_SHOWN:
-  case SDL_EVENT_WINDOW_HIDDEN:
-  case SDL_EVENT_WINDOW_EXPOSED:
-  case SDL_EVENT_WINDOW_MOVED:
-  case SDL_EVENT_WINDOW_RESIZED:
-  case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
-  case SDL_EVENT_WINDOW_METAL_VIEW_RESIZED:
-  case SDL_EVENT_WINDOW_MINIMIZED:
-  case SDL_EVENT_WINDOW_MAXIMIZED:
-  case SDL_EVENT_WINDOW_RESTORED:
-  case SDL_EVENT_WINDOW_MOUSE_ENTER:
-  case SDL_EVENT_WINDOW_MOUSE_LEAVE:
-  case SDL_EVENT_WINDOW_FOCUS_GAINED:
-  case SDL_EVENT_WINDOW_FOCUS_LOST:
-  case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
-  case SDL_EVENT_WINDOW_HIT_TEST:
-  case SDL_EVENT_WINDOW_ICCPROF_CHANGED:
-  case SDL_EVENT_WINDOW_DISPLAY_CHANGED:
-  case SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED:
-  case SDL_EVENT_WINDOW_SAFE_AREA_CHANGED:
-  case SDL_EVENT_WINDOW_OCCLUDED:
-  case SDL_EVENT_WINDOW_ENTER_FULLSCREEN:
-  case SDL_EVENT_WINDOW_LEAVE_FULLSCREEN:
-  case SDL_EVENT_WINDOW_DESTROYED:
-  case SDL_EVENT_WINDOW_HDR_STATE_CHANGED:
-    ALLOC_EVENT(RAW_WINDOW, 5);
-    STORE_INT(0, event->type);
-    STORE_I64(1, event->window.timestamp);
-    STORE_I64(2, event->window.windowID);
-    STORE_INT(3, event->window.data1);
-    STORE_INT(4, event->window.data2);
-    break;
-
-  case SDL_EVENT_KEYBOARD_ADDED:
-  case SDL_EVENT_KEYBOARD_REMOVED:
-    ALLOC_EVENT(RAW_KEYBOARD_DEVICE, 3);
-    STORE_INT(0, event->type);
-    STORE_I64(1, event->kdevice.timestamp);
-    STORE_I64(2, event->kdevice.which);
+  case SDL_EVENT_WINDOW_SHOWN: case SDL_EVENT_WINDOW_HIDDEN:
+  case SDL_EVENT_WINDOW_MINIMIZED: case SDL_EVENT_WINDOW_RESTORED:
+  case SDL_EVENT_WINDOW_OCCLUDED: case SDL_EVENT_WINDOW_FOCUS_GAINED:
+  case SDL_EVENT_WINDOW_FOCUS_LOST: case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
+  case SDL_EVENT_WINDOW_RESIZED: case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
+    payload = window_change_of_event(event);
+    ALLOC_EVENT(EVENT_WINDOW, 1);
+    Store_field(result, 0, payload);
     break;
 
   case SDL_EVENT_KEY_DOWN:
   case SDL_EVENT_KEY_UP:
-    ALLOC_EVENT(RAW_KEY, 9);
-    STORE_I64(0, event->key.timestamp);
-    STORE_I64(1, event->key.windowID);
-    STORE_I64(2, event->key.which);
-    STORE_INT(3, event->key.scancode);
-    STORE_INT(4, event->key.key);
-    STORE_INT(5, event->key.mod);
-    STORE_INT(6, event->key.raw);
-    STORE_BOOL(7, event->key.down);
-    STORE_BOOL(8, event->key.repeat);
-    break;
-
-  case SDL_EVENT_TEXT_EDITING:
-    ALLOC_EVENT(RAW_TEXT_EDITING, 5);
-    STORE_I64(0, event->edit.timestamp);
-    STORE_I64(1, event->edit.windowID);
-    STORE_STRING(2, event->edit.text);
-    STORE_INT(3, event->edit.start);
-    STORE_INT(4, event->edit.length);
-    break;
-
-  case SDL_EVENT_TEXT_EDITING_CANDIDATES:
-    ALLOC_EVENT(RAW_TEXT_EDITING_CANDIDATES, 5);
-    STORE_I64(0, event->edit_candidates.timestamp);
-    STORE_I64(1, event->edit_candidates.windowID);
-    payload = copy_string_array(event->edit_candidates.candidates,
-        event->edit_candidates.num_candidates);
-    Store_field(result, 2, payload);
-    STORE_INT(3, event->edit_candidates.selected_candidate);
-    STORE_BOOL(4, event->edit_candidates.horizontal);
+    ALLOC_EVENT(EVENT_KEY, 4);
+    payload = key_of_event(event->key.key, event->key.scancode);
+    Store_field(result, 0, payload);
+    payload = modifiers_of_event(event->key.mod);
+    Store_field(result, 1, payload);
+    STORE_BOOL(2, event->key.down);
+    STORE_BOOL(3, event->key.repeat);
     break;
 
   case SDL_EVENT_TEXT_INPUT:
-    ALLOC_EVENT(RAW_TEXT_INPUT, 3);
-    STORE_I64(0, event->text.timestamp);
-    STORE_I64(1, event->text.windowID);
-    STORE_STRING(2, event->text.text);
+    ALLOC_EVENT(EVENT_TEXT_INPUT, 1);
+    STORE_STRING(0, event->text.text);
     break;
 
-  case SDL_EVENT_MOUSE_ADDED:
-  case SDL_EVENT_MOUSE_REMOVED:
-    ALLOC_EVENT(RAW_MOUSE_DEVICE, 3);
-    STORE_INT(0, event->type);
-    STORE_I64(1, event->mdevice.timestamp);
-    STORE_I64(2, event->mdevice.which);
+  case SDL_EVENT_TEXT_EDITING:
+    ALLOC_EVENT(EVENT_TEXT_EDITING, 3);
+    STORE_STRING(0, event->edit.text);
+    STORE_INT(1, event->edit.start);
+    STORE_INT(2, event->edit.length);
     break;
 
   case SDL_EVENT_MOUSE_MOTION:
-    ALLOC_EVENT(RAW_MOUSE_MOTION, 8);
-    STORE_I64(0, event->motion.timestamp);
-    STORE_I64(1, event->motion.windowID);
-    STORE_I64(2, event->motion.which);
-    STORE_I64(3, event->motion.state);
-    STORE_FLOAT(4, event->motion.x);
-    STORE_FLOAT(5, event->motion.y);
-    STORE_FLOAT(6, event->motion.xrel);
-    STORE_FLOAT(7, event->motion.yrel);
+    ALLOC_EVENT(EVENT_MOUSE_MOTION, 4);
+    STORE_FLOAT(0, event->motion.x);
+    STORE_FLOAT(1, event->motion.y);
+    STORE_FLOAT(2, event->motion.xrel);
+    STORE_FLOAT(3, event->motion.yrel);
     break;
 
   case SDL_EVENT_MOUSE_BUTTON_DOWN:
-  case SDL_EVENT_MOUSE_BUTTON_UP:
-    ALLOC_EVENT(RAW_MOUSE_BUTTON, 8);
-    STORE_I64(0, event->button.timestamp);
-    STORE_I64(1, event->button.windowID);
-    STORE_I64(2, event->button.which);
-    STORE_INT(3, event->button.button);
-    STORE_BOOL(4, event->button.down);
-    STORE_INT(5, event->button.clicks);
-    STORE_FLOAT(6, event->button.x);
-    STORE_FLOAT(7, event->button.y);
+  case SDL_EVENT_MOUSE_BUTTON_UP: {
+    int button;
+    switch (event->button.button) {
+    case SDL_BUTTON_LEFT: button = BUTTON_LEFT; break;
+    case SDL_BUTTON_MIDDLE: button = BUTTON_MIDDLE; break;
+    case SDL_BUTTON_RIGHT: button = BUTTON_RIGHT; break;
+    case SDL_BUTTON_X1: button = BUTTON_X1; break;
+    case SDL_BUTTON_X2: button = BUTTON_X2; break;
+    default: CAMLreturnT(bool, false);
+    }
+    ALLOC_EVENT(EVENT_MOUSE_BUTTON, 4);
+    STORE_INT(0, button);
+    STORE_BOOL(1, event->button.down);
+    STORE_FLOAT(2, event->button.x);
+    STORE_FLOAT(3, event->button.y);
     break;
+  }
 
   case SDL_EVENT_MOUSE_WHEEL:
-    ALLOC_EVENT(RAW_MOUSE_WHEEL, 10);
-    STORE_I64(0, event->wheel.timestamp);
-    STORE_I64(1, event->wheel.windowID);
-    STORE_I64(2, event->wheel.which);
-    STORE_FLOAT(3, event->wheel.x);
-    STORE_FLOAT(4, event->wheel.y);
-    STORE_INT(5, event->wheel.direction);
-    STORE_FLOAT(6, event->wheel.mouse_x);
-    STORE_FLOAT(7, event->wheel.mouse_y);
-    STORE_INT(8, event->wheel.integer_x);
-    STORE_INT(9, event->wheel.integer_y);
-    break;
-
-  case SDL_EVENT_GAMEPAD_AXIS_MOTION:
-    ALLOC_EVENT(RAW_GAMEPAD_AXIS, 4);
-    STORE_I64(0, event->gaxis.timestamp);
-    STORE_I64(1, event->gaxis.which);
-    STORE_INT(2, event->gaxis.axis);
-    STORE_INT(3, event->gaxis.value);
-    break;
-
-  case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
-  case SDL_EVENT_GAMEPAD_BUTTON_UP:
-    ALLOC_EVENT(RAW_GAMEPAD_BUTTON, 4);
-    STORE_I64(0, event->gbutton.timestamp);
-    STORE_I64(1, event->gbutton.which);
-    STORE_INT(2, event->gbutton.button);
-    STORE_BOOL(3, event->gbutton.down);
-    break;
-
-  case SDL_EVENT_GAMEPAD_ADDED:
-  case SDL_EVENT_GAMEPAD_REMOVED:
-  case SDL_EVENT_GAMEPAD_REMAPPED:
-  case SDL_EVENT_GAMEPAD_UPDATE_COMPLETE:
-  case SDL_EVENT_GAMEPAD_STEAM_HANDLE_UPDATED:
-    ALLOC_EVENT(RAW_GAMEPAD_DEVICE, 3);
-    STORE_INT(0, event->type);
-    STORE_I64(1, event->gdevice.timestamp);
-    STORE_I64(2, event->gdevice.which);
-    break;
-
-  case SDL_EVENT_GAMEPAD_TOUCHPAD_DOWN:
-  case SDL_EVENT_GAMEPAD_TOUCHPAD_MOTION:
-  case SDL_EVENT_GAMEPAD_TOUCHPAD_UP:
-    ALLOC_EVENT(RAW_GAMEPAD_TOUCHPAD, 8);
-    STORE_INT(0, event->type);
-    STORE_I64(1, event->gtouchpad.timestamp);
-    STORE_I64(2, event->gtouchpad.which);
-    STORE_INT(3, event->gtouchpad.touchpad);
-    STORE_INT(4, event->gtouchpad.finger);
-    STORE_FLOAT(5, event->gtouchpad.x);
-    STORE_FLOAT(6, event->gtouchpad.y);
-    STORE_FLOAT(7, event->gtouchpad.pressure);
-    break;
-
-  case SDL_EVENT_GAMEPAD_SENSOR_UPDATE:
-    ALLOC_EVENT(RAW_GAMEPAD_SENSOR, 5);
-    STORE_I64(0, event->gsensor.timestamp);
-    STORE_I64(1, event->gsensor.which);
-    STORE_INT(2, event->gsensor.sensor);
-    payload = copy_float_array(event->gsensor.data, 3);
-    Store_field(result, 3, payload);
-    STORE_I64(4, event->gsensor.sensor_timestamp);
-    break;
-
-  case SDL_EVENT_FINGER_DOWN:
-  case SDL_EVENT_FINGER_UP:
-  case SDL_EVENT_FINGER_MOTION:
-  case SDL_EVENT_FINGER_CANCELED:
-    ALLOC_EVENT(RAW_TOUCH, 10);
-    STORE_INT(0, event->type);
-    STORE_I64(1, event->tfinger.timestamp);
-    STORE_I64(2, event->tfinger.touchID);
-    STORE_I64(3, event->tfinger.fingerID);
-    STORE_FLOAT(4, event->tfinger.x);
-    STORE_FLOAT(5, event->tfinger.y);
-    STORE_FLOAT(6, event->tfinger.dx);
-    STORE_FLOAT(7, event->tfinger.dy);
-    STORE_FLOAT(8, event->tfinger.pressure);
-    STORE_I64(9, event->tfinger.windowID);
+    ALLOC_EVENT(EVENT_MOUSE_WHEEL, 7);
+    STORE_FLOAT(0, event->wheel.x);
+    STORE_FLOAT(1, event->wheel.y);
+    STORE_INT(2, event->wheel.direction == SDL_MOUSEWHEEL_FLIPPED
+        ? WHEEL_FLIPPED : WHEEL_NORMAL);
+    STORE_FLOAT(3, event->wheel.mouse_x);
+    STORE_FLOAT(4, event->wheel.mouse_y);
+    STORE_INT(5, event->wheel.integer_x);
+    STORE_INT(6, event->wheel.integer_y);
     break;
 
   case SDL_EVENT_PINCH_BEGIN:
   case SDL_EVENT_PINCH_UPDATE:
   case SDL_EVENT_PINCH_END:
-    ALLOC_EVENT(RAW_PINCH, 4);
-    STORE_INT(0, event->type);
-    STORE_I64(1, event->pinch.timestamp);
-    STORE_FLOAT(2, event->pinch.scale);
-    STORE_I64(3, event->pinch.windowID);
+    ALLOC_EVENT(EVENT_PINCH, 2);
+    STORE_INT(0, event->type == SDL_EVENT_PINCH_BEGIN ? PINCH_BEGAN
+        : event->type == SDL_EVENT_PINCH_UPDATE ? PINCH_UPDATED : PINCH_ENDED);
+    STORE_FLOAT(1, event->pinch.scale);
     break;
 
-  case SDL_EVENT_PEN_PROXIMITY_IN:
-  case SDL_EVENT_PEN_PROXIMITY_OUT:
-    ALLOC_EVENT(RAW_PEN_PROXIMITY, 4);
-    STORE_INT(0, event->type);
-    STORE_I64(1, event->pproximity.timestamp);
-    STORE_I64(2, event->pproximity.windowID);
-    STORE_I64(3, event->pproximity.which);
-    break;
-
-  case SDL_EVENT_PEN_MOTION:
-    ALLOC_EVENT(RAW_PEN_MOTION, 6);
-    STORE_I64(0, event->pmotion.timestamp);
-    STORE_I64(1, event->pmotion.windowID);
-    STORE_I64(2, event->pmotion.which);
-    STORE_I64(3, event->pmotion.pen_state);
-    STORE_FLOAT(4, event->pmotion.x);
-    STORE_FLOAT(5, event->pmotion.y);
-    break;
-
-  case SDL_EVENT_PEN_DOWN:
-  case SDL_EVENT_PEN_UP:
-    ALLOC_EVENT(RAW_PEN_TOUCH, 8);
-    STORE_I64(0, event->ptouch.timestamp);
-    STORE_I64(1, event->ptouch.windowID);
-    STORE_I64(2, event->ptouch.which);
-    STORE_I64(3, event->ptouch.pen_state);
-    STORE_FLOAT(4, event->ptouch.x);
-    STORE_FLOAT(5, event->ptouch.y);
-    STORE_BOOL(6, event->ptouch.eraser);
-    STORE_BOOL(7, event->ptouch.down);
-    break;
-
-  case SDL_EVENT_PEN_BUTTON_DOWN:
-  case SDL_EVENT_PEN_BUTTON_UP:
-    ALLOC_EVENT(RAW_PEN_BUTTON, 8);
-    STORE_I64(0, event->pbutton.timestamp);
-    STORE_I64(1, event->pbutton.windowID);
-    STORE_I64(2, event->pbutton.which);
-    STORE_I64(3, event->pbutton.pen_state);
-    STORE_FLOAT(4, event->pbutton.x);
-    STORE_FLOAT(5, event->pbutton.y);
-    STORE_INT(6, event->pbutton.button);
-    STORE_BOOL(7, event->pbutton.down);
-    break;
-
-  case SDL_EVENT_PEN_AXIS:
-    ALLOC_EVENT(RAW_PEN_AXIS, 8);
-    STORE_I64(0, event->paxis.timestamp);
-    STORE_I64(1, event->paxis.windowID);
-    STORE_I64(2, event->paxis.which);
-    STORE_I64(3, event->paxis.pen_state);
-    STORE_FLOAT(4, event->paxis.x);
-    STORE_FLOAT(5, event->paxis.y);
-    STORE_INT(6, event->paxis.axis);
-    STORE_FLOAT(7, event->paxis.value);
-    break;
-
-  case SDL_EVENT_DROP_FILE:
-  case SDL_EVENT_DROP_TEXT:
   case SDL_EVENT_DROP_BEGIN:
-  case SDL_EVENT_DROP_COMPLETE:
   case SDL_EVENT_DROP_POSITION:
-    ALLOC_EVENT(RAW_DROP, 7);
-    STORE_INT(0, event->type);
-    STORE_I64(1, event->drop.timestamp);
-    STORE_I64(2, event->drop.windowID);
-    STORE_FLOAT(3, event->drop.x);
-    STORE_FLOAT(4, event->drop.y);
-    payload = copy_nullable_string(event->drop.source);
-    Store_field(result, 5, payload);
-    payload = copy_nullable_string(event->drop.data);
-    Store_field(result, 6, payload);
-    break;
-
-  case SDL_EVENT_CLIPBOARD_UPDATE:
-    ALLOC_EVENT(RAW_CLIPBOARD, 3);
-    STORE_I64(0, event->clipboard.timestamp);
-    STORE_BOOL(1, event->clipboard.owner);
-    payload = copy_string_array(
-        (const char * const *)event->clipboard.mime_types,
-        event->clipboard.num_mime_types);
-    Store_field(result, 2, payload);
-    break;
-
-  case SDL_EVENT_AUDIO_DEVICE_ADDED:
-  case SDL_EVENT_AUDIO_DEVICE_REMOVED:
-  case SDL_EVENT_AUDIO_DEVICE_FORMAT_CHANGED:
-    ALLOC_EVENT(RAW_AUDIO_DEVICE, 4);
-    STORE_INT(0, event->type);
-    STORE_I64(1, event->adevice.timestamp);
-    STORE_I64(2, event->adevice.which);
-    STORE_BOOL(3, event->adevice.recording);
-    break;
-
-  case SDL_EVENT_SENSOR_UPDATE:
-    ALLOC_EVENT(RAW_SENSOR, 4);
-    STORE_I64(0, event->sensor.timestamp);
-    STORE_I64(1, event->sensor.which);
-    payload = copy_float_array(event->sensor.data, 6);
-    Store_field(result, 2, payload);
-    STORE_I64(3, event->sensor.sensor_timestamp);
+  case SDL_EVENT_DROP_COMPLETE:
+  case SDL_EVENT_DROP_FILE:
+    if (event->type == SDL_EVENT_DROP_FILE) {
+      if (event->drop.data == NULL) CAMLreturnT(bool, false);
+      payload = caml_alloc(1, 0);
+      item = caml_copy_string(event->drop.data);
+      Store_field(payload, 0, item);
+    } else {
+      payload = Val_int(event->type == SDL_EVENT_DROP_BEGIN ? DROP_BEGIN
+          : event->type == SDL_EVENT_DROP_POSITION ? DROP_POSITION
+          : DROP_COMPLETE);
+    }
+    ALLOC_EVENT(EVENT_DROP, 3);
+    Store_field(result, 0, payload);
+    STORE_FLOAT(1, event->drop.x);
+    STORE_FLOAT(2, event->drop.y);
     break;
 
   default:
-    ALLOC_EVENT(RAW_UNKNOWN, 2);
-    STORE_INT(0, event->type);
-    STORE_I64(1, event->common.timestamp);
-    break;
+    CAMLreturnT(bool, false);
   }
 
 #undef STORE_STRING
 #undef STORE_FLOAT
-#undef STORE_I64
 #undef STORE_BOOL
 #undef STORE_INT
 #undef ALLOC_EVENT
-  CAMLreturn(result);
+  *out = result;
+  CAMLreturnT(bool, true);
 }
 
 /* Event operations are safe-module main-domain-only, so one reusable native
@@ -1065,12 +742,27 @@ static SDL_Event prismel_sdl3_event;
 CAMLprim value caml_sdl3_poll_event(value unit)
 {
   CAMLparam1(unit);
-  CAMLlocal2(raw, some);
-  if (!SDL_PollEvent(&prismel_sdl3_event)) {
-    CAMLreturn(Val_none);
+  CAMLlocal3(translated, some, outcome);
+  prismel_dialog_result finished;
+  (void)unit;
+  /* a finished file dialog comes first: its slot is the only thing a callback
+     wrote */
+  if (prismel_dialog_take(&finished)) {
+    outcome = dialog_outcome_value(&finished);
+    translated = caml_alloc(2, EVENT_DIALOG);
+    Store_field(translated, 0, Val_int(finished.id));
+    Store_field(translated, 1, outcome);
+    free(finished.payload);
+    some = caml_alloc(1, 0);
+    Store_field(some, 0, translated);
+    CAMLreturn(some);
   }
-  raw = copy_sdl_event(&prismel_sdl3_event);
-  some = caml_alloc(1, 0);
-  Store_field(some, 0, raw);
-  CAMLreturn(some);
+  while (SDL_PollEvent(&prismel_sdl3_event)) {
+    if (translate_event(&prismel_sdl3_event, &translated)) {
+      some = caml_alloc(1, 0);
+      Store_field(some, 0, translated);
+      CAMLreturn(some);
+    }
+  }
+  CAMLreturn(Val_none);
 }

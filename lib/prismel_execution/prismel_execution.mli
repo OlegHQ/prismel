@@ -54,10 +54,20 @@ type presentation_facts = {
 val presentation_facts : t -> (presentation_facts,error) result
 val show : t -> (unit,error) result
 val set_relative_mouse : t -> bool -> (unit,error) result
-val set_cursor : t -> [`Default|`Horizontal_resize|`Vertical_resize] ->
+val set_cursor : t -> [`Default|`Horizontal_resize|`Vertical_resize|`Text] ->
   (unit,error) result
-val set_text_input_area : t -> ((int * int * int * int) * int) option ->
+(* Some (region, cursor) starts text input at a focused field, None stops it. *)
+val set_text_input : t -> ((int * int * int * int) * int) option ->
   (unit,error) result
+(* Shown, and neither minimized nor covered; see Runtime.visible. *)
+val visible : t -> (bool,error) result
+(* A native file dialog; its outcome arrives as a Runtime_input.Dialog_closed. *)
+type dialog_kind = Runtime.dialog_kind = Open_file | Open_files | Save_file | Open_folder
+type dialog_filter = Runtime.dialog_filter = { name : string; pattern : string }
+val show_dialog : t -> ?filters:dialog_filter list -> ?default_location:string ->
+  dialog_kind -> (int,error) result
+(* SDL announced a size or density change of the window. *)
+val window_changed : t -> unit
 val resize : t -> logical_width:int -> logical_height:int ->
   drawable_width:int -> drawable_height:int -> (unit,error) result
 val step : ?clear:(float * float * float * float) -> t -> draw list ->

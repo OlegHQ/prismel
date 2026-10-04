@@ -634,14 +634,16 @@ let run_1 () =
              (Color.rgb 128 128 64))
   then fail "immutable texture mip generation or LOD sampling is incorrect"
 
-(* Runtime key names must reach the Input keys hosts match on. *)
+(* The runtime's keys must reach the Input keys hosts match on. *)
 let run_2 () =
-  List.iter (fun (scancode, expected) ->
-    let name = Runtime_input_sdl3.key_name ~scancode 0 in
-    if Prismel.Event.Private.key_of_name name <> expected then
-      fail ("runtime key " ^ name ^ " did not map to its Input key"))
-    Prismel.Input.[ 79, ArrowRight; 80, ArrowLeft; 81, ArrowDown; 82, ArrowUp;
-            40, Enter; 41, Escape; 224, Ctrl; 227, Meta; 75, PageUp ]
+  List.iter (fun (key, expected) ->
+    if Prismel.Event.Private.key_of_runtime key <> expected then
+      fail "a runtime key did not map to its Input key")
+    Prismel.Input.[ Runtime_input.Arrow_right, ArrowRight; Arrow_left, ArrowLeft;
+            Arrow_down, ArrowDown; Arrow_up, ArrowUp; Enter, Enter;
+            Escape, Escape; Control, Ctrl; Meta, Meta; Page_up, PageUp;
+            Char 'a', KeyChar 'a'; Space, Space; F12, F12;
+            Unknown 4242, Unknown 4242 ]
 
 (* Every 2D constructor must lower to a valid Render_ir (triangle lists). *)
 let run_3 () =

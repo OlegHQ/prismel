@@ -629,9 +629,11 @@ Long-running, SDK-, driver- and machine-specific checks run under
 gate.
 # Native UI input and export
 
-The native window starts SDL3 text input for its lifetime. PXUI emits a focused
-text region in logical points; Sketch forwards it to SDL3's IME candidate area
-on each render and clears the area when focus leaves. PXUI measures the text
+The native window runs SDL3 text input only while a text field has focus. PXUI
+emits a focused text region in logical points; Sketch forwards it on each
+render, which starts text input and places SDL3's IME candidate area, and
+stops text input when no region is focused. Text fields, text areas and the
+picker search show the I-beam cursor under the pointer. PXUI measures the text
 run and sends its caret offset in logical points to SDL3. Text fields, numeric
 editors, and picker search share UTF-8 caret and selection editing. PXUI
 applies text events only to a focused editor; Sketch UI

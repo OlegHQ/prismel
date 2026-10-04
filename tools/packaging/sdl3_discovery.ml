@@ -251,6 +251,29 @@ let platform_libraries config libraries =
   | Some "macosx" -> "-Wl,-no_warn_duplicate_libraries" :: libraries
   | _ -> libraries
 
+(* The version pkg-config reports for the installed package, as the number
+   [SDL_VERSIONNUM] produces, or 0 when it cannot say: explicit header
+   directories may describe a different install than pkg-config does. The
+   stubs include it, so a changed SDL rebuilds them, and compare it with the
+   header they compile against. *)
+let probed_version config details =
+  match environment (details.environment_prefix ^ "_INCLUDE_DIR") with
+  | Some _ -> 0
+  | None ->
+      let program =
+        match environment "PKG_CONFIG" with
+        | Some value -> value
+        | None -> "pkg-config"
+      in
+      let result =
+        C.Process.run config program [ "--modversion"; details.package ]
+      in
+      if result.C.Process.exit_code <> 0 then 0
+      else
+        match Sdl3_lock.parse_version result.C.Process.stdout with
+        | version -> Sdl3_lock.version_number version
+        | exception Failure _ -> 0
+
 let configure config component =
   let details = details component in
   let mode = link_mode () in
@@ -268,7 +291,10 @@ let configure config component =
   let libraries = libraries @ sanitizer_libraries in
   C.Flags.write_sexp "c_flags.sexp" cflags;
   C.Flags.write_sexp "c_library_flags.sexp"
-    (platform_libraries config libraries)
+    (platform_libraries config libraries);
+  C.Flags.write_lines "sdl3_probed.h"
+    [ "#define PRISMEL_SDL3_PROBED_VERSION "
+      ^ string_of_int (probed_version config details) ]
 
 let main component =
   let details = details component in

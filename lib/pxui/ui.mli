@@ -80,9 +80,11 @@ val scene : ?under:(int -> Prismel.Scene.t) -> t -> Prismel.Scene.t
 val wants_pointer : t -> bool
 (** The pointer was over a UI box, or a box holds pointer capture. *)
 
-val cursor : t -> [`Horizontal_resize|`Vertical_resize] option
-val request_cursor : t -> [`Horizontal_resize|`Vertical_resize] -> unit
-(** Cursor requested by a hovered or captured PXUI control. *)
+val cursor : t -> [`Horizontal_resize|`Vertical_resize|`Text] option
+val request_cursor : t -> [`Horizontal_resize|`Vertical_resize|`Text] -> unit
+(** Cursor requested by a hovered or captured PXUI control: a resize edge, or
+    the I-beam over a text field or text area. The last request of a frame
+    wins. *)
 
 val key_pressed : t -> Prismel.Input.key -> bool
 (** The key was pressed in this frame's events (a dialog's Enter). *)
@@ -172,6 +174,39 @@ val hit_rect : t -> box -> float * float * float * float
 val hovered_within : t -> box -> bool
 (** The box or a hit descendant owns hover in the shared hit tree. *)
 
+(** {1 Carry}
+
+    A payload in flight: a [kind] and a [value], both strings (a Flow value such as
+    [(ref cobalt)] and what sort of graph it names).  The hit list and the single capture
+    are unchanged: while a box owns the press, {!val-drop_target} lets any other box see that it
+    is the one under the pointer and what is held.  Nothing is built or painted on frames
+    without a payload. *)
+
+type payload = { kind : string; value : string }
+
+type drop =
+  | Hover of payload  (** the pointer is over the box while a payload is held *)
+  | Dropped of payload  (** the payload was released over the box, this frame only *)
+
+val carry : t -> ?from:box -> kind:string -> value:string -> unit -> unit
+(** Hold a payload.  With [from], the box that owns the pressed left button: it is held once
+    the pointer has moved 4 points from the press, so a widget calls it every frame while
+    pressed.  Without [from] (a key) it is held at once, with no capture; then a left press
+    is the put, on the box under it, and nothing else sees that press. *)
+
+val carrying : t -> payload option
+(** The payload in flight; [None] after a release, a pointer cancellation or a focus loss
+    ({!val-drop_target} reports a release for that one frame). *)
+
+val cancel_carry : t -> unit
+(** Forget the payload: the host cancelled (Escape) or finished a carry it started. *)
+
+val drop_target : t -> box -> drop option
+(** [Hover] while a payload is held and the topmost box under the pointer is [box] or inside
+    it; [Dropped] on the frame the pointer released it there.  A box takes the pointer
+    ({!clickable}, {!blocking} ...) to be found.  The ghost that follows the pointer is
+    painted by {!frame} above every root (including popups), never hit. *)
+
 val hover_delay : t -> key:string -> bool
 (** Call for the current hovered target during the builder. True after
     380 ms of pointer rest; movement, a target change, a skipped frame,
@@ -204,6 +239,10 @@ type signal = {
   release_point : float * float;
   button : Prismel.Input.mouse_button option;
   scroll : float * float;  (** wheel steps routed to this box *)
+  pinch : float;
+  (** product of the trackpad pinch factors routed to this box this frame
+      (the box under the pointer, like the wheel): above 1 zooms in, 1 when
+      there was none *)
   keys : Prismel.Event.t list;  (** ordered key/text events while focused *)
 }
 
@@ -455,7 +494,7 @@ val text_area_submit :
   t -> at:float * float -> w:float -> h:float -> ?readonly:bool -> ?wrap:bool ->
   ?errors:int list -> ?spans:(int * int) list -> ?reveal:int -> ?language:language ->
   ?on_context:(float * float -> unit) -> ?on_scrub:([ `Live | `Done ] -> unit) ->
-  ?on_click:(int -> bool -> unit) -> ?on_caret:(int -> unit) ->
+  ?on_click:(int -> bool -> unit) -> ?on_caret:(int -> unit) -> ?on_drop:(int -> drop -> unit) ->
   ?chips:(int * int * Prismel.Color.t) list ->
   string -> string -> string * bool
 (** {!text_area} that also reports Command- or Ctrl-Enter pressed in it this frame (the host's
@@ -471,7 +510,9 @@ val text_area_submit :
     changed that way and [on_scrub `Done] when the drag ends, so a host can apply the text live
     and merge the drag into one history entry.  [on_click byte command] is called when the area is
     left-clicked at byte offset [byte] without a drag, [command] being true when Command or Ctrl is
-    held; [on_caret] receives the caret offset each frame the area has focus; [chips] are byte
+    held; [on_caret] receives the caret offset each frame the area has focus;
+    [on_drop byte drop] is called while a payload ({!val-carry}) is held over the area, with the byte
+    offset under the pointer and whether it is hovering or was released there; [chips] are byte
     ranges underlined with a colour bar (a colour literal shows its colour). *)
 
 val value_field : t -> at:float * float -> w:float -> h:float ->

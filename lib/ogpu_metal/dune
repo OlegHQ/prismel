@@ -63,6 +63,7 @@
 
 (rule
  (alias qualification)
+ (locks smoke_window)
  (action
   (setenv PRISMEL_SURFACE_FRAMES 600
    (run %{exe:test_main.exe} test_ogpu_metal_surface))))

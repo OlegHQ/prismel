@@ -32,9 +32,10 @@ let tests = [
   "test_viewport_pick", Test_viewport_pick.run;
   "bench_viewport_pick", Test_viewport_pick.bench;
   "test_workspace_doc", Test_workspace_doc.run;
-  "test_workspace_shell", Test_workspace_shell.run;
+  "test_workspace_shell", (fun () -> Test_workspace_shell.run (); Test_workspace_shell.run_roots ());
   "test_workspace_shell_native", Test_workspace_shell.run_native;
   "test_workspace_view_native", Test_workspace_shell.run_view_native;
+  "test_workspace_roots_native", (fun () -> Test_workspace_shell.run_roots_native (); Test_workspace_shell.run_budget_native ());
   "test_workspace_source", Test_workspace_source.run;
   "test_bloom_studio", Test_bloom_studio.run;
   "dependency_gate", Dependency_gate.run;

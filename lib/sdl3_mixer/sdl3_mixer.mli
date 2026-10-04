@@ -18,12 +18,14 @@ type error = private {
 
 val pp_error : Format.formatter -> error -> unit
 
+(** The version macro of the headers compiled against, and the library
+    linked; both are checked against packaging/sdl3.lock by the tests. *)
+val compiled_version : Sdl3.version
 val linked_version : unit -> Sdl3.version
 val check_version : ?release:bool -> unit -> (unit, error) result
 
 module Init : sig
   val init : unit -> (unit, error) result
-  val initialized : unit -> (bool, error) result
   val quit : unit -> (unit, error) result
 end
 
@@ -35,11 +37,7 @@ module Mixer : sig
 
   val create_device : unit -> (t, error) result
   val create_memory : sample_rate:int -> channels:int -> (t, error) result
-  val mode : t -> mode
-  val format : t -> (format, error) result
   val set_gain : t -> float -> (unit, error) result
-  val gain : t -> (float, error) result
-  val stop_all : t -> ?fade_ms:int -> unit -> (unit, error) result
 
   (** Generate exactly [frames] of interleaved native-endian float32 PCM from
       a memory mixer. [mixed_bytes] excludes silence appended after tracks
@@ -52,19 +50,11 @@ end
 module Audio : sig
   type t
 
-  val load_file :
-    Mixer.t -> path:string -> ?predecode:bool -> unit -> (t, error) result
   val load_bytes : Mixer.t -> bytes -> (t, error) result
   (* Decode replacement bytes against the same mixer. The original remains
       live and unchanged on both success and failure, so callers can swap
       immutable snapshots transactionally. *)
   val reload_bytes : t -> bytes -> (t, error) result
-  val create_sine :
-    Mixer.t -> frequency:int -> amplitude:float -> duration_ms:int ->
-    (t, error) result
-  val generation : t -> int
-  val destroyed : t -> bool
-  val duration_frames : t -> (int64, error) result
   val destroy : t -> (unit, error) result
 end
 
@@ -77,19 +67,14 @@ module Channels : sig
 
   val create : Mixer.t -> count:int -> (t, error) result
   val count : t -> int
-  val allocate : t -> (channel, error) result
   val play :
     t -> ?channel:channel -> ?loops:int -> ?fade_in_ms:int -> Audio.t ->
     (channel, error) result
   val set_volume : t -> channel -> float -> (unit, error) result
-  val volume : t -> channel -> (float, error) result
-  val set_group : t -> channel -> int option -> (unit, error) result
-  val set_group_volume : t -> group:int -> float -> (unit, error) result
   val pause : t -> channel -> (unit, error) result
   val resume : t -> channel -> (unit, error) result
   val stop : t -> channel -> ?fade_out_ms:int -> unit -> (unit, error) result
   val playing : t -> channel -> (bool, error) result
-  val paused : t -> channel -> (bool, error) result
   val destroy : t -> (unit, error) result
 end
 
@@ -100,12 +85,9 @@ module Music : sig
   val create : Mixer.t -> (t, error) result
   val set_audio : t -> Audio.t -> (unit, error) result
   val set_volume : t -> float -> (unit, error) result
-  val volume : t -> (float, error) result
   val play : t -> ?loops:int -> ?fade_in_ms:int -> unit -> (unit, error) result
   val pause : t -> (unit, error) result
   val resume : t -> (unit, error) result
   val stop : t -> ?fade_out_ms:int -> unit -> (unit, error) result
-  val playing : t -> (bool, error) result
-  val paused : t -> (bool, error) result
   val destroy : t -> (unit, error) result
 end

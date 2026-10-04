@@ -72,16 +72,30 @@ the route, `scene > shards > cobalt`. `i` in a viewport panel with nothing selec
 scene it shows (the graph its `(ref scene)` names, else the first scene graph). Command-click on a
 `(ref ...)` in the text pane follows onto the same back stack. The `:material` choice of the
 inspector draws each material's colour as a small square on the closed control and in its menu.
-Not done: dropping an outline row onto a node or a surface. PXUI has no drag-and-drop between
-widgets (payload, drop target, hit rule), and a second one would break the single input path; the
-equivalent gestures are the inspector choice, `Space a` Material of... and the text.
+
+Assigning by carry: press a material row of the outline (or a SOP graph row) and move 4 points,
+or press `y` over the open graph, and put it on a place that takes it. A material goes on a
+`sop/material` node, the inspector's `:material` choice, a surface in a viewport or a geometry
+object (`Set_arg :material (ref name)` on the node that reads the surface's `shop_materialpath`;
+a graph with no node for it gets a `sop/material` after its result, in the same entry); a SOP
+graph goes on the scene (a new object over the existing graph) or on an object (its `(ref ...)`
+re-pointed). Hovering a place applies the real edit on a scratch document that every panel shows
+(budget 500 ms, then only the strip says what it would write); release or `Enter` keeps it as
+one entry named `Put`; `Esc`, a release over nothing or a lost window focus restores the
+previous document. A refusal prints the checker's reason in the strip. The design and the table
+are `flow.md` §7.12; the PXUI payload is in `pxui.md`.
 
 `sketches/shattered_studio/sketch.plisp` uses 12 noisy sheet cutters for a
 Boolean fracture, with piece-seeded groups and four referenced surfaces.
 `test/test_materials.ml` covers references, group preservation, render batches,
 invalid input, cancellation, and exact domain-count equality, then the editor: outline groups,
 chips and use counts, `Space j`, follow and back, double-click, `I`, Alt-click, rename with its
-refs, refusal to delete a read material, and `Space a` Material / Material of....
+refs, refusal to delete a read material, and `Space a` Material / Material of..., then the carry:
+by pointer and by keys a put writes `:material (ref cobalt)` as one `Put` entry (identical text),
+Escape, a release over nothing and a lost focus leave the document physically equal, a merge
+refuses a material with the checker's words, a SOP graph on an object re-points it, a surface in
+the viewport names its node (or adds the material node), resting on a node enters its graph,
+and a preview's apply and restore frames are timed against the 500 ms budget.
 `test/test_shattered_studio.ml` checks this particular fracture's closed
 manifold pieces, volume conservation, material batches, and domain equality.
 

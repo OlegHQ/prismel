@@ -46,10 +46,11 @@ let frame_bounds ~viewport:(_, _, width, height) ~min ~max camera =
        (Vec2.create ((min.x +. max.x) *. 0.5) ((min.y +. max.y) *. 0.5))
   |> Easy_camera2.with_zoom zoom
 
-let on_view core ~previous:_ camera () ~time:_ = core, camera, ()
-let view_camera camera () ~pending:_ = camera
-let film () viewport = viewport
-let render () ~roots:_ _ = ()
+let on_view core ~previous:_ ~key:_ camera () ~time:_ = core, camera, ()
+let view_camera camera () ~key:_ ~pending:_ = camera
+let film () ~key:_ viewport = viewport
+let render () ~pixel_scale:_ ~focus:_ _ = ()
+let caption () ~key:_ = None
 let render_status () = None
 let paint () ~key:_ viewport camera rendered = Easy_camera2.scene ~viewport camera rendered
 let guides ~scene:_ ~selected:_ ~space:_ _ () ~bounds:_ = []

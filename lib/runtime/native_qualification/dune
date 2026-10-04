@@ -1,7 +1,19 @@
 (executable
  (name runtime_native_qualification)
+ (modules runtime_native_qualification)
  (libraries runtime runtime_input scene_execution ogpu sdl3 unix yojson))
 
 (rule
  (alias qualification)
+ (locks smoke_window)
  (action (run %{exe:runtime_native_qualification.exe})))
+
+(executable
+ (name runtime_live_resize)
+ (modules runtime_live_resize)
+ (libraries runtime runtime_input ogpu sdl3 unix))
+
+(rule
+ (aliases qualification runtest-native)
+ (locks smoke_window)
+ (action (run %{exe:runtime_live_resize.exe} --auto)))

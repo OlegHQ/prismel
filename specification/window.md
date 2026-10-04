@@ -60,14 +60,18 @@ and a fixed clock to write deterministic numbered PNG sequences.
 
 ## Events and resizing
 
-Keyboard, pointer, scroll, committed text, IME editing, file-drop, focus,
-resize, and close events enter one ordered `Event.t` stream. Pointer movement is
+Keyboard, pointer, scroll, pinch, committed text, IME editing, file-drop (and
+file-drag position), file-dialog, focus, resize, and close events enter one
+ordered `Event.t` stream. Pointer movement is
 summed into `Frame.mouse_delta` for the frame. Focus loss clears held input and
 cancels capture. File-drop strings are copied before SDL3 releases its payload.
 
-The authoritative SDL3 size-change notification updates logical window facts,
-refreshes drawable size, resizes the Metal surface, and emits one
-`WindowResized` event. Fullscreen, show/hide, minimize,
+The authoritative SDL3 size-change notification (the window is not polled)
+updates logical window facts on the next frame, refreshes drawable size, resizes
+the Metal surface, and emits one `WindowResized` event. While the window is
+minimized or covered the sketch loop skips drawing and idles; SDL announces the
+start of occlusion but not its end, so the loop reads the window state once a
+frame to see it end. Live-resize redraw is an open decision (`specification/sdl3.md`). Fullscreen, show/hide, minimize,
 maximize, restore, title, and position operations delegate to the owned native
 window.
 

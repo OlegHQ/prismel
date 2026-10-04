@@ -20,10 +20,12 @@ type show = { cameras : bool; axes : bool; handles : bool }
    active camera node's view and the free viewport's view with its lens
    (both refreshed each update, the latter physically stable while
    unchanged so hidden-scene caching holds), and the guides. *)
-type extra = { look_through : bool; fly : float option; relative_grab : bool; render_camera : Camera.t;
+type extra = { look_through : bool; fly : float option; relative_grab : bool;
+               document_camera : Camera.t;  (* the ACTIVE camera's view: a viewport with no root of its own *)
+               view_roots : (string * Document.view_root) list;  (* the viewports with a root of their own *)
                free_view : Camera.t; viewing : Easy_camera.t;  (* the orbit camera [free_view] shows *)
-               render : Objects.Root.render;
-               root : Objects.Root.parameters;  (* the root's settings, the renderer as shown *)
+               free_camera : Camera.t;  (* the camera whose lens [free_view] carries *)
+               root : Objects.Root.parameters;  (* the document's root settings, the renderer as shown *)
                root_request : Objects.Root.parameters option;  (* the Render section's edit *)
                following : bool option;  (* the ACTIVE camera follows the viewport *)
                follow_request : bool option;  (* the Viewport panel's toggle, applied on the next update *)
@@ -106,6 +108,15 @@ let sync_cameras ~mode (core : _ Core.t) easy =
   if active = core.doc.active_camera then core
   else Core.scene_edit core `Amend ~active_camera:active (Core.scene core)
 
+(* How the viewport [key] renders: through which camera and as which root says.  A viewport over
+   its own scene instance reads that instance's root; any other renders as the document. *)
+type look = { through : Camera.t; settings : Objects.Root.parameters }
+
+let look extra key = match List.assoc_opt key extra.view_roots with
+  | Some { Document.params; camera } ->
+      { through = Option.value camera ~default:extra.document_camera; settings = params }
+  | None -> { through = extra.document_camera; settings = extra.root }
+
 let render_camera_of core easy = match active_node core with
   | Some node -> Option.value (node_camera node) ~default:(Easy_camera.camera easy)
   | None -> Easy_camera.camera easy
@@ -118,8 +129,6 @@ let free_view_of ~render_camera ~previous camera =
   let view = Camera.with_lens (if same_view render_camera view then lens
                                else { lens with focus_distance = None }) view in
   match previous with Some previous when previous = view -> previous | _ -> view
-
-let render_of core = Objects.Root.render core.Core.doc.root
 
 (* the renderer the document's root names, when its text has a root *)
 let of_root = function
@@ -138,9 +147,10 @@ let renderer_setting core = List.find_map (fun (field : Parameter.field_view) ->
 let init core camera =
   let core = sync_cameras ~mode:`Reset core camera in
   let render_camera = render_camera_of core camera in
-  core, { look_through = false; fly = None; relative_grab = false; render_camera;
+  core, { look_through = false; fly = None; relative_grab = false; document_camera = render_camera;
+          view_roots = core.doc.view_roots;
           free_view = free_view_of ~render_camera ~previous:None camera; viewing = camera;
-          render = render_of core; root = core.doc.root; root_request = None;
+          free_camera = render_camera; root = core.doc.root; root_request = None;
           following = Option.map follows (active_node core);
           follow_request = None; written = None;
           show = { cameras = true; axes = true; handles = true }; tool = Move;
@@ -246,7 +256,7 @@ let frame_bounds ~viewport:_ ~min ~max camera = Easy_camera.frame_bounds ~min ~m
 
 (* Follow-viewport motion changes the camera node in the same undo burst;
    node edits and undo pull the viewport back to the document. *)
-let on_view core ~previous camera extra ~time =
+let on_view core ~previous ~key camera extra ~time =
   (* a change in the Render section: an authored root takes it; without one only the renderer
      is the viewport's own choice, and any other setting writes the root *)
   let core, extra = match extra.root_request with
@@ -302,20 +312,24 @@ let on_view core ~previous camera extra ~time =
              end
          | Some _ | None -> core, camera)
     | Some _ | None -> core, camera in
-  let render_camera = render_camera_of core camera in
-  core, camera, { extra with render_camera;
-    free_view = free_view_of ~render_camera ~previous:(Some extra.free_view) camera; viewing = camera;
-    render = render_of core; following = Option.map follows (active_node core);
+  let extra = { extra with document_camera = render_camera_of core camera;
+    view_roots = core.Core.doc.view_roots } in
+  (* the focused viewport's free view carries the lens of its own camera *)
+  let free_camera = (look extra key).through in
+  core, camera, { extra with free_camera;
+    free_view = free_view_of ~render_camera:free_camera ~previous:(Some extra.free_view) camera;
+    viewing = camera; following = Option.map follows (active_node core);
     follow_request = None; written = !written }
 
 (* The view shows the render camera while looking through it and on the
    frame whose framebuffer a PNG request captures; otherwise the viewport
    camera carries the ACTIVE camera's lens, focused on the orbit target
    unless the node follows the viewport. *)
-let view_camera camera extra ~pending =
-  if extra.look_through || pending then extra.render_camera
-  else if camera == extra.viewing then extra.free_view
-  else free_view_of ~render_camera:extra.render_camera ~previous:None camera  (* another viewport's own orbit *)
+let view_camera camera extra ~key ~pending =
+  let { through; _ } = look extra key in
+  if extra.look_through || pending then through
+  else if camera == extra.viewing && through == extra.free_camera then extra.free_view
+  else free_view_of ~render_camera:through ~previous:None camera  (* another viewport's own orbit *)
 
 (* Looking through the camera, the render fills the largest rect of the
    camera's aspect (its render resolution) centred in the pane; otherwise
@@ -323,29 +337,44 @@ let view_camera camera extra ~pending =
 let pick_ray ~viewport view at =
   Camera.screen_ray ~viewport view ~at
 
-let film extra (x, y, width, height) =
-  if not extra.look_through then x, y, width, height else
-  let aspect = float extra.render.width /. float (max 1 extra.render.height) in
+(* A viewport shows the root's gate, not the whole pane, while looking through the camera and
+   while its tracer renders: the film covers the gate and nothing outside it.  A sketch's own
+   renderer ([custom]) keeps the whole pane. *)
+let gated extra key =
+  extra.look_through
+  || (not extra.renderer.custom && of_root (look extra key).settings.renderer = Renderer.Path_traced)
+
+let film extra ~key (x, y, width, height) =
+  if not (gated extra key) then x, y, width, height else
+  let { settings; _ } = look extra key in
+  let aspect = float settings.width /. float (max 1 settings.height) in
   let w = min width (int_of_float (Float.round (float height *. aspect))) in
   let h = min height (int_of_float (Float.round (float width /. aspect))) in
   let w = max 1 w and h = max 1 h in
   x + ((width - w) / 2), y + ((height - h) / 2), w, h
 
-(* Looking through the camera the tracer renders at the camera's own resolution whatever the
-   pane's size; the image is scaled to the film when painted. *)
-let render extra ~roots views =
-  let views = if not extra.look_through then views else
-    List.map (fun (key, (x, y, _, _), camera, scene) ->
-      key, (x, y, extra.render.width, extra.render.height), camera, scene) views in
-  (* a viewport over another scene instance renders as that instance's root says *)
-  let views = List.map (fun (key, film, camera, scene) ->
-    key, film, camera, scene,
-    Option.map (fun (root : Objects.Root.parameters) ->
-      { Renderer.mode = of_root root.renderer; bounces = root.bounces; round_samples = root.round_samples })
-      (roots key)) views in
+(* Each viewport renders as its own root says: the tracer's film is its resolution in a step
+   (1, 1/2, 1/4, 1/8) that fits the viewport's gate in drawable pixels, so the film changes only
+   when a resize crosses a step; the image is scaled to the gate when painted.  The sample cap is
+   read here, each frame, and is not part of the renderer's setting: raising one continues the
+   accumulation.  [views] carry each viewport's gate ({!film}). *)
+let render extra ~pixel_scale:(scale_x, scale_y) ~focus views =
+  let views = List.map (fun (key, (_, _, width, height), camera, scene) ->
+    let { settings; _ } = look extra key in
+    let gate = int_of_float (Float.round (float width *. scale_x)),
+               int_of_float (Float.round (float height *. scale_y)) in
+    let film, step = Renderer.film ~resolution:(settings.width, settings.height) ~gate in
+    { Renderer.key; film; step; camera; scene; cap = settings.max_spp;
+      setting = { mode = of_root settings.renderer; bounces = settings.bounces;
+                  round_samples = settings.round_samples } }) views in
   {extra with renderer = Renderer.update extra.renderer
-    ~mode:extra.renderer.mode ~custom:extra.renderer.custom ~bounces:extra.root.bounces
-    ~round_samples:extra.root.round_samples views}
+    ~mode:extra.renderer.mode ~custom:extra.renderer.custom ~focus views}
+
+(* A traced viewport's header: the root's resolution, the film's step of it and the samples *)
+let caption extra ~key =
+  let { settings; _ } = look extra key in
+  Option.map (Renderer.caption ~resolution:(settings.width, settings.height))
+    (Renderer.info extra.renderer ~key)
 let render_status extra = extra.renderer.error
 let paint extra ~key viewport camera rendered = Renderer.paint extra.renderer ~key viewport camera rendered
 
@@ -551,8 +580,8 @@ let guides ~scene ~selected ~space view extra ~bounds =
     List.concat_map (fun node_id ->
       match Option.bind (Edit_graph.find scene ~node_id) node_camera with
       | Some camera when not (same_view camera view) ->
-          let active = Camera.position camera = Camera.position extra.render_camera
-            && Camera.target camera = Camera.target extra.render_camera in
+          let active = Camera.position camera = Camera.position extra.document_camera
+            && Camera.target camera = Camera.target extra.document_camera in
           let color = if active then active_color else guide_color in
           let eye = match project bounds view (Camera.position camera) with
             | Some (x, y) -> [Scene.circle ~at:(Float.to_int x, Float.to_int y) ~radius:4 ~fill:color ()]

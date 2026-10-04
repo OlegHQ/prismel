@@ -7,9 +7,10 @@ libraries that those OCaml libraries link.  Keeping the probes separate lets
 opam install the system dependency before Dune compiles the bindings and lets
 applications depend only on the extensions they use.
 
-Prismel owns four standalone opam conf packages for the exact stable SDL3
-releases covered by the generated API/ABI inventories. They live outside the
-Dune package root so opam treats them as probe packages, not as Dune-built
+Prismel owns four standalone opam conf packages that probe for a stable SDL3
+release at least the floor in `packaging/sdl3.lock`, the only place an SDL
+version is written (see `specification/sdl3.md`). They live outside the Dune
+package root so opam treats them as probe packages, not as Dune-built
 libraries.
 
 For a checkout whose opam repository does not yet contain these packages,
@@ -27,10 +28,14 @@ the checkout-local probe packages are known and correctly reports them as
 unknown. The ordering above is therefore part of the supported bootstrap, not
 an optional workaround.
 
-The package probes use `pkg-config --atleast-version`; patch releases are
-accepted and the generated layout asserts catch ABI drift. An OCaml/Dune repository
-test also compiles, links, and executes a version probe for each library, which
-catches header/runtime mismatches that `pkg-config` alone cannot detect.
+The package probes use `pkg-config --atleast-version` with the lock's floor (opam
+cannot read a file, so `tools/packaging/test_sdl3_lock` fails when a probe
+disagrees with the lock); newer releases are accepted and the layout asserts
+(`lib/sdl3/abi.sexp`) catch ABI drift. An OCaml/Dune repository test also
+compiles, links, and executes a version probe for each library against the
+floor, which catches header/runtime mismatches that `pkg-config` alone cannot
+detect. After upgrading SDL, `dune exec tools/sdl3/bump.exe` runs the four
+qualification aliases and records the release in the lock's `tested` field.
 
 ## Dune discovery
 

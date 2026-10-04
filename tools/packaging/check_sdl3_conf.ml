@@ -1,7 +1,5 @@
 module C = Configurator.V1
 
-type version = int * int * int
-
 type package =
   { name : string
   ; header : string
@@ -40,11 +38,7 @@ let packages =
 
 let fail format = Printf.ksprintf failwith format
 
-let read_file path =
-  let input = open_in_bin path in
-  Fun.protect
-    ~finally:(fun () -> close_in_noerr input)
-    (fun () -> really_input_string input (in_channel_length input))
+let read_file = Sdl3_lock.read_file
 
 let rec remove_directory path =
   Sys.readdir path
@@ -87,17 +81,9 @@ let command_text program arguments =
     | Unix.WSTOPPED signal ->
         fail "%s was stopped by signal %d" program signal)
 
-let parse_version value : version =
-  match String.split_on_char '.' (String.trim value) with
-  | major :: minor :: patch :: _ ->
-      (try int_of_string major, int_of_string minor, int_of_string patch with
-       | Failure _ -> fail "non-numeric package version %S" value)
-  | _ -> fail "expected a three-part version, got %S" value
-
-let version_string (major, minor, patch) =
-  Printf.sprintf "%d.%d.%d" major minor patch
-
-let stable (_, minor, patch) = minor mod 2 = 0 && patch mod 2 = 0
+let parse_version = Sdl3_lock.parse_version
+let version_string = Sdl3_lock.version_string
+let stable = Sdl3_lock.stable
 
 let words value =
   String.split_on_char ' ' value
@@ -133,11 +119,7 @@ let source package =
      }\n"
     package.header package.linked_version package.header_version
 
-let write_file path contents =
-  let output = open_out_bin path in
-  Fun.protect
-    ~finally:(fun () -> close_out_noerr output)
-    (fun () -> output_string output contents)
+let write_file = Sdl3_lock.write_file
 
 let validate package minimum =
   let config = C.create "check-sdl3-conf" in
@@ -181,8 +163,12 @@ let validate package minimum =
         fail "%s probe returned malformed versions: %s" package.name
           (String.concat " " versions)
   in
+  let same_series (major, minor, _) (other_major, other_minor, _) =
+    major = other_major && minor = other_minor
+  in
   if compare header_version minimum < 0
      || compare linked_version header_version < 0
+     || not (same_series linked_version header_version)
   then
     fail "%s header/runtime mismatch: header %s, linked %s" package.name
       (version_string header_version) (version_string linked_version);
@@ -196,12 +182,15 @@ let validate package minimum =
 
 let usage () =
   let names = String.concat "|" (List.map (fun package -> package.name) packages) in
-  fail "usage: %s <%s> <minimum-version>" Sys.argv.(0) names
+  fail "usage: %s --lock <sdl3.lock> <%s>" Sys.argv.(0) names
 
 let () =
   try
-    if Array.length Sys.argv <> 3 then usage ();
-    validate (find_package Sys.argv.(1)) (parse_version Sys.argv.(2))
+    if Array.length Sys.argv <> 4 || Sys.argv.(1) <> "--lock" then usage ();
+    let package = find_package Sys.argv.(3) in
+    let lock = Sdl3_lock.read Sys.argv.(2) in
+    let entry = Sdl3_lock.find lock (Sdl3_lock.key_of_package package.name) in
+    validate package entry.Sdl3_lock.floor
   with
   | Failure message ->
       prerr_endline message;

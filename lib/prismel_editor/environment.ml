@@ -5,7 +5,7 @@ open Common
 
 let set_ui_cursor ui visible =
   let shape = match if visible then Pxui.Ui.cursor ui else None with
-    | Some shape -> (shape :> [`Default|`Horizontal_resize|`Vertical_resize])
+    | Some shape -> (shape :> [`Default|`Horizontal_resize|`Vertical_resize|`Text])
     | None -> `Default in
   match Sketch.set_cursor shape with Ok () -> () | Error error -> failwith error
 
@@ -56,19 +56,26 @@ module type VIEWPORT = sig
     'p Core.t -> raw_frame:Frame.t -> input:Frame.t -> camera * extra
   val frame_bounds : viewport:Pxui_shell.Layout.bounds -> min:Vec3.t -> max:Vec3.t ->
     camera -> camera
-  val on_view : 'p Core.t -> previous:camera -> camera -> extra -> time:float ->
+  val on_view : 'p Core.t -> previous:camera -> key:string -> camera -> extra -> time:float ->
     'p Core.t * camera * extra
-  val view_camera : camera -> extra -> pending:bool -> view
-  val film : extra -> Pxui_shell.Layout.bounds -> Pxui_shell.Layout.bounds
-  (** The rect of the view the render fills: the whole view, or the render
-      camera's aspect fitted into it while looking through. *)
+  val view_camera : camera -> extra -> key:string -> pending:bool -> view
+  (** The view of the viewport [key] over the orbit [camera]: its own root's camera while looking
+      through (the document's active camera for a viewport with no root of its own), else the
+      orbit carrying that camera's lens. *)
+  val film : extra -> key:string -> Pxui_shell.Layout.bounds -> Pxui_shell.Layout.bounds
+  (** The rect of the viewport [key] the render fills: the whole view, or its root's aspect
+      (the gate) fitted into it while looking through or tracing. *)
   val pick_ray : viewport:Pxui_shell.Layout.bounds -> view -> float * float ->
     (Vec3.t * Vec3.t) option
   (** The world ray (origin, direction) under a screen point of the film: through a 3D
       camera, or straight down onto the plane of a 2D view. *)
-  val render : extra -> roots:(string -> Editor_document.Objects.Root.parameters option) ->
+  val render : extra -> pixel_scale:float * float -> focus:string option ->
     (string * Pxui_shell.Layout.bounds * view * rendered) list -> extra
-  (** [roots key]: the render settings of a viewport over its own scene instance, when that has a root *)
+  (** One frame of rendering for the viewports given as key, gate ({!film}), view and picture.
+      Each renders as its own root says, at the drawable [pixel_scale]; [focus] is the viewport
+      that keeps the renderer's attention (the others take turns). *)
+  val caption : extra -> key:string -> string option
+  (** A traced viewport's header text: resolution, film step and samples. *)
   val render_status : extra -> string option
   val paint : extra -> key:string -> Pxui_shell.Layout.bounds -> view -> rendered -> Scene.t
   val guides : scene:Edit_graph.t -> selected:Node.t option -> space:Mat4.t ->
@@ -350,7 +357,7 @@ module Make (V : VIEWPORT) = struct
   let create ?(layout = Pxui_shell.Layout.default) ?name ?presets ?timeline_frames ?factories
       ?settings ?(commands = []) ?(lights = []) ?world
       ?(camera = V.default_camera ()) ?lens ?(background = Color.hex_exn "#f4f5f0")
-      ?seed ?grain ?domains ?max_entries ?max_payload_bytes ?await ~workspace ?source ~prepare ~draw
+      ?seed ?grain ?domains ?max_entries ?max_payload_bytes ?await ?carry_budget ~workspace ?source ~prepare ~draw
       ?(overlay = fun _ _ _ -> Scene.empty) ?(status = fun _ -> None) () =
     let name = Option.value name ~default:(Workspace_doc.name workspace) in
     let state_key = match source with
@@ -424,7 +431,7 @@ module Make (V : VIEWPORT) = struct
         ~seed_scene:(fun factories scene ->
           V.seed_scene ?lens camera factories (seed_lights lights scene))
         ~layout ~name ~state_key ?presets ?timeline_frames ?factories ?seed ?grain ?domains
-        ?max_entries ?max_payload_bytes ?await ~workspace ~prepare ()))
+        ?max_entries ?max_payload_bytes ?await ?carry_budget ~workspace ~prepare ()))
 
   let graph value = Core.graph value.core
   let document value = Core.document value.core
@@ -448,6 +455,8 @@ module Make (V : VIEWPORT) = struct
     Option.map (fun (x, y, w, h) -> int_of_float x, int_of_float y, int_of_float w, int_of_float h)
       (Pxui_graph.Scope.Private.box_of value.core.Core.scope_view path)
   let edit value op = Result.map (fun core -> { value with core }) (Core.syntax_edit value.core op)
+  let carrying value = Option.map (fun (c : _ Core.carry) -> c.payload.Carry.kind, c.payload.value) value.core.Core.carry
+  let carry_line value = Option.map Core.carry_line value.core.Core.carry
   let level value = match value.core.Core.level with
     | Document.Scene -> None
     | Inside id -> Some (Option.fold ~none:"" ~some:Node.label
@@ -467,15 +476,21 @@ module Make (V : VIEWPORT) = struct
   let set_settings value settings =
     { value with core = Core.set_settings value.core settings }
 
-  let view_camera value = V.view_camera value.camera value.extra
-      ~pending:(value.pending_render <> None)
+  (* the viewport the focus is in; the default layout's one before any focus *)
+  let focus_key value = Option.value value.viewing ~default:"main"
 
-  (* the view of the viewport [key]: its own orbit, the focused one's being [camera] *)
+  (* the viewport whose root a view is read from: the hidden scene shows the focused viewport *)
+  let look_key value key = if key = "@hidden" then focus_key value else key
+
+  (* the view of the viewport [key]: its own orbit, the focused one's being [camera], through
+     the camera of its own root *)
   let camera_of value key =
-    if Some key = value.viewing then view_camera value
-    else match List.assoc_opt key value.cameras with
-      | Some orbit -> V.view_camera orbit value.extra ~pending:(value.pending_render <> None)
-      | None -> view_camera value
+    let key = look_key value key in
+    let orbit = if Some key = value.viewing then value.camera
+      else Option.value (List.assoc_opt key value.cameras) ~default:value.camera in
+    V.view_camera orbit value.extra ~key ~pending:(value.pending_render <> None)
+
+  let view_camera value = camera_of value (focus_key value)
 
   (* Focus moves to another viewport: the orbit of the one left is kept, the new one starts from
      the orbit it last had, else from a copy of the one in use. *)
@@ -502,7 +517,8 @@ module Make (V : VIEWPORT) = struct
                cameras = List.remove_assoc key kept })
     | _ -> value
 
-  let paint_view value ~key viewport view rendered = V.paint value.extra ~key (V.film value.extra viewport) view rendered
+  let paint_view value ~key viewport view rendered =
+    V.paint value.extra ~key (V.film value.extra ~key:(look_key value key) viewport) view rendered
 
   let viewport_camera = camera_of
 
@@ -512,7 +528,7 @@ module Make (V : VIEWPORT) = struct
 
   let film value frame =
     let (x, y, _, _) as pane = (Core.panes value.core frame).view in
-    let fx, fy, w, h = V.film value.extra pane in
+    let fx, fy, w, h = V.film value.extra ~key:(focus_key value) pane in
     fx - x, fy - y, w, h
 
   let take_export value = match value.pending_render with
@@ -567,13 +583,29 @@ module Make (V : VIEWPORT) = struct
         (List.map (fun (matrix, (piece : _ Cook.piece)) ->
            let _, _, rendered = Document.Int_map.find piece.id drawn in
            matrix, ghost piece.id, rendered) pieces) in
-      (* a viewport over another scene instance: its own objects, its own World *)
-      let views = if waiting then [] else List.map (fun key ->
-        let own = match update.core.Core.doc.Document.shell with
-          | Some shell -> List.mem_assoc key shell.views | None -> false in
-        let view = if own then `Only key else `Primary in
-        key, compose_pieces ~world:(Option.map snd (List.assoc_opt key baked_views)) view
-               (Core.placed_pieces ~view update.core)) (view_keys update.core) in
+      (* a viewport over another scene instance: its own objects, its own World.  Viewports over
+         the very same instance with the same World show one picture: it is composed once, so
+         the renderer sees one scene and can give them one tracer *)
+      let instance_of key = Option.bind update.core.Core.doc.Document.shell (fun shell ->
+        Option.map (fun (source : Document.preview_source) -> source.instance)
+          (List.assoc_opt key shell.preview_sources)) in
+      let views = if waiting then [] else List.rev_map (fun (key, scene, _, _) -> key, scene)
+        (List.fold_left (fun composed key ->
+          let world = Option.map snd (List.assoc_opt key baked_views) in
+          let instance = instance_of key in
+          let same_instance = function Some a -> Option.fold ~none:false ~some:(( == ) a) instance | None -> false in
+          let same_world other = match world, other with
+            | None, None -> true | Some a, Some b -> a == b | Some _, None | None, Some _ -> false in
+          let twin = List.find_map (fun (_, scene, other, other_world) ->
+            if same_instance other && same_world other_world then Some scene else None) composed in
+          let scene = match twin with
+            | Some scene -> scene
+            | None ->
+                let own = match update.core.Core.doc.Document.shell with
+                  | Some shell -> List.mem_assoc key shell.views | None -> false in
+                let view = if own then `Only key else `Primary in
+                compose_pieces ~world:world view (Core.placed_pieces ~view update.core) in
+          (key, scene, instance, world) :: composed) [] (view_keys update.core)) in
       (if waiting then None else Some (compose_pieces `Primary (Core.placed_pieces update.core))),
       views, drawn
 
@@ -618,7 +650,8 @@ module Make (V : VIEWPORT) = struct
     if not force && now >= value.state_checked && now -. value.state_checked < 0.5 then value else
     let view = V.section value.camera value.extra in
     let value = { value with state_checked = now } in
-    if value.core.doc == value.saved_doc && view = value.saved_view then value else
+    (* a preview document is never saved *)
+    if (value.core.doc == value.saved_doc && view = value.saved_view) || Core.carrying value.core then value else
     match Preset.save ~directory:(Core.state_directory value.core) ~name:value.core.state_name
         ~doc:value.core.doc ~view with
     | Ok _ -> { value with saved_doc = value.core.doc; saved_view = view; state_error = None }
@@ -717,13 +750,27 @@ module Make (V : VIEWPORT) = struct
       | _ -> press, clicks) (value.pick_press, []) input.events in
     let core = if core.Core.map_view then core else
       List.fold_left (fun core at ->
-        let film = V.film extra area in
+        let film = V.film extra ~key:(focus_key focused) area in
         let _, _, w, h = film in
         if w <= 0 || h <= 0 then core else
         let picking = { focused with core; camera; extra } in
         match V.pick_ray ~viewport:film (view_camera picking) at with
         | Some (origin, direction) -> Core.pick ?view:focused.viewing ~alt:(List.mem Input.Alt !modifiers) core ~origin ~direction
         | None -> core) core (List.rev clicks) in
+    (* a payload carried over a viewport: the surface under the pointer is the place *)
+    let core = match Core.carry_viewport core with
+      | Some key when not core.Core.map_view ->
+          (match List.assoc_opt key (Core.view_bodies core raw_frame) with
+           | Some bounds ->
+               let picking = { focused with core; camera; extra } in
+               let film = V.film extra ~key:(look_key picking key) bounds in
+               let _, _, w, h = film in
+               if w <= 0 || h <= 0 then core else
+               (match V.pick_ray ~viewport:film (camera_of picking key) raw_frame.Frame.mouse with
+                | Some (origin, direction) -> Core.carry_over_surface ~view:key core ~origin ~direction
+                | None -> core)
+           | None -> core)
+      | _ -> core in
     let camera, extra = if core.Core.map_view then camera, extra
       else V.navigate ~area control camera extra core ~raw_frame ~input in
     let camera, render_status = match update.framed with
@@ -734,7 +781,7 @@ module Make (V : VIEWPORT) = struct
           else camera, render_status
       | Some None -> camera, Some "Nothing to frame: no cooked points"
       | None -> camera, render_status in
-    let core, camera, extra = V.on_view core ~previous:previous_camera camera extra
+    let core, camera, extra = V.on_view core ~previous:previous_camera ~key:(focus_key focused) camera extra
         ~time:frame.Frame.time in
     let ends_pointer = function
         | Event.MouseReleased (Input.LeftButton, _) | PointerCancelled Input.LeftButton
@@ -769,10 +816,14 @@ module Make (V : VIEWPORT) = struct
     let rendering = {focused with core; extra; camera; rendered; views} in
     let bodies = if V.ui_visible control then Core.view_bodies core raw_frame
       else ["@hidden", (0, 0, raw_frame.width, raw_frame.height)] in
-    let extra = V.render extra ~roots:(fun key -> Core.view_root_opt core key) (List.filter_map (fun (key, bounds) ->
-      let scene = if key = "@hidden" then focused_image rendering else
-        match List.assoc_opt key views with Some scene -> Some scene | None -> rendered in
-      Option.map (fun scene -> key, V.film extra bounds, camera_of rendering key, scene) scene) bodies) in
+    let extra = V.render extra ~pixel_scale:raw_frame.pixel_scale ~focus:(Some (focus_key rendering))
+      (List.filter_map (fun (key, bounds) ->
+        let scene = if key = "@hidden" then focused_image rendering else
+          match List.assoc_opt key views with Some scene -> Some scene | None -> rendered in
+        Option.map (fun scene ->
+          key, V.film extra ~key:(look_key rendering key) bounds, camera_of rendering key, scene) scene) bodies) in
+    let core = { core with Core.captions = List.filter_map (fun (key, _) ->
+      Option.map (fun caption -> key, caption) (V.caption extra ~key:(look_key rendering key))) bodies } in
     let map = match baked, value.map with
       | Some baked, Some (source, image) when baked == source || not core.Core.map_view ->
           ignore baked; Some (source, image)
@@ -812,7 +863,7 @@ module Make (V : VIEWPORT) = struct
       ~background:value.background ~rendered:value.rendered ~views:value.views
       ~focused:(focused_image value)
       ~camera:(view_camera value) ~camera_of:(camera_of value) ~paint_view:(paint_view value)
-      ~film:(V.film value.extra) ~overlay:value.overlay
+      ~film:(V.film value.extra ~key:(focus_key value)) ~overlay:value.overlay
       ~guides:(fun bounds -> if value.core.Core.map_view then [] else
         V.guides ~scene:(Core.scene value.core)
         ~selected:(Core.selected_node value.core) ~space:(Core.space value.core)

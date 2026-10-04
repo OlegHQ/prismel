@@ -56,9 +56,11 @@ val resolve_scene : ?previous:Procedural.Edit_graph.t -> Document.t -> time:floa
     its previous value (or the authored zero-time value without [previous]);
     successful siblings still advance. Diagnostics name its fields and view. *)
 
-val instance_root : Flow.Eval.value -> Objects.Root.parameters option
-(** The render settings a viewport's scene instance names: its [scene/root]'s, with the
-    defaults for what the root leaves out; [None] for a part, which renders as the document does. *)
+val instance_root : Flow.Eval.value -> Document.view_root option
+(** How a viewport's scene instance renders: the settings of its [scene/root] (with the
+    defaults for what the root leaves out) and the view of the camera object its [:camera]
+    slot names; [None] for a part, which renders as the document does. The document stores
+    one per viewport over another scene instance as [Document.view_roots]. *)
 
 val graph_of : Workspace_doc.t -> Flow.Workspace.context -> Flow.Workspace.graph option
 (** The first graph of a context. *)

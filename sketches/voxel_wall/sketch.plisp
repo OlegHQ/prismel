@@ -14,13 +14,14 @@
            camera (scene/camera :eye [-4.133102 1.518379 19.482749] :target [0 0 1]
                                 :fov 40.107046 :follow_viewport true)
            key (scene/light :name "key" :translate [-34 40 30] :intensity 1650.1184 :width 24 :height 24)
-           fill (scene/light :name "fill" :translate [30 -10 26] :intensity 343.7747 :width 30 :height 30)]
-      (scene/merge wall camera key fill)))
+           fill (scene/light :name "fill" :translate [30 -10 26] :intensity 343.7747 :width 30 :height 30)
+           sky (scene/world (ref world) :name "studio")]
+      (scene/merge wall camera key fill sky)))
 
   ; A near-black studio.
   (graph world :context world
-    (world/world (world/gradient :name "studio"
-                                 :zenith [0.006 0.007 0.009]
-                                 :horizon [0.006 0.007 0.009]
-                                 :nadir [0.002 0.002 0.003]
-                                 :sharpness 1))))
+    (world/gradient :name "studio"
+                    :zenith [0.006 0.007 0.009]
+                    :horizon [0.006 0.007 0.009]
+                    :nadir [0.002 0.002 0.003]
+                    :sharpness 1)))

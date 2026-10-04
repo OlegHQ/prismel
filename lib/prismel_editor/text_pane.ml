@@ -203,6 +203,20 @@ let selection_form source path form =
            | None -> error "Selection graph no longer exists.")
   | _, _ -> error "Expected the shown (let* [...] name) closure, or the graph form."
 
+(* The [Set_graph] the text of the Graph or Selection tab means: the one graph (or function) form
+   replaces the graph's; a Selection closure is patched into it ({!selection_form}).  The errors
+   that are not the reader's carry no position. *)
+let graph_op source ~graph ?selection text =
+  let error message = Error (Flow.Diagnostic.error ~code:"E_EDIT" message) in
+  let set form = Flow_sop.Flow_edit.Set_graph { name = graph; form } in
+  match S.parse text, selection with
+  | Error d, _ -> Error d
+  | Ok [ ({ node = S.List ({ node = S.Sym ("graph" | "defn"); _ } :: _); _ } as form) ], _ -> Ok (set form)
+  | Ok [ form ], Some path -> Result.map set (selection_form source path form)
+  | Ok [ form ], None -> Ok (set form)
+  | Ok _, Some _ -> error "Expected the shown (let* [...] name) closure, or the graph form."
+  | Ok _, None -> error "Expected the one graph form"
+
 let make_shown source graph selected tab =
   let applied = lazy (fst (Flow.Lisp.print source)) in
   let key = match selected with Some path -> path | None -> [ graph ] in
@@ -303,6 +317,7 @@ type intent =
   | Picker of (int * int * bool) option
   | Open_graph of string
   | Select_binding of path
+  | Carry_over of int * bool
 
 let dirty state (shown : shown) = match state.draft with
   | Some d -> d <> Lazy.force shown.applied | None -> false
@@ -396,6 +411,7 @@ let view ui ~bounds:(x, y, width, height) ~vocab ~names state (shown : shown) =
         ~wrap:state.wrap ~errors:(List.filter_map (line_of text) errors) ~spans ?reveal ~language
         ~on_context:(fun at -> emit (Menu (Some at))) ~on_scrub:(fun p -> phase := Some p)
         ~chips
+        ~on_drop:(fun byte drop -> emit (Carry_over (byte, (match drop with Ui.Dropped _ -> true | Hover _ -> false))))
         (* Command-click follows a (ref name); a click on a colour literal opens the colour control *)
         ~on_click:(fun byte command ->
           if command then

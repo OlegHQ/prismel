@@ -37,15 +37,19 @@ let convert : Runtime_input.event -> Event.t option = function
   | Pointer_released (b, x, y) -> Some (MouseReleased (button b, (x, y)))
   | Pointer_cancelled b -> Some (PointerCancelled (button b))
   | Wheel (x, y) -> Some (MouseScrolled (x, y))
-  | Key_pressed e -> Some (KeyPressed (Event.Private.key_of_name e.key))
-  | Key_released e -> Some (KeyReleased (Event.Private.key_of_name e.key))
+  | Pinch scale -> Some (MousePinched scale)
+  | Key_pressed e -> Some (KeyPressed (Event.Private.key_of_runtime e.key))
+  | Key_released e -> Some (KeyReleased (Event.Private.key_of_runtime e.key))
   | Text_input s -> Some (TextInput s)
   | Text_editing { text; start; length } -> Some (TextEditing { text; start; length })
   | File_dropped path -> Some (FileDropped path)
+  | File_dragged (x, y) -> Some (FileDragMoved (x, y))
+  | File_drag_ended -> Some FileDragEnded
+  | Dialog_closed { id; result } -> Some (FileDialog { id; result })
   | Resized (w, h) -> Some (WindowResized (w, h))
   | Focus_lost -> Some WindowFocusLost
   | Quit -> Some WindowClosed
-  | Focus_gained | Visibility_changed _ -> None
+  | Pixel_size_changed _ | Focus_gained | Visibility_changed _ -> None
 
 let configure ~logical_width ~logical_height =
   match Runtime_input.set_extent source ~logical_width ~logical_height with
@@ -54,25 +58,33 @@ let configure ~logical_width ~logical_height =
 
 let set_relative enabled = Runtime_input.set_relative source enabled
 
-(* In relative mode the frame's [mouse_delta] is the summed device motion
-   rather than absolute differences, which stop at the window edge. *)
-(* macOS: a Control-click is the secondary click, through its release *)
-let ctrl_click = ref false
-let secondary : Event.t -> Event.t = function
-  | MousePressed (LeftButton, p) when KeySet.mem Input.Ctrl !pressed_keys ->
-      ctrl_click := true; MousePressed (RightButton, p)
-  | MouseReleased (LeftButton, p) when !ctrl_click -> ctrl_click := false; MouseReleased (RightButton, p)
-  | PointerCancelled LeftButton when !ctrl_click -> ctrl_click := false; PointerCancelled RightButton
-  | event -> event
+(* The window is shown and neither minimized nor covered, as far as events
+   have said: SDL announces a window becoming covered and never its end, so
+   the sketch loop reads the window and reports it back here. *)
+let set_visible visible =
+  ignore (Runtime_input.push source (Runtime_input.Visibility_changed visible))
 
+type polled = {
+  events : Event.t list;
+  window_changed : bool;  (** a size or density event arrived: re-read the window *)
+  visible : bool;
+}
+
+(* In relative mode the frame's [mouse_delta] is the summed device motion
+   rather than absolute differences, which stop at the window edge. The first
+   error of the native pump is returned, never dropped. *)
 let poll () =
   delta := (0., 0.);
   Runtime_input.begin_frame source;
-  (match Runtime_input_sdl3.pump source with Ok () -> () | Error _ -> ());
-  let events = Runtime_input.drain source |> List.filter_map convert
-    |> List.map (fun event -> let event = secondary event in apply event; event) in
+  let pumped = Runtime_input_sdl3.pump source in
+  let native = Runtime_input.drain source in
+  let window_changed = List.exists (function
+    | Runtime_input.Resized _ | Pixel_size_changed _ -> true | _ -> false) native in
+  let events = List.filter_map convert native
+    |> List.map (fun event -> apply event; event) in
   if Runtime_input.relative source then delta := (Runtime_input.snapshot source).mouse_delta;
-  events
+  Result.map (fun () ->
+    { events; window_changed; visible = (Runtime_input.snapshot source).visible }) pumped
 
 let mouse () = !mouse
 let mouse_delta () = !delta

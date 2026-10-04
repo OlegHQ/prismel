@@ -19,10 +19,12 @@
 
 (rule
  (aliases runtest-native test_runtime)
+ (locks smoke_window)
  (action (run %{exe:test_main.exe} test_runtime)))
 
 (rule
  (aliases runtest-native test_runtime_visibility)
+ (locks smoke_window)
  (action (run %{exe:test_main.exe} test_runtime_visibility)))
 
 (rule
@@ -31,6 +33,7 @@
 
 (rule
  (aliases runtest-native test_runtime_scene3_lighting)
+ (locks smoke_window)
  (action (run %{exe:test_main.exe} test_runtime_scene3_lighting)))
 
 (rule
@@ -39,6 +42,7 @@
 
 (rule
  (aliases runtest-native test_runtime_scene2_argument)
+ (locks smoke_window)
  (action (run %{exe:test_main.exe} test_runtime_scene2_argument)))
 
 (rule

@@ -423,18 +423,6 @@ let root_of calls (objects : item list) =
       Ok { params; root_home = Some call.home;
            camera = Option.bind (List.assoc_opt "camera" call.args) (find_call others) }
 
-(* How a viewport's own scene instance renders: its [scene/root]'s settings, none for a part *)
-let instance_root = function
-  | E.Struct ("scene/root", args) ->
-      let own = List.filter (fun (key, _) -> not (List.mem key slot_names)) args in
-      (match E.force (E.Struct ("scene/root", own)) ~live:{ E.t = 0. } with
-       | Ok (E.Struct (_, forced)) ->
-           (match changes "scene/root" forced with
-            | Ok values -> Result.to_option (root_params values)
-            | Error _ -> None)
-       | Ok _ | Error _ -> None)
-  | _ -> None
-
 (* The objects of a workspace: its scene graph's calls, else one geometry object
    per sop graph; and its root. *)
 let items workspace (lowered : Flow_sop.Lower.t) =
@@ -554,6 +542,36 @@ let add_node graph factory label =
   let* graph = flow (Edit.add_node ~factory
     ~inputs:(Array.of_list (empty_inputs factory)) node graph) in
   Ok (graph, Node.id node)
+
+(* The view of the camera object a scene instance's [scene/root] names in its [:camera] slot: the
+   object is built like any scene object, from the fields its call writes *)
+let instance_camera = function
+  | Some (E.Struct ("scene/camera", _) as value) ->
+      let built =
+        let* forced = E.force value ~live:{ E.t = 0. } in
+        let* values = changes "scene/camera" (match forced with E.Struct (_, args) -> args | _ -> []) in
+        let factory = List.assoc "scene/camera" scene_kinds in
+        let* graph, id = add_node Edit.empty factory "camera" in
+        let* graph = apply factory graph id values in
+        Ok (Option.bind (Edit.find graph ~node_id:id) (fun node -> Option.map fst (Objects.Camera.of_node node))) in
+      Result.value built ~default:None
+  | _ -> None
+
+(* How a viewport's own scene instance renders: its [scene/root]'s settings and camera, none for
+   a part *)
+let instance_root = function
+  | E.Struct ("scene/root", args) ->
+      let own = List.filter (fun (key, _) -> not (List.mem key slot_names)) args in
+      (match E.force (E.Struct ("scene/root", own)) ~live:{ E.t = 0. } with
+       | Ok (E.Struct (_, forced)) ->
+           (match changes "scene/root" forced with
+            | Ok values ->
+                Option.map (fun params -> { Document.params; camera = instance_camera (List.assoc_opt "camera" args) })
+                  (Result.to_option (root_params values))
+            | Error _ -> None)
+       | Ok _ | Error _ -> None)
+  | _ -> None
+
 
 (* Parents by name: [:parent "label"] links an object under the object of that label (of its
    own scene instance). *)
@@ -865,6 +883,11 @@ let of_workspace ~factories ?previous (workspace : Workspace_doc.t) =
            | Some node -> Ok ((key, Some { Document.node; layers }) :: rest)
            | None -> Error (diag "E_LOWER" "The World of a viewport could not be built.")))
     (Option.fold ~none:[] ~some:(fun e -> e.viewports) editor) (Ok []) in
+  (* a viewport over another scene instance that has a root renders as that root says *)
+  let view_roots = List.filter_map (fun (key, scene) ->
+    if Option.fold ~none:false ~some:(( == ) scene) default_scene then None
+    else Option.map (fun root -> key, root) (instance_root scene))
+    (Option.fold ~none:[] ~some:(fun e -> e.viewports) editor) in
   let primary = List.length items in
   let items = items @ List.concat_map snd aux in
   let scene = match previous with
@@ -956,6 +979,12 @@ let of_workspace ~factories ?previous (workspace : Workspace_doc.t) =
   let scene = { scene with graph = scene_network;
     displayed = (match scene.displayed with
       | Some id when Edit.find graph ~node_id:id <> None -> Some id | _ -> first) } in
+  (* an edit that leaves the scene's objects as they were (a root's settings, a splitter, a rename
+     elsewhere) keeps the network physically, so nothing recomposes, nothing re-uploads and no
+     accumulating render restarts *)
+  let scene = match previous with
+    | Some (doc : Document.t) when same_network doc.scene scene -> doc.scene
+    | Some _ | None -> scene in
   (* networks: geometry objects' lowered graphs, the World's layers, and the previous
      networks of objects that survive *)
   let carried = match previous with
@@ -1011,7 +1040,7 @@ let of_workspace ~factories ?previous (workspace : Workspace_doc.t) =
        shell = Option.map (fun e -> { Document.tree = e.tree; origins = e.origins;
                                       named = e.named; wires = e.wires; views; preview_sources = e.preview_sources;
                                       switch = e.switch }) editor;
-       view_worlds; homes; workspace = (workspace, lowered) }
+       view_worlds; view_roots; homes; workspace = (workspace, lowered) }
 
 (* Only the recorded live fields run; SOP networks, source and panel identities
    stay untouched. Errors leave the caller's last successful picture available. *)

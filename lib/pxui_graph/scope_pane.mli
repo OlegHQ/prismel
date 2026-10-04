@@ -38,6 +38,11 @@ type change =
   | Activated of path
       (** a double-click on the body of a node (its title renames): the host follows what it
           references *)
+  | Drop_over of { path : path; kind : string; value : string }
+      (** a carried payload ({!Pxui.Ui.carry}) is held over this node, or over the empty canvas
+          (the path [[graph]], one segment): the host decides whether it would take it *)
+  | Dropped of { path : path; kind : string; value : string }
+      (** the payload was released there; the pane never edits, the host turns it into a gesture *)
   | Notice of string
 
 type direction = Left | Down | Up | Right
@@ -65,6 +70,10 @@ val create : ?x:int -> ?y:int -> ?width:int -> ?height:int -> ?theme:Pxui.theme 
 val with_bounds : x:int -> y:int -> width:int -> height:int -> t -> t
 val with_visible : bool -> t -> t
 val with_guide : bool -> t -> t
+
+val with_carry : lit:(path * string) list -> hot:(path * bool) option -> t -> t
+(** While a payload is carried: the nodes it can be put on, each with its letter (the key
+    route), and the node or canvas under the pointer with whether it takes the payload. *)
 
 val with_scope :
   ?at:(path -> (float * float) option) -> ?collapsed:(path -> bool) ->

@@ -16,6 +16,7 @@ type action =
   | Ui_scale of int  (* Command +/-/0: the kit text of every panel but the graph and viewports *)
   | Restore_layout | Enter | Up | Go_world
   | Peek  (* I: the followed graph in a floating window *)
+  | Pick_up  (* y: carry the open material or SOP graph, or the selected object's graph (see carry.ml) *)
   | Jump  (* Space j: a filter over every graph *)
   | Layout_switch of int | Layout_new | Layout_remove
       (* Space [ 0..9, n, x: the layouts of the editor graph's switch *)
@@ -26,6 +27,7 @@ type action =
   | List_command of Pxui_shell.Tree.command
   | Guide_toggle | Guide_keys
   | Command_palette
+  | Copy_lisp  (* the palette: the workspace text, as Command-S writes it, on the clipboard *)
   | Sketch_command of string  (* the id of a sketch [Editor_core.Command] *)
 
 (* A command's scope is a kind of panel: any viewport is [View ""], and the list and the
@@ -67,6 +69,7 @@ let keymap = [
   command ~id:"sketch.stop" ~label:"stop" ~trigger:(Leader "x") Stop;
   command ~id:"workspace.command-palette" ~label:"command palette" ~trigger:(Leader "/")
     Command_palette;
+  command ~id:"file.copy-lisp" ~label:"Copy workspace as Lisp" Copy_lisp;
   command ~id:"world.map" ~label:"3D / map (World)" ~trigger:(Leader "m") Toggle_map;
   command ~id:"workspace.restore-layout" ~label:"restore layout" ~trigger:(Leader "z")
     Restore_layout;
@@ -133,6 +136,9 @@ let keymap = [
   command ~guide:Editor_core.Guide_context.[Node; List] ~id:"scene.peek" ~label:"peek (floating graph)"
     ~trigger:(Chord (Input.KeyChar 'i', [Input.Shift])) Peek;
   command ~id:"scene.jump" ~label:"jump to graph" ~trigger:(Leader "j") Jump;
+  (* carry: y picks up; the target letters, Enter and Escape are read by [Core] while it lasts *)
+  command ~guide:Editor_core.Guide_context.[Canvas; Node; Multi; List] ~id:"carry.pick-up"
+    ~label:"pick up (carry it onto a place)" ~trigger:(Chord (Input.KeyChar 'y', [])) Pick_up;
   command ~guide:Editor_core.Guide_context.[Canvas; Node; Multi; List] ~id:"scene.up" ~label:"back (up a level)"
     ~trigger:(Chord (Input.KeyChar 'u', [])) Up;
   (* Rare: the graph context menu and the palette, no leader key. *)

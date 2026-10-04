@@ -104,27 +104,6 @@ let starts_with ~prefix value =
   String.length value >= prefix_length
   && String.sub value 0 prefix_length = prefix
 
-let consumer_source =
-  {|
-let fail label printer error =
-  failwith (Format.asprintf "%s: %a" label printer error)
-
-let () =
-  (match Sdl3.check_version ~release:true () with
-   | Ok () -> ()
-   | Error error -> fail "SDL3" Sdl3.pp_error error);
-  (match Sdl3_image.check_version ~release:true () with
-   | Ok () -> ()
-   | Error error -> fail "SDL3_image" Sdl3_image.pp_error error);
-  (match Sdl3_ttf.check_version ~release:true () with
-   | Ok () -> ()
-   | Error error -> fail "SDL3_ttf" Sdl3_ttf.pp_error error);
-  (match Sdl3_mixer.check_version ~release:true () with
-   | Ok () -> ()
-   | Error error -> fail "SDL3_mixer" Sdl3_mixer.pp_error error);
-  print_endline "installed SDL3 consumer passed"
-|}
-
 let install_and_check ~root ~profile =
   with_temp_directory "prismel-installed-consumer-" (fun temporary ->
     with_source_build_directory root (fun ~path:_ ~relative:source_build ->
@@ -155,7 +134,8 @@ let install_and_check ~root ~profile =
     write_file (Filename.concat consumer "dune")
       "(executable\n (name main)\n (libraries prismel.sdl3 prismel.sdl3_image \
        prismel.sdl3_ttf prismel.sdl3_mixer))\n";
-    write_file (Filename.concat consumer "main.ml") consumer_source;
+    write_file (Filename.concat consumer "main.ml")
+      (read_file (Filename.concat root "tools/packaging/installed_consumer.ml"));
     let library_path = Filename.concat prefix "lib" in
     let stublib_path = Filename.concat library_path "stublibs" in
     let inherited_stublibs =

@@ -105,7 +105,7 @@ module Layout = struct
     | x :: under, y :: path -> x = y && prefix under path
     | _ -> false
 
-  let geometry ?(state = fun _ -> Editor_core.Panels.default_state) ?(hidden = [ Timeline ]) ?(top = 0) tree (frame : Frame.t) =
+  let geometry ?(state = fun _ -> Editor_core.Panels.default_state) ?(hidden = [ Timeline ]) tree (frame : Frame.t) =
     let all = Editor_core.Panels.leaves tree in
     let header = min header_height (max 0 (frame.height - 1)) in
     let timeline = if List.mem Timeline hidden || List.exists (fun (_, p) -> p = Timeline) all
@@ -185,7 +185,7 @@ module Layout = struct
               bounds = (x, cy - splitter_width, w, splitter_width); start = 0; span = 1 } :: !splitters;
             place ~floating (cx, cy, widths.(r).(c), heights.(r)) (path @ [ original ]) cell) cells
           end in
-    place (0, top, frame.width, max 1 (bottom - top)) [] tree;
+    place (0, 0, frame.width, max 1 bottom) [] tree;
     let rec drain () = match List.rev !floats with
       | [] -> ()
       | queue -> floats := [];
@@ -194,8 +194,8 @@ module Layout = struct
     List.iter (fun (path, panel) -> match (state path).Editor_core.Panels.window with
       | None -> ()
       | Some (x, y, w, h) ->
-          let w = min frame.width w and h = min (frame.height - top) h in
-          let x = max 0 (min x (frame.width - w)) and y = max top (min y (frame.height - header_height)) in
+          let w = min frame.width w and h = min frame.height h in
+          let x = max 0 (min x (frame.width - w)) and y = max 0 (min y (frame.height - header_height)) in
           (* a collapsed window is a short tab: its title and the expand button *)
           let w = if (state path).collapsed
             then min w (max 90 (60 + (7 * String.length (Editor_core.Panels.name panel)))) else w in
@@ -256,10 +256,10 @@ module Chrome = struct
   (* Chrome of the retained workspace, painted and hit through PXUI boxes:
      panel backgrounds, splitters, and header bars with a collapse button and a
      right-click menu (split, close, retype). *)
-  let update ?(state = fun _ -> Editor_core.Panels.default_state) ?(hidden = [ Timeline ]) ?(top = 0) ?(title = fun (l : leaf) -> Editor_core.Panels.name l.panel)
+  let update ?(state = fun _ -> Editor_core.Panels.default_state) ?(hidden = [ Timeline ]) ?(title = fun (l : leaf) -> Editor_core.Panels.name l.panel)
       tree ui (frame : Frame.t) =
     let module Ui = Pxui.Ui in
-    let geometry = geometry ~state ~hidden ~top tree frame in
+    let geometry = geometry ~state ~hidden tree frame in
     let theme = Ui.theme ui in
     List.iteri (fun order l -> match l.panel with
       | View _ | Timeline -> ()
@@ -310,7 +310,7 @@ module Chrome = struct
         if Float.hypot (px -. sx) (py -. sy) >= 4. then begin
           emit (Dragging (l.path, drag.released));
           emit (Window_drag (l.path, (max 0 (min (frame.width - 18) (ox + int_of_float (Float.round (px -. sx)))),
-            max top (min (frame.height - header_height) (oy + int_of_float (Float.round (py -. sy)))), ow, oh), drag.released))
+            max 0 (min (frame.height - header_height) (oy + int_of_float (Float.round (py -. sy)))), ow, oh), drag.released))
         end
       end;
       let opened = Ui.state ui box ~default:0 = 1 in
@@ -407,7 +407,7 @@ module Chrome = struct
 
   (* The draggable gutters, wider than they are drawn.  Build them after the panes so
      they sit on top of the neighbours' hit rectangles. *)
-  let splitters ?(state = fun _ -> Editor_core.Panels.default_state) ?(hidden = [ Timeline ]) ?(top = 0) tree ui (frame : Frame.t) =
+  let splitters ?(state = fun _ -> Editor_core.Panels.default_state) ?(hidden = [ Timeline ]) tree ui (frame : Frame.t) =
     let module Ui = Pxui.Ui in
     let intents = ref [] in
     List.iteri (fun n (s : splitter) -> match s.node with
@@ -431,7 +431,7 @@ module Chrome = struct
                        :: !intents
           end;
           if signal.released then intents := Settled :: !intents)
-      (geometry ~state ~hidden ~top tree frame).splitters;
+      (geometry ~state ~hidden tree frame).splitters;
     List.iteri (fun order (leaf : leaf) -> match (state leaf.path).window with
       | None -> ()
       | Some _ when not (state leaf.path).collapsed ->
@@ -456,7 +456,7 @@ module Chrome = struct
               if offset mod 2 = 1 then Ui.Paint.line paint ~from_:(x +. w -. float offset, y +. h -. 2.)
                 ~to_:(x +. w -. 2., y +. h -. float offset) (Pxui.Theme.muted (Ui.theme ui))
             done)
-      | Some _ -> ()) (geometry ~state ~hidden ~top tree frame).leaves;
+      | Some _ -> ()) (geometry ~state ~hidden tree frame).leaves;
     List.rev !intents
 
   let focus ui ~bounds:(x, y, width, height) =
@@ -1152,7 +1152,8 @@ module Inspector = struct
         in
         loop [] items
 
-  let flow_fields ui ?(expanded = []) ?(width = 280.) ?(actions = true) ?(chips = []) rows =
+  let flow_fields ui ?(expanded = []) ?(width = 280.) ?(actions = true) ?(chips = [])
+      ?(on_choice = fun _ _ -> ()) rows =
     let theme = Ui.theme ui in
     let expression text = String.starts_with ~prefix:"=" text
       && String.length (String.trim text) > 1 in
@@ -1214,6 +1215,7 @@ module Inspector = struct
           let box = Ui.box ui ~flags:Ui.(clickable + tab_stop + clip)
               ~at:(x, y) ~w:(Ui.Px w) ~h:(Ui.Px 21.) key in
           let index = Option.value ~default:0 (Array.find_index (( = ) value) choices) in
+          on_choice field.Param.name box;
           let just_opened = (Ui.signal ui box).clicked in
           let open_ = just_opened || Ui.state ui box ~default:0 = 1 in
           Ui.set_state ui box (if open_ then 1 else 0);

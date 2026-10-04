@@ -1,5 +1,6 @@
 type component =
   { executable : string
+  ; key : string
   ; package : string
   ; library : string
   ; environment_prefix : string
@@ -153,7 +154,13 @@ let contains ~needle value =
   in
   needle_length = 0 || search 0
 
-let package_file ~root component =
+(* What the fake pkg-config reports: two patch releases above the floor, so the
+   default run proves a newer SDL than the lock describes stays green. *)
+let fake_version lock component =
+  let major, minor, patch = (Sdl3_lock.find lock component.key).Sdl3_lock.floor in
+  major, minor, patch + 2
+
+let package_file ~root ~lock component =
   let include_directory = Filename.concat root (component.package ^ "-include") in
   let library_directory = Filename.concat root (component.package ^ "-lib") in
   mkdir include_directory;
@@ -170,18 +177,19 @@ let package_file ~root component =
        libdir=%s\n\n\
        Name: %s\n\
        Description: Prismel hermetic discovery fixture\n\
-       Version: 3.4.14\n\
+       Version: %s\n\
        %s\
        Libs: -L${libdir} -l%s\n\
        Libs.private: -l%s\n\
        Cflags: -I${includedir}\n"
-      root include_directory library_directory component.package requires
-      component.library component.private_library
+      root include_directory library_directory component.package
+      (Sdl3_lock.version_string (fake_version lock component))
+      requires component.library component.private_library
   in
   write_file (Filename.concat root (component.package ^ ".pc")) contents;
   include_directory, library_directory
 
-let run_case ~root ~mode ?sanitizers ?include_override ?library_override component =
+let run_case_full ~root ~mode ?sanitizers ?include_override ?library_override component =
   with_temp_directory ("prismel-discover-" ^ component.package ^ "-")
     (fun directory ->
       let replacements =
@@ -220,13 +228,30 @@ let run_case ~root ~mode ?sanitizers ?include_override ?library_override compone
           component.executable
       in
       expect_success component result;
-      output_flags directory "c_flags.sexp",
-      output_flags directory "c_library_flags.sexp")
+      ( output_flags directory "c_flags.sexp"
+      , output_flags directory "c_library_flags.sexp"
+      , read_file (Filename.concat directory "sdl3_probed.h") ))
 
-let test_dynamic root fixtures components =
+let run_case ~root ~mode ?sanitizers ?include_override ?library_override component =
+  let cflags, libraries, _ =
+    run_case_full ~root ~mode ?sanitizers ?include_override ?library_override
+      component
+  in
+  cflags, libraries
+
+let test_dynamic ~lock root fixtures components =
   List.iter2
     (fun component (include_directory, library_directory) ->
-      let cflags, libraries = run_case ~root ~mode:"dynamic" component in
+      let cflags, libraries, probed =
+        run_case_full ~root ~mode:"dynamic" component
+      in
+      let expected =
+        Printf.sprintf "#define PRISMEL_SDL3_PROBED_VERSION %d\n"
+          (Sdl3_lock.version_number (fake_version lock component))
+      in
+      if probed <> expected then
+        fail "%s probed version header was %S, expected %S" component.package
+          probed expected;
       require_flag (component.package ^ " dynamic cflags")
         ("-I" ^ include_directory) cflags;
       require_flag (component.package ^ " dynamic libraries")
@@ -260,6 +285,17 @@ let test_static root fixtures components =
 let test_overrides root components =
   List.iter
     (fun component ->
+      (* Explicit headers may describe another install than pkg-config does,
+         so no version is claimed for them. *)
+      let _, _, probed =
+        let include_directory = Filename.concat root (component.package ^ "-probe-i") in
+        mkdir include_directory;
+        run_case_full ~root ~mode:"dynamic" ~include_override:include_directory
+          component
+      in
+      if probed <> "#define PRISMEL_SDL3_PROBED_VERSION 0\n" then
+        fail "%s explicit headers still claimed a probed version: %S"
+          component.package probed;
       let include_directory = Filename.concat root (component.package ^ "-override-i") in
       let library_directory = Filename.concat root (component.package ^ "-override-l") in
       mkdir include_directory;
@@ -320,33 +356,38 @@ let test_invalid_mode root component =
     then fail "invalid-mode diagnostic was not preserved: %s" result.stderr)
 
 let usage () =
-  fail "usage: %s <core-discover> <image-discover> <ttf-discover> <mixer-discover>"
+  fail "usage: %s <sdl3.lock> <core-discover> <image-discover> <ttf-discover> <mixer-discover>"
     Sys.argv.(0)
 
 let () =
   try
-    if Array.length Sys.argv <> 5 then usage ();
-    let executable index = Unix.realpath Sys.argv.(index) in
+    if Array.length Sys.argv <> 6 then usage ();
+    let lock = Sdl3_lock.read Sys.argv.(1) in
+    let executable index = Unix.realpath Sys.argv.(index + 1) in
     let components =
       [ { executable = executable 1
+        ; key = "sdl3"
         ; package = "sdl3"
         ; library = "SDL3"
         ; environment_prefix = "PRISMEL_SDL3"
         ; private_library = "core_fixture"
         }
       ; { executable = executable 2
+        ; key = "sdl3_image"
         ; package = "sdl3-image"
         ; library = "SDL3_image"
         ; environment_prefix = "PRISMEL_SDL3_IMAGE"
         ; private_library = "image_fixture"
         }
       ; { executable = executable 3
+        ; key = "sdl3_ttf"
         ; package = "sdl3-ttf"
         ; library = "SDL3_ttf"
         ; environment_prefix = "PRISMEL_SDL3_TTF"
         ; private_library = "ttf_fixture"
         }
       ; { executable = executable 4
+        ; key = "sdl3_mixer"
         ; package = "sdl3-mixer"
         ; library = "SDL3_mixer"
         ; environment_prefix = "PRISMEL_SDL3_MIXER"
@@ -356,8 +397,8 @@ let () =
     in
     with_temp_directory "prismel-pkg-config-" (fun root ->
       let root = Unix.realpath root in
-      let fixtures = List.map (package_file ~root) components in
-      test_dynamic root fixtures components;
+      let fixtures = List.map (package_file ~root ~lock) components in
+      test_dynamic ~lock root fixtures components;
       test_static root fixtures components;
       test_overrides root components;
       test_sanitizers root (List.hd components);

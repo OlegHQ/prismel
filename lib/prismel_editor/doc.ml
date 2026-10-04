@@ -88,3 +88,21 @@ let select_layout ~factories (doc : Editor_document.Document.t) name =
 (* A derived edit (an object's field, a reparent, a World layer) written to the text. *)
 let reconcile ~factories ?adopt before after =
   Editor_document.Scene_sync.reconcile ~factories ?adopt before after
+
+(* The binding of the panel at tree [path] (an assignable node for a gesture): a named panel is
+   its binding, one written in place is bound first (the call holding it unfolded). *)
+let panel_node ~factories ?(loop_message = "These panels are copies made by a loop: edit the loop in the editor graph.")
+    (doc : Editor_document.Document.t) path =
+  let ( let* ) = Result.bind in
+  let graph = Option.map (fun (g : Flow.Workspace.graph) -> g.name)
+    (Editor_document.Workspace_doc.editor_graph (fst doc.workspace)) in
+  match graph, Option.bind doc.shell (fun s -> List.assoc_opt path s.Editor_document.Document.origins) with
+  | Some graph, Some (Editor_document.Document.Bound name) -> Ok (doc, [ graph; name ])
+  | _, Some (Inline (home, key)) ->
+      let* doc, node = Editor_document.Scene_sync.bind_home ~factories doc home in
+      let* doc = syntax_edit ~factories doc (Flow_sop.Flow_edit.Unfold { node; key; sub = [] }) in
+      (match Flow_sop.Flow_edit.arg_text (fst doc.workspace).source node key with
+       | Some { Flow.Syntax.node = Sym name; _ } -> Ok (doc, List.rev (name :: List.tl (List.rev node)))
+       | _ -> Error "The panel could not be named.")
+  | _, Some (Loop _) -> Error loop_message
+  | _ -> Error "This panel is not part of an editor layout."

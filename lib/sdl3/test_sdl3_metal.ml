@@ -4,8 +4,8 @@ open Sdl3
 
 let fail message = failwith ("SDL3 Metal test: " ^ message)
 let get = function Ok value -> value | Error error -> fail (Format.asprintf "%a" pp_error error)
-let rec drain_events () = match get (Event.poll ()) with
-  | None -> () | Some _ -> drain_events ()
+let rec drain_events () = match get (Event.poll_coalesced ()) with
+  | [] -> () | _ :: _ -> drain_events ()
 
 let run () =
   if Sys.os_type <> "Unix" || not (Sys.file_exists "/System/Library/Frameworks/Metal.framework")
@@ -14,20 +14,16 @@ let run () =
     get (Init.init [Init.Video; Init.Events]);
     let window = get (Window.create ~title:"SDL3 Metal bridge test"
         ~width:64 ~height:48
-        ~flags:[Window.Hidden; Window.Resizable; Window.High_pixel_density;
-          Window.Metal] ()) in
+        ~flags:[Window.Hidden; Window.High_pixel_density; Window.Metal] ()) in
     let logical_width, logical_height = get (Window.size window) in
-    get (Window.set_title window "SDL3 Metal renamed window");
-    if get (Window.title window) <> "SDL3 Metal renamed window" then
-      fail "native window title did not round-trip";
     let pixel_width, pixel_height = get (Window.size_in_pixels window) in
-    let density = get (Window.pixel_density window) in
+    let facts = get (Window.presentation_facts window ~vsync:true) in
+    let density = facts.pixel_density in
     if abs_float ((float_of_int pixel_width /. float_of_int logical_width)
         -. density) > 0.01
         || abs_float ((float_of_int pixel_height /. float_of_int logical_height)
           -. density) > 0.01 then
       fail "logical/drawable sizes disagree with the reported pixel density";
-    ignore (get (Window.display_scale window));
     get (Window.set_size window ~width:80 ~height:60);
     get (Window.sync window);
     if get (Window.size window) <> (80, 60) then
@@ -45,23 +41,19 @@ let run () =
         || facts.drawable_height <> resized_pixel_height
         || facts.refresh_rate = None || not facts.vsync then
       fail "native presentation facts are incomplete";
-    get (Window.set_bordered window false);
-    get (Window.set_bordered window true);
     get (Window.set_resizable window false);
     get (Window.set_resizable window true);
-    get (Window.set_always_on_top window true);
-    get (Window.set_always_on_top window false);
     get (Window.center window);
-    let cursor = get (Cursor.create Cursor.Pointer) in
-    get (Cursor.set cursor);
-    get (Cursor.destroy cursor);
-    let has_flag flag bits = Int64.logand bits flag <> 0L in
-    let await_flag ~label flag expected =
+    List.iter (fun shape ->
+      let cursor = get (Cursor.create shape) in
+      get (Cursor.set cursor);
+      get (Cursor.destroy cursor))
+      Cursor.[Default; Text; Ew_resize; Ns_resize];
+    let await_hidden ~label expected =
       let deadline = Unix.gettimeofday () +. 30. in
       let rec loop () =
         drain_events ();
-        let actual = has_flag flag (get (Window.flags window)) in
-        if actual = expected then ()
+        if (get (Window.state window)).hidden = expected then ()
         else if Unix.gettimeofday () >= deadline then
           fail (label ^ " did not reach the requested native window state")
         else begin
@@ -71,22 +63,13 @@ let run () =
       in
       loop ()
     in
+    await_hidden ~label:"initially hidden" true;
     get (Window.show window);
     get (Window.sync window);
-    get (Window.minimize window);
-    get (Window.sync window);
-    await_flag ~label:"minimize" 0x40L true;
-    get (Window.restore window);
-    get (Window.sync window);
-    await_flag ~label:"restore from minimize" 0x40L false;
-    get (Window.maximize window);
-    get (Window.sync window);
-    await_flag ~label:"maximize" 0x80L true;
-    get (Window.restore window);
-    get (Window.sync window);
-    await_flag ~label:"restore from maximize" 0x80L false;
+    await_hidden ~label:"show" false;
     get (Window.hide window);
     get (Window.sync window);
+    await_hidden ~label:"hide" true;
     let view = get (Metal_view.create window) in
     ignore (get (Metal_view.layer view));
     (match Domain.spawn (fun () -> Metal_view.layer view) |> Domain.join with
@@ -101,6 +84,6 @@ let run () =
      | Error { kind = Destroyed; _ } -> ()
      | Ok _ | Error _ -> fail "destroyed Metal view remained usable");
     get (Window.destroy window);
-    get (Init.quit ());
+    get (Init.quit_subsystems [Init.Video; Init.Events]);
     Printf.printf "SDL3 CAMetalLayer ownership bridge passed\n%!"
   end

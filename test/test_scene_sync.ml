@@ -642,7 +642,7 @@ let run_root () =
       (scene/merge (scene/geometry (ref g)) (scene/camera :width 1600 :height 900 :max_spp 512))))|} in
   check (sized.root.width = 1600 && sized.root.height = 900 && sized.root.max_spp = 512
          && sized.homes.root = None) "the camera's old size was not read as the root's";
-  (* every sketch of the repository still loads, none with a root of its own yet *)
+  (* every sketch of the repository still loads; shattered_studio carries a root, written by the editor *)
   let sketches = "../sketches" in
   let loaded = Array.fold_left (fun n name ->
     let file = Filename.concat (Filename.concat sketches name) "sketch.plisp" in
@@ -659,8 +659,8 @@ let run_root () =
   check (loaded >= 12) (Printf.sprintf "only %d sketches were found to load" loaded);
   let studio = lower (Result.get_ok (Prismel_editor.Workspace.load
     (In_channel.with_open_bin "../sketches/shattered_studio/sketch.plisp" In_channel.input_all))) in
-  check (studio.root.width = 1600 && studio.root.height = 1600 && studio.root.max_spp = 512 && studio.homes.root = None)
-    "shattered_studio's camera size is not read as the root's";
+  check (studio.root.width = 1600 && studio.root.height = 1600 && studio.root.max_spp = 512 && studio.homes.root <> None)
+    "shattered_studio (saved once by the editor) does not carry its render size on a scene/root";
   (* a root and a World member *)
   let doc = open_text root_text in
   check (doc.root.renderer = R.Path_traced && doc.root.width = 800 && doc.root.height = 600
@@ -848,10 +848,14 @@ let instances_text = {|(workspace days
   (graph set :context scene
     (scene/merge (scene/geometry (ref g) :name "body") (scene/camera :name "hero")))
   (graph day :context scene
-    (scene/root (scene/merge (ref set) (scene/world (ref noon) :name "Noon")) :renderer "Raster"))
+    (let* [cam (scene/camera :name "noon-cam" :eye [0 1 8])
+           all (scene/merge (ref set) cam (scene/world (ref noon) :name "Noon"))]
+      (scene/root all :camera cam :renderer "Raster" :width 800 :height 450)))
   (graph night :context scene
-    (scene/root (scene/merge (ref set) (scene/world (ref dusk) :name "Dusk" :exposure -2))
-                :renderer "Path traced" :max_spp 1024 :bounces 12))
+    (let* [cam (scene/camera :name "dusk-cam" :eye [4 2 6] :fov 30)
+           all (scene/merge (ref set) cam (scene/world (ref dusk) :name "Dusk" :exposure -2))]
+      (scene/root all :camera cam :renderer "Path traced" :max_spp 1024 :bounces 12
+                  :width 1600 :height 900)))
   (graph editor :context editor
     (ui/workspace (ui/split-at "horizontal" 0.5 (ui/viewport (ref day)) (ui/viewport (ref night))))))|}
 
@@ -861,12 +865,28 @@ let run_instances () =
   let shell = Option.get doc.shell in
   check (List.length shell.preview_sources = 2) "two viewports, two scene instances";
   let root_of (_, (source : Document.preview_source)) = Contexts.instance_root source.instance in
+  (* each instance's root, its size and its own camera object: the two differ *)
   (match List.map root_of shell.preview_sources with
    | [ Some day; Some night ] ->
-       check (day.renderer = R.Raster) "day renders raster";
-       check (night.renderer = R.Path_traced && night.max_spp = 1024 && night.bounces = 12)
-         (Printf.sprintf "night's root was not read: %d spp, %d bounces" night.max_spp night.bounces)
+       check (day.params.renderer = R.Raster) "day renders raster";
+       check (night.params.renderer = R.Path_traced && night.params.max_spp = 1024 && night.params.bounces = 12)
+         (Printf.sprintf "night's root was not read: %d spp, %d bounces" night.params.max_spp night.params.bounces);
+       check ((day.params.width, day.params.height) = (800, 450)
+              && (night.params.width, night.params.height) = (1600, 900)) "each root's own resolution";
+       (match day.camera, night.camera with
+        | Some d, Some n ->
+            check (Prismel.Camera.position d = Prismel.Vec3.create 0. 1. 8.) "day looks from its own camera";
+            check (Prismel.Camera.position n = Prismel.Vec3.create 4. 2. 6.) "night looks from its own camera";
+            check (Prismel.Camera.projection n <> Prismel.Camera.projection d) "and with its own lens"
+        | _ -> failwith "each root names its camera")
    | _ -> failwith "each viewport's scene instance names its root");
+  (* the document stores them per viewport, beside the Worlds *)
+  (match doc.view_roots with
+   | [ (_, day); (_, night) ] ->
+       check (day.camera <> None && night.camera <> None
+              && day.params.width = 800 && night.params.width = 1600)
+         "the document holds each viewport's root and camera"
+   | _ -> failwith "each viewport over a root has an entry in the document");
   check (Contexts.instance_root (E.Struct ("scene/merge", [])) = None) "a part has no root of its own";
   (* each viewport draws its own World: the document's scene (a part) has none, the two roots do *)
   check (Objects.ids "world" (scene doc) = []) "the part holds no World";

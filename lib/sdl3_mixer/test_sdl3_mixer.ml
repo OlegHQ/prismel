@@ -44,20 +44,21 @@ let any_nonzero bytes =
   loop 0
 
 let run () =
-  let linked = linked_version () in
-  if linked <> { Sdl3.major = 3; minor = 2; patch = 4 } then
-    fail "linked SDL3_mixer version changed";
+  let triple (v : Sdl3.version) = v.major, v.minor, v.patch in
+  (match Sdl3_lock.check_installed ~lock:(Sdl3_lock.read "../../packaging/sdl3.lock")
+      ~key:"sdl3_mixer" ~compiled:(triple compiled_version)
+      ~linked:(triple (linked_version ())) with
+   | Ok () -> () | Error message -> fail message);
   (match check_version ~release:true () with
    | Ok () -> () | Error error -> fail (Format.asprintf "%a" pp_error error));
   (match Mixer.create_memory ~sample_rate:48_000 ~channels:2 with
    | Error { kind = Not_initialized; _ } -> ()
    | Ok mixer -> ignore (Mixer.destroy mixer); fail "mixer created before init"
    | Error _ -> fail "pre-init mixer returned the wrong error");
-  get (Init.init ());
-  if not (get (Init.initialized ())) then fail "mixer init was not retained";
-  (match Domain.spawn Init.initialized |> Domain.join with
+  (match Domain.spawn Init.init |> Domain.join with
    | Error { kind = Wrong_domain; _ } -> ()
-   | Ok _ | Error _ -> fail "wrong-domain mixer init query was not rejected");
+   | Ok _ | Error _ -> fail "wrong-domain mixer init was not rejected");
+  get (Init.init ());
   (match Mixer.create_memory ~sample_rate:7_999 ~channels:2 with
    | Error { kind = Invalid_argument; _ } -> ()
    | Ok mixer -> ignore (Mixer.destroy mixer); fail "invalid sample rate succeeded"
@@ -68,103 +69,57 @@ let run () =
    | Error _ -> fail "invalid channels returned the wrong error");
 
   let mixer = get (Mixer.create_memory ~sample_rate:48_000 ~channels:2) in
-  if Mixer.mode mixer <> Mixer.Memory
-      || get (Mixer.format mixer) <> { Mixer.sample_rate = 48_000; channels = 2 }
-  then fail "memory mixer format changed";
   get (Mixer.set_gain mixer 0.75);
-  if get (Mixer.gain mixer) <> 0.75 then fail "mixer gain changed";
   (match Mixer.set_gain mixer nan with
    | Error { kind = Invalid_argument; _ } -> ()
    | Ok () | Error _ -> fail "NaN mixer gain was accepted");
 
   let encoded = tiny_wav () in
-  let memory_audio = get (Audio.load_bytes mixer encoded) in
+  let audio = get (Audio.load_bytes mixer encoded) in
+  (* the audio owns a copy: scribbling on the source changes nothing *)
   Bytes.fill encoded 0 (Bytes.length encoded) '\x00';
-  if get (Audio.duration_frames memory_audio) <= 0L then
-    fail "memory WAV has no duration";
-  let temp = Filename.temp_file "prismel-sdl3-mixer-" ".wav" in
-  at_exit (fun () -> try Sys.remove temp with Sys_error _ -> ());
-  let wav = tiny_wav () in
-  let channel = open_out_bin temp in
-  output_bytes channel wav;
-  close_out channel;
-  let file_audio = get (Audio.load_file mixer ~path:temp ~predecode:false ()) in
-  if get (Audio.duration_frames file_audio) <= 0L then
-    fail "file WAV has no duration";
   (match Audio.load_bytes mixer Bytes.empty with
    | Error { kind = Invalid_argument; _ } -> ()
    | Ok audio -> ignore (Audio.destroy audio); fail "empty audio bytes loaded"
    | Error _ -> fail "empty audio bytes returned the wrong error");
-  (match Audio.load_file mixer ~path:"/definitely/missing/audio.wav" () with
+  (match Audio.load_bytes mixer (Bytes.of_string "bad audio") with
    | Error ({ kind = Mixer_error; message; _ } as captured) when message <> "" ->
        let original = captured.message in
        ignore (linked_version ());
        if captured.message <> original then
          fail "mixer error text changed after a subsequent native call"
-   | Ok audio -> ignore (Audio.destroy audio); fail "missing audio loaded"
-   | Error _ -> fail "missing audio returned the wrong error");
-  (match Audio.load_bytes mixer (Bytes.of_string "bad audio") with
-   | Error { kind = Mixer_error; message; _ } when message <> "" -> ()
    | Ok audio -> ignore (Audio.destroy audio); fail "malformed audio loaded"
    | Error _ -> fail "malformed audio returned the wrong error");
-  let retained_generation = Audio.generation memory_audio in
-  (match Audio.reload_bytes memory_audio (Bytes.of_string "bad reload") with
-   | Error { kind = Mixer_error; _ }
-     when Audio.generation memory_audio = retained_generation
-          && not (Audio.destroyed memory_audio) -> ()
-   | Ok audio -> ignore (Audio.destroy audio); fail "malformed reload succeeded"
-   | Error _ -> fail "malformed reload was not failure-atomic");
-  let reloaded_audio = get (Audio.reload_bytes memory_audio (tiny_wav ())) in
-  if Audio.generation reloaded_audio = retained_generation
-     || get (Audio.duration_frames reloaded_audio) <= 0L then
-    fail "encoded reload did not create an owned replacement";
+  (* a failed reload leaves the original usable; a good one is a new value *)
+  (match Audio.reload_bytes audio (Bytes.of_string "bad reload") with
+   | Error { kind = Mixer_error; _ } -> ()
+   | Ok replacement -> ignore (Audio.destroy replacement); fail "malformed reload succeeded"
+   | Error _ -> fail "malformed reload returned the wrong error");
+  let reloaded = get (Audio.reload_bytes audio (tiny_wav ())) in
+  if reloaded == audio then fail "encoded reload did not create an owned replacement";
 
-  let sine = get (Audio.create_sine mixer ~frequency:440 ~amplitude:0.25
-      ~duration_ms:100) in
-  if get (Audio.duration_frames sine) <= 0L then fail "sine has no duration";
-  (match Audio.create_sine mixer ~frequency:0 ~amplitude:0.25 ~duration_ms:1 with
-   | Error { kind = Invalid_argument; _ } -> ()
-   | Ok audio -> ignore (Audio.destroy audio); fail "zero-frequency sine succeeded"
-   | Error _ -> fail "zero-frequency sine returned the wrong error");
-  (match Audio.create_sine mixer ~frequency:440 ~amplitude:nan ~duration_ms:1 with
-   | Error { kind = Invalid_argument; _ } -> ()
-   | Ok audio -> ignore (Audio.destroy audio); fail "NaN-amplitude sine succeeded"
-   | Error _ -> fail "NaN-amplitude sine returned the wrong error");
-  (match Audio.create_sine mixer ~frequency:440 ~amplitude:0.1 ~duration_ms:0 with
-   | Error { kind = Invalid_argument; _ } -> ()
-   | Ok audio -> ignore (Audio.destroy audio); fail "zero-duration sine succeeded"
-   | Error _ -> fail "zero-duration sine returned the wrong error");
   let track = get (Music.create mixer) in
-  get (Music.set_audio track sine);
+  get (Music.set_audio track audio);
   get (Music.set_volume track 0.5);
-  if get (Music.volume track) <> 0.5 then fail "track gain changed";
+  (match Music.set_volume track nan with
+   | Error { kind = Invalid_argument; _ } -> ()
+   | Ok () | Error _ -> fail "NaN track volume was accepted");
   get (Music.play track ~loops:1 ~fade_in_ms:5 ());
-  if not (get (Music.playing track)) then fail "memory track did not start";
   let generated = get (Mixer.generate mixer ~frames:256) in
   if Bytes.length generated.pcm_f32 <> 256 * 2 * 4
       || generated.mixed_bytes <= 0 || not (any_nonzero generated.pcm_f32) then
     fail "memory mixer did not generate finite non-silent float32 PCM";
   get (Music.pause track);
-  if not (get (Music.paused track)) then fail "track did not pause";
   get (Music.resume track);
-  if get (Music.paused track) then fail "track did not resume";
   get (Music.stop track ~fade_out_ms:2 ());
 
   let channels = get (Channels.create mixer ~count:32) in
-  if Channels.count channels <> 32 || get (Channels.allocate channels) <> 0 then
-    fail "bounded channel allocation changed";
-  (match Domain.spawn (fun () -> Channels.allocate channels) |> Domain.join with
-   | Error { kind = Wrong_domain; _ } -> ()
-   | Ok _ | Error _ -> fail "concurrent channel misuse was not rejected");
-  let selected = get (Channels.play channels ~loops:1 ~fade_in_ms:1 sine) in
+  if Channels.count channels <> 32 then fail "bounded channel count changed";
+  let selected = get (Channels.play channels ~loops:1 ~fade_in_ms:1 audio) in
   get (Channels.set_volume channels selected 0.4);
-  get (Channels.set_group channels selected (Some 7));
-  get (Channels.set_group_volume channels ~group:7 0.25);
-  if get (Channels.volume channels selected) <> 0.25
-     || not (get (Channels.playing channels selected)) then
-    fail "channel/group gain or playback state changed";
+  if not (get (Channels.playing channels selected)) then
+    fail "channel playback state changed";
   get (Channels.pause channels selected);
-  if not (get (Channels.paused channels selected)) then fail "channel pause changed";
   get (Channels.resume channels selected);
   get (Channels.stop channels selected ~fade_out_ms:1 ());
   (match Channels.playing channels 32 with
@@ -173,26 +128,18 @@ let run () =
   (match Channels.set_volume channels 0 nan with
    | Error { kind = Invalid_argument; _ } -> ()
    | Ok () | Error _ -> fail "NaN channel volume was accepted");
+  (match Domain.spawn (fun () -> Channels.playing channels 0) |> Domain.join with
+   | Error { kind = Wrong_domain; _ } -> ()
+   | Ok _ | Error _ -> fail "concurrent channel misuse was not rejected");
   for index = 0 to 31 do
-    ignore (get (Channels.play channels ~channel:index ~loops:(index land 1) sine))
+    ignore (get (Channels.play channels ~channel:index ~loops:(index land 1) audio))
   done;
-  (match Channels.allocate channels with
+  (match Channels.play channels audio with
    | Error { kind = Mixer_error; _ } -> ()
-   | Ok _ | Error _ -> fail "full channel bank did not reject allocation");
+   | Ok _ | Error _ -> fail "full channel bank did not reject an unnamed channel");
   for index = 0 to 31 do get (Channels.stop channels index ()) done;
   get (Channels.destroy channels);
   get (Channels.destroy channels);
-
-  let music = get (Music.create mixer) in
-  get (Music.set_audio music file_audio);
-  get (Music.set_volume music 0.6);
-  get (Music.play music ~loops:1 ~fade_in_ms:1 ());
-  if abs_float (get (Music.volume music) -. 0.6) > 1e-6
-     || not (get (Music.playing music)) then
-    fail "music-style track state changed";
-  get (Music.pause music); get (Music.resume music);
-  get (Music.stop music ~fade_out_ms:1 ());
-  get (Music.destroy music);
 
   for _cycle = 1 to 10_000 do
     let transient = get (Music.create mixer) in
@@ -201,7 +148,7 @@ let run () =
 
   let other = get (Mixer.create_memory ~sample_rate:48_000 ~channels:2) in
   let foreign = get (Music.create other) in
-  (match Music.set_audio foreign sine with
+  (match Music.set_audio foreign audio with
    | Error { kind = Invalid_argument; _ } -> ()
    | Ok () | Error _ -> fail "cross-mixer audio attachment was accepted");
   get (Music.destroy foreign); get (Mixer.destroy other);
@@ -209,17 +156,14 @@ let run () =
   (match Mixer.destroy mixer with
    | Error { kind = Parent_has_dependents; _ } -> ()
    | Ok () | Error _ -> fail "mixer teardown ignored child handles");
-  let wrong_domain = Domain.spawn (fun () -> Mixer.gain mixer) |> Domain.join in
-  (match wrong_domain with
+  (match Domain.spawn (fun () -> Mixer.set_gain mixer 1.) |> Domain.join with
    | Error { kind = Wrong_domain; _ } -> ()
    | Ok _ | Error _ -> fail "wrong-domain mixer access was not rejected");
   get (Music.destroy track);
   get (Music.destroy track);
-  get (Audio.destroy sine);
-  get (Audio.destroy memory_audio);
-  get (Audio.destroy reloaded_audio);
-  get (Audio.destroy file_audio);
-  (match Music.playing track with
+  get (Audio.destroy audio);
+  get (Audio.destroy reloaded);
+  (match Music.pause track with
    | Error { kind = Destroyed; _ } -> ()
    | Ok _ | Error _ -> fail "stale track access was not rejected");
   get (Mixer.destroy mixer);
@@ -230,15 +174,13 @@ let run () =
    | Error _ -> fail "destroyed-mixer track returned the wrong error");
 
   let device = get (Mixer.create_device ()) in
-  if Mixer.mode device <> Mixer.Device then fail "device mixer mode changed";
-  let device_audio = get (Audio.create_sine device ~frequency:220 ~amplitude:0.1
-      ~duration_ms:25) in
+  let device_audio = get (Audio.load_bytes device (tiny_wav ())) in
   let device_track = get (Music.create device) in
   get (Music.set_audio device_track device_audio);
   get (Music.play device_track ());
   get (Music.pause device_track);
   get (Music.resume device_track);
-  get (Mixer.stop_all device ());
+  get (Music.stop device_track ());
   get (Music.destroy device_track);
   get (Audio.destroy device_audio);
   get (Mixer.destroy device);
@@ -246,4 +188,4 @@ let run () =
   get (Init.quit ());
   get (Init.quit ());
   Printf.printf "SDL3_mixer %d.%d.%d track/device/memory conformance passed\n%!"
-    linked.major linked.minor linked.patch
+    (linked_version ()).major (linked_version ()).minor (linked_version ()).patch

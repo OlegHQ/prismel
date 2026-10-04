@@ -117,6 +117,35 @@ type lit_cache = {
   lowered : Flow_sop.Lower.t; scope : Flow_sop.Projection.scope; tags : Pick.Set.t;
 }
 
+(* A carry in flight (carry.ml, flow.md "Carry"): the payload, how it was picked up, the document
+   that was the history's present then (the cancel restores it, physically) and what the panes
+   saw under the pointer last frame.  While a target is hot the document shown ([doc]) is the edit
+   applied to a scratch copy; the history is not touched until the put. *)
+type carry_preview =
+  | Showing of { place : Carry.place; doc : Document.t; what : string }
+  | Held_back of { place : Carry.place; doc : Document.t; what : string; reason : string }
+      (* the put would take longer than the preview budget: said, not shown *)
+  | Refused of { place : Carry.place; reason : string }
+
+type carry_report = { over : Carry.place; dropped : bool }
+
+type 'prepared carry = {
+  payload : Carry.payload;
+  via : [ `Pointer | `Keys ];
+  original : Document.t;
+  settled : 'prepared Cook.piece list;
+      (* the pieces cooked for [original]: a surface is picked on them, not on the preview *)
+  report : carry_report option;
+  targets : (string option * (string * Carry.place * string) list) option;
+      (* the key route's letters, computed for the pane graph named *)
+  chosen : Carry.place option;  (* the key route's letter *)
+  anchor : (float * float) option;
+      (* where the pointer was at pick-up or the last letter: it hovers only once it moves *)
+  preview : carry_preview option;
+  resting : (Carry.place * float) option;  (* the node the pointer rests on, since *)
+  hint : string option;  (* a reminder the strip shows ahead of the prompt until a letter is chosen *)
+}
+
 type 'prepared t = {
   preferences : string;
   guide : bool;
@@ -166,6 +195,11 @@ type 'prepared t = {
   keymap : Leader.command list;
   timeline_frames : int;
   queued : Leader.action list;  (* picked in the palette, run next frame *)
+  carry : 'prepared carry option;
+  carry_budget : float;  (* seconds a carry's preview may take to apply or cook before it is only described *)
+  captions : (string * string) list;
+  (* each traced viewport's header text (resolution, film step, samples), set by the host after
+     it renders: view state, not history *)
 }
 
 type ('prepared, 'panel) update = {
@@ -374,7 +408,7 @@ let expression_text text =
    the lowered node at that iteration.  An edit is a [Set_arg] on the authored
    argument; an argument that is not a literal shows its expression and is
    locked.  Returns the graph requests and the probe moves. *)
-let workspace_inspector value ui ~width path =
+let workspace_inspector ?(on_choice = fun _ _ -> ()) value ui ~width path =
   let module P = Flow_sop.Projection in
   let module Probe = Flow_sop.Probe in
   let module S = Flow.Syntax in
@@ -465,7 +499,7 @@ let workspace_inspector value ui ~width path =
              if text = n.name then [] else [ Syntax_edit (Flow_sop.Flow_edit.Rename { node = n.path; to_ = text }) ]
            end in
            (* the items of a list or a string: each can move up a place *)
-           let movers = if n.synthetic || not (List.mem n.head [ "list"; "str" ]) then [] else
+           let movers = if n.synthetic || not (Flow_sop.Projection.reorderable n) then [] else
              List.concat_map (fun (r : P.row) -> match r.key with
                | Flow_sop.Flow_edit.Pos k when k >= 1 && k < 24 ->
                    if Pxui.Ui.inspector_button ui ~key:(Printf.sprintf "ws-move-%d" k)
@@ -556,7 +590,7 @@ let workspace_inspector value ui ~width path =
              let t = Printf.sprintf "%.6g" f in
              S.make (S.Num (if String.exists (fun c -> c = '.' || c = 'e' || c = 'n' || c = 'i') t then t else t ^ ".0")) in
            let edits = if rows = [] then [] else
-             Pxui_shell.Inspector.flow_fields ui ~expanded ~width ~actions:false
+             Pxui_shell.Inspector.flow_fields ui ~expanded ~width ~actions:false ~on_choice
                ~chips:(match value.scope_key with
                  | Some { evaluated = Some ev; _ } -> Navigator.chips ev
                  | _ -> []) rows
@@ -1371,7 +1405,7 @@ let create ?settings ?(keymap = Leader.keymap)
     ?(layout = Pxui_shell.Layout.default) ?(factories = [])
     ?(seed = 0L) ?(grain = 16_384)
     ?domains ?(max_entries = 512)
-    ?(max_payload_bytes = 256 * 1024 * 1024) ?await
+    ?(max_payload_bytes = 256 * 1024 * 1024) ?await ?(carry_budget = 0.5)
     ~workspace ~prepare () =
   let factories = if factories = [] then Sop_catalog.Editor.factories else factories in
   let settings = Option.value settings ~default:workspace.Workspace_doc.settings in
@@ -1421,7 +1455,7 @@ let create ?settings ?(keymap = Leader.keymap)
         status_fps_at = Float.neg_infinity;
         history = Editor_core.History.create doc;
         focus = Editor_core.Panels.main; focus_path = None; pane_keys = []; leader = Leader.Idle;
-        keymap; timeline_frames = max 1 timeline_frames; queued = [] } in
+        keymap; timeline_frames = max 1 timeline_frames; queued = []; carry = None; carry_budget; captions = [] } in
       Cook.set_volatile cook (Flow_sop.Lower.is_volatile (snd doc.workspace));
       { value with history = Editor_core.History.create doc })
     (Cook.create ~prepare ~seed ~grain ?domains ?await ~max_entries
@@ -1441,7 +1475,28 @@ let level_name value = match value.level with
   | Inside id -> "scene › " ^ Option.fold ~none:"?" ~some:Node.label
       (Edit_graph.find (scene value) ~node_id:id)
 
+(* The strip while a payload is carried: what it is, then (a target hot) what putting it writes in
+   the words of the text, or why the place refuses it. *)
+let carry_line (c : _ carry) =
+  let held = c.payload.value in
+  let put = match c.via with `Keys -> "Enter" | `Pointer -> "release" in
+  match c.preview with
+  | Some (Showing { what; _ }) -> Printf.sprintf "Preview · %s writes %s · Esc drops" put what
+  | Some (Held_back { what; reason; _ }) ->
+      Printf.sprintf "Would write %s · no preview, %s · %s writes it" what reason put
+  | Some (Refused { reason; _ }) -> "Refused · " ^ reason
+  | None ->
+      (match c.hint with Some hint -> hint ^ " · " | None -> "") ^
+      (match c.via, c.targets with
+       | `Pointer, _ -> Printf.sprintf "Carrying %s · put it on a place · Esc drops" held
+       | `Keys, Some (_, (_ :: _ as targets)) ->
+           Printf.sprintf "Carrying %s · put on %s · Enter writes · Esc drops" held
+             (String.concat " · " (List.map (fun (letter, _, label) -> letter ^ " " ^ label) targets))
+       | `Keys, _ ->
+           Printf.sprintf "Carrying %s · nothing here takes it · u, i or Space j go elsewhere · Esc drops" held)
+
 let status_text value =
+  match value.carry with Some c -> carry_line c | None ->
   let cook = match Cook.status value.cook with
     | Async_cook.Cooking { seconds; queued = true; _ }
       when Sketch_support.Timeline.mode value.timeline = Sketch_support.Timeline.Playing ->
@@ -1499,7 +1554,7 @@ let probe_caption value = match value.scope_key, Pxui_graph.Scope.selected value
 let status_box value ui (frame : Frame.t) ~render_status ~error_status ~context ~commands =
   let x, y, width, height = (geometry value value.workspace frame).status_at in
   if height <= 0 then false
-  else if error_status = None && value.guide && Leader.scope value.focus = Pxui_shell.Layout.Graph then
+  else if error_status = None && value.carry = None && value.guide && Leader.scope value.focus = Pxui_shell.Layout.Graph then
     Pxui_shell.Status_bar.guide ui ~bounds:(x, y, width, height) ~context commands
   else begin
     let text = truncate (max 1 ((width - 80) / 7))
@@ -1538,10 +1593,10 @@ let apply_action value (workspace, selection, tree, timeline, changes) action =
       timeline_step T.toggle_pause
   | Frame_tile | Hide_ui | Look_through | Look_through_camera | Fly | Save_preset | Browse_presets | Save_source
   | List_command _ | Frame_camera | Undo | Redo | Command_palette
-  | Guide_toggle | Guide_keys
+  | Guide_toggle | Guide_keys | Copy_lisp
   | Sketch_command _ | Scope_command _ | Toggle_map | Ui_scale _ | Enter | Up | Go_world
   | Panel_split _ | Panel_close | Panel_retype _ | Tool _
-  | Layout_switch _ | Layout_new | Layout_remove | Window_new _ | Float_toggle | Peek | Jump
+  | Layout_switch _ | Layout_new | Layout_remove | Window_new _ | Float_toggle | Peek | Pick_up | Jump
   | World_emit | World_reseed | World_time _ | World_play | World_preset _ ->
       workspace, selection, tree, timeline, changes
 
@@ -1684,39 +1739,25 @@ let text_edit ?(label = "Edit text") ?(merge = Editor_core.History.Step) value t
    Without a closure the tab shows the graph form, replaced whole. *)
 let binding_edit ?(merge = Editor_core.History.Step) value path text =
   let at_line_1 (d : Flow.Diagnostic.t) = { d with position = Some { line = 1; col = 0 }; span = None } in
-  let error message = Error [ at_line_1 (Flow.Diagnostic.error ~code:"E_EDIT" message) ] in
-  let graph = List.hd path in
   let ws, _ = value.doc.Document.workspace in
-  match Flow.Syntax.parse text with
-  | Error d -> Error [ d ]
-  | Ok [ ({ node = List ({ node = Sym ("graph" | "defn"); _ } :: _); _ } as form) ] ->
-      (match Doc.syntax_edit_result ~factories:value.factories value.doc
-          (Flow_sop.Flow_edit.Set_graph { name = graph; form }) with
-       | Ok doc -> Result.map_error (fun d -> [at_line_1 d]) (install value doc ~label:"Edit text" ~merge)
+  match Text_pane.graph_op ws.source ~graph:(List.hd path) ~selection:path text with
+  | Error d -> Error [ (if d.position = None then at_line_1 d else d) ]
+  | Ok op ->
+      (match Doc.syntax_edit_result ~factories:value.factories value.doc op with
+       | Ok doc -> Result.map_error (fun d -> [ at_line_1 d ]) (install value doc ~label:"Edit text" ~merge)
        | Error d -> Error [ at_line_1 d ])
-  | Ok [ form ] ->
-      (match Text_pane.selection_form ws.source path form with
-       | Error d -> Error [at_line_1 d]
-       | Ok form ->
-           match Doc.syntax_edit_result ~factories:value.factories value.doc
-               (Flow_sop.Flow_edit.Set_graph {name = graph; form}) with
-           | Ok doc -> Result.map_error (fun d -> [at_line_1 d])
-               (install value doc ~label:"Edit text" ~merge)
-           | Error d -> Error [at_line_1 d])
-  | Ok _ -> error "Expected the shown (let* [...] name) closure, or the graph form."
 
 (* The Graph tab's apply: the draft must be the one graph (or function) form, which replaces the
    graph's; atomic like every apply. *)
 let graph_edit ?(merge = Editor_core.History.Step) value name text =
-  let error message = Error [ Flow.Diagnostic.error ~position:{ line = 1; col = 0 } ~code:"E_EDIT" message ] in
-  match Flow.Syntax.parse text with
-  | Error d -> Error [ d ]
-  | Ok [ form ] ->
-      (match Doc.syntax_edit_result ~factories:value.factories value.doc
-          (Flow_sop.Flow_edit.Set_graph { name; form }) with
+  let ws, _ = value.doc.Document.workspace in
+  match Text_pane.graph_op ws.source ~graph:name text with
+  | Error d ->
+      Error [ (if d.position = None then { d with position = Some { line = 1; col = 0 } } else d) ]
+  | Ok op ->
+      (match Doc.syntax_edit_result ~factories:value.factories value.doc op with
        | Ok doc -> Result.map_error (fun d -> [d]) (install value doc ~label:"Edit text" ~merge)
        | Error d -> Error [ { d with position = Some { line = 1; col = 0 }; span = None } ])
-  | Ok _ -> error "Expected the one graph form"
 
 (* Fold the pane's intents: drafts live in [value.text] (view state); a
    refused apply keeps the draft and its errors and changes nothing else. *)
@@ -1744,6 +1785,7 @@ let apply_text value intents =
     | Open_graph graph -> go value graph
     | Select_binding path ->
         { value with scope_view = Pxui_graph.Scope.select [ path ] value.scope_view }
+    | Carry_over _ -> value  (* read by the carry's report, not an edit *)
     | Doc_draft draft -> with_text { text with draft = Some draft; doc_base = base text.doc_base; doc_errors = [] }
     | Doc_discard -> with_text { text with draft = None; doc_base = None; doc_errors = [] }
     | Doc_apply draft ->
@@ -1787,9 +1829,12 @@ let panel_title value (leaf : Pxui_shell.Layout.leaf) =
   let _, lowered = value.doc.Document.workspace in
   let graph = Option.value ~default:"" (graph_name value) in
   let name, sub = match leaf.panel with
-    | View _ -> "Viewport",
-        if fst (Flow_sop.Lower.counts lowered) > 0 then "preview  live \xc2\xb7 recooks with t"
-        else "preview  static \xc2\xb7 no t"
+    | View key -> "Viewport",
+        (match List.assoc_opt key value.captions with
+         | Some caption -> caption
+         | None ->
+             if fst (Flow_sop.Lower.counts lowered) > 0 then "preview  live \xc2\xb7 recooks with t"
+             else "preview  static \xc2\xb7 no t")
     | Graph -> "Graph", if graph = "" then "" else "network  " ^ (if value.back = [] then graph else route value)
     | List -> "List", level_name value
     | Lisp -> "Lisp", if graph = "" then "" else "code  " ^ graph
@@ -1980,18 +2025,8 @@ let dock_panels ~factories (doc : Document.t) source target side =
   let states = (fst doc.workspace).layout.panels in
   let source_key = panel_key doc source and target_key = panel_key doc target in
   let saved key = Option.value ~default:Editor_core.Panels.default_state (Layout_by_path.Path_map.find_opt key states) in
-  let bind (doc : Document.t) path =
-    let graph = Option.map (fun (g : Flow.Workspace.graph) -> g.name) (Workspace_doc.editor_graph (fst doc.workspace)) in
-    match graph, Option.bind doc.shell (fun s -> List.assoc_opt path s.Document.origins) with
-    | Some graph, Some (Document.Bound name) -> Ok (doc, [graph; name])
-    | _, Some (Inline (home, key)) ->
-        let* doc, node = Editor_document.Scene_sync.bind_home ~factories doc home in
-        let* doc = Doc.syntax_edit ~factories doc (Flow_sop.Flow_edit.Unfold {node; key; sub = []}) in
-        (match Flow_sop.Flow_edit.arg_text (fst doc.workspace).source node key with
-         | Some {Flow.Syntax.node = Sym name; _} -> Ok (doc, List.rev (name :: List.tl (List.rev node)))
-         | _ -> Error "The panel could not be named.")
-    | _, Some (Loop _) -> Error "These panels are copies made by a loop: move their tile in the editor graph."
-    | _ -> Error "This panel is not part of an editor layout." in
+  let bind doc path = Doc.panel_node ~factories
+    ~loop_message:"These panels are copies made by a loop: move their tile in the editor graph." doc path in
   let* doc, node = bind doc source in
   let* doc, target = bind doc target in
   let* doc = Doc.syntax_edit ~factories doc (Flow_sop.Flow_edit.Dock_panel {node; target; side}) in
@@ -2032,6 +2067,12 @@ let copy_bindings value paths =
       (match Clipboard.set_text (String.concat "\n" lines) with
        | Ok () -> Notice (Printf.sprintf "Copied %d binding%s" (List.length lines) (if List.length lines = 1 then "" else "s"))
        | Error message -> Notice ("Clipboard: " ^ message))
+
+(* The palette's "Copy workspace as Lisp": the text Command-S writes, on the clipboard. *)
+let copy_workspace value =
+  match Clipboard.set_text (Preset.text value.doc) with
+  | Ok () -> "Copied the workspace as Lisp"
+  | Error message -> "Clipboard: " ^ message
 
 (* Command-V: the clipboard's "name expr" pairs (or bare expressions, named by their head) become
    [Add_node]s in the selected scope, renamed where the name is taken (the copies read each other). *)
@@ -2095,8 +2136,216 @@ let open_menu value (x, y) =
          @ (if context = Flow.Workspace.Sop then material_entries value else []) @ value_entries))
   | None -> None
 
-let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
+(* ---- carry ---- *)
+
+let carry_letters = "asdfghjkl"
+let carry_rest = 0.6  (* seconds the pointer rests on a node before the carry enters it *)
+
+(* While a payload is carried the document only navigates: the keys that walk, follow, go back and
+   jump work; every edit waits for the put. *)
+let carry_allowed : Leader.action -> bool = function
+  | Enter | Up | Jump | Guide_toggle | Guide_keys | Frame_tile | Pick_up
+  | Scope_command (Pxui_graph.Scope.Walk _ | Frame_all | Frame_selection) -> true
+  | _ -> false
+
+let carry_place = function
+  | Showing { place; _ } | Held_back { place; _ } | Refused { place; _ } -> place
+
+(* the document the panels read: the scratch copy while a target is hot and its picture is on
+   screen, else the one that was there *)
+let carry_shown (c : _ carry) = match c.preview with
+  | Some (Showing { doc; _ }) -> doc
+  | Some (Held_back _ | Refused _) | None -> c.original
+
+(* The put at [place], run on the original: the checker's answer is the preview, the refusal's
+   reason and the write.  A put that takes longer than the budget (or onto a cook that does) is
+   said and not shown. *)
+let carry_try value (c : _ carry) place =
+  match Lazy.force value.flow_catalog with
+  | None -> Refused { place; reason = "The catalog is unavailable" }
+  | Some catalog ->
+      let start = Unix.gettimeofday () in
+      let result = Carry.put ~factories:value.factories ~catalog c.original c.payload place in
+      let spent = Unix.gettimeofday () -. start in
+      (match result with
+       | Error reason -> Refused { place; reason }
+       | Ok (doc, what) ->
+           (match value.cook.Cook.seconds with
+            | _ when spent >= value.carry_budget ->
+                Held_back { place; doc; what;
+                            reason = Printf.sprintf "applying takes %d ms" (int_of_float (spent *. 1000.)) }
+            | Some cook when cook >= value.carry_budget ->
+                Held_back { place; doc; what;
+                            reason = Printf.sprintf "a cook takes %d ms" (int_of_float (cook *. 1000.)) }
+            | _ -> Showing { place; doc; what }))
+
+(* The key route's letters for the graph the pane shows now (they follow navigation). *)
+let carry_targets value (c : _ carry) =
+  let graph = graph_name value in
+  match c.targets with
+  | Some (for_graph, _) when for_graph = graph -> c
+  | _ ->
+      let found = match Lazy.force value.flow_catalog with
+        | None -> []
+        | Some catalog -> Carry.targets ~factories:value.factories ~catalog c.original c.payload ~graph in
+      { c with targets = Some (graph, List.mapi (fun i (place, label) ->
+          String.make 1 carry_letters.[i], place, label) found) }
+
+(* What [y] picks up: the open material or SOP graph; else the graph of the selected geometry
+   object; else the selected camera object (by its binding name); else the graph the pane's
+   selected node references; else the open scene graph (a viewport shows it). *)
+let carry_payload value =
+  let ws, _ = value.doc.Document.workspace in
+  let context name = Option.map (fun (g : Flow.Workspace.graph) -> g.context)
+    (List.find_opt (fun (g : Flow.Workspace.graph) -> g.name = name) ws.checked.graphs) in
+  let payload kind name = Ok { Carry.kind; value = "(ref " ^ name ^ ")" } in
+  let referenced name = match context name with
+    | Some Flow.Workspace.Material -> Some (payload "material" name)
+    | Some Sop -> Some (payload "sop" name)
+    | _ -> None in
+  let opened = Option.bind (graph_name value) (fun name -> referenced name) in
+  match opened with
+  | Some result -> result
+  | None ->
+      let object_graph = Option.bind (Selection.selected value.selection) (fun id ->
+        if kind value id = Some "geometry" then graph_of_object value id else None) in
+      (match Option.bind object_graph referenced with
+       | Some result -> result
+       | None ->
+           (* a camera object: the one selected in the list, else the scene node selected in the pane *)
+           let camera_named id =
+             if kind value id <> Some "camera" then None else
+             match List.assoc_opt id value.doc.Document.homes.objects with
+             | Some (Document.Bound_at path) when path <> [] ->
+                 Some { Carry.kind = "camera"; value = List.nth path (List.length path - 1) }
+             | _ -> None in
+           let camera = match Option.bind (Selection.selected value.selection) camera_named with
+             | Some _ as found -> found
+             | None ->
+                 (match Pxui_graph.Scope.selected value.scope_view with
+                  | [ path ] ->
+                      Option.bind (List.find_map (fun (id, home) ->
+                        if home = Document.Bound_at path then Some id else None)
+                        value.doc.Document.homes.objects) camera_named
+                  | _ -> None) in
+           (match camera with
+            | Some payload -> Ok payload
+            | None ->
+                (match Option.bind (follow_target value) referenced with
+                 | Some result -> result
+                 | None ->
+                     (match Option.bind (graph_name value) (fun name ->
+                        if context name = Some Flow.Workspace.Scene then Some (payload "scene" name) else None) with
+                      | Some result -> result
+                      | None -> Error "Nothing to pick up · open a material, SOP or scene graph, or select a geometry or camera object"))))
+
+let carry_cancel value (c : _ carry) ~notice =
+  Pxui.Ui.cancel_carry value.ui;
+  let doc = c.original in
+  let level = Result.value ~default:Document.Scene
+    (Document.resolve_level ~scene_level:value.scene_level doc value.level) in
+  if doc != value.doc then Cook.set_volatile value.cook (Flow_sop.Lower.is_volatile (snd doc.workspace));
+  { value with carry = None; doc; level; notice = Some notice;
+    workspace = unrestore value.doc doc value.workspace }
+
+let carry_commit value (c : _ carry) doc what =
+  Pxui.Ui.cancel_carry value.ui;
+  match install { value with carry = None } doc ~label:"Put" ~merge:Editor_core.History.Step with
+  | Ok value ->
+      { value with notice = Some (Printf.sprintf "Put %s · wrote %s · one undo entry" c.payload.value what) }
+  | Error d -> carry_cancel value c ~notice:("Refused · " ^ Flow.Diagnostic.to_string d)
+
+(* The carry's turn of a frame, before the panes build: the keys of the route and the ends of the
+   gesture, then the preview (the scratch document the panels read), or the put or the restore.
+   Returns the frame without the keys the carry took, and whether the document shown changed. *)
+let carry_step value ~text_focus (frame : Frame.t) =
+  match value.carry with
+  | None ->
+      (match Pxui.Ui.carrying value.ui with
+       | Some payload ->
+           { value with carry = Some { payload; via = `Pointer;
+               original = Editor_core.History.present value.history; settled = value.cook.Cook.pieces;
+               report = None; targets = None;
+               chosen = None; anchor = None; preview = None; resting = None; hint = None } }, frame, false
+       | None -> value, frame, false)
+  | Some c ->
+      let pressed = List.filter_map (function Event.KeyPressed k -> Some k | _ -> None) frame.events in
+      let idle = value.leader = Leader.Idle in
+      let escape = idle && List.mem Input.Escape pressed
+      and lost = List.exists (function Event.WindowFocusLost -> true | _ -> false) frame.events in
+      let typing = (not text_focus) && idle && value.prompt = None && value.menu = None in
+      let c = if c.via = `Keys then carry_targets value c else c in
+      let letters = match c.targets with
+        | Some (_, targets) when c.via = `Keys && typing -> targets | _ -> [] in
+      let letter = List.fold_left (fun found key -> match key with
+        | Input.KeyChar ch -> (match List.find_opt (fun (l, _, _) -> l = String.make 1 ch) letters with
+            | Some _ as hit -> hit | None -> found)
+        | _ -> found) None pressed in
+      let enter = c.via = `Keys && typing && List.mem Input.Enter pressed in
+      let consumed key = (idle && key = Input.Escape)
+        || (c.via = `Keys && typing && (key = Input.Enter
+            || List.exists (fun (l, _, _) -> Input.KeyChar l.[0] = key) letters)) in
+      let taken = { frame with
+        events = List.filter (function
+          | Event.KeyPressed k | Event.KeyReleased k -> not (consumed k) | _ -> true) frame.events;
+        keys = List.filter (fun k -> not (consumed k)) frame.keys } in
+      let c = match letter with
+        | Some (_, place, _) -> { c with chosen = Some place; anchor = Some frame.mouse; hint = None }
+        | None -> c in
+      let dropped = match c.report with Some { dropped = true; over } -> Some over | _ -> None
+      and hovering = match c.report with Some { dropped = false; over } -> Some over | _ -> None in
+      let pointer_wins = match c.anchor with Some at -> frame.mouse <> at | None -> true in
+      let desired = match dropped, hovering with
+        | Some _, _ -> dropped
+        | None, Some _ when pointer_wins -> hovering
+        | _ -> c.chosen in
+      if escape || lost || (Pxui.Ui.carrying value.ui = None && dropped = None) then
+        carry_cancel value c ~notice:(if lost then "Carry dropped · the window lost focus · nothing written"
+          else "Carry dropped · nothing written"), taken, true
+      else begin
+        let preview = if desired = Option.map carry_place c.preview then c.preview
+          else Option.map (carry_try value c) desired in
+        let c = { c with preview } in
+        if dropped <> None || enter then
+          (match preview with
+           | Some (Showing { doc; what; _ } | Held_back { doc; what; _ }) ->
+               carry_commit value c doc what, taken, true
+           | Some (Refused { reason; _ }) ->
+               carry_cancel value c ~notice:("Refused · " ^ reason ^ " · nothing written"), taken, true
+           | None when dropped <> None ->
+               carry_cancel value c ~notice:"Carry dropped · nothing written", taken, true
+           | None -> { value with carry = Some { c with hint = Some "Pick a target letter first, or Esc" } }, taken, false)
+        else begin
+          (* the pointer resting on a node enters what it references, after a moment *)
+          let resting = match hovering with
+            | Some (Carry.Node _ as place) ->
+                (match c.resting with
+                 | Some (q, since) when q = place -> Some (q, since)
+                 | _ -> Some (place, frame.time))
+            | _ -> None in
+          let entered = match resting with
+            | Some (Carry.Node path, since) when frame.time -. since >= carry_rest ->
+                (* what the original document references, not the preview *)
+                follow_target ~path { value with doc = c.original }
+            | _ -> None in
+          let c = { c with resting = (if entered <> None then None else resting) } in
+          let value = { value with carry = Some c } in
+          let value = match entered with Some graph -> go value graph | None -> value in
+          let shown = carry_shown c in
+          if shown == value.doc then value, taken, false
+          else begin
+            Cook.set_volatile value.cook (Flow_sop.Lower.is_volatile (snd shown.workspace));
+            let level = Result.value ~default:Document.Scene
+              (Document.resolve_level ~scene_level:value.scene_level shown value.level) in
+            { value with doc = shown; level; workspace = unrestore value.doc shown value.workspace },
+            taken, true
+          end
+        end
+      end
+
+let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
     ~render_status ~error_status ~view_state (frame : Frame.t) =
+  let carrying = value.carry <> None in
   let value = { value with workspace = { value.workspace with hidden = shell_hidden value value.workspace } } in
   let value = sync_scope value in
   let modal = value.prompt <> None || value.menu <> None
@@ -2135,6 +2384,8 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
       | Some `Undo -> [ Leader.Undo ] | Some `Redo -> [ Leader.Redo ] | None -> []
     else [] in
   let actions = passed @ value.queued @ actions in
+  let actions = if carrying then List.filter carry_allowed actions else actions in
+  let copied = if List.mem Leader.Copy_lisp actions then Some (copy_workspace value) else None in
   (* Command +/-/0: the kit text of the panels (the graph pane zooms, viewports have no text) *)
   List.iter (function
     | Leader.Ui_scale delta ->
@@ -2176,7 +2427,12 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
     | Some graph when text_drawn ->
         let selected = match Pxui_graph.Scope.selected value.scope_view with
           | [ path ] -> Some path | _ -> None in
-        let text, shown = Text_pane.shown value.text ~workspace:ws ~source:ws.source ~graph ~selected in
+        (* while a payload is carried the text is the document it was picked up from: the preview is
+           not drawn here, so the byte under the pointer does not move when a put is previewed *)
+        let shown_ws = match value.carry with
+          | Some c -> fst c.original.Document.workspace
+          | None -> ws in
+        let text, shown = Text_pane.shown value.text ~workspace:shown_ws ~source:shown_ws.source ~graph ~selected in
         text, Some shown
     | _ -> value.text, None in
   let scope_active = graph_shown && scope_name value <> None in
@@ -2226,6 +2482,27 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
       | _ -> None) actions in
   let initial_frame_request = if not (List.mem Leader.Frame_camera actions) then None else displayed in
   let bar_action = ref None in
+  (* where a carried payload is hovered or released this frame, from panes that are not the graph's *)
+  let inspector_drops = ref [] and viewport_drops = ref [] in
+  (* what the graph pane marks while a payload is carried: the places that take it (the key
+     route's letters) and the one under the pointer *)
+  let carry_lit, carry_hot = match value.carry with
+    | None -> [], None
+    | Some c ->
+        let path_of = function
+          | Carry.Node p -> Some p
+          | Graph g -> Some [ g ]
+          | Object id | Surface { object_ = id; _ } ->
+              (match List.assoc_opt id value.doc.Document.homes.objects with
+               | Some (Document.Bound_at p) -> Some p | _ -> None)
+          | Viewport _ | Text _ -> None in
+        (match c.targets with
+         | Some (_, targets) when c.via = `Keys ->
+             List.filter_map (fun (letter, place, _) -> Option.map (fun p -> p, letter) (path_of place)) targets
+         | _ -> []),
+        Option.bind c.preview (fun preview ->
+          Option.map (fun p -> p, (match preview with Showing _ -> true | _ -> false))
+            (path_of (carry_place preview))) in
   let build ui =
     (* Chrome first: panel backgrounds, splitters and headers.  Its intents fold into the
        shell now (a fold, a drag) or become one editor-graph edit after the frame. *)
@@ -2280,6 +2557,12 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
       if leaf.floating then Pxui.Ui.to_front ui ~order box;
       box in
     let roots = List.mapi (fun order leaf -> leaf, root order leaf) g.leaves in
+    if carrying then List.iter (fun ((leaf : Pxui_shell.Layout.leaf), box) -> match leaf.panel with
+      | View key ->
+          Option.iter (fun d -> viewport_drops := (Carry.Viewport key, (match d with
+            | Pxui.Ui.Dropped _ -> true | Hover _ -> false)) :: !viewport_drops)
+            (Pxui.Ui.drop_target ui box)
+      | _ -> ()) roots;
     let timeline_root = if Pxui_shell.Layout.find g Timeline <> None then None
       else Some (Pxui_shell.Layout.Timeline, Pxui_shell.Chrome.pane_root ui frame ~bounds:g.timeline_at
         "workspace-pane-Timeline") in
@@ -2317,6 +2600,7 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
         |> Pxui_graph.Scope.with_guide guide
         |> Pxui_graph.Scope.with_bounds ~x:gx ~y:gy ~width:(max 1 gw) ~height:(max 1 gh)
         |> Pxui_graph.Scope.with_visible true
+        |> Pxui_graph.Scope.with_carry ~lit:carry_lit ~hot:carry_hot
         |> fun view -> Pxui_graph.Scope.update view ui shortcut_frame) in
     (* a right-click on the pane's empty canvas opens the add menu there *)
     let menu = match menu, List.find_map (function
@@ -2400,7 +2684,11 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
           let () = match scope_selected with
             | [ path ] ->
                 let requests, moves = inspector_panel ui panes.inspector (fun () ->
-                  workspace_inspector value ui ~width:(float (let _, _, w, _ = panes.inspector in max 1 w)) path) in
+                  workspace_inspector value ui ~width:(float (let _, _, w, _ = panes.inspector in max 1 w)) path
+                    ~on_choice:(fun name box -> if name = "@ref:material" then
+                      Option.iter (fun d -> inspector_drops := (Carry.Node path, (match d with
+                        | Pxui.Ui.Dropped _ -> true | Hover _ -> false)) :: !inspector_drops)
+                        (Pxui.Ui.drop_target ui box))) in
                 workspace_requests := requests; workspace_moves := moves
             | paths -> inspector_panel ui panes.inspector (fun () ->
                 ignore (Pxui.Ui.inspector_header ui ~key:"multi-header"
@@ -2731,6 +3019,37 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
   let result = match result.prompt_intent with
     | Some (Edit_source op) -> { result with changes = result.changes @ [ Syntax_edit op ] }
     | _ -> result in
+  (* A payload in flight: what the panes saw under the pointer becomes the carry's report, and
+     nothing else edits the document until the put (navigation and selection only). *)
+  let carry_report = if not carrying then None else begin
+    let place_of_path = function [ graph ] -> Carry.Graph graph | path -> Carry.Node path in
+    let scope = List.filter_map (function
+      | Pxui_graph.Scope.Drop_over { path; _ } -> Some (place_of_path path, false)
+      | Dropped { path; _ } -> Some (place_of_path path, true)
+      | _ -> None) result.scope_changes in
+    let text_drops = List.filter_map (function
+      | Text_pane.Carry_over (byte, dropped) ->
+          Option.map (fun (shown : Text_pane.shown) ->
+            let drafted = match text.tab with
+              | Text_pane.Document -> text.draft <> None
+              | Graph -> (match text.graph_draft with Some (g, _) -> g = shown.graph | None -> false)
+              | Selection -> (match text.binding_draft with Some (p, _) -> p = shown.key | None -> false) in
+            let target = if drafted then Carry.Drafted else match text.tab with
+              | Document -> Carry.Whole | Graph -> Graph_text shown.graph | Selection -> Selection_text shown.key in
+            Carry.Text { target; text = shown.text; byte }, dropped) text_shown
+      | _ -> None) result.text_intents in
+    match scope @ text_drops @ List.rev !inspector_drops @ List.rev !viewport_drops with
+    | (over, dropped) :: _ -> Some { over; dropped }
+    | [] -> None
+  end in
+  let result = if not carrying then result else
+    { result with changes = []; handle_changes = None; settings_changes = []; text_intents = [];
+      menu_pick = None;
+      tree_intents = List.filter (function Pxui_shell.Tree.Select _ -> true | _ -> false) result.tree_intents;
+      scope_changes = List.filter (function
+        | Pxui_graph.Scope.Selected _ | Activated _ | Drop_over _ | Dropped _ | Notice _ -> true
+        | _ -> false) result.scope_changes;
+      prompt_intent = (match result.prompt_intent with Some (Go _ as intent) -> Some intent | _ -> None) } in
   let guide = guide && not result.hide_guide in
   let guide_error = if guide = value.guide then None else
     match save_guide value.preferences guide with
@@ -2893,6 +3212,8 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
                 | Duplicate { nodes } ->
                     added := Flow_sop.Flow_edit.duplicated (fst next.workspace).source nodes
                 | _ -> ());
+               if !edit_note = None then
+                 edit_note := Option.map (fun words -> "Wrote " ^ words) (Echo.words op);
                doc, { (result : _ frame_result) with label = Flow_sop.Flow_edit.label op; edit_error = None;
                effects = Parameter.union_effects result.effects Doc.cook_effects }
            | Error message -> next, { (result : _ frame_result) with edit_error = Some message })
@@ -2903,6 +3224,8 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
                  | Flow_sop.Flow_edit.Add_node { scope; name; _ } -> added := [ scope @ [ name ] ]
                  | Set_graph { name; _ } when label = "New material" -> created := Some name
                  | _ -> ()) ops;
+               if !edit_note = None then
+                 edit_note := Option.map (fun words -> "Wrote " ^ words) (Echo.batch ops);
                doc, { (result : _ frame_result) with label; edit_error = None;
                  effects = Parameter.union_effects result.effects Doc.cook_effects }
            | Error message -> next, { (result : _ frame_result) with edit_error = Some message })
@@ -2992,7 +3315,8 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
            | _ ->
                next, { (result : _ frame_result) with edit_error = Some "A node inside a loop cannot be the result" }, probes)
       | Syntax_edit _ | Selected _ | Notice _ | Macro_requested _ | Defn_requested _
-      | Copy_requested _ | Paste_requested | Menu_requested _ | Activated _ -> next, result, probes)
+      | Copy_requested _ | Paste_requested | Menu_requested _ | Activated _ | Drop_over _ | Dropped _ ->
+          next, result, probes)
       (next, result, value.probes) scope_changes in
   let before_world = next in
   let next, world_label = if in_world value
@@ -3054,8 +3378,8 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
     | Some _ -> Some ("Undo " ^ Editor_core.History.label history) in
   let history, doc, undone = match stepped with
     | Some history -> history, Editor_core.History.present history, true
-    | None -> history, Editor_core.History.present history, false in
-  let effects = if undone || Option.is_some loaded
+    | None -> history, (if carrying then value.doc else Editor_core.History.present history), false in
+  let effects = if undone || Option.is_some loaded || carry_changed
     then Parameter.union_effects result.effects Doc.cook_effects else result.effects in
   (* The open level must still exist after undo or a preset load. *)
   let level = Document.resolve_level ~scene_level:value.scene_level doc
@@ -3224,6 +3548,22 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
               Some (lower lo a, upper hi b)) None cooked.cook.pieces)
     | framed, _ -> framed in
   let document_changed = doc != value.doc in
+  (* [y]: the payload is held by the handle (no pointer capture); a press or Enter puts it *)
+  let carry, pick_error = match value.carry with
+    | Some c -> Some { c with report = carry_report }, None
+    | None when List.mem Leader.Pick_up actions ->
+        (match carry_payload value' with
+         | Ok payload ->
+             Pxui.Ui.carry value'.ui ~kind:payload.kind ~value:payload.value ();
+             Some { payload; via = `Keys; original = value'.doc; settled = value'.cook.Cook.pieces;
+                    report = None; targets = None;
+                    chosen = None; anchor = Some frame.mouse; preview = None; resting = None; hint = None }, None
+         | Error message -> None, Some message)
+    | None -> None, None in
+  (* a cook that gave back every piece it had (the text changed, the objects did not) leaves
+     nothing to recompose, and no accumulating render to restart *)
+  let prepared_changed = cooked.prepared_changed
+    && not (List.equal ( == ) (Cook.pieces cooked.cook) (Cook.pieces value.cook)) in
   { core = { value' with timeline; cook = cooked.cook; lit = lit_cache; edit_error = cooked.edit_error;
       status_fps; status_fps_at; guide; hud; focus = result.focus; focus_path = result.focus_path;
       pane_keys = result.pane_keys; leader; held_keys;
@@ -3232,22 +3572,35 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
         | _ when all_ui_visible && List.mem Leader.Add_node actions && not graph_shown
             && has_panel value' Pxui_shell.Layout.Graph -> [Leader.Add_node]
         | _ -> []);
+      carry;
       notice = if guide_error <> None then guide_error
+        else if pick_error <> None then pick_error
+        else if copied <> None then copied
         else if document_changed && Option.is_none loaded && not undone then !edit_note
         else notice };
-    effects; prepared_changed = cooked.prepared_changed;
-    scene_changed = doc.scene != value.doc.scene || cooked.prepared_changed;
+    effects; prepared_changed;
+    scene_changed = carry_changed || doc.scene != value.doc.scene || prepared_changed;
     framed;
     loaded_view = Option.map (fun (preset : Preset.loaded) -> preset.view) loaded;
     actions = (if Option.is_some entered_camera && entered_camera = doc.active_camera
       then actions @ [Leader.Look_through_camera] else actions); panel = result.panel;
     input }
 
+(* One frame of the editor.  A carry takes its turn first (its keys, the ends of the gesture, the
+   preview document the panels then read) and the frame the rest of the editor sees has the keys
+   it took removed. *)
+let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles ~render_status
+    ~error_status ~view_state (frame : Frame.t) =
+  let value, frame, carry_changed = carry_step value ~text_focus frame in
+  update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
+    ~render_status ~error_status ~view_state frame
+
 (* Environment-owned scene edits (camera bookkeeping, follow viewport).
    [`Reset] starts the history, [`Amend] folds into the present entry, and
    [`View time] coalesces a burst of view edits (a drag, a wheel gesture)
    into one undo entry. *)
 let scene_edit value mode ?(active_camera = value.doc.active_camera) scene =
+  if value.carry <> None then value else
   let edited = { value.doc with scene = { value.doc.scene with graph = Result.get_ok (Flow_sop.Network.with_geometry scene value.doc.scene.graph);
       displayed = Document.displayed_of ?previous:value.doc.scene.displayed (Flow_sop.Network.of_geometry scene) None };
     active_camera } in
@@ -3274,7 +3627,7 @@ let close value =
 (* A sketch-driven settings change: one undo step and a fresh cook, since
    [prepare] reads the settings. *)
 let set_settings value settings =
-  if settings == value.doc.settings then value else
+  if settings == value.doc.settings || value.carry <> None then value else
   match Doc.reconcile ~factories:value.factories value.doc { value.doc with settings } with
   | Error message -> { value with edit_error = Some message }
   | Ok doc ->
@@ -3284,7 +3637,7 @@ let set_settings value settings =
 (* An edit of the render settings (the root): written to the root's call, or the first edit writes
    a root over the scene's result; one undo step, merged while scrubbed. *)
 let set_root value root =
-  if root = value.doc.root then value else
+  if root = value.doc.root || value.carry <> None then value else
   match Doc.reconcile ~factories:value.factories value.doc { value.doc with root } with
   | Error message -> { value with edit_error = Some message }
   | Ok doc ->
@@ -3337,14 +3690,13 @@ let placed_pieces ?(render = false) ?(view = `Primary) value =
         Some (Objects.world (scene value) piece.id, piece)
     | Some _ | None -> None) (pieces value)
 
-(* How a viewport over another scene instance renders: that instance's [scene/root], else the
-   document's *)
-let view_root_opt value key =
-  Option.bind value.doc.Document.shell (fun shell ->
-    Option.bind (List.assoc_opt key shell.preview_sources) (fun (source : Document.preview_source) ->
-      Contexts.instance_root source.instance))
+(* How a viewport over another scene instance renders: that instance's [scene/root] (its settings and
+   its camera), else the document's *)
+let view_root_opt value key = List.assoc_opt key value.doc.Document.view_roots
 
-let view_root value key = Option.value ~default:value.doc.Document.root (view_root_opt value key)
+let view_root value key =
+  Option.fold ~none:value.doc.Document.root ~some:(fun (r : Document.view_root) -> r.params)
+    (view_root_opt value key)
 
 let world_id value = match Objects.ids "world" (scene value) with
   | id :: _ -> Some id | [] -> None
@@ -3465,3 +3817,41 @@ let reload_failed value ~name text diagnostics =
         | None -> ": " ^ d.Flow.Diagnostic.message) in
   { value with notice = Some (Printf.sprintf "%s not reloaded%s" name first);
     text = { value.text with tab = Text_pane.Document; draft = Some text; doc_base = Some (fst value.doc.workspace); doc_errors = diagnostics } }
+
+(* The carry's hovered viewport has been looked at by the host: the surface under the pointer
+   (the object it belongs to and the material graph its primitive reads) is where a material goes,
+   and the scene where a SOP graph does.  [view] is the viewport's own scene instance. *)
+let carry_over_surface ?view value ~origin ~direction =
+  match value.carry with
+  | Some ({ report = Some { over = Carry.Viewport _; dropped }; payload = { kind = ("material" | "sop"); _ }; _ } as c) ->
+      let view = match view, value.doc.Document.shell with
+        | Some key, Some shell when List.mem_assoc key shell.views -> `Only key
+        | _ -> `Primary in
+      let nearest = List.fold_left (fun best (matrix, (piece : _ Cook.piece)) ->
+        match Mat4.inverse matrix with
+        | None -> best
+        | Some inverse ->
+            match Cook.pick_material piece ~origin:(Mat4.transform_point inverse origin)
+                ~direction:(Mat4.transform_direction inverse direction), best with
+            | Some (distance, _), Some (nearer, _, _) when distance >= nearer -> best
+            | Some (distance, path), _ -> Some (distance, piece.id, path)
+            | None, _ -> best) None (placed_pieces ~view { value with cook = { value.cook with Cook.pieces = c.settled } }) in
+      let place = match nearest with
+        | Some (_, object_, path) ->
+            Carry.Surface { object_; material = Option.bind path (material_graph value) }
+        | None ->
+            (* nothing under the pointer: a SOP graph goes to the scene, a material has no place *)
+            (match List.find_map (fun (g : Flow.Workspace.graph) ->
+               if g.context = Flow.Workspace.Scene then Some g.name else None)
+               (fst value.doc.Document.workspace).checked.graphs with
+             | Some graph when c.payload.kind = "sop" -> Carry.Graph graph
+             | _ -> Carry.Viewport "") in
+      { value with carry = Some { c with report = Some { over = place; dropped } } }
+  | _ -> value
+
+(* A pointer carry is over a viewport: the host should look through the viewport's camera. *)
+let carry_viewport value = match value.carry with
+  | Some { report = Some { over = Carry.Viewport key; _ }; payload = { kind = ("material" | "sop"); _ }; _ } -> Some key
+  | _ -> None
+
+let carrying value = value.carry <> None

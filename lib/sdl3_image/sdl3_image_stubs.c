@@ -95,6 +95,12 @@ CAMLprim value caml_sdl3_image_version(value unit)
   return Val_int(IMG_Version());
 }
 
+CAMLprim value caml_sdl3_image_compiled_version(value unit)
+{
+  (void)unit;
+  return Val_int(SDL_IMAGE_VERSION);
+}
+
 CAMLprim value caml_sdl3_image_decode_bytes(value bytes, value kind)
 {
   SDL_IOStream *stream;

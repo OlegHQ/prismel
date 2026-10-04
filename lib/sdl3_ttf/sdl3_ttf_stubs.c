@@ -109,6 +109,12 @@ CAMLprim value caml_sdl3_ttf_version(value unit)
   return Val_int(TTF_Version());
 }
 
+CAMLprim value caml_sdl3_ttf_compiled_version(value unit)
+{
+  (void)unit;
+  return Val_int(SDL_TTF_VERSION);
+}
+
 CAMLprim value caml_sdl3_ttf_init(value unit)
 {
   (void)unit;
@@ -190,15 +196,6 @@ CAMLprim value caml_sdl3_ttf_font_style_name(value raw)
   CAMLreturn(copy_nullable_name(TTF_GetFontStyleName(font_of_value(raw))));
 }
 
-CAMLprim value caml_sdl3_ttf_set_font_size(value raw, value size)
-{
-  CAMLparam2(raw, size);
-  if (!TTF_SetFontSize(font_of_value(raw), Double_val(size))) {
-    CAMLreturn(string_error());
-  }
-  CAMLreturn(unit_success());
-}
-
 CAMLprim value caml_sdl3_ttf_set_font_size_dpi(
     value raw, value size, value horizontal, value vertical)
 {
@@ -210,33 +207,10 @@ CAMLprim value caml_sdl3_ttf_set_font_size_dpi(
   CAMLreturn(unit_success());
 }
 
-CAMLprim value caml_sdl3_ttf_font_dpi(value raw)
-{
-  int horizontal = 0;
-  int vertical = 0;
-  CAMLparam1(raw);
-  CAMLlocal3(pair, result, failure);
-  if (!TTF_GetFontDPI(font_of_value(raw), &horizontal, &vertical)) {
-    failure = string_error();
-    CAMLreturn(failure);
-  }
-  pair = caml_alloc_tuple(2);
-  Store_field(pair, 0, Val_int(horizontal));
-  Store_field(pair, 1, Val_int(vertical));
-  result = caml_alloc(1, 0);
-  Store_field(result, 0, pair);
-  CAMLreturn(result);
-}
-
 CAMLprim value caml_sdl3_ttf_set_font_style(value raw, value style)
 {
   TTF_SetFontStyle(font_of_value(raw), (TTF_FontStyleFlags)Int_val(style));
   return Val_unit;
-}
-
-CAMLprim value caml_sdl3_ttf_get_font_style(value raw)
-{
-  return Val_int((int)TTF_GetFontStyle(font_of_value(raw)));
 }
 
 CAMLprim value caml_sdl3_ttf_set_font_outline(value raw, value outline)
@@ -248,20 +222,10 @@ CAMLprim value caml_sdl3_ttf_set_font_outline(value raw, value outline)
   CAMLreturn(unit_success());
 }
 
-CAMLprim value caml_sdl3_ttf_get_font_outline(value raw)
-{
-  return Val_int(TTF_GetFontOutline(font_of_value(raw)));
-}
-
 CAMLprim value caml_sdl3_ttf_set_font_hinting(value raw, value hinting)
 {
   TTF_SetFontHinting(font_of_value(raw), (TTF_HintingFlags)Int_val(hinting));
   return Val_unit;
-}
-
-CAMLprim value caml_sdl3_ttf_get_font_hinting(value raw)
-{
-  return Val_int((int)TTF_GetFontHinting(font_of_value(raw)));
 }
 
 CAMLprim value caml_sdl3_ttf_set_font_kerning(value raw, value enabled)
@@ -277,16 +241,6 @@ CAMLprim value caml_sdl3_ttf_set_font_wrap_alignment(value raw, value code)
   };
   TTF_SetFontWrapAlignment(font_of_value(raw), alignments[Int_val(code)]);
   return Val_unit;
-}
-
-CAMLprim value caml_sdl3_ttf_get_font_kerning(value raw)
-{
-  return Val_bool(TTF_GetFontKerning(font_of_value(raw)));
-}
-
-CAMLprim value caml_sdl3_ttf_font_has_glyph(value raw, value codepoint)
-{
-  return Val_bool(TTF_FontHasGlyph(font_of_value(raw), (Uint32)Int_val(codepoint)));
 }
 
 CAMLprim value caml_sdl3_ttf_glyph_metrics(value raw, value codepoint)

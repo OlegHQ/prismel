@@ -65,7 +65,8 @@ into `Document.root` (`Objects.Root.parameters`, the defaults for a part, over t
 `scene/camera` carries) and `homes.root`; `Scene_sync.root` writes an edit to its call, or the first
 edit writes a root over the graph's result (`adopt_root`).  A `scene/world (ref g)` is an object like
 the others (its id and home are in `homes.objects`), its layers the world graph `g`
-(`homes.world_graph`); an old file's `world/world` is read as the World and written where it is.
+(`homes.world_graph`); an old file's `world/world` is read as the World and written where it is (a read-only legacy: no
+checked-in sketch uses it any more, no menu offers it, and `Contexts.of_workspace` reads it unchanged).
 `E_SCENE_ROOT`, `E_SCENE_WORLD` and `E_SCENE_CAMERA` are raised by `Contexts.check_scene` while
 lowering, so a gesture that would cause one is refused whole.  Deleting an object removes its SOP or
 world graph in the same reconciliation when no `(ref g)` or `(ui/graph "g")` reads it.
@@ -74,4 +75,7 @@ world graph in the same reconciliation when no `(ref g)` or `(ui/graph "g")` rea
 `Document.view_worlds` lists the viewports over a scene instance whose World differs from the document's:
 the node of its `scene/world` and the network of its layers (read from the instance's value, since a
 viewport's scene has no term), or none when its merge holds none. They are not in the scene graph and
-have no ids; `Contexts.instance_root` reads the `scene/root` of an instance the same way.
+have no ids; `Contexts.instance_root` reads the `scene/root` of an instance the same way: its settings and
+the camera object its `:camera` names (`Document.view_roots`, by viewport key, for the instances that are not
+the document's own scene).  `Contexts.of_workspace` keeps `Document.scene` physically when an edit leaves its
+objects as they were (`same_network`), so a root's settings or a layout edit do not recompose the views.

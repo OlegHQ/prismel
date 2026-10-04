@@ -125,6 +125,15 @@ let hit_flags = clickable lor focusable lor scroll lor blocking
 
 type rect = float * float * float * float
 
+(* What a carry holds, and how it was picked up: by pressing a box and moving past the dead
+   zone (the box's key), or by a key (no pointer capture). *)
+type payload = { kind : string; value : string }
+type origin = From_pointer of int | From_key
+type drop = Hover of payload | Dropped of payload
+
+(* The dead zone of a carry started by the pointer, in points. *)
+let carry_dead_zone = 4.
+
 type paint = {
   owner : ui;
   builder : Batch.Builder.t;
@@ -232,9 +241,16 @@ and ui = {
   (* a double or triple click's selection unit, extended by the drag that follows it *)
   mutable edit_unit : (int * int * int) option;
   mutable scrub_origin : (int * string) option;
+  (* the carry: the payload in flight, and the one released this frame with the box that was
+     hot at the release *)
+  mutable payload : (payload * origin) option;
+  mutable dropped : (payload * int) option;
+  (* the box whose press was carried until the host cancelled: it does not carry again before
+     the next press *)
+  mutable carry_latch : int option;
   (* the undo or redo key the focused text declined this frame because its own stack was empty *)
   mutable passed_undo : [`Undo | `Redo] option;
-  mutable requested_cursor : [`Horizontal_resize|`Vertical_resize] option;
+  mutable requested_cursor : [`Horizontal_resize|`Vertical_resize|`Text] option;
   (* this frame's raw events and logical size, for modal dismissal *)
   mutable frame_events : Event.t list;
   mutable input_frame : Frame.t option;
@@ -277,6 +293,7 @@ and accumulator = {
   mutable button : Input.mouse_button option;
   mutable scroll_x : float;
   mutable scroll_y_steps : float;
+  mutable pinch : float;  (* product of this frame's pinch factors *)
   mutable keys : (Event.t * Input.key list) list;
   mutable press_keys : Input.key list;
 }
@@ -502,7 +519,7 @@ let create ?(theme = Theme.default) ?font ?(font_size = Theme.font_size) () =
     edit_focus = 0; edit_value = ""; edit_caret = 0; edit_anchor = 0;
     edit_scroll_x = 0.;
     edit_undo = []; edit_redo = []; edit_group = -1; edit_unit = None;
-    scrub_origin = None;
+    scrub_origin = None; payload = None; dropped = None; carry_latch = None;
     passed_undo = None;
     requested_cursor = None;
     frame_events = []; input_frame = None; routed_events = []; cancelled = [];
@@ -601,6 +618,10 @@ let prune ui =
       if ui.active = Some key then begin
         ui.cancelled <- ui.active_button :: ui.cancelled; ui.active <- None
       end;
+      (* the box that holds a carry's pointer is gone: the carry goes with it *)
+      (match ui.payload with
+       | Some (_, From_pointer owner) when owner = key -> ui.payload <- None
+       | _ -> ());
       if ui.hot = key then ui.hot <- 0
     end
   done
@@ -618,7 +639,7 @@ let accumulator ui key =
         released = false; clicked = false;
         double_clicked = false; clicks = 0; moved = false; drag_x = 0.; drag_y = 0.;
         press_point = (0., 0.); release_point = (0., 0.); button = None;
-        scroll_x = 0.; scroll_y_steps = 0.; keys = [];
+        scroll_x = 0.; scroll_y_steps = 0.; pinch = 1.; keys = [];
         press_keys = if ui.active = Some key then ui.active_keys else [] } in
       Int_table.replace ui.signals key value;
       value
@@ -699,6 +720,8 @@ let route ui (frame : Frame.t) =
   ui.frame_events <- frame.events;
   ui.input_frame <- Some frame;
   ui.routed_events <- []; ui.cancelled <- [];
+  ui.dropped <- None;
+  let released_carry = ref false in
   ui.passed_undo <- None;
   ui.modal_in_frame <- ui.modal_key <> None;
   let modifiers = ref (Event.Private.keys_before ~previous:ui.previous_keys
@@ -725,7 +748,7 @@ let route ui (frame : Frame.t) =
           (if Float.is_finite (fst ui.pointer) then x -. fst ui.pointer, y -. snd ui.pointer
            else 0., 0.)
       | MousePressed (_, point) | MouseReleased (_, point) -> pointer_target point, (0., 0.)
-      | MouseScrolled _ ->
+      | MouseScrolled _ | MousePinched _ ->
           let target = match ui.active with Some target -> target
             | None -> let scroll = scroll_target ui ui.pointer in
                 modal_target (if scroll <> 0 then scroll else topmost ui ui.pointer) in
@@ -749,6 +772,17 @@ let route ui (frame : Frame.t) =
           end;
           value.moved <- true
         ) ui.active
+    (* a carry started from a key: a left press is the put, on what is under it, and nothing
+       else sees the press *)
+    | Event.MousePressed (Input.LeftButton, point)
+      when (match ui.payload with Some (_, From_key) -> true | _ -> false) ->
+        set_pointer point;
+        (match ui.payload with
+         | Some (payload, _) -> ui.dropped <- Some (payload, topmost ui point)
+         | None -> ());
+        ui.payload <- None;
+        ui.routed_events <- (match ui.routed_events with
+          | (_, event, delta) :: rest -> (-1, event, delta) :: rest | [] -> [])
     | Event.MousePressed (button, point) ->
         set_pointer point;
         let target = owner in
@@ -794,6 +828,10 @@ let route ui (frame : Frame.t) =
         set_pointer point;
         (match ui.active with
         | Some active when button = ui.active_button ->
+          (match ui.payload with
+           | Some (_, From_pointer owner) when owner = active && button = Input.LeftButton ->
+               released_carry := true
+           | _ -> ());
           let value = accumulator ui active in
           value.released <- true;
           value.release_point <- ui.pointer;
@@ -814,10 +852,22 @@ let route ui (frame : Frame.t) =
           value.scroll_x <- value.scroll_x +. horizontal;
           value.scroll_y_steps <- value.scroll_y_steps +. vertical
         end
+    (* a trackpad pinch goes where the wheel goes *)
+    | Event.MousePinched scale ->
+        let target = modal_target (scroll_target ui ui.pointer) in
+        if target <> 0 then begin
+          let value = accumulator ui target in
+          value.pinch <- value.pinch *. scale
+        end
     (* Cancellation ends capture without a release: no click, no commit. *)
     | Event.PointerCancelled button ->
-        if button = ui.active_button then ui.active <- None
+        if button = ui.active_button then ui.active <- None;
+        (match ui.payload with
+         | Some (_, From_pointer _) when button = Input.LeftButton ->
+             ui.payload <- None; released_carry := false
+         | _ -> ())
     | Event.WindowFocusLost ->
+        ui.payload <- None; released_carry := false;
         ui.active <- None; ui.focus <- 0; ui.hot <- 0; ui.composition <- "";
         ui.edit_focus <- 0; ui.keyboard_focus <- false
     | Event.KeyPressed _ | Event.KeyReleased _ | Event.TextInput _
@@ -843,7 +893,15 @@ let route ui (frame : Frame.t) =
   if not (Float.is_finite (fst ui.pointer)) then
     ui.pointer <- (mouse_x, mouse_y);
   ui.hot <- (if List.exists (function Event.WindowFocusLost -> true | _ -> false)
-      frame.events then 0 else topmost ui ui.pointer)
+      frame.events then 0 else topmost ui ui.pointer);
+  if ui.active = None then ui.carry_latch <- None;
+  (* released: what the carry was put on is what was hot at the release *)
+  if !released_carry then begin
+    (match ui.payload with
+     | Some (payload, _) -> ui.dropped <- Some (payload, ui.hot)
+     | None -> ());
+    ui.payload <- None
+  end
 
 let wants_pointer ui = ui.hot <> 0 || Option.fold ~none:false ~some:(( <> ) 0) ui.active
 let cursor ui = ui.requested_cursor
@@ -1036,6 +1094,7 @@ type signal = {
   release_point : float * float;
   button : Input.mouse_button option;
   scroll : float * float;
+  pinch : float;
   keys : Event.t list;
 }
 
@@ -1052,7 +1111,7 @@ let signal ui box =
           else (ui.press_x.(box.box_slot), ui.press_y.(box.box_slot)));
         release_point = ui.pointer;
         button = (if held then Some ui.active_button else None);
-        scroll = (0., 0.); keys = [] }
+        scroll = (0., 0.); pinch = 1.; keys = [] }
   | Some value ->
       { hovered = ui.hot = key; pressed = value.pressed;
         subtree_press = value.subtree_press; held;
@@ -1068,6 +1127,7 @@ let signal ui box =
           | Some _ as button -> button
           | None -> if held then Some ui.active_button else None);
         scroll = (value.scroll_x, value.scroll_y_steps);
+        pinch = value.pinch;
         keys = List.map fst value.keys }
 
 let key_events ui box = match Int_table.find_opt ui.signals box.box_key with
@@ -1087,6 +1147,36 @@ let focus ui box =
   ui.focus <- box.box_key
 let active ui box = ui.active = Some box.box_key
 let hovered_within ui box = hit_within ui ui.hot box.box_key
+
+(* ------------------------------------------------------------- carry *)
+
+let carrying ui = Option.map fst ui.payload
+
+let carry ui ?from ~kind ~value () =
+  match from with
+  | None ->
+      (match ui.payload with
+       | Some (held, From_key) when held.kind = kind && held.value = value -> ()
+       | _ -> ui.payload <- Some ({ kind; value }, From_key))
+  | Some box ->
+      if ui.payload = None && ui.active = Some box.box_key && ui.carry_latch <> ui.active
+         && ui.active_button = Input.LeftButton then begin
+        let px, py = ui.active_press and x, y = ui.pointer in
+        if Float.hypot (x -. px) (y -. py) >= carry_dead_zone then
+          ui.payload <- Some ({ kind; value }, From_pointer box.box_key)
+      end
+
+let cancel_carry ui =
+  if ui.payload <> None then ui.carry_latch <- ui.active;
+  ui.payload <- None
+
+let drop_target ui box =
+  match ui.dropped, ui.payload with
+  | Some (payload, hot), _ ->
+      if hot <> 0 && hit_within ui hot box.box_key then Some (Dropped payload) else None
+  | None, Some (payload, _) ->
+      if ui.hot <> 0 && hit_within ui ui.hot box.box_key then Some (Hover payload) else None
+  | None, None -> None
 
 let scroll_offset ui box = ui.scroll_y.(box.box_slot)
 let scroll_position ui box =
@@ -1540,6 +1630,24 @@ let apply_scroll ui time =
     end
   done
 
+(* The payload in flight follows the pointer as a small label above everything. Idle frames
+   (nothing carried) build and paint nothing. *)
+let carry_ghost ui =
+  match ui.payload with
+  | Some (payload, _) when Float.is_finite (fst ui.pointer) ->
+      let px, py = ui.pointer in
+      let width = float (text_width_px ui payload.value) /. float ui.density +. 16. in
+      let parents = ui.parents and seeds = ui.seeds in
+      ui.parents <- [0]; ui.seeds <- [0x2c1b3c6d];
+      Fun.protect ~finally:(fun () -> ui.parents <- parents; ui.seeds <- seeds) (fun () ->
+        let ghost = box ui ~w:(Px width) ~h:(Px 22.) ~at:(px +. 14., py +. 14.) "ui-carry-ghost" in
+        let theme = ui.theme in
+        draw_over ui ghost (fun paint (x, y, w, h) ->
+          Paint.rect paint ~x ~y ~w ~h ~fill:theme.accent ~radius:3. ();
+          Paint.text paint ~at:(x +. 8., y +. 5.) ~color:theme.input payload.value);
+        ui.foreground <- (max_int, ghost.index) :: ui.foreground)
+  | _ -> ()
+
 let frame ui (frame : Frame.t) f =
   if ui.destroyed then invalid_arg "Ui.frame: the UI was destroyed";
   if ui.building then invalid_arg "Ui.frame: frames cannot nest";
@@ -1558,7 +1666,7 @@ let frame ui (frame : Frame.t) f =
     ~xform:None ~text:"" ~text_size:0 ~scroll_step:0. ~hit:None;
   ui.parents <- [root]; ui.seeds <- [0x2c1b3c6d];
   let result = Fun.protect ~finally:(fun () -> ui.building <- false)
-      (fun () -> f ui) in
+      (fun () -> let result = f ui in carry_ghost ui; result) in
   ui.parents <- []; ui.seeds <- [];
   (* Move popups to the end of the root's children, oldest first. *)
   List.iter (fun index ->
@@ -2500,6 +2608,11 @@ let text_field ui text value =
   let value = edit.text in
   let theme = ui.theme and shown = display text and composition = ui.composition in
   let hovered = signal.hovered in
+  (* the I-beam over the value, as in any text field *)
+  (let (px, py) = ui.pointer in
+   let (cx, cy, cw, ch) = value_control (ints (rect ui row)) in
+   if hovered && px >= float cx && px < float (cx + cw)
+      && py >= float cy && py < float (cy + ch) then request_cursor ui `Text);
   draw ui row (fun paint rect ->
     let (x, y, _, h) as bounds = ints rect in
     let (cx, cy, cw, ch) as control = value_control bounds in
@@ -2624,7 +2737,7 @@ let scrubbed literal dx ~coarse =
   | None, None -> literal
 
 let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors = []) ?(spans = [])
-    ?reveal ?language ?on_context ?on_scrub ?on_click ?on_caret ?(chips = []) label text =
+    ?reveal ?language ?on_context ?on_scrub ?on_click ?on_caret ?on_drop ?(chips = []) label text =
   let row = float ui.kit_row_height in
   let body = box ui
       ~flags:(clickable lor focusable lor blocking lor scroll lor clip
@@ -2655,6 +2768,9 @@ let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors =
     content, suggest, scrub) in
   let signal_of = signal in
   let signal = signal ui body in
+  (* the I-beam over text; a number under the pointer asks for the scrub
+     cursor further down, and the last request wins *)
+  if signal.hovered then request_cursor ui `Text;
   let focused = focused ui body in
   let gutter = 12. +. char_w *. float (max 3 (String.length (string_of_int (logical_count rows)))) in
   let bx, by, bw, bh = rect ui body in
@@ -2897,6 +3013,12 @@ let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors =
        Option.iter (fun byte -> f byte (command_modifiers (press_keys ui body)))
          (point_in ~strict:true text rows signal.release_point)
    | _ -> ());
+  (* a payload in flight over the area: the byte under the pointer, hovering or released *)
+  (match on_drop with
+   | Some f ->
+       Option.iter (fun drop -> Option.iter (fun byte -> f byte drop) (point_in text rows signal.pointer))
+         (drop_target ui body)
+   | None -> ());
   let rows = if final == text then rows else rows_of final in
   let count = Array.length rows in
   (* [reveal] scrolls once per (offset, length): the content box remembers it *)
@@ -3230,6 +3352,7 @@ let picker ui ?(limit = 10) label ~query rows_of =
   if ui.focus = 0 || ui.rw.(search.box_slot) = 0. then focus ui search;
   let list = box_keyed ui ~w:Grow ~h:Fit ~axis:Column (int_key search.box_key 0) in
   let search_signal = signal ui search in
+  if search_signal.hovered then request_cursor ui `Text;
   let keys = key_events ui search in
   let clamp cursor = if count () = 0 then 0 else max 0 (min (count () - 1) cursor) in
   let cursor = ref (clamp (state ui search ~default:0))

@@ -75,6 +75,7 @@
 
 (rule
  (alias qualification)
+ (locks smoke_window)
  (action (run %{exe:test_main.exe} test_metal_presentation_10k)))
 
 (rule

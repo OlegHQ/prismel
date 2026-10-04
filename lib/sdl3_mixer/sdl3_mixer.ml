@@ -20,6 +20,7 @@ let pp_error formatter error =
 let error operation kind message = Error { operation; kind; message }
 
 external raw_version : unit -> int = "caml_sdl3_mixer_version"
+external compiled_version_number : unit -> int = "caml_sdl3_mixer_compiled_version"
 external raw_init : unit -> (unit, string) result = "caml_sdl3_mixer_init"
 external raw_quit : unit -> unit = "caml_sdl3_mixer_quit"
 external raw_create_device : unit -> (nativeint, string) result
@@ -31,21 +32,11 @@ external raw_mixer_format : nativeint -> ((int * int), string) result
   = "caml_sdl3_mixer_format"
 external raw_set_mixer_gain : nativeint -> float -> (unit, string) result
   = "caml_sdl3_mixer_set_gain"
-external raw_mixer_gain : nativeint -> float = "caml_sdl3_mixer_gain"
-external raw_stop_all : nativeint -> int -> (unit, string) result
-  = "caml_sdl3_mixer_stop_all"
 external raw_generate : nativeint -> bytes -> (int, string) result
   = "caml_sdl3_mixer_generate"
 
-external raw_load_file : nativeint -> string -> bool -> (nativeint, string) result
-  = "caml_sdl3_mixer_load_file"
 external raw_load_bytes : nativeint -> bytes -> (nativeint, string) result
   = "caml_sdl3_mixer_load_bytes"
-external raw_create_sine :
-  nativeint -> int -> float -> int -> (nativeint, string) result
-  = "caml_sdl3_mixer_create_sine"
-external raw_audio_duration : nativeint -> int64
-  = "caml_sdl3_mixer_audio_duration"
 external raw_destroy_audio : nativeint -> unit = "caml_sdl3_mixer_destroy_audio"
 
 external raw_create_track : nativeint -> (nativeint, string) result
@@ -55,7 +46,6 @@ external raw_set_track_audio : nativeint -> nativeint -> (unit, string) result
   = "caml_sdl3_mixer_set_track_audio"
 external raw_set_track_gain : nativeint -> float -> (unit, string) result
   = "caml_sdl3_mixer_set_track_gain"
-external raw_track_gain : nativeint -> float = "caml_sdl3_mixer_track_gain"
 external raw_play_track : nativeint -> int -> int -> (unit, string) result
   = "caml_sdl3_mixer_play_track"
 external raw_stop_track : nativeint -> int -> (unit, string) result
@@ -65,19 +55,20 @@ external raw_pause_track : nativeint -> (unit, string) result
 external raw_resume_track : nativeint -> (unit, string) result
   = "caml_sdl3_mixer_resume_track"
 external raw_track_playing : nativeint -> bool = "caml_sdl3_mixer_track_playing"
-external raw_track_paused : nativeint -> bool = "caml_sdl3_mixer_track_paused"
 
 let linked_version () : Sdl3.version =
   let number = raw_version () in
   { major = number / 1_000_000;
     minor = (number / 1_000) mod 1_000; patch = number mod 1_000 }
 
+(* The headers' own version macro, not a checked-in constant. *)
+let compiled_version : Sdl3.version =
+  let number = compiled_version_number () in
+  { major = number / 1_000_000;
+    minor = (number / 1_000) mod 1_000; patch = number mod 1_000 }
+
 let check_version ?(release=true) () =
-  let value = Generated_provenance.header_version in
-  let compiled : Sdl3.version =
-    { major=value.major; minor=value.minor; patch=value.patch } in
-  match Sdl3.validate_version ~library:"SDL3_mixer" ~compiled
-      ~stable_headers:Generated_provenance.stable_headers ~release
+  match Sdl3.validate_version ~library:"SDL3_mixer" ~compiled:compiled_version ~release
       ~linked:(linked_version ()) () with
   | Ok () -> Ok ()
   | Error source -> error "SDL3_mixer.check_version" Incompatible_version
@@ -89,7 +80,7 @@ type mixer_handle = {
   raw : nativeint;
 
   mode : mixer_mode;
-  sample_rate : int;
+
   channels : int;
   tracks : int Atomic.t;
   audios : int Atomic.t;
@@ -98,7 +89,7 @@ type mixer_handle = {
 
 type audio_handle = {
   raw : nativeint;
-  generation : int;
+
   mixer : mixer_handle;
   mutable destroyed : bool;
 }
@@ -109,8 +100,6 @@ type track_handle = {
   mutable destroyed : bool;
 }
 
-let next_generation = Atomic.make 1
-let fresh_generation () = Atomic.fetch_and_add next_generation 1
 let live_mixers = Atomic.make 0
 let live_audios = Atomic.make 0
 let live_tracks = Atomic.make 0
@@ -194,21 +183,16 @@ let require_initialized operation =
   | Ok true -> Ok ()
   | Ok false -> error operation Not_initialized "SDL3_mixer is not initialized"
 
-let contains_nul value =
-  try ignore (String.index value '\x00'); true with Not_found -> false
-
 module Mixer = struct
   type t = mixer_handle
   type mode = mixer_mode = Device | Memory
   type format = { sample_rate : int; channels : int }
   type generated = { mixed_bytes : int; pcm_f32 : bytes }
 
-  let mode (value : t) = value.mode
-
-  let owned raw mode sample_rate channels =
+  let owned raw mode _sample_rate channels =
     Atomic.incr live_mixers;
     let value : mixer_handle = {
-      raw; mode; sample_rate; channels;
+      raw; mode;  channels;
       tracks = Atomic.make 0; audios = Atomic.make 0; destroyed = false;
     } in
     Gc.finalise (fun (value : mixer_handle) ->
@@ -254,9 +238,6 @@ module Mixer = struct
       | Ok () -> finish_create operation Memory
           (raw_create_memory sample_rate channels))
 
-  let format (value : t) = live "SDL3_mixer.Mixer.format" value (fun _ ->
-    Ok { sample_rate = value.sample_rate; channels = value.channels })
-
   let valid_gain gain = Float.is_finite gain && gain >= 0.
 
   let set_gain (value : t) gain =
@@ -265,16 +246,6 @@ module Mixer = struct
       error operation Invalid_argument "mixer gain must be finite and non-negative"
     else live operation value (fun raw ->
       mixer_result operation (raw_set_mixer_gain raw gain))
-
-  let gain (value : t) = live "SDL3_mixer.Mixer.gain" value (fun raw ->
-    Ok (raw_mixer_gain raw))
-
-  let stop_all (value : t) ?(fade_ms = 0) () =
-    let operation = "SDL3_mixer.Mixer.stop_all" in
-    if fade_ms < 0 then
-      error operation Invalid_argument "fade duration must be non-negative"
-    else live operation value (fun raw ->
-      mixer_result operation (raw_stop_all raw fade_ms))
 
   let generate (value : t) ~frames =
     let operation = "SDL3_mixer.Mixer.generate" in
@@ -310,14 +281,11 @@ end
 module Audio = struct
   type t = audio_handle
 
-  let generation (value : t) = value.generation
-  let destroyed (value : t) = value.destroyed
-
   let owned mixer raw =
     Atomic.incr live_audios;
     Atomic.incr mixer.audios;
     let value : audio_handle = {
-      raw; generation = fresh_generation (); mixer; destroyed = false;
+      raw;  mixer; destroyed = false;
     } in
     Gc.finalise (fun (value : audio_handle) ->
       if not value.destroyed then begin
@@ -343,13 +311,6 @@ module Audio = struct
       | Error _ as failure -> failure
       | Ok () -> callback value.raw)
 
-  let load_file mixer ~path ?(predecode = true) () =
-    let operation = "SDL3_mixer.Audio.load_file" in
-    if path = "" || contains_nul path then
-      error operation Invalid_argument "audio path must be non-empty and NUL-free"
-    else with_mixer operation mixer (fun raw ->
-      raw_load_file raw path predecode)
-
   let load_bytes mixer bytes =
     let operation = "SDL3_mixer.Audio.load_bytes" in
     if Bytes.length bytes = 0 then
@@ -361,20 +322,6 @@ module Audio = struct
     match live operation value (fun _ -> Ok ()) with
     | Error _ as failure -> failure
     | Ok () -> load_bytes value.mixer (Bytes.copy bytes)
-
-  let create_sine mixer ~frequency ~amplitude ~duration_ms =
-    let operation = "SDL3_mixer.Audio.create_sine" in
-    if frequency <= 0 || frequency > 200_000 then
-      error operation Invalid_argument "frequency must be in 1..200000 Hz"
-    else if not (Float.is_finite amplitude) || amplitude < 0. || amplitude > 1. then
-      error operation Invalid_argument "amplitude must be finite and in 0..1"
-    else if duration_ms <= 0 then
-      error operation Invalid_argument "duration must be positive"
-    else with_mixer operation mixer (fun raw ->
-      raw_create_sine raw frequency amplitude duration_ms)
-
-  let duration_frames (value : t) = live "SDL3_mixer.Audio.duration_frames" value
-      (fun raw -> Ok (raw_audio_duration raw))
 
   let destroy (value : t) = on_main "SDL3_mixer.Audio.destroy" (fun () ->
     if value.destroyed then Ok ()
@@ -436,9 +383,6 @@ module Track = struct
       error operation Invalid_argument "track gain must be finite and non-negative"
     else mutate operation value (fun raw -> raw_set_track_gain raw gain)
 
-  let gain (value : t) = live "SDL3_mixer.Track.gain" value (fun raw ->
-    Ok (raw_track_gain raw))
-
   let valid_loops loops = loops >= -1
 
   let play (value : t) ?(loops = 0) ?(fade_in_ms = 0) () =
@@ -462,9 +406,6 @@ module Track = struct
   let playing (value : t) = live "SDL3_mixer.Track.playing" value (fun raw ->
     Ok (raw_track_playing raw))
 
-  let paused (value : t) = live "SDL3_mixer.Track.paused" value (fun raw ->
-    Ok (raw_track_paused raw))
-
   let destroy (value : t) = on_main "SDL3_mixer.Track.destroy" (fun () ->
     if value.destroyed then Ok ()
     else begin
@@ -478,7 +419,7 @@ end
 
 module Channels = struct
   type channel = int
-  type slot = { track : Track.t; mutable volume : float; mutable group : int option }
+  type slot = { track : Track.t; mutable volume : float }
   type t = { mixer : Mixer.t; slots : slot array; mutable destroyed : bool }
 
   let operation name = "SDL3_mixer.Channels." ^ name
@@ -509,7 +450,7 @@ module Channels = struct
               List.iter (fun slot -> ignore (Track.destroy slot.track)) !made;
               failure
           | Ok track ->
-              made := { track; volume = 1.; group = None } :: !made;
+              made := { track; volume = 1. } :: !made;
               build (remaining - 1)
       in
       build count)
@@ -550,26 +491,6 @@ module Channels = struct
       | Error _ as failure -> failure
       | Ok () -> selected.volume <- volume; Ok ())
 
-  let volume value channel = slot "volume" value channel (fun selected ->
-    Ok selected.volume)
-
-  let set_group value channel group = slot "set_group" value channel
-      (fun selected -> selected.group <- group; Ok ())
-
-  let set_group_volume value ~group volume =
-    if not (valid_volume volume) then
-      error (operation "set_group_volume") Invalid_argument
-        "group volume must be finite and non-negative"
-    else live "set_group_volume" value (fun () ->
-      let rec apply index =
-        if index = Array.length value.slots then Ok ()
-        else let selected = value.slots.(index) in
-          if selected.group <> Some group then apply (index + 1)
-          else match Track.set_gain selected.track volume with
-            | Error _ as failure -> failure
-            | Ok () -> selected.volume <- volume; apply (index + 1)
-      in apply 0)
-
   let pause value channel = slot "pause" value channel (fun selected ->
     Track.pause selected.track)
   let resume value channel = slot "resume" value channel (fun selected ->
@@ -579,8 +500,6 @@ module Channels = struct
       Track.stop selected.track ~fade_out_ms ())
   let playing value channel = slot "playing" value channel (fun selected ->
     Track.playing selected.track)
-  let paused value channel = slot "paused" value channel (fun selected ->
-    Track.paused selected.track)
 
   let destroy value = on_main (operation "destroy") (fun () ->
     if value.destroyed then Ok ()
@@ -601,12 +520,9 @@ module Music = struct
   let create = Track.create
   let set_audio = Track.set_audio
   let set_volume = Track.set_gain
-  let volume = Track.gain
   let play = Track.play
   let pause = Track.pause
   let resume = Track.resume
   let stop = Track.stop
-  let playing = Track.playing
-  let paused = Track.paused
   let destroy = Track.destroy
 end

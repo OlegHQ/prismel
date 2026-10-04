@@ -12,25 +12,21 @@ let iterations = Option.value ~default:5_000
 
 let run () =
   get (Init.init [ Init.Video; Init.Events ]);
-  let source = Bytes.of_string "\x11\x22\x33\xff" in
-  for _ = 1 to iterations do
-    let surface = get (Surface.of_rgba ~width:1 ~height:1 source) in
-    let rgba = get (Surface.copy_rgba surface) in
-    if rgba.width <> 1 || rgba.height <> 1 || rgba.pixels <> source then
-      fail "surface contents changed during lifecycle stress";
-    get (Surface.destroy surface)
-  done;
   for index = 1 to iterations do
     let window = get (Window.create ~title:"SDL3 recreation stress"
         ~width:16 ~height:16 ~flags:[Window.Hidden] ()) in
-    if get (Window.size window) <> (16, 16)
-        || get (Window.id window) = 0L then
+    if get (Window.size window) <> (16, 16) then
       fail (Printf.sprintf "window facts changed during lifecycle cycle %d" index);
     get (Window.destroy window)
   done;
+  (* a window or cursor left to the collector is released on the next SDL call *)
+  for _ = 1 to iterations / 10 do
+    ignore (get (Window.create ~title:"SDL3 finalizer stress" ~width:8 ~height:8
+        ~flags:[Window.Hidden] ()));
+    (match Cursor.create Cursor.Text with Ok _ | Error { kind = Unsupported; _ } -> () | Error error -> fail (Format.asprintf "%a" pp_error error))
+  done;
   Gc.full_major ();
-  get (drain_release_queue ());
-  get (Init.quit ());
+  ignore (get (Event.poll_coalesced ()));
+  get (Init.quit_subsystems [ Init.Video; Init.Events ]);
   Printf.printf
-    "SDL3 surface/window lifecycle stress passed (%d cycles each)\n%!"
-    iterations
+    "SDL3 window lifecycle stress passed (%d cycles)\n%!" iterations

@@ -113,6 +113,12 @@ The generated `lib/sop_catalog/flow_manifest.sexp` is also checked by
 `dune build @lib/sop_catalog/runtest`; when SOP metadata changes, review and
 accept its diff with `dune promote`.
 
+SDL3 versions live only in `packaging/sdl3.lock` (a floor per library and the
+release last tested); `dune exec tools/sdl3/bump.exe` records a new one. Native
+structs the stubs read are pinned in `lib/sdl3/abi.sexp`; the build fails and
+names a field an SDL release moved (`generate.exe accept` re-probes). See
+`specification/sdl3.md`.
+
 Bootstrap: `opam switch create . 5.3.0 --no-install`, then `opam pin add
 --no-action --yes --recursive ./packaging`, `direnv allow` (or
 `eval "$(opam env --switch=. --set-switch)"`), and `opam install . --deps-only
@@ -173,6 +179,7 @@ keep their values in the immutable model, destroy the handle in `on_stop`.
 Every host shares its capture, focus, hit list, and renderer; never add a
 second hit-test, capture, text-entry, or painting path. New widgets are
 functions over `Ui.box`/`Ui.signal`/`Ui.draw`. UI code returns intents and does
-not mutate the model during `Ui.frame`. Preserve the design kit (`Pxui.Theme`,
+not mutate the model during `Ui.frame`. A drag that carries a value between panes is `Ui.carry` / `Ui.drop_target` (one payload on the handle,
+no second hit-test or capture); `specification/flow.md` §7.12. Preserve the design kit (`Pxui.Theme`,
 DepartureMono, 24-point rows) pixel for pixel; `lib/pxui/test_ui_parity`
 guards it. Host and editor rules: `lib/prismel_editor/AGENTS.md`.

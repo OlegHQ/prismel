@@ -21,6 +21,10 @@ type t =
   | TextInput of string
   | TextEditing of { text : string; start : int; length : int }
   | FileDropped of string
+  | FileDragMoved of float * float
+  | FileDragEnded
+  | MousePinched of float
+  | FileDialog of { id : int; result : (string list, string) result }
   | WindowResized of int * int
   | WindowFocusLost
   | WindowClosed
@@ -31,9 +35,17 @@ event payload.
 
 ## Translation rules
 
-- SDL3 key-down/up events map through the checked `Input.key` table. Printable
-  key meaning and text entry remain separate; committed text comes from the
-  text-input event.
+- SDL3 key-down/up events map to `Input.key` once, in the binding's stubs, from
+  the keycode with SDL's own macros (`specification/sdl3.md`): a letter or digit
+  is `KeyChar` in lower case on any layout, an unlisted key is `Unknown` with
+  SDL's keycode. Printable key meaning and text entry remain separate;
+  committed text comes from the text-input event.
+- A trackpad pinch update is `MousePinched factor` (the zoom since the last
+  update, above 1 zooms in); PXUI routes it to the scrollable box under the
+  pointer as `signal.pinch`, and the graph pane zooms by it where the wheel
+  zooms. Files dragged over the window are `FileDragMoved` with the position and
+  `FileDragEnded`; a Control-click arrives as the right button because SDL
+  converts it (a hint, not Prismel code).
 - Pointer motion, button, and wheel events preserve poll order. Positions are
   fractional logical points and motion contributes to the current frame's
   float aggregate delta. Wheel deltas retain sub-unit values and SDL's
@@ -41,7 +53,12 @@ event payload.
   runtime does not reverse it again. An ordinary wheel keeps SDL's normal
   direction.
 - The authoritative SDL3 pixel-size/window transition updates logical and
-  drawable runtime facts coherently and emits one logical `WindowResized` fact.
+  drawable runtime facts coherently on the next frame (the window is not polled
+  between events) and emits one logical `WindowResized` fact. A covered or
+  minimized window is not drawn and the loop idles.
+- A native file dialog (`Sketch.show_file_dialog`) returns its id at once; its
+  outcome is one `FileDialog` event with that id: the chosen paths, an empty
+  list for a cancel, or the error.
 - Focus loss clears held keys and buttons before user update and emits
   `WindowFocusLost`.
 - A requested native window close maps to `WindowClosed`; user code may request

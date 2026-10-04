@@ -73,12 +73,33 @@ type presentation_facts = {
   vsync : bool;
 }
 
+(* SDL announces a change of size or density with an event instead of making
+   every frame ask. The announcement is one bit: set by the event, taken by the
+   next frame, which re-reads the window only if it was set. *)
+module Change_flag = struct
+  type t = { mutable announced : bool }
+
+  let create () = { announced = false }
+  let announce flag = flag.announced <- true
+
+  (* [query] runs once per announcement, however many arrived. *)
+  let refresh flag query =
+    if flag.announced then begin
+      flag.announced <- false;
+      Some (query ())
+    end else None
+end
+
+type cursor_shape = [ `Default | `Horizontal_resize | `Vertical_resize | `Text ]
+
 type window = {
   handle : Sdl3.Window.t;
   view : Sdl3.Metal_view.t;
   vsync : bool;
-  mutable cursors : ([ `Default | `Horizontal_resize | `Vertical_resize ] * Sdl3.Cursor.t) list;
-  mutable cursor_shape : [ `Default | `Horizontal_resize | `Vertical_resize ] option;
+  mutable cursors : (cursor_shape * Sdl3.Cursor.t) list;
+  mutable cursor_shape : cursor_shape option;
+  mutable text_input : bool;
+  changed : Change_flag.t;
 }
 
 (* One render target: a presenting window, or ([window = None]) an owned
@@ -515,15 +536,14 @@ let configuration ?layer ~vsync ~width ~height () : Ogpu.Surface.configuration =
     layer;
   }
 
+(* Every step is checked: the first failure is the result. *)
 let reveal window =
-  match Sdl3.Window.show window with
-  | Error _ as error -> error
-  | Ok () ->
-      ignore (Sdl3.Window.restore window);
-      ignore (Sdl3.Window.raise_window window);
-      ignore (Sdl3.Window.center window);
-      ignore (Sdl3.Window.sync window);
-      Ok ()
+  let ( let* ) = Result.bind in
+  let* () = Sdl3.Window.show window in
+  let* () = Sdl3.Window.restore window in
+  let* () = Sdl3.Window.raise_window window in
+  let* () = Sdl3.Window.center window in
+  Sdl3.Window.sync window
 
 let create ?(vsync = true) ?(hidden = true) ?(title = "Prismel") ~width ~height () =
   let op = "Runtime.create" in
@@ -548,11 +568,12 @@ let create ?(vsync = true) ?(hidden = true) ?(title = "Prismel") ~width ~height 
     let created =
       let* () = acquire (Sdl3.Init.init [ Sdl3.Init.Video ]) (fun () ->
         Sdl3.Init.quit_subsystems [ Sdl3.Init.Video ]) in
+      (* SDL itself turns a Control-click into the secondary click. *)
+      let* () = sdl op (Sdl3.Hint.control_click_is_right_click true) in
       let flags : Sdl3.Window.flag list =
         Metal :: High_pixel_density :: (if hidden then [ Hidden ] else [])
       in
       let* window = acquire (Sdl3.Window.create ~title ~width ~height ~flags ()) Sdl3.Window.destroy in
-      let* () = acquire (Sdl3.Text_input.start window) (fun () -> Sdl3.Text_input.stop window) in
       let* () = if hidden then Ok () else sdl op (reveal window) in
       let* view = acquire (Sdl3.Metal_view.create window) Sdl3.Metal_view.destroy in
       let* token = sdl op (Sdl3.Metal_view.layer view) in
@@ -573,7 +594,10 @@ let create ?(vsync = true) ?(hidden = true) ?(title = "Prismel") ~width ~height 
       Ok
         {
           renderer;
-          window = Some { handle = window; view; vsync; cursors = []; cursor_shape = None };
+          window =
+            Some
+              { handle = window; view; vsync; cursors = []; cursor_shape = None;
+                text_input = false; changed = Change_flag.create () };
           title;
           facts;
           presentation = None;
@@ -681,21 +705,23 @@ let apply_facts (value : t) ~vsync (facts : frame_facts) =
       value.facts <- facts;
       Ok ()
 
-(* A window's drawable follows SDL; an offscreen target changes only through
-   [resize]. *)
+(* A window's drawable follows SDL, which announces each change as a size
+   event ([window_changed]); an offscreen target changes only through
+   [resize]. A frame costs no SDL call while nothing was announced. *)
 let sync_facts (value : t) =
   match value.window with
   | None -> Ok ()
   | Some window -> (
-      match facts window.handle with
-      | Error _ as error -> error
-      | Ok live
+      match Change_flag.refresh window.changed (fun () -> facts window.handle) with
+      | None -> Ok ()
+      | Some (Error _ as error) -> error
+      | Some (Ok live)
         when live.logical_width = value.facts.logical_width
              && live.logical_height = value.facts.logical_height
              && live.drawable_width = value.facts.drawable_width
              && live.drawable_height = value.facts.drawable_height ->
           Ok ()
-      | Ok live -> apply_facts value ~vsync:window.vsync live)
+      | Some (Ok live) -> apply_facts value ~vsync:window.vsync live)
 
 (* Runs one frame against the synced target; only a window presents. *)
 let frame operation ?after_prepare (value : t) draw_count render =
@@ -905,6 +931,11 @@ let presentation_facts (value : t) =
 let window_call operation call value =
   live_window operation value (fun window -> sdl operation (call window.handle))
 
+let window_changed (value : t) =
+  match value.window with
+  | Some window when not value.dead -> Change_flag.announce window.changed
+  | Some _ | None -> ()
+
 let set_resizable value enabled =
   window_call "Runtime.set_resizable"
     (fun window -> Sdl3.Window.set_resizable window enabled)
@@ -915,7 +946,7 @@ let set_relative_mouse value enabled =
     (fun window -> Sdl3.Window.set_relative_mouse window enabled)
     value
 
-let set_cursor value shape =
+let set_cursor value (shape : cursor_shape) =
   live_window "Runtime.set_cursor" value (fun window ->
       if window.cursor_shape = Some shape then Ok ()
       else
@@ -928,6 +959,7 @@ let set_cursor value shape =
                 | `Default -> Sdl3.Cursor.Default
                 | `Horizontal_resize -> Sdl3.Cursor.Ew_resize
                 | `Vertical_resize -> Sdl3.Cursor.Ns_resize
+                | `Text -> Sdl3.Cursor.Text
               in
               Result.map
                 (fun cursor ->
@@ -944,30 +976,70 @@ let set_cursor value shape =
                 window.cursor_shape <- Some shape;
                 Ok ()))
 
-let set_text_input_area value area =
-  window_call "Runtime.set_text_input_area"
-    (fun window ->
-      Sdl3.Text_input.set_area window
-        (Option.map (fun ((x, y, width, height), _) -> { Sdl3.x; y; width; height }) area)
-        ~cursor:(Option.fold ~none:0 ~some:snd area))
-    value
+(* Text input runs only while a text field has focus: a focused region starts
+   it (the input method and on-screen keyboard then follow that region), no
+   region stops it. A frame with the same answer makes no SDL call. *)
+let set_text_input value area =
+  let operation = "Runtime.set_text_input" in
+  live_window operation value (fun window ->
+      let ( let* ) = Result.bind in
+      match area with
+      | None ->
+          if not window.text_input then Ok ()
+          else
+            let* () = sdl operation (Sdl3.Text_input.stop window.handle) in
+            window.text_input <- false;
+            Ok ()
+      | Some ((x, y, width, height), cursor) ->
+          let* () =
+            if window.text_input then Ok ()
+            else
+              let* () = sdl operation (Sdl3.Text_input.start window.handle) in
+              window.text_input <- true;
+              Ok ()
+          in
+          sdl operation
+            (Sdl3.Text_input.set_area window.handle { Sdl3.x; y; width; height } ~cursor))
 
 let show (value : t) =
   live_window "Runtime.show" value (fun window ->
       match sdl "Runtime.show" (reveal window.handle) with
       | Error _ as error -> error
       | Ok () ->
+          Change_flag.announce window.changed;
           let synced = sync_facts value in
           if Result.is_ok synced then value.presentation <- None;
           synced)
 
 let hide = window_call "Runtime.hide" Sdl3.Window.hide
 
+type dialog_kind = Open_file | Open_files | Save_file | Open_folder
+type dialog_filter = { name : string; pattern : string }
+
+(* Opens a native file dialog and returns at once with its id; the outcome is
+   a [Runtime_input.Dialog_closed] carrying the same id. *)
+let show_dialog value ?(filters = []) ?default_location kind =
+  window_call "Runtime.show_dialog"
+    (fun window ->
+      Sdl3.Dialog.show window
+        ~filters:(List.map (fun { name; pattern } -> { Sdl3.Dialog.name; pattern }) filters)
+        ?default_location
+        (match kind with
+         | Open_file -> Sdl3.Dialog.Open_file
+         | Open_files -> Open_files
+         | Save_file -> Save_file
+         | Open_folder -> Open_folder))
+    value
+
+(* Shown, and neither minimized nor covered. SDL announces the start of
+   occlusion and not its end, so a caller that saw the window hidden asks this
+   once per frame to learn when it is back. *)
 let visible value =
   live_window "Runtime.visible" value (fun window ->
       Result.map
-        (fun flags -> Int64.logand flags 0x8L = 0L)
-        (sdl "Runtime.visible" (Sdl3.Window.flags window.handle)))
+        (fun (state : Sdl3.Window.state) ->
+          not (state.hidden || state.minimized || state.occluded))
+        (sdl "Runtime.visible" (Sdl3.Window.state window.handle)))
 
 let destroy (value : t) =
   if value.dead then Ok ()
@@ -981,7 +1053,8 @@ let destroy (value : t) =
     record (Scene_execution.destroy value.renderer);
     Option.iter
       (fun window ->
-        record (sdl "Runtime.destroy" (Sdl3.Text_input.stop window.handle));
+        if window.text_input then
+          record (sdl "Runtime.destroy" (Sdl3.Text_input.stop window.handle));
         List.iter
           (fun (_, cursor) -> record (sdl "Runtime.destroy" (Sdl3.Cursor.destroy cursor)))
           window.cursors;
@@ -993,6 +1066,8 @@ let destroy (value : t) =
     match !failure with None -> Ok () | Some error -> Error error)
 
 module Private = struct
+  module Change_flag = Change_flag
+  let window_handle (value : t) = Option.map (fun window -> window.handle) value.window
   let scale_draws = scale_draws
   let scale_sampled_resources = scale_sampled_resources
   type nonrec scaled_cache = scaled_cache

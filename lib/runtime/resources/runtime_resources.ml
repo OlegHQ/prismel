@@ -26,14 +26,14 @@ module Image=struct
   let create ~width ~height ~rgba=main"Image.create"(fun()->
     if not(valid_storage width height rgba)then error"Image.create"Invalid_argument"invalid RGBA extent or storage"
     else Ok(owned ~width ~height ~rgba:(Bytes.copy rgba)))
-  let of_surface operation surface=
-    match Sdl3.Surface.copy_rgba surface with
-    |Error e->error operation Decode(Format.asprintf"%a"Sdl3.pp_error e)
-    |Ok snapshot->create~width:snapshot.width~height:snapshot.height~rgba:snapshot.pixels
+  (* The decoder hands over a buffer nobody else holds: it becomes the image's
+     storage without another copy. *)
   let load_file path=main"Image.load_file"(fun()->match Sdl3_image.load_file path with
     |Error e->error"Image.load_file"Decode(Format.asprintf"%a"Sdl3_image.pp_error e)
-    |Ok surface->Fun.protect~finally:(fun()->ignore(Sdl3.Surface.destroy surface))
-      (fun()->of_surface"Image.load_file"surface))
+    |Ok decoded->
+        if valid_storage decoded.width decoded.height decoded.pixels then
+          Ok(owned~width:decoded.width~height:decoded.height~rgba:decoded.pixels)
+        else error"Image.load_file"Decode"decoded image has invalid RGBA storage")
   let size x=live"Image.size"x(fun()->Ok(x.width,x.height))
   let gpu_pixels operation x=match x.gpu with
     |None->Ok(Bytes.copy x.rgba)
@@ -344,7 +344,7 @@ module Font=struct
       match set_density x density with Error _ as e->e|Ok()->
       match set_align x align with Error _ as e->e|Ok()->
       let rendered=match wrap_width with None->Sdl3_ttf.Font.render_blended x.raw~color text|Some width->Sdl3_ttf.Font.render_blended_wrapped x.raw~color~wrap_width:(width*density) text in
-      match ttf"Font.render"rendered with Error _ as e->e|Ok None->Ok None|Ok(Some surface)->Fun.protect~finally:(fun()->ignore(Sdl3.Surface.destroy surface))(fun()->match Sdl3.Surface.copy_rgba surface with Error e->error"Font.render"Decode(Format.asprintf"%a"Sdl3.pp_error e)|Ok s->Ok(Some(Text.owned s.width s.height s.pixels))))
+      match ttf"Font.render"rendered with Error _ as e->e|Ok None->Ok None|Ok(Some pixels)->Ok(Some(Text.owned pixels.width pixels.height pixels.pixels)))
   (* Metrics at the backing density a matching [render] rasterizes with. *)
   let glyph_metrics_at x ~density glyph=live"Font.glyph_metrics_at"x(fun()->
     if density<=0||density>16 then error"Font.glyph_metrics_at"Invalid_argument"density must be in 1..16"

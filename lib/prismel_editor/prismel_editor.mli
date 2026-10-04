@@ -73,6 +73,17 @@ module Private : sig
       centered which-key panel; the next key runs a binding from the global
       scope or from the focused pane, the one last clicked. Escape, Space, an
       unknown key, a click, or window focus loss cancel it. *)
+  module Render_budget : sig
+    val film : resolution:int * int -> gate:int * int -> (int * int) * int
+    (** The path tracer's film for a root's resolution and a gate in drawable pixels: the
+        resolution divided by the first of 1, 2, 4, 8 that does not exceed the gate (the
+        eighth when none does), and that divisor. *)
+
+    val next_turn : order:string list -> last:string option -> string list -> string option
+    (** Of the viewports that want the shared sample budget, the one after [last] in [order],
+        cyclically. *)
+  end
+
   module Leader : sig
     type action =
       | Save_preset | Browse_presets | Save_source
@@ -82,13 +93,14 @@ module Private : sig
       | Look_through | Look_through_camera | Fly | Tool of int
       | Undo | Redo
       | Panel_split of Pxui_shell.Layout.axis | Panel_close | Panel_retype of Pxui_shell.Layout.panel
-      | Toggle_map | Ui_scale of int | Restore_layout | Enter | Up | Go_world | Peek | Jump
+      | Toggle_map | Ui_scale of int | Restore_layout | Enter | Up | Go_world | Peek | Pick_up | Jump
       | Layout_switch of int | Layout_new | Layout_remove | Window_new of Editor_core.Panels.panel | Float_toggle
       | World_emit | World_reseed | World_time of float | World_play | World_preset of int
       | Scope_command of Pxui_graph.Scope.command
       | List_command of Pxui_shell.Tree.command
       | Guide_toggle | Guide_keys
       | Command_palette
+      | Copy_lisp
       | Sketch_command of string
 
     type command = (Pxui_shell.Layout.panel, action) Editor_core.Command.t
@@ -335,6 +347,7 @@ module Editor3 : sig
     ?max_entries:int ->
     ?max_payload_bytes:int ->
     ?await:bool ->
+    ?carry_budget:float ->
     workspace:Workspace_doc.t ->
     ?source:Source.t ->
     prepare:(Settings.t -> Procedural.Session.output -> ('prepared, string) result) ->
@@ -350,7 +363,9 @@ module Editor3 : sig
       [lens] is the default camera object's depth of field (pinhole
       otherwise). [await] (default: [PRISMEL_MAX_FRAMES] is set) makes each
       [update] block on the cook it submits, so a fixed-step run or a test sees the
-      settled result of every frame instead of racing the worker. [prepare] runs on the cook worker domain with submission settings.
+      settled result of every frame instead of racing the worker. [carry_budget] (default 0.5)
+      is the seconds a carry's preview may take, to apply or to cook, before it is only described
+      (the target is lit, the strip says what a release writes, no picture). [prepare] runs on the cook worker domain with submission settings.
       It must only do pure CPU work on immutable/disjointly owned data;
       SDL, Metal, textures, fonts, audio, UI and runtime caches stay on the
       initial domain. [scene3] and [overlay] run on the initial domain. *)
@@ -411,6 +426,17 @@ module Editor3 : sig
   (** One gesture on the workspace: rewrite the source, re-check, lower into
       the scene's objects, recook, and record one history entry named by the
       op. An error changes nothing. *)
+
+  val carrying : 'prepared t -> (string * string) option
+  (** The payload in flight (kind and value, [("material", "(ref cobalt)")]), picked up by a
+      press on a Navigator row or by [y]: every document change waits for the put, one history
+      entry named "Put"; while a target is hot the panels show the edit on a scratch document,
+      and Escape, a release over nothing or a focus loss restores the one that was there. *)
+
+  val carry_line : 'prepared t -> string option
+  (** What the status strip says about the carry: the target letters, the preview's words, or
+      the checker's reason for a refusal. *)
+
   val scene : 'prepared t -> Prismel.Frame.t -> Prismel.Scene.t
   val close : 'prepared t -> unit
   val crash_dump : 'prepared t -> string -> unit
@@ -445,14 +471,25 @@ module Editor3 : sig
   val render_settings : 'prepared t -> render_settings
   (** The scene root's output resolution in pixels (its aspect also frames
       look-through) and the samples per pixel at which a sketch's progressive
-      renderer stops; the defaults when the scene graph has no [scene/root]. *)
+      renderer stops; the defaults when the scene graph has no [scene/root]. A viewport
+      over another scene instance with a [scene/root] of its own renders at that root's
+      resolution and cap, through that root's camera (see {!viewport_camera}). *)
 
   val film : 'prepared t -> Prismel.Frame.t -> int * int * int * int
   (** The rect inside the view pane (pane-relative) that the render fills:
-      the whole pane, or the render camera's aspect fitted and centred while
-      looking through it. The editor paints its own 3D view into it and
+      the whole pane, or the root's aspect (its resolution, the gate) fitted and centred while
+      looking through it or while the path tracer renders. The editor paints its own 3D view into it and
       draws the sketch [overlay] inside it, with a [Frame.t] of its size, so
       an overlay drawing a film at the origin needs nothing else. *)
+
+  type slot = { film : int * int; step : int; samples : int; max_spp : int; viewports : int }
+
+  val slot : 'prepared t -> string -> slot option
+  (** The path tracer slot serving the viewport with this key (see {!viewport_camera}), when it
+      has one: the size in drawable pixels of its film, the step of the root's resolution that
+      is (1, 2, 4 or 8: the film is the resolution divided by it), the samples per pixel
+      accumulated, the viewport's root's cap, and how many viewports the slot serves.
+      Viewports asking for the same scene, camera, film and renderer settings share one slot. *)
 
   val take_export : 'prepared t -> 'prepared t * string option
   (** The output path of a "Render / save PNG" request made this frame,
@@ -480,7 +517,9 @@ module Editor3 : sig
   (** What the viewport with this key (editor graph/binding for unique named
       panels, placement for inline/looped/repeated panels, ["main"] for the
       default layout) shows: each viewport keeps its own orbit, a copy of the focused one's at
-      the first focus, and the wheel, drag and fly of the focused viewport move only it. *)
+      the first focus, and the wheel, drag and fly of the focused viewport move only it.
+      Looking through, a viewport over a scene instance with a [scene/root] sees through the
+      camera that root names; any other sees through {!render_camera}. *)
 
   val flying : 'prepared t -> bool
   (** [Space w] with the view focused: held W/S/A/D/Q/E fly the viewport
@@ -579,6 +618,7 @@ module Editor2 : sig
     ?max_entries:int ->
     ?max_payload_bytes:int ->
     ?await:bool ->
+    ?carry_budget:float ->
     workspace:Workspace_doc.t ->
     prepare:(Settings.t -> Procedural.Session.output -> ('prepared, string) result) ->
     scene2:(Procedural.Graph.t -> 'prepared -> Prismel.Scene.t) ->
@@ -625,6 +665,17 @@ module Editor2 : sig
   (** One gesture on the workspace: rewrite the source, re-check, lower into
       the scene's objects, recook, and record one history entry named by the
       op. An error changes nothing. *)
+
+  val carrying : 'prepared t -> (string * string) option
+  (** The payload in flight (kind and value, [("material", "(ref cobalt)")]), picked up by a
+      press on a Navigator row or by [y]: every document change waits for the put, one history
+      entry named "Put"; while a target is hot the panels show the edit on a scratch document,
+      and Escape, a release over nothing or a focus loss restores the one that was there. *)
+
+  val carry_line : 'prepared t -> string option
+  (** What the status strip says about the carry: the target letters, the preview's words, or
+      the checker's reason for a refusal. *)
+
   val scene : 'prepared t -> Prismel.Frame.t -> Prismel.Scene.t
   val close : 'prepared t -> unit
   val crash_dump : 'prepared t -> string -> unit

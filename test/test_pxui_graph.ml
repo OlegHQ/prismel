@@ -162,7 +162,80 @@ let scope_connection_hover () =
   check (changes = [] && List.length (Scope.Private.highlighted_connections hovered) = 1)
     "hover on a captured value's socket missed its outer connection"
 
+(* A trackpad pinch zooms the graph where the wheel does: at the pointer, the
+   frame's pinch factors multiplied, clamped like the wheel. *)
+let scope_pinch () =
+  let w = load_workspace "bloom" in
+  let view, _ = scope_view w "flower" in
+  let view = fst (scope_step view (frame ())) in
+  let before = Scope.zoom view in
+  let point = 500, 350 in
+  let zoomed events =
+    Scope.zoom (fst (scope_step view (frame ~mouse:point ~events:(mouse_move point :: events) ()))) in
+  let near a b = Float.abs (a -. b) < 1e-9 in
+  check (before > 0.3 && before < 2.0) "the bloom framing leaves no room to zoom both ways";
+  check (near (zoomed [ Event.MousePinched 1.25 ]) (before *. 1.25))
+    "a pinch did not zoom the graph by its factor";
+  check (near (zoomed [ Event.MousePinched 0.8 ]) (before *. 0.8))
+    "a pinch below one did not zoom the graph out";
+  check (near (zoomed [ Event.MousePinched 1.1; Event.MousePinched 1.1 ]) (before *. 1.21))
+    "two pinches in a frame did not multiply";
+  check (zoomed [ Event.MousePinched 100. ] = 2.5) "a huge pinch escaped the zoom clamp";
+  check (zoomed [ Event.MousePinched 0.001 ] = 0.25) "a tiny pinch escaped the zoom clamp";
+  check (near (zoomed [ Event.MouseScrolled (0., 1.) ]) (before *. 1.1))
+    "the wheel no longer zooms by a tenth a step";
+  (* the point under the pointer stays put, as with the wheel *)
+  let anchored =
+    let view = fst (scope_step view (frame ~mouse:point ~events:[ mouse_move point; Event.MousePinched 1.5 ] ())) in
+    Scope.zoom view in
+  check (anchored > before) "pinch-out did not enlarge";
+  (* a pinch outside the pane is not the pane's *)
+  let outside = 3000, 3000 in
+  let unmoved = fst (scope_step view (frame ~mouse:outside ~events:[ mouse_move outside; Event.MousePinched 1.5 ] ())) in
+  check (Scope.zoom unmoved = before) "a pinch away from the pane zoomed it"
+
 (* W12b: every W3 gesture the pane can make reaches the host as its request. *)
+(* A carried payload: the pane reports the node under the pointer (the path), or its empty canvas
+   (the graph's own one-segment path), hovering and then released; it never edits. *)
+let scope_carry () =
+  let frame ?mouse ?keys ?events () =
+    { (frame ?mouse ?keys ?events ()) with width = 3000; height = 2000; size = (3000, 2000);
+      drawable_width = 3000; drawable_height = 2000; drawable_size = (3000, 2000) } in
+  let w = load_workspace "bloom" in
+  let scope = P.of_graph scope_catalog w "flower" in
+  let view = Scope.create ~width:3000 ~height:2000 () |> Scope.with_scope ~key:"flower" scope
+    |> Scope.with_records (recorded w) in
+  let heart = [ "flower"; "heart" ] in
+  let view = fst (scope_step view (frame ())) in
+  let x, y, bw, bh = Option.get (Scope.Private.box_of view heart) in
+  let over = int_of_float (x +. bw /. 2.), int_of_float (y +. bh -. 4.) in
+  let nothing = 2900, 1900 in
+  let drops changes = List.filter_map (function
+    | Scope.Drop_over { path; kind; value } -> Some (`Over, path, kind, value)
+    | Dropped { path; kind; value } -> Some (`Dropped, path, kind, value)
+    | _ -> None) changes in
+  (* idle frames report nothing *)
+  let view, changes = scope_step view (frame ~mouse:over ~events:[ mouse_move over ] ()) in
+  check (drops changes = []) "a pane with nothing carried reported a drop";
+  Pxui.Ui.carry scope_ui ~kind:"material" ~value:"(ref cobalt)" ();
+  let view, changes = scope_step view (frame ~mouse:over ~events:[ mouse_move over ] ()) in
+  check (drops changes = [ `Over, heart, "material", "(ref cobalt)" ]) "a carry over a node did not report the node's path";
+  let view, changes = scope_step view (frame ~mouse:nothing ~events:[ mouse_move nothing ] ()) in
+  check (drops changes = [ `Over, [ "flower" ], "material", "(ref cobalt)" ])
+    "a carry over the empty canvas did not report the graph";
+  let view, changes = scope_step view (frame ~mouse:over ~events:[ mouse_move over ] ()) in
+  check (List.length (drops changes) = 1) "one place under the pointer";
+  let view, changes = scope_step view (frame ~mouse:over ~events:[ mouse_press (Input.LeftButton, over) ] ()) in
+  check (drops changes = [ `Dropped, heart, "material", "(ref cobalt)" ]) "a put over a node did not emit Dropped with its path";
+  check (not (List.exists (function Scope.Syntax_edit _ | Selected _ | Moved _ -> true | _ -> false) changes))
+    "the pane edited, selected or moved on a put";
+  check (Pxui.Ui.carrying scope_ui = None) "the payload outlived its put";
+  let _, changes = scope_step view (frame ~mouse:over ~events:[ mouse_release (Input.LeftButton, over) ] ()) in
+  check (drops changes = []) "the release after a put reported a drop";
+  (* the marks of a carry paint without changing what the pane reports *)
+  let marked = Scope.with_carry ~lit:[ heart, "a" ] ~hot:(Some (heart, true)) view in
+  ignore (scope_step marked (frame ()))
+
 let scope_gestures () =
   let module E = Flow_sop.Flow_edit in
   let module S = Flow.Syntax in
@@ -555,7 +628,9 @@ let run_scope () =
   let _, changes = Scope.run_command (Scope.select [] view) Scope.Make_macro in
   check (match changes with [ Scope.Notice _ ] -> true | _ -> false) "m with nothing selected";
   scope_gestures ();
+  scope_carry ();
   scope_connection_hover ();
+  scope_pinch ();
   print_endline "pxui graph scope pane tests passed"
 
 (* Frame cost of the graph pane on Sunflower (240 iterations), expanded and

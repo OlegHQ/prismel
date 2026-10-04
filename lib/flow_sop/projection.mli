@@ -112,6 +112,10 @@ val bypassable : node -> bool
 (** A call whose first input fits its result, or one already bypassed: it can carry the
     [B] flag (the checker refuses the rest with [E_BYPASS]). *)
 
+(** A node whose positional inputs are an ordered list the user can move items in: a [list], a
+    [str] or a [scene/merge] (the order of the merge is the order of the scene). *)
+val reorderable : node -> bool
+
 val find : scope -> path -> node option
 (** The node at a path, searching zones. *)
 
