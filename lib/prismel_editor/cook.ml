@@ -322,10 +322,10 @@ let close value = Async_cook.close value.worker
    where the hit is [origin + t * direction]: the parameter, not the local distance, so hits of
    pieces and instances with any scale compare in the world's units.  A piece drawn as instances
    casts the ray into each instance's own frame (about 2 us each; per click, never per frame). *)
-let pick piece ~origin ~direction =
+let pick_by pick_hit piece ~origin ~direction =
   let cast ~origin ~direction =
-    Option.map (fun (distance, tag) -> distance /. Vec3.length direction, tag)
-      (Pick.cast (Lazy.force piece.surface) piece.output.geometry ~origin ~direction) in
+    Option.map (fun (distance, found) -> distance /. Vec3.length direction, found)
+      (pick_hit (Lazy.force piece.surface) piece.output.geometry ~origin ~direction) in
   match piece.output.instances with
   | None | Some [||] -> cast ~origin ~direction
   | Some transforms ->
@@ -337,3 +337,8 @@ let pick piece ~origin ~direction =
             | Some (t, _), Some (nearer, _) when t >= nearer -> best
             | (Some _ as hit), _ -> hit
             | None, _ -> best) None transforms
+
+let pick piece = pick_by Pick.cast piece
+
+(* the [shop_materialpath] of the nearest primitive under the ray (Alt-click) *)
+let pick_material piece = pick_by Pick.cast_material piece

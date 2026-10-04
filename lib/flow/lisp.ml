@@ -70,6 +70,21 @@ let is_vec x = match x.node with Vec _ -> true | _ -> false
 let is_map x = match x.node with Map _ -> true | _ -> false
 let bind_forms = ["let*"; "for"; "sum"]
 
+(* A call of a node kind (a head with a "/") whose first operand is a call of its own, as far down
+   as it goes: [(g (f x a) b)] prints [(-> x (f a) (g b))] from three calls up.  A form carrying
+   notes, flags or a tail stays nested, so nothing a reader wrote is lost.  Returns the start
+   and the steps (outermost last, each without its first operand). *)
+let threadable x = match x.node with
+  | List ({node = Sym h; _} :: first :: _) -> String.contains h '/' && not (is_kw first)
+  | _ -> false
+
+let rec spine x = match x.node with
+  | List (h :: first :: args) when threadable x && not (own x) ->
+      let start, steps =
+        if first.notes = [] && first.meta = [] then spine first else first, [] in
+      start, steps @ [{x with node = List (h :: args)}]
+  | _ -> x, []
+
 let rec pp x ind =
   let pre = meta_pre x in
   wrap x (pre ^ core x (ind + String.length pre))
@@ -129,6 +144,13 @@ and core x ind =
       let tail k col = line k col in
       let slots_plain n = no_notes (List.filteri (fun i _ -> i >= 1 && i < n) ks) in
       let special = List.mem hd ["graph"; "defn"; "defmacro"] in
+      let start, steps = spine x in
+      if List.length steps >= 3 && start.notes = [] then begin
+        let col = ind + 4 and last = List.length steps - 1 in
+        "(-> " ^ pp start col
+        ^ String.concat "" (List.mapi (fun i s ->
+            "\n" ^ sp col ^ (if i = last then core s col else pp s col)) steps) ^ ")"
+      end else
       if hd = "workspace" && len >= 2 && slots_plain 2 then
         "(workspace " ^ flat_ (nth ks 1)
         ^ String.concat "" (List.map (fun y ->

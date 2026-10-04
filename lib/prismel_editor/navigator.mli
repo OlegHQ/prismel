@@ -15,6 +15,8 @@ type intent =
   | Set_default of { graph : string; input : string; value : float; integer : bool }
       (** a graph input's default, dragged or typed in its slider *)
   | Macro of string  (** a macro row: its definition in the text pane *)
+  | Rename of { graph : string; to_ : string }  (** F2 on a graph row *)
+  | Remove of string  (** Delete on a graph row *)
 
 type state
 
@@ -35,6 +37,7 @@ type params = {
   probes : path -> int;  (** the iteration each zone shows *)
   selected : path list;
   shell : Editor_core.Panels.t option;  (** the applied editor graph's panel tree *)
+  chips : (string * Prismel.Color.t) list;  (** the evaluated colour of each material graph *)
 }
 
 type row
@@ -55,3 +58,10 @@ val describe : row -> string
 
 val view : state -> Pxui.Ui.t -> bounds:int * int * int * int -> params -> state * intent list
 (** Draw the panel in [bounds] (scrolling, searching, sliders). *)
+
+val jump_rows : Flow.Workspace.t -> (string * string) list
+(** Every graph with its outline group (Scene, Geometry, Materials, World, Layout, ...), in the
+    outline's order: what [Space j] filters. *)
+
+val chips : Flow.Eval.t -> (string * Prismel.Color.t) list
+(** The evaluated colour of each material graph (a vector or hex text; white when unset). *)

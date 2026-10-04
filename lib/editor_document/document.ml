@@ -54,6 +54,8 @@ type preview_source = {
   instance : Flow.Eval.value;
 }
 
+type switch = { layouts : Editor_core.Panels.t list; active : int }
+
 (* The lowered editor graph (plan W10): the shell tree, the origin of each named or
    looped panel (any other panel is inline), the graph a [(ui/graph "name")] shows
    and, for each viewport over a scene other than the default one, the scene objects
@@ -65,6 +67,7 @@ type shell = {
   wires : string option;
   views : (string * int list) list;
   preview_sources : (string * preview_source) list;
+  switch : switch option;  (* the first [ui/switch]: every layout it holds, and the active one *)
 }
 
 type t = {

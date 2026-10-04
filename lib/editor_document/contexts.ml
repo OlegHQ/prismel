@@ -479,7 +479,7 @@ let check_scene (workspace : Workspace_doc.t) (plan : E.plan) =
           refuse "E_SCENE_ROOT" (Printf.sprintf
             "Graph %s: a scene/root is wired into a merge or another root. A root renders the scene, so it is always last." g.name)
         else
-          let* worlds = graph_calls ~want:(fun k -> k = "scene/world") ~below:scene_below plan W.Scene g in
+          let* worlds = graph_calls ~want:(fun k -> k = "scene/world" || k = "scene/root") ~below:scene_below plan W.Scene g in
           let worlds = List.filter (fun (c : call) -> c.kind = "scene/world") worlds in
           let name (c : call) = Document.describe workspace.source c.home in
           (match worlds with
@@ -604,14 +604,15 @@ module Panels = Editor_core.Panels
 
 type editor = { tree : Panels.t; origins : (Panels.path * Document.origin) list;
                 named : string option; wires : string option; viewports : (string * E.value) list;
-                preview_sources : (string * Document.preview_source) list }
+                preview_sources : (string * Document.preview_source) list;
+                switch : Document.switch option }
 
 let viewport_key path = "v" ^ String.concat "." (List.map string_of_int path)
 
 (* The tree of a [ui/workspace] value, with the graph a [ui/graph] names and the scene
    of each viewport; the origins come from walking the terms beside the values. *)
 let panel_tree root =
-  let graph = ref None and wires = ref None and viewports = ref [] in
+  let graph = ref None and wires = ref None and viewports = ref [] and switch = ref None in
   let arg name args = match List.assoc_opt name args with
     | Some v -> Ok v | None -> Error (diag "E_LOWER" ("A panel is missing its " ^ name ^ ".")) in
   let axis = function E.Text "vertical" -> `V | _ -> `H in
@@ -649,10 +650,26 @@ let panel_tree root =
     | E.Struct ("ui/floating", args) ->
         let* p = arg "panel" args in
         let* t = go (0 :: path) p in Ok (Panels.Float t)
+    (* a switch is transparent: its active layout sits at the switch's own place in the tree, and
+       a layout that is not showing registers nothing but its shape *)
+    | E.Struct ("ui/switch", args) ->
+        let active = match List.assoc_opt "active" args with Some (E.Int n) -> n | _ -> 0 in
+        let first = !switch = None in
+        if first then switch := Some { Document.layouts = []; active };
+        let kids = List.filter_map (fun (n, v) -> if n = "active" then None else Some v) args in
+        let* trees = List.fold_left (fun acc (i, kid) ->
+          let* acc = acc in
+          let saved = !graph, !wires, !viewports in
+          let* tree = go path kid in
+          if i <> active then (let g, w, v = saved in graph := g; wires := w; viewports := v);
+          Ok (tree :: acc)) (Ok []) (List.mapi (fun i k -> i, k) kids) in
+        let trees = List.rev trees in
+        if first then switch := Some { Document.layouts = trees; active };
+        Ok (List.nth trees active)
     | _ -> Error (diag "E_LOWER" "The editor graph returns a (ui/workspace ...) of panels.") in
   let* tree = go [] root in
   let* () = Result.map_error (diag "E_RANGE") (Panels.valid tree) in
-  Ok (tree, !graph, !wires, List.rev !viewports)
+  Ok (tree, !graph, !wires, List.rev !viewports, !switch)
 
 (* Which panels are named: the terms of the graph beside its value. *)
 let origins (graph : W.graph) value =
@@ -687,6 +704,16 @@ let origins (graph : W.graph) value =
               inline h (i :: path) k a;
               walk (Some (h, k)) (i :: path) a va
           | _ -> ()) [ "first"; "second" ]
+    | W.Op { op = "ui/switch"; args; _ }, E.Struct (_, vargs) ->
+        (* transparent: the active layout is found at the switch's own path *)
+        let h = here () in
+        let layouts l = List.filter (fun (n, _) -> n <> "active") l in
+        let active = match List.assoc_opt "active" vargs with Some (E.Int n) -> n | _ -> 0 in
+        (match List.nth_opt (layouts args) active, List.nth_opt (layouts vargs) active with
+         | Some (_, a), Some (_, va) ->
+             inline h path (pos active) a;
+             walk (Some (h, pos active)) path a va
+         | _ -> ())
     | W.Op { op = "ui/floating"; args = [ _, a ]; _ }, E.Struct (_, [ _, va ]) ->
         let h = here () in
         inline h (0 :: path) (pos 0) a;
@@ -711,7 +738,7 @@ let editor (workspace : Workspace_doc.t) (plan : E.plan) =
   match value with
   | None -> Ok None
   | Some (E.Struct ("ui/workspace", [ _, root ]) as whole) ->
-      let* tree, graph, wires, viewports = panel_tree root in
+      let* tree, graph, wires, viewports, switch = panel_tree root in
       let g = Option.get (Workspace_doc.editor_graph workspace) in
       let origins = origins g whole in
       let leaves = Panels.leaves tree |> List.filter_map (function
@@ -744,7 +771,7 @@ let editor (workspace : Workspace_doc.t) (plan : E.plan) =
           scene_ref = Option.bind panel_form (fun form -> F.arg_of form (F.Pos 0));
           instance = List.assoc old viewports}) leaves in
       Ok (Some { tree = remap tree; origins; named = graph; wires;
-        viewports = List.map (fun (old, scene) -> key old, scene) viewports; preview_sources })
+        viewports = List.map (fun (old, scene) -> key old, scene) viewports; preview_sources; switch })
   | Some _ -> Error (diag "E_LOWER" "The editor graph returns a (ui/workspace ...).")
 
 (* ---- the document of a workspace ---- *)
@@ -815,12 +842,12 @@ let of_workspace ~factories ?previous (workspace : Workspace_doc.t) =
   let scene_world = List.find_opt (fun item -> item.group = None && Edit.factory_operation item.factory = "world") items in
   let owned operation = operation = "geometry"
     || (has_scene && (operation <> "world" || scene_world <> None)) in
-  let* world, layers = if scene_world <> None then Ok (None, []) else
+  let* world, layers, orphan = if scene_world <> None then Ok (None, [], false) else
     let* stack = calls ~want:is_world_kind ~below:world_below workspace lowered.plan Flow.Workspace.World in
     match List.rev stack with
-    | [] -> Ok (None, [])
-    | { kind = "world/world"; _ } as world :: layers -> Ok (Some world, List.rev layers)
-    | _ -> Error (diag "E_LOWER" "A world graph is referenced by a (scene/world (ref name)), or returns a (world/world ...) call.") in
+    | [] -> Ok (None, [], false)
+    | { kind = "world/world"; _ } as world :: layers -> Ok (Some world, List.rev layers, false)
+    | _ -> Ok (None, [], true)  (* layers no [scene/world] references: the scene has no World of it *) in
   (* claim or create a node per item, then drop the owned nodes nothing claimed *)
   let* graph, used, objects = List.fold_left (fun state item ->
     let* graph, used, objects = state in
@@ -864,7 +891,7 @@ let of_workspace ~factories ?previous (workspace : Workspace_doc.t) =
         Ok (graph, Some id, Some network, made)
     | None ->
         (* a world graph that returns no World removes the host's *)
-        let gone = if has_world then Objects.ids "world" graph else [] in
+        let gone = if has_world && not orphan then Objects.ids "world" graph else [] in
         Ok (Edit.remove_nodes gone graph, None, None, [])
     | Some { args; home; _ } ->
         let factory = Layers.Settings.factory in
@@ -945,7 +972,8 @@ let of_workspace ~factories ?previous (workspace : Workspace_doc.t) =
     Document.Int_map.empty objects in
   Ok { Document.scene; networks; active_camera; root = root.params; settings; scene_drives;
        shell = Option.map (fun e -> { Document.tree = e.tree; origins = e.origins;
-                                      named = e.named; wires = e.wires; views; preview_sources = e.preview_sources }) editor;
+                                      named = e.named; wires = e.wires; views; preview_sources = e.preview_sources;
+                                      switch = e.switch }) editor;
        homes; workspace = (workspace, lowered) }
 
 (* Only the recorded live fields run; SOP networks, source and panel identities

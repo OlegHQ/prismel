@@ -48,6 +48,18 @@ let syntax_edit_result ~factories (doc : Editor_document.Document.t) op =
 let syntax_edit ~factories (doc : Editor_document.Document.t) op =
   Result.map_error Flow.Diagnostic.to_string (syntax_edit_result ~factories doc op)
 
+(* Several rewrites, one gesture: all or none.  The host's own objects are written out first
+   when the batch adds to a scene graph the document does not have yet. *)
+let syntax_batch ~factories (doc : Editor_document.Document.t) ops =
+  let adds_to_scene = List.exists (function
+    | Flow_sop.Flow_edit.Add_node { scope = [ "scene" ]; _ } -> true | _ -> false) ops in
+  let missing = not (List.exists (fun (g : Flow.Workspace.graph) -> g.name = "scene")
+    (fst doc.workspace).checked.graphs) in
+  let first = if adds_to_scene && missing then Editor_document.Scene_sync.adopt ~factories ~world:false doc
+    else Ok doc in
+  List.fold_left (fun doc op -> Result.bind doc (fun doc -> syntax_edit ~factories doc op))
+    (Result.map_error Fun.id first) ops
+
 (* The whole workspace text, edited (plan W7): parsed and checked as a
    document, lowered, atomic. *)
 let text_edit ~factories (doc : Editor_document.Document.t) text =

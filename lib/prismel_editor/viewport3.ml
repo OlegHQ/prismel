@@ -23,6 +23,8 @@ type show = { cameras : bool; axes : bool; handles : bool }
 type extra = { look_through : bool; fly : float option; relative_grab : bool; render_camera : Camera.t;
                free_view : Camera.t; viewing : Easy_camera.t;  (* the orbit camera [free_view] shows *)
                render : Objects.Root.render;
+               root : Objects.Root.parameters;  (* the root's settings, the renderer as shown *)
+               root_request : Objects.Root.parameters option;  (* the Render section's edit *)
                following : bool option;  (* the ACTIVE camera follows the viewport *)
                follow_request : bool option;  (* the Viewport panel's toggle, applied on the next update *)
                written : Camera.t option;  (* the view the viewport last wrote to the camera node *)
@@ -119,6 +121,15 @@ let free_view_of ~render_camera ~previous camera =
 
 let render_of core = Objects.Root.render core.Core.doc.root
 
+(* the renderer the document's root names, when its text has a root *)
+let of_root = function
+  | Objects.Root.Raster -> Renderer.Raster | Wireframe -> Renderer.Wireframe
+  | Path_traced -> Renderer.Path_traced
+let to_root = function
+  | Renderer.Raster -> Objects.Root.Raster | Wireframe -> Wireframe | Path_traced -> Path_traced
+let root_renderer core =
+  if core.Core.doc.homes.root = None then None else Some (of_root core.doc.root.renderer)
+
 let renderer_setting core = List.find_map (fun (field : Parameter.field_view) ->
   match field.name, field.current with
   | "renderer", Parameter.Choice_value label -> Renderer.of_label label
@@ -129,12 +140,14 @@ let init core camera =
   let render_camera = render_camera_of core camera in
   core, { look_through = false; fly = None; relative_grab = false; render_camera;
           free_view = free_view_of ~render_camera ~previous:None camera; viewing = camera;
-          render = render_of core; following = Option.map follows (active_node core);
+          render = render_of core; root = core.doc.root; root_request = None;
+          following = Option.map follows (active_node core);
           follow_request = None; written = None;
           show = { cameras = true; axes = true; handles = true }; tool = Move;
-          renderer = {Renderer.empty with mode = Option.value (renderer_setting core)
+          renderer = {Renderer.empty with mode = Option.value
+            (match root_renderer core with Some mode -> Some mode | None -> renderer_setting core)
             ~default:Renderer.Raster;
-            custom = renderer_setting core <> None}; renderer_request = None }
+            custom = root_renderer core = None && renderer_setting core <> None}; renderer_request = None }
 
 let begin_frame extra frame = match extra.fly with
   | None ->
@@ -163,12 +176,12 @@ let panel ui ~control ~camera ~extra ~inspector =
         let handles = toggle "Selected node handles" extra.show.handles in
         { extra with look_through; follow_request; show = { cameras; axes; handles } })) in
   let control, camera, requests = CC.widgets control ui ~camera in
-  let mode = Option.value ~default:extra.renderer.mode
-    (Pxui.Ui.inspector_section ui ~key:"renderer-section" ~expanded:true "Renderer" (fun () ->
-      match Pxui_shell.Inspector.record ui Renderer.schema extra.renderer.mode with
-      | Ok (mode, _) -> mode | Error _ -> extra.renderer.mode)) in
-  let extra = if mode = extra.renderer.mode then extra
-    else {extra with renderer_request = Some mode} in
+  (* the scene's root: renderer, size and samples *)
+  let root = Option.value ~default:extra.root
+    (Pxui.Ui.inspector_section ui ~key:"renderer-section" ~expanded:true "Scene root" (fun () ->
+      match Pxui_shell.Inspector.record ui Objects.Root.parameters_schema extra.root with
+      | Ok (root, _) -> root | Error _ -> extra.root)) in
+  let extra = if root = extra.root then extra else {extra with root_request = Some root} in
   control, camera, requests, extra, inspector ui
 
 let section camera extra =
@@ -234,7 +247,16 @@ let frame_bounds ~viewport:_ ~min ~max camera = Easy_camera.frame_bounds ~min ~m
 (* Follow-viewport motion changes the camera node in the same undo burst;
    node edits and undo pull the viewport back to the document. *)
 let on_view core ~previous camera extra ~time =
+  (* a change in the Render section: an authored root takes it; without one only the renderer
+     is the viewport's own choice, and any other setting writes the root *)
+  let core, extra = match extra.root_request with
+    | None -> core, extra
+    | Some root when root_renderer core = None
+        && { root with renderer = core.Core.doc.root.renderer } = core.doc.root ->
+        core, { extra with root_request = None; renderer_request = Some (of_root root.renderer) }
+    | Some root -> Core.set_root core root, { extra with root_request = None } in
   let core, mode = match extra.renderer_request, renderer_setting core with
+    | _ when root_renderer core <> None -> core, Option.get (root_renderer core)
     | Some mode, Some current when mode = current -> core, mode
     | Some mode, Some _ ->
         (match Settings.apply (Core.settings core) ["renderer", Parameter.Choice_value (Renderer.label mode)] with
@@ -243,8 +265,9 @@ let on_view core ~previous camera extra ~time =
     | Some mode, None -> core, mode
     | None, Some mode -> core, mode
     | None, None -> core, extra.renderer.mode in
-  let extra = {extra with renderer = {extra.renderer with mode; custom = renderer_setting core <> None};
-    renderer_request = None} in
+  let extra = {extra with renderer = {extra.renderer with mode;
+      custom = root_renderer core = None && renderer_setting core <> None};
+    renderer_request = None; root = { core.Core.doc.root with renderer = to_root mode } } in
   let core = match extra.follow_request, active_node core with
     | Some value, Some node ->
         Core.edit_node core Document.Scene (Node.id node)
@@ -315,7 +338,8 @@ let render extra views =
     List.map (fun (key, (x, y, _, _), camera, scene) ->
       key, (x, y, extra.render.width, extra.render.height), camera, scene) views in
   {extra with renderer = Renderer.update extra.renderer
-    ~mode:extra.renderer.mode ~custom:extra.renderer.custom views}
+    ~mode:extra.renderer.mode ~custom:extra.renderer.custom ~bounces:extra.root.bounces
+    ~round_samples:extra.root.round_samples views}
 let render_status extra = extra.renderer.error
 let paint extra ~key viewport camera rendered = Renderer.paint extra.renderer ~key viewport camera rendered
 

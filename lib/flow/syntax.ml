@@ -140,9 +140,24 @@ let parse source =
     let token = peek () in
     let finish tail =
       let items = List.rev reversed in
+      let span = {Diagnostic.start = opening.span.start; finish = token.span.finish} in
       let node = match c with '(' -> List items | '[' -> Vec items | _ -> Map items in
-      Ok {id; node; notes; meta = []; tail;
-        span = {start = opening.span.start; finish = token.span.finish}} in
+      let whole = {id; node; notes; meta = []; tail; span} in
+      match c, items with
+      | '(', {node = Sym "->"; _} :: [] -> error opening "E_THREAD" "-> needs a value to thread"
+      | '(', {node = Sym "->"; _} :: x :: steps ->
+          (* (-> x (f a) (g b)) is (g (f x a) b); the steps keep their own ids and spans *)
+          let step acc (s : t) = match s.node with
+            | List (h :: args) when (match h.node with Sym _ -> true | _ -> false) ->
+                Ok {s with node = List (h :: acc :: args)}
+            | _ -> fail source s.span.start s.span.finish "E_THREAD"
+                "A -> step is a call, as in (sop/normals :cusp_angle 0.6)" in
+          let rec fold acc = function
+            | [] -> Ok acc
+            | [last] -> Result.map (fun r -> {r with id; notes = notes @ r.notes; tail = tail @ r.tail; span}) (step acc last)
+            | s :: rest -> let* acc = step acc s in fold acc rest in
+          if steps = [] then Ok {x with notes = notes @ x.notes} else fold x steps
+      | _ -> Ok whole in
     match token.kind with
     | Close actual when actual = close_of c -> ignore (take ()); finish leading
     | Close actual -> error token "E_UNEXPECTED"

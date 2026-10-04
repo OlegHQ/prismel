@@ -635,6 +635,26 @@ let overlapping_renderers () =
     check (List.nth pictures 1 <> List.nth pictures 2)
       "coincident floating bounds made two renderers paint the same slot")
 
+(* the viewport reads the renderer and the render settings from the scene's root, which wins over
+   a viewport request; without a root the request stands *)
+let root_viewport () =
+  let ws = workspace {|(workspace rooted
+    (graph g :context sop (sop/box))
+    (graph scene :context scene
+      (scene/root (scene/merge (scene/geometry (ref g)))
+        :renderer "Wireframe" :width 800 :height 600 :max_spp 32)))|} in
+  with_editor ws (fun e ->
+    e := step !e 2;
+    check (E.renderer !e = Prismel_editor.Renderer.Wireframe) "the viewport did not take the root's renderer";
+    let settings = E.render_settings !e in
+    check (settings.width = 800 && settings.height = 600 && settings.max_spp = 32)
+      "the render settings are not the root's";
+    e := step (E.set_renderer !e Prismel_editor.Renderer.Raster) 3;
+    check (E.renderer !e = Prismel_editor.Renderer.Wireframe) "a viewport request overrode the root's renderer");
+  with_editor (workspace plain) (fun e ->
+    e := step (E.set_renderer !e Prismel_editor.Renderer.Wireframe) 2;
+    check (E.renderer !e = Prismel_editor.Renderer.Wireframe) "without a root the viewport request stands")
+
 let stale_inspector_draft () = with_dir (fun presets ->
   let factories = Test_editor_transactions.factory :: factories in
   let ws = Ws_fixture.of_text ~factories {|(workspace drafts
@@ -845,6 +865,7 @@ let run () =
      "focused viewport framing", focused_framing;
      "named graph handles", named_handles;
      "stale inspector draft", stale_inspector_draft;
+     "root renderer and render settings", root_viewport;
      "renderer failure modes", failed_renderer_modes;
      "overlapping renderers", overlapping_renderers;
      "camera Enter and row menu", enter_camera;

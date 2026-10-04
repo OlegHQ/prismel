@@ -407,6 +407,13 @@ let check_struct name args =
   | "ui/tile" ->
       let n = List.length args in
       if n < 1 || n > 16 then range_error "A tile holds 1–16 panels."
+  | "ui/switch" ->
+      let n = List.length (List.filter (fun (k, _) -> k <> "active") args) in
+      if n < 1 || n > 16 then range_error "A switch holds 1–16 layouts.";
+      (match get "active" with
+       | Some v -> conc (fun v -> let a = num v in
+                          if a < 0. || a >= float n then range_error "The active layout is 0 to the layout count minus one.") v
+       | None -> ())
   | _ -> ()
 
 (* ---- compiled residuals ----

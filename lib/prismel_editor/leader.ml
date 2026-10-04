@@ -15,6 +15,12 @@ type action =
   | Toggle_map  (* Space m: in the World, the view pane flips to the lat-long map *)
   | Ui_scale of int  (* Command +/-/0: the kit text of every panel but the graph and viewports *)
   | Restore_layout | Enter | Up | Go_world
+  | Peek  (* I: the followed graph in a floating window *)
+  | Jump  (* Space j: a filter over every graph *)
+  | Layout_switch of int | Layout_new | Layout_remove
+      (* Space [ 0..9, n, x: the layouts of the editor graph's switch *)
+  | Window_new of Pxui_shell.Layout.panel | Float_toggle
+      (* Space n g/l/t/i/u/m/w: a floating window in the active layout; Space o f floats or docks the focused panel *)
   | World_emit | World_reseed | World_time of float | World_play | World_preset of int
   | Scope_command of Pxui_graph.Scope.command  (* the workspace pane, see [Core.scope_name] *)
   | List_command of Pxui_shell.Tree.command
@@ -69,6 +75,23 @@ let keymap = [
   command ~id:"panel.split-below" ~label:"split panel, stacked" ~trigger:(Leader "ov")
     (Panel_split `V);
   command ~id:"panel.close" ~label:"close panel" ~trigger:(Leader "ox") Panel_close;
+  command ~id:"panel.float" ~label:"float / dock panel" ~trigger:(Leader "of") Float_toggle;
+  (* Space [: the first nine rows are the layouts, named from their panels when which-key draws *)
+]
+@ List.init 10 (fun i ->
+  command ~id:("layout." ^ string_of_int i) ~label:"layout" ~trigger:(Leader ("[" ^ string_of_int i))
+    (Layout_switch i))
+@ [
+  command ~id:"layout.new" ~label:"layout: new, from this one" ~trigger:(Leader "[n") Layout_new;
+  command ~id:"layout.remove" ~label:"layout: remove this one" ~trigger:(Leader "[x") Layout_remove;
+  (* Space n: a floating window of the kind Space l would make *)
+  command ~id:"window.graph" ~label:"window: graph" ~trigger:(Leader "ng") (Window_new Graph);
+  command ~id:"window.list" ~label:"window: list" ~trigger:(Leader "nl") (Window_new List);
+  command ~id:"window.lisp" ~label:"window: lisp text" ~trigger:(Leader "nt") (Window_new Lisp);
+  command ~id:"window.inspector" ~label:"window: inspector" ~trigger:(Leader "ni") (Window_new Inspector);
+  command ~id:"window.outline" ~label:"window: outline" ~trigger:(Leader "nu") (Window_new Outline);
+  command ~id:"window.timeline" ~label:"window: timeline" ~trigger:(Leader "nm") (Window_new Timeline);
+  command ~id:"window.viewport" ~label:"window: viewport" ~trigger:(Leader "nw") (Window_new (View ""));
   (* Space l: the focused panel becomes one of the kinds (a document without an editor graph
      gets one written from its layout first) *)
   command ~id:"panel.graph" ~label:"panel: graph" ~trigger:(Leader "lg") (Panel_retype Graph);
@@ -105,9 +128,12 @@ let keymap = [
     ~trigger:(Chord (Input.KeyChar (Char.chr (Char.code '1' + index)), []))
     ~scope:graph (World_preset index)) World.presets
 @ [
-  command ~guide:Editor_core.Guide_context.[Node; List] ~id:"scene.enter" ~label:"enter object"
+  command ~guide:Editor_core.Guide_context.[Node; List] ~id:"scene.enter" ~label:"follow / enter"
     ~trigger:(Chord (Input.KeyChar 'i', [])) Enter;
-  command ~guide:Editor_core.Guide_context.[Canvas; Node; Multi; List] ~id:"scene.up" ~label:"up a level"
+  command ~guide:Editor_core.Guide_context.[Node; List] ~id:"scene.peek" ~label:"peek (floating graph)"
+    ~trigger:(Chord (Input.KeyChar 'i', [Input.Shift])) Peek;
+  command ~id:"scene.jump" ~label:"jump to graph" ~trigger:(Leader "j") Jump;
+  command ~guide:Editor_core.Guide_context.[Canvas; Node; Multi; List] ~id:"scene.up" ~label:"back (up a level)"
     ~trigger:(Chord (Input.KeyChar 'u', [])) Up;
   (* Rare: the graph context menu and the palette, no leader key. *)
   command ~id:"graph.frame-tile" ~label:"frame displayed tile" ~trigger:(Leader "f")

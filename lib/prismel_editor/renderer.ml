@@ -47,9 +47,10 @@ type cached_mesh = { source : Mesh.t; material : Material.t; geometry : Pdk.Geom
                      traced : P.mesh }
 type slot = { key : string; bounds : Pxui_shell.Layout.bounds; scene : Scene3.t;
               wire : Scene3.t option; tracer : P.t option }
+(* [tracing]: the bounces and round-corner samples the tracers were made with (the root's) *)
 type state = { mode : t; custom : bool; slots : slot list; meshes : cached_mesh list;
-               error : string option }
-let empty = { mode = Raster; custom = false; slots = []; meshes = []; error = None }
+               error : string option; tracing : int * int }
+let empty = { mode = Raster; custom = false; slots = []; meshes = []; error = None; tracing = 4, 4 }
 let close state = List.iter (fun slot -> Option.iter P.destroy slot.tracer) state.slots
 
 let linear (color : Color.t) = P.Linear_color.rgb
@@ -97,9 +98,11 @@ let traced_scene meshes scene =
   let* mesh = P.scene_mesh (List.rev placed) in
   Ok (!cache, mesh)
 
-let update state ~mode ~custom views =
+let update state ~mode ~custom ~bounces ~round_samples views =
+  let state = if state.tracing = (bounces, round_samples) then state
+    else begin close state; { state with slots = []; tracing = bounces, round_samples } end in
   if custom || mode = Raster then begin
-    close state; { empty with mode; custom }
+    close state; { empty with mode; custom; tracing = bounces, round_samples }
   end else if List.length views > 16 then begin
     close state; { empty with mode; error = Some "At most 16 viewports can render together." }
   end else
@@ -127,7 +130,7 @@ let update state ~mode ~custom views =
             | Some tracer -> Ok tracer
             | None ->
                 let first = List.hd cache in
-                let* tracer = P.create ~bounces:4 ~width:(max 1 width) ~height:(max 1 height)
+                let* tracer = P.create ~bounces ~round_samples ~width:(max 1 width) ~height:(max 1 height)
                   {P.objects = [first.geometry, traced_material first.material]; spheres = []; strands = [];
                    environment = {sky = linear (Color.rgb 130 145 170);
                      ground = linear (Color.rgb 80 80 80); panels = []}; lights = []} in
@@ -151,7 +154,7 @@ let update state ~mode ~custom views =
     List.iter (fun previous -> Option.iter (fun tracer ->
       if not (List.exists (fun slot -> Option.fold ~none:false ~some:(fun t -> t == tracer) slot.tracer) slots) then P.destroy tracer)
       previous.tracer) state.slots;
-    {mode; custom; slots; meshes = !meshes;
+    {mode; custom; slots; meshes = !meshes; tracing = bounces, round_samples;
      error = if !errors = [] then None else Some (String.concat "; " (List.rev !errors))}
 
 let paint state ~key bounds camera scene =

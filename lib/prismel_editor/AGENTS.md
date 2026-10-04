@@ -115,6 +115,25 @@ supported; source/history are unchanged when an edit is refused.
 - Tests never wait on the clock for a cook: `Editor3/2.create ~await:true` blocks each frame on the cook it
   submits; bounded frame counts replace deadlines; deadlines left are failure bounds only.
 
+## Follow and back
+
+`i` follows the reference of the node selected in the graph pane (`Core.follow_target`: a `sop/material`
+reads its `:material`, else the first `(ref name)` argument), `I` opens it in a floating graph
+(`Layout_window` with kind `graph:name`), `Space j` jumps to any graph, Alt-click in a viewport follows
+the surface's `shop_materialpath` (`Cook.pick_material`), a double-click on a node body is
+`Scope.Activated`. Every follow goes through `Core.go`, which pushes `(level, pane_graph)` on
+`Core.back`; `u` pops it (empty: up to the scene). `Core.route` is the header breadcrumb and the
+crash dump's `route:` line. Rename and remove of a graph are `Flow_edit.Rename_graph`/`Remove_graph`.
+
+## Layouts and windows
+
+`(ui/switch panel... :active n)` holds the layouts of one editor graph; `Contexts` lowers it
+transparently (the active layout is the tree, `Document.shell.switch` has every layout). Layout names
+are `Editor_core.Panels.label`/`labels`, never stored. `Space [` (which-key rows `layout.0`..`layout.9`
+are relabelled in `Core.routed`), `Space n` + kind and `Space o f` reduce to `Flow_edit.Set_layout`,
+`Layout_new`, `Layout_remove`, `Layout_window` and `Layout_float` on the editor graph at the root of
+the workspace; `Set_layout` merges into one `Burst` history entry. See `specification/workspace/iteration.md`.
+
 ## Adapters
 
 `pxui_graph` and `Pxui_shell.Inspector` are presentation adapters, not graph authorities:
@@ -357,3 +376,9 @@ graph of each shell layout (the `Set_graph` text), `Bars.top_button_rect` and `t
 button's place for the draw and for tests. Make defn (`Flow_edit.Make_defn`) is typed by `Core.defn_change`.
 The bar's "Refused · ..." status is a click target (`Bars.Dismiss` clears `edit_error`); a later successful
 edit clears it too.
+
+The viewport reads the renderer, resolution and samples from the scene root (`Document.root`):
+`Viewport3` takes the root's renderer when its text has a root (`homes.root`), else the sketch's
+`renderer` setting or the viewport preference; the Render section of the empty-selection inspector
+edits the root through `Core.set_root` (the first edit writes it).  A composition gesture that
+writes several things (a SOP graph and its object) is one `Syntax_batch` and one undo entry.

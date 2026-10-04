@@ -61,7 +61,7 @@ let run () =
   let ws = E3.workspace !e in
   let params ?(active = "flower") scope : N.params = { workspace = ws.Doc.checked; title = ws.checked.name;
     active = Some active; scope; records = None; probes = (fun _ -> 0); selected = [];
-    shell = Some (shell ()).tree } in
+    shell = Some (shell ()).tree; chips = [] } in
   let scope = Some (Flow_sop.Projection.of_graph catalog ws.checked "flower") in
   let lines = Array.to_list (Array.map N.describe (N.rows N.initial (params scope))) in
   let listed text = List.exists (fun l -> has l text) lines in
@@ -135,7 +135,8 @@ let run () =
     "a search shows the matching bindings";
   (* the toolbar: Defn makes a reusable function from the selection, as the D key does *)
   let header = (graph_leaf ()).header in
-  let from = Bars.tools_from "Graph network  flower" in
+  (* the header names the route taken, scene > flower after the clicks above *)
+  let from = Bars.tools_from ("Graph network  " ^ dump_line !e "route") in
   let tool t = match Bars.tool_rect ~header ~from t with
     | Some (x, y, w, h) -> x +. (w /. 2.), y +. (h /. 2.) | None -> fail "the toolbar is cut off" in
   let before = source !e in

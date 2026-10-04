@@ -9,7 +9,8 @@
 (test
  (name test_materials)
  (modules test_materials)
- (libraries prismel procedural pdk sketch_support prismel_editor sop_catalog flow))
+ (libraries prismel procedural pdk pdk_prismel sketch_support prismel_editor sop_catalog flow
+  flow_sop editor_document pxui_shell))
 
 (test
  (name test_shattered_studio)
@@ -88,6 +89,7 @@
 
 (rule
  (aliases runtest test_scene_sync)
+ (deps (glob_files_rec ../sketches/*.plisp))
  (action (run %{exe:test_main.exe} test_scene_sync)))
 
 (rule

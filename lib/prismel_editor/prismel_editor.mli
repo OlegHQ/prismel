@@ -82,7 +82,8 @@ module Private : sig
       | Look_through | Look_through_camera | Fly | Tool of int
       | Undo | Redo
       | Panel_split of Pxui_shell.Layout.axis | Panel_close | Panel_retype of Pxui_shell.Layout.panel
-      | Toggle_map | Ui_scale of int | Restore_layout | Enter | Up | Go_world
+      | Toggle_map | Ui_scale of int | Restore_layout | Enter | Up | Go_world | Peek | Jump
+      | Layout_switch of int | Layout_new | Layout_remove | Window_new of Editor_core.Panels.panel | Float_toggle
       | World_emit | World_reseed | World_time of float | World_play | World_preset of int
       | Scope_command of Pxui_graph.Scope.command
       | List_command of Pxui_shell.Tree.command
@@ -218,8 +219,10 @@ module Private : sig
       probes : string list -> int;
       selected : string list list;
       shell : Editor_core.Panels.t option;
+      chips : (string * Prismel.Color.t) list;
     }
     type row
+    val chips : Flow.Eval.t -> (string * Prismel.Color.t) list
     val rows : state -> params -> row array
     val describe : row -> string
     val row_rects : ?row_height:int -> state -> params -> bounds:int * int * int * int ->
@@ -415,7 +418,8 @@ module Editor3 : sig
   val set_renderer : 'prepared t -> Renderer.t -> 'prepared t
   (** Every 3D editor offers raster, wireframe and path tracing in its inspector.
       [set_renderer] applies at the next update. The choice is saved with viewport
-      state, and uses a sketch's renderer setting when it supplies one. *)
+      state, and uses a sketch's renderer setting when it supplies one. A
+      [scene/root] in the workspace text names the renderer and wins over both. *)
 
   val render_camera : 'prepared t -> Prismel.Camera.t
   (** The ACTIVE camera object's view and lens (the viewport camera when the
@@ -428,9 +432,9 @@ module Editor3 : sig
   type render_settings = { width : int; height : int; max_spp : int }
 
   val render_settings : 'prepared t -> render_settings
-  (** The ACTIVE camera object's Render folder: output resolution in pixels
-      (its aspect also frames look-through) and the samples per pixel at
-      which a sketch's progressive renderer stops. *)
+  (** The scene root's output resolution in pixels (its aspect also frames
+      look-through) and the samples per pixel at which a sketch's progressive
+      renderer stops; the defaults when the scene graph has no [scene/root]. *)
 
   val film : 'prepared t -> Prismel.Frame.t -> int * int * int * int
   (** The rect inside the view pane (pane-relative) that the render fills:

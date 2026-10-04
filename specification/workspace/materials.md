@@ -39,10 +39,44 @@ piece before the material split, so face groups cannot tear a shard apart.
 Packed instance transforms are preserved. Unsupported curve materials return
 an error; ordinary curve and point previews remain supported.
 
+## Reaching and making materials in the editor
+
+The outline (Navigator) groups graphs by `:context`: Scene, Geometry, Materials, World, Layout
+(then Settings and Values when present); reusable functions and macros keep their own section. A
+material row shows its evaluated colour as a chip (a vector or hex text; white when unset) and
+`×N`, the number of graphs reading it. A material or SOP graph nothing reads is dimmed and says
+`unused`. The open graph lists what it reads and what reads it as click targets. Typing in the
+search field filters across every group. F2 over a graph row renames it and every `(ref ...)` to
+it in one `Flow_edit.Rename_graph` (one undo entry; a taken name is refused). Delete over a row
+is `Remove_graph`, refused naming the readers while a `(ref ...)` still reads it.
+
+Making: `Space a` at the scene offers **Material** (a new `material` graph, opened; one
+"New material" entry); in a SOP graph it offers **Material of...**, a `sop/material` node after
+the selection with `:material (ref name)` filled. The inspector shows `:material` as a choice of
+the material graphs plus "new material" (the graph and the reference, one entry).
+
+Following (one key for every reference, one key back):
+
+| From | Gesture | Lands in |
+|---|---|---|
+| a selected node holding `(ref name)` (a `sop/material`: its `:material`) | `i`, or double-click its body | that graph |
+| a selected node holding `(ref name)` | `I` | the graph in a floating window, `(ui/floating (ui/graph "name"))` |
+| a surface in the viewport | Alt-click | the material graph of that primitive (`shop_materialpath`: the graph of that name, else the one whose `:name` it is) |
+| anywhere | `Space j` | a filter over every graph, grouped like the outline; no outline panel needed |
+| an outline row, a pick, a new material | click | the graph |
+| any of the above | `u` | where you were |
+
+Every follow pushes the level and shown graph onto a back stack (32 deep); `u` pops it, and with
+an empty stack goes up to the scene as before. The graph header shows the last three steps of
+the route, `scene > shards > cobalt`. Not done: Command-click on a `(ref ...)` in the text pane,
+dropping an outline row onto a node or a surface, and colour chips inside the inspector choice.
+
 `sketches/shattered_studio/sketch.plisp` uses 12 noisy sheet cutters for a
 Boolean fracture, with piece-seeded groups and four referenced surfaces.
 `test/test_materials.ml` covers references, group preservation, render batches,
-invalid input, cancellation, and exact domain-count equality.
+invalid input, cancellation, and exact domain-count equality, then the editor: outline groups,
+chips and use counts, `Space j`, follow and back, double-click, `I`, Alt-click, rename with its
+refs, refusal to delete a read material, and `Space a` Material / Material of....
 `test/test_shattered_studio.ml` checks this particular fracture's closed
 manifold pieces, volume conservation, material batches, and domain equality.
 

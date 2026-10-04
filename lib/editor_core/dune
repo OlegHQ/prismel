@@ -13,3 +13,8 @@
  (name test_store)
  (modules test_store)
  (libraries editor_core prismel flow unix))
+
+(test
+ (name test_panels)
+ (modules test_panels)
+ (libraries editor_core))

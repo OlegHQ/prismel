@@ -2624,7 +2624,7 @@ let scrubbed literal dx ~coarse =
   | None, None -> literal
 
 let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors = []) ?(spans = [])
-    ?reveal ?language ?on_context ?on_scrub label text =
+    ?reveal ?language ?on_context ?on_scrub ?on_click ?on_caret ?(chips = []) label text =
   let row = float ui.kit_row_height in
   let body = box ui
       ~flags:(clickable lor focusable lor blocking lor scroll lor clip
@@ -2891,6 +2891,12 @@ let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors =
   end;
   (* scrolling: the wheel, then whatever keeps the caret (or [reveal]) in view *)
   let final = edit.text in
+  if focused then Option.iter (fun f -> f edit.caret) on_caret;
+  (match on_click with
+   | Some f when signal.clicked && signal.button = Some Input.LeftButton && scrub_state >= 0 ->
+       Option.iter (fun byte -> f byte (command_modifiers (press_keys ui body)))
+         (point_in ~strict:true text rows signal.release_point)
+   | _ -> ());
   let rows = if final == text then rows else rows_of final in
   let count = Array.length rows in
   (* [reveal] scrolls once per (offset, length): the content box remembers it *)
@@ -3033,6 +3039,11 @@ let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors =
             (if !scrubbing <> None then theme.accent else Color.with_alpha theme.accent 160)
         end) hovered_number;
       let ls = start_of rows line and le = stop_of rows line in
+      (* a colour literal wears its colour as a bar under it *)
+      List.iter (fun (a, b, color) ->
+        if a >= ls && a < le && b <= String.length final then
+          Paint.fill paint ~x:(text_x +. width (String.sub final ls (a - ls))) ~y:(y +. row -. 5.)
+            ~w:(width (String.sub final a (min b le - a))) ~h:4. color) chips;
       let line_str = String.sub final ls (le - ls) in
       if focused && line = caret_line && composition <> "" then begin
         let before = String.sub final ls (edit.caret - ls) in

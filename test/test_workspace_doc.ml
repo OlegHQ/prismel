@@ -367,7 +367,8 @@ let part_contexts () =
   check ((Result.get_ok (Contexts.window (settings_of "(settings/config :fps (* f 100))"))).fps = 240)
     "a computed fps above the hard bound is clamped when lowered";
   check (match Contexts.of_workspace ~factories (of_text "(workspace w (graph x :context world (world/sky)))") with
-    | Error d -> has d.message "world/world" | Ok _ -> false) "a world graph must return world/world";
+    | Ok doc -> Objects.ids "world" (Document.scene_graph doc) = [] | Error _ -> false)
+    "a world graph no scene/world references is no World";
   (* the implicit scene: without a scene graph, one geometry object per sop graph *)
   let plain = build (of_text still) in
   check (List.map label (List.filter (fun (i : Edit.node_info) -> i.operation = "geometry")

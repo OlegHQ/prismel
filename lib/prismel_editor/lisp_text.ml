@@ -214,7 +214,7 @@ let ops_of context =
     | "world" -> [ "world/none" ]
     | "material" -> [ "material/standard" ]
     | "editor" -> [ "ui/workspace"; "ui/viewport"; "ui/graph"; "ui/inspector"; "ui/outline"; "ui/list";
-                    "ui/lisp"; "ui/timeline"; "ui/split"; "ui/split-at"; "ui/tile"; "ui/floating" ]
+                    "ui/lisp"; "ui/timeline"; "ui/split"; "ui/split-at"; "ui/tile"; "ui/floating"; "ui/switch" ]
     | _ -> [] in
   List.filter_map (fun name ->
     Option.map (fun s -> name, s) (Flow.Workspace.op_signature (ws_context context) name))

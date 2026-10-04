@@ -37,3 +37,12 @@ val bind_home : factories:Procedural.Edit_graph.factory list -> Document.t -> Do
   (Document.t * Flow.Workspace.path, string) result
 (** The binding that holds a home, made by unfolding what is written in place (several rewrites,
     one new document); an error when a loop or an expression made it. *)
+
+val add_geometry : Document.t -> existing:string option -> Flow_sop.Flow_edit.op list
+(** The ops of adding geometry to the scene's merge, one gesture: a new SOP graph, a
+    [scene/geometry] binding of it and the merge input; with [~existing] the object of an
+    existing SOP graph only (two objects share it). *)
+
+val add_world : Document.t -> (Flow_sop.Flow_edit.op list, string) result
+(** The ops of adding a World (a world graph and a [scene/world] member); refused when the scene
+    has one. *)

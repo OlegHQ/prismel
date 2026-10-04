@@ -89,8 +89,28 @@ type op =
       (** the bindings of one scope, copied with fresh names (the copies read each other where the
           originals did, and notes stay with the originals) *)
   | Remove_graph of { name : string }
-      (** the whole graph goes (the World graph of a deleted World); the checker refuses it while a
-          [(ref ...)] still reads it *)
+      (** the whole graph goes (the World graph of a deleted World); refused, naming the readers,
+          while a [(ref ...)] still reads it *)
+  | Rename_graph of { name : string; to_ : string }
+      (** the graph and every [(ref name ...)] that reads it, in one rewrite; a taken name is refused *)
+  | Group_merge of { nodes : path list; name : string }
+      (** scene objects of one scope leave their [scene/merge] for a new merge bound to [name],
+          which takes the place of the first of them *)
+  | Set_layout of { graph : string; index : int }
+      (** the editor graph [graph] has a [(ui/switch ...)] at the root of its workspace: its
+          [:active] becomes [index].  One history entry: repeats merge ({!gesture}). *)
+  | Layout_new of { graph : string }
+      (** a copy of the active layout (its splits, tiles and floats copied, its panels shared) joins
+          the switch and becomes active; a workspace without a switch gets one around its tree first.
+          Ten layouts at most. *)
+  | Layout_remove of { graph : string }
+      (** the active layout leaves the switch (and the bindings only it read); the last stays *)
+  | Layout_window of { graph : string; kind : string }
+      (** a new [(ui/floating ...)] panel of [kind] (as {!Set_panel_kind}, or ["graph:name"] for
+          a graph panel showing that graph) in the active layout *)
+  | Layout_float of { graph : string; at : int list }
+      (** the docked panel at tree path [at] of the active layout becomes a floating window, and a
+          floating one docks beside the rest *)
 (** ponytail: one variant and one [apply]; no command objects.  The four panel
     operations address a binding of an editor graph by its path, as every other
     op does; panels made by a loop have no binding, so they are edited on the loop. *)

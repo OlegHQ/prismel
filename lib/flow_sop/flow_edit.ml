@@ -34,6 +34,13 @@ type op =
   | Set_graph of { name : string; form : S.t }
   | Duplicate of { nodes : path list }
   | Remove_graph of { name : string }
+  | Rename_graph of { name : string; to_ : string }
+  | Group_merge of { nodes : path list; name : string }
+  | Set_layout of { graph : string; index : int }
+  | Layout_new of { graph : string }
+  | Layout_remove of { graph : string }
+  | Layout_window of { graph : string; kind : string }
+  | Layout_float of { graph : string; at : int list }
 
 exception Fail of Flow.Diagnostic.t
 
@@ -81,6 +88,12 @@ let rec rename_ref old nw (e : S.t) : S.t = match e.node with
   | S.Sym s when root_of s = old ->
       { e with node = S.Sym (nw ^ String.sub s (String.length old) (String.length s - String.length old)) }
   | _ -> map_children (rename_ref old nw) e
+
+(* [(ref old ...)] reads [new]: only the reference, never a binding of the same name *)
+let rec rename_graph_ref old nw (e : S.t) : S.t = match e.node with
+  | S.List (({ S.node = S.Sym "ref"; _ } as r) :: ({ S.node = S.Sym n; _ } as s) :: rest) when n = old ->
+      { e with node = S.List (r :: { s with node = S.Sym nw } :: List.map (rename_graph_ref old nw) rest) }
+  | _ -> map_children (rename_graph_ref old nw) e
 
 let rec pat_names (p : S.t) = match p.node with
   | S.Sym n -> [ n ]
@@ -290,6 +303,15 @@ let root_name (item : S.t) = match item.node with
   | S.List ({ S.node = S.Sym ("graph" | "defn" as h); _ } :: { S.node = S.Sym n; _ } :: _) ->
       Some (if h = "defn" then "def:" ^ n else n)
   | _ -> None
+
+(* the graphs (other than itself) whose text holds [(ref name ...)] *)
+let graph_readers items name =
+  let rec reads (e : S.t) = match e.node with
+    | S.List ({ S.node = S.Sym "ref"; _ } :: { S.node = S.Sym n; _ } :: _) when n = name -> true
+    | _ -> List.exists reads (S.children e) in
+  List.filter_map (fun item -> match root_name item with
+    | Some r when r <> name && reads item -> Some r
+    | _ -> None) items
 
 let map_items (src : S.t list) f : S.t list = match src with
   | ({ S.node = S.List (w :: name :: items); _ } as ws) :: rest ->
@@ -565,6 +587,126 @@ let duplicate_plan src nodes =
   let leaves = dedup (List.map (fun n -> snd (split_node n)) nodes) in
   if List.mem "@result" leaves then fail "The result cannot be duplicated.";
   sp, List.map (fun leaf -> leaf, fresh used leaf) leaves
+
+(* ---- layouts: the editor graph's panels, with the switch at the root ----
+   [(ui/workspace (ui/switch a b :active 0))], the switch written in place or bound; a graph
+   without one has a single layout, the workspace's own tree. *)
+
+let panel_expr src kind =
+  let rec context = function
+    | { S.node = S.Kw "context"; _ } :: { S.node = S.Sym c; _ } :: _ -> Some c
+    | _ :: rest -> context rest
+    | [] -> None in
+  let scene = List.find_map (fun (item : S.t) -> match item.node with
+    | S.List ({ S.node = S.Sym "graph"; _ } :: { S.node = S.Sym n; _ } :: rest)
+      when context rest = Some "scene" -> Some n
+    | _ -> None) (snd (workspace_parts src)) in
+  match kind with
+  | "outline" | "graph" | "list" | "lisp" | "inspector" | "timeline" -> call ("ui/" ^ kind) []
+  | "viewport" ->
+      (match scene with
+       | Some n -> call "ui/viewport" [ call "ref" [ sym n ] ]
+       | None -> fail "A viewport needs a scene graph.")
+  | _ when String.starts_with ~prefix:"graph:" kind ->
+      call "ui/graph" [ mk (S.Str (String.sub kind 6 (String.length kind - 6))) ]
+  | _ -> fail "Unknown panel type %s." kind
+
+let containers = [ "ui/split"; "ui/split-at"; "ui/tile"; "ui/floating" ]
+let layout_binding (e : S.t) = match head_sym e with
+  | Some h -> List.mem h containers
+  | None -> (match e.node with S.Sym _ -> true | _ -> false)
+let binding_of ps n = List.find_map (fun (p, e) -> if pat_key p = n then Some e else None) ps
+
+(* a layout as one expression: the splits, tiles and floats it names are copied in; panels stay shared *)
+let rec solid ps (e : S.t) = match e.node with
+  | S.Sym n -> (match binding_of ps n with Some b when layout_binding b -> solid ps b | _ -> e)
+  | S.List ({ S.node = S.Sym h; _ } :: _) when List.mem h containers -> map_children (solid ps) e
+  | _ -> e
+
+(* the layout bindings a layout reads, through the ones it names *)
+let rec reach ps e = List.concat_map (fun n -> match binding_of ps n with
+  | Some b when layout_binding b -> n :: reach ps b | _ -> []) (dedup (sym_list e))
+
+let layout_kids (e : S.t) = match head_sym e, e.node with
+  | Some ("ui/split" | "ui/split-at"), S.List (_ :: args) ->
+      (match List.rev (positional args) with b :: a :: _ -> [ a; b ] | _ -> [])
+  | Some ("ui/tile" | "ui/floating"), S.List (_ :: args) -> positional args
+  | _ -> []
+
+(* where child [i] sits among the positional arguments *)
+let kid_pos (e : S.t) i = match head_sym e, e.node with
+  | Some ("ui/split" | "ui/split-at"), S.List (_ :: args) -> List.length (positional args) - 2 + i
+  | _ -> i
+
+let drop_kid (e : S.t) i = match head_sym e with
+  | Some ("ui/split" | "ui/split-at") -> Some (List.nth (layout_kids e) (1 - i))
+  | Some "ui/tile" -> (match layout_kids e with [ _ ] -> None | _ -> Some (arg_set e (Pos i) None))
+  | _ -> None
+
+(* the layout without the panel at a tree path, and that panel *)
+let rec take path (e : S.t) = match path with
+  | [] -> fail "A layout keeps its last panel."
+  | i :: rest ->
+      let kid = match List.nth_opt (layout_kids e) i with
+        | Some k -> k | None -> fail "That panel is not in this layout." in
+      if rest = [] then drop_kid e i, kid
+      else match take rest kid with
+        | Some k, taken -> Some (arg_set e (Pos (kid_pos e i)) (Some k)), taken
+        | None, taken -> drop_kid e i, taken
+
+let node_at path e = List.fold_left (fun e i -> match List.nth_opt (layout_kids e) i with
+  | Some k -> k | None -> fail "That panel is not in this layout.") e path
+
+let rec has_docked (e : S.t) = match head_sym e with
+  | Some "ui/floating" -> false
+  | Some ("ui/split" | "ui/split-at" | "ui/tile") -> List.exists has_docked (layout_kids e)
+  | _ -> true
+
+let editor_scope s =
+  let sc = ensure s in
+  if head_sym sc.res <> Some "ui/workspace" then fail "This editor graph does not return a (ui/workspace ...).";
+  sc
+let workspace_arg sc = match arg_get sc.res (Pos 0) with Some r -> r | None -> fail "The workspace holds no panels."
+
+let is_switch (e : S.t) = head_sym e = Some "ui/switch"
+(* the switch at the root: the binding holding it, or none when it is written in place *)
+let switch_place sc =
+  let r = workspace_arg sc in
+  match r.node with
+  | S.Sym n -> (match binding_of sc.ps n with Some e when is_switch e -> Some (Some n, e) | _ -> None)
+  | _ -> if is_switch r then Some (None, r) else None
+let set_switch sc ps place sw = match place with
+  | None -> rebuild sc ps (arg_set sc.res (Pos 0) (Some sw))
+  | Some n -> rebuild sc (List.map (fun (p, e) -> if pat_key p = n then p, keep_notes e sw else p, e) ps) sc.res
+
+let active_of args = match kw_get args "active" with
+  | None -> 0
+  | Some { S.node = S.Num s; _ } -> Option.value ~default:0 (int_of_string_opt s)
+  | Some _ -> fail "The active layout is an expression: change it in the text."
+
+(* layout bindings in [cands] that nothing reads any more go *)
+let prune body cands = match scope_of body with
+  | None -> body
+  | Some b ->
+      let used ps n = count_refs n b.res > 0 || List.exists (fun (p, e) -> pat_key p <> n && count_refs n e > 0) ps in
+      let rec go ps =
+        let dead, kept = List.partition (fun (p, e) ->
+          List.mem (pat_key p) cands && layout_binding e && not (used ps (pat_key p))) ps in
+        if dead = [] then ps else go kept in
+      collapse b (go b.ps) b.res
+
+(* [f ps layout] rewrites the active layout: the switch's active input, else the workspace's tree *)
+let edit_layout src graph f = edit_scope src [ graph ] (fun s ->
+  let sc = editor_scope s in
+  let slot, put = match switch_place sc with
+    | Some (place, sw) ->
+        let args = List.tl (S.children sw) in
+        let a = active_of args in
+        (match List.nth_opt (positional args) a with
+         | Some o -> o | None -> fail "The active layout is not one of the switch's layouts."),
+        (fun e -> set_switch sc sc.ps place (arg_set sw (Pos a) (Some e)))
+    | None -> workspace_arg sc, (fun e -> rebuild sc sc.ps (arg_set sc.res (Pos 0) (Some e))) in
+  prune (put (f sc.ps slot)) (reach sc.ps slot))
 
 let rewrite src op : (unit -> S.t list) list =
   let one f = [ f ] in
@@ -1009,10 +1151,51 @@ let rewrite src op : (unit -> S.t list) list =
           | _ -> fail "Only a named node can be duplicated.") selected in
         let last = List.fold_left max 0 (List.filter_map (fun (p, _) -> find_pair sc (pat_key p)) selected) in
         reorder (rebuild sc (insert_at sc.ps (last + 1) copies) sc.res)))
+  | Group_merge { nodes; name } -> one (fun () ->
+      (* the selected scene objects leave their merge for a new merge [name], which takes the
+         place of the first of them *)
+      let sp = scope_path_of nodes in
+      let leaves = dedup (List.map (fun n -> snd (split_node n)) nodes) in
+      if List.length leaves < 2 then fail "Select two or more objects to group.";
+      if not (valid_name name) || List.mem name (sym_list (root_form src (List.hd sp))) || W.name_taken name then
+        fail "Pick a new lowercase name that is not used in this graph.";
+      let first = ref true in
+      let rec regroup (e : S.t) : S.t =
+        let e = map_children regroup e in
+        match head_sym e with
+        | Some "scene/merge" ->
+            let picked = List.filter_map Fun.id (List.mapi (fun i (c : S.t) -> match c.node with
+              | S.Sym n when List.mem n leaves -> Some i | _ -> None) (positional (List.tl (S.children e)))) in
+          (match picked with
+           | [] -> e
+           | at :: rest ->
+               let e = if !first then arg_set e (Pos at) (Some (sym name)) else arg_set e (Pos at) None in
+               first := false;
+               List.fold_left (fun e i -> arg_set e (Pos i) None) e (List.rev rest))
+        | _ -> e in
+      let grouped = with_root src (List.hd sp) regroup in
+      if !first then fail "None of those objects is in a merge.";
+      edit_scope grouped sp (fun s ->
+        let sc = ensure s in
+        reorder (rebuild sc (sc.ps @ [ sym name, call "scene/merge" (List.map sym leaves) ]) sc.res)))
   | Remove_graph { name } -> one (fun () ->
-      if not (List.exists (fun i -> root_name i = Some name) (snd (workspace_parts src))) then
+      let items = snd (workspace_parts src) in
+      if not (List.exists (fun i -> root_name i = Some name) items) then
         fail "No graph or definition %s." name;
+      (match graph_readers items name with
+       | [] -> ()
+       | readers -> fail "%s is still read by %s." name (String.concat ", " readers));
       map_items src (List.filter (fun i -> root_name i <> Some name)))
+  | Rename_graph { name; to_ } -> one (fun () ->
+      let items = snd (workspace_parts src) in
+      if not (List.exists (fun i -> root_name i = Some name) items) then fail "No graph %s." name;
+      if List.exists (fun i -> root_name i = Some to_) items then fail "%s is already a graph." to_;
+      map_items src (List.map (fun item ->
+        let item = rename_graph_ref name to_ item in
+        if root_name item <> Some name then item
+        else match item.node with
+          | S.List (h :: n :: rest) -> { item with node = S.List (h :: { n with node = S.Sym to_ } :: rest) }
+          | _ -> item)))
   | Set_graph { name; form } -> one (fun () ->
       (* the whole [(graph name ...)] form: replaced, or appended when the workspace has none *)
       if root_name form <> Some name then fail "That form is not the graph %s." name;
@@ -1022,22 +1205,69 @@ let rewrite src op : (unit -> S.t list) list =
         else items @ [ form ]))
   | Set_panel_kind { node; kind } -> one (fun () ->
       let sp, leaf = split_node node in
-      let rec context = function
-        | { S.node = S.Kw "context"; _ } :: { S.node = S.Sym c; _ } :: _ -> Some c
-        | _ :: rest -> context rest
-        | [] -> None in
-      let scene = List.find_map (fun (item : S.t) -> match item.node with
-        | S.List ({ S.node = S.Sym "graph"; _ } :: { S.node = S.Sym n; _ } :: rest)
-          when context rest = Some "scene" -> Some n
-        | _ -> None) (snd (workspace_parts src)) in
-      let expr = match kind with
-        | "outline" | "graph" | "list" | "lisp" | "inspector" | "timeline" -> call ("ui/" ^ kind) []
-        | "viewport" ->
-            (match scene with
-             | Some n -> call "ui/viewport" [ call "ref" [ sym n ] ]
-             | None -> fail "A viewport needs a scene graph.")
-        | _ -> fail "Unknown panel type %s." kind in
+      let expr = panel_expr src kind in
       edit_scope src sp (fun s -> set_node s leaf expr))
+  | Set_layout { graph; index } -> one (fun () ->
+      edit_scope src [ graph ] (fun s ->
+        let sc = editor_scope s in
+        match switch_place sc with
+        | None -> fail "This workspace has one layout and no switch."
+        | Some (place, sw) ->
+            if index < 0 || index >= List.length (positional (List.tl (S.children sw))) then
+              fail "There is no layout %d." index;
+            set_switch sc sc.ps place (arg_set sw (Kw "active") (Some (num index)))))
+  | Layout_new { graph } -> one (fun () ->
+      let used = root_used src graph in
+      edit_scope src [ graph ] (fun s ->
+        let sc = editor_scope s in
+        (* a workspace without a switch gets one around its tree *)
+        let sc, place, sw = match switch_place sc with
+          | Some (place, sw) -> sc, place, sw
+          | None ->
+              let tree = workspace_arg sc in
+              let ps, kid = match tree.node with
+                | S.Sym _ -> sc.ps, tree
+                | _ -> let n = fresh used "layout" in sc.ps @ [ sym n, tree ], sym n in
+              let name = fresh used "switch" and sw = call "ui/switch" [ kid ] in
+              { sc with ps = ps @ [ sym name, sw ]; res = arg_set sc.res (Pos 0) (Some (sym name)) },
+              Some name, sw in
+        let args = List.tl (S.children sw) in
+        let n = List.length (positional args) in
+        if n >= 10 then fail "Ten layouts is the limit of the digit keys.";
+        let copy = solid sc.ps (List.nth (positional args) (min (active_of args) (n - 1))) in
+        let name = fresh used "layout" in
+        let sw = arg_set (arg_set sw (Pos n) (Some (sym name))) (Kw "active") (Some (num n)) in
+        reorder (set_switch sc (sc.ps @ [ sym name, copy ]) place sw)))
+  | Layout_remove { graph } -> one (fun () ->
+      edit_scope src [ graph ] (fun s ->
+        let sc = editor_scope s in
+        match switch_place sc with
+        | None -> fail "This workspace has one layout and no switch."
+        | Some (place, sw) ->
+            let args = List.tl (S.children sw) in
+            let n = List.length (positional args) and a = active_of args in
+            if n < 2 then fail "A switch keeps its last layout.";
+            let gone = List.nth (positional args) a in
+            let sw = arg_set (arg_set sw (Pos a) None) (Kw "active") (Some (num (min a (n - 2)))) in
+            prune (set_switch sc sc.ps place sw) (reach sc.ps gone)))
+  | Layout_window { graph; kind } -> one (fun () ->
+      let panel = panel_expr src kind in
+      edit_layout src graph (fun _ layout ->
+        call "ui/split-at" [ mk (S.Str "horizontal"); mk (S.Num "0.5"); layout; call "ui/floating" [ panel ] ]))
+  | Layout_float { graph; at } -> one (fun () ->
+      edit_layout src graph (fun ps layout ->
+        let tree = solid ps layout in
+        let up = match List.rev at with _ :: up -> List.rev up | [] -> [] in
+        if up <> [] && head_sym (node_at up tree) = Some "ui/floating" then
+          (* a window docks beside the rest *)
+          match take up tree with
+          | Some rest, window ->
+              call "ui/split-at" [ mk (S.Str "horizontal"); mk (S.Num "0.7"); rest; List.hd (layout_kids window) ]
+          | None, window -> List.hd (layout_kids window)
+        else match take at tree with
+          | Some rest, panel when has_docked rest ->
+              call "ui/split-at" [ mk (S.Str "horizontal"); mk (S.Num "0.5"); rest; call "ui/floating" [ panel ] ]
+          | _ -> fail "A layout keeps one docked panel."))
 
 (* ---- the public functions ---- *)
 
@@ -1057,6 +1287,10 @@ let label = function
   | Set_graph _ -> "Edit graph"
   | Duplicate _ -> "Duplicate"
   | Remove_graph _ -> "Remove graph"
+  | Rename_graph _ -> "Rename graph"
+  | Group_merge _ -> "Group"
+  | Set_layout _ -> "Layout" | Layout_new _ -> "New layout" | Layout_remove _ -> "Remove layout"
+  | Layout_window _ -> "New window" | Layout_float _ -> "Float panel"
 
 let key_text = function
   | Whole -> "" | Pos i -> string_of_int i | Kw k | Field k -> k | Bv (i, j) -> Printf.sprintf "%d.%d" i j
@@ -1066,6 +1300,7 @@ let gesture = function
       Some (Printf.sprintf "scrub:%s:%s:%s" (String.concat "/" node) (key_text key)
         (String.concat "." (List.map string_of_int sub)))
   | Set_note { node; _ } -> Some ("note:" ^ String.concat "/" node)
+  | Set_layout _ -> Some "layout"
   | Set_input_default { form; input; _ } -> Some (Printf.sprintf "scrub:input:%s:%s" form input)
   | _ -> None
 
@@ -1141,6 +1376,7 @@ let remap op p = match op with
   | Rename { node; to_ } when has_prefix ~prefix:node p ->
       let k = List.length node - 1 in
       Some (List.mapi (fun i s -> if i = k then to_ else s) p)
+  | Rename_graph { name; to_ } when has_prefix ~prefix:[ name ] p -> Some (to_ :: List.tl p)
   | Hoist { node } when has_prefix ~prefix:node p && List.length node >= 3 ->
       let k = List.length node - 2 in
       Some (List.filteri (fun i _ -> i <> k) p)

@@ -289,3 +289,32 @@ let () =
   assert (String.contains text '\n');
   assert (again text = text);
   assert (Lisp.flat (List.hd (get (Syntax.parse (again text)))) = long)
+
+(* The threading form: [(-> x (f a) (g b))] reads as [(g (f x a) b)]; the printer threads a chain
+   of three calls or more and leaves shorter ones, notes and flags nested.  Spans of the steps
+   are their clauses. *)
+let () =
+  let nested = "(sop/c (sop/b (sop/a x :k 1) :j 2))" in
+  let threaded = "(-> x\n    (sop/a :k 1)\n    (sop/b :j 2)\n    (sop/c))\n" in
+  let flat text = Lisp.flat (List.hd (get (Syntax.parse text))) in
+  assert (flat threaded = nested);
+  assert (flat "(-> x (sop/a))" = "(sop/a x)");
+  assert (flat "(-> x)" = "x");
+  assert (print nested = threaded);
+  assert (print threaded = threaded);
+  (* two calls stay nested; a note or a flag in the chain keeps it nested *)
+  assert (print "(sop/b (sop/a x))" = "(sop/b (sop/a x))\n");
+  assert (print "(-> x (sop/a) (sop/b))" = "(sop/b (sop/a x))\n");
+  assert (not (String.contains (print "(sop/c (sop/b ; why\n (sop/a x)))") '>'));
+  assert (not (String.contains (print "(sop/c ^:bypass (sop/b (sop/a x)))") '>'));
+  (* only node calls thread; a keyword first argument starts the chain *)
+  assert (print "(* (+ (- a 1) 2) 3)" = "(* (+ (- a 1) 2) 3)\n");
+  assert (print "(sop/d (sop/c (sop/b (sop/a :k 1))))" = "(-> (sop/a :k 1)\n    (sop/b)\n    (sop/c)\n    (sop/d))\n");
+  (* a chain inside a binding, and its spans *)
+  let text, spans = Lisp.print (get (Syntax.parse "(let* [g nope] (sop/c (sop/b (sop/a g :k 1))))")) in
+  assert (String.length text > 0 && List.length spans > 0);
+  List.iter (fun (_, (s : Diagnostic.span)) -> assert (s.start >= 0 && s.finish <= String.length text)) spans;
+  (* errors *)
+  assert (Result.is_error (Syntax.parse "(->)"));
+  assert (Result.is_error (Syntax.parse "(-> x 5)"));
+  assert (Result.is_error (Syntax.parse "(-> x g)"))

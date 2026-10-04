@@ -32,6 +32,22 @@ let cast surface geometry ~origin ~direction =
        | Ok None | Error _ -> None)
   | _ -> None
 
+(* The nearest hit as (distance, shop_materialpath of that primitive): what Alt-click reads.  It needs
+   no provenance tags. *)
+let cast_material surface geometry ~origin ~direction =
+  match surface with
+  | Some surface ->
+      (match Pdk.Surface_index.raycast surface ~origin ~direction with
+       | Ok (Some hit) ->
+           let path = match Pdk.Geometry.find_attribute ~owner:Pdk.Attribute.Primitive "shop_materialpath" geometry with
+             | Some a -> (match Pdk.Attribute.storage a with
+                 | Pdk.Attribute.Text paths when paths.(hit.primitive) <> "" -> Some paths.(hit.primitive)
+                 | _ -> None)
+             | None -> None in
+           Some (hit.distance, path)
+       | Ok None | Error _ -> None)
+  | None -> None
+
 (* The primitives whose tag is in [lit] take the selection tint over their own
    colour, the rest are dimmed: a vertex colour per corner, so a prepare that
    reads [Cd] (as [to_mesh] does) draws it without knowing about picking. *)

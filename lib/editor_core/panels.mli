@@ -46,3 +46,13 @@ val valid : t -> (unit, string) result
 
 val to_string : t -> string
 (** A one-line shape such as [(h view (h graph inspector))], for messages and tests. *)
+
+val label : t -> string
+(** A layout's name read from its tree: leaves are [View], [Graph], [List], [Lisp], [Inspector],
+    [Outline], [Timeline]; side by side is [a | b], stacked [a / b] (a row inside a stack is
+    bracketed), same-axis nesting flattens, a tile is a row, neighbours of one name collapse to
+    [View ×4], and floating windows come last after [+]. *)
+
+val labels : t list -> string list
+(** {!label} of each layout; layouts that read the same add their largest panel and its share
+    ([View | Graph · Graph 70%]), and any that still match get a number. *)

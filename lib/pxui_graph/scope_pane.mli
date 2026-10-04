@@ -35,6 +35,9 @@ type change =
   | Display_set of path
       (** [v]: show this geometry node in the viewport instead of the graph's result (the node
           already shown goes back to the result) *)
+  | Activated of path
+      (** a double-click on the body of a node (its title renames): the host follows what it
+          references *)
   | Notice of string
 
 type direction = Left | Down | Up | Right
@@ -67,11 +70,13 @@ val with_scope :
   ?at:(path -> (float * float) option) -> ?collapsed:(path -> bool) ->
   ?probe:(path -> int) ->
   ?frames:(path -> (string * (float * float) * (float * float)) list) -> ?display:path ->
-  ?wires:[ `Rect | `Straight ] ->
+  ?wires:[ `Rect | `Straight ] -> ?layouts:string list ->
   key:string ->
   Flow_sop.Projection.scope -> t -> t
 (** Lay a scope out.  A new [key] (the graph's name) frames it and clears the
-    selection; the same key keeps pan, zoom and selection. *)
+    selection; the same key keeps pan, zoom and selection.  [layouts] are the names of a
+    [ui/switch]'s layouts: its rows read as them, the active wire is solid and accented, the
+    others dashed grey, and a click on a row is [Set_layout] on the graph [key]. *)
 
 val with_records : Flow_sop.Probe.t -> t -> t
 (** What a recording evaluation saw ({!Flow_sop.Probe}): footers show the

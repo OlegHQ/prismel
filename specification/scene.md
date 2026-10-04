@@ -11,6 +11,75 @@ definition; `u` returns to and selects the parent instance. There is no
 `Space l` cycles graph → list → text. Converting the scene and
 World into full Flow contexts remains for a later revision of `flow.md`.
 
+## The scene graph: objects, merge, root
+
+Normative. A workspace's scene graph (`:context scene`) has three kinds of node and one direction.
+
+- `scene/geometry`, `scene/light`, `scene/camera` and `scene/world` return an object.
+- `scene/merge` takes objects and scenes and returns a scene. Merges nest, and its one variadic
+  port, in list order, is the composition of the scene.
+- `scene/root scene :camera :renderer :width :height :max_spp :bounces :round_samples` takes one
+  scene and returns a render. A render cannot be merged, so a root is always the last node.
+  `:camera` is a slot: the camera object that renders (omitted: the first camera in merge order,
+  else the viewport's orbit). `:renderer` is `"Raster"`, `"Wireframe"` or `"Path traced"`; the
+  size is in pixels; `:bounces` and `:round_samples` are the path tracer's. The printer writes the
+  keywords in that order (camera, renderer, size, samples).
+
+A scene graph without a root is a *part*: other scenes take it with `(ref part)`, and a viewport that
+shows it uses the default root (the schema defaults in `Objects.Root`). `Document.root` holds the
+root's settings, the defaults for a part; `homes.root` is the root call, `None` for a part. The
+first edit of a root setting (the Render section of the empty-selection inspector, the renderer
+switch of a document with no authored renderer) writes `(scene/root ...)` over the graph's result
+(only the settings that differ from the defaults) in one undo entry; later edits rewrite its
+keywords, and Save round-trips them. The viewport reads the renderer, the resolution, `max_spp`,
+`bounces` and `round_samples` from the root. A root in the text names the renderer and wins over
+the viewport's preference and a sketch's `renderer` setting; a document without one keeps both.
+`Editor3.render_settings` is the root's size and samples.
+
+Old files load unchanged: a graph without a root is a part, and `:width`, `:height` and `:max_spp`
+on a `scene/camera` (the camera's former Render folder, no longer a field of it) are read as the
+root's until the root says them. They stay in the text until it is edited; a root setting wins.
+
+### The World is a merge member
+
+`scene/world (ref sky) :name :exposure :rotation ...` is an object of the scene, as
+`scene/geometry (ref shards)` is, and stands to a `:context world` graph as a geometry object to its
+SOP graph. The world graph is the layer stack: its result is the top layer
+(`(graph sky :context world (world/sun (world/sky :turbidity 3)))`, or `(world/none)` for no
+layers); the World's other keywords (background, time of day, sun, ...) are the keywords of
+`scene/world`. Deleting the object, hiding it and looping over it are the gestures of any object;
+`Space e` selects the scene's World and enters it, creating one (written as a `scene/world`
+member and a `world` graph) when the scene has none. `i` enters a geometry object or the World, `u`
+leaves.
+
+`world/world` is the old spelling, kept so old files load: a world graph returning
+`(world/world <stack> :name ...)` that no `scene/world` references is read as the scene's World and
+edited where it is written. It is not offered by any menu.
+
+### What is refused
+
+| Code | When |
+|---|---|
+| `E_SCENE_WORLD` | Two Worlds reach one scene. The message names both bindings. |
+| `E_SCENE_ROOT` | A root is wired into a merge or into another root. |
+| `E_SCENE_CAMERA` | The root's `:camera` is not a camera in the root's scene. |
+
+Each is raised while the workspace is lowered, so a gesture that would cause one (adding a second
+World) is refused whole and changes nothing.
+
+### Composition gestures
+
+One gesture is one undo entry (`Core.Syntax_batch`: all the rewrites or none).
+
+| Gesture | Writes |
+|---|---|
+| `Space a` Geometry | a new SOP graph (a box), a `scene/geometry (ref it)` binding and one more merge input |
+| `Space a` Geometry of... graph | the object and its merge input only; two objects share the graph and it cooks once (the second takes a distinct `:name`) |
+| `Space a` World | a world graph (a sky and a sun), a `scene/world` binding and its merge input; refused when the scene has one |
+| `Space a` Merge | with two or more objects selected, `Flow_edit.Group_merge`: a new merge between the selection and the old one; with none, an empty merge to wire |
+| select wire, delete | the merge loses the input (`Disconnect`); the binding stays as an unwired node and wires back |
+| delete an object | the object and its merge input; its SOP or world graph goes in the same undo entry when nothing else reads it (`(ref g)` or a `(ui/graph "g")` panel) |
+
 ## Objects are nodes
 
 The scene is itself an `Edit_graph`: every object is a node, input 0 is its
@@ -23,12 +92,15 @@ network is presentation only and never cooks.
 |---|---|---|---|
 | Geometry | `geometry` | translate, rotate (degrees, applied Z·Y·X), scale, visible, renderable | a SOP network |
 | Light | `light` | type (area, point, spot, directional), translate, target, color, intensity, width/height, cone, visible, renderable | none |
-| Camera | `camera` | eye, target, up, fov, near/far, follow viewport, aperture, focus distance (0: the target), render width/height (pixels), max samples per pixel | none; never parented |
+| Camera | `camera` | eye, target, up, fov, near/far, follow viewport, aperture, focus distance (0: the target) | none; never parented |
 | World | `world` | background, rotation, exposure, time of day, day cycle, latitude, day of year, sun linking | its layer stack |
 
+The root is not a node of the scene network: its settings are `Document.root`. The Camera's render
+resolution and samples belong to the root.
+
 `Document.t` holds the scene network, one network per geometry object and
-per World (keyed by object id), the active camera object, and the sketch
-`Settings`. History snapshots it; the open level, selection, projection
+per World (keyed by object id), the active camera object, the root's render
+settings, and the sketch `Settings`. History snapshots it; the open level, selection, projection
 (graph, list, or text), and the map view are view state. A deleted object's
 network goes with it; a pasted object copies its source's network.
 
@@ -60,7 +132,7 @@ opens on the lat-long map and `Space l` flips it back to 3D. `i`, a double-click
 menu's Enter open a geometry object or the World. On a camera, Enter selects it
 as the active render camera and enables look-through; entering it again keeps
 look-through enabled. `u` goes back up (both
-from any pane). `Space e` opens the World, creating it on first use as a
+from any pane). `Space e` selects the World and opens it, creating it on first use as a
 daylight sky with a sun. `Space a` opens the add menu of the open level
 (objects, SOPs, or World layers) in list and graph alike: hovering a
 category opens its submenu to the right, typing searches everything, a lone
@@ -147,4 +219,6 @@ so playback and `Sketch.export` with `Fixed dt` are deterministic. See
 - Two levels only; cameras cannot be parented.
 - Ghosting is a blend, not a material override.
 - Reparenting drops shear (a non-uniformly scaled parent).
-- More than one World object is allowed by the menu; the first one is used.
+- A scene has one World (`E_SCENE_WORLD`); a viewport over another scene instance has the document's
+  root and World, not its own.
+- A legacy `world/world` file keeps its spelling until the World is deleted and added again.

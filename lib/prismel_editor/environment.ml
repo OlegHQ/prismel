@@ -709,7 +709,7 @@ module Make (V : VIEWPORT) = struct
         if w <= 0 || h <= 0 then core else
         let picking = { focused with core; camera; extra } in
         match V.pick_ray ~viewport:film (view_camera picking) at with
-        | Some (origin, direction) -> Core.pick ?view:focused.viewing core ~origin ~direction
+        | Some (origin, direction) -> Core.pick ?view:focused.viewing ~alt:(List.mem Input.Alt !modifiers) core ~origin ~direction
         | None -> core) core (List.rev clicks) in
     let camera, extra = if core.Core.map_view then camera, extra
       else V.navigate ~area control camera extra core ~raw_frame ~input in
@@ -811,13 +811,14 @@ module Make (V : VIEWPORT) = struct
     let history = core.history in
     Out_channel.with_open_text (Filename.concat directory "editor.txt") (fun channel ->
       Printf.fprintf channel
-        "level: %s\nprojection: %s\npane graph: %s\ntext: %s\nmap view: %b\nguide: %b\nkey hud: %s\nselected: %s\nscope selected: %s\nfocus: %s\nprompt: %s\n\
+        "level: %s\nprojection: %s\npane graph: %s\nroute: %s\ntext: %s\nmap view: %b\nguide: %b\nkey hud: %s\nselected: %s\nscope selected: %s\nfocus: %s\nprompt: %s\n\
          undo: %s (%d entries)\nredo: %s\ncook: %s\nedit error: %s\nrenderer: %s\nlive scene: %s\nautosave: %s\n\
          load document.plisp with Space b (workspace documents only) after copying it to %s\n"
         (Core.level_name core)
         (match Core.projection core with Core.List_view -> "list"
           | Graph_view -> "graph" | Text_view -> "text")
         (Option.value ~default:"-" (Core.graph_name core))
+        (Core.route core)
         (Text_pane.summary core.text)
         core.map_view core.guide (Option.fold ~none:"-" ~some:fst core.hud)
         (Option.fold ~none:"none" ~some:(fun node ->

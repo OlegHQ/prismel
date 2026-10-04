@@ -728,7 +728,7 @@ let run () =
   let _, _, pane_w, pane_h = (Prismel_editor.Editor3.panes environment (frame 54)).view in
   let fx, fy, fw, fh = Prismel_editor.Editor3.film environment (frame 54) in
   check (settings.width = 1920 && settings.height = 1080 && settings.max_spp = 256)
-    "the camera object did not carry default render settings";
+    "the scene root did not carry default render settings";
   check (fw <= pane_w && fh <= pane_h && (fw = pane_w || fh = pane_h)
       && abs (fw * 1080 - fh * 1920) <= 1920 && fx = (pane_w - fw) / 2 && fy = (pane_h - fh) / 2)
     "look-through did not letterbox the film to the camera's aspect";

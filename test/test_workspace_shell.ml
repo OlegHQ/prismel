@@ -970,7 +970,154 @@ let run_ref_picker () =
   check (has (source !e) "(ref g1)") ("undo did not restore ref to g1: " ^ source !e);
   E3.close !e
 
-let run () = run_ref_picker (); run_result_view (); run_panel_states (); run_camera_zoom (); run_cameras (); run_lowering (); run_ops (); run_panel_keys (); run_unbound_panels (); run_values (); run_duplicate_and_view (); run_movers (); run_frame_key (); run_loop_copies (); run_loop_expression (); run_editor (); run_restore (); run_views ()
+(* Space a on a scene graph: World, Merge and Geometry are one gesture each, one undo entry *)
+let run_compose () =
+  let text = {|(workspace compose
+    (graph g1 :context sop (sop/box))
+    (graph scene :context scene
+      (let* [a (scene/geometry (ref g1))
+             b (scene/geometry (ref g1) :translate [3 0 0] :name "b")]
+        (scene/root (scene/merge a b))))
+    (graph editor :context editor (ui/workspace (ui/split "horizontal" (ui/graph "scene") (ui/inspector)))))|} in
+  let key k = Event.KeyPressed k and ch c = Event.KeyPressed (Input.KeyChar c) in
+  let pick typed =
+    let e = ref (editor text) and count = ref 0 in
+    let step ?(keys = []) events = incr count; e := E3.update !e (Test_editor_input.frame ~keys (450., 300.) events !count) in
+    step []; step [];
+    let before = source !e in
+    step [ key Input.Space; ch 'a' ]; step [ Event.TextInput typed ]; step [ key Input.Enter ]; step [];
+    let after = source !e and label = E3.undo_label !e in
+    step ~keys:[ Input.Meta ] [ ch 'z' ]; step [];
+    let undone = source !e in
+    E3.close !e;
+    before, after, label, undone in
+  let flat t = String.concat " " (List.filter (( <> ) "") (String.split_on_char ' '
+    (String.map (function '\n' -> ' ' | c -> c) t))) in
+  let before, after, label, undone = pick "World" in
+  check (has (flat after) "(scene/world (ref sky))" && has (flat after) "(graph sky :context world" && label = Some "Add World"
+         && undone = before) ("Space a World: " ^ after);
+  let before, after, label, undone = pick "Geometry" in
+  check (has (flat after) "(graph shape :context sop" && has (flat after) "(scene/geometry (ref shape))"
+         && label = Some "Add geometry" && undone = before) ("Space a Geometry: " ^ after);
+  let before, after, label, undone = pick "Merge" in
+  check (has (flat after) "(scene/merge)" && undone = before && label <> None) ("Space a Merge: " ^ after);
+  (* Space e selects the scene's World, a merge member, and enters it *)
+  let e = ref (editor {|(workspace sky
+    (graph g1 :context sop (sop/box))
+    (graph sky :context world (world/sun (world/sky)))
+    (graph scene :context scene
+      (scene/root (scene/merge (scene/geometry (ref g1)) (scene/world (ref sky) :name "Dome")))))|}) and count = ref 0 in
+  let step events = incr count; e := E3.update !e (frame (450., 300.) events !count) in
+  step []; step [];
+  step [ key Input.Space; ch 'e' ]; step [];
+  check (E3.level !e = Some "Dome" && not (has (source !e) "graph world"))
+    "Space e did not enter the World of a scene/world member";
+  E3.close !e;
+  (* Space e on a scene with a root and no World makes one: a member of the merge and a world graph *)
+  let e = ref (editor {|(workspace plain
+    (graph g1 :context sop (sop/box))
+    (graph scene :context scene (scene/root (scene/merge (scene/geometry (ref g1))))))|}) and count = ref 0 in
+  let step events = incr count; e := E3.update !e (frame (450., 300.) events !count) in
+  step []; step [];
+  step [ key Input.Space; ch 'e' ]; step [];
+  check (has (flat (source !e)) "(scene/world (ref world)" && has (source !e) "graph world :context world"
+         && has (source !e) "scene/root" && E3.undo_label !e = Some "Add World")
+    ("Space e did not write the new World: " ^ source !e);
+  E3.close !e;
+  print_endline "workspace shell: Space a adds World, Geometry (with its SOP graph) and Merge, one undo entry each; Space e enters a World member"
+
+(* A switch holds the layouts of one editor graph: lowering, the names read from the panels, the
+   edits, one merged undo entry, and the keys. *)
+let switch_text = {|
+  (workspace sw
+    (graph g :context sop (sop/box))
+    (graph scene :context scene
+      (scene/merge (scene/geometry (ref g)) (scene/camera :eye [0 0 6])))
+    (graph editor :context editor
+      (let* [preview (ui/viewport (ref scene))
+             network (ui/graph)
+             inspector (ui/inspector)
+             code (ui/lisp)
+             build (ui/split-at "horizontal" 0.4 preview (ui/split-at "horizontal" 0.62 network inspector))
+             write (ui/split-at "horizontal" 0.46 preview (ui/split-at "vertical" 0.5 network code))
+             look preview]
+        (ui/workspace (ui/switch build write look :active 0)))))
+|}
+
+let run_layouts () =
+  let labels text = match (shell_of (build_ok (of_text text))).switch with
+    | Some sw -> Panels.labels sw.layouts, sw.active | None -> fail "no switch" in
+  check (labels switch_text = ([ "View | Graph | Inspector"; "View | Graph / Lisp"; "View" ], 0))
+    "the layouts are named from their panels";
+  let shell = shell_of (build_ok (of_text switch_text)) in
+  check (Panels.to_string shell.tree = "(h view (h graph inspector))" && shell.origins <> []
+         && List.assoc_opt [] shell.origins = Some (Document.Bound "build"))
+    "the active layout is the tree, its origin the binding the switch names";
+  let shell = shell_of (build_ok (of_text (replace switch_text ":active 0" ":active 1"))) in
+  check (Panels.to_string shell.tree = "(h view (v graph lisp))") "the switch is transparent: :active picks the tree";
+  expect_error "an active layout out of range" (replace switch_text ":active 0" ":active 3") "active layout";
+  (* a switch inside a split swaps one column *)
+  let inner = build_ok (of_text (with_editor "    (ui/workspace (ui/split-at \"horizontal\" 0.5 (ui/graph) (ui/switch (ui/lisp) (ui/inspector) :active 1)))")) in
+  check (Panels.to_string (shell_of inner).tree = "(h graph inspector)") "a switch inside a split";
+  (* edits *)
+  let ws = of_text switch_text in
+  let edit ws op = match Doc.edit catalog ws op with Ok ws -> ws | Error d -> fail (Flow.Diagnostic.to_string d) in
+  let text ws = fst (Flow.Lisp.print ws.Doc.source) in
+  let switched = edit ws (E.Set_layout { graph = "editor"; index = 2 }) in
+  check (has (text switched) ":active 2") "Set_layout writes :active";
+  let added = edit switched (E.Layout_new { graph = "editor" }) in
+  check (has (text added) "(ui/switch build write look layout :active 3)" && has (text added) "layout preview")
+    ("a new layout copies the active one: " ^ text added);
+  let labelled = labels (text added) in
+  check (labelled = ([ "View | Graph | Inspector"; "View | Graph / Lisp"; "View"; "View \xc2\xb7 View 100% (1)"; ], 3)
+         || fst labelled = [ "View | Graph | Inspector"; "View | Graph / Lisp"; "View \xc2\xb7 View 100%"; "View \xc2\xb7 View 100% (2)" ])
+    ("the copy is named like its twin: " ^ String.concat " / " (fst labelled));
+  let removed = edit added (E.Layout_remove { graph = "editor" }) in
+  check (has (text removed) "(ui/switch build write look :active" && not (has (text removed) "layout preview"))
+    ("removing the current layout drops its input and binding: " ^ text removed);
+  let one = edit (edit (edit removed (E.Set_layout { graph = "editor"; index = 0 })) (E.Layout_remove { graph = "editor" }))
+      (E.Layout_remove { graph = "editor" }) in
+  (match Doc.edit catalog one (E.Layout_remove { graph = "editor" }) with
+   | Error d -> check (has d.Flow.Diagnostic.message "last layout") "the last layout stays"
+   | Ok _ -> fail "removed the last layout");
+  (* a window joins the active layout only; it floats and docks *)
+  let windowed = edit ws (E.Layout_window { graph = "editor"; kind = "inspector" }) in
+  check (has (text windowed) "(ui/floating (ui/inspector))") "a new window";
+  check (Panels.label (shell_of (build_ok windowed)).tree = "View | Graph | Inspector + Inspector"
+         && labels (text windowed) |> fst |> List.tl = [ "View | Graph / Lisp"; "View" ])
+    "the window shows in the active layout's name only";
+  let floated = edit ws (E.Layout_float { graph = "editor"; at = [ 1; 0 ] }) in
+  check (Panels.label (shell_of (build_ok floated)).tree = "View | Inspector + Graph") ("a panel floats: " ^ text floated);
+  let docked = edit floated (E.Layout_float { graph = "editor"; at = [ 1; 0 ] }) in
+  check (Panels.label (shell_of (build_ok docked)).tree = "View | Inspector | Graph") ("a window docks: " ^ text docked);
+  (* a workspace without a switch gets one on the first new layout *)
+  let plain = of_text (replace (replace switch_text "(ui/switch build write look :active 0)" "build") "write (" "write (") in
+  let wrapped = edit plain (E.Layout_new { graph = "editor" }) in
+  check (has (text wrapped) "(ui/workspace switch)" && has (text wrapped) "(ui/switch build layout :active 1)")
+    ("a switch is written around the tree: " ^ text wrapped);
+  (* one merged undo entry, by keys *)
+  let e = ref (editor switch_text) and count = ref 0 in
+  let step ?(keys = []) events = incr count; e := E3.update !e (Test_editor_input.frame ~keys (300., 150.) events !count) in
+  step []; step [];
+  let key k = Event.KeyPressed k and ch c = Event.KeyPressed (Input.KeyChar c) in
+  step [ key Input.Space; ch '[' ]; step [];  (* which-key lists the layouts *)
+  step [ ch '1' ]; step [];
+  check (has (source !e) ":active 1" && E3.undo_label !e = Some "Layout") "Space [ 1 switches the layout";
+  step [ key Input.Space; ch '['; ch '2' ]; step [];
+  check (has (source !e) ":active 2") "Space [ 2 switches again";
+  step ~keys:[ Input.Meta ] [ ch 'z' ]; step [];
+  check (has (source !e) ":active 0") "one undo returns past both switches";
+  step [ key Input.Space; ch '['; ch 'n' ]; step [];
+  check (has (source !e) ":active 3" && E3.undo_label !e = Some "New layout") "Space [ n copies the layout";
+  step [ key Input.Space; ch '['; ch 'x' ]; step [];
+  check (E3.undo_label !e = Some "Remove layout" && not (has (source !e) "layout preview")) "Space [ x removes it";
+  step [ key Input.Space; ch 'n'; ch 'i' ]; step [];
+  check (has (source !e) "(ui/floating (ui/inspector))" && E3.undo_label !e = Some "New window") "Space n i opens an inspector window";
+  step [ key Input.Space; ch 'o'; ch 'f' ]; step [];
+  check (E3.undo_label !e = Some "Float panel" || E3.undo_label !e = Some "New window")
+    "Space o f is one edit or refused with a notice"
+
+let run () = run_layouts (); run_compose (); run_ref_picker (); run_result_view (); run_panel_states (); run_camera_zoom (); run_cameras (); run_lowering (); run_ops (); run_panel_keys (); run_unbound_panels (); run_values (); run_duplicate_and_view (); run_movers (); run_frame_key (); run_loop_copies (); run_loop_expression (); run_editor (); run_restore (); run_views ()
 
 (* Native VIEW regression over the reported sketch, including its piece renderer and a following
    camera. Moving the camera rebuilds the lowering while preserving an unchanged object network. *)

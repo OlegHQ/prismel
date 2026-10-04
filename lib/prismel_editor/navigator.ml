@@ -12,11 +12,14 @@ type intent =
   | Open of { graph : string; node : path option }
   | Set_default of { graph : string; input : string; value : float; integer : bool }
   | Macro of string
+  | Rename of { graph : string; to_ : string }
+  | Remove of string
 
-type state = { query : string; typing : bool }
+(* [rename]: the graph whose name the field holds, and whether the field has opened yet *)
+type state = { query : string; typing : bool; rename : (string * bool) option }
 
-let initial = { query = ""; typing = false }
-let editing s = s.typing
+let initial = { query = ""; typing = false; rename = None }
+let editing s = s.typing || s.rename <> None
 let with_query query s = { s with query }
 
 type params = {
@@ -28,6 +31,7 @@ type params = {
   probes : path -> int;
   selected : path list;
   shell : Panels.t option;
+  chips : (string * Prismel.Color.t) list;  (** the evaluated colour of each material graph *)
 }
 
 type row =
@@ -36,7 +40,7 @@ type row =
   | Note of string list
   | Input_row of { graph : string; name : string; integer : bool; value : float }
   | Graph_row of { graph : string; label : string; context : W.context option; detail : string;
-                   active : bool }
+                   active : bool; chip : Prismel.Color.t option; dim : bool }
   | Node_row of { graph : string; path : path; depth : int; label : string; detail : string;
                   zone : string option; ty : Flow.Ty.t; result : bool; selected : bool }
   | Macro_row of string * int
@@ -67,6 +71,38 @@ let reads (form : S.t) =
         if not (List.mem n !names) then names := n :: !names
     | _ -> ()) form;
   List.rev !names
+
+(* the evaluated colour of each material graph: a vector, or the hex text the graph wrote *)
+let chips (ev : Flow.Eval.t) =
+  let byte f = int_of_float (Float.round (255. *. Float.min 1. (Float.max 0. f))) in
+  List.filter_map (fun (name, v) -> match v with
+    | Flow.Eval.Struct ("material/standard", fields) ->
+        let colour = match List.assoc_opt "color" fields with
+          | Some (Flow.Eval.Vec3 (r, g, b)) -> Some (Prismel.Color.rgb (byte r) (byte g) (byte b))
+          | Some (Flow.Eval.Text hex) -> Result.to_option (Prismel.Color.hex hex)
+          | None -> Some Prismel.Color.white
+          | Some _ -> None in
+        Option.map (fun c -> name, c) colour
+    | _ -> None) ev.results
+
+(* The outline's groups, in dependency order. *)
+let group_of : W.context -> string = function
+  | Scene -> "Scene" | Sop -> "Geometry" | Material -> "Materials" | World -> "World"
+  | Editor -> "Layout" | Settings -> "Settings" | Value -> "Values"
+
+let group_order = [ "Scene"; "Geometry"; "Materials"; "World"; "Layout"; "Settings"; "Values" ]
+
+let grouped (ws : W.t) =
+  List.filter_map (fun group ->
+    match List.filter (fun (g : W.graph) -> group_of g.context = group) ws.graphs with
+    | [] -> None | graphs -> Some (group, graphs)) group_order
+
+let jump_rows (ws : W.t) =
+  List.concat_map (fun (group, graphs) -> List.map (fun (g : W.graph) -> g.name, group) graphs) (grouped ws)
+
+(* how many other graphs read [name] *)
+let readers (ws : W.t) name =
+  List.length (List.filter (fun (g : W.graph) -> g.name <> name && List.mem name (reads g.form)) ws.graphs)
 
 let calls (ws : W.t) name =
   List.fold_left (fun n (g : W.graph) -> n + count_where (fun f -> head f = Some name) g.form) 0
@@ -140,6 +176,15 @@ let contains ~query text =
   let rec at i = i + n <= m && (String.sub t i n = q || at (i + 1)) in
   n = 0 || at 0
 
+let graph_row p (g : W.graph) detail =
+  let used = readers p.workspace g.name in
+  let unused = used = 0 && (g.context = W.Material || g.context = W.Sop) in
+  Graph_row { graph = g.name; label = g.name; context = Some g.context; active = p.active = Some g.name;
+              chip = (if g.context = W.Material then List.assoc_opt g.name p.chips else None);
+              dim = unused;
+              detail = (if unused then "unused" else if g.context = W.Material then Printf.sprintf "×%d" used
+                        else detail) }
+
 let search state p chains counts =
   let q = String.trim state.query in
   let acc = ref [] in
@@ -147,13 +192,12 @@ let search state p chains counts =
   let hits = ref 0 in
   let add row = incr hits; acc := row :: !acc in
   List.iter (fun (g : W.graph) ->
-    if contains ~query:q g.name then
-      add (Graph_row { graph = g.name; label = g.name; context = Some g.context;
-                       detail = W.context_name g.context; active = p.active = Some g.name })) ws.graphs;
+    if contains ~query:q g.name then add (graph_row p g (group_of g.context))) ws.graphs;
   List.iter (fun (d : W.graph) ->
     if contains ~query:q d.name then
       add (Graph_row { graph = "def:" ^ d.name; label = "ƒ " ^ d.name; context = None;
-                       detail = "function"; active = p.active = Some ("def:" ^ d.name) })) ws.defs;
+                       detail = "function"; active = p.active = Some ("def:" ^ d.name);
+                       chip = None; dim = false })) ws.defs;
   (match p.scope, p.active with
    | Some scope, Some graph ->
        let inner = ref [] in
@@ -189,23 +233,23 @@ let rows state p =
                add (Input_row { graph; name = i.name; integer = i.ty = Flow.Ty.Int; value })
            | _ -> ()) scope.inputs
      | _ -> ());
-    add (Head "COMPOSITION");
     let active_tree graph =
       match p.scope with
       | Some scope when p.active = Some graph -> node_rows ~graph ~depth:1 p scope chains counts acc
       | _ -> () in
-    List.iter (fun (g : W.graph) ->
-      let n = loops g.form in
-      add (Graph_row { graph = g.name; label = g.name; context = Some g.context;
-                       detail = (if n > 0 then plural n "loop" else W.context_name g.context);
-                       active = p.active = Some g.name });
-      active_tree g.name) ws.graphs;
+    List.iter (fun (group, graphs) ->
+      add (Head (String.uppercase_ascii group));
+      List.iter (fun (g : W.graph) ->
+        let n = loops g.form in
+        add (graph_row p g (if n > 0 then plural n "loop" else W.context_name g.context));
+        active_tree g.name) graphs) (grouped ws);
     if ws.defs <> [] || ws.macros <> [] then begin
       add (Head "REUSABLE");
       List.iter (fun (d : W.graph) ->
         let n = calls ws d.name in
         add (Graph_row { graph = "def:" ^ d.name; label = "ƒ " ^ d.name; context = None;
-                         detail = plural n "call"; active = p.active = Some ("def:" ^ d.name) });
+                         detail = plural n "call"; active = p.active = Some ("def:" ^ d.name);
+                         chip = None; dim = false });
         active_tree ("def:" ^ d.name)) ws.defs;
       List.iter (fun m -> Option.iter (fun name ->
         add (Macro_row (name, macro_uses ws name))) (macro_name m)) ws.macros
@@ -232,8 +276,11 @@ let describe = function
   | Case (t, tag) -> String.concat " | " (t :: tag)
   | Note lines -> String.concat " " lines
   | Input_row { name; value; _ } -> Printf.sprintf "input %s = %g" name value
-  | Graph_row { label; detail; active; _ } ->
-      Printf.sprintf "%s%s · %s" (if active then "> " else "") label detail
+  | Graph_row { label; detail; active; chip; _ } ->
+      Printf.sprintf "%s%s · %s%s" (if active then "> " else "") label detail
+        (match chip with
+         | Some c -> let r, g, b, _ = Prismel.Color.to_tuple c in Printf.sprintf " · #%02x%02x%02x" r g b
+         | None -> "")
   | Node_row { label; detail; depth; zone; _ } ->
       Printf.sprintf "%s%s%s · %s" (String.make (2 * depth) ' ')
         (match zone with Some z -> z ^ " " | None -> "") label detail
@@ -288,11 +335,21 @@ let view state ui ~bounds:(x, y, w, h) p =
   let x = float x and y = float y and w = float w and h = float h in
   let muted = Pxui.Theme.muted theme in
   (* the search field above the list *)
-  let query, typing = Ui.value_field ui ~at:(x +. 8., y +. 6.) ~w:(w -. 24.) ~h:21. ~size:11
-      ~left:true ~valid:(fun _ -> true) "navigator-search" state.query in
   let was_typing = state.typing in
-  let state = { query; typing } in
-  if query = "" && not typing then
+  (* F2 puts the graph's name in this field instead of the search *)
+  let state, renamed = match state.rename with
+    | Some (graph, seen) ->
+        let text, open_ = Ui.value_field ui ~at:(x +. 8., y +. 6.) ~w:(w -. 24.) ~h:21. ~size:11
+            ~left:true ~edit:(not seen) ~valid:Flow.Symbol.valid_name "navigator-rename" graph in
+        if text <> graph then { state with rename = None }, [ Rename { graph; to_ = text } ]
+        else if open_ then { state with rename = Some (graph, true) }, []
+        else { state with rename = (if seen then None else state.rename) }, []
+    | None ->
+        let query, typing = Ui.value_field ui ~at:(x +. 8., y +. 6.) ~w:(w -. 24.) ~h:21. ~size:11
+            ~left:true ~valid:(fun _ -> true) "navigator-search" state.query in
+        { state with query; typing }, [] in
+  let query = state.query and typing = state.typing in
+  if query = "" && not typing && state.rename = None then
     Ui.draw ui (Ui.box ui ~w:(Ui.Px 170.) ~h:(Ui.Px 14.) ~at:(x +. 16., y +. 10.) "navigator-placeholder")
       (fun paint (px, py, _, _) -> Ui.Paint.text paint ~at:(px, py) ~size:11 ~color:muted "Go to node, loop, fun...");
   let rows = rows state p in
@@ -318,8 +375,9 @@ let view state ui ~bounds:(x, y, w, h) p =
       while tops.(!k + 1) <= off do incr k done;
       Some !k
     end in
-  let intents = ref [] in
+  let intents = ref (List.rev renamed) in
   let emit i = intents := i :: !intents in
+  let begin_rename = ref None in
   (if signal.clicked then match Option.map (fun k -> rows.(k)) (row_at signal.release_point) with
    | Some (Graph_row { graph; _ }) -> emit (Open { graph; node = None })
    | Some (Node_row { graph; path; _ }) -> emit (Open { graph; node = Some path })
@@ -333,6 +391,13 @@ let view state ui ~bounds:(x, y, w, h) p =
        | _ -> None) (Array.to_list rows) with
      | Some intent -> emit intent | None -> ());
   let hovered = if signal.hovered then row_at signal.pointer else None in
+  (* F2 renames and Delete removes the graph under the pointer (a refused removal says who reads it) *)
+  (match Option.map (fun k -> rows.(k)) hovered with
+   | Some (Graph_row { graph; _ }) when not (String.starts_with ~prefix:"def:" graph)
+       && not typing && state.rename = None ->
+       if Ui.key_pressed ui Prismel.Input.F2 then begin_rename := Some (graph, false)
+       else if Ui.key_pressed ui Prismel.Input.Delete then emit (Remove graph)
+   | _ -> ());
   Ui.draw ui content (fun paint _ ->
     let scroll = Ui.scroll_position ui box in
     Ui.Paint.fill paint ~x ~y:top ~w ~h:body theme.panel;
@@ -371,10 +436,12 @@ let view state ui ~bounds:(x, y, w, h) p =
               Ui.Paint.text paint ~at:(x +. 8., ry +. 2. +. 16. *. float i) ~color:muted line)
               (List.concat_map (wrap width_chars) lines)
         | Input_row { name; _ } -> text (x +. 8., 0.) ~color:theme.foreground name
-        | Graph_row { label; context; detail; active; _ } ->
+        | Graph_row { label; context; detail; active; chip; dim; _ } ->
             shade active;
-            Ui.Paint.fill paint ~x:(x +. 8.) ~y:(ry +. 8.) ~w:8. ~h:8. (context_color context);
-            labelled (x +. 22.) label detail
+            (match chip with
+             | Some c -> Ui.Paint.fill paint ~x:(x +. 8.) ~y:(ry +. 6.) ~w:12. ~h:12. c
+             | None -> Ui.Paint.fill paint ~x:(x +. 8.) ~y:(ry +. 8.) ~w:8. ~h:8. (context_color context));
+            labelled ~color:(if dim then muted else theme.foreground) (x +. 22.) label detail
         | Node_row { depth; label; detail; zone; ty; result; selected; _ } ->
             shade selected;
             let nx = x +. 22. +. 14. *. float depth in
@@ -416,4 +483,4 @@ let view state ui ~bounds:(x, y, w, h) p =
               (float_of_string_opt changed)
         end
     | _ -> ()) rows;
-  state, List.rev !intents
+  { state with rename = (if !begin_rename <> None then !begin_rename else state.rename) }, List.rev !intents

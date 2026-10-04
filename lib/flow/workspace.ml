@@ -134,6 +134,7 @@ let ops = [
   panel "ui/split-at" [ "axis", Ty.Text; "ratio", fl; "first", Ty.Panel; "second", Ty.Panel ];
   { (panel "ui/tile" []) with rest = Some ("panel", Ty.Panel) };
   panel "ui/floating" [ "panel", Ty.Panel ];
+  { (panel "ui/switch" []) with rest = Some ("panel", Ty.Panel); kw = [ "active", Ty.Int ] };
 ]
 let op_table = let h = Hashtbl.create 64 in List.iter (fun o -> Hashtbl.replace h o.oname o) ops; h
 let find_op name ctx =

@@ -59,3 +59,14 @@ World given by `?world`; such an object has no text until its first explicit edi
 deletion, writes the scene (or World) graph from all the derived objects (`adopt`);
 `~adopt:false` (a camera following the viewport) leaves such edits to the host.  Keep new derived
 edits on this path: never write a second write-back.
+
+The scene graph's `scene/root` is not a node of the scene network: `Contexts.of_workspace` reads it
+into `Document.root` (`Objects.Root.parameters`, the defaults for a part, over the render size an old
+`scene/camera` carries) and `homes.root`; `Scene_sync.root` writes an edit to its call, or the first
+edit writes a root over the graph's result (`adopt_root`).  A `scene/world (ref g)` is an object like
+the others (its id and home are in `homes.objects`), its layers the world graph `g`
+(`homes.world_graph`); an old file's `world/world` is read as the World and written where it is.
+`E_SCENE_ROOT`, `E_SCENE_WORLD` and `E_SCENE_CAMERA` are raised by `Contexts.check_scene` while
+lowering, so a gesture that would cause one is refused whole.  Deleting an object removes its SOP or
+world graph in the same reconciliation when no `(ref g)` or `(ui/graph "g")` reads it.
+`Scene_sync.add_geometry` and `add_world` give the ops of one composition gesture.

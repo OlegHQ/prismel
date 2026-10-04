@@ -329,13 +329,51 @@ host's Restore layout stays outside the described tree.
 
 ### Named layouts
 
-Each graph with `:context editor` defines one named shell layout. The first is
-selected by default; `(layout (editor "studio"))` selects a specific graph.
-The Shell layouts menu lists these names and marks the current selection.
-Switching is one undo entry, and Save and autosave retain the selection.
-Panel edits target the selected graph. Built-in menu templates add a new named
-editor graph and select it, preserving the other layouts. An unknown selected
-name is a document error.
+A workspace's layouts are one editor graph with a switch:
+
+```lisp
+(graph editor :context editor
+  (let* [preview (ui/viewport (ref scene))
+         network (ui/graph)
+         inspector (ui/inspector)
+         code (ui/lisp)
+         build (ui/split-at "horizontal" 0.4 preview
+                 (ui/split-at "horizontal" 0.62 network inspector))
+         write (ui/split-at "horizontal" 0.46 preview
+                 (ui/split-at "vertical" 0.5 network code))
+         look preview]
+    (ui/workspace (ui/switch build write look :active 0))))
+```
+
+`(ui/switch panel... :active n)` evaluates to its `n`th panel (0-based, in text); it can sit at the
+root of the workspace or inside a split, where it swaps one column. The panels are shared bindings,
+so a viewport keeps its orbit and the text pane its draft across layouts. A layout has no stored
+name: `Editor_core.Panels.label` reads it from its tree. A leaf is its panel word (`View`, `Graph`,
+`List`, `Lisp`, `Inspector`, `Outline`, `Timeline`); side by side joins with `|`, stacked with `/`
+(which binds tighter, so only a row inside a stack is bracketed); same-axis nesting flattens;
+neighbours of one name collapse to `×n` (a tile of four viewports is `View ×4`); floating windows
+come last after `+`. Layouts that read the same add their largest panel and its share
+(`View | Graph · Graph 70%`), and any that still match get a number.
+
+- Inspector: `:active` is a choice whose labels are the computed names.
+- Graph pane: one input row per layout, labelled with its name. The active wire is solid and
+  accented, the others dashed grey; a click on a row switches.
+- Keys (`Space [`): the first switch's layouts as `0`..`9` (name, `(active)` mark), `Space [ 0..9`
+  switches, `Space [ n` adds a copy of the current layout and activates it (a document without a
+  switch gets one around its tree; ten layouts at most), `Space [ x` removes the current one (the
+  last stays). A switch is `Flow_edit.Set_layout`, history label "Layout"; repeats within 1.5
+  seconds merge into one entry. These edits address a switch at the root of the workspace.
+- Windows: `Space n` plus a kind letter of `Space l` (`g l t i u m w`) wraps the active layout in a
+  split whose second side is `(ui/floating ...)` (`Layout_window`); `Space o f` floats the focused
+  docked panel or docks the focused window beside the rest (`Layout_float`). Both rewrite only the
+  active layout; the splits it names are copied into one expression, its panels stay shared.
+  Window bounds are `(layout (panel ... :window [x y w h]))`. There are no OS windows.
+
+An older file with several `:context editor` graphs and `(layout (editor "studio"))` still
+loads: the selected graph is the shell and `Space [` lists the graphs by name (`Select_layout`,
+one undo entry). It is not rewritten on load. `Space [ n` there wraps the selected graph's tree in a switch; the
+other editor graphs stay as written, and are listed again only once they are moved into the switch
+by hand.
 
 ### Panel arrangement
 

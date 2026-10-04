@@ -603,3 +603,237 @@ let run_nested_loops () =
   check (lamps none = [] && lamps (open_text (source none)) = []) "deleting every copy left objects";
   same_after_reload none "all copies";
   print_endline "scene sync: nested loops: edit, computed refusal, rename, exact delete at 2 and 3 levels, accumulate ok"
+
+(* ---- the root and the World as a merge member ---- *)
+
+let diagnostic text = match Contexts.of_workspace ~factories (Ws_fixture.of_text text) with
+  | Error d -> Some (d.Flow.Diagnostic.code, d.message)
+  | Ok _ -> None
+
+let refused code text =
+  match diagnostic text with
+  | Some (c, message) -> check (c = code) (Printf.sprintf "expected %s, got %s: %s" code c message); message
+  | None -> failwith ("expected " ^ code ^ ", the text was accepted")
+
+let root_text = {|(workspace studio
+  (graph g :context sop (sop/box))
+  (graph sky :context world (world/sun (world/sky :name "sky") :name "sun"))
+  (graph scene :context scene
+    (let* [body (scene/geometry (ref g) :name "body")
+           cam (scene/camera :name "cam")
+           side (scene/camera :name "side" :eye [6 2 0])
+           world (scene/world (ref sky) :name "Bloom" :exposure -0.5)
+           all (scene/merge body cam side world)]
+      (scene/root all :camera side :renderer "Path traced" :width 800 :height 600 :max_spp 64))))|}
+
+(* a text on one line: the printer breaks long calls *)
+let flat text = String.concat " " (List.filter (( <> ) "")
+  (String.split_on_char ' ' (String.map (function '\n' -> ' ' | c -> c) text)))
+
+let run_root () =
+  let module R = Objects.Root in
+  (* an old file loads unchanged: no root is the defaults, the camera's size is read as the root's *)
+  let old = open_text text in
+  check (old.root = R.default && old.homes.root = None) "a scene without a root did not get the default root";
+  let sized = open_text {|(workspace old
+    (graph g :context sop (sop/box))
+    (graph scene :context scene
+      (scene/merge (scene/geometry (ref g)) (scene/camera :width 1600 :height 900 :max_spp 512))))|} in
+  check (sized.root.width = 1600 && sized.root.height = 900 && sized.root.max_spp = 512
+         && sized.homes.root = None) "the camera's old size was not read as the root's";
+  (* every sketch of the repository still loads, none with a root of its own yet *)
+  let sketches = "../sketches" in
+  let loaded = Array.fold_left (fun n name ->
+    let file = Filename.concat (Filename.concat sketches name) "sketch.plisp" in
+    if not (Sys.file_exists file) then n else begin
+      let text = In_channel.with_open_bin file In_channel.input_all in
+      (* a sketch that brings its own SOPs is not loaded here *)
+      match Prismel_editor.Workspace.load text with
+      | Error ds when List.exists (fun (d : Flow.Diagnostic.t) -> d.code = "E_UNKNOWN_KIND") ds -> n
+      | Error ds -> failwith (file ^ ": " ^ String.concat "; " (List.map Flow.Diagnostic.to_string ds))
+      | Ok workspace ->
+          (match Contexts.of_workspace ~factories workspace with
+           | Ok _ -> n + 1 | Error d -> failwith (file ^ ": " ^ Flow.Diagnostic.to_string d))
+    end) 0 (Sys.readdir sketches) in
+  check (loaded >= 12) (Printf.sprintf "only %d sketches were found to load" loaded);
+  let studio = lower (Result.get_ok (Prismel_editor.Workspace.load
+    (In_channel.with_open_bin "../sketches/shattered_studio/sketch.plisp" In_channel.input_all))) in
+  check (studio.root.width = 1600 && studio.root.height = 1600 && studio.root.max_spp = 512 && studio.homes.root = None)
+    "shattered_studio's camera size is not read as the root's";
+  (* a root and a World member *)
+  let doc = open_text root_text in
+  check (doc.root.renderer = R.Path_traced && doc.root.width = 800 && doc.root.height = 600
+         && doc.root.max_spp = 64 && doc.homes.root <> None) "the root's settings were not read";
+  check (doc.active_camera = Some (node_id doc "side")) "the root's :camera is not the active camera";
+  let wid = List.hd (Objects.ids "world" (scene doc)) in
+  check (List.mem_assoc wid doc.homes.objects && doc.homes.world_graph = Some "sky"
+         && Document.Int_map.mem wid doc.networks && List.length doc.homes.layers = 2)
+    "scene/world did not read its world graph's layers";
+  check (Edit_graph.find (scene doc) ~node_id:wid |> Option.get |> Node.label = "Bloom") "the World lost its name";
+  same_after_reload doc "root and World";
+  (* a root edit round-trips Save, one undo entry's worth of text *)
+  let edited = ok (reconcile doc { doc with root = { doc.root with width = 1024; bounces = 8 } }) in
+  check (edited.root.width = 1024 && edited.root.bounces = 8
+         && contains (flat (source edited)) ":renderer \"Path traced\" :width 1024 :height 600 :max_spp 64 :bounces 8")
+    ("a root edit did not reach the text: " ^ source edited);
+  check ((open_text (source edited)).root = edited.root) "a root edit did not round-trip Save";
+  (* the printer keeps the camera, renderer, size, samples order *)
+  let tidy = ok (reconcile edited { edited with root = { edited.root with round_samples = 2 } }) in
+  check (contains (flat (source tidy)) ":bounces 8 :round_samples 2") "the root printed its keywords out of order";
+  (* the render camera is written on the root *)
+  let to_cam = { doc with active_camera = Some (node_id doc "cam") } in
+  let cam = ok (reconcile doc to_cam) in
+  check (contains (flat (source cam)) ":camera cam :renderer \"Path traced\" :width 800"
+         && not (contains (source cam) ":camera side")
+         && cam.active_camera = Some (node_id cam "cam")) ("the camera was not written on the root: " ^ source cam);
+  (* a part gets a default root; the first edit of a root setting writes one over its result *)
+  let part = open_text text in
+  let written = ok (reconcile part { part with root = { part.root with width = 640; renderer = R.Wireframe } }) in
+  check (written.homes.root <> None && written.root.width = 640 && contains (source written) "(scene/root"
+         && contains (flat (source written)) ":renderer \"Wireframe\" :width 640"
+         && (open_text (source written)).root = written.root) ("the root was not written: " ^ source written);
+  (* the World is a merge member: its keywords edit like an object's, its layers its graph's *)
+  let wid, network = world_network doc in
+  let sun = layer_id doc "sun" and sky = layer_id doc "sky" in
+  let world_node graph values = fst (Result.get_ok (Edit_graph.apply_parameters graph ~node_id:wid values)) in
+  let edited = ok (reconcile doc (with_scene doc (world_node (scene doc) [ float "exposure" 1.; float "rotation" 20. ]))) in
+  check (contains (flat (source edited)) "(scene/world (ref sky) :name \"Bloom\" :exposure 1.0 :rotation 20.0)")
+    ("a World member's edit did not reach its call: " ^ source edited);
+  same_after_reload edited "World member";
+  let layer_edit doc id values =
+    let wid, n = world_network doc in
+    with_world_network doc wid n (fst (Result.get_ok (Edit_graph.apply_parameters n.graph.geometry ~node_id:id values))) in
+  let edited = ok (reconcile doc (layer_edit doc sun [ float "intensity" 321. ])) in
+  check (contains (source edited) ":intensity 321.0" && layer_id edited "sun" = sun) "a layer of the World's graph was not edited";
+  same_after_reload edited "World member layer";
+  (* a deleted top layer hands the graph's result to the layer below; the stack reorders *)
+  let removed = with_world_network doc wid network (Edit_graph.remove_nodes [ sun ] network.graph.geometry) in
+  let edited = ok (reconcile doc removed) in
+  check (not (contains (source edited) "world/sun") && contains (source edited) "world/sky"
+         && Objects.ids "world" (scene edited) <> []) ("a deleted top layer: " ^ source edited);
+  same_after_reload edited "World member layer delete";
+  let g = network.graph.geometry in
+  let swapped = Edit_graph.disconnect ~consumer:sun ~input_index:0 g |> Result.get_ok
+    |> Edit_graph.connect ~source:sun ~consumer:sky ~input_index:0 |> Result.get_ok in
+  let swapped = Document.with_network doc (Document.Inside wid)
+    { network with graph = Result.get_ok (Flow_sop.Network.with_geometry swapped network.graph); displayed = Some sky } in
+  let edited = ok (reconcile doc swapped) in
+  check (List.map (fun (l, _, _) -> l) (let _, layers, _, _ = snapshot edited in layers) = [ "sky"; "sun" ]
+         && contains (source edited) "(scene/world (ref sky)") ("a restack: " ^ source edited);
+  same_after_reload edited "World member restack";
+  (* deleting the World leaves its merge input, its binding and its graph (nothing else reads it) *)
+  let worldless = Document.prune (with_scene doc (Edit_graph.remove_nodes [ wid ] (scene doc))) in
+  let edited = ok (reconcile doc worldless) in
+  check (Objects.ids "world" (scene edited) = [] && not (contains (source edited) "scene/world")
+         && not (contains (source edited) "graph sky") && contains (source edited) "scene/root")
+    ("a deleted World: " ^ source edited);
+  same_after_reload edited "World member delete";
+  (* what is refused *)
+  ignore (refused "E_SCENE_ROOT" {|(workspace a
+    (graph g :context sop (sop/box))
+    (graph scene :context scene
+      (scene/root (scene/merge (scene/root (scene/merge (scene/geometry (ref g))))))))|});
+  ignore (refused "E_SCENE_ROOT" {|(workspace a
+    (graph g :context sop (sop/box))
+    (graph scene :context scene
+      (scene/merge (scene/geometry (ref g)) (scene/root (scene/merge)))))|});
+  let message = refused "E_SCENE_WORLD" {|(workspace a
+    (graph g :context sop (sop/box))
+    (graph sky :context world (world/sky))
+    (graph scene :context scene
+      (let* [one (scene/world (ref sky) :name "one")
+             two (scene/world (ref sky) :name "two")]
+        (scene/root (scene/merge (scene/geometry (ref g)) one two)))))|} in
+  check (contains message "one" && contains message "two") ("E_SCENE_WORLD did not name both bindings: " ^ message);
+  ignore (refused "E_SCENE_CAMERA" {|(workspace a
+    (graph g :context sop (sop/box))
+    (graph scene :context scene
+      (let* [elsewhere (scene/camera :name "away")]
+        (scene/root (scene/merge (scene/geometry (ref g)) (scene/camera)) :camera elsewhere))))|});
+  print_endline "scene root: old files, root settings and camera, Save round trip, part root, E_SCENE_ROOT/WORLD/CAMERA ok"
+
+(* the ops of a gesture, applied together: all or none *)
+let apply_ops (doc : Document.t) ops =
+  let catalog = Result.get_ok (Contexts.catalog ~version:Flow_sop.Manifest.version factories) in
+  List.fold_left (fun doc op ->
+    Result.bind doc (fun (doc : Document.t) ->
+      match Workspace_doc.edit catalog (fst doc.workspace) op with
+      | Error d -> Error (Flow.Diagnostic.to_string d)
+      | Ok workspace -> Contexts.of_workspace ~factories ~previous:doc workspace
+          |> Result.map_error Flow.Diagnostic.to_string)) (Ok doc) ops
+
+let okx = function Ok d -> d | Error m -> failwith m
+
+let graph_names (doc : Document.t) =
+  List.map (fun (g : Flow.Workspace.graph) -> g.name) (fst doc.workspace).checked.graphs
+
+let geometries doc = List.length (Objects.ids "geometry" (scene doc))
+
+let run_compose () =
+  (* the composition gestures: one op list each, one undo entry (the ops apply together) *)
+  let doc = open_text root_text in
+  let added = okx (apply_ops doc (Sync.add_geometry doc ~existing:None)) in
+  check (geometries added = geometries doc + 1 && List.mem "shape" (graph_names added)
+         && contains (flat (source added)) "(scene/geometry (ref shape))"
+         && contains (flat (source added)) "(scene/merge body cam side world object)")
+    ("add geometry: " ^ source added);
+  same_after_reload added "add geometry";
+  let again = okx (apply_ops added (Sync.add_geometry added ~existing:(Some "shape"))) in
+  check (geometries again = geometries added + 1 && graph_names again = graph_names added
+         && contains (flat (source again)) "(scene/geometry (ref shape) :name \"shape 2\")")
+    ("add geometry of an existing graph: " ^ source again);
+  (* a failing step leaves nothing behind *)
+  check (Result.is_error (apply_ops doc [ List.hd (Sync.add_geometry doc ~existing:None);
+    Flow_sop.Flow_edit.Remove_graph { name = "nope" } ])) "a failed gesture was applied";
+  (* one World only *)
+  check (Result.is_error (Sync.add_world doc)) "a second World was offered";
+  let bare = open_text {|(workspace a (graph g :context sop (sop/box))
+    (graph scene :context scene (scene/root (scene/merge (scene/geometry (ref g))))))|} in
+  let worlded = okx (apply_ops bare (Result.get_ok (Sync.add_world bare))) in
+  check (Objects.ids "world" (scene worlded) <> [] && contains (flat (source worlded)) "(scene/world (ref sky))")
+    ("add World: " ^ source worlded);
+  same_after_reload worlded "add World";
+  let call head args = Flow.Syntax.make (Flow.Syntax.List (Flow.Syntax.make (Flow.Syntax.Sym head) :: args)) in
+  let sym name = Flow.Syntax.make (Flow.Syntax.Sym name) in
+  (match apply_ops worlded [ Flow_sop.Flow_edit.Add_node { scope = [ "scene" ]; name = "again";
+      expr = call "scene/world" [ call "ref" [ sym "sky" ] ] } ] with
+   | Error message -> check (contains message "E_SCENE_WORLD" || contains message "World") ("one-World add: " ^ message)
+   | Ok _ -> failwith "a second World was added to one root");
+  (* take a wire out of the merge: the object stays as an unwired binding, and wires back *)
+  let rock = open_text {|(workspace rocks
+    (graph rock :context sop (sop/box))
+    (graph scatter :context sop (sop/box))
+    (graph scene :context scene
+      (let* [left (scene/geometry (ref rock))
+             right (scene/geometry (ref rock) :translate [3 0 0] :name "right")
+             pebbles (scene/geometry (ref scatter))
+             all (scene/merge left right pebbles)]
+        (scene/root all))))|} in
+  let out = okx (apply_ops rock [ Flow_sop.Flow_edit.Disconnect
+    { node = [ "scene"; "all" ]; key = Flow_sop.Flow_edit.Pos 2; fallback = None } ]) in
+  check (geometries out = 2 && contains (flat (source out)) "pebbles (scene/geometry (ref scatter))"
+         && contains (flat (source out)) "(scene/merge left right)") ("take out of the scene: " ^ source out);
+  let back = okx (apply_ops out [ Flow_sop.Flow_edit.Connect
+    { node = [ "scene"; "all" ]; key = Flow_sop.Flow_edit.Pos 2; src = "pebbles"; iter = false } ]) in
+  check (geometries back = 3) "a wire taken out did not wire back";
+  (* delete an object: its SOP graph goes only when nothing else references it *)
+  let remove (doc : Document.t) label =
+    Document.prune (with_scene doc (Edit_graph.remove_nodes [ node_id doc label ] (scene doc))) in
+  let no_pebbles = ok (reconcile rock (remove rock "scatter")) in
+  check (not (List.mem "scatter" (graph_names no_pebbles)) && List.mem "rock" (graph_names no_pebbles)
+         && not (contains (source no_pebbles) "pebbles")) ("delete frees an unshared graph: " ^ source no_pebbles);
+  same_after_reload no_pebbles "delete object";
+  let no_left = ok (reconcile rock (remove rock "rock")) in
+  check (List.mem "rock" (graph_names no_left) && geometries no_left = 2)
+    "deleting one of two objects of a graph removed the graph";
+  let no_right = ok (reconcile no_left (remove no_left "right")) in
+  check (not (List.mem "rock" (graph_names no_right)) && List.mem "scatter" (graph_names no_right))
+    ("deleting the last object of a graph kept it: " ^ source no_right);
+  (* group into a new merge: between the selection and the old one *)
+  let grouped = okx (apply_ops rock [ Flow_sop.Flow_edit.Group_merge
+    { nodes = [ [ "scene"; "left" ]; [ "scene"; "right" ] ]; name = "pair" } ]) in
+  check (contains (flat (source grouped)) "pair (scene/merge left right)"
+         && contains (flat (source grouped)) "all (scene/merge pair pebbles)" && geometries grouped = 3)
+    ("group: " ^ source grouped);
+  same_after_reload grouped "group";
+  print_endline "scene compose: add geometry (new and existing), add World, one World, take out and wire back, delete refcount, group ok"

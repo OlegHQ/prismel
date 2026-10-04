@@ -29,6 +29,7 @@ type change =
   | Frames_set of { scope : path; frames : (string * (float * float) * (float * float)) list }
       (** the frames of one scope after a gesture (create, resize, retitle, delete) *)
   | Display_set of path  (** show this geometry node in the viewport (the shown one: its result) *)
+  | Activated of path
   | Notice of string
 
 type direction = Left | Down | Up | Right
@@ -209,6 +210,7 @@ type t = {
   editing : editing option;
   context : ((float * float) * path) option;
   stats : stats;
+  switches : (path * int) list;  (* the [ui/switch] nodes and their active layout *)
 }
 
 let no_stats = { nodes = 0; zones = 0; rows = 0; drawn_items = 0; drawn_zones = 0; drawn_rows = 0 }
@@ -219,7 +221,7 @@ let create ?(x = 0) ?(y = 0) ?(width = 640) ?(height = 360) ?(theme = Pxui.defau
   frames = (fun _ -> []); display = None; framed = true;
   layout = { P.placed = []; w = 0.; h = 0. }; geo = empty_geo; pan_x = 12.; pan_y = 12.; zoom = 1.;
   wires = `Rect; selected = Path_set.empty; selected_wire = None; panning_grab = false;
-  hovered_row = None; highlighted = []; drag = None; editing = None; context = None; stats = no_stats }
+  hovered_row = None; highlighted = []; drag = None; editing = None; context = None; stats = no_stats; switches = [] }
 
 let with_bounds ~x ~y ~width ~height t =
   if t.x = x && t.y = y && t.width = width && t.height = height then t
@@ -273,12 +275,25 @@ let no_shift _ = 0., 0.
 let lens_of t path = List.assoc_opt path t.lens
 let macro_step = lens_of
 
+(* a switch's rows read as the names of its layouts; [switches] are its nodes with the active input *)
+let switch_nodes (scope : P.scope) = List.filter_map (fun (n : P.node) ->
+  if n.head <> "ui/switch" || n.zone <> None then None else
+  Some (n.path, match List.find_opt (fun (r : P.row) -> r.key = E.Kw "active") n.rows with
+    | Some { expr = Some { S.node = S.Num s; _ }; _ } -> Option.value ~default:0 (int_of_string_opt s)
+    | _ -> 0)) scope.nodes
+
 let with_scope ?(at = fun _ -> None) ?(collapsed = fun _ -> false) ?(probe = fun _ -> 0)
-    ?(frames = fun _ -> []) ?display ?wires ~key scope t =
+    ?(frames = fun _ -> []) ?display ?wires ?(layouts = []) ~key scope t =
   let wires = Option.value wires ~default:t.wires in
+  let scope = if layouts = [] then scope else
+    { scope with P.nodes = List.map (fun (n : P.node) ->
+        let inputs = List.filter (fun (r : P.row) -> match r.key with E.Pos _ -> r.kind <> P.Add | _ -> false) n.rows in
+        if n.head <> "ui/switch" || List.length inputs <> List.length layouts then n
+        else { n with rows = List.map (fun (r : P.row) -> match r.key with
+          | E.Pos i when r.kind <> P.Add -> { r with label = List.nth layouts i } | _ -> r) n.rows }) scope.P.nodes } in
   let layout = P.layout ~at ~collapsed ~lens:(lens_of t) scope in
   let n, z, r = count_scope scope in
-  let t = { t with scope = Some scope; at; collapsed; probe; frames; display; layout;
+  let t = { t with scope = Some scope; at; collapsed; probe; frames; display; layout; switches = switch_nodes scope;
     chains = Flow_sop.Probe.chains scope; wires;
     geo = compute scope layout ~shift:no_shift;
     stats = { t.stats with nodes = n; zones = z; rows = r } } in
@@ -1038,8 +1053,16 @@ let paint_background paint t ~viewport (zones : (P.node * P.zone * P.placed * fl
     let width = if is_selected then Float.max 2.5 (3. *. z)
       else if is_highlighted then Float.max 2. (2.4 *. z)
       else Float.max 1. (1.6 *. z) in
-    let color = if is_selected then theme.accent else ty_color t w.ty in
-    paint_polyline paint ~width color pts) t.geo.wires
+    (* a switch's active wire is solid and accented, the others dashed grey *)
+    let layout = match w.target with
+      | Some (p, E.Pos i, _) -> Option.map (fun a -> i = a) (List.assoc_opt p t.switches)
+      | _ -> None in
+    let color = if is_selected || layout = Some true then theme.accent
+      else if layout = Some false then Pxui.Theme.muted theme else ty_color t w.ty in
+    if layout = Some false then
+      let rec dash = function a :: (b :: _ as rest) -> dashed_line paint ~width color a b; dash rest | _ -> () in
+      dash pts
+    else paint_polyline paint ~width color pts) t.geo.wires
 
 (* ---------------------------------------------------------------- update *)
 
@@ -1366,7 +1389,19 @@ let update t ui (frame : Frame.t) =
                     if (Ui.signal ui b).clicked then [ Syntax_edit (E.Move_item { node = n.path; pos = k }) ] else []
                 | _ -> []) n.rows))
         | _ -> [] in
-      p, ax, ay, tile, Ui.signal ui tile, sub, fields @ add_clicks @ editors @ movers) visible) in
+      (* a switch's rows: a click on a layout's name makes it the active one *)
+      let switchers = match p.item, List.assoc_opt p.path t.switches with
+        | P.Item n, Some active when z >= 0.5 ->
+            Ui.within ui tile (fun () ->
+              let top = rows_top n 0. in
+              List.concat (List.mapi (fun i (r : P.row) -> match r.key with
+                | E.Pos k when r.kind <> P.Add && k <> active ->
+                    let b = Ui.box ui ~flags:Ui.(clickable + tab_stop) ~w:(Ui.Px ((p.w -. 24.) *. z)) ~h:(Ui.Px (16. *. z))
+                        ~at:(12. *. z, (top +. float i *. P.row_height +. 4.) *. z) ("sw" ^ string_of_int i) in
+                    if (Ui.signal ui b).clicked then [ Syntax_edit (E.Set_layout { graph = t.key; index = k }) ] else []
+                | _ -> []) n.rows))
+        | _ -> [] in
+      p, ax, ay, tile, Ui.signal ui tile, sub, fields @ add_clicks @ editors @ movers @ switchers) visible) in
   let t = if !finished then { t with editing = None } else t in
   (* frames: a title strip, a delete cross and a resize corner, over the tiles (a zone's tile
      covers its whole body) and clear of the nodes, which keep 12 points inside the frame *)
@@ -1534,8 +1569,9 @@ let update t ui (frame : Frame.t) =
       if s.double_clicked && left s && t.context = None && t.editing = None then begin
         let _, top, _, _ = Ui.rect ui tile in
         match p.item with
-        | P.Item n when (not n.synthetic) && snd s.release_point < top +. P.head_height *. z ->
+        | P.Item n when (not n.synthetic) && snd s.press_point < top +. P.head_height *. z ->
             { t with editing = Some (Name p.path) }
+        | P.Item n when not n.synthetic -> emit (Activated p.path); t
         | P.Input _ -> { t with editing = Some (Default p.path) }
         | _ -> t
       end else t in
@@ -1658,6 +1694,14 @@ let update t ui (frame : Frame.t) =
   let selected = t.selected in
   let snapshot = t in
   let row_hover = match hover with Some (n, _, _, i) -> Some (n.path, i) | None -> None in
+  (* a scene object nothing reads (taken out of its merge) is dimmed; a wire from it brings it back *)
+  let read = Hashtbl.create 16 in
+  Array.iter (fun (w : wire) -> Hashtbl.replace read w.a ()) t.geo.wires;
+  let dimmed (n : P.node) = not n.synthetic && n.zone = None
+    && String.starts_with ~prefix:"scene/" n.head && n.head <> "scene/merge" && n.head <> "scene/root"
+    && (match Hashtbl.find_opt t.geo.pos n.path with
+        | Some (ax, ay, w, _) -> not (Hashtbl.mem read (ax +. w, ay +. 12.))
+        | None -> false) in
   Ui.draw ui layer (fun paint (rx, ry, rw, rh) ->
     paint_background paint snapshot ~viewport:(rx, ry, rw, rh) zones);
   List.iter (fun ((p : P.placed), ax, ay, tile, _, _, _) ->
@@ -1676,7 +1720,8 @@ let update t ui (frame : Frame.t) =
                  ~probe:(snapshot.probe n.path) ~count:(count_of snapshot n.path)
            | _ ->
                let rh = match row_hover with Some (rp, i) when rp = n.path -> Some i | _ -> None in
-               paint_node paint snapshot ~z ~fs ?footer:(Hashtbl.find_opt footers n.path) ?lens_step:(lens_of snapshot n.path) p n ~selected:isel ~row_hover:rh (x, y, w, h)));
+               paint_node paint snapshot ~z ~fs ?footer:(Hashtbl.find_opt footers n.path) ?lens_step:(lens_of snapshot n.path) p n ~selected:isel ~row_hover:rh (x, y, w, h);
+               if dimmed n then Ui.Paint.fill paint ~x ~y ~w ~h (Color.with_alpha snapshot.theme.panel 150)));
     ignore (ax, ay); ignore node_placed; drawn_rows := !drawn_rows) tiles;
   let rows = List.fold_left (fun a ((p : P.placed), _, _, _, _, _, _) -> match p.item with
     | P.Item n -> a + List.length n.rows | _ -> a) 0 tiles in
