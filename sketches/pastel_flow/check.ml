@@ -21,14 +21,17 @@ let digest art =
     Mesh.Private.packed_view d.mesh) |> fun meshes ->
   Digest.string(Marshal.to_string meshes [])
 let () =
+  let exhaustive = Array.mem "--exhaustive" Sys.argv in
   let ui=ui () in
   let a=validate ui in
   assert(digest a=digest(validate ui));
+  if exhaustive then begin
   List.iter(fun (c:Artwork.control)->
     List.iter(fun value->ignore(validate(Artwork.set ui c.key value)))
       [c.lo;c.hi]) Artwork.controls;
   List.iter(fun high->ignore(validate(List.fold_left(fun ui (c:Artwork.control)->
-    Artwork.set ui c.key (if high then c.hi else c.lo)) ui Artwork.controls))) [false;true];
+    Artwork.set ui c.key (if high then c.hi else c.lo)) ui Artwork.controls))) [false;true]
+  end;
   let root=Filename.temp_dir "pastel-flow" "" in
   let path=Filename.concat root "nested/settings.rays" in
   Fun.protect ~finally:(fun()->
@@ -50,5 +53,6 @@ let () =
     |> no_grain
   in
   assert(digest(validate(chaos ui 11.))<>digest(validate(chaos ui 97.)));
-  Printf.printf "Checked %d control boundaries, combined extrema, seed chaos, repeatability and settings round-trip.\n"
-    (List.length Artwork.controls * 2)
+  Printf.printf "Checked preset, seed chaos, repeatability and settings round-trip%s.\n"
+    (if exhaustive then Printf.sprintf ", %d control boundaries and combined extrema"
+       (List.length Artwork.controls * 2) else "")

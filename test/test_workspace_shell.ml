@@ -1506,7 +1506,8 @@ let run_studio () =
   (* the 320-wide inspector starts at y 24; the split's head is 153 tall (chips 12 + 24 + 4, the 40-point
      name in 48, 4, the detail line, 8, the 20-point buttons, 8 and its rule), then the Split section (4 above its
      header, 24) and the Size row, whose middle is 24 + 153 + 28 + 12 = 217; its menu opens 1 below the field *)
-  let pick dy = click (600., 600.); click (1390., 217.); click (1390., 217. +. dy) in
+  (* Dismiss in the status strip: the graph background now clears selection. *)
+  let pick dy = click (700., 887.); click (1390., 217.); click (1390., 217. +. dy) in
   pick 27.;
   check (has (source !e) "studio (ui/split-at \"horizontal\" 0.1505 outline work)" && E3.undo_label !e = Some "Resize panel")
     ("the Size row did not size the split by its ratio: " ^ source !e);
@@ -1937,6 +1938,7 @@ let run_roots () =
    keeps the samples (and one that crosses a step restarts them), and an edit of the second root
    restarts only its slot. *)
 let run_roots_native () =
+  let width = 1200 in
   let directory = Filename.temp_dir "rays-roots" "" in
   let png = Filename.concat directory "roots.png" in
   (* look-through is each viewport's own: the first takes Space v, the second says so in the text *)
@@ -1944,7 +1946,10 @@ let run_roots_native () =
   let doc = build_ok (of_text text) in
   let shell = shell_of doc in
   let day, night = match List.map fst shell.preview_sources with [ d; n ] -> d, n | _ -> fail "two viewports" in
-  let geometry = Layout.geometry ~hidden:[ Layout.Timeline ] shell.tree (frame (0., 0.) [] 0) in
+  (* At 1200 points the new viewport margins still let the half-size films fit;
+     the 200-point drag then crosses only the second film's step. *)
+  let geometry = Layout.geometry ~hidden:[ Layout.Timeline ] shell.tree
+      { (frame (0., 0.) [] 0) with width; size = width, 640 } in
   let pane key = List.find_map (fun (l : Layout.leaf) -> if l.panel = Layout.View key then Some l.body else None)
       geometry.leaves |> Option.get in
   let splitter = List.find (fun (s : Layout.splitter) -> s.node = Some []) geometry.splitters in
@@ -1965,7 +1970,7 @@ let run_roots_native () =
     match E3.edit e (E.Set_arg { node = [ "night"; "root" ]; key = E.Kw arg; sub = []; value = S.make (S.Num value) }) with
     | Ok e -> e | Error message -> fail message in
   ignore (Sketch.run_state ~max_frames:200
-    ~config:{ Sketch.default_config with width = 900; height = 640; title = "two roots" }
+    ~config:{ Sketch.default_config with width; height = 640; title = "two roots" }
     ~init:(fun _ -> E3.create ~await:true ~workspace:(of_text text)
       ~presets:(Filename.concat directory "presets")
       ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh output.Session.geometry
@@ -2034,7 +2039,7 @@ let run_roots_native () =
   (* what the window shows: both panes drawn, the pictures differ, dusk is darker than noon *)
   let image = Image.load_exn png in
   let pixels = Result.get_ok (Image.Private.pixels image) in
-  let scale = float (Image.get_width image) /. 900. in
+  let scale = float (Image.get_width image) /. float width in
   let region (x, y, w, h) (resolution_w, resolution_h) =
     (* the inner part of the gate, which is centred in the pane *)
     let aspect = float resolution_w /. float resolution_h in

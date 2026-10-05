@@ -87,7 +87,8 @@
    %{dep:test_presentation_lifecycle_native.mm} -o %{targets})))
 
 (rule
- (alias runtest)
+ (aliases qualification runtest-native test_presentation_lifecycle_native)
+ (locks smoke_window)
  (deps test_presentation_lifecycle_native.exe)
  (action (run ./test_presentation_lifecycle_native.exe)))
 

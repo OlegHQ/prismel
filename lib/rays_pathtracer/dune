@@ -20,12 +20,12 @@
  (libraries rays rays_pathtracer rays_execution runtime_resources ogpu rdk unix))
 
 (rule
- (aliases runtest test_pathtracer)
+ (aliases qualification runtest-native test_pathtracer)
  (deps pathtrace.metal)
  (action (run %{exe:test_main.exe} test_pathtracer)))
 
 (rule
- (aliases runtest test_world)
+ (aliases qualification runtest-native test_world)
  (action (run %{exe:test_main.exe} test_world)))
 
 (rule
@@ -49,5 +49,5 @@
  (action (run %{exe:test_main.exe} test_parity)))
 
 (rule
- (aliases runtest test_scene)
+ (aliases qualification runtest-native test_scene)
  (action (run %{exe:test_main.exe} test_scene)))

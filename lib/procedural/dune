@@ -19,7 +19,7 @@
  (action (run %{exe:test_main.exe} test_edit_graph)))
 
 (rule
- (aliases runtest test_procedural_parallel_exact)
+ (aliases qualification qualification-scale test_procedural_parallel_exact)
  (action (run %{exe:test_main.exe} test_procedural_parallel_exact)))
 
 (rule

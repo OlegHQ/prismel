@@ -1,4 +1,16 @@
 (executable
+ (name check)
+ (modules check)
+ (libraries unix))
+
+(test
+ (name test_check)
+ (modules test_check)
+ (libraries unix)
+ (deps check.exe)
+ (action (run %{test} %{exe:check.exe})))
+
+(executable
  (name new_example)
  (modules new_example)
  (libraries unix str))

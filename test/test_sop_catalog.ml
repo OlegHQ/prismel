@@ -109,7 +109,7 @@ let set_color_test () =
       && tinted.w.(1) = 1.) "set_color group did not restrict the write";
   Session.close session
 
-let run () =
+let run ?(exhaustive = false) () =
   test_motion ();
   let source = Sop_catalog.Box.create ~label:"box"
       ~size:(Vec3.create 2. 2. 2.) ~connectivity:Rdk.Box_generator.Box_quads
@@ -415,6 +415,7 @@ let run () =
      the cache identity: perturbing any single field changes the node's
      parameter key, so a field forgotten by an operator's own key string can
      never produce a stale cache hit. *)
+  if exhaustive then begin
   let perturbed (view : Parameter.field_view) =
     let within_int (range : Parameter.int_range) value =
       Option.fold ~none:true ~some:(fun low -> value >= low) range.hard_min
@@ -474,7 +475,8 @@ let run () =
     !perturbed_fields !rejected_fields;
   check (!perturbed_fields > 10 * !rejected_fields)
     (Printf.sprintf "only %d catalog fields were perturbable (%d rejected)"
-      !perturbed_fields !rejected_fields);
+      !perturbed_fields !rejected_fields)
+  end;
   let key_session = Session.create ~max_entries:8 ~max_payload_bytes:1_000_000
       |> Result.get_ok in
   let exploded = Sop_catalog.Box.create ~label:"key-box" ()

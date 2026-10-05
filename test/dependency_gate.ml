@@ -32,6 +32,10 @@ let parse text =
 
 let read path = In_channel.with_open_bin path In_channel.input_all
 
+let contains text needle =
+  try ignore (Str.search_forward (Str.regexp_string needle) text 0); true
+  with Not_found -> false
+
 let rec files dir = Sys.readdir dir |> Array.to_list |> List.concat_map (fun name ->
   let path = Filename.concat dir name in
   if Sys.is_directory path then (if name = "_build" then [] else files path) else [path])
@@ -151,12 +155,7 @@ let uses_metal text =
      opens words)
 
 let uses_key_pressed text =
-  let code = code_tokens text and token = "KeyPressed" in
-  let limit = String.length code - String.length token in
-  let rec find index = index <= limit &&
-    (String.sub code index (String.length token) = token
-     || find (index + 1)) in
-  find 0
+  contains (code_tokens text) "KeyPressed"
 
 (* Native-only rendering: no second renderer, GL/Vulkan window, or backend
    selector anywhere in source text, strings and comments included. *)
@@ -169,12 +168,6 @@ let forbidden_native =
     "RAYS_RENDER_TARGET"; "RAYS_HEADLESS"; "RAYS_WEB";
     "RAYS_RENDERER"; "RAYS_BACKEND"; "RAYS_OPENGL";
     "--renderer"; "--backend"; ("--head" ^ "less"); ("--open" ^ "gl"); "Dynlink" ]
-
-let contains text needle =
-  let limit = String.length text - String.length needle in
-  let rec find index = index <= limit &&
-    (String.sub text index (String.length needle) = needle || find (index + 1)) in
-  find 0
 
 let violations graph ~scan =
   let reach = reach graph in
@@ -209,6 +202,12 @@ let violations graph ~scan =
   direct_errors @ edge_errors @ token_errors @ native_errors
 
 let run () =
+  List.iter (fun (text, needle, expected) ->
+    assert (contains text needle = expected))
+    ["", "", true; "", "x", false; "x", "", true;
+     "prefix Metal.suffix", "Metal.", true;
+     "aaaab", "aaab", true; "a.b", ".", true;
+     "a\\b", "\\", true; "abc", "abcd", false; "abc", "d", false];
   (* Exercise the actual dune reader, including public-name resolution and
      a forbidden edge hidden behind an otherwise innocuous private bridge. *)
   let fixture = Filename.temp_dir "rays-dependency-gate" "" in

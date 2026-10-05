@@ -17,7 +17,8 @@ let tests = [
   "test_scene_tree", (fun () -> Test_scene_tree.run (); Test_scene_tree.run_host ());
   "test_scene_sync", (fun () -> Test_scene_sync.run (); Test_scene_sync.run_loops (); Test_scene_sync.run_nested_loops (); Test_scene_sync.run_root (); Test_scene_sync.run_compose (); Test_scene_sync.run_instances ());
   "bench_scene_sync", Test_scene_sync.bench;
-  "test_sop_catalog", Test_sop_catalog.run;
+  "test_sop_catalog", (fun () -> Test_sop_catalog.run ());
+  "test_sop_catalog_exhaustive", (fun () -> Test_sop_catalog.run ~exhaustive:true ());
   "test_sketch_support", Test_sketch_support.run;
   "test_terminal_boolean_normals", Test_terminal_boolean_normals.run;
   "test_workspace_cook", Test_workspace_cook.run;

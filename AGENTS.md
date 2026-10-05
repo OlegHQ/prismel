@@ -108,7 +108,20 @@ document as text, plus a loadable `.rays` for a workspace); read it first when a
 
 Default `runtest` is green on a clean checkout. Display-dependent tests live in
 `@runtest-native`; long, SDK-, driver-, or machine-specific checks in
-`@qualification`. A public `.mli` change shows as a diff of
+`@qualification`. Large algorithm fixtures (studio fracture and high-density
+one/four-domain exactness) and exhaustive catalog/control sweeps are optional
+under `@qualification-scale` (also included in `@qualification`). Normal
+shipping does not run them.
+When agents share a worktree, build `tools/check.exe` once, then invoke
+`_build/default/tools/check.exe` directly: it queues validation requests before
+Dune takes its build lock. It defaults to `@runtest`; pass focused aliases such
+as `@lib/rdk/runtest`, or `--ship` for `@all`, `@runtest`, `@smoke` and
+`git diff --check`. Use the same launcher for every agent in that worktree.
+Keep Dune's cache: do not use `--force` or clean between ordinary validations.
+Agents run the focused alias for their change; reserve `--ship` for the final
+shipping check. GPU rendering integration and presentation timeouts live in
+`@runtest-native`; pure prepared-command validation stays in `@runtest`.
+A public `.mli` change shows as a diff of
 `tools/api_manifest/api_stable.json`; accept an intended change with
 `dune promote`. Warnings are errors. Automated application loops arrange
 their own termination. Build, generation, and validation glue is OCaml under

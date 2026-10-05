@@ -1,5 +1,69 @@
 # Performance and memory architecture
 
+## Test validation baseline (2026-10-05)
+
+Apple M1 Mac mini (`Macmini9,1`), 8 cores, 16 GiB, OCaml 5.3.0,
+Dune 3.24.2, dev profile, warm build artifacts. These are individual timing
+samples, not medians or timing gates. Forced runs set
+`SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy`; native smoke uses native drivers.
+
+| Measurement | Before | After |
+| --- | ---: | ---: |
+| Original full test selection, forced execution | 66.36 s | 47.85 s |
+| Studio fracture, isolated, identical checks | 48.98 s | 29.93 s |
+| Dependency gate, isolated, identical policy | 4.19 s | 1.23 s |
+| Standard selection, forced execution | — | 18.78 s |
+| Cached standard validation | — | 0.65 s |
+| Cached shipping (`@all`, `@runtest`, `@smoke`, diff check) | — | 1.00 s |
+| 20 simultaneous cached standard requests, all completed | Dune lock errors | 12.50 s total |
+
+The full-selection speedup reuses the one-domain fracture session for downstream
+material validation while keeping the four-domain fracture cook independent,
+and uses standard-library literal searching in the dependency gate. The standard
+selection separately makes large/exhaustive fixtures optional and moves real
+GPU renderer integration and presentation timeouts to native validation;
+its timing is **not** an equivalent-coverage comparison with the original full
+selection. Changing code invalidates relevant Dune actions, so cached timings
+do not promise subsecond execution of changed tests. The queued-request result
+uses an unchanged worktree; each request still asks Dune to validate it.
+
+Reproduce standard timing after `dune build tools/check.exe`:
+
+```sh
+/usr/bin/time -p env SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+  _build/default/tools/check.exe @runtest --force --trace-file=/tmp/rays-tests.trace
+/usr/bin/time -p env SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+  _build/default/tools/check.exe
+/usr/bin/time -p _build/default/tools/check.exe --ship
+```
+
+For per-action timing, use Dune's trace reader:
+`dune trace cat --chrome-trace --trace-file=/tmp/rays-tests.trace`.
+Optional suites and focused aliases are listed in [workflow.md](workflow.md).
+
+### Recheck after pulling dev at `a200ea5`
+
+The 50-commit update rebuilt `@all` and `@check` in 28.63 s. A first forced
+run exposed a stale workspace test click and a 27.21 s real-GPU path-tracer
+action in the standard selection. The click now dismisses through the status
+strip; the native film-step fixture uses a 1200-point window so the new viewport
+margins preserve the tested boundary crossing. Path-tracer integration checks
+are now optional under `@runtest-native` and `@qualification`; their original
+checks passed on this device. This is a selection change, not a GPU speedup.
+
+| Recheck, same machine/profile | Earlier sample | After pull and fixes |
+| --- | ---: | ---: |
+| Forced standard selection | 18.78 s | 16.50 s |
+| Cached standard validation | 0.65 s | 0.58 s |
+| Cached shipping | 1.00 s | 0.81 s |
+| 20 simultaneous cached standard requests, all passed | 12.50 s total | 11.59 s total |
+
+Final shipping and native film/slot checks passed. Native SOP parity matched
+one/four-domain PNGs for 23 graphs. PXUI golden-image checks skipped on this
+1x display because their fixtures are 2x; this run does not verify those images.
+
+## Runtime performance
+
 Rays is designed for live creative coding and high-density deterministic
 offline generation. Public APIs remain immutable; implementation hot paths may
 use locally owned mutation and packed storage without exposing mutable aliases.

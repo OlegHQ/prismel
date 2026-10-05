@@ -10,14 +10,15 @@ let graph = Rays_editor.Workspace.sop_graphs workspace |> get |> List.assoc "sha
 let fracture = Graph.inspect graph |> List.find (fun (i : Graph.info) -> i.operation = "boolean")
   |> fun i -> Graph.find graph ~node_id:i.id |> Option.get
 
-let cook domains node =
+let with_cook domains f =
   let session = Session.create ~max_entries:32 ~max_payload_bytes:(256 * 1024 * 1024) |> get in
   Fun.protect ~finally:(fun () -> Session.close session) (fun () ->
-    Session.cook session ~context:(Context.create ~domains ~grain:2 () |> get) node
-      |> Result.map_error Diagnostic.error_to_string |> get)
+    let context = Context.create ~domains ~grain:2 () |> get in
+    f (fun node -> Session.cook session ~context node
+      |> Result.map_error Diagnostic.error_to_string |> get))
 
-let () =
-  let one = cook 1 fracture and four = cook 4 fracture in
+let () = with_cook 1 (fun cook ->
+  let one = cook fracture and four = with_cook 4 (fun cook -> cook fracture) in
   let g = one.geometry and h = four.geometry in
   assert (Rdk.Geometry.point_count g = Rdk.Geometry.point_count h);
   assert (Rdk.Geometry.primitive_count g = Rdk.Geometry.primitive_count h);
@@ -42,13 +43,13 @@ let () =
     let index = Rdk.Topology_index.create (Rdk.Geometry.topology part) in
     assert (Rdk.Topology_index.boundary_edge_count index = 0);
     assert (Rdk.Topology_index.non_manifold_edge_count index = 0)) parts;
-  let source = Node.inputs fracture |> List.hd |> cook 1 in
+  let source = Node.inputs fracture |> List.hd |> cook in
   let original_volume = Rdk.Analysis.signed_volume source.geometry |> get
   and fractured_volume = Rdk.Analysis.signed_volume g |> get in
   assert (abs_float (original_volume -. fractured_volume) < 1e-7 *. abs_float original_volume);
-  let colored = cook 1 graph in
+  let colored = cook graph in
   let prepared = Sketch_support.Surface.of_output colored |> get in
   let drawings = Sketch_support.Surface.scene3 graph prepared |> Scene3.Private.drawings in
   assert (List.length drawings = 4);
   Printf.printf "studio fracture: %d closed manifold shards, %d faces, volume %.9g; exact across 1/4 domains; four material batches\n%!"
-    !count (Rdk.Geometry.primitive_count g) fractured_volume
+    !count (Rdk.Geometry.primitive_count g) fractured_volume)

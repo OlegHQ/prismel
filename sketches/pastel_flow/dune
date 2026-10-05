@@ -13,3 +13,7 @@
  (name check)
  (modules check)
  (libraries pastel_artwork rays pxui pxui_shell editor_core unix))
+
+(rule
+ (aliases qualification qualification-scale test_control_boundaries)
+ (action (run %{exe:check.exe} --exhaustive)))

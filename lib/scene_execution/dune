@@ -22,17 +22,17 @@
  (action (run %{exe:test_main.exe} test_prepared_scene3)))
 
 (rule
- (aliases runtest test_automatic_scratch)
+ (aliases runtest-native test_automatic_scratch)
  (action (run %{exe:test_main.exe} test_automatic_scratch)))
 
 (rule
- (aliases runtest test_retained_eviction)
+ (aliases qualification runtest-native test_retained_eviction)
  (action (run %{exe:test_main.exe} test_retained_eviction)))
 
 (rule
- (aliases runtest test_offscreen_metal)
+ (aliases runtest-native test_offscreen_metal)
  (action (run %{exe:test_main.exe} test_offscreen_metal)))
 
 (rule
- (aliases runtest test_scene_execution_metal)
+ (aliases runtest-native test_scene_execution_metal)
  (action (run %{exe:test_main.exe} test_scene_execution_metal)))
