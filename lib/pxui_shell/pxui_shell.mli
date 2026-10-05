@@ -160,19 +160,24 @@ module Status_bar : sig
   (** What the dot after the file says: checked and cooked, cooking, refused. *)
 
   val guide : Pxui.Ui.t -> bounds:Layout.bounds -> ?file:string -> ?state:state -> ?layout:string ->
-    ?text:string -> ?fps:int -> ?kind:string -> ?selection:string -> context:Editor_core.Guide_context.t ->
+    ?text:string -> ?fps:int -> ?notes:string list -> ?accent:bool -> ?extra:(string * string) list ->
+    ?kind:string -> ?selection:string -> context:Editor_core.Guide_context.t ->
     ('scope, 'action) Editor_core.Command.t list -> bool
   (** The strip of the workspace sheet: a hairline over a 24-point bar of the file, its state dot
       and status line (a quarter of the strip at most), a rule, the focused pane's [kind] and the
       [selection] as labels (a context that is not a node's names itself in place of the
-      selection), each applicable key in ink-3 before what it does in ink-2, then the layout in
-      use and the frame rate at the right; true when the "toggle guide" pair is clicked. *)
+      selection; a List or Text context shows the selection given), each applicable key in ink-3
+      before what it does in ink-2 ([extra] pairs follow the keymap's, for gestures that are no
+      command), then the [notes] (labels such as "3 graphs"), the layout in use and the frame rate
+      at the right; [accent] draws the kind in the accent (a panel being moved); true when the
+      "toggle guide" pair is clicked. *)
 
   val hud : Pxui.Ui.t -> bounds:Layout.bounds -> text:string -> unit
   (** Noninteractive key feedback in the pane's bottom corner. *)
 
   val draw : Pxui.Ui.t -> bounds:(int * int * int * int) -> ?file:string -> ?state:state ->
-    ?layout:string -> ?kind:string -> ?selection:string -> text:string -> fps:int option -> unit -> unit
+    ?layout:string -> ?notes:string list -> ?accent:bool -> ?kind:string -> ?selection:string ->
+    text:string -> fps:int option -> unit -> unit
   (** The status strip without the keys: the file, its state, the whole status line, the
       layout in use and the frame rate. *)
 end

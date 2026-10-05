@@ -1914,7 +1914,8 @@ let probe_caption value = match value.scope_key, Pxui_graph.Scope.selected value
 
 (* The status strip under the view: kit text on the ground, under a hairline. *)
 let status_box value ui (frame : Frame.t) ~render_status ~error_status ~context ~commands =
-  let x, y, width, height = (geometry value value.workspace frame).status_at in
+  let g = geometry value value.workspace frame in
+  let x, y, width, height = g.status_at in
   (* what every strip says first: the workspace, a dot for its state, then the layout in use *)
   let file = value.file in
   let state = if error_status <> None || value.edit_error <> None || value.cook.error <> None then `Error
@@ -1925,18 +1926,49 @@ let status_box value ui (frame : Frame.t) ~render_status ~error_status ~context 
     | _ -> "" in
   let line = match error_status with Some error -> error | None ->
     status_text value ^ match render_status with None -> "" | Some status -> " \xc2\xb7 " ^ status in
-  (* the focused pane's kind and what is selected in the graph pane *)
+  (* the focused pane's kind and what is selected: in the graph pane its node, in a viewport the
+     object the brackets stand round *)
   let kind = match value.focus with Pxui_shell.Layout.View _ -> "Viewport" | panel -> Editor_core.Panels.name panel in
-  let selection = match Pxui_graph.Scope.selected value.scope_view with
+  let selection = match value.focus, value.selected_box with
+    | Pxui_shell.Layout.View _, Some (_, _, name) -> Some name
+    | _ ->
+    match Pxui_graph.Scope.selected value.scope_view with
     | [ path ] -> List.nth_opt (List.rev path) 0
     | [] -> None
     | paths -> Some (Printf.sprintf "%d selected" (List.length paths)) in
+  let focus_scope = Leader.scope value.focus in
+  (* a panel being carried: its name in the accent, what the drag does, and how many windows float *)
+  let moving = Option.bind value.workspace.window_live (fun (path, _) ->
+    List.find_map (fun (l : Pxui_shell.Layout.leaf) ->
+      if l.path = path then Some (Editor_core.Panels.name l.panel) else None) g.leaves) in
+  let floating = List.length (List.filter (fun (l : Pxui_shell.Layout.leaf) -> l.floating) g.leaves) in
+  let floating_note = if floating > 0 then [ Printf.sprintf "%d floating" floating ] else [] in
+  let graphs = List.length (fst value.doc.Document.workspace).checked.graphs in
+  let notes = floating_note @ (match value.focus with
+    | Pxui_shell.Layout.Outline -> [ Printf.sprintf "%d graph%s" graphs (if graphs = 1 then "" else "s") ]
+    | _ -> []) in
+  (* keys of a pane that the keymap does not hold as commands *)
+  let jump = List.find_map (fun (c : Leader.command) ->
+    if c.id = "scene.jump" then Option.map (fun t -> Editor_core.Keymap.label t, "jump") c.trigger else None) Leader.keymap in
+  let extra = match value.focus with
+    | Pxui_shell.Layout.Outline -> [ "/", "filter"; "i", "enter" ] @ Option.to_list jump
+    | _ -> [] in
   if height <= 0 then false
-  else if error_status = None && value.carry = None && value.guide && Leader.scope value.focus = Pxui_shell.Layout.Graph then
+  else if moving <> None then begin
     Pxui_shell.Status_bar.guide ui ~bounds:(x, y, width, height) ~file ~state ~layout ~text:line
-      ?fps:value.status_fps ~kind ?selection ~context commands
+      ?fps:value.status_fps ~notes ~accent:true ~kind:("moving " ^ Option.get moving)
+      ~extra:[ "drag to an edge", "dock"; "Space o f", "float or dock"; "Space n", "new window" ]
+      ~context:Editor_core.Guide_context.Hints ([] : Leader.command list)
+  end
+  else if error_status = None && value.carry = None && value.guide then begin
+    (* the keys of the focused pane only: the keymap's commands scoped to it *)
+    let commands = if focus_scope = Pxui_shell.Layout.Graph then commands
+      else List.filter (fun (c : Leader.command) -> c.scope = Some focus_scope) commands in
+    Pxui_shell.Status_bar.guide ui ~bounds:(x, y, width, height) ~file ~state ~layout ~text:line
+      ?fps:value.status_fps ~notes ~extra ~kind ?selection ~context commands
+  end
   else begin
-    Pxui_shell.Status_bar.draw ui ~bounds:(x, y, width, height) ~file ~state ~layout ~kind ?selection
+    Pxui_shell.Status_bar.draw ui ~bounds:(x, y, width, height) ~file ~state ~layout ~notes ~kind ?selection
       ~text:line ~fps:value.status_fps ();
     false
   end
