@@ -136,6 +136,10 @@ val tab_stop : flags
 (** Keyboard traversal focus for a control whose pointer interaction leaves
     keyboard input with its host. Escape relinquishes this keyboard focus. *)
 
+val tab_stop_marked : flags
+(** {!tab_stop} for a control that draws its own keyboard mark (the accent line under a button,
+    {!Ui.focused}): the engine strokes no ring round it. *)
+
 val scroll : flags
 val clip : flags
 val blocking : flags

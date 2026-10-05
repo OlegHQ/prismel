@@ -76,7 +76,9 @@ module Keymap = struct
   type trigger = Leader of string | Chord of Rays.Input.key * Rays.Input.key list
 
   let label = function
-    | Leader sequence -> "Space " ^ sequence
+    | Leader sequence ->
+        (* the sheets write each key apart: Space o v *)
+        "Space " ^ String.concat " " (List.init (String.length sequence) (fun i -> String.make 1 sequence.[i]))
     | Chord (key, modifiers) ->
         let open Rays.Input in
         let key, modifiers = if key = KeyChar '/' && List.mem Shift modifiers then

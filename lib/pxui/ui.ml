@@ -127,6 +127,7 @@ let over_thumb = 4096
 (* the control marks its own keyboard focus (a button's accent line, a field's accent underline):
    the engine strokes no ring round it *)
 let focus_mark = 256
+let tab_stop_marked = tab_stop lor focus_mark
 let add = Stdlib.( + )
 let hit_flags = clickable lor focusable lor scroll lor blocking
 
@@ -3871,7 +3872,7 @@ let picker ui ?(limit = 10) ?mark ?(off = fun _ -> false) ?(slash = true) ?(at_r
     if edit.text = "" then
       Paint.text paint ~color:(Theme.ink_3 theme) ~at:(float (cx + prefix) +. inset, float (label_y ui cy ch))
         placeholder;
-    paint_text_edit paint ~inset ~caret:(not resting) ~control ~y:(label_y ui cy ch) ~composition edit);
+    paint_text_edit paint ~inset ~caret:(edit.text <> "") ~control ~y:(label_y ui cy ch) ~composition edit);
   within ui list (fun () ->
     for visible = 0 to length - 1 do
       let index = start + visible in
@@ -3891,6 +3892,14 @@ let picker ui ?(limit = 10) ?mark ?(off = fun _ -> false) ?(slash = true) ?(at_r
         else if hovered then hover_row paint ui bounds;
         let text_x = if mark = None then x + side else x + side + 16 in
         let unavailable = off index in
+        (* a label that would run into the detail is cut with an ellipsis *)
+        let key_size = max 8 (ui.font_size - 2) in
+        let key_text = "\xe2\x86\xb5" in
+        let right = if current then
+            float (x + w - side) -. Paint.text_width paint ~size:key_size key_text -. 8.
+          else float (x + w - side) in
+        let text = ellipsis ~width:(Paint.text_width paint)
+            ~limit:(right -. Paint.text_width paint detail -. 12. -. float text_x) text in
         Option.iter (fun color -> fill paint (x + side, y + ((h - 8) / 2), 8, 8)
           (if unavailable then Theme.ink_3 theme else color)) swatch;
         (* the query's letters, matched in order, in the accent *)
@@ -3919,8 +3928,6 @@ let picker ui ?(limit = 10) ?mark ?(off = fun _ -> false) ?(slash = true) ?(at_r
           pen := !pen +. Paint.text_width paint run;
           start := !stop
         done;
-        let key_size = max 8 (ui.font_size - 2) in
-        let key_text = "\xe2\x86\xb5" in
         let right = if current then
             (let width = Paint.text_width paint ~size:key_size key_text in
              Paint.text paint ~size:key_size ~color:(Theme.ink_3 theme)
@@ -3966,7 +3973,7 @@ let context_menu ui ~at:(x, y) ?width ?selected ?(swatches = []) ?(keys = []) ?(
       0. (List.filteri (fun i _ -> i < index) items) in
   let sub_geometry sub =
     let sub_width = Float.min ui.view_w (measure ~lead:(if sub.current = None then 0. else 14.) ~keys:sub.keys
-      ~chevrons:[] 120. sub.rows) in
+      ~chevrons:[] 0. sub.rows) in
     let sub_height = height_of sub.rows in
     let sx = if x +. width -. 1. +. sub_width <= ui.view_w then x +. width -. 1. else x -. sub_width +. 1. in
     let sy = Float.max 0. (Float.min (row_top sub.row -. 7.) (ui.view_h -. sub_height)) in

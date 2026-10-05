@@ -74,9 +74,9 @@ let keymap = [
   command ~id:"world.map" ~label:"3D / map (World)" ~trigger:(Leader "m") Toggle_map;
   command ~id:"workspace.restore-layout" ~label:"restore layout" ~trigger:(Leader "z")
     Restore_layout;
-  command ~id:"panel.split-right" ~label:"split panel, side by side" ~trigger:(Leader "oh")
+  command ~id:"panel.split-right" ~label:"split panel, side by side" ~trigger:(Leader "ov")
     (Panel_split `H);
-  command ~id:"panel.split-below" ~label:"split panel, stacked" ~trigger:(Leader "ov")
+  command ~id:"panel.split-below" ~label:"split panel, stacked" ~trigger:(Leader "oh")
     (Panel_split `V);
   command ~id:"panel.close" ~label:"close panel" ~trigger:(Leader "ox") Panel_close;
   command ~id:"panel.float" ~label:"float / dock panel" ~trigger:(Leader "of") Float_toggle;
@@ -192,6 +192,16 @@ let group (c : command) =
   else if starts "timeline." || id = "sketch.stop" then "Time"
   else if starts "preset." || starts "file." || id = "guide.keys" || id = "workspace.command-palette" then "File"
   else "Go"
+
+(* The keys of a section in the sheet's [09] order, not the keymap's *)
+let order = function
+  | "Add" -> [ "a"; "n" ]
+  | "Panel" -> [ "o"; "l" ]
+  | "Layout" -> [ "[" ]
+  | "Go" -> [ "j"; "e" ]
+  | "Time" -> [ "p" ]
+  | "File" -> [ "s"; "b"; "?"; "k"; "/" ]
+  | _ -> []
 
 (* What a leader key that continues into more keys stands for *)
 let describe_prefix = function

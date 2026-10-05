@@ -427,7 +427,7 @@ module Chrome = struct
      panel backgrounds, splitters, and header bars with a collapse button and a
      right-click menu (split, close, retype). *)
   let update ?(state = fun _ -> Editor_core.Panels.default_state) ?(hidden = [ Timeline ]) ?(title = fun (l : leaf) -> Editor_core.Panels.name l.panel)
-      ?focus tree ui (frame : Frame.t) =
+      ?(key_of = fun _ -> "") ?focus tree ui (frame : Frame.t) =
     let module Ui = Pxui.Ui in
     let geometry = geometry ~state ~hidden tree frame in
     let theme = Ui.theme ui in
@@ -478,20 +478,23 @@ module Chrome = struct
       (* docked: the collapse chevron, a 20-point button 8 points from the edge.  A window: dock,
          then close. *)
       let windowed = (state l.path).window <> None && not (state l.path).collapsed in
-      let button = floating ui ~flags:Ui.(clickable + tab_stop)
+      let button = floating ui ~flags:Ui.(clickable + tab_stop_marked)
           (x + max 0 (w - 8 - size), y + ((h - size) / 2), size, size) ("workspace-collapse-" ^ label) in
       if l.floating then Ui.to_front ui ~order button;
       if (Ui.signal ui button).clicked then emit (if windowed then Close_panel l.path else Toggle l.path);
       let tools = 8 + size + (if windowed then size + 8 else 0) in
       if windowed then begin
-        let dock = floating ui ~flags:Ui.(clickable + tab_stop)
+        let dock = floating ui ~flags:Ui.(clickable + tab_stop_marked)
             (x + max 0 (w - tools), y + ((h - size) / 2), size, size) ("workspace-dock-" ^ label) in
         Ui.to_front ui ~order dock;
         let signal = Ui.signal ui dock in
         if signal.clicked then emit (Window (l.path, None));
         Ui.draw ui dock (fun paint (x, y, w, h) ->
           if signal.hovered then Ui.Paint.fill paint ~x ~y ~w ~h (Pxui.Theme.hover_fill theme);
-          Ui.Paint.chevron paint ~at:(x +. (w /. 2.), y +. (h /. 2.)) `Down (Pxui.Theme.ink_2 theme))
+          if Ui.focused ui dock then Ui.Paint.fill paint ~x ~y:(y +. h -. 1.) ~w ~h:1. theme.accent;
+          (* the dock mark: a 10-point hollow square on a 1-point ink-3 edge *)
+          Ui.Paint.frame paint ~x:(x +. (w /. 2.) -. 5.) ~y:(y +. (h /. 2.) -. 5.) ~w:10. ~h:10.
+            (Pxui.Theme.ink_3 theme))
       end;
       let grip = floating ui ~flags:Ui.(clickable + blocking)
           (x, y, max 0 (w - tools), h) ("workspace-drag-" ^ label) in
@@ -526,23 +529,21 @@ module Chrome = struct
       let opened = opened || Ui.context_clicked drag || (drag.clicked && still) in
       Ui.set_state ui box (if opened then 1 else 0);
       if opened then begin
-        let holder = match List.rev l.path with
-          | _ :: up -> List.find_opt (fun (s : splitter) -> s.node = Some (List.rev up)) geometry.splitters
-          | [] -> None in
         (* the sheet's [04]: the four actions with their leader keys, a rule, the panel kinds (a square
-           before the one in use, the key that makes the panel one at the right) *)
+           before the one in use, the key that makes the panel one at the right); the keys are the
+           host's own ([key_of] a command id), the kinds' one letter.  The size of the split is the
+           gutter's right-click. *)
         let rows = [ "Split right", true; "Split down", true;
                      (if (state l.path).window = None then "Float" else "Dock"), true; "Close", true;
                      "", false ]
-          @ List.map (fun (name, _) -> name, true) retypes
-          (* the split that holds the panel, sized another way *)
-          @ (match holder with
-             | Some s -> ("", false) :: ("Size of its split", false) :: size_rows s
-             | None -> []) in
-        let keys = [ "Space o h"; "Space o v"; "Space o f"; "Space o x"; "" ]
-          @ List.map (fun (_, panel) -> match panel with
-              | Graph -> "g" | List -> "l" | Lisp -> "t" | Inspector -> "i" | Outline -> "u"
-              | Timeline -> "m" | View _ -> "w") retypes in
+          @ List.map (fun (name, _) -> name, true) retypes in
+        let last key = if key = "" then "" else String.sub key (String.length key - 1) 1 in
+        let keys = [ key_of "panel.split-right"; key_of "panel.split-below"; key_of "panel.float";
+                     key_of "panel.close"; "" ]
+          @ List.map (fun (_, panel) -> last (key_of (match panel with
+              | Graph -> "panel.graph" | List -> "panel.list" | Lisp -> "panel.lisp"
+              | Inspector -> "panel.inspector" | Outline -> "panel.outline"
+              | Timeline -> "panel.timeline" | View _ -> "panel.viewport"))) retypes in
         let current = let rec find i = function
           | [] -> 5 | (_, panel) :: rest -> if panel = l.panel then 5 + i else find (i + 1) rest in
           find 0 retypes in
@@ -556,12 +557,7 @@ module Chrome = struct
               | 2 -> Window (l.path, if (state l.path).window <> None then None else
                     Some (let fx, fy, _, fh = l.frame in fx, fy, max 120 w, max 80 fh))
               | 3 -> Close_panel l.path
-              | i when i < 5 + List.length retypes -> Retype_panel (l.path, snd (List.nth retypes (i - 5)))
-              | i ->
-                  let s = Option.get holder in
-                  emit (Resize { node = Option.get s.node;
-                                 size = resized s (List.nth size_ways (i - 7 - List.length retypes)) });
-                  Settled)
+              | i -> Retype_panel (l.path, snd (List.nth retypes (i - 5))))
       end;
       l, title l, box, button, grip) headed in
     (* the tip of a panel being moved: a 20-point sheet with a line-2 edge, the label size in ink *)
@@ -588,6 +584,9 @@ module Chrome = struct
       end) geometry.leaves) !moving;
     List.iter (fun ((l : leaf), text, box, button, _grip) ->
       let collapse_hovered = (Ui.signal ui button).hovered in
+      (* the keyboard's mark is the sheet's: an accent line over the last row of the button *)
+      if Ui.focused ui button then Ui.draw_over ui button (fun paint (x, y, w, h) ->
+        Ui.Paint.fill paint ~x ~y:(y +. h -. 1.) ~w ~h:1. theme.accent);
       let panel_state = state l.path in
       let collapsed = panel_state.collapsed || List.mem l.panel hidden in
       let windowed = panel_state.window <> None && not panel_state.collapsed in
@@ -616,8 +615,15 @@ module Chrome = struct
             | [ last ] -> put (if has_crumbs sub then theme.foreground else ink_2) last
             | part :: rest -> put ink_2 part; put ink_3 "/"; crumbs rest in
           (* a window's title row: the path is one string in ink-2 at the label size *)
-          if sub <> "" && l.floating then
-            Ui.Paint.text paint ~size:(Kit.cap_size ui) ~at:(!tx, Kit.cap_y ui y h) ~color:ink_2 sub
+          if sub <> "" && l.floating then begin
+            (* the subject sits right-aligned, 8 points before the dock mark (a window's tools:
+               dock and close, 28 points each from the right edge) *)
+            let size = Kit.cap_size ui in
+            let sw = Ui.Paint.text_width paint ~size sub in
+            let right = x +. w -. (if windowed then 46. +. 5. +. 8. else 26. +. 8.) in
+            Ui.Paint.text paint ~size ~at:(Float.max !tx (right -. sw), Kit.cap_y ui y h)
+              ~color:(Rays.Color.with_alpha ink_2 179) sub
+          end
           else if sub <> "" then crumbs (split_crumbs sub);
           if collapsed then put ink_3 "collapsed"
         end;
@@ -831,7 +837,7 @@ module Which_key = struct
   (* The leader's page by category: one-letter continuations only, no chords.  A key that
      continues into longer sequences is "+" and a name from [describe], else the first word of its
      first command. *)
-  let by_category keymap ~prefix ~focus ~category ~describe =
+  let by_category keymap ~prefix ~focus ~category ~describe ~order =
     let rows = List.fold_left (fun rows command -> match command.trigger with
       | Some (Leader sequence) when (command.scope = None || command.scope = Some focus)
           && String.length sequence > String.length prefix
@@ -845,8 +851,13 @@ module Which_key = struct
     let titles = List.fold_left (fun acc (t, _, _) -> if List.mem t acc then acc else acc @ [ t ]) [] rows in
     let ordered = List.filter (fun t -> List.mem t titles) category_order
       @ List.filter (fun t -> not (List.mem t category_order)) titles in
+    (* the host's order of a section's keys; keys it does not name keep the keymap's order after them *)
+    let rank title key =
+      let rec find i = function [] -> max_int | k :: rest -> if k = key then i else find (i + 1) rest in
+      find 0 (order title) in
     List.map (fun title -> title,
-      List.filter_map (fun (t, k, l) -> if t = title then Some (k, l) else None) rows) ordered
+      List.stable_sort (fun (a, _) (b, _) -> compare (rank title a) (rank title b))
+        (List.filter_map (fun (t, k, l) -> if t = title then Some (k, l) else None) rows)) ordered
 
   (* Sections of key rows, one to a column, painted by one box.  A section is a label in ink-3
      ([gap] points above it) over rows of 24: the key in ink-3 at the label size, 8 points on,
@@ -878,11 +889,11 @@ module Which_key = struct
   (* The leader: a sheet over the status strip, the [Space] key and its name over six columns.  Hosts
      that give a [category] get the sections of the sheet (the keys of the leader only); without it the
      sections are the commands everywhere and those of the focused pane, with the key chords. *)
-  let panel ui ?category ?(describe = fun _ -> None) keymap ~prefix ~focus ~focus_name =
+  let panel ui ?category ?(describe = fun _ -> None) ?(order = fun _ -> []) keymap ~prefix ~focus ~focus_name =
     let module Ui = Pxui.Ui in
     let theme = Ui.theme ui in
     let sections = match category with
-      | Some category -> by_category keymap ~prefix ~focus ~category ~describe
+      | Some category -> by_category keymap ~prefix ~focus ~category ~describe ~order
       | None -> List.filter (fun (_, rows) -> rows <> [])
           [ "Global", page keymap ~prefix None; focus_name, page keymap ~prefix (Some focus) ] in
     let view_w, view_h = Ui.view_size ui in
@@ -1070,9 +1081,25 @@ module Status_bar = struct
     end
 
   let guide ui ~bounds:(x, y, width, height) ?(file = "") ?(state = `Ok) ?(layout = "") ?(text = "") ?fps
-      ?(notes = []) ?(accent = false) ?(extra = []) ?kind ?selection ~context commands =
+      ?(notes = []) ?(accent = false) ?(extra = []) ?leader ?kind ?selection ~context commands =
     let module Ui = Pxui.Ui in
     if height <= 0 then false else
+    match leader with
+    | Some pending ->
+        (* an open leader: the file and its state, a rule, the pending prefix in the accent and
+           [waiting for a key], the frame rate at the end *)
+        let box = Ui.box ui ~flags:Ui.clip ~w:(Ui.Px (float width)) ~h:(Ui.Px (float height))
+            ~at:(float x, float y) "workspace-guide" in
+        Ui.draw ui box (fun paint bounds ->
+          let x, y, w, h = ground ui paint bounds in
+          let theme = Ui.theme ui in
+          let right = trail ui paint (x, y, w, h) ~notes ~layout ~fps () in
+          let after = lead ui paint (x, y, h) ~file ~state ~limit:(x +. Float.min 320. (w /. 4.)) text in
+          ignore right;
+          let tx = focus_labels ui paint (x, y, h) ~accent:true ~after ~kind:pending () in
+          Ui.Paint.text paint ~at:(tx, Kit.text_y ui y h) ~color:(Pxui.Theme.ink_2 theme) "waiting for a key");
+        false
+    | None ->
     let bar = Ui.box ui ~flags:Ui.(clickable + clip)
         ~w:(Ui.Px (float width)) ~h:(Ui.Px (float height))
         ~at:(float x, float y) "workspace-guide" in
@@ -1309,14 +1336,15 @@ module Prompt = struct
       let clicked = buttons ui ~key ~width:320. ~accept:"Save" in
       query, (match clicked with `None -> result | (`Cancel | `Submit) as pick -> pick))
 
-  (* A searchable prompt: the field, the rows in the picker's style, then the buttons *)
+  (* A searchable prompt, the sheet's [01] window: the field, the rows in the picker's style (labels
+     cut with an ellipsis), then the hairline and the hint bar with [N of M]; no buttons *)
   let search ui ~key ~title ~label ~query ~rows =
-    Ui.modal ui ~width:420. key (fun () ->
+    Ui.modal ui ~width:320. key (fun () ->
       Ui.label ui title;
       let query, result = Ui.picker ui label ~query rows in
-      spacer ui "prompt-below" 4.;
-      let clicked = buttons ui ~key ~width:420. ~accept:"Pick" in
-      query, (match clicked with `None -> result | (`Cancel | `Submit) as pick -> pick))
+      Ui.footer ui ~right:(Printf.sprintf "%d of %d" (Array.length (rows query)) (Array.length (rows "")))
+        [ "\xe2\x86\x91\xe2\x86\x93", "move"; "\xe2\x86\xb5", "pick" ];
+      query, result)
 
   type macro = { name : string; holes : (bool * string) array }
 

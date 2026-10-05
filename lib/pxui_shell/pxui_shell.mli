@@ -112,13 +112,15 @@ module Chrome : sig
     | Retype_panel of Layout.path * Layout.panel  (** [View ""] means a viewport *)
 
   val update : ?state:(Layout.path -> Editor_core.Panels.state) -> ?hidden:Layout.panel list -> ?title:(Layout.leaf -> string) ->
-    ?focus:Layout.path -> Layout.t -> Pxui.Ui.t -> Rays.Frame.t -> intent list
+    ?key_of:(string -> string) -> ?focus:Layout.path -> Layout.t -> Pxui.Ui.t -> Rays.Frame.t -> intent list
   (** A [title] is ["Kind<TAB>a / b"]: the kind is the header's label, the rest its breadcrumb
       (the last part in ink).  The header of the [focus] leaf wears the accent square.  A docked
       header ends in its collapse chevron, a window's in dock and close.
       Panel backgrounds, the drawn gutters, headers with their collapse button and
-      right-click menu (split, close, dock, retype, and the size of the split that holds the
-      panel: a [Resize] then [Settled], as the gutter's menu).  Pure: the host applies the intents. *)
+      right-click menu (split, close, dock, retype; the keys at its right are [key_of] a command id
+      of the host's keymap: [panel.split-right], [panel.split-below], [panel.float], [panel.close],
+      [panel.graph] ... [panel.viewport]).  The size of a split is its gutter's right-click
+      ({!splitters}).  Pure: the host applies the intents. *)
 
   val tools_start : Pxui.Ui.t -> focused:bool -> floating:bool -> collapsed:bool -> string -> float
   (** Where the tools of a header begin, from its left edge: after the title as {!update} lays
@@ -151,13 +153,14 @@ module Which_key : sig
       on dismissal or the close button. *)
 
   val panel : Pxui.Ui.t -> ?category:(('scope, 'action) Editor_core.Command.t -> string) ->
-    ?describe:(string -> string option) -> ('scope, 'action) Editor_core.Command.t list ->
-    prefix:string -> focus:'scope -> focus_name:string -> unit
+    ?describe:(string -> string option) -> ?order:(string -> string list) ->
+    ('scope, 'action) Editor_core.Command.t list -> prefix:string -> focus:'scope -> focus_name:string -> unit
   (** The leader sheet over the status strip: the commands, global and of the focused pane, whose
       leader sequence continues [prefix].  With [category] (the host's section of a command) the page is
       the sheet's [09]: a column to a section, a row of one letter to a key, a chevron when it
       continues, no chords, [describe] naming the keys that continue (by their sequence, [Space o]
-      is ["o"]).  Without it the sections are the global commands and those of [focus_name], with the
+      is ["o"]); [order] gives the keys of a section in the order the sheet shows them (the rest
+      follow in keymap order).  Without it the sections are the global commands and those of [focus_name], with the
       key chords on the first page, and a continuing key is a [+group] row. *)
 end
 
@@ -167,7 +170,7 @@ module Status_bar : sig
 
   val guide : Pxui.Ui.t -> bounds:Layout.bounds -> ?file:string -> ?state:state -> ?layout:string ->
     ?text:string -> ?fps:int -> ?notes:string list -> ?accent:bool -> ?extra:(string * string) list ->
-    ?kind:string -> ?selection:string -> context:Editor_core.Guide_context.t ->
+    ?leader:string -> ?kind:string -> ?selection:string -> context:Editor_core.Guide_context.t ->
     ('scope, 'action) Editor_core.Command.t list -> bool
   (** The strip of the workspace sheet: a hairline over a 24-point bar of the file, its state dot
       and status line (a quarter of the strip at most), a rule, the focused pane's [kind] and the
@@ -176,7 +179,8 @@ module Status_bar : sig
       before what it does in ink-2 ([extra] pairs follow the keymap's, for gestures that are no
       command), then the [notes] (labels such as "3 graphs"), the layout in use and the frame rate
       at the right; [accent] draws the kind in the accent (a panel being moved); true when the
-      "toggle guide" pair is clicked. *)
+      "toggle guide" pair is clicked.  With [leader] (the pending prefix, [Space]) the strip is the
+      sheet's [09] one: the file, a rule, the prefix in the accent and [waiting for a key]. *)
 
   val tips : Pxui.Ui.t -> bounds:Layout.bounds -> (string * [ `Info | `Refusal ]) list -> unit
   (** Echo, the sheet's [08]: noninteractive tips stacked 4 apart in the pane's bottom-left corner,

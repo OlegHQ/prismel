@@ -627,8 +627,8 @@ module Make (V : VIEWPORT) = struct
          | polled, None ->
              let core = if polled.error = file.error then update.core else
                { update.core with Core.notice = Some (match polled.error with
-                 | Some message -> "Source unreadable: " ^ message
-                 | None -> "Source readable again: " ^ Filename.basename (Source_file.file polled)) } in
+                 | Some message -> Core.Refusal, "Source unreadable: " ^ message
+                 | None -> Core.Info, "Source readable again: " ^ Filename.basename (Source_file.file polled)) } in
              Some polled, { update with core }
          | file, Some text ->
              let name = Filename.basename (Source_file.file file) in
@@ -640,11 +640,11 @@ module Make (V : VIEWPORT) = struct
 
   (* Command-S: over the source file while it is what the document came from, else a preset. *)
   let save_source core source view =
-    let notice text = { core with Core.notice = Some text } in
+    let notice ?(kind = Core.Info) text = { core with Core.notice = Some (kind, text) } in
     let preset why = match Preset.save ~directory:core.Core.presets ~name:(Preset.default_name ())
         ~doc:core.doc ~view with
       | Ok path -> notice (why ^ "; saved as preset " ^ Filename.basename path)
-      | Error message -> notice ("Not saved: " ^ message) in
+      | Error message -> notice ~kind:Core.Refusal ("Not saved: " ^ message) in
     let text = Preset.text core.doc in
     match source with
     | None -> preset "no source file", source
@@ -652,7 +652,7 @@ module Make (V : VIEWPORT) = struct
         (match Source_file.save file text with
          | Ok file -> notice ("Saved " ^ Filename.basename (Source_file.file file)), Some file
          | Error `Changed -> preset "source changed since build", Some file
-         | Error (`Failed message) -> notice ("Not saved: " ^ message), Some file)
+         | Error (`Failed message) -> notice ~kind:Core.Refusal ("Not saved: " ^ message), Some file)
 
   (* One recovery file per sketch. Polling at 2 Hz coalesces live drags and
      keeps printing and filesystem work out of idle frames; close flushes. *)

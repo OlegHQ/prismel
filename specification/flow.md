@@ -574,7 +574,7 @@ context (§7.11).
 | `⇧G` | `scope.frame` | titled frame around the selected nodes (corner resizes, title double-click renames, cross deletes) | W13 |
 | `⌥↑` / `⌥↓` | `scope.item-up` / `scope.item-down` | move the hovered list item | W13 |
 | drag on empty canvas, `⇧` adds | – | marquee selection of one scope's nodes | W13 |
-| `Space o` `h` `v` `x` | `panel.split-right/below`, `panel.close` | split (side by side, stacked) or close the focused panel | W13 |
+| `Space o` `v` `h` `x` | `panel.split-right/below`, `panel.close` | split (side by side, stacked) or close the focused panel | W13 |
 | `Space o` `g` `l` `t` `i` `u` `m` `w` | `panel.graph/list/lisp/inspector/outline/timeline/viewport` | retype the focused panel | W13 |
 | `⌘D` / Ctrl-D | `scope.duplicate` | copy the selected bindings of one scope with fresh names (the copies read each other), select the copies | Gap A |
 | `j` / `k` (list) | `list.down` / `list.up` | walk the list like the arrows; a row of a geometry object's list selects its node in the pane | Gap A |

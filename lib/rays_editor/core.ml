@@ -17,6 +17,9 @@ module Level_map = Map.Make (struct
 end)
 
 (* How the graph pane shows the open network. *)
+(* what a message says: information (a dot in its echo tip) or a refusal (the error ink) *)
+type notice_kind = Info | Refusal
+
 type projection = Graph_view | List_view | Text_view
 
 (* What the workspace pane was last laid out from: the document, the probes and
@@ -94,7 +97,8 @@ type change =
   | Object_arg of { node : int; key : string; sub : int list; expr : Flow.Syntax.t }
       (** an expression typed in a row of a scene object or World layer: written to the argument of
           the call that holds it (for a loop's copy, of the loop's template) *)
-  | Notice of string
+  | Notice of string  (** an information message: the echo tip with the dot *)
+  | Declined of string  (** a refusal: the echo tip in the error ink *)
   | Set_parameter of { node : int; path : string; value : Parameter.value }
   | Rename of { node : int; label : string }
 
@@ -181,7 +185,7 @@ type 'prepared t = {
   state_name : string;  (* stable sketch identity, separate from named presets *)
   name : string;  (* sketch name recorded in presets *)
   prompt : prompt option;
-  notice : string option;
+  notice : (notice_kind * string) option;  (* the last message and what it was: information or a refusal *)
   notice_at : float;  (* when the notice last changed: the echo tip shows it for a while *)
   doc : Document.t;  (* always the history's present *)
   level : Document.level;
@@ -647,8 +651,8 @@ let workspace_inspector ?(on_choice = fun _ _ -> ()) ?(resized = fun _ _ -> None
                  | Ok [ form ] ->
                      [ Syntax_edit (Flow_sop.Flow_edit.Set_input_default { form = graph; input = input.name; value = form }) ], []
                  | Ok [] -> [], []
-                 | Ok _ -> [ Notice "A default is one Lisp form" ], []
-                 | Error d -> [ Notice ("Default: " ^ d.Flow.Diagnostic.message) ], []))
+                 | Ok _ -> [ Declined "A default is one Lisp form" ], []
+                 | Error d -> [ Declined ("Default: " ^ d.Flow.Diagnostic.message) ], []))
        | Some n ->
            let probe p = Option.value ~default:0 (Layout_by_path.Path_map.find_opt p value.probes) in
            let chain = Option.value ~default:[] (Hashtbl.find_opt (Probe.chains scope) n.path) in
@@ -920,7 +924,7 @@ let workspace_inspector ?(on_choice = fun _ _ -> ()) ?(resized = fun _ _ -> None
                     | Ok value ->
                         Some (Syntax_edit (Flow_sop.Flow_edit.Set_arg { node = n.path;
                           key = Flow_sop.Flow_edit.Kw key; sub; value }))
-                    | Error message -> Some (Notice message))
+                    | Error message -> Some (Declined message))
                | Pxui_shell.Inspector.Reset path ->
                    (match List.find_opt (fun (r, _) -> ("@ref:" ^ r.P.label) = path) ref_rows with
                     | Some (r, _) ->
@@ -1445,7 +1449,7 @@ let scope_add value key =
       else if key = "world" then
         (match Editor_document.Scene_sync.add_world value.doc with
          | Ok ops -> [ Syntax_batch ("Add World", ops) ]
-         | Error message -> [ Notice message ])
+         | Error message -> [ Declined message ])
       else
         let graph = String.sub key 3 (String.length key - 3) in
         geometry (Some graph) ("Add geometry of " ^ graph)
@@ -1508,7 +1512,7 @@ let scope_add value key =
         end in
       let name = Flow_sop.Flow_edit.fresh_name ws.source ~root:graph base in
       [ Syntax_edit (Flow_sop.Flow_edit.Add_node { scope; name; expr }) ]
-  | None -> [ Notice "Open a graph to add a node to it" ]
+  | None -> [ Declined "Open a graph to add a node to it" ]
 
 let enterable value id = match kind value id with
   | Some ("geometry" | "world") ->
@@ -1975,15 +1979,6 @@ let carry_line (c : _ carry) =
        | `Keys, _ ->
            Printf.sprintf "Carrying %s · nothing here takes it · u, i or Space j go elsewhere · Esc drops" held)
 
-(* a notice that says something was refused or could not be done reads in the error ink in its tip *)
-let notice_refused text =
-  let has part =
-    let n = String.length part in
-    let rec at i = i + n <= String.length text && (String.sub text i n = part || at (i + 1)) in
-    at 0 in
-  List.exists has [ "Refused"; "rejected"; "Nothing"; "nothing"; "Open a graph"; "could not"; "not reloaded";
-                    "Clipboard:"; "No material"; "cannot"; "Default:" ]
-
 let status_text ?(brief = false) value =
   match value.carry with Some c -> carry_line c | None ->
   let cook = match Cook.status value.cook with
@@ -2001,7 +1996,7 @@ let status_text ?(brief = false) value =
                (Option.get (Text_pane.first_error value.text)))
          | Some error, _, _ -> "Graph edit rejected: " ^ truncate 49 error
          | None, Some error, _ -> "Cook rejected: " ^ truncate 54 error
-         | None, None, _ when value.notice <> None -> Option.get value.notice
+         | None, None, _ when value.notice <> None -> snd (Option.get value.notice)
          | None, None, Some seconds ->
              (match Flow_sop.Lower.status (snd value.doc.Document.workspace) ~seconds with
               | Some text -> text
@@ -2081,6 +2076,13 @@ let status_box value ui (frame : Frame.t) ~render_status ~error_status ~context 
     | Pxui_shell.Layout.Outline -> [ "/", "filter"; "i", "enter" ] @ Option.to_list jump
     | _ -> [] in
   if height <= 0 then false
+  else if (match value.leader with Leader.Pending _ -> true | Idle -> false) then begin
+    (* an open leader: the pending prefix in the accent and what the strip waits for *)
+    let prefix = match value.leader with Leader.Pending p when p <> "" -> "Space " ^ p | _ -> "Space" in
+    Pxui_shell.Status_bar.guide ui ~bounds:(x, y, width, height) ~file ~state ~layout ~text:line
+      ?fps:value.status_fps ~notes ~leader:prefix ~context:Editor_core.Guide_context.Leader
+      ([] : Leader.command list)
+  end
   else if moving <> None then begin
     Pxui_shell.Status_bar.guide ui ~bounds:(x, y, width, height) ~file ~state ~layout ~text:line
       ?fps:value.status_fps ~notes ~accent:true ~kind:("moving " ^ Option.get moving)
@@ -2146,7 +2148,7 @@ let intent_label = function
   | Set_parameter { path; _ } -> Some ("Set " ^ path)
   | Object_arg _ -> Some "Edit expression"
   | Rename _ -> Some "Rename node"
-  | Notice _ -> None
+  | Notice _ | Declined _ -> None
 
 let in_world value = match value.level with
   | Document.Inside id -> kind value id = Some "world"
@@ -2414,12 +2416,12 @@ let defn_change value paths =
         if List.mem name n.binds then Some n.ty
         else Option.bind n.zone (fun (z : Flow_sop.Projection.zone) -> find_ty name z.scope)) s.nodes in
   match Flow_sop.Flow_edit.defn_draft ws.source paths, scope with
-  | Error d, _ -> Notice d.Flow.Diagnostic.message
-  | Ok _, None -> Notice "Open a graph to make a function from its nodes"
+  | Error d, _ -> Declined d.Flow.Diagnostic.message
+  | Ok _, None -> Declined "Open a graph to make a function from its nodes"
   | Ok draft, Some scope ->
       let typed = List.map (fun n -> n, Option.bind (find_ty n scope) ty_text) draft.free in
       (match List.find_opt (fun (_, t) -> t = None) typed with
-       | Some (n, _) -> Notice (Printf.sprintf "The function reads %s, whose type a function cannot take." n)
+       | Some (n, _) -> Declined (Printf.sprintf "The function reads %s, whose type a function cannot take." n)
        | None ->
            let result_ty = List.fold_left (fun acc path ->
              match Flow_sop.Projection.find scope path with Some n -> Some n.ty | None -> acc) None paths in
@@ -2516,7 +2518,7 @@ let layout_actions value (workspace : shell) ~(leaf : Pxui_shell.Layout.leaf opt
     (Workspace_doc.editor_graph (fst value.doc.Document.workspace)) in
   let edit make = match graph with
     | _ when workspace.restored ->
-        [ Notice "The default layout is showing. Space z returns to the editor graph." ]
+        [ Declined "The default layout is showing. Space z returns to the editor graph." ]
     | Some graph -> [ Syntax_edit (make graph) ]
     | None ->
         let scene = Option.value ~default:"scene" (List.find_map (fun (g : Flow.Workspace.graph) ->
@@ -2526,7 +2528,7 @@ let layout_actions value (workspace : shell) ~(leaf : Pxui_shell.Layout.leaf opt
         (match Flow.Syntax.parse text with
          | Ok [ form ] -> [ Syntax_batch (Flow_sop.Flow_edit.label (make "editor"),
              [ Flow_sop.Flow_edit.Set_graph { name = "editor"; form }; make "editor" ]) ]
-         | _ -> [ Notice "The layout could not be written as an editor graph." ]) in
+         | _ -> [ Declined "The layout could not be written as an editor graph." ]) in
   List.concat_map (function
     | Leader.Layout_switch index when Option.is_some (Option.bind value.doc.Document.shell (fun s -> s.switch)) ->
         edit (fun graph -> Flow_sop.Flow_edit.Set_layout { graph; index })
@@ -2545,7 +2547,7 @@ let layout_actions value (workspace : shell) ~(leaf : Pxui_shell.Layout.leaf opt
     | Peek ->
         (match peek_target value with
          | Some target -> edit (fun graph -> Flow_sop.Flow_edit.Layout_window { graph; kind = "graph:" ^ target })
-         | None -> [ Notice "Nothing selected to peek at" ])
+         | None -> [ Declined "Nothing selected to peek at" ])
     | Float_toggle ->
         (match leaf with
          | Some leaf -> edit (fun graph -> Flow_sop.Flow_edit.Layout_float { graph; at = leaf.path })
@@ -2568,11 +2570,11 @@ let layout_intents value (workspace : shell) intents =
               | Flow_sop.Flow_edit.Set_panel_kind { kind; _ } ->
                   [ Syntax_inline { home; key; make = (fun p ->
                       Flow_sop.Flow_edit.Set_panel_kind { node = p @ [ "@result" ]; kind }) } ]
-              | _ -> [ Notice ("These panels are copies made by a loop in " ^ Document.describe (fst value.doc.Document.workspace).source home
+              | _ -> [ Declined ("These panels are copies made by a loop in " ^ Document.describe (fst value.doc.Document.workspace).source home
                   ^ ": retype them (Space o), or edit the loop in the editor graph.") ])
-         | None -> [ Notice "This panel is not part of the editor graph's tree." ])
+         | None -> [ Declined "This panel is not part of the editor graph's tree." ])
     | _ when workspace.restored ->
-        [ Notice "The default layout is showing. Space z returns to the editor graph." ]
+        [ Declined "The default layout is showing. Space z returns to the editor graph." ]
     | _ ->
         (* no editor graph: the layout shown is written as one first, then edited *)
         let scene = Option.value ~default:"scene" (List.find_map (fun (g : Flow.Workspace.graph) ->
@@ -2583,7 +2585,7 @@ let layout_intents value (workspace : shell) intents =
          | Ok [ form ], Some leaf ->
              [ Syntax_edit (Flow_sop.Flow_edit.Set_graph { name = "editor"; form });
                Syntax_edit (make [ "editor"; leaf ]) ]
-         | _ -> [ Notice "This panel is not part of the layout." ]) in
+         | _ -> [ Declined "This panel is not part of the layout." ]) in
   let kind = panel_kind in
   let save_state path state =
     let prefix = if editor <> None then [] else
@@ -2655,7 +2657,7 @@ let apply_change (document, error, effects) = function
       (match Doc.relabel document ~node_id:node label with
        | Error message -> document, Some message, effects
        | Ok document -> document, None, effects)
-  | Syntax_edit _ | Syntax_batch _ | Syntax_inline _ | Select_layout _ | Panel_state _ | Dock_panels _ | Object_arg _ | Notice _ -> document, error, effects
+  | Syntax_edit _ | Syntax_batch _ | Syntax_inline _ | Select_layout _ | Panel_state _ | Dock_panels _ | Object_arg _ | Notice _ | Declined _ -> document, error, effects
 
 (* Command-C / X: the selected bindings as Lisp pairs ("name expr" per line) on the clipboard,
    the text a let* vector or the Lisp pane takes. *)
@@ -2665,24 +2667,24 @@ let copy_bindings value paths =
     | Some (_, v) -> Some (List.nth path (List.length path - 1) ^ " " ^ String.trim (fst (Flow.Lisp.print [ v ])))
     | None -> None) paths in
   match lines with
-  | [] -> Notice "Nothing to copy"
+  | [] -> Declined "Nothing to copy"
   | lines ->
       (match Clipboard.set_text (String.concat "\n" lines) with
        | Ok () -> Notice (Printf.sprintf "Copied %d binding%s" (List.length lines) (if List.length lines = 1 then "" else "s"))
-       | Error message -> Notice ("Clipboard: " ^ message))
+       | Error message -> Declined ("Clipboard: " ^ message))
 
 (* The palette's "Copy workspace as Lisp": the text Command-S writes, on the clipboard. *)
 let copy_workspace value =
   match Clipboard.set_text (Preset.text value.doc) with
-  | Ok () -> "Copied the workspace as Lisp"
-  | Error message -> "Clipboard: " ^ message
+  | Ok () -> Info, "Copied the workspace as Lisp"
+  | Error message -> Refusal, "Clipboard: " ^ message
 
 (* Command-V: the clipboard's "name expr" pairs (or bare expressions, named by their head) become
    [Add_node]s in the selected scope, renamed where the name is taken (the copies read each other). *)
 let paste_bindings value =
   match add_target value, Clipboard.get_text () with
-  | None, _ -> [ Notice "Open a graph to paste into" ]
-  | Some _, Error message -> [ Notice ("Clipboard: " ^ message) ]
+  | None, _ -> [ Declined "Open a graph to paste into" ]
+  | Some _, Error message -> [ Declined ("Clipboard: " ^ message) ]
   | Some (graph, _), Ok text ->
       let ws, _ = value.doc.Document.workspace in
       let scope = match Pxui_graph.Scope.selected value.scope_view with
@@ -2696,7 +2698,7 @@ let paste_bindings value =
             | Some i -> String.sub h (i + 1) (String.length h - i - 1) | None -> h)
         | _ -> "value" in
       (match Flow.Syntax.parse text with
-       | Error _ | Ok [] -> [ Notice "The clipboard holds no Lisp bindings" ]
+       | Error _ | Ok [] -> [ Declined "The clipboard holds no Lisp bindings" ]
        | Ok forms ->
            let bindings = match pairs forms with
              | Some ps -> ps | None -> List.map (fun f -> head f, f) forms in
@@ -2878,8 +2880,8 @@ let carry_commit value (c : _ carry) doc what =
   Pxui.Ui.cancel_carry value.ui;
   match install { value with carry = None } doc ~label:"Put" ~merge:Editor_core.History.Step with
   | Ok value ->
-      { value with notice = Some (Printf.sprintf "Put %s · wrote %s · one undo entry" c.payload.value what) }
-  | Error d -> carry_cancel value c ~notice:("Refused · " ^ Flow.Diagnostic.to_string d)
+      { value with notice = Some (Info, Printf.sprintf "Put %s · wrote %s · one undo entry" c.payload.value what) }
+  | Error d -> carry_cancel value c ~notice:(Refusal, "Refused · " ^ Flow.Diagnostic.to_string d)
 
 (* The carry's turn of a frame, before the panes build: the keys of the route and the ends of the
    gesture, then the preview (the scratch document the panels read), or the put or the restore.
@@ -2926,7 +2928,7 @@ let carry_step value ~text_focus (frame : Frame.t) =
         | None, Some _ when pointer_wins -> hovering
         | _ -> c.chosen in
       if escape || lost || (Pxui.Ui.carrying value.ui = None && dropped = None) then
-        carry_cancel value c ~notice:(if lost then "Carry dropped · the window lost focus · nothing written"
+        carry_cancel value c ~notice:(Info, if lost then "Carry dropped · the window lost focus · nothing written"
           else "Carry dropped · nothing written"), taken, true
       else begin
         let preview = if desired = Option.map carry_place c.preview then c.preview
@@ -2937,9 +2939,9 @@ let carry_step value ~text_focus (frame : Frame.t) =
            | Some (Showing { doc; what; _ } | Held_back { doc; what; _ }) ->
                carry_commit value c doc what, taken, true
            | Some (Refused { reason; _ }) ->
-               carry_cancel value c ~notice:("Refused · " ^ reason ^ " · nothing written"), taken, true
+               carry_cancel value c ~notice:(Refusal, "Refused · " ^ reason ^ " · nothing written"), taken, true
            | None when dropped <> None ->
-               carry_cancel value c ~notice:"Carry dropped · nothing written", taken, true
+               carry_cancel value c ~notice:(Info, "Carry dropped · nothing written"), taken, true
            | None -> { value with carry = Some { c with hint = Some "Pick a target letter first, or Esc" } }, taken, false)
         else begin
           (* the pointer resting on a node enters what it references, after a moment *)
@@ -3102,7 +3104,7 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
         then int_of_float mx, int_of_float my else gx + (gw / 3), gy + (gh / 3) in
       match open_menu value at with
       | Some menu -> Some menu, []
-      | None -> value.menu, [ Notice "Open a graph to add a node to it" ]
+      | None -> value.menu, [ Declined "Open a graph to add a node to it" ]
     end else value.menu, [] in
   let document = document value in
   let displayed = (network value).displayed in
@@ -3168,6 +3170,8 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
       | None -> List.find_map (fun (path, p) -> if p = focus then Some path else None)
                   (Editor_core.Panels.leaves (shell_tree value workspace)) in
     let intents = Pxui_shell.Chrome.update ~state:(panel_state value) ~hidden:workspace.hidden ~title:(panel_title vw)
+        ~key_of:(fun id -> match List.find_opt (fun (c : Leader.command) -> c.id = id) keymap with
+          | Some { trigger = Some trigger; _ } -> Editor_core.Keymap.label trigger | _ -> "")
         ?focus:header_focus (shell_tree value workspace) ui shortcut_frame in
     (* where a header's tools begin: after its title as the chrome laid it out *)
     let tools_from (leaf : Pxui_shell.Layout.leaf) =
@@ -3431,7 +3435,7 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
       | menu, _ -> menu in
     let menu, menu_pick = match menu with
       | Some menu -> Pxui.Ui.within ui graph_root (fun () ->
-          Pxui_graph.Node_menu.update menu ui ~bounds:(0, 0, frame.width, frame.height))
+          Pxui_graph.Node_menu.update menu ui ~bounds:(0, 0, frame.width, (let _, sy, _, _ = (geometry value workspace frame).status_at in sy)))
       | None -> None, None in
     (* every list shows the level and selection of its graph panel, with its own folds, filter and
        scroll; the one in use takes the keys.  A list of another pane only shows: a press makes its
@@ -3503,7 +3507,7 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
     let changes = command_changes
       @ List.concat_map (function
         | Pxui_graph.Scope.Syntax_edit op -> [ Syntax_edit op ]
-        | Notice message -> [ Notice message ]
+        | Notice message -> [ Declined message ]  (* the pane's notices are all refusals *)
         | Defn_requested paths -> [ defn_change vw paths ]
         | Copy_requested paths -> [ copy_bindings value paths ]
         | Paste_requested -> paste_bindings value
@@ -3717,7 +3721,7 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
                           |> fun found -> if List.length p.fields = 3 then found else None) parameters in
                     (match expression_text text, key_sub with
                      | Ok expr, Some (key, sub) -> Some (Object_arg { node = node_id; key; sub; expr })
-                     | Error message, _ -> Some (Notice message)
+                     | Error message, _ -> Some (Declined message)
                      | Ok _, None -> None)
                 | Pinned _ | Split _ | Reset _ -> None) edits))) in
           None, changes, [], value.live_cook) in
@@ -3791,17 +3795,18 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
                         else List.map (fun id -> [ string_of_int id ]) (Selection.selected_nodes selection)) with
           | [] -> Canvas | [_] -> Node | _ -> Multi) in
     let commands = Editor_core.Command.for_guide keymap ~focus:(Leader.scope focus) ~context in
-    let hide_guide = status_box { value with workspace; status_fps; selection; guide; focus }
+    let hide_guide = status_box { value with workspace; status_fps; selection; guide; focus; leader }
         ui frame ~render_status ~error_status ~context ~commands in
-    (* echo, the sheet's [08]: the key just pressed and the last notice, which fades after 3 seconds *)
-    if graph_shown then begin
-      let notices = match value.notice with
-        | Some text when frame.time -. value.notice_at < 3. ->
-            [ text, if notice_refused text then `Refusal else `Info ]
-        | _ -> [] in
-      Pxui_shell.Status_bar.tips ui ~bounds:graph_body
-        (notices @ Option.to_list (Option.map (fun (text, _) -> text, `Info) hud))
-    end;
+    (* echo, the sheet's [08]: messages only (saved, undo and redo results, refusals), never a key
+       press; the last one fades after 3 seconds.  It stands at the bottom-left of the focused pane,
+       above the strip. *)
+    (match value.notice with
+     | Some (kind, text) when frame.time -. value.notice_at < 3. ->
+         let bounds = match List.find_opt (fun ((l : Pxui_shell.Layout.leaf), _) -> Some l.path = header_focus) roots with
+           | Some (l, _) -> l.body | None -> graph_body in
+         Pxui_shell.Status_bar.tips ui ~bounds
+           [ text, (match kind with Info -> `Info | Refusal -> `Refusal) ]
+     | _ -> ());
     let pane_roots = List.map (fun ((l : Pxui_shell.Layout.leaf), box) -> (l.panel, Some l.path), box) roots
       @ Option.to_list (Option.map (fun (panel, box) -> (panel, None), box) timeline_root) in
     let focus, focus_path = List.fold_left (fun (latest, focus) (target, box) ->
@@ -3833,7 +3838,7 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
       handle_changes; hide_guide } in
   let leader_panel = match leader with
     | Leader.Pending prefix -> Some (fun ui ->
-        Pxui_shell.Which_key.panel ui ~category:Leader.group ~describe:Leader.describe_prefix keymap ~prefix
+        Pxui_shell.Which_key.panel ui ~category:Leader.group ~describe:Leader.describe_prefix ~order:Leader.order keymap ~prefix
           ~focus:(Leader.scope focus) ~focus_name:(Leader.pane_name focus))
     | Idle -> None in
   (* Presets: Space s names and saves the document, Space b browses, loads
@@ -3981,7 +3986,7 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
   let guide = guide && not result.hide_guide in
   let guide_error = if guide = value.guide then None else
     match save_guide value.preferences guide with
-    | Ok () -> None | Error message -> Some ("Guide preference not saved: " ^ message) in
+    | Ok () -> None | Error message -> Some (Refusal, "Guide preference not saved: " ^ message) in
   (* The one reduction phase: panes have finished constructing their boxes. *)
   let document, edit_error, editor_effects = List.fold_left apply_change
       ((network value).graph, value.edit_error, Parameter.no_effects) result.changes in
@@ -4029,14 +4034,15 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
     | Set_end last -> max 1 last | _ -> frames) value.timeline_frames result.timeline_intents } in
   let prompt, notice, loaded = match result.prompt_intent with
     | None -> result.prompt, (match List.find_map (function
-        | Notice message -> Some message | _ -> None) result.changes with
+        | Notice message -> Some (Info, message) | Declined message -> Some (Refusal, message)
+        | _ -> None) result.changes with
         | Some _ as notice -> notice | None -> value.notice), None
     | Some (Run_action _ | Edit_source _ | Go _) -> result.prompt, value.notice, None
     | Some (Save_preset_file name) ->
         let notice = match Preset.save ~directory:value.presets ~name
             ~doc:value.doc ~view:(view_state result.panel) with
-          | Ok path -> "Saved preset " ^ Filename.basename path
-          | Error message -> "Preset not saved: " ^ message in
+          | Ok path -> Info, "Saved preset " ^ Filename.basename path
+          | Error message -> Refusal, "Preset not saved: " ^ message in
         result.prompt, Some notice, None
     | Some ((Load_preset_file _ | Load_last_state) as intent) ->
         let path, restored = match intent with
@@ -4047,17 +4053,17 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
             ~factories:value.factories ~settings:value.doc.settings with
          | Ok preset ->
              (match Document.resolve_level ~scene_level:value.scene_level preset.doc Document.Scene with
-              | Ok _ -> result.prompt, Some restored, Some preset
-              | Error message -> result.prompt, Some (rejected ^ message), None)
-         | Error message -> result.prompt, Some (rejected ^ message), None)
+              | Ok _ -> result.prompt, Some (Info, restored), Some preset
+              | Error message -> result.prompt, Some (Refusal, rejected ^ message), None)
+         | Error message -> result.prompt, Some (Refusal, rejected ^ message), None)
     | Some ((Delete_preset_file _ | Delete_last_state _) as intent) ->
         let directory, name, query, description = match intent with
           | Delete_preset_file {name; query} -> value.presets, name, query, "preset " ^ name
           | Delete_last_state query -> state_directory value, value.state_name, query, "last edited state"
           | _ -> assert false in
         let notice = match Preset.delete ~directory ~name with
-          | Ok () -> "Deleted " ^ description
-          | Error message -> "Preset not deleted: " ^ message in
+          | Ok () -> Info, "Deleted " ^ description
+          | Error message -> Refusal, "Preset not deleted: " ^ message in
         browse value query,
         Some notice, None in
   (* [m] in the workspace pane: the make-macro dialog over the selection, its first two
@@ -4070,7 +4076,7 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
              Some (Making_macro { nodes; draft; state = { name = draft.name;
                holes = Array.of_list (List.mapi (fun i _ -> i < 2, "p" ^ string_of_int (i + 1)) draft.literals) } }),
              notice
-         | Error d -> prompt, Some d.Flow.Diagnostic.message)
+         | Error d -> prompt, Some (Refusal, d.Flow.Diagnostic.message))
     | None -> prompt, notice in
   (* Shared undo stack: every document change (a parameter, a workspace gesture, an
      inspector commit) becomes one history entry; Command/Ctrl-Z undoes,
@@ -4310,10 +4316,12 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
   let stepped = if List.mem Leader.Redo actions then Editor_core.History.redo history
     else if List.mem Leader.Undo actions then Editor_core.History.undo history else None in
   let notice = match stepped with
+    | None when List.mem Leader.Redo actions -> Some (Refusal, "Redo: nothing to redo")
+    | None when List.mem Leader.Undo actions -> Some (Refusal, "Undo: nothing to undo")
     | None -> notice
     | Some _ when List.mem Leader.Redo actions ->
-        Option.map (fun label -> "Redo " ^ label) (Editor_core.History.redo_label history)
-    | Some _ -> Some ("Undo " ^ Editor_core.History.label history) in
+        Option.map (fun label -> Info, "Redo " ^ label) (Editor_core.History.redo_label history)
+    | Some _ -> Some (Info, "Undo " ^ Editor_core.History.label history) in
   let history, doc, undone = match stepped with
     | Some history -> history, Editor_core.History.present history, true
     | None -> history, (if carrying then value.doc else Editor_core.History.present history), false in
@@ -4513,9 +4521,9 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
   let prepared_changed = cooked.prepared_changed
     && not (List.equal ( == ) (Cook.pieces cooked.cook) (Cook.pieces value.cook)) in
   let new_notice = if guide_error <> None then guide_error
-    else if pick_error <> None then pick_error
+    else if pick_error <> None then Option.map (fun m -> Refusal, m) pick_error
     else if copied <> None then copied
-    else if document_changed && Option.is_none loaded && not undone then !edit_note
+    else if document_changed && Option.is_none loaded && not undone then Option.map (fun m -> Info, m) !edit_note
     else notice in
   { core = { value' with timeline; cook = cooked.cook; lit = lit_cache; edit_error = cooked.edit_error;
       status_fps; status_fps_at; last_dt = frame.dt; steady; guide; hud; focus = result.focus; focus_path = result.focus_path;
@@ -4713,7 +4721,7 @@ let pick ?view ?(alt = false) value ~origin ~direction =
        | Some (_, Some path) ->
            (match material_graph value path with
             | Some graph -> go value graph
-            | None -> { value with notice = Some ("No material graph for " ^ path) })
+            | None -> { value with notice = Some (Refusal, "No material graph for " ^ path) })
        | _ -> value)
   | (ws, lowered), Some { scope; _ } when scope_name value <> None ->
       let nearest = nearest_by Cook.pick in
@@ -4757,7 +4765,7 @@ let reload value ~name text =
     let clean (text : Text_pane.state) =
       { text with draft = None; doc_base = None; binding_base = None; graph_base = None; doc_errors = []; binding_draft = None; binding_errors = [];
         graph_draft = None; graph_errors = [] } in
-    { value with notice = Some ("Reloaded " ^ name); text = clean value.text;
+    { value with notice = Some (Info, "Reloaded " ^ name); text = clean value.text;
       locals = List.map (fun (key, l) -> key, { l with code = clean l.code }) value.locals })
     (text_edit ~label:("Reload " ^ name) value text)
 
@@ -4767,7 +4775,7 @@ let reload_failed value ~name text diagnostics =
     | d :: _ -> (match Text_pane.line_of text d with
         | Some line -> Printf.sprintf ": line %d, %s" line d.Flow.Diagnostic.message
         | None -> ": " ^ d.Flow.Diagnostic.message) in
-  { value with notice = Some (Printf.sprintf "%s not reloaded%s" name first);
+  { value with notice = Some (Refusal, Printf.sprintf "%s not reloaded%s" name first);
     text = { value.text with tab = Text_pane.Document; draft = Some text; doc_base = Some (fst value.doc.workspace); doc_errors = diagnostics } }
 
 (* The carry's hovered viewport has been looked at by the host: the surface under the pointer
