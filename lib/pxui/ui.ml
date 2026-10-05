@@ -3892,6 +3892,14 @@ let picker ui ?(limit = 10) ?mark ?(off = fun _ -> false) ?(slash = true) ?(at_r
         else if hovered then hover_row paint ui bounds;
         let text_x = if mark = None then x + side else x + side + 16 in
         let unavailable = off index in
+        (* a label that would run into the detail is cut with an ellipsis *)
+        let key_size = max 8 (ui.font_size - 2) in
+        let key_text = "\xe2\x86\xb5" in
+        let right = if current then
+            float (x + w - side) -. Paint.text_width paint ~size:key_size key_text -. 8.
+          else float (x + w - side) in
+        let text = ellipsis ~width:(Paint.text_width paint)
+            ~limit:(right -. Paint.text_width paint detail -. 12. -. float text_x) text in
         Option.iter (fun color -> fill paint (x + side, y + ((h - 8) / 2), 8, 8)
           (if unavailable then Theme.ink_3 theme else color)) swatch;
         (* the query's letters, matched in order, in the accent *)
@@ -3920,8 +3928,6 @@ let picker ui ?(limit = 10) ?mark ?(off = fun _ -> false) ?(slash = true) ?(at_r
           pen := !pen +. Paint.text_width paint run;
           start := !stop
         done;
-        let key_size = max 8 (ui.font_size - 2) in
-        let key_text = "\xe2\x86\xb5" in
         let right = if current then
             (let width = Paint.text_width paint ~size:key_size key_text in
              Paint.text paint ~size:key_size ~color:(Theme.ink_3 theme)

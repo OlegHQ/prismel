@@ -1343,14 +1343,15 @@ module Prompt = struct
       let clicked = buttons ui ~key ~width:320. ~accept:"Save" in
       query, (match clicked with `None -> result | (`Cancel | `Submit) as pick -> pick))
 
-  (* A searchable prompt: the field, the rows in the picker's style, then the buttons *)
+  (* A searchable prompt, the sheet's [01] window: the field, the rows in the picker's style (labels
+     cut with an ellipsis), then the hairline and the hint bar with [N of M]; no buttons *)
   let search ui ~key ~title ~label ~query ~rows =
-    Ui.modal ui ~width:420. key (fun () ->
+    Ui.modal ui ~width:320. key (fun () ->
       Ui.label ui title;
       let query, result = Ui.picker ui label ~query rows in
-      spacer ui "prompt-below" 4.;
-      let clicked = buttons ui ~key ~width:420. ~accept:"Pick" in
-      query, (match clicked with `None -> result | (`Cancel | `Submit) as pick -> pick))
+      Ui.footer ui ~right:(Printf.sprintf "%d of %d" (Array.length (rows query)) (Array.length (rows "")))
+        [ "\xe2\x86\x91\xe2\x86\x93", "move"; "\xe2\x86\xb5", "pick" ];
+      query, result)
 
   type macro = { name : string; holes : (bool * string) array }
 
