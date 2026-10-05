@@ -40,6 +40,11 @@ type row_kind =
   | Group_reader
   | Group_writer
 
+type control =
+  | Plain
+  | Range of float * float  (** a number with a soft range: the field draws its position line *)
+  | Choice  (** one of a list of names: the field ends in a chevron *)
+
 type row = {
   label : string;
   key : Flow_edit.arg_key;
@@ -49,6 +54,7 @@ type row = {
   default : string option;  (** the default a missing argument takes, as text *)
   socket : bool;  (** a wire can land here (literal-only text and choices: no) *)
   kind : row_kind;
+  control : control;
 }
 
 type zone_kind = For | Fold | Scan | Sum | Let | Fn
@@ -158,13 +164,14 @@ type placed = {
 and layout = { placed : placed list; w : float; h : float }
 
 val layout :
-  ?at:(path -> (float * float) option) -> ?collapsed:(path -> bool) ->
+  ?foot:bool -> ?at:(path -> (float * float) option) -> ?collapsed:(path -> bool) ->
   ?lens:(path -> int option) -> scope -> layout
 (** Columns by dependency depth, inputs first and the return last; a node
     stacks below its column's previous one.  [at] overrides a node's position
     ([Layout_by_path.at]), [collapsed] folds a zone to its card, [lens] gives the step of
     a macro call whose expansion panel is open (the card grows by {!lens_height} and
-    widens to {!lens_width}).  A zone's size
+    widens to {!lens_width}), [foot] reserves a footer row under every card and zone (the
+    host has probe records to show; default none).  A zone's size
     comes from its inner layout, recursively.  ponytail: no crossing
     minimisation (like [automatic_layout]). *)
 
@@ -183,6 +190,16 @@ val rail_top : node -> float
 val row_height : float
 val head_height : float
 val foot_height : float
+val body_top : float
+(** Where a card's rows start: one point above the header's bottom (kit rev 3). *)
+
+val card_pad : float
+(** The 4 points of padding and the border under a card's last row. *)
+
+val card_height : rows:float -> extra:float -> float
+(** A card of [rows] 24-point rows and [extra] points of footer or panel: the 24-point header
+    alone when it has neither. *)
+
 val node_width : float
 val rail_width : float
 val yield_width : float

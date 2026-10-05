@@ -438,6 +438,7 @@ let editor_w9 () =
   let open Rays in
   let catalog = Editor_document.Contexts.catalog ~version:Flow_sop.Manifest.version
       Sop_catalog.Editor.factories |> Result.get_ok in
+  let soft = [ "rosette"; "soft" ] and petals = [ "rosette"; ":petals" ] in
   let scenario script =
     let workspace = Rays_editor.Workspace_doc.of_text catalog (case "rosette") |> Result.get_ok in
     let presets = Filename.temp_dir "rays-text-presets" "" in
@@ -447,10 +448,14 @@ let editor_w9 () =
         ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) () |> Result.get_ok) in
     let mouse = ref (640., 360.) in
     for n = 1 to 40 do
+      (* a card's header, where the graph pane put it (kit rev 3 cards: 24-point header) *)
+      let head path (dx, dy) = match E.node_box !env path with
+        | Some (x, y, w, _) -> float x +. (if dx < 0. then float w +. dx else dx), float y +. dy
+        | None -> failwith "the card has no box" in
       let click p =
         [ Event.MouseMoved p; Event.MousePressed (Input.LeftButton, p); Event.MouseReleased (Input.LeftButton, p) ] in
       let events = match List.assoc_opt n script with
-        | Some events -> events click
+        | Some events -> events click head
         | None -> match n with
           | 4 -> click (900., 300.) | 6 -> [ Event.KeyPressed Input.ArrowDown ]
           | 8 -> [ Event.KeyPressed (Input.KeyChar 'i') ]
@@ -468,39 +473,39 @@ let editor_w9 () =
   let untouched, _ = scenario [] in
   check (contains untouched "^:bypass (sop/subdivide inner") "soft starts bypassed";
   (* the flag *)
-  let text, label = scenario [ 22, (fun click -> click (1044., 208.)) ] in
+  let text, label = scenario [ 22, (fun click head -> click (head soft (60., 12.))); 24, (fun _ _ -> [ Event.KeyPressed (Input.KeyChar 'b') ]) ] in
   check (not (contains text "^:bypass") && label = Some "Bypass")
-    (Printf.sprintf "the B flag: %s, bypass %b" (Option.value label ~default:"-") (contains text "^:bypass"));
+    (Printf.sprintf "the b key: %s, bypass %b" (Option.value label ~default:"-") (contains text "^:bypass"));
   (* the inspector's Bypass toggle is the flag's request too *)
-  let text, label = scenario [ 22, (fun click -> click (1075., 208.)); 26, (fun click -> click (1374., 217.)) ] in
+  let text, label = scenario [ 22, (fun click head -> click (head soft (60., 12.))); 26, (fun click _ -> click (1374., 217.)) ] in
   check (not (contains text "^:bypass") && label = Some "Bypass")
     (Printf.sprintf "the inspector's Bypass toggle: %s" (Option.value label ~default:"-"));
   (* and its name field is the pane's rename *)
-  let text, label = scenario [ 22, (fun click -> click (1075., 208.)); 26, (fun click -> click (1290., 193.));
-    28, (fun _ -> [ Event.KeyPressed (Input.KeyChar 'a') ]); 30, (fun _ -> [ Event.TextInput "gentle" ]);
-    32, (fun _ -> [ Event.KeyPressed Input.Enter ]) ] in
+  let text, label = scenario [ 22, (fun click head -> click (head soft (60., 12.))); 26, (fun click _ -> click (1290., 193.));
+    28, (fun _ _ -> [ Event.KeyPressed (Input.KeyChar 'a') ]); 30, (fun _ _ -> [ Event.TextInput "gentle" ]);
+    32, (fun _ _ -> [ Event.KeyPressed Input.Enter ]) ] in
   check (contains text "gentle ^:bypass (sop/subdivide" && not (contains text "soft ^:bypass") && label = Some "Rename")
     ("the inspector's name field: " ^ Option.value label ~default:"-");
   (* a graph input's default is edited in the inspector too *)
-  let text, label = scenario [ 22, (fun click -> click (700., 212.)); 26, (fun click -> click (1290., 121.));
-    28, (fun _ -> [ Event.KeyPressed (Input.KeyChar 'a') ]); 30, (fun _ -> [ Event.TextInput "7" ]);
-    32, (fun _ -> [ Event.KeyPressed Input.Enter ]) ] in
+  let text, label = scenario [ 22, (fun click head -> click (head petals (60., 12.))); 26, (fun click _ -> click (1290., 121.));
+    28, (fun _ _ -> [ Event.KeyPressed (Input.KeyChar 'a') ]); 30, (fun _ _ -> [ Event.TextInput "7" ]);
+    32, (fun _ _ -> [ Event.KeyPressed Input.Enter ]) ] in
   check (contains text "(petals : int 7)" && label = Some "Input default")
     ("the inspector's input default: " ^ Option.value label ~default:"-");
   (* the inspector note: click the field, type, Enter *)
-  let text, label = scenario [ 22, (fun click -> click (1075., 208.)); 26, (fun click -> click (1290., 169.));
-    28, (fun _ -> [ Event.KeyPressed (Input.KeyChar 'a') ]); 30, (fun _ -> [ Event.TextInput "a fresh note" ]);
-    32, (fun _ -> [ Event.KeyPressed Input.Enter ]) ] in
+  let text, label = scenario [ 22, (fun click head -> click (head soft (60., 12.))); 26, (fun click _ -> click (1290., 169.));
+    28, (fun _ _ -> [ Event.KeyPressed (Input.KeyChar 'a') ]); 30, (fun _ _ -> [ Event.TextInput "a fresh note" ]);
+    32, (fun _ _ -> [ Event.KeyPressed Input.Enter ]) ] in
   check (contains text "; a fresh note" && label = Some "Note") ("the note edit: " ^ Option.value label ~default:"-");
   (* the dialog: m over the selection, then Create macro *)
-  let text, label = scenario [ 22, (fun click -> click (1075., 208.));
-    26, (fun _ -> [ Event.KeyPressed (Input.KeyChar 'm') ]); 30, (fun click -> click (500., 461.)) ] in
+  let text, label = scenario [ 22, (fun click head -> click (head soft (60., 12.)));
+    26, (fun _ _ -> [ Event.KeyPressed (Input.KeyChar 'm') ]); 30, (fun click _ -> click (500., 461.)) ] in
   check (contains text "(defmacro soft_tpl [p1 inner]" && label = Some "Make macro")
     ("the make-macro dialog: " ^ Option.value label ~default:"-");
   (* Enter in the name field creates the macro too *)
-  let text, label = scenario [ 22, (fun click -> click (1075., 208.));
-    26, (fun _ -> [ Event.KeyPressed (Input.KeyChar 'm') ]); 30, (fun click -> click (700., 437.));
-    34, (fun _ -> [ Event.KeyPressed Input.Enter ]) ] in
+  let text, label = scenario [ 22, (fun click head -> click (head soft (60., 12.)));
+    26, (fun _ _ -> [ Event.KeyPressed (Input.KeyChar 'm') ]); 30, (fun click _ -> click (700., 437.));
+    34, (fun _ _ -> [ Event.KeyPressed Input.Enter ]) ] in
   check (contains text "(defmacro soft_tpl [p1 inner]" && label = Some "Make macro")
     ("Enter in the make-macro dialog: " ^ Option.value label ~default:"-")
 

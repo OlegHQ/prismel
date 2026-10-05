@@ -101,9 +101,7 @@ val macro_step : t -> path -> int option
 (** The step shown by the open expansion panel of a macro call ([0] is the call as
     written); [None] while the panel is closed.  The panel is opened by the toggle at the
     right of the card's title and its step buttons choose the step (view state); its
-    "Replace call with expansion" button is [Syntax_edit (Inline_macro ...)].  A node
-    that can be bypassed has a [B] flag on its title: a click is
-    [Syntax_edit (Toggle_bypass ...)]. *)
+    "Replace call with expansion" button is [Syntax_edit (Inline_macro ...)]. *)
 
 val editing : t -> bool
 (** A text field (a name, an input default, a frame title) is open: the host keeps its keys out. *)
@@ -139,7 +137,6 @@ module Private : sig
   (* centres, in screen points, of the panel's parts *)
   val lens_step_button : t -> path -> int -> (float * float) option
   val lens_replace : t -> path -> (float * float) option
-  val bypass_flag : t -> path -> (float * float) option
   val wire_count : t -> int
   val wire_target : t -> int -> (path * Flow_sop.Flow_edit.arg_key) option
   val wire_midpoint : t -> int -> (float * float) option
