@@ -123,6 +123,8 @@ let run () =
   if flow_step (flow_row ()) (click 14 12)
       <> [Pxui_shell.Inspector.Pinned ("count", false)] then
     fail "Flow inspector pin did not emit the card-row request";
+  (* the cross shows on the hovered row: hover first *)
+  ignore (flow_step (flow_row ~drive:"← Clock.t" ~locked:true ()) [Rays.Event.MouseMoved (258., 12.)]);
   if flow_step (flow_row ~drive:"← Clock.t" ~locked:true ()) (click 258 12)
       <> [Pxui_shell.Inspector.Reset "count"] then
     fail "Flow inspector reset did not clear the drive";
@@ -160,7 +162,8 @@ let run () =
   if flow_step color_row (click 258 12)
       <> [ Pxui_shell.Inspector.Split ("color", true) ] then
     fail "Flow inspector color row rgb control did not request a split";
-  ignore (flow_step color_row (click 140 12));
+  (* the hex field starts after the 20-point swatch and 8 points, at 12 + 6 + 8 + 68 + 8 + 28 in 280 *)
+  ignore (flow_step color_row (click 170 12));
   let hex_edits = Pxui.Ui.frame flow_ui (frame 2. [
       Rays.Event.KeyPressed Rays.Input.End;
       Rays.Event.KeyPressed Rays.Input.Backspace;

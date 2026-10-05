@@ -716,8 +716,10 @@ let preview e name = match Sys.getenv_opt "RAYS_UI_PREVIEW" with
 (* a drag across the inspector's slider at [row] points under the panel's top *)
 let drag_slider e count row =
   let step ?(buttons = []) ?(mouse = (450., 300.)) events = incr count; e := E3.update !e (frame ~buttons mouse events !count) in
-  let ix, iy, iw, _ = (E3.panes !e (frame (0., 0.) [] 0)).inspector in
-  let at x = float (ix + (iw * 70 / 100) + x), float (iy + row) in
+  let ix, iy, _, _ = (E3.panes !e (frame (0., 0.) [] 0)).inspector in
+  (* the first field of a vector row starts at the control column: 12 + 6 + 8 + 56 + 8 = 90 in a
+     180-wide panel; a point 10 inside it *)
+  let at x = float (ix + 100 + x), float (iy + row) in
   step ~mouse:(at 0) ~buttons:[ Input.LeftButton ] [ Event.MousePressed (Input.LeftButton, at 0) ];
   List.iter (fun x -> step ~mouse:(at x) ~buttons:[ Input.LeftButton ] []) [ 4; 8; 12; 16 ];
   step ~mouse:(at 20) [ Event.MouseReleased (Input.LeftButton, at 20) ];
@@ -736,10 +738,13 @@ let run_loop_copies () =
         (scene/merge row))))|} in
   let e = ref (editor text) and count = ref 0 in
   select_row e count 1;
+  preview e "loop-copies";
   let x () = List.map (fun i -> field_of i "translate_x") (objects !e) in
   check (List.length (objects !e) = 3 && List.for_all (fun v -> v = Some (Parameter.Float_value 0.)) (x ()))
     "the loop did not make three objects at the origin";
-  drag_slider e count 225;
+  (* the head is 118 tall at the test's 11 points, then Inputs (4 + 24, 24) and Transform (16 + 24):
+     the translate row is 118 + 28 + 24 + 40 = 210 down, its middle 12 more *)
+  drag_slider e count 222;
   let moved = x () in
   check (List.for_all (fun v -> v = List.hd moved && v <> Some (Parameter.Float_value 0.)) moved)
     "dragging a literal field of one copy did not move all three";
@@ -819,11 +824,15 @@ let run_loop_expression () =
   select_row e count 2;
   let step ?(mouse = (450., 300.)) events = incr count; e := E3.update !e (frame mouse events !count) in
   let ix, iy, _, _ = (E3.panes !e (frame (0., 0.) [] 0)).inspector in
-  let label = float (ix + 30), float (iy + 225) in
+  (* Option-click on the translate X field of the lamp: its row is 12 + 6 + 8 + 56 + 8 = 90 from
+     the panel's left; vertically the head (118), Inputs (28, 24), Type (24), Transform (40) and
+     half the translate row (12) above it, as in the preview *)
+  let label = float (ix + 100), float (iy + 118 + 28 + 24 + 24 + 40 + 12) in
   step ~mouse:label [ Event.MouseMoved label ];
-  List.iter (fun () ->
-    step ~mouse:label [ Event.MousePressed (Input.LeftButton, label) ];
-    step ~mouse:label [ Event.MouseReleased (Input.LeftButton, label) ]) [ (); () ];
+  let alt ?(buttons = []) events = incr count;
+    e := E3.update !e (Test_editor_input.frame ~buttons ~keys:[ Input.Alt ] label events !count) in
+  alt [ Event.MousePressed (Input.LeftButton, label) ] ~buttons:[ Input.LeftButton ];
+  alt [ Event.MouseReleased (Input.LeftButton, label) ];
   step ~mouse:label [ Event.KeyPressed (Input.KeyChar 'a') ];
   step ~mouse:label [ Event.TextInput "=(* i 3)" ];
   step ~mouse:label [ Event.KeyPressed Input.Enter ];
@@ -1488,7 +1497,9 @@ let run_studio () =
   step at [ Event.TextInput "editor" ]; step at [ Event.KeyPressed Input.Enter ]; rest ();
   click (600., 600.);
   check (dump_line !e "scope selected" = "editor/studio") ("the studio card is not where the test clicks: " ^ dump_line !e "scope selected");
-  let pick dy = click (600., 600.); click (1390., 214.); click (1390., 214. +. dy) in
+  (* the 320-wide inspector starts at y 24; the split's head is 125 tall (chips, name, detail), then the
+     note row (24) and the Size row, whose middle is 24 + 125 + 24 + 12 = 185 *)
+  let pick dy = click (600., 600.); click (1390., 185.); click (1390., 185. +. dy) in
   pick 26.;
   check (has (source !e) "studio (ui/split-at \"horizontal\" 0.1505 outline work)" && E3.undo_label !e = Some "Resize panel")
     ("the Size row did not size the split by its ratio: " ^ source !e);

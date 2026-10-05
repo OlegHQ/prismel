@@ -393,7 +393,7 @@ val splitter : t -> ?axis:axis -> ?thickness:float -> string -> float
 (** {1 Kit widgets}
 
     A panel stacks rows of the PXUI design kit (rev 3): 24-point rows with 12 points
-    at each side, a label column of 112 points, 20-point controls and the kit face.
+    at each side, a label column (0.3 of the panel less 16, for inspector rows), 20-point controls and the kit face.
     A field is a value on a hairline, a button is its text; nothing has a radius
     or an ink fill. Widgets must be built inside a {!val-panel}. *)
 
@@ -405,9 +405,13 @@ val panel :
     height or [max_height] use the shared elastic scroll. *)
 
 val inspector_row :
-  t -> ?width:float -> key:string -> label:string -> unit ->
+  t -> ?width:float -> ?pin:bool -> key:string -> label:string -> unit ->
   box * float * float * float
-(** A responsive inspector row and the local x, y, width of its value control. *)
+(** An inspector row of the kit's inspector sheet and the local x, y, width of its value control
+    (always 20 high at y 2): 12 of padding, a 6-point slot for the pin dot (drawn when [pin] is
+    given: filled ink for a row on its card, an ink-3 ring for one that is not), 8, the label column
+    (0.3 of the panel less 16 points: 98 at 380 wide, 80 at 320), 8, the control to 12 from the
+    right edge.  A long label ellipsizes in its column.  The hovered row has the line-1 fill. *)
 
 val inspector_width : t -> float
 (** The width of the panel being built: what an inspector row lays its columns out in. *)
@@ -417,14 +421,32 @@ val inspector_section :
   string -> (unit -> 'a) -> 'a option
 (** A collapsible inspector section. *)
 
-val inspector_toggle : t -> key:string -> label:string -> bool -> bool
-(** A toggle in the same inspector row used by parameter fields. *)
+val inspector_toggle : t -> ?pin:bool -> key:string -> label:string -> bool -> bool
+(** A switch row: the switch sits at the start of the control column. *)
 
 val inspector_toggle_value : t -> key:string -> at:float * float -> bool -> bool
 (** The value control inside an inspector row. *)
 
-val inspector_header : t -> key:string -> title:string -> detail:string -> box
-(** A compact title and detail header for an inspector context. *)
+type head_action = { caption : string; keycap : string; active : bool; usable : bool }
+(** A text button of an inspector head: its label, its key in ink-3, whether it is on (the control
+    fill) and whether it can be pressed. *)
+
+type head = { renamed : string; chosen : int option; reset_pressed : bool }
+(** What a head reports for a frame: the name as edited, the index of the pressed action, and
+    whether the trailing [reset] button was pressed. *)
+
+val inspector_header :
+  t -> key:string -> ?kind:string -> ?badge:string -> ?index:string ->
+  ?rename:(string -> bool) -> ?actions:head_action list -> ?reset:string ->
+  title:string -> detail:string -> unit -> head
+(** The head block of an inspector: a chips row ([kind] in ink-2, [badge] in the accent, [index]
+    at the right in ink-3), the name at the display size (edited in place when [rename] accepts
+    names), one detail line in ink-2, a row of text [actions] and a bare [reset] button at the
+    right, then a line-2 hairline. *)
+
+val inspector_body : t -> (unit -> 'a) -> 'a
+(** The part of an inspector under its head: a column filling the rest of the panel that scrolls
+    on its own (the head stays), with a 4-point line-3 thumb 2 points from the right edge. *)
 
 val inspector_button : t -> key:string -> string -> bool
 (** A full-width action row with the inspector's spacing and colors. *)
@@ -554,11 +576,15 @@ val value_field : t -> at:float * float -> w:float -> h:float ->
   ?size:int -> ?display:string -> ?fraction:float ->
   ?slide:(float -> string) ->
   ?scrub:(string -> float -> bool -> string) -> ?left:bool -> ?edit:bool ->
-  valid:(string -> bool) ->
+  ?lead:string * Rays.Color.t -> ?trail:string * Rays.Color.t -> ?line:Rays.Color.t ->
+  ?bare:bool -> valid:(string -> bool) ->
   string -> string -> string * bool
 (** Compact field. Numeric sliders follow the pointer with [slide]; Option-click
     or [edit] opens text entry. [scrub] handles fields without a track.
     [left] aligns text values to the left (default false for numeric fields).
+    [lead] and [trail] frame the value at the left and right with 6 points between (an
+    expression's ƒ and its live value); [line] is the idle hairline's colour (an expression's port
+    colour); [bare] leaves the hairline out until the field is edited or invalid.
     Only valid text commits; the boolean reports an open text editor. *)
 
 val choice : t -> string -> string list -> int -> int

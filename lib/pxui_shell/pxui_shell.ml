@@ -1499,35 +1499,35 @@ module Inspector = struct
         in
         loop [] items
 
-  let flow_fields ui ?(expanded = []) ?width ?(actions = true) ?(chips = [])
+  let flow_fields ui ?(expanded = []) ?width ?(actions = true) ?(pins = false) ?(chips = [])
       ?(on_choice = fun _ _ -> ()) rows =
     (* the rows fill the panel they are built in *)
     let width = Option.value width ~default:(Ui.inspector_width ui) in
     let theme = Ui.theme ui in
+    let ink_2 = Pxui.Theme.ink_2 theme and ink_3 = Pxui.Theme.ink_3 theme in
     let expression text = String.starts_with ~prefix:"=" text
       && String.length (String.trim text) > 1 in
-    let action ui key label ~x ~y ~enabled =
-      let pin = label = "\xe2\x97\x8f" || label = "\xe2\x97\x8b" in
+    (* the dot of a row is drawn by the row ([pins]); with [actions] a click on it pins the row *)
+    let pin_of shown = if pins then Some shown else None in
+    let action ui key label ~x ~y ~enabled ?(visible = true) () =
+      let pin = label = "pin" in
       let x = if pin then 6. else x and w = if pin then 18. else 20. in
       let box = Ui.box ui ~flags:(if enabled then Ui.(clickable + tab_stop) else Ui.none)
           ~at:(x, y) ~w:(Ui.Px w) ~h:(Ui.Px 20.) key in
       let signal = Ui.signal ui box in
       let clicked = enabled && signal.clicked in
-      Ui.draw ui box (fun paint (x, y, w, h) ->
-        let color = if enabled && signal.hovered then theme.foreground else Pxui.Theme.ink_3 theme in
-        if pin then
-          Ui.Paint.circle paint ~at:(x +. 9., y +. (h /. 2.)) ~radius:3.
-            ?fill:(if label = "\xe2\x97\x8f" then Some theme.foreground else None)
-            ?stroke:(if label = "\xe2\x97\x8f" then None else Some color) ()
-        else if label = "\xc3\x97" then begin
+      if visible && not pin then Ui.draw ui box (fun paint (x, y, w, h) ->
+        let color = if enabled && signal.hovered then theme.foreground else ink_3 in
+        if label = "\xc3\x97" then begin
           let cx = x +. (w /. 2.) and cy = y +. (h /. 2.) in
           Ui.Paint.line paint ~from_:(cx -. 3.5, cy -. 3.5) ~to_:(cx +. 3.5, cy +. 3.5) color;
           Ui.Paint.line paint ~from_:(cx -. 3.5, cy +. 3.5) ~to_:(cx +. 3.5, cy -. 3.5) color
         end else Ui.Paint.text paint ~at:(x +. 1., Kit.cap_y ui y h) ~size:(Kit.cap_size ui) ~color label);
       clicked in
-    let input field path ~edit ~x ~y ~w =
+    let input ?(ranged = true) field path ~edit ~x ~y ~w =
       let key = "flow-value-" ^ path in
       let numeric text valid ?display ?fraction ?slide convert =
+        let fraction = if ranged then fraction else None in
         let changed, _ = Ui.value_field ui ~at:(x, y) ~w ~h:20.
             ?display ?fraction ?slide ~edit ~left:(expression text) ~valid:(fun text -> valid text || expression text)
             key text in
@@ -1567,9 +1567,7 @@ module Inspector = struct
           let just_opened = (Ui.signal ui box).clicked in
           let open_ = just_opened || Ui.state ui box ~default:0 = 1 in
           Ui.set_state ui box (if open_ then 1 else 0);
-          let hovered = (Ui.signal ui box).hovered in
           Ui.draw ui box (fun paint (x, y, w, h) ->
-            if hovered then Ui.Paint.fill paint ~x ~y ~w ~h (Pxui.Theme.hover_fill theme);
             Ui.Paint.fill paint ~x ~y:(y +. h -. 1.) ~w ~h:1.
               (if open_ then theme.accent else Pxui.Theme.edge theme);
             let pad = match List.assoc_opt choices.(index) chips with
@@ -1579,7 +1577,8 @@ module Inspector = struct
               | None -> 0. in
             Ui.Paint.text paint ~at:(x +. 2. +. pad, Kit.text_y ui y h)
               ~color:theme.foreground choices.(index);
-            Ui.Paint.chevron paint ~at:(x +. w -. 6., y +. (h /. 2.)) (if open_ then `Up else `Down) theme.foreground);
+            Ui.Paint.chevron paint ~at:(x +. w -. 5., y +. (h /. 2.))
+              (if open_ then `Up else `Down) theme.foreground);
           if not open_ || just_opened then [] else
             let bx, by, bw, bh = Ui.rect ui box in
             (match Ui.context_menu ui ~at:(bx, by +. bh) ~width:bw ~selected:index
@@ -1599,42 +1598,43 @@ module Inspector = struct
       | _ -> [] in
     let driven path title source live shown =
       let box, control_x, control_y, control_w = Ui.inspector_row ui
-          ~width ~key:("flow-row-" ^ path) ~label:title () in
+          ~width ?pin:(pin_of shown) ~key:("flow-row-" ^ path) ~label:title () in
+      (* the cross that removes a drive shows on the hovered row, in place of the live value *)
+      let hovered = Ui.hovered_within ui box in
       Ui.within ui box (fun () ->
-        let source_width = max 4 (int_of_float ((control_w -. 24.) /. 7.)) in
-        let display = if String.length source > source_width then
-          String.sub source 0 (max 0 (source_width - 1)) ^ "…" else source in
-        let edits = if String.starts_with ~prefix:"=" source then
-          let text, _ = Ui.value_field ui ~at:(control_x, control_y)
-              ~w:(control_w -. 24.) ~h:20.
-              ~left:true ~valid:expression ("flow-expression-" ^ path) source in
+        let live = if hovered then None else live in
+        let edits = if expression source then
+          let text, _ = Ui.value_field ui ~at:(control_x, control_y) ~w:control_w ~h:20.
+              ~display:(String.sub source 1 (String.length source - 1))
+              ~lead:("\xc6\x92", ink_2)
+              ?trail:(Option.map (fun value -> value, ink_2) live)
+              ~line:(Pxui.Theme.ports theme).float
+              ~valid:expression ("flow-expression-" ^ path) source in
           if text = source then [] else [Expression (path, text)]
         else (Ui.draw ui box (fun paint (x, y, _, _) ->
           let ty = Kit.text_y ui (y +. control_y) 20. in
-          Ui.Paint.text paint ~at:(x +. control_x +. 2., ty) ~color:theme.accent "\xe2\x86\x90";
-          Ui.Paint.text paint ~at:(x +. control_x +. 18., ty) ~color:(Pxui.Theme.ink_2 theme) display;
+          let left = x +. control_x +. 2. and right = x +. control_x +. control_w -. 2. in
+          Ui.Paint.text paint ~at:(left, ty) ~color:theme.accent "\xe2\x86\x90";
+          let source_x = left +. Ui.Paint.text_width paint "\xe2\x86\x90" +. 6. in
+          let live_w = Option.fold ~none:0. ~some:(fun v -> Ui.Paint.text_width paint v +. 6.) live in
+          Ui.Paint.text paint ~at:(source_x, ty) ~color:ink_2
+            (Ui.ellipsis ~width:(Ui.Paint.text_width paint ~size:(Ui.font_size ui)) ~limit:(right -. source_x -. live_w) source);
           Option.iter (fun value ->
             Ui.Paint.text paint ~color:theme.foreground
-              ~at:(x +. control_x +. control_w -. 26. -. Ui.Paint.text_width paint value, ty) value) live); []) in
-        let reset = action ui ("reset-" ^ path) "×" ~x:(width -. 32.)
-            ~y:control_y ~enabled:true in
-        let pin = action ui ("pin-" ^ path) (if shown then "●" else "○")
-            ~x:0. ~y:control_y ~enabled:false in
-        let _ = pin in
+              ~at:(right -. Ui.Paint.text_width paint value, ty) value) live); []) in
+        let reset = hovered && action ui ("reset-" ^ path) "\xc3\x97" ~x:(width -. 32.)
+            ~y:control_y ~enabled:true () in
         if reset then Reset path :: edits else edits) in
     let scalar path title field shown =
       let box, control_x, control_y, control_w = Ui.inspector_row ui
-          ~width ~key:("flow-row-" ^ path) ~label:title () in
+          ~width ?pin:(pin_of shown) ~key:("flow-row-" ^ path) ~label:title () in
       Ui.within ui box (fun () ->
-        (* the label's own extent: its column, or the whole row above a stacked control *)
+        (* the label's own extent: its column *)
         let label = Ui.box ui ~flags:Ui.clickable ~at:(26., 2.)
-            ~w:(Ui.Px (if control_y > 20. then width -. 38. else Float.max 1. (control_x -. 34.)))
-            ~h:(Ui.Px 20.) "label-edit" in
+            ~w:(Ui.Px (Float.max 1. (control_x -. 34.))) ~h:(Ui.Px 20.) "label-edit" in
         let edit = (Ui.signal ui label).double_clicked in
         let edits = input field path ~x:control_x ~y:control_y ~w:control_w ~edit in
-        let pinned = actions && action ui ("pin-" ^ path)
-            (if shown then "●" else "○") ~x:0.
-            ~y:control_y ~enabled:true in
+        let pinned = actions && action ui ("pin-" ^ path) "pin" ~x:0. ~y:control_y ~enabled:true () in
         if pinned then Pinned (path, not shown) :: edits else edits) in
     let has_substr sub s =
       let len_s = String.length s and len_sub = String.length sub in
@@ -1654,6 +1654,14 @@ module Inspector = struct
           (String.starts_with ~prefix:"#" text || has_substr "color" field.name)
           && Result.is_ok (Color.hex text)
       | _ -> false in
+    (* a colour: a 20-point swatch, then its hex field to the right edge of the control column *)
+    let swatch_and_hex ~path ~control_x ~control_y ~control_w ~swatch_color ~hex_str =
+      let swatch = Ui.box ui ~at:(control_x, control_y) ~w:(Ui.Px 20.) ~h:(Ui.Px 20.) ("swatch-" ^ path) in
+      Ui.draw ui swatch (fun paint (sx, sy, sw, sh) ->
+        Ui.Paint.rect paint ~x:sx ~y:sy ~w:sw ~h:sh ~fill:swatch_color
+          ~stroke:(Pxui.Theme.edge theme) ());
+      fst (Ui.value_field ui ~at:(control_x +. 28., control_y) ~w:(control_w -. 28.) ~h:20.
+        ~left:true ~valid:(fun t -> Result.is_ok (Color.hex t)) ("hex-" ^ path) hex_str) in
     let color_row_3 (row : flow_row) title fields shown =
       let path = row.path in
       let to_f = function
@@ -1667,18 +1675,10 @@ module Inspector = struct
       let hex_str = Printf.sprintf "#%02x%02x%02x" (clamp r) (clamp g) (clamp b) in
       let swatch_color = Color.rgb (clamp r) (clamp g) (clamp b) in
       let box, control_x, control_y, control_w = Ui.inspector_row ui
-          ~width ~key:("flow-row-" ^ path) ~label:title () in
+          ~width ?pin:(pin_of shown) ~key:("flow-row-" ^ path) ~label:title () in
       let whole = Ui.within ui box (fun () ->
         let split = Option.value ~default:false row.split in
-        let swatch_w = 20. and swatch_h = 20. in
-        let swatch = Ui.box ui ~at:(control_x, control_y) ~w:(Ui.Px swatch_w) ~h:(Ui.Px swatch_h) ("swatch-" ^ path) in
-        Ui.draw ui swatch (fun paint (sx, sy, sw, sh) ->
-          Ui.Paint.rect paint ~x:sx ~y:sy ~w:sw ~h:sh ~fill:swatch_color
-            ~stroke:(Pxui.Theme.edge theme) ());
-        let hex_x = control_x +. swatch_w +. 8. in
-        let hex_w = 64. in
-        let text, _ = Ui.value_field ui ~at:(hex_x, control_y) ~w:hex_w ~h:20.
-            ~left:true ~valid:(fun t -> Result.is_ok (Color.hex t)) ("hex-" ^ path) hex_str in
+        let text = swatch_and_hex ~path ~control_x ~control_y ~control_w ~swatch_color ~hex_str in
         let hex_edits =
           if text = hex_str then [] else
           match Color.hex text with
@@ -1691,32 +1691,15 @@ module Inspector = struct
                      Edited (f2.name, Param.Float_value nb) ]
                | _ -> [])
           | Error _ -> [] in
-        let sliders_x = hex_x +. hex_w +. 8. in
-        let sliders_w = Float.max 60. (control_w -. (swatch_w +. 8. +. hex_w +. 8.) -. 24.) in
-        let field_w = (sliders_w -. 16.) /. 3. in
-        let slider_edits = if split || row.components <> [] || control_w < 140. then [] else
-          List.concat (List.mapi (fun index field ->
-            let axis = List.nth [ "r"; "g"; "b" ] index in
-            let ax_x = sliders_x +. float index *. (field_w +. 8.) in
-            Ui.draw ui box (fun paint (x, y, _, _) ->
-              Ui.Paint.text paint ~at:(x +. ax_x +. 2., Kit.cap_y ui (y +. control_y) 20.)
-                ~size:(Kit.cap_size ui) ~color:(Pxui.Theme.ink_3 theme) axis);
-            input field (path ^ "." ^ axis)
-              ~edit:false
-              ~x:ax_x
-              ~y:control_y
-              ~w:field_w) fields) in
         let toggle = actions && action ui ("split-" ^ path) "rgb"
             ~x:(width -. 32.) ~y:control_y
-            ~enabled:(not row.locked) in
-        let pin = actions && action ui ("pin-" ^ path)
-            (if shown then "●" else "○")
-            ~x:0. ~y:control_y
-            ~enabled:(not row.locked) in
-        slider_edits @ hex_edits
+            ~enabled:(not row.locked) () in
+        let pin = actions && action ui ("pin-" ^ path) "pin" ~x:0. ~y:control_y
+            ~enabled:(not row.locked) () in
+        hex_edits
         @ (if toggle then [ Split (path, not split) ] else [])
         @ (if pin then [ Pinned (path, not shown) ] else [])) in
-      if row.split = Some true || row.components <> [] || control_w < 140. then
+      if row.split = Some true || row.components <> [] then
         whole @ List.concat (List.mapi (fun index field ->
           let axis = List.nth [ "r"; "g"; "b" ] index in
           let path = path ^ "." ^ axis in
@@ -1732,51 +1715,16 @@ module Inspector = struct
       let hex_str = Printf.sprintf "#%02x%02x%02x" (clamp r) (clamp g) (clamp b) in
       let swatch_color = Color.rgb (clamp r) (clamp g) (clamp b) in
       let box, control_x, control_y, control_w = Ui.inspector_row ui
-          ~width ~key:("flow-row-" ^ path) ~label:title () in
+          ~width ?pin:(pin_of shown) ~key:("flow-row-" ^ path) ~label:title () in
       Ui.within ui box (fun () ->
-        let swatch_w = 20. and swatch_h = 20. in
-        let swatch = Ui.box ui ~at:(control_x, control_y) ~w:(Ui.Px swatch_w) ~h:(Ui.Px swatch_h) ("swatch-" ^ path) in
-        Ui.draw ui swatch (fun paint (sx, sy, sw, sh) ->
-          Ui.Paint.rect paint ~x:sx ~y:sy ~w:sw ~h:sh ~fill:swatch_color
-            ~stroke:(Pxui.Theme.edge theme) ());
-        let hex_x = control_x +. swatch_w +. 8. in
-        let hex_w = 64. in
-        let text, _ = Ui.value_field ui ~at:(hex_x, control_y) ~w:hex_w ~h:20.
-            ~left:true ~valid:(fun t -> Result.is_ok (Color.hex t)) ("hex-" ^ path) hex_str in
+        let text = swatch_and_hex ~path ~control_x ~control_y ~control_w ~swatch_color ~hex_str in
         let hex_edits =
           if text = hex_str then [] else
           match Color.hex text with
           | Ok _ -> [ Edited (field.Param.name, Param.Text_value text) ]
           | Error _ -> [] in
-        let sliders_x = hex_x +. hex_w +. 8. in
-        let sliders_w = Float.max 60. (control_w -. (swatch_w +. 8. +. hex_w +. 8.) -. 24.) in
-        let field_w = (sliders_w -. 16.) /. 3. in
-        let slider_edits = if control_w < 140. then [] else
-          List.concat (List.mapi (fun index (axis, cur) ->
-            let ax_x = sliders_x +. float index *. (field_w +. 8.) in
-            Ui.draw ui box (fun paint (x, y, _, _) ->
-              Ui.Paint.text paint ~at:(x +. ax_x +. 2., Kit.cap_y ui (y +. control_y) 20.)
-                ~size:(Kit.cap_size ui) ~color:(Pxui.Theme.ink_3 theme) axis);
-            let key = "flow-value-" ^ path ^ "." ^ axis in
-            let changed, _ = Ui.value_field ui ~at:(ax_x, control_y) ~w:field_w ~h:20.
-                ~display:(Printf.sprintf "%.2f" cur) ~fraction:cur
-                ~slide:(fun f -> Printf.sprintf "%.2f" f)
-                ~edit:false ~left:false ~valid:(fun t -> float_of_string_opt t <> None)
-                key (Printf.sprintf "%.2f" cur) in
-            if changed = Printf.sprintf "%.2f" cur then [] else
-            match float_of_string_opt changed with
-            | Some v ->
-                let v = Float.max 0. (Float.min 1. v) in
-                let nr = if index = 0 then v else r in
-                let ng = if index = 1 then v else g in
-                let nb = if index = 2 then v else b in
-                let new_hex = Printf.sprintf "#%02x%02x%02x" (clamp nr) (clamp ng) (clamp nb) in
-                [ Edited (field.Param.name, Param.Text_value new_hex) ]
-            | None -> []) [ "r", r; "g", g; "b", b ]) in
-        let pin = actions && action ui ("pin-" ^ path)
-            (if shown then "●" else "○")
-            ~x:0. ~y:control_y ~enabled:true in
-        slider_edits @ hex_edits @ (if pin then [ Pinned (path, not shown) ] else [])) in
+        let pin = actions && action ui ("pin-" ^ path) "pin" ~x:0. ~y:control_y ~enabled:true () in
+        hex_edits @ (if pin then [ Pinned (path, not shown) ] else [])) in
     let row_widget (row : flow_row) =
       let title = match row.fields with
         | [field] -> field.Param.label | _ -> row.path in
@@ -1786,33 +1734,31 @@ module Inspector = struct
       | None, [field] -> scalar row.path title field row.shown
       | None, fields when is_color_3 row -> color_row_3 row title fields row.shown
       | None, fields ->
+          (* a vector: three fields in the control column, 8 between, each with its axis letter *)
           let box, control_x, control_y, control_w = Ui.inspector_row ui
-              ~width ~key:("flow-row-" ^ row.path) ~label:title () in
+              ~width ?pin:(pin_of row.shown) ~key:("flow-row-" ^ row.path) ~label:title () in
           let whole = Ui.within ui box (fun () ->
             let split = Option.value ~default:false row.split in
-            let field_width = (control_w -. (if actions then 24. else 0.) +. 8.) /. 3. in
-            let edits = if split || row.components <> [] || control_w < 140. then [] else
+            let field_width = (control_w -. (if actions then 24. else 0.) -. 16.) /. 3. in
+            let edits = if split || row.components <> [] then [] else
               List.concat (List.mapi (fun index field ->
                 let axis = List.nth ["x"; "y"; "z"] index in
+                (* the fields' edges land on whole points, as the sheet's do *)
+                let start = control_x +. float index *. (field_width +. 8.) in
+                let fx = Float.round start and fw = Float.round (start +. field_width) -. Float.round start in
                 Ui.draw ui box (fun paint (x, y, _, _) ->
-                  Ui.Paint.text paint ~at:(x +. control_x +. float index *. field_width +. 2.,
-                    Kit.cap_y ui (y +. control_y) 20.)
-                    ~size:(Kit.cap_size ui) ~color:(Pxui.Theme.ink_3 theme) axis);
-                input field (row.path ^ "." ^ axis)
-                  ~edit:false
-                  ~x:(control_x +. float index *. field_width)
-                  ~y:control_y
-                  ~w:(field_width -. 8.)) fields) in
+                  Ui.Paint.text paint ~at:(x +. fx +. 2., Kit.cap_y ui (y +. control_y) 20.)
+                    ~size:(Kit.cap_size ui) ~color:ink_3 axis);
+                input ~ranged:false field (row.path ^ "." ^ axis)
+                  ~edit:false ~x:fx ~y:control_y ~w:fw) fields) in
             let toggle = actions && action ui ("split-" ^ row.path) "xyz"
                 ~x:(width -. 32.) ~y:control_y
-                ~enabled:(not row.locked) in
-            let pin = actions && action ui ("pin-" ^ row.path)
-                (if row.shown then "●" else "○")
-                ~x:0. ~y:control_y
-                ~enabled:(not row.locked) in
+                ~enabled:(not row.locked) () in
+            let pin = actions && action ui ("pin-" ^ row.path) "pin" ~x:0. ~y:control_y
+                ~enabled:(not row.locked) () in
             edits @ (if toggle then [Split (row.path, not split)] else [])
             @ (if pin then [Pinned (row.path, not row.shown)] else [])) in
-          if row.split = Some true || row.components <> [] || control_w < 140. then
+          if row.split = Some true || row.components <> [] then
             whole @ List.concat (List.mapi (fun index field ->
               let axis = List.nth ["x"; "y"; "z"] index in
               let path = row.path ^ "." ^ axis in

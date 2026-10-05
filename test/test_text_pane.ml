@@ -471,24 +471,28 @@ let editor_w9 () =
   let text, label = scenario [ 22, (fun click -> click (1044., 208.)) ] in
   check (not (contains text "^:bypass") && label = Some "Bypass")
     (Printf.sprintf "the B flag: %s, bypass %b" (Option.value label ~default:"-") (contains text "^:bypass"));
-  (* the inspector's Bypass toggle is the flag's request too *)
-  let text, label = scenario [ 22, (fun click -> click (1075., 208.)); 26, (fun click -> click (1374., 217.)) ] in
+  (* the inspector's Bypass button is the flag's request too: the 280-wide inspector starts at
+     x 1120, y 24; its head is 153 tall (chips, name, detail, buttons), the buttons row 124 down,
+     View 51.5 wide, Bypass after it and 4 more: its middle is 1120 + 63.5 + 32; the name is the
+     display line at 64..112; a graph input's head is 125 tall, so its first row is at 149 + 12,
+     and the first row of a node is the note at 177 + 12 *)
+  let text, label = scenario [ 22, (fun click -> click (1075., 208.)); 26, (fun click -> click (1216., 158.)) ] in
   check (not (contains text "^:bypass") && label = Some "Bypass")
     (Printf.sprintf "the inspector's Bypass toggle: %s" (Option.value label ~default:"-"));
   (* and its name field is the pane's rename *)
-  let text, label = scenario [ 22, (fun click -> click (1075., 208.)); 26, (fun click -> click (1290., 193.));
+  let text, label = scenario [ 22, (fun click -> click (1075., 208.)); 26, (fun click -> click (1220., 88.));
     28, (fun _ -> [ Event.KeyPressed (Input.KeyChar 'a') ]); 30, (fun _ -> [ Event.TextInput "gentle" ]);
     32, (fun _ -> [ Event.KeyPressed Input.Enter ]) ] in
   check (contains text "gentle ^:bypass (sop/subdivide" && not (contains text "soft ^:bypass") && label = Some "Rename")
     ("the inspector's name field: " ^ Option.value label ~default:"-");
   (* a graph input's default is edited in the inspector too *)
-  let text, label = scenario [ 22, (fun click -> click (700., 212.)); 26, (fun click -> click (1290., 121.));
+  let text, label = scenario [ 22, (fun click -> click (700., 212.)); 26, (fun click -> click (1290., 161.));
     28, (fun _ -> [ Event.KeyPressed (Input.KeyChar 'a') ]); 30, (fun _ -> [ Event.TextInput "7" ]);
     32, (fun _ -> [ Event.KeyPressed Input.Enter ]) ] in
   check (contains text "(petals : int 7)" && label = Some "Input default")
     ("the inspector's input default: " ^ Option.value label ~default:"-");
   (* the inspector note: click the field, type, Enter *)
-  let text, label = scenario [ 22, (fun click -> click (1075., 208.)); 26, (fun click -> click (1290., 169.));
+  let text, label = scenario [ 22, (fun click -> click (1075., 208.)); 26, (fun click -> click (1290., 189.));
     28, (fun _ -> [ Event.KeyPressed (Input.KeyChar 'a') ]); 30, (fun _ -> [ Event.TextInput "a fresh note" ]);
     32, (fun _ -> [ Event.KeyPressed Input.Enter ]) ] in
   check (contains text "; a fresh note" && label = Some "Note") ("the note edit: " ^ Option.value label ~default:"-");
